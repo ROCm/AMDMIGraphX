@@ -72,42 +72,45 @@ struct pooling_compiler : compiler<pooling_compiler>
 
     struct algorithm
     {
-        std::string name = "reduce::lane";
+        std::string name        = "reduce::lane";
         std::size_t reduce_size = 1;
-        std::size_t block_size = 256;
-        std::size_t group_size = 1;
+        std::size_t block_size  = 256;
+        std::size_t group_size  = 1;
 
         static std::size_t compute_group_size(const shape& output)
         {
-            auto n = output.lens().back();
+            auto n                           = output.lens().back();
             const std::size_t max_group_size = 32;
-            std::size_t group_size = 1;
-            while((n % (group_size*2) == 0) and group_size <= max_group_size)
+            std::size_t group_size           = 1;
+            while((n % (group_size * 2) == 0) and group_size <= max_group_size)
                 group_size *= 2;
             return group_size;
         }
 
-        algorithm()
-        {}
+        algorithm() {}
 
-        algorithm(context& ctx, const shape& input, const shape& output, const std::vector<std::size_t>& window)
+        algorithm(context& ctx,
+                  const shape& input,
+                  const shape& output,
+                  const std::vector<std::size_t>& window)
         {
             if(input.strides().back() != 1)
                 return;
             std::size_t max_wavefront_size = ctx.get_current_device().get_wavefront_size();
-            auto wsize = window.back();
-            // auto wsize = std::accumulate(window.begin(), window.end(), std::size_t{1}, std::multiplies<>{});
-            if (wsize > max_wavefront_size)
+            auto wsize                     = window.back();
+            // auto wsize = std::accumulate(window.begin(), window.end(), std::size_t{1},
+            // std::multiplies<>{});
+            if(wsize > max_wavefront_size)
             {
-                block_size = compute_block_size(ctx, wsize, 256);
+                block_size  = compute_block_size(ctx, wsize, 256);
                 reduce_size = block_size;
-                name = "reduce::block";
+                name        = "reduce::block";
             }
             else
             {
-                block_size = max_wavefront_size;
+                block_size  = max_wavefront_size;
                 reduce_size = compute_subwave_size(ctx, wsize);
-                name = "reduce::subwave<" + to_string(reduce_size) + ">";
+                name        = "reduce::subwave<" + to_string(reduce_size) + ">";
             }
         }
     };
@@ -127,7 +130,7 @@ struct pooling_compiler : compiler<pooling_compiler>
     operation compile_op(context& ctx, const std::vector<shape>& inputs, const value& v) const
     {
         hip_compile_options options;
-        const auto& out_s = inputs.back();
+        const auto& out_s      = inputs.back();
         options.inputs         = inputs;
         options.output         = out_s;
         options.kernel_name    = "pooling_kernel";
@@ -167,10 +170,12 @@ struct pooling_compiler : compiler<pooling_compiler>
         if(mode == "lpnorm")
             op += "<" + v.at("lp_order").to<std::string>() + ">";
 
-
         // algorithm algo{ctx, inputs.front(), inputs.back(), window};
         algorithm algo{};
-        options.set_launch_params(v, compute_global_for(ctx, (out_s.elements() / algo.group_size) * algo.reduce_size, 256), algo.block_size);
+        options.set_launch_params(
+            v,
+            compute_global_for(ctx, (out_s.elements() / algo.group_size) * algo.reduce_size, 256),
+            algo.block_size);
         normalize(options.virtual_inputs, padding, stride, window);
         auto src = interpolate_string(pooling_kernel,
                                       {{"op", op + "{}"},

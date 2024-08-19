@@ -49,7 +49,9 @@ constexpr auto& get_element(element_storage<T, N>& x)
     return x.element;
 }
 
-struct unpack_t {};
+struct unpack_t
+{
+};
 
 template <class... Ts>
 struct tuple_storage;
@@ -61,7 +63,6 @@ struct tuple_storage<detail::seq<Ns...>, Ts...> : element_storage<Ts, Ns>...
     constexpr tuple_storage(Us... ys) : element_storage<Ts, Ns>{static_cast<Ts>(ys)}...
     {
     }
-
 
     template <class U>
     constexpr tuple_storage(unpack_t, U y) : element_storage<Ts, Ns>{static_cast<Ts>(y[_c<Ns>])}...
@@ -117,7 +118,7 @@ using tuple_base = tuple_detail::tuple_storage<typename detail::gens<sizeof...(T
     {                                                                                            \
         using result = tuple<decltype(declval<Ts>() binary_op declval<Us>())...>;                \
         return lhs([&](auto&... xs) {                                                            \
-            return rhs([&](const auto&... ys) { return result{xs binary_op ys...}; });                  \
+            return rhs([&](const auto&... ys) { return result{xs binary_op ys...}; });           \
         });                                                                                      \
     }
 
@@ -126,16 +127,18 @@ struct tuple : tuple_detail::tuple_base<Ts...>
 {
     using base = tuple_detail::tuple_base<Ts...>;
 
-    constexpr tuple()
-    : base(Ts{}...)
-    {}
+    constexpr tuple() : base(Ts{}...) {}
 
-    template <class... Us, MIGRAPHX_REQUIRES(sizeof...(Us) == sizeof...(Ts) and (is_convertible<Us, Ts>{} and ...))>
+    template <class... Us,
+              MIGRAPHX_REQUIRES(sizeof...(Us) == sizeof...(Ts) and
+                                (is_convertible<Us, Ts>{} and ...))>
     constexpr tuple(Us... ys) : base(ys...)
     {
     }
 
-    template <class... Us, MIGRAPHX_REQUIRES(sizeof...(Us) == sizeof...(Ts) and (is_convertible<Us, Ts>{} and ...))>
+    template <class... Us,
+              MIGRAPHX_REQUIRES(sizeof...(Us) == sizeof...(Ts) and
+                                (is_convertible<Us, Ts>{} and ...))>
     constexpr tuple(tuple<Us...> y) : base(tuple_detail::unpack_t{}, y)
     {
     }

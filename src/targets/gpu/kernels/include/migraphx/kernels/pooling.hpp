@@ -35,7 +35,7 @@
 
 namespace migraphx {
 
-template<class Derived>
+template <class Derived>
 struct pool_op
 {
     template <class T>
@@ -61,10 +61,7 @@ struct max_pool : pool_op<max_pool>
 {
     MIGRAPHX_DEVICE_CONSTEXPR auto init() const { return lowest{}; }
 
-    MIGRAPHX_DEVICE_CONSTEXPR auto reduce() const
-    {
-        return op::max{};
-    }
+    MIGRAPHX_DEVICE_CONSTEXPR auto reduce() const { return op::max{}; }
 };
 
 struct average_pool : pool_op<average_pool>
@@ -77,15 +74,12 @@ struct average_pool : pool_op<average_pool>
         return {x, 1};
     }
 
-    MIGRAPHX_DEVICE_CONSTEXPR auto reduce() const
-    {
-        return op::sum{};
-    }
+    MIGRAPHX_DEVICE_CONSTEXPR auto reduce() const { return op::sum{}; }
 
     template <class T, class U>
     MIGRAPHX_DEVICE_CONSTEXPR T final(tuple<T, index_int> t, U) const
     {
-        T x = t[_c<0>];
+        T x         = t[_c<0>];
         index_int y = t[_c<1>];
         return (y == 0) ? T{0.0} : T{x / y};
     }
@@ -95,10 +89,7 @@ struct average_include_pad_pool : pool_op<average_include_pad_pool>
 {
     MIGRAPHX_DEVICE_CONSTEXPR auto init() const { return 0.0; }
 
-    MIGRAPHX_DEVICE_CONSTEXPR auto reduce() const
-    {
-        return op::sum{};
-    }
+    MIGRAPHX_DEVICE_CONSTEXPR auto reduce() const { return op::sum{}; }
 
     template <class T, class U>
     MIGRAPHX_DEVICE_CONSTEXPR T final(T x, U y) const
@@ -132,15 +123,9 @@ struct lpnorm_pool : lpnorm_pool_base, pool_op<lpnorm_pool<P>>
             return migraphx::pow(migraphx::abs(x), T(P));
     }
 
-    MIGRAPHX_DEVICE_CONSTEXPR auto pad() const
-    {
-        return apply(init());
-    }
+    MIGRAPHX_DEVICE_CONSTEXPR auto pad() const { return apply(init()); }
 
-    MIGRAPHX_DEVICE_CONSTEXPR auto reduce() const
-    {
-        return op::sum{};
-    }
+    MIGRAPHX_DEVICE_CONSTEXPR auto reduce() const { return op::sum{}; }
 
     template <class T, class U>
     MIGRAPHX_DEVICE_CONSTEXPR T final(T x, U) const
@@ -206,9 +191,8 @@ __device__ void pooling_reduce(Output output, F f)
 {
     if constexpr(GroupSize < 2)
     {
-        Algo::template run<decltype(output)>([&](auto out_idx, auto r) {
-            r.outer([&] { output[out_idx] = f(out_idx, r); });
-        });
+        Algo::template run<decltype(output)>(
+            [&](auto out_idx, auto r) { r.outer([&] { output[out_idx] = f(out_idx, r); }); });
     }
     else
     {
@@ -226,14 +210,13 @@ __device__ void pooling_reduce(Output output, F f)
 }
 
 template <class Algo, index_int GroupSize, class Op, class Window, class Output, class Input>
-__device__ void
-pooling(Op op, Window w, Output output, Input input)
+__device__ void pooling(Op op, Window w, Output output, Input input)
 {
     pooling_reduce<Algo, GroupSize>(output, [&](auto out_idx, auto r) {
         auto x = r.reduce(op.reduce(), op.init(), w.apply(out_idx, [&](auto j) {
             using itype = decltype(op.apply(input[j]));
             // if constexpr(not w.has_padding())
-                // return op.apply(input[j]);
+            // return op.apply(input[j]);
             if(j < input.get_shape().lens)
             {
                 return op.apply(input[j]);

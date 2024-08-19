@@ -66,8 +66,7 @@ void auto_contiguous::apply(module& m) const
         shape s = ins->get_shape();
         // If s is not standard layout or has out of sequence strides, insert "contiguous" op
         // to make a standard shape
-        if(not s.dynamic() and (not s.standard() or s.normalize_standard() != s) and
-            s.elements() != 0)
+        if(not s.dynamic() and (s.as_standard() != s) and s.elements() > 1)
         {
             auto c = m.insert_instruction(std::next(ins), make_op("contiguous"), ins);
             m.replace_instruction(ins, c);

@@ -33,11 +33,13 @@ namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
 namespace gpu {
 
-std::vector<argument> generate_arguments(const std::vector<shape>& shapes, unsigned long seed = 0)
+std::vector<argument> generate_arguments(const std::vector<shape>& shapes,
+                                         unsigned long seed = 0,
+                                         random_mode rm     = random_mode::random)
 {
     std::vector<argument> args;
     std::transform(shapes.begin(), shapes.end(), std::back_inserter(args), [&](const auto& s) {
-        return to_gpu(generate_argument(s, seed++));
+        return to_gpu(generate_argument(s, seed++, rm));
     });
     return args;
 }
@@ -88,7 +90,7 @@ double time_program(const context& ictx, program p, int n)
     unsigned long seed = 0;
     for(const auto& [name, shape] : in_shapes)
     {
-        param_map[name] = to_gpu(generate_argument(shape, seed++));
+        param_map[name] = to_gpu(generate_argument(shape, seed++, random_mode::random));
     }
     auto run = [&] { p.eval_with_context(ctx_vec, param_map); };
     return time_loop(gctx, n, run);

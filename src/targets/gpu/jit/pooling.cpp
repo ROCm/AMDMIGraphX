@@ -91,7 +91,6 @@ struct pooling_compiler : compiler<pooling_compiler>
 
         algorithm(context& ctx,
                   const shape& input,
-                  const shape& output,
                   const std::vector<std::size_t>& window)
         {
             if(input.strides().back() != 1)
@@ -170,7 +169,7 @@ struct pooling_compiler : compiler<pooling_compiler>
         if(mode == "lpnorm")
             op += "<" + v.at("lp_order").to<std::string>() + ">";
 
-        // algorithm algo{ctx, inputs.front(), inputs.back(), window};
+        // algorithm algo{ctx, inputs.front(), window};
         algorithm algo{};
         options.set_launch_params(
             v,

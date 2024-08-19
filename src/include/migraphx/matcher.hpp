@@ -584,7 +584,7 @@ inline auto outputs()
     };
 }
 
-inline auto trace(std::string s)
+inline auto trace(const std::string& s)
 {
     return [=](auto m) {
         return make_basic_fun_matcher([=](matcher_context& ctx, instruction_ref ins) {
@@ -600,7 +600,7 @@ inline auto trace(std::string s)
     };
 }
 
-inline auto trace_found(std::string s)
+inline auto trace_found(const std::string& s)
 {
     return [=](auto m) {
         return make_basic_fun_matcher([=](matcher_context& ctx, instruction_ref ins) {
@@ -615,7 +615,7 @@ inline auto trace_found(std::string s)
     };
 }
 
-inline auto trace_not_found(std::string s)
+inline auto trace_not_found(const std::string& s)
 {
     return [=](auto m) {
         return make_basic_fun_matcher([=](matcher_context& ctx, instruction_ref ins) {

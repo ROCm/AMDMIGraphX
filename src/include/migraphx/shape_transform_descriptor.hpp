@@ -69,7 +69,7 @@ struct operation;
 // data structure such as merging adjacent dimension, etc. The `generate`
 // method is called to generate the operators need to do this
 // transformation.
-struct shape_transform_descriptor
+struct MIGRAPHX_EXPORT shape_transform_descriptor
 {
     shape_transform_descriptor() = default;
     explicit shape_transform_descriptor(const std::vector<std::size_t>& dims);
@@ -120,7 +120,7 @@ struct shape_transform_descriptor
     std::size_t rank = 0;
 };
 
-std::vector<operation> optimize_shape_transforms(const std::vector<std::size_t>& dims,
+MIGRAPHX_EXPORT std::vector<operation> optimize_shape_transforms(const std::vector<std::size_t>& dims,
                                                  const std::vector<operation>& ops);
 
 } // namespace MIGRAPHX_INLINE_NS

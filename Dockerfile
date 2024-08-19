@@ -23,6 +23,7 @@ RUN apt-get update && DEBIAN_FRONTEND=noninteractive apt-get install -y --allow-
     apt-utils \
     bison \
     build-essential \
+    clang-14 \
     cmake \
     curl \
     flex \
@@ -41,6 +42,7 @@ RUN apt-get update && DEBIAN_FRONTEND=noninteractive apt-get install -y --allow-
     hip-dev \
     libnuma-dev \
     miopen-hip \
+    libomp-dev \
     rocblas \
     hipfft \
     rocthrust \
@@ -90,7 +92,8 @@ ENV ONNX_HOME=/.onnx
 RUN mkdir -p $ONNX_HOME/models && chmod 777 $ONNX_HOME/models
 
 COPY ./tools/install_prereqs.sh /
-RUN /install_prereqs.sh /usr/local / && rm /install_prereqs.sh
+COPY ./tools/requirements-py.txt /requirements-py.txt
+RUN /install_prereqs.sh /usr/local / && rm /install_prereqs.sh && rm /requirements-py.txt
 RUN test -f /usr/local/hash || exit 1
 
 # Install yapf

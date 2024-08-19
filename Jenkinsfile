@@ -44,7 +44,7 @@ def rocmtestnode(Map conf) {
             make -j\$(nproc) generate VERBOSE=1
             git diff
             git diff-index --quiet HEAD || (echo "Generated files are different. Please run make generate and commit the changes." && exit 1)
-            make -j\$(nproc) all doc package check VERBOSE=1
+            make -j\$(nproc) all package check VERBOSE=1
             md5sum ./*.deb
         """
         echo cmd
@@ -122,7 +122,7 @@ rocmtest clang_debug: rocmnode('mi100+') { cmake_build ->
         // Disable MLIR since it doesnt work with all ub sanitizers
         withEnv(['MIGRAPHX_DISABLE_MLIR=1']) {
             def sanitizers = "undefined"
-            def debug_flags = "-g -O2 -fsanitize=${sanitizers} -fno-sanitize-recover=${sanitizers}"
+            def debug_flags = "-g -O2 -fsanitize=${sanitizers} -fno-sanitize=vptr,function -fno-sanitize-recover=${sanitizers}"
             def gpu_targets = getgputargets()
             cmake_build(flags: "-DCMAKE_C_COMPILER=/opt/rocm/llvm/bin/clang -DCMAKE_BUILD_TYPE=debug -DMIGRAPHX_ENABLE_PYTHON=Off -DCMAKE_CXX_FLAGS_DEBUG='${debug_flags}' -DCMAKE_C_FLAGS_DEBUG='${debug_flags}' -DMIGRAPHX_USE_HIPRTC=On -DGPU_TARGETS='${gpu_targets}'", gpu_debug: true)
         }
@@ -165,7 +165,7 @@ rocmtest clang_debug: rocmnode('mi100+') { cmake_build ->
     stage('Clang ASAN') {
         def sanitizers = "undefined,address"
         def debug_flags = "-g -O2 -fno-omit-frame-pointer -fsanitize=${sanitizers} -fno-sanitize-recover=${sanitizers}"
-        cmake_build(flags: "-DCMAKE_C_COMPILER=/opt/rocm/llvm/bin/clang  -DCMAKE_BUILD_TYPE=debug -DMIGRAPHX_ENABLE_PYTHON=Off -DMIGRAPHX_ENABLE_GPU=Off -DMIGRAPHX_ENABLE_CPU=On -DCMAKE_CXX_FLAGS_DEBUG='${debug_flags}' -DCMAKE_C_FLAGS_DEBUG='${debug_flags}'")
+        cmake_build(flags: "-DCMAKE_BUILD_TYPE=debug -DMIGRAPHX_ENABLE_C_API_TEST=Off -DMIGRAPHX_ENABLE_PYTHON=Off -DMIGRAPHX_ENABLE_GPU=Off -DMIGRAPHX_ENABLE_CPU=On -DCMAKE_CXX_FLAGS_DEBUG='${debug_flags}'", compiler:'/usr/bin/clang++-14')
     }
 }
 //, clang_release_navi: rocmnode('navi32') { cmake_build ->

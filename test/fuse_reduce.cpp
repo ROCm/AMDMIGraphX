@@ -1014,7 +1014,7 @@ TEST_CASE(reshape_reduce_reduce_reduce_diff_axes)
                 auto pw5_mb = rm->add_instruction(
                     migraphx::make_op("multibroadcast", {{"out_lens", s1.lens()}}), pw5);
                 return add_pointwise(
-                           p2, rm, "main:pointwise6", {pw5_mb, inputs[3]}, single_pointwise("mul"));
+                    p2, rm, "main:pointwise6", {pw5_mb, inputs[3]}, single_pointwise("mul"));
             });
 
         auto reduce1 =

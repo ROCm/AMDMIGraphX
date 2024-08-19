@@ -36,7 +36,9 @@ struct test_avg_pooling_nhwc : verify_program<test_avg_pooling_nhwc>
         auto* mm = p.get_main_module();
 
         auto input =
-            mm->add_parameter("x", migraphx::shape::from_permutation(migraphx::shape::float_type, {1, 64, 113, 113}, {0, 2, 3, 1}));
+            mm->add_parameter("x",
+                              migraphx::shape::from_permutation(
+                                  migraphx::shape::float_type, {1, 64, 113, 113}, {0, 2, 3, 1}));
         mm->add_instruction(migraphx::make_op("pooling",
                                               {{"mode", migraphx::op::pooling_mode::average},
                                                {"stride", {2, 2}},

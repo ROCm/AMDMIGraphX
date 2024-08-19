@@ -83,11 +83,11 @@ struct MIGRAPHX_EXPORT shape_transform_descriptor
     std::size_t elements() const;
     std::vector<operation> generate() const;
 
-    struct dimension
+    struct MIGRAPHX_EXPORT dimension
     {
         void simplify();
         std::size_t len() const;
-        struct sub
+        struct MIGRAPHX_EXPORT sub
         {
             std::size_t len;
             std::vector<std::size_t> axis = {};
@@ -99,29 +99,29 @@ struct MIGRAPHX_EXPORT shape_transform_descriptor
             // axis, and then length to 1.
             optional<std::size_t> hidden_axis = nullopt;
 
-            friend bool operator==(const sub& x, const sub& y);
-            friend bool operator!=(const sub& x, const sub& y);
-            friend std::ostream& operator<<(std::ostream& os, const sub& x);
+            MIGRAPHX_EXPORT friend bool operator==(const sub& x, const sub& y);
+            MIGRAPHX_EXPORT friend bool operator!=(const sub& x, const sub& y);
+            MIGRAPHX_EXPORT friend std::ostream& operator<<(std::ostream& os, const sub& x);
         };
 
-        friend bool operator==(const dimension& x, const dimension& y);
-        friend bool operator!=(const dimension& x, const dimension& y);
-        friend std::ostream& operator<<(std::ostream& os, const dimension& x);
+        MIGRAPHX_EXPORT friend bool operator==(const dimension& x, const dimension& y);
+        MIGRAPHX_EXPORT friend bool operator!=(const dimension& x, const dimension& y);
+        MIGRAPHX_EXPORT friend std::ostream& operator<<(std::ostream& os, const dimension& x);
 
         std::vector<sub> subdimensions;
     };
-    friend bool operator==(const shape_transform_descriptor& x,
+    MIGRAPHX_EXPORT friend bool operator==(const shape_transform_descriptor& x,
                            const shape_transform_descriptor& y);
-    friend bool operator!=(const shape_transform_descriptor& x,
+    MIGRAPHX_EXPORT friend bool operator!=(const shape_transform_descriptor& x,
                            const shape_transform_descriptor& y);
-    friend std::ostream& operator<<(std::ostream& os, const shape_transform_descriptor& x);
+    MIGRAPHX_EXPORT friend std::ostream& operator<<(std::ostream& os, const shape_transform_descriptor& x);
     std::vector<dimension> dimensions;
     // Rank of the original dimensions
     std::size_t rank = 0;
 };
 
-MIGRAPHX_EXPORT std::vector<operation>
-optimize_shape_transforms(const std::vector<std::size_t>& dims, const std::vector<operation>& ops);
+MIGRAPHX_EXPORT std::vector<operation> optimize_shape_transforms(const std::vector<std::size_t>& dims,
+                                                 const std::vector<operation>& ops);
 
 } // namespace MIGRAPHX_INLINE_NS
 } // namespace migraphx

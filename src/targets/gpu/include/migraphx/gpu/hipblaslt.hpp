@@ -25,22 +25,46 @@
 #define MIGRAPHX_GUARD_MIGRAPHLIB_HIPBLASLT_HPP
 #include <migraphx/manage_ptr.hpp>
 #include <migraphx/gpu/config.hpp>
+#include <migraphx/errors.hpp>
 #if MIGRAPHX_USE_HIPBLASLT
 #include <hipblaslt/hipblaslt.h>
 #define HIPBLASLT_WORKSPACE_SIZE (2 * 128 * 1024 * 1024)
-#ifndef CHECK_HIPBLAS_ERROR
-#define CHECK_HIPBLAS_ERROR(error)                    \
-    if(error != HIPBLAS_STATUS_SUCCESS)               \
-    {                                                 \
-        fprintf(stderr,                               \
-                "hipBLAS error: '%s'(%d) at %s:%d\n", \
-                hipblasStatusToString(error),         \
-                error,                                \
-                __FILE__,                             \
-                __LINE__);                            \
-        exit(EXIT_FAILURE);                           \
+#ifndef HIPBLASLT_INVOKE_FUNCTION
+#define HIPBLASLT_INVOKE_FUNCTION
+template <class F, class... Ts>
+inline auto hipblaslt_invoke(F f, Ts... xs)
+{
+    // Call the function `f` with `xs...` and capture the status
+    auto status = f(xs...);
+
+    if (status != HIPBLAS_STATUS_SUCCESS)
+    {
+        fprintf(stderr,
+                "hipBLAS error: '%s'(%d) at %s:%d\n",
+                hipblasStatusToString(status),
+                status,
+                __FILE__,
+                __LINE__);
+        MIGRAPHX_THROW(EXIT_FAILURE);
     }
-#endif
+    return status;
+}
+
+template <class F, class Pack, class... Ts>
+auto hipblaslt_invoke(F f, Pack p, Ts... xs)
+{
+    return p([=](auto... ws) {
+        auto status = f(ws..., xs...);
+        if(status != HIPBLAS_STATUS_SUCCESS)
+        {
+            MIGRAPHX_THROW("hipblaslt_invoke: hipBlasLt call failed with status " +
+                           std::to_string(status));
+        }
+        return status;
+    });
+}
+
+#endif // HIPBLASLT_INVOKE_FUNCTION
 #endif // MIGRAPHX_USE_HIPBLASLT
 
 namespace migraphx {

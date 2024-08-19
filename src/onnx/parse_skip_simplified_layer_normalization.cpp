@@ -65,8 +65,10 @@ struct parse_skip_simplified_layer_normalization
         // Inputs (3 - 4)
         // input : T
         // 3D input tensor with shape (batch_size, sequence_length, hidden_size) Or 2D input tensor
-        // with shape (token_count, hidden_size) skip : T 3D input tensor with shape (batch_size,
-        // sequence_length, hidden_size) Or 2D input tensor with shape (token_count, hidden_size)
+        // with shape (token_count, hidden_size)
+        // skip : T 
+        // 3D input tensor with shape (batch_size, sequence_length, hidden_size) 
+        // Or 2D input tensor with shape (token_count, hidden_size)
         // gamma : T
         // 1D input tensor with shape (hidden_size)
         // bias (optional) : T

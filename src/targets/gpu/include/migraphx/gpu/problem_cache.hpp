@@ -28,6 +28,7 @@
 #include <migraphx/config.hpp>
 #include <migraphx/value.hpp>
 #include <migraphx/optional.hpp>
+#include <migraphx/gpu/export.h>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {

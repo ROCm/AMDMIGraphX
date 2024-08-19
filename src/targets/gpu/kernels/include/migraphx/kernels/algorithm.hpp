@@ -29,7 +29,7 @@
 namespace migraphx {
 
 template <class T>
-constexpr void swap(T& a, T& b)
+constexpr void swap(T& a, T& b) noexcept
 {
     T old = a;
     a     = b;

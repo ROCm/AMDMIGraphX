@@ -319,7 +319,7 @@ struct miopen_apply
             {
                 return insert_precompile_op(ins);
             }
-#if 0
+#if MIGRAPHX_USE_MIOPEN
             auto output                       = insert_allocation(ins, ins->get_shape());
             std::vector<instruction_ref> refs = ins->inputs();
             refs.push_back(output);

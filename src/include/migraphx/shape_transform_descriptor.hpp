@@ -111,17 +111,18 @@ struct MIGRAPHX_EXPORT shape_transform_descriptor
         std::vector<sub> subdimensions;
     };
     MIGRAPHX_EXPORT friend bool operator==(const shape_transform_descriptor& x,
-                           const shape_transform_descriptor& y);
+                                           const shape_transform_descriptor& y);
     MIGRAPHX_EXPORT friend bool operator!=(const shape_transform_descriptor& x,
-                           const shape_transform_descriptor& y);
-    MIGRAPHX_EXPORT friend std::ostream& operator<<(std::ostream& os, const shape_transform_descriptor& x);
+                                           const shape_transform_descriptor& y);
+    MIGRAPHX_EXPORT friend std::ostream& operator<<(std::ostream& os,
+                                                    const shape_transform_descriptor& x);
     std::vector<dimension> dimensions;
     // Rank of the original dimensions
     std::size_t rank = 0;
 };
 
-MIGRAPHX_EXPORT std::vector<operation> optimize_shape_transforms(const std::vector<std::size_t>& dims,
-                                                 const std::vector<operation>& ops);
+MIGRAPHX_EXPORT std::vector<operation>
+optimize_shape_transforms(const std::vector<std::size_t>& dims, const std::vector<operation>& ops);
 
 } // namespace MIGRAPHX_INLINE_NS
 } // namespace migraphx

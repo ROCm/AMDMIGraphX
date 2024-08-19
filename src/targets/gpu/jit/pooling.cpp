@@ -89,9 +89,7 @@ struct pooling_compiler : compiler<pooling_compiler>
 
         algorithm() {}
 
-        algorithm(context& ctx,
-                  const shape& input,
-                  const std::vector<std::size_t>& window)
+        algorithm(context& ctx, const shape& input, const std::vector<std::size_t>& window)
         {
             if(input.strides().back() != 1)
                 return;

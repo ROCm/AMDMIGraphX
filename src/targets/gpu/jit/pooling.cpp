@@ -112,14 +112,16 @@ struct pooling_compiler : compiler<pooling_compiler>
         }
     };
 
-    template <class... Ts>
+    template<class... Ts>
     static void normalize(std::vector<shape>& inputs, Ts&... xs)
     {
-        auto perm = find_permutation(inputs);
+        auto perm   = find_permutation(inputs);
         std::transform(inputs.begin(), inputs.end(), inputs.begin(), [&](auto s) {
             return reorder_shape(s, perm);
         });
-        each_args([&](auto& dims) { dims = reorder_dims(dims, perm); }, xs...);
+        each_args([&](auto& dims) {
+            dims = reorder_dims(dims, perm);
+        }, xs...);
     }
 
     std::vector<std::string> names() const { return {"pooling"}; }
@@ -171,7 +173,7 @@ struct pooling_compiler : compiler<pooling_compiler>
         // algorithm algo{ctx, inputs.front(), inputs.back(), window};
         algorithm algo{};
         options.set_launch_params(v, compute_global_for(ctx, (out_s.elements() / algo.group_size) * algo.reduce_size, 256), algo.block_size);
-        options.virtual_inputs = normalize(inputs, padding, stride, window);
+        normalize(options.virtual_inputs, padding, stride, window);
         auto src = interpolate_string(pooling_kernel,
                                       {{"op", op + "{}"},
                                        {"algo", algo.name},

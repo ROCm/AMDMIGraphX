@@ -67,7 +67,7 @@ struct concat_compiler : compiler<concat_compiler>
 
     static std::vector<shape> normalize(std::vector<shape> inputs, std::size_t& axis)
     {
-        auto s    = inputs.back();
+        auto s = inputs.back();
         std::vector<std::size_t> strides(s.lens().size());
         strides[axis] = 1;
 

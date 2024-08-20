@@ -139,17 +139,6 @@ struct hip_device
             return hblthandle.get();
         }
 
-        auto get_hipblaslt_preference()
-        {
-            setup();
-            if(hbltpreference == nullptr)
-            {
-                hbltpreference = create_hipblaslt_preference_ptr();
-            }
-            assert(hbltpreference.get() != nullptr);
-            return hbltpreference.get();
-        }
-
         auto get_hipblaslt_workspace()
         {
             setup();
@@ -200,7 +189,6 @@ struct hip_device
 
 #if MIGRAPHX_USE_HIPBLASLT
         shared<hipblaslt_handle_ptr> hblthandle         = nullptr;
-        shared<hipblaslt_preference_ptr> hbltpreference = nullptr;
         shared<hipblaslt_workspace_ptr> hbltworkspace   = nullptr;
 #endif
     };

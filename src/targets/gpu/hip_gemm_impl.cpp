@@ -257,12 +257,22 @@ struct hip_gemm_impl
     {
         solution() : handle(nullptr), preference(nullptr) {}
 
+        auto get_hipblaslt_preference()
+        {
+            if(hbltpreference == nullptr)
+            {
+                hbltpreference = create_hipblaslt_preference_ptr();
+            }
+            assert(hbltpreference.get() != nullptr);
+            return hbltpreference.get();
+        }
+
         void init(context& ctx)
         {
             if(handle == nullptr)
             {
                 handle     = ctx.get_stream().get_hipblaslt();
-                preference = ctx.get_stream().get_hipblaslt_preference();
+                preference = get_hipblaslt_preference();
             }
         }
 
@@ -314,6 +324,7 @@ struct hip_gemm_impl
         hipblasLtHandle_t handle;
         hipblasLtMatmulPreference_t preference;
         std::vector<hipblasLtMatmulHeuristicResult_t> heuristicResult;
+        shared<hipblaslt_preference_ptr> hbltpreference = nullptr;
     } solution;
 
     /**

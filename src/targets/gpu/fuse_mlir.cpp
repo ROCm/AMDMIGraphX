@@ -592,6 +592,19 @@ struct find_mlir_standalone_attention_op
             bias = mm->add_instruction(make_op("add"), scaled_gemm0, bias_param);
             inputs.push_back(bias_input);
         }
+        else if(orig_inputs.size() == 5) // gemm1 + mul_where + softmax + gemm2 + trailing_pm case
+        {
+            auto select_cond  = orig_inputs[2];
+            auto select_const = orig_inputs[3];
+            instruction_ref select_cond_param =
+                mm->add_parameter("y_cond", select_cond->get_shape().as_standard());
+            instruction_ref select_cond_const =
+                mm->add_parameter("y_const", select_const->get_shape().as_standard());
+            bias = mm->add_instruction(
+                make_op("where"), select_cond_param, scaled_gemm0, select_cond_const);
+            inputs.push_back(select_cond);
+            inputs.push_back(select_const);
+        }
 
         auto softmax = mm->add_instruction(
             make_op("softmax", {{"axis", gemm0->get_shape().lens().size() - 1}}),

@@ -313,11 +313,13 @@ struct gemm_impl
     {
         // Create dummy arguments for the shapes, and call the overloaded method
         std::vector<argument> input_args;
+        unsigned long seed = 0;
         std::transform(input_shapes.begin(),
                        input_shapes.end(),
                        std::back_inserter(input_args),
-                       [](const shape& x) { return to_gpu(generate_argument(x)); });
-
+                       [&](const shape& x) {
+                           return to_gpu(generate_argument(x, seed++, random_mode::random));
+                       });
         return validate(ctx, input_args, solution_idx);
     }
 
@@ -450,12 +452,14 @@ struct gemm_impl
     {
         // tuning meta parameters
         const int hot_calls = 40;
-
+        unsigned long seed  = 0;
         std::vector<argument> input_args;
         std::transform(input_shapes.begin(),
                        input_shapes.end(),
                        std::back_inserter(input_args),
-                       [](const shape& x) { return to_gpu(generate_argument(x)); });
+                       [&](const shape& x) {
+                           return to_gpu(generate_argument(x, seed++, random_mode::random));
+                       });
 
         // Get the solutions list in 2 rocBLAS steps:
         // 1.  Find out how many solutions there are and allocate the array

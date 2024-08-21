@@ -175,20 +175,10 @@ struct parse_softmaxcrossentropyloss : op_parser<parse_softmaxcrossentropyloss>
         return reduction;
     }
 
-    std::vector<instruction_ref> parse(const op_desc& /*opd */,
-                                       const onnx_parser& parser,
-                                       const onnx_parser::node_info& info,
-                                       const std::vector<instruction_ref>& args) const
+    instruction_ref get_scores(const instruction_ref &arg) const
     {
-        // Get and handle attributes
-        auto reduction = get_reduction_param(info);
-
-        // Get and validate Inputs
-        auto scores = args.at(0);
-        auto labels = args.at(1);
+        auto scores = arg;
         auto scores_shape = scores->get_shape();
-        auto label_shape = labels->get_shape();
-
         if(scores_shape.ndim() < 2)
         {
             MIGRAPHX_THROW("softmaxcrossentropyloss: Scores must be two or more dimensions [batch, "
@@ -200,6 +190,13 @@ struct parse_softmaxcrossentropyloss : op_parser<parse_softmaxcrossentropyloss>
             MIGRAPHX_THROW(
                 "softmaxcrossentropyloss: Score must be either half, float, or double type");
         }
+        return scores;
+    }
+
+    instruction_ref get_labels(const instruction_ref &arg, shape &scores_shape) const
+    {
+        auto labels = arg;
+        auto label_shape = labels->get_shape();
 
         if(scores_shape.lens()[0] != label_shape.lens()[0])
         {
@@ -211,7 +208,23 @@ struct parse_softmaxcrossentropyloss : op_parser<parse_softmaxcrossentropyloss>
         {
             MIGRAPHX_THROW(
                 "softmaxcrossentropyloss: Score and Labels must contain identical K-Dimensions");
-        }
+        }   
+        return labels;
+    }
+
+    std::vector<instruction_ref> parse(const op_desc& /*opd */,
+                                       const onnx_parser& parser,
+                                       const onnx_parser::node_info& info,
+                                       const std::vector<instruction_ref>& args) const
+    {
+        // Get and handle attributes
+        auto reduction = get_reduction_param(info);
+
+        // Get and validate Inputs
+        auto scores = get_scores(args.at(0));
+        auto scores_shape = scores->get_shape();
+        auto labels  = get_labels(args.at(1), scores_shape);
+        auto label_shape = labels->get_shape();
 
         bool is_k_dim  = (scores_shape.ndim() > 3);
         size_t batch_size = scores_shape.lens().at(0);

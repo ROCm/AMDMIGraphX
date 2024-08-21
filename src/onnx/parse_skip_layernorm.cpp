@@ -112,7 +112,11 @@ struct parse_skiplayernorm : op_parser<parse_skiplayernorm>
         if(has_bias)
             x = info.add_common_op("add", x, bias);
         auto x_sq = info.add_common_op("mul", x, x);
+        auto acc_factor = info.add_literal(migraphx::literal{migraphx::shape{x_dtype}, {10.0}});
+        x_sq = info.add_common_op("mul", x_sq, acc_factor);
         auto rms = info.add_instruction(make_op("reduce_mean", {{"axes", {axis}}}), x_sq);
+        rms = info.add_common_op("div", rms, acc_factor);
+        // auto rms = info.add_instruction(make_op("reduce_mean", {{"axes", {axis}}}), x_sq);
         auto mean = rms;
         epsilon =
             (x_dtype == migraphx::shape::half_type and std::abs(epsilon) < 1e-7) ? 1e-7 : epsilon;

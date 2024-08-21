@@ -190,7 +190,7 @@ struct gqa_rotary_embedding_compiler : compiler<gqa_rotary_embedding_compiler>
 
         auto virtual_inputs = flatten(inputs);
         hip_compile_options options;
-        options.set_launch_params(v, compute_global_for(ctx, inputs.at(0).elements()));
+        options.set_launch_params(v, compute_global_for(ctx, inputs.back().elements()));
         int blocks_per_batch = 1; ////
         options.inputs         = virtual_inputs;
         options.output         = inputs.back();

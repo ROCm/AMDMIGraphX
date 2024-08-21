@@ -122,11 +122,12 @@ __device__ void run_rotary_embedding(Input input,
                           bool interleaved,
                           Pos_IDs pos_ids,
                           Params parameters,
-                          int idx)
+                          int idx,
+                          bool is_query=false)
 {
     const int batch_size          = parameters.batch_size;
     const int sequence_length     = parameters.sequence_length;
-    const int n_heads             = parameters.num_heads;
+    const int n_heads             = is_query ? parameters.num_heads : parameters.kv_num_heads;
     const int head_size           = parameters.head_size;
     const int head_stride         = parameters.head_stride;
     const int seq_stride          = parameters.seq_stride;
@@ -137,13 +138,14 @@ __device__ void run_rotary_embedding(Input input,
 
 
     const int loop_len = batch_size * sequence_length * n_heads;
-    if (idx < loop_len)
-    // for(idx = 0; idx < loop_len; ++idx)
+    auto i = idx / head_size;
+    auto ii = idx % head_size;
+    if (i < loop_len)
     {
         // printf("%d < %d\n", static_cast<int>(idx), loop_len);
-        const int b            = static_cast<int>((idx / n_heads) / sequence_length);
-        const int s            = static_cast<int>((idx / n_heads) % sequence_length);
-        const int n            = static_cast<int>(idx % n_heads);
+        const int b            = static_cast<int>((i / n_heads) / sequence_length);
+        const int s            = static_cast<int>((i / n_heads) % sequence_length);
+        const int n            = static_cast<int>(i % n_heads);
         const int block_offset = b * batch_stride + s * seq_stride + n * head_stride;
         // printf("block offset: %d\n", block_offset);
         auto input_data        = input + block_offset;
@@ -162,27 +164,27 @@ __device__ void run_rotary_embedding(Input input,
         int cache_idx = 0;
         double sign    = 0.0;
         int j         = 0;
-        for(int i = 0; i < rotary_emb_dim; i++)
+        if(ii < rotary_emb_dim)
         {
             if(interleaved)
             {
-                cache_idx = (i / 2) % half_rotary_emb_dim;
-                sign      = (i % 2 == 0) ? -1.0 : 1.0;
-                j         = (i % 2 == 0) ? i + 1 : i - 1; // i - sign
+                cache_idx = (ii / 2) % half_rotary_emb_dim;
+                sign      = (ii % 2 == 0) ? -1.0 : 1.0;
+                j         = (ii % 2 == 0) ? ii + 1 : ii - 1; // i - sign
             }
             else
             {
-                cache_idx = i % half_rotary_emb_dim;
-                sign      = (i < half_rotary_emb_dim) ? -1.0 : 1.0;
-                j         = (i + half_rotary_emb_dim) % rotary_emb_dim;
+                cache_idx = ii % half_rotary_emb_dim;
+                sign      = (ii < half_rotary_emb_dim) ? -1.0 : 1.0;
+                j         = (ii + half_rotary_emb_dim) % rotary_emb_dim;
             }
-            double out_data = static_cast<double>(input_data[i]) * static_cast<double>(cos_data[cache_idx]) +
+            double out_data = static_cast<double>(input_data[ii]) * static_cast<double>(cos_data[cache_idx]) +
                               sign * static_cast<double>(input_data[j]) * static_cast<double>(sin_data[cache_idx]);
-            output_data[i] = out_data;
+            output_data[ii] = out_data;
         }
-        for(int i = rotary_emb_dim; i < head_size; i++)
+        else if (ii < head_size)
         {
-            output_data[i] = input_data[i];
+            output_data[ii] = input_data[ii];
         }
     }
     
@@ -192,19 +194,20 @@ template <class Params, class Input, class Output>
 __device__ void pack_v_into_rotary_QKV(Params parameters, const Input input, Output output, int idx)
 {
     const int loop_len = parameters.batch_size * parameters.sequence_length * parameters.kv_num_heads;
-
-    if (idx < loop_len)
+    auto i = idx / parameters.head_size;
+    auto ii = idx % parameters.head_size;
+    if (i < loop_len)
     {
-        const int b = static_cast<int>((idx / parameters.kv_num_heads) / parameters.sequence_length);
-        const int s = static_cast<int>((idx / parameters.kv_num_heads) % parameters.sequence_length);
-        const int n = static_cast<int>(idx % parameters.kv_num_heads);
+        const int b = static_cast<int>((i / parameters.kv_num_heads) / parameters.sequence_length);
+        const int s = static_cast<int>((i / parameters.kv_num_heads) % parameters.sequence_length);
+        const int n = static_cast<int>(i % parameters.kv_num_heads);
         const int block_offset = b * parameters.batch_stride + s * parameters.seq_stride +
                                     n * parameters.head_stride;
         const Input input_data = input + block_offset;
         Output output_data      = output + block_offset;
-        for(int i = 0; i < parameters.head_size; i++)
+        if(ii < parameters.head_size)
         {
-            output_data[i] = input_data[i];
+            output_data[ii] = input_data[ii];
         }
     }
 }
@@ -251,7 +254,7 @@ __device__ void gqa_rotary_embedding(Output output,
     no_op(output, query, seqlens_k, cos_cache, sin_cache, params);
      
     auto ind = make_index();
-    ind.global_stride(query.get_shape().elements(), [&](auto idx) {
+    ind.global_stride(output.get_shape().elements(), [&](auto idx) {
         // if(idx == 0)
         // {
         //     params.print();
@@ -260,32 +263,42 @@ __device__ void gqa_rotary_embedding(Output output,
         //         printf("gpu_query%d: %f\n", i, static_cast<double>(query[i]));
         //     }
         // }
+        
         auto q_input  = query.begin();
         auto q_rotary = output.begin();
-        run_rotary_embedding(q_input,
-                            cos_cache.begin(),
-                            sin_cache.begin(),
-                            q_rotary,
-                            params.rotary_interleaved,
-                            seqlens_k.begin(),
-                            params,
-                            idx);
-        
-        
         auto k_input  = q_input + params.num_heads * params.sequence_length * params.head_size;
         auto k_rotary = q_rotary + params.num_heads * params.sequence_length * params.head_size;
-        run_rotary_embedding(k_input,
+        auto v_input  = k_input + params.kv_num_heads * params.sequence_length * params.head_size;
+        auto v_rotary = k_rotary + params.kv_num_heads * params.sequence_length * params.head_size;
+        auto q_chunk_size = params.batch_size * params.num_heads * params.sequence_length * params.head_size;
+        auto kv_chunk_size = params.batch_size * params.kv_num_heads * params.sequence_length * params.head_size;
+        if (idx < q_chunk_size)
+        {
+            run_rotary_embedding(q_input,
+                                cos_cache.begin(),
+                                sin_cache.begin(),
+                                q_rotary,
+                                params.rotary_interleaved,
+                                seqlens_k.begin(),
+                                params,
+                                idx,
+                                true);
+        }
+        else if (idx < q_chunk_size + kv_chunk_size)
+        {
+            run_rotary_embedding(k_input,
                                 cos_cache.begin(),
                                 sin_cache.begin(),
                                 k_rotary,
                                 params.rotary_interleaved,
                                 seqlens_k.begin(),
                                 params,
-                                idx);
-
-        auto v_input  = k_input + params.kv_num_heads * params.sequence_length * params.head_size;
-        auto v_rotary = k_rotary + params.kv_num_heads * params.sequence_length * params.head_size;
-        pack_v_into_rotary_QKV(params, v_input, v_rotary, idx);
+                                idx - q_chunk_size);
+        }
+        else if (idx < output.get_shape().elements())
+        {
+            pack_v_into_rotary_QKV(params, v_input, v_rotary, idx - (q_chunk_size + kv_chunk_size));
+        }
     });
 }
 

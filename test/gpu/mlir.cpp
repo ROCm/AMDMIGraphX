@@ -275,6 +275,35 @@ module {
     EXPECT(verify_mlir(m));
 }
 
+TEST_CASE(conv_reduce_sum)
+{
+    std::string mlir_output = R"__migraphx__(
+module {
+  func.func @mlir_convolution_reshape_reduce_sum_reshape(%arg0: !migraphx.shaped<2x8x3x3xf32, 72x9x3x1>, %arg1: !migraphx.shaped<1x8x4x4xf32, 128x16x4x1>) -> !migraphx.shaped<1x2x1x1xf32, 2x1x1x1> attributes ${attrs} {
+    %0 = migraphx.convolution %arg1, %arg0 {dilation = [1, 1], group = 1 : i64, padding = [0, 0, 0, 0], padding_mode = 0 : i64, stride = [1, 1]} : <1x8x4x4xf32, 128x16x4x1>, <2x8x3x3xf32, 72x9x3x1> -> <1x2x2x2xf32, 8x4x2x1>
+    %1 = migraphx.reshape %0 {dims = [1,  2,  4]} : <1x2x2x2xf32, 8x4x2x1> -> <1x2x4xf32, 8x4x1>
+    %2 = migraphx.reduce_sum %1 {axes = [2]} : <1x2x4xf32, 8x4x1> -> <1x2x1xf32, 2x1x1>
+    %3 = migraphx.reshape %2 {dims = [1, 2, 1, 1]} : <1x2x1xf32, 2x1x1> -> <1x2x1x1xf32, 2x1x1x1>
+    return %3 : !migraphx.shaped<1x2x1x1xf32, 2x1x1x1>
+  }
+}
+)__migraphx__";
+    migraphx::module m;
+    auto x          = m.add_parameter("x", {migraphx::shape::float_type, {1, 8, 4, 4}});
+    auto w          = m.add_parameter("w", {migraphx::shape::float_type, {2, 8, 3, 3}});
+    auto conv       = m.add_instruction(migraphx::make_op("convolution"), x, w);
+    auto reduce_sum = m.add_instruction(migraphx::make_op("reduce_sum", {{"axes", {2, 3}}}), conv);
+    m.add_return({reduce_sum});
+    auto s = migraphx::gpu::dump_mlir(m);
+    // Skip test if MLIR is not enabled
+    if(s.empty())
+        return;
+    auto mlir_output_with_attrs =
+        migraphx::interpolate_string(mlir_output, {{"attrs", get_attrs()}});
+    CHECK(encode(s) == encode(mlir_output_with_attrs));
+    // EXPECT(verify_mlir(m));
+}
+
 TEST_CASE(quant_dot_add)
 {
     std::string mlir_output = R"__migraphx__(

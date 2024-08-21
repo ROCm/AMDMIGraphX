@@ -21,6 +21,7 @@ RUN zypper --gpg-auto-import-keys install -y \
     git \
     python3-pip \
     rpm-build \
+    perl-File-BaseDir \
     hipblaslt
 
 #addition of repos for packages

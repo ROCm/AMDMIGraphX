@@ -161,12 +161,13 @@ TEST_CASE(two_transpose_gather)
 TEST_CASE(two_transpose_gather2)
 {
     // A shape may be standard but have mixed strides if they're on axes with size 1.  A
-    // contiguous instruction should still be added in this case.  
+    // contiguous instruction should still be added in this case.
     migraphx::module m1;
     {
-        auto data = m1.add_parameter("2x2", {migraphx::shape::float_type, {11, 8, 1, 1}, {8, 1, 1, 1}});
-        auto ind  = m1.add_parameter("ind", {migraphx::shape::float_type, {2, 3}});
-        auto td   = m1.add_instruction(
+        auto data =
+            m1.add_parameter("2x2", {migraphx::shape::float_type, {11, 8, 1, 1}, {8, 1, 1, 1}});
+        auto ind = m1.add_parameter("ind", {migraphx::shape::float_type, {2, 3}});
+        auto td  = m1.add_instruction(
             migraphx::make_op("transpose", {{"permutation", {0, 2, 1, 3}}}), data);
         auto sd = m1.add_instruction(migraphx::make_op("softmax", {{"axis", 2}}), td);
         auto bd =
@@ -180,8 +181,8 @@ TEST_CASE(two_transpose_gather2)
     {
         auto data =
             m2.add_parameter("2x2", {migraphx::shape::float_type, {11, 8, 1, 1}, {8, 1, 1, 1}});
-        auto ind  = m2.add_parameter("ind", {migraphx::shape::float_type, {2, 3}});
-        auto td   = m2.add_instruction(
+        auto ind = m2.add_parameter("ind", {migraphx::shape::float_type, {2, 3}});
+        auto td  = m2.add_instruction(
             migraphx::make_op("transpose", {{"permutation", {0, 2, 1, 3}}}), data);
         auto ctd = m2.add_instruction(migraphx::make_op("contiguous"), td);
         auto sd  = m2.add_instruction(migraphx::make_op("softmax", {{"axis", 2}}), ctd);

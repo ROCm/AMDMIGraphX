@@ -265,20 +265,6 @@ void nop(Ts&&...)
 {
 }
 
-/**
- * Check if two types are from the same named template.
- * Works by discarding the template argument types.
- */
-template <class T, class U>
-struct are_same_template : std::false_type
-{
-};
-
-template <template <class...> class T, class... U, class... V>
-struct are_same_template<T<U...>, T<V...>> : std::true_type
-{
-};
-
 } // namespace MIGRAPHX_INLINE_NS
 } // namespace migraphx
 

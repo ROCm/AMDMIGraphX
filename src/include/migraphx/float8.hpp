@@ -379,35 +379,51 @@ class numeric_limits<fp8e5m2>
 
 // =================================================================================================
 // define numeric limits for the new data type
-// commutative common_type class template coded to avoid multiple ambiguous definitions
 // NOLINTBEGIN
 namespace std {
-#define MIGRAPHX_FP8_STD_OVERLOADS(T)                                                        \
-    inline bool isfinite(T x) { return not x.is_inf() and not x.is_nan(); }                  \
-    inline bool isnan(T x) { return x.is_nan(); }                                            \
-    template <>                                                                              \
-    class numeric_limits<T> : public migraphx::fp8::numeric_limits<T>                        \
-    {                                                                                        \
-    };                                                                                       \
-    template <class U>                                                                       \
-    struct common_type<T, U> : std::common_type<float, U>                                    \
-    {                                                                                        \
-    };                                                                                       \
-    template <class U>                                                                       \
-    struct common_type<U, T, std::enable_if_t<not migraphx::are_same_template<U, T>::value>> \
-        : std::common_type<float, U>                                                         \
-    {                                                                                        \
-    };                                                                                       \
-    template <>                                                                              \
-    struct common_type<T, T>                                                                 \
-    {                                                                                        \
-        using type = T;                                                                      \
+#define MIGRAPHX_FP8_STD_OVERLOADS(T)                                       \
+    inline bool isfinite(T x) { return not x.is_inf() and not x.is_nan(); } \
+    inline bool isnan(T x) { return x.is_nan(); }                           \
+    template <>                                                             \
+    class numeric_limits<T> : public migraphx::fp8::numeric_limits<T>       \
+    {                                                                       \
+    };                                                                      \
+    template <class U>                                                      \
+    struct common_type<T, U> : std::common_type<float, U>                   \
+    {                                                                       \
+    };                                                                      \
+    template <class U>                                                      \
+    struct common_type<U, T> : std::common_type<U, float>                   \
+    {                                                                       \
+    };                                                                      \
+    template <>                                                             \
+    struct common_type<T, T>                                                \
+    {                                                                       \
+        using type = T;                                                     \
     };
 
 MIGRAPHX_FP8_STD_OVERLOADS(migraphx::fp8::fp8e4m3fn)
 MIGRAPHX_FP8_STD_OVERLOADS(migraphx::fp8::fp8e5m2)
 MIGRAPHX_FP8_STD_OVERLOADS(migraphx::fp8::fp8e4m3fnuz)
 MIGRAPHX_FP8_STD_OVERLOADS(migraphx::fp8::fp8e5m2fnuz)
+
+// needed to resolve between multiple ambiguous definition from previous templates
+#define MIGRAPHX_FP8_COMMON_TYPE_OVERLOAD_RESOLUTION(T, U)    \
+    template <>                                               \
+    struct common_type<T, U> : std::common_type<float, float> \
+    {                                                         \
+    };                                                        \
+    template <>                                               \
+    struct common_type<U, T> : std::common_type<float, float> \
+    {                                                         \
+    };
+
+MIGRAPHX_FP8_COMMON_TYPE_OVERLOAD_RESOLUTION(migraphx::fp8::fp8e4m3fn, migraphx::fp8::fp8e5m2)
+MIGRAPHX_FP8_COMMON_TYPE_OVERLOAD_RESOLUTION(migraphx::fp8::fp8e4m3fn, migraphx::fp8::fp8e4m3fnuz)
+MIGRAPHX_FP8_COMMON_TYPE_OVERLOAD_RESOLUTION(migraphx::fp8::fp8e4m3fn, migraphx::fp8::fp8e5m2fnuz)
+MIGRAPHX_FP8_COMMON_TYPE_OVERLOAD_RESOLUTION(migraphx::fp8::fp8e5m2, migraphx::fp8::fp8e4m3fnuz)
+MIGRAPHX_FP8_COMMON_TYPE_OVERLOAD_RESOLUTION(migraphx::fp8::fp8e5m2, migraphx::fp8::fp8e5m2fnuz)
+MIGRAPHX_FP8_COMMON_TYPE_OVERLOAD_RESOLUTION(migraphx::fp8::fp8e4m3fnuz, migraphx::fp8::fp8e5m2fnuz)
 } // namespace std
 // NOLINTEND
 // =================================================================================================

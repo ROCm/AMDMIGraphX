@@ -89,6 +89,8 @@ std::vector<pass> target::get_passes(migraphx::context& gctx, const compile_opti
     std::set<shape::type_t> unsupported_types(shape::types().begin(), shape::types().end());
     unsupported_types.erase(shape::type_t::float_type);
     unsupported_types.erase(shape::type_t::fp8e4m3fnuz_type);
+    unsupported_types.erase(shape::type_t::fp8e4m3fn_type);
+    unsupported_types.erase(shape::type_t::fp8e5m2_type);
     unsupported_types.erase(shape::type_t::half_type);
     unsupported_types.erase(shape::type_t::bool_type);
     unsupported_types.erase(shape::type_t::int8_type);

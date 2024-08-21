@@ -84,10 +84,11 @@ TEST_CASE(quantizelinear_2)
     EXPECT(results_vector == gold);
 }
 
-TEST_CASE(quantizelinear_3)
+template <class DType>
+void quantizelinear_3()
 {
     migraphx::shape xs{migraphx::shape::float_type, {2, 2, 2}};
-    migraphx::shape zs{migraphx::shape::fp8e4m3fnuz_type, {2, 2, 2}};
+    migraphx::shape zs{migraphx::shape::get_type<DType>{}, {2, 2, 2}};
     std::vector<float> xv = {0.5, 0.75, -0.4375, 0.6875, -0.9375, -0.9375, 0.625, -0.5625};
     std::vector<float> sv = {0.25, 0.75, 0.5625, 0.4375, 0.8125, -0.6875, 0.875, -0.0625};
     std::vector<float> zv{0.6875, 0.75, -0.75, 0.5, -0.0625, 0.0625, -0.375, 0.25};
@@ -109,3 +110,6 @@ TEST_CASE(quantizelinear_3)
     std::vector<float> gold{2.75, 1.75, -1.75, 2.5, -1, 1, 0.625, 9};
     EXPECT(results_vector == gold);
 }
+TEST_CASE_REGISTER(quantizelinear_3<migraphx::fp8::fp8e4m3fnuz>);
+TEST_CASE_REGISTER(quantizelinear_3<migraphx::fp8::fp8e4m3fn>);
+TEST_CASE_REGISTER(quantizelinear_3<migraphx::fp8::fp8e5m2>);

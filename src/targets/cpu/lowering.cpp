@@ -372,12 +372,15 @@ struct cpu_apply
                                        {"x"}),
                             fuse_match(match::layernorm(), make_op("dnnl::layernorm"), {"x"}));
         // Apply these operators first so the inputs can be const folded
+        std::set<shape::type_t> fp8_types = {migraphx::shape::fp8e4m3fnuz_type,
+                                             migraphx::shape::fp8e4m3fn_type,
+                                             migraphx::shape::fp8e5m2_type};
         for(auto it : iterator_for(*modl))
         {
             // skip lowering if input has fp8 as one of the inputs since oneDNN doesn't have fp8
             // supported yet.
             if(std::any_of(it->inputs().begin(), it->inputs().end(), [](const auto& i) {
-                   return i->get_shape().type() == migraphx::shape::fp8e4m3fnuz_type;
+                   return contains(fp8_types, i->get_shape().type());
                }))
                 continue;
             if(it->name() == "pow")
@@ -390,7 +393,7 @@ struct cpu_apply
             // skip lowering if input has fp8 as one of the inputs since oneDNN doesn't have fp8
             // supported yet.
             if(std::any_of(it->inputs().begin(), it->inputs().end(), [](const auto& i) {
-                   return i->get_shape().type() == migraphx::shape::fp8e4m3fnuz_type;
+                   return contains(fp8_types, i->get_shape().type());
                }))
                 continue;
             if(it->name() == "pooling")

@@ -42,6 +42,10 @@ inline namespace MIGRAPHX_INLINE_NS {
 namespace gpu {
 namespace gen {
 
+std::set<shape::type_t> fp8_types = {migraphx::shape::fp8e4m3fnuz_type,
+                                     migraphx::shape::fp8e4m3fn_type,
+                                     migraphx::shape::fp8e5m2_type};
+
 static std::vector<std::size_t> vector_sizes(const std::vector<shape>& inputs)
 {
     // If all inputs are half then only use half2
@@ -58,7 +62,7 @@ vectorize vectorize::elements(std::size_t axis,
 {
     // disable vectorization for fp8 types
     if(std::any_of(inputs.begin(), inputs.end(), [&](auto ishape) {
-           return ishape.type() == migraphx::shape::fp8e4m3fnuz_type;
+           return contains(fp8_types, ishape.type());
        }))
         return {1, axis};
     if(std::all_of(
@@ -95,7 +99,7 @@ vectorize vectorize::elements(context& ctx, std::size_t axis, const std::vector<
 {
     // disable vectorization for fp8 types
     if(std::any_of(inputs.begin(), inputs.end(), [&](auto ishape) {
-           return ishape.type() == migraphx::shape::fp8e4m3fnuz_type;
+           return contains(fp8_types, ishape.type());
        }))
         return {1, axis};
     if(inputs.empty())

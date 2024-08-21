@@ -44,9 +44,12 @@ struct quant_dot
         const shape& a = inputs.at(0);
         const shape& b = inputs.at(1);
         auto t         = a.type();
-        std::set<migraphx::shape::type_t> suppported_types = {
-            shape::int8_type, shape::uint8_type, shape::fp8e4m3fnuz_type};
-        if(not contains(suppported_types, t))
+        std::set<migraphx::shape::type_t> supported_types = {shape::int8_type,
+                                                             shape::uint8_type,
+                                                             shape::fp8e4m3fnuz_type,
+                                                             shape::fp8e4m3fn_type,
+                                                             shape::fp8e5m2_type};
+        if(not contains(supported_types, t))
         {
             MIGRAPHX_THROW(
                 "QUANT_DOT: only support data type int8_t, uint8_t and fp8e4m3fnuz_type");
@@ -76,7 +79,10 @@ struct quant_dot
 
         auto out_lens   = a.lens();
         out_lens[dim_1] = b.lens()[dim_1];
-        if(t == shape::fp8e4m3fnuz_type)
+        std::set<shape::type_t> fp8_types = {migraphx::shape::fp8e4m3fnuz_type,
+                                             migraphx::shape::fp8e4m3fn_type,
+                                             migraphx::shape::fp8e5m2_type};
+        if(contains(fp8_types, t))
         {
             return {shape::float_type, out_lens};
         } // else int8 gemm

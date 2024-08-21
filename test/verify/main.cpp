@@ -84,6 +84,12 @@ int main(int argc, const char* argv[])
                 "test_batch_quant_dot_1<migraphx::fp8::fp8e4m3fnuz, float>",
                 "test_quant_dot_3args_4<migraphx::fp8::fp8e4m3fnuz, float>",
                 "test_quant_dot_3args_5<migraphx::fp8::fp8e4m3fnuz, float>",
+                "test_batch_quant_dot_1<migraphx::fp8::fp8e4m3fn, float>",
+                "test_quant_dot_3args_4<migraphx::fp8::fp8e4m3fn, float>",
+                "test_quant_dot_3args_5<migraphx::fp8::fp8e4m3fn, float>",
+                "test_batch_quant_dot_1<migraphx::fp8::fp8e5m2, float>",
+                "test_quant_dot_3args_4<migraphx::fp8::fp8e5m2, float>",
+                "test_quant_dot_3args_5<migraphx::fp8::fp8e5m2, float>",
 #endif
             "test_block_reduce_small<3, migraphx::shape::int8_type>",
             "test_block_reduce_small<4, migraphx::shape::int8_type>",

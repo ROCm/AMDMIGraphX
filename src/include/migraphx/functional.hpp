@@ -265,6 +265,12 @@ void nop(Ts&&...)
 {
 }
 
+// check if first type is the same as any in the parameter pack
+template <class T, class... Ts>
+struct is_any : std::disjunction<std::is_same<T, Ts>...>
+{
+};
+
 } // namespace MIGRAPHX_INLINE_NS
 } // namespace migraphx
 

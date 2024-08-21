@@ -160,12 +160,8 @@ struct parse_softmaxcrossentropyloss : op_parser<parse_softmaxcrossentropyloss>
         return false;
     }
 
-    std::vector<instruction_ref> parse(const op_desc& /*opd */,
-                                       const onnx_parser& parser,
-                                       const onnx_parser::node_info& info,
-                                       const std::vector<instruction_ref>& args) const
+    std::string get_reduction_param(const onnx_parser::node_info &info) const
     {
-        // Get and handle attributes
         std::string reduction = "mean";
         if(contains(info.attributes, "reduction"))
         {
@@ -176,6 +172,16 @@ struct parse_softmaxcrossentropyloss : op_parser<parse_softmaxcrossentropyloss>
                                "\n Valid options are [none, mean, sum]");
             }
         }
+        return reduction;
+    }
+
+    std::vector<instruction_ref> parse(const op_desc& /*opd */,
+                                       const onnx_parser& parser,
+                                       const onnx_parser::node_info& info,
+                                       const std::vector<instruction_ref>& args) const
+    {
+        // Get and handle attributes
+        auto reduction = get_reduction_param(info);
 
         // Get and validate Inputs
         auto scores = args.at(0);
@@ -210,6 +216,8 @@ struct parse_softmaxcrossentropyloss : op_parser<parse_softmaxcrossentropyloss>
         bool is_k_dim  = (scores_shape.ndim() > 3);
         size_t batch_size = scores_shape.lens().at(0);
         size_t class_size = scores_shape.lens().at(1);
+
+        auto scores_transposed = info.add_instruction(migraphx::make_op("transpose"), scores);
 
         // ignore_index is optional attribute, assign this as a scalar literal input to the op
         instruction_ref ignore_index;

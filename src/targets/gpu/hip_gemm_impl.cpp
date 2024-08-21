@@ -239,18 +239,20 @@ struct hip_gemm_impl
             hipblaslt_desc, HIPBLASLT_MATMUL_DESC_TRANSB, &op_A, sizeof(int32_t));});
         hipblaslt_invoke([&]() {return hipblasLtMatmulDescSetAttribute(
             hipblaslt_desc, HIPBLASLT_MATMUL_DESC_TRANSA, &op_B, sizeof(int32_t));});
+
+	// Transfer ownership of raw pointers to managed pointers.
+	managed_hipblaslt_desc.reset(hipblaslt_desc);
+	managed_matA.reset(matA);
+	managed_matB.reset(matB);
+	managed_matC.reset(matC);
+	if(is_3inputs)
+	{
+	    managed_matD.reset(matD);
+	}
     }
 
     ~hip_gemm_impl()
     {
-        hipblaslt_invoke([&]() {return hipblasLtMatmulDescDestroy(hipblaslt_desc);});
-        hipblaslt_invoke([&]() {return hipblasLtMatrixLayoutDestroy(matA);});
-        hipblaslt_invoke([&]() {return hipblasLtMatrixLayoutDestroy(matB);});
-        hipblaslt_invoke([&]() {return hipblasLtMatrixLayoutDestroy(matC);});
-        if(is_3inputs)
-        {
-            hipblaslt_invoke([&]() {return hipblasLtMatrixLayoutDestroy(matD);});
-        }
     }
 
     struct solution
@@ -531,6 +533,10 @@ struct hip_gemm_impl
     hipblasLtMatmulDesc_t hipblaslt_desc;
     hipblasOperation_t op_A;
     hipblasOperation_t op_B;
+    using hipblaslt_matrix_layout = MIGRAPHX_MANAGE_PTR(hipblasLtMatrixLayout_t, hipblasLtMatrixLayoutDestroy);
+    using hipblaslt_mat_mul_desc = MIGRAPHX_MANAGE_PTR(hipblasLtMatmulDesc_t, hipblasLtMatmulDescDestroy);
+    hipblaslt_matrix_layout managed_matA, managed_matB, managed_matC, managed_matD;
+    hipblaslt_mat_mul_desc managed_hipblaslt_desc;
     hipblasLtMatrixLayout_t matA, matB, matC, matD;
     hipblasLtHandle_t handle;
     hipblasLtMatmulPreference_t preference;

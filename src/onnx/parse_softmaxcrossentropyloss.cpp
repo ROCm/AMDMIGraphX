@@ -212,42 +212,16 @@ struct parse_softmaxcrossentropyloss : op_parser<parse_softmaxcrossentropyloss>
         return labels;
     }
 
-    std::vector<instruction_ref> parse(const op_desc& /*opd */,
-                                       const onnx_parser& parser,
-                                       const onnx_parser::node_info& info,
-                                       const std::vector<instruction_ref>& args) const
+    instruction_ref get_weights(const onnx_parser::node_info &info, const std::vector<instruction_ref> &args, const shape &scores_shape, size_t class_size, bool &has_ignore_index, instruction_ref ignore_index) const 
     {
-        // Get and handle attributes
-        auto reduction = get_reduction_param(info);
-
-        // Get and validate Inputs
-        auto scores = get_scores(args.at(0));
-        auto scores_shape = scores->get_shape();
-        auto labels  = get_labels(args.at(1), scores_shape);
-        auto label_shape = labels->get_shape();
-
-        bool is_k_dim  = (scores_shape.ndim() > 3);
-        size_t batch_size = scores_shape.lens().at(0);
-        size_t class_size = scores_shape.lens().at(1);
-
-        auto scores_transposed = info.add_instruction(migraphx::make_op("transpose"), scores);
-
-        // ignore_index is optional attribute, assign this as a scalar literal input to the op
-        instruction_ref ignore_index;
-        auto has_ignore_index =
-            normalize_input_index(parser, info, static_cast<int64_t>(class_size), ignore_index);
-
-        auto loss_tensor = info.add_instruction(
-            migraphx::make_op("convert", {{"target_type", scores_shape.type()}}), labels);
-
         // Default weights will always be 1
         auto weights = info.add_literal(
             migraphx::literal(migraphx::shape(scores_shape.type(), {1}, {0}), {1}));
         weights = info.add_instruction(
             migraphx::make_op("multibroadcast", {{"out_lens", {class_size}}}), weights);
 
-        // Get optional input weights (Used for mean reduction)
         bool has_weights = (args.size() > 2);
+        // Get optional input weights (Used for mean reduction)
         if(has_weights)
         {
             weights = args.at(2);
@@ -282,6 +256,39 @@ struct parse_softmaxcrossentropyloss : op_parser<parse_softmaxcrossentropyloss>
             weights       = info.add_instruction(
                 migraphx::make_op("scatter_none", {{"axis", 0}}), weights, ignore_index, zero_val);
         }
+
+        return weights;
+    }
+
+    std::vector<instruction_ref> parse(const op_desc& /*opd */,
+                                       const onnx_parser& parser,
+                                       const onnx_parser::node_info& info,
+                                       const std::vector<instruction_ref>& args) const
+    {
+        // Get and handle attributes
+        auto reduction = get_reduction_param(info);
+
+        // Get and validate Inputs
+        auto scores = get_scores(args.at(0));
+        auto scores_shape = scores->get_shape();
+        auto labels  = get_labels(args.at(1), scores_shape);
+        auto label_shape = labels->get_shape();
+
+        // meta parameters based on input scores shape
+        bool is_k_dim  = (scores_shape.ndim() > 3);
+        size_t batch_size = scores_shape.lens().at(0);
+        size_t class_size = scores_shape.lens().at(1);
+
+        // ignore_index is optional attribute, assign this as a scalar literal input to the op
+        instruction_ref ignore_index;
+        auto has_ignore_index =
+            normalize_input_index(parser, info, static_cast<int64_t>(class_size), ignore_index);
+
+        bool has_weights = (args.size() > 2);
+        auto weights = get_weights(info, args, scores_shape, class_size, has_ignore_index, ignore_index);
+
+        auto loss_tensor = info.add_instruction(
+            migraphx::make_op("convert", {{"target_type", scores_shape.type()}}), labels);
 
         if(is_k_dim)
         {

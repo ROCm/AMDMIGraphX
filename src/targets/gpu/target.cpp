@@ -104,6 +104,9 @@ std::vector<pass> target::get_passes(migraphx::context& gctx, const compile_opti
         unsupported_fp8_ops.insert("dot");
         unsupported_fp8_ops.insert("quant_dot");
     }
+    //DEBUG
+    unsupported_fp8_ops.insert("dot");
+    unsupported_fp8_ops.insert("quant_dot");
 
 #if MIGRAPHX_USE_MIOPEN
     // MIOpen doesn't have support for fp8 pooling yet.
@@ -157,7 +160,7 @@ std::vector<pass> target::get_passes(migraphx::context& gctx, const compile_opti
         prefuse_ops{},
         dead_code_elimination{},
         auto_contiguous{},
-        eliminate_data_type{{migraphx::shape::fp8e4m3fnuz_type}, shape::float_type, unsupported_fp8_ops},
+        eliminate_data_type{{migraphx::shape::fp8e4m3fnuz_type, migraphx::shape::fp8e4m3fn_type, migraphx::shape::fp8e5m2_type}, shape::float_type, unsupported_fp8_ops},
         dead_code_elimination{},
         rewrite_reduce{},
         rewrite_low_precision{},

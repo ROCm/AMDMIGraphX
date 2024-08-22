@@ -46,5 +46,6 @@ struct test_gemm_transposea : verify_program<test_gemm_transposea<DType>>
 template struct test_gemm_transposea<migraphx::shape::float_type>;
 template struct test_gemm_transposea<migraphx::shape::half_type>;
 template struct test_gemm_transposea<migraphx::shape::fp8e4m3fnuz_type>;
-template struct test_gemm_transposea<migraphx::shape::fp8e4m3fn_type>;
-template struct test_gemm_transposea<migraphx::shape::fp8e5m2_type>;
+// TODO need hipblaslt support
+//template struct test_gemm_transposea<migraphx::shape::fp8e4m3fn_type>;
+//template struct test_gemm_transposea<migraphx::shape::fp8e5m2_type>;

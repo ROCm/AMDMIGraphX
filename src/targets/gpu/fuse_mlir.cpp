@@ -684,6 +684,31 @@ using find_mlir_standalone_dot_op         = find_mlir_standalone_op<&is_mlir_dot
 
 struct find_mlir_standalone_attention_op
 {
+    mlir_mode dot_mode = mlir_mode::none;
+
+    auto matcher() const
+    {
+        auto gemm1 = match::skip(match::name("contiguous"))(is_mlir_dot(dot_mode)).bind("gemm1");
+        auto fused_reduce =
+            match::name("fused_reduce")(match::any_of[match::inputs()](gemm1)).bind("fused_reduce");
+        return is_mlir_dot(dot_mode)(match::arg(0)(fused_reduce));
+    }
+
+    void apply(module_pass_manager& mpm, const match::matcher_result& r) const
+    {
+        auto gemm2      = r.result;
+        auto pw_softmax = r.instructions["fused_reduce"];
+        auto gemm1      = r.instructions["gemm1"];
+
+        mpm.get_module().debug_print();
+        mpm.get_module().debug_print(gemm1);
+        mpm.get_module().debug_print(pw_softmax);
+        mpm.get_module().debug_print(gemm2);
+    }
+};
+
+struct find_mlir_standalone_attention_op_old
+{
     auto matcher() const
     {
         return match::name("gpu::pre_gemm_softmax_gemm").bind("gemm_softmax_gemm");
@@ -850,8 +875,8 @@ void fuse_mlir::apply(module_pass_manager& mpm) const
     // Attention offloads; default disabled
     if(mlir_attention_enabled())
     {
-        match::find_matches(mpm, find_mlir_attention_fused_ops{});
-        match::find_matches(mpm, find_mlir_standalone_attention_op{});
+        match::find_matches(mpm, find_mlir_attention_fused_ops{mlir_mode::all});
+        match::find_matches(mpm, find_mlir_standalone_attention_op{mlir_mode::all});
     }
 
     match::find_matches(

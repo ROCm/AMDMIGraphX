@@ -718,6 +718,18 @@ inline auto var(std::string s)
         });
 }
 
+template <class M>
+inline auto submodule_contains(M m)
+{
+    return make_basic_pred_matcher([&](instruction_ref ins) {
+        if(ins->module_inputs().empty())
+            return false;
+        auto submod = ins->module_inputs().front();
+        auto result = find_match(*submod, m);
+        return result.result != submod->end();
+    });
+}
+
 inline auto name(std::string s)
 {
     return make_basic_pred_matcher(

@@ -40,6 +40,7 @@ RUN ln -s /opt/rocm-* /opt/rocm
 RUN echo "/opt/rocm/lib" > /etc/ld.so.conf.d/rocm.conf
 RUN echo "/opt/rocm/llvm/lib" > /etc/ld.so.conf.d/rocm-llvm.conf
 RUN ldconfig
+RUN export hip_HIPCC_EXECUTABLE=/opt/rocm/bin/hipcc
 
 # Workaround broken miopen cmake files
 RUN sed -i 's,;/usr/lib/x86_64-linux-gnu/librt.so,,g' /opt/rocm/lib/cmake/miopen/miopen-targets.cmake

@@ -32,6 +32,7 @@
 #include <migraphx/common.hpp>
 #include <migraphx/algorithm.hpp>
 #include <migraphx/param_utils.hpp>
+#include <migraphx/match/softmax.hpp>
 #include <optional>
 
 namespace migraphx {
@@ -696,14 +697,59 @@ struct find_mlir_standalone_attention_op
 
     void apply(module_pass_manager& mpm, const match::matcher_result& r) const
     {
-        auto gemm2      = r.result;
-        auto pw_softmax = r.instructions["fused_reduce"];
-        auto gemm1      = r.instructions["gemm1"];
+        auto gemm2        = r.result;
+        auto fused_reduce = r.instructions["fused_reduce"];
+        auto gemm1        = r.instructions["gemm1"];
 
         mpm.get_module().debug_print();
         mpm.get_module().debug_print(gemm1);
-        mpm.get_module().debug_print(pw_softmax);
+        mpm.get_module().debug_print(fused_reduce);
         mpm.get_module().debug_print(gemm2);
+        std::cout << "\n";
+        fused_reduce->module_inputs().front()->debug_print();
+
+        // Unroll any pointwise modules inside the fused reduce module
+        module_ref sm = mpm.create_module("unrolled_sm");
+        std::unordered_map<instruction_ref, instruction_ref> param_map;
+        auto outs =
+            sm->fuse(*fused_reduce->module_inputs().front(),
+                     fused_reduce->inputs(),
+                     &param_map,
+                     [&](module& main_mod,
+                         instruction_ref pos,
+                         const operation& op,
+                         const std::vector<instruction_ref>& inputs,
+                         const std::vector<module_ref>& mod_args) {
+                         if(op.name() == "pointwise")
+                         {
+                             auto* sub_pm = mod_args.front();
+                             sub_pm->debug_print();
+                             auto param_map_2 = create_param_map_with_literals(
+                                 &main_mod, sub_pm, op.compute_shape(to_shapes(inputs), mod_args));
+                             return main_mod.insert_inline(pos, *sub_pm, inputs, &param_map_2)
+                                 .front(); // cppcheck-suppress returnDanglingLifetime;
+                         }
+                         return main_mod.insert_instruction(pos, op, inputs, mod_args);
+                     });
+        sm->add_return(outs);
+        sm->debug_print();
+
+        // fused_reduce should end with a softmax
+        auto last_softmax = match::name("@return")(match::arg(0)(match::softmax()));
+        // auto result = match::find_match(*sm, last_softmax);
+        auto result = match::find_match(*sm, last_softmax);
+        sm->debug_print(result.result);
+
+        if(result.result == sm->end())
+            return;
+
+        // All preceding pw ops should be mlir supported
+        if(not std::all_of(sm->begin(),
+                           std::next(result.instructions["x"]),
+                           &is_pointwise_op_supported_by_mlir))
+            return;
+
+        
     }
 };
 

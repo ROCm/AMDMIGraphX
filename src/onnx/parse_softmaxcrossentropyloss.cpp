@@ -326,7 +326,8 @@ struct parse_softmaxcrossentropyloss : op_parser<parse_softmaxcrossentropyloss>
         auto label_shape = labels->get_shape();
 
         // meta parameters based on input scores shape
-        bool is_k_dim  = (scores_shape.ndim() > 3);
+        size_t ndims = scores_shape.ndim();
+        bool is_k_dim  = (ndims > 3);
         size_t batch_size = scores_shape.lens().at(0);
         size_t class_size = scores_shape.lens().at(1);
 
@@ -338,17 +339,57 @@ struct parse_softmaxcrossentropyloss : op_parser<parse_softmaxcrossentropyloss>
         bool has_weights = (args.size() > 2);
         auto weights = get_weights(info, args, ignore_index, scores_shape, class_size, has_ignore_index);
 
+        // Use label indices to select weights
+        auto labels_unsq = info.add_instruction(migraphx::make_op("unsqueeze", {{"axes", 1}}), labels);
+        auto labels_rank = labels_unsq->get_shape().ndim();
+
+        std::vector<instruction_ref> coordinate_index_literals;
+        for (size_t axis = 0; axis < labels_rank; axis++)
+        {
+            auto batch_dim_indicies = info.add_literal(migraphx::literal(label_shape.lens().at(axis)));
+            batch_dim_indicies->debug_print();
+
+            std::vector<decltype(labels_rank)> unsq_dims(labels_rank);
+            std::iota(unsq_dims.begin(), unsq_dims.end(), 0);
+            // unsq_dims = unsq_dims[:ax] + unsq_dims[ax + 1:]
+
+            auto batch_dim_index_unsq = info.add_instruction(migraphx::make_op("unsqueeze", {{"axes", unsq_dims}}), batch_dim_indicies);
+            batch_dim_index_unsq->debug_print();
+            auto batch_dim_indicies_bc = info.add_instruction(migraphx::make_op("multibroadcast", {{"out_lens", labels_unsq->get_shape().lens()}}), batch_dim_index_unsq);
+            batch_dim_indicies_bc->debug_print();
+            coordinate_index_literals.push_back(batch_dim_indicies_bc);
+        }
+        coordinate_index_literals.push_back(labels_unsq);
+        auto gathernd_indicies = info.add_instruction(migraphx::make_op("concat", {{"axis", -1}}), coordinate_index_literals);
+        gathernd_indicies->debug_print();
+
+        std::vector<int64_t> perm(class_size, 0);
+        std::iota(++perm.begin(), perm.end(), 2);
+        perm.at(class_size - 1) = 1;
+
+        scores->debug_print();
+
+        scores = info.add_instruction(migraphx::make_op("transpose", {{"permutation", perm}}), scores);
+        scores = info.add_instruction(migraphx::make_op("gathernd"), scores, gathernd_indicies);
+
+        if (has_weights) // Saves us a multiply + gather op to gate this as default weights are literal 1's
+        {
+            weights = info.add_instruction(migraphx::make_op("transpose", {{"permutation", perm}}), weights);
+            weights = info.add_instruction(migraphx::make_op("gathernd"), weights, gathernd_indicies);
+        }
+
+        // create output container which should be the same shape as input labels
         auto loss_tensor = info.add_instruction(
             migraphx::make_op("convert", {{"target_type", scores_shape.type()}}), labels);
 
-        if(is_k_dim)
+        /*if(is_k_dim)
         {
             auto lens = label_shape.lens();
             size_t d =
                 std::accumulate(lens.rbegin(), lens.rend() - 1, 1, std::multiplies<size_t>());
             scores = info.add_instruction(
                 migraphx::make_op("reshape", {{"dims", {batch_size, class_size, d}}}), scores);
-        }
+        } */
 
         // Offload calculation of log(Softmax(scores)) for the input before we perform cross entropy
         // loss calculation
@@ -360,11 +401,11 @@ struct parse_softmaxcrossentropyloss : op_parser<parse_softmaxcrossentropyloss>
         loss_tensor = info.add_instruction(
             migraphx::make_op("scatter_none", {{"axis", 0}}), loss_tensor, labels, neg_lsm_scores);
 
-        if(is_k_dim)
+        /*if(is_k_dim)
         {
             loss_tensor = info.add_instruction(
                 migraphx::make_op("reshape", {{"dims", label_shape.lens()}}), loss_tensor);
-        }
+        } */
 
         // Perform final output reduction based on the desired attribute
         loss_tensor = handle_reduction(info, loss_tensor, weights, labels, reduction, has_ignore_index, has_weights);

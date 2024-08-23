@@ -28,6 +28,7 @@
 #include <migraphx/config.hpp>
 #include <migraphx/gemm.hpp>
 #include <migraphx/value.hpp>
+#include <migraphx/fp8_types.hpp>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
@@ -52,7 +53,7 @@ struct quant_dot
         if(not contains(supported_types, t))
         {
             MIGRAPHX_THROW(
-                "QUANT_DOT: only support data type int8_t, uint8_t and fp8e4m3fnuz_type");
+                "QUANT_DOT: only support data type int8_t, uint8_t and fp8 types");
         }
 
         if(not std::all_of(
@@ -79,10 +80,7 @@ struct quant_dot
 
         auto out_lens   = a.lens();
         out_lens[dim_1] = b.lens()[dim_1];
-        std::set<shape::type_t> fp8_types = {migraphx::shape::fp8e4m3fnuz_type,
-                                             migraphx::shape::fp8e4m3fn_type,
-                                             migraphx::shape::fp8e5m2_type};
-        if(contains(fp8_types, t))
+        if(contains(fp8_types{}.get(), t))
         {
             return {shape::float_type, out_lens};
         } // else int8 gemm

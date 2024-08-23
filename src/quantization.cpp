@@ -41,6 +41,7 @@
 #include <migraphx/make_op.hpp>
 #include <migraphx/pass_manager.hpp>
 #include <migraphx/normalize_ops.hpp>
+#include <migraphx/gpu/device_name.hpp>
 #include <set>
 
 namespace migraphx {
@@ -180,7 +181,14 @@ void quantize_fp8(program& prog, const target& t, const std::vector<parameter_ma
             supported_ins_names.insert(ins->name());
         }
     }
-    quantize_8bits(prog, t, shape::fp8e4m3fnuz_type, calibration, supported_ins_names);
+    if(t.name() == "gpu" and gpu::gfx_has_fp8fnuz_intrinsics())
+    {
+        quantize_8bits(prog, t, shape::fp8e4m3fnuz_type, calibration, supported_ins_names);
+    }
+    else
+    {
+        quantize_8bits(prog, t, shape::fp8e4m3fn_type, calibration, supported_ins_names);
+    }
 }
 } // namespace MIGRAPHX_INLINE_NS
 } // namespace migraphx

@@ -30,9 +30,18 @@
 #include <msgpack.hpp>
 #include <fstream>
 
+// Define if want to test reading literals back into instructions
+#define TEST_READ_LITERALS
+
+// Currently run using:
+// "MIGRAPHX_COPY_LITERALS=true ./build/bin/driver compile <model> --strip-weights -o <.mxr>
+
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
 
+
+// Used as a dummy instruction to repalce literals in .mxr, 
+// currently saves shape of literal as cannot serialize shape with a msgpack
 struct fetch_literal
 {
     size_t id;
@@ -56,6 +65,7 @@ struct fetch_literal
 };
 MIGRAPHX_REGISTER_OP(fetch_literal);
 
+// serializes the literals
 struct vector_stream
 {
     std::vector<char> buffer{};
@@ -69,23 +79,23 @@ struct vector_stream
 class test_literal : public raw_data<test_literal>
 {
     private:
-    size_t l_id;
-    shape l_shape;
-    std::vector<char> l_data;
+    // TODO Use this id to match with saved literals instead of assuming saved literals will always be in order they appear in.
+    size_t l_id; // id of literal
+
+    std::vector<char> l_data; // literals are char buffers so save data with std::vector<char>
 
     public:
-    MSGPACK_DEFINE(l_id, l_data);
-    test_literal(size_t id = 0, shape s = shape{}, const char* data = nullptr)
-        : l_id(id), l_shape(s)
+    MSGPACK_DEFINE(l_id, l_data); // serializes class
+
+    test_literal(size_t id = 0, std::size_t bytes = 0, const char* data = nullptr)
+        : l_id(id)
     {
-        l_data = std::vector<char>(data, data + s.bytes());
+        l_data = std::vector<char>(data, data + bytes);
     }
 
     bool empty() const { return l_data.empty(); }
 
-    const char* data() const { return &l_data[0]; }
-
-    const shape& get_shape() const { return l_shape; }
+    const char* get_data() const { return &l_data[0]; }
 
     std::vector<test_literal> get_sub_objects() const { return {}; }
 
@@ -104,26 +114,35 @@ class test_literal : public raw_data<test_literal>
     }
 };
 
+
+// test to actually strip weights, 
 void strip_weights::apply(module& m) const
 {
-    std::vector<test_literal> vec;
+    std::cout << "Before packing: \n";
+
+    std::vector<test_literal> vec; // vector used to save literals
+    
+    #ifdef TEST_READ_LITERALS
+        std::vector<literal> testing; // vector used to compare saved literals to original
+    #endif
+
     size_t n = 0;
     for(auto ins : iterator_for(m))
     {
         if(ins->name() == "@literal")
         {
-            vec.push_back(test_literal{n, ins->get_shape(), ins->get_literal().data()});
+            ins->debug_print();
+            // save cur literal
+            vec.push_back(test_literal{n, ins->get_shape().bytes(), ins->get_literal().data()});
+
+            #ifdef TEST_READ_LITERALS
+                testing.push_back(ins->get_literal());
+            #endif
+            // replace literal with small dummy instruction
             m.replace_instruction(
                 ins, fetch_literal{n, ins->get_shape(), ins->get_literal().get_argument()});
             n++;
         }
-    }
-
-    std::cout << "Before packing: \n";
-    for(auto literal : vec)
-    {
-        literal.print(std::cout);
-        std::cout << std::endl;
     }
 
     // Pack and write to file
@@ -131,8 +150,8 @@ void strip_weights::apply(module& m) const
     msgpack::pack(vs, vec);
 
     std::string output_file = output + "_weights";
-    std::cout << "Output: " << output << std::endl;
-    std::cout << "Output file: " << output_file << std::endl;
+    // std::cout << "Output: " << output << std::endl;
+    // std::cout << "Output file: " << output_file << std::endl;
 
     auto* os = &std::cout;
     std::ofstream fs;
@@ -141,36 +160,72 @@ void strip_weights::apply(module& m) const
     (*os).write(vs.buffer.data(), vs.buffer.size());
 
     // Read and unpack from file
-    vector_stream vs2;
-    std::ifstream is;
-    is.open(output_file, std::ios::binary | std::ios::ate);
-    if(not is.is_open())
-    {
-        std::cout << "Failed to open file" << std::endl;
-    }
 
-    size_t nbytes = is.tellg();
-    is.seekg(0, std::ios::beg);
+    #ifdef TEST_READ_LITERALS
+        vector_stream vs2;
+        std::ifstream is;
+        is.open(output_file, std::ios::binary | std::ios::ate);
+        if(not is.is_open())
+        {
+            std::cout << "Failed to open file" << std::endl;
+        }
 
-    std::vector<char> buffer(nbytes, 0);
+        size_t nbytes = is.tellg();
+        is.seekg(0, std::ios::beg);
 
-    if(not is.read(&buffer[0], nbytes))
-    {
-        std::cout << "Failed to read file" << std::endl;
-    }
+        std::vector<char> buffer(nbytes, 0);
 
-    msgpack::object_handle oh = msgpack::unpack(buffer.data(), buffer.size());
-    msgpack::object obj       = oh.get();
+        if(not is.read(&buffer[0], nbytes))
+        {
+            std::cout << "Failed to read file" << std::endl;
+        }
 
-    std::vector<test_literal> vec2;
-    obj.convert(vec2);
+        msgpack::object_handle oh = msgpack::unpack(buffer.data(), buffer.size());
+        msgpack::object obj       = oh.get();
 
-    std::cout << "After unpacking: \n";
-    for(auto literal : vec2)
-    {
-        literal.print(std::cout);
-        std::cout << std::endl;
-    }
+        std::vector<test_literal> vec2;
+        obj.convert(vec2);
+
+        std::cout << "After unpacking: \n";
+
+        // insert literals back into engine and remove dummy instructions
+        int i = 0;
+        std::vector<instruction_ref> to_remove;
+        for(auto ins : iterator_for(m))
+        {
+            if(ins->name() == "fetch_literal")
+            {
+
+
+                literal l = literal(ins->get_shape(), vec2[i].get_data());
+                auto literal_ins = m.insert_literal(ins, l);
+                m.replace_instruction(ins, literal_ins);
+                to_remove.push_back(ins);
+                literal_ins->debug_print();
+                i++;
+            }
+        }
+
+        for(const auto& ins : to_remove){
+            m.remove_instruction(ins);
+        }
+
+        // test if new literals match (could probably combine with upper for loop)
+        int j = 0;
+        for(auto ins : iterator_for(m))
+        {
+            if(ins->name() == "@literal")
+            {
+                if(ins->get_literal().to_string() == testing[j].to_string() && ins->get_literal().get_shape() == testing[j].get_shape()){
+                    std::cout << "literal added matches original" << j << "\n";
+                }
+                else{
+                }
+                j++;
+            }
+        }
+    #endif
+    
 }
 
 } // namespace MIGRAPHX_INLINE_NS

@@ -128,7 +128,7 @@ std::vector<pass> target::get_passes(migraphx::context& gctx, const compile_opti
     unsupported_fp8e4m3fnuz_ops.insert("argmin");
 
     std::set<std::string> unsupported_fp8ocp_ops = {};
-    //TODO update with hipBLASLt support
+    // TODO update with hipBLASLt support
     unsupported_fp8ocp_ops.insert("dot");
     unsupported_fp8ocp_ops.insert("quant_dot");
 #if MIGRAPHX_USE_MIOPEN

@@ -278,6 +278,7 @@ struct context
         value result;
         result["events"]  = events.size();
         result["streams"] = current_device->nstreams();
+        result["gfx_name"] = get_current_device().get_gfx_name();
 
         return result;
     }

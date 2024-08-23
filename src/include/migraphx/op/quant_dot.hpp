@@ -52,8 +52,7 @@ struct quant_dot
                                                              shape::fp8e5m2_type};
         if(not contains(supported_types, t))
         {
-            MIGRAPHX_THROW(
-                "QUANT_DOT: only support data type int8_t, uint8_t and fp8 types");
+            MIGRAPHX_THROW("QUANT_DOT: only support data type int8_t, uint8_t and fp8 types");
         }
 
         if(not std::all_of(

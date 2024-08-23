@@ -701,6 +701,10 @@ struct find_mlir_standalone_attention_op
         auto fused_reduce = r.instructions["fused_reduce"];
         auto gemm1        = r.instructions["gemm1"];
 
+        auto axes = fused_reduce->get_operator().to_value()["axes"];
+        if(axes.size() != 1)
+            return;
+
         mpm.get_module().debug_print();
         mpm.get_module().debug_print(gemm1);
         mpm.get_module().debug_print(fused_reduce);
@@ -708,48 +712,73 @@ struct find_mlir_standalone_attention_op
         std::cout << "\n";
         fused_reduce->module_inputs().front()->debug_print();
 
-        // Unroll any pointwise modules inside the fused reduce module
-        module_ref sm = mpm.create_module("unrolled_sm");
-        std::unordered_map<instruction_ref, instruction_ref> param_map;
-        auto outs =
-            sm->fuse(*fused_reduce->module_inputs().front(),
-                     fused_reduce->inputs(),
-                     &param_map,
-                     [&](module& main_mod,
-                         instruction_ref pos,
-                         const operation& op,
-                         const std::vector<instruction_ref>& inputs,
-                         const std::vector<module_ref>& mod_args) {
-                         if(op.name() == "pointwise")
-                         {
-                             auto* sub_pm = mod_args.front();
-                             sub_pm->debug_print();
-                             auto param_map_2 = create_param_map_with_literals(
-                                 &main_mod, sub_pm, op.compute_shape(to_shapes(inputs), mod_args));
-                             return main_mod.insert_inline(pos, *sub_pm, inputs, &param_map_2)
-                                 .front(); // cppcheck-suppress returnDanglingLifetime;
-                         }
-                         return main_mod.insert_instruction(pos, op, inputs, mod_args);
-                     });
-        sm->add_return(outs);
-        sm->debug_print();
+        static size_t counter = 0;
+        module_ref m_attn     = mpm.create_module("mlir_" + std::to_string(counter++));
+        m_attn->set_bypass();
+        std::unordered_map<instruction_ref, instruction_ref> map_ins;
 
-        // fused_reduce should end with a softmax
-        auto last_softmax = match::name("@return")(match::arg(0)(match::softmax()));
-        // auto result = match::find_match(*sm, last_softmax);
-        auto result = match::find_match(*sm, last_softmax);
-        sm->debug_print(result.result);
+        // Add first gemm and fuse any input shape ops
+        module_ref fuse_gemm1 = mpm.create_module("reshapes_gemm1");
+        auto [anchor_op, top_inputs] = fuse_input_ops_and_gemm_based_op(
+            fuse_gemm1, gemm1->inputs(), gemm1->get_operator());
+        fuse_gemm1->add_return({anchor_op});
 
-        if(result.result == sm->end())
+        auto m_gemm1 = m_attn->fuse(*fuse_gemm1, top_inputs, &map_ins).front();
+        map_ins[gemm1] = m_gemm1;
+
+        // Add pointwise-softmax, unroll any pointwise modules back to base ops
+        auto pw_softmax =
+            m_attn
+                ->fuse(
+                    *fused_reduce->module_inputs().front(),
+                    fused_reduce->inputs(),
+                    &map_ins,
+                    [&](module& main_mod,
+                        instruction_ref pos,
+                        const operation& op,
+                        const std::vector<instruction_ref>& inputs,
+                        const std::vector<module_ref>& mod_args) {
+                        if(op.name() == "pointwise")
+                        {
+                            auto* sub_pm     = mod_args.front();
+                            auto param_map_2 = create_param_map_with_literals(
+                                &main_mod, sub_pm, op.compute_shape(to_shapes(inputs), mod_args));
+                            return main_mod.insert_inline(pos, *sub_pm, inputs, &param_map_2)
+                                .front(); // cppcheck-suppress returnDanglingLifetime;
+                        }
+                        return main_mod.insert_instruction(pos, op, inputs, mod_args);
+                    })
+                .front();
+
+        m_attn->debug_print();
+
+        // fused_reduce submodule should end with a softmax
+        auto result = match::match_instruction(*m_attn, pw_softmax, match::softmax());
+        if(result.result != pw_softmax)
             return;
+
+        // Insert softmax
+        auto softmax_in = result.instructions["x"];
+        auto softmax    = m_attn->insert_instruction(
+            std::next(softmax_in), make_op("softmax", {{"axis", axes.front()}}), softmax_in);
 
         // All preceding pw ops should be mlir supported
-        if(not std::all_of(sm->begin(),
-                           std::next(result.instructions["x"]),
-                           &is_pointwise_op_supported_by_mlir))
+        if(not std::all_of(m_gemm1, softmax, &is_pointwise_op_supported_by_mlir))
             return;
 
-        
+        std::cout << "passed mlir pw op check\n";
+        map_ins[fused_reduce] = softmax;
+
+        // Add second gemm and fuse any input shape ops
+        module_ref fuse_gemm2 = mpm.create_module("reshapes_gemm2");
+        auto [anchor_op2, top_inputs2] = fuse_input_ops_and_gemm_based_op(
+            fuse_gemm2, gemm2->inputs(), gemm2->get_operator());
+        fuse_gemm2->add_return({anchor_op2});
+
+        auto m_gemm2 = m_attn->fuse(*fuse_gemm2, top_inputs2, &map_ins).front();
+        map_ins[gemm2] = m_gemm2;
+
+        m_attn->debug_print();
     }
 };
 
@@ -840,6 +869,8 @@ struct find_mlir_standalone_attention_op_old
         }
         mm->add_return(ins_to_replace);
 
+        mm->debug_print();
+
         mpm.get_module().replace_instruction(
             ins_to_be_replaced, mlir_op{gemm1->get_operator()}, mlir_contiguous(mpm, inputs), {mm});
     }
@@ -923,6 +954,7 @@ void fuse_mlir::apply(module_pass_manager& mpm) const
     {
         match::find_matches(mpm, find_mlir_attention_fused_ops{mlir_mode::all});
         match::find_matches(mpm, find_mlir_standalone_attention_op{mlir_mode::all});
+        match::find_matches(mpm, find_mlir_standalone_attention_op_old{});
     }
 
     match::find_matches(

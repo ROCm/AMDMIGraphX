@@ -44,6 +44,7 @@
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
 
+namespace {
 const auto& reshaper_names()
 {
     // clang-format off
@@ -57,6 +58,7 @@ const auto& reshaper_names()
     // clang-format on
     return names;
 }
+} // namespace
 
 bool is_reshaper(instruction_ref ins) { return contains(reshaper_names(), ins->name()); }
 
@@ -713,8 +715,9 @@ struct find_unary_shape_transforms
         auto shape_transform = match::name(shape_transforms());
         auto input_has_shape_transform =
             match::args(match::skip(match::name("contiguous"))(shape_transform));
+        auto not_layout = match::none_of(match::name("layout"));
         return match::pointwise(
-            match::used_once(), input_has_shape_transform, output_not_pointwise);
+            match::used_once(), not_layout, input_has_shape_transform, output_not_pointwise);
     }
 
     static bool is_shape_transform(instruction_ref ins)

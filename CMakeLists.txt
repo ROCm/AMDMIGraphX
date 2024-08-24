@@ -197,15 +197,19 @@ rocm_enable_clang_tidy(
         clang-analyzer-alpha.cplusplus.IteratorRange
         clang-analyzer-alpha.cplusplus.MismatchedIterator
         clang-analyzer-alpha.cplusplus.MisusedMovedObject
+        -bugprone-switch-missing-default-case
         -clang-analyzer-optin.performance.Padding
         -clang-diagnostic-deprecated-declarations
-        -clang-diagnostic-extern-c-compat
         -clang-diagnostic-disabled-macro-expansion
+        -clang-diagnostic-extern-c-compat
         -clang-diagnostic-unused-command-line-argument
-        -cppcoreguidelines-avoid-do-while
+        -cppcoreguidelines-avoid-capture-default-when-capturing-this
         -cppcoreguidelines-avoid-const-or-ref-data-members
+        -cppcoreguidelines-avoid-do-while
         -cppcoreguidelines-explicit-virtual-functions
         -cppcoreguidelines-init-variables
+        -cppcoreguidelines-misleading-capture-default-by-value
+        -cppcoreguidelines-missing-std-forward
         -cppcoreguidelines-pro-bounds-array-to-pointer-decay
         -cppcoreguidelines-pro-bounds-constant-array-index
         -cppcoreguidelines-pro-bounds-pointer-arithmetic
@@ -213,22 +217,25 @@ rocm_enable_clang_tidy(
         -cppcoreguidelines-pro-type-reinterpret-cast
         -cppcoreguidelines-pro-type-union-access
         -cppcoreguidelines-pro-type-vararg
-        -cppcoreguidelines-special-member-functions
-        -cppcoreguidelines-virtual-class-destructor
-        -cppcoreguidelines-avoid-capture-default-when-capturing-this
         -cppcoreguidelines-rvalue-reference-param-not-moved
+        -cppcoreguidelines-special-member-functions
+        -cppcoreguidelines-use-default-member-init
+        -cppcoreguidelines-virtual-class-destructor
         -google-readability-*
         -google-runtime-int
         -google-runtime-references
+        -misc-include-cleaner
         -misc-macro-parentheses
         -misc-no-recursion
         -modernize-concat-nested-namespaces
         -modernize-pass-by-value
+        -modernize-type-traits
         -modernize-use-default-member-init
         -modernize-use-nodiscard
         -modernize-use-override
         -modernize-use-trailing-return-type
         -modernize-use-transparent-functors
+        -performance-avoid-endl
         -performance-type-promotion-in-math-fn
         -readability-braces-around-statements
         -readability-convert-member-functions-to-static

@@ -55,6 +55,36 @@ struct sum_op
     }
 };
 
+struct sum_std_op
+{
+    std::string name() const { return "sum_std"; }
+    migraphx::argument
+    compute(migraphx::context&, const migraphx::shape&, std::vector<migraphx::argument> args) const
+    {
+        migraphx::argument result;
+        args[0].visit_at([&](auto x) {
+            args[1].visit_at([&](auto y) { result = migraphx::literal{x + y}.get_argument(); });
+        });
+        return result;
+    }
+
+    migraphx::shape compute_shape(std::vector<migraphx::shape> inputs) const
+    {
+        if(inputs.size() != 2)
+            MIGRAPHX_THROW("Wrong inputs");
+        for(auto&& input : inputs)
+        {
+            if(not input.standard())
+                MIGRAPHX_THROW("Not standard shape");
+        }
+        if(inputs.at(0) != inputs.at(1))
+        {
+            MIGRAPHX_THROW("Invalid shapes");
+        }
+        return inputs.front();
+    }
+};
+
 struct minus_op
 {
     std::string name() const { return "minus"; }

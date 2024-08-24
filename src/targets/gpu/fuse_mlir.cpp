@@ -43,6 +43,7 @@ namespace gpu {
 
 MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_ENABLE_EXTRA_MLIR);
 MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_ENABLE_MLIR_INPUT_FUSION);
+MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_ENABLE_MLIR_REDUCE_FUSION);
 MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_DISABLE_MLIR);
 /**
  * @brief Declares a new MIGraphX environment variable which forces to generate
@@ -165,21 +166,30 @@ MIGRAPHX_REGISTER_OP(mlir_op);
 
 namespace {
 
+const auto& reshaper_names()
+{
+    // clang-format off
+    static const std::unordered_set<std::string> names = {
+        "slice",
+        "transpose",
+        "multibroadcast",
+        "broadcast",
+        "contiguous",
+        "reshape",
+        "squeeze",
+        "flatten",
+        "unsqueeze"
+    };
+    // clang-format on
+    return names;
+}
+
 std::tuple<instruction_ref, std::vector<operation>>
 get_fusable_input_op_stream(instruction_ref lower_input)
 {
     instruction_ref upper_input = lower_input;
     std::vector<operation> op_stream;
-    while(contains({"slice",
-                    "transpose",
-                    "multibroadcast",
-                    "broadcast",
-                    "contiguous",
-                    "reshape",
-                    "squeeze",
-                    "flatten",
-                    "unsqueeze"},
-                   upper_input->name()))
+    while(contains(reshaper_names(), upper_input->name()))
     {
         operation op = upper_input->get_operator();
         if(contains({"squeeze", "flatten", "unsqueeze"}, upper_input->name()))
@@ -303,30 +313,6 @@ create_param_map_with_literals(module_ref mm, const module* pm, const shape& sha
     return ins_map;
 }
 
-std::vector<instruction_ref>
-fold_pointwise_mod(instruction_ref pm_ins,
-                   module_ref parent_mod,
-                   const std::unordered_map<instruction_ref, instruction_ref>& ins_map)
-{
-    auto* pm   = pm_ins->module_inputs().front();
-    auto names = pm->get_parameter_names();
-    std::sort(names.begin(), names.end());
-    std::unordered_map<instruction_ref, instruction_ref> param_map =
-        create_param_map_with_literals(parent_mod, pm, pm_ins->get_shape());
-    std::transform(names.begin(),
-                   names.end(),
-                   pm_ins->inputs().begin(),
-                   std::inserter(param_map, param_map.end()),
-                   [&](auto name, auto input) {
-                       if(ins_map.count(input))
-                           return std::make_pair(pm->get_parameter(name), ins_map.at(input));
-                       return std::make_pair(
-                           pm->get_parameter(name),
-                           parent_mod->add_parameter(name, input->get_shape().as_standard()));
-                   });
-    return parent_mod->insert_instructions(parent_mod->end(), pm, &param_map);
-}
-
 // Whitelist supported fusion options, including imposing type constraints
 // for cases where MLIR only supports an operation (usually a pointwise function)
 // on particular types.
@@ -401,11 +387,57 @@ bool is_pointwise_op_supported_by_mlir(const instruction& i)
     return false;
 }
 
+bool is_reduce_op_supported_by_mlir(const instruction& i)
+{
+    using type_t                                      = shape::type_t;
+    const auto& name                                  = i.name();
+    const auto result_type                            = i.get_shape().type();
+    const std::initializer_list<type_t> allowed_types = {
+        type_t::float_type, type_t::half_type, type_t::fp8e4m3fnuz_type};
+    // Preliminary type check.
+    if(not contains(allowed_types, result_type))
+    {
+        return false;
+    }
+    const std::initializer_list<std::string> reduce_ops = {"reduce_mean", "reduce_sum"};
+    return contains(reduce_ops, i.name());
+}
+
 // A separate function so we can remove operators that are supported by mlir
 // but not supported for an input fusion.
 bool is_pointwise_op_supported_by_mlir_for_input(const instruction& i)
 {
     return is_pointwise_op_supported_by_mlir(i);
+}
+
+MIGRAPHX_PRED_MATCHER(mlir_split_reduce, instruction_ref ins)
+{
+    if(ins->name() != "split_fused_reduce")
+        return false;
+    auto* mod_arg           = ins->module_inputs().front();
+    auto supported_reshapes = reshaper_names();
+    supported_reshapes.erase("slice");
+    std::unordered_set<std::string> builtins = {"@param", "@literal", "@return"};
+    for(const auto i : iterator_for(*mod_arg))
+    {
+        if(is_reduce(*i))
+        {
+            if(not is_reduce_op_supported_by_mlir(*i))
+                return false;
+        }
+        else if(i->name() == "pointwise")
+        {
+            if(not std::all_of(i->module_inputs().front()->begin(),
+                               i->module_inputs().front()->end(),
+                               &is_pointwise_op_supported_by_mlir))
+                return false;
+        }
+        else if(not contains(reshaper_names(), i->name()) and not contains(builtins, i->name()))
+        {
+            return false;
+        }
+    }
+    return true;
 }
 
 MIGRAPHX_PRED_MATCHER(mlir_pointwise, instruction_ref ins)
@@ -438,39 +470,180 @@ std::vector<instruction_ref> mlir_contiguous(module_pass_manager& mpm,
     return result;
 }
 
+struct find_mlir_split_reduce
+{
+    mlir_mode conv_mode = mlir_mode::none;
+    mlir_mode dot_mode  = mlir_mode::none;
+    auto matcher() const
+    {
+        auto dot_or_conv = match::name("gpu::mlir_op");
+        // TODO: Handle reshapes inbetween
+        return mlir_split_reduce()(match::any_of[match::inputs()](dot_or_conv.bind("gemm")));
+    }
+
+    void apply(module_pass_manager& mpm, const match::matcher_result& r) const
+    {
+        auto reduce_ins = r.result;
+        auto gemm_ins   = r.instructions["gemm"];
+        assert(gemm_ins->get_shape().sub_shapes().empty());
+        auto* rm   = reduce_ins->module_inputs().front();
+        auto names = rm->get_parameter_names();
+        std::sort(names.begin(), names.end());
+        module_ref gemm_old_mm = gemm_ins->module_inputs().front();
+        module_ref mm = mpm.create_module(gemm_old_mm->name() + "_" + rm->name(), *gemm_old_mm);
+        // remove last return instruction
+        if(std::prev(mm->end())->name() == "@return")
+        {
+            mm->remove_instruction(std::prev(mm->end()));
+        }
+        mm->set_bypass();
+        std::unordered_map<instruction_ref, instruction_ref> param_map;
+        param_map[gemm_ins]      = std::prev(mm->end());
+        bool gemm_has_multi_outs = gemm_ins->outputs().size() > 1;
+        auto return_vals =
+            mm->fuse(*rm,
+                     reduce_ins->inputs(),
+                     &param_map,
+                     [&](module& main_mod,
+                         instruction_ref pos,
+                         const operation& op,
+                         const std::vector<instruction_ref>& inputs,
+                         const std::vector<module_ref>& mod_args) {
+                         if(op.name() == "pointwise")
+                         {
+                             auto* sub_pm     = mod_args.front();
+                             auto param_map_2 = create_param_map_with_literals(
+                                 &main_mod, sub_pm, op.compute_shape(to_shapes(inputs), mod_args));
+                             return main_mod.insert_inline(pos, *sub_pm, inputs, &param_map_2)
+                                 .front(); // cppcheck-suppress returnDanglingLifetime;
+                         }
+                         return main_mod.insert_instruction(pos, op, inputs, mod_args);
+                     });
+        if(gemm_has_multi_outs)
+        {
+            return_vals.insert(return_vals.end(), param_map[gemm_ins]);
+        }
+        mm->add_return(return_vals);
+        std::vector<instruction_ref> inputs;
+        std::copy_if(reduce_ins->inputs().begin(),
+                     reduce_ins->inputs().end(),
+                     std::back_inserter(inputs),
+                     [&](auto input) { return input != gemm_ins; });
+        inputs.insert(inputs.end(), gemm_ins->inputs().begin(), gemm_ins->inputs().end());
+        if(gemm_has_multi_outs)
+        {
+            auto fused_ins = mpm.get_module().insert_instruction(
+                reduce_ins, mlir_op{gemm_ins->get_operator()}, mlir_contiguous(mpm, inputs), {mm});
+            auto dot_ins = mpm.get_module().insert_instruction(
+                reduce_ins,
+                migraphx::make_op("get_tuple_elem", {{"index", return_vals.size() - 1}}),
+                fused_ins);
+
+            mpm.get_module().replace_instruction(gemm_ins, dot_ins);
+            for(const auto outs : reduce_ins->outputs())
+            {
+                assert(outs->get_operator().name() == "get_tuple_elem");
+                mpm.get_module().replace_instruction(outs, outs->get_operator(), fused_ins);
+            }
+        }
+        else
+        {
+            mpm.get_module().replace_instruction(
+                reduce_ins, mlir_op{gemm_ins->get_operator()}, mlir_contiguous(mpm, inputs), {mm});
+        }
+    }
+};
+
 struct find_mlir_fused_ops
 {
     mlir_mode conv_mode = mlir_mode::none;
     mlir_mode dot_mode  = mlir_mode::none;
     auto matcher() const
     {
-        auto dot_or_conv = match::skip(match::name("contiguous"))(
+        auto reshapes = reshaper_names();
+        // slice is not supported
+        reshapes.erase("slice");
+        auto dot_or_conv = match::skip(match::name(reshapes))(
             match::any_of(is_mlir_dot(dot_mode), is_mlir_conv(conv_mode)).bind("gemm_based_op"));
         return mlir_pointwise()(match::any_of[match::inputs()](dot_or_conv.bind("x")));
     }
 
     void apply(module_pass_manager& mpm, const match::matcher_result& r) const
     {
-        auto ins           = r.result;
+        auto pw_ins        = r.result;
         auto gemm_based_op = r.instructions["gemm_based_op"];
-        auto x_ins         = r.instructions["x"]; // input after contiguous
-        auto* pm           = ins->module_inputs().front();
-        auto names         = pm->get_parameter_names();
+        auto x_ins         = r.instructions["x"]; // input to pointwise after reshaper op stream
+        auto* pm           = pw_ins->module_inputs().front();
+        auto pw_inputs     = pw_ins->inputs();
+        // only of one of the inputs to pointwise module should be dependent on conv/gemm that is
+        // being fused, otherwise it can create invalid graph transformation
+        if(std::any_of(pw_inputs.begin(), pw_inputs.end(), [&](const auto& i) {
+               return i != x_ins and reaches(gemm_based_op, i);
+           }))
+            return;
+        auto names = pm->get_parameter_names();
         std::sort(names.begin(), names.end());
         module_ref mm = mpm.create_module("mlir_" + pm->name());
         mm->set_bypass();
         auto [anchor_op, top_inputs] = fuse_input_ops_and_gemm_based_op(
             mm, gemm_based_op->inputs(), gemm_based_op->get_operator());
-        mm->add_return(fold_pointwise_mod(ins, mm, {{x_ins, anchor_op}}));
+        std::unordered_map<instruction_ref, instruction_ref> param_map =
+            create_param_map_with_literals(mm, pm, pw_ins->get_shape());
+        auto [upper_input, op_stream] = get_fusable_input_op_stream(x_ins);
+        assert(upper_input == gemm_based_op);
+        auto prev_input = anchor_op;
+        for(const auto& op : reverse(op_stream))
+        {
+            prev_input = mm->add_instruction(op, {prev_input});
+        }
+        assert(prev_input->get_shape().lens() == x_ins->get_shape().lens());
+        param_map[x_ins] = prev_input; // this is to avoid adding parameter for gemm/conv reshaped
+                                       // input to pointwise in new fused module
+        bool gemm_has_multi_outs = gemm_based_op->outputs().size() > 1;
+        auto reshaped_gemm       = x_ins;
+        std::vector<instruction_ref> reshapes_vec;
+        while(reshaped_gemm != gemm_based_op)
+        {
+            reshapes_vec.push_back(reshaped_gemm);
+            gemm_has_multi_outs = gemm_has_multi_outs or reshaped_gemm->outputs().size() > 1;
+            reshaped_gemm       = reshaped_gemm->inputs().at(0);
+        }
+        reshapes_vec.push_back(reshaped_gemm);
+
+        auto return_vals = mm->fuse(*pm, pw_ins->inputs(), &param_map);
+        if(gemm_has_multi_outs)
+        {
+            return_vals.insert(return_vals.begin(), anchor_op);
+        }
+        mm->add_return(return_vals);
 
         std::vector<instruction_ref> inputs;
-        std::copy_if(ins->inputs().begin(),
-                     ins->inputs().end(),
+        std::copy_if(pw_ins->inputs().begin(),
+                     pw_ins->inputs().end(),
                      std::back_inserter(inputs),
-                     [&](auto input) { return input != gemm_based_op; });
+                     [&](auto input) { return input != x_ins; });
         inputs.insert(inputs.end(), top_inputs.begin(), top_inputs.end());
-        mpm.get_module().replace_instruction(
-            ins, mlir_op{gemm_based_op->get_operator()}, mlir_contiguous(mpm, inputs), {mm});
+        if(gemm_has_multi_outs)
+        {
+            auto fused_ins = mpm.get_module().insert_instruction(
+                pw_ins, mlir_op{gemm_based_op->get_operator()}, mlir_contiguous(mpm, inputs), {mm});
+            mpm.get_module().replace_instruction(
+                pw_ins, migraphx::make_op("get_tuple_elem", {{"index", 1}}), fused_ins);
+            auto dot_ins = mpm.get_module().insert_instruction(
+                pw_ins, migraphx::make_op("get_tuple_elem", {{"index", 0}}), fused_ins);
+            // move all the reshape instructions and original GEMM instruction after the fused op to
+            // avoid generating invalid migraphx program
+            for(const auto& orig_i : reverse(reshapes_vec))
+            {
+                mpm.get_module().move_instruction(orig_i, pw_ins);
+            }
+            mpm.get_module().replace_instruction(gemm_based_op, dot_ins);
+        }
+        else
+        {
+            mpm.get_module().replace_instruction(
+                pw_ins, mlir_op{gemm_based_op->get_operator()}, mlir_contiguous(mpm, inputs), {mm});
+        }
     }
 };
 
@@ -550,6 +723,19 @@ struct find_mlir_standalone_attention_op
             bias = mm->add_instruction(make_op("add"), scaled_gemm0, bias_param);
             inputs.push_back(bias_input);
         }
+        else if(orig_inputs.size() == 5) // gemm1 + mul_where + softmax + gemm2 + trailing_pm case
+        {
+            auto select_cond  = orig_inputs[2];
+            auto select_const = orig_inputs[3];
+            instruction_ref select_cond_param =
+                mm->add_parameter("y_cond", select_cond->get_shape().as_standard());
+            instruction_ref select_cond_const =
+                mm->add_parameter("y_const", select_const->get_shape().as_standard());
+            bias = mm->add_instruction(
+                make_op("where"), select_cond_param, scaled_gemm0, select_cond_const);
+            inputs.push_back(select_cond);
+            inputs.push_back(select_const);
+        }
 
         auto softmax = mm->add_instruction(
             make_op("softmax", {{"axis", gemm0->get_shape().lens().size() - 1}}),
@@ -565,20 +751,23 @@ struct find_mlir_standalone_attention_op
 
         auto gemm1 = mm->add_instruction(make_op("dot"), {softmax, new_upper_v});
 
-        std::unordered_map<instruction_ref, instruction_ref> ins_map;
-        ins_map[gemm_softmax_gemm] = gemm1;
-        auto ins_to_replace        = gemm1;
-        auto ins_to_be_replaced    = gemm_softmax_gemm;
+        std::vector<instruction_ref> ins_to_replace = {gemm1};
+        auto ins_to_be_replaced                     = gemm_softmax_gemm;
         if(r.instructions.find("trailing_pm") != r.instructions.end())
         {
-            ins_to_replace = fold_pointwise_mod(r.instructions["trailing_pm"], mm, ins_map)[0];
-            std::copy_if(r.instructions["trailing_pm"]->inputs().begin(),
-                         r.instructions["trailing_pm"]->inputs().end(),
+            auto trailing_pm_ins = r.instructions["trailing_pm"];
+            auto ins_map         = create_param_map_with_literals(
+                mm, trailing_pm_ins->module_inputs().front(), trailing_pm_ins->get_shape());
+            ins_map[gemm_softmax_gemm] = gemm1;
+            ins_to_replace             = mm->fuse(
+                *trailing_pm_ins->module_inputs().front(), trailing_pm_ins->inputs(), &ins_map);
+            std::copy_if(trailing_pm_ins->inputs().begin(),
+                         trailing_pm_ins->inputs().end(),
                          std::back_inserter(inputs),
                          [&](auto input) { return input != gemm_softmax_gemm; });
-            ins_to_be_replaced = r.instructions["trailing_pm"];
+            ins_to_be_replaced = trailing_pm_ins;
         }
-        mm->add_return({ins_to_replace});
+        mm->add_return(ins_to_replace);
 
         mpm.get_module().replace_instruction(
             ins_to_be_replaced, mlir_op{gemm1->get_operator()}, mlir_contiguous(mpm, inputs), {mm});
@@ -669,15 +858,25 @@ void fuse_mlir::apply(module_pass_manager& mpm) const
         mpm,
         find_mlir_fused_ops{.conv_mode = get_mode("fused_convolution", mlir_mode::fast),
                             .dot_mode  = get_mode("fused_dot", mlir_mode::fast)});
+
     match::find_matches(
         mpm,
         find_mlir_standalone_convolution_op{get_mode("convolution", mlir_mode::fast)},
         find_mlir_standalone_dot_op{get_mode("dot", mlir_mode::fast)});
 
     mpm.run_pass(dead_code_elimination{});
+    if(enabled(MIGRAPHX_ENABLE_MLIR_REDUCE_FUSION{}))
+    {
+        match::find_matches(
+            mpm,
+            find_mlir_split_reduce{.conv_mode = get_mode("fused_convolution", mlir_mode::fast),
+                                   .dot_mode  = get_mode("fused_dot", mlir_mode::fast)});
+    }
 
     if(enabled(MIGRAPHX_ENABLE_MLIR_INPUT_FUSION{}))
+    {
         match::find_matches(mpm, find_pointwise_mlir{});
+    }
 #else
     (void)mpm;
 #endif

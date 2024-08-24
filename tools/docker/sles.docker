@@ -3,13 +3,16 @@ FROM registry.suse.com/suse/sle15:15.5
 RUN sh -c 'echo -e "\
 [rocm]\n\
 name=rocm\n\
-baseurl=https://repo.radeon.com/rocm/zyp/6.0.2/main\n\
+baseurl=https://repo.radeon.com/rocm/zyp/6.1.3/main\n\
 enabled=1\n\
 gpgcheck=0\n\
 gpgkey=https://repo.radeon.com/rocm/rocm.gpg.key\n\
 " > /etc/zypp/repos.d/rocm.repo'
 
 RUN cat /etc/zypp/repos.d/rocm.repo
+
+#addition of repos for packages
+RUN zypper addrepo https://download.opensuse.org/repositories/devel:/languages:/perl/15.5/devel:languages:perl.repo 
 
 RUN zypper -n --gpg-auto-import-keys refresh
 
@@ -20,10 +23,10 @@ RUN zypper --gpg-auto-import-keys install -y \
     gdb \
     git \
     python3-pip \
-    rpm-build
+    rpm-build \
+    perl-File-BaseDir \
+    hipblaslt
 
-#addition of repos for packages
-RUN zypper addrepo https://download.opensuse.org/repositories/devel:/languages:/perl/15.5/devel:languages:perl.repo 
 
 # Workaround broken rocm packages
 RUN ln -s /opt/rocm-* /opt/rocm

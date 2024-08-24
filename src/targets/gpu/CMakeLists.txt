@@ -23,11 +23,14 @@
 # ####################################################################################
 
 find_package(hip REQUIRED)
+
 if(NOT GPU_TARGETS)
     set(fatal_msg "HIP package is broken and has no GPU_TARGETS. Please pass GPU_TARGETS to cmake.")
+
     if(NOT WIN32)
         set(fatal_msg "${fatal_msg}\nUse -DGPU_TARGETS=$(/opt/rocm/bin/rocminfo | grep -o -m1 'gfx.*') to build for your GPU.")
     endif()
+
     message(FATAL_ERROR ${fatal_msg})
 endif()
 
@@ -44,6 +47,15 @@ if(MIGRAPHX_USE_ROCBLAS)
     message(STATUS "MIGraphX build with rocBLAS")
 else()
     message(STATUS "MIGraphX build without rocBLAS")
+endif()
+
+if(MIGRAPHX_USE_HIPBLASLT)
+    # hipblaslt
+    find_package(hipblaslt REQUIRED)
+    find_package(hipblas REQUIRED)
+    message(STATUS "MIGraphx build with hipBLAS and hipBLASLt")
+else()
+    message(STATUS "MIGraphX build without hipBLAS and hipBLASLt")
 endif()
 
 if(MIGRAPHX_USE_COMPOSABLEKERNEL)
@@ -76,7 +88,7 @@ add_library(migraphx_device ${DEVICE_GPU_SRCS})
 add_library(compile_for_gpu INTERFACE)
 target_compile_features(compile_for_gpu INTERFACE cxx_std_17)
 target_compile_options(compile_for_gpu INTERFACE -fno-gpu-rdc -Wno-cuda-compat -Wno-unused-command-line-argument -Xclang -fallow-half-arguments-and-returns)
-target_link_options(compile_for_gpu INTERFACE  -fno-gpu-rdc -Wno-invalid-command-line-argument -Wno-unused-command-line-argument -Wno-option-ignored)
+target_link_options(compile_for_gpu INTERFACE -fno-gpu-rdc -Wno-invalid-command-line-argument -Wno-unused-command-line-argument -Wno-option-ignored)
 target_link_libraries(compile_for_gpu INTERFACE hip::device)
 check_cxx_compiler_flag("--cuda-host-only -fhip-lambda-host-device -x hip" HAS_HIP_LAMBDA_HOST_DEVICE)
 
@@ -147,6 +159,8 @@ add_library(migraphx_gpu
     fuse_ops.cpp
     gemm_impl.cpp
     hip.cpp
+    hipblaslt.cpp
+    hip_gemm_impl.cpp
     kernel.cpp
     lowering.cpp
     logsoftmax.cpp
@@ -215,6 +229,12 @@ if(MIGRAPHX_USE_ROCBLAS)
     register_op(migraphx_gpu
         HEADER migraphx/gpu/gemm.hpp
         OPERATORS gpu::rocblas_gemm<op::dot> gpu::rocblas_gemm<op::quant_dot>
+        INCLUDES migraphx/gpu/context.hpp)
+endif()
+if(MIGRAPHX_USE_HIPBLASLT)
+    register_op(migraphx_gpu
+        HEADER migraphx/gpu/hip_gemm.hpp
+        OPERATORS gpu::hip_gemm<op::dot> gpu::hip_gemm<op::quant_dot>
         INCLUDES migraphx/gpu/context.hpp)
 endif()
 if (MIGRAPHX_USE_MIOPEN)
@@ -305,6 +325,13 @@ else()
     target_compile_definitions(migraphx_gpu PUBLIC MIGRAPHX_USE_ROCBLAS=0)
 endif()
 
+if(MIGRAPHX_USE_HIPBLASLT)
+    target_compile_definitions(migraphx_gpu PUBLIC MIGRAPHX_USE_HIPBLASLT=1)
+else()
+    target_compile_definitions(migraphx_gpu PUBLIC MIGRAPHX_USE_HIPBLASLT=0)
+endif()
+
+set(MIGRAPHX_USE_FIND_2_API "${HAS_FIND_2_API}" CACHE BOOL "")
 if(MIGRAPHX_USE_MIOPEN)
     set(MIGRAPHX_USE_FIND_2_API "${HAS_FIND_2_API}" CACHE BOOL "")
 
@@ -349,6 +376,11 @@ if(MIGRAPHX_USE_ROCBLAS)
     target_link_libraries(migraphx_gpu PUBLIC roc::rocblas)
 endif()
 
+if(MIGRAPHX_USE_HIPBLASLT)
+    target_link_libraries(migraphx_gpu PUBLIC roc::hipblas roc::hipblaslt)
+endif()
+
+target_link_libraries(migraphx_gpu PUBLIC migraphx MIOpen)
 if(WIN32)
     # Temporary workaround on rocMLIR not exporting correctly libraries it depends on.
     target_link_libraries(migraphx_gpu PRIVATE ntdll)

@@ -77,7 +77,7 @@ TEST_CASE(gemm_tune_with_rocblas)
     migraphx::value solution_idx(0);
     for(auto ins : iterator_for(*p.get_main_module()))
     {
-        if(ins->name() == "gpu::gemm")
+        if(ins->name() == "gpu::gemm" || ins->name() == "gpu::hip_gemm")
         {
             auto gemm_op = migraphx::get_operation(ins);
 
@@ -166,7 +166,7 @@ TEST_CASE(gemm_tune_strided_lowered)
     migraphx::value solution_idx(0);
     for(auto ins : iterator_for(*p.get_main_module()))
     {
-        if(ins->name() == "gpu::gemm")
+        if(ins->name() == "gpu::gemm" || ins->name() == "gpu::hip_gemm")
         {
             auto gemm_op = migraphx::get_operation(ins);
 

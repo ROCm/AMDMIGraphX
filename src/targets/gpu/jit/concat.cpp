@@ -67,17 +67,17 @@ struct concat_compiler : compiler<concat_compiler>
 
     static std::vector<shape> normalize(std::vector<shape> inputs, std::size_t& axis)
     {
-        auto s    = inputs.back();
-        auto lens = s.lens();
-        std::vector<std::size_t> strides(lens.size());
+        auto s = inputs.back();
+        std::vector<std::size_t> strides(s.lens().size());
         strides[axis] = 1;
 
-        inputs.push_back(shape{s.type(), lens, strides});
+        inputs.push_back(shape{s.type(), s.lens(), strides});
 
         auto result   = reduce_dims(normalize_permutation(inputs));
         auto rstrides = result.back().strides();
         auto it = std::find_if(rstrides.begin(), rstrides.end(), [](auto x) { return x == 1; });
         axis    = it - rstrides.begin();
+        result.pop_back();
         return result;
     }
 

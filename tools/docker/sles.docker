@@ -11,6 +11,9 @@ gpgkey=https://repo.radeon.com/rocm/rocm.gpg.key\n\
 
 RUN cat /etc/zypp/repos.d/rocm.repo
 
+#addition of repos for packages
+RUN zypper addrepo https://download.opensuse.org/repositories/devel:/languages:/perl/15.5/devel:languages:perl.repo 
+
 RUN zypper -n --gpg-auto-import-keys refresh
 
 RUN zypper install -y -t pattern devel_basis enhanced_base
@@ -23,9 +26,6 @@ RUN zypper --gpg-auto-import-keys install -y \
     rpm-build \
     perl-File-BaseDir \
     hipblaslt
-
-#addition of repos for packages
-RUN zypper addrepo https://download.opensuse.org/repositories/devel:/languages:/perl/15.5/devel:languages:perl.repo 
 
 # Workaround broken rocm packages
 RUN ln -s /opt/rocm-* /opt/rocm

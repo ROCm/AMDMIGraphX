@@ -138,17 +138,6 @@ struct hip_device
             assert(hblthandle.get() != nullptr);
             return hblthandle.get();
         }
-
-        auto get_hipblaslt_workspace()
-        {
-            setup();
-            if(hbltworkspace == nullptr)
-            {
-                hbltworkspace = create_hipblaslt_workspace_ptr();
-            }
-            assert(hbltworkspace.get() != nullptr);
-            return hbltworkspace.get();
-        }
 #endif
 
         void wait() const
@@ -188,8 +177,7 @@ struct hip_device
 #endif
 
 #if MIGRAPHX_USE_HIPBLASLT
-        shared<hipblaslt_handle_ptr> hblthandle       = nullptr;
-        shared<hipblaslt_workspace_ptr> hbltworkspace = nullptr;
+        shared<hipblaslt_handle_ptr> hblthandle = nullptr;
 #endif
     };
 

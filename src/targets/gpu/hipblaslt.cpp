@@ -32,7 +32,7 @@ namespace gpu {
 #if MIGRAPHX_USE_HIPBLASLT
 // for hipblaslt only
 static size_t workspace_size = hipblaslt_workspace_size;
-static void* d_workspace;
+
 hipblaslt_handle_ptr create_hipblaslt_handle_ptr()
 {
     hipblasLtHandle_t handle;
@@ -60,14 +60,11 @@ hipblaslt_preference_ptr create_hipblaslt_preference_ptr()
     return hipblaslt_preference_ptr{preference};
 }
 
-hipblaslt_workspace_ptr create_hipblaslt_workspace_ptr()
+argument& hipblaslt_workspace()
 {
-    auto status = hipMalloc(&d_workspace, workspace_size);
-    if(status != hipSuccess)
-    {
-        MIGRAPHX_THROW("hipMalloc failed for allocating workspace for the hipBLASLt\n");
-    }
-    return hipblaslt_workspace_ptr{d_workspace};
+    shape workspace_shape{shape::int8_type, {hipblaslt_workspace_size}};
+    static auto workspace = allocate_gpu(workspace_shape);
+    return workspace;
 }
 
 bool hipblaslt_supported()

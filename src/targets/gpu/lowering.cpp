@@ -250,6 +250,10 @@ struct miopen_apply
             assert(refs.size() == 2);
             auto output = insert_allocation(ins, ins->get_shape());
             refs.push_back(output);
+            if(enabled(MIGRAPHX_ENABLE_HIPBLASLT_GEMM{}))
+            {
+                hipblaslt_workspace();
+            }
             if(not enabled(MIGRAPHX_ENABLE_HIPBLASLT_GEMM{}) or not hipblaslt_supported())
             {
                 return mod->replace_instruction(

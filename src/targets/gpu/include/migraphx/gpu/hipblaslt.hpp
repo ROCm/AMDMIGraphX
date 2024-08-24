@@ -23,6 +23,7 @@
  */
 #ifndef MIGRAPHX_GUARD_MIGRAPHLIB_HIPBLASLT_HPP
 #define MIGRAPHX_GUARD_MIGRAPHLIB_HIPBLASLT_HPP
+#include <migraphx/argument.hpp>
 #include <migraphx/manage_ptr.hpp>
 #include <migraphx/gpu/config.hpp>
 #include <migraphx/errors.hpp>
@@ -72,14 +73,13 @@ namespace gpu {
 
 #if MIGRAPHX_USE_HIPBLASLT
 using hipblaslt_handle_ptr     = MIGRAPHX_MANAGE_PTR(hipblasLtHandle_t, hipblasLtDestroy);
-using hipblaslt_workspace_ptr  = MIGRAPHX_MANAGE_PTR(void*, hipFree);
 using hipblaslt_preference_ptr = MIGRAPHX_MANAGE_PTR(hipblasLtMatmulPreference_t,
                                                      hipblasLtMatmulPreferenceDestroy);
 
 hipblaslt_handle_ptr create_hipblaslt_handle_ptr();
 hipblaslt_handle_ptr create_hipblaslt_handle_ptr(hipStream_t s);
 hipblaslt_preference_ptr create_hipblaslt_preference_ptr();
-hipblaslt_workspace_ptr create_hipblaslt_workspace_ptr();
+argument& hipblaslt_workspace();
 bool hipblaslt_supported();
 const size_t hipblaslt_workspace_size = 2 * 128 * 1024 * 1024;
 #endif // MIGRAPHX_USE_HIPBLASLT

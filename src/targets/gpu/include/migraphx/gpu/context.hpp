@@ -188,8 +188,8 @@ struct hip_device
 #endif
 
 #if MIGRAPHX_USE_HIPBLASLT
-        shared<hipblaslt_handle_ptr> hblthandle         = nullptr;
-        shared<hipblaslt_workspace_ptr> hbltworkspace   = nullptr;
+        shared<hipblaslt_handle_ptr> hblthandle       = nullptr;
+        shared<hipblaslt_workspace_ptr> hbltworkspace = nullptr;
 #endif
     };
 

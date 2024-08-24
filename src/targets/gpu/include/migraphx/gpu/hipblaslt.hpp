@@ -36,7 +36,7 @@ inline auto hipblaslt_invoke(F f, Ts... xs)
     // Call the function `f` with `xs...` and capture the status
     auto status = f(xs...);
 
-    if (status != HIPBLAS_STATUS_SUCCESS)
+    if(status != HIPBLAS_STATUS_SUCCESS)
     {
         fprintf(stderr,
                 "hipBLAS error: '%s'(%d) at %s:%d\n",

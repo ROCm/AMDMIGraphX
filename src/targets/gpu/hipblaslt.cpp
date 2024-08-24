@@ -51,11 +51,12 @@ hipblaslt_preference_ptr create_hipblaslt_preference_ptr()
 {
     hipblasLtMatmulPreference_t preference;
     hipblasLtMatmulPreferenceCreate(&preference);
-    hipblaslt_invoke([&]() { return
-        hipblasLtMatmulPreferenceSetAttribute(preference,
-                                              HIPBLASLT_MATMUL_PREF_MAX_WORKSPACE_BYTES,
-                                              &workspace_size,
-                                              sizeof(workspace_size));});
+    hipblaslt_invoke([&]() {
+        return hipblasLtMatmulPreferenceSetAttribute(preference,
+                                                     HIPBLASLT_MATMUL_PREF_MAX_WORKSPACE_BYTES,
+                                                     &workspace_size,
+                                                     sizeof(workspace_size));
+    });
     return hipblaslt_preference_ptr{preference};
 }
 

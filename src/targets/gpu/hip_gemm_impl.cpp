@@ -183,77 +183,111 @@ struct hip_gemm_impl
         }
         if(op_A == HIPBLAS_OP_T)
         {
-            hipblaslt_invoke([&]() {return hipblasLtMatrixLayoutCreate(&matA, arg_type, m, k, lda);});
+            hipblaslt_invoke(
+                [&]() { return hipblasLtMatrixLayoutCreate(&matA, arg_type, m, k, lda); });
         }
         else
         {
-            hipblaslt_invoke([&]() {return hipblasLtMatrixLayoutCreate(&matA, arg_type, k, m, lda);});
+            hipblaslt_invoke(
+                [&]() { return hipblasLtMatrixLayoutCreate(&matA, arg_type, k, m, lda); });
         }
         if(op_B == HIPBLAS_OP_T)
         {
-            hipblaslt_invoke([&]() {return hipblasLtMatrixLayoutCreate(&matB, arg_type, k, n, ldb);});
+            hipblaslt_invoke(
+                [&]() { return hipblasLtMatrixLayoutCreate(&matB, arg_type, k, n, ldb); });
         }
         else
         {
-            hipblaslt_invoke([&]() {return hipblasLtMatrixLayoutCreate(&matB, arg_type, n, k, ldb);});
+            hipblaslt_invoke(
+                [&]() { return hipblasLtMatrixLayoutCreate(&matB, arg_type, n, k, ldb); });
         }
-        hipblaslt_invoke([&]() {return hipblasLtMatrixLayoutCreate(&matC, output_type, n, m, ldc);});
+        hipblaslt_invoke(
+            [&]() { return hipblasLtMatrixLayoutCreate(&matC, output_type, n, m, ldc); });
 
         if(is_3inputs)
         {
-            hipblaslt_invoke([&]() {return hipblasLtMatrixLayoutCreate(&matD, output_type, n, m, ldd);});
+            hipblaslt_invoke(
+                [&]() { return hipblasLtMatrixLayoutCreate(&matD, output_type, n, m, ldd); });
         }
         if(num_matrices > 1)
         {
-            hipblaslt_invoke([&]() {return hipblasLtMatrixLayoutSetAttribute(
-                matA, HIPBLASLT_MATRIX_LAYOUT_BATCH_COUNT, &num_matrices, sizeof(num_matrices));});
-            hipblaslt_invoke([&]() {return hipblasLtMatrixLayoutSetAttribute(
-                matB, HIPBLASLT_MATRIX_LAYOUT_BATCH_COUNT, &num_matrices, sizeof(num_matrices));});
-            hipblaslt_invoke([&]() {return hipblasLtMatrixLayoutSetAttribute(
-                matC, HIPBLASLT_MATRIX_LAYOUT_BATCH_COUNT, &num_matrices, sizeof(num_matrices));});
+            hipblaslt_invoke([&]() {
+                return hipblasLtMatrixLayoutSetAttribute(
+                    matA, HIPBLASLT_MATRIX_LAYOUT_BATCH_COUNT, &num_matrices, sizeof(num_matrices));
+            });
+            hipblaslt_invoke([&]() {
+                return hipblasLtMatrixLayoutSetAttribute(
+                    matB, HIPBLASLT_MATRIX_LAYOUT_BATCH_COUNT, &num_matrices, sizeof(num_matrices));
+            });
+            hipblaslt_invoke([&]() {
+                return hipblasLtMatrixLayoutSetAttribute(
+                    matC, HIPBLASLT_MATRIX_LAYOUT_BATCH_COUNT, &num_matrices, sizeof(num_matrices));
+            });
 
-            hipblaslt_invoke([&]() {return hipblasLtMatrixLayoutSetAttribute(
-                matA, HIPBLASLT_MATRIX_LAYOUT_STRIDED_BATCH_OFFSET, &a_stride, sizeof(a_stride));});
-            hipblaslt_invoke([&]() {return hipblasLtMatrixLayoutSetAttribute(
-                matB, HIPBLASLT_MATRIX_LAYOUT_STRIDED_BATCH_OFFSET, &b_stride, sizeof(b_stride));});
-            hipblaslt_invoke([&]() {return hipblasLtMatrixLayoutSetAttribute(
-                matC, HIPBLASLT_MATRIX_LAYOUT_STRIDED_BATCH_OFFSET, &c_stride, sizeof(c_stride));});
+            hipblaslt_invoke([&]() {
+                return hipblasLtMatrixLayoutSetAttribute(
+                    matA,
+                    HIPBLASLT_MATRIX_LAYOUT_STRIDED_BATCH_OFFSET,
+                    &a_stride,
+                    sizeof(a_stride));
+            });
+            hipblaslt_invoke([&]() {
+                return hipblasLtMatrixLayoutSetAttribute(
+                    matB,
+                    HIPBLASLT_MATRIX_LAYOUT_STRIDED_BATCH_OFFSET,
+                    &b_stride,
+                    sizeof(b_stride));
+            });
+            hipblaslt_invoke([&]() {
+                return hipblasLtMatrixLayoutSetAttribute(
+                    matC,
+                    HIPBLASLT_MATRIX_LAYOUT_STRIDED_BATCH_OFFSET,
+                    &c_stride,
+                    sizeof(c_stride));
+            });
 
             if(is_3inputs)
             {
-                hipblaslt_invoke([&]() {return
-                    hipblasLtMatrixLayoutSetAttribute(matD,
-                                                      HIPBLASLT_MATRIX_LAYOUT_BATCH_COUNT,
-                                                      &num_matrices,
-                                                      sizeof(num_matrices));});
-                hipblaslt_invoke([&]() {return
-                    hipblasLtMatrixLayoutSetAttribute(matD,
-                                                      HIPBLASLT_MATRIX_LAYOUT_STRIDED_BATCH_OFFSET,
-                                                      &d_stride,
-                                                      sizeof(d_stride));});
+                hipblaslt_invoke([&]() {
+                    return hipblasLtMatrixLayoutSetAttribute(matD,
+                                                             HIPBLASLT_MATRIX_LAYOUT_BATCH_COUNT,
+                                                             &num_matrices,
+                                                             sizeof(num_matrices));
+                });
+                hipblaslt_invoke([&]() {
+                    return hipblasLtMatrixLayoutSetAttribute(
+                        matD,
+                        HIPBLASLT_MATRIX_LAYOUT_STRIDED_BATCH_OFFSET,
+                        &d_stride,
+                        sizeof(d_stride));
+                });
             }
         }
-        hipblaslt_invoke([&]() {return hipblasLtMatmulDescCreate(
-            &hipblaslt_desc, compute_type, compute_to_hip_type(compute_type));});
-        hipblaslt_invoke([&]() {return hipblasLtMatmulDescSetAttribute(
-            hipblaslt_desc, HIPBLASLT_MATMUL_DESC_TRANSB, &op_A, sizeof(int32_t));});
-        hipblaslt_invoke([&]() {return hipblasLtMatmulDescSetAttribute(
-            hipblaslt_desc, HIPBLASLT_MATMUL_DESC_TRANSA, &op_B, sizeof(int32_t));});
+        hipblaslt_invoke([&]() {
+            return hipblasLtMatmulDescCreate(
+                &hipblaslt_desc, compute_type, compute_to_hip_type(compute_type));
+        });
+        hipblaslt_invoke([&]() {
+            return hipblasLtMatmulDescSetAttribute(
+                hipblaslt_desc, HIPBLASLT_MATMUL_DESC_TRANSB, &op_A, sizeof(int32_t));
+        });
+        hipblaslt_invoke([&]() {
+            return hipblasLtMatmulDescSetAttribute(
+                hipblaslt_desc, HIPBLASLT_MATMUL_DESC_TRANSA, &op_B, sizeof(int32_t));
+        });
 
-	// Transfer ownership of raw pointers to managed pointers.
-	managed_hipblaslt_desc.reset(hipblaslt_desc);
-	managed_matA.reset(matA);
-	managed_matB.reset(matB);
-	managed_matC.reset(matC);
-	if(is_3inputs)
-	{
-	    managed_matD.reset(matD);
-	}
+        // Transfer ownership of raw pointers to managed pointers.
+        managed_hipblaslt_desc.reset(hipblaslt_desc);
+        managed_matA.reset(matA);
+        managed_matB.reset(matB);
+        managed_matC.reset(matC);
+        if(is_3inputs)
+        {
+            managed_matD.reset(matD);
+        }
     }
 
-    ~hip_gemm_impl()
-    {
-    }
+    ~hip_gemm_impl() {}
 
     struct solution
     {
@@ -288,22 +322,25 @@ struct hip_gemm_impl
                 int returnedAlgoCount;
                 heuristicResult.resize(n_sol);
                 uint64_t max_workspace = std::numeric_limits<uint64_t>::max();
-                hipblaslt_invoke([&]() {return
-                    hipblasLtMatmulPreferenceSetAttribute(preference,
-                                                          HIPBLASLT_MATMUL_PREF_MAX_WORKSPACE_BYTES,
-                                                          &max_workspace,
-                                                          sizeof(uint64_t));});
-                hipblaslt_invoke([&]() {return
-                    hipblasLtMatmulAlgoGetHeuristic(handle,
-                                                    gemm.hipblaslt_desc,
-                                                    gemm.matB,
-                                                    gemm.matA,
-                                                    gemm.matC,
-                                                    gemm.is_3inputs ? gemm.matD : gemm.matC,
-                                                    preference,
-                                                    n_sol,
-                                                    heuristicResult.data(),
-                                                    &returnedAlgoCount);});
+                hipblaslt_invoke([&]() {
+                    return hipblasLtMatmulPreferenceSetAttribute(
+                        preference,
+                        HIPBLASLT_MATMUL_PREF_MAX_WORKSPACE_BYTES,
+                        &max_workspace,
+                        sizeof(uint64_t));
+                });
+                hipblaslt_invoke([&]() {
+                    return hipblasLtMatmulAlgoGetHeuristic(handle,
+                                                           gemm.hipblaslt_desc,
+                                                           gemm.matB,
+                                                           gemm.matA,
+                                                           gemm.matC,
+                                                           gemm.is_3inputs ? gemm.matD : gemm.matC,
+                                                           preference,
+                                                           n_sol,
+                                                           heuristicResult.data(),
+                                                           &returnedAlgoCount);
+                });
 
                 if(returnedAlgoCount != n_sol)
                 {
@@ -315,8 +352,9 @@ struct hip_gemm_impl
             {
                 // query for the solutions. 1st as the best.
                 std::vector<int32_t> algoIndex = {idx};
-                hipblaslt_invoke([&]() {return
-                    hipblaslt_ext::getAlgosFromIndex(handle, algoIndex, heuristicResult);});
+                hipblaslt_invoke([&]() {
+                    return hipblaslt_ext::getAlgosFromIndex(handle, algoIndex, heuristicResult);
+                });
                 assert(heuristicResult.size() == 1);
             }
             return heuristicResult;
@@ -439,16 +477,18 @@ struct hip_gemm_impl
                        [](const shape& x) { return to_gpu(generate_argument(x)); });
 
         std::vector<hipblasLtMatmulHeuristicResult_t> result;
-        hipblaslt_invoke([&]() {return hipblaslt_ext::getAllAlgos(ctx.get_stream().get_hipblaslt(),
-                                                       hipblaslt_ext::GemmType::HIPBLASLT_GEMM,
-                                                       op_A,
-                                                       op_B,
-                                                       arg_type,
-                                                       arg_type,
-                                                       output_type,
-                                                       output_type,
-                                                       compute_type,
-                                                       result);});
+        hipblaslt_invoke([&]() {
+            return hipblaslt_ext::getAllAlgos(ctx.get_stream().get_hipblaslt(),
+                                              hipblaslt_ext::GemmType::HIPBLASLT_GEMM,
+                                              op_A,
+                                              op_B,
+                                              arg_type,
+                                              arg_type,
+                                              output_type,
+                                              output_type,
+                                              compute_type,
+                                              result);
+        });
         std::vector<int32_t> solution_indices;
         int returned_algo_count = result.size();
         for(int i = 0; i < returned_algo_count; i++)
@@ -533,8 +573,10 @@ struct hip_gemm_impl
     hipblasLtMatmulDesc_t hipblaslt_desc;
     hipblasOperation_t op_A;
     hipblasOperation_t op_B;
-    using hipblaslt_matrix_layout = MIGRAPHX_MANAGE_PTR(hipblasLtMatrixLayout_t, hipblasLtMatrixLayoutDestroy);
-    using hipblaslt_mat_mul_desc = MIGRAPHX_MANAGE_PTR(hipblasLtMatmulDesc_t, hipblasLtMatmulDescDestroy);
+    using hipblaslt_matrix_layout = MIGRAPHX_MANAGE_PTR(hipblasLtMatrixLayout_t,
+                                                        hipblasLtMatrixLayoutDestroy);
+    using hipblaslt_mat_mul_desc  = MIGRAPHX_MANAGE_PTR(hipblasLtMatmulDesc_t,
+                                                       hipblasLtMatmulDescDestroy);
     hipblaslt_matrix_layout managed_matA, managed_matB, managed_matC, managed_matD;
     hipblaslt_mat_mul_desc managed_hipblaslt_desc;
     hipblasLtMatrixLayout_t matA, matB, matC, matD;

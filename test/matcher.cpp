@@ -25,7 +25,6 @@
 #include <migraphx/iterator_for.hpp>
 #include <test.hpp>
 #include <basic_ops.hpp>
-#include <migraphx/make_op.hpp>
 
 namespace match = migraphx::match;
 

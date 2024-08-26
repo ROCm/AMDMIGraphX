@@ -425,7 +425,7 @@ struct parse_softmaxcrossentropyloss : op_parser<parse_softmaxcrossentropyloss>
                 info.add_instruction(migraphx::make_op("gather", {{"axis", 0}}), weights, labels);
 
             loss_tensor = info.add_instruction(
-                migraphx::make_op("scatter_none", {{"axis", 0}}), loss_tensor, labels, neg_lsm_scores);
+                migraphx::make_op("scatter_none", {{"axis", -1}, {"skip_out_of_bounds", 0}}), loss_tensor, labels, neg_lsm_scores);
 
             // Perform final output reduction based on the desired attribute
             loss_tensor = handle_reduction(info, loss_tensor, weights, labels, reduction, has_ignore_index, has_weights);

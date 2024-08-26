@@ -25,7 +25,8 @@ RUN zypper --gpg-auto-import-keys install -y \
     python3-pip \
     rpm-build \
     perl-File-BaseDir \
-    hipblaslt-devel
+    hipblaslt-devel \
+    hipblas-devel
 
 
 # Workaround broken rocm packages

@@ -689,15 +689,30 @@ struct find_mlir_standalone_attention_op
 
     auto matcher() const
     {
-        auto gemm1 = match::skip(match::name("contiguous"))(is_mlir_dot(dot_mode)).bind("gemm1");
+        auto gemm1 =
+            match::skip(match::name("contiguous"))(match::used_once(), is_mlir_dot(dot_mode))
+                .bind("gemm1");
         auto fused_reduce =
-            match::name("fused_reduce")(match::any_of[match::inputs()](gemm1)).bind("fused_reduce");
-        return is_mlir_dot(dot_mode)(match::arg(0)(fused_reduce));
+            match::name("fused_reduce")(match::used_once(), match::any_of[match::inputs()](gemm1))
+                .bind("fused_reduce");
+        return is_mlir_dot(dot_mode)(match::arg(0)(fused_reduce)).bind("gemm2");
     }
+
+    auto add_inputs(std::vector<instruction_ref>& new_inputs,
+                    const std::vector<instruction_ref>& old_inputs,
+                    const std::unordered_map<instruction_ref, instruction_ref>& map_ins) const
+    {
+        std::copy_if(old_inputs.begin(),
+                     old_inputs.end(),
+                     std::back_inserter(new_inputs),
+                     [&](auto input) { return not contains(map_ins, input); });
+    }
+
+    auto finalize_attention_module(module_ref m) const { dead_code_elimination{}.apply(*m); }
 
     void apply(module_pass_manager& mpm, const match::matcher_result& r) const
     {
-        auto gemm2        = r.result;
+        auto gemm2        = r.instructions["gemm2"];
         auto fused_reduce = r.instructions["fused_reduce"];
         auto gemm1        = r.instructions["gemm1"];
 
@@ -705,28 +720,24 @@ struct find_mlir_standalone_attention_op
         if(axes.size() != 1)
             return;
 
-        mpm.get_module().debug_print();
-        mpm.get_module().debug_print(gemm1);
-        mpm.get_module().debug_print(fused_reduce);
-        mpm.get_module().debug_print(gemm2);
-        std::cout << "\n";
-        fused_reduce->module_inputs().front()->debug_print();
-
         static size_t counter = 0;
         module_ref m_attn     = mpm.create_module("mlir_" + std::to_string(counter++));
         m_attn->set_bypass();
         std::unordered_map<instruction_ref, instruction_ref> map_ins;
+        std::vector<instruction_ref> new_inputs;
 
         // Add first gemm and fuse any input shape ops
         module_ref fuse_gemm1 = mpm.create_module("reshapes_gemm1");
-        auto [anchor_op, top_inputs] = fuse_input_ops_and_gemm_based_op(
-            fuse_gemm1, gemm1->inputs(), gemm1->get_operator());
+        auto [anchor_op, top_inputs] =
+            fuse_input_ops_and_gemm_based_op(fuse_gemm1, gemm1->inputs(), gemm1->get_operator());
         fuse_gemm1->add_return({anchor_op});
+        add_inputs(new_inputs, top_inputs, map_ins);
 
-        auto m_gemm1 = m_attn->fuse(*fuse_gemm1, top_inputs, &map_ins).front();
+        auto m_gemm1   = m_attn->fuse(*fuse_gemm1, top_inputs, &map_ins).front();
         map_ins[gemm1] = m_gemm1;
 
         // Add pointwise-softmax, unroll any pointwise modules back to base ops
+        add_inputs(new_inputs, fused_reduce->inputs(), map_ins);
         auto pw_softmax =
             m_attn
                 ->fuse(
@@ -750,8 +761,6 @@ struct find_mlir_standalone_attention_op
                     })
                 .front();
 
-        m_attn->debug_print();
-
         // fused_reduce submodule should end with a softmax
         auto result = match::match_instruction(*m_attn, pw_softmax, match::softmax());
         if(result.result != pw_softmax)
@@ -766,113 +775,39 @@ struct find_mlir_standalone_attention_op
         if(not std::all_of(m_gemm1, softmax, &is_pointwise_op_supported_by_mlir))
             return;
 
-        std::cout << "passed mlir pw op check\n";
         map_ins[fused_reduce] = softmax;
 
         // Add second gemm and fuse any input shape ops
         module_ref fuse_gemm2 = mpm.create_module("reshapes_gemm2");
-        auto [anchor_op2, top_inputs2] = fuse_input_ops_and_gemm_based_op(
-            fuse_gemm2, gemm2->inputs(), gemm2->get_operator());
+        auto [anchor_op2, top_inputs2] =
+            fuse_input_ops_and_gemm_based_op(fuse_gemm2, gemm2->inputs(), gemm2->get_operator());
         fuse_gemm2->add_return({anchor_op2});
+        add_inputs(new_inputs, top_inputs2, map_ins);
 
-        auto m_gemm2 = m_attn->fuse(*fuse_gemm2, top_inputs2, &map_ins).front();
+        auto m_gemm2   = m_attn->fuse(*fuse_gemm2, top_inputs2, &map_ins).front();
         map_ins[gemm2] = m_gemm2;
 
-        m_attn->debug_print();
-    }
-};
-
-struct find_mlir_standalone_attention_op_old
-{
-    auto matcher() const
-    {
-        return match::name("gpu::pre_gemm_softmax_gemm").bind("gemm_softmax_gemm");
-    }
-
-    void apply(module_pass_manager& mpm, const match::matcher_result& r) const
-    {
-        static size_t counter  = 0;
-        module_ref mm          = mpm.create_module("mlir_" + std::to_string(counter++));
-        auto gemm_softmax_gemm = r.instructions["gemm_softmax_gemm"];
-        mm->set_bypass();
-
-        auto orig_inputs = gemm_softmax_gemm->inputs();
-
-        std::vector<instruction_ref> gemm0_inputs = {orig_inputs[0], orig_inputs[1]};
-        auto [gemm0, top_gemm0_inputs] =
-            fuse_input_ops_and_gemm_based_op(mm, gemm0_inputs, make_op("dot"));
-
-        std::vector<instruction_ref> inputs;
-        inputs.insert(inputs.begin(), top_gemm0_inputs.begin(), top_gemm0_inputs.end());
-
-        // handle scale
-        auto v = gemm_softmax_gemm->get_operator().to_value();
-        assert(v.contains("scale"));
-        auto scale     = v.at("scale").to<float>();
-        auto scale_lit = mm->add_literal(literal{shape{gemm0->get_shape().type()}, {scale}});
-        instruction_ref scale_lit_mbcast = mm->add_instruction(
-            make_op("multibroadcast", {{"out_lens", gemm0->get_shape().lens()}}), scale_lit);
-        auto scaled_gemm0 = mm->add_instruction(make_op("mul"), gemm0, scale_lit_mbcast);
-
-        std::optional<instruction_ref> bias{nullopt};
-        if(orig_inputs.size() == 4)
-        {
-            auto bias_input = orig_inputs[2];
-            instruction_ref bias_param =
-                mm->add_parameter("y_bias", bias_input->get_shape().as_standard());
-            bias = mm->add_instruction(make_op("add"), scaled_gemm0, bias_param);
-            inputs.push_back(bias_input);
-        }
-        else if(orig_inputs.size() == 5) // gemm1 + mul_where + softmax + gemm2 + trailing_pm case
-        {
-            auto select_cond  = orig_inputs[2];
-            auto select_const = orig_inputs[3];
-            instruction_ref select_cond_param =
-                mm->add_parameter("y_cond", select_cond->get_shape().as_standard());
-            instruction_ref select_cond_const =
-                mm->add_parameter("y_const", select_const->get_shape().as_standard());
-            bias = mm->add_instruction(
-                make_op("where"), select_cond_param, scaled_gemm0, select_cond_const);
-            inputs.push_back(select_cond);
-            inputs.push_back(select_const);
-        }
-
-        auto softmax = mm->add_instruction(
-            make_op("softmax", {{"axis", gemm0->get_shape().lens().size() - 1}}),
-            bias ? bias.value() : scaled_gemm0);
-        auto [old_upper_v, upper_v_op_stream] = get_fusable_input_op_stream(orig_inputs.back());
-        instruction_ref new_upper_v =
-            mm->add_parameter("z", old_upper_v->get_shape().as_standard());
-        for(const auto& op : reverse(upper_v_op_stream))
-        {
-            new_upper_v = mm->add_instruction(op, {new_upper_v});
-        }
-        inputs.push_back(old_upper_v);
-
-        auto gemm1 = mm->add_instruction(make_op("dot"), {softmax, new_upper_v});
-
-        std::vector<instruction_ref> ins_to_replace = {gemm1};
-        auto ins_to_be_replaced                     = gemm_softmax_gemm;
-        if(r.instructions.find("trailing_pm") != r.instructions.end())
+        // Fuse any succeeding pointwise module
+        if(contains(r.instructions, "trailing_pm"))
         {
             auto trailing_pm_ins = r.instructions["trailing_pm"];
-            auto ins_map         = create_param_map_with_literals(
-                mm, trailing_pm_ins->module_inputs().front(), trailing_pm_ins->get_shape());
-            ins_map[gemm_softmax_gemm] = gemm1;
-            ins_to_replace             = mm->fuse(
-                *trailing_pm_ins->module_inputs().front(), trailing_pm_ins->inputs(), &ins_map);
-            std::copy_if(trailing_pm_ins->inputs().begin(),
-                         trailing_pm_ins->inputs().end(),
-                         std::back_inserter(inputs),
-                         [&](auto input) { return input != gemm_softmax_gemm; });
-            ins_to_be_replaced = trailing_pm_ins;
+            add_inputs(new_inputs, trailing_pm_ins->inputs(), map_ins);
+            auto fused_pw_outs = m_attn
+                                     ->fuse(*trailing_pm_ins->module_inputs().front(),
+                                            trailing_pm_ins->inputs(),
+                                            &map_ins)
+                                     .front();
+            map_ins[trailing_pm_ins] = fused_pw_outs;
+            m_attn->add_return({fused_pw_outs});
         }
-        mm->add_return(ins_to_replace);
+        else
+        {
+            m_attn->add_return({m_gemm2});
+        }
 
-        mm->debug_print();
-
+        finalize_attention_module(m_attn);
         mpm.get_module().replace_instruction(
-            ins_to_be_replaced, mlir_op{gemm1->get_operator()}, mlir_contiguous(mpm, inputs), {mm});
+            r.result, mlir_op{gemm1->get_operator()}, mlir_contiguous(mpm, new_inputs), {m_attn});
     }
 };
 
@@ -953,8 +888,9 @@ void fuse_mlir::apply(module_pass_manager& mpm) const
     if(mlir_attention_enabled())
     {
         match::find_matches(mpm, find_mlir_attention_fused_ops{mlir_mode::all});
+        mpm.run_pass(dead_code_elimination{});
         match::find_matches(mpm, find_mlir_standalone_attention_op{mlir_mode::all});
-        match::find_matches(mpm, find_mlir_standalone_attention_op_old{});
+        mpm.run_pass(dead_code_elimination{});
     }
 
     match::find_matches(

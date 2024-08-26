@@ -370,6 +370,11 @@ struct parse_softmaxcrossentropyloss : op_parser<parse_softmaxcrossentropyloss>
         bool has_weights = (args.size() > 2);
         auto weights = get_weights(info, args, ignore_index, scores_shape, class_size, has_ignore_index);
 
+        // Need to perform softmax on all the data before we select final axes
+        scores =
+            info.add_instruction(migraphx::make_op("softmax", {{"axis", 1}}), scores);
+
+
         if(is_k_dim) 
         {
             auto gathernd_indicies = handle_index_selection(info, labels);
@@ -406,11 +411,9 @@ struct parse_softmaxcrossentropyloss : op_parser<parse_softmaxcrossentropyloss>
         auto loss_tensor = info.add_instruction(
             migraphx::make_op("convert", {{"target_type", scores_shape.type()}}), labels);
  
-        // Do the softmax and other pointwise operators on the final set of indicies and scores we care about rather than
+        // Do pointwise operators on the final set of indicies and scores we care about rather than
         // before so that we're not doing a bunch of pointwise on items that aren't part of the loss calulation.
-        auto softmax_scores =
-            info.add_instruction(migraphx::make_op("softmax", {{"axis", -1}}), scores);
-        auto log_sm_scores  = info.add_instruction(migraphx::make_op("log"), softmax_scores);
+        auto log_sm_scores  = info.add_instruction(migraphx::make_op("log"), scores);
         auto neg_lsm_scores = info.add_instruction(migraphx::make_op("neg"), log_sm_scores);
 
         if (is_k_dim)

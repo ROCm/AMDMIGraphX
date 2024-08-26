@@ -114,8 +114,7 @@ void strip_weights::apply(module& m) const
         {
             ins->debug_print();
             // save current literal to it's own file
-            std::vector<char> cur_literal = std::vector<char>(ins->get_literal().data(), ins->get_literal().data() + ins->get_shape().bytes());
-            auto buffer = make_shared_array<char>(cur_literal.begin(), cur_literal.end());
+            auto buffer = make_shared_array<char>(ins->get_literal().data(), ins->get_literal().data() + ins->get_shape().bytes());
 
             std::string output_file = output_file_header + "/literal_" + std::to_string(n);
             std::cout << output_file << "\n";

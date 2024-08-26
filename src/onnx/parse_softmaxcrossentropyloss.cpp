@@ -361,6 +361,7 @@ struct parse_softmaxcrossentropyloss : op_parser<parse_softmaxcrossentropyloss>
         size_t batch_size = scores_shape.lens().at(0);
         size_t class_size = scores_shape.lens().at(1);
         bool is_k_dim  = (ndims > 3);
+        bool sizes_mismatch = batch_size != class_size;
 
         // ignore_index is optional attribute, assign this as a scalar literal input to the op
         instruction_ref ignore_index;
@@ -375,19 +376,18 @@ struct parse_softmaxcrossentropyloss : op_parser<parse_softmaxcrossentropyloss>
             info.add_instruction(migraphx::make_op("softmax", {{"axis", 1}}), scores);
 
 
-        if(is_k_dim) 
+        if(is_k_dim or sizes_mismatch) 
         {
             auto gathernd_indicies = handle_index_selection(info, labels);
             gathernd_indicies->debug_print();
 
             std::vector<int64_t> perm(class_size, 0);
-            std::iota(++perm.begin(), perm.end(), 2);
-            perm.at(class_size - 1) = 1;
-            scores = info.add_instruction(migraphx::make_op("transpose", {{"permutation", perm}}), scores);
-
-            for( auto &p : perm)
-                std::cout << p << ",";
-            std::cout <<  std::endl;
+            if (is_k_dim)
+            {
+                std::iota(++perm.begin(), perm.end(), 2);
+                perm.at(class_size - 1) = 1;
+                scores = info.add_instruction(migraphx::make_op("transpose", {{"permutation", perm}}), scores);
+            }
 
             scores->debug_print();
             std::cout << scores->get_shape().ndim() << std::endl;
@@ -402,7 +402,8 @@ struct parse_softmaxcrossentropyloss : op_parser<parse_softmaxcrossentropyloss>
                 weights = info.add_instruction(migraphx::make_op("unsqueeze", {{"axes", axis_list}}), weights);
                 weights->debug_print();
                 weights = info.add_instruction(migraphx::make_op("multibroadcast", {{"out_lens", scores_shape.lens()}}), weights);
-                weights = info.add_instruction(migraphx::make_op("transpose", {{"permutation", perm}}), weights);
+                if (is_k_dim)
+                   weights = info.add_instruction(migraphx::make_op("transpose", {{"permutation", perm}}), weights);
                 weights = info.add_instruction(migraphx::make_op("gathernd"), weights, gathernd_indicies);
             }
         }
@@ -416,7 +417,7 @@ struct parse_softmaxcrossentropyloss : op_parser<parse_softmaxcrossentropyloss>
         auto log_sm_scores  = info.add_instruction(migraphx::make_op("log"), scores);
         auto neg_lsm_scores = info.add_instruction(migraphx::make_op("neg"), log_sm_scores);
 
-        if (is_k_dim)
+        if (is_k_dim or sizes_mismatch)
             loss_tensor = handle_reduction(info, neg_lsm_scores, weights, labels, reduction, has_ignore_index, has_weights);
         else
         {

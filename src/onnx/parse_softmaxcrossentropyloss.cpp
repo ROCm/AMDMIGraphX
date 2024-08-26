@@ -265,6 +265,44 @@ struct parse_softmaxcrossentropyloss : op_parser<parse_softmaxcrossentropyloss>
         return weights;
     }
 
+    instruction_ref handle_index_selection(const onnx_parser::node_info &info, 
+                                const instruction_ref labels) const  
+    {
+        // Pick out the coordinates from the inputs to gerneate the proper indicies to gather 
+        // what will be operated on later. 
+
+        // Use label indices to select weights
+        auto labels_unsq = info.add_instruction(migraphx::make_op("unsqueeze", {{"axes", {-1}}}), labels);
+        auto label_shape = labels->get_shape();
+        auto labels_rank = labels_unsq->get_shape().ndim();
+
+        std::vector<instruction_ref> coordinate_index_literals;
+
+        for (size_t axis = 0; axis < (labels_rank - 1); axis++)
+        {
+            // Trying to replicate torch arrange() here.
+            auto len_val = labels_unsq->get_shape().lens().at(axis);
+            std::vector<int64_t> vect_of_lit(len_val);
+            std::iota(vect_of_lit.begin(), vect_of_lit.end(), 0);
+            auto batch_dim_indicies = info.add_literal(migraphx::shape(label_shape.type(), {len_val}), vect_of_lit);
+
+            // This is supposed to do unsq_dims = [:a] + [a + 1:]
+            std::vector<decltype(labels_rank)> unsq_dims(labels_rank);
+            std::iota(unsq_dims.begin(), unsq_dims.end(), 0);
+            auto it = unsq_dims.begin();
+            it += axis;
+            unsq_dims.erase(it);
+
+            auto batch_dim_index_unsq = info.add_instruction(migraphx::make_op("unsqueeze", {{"axes", unsq_dims}}), batch_dim_indicies);
+
+            auto batch_dim_indicies_bc = info.add_instruction(migraphx::make_op("multibroadcast", {{"out_lens", labels_unsq->get_shape().lens()}}), batch_dim_index_unsq);
+            coordinate_index_literals.push_back(batch_dim_indicies_bc);
+        }
+
+        coordinate_index_literals.push_back(labels_unsq);
+        return info.add_instruction(migraphx::make_op("concat", {{"axis", -1}}), coordinate_index_literals);
+    }
+
     instruction_ref handle_reduction(const onnx_parser::node_info &info, 
                                      const instruction_ref loss_tensor, 
                                      const instruction_ref weights, 

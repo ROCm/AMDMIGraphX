@@ -311,17 +311,11 @@ struct parse_softmaxcrossentropyloss : op_parser<parse_softmaxcrossentropyloss>
                                            bool has_ignore_index, 
                                            bool has_weights) const    
     {
-        instruction_ref weight_tensor;
         instruction_ref final_loss_tensor = loss_tensor;
         if(has_ignore_index or has_weights)
         {
-            weight_tensor =
-                info.add_instruction(migraphx::make_op("gather", {{"axis", 0}}), weights, labels);
-
-            // Mul op also handles ignored index as the corresponding weight will be zero if it
-            // matches ignore index
             final_loss_tensor =
-                info.add_instruction(migraphx::make_op("mul"), loss_tensor, weight_tensor);
+                info.add_instruction(migraphx::make_op("mul"), loss_tensor, weights);
         }
 
         // Add reduction step after we're generated crossentropyloss tensor and rearragned weight
@@ -331,7 +325,7 @@ struct parse_softmaxcrossentropyloss : op_parser<parse_softmaxcrossentropyloss>
             final_loss_tensor =
                 info.add_instruction(migraphx::make_op("reduce_sum", {{"axes", {0}}}), loss_tensor);
             auto reduced_weights = info.add_instruction(
-                migraphx::make_op("reduce_sum", {{"axes", {0}}}), weight_tensor);
+                migraphx::make_op("reduce_sum", {{"axes", {0}}}), weights);
             final_loss_tensor =
                 info.add_instruction(migraphx::make_op("div"), final_loss_tensor, reduced_weights);
         }
@@ -361,12 +355,12 @@ struct parse_softmaxcrossentropyloss : op_parser<parse_softmaxcrossentropyloss>
         auto scores = get_scores(args.at(0));
         auto scores_shape = scores->get_shape();
         auto labels  = get_labels(args.at(1), scores_shape);
-        auto label_shape = labels->get_shape();
 
         // meta parameters based on input scores shape
-        bool is_k_dim  = (scores_shape.ndim() > 3);
+        size_t ndims = scores_shape.ndim();
         size_t batch_size = scores_shape.lens().at(0);
         size_t class_size = scores_shape.lens().at(1);
+        bool is_k_dim  = (ndims > 3);
 
         // ignore_index is optional attribute, assign this as a scalar literal input to the op
         instruction_ref ignore_index;
@@ -376,36 +370,62 @@ struct parse_softmaxcrossentropyloss : op_parser<parse_softmaxcrossentropyloss>
         bool has_weights = (args.size() > 2);
         auto weights = get_weights(info, args, ignore_index, scores_shape, class_size, has_ignore_index);
 
-        auto loss_tensor = info.add_instruction(
-            migraphx::make_op("convert", {{"target_type", scores_shape.type()}}), labels);
-
-        if(is_k_dim)
+        if(is_k_dim) 
         {
-            auto lens = label_shape.lens();
-            size_t d =
-                std::accumulate(lens.rbegin(), lens.rend() - 1, 1, std::multiplies<size_t>());
-            scores = info.add_instruction(
-                migraphx::make_op("reshape", {{"dims", {batch_size, class_size, d}}}), scores);
+            auto gathernd_indicies = handle_index_selection(info, labels);
+            gathernd_indicies->debug_print();
+
+            std::vector<int64_t> perm(class_size, 0);
+            std::iota(++perm.begin(), perm.end(), 2);
+            perm.at(class_size - 1) = 1;
+            scores = info.add_instruction(migraphx::make_op("transpose", {{"permutation", perm}}), scores);
+
+            for( auto &p : perm)
+                std::cout << p << ",";
+            std::cout <<  std::endl;
+
+            scores->debug_print();
+            std::cout << scores->get_shape().ndim() << std::endl;
+            std::cout << perm.size() << std::endl;
+
+            scores = info.add_instruction(migraphx::make_op("gathernd"), scores, gathernd_indicies);
+
+            if (has_weights) // Saves us a multiply + gather op to gate this as default weights are literal 1's
+            {
+                std::vector<int64_t> axis_list(ndims-1, 0);
+                std::iota(++(axis_list.begin()), axis_list.end(), 2);
+                weights = info.add_instruction(migraphx::make_op("unsqueeze", {{"axes", axis_list}}), weights);
+                weights->debug_print();
+                weights = info.add_instruction(migraphx::make_op("multibroadcast", {{"out_lens", scores_shape.lens()}}), weights);
+                weights = info.add_instruction(migraphx::make_op("transpose", {{"permutation", perm}}), weights);
+                weights = info.add_instruction(migraphx::make_op("gathernd"), weights, gathernd_indicies);
+            }
         }
 
-        // Offload calculation of log(Softmax(scores)) for the input before we perform cross entropy
-        // loss calculation
+        // create output container which should be the same shape as input labels
+        auto loss_tensor = info.add_instruction(
+            migraphx::make_op("convert", {{"target_type", scores_shape.type()}}), labels);
+ 
+        // Do the softmax and other pointwise operators on the final set of indicies and scores we care about rather than
+        // before so that we're not doing a bunch of pointwise on items that aren't part of the loss calulation.
         auto softmax_scores =
-            info.add_instruction(migraphx::make_op("softmax", {{"axis", 1}}), scores);
+            info.add_instruction(migraphx::make_op("softmax", {{"axis", -1}}), scores);
         auto log_sm_scores  = info.add_instruction(migraphx::make_op("log"), softmax_scores);
         auto neg_lsm_scores = info.add_instruction(migraphx::make_op("neg"), log_sm_scores);
 
-        loss_tensor = info.add_instruction(
-            migraphx::make_op("scatter_none", {{"axis", 0}}), loss_tensor, labels, neg_lsm_scores);
-
-        if(is_k_dim)
+        if (is_k_dim)
+            loss_tensor = handle_reduction(info, neg_lsm_scores, weights, labels, reduction, has_ignore_index, has_weights);
+        else
         {
-            loss_tensor = info.add_instruction(
-                migraphx::make_op("reshape", {{"dims", label_shape.lens()}}), loss_tensor);
-        }
+            weights =
+                info.add_instruction(migraphx::make_op("gather", {{"axis", 0}}), weights, labels);
 
-        // Perform final output reduction based on the desired attribute
-        loss_tensor = handle_reduction(info, loss_tensor, weights, labels, reduction, has_ignore_index, has_weights);
+            loss_tensor = info.add_instruction(
+                migraphx::make_op("scatter_none", {{"axis", 0}}), loss_tensor, labels, neg_lsm_scores);
+
+            // Perform final output reduction based on the desired attribute
+            loss_tensor = handle_reduction(info, loss_tensor, weights, labels, reduction, has_ignore_index, has_weights);
+        }
 
         return {loss_tensor, log_sm_scores};
     }

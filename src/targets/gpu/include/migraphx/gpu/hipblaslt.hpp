@@ -29,8 +29,6 @@
 #include <migraphx/errors.hpp>
 #if MIGRAPHX_USE_HIPBLASLT
 #include <hipblaslt/hipblaslt.h>
-#ifndef HIPBLASLT_INVOKE_FUNCTION
-#define HIPBLASLT_INVOKE_FUNCTION
 template <class F, class... Ts>
 inline auto hipblaslt_invoke(F f, Ts... xs)
 {
@@ -39,13 +37,10 @@ inline auto hipblaslt_invoke(F f, Ts... xs)
 
     if(status != HIPBLAS_STATUS_SUCCESS)
     {
-        fprintf(stderr,
-                "hipBLAS error: '%s'(%d) at %s:%d\n",
-                hipblasStatusToString(status),
-                status,
-                __FILE__,
-                __LINE__);
-        MIGRAPHX_THROW(EXIT_FAILURE);
+        std::string error_message =
+            "hipBLAS error: '" + std::string(hipblasStatusToString(status)) + "'(" +
+            std::to_string(status) + ") at " + __FILE__ + ":" + std::to_string(__LINE__);
+        MIGRAPHX_THROW(EXIT_FAILURE, error_message);
     }
     return status;
 }
@@ -64,7 +59,6 @@ auto hipblaslt_invoke(F f, Pack p, Ts... xs)
     });
 }
 
-#endif // HIPBLASLT_INVOKE_FUNCTION
 #endif // MIGRAPHX_USE_HIPBLASLT
 
 namespace migraphx {

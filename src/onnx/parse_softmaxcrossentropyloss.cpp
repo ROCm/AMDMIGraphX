@@ -383,7 +383,8 @@ struct parse_softmaxcrossentropyloss : op_parser<parse_softmaxcrossentropyloss>
         scores =
             info.add_instruction(migraphx::make_op("softmax", {{"axis", 1}}), scores);
 
-
+        // This can be skipped if batch dim == class dim and there's only one batch dimension
+        // The entire op then becomes a much simpler mul + gather + scatter + reduce after pointwise operations
         if(is_k_dim or sizes_mismatch) 
         {
             auto gathernd_indicies = handle_index_selection(info, labels);
@@ -416,12 +417,13 @@ struct parse_softmaxcrossentropyloss : op_parser<parse_softmaxcrossentropyloss>
             }
         }
 
-        // create output container which should be the same shape as input labels
+        // Create output container which should be the same shape as input labels
         auto loss_tensor = info.add_instruction(
             migraphx::make_op("convert", {{"target_type", scores_shape.type()}}), labels);
  
         // Do pointwise operators on the final set of indicies and scores we care about rather than
         // before so that we're not doing a bunch of pointwise on items that aren't part of the loss calulation.
+        // Helps more in the mismatched Batch/Class and multi batch size cases. 
         auto log_sm_scores  = info.add_instruction(migraphx::make_op("log"), scores);
         auto neg_lsm_scores = info.add_instruction(migraphx::make_op("neg"), log_sm_scores);
 

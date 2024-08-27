@@ -41,7 +41,6 @@
 #include <migraphx/make_op.hpp>
 #include <migraphx/pass_manager.hpp>
 #include <migraphx/normalize_ops.hpp>
-#include <migraphx/stringutils.hpp>
 #include <set>
 
 namespace migraphx {

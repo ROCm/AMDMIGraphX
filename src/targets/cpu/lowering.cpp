@@ -57,6 +57,7 @@
 #include <migraphx/match/gelu_erf.hpp>
 #include <migraphx/match/gelu_tanh.hpp>
 #include <migraphx/matcher.hpp>
+#include <migraphx/fp8_types.hpp>
 #include <unordered_map>
 #include <utility>
 #include <iostream>
@@ -377,7 +378,7 @@ struct cpu_apply
             // skip lowering if input has fp8 as one of the inputs since oneDNN doesn't have fp8
             // supported yet.
             if(std::any_of(it->inputs().begin(), it->inputs().end(), [](const auto& i) {
-                   return contains(migraphx::shape::fp8_types, i->get_shape().type());
+                   return contains(fp8_types{}.get(), i->get_shape().type());
                }))
                 continue;
             if(it->name() == "pow")
@@ -390,7 +391,7 @@ struct cpu_apply
             // skip lowering if input has fp8 as one of the inputs since oneDNN doesn't have fp8
             // supported yet.
             if(std::any_of(it->inputs().begin(), it->inputs().end(), [](const auto& i) {
-                   return contains(migraphx::shape::fp8_types, i->get_shape().type());
+                   return contains(fp8_types{}.get(), i->get_shape().type());
                }))
                 continue;
             if(it->name() == "pooling")

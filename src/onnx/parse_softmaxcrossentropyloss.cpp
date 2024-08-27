@@ -306,7 +306,6 @@ struct parse_softmaxcrossentropyloss : op_parser<parse_softmaxcrossentropyloss>
     instruction_ref handle_reduction(const onnx_parser::node_info &info, 
                                      const instruction_ref loss_tensor, 
                                      const instruction_ref weights, 
-                                     const instruction_ref labels, 
                                      const std::string &reduction, 
                                            bool has_ignore_index, 
                                            bool has_weights) const    
@@ -428,7 +427,7 @@ struct parse_softmaxcrossentropyloss : op_parser<parse_softmaxcrossentropyloss>
         auto neg_lsm_scores = info.add_instruction(migraphx::make_op("neg"), log_sm_scores);
 
         if (is_k_dim or sizes_mismatch)
-            loss_tensor = handle_reduction(info, neg_lsm_scores, weights, labels, reduction, has_ignore_index, has_weights);
+            loss_tensor = handle_reduction(info, neg_lsm_scores, weights, reduction, has_ignore_index, has_weights);
         else
         {
             weights =
@@ -438,7 +437,7 @@ struct parse_softmaxcrossentropyloss : op_parser<parse_softmaxcrossentropyloss>
                 migraphx::make_op("scatter_none", {{"axis", -1}, {"skip_out_of_bounds", 0}}), loss_tensor, labels, neg_lsm_scores);
 
             // Perform final output reduction based on the desired attribute
-            loss_tensor = handle_reduction(info, loss_tensor, weights, labels, reduction, has_ignore_index, has_weights);
+            loss_tensor = handle_reduction(info, loss_tensor, weights, reduction, has_ignore_index, has_weights);
         }
 
         return {loss_tensor, log_sm_scores};

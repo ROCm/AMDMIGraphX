@@ -198,6 +198,12 @@ struct parse_softmaxcrossentropyloss : op_parser<parse_softmaxcrossentropyloss>
         auto labels = arg;
         auto label_shape = labels->get_shape();
 
+        if(label_shape.type() != migraphx::shape::int32_type and label_shape.type() != migraphx::shape::int64_type)
+        {
+            MIGRAPHX_THROW(
+                "softmaxcrossentropyloss: Labels must either be int32 or int64 types");
+        }
+
         if(scores_shape.lens()[0] != label_shape.lens()[0])
         {
             MIGRAPHX_THROW(
@@ -208,7 +214,8 @@ struct parse_softmaxcrossentropyloss : op_parser<parse_softmaxcrossentropyloss>
         {
             MIGRAPHX_THROW(
                 "softmaxcrossentropyloss: Score and Labels must contain identical K-Dimensions");
-        }   
+        }
+
         return labels;
     }
 

@@ -199,7 +199,7 @@ class RNNT_MGX():
         x_padded = x_padded.squeeze(1)
         x_padded = x_padded.transpose(1, 0)
 
-        return x_padded, x_lens
+        return x_padded.to(torch.float16), x_lens.to(torch.int32)
 
     @torch.no_grad()
     def prediction(self, symbol, hidden):
@@ -214,9 +214,9 @@ class RNNT_MGX():
 
         g = self.tensors["rnnt_prediction"][get_output_name(0)]
         hidden = self.tensors["rnnt_prediction"][get_output_name(
-            1)], self.tensors["rnnt_prediction"][get_output_name(2)]
+            1)].to(torch.float16), self.tensors["rnnt_prediction"][get_output_name(2)].to(torch.float16)
 
-        return g, hidden
+        return g.to(torch.float16), hidden
 
     @torch.no_grad()
     def joint(self, f, g):
@@ -228,7 +228,7 @@ class RNNT_MGX():
         run_model_sync(self.models["rnnt_joint"],
                        self.model_args["rnnt_joint"])
         result = self.tensors["rnnt_joint"][get_output_name(0)]
-        return result
+        return result.to(torch.float16)
 
     @staticmethod
     def load_mgx_model(name,
@@ -374,7 +374,7 @@ if __name__ == "__main__":
     pytorch_model = pytorch_rnnt_model()
     sd_pytorch = GreedyDecoder(pytorch_model)
     _, _, result = sd_pytorch.run(x.to(torch.float32), out_lens)
-    print(decode_string(result), transcript)
+    print(decode_string(result), "\n", transcript)
 
     print("Export pytorch model....")
     from rnnt_onnx import export_rnnt_onnx
@@ -384,4 +384,4 @@ if __name__ == "__main__":
     migx_model = RNNT_MGX(seq_length=seq_length)
     sd_migx = GreedyDecoder(migx_model)
     _, _, result = sd_migx.run(x.to(torch.float32), out_lens)
-    print(decode_string(result), transcript)
+    print(decode_string(result), "\n", transcript)

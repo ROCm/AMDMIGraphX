@@ -34,11 +34,7 @@ TEST_CASE(softmaxcrossentropyloss_kd_no_reduction_even_weighted_ones_test)
     p.compile(migraphx::make_target("ref"));
 
     migraphx::shape score_shape{migraphx::shape::float_type, {4, 4, 2, 2}};
-    std::vector<float> score_data = {1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f,
-                                     1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f,
-                                     1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f,
-                                     1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f,
-                                     1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f};
+    std::vector<float> score_data(score_shape.elements(), 1.0f);
     migraphx::shape label_shape{migraphx::shape::int32_type, {4, 2, 2}};
     std::vector<int32_t> label_data = {0, 3, 1, 2, 0, 3, 1, 2, 0, 3, 1, 2, 0, 3, 1, 2};
     migraphx::shape weight_shape{migraphx::shape::float_type, {4}};
@@ -66,11 +62,7 @@ TEST_CASE(softmaxcrossentropyloss_kd_no_reduction_uneven_weighted_ones_test)
     p.compile(migraphx::make_target("ref"));
 
     migraphx::shape score_shape{migraphx::shape::float_type, {4, 4, 2, 2}};
-    std::vector<float> score_data = {1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f,
-                                     1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f,
-                                     1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f,
-                                     1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f,
-                                     1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f};
+    std::vector<float> score_data(score_shape.elements(), 1.0f);
     migraphx::shape label_shape{migraphx::shape::int32_type, {4, 2, 2}};
     std::vector<int32_t> label_data = {0, 3, 1, 2, 0, 3, 1, 2, 0, 3, 1, 2, 0, 3, 1, 2};
     migraphx::shape weight_shape{migraphx::shape::float_type, {4}};
@@ -84,8 +76,6 @@ TEST_CASE(softmaxcrossentropyloss_kd_no_reduction_uneven_weighted_ones_test)
     auto result = p.eval(pp).back();
     std::vector<float> result_vector;
     result.visit([&](auto output) { result_vector.assign(output.begin(), output.end()); });
-    for(auto r : result_vector)
-        std::cout << r << std::endl;
 
     std::vector<float> gold = {1.38629436, 4.15888308, 0.69314718, 2.77258872, 
                                1.38629436, 4.15888308, 0.69314718, 2.77258872, 
@@ -101,16 +91,12 @@ TEST_CASE(softmaxcrossentropyloss_kd_sum_reduction_weighted_test_ones)
     p.compile(migraphx::make_target("ref"));
 
     migraphx::shape score_shape{migraphx::shape::double_type, {4, 4, 2, 2}};
-    std::vector<double> score_data = {1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f,
-                                      1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f,
-                                      1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f,
-                                      1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f,
-                                      1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f};
+    std::vector<double> score_data(score_shape.elements(), 1.0);
 
     migraphx::shape label_shape{migraphx::shape::int32_type, {4, 2, 2}};
     std::vector<int32_t> label_data = {0, 3, 1, 2, 0, 3, 1, 2, 0, 3, 1, 2, 0, 3, 1, 2};
     migraphx::shape weight_shape{migraphx::shape::double_type, {4}};
-    std::vector<double> weight_data = {1.0f, 1.0f, 1.0f, 1.0f};
+    std::vector<double> weight_data = {1.0, 1.0, 1.0, 1.0};
 
     migraphx::parameter_map pp;
     pp["0"] = migraphx::argument(score_shape, score_data.data());
@@ -120,7 +106,7 @@ TEST_CASE(softmaxcrossentropyloss_kd_sum_reduction_weighted_test_ones)
     auto result = p.eval(pp).back();
     std::vector<double> result_vector;
     result.visit([&](auto output) { result_vector.assign(output.begin(), output.end()); });
-    std::vector<double> gold = {5.545177};
+    std::vector<double> gold = {22.18070977791825};
     EXPECT(migraphx::verify::verify_rms_range(result_vector, gold));
 }
 
@@ -131,27 +117,11 @@ TEST_CASE(softmaxcrossentropyloss_kd_sum_reduction_weighted_test_zeroes)
     p.compile(migraphx::make_target("ref"));
 
     migraphx::shape score_shape{migraphx::shape::double_type, {4, 4, 2, 2}};
-
-    std::vector<double> score_data = {0.0f,
-                                      0.0f,
-                                      0.0f,
-                                      0.0f,
-                                      0.0f,
-                                      0.0f,
-                                      0.0f,
-                                      0.0f,
-                                      0.0f,
-                                      0.0f,
-                                      0.0f,
-                                      0.0,
-                                      0.0f,
-                                      0.0f,
-                                      0.0f,
-                                      0.0f};
+    std::vector<double> score_data(score_shape.elements());
     migraphx::shape label_shape{migraphx::shape::int32_type, {4, 2, 2}};
-    std::vector<int32_t> label_data = {0, 3, 1, 2, 0, 3, 1, 2, 0, 3, 1, 2};
+    std::vector<int32_t> label_data = {0, 3, 1, 2, 0, 3, 1, 2, 0, 3, 1, 2, 0, 3, 1, 2};
     migraphx::shape weight_shape{migraphx::shape::double_type, {4}};
-    std::vector<double> weight_data = {1.0f, 1.0f, 1.0f, 1.0f};
+    std::vector<double> weight_data = {1.0, 1.0, 1.0, 1.0};
 
     migraphx::parameter_map pp;
     pp["0"] = migraphx::argument(score_shape, score_data.data());
@@ -161,7 +131,7 @@ TEST_CASE(softmaxcrossentropyloss_kd_sum_reduction_weighted_test_zeroes)
     auto result = p.eval(pp).back();
     std::vector<double> result_vector;
     result.visit([&](auto output) { result_vector.assign(output.begin(), output.end()); });
-    std::vector<double> gold = {5.545177};
+    std::vector<double> gold = {22.18070977791825};
     EXPECT(migraphx::verify::verify_rms_range(result_vector, gold));
 }
 
@@ -173,13 +143,7 @@ TEST_CASE(softmaxcrossentropyloss_kd_mean_reduction_weighted_test)
     p.compile(migraphx::make_target("ref"));
 
     migraphx::shape score_shape{migraphx::shape::half_type, {4, 4, 2, 2}};
-    std::vector<half> score_data = {
-        half{1.0}, half{1.0}, half{1.0}, half{1.0}, half{1.0}, half{1.0}, half{1.0}, half{1.0},
-        half{1.0}, half{1.0}, half{1.0}, half{1.0}, half{1.0}, half{1.0}, half{1.0}, half{1.0},
-        half{1.0}, half{1.0}, half{1.0}, half{1.0}, half{1.0}, half{1.0}, half{1.0}, half{1.0},
-        half{1.0}, half{1.0}, half{1.0}, half{1.0}, half{1.0}, half{1.0}, half{1.0}, half{1.0},
-        half{1.0}, half{1.0}, half{1.0}, half{1.0}, half{1.0}, half{1.0}, half{1.0}, half{1.0},
-        half{1.0}, half{1.0}, half{1.0}, half{1.0}, half{1.0}, half{1.0}, half{1.0}, half{1.0}};
+    std::vector<half> score_data(score_shape.elements(), half(1.0));
 
     migraphx::shape label_shape{migraphx::shape::int32_type, {4, 2, 2}};
     std::vector<int32_t> label_data = {0, 3, 1, 2, 0, 3, 1, 2, 0, 3, 1, 2, 0, 3, 1, 2};
@@ -206,13 +170,7 @@ TEST_CASE(softmaxcrossentropyloss_kd_mean_reduction_uneven_weighted_test)
     p.compile(migraphx::make_target("ref"));
 
     migraphx::shape score_shape{migraphx::shape::half_type, {4, 4, 2, 2}};
-    std::vector<half> score_data = {
-        half{1.0}, half{1.0}, half{1.0}, half{1.0}, half{1.0}, half{1.0}, half{1.0}, half{1.0},
-        half{1.0}, half{1.0}, half{1.0}, half{1.0}, half{1.0}, half{1.0}, half{1.0}, half{1.0},
-        half{1.0}, half{1.0}, half{1.0}, half{1.0}, half{1.0}, half{1.0}, half{1.0}, half{1.0},
-        half{1.0}, half{1.0}, half{1.0}, half{1.0}, half{1.0}, half{1.0}, half{1.0}, half{1.0},
-        half{1.0}, half{1.0}, half{1.0}, half{1.0}, half{1.0}, half{1.0}, half{1.0}, half{1.0},
-        half{1.0}, half{1.0}, half{1.0}, half{1.0}, half{1.0}, half{1.0}, half{1.0}, half{1.0}};
+    std::vector<half> score_data(score_shape.elements(), half(1.0));
 
     migraphx::shape label_shape{migraphx::shape::int32_type, {4, 2, 2}};
     std::vector<int32_t> label_data = {0, 3, 1, 2, 0, 3, 1, 2, 0, 3, 1, 2, 0, 3, 1, 2};

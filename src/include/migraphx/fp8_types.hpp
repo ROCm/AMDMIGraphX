@@ -36,4 +36,3 @@ struct fp8_types
 } // namespace MIGRAPHX_INLINE_NS
 } // namespace migraphx
 #endif // MIGRAPHX_GUARD_MIGRAPHX_FP8_TYPES_HPP
-

@@ -312,6 +312,14 @@ struct parse_softmaxcrossentropyloss : op_parser<parse_softmaxcrossentropyloss>
                                            bool has_weights) const    
     {
         instruction_ref final_loss_tensor = loss_tensor;
+
+        // Used for reductions
+        std::vector<size_t> loss_dims(loss_tensor->get_shape().ndim());
+        std::iota(loss_dims.begin(), loss_dims.end(), 0);
+
+        std::vector<size_t> weight_dims(weights->get_shape().ndim());
+        std::iota(weight_dims.begin(), weight_dims.end(), 0);
+
         if(has_ignore_index or has_weights)
         {
             final_loss_tensor =
@@ -323,21 +331,21 @@ struct parse_softmaxcrossentropyloss : op_parser<parse_softmaxcrossentropyloss>
         if(reduction == "mean" and has_weights)
         {
             final_loss_tensor =
-                info.add_instruction(migraphx::make_op("reduce_sum", {{"axes", {0}}}), loss_tensor);
+                info.add_instruction(migraphx::make_op("reduce_sum", {{"axes", loss_dims}}), final_loss_tensor);
             auto reduced_weights = info.add_instruction(
-                migraphx::make_op("reduce_sum", {{"axes", {0}}}), weights);
+                migraphx::make_op("reduce_sum", {{"axes", weight_dims}}), weights);
             final_loss_tensor =
                 info.add_instruction(migraphx::make_op("div"), final_loss_tensor, reduced_weights);
         }
         else if(reduction == "mean" and not has_weights)
         {
-            final_loss_tensor = info.add_instruction(migraphx::make_op("reduce_mean", {{"axes", {0}}}),
+            final_loss_tensor = info.add_instruction(migraphx::make_op("reduce_mean", {{"axes", loss_dims}}),
                                                final_loss_tensor);
         }
         else if(reduction == "sum")
         {
             final_loss_tensor =
-                info.add_instruction(migraphx::make_op("reduce_sum", {{"axes", {0}}}), final_loss_tensor);
+                info.add_instruction(migraphx::make_op("reduce_sum", {{"axes", loss_dims}}), final_loss_tensor);
         }
 
         return final_loss_tensor;

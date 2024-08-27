@@ -864,7 +864,7 @@ module::get_inputs(const std::unordered_map<instruction_ref, instruction_ref>& m
     std::vector<instruction_ref> inputs;
     auto params = this->get_parameters();
     sort_params(params);
-    
+
     std::transform(params.begin(),
                    params.end(),
                    std::back_inserter(inputs),

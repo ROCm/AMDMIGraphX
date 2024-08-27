@@ -228,9 +228,9 @@ struct MIGRAPHX_EXPORT module
     /// to be from parameter instruction to input instread.
     std::unordered_map<instruction_ref, instruction_ref>
     get_ins_param_map(const std::vector<instruction_ref>& inputs, bool reverse = false) const;
-    
+
     /// Given a mapping from submodule instructions to parent module instructions
-    /// construct a vector of inputs with parent module instructions in the 
+    /// construct a vector of inputs with parent module instructions in the
     /// correct order
     std::vector<instruction_ref>
     get_inputs(const std::unordered_map<instruction_ref, instruction_ref>& map_ins) const;

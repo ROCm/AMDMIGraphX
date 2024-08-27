@@ -57,7 +57,6 @@
 #include <migraphx/match/gelu_erf.hpp>
 #include <migraphx/match/gelu_tanh.hpp>
 #include <migraphx/matcher.hpp>
-#include <migraphx/fp8_types.hpp>
 #include <unordered_map>
 #include <utility>
 #include <iostream>

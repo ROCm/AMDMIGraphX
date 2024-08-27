@@ -21,6 +21,8 @@
  * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
  * THE SOFTWARE.
  */
+#ifndef MIGRAPHX_GUARD_MIGRAPHX_FP8_TYPES_HPP
+#define MIGRAPHX_GUARD_MIGRAPHX_FP8_TYPES_HPP
 #include <migraphx/shape.hpp>
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
@@ -33,3 +35,5 @@ struct fp8_types
 };
 } // namespace MIGRAPHX_INLINE_NS
 } // namespace migraphx
+#endif // MIGRAPHX_GUARD_MIGRAPHX_FP8_TYPES_HPP
+

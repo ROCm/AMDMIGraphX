@@ -72,7 +72,7 @@ TEST_CASE(softmaxcrossentropyloss_kd_no_reduction_uneven_weighted_ones_test)
                                      1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f,
                                      1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f};
     migraphx::shape label_shape{migraphx::shape::int32_type, {4, 2, 2}};
-    std::vector<int32_t> label_data = {0, 3, 1, 2, 0, 3, 1, 2, 0, 3, 1, 2};
+    std::vector<int32_t> label_data = {0, 3, 1, 2, 0, 3, 1, 2, 0, 3, 1, 2, 0, 3, 1, 2};
     migraphx::shape weight_shape{migraphx::shape::float_type, {4}};
     std::vector<float> weight_data = {1.0f, 0.5f, 2.0f, 3.0f};
 
@@ -108,7 +108,7 @@ TEST_CASE(softmaxcrossentropyloss_kd_sum_reduction_weighted_test_ones)
                                       1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f};
 
     migraphx::shape label_shape{migraphx::shape::int32_type, {4, 2, 2}};
-    std::vector<int32_t> label_data = {0, 3, 1, 2, 0, 3, 1, 2, 0, 3, 1, 2};
+    std::vector<int32_t> label_data = {0, 3, 1, 2, 0, 3, 1, 2, 0, 3, 1, 2, 0, 3, 1, 2};
     migraphx::shape weight_shape{migraphx::shape::double_type, {4}};
     std::vector<double> weight_data = {1.0f, 1.0f, 1.0f, 1.0f};
 
@@ -182,7 +182,7 @@ TEST_CASE(softmaxcrossentropyloss_kd_mean_reduction_weighted_test)
         half{1.0}, half{1.0}, half{1.0}, half{1.0}, half{1.0}, half{1.0}, half{1.0}, half{1.0}};
 
     migraphx::shape label_shape{migraphx::shape::int32_type, {4, 2, 2}};
-    std::vector<int32_t> label_data = {0, 3, 1, 2, 0, 3, 1, 2, 0, 3, 1, 2};
+    std::vector<int32_t> label_data = {0, 3, 1, 2, 0, 3, 1, 2, 0, 3, 1, 2, 0, 3, 1, 2};
     migraphx::shape weight_shape{migraphx::shape::half_type, {4}};
     std::vector<half> weight_data = {half{1.0}, half{1.0}, half{1.0}, half{1.0}};
 
@@ -215,7 +215,7 @@ TEST_CASE(softmaxcrossentropyloss_kd_mean_reduction_uneven_weighted_test)
         half{1.0}, half{1.0}, half{1.0}, half{1.0}, half{1.0}, half{1.0}, half{1.0}, half{1.0}};
 
     migraphx::shape label_shape{migraphx::shape::int32_type, {4, 2, 2}};
-    std::vector<int32_t> label_data = {0, 3, 1, 2, 0, 3, 1, 2, 0, 3, 1, 2};
+    std::vector<int32_t> label_data = {0, 3, 1, 2, 0, 3, 1, 2, 0, 3, 1, 2, 0, 3, 1, 2};
     migraphx::shape weight_shape{migraphx::shape::half_type, {4}};
     std::vector<half> weight_data = {half{1.0}, half{0.5}, half{2.0}, half{3.0}};
 

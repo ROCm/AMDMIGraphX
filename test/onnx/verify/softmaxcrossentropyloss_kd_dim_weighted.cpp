@@ -87,7 +87,10 @@ TEST_CASE(softmaxcrossentropyloss_kd_no_reduction_uneven_weighted_ones_test)
     for(auto r : result_vector)
         std::cout << r << std::endl;
 
-    std::vector<float> gold = {1.38629436, 4.15888308, 0.69314718, 2.77258872};
+    std::vector<float> gold = {1.38629436, 4.15888308, 0.69314718, 2.77258872, 
+                               1.38629436, 4.15888308, 0.69314718, 2.77258872, 
+                               1.38629436, 4.15888308, 0.69314718, 2.77258872, 
+                               1.38629436, 4.15888308, 0.69314718, 2.77258872};
     EXPECT(migraphx::verify::verify_rms_range(result_vector, gold));
 }
 

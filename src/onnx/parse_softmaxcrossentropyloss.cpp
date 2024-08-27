@@ -387,7 +387,6 @@ struct parse_softmaxcrossentropyloss : op_parser<parse_softmaxcrossentropyloss>
         if(is_k_dim or sizes_mismatch) 
         {
             auto gathernd_indicies = handle_index_selection(info, labels);
-            gathernd_indicies->debug_print();
 
             std::vector<int64_t> perm(class_size, 0);
             if (is_k_dim)
@@ -397,10 +396,6 @@ struct parse_softmaxcrossentropyloss : op_parser<parse_softmaxcrossentropyloss>
                 scores = info.add_instruction(migraphx::make_op("transpose", {{"permutation", perm}}), scores);
             }
 
-            scores->debug_print();
-            std::cout << scores->get_shape().ndim() << std::endl;
-            std::cout << perm.size() << std::endl;
-
             scores = info.add_instruction(migraphx::make_op("gathernd"), scores, gathernd_indicies);
 
             if (has_weights) // Saves us a multiply + gather op to gate this as default weights are literal 1's
@@ -408,7 +403,6 @@ struct parse_softmaxcrossentropyloss : op_parser<parse_softmaxcrossentropyloss>
                 std::vector<int64_t> axis_list(ndims-1, 0);
                 std::iota(++(axis_list.begin()), axis_list.end(), 2);
                 weights = info.add_instruction(migraphx::make_op("unsqueeze", {{"axes", axis_list}}), weights);
-                weights->debug_print();
                 weights = info.add_instruction(migraphx::make_op("multibroadcast", {{"out_lens", scores_shape.lens()}}), weights);
                 if (is_k_dim)
                    weights = info.add_instruction(migraphx::make_op("transpose", {{"permutation", perm}}), weights);

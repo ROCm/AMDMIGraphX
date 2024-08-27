@@ -29,6 +29,7 @@
 #include <migraphx/register_op.hpp>
 #include <migraphx/env.hpp>
 #include <migraphx/dead_code_elimination.hpp>
+#include <migraphx/eliminate_common_subexpression.hpp>
 #include <migraphx/common.hpp>
 #include <migraphx/algorithm.hpp>
 #include <migraphx/param_utils.hpp>
@@ -153,8 +154,8 @@ struct mlir_op
         check_shapes{inputs, *this}.packed_or_broadcasted();
         if(mods.size() != 1)
             MIGRAPHX_THROW("should have one submodule.");
-        if(inputs.size() < 2)
-            MIGRAPHX_THROW("should have at least two inputs.");
+        if(inputs.size() < 1)
+            MIGRAPHX_THROW("should have at least one input.");
 
         auto result =
             mod->compute_shapes(inputs, {.name = name(), .strict_type = true, .strict_lens = true});
@@ -698,17 +699,23 @@ struct find_mlir_standalone_attention_op
         return is_mlir_dot(dot_mode)(match::arg(0)(fused_reduce)).bind("gemm2");
     }
 
-    auto add_inputs(std::vector<instruction_ref>& new_inputs,
-                    const std::vector<instruction_ref>& old_inputs,
-                    const std::unordered_map<instruction_ref, instruction_ref>& map_ins) const
+    std::unordered_map<instruction_ref, instruction_ref>
+    invert_map_ins(const std::unordered_map<instruction_ref, instruction_ref>& map_ins) const
     {
-        std::copy_if(old_inputs.begin(),
-                     old_inputs.end(),
-                     std::back_inserter(new_inputs),
-                     [&](auto input) { return not contains(map_ins, input); });
+        std::unordered_map<instruction_ref, instruction_ref> inverse_map;
+        for(auto const& [i1, i2] : map_ins)
+        {
+            assert(not contains(inverse_map, i2));
+            inverse_map[i2] = i1;
+        }
+        return inverse_map;
     }
 
-    auto finalize_attention_module(module_ref m) const { dead_code_elimination{}.apply(*m); }
+    auto finalize_attention_module(module_ref m) const
+    {
+        eliminate_common_subexpression{}.apply(*m);
+        dead_code_elimination{}.apply(*m);
+    }
 
     void apply(module_pass_manager& mpm, const match::matcher_result& r) const
     {
@@ -721,29 +728,31 @@ struct find_mlir_standalone_attention_op
             return;
 
         static size_t counter = 0;
-        module_ref m_attn     = mpm.create_module("mlir_" + std::to_string(counter++));
+        module_ref m_attn     = mpm.create_module("mlir_attn" + std::to_string(counter++));
         m_attn->set_bypass();
-        std::unordered_map<instruction_ref, instruction_ref> map_ins;
-        std::vector<instruction_ref> new_inputs;
+        std::unordered_map<instruction_ref, instruction_ref> map_main_to_mattn;
 
         // Add first gemm and fuse any input shape ops
         module_ref fuse_gemm1 = mpm.create_module("reshapes_gemm1");
         auto [anchor_op, top_inputs] =
             fuse_input_ops_and_gemm_based_op(fuse_gemm1, gemm1->inputs(), gemm1->get_operator());
         fuse_gemm1->add_return({anchor_op});
-        add_inputs(new_inputs, top_inputs, map_ins);
+        m_attn->add_params(top_inputs, &map_main_to_mattn);
 
-        auto m_gemm1   = m_attn->fuse(*fuse_gemm1, top_inputs, &map_ins).front();
-        map_ins[gemm1] = m_gemm1;
+        std::unordered_map<instruction_ref, instruction_ref> map_gemm1_to_mattn(map_main_to_mattn);
+        auto m_gemm1 = m_attn->fuse(*fuse_gemm1, top_inputs, &map_gemm1_to_mattn).front();
+        map_main_to_mattn[gemm1] = m_gemm1;
+        mpm.remove_module("reshapes_gemm1");
 
         // Add pointwise-softmax, unroll any pointwise modules back to base ops
-        add_inputs(new_inputs, fused_reduce->inputs(), map_ins);
+        m_attn->add_params(fused_reduce->inputs(), &map_main_to_mattn);
+        std::unordered_map<instruction_ref, instruction_ref> map_mfr_to_mattn(map_main_to_mattn);
         auto pw_softmax =
             m_attn
                 ->fuse(
                     *fused_reduce->module_inputs().front(),
                     fused_reduce->inputs(),
-                    &map_ins,
+                    &map_mfr_to_mattn,
                     [&](module& main_mod,
                         instruction_ref pos,
                         const operation& op,
@@ -764,40 +773,40 @@ struct find_mlir_standalone_attention_op
         // fused_reduce submodule should end with a softmax
         auto result = match::match_instruction(*m_attn, pw_softmax, match::softmax());
         if(result.result != pw_softmax)
+        {
+            mpm.remove_module(m_attn->name());
             return;
-
-        // Insert softmax
+        }
+        // Insert explict softmax op - required for MLIR
         auto softmax_in = result.instructions["x"];
         auto softmax    = m_attn->insert_instruction(
             std::next(softmax_in), make_op("softmax", {{"axis", axes.front()}}), softmax_in);
-
-        // All preceding pw ops should be mlir supported
-        if(not std::all_of(m_gemm1, softmax, &is_pointwise_op_supported_by_mlir))
-            return;
-
-        map_ins[fused_reduce] = softmax;
+        map_main_to_mattn[fused_reduce] = softmax;
 
         // Add second gemm and fuse any input shape ops
         module_ref fuse_gemm2 = mpm.create_module("reshapes_gemm2");
         auto [anchor_op2, top_inputs2] =
             fuse_input_ops_and_gemm_based_op(fuse_gemm2, gemm2->inputs(), gemm2->get_operator());
         fuse_gemm2->add_return({anchor_op2});
-        add_inputs(new_inputs, top_inputs2, map_ins);
+        m_attn->add_params(top_inputs2, &map_main_to_mattn);
 
-        auto m_gemm2   = m_attn->fuse(*fuse_gemm2, top_inputs2, &map_ins).front();
-        map_ins[gemm2] = m_gemm2;
+        std::unordered_map<instruction_ref, instruction_ref> map_gemm2_to_mattn(map_main_to_mattn);
+        auto m_gemm2 = m_attn->fuse(*fuse_gemm2, top_inputs2, &map_gemm2_to_mattn).front();
+        map_main_to_mattn[gemm2] = m_gemm2;
+        mpm.remove_module("reshapes_gemm2");
 
         // Fuse any succeeding pointwise module
         if(contains(r.instructions, "trailing_pm"))
         {
             auto trailing_pm_ins = r.instructions["trailing_pm"];
-            add_inputs(new_inputs, trailing_pm_ins->inputs(), map_ins);
+            m_attn->add_params(trailing_pm_ins->inputs(), &map_main_to_mattn);
+            std::unordered_map<instruction_ref, instruction_ref> map_pm_to_mattn(map_main_to_mattn);
             auto fused_pw_outs = m_attn
                                      ->fuse(*trailing_pm_ins->module_inputs().front(),
                                             trailing_pm_ins->inputs(),
-                                            &map_ins)
+                                            &map_pm_to_mattn)
                                      .front();
-            map_ins[trailing_pm_ins] = fused_pw_outs;
+            map_main_to_mattn[trailing_pm_ins] = fused_pw_outs;
             m_attn->add_return({fused_pw_outs});
         }
         else
@@ -806,6 +815,9 @@ struct find_mlir_standalone_attention_op
         }
 
         finalize_attention_module(m_attn);
+        auto map_mattn_to_main = invert_map_ins(map_main_to_mattn);
+        auto new_inputs        = m_attn->get_inputs(map_mattn_to_main);
+
         mpm.get_module().replace_instruction(
             r.result, mlir_op{gemm1->get_operator()}, mlir_contiguous(mpm, new_inputs), {m_attn});
     }

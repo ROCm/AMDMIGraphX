@@ -252,8 +252,7 @@ struct MIGRAPHX_EXPORT module
                                      const std::vector<instruction_ref>& splits2) const;
 
     // Insert params to module based on given input instructions and add
-    // mappings from inputs corresponding params
-    to instruction map
+    // mappings from inputs to corresponding params in instructions map
     void add_params(const std::vector<instruction_ref>& inputs,
                     std::unordered_map<instruction_ref, instruction_ref>* map_ins = nullptr);
 

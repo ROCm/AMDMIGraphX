@@ -2,6 +2,7 @@ import toml
 import torch
 import sys
 import argparse
+from model_separable_rnnt import RNNT
 
 
 def load_and_migrate_checkpoint(ckpt_path):
@@ -15,17 +16,9 @@ def load_and_migrate_checkpoint(ckpt_path):
     return migrated_state_dict
 
 
-def pytorch_rnnt_model(mlcommons_inference_path='./inference/',
+def pytorch_rnnt_model(config_toml='configs/rnnt.toml',
                        checkpoint_path='rnnt.pt'):
-    config_toml = f'{mlcommons_inference_path}/retired_benchmarks/speech_recognition/rnnt/pytorch/configs/rnnt.toml'
     config = toml.load(config_toml)
-
-    sys.path.insert(
-        0,
-        f'{mlcommons_inference_path}/retired_benchmarks/speech_recognition/rnnt/pytorch'
-    )
-
-    from model_separable_rnnt import RNNT
 
     def add_blank_label(labels):
         if not isinstance(labels, list):
@@ -49,7 +42,7 @@ def pytorch_rnnt_model(mlcommons_inference_path='./inference/',
 
 def main():
     parser = argparse.ArgumentParser()
-    parser.add_argument("--mlcommons_inference_path", default="./inference/")
+    parser.add_argument("--config_toml", default="configs/rnnt.toml")
     parser.add_argument("--checkpoint_path", default="rnnt.pt")
     args = parser.parse_args()
     pytorch_rnnt_model(args.mlcommons_inference_path, args.checkpoint_path)

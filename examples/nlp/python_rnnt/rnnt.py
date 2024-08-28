@@ -213,8 +213,9 @@ class RNNT_MGX():
                        self.model_args["rnnt_prediction"])
 
         g = self.tensors["rnnt_prediction"][get_output_name(0)]
-        hidden = self.tensors["rnnt_prediction"][get_output_name(
-            1)].to(torch.float16), self.tensors["rnnt_prediction"][get_output_name(2)].to(torch.float16)
+        hidden = self.tensors["rnnt_prediction"][get_output_name(1)].to(
+            torch.float16), self.tensors["rnnt_prediction"][get_output_name(
+                2)].to(torch.float16)
 
         return g.to(torch.float16), hidden
 
@@ -370,18 +371,16 @@ if __name__ == "__main__":
     x, out_lens, transcript = librespeech_huggingface()
     seq_length = x.shape[0]
 
-    print("Run pytorch model.....")
+    print("Create pytorch model...")
     pytorch_model = pytorch_rnnt_model()
-    sd_pytorch = GreedyDecoder(pytorch_model)
-    _, _, result = sd_pytorch.run(x.to(torch.float32), out_lens)
-    print(decode_string(result), "\n", transcript)
 
-    print("Export pytorch model....")
+    print("Export pytorch model to ONNX...")
     from rnnt_onnx import export_rnnt_onnx
     export_rnnt_onnx(pytorch_model, seq_length=seq_length)
 
-    print("Read MIGX model from ONNX and run....")
+    print("Read MIGX model from ONNX and run...")
     migx_model = RNNT_MGX(seq_length=seq_length)
     sd_migx = GreedyDecoder(migx_model)
     _, _, result = sd_migx.run(x.to(torch.float32), out_lens)
-    print(decode_string(result), "\n", transcript)
+    print("Transcribed Sentence: ", decode_string(result))
+    print("Ground Truth: ", transcript)

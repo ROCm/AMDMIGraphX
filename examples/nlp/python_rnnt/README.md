@@ -1,38 +1,47 @@
 # RNN-T
-
+Speech Recognition using MIGraphX optimizations on ROCm platform.
 This version was taken from [MLCommons](https://github.com/mlcommons/inference/tree/master/retired_benchmarks/speech_recognition/rnnt)
 
-## Run Script
+## Steps
 
 To run the RNN-T, follow these steps below.
 
-Download model inference and checkpoints via [run.sh](./run.sh) 
-**Note: Run this outside of docker. Will take longer to download within docker.**
+1) Install MIGraphX to your environment. Please follow the steps to build MIGraphX given at https://github.com/ROCmSoftwarePlatform/AMDMIGraphX
+
+2) Require the python venv to installed
 
 ```bash
-bash run.sh
+python3 -m venv sd_venv
+. sd_venv/bin/activate
 ```
 
-Install dependencies
+3) Install dependencies
 
 ```bash
 pip install -r requirements.txt
 ```
 
-Run the script.
+4) Download helper files 
+
+```bash
+bash download_helper_files.sh
+```
+
+4) Download RNN-T Model Weights
+
+```bash
+wget https://zenodo.org/record/3662521/files/DistributedDataParallel_1576581068.9962234-epoch-100.pt?download=1 -O rnnt.pt
+```
+
+5) Run the inference, it will compile and run the model on the first sentence in [hf-internal-testing/librispeech_asr_dummy](https://huggingface.co/datasets/hf-internal-testing/librispeech_asr_dummy)
 
 ```bash
 python3 rnnt.py 
 ```
 
-This will do three things:
-- Run the PyTorch model 
+This will do four things:
+- Create the PyTorch model 
 - Export the PyTorch model to ONNX
 - Use MIGraphX to read the ONNX model 
 - Run the MIGraphX model 
 
-Transcript: mister quilter is the apostle of the middle classes and we are glad to welcome his gospel 
-
-PyTorch Output: mister quilter is the apostle of the middle classes and we are glad to welcome his gospel
-
-MIGX Output: miso quter is the aposile o the midle clases an we arad to welcome his gospel

@@ -95,8 +95,6 @@ struct pooling_compiler : compiler<pooling_compiler>
                 return;
             std::size_t max_wavefront_size = ctx.get_current_device().get_wavefront_size();
             auto wsize                     = window.back();
-            // auto wsize = std::accumulate(window.begin(), window.end(), std::size_t{1},
-            // std::multiplies<>{});
             if(wsize > max_wavefront_size)
             {
                 block_size  = compute_block_size(ctx, wsize, 256);

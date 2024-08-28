@@ -249,6 +249,64 @@ __device__ void ConcatPastPresent(
     }
 }
 
+template <class Present,
+          class Seqlens_K,
+          class Cache,
+          class Params>
+__device__ void UpdateCache(
+    Present present,
+    Seqlens_K seqlens_k,                    
+    int batch_size,                     
+    int sequence_length,                
+    int past_buffer_sequence_length,   
+    int present_buffer_sequence_length,
+    int head_size,                      
+    Cache cache,              
+    bool past_present_share_buffer,    
+    bool packed_qkv,                  
+    Params params,
+    int idx)                    
+{
+    const int num_heads = params.num_heads;
+    const int kv_num_heads = params.kv_num_heads;
+    const bool is_prompt = sequence_length != 1;
+    const int packed_batch_stride =
+        packed_qkv ? (num_heads + 2 * kv_num_heads) * sequence_length * head_size : 0;
+    const int kv_num_heads_factor = num_heads / kv_num_heads;
+    const size_t kv_input_chunk_length =
+        static_cast<size_t>(sequence_length) * head_size; // L x H
+    const size_t past_buff_chunk_length =
+        static_cast<size_t>(past_buffer_sequence_length) * head_size; // L x H
+    const size_t present_buff_chunk_length =
+        static_cast<size_t>(present_buffer_sequence_length) * head_size; // T x H
+
+    const int loop_len = batch_size * num_heads;
+    auto i = idx / (sequence_length * head_size);
+    auto inner_i = idx %  (sequence_length * head_size);
+    if(i < loop_len)
+    {
+        const int batch_index = static_cast<int>(i) / num_heads;
+        const int head_index  = static_cast<int>(i) % num_heads;
+        const int past_seqlen = sequence_length == 1 ? static_cast<int>(seqlens_k[batch_index])
+                                                        : past_buffer_sequence_length;
+        const size_t past_chunk_length = static_cast<size_t>(past_seqlen) * head_size;
+
+        auto current = present + packed_batch_stride * batch_index +
+                    kv_input_chunk_length * (head_index / kv_num_heads_factor);
+        ConcatStateChunkGQA(cache,
+                                current,
+                                cache,
+                                present_buff_chunk_length,
+                                past_buff_chunk_length,
+                                past_chunk_length,
+                                kv_input_chunk_length,
+                                is_prompt,
+                                past_present_share_buffer,
+                                i / kv_num_heads_factor,
+                                inner_i);
+    }
+}
+
 
 template <class Query,
           class Key,
@@ -275,13 +333,14 @@ __device__ void concat_past_present(Output output,
                                         Seqlens_K seqlens_k,
                                         Params params)
 {
+    const int batch_size      = params.batch_size;
+    const int sequence_length = params.sequence_length;
+    const int head_size       = params.head_size;
+    const int kv_num_heads    = params.kv_num_heads;
     auto ind = make_index();
-    ind.global_stride(query.get_shape().elements(), [&](auto idx) {
-        
+    auto elements = 2 * batch_size * kv_num_heads * sequence_length * head_size;
+    ind.global_stride(elements, [&](auto idx) {
         auto q = query.begin();
-        const int batch_size      = params.batch_size;
-        const int sequence_length = params.sequence_length;
-        const int head_size       = params.head_size;
         const bool packed_qkv     = true;
 
         int seqlen_present_kv_cache = params.seqlen_present_kv_cache;
@@ -294,14 +353,29 @@ __device__ void concat_past_present(Output output,
             // noop(query, k_cache, v_cache, seqlens_k, params);
             // if(idx == 0)
             // {
-            //     // params.print();
-            //     for(int i = 0; i < query.get_shape().elements(); ++i)
-            //     {
-            //         printf("gpu_query%d: %f\n", i, static_cast<double>(query[i]));
-            //     }
+            //     params.print();
+            //     // for(int i = 0; i < query.get_shape().elements(); ++i)
+            //     // {
+            //     //     printf("gpu_query%d: %f\n", i, static_cast<double>(query[i]));
+            //     // }
             // }
-            ConcatPastPresent(k,
-                            v,
+            // ConcatPastPresent(k,
+            //                 v,
+            //                 seqlens_k,
+            //                 batch_size,
+            //                 sequence_length,
+            //                 seqlen_past_kv_cache,
+            //                 seqlen_present_kv_cache,
+            //                 head_size,
+            //                 k_cache.begin(),
+            //                 v_cache.begin(),
+            //                 past_present_share_buffer,
+            //                 packed_qkv,
+            //                 params,
+            //                 idx);
+            if(idx < elements / 2)
+            {
+                UpdateCache(k,
                             seqlens_k,
                             batch_size,
                             sequence_length,
@@ -309,11 +383,26 @@ __device__ void concat_past_present(Output output,
                             seqlen_present_kv_cache,
                             head_size,
                             k_cache.begin(),
-                            v_cache.begin(),
                             past_present_share_buffer,
                             packed_qkv,
                             params,
                             idx);
+            }
+            else if (idx < elements)
+            {
+                UpdateCache(v,
+                            seqlens_k,
+                            batch_size,
+                            sequence_length,
+                            seqlen_past_kv_cache,
+                            seqlen_present_kv_cache,
+                            head_size,
+                            v_cache.begin(),
+                            past_present_share_buffer,
+                            packed_qkv,
+                            params,
+                            idx - (elements / 2));
+            }
         });
     });
 }

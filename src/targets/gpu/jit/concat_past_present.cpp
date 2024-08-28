@@ -197,7 +197,7 @@ struct concat_past_present_compiler : compiler<concat_past_present_compiler>
         // }
         virtual_inputs = flatten(virtual_inputs);
         hip_compile_options options;
-        options.set_launch_params(v, compute_global_for(ctx, inputs.at(0).elements()));
+        options.set_launch_params(v, compute_global_for(ctx, 2 * batch_size * kv_num_heads * sequence_length * head_size));
         int blocks_per_batch = 1; ////
         options.inputs         = virtual_inputs;
         options.output         = inputs.back();//output_shape;

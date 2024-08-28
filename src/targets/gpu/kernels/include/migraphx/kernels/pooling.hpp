@@ -215,8 +215,7 @@ __device__ void pooling(Op op, Window w, Output output, Input input)
     pooling_reduce<Algo, GroupSize>(output, [&](auto out_idx, auto r) {
         auto x = r.reduce(op.reduce(), op.init(), w.apply(out_idx, [&](auto j) {
             using itype = decltype(op.apply(input[j]));
-            // if constexpr(not w.has_padding())
-            // return op.apply(input[j]);
+
             if(j < input.get_shape().lens)
             {
                 return op.apply(input[j]);

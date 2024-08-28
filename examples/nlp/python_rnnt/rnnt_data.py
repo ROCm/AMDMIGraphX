@@ -1,6 +1,5 @@
 import toml
 import torch
-import sys
 import argparse
 from datasets import load_dataset
 import numpy as np

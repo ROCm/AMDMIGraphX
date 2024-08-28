@@ -20,19 +20,7 @@
 #  OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 #  THE SOFTWARE.
 
-from argparse import ArgumentParser
-from diffusers import EulerDiscreteScheduler
-from transformers import CLIPTokenizer
-from PIL import Image
 from typing import List, Optional, Tuple
-
-import sys
-mgx_lib_path = "/opt/rocm/lib/"
-# or if you locally built MIGraphX
-mgx_lib_path = "/code/AMDMIGraphX/build/lib/"
-if mgx_lib_path not in sys.path:
-    sys.path.append(mgx_lib_path)
-import migraphx as mgx
 
 import migraphx as mgx
 import os
@@ -40,27 +28,6 @@ import sys
 import torch
 import time
 import torch.nn.functional as F
-from functools import wraps
-
-from hip import hip
-from collections import namedtuple
-HipEventPair = namedtuple('HipEventPair', ['start', 'end'])
-
-
-# measurement helper
-def measure(fn):
-    @wraps(fn)
-    def measure_ms(*args, **kwargs):
-        start_time = time.perf_counter_ns()
-        result = fn(*args, **kwargs)
-        end_time = time.perf_counter_ns()
-        print(
-            f"Elapsed time for {fn.__name__}: {(end_time - start_time) * 1e-6:.4f} ms\n"
-        )
-        return result
-
-    return measure_ms
-
 
 mgx_to_torch_dtype_dict = {
     "bool_type": torch.bool,

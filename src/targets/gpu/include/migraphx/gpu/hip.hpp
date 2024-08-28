@@ -59,6 +59,8 @@ MIGRAPHX_GPU_EXPORT void copy_from_gpu(context& ctx, const argument& src, const 
 
 MIGRAPHX_GPU_EXPORT argument get_preallocation(context& ctx, const std::string& id);
 
+MIGRAPHX_GPU_EXPORT argument get_arg_from_file(const shape& l_shape, const std::string& file_header);
+
 MIGRAPHX_GPU_EXPORT void gpu_fill(context& ctx, const argument& dst, int value = 0);
 
 struct hip_allocate
@@ -275,6 +277,42 @@ struct hip_copy_literal
         store_preallocated_param(ctx, id, a);
     }
     friend std::ostream& operator<<(std::ostream& os, const hip_copy_literal& x)
+    {
+        os << x.name() << "[id=" << x.id << "]";
+        return os;
+    }
+};
+
+struct hip_copy_fetch_literal
+{
+    shape l_shape;
+    std::string literal_file;
+    std::string id{};
+
+    template <class Self, class F>
+    static auto reflect(Self& self, F f)
+    {
+       return pack(f(self.l_shape, "shape"), f(self.id, "id"), f(self.literal_file, "literal_file"));
+    }
+
+    std::string name() const { return "hip::hip_copy_fetch_literal"; }
+    shape compute_shape(const std::vector<shape>& inputs) const
+    {
+        check_shapes{inputs, *this}.has(0);
+        return l_shape;
+    }
+
+    argument compute(context& ctx, const shape&, const std::vector<argument>&) const
+    {
+        return get_preallocation(ctx, id);
+    }
+
+    void finalize(context& ctx, const shape&, const std::vector<shape>&) const
+    {
+        argument a = to_gpu(get_arg_from_file(l_shape, literal_file));
+        store_preallocated_param(ctx, id, a);
+    }
+    friend std::ostream& operator<<(std::ostream& os, const hip_copy_fetch_literal& x)
     {
         os << x.name() << "[id=" << x.id << "]";
         return os;

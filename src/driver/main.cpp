@@ -549,14 +549,7 @@ struct compiler
             return p;
         }
 
-        if(co.strip_weights and l.output.empty())
-        {
-            MIGRAPHX_THROW("--strip-weights option requires an output file");
-        }
-        else
-        {
-            co.output = l.output;
-        }
+        co.output = l.file.substr(0, l.file.find("."));
 
         auto t = ct.get_target();
         if(to_fp16)

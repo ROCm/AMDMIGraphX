@@ -55,7 +55,6 @@
 #include <migraphx/simplify_reshapes.hpp>
 #include <migraphx/split_reduce.hpp>
 #include <migraphx/split_single_dyn_dim.hpp>
-#include <migraphx/strip_weights.hpp>
 #include <migraphx/gpu/allocation_model.hpp>
 #include <migraphx/gpu/compile_miopen.hpp>
 #include <migraphx/gpu/compile_ops.hpp>
@@ -193,7 +192,7 @@ std::vector<pass> target::get_passes(migraphx::context& gctx, const compile_opti
         dead_code_elimination{},
         promote_literals{},
         dead_code_elimination{},
-        write_literals{&ctx},
+        write_literals{&ctx, options.output, options.strip_weights},
         schedule{gpu::schedule_model{ctx.get_current_device().nstreams()}, not enabled(MIGRAPHX_DISABLE_SCHEDULE_PASS{})},
         memory_coloring{"hip::allocate"},
         sync_device{},
@@ -204,7 +203,6 @@ std::vector<pass> target::get_passes(migraphx::context& gctx, const compile_opti
         normalize_ops{},
         dead_code_elimination{},
         eliminate_identity{},
-        enable_pass(options.strip_weights, strip_weights{options.output})
     };
     // clang-format on
 }

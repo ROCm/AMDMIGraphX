@@ -27,6 +27,10 @@
 #include <migraphx/instruction.hpp>
 #include <migraphx/program.hpp>
 #include <migraphx/env.hpp>
+#include <migraphx/register_op.hpp>
+#include <sys/stat.h>
+#include <fstream>
+#include <functional>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
@@ -34,29 +38,138 @@ namespace gpu {
 
 MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_COPY_LITERALS)
 
+
+struct fetch_literal
+{
+    std::string id{};
+    shape l_shape;
+    std::string literal_file;
+    std::string name() const { return "fetch_literal"; }
+
+    template <class Self, class F>
+    static auto reflect(Self& self, F f)
+    {
+        return pack(f(self.l_shape, "shape"), f(self.id, "id"), f(self.literal_file, "literal_file"));
+    }
+
+    shape compute_shape(const std::vector<shape>&) const { return l_shape; }
+    argument compute(context&, const shape&, const std::vector<argument>&) const { 
+
+        std::ifstream is;
+        is.open(literal_file);
+        if(not is.is_open())
+        {
+            MIGRAPHX_THROW("Could not open file: " + literal_file);
+        }
+
+        auto buffer = make_shared_array<char>(l_shape.bytes());
+
+        if(not is.read(buffer.get(), l_shape.bytes()))
+        {
+            MIGRAPHX_THROW("Failed to read file: " + literal_file);
+        }
+        is.close();
+            
+        return argument(l_shape, buffer); 
+    
+    }
+    friend std::ostream& operator<<(std::ostream& os, const fetch_literal& x)
+    {
+        os << x.name() << "[id=" << x.id << "]";
+        return os;
+    }
+};
+MIGRAPHX_REGISTER_OP(fetch_literal);
+
+
+
+
+
 void write_literals::apply(module& m) const
 {
     assert(ctx != nullptr);
     std::size_t n = 0;
+    std::ofstream fs;
+    std::string output_file_header;
+    bool need_weights = true;
+
+
+
+    if(strip_weights)
+    {
+        output_file_header = output + "_literals";
+        if(mkdir(output_file_header.c_str(), 0777) == -1)
+        {
+            std::cout << "Weights already created, using folder already created.\n\n";
+            need_weights = false;
+        }
+    }
+
     for(auto ins : iterator_for(m))
     {
         if(ins->name() == "@literal")
         {
             if(enabled(MIGRAPHX_COPY_LITERALS{}))
             {
-                literal l  = ins->get_literal();
-                auto pre   = m.add_literal(l);
-                auto alloc = m.insert_instruction(std::next(pre), hip_allocate{l.get_shape()});
-                m.replace_instruction(ins, hip_copy_to_gpu{}, pre, alloc);
+                if(strip_weights)
+                {
+                    std::string id = m.name() + ":@literal:" + std::to_string(n);
+                    // save current literal to it's own file
+                    std::string buffer(ins->get_literal().data(), ins->get_shape().bytes());
+                    std::hash<std::string> create_hash;
+                    std::size_t hash_v = create_hash(buffer);
+                    std::string output_file = output_file_header + "/" + std::to_string(hash_v) + ".mxr_literal";
+                    if(need_weights)
+                    {
+                        fs.open(output_file, std::ofstream::out | std::ofstream::trunc | std::ios::binary);
+                        fs.write(buffer.data(), ins->get_shape().bytes());
+                        fs.close();
+                    }
+
+                
+                    auto pre = m.insert_instruction(ins, fetch_literal{id, ins->get_shape(), output_file});
+                    auto alloc = m.insert_instruction(std::next(pre), hip_allocate{ins->get_literal().get_shape()});
+                    m.replace_instruction(ins, hip_copy_to_gpu{}, pre, alloc);
+                    n++;
+
+                }
+                else
+                {
+                    literal l  = ins->get_literal();
+                    auto pre   = m.add_literal(l);
+                    auto alloc = m.insert_instruction(std::next(pre), hip_allocate{l.get_shape()});
+                    m.replace_instruction(ins, hip_copy_to_gpu{}, pre, alloc);
+                }
             }
             else
             {
-                std::string id = m.name() + ":@literal:" + std::to_string(n);
-                m.replace_instruction(ins, hip_copy_literal{ins->get_literal(), id});
-                n++;
+                if(strip_weights)
+                {
+                    std::string id = m.name() + ":@literal:" + std::to_string(n);
+                    std::string buffer(ins->get_literal().data(), ins->get_shape().bytes());
+                    std::hash<std::string> create_hash;
+                    std::size_t hash_v = create_hash(buffer);
+                    std::string output_file = output_file_header + "/" + std::to_string(hash_v) + ".mxr_literal";
+                    if(need_weights)
+                    {
+                        fs.open(output_file, std::ofstream::out | std::ofstream::trunc | std::ios::binary);
+                        fs.write(buffer.data(), ins->get_shape().bytes());
+                        fs.close();
+                    }
+
+                    m.replace_instruction(ins, hip_copy_fetch_literal{ins->get_shape(), output_file, id});
+                    n++;
+                }
+                else
+                {
+                    std::string id = m.name() + ":@literal:" + std::to_string(n);
+                    m.replace_instruction(ins, hip_copy_literal{ins->get_literal(), id});
+                    n++;
+                }
             }
         }
     }
+    std::cout << "number literals: " << n << "\n\n";
 }
 
 } // namespace gpu

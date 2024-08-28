@@ -33,6 +33,7 @@
 #include <memory>
 #include <mutex>
 #include <vector>
+#include <fstream>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
@@ -46,6 +47,7 @@ MIGRAPHX_REGISTER_OP(hip_copy_from_gpu)
 MIGRAPHX_REGISTER_OP(hip_copy)
 MIGRAPHX_REGISTER_OP(hip_allocate_memory)
 MIGRAPHX_REGISTER_OP(hip_copy_literal)
+MIGRAPHX_REGISTER_OP(hip_copy_fetch_literal)
 
 using hip_ptr      = MIGRAPHX_MANAGE_PTR(void, hipFree);
 using hip_host_ptr = MIGRAPHX_MANAGE_PTR(void, hipHostUnregister);
@@ -314,6 +316,28 @@ void gpu_fill(context& ctx, const argument& dst, int value)
 void store_preallocated_param(context& ctx, const std::string& id, const argument& a)
 {
     ctx.get_current_device().preallocations[id] = a;
+}
+
+argument get_arg_from_file(const shape& l_shape, const std::string& file_header)
+{
+
+    // read literal argument from file
+    std::ifstream is;
+    is.open(file_header);
+    if(not is.is_open())
+    {
+        MIGRAPHX_THROW("Could not open file: " + file_header);
+    }
+
+    auto buffer = make_shared_array<char>(l_shape.bytes());
+
+    if(not is.read(buffer.get(), l_shape.bytes()))
+    {
+        MIGRAPHX_THROW("Failed to read file: " + file_header);
+    }
+    is.close();
+        
+    return argument(l_shape, buffer); 
 }
 
 // clang-format off

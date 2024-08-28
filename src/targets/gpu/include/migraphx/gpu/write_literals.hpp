@@ -35,6 +35,8 @@ namespace gpu {
 struct MIGRAPHX_GPU_EXPORT write_literals
 {
     context* ctx = nullptr;
+    std::string output = "";
+    bool strip_weights = false;
     std::string name() const { return "gpu::write_literals"; }
 
     void apply(module& m) const;

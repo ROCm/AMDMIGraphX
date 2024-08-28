@@ -53,6 +53,7 @@ RUN apt-get update && DEBIAN_FRONTEND=noninteractive apt-get install -y --allow-
     rocm-smi-lib \
     rocm-dev \
     roctracer-dev \
+    libgfortran5 \
     hipcub  \
     hipblas  \
     hipblaslt \

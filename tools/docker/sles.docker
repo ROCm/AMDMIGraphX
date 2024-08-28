@@ -25,6 +25,7 @@ RUN zypper --gpg-auto-import-keys install -y \
     python3-pip \
     rpm-build \
     perl-File-BaseDir \
+    libgfortran5 \
     hipblaslt-devel \
     hipblas-devel
 

@@ -89,7 +89,7 @@ TEST_CASE(gemm_tune)
             break;
         }
     }
-#ifdef MIGRAPHX_USE_ROCBLAS_TUNING_API or MIGRAPHX_USE_HIPBLASLT
+#if defined(MIGRAPHX_USE_ROCBLAS_TUNING_API) or defined(MIGRAPHX_USE_HIPBLASLT)
     EXPECT(0 != solution_idx.to<std::size_t>());
 #else
     EXPECT(0 == solution_idx.to<std::size_t>());
@@ -131,7 +131,7 @@ TEST_CASE(gemm_tune_strided)
             break;
         }
     }
-#ifdef MIGRAPHX_USE_ROCBLAS_TUNING_API or MIGRAPHX_USE_HIPBLASLT
+#if defined(MIGRAPHX_USE_ROCBLAS_TUNING_API) or defined(MIGRAPHX_USE_HIPBLASLT)
     EXPECT(0 != solution_idx.to<std::size_t>());
 #else
     EXPECT(0 == solution_idx.to<std::size_t>());
@@ -177,7 +177,7 @@ TEST_CASE(gemm_tune_strided_lowered)
             break;
         }
     }
-#ifdef MIGRAPHX_USE_ROCBLAS_TUNING_API or MIGRAPHX_USE_HIPBLASLT
+#if defined(MIGRAPHX_USE_ROCBLAS_TUNING_API) or defined(MIGRAPHX_USE_HIPBLASLT)
     EXPECT(0 != solution_idx.to<std::size_t>());
 #else
     EXPECT(0 == solution_idx.to<std::size_t>());
@@ -217,7 +217,7 @@ TEST_CASE(gemm_tune_invalid_sol_index)
             break;
         }
     }
-#ifdef MIGRAPHX_USE_ROCBLAS_TUNING_API or MIGRAPHX_USE_HIPBLASLT
+#if defined(MIGRAPHX_USE_ROCBLAS_TUNING_API) or defined(MIGRAPHX_USE_HIPBLASLT)
     EXPECT(0 == solution_idx.to<std::size_t>());
 #else
     EXPECT(0 != solution_idx.to<std::size_t>());

@@ -691,4 +691,59 @@ TEST_CASE(fuse_module)
     EXPECT(m1 == m2);
 }
 
+TEST_CASE(get_inputs)
+{
+    migraphx::shape s{migraphx::shape::float_type, {2, 3}};
+    migraphx::module m1;
+    migraphx::program p;
+    auto* mm = p.get_main_module();
+    auto x   = mm->add_parameter("x", s);
+    auto y   = mm->add_parameter("y", s);
+    auto z   = mm->add_parameter("z", s);
+    auto add = add_pointwise(p, "main:pointwise0", {x, z}, single_pointwise("add"));
+    auto mul = add_pointwise(p, "main:pointwise1", {add, y}, single_pointwise("mul"));
+
+    std::unordered_map<migraphx::instruction_ref, migraphx::instruction_ref> map_ins;
+    auto rins    = m1.fuse(*add->module_inputs().front(), add->inputs(), &map_ins).front();
+    map_ins[add] = rins;
+    auto ret     = m1.fuse(*mul->module_inputs().front(), mul->inputs(), &map_ins);
+    m1.add_return(ret);
+
+    std::unordered_map<migraphx::instruction_ref, migraphx::instruction_ref> reverse_map_ins;
+    for(auto const& [i1, i2] : map_ins)
+    {
+        reverse_map_ins[i2] = i1;
+    }
+    auto inputs = m1.get_inputs(reverse_map_ins);
+
+    EXPECT(inputs.size() == 3);
+    EXPECT(bool{inputs[0] == x});
+    EXPECT(bool{inputs[1] == z});
+    EXPECT(bool{inputs[2] == y});
+}
+
+TEST_CASE(add_params)
+{
+    migraphx::shape s{migraphx::shape::float_type, {2, 3}};
+    migraphx::module m1;
+    migraphx::program p;
+    auto* mm = p.get_main_module();
+    auto x   = mm->add_parameter("x", s);
+    auto y   = mm->add_parameter("y", s);
+    auto z   = mm->add_parameter("z", s);
+    auto add = add_pointwise(p, "main:pointwise0", {x, z}, single_pointwise("add"));
+    add_pointwise(p, "main:pointwise1", {add, y}, single_pointwise("mul"));
+
+    std::unordered_map<migraphx::instruction_ref, migraphx::instruction_ref> map_ins;
+    m1.add_params({x, z}, &map_ins);
+
+    migraphx::module m2;
+    m2.add_parameter("x0", s);
+    m2.add_parameter("x1", s);
+
+    EXPECT(m1 == m2);
+    EXPECT(bool{m1.get_parameter("x0") == map_ins[x]});
+    EXPECT(bool{m1.get_parameter("x1") == map_ins[z]});
+}
+
 int main(int argc, const char* argv[]) { test::run(argc, argv); }

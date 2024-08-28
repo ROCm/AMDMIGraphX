@@ -700,8 +700,8 @@ TEST_CASE(get_inputs)
     auto x   = mm->add_parameter("x", s);
     auto y   = mm->add_parameter("y", s);
     auto z   = mm->add_parameter("z", s);
-    auto add = add_pointwise(p, "main:pointwise0", {x, z}, single_pointwise("add"));
-    auto mul = add_pointwise(p, "main:pointwise1", {add, y}, single_pointwise("mul"));
+    auto add = add_pointwise(p, "main:pointwise0", {y, x}, single_pointwise("add"));
+    auto mul = add_pointwise(p, "main:pointwise1", {add, z}, single_pointwise("mul"));
 
     std::unordered_map<migraphx::instruction_ref, migraphx::instruction_ref> map_ins;
     auto rins    = m1.fuse(*add->module_inputs().front(), add->inputs(), &map_ins).front();
@@ -717,9 +717,9 @@ TEST_CASE(get_inputs)
     auto inputs = m1.get_inputs(reverse_map_ins);
 
     EXPECT(inputs.size() == 3);
-    EXPECT(bool{inputs[0] == x});
-    EXPECT(bool{inputs[1] == z});
-    EXPECT(bool{inputs[2] == y});
+    EXPECT(bool{inputs[0] == y});
+    EXPECT(bool{inputs[1] == x});
+    EXPECT(bool{inputs[2] == z});
 }
 
 TEST_CASE(add_params)

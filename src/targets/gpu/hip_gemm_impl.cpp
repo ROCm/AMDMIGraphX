@@ -120,7 +120,7 @@ struct hip_gemm_impl
                   const std::vector<shape>& input_shapes,
                   float alpha_param,
                   float beta_param)
-        : solution(), alpha(alpha_param), beta(beta_param), is_3inputs(input_shapes.size() == 4)
+        : alpha(alpha_param), beta(beta_param), is_3inputs(input_shapes.size() == 4)
     {
         if(not is_3inputs)
         {
@@ -146,8 +146,8 @@ struct hip_gemm_impl
 
         transa = is_transposed_hip(input_shapes[0]);
         transb = is_transposed_hip(input_shapes[1]);
-        op_A   = transa ? HIPBLAS_OP_T : HIPBLAS_OP_N;
-        op_B   = transb ? HIPBLAS_OP_T : HIPBLAS_OP_N;
+        opA    = transa ? HIPBLAS_OP_T : HIPBLAS_OP_N;
+        opB    = transb ? HIPBLAS_OP_T : HIPBLAS_OP_N;
 
         auto n_dim = output_shape.lens().size();
         auto dim_0 = n_dim - 2;
@@ -181,7 +181,7 @@ struct hip_gemm_impl
         {
             compute_type = HIPBLAS_COMPUTE_32F;
         }
-        if(op_A == HIPBLAS_OP_T)
+        if(opA == HIPBLAS_OP_T)
         {
             hipblaslt_invoke(
                 [&]() { return hipblasLtMatrixLayoutCreate(&matA, arg_type, m, k, lda); });
@@ -191,7 +191,7 @@ struct hip_gemm_impl
             hipblaslt_invoke(
                 [&]() { return hipblasLtMatrixLayoutCreate(&matA, arg_type, k, m, lda); });
         }
-        if(op_B == HIPBLAS_OP_T)
+        if(opB == HIPBLAS_OP_T)
         {
             hipblaslt_invoke(
                 [&]() { return hipblasLtMatrixLayoutCreate(&matB, arg_type, k, n, ldb); });
@@ -269,21 +269,21 @@ struct hip_gemm_impl
         });
         hipblaslt_invoke([&]() {
             return hipblasLtMatmulDescSetAttribute(
-                hipblaslt_desc, HIPBLASLT_MATMUL_DESC_TRANSB, &op_A, sizeof(int32_t));
+                hipblaslt_desc, HIPBLASLT_MATMUL_DESC_TRANSB, &opA, sizeof(int32_t));
         });
         hipblaslt_invoke([&]() {
             return hipblasLtMatmulDescSetAttribute(
-                hipblaslt_desc, HIPBLASLT_MATMUL_DESC_TRANSA, &op_B, sizeof(int32_t));
+                hipblaslt_desc, HIPBLASLT_MATMUL_DESC_TRANSA, &opB, sizeof(int32_t));
         });
 
         // Transfer ownership of raw pointers to managed pointers.
         managed_hipblaslt_desc.reset(hipblaslt_desc);
-        managed_matA.reset(matA);
-        managed_matB.reset(matB);
-        managed_matC.reset(matC);
+        managed_mat_a.reset(matA);
+        managed_mat_b.reset(matB);
+        managed_mat_c.reset(matC);
         if(is_3inputs)
         {
-            managed_matD.reset(matD);
+            managed_mat_d.reset(matD);
         }
     }
 
@@ -319,8 +319,8 @@ struct hip_gemm_impl
             {
                 // use default solution
                 const int n_sol = 1;
-                int returnedAlgoCount;
-                heuristicResult.resize(n_sol);
+                int returned_algo_count;
+                heuristic_result.resize(n_sol);
                 uint64_t max_workspace = std::numeric_limits<uint64_t>::max();
                 hipblaslt_invoke([&]() {
                     return hipblasLtMatmulPreferenceSetAttribute(
@@ -338,32 +338,32 @@ struct hip_gemm_impl
                                                            gemm.is_3inputs ? gemm.matD : gemm.matC,
                                                            preference,
                                                            n_sol,
-                                                           heuristicResult.data(),
-                                                           &returnedAlgoCount);
+                                                           heuristic_result.data(),
+                                                           &returned_algo_count);
                 });
 
-                if(returnedAlgoCount != n_sol)
+                if(returned_algo_count != n_sol)
                 {
                     std::cout << "less solution found! request: " << n_sol
-                              << ", found: " << returnedAlgoCount << std::endl;
+                              << ", found: " << returned_algo_count << std::endl;
                 }
             }
             else
             {
                 // query for the solutions. 1st as the best.
-                std::vector<int32_t> algoIndex = {idx};
+                std::vector<int32_t> algo_index = {idx};
                 hipblaslt_invoke([&]() {
-                    return hipblaslt_ext::getAlgosFromIndex(handle, algoIndex, heuristicResult);
+                    return hipblaslt_ext::getAlgosFromIndex(handle, algo_index, heuristic_result);
                 });
-                assert(heuristicResult.size() == 1);
+                assert(heuristic_result.size() == 1);
             }
-            return heuristicResult;
+            return heuristic_result;
         }
 
         private:
         hipblasLtHandle_t handle;
         hipblasLtMatmulPreference_t preference;
-        std::vector<hipblasLtMatmulHeuristicResult_t> heuristicResult;
+        std::vector<hipblasLtMatmulHeuristicResult_t> heuristic_result;
         shared<hipblaslt_preference_ptr> hbltpreference = nullptr;
     } solution;
 
@@ -381,7 +381,7 @@ struct hip_gemm_impl
                                       const std::vector<argument>& args,
                                       int32_t solution_idx)
     {
-        auto algo = &solution.get_result(ctx, *this, solution_idx)[0].algo;
+        auto* algo = &solution.get_result(ctx, *this, solution_idx)[0].algo;
         return pack(ctx.get_stream().get_hipblaslt(),
                     hipblaslt_desc,
                     get_alpha(),                                  // alpha
@@ -480,8 +480,8 @@ struct hip_gemm_impl
         hipblaslt_invoke([&]() {
             return hipblaslt_ext::getAllAlgos(ctx.get_stream().get_hipblaslt(),
                                               hipblaslt_ext::GemmType::HIPBLASLT_GEMM,
-                                              op_A,
-                                              op_B,
+                                              opA,
+                                              opB,
                                               arg_type,
                                               arg_type,
                                               output_type,
@@ -571,13 +571,13 @@ struct hip_gemm_impl
     hipblasComputeType_t compute_type = HIPBLAS_COMPUTE_32F;
     hipDataType output_type           = HIP_R_32F;
     hipblasLtMatmulDesc_t hipblaslt_desc;
-    hipblasOperation_t op_A;
-    hipblasOperation_t op_B;
+    hipblasOperation_t opA;
+    hipblasOperation_t opB;
     using hipblaslt_matrix_layout = MIGRAPHX_MANAGE_PTR(hipblasLtMatrixLayout_t,
                                                         hipblasLtMatrixLayoutDestroy);
     using hipblaslt_mat_mul_desc  = MIGRAPHX_MANAGE_PTR(hipblasLtMatmulDesc_t,
                                                        hipblasLtMatmulDescDestroy);
-    hipblaslt_matrix_layout managed_matA, managed_matB, managed_matC, managed_matD;
+    hipblaslt_matrix_layout managed_mat_a, managed_mat_b, managed_mat_c, managed_mat_d;
     hipblaslt_mat_mul_desc managed_hipblaslt_desc;
     hipblasLtMatrixLayout_t matA, matB, matC, matD;
     hipblasLtHandle_t handle;

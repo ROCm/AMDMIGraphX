@@ -259,6 +259,15 @@ struct MIGRAPHX_EXPORT module
          const std::vector<instruction_ref>& inputs,
          std::unordered_map<instruction_ref, instruction_ref>* map_ins = nullptr,
          inserter insert                                               = nullptr);
+    /*
+    Insert instructions from module `m` to this module at position `ins`
+    */
+    std::vector<instruction_ref>
+    insert_inline(instruction_ref ins,
+                  const module& m,
+                  const std::vector<instruction_ref>& inputs,
+                  std::unordered_map<instruction_ref, instruction_ref>* map_ins = nullptr,
+                  inserter insert                                               = nullptr);
 
     void debug_print() const;
     void debug_print(instruction_ref ins) const;

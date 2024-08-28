@@ -154,7 +154,7 @@ struct mlir_op
         check_shapes{inputs, *this}.packed_or_broadcasted();
         if(mods.size() != 1)
             MIGRAPHX_THROW("should have one submodule.");
-        if(inputs.size() < 1)
+        if(inputs.empty())
             MIGRAPHX_THROW("should have at least one input.");
 
         auto result =
@@ -727,8 +727,8 @@ struct find_mlir_standalone_attention_op
         if(axes.size() != 1)
             return;
 
-        static size_t counter = 0;
-        module_ref m_attn     = mpm.create_module("mlir_attn" + std::to_string(counter++));
+        module_ref m_attn =
+            mpm.create_module("mlir_attn_" + fused_reduce->module_inputs().front()->name());
         m_attn->set_bypass();
         std::unordered_map<instruction_ref, instruction_ref> map_main_to_mattn;
 
@@ -897,7 +897,7 @@ void fuse_mlir::apply(module_pass_manager& mpm) const
     };
 
     // Attention offloads; default disabled
-    if(mlir_attention_enabled())
+    if(mlir_attention_enabled() or enable_extra)
     {
         match::find_matches(mpm, find_mlir_attention_fused_ops{mlir_mode::all});
         mpm.run_pass(dead_code_elimination{});

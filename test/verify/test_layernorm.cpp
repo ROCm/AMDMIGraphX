@@ -27,43 +27,7 @@
 #include <migraphx/instruction.hpp>
 #include <migraphx/generate.hpp>
 #include <migraphx/make_op.hpp>
-
-migraphx::instruction_ref add_layernorm(migraphx::module& m,
-                                        migraphx::instruction_ref x,
-                                        std::vector<size_t> dims,
-                                        float eps = 1e-12f)
-{
-    auto mgx_type = x->get_shape().type();
-    auto scale    = m.add_parameter("scale", migraphx::shape{mgx_type, {dims.back()}});
-    auto bias     = m.add_parameter("bias", migraphx::shape{mgx_type, {dims.back()}});
-
-    auto epsilon  = m.add_literal(migraphx::literal{migraphx::shape{mgx_type}, {eps}});
-    auto exponent = m.add_literal(migraphx::literal{migraphx::shape{mgx_type}, {2.0f}});
-
-    auto mean = m.add_instruction(migraphx::make_op("reduce_mean", {{"axes", {2}}}), x);
-    auto mean_mbcast =
-        m.add_instruction(migraphx::make_op("multibroadcast", {{"out_lens", dims}}), mean);
-    auto sub = m.add_instruction(migraphx::make_op("sub"), x, mean_mbcast);
-    auto exponent_mbcast =
-        m.add_instruction(migraphx::make_op("multibroadcast", {{"out_lens", dims}}), exponent);
-    auto pow            = m.add_instruction(migraphx::make_op("pow"), sub, exponent_mbcast);
-    auto var            = m.add_instruction(migraphx::make_op("reduce_mean", {{"axes", {2}}}), pow);
-    auto epsilon_mbcast = m.add_instruction(
-        migraphx::make_op("multibroadcast", {{"out_lens", {dims.at(0), dims.at(1), 1}}}), epsilon);
-
-    auto add_epsilon = m.add_instruction(migraphx::make_op("add"), var, epsilon_mbcast);
-    auto sqrt        = m.add_instruction(migraphx::make_op("sqrt"), add_epsilon);
-    auto sqrt_mbcast =
-        m.add_instruction(migraphx::make_op("multibroadcast", {{"out_lens", dims}}), sqrt);
-    auto div = m.add_instruction(migraphx::make_op("div"), sub, sqrt_mbcast);
-    auto scale_mbcast =
-        m.add_instruction(migraphx::make_op("multibroadcast", {{"out_lens", dims}}), scale);
-    auto mul = m.add_instruction(migraphx::make_op("mul"), div, scale_mbcast);
-
-    auto bias_mbcast =
-        m.add_instruction(migraphx::make_op("multibroadcast", {{"out_lens", dims}}), bias);
-    return m.add_instruction(migraphx::make_op("add"), mul, bias_mbcast);
-}
+#include <layernorm.hpp>
 
 struct test_layernorm : verify_program<test_layernorm>
 {

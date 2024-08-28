@@ -199,12 +199,12 @@ struct find_pointwise_reduce
 
     void apply(module_pass_manager& mpm, const match::matcher_result& r) const
     {
-        auto reduce = r.result;
+        auto reduce        = r.result;
         auto input         = r.instructions["pointwise"];
         const auto* pm     = input->module_inputs().front();
         const auto* old_rm = reduce->module_inputs().front();
 
-        auto* rm           = mpm.create_module(pm->name() + ":" + old_rm->name());
+        auto* rm = mpm.create_module(pm->name() + ":" + old_rm->name());
         rm->set_bypass();
         std::unordered_map<instruction_ref, instruction_ref> map_ins;
         // Insert pointwise
@@ -351,7 +351,7 @@ struct reduce_reshape : rewrite_reshapes_base
         auto* oldm = ins->module_inputs().front();
         auto* sm   = mpm.create_module(oldm->name() + "_reshape");
         sm->set_bypass();
-        sm->fuse(*oldm, inputs, nullptr, transform_op([&](const operation& sop) {
+        auto outs = sm->fuse(*oldm, inputs, nullptr, transform_op([&](const operation& sop) {
             if(contains(sop.name(), "reduce"))
                 return make_op(sop.name(), {{"axes", axes}});
             if(sop.name() == "multibroadcast")
@@ -359,6 +359,7 @@ struct reduce_reshape : rewrite_reshapes_base
             assert(sop.name() == "pointwise");
             return sop;
         }));
+        sm->add_return(outs);
         return mpm.get_module().insert_instruction(ins, fused_reduce{axes}, inputs, {sm});
     }
 

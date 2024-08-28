@@ -47,7 +47,8 @@ struct gemm_softmax_gemm
 
     void check_gemm_shape(const shape& s) const
     {
-        if(not contains(range(s.strides().rbegin(), s.strides().rbegin() + 3), 1))
+        if(not contains(range(s.strides().rbegin(), s.strides().rbegin() + 3), 1) and
+           not s.scalar())
             MIGRAPHX_THROW("Invalid shape for " + name());
     }
 
@@ -58,15 +59,35 @@ struct gemm_softmax_gemm
             MIGRAPHX_THROW(name() + ": Expected 3 inputs but got " + to_string(inputs.size()));
 
         const bool is_bias_enabled = inputs.size() == 4;
+        const bool is_mul_where    = inputs.size() == 5;
         auto a                     = inputs[0];
         auto b                     = inputs[1];
-        auto b1                    = inputs[is_bias_enabled ? 3 : 2];
+        auto b1                    = inputs.back();
 
         for(const auto& input : inputs)
         {
             check_gemm_shape(input);
         }
         auto gemm0_shape = op.compute_shape({a, b});
+        if(is_mul_where)
+        {
+            auto select_cond  = inputs[2];
+            auto select_const = inputs[3];
+            if(select_cond.lens() != select_const.lens())
+            {
+                std::stringstream err_msg;
+                err_msg << name() << ": has inconsistent where op condition and constant size: "
+                        << select_cond << "!=" << select_const;
+                MIGRAPHX_THROW(err_msg.str());
+            }
+            if(select_cond.lens() != gemm0_shape.lens())
+            {
+                std::stringstream err_msg;
+                err_msg << name() << ": has inconsistent where op condition size"
+                        << ". Expected: " << gemm0_shape << ". Given: " << select_cond;
+                MIGRAPHX_THROW(err_msg.str());
+            }
+        }
         if(is_bias_enabled)
         {
             auto bias_shape = inputs[2];

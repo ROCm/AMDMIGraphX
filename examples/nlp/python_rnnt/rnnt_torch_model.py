@@ -1,6 +1,5 @@
 import toml
 import torch
-import sys
 import argparse
 from model_separable_rnnt import RNNT
 

@@ -26,7 +26,6 @@ import migraphx as mgx
 import os
 import sys
 import torch
-import time
 import torch.nn.functional as F
 
 mgx_to_torch_dtype_dict = {

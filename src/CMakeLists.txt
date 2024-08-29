@@ -107,6 +107,7 @@ add_library(migraphx
     schedule.cpp
     serialize.cpp
     shape.cpp
+    shape_transform_descriptor.cpp
     simplify_algebra.cpp
     simplify_dyn_ops.cpp
     simplify_reshapes.cpp
@@ -143,6 +144,7 @@ register_migraphx_ops(
     as_shape
     atanh
     atan
+    bitwise_and
     broadcast
     broadcast_for_dot
     broadcast_with_dims
@@ -184,6 +186,7 @@ register_migraphx_ops(
     less
     load
     log
+    log2
     logical_and
     logical_or
     logical_xor
@@ -237,6 +240,7 @@ register_migraphx_ops(
     rsqrt
     run_on_target
     scalar
+    scan_slice
     scatter_none
     scatter_add
     scatter_mul

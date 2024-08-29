@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2022 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2024 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -91,8 +91,12 @@ static void update_pooling(const instruction_ref& input, const instruction_ref& 
     std::copy(pads_l.begin(), pads_l.end(), padding.begin() + 2);
     std::copy(pads_r.begin(), pads_r.end(), padding.begin() + kdims + 2 + 2);
 
-    // maxpool uses lowest value for padding
-    float pad_val = std::numeric_limits<float>::lowest();
+    float pad_val = 0.0f; // for the lpnorm
+    if(op.mode == op::pooling_mode::max)
+    {
+        // maxpool uses lowest value for padding
+        pad_val = std::numeric_limits<float>::lowest();
+    }
     auto pad_op   = m.insert_instruction(ins, op::pad{padding, pad_val}, input);
 
     auto new_inputs    = ins->inputs();

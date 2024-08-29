@@ -25,7 +25,7 @@ import os, shlex, shutil, argparse, subprocess
 
 CLANG_FORMAT_PATH = '/opt/rocm/llvm/bin'
 
-EXCLUDE_FILES = ['requirements.in']
+EXCLUDE_FILES = ['requirements.in', 'onnx.proto']
 
 
 def run(cmd, **kwargs):

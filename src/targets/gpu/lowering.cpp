@@ -55,6 +55,8 @@ namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
 namespace gpu {
 
+MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_DISABLE_MIOPEN_POOLING)
+
 struct miopen_apply
 {
     module* mod              = nullptr;
@@ -120,6 +122,7 @@ struct miopen_apply
         add_select_module_op();
         add_reshape_lazy_op();
         add_group_query_attention_op();
+        add_scan_slice_op();
     }
 
     void copy_params() const
@@ -302,9 +305,14 @@ struct miopen_apply
     void add_pooling_op()
     {
         apply_map.emplace("pooling", [=](instruction_ref ins) {
+            if(enabled(MIGRAPHX_DISABLE_MIOPEN_POOLING{}))
+            {
+                return insert_precompile_op(ins);
+            }
             auto&& op   = ins->get_operator();
             auto op_val = op.to_value();
-            if(op_val.at("count_include_pad").to<bool>())
+            if(op_val.at("count_include_pad").to<bool>() and
+               op_val["mode"].to<op::pooling_mode>() == op::pooling_mode::average)
             {
                 return insert_precompile_op(ins);
             }
@@ -579,6 +587,17 @@ struct miopen_apply
         // });
 
         // mod->debug_print();
+    }
+    
+    void add_scan_slice_op()
+    {
+        apply_map.emplace("scan_slice", [=](instruction_ref ins) {
+            auto inputs  = ins->inputs();
+            auto cpu_idx = mod->insert_instruction(ins, make_op("hip::copy_from_gpu"), inputs[1]);
+            inputs[1]    = mod->insert_instruction(ins, make_op("hip::sync_stream"), cpu_idx);
+            return mod->replace_instruction(
+                ins, mod->insert_instruction(ins, ins->get_operator(), inputs));
+        });
     }
 };
 

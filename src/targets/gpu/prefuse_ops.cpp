@@ -197,11 +197,15 @@ struct find_gemm_softmax_gemm
                 .bind("gemm1")));
         auto mul   = match::name("mul")(
             match::nargs(2), match::either_arg(0, 1)(match::is_constant().bind("scale"), gemm1));
-        auto add = match::name("add")(is_bias_supported(),
-                                      match::nargs(2),
-                                      match::any_arg(0, 1)(match::none_of(mul).bind("bias")));
-        auto softmax =
-            match::name("softmax")(match::arg(0)(match::any_of(mul, add, gemm1))).bind("softmax");
+        auto where = match::name("where")(match::arg(2)(match::is_constant().bind("select_const")),
+                                          match::arg(1)(mul),
+                                          match::arg(0)(match::any().bind("select_cond")));
+        auto add =
+            match::name("add")(is_bias_supported(),
+                               match::nargs(2),
+                               match::either_arg(0, 1)(match::none_of(mul).bind("bias"), mul));
+        auto softmax = match::name("softmax")(match::arg(0)(match::any_of(mul, add, gemm1, where)))
+                           .bind("softmax");
 
         return match::name("dot")(
             match::any_of(is_ck_gemm(), is_mlir_gemm(), is_test_gemm(enable_attention))
@@ -229,10 +233,16 @@ struct find_gemm_softmax_gemm
         }
 
         auto inputs = gemm1_ins->inputs(); // A, B
+        if(contains(r.instructions, "select_cond"))
+        {
+            inputs.push_back(r.instructions["select_cond"]);
+            inputs.push_back(r.instructions["select_const"]);
+        }
         if(contains(r.instructions, "bias"))
         {
             inputs.push_back(r.instructions["bias"]);
         }
+
         inputs.push_back(gemm2_ins->inputs().back()); // B1
 
         mpm.get_module().replace_instruction(

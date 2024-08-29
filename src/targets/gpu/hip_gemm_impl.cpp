@@ -146,8 +146,8 @@ struct hip_gemm_impl
 
         transa = is_transposed_hip(input_shapes[0]);
         transb = is_transposed_hip(input_shapes[1]);
-        opA    = transa ? HIPBLAS_OP_T : HIPBLAS_OP_N;
-        opB    = transb ? HIPBLAS_OP_T : HIPBLAS_OP_N;
+        op_a    = transa ? HIPBLAS_OP_T : HIPBLAS_OP_N;
+        op_b    = transb ? HIPBLAS_OP_T : HIPBLAS_OP_N;
 
         auto n_dim = output_shape.lens().size();
         auto dim_0 = n_dim - 2;
@@ -181,66 +181,66 @@ struct hip_gemm_impl
         {
             compute_type = HIPBLAS_COMPUTE_32F;
         }
-        if(opA == HIPBLAS_OP_T)
+        if(op_a == HIPBLAS_OP_T)
         {
             hipblaslt_invoke(
-                [&]() { return hipblasLtMatrixLayoutCreate(&matA, arg_type, m, k, lda); });
+                [&]() { return hipblasLtMatrixLayoutCreate(&mat_a, arg_type, m, k, lda); });
         }
         else
         {
             hipblaslt_invoke(
-                [&]() { return hipblasLtMatrixLayoutCreate(&matA, arg_type, k, m, lda); });
+                [&]() { return hipblasLtMatrixLayoutCreate(&mat_a, arg_type, k, m, lda); });
         }
-        if(opB == HIPBLAS_OP_T)
+        if(op_b == HIPBLAS_OP_T)
         {
             hipblaslt_invoke(
-                [&]() { return hipblasLtMatrixLayoutCreate(&matB, arg_type, k, n, ldb); });
+                [&]() { return hipblasLtMatrixLayoutCreate(&mat_b, arg_type, k, n, ldb); });
         }
         else
         {
             hipblaslt_invoke(
-                [&]() { return hipblasLtMatrixLayoutCreate(&matB, arg_type, n, k, ldb); });
+                [&]() { return hipblasLtMatrixLayoutCreate(&mat_b, arg_type, n, k, ldb); });
         }
         hipblaslt_invoke(
-            [&]() { return hipblasLtMatrixLayoutCreate(&matC, output_type, n, m, ldc); });
+            [&]() { return hipblasLtMatrixLayoutCreate(&mat_c, output_type, n, m, ldc); });
 
         if(is_3inputs)
         {
             hipblaslt_invoke(
-                [&]() { return hipblasLtMatrixLayoutCreate(&matD, output_type, n, m, ldd); });
+                [&]() { return hipblasLtMatrixLayoutCreate(&mat_d, output_type, n, m, ldd); });
         }
         if(num_matrices > 1)
         {
             hipblaslt_invoke([&]() {
                 return hipblasLtMatrixLayoutSetAttribute(
-                    matA, HIPBLASLT_MATRIX_LAYOUT_BATCH_COUNT, &num_matrices, sizeof(num_matrices));
+                    mat_a, HIPBLASLT_MATRIX_LAYOUT_BATCH_COUNT, &num_matrices, sizeof(num_matrices));
             });
             hipblaslt_invoke([&]() {
                 return hipblasLtMatrixLayoutSetAttribute(
-                    matB, HIPBLASLT_MATRIX_LAYOUT_BATCH_COUNT, &num_matrices, sizeof(num_matrices));
+                    mat_b, HIPBLASLT_MATRIX_LAYOUT_BATCH_COUNT, &num_matrices, sizeof(num_matrices));
             });
             hipblaslt_invoke([&]() {
                 return hipblasLtMatrixLayoutSetAttribute(
-                    matC, HIPBLASLT_MATRIX_LAYOUT_BATCH_COUNT, &num_matrices, sizeof(num_matrices));
+                    mat_c, HIPBLASLT_MATRIX_LAYOUT_BATCH_COUNT, &num_matrices, sizeof(num_matrices));
             });
 
             hipblaslt_invoke([&]() {
                 return hipblasLtMatrixLayoutSetAttribute(
-                    matA,
+                    mat_a,
                     HIPBLASLT_MATRIX_LAYOUT_STRIDED_BATCH_OFFSET,
                     &a_stride,
                     sizeof(a_stride));
             });
             hipblaslt_invoke([&]() {
                 return hipblasLtMatrixLayoutSetAttribute(
-                    matB,
+                    mat_b,
                     HIPBLASLT_MATRIX_LAYOUT_STRIDED_BATCH_OFFSET,
                     &b_stride,
                     sizeof(b_stride));
             });
             hipblaslt_invoke([&]() {
                 return hipblasLtMatrixLayoutSetAttribute(
-                    matC,
+                    mat_c,
                     HIPBLASLT_MATRIX_LAYOUT_STRIDED_BATCH_OFFSET,
                     &c_stride,
                     sizeof(c_stride));
@@ -249,14 +249,14 @@ struct hip_gemm_impl
             if(is_3inputs)
             {
                 hipblaslt_invoke([&]() {
-                    return hipblasLtMatrixLayoutSetAttribute(matD,
+                    return hipblasLtMatrixLayoutSetAttribute(mat_d,
                                                              HIPBLASLT_MATRIX_LAYOUT_BATCH_COUNT,
                                                              &num_matrices,
                                                              sizeof(num_matrices));
                 });
                 hipblaslt_invoke([&]() {
                     return hipblasLtMatrixLayoutSetAttribute(
-                        matD,
+                        mat_d,
                         HIPBLASLT_MATRIX_LAYOUT_STRIDED_BATCH_OFFSET,
                         &d_stride,
                         sizeof(d_stride));
@@ -269,21 +269,21 @@ struct hip_gemm_impl
         });
         hipblaslt_invoke([&]() {
             return hipblasLtMatmulDescSetAttribute(
-                hipblaslt_desc, HIPBLASLT_MATMUL_DESC_TRANSB, &opA, sizeof(int32_t));
+                hipblaslt_desc, HIPBLASLT_MATMUL_DESC_TRANSB, &op_a, sizeof(int32_t));
         });
         hipblaslt_invoke([&]() {
             return hipblasLtMatmulDescSetAttribute(
-                hipblaslt_desc, HIPBLASLT_MATMUL_DESC_TRANSA, &opB, sizeof(int32_t));
+                hipblaslt_desc, HIPBLASLT_MATMUL_DESC_TRANSA, &op_b, sizeof(int32_t));
         });
 
         // Transfer ownership of raw pointers to managed pointers.
         managed_hipblaslt_desc.reset(hipblaslt_desc);
-        managed_mat_a.reset(matA);
-        managed_mat_b.reset(matB);
-        managed_mat_c.reset(matC);
+        managed_mat_a.reset(mat_a);
+        managed_mat_b.reset(mat_b);
+        managed_mat_c.reset(mat_c);
         if(is_3inputs)
         {
-            managed_mat_d.reset(matD);
+            managed_mat_d.reset(mat_d);
         }
     }
 
@@ -332,10 +332,10 @@ struct hip_gemm_impl
                 hipblaslt_invoke([&]() {
                     return hipblasLtMatmulAlgoGetHeuristic(handle,
                                                            gemm.hipblaslt_desc,
-                                                           gemm.matB,
-                                                           gemm.matA,
-                                                           gemm.matC,
-                                                           gemm.is_3inputs ? gemm.matD : gemm.matC,
+                                                           gemm.mat_b,
+                                                           gemm.mat_a,
+                                                           gemm.mat_c,
+                                                           gemm.is_3inputs ? gemm.mat_d : gemm.mat_c,
                                                            preference,
                                                            n_sol,
                                                            heuristic_result.data(),
@@ -386,14 +386,14 @@ struct hip_gemm_impl
                     hipblaslt_desc,
                     get_alpha(),                                  // alpha
                     args[1].data(),                               // A
-                    matB,                                         // Adesc
+                    mat_b,                                         // Adesc
                     args[0].data(),                               // B
-                    matA,                                         // Bdesc
+                    mat_a,                                         // Bdesc
                     get_beta(),                                   // beta
                     args[2].data(),                               // C
-                    matC,                                         // Cdesc
+                    mat_c,                                         // Cdesc
                     is_3inputs ? args[3].data() : args[2].data(), // D
-                    is_3inputs ? matD : matC,                     // Ddesc
+                    is_3inputs ? mat_d : mat_c,                     // Ddesc
                     algo,                                         // algo
                     hipblaslt_workspace().implicit(),             // workspace
                     algo->max_workspace_bytes,                    // workspaceSizeInBytes
@@ -410,11 +410,11 @@ struct hip_gemm_impl
         return pack(ctx.get_stream().get_hipblaslt(),
                     hipblaslt_desc,
                     get_alpha(),
-                    matB,
-                    matA,
+                    mat_b,
+                    mat_a,
                     get_beta(),
-                    matC,
-                    is_3inputs ? matD : matC,
+                    mat_c,
+                    is_3inputs ? mat_d : mat_c,
                     algo,
                     workspace_size);
     }
@@ -480,8 +480,8 @@ struct hip_gemm_impl
         hipblaslt_invoke([&]() {
             return hipblaslt_ext::getAllAlgos(ctx.get_stream().get_hipblaslt(),
                                               hipblaslt_ext::GemmType::HIPBLASLT_GEMM,
-                                              opA,
-                                              opB,
+                                              op_a,
+                                              op_b,
                                               arg_type,
                                               arg_type,
                                               output_type,
@@ -571,15 +571,15 @@ struct hip_gemm_impl
     hipblasComputeType_t compute_type = HIPBLAS_COMPUTE_32F;
     hipDataType output_type           = HIP_R_32F;
     hipblasLtMatmulDesc_t hipblaslt_desc;
-    hipblasOperation_t opA;
-    hipblasOperation_t opB;
+    hipblasOperation_t op_a;
+    hipblasOperation_t op_b;
     using hipblaslt_matrix_layout = MIGRAPHX_MANAGE_PTR(hipblasLtMatrixLayout_t,
                                                         hipblasLtMatrixLayoutDestroy);
     using hipblaslt_mat_mul_desc  = MIGRAPHX_MANAGE_PTR(hipblasLtMatmulDesc_t,
                                                        hipblasLtMatmulDescDestroy);
     hipblaslt_matrix_layout managed_mat_a, managed_mat_b, managed_mat_c, managed_mat_d;
     hipblaslt_mat_mul_desc managed_hipblaslt_desc;
-    hipblasLtMatrixLayout_t matA, matB, matC, matD;
+    hipblasLtMatrixLayout_t mat_a, mat_b, mat_c, mat_d;
     hipblasLtHandle_t handle;
     hipblasLtMatmulPreference_t preference;
 }; // hip_gemm_impl

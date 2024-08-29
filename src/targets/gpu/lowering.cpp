@@ -243,7 +243,7 @@ struct miopen_apply
         return mod->insert_instruction(ins, make_op("allocate", {{"shape", to_value(s)}}));
     }
 
-#if MIGRAPHX_USE_ROCBLAS and MIGRAPHX_USE_HIPBLASLT
+#if MIGRAPHX_USE_ROCBLAS or MIGRAPHX_USE_HIPBLASLT
     template <typename Op>
     void add_gemm_op(const std::string& name)
     {

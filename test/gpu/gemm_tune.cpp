@@ -47,7 +47,7 @@ void run_lowering(migraphx::program& p, bool offload_copy = false)
         {migraphx::auto_contiguous{}, migraphx::gpu::lowering{&ctx, offload_copy}});
 }
 
-#if MIGRAPHX_USE_ROCBLAS and MIGRAPHX_USE_HIPBLASLT
+#if MIGRAPHX_USE_ROCBLAS or MIGRAPHX_USE_HIPBLASLT
 /**
  * Tests the automatic GEMM tuning feature for rocBLAS and hipBLASLt.
  * In the finalize() method of the gemm op,

@@ -540,7 +540,7 @@ struct find_mlir_split_reduce
                 fused_ins);
 
             mpm.get_module().replace_instruction(gemm_ins, dot_ins);
-            for(const auto outs : reduce_ins->outputs())
+            for(const auto& outs : reduce_ins->outputs())
             {
                 assert(outs->get_operator().name() == "get_tuple_elem");
                 mpm.get_module().replace_instruction(outs, outs->get_operator(), fused_ins);

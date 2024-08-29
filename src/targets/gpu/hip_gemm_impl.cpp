@@ -146,8 +146,8 @@ struct hip_gemm_impl
 
         transa = is_transposed_hip(input_shapes[0]);
         transb = is_transposed_hip(input_shapes[1]);
-        op_a    = transa ? HIPBLAS_OP_T : HIPBLAS_OP_N;
-        op_b    = transb ? HIPBLAS_OP_T : HIPBLAS_OP_N;
+        op_a   = transa ? HIPBLAS_OP_T : HIPBLAS_OP_N;
+        op_b   = transb ? HIPBLAS_OP_T : HIPBLAS_OP_N;
 
         auto n_dim = output_shape.lens().size();
         auto dim_0 = n_dim - 2;
@@ -212,16 +212,22 @@ struct hip_gemm_impl
         if(num_matrices > 1)
         {
             hipblaslt_invoke([&]() {
-                return hipblasLtMatrixLayoutSetAttribute(
-                    mat_a, HIPBLASLT_MATRIX_LAYOUT_BATCH_COUNT, &num_matrices, sizeof(num_matrices));
+                return hipblasLtMatrixLayoutSetAttribute(mat_a,
+                                                         HIPBLASLT_MATRIX_LAYOUT_BATCH_COUNT,
+                                                         &num_matrices,
+                                                         sizeof(num_matrices));
             });
             hipblaslt_invoke([&]() {
-                return hipblasLtMatrixLayoutSetAttribute(
-                    mat_b, HIPBLASLT_MATRIX_LAYOUT_BATCH_COUNT, &num_matrices, sizeof(num_matrices));
+                return hipblasLtMatrixLayoutSetAttribute(mat_b,
+                                                         HIPBLASLT_MATRIX_LAYOUT_BATCH_COUNT,
+                                                         &num_matrices,
+                                                         sizeof(num_matrices));
             });
             hipblaslt_invoke([&]() {
-                return hipblasLtMatrixLayoutSetAttribute(
-                    mat_c, HIPBLASLT_MATRIX_LAYOUT_BATCH_COUNT, &num_matrices, sizeof(num_matrices));
+                return hipblasLtMatrixLayoutSetAttribute(mat_c,
+                                                         HIPBLASLT_MATRIX_LAYOUT_BATCH_COUNT,
+                                                         &num_matrices,
+                                                         sizeof(num_matrices));
             });
 
             hipblaslt_invoke([&]() {
@@ -335,7 +341,8 @@ struct hip_gemm_impl
                                                            gemm.mat_b,
                                                            gemm.mat_a,
                                                            gemm.mat_c,
-                                                           gemm.is_3inputs ? gemm.mat_d : gemm.mat_c,
+                                                           gemm.is_3inputs ? gemm.mat_d
+                                                                           : gemm.mat_c,
                                                            preference,
                                                            n_sol,
                                                            heuristic_result.data(),
@@ -386,14 +393,14 @@ struct hip_gemm_impl
                     hipblaslt_desc,
                     get_alpha(),                                  // alpha
                     args[1].data(),                               // A
-                    mat_b,                                         // Adesc
+                    mat_b,                                        // Adesc
                     args[0].data(),                               // B
-                    mat_a,                                         // Bdesc
+                    mat_a,                                        // Bdesc
                     get_beta(),                                   // beta
                     args[2].data(),                               // C
-                    mat_c,                                         // Cdesc
+                    mat_c,                                        // Cdesc
                     is_3inputs ? args[3].data() : args[2].data(), // D
-                    is_3inputs ? mat_d : mat_c,                     // Ddesc
+                    is_3inputs ? mat_d : mat_c,                   // Ddesc
                     algo,                                         // algo
                     hipblaslt_workspace().implicit(),             // workspace
                     algo->max_workspace_bytes,                    // workspaceSizeInBytes

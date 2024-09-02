@@ -55,6 +55,8 @@ namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
 namespace gpu {
 
+MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_DISABLE_MIOPEN_POOLING)
+
 struct miopen_apply
 {
     module* mod              = nullptr;
@@ -302,6 +304,10 @@ struct miopen_apply
     void add_pooling_op()
     {
         apply_map.emplace("pooling", [=](instruction_ref ins) {
+            if(enabled(MIGRAPHX_DISABLE_MIOPEN_POOLING{}))
+            {
+                return insert_precompile_op(ins);
+            }
             auto&& op   = ins->get_operator();
             auto op_val = op.to_value();
             if(op_val.at("count_include_pad").to<bool>() and

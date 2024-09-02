@@ -30,8 +30,9 @@
 #include <migraphx/stringutils.hpp>
 #include <string_view>
 
-#include "ck/host/device_gemm_multiple_d.hpp"
-#include "ck/host/device_batched_gemm_softmax_gemm.hpp"
+#include "ck/host/headers.hpp"
+#include "ck/host/device_gemm_multiple_d/problem.hpp"
+#include "ck/host/device_batched_gemm_softmax_gemm/problem.hpp"
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {

@@ -350,12 +350,12 @@ struct parse_softmaxcrossentropyloss : op_parser<parse_softmaxcrossentropyloss>
         auto scores_shape = scores->get_shape();
         auto labels  = get_labels(args.at(1), scores_shape);
 
-        // meta parameters based on input scores shape
+        // Meta parameters based on input scores shape
         size_t ndims = scores_shape.ndim();
         size_t class_size = scores_shape.lens().at(1);
         bool is_k_dim  = (ndims > 3);
 
-        // ignore_index is optional attribute, assign this as a scalar literal input to the op
+        // Ignore_index is optional attribute, assign this as a scalar literal input to the op
         instruction_ref ignore_index;
         auto has_ignore_index =
             normalize_input_index(parser, info, static_cast<int64_t>(class_size), ignore_index);
@@ -363,7 +363,7 @@ struct parse_softmaxcrossentropyloss : op_parser<parse_softmaxcrossentropyloss>
         bool has_weights = (args.size() > 2);
         instruction_ref weights = get_weights(info, args, scores_shape, class_size);
 
-        // adjust weights based on ignore index if that's set to reduce output after mul to zero
+        // Adjust weights based on ignore index if that's set to reduce output after mul to zero
         // Saves us from doing a where() here and just scale at the end
         if(has_ignore_index)
         {

@@ -301,7 +301,6 @@ struct parse_softmaxcrossentropyloss : op_parser<parse_softmaxcrossentropyloss>
                                      const instruction_ref loss_tensor, 
                                      const instruction_ref weights, 
                                      const std::string &reduction, 
-                                           bool has_ignore_index, 
                                            bool has_weights) const    
     {
         instruction_ref final_loss_tensor = loss_tensor;
@@ -310,19 +309,13 @@ struct parse_softmaxcrossentropyloss : op_parser<parse_softmaxcrossentropyloss>
         std::vector<size_t> loss_dims(loss_tensor->get_shape().ndim());
         std::iota(loss_dims.begin(), loss_dims.end(), 0);
 
-        std::vector<size_t> weight_dims(weights->get_shape().ndim());
-        std::iota(weight_dims.begin(), weight_dims.end(), 0);
-
-        if(has_ignore_index or has_weights)
-        {
-            final_loss_tensor =
-                info.add_instruction(migraphx::make_op("mul"), loss_tensor, weights);
-        }
-
         // Add reduction step after we're generated crossentropyloss tensor and rearragned weight
         // scaling tensor
         if(reduction == "mean" and has_weights)
         {
+            std::vector<size_t> weight_dims(weights->get_shape().ndim());
+            std::iota(weight_dims.begin(), weight_dims.end(), 0);
+
             final_loss_tensor =
                 info.add_instruction(migraphx::make_op("reduce_sum", {{"axes", loss_dims}}), final_loss_tensor);
             auto reduced_weights = info.add_instruction(
@@ -398,16 +391,13 @@ struct parse_softmaxcrossentropyloss : op_parser<parse_softmaxcrossentropyloss>
 
         scores = info.add_instruction(migraphx::make_op("gathernd"), scores, gathernd_indicies);
 
-        if (has_weights) // Saves us a multiply + gather op to gate this as default weights are literal 1's
-        {
-            std::vector<int64_t> axis_list(ndims-1, 0);
-            std::iota(++(axis_list.begin()), axis_list.end(), 2);
-            weights = info.add_instruction(migraphx::make_op("unsqueeze", {{"axes", axis_list}}), weights);
-            weights = info.add_instruction(migraphx::make_op("multibroadcast", {{"out_lens", scores_shape.lens()}}), weights);
-            if (is_k_dim)
-                weights = info.add_instruction(migraphx::make_op("transpose", {{"permutation", perm}}), weights);
-            weights = info.add_instruction(migraphx::make_op("gathernd"), weights, gathernd_indicies);
-        }
+        std::vector<int64_t> axis_list(ndims-1, 0);
+        std::iota(++(axis_list.begin()), axis_list.end(), 2);
+        weights = info.add_instruction(migraphx::make_op("unsqueeze", {{"axes", axis_list}}), weights);
+        weights = info.add_instruction(migraphx::make_op("multibroadcast", {{"out_lens", scores_shape.lens()}}), weights);
+        if (is_k_dim)
+            weights = info.add_instruction(migraphx::make_op("transpose", {{"permutation", perm}}), weights);
+        weights = info.add_instruction(migraphx::make_op("gathernd"), weights, gathernd_indicies);
 
         // Do pointwise operators on the final set of indicies and scores we care about rather than
         // before so that we're not doing a bunch of pointwise on items that aren't part of the loss calulation.
@@ -415,7 +405,11 @@ struct parse_softmaxcrossentropyloss : op_parser<parse_softmaxcrossentropyloss>
         auto log_sm_scores  = info.add_instruction(migraphx::make_op("log"), scores);
         auto neg_lsm_scores = info.add_instruction(migraphx::make_op("neg"), log_sm_scores);
 
-        auto loss_tensor = handle_reduction(info, neg_lsm_scores, weights, reduction, has_ignore_index, has_weights);
+        // Always multiply out the weights. Will get optmized out if its all 1's
+        auto weighted_result =
+            info.add_instruction(migraphx::make_op("mul"), neg_lsm_scores, weights);
+
+        auto loss_tensor = handle_reduction(info, weighted_result, weights, reduction, has_weights);
 
         return {loss_tensor, log_sm_scores};
     }

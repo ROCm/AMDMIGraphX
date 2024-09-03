@@ -221,7 +221,6 @@ struct parse_softmaxcrossentropyloss : op_parser<parse_softmaxcrossentropyloss>
 
     instruction_ref get_weights(const onnx_parser::node_info &info, 
                                 const std::vector<instruction_ref> &args, 
-                                const instruction_ref ignore_index,
                                 const shape &scores_shape, 
                                       size_t class_size) const 
     {
@@ -369,7 +368,7 @@ struct parse_softmaxcrossentropyloss : op_parser<parse_softmaxcrossentropyloss>
             normalize_input_index(parser, info, static_cast<int64_t>(class_size), ignore_index);
 
         bool has_weights = (args.size() > 2);
-        instruction_ref weights = get_weights(info, args, ignore_index, scores_shape, class_size);
+        instruction_ref weights = get_weights(info, args, scores_shape, class_size);
 
         // adjust weights based on ignore index if that's set to reduce output after mul to zero
         // Saves us from doing a where() here and just scale at the end

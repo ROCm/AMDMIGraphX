@@ -202,7 +202,7 @@ std::vector<pass> target::get_passes(migraphx::context& gctx, const compile_opti
         check_context<context>{},
         normalize_ops{},
         dead_code_elimination{},
-        eliminate_identity{},
+        eliminate_identity{}
     };
     // clang-format on
 }

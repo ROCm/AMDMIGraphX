@@ -347,10 +347,12 @@ struct hip_copy_fetch_literal_test
     void finalize(context& ctx, const shape&, const std::vector<shape>&) const
     {
         argument test = get_arg_from_file(l_shape, literal_file);
-        if(test.get_shape() == l.get_shape() && test.to_string() == l.get_argument().to_string()){
+        if(test.get_shape() == l.get_shape() && test.to_string() == l.get_argument().to_string())
+        {
             std::cout << id << " was fetched correctly.\n";
         }
-        else {
+        else 
+        {
             std::cout << "\n\n" << test.get_shape() << "\n" << test.to_string() << "\n\nVS:\n" << l.get_argument().to_string() << "\n\n";
             MIGRAPHX_THROW(id + " fetched did not match saved literal.\n");
         }

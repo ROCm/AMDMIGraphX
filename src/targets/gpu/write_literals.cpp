@@ -91,17 +91,21 @@ void write_literals::apply(module& m) const
     std::size_t n = 0;
     std::ofstream fs;
     std::string output_file_header;
-    bool need_weights = true;
+    bool create_file = true;
+    bool save_literals = strip_weights;
+    
+    if(output == "")
+    {
+        save_literals = false;
+    }
 
-
-
-    if(strip_weights)
+    if(save_literals)
     {
         output_file_header = output + "_literals";
         if(mkdir(output_file_header.c_str(), 0777) == -1)
         {
             std::cout << "Weights already created, using folder already created.\n\n";
-            need_weights = false;
+            create_file = false;
         }
     }
 
@@ -111,15 +115,16 @@ void write_literals::apply(module& m) const
         {
             if(enabled(MIGRAPHX_COPY_LITERALS{}))
             {
-                if(strip_weights)
+                if(save_literals)
                 {
                     std::string id = m.name() + ":@literal:" + std::to_string(n);
-                    // save current literal to it's own file
+                    // save current literal to it's own file (would need to change if literal.hpp is updated)
                     std::string buffer(ins->get_literal().data(), ins->get_shape().bytes());
                     std::hash<std::string> create_hash;
+                    // can use better hashing method, this is just the easiest that worked
                     std::size_t hash_v = create_hash(buffer);
                     std::string output_file = output_file_header + "/" + std::to_string(hash_v) + ".mxr_literal";
-                    if(need_weights)
+                    if(create_file)
                     {
                         fs.open(output_file, std::ofstream::out | std::ofstream::trunc | std::ios::binary);
                         fs.write(buffer.data(), ins->get_shape().bytes());
@@ -143,14 +148,15 @@ void write_literals::apply(module& m) const
             }
             else
             {
-                if(strip_weights)
+                if(save_literals)
                 {
                     std::string id = m.name() + ":@literal:" + std::to_string(n);
                     std::string buffer(ins->get_literal().data(), ins->get_shape().bytes());
                     std::hash<std::string> create_hash;
+                    // can use better hashing method, this is just the easiest that worked
                     std::size_t hash_v = create_hash(buffer);
                     std::string output_file = output_file_header + "/" + std::to_string(hash_v) + ".mxr_literal";
-                    if(need_weights)
+                    if(create_file)
                     {
                         fs.open(output_file, std::ofstream::out | std::ofstream::trunc | std::ios::binary);
                         fs.write(buffer.data(), ins->get_shape().bytes());
@@ -158,6 +164,7 @@ void write_literals::apply(module& m) const
                     }
 
                     m.replace_instruction(ins, hip_copy_fetch_literal{ins->get_shape(), output_file, id});
+                    // m.replace_instruction(ins, hip_copy_fetch_literal_test{ins->get_shape(), output_file, id, ins->get_literal()});
                     n++;
                 }
                 else
@@ -169,7 +176,6 @@ void write_literals::apply(module& m) const
             }
         }
     }
-    std::cout << "number literals: " << n << "\n\n";
 }
 
 } // namespace gpu

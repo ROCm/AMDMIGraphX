@@ -388,57 +388,37 @@ struct parse_softmaxcrossentropyloss : op_parser<parse_softmaxcrossentropyloss>
         scores =
             info.add_instruction(migraphx::make_op("softmax", {{"axis", 1}}), scores);
 
-        // This can be skipped if batch dim == class dim and there's only one batch dimension
-        // The entire op then becomes a much simpler mul + gather + scatter + reduce after pointwise operations
-        if(is_k_dim or sizes_mismatch) 
+        // Index selection before loss calculation completed
+        auto gathernd_indicies = handle_index_selection(info, labels);
+
+        std::vector<int64_t> perm(class_size, 0);
+        if (is_k_dim)
         {
-            auto gathernd_indicies = handle_index_selection(info, labels);
-
-            std::vector<int64_t> perm(class_size, 0);
-            if (is_k_dim)
-            {
-                std::iota(++perm.begin(), perm.end(), 2);
-                perm.at(class_size - 1) = 1;
-                scores = info.add_instruction(migraphx::make_op("transpose", {{"permutation", perm}}), scores);
-            }
-
-            scores = info.add_instruction(migraphx::make_op("gathernd"), scores, gathernd_indicies);
-
-            if (has_weights) // Saves us a multiply + gather op to gate this as default weights are literal 1's
-            {
-                std::vector<int64_t> axis_list(ndims-1, 0);
-                std::iota(++(axis_list.begin()), axis_list.end(), 2);
-                weights = info.add_instruction(migraphx::make_op("unsqueeze", {{"axes", axis_list}}), weights);
-                weights = info.add_instruction(migraphx::make_op("multibroadcast", {{"out_lens", scores_shape.lens()}}), weights);
-                if (is_k_dim)
-                   weights = info.add_instruction(migraphx::make_op("transpose", {{"permutation", perm}}), weights);
-                weights = info.add_instruction(migraphx::make_op("gathernd"), weights, gathernd_indicies);
-            }
+            std::iota(++perm.begin(), perm.end(), 2);
+            perm.at(class_size - 1) = 1;
+            scores = info.add_instruction(migraphx::make_op("transpose", {{"permutation", perm}}), scores);
         }
 
-        // Create output container which should be the same shape as input labels
-        auto loss_tensor = info.add_instruction(
-            migraphx::make_op("convert", {{"target_type", scores_shape.type()}}), labels);
- 
+        scores = info.add_instruction(migraphx::make_op("gathernd"), scores, gathernd_indicies);
+
+        if (has_weights) // Saves us a multiply + gather op to gate this as default weights are literal 1's
+        {
+            std::vector<int64_t> axis_list(ndims-1, 0);
+            std::iota(++(axis_list.begin()), axis_list.end(), 2);
+            weights = info.add_instruction(migraphx::make_op("unsqueeze", {{"axes", axis_list}}), weights);
+            weights = info.add_instruction(migraphx::make_op("multibroadcast", {{"out_lens", scores_shape.lens()}}), weights);
+            if (is_k_dim)
+                weights = info.add_instruction(migraphx::make_op("transpose", {{"permutation", perm}}), weights);
+            weights = info.add_instruction(migraphx::make_op("gathernd"), weights, gathernd_indicies);
+        }
+
         // Do pointwise operators on the final set of indicies and scores we care about rather than
         // before so that we're not doing a bunch of pointwise on items that aren't part of the loss calulation.
         // Helps more in the mismatched Batch/Class and multi batch size cases. 
         auto log_sm_scores  = info.add_instruction(migraphx::make_op("log"), scores);
         auto neg_lsm_scores = info.add_instruction(migraphx::make_op("neg"), log_sm_scores);
 
-        if (is_k_dim or sizes_mismatch)
-            loss_tensor = handle_reduction(info, neg_lsm_scores, weights, reduction, has_ignore_index, has_weights);
-        else
-        {
-            weights =
-                info.add_instruction(migraphx::make_op("gather", {{"axis", 0}}), weights, labels);
-
-            loss_tensor = info.add_instruction(
-                migraphx::make_op("scatter_none", {{"axis", -1}, {"skip_out_of_bounds", 0}}), loss_tensor, labels, neg_lsm_scores);
-
-            // Perform final output reduction based on the desired attribute
-            loss_tensor = handle_reduction(info, loss_tensor, weights, reduction, has_ignore_index, has_weights);
-        }
+        auto loss_tensor = handle_reduction(info, neg_lsm_scores, weights, reduction, has_ignore_index, has_weights);
 
         return {loss_tensor, log_sm_scores};
     }

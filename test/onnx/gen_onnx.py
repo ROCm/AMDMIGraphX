@@ -2176,6 +2176,55 @@ def dequantizelinear_neg_axis_test():
 
 
 @onnx_test()
+def quantizelinear_2d_blocked_with_zp_test():
+    x = helper.make_tensor_value_info('x', TensorProto.FLOAT, [6, 2])
+    scale = helper.make_tensor_value_info('scale', TensorProto.FLOAT, [2, 2])
+    zp = helper.make_tensor_value_info('zp', TensorProto.INT8, [2, 2])
+    y = helper.make_tensor_value_info('y', TensorProto.INT8, [6, 2])
+
+    node = onnx.helper.make_node('QuantizeLinear',
+                                 inputs=['x', 'scale', 'zp'],
+                                 outputs=['y'],
+                                 axis=0,
+                                 block_size=3)
+
+    return ([node], [x, scale, zp], [y])
+
+
+@onnx_test()
+def quantizelinear_2d_blocked_runt_block_test():
+    x = helper.make_tensor_value_info('x', TensorProto.FLOAT, [3, 5])
+    y_scale = helper.make_tensor_value_info('y_scale', TensorProto.FLOAT,
+                                            [3, 3])
+    y = helper.make_tensor_value_info('y', TensorProto.UINT8, [3, 5])
+
+    node = onnx.helper.make_node('QuantizeLinear',
+                                 inputs=['x', 'y_scale'],
+                                 outputs=['y'],
+                                 axis=1,
+                                 block_size=2)
+
+    return ([node], [x, y_scale], [y])
+
+
+@onnx_test()
+def quantizelinear_3d_blocked_with_zp_runt_block_test():
+    x = helper.make_tensor_value_info('x', TensorProto.FLOAT, [2, 5, 2])
+    scale = helper.make_tensor_value_info('scale', TensorProto.FLOAT,
+                                          [2, 2, 2])
+    zp = helper.make_tensor_value_info('zp', TensorProto.INT8, [2, 2, 2])
+    y = helper.make_tensor_value_info('y', TensorProto.INT8, [2, 5, 2])
+
+    node = onnx.helper.make_node('QuantizeLinear',
+                                 inputs=['x', 'scale', 'zp'],
+                                 outputs=['y'],
+                                 axis=1,
+                                 block_size=3)
+
+    return ([node], [x, scale, zp], [y])
+
+
+@onnx_test()
 def dim_param_test():
     x = helper.make_tensor_value_info('0', TensorProto.FLOAT, ["dim0", "dim1"])
 

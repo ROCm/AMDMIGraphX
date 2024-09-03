@@ -223,8 +223,7 @@ struct parse_softmaxcrossentropyloss : op_parser<parse_softmaxcrossentropyloss>
                                 const std::vector<instruction_ref> &args, 
                                 const instruction_ref ignore_index,
                                 const shape &scores_shape, 
-                                      size_t class_size, 
-                                      bool &has_ignore_index) const 
+                                      size_t class_size) const 
     {
         // Default weights will always be 1
         auto weights = info.add_literal(
@@ -257,18 +256,7 @@ struct parse_softmaxcrossentropyloss : op_parser<parse_softmaxcrossentropyloss>
                     "softmaxcrossentropyloss: Weight and Scores inputs must be the same type");
             }
         }
-
-        // adjust weights based on ignore index if that's set to reduce output after mul to zero
-        // Saves us from doing a where() here and just scale at the end
-        if(has_ignore_index)
-        {
-            auto weights_shape = weights->get_shape();
-            std::vector<float> zero_val_vect(weights_shape.elements(), 0);
-            auto zero_val = info.add_literal(migraphx::literal(weights_shape, zero_val_vect));
-            weights       = info.add_instruction(
-                migraphx::make_op("scatter_none", {{"axis", 0}}), weights, ignore_index, zero_val);
-        }
-
+  
         return weights;
     }
 
@@ -383,7 +371,18 @@ struct parse_softmaxcrossentropyloss : op_parser<parse_softmaxcrossentropyloss>
             normalize_input_index(parser, info, static_cast<int64_t>(class_size), ignore_index);
 
         bool has_weights = (args.size() > 2);
-        auto weights = get_weights(info, args, ignore_index, scores_shape, class_size, has_ignore_index);
+        instruction_ref weights = get_weights(info, args, ignore_index, scores_shape, class_size);
+
+        // adjust weights based on ignore index if that's set to reduce output after mul to zero
+        // Saves us from doing a where() here and just scale at the end
+        if(has_ignore_index)
+        {
+            auto weights_shape = weights->get_shape();
+            std::vector<float> zero_val_vect(weights_shape.elements(), 0);
+            auto zero_val = info.add_literal(migraphx::literal(weights_shape, zero_val_vect));
+            weights       = info.add_instruction(
+                migraphx::make_op("scatter_none", {{"axis", 0}}), weights, ignore_index, zero_val);
+        }
 
         // Need to perform softmax on all the data before we select final axes
         scores =

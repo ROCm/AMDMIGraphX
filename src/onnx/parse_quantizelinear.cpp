@@ -27,6 +27,7 @@
 #include <migraphx/make_op.hpp>
 #include <migraphx/tune_axis.hpp>
 #include <migraphx/common.hpp>
+#include <migraphx/onnx/quantize_dequantize_linear.hpp>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
@@ -65,96 +66,29 @@ struct parse_quantizelinear : op_parser<parse_quantizelinear>
         if(contains(info.attributes, "axis"))
             axis = info.attributes.at("axis").i();
 
-        // TODO handle block size of zero
         int block_size = 0;
         if(contains(info.attributes, "block_size"))
             block_size = info.attributes.at("block_size").i();
 
-        const auto x          = args.at(0);
-        const auto x_lens     = x->get_shape().lens();
-        const auto x_rank     = x_lens.size();
-        const auto tuned_axis = tune_axis(x_rank, axis, opd.op_name);
-
-        instruction_ref y_scale = args.at(1);
-        const auto y_scale_lens = y_scale->get_shape().lens();
-        const auto y_scale_rank = y_scale_lens.size();
-
-        if(y_scale->get_shape().scalar())
+        std::optional<migraphx::shape::type_t> output_type;
+        if(contains(info.attributes, "output_dtype"))
         {
-            std::transform(args.begin() + 1, args.end(), args.begin() + 1, [&](auto ins) {
-                return info.add_instruction(make_op("multibroadcast", {{"out_lens", x_lens}}), ins);
-            });
+            output_type = get_type(info.attributes.at("output_dtype").i());
         }
-        else if(y_scale_rank == 1)
-        {
-            if(x_lens[tuned_axis] != y_scale_lens[0])
-            {
-                MIGRAPHX_THROW("TODO");
-            }
 
-            std::transform(args.begin() + 1, args.end(), args.begin() + 1, [&](auto ins) {
-                return info.add_instruction(
-                    make_op("broadcast", {{"axis", tuned_axis}, {"out_lens", x_lens}}), ins);
-            });
+        if(output_type.has_value() and args.size() == 3 and
+           *output_type != args[2]->get_shape().type())
+        {
+            MIGRAPHX_THROW("TODO");
         }
+
+        transform_quantize_dequantize_linear_inputs(info, opd.op_name, block_size, axis, args);
+
+        if(output_type.has_value())
+            return info.add_instruction(make_op("quantizelinear", {{"out_type", *output_type}}),
+                                        args);
         else
-        {
-            if(block_size == 0)
-            {
-                MIGRAPHX_THROW("TODO");
-            }
-
-            if(x_rank != y_scale_rank)
-            {
-                MIGRAPHX_THROW("TODO");
-            }
-
-            for(auto i = 0u; i < x_lens.size(); ++i)
-            {
-                if(x_lens[i] != y_scale_lens[i] and i != tuned_axis)
-                {
-                    MIGRAPHX_THROW("TODO");
-                }
-            }
-
-            // Given x shape (D0, ..., Di, ..., Dn), y_scale shape (S0, ... Si, ...Sn) and
-            // axis=i, the accepted range is [ceil(Di/Si), ceil(Di/(Si-1))-1]
-            float di           = x_lens[tuned_axis];
-            float si           = y_scale_lens[tuned_axis];
-            int block_size_min = std::ceil(di / si);
-            int block_size_max = std::ceil(di / (si - 1)) - 1;
-            if(block_size < block_size_min or block_size > block_size_max)
-                MIGRAPHX_THROW("TODO");
-
-            std::transform(args.begin() + 1, args.end(), args.begin() + 1, [&](auto ins) {
-                if(block_size == 1)
-                    return ins;
-
-                ins = info.add_instruction(make_op("unsqueeze", {{"axes", {tuned_axis + 1}}}), ins);
-
-                auto bc_lens            = ins->get_shape().lens();
-                bc_lens[tuned_axis + 1] = block_size;
-                ins = info.add_instruction(make_op("multibroadcast", {{"out_lens", bc_lens}}), ins);
-
-                auto reshape_lens        = x_lens;
-                reshape_lens[tuned_axis] = ins->get_shape().lens()[tuned_axis] * block_size;
-                ins = info.add_instruction(make_op("reshape", {{"dims", reshape_lens}}), ins);
-
-                // Detect runt block
-                if(x_lens[tuned_axis] < reshape_lens[tuned_axis])
-                {
-                    ins = info.add_instruction(make_op("slice",
-                                                       {{"axes", {tuned_axis}},
-                                                        {"starts", {0}},
-                                                        {"ends", {x_lens[tuned_axis]}}}),
-                                               ins);
-                }
-
-                return ins;
-            });
-        }
-
-        return info.add_instruction(make_op("quantizelinear"), args);
+            return info.add_instruction(make_op("quantizelinear"), args);
     }
 };
 

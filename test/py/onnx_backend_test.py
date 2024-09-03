@@ -562,7 +562,6 @@ def disabled_tests_onnx_1_14_0(backend_test):
 
 
 def disabled_tests_onnx_1_16_0(backend_test):
-    backend_test.exclude(r'test_dequantizelinear_blocked_cpu')
     backend_test.exclude(r'test_dft_axis_opset19_cpu')
     backend_test.exclude(r'test_dft_inverse_opset19_cpu')
     backend_test.exclude(r'test_dft_opset19_cpu')
@@ -590,8 +589,6 @@ def disabled_tests_onnx_1_16_0(backend_test):
     backend_test.exclude(r'test_qlinearmatmul_3D_int8_float32_cpu')
     backend_test.exclude(r'test_qlinearmatmul_3D_uint8_float16_cpu')
     backend_test.exclude(r'test_qlinearmatmul_3D_uint8_float32_cpu')
-    backend_test.exclude(r'test_quantizelinear_blocked_asymmetric_cpu')
-    backend_test.exclude(r'test_quantizelinear_blocked_symmetric_cpu')
     backend_test.exclude(r'test_reduce_l1_empty_set_cpu')
     backend_test.exclude(r'test_reduce_l1_empty_set_expanded_cpu')
     backend_test.exclude(r'test_reduce_l2_empty_set_cpu')

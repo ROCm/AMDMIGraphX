@@ -360,10 +360,8 @@ struct parse_softmaxcrossentropyloss : op_parser<parse_softmaxcrossentropyloss>
 
         // meta parameters based on input scores shape
         size_t ndims = scores_shape.ndim();
-        size_t batch_size = scores_shape.lens().at(0);
         size_t class_size = scores_shape.lens().at(1);
         bool is_k_dim  = (ndims > 3);
-        bool sizes_mismatch = batch_size != class_size;
 
         // ignore_index is optional attribute, assign this as a scalar literal input to the op
         instruction_ref ignore_index;

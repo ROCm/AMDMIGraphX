@@ -57,30 +57,26 @@ struct dot
             auto s1 = b.to_dynamic();
             std::vector<shape::dynamic_dimension> out_dyn_dims;
 
-            // check outer dimensions are within range
-            // put within range dynamic_dimensions into the out_dyn_dims
-            bool outers_within_range = std::equal(s0.dyn_dims().begin(),
-                                                  s0.dyn_dims().end() - 2,
-                                                  s1.dyn_dims().begin(),
-                                                  s1.dyn_dims().end() - 2,
-                                                  [&](auto x, auto y) {
-                                                      if(x.within_range(y))
-                                                      {
-                                                          out_dyn_dims.push_back(x);
-                                                          return true;
-                                                      }
-                                                      if(y.within_range(x))
-                                                      {
-                                                          out_dyn_dims.push_back(y);
-                                                          return true;
-                                                      }
-                                                      return false;
-                                                  });
+            // Check outer dynamic dimensions are compatible.
+            // Must allow for intersection because of how simplify_dyn_ops
+            // simplifies each broadcast_for_dot individually.
+            bool same_outers = std::equal(s0.dyn_dims().begin(),
+                                          s0.dyn_dims().end() - 2,
+                                          s1.dyn_dims().begin(),
+                                          s1.dyn_dims().end() - 2,
+                                          [&](auto x, auto y) {
+                                              auto intersect = x.intersection(y);
+                                              if(intersect.has_value())
+                                              {
+                                                  out_dyn_dims.push_back(intersect.value());
+                                                  return true;
+                                              }
+                                              return false;
+                                          });
 
-            if(not outers_within_range)
+            if(not same_outers)
             {
-                MIGRAPHX_THROW("DOT: dynamic outer dimensions of A and B mismatch or not within "
-                               "dynamic_dimension range: {" +
+                MIGRAPHX_THROW("DOT: dynamic outer dimensions of A and B are not compatible: {" +
                                to_string_range(s0.dyn_dims()) + "} x {" +
                                to_string_range(s1.dyn_dims()) + "}");
             }
@@ -89,10 +85,10 @@ struct dot
             auto x            = s0.dyn_dims()[dim_j];
             auto y            = s1.dyn_dims()[dim_i];
 
-            // check inner dimensions are within range
-            if(not x.within_range(y) and not y.within_range(x))
+            // check inner dimensions are compatible
+            if(not x.intersection(y).has_value())
             {
-                MIGRAPHX_THROW("DOT: dynamic inner dimensions do not match: {" +
+                MIGRAPHX_THROW("DOT: dynamic inner dimensions are not compatible: {" +
                                to_string_range(s0.dyn_dims()) + "} x {" +
                                to_string_range(s1.dyn_dims()) + "}");
             }

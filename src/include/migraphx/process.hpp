@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2023 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2024 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -38,7 +38,12 @@ struct process_impl;
 struct MIGRAPHX_EXPORT process
 {
     using writer = std::function<void(const char*, std::size_t)>;
-    process(const std::string& cmd);
+    explicit process(const std::string& cmd, const std::vector<std::string>& args = {});
+
+    explicit process(const fs::path& cmd, const std::vector<std::string>& args = {})
+        : process{cmd.string(), args}
+    {
+    }
 
     // move constructor
     process(process&&) noexcept;
@@ -49,9 +54,11 @@ struct MIGRAPHX_EXPORT process
     ~process() noexcept;
 
     process& cwd(const fs::path& p);
+    process& env(const std::vector<std::string>& envs);
 
     void exec();
-    void write(std::function<void(process::writer)> pipe_in);
+    void write(std::function<void(writer)> pipe_in);
+    void read(const writer& output) const;
 
     private:
     std::unique_ptr<process_impl> impl;

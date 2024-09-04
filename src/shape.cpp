@@ -260,6 +260,30 @@ bool shape::is_integral(shape::type_t t)
     return result;
 }
 
+bool shape::is_compatible(const shape& actual, const shape& expected)
+{
+    // Check subshapes
+    if(expected.type() == shape::tuple_type)
+        return migraphx::equal(actual.sub_shapes(), expected.sub_shapes(), &is_compatible);
+    if(actual == expected)
+        return true;
+    if(actual.type() != expected.type())
+        return false;
+    // Only the expected can be dynamic
+    if(expected.dynamic())
+        return actual.ndim() == expected.ndim();
+    if(actual.dynamic())
+        return false;
+    if(actual.lens() != expected.lens())
+        return false;
+    // Check strides from dimensions that are not 1
+    return all_of(range(actual.lens().size()), [&](auto i) {
+        if(actual.lens()[i] == 1)
+            return true;
+        return actual.strides()[i] == expected.strides()[i];
+    });
+}
+
 shape::shape() : impl(shape_impl::default_shape()) {}
 
 shape::shape(type_t t) : impl(std::make_shared<shape_impl>(t)) {}
@@ -420,6 +444,12 @@ void shape::multi_copy(std::size_t idx, std::size_t* start, const std::size_t* e
     *start = tidx;
 }
 
+bool shape::multi_within_bounds(std::vector<std::size_t> multi) const
+{
+    assert(this->lens().size() == multi.size());
+    return std::equal(multi.begin(), multi.end(), this->lens().begin(), std::less<>{});
+}
+
 bool shape::packed() const
 {
     if(this->dynamic())
@@ -530,7 +560,7 @@ shape shape::to_dynamic() const
                        sub_shapes().cend(),
                        std::back_inserter(subs),
                        [](auto s) { return s.to_dynamic(); });
-        return {subs};
+        return shape(subs);
     }
     if(this->dynamic())
     {
@@ -548,7 +578,7 @@ shape shape::to_static(std::size_t x) const
                        sub_shapes().cend(),
                        std::back_inserter(subs),
                        [&](auto s) { return s.to_static(x); });
-        return {subs};
+        return shape(subs);
     }
     if(not this->dynamic())
     {
@@ -727,6 +757,24 @@ shape::type_t shape::parse_type(const std::string& s)
 }
 
 const std::vector<shape>& shape::sub_shapes() const { return impl->m_shapes; }
+
+std::vector<shape> flatten(const std::vector<shape>& shapes)
+{
+    std::vector<shape> result;
+    for(const auto& s : shapes)
+    {
+        if(s.type() == shape::tuple_type)
+        {
+            auto subs = flatten(s.sub_shapes());
+            result.insert(result.end(), subs.begin(), subs.end());
+        }
+        else
+        {
+            result.push_back(s);
+        }
+    }
+    return result;
+}
 
 void migraphx_to_value(value& v, const shape& s)
 {

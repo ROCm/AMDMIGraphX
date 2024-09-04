@@ -3,6 +3,153 @@
 Full documentation for MIGraphX is available at
 [https://rocmdocs.amd.com/projects/AMDMIGraphX/en/latest/](https://rocmdocs.amd.com/projects/AMDMIGraphX/en/latest/).
 
+## MIGraphX 2.10 for ROCm 6.2.0
+
+### Additions
+
+* Added support for ONNX Runtime MIGraphX EP on Windows
+* Added FP8 Python API 
+* Added examples for SD 2.1 and SDXL
+* Improved Dynamic Batch to support BERT
+* Added a `--test` flag in migraphx-driver to validate the installation
+* Added support for ONNX Operator: Einsum
+* Added uint8 support in ONNX Operators
+* Added fusion for group convolutions
+* Added rocMLIR conv3d support 
+* Added rocgdb to the Dockerfile
+
+
+### Optimizations
+
+* Improved ONNX Model Zoo coverage
+* Reorganized memcpys with ONNX Runtime to improve performance
+* Replaced scaler multibroadcast + unsqueeze with just a multibroadcast
+* Improved MLIR kernel selection for multibroadcasted GEMMs
+* Improved details of the perf report
+* Enable mlir by default for GEMMs with small K
+* Allow specifying dot or convolution fusion for mlir with environmental flag
+* Improve performance on small reductions by doing multiple reduction per wavefront 
+* Add additional algebraic simplifications for mul-add-dot  sequence of operations involving constants
+* Use MLIR attention kernels in more cases
+* Enables MIOpen and CK fusions for MI300 gfx arches
+* Support for QDQ quantization patterns from Brevitas which have explicit cast/convert nodes before and after QDQ pairs
+* Added Fusion of "contiguous + pointwise" and "layout + pointwise" operations which may result in performance gains in certain cases
+* Added Fusion for "pointwise + layout" and "pointwise + contiguous" operations which may result in performance gains when using NHWC layout
+* Added Fusion for "Pointwise + concat" operation which may help in performance in certain cases
+* Fixes a bug in "concat + pointwise" fusion where output shape memory layout wasn't maintained 
+* Simplifies "slice + concat" pattern in SDXL UNet
+* eliminates ZeroPoint/Shift in QuantizeLinear or DeQuantizeLinear ops if zero points values are zeros
+* Improved inference performance by fusing Reduce to Broadcast
+* Added additional information when printing the perf report
+* Improve scalar fusions when not all strides are 0
+* Added support for multi outputs in pointwise ops
+* Improve reduction fusion with reshape operators
+* Use the quantized output when an operator is used again
+
+
+### Fixes
+
+* Super Resolution model verification failed with FP16
+* Suppressed confusing messages when compiling the model
+* Mod operator failed to compile with int8 and int32 inputs
+* Prevented spawning too many threads for constant propagation when parallel STL is not enabled
+* Fixed a bug when running migraphx-driver with the --run 1 option
+* Layernorm Accuracy fix: calculations in FP32
+* Update Docker generator script to ROCm 6.1 to point at Jammy
+* Floating Point exception fix for dim (-1) in reshape operator
+* Fixed issue with int8 accuracy and models which were failing due to requiring a fourth bias input
+* Fixed missing inputs not previously handled for quantized bias for the weights, and data values of the input matrix
+* Fixed order of operations for int8 quantization which were causing inaccuracies and slowdowns
+* Removed list initializer of prefix_scan_sum which was causing issues during compilation and resulting in the incorrect constructor to be used at compile
+* Fixed the MIGRAPHX_GPU_COMPILE_PARALLEL flag to enable users to control number of threads used for parallel compilation
+
+
+
+### Changes
+
+* Changed default location of libraries with release specific ABI changes
+* Reorganized documentation in GitHub
+
+
+### Removals
+
+* Removed the `--model` flag with migraphx-driver
+
+
+
+## MIGraphX 2.9 for ROCm 6.1.0
+
+### Additions
+
+* Added beta version of FP8, functional, not performant
+* Created a dockerfile with MIGraphX+ONNX Runtime EP+Torch
+* Added support for the `Hardmax`, `DynamicQuantizeLinear`, `Qlinearconcat`, `Unique`, `QLinearAveragePool`, `QLinearSigmoid`, `QLinearLeakyRelu`, `QLinearMul`, `IsInf` operators
+* Created web site examples for `Whisper`, `Llama-2`, and `Stable Diffusion 2.1`
+* Created examples of using the ONNX Runtime MIGraphX Execution Provider with the `InceptionV3` and `Resnet50` models
+* Updated operators to support ONNX Opset 19
+* Enable fuse_pointwise and fuse_reduce in the driver
+* Add support for dot-(mul)-softmax-dot offloads to MLIR
+* Added Blas auto-tuning for GEMMs
+* Added dynamic shape support for the multinomial operator
+* Added fp16 to accuracy checker
+* Added initial code for running on Windows OS
+
+### Optimizations
+
+* Improved the output of migraphx-driver command
+* Documentation now shows all environment variables
+* Updates needed for general stride support
+* Enabled Asymmetric Quantization
+* Added ScatterND unsupported reduction modes
+* Rewrote softmax for better performance
+* General improvement to how quantization is performed to support INT8
+* Used problem_cache for gemm tuning
+* Improved performance by always using rocMLIR for quantized convolution
+* Improved group convolutions by using rocMLIR
+* Improved accuracy of fp16 models
+* ScatterElements unsupported reduction
+* Added concat fusions
+* Improved INT8 support to include UINT8
+* Allow reshape ops between dq and quant_op
+* Improve dpp reductions on navi
+* Have the accuracy checker print the whole final buffer
+* Added support for handling dynamic Slice and ConstantOfShape ONNX operators
+* Add support for the dilations attribute to Pooling ops
+* Add layout attribute support for LSTM operator
+* Improved performance by removing contiguous for reshapes
+* Handle all slice input variations
+* Add scales attribute parse in upsample for older opset versions
+* Added support for uneven Split operations
+* Improved unit testing to run in python virtual environments
+
+### Fixes
+
+* Fixed outstanding issues in autogenerated documentation
+* Update model zoo paths for examples
+* Fixed promote_literals_test by using additional if condition
+* Fixed export API symbols from dynamic library
+* Fixed bug in pad operator from dimension reduction
+* Fixed using the LD to embed files and enable by default when building shared libraries on linux
+* fixed get_version()
+* Fixed Round operator inaccuracy
+* Fixed wrong size check when axes not present for slice
+* Set the .SO version correctly
+
+
+### Changes
+
+* Cleanup LSTM and RNN activation functions
+* Placed gemm_pointwise at a higher priority than layernorm_pointwise
+* Updated README to mention the need to include GPU_TARGETS when building MIGraphX
+
+
+### Removals
+
+* Removed unused device kernels from Gather and Pad operators
+* Removed int8x4 format
+
+
+
 ## MIGraphX 2.8 for ROCm 6.0.0
 
 ### Additions

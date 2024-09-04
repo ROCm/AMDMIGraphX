@@ -41,7 +41,7 @@ extern "C" {
 MIGRAPHX_GLOBAL void scatter_elements_kernel(void* in_indices, void* in_updates, void* output) 
 {
     make_tensors()(in_indices, in_updates, output)([](auto&&... xs) { 
-        scatter<${axis}>(xs..., ${reduction}{}); 
+        scatter<${axis}, ${skip_out_of_bounds}>(xs..., ${reduction}{}); 
     });
 }
 
@@ -62,9 +62,12 @@ struct scatter_elements_compiler : scatter_compiler<scatter_elements_compiler>
     {
         const auto reduction = op.name().substr(std::char_traits<char>::length("scatter_"));
         auto axis            = std::to_string(op.to_value().get("axis", 0));
+        auto skip_out_of_bounds = std::to_string(op.to_value().get("skip_out_of_bounds", 0));
 
         return interpolate_string(scatter_elements_kernel,
-                                  {{"reduction", "assign_" + reduction}, {"axis", axis}});
+                                  {{"reduction", "assign_" + reduction},
+                                   {"axis", axis},
+                                   {"skip_out_of_bounds", skip_out_of_bounds}});
     }
 
     std::string get_kernel_name(const operation&) const { return "scatter_elements_kernel"; }

@@ -30,19 +30,38 @@
 
 namespace migraphx {
 
-template <uint64_t Axis, class T, class U, class V, class F>
+// Checks and skips out of bounds indices if SkipOutOfBounds is true.
+// Otherwise does not check and underfined behavior if out of bounds.
+template <uint64_t Axis, bool SkipOutOfBounds, class T, class U, class V, class F>
 __device__ void scatter(const T& indices_t, const U& updates_t, const V& output_t, F f)
 {
     auto gpu_index     = make_index();
     auto indices_shape = indices_t.get_shape();
-    auto axis_dim_size = output_t.get_shape().lens[Axis];
+    auto output_shape  = output_t.get_shape();
+    auto axis_dim_size = output_shape.lens[Axis];
 
     gpu_index.global_stride(indices_shape.elements(), [&](auto i) {
         auto out_idx  = indices_shape.multi(i);
         auto index    = indices_t[i];
         index         = index < 0 ? index + axis_dim_size : index;
+        if constexpr(SkipOutOfBounds)
+        {
+            if(index < 0)
+            {
+                return;
+            }
+        }
         out_idx[Axis] = index;
-
+        if constexpr(SkipOutOfBounds)
+        {
+            if(not equal(
+                   out_idx.begin(), out_idx.end(), output_shape.lens.begin(), [](auto x, auto y) {
+                       return x < y;
+                   }))
+            {
+                return;
+            }
+        }
         f(output_t[out_idx], updates_t[i]);
     });
 }

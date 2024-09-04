@@ -102,9 +102,19 @@ struct MIGRAPHX_EXPORT shape
         bool is_fixed() const;
         bool has_optimal() const;
 
-        bool within_range(const dynamic_dimension& other) const
+        /**
+         * Return a dynamic_dimension with the intersection of two dynamic_dimension ranges if
+         * possible.
+         */
+        std::optional<dynamic_dimension> intersection(const dynamic_dimension& other) const
         {
-            return ((this->min >= other.min) and (this->max <= other.max));
+            auto left  = std::max(this->min, other.min);
+            auto right = std::min(this->max, other.max);
+            if(left <= right)
+            {
+                return dynamic_dimension{left, right};
+            }
+            return nullopt;
         }
 
         MIGRAPHX_EXPORT friend bool operator==(const dynamic_dimension& x,
@@ -137,6 +147,7 @@ struct MIGRAPHX_EXPORT shape
     static std::string cpp_type(type_t t);
 
     static bool is_integral(type_t t);
+    static bool is_compatible(const shape& actual, const shape& expected);
 
     shape();
     shape(type_t t);
@@ -169,7 +180,7 @@ struct MIGRAPHX_EXPORT shape
     {
     }
 
-    shape(const std::vector<shape>& subs);
+    explicit shape(const std::vector<shape>& subs);
 
     /**
      * Creates an output shape with dimensions equal to the input lengths and strides determined
@@ -267,6 +278,9 @@ struct MIGRAPHX_EXPORT shape
     /// Map element index to multi-dimensional index and put them them into location provided by
     /// pointers
     void multi_copy(std::size_t idx, std::size_t* start, const std::size_t* end) const;
+
+    /// Check if a multi-dimensional index is within bounds for the shape.
+    bool multi_within_bounds(std::vector<std::size_t> multi) const;
 
     /// Returns true if the shape is packed (number of elements and buffer size the same) with
     /// no padding
@@ -417,6 +431,9 @@ struct MIGRAPHX_EXPORT shape
     shape(std::shared_ptr<shape_impl> pimpl);
     std::shared_ptr<const shape_impl> impl;
 };
+
+/// Flatten subshapes to a single vector of non-tuple type of shapes
+MIGRAPHX_EXPORT std::vector<shape> flatten(const std::vector<shape>& shapes);
 
 MIGRAPHX_EXPORT void migraphx_to_value(value& v, const shape& s);
 MIGRAPHX_EXPORT void migraphx_from_value(const value& v, shape& s);

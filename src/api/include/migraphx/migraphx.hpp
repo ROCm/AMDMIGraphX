@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2023 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2024 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -67,8 +67,24 @@ std::string compute_type_name()
 {
     std::string name;
 #if defined(_MSC_VER) && !defined(__clang__)
-    name = typeid(PrivateMigraphTypeNameProbe).name();
-    name = name.substr(7);
+    const char struct_name[]    = "struct ";
+    const char class_name[]     = "class ";
+    const char function_name[]  = "compute_type_name<";
+    const char parameter_name[] = ">(void)";
+    const char cdecl_name[]     = "__cdecl";
+
+    name = __FUNCSIG__;
+
+    auto begin  = name.find(function_name) + sizeof(function_name) - 1;
+    auto length = name.find(parameter_name) - begin;
+    name        = name.substr(begin, length);
+    if(name.find(class_name) == 0)
+        name = name.substr(sizeof(class_name) - 1);
+    else if(name.find(struct_name) == 0)
+        name = name.substr(sizeof(struct_name) - 1);
+    begin = name.find(cdecl_name);
+    if(begin != std::string::npos)
+        name.erase(begin, sizeof(cdecl_name) - 1);
 #else
     const char parameter_name[] = "PrivateMigraphTypeNameProbe ="; // NOLINT
 
@@ -257,8 +273,9 @@ struct handle_lookup
 #endif
 
 template <class T>
-using as_handle = decltype(
-    migraphx_adl_handle_lookup(holder<std::remove_cv_t<std::remove_pointer_t<T>>>{}).get());
+using as_handle =
+    decltype(migraphx_adl_handle_lookup(holder<std::remove_cv_t<std::remove_pointer_t<T>>>{})
+                 .get());
 
 struct own
 {
@@ -1010,9 +1027,9 @@ struct modules : MIGRAPHX_HANDLE_BASE(modules)
 struct module
 {
     MIGRAPHX_DEPRECATED("Constructor without lifetime annotation is deprecated.")
-    module(migraphx_module* m) : mm(std::shared_ptr<migraphx_module*>(), m) {}
+    module(migraphx_module* m) :mm(std::shared_ptr<migraphx_module*>(), m) {}
 
-    module(migraphx_module* m, borrow) : mm(std::shared_ptr<migraphx_module*>(), m) {}
+    module(migraphx_module* m, borrow) :mm(std::shared_ptr<migraphx_module*>(), m) {}
 
     template <class T>
     module(migraphx_module* m, share<T> b) : mm(b.alias(m))
@@ -1327,6 +1344,14 @@ struct onnx_options : MIGRAPHX_HANDLE_BASE(onnx_options)
     {
         call(&migraphx_onnx_options_set_limit_loop_iterations, this->get_handle_ptr(), value);
     }
+
+    /// Set absolute path for external data files
+    void set_external_data_path(const std::string& external_data_path)
+    {
+        call(&migraphx_onnx_options_set_external_data_path,
+             this->get_handle_ptr(),
+             external_data_path.c_str());
+    }
 };
 
 /// Parse an onnx file into a migraphx program
@@ -1493,8 +1518,8 @@ quantize_int8(const program& prog, const target& ptarget, const quantize_int8_op
 
 struct experimental_custom_op_base
 {
-    experimental_custom_op_base()                                   = default;
-    experimental_custom_op_base(const experimental_custom_op_base&) = default;
+    experimental_custom_op_base()                                              = default;
+    experimental_custom_op_base(const experimental_custom_op_base&)            = default;
     experimental_custom_op_base& operator=(const experimental_custom_op_base&) = default;
     virtual ~experimental_custom_op_base()                                     = default;
 

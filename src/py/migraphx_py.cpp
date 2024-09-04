@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2023 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2024 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -29,6 +29,7 @@
 #include <migraphx/instruction_ref.hpp>
 #include <migraphx/operation.hpp>
 #include <migraphx/quantization.hpp>
+#include <migraphx/autocast_fp8.hpp>
 #include <migraphx/generate.hpp>
 #include <migraphx/instruction.hpp>
 #include <migraphx/ref/target.hpp>
@@ -41,6 +42,8 @@
 #include <migraphx/make_op.hpp>
 #include <migraphx/op/common.hpp>
 #include <migraphx/float8.hpp>
+#include <migraphx/pass_manager.hpp>
+#include <migraphx/version.h>
 #ifdef HAVE_GPU
 #include <migraphx/gpu/hip.hpp>
 #endif
@@ -518,7 +521,8 @@ MIGRAPHX_PYBIND11_MODULE(migraphx, m)
            std::unordered_map<std::string, std::vector<migraphx::shape::dynamic_dimension>>
                map_dyn_input_dims,
            bool skip_unknown_operators,
-           bool print_program_on_error) {
+           bool print_program_on_error,
+           const std::string& external_data_path) {
             migraphx::onnx_options options;
             options.default_dim_value      = default_dim_value;
             options.default_dyn_dim_value  = default_dyn_dim_value;
@@ -526,6 +530,7 @@ MIGRAPHX_PYBIND11_MODULE(migraphx, m)
             options.map_dyn_input_dims     = map_dyn_input_dims;
             options.skip_unknown_operators = skip_unknown_operators;
             options.print_program_on_error = print_program_on_error;
+            options.external_data_path     = external_data_path;
             return migraphx::parse_onnx_buffer(onnx_buffer, options);
         },
         "Parse onnx file",
@@ -536,7 +541,8 @@ MIGRAPHX_PYBIND11_MODULE(migraphx, m)
         py::arg("map_dyn_input_dims") =
             std::unordered_map<std::string, std::vector<migraphx::shape::dynamic_dimension>>(),
         py::arg("skip_unknown_operators") = false,
-        py::arg("print_program_on_error") = false);
+        py::arg("print_program_on_error") = false,
+        py::arg("external_data_path")     = "");
 
     m.def(
         "load",
@@ -569,7 +575,15 @@ MIGRAPHX_PYBIND11_MODULE(migraphx, m)
         a.fill(values.begin(), values.end());
         return a;
     });
-    m.def("generate_argument", &migraphx::generate_argument, py::arg("s"), py::arg("seed") = 0);
+
+    m.def(
+        "generate_argument",
+        [](const migraphx::shape& s, unsigned long seed) {
+            return migraphx::generate_argument(s, seed);
+        },
+        py::arg("s"),
+        py::arg("seed") = 0);
+
     m.def("fill_argument", &migraphx::fill_argument, py::arg("s"), py::arg("value"));
     m.def("quantize_fp16",
           &migraphx::quantize_fp16,
@@ -581,6 +595,13 @@ MIGRAPHX_PYBIND11_MODULE(migraphx, m)
           py::arg("t"),
           py::arg("calibration") = std::vector<migraphx::parameter_map>{},
           py::arg("ins_names")   = std::unordered_set<std::string>{"dot", "convolution"});
+    m.def(
+        "autocast_fp8",
+        [](migraphx::program& prog) {
+            migraphx::run_passes(*prog.get_main_module(), {migraphx::autocast_fp8_pass{}});
+        },
+        "Auto-convert FP8 parameters and return values to Float for MIGraphX Program",
+        py::arg("prog"));
 
 #ifdef HAVE_GPU
     m.def("allocate_gpu", &migraphx::gpu::allocate_gpu, py::arg("s"), py::arg("host") = false);
@@ -592,6 +613,14 @@ MIGRAPHX_PYBIND11_MODULE(migraphx, m)
 #ifdef VERSION_INFO
     m.attr("__version__") = VERSION_INFO;
 #else
-    m.attr("__version__") = "dev";
+    auto version_string = std::to_string(MIGRAPHX_VERSION_MAJOR) + "." +
+                          std::to_string(MIGRAPHX_VERSION_MINOR) + "." +
+                          std::to_string(MIGRAPHX_VERSION_PATCH) + ".dev";
+
+    std::string tweak(MIGRAPHX_VERSION_TWEAK);
+    if(not tweak.empty())
+        version_string += "+" + tweak;
+
+    m.attr("__version__") = version_string;
 #endif
 }

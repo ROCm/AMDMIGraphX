@@ -42,7 +42,12 @@ class MIGraphXBackendTest(onnx.backend.test.BackendTest):
         super(MIGraphXBackendTest, self).__init__(backend, parent_module)
 
     @classmethod
-    def assert_similar_outputs(cls, ref_outputs, outputs, rtol, atol):
+    def assert_similar_outputs(cls,
+                               ref_outputs,
+                               outputs,
+                               rtol,
+                               atol,
+                               model_dir=None):
         prog_string = c2.get_program()
         np.testing.assert_equal(len(ref_outputs),
                                 len(outputs),
@@ -66,10 +71,6 @@ class MIGraphXBackendTest(onnx.backend.test.BackendTest):
 def disabled_tests_onnx_1_7_0(backend_test):
     # fails
     # from OnnxBackendNodeModelTest
-    backend_test.exclude(r'test_logsoftmax_axis_0_cpu')
-    backend_test.exclude(r'test_logsoftmax_axis_1_cpu')
-    backend_test.exclude(r'test_logsoftmax_default_axis_cpu')
-    backend_test.exclude(r'test_maxpool_2d_dilations_cpu')
     backend_test.exclude(r'test_maxpool_with_argmax_2d_precomputed_pads_cpu')
     backend_test.exclude(
         r'test_maxpool_with_argmax_2d_precomputed_strides_cpu')
@@ -83,9 +84,6 @@ def disabled_tests_onnx_1_7_0(backend_test):
     backend_test.exclude(r'test_nonmaxsuppression_two_batches_cpu')
     backend_test.exclude(r'test_nonmaxsuppression_two_classes_cpu')
     backend_test.exclude(r'test_nonzero_example_cpu')
-    backend_test.exclude(r'test_softmax_axis_0_cpu')
-    backend_test.exclude(r'test_softmax_axis_1_cpu')
-    backend_test.exclude(r'test_softmax_default_axis_cpu')
 
     # from OnnxBackendPyTorchConvertedModelTest
     backend_test.exclude(r'test_ConvTranspose2d_cpu')
@@ -119,66 +117,8 @@ def disabled_tests_onnx_1_7_0(backend_test):
     backend_test.exclude(r'test_det_2d_cpu')
     backend_test.exclude(r'test_det_nd_cpu')
     backend_test.exclude(r'test_edge_pad_cpu')
-    backend_test.exclude(r'test_einsum_batch_diagonal_cpu')
-    backend_test.exclude(r'test_einsum_batch_matmul_cpu')
-    backend_test.exclude(r'test_einsum_inner_prod_cpu')
-    backend_test.exclude(r'test_einsum_sum_cpu')
-    backend_test.exclude(r'test_einsum_transpose_cpu')
-    backend_test.exclude(r'test_maxpool_2d_uint8_cpu')
     backend_test.exclude(r'test_maxunpool_export_with_output_shape_cpu')
     backend_test.exclude(r'test_maxunpool_export_without_output_shape_cpu')
-    backend_test.exclude(r'test_mod_mixed_sign_int32_cpu')
-    backend_test.exclude(r'test_mod_mixed_sign_int8_cpu')
-    backend_test.exclude(
-        r'test_negative_log_likelihood_loss_iinput_shape_is_NCd1_weight_ignore_index_cpu'
-    )
-    backend_test.exclude(
-        r'test_negative_log_likelihood_loss_input_shape_is_NC_cpu')
-    backend_test.exclude(
-        r'test_negative_log_likelihood_loss_input_shape_is_NCd1_cpu')
-    backend_test.exclude(
-        r'test_negative_log_likelihood_loss_input_shape_is_NCd1_ignore_index_cpu'
-    )
-    backend_test.exclude(
-        r'test_negative_log_likelihood_loss_input_shape_is_NCd1_mean_weight_negative_ignore_index_cpu'
-    )
-    backend_test.exclude(
-        r'test_negative_log_likelihood_loss_input_shape_is_NCd1_weight_cpu')
-    backend_test.exclude(
-        r'test_negative_log_likelihood_loss_input_shape_is_NCd1d2_cpu')
-    backend_test.exclude(
-        r'test_negative_log_likelihood_loss_input_shape_is_NCd1d2_no_weight_reduction_mean_ignore_index_cpu'
-    )
-    backend_test.exclude(
-        r'test_negative_log_likelihood_loss_input_shape_is_NCd1d2_reduction_mean_cpu'
-    )
-    backend_test.exclude(
-        r'test_negative_log_likelihood_loss_input_shape_is_NCd1d2_reduction_sum_cpu'
-    )
-    backend_test.exclude(
-        r'test_negative_log_likelihood_loss_input_shape_is_NCd1d2_with_weight_cpu'
-    )
-    backend_test.exclude(
-        r'test_negative_log_likelihood_loss_input_shape_is_NCd1d2_with_weight_reduction_mean_cpu'
-    )
-    backend_test.exclude(
-        r'test_negative_log_likelihood_loss_input_shape_is_NCd1d2_with_weight_reduction_sum_cpu'
-    )
-    backend_test.exclude(
-        r'test_negative_log_likelihood_loss_input_shape_is_NCd1d2_with_weight_reduction_sum_ignore_index_cpu'
-    )
-    backend_test.exclude(
-        r'test_negative_log_likelihood_loss_input_shape_is_NCd1d2d3_none_no_weight_negative_ignore_index_cpu'
-    )
-    backend_test.exclude(
-        r'test_negative_log_likelihood_loss_input_shape_is_NCd1d2d3_sum_weight_high_ignore_index_cpu'
-    )
-    backend_test.exclude(
-        r'test_negative_log_likelihood_loss_input_shape_is_NCd1d2d3d4d5_mean_weight_cpu'
-    )
-    backend_test.exclude(
-        r'test_negative_log_likelihood_loss_input_shape_is_NCd1d2d3d4d5_none_no_weight_cpu'
-    )
     backend_test.exclude(r'test_qlinearmatmul_2D_cpu')
     backend_test.exclude(r'test_qlinearmatmul_3D_cpu')
     backend_test.exclude(r'test_range_float_type_positive_delta_expanded_cpu')
@@ -192,13 +132,9 @@ def disabled_tests_onnx_1_7_0(backend_test):
     backend_test.exclude(
         r'test_resize_downsample_scales_linear_align_corners_cpu')
     backend_test.exclude(r'test_resize_downsample_scales_linear_cpu')
-    backend_test.exclude(r'test_resize_downsample_scales_nearest_cpu')
     backend_test.exclude(r'test_resize_downsample_sizes_cubic_cpu')
     backend_test.exclude(
         r'test_resize_downsample_sizes_linear_pytorch_half_pixel_cpu')
-    backend_test.exclude(r'test_resize_downsample_sizes_nearest_cpu')
-    backend_test.exclude(
-        r'test_resize_downsample_sizes_nearest_tf_half_pixel_for_nn_cpu')
     backend_test.exclude(r'test_resize_tf_crop_and_resize_cpu')
     backend_test.exclude(
         r'test_resize_upsample_scales_cubic_A_n0p5_exclude_outside_cpu')
@@ -209,180 +145,15 @@ def disabled_tests_onnx_1_7_0(backend_test):
     backend_test.exclude(
         r'test_resize_upsample_scales_linear_align_corners_cpu')
     backend_test.exclude(r'test_resize_upsample_scales_linear_cpu')
-    backend_test.exclude(r'test_resize_upsample_scales_nearest_cpu')
     backend_test.exclude(r'test_resize_upsample_sizes_cubic_cpu')
-    backend_test.exclude(
-        r'test_resize_upsample_sizes_nearest_ceil_half_pixel_cpu')
-    backend_test.exclude(r'test_resize_upsample_sizes_nearest_cpu')
-    backend_test.exclude(
-        r'test_resize_upsample_sizes_nearest_floor_align_corners_cpu')
-    backend_test.exclude(
-        r'test_resize_upsample_sizes_nearest_round_prefer_ceil_asymmetric_cpu')
     backend_test.exclude(r'test_reversesequence_batch_cpu')
     backend_test.exclude(r'test_reversesequence_time_cpu')
-    backend_test.exclude(r'test_scan9_sum_cpu')
     backend_test.exclude(r'test_scan_sum_cpu')
     backend_test.exclude(r'test_slice_cpu')
-    backend_test.exclude(r'test_slice_default_axes_cpu')
-    backend_test.exclude(r'test_slice_default_steps_cpu')
     backend_test.exclude(r'test_slice_end_out_of_bounds_cpu')
     backend_test.exclude(r'test_slice_neg_cpu')
     backend_test.exclude(r'test_slice_neg_steps_cpu')
-    backend_test.exclude(r'test_slice_negative_axes_cpu')
     backend_test.exclude(r'test_slice_start_out_of_bounds_cpu')
-    backend_test.exclude(
-        r'test_softmax_cross_entropy_input_shape_is_NCd1_mean_weight_negative_ignore_index_cpu'
-    )
-    backend_test.exclude(
-        r'test_softmax_cross_entropy_input_shape_is_NCd1_mean_weight_negative_ignore_index_expanded_cpu'
-    )
-    backend_test.exclude(
-        r'test_softmax_cross_entropy_input_shape_is_NCd1_mean_weight_negative_ignore_index_log_prob_cpu'
-    )
-    backend_test.exclude(
-        r'test_softmax_cross_entropy_input_shape_is_NCd1_mean_weight_negative_ignore_index_log_prob_expanded_cpu'
-    )
-    backend_test.exclude(
-        r'test_softmax_cross_entropy_input_shape_is_NCd1d2d3_none_no_weight_negative_ignore_index_cpu'
-    )
-    backend_test.exclude(
-        r'test_softmax_cross_entropy_input_shape_is_NCd1d2d3_none_no_weight_negative_ignore_index_expanded_cpu'
-    )
-    backend_test.exclude(
-        r'test_softmax_cross_entropy_input_shape_is_NCd1d2d3_none_no_weight_negative_ignore_index_log_prob_cpu'
-    )
-    backend_test.exclude(
-        r'test_softmax_cross_entropy_input_shape_is_NCd1d2d3_none_no_weight_negative_ignore_index_log_prob_expanded_cpu'
-    )
-    backend_test.exclude(
-        r'test_softmax_cross_entropy_input_shape_is_NCd1d2d3_sum_weight_high_ignore_index_cpu'
-    )
-    backend_test.exclude(
-        r'test_softmax_cross_entropy_input_shape_is_NCd1d2d3_sum_weight_high_ignore_index_expanded_cpu'
-    )
-    backend_test.exclude(
-        r'test_softmax_cross_entropy_input_shape_is_NCd1d2d3_sum_weight_high_ignore_index_log_prob_cpu'
-    )
-    backend_test.exclude(
-        r'test_softmax_cross_entropy_input_shape_is_NCd1d2d3_sum_weight_high_ignore_index_log_prob_expanded_cpu'
-    )
-    backend_test.exclude(
-        r'test_softmax_cross_entropy_input_shape_is_NCd1d2d3d4d5_mean_weight_cpu'
-    )
-    backend_test.exclude(
-        r'test_softmax_cross_entropy_input_shape_is_NCd1d2d3d4d5_mean_weight_expanded_cpu'
-    )
-    backend_test.exclude(
-        r'test_softmax_cross_entropy_input_shape_is_NCd1d2d3d4d5_mean_weight_log_prob_cpu'
-    )
-    backend_test.exclude(
-        r'test_softmax_cross_entropy_input_shape_is_NCd1d2d3d4d5_mean_weight_log_prob_expanded_cpu'
-    )
-    backend_test.exclude(
-        r'test_softmax_cross_entropy_input_shape_is_NCd1d2d3d4d5_none_no_weight_cpu'
-    )
-    backend_test.exclude(
-        r'test_softmax_cross_entropy_input_shape_is_NCd1d2d3d4d5_none_no_weight_expanded_cpu'
-    )
-    backend_test.exclude(
-        r'test_softmax_cross_entropy_input_shape_is_NCd1d2d3d4d5_none_no_weight_log_prob_cpu'
-    )
-    backend_test.exclude(
-        r'test_softmax_cross_entropy_input_shape_is_NCd1d2d3d4d5_none_no_weight_log_prob_expanded_cpu'
-    )
-    backend_test.exclude(r'test_softmax_cross_entropy_mean_3d_cpu')
-    backend_test.exclude(r'test_softmax_cross_entropy_mean_3d_expanded_cpu')
-    backend_test.exclude(r'test_softmax_cross_entropy_mean_3d_log_prob_cpu')
-    backend_test.exclude(
-        r'test_softmax_cross_entropy_mean_3d_log_prob_expanded_cpu')
-    backend_test.exclude(r'test_softmax_cross_entropy_mean_cpu')
-    backend_test.exclude(r'test_softmax_cross_entropy_mean_expanded_cpu')
-    backend_test.exclude(r'test_softmax_cross_entropy_mean_log_prob_cpu')
-    backend_test.exclude(
-        r'test_softmax_cross_entropy_mean_log_prob_expanded_cpu')
-    backend_test.exclude(
-        r'test_softmax_cross_entropy_mean_no_weight_ignore_index_3d_cpu')
-    backend_test.exclude(
-        r'test_softmax_cross_entropy_mean_no_weight_ignore_index_3d_expanded_cpu'
-    )
-    backend_test.exclude(
-        r'test_softmax_cross_entropy_mean_no_weight_ignore_index_3d_log_prob_cpu'
-    )
-    backend_test.exclude(
-        r'test_softmax_cross_entropy_mean_no_weight_ignore_index_3d_log_prob_expanded_cpu'
-    )
-    backend_test.exclude(
-        r'test_softmax_cross_entropy_mean_no_weight_ignore_index_4d_cpu')
-    backend_test.exclude(
-        r'test_softmax_cross_entropy_mean_no_weight_ignore_index_4d_expanded_cpu'
-    )
-    backend_test.exclude(
-        r'test_softmax_cross_entropy_mean_no_weight_ignore_index_4d_log_prob_cpu'
-    )
-    backend_test.exclude(
-        r'test_softmax_cross_entropy_mean_no_weight_ignore_index_4d_log_prob_expanded_cpu'
-    )
-    backend_test.exclude(
-        r'test_softmax_cross_entropy_mean_no_weight_ignore_index_cpu')
-    backend_test.exclude(
-        r'test_softmax_cross_entropy_mean_no_weight_ignore_index_expanded_cpu')
-    backend_test.exclude(
-        r'test_softmax_cross_entropy_mean_no_weight_ignore_index_log_prob_cpu')
-    backend_test.exclude(
-        r'test_softmax_cross_entropy_mean_no_weight_ignore_index_log_prob_expanded_cpu'
-    )
-    backend_test.exclude(r'test_softmax_cross_entropy_mean_weight_cpu')
-    backend_test.exclude(
-        r'test_softmax_cross_entropy_mean_weight_expanded_cpu')
-    backend_test.exclude(
-        r'test_softmax_cross_entropy_mean_weight_ignore_index_3d_cpu')
-    backend_test.exclude(
-        r'test_softmax_cross_entropy_mean_weight_ignore_index_3d_expanded_cpu')
-    backend_test.exclude(
-        r'test_softmax_cross_entropy_mean_weight_ignore_index_3d_log_prob_cpu')
-    backend_test.exclude(
-        r'test_softmax_cross_entropy_mean_weight_ignore_index_3d_log_prob_expanded_cpu'
-    )
-    backend_test.exclude(
-        r'test_softmax_cross_entropy_mean_weight_ignore_index_4d_cpu')
-    backend_test.exclude(
-        r'test_softmax_cross_entropy_mean_weight_ignore_index_4d_expanded_cpu')
-    backend_test.exclude(
-        r'test_softmax_cross_entropy_mean_weight_ignore_index_4d_log_prob_cpu')
-    backend_test.exclude(
-        r'test_softmax_cross_entropy_mean_weight_ignore_index_4d_log_prob_expanded_cpu'
-    )
-    backend_test.exclude(
-        r'test_softmax_cross_entropy_mean_weight_ignore_index_cpu')
-    backend_test.exclude(
-        r'test_softmax_cross_entropy_mean_weight_ignore_index_expanded_cpu')
-    backend_test.exclude(
-        r'test_softmax_cross_entropy_mean_weight_ignore_index_log_prob_cpu')
-    backend_test.exclude(
-        r'test_softmax_cross_entropy_mean_weight_ignore_index_log_prob_expanded_cpu'
-    )
-    backend_test.exclude(
-        r'test_softmax_cross_entropy_mean_weight_log_prob_cpu')
-    backend_test.exclude(
-        r'test_softmax_cross_entropy_mean_weight_log_prob_expanded_cpu')
-    backend_test.exclude(r'test_softmax_cross_entropy_none_cpu')
-    backend_test.exclude(r'test_softmax_cross_entropy_none_expanded_cpu')
-    backend_test.exclude(r'test_softmax_cross_entropy_none_log_prob_cpu')
-    backend_test.exclude(
-        r'test_softmax_cross_entropy_none_log_prob_expanded_cpu')
-    backend_test.exclude(r'test_softmax_cross_entropy_none_weights_cpu')
-    backend_test.exclude(
-        r'test_softmax_cross_entropy_none_weights_expanded_cpu')
-    backend_test.exclude(
-        r'test_softmax_cross_entropy_none_weights_log_prob_cpu')
-    backend_test.exclude(
-        r'test_softmax_cross_entropy_none_weights_log_prob_expanded_cpu')
-    backend_test.exclude(r'test_softmax_cross_entropy_sum_cpu')
-    backend_test.exclude(r'test_softmax_cross_entropy_sum_expanded_cpu')
-    backend_test.exclude(r'test_softmax_cross_entropy_sum_log_prob_cpu')
-    backend_test.exclude(
-        r'test_softmax_cross_entropy_sum_log_prob_expanded_cpu')
-    backend_test.exclude(r'test_split_zero_size_splits_cpu')
     backend_test.exclude(
         r'test_strnormalizer_export_monday_casesensintive_lower_cpu')
     backend_test.exclude(
@@ -406,11 +177,8 @@ def disabled_tests_onnx_1_7_0(backend_test):
     backend_test.exclude(r'test_top_k_cpu')
     backend_test.exclude(r'test_top_k_negative_axis_cpu')
     backend_test.exclude(r'test_top_k_smallest_cpu')
-    backend_test.exclude(r'test_unique_not_sorted_without_axis_cpu')
     backend_test.exclude(r'test_unique_sorted_with_axis_3d_cpu')
-    backend_test.exclude(r'test_unique_sorted_with_axis_cpu')
     backend_test.exclude(r'test_unique_sorted_with_negative_axis_cpu')
-    backend_test.exclude(r'test_unique_sorted_without_axis_cpu')
     backend_test.exclude(r'test_upsample_nearest_cpu')
 
     # from OnnxBackendPyTorchConvertedModelTest
@@ -473,7 +241,6 @@ def disabled_tests_onnx_1_8_0(backend_test):
     backend_test.exclude(r'test_nllloss_NCd1d2d3_sum_weight_high_ii_cpu')
     backend_test.exclude(r'test_nllloss_NCd1d2d3d4d5_mean_weight_cpu')
     backend_test.exclude(r'test_nllloss_NCd1d2d3d4d5_none_no_weight_cpu')
-    backend_test.exclude(r'test_reduce_sum_empty_axes_input_noop_random_cpu')
     backend_test.exclude(r'test_sce_NCd1_mean_weight_negative_ii_cpu')
     backend_test.exclude(r'test_sce_NCd1_mean_weight_negative_ii_expanded_cpu')
     backend_test.exclude(r'test_sce_NCd1_mean_weight_negative_ii_log_prob_cpu')
@@ -553,9 +320,6 @@ def disabled_tests_onnx_1_8_0(backend_test):
     backend_test.exclude(r'test_sce_sum_log_prob_expanded_cpu')
     backend_test.exclude(r'test_sequence_insert_at_back_cpu')
     backend_test.exclude(r'test_sequence_insert_at_front_cpu')
-    backend_test.exclude(r'test_split_variable_parts_1d_cpu')
-    backend_test.exclude(r'test_split_variable_parts_2d_cpu')
-    backend_test.exclude(r'test_split_variable_parts_default_axis_cpu')
 
 
 def disabled_tests_onnx_1_9_0(backend_test):
@@ -606,28 +370,13 @@ def disabled_tests_onnx_1_10_0(backend_test):
     backend_test.exclude(r'test_castlike_FLOAT_to_STRING_expanded_cpu')
     backend_test.exclude(r'test_castlike_STRING_to_FLOAT_cpu')
     backend_test.exclude(r'test_castlike_STRING_to_FLOAT_expanded_cpu')
-    backend_test.exclude(r'test_optional_get_element_cpu')
     backend_test.exclude(r'test_optional_get_element_sequence_cpu')
-    backend_test.exclude(r'test_optional_has_element_cpu')
-    backend_test.exclude(r'test_optional_has_element_empty_cpu')
 
 
 def disabled_tests_onnx_1_11_0(backend_test):
-    # fails
-    # from OnnxBackendNodeModelTest
-    backend_test.exclude(r'test_roialign_aligned_false_cpu')
-    backend_test.exclude(r'test_roialign_aligned_true_cpu')
-
     # errors
     # from OnnxBackendNodeModelTest
-    backend_test.exclude(r'test_gridsample_aligncorners_true_cpu')
     backend_test.exclude(r'test_gridsample_bicubic_cpu')
-    backend_test.exclude(r'test_gridsample_bilinear_cpu')
-    backend_test.exclude(r'test_gridsample_border_padding_cpu')
-    backend_test.exclude(r'test_gridsample_cpu')
-    backend_test.exclude(r'test_gridsample_nearest_cpu')
-    backend_test.exclude(r'test_gridsample_reflection_padding_cpu')
-    backend_test.exclude(r'test_gridsample_zeros_padding_cpu')
     backend_test.exclude(r'test_identity_opt_cpu')
     backend_test.exclude(r'test_if_opt_cpu')
     backend_test.exclude(r'test_loop16_seq_none_cpu')
@@ -651,28 +400,6 @@ def disabled_tests_onnx_1_12_0(backend_test):
     backend_test.exclude(r'test_hannwindow_expanded_cpu')
     backend_test.exclude(r'test_hannwindow_symmetric_cpu')
     backend_test.exclude(r'test_hannwindow_symmetric_expanded_cpu')
-    backend_test.exclude(r'test_layer_normalization_2d_axis0_cpu')
-    backend_test.exclude(r'test_layer_normalization_2d_axis1_cpu')
-    backend_test.exclude(r'test_layer_normalization_2d_axis_negative_1_cpu')
-    backend_test.exclude(r'test_layer_normalization_2d_axis_negative_2_cpu')
-    backend_test.exclude(r'test_layer_normalization_3d_axis0_epsilon_cpu')
-    backend_test.exclude(r'test_layer_normalization_3d_axis1_epsilon_cpu')
-    backend_test.exclude(r'test_layer_normalization_3d_axis2_epsilon_cpu')
-    backend_test.exclude(
-        r'test_layer_normalization_3d_axis_negative_1_epsilon_cpu')
-    backend_test.exclude(
-        r'test_layer_normalization_3d_axis_negative_2_epsilon_cpu')
-    backend_test.exclude(
-        r'test_layer_normalization_3d_axis_negative_3_epsilon_cpu')
-    backend_test.exclude(r'test_layer_normalization_4d_axis0_cpu')
-    backend_test.exclude(r'test_layer_normalization_4d_axis1_cpu')
-    backend_test.exclude(r'test_layer_normalization_4d_axis2_cpu')
-    backend_test.exclude(r'test_layer_normalization_4d_axis3_cpu')
-    backend_test.exclude(r'test_layer_normalization_4d_axis_negative_1_cpu')
-    backend_test.exclude(r'test_layer_normalization_4d_axis_negative_2_cpu')
-    backend_test.exclude(r'test_layer_normalization_4d_axis_negative_3_cpu')
-    backend_test.exclude(r'test_layer_normalization_4d_axis_negative_4_cpu')
-    backend_test.exclude(r'test_layer_normalization_default_axis_cpu')
     backend_test.exclude(r'test_melweightmatrix_cpu')
     backend_test.exclude(r'test_sequence_map_add_1_sequence_1_tensor_cpu')
     backend_test.exclude(
@@ -759,10 +486,6 @@ def disabled_tests_onnx_1_13_0(backend_test):
     backend_test.exclude(r'test_col2im_pads_cpu')
     backend_test.exclude(r'test_col2im_strides_cpu')
     backend_test.exclude(r'test_constant_pad_axes_cpu')
-    backend_test.exclude(r'test_group_normalization_epsilon_cpu')
-    backend_test.exclude(r'test_group_normalization_epsilon_expanded_cpu')
-    backend_test.exclude(r'test_group_normalization_example_cpu')
-    backend_test.exclude(r'test_group_normalization_example_expanded_cpu')
     backend_test.exclude(r'test_mish_cpu')
     backend_test.exclude(r'test_optional_get_element_optional_sequence_cpu')
     backend_test.exclude(r'test_optional_get_element_optional_tensor_cpu')
@@ -778,8 +501,6 @@ def disabled_tests_onnx_1_13_0(backend_test):
     backend_test.exclude(r'test_optional_has_element_empty_optional_input_cpu')
     backend_test.exclude(r'test_optional_has_element_optional_input_cpu')
     backend_test.exclude(r'test_optional_has_element_tensor_input_cpu')
-    backend_test.exclude(r'test_prelu_broadcast_expanded_cpu')
-    backend_test.exclude(r'test_prelu_example_expanded_cpu')
     backend_test.exclude(r'test_reduce_l1_default_axes_keepdims_example_cpu')
     backend_test.exclude(r'test_reduce_l1_default_axes_keepdims_random_cpu')
     backend_test.exclude(r'test_reduce_l2_default_axes_keepdims_example_cpu')
@@ -810,11 +531,6 @@ def disabled_tests_onnx_1_13_0(backend_test):
 
 
 def disabled_tests_onnx_1_14_0(backend_test):
-    # fails
-    # from OnnxBackendNodeModelTest
-    backend_test.exclude(r'test_averagepool_2d_dilations_cpu')
-    backend_test.exclude(r'test_roialign_mode_max_cpu')
-
     # errors
     # from OnnxBackendNodeModelTest
     backend_test.exclude(r'test_basic_deform_conv_with_padding_cpu')
@@ -839,19 +555,98 @@ def disabled_tests_onnx_1_14_0(backend_test):
         r'test_resize_downsample_scales_linear_half_pixel_symmetric_cpu')
     backend_test.exclude(
         r'test_resize_upsample_scales_linear_half_pixel_symmetric_cpu')
-
-    # The following tests fail due to the CastLike operator being unsupported
-    backend_test.exclude(r'test_softplus_example_expanded_ver18_cpu')
-    backend_test.exclude(r'test_softplus_expanded_ver18_cpu')
     backend_test.exclude(r'test_split_to_sequence_1_cpu')
     backend_test.exclude(r'test_split_to_sequence_2_cpu')
     backend_test.exclude(r'test_split_to_sequence_nokeepdims_cpu')
     backend_test.exclude(r'test_wrap_pad_cpu')
 
 
+def disabled_tests_onnx_1_16_0(backend_test):
+    backend_test.exclude(r'test_dequantizelinear_blocked_cpu')
+    backend_test.exclude(r'test_dft_axis_opset19_cpu')
+    backend_test.exclude(r'test_dft_inverse_opset19_cpu')
+    backend_test.exclude(r'test_dft_opset19_cpu')
+    backend_test.exclude(
+        r'test_gridsample_bicubic_align_corners_0_additional_1_cpu')
+    backend_test.exclude(
+        r'test_gridsample_bicubic_align_corners_1_additional_1_cpu')
+    backend_test.exclude(
+        r'test_gridsample_volumetric_bilinear_align_corners_0_cpu')
+    backend_test.exclude(
+        r'test_gridsample_volumetric_bilinear_align_corners_1_cpu')
+    backend_test.exclude(
+        r'test_gridsample_volumetric_nearest_align_corners_0_cpu')
+    backend_test.exclude(
+        r'test_gridsample_volumetric_nearest_align_corners_1_cpu')
+    backend_test.exclude(r'test_group_normalization_epsilon_cpu')
+    backend_test.exclude(r'test_group_normalization_example_cpu')
+    backend_test.exclude(r'test_quantizelinear_int16_cpu')
+    backend_test.exclude(r'test_quantizelinear_uint16_cpu')
+    backend_test.exclude(r'test_qlinearmatmul_2D_int8_float16_cpu')
+    backend_test.exclude(r'test_qlinearmatmul_2D_int8_float32_cpu')
+    backend_test.exclude(r'test_qlinearmatmul_2D_uint8_float16_cpu')
+    backend_test.exclude(r'test_qlinearmatmul_2D_uint8_float32_cpu')
+    backend_test.exclude(r'test_qlinearmatmul_3D_int8_float16_cpu')
+    backend_test.exclude(r'test_qlinearmatmul_3D_int8_float32_cpu')
+    backend_test.exclude(r'test_qlinearmatmul_3D_uint8_float16_cpu')
+    backend_test.exclude(r'test_qlinearmatmul_3D_uint8_float32_cpu')
+    backend_test.exclude(r'test_quantizelinear_blocked_asymmetric_cpu')
+    backend_test.exclude(r'test_quantizelinear_blocked_symmetric_cpu')
+    backend_test.exclude(r'test_reduce_l1_empty_set_cpu')
+    backend_test.exclude(r'test_reduce_l1_empty_set_expanded_cpu')
+    backend_test.exclude(r'test_reduce_l2_empty_set_cpu')
+    backend_test.exclude(r'test_reduce_l2_empty_set_expanded_cpu')
+    backend_test.exclude(r'test_reduce_log_sum_empty_set_cpu')
+    backend_test.exclude(r'test_reduce_log_sum_empty_set_expanded_cpu')
+    backend_test.exclude(r'test_reduce_log_sum_exp_empty_set_cpu')
+    backend_test.exclude(r'test_reduce_log_sum_exp_empty_set_expanded_cpu')
+    backend_test.exclude(r'test_reduce_max_bool_inputs_cpu')
+    backend_test.exclude(r'test_reduce_min_bool_inputs_cpu')
+    # TODO: empty set ReduceOps tests are generating dynamic shapes
+    backend_test.exclude(r'test_reduce_min_empty_set_cpu')
+    backend_test.exclude(r'test_reduce_prod_empty_set_cpu')
+    backend_test.exclude(r'test_reduce_sum_empty_set_cpu')
+    backend_test.exclude(
+        r'test_reduce_sum_empty_set_non_reduced_axis_zero_cpu')
+    backend_test.exclude(r'test_reduce_sum_square_empty_set_cpu')
+    backend_test.exclude(r'test_reduce_sum_square_empty_set_expanded_cpu')
+    # TODO: Pooling tests are failing with shape mismatches, look into it.
+    backend_test.exclude(
+        r'test_averagepool_3d_dilations_large_count_include_pad_is_0_ceil_mode_is_True_cpu'
+    )
+    backend_test.exclude(
+        r'test_averagepool_3d_dilations_large_count_include_pad_is_1_ceil_mode_is_True_cpu'
+    )
+    backend_test.exclude(r'test_maxpool_2d_ceil_output_size_reduce_by_one_cpu')
+    backend_test.exclude(r'test_maxpool_3d_dilations_use_ref_impl_large_cpu')
+
+
+def disabled_tests_int4(backend_test):
+    # quantizelinear
+    backend_test.exclude(r'test_quantizelinear_int4')
+    backend_test.exclude(r'test_quantizelinear_uint4')
+    # dequantizelinear
+    backend_test.exclude(r'test_dequantizelinear_int4')
+    backend_test.exclude(r'test_dequantizelinear_uint4')
+    # cast
+    backend_test.exclude(r'test_cast_FLOAT16_to_UINT4')
+    backend_test.exclude(r'test_cast_FLOAT16_to_INT4')
+    backend_test.exclude(r'test_cast_FLOAT_to_INT4')
+    backend_test.exclude(r'test_cast_FLOAT_to_UINT4')
+    backend_test.exclude(r'test_cast_INT4_to_FLOAT')
+    backend_test.exclude(r'test_cast_INT4_to_FLOAT16')
+    backend_test.exclude(r'test_cast_INT4_to_INT8')
+    backend_test.exclude(r'test_cast_UINT4_to_FLOAT')
+    backend_test.exclude(r'test_cast_UINT4_to_FLOAT16')
+    backend_test.exclude(r'test_cast_UINT4_to_INT8')
+    backend_test.exclude(r'test_cast_UINT4_to_UINT8_cpu')
+
+
 def disabled_tests_float8(backend_test):
     # e4m3fn (Prototensor data type 17 not supported)
     backend_test.exclude(r'test_dequantizelinear_e4m3fn_cpu')
+    backend_test.exclude(r'test_dequantizelinear_e4m3fn_float16_cpu')
+    backend_test.exclude(r'test_dequantizelinear_e4m3fn_zero_point_cpu')
     backend_test.exclude(r'test_quantizelinear_e4m3fn_cpu')
     backend_test.exclude(r'test_cast_FLOAT16_to_FLOAT8E4M3FN_cpu')
     backend_test.exclude(r'test_cast_FLOAT8E4M3FN_to_FLOAT16_cpu')
@@ -930,6 +725,10 @@ def disabled_tests_dynamic_shape(backend_test):
     # range
     backend_test.exclude(r'test_range_float_type_positive_delta_cpu')
     backend_test.exclude(r'test_range_int32_type_negative_delta_cpu')
+    # slice
+    backend_test.exclude(r'test_slice_default_axes_cpu')
+    backend_test.exclude(r'test_slice_default_steps_cpu')
+    backend_test.exclude(r'test_slice_negative_axes_cpu')
     # split
     backend_test.exclude(r'test_split_variable_parts_1d_opset13_cpu')
     backend_test.exclude(r'test_split_variable_parts_1d_opset18_cpu')
@@ -950,9 +749,24 @@ def disabled_tests_dynamic_shape(backend_test):
     backend_test.exclude(r'test_unsqueeze_three_axes_cpu')
     backend_test.exclude(r'test_unsqueeze_two_axes_cpu')
     backend_test.exclude(r'test_unsqueeze_unsorted_axes_cpu')
+    # unique
+    backend_test.exclude(r'test_unique_not_sorted_without_axis_cpu')
+    backend_test.exclude(r'test_unique_sorted_with_axis_cpu')
+    backend_test.exclude(r'test_unique_sorted_without_axis_cpu')
     # tile
     backend_test.exclude(r'test_tile_cpu')
     backend_test.exclude(r'test_tile_precomputed_cpu')
+    # resize
+    backend_test.exclude(r'test_resize_upsample_scales_nearest_cpu')
+    backend_test.exclude(r'test_resize_downsample_scales_nearest_cpu')
+    backend_test.exclude(r'test_resize_upsample_sizes_nearest_cpu')
+    backend_test.exclude(r'test_resize_downsample_sizes_nearest_cpu')
+    backend_test.exclude(
+        r'test_resize_upsample_sizes_nearest_floor_align_corners_cpu')
+    backend_test.exclude(
+        r'test_resize_upsample_sizes_nearest_round_prefer_ceil_asymmetric_cpu')
+    backend_test.exclude(
+        r'test_resize_upsample_sizes_nearest_ceil_half_pixel_cpu')
     # reshape
     backend_test.exclude(r'test_reshape_allowzero_reordered_cpu')
     backend_test.exclude(r'test_reshape_extended_dims_cpu')
@@ -1144,6 +958,7 @@ def create_backend_test(testname=None, target_device=None):
         backend_test.include(r'.*test_lrn.*')
         backend_test.include(r'.*test_lstm.*')
         backend_test.include(r'.*test_log.*')
+        backend_test.include(r'.*test_log2.*')
         backend_test.include(r'.*test_loop.*')
         backend_test.include(r'.*test_lpnorm.*')
         backend_test.include(r'.*test_lppool.*')
@@ -1270,6 +1085,7 @@ def create_backend_test(testname=None, target_device=None):
         backend_test.include(r'.*test_sequence_map.*')
         backend_test.include(r'.*test_shrink.*')
         backend_test.include(r'.*test_[sS]oftmax.*')
+        backend_test.include(r'.*test_[sS]oftmin.*')
         backend_test.include(r'.*test_[sS]oftplus.*')
         backend_test.include(r'.*test_[sS]oftsign.*')
         backend_test.include(r'.*test_sce.*')
@@ -1334,20 +1150,20 @@ def create_backend_test(testname=None, target_device=None):
         # backend_test.include(r'.*test_momentum.*')
         # backend_test.include(r'.*test_nesterov_momentum.*')
         # backend_test.include(r'.*test_training_dropout.*')
-        # backend_test.include(r'.*test_Softmin.*')
 
         # Exclude failing tests
 
         # from OnnxBackendRealModelTest
         backend_test.exclude(r'test_inception_v1_cpu')
-        backend_test.exclude(r'test_resnet50_cpu')
-        backend_test.exclude(r'test_squeezenet_cpu')
 
         # PRelu OnnxBackendPyTorchConvertedModelTest has wrong dim for broadcasting
         backend_test.exclude(r'[a-z,_]*PReLU_[0-9]d_multiparam[a-z,_]*')
 
         # Remove when float8 is supported
         disabled_tests_float8(backend_test)
+
+        # Remove Int4 tests
+        disabled_tests_int4(backend_test)
 
         # Remove when dynamic shapes are supported
         disabled_tests_dynamic_shape(backend_test)
@@ -1376,6 +1192,9 @@ def create_backend_test(testname=None, target_device=None):
 
         if version.parse(onnx.__version__) >= version.parse("1.14.0"):
             disabled_tests_onnx_1_14_0(backend_test)
+
+        if version.parse(onnx.__version__) >= version.parse("1.16.0"):
+            disabled_tests_onnx_1_16_0(backend_test)
 
 
 # import all test cases at global scope to make

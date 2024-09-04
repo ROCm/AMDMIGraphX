@@ -25,6 +25,7 @@
 #ifndef MIGRAPHX_GUARD_TEST_ONNX_ONNX_TEST_UTILS_HPP
 #define MIGRAPHX_GUARD_TEST_ONNX_ONNX_TEST_UTILS_HPP
 
+#include <onnx_test.hpp>
 #include <migraphx/program.hpp>
 #include <migraphx/make_op.hpp>
 #include <migraphx/common.hpp>
@@ -170,9 +171,7 @@ make_layer_norm(const std::vector<int64_t>& input_shape,
     {
         bias = mm->add_parameter("bias", {dtype, scale_bias_shape});
     }
-
-    auto eps = mm->add_literal(migraphx::literal{dtype, {eps_value}});
-
+    auto eps  = mm->add_literal(migraphx::literal{dtype, {eps_value}});
     auto mean = mm->add_instruction(migraphx::make_op("reduce_mean", {{"axes", reduce_axes}}), x);
     auto x_sub_mean    = add_common_op(*mm, migraphx::make_op("sub"), {x, mean});
     auto x_sqdiff_mean = add_common_op(*mm, migraphx::make_op("sqdiff"), {x, mean});
@@ -200,7 +199,42 @@ make_layer_norm(const std::vector<int64_t>& input_shape,
     {
         mm->add_instruction(migraphx::make_op("add"), {scaled, bias_bcast});
     }
+    return p;
+}
 
+inline migraphx::program
+make_simplified_layer_norm(const std::vector<int64_t>& input_shape,
+                           const std::vector<int64_t>& skip_shape,
+                           const std::vector<int64_t>& scale_shape,
+                           const int axis,
+                           const float eps_value               = 1e-5f,
+                           const migraphx::shape::type_t dtype = migraphx::shape::half_type)
+{
+    migraphx::program p;
+    auto* mm = p.get_main_module();
+    auto x   = mm->add_parameter("x", {dtype, input_shape});
+    migraphx::instruction_ref skip;
+    migraphx::instruction_ref scale;
+    if(skip_shape.empty())
+    {
+        scale = mm->add_parameter("scale", {dtype, scale_shape});
+    }
+    else
+    {
+        skip  = mm->add_parameter("skip", {dtype, skip_shape});
+        scale = mm->add_parameter("gamma", {dtype, scale_shape});
+        x     = add_common_op(*mm, migraphx::make_op("add"), {x, skip});
+    }
+
+    auto eps = mm->add_literal(migraphx::literal{dtype, {eps_value}});
+
+    auto x_sq      = add_common_op(*mm, migraphx::make_op("mul"), {x, x});
+    auto norm_axis = axis < 0 ? axis + x->get_shape().lens().size() : axis;
+    auto rms = mm->add_instruction(migraphx::make_op("reduce_mean", {{"axes", {norm_axis}}}), x_sq);
+    rms      = add_common_op(*mm, migraphx::make_op("add"), {rms, eps});
+    auto rrms   = mm->add_instruction(migraphx::make_op("rsqrt"), {rms});
+    auto result = add_common_op(*mm, migraphx::make_op("mul"), {x, rrms});
+    result      = add_common_op(*mm, migraphx::make_op("mul"), {result, scale});
     return p;
 }
 
@@ -395,7 +429,7 @@ inline void scatter_test_base(const std::string& reduction, int axis, const std:
     auto r = mm->add_instruction(
         migraphx::make_op("scatter_" + reduction, {{"axis", axis}}), l0, l1, l2);
     mm->add_return({r});
-    auto prog = migraphx::parse_onnx(onnx_file);
+    auto prog = read_onnx(onnx_file);
 
     EXPECT(p == prog);
 }

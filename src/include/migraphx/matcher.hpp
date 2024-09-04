@@ -330,9 +330,27 @@ struct matcher_result
             });
         }
 
+        void debug_print() const
+        {
+            for(const auto& it : ins_map)
+            {
+                std::cout << it.first << ": \n";
+                it.second->debug_print();
+            }
+        }
+
         private:
         std::unordered_map<std::string, instruction_ref> ins_map;
     };
+
+    void debug_print() const
+    {
+        std::cout << "matcher_container: \n  instructions:";
+        instructions.debug_print();
+        std::cout << "  result: \n";
+        result->debug_print();
+    }
+
     instruction_container instructions;
     instruction_ref result;
 };
@@ -592,6 +610,15 @@ MIGRAPHX_PRED_MATCHER(same_input_shapes, instruction_ref ins)
     auto s = ins->inputs().front()->get_shape();
     return std::all_of(
         ins->inputs().begin(), ins->inputs().end(), [&](auto x) { return x->get_shape() == s; });
+}
+
+MIGRAPHX_PRED_MATCHER(same_inputs, instruction_ref ins)
+{
+    if(ins->inputs().empty())
+        return false;
+    auto input = ins->inputs().front();
+    return std::all_of(
+        ins->inputs().begin(), ins->inputs().end(), [&](auto x) { return x == input; });
 }
 
 MIGRAPHX_PRED_MATCHER(has_same_value, instruction_ref ins)

@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2022 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2024 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -28,21 +28,13 @@
 #include <migraphx/float_equal.hpp>
 #include <migraphx/requires.hpp>
 #include <migraphx/iota_iterator.hpp>
-#include <migraphx/config.hpp>
+#include <migraphx/as_number.hpp>
 
 #include <iostream>
 #include <utility>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
-
-template <class T>
-T as_number(T x)
-{
-    return x;
-}
-inline int32_t as_number(int8_t x) { return static_cast<int32_t>(x); }
-inline uint32_t as_number(uint8_t x) { return static_cast<uint32_t>(x); }
 
 template <class T>
 struct tensor_view_iterator_read
@@ -117,6 +109,18 @@ struct tensor_view
     {
         assert(not this->empty() && i < this->size());
         return m_data[m_shape.index(i)];
+    }
+
+    template <class Range>
+    auto operator[](const Range& r) -> decltype((*this)(r.begin(), r.end()))
+    {
+        return (*this)(r.begin(), r.end());
+    }
+
+    template <class Range>
+    auto operator[](const Range& r) const -> decltype((*this)(r.begin(), r.end()))
+    {
+        return (*this)(r.begin(), r.end());
     }
 
     T& front()

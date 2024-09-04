@@ -38,12 +38,13 @@
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
+namespace {
 
 template <class... Ms>
 auto skip_post_dq_ops(Ms... ms)
 {
-    return match::skip(
-        match::name("broadcast", "multibroadcast", "contiguous", "transpose", "reshape"))(ms...);
+    return match::skip(match::name(
+        "broadcast", "multibroadcast", "contiguous", "transpose", "reshape", "convert"))(ms...);
 }
 
 std::unordered_set<std::string> get_quantizable_op_names()
@@ -89,8 +90,10 @@ struct match_find_quantizable_ops
 
     // Helper function to insert quantized versions of any broadcasts and transpose ops that
     // occur between dequantizelinear and the quantized op
-    static auto
-    propagate_quantized_ins(module& m, const instruction_ref dqins, const instruction_ref qop_arg)
+    static auto propagate_quantized_ins(module& m,
+                                        const instruction_ref dqins,
+                                        const instruction_ref qop_arg,
+                                        bool is_fp16_model = false)
     {
         auto prev_ins = qop_arg;
         std::vector<instruction_ref> ins_inbetween;
@@ -104,6 +107,10 @@ struct match_find_quantizable_ops
         auto qinp = dqins->inputs().front();
         for(auto ins : reverse_iterator_for(ins_inbetween))
         {
+            if((*ins)->name() == "convert" and is_fp16_model)
+            {
+                continue;
+            }
             qinp = m.insert_instruction(dqins, (*ins)->get_operator(), {qinp});
         }
         return qinp;
@@ -119,9 +126,11 @@ struct match_find_quantizable_ops
 
     auto matcher() const
     {
-        return match::name(get_quantizable_op_names())(
-            match::arg(0)(skip_post_dq_ops(dequantizelinear_op("scale1", "zp1").bind("dq1"))),
-            match::arg(1)(skip_post_dq_ops(dequantizelinear_op("scale2", "zp2").bind("dq2"))));
+        auto dq1 =
+            match::arg(0)(skip_post_dq_ops(dequantizelinear_op("scale1", "zp1").bind("dq1")));
+        auto dq2 =
+            match::arg(1)(skip_post_dq_ops(dequantizelinear_op("scale2", "zp2").bind("dq2")));
+        return match::name(get_quantizable_op_names())(dq1, dq2);
     }
 
     void apply(module& m, const match::matcher_result& r) const
@@ -142,8 +151,15 @@ struct match_find_quantizable_ops
 
         // Propagate q1 and q2 through any broadcasts and transposes before qop
         auto qop_args  = qop->inputs();
-        qop_args.at(0) = propagate_quantized_ins(m, dq1, qop_args[0]);
-        qop_args.at(1) = propagate_quantized_ins(m, dq2, qop_args[1]);
+        bool is_fp16_model = false;
+        if(dq1->get_shape().type() != qop->get_shape().type() and
+           qop->get_shape().type() == migraphx::shape::half_type)
+        {
+            assert(dq1->get_shape().type() == migraphx::shape::float_type);
+            is_fp16_model = true;
+        }
+        qop_args.at(0) = propagate_quantized_ins(m, dq1, qop_args[0], is_fp16_model);
+        qop_args.at(1) = propagate_quantized_ins(m, dq2, qop_args[1], is_fp16_model);
         auto arg1_lens = qop_args[0]->get_shape().lens();
         auto arg2_lens = qop_args[1]->get_shape().lens();
         instruction_ref dq;
@@ -259,6 +275,11 @@ struct match_find_quantizable_ops
         }
 
         dq = m.insert_instruction(qop, make_op("dequantizelinear"), dq, out_scale, out_zp);
+        if(is_fp16_model)
+        {
+            dq = m.insert_instruction(
+                qop, make_op("convert", {{"target_type", migraphx::shape::half_type}}), dq);
+        }
         m.replace_instruction(qop, dq);
     }
 };
@@ -298,6 +319,64 @@ bool compare_literals(instruction_ref ins1, instruction_ref ins2)
     return (x == y) or diff_shapes_equal_vals;
 }
 
+template <class Iterator>
+bool precedes(Iterator x, Iterator y, Iterator last)
+{
+    auto r = range(std::next(x), last);
+    return any_of(iterator_for(r), [&](auto it) { return it == y; });
+}
+
+struct match_qlinear_reused
+{
+    auto matcher() const
+    {
+        return match::name("quantizelinear")(
+            match::used_once(), match::arg(0)(match::none_of(match::used_once()).bind("x")));
+    }
+
+    void apply(module& m, const match::matcher_result& r) const
+    {
+        auto ins   = r.result;
+        auto x_ins = r.instructions["x"];
+        assert(ins != x_ins);
+
+        auto dq_inputs = ins->inputs();
+        dq_inputs[0]   = ins;
+        auto outputs   = x_ins->outputs();
+        if(outputs.size() != 2)
+            return;
+        for(auto output : outputs)
+        {
+            if(output->name() == "quantizelinear")
+                continue;
+            if(not output->get_operator().attributes().contains("pointwise"))
+                continue;
+            if(not precedes(ins, output, m.end()))
+                continue;
+            auto dq = m.insert_instruction(std::next(ins), make_op("dequantizelinear"), dq_inputs);
+            instruction::replace_argument(output, x_ins, dq);
+        }
+    }
+};
+
+bool is_same_value(instruction_ref a, instruction_ref b)
+{
+    if(a == b)
+        return true;
+    return compare_literals(a, b);
+}
+
+bool is_same_scale_zero(instruction_ref a, instruction_ref b)
+{
+    if(a->inputs().size() != b->inputs().size())
+        return false;
+    if(not is_same_value(a->inputs().at(1), b->inputs().at(1)))
+        return false;
+    if(a->inputs().size() == 2)
+        return true;
+    return is_same_value(a->inputs().at(2), b->inputs().at(2));
+}
+
 void remove_qdq_pairs(module& m)
 {
     for(auto ins : iterator_for(m))
@@ -308,9 +387,7 @@ void remove_qdq_pairs(module& m)
             if(arg->name() == "dequantizelinear")
             {
                 auto q = arg->inputs().front();
-                if((q->name() == "quantizelinear") and
-                   compare_literals(arg->inputs().at(1), q->inputs().at(1)) and
-                   compare_literals(arg->inputs().at(2), q->inputs().at(2)))
+                if((q->name() == "quantizelinear") and is_same_scale_zero(arg, q))
                 {
                     instruction::replace_argument(ins, arg, q->inputs().front());
                 }
@@ -318,6 +395,7 @@ void remove_qdq_pairs(module& m)
         }
     }
 }
+} // namespace
 
 void simplify_qdq::apply(module& m) const
 {
@@ -325,6 +403,7 @@ void simplify_qdq::apply(module& m) const
     migraphx::run_passes(m, {migraphx::dead_code_elimination{}});
     remove_qdq_pairs(m);
     migraphx::run_passes(m, {migraphx::dead_code_elimination{}});
+    match::find_matches(m, match_qlinear_reused{});
 }
 
 } // namespace MIGRAPHX_INLINE_NS

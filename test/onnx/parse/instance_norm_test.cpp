@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2023 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2024 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -58,7 +58,7 @@ TEST_CASE(instance_norm_test)
     mm->add_return({ret});
 
     migraphx::onnx_options options;
-    auto prog = migraphx::parse_onnx("instance_norm_test.onnx", options);
+    auto prog = read_onnx("instance_norm_test.onnx", options);
 
     EXPECT(p == prog);
 }

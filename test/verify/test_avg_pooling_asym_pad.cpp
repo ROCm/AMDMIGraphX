@@ -20,33 +20,29 @@
  * LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
  * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
  * THE SOFTWARE.
- *
  */
 
-#include <tf_test.hpp>
-#include <tf_conv_utils.hpp>
+#include "verify_program.hpp"
+#include <migraphx/program.hpp>
+#include <migraphx/generate.hpp>
+#include <migraphx/make_op.hpp>
+#include <migraphx/op/common.hpp>
 
-TEST_CASE(depthwiseconv_test)
+struct test_avg_pooling_asym_pad : verify_program<test_avg_pooling_asym_pad>
 {
-    migraphx::program p;
+    migraphx::program create_program() const
+    {
+        migraphx::program p;
+        auto* mm = p.get_main_module();
 
-    auto* mm = p.get_main_module();
-
-    auto x = mm->add_parameter("0", migraphx::shape{migraphx::shape::float_type, {1, 3, 16, 16}});
-    std::vector<float> weight_data(3 * 3 * 3 * 1);
-    std::fill(weight_data.begin(), weight_data.end(), 1.0f);
-    auto weights =
-        mm->add_literal(migraphx::shape{migraphx::shape::float_type, {3, 3, 3, 1}}, weight_data);
-
-    auto transpose = mm->add_instruction(
-        migraphx::make_op("transpose", {{"permutation", {2, 3, 0, 1}}}), weights);
-    mm->add_instruction(
-        migraphx::make_op(
-            "convolution",
-            {{"padding", {1, 1}}, {"stride", {1, 1}}, {"dilation", {1, 1}}, {"group", 3}}),
-        x,
-        transpose);
-    auto prog = optimize_tf("depthwise_conv_test.pb", true);
-
-    EXPECT(p == prog);
-}
+        auto input =
+            mm->add_parameter("x", migraphx::shape{migraphx::shape::float_type, {1, 64, 112, 112}});
+        mm->add_instruction(migraphx::make_op("pooling",
+                                              {{"mode", migraphx::op::pooling_mode::average},
+                                               {"padding", {0, 0, 1, 1}},
+                                               {"stride", {2, 2}},
+                                               {"lengths", {3, 3}}}),
+                            input);
+        return p;
+    }
+};

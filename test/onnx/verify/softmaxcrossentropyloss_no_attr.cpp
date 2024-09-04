@@ -32,7 +32,7 @@ TEST_CASE(softmaxcrossentropyloss_2d_no_reduction_test_ones)
     p.compile(migraphx::make_target("ref"));
 
     migraphx::shape score_shape{migraphx::shape::float_type, {4, 4}};
-    std::vector<float> score_data = {1, 1., 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1};
+    std::vector<float> score_data(score_shape.elements(), 1);
     migraphx::shape label_shape{migraphx::shape::int32_type, {4}};
     std::vector<int32_t> label_data = {0, 3, 1, 2};
 
@@ -76,7 +76,7 @@ TEST_CASE(softmaxcrossentropyloss_2d_no_reduction_test_zeros)
     p.compile(migraphx::make_target("ref"));
 
     migraphx::shape score_shape{migraphx::shape::float_type, {4, 4}};
-    std::vector<float> score_data = {0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0};
+    std::vector<float> score_data(score_shape.elements(), 0);
     migraphx::shape label_shape{migraphx::shape::int32_type, {4}};
     std::vector<int32_t> label_data = {0, 3, 1, 2};
 
@@ -99,7 +99,7 @@ TEST_CASE(softmaxcrossentropyloss_2d_sum_reduction_test_ones)
     p.compile(migraphx::make_target("ref"));
 
     migraphx::shape score_shape{migraphx::shape::float_type, {4, 4}};
-    std::vector<float> score_data = {1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1};
+    std::vector<float> score_data(score_shape.elements(), 1);
     migraphx::shape label_shape{migraphx::shape::int32_type, {4}};
     std::vector<int32_t> label_data = {0, 3, 1, 2};
 
@@ -122,7 +122,7 @@ TEST_CASE(softmaxcrossentropyloss_2d_sum_reduction_test_zeroes)
     p.compile(migraphx::make_target("ref"));
 
     migraphx::shape score_shape{migraphx::shape::float_type, {4, 4}};
-    std::vector<float> score_data = {0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0};
+    std::vector<float> score_data(score_shape.elements(), 0);
     migraphx::shape label_shape{migraphx::shape::int32_type, {4}};
     std::vector<int32_t> label_data = {0, 3, 1, 2};
 
@@ -145,7 +145,7 @@ TEST_CASE(softmaxcrossentropyloss_2d_mean_reduction_test_ones)
     p.compile(migraphx::make_target("ref"));
 
     migraphx::shape score_shape{migraphx::shape::float_type, {4, 4}};
-    std::vector<float> score_data = {1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1};
+    std::vector<float> score_data(score_shape.elements(), 1);
     migraphx::shape label_shape{migraphx::shape::int32_type, {4}};
     std::vector<int32_t> label_data = {0, 3, 1, 2};
 
@@ -168,7 +168,7 @@ TEST_CASE(softmaxcrossentropyloss_2d_mean_reduction_test_zeroes)
     p.compile(migraphx::make_target("ref"));
 
     migraphx::shape score_shape{migraphx::shape::float_type, {4, 4}};
-    std::vector<float> score_data = {0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0};
+    std::vector<float> score_data(score_shape.elements(), 0);
     migraphx::shape label_shape{migraphx::shape::int32_type, {4}};
     std::vector<int32_t> label_data = {0, 3, 1, 2};
 

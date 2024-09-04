@@ -201,6 +201,13 @@ TEST_CASE(binary_dyn_static_error)
     throws_shape(migraphx::make_op("add"), a_shape, b_shape);
 }
 
+TEST_CASE(bitwise_and_not_integral_error)
+{
+    migraphx::shape a_shape{migraphx::shape::float_type, {1, 4, 4}};
+    migraphx::shape b_shape{migraphx::shape::float_type, {1, 4, 4}};
+    throws_shape(migraphx::make_op("bitwise_and"), a_shape, b_shape);
+}
+
 TEST_CASE(broadcast)
 {
     {
@@ -2326,7 +2333,31 @@ TEST_CASE(nms_shape)
                  score_thres_s);
 }
 
-TEST_CASE(onehot0)
+TEST_CASE(onehot_static_2arg0)
+{
+    migraphx::shape indices{migraphx::shape::int64_type, {2, 3}};
+    migraphx::shape values{migraphx::shape::float_type, {2}};
+    migraphx::shape output{migraphx::shape::float_type, {2, 3, 4}};
+    expect_shape(output, migraphx::make_op("onehot", {{"depth", 4}}), indices, values);
+}
+
+TEST_CASE(onehot_static_2arg1)
+{
+    migraphx::shape indices{migraphx::shape::int64_type, {2, 3}};
+    migraphx::shape values{migraphx::shape::float_type, {2}};
+    migraphx::shape output{migraphx::shape::float_type, {2, 6, 3}};
+    expect_shape(output, migraphx::make_op("onehot", {{"axis", 1}, {"depth", 6}}), indices, values);
+}
+
+TEST_CASE(onehot_dyn_2arg0)
+{
+    migraphx::shape indices{migraphx::shape::int64_type, {{1, 4}, {2, 2}, {3, 3}}};
+    migraphx::shape values{migraphx::shape::int32_type, {2}};
+    migraphx::shape output{migraphx::shape::int32_type, {{1, 4}, {2, 2}, {8, 8}, {3, 3}}};
+    expect_shape(output, migraphx::make_op("onehot", {{"axis", 2}, {"depth", 8}}), indices, values);
+}
+
+TEST_CASE(onehot_dyn_3arg0)
 {
     migraphx::shape indices{migraphx::shape::int64_type, {2, 3}};
     migraphx::shape depth{migraphx::shape::int64_type, {1}};
@@ -2336,7 +2367,7 @@ TEST_CASE(onehot0)
     expect_shape(output, migraphx::make_op("onehot"), indices, depth, values);
 }
 
-TEST_CASE(onehot1)
+TEST_CASE(onehot_dyn_3arg1)
 {
     migraphx::shape indices{migraphx::shape::int64_type, {2, 3}};
     migraphx::shape depth{migraphx::shape::int64_type, {1}};
@@ -2346,7 +2377,7 @@ TEST_CASE(onehot1)
     expect_shape(output, migraphx::make_op("onehot", {{"axis", 2}}), indices, depth, values);
 }
 
-TEST_CASE(onehot2)
+TEST_CASE(onehot_dyn_3arg2)
 {
     migraphx::shape indices{migraphx::shape::int64_type, {2, 3}};
     migraphx::shape depth{migraphx::shape::int64_type, {1}};
@@ -2356,7 +2387,7 @@ TEST_CASE(onehot2)
     expect_shape(output, migraphx::make_op("onehot", {{"axis", 1}}), indices, depth, values);
 }
 
-TEST_CASE(onehot3)
+TEST_CASE(onehot_dyn_3arg3)
 {
     migraphx::shape indices{migraphx::shape::int64_type, {2, 3}};
     migraphx::shape depth{migraphx::shape::int64_type, {1}};
@@ -2364,6 +2395,16 @@ TEST_CASE(onehot3)
     std::size_t max_val = std::numeric_limits<std::size_t>::max();
     migraphx::shape output{migraphx::shape::float_type, {{0, max_val}, {2, 2}, {3, 3}}};
     expect_shape(output, migraphx::make_op("onehot", {{"axis", -3}}), indices, depth, values);
+}
+
+TEST_CASE(onehot_dyn_indices)
+{
+    migraphx::shape indices{migraphx::shape::int64_type, {{1, 4}, {2, 2}, {3, 3}}};
+    migraphx::shape depth{migraphx::shape::int64_type, {1}};
+    migraphx::shape values{migraphx::shape::int32_type, {2}};
+    std::size_t max_val = std::numeric_limits<std::size_t>::max();
+    migraphx::shape output{migraphx::shape::int32_type, {{1, 4}, {2, 2}, {0, max_val}, {3, 3}}};
+    expect_shape(output, migraphx::make_op("onehot", {{"axis", 2}}), indices, depth, values);
 }
 
 TEST_CASE(onehot_axis_error0)
@@ -2382,16 +2423,6 @@ TEST_CASE(onehot_axis_error1)
     throws_shape(migraphx::make_op("onehot", {{"axis", -4}}), indices, depth, values);
 }
 
-TEST_CASE(onehot_dyn_indices)
-{
-    migraphx::shape indices{migraphx::shape::int64_type, {{1, 4}, {2, 2}, {3, 3}}};
-    migraphx::shape depth{migraphx::shape::int64_type, {1}};
-    migraphx::shape values{migraphx::shape::int32_type, {2}};
-    std::size_t max_val = std::numeric_limits<std::size_t>::max();
-    migraphx::shape output{migraphx::shape::int32_type, {{1, 4}, {2, 2}, {0, max_val}, {3, 3}}};
-    expect_shape(output, migraphx::make_op("onehot", {{"axis", 2}}), indices, depth, values);
-}
-
 TEST_CASE(onehot_axis_out_of_range0)
 {
     migraphx::shape indices{migraphx::shape::int64_type, {2, 3}};
@@ -2406,6 +2437,13 @@ TEST_CASE(onehot_axis_out_of_range1)
     migraphx::shape depth{migraphx::shape::int64_type, {1}};
     migraphx::shape values{migraphx::shape::float_type, {2}};
     throws_shape(migraphx::make_op("onehot", {{"axis", -4}}), indices, depth, values);
+}
+
+TEST_CASE(onehot_neg_depth_attr)
+{
+    migraphx::shape indices{migraphx::shape::int64_type, {2, 3}};
+    migraphx::shape values{migraphx::shape::float_type, {2}};
+    throws_shape(migraphx::make_op("onehot", {{"axis", 1}, {"depth", -3}}), indices, values);
 }
 
 TEST_CASE(pack_int4)
@@ -4206,6 +4244,50 @@ TEST_CASE(slice_dyn_shape5)
     throws_shape(
         migraphx::make_op("slice", {{"axes", {0, 20}}, {"starts", {1, 1}}, {"ends", {2, 4}}}),
         input);
+}
+
+TEST_CASE(test_scan_slice1)
+{
+    migraphx::shape input{migraphx::shape::float_type, {2, 3, 4}};
+    migraphx::shape axis_input{migraphx::shape::int64_type};
+    migraphx::shape expected{migraphx::shape::float_type, {1, 3, 4}};
+    expect_shape(expected,
+                 migraphx::make_op("scan_slice", {{"axis", 0}, {"direction", 0}}),
+                 input,
+                 axis_input);
+}
+
+TEST_CASE(test_scan_slice2)
+{
+    migraphx::shape input{migraphx::shape::float_type, {4, 6, 5}};
+    migraphx::shape axis_input{migraphx::shape::int64_type};
+    migraphx::shape expected{migraphx::shape::float_type, {4, 1, 5}, {30, 5, 1}};
+    expect_shape(expected,
+                 migraphx::make_op("scan_slice", {{"axis", 1}, {"direction", 0}}),
+                 input,
+                 axis_input);
+}
+
+TEST_CASE(test_scan_slice3)
+{
+    migraphx::shape input{migraphx::shape::float_type, {2, 5, 7}};
+    migraphx::shape axis_input{migraphx::shape::int64_type};
+    migraphx::shape expected{migraphx::shape::float_type, {2, 5, 1}, {35, 7, 1}};
+    expect_shape(expected,
+                 migraphx::make_op("scan_slice", {{"axis", -1}, {"direction", 0}}),
+                 input,
+                 axis_input);
+}
+
+TEST_CASE(test_scan_slice4)
+{
+    migraphx::shape input{migraphx::shape::float_type, {2, 5, 7}};
+    migraphx::shape axis_input{migraphx::shape::int64_type};
+    migraphx::shape expected{migraphx::shape::float_type, {1, 5, 7}, {35, 7, 1}};
+    expect_shape(expected,
+                 migraphx::make_op("scan_slice", {{"axis", -3}, {"direction", 1}}),
+                 input,
+                 axis_input);
 }
 
 TEST_CASE(softmax_dyn0)

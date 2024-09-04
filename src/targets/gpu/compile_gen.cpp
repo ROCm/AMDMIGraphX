@@ -277,14 +277,14 @@ std::string tile::str() const
 
 std::size_t find_fast_axis(const shape& input)
 {
-    auto permutation = find_permutation(input);
+    auto permutation = invert_permutation(find_permutation(input));
     auto it          = std::max_element(permutation.begin(), permutation.end());
     return it - permutation.begin();
 }
 
 std::size_t find_fast_axis(const std::vector<shape>& inputs)
 {
-    auto permutation = find_permutation(inputs);
+    auto permutation = invert_permutation(find_permutation(inputs));
     auto it          = std::max_element(permutation.begin(), permutation.end());
     return it - permutation.begin();
 }

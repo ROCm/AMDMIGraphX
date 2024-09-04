@@ -319,53 +319,6 @@ struct hip_copy_fetch_literal
     }
 };
 
-struct hip_copy_fetch_literal_test
-{
-    shape l_shape;
-    std::string literal_file;
-    std::string id{};
-    literal l;
-
-    template <class Self, class F>
-    static auto reflect(Self& self, F f)
-    {
-       return pack(f(self.l_shape, "shape"), f(self.id, "id"), f(self.literal_file, "literal_file"), f(self.l, "literal"));
-    }
-
-    std::string name() const { return "hip::hip_copy_fetch_literal_test"; }
-    shape compute_shape(const std::vector<shape>& inputs) const
-    {
-        check_shapes{inputs, *this}.has(0);
-        return l_shape;
-    }
-
-    argument compute(context& ctx, const shape&, const std::vector<argument>&) const
-    {
-        return get_preallocation(ctx, id);
-    }
-
-    void finalize(context& ctx, const shape&, const std::vector<shape>&) const
-    {
-        argument test = get_arg_from_file(l_shape, literal_file);
-        if(test.get_shape() == l.get_shape() && test.to_string() == l.get_argument().to_string())
-        {
-            std::cout << id << " was fetched correctly.\n";
-        }
-        else 
-        {
-            std::cout << "\n\n" << test.get_shape() << "\n" << test.to_string() << "\n\nVS:\n" << l.get_argument().to_string() << "\n\n";
-            MIGRAPHX_THROW(id + " fetched did not match saved literal.\n");
-        }
-        argument a = to_gpu(test);
-        store_preallocated_param(ctx, id, a);
-    }
-    friend std::ostream& operator<<(std::ostream& os, const hip_copy_fetch_literal_test& x)
-    {
-        os << x.name() << "[id=" << x.id << "]";
-        return os;
-    }
-};
-
 } // namespace gpu
 } // namespace MIGRAPHX_INLINE_NS
 } // namespace migraphx

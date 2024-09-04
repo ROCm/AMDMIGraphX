@@ -164,7 +164,6 @@ void write_literals::apply(module& m) const
                     }
 
                     m.replace_instruction(ins, hip_copy_fetch_literal{ins->get_shape(), output_file, id});
-                    // m.replace_instruction(ins, hip_copy_fetch_literal_test{ins->get_shape(), output_file, id, ins->get_literal()});
                     n++;
                 }
                 else

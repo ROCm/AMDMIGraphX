@@ -36,9 +36,12 @@ struct test_spacetodepth : verify_program<test_spacetodepth>
 
         migraphx::shape s{migraphx::shape::float_type, {2, 2, 6, 6}};
         auto x = mm->add_parameter("x", s);
-        auto reshape1 = mm->add_instruction(migraphx::make_op("reshape", {{"dims", {2, 2, 3, 2, 3, 2}}}), x);
-        auto transpose = mm->add_instruction(migraphx::make_op("transpose", {{"permutation", {0, 3, 5, 1, 2, 4}}}), reshape1);
-        auto reshape2 = mm->add_instruction(migraphx::make_op("reshape", {{"dims", {2, 8, 3, 3}}}), transpose);
+        auto reshape1 =
+            mm->add_instruction(migraphx::make_op("reshape", {{"dims", {2, 2, 3, 2, 3, 2}}}), x);
+        auto transpose = mm->add_instruction(
+            migraphx::make_op("transpose", {{"permutation", {0, 3, 5, 1, 2, 4}}}), reshape1);
+        auto reshape2 =
+            mm->add_instruction(migraphx::make_op("reshape", {{"dims", {2, 8, 3, 3}}}), transpose);
         mm->add_return({reshape2});
         return p;
     };

@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2023 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2024 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -46,11 +46,8 @@ void transform_quantize_dequantize_linear_inputs(const onnx_parser::node_info& i
     const auto y_scale_lens = y_scale->get_shape().lens();
     const auto y_scale_rank = y_scale_lens.size();
 
-    if(y_scale->get_shape().elements() != 1)
-        axis = tune_axis(x_rank, axis, op_name);
-
     // Per-tensor (per-layer) granularity
-    if(y_scale->get_shape().scalar())
+    if(y_scale->get_shape().elements() == 1)
     {
         std::transform(args.begin() + 1, args.end(), args.begin() + 1, [&](auto ins) {
             return info.add_instruction(make_op("multibroadcast", {{"out_lens", x_lens}}), ins);
@@ -59,9 +56,12 @@ void transform_quantize_dequantize_linear_inputs(const onnx_parser::node_info& i
     // Per-axis granularity
     else if(y_scale_rank == 1)
     {
+        axis = tune_axis(x_rank, axis, op_name);
         if(x_lens[axis] != y_scale_lens[0])
         {
-            MIGRAPHX_THROW("TODO");
+            MIGRAPHX_THROW(op_name + ": For per axis granularity the length of y_scale (actual: " +
+                           to_string(y_scale_lens[0]) + ") must be equal to size of x on axis " +
+                           to_string(axis) + "(actual :" + to_string(x_lens[axis]) + ")");
         }
 
         std::transform(args.begin() + 1, args.end(), args.begin() + 1, [&](auto ins) {
@@ -72,21 +72,27 @@ void transform_quantize_dequantize_linear_inputs(const onnx_parser::node_info& i
     // Blocked granularity
     else
     {
+        axis = tune_axis(x_rank, axis, op_name);
         if(block_size == 0)
         {
-            MIGRAPHX_THROW("TODO");
+            MIGRAPHX_THROW(op_name + ": Invalid blocksize(0)");
         }
 
         if(x_rank != y_scale_rank)
         {
-            MIGRAPHX_THROW("TODO");
+            MIGRAPHX_THROW(op_name + ": x(rank: " + to_string(x_rank) +
+                           ") and y_scale(rank: " + to_string(y_scale_rank) +
+                           ") must be of same rank for block granularity");
         }
 
         for(auto i = 0u; i < x_lens.size(); ++i)
         {
             if(x_lens[i] != y_scale_lens[i] and i != axis)
             {
-                MIGRAPHX_THROW("TODO");
+                MIGRAPHX_THROW(op_name + ": x(shape: " + to_string_range(x_lens) +
+                               ") and y_scale(shape: " + to_string_range(y_scale_lens) +
+                               ") shapes may only differ along provided axis(" + to_string(axis) +
+                               ")");
             }
         }
 
@@ -97,7 +103,9 @@ void transform_quantize_dequantize_linear_inputs(const onnx_parser::node_info& i
         int block_size_min = std::ceil(di / si);
         int block_size_max = std::ceil(di / (si - 1)) - 1;
         if(block_size < block_size_min or block_size > block_size_max)
-            MIGRAPHX_THROW("TODO");
+            MIGRAPHX_THROW(op_name + ": Block size(actual: " + to_string(block_size) +
+                           ") must be within range [" + to_string(block_size_min) + ", " +
+                           to_string(block_size_max) + "]");
 
         std::transform(args.begin() + 1, args.end(), args.begin() + 1, [&](auto ins) {
             if(block_size == 1)

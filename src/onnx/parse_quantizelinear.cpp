@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2023 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2024 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -38,7 +38,7 @@ struct parse_quantizelinear : op_parser<parse_quantizelinear>
     std::vector<op_desc> operators() const { return {{"QuantizeLinear"}}; }
 
     instruction_ref parse(const op_desc& opd,
-                          const onnx_parser& /*parser*/,
+                          const onnx_parser& parser,
                           const onnx_parser::node_info& info,
                           std::vector<instruction_ref>& args) const
     {
@@ -48,7 +48,10 @@ struct parse_quantizelinear : op_parser<parse_quantizelinear>
                            std::to_string(args.size()) + " inputs provided");
         }
 
-        if(args[0]->get_shape().type() != args[1]->get_shape().type())
+        // Starting with version 19 ONNX introduced the constraint that x and y_scale types must be
+        // the same
+        if(parser.opset_version >= 19 and
+           args[0]->get_shape().type() != args[1]->get_shape().type())
         {
             MIGRAPHX_THROW("QuantizeLinear: x and y_scale must be of same type");
         }
@@ -79,10 +82,24 @@ struct parse_quantizelinear : op_parser<parse_quantizelinear>
         if(output_type.has_value() and args.size() == 3 and
            *output_type != args[2]->get_shape().type())
         {
-            MIGRAPHX_THROW("TODO");
+            MIGRAPHX_THROW(
+                "QuantizeLinear: output_type and y_zero_point type must match. output_type: " +
+                to_string(*output_type) +
+                +", y_zero_point type: " + to_string(args[2]->get_shape().type()));
         }
 
         transform_quantize_dequantize_linear_inputs(info, opd.op_name, block_size, axis, args);
+
+        if(parser.opset_version < 19)
+        {
+            auto common_type = common_shape({args[0]->get_shape(), args[1]->get_shape()}).type();
+            std::transform(args.begin(), args.begin() + 2, args.begin(), [&](auto ins) {
+                if(ins->get_shape().type() != common_type)
+                    ins = info.add_instruction(make_op("convert", {{"target_type", common_type}}),
+                                               ins);
+                return ins;
+            });
+        }
 
         if(output_type.has_value())
             return info.add_instruction(make_op("quantizelinear", {{"out_type", *output_type}}),

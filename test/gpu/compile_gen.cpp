@@ -27,8 +27,8 @@
 TEST_CAST(find_fast_axis)
 {
     EXPECT(find_fast_axis(migraphx::shape{migraphx::shape::float_type, {2, 2, 2, 6, 3}}) == 4);
-    EXPECT(find_fast_axis(migraphx::shape{migraphx::shape::float_type, {2, 2, 2, 6, 3}, {72, 6, 1, 12, 2}}) == 2);
+    EXPECT(find_fast_axis(migraphx::shape{
+               migraphx::shape::float_type, {2, 2, 2, 6, 3}, {72, 6, 1, 12, 2}}) == 2);
 }
-
 
 int main(int argc, const char* argv[]) { test::run(argc, argv); }

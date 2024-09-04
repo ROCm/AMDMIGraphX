@@ -48,7 +48,6 @@ MIGRAPHX_REGISTER_OP(hip_copy)
 MIGRAPHX_REGISTER_OP(hip_allocate_memory)
 MIGRAPHX_REGISTER_OP(hip_copy_literal)
 MIGRAPHX_REGISTER_OP(hip_copy_fetch_literal)
-MIGRAPHX_REGISTER_OP(hip_copy_fetch_literal_test)
 
 using hip_ptr      = MIGRAPHX_MANAGE_PTR(void, hipFree);
 using hip_host_ptr = MIGRAPHX_MANAGE_PTR(void, hipHostUnregister);

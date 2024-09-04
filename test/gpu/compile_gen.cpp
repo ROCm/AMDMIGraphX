@@ -24,7 +24,12 @@
 #include <test.hpp>
 #include <migraphx/gpu/compile_gen.hpp>
 
-TEST_CAST(find_fast_axis)
+static const auto find_fast_axis = test::make_function("find_fast_axis", [](auto&&... xs) {
+    return migraphx::gpu::gen::find_fast_axis(static_cast<decltype(xs)>(xs)...);
+});
+
+
+TEST_CASE(test_find_fast_axis)
 {
     EXPECT(find_fast_axis(migraphx::shape{migraphx::shape::float_type, {2, 2, 2, 6, 3}}) == 4);
     EXPECT(find_fast_axis(migraphx::shape{

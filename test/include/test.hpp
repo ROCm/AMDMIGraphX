@@ -839,8 +839,8 @@ inline void run(int argc, const char* argv[])
 #define TEST_PRIMITIVE_CAT(x, ...) x##__VA_ARGS__
 
 // NOLINTNEXTLINE
-#define TEST_CASE_REGISTER(...)                                                    \
-    static test::auto_register_test_case TEST_CAT(register_test_case_, __LINE__) = \
+#define TEST_CASE_REGISTER(...)                                                       \
+    static test::auto_register_test_case TEST_CAT(register_test_case_, __COUNTER__) = \
         test::auto_register_test_case(#__VA_ARGS__, &__VA_ARGS__);
 
 // NOLINTNEXTLINE

@@ -20,58 +20,44 @@
  * LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
  * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
  * THE SOFTWARE.
+ *
  */
-#ifndef MIGRAPHX_GUARD_MIGRAPHX_OUTPUT_ITERATOR_HPP
-#define MIGRAPHX_GUARD_MIGRAPHX_OUTPUT_ITERATOR_HPP
+#ifndef MIGRAPHX_GUARD_MIGRAPHX_COPY_ASSIGNABLE_FUNCTION_HPP
+#define MIGRAPHX_GUARD_MIGRAPHX_COPY_ASSIGNABLE_FUNCTION_HPP
 
 #include <migraphx/config.hpp>
-#include <migraphx/copy_assignable_function.hpp>
-#include <iterator>
+#include <migraphx/optional.hpp>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
 
 template <class F>
-struct function_output_iterator
+struct copy_assignable_function_wrapper
 {
-    copy_assignable_function<F> f;
+    optional<F> f;
 
-    using self              = function_output_iterator;
-    using difference_type   = void;
-    using reference         = void;
-    using value_type        = void;
-    using pointer           = void;
-    using iterator_category = std::output_iterator_tag;
-
-    struct output_proxy
+    copy_assignable_function_wrapper(F pf) : f(std::move(pf)) {}
+    copy_assignable_function_wrapper(const copy_assignable_function_wrapper& other)     = default;
+    copy_assignable_function_wrapper(copy_assignable_function_wrapper&& other) noexcept = default;
+    copy_assignable_function_wrapper& operator=(copy_assignable_function_wrapper other)
     {
-        template <class T>
-        output_proxy& operator=(const T& value)
-        {
-            assert(f);
-            (*f)(value);
-            return *this;
-        }
-        copy_assignable_function<F>* f;
-    };
-    output_proxy operator*() { return output_proxy{&f}; }
-    self& operator++() { return *this; }
-    self& operator++(int) { return *this; } // NOLINT
+        f.reset();
+        if(other.f.has_value())
+            f.emplace(std::move(*other.f));
+        return *this;
+    }
+
+    template <class... Ts>
+    auto operator()(Ts&&... xs) const -> decltype((*f)(std::forward<Ts>(xs)...))
+    {
+        return (*f)(std::forward<Ts>(xs)...);
+    }
 };
 
 template <class F>
-function_output_iterator<F> make_function_output_iterator(F f)
-{
-    return {std::move(f)};
-}
-
-template <class Container>
-auto join_back_inserter(Container& c)
-{
-    return make_function_output_iterator(
-        [&](const auto& r) { c.insert(c.end(), r.begin(), r.end()); });
-}
+using copy_assignable_function =
+    std::conditional_t<std::is_copy_assignable<F>{}, F, copy_assignable_function_wrapper<F>>;
 
 } // namespace MIGRAPHX_INLINE_NS
 } // namespace migraphx
-#endif // MIGRAPHX_GUARD_MIGRAPHX_OUTPUT_ITERATOR_HPP
+#endif // MIGRAPHX_GUARD_MIGRAPHX_COPY_ASSIGNABLE_FUNCTION_HPP

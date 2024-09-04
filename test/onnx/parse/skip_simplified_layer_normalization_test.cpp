@@ -20,34 +20,16 @@
  * LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
  * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
  * THE SOFTWARE.
- *
  */
 
-#include <tf_test.hpp>
+#include <onnx_test.hpp>
+#include <onnx_test_utils.hpp>
 
-TEST_CASE(pack_test_nhwc)
+TEST_CASE(skip_simplified_layer_normalization_test)
 {
-    migraphx::program p;
+    migraphx::program p = make_simplified_layer_norm(
+        {2, 2, 4}, {2, 2, 4}, {4}, -1, 1e-5f, migraphx::shape::half_type);
 
-    auto* mm = p.get_main_module();
-    auto l0  = mm->add_parameter("0", migraphx::shape{migraphx::shape::float_type, {1, 2, 1, 1}});
-    auto l1  = mm->add_parameter("1", migraphx::shape{migraphx::shape::float_type, {1, 2, 1, 1}});
-    auto l2 = mm->add_parameter("2", migraphx::shape{migraphx::shape::float_type, {1, 2, 1, 1}});
-    std::vector<migraphx::instruction_ref> args{l0, l1, l2};
-    std::vector<migraphx::instruction_ref> unsqueezed_args;
-    int64_t nchw_axis = 1;
-
-    std::transform(args.begin(),
-                   args.end(),
-                   std::back_inserter(unsqueezed_args),
-                   [&](migraphx::instruction_ref arg) {
-                       return mm->add_instruction(
-                           migraphx::make_op("unsqueeze", {{"axes", {nchw_axis}}}), arg);
-                   });
-    auto concat =
-        mm->add_instruction(migraphx::make_op("concat", {{"axis", nchw_axis}}), unsqueezed_args);
-    mm->add_instruction(migraphx::make_op("transpose", {{"permutation", {0, 3, 4, 1, 2}}}), concat);
-    auto prog = optimize_tf("pack_test_nhwc.pb", true);
-
+    auto prog = optimize_onnx("skip_simplified_layer_normalization_test.onnx");
     EXPECT(p == prog);
 }

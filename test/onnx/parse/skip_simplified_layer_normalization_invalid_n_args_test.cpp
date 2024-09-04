@@ -20,33 +20,13 @@
  * LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
  * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
  * THE SOFTWARE.
- *
  */
 
-#include <tf_test.hpp>
-#include <tf_conv_utils.hpp>
+#include <onnx_test.hpp>
 
-TEST_CASE(depthwiseconv_test)
+TEST_CASE(skip_simplified_layer_normalization_invalid_n_args_test)
 {
-    migraphx::program p;
-
-    auto* mm = p.get_main_module();
-
-    auto x = mm->add_parameter("0", migraphx::shape{migraphx::shape::float_type, {1, 3, 16, 16}});
-    std::vector<float> weight_data(3 * 3 * 3 * 1);
-    std::fill(weight_data.begin(), weight_data.end(), 1.0f);
-    auto weights =
-        mm->add_literal(migraphx::shape{migraphx::shape::float_type, {3, 3, 3, 1}}, weight_data);
-
-    auto transpose = mm->add_instruction(
-        migraphx::make_op("transpose", {{"permutation", {2, 3, 0, 1}}}), weights);
-    mm->add_instruction(
-        migraphx::make_op(
-            "convolution",
-            {{"padding", {1, 1}}, {"stride", {1, 1}}, {"dilation", {1, 1}}, {"group", 3}}),
-        x,
-        transpose);
-    auto prog = optimize_tf("depthwise_conv_test.pb", true);
-
-    EXPECT(p == prog);
+    EXPECT(test::throws([&] {
+        migraphx::parse_onnx("skip_simplified_layer_normalization_invalid_n_args_test.onnx");
+    }));
 }

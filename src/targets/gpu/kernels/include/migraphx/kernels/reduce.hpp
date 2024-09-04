@@ -290,6 +290,12 @@ constexpr lazy_inner_storage<Size, F> make_lazy_inner_storage(Size, F f)
     return {{}, f};
 }
 
+template <class Size>
+constexpr auto make_indices(Size size)
+{
+    return make_lazy_inner_storage(size, [](auto j, auto) { return j; });
+}
+
 template <class R, class F>
 struct storage_access : F
 {

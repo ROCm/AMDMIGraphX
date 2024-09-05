@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2022 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2024 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -104,7 +104,7 @@ void write_literals::apply(module& m) const
         output_file_header = output + "_literals";
         if(mkdir(output_file_header.c_str(), 0777) == -1)
         {
-            std::cout << "Weights already created, using folder already created.\n\n";
+            std::cout << "Using past saved literals\n\n";
             create_file = false;
         }
     }
@@ -113,66 +113,66 @@ void write_literals::apply(module& m) const
     {
         if(ins->name() == "@literal")
         {
-            if(enabled(MIGRAPHX_COPY_LITERALS{}))
+            if(save_literals)
             {
-                if(save_literals)
+                std::string id = m.name() + ":@literal:" + std::to_string(n);
+                std::string buffer(ins->get_literal().data(), ins->get_shape().bytes());
+                std::hash<std::string> create_hash;
+                // can use better hashing method, this is just the easiest that worked
+                std::size_t hash_v = create_hash(buffer);
+                std::string output_file = output_file_header + "/" + std::to_string(hash_v) + ".mxr_literal" + ins->get_literal().get_shape().type_string();
+
+                // if need to save all files
+                if(create_file)
                 {
-                    std::string id = m.name() + ":@literal:" + std::to_string(n);
-                    // save current literal to it's own file (would need to change if literal.hpp is updated)
-                    std::string buffer(ins->get_literal().data(), ins->get_shape().bytes());
-                    std::hash<std::string> create_hash;
-                    // can use better hashing method, this is just the easiest that worked
-                    std::size_t hash_v = create_hash(buffer);
-                    std::string output_file = output_file_header + "/" + std::to_string(hash_v) + ".mxr_literal";
-                    if(create_file)
-                    {
+                    fs.open(output_file, std::ofstream::out | std::ofstream::trunc | std::ios::binary);
+                    fs.write(buffer.data(), ins->get_shape().bytes());
+                    fs.close();
+                }
+                // check and see if new file needs to be saved
+                else
+                {
+                    std::ifstream file(output_file);
+                    if(!file){
+                
                         fs.open(output_file, std::ofstream::out | std::ofstream::trunc | std::ios::binary);
                         fs.write(buffer.data(), ins->get_shape().bytes());
                         fs.close();
                     }
+                }
 
-                
+                if(enabled(MIGRAPHX_COPY_LITERALS{}))
+                {
                     auto pre = m.insert_instruction(ins, fetch_literal{id, ins->get_shape(), output_file});
                     auto alloc = m.insert_instruction(std::next(pre), hip_allocate{ins->get_literal().get_shape()});
                     m.replace_instruction(ins, hip_copy_to_gpu{}, pre, alloc);
-                    n++;
-
                 }
-                else
+                else 
+                {
+                    m.replace_instruction(ins, hip_copy_fetch_literal{ins->get_shape(), output_file, id});
+                }
+
+                n++;
+            }
+
+            // base strategy without stripping weights 
+            else
+            {
+                if(enabled(MIGRAPHX_COPY_LITERALS{}))
                 {
                     literal l  = ins->get_literal();
                     auto pre   = m.add_literal(l);
                     auto alloc = m.insert_instruction(std::next(pre), hip_allocate{l.get_shape()});
                     m.replace_instruction(ins, hip_copy_to_gpu{}, pre, alloc);
                 }
-            }
-            else
-            {
-                if(save_literals)
-                {
-                    std::string id = m.name() + ":@literal:" + std::to_string(n);
-                    std::string buffer(ins->get_literal().data(), ins->get_shape().bytes());
-                    std::hash<std::string> create_hash;
-                    // can use better hashing method, this is just the easiest that worked
-                    std::size_t hash_v = create_hash(buffer);
-                    std::string output_file = output_file_header + "/" + std::to_string(hash_v) + ".mxr_literal";
-                    if(create_file)
-                    {
-                        fs.open(output_file, std::ofstream::out | std::ofstream::trunc | std::ios::binary);
-                        fs.write(buffer.data(), ins->get_shape().bytes());
-                        fs.close();
-                    }
-
-                    m.replace_instruction(ins, hip_copy_fetch_literal{ins->get_shape(), output_file, id});
-                    n++;
-                }
-                else
+                else 
                 {
                     std::string id = m.name() + ":@literal:" + std::to_string(n);
                     m.replace_instruction(ins, hip_copy_literal{ins->get_literal(), id});
-                    n++;
                 }
+                n++;
             }
+            
         }
     }
 }

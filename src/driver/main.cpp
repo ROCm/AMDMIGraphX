@@ -164,7 +164,6 @@ struct loader
            ap.help("Print out program in binary format."),
            ap.set_value("binary"));
         ap(output, {"--output", "-o"}, ap.help("Output to file."));
-        std::cout << "output: " << output << std::endl;
     }
 
     static auto parse_param_dims(const std::vector<std::string>& param_dims_info)
@@ -555,17 +554,14 @@ struct compiler
         if(to_fp16)
         {
             quantize_fp16(p);
-            co.output.append("_fp16");
         }
         if(to_int8)
         {
             quantize_int8(p, t, {host_params(p)});
-            co.output.append("_int8");
         }
         if(to_fp8)
         {
             quantize_fp8(p, t, {host_params(p)});
-            co.output.append("_fp8");
         }
         p.compile(t, co);
         l.save(p);

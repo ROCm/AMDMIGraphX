@@ -45,10 +45,10 @@ namespace migraphx {
 
 extern "C" {
 
-MIGRAPHX_GLOBAL void pooling_kernel(void* in_data, void* output) 
+MIGRAPHX_GLOBAL void pooling_kernel(void* in_data, void* output)
 {
-    transform_args(make_tensors(), rotate_last())(in_data, output)([](auto&&... xs) { 
-        pooling<${count_include_pad}>(${op}, make_window(index_ints<${window}>{}, index_ints<${stride}>{}, index_ints<${padding}>{}), xs...); 
+    transform_args(make_tensors(), rotate_last())(in_data, output)([](auto&&... xs) {
+        pooling<${algo}, ${group_size}>(${op}, make_window(index_ints<${window}>{}, index_ints<${stride}>{}, index_ints<${padding}>{}), xs...);
     });
 }
 
@@ -60,13 +60,72 @@ MIGRAPHX_GLOBAL void pooling_kernel(void* in_data, void* output)
 
 struct pooling_compiler : compiler<pooling_compiler>
 {
+
+    static std::size_t compute_subwave_size(context& ctx, std::size_t n)
+    {
+        std::size_t max_wavefront_size = ctx.get_current_device().get_wavefront_size();
+        std::size_t wavefront_size     = 1;
+        while(wavefront_size <= n and wavefront_size < max_wavefront_size)
+            wavefront_size *= 2;
+        return wavefront_size / 2;
+    }
+
+    struct algorithm
+    {
+        std::string name        = "reduce::lane";
+        std::size_t reduce_size = 1;
+        std::size_t block_size  = 256;
+        std::size_t group_size  = 1;
+
+        static std::size_t compute_group_size(const shape& output)
+        {
+            auto n                           = output.lens().back();
+            const std::size_t max_group_size = 32;
+            std::size_t group_size           = 1;
+            while((n % (group_size * 2) == 0) and group_size <= max_group_size)
+                group_size *= 2;
+            return group_size;
+        }
+
+        algorithm() {}
+
+        algorithm(context& ctx, const shape& input, const std::vector<std::size_t>& window)
+        {
+            if(input.strides().back() != 1)
+                return;
+            std::size_t max_wavefront_size = ctx.get_current_device().get_wavefront_size();
+            auto wsize                     = window.back();
+            if(wsize > max_wavefront_size)
+            {
+                block_size  = compute_block_size(ctx, wsize, 256);
+                reduce_size = block_size;
+                name        = "reduce::block";
+            }
+            else
+            {
+                block_size  = max_wavefront_size;
+                reduce_size = compute_subwave_size(ctx, wsize);
+                name        = "reduce::subwave<" + to_string(reduce_size) + ">";
+            }
+        }
+    };
+
+    template <class... Ts>
+    static void normalize(std::vector<shape>& inputs, Ts&... xs)
+    {
+        auto perm = find_permutation(inputs);
+        std::transform(inputs.begin(), inputs.end(), inputs.begin(), [&](auto s) {
+            return reorder_shape(s, perm);
+        });
+        each_args([&](auto& dims) { dims = reorder_dims(dims, perm); }, xs...);
+    }
+
     std::vector<std::string> names() const { return {"pooling"}; }
 
     operation compile_op(context& ctx, const std::vector<shape>& inputs, const value& v) const
     {
         hip_compile_options options;
-        const auto& out_s = inputs.back();
-        options.set_launch_params(v, compute_global_for(ctx, out_s.elements()));
+        const auto& out_s      = inputs.back();
         options.inputs         = inputs;
         options.output         = out_s;
         options.kernel_name    = "pooling_kernel";
@@ -98,16 +157,24 @@ struct pooling_compiler : compiler<pooling_compiler>
         const auto& mode_v = v.at("mode");
         std::string mode =
             mode_v.is_string() ? mode_v.get_string() : to_string(mode_v.to<op::pooling_mode>());
+        bool count_include_pad = v.get("count_include_pad", false);
+        if(count_include_pad and mode == "average")
+            mode = "average_include_pad";
 
         std::string op = mode + "_pool";
         if(mode == "lpnorm")
             op += "<" + v.at("lp_order").to<std::string>() + ">";
 
-        std::string count_include_pad = v.get("count_include_pad", false) ? "true" : "false";
-
+        algorithm algo{};
+        options.set_launch_params(
+            v,
+            compute_global_for(ctx, (out_s.elements() / algo.group_size) * algo.reduce_size, 256),
+            algo.block_size);
+        normalize(options.virtual_inputs, padding, stride, window);
         auto src = interpolate_string(pooling_kernel,
-                                      {{"count_include_pad", count_include_pad},
-                                       {"op", op + "{}"},
+                                      {{"op", op + "{}"},
+                                       {"algo", algo.name},
+                                       {"group_size", to_string(algo.group_size)},
                                        {"window", to_string_range(window)},
                                        {"stride", to_string_range(stride)},
                                        {"padding", to_string_range(padding)}});

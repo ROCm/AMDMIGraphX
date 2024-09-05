@@ -26,6 +26,7 @@
 #include <migraphx/gpu/context.hpp>
 #include <migraphx/gpu/write_literals.hpp>
 #include <migraphx/register_target.hpp>
+#include <migraphx/env.hpp>
 #include <migraphx/module.hpp>
 #include <migraphx/program.hpp>
 #include <migraphx/make_op.hpp>
@@ -36,6 +37,8 @@
 #include <migraphx/instruction.hpp>
 #include <migraphx/functional.hpp>
 #include <test.hpp>
+
+MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_MLIR_ENABLE_SPLITK);
 
 struct mlir_gpu_target : migraphx::gpu::target
 {
@@ -154,11 +157,20 @@ bool verify_mlir(const migraphx::module& mmlir)
         "mlir", run_gpu(mlir, inputs), migraphx::verify::expected{run_ref(ref, inputs)});
 }
 
+std::string get_attrs()
+{
+    if(migraphx::enabled(MIGRAPHX_MLIR_ENABLE_SPLITK{}))
+    {
+        return R"({arch = "", enable_splitk_for_tuning, kernel = "mixr", num_cu = 0 : i64})";
+    }
+    return R"({arch = "", kernel = "mixr", num_cu = 0 : i64})";
+}
+
 TEST_CASE(conv)
 {
-    const std::string mlir_output = R"__migraphx__(
+    std::string mlir_output = R"__migraphx__(
 module {
-  func.func @mlir_convolution(%arg0: !migraphx.shaped<2x8x3x3xf32, 72x9x3x1>, %arg1: !migraphx.shaped<1x8x4x4xf32, 128x16x4x1>) -> !migraphx.shaped<1x2x2x2xf32, 8x4x2x1> attributes {arch = "", enable_splitk_for_tuning  =  true, kernel = "mixr", num_cu = 0 : i64} {
+  func.func @mlir_convolution(%arg0: !migraphx.shaped<2x8x3x3xf32, 72x9x3x1>, %arg1: !migraphx.shaped<1x8x4x4xf32, 128x16x4x1>) -> !migraphx.shaped<1x2x2x2xf32, 8x4x2x1> attributes ${attrs} {
     %0 = migraphx.convolution %arg1, %arg0 {dilation = [1, 1], group = 1 : i64, padding = [0, 0, 0, 0], padding_mode = 0 : i64, stride = [1, 1]} : <1x8x4x4xf32, 128x16x4x1>, <2x8x3x3xf32, 72x9x3x1> -> <1x2x2x2xf32, 8x4x2x1>
     return %0 : !migraphx.shaped<1x2x2x2xf32, 8x4x2x1>
   }
@@ -173,15 +185,17 @@ module {
     // Skip test if MLIR is not enabled
     if(s.empty())
         return;
-    CHECK(encode(s) == encode(mlir_output));
+    auto mlir_output_with_attrs =
+        migraphx::interpolate_string(mlir_output, {{"attrs", get_attrs()}});
+    CHECK(encode(s) == encode(mlir_output_with_attrs));
     EXPECT(verify_mlir(m));
 }
 
 TEST_CASE(conv_nhwc)
 {
-    const std::string mlir_output = R"__migraphx__(
+    std::string mlir_output = R"__migraphx__(
 module {
-  func.func @mlir_convolution(%arg0: !migraphx.shaped<2x8x3x3xf32, 72x1x24x8>, %arg1: !migraphx.shaped<1x8x4x4xf32, 128x1x32x8>) -> !migraphx.shaped<1x2x2x2xf32, 8x1x4x2> attributes {arch = "", enable_splitk_for_tuning  =  true, kernel = "mixr", num_cu = 0 : i64} {
+  func.func @mlir_convolution(%arg0: !migraphx.shaped<2x8x3x3xf32, 72x1x24x8>, %arg1: !migraphx.shaped<1x8x4x4xf32, 128x1x32x8>) -> !migraphx.shaped<1x2x2x2xf32, 8x1x4x2> attributes ${attrs} {
     %0 = migraphx.convolution %arg1, %arg0 {dilation = [1, 1], group = 1 : i64, padding = [0, 0, 0, 0], padding_mode = 0 : i64, stride = [1, 1]} : <1x8x4x4xf32, 128x1x32x8>, <2x8x3x3xf32, 72x1x24x8> -> <1x2x2x2xf32, 8x1x4x2>
     return %0 : !migraphx.shaped<1x2x2x2xf32, 8x1x4x2>
   }
@@ -196,15 +210,17 @@ module {
     // Skip test if MLIR is not enabled
     if(s.empty())
         return;
-    CHECK(encode(s) == encode(mlir_output));
+    auto mlir_output_with_attrs =
+        migraphx::interpolate_string(mlir_output, {{"attrs", get_attrs()}});
+    CHECK(encode(s) == encode(mlir_output_with_attrs));
     EXPECT(verify_mlir(m));
 }
 
 TEST_CASE(conv_add_relu)
 {
-    const std::string mlir_output = R"__migraphx__(
+    std::string mlir_output = R"__migraphx__(
 module {
-  func.func @mlir_convolution_add_relu(%arg0: !migraphx.shaped<1x2x2x2xf32, 8x4x2x1>, %arg1: !migraphx.shaped<2x8x3x3xf32, 72x9x3x1>, %arg2: !migraphx.shaped<1x8x4x4xf32, 128x16x4x1>) -> !migraphx.shaped<1x2x2x2xf32, 8x4x2x1> attributes {arch = "", enable_splitk_for_tuning  =  true, kernel = "mixr", num_cu = 0 : i64} {
+  func.func @mlir_convolution_add_relu(%arg0: !migraphx.shaped<1x2x2x2xf32, 8x4x2x1>, %arg1: !migraphx.shaped<2x8x3x3xf32, 72x9x3x1>, %arg2: !migraphx.shaped<1x8x4x4xf32, 128x16x4x1>) -> !migraphx.shaped<1x2x2x2xf32, 8x4x2x1> attributes ${attrs} {
     %0 = migraphx.convolution %arg2, %arg1 {dilation = [1, 1], group = 1 : i64, padding = [0, 0, 0, 0], padding_mode = 0 : i64, stride = [1, 1]} : <1x8x4x4xf32, 128x16x4x1>, <2x8x3x3xf32, 72x9x3x1> -> <1x2x2x2xf32, 8x4x2x1>
     %1 = migraphx.add %0, %arg0 : <1x2x2x2xf32, 8x4x2x1>, <1x2x2x2xf32, 8x4x2x1> -> <1x2x2x2xf32, 8x4x2x1>
     %2 = migraphx.relu %1 : <1x2x2x2xf32, 8x4x2x1> -> <1x2x2x2xf32, 8x4x2x1>
@@ -224,16 +240,19 @@ module {
     // Skip test if MLIR is not enabled
     if(s.empty())
         return;
-    CHECK(encode(s) == encode(mlir_output));
+    auto mlir_output_with_attrs =
+        migraphx::interpolate_string(mlir_output, {{"attrs", get_attrs()}});
+    CHECK(encode(s) == encode(mlir_output_with_attrs));
+
     EXPECT(verify_mlir(m));
 }
 
 // The following test checks that a dimension -1, within reshape operator is handled properly..
 TEST_CASE(conv_reshape_dim_minus_one)
 {
-    const std::string mlir_output = R"__migraphx__(
+    std::string mlir_output = R"__migraphx__(
 module {
-  func.func @mlir_convolution_reshape(%arg0: !migraphx.shaped<2x8x3x3xf32, 72x9x3x1>, %arg1: !migraphx.shaped<1x8x4x4xf32, 128x16x4x1>) -> !migraphx.shaped<1x4x1x2xf32, 8x2x2x1> attributes {arch = "", enable_splitk_for_tuning  =  true, kernel = "mixr", num_cu = 0 : i64} {
+  func.func @mlir_convolution_reshape(%arg0: !migraphx.shaped<2x8x3x3xf32, 72x9x3x1>, %arg1: !migraphx.shaped<1x8x4x4xf32, 128x16x4x1>) -> !migraphx.shaped<1x4x1x2xf32, 8x2x2x1> attributes ${attrs} {
     %0 = migraphx.convolution %arg1, %arg0 {dilation = [1, 1], group = 1 : i64, padding = [0, 0, 0, 0], padding_mode = 0 : i64, stride = [1, 1]} : <1x8x4x4xf32, 128x16x4x1>, <2x8x3x3xf32, 72x9x3x1> -> <1x2x2x2xf32, 8x4x2x1>
     %1 = migraphx.reshape %0 {dims  =  [1,  4,  1,  2]} : <1x2x2x2xf32, 8x4x2x1> -> <1x4x1x2xf32, 8x2x2x1>
     return %1 : !migraphx.shaped<1x4x1x2xf32, 8x2x2x1>
@@ -250,15 +269,46 @@ module {
     // Skip test if MLIR is not enabled
     if(s.empty())
         return;
-    CHECK(encode(s) == encode(mlir_output));
+    auto mlir_output_with_attrs =
+        migraphx::interpolate_string(mlir_output, {{"attrs", get_attrs()}});
+    CHECK(encode(s) == encode(mlir_output_with_attrs));
     EXPECT(verify_mlir(m));
+}
+
+TEST_CASE(conv_reduce_sum)
+{
+    std::string mlir_output = R"__migraphx__(
+module {
+  func.func @mlir_convolution_reshape_reduce_sum_reshape(%arg0: !migraphx.shaped<2x8x3x3xf32, 72x9x3x1>, %arg1: !migraphx.shaped<1x8x4x4xf32, 128x16x4x1>) -> !migraphx.shaped<1x2x1x1xf32, 2x1x1x1> attributes ${attrs} {
+    %0 = migraphx.convolution %arg1, %arg0 {dilation = [1, 1], group = 1 : i64, padding = [0, 0, 0, 0], padding_mode = 0 : i64, stride = [1, 1]} : <1x8x4x4xf32, 128x16x4x1>, <2x8x3x3xf32, 72x9x3x1> -> <1x2x2x2xf32, 8x4x2x1>
+    %1 = migraphx.reshape %0 {dims = [1,  2,  4]} : <1x2x2x2xf32, 8x4x2x1> -> <1x2x4xf32, 8x4x1>
+    %2 = migraphx.reduce_sum %1 {axes = [2]} : <1x2x4xf32, 8x4x1> -> <1x2x1xf32, 2x1x1>
+    %3 = migraphx.reshape %2 {dims = [1, 2, 1, 1]} : <1x2x1xf32, 2x1x1> -> <1x2x1x1xf32, 2x1x1x1>
+    return %3 : !migraphx.shaped<1x2x1x1xf32, 2x1x1x1>
+  }
+}
+)__migraphx__";
+    migraphx::module m;
+    auto x          = m.add_parameter("x", {migraphx::shape::float_type, {1, 8, 4, 4}});
+    auto w          = m.add_parameter("w", {migraphx::shape::float_type, {2, 8, 3, 3}});
+    auto conv       = m.add_instruction(migraphx::make_op("convolution"), x, w);
+    auto reduce_sum = m.add_instruction(migraphx::make_op("reduce_sum", {{"axes", {2, 3}}}), conv);
+    m.add_return({reduce_sum});
+    auto s = migraphx::gpu::dump_mlir(m);
+    // Skip test if MLIR is not enabled
+    if(s.empty())
+        return;
+    auto mlir_output_with_attrs =
+        migraphx::interpolate_string(mlir_output, {{"attrs", get_attrs()}});
+    CHECK(encode(s) == encode(mlir_output_with_attrs));
+    // EXPECT(verify_mlir(m));
 }
 
 TEST_CASE(quant_dot_add)
 {
-    const std::string mlir_output = R"__migraphx__(
+    std::string mlir_output = R"__migraphx__(
 module {
-  func.func @mlir_quant_dot_add(%arg0: !migraphx.shaped<1x5x4xi8, 20x4x1>, %arg1: !migraphx.shaped<1x4x3xi8, 12x3x1>, %arg2: !migraphx.shaped<1x5x3xi32, 15x3x1>) -> !migraphx.shaped<1x5x3xi32, 15x3x1> attributes {arch = "", enable_splitk_for_tuning  =  true, kernel = "mixr", num_cu = 0 : i64} {
+  func.func @mlir_quant_dot_add(%arg0: !migraphx.shaped<1x5x4xi8, 20x4x1>, %arg1: !migraphx.shaped<1x4x3xi8, 12x3x1>, %arg2: !migraphx.shaped<1x5x3xi32, 15x3x1>) -> !migraphx.shaped<1x5x3xi32, 15x3x1> attributes ${attrs} {
     %0 = migraphx.quant_dot %arg0, %arg1 : <1x5x4xi8, 20x4x1>, <1x4x3xi8, 12x3x1> -> <1x5x3xi32, 15x3x1>
     %1 = migraphx.add %0, %arg2 : <1x5x3xi32, 15x3x1>, <1x5x3xi32, 15x3x1> -> <1x5x3xi32, 15x3x1>
     return %1 : !migraphx.shaped<1x5x3xi32, 15x3x1>
@@ -277,15 +327,17 @@ module {
     // Skip test if MLIR is not enabled
     if(s.empty())
         return;
-    CHECK(encode(s) == encode(mlir_output));
+    auto mlir_output_with_attrs =
+        migraphx::interpolate_string(mlir_output, {{"attrs", get_attrs()}});
+    CHECK(encode(s) == encode(mlir_output_with_attrs));
     EXPECT(verify_mlir(m));
 }
 
 TEST_CASE(dot_add)
 {
-    const std::string mlir_output = R"__migraphx__(
+    std::string mlir_output = R"__migraphx__(
 module {
-  func.func @mlir_dot_add(%arg0: !migraphx.shaped<1x5x4xf32, 20x4x1>, %arg1: !migraphx.shaped<1x4x3xf32, 12x3x1>, %arg2: !migraphx.shaped<1x5x3xf32, 15x3x1>) -> !migraphx.shaped<1x5x3xf32, 15x3x1> attributes {arch = "", enable_splitk_for_tuning  =  true, kernel = "mixr", num_cu = 0 : i64} {
+  func.func @mlir_dot_add(%arg0: !migraphx.shaped<1x5x4xf32, 20x4x1>, %arg1: !migraphx.shaped<1x4x3xf32, 12x3x1>, %arg2: !migraphx.shaped<1x5x3xf32, 15x3x1>) -> !migraphx.shaped<1x5x3xf32, 15x3x1> attributes ${attrs} {
     %0 = migraphx.dot %arg0, %arg1 : <1x5x4xf32, 20x4x1>, <1x4x3xf32, 12x3x1> -> <1x5x3xf32, 15x3x1>
     %1 = migraphx.add %0, %arg2 : <1x5x3xf32, 15x3x1>, <1x5x3xf32, 15x3x1> -> <1x5x3xf32, 15x3x1>
     return %1 : !migraphx.shaped<1x5x3xf32, 15x3x1>
@@ -303,15 +355,17 @@ module {
     // Skip test if MLIR is not enabled
     if(s.empty())
         return;
-    CHECK(encode(s) == encode(mlir_output));
+    auto mlir_output_with_attrs =
+        migraphx::interpolate_string(mlir_output, {{"attrs", get_attrs()}});
+    CHECK(encode(s) == encode(mlir_output_with_attrs));
     EXPECT(verify_mlir(m));
 }
 
 TEST_CASE(conv_int8_dequantize_quantize)
 {
-    const std::string mlir_output = R"__migraphx__(
+    std::string mlir_output = R"__migraphx__(
 module {
-  func.func @mlir_quant_convolution_dequantizelinear_quantizelinear(%arg0: !migraphx.shaped<2x8x3x3xi8, 72x9x3x1>, %arg1: !migraphx.shaped<1x8x4x4xi8, 128x16x4x1>, %arg2: !migraphx.shaped<1x2x2x2xf32, 8x4x2x1>, %arg3: !migraphx.shaped<1x2x2x2xi32, 8x4x2x1>) -> !migraphx.shaped<1x2x2x2xi32, 8x4x2x1> attributes {arch = "", enable_splitk_for_tuning  =  true, kernel = "mixr", num_cu = 0 : i64} {
+  func.func @mlir_quant_convolution_dequantizelinear_quantizelinear(%arg0: !migraphx.shaped<2x8x3x3xi8, 72x9x3x1>, %arg1: !migraphx.shaped<1x8x4x4xi8, 128x16x4x1>, %arg2: !migraphx.shaped<1x2x2x2xf32, 8x4x2x1>, %arg3: !migraphx.shaped<1x2x2x2xi32, 8x4x2x1>) -> !migraphx.shaped<1x2x2x2xi32, 8x4x2x1> attributes ${attrs} {
       %0 = migraphx.quant_convolution %arg1, %arg0 {dilation = [1, 1], group = 1 : i64, padding = [0, 0, 0, 0], padding_mode = 0 : i64, stride = [1, 1]} : <1x8x4x4xi8, 128x16x4x1>, <2x8x3x3xi8, 72x9x3x1> -> <1x2x2x2xi32, 8x4x2x1>
       %1 = migraphx.dequantizelinear %0, %arg2, %arg3 : <1x2x2x2xi32, 8x4x2x1>, <1x2x2x2xf32, 8x4x2x1>, !migraphx.shaped<1x2x2x2xi32, 8x4x2x1> -> <1x2x2x2xf32, 8x4x2x1>
       %2 = migraphx.quantizelinear %1, %arg2, %arg3 : <1x2x2x2xf32, 8x4x2x1>, <1x2x2x2xf32, 8x4x2x1>, !migraphx.shaped<1x2x2x2xi32, 8x4x2x1> -> <1x2x2x2xi32, 8x4x2x1>
@@ -336,15 +390,17 @@ module {
     // Skip test if MLIR is not enabled
     if(s.empty())
         return;
-    CHECK(encode(s) == encode(mlir_output));
+    auto mlir_output_with_attrs =
+        migraphx::interpolate_string(mlir_output, {{"attrs", get_attrs()}});
+    CHECK(encode(s) == encode(mlir_output_with_attrs));
     EXPECT(verify_mlir(m));
 }
 
 TEST_CASE(dot_convert)
 {
-    const std::string mlir_output = R"__migraphx__(
+    std::string mlir_output = R"__migraphx__(
 module {
-  func.func @mlir_dot_convert(%arg0: !migraphx.shaped<1x5x4xf32, 20x4x1>, %arg1: !migraphx.shaped<1x4x3xf32, 12x3x1>) -> !migraphx.shaped<1x5x3xf16, 15x3x1> attributes {arch = "", enable_splitk_for_tuning  =  true, kernel = "mixr", num_cu = 0 : i64} {
+  func.func @mlir_dot_convert(%arg0: !migraphx.shaped<1x5x4xf32, 20x4x1>, %arg1: !migraphx.shaped<1x4x3xf32, 12x3x1>) -> !migraphx.shaped<1x5x3xf16, 15x3x1> attributes ${attrs} {
     %0 = migraphx.dot %arg0, %arg1 : <1x5x4xf32, 20x4x1>, <1x4x3xf32, 12x3x1> -> <1x5x3xf32, 15x3x1>
     %1 = migraphx.convert %0 {target_type  =  1  :  i64} : <1x5x3xf32, 15x3x1> to <1x5x3xf16, 15x3x1>
     return %1 : !migraphx.shaped<1x5x3xf16, 15x3x1>
@@ -362,15 +418,17 @@ module {
     // Skip test if MLIR is not enabled
     if(s.empty())
         return;
-    CHECK(encode(s) == encode(mlir_output));
+    auto mlir_output_with_attrs =
+        migraphx::interpolate_string(mlir_output, {{"attrs", get_attrs()}});
+    CHECK(encode(s) == encode(mlir_output_with_attrs));
     EXPECT(verify_mlir(m));
 }
 
 TEST_CASE(dot_where)
 {
-    const std::string mlir_output = R"__migraphx__(
+    std::string mlir_output = R"__migraphx__(
 module {
-  func.func @mlir_dot_where(%arg0: !migraphx.shaped<1x5x4xf32, 20x4x1>, %arg1: !migraphx.shaped<1x4x3xf32, 12x3x1>, %arg2: !migraphx.shaped<1x5x3xi8, 15x3x1>, %arg3: !migraphx.shaped<1x5x3xf32, 15x3x1>) -> !migraphx.shaped<1x5x3xf32, 15x3x1> attributes {arch = "", enable_splitk_for_tuning  =  true, kernel = "mixr", num_cu = 0 : i64} {
+  func.func @mlir_dot_where(%arg0: !migraphx.shaped<1x5x4xf32, 20x4x1>, %arg1: !migraphx.shaped<1x4x3xf32, 12x3x1>, %arg2: !migraphx.shaped<1x5x3xi8, 15x3x1>, %arg3: !migraphx.shaped<1x5x3xf32, 15x3x1>) -> !migraphx.shaped<1x5x3xf32, 15x3x1> attributes ${attrs} {
     %0 = migraphx.dot %arg0, %arg1 : <1x5x4xf32, 20x4x1>, <1x4x3xf32, 12x3x1> -> <1x5x3xf32, 15x3x1>
     %1 = migraphx.where %arg2, %0, %arg3 : <1x5x3xi8, 15x3x1>, <1x5x3xf32, 15x3x1>, <1x5x3xf32, 15x3x1> -> <1x5x3xf32, 15x3x1>
     return %1 : !migraphx.shaped<1x5x3xf32, 15x3x1>
@@ -389,7 +447,10 @@ module {
     // Skip test if MLIR is not enabled
     if(s.empty())
         return;
-    CHECK(encode(s) == encode(mlir_output));
+    auto mlir_output_with_attrs =
+        migraphx::interpolate_string(mlir_output, {{"attrs", get_attrs()}});
+    CHECK(encode(s) == encode(mlir_output_with_attrs));
+
     EXPECT(verify_mlir(m));
 }
 

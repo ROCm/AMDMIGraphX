@@ -191,10 +191,12 @@ void quantize_fp8(program& prog, const target& t, const std::vector<parameter_ma
     };
     if(gfx_has_fp8fnuz())
     {
+        std::cout << "fnuz\n";
         quantize_8bits(prog, t, shape::fp8e4m3fnuz_type, calibration, supported_ins_names);
     }
     else
     {
+        std::cout << "OCP\n";
         quantize_8bits(prog, t, shape::fp8e4m3fn_type, calibration, supported_ins_names);
     }
 }

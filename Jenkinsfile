@@ -57,8 +57,7 @@ def rocmtestnode(Map conf) {
     node(name) {
         withEnv(['HSA_ENABLE_SDMA=0']) {
             stage("checkout ${variant}") {
-                echo env
-                sh env
+                sh 'printenv'
                 checkout scm
             }
             gitStatusWrapper(credentialsId: "${env.status_wrapper_creds}", gitHubContext: "Jenkins - ${variant}", account: 'ROCmSoftwarePlatform', repo: 'AMDMIGraphX') {

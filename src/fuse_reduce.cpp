@@ -205,7 +205,10 @@ struct find_pointwise_reduce
         const auto* old_rm = reduce->module_inputs().front();
 
         auto* rm = mpm.create_module(pm->name() + ":" + old_rm->name());
+        rm->set_bypass();
+        std::unordered_map<instruction_ref, instruction_ref> map_ins;
         // Insert pointwise
+        auto rins      = rm->fuse({input}, &map_ins).front();
         map_ins[input] = rins;
 
         if(contains(r.instructions, "broadcast"))

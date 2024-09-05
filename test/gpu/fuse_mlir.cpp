@@ -37,8 +37,6 @@
 MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_ENABLE_MLIR_INPUT_FUSION);
 MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_ENABLE_MLIR_REDUCE_FUSION);
 
-MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_ENABLE_MLIR_INPUT_FUSION);
-
 void run_pass(migraphx::program& p)
 {
     migraphx::run_passes(
@@ -397,44 +395,6 @@ TEST_CASE(add_dot)
                              pm->add_instruction(migraphx::make_op("add"), inputs[0], inputs[1]);
                          auto dot = pm->add_instruction(migraphx::make_op("dot"), add, inputs[2]);
                          return std::make_tuple(dot->get_operator(), dot);
-                     });
-        mm->add_return({fused});
-    }
-    if(not migraphx::enabled(MIGRAPHX_ENABLE_MLIR_INPUT_FUSION{}))
-        return;
-    EXPECT(p1.sort() == p2.sort());
-}
-
-TEST_CASE(add_dot)
-{
-    migraphx::shape s{migraphx::shape::float_type, {1, 3, 3}};
-    migraphx::program p1;
-    {
-        auto* mm = p1.get_main_module();
-        auto b   = mm->add_parameter("b", s);
-        auto x   = mm->add_parameter("x", s);
-        auto y   = mm->add_parameter("y", s);
-        auto add = add_pointwise(p1, "main:pointwise0", {x, y}, single_pointwise("add"));
-        auto dot = mm->add_instruction(migraphx::make_op("dot"), add, b);
-        mm->add_return({dot});
-    }
-    run_pass(p1);
-    migraphx::program p2;
-    {
-        auto* mm = p2.get_main_module();
-        auto b   = mm->add_parameter("b", s);
-        auto x   = mm->add_parameter("x", s);
-        auto y   = mm->add_parameter("y", s);
-        auto fused =
-            add_mlir(p2,
-                     "main:pointwise0:mlir_dot1",
-                     {x, y, b},
-                     {"x0", "x1", "x2"},
-                     [=](auto* pm, const auto& inputs) {
-                         auto add =
-                             pm->add_instruction(migraphx::make_op("add"), inputs[0], inputs[1]);
-                         auto dot = pm->add_instruction(migraphx::make_op("dot"), add, inputs[2]);
-                         return std::make_tuple(dot, dot);
                      });
         mm->add_return({fused});
     }

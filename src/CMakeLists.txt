@@ -114,7 +114,6 @@ add_library(migraphx
     split_single_dyn_dim.cpp
     target.cpp
     tmp_dir.cpp
-    use_padded_attention_mask.cpp
     value.cpp
     verify_args.cpp
 )
@@ -317,8 +316,8 @@ target_link_libraries(migraphx PRIVATE nlohmann_json::nlohmann_json)
 find_package(SQLite3 REQUIRED)
 target_link_libraries(migraphx PRIVATE SQLite::SQLite3)
 
-find_package(msgpack-cxx QUIET)
-if(NOT msgpack-cxx_FOUND)
+find_package(msgpackc-cxx QUIET)
+if(NOT msgpackc-cxx_FOUND)
     find_package(msgpack REQUIRED)
 endif()
 target_link_libraries(migraphx PRIVATE msgpackc-cxx)

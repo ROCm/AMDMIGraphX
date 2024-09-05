@@ -29,7 +29,6 @@
 #include <migraphx/auto_contiguous.hpp>
 #include <migraphx/rewrite_rnn.hpp>
 #include <migraphx/eliminate_convert.hpp>
-#include <migraphx/use_padded_attention_mask.hpp>
 #include <migraphx/eliminate_pad.hpp>
 #include <migraphx/insert_pad.hpp>
 #include <migraphx/dead_code_elimination.hpp>
@@ -41,14 +40,11 @@ namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
 namespace ref {
 
-MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_PADDED_ATTN_MASK)
-
 std::string target::name() const { return "ref"; }
 
 std::vector<pass> target::get_passes(migraphx::context&, const compile_options&) const
 {
-    return {enable_pass(enabled(MIGRAPHX_PADDED_ATTN_MASK{}), use_padded_attention_mask{}),
-            normalize_ops{},
+    return {normalize_ops{},
             eliminate_pad{},
             dead_code_elimination{},
             insert_pad{},

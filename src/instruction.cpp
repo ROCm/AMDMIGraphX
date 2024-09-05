@@ -440,7 +440,6 @@ void instruction::debug_print() const
 instruction_ref instruction::get_output_alias(instruction_ref ins, bool shallow)
 {
     auto i = ins->get_operator().output_alias(to_shapes(ins->inputs()));
-    // std::cout << "alias = " << i << std::endl;
     if(i < 0)
         return ins;
     if(shallow)
@@ -491,12 +490,10 @@ shape compute_shape(const operation& op,
 {
     if(mods.empty())
     {
-        // std::cout << "mods.empty()" << std::endl;
         return op.compute_shape(to_shapes(args));
     }
     else
     {
-        // std::cout << "NOT mods.empty()" << std::endl;
         return op.compute_shape(to_shapes(args), mods);
     }
 }

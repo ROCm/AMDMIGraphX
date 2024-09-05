@@ -60,7 +60,7 @@ void gemm(tensor_view<T> cmat, tensor_view<U> amat, tensor_view<U> bmat, F alpha
     });
 }
 
-// Assume only 2D matrices
+// Strided 2D GEMM
 template <class T, class U, class F>
 void gemm(std::size_t M, std::size_t N, std::size_t K, std::size_t lda, std::size_t ldb, std::size_t ldc, T cmat, U amat, U bmat, F alpha, F beta, shape::type_t dtype, const bool b_transpose = false)
 {
@@ -82,7 +82,6 @@ void gemm(std::size_t M, std::size_t N, std::size_t K, std::size_t lda, std::siz
                  static_cast<double>(bmat[b_i]);
         });
         auto c_i = c_idx(ii, jj);
-        // printf("ref_gemm c[%zu] = %f * %f + %f * %f\n", c_i, static_cast<double>(alpha), static_cast<double>(s), static_cast<double>(cmat[c_i]), static_cast<double>(beta));
         cmat[c_i] = static_cast<double>(alpha) * s + cmat[c_i] * static_cast<double>(beta);
     });
 }

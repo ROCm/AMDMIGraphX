@@ -57,27 +57,8 @@ struct make_tensor<${n}>
 };
 )__migraphx__";
 
-
 std::string generate_make_tensor(std::size_t n, const shape& s)
 {
-    // if (not s.sub_shapes().empty())
-    // {
-    //     auto s0 = s.sub_shapes().front();
-    //     // std::cout << s0 << std::endl;
-    //     // std::cout << "n " << std::to_string(n) << std::endl;
-    //     // std::cout << "type " << shape::cpp_type(s0.type()) << std::endl;
-    //     // std::cout << "lens " << generate_index_ints(s0.lens()) << std::endl;
-    //     // std::cout << "strides " << generate_index_ints(s0.strides()) << std::endl;
-    //     return interpolate_string(make_tensor_template,
-    //                             {{"n", std::to_string(n)},
-    //                             {"type", shape::cpp_type(s0.type())},
-    //                             {"lens", generate_index_ints(s0.lens())},
-    //                             {"strides", generate_index_ints(s0.strides())}});
-    // }
-    // std::cout << "n " << std::to_string(n) << std::endl;
-    // std::cout << "type " << shape::cpp_type(s.type()) << std::endl;
-    // std::cout << "lens " << generate_index_ints(s.lens()) << std::endl;
-    // std::cout << "strides " << generate_index_ints(s.strides()) << std::endl;
     return interpolate_string(make_tensor_template,
                               {{"n", std::to_string(n)},
                                {"type", shape::cpp_type(s.type())},
@@ -88,14 +69,10 @@ std::string generate_make_tensor(std::size_t n, const shape& s)
 std::string generate_args_hpp(const std::vector<shape>& inputs)
 {
     std::string inner;
-    // std::cout << "inputs.size " << inputs.size() << std::endl;
     for(std::size_t i = 0; i < inputs.size(); i++)
     {
-        // std::cout << "generate tensor " << i << std::endl;
         inner += generate_make_tensor(i, inputs[i]);
-        // std::cout << "generated tensor " << i << std::endl;
     }
-    // std::cout << "args_hpp" << std::endl;
     const std::string args_hpp = R"__migraphx__(
 #ifndef MIGRAPHX_GUARD_AUTO_ARGS_HPP
 #define MIGRAPHX_GUARD_AUTO_ARGS_HPP
@@ -196,7 +173,6 @@ std::size_t compute_block_size(context& ctx, std::size_t n, std::size_t max_bloc
 
 operation compile_hip_code_object(const std::string& content, hip_compile_options options)
 {
-    // std::cout << "chco: " << options.kernel_name << std::endl;
     assert(options.global > 0);
     assert(options.local > 0);
     assert(not options.inputs.empty());
@@ -210,10 +186,8 @@ operation compile_hip_code_object(const std::string& content, hip_compile_option
         std::back_inserter(srcs),
         [](const std::pair<std::string_view, std::string_view>& elem) { return src_file{elem}; });
     srcs.emplace_back("main.cpp", content);
-    // std::cout << "gen args" << std::endl;
     auto args_hpp =
         generate_args_hpp(options.virtual_inputs.empty() ? options.inputs : options.virtual_inputs);
-    // std::cout << "gen args 2" << std::endl;
     srcs.emplace_back("args.hpp", args_hpp);
 
     if(options.global % options.local != 0 and hip_accept_non_uniform_wg())
@@ -227,11 +201,9 @@ operation compile_hip_code_object(const std::string& content, hip_compile_option
     options.params.insert(options.params.end(), warnings.begin(), warnings.end());
     options.emplace_param("-ftemplate-backtrace-limit=0");
     options.emplace_param("-Werror");
-    // std::cout << "comp hip src" << std::endl;
     auto cos = compile_hip_src(srcs, options.params, get_device_name());
     if(cos.size() != 1)
         MIGRAPHX_THROW("No code object");
-    // std::cout << "code_object_op:" << options.kernel_name << std::endl;
     return code_object_op{value::binary{cos.front()},
                           options.kernel_name,
                           options.global,

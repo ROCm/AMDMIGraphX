@@ -329,11 +329,9 @@ instruction_ref module::replace_instruction(instruction_ref ins,
     impl->changed.notify();
     assert(has_instruction(ins));
     assert(not starts_with(op.name(), "@"));
-    // std::cout << "rep_ins 1" << std::endl;
+
     shape r = compute_shape(op, args);
-    // std::cout << "rep_ins 2" << std::endl;
     instruction::replace(ins, op, r, std::move(args));
-    // std::cout << "rep_ins 3" << std::endl;
     assert(ins->valid(begin()));
     return ins;
 }

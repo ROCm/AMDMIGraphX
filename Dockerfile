@@ -134,8 +134,3 @@ ENV UBSAN_OPTIONS=print_stacktrace=1
 # See: https://github.com/google/sanitizers/issues/1017
 ENV ASAN_OPTIONS=detect_stack_use_after_return=1:check_initialization_order=1:strict_init_order=1
 RUN ln -s /opt/rocm/llvm/bin/llvm-symbolizer /usr/bin/llvm-symbolizer
-
-ENV PYTHONPATH=/opt/rocm/lib:$PYTHONPATH
-RUN pip install torch transformers sentencepiece onnxruntime huggingface_hub
-# RUN python -c "from huggingface_hub.hf_api import HfFolder; HfFolder.save_token('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')"
-RUN python3 -c 'from huggingface_hub.commands.user import login; login(token="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")'

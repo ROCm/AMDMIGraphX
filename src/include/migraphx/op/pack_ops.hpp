@@ -48,8 +48,6 @@ struct pack_ops
     {
         return {args};
     }
-
-    // std::ptrdiff_t output_alias(const std::vector<shape>&) const { return 0; }
 };
 
 } // namespace op

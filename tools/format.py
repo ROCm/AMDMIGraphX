@@ -23,7 +23,7 @@
 #####################################################################################
 import os, shlex, shutil, argparse, subprocess
 
-CLANG_FORMAT_PATH = '/usr/bin'
+CLANG_FORMAT_PATH = '/opt/rocm/llvm/bin'
 
 EXCLUDE_FILES = ['requirements.in', 'onnx.proto']
 
@@ -103,7 +103,7 @@ def yapf_format(against, apply=False):
 
 def main():
     parser = argparse.ArgumentParser()
-    parser.add_argument('against', default='origin/develop', nargs='?')
+    parser.add_argument('against', default='develop', nargs='?')
     parser.add_argument('-i', '--in-place', action='store_true')
     parser.add_argument('-q', '--quiet', action='store_true')
     args = parser.parse_args()

@@ -54,8 +54,7 @@ TEST_CASE(softmaxcrossentropyloss_2d_no_reduction_test)
     auto logsoftmax    = mm->add_instruction(migraphx::make_op("log"), gathernd);
     auto neglogsoftmax = mm->add_instruction(migraphx::make_op("neg"), logsoftmax);
 
-    auto weighted_loss =
-        mm->add_instruction(migraphx::make_op("mul"), neglogsoftmax, gathernd2);
+    mm->add_instruction(migraphx::make_op("mul"), neglogsoftmax, gathernd2);
 
     auto prog = optimize_onnx("softmaxcrossentropyloss_2d_no_reduction_test.onnx");
 
@@ -92,8 +91,7 @@ TEST_CASE(softmaxcrossentropyloss_2d_no_reduction_double_test)
     auto logsoftmax    = mm->add_instruction(migraphx::make_op("log"), gathernd);
     auto neglogsoftmax = mm->add_instruction(migraphx::make_op("neg"), logsoftmax);
 
-    auto weighted_loss =
-        mm->add_instruction(migraphx::make_op("mul"), neglogsoftmax, gathernd2);
+    mm->add_instruction(migraphx::make_op("mul"), neglogsoftmax, gathernd2);
 
     auto prog = optimize_onnx("softmaxcrossentropyloss_2d_no_reduction_double_test.onnx");
 
@@ -126,8 +124,7 @@ TEST_CASE(softmaxcrossentropyloss_2d_no_reduction_half_test)
     auto logsoftmax    = mm->add_instruction(migraphx::make_op("log"), gathernd);
     auto neglogsoftmax = mm->add_instruction(migraphx::make_op("neg"), logsoftmax);
 
-    auto weighted_loss =
-        mm->add_instruction(migraphx::make_op("mul"), neglogsoftmax, gathernd2);
+    mm->add_instruction(migraphx::make_op("mul"), neglogsoftmax, gathernd2);
 
     auto prog = optimize_onnx("softmaxcrossentropyloss_2d_no_reduction_half_test.onnx");
 

@@ -64,7 +64,8 @@ void auto_contiguous::apply(module& m) const
         if(ins->outputs().empty() and ins != last)
             continue;
         shape s = ins->get_shape();
-        if(not s.dynamic() and (not s.standard() or s.normalize_standard() != s) and s.elements() > 1)
+        if(not s.dynamic() and (not s.standard() or s.normalize_standard() != s) and
+           s.elements() > 1)
         {
             auto c = m.insert_instruction(std::next(ins), make_op("contiguous"), ins);
             m.replace_instruction(ins, c);

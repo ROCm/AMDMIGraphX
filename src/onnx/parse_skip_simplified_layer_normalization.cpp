@@ -100,14 +100,15 @@ struct parse_skip_simplified_layer_normalization
         {
             MIGRAPHX_THROW("PARSE_SKIPSIMPLIFIEDLAYERNORMALIZATION: invalid input shape");
         }
-        
+
         x         = info.add_common_op("add", x, skip);
         // Convert to float before reduce_mean
         // Fp16 reduce_mean on GPU causes loss of accuracy
-        auto float_x = info.add_instruction(make_op("convert", {{"target_type", migraphx::shape::float_type}}), x);
+        auto float_x = info.add_instruction(
+            make_op("convert", {{"target_type", migraphx::shape::float_type}}), x);
         auto x_sq = info.add_common_op("mul", float_x, float_x);
-        auto rms = info.add_instruction(make_op("reduce_mean", {{"axes", {axis}}}), x_sq);
-        rms = info.add_instruction(make_op("convert", {{"target_type", x_dtype}}), rms);
+        auto rms  = info.add_instruction(make_op("reduce_mean", {{"axes", {axis}}}), x_sq);
+        rms       = info.add_instruction(make_op("convert", {{"target_type", x_dtype}}), rms);
         auto mean = rms;
         epsilon =
             (x_dtype == migraphx::shape::half_type and std::abs(epsilon) < 1e-7) ? 1e-7 : epsilon;

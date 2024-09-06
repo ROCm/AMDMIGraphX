@@ -36,56 +36,56 @@
 
 namespace migraphx {
 
-template <class Output, 
+template <class Output,
           class Attn_Probs,
           class SeqLens,
           class PresentValue,
           class Params>
-__device__ void CalculateVxAttentionScore(
-        Output output,                           // buffer for the result with size BxSxNxH
-        const Attn_Probs attention_probs,            // Attention probs with size BxNxSxT
-        const SeqLens seqlens_k,                  // past sequence lengths tensor
-        int batch_size,                     // batch size
-        int sequence_length,                // sequence length
-        int present_buffer_sequence_length, // sequence length in past state
-        int head_size,                      // head size of Q, K, V
-        int hidden_size,                    // hidden size of Output
-        PresentValue present_value,                    // present value only
-        Params params,
-        index_int idx)  
+__device__ void
+CalculateVxAttentionScore(Output output, // buffer for the result with size BxSxNxH
+                          const Attn_Probs attention_probs,   // Attention probs with size BxNxSxT
+                          const SeqLens seqlens_k,            // past sequence lengths tensor
+                          int batch_size,                     // batch size
+                          int sequence_length,                // sequence length
+                          int present_buffer_sequence_length, // sequence length in past state
+                          int head_size,                      // head size of Q, K, V
+                          int hidden_size,                    // hidden size of Output
+                          PresentValue present_value,         // present value only
+                          Params params,
+                          index_int idx)
 {
-    const int num_heads = params.num_heads;
-    const int kv_num_heads = params.kv_num_heads;
-    const int kv_num_heads_factor   = num_heads / kv_num_heads;
+    const int num_heads           = params.num_heads;
+    const int kv_num_heads        = params.kv_num_heads;
+    const int kv_num_heads_factor = num_heads / kv_num_heads;
     const size_t present_buff_chunk_length =
         static_cast<size_t>(present_buffer_sequence_length) * head_size; // T x H
 
-    auto loop_len = batch_size * num_heads;
-    const index_int i = idx / (sequence_length * head_size);
-    const index_int inner_i = idx %  (sequence_length * head_size);
-    if (i < loop_len)
+    auto loop_len           = batch_size * num_heads;
+    const index_int i       = idx / (sequence_length * head_size);
+    const index_int inner_i = idx % (sequence_length * head_size);
+    if(i < loop_len)
     {
-        const index_int batch_index = i / num_heads;
-        const index_int head_index  = i % num_heads;
-        const index_int total_seqlen         = seqlens_k[batch_index] + 1;
-        
+        const index_int batch_index  = i / num_heads;
+        const index_int head_index   = i % num_heads;
+        const index_int total_seqlen = seqlens_k[batch_index] + 1;
+
         auto pv = present_value + ((i / kv_num_heads_factor) * present_buff_chunk_length);
         Output output_current =
             output + (batch_index * sequence_length * num_heads + head_index) * head_size;
         ptrdiff_t attention_probs_offset = sequence_length * present_buffer_sequence_length * i;
 
         gemm(sequence_length,
-            head_size,
-            total_seqlen,
-            present_buffer_sequence_length, // 4096
-            head_size,
-            hidden_size,
-            output_current,
-            attention_probs + attention_probs_offset,
-            pv,
-            1.0f,
-            0.0f,
-            inner_i);
+             head_size,
+             total_seqlen,
+             present_buffer_sequence_length, // 4096
+             head_size,
+             hidden_size,
+             output_current,
+             attention_probs + attention_probs_offset,
+             pv,
+             1.0f,
+             0.0f,
+             inner_i);
     }
 }
 
@@ -96,36 +96,31 @@ template <class Output,
           class Seqlens_K,
           class Attn_Probs,
           class Params>
-__device__ void compute_attention_scores(Output output,
-                                        Query,
-                                        Key,
-                                        Value,
-                                        Seqlens_K seqlens_k,
-                                        Attn_Probs attn_probs,
-                                        Params params)
+__device__ void compute_attention_scores(
+    Output output, Query, Key, Value, Seqlens_K seqlens_k, Attn_Probs attn_probs, Params params)
 {
     const int batch_size      = params.batch_size;
     const int num_heads       = params.num_heads;
     const int sequence_length = params.sequence_length;
     const int head_size       = params.head_size;
     const int elements        = batch_size * num_heads * sequence_length * head_size;
-    auto ind = make_index();
+    auto ind                  = make_index();
     ind.global_stride(elements, [&](auto idx) {
         int seqlen_present_kv_cache = params.seqlen_present_kv_cache;
         output([&](auto output0, auto, auto v_cache) {
-            const int hidden_size     = params.hidden_size;
-        
+            const int hidden_size = params.hidden_size;
+
             CalculateVxAttentionScore(output0.begin(),
-                                    attn_probs.begin(),
-                                    seqlens_k.begin(),
-                                    batch_size,
-                                    sequence_length,
-                                    seqlen_present_kv_cache,
-                                    head_size,
-                                    hidden_size,
-                                    v_cache.begin(),
-                                    params,
-                                    idx);
+                                      attn_probs.begin(),
+                                      seqlens_k.begin(),
+                                      batch_size,
+                                      sequence_length,
+                                      seqlen_present_kv_cache,
+                                      head_size,
+                                      hidden_size,
+                                      v_cache.begin(),
+                                      params,
+                                      idx);
         });
     });
 }

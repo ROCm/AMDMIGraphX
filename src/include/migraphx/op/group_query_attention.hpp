@@ -32,7 +32,8 @@ struct RotaryParameters
                      // seq_len, hidden)
     int seqlen_present_kv_cache;
 
-    void print() const {
+    void print() const
+    {
         printf("batch_size: %d\n", batch_size);
         printf("sequence_length: %d\n", sequence_length);
         printf("hidden_size: %d\n", hidden_size);
@@ -73,10 +74,11 @@ struct group_query_attention
 
     shape compute_shape(std::vector<shape> inputs) const
     {
-        if (inputs.size() == 8)
+        if(inputs.size() == 8)
         {
             auto query_lens = inputs.front().lens();
-            std::size_t q_hidden_size = (query_lens[1] * query_lens[3] * num_heads) / (num_heads + 2 * kv_num_heads);
+            std::size_t q_hidden_size =
+                (query_lens[1] * query_lens[3] * num_heads) / (num_heads + 2 * kv_num_heads);
             std::vector<std::size_t> output_lens{query_lens.at(0), query_lens.at(2), q_hidden_size};
             shape output_shape{inputs.front().type(), output_lens};
             return shape({output_shape, inputs[1], inputs[2]});
@@ -174,8 +176,7 @@ struct group_query_attention
     template <class T>
     void copy_data(T destination, const T source, std::size_t n) const
     {
-        par_for(n, [&](auto i) { 
-            destination[i] = source[i]; });
+        par_for(n, [&](auto i) { destination[i] = source[i]; });
     }
 
     template <typename T>
@@ -329,9 +330,9 @@ struct group_query_attention
                 q = Q + q_input_chunk_length * i;
             }
 
-            gemm(sequence_length, 
-                 total_seqlen, 
-                 head_size, 
+            gemm(sequence_length,
+                 total_seqlen,
+                 head_size,
                  head_size,
                  head_size,
                  present_buffer_sequence_length,
@@ -475,9 +476,9 @@ struct group_query_attention
         int seqlen_present_kv_cache = parameters.seqlen_present_kv_cache;
         int seqlen_past_kv_cache    = seqlen_present_kv_cache;
 
-        bool past_present_share_buffer = false; 
+        bool past_present_share_buffer = false;
         const T k                      = Q + num_heads * sequence_length * head_size;
-        
+
         CalculateAttentionProbs(attention_probs,
                                 Q,
                                 k,
@@ -559,7 +560,7 @@ struct group_query_attention
         });
 
         visit_all(result,
-                qkv,
+                  qkv,
                   args[3],
                   args[4],
                   args[7],
@@ -580,10 +581,10 @@ struct group_query_attention
             visit_all(args[5])([&](auto seqlens_k) {
                 if(do_rotary)
                 {
-                    par_for(kv_shape.elements(), [&](auto i){
+                    par_for(kv_shape.elements(), [&](auto i) {
                         present_k[i] = past_key[i];
                         present_v[i] = past_value[i];
-                    }); 
+                    });
                     auto seq_stride  = head_size;
                     auto head_stride = sequence_length * seq_stride;
                     auto batch_stride =

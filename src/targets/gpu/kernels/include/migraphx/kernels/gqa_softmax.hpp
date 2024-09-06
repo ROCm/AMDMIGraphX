@@ -36,19 +36,17 @@
 
 namespace migraphx {
 
-
 template <class T>
 __device__ bool float_equal(T x, T y)
 {
-    return isfinite(x) and isfinite(y) and
-           nextafterf(x, numeric_lowest<T>()) <= y and
+    return isfinite(x) and isfinite(y) and nextafterf(x, numeric_lowest<T>()) <= y and
            nextafterf(x, numeric_max<T>()) >= y;
 }
 
 template <class T>
 __device__ void CalculateAttentionSoftmaxInplace(T score, int N, int D)
 {
-    for (int j = 0; j < N; ++j)
+    for(int j = 0; j < N; ++j)
     {
         auto x = score + j * D;
         auto y = x;
@@ -69,7 +67,7 @@ __device__ void CalculateAttentionSoftmaxInplace(T score, int N, int D)
             y[i] = expf(x[i] - max);
         }
 
-        float sum = 0.0;
+        float sum        = 0.0;
         const float zero = 0.0;
         for(int i = 0; i < D; i++)
         {
@@ -96,32 +94,31 @@ __device__ void CalculateAttentionSoftmaxInplace(T score, int N, int D)
 template <class Attn_Probs,
           class SeqLens,
           class Params>
-__device__ void CalculateSoftmax(
-    Attn_Probs attention_probs,                  // output buffer with size BxNxSxT
-    SeqLens seqlens_k,                        // past sequence lengths tensor
-    int batch_size,                     // batch size of self-attention
-    int sequence_length,                // sequence length of self-attention (S)
-    int present_buffer_sequence_length, // sequence length of present state
-    Params params,
-    index_int idx)                    
+__device__ void
+CalculateSoftmax(Attn_Probs attention_probs,         // output buffer with size BxNxSxT
+                 SeqLens seqlens_k,                  // past sequence lengths tensor
+                 int batch_size,                     // batch size of self-attention
+                 int sequence_length,                // sequence length of self-attention (S)
+                 int present_buffer_sequence_length, // sequence length of present state
+                 Params params,
+                 index_int idx)
 {
     const int num_heads = params.num_heads;
 
     const index_int loop_len = batch_size * num_heads;
-    const index_int i = idx / sequence_length;
-    const index_int inner_i = idx % sequence_length;
+    const index_int i        = idx / sequence_length;
+    const index_int inner_i  = idx % sequence_length;
     if(i < loop_len)
     {
-        const index_int batch_index = i / num_heads;
-        const int total_seqlen         = seqlens_k[batch_index] + 1;
-        const index_int output_offset =
-            i * sequence_length * present_buffer_sequence_length;
-        auto output = attention_probs + output_offset;
-        
+        const index_int batch_index   = i / num_heads;
+        const int total_seqlen        = seqlens_k[batch_index] + 1;
+        const index_int output_offset = i * sequence_length * present_buffer_sequence_length;
+        auto output                   = attention_probs + output_offset;
+
         const int local_window_size = params.local_window_size;
-        auto output_softmax = output;
-        index_int seq = inner_i;
-        if (seq < sequence_length)
+        auto output_softmax         = output;
+        index_int seq               = inner_i;
+        if(seq < sequence_length)
         {
             output_softmax += seq * present_buffer_sequence_length;
             auto consume = total_seqlen + local_window_size;
@@ -130,24 +127,22 @@ __device__ void CalculateSoftmax(
             int seq_causal_length = sequence_length == 1 ? total_seqlen : seq + 1;
             if(local_window_size > 0 && seq_causal_length > local_window_size + 1)
             {
-                for(int total_seq_id = 0;
-                    total_seq_id < seq_causal_length - local_window_size - 1;
+                for(int total_seq_id = 0; total_seq_id < seq_causal_length - local_window_size - 1;
                     total_seq_id++)
                 {
                     output_softmax[total_seq_id] = 0.f;
                 }
                 CalculateAttentionSoftmaxInplace(output_softmax + seq_causal_length -
-                                                        local_window_size - 1,
-                                                    1,
-                                                    local_window_size + 1);
+                                                     local_window_size - 1,
+                                                 1,
+                                                 local_window_size + 1);
             }
             else
             {
                 CalculateAttentionSoftmaxInplace(output_softmax, 1, seq_causal_length);
             }
             // set causal [seq_causal_length, total_seqlen) to 0.f
-            for(int total_seq_id = seq_causal_length; total_seq_id < total_seqlen;
-                total_seq_id++)
+            for(int total_seq_id = seq_causal_length; total_seq_id < total_seqlen; total_seq_id++)
             {
                 output_softmax[total_seq_id] = 0.f;
             }
@@ -155,32 +150,23 @@ __device__ void CalculateSoftmax(
     }
 }
 
-template <class Output,
-          class Pass,
-          class Input,
-          class Seqlens_K,
-          class Params>
-__device__ void gqa_softmax(Output output,
-                                        Pass,
-                                        Input,
-                                        Seqlens_K seqlens_k,
-                                        Params params)
+template <class Output, class Pass, class Input, class Seqlens_K, class Params>
+__device__ void gqa_softmax(Output output, Pass, Input, Seqlens_K seqlens_k, Params params)
 {
     const int batch_size      = params.batch_size;
     const int sequence_length = params.sequence_length;
     const int num_heads       = params.num_heads;
     const int elements        = batch_size * num_heads * sequence_length;
-    auto ind = make_index();
+    auto ind                  = make_index();
     ind.global_stride(elements, [&](auto idx) {
         int seqlen_present_kv_cache = params.seqlen_present_kv_cache;
         CalculateSoftmax(output.begin(),
-                                seqlens_k.begin(),
-                                batch_size,
-                                sequence_length,
-                                seqlen_present_kv_cache,
-                                params,
-                                idx);
-        
+                         seqlens_k.begin(),
+                         batch_size,
+                         sequence_length,
+                         seqlen_present_kv_cache,
+                         params,
+                         idx);
     });
 }
 

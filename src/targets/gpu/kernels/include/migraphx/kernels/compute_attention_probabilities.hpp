@@ -36,7 +36,6 @@
 
 namespace migraphx {
 
-
 template <class Attn_Probs,
           class Q_,
           class SeqLens,
@@ -73,13 +72,12 @@ CalculateAttentionProbs(Attn_Probs attention_probs,         // output buffer wit
     const index_int inner_i = idx % (sequence_length * max_sequence_length);
     if(i < loop_len)
     {
-        const auto batch_index  = i / num_heads;
-        const auto head_index   = i % num_heads;
-        const int total_seqlen = seqlens_k[batch_index] + 1;
-        const index_int output_offset =
-            i * sequence_length * present_buffer_sequence_length;
-        auto output = attention_probs + output_offset;
-        auto pk     = present_key + ((i / kv_num_heads_factor) * present_buff_chunk_length);
+        const auto batch_index        = i / num_heads;
+        const auto head_index         = i % num_heads;
+        const int total_seqlen        = seqlens_k[batch_index] + 1;
+        const index_int output_offset = i * sequence_length * present_buffer_sequence_length;
+        auto output                   = attention_probs + output_offset;
+        auto pk = present_key + ((i / kv_num_heads_factor) * present_buff_chunk_length);
         Q_ q;
         if(packed_qkv)
         {
@@ -110,28 +108,30 @@ __device__ void compute_attention_probabilities(
     Output output, Query query, Key, Value, Seqlens_K seqlens_k, Params params)
 {
     auto ind = make_index();
-    ind.global_stride(params.batch_size * params.num_heads * params.sequence_length * params.seqlen_present_kv_cache, [&](auto idx) {
-        auto q                    = query.begin();
-        const int batch_size      = params.batch_size;
-        const int sequence_length = params.sequence_length;
-        const int head_size       = params.head_size;
-        const bool packed_qkv     = true;
+    ind.global_stride(params.batch_size * params.num_heads * params.sequence_length *
+                          params.seqlen_present_kv_cache,
+                      [&](auto idx) {
+                          auto q                    = query.begin();
+                          const int batch_size      = params.batch_size;
+                          const int sequence_length = params.sequence_length;
+                          const int head_size       = params.head_size;
+                          const bool packed_qkv     = true;
 
-        int seqlen_present_kv_cache = params.seqlen_present_kv_cache;
-        output([&](auto output0, auto k_cache, auto) {
-            CalculateAttentionProbs(output0.begin(),
-                                    q,
-                                    seqlens_k.begin(),
-                                    batch_size,
-                                    sequence_length,
-                                    seqlen_present_kv_cache,
-                                    head_size,
-                                    k_cache.begin(),
-                                    packed_qkv,
-                                    params,
-                                    idx);
-        });
-    });
+                          int seqlen_present_kv_cache = params.seqlen_present_kv_cache;
+                          output([&](auto output0, auto k_cache, auto) {
+                              CalculateAttentionProbs(output0.begin(),
+                                                      q,
+                                                      seqlens_k.begin(),
+                                                      batch_size,
+                                                      sequence_length,
+                                                      seqlen_present_kv_cache,
+                                                      head_size,
+                                                      k_cache.begin(),
+                                                      packed_qkv,
+                                                      params,
+                                                      idx);
+                          });
+                      });
 }
 
 } // namespace migraphx

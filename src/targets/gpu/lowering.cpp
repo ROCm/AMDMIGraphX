@@ -496,8 +496,8 @@ struct miopen_apply
     void add_group_query_attention_op()
     {
         apply_map.emplace("gpu::gqa_rotary_embedding", [=](instruction_ref ins) {
-            auto s      = ins->get_shape();
-            auto output = insert_allocation(ins, s);
+            auto s          = ins->get_shape();
+            auto output     = insert_allocation(ins, s);
             auto new_inputs = ins->inputs();
             new_inputs.push_back(output);
             auto ret = mod->replace_instruction(
@@ -511,8 +511,8 @@ struct miopen_apply
             auto inputs = ins->inputs();
             auto past_k = inputs[1];
             auto past_v = inputs[2];
-            
-            auto outputs = mod->insert_instruction(ins, make_op("pack_ops"), past_k, past_v);
+
+            auto outputs    = mod->insert_instruction(ins, make_op("pack_ops"), past_k, past_v);
             auto new_inputs = ins->inputs();
             new_inputs.push_back(outputs);
             auto ret = mod->replace_instruction(
@@ -528,8 +528,9 @@ struct miopen_apply
             auto inputs = ins->inputs();
             auto past_k = inputs[1];
             auto past_v = inputs[2];
-            
-            auto outputs = mod->insert_instruction(ins, make_op("pack_ops"), output, past_k, past_v);
+
+            auto outputs =
+                mod->insert_instruction(ins, make_op("pack_ops"), output, past_k, past_v);
             auto new_inputs = ins->inputs();
             new_inputs.push_back(outputs);
             auto ret = mod->replace_instruction(
@@ -558,8 +559,9 @@ struct miopen_apply
             auto inputs = ins->inputs();
             auto past_k = inputs[1];
             auto past_v = inputs[2];
-            
-            auto outputs = mod->insert_instruction(ins, make_op("pack_ops"), output, past_k, past_v);
+
+            auto outputs =
+                mod->insert_instruction(ins, make_op("pack_ops"), output, past_k, past_v);
             auto new_inputs = ins->inputs();
             new_inputs.push_back(outputs);
             auto ret = mod->replace_instruction(
@@ -569,7 +571,7 @@ struct miopen_apply
             return ret;
         });
     }
-    
+
     void add_scan_slice_op()
     {
         apply_map.emplace("scan_slice", [=](instruction_ref ins) {

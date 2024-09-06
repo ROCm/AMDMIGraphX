@@ -48,7 +48,7 @@ struct RotaryParameters
     int position_ids_format;  // Format of position ids - 0 is (1), 1 is (batch_size,
                               // sequence_length)
     int transposed; // Whether the input tensor has been transposed into (batch, num_heads,
-                     // seq_len, hidden)
+                    // seq_len, hidden)
     int seqlen_present_kv_cache;
 
     int do_rotary;
@@ -56,7 +56,8 @@ struct RotaryParameters
     int local_window_size;
     int rotary_interleaved;
 
-    __host__ __device__ void print() const {
+    __host__ __device__ void print() const
+    {
         printf("scale: %f\n", scale);
         printf("batch_size: %d\n", batch_size);
         printf("sequence_length: %d\n", sequence_length);

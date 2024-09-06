@@ -36,8 +36,7 @@
 
 namespace migraphx {
 
-template <class Dest,
-          class Src>
+template <class Dest, class Src>
 __device__ void copy_data(Dest destination, const Src source, index_int n, index_int idx)
 {
     if(idx < n)
@@ -46,20 +45,18 @@ __device__ void copy_data(Dest destination, const Src source, index_int n, index
     }
 }
 
-template <class Past,
-          class Chunk,
-          class Present>
+template <class Past, class Chunk, class Present>
 __device__ Present ConcatStateChunkGQA(const Past past,
-                        Chunk chunk,
-                        Present present,
-                        index_int present_buff_chunk_length,
-                        index_int past_buff_chunk_length,
-                        index_int past_chunk_length,
-                        index_int new_chunk_length,
-                        bool is_prompt,
-                        bool past_present_share_buffer,
-                        std::ptrdiff_t i,
-                        index_int idx) 
+                                       Chunk chunk,
+                                       Present present,
+                                       index_int present_buff_chunk_length,
+                                       index_int past_buff_chunk_length,
+                                       index_int past_chunk_length,
+                                       index_int new_chunk_length,
+                                       bool is_prompt,
+                                       bool past_present_share_buffer,
+                                       std::ptrdiff_t i,
+                                       index_int idx)
 {
     auto start = present + i * present_buff_chunk_length;
 
@@ -77,92 +74,79 @@ __device__ Present ConcatStateChunkGQA(const Past past,
     return start;
 }
 
-template <class Present,
-          class Seqlens_K,
-          class Cache,
-          class Params>
-__device__ void UpdateCache(
-    Present present,
-    Seqlens_K seqlens_k,                    
-    int batch_size,                     
-    int sequence_length,                
-    int past_buffer_sequence_length,   
-    int present_buffer_sequence_length,
-    int head_size,                      
-    Cache cache,              
-    bool past_present_share_buffer,    
-    bool packed_qkv,                  
-    Params params,
-    index_int idx)                    
+template <class Present, class Seqlens_K, class Cache, class Params>
+__device__ void UpdateCache(Present present,
+                            Seqlens_K seqlens_k,
+                            int batch_size,
+                            int sequence_length,
+                            int past_buffer_sequence_length,
+                            int present_buffer_sequence_length,
+                            int head_size,
+                            Cache cache,
+                            bool past_present_share_buffer,
+                            bool packed_qkv,
+                            Params params,
+                            index_int idx)
 {
-    const int num_heads = params.num_heads;
+    const int num_heads    = params.num_heads;
     const int kv_num_heads = params.kv_num_heads;
-    const bool is_prompt = sequence_length != 1;
+    const bool is_prompt   = sequence_length != 1;
     const int packed_batch_stride =
         packed_qkv ? (num_heads + 2 * kv_num_heads) * sequence_length * head_size : 0;
-    const int kv_num_heads_factor = num_heads / kv_num_heads;
-    const size_t kv_input_chunk_length =
-        static_cast<size_t>(sequence_length) * head_size; // L x H
+    const int kv_num_heads_factor      = num_heads / kv_num_heads;
+    const size_t kv_input_chunk_length = static_cast<size_t>(sequence_length) * head_size; // L x H
     const size_t past_buff_chunk_length =
         static_cast<size_t>(past_buffer_sequence_length) * head_size; // L x H
     const size_t present_buff_chunk_length =
         static_cast<size_t>(present_buffer_sequence_length) * head_size; // T x H
 
     const index_int loop_len = batch_size * num_heads;
-    const index_int i = idx / (sequence_length * head_size);
-    const index_int inner_i = idx %  (sequence_length * head_size);
+    const index_int i        = idx / (sequence_length * head_size);
+    const index_int inner_i  = idx % (sequence_length * head_size);
     if(i < loop_len)
     {
         const index_int batch_index = i / num_heads;
         const index_int head_index  = i % num_heads;
-        const index_int past_seqlen = sequence_length == 1 ? static_cast<int>(seqlens_k[batch_index])
-                                                        : past_buffer_sequence_length;
+        const index_int past_seqlen = sequence_length == 1
+                                          ? static_cast<int>(seqlens_k[batch_index])
+                                          : past_buffer_sequence_length;
         const index_int past_chunk_length = static_cast<size_t>(past_seqlen) * head_size;
 
         auto current = present + packed_batch_stride * batch_index +
-                    kv_input_chunk_length * (head_index / kv_num_heads_factor);
+                       kv_input_chunk_length * (head_index / kv_num_heads_factor);
         ConcatStateChunkGQA(cache,
-                                current,
-                                cache,
-                                present_buff_chunk_length,
-                                past_buff_chunk_length,
-                                past_chunk_length,
-                                kv_input_chunk_length,
-                                is_prompt,
-                                past_present_share_buffer,
-                                i / kv_num_heads_factor,
-                                inner_i);
+                            current,
+                            cache,
+                            present_buff_chunk_length,
+                            past_buff_chunk_length,
+                            past_chunk_length,
+                            kv_input_chunk_length,
+                            is_prompt,
+                            past_present_share_buffer,
+                            i / kv_num_heads_factor,
+                            inner_i);
     }
 }
 
-template <class Output,
-          class Query,
-          class Key,
-          class Value,
-          class Seqlens_K,
-          class Params>
-__device__ void concat_past_present(Output output,
-                                        Query query,
-                                        Key,
-                                        Value,
-                                        Seqlens_K seqlens_k,
-                                        Params params)
+template <class Output, class Query, class Key, class Value, class Seqlens_K, class Params>
+__device__ void
+concat_past_present(Output output, Query query, Key, Value, Seqlens_K seqlens_k, Params params)
 {
     const int batch_size      = params.batch_size;
     const int sequence_length = params.sequence_length;
     const int head_size       = params.head_size;
     const int kv_num_heads    = params.kv_num_heads;
-    auto ind = make_index();
-    auto elements = 2 * batch_size * kv_num_heads * sequence_length * head_size;
+    auto ind                  = make_index();
+    auto elements             = 2 * batch_size * kv_num_heads * sequence_length * head_size;
     ind.global_stride(elements, [&](auto idx) {
-        auto q = query.begin();
-        const bool packed_qkv     = true;
+        auto q                = query.begin();
+        const bool packed_qkv = true;
 
         int seqlen_present_kv_cache = params.seqlen_present_kv_cache;
         int seqlen_past_kv_cache    = 4096;
 
         bool past_present_share_buffer = true;
-        auto k = q + params.num_heads * sequence_length * head_size;
+        auto k                         = q + params.num_heads * sequence_length * head_size;
         auto v = q + (params.num_heads + params.kv_num_heads) * sequence_length * head_size;
         output([&](auto k_cache, auto v_cache) {
             if(idx < elements / 2)
@@ -180,7 +164,7 @@ __device__ void concat_past_present(Output output,
                             params,
                             idx);
             }
-            else if (idx < elements)
+            else if(idx < elements)
             {
                 UpdateCache(v,
                             seqlens_k,

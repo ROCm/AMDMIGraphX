@@ -5012,7 +5012,7 @@ def globalmaxpool_dyn_test():
     )
 
     return ([node], [x], [y])
-    
+
 
 @onnx_test()
 def gridsample_volumetric_nearest_align_corners_0_test():

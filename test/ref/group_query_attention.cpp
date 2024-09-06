@@ -49,15 +49,26 @@ TEST_CASE(gqa_test)
     auto slk = mm->add_literal(migraphx::literal{consts, {0}});
     auto tsl = mm->add_literal(migraphx::literal{consts, {64}});
     auto cc  = mm->add_literal(migraphx::literal{cs, cs_data});
-    auto sc = mm->add_literal(migraphx::literal{cs, cs_data});
+    auto sc  = mm->add_literal(migraphx::literal{cs, cs_data});
 
-    mm->add_instruction(migraphx::make_op("group_query_attention", {{"do_rotary", 1}, {"kv_num_heads", 32}, {"local_window_size", -1}, {"num_heads", 32}, {"rotary_interleaved", 0}}),
-            qkv, pk, pv, slk, tsl, cc, sc);
+    mm->add_instruction(migraphx::make_op("group_query_attention",
+                                          {{"do_rotary", 1},
+                                           {"kv_num_heads", 32},
+                                           {"local_window_size", -1},
+                                           {"num_heads", 32},
+                                           {"rotary_interleaved", 0}}),
+                        qkv,
+                        pk,
+                        pv,
+                        slk,
+                        tsl,
+                        cc,
+                        sc);
     p.compile(migraphx::make_target("ref"));
     auto result = p.eval({}).back();
     std::vector<float> results_vector(outs.elements());
     result.visit([&](auto output) { results_vector.assign(output.begin(), output.end()); });
-    for (auto i = 0; i < outs.elements(); ++i)
+    for(auto i = 0; i < outs.elements(); ++i)
     {
         std::cout << results_vector[i] << std::endl;
     }

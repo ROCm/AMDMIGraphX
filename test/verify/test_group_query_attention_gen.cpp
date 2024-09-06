@@ -44,32 +44,33 @@ struct test_group_query_attention_gen : verify_program<test_group_query_attentio
         migraphx::shape slk_s{migraphx::shape::int64_type, slk_lens};
         migraphx::shape tsl_s{migraphx::shape::int64_type, tsl_lens};
         migraphx::shape cs_cache_s{dtype, cs_cache_lens};
-        auto query   = mm->add_parameter("query", query_s);
+        auto query = mm->add_parameter("query", query_s);
         std::vector<float> kv_vec(kv_s.elements(), 0.0);
         std::vector<int> slk_vec(slk_s.elements(), 2);
         std::vector<int> tsl_vec(tsl_s.elements(), 3);
         auto k_cache   = mm->add_parameter("k_cache", kv_s);
         auto v_cache   = mm->add_parameter("v_cache", kv_s);
-        auto slk = mm->add_literal(slk_s, slk_vec);
-        auto tsl = mm->add_literal(tsl_s, tsl_vec);
-        auto key = mm->add_literal(0.0f);
-        auto value = mm->add_literal(0.0f);
-        auto cos_cache   = mm->add_parameter("cos_cache", cs_cache_s);
-        auto sin_cache   = mm->add_parameter("sin_cache", cs_cache_s);
-        auto r = mm->add_instruction(migraphx::make_op("group_query_attention", {{"do_rotary", 1},
-                                                                        {"kv_num_heads", 32},
-                                                                        {"local_window_size", -1},
-                                                                        {"num_heads", 32},
-                                                                        {"rotary_interleaved", 0}}), 
-                                                                        query,
-                                                                        key,
-                                                                        value,
-                                                                        k_cache,
-                                                                        v_cache,
-                                                                        slk,
-                                                                        tsl,
-                                                                        cos_cache,
-                                                                        sin_cache);
+        auto slk       = mm->add_literal(slk_s, slk_vec);
+        auto tsl       = mm->add_literal(tsl_s, tsl_vec);
+        auto key       = mm->add_literal(0.0f);
+        auto value     = mm->add_literal(0.0f);
+        auto cos_cache = mm->add_parameter("cos_cache", cs_cache_s);
+        auto sin_cache = mm->add_parameter("sin_cache", cs_cache_s);
+        auto r         = mm->add_instruction(migraphx::make_op("group_query_attention",
+                                                       {{"do_rotary", 1},
+                                                        {"kv_num_heads", 32},
+                                                        {"local_window_size", -1},
+                                                        {"num_heads", 32},
+                                                        {"rotary_interleaved", 0}}),
+                                     query,
+                                     key,
+                                     value,
+                                     k_cache,
+                                     v_cache,
+                                     slk,
+                                     tsl,
+                                     cos_cache,
+                                     sin_cache);
         auto r0 = mm->add_instruction(migraphx::make_op("get_tuple_elem", {{"index", 0}}), r);
         auto r1 = mm->add_instruction(migraphx::make_op("get_tuple_elem", {{"index", 1}}), r);
         auto r2 = mm->add_instruction(migraphx::make_op("get_tuple_elem", {{"index", 2}}), r);

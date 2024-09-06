@@ -39,12 +39,12 @@ struct parse_groupqueryattention : op_parser<parse_groupqueryattention>
                                        const onnx_parser::node_info& info,
                                        std::vector<instruction_ref> args) const
     {
-        int do_rotary = 0;
-        int kv_num_heads = 0;
-        int local_window_size = -1;
-        int num_heads = 1;
+        int do_rotary          = 0;
+        int kv_num_heads       = 0;
+        int local_window_size  = -1;
+        int num_heads          = 1;
         int rotary_interleaved = 0;
-        float scale = 1.0;
+        float scale            = 1.0;
         if(contains(info.attributes, "do_rotary"))
         {
             do_rotary = parser.parse_value(info.attributes.at("do_rotary")).at<int>();
@@ -55,7 +55,8 @@ struct parse_groupqueryattention : op_parser<parse_groupqueryattention>
         }
         if(contains(info.attributes, "local_window_size"))
         {
-            local_window_size = parser.parse_value(info.attributes.at("local_window_size")).at<int>();
+            local_window_size =
+                parser.parse_value(info.attributes.at("local_window_size")).at<int>();
         }
         if(contains(info.attributes, "num_heads"))
         {
@@ -63,13 +64,14 @@ struct parse_groupqueryattention : op_parser<parse_groupqueryattention>
         }
         if(contains(info.attributes, "rotary_interleaved"))
         {
-            rotary_interleaved = parser.parse_value(info.attributes.at("rotary_interleaved")).at<int>();
+            rotary_interleaved =
+                parser.parse_value(info.attributes.at("rotary_interleaved")).at<int>();
         }
 
-        auto query_shape = args.at(0)->get_shape();
-        auto query_lens = query_shape.lens();
+        auto query_shape   = args.at(0)->get_shape();
+        auto query_lens    = query_shape.lens();
         auto q_hidden_size = query_lens.at(2);
-        int head_size = q_hidden_size / num_heads;
+        int head_size      = q_hidden_size / num_heads;
         if(contains(info.attributes, "scale"))
         {
             scale = parser.parse_value(info.attributes.at("scale")).at<float>();
@@ -79,23 +81,23 @@ struct parse_groupqueryattention : op_parser<parse_groupqueryattention>
             scale = 0.0;
         }
 
-
         if(args.size() < 7 or args.size() > 9)
         {
             MIGRAPHX_THROW("GroupQueryAttention: Wrong number of inputs provided");
         }
 
-        auto ret = info.add_instruction(make_op("group_query_attention", 
-                                        {{"do_rotary", do_rotary}, 
-                                        {"kv_num_heads", kv_num_heads},
-                                        {"local_window_size", local_window_size},
-                                        {"num_heads", num_heads},
-                                        {"rotary_interleaved", rotary_interleaved},
-                                        {"scale", scale}}), 
-                                            args);
-        auto ret_result = info.add_instruction(make_op("get_tuple_elem", {{"index", 0}}), ret);
+        auto ret             = info.add_instruction(make_op("group_query_attention",
+                                                {{"do_rotary", do_rotary},
+                                                 {"kv_num_heads", kv_num_heads},
+                                                 {"local_window_size", local_window_size},
+                                                 {"num_heads", num_heads},
+                                                 {"rotary_interleaved", rotary_interleaved},
+                                                 {"scale", scale}}),
+                                        args);
+        auto ret_result      = info.add_instruction(make_op("get_tuple_elem", {{"index", 0}}), ret);
         auto ret_present_key = info.add_instruction(make_op("get_tuple_elem", {{"index", 1}}), ret);
-        auto ret_present_value = info.add_instruction(make_op("get_tuple_elem", {{"index", 2}}), ret);
+        auto ret_present_value =
+            info.add_instruction(make_op("get_tuple_elem", {{"index", 2}}), ret);
 
         return {ret_result, ret_present_key, ret_present_value};
     }

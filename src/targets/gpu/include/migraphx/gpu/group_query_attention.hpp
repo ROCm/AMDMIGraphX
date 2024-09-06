@@ -58,27 +58,18 @@ struct RotaryParameters
 
     std::string make_init_str()
     {
-        std::string str =   std::to_string(scale) + ", " +
-                            std::to_string(batch_size) + ", " +
-                            std::to_string(sequence_length) + ", " +
-                            std::to_string(hidden_size) + ", " +
-                            std::to_string(head_size) + ", " +
-                            std::to_string(rotary_embedding_dim) + ", " +
-                            std::to_string(num_heads) + ", " +
-                            std::to_string(max_sequence_length) + ", " +
-                            std::to_string(head_stride) + ", " +
-                            std::to_string(seq_stride) + ", " +
-                            std::to_string(batch_stride) + ", " +
-                            std::to_string(position_ids_format) + ", " +
-                            std::to_string(transposed) + ", " +
-                            std::to_string(seqlen_present_kv_cache) + ", " +
-                            std::to_string(do_rotary) + ", " +
-                            std::to_string(kv_num_heads) + ", " +
-                            std::to_string(local_window_size) + ", " +
-                            std::to_string(rotary_interleaved);
+        std::string str =
+            std::to_string(scale) + ", " + std::to_string(batch_size) + ", " +
+            std::to_string(sequence_length) + ", " + std::to_string(hidden_size) + ", " +
+            std::to_string(head_size) + ", " + std::to_string(rotary_embedding_dim) + ", " +
+            std::to_string(num_heads) + ", " + std::to_string(max_sequence_length) + ", " +
+            std::to_string(head_stride) + ", " + std::to_string(seq_stride) + ", " +
+            std::to_string(batch_stride) + ", " + std::to_string(position_ids_format) + ", " +
+            std::to_string(transposed) + ", " + std::to_string(seqlen_present_kv_cache) + ", " +
+            std::to_string(do_rotary) + ", " + std::to_string(kv_num_heads) + ", " +
+            std::to_string(local_window_size) + ", " + std::to_string(rotary_interleaved);
         return str;
     }
-    
 };
 
 static RotaryParameters init_params(const std::vector<shape>& inputs, const value& v)
@@ -96,42 +87,41 @@ static RotaryParameters init_params(const std::vector<shape>& inputs, const valu
     assert(v.contains("scale"));
     auto scale = v.at("scale").to<float>();
 
-    auto q_shape              = inputs[0];
-    auto q_lens               = q_shape.lens();
+    auto q_shape                      = inputs[0];
+    auto q_lens                       = q_shape.lens();
     const std::size_t batch_size      = q_lens[0];
     const std::size_t sequence_length = q_lens[2];
-    std::size_t head_size     = q_lens[3];
-    auto q_hidden_size = kv_num_heads * head_size;
-    const bool packed_qkv = true;
+    std::size_t head_size             = q_lens[3];
+    auto q_hidden_size                = kv_num_heads * head_size;
+    const bool packed_qkv             = true;
 
-    std::size_t rotary_dim = inputs[3].lens()[1] * 2;
+    std::size_t rotary_dim        = inputs[3].lens()[1] * 2;
     std::size_t present_kv_seqlen = 4096;
 
-    auto seq_stride  = head_size;
-    auto head_stride = sequence_length * seq_stride;
-    auto batch_stride =
-                    (packed_qkv ? (num_heads + 2 * kv_num_heads) : num_heads) * head_stride;
+    auto seq_stride   = head_size;
+    auto head_stride  = sequence_length * seq_stride;
+    auto batch_stride = (packed_qkv ? (num_heads + 2 * kv_num_heads) : num_heads) * head_stride;
     auto position_ids_format = sequence_length == 1 ? 1 : 0;
     bool transposed          = true;
     RotaryParameters rotary_params;
-    rotary_params.batch_size           = batch_size;
-    rotary_params.sequence_length      = sequence_length;
-    rotary_params.hidden_size          = q_hidden_size;
-    rotary_params.head_size            = head_size;
-    rotary_params.rotary_embedding_dim = rotary_dim;
-    rotary_params.num_heads            = num_heads;
-    rotary_params.max_sequence_length  = sequence_length; 
-    rotary_params.seq_stride           = head_size;
-    rotary_params.head_stride          = sequence_length * rotary_params.seq_stride;
-    rotary_params.batch_stride         = batch_stride;
-    rotary_params.position_ids_format = position_ids_format;
-    rotary_params.transposed          = transposed;
+    rotary_params.batch_size              = batch_size;
+    rotary_params.sequence_length         = sequence_length;
+    rotary_params.hidden_size             = q_hidden_size;
+    rotary_params.head_size               = head_size;
+    rotary_params.rotary_embedding_dim    = rotary_dim;
+    rotary_params.num_heads               = num_heads;
+    rotary_params.max_sequence_length     = sequence_length;
+    rotary_params.seq_stride              = head_size;
+    rotary_params.head_stride             = sequence_length * rotary_params.seq_stride;
+    rotary_params.batch_stride            = batch_stride;
+    rotary_params.position_ids_format     = position_ids_format;
+    rotary_params.transposed              = transposed;
     rotary_params.seqlen_present_kv_cache = present_kv_seqlen;
-    rotary_params.do_rotary = do_rotary;
-    rotary_params.kv_num_heads = kv_num_heads;
-    rotary_params.local_window_size = local_window_size;
-    rotary_params.rotary_interleaved = rotary_interleaved;
-    rotary_params.scale = scale;
+    rotary_params.do_rotary               = do_rotary;
+    rotary_params.kv_num_heads            = kv_num_heads;
+    rotary_params.local_window_size       = local_window_size;
+    rotary_params.rotary_interleaved      = rotary_interleaved;
+    rotary_params.scale                   = scale;
 
     return rotary_params;
 }

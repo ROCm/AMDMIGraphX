@@ -72,38 +72,43 @@ MIGRAPHX_GLOBAL void ${kernel}(${params})
 
 struct compute_attention_probabilities_compiler : compiler<compute_attention_probabilities_compiler>
 {
-    std::vector<std::string> names() const { return {"compute_attention_probabilities", "gpu::compute_attention_probabilities"}; }
+    std::vector<std::string> names() const
+    {
+        return {"compute_attention_probabilities", "gpu::compute_attention_probabilities"};
+    }
 
     operation compile_op(context& ctx, const std::vector<shape>& inputs, const value& v) const
     {
-        auto params = init_params(inputs, v);
+        auto params            = init_params(inputs, v);
         auto rotary_params_str = params.make_init_str();
 
         auto flattened_inputs = flatten(inputs);
         hip_compile_options options;
-        options.set_launch_params(v, compute_global_for(ctx, params.batch_size * params.num_heads * params.sequence_length * params.seqlen_present_kv_cache));
-        options.inputs         = flattened_inputs;
-        options.output         = inputs.back();
-        options.kernel_name    = v.get("kernel", "compute_attention_probabilities_kernel");
+        options.set_launch_params(
+            v,
+            compute_global_for(ctx,
+                               params.batch_size * params.num_heads * params.sequence_length *
+                                   params.seqlen_present_kv_cache));
+        options.inputs      = flattened_inputs;
+        options.output      = inputs.back();
+        options.kernel_name = v.get("kernel", "compute_attention_probabilities_kernel");
 
-        auto src = interpolate_string(compute_attention_probabilities_kernel,
-                                      {
-                                       {"params", enum_params(flattened_inputs.size(), "void * private_p")},
-                                       {"args", enum_params(flattened_inputs.size(), "private_p")},
-                                       {"rotary_params", rotary_params_str},
-                                       {"kernel", options.kernel_name},
-                                       {"noutputs", std::to_string(3)}});
+        auto src = interpolate_string(
+            compute_attention_probabilities_kernel,
+            {{"params", enum_params(flattened_inputs.size(), "void * private_p")},
+             {"args", enum_params(flattened_inputs.size(), "private_p")},
+             {"rotary_params", rotary_params_str},
+             {"kernel", options.kernel_name},
+             {"noutputs", std::to_string(3)}});
         return compile_hip_code_object(src, options);
     }
 
-    compiler_replace
-    compile(context& ctx, instruction_ref ins, const operation& op) const
+    compiler_replace compile(context& ctx, instruction_ref ins, const operation& op) const
     {
         auto shapes = to_shapes(ins->inputs());
-        auto v = op.to_value();
+        auto v      = op.to_value();
         return compile_op(ctx, shapes, v);
     }
-
 };
 
 } // namespace gpu

@@ -44,10 +44,9 @@ with open('../CMakeLists.txt', encoding='utf-8') as f:
     if not match:
         raise ValueError("VERSION not found!")
     version_number = match[1]
-left_nav_title = f"AMD MIGraphX {version_number} Documentation"
 
 # for PDF output on Read the Docs
-project = "AMD MIGraphX Documentation"
+project = "MIGraphX"
 author = "Advanced Micro Devices, Inc."
 copyright = "Copyright (c) 2024 Advanced Micro Devices, Inc. All rights reserved."
 version = version_number
@@ -62,6 +61,6 @@ doxygen_project = {
     "path": "doxygen/xml",
 }
 
-html_title = f"ROCm Docs Core {left_nav_title}"
+html_title = f"{project} {version_number} documentation"
 
 external_projects_current_project = "amdmigraphx"

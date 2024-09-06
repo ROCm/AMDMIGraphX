@@ -250,21 +250,6 @@ struct find_gemm_softmax_gemm
     }
 };
 
-// struct gpu_group_query_attention : op::group_query_attention
-// {
-//     std::string name() const { return "gpu::group_query_attention"; }
-
-//     shape compute_shape(std::vector<shape> inputs) const
-//     {
-//         auto query_lens = inputs.front().lens();
-//         std::size_t q_hidden_size = (query_lens[2] * query_lens[3] * num_heads) / (num_heads + 2 * kv_num_heads);
-//         std::vector<std::size_t> output_lens{query_lens.at(0), query_lens.at(1), q_hidden_size};
-//         shape output_shape{inputs.front().type(), output_lens};
-//         return shape({output_shape, inputs[1], inputs[2]});
-//     }
-// };
-// MIGRAPHX_REGISTER_OP(gpu_group_query_attention);
-
 struct gpu_compute_attention_probabilities : op::group_query_attention
 {
     std::string name() const { return "gpu::compute_attention_probabilities"; }
@@ -300,11 +285,6 @@ struct gpu_gqa_rotary_embedding : op::group_query_attention
 
     shape compute_shape(std::vector<shape> inputs) const
     {
-        // auto query_lens = inputs.front().lens();
-        // std::vector<std::size_t> output_lens{query_lens.at(0), query_lens.at(2), query_lens.at(1), query_lens.at(3)};
-        // shape output_shape{inputs.front().type(), output_lens};
-
-        // bnsh
         return inputs.front();
     }
 };
@@ -332,17 +312,6 @@ struct gpu_concat_past_present : op::group_query_attention
 };
 MIGRAPHX_REGISTER_OP(gpu_concat_past_present);
 
-struct gpu_debug_op 
-{
-    std::string name() const { return "gpu::debug_op"; }
-
-    shape compute_shape(std::vector<shape> inputs) const
-    {
-        return shape({inputs[0], inputs[1], inputs[2]});
-    }
-};
-MIGRAPHX_REGISTER_OP(gpu_debug_op);
-
 struct find_group_query_attention
 {
     auto matcher() const
@@ -354,15 +323,21 @@ struct find_group_query_attention
     {
         auto ins       = r.result;
         auto inputs = ins->inputs();
-
         auto v = ins->get_operator().to_value();
+        auto s      = ins->get_shape();
+
         assert(v.contains("num_heads"));
-        auto num_heads = v.at("num_heads").to<int>();
+        auto num_heads = v.at("num_heads").to<std::size_t>();
         assert(v.contains("kv_num_heads"));
         auto kv_num_heads = v.at("kv_num_heads").to<int>();
-        auto s      = ins->get_shape();
         assert(v.contains("do_rotary"));
         auto do_rotary = v.at("do_rotary").to<bool>();
+        assert(v.contains("local_window_size"));
+        auto local_window_size = v.at("local_window_size").to<int>();
+        assert(v.contains("rotary_interleaved"));
+        auto rotary_interleaved = v.at("rotary_interleaved").to<int>();
+        assert(v.contains("scale"));
+        auto scale = v.at("scale").to<float>();
 
         auto q_shape              = inputs[0]->get_shape();
         auto q_lens               = q_shape.lens();
@@ -375,10 +350,7 @@ struct find_group_query_attention
         std::size_t q_hidden_size = q_lens[2];
         std::size_t head_size     = q_hidden_size / (num_heads + 2 * kv_num_heads);
         q_hidden_size = head_size * num_heads; 
-        const bool packed_qkv = true;
-
-        std::size_t rotary_dim = inputs[7]->get_shape().lens()[1] * 2;
-        std::size_t present_kv_seqlen = 4096;
+        std::size_t present_kv_seqlen = past_sequence_length;
 
         shape output_shape{input_type, {batch_size, sequence_length, q_hidden_size}};
         shape qkv_rotary_shape{input_type, {batch_size,
@@ -402,95 +374,80 @@ struct find_group_query_attention
                                         head_size};
 
         auto transposed_qkv = mpm.get_module().insert_instruction(ins, make_op("reshape", {{"dims", bsnh}}), inputs.at(0));
-        // auto transposed_qkv = mpm.get_module().insert_instruction(ins, make_op("reshape", {{"dims", bnsh}}), inputs.at(0));
 
         transposed_qkv = mpm.get_module().insert_instruction(ins, make_op("transpose", {{"permutation", {0, 2, 1, 3}}}), transposed_qkv);
         transposed_qkv = mpm.get_module().insert_instruction(ins, make_op("contiguous"), transposed_qkv);
         
-        // if (do_rotary)
-        // {
-            std::vector<instruction_ref> rotary_inputs{
-                                            transposed_qkv, 
-                                            inputs.at(5),
-                                            inputs.at(7),
-                                            inputs.at(8)};
-            auto rotary_qkv = mpm.get_module().insert_instruction(ins, 
-                                    gpu_gqa_rotary_embedding{v.at("do_rotary").to<int>(),
-                                           v.at("kv_num_heads").to<int>(),
-                                           v.at("local_window_size").to<int>(),
-                                           v.at("num_heads").to<std::size_t>(),
-                                           v.at("rotary_interleaved").to<int>(),
-                                           v.at("scale").to<float>()}, rotary_inputs);
-            
-            std::vector<instruction_ref> concat_inputs{
-                                            rotary_qkv, 
-                                            inputs.at(3), 
-                                            inputs.at(4),
-                                            inputs.at(5)};
 
-            auto concat = mpm.get_module().insert_instruction(ins, 
-                                    gpu_concat_past_present{v.at("do_rotary").to<int>(),
-                                           v.at("kv_num_heads").to<int>(),
-                                           v.at("local_window_size").to<int>(),
-                                           v.at("num_heads").to<std::size_t>(),
-                                           v.at("rotary_interleaved").to<int>(),
-                                           v.at("scale").to<float>()}, concat_inputs);
-            auto pres_k = mpm.get_module().insert_instruction(ins, make_op("get_tuple_elem", {{"index", 0}}), concat);
-            auto pres_v = mpm.get_module().insert_instruction(ins, make_op("get_tuple_elem", {{"index", 1}}), concat);
+        std::vector<instruction_ref> rotary_inputs{
+                                        transposed_qkv, 
+                                        inputs.at(5),
+                                        inputs.at(7),
+                                        inputs.at(8)};
+        auto rotary_qkv = mpm.get_module().insert_instruction(ins, 
+                                gpu_gqa_rotary_embedding{do_rotary,
+                                        kv_num_heads,
+                                        local_window_size,
+                                        num_heads,
+                                        rotary_interleaved,
+                                        scale}, rotary_inputs);
+        
+        std::vector<instruction_ref> concat_inputs{
+                                        rotary_qkv, 
+                                        inputs.at(3), 
+                                        inputs.at(4),
+                                        inputs.at(5)};
+
+        auto concat = mpm.get_module().insert_instruction(ins, 
+                                gpu_concat_past_present{do_rotary,
+                                        kv_num_heads,
+                                        local_window_size,
+                                        num_heads,
+                                        rotary_interleaved,
+                                        scale}, concat_inputs);
+        auto pres_k = mpm.get_module().insert_instruction(ins, make_op("get_tuple_elem", {{"index", 0}}), concat);
+        auto pres_v = mpm.get_module().insert_instruction(ins, make_op("get_tuple_elem", {{"index", 1}}), concat);
 
 
-            std::vector<instruction_ref> attn_probs_inputs{
-                                            rotary_qkv, 
-                                            pres_k, 
-                                            pres_v,
-                                            inputs.at(5)};
-            auto attn_probs = mpm.get_module().insert_instruction(ins, 
-                                    gpu_compute_attention_probabilities{v.at("do_rotary").to<int>(),
-                                           v.at("kv_num_heads").to<int>(),
-                                           v.at("local_window_size").to<int>(),
-                                           v.at("num_heads").to<std::size_t>(),
-                                           v.at("rotary_interleaved").to<int>(),
-                                           v.at("scale").to<float>()}, attn_probs_inputs);
+        std::vector<instruction_ref> attn_probs_inputs{
+                                        rotary_qkv, 
+                                        pres_k, 
+                                        pres_v,
+                                        inputs.at(5)};
+        auto attn_probs = mpm.get_module().insert_instruction(ins, 
+                                gpu_compute_attention_probabilities{do_rotary,
+                                        kv_num_heads,
+                                        local_window_size,
+                                        num_heads,
+                                        rotary_interleaved,
+                                        scale}, attn_probs_inputs);
 
-            auto probs = mpm.get_module().insert_instruction(ins, make_op("get_tuple_elem", {{"index", 0}}), attn_probs);
-            auto present_key = mpm.get_module().insert_instruction(ins, make_op("get_tuple_elem", {{"index", 1}}), attn_probs);
-            auto present_value = mpm.get_module().insert_instruction(ins, make_op("get_tuple_elem", {{"index", 2}}), attn_probs);
+        auto probs = mpm.get_module().insert_instruction(ins, make_op("get_tuple_elem", {{"index", 0}}), attn_probs);
+        auto present_key = mpm.get_module().insert_instruction(ins, make_op("get_tuple_elem", {{"index", 1}}), attn_probs);
+        auto present_value = mpm.get_module().insert_instruction(ins, make_op("get_tuple_elem", {{"index", 2}}), attn_probs);
 
-            std::vector<instruction_ref> softmax_inputs{rotary_qkv, probs, inputs.at(5)};
-            auto softmax = mpm.get_module().insert_instruction(ins, 
-                                    gpu_gqa_softmax{v.at("do_rotary").to<int>(),
-                                           v.at("kv_num_heads").to<int>(),
-                                           v.at("local_window_size").to<int>(),
-                                           v.at("num_heads").to<std::size_t>(),
-                                           v.at("rotary_interleaved").to<int>(),
-                                           v.at("scale").to<float>()}, softmax_inputs);
-            std::vector<instruction_ref> new_inputs{
-                                            rotary_qkv, 
-                                            present_key, 
-                                            present_value,
-                                            inputs.at(5),
-                                            softmax/* probs */};
+        std::vector<instruction_ref> softmax_inputs{rotary_qkv, probs, inputs.at(5)};
+        auto softmax = mpm.get_module().insert_instruction(ins, 
+                                gpu_gqa_softmax{do_rotary,
+                                        kv_num_heads,
+                                        local_window_size,
+                                        num_heads,
+                                        rotary_interleaved,
+                                        scale}, softmax_inputs);
+        std::vector<instruction_ref> new_inputs{
+                                        rotary_qkv, 
+                                        present_key, 
+                                        present_value,
+                                        inputs.at(5),
+                                        softmax};
 
-            
-            // auto scores = mpm.get_module().insert_instruction( 
-            //     ins, gpu_compute_attention_scores{v.at("do_rotary").to<int>(),
-            //                                 v.at("kv_num_heads").to<int>(),
-            //                                 v.at("local_window_size").to<int>(),
-            //                                 v.at("num_heads").to<std::size_t>(),
-            //                                 v.at("rotary_interleaved").to<int>(),
-            //                                 v.at("scale").to<float>()}, new_inputs);
-                            
-            // scores = mpm.get_module().insert_instruction(ins, make_op("get_tuple_elem", {{"index", 0}}), scores);
-            // mpm.get_module().replace_instruction(ins, gpu_debug_op{}, scores, present_key, present_value);
-            
-            mpm.get_module().replace_instruction(
-                ins, gpu_compute_attention_scores{v.at("do_rotary").to<int>(),
-                                            v.at("kv_num_heads").to<int>(),
-                                            v.at("local_window_size").to<int>(),
-                                            v.at("num_heads").to<std::size_t>(),
-                                            v.at("rotary_interleaved").to<int>(),
-                                            v.at("scale").to<float>()}, new_inputs);
-            // mpm.get_module().debug_print();
+        mpm.get_module().replace_instruction(
+            ins, gpu_compute_attention_scores{do_rotary,
+                                        kv_num_heads,
+                                        local_window_size,
+                                        num_heads,
+                                        rotary_interleaved,
+                                        scale}, new_inputs);
 
     }
 };

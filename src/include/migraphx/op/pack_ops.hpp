@@ -44,7 +44,7 @@ struct pack_ops
         return shape(inputs);
     }
 
-    argument compute(const shape& output_shape, std::vector<argument> args) const
+    argument compute(const shape&, std::vector<argument> args) const
     {
         return {args};
     }

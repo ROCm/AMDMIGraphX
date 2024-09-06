@@ -21,9 +21,10 @@
  * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
  * THE SOFTWARE.
  */
-#ifndef MIGRAPHX_GUARD_KERNELS_GROUP_QUERY_ATTENTION_HPP
-#define MIGRAPHX_GUARD_KERNELS_GROUP_QUERY_ATTENTION_HPP
+#ifndef MIGRAPHX_GUARD_KERNELS_GQA_SOFTMAX_HPP
+#define MIGRAPHX_GUARD_KERNELS_GQA_SOFTMAX_HPP
 
+#include <migraphx/kernels/group_query_attention.hpp>
 #include <migraphx/kernels/index.hpp>
 #include <migraphx/kernels/algorithm.hpp>
 #include <migraphx/kernels/integral_constant.hpp>
@@ -35,52 +36,6 @@
 
 namespace migraphx {
 
-struct RotaryParameters
-{
-    float scale;
-    int batch_size;           // Batch size used by input
-    int sequence_length;      // Sequence length used by input
-    int hidden_size;          // Hidden size used by input
-    int head_size;            // Head size
-    int rotary_embedding_dim; // Rotary embedding dimension.
-    int num_heads;            // num_heads = hidden_size / head_size
-    int max_sequence_length;  // Sequence length used by cos/sin cache
-    int head_stride;          // Head stride
-    int seq_stride;           // Sequence stride
-    int batch_stride;         // Batch stride
-    int position_ids_format;  // Format of position ids - 0 is (1), 1 is (batch_size,
-                              // sequence_length)
-    int transposed; // Whether the input tensor has been transposed into (batch, num_heads,
-                     // seq_len, hidden)
-    int seqlen_present_kv_cache;
-
-    int do_rotary;
-    int kv_num_heads;
-    int local_window_size;
-    int rotary_interleaved;
-
-    __host__ __device__ void print() const {
-        printf("scale: %f\n", scale);
-        printf("batch_size: %d\n", batch_size);
-        printf("sequence_length: %d\n", sequence_length);
-        printf("hidden_size: %d\n", hidden_size);
-        printf("head_size: %d\n", head_size);
-        printf("rotary_embedding_dim: %d\n", rotary_embedding_dim);
-        printf("num_heads: %d\n", num_heads);
-        printf("max_sequence_length: %d\n", max_sequence_length);
-        printf("head_stride: %d\n", head_stride);
-        printf("seq_stride: %d\n", seq_stride);
-        printf("batch_stride: %d\n", batch_stride);
-        printf("position_ids_format: %d\n", position_ids_format);
-        printf("transposed: %d\n", transposed);
-        printf("seqlen_present_kv_cache: %d\n", seqlen_present_kv_cache);
-        printf("do_rotary: %d\n", do_rotary);
-        printf("kv_num_heads: %d\n", kv_num_heads);
-        printf("local_window_size: %d\n", local_window_size);
-        printf("rotary_interleaved: %d\n", rotary_interleaved);
-    }
-};
-
 
 template <class T>
 __device__ bool float_equal(T x, T y)
@@ -88,13 +43,6 @@ __device__ bool float_equal(T x, T y)
     return isfinite(x) and isfinite(y) and
            nextafterf(x, numeric_lowest<T>()) <= y and
            nextafterf(x, numeric_max<T>()) >= y;
-}
-
-
-template<class S, class... Ts>
-__device__ RotaryParameters make_rotary_params(S s, Ts... ts)
-{
-    return {static_cast<float>(s), ts...};
 }
 
 template <class T>
@@ -155,24 +103,24 @@ __device__ void CalculateSoftmax(
     int sequence_length,                // sequence length of self-attention (S)
     int present_buffer_sequence_length, // sequence length of present state
     Params params,
-    int idx)                    
+    index_int idx)                    
 {
     const int num_heads = params.num_heads;
 
-    const int loop_len = batch_size * num_heads;
-    auto i = idx / sequence_length;
-    auto inner_i = idx % sequence_length;
+    const index_int loop_len = batch_size * num_heads;
+    const index_int i = idx / sequence_length;
+    const index_int inner_i = idx % sequence_length;
     if(i < loop_len)
     {
-        const int batch_index = static_cast<int>(i) / num_heads;
+        const index_int batch_index = i / num_heads;
         const int total_seqlen         = seqlens_k[batch_index] + 1;
-        const int output_offset =
-            static_cast<int>(i) * sequence_length * present_buffer_sequence_length;
+        const index_int output_offset =
+            i * sequence_length * present_buffer_sequence_length;
         auto output = attention_probs + output_offset;
         
         const int local_window_size = params.local_window_size;
         auto output_softmax = output;
-        int seq = inner_i;
+        index_int seq = inner_i;
         if (seq < sequence_length)
         {
             output_softmax += seq * present_buffer_sequence_length;
@@ -218,10 +166,12 @@ __device__ void gqa_softmax(Output output,
                                         Seqlens_K seqlens_k,
                                         Params params)
 {
+    const int batch_size      = params.batch_size;
+    const int sequence_length = params.sequence_length;
+    const int num_heads       = params.num_heads;
+    const int elements        = batch_size * num_heads * sequence_length;
     auto ind = make_index();
-    ind.global_stride(output.get_shape().elements() / 4096, [&](auto idx) {
-        const int batch_size      = params.batch_size;
-        const int sequence_length = params.sequence_length;
+    ind.global_stride(elements, [&](auto idx) {
         int seqlen_present_kv_cache = params.seqlen_present_kv_cache;
         CalculateSoftmax(output.begin(),
                                 seqlens_k.begin(),

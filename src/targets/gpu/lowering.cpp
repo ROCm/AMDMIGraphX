@@ -541,11 +541,9 @@ struct miopen_apply
 
         apply_map.emplace("gpu::gqa_softmax", [=](instruction_ref ins) {
             auto s      = ins->get_shape();
-            // auto output = insert_allocation(ins, s);
             auto inputs = ins->inputs();
 
             auto new_inputs = ins->inputs();
-            // new_inputs.push_back(output);
             new_inputs.push_back(inputs.at(1));
             auto ret = mod->replace_instruction(
                 ins,
@@ -570,23 +568,6 @@ struct miopen_apply
                 new_inputs);
             return ret;
         });
-
-        // apply_map.emplace("gpu::debug_op", [=](instruction_ref ins) {
-        //     auto s      = ins->get_shape();
-        //     auto output = insert_allocation(ins, s);
-        //     auto inputs = ins->inputs();
-
-        //     auto new_inputs = ins->inputs();
-        //     new_inputs.push_back(output);
-        //     // new_inputs.push_back(inputs.at(1));
-        //     auto ret = mod->replace_instruction(
-        //         ins,
-        //         make_op("gpu::precompile_op", {{"op", to_value(ins->get_operator())}}),
-        //         new_inputs);
-        //     return ret;
-        // });
-
-        // mod->debug_print();
     }
     
     void add_scan_slice_op()

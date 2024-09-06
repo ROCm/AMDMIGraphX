@@ -186,10 +186,10 @@ constexpr window<Window, Stride, Padding> make_window(Window w, Stride s, Paddin
     return {w, s, p};
 }
 
-<<<<<<< HEAD
-template <bool IncludePad, class Op, class Window, class Output, class Input>
-__device__ void pooling(Op op, Window w, Output output, Input input)
+template <class Algo, index_int GroupSize, class Output, class F>
+__device__ void pooling_reduce(Output output, F f)
 {
+    if constexpr(GroupSize < 2)
     {
         Algo::template run<decltype(output)>(
             [&](auto out_idx, auto r) { r.outer([&] { output[out_idx] = f(out_idx, r); }); });
@@ -226,8 +226,8 @@ __device__ void pooling(Op op, Window w, Output output, Input input)
             }
         }))(reduce::make_indices(w.size()));
         return op.final(x, w.size());
->>>>>>> origin/develop
     });
 }
 
+} // namespace migraphx
 #endif // MIGRAPHX_GUARD_KERNELS_POOLING_HPP

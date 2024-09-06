@@ -26,3 +26,4 @@ accelerate
 diffusers
 transformers
 hip-python
+

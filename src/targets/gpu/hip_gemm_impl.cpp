@@ -553,7 +553,7 @@ struct hip_gemm_impl
         return best_sol;
     }
 
-    // rocblas
+    // hipblaslt
     size_t num_matrices = 0;
     uint64_t m          = 0;
     uint64_t n          = 0;
@@ -575,7 +575,6 @@ struct hip_gemm_impl
     int64_t d_stride = 0;
     bool is_3inputs  = true;
 
-    // hipblaslt
     hipDataType arg_type              = HIP_R_32F;
     hipblasComputeType_t compute_type = HIPBLAS_COMPUTE_32F;
     hipDataType output_type           = HIP_R_32F;

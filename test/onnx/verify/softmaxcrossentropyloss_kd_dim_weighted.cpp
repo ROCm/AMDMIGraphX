@@ -30,7 +30,7 @@
 TEST_CASE(softmaxcrossentropyloss_kd_no_reduction_even_weighted_ones_test)
 {
     migraphx::program p =
-        migraphx::parse_onnx("softmaxcrossentropyloss_kd_no_reduction_weighted_test.onnx");
+        optimize_onnx("softmaxcrossentropyloss_kd_no_reduction_weighted_test.onnx");
     p.compile(migraphx::make_target("ref"));
 
     migraphx::shape score_shape{migraphx::shape::float_type, {4, 4, 2, 2}};
@@ -58,7 +58,7 @@ TEST_CASE(softmaxcrossentropyloss_kd_no_reduction_even_weighted_ones_test)
 TEST_CASE(softmaxcrossentropyloss_kd_no_reduction_uneven_weighted_ones_test)
 {
     migraphx::program p =
-        migraphx::parse_onnx("softmaxcrossentropyloss_kd_no_reduction_weighted_test.onnx");
+        optimize_onnx("softmaxcrossentropyloss_kd_no_reduction_weighted_test.onnx");
     p.compile(migraphx::make_target("ref"));
 
     migraphx::shape score_shape{migraphx::shape::float_type, {4, 4, 2, 2}};
@@ -87,7 +87,7 @@ TEST_CASE(softmaxcrossentropyloss_kd_no_reduction_uneven_weighted_ones_test)
 TEST_CASE(softmaxcrossentropyloss_kd_sum_reduction_weighted_test_ones)
 {
     migraphx::program p =
-        migraphx::parse_onnx("softmaxcrossentropyloss_kd_sum_reduction_double_weighted_test.onnx");
+        optimize_onnx("softmaxcrossentropyloss_kd_sum_reduction_double_weighted_test.onnx");
     p.compile(migraphx::make_target("ref"));
 
     migraphx::shape score_shape{migraphx::shape::double_type, {4, 4, 2, 2}};
@@ -113,7 +113,7 @@ TEST_CASE(softmaxcrossentropyloss_kd_sum_reduction_weighted_test_ones)
 TEST_CASE(softmaxcrossentropyloss_kd_sum_reduction_weighted_test_zeroes)
 {
     migraphx::program p =
-        migraphx::parse_onnx("softmaxcrossentropyloss_kd_sum_reduction_double_weighted_test.onnx");
+        optimize_onnx("softmaxcrossentropyloss_kd_sum_reduction_double_weighted_test.onnx");
     p.compile(migraphx::make_target("ref"));
 
     migraphx::shape score_shape{migraphx::shape::double_type, {4, 4, 2, 2}};
@@ -139,7 +139,7 @@ TEST_CASE(softmaxcrossentropyloss_kd_mean_reduction_weighted_test)
 {
     using migraphx::half;
     migraphx::program p =
-        migraphx::parse_onnx("softmaxcrossentropyloss_kd_mean_reduction_half_weighted_test.onnx");
+        optimize_onnx("softmaxcrossentropyloss_kd_mean_reduction_half_weighted_test.onnx");
     p.compile(migraphx::make_target("ref"));
 
     migraphx::shape score_shape{migraphx::shape::half_type, {4, 4, 2, 2}};
@@ -166,7 +166,7 @@ TEST_CASE(softmaxcrossentropyloss_kd_mean_reduction_uneven_weighted_test)
 {
     using migraphx::half;
     migraphx::program p =
-        migraphx::parse_onnx("softmaxcrossentropyloss_kd_mean_reduction_half_weighted_test.onnx");
+        optimize_onnx("softmaxcrossentropyloss_kd_mean_reduction_half_weighted_test.onnx");
     p.compile(migraphx::make_target("ref"));
 
     migraphx::shape score_shape{migraphx::shape::half_type, {4, 4, 2, 2}};

@@ -75,10 +75,9 @@ TEST_CASE(softmaxcrossentropyloss_kd_sum_reduction_weighted_double_test)
 
     auto weighted_loss =
         mm->add_instruction(migraphx::make_op("mul"), neglogsoftmax, gathernd2);
-    auto loss_out = mm->add_instruction(migraphx::make_op("reduce_sum", {{"axes", {0, 1, 2}}}), weighted_loss);
-    mm->add_return({loss_out});
+    mm->add_instruction(migraphx::make_op("reduce_sum", {{"axes", {0, 1, 2}}}), weighted_loss);
 
-    auto prog = migraphx::parse_onnx("softmaxcrossentropyloss_kd_sum_reduction_double_weighted_test.onnx");
+    auto prog = optimize_onnx("softmaxcrossentropyloss_kd_sum_reduction_double_weighted_test.onnx");
 
     EXPECT(p == prog);
 }
@@ -131,13 +130,10 @@ TEST_CASE(softmaxcrossentropyloss_kd_no_reduction_weighted_test)
     
     auto logsoftmax    = mm->add_instruction(migraphx::make_op("log"), gathernd);
     auto neglogsoftmax = mm->add_instruction(migraphx::make_op("neg"), logsoftmax);
+    mm->add_instruction(migraphx::make_op("mul"), neglogsoftmax, gathernd2);
 
-    auto weighted_loss =
-        mm->add_instruction(migraphx::make_op("mul"), neglogsoftmax, gathernd2);
 
-    mm->add_return({weighted_loss}); 
-
-    auto prog = migraphx::parse_onnx("softmaxcrossentropyloss_kd_no_reduction_weighted_test.onnx");
+    auto prog = optimize_onnx("softmaxcrossentropyloss_kd_no_reduction_weighted_test.onnx");
 
     EXPECT(p == prog);
 }
@@ -196,10 +192,9 @@ TEST_CASE(softmaxcrossentropyloss_kd_mean_reduction_half_weighted_test)
     auto loss_x = mm->add_instruction(migraphx::make_op("reduce_sum", {{"axes", {0,1 ,2}}}), weighted_loss);
     auto loss_w = mm->add_instruction(migraphx::make_op("reduce_sum", {{"axes", {0,1 ,2}}}), gathernd2);
 
-    auto loss_out = mm->add_instruction(migraphx::make_op("div"), loss_x, loss_w);
-    mm->add_return({loss_out}); 
+    mm->add_instruction(migraphx::make_op("div"), loss_x, loss_w);
     
-    auto prog = migraphx::parse_onnx("softmaxcrossentropyloss_kd_mean_reduction_half_weighted_test.onnx");
+    auto prog = optimize_onnx("softmaxcrossentropyloss_kd_mean_reduction_half_weighted_test.onnx");
     EXPECT(p == prog);
 }
 

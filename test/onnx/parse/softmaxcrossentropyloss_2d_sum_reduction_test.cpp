@@ -57,9 +57,8 @@ TEST_CASE(softmaxcrossentropyloss_2d_sum_reduction_test)
     auto weighted_loss =
         mm->add_instruction(migraphx::make_op("mul"), neglogsoftmax, gathernd2);
     auto loss_out = mm->add_instruction(migraphx::make_op("reduce_sum", {{"axes", {0}}}), weighted_loss);
-    mm->add_return({loss_out});
 
-    auto prog = migraphx::parse_onnx("softmaxcrossentropyloss_2d_sum_reduction_test.onnx");
+    auto prog = optimize_onnx("softmaxcrossentropyloss_2d_sum_reduction_test.onnx");
 
     EXPECT(p == prog);
 }
@@ -97,9 +96,8 @@ TEST_CASE(softmaxcrossentropyloss_2d_sum_reduction_double_test)
     auto weighted_loss =
         mm->add_instruction(migraphx::make_op("mul"), neglogsoftmax, gathernd2);
     auto loss_out = mm->add_instruction(migraphx::make_op("reduce_sum", {{"axes", {0}}}), weighted_loss);
-    mm->add_return({loss_out});
 
-    auto prog = migraphx::parse_onnx("softmaxcrossentropyloss_2d_sum_reduction_double_test.onnx");
+    auto prog = optimize_onnx("softmaxcrossentropyloss_2d_sum_reduction_double_test.onnx");
 
     EXPECT(p == prog);
 }
@@ -133,9 +131,8 @@ TEST_CASE(softmaxcrossentropyloss_2d_sum_reduction_half_test)
     auto weighted_loss =
         mm->add_instruction(migraphx::make_op("mul"), neglogsoftmax, gathernd2);
     auto loss_out = mm->add_instruction(migraphx::make_op("reduce_sum", {{"axes", {0}}}), weighted_loss);
-    mm->add_return({loss_out});
 
-    auto prog = migraphx::parse_onnx("softmaxcrossentropyloss_2d_sum_reduction_half_test.onnx");
+    auto prog = optimize_onnx("softmaxcrossentropyloss_2d_sum_reduction_half_test.onnx");
 
     EXPECT(p == prog);
 }

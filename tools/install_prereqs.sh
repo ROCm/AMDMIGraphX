@@ -53,6 +53,7 @@ else
     python3-pip \
     python3-venv \
     rocblas-dev \
+    hipblaslt \
     rocm-cmake \
     rocm-llvm-dev \
     libtbb-dev

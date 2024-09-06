@@ -52,10 +52,9 @@ endif()
 if(MIGRAPHX_USE_HIPBLASLT)
     # hipblaslt
     find_package(hipblaslt REQUIRED)
-    find_package(hipblas REQUIRED)
-    message(STATUS "MIGraphx build with hipBLAS and hipBLASLt")
+    message(STATUS "MIGraphx build with hipBLASLt")
 else()
-    message(STATUS "MIGraphX build without hipBLAS and hipBLASLt")
+    message(STATUS "MIGraphX build without hipBLASLt")
 endif()
 
 if(MIGRAPHX_USE_COMPOSABLEKERNEL)
@@ -377,7 +376,7 @@ if(MIGRAPHX_USE_ROCBLAS)
 endif()
 
 if(MIGRAPHX_USE_HIPBLASLT)
-    target_link_libraries(migraphx_gpu PUBLIC roc::hipblas roc::hipblaslt)
+    target_link_libraries(migraphx_gpu PUBLIC roc::hipblaslt)
 endif()
 
 target_link_libraries(migraphx_gpu PUBLIC migraphx MIOpen)

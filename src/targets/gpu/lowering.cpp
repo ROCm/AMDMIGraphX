@@ -250,6 +250,12 @@ struct miopen_apply
         apply_map.emplace(name, [=](instruction_ref ins) {
             std::vector<instruction_ref> refs = ins->inputs();
             assert(refs.size() == 2);
+            if(enabled(MIGRAPHX_ENABLE_HIPBLASLT_GEMM{}))
+            {
+                shape workspace_shape{shape::uint8_type, {hipblaslt_workspace_size}};
+                auto workspace = insert_allocation(ins, workspace_shape);
+                refs.push_back(workspace);
+            }
             auto output = insert_allocation(ins, ins->get_shape());
             refs.push_back(output);
             if(not enabled(MIGRAPHX_ENABLE_HIPBLASLT_GEMM{}) or not hipblaslt_supported())

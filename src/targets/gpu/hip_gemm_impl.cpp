@@ -56,7 +56,7 @@ hipDataType compute_to_hip_type(hipblasComputeType_t type)
     }
 }
 
-// Convert hipBLAS datatypes to equivalent Migraphx data types
+// Convert hipBLAS datatypes to equivalent MIGraphX data types
 hipDataType get_type_hipblas(shape::type_t type)
 {
     switch(type)
@@ -120,7 +120,7 @@ struct hip_gemm_impl
                   const std::vector<shape>& input_shapes,
                   float alpha_param,
                   float beta_param)
-        : alpha(alpha_param), beta(beta_param), is_3inputs(input_shapes.size() == 4)
+        : alpha(alpha_param), beta(beta_param), is_3inputs(input_shapes.size() == 5)
     {
         if(not is_3inputs)
         {
@@ -155,8 +155,8 @@ struct hip_gemm_impl
         // Leading dimensions of matrices
         lda = input_shapes[0].strides()[transa ? dim_1 : dim_0];
         ldb = input_shapes[1].strides()[transb ? dim_1 : dim_0];
-        ldc = input_shapes[2].strides()[dim_0];
-        ldd = is_3inputs ? input_shapes[3].strides()[dim_0] : ldc;
+        ldc = is_3inputs ? input_shapes[2].strides()[dim_0] : input_shapes[3].strides()[dim_0];
+        ldd = is_3inputs ? input_shapes[4].strides()[dim_0] : ldc;
 
         auto out_lens = output_shape.lens();
         m             = out_lens[dim_0];
@@ -165,13 +165,15 @@ struct hip_gemm_impl
 
         a_stride     = get_batch_stride_hip(input_shapes[0]);
         b_stride     = get_batch_stride_hip(input_shapes[1]);
-        c_stride     = get_batch_stride_hip(input_shapes[2]);
-        d_stride     = is_3inputs ? get_batch_stride_hip(input_shapes[3]) : c_stride;
+        c_stride     = is_3inputs ? get_batch_stride_hip(input_shapes[2])
+                                  : get_batch_stride_hip(input_shapes[3]);
+        d_stride     = is_3inputs ? get_batch_stride_hip(input_shapes[4]) : c_stride;
         num_matrices = std::accumulate(
             out_lens.rbegin() + 2, out_lens.rend(), std::size_t{1}, std::multiplies<std::size_t>());
 
         arg_type    = get_type_hipblas(input_shapes[0].type());
-        output_type = get_type_hipblas(input_shapes[2].type());
+        output_type = is_3inputs ? get_type_hipblas(input_shapes[4].type())
+                                 : get_type_hipblas(input_shapes[3].type());
 
         if(arg_type == HIP_R_8I or arg_type == HIP_R_8U)
         {
@@ -397,12 +399,12 @@ struct hip_gemm_impl
                     args[0].data(),                               // B
                     mat_a,                                        // Bdesc
                     get_beta(),                                   // beta
-                    args[2].data(),                               // C
+                    is_3inputs ? args[2].data() : args[3].data(), // C
                     mat_c,                                        // Cdesc
-                    is_3inputs ? args[3].data() : args[2].data(), // D
+                    is_3inputs ? args[4].data() : args[3].data(), // D
                     is_3inputs ? mat_d : mat_c,                   // Ddesc
                     algo,                                         // algo
-                    hipblaslt_workspace().implicit(),             // workspace
+                    is_3inputs ? args[3].data() : args[2].data(), // workspace
                     algo->max_workspace_bytes,                    // workspaceSizeInBytes
                     ctx.get_stream().get()                        // stream
         );
@@ -448,7 +450,7 @@ struct hip_gemm_impl
 
     /**
      * Checks a particular solution for validity by running it (could be invalid if this model was
-     * tuned with a different rocBLAS version)
+     * tuned with a different hipBLASLt version)
      *
      * @return Returns either solution_idx if valid, or else the default value 0
      * if not.  The default does not mean list index 0, but tells the picker

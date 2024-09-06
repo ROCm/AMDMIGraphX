@@ -71,6 +71,7 @@ struct hip_gemm
     {
         std::vector<shape> in_shapes(inputs);
         in_shapes.pop_back();
+        in_shapes.pop_back();
         // When input shapes are A, B, C the GEMM equation is  C  =  α AB+ β C   where α, β are
         // scalars
         check_shapes{in_shapes, *this}.has(2, 3);

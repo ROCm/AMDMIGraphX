@@ -60,13 +60,6 @@ hipblaslt_preference_ptr create_hipblaslt_preference_ptr()
     return hipblaslt_preference_ptr{preference};
 }
 
-argument& hipblaslt_workspace()
-{
-    shape workspace_shape{shape::int8_type, {hipblaslt_workspace_size}};
-    static auto workspace = allocate_gpu(workspace_shape);
-    return workspace;
-}
-
 bool hipblaslt_supported()
 {
     const auto device_name = trim(split_string(get_device_name(), ':').front());

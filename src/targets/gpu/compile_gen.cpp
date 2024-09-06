@@ -278,6 +278,17 @@ std::string tile::str() const
 
 std::size_t find_fast_axis(const shape& input)
 {
+    if(input.scalar())
+        return input.ndim() - 1;
+    if(input.broadcasted())
+    {
+        auto stride_it = std::min_element(input.strides().begin(), input.strides().end(), by(std::less<>{}, [](std::size_t i) {
+            if(i == 0)
+                return std::numeric_limits<std::size_t>::max();
+            return i;
+        }));
+        return stride_it - input.strides().begin();
+    }
     auto permutation = invert_permutation(find_permutation(input));
     auto it          = std::max_element(permutation.begin(), permutation.end());
     return it - permutation.begin();

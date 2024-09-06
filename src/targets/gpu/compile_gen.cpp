@@ -282,11 +282,12 @@ std::size_t find_fast_axis(const shape& input)
         return input.ndim() - 1;
     if(input.broadcasted())
     {
-        auto stride_it = std::min_element(input.strides().begin(), input.strides().end(), by(std::less<>{}, [](std::size_t i) {
-            if(i == 0)
-                return std::numeric_limits<std::size_t>::max();
-            return i;
-        }));
+        auto stride_it = std::min_element(
+            input.strides().begin(), input.strides().end(), by(std::less<>{}, [](std::size_t i) {
+                if(i == 0)
+                    return std::numeric_limits<std::size_t>::max();
+                return i;
+            }));
         return stride_it - input.strides().begin();
     }
     auto permutation = invert_permutation(find_permutation(input));

@@ -33,8 +33,10 @@ TEST_CASE(test_find_fast_axis)
     EXPECT(find_fast_axis(migraphx::shape{migraphx::shape::float_type, {2, 2, 2, 6, 3}}) == 4);
     EXPECT(find_fast_axis(migraphx::shape{
                migraphx::shape::float_type, {2, 2, 2, 6, 3}, {72, 6, 1, 12, 2}}) == 2);
-    EXPECT(find_fast_axis(migraphx::shape{migraphx::shape::float_type, {64, 512, 32, 32}, {0, 1, 0, 0}}) == 1);
-    EXPECT(find_fast_axis(migraphx::shape{migraphx::shape::float_type, {64, 512, 32, 32}, {0, 0, 0, 0}}) == 3);
+    EXPECT(find_fast_axis(
+               migraphx::shape{migraphx::shape::float_type, {64, 512, 32, 32}, {0, 1, 0, 0}}) == 1);
+    EXPECT(find_fast_axis(
+               migraphx::shape{migraphx::shape::float_type, {64, 512, 32, 32}, {0, 0, 0, 0}}) == 3);
 }
 
 int main(int argc, const char* argv[]) { test::run(argc, argv); }

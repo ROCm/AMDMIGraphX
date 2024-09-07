@@ -23,11 +23,7 @@ RUN zypper --gpg-auto-import-keys install -y \
     gdb \
     git \
     python3-pip \
-    rpm-build \
-    perl-File-BaseDir \
-    libgfortran5 \
-    hipblaslt-devel \
-    hipblas-devel
+    rpm-build
 
 
 # Workaround broken rocm packages

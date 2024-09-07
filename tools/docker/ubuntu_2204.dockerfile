@@ -50,9 +50,7 @@ RUN apt-get update && DEBIAN_FRONTEND=noninteractive apt-get install -y --allow-
     rocm-dev \
     roctracer-dev \
     hipcub  \
-    libgfortran5 \
     hipblas  \
-    hipblaslt \
     hipify-clang \
     half \
     libssl-dev \

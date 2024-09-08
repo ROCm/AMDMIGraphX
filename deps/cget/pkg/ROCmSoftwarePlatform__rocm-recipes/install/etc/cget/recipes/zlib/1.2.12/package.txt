@@ -1,0 +1,1 @@
+https://github.com/madler/zlib/archive/refs/tags/v1.2.12.zip -H sha256:7c9917b80c125e317e44c9d83a4c15390dac9967df27397024beaf4342e0f8cd

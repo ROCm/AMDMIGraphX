@@ -1,0 +1,1 @@
+../../../../cget/pkg/ROCmSoftwarePlatform__rocm-recipes/install/etc/cget/recipes/pcre/package.txt

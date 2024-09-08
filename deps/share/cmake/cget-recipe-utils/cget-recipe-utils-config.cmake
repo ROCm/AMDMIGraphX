@@ -1,0 +1,1 @@
+../../../cget/pkg/ROCmSoftwarePlatform__rocm-recipes/install/share/cmake/cget-recipe-utils/cget-recipe-utils-config.cmake

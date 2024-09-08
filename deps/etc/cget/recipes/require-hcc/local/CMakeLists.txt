@@ -1,0 +1,1 @@
+../../../../../cget/pkg/ROCmSoftwarePlatform__rocm-recipes/install/etc/cget/recipes/require-hcc/local/CMakeLists.txt

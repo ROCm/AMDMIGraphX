@@ -1,0 +1,1 @@
+https://boostorg.jfrog.io/artifactory/main/release/1.83.0/source/boost_1_83_0.tar.bz2 -H sha256:6478edfe2f3305127cffe8caf73ea0176c53769f4bf1585be237eb30798c3b8e -X boost -DBOOST_WITHOUT_CONTEXT=1 -DBOOST_WITHOUT_COROUTINE=1 -DBOOST_WITHOUT_PYTHON=1

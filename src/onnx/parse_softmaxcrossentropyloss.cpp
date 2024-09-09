@@ -142,7 +142,7 @@ struct parse_softmaxcrossentropyloss : op_parser<parse_softmaxcrossentropyloss>
             auto ignore_index_val =
                 parser.parse_value(info.attributes.at("ignore_index")).at<int64_t>();
 
-            if(ignore_index_val >= input_classes || abs(ignore_index_val) > input_classes)
+            if(ignore_index_val >= input_classes or abs(ignore_index_val) > input_classes)
             {
                 return false;
             }
@@ -193,7 +193,7 @@ struct parse_softmaxcrossentropyloss : op_parser<parse_softmaxcrossentropyloss>
         return scores;
     }
 
-    instruction_ref get_labels(const instruction_ref &arg, shape &scores_shape) const
+    instruction_ref get_labels(const instruction_ref &arg, const shape &scores_shape) const
     {
         auto labels = arg;
         auto label_shape = labels->get_shape();

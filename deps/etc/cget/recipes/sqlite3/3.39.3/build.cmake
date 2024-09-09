@@ -1,1 +1,0 @@
-../../../../../cget/pkg/ROCmSoftwarePlatform__rocm-recipes/install/etc/cget/recipes/sqlite3/3.39.3/build.cmake

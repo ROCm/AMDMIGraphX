@@ -1,2 +1,0 @@
-zlib@1.2.12
-google/googletest --test

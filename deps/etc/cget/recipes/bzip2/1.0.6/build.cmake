@@ -1,1 +1,0 @@
-../../../../../cget/pkg/ROCmSoftwarePlatform__rocm-recipes/install/etc/cget/recipes/bzip2/1.0.6/build.cmake

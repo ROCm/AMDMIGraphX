@@ -52,6 +52,7 @@ endif()
 if(MIGRAPHX_USE_HIPBLASLT)
     # hipblaslt
     find_package(hipblaslt REQUIRED)
+    # Making hipblas required to workaround the broken hipblaslt package.
     find_package(hipblas REQUIRED)
     message(STATUS "MIGraphx build with hipBLAS and hipBLASLt")
 else()

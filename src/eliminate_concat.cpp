@@ -36,6 +36,51 @@
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
+
+static void replace_concat(module& m, instruction_ref ins, const allocation_model& am)
+{
+    // Last input should be an allocation
+    auto last = ins->inputs().back();
+    if(last->name() != am.name())
+        return;
+    // Where are the allocations for the tensors to be concatenated?
+    std::vector<instruction_ref> allocations;
+
+    std::transform(
+        ins->inputs().begin(),
+        std::prev(ins->inputs().end()),
+        std::back_inserter(allocations),
+        [&](instruction_ref x) { return instruction::get_output_alias(x, true); });
+
+    if(std::any_of(allocations.begin(), allocations.end(), [&](auto x) {
+           return x->name() != am.name();
+       }))
+        return;
+
+    // Need to sort the allocations, so that we know where to
+    // insert the "super"-allocation
+    auto sorted_allocations = allocations;
+    std::sort(sorted_allocations.begin(),
+              sorted_allocations.end(),
+              [&](instruction_ref x, instruction_ref y) {
+                  return std::distance(m.begin(), x) < std::distance(m.begin(), y);
+              });
+    // Move "super" allocation to the front
+    auto first = sorted_allocations.front();
+    auto super = m.move_instruction(last, first);
+    // Replace each allocation with a load
+    std::size_t offset = 0;
+    for(auto alloc : allocations)
+    {
+        op::load op{alloc->get_shape(), offset};
+        m.replace_instruction(alloc, op, {super});
+        offset += alloc->get_shape().bytes();
+    }
+    std::vector<instruction_ref> args = {super};
+    std::copy(ins->inputs().begin(), ins->inputs().end() - 1, std::back_inserter(args));
+    m.replace_instruction(ins, migraphx::make_op("identity"), args);
+}
+
 void eliminate_concat::apply(module& m) const
 {
     for(auto ins : iterator_for(m))
@@ -63,46 +108,7 @@ void eliminate_concat::apply(module& m) const
         if(axis_index == 0 or
            std::all_of(lens.begin(), lens.begin() + axis_index, [](auto x) { return x == 1; }))
         {
-            // Last input should be an allocation
-            auto last = ins->inputs().back();
-            if(last->name() != concat_opt.allocate())
-                continue;
-            // Where are the allocations for the tensors to be concatenated?
-            std::vector<instruction_ref> allocations;
-
-            std::transform(
-                ins->inputs().begin(),
-                std::prev(ins->inputs().end()),
-                std::back_inserter(allocations),
-                [&](instruction_ref x) { return instruction::get_output_alias(x, true); });
-
-            if(std::any_of(allocations.begin(), allocations.end(), [&](auto x) {
-                   return x->name() != concat_opt.allocate();
-               }))
-                continue;
-
-            // Need to sort the allocations, so that we know where to
-            // insert the "super"-allocation
-            auto sorted_allocations = allocations;
-            std::sort(sorted_allocations.begin(),
-                      sorted_allocations.end(),
-                      [&](instruction_ref x, instruction_ref y) {
-                          return std::distance(m.begin(), x) < std::distance(m.begin(), y);
-                      });
-            // Move "super" allocation to the front
-            auto first = sorted_allocations.front();
-            auto super = m.move_instruction(last, first);
-            // Replace each allocation with a load
-            std::size_t offset = 0;
-            for(auto alloc : allocations)
-            {
-                op::load op{alloc->get_shape(), offset};
-                m.replace_instruction(alloc, op, {super});
-                offset += alloc->get_shape().bytes();
-            }
-            std::vector<instruction_ref> args = {super};
-            std::copy(ins->inputs().begin(), ins->inputs().end() - 1, std::back_inserter(args));
-            m.replace_instruction(ins, migraphx::make_op("identity"), args);
+            replace_concat(m, ins, concat_opt.allocation());
         }
     }
 }

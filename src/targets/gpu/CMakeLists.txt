@@ -49,14 +49,16 @@ else()
     message(STATUS "MIGraphX build without rocBLAS")
 endif()
 
-if(MIGRAPHX_USE_HIPBLASLT)
-    # hipblaslt
-    find_package(hipblaslt REQUIRED)
-    # Making hipblas required to workaround the broken hipblaslt package.
-    find_package(hipblas REQUIRED)
-    message(STATUS "MIGraphx build with hipBLAS and hipBLASLt")
-else()
-    message(STATUS "MIGraphX build without hipBLAS and hipBLASLt")
+if(NOT WIN32)
+    if(MIGRAPHX_USE_HIPBLASLT)
+        # hipblaslt
+        find_package(hipblaslt REQUIRED)
+        # Making hipblas required to workaround the broken hipblaslt package.
+        find_package(hipblas REQUIRED)
+        message(STATUS "MIGraphx build with hipBLAS and hipBLASLt")
+    else()
+        message(STATUS "MIGraphX build without hipBLAS and hipBLASLt")
+    endif()
 endif()
 
 if(MIGRAPHX_USE_COMPOSABLEKERNEL)

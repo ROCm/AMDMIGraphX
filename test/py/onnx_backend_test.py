@@ -1108,6 +1108,7 @@ def create_backend_test(testname=None, target_device=None):
         backend_test.include(r'.*test_operator_maxpool.*')
         backend_test.include(r'.*test_operator_min.*')
         backend_test.include(r'.*test_operator_mm.*')
+        backend_test.include(r'.*test_operator_negativeloglikelihoodloss.*')
         backend_test.include(r'.*test_operator_non_float_params.*')
         backend_test.include(r'.*test_operator_pad.*')
         backend_test.include(r'.*test_operator_params.*')

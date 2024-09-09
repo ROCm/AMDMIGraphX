@@ -207,7 +207,7 @@ struct parse_softmaxcrossentropyloss : op_parser<parse_softmaxcrossentropyloss>
         if(scores_shape.lens()[0] != label_shape.lens()[0])
         {
             MIGRAPHX_THROW(
-                "softmaxcrossentropyloss: Score and Labels must identical batch size inputs");
+                "softmaxcrossentropyloss: Score and Labels should have identical batch size inputs");
         }
 
         if((scores_shape.ndim() - 1) != label_shape.ndim())
@@ -215,6 +215,8 @@ struct parse_softmaxcrossentropyloss : op_parser<parse_softmaxcrossentropyloss>
             MIGRAPHX_THROW(
                 "softmaxcrossentropyloss: Score and Labels must contain identical K-Dimensions");
         }
+
+        
 
         return labels;
     }
@@ -271,11 +273,12 @@ struct parse_softmaxcrossentropyloss : op_parser<parse_softmaxcrossentropyloss>
         auto labels_rank = labels_unsq->get_shape().ndim();
 
         std::vector<instruction_ref> coordinate_index_literals;
+        auto lengths = labels_unsq->get_shape().lens();
 
         for (size_t axis = 0; axis < (labels_rank - 1); axis++)
         {
+            auto len_val = lengths.at(axis);
             // Trying to replicate torch arrange() here.
-            auto len_val = labels_unsq->get_shape().lens().at(axis);
             std::vector<int64_t> vect_of_lit(len_val);
             std::iota(vect_of_lit.begin(), vect_of_lit.end(), 0);
             auto batch_dim_indicies = info.add_literal(migraphx::shape(label_shape.type(), {len_val}), vect_of_lit);
@@ -384,7 +387,7 @@ struct parse_softmaxcrossentropyloss : op_parser<parse_softmaxcrossentropyloss>
         std::vector<int64_t> perm(class_size, 0);
         if (is_k_dim)
         {
-            std::iota(++perm.begin(), perm.end(), 2);
+            std::iota(perm.begin() + 1, perm.end(), 2);
             perm.at(class_size - 1) = 1;
             scores = info.add_instruction(migraphx::make_op("transpose", {{"permutation", perm}}), scores);
         }
@@ -392,7 +395,7 @@ struct parse_softmaxcrossentropyloss : op_parser<parse_softmaxcrossentropyloss>
         scores = info.add_instruction(migraphx::make_op("gathernd"), scores, gathernd_indicies);
 
         std::vector<int64_t> axis_list(ndims-1, 0);
-        std::iota(++(axis_list.begin()), axis_list.end(), 2);
+        std::iota((axis_list.begin() + 1), axis_list.end(), 2);
         weights = info.add_instruction(migraphx::make_op("unsqueeze", {{"axes", axis_list}}), weights);
         weights = info.add_instruction(migraphx::make_op("multibroadcast", {{"out_lens", scores_shape.lens()}}), weights);
         if (is_k_dim)
@@ -401,7 +404,6 @@ struct parse_softmaxcrossentropyloss : op_parser<parse_softmaxcrossentropyloss>
 
         // Do pointwise operators on the final set of indicies and scores we care about rather than
         // before so that we're not doing a bunch of pointwise on items that aren't part of the loss calulation.
-        // Helps more in the mismatched Batch/Class and multi batch size cases. 
         auto log_sm_scores  = info.add_instruction(migraphx::make_op("log"), scores);
         auto neg_lsm_scores = info.add_instruction(migraphx::make_op("neg"), log_sm_scores);
 

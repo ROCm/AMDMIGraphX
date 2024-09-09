@@ -304,7 +304,7 @@ TEST_CASE(softmaxcrossentropyloss_2d_no_reduction_uneven_weighted_neg_ignore_ind
     auto result = p.eval(pp).back();
     std::vector<float> result_vector;
     result.visit([&](auto output) { result_vector.assign(output.begin(), output.end()); });
-    std::vector<float> gold = {1.38629436, 4.15888308, 0.69314718, 0.0f};
+    std::vector<float> gold = {1.38629436, 4.15888308, 0.69314718, 2.77259f};
     EXPECT(migraphx::verify::verify_rms_range(result_vector, gold));
 }
 

@@ -142,14 +142,9 @@ struct parse_softmaxcrossentropyloss : op_parser<parse_softmaxcrossentropyloss>
             auto ignore_index_val =
                 parser.parse_value(info.attributes.at("ignore_index")).at<int64_t>();
 
-            if(ignore_index_val >= input_classes or abs(ignore_index_val) > input_classes)
+            if(ignore_index_val >= input_classes or ignore_index_val < 0)
             {
                 return false;
-            }
-
-            if(ignore_index_val < 0)
-            {
-                ignore_index_val = input_classes + ignore_index_val;
             }
 
             ignore_index = info.add_literal(migraphx::literal(

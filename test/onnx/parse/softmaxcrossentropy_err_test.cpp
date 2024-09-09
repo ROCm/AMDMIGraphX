@@ -79,3 +79,9 @@ TEST_CASE(softmaxcrossentropyloss_invalid_reduction_test)
     EXPECT(test::throws(
         [&] { migraphx::parse_onnx("softmaxcrossentropyloss_invalid_reduction_test.onnx"); }));
 }
+
+TEST_CASE(softmaxcrossentropyloss_invalid_k_dimensions_test)
+{
+    EXPECT(test::throws(
+        [&] { migraphx::parse_onnx("softmaxcrossentropyloss_kdim_not_equal_test.onnx"); }));
+}

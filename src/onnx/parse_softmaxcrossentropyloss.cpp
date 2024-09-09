@@ -208,10 +208,20 @@ struct parse_softmaxcrossentropyloss : op_parser<parse_softmaxcrossentropyloss>
         if((scores_shape.ndim() - 1) != label_shape.ndim())
         {
             MIGRAPHX_THROW(
-                "softmaxcrossentropyloss: Score and Labels must contain identical K-Dimensions");
+                "softmaxcrossentropyloss: Score and Labels must contain identical number of K-Dimensions");
         }
 
-        
+        // Check that K-Dimensions are equal between scores and labels
+        if(label_shape.ndim() > 1)
+        {
+            auto score_len = scores_shape.lens();
+            auto label_len = label_shape.lens();
+
+            if(not std::equal(score_len.begin() + 2,  score_len.end(), label_len.begin() + 1))
+            {
+                MIGRAPHX_THROW( "softmaxcrossentropyloss: K-Dimensions must be equal values between score and labels");
+            }
+        }
 
         return labels;
     }

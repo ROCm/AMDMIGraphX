@@ -11969,6 +11969,28 @@ def softmaxcrossentropyloss_2d_mean_reduction_half_weighted_test():
 
 
 @onnx_test()
+def softmaxcrossentropyloss_kdim_not_equal_test():
+    scores = helper.make_tensor_value_info('0', TensorProto.FLOAT16,
+                                           [4, 4, 2, 1])
+    labels = helper.make_tensor_value_info('1', TensorProto.INT32, [4, 1, 2])
+    weights = helper.make_tensor_value_info('2', TensorProto.FLOAT16, [4])
+    loss = helper.make_tensor_value_info('3', TensorProto.FLOAT16, [4])
+
+    node = onnx.helper.make_node(
+        "SoftmaxCrossEntropyLoss",
+        inputs=[
+            "0",
+            "1",
+            "2",
+        ],
+        outputs=["3"],
+        reduction="mean",
+    )
+
+    return ([node], [scores, labels, weights], [loss])
+
+
+@onnx_test()
 def softmaxcrossentropyloss_kd_mean_reduction_half_weighted_test():
     scores = helper.make_tensor_value_info('0', TensorProto.FLOAT16,
                                            [4, 4, 2, 2])

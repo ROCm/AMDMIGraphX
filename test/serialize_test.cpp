@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2023 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2024 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -26,6 +26,8 @@
 #include <test.hpp>
 
 #include <numeric>
+#include <map>
+#include <vector>
 
 struct empty_type
 {
@@ -143,6 +145,42 @@ TEST_CASE(serialize_optional)
     migraphx::value v = migraphx::to_value(x);
     EXPECT(v.is_int64());
     EXPECT(v.to<int>() == 2);
+}
+
+TEST_CASE(serialize_map)
+{
+    std::map<int, int> m = {{1, 1}, {2, 4}, {3, 9}};
+    migraphx::value v    = migraphx::to_value(m);
+    EXPECT(v.is_array());
+    EXPECT(m == migraphx::from_value<std::map<int, int>>(v));
+}
+
+TEST_CASE(serialize_invalid_map1)
+{
+    migraphx::value v = {{1, 1}, {2, 4}, {3, 9, 27}};
+    EXPECT(test::throws([&] { migraphx::from_value<std::map<int, int>>(v); }));
+}
+
+TEST_CASE(serialize_invalid_map2)
+{
+    migraphx::value v = 2;
+    EXPECT(test::throws([&] { migraphx::from_value<std::map<int, int>>(v); }));
+}
+
+TEST_CASE(serialize_struct_to_map)
+{
+    migraphx::value v = migraphx::to_value(reflectable_type{});
+    EXPECT(v.is_object());
+    std::map<std::string, migraphx::value> m;
+    migraphx::from_value(v, m);
+    EXPECT(m.size() == v.size());
+}
+
+TEST_CASE(serialize_vector_value)
+{
+    std::vector<migraphx::value> x = {{1}, {2}};
+    migraphx::value v              = migraphx::to_value(x);
+    EXPECT(x == migraphx::from_value<std::vector<migraphx::value>>(v));
 }
 
 TEST_CASE(from_value_binary)

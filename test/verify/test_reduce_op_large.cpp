@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2022 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2024 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -30,6 +30,8 @@
 #include <migraphx/op/reduce_min.hpp>
 #include <migraphx/op/reduce_prod.hpp>
 #include <migraphx/op/reduce_sum.hpp>
+#include <migraphx/op/reduce_all.hpp>
+#include <migraphx/op/reduce_any.hpp>
 
 template <class Op, int Axis, migraphx::shape::type_t T>
 struct test_reduce_op_large : verify_program<test_reduce_op_large<Op, Axis, T>>
@@ -50,6 +52,11 @@ template struct test_reduce_op_large<migraphx::op::reduce_mean, 1, migraphx::sha
 template struct test_reduce_op_large<migraphx::op::reduce_min, 1, migraphx::shape::float_type>;
 template struct test_reduce_op_large<migraphx::op::reduce_prod, 2, migraphx::shape::float_type>;
 template struct test_reduce_op_large<migraphx::op::reduce_sum, 1, migraphx::shape::float_type>;
+template struct test_reduce_op_large<migraphx::op::reduce_all, 1, migraphx::shape::float_type>;
+template struct test_reduce_op_large<migraphx::op::reduce_any, 1, migraphx::shape::float_type>;
+
+template struct test_reduce_op_large<migraphx::op::reduce_all, 1, migraphx::shape::bool_type>;
+template struct test_reduce_op_large<migraphx::op::reduce_any, 1, migraphx::shape::bool_type>;
 
 template struct test_reduce_op_large<migraphx::op::reduce_max,
                                      1,

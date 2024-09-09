@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2023 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2024 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -102,6 +102,21 @@ struct MIGRAPHX_EXPORT shape
         bool is_fixed() const;
         bool has_optimal() const;
 
+        /**
+         * Return a dynamic_dimension with the intersection of two dynamic_dimension ranges if
+         * possible.
+         */
+        std::optional<dynamic_dimension> intersection(const dynamic_dimension& other) const
+        {
+            auto left  = std::max(this->min, other.min);
+            auto right = std::min(this->max, other.max);
+            if(left <= right)
+            {
+                return dynamic_dimension{left, right};
+            }
+            return nullopt;
+        }
+
         MIGRAPHX_EXPORT friend bool operator==(const dynamic_dimension& x,
                                                const dynamic_dimension& y);
         MIGRAPHX_EXPORT friend bool operator!=(const dynamic_dimension& x,
@@ -130,6 +145,9 @@ struct MIGRAPHX_EXPORT shape
 
     static std::string name(type_t t);
     static std::string cpp_type(type_t t);
+
+    static bool is_integral(type_t t);
+    static bool is_compatible(const shape& actual, const shape& expected);
 
     shape();
     shape(type_t t);
@@ -162,7 +180,7 @@ struct MIGRAPHX_EXPORT shape
     {
     }
 
-    shape(const std::vector<shape>& subs);
+    explicit shape(const std::vector<shape>& subs);
 
     /**
      * Creates an output shape with dimensions equal to the input lengths and strides determined
@@ -261,6 +279,9 @@ struct MIGRAPHX_EXPORT shape
     /// pointers
     void multi_copy(std::size_t idx, std::size_t* start, const std::size_t* end) const;
 
+    /// Check if a multi-dimensional index is within bounds for the shape.
+    bool multi_within_bounds(std::vector<std::size_t> multi) const;
+
     /// Returns true if the shape is packed (number of elements and buffer size the same) with
     /// no padding
     bool packed() const;
@@ -286,6 +307,8 @@ struct MIGRAPHX_EXPORT shape
     bool any_of_dynamic() const;
 
     shape normalize_standard() const;
+
+    shape as_standard() const;
 
     shape with_lens(type_t t, const std::vector<std::size_t>& l) const;
     shape with_lens(const std::vector<std::size_t>& l) const;
@@ -400,6 +423,7 @@ struct MIGRAPHX_EXPORT shape
      * Returns the number of elements in the data buffer.
      * For a dynamic shape, returns the maximum number of elements of the data buffer and assumes it
      * is packed.
+     * Will clip to the maximum of size_t if overflows for dynamic shapes.
      */
     std::size_t element_space() const;
 
@@ -407,6 +431,9 @@ struct MIGRAPHX_EXPORT shape
     shape(std::shared_ptr<shape_impl> pimpl);
     std::shared_ptr<const shape_impl> impl;
 };
+
+/// Flatten subshapes to a single vector of non-tuple type of shapes
+MIGRAPHX_EXPORT std::vector<shape> flatten(const std::vector<shape>& shapes);
 
 MIGRAPHX_EXPORT void migraphx_to_value(value& v, const shape& s);
 MIGRAPHX_EXPORT void migraphx_from_value(const value& v, shape& s);

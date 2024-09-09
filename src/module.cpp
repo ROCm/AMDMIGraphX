@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2022 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2024 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -22,7 +22,9 @@
  * THE SOFTWARE.
  */
 #include <iterator>
+#include <migraphx/algorithm.hpp>
 #include <migraphx/module.hpp>
+#include <migraphx/bit_signal.hpp>
 #include <migraphx/stringutils.hpp>
 #include <migraphx/instruction.hpp>
 #include <migraphx/target.hpp>
@@ -33,11 +35,13 @@
 #include <migraphx/iterator.hpp>
 #include <migraphx/pass_manager.hpp>
 #include <migraphx/make_op.hpp>
+#include <migraphx/param_utils.hpp>
 #include <migraphx/register_target.hpp>
 #include <migraphx/json.hpp>
 #include <iostream>
 #include <sstream>
 #include <algorithm>
+#include <array>
 #include <set>
 #include <utility>
 #include <unordered_set>
@@ -55,6 +59,7 @@ struct module_impl
     std::string name;
     uint32_t nparams = 0;
     bool bypass      = false;
+    bit_signal<64> changed{};
 
     bool contains(instruction_ref ins) const
     {
@@ -66,6 +71,7 @@ struct module_impl
     template <class... Ts>
     instruction_ref emplace(instruction_ref pos, Ts&&... xs)
     {
+        changed.notify();
         // cppcheck-suppress redundantInitialization
         auto r = instructions.emplace(pos, std::forward<Ts>(xs)...);
         instruction_set.insert(std::addressof(*r));
@@ -73,11 +79,13 @@ struct module_impl
     }
     instruction_ref insert(instruction_ref pos, const instruction& ins)
     {
+        changed.notify();
         return emplace(pos, ins);
     }
 
     void clear()
     {
+        changed.notify();
         instructions.clear();
         instruction_set.clear();
         nparams = 0;
@@ -101,12 +109,14 @@ struct module_impl
 
     instruction_ref erase(instruction_ref pos)
     {
+        changed.notify();
         instruction_set.erase(std::addressof(*pos));
         return instructions.erase(pos);
     }
 
     instruction_ref erase(instruction_ref start, instruction_ref last)
     {
+        changed.notify();
         std::for_each(start, last, [&](auto& ins) { instruction_set.erase(std::addressof(ins)); });
         return instructions.erase(start, last);
     }
@@ -133,6 +143,8 @@ module& module::operator=(module m)
 }
 
 std::string module::name() const { return impl->name; }
+
+void module::set_name(const std::string& name) { impl->name = name; }
 
 bool module::bypass() const { return impl->bypass; }
 void module::set_bypass(bool b) { impl->bypass = b; }
@@ -197,12 +209,13 @@ void module::assign(const module& m)
     }
 }
 
-template <class Range>
+template <class Range, class Inserter>
 static std::vector<instruction_ref>
-insert_generic_instructions(module& m,
-                            instruction_ref ins,
-                            Range&& instructions,
-                            std::unordered_map<instruction_ref, instruction_ref> map_ins)
+insert_generic_instructions_impl(module& m,
+                                 instruction_ref ins,
+                                 Range&& instructions,
+                                 std::unordered_map<instruction_ref, instruction_ref>& map_ins,
+                                 Inserter insert)
 {
     assert(m.has_instruction(ins) or is_end(ins, m.end()));
     std::vector<instruction_ref> mod_outputs;
@@ -244,13 +257,30 @@ insert_generic_instructions(module& m,
                 break;
             }
 
-            copy_ins = m.insert_instruction(ins, sins->get_operator(), copy_inputs, mod_args);
+            copy_ins = insert(m, ins, sins->get_operator(), copy_inputs, mod_args);
         }
         map_ins[sins] = copy_ins;
     }
     if(mod_outputs.empty() and instructions.begin() != instructions.end())
         mod_outputs = {map_ins.at(last)};
     return mod_outputs;
+}
+
+template <class Range>
+static std::vector<instruction_ref>
+insert_generic_instructions(module& m,
+                            instruction_ref ins,
+                            Range&& instructions,
+                            std::unordered_map<instruction_ref, instruction_ref>& map_ins,
+                            module::inserter insert)
+{
+    if(insert == nullptr)
+        return insert_generic_instructions_impl(
+            m, ins, static_cast<Range&&>(instructions), map_ins, [](module& mm, auto&&... xs) {
+                return mm.insert_instruction(std::forward<decltype(xs)>(xs)...);
+            });
+    return insert_generic_instructions_impl(
+        m, ins, static_cast<Range&&>(instructions), map_ins, insert);
 }
 
 instruction_ref module::add_instruction(const operation& op, std::vector<instruction_ref> args)
@@ -296,6 +326,7 @@ instruction_ref module::replace_instruction(instruction_ref ins,
                                             const operation& op,
                                             std::vector<instruction_ref> args) MIGRAPHX_TIDY_CONST
 {
+    impl->changed.notify();
     assert(has_instruction(ins));
     assert(not starts_with(op.name(), "@"));
 
@@ -310,6 +341,7 @@ instruction_ref module::replace_instruction(instruction_ref ins,
                                             std::vector<instruction_ref> args,
                                             std::vector<module_ref> module_args) MIGRAPHX_TIDY_CONST
 {
+    impl->changed.notify();
     assert(has_instruction(ins));
     assert(not starts_with(op.name(), "@"));
     auto out_shape = compute_shape(op, args, module_args);
@@ -320,6 +352,7 @@ instruction_ref module::replace_instruction(instruction_ref ins,
 
 instruction_ref module::replace_instruction(instruction_ref ins, instruction_ref rep)
 {
+    impl->changed.notify();
     assert(has_instruction(ins));
     assert(has_instruction(rep));
     assert(ins != rep);
@@ -379,6 +412,7 @@ instruction_ref module::remove_instructions(instruction_ref first, instruction_r
 
 instruction_ref module::move_instruction(instruction_ref src, instruction_ref dst)
 {
+    impl->changed.notify();
     assert(has_instruction(src));
     assert(has_instruction(dst) or is_end(dst, this->end()));
     impl->instructions.splice(dst, impl->instructions, src);
@@ -399,50 +433,71 @@ instruction_ref module::move_instructions(instruction_ref src, instruction_ref d
 
 std::vector<instruction_ref>
 module::add_instructions(const std::vector<instruction_ref>& instructions,
-                         std::unordered_map<instruction_ref, instruction_ref> map_ins)
+                         std::unordered_map<instruction_ref, instruction_ref>* map_ins,
+                         module::inserter insert)
 {
-    return this->insert_instructions(this->end(), instructions, std::move(map_ins));
+    return this->insert_instructions(this->end(), instructions, map_ins, std::move(insert));
 }
 
 std::vector<instruction_ref>
 module::add_instructions(const_module_ref m,
-                         std::unordered_map<instruction_ref, instruction_ref> map_ins)
+                         std::unordered_map<instruction_ref, instruction_ref>* map_ins,
+                         module::inserter insert)
 {
-    return this->insert_instructions(this->end(), m, std::move(map_ins));
+    return this->insert_instructions(this->end(), m, map_ins, std::move(insert));
 }
 
 std::vector<instruction_ref>
 module::add_instructions(instruction_ref start,
                          instruction_ref last,
-                         std::unordered_map<instruction_ref, instruction_ref> map_ins)
+                         std::unordered_map<instruction_ref, instruction_ref>* map_ins,
+                         module::inserter insert)
 {
-    return this->insert_instructions(this->end(), start, last, std::move(map_ins));
+    return this->insert_instructions(this->end(), start, last, map_ins, std::move(insert));
 }
 
 std::vector<instruction_ref>
 module::insert_instructions(instruction_ref ins,
                             const std::vector<instruction_ref>& instructions,
-                            std::unordered_map<instruction_ref, instruction_ref> map_ins)
+                            std::unordered_map<instruction_ref, instruction_ref>* map_ins,
+                            module::inserter insert)
 {
-    return insert_generic_instructions(*this, ins, instructions, std::move(map_ins));
+    std::unordered_map<instruction_ref, instruction_ref> default_map_ins;
+    return insert_generic_instructions(*this,
+                                       ins,
+                                       instructions,
+                                       map_ins == nullptr ? default_map_ins : *map_ins,
+                                       std::move(insert));
 }
 
 std::vector<instruction_ref>
 module::insert_instructions(instruction_ref ins,
                             const_module_ref m,
-                            std::unordered_map<instruction_ref, instruction_ref> map_ins)
+                            std::unordered_map<instruction_ref, instruction_ref>* map_ins,
+                            module::inserter insert)
 {
-    return insert_generic_instructions(*this, ins, iterator_for(*m), std::move(map_ins));
+    std::unordered_map<instruction_ref, instruction_ref> default_map_ins;
+    return insert_generic_instructions(*this,
+                                       ins,
+                                       iterator_for(*m),
+                                       map_ins == nullptr ? default_map_ins : *map_ins,
+                                       std::move(insert));
 }
 
 std::vector<instruction_ref>
 module::insert_instructions(instruction_ref ins,
                             instruction_ref start,
                             instruction_ref last,
-                            std::unordered_map<instruction_ref, instruction_ref> map_ins)
+                            std::unordered_map<instruction_ref, instruction_ref>* map_ins,
+                            module::inserter insert)
 {
     auto r = range(start, last);
-    return insert_generic_instructions(*this, ins, iterator_for(r), std::move(map_ins));
+    std::unordered_map<instruction_ref, instruction_ref> default_map_ins;
+    return insert_generic_instructions(*this,
+                                       ins,
+                                       iterator_for(r),
+                                       map_ins == nullptr ? default_map_ins : *map_ins,
+                                       std::move(insert));
 }
 
 instruction_ref module::add_literal(literal l) { return insert_literal(begin(), std::move(l)); }
@@ -484,6 +539,8 @@ instruction_ref module::insert_parameter(instruction_ref ins, std::string name, 
 
 instruction_ref module::replace_return(std::vector<instruction_ref> args)
 {
+    impl->changed.notify();
+    assert(std::all_of(args.begin(), args.end(), [&](auto ins) { return has_instruction(ins); }));
     auto last = std::prev(this->end());
     // If there is no return then add a return
     if(last->name() != "@return")
@@ -554,6 +611,28 @@ instruction_ref module::get_parameter(std::string name) const
         return this->end();
 }
 
+std::vector<instruction_ref> module::get_parameters() const
+{
+    std::vector<instruction_ref> result;
+    auto refs = iterator_for(*this);
+    std::copy_if(refs.begin(), refs.end(), std::back_inserter(result), [&](instruction_ref ins) {
+        return ins->name() == "@param";
+    });
+    return result;
+}
+
+void module::rename_parameter(instruction_ref ins, const std::string& name)
+{
+    impl->changed.notify();
+    assert(ins->name() == "@param");
+    auto op      = any_cast<builtin::param>(ins->get_operator());
+    op.parameter = name;
+    auto outputs = ins->outputs();
+    *ins         = instruction{op, ins->get_shape(), {}};
+    for(auto output : outputs)
+        ins->add_output(output);
+}
+
 std::unordered_map<std::string, shape> module::get_parameter_shapes() const
 {
     std::unordered_map<std::string, shape> result;
@@ -595,6 +674,71 @@ std::vector<shape> module::get_output_shapes() const
     {
         return {last_ins.get_shape()};
     }
+}
+
+std::vector<shape> module::compute_shapes(const std::vector<shape>& inputs,
+                                          compute_shapes_options options) const
+{
+    auto params = this->get_parameter_names();
+    std::sort(params.begin(), params.end());
+    std::unordered_map<instruction_ref, shape> ins_shapes;
+    std::unordered_map<std::string, shape> adjusted_param_shapes;
+    std::transform(inputs.begin(),
+                   inputs.end(),
+                   params.begin(),
+                   std::inserter(adjusted_param_shapes, adjusted_param_shapes.end()),
+                   [](auto ps, auto name) { return std::make_pair(name, ps); });
+    for(auto ins : iterator_for(*this))
+    {
+        if(ins->name() == "@param")
+        {
+            ins_shapes[ins] =
+                adjusted_param_shapes[any_cast<builtin::param>(ins->get_operator()).parameter];
+            if(options.strict_type and ins->get_shape().type() != ins_shapes[ins].type())
+            {
+                MIGRAPHX_THROW(options.name + ": Mismatched type: expected " +
+                               ins->get_shape().type_string() + " but passed " +
+                               ins_shapes[ins].type_string());
+            }
+            if(options.strict_lens and ins->get_shape().lens() != ins_shapes[ins].lens())
+            {
+                MIGRAPHX_THROW(options.name + ": Mismatched lens: expected {" +
+                               to_string_range(ins->get_shape().lens()) + "} but passed {" +
+                               to_string_range(ins_shapes[ins].lens()) + "}");
+            }
+        }
+        else if(ins->name() == "@literal")
+        {
+            if(not options.scalar_const_out_lens.empty() and ins->get_shape().scalar())
+            {
+                std::vector<std::size_t> strides(options.scalar_const_out_lens.size());
+                ins_shapes[ins] =
+                    shape{ins->get_shape().type(), options.scalar_const_out_lens, strides};
+            }
+            else
+            {
+                ins_shapes[ins] = ins->get_shape();
+            }
+        }
+        else
+        {
+            std::vector<shape> input_shapes;
+            input_shapes.resize(ins->inputs().size());
+            std::transform(ins->inputs().begin(),
+                           ins->inputs().end(),
+                           input_shapes.begin(),
+                           [&](auto in) { return ins_shapes.at(in); });
+            if(ins->name() == "@return")
+                return input_shapes;
+            ins_shapes[ins] = ins->get_operator().compute_shape(input_shapes, ins->module_inputs());
+        }
+    }
+    MIGRAPHX_THROW("No return found in the submodule");
+}
+
+std::vector<shape> module::compute_shapes(const std::vector<shape>& inputs) const
+{
+    return compute_shapes(inputs, {});
 }
 
 std::vector<instruction_ref> module::get_returns() const
@@ -669,12 +813,287 @@ void module::finalize(std::vector<context>& contexts)
             smod->finalize(contexts);
         }
     }
+#ifndef BUILD_DEV
+    if(std::any_of(this->begin(), this->end(), [](const auto i) {
+           return i.get_shape().type() == migraphx::shape::fp8e4m3fnuz_type;
+       }))
+    {
+        std::cout << "[Warning] : MIGraphX has BETA support for FP8. Using FP8 may result in "
+                     "incorrect final outputs\n";
+    }
+#endif
 
     // Warn when an instruction is not normalized
     auto ins = std::find_if(begin(), end(), [](auto& i) { return i.need_normalization(); });
     if(ins != end())
         std::cerr << "WARNING: Instruction needs normalization, performance may be affected."
                   << std::endl;
+}
+
+std::unordered_map<instruction_ref, instruction_ref>
+module::get_ins_param_map(const std::vector<instruction_ref>& inputs, bool reverse) const
+{
+    std::unordered_map<instruction_ref, instruction_ref> result;
+    auto params = this->get_parameters();
+    assert(params.size() == inputs.size());
+    sort_params(params);
+    if(reverse)
+    {
+        std::transform(
+            params.begin(),
+            params.end(),
+            inputs.begin(),
+            std::inserter(result, result.end()),
+            [&](instruction_ref param, auto input) { return std::make_pair(param, input); });
+    }
+    else
+    {
+        std::transform(
+            params.begin(),
+            params.end(),
+            inputs.begin(),
+            std::inserter(result, result.end()),
+            [&](instruction_ref param, auto input) { return std::make_pair(input, param); });
+    }
+    return result;
+}
+
+static std::vector<instruction_ref>
+select_params(const std::vector<instruction_ref>& instructions,
+              const std::unordered_map<instruction_ref, instruction_ref>& param_map)
+{
+    std::vector<instruction_ref> result;
+    std::vector<instruction_ref> params;
+    std::copy_if(instructions.begin(),
+                 instructions.end(),
+                 std::back_inserter(params),
+                 [&](instruction_ref ins) { return contains(param_map, ins); });
+    sort_params(params);
+    std::transform(params.begin(),
+                   params.end(),
+                   std::back_inserter(result),
+                   [&](instruction_ref ins) { return param_map.at(ins); });
+    return result;
+}
+
+static std::array<module::with_inputs, 2>
+generic_split(const module& m,
+              const std::vector<instruction_ref>& args,
+              const std::vector<instruction_ref>& splits,
+              std::unordered_map<instruction_ref, instruction_ref>* map_ins = nullptr)
+{
+    std::unordered_map<instruction_ref, instruction_ref> param_map =
+        m.get_ins_param_map(args, true);
+
+    std::unordered_set<instruction_ref> selected_instructions;
+    fix([&](auto self, const std::vector<instruction_ref>& inputs) {
+        for(auto input : inputs)
+        {
+            if(contains(selected_instructions, input))
+                continue;
+            selected_instructions.insert(input);
+            self(input->inputs());
+        }
+    })(splits);
+
+    std::vector<instruction_ref> instructions1;
+    // TODO: copy_if
+    for(auto ins : iterator_for(m))
+    {
+        if(not contains(selected_instructions, ins))
+            continue;
+        instructions1.push_back(ins);
+    }
+
+    std::vector<instruction_ref> inputs1 = select_params(instructions1, param_map);
+    module m1;
+    std::unordered_map<instruction_ref, instruction_ref> map_ins1;
+    m1.add_instructions(instructions1, &map_ins1);
+    std::vector<instruction_ref> outputs;
+    std::transform(splits.begin(),
+                   splits.end(),
+                   std::back_inserter(outputs),
+                   [&](instruction_ref ins) { return map_ins1.at(ins); });
+    m1.add_return(outputs);
+
+    std::vector<instruction_ref> instructions2;
+    for(auto ins : iterator_for(m))
+    {
+        if(contains(selected_instructions, ins))
+            continue;
+        // Input params can be used in both modules
+        std::vector<instruction_ref> input_params;
+        std::copy_if(ins->inputs().begin(),
+                     ins->inputs().end(),
+                     std::back_inserter(input_params),
+                     [&](instruction_ref input) {
+                         if(input->name() != "@param")
+                             return false;
+                         return not contains(instructions2, input);
+                     });
+        instructions2.insert(instructions2.end(), input_params.begin(), input_params.end());
+        instructions2.push_back(ins);
+    }
+
+    std::vector<instruction_ref> inputs2 = splits;
+    module m2;
+    std::size_t n = 0;
+    std::unordered_map<instruction_ref, instruction_ref> map_ins2;
+    for(auto ins : splits)
+        map_ins2[ins] = m2.add_parameter(param_name(n++), ins->get_shape().as_standard());
+    for(auto ins : iterator_for(m))
+    {
+        if(ins->name() != "@param")
+            continue;
+        if(not contains(instructions2, ins))
+            continue;
+        inputs2.push_back(param_map.at(ins));
+        map_ins2[ins] = m2.add_parameter(param_name(n++), ins->get_shape().as_standard());
+    }
+    auto r = m2.add_instructions(instructions2, &map_ins2);
+    m2.add_return(r);
+    if(map_ins != nullptr)
+        *map_ins = map_ins2;
+    return {{{std::move(m1), std::move(inputs1)}, {std::move(m2), std::move(inputs2)}}};
+}
+
+std::array<module::with_inputs, 2> module::split(const std::vector<instruction_ref>& args,
+                                                 const std::vector<instruction_ref>& splits) const
+{
+    return generic_split(*this, args, splits);
+}
+
+std::array<module::with_inputs, 3> module::split(const std::vector<instruction_ref>& args,
+                                                 const std::vector<instruction_ref>& splits1,
+                                                 const std::vector<instruction_ref>& splits2) const
+{
+    std::unordered_map<instruction_ref, instruction_ref> map_ins;
+    auto mods1 = generic_split(*this, args, splits1, &map_ins);
+
+    assert(all_of(mods1[0].inputs, [&](auto ins) { return contains(args, ins); }));
+    assert(all_of(mods1[1].inputs,
+                  [&](auto ins) { return contains(args, ins) or contains(splits1, ins); }));
+
+    std::vector<instruction_ref> new_splits2;
+    std::transform(splits2.begin(), splits2.end(), std::back_inserter(new_splits2), [&](auto ins) {
+        return map_ins.at(ins);
+    });
+
+    auto mods2 = mods1[1].mod.split(mods1[1].inputs, new_splits2);
+    // Replace new splits with old splits
+    mods2[1].replace(new_splits2, splits2);
+
+    assert(all_of(mods2[0].inputs,
+                  [&](auto ins) { return contains(args, ins) or contains(splits1, ins); }));
+    assert(all_of(mods2[1].inputs, [&](auto ins) {
+        return contains(args, ins) or contains(splits1, ins) or contains(splits2, ins);
+    }));
+
+    return {{std::move(mods1[0]), std::move(mods2[0]), std::move(mods2[1])}};
+}
+
+// Insert parameters into the module based on the input instructions and then
+// update the map_ins to map the input to the parameter.
+static void insert_params(module& m,
+                          const std::vector<instruction_ref>& inputs,
+                          std::unordered_map<instruction_ref, instruction_ref>& map_ins)
+{
+    auto n = m.get_parameter_shapes().size();
+    for(auto input : inputs)
+    {
+        if(contains(map_ins, input))
+            continue;
+        map_ins[input] = m.add_parameter(param_name(n++), input->get_shape().as_standard());
+    }
+}
+
+std::vector<instruction_ref>
+module::fuse(const std::vector<instruction_ref>& inss,
+             std::unordered_map<instruction_ref, instruction_ref>* map_ins,
+             module::inserter insert)
+{
+    std::unordered_map<instruction_ref, instruction_ref> default_map_ins;
+    if(map_ins == nullptr)
+        map_ins = &default_map_ins;
+    std::vector<instruction_ref> inputs;
+    for(auto ins : inss)
+    {
+        for(auto input : ins->inputs())
+        {
+            if(contains(inss, input))
+                continue;
+            if(contains(inputs, input))
+                continue;
+            inputs.push_back(input);
+        }
+    }
+    insert_params(*this, inputs, *map_ins);
+    return this->add_instructions(inss, map_ins, std::move(insert));
+}
+
+std::vector<instruction_ref>
+module::fuse(const module& m,
+             const std::vector<instruction_ref>& inputs,
+             std::unordered_map<instruction_ref, instruction_ref>* map_ins,
+             module::inserter insert)
+{
+    std::unordered_map<instruction_ref, instruction_ref> default_map_ins;
+    if(map_ins == nullptr)
+        map_ins = &default_map_ins;
+    insert_params(*this, inputs, *map_ins);
+    auto param_map = m.get_ins_param_map(inputs, true);
+    for(auto&& [param, input] : param_map)
+    {
+        (*map_ins)[param] = map_ins->at(input);
+    }
+    return this->add_instructions(&m, map_ins, std::move(insert));
+}
+
+std::vector<instruction_ref>
+module::insert_inline(instruction_ref ins,
+                      const module& m,
+                      const std::vector<instruction_ref>& inputs,
+                      std::unordered_map<instruction_ref, instruction_ref>* map_ins,
+                      module::inserter insert)
+{
+    std::unordered_map<instruction_ref, instruction_ref> default_map_ins;
+    if(map_ins == nullptr)
+        map_ins = &default_map_ins;
+    auto param_map = m.get_ins_param_map(inputs, true);
+    map_ins->insert(param_map.begin(), param_map.end());
+    return this->insert_instructions(ins, &m, map_ins, std::move(insert));
+}
+
+void module_with_inputs::replace(instruction_ref ins, instruction_ref rep)
+{
+    auto it = std::find(inputs.begin(), inputs.end(), ins);
+    if(it == inputs.end())
+        return;
+    assert((*it)->get_shape().lens() == rep->get_shape().lens());
+    *it = rep;
+}
+void module_with_inputs::replace(
+    const std::unordered_map<instruction_ref, instruction_ref>& map_ins)
+{
+    for(auto& ins : inputs)
+    {
+        if(not contains(map_ins, ins))
+            continue;
+        assert(ins->get_shape().lens() == map_ins.at(ins)->get_shape().lens());
+        ins = map_ins.at(ins);
+    }
+}
+void module_with_inputs::replace(const std::vector<instruction_ref>& keys,
+                                 const std::vector<instruction_ref>& values)
+{
+    for(auto& ins : inputs)
+    {
+        auto it = std::find(keys.begin(), keys.end(), ins);
+        if(it == keys.end())
+            continue;
+        assert(ins->get_shape().lens() == values[it - keys.begin()]->get_shape().lens());
+        ins = values[it - keys.begin()];
+    }
 }
 
 void module::debug_print() const { std::cout << *this << std::endl; }
@@ -722,11 +1141,12 @@ std::unordered_map<instruction_ref, std::string> module::print(
                              const std::unordered_map<instruction_ref, std::string>&)>& print_func,
     std::unordered_map<instruction_ref, std::string> names) const
 {
+    const bool is_root = names.empty();
     int count = 0;
     for(auto ins : iterator_for(*this))
     {
         std::string var_name;
-        if(not this->name().empty() and this->name() != "main")
+        if(not this->name().empty() and not is_root)
             var_name = this->name() + ":";
         if(ins->name() == "@param")
         {
@@ -784,18 +1204,6 @@ void module::print_graph(std::ostream& os, bool brief) const
     os << "}" << std::endl;
 }
 
-static std::string to_c_id(const std::string& name, char rep = '_')
-{
-    std::string id = transform_string(name, [&](auto c) {
-        if(with_char(::isalnum)(c) or c == '_')
-            return c;
-        return rep;
-    });
-    while(contains(id, "__"))
-        replace_string_inplace(id, "__", "_");
-    return id;
-}
-
 static std::string cpp_var_name(const std::string& name)
 {
     std::string prefix = "x_";
@@ -837,10 +1245,10 @@ static void print_make_op(std::ostream& os, const operation& op)
 
 static void print_py_shape(std::ostream& os, const migraphx::shape& s)
 {
-    os << "migraphx.shape(type=" << to_json_string(s.type_string())
-       << ", lens=" << to_json_string(s.lens());
+    os << "migraphx.shape(type=" << to_json_string(s.type_string()) << ", lens=["
+       << to_string_range(s.lens()) << "]";
     if(not s.standard())
-        os << ", strides=" << to_json_string(s.strides());
+        os << ", strides=[" << to_string_range(s.strides()) << "]";
     os << ")";
 }
 
@@ -873,25 +1281,34 @@ module::print_py(std::ostream& os,
             if(ins->name() == "@literal")
             {
                 os << mname << ".add_literal(";
-                const bool use_abs = false;
-                // Disable abs for now
-                // ins->get_literal().visit([&](auto v) {
-                //     use_abs = std::none_of(v.begin(), v.end(), [](auto x) { return x < 0; });
-                // });
-                if(use_abs)
-                    os << "migraphx.abs_literal(";
-                os << "migraphx.generate_argument(";
-                print_py_shape(os, ins->get_shape());
-                os << ", " << seed << ")";
-                if(use_abs)
-                    os << ")";
+                if(ins->get_shape().elements() < 10)
+                {
+                    os << "migraphx.create_argument(";
+                    print_py_shape(os, ins->get_shape());
+                    os << ", [" << ins->get_literal() << "])";
+                }
+                else
+                {
+                    const bool use_abs = false;
+                    // Disable abs for now
+                    // ins->get_literal().visit([&](auto v) {
+                    //     use_abs = std::none_of(v.begin(), v.end(), [](auto x) { return x < 0; });
+                    // });
+                    if(use_abs)
+                        os << "migraphx.abs_literal(";
+                    os << "migraphx.generate_argument(";
+                    print_py_shape(os, ins->get_shape());
+                    os << ", " << seed << ")";
+                    if(use_abs)
+                        os << ")";
+                    seed++;
+                }
                 os << ")" << std::endl;
-                seed++;
             }
             else if(ins->name() == "@param")
             {
                 std::string name = any_cast<builtin::param>(ins->get_operator()).parameter;
-                os << mname << ".add_parameter(" << enclose_name(name) << ",";
+                os << mname << ".add_parameter(" << enclose_name(name) << ", ";
                 print_py_shape(os, ins->get_shape());
                 os << ")" << std::endl;
             }
@@ -906,7 +1323,9 @@ module::print_py(std::ostream& os,
                 os << mname << ".add_instruction(";
                 print_py_op(os, ins->get_operator());
                 os << ", [" << join_strings(input_vars, ", ") << "]";
-                os << ")" << std::endl;
+                os << ") # ";
+                print_py_shape(os, ins->get_shape());
+                os << std::endl;
             }
         },
         names);
@@ -1052,12 +1471,9 @@ void module::calc_implicit_deps(const module& smod,
         }
 
         const auto& mod_args = ii->module_inputs();
-        if(not mod_args.empty())
+        for(const auto* ssmod : mod_args)
         {
-            for(const auto* ssmod : mod_args)
-            {
-                calc_implicit_deps(*ssmod, pmod, ins, deps);
-            }
+            calc_implicit_deps(*ssmod, pmod, ins, deps);
         }
     }
 }
@@ -1080,6 +1496,25 @@ ins_dep_map module::calc_implicit_deps() const
     }
 
     return mod_implicit_deps;
+}
+
+void module::repeat_while_changes(std::size_t n, const std::function<void()>& f)
+{
+    if(n == 0)
+        return;
+    if(n == 1)
+    {
+        f();
+        return;
+    }
+    auto has_changed = impl->changed.subscribe();
+    for(auto i : range(n))
+    {
+        f();
+        if(not has_changed)
+            break;
+        (void)i;
+    }
 }
 
 bool operator==(const module& x, const module& y) { return to_string(x) == to_string(y); }

@@ -1,7 +1,7 @@
 #####################################################################################
 # The MIT License (MIT)
 #
-# Copyright (c) 2015-2022 Advanced Micro Devices, Inc. All rights reserved.
+# Copyright (c) 2015-2024 Advanced Micro Devices, Inc. All rights reserved.
 #
 # Permission is hereby granted, free of charge, to any person obtaining a copy
 # of this software and associated documentation files (the "Software"), to deal
@@ -35,17 +35,21 @@ function(add_api_test TEST_NAME TEST_SRC TEST_DIR)
     endif()
 endfunction()
 
+set(MIGRAPHX_ENABLE_C_API_TEST On CACHE BOOL "")
+
 # Workaround: C file dont work with clang-tidy right now, need a fix in rocm-cmake
 function(add_c_api_test TEST_NAME TEST_SRC TEST_DIR)
-    set(NAME test_api_${TEST_NAME})
-    add_executable(${NAME} EXCLUDE_FROM_ALL ${TEST_SRC})
-    target_link_libraries(${NAME} migraphx_c)
-    target_include_directories(${NAME} PUBLIC ../include)
-    add_test(NAME ${NAME} COMMAND $<TARGET_FILE:${NAME}> WORKING_DIRECTORY ${TEST_DIR}) 
-    add_dependencies(tests ${NAME})
-    add_dependencies(check ${NAME})
-    if(WIN32)
-        target_compile_definitions(${NAME} PRIVATE _CRT_SECURE_NO_WARNINGS)
+    if(MIGRAPHX_ENABLE_C_API_TEST)
+        set(NAME test_api_${TEST_NAME})
+        add_executable(${NAME} EXCLUDE_FROM_ALL ${TEST_SRC})
+        target_link_libraries(${NAME} migraphx_c)
+        target_include_directories(${NAME} PUBLIC ../include)
+        add_test(NAME ${NAME} COMMAND $<TARGET_FILE:${NAME}> WORKING_DIRECTORY ${TEST_DIR}) 
+        add_dependencies(tests ${NAME})
+        add_dependencies(check ${NAME})
+        if(WIN32)
+            target_compile_definitions(${NAME} PRIVATE _CRT_SECURE_NO_WARNINGS)
+        endif()
     endif()
 endfunction()
 

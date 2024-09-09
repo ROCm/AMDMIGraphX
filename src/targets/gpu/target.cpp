@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2022 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2024 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -31,8 +31,8 @@
 #include <migraphx/eliminate_data_type.hpp>
 #include <migraphx/eliminate_identity.hpp>
 #include <migraphx/eliminate_pad.hpp>
-#include <migraphx/fuse_pointwise.hpp>
-#include <migraphx/fuse_reduce.hpp>
+#include <migraphx/fuse_concat.hpp>
+#include <migraphx/fuse_pointwise_reduce.hpp>
 #include <migraphx/inline_module.hpp>
 #include <migraphx/insert_pad.hpp>
 #include <migraphx/layout_nhwc.hpp>
@@ -44,13 +44,16 @@
 #include <migraphx/register_target.hpp>
 #include <migraphx/replace_allocate.hpp>
 #include <migraphx/rewrite_gelu.hpp>
+#include <migraphx/rewrite_low_precision.hpp>
 #include <migraphx/rewrite_pooling.hpp>
+#include <migraphx/rewrite_reduce.hpp>
 #include <migraphx/rewrite_quantization.hpp>
 #include <migraphx/rewrite_rnn.hpp>
 #include <migraphx/schedule.hpp>
 #include <migraphx/simplify_dyn_ops.hpp>
 #include <migraphx/simplify_qdq.hpp>
 #include <migraphx/simplify_reshapes.hpp>
+#include <migraphx/split_reduce.hpp>
 #include <migraphx/split_single_dyn_dim.hpp>
 #include <migraphx/gpu/allocation_model.hpp>
 #include <migraphx/gpu/compile_miopen.hpp>
@@ -73,29 +76,17 @@ inline namespace MIGRAPHX_INLINE_NS {
 namespace gpu {
 
 MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_DISABLE_SCHEDULE_PASS)
-MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_DISABLE_REDUCE_FUSION)
+MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_ENABLE_SPLIT_REDUCE)
 MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_ENABLE_NHWC)
 #ifndef _WIN32
 MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_ENABLE_CK)
 #endif
 
-struct id_pass
-{
-    std::string name() const { return "id"; }
-    void apple(const module&) const {}
-};
-
-pass enable_pass(bool enabled, pass p)
-{
-    if(enabled)
-        return p;
-    return id_pass{};
-}
-
 std::vector<pass> target::get_passes(migraphx::context& gctx, const compile_options& options) const
 {
     auto& ctx = any_cast<context>(gctx);
     ctx.set_exhaustive_tune_flag(options.exhaustive_tune);
+    ctx.load_problem_cache();
     std::set<shape::type_t> unsupported_types(shape::types().begin(), shape::types().end());
     unsupported_types.erase(shape::type_t::float_type);
     unsupported_types.erase(shape::type_t::fp8e4m3fnuz_type);
@@ -105,10 +96,22 @@ std::vector<pass> target::get_passes(migraphx::context& gctx, const compile_opti
     unsupported_types.erase(shape::type_t::uint8_type);
     unsupported_types.erase(shape::type_t::int32_type);
     unsupported_types.erase(shape::type_t::tuple_type);
+    // whiltelist supported Ops for the FP8
     std::set<std::string> unsupported_fp8_ops = {};
     if(not gpu::rocblas_fp8_available())
     {
         unsupported_fp8_ops.insert("dot");
+        unsupported_fp8_ops.insert("quant_dot");
+    }
+
+#if MIGRAPHX_USE_MIOPEN
+    // MIOpen doesn't have support for fp8 pooling yet.
+    unsupported_fp8_ops.insert("pooling");
+#endif
+    if(not gpu::gfx_has_fp8_intrinsics())
+    {
+        unsupported_fp8_ops.insert("convolution");
+        unsupported_fp8_ops.insert("quant_convolution");
     }
     // add all device kernels
     unsupported_fp8_ops.insert("logsoftmax");
@@ -132,6 +135,8 @@ std::vector<pass> target::get_passes(migraphx::context& gctx, const compile_opti
         simplify_qdq{},
         enable_pass(not mlir_enabled(), rewrite_quantization{}),
         dead_code_elimination{},
+        // workaround for rocBLAS unsupported error when using uint8 in quant_dot, quant_convolution & pooling
+        eliminate_data_type{{migraphx::shape::uint8_type}, shape::float_type, {"quant_convolution", "quant_dot", "pooling"}},
         eliminate_data_type{unsupported_types, shape::type_t::float_type},
         simplify_reshapes{},
         eliminate_identity{},
@@ -144,19 +149,21 @@ std::vector<pass> target::get_passes(migraphx::context& gctx, const compile_opti
         inline_module{},
         rewrite_pooling{},
         dead_code_elimination{},
-        enable_pass(options.fast_math, rewrite_gelu{}),
+        rewrite_gelu{options.fast_math},
         optimize_module{},
         enable_pass(enabled(MIGRAPHX_ENABLE_NHWC{}), layout_nhwc{}),
         dead_code_elimination{},
         prefuse_ops{},
         dead_code_elimination{},
-        auto_contiguous{},
+        enable_pass(not enabled(MIGRAPHX_ENABLE_NHWC{}), auto_contiguous{}),
         eliminate_data_type{{migraphx::shape::fp8e4m3fnuz_type}, shape::float_type, unsupported_fp8_ops},
         dead_code_elimination{},
-        optimize_module{},
-        fuse_pointwise{},
+        rewrite_reduce{},
+        rewrite_low_precision{},
         dead_code_elimination{},
-        enable_pass(not enabled(MIGRAPHX_DISABLE_REDUCE_FUSION{}), fuse_reduce{}),
+        optimize_module{},
+        fuse_pointwise_reduce{},
+        enable_pass(enabled(MIGRAPHX_ENABLE_SPLIT_REDUCE{}), split_reduce{}),
         dead_code_elimination{},
 #ifndef _WIN32
         enable_pass(enabled(MIGRAPHX_ENABLE_CK{}), fuse_ck{}),
@@ -164,13 +171,19 @@ std::vector<pass> target::get_passes(migraphx::context& gctx, const compile_opti
         dead_code_elimination{},
         enable_pass(mlir_enabled(), fuse_mlir{&ctx}),
         dead_code_elimination{},
+        fuse_concat{},
+        dead_code_elimination{},
+        enable_pass(enabled(MIGRAPHX_ENABLE_NHWC{}), auto_contiguous{}),
+        dead_code_elimination{},
         lowering{&ctx, options.offload_copy},
         eliminate_contiguous{"gpu::contiguous"},
         dead_code_elimination{},
         eliminate_concat{concat_gpu_optimization{}},
         dead_code_elimination{},
+#if MIGRAPHX_USE_MIOPEN
         compile_miopen{&gctx},
         dead_code_elimination{},
+#endif
         dead_code_elimination{},
         fuse_ops{&ctx, options.fast_math},
         dead_code_elimination{},

@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2022 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2024 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -364,6 +364,19 @@ TEST_CASE(test_nan_2)
     EXPECT(fp8_nan.is_nan());
     EXPECT(std::isnan(fp8_nan));
     EXPECT(std::isnan(float(fp8_nan)));
+}
+
+TEST_CASE(test_bool)
+{
+    float zero  = 0.0;
+    float two   = 2.0;
+    float other = -0.375;
+    migraphx::fp8::fp8e5m2fnuz fp8_zero(zero);
+    migraphx::fp8::fp8e5m2fnuz fp8_two(two);
+    migraphx::fp8::fp8e5m2fnuz fp8_other(other);
+    EXPECT(not static_cast<bool>(fp8_zero));
+    EXPECT(static_cast<bool>(fp8_two));
+    EXPECT(static_cast<bool>(fp8_other));
 }
 
 TEST_CASE(test_infinity_1)

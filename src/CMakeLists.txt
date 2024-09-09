@@ -1,7 +1,7 @@
 #####################################################################################
 # The MIT License (MIT)
 #
-# Copyright (c) 2015-2023 Advanced Micro Devices, Inc. All rights reserved.
+# Copyright (c) 2015-2024 Advanced Micro Devices, Inc. All rights reserved.
 #
 # Permission is hereby granted, free of charge, to any person obtaining a copy
 # of this software and associated documentation files (the "Software"), to deal
@@ -35,6 +35,7 @@ add_library(migraphx
     analyze_streams.cpp
     apply_alpha_beta.cpp
     argument.cpp
+    autocast_fp8.cpp
     auto_contiguous.cpp
     common.cpp
     common_dims.cpp
@@ -48,12 +49,17 @@ add_library(migraphx
     eliminate_common_subexpression.cpp
     eliminate_concat.cpp
     eliminate_contiguous.cpp
+    eliminate_convert.cpp
     eliminate_data_type.cpp
     eliminate_identity.cpp
     eliminate_pad.cpp
     env.cpp
     file_buffer.cpp
+    fileutils.cpp
+    fp_to_double.cpp
+    fuse_concat.cpp
     fuse_pointwise.cpp
+    fuse_pointwise_reduce.cpp
     fuse_reduce.cpp
     generate.cpp
     inline_module.cpp
@@ -61,6 +67,7 @@ add_library(migraphx
     instruction.cpp
     json.cpp
     layout_nhwc.cpp
+    lexing.cpp
     load_save.cpp
     make_op.cpp
     memory_coloring.cpp
@@ -72,6 +79,8 @@ add_library(migraphx
     operation.cpp
     optimize_module.cpp
     pad_calc.cpp
+    param_utils.cpp
+    pass.cpp
     pass_manager.cpp
     permutation.cpp
     preallocate_param.cpp
@@ -81,20 +90,24 @@ add_library(migraphx
     promote_literals.cpp
     quantization.cpp
     quantize_fp16.cpp
-    quantize_int8.cpp
+    quantize_8bits.cpp
     reduce_dims.cpp
     register_op.cpp
     register_target.cpp
     replace_allocate.cpp
+    rewrite_reduce.cpp
     simplify_qdq.cpp
+    split_reduce.cpp
     sqlite.cpp
     rewrite_gelu.cpp
+    rewrite_low_precision.cpp
     rewrite_pooling.cpp
     rewrite_quantization.cpp
     rewrite_rnn.cpp
     schedule.cpp
     serialize.cpp
     shape.cpp
+    shape_transform_descriptor.cpp
     simplify_algebra.cpp
     simplify_dyn_ops.cpp
     simplify_reshapes.cpp
@@ -130,7 +143,10 @@ register_migraphx_ops(
     as_shape
     atanh
     atan
+    bitwise_and
     broadcast
+    broadcast_for_dot
+    broadcast_with_dims
     capture
     ceil
     clip
@@ -168,6 +184,7 @@ register_migraphx_ops(
     less
     load
     log
+    log2
     logical_and
     logical_or
     logical_xor
@@ -185,7 +202,9 @@ register_migraphx_ops(
     neg
     nonmaxsuppression
     nonzero
+    onehot
     outline
+    pack_int4
     pad
     pointwise
     pooling
@@ -198,6 +217,8 @@ register_migraphx_ops(
     random_uniform
     random_seed
     recip
+    reduce_all
+    reduce_any
     reduce_max
     reduce_mean
     reduce_min
@@ -206,6 +227,7 @@ register_migraphx_ops(
     relu
     reshape
     reshape_lazy
+    resize
     reverse
     rnn
     rnn_last_cell_output
@@ -215,9 +237,12 @@ register_migraphx_ops(
     rsqrt
     run_on_target
     scalar
+    scan_slice
+    scatter_none
     scatter_add
     scatter_mul
-    scatter_none
+    scatter_min
+    scatter_max
     scatternd_add
     scatternd_mul
     scatternd_none
@@ -243,13 +268,16 @@ register_migraphx_ops(
     undefined
     unique
     unknown
+    unpack_int4
     unsqueeze
     where
 )
 register_op(migraphx HEADER migraphx/op/rnn_variable_seq_lens.hpp OPERATORS op::rnn_var_sl_shift_output op::rnn_var_sl_shift_sequence)
 register_op(migraphx HEADER migraphx/builtin.hpp OPERATORS builtin::literal builtin::param builtin::returns)
 rocm_clang_tidy_check(migraphx)
+migraphx_generate_export_header(migraphx)
 rocm_install_targets(
+  PRIVATE
   TARGETS migraphx
   INCLUDE
     ${CMAKE_CURRENT_SOURCE_DIR}/include
@@ -267,54 +295,21 @@ endif()
 target_include_directories(migraphx SYSTEM PUBLIC $<BUILD_INTERFACE:${HALF_INCLUDE_DIR}>)
 target_link_libraries(migraphx PUBLIC Threads::Threads)
 
-function(check_execution_par RESULT)
-    set(CMAKE_REQUIRED_LIBRARIES ${ARGN})
-    set(CMAKE_REQUIRED_FLAGS)
-    if(NOT MSVC)
-        set(CMAKE_REQUIRED_FLAGS "-std=c++17")
-    endif()
-    string(MD5 _flags_hash "${CMAKE_REQUIRED_FLAGS} ${CMAKE_REQUIRED_LIBRARIES}")
-    set(_source "
-#include <execution>
-
-int main() {
-    int* i = nullptr;
-    std::sort(std::execution::par, i, i);
-}
-")
-    check_cxx_source_compiles("${_source}" _has_execution_${_flags_hash})
-    set(${RESULT} ${_has_execution_${_flags_hash}} PARENT_SCOPE)
-endfunction()
-
-set(MIGRAPHX_HAS_EXECUTORS_DEFAULT Off)
-find_package(TBB QUIET)
-if(TBB_FOUND)
-    check_execution_par(TBB_HAS_EXECUTION_PAR TBB::tbb)
-    if(TBB_HAS_EXECUTION_PAR)
-        list(APPEND PACKAGE_DEPENDS PACKAGE TBB)
-        target_link_libraries(migraphx PUBLIC TBB::tbb)
-        set(MIGRAPHX_HAS_EXECUTORS_DEFAULT On)
-        message(STATUS "Using TBB for parallel execution")
-    endif()
-else()
-    check_execution_par(HAS_EXECUTION_PAR)
-    if(HAS_EXECUTION_PAR)
-        set(MIGRAPHX_HAS_EXECUTORS_DEFAULT On)
-    endif()
+if(MIGRAPHX_HAS_EXECUTORS AND ParallelSTL_USES_TBB)
+    list(APPEND MIGRAPHX_CONFIG_DEPENDS PACKAGE TBB)
 endif()
 
-option(MIGRAPHX_HAS_EXECUTORS "C++ supports parallel executors" ${MIGRAPHX_HAS_EXECUTORS_DEFAULT})
 if(MIGRAPHX_HAS_EXECUTORS)
-    message("Parallel STL enabled")
+    message(STATUS "Parallel STL enabled")
     target_compile_definitions(migraphx PUBLIC MIGRAPHX_HAS_EXECUTORS=1)
+    target_link_libraries(migraphx PUBLIC ${ParallelSTL_LIBRARIES})
 else()
-    message("Parallel STL disabled")
+    message(STATUS "Parallel STL disabled")
     target_compile_definitions(migraphx PUBLIC MIGRAPHX_HAS_EXECUTORS=0)
 endif()
 
 find_package(nlohmann_json 3.8.0 REQUIRED)
 target_link_libraries(migraphx PRIVATE nlohmann_json::nlohmann_json)
-migraphx_generate_export_header(migraphx)
 
 find_package(SQLite3 REQUIRED)
 target_link_libraries(migraphx PRIVATE SQLite::SQLite3)
@@ -345,7 +340,12 @@ target_link_libraries(migraphx_all_targets INTERFACE migraphx_cpu)
 target_compile_definitions(migraphx_all_targets INTERFACE -DHAVE_CPU)
 endif()
 if(MIGRAPHX_ENABLE_GPU)
-list(APPEND PACKAGE_DEPENDS PACKAGE MIOpen PACKAGE rocblas)
+    if(MIGRAPHX_USE_MIOPEN)
+        list(APPEND MIGRAPHX_CONFIG_DEPENDS PACKAGE MIOpen)
+    endif()
+    if(MIGRAPHX_USE_ROCBLAS)
+        list(APPEND MIGRAPHX_CONFIG_DEPENDS PACKAGE rocblas)
+    endif()
 add_subdirectory(targets/gpu)
 target_link_libraries(migraphx_all_targets INTERFACE migraphx_gpu)
 target_compile_definitions(migraphx_all_targets INTERFACE -DHAVE_GPU)
@@ -356,6 +356,12 @@ target_link_libraries(migraphx_all_targets INTERFACE migraphx_fpga)
 target_compile_definitions(migraphx_all_targets INTERFACE -DHAVE_FPGA)
 endif()
 
+if(MIGRAPHX_USE_MIOPEN)
+    target_compile_definitions(migraphx_all_targets INTERFACE MIGRAPHX_USE_MIOPEN=1)
+else()
+    target_compile_definitions(migraphx_all_targets INTERFACE MIGRAPHX_USE_MIOPEN=0)
+endif()
+
 if(HAVE_HALF_EXPR)
     target_compile_definitions(migraphx PUBLIC -DHAS_HALF_V1)
 endif()
@@ -364,12 +370,14 @@ if(BUILD_DEV)
     target_compile_definitions(migraphx PUBLIC -DBUILD_DEV)
 endif()
 
+target_compile_definitions(migraphx PUBLIC MIGRAPHX_CXX_COMPILER="${CMAKE_CXX_COMPILER}")
+
 rocm_export_targets(
   TARGETS migraphx::migraphx_c
   NAMESPACE migraphx::
   DEPENDS
     Threads
-    ${PACKAGE_DEPENDS}
+    ${MIGRAPHX_CONFIG_DEPENDS}
 )
  
 

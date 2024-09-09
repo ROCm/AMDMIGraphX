@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2022 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2024 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -557,242 +557,7 @@ struct MIGRAPHX_EXPORT operation
 
 struct operation
 {
-    // Constructors
-    operation() = default;
-
-    template <typename PrivateDetailTypeErasedT>
-    operation(PrivateDetailTypeErasedT value)
-        : private_detail_te_handle_mem_var(
-              std::make_shared<private_detail_te_handle_type<
-                  typename std::remove_reference<PrivateDetailTypeErasedT>::type>>(
-                  std::forward<PrivateDetailTypeErasedT>(value)))
-    {
-    }
-
-    // Assignment
-    template <typename PrivateDetailTypeErasedT>
-    operation& operator=(PrivateDetailTypeErasedT value)
-    {
-        using std::swap;
-        auto* derived = this->any_cast<PrivateDetailTypeErasedT>();
-        if(derived and private_detail_te_handle_mem_var.use_count() == 1)
-        {
-            *derived = std::forward<PrivateDetailTypeErasedT>(value);
-        }
-        else
-        {
-            operation rhs(value);
-            swap(private_detail_te_handle_mem_var, rhs.private_detail_te_handle_mem_var);
-        }
-        return *this;
-    }
-
-    // Cast
-    template <typename PrivateDetailTypeErasedT>
-    PrivateDetailTypeErasedT* any_cast()
-    {
-        return this->type_id() == typeid(PrivateDetailTypeErasedT)
-                   ? std::addressof(static_cast<private_detail_te_handle_type<
-                                        typename std::remove_cv<PrivateDetailTypeErasedT>::type>&>(
-                                        private_detail_te_get_handle())
-                                        .private_detail_te_value)
-                   : nullptr;
-    }
-
-    template <typename PrivateDetailTypeErasedT>
-    const typename std::remove_cv<PrivateDetailTypeErasedT>::type* any_cast() const
-    {
-        return this->type_id() == typeid(PrivateDetailTypeErasedT)
-                   ? std::addressof(static_cast<const private_detail_te_handle_type<
-                                        typename std::remove_cv<PrivateDetailTypeErasedT>::type>&>(
-                                        private_detail_te_get_handle())
-                                        .private_detail_te_value)
-                   : nullptr;
-    }
-
-    const std::type_info& type_id() const
-    {
-        if(private_detail_te_handle_empty())
-            return typeid(std::nullptr_t);
-        else
-            return private_detail_te_get_handle().type();
-    }
-
-    std::string name() const
-    {
-        assert((*this).private_detail_te_handle_mem_var);
-        return (*this).private_detail_te_get_handle().name();
-    }
-
-    bool is_context_free() const
-    {
-        assert((*this).private_detail_te_handle_mem_var);
-        return (*this).private_detail_te_get_handle().is_context_free();
-    }
-
-    bool need_normalization() const
-    {
-        assert((*this).private_detail_te_handle_mem_var);
-        return (*this).private_detail_te_get_handle().need_normalization();
-    }
-
-    bool has_finalize() const
-    {
-        assert((*this).private_detail_te_handle_mem_var);
-        return (*this).private_detail_te_get_handle().has_finalize();
-    }
-
-    lifetime get_lifetime() const
-    {
-        assert((*this).private_detail_te_handle_mem_var);
-        return (*this).private_detail_te_get_handle().get_lifetime();
-    }
-
-    std::ptrdiff_t output_alias(const std::vector<shape>& input) const
-    {
-        assert((*this).private_detail_te_handle_mem_var);
-        return (*this).private_detail_te_get_handle().output_alias(input);
-    }
-
-    value compile(context& ctx, const shape& output, const std::vector<shape>& input)
-    {
-        assert((*this).private_detail_te_handle_mem_var);
-        return (*this).private_detail_te_get_handle().compile(ctx, output, input);
-    }
-
-    void finalize(context& ctx, const shape& output, const std::vector<shape>& input)
-    {
-        assert((*this).private_detail_te_handle_mem_var);
-        (*this).private_detail_te_get_handle().finalize(ctx, output, input);
-    }
-
-    shape compute_shape(const std::vector<shape>& input) const
-    {
-        assert((*this).private_detail_te_handle_mem_var);
-        return (*this).private_detail_te_get_handle().compute_shape(input);
-    }
-
-    shape compute_shape(const std::vector<shape>& inputs,
-                        const std::vector<module_ref>& mod_args) const
-    {
-        assert((*this).private_detail_te_handle_mem_var);
-        return (*this).private_detail_te_get_handle().compute_shape(inputs, mod_args);
-    }
-
-    argument compute(context& ctx, const shape& output, const std::vector<argument>& input) const
-    {
-        assert((*this).private_detail_te_handle_mem_var);
-        return (*this).private_detail_te_get_handle().compute(ctx, output, input);
-    }
-
-    argument compute(const shape& output, const std::vector<argument>& input) const
-    {
-        assert((*this).private_detail_te_handle_mem_var);
-        return (*this).private_detail_te_get_handle().compute(output, input);
-    }
-
-    argument compute(const shape& output,
-                     const std::vector<argument>& input,
-                     const std::vector<module_ref>& module_args,
-                     std::function<std::vector<argument>(
-                         module_ref&, const std::unordered_map<std::string, argument>&)> run) const
-    {
-        assert((*this).private_detail_te_handle_mem_var);
-        return (*this).private_detail_te_get_handle().compute(
-            output, input, module_args, std::move(run));
-    }
-
-    argument compute(context& ctx,
-                     const shape& output,
-                     const std::vector<argument>& input,
-                     const std::vector<module_ref>& module_args,
-                     std::function<std::vector<argument>(
-                         module_ref&, const std::unordered_map<std::string, argument>&)> run) const
-    {
-        assert((*this).private_detail_te_handle_mem_var);
-        return (*this).private_detail_te_get_handle().compute(
-            ctx, output, input, module_args, std::move(run));
-    }
-
-    value to_value() const
-    {
-        assert((*this).private_detail_te_handle_mem_var);
-        return (*this).private_detail_te_get_handle().to_value();
-    }
-
-    void from_value(const value& v)
-    {
-        assert((*this).private_detail_te_handle_mem_var);
-        (*this).private_detail_te_get_handle().from_value(v);
-    }
-
-    value attributes() const
-    {
-        assert((*this).private_detail_te_handle_mem_var);
-        return (*this).private_detail_te_get_handle().attributes();
-    }
-
-    friend std::ostream& operator<<(std::ostream& os, const operation& op)
-    {
-        assert(op.private_detail_te_handle_mem_var);
-        return op.private_detail_te_get_handle().operator_shift_left(os);
-    }
-
-    friend bool operator==(const operation& x, const operation& y)
-    {
-        assert(x.private_detail_te_handle_mem_var);
-        return x.private_detail_te_get_handle().operator==(y);
-    }
-
-    friend bool is_shared(const operation& private_detail_x, const operation& private_detail_y)
-    {
-        return private_detail_x.private_detail_te_handle_mem_var ==
-               private_detail_y.private_detail_te_handle_mem_var;
-    }
-
     private:
-    struct private_detail_te_handle_base_type
-    {
-        virtual ~private_detail_te_handle_base_type() {}
-        virtual std::shared_ptr<private_detail_te_handle_base_type> clone() const = 0;
-        virtual const std::type_info& type() const                                = 0;
-
-        virtual std::string name() const                                           = 0;
-        virtual bool is_context_free() const                                       = 0;
-        virtual bool need_normalization() const                                    = 0;
-        virtual bool has_finalize() const                                          = 0;
-        virtual lifetime get_lifetime() const                                      = 0;
-        virtual std::ptrdiff_t output_alias(const std::vector<shape>& input) const = 0;
-        virtual value
-        compile(context& ctx, const shape& output, const std::vector<shape>& input) = 0;
-        virtual void
-        finalize(context& ctx, const shape& output, const std::vector<shape>& input) = 0;
-        virtual shape compute_shape(const std::vector<shape>& input) const           = 0;
-        virtual shape compute_shape(const std::vector<shape>& inputs,
-                                    const std::vector<module_ref>& mod_args) const   = 0;
-        virtual argument
-        compute(context& ctx, const shape& output, const std::vector<argument>& input) const    = 0;
-        virtual argument compute(const shape& output, const std::vector<argument>& input) const = 0;
-        virtual argument
-        compute(const shape& output,
-                const std::vector<argument>& input,
-                const std::vector<module_ref>& module_args,
-                std::function<std::vector<argument>(
-                    module_ref&, const std::unordered_map<std::string, argument>&)> run) const = 0;
-        virtual argument
-        compute(context& ctx,
-                const shape& output,
-                const std::vector<argument>& input,
-                const std::vector<module_ref>& module_args,
-                std::function<std::vector<argument>(
-                    module_ref&, const std::unordered_map<std::string, argument>&)> run) const = 0;
-        virtual value to_value() const                                                         = 0;
-        virtual void from_value(const value& v)                                                = 0;
-        virtual value attributes() const                                                       = 0;
-        virtual std::ostream& operator_shift_left(std::ostream& os) const                      = 0;
-        virtual bool operator==(const operation& y) const                                      = 0;
-    };
-
     template <class T>
     static auto private_detail_te_default_is_context_free(char, T&& private_detail_te_self)
         -> decltype(private_detail_te_self.is_context_free())
@@ -1078,6 +843,336 @@ struct operation
     {
         return detail::attributes_op(private_detail_te_self);
     }
+
+    template <class PrivateDetailTypeErasedT>
+    struct private_te_unwrap_reference
+    {
+        using type = PrivateDetailTypeErasedT;
+    };
+    template <class PrivateDetailTypeErasedT>
+    struct private_te_unwrap_reference<std::reference_wrapper<PrivateDetailTypeErasedT>>
+    {
+        using type = PrivateDetailTypeErasedT;
+    };
+    template <class PrivateDetailTypeErasedT>
+    using private_te_pure = typename std::remove_cv<
+        typename std::remove_reference<PrivateDetailTypeErasedT>::type>::type;
+
+    template <class PrivateDetailTypeErasedT>
+    using private_te_constraints_impl =
+        decltype(std::declval<PrivateDetailTypeErasedT>().name(),
+                 private_detail_te_default_is_context_free(
+                     char(0), std::declval<PrivateDetailTypeErasedT>()),
+                 private_detail_te_default_need_normalization(
+                     char(0), std::declval<PrivateDetailTypeErasedT>()),
+                 private_detail_te_default_has_finalize(char(0),
+                                                        std::declval<PrivateDetailTypeErasedT>()),
+                 private_detail_te_default_get_lifetime(char(0),
+                                                        std::declval<PrivateDetailTypeErasedT>()),
+                 private_detail_te_default_output_alias(char(0),
+                                                        std::declval<PrivateDetailTypeErasedT>(),
+                                                        std::declval<const std::vector<shape>&>()),
+                 private_detail_te_default_compile(char(0),
+                                                   std::declval<PrivateDetailTypeErasedT>(),
+                                                   std::declval<context&>(),
+                                                   std::declval<const shape&>(),
+                                                   std::declval<const std::vector<shape>&>()),
+                 private_detail_te_default_finalize(char(0),
+                                                    std::declval<PrivateDetailTypeErasedT>(),
+                                                    std::declval<context&>(),
+                                                    std::declval<const shape&>(),
+                                                    std::declval<const std::vector<shape>&>()),
+                 private_detail_te_default_compute_shape(char(0),
+                                                         std::declval<PrivateDetailTypeErasedT>(),
+                                                         std::declval<const std::vector<shape>&>()),
+                 private_detail_te_default_compute_shape(
+                     char(0),
+                     std::declval<PrivateDetailTypeErasedT>(),
+                     std::declval<const std::vector<shape>&>(),
+                     std::declval<const std::vector<module_ref>&>()),
+                 private_detail_te_default_compute(char(0),
+                                                   std::declval<PrivateDetailTypeErasedT>(),
+                                                   std::declval<context&>(),
+                                                   std::declval<const shape&>(),
+                                                   std::declval<const std::vector<argument>&>()),
+                 private_detail_te_default_compute(char(0),
+                                                   std::declval<PrivateDetailTypeErasedT>(),
+                                                   std::declval<const shape&>(),
+                                                   std::declval<const std::vector<argument>&>()),
+                 private_detail_te_default_compute(
+                     char(0),
+                     std::declval<PrivateDetailTypeErasedT>(),
+                     std::declval<const shape&>(),
+                     std::declval<const std::vector<argument>&>(),
+                     std::declval<const std::vector<module_ref>&>(),
+                     std::declval<std::function<std::vector<argument>(
+                         module_ref&, const std::unordered_map<std::string, argument>&)>>()),
+                 private_detail_te_default_compute(
+                     char(0),
+                     std::declval<PrivateDetailTypeErasedT>(),
+                     std::declval<context&>(),
+                     std::declval<const shape&>(),
+                     std::declval<const std::vector<argument>&>(),
+                     std::declval<const std::vector<module_ref>&>(),
+                     std::declval<std::function<std::vector<argument>(
+                         module_ref&, const std::unordered_map<std::string, argument>&)>>()),
+                 private_detail_te_default_to_value(char(0),
+                                                    std::declval<PrivateDetailTypeErasedT>()),
+                 private_detail_te_default_from_value(char(0),
+                                                      std::declval<PrivateDetailTypeErasedT>(),
+                                                      std::declval<const value&>()),
+                 private_detail_te_default_attributes(char(0),
+                                                      std::declval<PrivateDetailTypeErasedT>()),
+                 static_cast<void>(void()),
+                 static_cast<void>(void()),
+                 void());
+
+    template <class PrivateDetailTypeErasedT>
+    using private_te_constraints = private_te_constraints_impl<
+        typename private_te_unwrap_reference<private_te_pure<PrivateDetailTypeErasedT>>::type>;
+
+    public:
+    // Constructors
+    operation() = default;
+
+    template <typename PrivateDetailTypeErasedT,
+              typename = private_te_constraints<PrivateDetailTypeErasedT>,
+              typename = typename std::enable_if<
+                  not std::is_same<private_te_pure<PrivateDetailTypeErasedT>, operation>{}>::type>
+    operation(PrivateDetailTypeErasedT&& value)
+        : private_detail_te_handle_mem_var(
+              std::make_shared<
+                  private_detail_te_handle_type<private_te_pure<PrivateDetailTypeErasedT>>>(
+                  std::forward<PrivateDetailTypeErasedT>(value)))
+    {
+    }
+
+    // Assignment
+    template <typename PrivateDetailTypeErasedT,
+              typename = private_te_constraints<PrivateDetailTypeErasedT>,
+              typename = typename std::enable_if<
+                  not std::is_same<private_te_pure<PrivateDetailTypeErasedT>, operation>{}>::type>
+    operation& operator=(PrivateDetailTypeErasedT&& value)
+    {
+        using std::swap;
+        auto* derived = this->any_cast<private_te_pure<PrivateDetailTypeErasedT>>();
+        if(derived and private_detail_te_handle_mem_var.use_count() == 1)
+        {
+            *derived = std::forward<PrivateDetailTypeErasedT>(value);
+        }
+        else
+        {
+            operation rhs(value);
+            swap(private_detail_te_handle_mem_var, rhs.private_detail_te_handle_mem_var);
+        }
+        return *this;
+    }
+
+    // Cast
+    template <typename PrivateDetailTypeErasedT>
+    PrivateDetailTypeErasedT* any_cast()
+    {
+        return this->type_id() == typeid(PrivateDetailTypeErasedT)
+                   ? std::addressof(static_cast<private_detail_te_handle_type<
+                                        typename std::remove_cv<PrivateDetailTypeErasedT>::type>&>(
+                                        private_detail_te_get_handle())
+                                        .private_detail_te_value)
+                   : nullptr;
+    }
+
+    template <typename PrivateDetailTypeErasedT>
+    const typename std::remove_cv<PrivateDetailTypeErasedT>::type* any_cast() const
+    {
+        return this->type_id() == typeid(PrivateDetailTypeErasedT)
+                   ? std::addressof(static_cast<const private_detail_te_handle_type<
+                                        typename std::remove_cv<PrivateDetailTypeErasedT>::type>&>(
+                                        private_detail_te_get_handle())
+                                        .private_detail_te_value)
+                   : nullptr;
+    }
+
+    const std::type_info& type_id() const
+    {
+        if(private_detail_te_handle_empty())
+            return typeid(std::nullptr_t);
+        else
+            return private_detail_te_get_handle().type();
+    }
+
+    std::string name() const
+    {
+        assert((*this).private_detail_te_handle_mem_var);
+        return (*this).private_detail_te_get_handle().name();
+    }
+
+    bool is_context_free() const
+    {
+        assert((*this).private_detail_te_handle_mem_var);
+        return (*this).private_detail_te_get_handle().is_context_free();
+    }
+
+    bool need_normalization() const
+    {
+        assert((*this).private_detail_te_handle_mem_var);
+        return (*this).private_detail_te_get_handle().need_normalization();
+    }
+
+    bool has_finalize() const
+    {
+        assert((*this).private_detail_te_handle_mem_var);
+        return (*this).private_detail_te_get_handle().has_finalize();
+    }
+
+    lifetime get_lifetime() const
+    {
+        assert((*this).private_detail_te_handle_mem_var);
+        return (*this).private_detail_te_get_handle().get_lifetime();
+    }
+
+    std::ptrdiff_t output_alias(const std::vector<shape>& input) const
+    {
+        assert((*this).private_detail_te_handle_mem_var);
+        return (*this).private_detail_te_get_handle().output_alias(input);
+    }
+
+    value compile(context& ctx, const shape& output, const std::vector<shape>& input)
+    {
+        assert((*this).private_detail_te_handle_mem_var);
+        return (*this).private_detail_te_get_handle().compile(ctx, output, input);
+    }
+
+    void finalize(context& ctx, const shape& output, const std::vector<shape>& input)
+    {
+        assert((*this).private_detail_te_handle_mem_var);
+        (*this).private_detail_te_get_handle().finalize(ctx, output, input);
+    }
+
+    shape compute_shape(const std::vector<shape>& input) const
+    {
+        assert((*this).private_detail_te_handle_mem_var);
+        return (*this).private_detail_te_get_handle().compute_shape(input);
+    }
+
+    shape compute_shape(const std::vector<shape>& inputs,
+                        const std::vector<module_ref>& mod_args) const
+    {
+        assert((*this).private_detail_te_handle_mem_var);
+        return (*this).private_detail_te_get_handle().compute_shape(inputs, mod_args);
+    }
+
+    argument compute(context& ctx, const shape& output, const std::vector<argument>& input) const
+    {
+        assert((*this).private_detail_te_handle_mem_var);
+        return (*this).private_detail_te_get_handle().compute(ctx, output, input);
+    }
+
+    argument compute(const shape& output, const std::vector<argument>& input) const
+    {
+        assert((*this).private_detail_te_handle_mem_var);
+        return (*this).private_detail_te_get_handle().compute(output, input);
+    }
+
+    argument compute(const shape& output,
+                     const std::vector<argument>& input,
+                     const std::vector<module_ref>& module_args,
+                     std::function<std::vector<argument>(
+                         module_ref&, const std::unordered_map<std::string, argument>&)> run) const
+    {
+        assert((*this).private_detail_te_handle_mem_var);
+        return (*this).private_detail_te_get_handle().compute(
+            output, input, module_args, std::move(run));
+    }
+
+    argument compute(context& ctx,
+                     const shape& output,
+                     const std::vector<argument>& input,
+                     const std::vector<module_ref>& module_args,
+                     std::function<std::vector<argument>(
+                         module_ref&, const std::unordered_map<std::string, argument>&)> run) const
+    {
+        assert((*this).private_detail_te_handle_mem_var);
+        return (*this).private_detail_te_get_handle().compute(
+            ctx, output, input, module_args, std::move(run));
+    }
+
+    value to_value() const
+    {
+        assert((*this).private_detail_te_handle_mem_var);
+        return (*this).private_detail_te_get_handle().to_value();
+    }
+
+    void from_value(const value& v)
+    {
+        assert((*this).private_detail_te_handle_mem_var);
+        (*this).private_detail_te_get_handle().from_value(v);
+    }
+
+    value attributes() const
+    {
+        assert((*this).private_detail_te_handle_mem_var);
+        return (*this).private_detail_te_get_handle().attributes();
+    }
+
+    friend std::ostream& operator<<(std::ostream& os, const operation& op)
+    {
+        assert(op.private_detail_te_handle_mem_var);
+        return op.private_detail_te_get_handle().operator_shift_left(os);
+    }
+
+    friend bool operator==(const operation& x, const operation& y)
+    {
+        assert(x.private_detail_te_handle_mem_var);
+        return x.private_detail_te_get_handle().operator==(y);
+    }
+
+    friend bool is_shared(const operation& private_detail_x, const operation& private_detail_y)
+    {
+        return private_detail_x.private_detail_te_handle_mem_var ==
+               private_detail_y.private_detail_te_handle_mem_var;
+    }
+
+    private:
+    struct private_detail_te_handle_base_type
+    {
+        virtual ~private_detail_te_handle_base_type() {}
+        virtual std::shared_ptr<private_detail_te_handle_base_type> clone() const = 0;
+        virtual const std::type_info& type() const                                = 0;
+
+        virtual std::string name() const                                           = 0;
+        virtual bool is_context_free() const                                       = 0;
+        virtual bool need_normalization() const                                    = 0;
+        virtual bool has_finalize() const                                          = 0;
+        virtual lifetime get_lifetime() const                                      = 0;
+        virtual std::ptrdiff_t output_alias(const std::vector<shape>& input) const = 0;
+        virtual value
+        compile(context& ctx, const shape& output, const std::vector<shape>& input) = 0;
+        virtual void
+        finalize(context& ctx, const shape& output, const std::vector<shape>& input) = 0;
+        virtual shape compute_shape(const std::vector<shape>& input) const           = 0;
+        virtual shape compute_shape(const std::vector<shape>& inputs,
+                                    const std::vector<module_ref>& mod_args) const   = 0;
+        virtual argument
+        compute(context& ctx, const shape& output, const std::vector<argument>& input) const    = 0;
+        virtual argument compute(const shape& output, const std::vector<argument>& input) const = 0;
+        virtual argument
+        compute(const shape& output,
+                const std::vector<argument>& input,
+                const std::vector<module_ref>& module_args,
+                std::function<std::vector<argument>(
+                    module_ref&, const std::unordered_map<std::string, argument>&)> run) const = 0;
+        virtual argument
+        compute(context& ctx,
+                const shape& output,
+                const std::vector<argument>& input,
+                const std::vector<module_ref>& module_args,
+                std::function<std::vector<argument>(
+                    module_ref&, const std::unordered_map<std::string, argument>&)> run) const = 0;
+        virtual value to_value() const                                                         = 0;
+        virtual void from_value(const value& v)                                                = 0;
+        virtual value attributes() const                                                       = 0;
+        virtual std::ostream& operator_shift_left(std::ostream& os) const                      = 0;
+        virtual bool operator==(const operation& y) const                                      = 0;
+    };
 
     template <typename PrivateDetailTypeErasedT>
     struct private_detail_te_handle_type : private_detail_te_handle_base_type

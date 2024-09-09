@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2022 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2024 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -57,7 +57,7 @@ struct hip_heap_vector
     MIGRAPHX_DEVICE_CONSTEXPR void sort() { sort_heap(size); }
 
     private:
-    MIGRAPHX_DEVICE_CONSTEXPR inline static void swap(T& v1, T& v2)
+    MIGRAPHX_DEVICE_CONSTEXPR inline static void swap(T& v1, T& v2) noexcept
     {
         T v = v1;
         v1  = v2;

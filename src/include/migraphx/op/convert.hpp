@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2022 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2024 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -71,6 +71,13 @@ struct convert : unary<convert>
                 if(std::isnan(static_cast<double>(x)))
                 {
                     y = as.nan();
+                }
+                else if(shape::is_integral(type) and std::is_floating_point_v<decltype(x)>)
+                {
+                    // for the floating point to integer conversion, clamp first and then convert to
+                    // avoid undefined behaviour
+                    y = as(std::min(std::max(static_cast<double>(x), static_cast<double>(as.min())),
+                                    static_cast<double>(as.max())));
                 }
                 else
                 {

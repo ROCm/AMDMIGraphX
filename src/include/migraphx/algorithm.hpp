@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2022 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2024 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -25,6 +25,7 @@
 #define MIGRAPHX_GUARD_RTGLIB_ALGORITHM_HPP
 
 #include <algorithm>
+#include <cassert>
 #include <numeric>
 #include <string>
 #include <vector>
@@ -47,11 +48,32 @@ void transform_if(Iterator start, Iterator last, Output out, Predicate pred, F f
     }
 }
 
+/// Similiar to std::accumulate but a projection can be applied to the elements first
 template <class Iterator, class T, class BinaryOp, class UnaryOp>
 T transform_accumulate(Iterator first, Iterator last, T init, BinaryOp binop, UnaryOp unaryop)
 {
     return std::inner_product(
         first, last, first, init, binop, [&](auto&& x, auto&&) { return unaryop(x); });
+}
+
+/// Similiar to std::partial_sum but a projection can be applied to the elements first
+template <class Iterator, class OutputIterator, class BinaryOperation, class UnaryOp>
+OutputIterator transform_partial_sum(
+    Iterator first, Iterator last, OutputIterator d_first, BinaryOperation binop, UnaryOp unaryop)
+{
+    if(first == last)
+        return d_first;
+
+    auto acc = unaryop(*first);
+    *d_first = acc;
+
+    while(++first != last)
+    {
+        acc        = binop(std::move(acc), unaryop(*first));
+        *++d_first = acc;
+    }
+
+    return ++d_first;
 }
 
 template <class Iterator, class Output, class Predicate>
@@ -74,6 +96,55 @@ void group_unique(Iterator start, Iterator last, Output out, Predicate pred)
         out(start, it);
         start = it;
     }
+}
+
+template <class Iterator, class Predicate, class Output>
+void group_find(Iterator start, Iterator last, Predicate pred, Output out)
+{
+    start = std::find_if(start, last, pred);
+    while(start != last)
+    {
+        auto it = std::find_if_not(start, last, pred);
+        out(start, it);
+        start = std::find_if(it, last, pred);
+    }
+}
+
+/// Similiar to std::remove_if but instead pass adjacent pairs to the predicate
+template <class Iterator, class Predicate>
+Iterator adjacent_remove_if(Iterator first, Iterator last, Predicate p)
+{
+    first = std::adjacent_find(first, last, p);
+    if(first == last)
+        return first;
+    auto i = first;
+    while(std::next(++i) != last)
+    {
+        if(not p(*i, *std::next(i)))
+        {
+            *first = std::move(*i);
+            ++first;
+        }
+    }
+    *first = std::move(*i);
+    ++first;
+    return first;
+}
+
+/// Similiar to std::for_each but instead pass adjacent pairs to the function
+template <class Iterator, class F>
+Iterator adjacent_for_each(Iterator first, Iterator last, F f)
+{
+    if(first == last)
+        return last;
+
+    Iterator next = first;
+    ++next;
+
+    for(; next != last; ++next, ++first)
+        f(*first, *next);
+
+    return last;
 }
 
 template <class Iterator1, class Iterator2>

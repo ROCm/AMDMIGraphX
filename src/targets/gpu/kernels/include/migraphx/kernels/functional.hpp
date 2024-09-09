@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2022 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2024 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -26,10 +26,12 @@
 
 #include <migraphx/kernels/integral_constant.hpp>
 
+// Similiar to decltype(auto) except it will propagate any substitution failures
 // NOLINTNEXTLINE
 #define MIGRAPHX_RETURNS(...) \
     ->decltype(__VA_ARGS__) { return __VA_ARGS__; }
 
+// Lifts an expression into a function object so it can be passed to a higher-order function
 // NOLINTNEXTLINE
 #define MIGRAPHX_LIFT(...)                           \
     [](auto&&... private_lifts_xs) MIGRAPHX_RETURNS( \
@@ -178,6 +180,59 @@ constexpr void each_args(F)
 {
 }
 
+template <class F, class Pack>
+constexpr void unpack_each(F f)
+{
+    f();
+}
+
+template <class F, class Pack>
+constexpr void unpack_each(F f, Pack p)
+{
+    p([&](auto&&... xs) { each_args(f, static_cast<decltype(xs)>(xs)...); });
+}
+
+template <class F, class Pack1, class Pack2>
+constexpr void unpack_each(F f, Pack1 p1, Pack2 p2)
+{
+    p1([&](auto&&... xs) {
+        p2([&](auto&&... ys) {
+            each_args(
+                [&](auto&& p) { p(f); },
+                pack_forward(static_cast<decltype(xs)>(xs), static_cast<decltype(ys)>(ys))...);
+        });
+    });
+}
+
+template <class F, class Pack1, class Pack2, class... Packs>
+constexpr void unpack_each(F f, Pack1 p1, Pack2 p2, Packs... packs)
+{
+    unpack_each(
+        [&](auto&& x, auto&& y) {
+            unpack_each(
+                [&](auto&&... zs) {
+                    f(static_cast<decltype(x)>(x),
+                      static_cast<decltype(y)>(y),
+                      static_cast<decltype(zs)>(zs)...);
+                },
+                packs...);
+        },
+        p1,
+        p2);
+}
+
+template <index_int N, class F>
+constexpr void repeat_c(F&& f)
+{
+    sequence_c<N>([&](auto... xs) { each_args(f, xs...); });
+}
+
+template <class IntegerConstant, class F>
+constexpr auto repeat(IntegerConstant ic, F&& f)
+{
+    return repeat_c<ic>(f);
+}
+
 template <class F, class T>
 constexpr auto fold_impl(F&&, T&& x)
 {
@@ -216,6 +271,12 @@ template <class... Ts>
 constexpr auto pack(Ts... xs)
 {
     return [=](auto f) { return f(xs...); };
+}
+
+template <class... Ts>
+constexpr auto pack_forward(Ts&&... xs)
+{
+    return [&](auto f) { return f(static_cast<Ts&&>(xs)...); };
 }
 
 template <class G, class F>
@@ -289,15 +350,38 @@ inline constexpr auto transform_args()
     return make_transform([](auto f, auto... xs) { return f(xs...); });
 }
 
-// Rotate the first argument to the last argument
-inline constexpr auto rotate_last()
+// Rotate the last N arguments to the first N arguments
+template <index_int N>
+constexpr auto rotate_last()
 {
     return make_transform([](auto f, auto... xs) {
         return sequence_c<sizeof...(xs)>([&](auto... is) {
             constexpr auto size = sizeof...(is);
-            return f(arg_c<(is + size - 1) % size>()(xs...)...);
+            return f(arg_c<(is + size - N) % size>()(xs...)...);
         });
     });
+}
+
+inline constexpr auto rotate_last() { return rotate_last<1>(); }
+
+// Pack the first N arguments
+template <index_int N>
+constexpr auto pack_first()
+{
+    return make_transform([](auto f, auto... xs) {
+        return sequence_c<N>([&](auto... is) {
+            return sequence_c<sizeof...(xs) - N>([&](auto... js) {
+                return f(pack(arg_c<is>()(xs...)...), arg_c<js + N>()(xs...)...);
+            });
+        });
+    });
+}
+
+// Rotate the last N arguments as the first argument packed
+template <index_int N>
+constexpr auto rotate_and_pack_last()
+{
+    return transform_args(rotate_last<N>(), pack_first<N>());
 }
 
 } // namespace migraphx

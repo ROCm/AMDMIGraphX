@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2022 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2024 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -98,24 +98,88 @@ struct MIGRAPHX_EXPORT pass
 
 struct pass
 {
+    private:
+    template <class T>
+    static auto
+    private_detail_te_default_apply(char, T&& private_detail_te_self, module_pass_manager& mpm)
+        -> decltype(private_detail_te_self.apply(mpm))
+    {
+        private_detail_te_self.apply(mpm);
+    }
+
+    template <class T>
+    static void
+    private_detail_te_default_apply(float, T&& private_detail_te_self, module_pass_manager& mpm)
+    {
+        migraphx::detail::module_pass_manager_apply(private_detail_te_self, mpm);
+    }
+
+    template <class T>
+    static auto private_detail_te_default_apply(char, T&& private_detail_te_self, program& p)
+        -> decltype(private_detail_te_self.apply(p))
+    {
+        private_detail_te_self.apply(p);
+    }
+
+    template <class T>
+    static void private_detail_te_default_apply(float, T&& private_detail_te_self, program& p)
+    {
+        migraphx::nop(private_detail_te_self, p);
+    }
+
+    template <class PrivateDetailTypeErasedT>
+    struct private_te_unwrap_reference
+    {
+        using type = PrivateDetailTypeErasedT;
+    };
+    template <class PrivateDetailTypeErasedT>
+    struct private_te_unwrap_reference<std::reference_wrapper<PrivateDetailTypeErasedT>>
+    {
+        using type = PrivateDetailTypeErasedT;
+    };
+    template <class PrivateDetailTypeErasedT>
+    using private_te_pure = typename std::remove_cv<
+        typename std::remove_reference<PrivateDetailTypeErasedT>::type>::type;
+
+    template <class PrivateDetailTypeErasedT>
+    using private_te_constraints_impl =
+        decltype(std::declval<PrivateDetailTypeErasedT>().name(),
+                 private_detail_te_default_apply(char(0),
+                                                 std::declval<PrivateDetailTypeErasedT>(),
+                                                 std::declval<module_pass_manager&>()),
+                 private_detail_te_default_apply(
+                     char(0), std::declval<PrivateDetailTypeErasedT>(), std::declval<program&>()),
+                 void());
+
+    template <class PrivateDetailTypeErasedT>
+    using private_te_constraints = private_te_constraints_impl<
+        typename private_te_unwrap_reference<private_te_pure<PrivateDetailTypeErasedT>>::type>;
+
+    public:
     // Constructors
     pass() = default;
 
-    template <typename PrivateDetailTypeErasedT>
-    pass(PrivateDetailTypeErasedT value)
+    template <typename PrivateDetailTypeErasedT,
+              typename = private_te_constraints<PrivateDetailTypeErasedT>,
+              typename = typename std::enable_if<
+                  not std::is_same<private_te_pure<PrivateDetailTypeErasedT>, pass>{}>::type>
+    pass(PrivateDetailTypeErasedT&& value)
         : private_detail_te_handle_mem_var(
-              std::make_shared<private_detail_te_handle_type<
-                  typename std::remove_reference<PrivateDetailTypeErasedT>::type>>(
+              std::make_shared<
+                  private_detail_te_handle_type<private_te_pure<PrivateDetailTypeErasedT>>>(
                   std::forward<PrivateDetailTypeErasedT>(value)))
     {
     }
 
     // Assignment
-    template <typename PrivateDetailTypeErasedT>
-    pass& operator=(PrivateDetailTypeErasedT value)
+    template <typename PrivateDetailTypeErasedT,
+              typename = private_te_constraints<PrivateDetailTypeErasedT>,
+              typename = typename std::enable_if<
+                  not std::is_same<private_te_pure<PrivateDetailTypeErasedT>, pass>{}>::type>
+    pass& operator=(PrivateDetailTypeErasedT&& value)
     {
         using std::swap;
-        auto* derived = this->any_cast<PrivateDetailTypeErasedT>();
+        auto* derived = this->any_cast<private_te_pure<PrivateDetailTypeErasedT>>();
         if(derived and private_detail_te_handle_mem_var.use_count() == 1)
         {
             *derived = std::forward<PrivateDetailTypeErasedT>(value);
@@ -194,34 +258,6 @@ struct pass
         virtual void apply(module_pass_manager& mpm) const = 0;
         virtual void apply(program& p) const               = 0;
     };
-
-    template <class T>
-    static auto
-    private_detail_te_default_apply(char, T&& private_detail_te_self, module_pass_manager& mpm)
-        -> decltype(private_detail_te_self.apply(mpm))
-    {
-        private_detail_te_self.apply(mpm);
-    }
-
-    template <class T>
-    static void
-    private_detail_te_default_apply(float, T&& private_detail_te_self, module_pass_manager& mpm)
-    {
-        migraphx::detail::module_pass_manager_apply(private_detail_te_self, mpm);
-    }
-
-    template <class T>
-    static auto private_detail_te_default_apply(char, T&& private_detail_te_self, program& p)
-        -> decltype(private_detail_te_self.apply(p))
-    {
-        private_detail_te_self.apply(p);
-    }
-
-    template <class T>
-    static void private_detail_te_default_apply(float, T&& private_detail_te_self, program& p)
-    {
-        migraphx::nop(private_detail_te_self, p);
-    }
 
     template <typename PrivateDetailTypeErasedT>
     struct private_detail_te_handle_type : private_detail_te_handle_base_type
@@ -330,6 +366,9 @@ inline const ValueType& any_cast(const pass& x)
     return *y;
 }
 #endif
+
+/// Used in the targets to enable/disable compiler passes
+MIGRAPHX_EXPORT pass enable_pass(bool enabled, pass p);
 
 #endif
 

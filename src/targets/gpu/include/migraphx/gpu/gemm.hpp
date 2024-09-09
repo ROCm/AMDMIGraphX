@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2023 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2024 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -52,7 +52,6 @@ struct rocblas_gemm
     bool compute_fp32    = false;
     unsigned trans_batch = 0;
     int32_t solution_idx = 0;
-
     template <class Self, class F>
     static auto reflect(Self& self, F f)
     {
@@ -112,7 +111,7 @@ struct rocblas_gemm
     argument
     compute(context& ctx, const shape& output_shape, const std::vector<argument>& args) const
     {
-        if(this->name() == "gpu::gemm")
+        if(this->name() == "gpu::gemm" or output_shape.type() == migraphx::shape::float_type)
         {
             gemm_compute(ctx, output_shape, args, alpha, beta, compute_fp32, solution_idx);
         }
@@ -132,6 +131,8 @@ struct rocblas_gemm
     void finalize(context& ctx, const shape& output_shape, const std::vector<shape>& input_shapes)
     {
 #ifdef MIGRAPHX_USE_ROCBLAS_TUNING_API
+        if(solution_idx == 0)
+            solution_idx = gemm_default_solution(ctx, output_shape, input_shapes);
         if(enabled(MIGRAPHX_ENABLE_GEMM_TUNING{}) or ctx.get_exhaustive_tune_flag())
         {
             if(this->name() == "gpu::gemm")
@@ -156,9 +157,7 @@ struct rocblas_gemm
 #endif
     }
 };
-
+#endif
 } // namespace gpu
 } // namespace MIGRAPHX_INLINE_NS
 } // namespace migraphx
-
-#endif

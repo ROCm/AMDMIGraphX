@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2022 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2024 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -149,24 +149,134 @@ struct MIGRAPHX_EXPORT target
 
 struct target
 {
+    private:
+    template <class T>
+    static auto private_detail_te_default_find_supported(char,
+                                                         T&& private_detail_te_self,
+                                                         const_module_ref mod,
+                                                         support_metric m)
+        -> decltype(private_detail_te_self.find_supported(mod, m))
+    {
+        return private_detail_te_self.find_supported(mod, m);
+    }
+
+    template <class T>
+    static supported_segments private_detail_te_default_find_supported(float,
+                                                                       T&& private_detail_te_self,
+                                                                       const_module_ref mod,
+                                                                       support_metric m)
+    {
+        return target_find_supported(private_detail_te_self, mod, m);
+    }
+
+    template <class T>
+    static auto
+    private_detail_te_default_copy_to(char, T&& private_detail_te_self, const argument& input)
+        -> decltype(private_detail_te_self.copy_to(input))
+    {
+        return private_detail_te_self.copy_to(input);
+    }
+
+    template <class T>
+    static argument
+    private_detail_te_default_copy_to(float, T&& private_detail_te_self, const argument& input)
+    {
+        return copy_to_target(private_detail_te_self, input);
+    }
+
+    template <class T>
+    static auto
+    private_detail_te_default_copy_from(char, T&& private_detail_te_self, const argument& input)
+        -> decltype(private_detail_te_self.copy_from(input))
+    {
+        return private_detail_te_self.copy_from(input);
+    }
+
+    template <class T>
+    static argument
+    private_detail_te_default_copy_from(float, T&& private_detail_te_self, const argument& input)
+    {
+        return copy_from_target(private_detail_te_self, input);
+    }
+
+    template <class T>
+    static auto private_detail_te_default_allocate(char, T&& private_detail_te_self, const shape& s)
+        -> decltype(private_detail_te_self.allocate(s))
+    {
+        return private_detail_te_self.allocate(s);
+    }
+
+    template <class T>
+    static argument
+    private_detail_te_default_allocate(float, T&& private_detail_te_self, const shape& s)
+    {
+        return target_allocate(private_detail_te_self, s);
+    }
+
+    template <class PrivateDetailTypeErasedT>
+    struct private_te_unwrap_reference
+    {
+        using type = PrivateDetailTypeErasedT;
+    };
+    template <class PrivateDetailTypeErasedT>
+    struct private_te_unwrap_reference<std::reference_wrapper<PrivateDetailTypeErasedT>>
+    {
+        using type = PrivateDetailTypeErasedT;
+    };
+    template <class PrivateDetailTypeErasedT>
+    using private_te_pure = typename std::remove_cv<
+        typename std::remove_reference<PrivateDetailTypeErasedT>::type>::type;
+
+    template <class PrivateDetailTypeErasedT>
+    using private_te_constraints_impl =
+        decltype(std::declval<PrivateDetailTypeErasedT>().name(),
+                 std::declval<PrivateDetailTypeErasedT>().get_passes(
+                     std::declval<context&>(), std::declval<const compile_options&>()),
+                 std::declval<PrivateDetailTypeErasedT>().get_context(),
+                 private_detail_te_default_find_supported(char(0),
+                                                          std::declval<PrivateDetailTypeErasedT>(),
+                                                          std::declval<const_module_ref>(),
+                                                          std::declval<support_metric>()),
+                 private_detail_te_default_copy_to(char(0),
+                                                   std::declval<PrivateDetailTypeErasedT>(),
+                                                   std::declval<const argument&>()),
+                 private_detail_te_default_copy_from(char(0),
+                                                     std::declval<PrivateDetailTypeErasedT>(),
+                                                     std::declval<const argument&>()),
+                 private_detail_te_default_allocate(char(0),
+                                                    std::declval<PrivateDetailTypeErasedT>(),
+                                                    std::declval<const shape&>()),
+                 void());
+
+    template <class PrivateDetailTypeErasedT>
+    using private_te_constraints = private_te_constraints_impl<
+        typename private_te_unwrap_reference<private_te_pure<PrivateDetailTypeErasedT>>::type>;
+
+    public:
     // Constructors
     target() = default;
 
-    template <typename PrivateDetailTypeErasedT>
-    target(PrivateDetailTypeErasedT value)
+    template <typename PrivateDetailTypeErasedT,
+              typename = private_te_constraints<PrivateDetailTypeErasedT>,
+              typename = typename std::enable_if<
+                  not std::is_same<private_te_pure<PrivateDetailTypeErasedT>, target>{}>::type>
+    target(PrivateDetailTypeErasedT&& value)
         : private_detail_te_handle_mem_var(
-              std::make_shared<private_detail_te_handle_type<
-                  typename std::remove_reference<PrivateDetailTypeErasedT>::type>>(
+              std::make_shared<
+                  private_detail_te_handle_type<private_te_pure<PrivateDetailTypeErasedT>>>(
                   std::forward<PrivateDetailTypeErasedT>(value)))
     {
     }
 
     // Assignment
-    template <typename PrivateDetailTypeErasedT>
-    target& operator=(PrivateDetailTypeErasedT value)
+    template <typename PrivateDetailTypeErasedT,
+              typename = private_te_constraints<PrivateDetailTypeErasedT>,
+              typename = typename std::enable_if<
+                  not std::is_same<private_te_pure<PrivateDetailTypeErasedT>, target>{}>::type>
+    target& operator=(PrivateDetailTypeErasedT&& value)
     {
         using std::swap;
-        auto* derived = this->any_cast<PrivateDetailTypeErasedT>();
+        auto* derived = this->any_cast<private_te_pure<PrivateDetailTypeErasedT>>();
         if(derived and private_detail_te_handle_mem_var.use_count() == 1)
         {
             *derived = std::forward<PrivateDetailTypeErasedT>(value);
@@ -274,69 +384,6 @@ struct target
         virtual argument copy_from(const argument& input) const                                 = 0;
         virtual argument allocate(const shape& s) const                                         = 0;
     };
-
-    template <class T>
-    static auto private_detail_te_default_find_supported(char,
-                                                         T&& private_detail_te_self,
-                                                         const_module_ref mod,
-                                                         support_metric m)
-        -> decltype(private_detail_te_self.find_supported(mod, m))
-    {
-        return private_detail_te_self.find_supported(mod, m);
-    }
-
-    template <class T>
-    static supported_segments private_detail_te_default_find_supported(float,
-                                                                       T&& private_detail_te_self,
-                                                                       const_module_ref mod,
-                                                                       support_metric m)
-    {
-        return target_find_supported(private_detail_te_self, mod, m);
-    }
-
-    template <class T>
-    static auto
-    private_detail_te_default_copy_to(char, T&& private_detail_te_self, const argument& input)
-        -> decltype(private_detail_te_self.copy_to(input))
-    {
-        return private_detail_te_self.copy_to(input);
-    }
-
-    template <class T>
-    static argument
-    private_detail_te_default_copy_to(float, T&& private_detail_te_self, const argument& input)
-    {
-        return copy_to_target(private_detail_te_self, input);
-    }
-
-    template <class T>
-    static auto
-    private_detail_te_default_copy_from(char, T&& private_detail_te_self, const argument& input)
-        -> decltype(private_detail_te_self.copy_from(input))
-    {
-        return private_detail_te_self.copy_from(input);
-    }
-
-    template <class T>
-    static argument
-    private_detail_te_default_copy_from(float, T&& private_detail_te_self, const argument& input)
-    {
-        return copy_from_target(private_detail_te_self, input);
-    }
-
-    template <class T>
-    static auto private_detail_te_default_allocate(char, T&& private_detail_te_self, const shape& s)
-        -> decltype(private_detail_te_self.allocate(s))
-    {
-        return private_detail_te_self.allocate(s);
-    }
-
-    template <class T>
-    static argument
-    private_detail_te_default_allocate(float, T&& private_detail_te_self, const shape& s)
-    {
-        return target_allocate(private_detail_te_self, s);
-    }
 
     template <typename PrivateDetailTypeErasedT>
     struct private_detail_te_handle_type : private_detail_te_handle_base_type

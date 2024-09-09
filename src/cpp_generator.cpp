@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2022 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2024 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -38,6 +38,7 @@ inline namespace MIGRAPHX_INLINE_NS {
 cpp_generator::function&
 cpp_generator::function::set_body(const module& m, const cpp_generator::generate_module_callback& g)
 {
+    const std::string prefix = "zz";
     std::unordered_map<migraphx::instruction_ref, std::string> names;
     std::stringstream ss;
 
@@ -48,17 +49,18 @@ cpp_generator::function::set_body(const module& m, const cpp_generator::generate
         ss << "// " << ins->get_operator() << " -> " << ins->get_shape() << "\n";
         if(ins->name() == "@param")
         {
-            names[ins] =
-                migraphx::any_cast<migraphx::builtin::param>(ins->get_operator()).parameter;
+            names[ins] = to_c_id(
+                migraphx::any_cast<migraphx::builtin::param>(ins->get_operator()).parameter);
         }
         else if(ins->name() == "@return")
         {
-            assert(ins->inputs().size() == 1);
-            return_ins = ins->inputs().front();
+            names[ins] = prefix + "return";
+            ss << "auto " << names[ins] << " = " << g(ins, names) << ";\n";
+            return_ins = ins;
         }
         else
         {
-            std::string n = "z" + std::to_string(names.size());
+            std::string n = prefix + std::to_string(names.size());
             names[ins]    = n;
             ss << "auto " << n << " = " << g(ins, names) << ";\n";
         }
@@ -95,13 +97,13 @@ cpp_generator::function& cpp_generator::function::set_generic_types(const module
     std::map<std::string, shape> input_map(pmap.begin(), pmap.end());
     std::transform(
         input_map.begin(), input_map.end(), std::back_inserter(this->params), [&](auto&& p) {
-            return param{p.first, "T" + p.first};
+            return param{p.first, "T" + to_c_id(p.first)};
         });
 
     std::transform(input_map.begin(),
                    input_map.end(),
                    std::back_inserter(this->tparams),
-                   [&](auto&& p) { return "class T" + p.first; });
+                   [&](auto&& p) { return "class T" + to_c_id(p.first); });
     this->return_type = "auto";
     return *this;
 }
@@ -125,6 +127,7 @@ struct cpp_generator_impl
     std::function<std::string(std::string)> fmap              = nullptr;
     std::function<std::string(shape)> fresult                 = nullptr;
     std::unordered_map<std::string, std::string> point_op_map = {};
+    bool always_return_tuple                                  = false;
 };
 cpp_generator::cpp_generator() : impl(std::make_unique<cpp_generator_impl>()) {}
 
@@ -141,6 +144,8 @@ cpp_generator::~cpp_generator() noexcept = default;
 void cpp_generator::fmap(const std::function<std::string(std::string)>& f) { impl->fmap = f; }
 
 void cpp_generator::fresult(const std::function<std::string(shape)>& f) { impl->fresult = f; }
+
+void cpp_generator::always_return_tuple(bool b) { impl->always_return_tuple = b; }
 
 void cpp_generator::add_point_op(const std::string& op_name, const std::string& code)
 {
@@ -200,13 +205,9 @@ cpp_generator::function cpp_generator::generate_module(const module& m,
                                                        const generate_module_callback& g)
 {
     function f;
-    auto name = transform_string(m.name(), [](char c) {
-        if(with_char(::isalnum)(c) or c == '_')
-            return c;
-        return '_';
-    });
-    f.set_name(name).set_types(m).set_body(
-        m, [&](instruction_ref ins, const auto& names) -> std::string {
+    f.set_name(to_c_id(m.name()))
+        .set_types(m)
+        .set_body(m, [&](instruction_ref ins, const auto& names) -> std::string {
             if(ins->name() == "@literal")
             {
                 std::string string_literal;
@@ -225,6 +226,13 @@ cpp_generator::function cpp_generator::generate_module(const module& m,
                         string_literal = ins->get_literal().to_string();
                 });
                 return shape::cpp_type(ins->get_shape().type()) + "(" + string_literal + ")";
+            }
+            if(ins->name() == "@return")
+            {
+                // TODO: Customize the make_tuple call
+                if(impl->always_return_tuple or ins->inputs().size() != 1)
+                    return "make_tuple(" + join_strings(to_args(ins->inputs(), names), ", ") + ")";
+                return names.at(ins->inputs().front());
             }
             auto s = g(ins, names);
             if(impl->fresult)
@@ -265,7 +273,7 @@ std::string cpp_generator::create_function(const cpp_generator::function& f)
         impl->fs << delim;
     for(auto&& p : f.params)
     {
-        impl->fs << delim << p.type << " " << p.name;
+        impl->fs << delim << p.type << " " << to_c_id(p.name);
         delim = ',';
     }
     impl->fs << ") {\n" << f.body << "\n}\n";

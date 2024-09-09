@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2022 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2024 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -32,6 +32,7 @@
 #include <migraphx/eliminate_data_type.hpp>
 #include <migraphx/eliminate_identity.hpp>
 #include <migraphx/eliminate_pad.hpp>
+#include <migraphx/eliminate_convert.hpp>
 #include <migraphx/layout_nhwc.hpp>
 #include <migraphx/memory_coloring.hpp>
 #include <migraphx/propagate_constant.hpp>
@@ -42,7 +43,6 @@
 #include <migraphx/rewrite_rnn.hpp>
 #include <migraphx/schedule.hpp>
 #include <migraphx/simplify_algebra.hpp>
-#include <migraphx/simplify_qdq.hpp>
 #include <migraphx/simplify_reshapes.hpp>
 #include <migraphx/preallocate_param.hpp>
 #include <migraphx/cpu/fuse_ops.hpp>
@@ -66,13 +66,16 @@ std::vector<pass> target::get_passes(migraphx::context& gctx, const compile_opti
 {
     auto& ctx = any_cast<context>(gctx);
     std::set<shape::type_t> unsupported_types(shape::types().begin(), shape::types().end());
+    std::set<std::string> unsupported_ops{
+        "all", "scatternd_add", "scatternd_mul", "scatternd_none"};
     unsupported_types.erase(shape::type_t::float_type);
     return {normalize_ops{},
             rewrite_quantization{},
             dead_code_elimination{},
-            eliminate_data_type{unsupported_types, shape::type_t::float_type},
+            eliminate_data_type{unsupported_types, shape::type_t::float_type, unsupported_ops},
             dead_code_elimination{},
             simplify_reshapes{},
+            eliminate_convert{},
             eliminate_identity{},
             eliminate_pad{},
             dead_code_elimination{},
@@ -82,13 +85,18 @@ std::vector<pass> target::get_passes(migraphx::context& gctx, const compile_opti
             dead_code_elimination{},
             simplify_algebra{},
             simplify_reshapes{},
+            eliminate_convert{},
             dead_code_elimination{},
             simplify_reshapes{},
+            eliminate_convert{},
+            dead_code_elimination{},
             simplify_algebra{},
-            auto_contiguous{},
             simplify_reshapes{},
+            eliminate_convert{},
+            dead_code_elimination{},
             propagate_constant{},
             dead_code_elimination{},
+            auto_contiguous{},
             lowering{},
             eliminate_contiguous{"dnnl::reorder"},
             dead_code_elimination{},

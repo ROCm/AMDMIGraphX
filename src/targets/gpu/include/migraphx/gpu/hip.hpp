@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2022 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2024 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -59,6 +59,8 @@ MIGRAPHX_GPU_EXPORT void copy_from_gpu(context& ctx, const argument& src, const 
 
 MIGRAPHX_GPU_EXPORT argument get_preallocation(context& ctx, const std::string& id);
 
+MIGRAPHX_GPU_EXPORT void gpu_fill(context& ctx, const argument& dst, int value = 0);
+
 struct hip_allocate
 {
     shape s;
@@ -79,6 +81,30 @@ struct hip_allocate
     {
         return allocate_gpu(output_shape);
     }
+};
+
+struct hip_fill
+{
+    int value = 0;
+
+    template <class Self, class F>
+    static auto reflect(Self& self, F f)
+    {
+        return pack(f(self.value, "value"));
+    }
+
+    std::string name() const { return "hip::fill"; }
+    shape compute_shape(const std::vector<shape>& inputs) const
+    {
+        check_shapes{inputs, *this}.has(1);
+        return inputs.front();
+    }
+    argument compute(context& ctx, const shape&, const std::vector<argument>& args) const
+    {
+        gpu_fill(ctx, args.front(), value);
+        return args.front();
+    }
+    std::ptrdiff_t output_alias(const std::vector<shape>&) const { return 0; }
 };
 
 struct hip_sync_stream

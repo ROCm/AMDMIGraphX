@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2022 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2024 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -57,6 +57,7 @@ struct test_unbatched_gemm_1 : verify_program<test_unbatched_gemm_1<DType>>
             *mm, {l1, concat, l5}, migraphx::make_op("dot"), alpha, beta);
         return p;
     }
+    std::string section() const { return "gemm"; }
 };
 
 template struct test_unbatched_gemm_1<migraphx::shape::float_type>;

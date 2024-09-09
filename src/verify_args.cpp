@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2022 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2023 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -24,6 +24,8 @@
 
 #include <migraphx/verify_args.hpp>
 
+MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_VERIFY_DUMP_DIFF);
+
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
 
@@ -42,9 +44,9 @@ bool verify_args(const std::string& name,
             // TODO: Check for nans
             std::cout << "FAILED: " << name << std::endl;
             std::cout << "RMS Error: " << rms_error << std::endl;
-            if(ref.size() < 32)
+            if(ref.size() < 32 or enabled(MIGRAPHX_VERIFY_DUMP_DIFF{}))
                 std::cout << "ref:" << ref << std::endl;
-            if(target.size() < 32)
+            if(target.size() < 32 or enabled(MIGRAPHX_VERIFY_DUMP_DIFF{}))
                 std::cout << "target:" << target << std::endl;
             if(verify::range_zero(ref))
                 std::cout << "Ref data is all zeros" << std::endl;

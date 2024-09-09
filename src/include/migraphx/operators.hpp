@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2022 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2024 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -36,6 +36,7 @@
 #include <migraphx/op/atan.hpp>
 #include <migraphx/op/atanh.hpp>
 #include <migraphx/op/binary.hpp>
+#include <migraphx/op/bitwise_and.hpp>
 #include <migraphx/op/broadcast.hpp>
 #include <migraphx/op/capture.hpp>
 #include <migraphx/op/ceil.hpp>
@@ -72,6 +73,7 @@
 #include <migraphx/op/less.hpp>
 #include <migraphx/op/load.hpp>
 #include <migraphx/op/log.hpp>
+#include <migraphx/op/log2.hpp>
 #include <migraphx/op/logical_and.hpp>
 #include <migraphx/op/logical_or.hpp>
 #include <migraphx/op/logical_xor.hpp>
@@ -113,9 +115,12 @@
 #include <migraphx/op/roialign.hpp>
 #include <migraphx/op/rsqrt.hpp>
 #include <migraphx/op/scalar.hpp>
+#include <migraphx/op/scan_slice.hpp>
+#include <migraphx/op/scatter_none.hpp>
 #include <migraphx/op/scatter_add.hpp>
 #include <migraphx/op/scatter_mul.hpp>
-#include <migraphx/op/scatter_none.hpp>
+#include <migraphx/op/scatter_min.hpp>
+#include <migraphx/op/scatter_max.hpp>
 #include <migraphx/op/scatternd_add.hpp>
 #include <migraphx/op/scatternd_none.hpp>
 #include <migraphx/op/scatternd_mul.hpp>

@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2022 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2023 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -91,8 +91,10 @@ struct scatternd_op : op_name<Derived>
         auto data_dims = data_shape.to_dynamic().dyn_dims();
 
         // Check that corresponding portions of tensor shapes match.
-        if(not(std::equal(ind_dims.begin(), ind_dims.begin() + q - 1, upd_dims.begin()) and
-               std::equal(data_dims.begin() + k, data_dims.end(), upd_dims.begin() + q - 1)))
+        // Brackets around q - 1 are placed for safeguarding against the breaking iterator out of
+        // vector range.
+        if(not(std::equal(ind_dims.begin(), ind_dims.begin() + (q - 1), upd_dims.begin()) and
+               std::equal(data_dims.begin() + k, data_dims.end(), upd_dims.begin() + (q - 1))))
             MIGRAPHX_THROW("ScatterND: incorrect update shape. Update dimensions must match "
                            "indices and data.");
 
@@ -126,14 +128,15 @@ struct scatternd_op : op_name<Derived>
                     auto updates_idx = updates_std.multi(i);
                     std::vector<std::size_t> indices_idx(q, 0);
                     std::copy(
-                        updates_idx.begin(), updates_idx.begin() + q - 1, indices_idx.begin());
+                        updates_idx.begin(), updates_idx.begin() + (q - 1), indices_idx.begin());
                     auto index_start = indices.begin() +
                                        indices_shape.index(indices_idx.begin(), indices_idx.end());
                     auto index_end = index_start + k;
 
                     std::vector<std::size_t> out_idx(r, 0);
                     std::copy(index_start, index_end, out_idx.begin());
-                    std::copy(updates_idx.begin() + q - 1, updates_idx.end(), out_idx.begin() + k);
+                    std::copy(
+                        updates_idx.begin() + (q - 1), updates_idx.end(), out_idx.begin() + k);
 
                     self.reduction()(output[dyn_out.computed_shape.index(out_idx)], updates[i]);
                 }

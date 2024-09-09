@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2022 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2024 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -80,6 +80,8 @@ struct MIGRAPHX_EXPORT program
     std::vector<argument> eval(parameter_map params,
                                execution_environment exec_env = execution_environment{}) const;
 
+    std::vector<argument> eval_with_context(std::vector<context>& ctx, parameter_map params) const;
+
     void finish() const;
 
     std::size_t size() const;
@@ -102,8 +104,11 @@ struct MIGRAPHX_EXPORT program
 
     void finalize();
 
-    void
-    perf_report(std::ostream& os, std::size_t n, parameter_map params, std::size_t batch = 1) const;
+    void perf_report(std::ostream& os,
+                     std::size_t n,
+                     parameter_map params,
+                     std::size_t batch = 1,
+                     bool detailed     = false) const;
 
     void mark(const parameter_map& params, marker&& m);
 
@@ -136,6 +141,7 @@ struct MIGRAPHX_EXPORT program
 
     // module related api
     module* create_module(const std::string& name);
+    module* create_module(const std::string& name, module m);
     module* get_module(const std::string& name);
     const module* get_module(const std::string& name) const;
 
@@ -148,6 +154,7 @@ struct MIGRAPHX_EXPORT program
     std::unordered_multimap<module_ref, module_ref> get_module_tree();
 
     void remove_module(const std::string& name);
+    void rename_module(const std::string& old_name, const std::string& new_name);
     void remove_unused_modules();
 
     private:

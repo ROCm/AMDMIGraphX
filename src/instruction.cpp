@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2022 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2024 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -400,9 +400,10 @@ void instruction::print(std::ostream& os,
     // skip return instruction shape
     if(ins->name() != "@return")
         os << " -> " << ins->get_shape();
-    // print tid
 
-    os << ", target_id=" << ins->target_id;
+    // print tid
+    if(ins->target_id != 0)
+        os << ", target_id=" << ins->target_id;
 }
 
 static void debug_name(std::ostream& os, const instruction& ins)
@@ -514,6 +515,18 @@ std::vector<shape> try_compute_shape(const operation& op, const std::vector<shap
 migraphx::instruction* as_address(const instruction_ref& ins) noexcept
 {
     return std::addressof(*ins);
+}
+
+bool reaches(instruction_ref start, instruction_ref end)
+{
+    std::unordered_set<instruction_ref> visited;
+    return fix<bool>([&](auto self, auto ins) -> bool {
+        if(ins == start)
+            return true;
+        if(not visited.insert(ins).second)
+            return false;
+        return std::any_of(ins->inputs().begin(), ins->inputs().end(), self);
+    })(end);
 }
 
 } // namespace MIGRAPHX_INLINE_NS

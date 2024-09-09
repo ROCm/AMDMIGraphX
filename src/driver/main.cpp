@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2022 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2024 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -23,6 +23,7 @@
  */
 
 #include "verify.hpp"
+#include "verify_options.hpp"
 #include "argument_parser.hpp"
 #include "command.hpp"
 #include "precision.hpp"
@@ -69,11 +70,11 @@ inline std::string get_version()
 
 struct loader
 {
-    std::string model;
     std::string file;
     std::string file_type;
     unsigned batch              = 1;
     bool is_nhwc                = true;
+    bool is_test                = false;
     unsigned trim               = 0;
     bool optimize               = false;
     bool skip_unknown_operators = false;
@@ -82,6 +83,7 @@ struct loader
     std::string output;
     std::string default_dyn_dim;
     std::vector<std::string> param_dims;
+    std::vector<std::string> dim_params;
     std::vector<std::string> dyn_param_dims;
     std::vector<std::string> output_names;
     std::vector<std::string> passes;
@@ -89,11 +91,10 @@ struct loader
     void parse(argument_parser& ap)
     {
         ap(file, {}, ap.metavar("<input file>"), ap.file_exist(), ap.required(), ap.group("input"));
-        ap(model,
-           {"--model"},
-           ap.help("Load model"),
-           ap.type("resnet50|inceptionv3|alexnet"),
-           ap.matches({"resnet50", "inceptionv3", "alexnet"}),
+        ap(is_test,
+           {"--test"},
+           ap.help("Run a single GEMM to test MIGraphX"),
+           ap.set_value(true),
            ap.group("input"));
         ap(file_type, {"--onnx"}, ap.help("Load as onnx"), ap.set_value("onnx"));
         ap(file_type, {"--tf"}, ap.help("Load as tensorflow"), ap.set_value("tf"));
@@ -114,6 +115,13 @@ struct loader
         ap(param_dims,
            {"--input-dim"},
            ap.help("Dim of a parameter (format: \"@name d1 d2 dn\")"),
+           ap.append(),
+           ap.nargs(2));
+        ap(dim_params,
+           {"--dim-param"},
+           ap.help("Symbolic parameter dimension name (fixed / dynamic) - "
+                   "(fixed format): \"@dim_param_name\" \"x\" / "
+                   "(dynamic format): \"@dim_param_name\" \"{min:x, max:y, optimals:[o1,o2]}\""),
            ap.append(),
            ap.nargs(2));
         ap(dyn_param_dims,
@@ -211,6 +219,35 @@ struct loader
         return map_dyn_input_dims;
     }
 
+    static auto parse_dim_params(const std::vector<std::string>& dim_params_info)
+    {
+        std::unordered_map<std::string, shape::dynamic_dimension> map_dim_params;
+        std::string name = "";
+        for(auto&& x : dim_params_info)
+        {
+            if(x[0] == '@')
+            {
+                name = x.substr(1);
+            }
+            else
+            {
+                if(std::all_of(x.begin(), x.end(), [](char ch) {
+                       return std::isdigit(static_cast<unsigned char>(ch));
+                   }))
+                    map_dim_params[name] = {std::stoul(x), std::stoul(x)};
+                else
+                {
+                    auto dyn_dim = parse_dyn_dims_json(x);
+                    if(dyn_dim.size() != 1)
+                        MIGRAPHX_THROW("dim_param must only specifiy one dimension");
+                    map_dim_params[name] = dyn_dim.front();
+                }
+            }
+        }
+
+        return map_dim_params;
+    }
+
     static auto parse_output_names(const std::vector<std::string>& output_names_info)
     {
         std::vector<std::string> output_node_names;
@@ -238,6 +275,7 @@ struct loader
     {
         auto map_input_dims     = parse_param_dims(param_dims);
         auto map_dyn_input_dims = parse_dyn_dims_map(dyn_param_dims);
+        auto map_dim_params     = parse_dim_params(dim_params);
         onnx_options options;
         if(default_dyn_dim.empty())
         {
@@ -252,6 +290,7 @@ struct loader
         options.print_program_on_error = true;
         options.map_input_dims         = map_input_dims;
         options.map_dyn_input_dims     = map_dyn_input_dims;
+        options.dim_params             = map_dim_params;
         return options;
     }
 
@@ -272,7 +311,11 @@ struct loader
     program load()
     {
         program p;
-        if(model.empty())
+        if(is_test)
+        {
+            p = test_gemm();
+        }
+        else
         {
             if(file_type.empty())
             {
@@ -304,17 +347,6 @@ struct loader
                 p = migraphx::load(file);
             }
         }
-        else
-        {
-            if(model == "resnet50")
-                p = resnet50(batch);
-            else if(model == "inceptionv3")
-                p = inceptionv3(batch);
-            else if(model == "alexnet")
-                p = alexnet(batch);
-            else
-                MIGRAPHX_THROW("Unknown model: " + model);
-        }
         if(trim > 0)
         {
             auto* mm  = p.get_main_module();
@@ -341,7 +373,7 @@ struct loader
                                  });
         }
         if(not passes.empty())
-            migraphx::run_passes(*p.get_main_module(), get_passes(passes));
+            migraphx::run_passes(p, get_passes(passes));
         return p;
     }
 
@@ -356,7 +388,7 @@ struct loader
         std::ofstream fs;
         if(not output.empty())
         {
-            fs.open(output);
+            fs.open(output, std::ios::binary);
             os = &fs;
         }
 
@@ -445,6 +477,7 @@ struct compiler
     compiler_target ct;
     compile_options co;
     bool to_fp16 = false;
+    bool to_fp8  = false;
     bool to_int8 = false;
 
     std::vector<std::string> fill0;
@@ -468,6 +501,7 @@ struct compiler
            ap.set_value(true));
         ap(to_fp16, {"--fp16"}, ap.help("Quantize for fp16"), ap.set_value(true));
         ap(to_int8, {"--int8"}, ap.help("Quantize for int8"), ap.set_value(true));
+        ap(to_fp8, {"--fp8"}, ap.help("Quantize for fp8e4m3fnuz type"), ap.set_value(true));
     }
 
     auto params(const program& p)
@@ -497,12 +531,12 @@ struct compiler
                            "passing "
                            "`--enable-offload-copy` if program run fails.\n";
                 }
-                else if(co.offload_copy)
+                else if(not is_offload_copy_set(p) and co.offload_copy)
                 {
                     std::cout << "[WARNING]: MIGraphX program was likely compiled without "
                                  "offload_copy set, Try "
                                  "removing "
-                                 "`--enable-offload-copy` flag if passed to driver, if program run "
+                                 "`--enable-offload-copy` if program run "
                                  "fails.\n";
                 }
             }
@@ -517,6 +551,10 @@ struct compiler
         if(to_int8)
         {
             quantize_int8(p, t, {host_params(p)});
+        }
+        if(to_fp8)
+        {
+            quantize_fp8(p, t, {host_params(p)});
         }
         p.compile(t, co);
         l.save(p);
@@ -557,6 +595,7 @@ struct verify : command<verify>
     std::optional<double> rtol;
     bool per_instruction = false;
     bool reduce          = false;
+    verify_options vo;
     void parse(argument_parser& ap)
     {
         c.parse(ap);
@@ -568,6 +607,10 @@ struct verify : command<verify>
            ap.help("Verify each instruction"),
            ap.set_value(true));
         ap(reduce, {"-r", "--reduce"}, ap.help("Reduce program and verify"), ap.set_value(true));
+        ap(vo.ref_use_double,
+           {"--ref-use-double"},
+           ap.help("Convert floating point values to double on ref"),
+           ap.set_value(true));
     }
 
     void run()
@@ -579,32 +622,31 @@ struct verify : command<verify>
         auto t = c.ct.get_target();
         auto m = c.parameters.generate(p, t, true, c.l.batch);
 
-        auto quantize = precision::fp32;
         if(c.to_fp16)
         {
-            quantize = precision::fp16;
+            vo.quantize = precision::fp16;
         }
         if(c.to_int8)
         {
-            quantize = precision::int8;
+            vo.quantize = precision::int8;
         }
 
-        auto tols = get_tolerances(p, quantize, rms_tol, atol, rtol);
+        auto tols = get_tolerances(p, vo, rms_tol, atol, rtol);
         std::cout << "rms_tol: " << tols.rms_tol << std::endl;
         std::cout << "atol: " << tols.atol << std::endl;
         std::cout << "rtol: " << tols.rtol << std::endl;
 
         if(per_instruction)
         {
-            verify_instructions(p, t, c.co, quantize, tols);
+            verify_instructions(p, t, c.co, vo, tols);
         }
         else if(reduce)
         {
-            verify_reduced_program(p, t, c.co, quantize, m, tols);
+            verify_reduced_program(p, t, c.co, vo, m, tols);
         }
         else
         {
-            verify_program(c.l.file, p, t, c.co, quantize, m, tols);
+            verify_program(c.l.file, p, t, c.co, vo, m, tols);
         }
     }
 };
@@ -640,11 +682,16 @@ struct run_cmd : command<run_cmd>
 struct perf : command<perf>
 {
     compiler c;
-    unsigned n = 100;
+    unsigned n    = 100;
+    bool detailed = false;
     void parse(argument_parser& ap)
     {
         c.parse(ap);
         ap(n, {"--iterations", "-n"}, ap.help("Number of iterations to run for perf report"));
+        ap(detailed,
+           {"--detailed", "-d"},
+           ap.help("Show a more detailed summary report"),
+           ap.set_value(true));
     }
 
     void run()
@@ -654,7 +701,7 @@ struct perf : command<perf>
         std::cout << "Allocating params ... " << std::endl;
         auto m = c.params(p);
         std::cout << "Running performance report ... " << std::endl;
-        p.perf_report(std::cout, n, m, c.l.batch);
+        p.perf_report(std::cout, n, m, c.l.batch, detailed);
     }
 };
 

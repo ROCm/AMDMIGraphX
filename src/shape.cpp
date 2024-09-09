@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2023 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2024 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -123,7 +123,17 @@ struct shape_impl
         if(not m_dyn_dims.empty())
         {
             auto maxes = max_lens();
-            return std::accumulate(maxes.begin(), maxes.end(), std::size_t{1}, std::multiplies<>());
+            std::size_t max_val = std::numeric_limits<std::size_t>::max();
+
+            return std::accumulate(
+                maxes.begin(), maxes.end(), std::size_t{1}, [&](std::size_t x, std::size_t y) {
+                    // overflow check and clip
+                    if(x != 0 and y > max_val / x)
+                    {
+                        return max_val;
+                    }
+                    return x * y;
+                });
         }
 
         assert(m_lens.size() == m_strides.size());
@@ -242,6 +252,36 @@ std::string shape::cpp_type(shape::type_t t)
 #undef MIGRAPHX_SHAPE_GENERATE_CPP_TYPE_CASE
     }
     MIGRAPHX_THROW("Invalid type");
+}
+bool shape::is_integral(shape::type_t t)
+{
+    bool result = false;
+    visit(t, [&](auto as) { result = as.is_integral(); });
+    return result;
+}
+
+bool shape::is_compatible(const shape& actual, const shape& expected)
+{
+    // Check subshapes
+    if(expected.type() == shape::tuple_type)
+        return migraphx::equal(actual.sub_shapes(), expected.sub_shapes(), &is_compatible);
+    if(actual == expected)
+        return true;
+    if(actual.type() != expected.type())
+        return false;
+    // Only the expected can be dynamic
+    if(expected.dynamic())
+        return actual.ndim() == expected.ndim();
+    if(actual.dynamic())
+        return false;
+    if(actual.lens() != expected.lens())
+        return false;
+    // Check strides from dimensions that are not 1
+    return all_of(range(actual.lens().size()), [&](auto i) {
+        if(actual.lens()[i] == 1)
+            return true;
+        return actual.strides()[i] == expected.strides()[i];
+    });
 }
 
 shape::shape() : impl(shape_impl::default_shape()) {}
@@ -404,6 +444,12 @@ void shape::multi_copy(std::size_t idx, std::size_t* start, const std::size_t* e
     *start = tidx;
 }
 
+bool shape::multi_within_bounds(std::vector<std::size_t> multi) const
+{
+    assert(this->lens().size() == multi.size());
+    return std::equal(multi.begin(), multi.end(), this->lens().begin(), std::less<>{});
+}
+
 bool shape::packed() const
 {
     if(this->dynamic())
@@ -470,6 +516,14 @@ shape shape::normalize_standard() const
         return *this;
 }
 
+shape shape::as_standard() const
+{
+    if(not this->dynamic())
+        return {this->type(), this->lens()};
+    else
+        return *this;
+}
+
 shape shape::with_lens(type_t t, const std::vector<std::size_t>& l) const
 {
     if(this->dynamic())
@@ -506,7 +560,7 @@ shape shape::to_dynamic() const
                        sub_shapes().cend(),
                        std::back_inserter(subs),
                        [](auto s) { return s.to_dynamic(); });
-        return {subs};
+        return shape(subs);
     }
     if(this->dynamic())
     {
@@ -524,7 +578,7 @@ shape shape::to_static(std::size_t x) const
                        sub_shapes().cend(),
                        std::back_inserter(subs),
                        [&](auto s) { return s.to_static(x); });
-        return {subs};
+        return shape(subs);
     }
     if(not this->dynamic())
     {
@@ -703,6 +757,24 @@ shape::type_t shape::parse_type(const std::string& s)
 }
 
 const std::vector<shape>& shape::sub_shapes() const { return impl->m_shapes; }
+
+std::vector<shape> flatten(const std::vector<shape>& shapes)
+{
+    std::vector<shape> result;
+    for(const auto& s : shapes)
+    {
+        if(s.type() == shape::tuple_type)
+        {
+            auto subs = flatten(s.sub_shapes());
+            result.insert(result.end(), subs.begin(), subs.end());
+        }
+        else
+        {
+            result.push_back(s);
+        }
+    }
+    return result;
+}
 
 void migraphx_to_value(value& v, const shape& s)
 {

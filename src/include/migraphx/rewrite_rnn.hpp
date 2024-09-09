@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2022 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2023 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -51,7 +51,7 @@ struct MIGRAPHX_EXPORT rewrite_rnn
                                                   module& m,
                                                   instruction_ref ins,
                                                   std::vector<instruction_ref> inputs,
-                                                  operation& actv_func) const;
+                                                  const operation& actv_func) const;
     std::vector<operation> vanilla_rnn_actv_funcs(instruction_ref ins) const;
 
     // for gru operators

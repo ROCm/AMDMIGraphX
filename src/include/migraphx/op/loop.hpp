@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2022 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2024 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -41,12 +41,14 @@ namespace op {
 
 struct loop
 {
-    int64_t max_iterations = 10;
+    int64_t max_iterations                      = 10;
+    std::vector<int64_t> scan_output_directions = {};
 
     template <class Self, class F>
     static auto reflect(Self& self, F f)
     {
-        return pack(f(self.max_iterations, "max_iterations"));
+        return pack(f(self.max_iterations, "max_iterations"),
+                    f(self.scan_output_directions, "scan_output_directions"));
     }
 
     std::string name() const { return "loop"; }
@@ -76,7 +78,7 @@ struct loop
             ins_out_shapes.push_back({out_s.type(), lens});
         }
 
-        return {ins_out_shapes};
+        return shape(ins_out_shapes);
     }
 
     struct ref_loop
@@ -97,7 +99,9 @@ struct loop
 
         void append(const std::vector<argument>& iter_state,
                     const std::vector<argument>& concatenated_outputs,
-                    int iter) const
+                    const std::vector<int64_t>& scan_output_dirs,
+                    int64_t curr_iter,
+                    int64_t num_iters) const
         {
             assert(iter_state.size() == concatenated_outputs.size());
             for(auto i : range(iter_state.size()))
@@ -105,11 +109,14 @@ struct loop
                 const auto& iter_stat = iter_state.at(i);
                 const auto& scan_out  = concatenated_outputs.at(i);
 
+                auto dir = scan_output_dirs.empty() ? 0 : scan_output_dirs[i];
+                auto idx = (1 - dir) * curr_iter + dir * (num_iters - 1 - curr_iter);
+
                 auto* in_data        = iter_stat.data();
                 auto* out_data       = scan_out.data();
                 std::size_t out_size = iter_stat.get_shape().bytes();
-                assert((iter + 1) * out_size <= scan_out.get_shape().bytes());
-                std::copy(in_data, in_data + out_size, out_data + iter * out_size);
+                assert((idx + 1) * out_size <= scan_out.get_shape().bytes());
+                std::copy(in_data, in_data + out_size, out_data + idx * out_size);
             }
         }
 
@@ -153,7 +160,7 @@ struct loop
         cpy_args.push_back(argument(out_shape));
 
         // run loop
-        return run_loop(ref_loop{max_iterations}, ctx, cpy_args, mods, run);
+        return run_loop(ref_loop{max_iterations}, scan_output_directions, ctx, cpy_args, mods, run);
     }
 };
 

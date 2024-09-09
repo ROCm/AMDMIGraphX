@@ -38,3 +38,6 @@ Quantize for fp16
 
 Quantize for int8
 
+.. option:: --fp8
+
+Quantize for Float8E4M3FNUZ type

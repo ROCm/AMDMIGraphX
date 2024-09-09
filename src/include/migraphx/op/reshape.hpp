@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2023 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2024 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -24,11 +24,13 @@
 #ifndef MIGRAPHX_GUARD_OPERATORS_RESHAPE_HPP
 #define MIGRAPHX_GUARD_OPERATORS_RESHAPE_HPP
 
+#include <numeric>
 #include <migraphx/check_shapes.hpp>
 #include <migraphx/argument.hpp>
 #include <migraphx/config.hpp>
 #include <migraphx/value.hpp>
 #include <migraphx/dyn_output.hpp>
+#include <migraphx/sat_ops.hpp>
 
 #include <algorithm>
 
@@ -64,130 +66,70 @@ struct reshape
 
     std::string name() const { return "reshape"; }
 
-    shape dyn_compute_shape(shape s0) const
+    // Assumes that the shape from the `dims` attribute will be valid at run-time.
+    // Makes no checks for the validity of the `dims` attribute for the given input shape.
+    shape dyn_1arg_compute_shape(shape s0) const
     {
-        auto dyn_dims      = s0.dyn_dims();
-        auto num_not_fixed = std::count_if(
-            dyn_dims.cbegin(), dyn_dims.cend(), [](auto dd) { return not dd.is_fixed(); });
-        if(num_not_fixed != 1)
+        auto input_dyn_dims = s0.dyn_dims();
+        const auto neg_dim_num =
+            std::distance(this->dims.begin(), std::find(this->dims.begin(), this->dims.end(), -1));
+        const bool has_negative_dim_attr = neg_dim_num < dims.size();
+        // construct output dynamic shape from dims attribute
+        std::vector<shape::dynamic_dimension> output_dyn_dims(dims.size());
+        // NOTE: input_dyn_dims.size() may not equal dims.size()
+        for(std::size_t i = 0; i < dims.size(); ++i)
         {
-            MIGRAPHX_THROW("Reshape: Only supports one non-fixed dynamic_dimension");
-        }
-        // track number of fixed elements in input and output
-        std::size_t num_dims_ele = 1;
-        std::size_t num_dd_ele   = 1;
-        for(std::size_t i = 0; i < dyn_dims.size(); ++i)
-        {
-            if(dyn_dims[i].is_fixed())
+            auto d = dims.at(i);
+            if(d == 0)
             {
-                num_dims_ele *= dims[i];
-                num_dd_ele *= dyn_dims[i].min;
+                output_dyn_dims.at(i) = input_dyn_dims.at(i);
+            }
+            else if(d == -1)
+            {
+                output_dyn_dims.at(i) = {1, 1};
             }
             else
             {
-                if(dims[i] != 0 and dims[i] != -1)
-                {
-                    MIGRAPHX_THROW(
-                        "Reshape: Non-fixed dynamic_dimension doesn't match with 0 or -1 "
-                        "output dimension");
-                }
+                std::size_t u_dim     = d;
+                output_dyn_dims.at(i) = {u_dim, u_dim};
             }
         }
-        if(num_dims_ele != num_dd_ele)
+
+        if(has_negative_dim_attr)
         {
-            MIGRAPHX_THROW("Reshape: Number of fixed elements must match. Input: " +
-                           std::to_string(num_dd_ele) + " Output: " + std::to_string(num_dims_ele));
+            // comparing the -1 dimension against the other dimensions
+
+            // accumulate the minimum and maximum elements in the dimensions before the -1 dimension
+            std::size_t min_cur_elements = 1;
+            std::size_t max_cur_elements = 1;
+            for(const auto& dd : output_dyn_dims)
+            {
+                min_cur_elements = mul_sat(min_cur_elements, dd.min);
+                max_cur_elements = mul_sat(max_cur_elements, dd.max);
+            }
+            // accumulate the elements in the input dimensions
+            std::size_t min_input_elements = 1;
+            std::size_t max_input_elements = 1;
+            for(const auto& dd : input_dyn_dims)
+            {
+                min_input_elements = mul_sat(min_input_elements, dd.min);
+                max_input_elements = mul_sat(max_input_elements, dd.max);
+            }
+
+            // maximum dimensions should never accumulate to zero
+            assert(max_cur_elements != 0);
+
+            std::size_t max_int = std::numeric_limits<std::size_t>::max();
+            // handle 0 dimension value (keep unknown lower bound)
+            std::size_t min_dim =
+                (min_cur_elements == 0) ? 0 : min_input_elements / min_cur_elements;
+            // handle maximum dimension value (keep unknown upper bound)
+            std::size_t max_dim =
+                (max_cur_elements == max_int) ? max_int : max_input_elements / max_cur_elements;
+            shape::dynamic_dimension x_dd   = {min_dim, max_dim};
+            output_dyn_dims.at(neg_dim_num) = x_dd;
         }
-        // construct output dynamic shape from dims attribute
-        std::vector<shape::dynamic_dimension> output_dyn_dims(dims.size());
-        std::transform(dims.cbegin(),
-                       dims.cend(),
-                       dyn_dims.cbegin(),
-                       output_dyn_dims.begin(),
-                       [](std::size_t dim, auto dyn_dim) {
-                           if(not dyn_dim.is_fixed())
-                               return dyn_dim;
-                           return shape::dynamic_dimension{dim, dim};
-                       });
         return {s0.type(), output_dyn_dims};
-    }
-
-    template <class Iterator>
-    static auto compute_end_dim(Iterator start, Iterator last, std::size_t dim)
-    {
-        std::size_t x = 1;
-        auto it       = std::find_if(start, last, [&](auto i) {
-            x *= i;
-            return x >= dim;
-        });
-        if(x != dim)
-            return start;
-        return it;
-    }
-
-    // This will attempt to alias the dimensions of the input shape to the lens of
-    // `rdims`. Unlike reshape_lazy though we can modify memory layout with copies and this
-    // can remove previous nullopts that were sent back for the alias case
-    static optional<shape> reshape_dims(const shape& input, const std::vector<std::size_t>& rdims)
-    {
-        if(input.standard())
-            return shape{input.type(), rdims};
-
-        const auto& idims    = input.lens();
-        const auto& istrides = input.strides();
-
-        std::vector<std::size_t> rstrides;
-        std::size_t i = 0;
-        std::size_t r = 0;
-        while(i < idims.size() and r < rdims.size())
-        {
-            auto idim = idims[i];
-            auto rdim = rdims[r];
-            if(rdim == idim)
-            {
-                rstrides.push_back(istrides[i]);
-            }
-            // squeeze
-            else if(rdim > idim)
-            {
-                auto start = idims.begin() + i;
-                auto it    = compute_end_dim(start, idims.end(), rdim);
-                auto n = it - start;
-                assert((i + n) <= istrides.size());
-                i += n;
-                rstrides.push_back(istrides[i]);
-            }
-            // unsqueeze
-            else // if(rdim < idim)
-            {
-                auto start = rdims.begin() + i;
-                auto it    = compute_end_dim(start, rdims.end(), idim);
-
-                auto n = it - start;
-                assert((r + n) <= rdims.size());
-                auto stride = istrides[i] * idim;
-                std::for_each(start, it + 1, [&](auto dim) {
-                    stride /= dim;
-                    rstrides.push_back(stride);
-                });
-                r += n;
-            }
-            i++;
-            r++;
-        }
-
-        // Handle trailing 1s
-        if(rstrides.size() < rdims.size() and not rstrides.empty())
-        {
-            auto stride = rstrides.back();
-            for(auto d : range(rdims.begin() + rstrides.size(), rdims.end()))
-            {
-                (void)d;
-                rstrides.push_back(stride);
-            }
-        }
-
-        return shape{input.type(), rdims, rstrides};
     }
 
     shape static_compute_shape(std::vector<shape> inputs, std::size_t n_neg_dims) const
@@ -201,8 +143,7 @@ struct reshape
             if(dims[i] == 0)
                 rdims[i] = idims[i];
 
-            // since rdims using size_t type, -1 is the max value
-            // is size_t that cause later compuation incorrect
+            // convert -1 to 1 for rdims since rdims uses size_t (-1 is max_int for size_t)
             if(dims[i] == -1)
                 rdims[i] = 1;
         }
@@ -219,14 +160,14 @@ struct reshape
             }
         }
 
-        auto s = reshape_dims(inputs.front(), rdims);
+        auto s = shape{inputs.front().type(), rdims};
 
-        if(s->elements() != inputs.front().elements())
-            MIGRAPHX_THROW("reshape: Wrong number of elements for reshape: reshape has " +
-                           std::to_string(s->elements()) + " elements whereas the input has " +
+        if(s.elements() != inputs.front().elements())
+            MIGRAPHX_THROW("Reshape: Wrong number of elements for reshape: reshape has " +
+                           std::to_string(s.elements()) + " elements whereas the input has " +
                            std::to_string(inputs.front().elements()));
 
-        return *s;
+        return s;
     }
 
     shape compute_shape(std::vector<shape> inputs) const
@@ -235,14 +176,14 @@ struct reshape
 
         auto n_neg_dims = std::count(dims.begin(), dims.end(), -1);
         if(n_neg_dims > 1)
-            MIGRAPHX_THROW("reshape: Dimensions for reshape can only have one -1 dim");
+            MIGRAPHX_THROW("Reshape: Dimensions for reshape can only have one -1 dim");
 
         auto s0 = inputs.front();
         if(inputs.size() == 1)
         {
             if(s0.dynamic())
             {
-                return dyn_compute_shape(s0);
+                return dyn_1arg_compute_shape(s0);
             }
             else
             {

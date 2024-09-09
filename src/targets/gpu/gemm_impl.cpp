@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2023 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2024 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -36,7 +36,7 @@ using microseconds = std::chrono::duration<double, std::micro>;
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
 namespace gpu {
-
+#if MIGRAPHX_USE_ROCBLAS
 /*
 Regular rocBLAS API takes compute_type as `rocblas_datatype` enum value v/s "ex3" BETA API takes it
 as `rocblas_computetype` enum value. `rb_compute_type` is faciliator to implictly cast integer enum
@@ -79,8 +79,10 @@ void blas_shape(const shape& s)
 {
     if(s.lens().size() < 2)
         return;
-    if(std::none_of(s.strides().end() - 2, s.strides().end(), [&](auto i) { return i == 1; }))
+    if(std::none_of(s.strides().end() - 2, s.strides().end(), [](auto i) { return i == 1; }))
         MIGRAPHX_THROW("GPU_GEMM: needs to have one matrix stride as 1");
+    if(std::any_of(s.strides().end() - 2, s.strides().end(), [](auto i) { return i == 0; }))
+        MIGRAPHX_THROW("GPU_GEMM: matrix dimensions can't be broadcasted");
     if(s.lens().size() < 3)
         return;
     shape batch_shape{s.type(),
@@ -129,7 +131,21 @@ auto rocblas_invoke(F f, Pack p, Ts... xs)
     });
 }
 
-static bool is_transposed(const shape& s) { return s.transposed() and s.strides().back() != 1; }
+static bool is_transposed(const shape& s)
+{
+    if(s.transposed())
+    {
+        return s.strides().back() != 1;
+    }
+
+    if(not s.broadcasted() and s.strides() != s.as_standard().strides())
+    {
+        auto perm = find_permutation(s);
+        return not std::is_sorted(perm.begin(), perm.end());
+    }
+
+    return false;
+}
 
 static rocblas_int get_batch_stride(const shape& s)
 {
@@ -195,8 +211,8 @@ struct gemm_impl
         ldd = is_3inputs ? input_shapes[3].strides()[dim_0] : ldc;
 
         arg_type    = get_type(input_shapes[0].type());
-        output_type = arg_type;
-        if(output_type == rocblas_datatype_i8_r)
+        output_type = get_type(input_shapes[2].type());
+        if(output_type == rocblas_datatype_i8_r or output_type == rocblas_datatype_u8_r)
         {
             output_type = rocblas_datatype_i32_r;
         }
@@ -247,7 +263,8 @@ struct gemm_impl
         {
             if(strided_batched)
             {
-                auto common_args = create_strided_batched_args_common(ctx, input_args);
+                auto common_args =
+                    create_strided_batched_args_common(ctx, compute_type, input_args);
                 rocblas_invoke(&rocblas_gemm_strided_batched_ex3,
                                common_args,
                                rocblas_gemm_algo_standard,
@@ -256,7 +273,7 @@ struct gemm_impl
             }
             else
             {
-                auto common_args = create_gemm_ex_args_common(ctx, input_args);
+                auto common_args = create_gemm_ex_args_common(ctx, compute_type, input_args);
                 rocblas_invoke(&rocblas_gemm_ex3,
                                common_args,
                                rocblas_gemm_algo_standard,
@@ -269,7 +286,8 @@ struct gemm_impl
         {
             if(strided_batched)
             {
-                auto common_args = create_strided_batched_args_common(ctx, input_args);
+                auto common_args =
+                    create_strided_batched_args_common(ctx, compute_type, input_args);
                 rocblas_invoke(&rocblas_gemm_strided_batched_ex,
                                common_args,
                                rocblas_gemm_algo_solution_index,
@@ -278,7 +296,7 @@ struct gemm_impl
             }
             else
             {
-                auto common_args = create_gemm_ex_args_common(ctx, input_args);
+                auto common_args = create_gemm_ex_args_common(ctx, compute_type, input_args);
                 rocblas_invoke(&rocblas_gemm_ex,
                                common_args,
                                rocblas_gemm_algo_solution_index,
@@ -293,11 +311,13 @@ struct gemm_impl
     {
         // Create dummy arguments for the shapes, and call the overloaded method
         std::vector<argument> input_args;
+        unsigned long seed = 0;
         std::transform(input_shapes.begin(),
                        input_shapes.end(),
                        std::back_inserter(input_args),
-                       [](const shape& x) { return to_gpu(generate_argument(x)); });
-
+                       [&](const shape& x) {
+                           return to_gpu(generate_argument(x, seed++, random_mode::random));
+                       });
         return validate(ctx, input_args, solution_idx);
     }
 
@@ -317,7 +337,7 @@ struct gemm_impl
 
         if(strided_batched)
         {
-            auto common_args = create_strided_batched_args_common(ctx, input_args);
+            auto common_args = create_strided_batched_args_common(ctx, compute_type, input_args);
             check_valid      = rocblas_invoke(&rocblas_gemm_strided_batched_ex,
                                          common_args,
                                          rocblas_gemm_algo_solution_index,
@@ -326,7 +346,7 @@ struct gemm_impl
         }
         else
         {
-            auto common_args = create_gemm_ex_args_common(ctx, input_args);
+            auto common_args = create_gemm_ex_args_common(ctx, compute_type, input_args);
             check_valid      = rocblas_invoke(&rocblas_gemm_ex,
                                          common_args,
                                          rocblas_gemm_algo_solution_index,
@@ -353,7 +373,9 @@ struct gemm_impl
      *   A and args[0] as B in calling the rocblas_gemm.
      *
      */
-    auto create_strided_batched_args_common(context& ctx, const std::vector<argument>& args) const
+    auto create_strided_batched_args_common(context& ctx,
+                                            rb_compute_type rbcompute_type,
+                                            const std::vector<argument>& args) const
     {
         return pack(ctx.get_stream().get_rocblas(),
                     transb ? rocblas_operation_transpose : rocblas_operation_none,
@@ -380,7 +402,7 @@ struct gemm_impl
                     ldd,
                     d_stride,
                     num_matrices,
-                    compute_type);
+                    rbcompute_type);
     }
     /**
      * Helper method to create that subset of a long rocBLAS argument list that is common
@@ -392,7 +414,9 @@ struct gemm_impl
      *   A and args[0] as B in calling the rocblas_gemm.
      *
      * */
-    auto create_gemm_ex_args_common(context& ctx, const std::vector<argument>& args) const
+    auto create_gemm_ex_args_common(context& ctx,
+                                    rb_compute_type rbcompute_type,
+                                    const std::vector<argument>& args) const
     {
         return pack(ctx.get_stream().get_rocblas(),
                     transb ? rocblas_operation_transpose : rocblas_operation_none,
@@ -414,7 +438,7 @@ struct gemm_impl
                     is_3inputs ? args[3].data() : args[2].data(),
                     output_type,
                     ldd,
-                    compute_type);
+                    rbcompute_type);
     }
 
 #ifdef MIGRAPHX_USE_ROCBLAS_TUNING_API
@@ -426,12 +450,14 @@ struct gemm_impl
     {
         // tuning meta parameters
         const int hot_calls = 40;
-
+        unsigned long seed  = 0;
         std::vector<argument> input_args;
         std::transform(input_shapes.begin(),
                        input_shapes.end(),
                        std::back_inserter(input_args),
-                       [](const shape& x) { return to_gpu(generate_argument(x)); });
+                       [&](const shape& x) {
+                           return to_gpu(generate_argument(x, seed++, random_mode::random));
+                       });
 
         // Get the solutions list in 2 rocBLAS steps:
         // 1.  Find out how many solutions there are and allocate the array
@@ -439,9 +465,16 @@ struct gemm_impl
         //
         rocblas_int list_size = 0;
         std::vector<rocblas_int> solution_indices;
+        rb_compute_type rbcompute_type = compute_type;
+        // rocblas_gemm_get_solutions() API requires compute_type as rocblas_datatype. Convert
+        // manually for FP8
+        if(arg_type == rocblas_datatype_f8_r)
+        {
+            rbcompute_type = rocblas_datatype_f32_r;
+        }
         if(strided_batched)
         {
-            auto common_args = create_strided_batched_args_common(ctx, input_args);
+            auto common_args = create_strided_batched_args_common(ctx, rbcompute_type, input_args);
             rocblas_invoke(&rocblas_gemm_strided_batched_ex_get_solutions,
                            common_args,
                            rocblas_gemm_algo_solution_index,
@@ -450,7 +483,8 @@ struct gemm_impl
                            &list_size);
             solution_indices.resize(list_size);
 
-            auto common_sol_args = create_strided_batched_args_common(ctx, input_args);
+            auto common_sol_args =
+                create_strided_batched_args_common(ctx, rbcompute_type, input_args);
             rocblas_invoke(&rocblas_gemm_strided_batched_ex_get_solutions,
                            common_sol_args,
                            rocblas_gemm_algo_solution_index,
@@ -460,7 +494,7 @@ struct gemm_impl
         }
         else
         {
-            auto common_args = create_gemm_ex_args_common(ctx, input_args);
+            auto common_args = create_gemm_ex_args_common(ctx, rbcompute_type, input_args);
             rocblas_invoke(&rocblas_gemm_ex_get_solutions,
                            common_args,
                            rocblas_gemm_algo_solution_index,
@@ -469,7 +503,7 @@ struct gemm_impl
                            &list_size);
             solution_indices.resize(list_size);
 
-            auto common_sol_args = create_gemm_ex_args_common(ctx, input_args);
+            auto common_sol_args = create_gemm_ex_args_common(ctx, rbcompute_type, input_args);
             rocblas_invoke(&rocblas_gemm_ex_get_solutions,
                            common_sol_args,
                            rocblas_gemm_algo_solution_index,
@@ -508,6 +542,7 @@ struct gemm_impl
         }
         std::cout << "Winning GEMM solution: " << best_sol << " in " << best_time << " ms, beats "
                   << first_time << "ms" << std::endl;
+        std::this_thread::sleep_for(std::chrono::milliseconds{50});
         return best_sol;
     }
 #endif
@@ -574,17 +609,45 @@ void gemm_compute(context& ctx,
     gemm_item.run(ctx, args, solution_idx);
 }
 
+static value gemm_problem(const shape& output_shape, std::vector<shape> input_shapes)
+{
+    input_shapes.push_back(output_shape);
+    return to_value(input_shapes);
+}
+
+#ifdef MIGRAPHX_USE_ROCBLAS_TUNING_API
+static void gemm_save_solution(context& ctx,
+                               const shape& output_shape,
+                               const std::vector<shape>& input_shapes,
+                               int32_t solution_idx)
+{
+    ctx.get_problem_cache().insert(
+        "rocblas", gemm_problem(output_shape, input_shapes), solution_idx);
+}
+#endif
+
+int32_t gemm_default_solution(context& ctx,
+                              const shape& output_shape,
+                              const std::vector<shape>& input_shapes)
+{
+    auto sol = ctx.get_problem_cache().get("rocblas", gemm_problem(output_shape, input_shapes));
+    if(sol.has_value())
+        return sol->to<int32_t>();
+    return 0;
+}
+
 /**
  * Decides if the tune() or validate() method is appropriate and calls it.
  * Return value is the chosen solution index, or 0 to let picker choose it.
  */
-int32_t gemm_finalize(context& ctx,
-                      const shape& output_shape,
-                      const std::vector<shape>& input_shapes,
-                      float alpha,
-                      float beta,
-                      bool compute_fp32,
-                      int32_t solution_idx)
+template <class T>
+int32_t gemm_finalize_impl(context& ctx,
+                           const shape& output_shape,
+                           const std::vector<shape>& input_shapes,
+                           T alpha,
+                           T beta,
+                           bool compute_fp32,
+                           int32_t solution_idx)
 {
 #ifdef MIGRAPHX_USE_ROCBLAS_TUNING_API
 
@@ -593,14 +656,15 @@ int32_t gemm_finalize(context& ctx,
 
     if(solution_idx == 0)
     {
-        auto gemm_item = gemm_impl<float>(output_shape, input_shapes, alpha, beta, compute_fp32);
+        auto gemm_item = gemm_impl<T>(output_shape, input_shapes, alpha, beta, compute_fp32);
         solution_idx   = gemm_item.tune(ctx, input_shapes);
+        gemm_save_solution(ctx, output_shape, input_shapes, solution_idx);
     }
     else
     {
         // If a tuned solution index is already given, don't tune again but validate
         // in case the data was tuned with a different rocBLAS version
-        auto gemm_item = gemm_impl<float>(output_shape, input_shapes, alpha, beta, compute_fp32);
+        auto gemm_item = gemm_impl<T>(output_shape, input_shapes, alpha, beta, compute_fp32);
         solution_idx   = gemm_item.validate(ctx, input_shapes, solution_idx);
     }
 #else
@@ -610,10 +674,18 @@ int32_t gemm_finalize(context& ctx,
     return solution_idx;
 }
 
-/**
- * Decides if the tune() or validate() method is appropriate and calls it.
- * Return value is the chosen solution index, or 0 to let picker choose it.
- */
+int32_t gemm_finalize(context& ctx,
+                      const shape& output_shape,
+                      const std::vector<shape>& input_shapes,
+                      float alpha,
+                      float beta,
+                      bool compute_fp32,
+                      int32_t solution_idx)
+{
+    return gemm_finalize_impl(
+        ctx, output_shape, input_shapes, alpha, beta, compute_fp32, solution_idx);
+}
+
 int32_t gemm_finalize(context& ctx,
                       const shape& output_shape,
                       const std::vector<shape>& input_shapes,
@@ -622,26 +694,10 @@ int32_t gemm_finalize(context& ctx,
                       bool compute_fp32,
                       int32_t solution_idx)
 {
-#ifdef MIGRAPHX_USE_ROCBLAS_TUNING_API
-    if(solution_idx == 0)
-    {
-        auto gemm_item = gemm_impl<int32_t>(output_shape, input_shapes, alpha, beta, compute_fp32);
-        solution_idx   = gemm_item.tune(ctx, input_shapes);
-    }
-    else
-    {
-        // If a tuned solution index is already given, don't tune again but validate
-        // in case the data was tuned with a different rocBLAS version
-        auto gemm_item = gemm_impl<int32_t>(output_shape, input_shapes, alpha, beta, compute_fp32);
-        solution_idx   = gemm_item.validate(ctx, input_shapes, solution_idx);
-    }
-#else
-    (void)ctx, (void)output_shape, (void)input_shapes;
-    (void)alpha, (void)beta, (void)compute_fp32;
-#endif
-    return solution_idx;
+    return gemm_finalize_impl(
+        ctx, output_shape, input_shapes, alpha, beta, compute_fp32, solution_idx);
 }
-
+#endif
 } // namespace gpu
 } // namespace MIGRAPHX_INLINE_NS
 } // namespace migraphx

@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2023 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2024 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -118,10 +118,9 @@ struct parse_groupnorm : op_parser<parse_groupnorm>
             info.add_instruction(make_op("broadcast", {{"axis", 1}, {"out_lens", dims}}), scale);
         auto bias_bcast =
             info.add_instruction(make_op("broadcast", {{"axis", 1}, {"out_lens", dims}}), bias);
-        auto scaled     = info.add_instruction(make_op("mul"), result, scale_bcast);
-        auto y          = info.add_instruction(make_op("add"), scaled, bias_bcast);
-        auto y_reshaped = info.add_instruction(make_op("reshape", {{"dims", x_dims}}), y);
-        return y_reshaped;
+        auto scaled = info.add_instruction(make_op("mul"), result, scale_bcast);
+        auto y      = info.add_instruction(make_op("add"), scaled, bias_bcast);
+        return info.add_instruction(make_op("reshape", {{"dims", x_dims}}), y);
     }
 };
 

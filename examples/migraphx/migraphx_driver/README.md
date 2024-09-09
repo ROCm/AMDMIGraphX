@@ -24,7 +24,7 @@ See below for a comprehensive list of commands and option arguments, as well as 
 | Option                                   | Description                                               |
 | ---------------------------------------- | --------------------------------------------------------- |
 | --help \| -h                             | Show help                                                 |
-| --model <resnet50\|inceptionv3\|alexnet> | Loads one of the three default models                     |
+| --test                                   | Test MIGraphX with Single Layer GEMM Model                |
 | --onnx                                   | Load file as onnx graph                                   |
 | --tf                                     | Load file as a tensorflow graph                           |
 | --migraphx                               | Load file as a migraphx graph                             |
@@ -55,6 +55,7 @@ See below for a comprehensive list of commands and option arguments, as well as 
 | --exhaustive-tune                        | Enable exhaustive search to find fastest kernel           |
 | --fp16                                   | Quantize for fp16                                         |
 | --int8                                   | Quantize for int8                                         |
+| --fp8                                    | Quantize for Float8E4M3FNUZ type                          |
 | --rms-tol                                | Tolerance for the RMS error (Default: 0.001)              |
 | --atol                                   | Tolerance for elementwise absolute difference (Default: 0.001) |
 | --rtol                                   | Tolerance for elementwise relative difference (Default: 0.001) |

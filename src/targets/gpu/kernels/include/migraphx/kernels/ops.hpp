@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2022 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2024 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -102,7 +102,42 @@ struct min
         return migraphx::min(x, y);
     }
 };
+
+struct logical_and
+{
+    template <class T, class U>
+    MIGRAPHX_DEVICE_CONSTEXPR auto operator()(T x, U y) const
+    {
+        if(static_cast<bool>(x) and static_cast<bool>(y))
+            return static_cast<T>(1);
+        return static_cast<T>(0);
+    }
+};
+
+struct logical_or
+{
+    template <class T, class U>
+    MIGRAPHX_DEVICE_CONSTEXPR auto operator()(T x, U y) const
+    {
+        if(static_cast<bool>(x) or static_cast<bool>(y))
+            return static_cast<T>(1);
+        return static_cast<T>(0);
+    }
+};
 } // namespace op
+
+// NOLINTNEXTLINE
+#define MIGRAPHX_OPS_DEFINE_COMMON_TYPE(T) \
+    template <class U>                     \
+    struct common_type<T, U>               \
+    {                                      \
+        using type = U;                    \
+    };                                     \
+    template <class U>                     \
+    struct common_type<U, T>               \
+    {                                      \
+        using type = U;                    \
+    };
 
 struct lowest
 {
@@ -112,6 +147,7 @@ struct lowest
         return numeric_lowest<vec_type<T>>();
     }
 };
+MIGRAPHX_OPS_DEFINE_COMMON_TYPE(lowest)
 
 struct highest
 {
@@ -121,5 +157,8 @@ struct highest
         return numeric_max<vec_type<T>>();
     }
 };
+
+MIGRAPHX_OPS_DEFINE_COMMON_TYPE(highest)
+
 } // namespace migraphx
 #endif // MIGRAPHX_GUARD_KERNELS_OPS_HPP

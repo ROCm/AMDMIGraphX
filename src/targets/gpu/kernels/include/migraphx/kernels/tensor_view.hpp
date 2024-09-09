@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2022 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2024 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -35,7 +35,7 @@ template <class T>
 struct tensor_view_iterator_read
 {
     T* view;
-    constexpr auto& operator()(index_int n) const
+    constexpr auto& operator()(MIGRAPHX_CAPTURE_SOURCE_LOCATION(index_int) n) const
     {
         MIGRAPHX_ASSERT(view != nullptr);
         return (*view)[n];

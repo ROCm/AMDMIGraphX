@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2022 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2024 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -23,53 +23,56 @@
  */
 #include <migraphx/compile_src.hpp>
 #include <migraphx/dynamic_loader.hpp>
+#include <migraphx/fileutils.hpp>
 #include <migraphx/cpp_generator.hpp>
 #include <migraphx/module.hpp>
 #include <migraphx/make_op.hpp>
 #include <test.hpp>
 
 // NOLINTNEXTLINE
-const std::string add_42_src = R"migraphx(
-extern "C" int add(int x)
+const std::string_view add_42_src = R"migraphx(
+EXPORT extern "C" int add(int x)
 {
     return x+42;
 }
 )migraphx";
 
 // NOLINTNEXTLINE
-const std::string preamble = R"migraphx(
+const std::string_view preamble = R"migraphx(
 #include <cmath>
 )migraphx";
 
 template <class F>
-std::function<F>
-compile_function(const std::string& src, const std::string& flags, const std::string& fname)
+std::function<F> compile_function(std::string_view src, const std::string& symbol_name)
 {
     migraphx::src_compiler compiler;
-    compiler.flags = flags + "-std=c++14 -fPIC -shared";
-#ifdef _WIN32
-    compiler.output = "simple.dll";
+    compiler.flags.emplace_back("-std=c++14");
+#ifndef _WIN32
+    compiler.flags.emplace_back("-fPIC");
+    compiler.flags.emplace_back("-DEXPORT=\"\"");
 #else
-    compiler.output = "libsimple.so";
+    compiler.flags.emplace_back("-DEXPORT=__declspec(dllexport)");
 #endif
+    compiler.flags.emplace_back("-shared");
+    compiler.output = migraphx::make_shared_object_filename("simple");
     migraphx::src_file f{"main.cpp", src};
     auto image = compiler.compile({f});
-    return migraphx::dynamic_loader{image}.get_function<F>(fname);
+    return migraphx::dynamic_loader{image}.get_function<F>(symbol_name);
 }
 
 template <class F>
-std::function<F> compile_module(const migraphx::module& m, const std::string& flags = "")
+std::function<F> compile_module(const migraphx::module& m)
 {
     migraphx::cpp_generator g;
     g.fmap([](auto&& name) { return "std::" + name; });
-    g.create_function(g.generate_module(m).set_attributes({"extern \"C\""}));
+    g.create_function(g.generate_module(m).set_attributes({"EXPORT extern \"C\""}));
 
-    return compile_function<F>(preamble + g.str(), flags, m.name());
+    return compile_function<F>(g.str().insert(0, preamble), m.name());
 }
 
 TEST_CASE(simple_run)
 {
-    auto f = compile_function<int(int)>(add_42_src, "", "add");
+    auto f = compile_function<int(int)>(add_42_src, "add");
     EXPECT(f(8) == 50);
     EXPECT(f(10) == 52);
 }

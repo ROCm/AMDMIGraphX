@@ -1,7 +1,7 @@
 #####################################################################################
 # The MIT License (MIT)
 #
-# Copyright (c) 2015-2022 Advanced Micro Devices, Inc. All rights reserved.
+# Copyright (c) 2015-2024 Advanced Micro Devices, Inc. All rights reserved.
 #
 # Permission is hereby granted, free of charge, to any person obtaining a copy
 # of this software and associated documentation files (the "Software"), to deal
@@ -22,6 +22,8 @@
 # THE SOFTWARE.
 #####################################################################################
 # - Enable warning all for gcc/clang or use /W4 for visual studio
+
+include(CheckCXXCompilerFlag)
 
 ## Strict warning level
 if (MSVC)
@@ -67,7 +69,7 @@ else()
             -Wno-sign-compare
         )
         # Flags for gcc 7
-        if(CMAKE_CXX_COMPILER_ID STREQUAL "GNU")
+        if(CMAKE_${COMPILER}_COMPILER_ID STREQUAL "GNU")
             if(CMAKE_CXX_COMPILER_VERSION VERSION_GREATER "7.0")
                 list(APPEND CMAKE_COMPILER_WARNINGS 
                 -Wduplicated-branches
@@ -101,6 +103,7 @@ else()
                 -Wno-unused-command-line-argument
                 -Wno-weak-vtables
                 -Wno-c99-extensions
+                -Wno-unsafe-buffer-usage
                 # -Wno-c++2a-designator
             )
         else()
@@ -111,7 +114,11 @@ else()
             )
         endif()
         foreach(COMPILER_WARNING ${CMAKE_COMPILER_WARNINGS})
-            add_compile_options($<$<COMPILE_LANGUAGE:${COMPILER}>:${COMPILER_WARNING}>)
+            string(MAKE_C_IDENTIFIER "HAS_${COMPILER}_FLAG${COMPILER_WARNING}" HAS_COMPILER_WARNING)
+            check_cxx_compiler_flag(${COMPILER_WARNING} ${HAS_COMPILER_WARNING})
+            if(${HAS_COMPILER_WARNING})
+                add_compile_options($<$<COMPILE_LANGUAGE:${COMPILER}>:${COMPILER_WARNING}>)
+            endif()
         endforeach()
     endforeach()
 endif ()

@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2022 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2024 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -30,7 +30,7 @@
 #include <migraphx/verify.hpp>
 #include <migraphx/apply_alpha_beta.hpp>
 #include <migraphx/quantization.hpp>
-#include <migraphx/quantize_int8.hpp>
+#include <migraphx/quantize_8bits.hpp>
 #include <migraphx/quantize_fp16.hpp>
 #include <migraphx/dead_code_elimination.hpp>
 #include <migraphx/simplify_reshapes.hpp>
@@ -436,6 +436,48 @@ TEST_CASE(fp16_subgraph)
 
     auto p2 = create_fp16_program();
 
+    EXPECT(p1.sort() == p2.sort());
+}
+
+TEST_CASE(topk)
+{
+    auto create_program = [] {
+        migraphx::program p;
+        auto* mm = p.get_main_module();
+        migraphx::shape s{migraphx::shape::float_type, {3, 5}};
+        auto data = mm->add_parameter("data", s);
+        auto r    = mm->add_instruction(
+            migraphx::make_op("topk", {{"axis", 0}, {"k", 3}, {"largest", 0}}), data);
+        auto r0 = mm->add_instruction(migraphx::make_op("get_tuple_elem", {{"index", 0}}), r);
+        auto r1 = mm->add_instruction(migraphx::make_op("get_tuple_elem", {{"index", 1}}), r);
+        mm->add_return({r0, r1});
+
+        return p;
+    };
+
+    auto create_fp16_program = [] {
+        migraphx::program p;
+        auto* mm = p.get_main_module();
+        migraphx::shape s{migraphx::shape::float_type, {3, 5}};
+        auto fdata = mm->add_parameter("data", s);
+        auto hdata = mm->add_instruction(
+            migraphx::make_op("convert", {{"target_type", migraphx::shape::half_type}}), fdata);
+        auto r = mm->add_instruction(
+            migraphx::make_op("topk", {{"axis", 0}, {"k", 3}, {"largest", 0}}), hdata);
+        auto hr0 = mm->add_instruction(migraphx::make_op("get_tuple_elem", {{"index", 0}}), r);
+        auto fr0 = mm->add_instruction(
+            migraphx::make_op("convert", {{"target_type", migraphx::shape::float_type}}), hr0);
+        auto ir1 = mm->add_instruction(migraphx::make_op("get_tuple_elem", {{"index", 1}}), r);
+        mm->add_return({fr0, ir1});
+
+        return p;
+    };
+
+    auto p1 = create_program();
+    migraphx::quantize_fp16(p1);
+
+    auto p2 = create_fp16_program();
+
     EXPECT(p1 == p2);
 }
 
@@ -627,6 +669,7 @@ TEST_CASE(dot_float)
         auto pb      = mm->add_parameter("b", sb);
         auto zp      = mm->add_literal(static_cast<int8_t>(0));
         auto scale   = mm->add_literal(10.0f);
+        auto zp_out  = mm->add_literal(std::int32_t{0});
         auto scale_a = mm->add_instruction(
             migraphx::make_op("multibroadcast", {{"out_lens", sa.lens()}}), scale);
         auto zp_a =
@@ -641,7 +684,10 @@ TEST_CASE(dot_float)
         auto scale_mb = mm->add_instruction(
             migraphx::make_op("multibroadcast", {{"out_lens", quant->get_shape().lens()}}), scale);
         auto out_scale = mm->add_instruction(migraphx::make_op("mul"), scale_mb, scale_mb);
-        auto r = mm->add_instruction(migraphx::make_op("dequantizelinear"), quant, out_scale);
+        zp_out         = mm->add_instruction(
+            migraphx::make_op("multibroadcast", {{"out_lens", quant->get_shape().lens()}}), zp_out);
+        auto r =
+            mm->add_instruction(migraphx::make_op("dequantizelinear"), quant, out_scale, zp_out);
         mm->add_return({r});
 
         return p;
@@ -654,7 +700,8 @@ TEST_CASE(dot_float)
     migraphx::run_passes(p, {migraphx::capture_arguments_pass{{"dot"}, {}, &param_index}});
     migraphx::run_passes(
         p,
-        {migraphx::quantize_int8_pass{{"dot"}, quant_params}, migraphx::dead_code_elimination{}});
+        {migraphx::quantize_8bits_pass{migraphx::shape::type_t::int8_type, quant_params},
+         migraphx::dead_code_elimination{}});
     auto qp = create_int8_quantized_prog();
 
     EXPECT(p == qp);
@@ -737,7 +784,11 @@ TEST_CASE(dot_double_2args)
             migraphx::make_op("multibroadcast", {{"out_lens", qdot->get_shape().lens()}}),
             scale_b_lit);
         auto out_scale = mm->add_instruction(migraphx::make_op("mul"), scale_a_mb, scale_b_mb);
-        auto r = mm->add_instruction(migraphx::make_op("dequantizelinear"), qdot, out_scale);
+        auto zp_out    = mm->add_literal(std::int32_t{0});
+        zp_out         = mm->add_instruction(
+            migraphx::make_op("multibroadcast", {{"out_lens", qdot->get_shape().lens()}}), zp_out);
+        auto r =
+            mm->add_instruction(migraphx::make_op("dequantizelinear"), qdot, out_scale, zp_out);
         mm->add_return({r});
         return p;
     };
@@ -748,7 +799,8 @@ TEST_CASE(dot_double_2args)
     migraphx::run_passes(p, {migraphx::capture_arguments_pass{{"dot"}, {}, &param_index}});
     migraphx::run_passes(
         p,
-        {migraphx::quantize_int8_pass{{"dot"}, quant_params}, migraphx::dead_code_elimination{}});
+        {migraphx::quantize_8bits_pass{migraphx::shape::type_t::int8_type, quant_params},
+         migraphx::dead_code_elimination{}});
     EXPECT(p == create_int8_quantized_prog());
 
     optimize_prog_int8(p);
@@ -803,6 +855,7 @@ TEST_CASE(dot_half_1arg)
 
         auto zp        = mm->add_literal(static_cast<int8_t>(0));
         auto scale_lit = mm->add_literal(migraphx::literal({sa.type()}, {10.0}));
+        auto zp_out    = mm->add_literal(std::int32_t{0});
         auto scale     = mm->add_instruction(
             migraphx::make_op("multibroadcast", {{"out_lens", sa.lens()}}), scale_lit);
         zp =
@@ -810,7 +863,10 @@ TEST_CASE(dot_half_1arg)
         auto qx        = mm->add_instruction(migraphx::make_op("quantizelinear"), x, scale, zp);
         auto qdot      = mm->add_instruction(migraphx::make_op("quant_dot"), qx, qx);
         auto out_scale = mm->add_instruction(migraphx::make_op("mul"), scale, scale);
-        auto r = mm->add_instruction(migraphx::make_op("dequantizelinear"), qdot, out_scale);
+        zp_out         = mm->add_instruction(
+            migraphx::make_op("multibroadcast", {{"out_lens", qdot->get_shape().lens()}}), zp_out);
+        auto r =
+            mm->add_instruction(migraphx::make_op("dequantizelinear"), qdot, out_scale, zp_out);
         mm->add_return({r});
         return p;
     };
@@ -819,9 +875,9 @@ TEST_CASE(dot_half_1arg)
     const std::vector<std::pair<float, float>>& quant_params{{0.1f, 0.0f}, {0.1f, 0.0f}};
     std::size_t param_index = 0;
     migraphx::run_passes(p, {migraphx::capture_arguments_pass{{"dot"}, {}, &param_index}});
-    migraphx::run_passes(
-        p,
-        {migraphx::quantize_int8_pass{{"dot"}, quant_params}, migraphx::dead_code_elimination{}});
+    migraphx::run_passes(p,
+                         {migraphx::quantize_8bits_pass{migraphx::shape::int8_type, quant_params},
+                          migraphx::dead_code_elimination{}});
     EXPECT(p == create_int8_quantized_prog());
 
     optimize_prog_int8(p);
@@ -866,7 +922,11 @@ TEST_CASE(conv_float)
             migraphx::make_op("multibroadcast", {{"out_lens", quant->get_shape().lens()}}),
             scale_lit);
         auto out_scale = mm->add_instruction(migraphx::make_op("mul"), scale_mb, scale_mb);
-        auto r = mm->add_instruction(migraphx::make_op("dequantizelinear"), quant, out_scale);
+        auto zp_out    = mm->add_literal(std::int32_t{0});
+        zp_out         = mm->add_instruction(
+            migraphx::make_op("multibroadcast", {{"out_lens", quant->get_shape().lens()}}), zp_out);
+        auto r =
+            mm->add_instruction(migraphx::make_op("dequantizelinear"), quant, out_scale, zp_out);
         mm->add_return({r});
 
         return p;
@@ -876,7 +936,8 @@ TEST_CASE(conv_float)
     const std::vector<std::pair<float, float>>& quant_params{{0.1f, 0.0f}, {0.1f, 0.0f}};
     std::size_t param_index = 0;
     migraphx::run_passes(p, {migraphx::capture_arguments_pass{{"convolution"}, {}, &param_index}});
-    migraphx::run_passes(p, {migraphx::quantize_int8_pass{{"convolution"}, quant_params}});
+    migraphx::run_passes(
+        p, {migraphx::quantize_8bits_pass{migraphx::shape::type_t::int8_type, quant_params}});
     optimize_prog_int8(p);
     auto qp = create_int8_quantized_prog();
 
@@ -901,7 +962,8 @@ TEST_CASE(conv_float_throw)
     auto p = create_program();
     const std::vector<std::pair<float, float>>& quant_params{{0.1f, 0.0f}, {0.1f, 0.0f}};
     test::throws([&] {
-        migraphx::run_passes(p, {migraphx::quantize_int8_pass{{"add"}, quant_params}});
+        migraphx::run_passes(
+            p, {migraphx::quantize_8bits_pass{migraphx::shape::type_t::int8_type, quant_params}});
     });
 }
 
@@ -942,7 +1004,11 @@ TEST_CASE(conv_half)
             migraphx::make_op("multibroadcast", {{"out_lens", quant->get_shape().lens()}}),
             scale_lit);
         auto out_scale = mm->add_instruction(migraphx::make_op("mul"), scale_mb, scale_mb);
-        auto r = mm->add_instruction(migraphx::make_op("dequantizelinear"), quant, out_scale);
+        auto zp_out    = mm->add_literal(std::int32_t{0});
+        zp_out         = mm->add_instruction(
+            migraphx::make_op("multibroadcast", {{"out_lens", quant->get_shape().lens()}}), zp_out);
+        auto r =
+            mm->add_instruction(migraphx::make_op("dequantizelinear"), quant, out_scale, zp_out);
         mm->add_return({r});
 
         return p;
@@ -952,7 +1018,8 @@ TEST_CASE(conv_half)
     const std::vector<std::pair<float, float>>& quant_params{{0.1f, 0.0f}, {0.1f, 0.0f}};
     std::size_t param_index = 0;
     migraphx::run_passes(p, {migraphx::capture_arguments_pass{{"convolution"}, {}, &param_index}});
-    migraphx::run_passes(p, {migraphx::quantize_int8_pass{{"convolution"}, quant_params}});
+    migraphx::run_passes(
+        p, {migraphx::quantize_8bits_pass{migraphx::shape::type_t::int8_type, quant_params}});
     optimize_prog_int8(p);
     auto qp = create_int8_quantized_prog();
 
@@ -1188,8 +1255,11 @@ TEST_CASE(int8_subgraph)
         auto qdot  = then_mod->add_instruction(migraphx::make_op("quant_dot"), qa, qb);
         auto s1_mb = then_mod->add_instruction(
             migraphx::make_op("multibroadcast", {{"out_lens", qdot->get_shape().lens()}}), s1);
-        auto so = then_mod->add_instruction(migraphx::make_op("mul"), s1_mb, s1_mb);
-        auto r  = then_mod->add_instruction(migraphx::make_op("dequantizelinear"), qdot, so);
+        auto so     = then_mod->add_instruction(migraphx::make_op("mul"), s1_mb, s1_mb);
+        auto zp_out = then_mod->add_literal(std::int32_t{0});
+        zp_out      = then_mod->add_instruction(
+            migraphx::make_op("multibroadcast", {{"out_lens", qdot->get_shape().lens()}}), zp_out);
+        auto r = then_mod->add_instruction(migraphx::make_op("dequantizelinear"), qdot, so, zp_out);
         then_mod->add_return({r});
 
         migraphx::shape sd{migraphx::shape::float_type, {2, 2, 4, 6}};
@@ -1215,8 +1285,13 @@ TEST_CASE(int8_subgraph)
         auto ssw_mb = else_mod->add_instruction(
             migraphx::make_op("multibroadcast", {{"out_lens", qconv->get_shape().lens()}}),
             ssw_lit);
-        auto so1 = else_mod->add_instruction(migraphx::make_op("mul"), sax, ssw_mb);
-        auto r1  = else_mod->add_instruction(migraphx::make_op("dequantizelinear"), qconv, so1);
+        auto so1     = else_mod->add_instruction(migraphx::make_op("mul"), sax, ssw_mb);
+        auto zp1_out = else_mod->add_literal(std::int32_t{0});
+        zp1_out      = else_mod->add_instruction(
+            migraphx::make_op("multibroadcast", {{"out_lens", qconv->get_shape().lens()}}),
+            zp1_out);
+        auto r1 =
+            else_mod->add_instruction(migraphx::make_op("dequantizelinear"), qconv, so1, zp1_out);
         else_mod->add_return({r1});
 
         auto ret = mm->add_instruction(migraphx::make_op("if"), {cond}, {then_mod, else_mod});
@@ -1231,7 +1306,8 @@ TEST_CASE(int8_subgraph)
     std::size_t param_index = 0;
     migraphx::run_passes(
         p1, {migraphx::capture_arguments_pass{{"convolution", "dot"}, {}, &param_index}});
-    migraphx::run_passes(p1, {migraphx::quantize_int8_pass{{"convolution", "dot"}, quant_params}});
+    migraphx::run_passes(
+        p1, {migraphx::quantize_8bits_pass{migraphx::shape::type_t::int8_type, quant_params}});
     optimize_prog_int8(p1);
 
     auto p2 = create_int8_program();

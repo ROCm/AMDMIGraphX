@@ -1099,5 +1099,68 @@ TEST_CASE(multi_within_bounds)
     std::vector<std::size_t> multi_4 = {1, 2, 1};
     EXPECT(not in_shape.multi_within_bounds(multi_4));
 }
+TEST_CASE(shape_is_compatible_diff_strides)
+{
+    migraphx::shape actual{migraphx::shape::float_type, {1, 1, 8}, {8, 8, 1}};
+    migraphx::shape expected{migraphx::shape::float_type, {1, 1, 8}, {1, 1, 1}};
+    EXPECT(actual != expected);
+    EXPECT(migraphx::shape::is_compatible(actual, expected));
+}
+TEST_CASE(shape_is_compatible_diff_lens)
+{
+    migraphx::shape actual{migraphx::shape::float_type, {1, 2, 8}, {8, 8, 1}};
+    migraphx::shape expected{migraphx::shape::float_type, {1, 1, 8}, {8, 8, 1}};
+    EXPECT(actual != expected);
+    EXPECT(not migraphx::shape::is_compatible(actual, expected));
+}
+TEST_CASE(shape_is_compatible_diff_type)
+{
+    migraphx::shape actual{migraphx::shape::float_type, {1, 2, 8}};
+    migraphx::shape expected{migraphx::shape::half_type, {1, 2, 8}};
+    EXPECT(actual != expected);
+    EXPECT(not migraphx::shape::is_compatible(actual, expected));
+}
+TEST_CASE(shape_is_compatible_dynamic)
+{
+    migraphx::shape actual{migraphx::shape::float_type, {1, 2, 2, 4}};
+    migraphx::shape expected{migraphx::shape::float_type, {{1, 1}, {2, 4}, {2, 4}, {2, 4}}};
+    EXPECT(actual != expected);
+    EXPECT(migraphx::shape::is_compatible(actual, expected));
+}
+TEST_CASE(shape_is_compatible_dynamic_actual)
+{
+    migraphx::shape actual{migraphx::shape::float_type, {{1, 1}, {2, 4}, {2, 4}, {2, 4}}};
+    migraphx::shape expected{migraphx::shape::float_type, {1, 2, 2, 4}};
+    EXPECT(actual != expected);
+    EXPECT(not migraphx::shape::is_compatible(actual, expected));
+}
+TEST_CASE(shape_is_compatible_dynamic_diff_type)
+{
+    migraphx::shape actual{migraphx::shape::float_type, {1, 2, 2, 4}};
+    migraphx::shape expected{migraphx::shape::half_type, {{1, 1}, {2, 4}, {2, 4}, {2, 4}}};
+    EXPECT(actual != expected);
+    EXPECT(not migraphx::shape::is_compatible(actual, expected));
+}
+TEST_CASE(shape_is_compatible_dynamic_diff_rank)
+{
+    migraphx::shape actual{migraphx::shape::float_type, {1, 2, 2}};
+    migraphx::shape expected{migraphx::shape::half_type, {{1, 1}, {2, 4}, {2, 4}, {2, 4}}};
+    EXPECT(actual != expected);
+    EXPECT(not migraphx::shape::is_compatible(actual, expected));
+}
+TEST_CASE(shape_is_compatible_diff_strides_tuple)
+{
+    migraphx::shape actual{migraphx::shape{migraphx::shape::float_type, {1, 1, 8}, {8, 8, 1}}};
+    migraphx::shape expected{migraphx::shape{migraphx::shape::float_type, {1, 1, 8}, {1, 1, 1}}};
+    EXPECT(actual != expected);
+    EXPECT(migraphx::shape::is_compatible(actual, expected));
+}
+TEST_CASE(shape_is_compatible_diff_lens_tuple)
+{
+    migraphx::shape actual{migraphx::shape{migraphx::shape::float_type, {1, 2, 8}}};
+    migraphx::shape expected{migraphx::shape{migraphx::shape::float_type, {1, 1, 8}}};
+    EXPECT(actual != expected);
+    EXPECT(not migraphx::shape::is_compatible(actual, expected));
+}
 
 int main(int argc, const char* argv[]) { test::run(argc, argv); }

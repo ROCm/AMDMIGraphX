@@ -828,7 +828,7 @@ TEST_CASE(gemm_softmax_gemm)
     }
     run_pass(p1);
 
-    // dot -> fused_reduce -> dot should be fused into a single module by the 
+    // dot -> fused_reduce -> dot should be fused into a single module by the
     // find_mlir_standalone_attention_op matcher, with the fused_reduce module
     // unrolled into softmax (required for mlir during compile ops)
     migraphx::program p2;
@@ -926,7 +926,7 @@ TEST_CASE(gemm_pw_softmax_gemm)
     }
     run_pass(p1);
 
-    // Same result as gemm_softmax_gemm, but here the fused_reduce is unrolled into 
+    // Same result as gemm_softmax_gemm, but here the fused_reduce is unrolled into
     // pointwise ops + softmax
     migraphx::program p2;
     {

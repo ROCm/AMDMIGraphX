@@ -548,7 +548,7 @@ struct compiler
             return p;
         }
 
-        co.output = l.file.substr(0, l.file.find("."));
+        co.output = l.file.substr(0, l.file.find('.'));
 
         auto t = ct.get_target();
         if(to_fp16)

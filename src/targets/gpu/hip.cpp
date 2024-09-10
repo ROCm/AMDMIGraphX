@@ -345,7 +345,7 @@ argument get_arg_from_file(const shape& l_shape, const std::string& file_header)
     }
     is.close();
         
-    return argument(l_shape, buffer); 
+    return {l_shape, buffer}; 
 }
 
 // clang-format off

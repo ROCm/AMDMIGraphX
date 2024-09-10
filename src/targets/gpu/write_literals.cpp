@@ -49,11 +49,13 @@ struct fetch_literal
     template <class Self, class F>
     static auto reflect(Self& self, F f)
     {
-        return pack(f(self.l_shape, "shape"), f(self.id, "id"), f(self.literal_file, "literal_file"));
+        return pack(
+            f(self.l_shape, "shape"), f(self.id, "id"), f(self.literal_file, "literal_file"));
     }
 
     shape compute_shape(const std::vector<shape>&) const { return l_shape; }
-    argument compute(context&, const shape&, const std::vector<argument>&) const { 
+    argument compute(context&, const shape&, const std::vector<argument>&) const 
+    { 
 
         std::ifstream is;
         is.open(literal_file);
@@ -70,8 +72,7 @@ struct fetch_literal
         }
         is.close();
             
-        return argument(l_shape, buffer); 
-    
+        return {l_shape, buffer};
     }
     friend std::ostream& operator<<(std::ostream& os, const fetch_literal& x)
     {
@@ -91,10 +92,10 @@ void write_literals::apply(module& m) const
     std::size_t n = 0;
     std::ofstream fs;
     std::string output_file_header;
-    bool create_file = true;
-    bool save_literals = strip_weights;
+    bool create_file    = true;
+    bool save_literals  = strip_weights;
     
-    if(output == "")
+    if(output.empty())
     {
         save_literals = false;
     }
@@ -119,13 +120,16 @@ void write_literals::apply(module& m) const
                 std::string buffer(ins->get_literal().data(), ins->get_shape().bytes());
                 std::hash<std::string> create_hash;
                 // can use better hashing method, this is just the easiest that worked
-                std::size_t hash_v = create_hash(buffer);
-                std::string output_file = output_file_header + "/" + std::to_string(hash_v) + ".mxr_literal" + ins->get_literal().get_shape().type_string();
+                std::size_t hash_v      = create_hash(buffer);
+                std::string output_file = output_file_header + "/" + std::to_string(hash_v) + 
+                                            ".mxr_literal" + 
+                                            ins->get_literal().get_shape().type_string();
 
                 // if need to save all files
                 if(create_file)
                 {
-                    fs.open(output_file, std::ofstream::out | std::ofstream::trunc | std::ios::binary);
+                    fs.open(output_file, 
+                            std::ofstream::out | std::ofstream::trunc | std::ios::binary);
                     fs.write(buffer.data(), ins->get_shape().bytes());
                     fs.close();
                 }
@@ -133,9 +137,10 @@ void write_literals::apply(module& m) const
                 else
                 {
                     std::ifstream file(output_file);
-                    if(!file){
-                
-                        fs.open(output_file, std::ofstream::out | std::ofstream::trunc | std::ios::binary);
+                    if(not file)
+                    {
+                        fs.open(output_file, 
+                                std::ofstream::out | std::ofstream::trunc | std::ios::binary);
                         fs.write(buffer.data(), ins->get_shape().bytes());
                         fs.close();
                     }
@@ -143,15 +148,17 @@ void write_literals::apply(module& m) const
 
                 if(enabled(MIGRAPHX_COPY_LITERALS{}))
                 {
-                    auto pre = m.insert_instruction(ins, fetch_literal{id, ins->get_shape(), output_file});
-                    auto alloc = m.insert_instruction(std::next(pre), hip_allocate{ins->get_literal().get_shape()});
+                    auto pre = 
+                        m.insert_instruction(ins, fetch_literal{id, ins->get_shape(), output_file});
+                    auto alloc = m.insert_instruction(std::next(pre), 
+                                                        hip_allocate{ins->get_literal().get_shape()});
                     m.replace_instruction(ins, hip_copy_to_gpu{}, pre, alloc);
                 }
                 else 
                 {
-                    m.replace_instruction(ins, hip_copy_fetch_literal{ins->get_shape(), output_file, id});
+                    m.replace_instruction(
+                        ins, hip_copy_fetch_literal{ins->get_shape(), output_file, id});
                 }
-
                 n++;
             }
 
@@ -172,7 +179,6 @@ void write_literals::apply(module& m) const
                 }
                 n++;
             }
-            
         }
     }
 }

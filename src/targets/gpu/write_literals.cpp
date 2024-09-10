@@ -89,7 +89,7 @@ void write_literals::apply(module& m) const
     std::string output_file_header;
     bool create_file   = true;
     bool save_literals = strip_weights;
-    
+
     if(output.empty())
     {
         save_literals = false;
@@ -116,8 +116,8 @@ void write_literals::apply(module& m) const
                 std::hash<std::string> create_hash;
                 // can use better hashing method, this is just the easiest that worked
                 std::size_t hash_v      = create_hash(buffer);
-                std::string output_file = output_file_header + "/" + std::to_string(hash_v) + 
-                                          ".mxr_literal" + 
+                std::string output_file = output_file_header + "/" + std::to_string(hash_v) +
+                                          ".mxr_literal" +
                                           ins->get_literal().get_shape().type_string();
                 std::ifstream file(output_file);
 

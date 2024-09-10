@@ -344,7 +344,6 @@ argument get_arg_from_file(const shape& l_shape, const std::string& file_header)
         MIGRAPHX_THROW("Failed to read file: " + file_header);
     }
     is.close();
-        
     return {l_shape, buffer};
 }
 

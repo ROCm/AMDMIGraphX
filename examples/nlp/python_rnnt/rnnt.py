@@ -346,7 +346,7 @@ if __name__ == "__main__":
 
     print("Read MIGX model from ONNX and run...")
     migx_model = RNNT_MGX(seq_length=seq_length)
-    sd_migx = GreedyDecoder(migx_model)
-    _, _, result = sd_migx.run(x.to(torch.float32), out_lens)
+    rnnt_migx = GreedyDecoder(migx_model)
+    _, _, result = rnnt_migx.run(x.to(torch.float32), out_lens)
     print("Transcribed Sentence: ", decode_string(result))
     print("Ground Truth: ", transcript)

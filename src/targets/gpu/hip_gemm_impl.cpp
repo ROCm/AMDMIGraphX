@@ -22,8 +22,10 @@
  * THE SOFTWARE.
  */
 
+#ifndef _WIN32
 #include <hipblaslt/hipblaslt.h>
 #include <hipblaslt/hipblaslt-ext.hpp>
+#endif
 #include <limits>
 #include <migraphx/gpu/hipblaslt.hpp>
 #include <migraphx/gpu/hip_gemm_impl.hpp>

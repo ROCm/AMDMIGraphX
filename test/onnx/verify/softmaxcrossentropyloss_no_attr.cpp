@@ -239,7 +239,6 @@ TEST_CASE(softmaxcrossentropyloss_2d_no_reduction_test_rand_data)
     EXPECT(migraphx::verify::verify_rms_range(result_vector, gold));
 }
 
-
 TEST_CASE(softmaxcrossentropyloss_2d_mean_reduction_test_rand_data)
 {
     migraphx::program p = optimize_onnx("softmaxcrossentropyloss_2d_mean_reduction_test.onnx");

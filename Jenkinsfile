@@ -69,7 +69,7 @@ def rocmtestnode(Map conf) {
                     sh "echo $DOCKERHUB_PASS | docker login --username $DOCKERHUB_USER --password-stdin"
                     pre()
                     sh "docker pull ${DOCKER_IMAGE}:${env.IMAGE_TAG}"
-                    withDockerContainer(image: "${DOCKER_IMAGE}:${env.IMAGE_TAG}", args: "--device=/dev/kfd --device=/dev/dri --group-add video --cap-add SYS_PTRACE -v=/var/jenkins/:/var/jenkins ${docker_args}") {
+                    withDockerContainer(image: "${DOCKER_IMAGE}:${env.IMAGE_TAG}", args: "--device=/dev/kfd --device=/dev/dri --group-add video --cap-add SYS_PTRACE -v=/home/jenkins/:/home/jenkins ${docker_args}") {
                         timeout(time: 2, unit: 'HOURS') {
                             body(cmake_build)
                         }
@@ -129,6 +129,7 @@ node("(rocmtest || migraphx)") {
     withCredentials([usernamePassword(credentialsId: 'docker_test_cred', passwordVariable: 'DOCKERHUB_PASS', usernameVariable: 'DOCKERHUB_USER')]) {
         sh "echo $DOCKERHUB_PASS | docker login --username $DOCKERHUB_USER --password-stdin"
         stage('Check image') {
+            sh 'printenv'
             checkout scm
             def calculateImageTagScript = """
                 shopt -s globstar

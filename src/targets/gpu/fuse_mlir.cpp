@@ -542,7 +542,7 @@ struct find_mlir_split_reduce
                 fused_ins);
 
             mpm.get_module().replace_instruction(gemm_ins, dot_ins);
-            for(const auto outs : reduce_ins->outputs())
+            for(const auto& outs : reduce_ins->outputs())
             {
                 assert(outs->get_operator().name() == "get_tuple_elem");
                 mpm.get_module().replace_instruction(outs, outs->get_operator(), fused_ins);
@@ -872,7 +872,8 @@ struct find_pointwise_mlir
         m->add_return({ret});
 
         auto inputs = find_inputs(map_ins, &mpm.get_module(), m);
-        mpm.get_module().replace_instruction(ins, ins->get_operator(), inputs, {m});
+        mpm.get_module().replace_instruction(
+            ins, ins->get_operator(), mlir_contiguous(mpm, inputs), {m});
     }
 };
 

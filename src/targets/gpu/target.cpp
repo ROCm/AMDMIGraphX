@@ -86,6 +86,7 @@ std::vector<pass> target::get_passes(migraphx::context& gctx, const compile_opti
 {
     auto& ctx = any_cast<context>(gctx);
     ctx.set_exhaustive_tune_flag(options.exhaustive_tune);
+    ctx.load_problem_cache();
     std::set<shape::type_t> unsupported_types(shape::types().begin(), shape::types().end());
     unsupported_types.erase(shape::type_t::float_type);
     unsupported_types.erase(shape::type_t::fp8e4m3fnuz_type);
@@ -154,7 +155,7 @@ std::vector<pass> target::get_passes(migraphx::context& gctx, const compile_opti
         dead_code_elimination{},
         prefuse_ops{},
         dead_code_elimination{},
-        auto_contiguous{},
+        enable_pass(not enabled(MIGRAPHX_ENABLE_NHWC{}), auto_contiguous{}),
         eliminate_data_type{{migraphx::shape::fp8e4m3fnuz_type}, shape::float_type, unsupported_fp8_ops},
         dead_code_elimination{},
         rewrite_reduce{},
@@ -171,6 +172,8 @@ std::vector<pass> target::get_passes(migraphx::context& gctx, const compile_opti
         enable_pass(mlir_enabled(), fuse_mlir{&ctx}),
         dead_code_elimination{},
         fuse_concat{},
+        dead_code_elimination{},
+        enable_pass(enabled(MIGRAPHX_ENABLE_NHWC{}), auto_contiguous{}),
         dead_code_elimination{},
         lowering{&ctx, options.offload_copy},
         eliminate_contiguous{"gpu::contiguous"},

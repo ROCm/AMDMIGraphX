@@ -59,8 +59,8 @@ MIGRAPHX_GPU_EXPORT void copy_from_gpu(context& ctx, const argument& src, const 
 
 MIGRAPHX_GPU_EXPORT argument get_preallocation(context& ctx, const std::string& id);
 
-MIGRAPHX_GPU_EXPORT argument get_arg_from_file(const shape& l_shape, 
-                                                const std::string& file_header);
+MIGRAPHX_GPU_EXPORT argument get_arg_from_file(const shape& l_shape,
+                                               const std::string& file_header);
 
 MIGRAPHX_GPU_EXPORT void gpu_fill(context& ctx, const argument& dst, int value = 0);
 

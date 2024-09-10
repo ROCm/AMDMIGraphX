@@ -38,7 +38,6 @@ namespace gpu {
 
 MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_COPY_LITERALS)
 
-
 struct fetch_literal
 {
     std::string id{};
@@ -54,8 +53,8 @@ struct fetch_literal
     }
 
     shape compute_shape(const std::vector<shape>&) const { return l_shape; }
-    argument compute(context&, const shape&, const std::vector<argument>&) const 
-    { 
+    argument compute(context&, const shape&, const std::vector<argument>&) const
+    {
 
         std::ifstream is;
         is.open(literal_file);
@@ -71,7 +70,7 @@ struct fetch_literal
             MIGRAPHX_THROW("Failed to read file: " + literal_file);
         }
         is.close();
-            
+
         return {l_shape, buffer};
     }
     friend std::ostream& operator<<(std::ostream& os, const fetch_literal& x)
@@ -82,18 +81,14 @@ struct fetch_literal
 };
 MIGRAPHX_REGISTER_OP(fetch_literal);
 
-
-
-
-
 void write_literals::apply(module& m) const
 {
     assert(ctx != nullptr);
     std::size_t n = 0;
     std::ofstream fs;
     std::string output_file_header;
-    bool create_file    = true;
-    bool save_literals  = strip_weights;
+    bool create_file   = true;
+    bool save_literals = strip_weights;
     
     if(output.empty())
     {
@@ -122,39 +117,28 @@ void write_literals::apply(module& m) const
                 // can use better hashing method, this is just the easiest that worked
                 std::size_t hash_v      = create_hash(buffer);
                 std::string output_file = output_file_header + "/" + std::to_string(hash_v) + 
-                                            ".mxr_literal" + 
-                                            ins->get_literal().get_shape().type_string();
+                                          ".mxr_literal" + 
+                                          ins->get_literal().get_shape().type_string();
+                std::ifstream file(output_file);
 
-                // if need to save all files
-                if(create_file)
+                // check and see if new file needs to be saved
+                if(not file || create_file)
                 {
-                    fs.open(output_file, 
+                    fs.open(output_file,
                             std::ofstream::out | std::ofstream::trunc | std::ios::binary);
                     fs.write(buffer.data(), ins->get_shape().bytes());
                     fs.close();
                 }
-                // check and see if new file needs to be saved
-                else
-                {
-                    std::ifstream file(output_file);
-                    if(not file)
-                    {
-                        fs.open(output_file, 
-                                std::ofstream::out | std::ofstream::trunc | std::ios::binary);
-                        fs.write(buffer.data(), ins->get_shape().bytes());
-                        fs.close();
-                    }
-                }
 
                 if(enabled(MIGRAPHX_COPY_LITERALS{}))
                 {
-                    auto pre = 
+                    auto pre =
                         m.insert_instruction(ins, fetch_literal{id, ins->get_shape(), output_file});
-                    auto alloc = m.insert_instruction(std::next(pre), 
-                                                        hip_allocate{ins->get_literal().get_shape()});
+                    auto alloc = m.insert_instruction(std::next(pre),
+                                                      hip_allocate{ins->get_literal().get_shape()});
                     m.replace_instruction(ins, hip_copy_to_gpu{}, pre, alloc);
                 }
-                else 
+                else
                 {
                     m.replace_instruction(
                         ins, hip_copy_fetch_literal{ins->get_shape(), output_file, id});
@@ -162,7 +146,7 @@ void write_literals::apply(module& m) const
                 n++;
             }
 
-            // base strategy without stripping weights 
+            // base strategy without stripping weights
             else
             {
                 if(enabled(MIGRAPHX_COPY_LITERALS{}))
@@ -172,7 +156,7 @@ void write_literals::apply(module& m) const
                     auto alloc = m.insert_instruction(std::next(pre), hip_allocate{l.get_shape()});
                     m.replace_instruction(ins, hip_copy_to_gpu{}, pre, alloc);
                 }
-                else 
+                else
                 {
                     std::string id = m.name() + ":@literal:" + std::to_string(n);
                     m.replace_instruction(ins, hip_copy_literal{ins->get_literal(), id});

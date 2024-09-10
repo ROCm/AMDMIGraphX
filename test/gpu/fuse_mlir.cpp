@@ -774,6 +774,10 @@ TEST_CASE(gemm_softmax_gemm)
 {
     migraphx::shape s1{migraphx::shape::half_type, {1, 12, 256, 256}};
     migraphx::shape s2{migraphx::shape::bool_type, {1, 12, 256, 256}};
+    // Original program graph (excluding shape ops): dot -> softmax -> dot
+    // When compile pipeline reaches fuse_mlir pass, this has been rewritten
+    // as dot -> fused_reduce -> dot, where the fused_reduce module contains
+    // the base softmax operations. p1 constructs such a graph
     migraphx::program p1;
     {
         auto* mm = p1.get_main_module();
@@ -823,6 +827,10 @@ TEST_CASE(gemm_softmax_gemm)
         mm->add_return({gemm2});
     }
     run_pass(p1);
+
+    // dot -> fused_reduce -> dot should be fused into a single module by the 
+    // find_mlir_standalone_attention_op matcher, with the fused_reduce module
+    // unrolled into softmax (required for mlir during compile ops)
     migraphx::program p2;
     {
         auto* mm   = p2.get_main_module();
@@ -857,6 +865,9 @@ TEST_CASE(gemm_pw_softmax_gemm)
     migraphx::shape s1{migraphx::shape::half_type, {1, 12, 256, 256}};
     migraphx::shape s2{migraphx::shape::bool_type, {1, 12, 256, 256}};
     auto s1_elements = s1.elements();
+
+    // Original program graph (excluding shape ops): dot -> pointwise -> softmax -> dot
+    // Here fused_reduce contains pointwise + softmax all in one module.
     migraphx::program p1;
     {
         auto* mm    = p1.get_main_module();
@@ -914,6 +925,9 @@ TEST_CASE(gemm_pw_softmax_gemm)
         mm->add_return({gemm2});
     }
     run_pass(p1);
+
+    // Same result as gemm_softmax_gemm, but here the fused_reduce is unrolled into 
+    // pointwise ops + softmax
     migraphx::program p2;
     {
         auto* mm    = p2.get_main_module();

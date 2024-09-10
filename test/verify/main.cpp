@@ -106,4 +106,3 @@ int main(int argc, const char* argv[])
                          "test_quant_dot_3args_5<migraphx::fp8::fp8e4m3fnuz, float>"});
     rv.run(argc, argv);
 }
-// clang-format on

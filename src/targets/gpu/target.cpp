@@ -178,6 +178,8 @@ std::vector<pass> target::get_passes(migraphx::context& gctx, const compile_opti
         lowering{&ctx, options.offload_copy},
         eliminate_contiguous{"gpu::contiguous"},
         dead_code_elimination{},
+        adjust_allocation{gpu_allocation_model{.use_hip_allocate = false}},
+        dead_code_elimination{},
         eliminate_concat{concat_gpu_optimization{}},
         dead_code_elimination{},
 #if MIGRAPHX_USE_MIOPEN

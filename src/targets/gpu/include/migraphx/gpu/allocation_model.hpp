@@ -35,6 +35,7 @@ namespace gpu {
 
 struct MIGRAPHX_GPU_EXPORT gpu_allocation_model
 {
+    bool use_hip_allocate = true;
     std::string name() const;
     std::string copy() const;
     operation allocate(const shape& s) const;

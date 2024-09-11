@@ -14,7 +14,7 @@ namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
 namespace op {
 
-struct RotaryParameters
+struct gqa_parameters
 {
     int batch_size;           // Batch size used by input
     int sequence_length;      // Sequence length used by input
@@ -45,7 +45,7 @@ struct RotaryParameters
         printf("seq_stride: %d\n", seq_stride);
         printf("batch_stride: %d\n", batch_stride);
         printf("position_ids_format: %d\n", position_ids_format);
-        printf("transposed: %d\n", transposed);
+        printf("transposed: %d\n", static_cast<int>(transposed));
         printf("seqlen_present_kv_cache: %d\n", seqlen_present_kv_cache);
     }
 };
@@ -58,6 +58,7 @@ struct group_query_attention
     std::size_t num_heads  = 1;
     int rotary_interleaved = 0;
     float scale            = 1.0;
+    std::size_t present_kv_seqlen = 4096;
 
     template <class Self, class F>
     static auto reflect(Self& self, F f)
@@ -67,7 +68,8 @@ struct group_query_attention
                     f(self.local_window_size, "local_window_size"),
                     f(self.num_heads, "num_heads"),
                     f(self.rotary_interleaved, "rotary_interleaved"),
-                    f(self.scale, "scale"));
+                    f(self.scale, "scale"),
+                    f(self.present_kv_seqlen, "present_kv_seqlen"));
     }
 
     std::string name() const { return "group_query_attention"; }
@@ -97,7 +99,7 @@ struct group_query_attention
                               T output,
                               bool interleaved,
                               const int64_t* pos_ids,
-                              RotaryParameters parameters) const
+                              gqa_parameters parameters) const
     {
         const int batch_size          = parameters.batch_size;
         const int sequence_length     = parameters.sequence_length;
@@ -155,7 +157,7 @@ struct group_query_attention
     }
 
     template <class T>
-    void pack_v_into_rotary_QKV(RotaryParameters parameters, const T input, T output) const
+    void pack_v_into_rotary_qkv(gqa_parameters parameters, const T input, T output) const
     {
         const int loop_len = parameters.batch_size * parameters.sequence_length * kv_num_heads;
         par_for(loop_len, [&](const auto idx) {
@@ -180,7 +182,7 @@ struct group_query_attention
     }
 
     template <typename T>
-    T ConcatStateChunkGQA(const T past,
+    T concat_state_chunk(const T past,
                           const T chunk,
                           T present,
                           size_t present_buff_chunk_length,
@@ -208,10 +210,10 @@ struct group_query_attention
     }
 
     template <class T>
-    void CalculateAttentionSoftmaxInplace(T score, int N, int D) const
+    void softmax_inplace(T score, int n, int d) const
     {
-        par_for(N, [&](const auto j) {
-            auto x = score + j * D;
+        par_for(n, [&](const auto j) {
+            auto x = score + j * d;
             auto y = x;
 
             // e^x is represented as infinity if x is large enough, like 100.f.
@@ -220,33 +222,33 @@ struct group_query_attention
             // leveraged to get a stable softmax: e^xi/(e^x1 + ...e^xn) = e^(xi -
             // max) / (e^(x1 - max) + ... + e^(xn - max))
             float max = -std::numeric_limits<float>::infinity();
-            for(int i = 0; i < D; i++)
+            for(int i = 0; i < d; i++)
             {
                 if(max < x[i])
                     max = x[i];
             }
-            for(int i = 0; i < D; i++)
+            for(int i = 0; i < d; i++)
             {
                 y[i] = expf(x[i] - max);
             }
 
             double sum = 0.0;
 
-            for(int i = 0; i < D; i++)
+            for(int i = 0; i < d; i++)
             {
                 sum += x[i];
             }
 
             if(float_equal(sum, 0.0))
             {
-                for(int i = 0; i < D; i++)
+                for(int i = 0; i < d; i++)
                 {
-                    y[i] = 1.0f / static_cast<float>(D);
+                    y[i] = 1.0f / static_cast<float>(d);
                 }
             }
             else
             {
-                for(int i = 0; i < D; i++)
+                for(int i = 0; i < d; i++)
                 {
                     y[i] = x[i] / static_cast<float>(sum);
                 }
@@ -258,10 +260,10 @@ struct group_query_attention
     //  attention_probs(B, N, S, T) = 1/sqrt(H) x Q(B, N, S, H) x K'(B, N, T, H -> B, N, H, T)
     //  attention_probs(B, N, S, T) = Softmax(attention_probs)
     template <class T, class U>
-    void CalculateAttentionProbs(
+    void calculate_attention_probs(
         T attention_probs,                  // output buffer with size BxNxSxT
-        T Q,                                // Q data. Its size is BxNxSxH
-        T K,                                // k data. Its size is BxNxLxH
+        T query,                            // Q data. Its size is BxNxSxH
+        T key,                              // k data. Its size is BxNxLxH
         U seqlens_k,                        // past sequence lengths tensor
         int batch_size,                     // batch size of self-attention
         int sequence_length,                // sequence length of self-attention (S)
@@ -302,9 +304,9 @@ struct group_query_attention
                 static_cast<int>(i) * sequence_length * present_buffer_sequence_length;
             auto output = attention_probs + output_offset;
 
-            auto k = K + packed_batch_stride * batch_index +
+            auto k = key + packed_batch_stride * batch_index +
                      kv_input_chunk_length * (head_index / kv_num_heads_factor);
-            k = ConcatStateChunkGQA(past_key,
+            k = concat_state_chunk(past_key,
                                     k,
                                     present_key,
                                     present_buff_chunk_length,
@@ -323,11 +325,11 @@ struct group_query_attention
             T q;
             if(packed_qkv)
             {
-                q = Q + packed_batch_stride * batch_index + q_input_chunk_length * head_index;
+                q = query + packed_batch_stride * batch_index + q_input_chunk_length * head_index;
             }
             else
             {
-                q = Q + q_input_chunk_length * i;
+                q = query + q_input_chunk_length * i;
             }
 
             gemm(sequence_length,
@@ -356,14 +358,14 @@ struct group_query_attention
                     {
                         output_softmax[total_seq_id] = 0.f;
                     }
-                    CalculateAttentionSoftmaxInplace(output_softmax + seq_causal_length -
+                    softmax_inplace(output_softmax + seq_causal_length -
                                                          local_window_size - 1,
                                                      1,
                                                      local_window_size + 1);
                 }
                 else
                 {
-                    CalculateAttentionSoftmaxInplace(output_softmax, 1, seq_causal_length);
+                    softmax_inplace(output_softmax, 1, seq_causal_length);
                 }
                 // set causal [seq_causal_length, total_seqlen) to 0.f
                 for(int total_seq_id = seq_causal_length; total_seq_id < total_seqlen;
@@ -378,10 +380,10 @@ struct group_query_attention
     }
 
     template <class T, class U, class W>
-    void CalculateVxAttentionScore(
+    void calculate_attention_score(
         T output,                           // buffer for the result with size BxSxNxH
         const W attention_probs,            // Attention probs with size BxNxSxT
-        const T V,                          // V value with size BxN_kvxSxH
+        const T val,                        // V value with size BxN_kvxSxH
         const U seqlens_k,                  // past sequence lengths tensor
         int batch_size,                     // batch size
         int sequence_length,                // sequence length
@@ -417,15 +419,15 @@ struct group_query_attention
             T v;
             if(packed_qkv)
             {
-                v = V + packed_batch_stride * batch_index +
+                v = val + packed_batch_stride * batch_index +
                     kv_input_chunk_length * (head_index / kv_num_heads_factor);
             }
             else
             {
-                v = V + kv_input_chunk_length * (i / kv_num_heads_factor);
+                v = val + kv_input_chunk_length * (i / kv_num_heads_factor);
             }
 
-            v = ConcatStateChunkGQA(past_value,
+            v = concat_state_chunk(past_value,
                                     v,
                                     present_value,
                                     present_buff_chunk_length,
@@ -456,7 +458,7 @@ struct group_query_attention
     }
 
     template <class T, class U>
-    void apply_attention(T Q,
+    void apply_attention(T qkv,
                          T past_key,
                          T past_value,
                          T output,
@@ -464,7 +466,7 @@ struct group_query_attention
                          T present_value,
                          U seqlens_k,
                          T attention_probs,
-                         RotaryParameters parameters,
+                         gqa_parameters parameters,
                          shape::type_t dtype) const
     {
         const int batch_size      = parameters.batch_size;
@@ -477,10 +479,10 @@ struct group_query_attention
         int seqlen_past_kv_cache    = seqlen_present_kv_cache;
 
         bool past_present_share_buffer = false;
-        const T k                      = Q + num_heads * sequence_length * head_size;
+        const T k                      = qkv + num_heads * sequence_length * head_size;
 
-        CalculateAttentionProbs(attention_probs,
-                                Q,
+        calculate_attention_probs(attention_probs,
+                                qkv,
                                 k,
                                 seqlens_k,
                                 batch_size,
@@ -494,8 +496,8 @@ struct group_query_attention
                                 packed_qkv,
                                 dtype);
 
-        const T v = Q + (num_heads + kv_num_heads) * sequence_length * head_size;
-        CalculateVxAttentionScore(output,
+        const T v = qkv + (num_heads + kv_num_heads) * sequence_length * head_size;
+        calculate_attention_score(output,
                                   attention_probs,
                                   v,
                                   seqlens_k,
@@ -526,7 +528,6 @@ struct group_query_attention
         q_hidden_size                     = head_size * num_heads;
         const bool packed_qkv             = true;
         std::size_t rotary_dim            = args[7].get_shape().lens()[1] * 2;
-        std::size_t present_kv_seqlen     = past_sequence_length;
 
         auto output_shape_0 = output_shape.sub_shapes().front();
         argument result{output_shape_0};
@@ -574,7 +575,7 @@ struct group_query_attention
                                        auto past_value,
                                        auto cos_cache,
                                        auto sin_cache,
-                                       auto RotaryQKV,
+                                       auto rotary_qkv,
                                        auto present_k,
                                        auto present_v,
                                        auto attn_probs) {
@@ -605,26 +606,26 @@ struct group_query_attention
                     }
                     auto q_input  = query.begin();
                     auto k_input  = q_input + num_heads * sequence_length * head_size;
-                    auto q_rotary = RotaryQKV.begin();
+                    auto q_rotary = rotary_qkv.begin();
                     auto k_rotary = q_rotary + num_heads * sequence_length * head_size;
 
-                    RotaryParameters rotary_params     = {};
-                    rotary_params.batch_size           = batch_size;
-                    rotary_params.sequence_length      = sequence_length;
-                    rotary_params.hidden_size          = q_hidden_size;
-                    rotary_params.head_size            = head_size;
-                    rotary_params.rotary_embedding_dim = rotary_dim;
-                    rotary_params.num_heads            = num_heads;
-                    rotary_params.max_sequence_length  = sequence_length;
-                    rotary_params.seq_stride           = head_size;
-                    rotary_params.head_stride          = sequence_length * rotary_params.seq_stride;
-                    rotary_params.batch_stride         = batch_stride;
-                    rotary_params.position_ids_format  = position_ids_format;
-                    rotary_params.transposed           = transposed;
-                    rotary_params.seqlen_present_kv_cache = present_kv_seqlen;
+                    gqa_parameters gqa_params     = {};
+                    gqa_params.batch_size           = batch_size;
+                    gqa_params.sequence_length      = sequence_length;
+                    gqa_params.hidden_size          = q_hidden_size;
+                    gqa_params.head_size            = head_size;
+                    gqa_params.rotary_embedding_dim = rotary_dim;
+                    gqa_params.num_heads            = num_heads;
+                    gqa_params.max_sequence_length  = sequence_length;
+                    gqa_params.seq_stride           = head_size;
+                    gqa_params.head_stride          = sequence_length * gqa_params.seq_stride;
+                    gqa_params.batch_stride         = batch_stride;
+                    gqa_params.position_ids_format  = position_ids_format;
+                    gqa_params.transposed           = transposed;
+                    gqa_params.seqlen_present_kv_cache = present_kv_seqlen;
                     for(int i = 0; i < query.get_shape().elements(); ++i)
                     {
-                        RotaryQKV[i] = 0.0;
+                        rotary_qkv[i] = 0.0;
                     }
                     run_rotary_embedding(q_input,
                                          cos_cache.begin(),
@@ -632,10 +633,10 @@ struct group_query_attention
                                          q_rotary,
                                          rotary_interleaved,
                                          pos_ids.data(),
-                                         rotary_params);
+                                         gqa_params);
                     std::size_t kv_hidden_size = head_size * kv_num_heads;
-                    rotary_params.num_heads    = kv_num_heads;
-                    rotary_params.hidden_size  = kv_hidden_size;
+                    gqa_params.num_heads    = kv_num_heads;
+                    gqa_params.hidden_size  = kv_hidden_size;
 
                     run_rotary_embedding(k_input,
                                          cos_cache.begin(),
@@ -643,15 +644,14 @@ struct group_query_attention
                                          k_rotary,
                                          rotary_interleaved,
                                          pos_ids.data(),
-                                         rotary_params);
+                                         gqa_params);
                     auto v_input            = k_input + kv_num_heads * sequence_length * head_size;
                     auto v_rotary           = k_rotary + kv_num_heads * sequence_length * head_size;
-                    rotary_params.num_heads = num_heads;
+                    gqa_params.num_heads = num_heads;
 
-                    pack_v_into_rotary_QKV(rotary_params, v_input, v_rotary);
+                    pack_v_into_rotary_qkv(gqa_params, v_input, v_rotary);
 
-                    auto Q = RotaryQKV;
-                    apply_attention(Q.begin(),
+                    apply_attention(rotary_qkv.begin(),
                                     past_key.begin(),
                                     past_value.begin(),
                                     output.begin(),
@@ -659,7 +659,7 @@ struct group_query_attention
                                     present_v.begin(),
                                     seqlens_k.begin(),
                                     attn_probs.begin(),
-                                    rotary_params,
+                                    gqa_params,
                                     output_shape_0.type());
                 }
             });

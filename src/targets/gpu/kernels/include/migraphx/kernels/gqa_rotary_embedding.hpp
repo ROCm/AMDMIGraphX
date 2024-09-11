@@ -26,13 +26,7 @@
 
 #include <migraphx/kernels/group_query_attention.hpp>
 #include <migraphx/kernels/index.hpp>
-#include <migraphx/kernels/algorithm.hpp>
-#include <migraphx/kernels/integral_constant.hpp>
 #include <migraphx/kernels/tensor_view.hpp>
-#include <migraphx/kernels/ck.hpp>
-#include <migraphx/kernels/gemm_batcher.hpp>
-#include <limits>
-#include <migraphx/kernels/type_traits.hpp>
 
 namespace migraphx {
 
@@ -41,21 +35,20 @@ __device__ void run_rotary_embedding(Input input,
                                      Cos_Cache cos_cache,
                                      Sin_Cache sin_cache,
                                      Output output,
-                                     bool interleaved,
                                      Pos_IDs pos_ids,
-                                     Params parameters,
+                                     Params params,
                                      index_int idx,
                                      bool is_query = false)
 {
-    const int batch_size          = parameters.batch_size;
-    const int sequence_length     = parameters.sequence_length;
-    const int n_heads             = is_query ? parameters.num_heads : parameters.kv_num_heads;
-    const int head_size           = parameters.head_size;
-    const int head_stride         = parameters.head_stride;
-    const int seq_stride          = parameters.seq_stride;
-    const int batch_stride        = parameters.batch_stride;
-    const int position_ids_format = parameters.position_ids_format;
-    const int rotary_emb_dim      = parameters.rotary_embedding_dim;
+    const int batch_size          = params.batch_size;
+    const int sequence_length     = params.sequence_length;
+    const int n_heads             = is_query ? params.num_heads : params.kv_num_heads;
+    const int head_size           = params.head_size;
+    const int head_stride         = params.head_stride;
+    const int seq_stride          = params.seq_stride;
+    const int batch_stride        = params.batch_stride;
+    const int position_ids_format = params.position_ids_format;
+    const int rotary_emb_dim      = params.rotary_embedding_dim;
     const int half_rotary_emb_dim = rotary_emb_dim / 2;
 
     const index_int loop_len = batch_size * sequence_length * n_heads;
@@ -85,7 +78,7 @@ __device__ void run_rotary_embedding(Input input,
         int j         = 0;
         if(ii < rotary_emb_dim)
         {
-            if(interleaved)
+            if(params.rotary_interleaved)
             {
                 cache_idx = (ii / 2) % half_rotary_emb_dim;
                 sign      = (ii % 2 == 0) ? -1.0 : 1.0;
@@ -112,22 +105,22 @@ __device__ void run_rotary_embedding(Input input,
 
 template <class Params, class Input, class Output>
 __device__ void
-pack_v_into_rotary_QKV(Params parameters, const Input input, Output output, index_int idx)
+pack_v_into_rotary_qkv(Params params, const Input input, Output output, index_int idx)
 {
     const int loop_len =
-        parameters.batch_size * parameters.sequence_length * parameters.kv_num_heads;
-    auto i  = idx / parameters.head_size;
-    auto ii = idx % parameters.head_size;
+        params.batch_size * params.sequence_length * params.kv_num_heads;
+    auto i  = idx / params.head_size;
+    auto ii = idx % params.head_size;
     if(i < loop_len)
     {
-        const index_int b = (i / parameters.kv_num_heads) / parameters.sequence_length;
-        const index_int s = (i / parameters.kv_num_heads) % parameters.sequence_length;
-        const index_int n = i % parameters.kv_num_heads;
+        const index_int b = (i / params.kv_num_heads) / params.sequence_length;
+        const index_int s = (i / params.kv_num_heads) % params.sequence_length;
+        const index_int n = i % params.kv_num_heads;
         const index_int block_offset =
-            b * parameters.batch_stride + s * parameters.seq_stride + n * parameters.head_stride;
+            b * params.batch_stride + s * params.seq_stride + n * params.head_stride;
         const Input input_data = input + block_offset;
         Output output_data     = output + block_offset;
-        if(ii < parameters.head_size)
+        if(ii < params.head_size)
         {
             output_data[ii] = input_data[ii];
         }
@@ -165,7 +158,6 @@ __device__ void gqa_rotary_embedding(Output output,
                                  cos_cache.begin(),
                                  sin_cache.begin(),
                                  q_rotary,
-                                 params.rotary_interleaved,
                                  seqlens_k.begin(),
                                  params,
                                  idx,
@@ -177,14 +169,13 @@ __device__ void gqa_rotary_embedding(Output output,
                                  cos_cache.begin(),
                                  sin_cache.begin(),
                                  k_rotary,
-                                 params.rotary_interleaved,
                                  seqlens_k.begin(),
                                  params,
                                  idx - q_chunk_size);
         }
         else if(idx < output.get_shape().elements())
         {
-            pack_v_into_rotary_QKV(params, v_input, v_rotary, idx - (q_chunk_size + kv_chunk_size));
+            pack_v_into_rotary_qkv(params, v_input, v_rotary, idx - (q_chunk_size + kv_chunk_size));
         }
     });
 }

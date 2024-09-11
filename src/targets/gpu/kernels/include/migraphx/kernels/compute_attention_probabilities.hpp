@@ -26,34 +26,28 @@
 
 #include <migraphx/kernels/group_query_attention.hpp>
 #include <migraphx/kernels/index.hpp>
-#include <migraphx/kernels/algorithm.hpp>
-#include <migraphx/kernels/integral_constant.hpp>
 #include <migraphx/kernels/tensor_view.hpp>
-#include <migraphx/kernels/ck.hpp>
-#include <migraphx/kernels/gemm_batcher.hpp>
-#include <limits>
-#include <migraphx/kernels/type_traits.hpp>
 
 namespace migraphx {
 
 template <class Attn_Probs,
-          class Q_,
+          class Query,
           class SeqLens,
           class PresentKey,
           class Params>
 __device__ void
-CalculateAttentionProbs(Attn_Probs attention_probs,         // output buffer with size BxNxSxT
-                        Q_ Q,                               // Q data. Its size is BxNxSxH
+calculate_attention_probs(Attn_Probs attention_probs,         // output buffer with size BxNxSxT
+                        Query query,                        // Q data. Its size is BxNxSxH
                         SeqLens seqlens_k,                  // past sequence lengths tensor
-                        int batch_size,                     // batch size of self-attention
-                        int sequence_length,                // sequence length of self-attention (S)
-                        int present_buffer_sequence_length, // sequence length of present state
-                        int head_size,                      // head size of self-attention
                         PresentKey present_key,             // present key only
-                        bool packed_qkv,                    // whether Q, K, V are packed
                         Params params,
                         index_int idx)
 {
+    const int batch_size      = params.batch_size;
+    const int sequence_length = params.sequence_length;
+    const int head_size       = params.head_size;
+    const bool packed_qkv     = params.packed_qkv;
+    const size_t present_buffer_sequence_length = params.seqlen_present_kv_cache;
     const int num_heads    = params.num_heads;
     const int kv_num_heads = params.kv_num_heads;
     const int packed_batch_stride =
@@ -78,21 +72,21 @@ CalculateAttentionProbs(Attn_Probs attention_probs,         // output buffer wit
         const index_int output_offset = i * sequence_length * present_buffer_sequence_length;
         auto output                   = attention_probs + output_offset;
         auto pk = present_key + ((i / kv_num_heads_factor) * present_buff_chunk_length);
-        Q_ q;
+        Query q;
         if(packed_qkv)
         {
-            q = Q + packed_batch_stride * batch_index + q_input_chunk_length * head_index;
+            q = query + packed_batch_stride * batch_index + q_input_chunk_length * head_index;
         }
         else
         {
-            q = Q + q_input_chunk_length * i;
+            q = query + q_input_chunk_length * i;
         }
         gemm(sequence_length,
              total_seqlen,
              head_size,
              head_size,
              head_size,
-             present_buffer_sequence_length, // 4096
+             present_buffer_sequence_length, 
              output,
              q,
              pk,
@@ -111,23 +105,11 @@ __device__ void compute_attention_probabilities(
     ind.global_stride(params.batch_size * params.num_heads * params.sequence_length *
                           params.seqlen_present_kv_cache,
                       [&](auto idx) {
-                          auto q                    = query.begin();
-                          const int batch_size      = params.batch_size;
-                          const int sequence_length = params.sequence_length;
-                          const int head_size       = params.head_size;
-                          const bool packed_qkv     = true;
-
-                          int seqlen_present_kv_cache = params.seqlen_present_kv_cache;
                           output([&](auto output0, auto k_cache, auto) {
-                              CalculateAttentionProbs(output0.begin(),
-                                                      q,
+                              calculate_attention_probs(output0.begin(),
+                                                      query.begin(),
                                                       seqlens_k.begin(),
-                                                      batch_size,
-                                                      sequence_length,
-                                                      seqlen_present_kv_cache,
-                                                      head_size,
                                                       k_cache.begin(),
-                                                      packed_qkv,
                                                       params,
                                                       idx);
                           });

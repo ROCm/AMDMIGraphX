@@ -62,9 +62,9 @@ void gemm(tensor_view<T> cmat, tensor_view<U> amat, tensor_view<U> bmat, F alpha
 
 // Strided 2D GEMM
 template <class T, class U, class F>
-void gemm(std::size_t M,
-          std::size_t N,
-          std::size_t K,
+void gemm(std::size_t m,
+          std::size_t n,
+          std::size_t k,
           std::size_t lda,
           std::size_t ldb,
           std::size_t ldc,
@@ -76,23 +76,20 @@ void gemm(std::size_t M,
           shape::type_t dtype,
           const bool b_transpose = false)
 {
-    auto cs     = shape{dtype, {M, N}};
-    auto a_idx  = [&](auto i, auto k) { return k + (i * lda); };
-    auto b_idx  = [&](auto k, auto j) { return j + (k * ldb); };
-    auto bt_idx = [&](auto k, auto j) { return j + (k * ldb); };
-    auto c_idx  = [&](auto i, auto j) { return j + (i * ldc); };
+    auto cs     = shape{dtype, {m, n}};
+    auto idx  = [&](auto x, auto y, auto z) { return y + (x * z); };
 
     par_for(cs.elements(), [&](auto i) {
         auto c_midx = cs.multi(i);
         auto ii     = c_midx[0];
         auto jj     = c_midx[1];
         double s    = 0.0;
-        dfor(K)([&](auto kk) {
-            auto a_i = a_idx(ii, kk);
-            auto b_i = b_transpose ? bt_idx(jj, kk) : b_idx(kk, jj);
+        dfor(k)([&](auto kk) {
+            auto a_i = idx(ii, kk, lda);
+            auto b_i = b_transpose ? idx(jj, kk, ldb) : idx(kk, jj, ldb);
             s += static_cast<double>(amat[a_i]) * static_cast<double>(bmat[b_i]);
         });
-        auto c_i  = c_idx(ii, jj);
+        auto c_i  = idx(ii, jj, ldc);
         cmat[c_i] = static_cast<double>(alpha) * s + cmat[c_i] * static_cast<double>(beta);
     });
 }

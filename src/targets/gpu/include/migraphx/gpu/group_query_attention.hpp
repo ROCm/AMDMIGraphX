@@ -32,7 +32,7 @@ namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
 namespace gpu {
 
-struct RotaryParameters
+struct gqa_parameters
 {
     float scale;
     int batch_size;           // Batch size used by input
@@ -55,10 +55,12 @@ struct RotaryParameters
     int kv_num_heads;
     int local_window_size;
     int rotary_interleaved;
+    int past_present_share_buffer;
+    int packed_qkv;
 
     std::string make_init_str()
     {
-        std::string str =
+        return 
             std::to_string(scale) + ", " + std::to_string(batch_size) + ", " +
             std::to_string(sequence_length) + ", " + std::to_string(hidden_size) + ", " +
             std::to_string(head_size) + ", " + std::to_string(rotary_embedding_dim) + ", " +
@@ -67,12 +69,12 @@ struct RotaryParameters
             std::to_string(batch_stride) + ", " + std::to_string(position_ids_format) + ", " +
             std::to_string(transposed) + ", " + std::to_string(seqlen_present_kv_cache) + ", " +
             std::to_string(do_rotary) + ", " + std::to_string(kv_num_heads) + ", " +
-            std::to_string(local_window_size) + ", " + std::to_string(rotary_interleaved);
-        return str;
+            std::to_string(local_window_size) + ", " + std::to_string(rotary_interleaved) + ", " +
+            std::to_string(past_present_share_buffer) + ", " + std::to_string(packed_qkv);
     }
 };
 
-static RotaryParameters init_params(const std::vector<shape>& inputs, const value& v)
+static inline gqa_parameters init_params(const std::vector<shape>& inputs, const value& v)
 {
     assert(v.contains("num_heads"));
     auto num_heads = v.at("num_heads").to<int>();
@@ -86,6 +88,8 @@ static RotaryParameters init_params(const std::vector<shape>& inputs, const valu
     auto rotary_interleaved = v.at("rotary_interleaved").to<int>();
     assert(v.contains("scale"));
     auto scale = v.at("scale").to<float>();
+    assert(v.contains("present_kv_seqlen"));
+    auto present_kv_seqlen = v.at("present_kv_seqlen").to<std::size_t>();
 
     auto q_shape                      = inputs[0];
     auto q_lens                       = q_shape.lens();
@@ -93,37 +97,38 @@ static RotaryParameters init_params(const std::vector<shape>& inputs, const valu
     const std::size_t sequence_length = q_lens[2];
     std::size_t head_size             = q_lens[3];
     auto q_hidden_size                = kv_num_heads * head_size;
-    const bool packed_qkv             = true;
 
     std::size_t rotary_dim        = inputs[3].lens()[1] * 2;
-    std::size_t present_kv_seqlen = 4096;
-
+    bool packed_qkv = true;
     auto seq_stride   = head_size;
     auto head_stride  = sequence_length * seq_stride;
     auto batch_stride = (packed_qkv ? (num_heads + 2 * kv_num_heads) : num_heads) * head_stride;
     auto position_ids_format = sequence_length == 1 ? 1 : 0;
     bool transposed          = true;
-    RotaryParameters rotary_params;
-    rotary_params.batch_size              = batch_size;
-    rotary_params.sequence_length         = sequence_length;
-    rotary_params.hidden_size             = q_hidden_size;
-    rotary_params.head_size               = head_size;
-    rotary_params.rotary_embedding_dim    = rotary_dim;
-    rotary_params.num_heads               = num_heads;
-    rotary_params.max_sequence_length     = sequence_length;
-    rotary_params.seq_stride              = head_size;
-    rotary_params.head_stride             = sequence_length * rotary_params.seq_stride;
-    rotary_params.batch_stride            = batch_stride;
-    rotary_params.position_ids_format     = position_ids_format;
-    rotary_params.transposed              = transposed;
-    rotary_params.seqlen_present_kv_cache = present_kv_seqlen;
-    rotary_params.do_rotary               = do_rotary;
-    rotary_params.kv_num_heads            = kv_num_heads;
-    rotary_params.local_window_size       = local_window_size;
-    rotary_params.rotary_interleaved      = rotary_interleaved;
-    rotary_params.scale                   = scale;
+    bool past_present_share_buffer = true;
+    gqa_parameters gqa_params;
+    gqa_params.batch_size              = batch_size;
+    gqa_params.sequence_length         = sequence_length;
+    gqa_params.hidden_size             = q_hidden_size;
+    gqa_params.head_size               = head_size;
+    gqa_params.rotary_embedding_dim    = rotary_dim;
+    gqa_params.num_heads               = num_heads;
+    gqa_params.max_sequence_length     = sequence_length;
+    gqa_params.seq_stride              = head_size;
+    gqa_params.head_stride             = sequence_length * gqa_params.seq_stride;
+    gqa_params.batch_stride            = batch_stride;
+    gqa_params.position_ids_format     = position_ids_format;
+    gqa_params.transposed              = transposed;
+    gqa_params.seqlen_present_kv_cache = present_kv_seqlen;
+    gqa_params.do_rotary               = do_rotary;
+    gqa_params.kv_num_heads            = kv_num_heads;
+    gqa_params.local_window_size       = local_window_size;
+    gqa_params.rotary_interleaved      = rotary_interleaved;
+    gqa_params.scale                   = scale;
+    gqa_params.past_present_share_buffer = past_present_share_buffer;
+    gqa_params.packed_qkv              = packed_qkv;
 
-    return rotary_params;
+    return gqa_params;
 }
 
 } // namespace gpu

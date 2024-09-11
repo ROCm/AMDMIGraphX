@@ -86,13 +86,15 @@ struct parse_groupqueryattention : op_parser<parse_groupqueryattention>
             MIGRAPHX_THROW("GroupQueryAttention: Wrong number of inputs provided");
         }
 
+        auto present_kv_seqlen = args.at(args.size() - 6)->get_shape().lens()[2];
         auto ret             = info.add_instruction(make_op("group_query_attention",
                                                 {{"do_rotary", do_rotary},
                                                  {"kv_num_heads", kv_num_heads},
                                                  {"local_window_size", local_window_size},
                                                  {"num_heads", num_heads},
                                                  {"rotary_interleaved", rotary_interleaved},
-                                                 {"scale", scale}}),
+                                                 {"scale", scale},
+                                                 {"present_kv_seqlen", present_kv_seqlen}}),
                                         args);
         auto ret_result      = info.add_instruction(make_op("get_tuple_elem", {{"index", 0}}), ret);
         auto ret_present_key = info.add_instruction(make_op("get_tuple_elem", {{"index", 1}}), ret);

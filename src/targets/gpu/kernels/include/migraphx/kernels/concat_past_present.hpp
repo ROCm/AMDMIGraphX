@@ -26,13 +26,7 @@
 
 #include <migraphx/kernels/group_query_attention.hpp>
 #include <migraphx/kernels/index.hpp>
-#include <migraphx/kernels/algorithm.hpp>
-#include <migraphx/kernels/integral_constant.hpp>
 #include <migraphx/kernels/tensor_view.hpp>
-#include <migraphx/kernels/ck.hpp>
-#include <migraphx/kernels/gemm_batcher.hpp>
-#include <limits>
-#include <migraphx/kernels/type_traits.hpp>
 
 namespace migraphx {
 
@@ -46,7 +40,7 @@ __device__ void copy_data(Dest destination, const Src source, index_int n, index
 }
 
 template <class Past, class Chunk, class Present>
-__device__ Present ConcatStateChunkGQA(const Past past,
+__device__ Present concat_state_chunk(const Past past,
                                        Chunk chunk,
                                        Present present,
                                        index_int present_buff_chunk_length,
@@ -75,24 +69,22 @@ __device__ Present ConcatStateChunkGQA(const Past past,
 }
 
 template <class Present, class Seqlens_K, class Cache, class Params>
-__device__ void UpdateCache(Present present,
+__device__ void update_cache(Present present,
                             Seqlens_K seqlens_k,
-                            int batch_size,
-                            int sequence_length,
-                            int past_buffer_sequence_length,
-                            int present_buffer_sequence_length,
-                            int head_size,
                             Cache cache,
-                            bool past_present_share_buffer,
-                            bool packed_qkv,
                             Params params,
                             index_int idx)
 {
+    const int batch_size      = params.batch_size;
+    const int sequence_length = params.sequence_length;
+    const int head_size       = params.head_size;
+    const size_t past_buffer_sequence_length = params.seqlen_present_kv_cache;
+    const size_t present_buffer_sequence_length = past_buffer_sequence_length;
     const int num_heads    = params.num_heads;
     const int kv_num_heads = params.kv_num_heads;
     const bool is_prompt   = sequence_length != 1;
     const int packed_batch_stride =
-        packed_qkv ? (num_heads + 2 * kv_num_heads) * sequence_length * head_size : 0;
+        params.packed_qkv ? (num_heads + 2 * kv_num_heads) * sequence_length * head_size : 0;
     const int kv_num_heads_factor      = num_heads / kv_num_heads;
     const size_t kv_input_chunk_length = static_cast<size_t>(sequence_length) * head_size; // L x H
     const size_t past_buff_chunk_length =
@@ -114,7 +106,7 @@ __device__ void UpdateCache(Present present,
 
         auto current = present + packed_batch_stride * batch_index +
                        kv_input_chunk_length * (head_index / kv_num_heads_factor);
-        ConcatStateChunkGQA(cache,
+        concat_state_chunk(cache,
                             current,
                             cache,
                             present_buff_chunk_length,
@@ -122,7 +114,7 @@ __device__ void UpdateCache(Present present,
                             past_chunk_length,
                             kv_input_chunk_length,
                             is_prompt,
-                            past_present_share_buffer,
+                            params.past_present_share_buffer,
                             i / kv_num_heads_factor,
                             inner_i);
     }
@@ -132,50 +124,26 @@ template <class Output, class Query, class Key, class Value, class Seqlens_K, cl
 __device__ void
 concat_past_present(Output output, Query query, Key, Value, Seqlens_K seqlens_k, Params params)
 {
-    const int batch_size      = params.batch_size;
-    const int sequence_length = params.sequence_length;
-    const int head_size       = params.head_size;
-    const int kv_num_heads    = params.kv_num_heads;
     auto ind                  = make_index();
-    auto elements             = 2 * batch_size * kv_num_heads * sequence_length * head_size;
+    auto elements             = 2 * params.batch_size * params.kv_num_heads * params.sequence_length * params.head_size;
     ind.global_stride(elements, [&](auto idx) {
         auto q                = query.begin();
-        const bool packed_qkv = true;
-
-        int seqlen_present_kv_cache = params.seqlen_present_kv_cache;
-        int seqlen_past_kv_cache    = 4096;
-
-        bool past_present_share_buffer = true;
-        auto k                         = q + params.num_heads * sequence_length * head_size;
-        auto v = q + (params.num_heads + params.kv_num_heads) * sequence_length * head_size;
+        auto k                         = q + params.num_heads * params.sequence_length * params.head_size;
+        auto v = q + (params.num_heads + params.kv_num_heads) * params.sequence_length * params.head_size;
         output([&](auto k_cache, auto v_cache) {
             if(idx < elements / 2)
             {
-                UpdateCache(k,
+                update_cache(k,
                             seqlens_k,
-                            batch_size,
-                            sequence_length,
-                            seqlen_past_kv_cache,
-                            seqlen_present_kv_cache,
-                            head_size,
                             k_cache.begin(),
-                            past_present_share_buffer,
-                            packed_qkv,
                             params,
                             idx);
             }
             else if(idx < elements)
             {
-                UpdateCache(v,
+                update_cache(v,
                             seqlens_k,
-                            batch_size,
-                            sequence_length,
-                            seqlen_past_kv_cache,
-                            seqlen_present_kv_cache,
-                            head_size,
                             v_cache.begin(),
-                            past_present_share_buffer,
-                            packed_qkv,
                             params,
                             idx - (elements / 2));
             }

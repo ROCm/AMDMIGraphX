@@ -26,13 +26,7 @@
 
 #include <migraphx/kernels/group_query_attention.hpp>
 #include <migraphx/kernels/index.hpp>
-#include <migraphx/kernels/algorithm.hpp>
-#include <migraphx/kernels/integral_constant.hpp>
 #include <migraphx/kernels/tensor_view.hpp>
-#include <migraphx/kernels/ck.hpp>
-#include <migraphx/kernels/gemm_batcher.hpp>
-#include <limits>
-#include <migraphx/kernels/type_traits.hpp>
 
 namespace migraphx {
 
@@ -42,19 +36,19 @@ template <class Output,
           class PresentValue,
           class Params>
 __device__ void
-CalculateVxAttentionScore(Output output, // buffer for the result with size BxSxNxH
+calculate_attention_score(Output output, // buffer for the result with size BxSxNxH
                           const Attn_Probs attention_probs,   // Attention probs with size BxNxSxT
                           const SeqLens seqlens_k,            // past sequence lengths tensor
-                          int batch_size,                     // batch size
-                          int sequence_length,                // sequence length
-                          int present_buffer_sequence_length, // sequence length in past state
-                          int head_size,                      // head size of Q, K, V
-                          int hidden_size,                    // hidden size of Output
                           PresentValue present_value,         // present value only
                           Params params,
                           index_int idx)
 {
-    const int num_heads           = params.num_heads;
+    const int batch_size      = params.batch_size;
+    const int num_heads       = params.num_heads;
+    const int sequence_length = params.sequence_length;
+    const int head_size       = params.head_size;
+    const int hidden_size = params.hidden_size;
+    const size_t present_buffer_sequence_length = params.seqlen_present_kv_cache;
     const int kv_num_heads        = params.kv_num_heads;
     const int kv_num_heads_factor = num_heads / kv_num_heads;
     const size_t present_buff_chunk_length =
@@ -77,7 +71,7 @@ CalculateVxAttentionScore(Output output, // buffer for the result with size BxSx
         gemm(sequence_length,
              head_size,
              total_seqlen,
-             present_buffer_sequence_length, // 4096
+             present_buffer_sequence_length,
              head_size,
              hidden_size,
              output_current,
@@ -99,25 +93,13 @@ template <class Output,
 __device__ void compute_attention_scores(
     Output output, Query, Key, Value, Seqlens_K seqlens_k, Attn_Probs attn_probs, Params params)
 {
-    const int batch_size      = params.batch_size;
-    const int num_heads       = params.num_heads;
-    const int sequence_length = params.sequence_length;
-    const int head_size       = params.head_size;
-    const int elements        = batch_size * num_heads * sequence_length * head_size;
+    const int elements        = params.batch_size * params.num_heads * params.sequence_length * params.head_size;
     auto ind                  = make_index();
     ind.global_stride(elements, [&](auto idx) {
-        int seqlen_present_kv_cache = params.seqlen_present_kv_cache;
         output([&](auto output0, auto, auto v_cache) {
-            const int hidden_size = params.hidden_size;
-
-            CalculateVxAttentionScore(output0.begin(),
+            calculate_attention_score(output0.begin(),
                                       attn_probs.begin(),
                                       seqlens_k.begin(),
-                                      batch_size,
-                                      sequence_length,
-                                      seqlen_present_kv_cache,
-                                      head_size,
-                                      hidden_size,
                                       v_cache.begin(),
                                       params,
                                       idx);

@@ -26,13 +26,7 @@
 
 #include <migraphx/kernels/group_query_attention.hpp>
 #include <migraphx/kernels/index.hpp>
-#include <migraphx/kernels/algorithm.hpp>
-#include <migraphx/kernels/integral_constant.hpp>
 #include <migraphx/kernels/tensor_view.hpp>
-#include <migraphx/kernels/ck.hpp>
-#include <migraphx/kernels/gemm_batcher.hpp>
-#include <limits>
-#include <migraphx/kernels/type_traits.hpp>
 
 namespace migraphx {
 
@@ -44,11 +38,11 @@ __device__ bool float_equal(T x, T y)
 }
 
 template <class T>
-__device__ void CalculateAttentionSoftmaxInplace(T score, int N, int D)
+__device__ void softmax_inplace(T score, int n, int d)
 {
-    for(int j = 0; j < N; ++j)
+    for(int j = 0; j < n; ++j)
     {
-        auto x = score + j * D;
+        auto x = score + j * d;
         auto y = x;
 
         // e^x is represented as infinity if x is large enough, like 100.f.
@@ -57,33 +51,33 @@ __device__ void CalculateAttentionSoftmaxInplace(T score, int N, int D)
         // leveraged to get a stable softmax: e^xi/(e^x1 + ...e^xn) = e^(xi -
         // max) / (e^(x1 - max) + ... + e^(xn - max))
         float max = -numeric_max<float>();
-        for(int i = 0; i < D; i++)
+        for(int i = 0; i < d; i++)
         {
             if(max < x[i])
                 max = x[i];
         }
-        for(int i = 0; i < D; i++)
+        for(int i = 0; i < d; i++)
         {
             y[i] = expf(x[i] - max);
         }
 
         float sum        = 0.0;
         const float zero = 0.0;
-        for(int i = 0; i < D; i++)
+        for(int i = 0; i < d; i++)
         {
             sum += x[i];
         }
 
         if(float_equal(sum, zero))
         {
-            for(int i = 0; i < D; i++)
+            for(int i = 0; i < d; i++)
             {
-                y[i] = 1.0f / static_cast<float>(D);
+                y[i] = 1.0f / static_cast<float>(d);
             }
         }
         else
         {
-            for(int i = 0; i < D; i++)
+            for(int i = 0; i < d; i++)
             {
                 y[i] = x[i] / static_cast<float>(sum);
             }
@@ -95,15 +89,15 @@ template <class Attn_Probs,
           class SeqLens,
           class Params>
 __device__ void
-CalculateSoftmax(Attn_Probs attention_probs,         // output buffer with size BxNxSxT
+calculate_softmax(Attn_Probs attention_probs,         // output buffer with size BxNxSxT
                  SeqLens seqlens_k,                  // past sequence lengths tensor
-                 int batch_size,                     // batch size of self-attention
-                 int sequence_length,                // sequence length of self-attention (S)
-                 int present_buffer_sequence_length, // sequence length of present state
                  Params params,
                  index_int idx)
 {
+    const int batch_size      = params.batch_size;
+    const int sequence_length = params.sequence_length;
     const int num_heads = params.num_heads;
+    const size_t present_buffer_sequence_length = params.seqlen_present_kv_cache;
 
     const index_int loop_len = batch_size * num_heads;
     const index_int i        = idx / sequence_length;
@@ -132,16 +126,15 @@ CalculateSoftmax(Attn_Probs attention_probs,         // output buffer with size 
                 {
                     output_softmax[total_seq_id] = 0.f;
                 }
-                CalculateAttentionSoftmaxInplace(output_softmax + seq_causal_length -
+                softmax_inplace(output_softmax + seq_causal_length -
                                                      local_window_size - 1,
                                                  1,
                                                  local_window_size + 1);
             }
             else
             {
-                CalculateAttentionSoftmaxInplace(output_softmax, 1, seq_causal_length);
+                softmax_inplace(output_softmax, 1, seq_causal_length);
             }
-            // set causal [seq_causal_length, total_seqlen) to 0.f
             for(int total_seq_id = seq_causal_length; total_seq_id < total_seqlen; total_seq_id++)
             {
                 output_softmax[total_seq_id] = 0.f;
@@ -150,21 +143,14 @@ CalculateSoftmax(Attn_Probs attention_probs,         // output buffer with size 
     }
 }
 
-template <class Output, class Pass, class Input, class Seqlens_K, class Params>
-__device__ void gqa_softmax(Output output, Pass, Input, Seqlens_K seqlens_k, Params params)
+template <class Output, class Input, class Probs, class Seqlens_K, class Params>
+__device__ void gqa_softmax(Output output, Input, Probs, Seqlens_K seqlens_k, Params params)
 {
-    const int batch_size      = params.batch_size;
-    const int sequence_length = params.sequence_length;
-    const int num_heads       = params.num_heads;
-    const int elements        = batch_size * num_heads * sequence_length;
+    const int elements        = params.batch_size * params.num_heads * params.sequence_length;
     auto ind                  = make_index();
     ind.global_stride(elements, [&](auto idx) {
-        int seqlen_present_kv_cache = params.seqlen_present_kv_cache;
-        CalculateSoftmax(output.begin(),
+        calculate_softmax(output.begin(),
                          seqlens_k.begin(),
-                         batch_size,
-                         sequence_length,
-                         seqlen_present_kv_cache,
                          params,
                          idx);
     });

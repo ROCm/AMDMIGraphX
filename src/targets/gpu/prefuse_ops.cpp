@@ -320,39 +320,22 @@ struct find_group_query_attention
         assert(v.contains("kv_num_heads"));
         auto kv_num_heads = v.at("kv_num_heads").to<int>();
         assert(v.contains("do_rotary"));
-        auto do_rotary = v.at("do_rotary").to<bool>();
+        auto do_rotary = v.at("do_rotary").to<int>();
         assert(v.contains("local_window_size"));
         auto local_window_size = v.at("local_window_size").to<int>();
         assert(v.contains("rotary_interleaved"));
         auto rotary_interleaved = v.at("rotary_interleaved").to<int>();
         assert(v.contains("scale"));
         auto scale = v.at("scale").to<float>();
+        assert(v.contains("present_kv_seqlen"));
+        auto present_kv_seqlen = v.at("present_kv_seqlen").to<std::size_t>();
 
         auto q_shape                      = inputs[0]->get_shape();
         auto q_lens                       = q_shape.lens();
-        auto input_type                   = q_shape.type();
         const std::size_t batch_size      = q_lens[0];
         const std::size_t sequence_length = q_lens[1];
-        auto past_key_shape               = inputs[3]->get_shape();
-        auto past_key_lens                = past_key_shape.lens();
-        auto past_sequence_length         = past_key_lens[2];
         std::size_t q_hidden_size         = q_lens[2];
         std::size_t head_size             = q_hidden_size / (num_heads + 2 * kv_num_heads);
-        q_hidden_size                     = head_size * num_heads;
-        std::size_t present_kv_seqlen     = past_sequence_length;
-
-        shape output_shape{input_type, {batch_size, sequence_length, q_hidden_size}};
-        shape qkv_rotary_shape{input_type,
-                               {batch_size,
-                                static_cast<std::size_t>(num_heads + 2 * kv_num_heads),
-                                sequence_length,
-                                head_size}};
-        shape kv_shape{
-            input_type,
-            {batch_size, static_cast<std::size_t>(kv_num_heads), past_sequence_length, head_size}};
-        shape attn_probs_shape{
-            input_type,
-            {batch_size, static_cast<std::size_t>(num_heads), sequence_length, present_kv_seqlen}};
 
         std::vector<std::size_t> bsnh{batch_size,
                                       sequence_length,
@@ -376,7 +359,7 @@ struct find_group_query_attention
         auto rotary_qkv = mpm.get_module().insert_instruction(
             ins,
             gpu_gqa_rotary_embedding{
-                do_rotary, kv_num_heads, local_window_size, num_heads, rotary_interleaved, scale},
+                do_rotary, kv_num_heads, local_window_size, num_heads, rotary_interleaved, scale, present_kv_seqlen},
             rotary_inputs);
 
         std::vector<instruction_ref> concat_inputs{
@@ -385,7 +368,7 @@ struct find_group_query_attention
         auto concat = mpm.get_module().insert_instruction(
             ins,
             gpu_concat_past_present{
-                do_rotary, kv_num_heads, local_window_size, num_heads, rotary_interleaved, scale},
+                do_rotary, kv_num_heads, local_window_size, num_heads, rotary_interleaved, scale, present_kv_seqlen},
             concat_inputs);
         auto pres_k = mpm.get_module().insert_instruction(
             ins, make_op("get_tuple_elem", {{"index", 0}}), concat);
@@ -396,7 +379,7 @@ struct find_group_query_attention
         auto attn_probs = mpm.get_module().insert_instruction(
             ins,
             gpu_compute_attention_probabilities{
-                do_rotary, kv_num_heads, local_window_size, num_heads, rotary_interleaved, scale},
+                do_rotary, kv_num_heads, local_window_size, num_heads, rotary_interleaved, scale, present_kv_seqlen},
             attn_probs_inputs);
 
         auto probs = mpm.get_module().insert_instruction(
@@ -410,7 +393,7 @@ struct find_group_query_attention
         auto softmax = mpm.get_module().insert_instruction(
             ins,
             gpu_gqa_softmax{
-                do_rotary, kv_num_heads, local_window_size, num_heads, rotary_interleaved, scale},
+                do_rotary, kv_num_heads, local_window_size, num_heads, rotary_interleaved, scale, present_kv_seqlen},
             softmax_inputs);
         std::vector<instruction_ref> new_inputs{
             rotary_qkv, present_key, present_value, inputs.at(5), softmax};
@@ -418,7 +401,7 @@ struct find_group_query_attention
         mpm.get_module().replace_instruction(
             ins,
             gpu_compute_attention_scores{
-                do_rotary, kv_num_heads, local_window_size, num_heads, rotary_interleaved, scale},
+                do_rotary, kv_num_heads, local_window_size, num_heads, rotary_interleaved, scale, present_kv_seqlen},
             new_inputs);
     }
 };

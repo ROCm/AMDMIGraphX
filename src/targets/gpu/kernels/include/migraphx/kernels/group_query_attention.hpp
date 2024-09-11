@@ -32,7 +32,7 @@
 #include <migraphx/kernels/type_traits.hpp>
 
 namespace migraphx {
-struct RotaryParameters
+struct gqa_parameters
 {
     float scale;
     int batch_size;           // Batch size used by input
@@ -55,6 +55,8 @@ struct RotaryParameters
     int kv_num_heads;
     int local_window_size;
     int rotary_interleaved;
+    int past_present_share_buffer;
+    int packed_qkv;
 
     __host__ __device__ void print() const
     {
@@ -76,19 +78,21 @@ struct RotaryParameters
         printf("kv_num_heads: %d\n", kv_num_heads);
         printf("local_window_size: %d\n", local_window_size);
         printf("rotary_interleaved: %d\n", rotary_interleaved);
+        printf("past_present_share_buffer: %d\n", past_present_share_buffer);
+        printf("packed_qkv: %d\n", packed_qkv);
     }
 };
 
 template <class S, class... Ts>
-__device__ RotaryParameters make_rotary_params(S s, Ts... ts)
+__device__ gqa_parameters make_gqa_params(S s, Ts... ts)
 {
     return {static_cast<float>(s), ts...};
 }
 
 template <class C, class A, class B, class F>
-__device__ void gemm(std::size_t M,
-                     std::size_t N,
-                     std::size_t K,
+__device__ void gemm(std::size_t m,
+                     std::size_t n,
+                     std::size_t k,
                      std::size_t lda,
                      std::size_t ldb,
                      std::size_t ldc,
@@ -100,25 +104,22 @@ __device__ void gemm(std::size_t M,
                      std::size_t idx,
                      const bool b_transpose = false)
 {
-    auto m      = idx / N;
-    auto n      = idx % N;
-    auto a_idx  = [&](auto ii, auto kk) { return kk + (ii * lda); };
-    auto b_idx  = [&](auto kk, auto jj) { return jj + (kk * ldb); };
-    auto bt_idx = [&](auto kk, auto jj) { return jj + (kk * ldb); };
-    auto c_idx  = [&](auto ii, auto jj) { return jj + (ii * ldc); };
+    auto m_      = idx / n;
+    auto n_      = idx % n;
+    auto index  = [&](auto x, auto y, auto z) { return y + (x * z); };
 
-    if(m < M)
+    if(m_ < m)
     {
-        if(n < N)
+        if(n_ < n)
         {
             double s = 0.0;
-            for(int k = 0; k < K; ++k)
+            for(int k_ = 0; k_ < k; ++k_)
             {
-                auto a_i = a_idx(m, k);
-                auto b_i = b_transpose ? bt_idx(n, k) : b_idx(k, n);
+                auto a_i = index(m_, k_, lda);
+                auto b_i = b_transpose ? index(n_, k_, ldb) : index(k_, n_, ldb);
                 s += static_cast<double>(amat[a_i]) * static_cast<double>(bmat[b_i]);
             }
-            auto c_i  = c_idx(m, n);
+            auto c_i  = index(m_, n_, ldc);
             cmat[c_i] = static_cast<double>(alpha) * s + cmat[c_i] * static_cast<double>(beta);
         }
     }

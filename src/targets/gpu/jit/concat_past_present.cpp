@@ -64,7 +64,7 @@ MIGRAPHX_GLOBAL void ${kernel}(${params})
 {
     transform_args(make_tensors(), rotate_and_pack_last<${noutputs}>())(${args})([](auto... xs) {
         
-        concat_past_present(xs..., make_rotary_params(${rotary_params}));
+        concat_past_present(xs..., make_gqa_params(${gqa_params}));
     });
 }
 
@@ -85,7 +85,7 @@ struct concat_past_present_compiler : compiler<concat_past_present_compiler>
     operation compile_op(context& ctx, const std::vector<shape>& inputs, const value& v) const
     {
         auto params            = init_params(inputs, v);
-        auto rotary_params_str = params.make_init_str();
+        auto gqa_params_str = params.make_init_str();
 
         auto flattened_inputs = flatten(inputs);
         hip_compile_options options;
@@ -102,7 +102,7 @@ struct concat_past_present_compiler : compiler<concat_past_present_compiler>
             concat_past_present_kernel,
             {{"params", enum_params(flattened_inputs.size(), "void * private_p")},
              {"args", enum_params(flattened_inputs.size(), "private_p")},
-             {"rotary_params", rotary_params_str},
+             {"gqa_params", gqa_params_str},
              {"kernel", options.kernel_name},
              {"noutputs", std::to_string(2)}});
         return compile_hip_code_object(src, options);

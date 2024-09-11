@@ -521,7 +521,7 @@ static shape parse_tensor_shape(const onnx::TensorProto& t)
 literal onnx_parser::parse_tensor(const onnx::TensorProto& t) const
 {
     auto tensor_shape  = parse_tensor_shape(t);
-    auto dims          = tensor_shape.lens();
+    const auto& dims   = tensor_shape.lens();
     auto type          = tensor_shape.type();
     auto external_data = t.external_data();
 

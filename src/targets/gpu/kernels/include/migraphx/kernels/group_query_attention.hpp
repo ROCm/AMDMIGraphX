@@ -104,9 +104,9 @@ __device__ void gemm(std::size_t m,
                      std::size_t idx,
                      const bool b_transpose = false)
 {
-    auto m_      = idx / n;
-    auto n_      = idx % n;
-    auto index  = [&](auto x, auto y, auto z) { return y + (x * z); };
+    auto m_    = idx / n;
+    auto n_    = idx % n;
+    auto index = [&](auto x, auto y, auto z) { return y + (x * z); };
 
     if(m_ < m)
     {

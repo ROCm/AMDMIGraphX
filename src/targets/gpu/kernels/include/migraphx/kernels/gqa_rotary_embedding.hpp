@@ -107,10 +107,9 @@ template <class Params, class Input, class Output>
 __device__ void
 pack_v_into_rotary_qkv(Params params, const Input input, Output output, index_int idx)
 {
-    const int loop_len =
-        params.batch_size * params.sequence_length * params.kv_num_heads;
-    auto i  = idx / params.head_size;
-    auto ii = idx % params.head_size;
+    const int loop_len = params.batch_size * params.sequence_length * params.kv_num_heads;
+    auto i             = idx / params.head_size;
+    auto ii            = idx % params.head_size;
     if(i < loop_len)
     {
         const index_int b = (i / params.kv_num_heads) / params.sequence_length;

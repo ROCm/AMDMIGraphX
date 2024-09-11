@@ -36,17 +36,17 @@ template <class Attn_Probs,
           class PresentKey,
           class Params>
 __device__ void
-calculate_attention_probs(Attn_Probs attention_probs,         // output buffer with size BxNxSxT
-                        Query query,                        // Q data. Its size is BxNxSxH
-                        SeqLens seqlens_k,                  // past sequence lengths tensor
-                        PresentKey present_key,             // present key only
-                        Params params,
-                        index_int idx)
+calculate_attention_probs(Attn_Probs attention_probs, // output buffer with size BxNxSxT
+                          Query query,                // Q data. Its size is BxNxSxH
+                          SeqLens seqlens_k,          // past sequence lengths tensor
+                          PresentKey present_key,     // present key only
+                          Params params,
+                          index_int idx)
 {
-    const int batch_size      = params.batch_size;
-    const int sequence_length = params.sequence_length;
-    const int head_size       = params.head_size;
-    const bool packed_qkv     = params.packed_qkv;
+    const int batch_size                        = params.batch_size;
+    const int sequence_length                   = params.sequence_length;
+    const int head_size                         = params.head_size;
+    const bool packed_qkv                       = params.packed_qkv;
     const size_t present_buffer_sequence_length = params.seqlen_present_kv_cache;
     const int num_heads    = params.num_heads;
     const int kv_num_heads = params.kv_num_heads;
@@ -86,7 +86,7 @@ calculate_attention_probs(Attn_Probs attention_probs,         // output buffer w
              head_size,
              head_size,
              head_size,
-             present_buffer_sequence_length, 
+             present_buffer_sequence_length,
              output,
              q,
              pk,
@@ -107,11 +107,11 @@ __device__ void compute_attention_probabilities(
                       [&](auto idx) {
                           output([&](auto output0, auto k_cache, auto) {
                               calculate_attention_probs(output0.begin(),
-                                                      query.begin(),
-                                                      seqlens_k.begin(),
-                                                      k_cache.begin(),
-                                                      params,
-                                                      idx);
+                                                        query.begin(),
+                                                        seqlens_k.begin(),
+                                                        k_cache.begin(),
+                                                        params,
+                                                        idx);
                           });
                       });
 }

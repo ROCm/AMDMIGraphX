@@ -76,8 +76,8 @@ void gemm(std::size_t m,
           shape::type_t dtype,
           const bool b_transpose = false)
 {
-    auto cs     = shape{dtype, {m, n}};
-    auto idx  = [&](auto x, auto y, auto z) { return y + (x * z); };
+    auto cs  = shape{dtype, {m, n}};
+    auto idx = [&](auto x, auto y, auto z) { return y + (x * z); };
 
     par_for(cs.elements(), [&](auto i) {
         auto c_midx = cs.multi(i);

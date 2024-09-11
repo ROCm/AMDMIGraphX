@@ -37,17 +37,17 @@ template <class Output,
           class Params>
 __device__ void
 calculate_attention_score(Output output, // buffer for the result with size BxSxNxH
-                          const Attn_Probs attention_probs,   // Attention probs with size BxNxSxT
-                          const SeqLens seqlens_k,            // past sequence lengths tensor
-                          PresentValue present_value,         // present value only
+                          const Attn_Probs attention_probs, // Attention probs with size BxNxSxT
+                          const SeqLens seqlens_k,          // past sequence lengths tensor
+                          PresentValue present_value,       // present value only
                           Params params,
                           index_int idx)
 {
-    const int batch_size      = params.batch_size;
-    const int num_heads       = params.num_heads;
-    const int sequence_length = params.sequence_length;
-    const int head_size       = params.head_size;
-    const int hidden_size = params.hidden_size;
+    const int batch_size                        = params.batch_size;
+    const int num_heads                         = params.num_heads;
+    const int sequence_length                   = params.sequence_length;
+    const int head_size                         = params.head_size;
+    const int hidden_size                       = params.hidden_size;
     const size_t present_buffer_sequence_length = params.seqlen_present_kv_cache;
     const int kv_num_heads        = params.kv_num_heads;
     const int kv_num_heads_factor = num_heads / kv_num_heads;
@@ -93,7 +93,8 @@ template <class Output,
 __device__ void compute_attention_scores(
     Output output, Query, Key, Value, Seqlens_K seqlens_k, Attn_Probs attn_probs, Params params)
 {
-    const int elements        = params.batch_size * params.num_heads * params.sequence_length * params.head_size;
+    const int elements =
+        params.batch_size * params.num_heads * params.sequence_length * params.head_size;
     auto ind                  = make_index();
     ind.global_stride(elements, [&](auto idx) {
         output([&](auto output0, auto, auto v_cache) {

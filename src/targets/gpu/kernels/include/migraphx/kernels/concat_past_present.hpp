@@ -41,16 +41,16 @@ __device__ void copy_data(Dest destination, const Src source, index_int n, index
 
 template <class Past, class Chunk, class Present>
 __device__ Present concat_state_chunk(const Past past,
-                                       Chunk chunk,
-                                       Present present,
-                                       index_int present_buff_chunk_length,
-                                       index_int past_buff_chunk_length,
-                                       index_int past_chunk_length,
-                                       index_int new_chunk_length,
-                                       bool is_prompt,
-                                       bool past_present_share_buffer,
-                                       std::ptrdiff_t i,
-                                       index_int idx)
+                                      Chunk chunk,
+                                      Present present,
+                                      index_int present_buff_chunk_length,
+                                      index_int past_buff_chunk_length,
+                                      index_int past_chunk_length,
+                                      index_int new_chunk_length,
+                                      bool is_prompt,
+                                      bool past_present_share_buffer,
+                                      std::ptrdiff_t i,
+                                      index_int idx)
 {
     auto start = present + i * present_buff_chunk_length;
 
@@ -69,16 +69,13 @@ __device__ Present concat_state_chunk(const Past past,
 }
 
 template <class Present, class Seqlens_K, class Cache, class Params>
-__device__ void update_cache(Present present,
-                            Seqlens_K seqlens_k,
-                            Cache cache,
-                            Params params,
-                            index_int idx)
+__device__ void
+update_cache(Present present, Seqlens_K seqlens_k, Cache cache, Params params, index_int idx)
 {
-    const int batch_size      = params.batch_size;
-    const int sequence_length = params.sequence_length;
-    const int head_size       = params.head_size;
-    const size_t past_buffer_sequence_length = params.seqlen_present_kv_cache;
+    const int batch_size                        = params.batch_size;
+    const int sequence_length                   = params.sequence_length;
+    const int head_size                         = params.head_size;
+    const size_t past_buffer_sequence_length    = params.seqlen_present_kv_cache;
     const size_t present_buffer_sequence_length = past_buffer_sequence_length;
     const int num_heads    = params.num_heads;
     const int kv_num_heads = params.kv_num_heads;
@@ -107,16 +104,16 @@ __device__ void update_cache(Present present,
         auto current = present + packed_batch_stride * batch_index +
                        kv_input_chunk_length * (head_index / kv_num_heads_factor);
         concat_state_chunk(cache,
-                            current,
-                            cache,
-                            present_buff_chunk_length,
-                            past_buff_chunk_length,
-                            past_chunk_length,
-                            kv_input_chunk_length,
-                            is_prompt,
-                            params.past_present_share_buffer,
-                            i / kv_num_heads_factor,
-                            inner_i);
+                           current,
+                           cache,
+                           present_buff_chunk_length,
+                           past_buff_chunk_length,
+                           past_chunk_length,
+                           kv_input_chunk_length,
+                           is_prompt,
+                           params.past_present_share_buffer,
+                           i / kv_num_heads_factor,
+                           inner_i);
     }
 }
 
@@ -125,27 +122,21 @@ __device__ void
 concat_past_present(Output output, Query query, Key, Value, Seqlens_K seqlens_k, Params params)
 {
     auto ind                  = make_index();
-    auto elements             = 2 * params.batch_size * params.kv_num_heads * params.sequence_length * params.head_size;
+    auto elements =
+        2 * params.batch_size * params.kv_num_heads * params.sequence_length * params.head_size;
     ind.global_stride(elements, [&](auto idx) {
         auto q                = query.begin();
-        auto k                         = q + params.num_heads * params.sequence_length * params.head_size;
-        auto v = q + (params.num_heads + params.kv_num_heads) * params.sequence_length * params.head_size;
+        auto k                = q + params.num_heads * params.sequence_length * params.head_size;
+        auto v = q + (params.num_heads + params.kv_num_heads) * params.sequence_length *
+                         params.head_size;
         output([&](auto k_cache, auto v_cache) {
             if(idx < elements / 2)
             {
-                update_cache(k,
-                            seqlens_k,
-                            k_cache.begin(),
-                            params,
-                            idx);
+                update_cache(k, seqlens_k, k_cache.begin(), params, idx);
             }
             else if(idx < elements)
             {
-                update_cache(v,
-                            seqlens_k,
-                            v_cache.begin(),
-                            params,
-                            idx - (elements / 2));
+                update_cache(v, seqlens_k, v_cache.begin(), params, idx - (elements / 2));
             }
         });
     });

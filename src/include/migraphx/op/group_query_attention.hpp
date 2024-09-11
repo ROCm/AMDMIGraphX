@@ -183,15 +183,15 @@ struct group_query_attention
 
     template <typename T>
     T concat_state_chunk(const T past,
-                          const T chunk,
-                          T present,
-                          size_t present_buff_chunk_length,
-                          size_t past_buff_chunk_length,
-                          size_t past_chunk_length,
-                          size_t new_chunk_length,
-                          bool is_prompt,
-                          bool past_present_share_buffer,
-                          std::ptrdiff_t i) const
+                         const T chunk,
+                         T present,
+                         size_t present_buff_chunk_length,
+                         size_t past_buff_chunk_length,
+                         size_t past_chunk_length,
+                         size_t new_chunk_length,
+                         bool is_prompt,
+                         bool past_present_share_buffer,
+                         std::ptrdiff_t i) const
     {
         T start = present + i * present_buff_chunk_length;
 
@@ -307,15 +307,15 @@ struct group_query_attention
             auto k = key + packed_batch_stride * batch_index +
                      kv_input_chunk_length * (head_index / kv_num_heads_factor);
             k = concat_state_chunk(past_key,
-                                    k,
-                                    present_key,
-                                    present_buff_chunk_length,
-                                    past_buff_chunk_length,
-                                    past_chunk_length,
-                                    kv_input_chunk_length,
-                                    is_prompt,
-                                    past_present_share_buffer,
-                                    i / kv_num_heads_factor);
+                                   k,
+                                   present_key,
+                                   present_buff_chunk_length,
+                                   past_buff_chunk_length,
+                                   past_chunk_length,
+                                   kv_input_chunk_length,
+                                   is_prompt,
+                                   past_present_share_buffer,
+                                   i / kv_num_heads_factor);
 
             // Calculate Q*K' + AttentionMask
             //                     original                 transposed             each iteration
@@ -358,10 +358,9 @@ struct group_query_attention
                     {
                         output_softmax[total_seq_id] = 0.f;
                     }
-                    softmax_inplace(output_softmax + seq_causal_length -
-                                                         local_window_size - 1,
-                                                     1,
-                                                     local_window_size + 1);
+                    softmax_inplace(output_softmax + seq_causal_length - local_window_size - 1,
+                                    1,
+                                    local_window_size + 1);
                 }
                 else
                 {
@@ -428,15 +427,15 @@ struct group_query_attention
             }
 
             v = concat_state_chunk(past_value,
-                                    v,
-                                    present_value,
-                                    present_buff_chunk_length,
-                                    past_buff_chunk_length,
-                                    past_chunk_length,
-                                    kv_input_chunk_length,
-                                    is_prompt,
-                                    past_present_share_buffer,
-                                    i / kv_num_heads_factor);
+                                   v,
+                                   present_value,
+                                   present_buff_chunk_length,
+                                   past_buff_chunk_length,
+                                   past_chunk_length,
+                                   kv_input_chunk_length,
+                                   is_prompt,
+                                   past_present_share_buffer,
+                                   i / kv_num_heads_factor);
 
             T output_current =
                 output + (batch_index * sequence_length * num_heads + head_index) * head_size;
@@ -482,19 +481,19 @@ struct group_query_attention
         const T k                      = qkv + num_heads * sequence_length * head_size;
 
         calculate_attention_probs(attention_probs,
-                                qkv,
-                                k,
-                                seqlens_k,
-                                batch_size,
-                                sequence_length,
-                                seqlen_past_kv_cache,
-                                seqlen_present_kv_cache,
-                                head_size,
-                                past_key,
-                                present_key,
-                                past_present_share_buffer,
-                                packed_qkv,
-                                dtype);
+                                  qkv,
+                                  k,
+                                  seqlens_k,
+                                  batch_size,
+                                  sequence_length,
+                                  seqlen_past_kv_cache,
+                                  seqlen_present_kv_cache,
+                                  head_size,
+                                  past_key,
+                                  present_key,
+                                  past_present_share_buffer,
+                                  packed_qkv,
+                                  dtype);
 
         const T v = qkv + (num_heads + kv_num_heads) * sequence_length * head_size;
         calculate_attention_score(output,
@@ -609,19 +608,19 @@ struct group_query_attention
                     auto q_rotary = rotary_qkv.begin();
                     auto k_rotary = q_rotary + num_heads * sequence_length * head_size;
 
-                    gqa_parameters gqa_params     = {};
-                    gqa_params.batch_size           = batch_size;
-                    gqa_params.sequence_length      = sequence_length;
-                    gqa_params.hidden_size          = q_hidden_size;
-                    gqa_params.head_size            = head_size;
-                    gqa_params.rotary_embedding_dim = rotary_dim;
-                    gqa_params.num_heads            = num_heads;
-                    gqa_params.max_sequence_length  = sequence_length;
-                    gqa_params.seq_stride           = head_size;
-                    gqa_params.head_stride          = sequence_length * gqa_params.seq_stride;
-                    gqa_params.batch_stride         = batch_stride;
-                    gqa_params.position_ids_format  = position_ids_format;
-                    gqa_params.transposed           = transposed;
+                    gqa_parameters gqa_params          = {};
+                    gqa_params.batch_size              = batch_size;
+                    gqa_params.sequence_length         = sequence_length;
+                    gqa_params.hidden_size             = q_hidden_size;
+                    gqa_params.head_size               = head_size;
+                    gqa_params.rotary_embedding_dim    = rotary_dim;
+                    gqa_params.num_heads               = num_heads;
+                    gqa_params.max_sequence_length     = sequence_length;
+                    gqa_params.seq_stride              = head_size;
+                    gqa_params.head_stride             = sequence_length * gqa_params.seq_stride;
+                    gqa_params.batch_stride            = batch_stride;
+                    gqa_params.position_ids_format     = position_ids_format;
+                    gqa_params.transposed              = transposed;
                     gqa_params.seqlen_present_kv_cache = present_kv_seqlen;
                     for(int i = 0; i < query.get_shape().elements(); ++i)
                     {
@@ -635,8 +634,8 @@ struct group_query_attention
                                          pos_ids.data(),
                                          gqa_params);
                     std::size_t kv_hidden_size = head_size * kv_num_heads;
-                    gqa_params.num_heads    = kv_num_heads;
-                    gqa_params.hidden_size  = kv_hidden_size;
+                    gqa_params.num_heads       = kv_num_heads;
+                    gqa_params.hidden_size     = kv_hidden_size;
 
                     run_rotary_embedding(k_input,
                                          cos_cache.begin(),
@@ -647,7 +646,7 @@ struct group_query_attention
                                          gqa_params);
                     auto v_input            = k_input + kv_num_heads * sequence_length * head_size;
                     auto v_rotary           = k_rotary + kv_num_heads * sequence_length * head_size;
-                    gqa_params.num_heads = num_heads;
+                    gqa_params.num_heads    = num_heads;
 
                     pack_v_into_rotary_qkv(gqa_params, v_input, v_rotary);
 

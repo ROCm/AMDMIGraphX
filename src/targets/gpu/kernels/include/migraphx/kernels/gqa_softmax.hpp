@@ -88,14 +88,13 @@ __device__ void softmax_inplace(T score, int n, int d)
 template <class Attn_Probs,
           class SeqLens,
           class Params>
-__device__ void
-calculate_softmax(Attn_Probs attention_probs,         // output buffer with size BxNxSxT
-                 SeqLens seqlens_k,                  // past sequence lengths tensor
-                 Params params,
-                 index_int idx)
+__device__ void calculate_softmax(Attn_Probs attention_probs, // output buffer with size BxNxSxT
+                                  SeqLens seqlens_k,          // past sequence lengths tensor
+                                  Params params,
+                                  index_int idx)
 {
-    const int batch_size      = params.batch_size;
-    const int sequence_length = params.sequence_length;
+    const int batch_size                        = params.batch_size;
+    const int sequence_length                   = params.sequence_length;
     const int num_heads = params.num_heads;
     const size_t present_buffer_sequence_length = params.seqlen_present_kv_cache;
 
@@ -126,10 +125,9 @@ calculate_softmax(Attn_Probs attention_probs,         // output buffer with size
                 {
                     output_softmax[total_seq_id] = 0.f;
                 }
-                softmax_inplace(output_softmax + seq_causal_length -
-                                                     local_window_size - 1,
-                                                 1,
-                                                 local_window_size + 1);
+                softmax_inplace(output_softmax + seq_causal_length - local_window_size - 1,
+                                1,
+                                local_window_size + 1);
             }
             else
             {
@@ -149,10 +147,7 @@ __device__ void gqa_softmax(Output output, Input, Probs, Seqlens_K seqlens_k, Pa
     const int elements        = params.batch_size * params.num_heads * params.sequence_length;
     auto ind                  = make_index();
     ind.global_stride(elements, [&](auto idx) {
-        calculate_softmax(output.begin(),
-                         seqlens_k.begin(),
-                         params,
-                         idx);
+        calculate_softmax(output.begin(), seqlens_k.begin(), params, idx);
     });
 }
 

@@ -15,6 +15,15 @@ Our documentation is structured as follows:
 .. grid:: 2
   :gutter: 3
 
+  .. grid-item-card:: Install
+
+    * :doc:`Prerequisites <./install/prerequisites>`
+    * :doc:`Tested configurations <./install/tested_configurations>`
+    * :doc:`Install MIGraphX <./install/install>`
+    * :doc:`Build and install MIGraphX with Docker <./install/build_and_install_with_docker>`
+    * :doc:`Build and install MIGraphX with Docker <./install/build_and_install_with_cmake>`
+    * :doc:`Build and install MIGraphX with Docker <./install/build_and_install_with_rbuild>`
+  
   .. grid-item-card:: Reference
 
     * :ref:`cpp-api-reference`
@@ -30,9 +39,3 @@ To contribute to the documentation refer to
 
 Licensing information can be found on the
 `Licensing <https://rocm.docs.amd.com/en/latest/about/license.html>`_ page.
-
-Index and search
-==================
-
-* :ref:`genindex`
-* :ref:`search`

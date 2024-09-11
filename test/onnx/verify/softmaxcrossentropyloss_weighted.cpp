@@ -420,6 +420,28 @@ TEST_CASE(softmaxcrossentropyloss_2d_no_reduction_weighted_neg_ignore_index_and_
     EXPECT(migraphx::verify::verify_rms_range(result_vector, gold));
 }
 
+TEST_CASE(softmaxcrossentropyloss_2d_neg_ignore_index_invalid_label_test)
+{
+    migraphx::program p =
+        optimize_onnx("softmaxcrossentropyloss_2d_no_reduction_weighted_neg_ignore_idx_test.onnx");
+    p.compile(migraphx::make_target("ref"));
+
+    migraphx::shape score_shape{migraphx::shape::float_type, {4, 4}};
+    std::vector<float> score_data(score_shape.elements(), 1.0f);
+    migraphx::shape label_shape{migraphx::shape::int32_type, {4}};
+    std::vector<int32_t> label_data = {0, 3, 1, -5};
+    migraphx::shape weight_shape{migraphx::shape::float_type, {4}};
+    std::vector<float> weight_data = {1.0f, 0.5f, 2.0f, 3.0f};
+
+    migraphx::parameter_map pp;
+    pp["0"] = migraphx::argument(score_shape, score_data.data());
+    pp["1"] = migraphx::argument(label_shape, label_data.data());
+    pp["2"] = migraphx::argument(weight_shape, weight_data.data());
+
+    // Should throw as even through ignore_idx out of bounds and negative label being out of bounds is invalid
+    EXPECT(test::throws( [&]{ p.eval(pp).back(); }));
+}
+
 TEST_CASE(softmaxcrossentropyloss_2d_sum_reduction_weighted_test_ones)
 {
     migraphx::program p =

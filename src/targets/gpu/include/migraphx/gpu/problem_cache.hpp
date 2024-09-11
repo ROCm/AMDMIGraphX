@@ -28,16 +28,19 @@
 #include <migraphx/config.hpp>
 #include <migraphx/value.hpp>
 #include <migraphx/optional.hpp>
+#include <migraphx/gpu/export.h>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
 namespace gpu {
-struct problem_cache
+struct MIGRAPHX_GPU_EXPORT problem_cache
 {
     bool has(const std::string& name, const value& problem) const;
     void insert(const std::string& name, const value& problem, const value& solution);
     void mark(const std::string& name, const value& problem);
     optional<value> get(const std::string& name, const value& problem) const;
+    void load();
+    void save() const;
     std::unordered_map<value, value> cache;
 };
 

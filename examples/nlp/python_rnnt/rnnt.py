@@ -21,12 +21,15 @@
 #  THE SOFTWARE.
 
 from typing import List, Optional, Tuple
+import argparse
 
 import migraphx as mgx
 import os
 import sys
 import torch
 import torch.nn.functional as F
+
+from rnnt_data import librespeech_huggingface
 
 mgx_to_torch_dtype_dict = {
     "bool_type": torch.bool,
@@ -85,12 +88,11 @@ def allocate_torch_tensors(model):
 
 
 class RNNT_MGX():
-    def __init__(self, seq_length, onnx_model_path='models/rnnt/'):
+    def __init__(self, seq_length, onnx_model_path):
 
         fp16 = []
 
         compiled_model_path = None
-        onnx_model_path = 'models/rnnt/'
         force_compile = False
         exhaustive_tune = False
         print("Load models...")
@@ -328,24 +330,30 @@ def decode_string(result):
             string += chr(c + 96)
     return string
 
-
 if __name__ == "__main__":
-    from rnnt_data import librespeech_huggingface
-    from rnnt_torch_model import pytorch_rnnt_model
+    parser = argparse.ArgumentParser()
+    parser.add_argument('--onnx_model_path', default='models/rnnt/')
+    args = parser.parse_args()
+
+    model_parts = ['rnnt_encoder', 'rnnt_joint', 'rnnt_prediction']
+    check_onnx_files = [os.path.isfile(f"{args.onnx_model_path}/{name}/model.onnx") for name in model_parts]
 
     print("Getting data...")
     x, out_lens, transcript = librespeech_huggingface()
     seq_length = x.shape[0]
+    
+    if any(check_onnx_files) == False:
+        from rnnt_torch_model import pytorch_rnnt_model
+        from rnnt_onnx import export_rnnt_onnx
 
-    print("Create pytorch model...")
-    pytorch_model = pytorch_rnnt_model()
+        print("Create pytorch model...")
+        pytorch_model = pytorch_rnnt_model()
 
-    print("Export pytorch model to ONNX...")
-    from rnnt_onnx import export_rnnt_onnx
-    export_rnnt_onnx(pytorch_model, seq_length=seq_length)
+        print("Export pytorch model to ONNX...")
+        export_rnnt_onnx(pytorch_model, seq_length=seq_length)
 
     print("Read MIGX model from ONNX and run...")
-    migx_model = RNNT_MGX(seq_length=seq_length)
+    migx_model = RNNT_MGX(seq_length=seq_length, onnx_model_path=args.onnx_model_path)
     rnnt_migx = GreedyDecoder(migx_model)
     _, _, result = rnnt_migx.run(x.to(torch.float32), out_lens)
     print("Transcribed Sentence: ", decode_string(result))

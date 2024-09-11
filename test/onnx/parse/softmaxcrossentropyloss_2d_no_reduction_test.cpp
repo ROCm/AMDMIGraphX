@@ -68,6 +68,63 @@ TEST_CASE(softmaxcrossentropyloss_2d_no_reduction_test)
     EXPECT(p == prog);
 }
 
+TEST_CASE(softmaxcrossentropyloss_2d_no_reduction_negative_ignore_idx_test)
+{
+    migraphx::program p;
+    auto* mm = p.get_main_module();
+
+
+    auto scores  = mm->add_parameter("0", migraphx::shape{migraphx::shape::float_type, {4, 4}});
+    auto labels  = mm->add_parameter("1", migraphx::shape{migraphx::shape::int32_type, {4}});
+    auto weights = mm->add_parameter("2", migraphx::shape{migraphx::shape::float_type, {4}});
+
+    auto ignore_index = mm->add_literal(
+        migraphx::literal(migraphx::shape(migraphx::shape::int64_type, {1}, {0}), {-2}));
+
+    auto wght_lt = mm->add_literal(
+        migraphx::literal(migraphx::shape(migraphx::shape::float_type, {1}, {0}), {1}));
+    auto labels_idx = mm->add_literal(
+        migraphx::literal(migraphx::shape(migraphx::shape::int32_type, {4}, {1}), {0, 1, 2, 3}));
+
+    mm->add_instruction(migraphx::make_op("multibroadcast", {{"out_lens", labels->get_shape().lens()}}), wght_lt);
+
+    auto softmax = mm->add_instruction(migraphx::make_op("softmax"), scores);
+
+    auto unsq_labels =
+        mm->add_instruction(migraphx::make_op("unsqueeze", {{"axes", {-1}}}), labels);
+    auto unsq_labels_idx =
+        mm->add_instruction(migraphx::make_op("unsqueeze", {{"axes", {1}}}), labels_idx);
+    auto bc_unsq_labels_idx = mm->add_instruction(
+        migraphx::make_op("multibroadcast", {{"out_lens", unsq_labels->get_shape().lens()}}),
+        unsq_labels_idx);
+    auto concat = mm->add_instruction(
+        migraphx::make_op("concat", {{"axis", -1}}), bc_unsq_labels_idx, unsq_labels);
+    auto gathernd = mm->add_instruction(migraphx::make_op("gathernd"), softmax, concat);
+    auto unsq_mb_weights =
+        mm->add_instruction(migraphx::make_op("unsqueeze", {{"axes", {0}}}), weights);
+    auto unsq_mb = mm->add_instruction(
+        migraphx::make_op("multibroadcast", {{"out_lens", scores->get_shape().lens()}}),
+        unsq_mb_weights);
+    auto gathernd2 = mm->add_instruction(migraphx::make_op("gathernd"), unsq_mb, concat);
+
+    auto logsoftmax    = mm->add_instruction(migraphx::make_op("log"), gathernd);
+    auto neglogsoftmax = mm->add_instruction(migraphx::make_op("neg"), logsoftmax);
+    auto loss          = mm->add_instruction(migraphx::make_op("mul"), neglogsoftmax, gathernd2);
+
+    auto ignore_idx_bc = mm->add_instruction(migraphx::make_op("multibroadcast", {{"out_lens", labels->get_shape().lens()}}), ignore_index);
+    auto conv_labels = mm->add_instruction(migraphx::make_op("convert", {{"target_type", ignore_index->get_shape().type()}}), labels);
+
+    std::vector<double> zero_val_vect(labels->get_shape().elements(), 0);
+    auto zero_vector     = mm->add_literal(migraphx::literal(loss->get_shape(), zero_val_vect));
+    auto equals_mask     = mm->add_instruction(migraphx::make_op("equal"), conv_labels, ignore_idx_bc);
+
+    mm->add_instruction(migraphx::make_op("where"), equals_mask, zero_vector, loss);
+
+    auto prog = optimize_onnx("softmaxcrossentropyloss_2d_no_reduction_weighted_neg_ignore_idx_test.onnx");
+
+    EXPECT(p == prog);
+}
+
 TEST_CASE(softmaxcrossentropyloss_2d_no_reduction_double_test)
 {
     migraphx::program p;

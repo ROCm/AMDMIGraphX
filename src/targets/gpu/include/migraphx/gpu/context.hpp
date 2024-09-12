@@ -133,7 +133,7 @@ struct hip_device
             setup();
             if(hblthandle == nullptr)
             {
-                hblthandle = create_hipblaslt_handle_ptr(get());
+                hblthandle = create_hipblaslt_handle_ptr();
             }
             assert(hblthandle.get() != nullptr);
             return hblthandle.get();

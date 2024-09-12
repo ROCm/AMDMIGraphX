@@ -40,13 +40,6 @@ hipblaslt_handle_ptr create_hipblaslt_handle_ptr()
     return hipblaslt_handle_ptr{handle};
 }
 
-hipblaslt_handle_ptr create_hipblaslt_handle_ptr(hipStream_t s)
-{
-    hipblaslt_handle_ptr hblt = create_hipblaslt_handle_ptr();
-    hipblasSetStream(hblt.get(), s);
-    return hblt;
-}
-
 hipblaslt_preference_ptr create_hipblaslt_preference_ptr()
 {
     hipblasLtMatmulPreference_t preference;

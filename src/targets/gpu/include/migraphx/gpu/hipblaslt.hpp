@@ -71,7 +71,6 @@ using hipblaslt_preference_ptr = MIGRAPHX_MANAGE_PTR(hipblasLtMatmulPreference_t
                                                      hipblasLtMatmulPreferenceDestroy);
 
 hipblaslt_handle_ptr create_hipblaslt_handle_ptr();
-hipblaslt_handle_ptr create_hipblaslt_handle_ptr(hipStream_t s);
 hipblaslt_preference_ptr create_hipblaslt_preference_ptr();
 bool hipblaslt_supported();
 const size_t hipblaslt_workspace_size = 2 * 128 * 1024 * 1024;

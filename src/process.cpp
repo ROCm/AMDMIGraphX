@@ -207,7 +207,7 @@ int exec(const std::string& cmd, const std::string& cwd, const std::string& args
     constexpr std::size_t CMDLINE_LENGTH = 32767;
 
     // Build lpCommandLine parameter.
-    std::string cmdline = cmd;
+    std::string cmdline = quote_string(cmd);
     if(not args.empty())
         cmdline += " " + args;
 

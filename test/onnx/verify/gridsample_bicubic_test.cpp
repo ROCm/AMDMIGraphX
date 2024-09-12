@@ -22,9 +22,30 @@
  * THE SOFTWARE.
  */
 
+#include <migraphx/register_target.hpp>
+#include <migraphx/verify.hpp>
 #include <onnx_test.hpp>
 
 TEST_CASE(gridsample_bicubic_test)
 {
-    EXPECT(test::throws([&] { read_onnx("gridsample_bicubic_test.onnx"); }));
+    migraphx::program p = read_onnx("gridsample_bicubic_test.onnx");
+    p.compile(migraphx::make_target("ref"));
+
+    auto input_type = migraphx::shape::float_type;
+    migraphx::shape data_shape{input_type, {1, 1, 3, 2}};
+    migraphx::shape grid_shape{input_type, {1, 2, 4, 2}};
+    std::vector<float> data = {0., 1., 2., 3., 4., 5.};
+    std::vector<float> grid = {
+        -1., -1., -0.5, -0.5, -0.2, -0.2, 0., 0., 0., 0., -0.2, -0.2, 0.5, 0.5, 1., 1.};
+
+    migraphx::parameter_map pp;
+    pp["x"]    = migraphx::argument(data_shape, data.data());
+    pp["grid"] = migraphx::argument(grid_shape, grid.data());
+
+    auto result = p.eval(pp).back();
+    std::vector<float> result_vector;
+    result.visit([&](auto output) { result_vector.assign(output.begin(), output.end()); });
+
+    std::vector<float> gold = {-0.1406, 0.3828, 1.7556, 2.9688, 2.9688, 1.7556, 5.1445, 1.3906};
+    EXPECT(migraphx::verify::verify_rms_range(result_vector, gold));
 }

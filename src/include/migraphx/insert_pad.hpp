@@ -24,9 +24,10 @@
 #ifndef MIGRAPHX_GUARD_RTGLIB_INSERT_PAD_HPP
 #define MIGRAPHX_GUARD_RTGLIB_INSERT_PAD_HPP
 
-#include <string>
-#include <vector>
 #include <array>
+#include <string>
+#include <unordered_set>
+#include <vector>
 #include <migraphx/instruction_ref.hpp>
 #include <migraphx/config.hpp>
 
@@ -40,6 +41,7 @@ struct module;
  */
 struct MIGRAPHX_EXPORT insert_pad
 {
+    std::unordered_set<std::string> ops = {"convolution", "pooling", "im2col"};
     std::string name() const { return "insert_pad"; }
 
     void apply(module& m) const;

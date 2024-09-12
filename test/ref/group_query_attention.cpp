@@ -45,7 +45,7 @@ TEST_CASE(gqa_test)
     std::vector<float> pkv_data(pkvs.elements(), 0.0);
     std::vector<float> cs_data(cs.elements(), 1.0);
     auto qkv = mm->add_literal(migraphx::literal{qkvs, qkv_data});
-    auto kv   = mm->add_literal(migraphx::literal{kvs, {1}});
+    auto kv  = mm->add_literal(migraphx::literal{kvs, {1}});
     auto pk  = mm->add_literal(migraphx::literal{pkvs, pkv_data});
     auto pv  = mm->add_literal(migraphx::literal{pkvs, pkv_data});
     auto slk = mm->add_literal(migraphx::literal{consts, {0}});
@@ -53,23 +53,24 @@ TEST_CASE(gqa_test)
     auto cc  = mm->add_literal(migraphx::literal{cs, cs_data});
     auto sc  = mm->add_literal(migraphx::literal{cs, cs_data});
 
-    auto gqa = mm->add_instruction(migraphx::make_op("group_query_attention",
-                                          {{"do_rotary", 1},
-                                           {"kv_num_heads", 32},
-                                           {"local_window_size", -1},
-                                           {"num_heads", 32},
-                                           {"rotary_interleaved", 0}}),
-                        qkv,
-                        kv,
-                        kv,
-                        pk,
-                        pv,
-                        slk,
-                        tsl,
-                        cc,
-                        sc);
-    auto gqa_output      = mm->add_instruction(migraphx::make_op("get_tuple_elem", {{"index", 0}}), gqa);
-    auto gqa_present_key = mm->add_instruction(migraphx::make_op("get_tuple_elem", {{"index", 1}}), gqa);
+    auto gqa        = mm->add_instruction(migraphx::make_op("group_query_attention",
+                                                            {{"do_rotary", 1},
+                                                             {"kv_num_heads", 32},
+                                                             {"local_window_size", -1},
+                                                             {"num_heads", 32},
+                                                             {"rotary_interleaved", 0}}),
+                                   qkv,
+                                   kv,
+                                   kv,
+                                   pk,
+                                   pv,
+                                   slk,
+                                   tsl,
+                                   cc,
+                                   sc);
+    auto gqa_output = mm->add_instruction(migraphx::make_op("get_tuple_elem", {{"index", 0}}), gqa);
+    auto gqa_present_key =
+        mm->add_instruction(migraphx::make_op("get_tuple_elem", {{"index", 1}}), gqa);
     auto gqa_present_value =
         mm->add_instruction(migraphx::make_op("get_tuple_elem", {{"index", 2}}), gqa);
     mm->add_return({gqa_output, gqa_present_key, gqa_present_value});
@@ -92,7 +93,7 @@ TEST_CASE(gqa_test)
     auto kv_cache_lens = pkvs.lens();
     for(auto i = 0; i < pkvs.elements(); i += kv_cache_lens[2] * kv_cache_lens[3])
     {
-        for (auto j = 0; j < kv_cache_lens[3]; j++)
+        for(auto j = 0; j < kv_cache_lens[3]; j++)
         {
             gold_k_cache[i + j] = j >= 64 ? 2.0 : 0.0;
             gold_v_cache[i + j] = 1.0;

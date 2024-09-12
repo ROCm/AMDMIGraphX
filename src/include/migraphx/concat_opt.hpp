@@ -31,10 +31,11 @@
 #include <type_traits>
 #include <utility>
 
+#include <migraphx/allocation_model.hpp>
+#include <migraphx/config.hpp>
 #include <migraphx/operation.hpp>
 #include <migraphx/op/concat.hpp>
 #include <migraphx/optional.hpp>
-#include <migraphx/config.hpp>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
@@ -48,6 +49,8 @@ struct concat_optimization
     std::string allocate() const;
     /// Return the target-independent concat operator
     optional<op::concat> get_concat(const operation& op) const;
+    allocation_model allocation() const;
+    bool supports_non_packed_output(instruction_ref ins) const
 };
 
 #else
@@ -61,6 +64,10 @@ struct MIGRAPHX_EXPORT concat_optimization
     std::string allocate() const;
     //
     optional<op::concat> get_concat(const operation& op) const;
+    //
+    bool supports_non_packed_output(instruction_ref ins) const;
+    //
+    allocation_model allocation() const;
 };
 
 #else
@@ -87,6 +94,9 @@ struct concat_optimization
         decltype(std::declval<PrivateDetailTypeErasedT>().allocate(),
                  std::declval<PrivateDetailTypeErasedT>().get_concat(
                      std::declval<const operation&>()),
+                 std::declval<PrivateDetailTypeErasedT>().supports_non_packed_output(
+                     std::declval<instruction_ref>()),
+                 std::declval<PrivateDetailTypeErasedT>().allocation(),
                  void());
 
     template <class PrivateDetailTypeErasedT>
@@ -175,6 +185,18 @@ struct concat_optimization
         return (*this).private_detail_te_get_handle().get_concat(op);
     }
 
+    bool supports_non_packed_output(instruction_ref ins) const
+    {
+        assert((*this).private_detail_te_handle_mem_var);
+        return (*this).private_detail_te_get_handle().supports_non_packed_output(ins);
+    }
+
+    allocation_model allocation() const
+    {
+        assert((*this).private_detail_te_handle_mem_var);
+        return (*this).private_detail_te_get_handle().allocation();
+    }
+
     friend bool is_shared(const concat_optimization& private_detail_x,
                           const concat_optimization& private_detail_y)
     {
@@ -191,6 +213,8 @@ struct concat_optimization
 
         virtual std::string allocate() const                               = 0;
         virtual optional<op::concat> get_concat(const operation& op) const = 0;
+        virtual bool supports_non_packed_output(instruction_ref ins) const = 0;
+        virtual allocation_model allocation() const                        = 0;
     };
 
     template <typename PrivateDetailTypeErasedT>
@@ -227,6 +251,18 @@ struct concat_optimization
         {
 
             return private_detail_te_value.get_concat(op);
+        }
+
+        bool supports_non_packed_output(instruction_ref ins) const override
+        {
+
+            return private_detail_te_value.supports_non_packed_output(ins);
+        }
+
+        allocation_model allocation() const override
+        {
+
+            return private_detail_te_value.allocation();
         }
 
         PrivateDetailTypeErasedT private_detail_te_value;

@@ -44,7 +44,6 @@ if [[ ("${ID}" == "sles") ]]; then
     rocm-cmake \
     perl-File-BaseDir \
     libgfortran5 \
-    hipblas-devel \
     hipblaslt-devel \
 
 else
@@ -59,7 +58,6 @@ else
     python3-venv \
     rocblas-dev \
     libgfortran5 \
-    hipblas-dev \
     hipblaslt-dev \
     rocm-cmake \
     rocm-llvm-dev \

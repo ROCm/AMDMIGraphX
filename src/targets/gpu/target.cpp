@@ -171,7 +171,7 @@ std::vector<pass> target::get_passes(migraphx::context& gctx, const compile_opti
         eliminate_identity{},
         eliminate_pad{},
         dead_code_elimination{},
-        insert_pad{},
+        insert_pad{{"convolution"}},
         dead_code_elimination{},
         rewrite_rnn{},
         dead_code_elimination{},

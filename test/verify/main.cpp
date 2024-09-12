@@ -103,19 +103,19 @@ int main(int argc, const char* argv[])
                 "test_quant_dot_3args_4<migraphx::fp8::fp8e5m2, float>",
                 "test_quant_dot_3args_5<migraphx::fp8::fp8e5m2, float>",
 #endif
-           "test_block_reduce_small<3, migraphx::shape::int8_type>",
-           "test_block_reduce_small<4, migraphx::shape::int8_type>",
-           "test_block_reduce_small<8, migraphx::shape::int8_type>",
-           "test_block_reduce_small<16, migraphx::shape::int8_type>",
-           "test_block_reduce_small<25, migraphx::shape::int8_type>",
-           "test_block_reduce_small<32, migraphx::shape::int8_type>",
-           "test_block_reduce_small<64, migraphx::shape::int8_type>",
-           "test_block_reduce_small<67, migraphx::shape::int8_type>",
-           "test_block_reduce_small<128, migraphx::shape::int8_type>",
-           "test_block_reduce_small<129, migraphx::shape::int8_type>",
-           // disabled because CPU does eliminate_data_type to float for everything
-           "test_bitwise_and<migraphx::shape::int32_type>",
-           "test_bitwise_and<migraphx::shape::uint8_type>",
+            "test_block_reduce_small<3, migraphx::shape::int8_type>",
+            "test_block_reduce_small<4, migraphx::shape::int8_type>",
+            "test_block_reduce_small<8, migraphx::shape::int8_type>",
+            "test_block_reduce_small<16, migraphx::shape::int8_type>",
+            "test_block_reduce_small<25, migraphx::shape::int8_type>",
+            "test_block_reduce_small<32, migraphx::shape::int8_type>",
+            "test_block_reduce_small<64, migraphx::shape::int8_type>",
+            "test_block_reduce_small<67, migraphx::shape::int8_type>",
+            "test_block_reduce_small<128, migraphx::shape::int8_type>",
+            "test_block_reduce_small<129, migraphx::shape::int8_type>",
+            // disabled because CPU does eliminate_data_type to float for everything
+            "test_bitwise_and<migraphx::shape::int32_type>",
+            "test_bitwise_and<migraphx::shape::uint8_type>",
     });
     rv.disable_test_for("gpu",
                         {

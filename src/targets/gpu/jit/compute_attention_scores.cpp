@@ -84,8 +84,8 @@ struct compute_attention_scores_compiler : compiler<compute_attention_scores_com
 
     operation compile_op(context& ctx, const std::vector<shape>& inputs, const value& v) const
     {
-        auto params            = init_params(inputs, v);
-        auto gqa_params_str    = params.make_init_str();
+        auto params         = init_params(inputs, v);
+        auto gqa_params_str = params.make_init_str();
 
         auto flattened_inputs = flatten(inputs);
         hip_compile_options options;

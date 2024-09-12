@@ -34,42 +34,71 @@ TEST_CASE(gqa_test)
 {
     migraphx::program p;
     auto* mm = p.get_main_module();
-    migraphx::shape qkvs{migraphx::shape::half_type, {1, 64, 12288}};
+    migraphx::shape qkvs{migraphx::shape::half_type, {1, 1, 12288}};
     migraphx::shape pkvs{migraphx::shape::half_type, {1, 32, 4096, 128}};
+    migraphx::shape kvs{migraphx::shape::float_type, {1}};
     migraphx::shape consts{migraphx::shape::int32_type, {1}};
     migraphx::shape cs{migraphx::shape::half_type, {4096, 64}};
-    migraphx::shape outs{migraphx::shape::half_type, {1, 64, 4096}};
+    migraphx::shape outs{migraphx::shape::half_type, {1, 1, 4096}};
 
     std::vector<float> qkv_data(qkvs.elements(), 1.0);
     std::vector<float> pkv_data(pkvs.elements(), 0.0);
     std::vector<float> cs_data(cs.elements(), 1.0);
     auto qkv = mm->add_literal(migraphx::literal{qkvs, qkv_data});
+    auto kv   = mm->add_literal(migraphx::literal{kvs, {1}});
     auto pk  = mm->add_literal(migraphx::literal{pkvs, pkv_data});
     auto pv  = mm->add_literal(migraphx::literal{pkvs, pkv_data});
     auto slk = mm->add_literal(migraphx::literal{consts, {0}});
-    auto tsl = mm->add_literal(migraphx::literal{consts, {64}});
+    auto tsl = mm->add_literal(migraphx::literal{consts, {1}});
     auto cc  = mm->add_literal(migraphx::literal{cs, cs_data});
     auto sc  = mm->add_literal(migraphx::literal{cs, cs_data});
 
-    mm->add_instruction(migraphx::make_op("group_query_attention",
+    auto gqa = mm->add_instruction(migraphx::make_op("group_query_attention",
                                           {{"do_rotary", 1},
                                            {"kv_num_heads", 32},
                                            {"local_window_size", -1},
                                            {"num_heads", 32},
                                            {"rotary_interleaved", 0}}),
                         qkv,
+                        kv,
+                        kv,
                         pk,
                         pv,
                         slk,
                         tsl,
                         cc,
                         sc);
+    auto gqa_output      = mm->add_instruction(migraphx::make_op("get_tuple_elem", {{"index", 0}}), gqa);
+    auto gqa_present_key = mm->add_instruction(migraphx::make_op("get_tuple_elem", {{"index", 1}}), gqa);
+    auto gqa_present_value =
+        mm->add_instruction(migraphx::make_op("get_tuple_elem", {{"index", 2}}), gqa);
+    mm->add_return({gqa_output, gqa_present_key, gqa_present_value});
     p.compile(migraphx::make_target("ref"));
-    auto result = p.eval({}).back();
+    auto outputs = p.eval({});
+
+    auto result = outputs.front();
     std::vector<float> results_vector(outs.elements());
     result.visit([&](auto output) { results_vector.assign(output.begin(), output.end()); });
-    for(auto i = 0; i < outs.elements(); ++i)
+    auto pres_key = outputs.at(1);
+    std::vector<float> pres_key_vector(pkvs.elements());
+    pres_key.visit([&](auto output) { pres_key_vector.assign(output.begin(), output.end()); });
+    auto pres_val = outputs.back();
+    std::vector<float> pres_val_vector(pkvs.elements());
+    pres_val.visit([&](auto output) { pres_val_vector.assign(output.begin(), output.end()); });
+
+    std::vector<float> gold_output(outs.elements(), 1.0);
+    std::vector<float> gold_k_cache(pkvs.elements(), 0.0);
+    std::vector<float> gold_v_cache(pkvs.elements(), 0.0);
+    auto kv_cache_lens = pkvs.lens();
+    for(auto i = 0; i < pkvs.elements(); i += kv_cache_lens[2] * kv_cache_lens[3])
     {
-        std::cout << results_vector[i] << std::endl;
+        for (auto j = 0; j < kv_cache_lens[3]; j++)
+        {
+            gold_k_cache[i + j] = j >= 64 ? 2.0 : 0.0;
+            gold_v_cache[i + j] = 1.0;
+        }
     }
+    EXPECT(results_vector == gold_output);
+    EXPECT(pres_key_vector == gold_k_cache);
+    EXPECT(pres_val_vector == gold_v_cache);
 }

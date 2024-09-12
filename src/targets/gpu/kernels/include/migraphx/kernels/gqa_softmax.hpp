@@ -95,7 +95,7 @@ __device__ void calculate_softmax(Attn_Probs attention_probs, // output buffer w
 {
     const int batch_size                        = params.batch_size;
     const int sequence_length                   = params.sequence_length;
-    const int num_heads = params.num_heads;
+    const int num_heads                         = params.num_heads;
     const size_t present_buffer_sequence_length = params.seqlen_present_kv_cache;
 
     const index_int loop_len = batch_size * num_heads;
@@ -118,7 +118,7 @@ __device__ void calculate_softmax(Attn_Probs attention_probs, // output buffer w
             seq += consume;
             seq -= consume;
             int seq_causal_length = sequence_length == 1 ? total_seqlen : seq + 1;
-            if(local_window_size > 0 && seq_causal_length > local_window_size + 1)
+            if(local_window_size > 0 and seq_causal_length > local_window_size + 1)
             {
                 for(int total_seq_id = 0; total_seq_id < seq_causal_length - local_window_size - 1;
                     total_seq_id++)
@@ -144,8 +144,8 @@ __device__ void calculate_softmax(Attn_Probs attention_probs, // output buffer w
 template <class Output, class Input, class Probs, class Seqlens_K, class Params>
 __device__ void gqa_softmax(Output output, Input, Probs, Seqlens_K seqlens_k, Params params)
 {
-    const int elements        = params.batch_size * params.num_heads * params.sequence_length;
-    auto ind                  = make_index();
+    const int elements = params.batch_size * params.num_heads * params.sequence_length;
+    auto ind           = make_index();
     ind.global_stride(elements, [&](auto idx) {
         calculate_softmax(output.begin(), seqlens_k.begin(), params, idx);
     });

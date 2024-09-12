@@ -97,13 +97,13 @@ static inline gqa_parameters init_params(const std::vector<shape>& inputs, const
     std::size_t head_size             = q_lens[3];
     auto q_hidden_size                = kv_num_heads * head_size;
 
-    std::size_t rotary_dim        = inputs[3].lens()[1] * 2;
+    std::size_t rotary_dim         = inputs[3].lens()[1] * 2;
     bool packed_qkv                = true;
-    auto seq_stride   = head_size;
-    auto head_stride  = sequence_length * seq_stride;
-    auto batch_stride = (packed_qkv ? (num_heads + 2 * kv_num_heads) : num_heads) * head_stride;
-    auto position_ids_format = sequence_length == 1 ? 1 : 0;
-    bool transposed          = true;
+    auto seq_stride                = head_size;
+    auto head_stride               = sequence_length * seq_stride;
+    auto batch_stride              = (num_heads + 2 * kv_num_heads) * head_stride;
+    auto position_ids_format       = sequence_length == 1 ? 1 : 0;
+    bool transposed                = true;
     bool past_present_share_buffer = true;
     gqa_parameters gqa_params;
     gqa_params.batch_size                = batch_size;

@@ -313,7 +313,6 @@ struct find_group_query_attention
         auto ins    = r.result;
         auto inputs = ins->inputs();
         auto v      = ins->get_operator().to_value();
-        auto s      = ins->get_shape();
 
         assert(v.contains("num_heads"));
         auto num_heads = v.at("num_heads").to<std::size_t>();
@@ -340,10 +339,6 @@ struct find_group_query_attention
         std::vector<std::size_t> bsnh{batch_size,
                                       sequence_length,
                                       static_cast<std::size_t>(num_heads + 2 * kv_num_heads),
-                                      head_size};
-        std::vector<std::size_t> bnsh{batch_size,
-                                      static_cast<std::size_t>(num_heads + 2 * kv_num_heads),
-                                      sequence_length,
                                       head_size};
 
         auto transposed_qkv = mpm.get_module().insert_instruction(

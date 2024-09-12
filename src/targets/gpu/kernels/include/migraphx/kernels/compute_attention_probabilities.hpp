@@ -48,8 +48,8 @@ calculate_attention_probs(Attn_Probs attention_probs, // output buffer with size
     const int head_size                         = params.head_size;
     const bool packed_qkv                       = params.packed_qkv;
     const size_t present_buffer_sequence_length = params.seqlen_present_kv_cache;
-    const int num_heads    = params.num_heads;
-    const int kv_num_heads = params.kv_num_heads;
+    const int num_heads                         = params.num_heads;
+    const int kv_num_heads                      = params.kv_num_heads;
     const int packed_batch_stride =
         packed_qkv ? (num_heads + 2 * kv_num_heads) * sequence_length * head_size : 0;
     const int kv_num_heads_factor     = num_heads / kv_num_heads;

@@ -49,8 +49,8 @@ calculate_attention_score(Output output, // buffer for the result with size BxSx
     const int head_size                         = params.head_size;
     const int hidden_size                       = params.hidden_size;
     const size_t present_buffer_sequence_length = params.seqlen_present_kv_cache;
-    const int kv_num_heads        = params.kv_num_heads;
-    const int kv_num_heads_factor = num_heads / kv_num_heads;
+    const int kv_num_heads                      = params.kv_num_heads;
+    const int kv_num_heads_factor               = num_heads / kv_num_heads;
     const size_t present_buff_chunk_length =
         static_cast<size_t>(present_buffer_sequence_length) * head_size; // T x H
 
@@ -95,7 +95,7 @@ __device__ void compute_attention_scores(
 {
     const int elements =
         params.batch_size * params.num_heads * params.sequence_length * params.head_size;
-    auto ind                  = make_index();
+    auto ind = make_index();
     ind.global_stride(elements, [&](auto idx) {
         output([&](auto output0, auto, auto v_cache) {
             calculate_attention_score(output0.begin(),

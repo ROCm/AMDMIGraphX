@@ -67,7 +67,7 @@ __device__ void run_rotary_embedding(Input input,
         int position_id = (position_ids_format == 0)
                               ? static_cast<int>(pos_ids[0]) + s
                               : static_cast<int>(pos_ids[b * sequence_length + s]);
-        position_id = (sequence_length == 1) ? position_id : s;
+        position_id     = (sequence_length == 1) ? position_id : s;
 
         const index_int cache_offset = position_id * half_rotary_emb_dim;
         auto cos_data                = cos_cache + cache_offset;

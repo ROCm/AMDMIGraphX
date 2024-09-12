@@ -77,9 +77,9 @@ update_cache(Present present, Seqlens_K seqlens_k, Cache cache, Params params, i
     const int head_size                         = params.head_size;
     const size_t past_buffer_sequence_length    = params.seqlen_present_kv_cache;
     const size_t present_buffer_sequence_length = past_buffer_sequence_length;
-    const int num_heads    = params.num_heads;
-    const int kv_num_heads = params.kv_num_heads;
-    const bool is_prompt   = sequence_length != 1;
+    const int num_heads                         = params.num_heads;
+    const int kv_num_heads                      = params.kv_num_heads;
+    const bool is_prompt                        = sequence_length != 1;
     const int packed_batch_stride =
         params.packed_qkv ? (num_heads + 2 * kv_num_heads) * sequence_length * head_size : 0;
     const int kv_num_heads_factor      = num_heads / kv_num_heads;
@@ -94,11 +94,11 @@ update_cache(Present present, Seqlens_K seqlens_k, Cache cache, Params params, i
     const index_int inner_i  = idx % (sequence_length * head_size);
     if(i < loop_len)
     {
-        const index_int batch_index = i / num_heads;
-        const index_int head_index  = i % num_heads;
-        const index_int past_seqlen = sequence_length == 1
-                                          ? static_cast<int>(seqlens_k[batch_index])
-                                          : past_buffer_sequence_length;
+        const index_int batch_index       = i / num_heads;
+        const index_int head_index        = i % num_heads;
+        const index_int past_seqlen       = sequence_length == 1
+                                                ? static_cast<int>(seqlens_k[batch_index])
+                                                : past_buffer_sequence_length;
         const index_int past_chunk_length = static_cast<size_t>(past_seqlen) * head_size;
 
         auto current = present + packed_batch_stride * batch_index +
@@ -121,12 +121,12 @@ template <class Output, class Query, class Key, class Value, class Seqlens_K, cl
 __device__ void
 concat_past_present(Output output, Query query, Key, Value, Seqlens_K seqlens_k, Params params)
 {
-    auto ind                  = make_index();
+    auto ind = make_index();
     auto elements =
         2 * params.batch_size * params.kv_num_heads * params.sequence_length * params.head_size;
     ind.global_stride(elements, [&](auto idx) {
-        auto q                = query.begin();
-        auto k                = q + params.num_heads * params.sequence_length * params.head_size;
+        auto q = query.begin();
+        auto k = q + params.num_heads * params.sequence_length * params.head_size;
         auto v = q + (params.num_heads + params.kv_num_heads) * params.sequence_length *
                          params.head_size;
         output([&](auto k_cache, auto v_cache) {

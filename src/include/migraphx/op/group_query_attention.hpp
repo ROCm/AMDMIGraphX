@@ -52,12 +52,12 @@ struct gqa_parameters
 
 struct group_query_attention
 {
-    int do_rotary          = 0;
-    int kv_num_heads       = 0;
-    int local_window_size  = -1;
-    std::size_t num_heads  = 1;
-    int rotary_interleaved = 0;
-    float scale            = 1.0;
+    int do_rotary                 = 0;
+    int kv_num_heads              = 0;
+    int local_window_size         = -1;
+    std::size_t num_heads         = 1;
+    int rotary_interleaved        = 0;
+    float scale                   = 1.0;
     std::size_t present_kv_seqlen = 4096;
 
     template <class Self, class F>
@@ -122,9 +122,9 @@ struct group_query_attention
             auto output_data       = output + block_offset;
 
             // Cache is (M, H/2) or (M, rotary_embedding_dim/2)
-            const int position_id = (position_ids_format == 0)
-                                        ? static_cast<int>(pos_ids[0]) + s
-                                        : static_cast<int>(pos_ids[b * sequence_length + s]);
+            const int position_id  = (position_ids_format == 0)
+                                         ? static_cast<int>(pos_ids[0]) + s
+                                         : static_cast<int>(pos_ids[b * sequence_length + s]);
             const int cache_offset = position_id * half_rotary_emb_dim;
             auto cos_data          = cos_cache + cache_offset;
             auto sin_data          = sin_cache + cache_offset;
@@ -644,9 +644,9 @@ struct group_query_attention
                                          rotary_interleaved,
                                          pos_ids.data(),
                                          gqa_params);
-                    auto v_input            = k_input + kv_num_heads * sequence_length * head_size;
-                    auto v_rotary           = k_rotary + kv_num_heads * sequence_length * head_size;
-                    gqa_params.num_heads    = num_heads;
+                    auto v_input         = k_input + kv_num_heads * sequence_length * head_size;
+                    auto v_rotary        = k_rotary + kv_num_heads * sequence_length * head_size;
+                    gqa_params.num_heads = num_heads;
 
                     pack_v_into_rotary_qkv(gqa_params, v_input, v_rotary);
 

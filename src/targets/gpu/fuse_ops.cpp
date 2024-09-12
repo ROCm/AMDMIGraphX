@@ -759,17 +759,19 @@ struct find_commutative_broadcast
 };
 } // namespace
 
-struct find_contiguous
+struct find_contiguous_copy
 {
-    auto matcher() const { return match::name("gpu::contiguous"); }
+    auto matcher() const { return match::name("gpu::contiguous", "hip::copy"); }
 
     void apply(module& m, const match::matcher_result& r) const
     {
         auto ins = r.result;
+        const bool is_copy = ins->name() == "hip::copy";
+        operation op = make_op("gpu::precompile_op", {{"op", to_value(make_op(is_copy ? "hip::copy" : "contiguous"))}, {"additional_args", is_copy ? 0 : 1}});
 
         m.replace_instruction(
             ins,
-            make_op("gpu::precompile_op", {{"op", to_value(make_op("contiguous"))}}),
+            op,
             ins->inputs());
     }
 };
@@ -909,7 +911,7 @@ void fuse_ops::apply(module& m) const
                         find_concat_pointwise{},
                         find_contiguous_tranpose_gemm{},
                         find_commutative_broadcast{});
-    match::find_matches(m, find_contiguous{});
+    match::find_matches(m, find_contiguous_copy{});
 }
 
 } // namespace gpu

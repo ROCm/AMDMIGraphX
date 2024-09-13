@@ -22,27 +22,31 @@
  * THE SOFTWARE.
  */
 
-#include "verify_program.hpp"
-#include <migraphx/program.hpp>
-#include <migraphx/generate.hpp>
-#include <migraphx/make_op.hpp>
+#include <migraphx/register_target.hpp>
+#include <migraphx/verify.hpp>
+#include <onnx_test.hpp>
 
-template <migraphx::shape::type_t DType>
-struct test_tan : verify_program<test_tan<DType>>
+TEST_CASE(gridsample_bicubic_align_corners_1_additional_1_test)
 {
-    migraphx::program create_program() const
-    {
-        migraphx::program p;
-        auto* mm = p.get_main_module();
-        migraphx::shape s{DType, {16}};
-        auto x = mm->add_parameter("x", s);
-        mm->add_instruction(migraphx::make_op("tan"), x);
-        return p;
-    }
-};
+    migraphx::program p = read_onnx("gridsample_bicubic_align_corners_1_additional_1_test.onnx");
+    p.compile(migraphx::make_target("ref"));
 
-template struct test_tan<migraphx::shape::float_type>;
-template struct test_tan<migraphx::shape::half_type>;
-template struct test_tan<migraphx::shape::fp8e4m3fnuz_type>;
-template struct test_tan<migraphx::shape::fp8e4m3fn_type>;
-template struct test_tan<migraphx::shape::fp8e5m2_type>;
+    auto input_type = migraphx::shape::float_type;
+    migraphx::shape data_shape{input_type, {1, 1, 3, 2}};
+    migraphx::shape grid_shape{input_type, {1, 2, 4, 2}};
+    std::vector<float> data = {0., 1., 2., 3., 4., 5.};
+    std::vector<float> grid = {
+        -1., -0.8, -0.6, -0.5, -0.1, -0.2, 0.7, 0., 0., 0.4, 0.2, -0.2, -0.3, 0.5, -1., 1.};
+
+    migraphx::parameter_map pp;
+    pp["x"]    = migraphx::argument(data_shape, data.data());
+    pp["grid"] = migraphx::argument(grid_shape, grid.data());
+
+    auto result = p.eval(pp).back();
+    std::vector<float> result_vector;
+    result.visit([&](auto output) { result_vector.assign(output.begin(), output.end()); });
+
+    std::vector<float> gold = {
+        0.304001, 1.128750, 2.266270, 3.144844, 4.531500, 2.455360, 4.599819, 4.000000};
+    EXPECT(migraphx::verify::verify_rms_range(result_vector, gold));
+}

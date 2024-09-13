@@ -32,13 +32,13 @@ namespace migraphx {
 
 template <class Attn_Probs,
           class Query,
-          class SeqLens,
+          class SeqLensK,
           class PresentKey,
           class Params>
 __device__ void
 calculate_attention_probs(Attn_Probs attention_probs, // output buffer with size BxNxSxT
                           Query query,                // Q data. Its size is BxNxSxH
-                          SeqLens seqlens_k,          // past sequence lengths tensor
+                          SeqLensK seqlens_k,          // past sequence lengths tensor
                           PresentKey present_key,     // present key only
                           Params params,
                           index_int idx)
@@ -97,9 +97,9 @@ calculate_attention_probs(Attn_Probs attention_probs, // output buffer with size
     }
 }
 
-template <class Output, class Query, class Key, class Value, class Seqlens_K, class Params>
+template <class Output, class Query, class Key, class Value, class SeqLensK, class Params>
 __device__ void compute_attention_probabilities(
-    Output output, Query query, Key, Value, Seqlens_K seqlens_k, Params params)
+    Output output, Query query, Key, Value, SeqLensK seqlens_k, Params params)
 {
     auto ind = make_index();
     ind.global_stride(params.batch_size * params.num_heads * params.sequence_length *

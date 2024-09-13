@@ -61,6 +61,7 @@ void gemm(tensor_view<T> cmat, tensor_view<U> amat, tensor_view<U> bmat, F alpha
 }
 
 // Strided 2D GEMM
+// NOLINTNEXTLINE(readability-function-size)
 template <class T, class U, class F>
 void gemm(std::size_t m,
           std::size_t n,

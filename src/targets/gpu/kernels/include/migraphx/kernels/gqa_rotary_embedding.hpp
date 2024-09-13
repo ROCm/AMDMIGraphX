@@ -128,13 +128,13 @@ pack_v_into_rotary_qkv(Params params, const Input input, Output output, index_in
 
 template <class Output,
           class Query,
-          class Seqlens_K,
+          class SeqLensK,
           class Cos_Cache,
           class Sin_Cache,
           class Params>
 __device__ void gqa_rotary_embedding(Output output,
                                      Query query,
-                                     Seqlens_K seqlens_k,
+                                     SeqLensK seqlens_k,
                                      Cos_Cache cos_cache,
                                      Sin_Cache sin_cache,
                                      Params params)

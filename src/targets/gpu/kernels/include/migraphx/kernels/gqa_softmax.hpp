@@ -86,10 +86,10 @@ __device__ void softmax_inplace(T score, int n, int d)
 }
 
 template <class Attn_Probs,
-          class SeqLens,
+          class SeqLensK,
           class Params>
 __device__ void calculate_softmax(Attn_Probs attention_probs, // output buffer with size BxNxSxT
-                                  SeqLens seqlens_k,          // past sequence lengths tensor
+                                  SeqLensK seqlens_k,          // past sequence lengths tensor
                                   Params params,
                                   index_int idx)
 {
@@ -141,8 +141,8 @@ __device__ void calculate_softmax(Attn_Probs attention_probs, // output buffer w
     }
 }
 
-template <class Output, class Input, class Probs, class Seqlens_K, class Params>
-__device__ void gqa_softmax(Output output, Input, Probs, Seqlens_K seqlens_k, Params params)
+template <class Output, class Input, class Probs, class SeqLensK, class Params>
+__device__ void gqa_softmax(Output output, Input, Probs, SeqLensK seqlens_k, Params params)
 {
     const int elements = params.batch_size * params.num_heads * params.sequence_length;
     auto ind           = make_index();

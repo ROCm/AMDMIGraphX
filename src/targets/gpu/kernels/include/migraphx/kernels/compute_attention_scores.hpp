@@ -31,14 +31,14 @@
 namespace migraphx {
 
 template <class Output,
-          class Attn_Probs,
-          class SeqLens,
+          class AttnProbs,
+          class SeqLensK,
           class PresentValue,
           class Params>
 __device__ void
 calculate_attention_score(Output output, // buffer for the result with size BxSxNxH
-                          const Attn_Probs attention_probs, // Attention probs with size BxNxSxT
-                          const SeqLens seqlens_k,          // past sequence lengths tensor
+                          const AttnProbs attention_probs, // Attention probs with size BxNxSxT
+                          const SeqLensK seqlens_k,          // past sequence lengths tensor
                           PresentValue present_value,       // present value only
                           Params params,
                           index_int idx)
@@ -87,11 +87,11 @@ template <class Output,
           class Query,
           class Key,
           class Value,
-          class Seqlens_K,
-          class Attn_Probs,
+          class SeqLensK,
+          class AttnProbs,
           class Params>
 __device__ void compute_attention_scores(
-    Output output, Query, Key, Value, Seqlens_K seqlens_k, Attn_Probs attn_probs, Params params)
+    Output output, Query, Key, Value, SeqLensK seqlens_k, AttnProbs attn_probs, Params params)
 {
     const int elements =
         params.batch_size * params.num_heads * params.sequence_length * params.head_size;

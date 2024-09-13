@@ -68,9 +68,9 @@ __device__ Present concat_state_chunk(const Past past,
     return start;
 }
 
-template <class Present, class Seqlens_K, class Cache, class Params>
+template <class Present, class SeqLensK, class Cache, class Params>
 __device__ void
-update_cache(Present present, Seqlens_K seqlens_k, Cache cache, Params params, index_int idx)
+update_cache(Present present, SeqLensK seqlens_k, Cache cache, Params params, index_int idx)
 {
     const int batch_size                        = params.batch_size;
     const int sequence_length                   = params.sequence_length;
@@ -117,9 +117,9 @@ update_cache(Present present, Seqlens_K seqlens_k, Cache cache, Params params, i
     }
 }
 
-template <class Output, class Query, class Key, class Value, class Seqlens_K, class Params>
+template <class Output, class Query, class Key, class Value, class SeqLensK, class Params>
 __device__ void
-concat_past_present(Output output, Query query, Key, Value, Seqlens_K seqlens_k, Params params)
+concat_past_present(Output output, Query query, Key, Value, SeqLensK seqlens_k, Params params)
 {
     auto ind = make_index();
     auto elements =

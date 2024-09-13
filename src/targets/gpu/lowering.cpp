@@ -571,7 +571,6 @@ struct miopen_apply
                 ins,
                 make_op("gpu::precompile_op", {{"op", to_value(ins->get_operator())}}),
                 new_inputs);
-            
         });
     }
 

@@ -452,4 +452,15 @@ TEST_CASE(optimize_scalar_broadcast_unsqueeze)
            });
 }
 
+TEST_CASE(optimize_scalar_squeeze_unsqueeze)
+{
+    EXPECT(migraphx::optimize_shape_transforms({1},
+                                               {
+                                                   make_op("squeeze", {{"axes", {0}}}),
+                                                   make_op("unsqueeze", {{"axes", {0}}}),
+                                               }) ==
+           ops{
+           });
+}
+
 int main(int argc, const char* argv[]) { test::run(argc, argv); }

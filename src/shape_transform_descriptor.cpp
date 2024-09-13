@@ -84,10 +84,23 @@ static std::vector<dimension::sub> get_all_subdimensions(const std::vector<dimen
     return result;
 }
 
+static std::vector<std::size_t> to_dims(const shape& s)
+{
+    if(s.lens().size() == 1 and s.elements() == 1 and s.scalar())
+        return {};
+    return s.lens();
+}
+
+static shape from_dims(const std::vector<std::size_t>& dims)
+{
+    if(dims.empty())
+        return shape{shape::float_type};
+    return shape{shape::float_type, dims};
+}
+
 std::vector<std::size_t> compute_dims(const operation& op, const std::vector<std::size_t>& idims)
 {
-    shape s{shape::float_type, idims};
-    return op.compute_shape({s}).lens();
+    return to_dims(op.compute_shape({from_dims(idims)}));
 }
 
 std::vector<std::size_t> compute_dims(const std::vector<operation>& ops,
@@ -96,7 +109,7 @@ std::vector<std::size_t> compute_dims(const std::vector<operation>& ops,
     shape s{shape::float_type, idims};
     for(const auto& op : ops)
         s = op.compute_shape({s});
-    return s.lens();
+    return to_dims(s);
 }
 
 bool shape_transform_descriptor::apply(const std::vector<operation>& ops)

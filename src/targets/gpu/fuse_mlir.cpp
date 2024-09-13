@@ -32,6 +32,7 @@
 #include <migraphx/common.hpp>
 #include <migraphx/algorithm.hpp>
 #include <migraphx/param_utils.hpp>
+#include <migraphx/fp8_types.hpp>
 #include <optional>
 
 namespace migraphx {
@@ -241,9 +242,9 @@ auto is_mlir_dot(mlir_mode mode)
             return false;
         if(ins->name() != "dot" and ins->name() != "quant_dot")
             return false;
-        // dot operation where (FP8 * FP8 = FP8) is not available in MLIR. rocBLAS has the support
-        // for it.
-        if(ins->get_shape().type() == migraphx::shape::fp8e4m3fnuz_type)
+        // dot operation where (FP8 * FP8 = FP8) is not available in MLIR. rocBLAS/hipBLASLt should
+        // have the support for it.
+        if(contains(fp8_types{}.get(), ins->get_shape().type()))
             return false;
         if(mode != mlir_mode::fast)
             return true;
@@ -272,11 +273,13 @@ auto is_mlir_conv(mlir_mode mode)
         // Avoid MLIR assertion: Index < Length && "Invalid index!"
         if(ins->get_shape().lens().size() != 4 and group > 1)
             return false;
-        if(contains({shape::fp8e4m3fnuz_type, shape::int8_type}, input.type()))
+        std::set<shape::type_t> supported_types = {
+            shape::fp8e4m3fnuz_type, shape::fp8e4m3fn_type, shape::fp8e5m2_type, shape::int8_type};
+        if(contains(supported_types, input.type()))
             return true;
         if(mode == mlir_mode::all)
             return true;
-        // No windograd for group convolution
+        // No winograd for group convolution
         if(group > 1)
             return true;
         auto w = ins->inputs().at(1)->get_shape();
@@ -318,6 +321,8 @@ bool is_pointwise_op_supported_by_mlir(const instruction& i)
     const std::initializer_list<type_t> allowed_types = {type_t::float_type,
                                                          type_t::half_type,
                                                          type_t::fp8e4m3fnuz_type,
+                                                         type_t::fp8e4m3fn_type,
+                                                         type_t::fp8e5m2_type,
                                                          type_t::int8_type,
                                                          type_t::int32_type,
                                                          type_t::bool_type};
@@ -358,8 +363,12 @@ bool is_pointwise_op_supported_by_mlir(const instruction& i)
         "softmax",
         "tanh",
     };
-    bool is_float =
-        contains({type_t::float_type, type_t::half_type, type_t::fp8e4m3fnuz_type}, result_type);
+    std::set<shape::type_t> float_types = {type_t::float_type,
+                                           type_t::half_type,
+                                           type_t::fp8e4m3fnuz_type,
+                                           type_t::fp8e4m3fn_type,
+                                           type_t::fp8e5m2_type};
+    bool is_float                       = contains(float_types, result_type);
     if(contains(any_type_ops, name))
         return true;
     if(result_type != type_t::bool_type and contains(no_bool_ops, name))
@@ -370,7 +379,7 @@ bool is_pointwise_op_supported_by_mlir(const instruction& i)
     // supported.
     if(is_float and name == "convert")
     {
-        if(result_type == shape::fp8e4m3fnuz_type)
+        if(contains(fp8_types{}.get(), result_type))
         {
             return false;
         } // else
@@ -655,7 +664,9 @@ struct find_mlir_standalone_op
                return not contains({shape::type_t::float_type,
                                     shape::type_t::half_type,
                                     shape::type_t::int8_type,
-                                    shape::type_t::fp8e4m3fnuz_type},
+                                    shape::type_t::fp8e4m3fnuz_type,
+                                    shape::type_t::fp8e4m3fn_type,
+                                    shape::type_t::fp8e5m2_type},
                                    i->get_shape().type());
            }))
             return;

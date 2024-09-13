@@ -38,8 +38,8 @@ template <class Output,
 __device__ void
 calculate_attention_score(Output output, // buffer for the result with size BxSxNxH
                           const AttnProbs attention_probs, // Attention probs with size BxNxSxT
-                          const SeqLensK seqlens_k,          // past sequence lengths tensor
-                          PresentValue present_value,       // present value only
+                          const SeqLensK seqlens_k,        // past sequence lengths tensor
+                          PresentValue present_value,      // present value only
                           Params params,
                           index_int idx)
 {

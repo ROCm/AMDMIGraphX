@@ -38,7 +38,7 @@ template <class Attn_Probs,
 __device__ void
 calculate_attention_probs(Attn_Probs attention_probs, // output buffer with size BxNxSxT
                           Query query,                // Q data. Its size is BxNxSxH
-                          SeqLensK seqlens_k,          // past sequence lengths tensor
+                          SeqLensK seqlens_k,         // past sequence lengths tensor
                           PresentKey present_key,     // present key only
                           Params params,
                           index_int idx)

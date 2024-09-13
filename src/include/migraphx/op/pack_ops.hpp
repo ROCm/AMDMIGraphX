@@ -39,9 +39,9 @@ struct pack_ops
 {
     std::string name() const { return "pack_ops"; }
 
-    shape compute_shape(std::vector<shape> inputs) const { return shape(inputs); }
+    shape compute_shape(const std::vector<shape>& inputs) const { return shape(inputs); }
 
-    argument compute(const shape&, std::vector<argument> args) const { return {args}; }
+    argument compute(const shape&, const std::vector<argument>& args) const { return {args}; }
 };
 
 } // namespace op

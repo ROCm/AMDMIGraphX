@@ -507,11 +507,10 @@ struct miopen_apply
             auto output     = insert_allocation(ins, s);
             auto new_inputs = ins->inputs();
             new_inputs.push_back(output);
-            auto ret = mod->replace_instruction(
+            return mod->replace_instruction(
                 ins,
                 make_op("gpu::precompile_op", {{"op", to_value(ins->get_operator())}}),
                 new_inputs);
-            return ret;
         });
 
         apply_map.emplace("gpu::concat_past_present", [=](instruction_ref ins) {
@@ -522,11 +521,10 @@ struct miopen_apply
             auto outputs    = mod->insert_instruction(ins, make_op("pack_ops"), past_k, past_v);
             auto new_inputs = ins->inputs();
             new_inputs.push_back(outputs);
-            auto ret = mod->replace_instruction(
+            return mod->replace_instruction(
                 ins,
                 make_op("gpu::precompile_op", {{"op", to_value(ins->get_operator())}}),
                 new_inputs);
-            return ret;
         });
 
         apply_map.emplace("gpu::compute_attention_probabilities", [=](instruction_ref ins) {
@@ -540,11 +538,10 @@ struct miopen_apply
                 mod->insert_instruction(ins, make_op("pack_ops"), output, past_k, past_v);
             auto new_inputs = ins->inputs();
             new_inputs.push_back(outputs);
-            auto ret = mod->replace_instruction(
+            return mod->replace_instruction(
                 ins,
                 make_op("gpu::precompile_op", {{"op", to_value(ins->get_operator())}}),
                 new_inputs);
-            return ret;
         });
 
         apply_map.emplace("gpu::gqa_softmax", [=](instruction_ref ins) {
@@ -553,11 +550,10 @@ struct miopen_apply
 
             auto new_inputs = ins->inputs();
             new_inputs.push_back(inputs.at(1));
-            auto ret = mod->replace_instruction(
+            return mod->replace_instruction(
                 ins,
                 make_op("gpu::precompile_op", {{"op", to_value(ins->get_operator())}}),
                 new_inputs);
-            return ret;
         });
 
         apply_map.emplace("gpu::compute_attention_scores", [=](instruction_ref ins) {
@@ -571,11 +567,11 @@ struct miopen_apply
                 mod->insert_instruction(ins, make_op("pack_ops"), output, past_k, past_v);
             auto new_inputs = ins->inputs();
             new_inputs.push_back(outputs);
-            auto ret = mod->replace_instruction(
+            return mod->replace_instruction(
                 ins,
                 make_op("gpu::precompile_op", {{"op", to_value(ins->get_operator())}}),
                 new_inputs);
-            return ret;
+            
         });
     }
 

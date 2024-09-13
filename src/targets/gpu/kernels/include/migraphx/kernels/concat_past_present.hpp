@@ -55,9 +55,9 @@ __device__ Present concat_state_chunk(const Past past,
     auto start = present + i * present_buff_chunk_length;
 
     auto p = start;
-    if(!is_prompt)
+    if(not is_prompt)
     {
-        if(!past_present_share_buffer)
+        if(not past_present_share_buffer)
         {
             const auto src_past = past + i * past_buff_chunk_length;
             copy_data(p, src_past, past_chunk_length, idx);

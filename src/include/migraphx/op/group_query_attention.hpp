@@ -196,9 +196,9 @@ struct group_query_attention
         T start = present + i * present_buff_chunk_length;
 
         T p = start;
-        if(!is_prompt)
+        if(not is_prompt)
         {
-            if(!past_present_share_buffer)
+            if(not past_present_share_buffer)
             {
                 const T src_past = past + i * past_buff_chunk_length;
                 copy_data(p, src_past, past_chunk_length);
@@ -350,7 +350,7 @@ struct group_query_attention
             for(int seq = 0; seq < sequence_length; seq++)
             {
                 int seq_causal_length = sequence_length == 1 ? total_seqlen : seq + 1;
-                if(local_window_size > 0 && seq_causal_length > local_window_size + 1)
+                if(local_window_size > 0 and seq_causal_length > local_window_size + 1)
                 {
                     for(int total_seq_id = 0;
                         total_seq_id < seq_causal_length - local_window_size - 1;

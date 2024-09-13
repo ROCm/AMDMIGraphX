@@ -45,7 +45,6 @@ struct test_group_query_attention_prompt : verify_program<test_group_query_atten
         migraphx::shape tsl_s{migraphx::shape::int64_type, tsl_lens};
         migraphx::shape cs_cache_s{dtype, cs_cache_lens};
         auto query = mm->add_parameter("query", query_s);
-        std::vector<float> kv_vec(kv_s.elements(), 0.0);
         std::vector<int> slk_vec(slk_s.elements(), 9);
         std::vector<int> tsl_vec(tsl_s.elements(), 10);
         auto k_cache   = mm->add_parameter("k_cache", kv_s);

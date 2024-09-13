@@ -134,8 +134,7 @@ struct find_nested_shape_transforms
         else if(x->get_shape().elements() == 1 and x->get_shape().elements() == 1)
         {
             // TODO: Use squeeze or unsqueeze
-            m.replace_instruction(
-                ins, make_op("reshape", {{"dims", ins->get_shape().lens()}}), x);
+            m.replace_instruction(ins, make_op("reshape", {{"dims", ins->get_shape().lens()}}), x);
         }
         else
         {

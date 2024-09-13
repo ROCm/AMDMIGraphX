@@ -114,7 +114,8 @@ struct find_reduce_mean
 
         auto n = input->get_shape().elements() / ins->get_shape().elements();
 
-        if(n >= max_n / 4 and size < 3)
+        // Convert accumulator to float if <= 8bit type or if < 3 bytes and n >= max_n /4
+        if(size == 1 or (n >= max_n / 4 and size < 3))
         {
             shape::type_t t = is_integral ? shape::int32_type : shape::float_type;
             input = m.insert_instruction(ins, make_op("convert", {{"target_type", t}}), input);

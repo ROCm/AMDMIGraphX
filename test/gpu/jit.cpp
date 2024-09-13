@@ -357,7 +357,10 @@ TEST_CASE(compile_math)
             name.insert(0, "migraphx::");
         data_types.push_back(name);
         // fp8 doesn't have vectorization support yet, therefore skip it for now.
-        if(t != migraphx::shape::fp8e4m3fnuz_type)
+        std::set<migraphx::shape::type_t> fp8_types = {migraphx::shape::fp8e4m3fnuz_type,
+                                                       migraphx::shape::fp8e5m2_type,
+                                                       migraphx::shape::fp8e4m3fn_type};
+        if(not contains(fp8_types, t))
         {
             migraphx::transform(vec_sizes, std::back_inserter(data_types), [&](auto i) {
                 return "migraphx::vec<" + name + ", " + std::to_string(i) + ">";

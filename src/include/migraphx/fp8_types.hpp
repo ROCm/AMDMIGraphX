@@ -21,28 +21,18 @@
  * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
  * THE SOFTWARE.
  */
-
-#include "verify_program.hpp"
-#include <migraphx/program.hpp>
-#include <migraphx/generate.hpp>
-#include <migraphx/make_op.hpp>
-
-template <migraphx::shape::type_t DType>
-struct test_tan : verify_program<test_tan<DType>>
+#ifndef MIGRAPHX_GUARD_MIGRAPHX_FP8_TYPES_HPP
+#define MIGRAPHX_GUARD_MIGRAPHX_FP8_TYPES_HPP
+#include <migraphx/shape.hpp>
+namespace migraphx {
+inline namespace MIGRAPHX_INLINE_NS {
+struct fp8_types
 {
-    migraphx::program create_program() const
-    {
-        migraphx::program p;
-        auto* mm = p.get_main_module();
-        migraphx::shape s{DType, {16}};
-        auto x = mm->add_parameter("x", s);
-        mm->add_instruction(migraphx::make_op("tan"), x);
-        return p;
-    }
-};
+    const std::set<shape::type_t> types = {
+        shape::fp8e4m3fnuz_type, shape::fp8e4m3fn_type, shape::fp8e5m2_type};
 
-template struct test_tan<migraphx::shape::float_type>;
-template struct test_tan<migraphx::shape::half_type>;
-template struct test_tan<migraphx::shape::fp8e4m3fnuz_type>;
-template struct test_tan<migraphx::shape::fp8e4m3fn_type>;
-template struct test_tan<migraphx::shape::fp8e5m2_type>;
+    std::set<shape::type_t> get() const { return types; }
+};
+} // namespace MIGRAPHX_INLINE_NS
+} // namespace migraphx
+#endif // MIGRAPHX_GUARD_MIGRAPHX_FP8_TYPES_HPP

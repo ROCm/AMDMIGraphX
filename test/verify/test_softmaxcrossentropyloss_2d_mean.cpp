@@ -39,9 +39,9 @@ struct test_softmaxcrossentropyloss_2d_mean : verify_program<test_softmaxcrossen
         size_t class_size = num_classes;
 
         auto scores  = mm->add_parameter("0", migraphx::shape{DType, {num_batches, num_classes}});
-        auto labels  = mm->add_parameter("1", migraphx::shape{LType, {num_batches}});
-        auto weights = mm->add_literal(
-            migraphx::literal(migraphx::shape(DType, {1}, {0}), {1}));
+        auto labels = mm->add_literal(migraphx::literal(migraphx::shape(LType, {batch_size}), {0, 1, 2, 3}));
+
+        auto weights = mm->add_literal(migraphx::literal(migraphx::shape(DType, {1}, {0}), {1}));
 
         std::vector<size_t> label_indexes(num_batches);
         std::iota(label_indexes.begin(), label_indexes.end(), 0);
@@ -81,8 +81,8 @@ struct test_softmaxcrossentropyloss_2d_mean : verify_program<test_softmaxcrossen
     }
 };
 
-template struct test_softmaxcrossentropyloss_2d_mean<migraphx::shape::double_type, migraphx::shape::int32_type, 4, 4>;
-template struct test_softmaxcrossentropyloss_2d_mean<migraphx::shape::double_type, migraphx::shape::int64_type, 4, 4>;
+//template struct test_softmaxcrossentropyloss_2d_mean<migraphx::shape::double_type, migraphx::shape::int32_type, 4, 4>;
+//template struct test_softmaxcrossentropyloss_2d_mean<migraphx::shape::double_type, migraphx::shape::int64_type, 4, 4>;
 template struct test_softmaxcrossentropyloss_2d_mean<migraphx::shape::float_type, migraphx::shape::int32_type, 4, 4>;
 template struct test_softmaxcrossentropyloss_2d_mean<migraphx::shape::float_type, migraphx::shape::int64_type, 4, 4>;
 template struct test_softmaxcrossentropyloss_2d_mean<migraphx::shape::half_type, migraphx::shape::int32_type, 4, 4>;

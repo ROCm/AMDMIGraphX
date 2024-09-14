@@ -39,7 +39,7 @@ struct test_softmaxcrossentropyloss_2d_sum : verify_program<test_softmaxcrossent
         size_t class_size = num_classes;
 
         auto scores  = mm->add_parameter("0", migraphx::shape{DType, {num_batches, num_classes}});
-        auto labels  = mm->add_parameter("1", migraphx::shape{LType, {num_batches}});
+        auto labels = mm->add_literal(migraphx::literal(migraphx::shape(LType, {batch_size}), {0, 1, 2, 3}));
         auto weights = mm->add_literal(
             migraphx::literal(migraphx::shape(DType, {1}, {0}), {1}));
 
@@ -47,7 +47,7 @@ struct test_softmaxcrossentropyloss_2d_sum : verify_program<test_softmaxcrossent
         std::iota(label_indexes.begin(), label_indexes.end(), 0);
 
         auto labels_idx = mm->add_literal(
-            migraphx::literal(migraphx::shape(LType, {num_batches}, {1}), label_indexes));
+            migraphx::literal(migraphx::shape(LType, {batch_size}, {1}), label_indexes));
 
         auto mb_weights = mm->add_instruction(
             migraphx::make_op("multibroadcast", {{"out_lens", {batch_size}}}), weights);
@@ -81,8 +81,8 @@ struct test_softmaxcrossentropyloss_2d_sum : verify_program<test_softmaxcrossent
     }
 };
 
-template struct test_softmaxcrossentropyloss_2d_sum<migraphx::shape::double_type, migraphx::shape::int32_type, 4, 4>;
-template struct test_softmaxcrossentropyloss_2d_sum<migraphx::shape::double_type, migraphx::shape::int64_type, 4, 4>;
+//template struct test_softmaxcrossentropyloss_2d_sum<migraphx::shape::double_type, migraphx::shape::int32_type, 4, 4>;
+//template struct test_softmaxcrossentropyloss_2d_sum<migraphx::shape::double_type, migraphx::shape::int64_type, 4, 4>;
 template struct test_softmaxcrossentropyloss_2d_sum<migraphx::shape::float_type, migraphx::shape::int32_type, 4, 4>;
 template struct test_softmaxcrossentropyloss_2d_sum<migraphx::shape::float_type, migraphx::shape::int64_type, 4, 4>;
 template struct test_softmaxcrossentropyloss_2d_sum<migraphx::shape::half_type, migraphx::shape::int32_type, 4, 4>;

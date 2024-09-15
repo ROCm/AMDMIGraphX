@@ -310,6 +310,10 @@ struct mlir_program
                 result = mlirF16TypeGet(ctx.get());
             else if(as.type_enum() == shape::fp8e4m3fnuz_type)
                 result = mlirFloat8E4M3FNUZTypeGet(ctx.get());
+            else if(as.type_enum() == shape::fp8e4m3fn_type)
+                result = mlirFloat8E4M3FNTypeGet(ctx.get());
+            else if(as.type_enum() == shape::fp8e5m2_type)
+                result = mlirFloat8E5M2TypeGet(ctx.get());
             else if(as.type_enum() == shape::double_type)
                 result = mlirF64TypeGet(ctx.get());
             else if(as.is_integral())

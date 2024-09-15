@@ -39,7 +39,7 @@ struct test_softmaxcrossentropyloss_2d : verify_program<test_softmaxcrossentropy
         size_t class_size = num_classes;
 
         auto scores  = mm->add_parameter("0", migraphx::shape{DType, {batch_size, num_classes}});
-        auto labels = mm->add_literal(migraphx::literal(migraphx::shape(LType, {class_size}, {batch_size}), {0, 1, 2, 3}));
+        auto labels = mm->add_literal(migraphx::literal(migraphx::shape(LType, {batch_size}), {0, 1, 2, 3}));
         auto weights = mm->add_literal(
             migraphx::literal(migraphx::shape(DType, {1}, {0}), {1}));
 

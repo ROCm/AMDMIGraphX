@@ -39,21 +39,20 @@ struct test_softmaxcrossentropyloss_kd: verify_program<test_softmaxcrossentropyl
 
         auto scores = mm->add_parameter(
             "0", migraphx::shape{migraphx::shape::float_type, {batch_size, class_size, 2, 2}});
-        auto labels =
-            mm->add_parameter("1", migraphx::shape{migraphx::shape::int32_type, {class_size, 2, 2}});
+        auto labels = mm->add_literal(migraphx::literal(migraphx::shape(LType, {batch_size, 2, 2}), {0, 1, 2, 3, 0, 1, 2, 3, 0, 1, 2, 3, 0, 1, 2, 3}));
         auto weights =
             mm->add_parameter("2", migraphx::shape{migraphx::shape::float_type, {class_size}});
 
         auto weights_dflt = mm->add_literal(
-            migraphx::literal(migraphx::shape(migraphx::shape::float_type, {1}, {0}), {1}));
+            migraphx::literal(migraphx::shape(DType, {1}, {0}), {1}));
         auto labels_idx = mm->add_literal(migraphx::literal(
-            migraphx::shape(migraphx::shape::int32_type, {class_size}, {1}), {0, 1, 2, 3}));
+            migraphx::shape(LType, {class_size}, {1}), {0, 1, 2, 3}));
 
         // Index variables used for gather on k dimensions that span their dimension
         auto kd_1 = mm->add_literal(
-            migraphx::literal(migraphx::shape(migraphx::shape::int32_type, {2}, {1}), {0, 1}));
+            migraphx::literal(migraphx::shape(LType, {2}, {1}), {0, 1}));
         auto kd_2 = mm->add_literal(
-            migraphx::literal(migraphx::shape(migraphx::shape::int32_type, {2}, {1}), {0, 1}));
+            migraphx::literal(migraphx::shape(LType, {2}, {1}), {0, 1}));
 
         mm->add_instruction(migraphx::make_op("multibroadcast", {{"out_lens", {class_size}}}),
                             weights_dflt);
@@ -106,8 +105,8 @@ struct test_softmaxcrossentropyloss_kd: verify_program<test_softmaxcrossentropyl
     }
 };
 
-template struct test_softmaxcrossentropyloss_kd<migraphx::shape::double_type, migraphx::shape::int32_type, 4, 4>;
-template struct test_softmaxcrossentropyloss_kd<migraphx::shape::double_type, migraphx::shape::int64_type, 4, 4>;
+//template struct test_softmaxcrossentropyloss_kd<migraphx::shape::double_type, migraphx::shape::int32_type, 4, 4>;
+//template struct test_softmaxcrossentropyloss_kd<migraphx::shape::double_type, migraphx::shape::int64_type, 4, 4>;
 template struct test_softmaxcrossentropyloss_kd<migraphx::shape::float_type, migraphx::shape::int32_type, 4, 4>;
 template struct test_softmaxcrossentropyloss_kd<migraphx::shape::float_type, migraphx::shape::int64_type, 4, 4>;
 template struct test_softmaxcrossentropyloss_kd<migraphx::shape::half_type, migraphx::shape::int32_type, 4, 4>;

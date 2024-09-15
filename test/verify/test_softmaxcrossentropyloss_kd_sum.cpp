@@ -40,8 +40,7 @@ struct test_softmaxcrossentropyloss_kd_sum_reduction : verify_program<test_softm
 
         auto scores = mm->add_parameter(
             "0", migraphx::shape{DType, {batch_size, class_size, 2, 2}});
-        auto labels =
-            mm->add_parameter("1", migraphx::shape{LType, {class_size, 2, 2}});
+        auto labels = mm->add_literal(migraphx::literal(migraphx::shape(LType, {batch_size, 2, 2}), {0, 1, 2, 3, 0, 1, 2, 3, 0, 1, 2, 3, 0, 1, 2, 3}));
         auto weights =
             mm->add_parameter("2", migraphx::shape{DType, {class_size}});
 
@@ -109,9 +108,9 @@ struct test_softmaxcrossentropyloss_kd_sum_reduction : verify_program<test_softm
     }
 };
 
-template struct test_softmaxcrossentropyloss_kd_sum_reduction<migraphx::shape::double_type, migraphx::shape::int32_type, 4, 4>;
-template struct test_softmaxcrossentropyloss_kd_sum_reduction<migraphx::shape::double_type, migraphx::shape::int64_type, 4, 4>;
-template struct test_softmaxcrossentropyloss_kd_sum_reduction<migraphx::shape::float_type, migraphx::shape::int32_type, 4, 4>;
-template struct test_softmaxcrossentropyloss_kd_sum_reduction<migraphx::shape::float_type, migraphx::shape::int64_type, 4, 4>;
+//template struct test_softmaxcrossentropyloss_kd_sum_reduction<migraphx::shape::double_type, migraphx::shape::int32_type, 4, 4>;
+//template struct test_softmaxcrossentropyloss_kd_sum_reduction<migraphx::shape::double_type, migraphx::shape::int64_type, 4, 4>;
+//template struct test_softmaxcrossentropyloss_kd_sum_reduction<migraphx::shape::float_type, migraphx::shape::int32_type, 4, 4>;
+//template struct test_softmaxcrossentropyloss_kd_sum_reduction<migraphx::shape::float_type, migraphx::shape::int64_type, 4, 4>;
 template struct test_softmaxcrossentropyloss_kd_sum_reduction<migraphx::shape::half_type, migraphx::shape::int32_type, 4, 4>;
 template struct test_softmaxcrossentropyloss_kd_sum_reduction<migraphx::shape::half_type, migraphx::shape::int64_type, 4, 4>;

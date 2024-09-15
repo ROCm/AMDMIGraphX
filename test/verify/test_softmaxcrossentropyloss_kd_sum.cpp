@@ -27,8 +27,13 @@
 #include <migraphx/generate.hpp>
 #include <migraphx/make_op.hpp>
 
-template <migraphx::shape::type_t DType, migraphx::shape::type_t LType, const size_t num_classes, const size_t num_batches>
-struct test_softmaxcrossentropyloss_kd_sum_reduction : verify_program<test_softmaxcrossentropyloss_kd_sum_reduction<DType, LType, num_classes, num_batches>>
+template <migraphx::shape::type_t DType,
+          migraphx::shape::type_t LType,
+          const size_t num_classes,
+          const size_t num_batches>
+struct test_softmaxcrossentropyloss_kd_sum_reduction
+    : verify_program<
+          test_softmaxcrossentropyloss_kd_sum_reduction<DType, LType, num_classes, num_batches>>
 {
     migraphx::program create_program() const
     {
@@ -38,22 +43,21 @@ struct test_softmaxcrossentropyloss_kd_sum_reduction : verify_program<test_softm
         const size_t batch_size = num_batches;
         const size_t class_size = num_classes;
 
-        auto scores = mm->add_parameter(
-            "0", migraphx::shape{DType, {batch_size, class_size, 2, 2}});
-        auto labels = mm->add_literal(migraphx::literal(migraphx::shape(LType, {batch_size, 2, 2}), {0, 1, 2, 3, 0, 1, 2, 3, 0, 1, 2, 3, 0, 1, 2, 3}));
-        auto weights =
-            mm->add_parameter("2", migraphx::shape{DType, {class_size}});
+        auto scores =
+            mm->add_parameter("0", migraphx::shape{DType, {batch_size, class_size, 2, 2}});
+        auto labels =
+            mm->add_literal(migraphx::literal(migraphx::shape(LType, {batch_size, 2, 2}),
+                                              {0, 1, 2, 3, 0, 1, 2, 3, 0, 1, 2, 3, 0, 1, 2, 3}));
+        auto weights = mm->add_parameter("2", migraphx::shape{DType, {class_size}});
 
-        auto weights_dflt = mm->add_literal(
-            migraphx::literal(migraphx::shape(DType, {1}, {0}), {1}));
-        auto labels_idx = mm->add_literal(migraphx::literal(
-            migraphx::shape(LType, {class_size}, {1}), {0, 1, 2, 3}));
+        auto weights_dflt =
+            mm->add_literal(migraphx::literal(migraphx::shape(DType, {1}, {0}), {1}));
+        auto labels_idx = mm->add_literal(
+            migraphx::literal(migraphx::shape(LType, {class_size}, {1}), {0, 1, 2, 3}));
 
         // Index variables used for gather on k dimensions that span their dimension
-        auto kd_1 = mm->add_literal(
-            migraphx::literal(migraphx::shape(LType, {2}, {1}), {0, 1}));
-        auto kd_2 = mm->add_literal(
-            migraphx::literal(migraphx::shape(LType, {2}, {1}), {0, 1}));
+        auto kd_1 = mm->add_literal(migraphx::literal(migraphx::shape(LType, {2}, {1}), {0, 1}));
+        auto kd_2 = mm->add_literal(migraphx::literal(migraphx::shape(LType, {2}, {1}), {0, 1}));
 
         mm->add_instruction(migraphx::make_op("multibroadcast", {{"out_lens", {class_size}}}),
                             weights_dflt);
@@ -80,10 +84,10 @@ struct test_softmaxcrossentropyloss_kd_sum_reduction : verify_program<test_softm
             unsq_labels_idx3);
 
         auto concat = mm->add_instruction(migraphx::make_op("concat", {{"axis", -1}}),
-                                        bc_unsq_labels_idx,
-                                        bc_unsq_labels_idx2,
-                                        bc_unsq_labels_idx3,
-                                        unsq_labels);
+                                          bc_unsq_labels_idx,
+                                          bc_unsq_labels_idx2,
+                                          bc_unsq_labels_idx3,
+                                          unsq_labels);
 
         auto transpose = mm->add_instruction(
             migraphx::make_op("transpose", {{"permutation", {0, 2, 3, 1}}}), softmax);
@@ -101,16 +105,27 @@ struct test_softmaxcrossentropyloss_kd_sum_reduction : verify_program<test_softm
         auto logsoftmax    = mm->add_instruction(migraphx::make_op("log"), gathernd);
         auto neglogsoftmax = mm->add_instruction(migraphx::make_op("neg"), logsoftmax);
 
-        auto weighted_loss = mm->add_instruction(migraphx::make_op("mul"), neglogsoftmax, gathernd2);
+        auto weighted_loss =
+            mm->add_instruction(migraphx::make_op("mul"), neglogsoftmax, gathernd2);
         mm->add_instruction(migraphx::make_op("reduce_sum", {{"axes", {0, 1, 2}}}), weighted_loss);
 
         return p;
     }
 };
 
-//template struct test_softmaxcrossentropyloss_kd_sum_reduction<migraphx::shape::double_type, migraphx::shape::int32_type, 4, 4>;
-//template struct test_softmaxcrossentropyloss_kd_sum_reduction<migraphx::shape::double_type, migraphx::shape::int64_type, 4, 4>;
-//template struct test_softmaxcrossentropyloss_kd_sum_reduction<migraphx::shape::float_type, migraphx::shape::int32_type, 4, 4>;
-//template struct test_softmaxcrossentropyloss_kd_sum_reduction<migraphx::shape::float_type, migraphx::shape::int64_type, 4, 4>;
-template struct test_softmaxcrossentropyloss_kd_sum_reduction<migraphx::shape::half_type, migraphx::shape::int32_type, 4, 4>;
-template struct test_softmaxcrossentropyloss_kd_sum_reduction<migraphx::shape::half_type, migraphx::shape::int64_type, 4, 4>;
+// template struct test_softmaxcrossentropyloss_kd_sum_reduction<migraphx::shape::double_type,
+// migraphx::shape::int32_type, 4, 4>; template struct
+// test_softmaxcrossentropyloss_kd_sum_reduction<migraphx::shape::double_type,
+// migraphx::shape::int64_type, 4, 4>; template struct
+// test_softmaxcrossentropyloss_kd_sum_reduction<migraphx::shape::float_type,
+// migraphx::shape::int32_type, 4, 4>; template struct
+// test_softmaxcrossentropyloss_kd_sum_reduction<migraphx::shape::float_type,
+// migraphx::shape::int64_type, 4, 4>;
+template struct test_softmaxcrossentropyloss_kd_sum_reduction<migraphx::shape::half_type,
+                                                              migraphx::shape::int32_type,
+                                                              4,
+                                                              4>;
+template struct test_softmaxcrossentropyloss_kd_sum_reduction<migraphx::shape::half_type,
+                                                              migraphx::shape::int64_type,
+                                                              4,
+                                                              4>;

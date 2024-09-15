@@ -134,13 +134,12 @@ struct parse_softmaxcrossentropyloss : op_parser<parse_softmaxcrossentropyloss>
     bool normalize_input_index(const onnx_parser& parser,
                                const onnx_parser::node_info& info,
                                instruction_ref& ignore_index,
-                               int64_t &ignore_index_val) const
+                               int64_t& ignore_index_val) const
     {
         bool has_ignore_index = contains(info.attributes, "ignore_index");
         if(has_ignore_index)
         {
-            ignore_index_val =
-                parser.parse_value(info.attributes.at("ignore_index")).at<int64_t>();
+            ignore_index_val = parser.parse_value(info.attributes.at("ignore_index")).at<int64_t>();
 
             ignore_index = info.add_literal(migraphx::literal(
                 migraphx::shape(migraphx::shape::int64_type, {1}, {0}), {ignore_index_val}));
@@ -353,16 +352,22 @@ struct parse_softmaxcrossentropyloss : op_parser<parse_softmaxcrossentropyloss>
                                           const instruction_ref ignore_index,
                                           const instruction_ref loss_tensor) const
     {
-        auto labels_shape = labels->get_shape();
-        auto ignore_idx_bc = info.add_instruction(migraphx::make_op("multibroadcast", {{"out_lens", labels_shape.lens()}}), ignore_index);
-        auto conv_labels = info.add_instruction(migraphx::make_op("convert", {{"target_type", ignore_index->get_shape().type()}}), labels);
+        auto labels_shape  = labels->get_shape();
+        auto ignore_idx_bc = info.add_instruction(
+            migraphx::make_op("multibroadcast", {{"out_lens", labels_shape.lens()}}), ignore_index);
+        auto conv_labels = info.add_instruction(
+            migraphx::make_op("convert", {{"target_type", ignore_index->get_shape().type()}}),
+            labels);
 
         std::vector<double> zero_val_vect(labels_shape.elements(), 0);
-        auto zero_vector     = info.add_literal(migraphx::literal(loss_tensor->get_shape(), zero_val_vect));
-        auto equals_mask     = info.add_instruction(migraphx::make_op("equal"), conv_labels, ignore_idx_bc);
+        auto zero_vector =
+            info.add_literal(migraphx::literal(loss_tensor->get_shape(), zero_val_vect));
+        auto equals_mask =
+            info.add_instruction(migraphx::make_op("equal"), conv_labels, ignore_idx_bc);
 
         // If the any label is equal to ignore index, zero out the final tensor value
-        return info.add_instruction(migraphx::make_op("where"), equals_mask, zero_vector, loss_tensor);
+        return info.add_instruction(
+            migraphx::make_op("where"), equals_mask, zero_vector, loss_tensor);
     }
 
     std::vector<instruction_ref> parse(const op_desc& /*opd */,
@@ -386,14 +391,14 @@ struct parse_softmaxcrossentropyloss : op_parser<parse_softmaxcrossentropyloss>
         // Ignore_index is optional attribute, assign this as a scalar literal input to the op
         instruction_ref ignore_index;
         int64_t ignore_index_val = -1;
-        auto has_ignore_index =
-            normalize_input_index(parser, info, ignore_index, ignore_index_val);
+        auto has_ignore_index = normalize_input_index(parser, info, ignore_index, ignore_index_val);
 
         bool has_weights        = (args.size() > 2);
         instruction_ref weights = get_weights(info, args, scores_shape, class_size);
 
-        // Adjust weights based on ignore index if its in bounds of [0, class_size) if that's set to 
-        // reduce output after mul to zero. Saves us from doing a where() here and just scale at the end
+        // Adjust weights based on ignore index if its in bounds of [0, class_size) if that's set to
+        // reduce output after mul to zero. Saves us from doing a where() here and just scale at the
+        // end
         if(has_ignore_index and (ignore_index_val < class_size and ignore_index_val >= 0))
         {
             auto weights_shape = weights->get_shape();
@@ -443,9 +448,9 @@ struct parse_softmaxcrossentropyloss : op_parser<parse_softmaxcrossentropyloss>
 
         auto loss_tensor = handle_reduction(info, weighted_result, weights, reduction, has_weights);
 
-        // Handle the case where label == ignore_index regardless if label or ignore index are outside of 
-        // the range of [0, Class_size)
-        if(has_ignore_index and ((ignore_index_val <  0) or (ignore_index_val >= class_size)))
+        // Handle the case where label == ignore_index regardless if label or ignore index are
+        // outside of the range of [0, Class_size)
+        if(has_ignore_index and ((ignore_index_val < 0) or (ignore_index_val >= class_size)))
         {
             loss_tensor = handle_ignored_labels(info, labels, ignore_index, loss_tensor);
         }

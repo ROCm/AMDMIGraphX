@@ -420,7 +420,6 @@ TEST_CASE(softmaxcrossentropyloss_2d_no_reduction_weighted_neg_ignore_index_and_
     EXPECT(migraphx::verify::verify_rms_range(result_vector, gold));
 }
 
-
 TEST_CASE(softmaxcrossentropyloss_2d_no_reduction_weighted_neg_ignore_index_and_label_test2)
 {
     migraphx::program p =
@@ -464,8 +463,9 @@ TEST_CASE(softmaxcrossentropyloss_2d_neg_ignore_index_invalid_label_test)
     pp["1"] = migraphx::argument(label_shape, label_data.data());
     pp["2"] = migraphx::argument(weight_shape, weight_data.data());
 
-    // Should throw as even through ignore_idx out of bounds and negative label being out of bounds is invalid
-    EXPECT(test::throws( [&]{ p.eval(pp).back(); }));
+    // Should throw as even through ignore_idx out of bounds and negative label being out of bounds
+    // is invalid
+    EXPECT(test::throws([&] { p.eval(pp).back(); }));
 }
 
 TEST_CASE(softmaxcrossentropyloss_2d_sum_reduction_weighted_test_ones)

@@ -52,3 +52,5 @@ struct test_mul_dot_a : verify_program<test_mul_dot_a<DType>>
 template struct test_mul_dot_a<migraphx::shape::float_type>;
 template struct test_mul_dot_a<migraphx::shape::half_type>;
 template struct test_mul_dot_a<migraphx::shape::fp8e4m3fnuz_type>;
+template struct test_mul_dot_a<migraphx::shape::fp8e4m3fn_type>;
+template struct test_mul_dot_a<migraphx::shape::fp8e5m2_type>;

@@ -49,10 +49,16 @@ std::string get_device_name()
     return props.gcnArchName;
 }
 
-bool gfx_has_fp8_intrinsics()
+bool gfx_has_fp8fnuz_intrinsics()
 {
     const auto device_name = trim(split_string(get_device_name(), ':').front());
     return (starts_with(device_name, "gfx9") and device_name >= "gfx940");
+}
+
+bool gfx_has_fp8ocp_intrinsics()
+{
+    const auto device_name = trim(split_string(get_device_name(), ':').front());
+    return (starts_with(device_name, "gfx12") and device_name >= "gfx1200");
 }
 
 } // namespace gpu

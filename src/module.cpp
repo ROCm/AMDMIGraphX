@@ -38,6 +38,7 @@
 #include <migraphx/param_utils.hpp>
 #include <migraphx/register_target.hpp>
 #include <migraphx/json.hpp>
+#include <migraphx/fp8_types.hpp>
 #include <iostream>
 #include <sstream>
 #include <algorithm>
@@ -814,8 +815,8 @@ void module::finalize(std::vector<context>& contexts)
         }
     }
 #ifndef BUILD_DEV
-    if(std::any_of(this->begin(), this->end(), [](const auto i) {
-           return i.get_shape().type() == migraphx::shape::fp8e4m3fnuz_type;
+    if(std::any_of(this->begin(), this->end(), [&](const auto i) {
+           return contains(fp8_types{}.get(), i.get_shape().type());
        }))
     {
         std::cout << "[Warning] : MIGraphX has BETA support for FP8. Using FP8 may result in "

@@ -4118,6 +4118,42 @@ def gridsample_bicubic_test():
 
 
 @onnx_test()
+def gridsample_bicubic_align_corners_0_additional_1_test():
+    x = helper.make_tensor_value_info('x', TensorProto.FLOAT, [1, 1, 3, 2])
+    grid = helper.make_tensor_value_info('grid', TensorProto.FLOAT,
+                                         [1, 2, 4, 2])
+    y = helper.make_tensor_value_info('y', TensorProto.FLOAT, [1, 1, 2, 4])
+
+    node = onnx.helper.make_node(
+        "GridSample",
+        inputs=["x", "grid"],
+        outputs=["y"],
+        mode="cubic",
+        align_corners=0,
+    )
+
+    return ([node], [x, grid], [y])
+
+
+@onnx_test()
+def gridsample_bicubic_align_corners_1_additional_1_test():
+    x = helper.make_tensor_value_info('x', TensorProto.FLOAT, [1, 1, 3, 2])
+    grid = helper.make_tensor_value_info('grid', TensorProto.FLOAT,
+                                         [1, 2, 4, 2])
+    y = helper.make_tensor_value_info('y', TensorProto.FLOAT, [1, 1, 2, 4])
+
+    node = onnx.helper.make_node(
+        "GridSample",
+        inputs=["x", "grid"],
+        outputs=["y"],
+        mode="cubic",
+        align_corners=1,
+    )
+
+    return ([node], [x, grid], [y])
+
+
+@onnx_test()
 def gridsample_nearest_align_corners_0_additional_1_test():
     x = helper.make_tensor_value_info('x', TensorProto.FLOAT, [1, 1, 3, 2])
     grid = helper.make_tensor_value_info('grid', TensorProto.FLOAT,

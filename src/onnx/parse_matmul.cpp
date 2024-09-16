@@ -217,7 +217,7 @@ struct parse_matmul : op_parser<parse_matmul>
             auto s0_lens        = a0->get_shape().lens();
             auto s1_lens        = a1->get_shape().lens();
 
-            if(not is_quant_dot and args.size() > 2)
+            if(not is_quant_dot and args.size() > 2 and not has_scales)
             {
                 MIGRAPHX_THROW("PARSE_MATMUL: Bias Args not supported for MatMul");
             }
@@ -288,11 +288,12 @@ struct parse_matmul : op_parser<parse_matmul>
 
             // Apply the scale to dequantize input to then perform a simple dot
             // after the zero points are applied otherwise get a int32 output from the quantized
-            // equivalent
+            // equivalent. Ensure these are broadcasted accordingly before we perform a dot
             if(has_scales)
             {
-                auto dq_a0 = info.add_common_op("mul", ba0, scale_a0);
-                auto dq_a1 = info.add_common_op("mul", ba1, scale_a1);
+                broadcast_dimensions(info, s0_lens, s1_lens, a0, a1, scale_a0, scale_a1);
+                auto dq_a0 = info.add_instrution(make_op("dot"), ba0, scale_a0);
+                auto dq_a1 = info.add_instruction(make_op("dot"), ba1, scale_a1);
                 dot_res    = info.add_instruction(make_op("dot"), dq_a0, dq_a1);
             }
             else

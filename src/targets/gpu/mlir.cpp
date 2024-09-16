@@ -729,6 +729,7 @@ struct mlir_program
     void run_high_level_pipeline()
     {
         mlir_pass_manager pm_front{mlirPassManagerCreate(ctx.get())};
+        mlirRegisterRocMLIROptions();
         mlirMIGraphXAddHighLevelPipeline(pm_front.get());
         logger.clear();
         if(mlirLogicalResultIsFailure(
@@ -746,6 +747,7 @@ struct mlir_program
     void run_backend_pipeline()
     {
         mlir_pass_manager pm_back{mlirPassManagerCreate(ctx.get())};
+        mlirRegisterRocMLIROptions();
         mlirMIGraphXAddBackendPipeline(pm_back.get(), target_arch.c_str());
         logger.clear();
         const size_t trace = value_of(MIGRAPHX_TRACE_MLIR{});

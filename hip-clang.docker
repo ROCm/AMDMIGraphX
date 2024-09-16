@@ -45,6 +45,9 @@ ENV hip_HIPCC_EXECUTABLE=/opt/rocm/hip/bin/hipcc
 # Workaround broken miopen cmake files
 RUN sed -i 's,;/usr/lib/x86_64-linux-gnu/librt.so,,g' /opt/rocm/lib/cmake/miopen/miopen-targets.cmake
 
+# Workaround for broken hip-clang
+RUN sed -i '/hip_HIPCC_EXECUTABLE/d' /opt/rocm/lib/cmake/hip/hip-config.cmake
+
 ENV LC_ALL=C.UTF-8
 ENV LANG=C.UTF-8
 

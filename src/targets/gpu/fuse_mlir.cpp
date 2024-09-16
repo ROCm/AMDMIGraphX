@@ -709,7 +709,7 @@ struct find_mlir_standalone_attention_op
         std::unordered_map<instruction_ref, instruction_ref> inverse_map;
         for(auto const& [key, value] : map_ins)
         {
-            assert(not contains(inverse_map, i2));
+            assert(not contains(inverse_map, value));
             inverse_map[value] = key;
         }
         return inverse_map;

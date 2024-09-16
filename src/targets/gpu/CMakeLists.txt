@@ -23,14 +23,12 @@
 # ####################################################################################
 
 find_package(hip REQUIRED)
-
 if(NOT GPU_TARGETS)
     set(fatal_msg "HIP package is broken and has no GPU_TARGETS. Please pass GPU_TARGETS to cmake.")
 
     if(NOT WIN32)
         set(fatal_msg "${fatal_msg}\nUse -DGPU_TARGETS=$(/opt/rocm/bin/rocminfo | grep -o -m1 'gfx.*') to build for your GPU.")
     endif()
-
     message(FATAL_ERROR ${fatal_msg})
 endif()
 

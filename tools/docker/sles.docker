@@ -25,7 +25,6 @@ RUN zypper --gpg-auto-import-keys install -y \
     python3-pip \
     rpm-build
 
-
 # Workaround broken rocm packages
 RUN ln -s /opt/rocm-* /opt/rocm
 RUN echo "/opt/rocm/lib" > /etc/ld.so.conf.d/rocm.conf

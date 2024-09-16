@@ -29,10 +29,10 @@
 
 template <migraphx::shape::type_t DType,
           migraphx::shape::type_t LType,
-          const size_t num_classes,
-          const size_t num_batches>
+          const size_t NumClasses,
+          const size_t NumBatches>
 struct test_softmaxcrossentropyloss_kd
-    : verify_program<test_softmaxcrossentropyloss_kd<DType, LType, num_batches, num_classes>>
+    : verify_program<test_softmaxcrossentropyloss_kd<DType, LType, NumBatches, NumClasses>>
 {
     migraphx::program create_program() const
     {

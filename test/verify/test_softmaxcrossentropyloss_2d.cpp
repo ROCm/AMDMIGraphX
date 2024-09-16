@@ -29,29 +29,29 @@
 
 template <migraphx::shape::type_t DType,
           migraphx::shape::type_t LType,
-          const size_t num_classes,
-          const size_t num_batches>
+          const size_t NumClasses,
+          const size_t NumBatches>
 struct test_softmaxcrossentropyloss_2d
-    : verify_program<test_softmaxcrossentropyloss_2d<DType, LType, num_classes, num_batches>>
+    : verify_program<test_softmaxcrossentropyloss_2d<DType, LType, NumClasses, NumBatches>>
 {
     migraphx::program create_program() const
     {
         migraphx::program p;
         auto* mm = p.get_main_module();
 
-        size_t batch_size = num_batches;
-        size_t class_size = num_classes;
+        size_t batch_size = NumBatches;
+        size_t class_size = NumClasses;
 
-        auto scores = mm->add_parameter("0", migraphx::shape{DType, {batch_size, num_classes}});
+        auto scores = mm->add_parameter("0", migraphx::shape{DType, {batch_size, NumClasses}});
         auto labels =
             mm->add_literal(migraphx::literal(migraphx::shape(LType, {batch_size}), {0, 1, 2, 3}));
         auto weights = mm->add_literal(migraphx::literal(migraphx::shape(DType, {1}, {0}), {1}));
 
-        std::vector<size_t> label_indexes(num_batches);
+        std::vector<size_t> label_indexes(NumBatches);
         std::iota(label_indexes.begin(), label_indexes.end(), 0);
 
         auto labels_idx = mm->add_literal(
-            migraphx::literal(migraphx::shape(LType, {num_batches}, {1}), label_indexes));
+            migraphx::literal(migraphx::shape(LType, {NumBatches}, {1}), label_indexes));
 
         auto mb_weights = mm->add_instruction(
             migraphx::make_op("multibroadcast", {{"out_lens", {batch_size}}}), weights);
@@ -63,7 +63,7 @@ struct test_softmaxcrossentropyloss_2d
         auto unsq_labels_idx =
             mm->add_instruction(migraphx::make_op("unsqueeze", {{"axes", {1}}}), labels_idx);
         auto bc_unsq_labels_idx = mm->add_instruction(
-            migraphx::make_op("multibroadcast", {{"out_lens", {num_batches, 1}}}), unsq_labels_idx);
+            migraphx::make_op("multibroadcast", {{"out_lens", {NumBatches, 1}}}), unsq_labels_idx);
         auto concat = mm->add_instruction(
             migraphx::make_op("concat", {{"axis", -1}}), bc_unsq_labels_idx, unsq_labels);
         auto gathernd = mm->add_instruction(migraphx::make_op("gathernd"), softmax, concat);

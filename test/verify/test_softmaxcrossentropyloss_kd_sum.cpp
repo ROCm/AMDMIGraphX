@@ -29,19 +29,19 @@
 
 template <migraphx::shape::type_t DType,
           migraphx::shape::type_t LType,
-          const size_t num_classes,
-          const size_t num_batches>
+          const size_t NumClasses,
+          const size_t NumBatches>
 struct test_softmaxcrossentropyloss_kd_sum_reduction
     : verify_program<
-          test_softmaxcrossentropyloss_kd_sum_reduction<DType, LType, num_classes, num_batches>>
+          test_softmaxcrossentropyloss_kd_sum_reduction<DType, LType, NumClasses, NumBatches>>
 {
     migraphx::program create_program() const
     {
         migraphx::program p;
         auto* mm = p.get_main_module();
 
-        const size_t batch_size = num_batches;
-        const size_t class_size = num_classes;
+        const size_t batch_size = NumBatches;
+        const size_t class_size = NumClasses;
 
         auto scores =
             mm->add_parameter("0", migraphx::shape{DType, {batch_size, class_size, 2, 2}});

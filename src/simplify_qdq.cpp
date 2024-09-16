@@ -390,15 +390,11 @@ bool is_any_input_int4(instruction_ref a)
                                         "transpose",
                                         "reshape",
                                         "convert"};
-    for(auto&& inp : a->inputs())
-    {
-        auto i = inp;
+    return std::any_of(a->inputs().begin(), a->inputs().end(), [](auto i) {
         while(ign.find(i->name()) != ign.end())
             i = i->inputs()[0];
-        if(i->name() == "unpack_int4")
-            return true;
-    }
-    return false;
+        return i->name() == "unpack_int4";
+    });
 }
 
 void remove_qdq_pairs(module& m)

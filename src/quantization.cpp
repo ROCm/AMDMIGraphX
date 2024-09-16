@@ -166,7 +166,7 @@ void quantize_int8(program& prog,
     quantize_8bits(prog, t, shape::int8_type, calibration, ins_names);
 }
 
-void quantize_int4(program& prog)
+void quantize_int4_weights(program& prog)
 {
     run_passes(prog, {normalize_ops{}, optimize_module{}, quantize_int4_pass{}});
 }

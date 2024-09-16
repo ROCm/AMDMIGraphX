@@ -36,25 +36,17 @@ inline namespace MIGRAPHX_INLINE_NS {
 
 MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_TRACE_PROPAGATE_CONSTANT)
 
-static int const_pr_ct = 0;
-
 bool skip_propagate(instruction_ref ins)
 {
-    if(ins->name() == "contiguous")
+    if(ins->name() == "contiguous" or ins->name() == "dequantizelinear")
         return skip_propagate(ins->inputs().front());
-
+    if(ins->name() == "unpack_int4")
+        return true;
     auto&& s = ins->get_shape();
-
-    // 1st iteration: skip unpack in unpack/pack pairs
-    // the goal is to first consume unpack next to data: i.e. int4 tensors
-    if(const_pr_ct == 1 and ins->name() == "unpack_int4" and
-       ins->inputs().front()->name() == "pack_int4")
+    if(s.broadcasted() and not s.scalar())
         return true;
-
-    // other iterations: skip any unpack operator
-    if(const_pr_ct != 1 and ins->name() == "unpack_int4")
+    if(s.scalar() and s.elements() != 1)
         return true;
-
     return false;
 }
 
@@ -66,7 +58,6 @@ bool is_const_ins(instruction_ref ins, const std::unordered_set<std::string>& sk
 
 void propagate_constant::apply(module& m) const
 {
-    const_pr_ct++;
     std::unordered_set<instruction_ref> const_instrs;
     auto last = std::prev(m.end());
 
@@ -109,31 +100,22 @@ void propagate_constant::apply(module& m) const
     {
         if(not literals[i].empty())
         {
-            bool skip_pc = false;
             if(enabled(MIGRAPHX_TRACE_PROPAGATE_CONSTANT{}))
-                std::cout << "Constant replace: " << std::endl;
-            std::vector<instruction_ref> inss;
-            fix([&](auto self, auto ins) {
-                if(contains(inss, ins))
-                    return;
-                if(ins->name() != "@literal" and not is_const_ins(ins, skip_ops))
-                {
-                    skip_pc = true;
-                    return;
-                }
-                for(auto input : ins->inputs())
-                    self(input);
-                inss.push_back(ins);
-            })(const_instrs_vec[i]);
-            if(not skip_pc)
             {
-                if(enabled(MIGRAPHX_TRACE_PROPAGATE_CONSTANT{}))
-                    m.debug_print(inss);
-
-                assert(literals[i].get_shape() == const_instrs_vec[i]->get_shape());
-                auto l = m.add_literal(literals[i].get_shape(), literals[i].data());
-                m.replace_instruction(const_instrs_vec[i], l);
+                std::cout << "Constant replace: " << std::endl;
+                std::vector<instruction_ref> inss;
+                fix([&](auto self, auto ins) {
+                    if(contains(inss, ins))
+                        return;
+                    for(auto input : ins->inputs())
+                        self(input);
+                    inss.push_back(ins);
+                })(const_instrs_vec[i]);
+                m.debug_print(inss);
             }
+            assert(literals[i].get_shape() == const_instrs_vec[i]->get_shape());
+            auto l = m.add_literal(literals[i].get_shape(), literals[i].data());
+            m.replace_instruction(const_instrs_vec[i], l);
         }
     }
 }

@@ -560,7 +560,7 @@ struct compiler
         }
         if(to_int4)
         {
-            quantize_int4(p);
+            quantize_int4_weights(p);
         }
         p.compile(t, co);
         l.save(p);

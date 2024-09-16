@@ -22,26 +22,45 @@
  * THE SOFTWARE.
  */
 
-#include <basic_ops.hpp>
 #include <migraphx/make_op.hpp>
 #include <migraphx/pass_manager.hpp>
 #include <migraphx/dead_code_elimination.hpp>
 #include <migraphx/propagate_constant.hpp>
-
-#include <migraphx/quantize_int4.hpp>
-
 #include <migraphx/generate.hpp>
+#include <migraphx/matcher.hpp>
+#include <migraphx/quantize_int4.hpp>
+#include <basic_ops.hpp>
 #include <test.hpp>
 
-void run_pass(migraphx::module& m)
+namespace match = migraphx::match;
+
+TEST_CASE(int4_pass_test)
 {
-    migraphx::run_passes(m,
-                         {migraphx::quantize_int4_pass{},
-                          migraphx::propagate_constant{},
-                          migraphx::dead_code_elimination{}});
+    migraphx::module m1;
+    {
+        auto x = m1.add_parameter("x", {migraphx::shape::float_type, {1, 8, 16, 16}});
+        auto w = m1.add_literal(
+            migraphx::generate_literal({migraphx::shape::float_type, {16, 8, 6, 6}}));
+        auto conv = m1.add_instruction(
+            migraphx::make_op("convolution",
+                              {{"padding", {1, 1}}, {"stride", {2, 2}}, {"dilation", {1, 1}}}),
+            x,
+            w);
+        m1.add_instruction(migraphx::make_op("relu"), conv);
+    }
+    migraphx::run_passes(m1, {migraphx::quantize_int4_pass{}});
+
+    auto chk_1 = match::name("quantizelinear")(
+                     match::output(match::name("pack_int4")(match::output(match::name(
+                         "unpack_int4")(match::output(match::name("dequantizelinear")))))))
+                     .bind("q");
+
+    auto res = find_match(m1, chk_1);
+
+    EXPECT(migraphx::contains(res.instructions, "q"));
 }
 
-TEST_CASE(int4_test)
+TEST_CASE(int4_const_prop_test)
 {
     migraphx::module m1;
     {
@@ -60,21 +79,13 @@ TEST_CASE(int4_test)
                           migraphx::propagate_constant{},
                           migraphx::dead_code_elimination{}});
 
-    migraphx::module m2;
-    {
-        auto x = m2.add_parameter("x", {migraphx::shape::float_type, {1, 8, 16, 16}});
-        auto w = m2.add_literal(
-            migraphx::generate_literal({migraphx::shape::float_type, {16, 8, 6, 6}}));
-        auto conv = m2.add_instruction(
-            migraphx::make_op("convolution",
-                              {{"padding", {1, 1}}, {"stride", {2, 2}}, {"dilation", {1, 1}}}),
-            x,
-            w);
-        m2.add_instruction(migraphx::make_op("relu"), conv);
-    }
-    migraphx::run_passes(m2, {migraphx::quantize_int4_pass{}, migraphx::dead_code_elimination{}});
+    auto chk_1 = match::name("pack_int4").bind("pack_int4");
+    auto res_1 = find_match(m1, chk_1);
+    EXPECT(not migraphx::contains(res_1.instructions, "pack_int4"));
 
-    // EXPECT(m1 == m2);
+    auto chk_2 = match::name("unpack_int4").bind("unpack_int4");
+    auto res_2 = find_match(m1, chk_2);
+    EXPECT(migraphx::contains(res_2.instructions, "unpack_int4"));
 }
 
 int main(int argc, const char* argv[]) { test::run(argc, argv); }

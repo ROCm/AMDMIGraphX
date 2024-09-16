@@ -57,3 +57,5 @@ struct test_transpose_reshape_add_sub_mul
 template struct test_transpose_reshape_add_sub_mul<migraphx::shape::float_type>;
 template struct test_transpose_reshape_add_sub_mul<migraphx::shape::half_type>;
 template struct test_transpose_reshape_add_sub_mul<migraphx::shape::fp8e4m3fnuz_type>;
+template struct test_transpose_reshape_add_sub_mul<migraphx::shape::fp8e4m3fn_type>;
+template struct test_transpose_reshape_add_sub_mul<migraphx::shape::fp8e5m2_type>;

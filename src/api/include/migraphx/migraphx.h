@@ -45,7 +45,9 @@
     m(int64_type, int64_t) \
     m(uint32_type, uint32_t) \
     m(uint64_type, uint64_t) \
-    m(fp8e4m3fnuz_type, migraphx::fp8::fp8e4m3fnuz)
+    m(fp8e4m3fnuz_type, migraphx::fp8::fp8e4m3fnuz) \
+    m(fp8e4m3fn_type, migraphx::fp8::fp8e4m3fn) \
+    m(fp8e5m2_type, migraphx::fp8::fp8e5m2)
 // clang-format on
 
 #ifdef __cplusplus

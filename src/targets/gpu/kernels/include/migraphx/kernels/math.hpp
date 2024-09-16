@@ -37,6 +37,8 @@ namespace math {
 constexpr float as_float(migraphx::half x) { return x; }
 
 constexpr float as_float(migraphx::fp8::fp8e4m3fnuz x) { return x; }
+constexpr float as_float(migraphx::fp8::fp8e4m3fn x) { return x; }
+constexpr float as_float(migraphx::fp8::fp8e5m2 x) { return x; }
 
 template <class T>
 constexpr T as_float(T x)
@@ -77,10 +79,20 @@ constexpr T as_float(T x)
         MIGRAPHX_RETURNS(fname(math::as_float(x), math::as_float(xs)...))
 
 // NOLINTNEXTLINE
-#define MIGRAPHX_DEVICE_MATH_FP8(name, fname)                                      \
-    template <class... Ts, MIGRAPHX_REQUIRES(not is_any_vec<Ts...>())>             \
-    auto __device__ name(migraphx::fp8::fp8e4m3fnuz x, Ts... xs) MIGRAPHX_RETURNS( \
-        migraphx::fp8::fp8e4m3fnuz(fname(math::as_float(x), math::as_float(xs)...)))
+#define MIGRAPHX_DEVICE_MATH_FP8(name, fname)                                                      \
+    template <class... Ts, MIGRAPHX_REQUIRES(not is_any_vec<Ts...>())>                             \
+    auto __device__ name(migraphx::fp8::fp8e4m3fnuz x, Ts... xs)                                   \
+        MIGRAPHX_RETURNS(migraphx::fp8::fp8e4m3fnuz(                                               \
+            fname(math::as_float(x),                                                               \
+                  math::as_float(                                                                  \
+                      xs)...))) template <class... Ts, MIGRAPHX_REQUIRES(not is_any_vec<Ts...>())> \
+        auto __device__ name(migraphx::fp8::fp8e4m3fn x, Ts... xs)                                 \
+            MIGRAPHX_RETURNS(migraphx::fp8::fp8e4m3fn(fname(                                       \
+                math::as_float(x),                                                                 \
+                math::as_float(                                                                    \
+                    xs)...))) template <class... Ts, MIGRAPHX_REQUIRES(not is_any_vec<Ts...>())>   \
+            auto __device__ name(migraphx::fp8::fp8e5m2 x, Ts... xs) MIGRAPHX_RETURNS(             \
+                migraphx::fp8::fp8e5m2(fname(math::as_float(x), math::as_float(xs)...)))
 
 // Template with two overloads for math functions, one for half2 type and one for more generic
 // <half, N> vectorization where N is 4 or another even number.

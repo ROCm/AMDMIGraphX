@@ -53,3 +53,5 @@ struct test_acosh : verify_program<test_acosh<CType>>
 template struct test_acosh<float>;
 template struct test_acosh<migraphx::half>;
 template struct test_acosh<migraphx::fp8::fp8e4m3fnuz>;
+template struct test_acosh<migraphx::fp8::fp8e4m3fn>;
+template struct test_acosh<migraphx::fp8::fp8e5m2>;

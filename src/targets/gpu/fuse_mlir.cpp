@@ -312,6 +312,23 @@ create_param_map_with_literals(module_ref mm, const module* pm, const shape& sha
     return ins_map;
 }
 
+instruction_ref unroll_pointwise(module& main_mod,
+                                 instruction_ref pos,
+                                 const operation& op,
+                                 const std::vector<instruction_ref>& inputs,
+                                 const std::vector<module_ref>& mod_args)
+{
+    if(op.name() == "pointwise")
+    {
+        auto* sub_pm     = mod_args.front();
+        auto param_map_2 = create_param_map_with_literals(
+            &main_mod, sub_pm, op.compute_shape(to_shapes(inputs), mod_args));
+        return main_mod.insert_inline(pos, *sub_pm, inputs, &param_map_2)
+            .front(); // cppcheck-suppress returnDanglingLifetime;
+    }
+    return main_mod.insert_instruction(pos, op, inputs, mod_args);
+}
+
 // Whitelist supported fusion options, including imposing type constraints
 // for cases where MLIR only supports an operation (usually a pointwise function)
 // on particular types.
@@ -505,25 +522,7 @@ struct find_mlir_split_reduce
         std::unordered_map<instruction_ref, instruction_ref> param_map;
         param_map[gemm_ins]      = std::prev(mm->end());
         bool gemm_has_multi_outs = gemm_ins->outputs().size() > 1;
-        auto return_vals =
-            mm->fuse(*rm,
-                     reduce_ins->inputs(),
-                     &param_map,
-                     [&](module& main_mod,
-                         instruction_ref pos,
-                         const operation& op,
-                         const std::vector<instruction_ref>& inputs,
-                         const std::vector<module_ref>& mod_args) {
-                         if(op.name() == "pointwise")
-                         {
-                             auto* sub_pm     = mod_args.front();
-                             auto param_map_2 = create_param_map_with_literals(
-                                 &main_mod, sub_pm, op.compute_shape(to_shapes(inputs), mod_args));
-                             return main_mod.insert_inline(pos, *sub_pm, inputs, &param_map_2)
-                                 .front(); // cppcheck-suppress returnDanglingLifetime;
-                         }
-                         return main_mod.insert_instruction(pos, op, inputs, mod_args);
-                     });
+        auto return_vals = mm->fuse(*rm, reduce_ins->inputs(), &param_map, &unroll_pointwise);
         if(gemm_has_multi_outs)
         {
             return_vals.insert(return_vals.end(), param_map[gemm_ins]);
@@ -749,27 +748,12 @@ struct find_mlir_standalone_attention_op
         // Add pointwise-softmax, unroll any pointwise modules back to base ops
         m_attn.add_params(fused_reduce->inputs(), &map_main_to_mattn);
         std::unordered_map<instruction_ref, instruction_ref> map_mfr_to_mattn(map_main_to_mattn);
-        auto pw_softmax =
-            m_attn
-                .fuse(*fused_reduce->module_inputs().front(),
-                      fused_reduce->inputs(),
-                      &map_mfr_to_mattn,
-                      [&](module& main_mod,
-                          instruction_ref pos,
-                          const operation& op,
-                          const std::vector<instruction_ref>& inputs,
-                          const std::vector<module_ref>& mod_args) {
-                          if(op.name() == "pointwise")
-                          {
-                              auto* sub_pm     = mod_args.front();
-                              auto param_map_2 = create_param_map_with_literals(
-                                  &main_mod, sub_pm, op.compute_shape(to_shapes(inputs), mod_args));
-                              return main_mod.insert_inline(pos, *sub_pm, inputs, &param_map_2)
-                                  .front(); // cppcheck-suppress returnDanglingLifetime;
-                          }
-                          return main_mod.insert_instruction(pos, op, inputs, mod_args);
-                      })
-                .front();
+        auto pw_softmax = m_attn
+                              .fuse(*fused_reduce->module_inputs().front(),
+                                    fused_reduce->inputs(),
+                                    &map_mfr_to_mattn,
+                                    &unroll_pointwise)
+                              .front();
 
         // fused_reduce submodule should end with a softmax
         auto result = match::match_instruction(m_attn, pw_softmax, match::softmax());

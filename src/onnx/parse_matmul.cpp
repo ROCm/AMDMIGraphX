@@ -292,7 +292,7 @@ struct parse_matmul : op_parser<parse_matmul>
             if(has_scales)
             {
                 broadcast_dimensions(info, s0_lens, s1_lens, a0, a1, scale_a0, scale_a1);
-                auto dq_a0 = info.add_instrution(make_op("dot"), ba0, scale_a0);
+                auto dq_a0 = info.add_instruction(make_op("dot"), ba0, scale_a0);
                 auto dq_a1 = info.add_instruction(make_op("dot"), ba1, scale_a1);
                 dot_res    = info.add_instruction(make_op("dot"), dq_a0, dq_a1);
             }

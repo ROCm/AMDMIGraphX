@@ -45,7 +45,9 @@ struct test_conv_bn_add : verify_program<test_conv_bn_add<DType>>
 
         auto rt  = m.add_literal(migraphx::literal{DType, {0.5}});
         auto eps = m.add_literal(migraphx::literal{DType, {1e-5f}});
-        if constexpr((DType) == migraphx::shape::fp8e4m3fnuz_type)
+        if constexpr(DType == migraphx::shape::fp8e4m3fnuz_type or
+                     DType == migraphx::shape::fp8e4m3fn_type or
+                     DType == migraphx::shape::fp8e5m2_type)
         {
             // use 0.250 for fp8
             eps = m.add_literal(migraphx::literal{DType, {0.250}});
@@ -92,3 +94,5 @@ struct test_conv_bn_add : verify_program<test_conv_bn_add<DType>>
 
 template struct test_conv_bn_add<migraphx::shape::float_type>;
 template struct test_conv_bn_add<migraphx::shape::fp8e4m3fnuz_type>;
+template struct test_conv_bn_add<migraphx::shape::fp8e4m3fn_type>;
+template struct test_conv_bn_add<migraphx::shape::fp8e5m2_type>;

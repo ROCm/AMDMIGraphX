@@ -35,7 +35,9 @@ struct parse_matmul : op_parser<parse_matmul>
 {
     std::vector<op_desc> operators() const
     {
-        return {{"MatMul", "dot"}, {"MatMulInteger", "quant_dot"}};
+        return {{"MatMul", "dot"},
+                {"MatMulInteger", "quant_dot"},
+                {"MatMulIntegerToFloat", "quant_dot_scaled"}};
     }
 
     static void broadcast_dimensions(const onnx_parser::node_info& info,
@@ -106,6 +108,20 @@ struct parse_matmul : op_parser<parse_matmul>
         return all_zeros;
     }
 
+    static instruction_ref set_scale_arg(const std::vector<instruction_ref>& args, const int index)
+    {
+        instruction_ref scale_arg                            = args[index];
+        std::set<migraphx::shape::type_t> supported_dq_types = {migraphx::shape::float_type,
+                                                                migraphx::shape::half_type};
+
+        if(not(contains(supported_dq_types, scale_arg->get_shape().type())))
+        {
+            MIGRAPHX_THROW("PARSE_QUANT_DOT_SCALDED: Scales must be float or half_type");
+        }
+
+        return scale_arg;
+    }
+
     static instruction_ref set_bias_arg(const std::vector<instruction_ref>& args,
                                         const int index,
                                         const instruction_ref& input,
@@ -172,7 +188,8 @@ struct parse_matmul : op_parser<parse_matmul>
             a1            = info.add_instruction(make_op("unsqueeze", {{"axes", {1}}}), args[1]);
         }
 
-        auto is_quant_dot = opd.op_name == "quant_dot";
+        auto is_quant_dot = opd.op_name == "quant_dot" or opd.op_name == "quant_dot_scaled";
+        auto has_scales   = opd.op_name == "quant_dot_scaled";
         if(s0.dynamic() or s1.dynamic())
         {
             if(is_quant_dot)
@@ -207,8 +224,23 @@ struct parse_matmul : op_parser<parse_matmul>
 
             bool has_ba0        = false;
             bool has_ba1        = false;
-            instruction_ref ba0 = set_bias_arg(args, 2, a0, has_ba0);
-            instruction_ref ba1 = set_bias_arg(args, 3, a1, has_ba1);
+
+            int a0_zp_index = 2;
+            int a1_zp_index = 3;
+
+            instruction_ref scale_a0;
+            instruction_ref scale_a1;
+            // Handles case with for when scales are present in operator
+            if(has_scales)
+            {
+                a0_zp_index = 4;
+                a1_zp_index = 5;
+                scale_a0    = set_scale_arg(args, 2);
+                scale_a1    = set_scale_arg(args, 3);
+            }
+
+            instruction_ref ba0 = set_bias_arg(args, a0_zp_index, a0, has_ba0);
+            instruction_ref ba1 = set_bias_arg(args, a1_zp_index, a1, has_ba1);
 
             // Only INT8 or UINT8 type currently supported
             std::set<migraphx::shape::type_t> supported_types = {migraphx::shape::uint8_type,
@@ -254,7 +286,19 @@ struct parse_matmul : op_parser<parse_matmul>
 
             broadcast_dimensions(info, s0_lens, s1_lens, a0, a1, ba0, ba1);
 
-            dot_res = info.add_instruction(make_op(opd.op_name), ba0, ba1);
+            // Apply the scale to dequantize input to then perform a simple dot
+            // after the zero points are applied otherwise get a int32 output from the quantized
+            // equivalent
+            if(has_scales)
+            {
+                auto dq_a0 = info.add_common_op("mul", ba0, scale_a0);
+                auto dq_a1 = info.add_common_op("mul", ba1, scale_a1);
+                dot_res    = info.add_instruction(make_op("dot"), dq_a0, dq_a1);
+            }
+            else
+            {
+                dot_res = info.add_instruction(make_op(opd.op_name), ba0, ba1);
+            }
         }
 
         // squeeze the appended or prepended dimensions

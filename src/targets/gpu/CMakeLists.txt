@@ -376,7 +376,7 @@ if(MIGRAPHX_USE_ROCBLAS)
 endif()
 
 if(MIGRAPHX_USE_HIPBLASLT)
-    target_link_libraries(migraphx_gpu PUBLIC roc::hipblas roc::hipblaslt)
+    target_link_libraries(migraphx_gpu PUBLIC roc::hipblaslt)
 endif()
 
 target_link_libraries(migraphx_gpu PUBLIC migraphx MIOpen)

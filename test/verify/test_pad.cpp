@@ -52,3 +52,5 @@ template struct test_pad<migraphx::shape::int32_type>;
 template struct test_pad<migraphx::shape::float_type>;
 template struct test_pad<migraphx::shape::half_type>;
 template struct test_pad<migraphx::shape::fp8e4m3fnuz_type>;
+template struct test_pad<migraphx::shape::fp8e4m3fn_type>;
+template struct test_pad<migraphx::shape::fp8e5m2_type>;

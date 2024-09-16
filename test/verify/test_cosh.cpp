@@ -44,3 +44,5 @@ struct test_cosh : verify_program<test_cosh<DType>>
 template struct test_cosh<migraphx::shape::float_type>;
 template struct test_cosh<migraphx::shape::half_type>;
 template struct test_cosh<migraphx::shape::fp8e4m3fnuz_type>;
+template struct test_cosh<migraphx::shape::fp8e4m3fn_type>;
+template struct test_cosh<migraphx::shape::fp8e5m2_type>;

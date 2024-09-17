@@ -22,10 +22,9 @@
  * THE SOFTWARE.
  */
 
-#ifndef _WIN32
+#if MIGRAPHX_USE_HIPBLASLT
 #include <hipblaslt/hipblaslt.h>
 #include <hipblaslt/hipblaslt-ext.hpp>
-#endif
 #include <limits>
 #include <migraphx/gpu/hipblaslt.hpp>
 #include <migraphx/gpu/hip_gemm_impl.hpp>
@@ -654,3 +653,4 @@ int32_t hip_gemm_default_solution(context& ctx,
 } // namespace gpu
 } // namespace MIGRAPHX_INLINE_NS
 } // namespace migraphx
+#endif // MIGRAPHX_USE_HIPBLASLT

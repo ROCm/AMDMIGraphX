@@ -5671,7 +5671,8 @@ def int4_const_identity_qdq_test():
         outputs=['i_y_zp'],
     )
 
-    data_values = np.array([[-3, -4, -5, 2], [2, 2, 4, 4], [2, -2, 4, 6], [2, 6, 6, 8]])
+    data_values = np.array([[-3, -4, -5, 2], [2, 2, 4, 4], [2, -2, 4, 6],
+                            [2, 6, 6, 8]])
     data_t = helper.make_tensor(name='data',
                                 data_type=TensorProto.FLOAT16,
                                 dims=data_values.shape,
@@ -5710,7 +5711,8 @@ def int4_const_identity_qdq_test():
 
     y_t = helper.make_tensor_value_info('y', TensorProto.FLOAT16, [4, 4])
 
-    return ([i_node, q_node, dq_node, t_node], [], [y_t], [x_t, data_t, sc_t, sc_2_t])
+    return ([i_node, q_node, dq_node,
+             t_node], [], [y_t], [x_t, data_t, sc_t, sc_2_t])
 
 
 @onnx_test()
@@ -5767,7 +5769,8 @@ def int4_const_identity_block_sz_1_qdq_test():
 
     y_t = helper.make_tensor_value_info('y', TensorProto.FLOAT16, [4, 2])
 
-    return ([i_node, q_node, dq_node, t_node], [], [y_t], [x_t, data_t, sc_t, sc_2_t])
+    return ([i_node, q_node, dq_node,
+             t_node], [], [y_t], [x_t, data_t, sc_t, sc_2_t])
 
 
 @onnx_test()

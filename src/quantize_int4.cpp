@@ -67,8 +67,8 @@ static void int4_quantize_module(module& m)
             if(not inp->can_eval())
                 return inp;
 
-            std::vector<float> val;
-            inp->eval().visit([&](auto in_data) { val.assign(in_data.begin(), in_data.end()); });
+            std::vector<float> val = inp->eval().to_vector<float>();
+
             auto [min, max] = std::minmax_element(val.begin(), val.end());
             *min            = *min > 0 ? 0 : *min;
             *max            = *max < 0 ? 0 : *max;

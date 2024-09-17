@@ -483,7 +483,13 @@ module  {
 TEST_CASE(int4_unpack_conv)
 {
     std::string mlir_output = R"__migraphx__(
- module  {  func.func  @mlir_unpack_int4_quant_convolution(%arg0:  !migraphx.shaped<2x8x2x1xi8,  16x2x1x1>,  %arg1:  !migraphx.shaped<1x8x4x4xi8,  128x16x4x1>)  ->  !migraphx.shaped<1x2x3x3xi32,  18x9x3x1>  attributes  {arch  =  "",  kernel  =  "mixr",  num_cu  =  0  :  i64}  {  %0  =  migraphx.unpack  %arg0  {axis  =  3  :  i64,  isUnsigned  =  false}  :  <2x8x2x1xi8,  16x2x1x1>  ->  <2x8x2x2xi8,  32x4x2x1>  %1  =  migraphx.quant_convolution  %arg1,  %0  {dilation  =  [1,  1],  group  =  1  :  i64,  padding  =  [0,  0,  0,  0],  padding_mode  =  0  :  i64,  stride  =  [1,  1]}  :  <1x8x4x4xi8,  128x16x4x1>,  <2x8x2x2xi8,  32x4x2x1>  ->  <1x2x3x3xi32,  18x9x3x1>  return  %1  :  !migraphx.shaped<1x2x3x3xi32,  18x9x3x1>  }  }
+ module  {
+    func.func  @mlir_unpack_int4_quant_convolution(%arg0:  !migraphx.shaped<2x8x2x1xi8,  16x2x1x1>,  %arg1:  !migraphx.shaped<1x8x4x4xi8,  128x16x4x1>)  ->  !migraphx.shaped<1x2x3x3xi32,  18x9x3x1>  attributes  {arch  =  "",  kernel  =  "mixr",  num_cu  =  0  :  i64}  {
+        %0  =  migraphx.unpack  %arg0  {axis  =  3  :  i64,  isUnsigned  =  false}  :  <2x8x2x1xi8,  16x2x1x1>  ->  <2x8x2x2xi8,  32x4x2x1>
+        %1  =  migraphx.quant_convolution  %arg1,  %0  {dilation  =  [1,  1],  group  =  1  :  i64,  padding  =  [0,  0,  0,  0],  padding_mode  =  0  :  i64,  stride  =  [1,  1]}  :  <1x8x4x4xi8,  128x16x4x1>,  <2x8x2x2xi8,  32x4x2x1>  ->  <1x2x3x3xi32,  18x9x3x1>
+        return  %1  :  !migraphx.shaped<1x2x3x3xi32,  18x9x3x1>
+    }
+}
 )__migraphx__";
     migraphx::module m;
     auto x    = m.add_parameter("x", {migraphx::shape::int8_type, {1, 8, 4, 4}});

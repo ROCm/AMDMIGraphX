@@ -114,46 +114,94 @@ struct roialign
     {
         std::vector<pos_weight> results(bin_grid_size[0] * bin_grid_size[1] * output_height *
                                         output_width);
-        shape_for_each(comp_s, [&](const auto& idx_v, size_t index) {
-            std::array<std::size_t, 2> p = {idx_v[0], idx_v[1]};
-            std::array<std::size_t, 2> i = {idx_v[2], idx_v[3]};
 
+        shape_for_each(comp_s, [&](const auto& idx_v, size_t index) {
+for(auto aa : comp_s.multi(index)) printf(", %lu ", aa);
+printf("index\n");
+
+            // The p and i indexes are looping parameters in ORT and go in y, x order.  The i[x] value is least significant
+            // and iterates the fastest.
+            std::array<std::size_t, 2> p = {idx_v[1], idx_v[0]};
+            std::array<std::size_t, 2> i = {idx_v[3], idx_v[2]};
+printf(" IIIII other index %lu , %lu , %lu , %lu\n", p[0], p[1], i[0], i[1]);
+
+            // xy is scaled coordinates of start point of ROI
             std::array<float, 2> xy{};
+            // low, high are floor and ceiling of the xy value (i.e. the bounds of the pixel it lies inside)
             std::array<int64_t, 2> low{};
             std::array<int64_t, 2> high{};
+    // std::cout << " GGGGG inputs to xy calculation: roi_start=" << roi_start[0] << ", " << roi_start[1] << ",  p=[0,1]: " << p[0] << ", " << p[1] << ", bin_size="
+    //                  << bin_size[0] << ", "  << bin_size[1] << " rounding factor=" << (i[0] + .5f) << ", " << (i[1] + .5f) << "   bin_grid_size=" << bin_grid_size[0] <<", " << bin_grid_size[1] <<"\n";
             for(auto ii : range(p.size()))
             {
+    // if(ii == 0)
+    // printf("QQQQQ x: " );
+    // else
+    // printf("QQQQQ y: " );
+                // for width & height dimensions,
+                // transform the roi start point to scaled coordinates
+// printf("    roi_start[ii] %f p[ii] %lu bin_size[ii] %f (i[ii] + .5f) %f    bin_size[ii] %f   bin_grid_size[ii] %lu       ",
+// roi_start[ii], p[ii], bin_size[ii], (i[ii] + .5f),    bin_size[ii],   bin_grid_size[ii] );
+
+
                 xy[ii] = roi_start[ii] + p[ii] * bin_size[ii] +
                          (i[ii] + .5f) * bin_size[ii] / bin_grid_size[ii];
-                xy[ii] = (coord_trans_mode == "half_pixel") ? (xy[ii] - 0.5f) : xy[ii];
+// printf("L137 %f ", xy[ii]);                        
+                xy[ii] = (coord_trans_mode != "half_pixel") ? (xy[ii] - 0.5f) : xy[ii];
+// printf("L139 %f ", xy[ii]);                        
                 if(xy[ii] < -1.0 or xy[ii] > dims[ii])
                 {
+// printf("L142 results = pos_weight \n ");                        
                     results[index] = pos_weight{};
                     return;
                 }
 
                 xy[ii]   = std::max(xy[ii], 0.0f);
+// printf("L148 %f ", xy[ii]);                        
                 low[ii]  = xy[ii];
                 high[ii] = low[ii] + 1;
                 if(low[ii] >= dims[ii] - 1)
                 {
                     xy[ii] = high[ii] = low[ii] = dims[ii] - 1;
+// printf("L154 %f ", xy[ii]);                        
                 }
+// printf("\n");
             }
-
+            // printf(" FFFFF  xy[0]=%f  xy[1] = %f                             dims[1]=%lu  low%ld-%ld  high %ld-%ld \n",
+            //                 xy[0], xy[1], dims[1], low[0], low[1],  high[0], high[1]);
             results[index].pos = {low[0] * dims[1] + low[1],
                                   low[0] * dims[1] + high[1],
                                   high[0] * dims[1] + low[1],
                                   high[0] * dims[1] + high[1]};
 
-            float ly = xy[0] - low[0];
-            float lx = xy[1] - low[1];
+            float lx = xy[0] - low[0];
+            float ly = xy[1] - low[1];
             float hy = 1.0f - ly;
             float hx = 1.0f - lx;
-
+            printf(" HHHHH partial pixel values, index=%lu  ly=%f, lx=%f, hy=%f, hx=%f\n", index, ly, lx, hy, hx);
             // save weights and indeces
             results[index].w = {hy * hx, hy * lx, ly * hx, ly * lx};
+
+            // printf("  DDDDD calc_pos_weight precalc ");
+            // for(int aa = 0; aa < 4; aa++)
+            // {
+            //     std::cout << results[index].pos[aa] << ", " << results[index].w[aa] << "    ";
+            // }
+
+     printf(" DDDDD index  %zu    %f  %f  %f  %f \n\n", index,
+                // results[index].pos[0], 
+                // results[index].pos[1], 
+                // results[index].pos[2], 
+                // results[index].pos[3], 
+          float(results[index].w[0]), 
+          float(results[index].w[1]), 
+          float(results[index].w[2]), 
+          float(results[index].w[3]) 
+          );
+
+
         });
+      printf("size of calc_pos_weight vector is %lu\n", results.size());
 
         return results;
     }
@@ -219,14 +267,26 @@ struct roialign
             const auto* batch_indices = args.at(2).cast<int64_t>();
             par_for(n_rois, [&](auto n) {
                 const auto bottom_data   = x.begin();
+                std::cout << "MIGraphX AAAAA x begins " <<  "\n";
                 const auto roi_batch_ind = batch_indices[n];
                 // Do not using rounding; this implementation detail is critical
+      float offset = (coord_trans_mode == "half_pixel") ? 0.5 : 0.0;
                 std::array<float, 2> roi_starts = {
-                    static_cast<float>(roi[roi_s.index({n, 1})] * spatial_scale),
-                    static_cast<float>(roi[roi_s.index({n, 0})] * spatial_scale)};
+                    static_cast<float>(roi[roi_s.index({n, 0})] * spatial_scale - offset),
+                    static_cast<float>(roi[roi_s.index({n, 1})] * spatial_scale - offset)};
                 std::array<float, 2> roi_ends = {
-                    static_cast<float>(roi[roi_s.index({n, 3})] * spatial_scale),
-                    static_cast<float>(roi[roi_s.index({n, 2})] * spatial_scale)};
+                    static_cast<float>(roi[roi_s.index({n, 2})] * spatial_scale - offset),
+                    static_cast<float>(roi[roi_s.index({n, 3})] * spatial_scale - offset)};
+
+                // std::cout << " CCCCC roialign compute(): scale ,  starts (x, x)  ends (x, x)" << ", " << spatial_scale << ",  " <<  roi_starts[0] << ", " << 
+                //  roi_starts[1] << ",  " << 
+                //     roi_ends[0] << ", " <<  roi_ends[1] << "\n";
+                // std::cout << " CCCCC roi is  x, x, x, x x" << ", " <<  roi[roi_s.index({n, 0})] << ", " <<  
+                //     roi[roi_s.index({n, 1})] << ", " <<  roi[roi_s.index({n, 2})] << ", " <<  roi[roi_s.index({n, 3})] << "\n\n";
+
+      printf("CCCCC roialign compute():  roi_start_w = %f, roi_start_h =%f, roi_end_w=%f, roi_end_h=%f \n",
+              float(roi_starts[0]), float(roi_starts[1]), float(roi_ends[0]), float(roi_ends[1]));
+
 
                 // Force malformed ROIs to be 1x1
                 std::array<float, 2> roi_size{};
@@ -236,7 +296,8 @@ struct roialign
                 for(auto ii : range(roi_size.size()))
                 {
                     roi_size[ii] = roi_ends[ii] - roi_starts[ii];
-                    roi_size[ii] = std::max(roi_size[ii], 1.0f);
+                    if(coord_trans_mode != "half_pixel")
+                        roi_size[ii] = std::max(roi_size[ii], 1.0f);
 
                     bin_size[ii]      = roi_size[ii] / out_dims[ii];
                     bin_grid_size[ii] = (sampling_ratio > 0)
@@ -277,9 +338,15 @@ struct roialign
                                                  vec_index[c],
                                                  max_pool{});
                     output(n, c, ph, pw) = output_val;
+            // int64_t index = index_n_c + ph * pooled_width + pw;
+
+                    //  printf(" GGGGG a single output is %f f   n %lu c %lu ph %lu pw %lu\n" , 
+                    // float(output_val),   n, c , ph , pw);
                 });
             });
         });
+
+        printf(" end compute\n\n\n");
 
         return result;
     }

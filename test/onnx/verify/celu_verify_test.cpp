@@ -28,17 +28,33 @@
 
 TEST_CASE(celu_verify_test)
 {
-    migraphx::program p = read_onnx("celu_verify_test.onnx");
+    //  ../../build/bin/test_verify_onnx celu_verify_test
+    migraphx::program p = read_onnx("roialign_test.onnx");
     p.compile(migraphx::make_target("ref"));
 
-    migraphx::shape s{migraphx::shape::float_type, {2, 3}};
+    migraphx::shape s{migraphx::shape::float_type, {1, 1, 2, 3}};
     std::vector<float> data = {-5.5, 2.0, 100., 7.0, 0., -1.};
 
     migraphx::parameter_map pp;
     pp["x"]     = migraphx::argument(s, data.data());
+    pp["y"]     = migraphx::argument(s, data.data());  // ?
+
+        // migraphx::shape sx{migraphx::shape::float_type, {10, 5, 4, 7}};
+    migraphx::shape srois{migraphx::shape::float_type, {1, 4}};
+    std::vector<float> rois_data = {0.1, 0.15, 0.6, 0.35};
+    migraphx::shape sbi{migraphx::shape::int64_type, {1}};  // batch_index
+    std::vector<float> bi_data = {0};
+
+    pp["rois"]    = migraphx::argument(srois, rois_data.data());
+    pp["batch_ind"]    = migraphx::argument(sbi, bi_data.data());
+
     auto result = p.eval(pp).back();
     std::vector<float> result_vector;
     result.visit([&](auto output) { result_vector.assign(output.begin(), output.end()); });
+
+printf(" result:  ");
+for(auto aa : result_vector) printf(" %f ", aa);
+printf("\n");
 
     std::vector<float> gold(6);
     float alpha = 0.5;

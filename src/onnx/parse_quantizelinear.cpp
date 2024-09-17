@@ -45,7 +45,7 @@ struct parse_quantizelinear : op_parser<parse_quantizelinear>
         if(args.size() < 2 or args.size() > 3)
         {
             MIGRAPHX_THROW("QuantizeLinear: must have either 2 or 3 inputs, " +
-                           std::to_string(args.size()) + " inputs provided");
+                           std::to_string(args.size()) + " input(s) provided");
         }
 
         // Starting with version 19 ONNX introduced the constraint that x and y_scale types must be

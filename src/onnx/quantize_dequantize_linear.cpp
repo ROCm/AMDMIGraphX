@@ -61,7 +61,7 @@ void transform_quantize_dequantize_linear_inputs(const onnx_parser::node_info& i
         {
             MIGRAPHX_THROW(op_name + ": For per axis granularity the length of y_scale (actual: " +
                            to_string(y_scale_lens[0]) + ") must be equal to size of x on axis " +
-                           to_string(axis) + "(actual :" + to_string(x_lens[axis]) + ")");
+                           to_string(axis) + "(actual: " + to_string(x_lens[axis]) + ")");
         }
 
         std::transform(args.begin() + 1, args.end(), args.begin() + 1, [&](auto ins) {

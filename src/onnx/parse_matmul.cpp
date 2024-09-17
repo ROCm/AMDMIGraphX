@@ -199,6 +199,32 @@ struct parse_matmul : op_parser<parse_matmul>
         }
     }
 
+    static instruction_ref handle_scaled_output(const onnx_parser::node_info& info,
+                                                const instruction_ref& ba0,
+                                                const instruction_ref& ba1,
+                                                const instruction_ref& scale_a0,
+                                                const instruction_ref& scale_a1,
+                                                const instruction_ref& scaled_bias,
+                                                const bool has_scale_bias)
+    {
+        auto bias_a0 = ba0;
+        auto bias_a1 = ba1;
+        // Convert if we're half types as dot will scream if we try to multipy half int8
+        bias_a0 = info.add_instruction(
+            make_op("convert", {{"target_type", scale_a0->get_shape().type()}}), bias_a0);
+        bias_a1 = info.add_instruction(
+            make_op("convert", {{"target_type", scale_a1->get_shape().type()}}), bias_a1);
+        auto dq_a0 = info.add_instruction(make_op("dot"), ba0, scale_a0);
+        auto dq_a1 = info.add_instruction(make_op("dot"), ba1, scale_a1);
+        auto res   = info.add_instruction(make_op("dot"), dq_a0, dq_a1);
+
+        // Handle case of the bias after scaling
+        if(has_scale_bias)
+            res = info.add_common_op("sub", res, scaled_bias);
+
+        return res;
+    }
+
     instruction_ref parse(const op_desc& opd,
                           const onnx_parser& /*parser*/,
                           const onnx_parser::node_info& info,
@@ -339,18 +365,8 @@ struct parse_matmul : op_parser<parse_matmul>
             if(has_scales)
             {
                 broadcast_dimensions(info, s0_lens, s1_lens, a0, a1, scale_a0, scale_a1);
-                // Convert if we're half types as dot will scream if we try to multipy half int8
-                ba0 = info.add_instruction(
-                    make_op("convert", {{"target_type", scale_a0->get_shape().type()}}), ba0);
-                ba1 = info.add_instruction(
-                    make_op("convert", {{"target_type", scale_a1->get_shape().type()}}), ba1);
-                auto dq_a0 = info.add_instruction(make_op("mul"), ba0, scale_a0);
-                auto dq_a1 = info.add_instruction(make_op("mul"), ba1, scale_a1);
-                dot_res    = info.add_instruction(make_op("dot"), dq_a0, dq_a1);
-
-                // Handle case of the bias after scaling
-                if(has_scale_bias)
-                    dot_res = info.add_common_op("sub", dot_res, scaled_bias);
+                dot_res = handle_scaled_output(
+                    info, ba0, ba1, scale_a0, scale_a1, scaled_bias, has_scale_bias);
             }
             else
             {

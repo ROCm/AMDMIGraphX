@@ -131,6 +131,11 @@ struct find_nested_shape_transforms
             m.replace_instruction(
                 ins, make_op("multibroadcast", {{"out_lens", ins->get_shape().lens()}}), x);
         }
+        else if(x->get_shape().elements() == 1 and ins->get_shape().elements() == 1)
+        {
+            // TODO: Use squeeze or unsqueeze
+            m.replace_instruction(ins, make_op("reshape", {{"dims", ins->get_shape().lens()}}), x);
+        }
         else
         {
             std::reverse(ops.begin(), ops.end());

@@ -465,7 +465,7 @@ TEST_CASE(softmaxcrossentropyloss_2d_neg_ignore_index_invalid_label_test)
 
     // Should throw as even through ignore_idx out of bounds and negative label being out of bounds
     // is invalid
-    EXPECT(test::throws([&] { p.eval(pp).back(); }));
+    EXPECT(test::throws([&] { std::ignore = p.eval(pp).back(); }));
 }
 
 TEST_CASE(softmaxcrossentropyloss_2d_sum_reduction_weighted_test_ones)

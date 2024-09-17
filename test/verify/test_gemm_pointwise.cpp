@@ -56,3 +56,5 @@ struct test_gemm_pointwise : verify_program<test_gemm_pointwise<DType>>
 template struct test_gemm_pointwise<migraphx::shape::float_type>;
 template struct test_gemm_pointwise<migraphx::shape::half_type>;
 template struct test_gemm_pointwise<migraphx::shape::fp8e4m3fnuz_type>;
+template struct test_gemm_pointwise<migraphx::shape::fp8e4m3fn_type>;
+template struct test_gemm_pointwise<migraphx::shape::fp8e5m2_type>;

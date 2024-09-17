@@ -28,6 +28,7 @@ RUN apt-get update && DEBIAN_FRONTEND=noninteractive apt-get install -y --allow-
     wget \
     rocm-device-libs \
     hip-dev \
+    hip-runtime-amd \ 
     libnuma-dev \
     miopen-hip \
     rocblas \

@@ -41,5 +41,6 @@ TEST_CASE(dequantizelinear_x_and_zp_type_mismatch_test)
 
 TEST_CASE(dequantizelinear_scale_and_zp_shape_mismatch_test)
 {
-    EXPECT(test::throws([&] { read_onnx("dequantizelinear_scale_and_zp_shape_mismatch_test.onnx"); }));
+    EXPECT(
+        test::throws([&] { read_onnx("dequantizelinear_scale_and_zp_shape_mismatch_test.onnx"); }));
 }

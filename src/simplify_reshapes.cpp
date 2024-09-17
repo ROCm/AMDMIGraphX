@@ -262,7 +262,8 @@ struct find_concat_multibroadcasts
 {
     auto matcher() const
     {
-        return match::name("concat")(match::all_of[match::inputs()](match::name("multibroadcast", "broadcast")));
+        return match::name("concat")(
+            match::all_of[match::inputs()](match::name("multibroadcast", "broadcast")));
     }
 
     void apply(module& m, const match::matcher_result& mr) const
@@ -283,15 +284,14 @@ struct find_concat_multibroadcasts
         }
 
         // Skip if the broadcasts are different
-        auto broadcast = concat_inputs.front()->get_operator();
+        auto broadcast       = concat_inputs.front()->get_operator();
         auto broadcast_value = broadcast.to_value();
-        if(not std::all_of(concat_inputs.begin()+1, concat_inputs.end(), [&](instruction_ref b) {
-               if (b->name() != broadcast.name())
-                return false;
-                if (broadcast.name() == "broadcast")
-                    return b->get_operator().to_value()["axis"] == broadcast_value["axis"];           
-                return true;
-
+        if(not std::all_of(concat_inputs.begin() + 1, concat_inputs.end(), [&](instruction_ref b) {
+               if(b->name() != broadcast.name())
+                   return false;
+               if(broadcast.name() == "broadcast")
+                   return b->get_operator().to_value()["axis"] == broadcast_value["axis"];
+               return true;
            }))
         {
             return;
@@ -336,9 +336,7 @@ struct find_concat_multibroadcasts
 
         auto new_concat_ins = m.insert_instruction(concat_ins, concat_op, inputs);
         broadcast.from_value({{"out_lens", concat_ins->get_shape().lens()}});
-        m.replace_instruction(concat_ins,
-                              broadcast,
-                              new_concat_ins);
+        m.replace_instruction(concat_ins, broadcast, new_concat_ins);
     }
 };
 

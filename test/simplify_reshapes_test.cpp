@@ -1034,22 +1034,25 @@ TEST_CASE(concat_multibroadcasts9)
 
 TEST_CASE(concat_broadcast1)
 {
-    auto s                           = migraphx::shape{migraphx::shape::float_type, {1024, 1024}};
+    auto s = migraphx::shape{migraphx::shape::float_type, {1024, 1024}};
     migraphx::module m1;
     {
-        auto x                            = m1.add_parameter("x", s);
-        auto y                            = m1.add_parameter("y", s);
-        auto xb = m1.add_instruction(migraphx::make_op("broadcast", {{"axis", 1}, {"out_lens", {8, 1024, 1024}}}), x);
-        auto yb = m1.add_instruction(migraphx::make_op("broadcast", {{"axis", 1}, {"out_lens", {8, 1024, 1024}}}), y);
+        auto x  = m1.add_parameter("x", s);
+        auto y  = m1.add_parameter("y", s);
+        auto xb = m1.add_instruction(
+            migraphx::make_op("broadcast", {{"axis", 1}, {"out_lens", {8, 1024, 1024}}}), x);
+        auto yb = m1.add_instruction(
+            migraphx::make_op("broadcast", {{"axis", 1}, {"out_lens", {8, 1024, 1024}}}), y);
         auto concat = m1.add_instruction(migraphx::make_op("concat", {{"axis", 2}}), xb, yb);
         m1.add_return({concat});
     }
     migraphx::module m2;
     {
-        auto x                            = m2.add_parameter("x", s);
-        auto y                            = m2.add_parameter("y", s);
+        auto x      = m2.add_parameter("x", s);
+        auto y      = m2.add_parameter("y", s);
         auto concat = m2.add_instruction(migraphx::make_op("concat", {{"axis", 1}}), x, y);
-        auto b = m2.add_instruction(migraphx::make_op("broadcast", {{"axis", 1}, {"out_lens", {8, 1024, 2048}}}), concat);
+        auto b      = m2.add_instruction(
+            migraphx::make_op("broadcast", {{"axis", 1}, {"out_lens", {8, 1024, 2048}}}), concat);
         m2.add_return({b});
     }
     run_pass(m1);

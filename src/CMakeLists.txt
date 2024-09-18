@@ -178,6 +178,7 @@ register_migraphx_ops(
     identity
     if_op
     im2col
+    instructions_tuple
     isinf
     isnan
     layout
@@ -205,7 +206,6 @@ register_migraphx_ops(
     nonzero
     onehot
     outline
-    pack_ops
     pack_int4
     pad
     pointwise

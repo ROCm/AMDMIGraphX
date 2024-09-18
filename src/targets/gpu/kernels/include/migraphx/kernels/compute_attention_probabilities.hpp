@@ -60,10 +60,9 @@ calculate_attention_probs(Attn_Probs attention_probs, // output buffer with size
     const index_int loop_len = batch_size * num_heads;
     const float alpha =
         params.scale == 0.0f ? 1.0f / sqrt(static_cast<float>(head_size)) : params.scale;
-    const int max_sequence_length = 4096;
 
-    const index_int i       = idx / (sequence_length * max_sequence_length);
-    const index_int inner_i = idx % (sequence_length * max_sequence_length);
+    const index_int i       = idx / (sequence_length * present_buffer_sequence_length);
+    const index_int inner_i = idx % (sequence_length * present_buffer_sequence_length);
     if(i < loop_len)
     {
         const auto batch_index        = i / num_heads;

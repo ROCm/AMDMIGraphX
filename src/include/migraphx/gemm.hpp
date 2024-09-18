@@ -61,7 +61,7 @@ void gemm(tensor_view<T> cmat, tensor_view<U> amat, tensor_view<U> bmat, F alpha
 }
 
 // Strided 2D GEMM
-// NOLINTNEXTLINE(readability-function-size)
+// NOLINTBEGIN(readability-function-size)
 template <class T, class U, class F>
 void gemm(std::size_t m,
           std::size_t n,
@@ -94,6 +94,7 @@ void gemm(std::size_t m,
         cmat[c_i] = static_cast<double>(alpha) * s + cmat[c_i] * static_cast<double>(beta);
     });
 }
+// NOLINTEND(readability-function-size)
 
 } // namespace MIGRAPHX_INLINE_NS
 } // namespace migraphx

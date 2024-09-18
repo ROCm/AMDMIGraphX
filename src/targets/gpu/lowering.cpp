@@ -518,7 +518,7 @@ struct miopen_apply
             auto past_k = inputs[1];
             auto past_v = inputs[2];
 
-            auto outputs    = mod->insert_instruction(ins, make_op("pack_ops"), past_k, past_v);
+            auto outputs    = mod->insert_instruction(ins, make_op("instructions_tuple"), past_k, past_v);
             auto new_inputs = ins->inputs();
             new_inputs.push_back(outputs);
             return mod->replace_instruction(
@@ -535,7 +535,7 @@ struct miopen_apply
             auto past_v = inputs[2];
 
             auto outputs =
-                mod->insert_instruction(ins, make_op("pack_ops"), output, past_k, past_v);
+                mod->insert_instruction(ins, make_op("instructions_tuple"), output, past_k, past_v);
             auto new_inputs = ins->inputs();
             new_inputs.push_back(outputs);
             return mod->replace_instruction(
@@ -564,7 +564,7 @@ struct miopen_apply
             auto past_v = inputs[2];
 
             auto outputs =
-                mod->insert_instruction(ins, make_op("pack_ops"), output, past_k, past_v);
+                mod->insert_instruction(ins, make_op("instructions_tuple"), output, past_k, past_v);
             auto new_inputs = ins->inputs();
             new_inputs.push_back(outputs);
             return mod->replace_instruction(

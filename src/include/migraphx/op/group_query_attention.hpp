@@ -76,15 +76,6 @@ struct group_query_attention
 
     shape compute_shape(std::vector<shape> inputs) const
     {
-        if(inputs.size() == 8)
-        {
-            auto query_lens = inputs.front().lens();
-            std::size_t q_hidden_size =
-                (query_lens[1] * query_lens[3] * num_heads) / (num_heads + 2 * kv_num_heads);
-            std::vector<std::size_t> output_lens{query_lens.at(0), query_lens.at(2), q_hidden_size};
-            shape output_shape{inputs.front().type(), output_lens};
-            return shape({output_shape, inputs[1], inputs[2]});
-        }
         auto query_lens           = inputs.front().lens();
         std::size_t q_hidden_size = (query_lens[2] * num_heads) / (num_heads + 2 * kv_num_heads);
         std::vector<std::size_t> output_lens{query_lens.at(0), query_lens.at(1), q_hidden_size};

@@ -28,6 +28,9 @@ RUN apt-get update && DEBIAN_FRONTEND=noninteractive apt-get install -y --allow-
     wget \
     rocm-device-libs \
     hip-dev \
+    rocm-smi-lib \
+    rocm-dev \
+    hipify-clang \
     hip-runtime-amd \ 
     libnuma-dev \
     miopen-hip \

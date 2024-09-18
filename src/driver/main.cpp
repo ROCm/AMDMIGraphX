@@ -501,7 +501,7 @@ struct compiler
            ap.set_value(true));
         ap(to_fp16, {"--fp16"}, ap.help("Quantize for fp16"), ap.set_value(true));
         ap(to_int8, {"--int8"}, ap.help("Quantize for int8"), ap.set_value(true));
-        ap(to_fp8, {"--fp8"}, ap.help("Quantize for fp8e4m3fnuz type"), ap.set_value(true));
+        ap(to_fp8, {"--fp8"}, ap.help("Quantize for fp8"), ap.set_value(true));
     }
 
     auto params(const program& p)
@@ -531,12 +531,12 @@ struct compiler
                            "passing "
                            "`--enable-offload-copy` if program run fails.\n";
                 }
-                else if(co.offload_copy)
+                else if(not is_offload_copy_set(p) and co.offload_copy)
                 {
                     std::cout << "[WARNING]: MIGraphX program was likely compiled without "
                                  "offload_copy set, Try "
                                  "removing "
-                                 "`--enable-offload-copy` flag if passed to driver, if program run "
+                                 "`--enable-offload-copy` if program run "
                                  "fails.\n";
                 }
             }

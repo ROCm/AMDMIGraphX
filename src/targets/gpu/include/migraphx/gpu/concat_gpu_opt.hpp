@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2022 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2024 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -33,12 +33,15 @@ namespace gpu {
 
 struct concat_gpu_optimization
 {
-    std::string name() const { return "gpu::concat"; }
     std::string allocate() const { return "hip::allocate"; }
-    migraphx::op::concat get_concat(const migraphx::operation& op) const
+    optional<migraphx::op::concat> get_concat(const migraphx::operation& op) const
     {
-        auto v = op.to_value();
-        return from_value<migraphx::op::concat>(v.at("op"));
+        if(op.name() != "gpu::precompile_op")
+            return nullopt;
+        auto r = from_value<operation>(op.to_value().at("op"));
+        if(r.name() == "concat")
+            return any_cast<migraphx::op::concat>(r);
+        return nullopt;
     }
 };
 

@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2022 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2024 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -27,7 +27,7 @@
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
 namespace gpu {
-
+#if MIGRAPHX_USE_MIOPEN
 shape miopen_abs::compute_shape(const std::vector<shape>& inputs) const
 {
     check_shapes{inputs, *this}.has(2).packed();
@@ -55,7 +55,7 @@ argument miopen_abs::compute(context& ctx,
 }
 
 void miopen_abs::finalize(context&, const shape&, const std::vector<shape>&) { ad = make_abs(); }
-
+#endif
 } // namespace gpu
 } // namespace MIGRAPHX_INLINE_NS
 } // namespace migraphx

@@ -245,6 +245,30 @@ struct MIGRAPHX_EXPORT module
                                      const std::vector<instruction_ref>& splits1,
                                      const std::vector<instruction_ref>& splits2) const;
 
+    // Fuse the instruction into the module by inserting the instructions and
+    // parameters for any missing inputs.
+    std::vector<instruction_ref>
+    fuse(const std::vector<instruction_ref>& inss,
+         std::unordered_map<instruction_ref, instruction_ref>* map_ins = nullptr,
+         inserter insert                                               = nullptr);
+
+    // Fuse another module into this module by inserting the instructions and
+    // parameters from the module
+    std::vector<instruction_ref>
+    fuse(const module& m,
+         const std::vector<instruction_ref>& inputs,
+         std::unordered_map<instruction_ref, instruction_ref>* map_ins = nullptr,
+         inserter insert                                               = nullptr);
+    /*
+    Insert instructions from module `m` to this module at position `ins`
+    */
+    std::vector<instruction_ref>
+    insert_inline(instruction_ref ins,
+                  const module& m,
+                  const std::vector<instruction_ref>& inputs,
+                  std::unordered_map<instruction_ref, instruction_ref>* map_ins = nullptr,
+                  inserter insert                                               = nullptr);
+
     void debug_print() const;
     void debug_print(instruction_ref ins) const;
     void debug_print(instruction_ref ins,
@@ -288,6 +312,8 @@ struct MIGRAPHX_EXPORT module
      * implicit dependency to "X".
      */
     ins_dep_map calc_implicit_deps() const;
+
+    void repeat_while_changes(std::size_t n, const std::function<void()>& f);
 
     MIGRAPHX_EXPORT friend std::ostream& operator<<(std::ostream& os, const module& m);
     MIGRAPHX_EXPORT friend bool operator==(const module& x, const module& y);

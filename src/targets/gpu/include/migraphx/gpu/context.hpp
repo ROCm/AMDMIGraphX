@@ -27,6 +27,11 @@
 #include <migraphx/gpu/export.h>
 #include <migraphx/context.hpp>
 #include <migraphx/gpu/miopen.hpp>
+#if !MIGRAPHX_USE_MIOPEN
+#include <hip/hip_runtime.h>
+#include <hip/hip_runtime_api.h>
+#include <migraphx/manage_ptr.hpp>
+#endif
 #include <migraphx/gpu/rocblas.hpp>
 #include <migraphx/gpu/hip.hpp>
 #include <migraphx/env.hpp>
@@ -91,6 +96,7 @@ struct hip_device
             return nullptr;
         }
 
+#if MIGRAPHX_USE_MIOPEN
         auto create_miopen_handle()
         {
             if(not enabled(MIGRAPHX_ENABLE_NULL_STREAM{}))
@@ -107,6 +113,8 @@ struct hip_device
             assert(mihandle.get() != nullptr);
             return mihandle.get();
         }
+#endif
+
 #if MIGRAPHX_USE_ROCBLAS
         auto get_rocblas()
         {
@@ -145,9 +153,11 @@ struct hip_device
         }
 
         private:
-        std::size_t id                 = 0;
-        shared<hip_stream_ptr> s       = nullptr;
+        std::size_t id           = 0;
+        shared<hip_stream_ptr> s = nullptr;
+#if MIGRAPHX_USE_MIOPEN
         shared<miopen_handle> mihandle = nullptr;
+#endif
 #if MIGRAPHX_USE_ROCBLAS
         shared<rocblas_handle_ptr> rbhandle = nullptr;
 #endif
@@ -200,10 +210,25 @@ struct hip_device
 
 struct context
 {
+    struct auto_save_problem_cache : problem_cache
+    {
+        auto_save_problem_cache() : problem_cache{} {}
+
+        bool auto_save = false;
+
+        auto_save_problem_cache(const auto_save_problem_cache&)            = delete;
+        auto_save_problem_cache& operator=(const auto_save_problem_cache&) = delete;
+        virtual ~auto_save_problem_cache()
+        {
+            if(auto_save)
+                this->save();
+        }
+    };
     context(std::size_t device_id = 0, std::size_t n = value_of(MIGRAPHX_NSTREAMS{}, 1))
         : current_device(std::make_shared<hip_device>(device_id, n)),
           begin_event(create_event()),
-          finish_event(create_event())
+          finish_event(create_event()),
+          pc(std::make_shared<auto_save_problem_cache>())
     {
     }
 
@@ -268,6 +293,7 @@ struct context
         value result;
         result["events"]  = events.size();
         result["streams"] = current_device->nstreams();
+        result["gfx_name"] = get_current_device().get_gfx_name();
 
         return result;
     }
@@ -324,7 +350,12 @@ struct context
         return result;
     }
 
-    problem_cache& get_problem_cache() { return pc; }
+    problem_cache& get_problem_cache() { return *pc; }
+    void load_problem_cache()
+    {
+        pc->load();
+        pc->auto_save = true;
+    }
 
     private:
     // TODO: Make this a vector to support multiple devices
@@ -338,7 +369,7 @@ struct context
     // for stream syncronization
     shared<hip_event_ptr> begin_event  = nullptr;
     shared<hip_event_ptr> finish_event = nullptr;
-    problem_cache pc{};
+    std::shared_ptr<auto_save_problem_cache> pc = nullptr;
 };
 
 inline void migraphx_to_value(value& v, const context& ctx) { v = ctx.to_value(); }

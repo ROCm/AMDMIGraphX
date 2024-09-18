@@ -63,8 +63,15 @@ struct shape_impl
     {
         assert(t != shape::tuple_type);
         assert(m_lens.size() == m_strides.size());
+
+        // Calculate standard shape flag for these lens/strides.  Strides on size-1
+        // axes are ignored to support an MLIR rule.
+        std::vector<size_t> filtered_strides;
+        for(size_t ind = 0; ind < m_strides.size(); ind++)
+            if(m_lens[ind] != 1)
+                filtered_strides.push_back(m_strides[ind]);
         m_standard = this->elements() == this->element_space() and not skips() and
-                     std::is_sorted(m_strides.rbegin(), m_strides.rend());
+                     std::is_sorted(filtered_strides.rbegin(), filtered_strides.rend());
     }
 
     shape_impl(shape::type_t t, std::vector<shape::dynamic_dimension> dims)
@@ -258,6 +265,30 @@ bool shape::is_integral(shape::type_t t)
     bool result = false;
     visit(t, [&](auto as) { result = as.is_integral(); });
     return result;
+}
+
+bool shape::is_compatible(const shape& actual, const shape& expected)
+{
+    // Check subshapes
+    if(expected.type() == shape::tuple_type)
+        return migraphx::equal(actual.sub_shapes(), expected.sub_shapes(), &is_compatible);
+    if(actual == expected)
+        return true;
+    if(actual.type() != expected.type())
+        return false;
+    // Only the expected can be dynamic
+    if(expected.dynamic())
+        return actual.ndim() == expected.ndim();
+    if(actual.dynamic())
+        return false;
+    if(actual.lens() != expected.lens())
+        return false;
+    // Check strides from dimensions that are not 1
+    return all_of(range(actual.lens().size()), [&](auto i) {
+        if(actual.lens()[i] == 1)
+            return true;
+        return actual.strides()[i] == expected.strides()[i];
+    });
 }
 
 shape::shape() : impl(shape_impl::default_shape()) {}

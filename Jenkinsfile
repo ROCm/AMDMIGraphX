@@ -44,7 +44,7 @@ def rocmtestnode(Map conf) {
             make -j\$(nproc) generate VERBOSE=1
             git diff
             git diff-index --quiet HEAD || (echo "Generated files are different. Please run make generate and commit the changes." && exit 1)
-            make -j\$(nproc) all doc package check VERBOSE=1
+            make -j\$(nproc) all package check VERBOSE=1
             md5sum ./*.deb
         """
         echo cmd
@@ -57,6 +57,7 @@ def rocmtestnode(Map conf) {
     node(name) {
         withEnv(['HSA_ENABLE_SDMA=0']) {
             stage("checkout ${variant}") {
+                sh 'printenv'
                 checkout scm
             }
             gitStatusWrapper(credentialsId: "${env.status_wrapper_creds}", gitHubContext: "Jenkins - ${variant}", account: 'ROCmSoftwarePlatform', repo: 'AMDMIGraphX') {
@@ -122,9 +123,9 @@ rocmtest clang_debug: rocmnode('mi100+') { cmake_build ->
         // Disable MLIR since it doesnt work with all ub sanitizers
         withEnv(['MIGRAPHX_DISABLE_MLIR=1']) {
             def sanitizers = "undefined"
-            def debug_flags = "-g -O2 -fsanitize=${sanitizers} -fno-sanitize-recover=${sanitizers}"
+            def debug_flags = "-g -O2 -fsanitize=${sanitizers} -fno-sanitize=vptr,function -fno-sanitize-recover=${sanitizers}"
             def gpu_targets = getgputargets()
-            cmake_build(flags: "-DCMAKE_BUILD_TYPE=debug -DMIGRAPHX_ENABLE_PYTHON=Off -DCMAKE_CXX_FLAGS_DEBUG='${debug_flags}' -DCMAKE_C_FLAGS_DEBUG='${debug_flags}' -DMIGRAPHX_USE_HIPRTC=On -DGPU_TARGETS='${gpu_targets}'", gpu_debug: true)
+            cmake_build(flags: "-DCMAKE_C_COMPILER=/opt/rocm/llvm/bin/clang -DCMAKE_BUILD_TYPE=debug -DMIGRAPHX_ENABLE_PYTHON=Off -DCMAKE_CXX_FLAGS_DEBUG='${debug_flags}' -DCMAKE_C_FLAGS_DEBUG='${debug_flags}' -DMIGRAPHX_USE_HIPRTC=On -DGPU_TARGETS='${gpu_targets}'", gpu_debug: true)
         }
     }
 }, clang_release: rocmnode('mi100+') { cmake_build ->
@@ -144,15 +145,14 @@ rocmtest clang_debug: rocmnode('mi100+') { cmake_build ->
     }
 }, mlir_debug: rocmnode('mi100+') { cmake_build ->
     stage('MLIR Debug') {
-        withEnv(['MIGRAPHX_ENABLE_EXTRA_MLIR=1', 'MIGRAPHX_MLIR_USE_SPECIFIC_OPS=fused,attention,convolution,dot']) {
+        withEnv(['MIGRAPHX_ENABLE_EXTRA_MLIR=1', 'MIGRAPHX_MLIR_USE_SPECIFIC_OPS=fused,attention,convolution,dot', 'MIGRAPHX_ENABLE_MLIR_INPUT_FUSION=1', 'MIGRAPHX_MLIR_ENABLE_SPLITK=1', 'MIGRAPHX_ENABLE_MLIR_REDUCE_FUSION=1', 'MIGRAPHX_ENABLE_SPLIT_REDUCE=1','MIGRAPHX_DISABLE_LAYERNORM_FUSION=1']) {
             def sanitizers = "undefined"
             // Note: the -fno-sanitize= is copied from upstream LLVM_UBSAN_FLAGS.
-            def debug_flags_cxx = "-g -O2 -fsanitize=${sanitizers} -fno-sanitize=vptr,function -fno-sanitize-recover=${sanitizers}"
-            def debug_flags = "-g -O2 -fsanitize=${sanitizers} -fno-sanitize=vptr -fno-sanitize-recover=${sanitizers}"
+            def debug_flags = "-g -O2 -fsanitize=${sanitizers} -fno-sanitize=vptr,function -fno-sanitize-recover=${sanitizers}"
             def gpu_targets = getgputargets()
             // Since the purpose of this run verify all things MLIR supports,
             // enabling all possible types of offloads
-            cmake_build(flags: "-DCMAKE_BUILD_TYPE=debug -DMIGRAPHX_ENABLE_PYTHON=Off -DMIGRAPHX_ENABLE_MLIR=On -DCMAKE_CXX_FLAGS_DEBUG='${debug_flags_cxx}' -DCMAKE_C_FLAGS_DEBUG='${debug_flags}' -DGPU_TARGETS='${gpu_targets}'")
+            cmake_build(flags: "-DCMAKE_C_COMPILER=/opt/rocm/llvm/bin/clang -DCMAKE_BUILD_TYPE=debug -DMIGRAPHX_ENABLE_PYTHON=Off -DMIGRAPHX_ENABLE_MLIR=On -DCMAKE_CXX_FLAGS_DEBUG='${debug_flags}' -DCMAKE_C_FLAGS_DEBUG='${debug_flags}' -DGPU_TARGETS='${gpu_targets}'")
         }
     }
 //}, ck_hiprtc: rocmnode('mi100+') { cmake_build ->
@@ -166,8 +166,7 @@ rocmtest clang_debug: rocmnode('mi100+') { cmake_build ->
     stage('Clang ASAN') {
         def sanitizers = "undefined,address"
         def debug_flags = "-g -O2 -fno-omit-frame-pointer -fsanitize=${sanitizers} -fno-sanitize-recover=${sanitizers}"
-        def gpu_targets = getgputargets()
-        cmake_build(flags: "-DCMAKE_BUILD_TYPE=debug -DMIGRAPHX_ENABLE_PYTHON=Off -DMIGRAPHX_ENABLE_GPU=Off -DMIGRAPHX_ENABLE_CPU=On -DCMAKE_CXX_FLAGS_DEBUG='${debug_flags}' -DCMAKE_C_FLAGS_DEBUG='${debug_flags}' -DGPU_TARGETS='${gpu_targets}'")
+        cmake_build(flags: "-DCMAKE_BUILD_TYPE=debug -DMIGRAPHX_ENABLE_C_API_TEST=Off -DMIGRAPHX_ENABLE_PYTHON=Off -DMIGRAPHX_ENABLE_GPU=Off -DMIGRAPHX_ENABLE_CPU=On -DCMAKE_CXX_FLAGS_DEBUG='${debug_flags}'", compiler:'/usr/bin/clang++-14')
     }
 }
 //, clang_release_navi: rocmnode('navi32') { cmake_build ->

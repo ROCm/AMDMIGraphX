@@ -10,7 +10,7 @@ RUN apt-get update && apt-get install -y software-properties-common gnupg2 --no-
     curl -sL http://repo.radeon.com/rocm/rocm.gpg.key | apt-key add -
 
 # Add rocm repository
-RUN sh -c 'echo deb [arch=amd64 trusted=yes] http://repo.radeon.com/rocm/apt/6.0.2/ jammy main > /etc/apt/sources.list.d/rocm.list'
+RUN sh -c 'echo deb [arch=amd64 trusted=yes] http://repo.radeon.com/rocm/apt/6.1.3/ jammy main > /etc/apt/sources.list.d/rocm.list'
 
 # From docs.amd.com for installing rocm. Needed to install properly
 RUN sh -c "echo 'Package: *\nPin: release o=repo.radeon.com\nPin-priority: 600' > /etc/apt/preferences.d/rocm-pin-600"
@@ -23,6 +23,7 @@ RUN apt-get update && DEBIAN_FRONTEND=noninteractive apt-get install -y --allow-
     apt-utils \
     bison \
     build-essential \
+    clang-14 \
     cmake \
     curl \
     flex \
@@ -41,6 +42,7 @@ RUN apt-get update && DEBIAN_FRONTEND=noninteractive apt-get install -y --allow-
     hip-dev \
     libnuma-dev \
     miopen-hip \
+    libomp-dev \
     rocblas \
     hipfft \
     rocthrust \
@@ -90,7 +92,8 @@ ENV ONNX_HOME=/.onnx
 RUN mkdir -p $ONNX_HOME/models && chmod 777 $ONNX_HOME/models
 
 COPY ./tools/install_prereqs.sh /
-RUN /install_prereqs.sh /usr/local / && rm /install_prereqs.sh
+COPY ./tools/requirements-py.txt /requirements-py.txt
+RUN /install_prereqs.sh /usr/local / && rm /install_prereqs.sh && rm /requirements-py.txt
 RUN test -f /usr/local/hash || exit 1
 
 # Install yapf
@@ -103,7 +106,7 @@ RUN pip3 install -r /doc-requirements.txt
 # Install latest ccache version
 RUN cget -p $PREFIX install facebook/zstd@v1.4.5 -X subdir -DCMAKE_DIR=build/cmake
 RUN cget -p $PREFIX install ccache@v4.1 -DENABLE_TESTING=OFF
-RUN cget -p /opt/cmake install kitware/cmake@v3.26.4
+RUN cget -p /opt/cmake install kitware/cmake@v3.27.0
 # Install a newer version of doxygen because the one that comes with ubuntu is broken
 RUN cget -p $PREFIX install doxygen@Release_1_9_8
 
@@ -127,5 +130,7 @@ ENV LD_LIBRARY_PATH=$PREFIX/lib
 
 # Setup ubsan environment to printstacktrace
 ENV UBSAN_OPTIONS=print_stacktrace=1
+# Disable odr detection since its broken with shared libraries
+# See: https://github.com/google/sanitizers/issues/1017
 ENV ASAN_OPTIONS=detect_stack_use_after_return=1:check_initialization_order=1:strict_init_order=1
 RUN ln -s /opt/rocm/llvm/bin/llvm-symbolizer /usr/bin/llvm-symbolizer

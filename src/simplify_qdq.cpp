@@ -126,9 +126,11 @@ struct match_find_quantizable_ops
 
     auto matcher() const
     {
-        return match::name(get_quantizable_op_names())(
-            match::arg(0)(skip_post_dq_ops(dequantizelinear_op("scale1", "zp1").bind("dq1"))),
-            match::arg(1)(skip_post_dq_ops(dequantizelinear_op("scale2", "zp2").bind("dq2"))));
+        auto dq1 =
+            match::arg(0)(skip_post_dq_ops(dequantizelinear_op("scale1", "zp1").bind("dq1")));
+        auto dq2 =
+            match::arg(1)(skip_post_dq_ops(dequantizelinear_op("scale2", "zp2").bind("dq2")));
+        return match::name(get_quantizable_op_names())(dq1, dq2);
     }
 
     void apply(module& m, const match::matcher_result& r) const
@@ -142,6 +144,8 @@ struct match_find_quantizable_ops
         auto zp2    = r.instructions["zp2"];
         // Only INT8 or FP8 type currently supported
         std::set<migraphx::shape::type_t> supported_types = {migraphx::shape::fp8e4m3fnuz_type,
+                                                             migraphx::shape::fp8e4m3fn_type,
+                                                             migraphx::shape::fp8e5m2_type,
                                                              migraphx::shape::int8_type};
         if(not contains(supported_types, dq1->inputs().front()->get_shape().type()) or
            not contains(supported_types, dq2->inputs().front()->get_shape().type()))

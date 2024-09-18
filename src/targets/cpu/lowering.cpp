@@ -377,7 +377,7 @@ struct cpu_apply
             // skip lowering if input has fp8 as one of the inputs since oneDNN doesn't have fp8
             // supported yet.
             if(std::any_of(it->inputs().begin(), it->inputs().end(), [](const auto& i) {
-                   return i->get_shape().type() == migraphx::shape::fp8e4m3fnuz_type;
+                   return contains(fp8_types{}.get(), i->get_shape().type());
                }))
                 continue;
             if(it->name() == "pow")
@@ -390,12 +390,16 @@ struct cpu_apply
             // skip lowering if input has fp8 as one of the inputs since oneDNN doesn't have fp8
             // supported yet.
             if(std::any_of(it->inputs().begin(), it->inputs().end(), [](const auto& i) {
-                   return i->get_shape().type() == migraphx::shape::fp8e4m3fnuz_type;
+                   return contains(fp8_types{}.get(), i->get_shape().type());
                }))
                 continue;
             if(it->name() == "pooling")
             {
                 apply_pooling(it);
+            }
+            else if(it->name() == "reshape")
+            {
+                apply_reshape(it);
             }
             else if(apply_map.count(it->name()) > 0)
             {
@@ -434,6 +438,29 @@ struct cpu_apply
            v["mode"].to<op::pooling_mode>() != op::pooling_mode::lpnorm)
             return replace(ins, make_op("dnnl::pooling", op.to_value()));
         return ins;
+    }
+    /*
+    Lowers reshape copy operator to reshape lazy by inserting contiguous operators around it.
+    Contiguous ops will later by removed by eliminate_contiguous pass.
+    */
+    instruction_ref apply_reshape(instruction_ref ins) const
+    {
+        std::vector<instruction_ref> before_contiguous_args = ins->inputs();
+        auto before_alloc =
+            insert_allocation(ins, before_contiguous_args.front()->get_shape().as_standard());
+        before_contiguous_args.push_back(before_alloc);
+        auto before_contig =
+            modl->insert_instruction(ins, make_op("dnnl::reorder"), {before_contiguous_args});
+
+        auto new_lazy_reshape = modl->insert_instruction(
+            ins,
+            make_op("reshape_lazy", {{"dims", {ins->get_operator().to_value().at("dims")}}}),
+            before_contig);
+
+        std::vector<instruction_ref> after_contiguous_args = {new_lazy_reshape};
+        auto after_alloc = insert_allocation(new_lazy_reshape, new_lazy_reshape->get_shape());
+        after_contiguous_args.push_back(after_alloc);
+        return modl->replace_instruction(ins, make_op("dnnl::reorder"), after_contiguous_args);
     }
 
     template <class T>

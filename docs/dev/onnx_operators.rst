@@ -324,10 +324,10 @@ Operator Support Matrix
 |                          |           | FP8, FP16,      |                              |
 |                          |           | FP32, FP64      |                              |
 +--------------------------+-----------+-----------------+------------------------------+
-| GridSample               | ✅        | UINT32, UINT64, | ``bicubic``                  |
-|                          |           | INT32, INT64,   | mode not supported,          |
-|                          |           | FP16, FP32      | `5-D inputs`                 |
-|                          |           | FP64            | not supported                |
+| GridSample               | ✅        | UINT32, UINT64, | `5-D inputs`                 |
+|                          |           | INT32, INT64,   | not supported                |
+|                          |           | FP16, FP32,     |                              |
+|                          |           | FP64            |                              |
 +--------------------------+-----------+-----------------+------------------------------+
 | GroupNormalization       | ✅        | FP8, FP16,      | ``stash_type``               |
 |                          |           | FP32, FP64      | not supported                |
@@ -705,7 +705,13 @@ Operator Support Matrix
 +--------------------------+-----------+-----------------+------------------------------+
 | STFT                     | ❌        |                 |                              |
 +--------------------------+-----------+-----------------+------------------------------+
-| Scan                     | 👷        | 👷              |                              |
+| Scan                     | ✅        | UINT8, UINT16,  | ``identity``,                |
+|                          |           | UINT32, UINT64, | ``sequence``                 |
+|                          |           | INT8, INT16,    | datatypes are                |
+|                          |           | INT32, INT64,   | not supported,               |
+|                          |           | FP8, FP16,      | Number of iterations has     |
+|                          |           | FP32, FP64      | upper-bound                  |
+|                          |           |                 | Version 8 not supported      |
 +--------------------------+-----------+-----------------+------------------------------+
 | Scatter (deprecated)     | ✅        | BOOL, UINT8,    |                              |
 |                          |           | UINT16, UINT32, |                              |

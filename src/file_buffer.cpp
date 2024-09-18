@@ -65,6 +65,11 @@ std::string read_string(const fs::path& filename)
     return generic_read_file<std::string>(filename);
 }
 
+void write_string(const fs::path& filename, const std::string& buffer)
+{
+    write_buffer(filename, buffer.data(), buffer.size());
+}
+
 void write_buffer(const fs::path& filename, const char* buffer, std::size_t size)
 {
     std::ofstream os(filename, std::ios::out | std::ios::binary);

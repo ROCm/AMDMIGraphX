@@ -22,9 +22,41 @@
  * THE SOFTWARE.
  */
 
-#include <onnx_test.hpp>
+#include "verify_program.hpp"
+#include <migraphx/program.hpp>
+#include <migraphx/generate.hpp>
+#include <migraphx/make_op.hpp>
 
-TEST_CASE(gridsample_bicubic_test)
+template <class Derived, int64_t Axis, int64_t Direction, int64_t Idx>
+struct test_scan_slice_base : verify_program<Derived>
 {
-    EXPECT(test::throws([&] { read_onnx("gridsample_bicubic_test.onnx"); }));
-}
+    migraphx::program create_program() const
+    {
+        migraphx::program p;
+        auto* mm = p.get_main_module();
+
+        migraphx::shape data_sh{migraphx::shape::int32_type, {2, 2, 2}};
+        auto data_param = mm->add_parameter("data", data_sh);
+        migraphx::shape idx_sh{migraphx::shape::int64_type, {1}};
+        auto idx_lit = mm->add_literal(migraphx::literal{idx_sh, {Idx}});
+
+        mm->add_instruction(
+            migraphx::make_op("scan_slice", {{"axis", Axis}, {"direction", Direction}}),
+            data_param,
+            idx_lit);
+
+        return p;
+    }
+};
+
+struct test_scan_slice1 : test_scan_slice_base<test_scan_slice1, 0, 0, 0>
+{
+};
+
+struct test_scan_slice2 : test_scan_slice_base<test_scan_slice2, -1, 1, 1>
+{
+};
+
+struct test_scan_slice3 : test_scan_slice_base<test_scan_slice2, 1, 0, 1>
+{
+};

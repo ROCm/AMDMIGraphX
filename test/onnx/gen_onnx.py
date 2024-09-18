@@ -652,6 +652,19 @@ def binary_dyn_brcst_mul_fp8_test():
 
 
 @onnx_test()
+def bitwise_and_bcast_test():
+    x = helper.make_tensor_value_info('0', TensorProto.INT32, [2, 3, 4, 5])
+    y = helper.make_tensor_value_info('1', TensorProto.INT32, [4, 5])
+    z = helper.make_tensor_value_info('2', TensorProto.INT32, [2, 3, 4, 5])
+
+    node = onnx.helper.make_node('BitwiseAnd',
+                                 inputs=['0', '1'],
+                                 outputs=['2'])
+
+    return ([node], [x, y], [z])
+
+
+@onnx_test()
 def div_fp8_test():
     arg0 = helper.make_tensor_value_info('0', TensorProto.FLOAT8E4M3FNUZ,
                                          [2, 3])
@@ -4105,6 +4118,42 @@ def gridsample_bicubic_test():
 
 
 @onnx_test()
+def gridsample_bicubic_align_corners_0_additional_1_test():
+    x = helper.make_tensor_value_info('x', TensorProto.FLOAT, [1, 1, 3, 2])
+    grid = helper.make_tensor_value_info('grid', TensorProto.FLOAT,
+                                         [1, 2, 4, 2])
+    y = helper.make_tensor_value_info('y', TensorProto.FLOAT, [1, 1, 2, 4])
+
+    node = onnx.helper.make_node(
+        "GridSample",
+        inputs=["x", "grid"],
+        outputs=["y"],
+        mode="cubic",
+        align_corners=0,
+    )
+
+    return ([node], [x, grid], [y])
+
+
+@onnx_test()
+def gridsample_bicubic_align_corners_1_additional_1_test():
+    x = helper.make_tensor_value_info('x', TensorProto.FLOAT, [1, 1, 3, 2])
+    grid = helper.make_tensor_value_info('grid', TensorProto.FLOAT,
+                                         [1, 2, 4, 2])
+    y = helper.make_tensor_value_info('y', TensorProto.FLOAT, [1, 1, 2, 4])
+
+    node = onnx.helper.make_node(
+        "GridSample",
+        inputs=["x", "grid"],
+        outputs=["y"],
+        mode="cubic",
+        align_corners=1,
+    )
+
+    return ([node], [x, grid], [y])
+
+
+@onnx_test()
 def gridsample_nearest_align_corners_0_additional_1_test():
     x = helper.make_tensor_value_info('x', TensorProto.FLOAT, [1, 1, 3, 2])
     grid = helper.make_tensor_value_info('grid', TensorProto.FLOAT,
@@ -7435,7 +7484,7 @@ def nonzero_int_test():
 
 
 @onnx_test()
-def onehot_test():
+def onehot_static_test():
     axis_value = 0
     depth = np.array([3])
     indices = helper.make_tensor_value_info("indices", TensorProto.INT32,
@@ -7445,7 +7494,7 @@ def onehot_test():
 
     depth_tensor = helper.make_tensor(name="depth",
                                       data_type=TensorProto.INT32,
-                                      dims=None,
+                                      dims=depth.shape,
                                       vals=depth.astype(int))
 
     node = onnx.helper.make_node('OneHot',
@@ -7454,6 +7503,45 @@ def onehot_test():
                                  axis=axis_value)
 
     return ([node], [indices, values], [y], [depth_tensor])
+
+
+@onnx_test()
+def onehot_dyn_test0():
+    axis_value = -1
+    depth = np.array([3])
+    indices = helper.make_tensor_value_info("indices", TensorProto.INT32,
+                                            [None, 2])
+    values = helper.make_tensor_value_info("values", TensorProto.FLOAT16, [2])
+    y = helper.make_tensor_value_info('y', TensorProto.FLOAT16, [3, 5, 2])
+
+    depth_tensor = helper.make_tensor(name="depth",
+                                      data_type=TensorProto.INT32,
+                                      dims=depth.shape,
+                                      vals=depth.astype(int))
+
+    node = onnx.helper.make_node('OneHot',
+                                 inputs=['indices', 'depth', 'values'],
+                                 outputs=['y'],
+                                 axis=axis_value)
+
+    return ([node], [indices, values], [y], [depth_tensor])
+
+
+@onnx_test()
+def onehot_dyn_test1():
+    axis_value = 1
+    indices = helper.make_tensor_value_info("indices", TensorProto.INT32,
+                                            [None, 2])
+    depth = helper.make_tensor_value_info("depth", TensorProto.INT64, [1])
+    values = helper.make_tensor_value_info("values", TensorProto.FLOAT, [2])
+    y = helper.make_tensor_value_info('y', TensorProto.FLOAT, [3, 5, 2])
+
+    node = onnx.helper.make_node('OneHot',
+                                 inputs=['indices', 'depth', 'values'],
+                                 outputs=['y'],
+                                 axis=axis_value)
+
+    return ([node], [indices, values, depth], [y])
 
 
 @onnx_test()
@@ -10488,6 +10576,56 @@ def sign_test():
 
 
 @onnx_test()
+def simplified_layer_normalization_test():
+    x = helper.make_tensor_value_info('x', TensorProto.FLOAT16, [2, 2, 4])
+    scale = helper.make_tensor_value_info('scale', TensorProto.FLOAT16, [4])
+    y = helper.make_tensor_value_info('y', TensorProto.FLOAT16, [2, 2, 4])
+
+    node = onnx.helper.make_node(
+        'SimplifiedLayerNormalization',
+        inputs=['x', 'scale'],
+        outputs=['y'],
+        axis=-1,
+        epsilon=1e-5,
+        stash_type=1,
+    )
+
+    return ([node], [x, scale], [y])
+
+
+@onnx_test()
+def simplified_layer_normalization_invalid_input_test():
+    x = helper.make_tensor_value_info('x', TensorProto.FLOAT16, [1, 2, 2, 4])
+    scale = helper.make_tensor_value_info('scale', TensorProto.FLOAT16, [4])
+    y = helper.make_tensor_value_info('y', TensorProto.FLOAT16, [1, 2, 2, 4])
+
+    node = onnx.helper.make_node(
+        'SimplifiedLayerNormalization',
+        inputs=['x', 'scale'],
+        outputs=['y'],
+    )
+
+    return ([node], [x, scale], [y])
+
+
+@onnx_test()
+def simplified_layer_normalization_invalid_n_args_test():
+    x = helper.make_tensor_value_info('x', TensorProto.FLOAT16, [2, 2, 4])
+    scale = helper.make_tensor_value_info('scale', TensorProto.FLOAT16, [4])
+    bias = helper.make_tensor_value_info('bias', TensorProto.FLOAT16,
+                                         [1, 2, 4])
+    y = helper.make_tensor_value_info('y', TensorProto.FLOAT16, [2, 2, 4])
+
+    node = onnx.helper.make_node(
+        'SimplifiedLayerNormalization',
+        inputs=['x', 'scale', 'bias'],
+        outputs=['y'],
+    )
+
+    return ([node], [x, scale, bias], [y])
+
+
+@onnx_test()
 def sin_test():
     x = helper.make_tensor_value_info('x', TensorProto.FLOAT, [10])
     y = helper.make_tensor_value_info('y', TensorProto.FLOAT, [10])
@@ -10602,6 +10740,88 @@ def size_verify_test():
         outputs=['y'],
     )
     return ([node], [x], [y])
+
+
+@onnx_test()
+def skip_simplified_layer_normalization_test():
+    x = helper.make_tensor_value_info('x', TensorProto.FLOAT16, [2, 2, 4])
+    skip = helper.make_tensor_value_info('skip', TensorProto.FLOAT16,
+                                         [2, 2, 4])
+    gamma = helper.make_tensor_value_info('gamma', TensorProto.FLOAT16, [4])
+    y = helper.make_tensor_value_info('y', TensorProto.FLOAT16, [2, 2, 4])
+    mean = helper.make_tensor_value_info('mean', TensorProto.FLOAT, [2, 2, 1])
+    inv_std_var = helper.make_tensor_value_info('inv_std_var',
+                                                TensorProto.FLOAT, [2, 2, 1])
+    input_skip_bias_sum = helper.make_tensor_value_info(
+        'input_skip_bias_sum', TensorProto.FLOAT16, [2, 2, 4])
+
+    node = onnx.helper.make_node(
+        'SkipSimplifiedLayerNormalization',
+        inputs=['x', 'skip', 'gamma'],
+        outputs=['y', 'mean', 'inv_std_var', 'input_skip_bias_sum'],
+        epsilon=1e-5,
+        domain="com.microsoft")
+
+    return ([node], [x, skip,
+                     gamma], [y, mean, inv_std_var, input_skip_bias_sum])
+
+
+@onnx_test()
+def skip_simplified_layer_normalization_bias_test():
+    x = helper.make_tensor_value_info('x', TensorProto.FLOAT16, [2, 2, 4])
+    skip = helper.make_tensor_value_info('skip', TensorProto.FLOAT16,
+                                         [2, 2, 4])
+    gamma = helper.make_tensor_value_info('gamma', TensorProto.FLOAT16, [4])
+    bias = helper.make_tensor_value_info('bias', TensorProto.FLOAT16, [4])
+    y = helper.make_tensor_value_info('y', TensorProto.FLOAT16, [2, 2, 4])
+    mean = helper.make_tensor_value_info('mean', TensorProto.FLOAT, [2, 2, 1])
+    inv_std_var = helper.make_tensor_value_info('inv_std_var',
+                                                TensorProto.FLOAT, [2, 2, 1])
+    input_skip_bias_sum = helper.make_tensor_value_info(
+        'input_skip_bias_sum', TensorProto.FLOAT16, [2, 2, 4])
+
+    node = onnx.helper.make_node(
+        'SkipSimplifiedLayerNormalization',
+        inputs=['x', 'skip', 'gamma', 'bias'],
+        outputs=['y', 'mean', 'inv_std_var', 'input_skip_bias_sum'],
+        epsilon=1e-5,
+        domain="com.microsoft")
+
+    return ([node], [x, skip, gamma,
+                     bias], [y, mean, inv_std_var, input_skip_bias_sum])
+
+
+@onnx_test()
+def skip_simplified_layer_normalization_invalid_n_args_test():
+    x = helper.make_tensor_value_info('x', TensorProto.FLOAT16, [2, 2, 4])
+    skip = helper.make_tensor_value_info('skip', TensorProto.FLOAT16,
+                                         [2, 2, 4])
+    y = helper.make_tensor_value_info('y', TensorProto.FLOAT16, [2, 2, 4])
+
+    node = onnx.helper.make_node('SkipSimplifiedLayerNormalization',
+                                 inputs=['x', 'skip'],
+                                 outputs=['y'],
+                                 epsilon=1e-5,
+                                 domain="com.microsoft")
+
+    return ([node], [x, skip], [y])
+
+
+@onnx_test()
+def skip_simplified_layer_normalization_invalid_input_test():
+    x = helper.make_tensor_value_info('x', TensorProto.FLOAT16, [2, 2, 2, 4])
+    skip = helper.make_tensor_value_info('skip', TensorProto.FLOAT16,
+                                         [2, 2, 4])
+    gamma = helper.make_tensor_value_info('gamma', TensorProto.FLOAT16, [2, 4])
+    y = helper.make_tensor_value_info('y', TensorProto.FLOAT16, [2, 2, 2, 4])
+
+    node = onnx.helper.make_node('SkipSimplifiedLayerNormalization',
+                                 inputs=['x', 'skip', 'gamma'],
+                                 outputs=['y'],
+                                 epsilon=1e-5,
+                                 domain="com.microsoft")
+
+    return ([node], [x, skip, gamma], [y])
 
 
 @onnx_test()
@@ -11122,6 +11342,776 @@ def softmax_dyn_test():
     node = onnx.helper.make_node('Softmax', inputs=['0'], outputs=['1'])
 
     return ([node], [x], [y])
+
+
+@onnx_test()
+def softmaxcrossentropyloss_score_dim_err_test():
+    scores = helper.make_tensor_value_info('0', TensorProto.FLOAT, [2])
+    labels = helper.make_tensor_value_info('1', TensorProto.INT32, [2])
+    loss = helper.make_tensor_value_info('2', TensorProto.FLOAT, [2])
+
+    node = onnx.helper.make_node(
+        "SoftmaxCrossEntropyLoss",
+        inputs=["0", "1"],
+        outputs=["2"],
+        reduction="none",
+    )
+
+    return ([node], [scores, labels], [loss])
+
+
+@onnx_test()
+def softmaxcrossentropyloss_score_label_mismatch_test():
+    scores = helper.make_tensor_value_info('0', TensorProto.FLOAT, [2, 4])
+    labels = helper.make_tensor_value_info('1', TensorProto.INT32, [1])
+    loss = helper.make_tensor_value_info('2', TensorProto.FLOAT, [2])
+
+    node = onnx.helper.make_node(
+        "SoftmaxCrossEntropyLoss",
+        inputs=["0", "1"],
+        outputs=["2"],
+        reduction="none",
+    )
+
+    return ([node], [scores, labels], [loss])
+
+
+@onnx_test()
+def softmaxcrossentropyloss_score_label_wrong_k_dims_test():
+    scores = helper.make_tensor_value_info('0', TensorProto.FLOAT, [2, 4, 2])
+    labels = helper.make_tensor_value_info('1', TensorProto.INT32, [2])
+    loss = helper.make_tensor_value_info('2', TensorProto.FLOAT, [2])
+
+    node = onnx.helper.make_node(
+        "SoftmaxCrossEntropyLoss",
+        inputs=["0", "1"],
+        outputs=["2"],
+        reduction="none",
+    )
+
+    return ([node], [scores, labels], [loss])
+
+
+@onnx_test()
+def softmaxcrossentropyloss_weight_wrong_dims_test():
+    scores = helper.make_tensor_value_info('0', TensorProto.FLOAT, [4, 4])
+    labels = helper.make_tensor_value_info('1', TensorProto.INT32, [4])
+    loss = helper.make_tensor_value_info('2', TensorProto.FLOAT, [4])
+    weight = helper.make_tensor_value_info('3', TensorProto.FLOAT, [2])
+
+    node = onnx.helper.make_node(
+        "SoftmaxCrossEntropyLoss",
+        inputs=["0", "1", "3"],
+        outputs=["2"],
+        reduction="none",
+    )
+
+    return ([node], [scores, labels, weight], [loss])
+
+
+@onnx_test()
+def softmaxcrossentropyloss_label_wrong_type_test():
+    scores = helper.make_tensor_value_info('0', TensorProto.FLOAT, [4, 4])
+    labels = helper.make_tensor_value_info('1', TensorProto.INT8, [4])
+    loss = helper.make_tensor_value_info('2', TensorProto.FLOAT, [4])
+    weight = helper.make_tensor_value_info('3', TensorProto.FLOAT, [4])
+
+    node = onnx.helper.make_node(
+        "SoftmaxCrossEntropyLoss",
+        inputs=["0", "1", "3"],
+        outputs=["2"],
+        reduction="none",
+    )
+
+    return ([node], [scores, labels, weight], [loss])
+
+
+@onnx_test()
+def softmaxcrossentropyloss_scores_wrong_type_test():
+    scores = helper.make_tensor_value_info('0', TensorProto.INT32, [4, 4])
+    labels = helper.make_tensor_value_info('1', TensorProto.INT32, [4])
+    loss = helper.make_tensor_value_info('2', TensorProto.FLOAT, [4])
+
+    node = onnx.helper.make_node(
+        "SoftmaxCrossEntropyLoss",
+        inputs=["0", "1"],
+        outputs=["2"],
+        reduction="none",
+    )
+
+    return ([node], [scores, labels], [loss])
+
+
+@onnx_test()
+def softmaxcrossentropyloss_weight_wrong_type_test():
+    scores = helper.make_tensor_value_info('0', TensorProto.FLOAT, [4, 4])
+    labels = helper.make_tensor_value_info('1', TensorProto.INT32, [4])
+    loss = helper.make_tensor_value_info('2', TensorProto.FLOAT, [4])
+    weight = helper.make_tensor_value_info('3', TensorProto.INT16, [4])
+
+    node = onnx.helper.make_node(
+        "SoftmaxCrossEntropyLoss",
+        inputs=["0", "1", "3"],
+        outputs=["2"],
+        reduction="none",
+    )
+
+    return ([node], [scores, labels, weight], [loss])
+
+
+@onnx_test()
+def softmaxcrossentropyloss_weight_score_mismatch_valid_type_test():
+    scores = helper.make_tensor_value_info('0', TensorProto.FLOAT, [4, 4])
+    labels = helper.make_tensor_value_info('1', TensorProto.INT32, [4])
+    loss = helper.make_tensor_value_info('2', TensorProto.FLOAT, [4])
+    weight = helper.make_tensor_value_info('3', TensorProto.DOUBLE, [4])
+
+    node = onnx.helper.make_node(
+        "SoftmaxCrossEntropyLoss",
+        inputs=["0", "1", "3"],
+        outputs=["2"],
+        reduction="none",
+    )
+
+    return ([node], [scores, labels, weight], [loss])
+
+
+@onnx_test()
+def softmaxcrossentropyloss_invalid_reduction_test():
+    scores = helper.make_tensor_value_info('0', TensorProto.FLOAT, [4, 4])
+    labels = helper.make_tensor_value_info('1', TensorProto.INT32, [4])
+    loss = helper.make_tensor_value_info('2', TensorProto.FLOAT, [4])
+    weight = helper.make_tensor_value_info('3', TensorProto.DOUBLE, [4])
+
+    node = onnx.helper.make_node(
+        "SoftmaxCrossEntropyLoss",
+        inputs=["0", "1", "3"],
+        outputs=["2"],
+        reduction="BadReductionName",
+    )
+
+    return ([node], [scores, labels, weight], [loss])
+
+
+@onnx_test()
+def softmaxcrossentropyloss_2d_no_reduction_test():
+    scores = helper.make_tensor_value_info('0', TensorProto.FLOAT, [4, 4])
+    labels = helper.make_tensor_value_info('1', TensorProto.INT32, [4])
+    loss = helper.make_tensor_value_info('2', TensorProto.FLOAT, [4])
+
+    node = onnx.helper.make_node(
+        "SoftmaxCrossEntropyLoss",
+        inputs=[
+            "0",
+            "1",
+        ],
+        outputs=["2"],
+        reduction="none",
+    )
+
+    return ([node], [scores, labels], [loss])
+
+
+@onnx_test()
+def softmaxcrossentropyloss_2d_no_reduction_asym_test():
+    scores = helper.make_tensor_value_info('0', TensorProto.FLOAT, [3, 4])
+    labels = helper.make_tensor_value_info('1', TensorProto.INT32, [3])
+    loss = helper.make_tensor_value_info('2', TensorProto.FLOAT, [3])
+
+    node = onnx.helper.make_node(
+        "SoftmaxCrossEntropyLoss",
+        inputs=[
+            "0",
+            "1",
+        ],
+        outputs=["2"],
+        reduction="none",
+    )
+
+    return ([node], [scores, labels], [loss])
+
+
+@onnx_test()
+def softmaxcrossentropyloss_2d_no_reduction_double_test():
+    scores = helper.make_tensor_value_info('0', TensorProto.DOUBLE, [4, 4])
+    labels = helper.make_tensor_value_info('1', TensorProto.INT32, [4])
+    loss = helper.make_tensor_value_info('2', TensorProto.DOUBLE, [4])
+
+    node = onnx.helper.make_node(
+        "SoftmaxCrossEntropyLoss",
+        inputs=[
+            "0",
+            "1",
+        ],
+        outputs=["2"],
+        reduction="none",
+    )
+
+    return ([node], [scores, labels], [loss])
+
+
+@onnx_test()
+def softmaxcrossentropyloss_2d_no_reduction_half_test():
+    scores = helper.make_tensor_value_info('0', TensorProto.FLOAT16, [4, 4])
+    labels = helper.make_tensor_value_info('1', TensorProto.INT32, [4])
+    loss = helper.make_tensor_value_info('2', TensorProto.FLOAT16, [4])
+
+    node = onnx.helper.make_node(
+        "SoftmaxCrossEntropyLoss",
+        inputs=[
+            "0",
+            "1",
+        ],
+        outputs=["2"],
+        reduction="none",
+    )
+
+    return ([node], [scores, labels], [loss])
+
+
+@onnx_test()
+def softmaxcrossentropyloss_2d_sum_reduction_test():
+    scores = helper.make_tensor_value_info('0', TensorProto.FLOAT, [4, 4])
+    labels = helper.make_tensor_value_info('1', TensorProto.INT32, [4])
+    loss = helper.make_tensor_value_info('2', TensorProto.FLOAT, [4])
+
+    node = onnx.helper.make_node(
+        "SoftmaxCrossEntropyLoss",
+        inputs=[
+            "0",
+            "1",
+        ],
+        outputs=["2"],
+        reduction="sum",
+    )
+
+    return ([node], [scores, labels], [loss])
+
+
+@onnx_test()
+def softmaxcrossentropyloss_2d_sum_reduction_double_test():
+    scores = helper.make_tensor_value_info('0', TensorProto.DOUBLE, [4, 4])
+    labels = helper.make_tensor_value_info('1', TensorProto.INT32, [4])
+    loss = helper.make_tensor_value_info('2', TensorProto.DOUBLE, [4])
+
+    node = onnx.helper.make_node(
+        "SoftmaxCrossEntropyLoss",
+        inputs=[
+            "0",
+            "1",
+        ],
+        outputs=["2"],
+        reduction="sum",
+    )
+
+    return ([node], [scores, labels], [loss])
+
+
+@onnx_test()
+def softmaxcrossentropyloss_2d_sum_reduction_half_test():
+    scores = helper.make_tensor_value_info('0', TensorProto.FLOAT16, [4, 4])
+    labels = helper.make_tensor_value_info('1', TensorProto.INT32, [4])
+    loss = helper.make_tensor_value_info('2', TensorProto.FLOAT16, [4])
+
+    node = onnx.helper.make_node(
+        "SoftmaxCrossEntropyLoss",
+        inputs=[
+            "0",
+            "1",
+        ],
+        outputs=["2"],
+        reduction="sum",
+    )
+
+    return ([node], [scores, labels], [loss])
+
+
+@onnx_test()
+def softmaxcrossentropyloss_2d_mean_reduction_test():
+    scores = helper.make_tensor_value_info('0', TensorProto.FLOAT, [4, 4])
+    labels = helper.make_tensor_value_info('1', TensorProto.INT32, [4])
+    loss = helper.make_tensor_value_info('2', TensorProto.FLOAT, [4])
+
+    node = onnx.helper.make_node(
+        "SoftmaxCrossEntropyLoss",
+        inputs=[
+            "0",
+            "1",
+        ],
+        outputs=["2"],
+        reduction="mean",
+    )
+
+    return ([node], [scores, labels], [loss])
+
+
+@onnx_test()
+def softmaxcrossentropyloss_2d_mean_reduction_double_test():
+    scores = helper.make_tensor_value_info('0', TensorProto.DOUBLE, [4, 4])
+    labels = helper.make_tensor_value_info('1', TensorProto.INT32, [4])
+    loss = helper.make_tensor_value_info('2', TensorProto.DOUBLE, [4])
+
+    node = onnx.helper.make_node(
+        "SoftmaxCrossEntropyLoss",
+        inputs=[
+            "0",
+            "1",
+        ],
+        outputs=["2"],
+        reduction="mean",
+    )
+
+    return ([node], [scores, labels], [loss])
+
+
+@onnx_test()
+def softmaxcrossentropyloss_2d_mean_reduction_half_test():
+    scores = helper.make_tensor_value_info('0', TensorProto.FLOAT16, [4, 4])
+    labels = helper.make_tensor_value_info('1', TensorProto.INT32, [4])
+    loss = helper.make_tensor_value_info('2', TensorProto.FLOAT16, [4])
+
+    node = onnx.helper.make_node(
+        "SoftmaxCrossEntropyLoss",
+        inputs=[
+            "0",
+            "1",
+        ],
+        outputs=["2"],
+        reduction="mean",
+    )
+
+    return ([node], [scores, labels], [loss])
+
+
+@onnx_test()
+def softmaxcrossentropyloss_2d_no_reduction_weighted_test():
+    scores = helper.make_tensor_value_info('0', TensorProto.FLOAT, [4, 4])
+    labels = helper.make_tensor_value_info('1', TensorProto.INT32, [4])
+    weights = helper.make_tensor_value_info('2', TensorProto.FLOAT, [4])
+    loss = helper.make_tensor_value_info('3', TensorProto.FLOAT, [4])
+
+    node = onnx.helper.make_node(
+        "SoftmaxCrossEntropyLoss",
+        inputs=[
+            "0",
+            "1",
+            "2",
+        ],
+        outputs=["3"],
+        reduction="none",
+    )
+
+    return ([node], [scores, labels, weights], [loss])
+
+
+@onnx_test()
+def softmaxcrossentropyloss_2d_no_reduction_weighted_out_bounds_ignore_idx_test(
+):
+    scores = helper.make_tensor_value_info('0', TensorProto.FLOAT, [4, 4])
+    labels = helper.make_tensor_value_info('1', TensorProto.INT32, [4])
+    weights = helper.make_tensor_value_info('2', TensorProto.FLOAT, [4])
+    loss = helper.make_tensor_value_info('3', TensorProto.FLOAT, [4])
+
+    node = onnx.helper.make_node(
+        "SoftmaxCrossEntropyLoss",
+        inputs=[
+            "0",
+            "1",
+            "2",
+        ],
+        outputs=["3"],
+        reduction="none",
+        ignore_index=5,
+    )
+
+    return ([node], [scores, labels, weights], [loss])
+
+
+@onnx_test()
+def softmaxcrossentropyloss_2d_no_reduction_weighted_neg_out_bounds_ignore_idx_test(
+):
+    scores = helper.make_tensor_value_info('0', TensorProto.FLOAT, [4, 4])
+    labels = helper.make_tensor_value_info('1', TensorProto.INT32, [4])
+    weights = helper.make_tensor_value_info('2', TensorProto.FLOAT, [4])
+    loss = helper.make_tensor_value_info('3', TensorProto.FLOAT, [4])
+
+    node = onnx.helper.make_node(
+        "SoftmaxCrossEntropyLoss",
+        inputs=[
+            "0",
+            "1",
+            "2",
+        ],
+        outputs=["3"],
+        reduction="none",
+        ignore_index=-5,
+    )
+
+    return ([node], [scores, labels, weights], [loss])
+
+
+@onnx_test()
+def softmaxcrossentropyloss_2d_no_reduction_weighted_asym_test():
+    scores = helper.make_tensor_value_info('0', TensorProto.FLOAT, [3, 4])
+    labels = helper.make_tensor_value_info('1', TensorProto.INT32, [3])
+    weights = helper.make_tensor_value_info('2', TensorProto.FLOAT, [4])
+    loss = helper.make_tensor_value_info('3', TensorProto.FLOAT, [3])
+
+    node = onnx.helper.make_node(
+        "SoftmaxCrossEntropyLoss",
+        inputs=[
+            "0",
+            "1",
+            "2",
+        ],
+        outputs=["3"],
+        reduction="none",
+    )
+
+    return ([node], [scores, labels, weights], [loss])
+
+
+@onnx_test()
+def softmaxcrossentropyloss_2d_no_reduction_weighted_asym_class_test():
+    scores = helper.make_tensor_value_info('0', TensorProto.FLOAT, [4, 3])
+    labels = helper.make_tensor_value_info('1', TensorProto.INT32, [4])
+    weights = helper.make_tensor_value_info('2', TensorProto.FLOAT, [3])
+    loss = helper.make_tensor_value_info('3', TensorProto.FLOAT, [4])
+
+    node = onnx.helper.make_node(
+        "SoftmaxCrossEntropyLoss",
+        inputs=[
+            "0",
+            "1",
+            "2",
+        ],
+        outputs=["3"],
+        reduction="none",
+    )
+
+    return ([node], [scores, labels, weights], [loss])
+
+
+@onnx_test()
+def softmaxcrossentropyloss_2d_no_reduction_weighted_ignore_idx_test():
+    scores = helper.make_tensor_value_info('0', TensorProto.FLOAT, [4, 4])
+    labels = helper.make_tensor_value_info('1', TensorProto.INT32, [4])
+    weights = helper.make_tensor_value_info('2', TensorProto.FLOAT, [4])
+    loss = helper.make_tensor_value_info('3', TensorProto.FLOAT, [4])
+
+    node = onnx.helper.make_node(
+        "SoftmaxCrossEntropyLoss",
+        inputs=[
+            "0",
+            "1",
+            "2",
+        ],
+        outputs=["3"],
+        reduction="none",
+        ignore_index=2,
+    )
+
+    return ([node], [scores, labels, weights], [loss])
+
+
+@onnx_test()
+def softmaxcrossentropyloss_2d_no_reduction_weighted_neg_ignore_idx_test():
+    scores = helper.make_tensor_value_info('0', TensorProto.FLOAT, [4, 4])
+    labels = helper.make_tensor_value_info('1', TensorProto.INT32, [4])
+    weights = helper.make_tensor_value_info('2', TensorProto.FLOAT, [4])
+    loss = helper.make_tensor_value_info('3', TensorProto.FLOAT, [4])
+
+    node = onnx.helper.make_node(
+        "SoftmaxCrossEntropyLoss",
+        inputs=[
+            "0",
+            "1",
+            "2",
+        ],
+        outputs=["3"],
+        reduction="none",
+        ignore_index=-2,
+    )
+
+    return ([node], [scores, labels, weights], [loss])
+
+
+@onnx_test()
+def softmaxcrossentropyloss_2d_no_reduction_weighted_neg_ignore_idx_test2():
+    scores = helper.make_tensor_value_info('0', TensorProto.FLOAT, [4, 4])
+    labels = helper.make_tensor_value_info('1', TensorProto.INT32, [4])
+    weights = helper.make_tensor_value_info('2', TensorProto.FLOAT, [4])
+    loss = helper.make_tensor_value_info('3', TensorProto.FLOAT, [4])
+
+    node = onnx.helper.make_node(
+        "SoftmaxCrossEntropyLoss",
+        inputs=[
+            "0",
+            "1",
+            "2",
+        ],
+        outputs=["3"],
+        reduction="none",
+        ignore_index=-1,
+    )
+
+    return ([node], [scores, labels, weights], [loss])
+
+
+@onnx_test()
+def softmaxcrossentropyloss_2d_no_reduction_double_weighted_test():
+    scores = helper.make_tensor_value_info('0', TensorProto.DOUBLE, [4, 4])
+    labels = helper.make_tensor_value_info('1', TensorProto.INT32, [4])
+    weights = helper.make_tensor_value_info('2', TensorProto.DOUBLE, [4])
+    loss = helper.make_tensor_value_info('3', TensorProto.DOUBLE, [4])
+
+    node = onnx.helper.make_node(
+        "SoftmaxCrossEntropyLoss",
+        inputs=[
+            "0",
+            "1",
+            "2",
+        ],
+        outputs=["3"],
+        reduction="none",
+    )
+
+    return ([node], [scores, labels, weights], [loss])
+
+
+@onnx_test()
+def softmaxcrossentropyloss_2d_no_reduction_half_weighted_test():
+    scores = helper.make_tensor_value_info('0', TensorProto.FLOAT16, [4, 4])
+    labels = helper.make_tensor_value_info('1', TensorProto.INT32, [4])
+    weights = helper.make_tensor_value_info('2', TensorProto.FLOAT16, [4])
+    loss = helper.make_tensor_value_info('3', TensorProto.FLOAT16, [4])
+
+    node = onnx.helper.make_node(
+        "SoftmaxCrossEntropyLoss",
+        inputs=[
+            "0",
+            "1",
+            "2",
+        ],
+        outputs=["3"],
+        reduction="none",
+    )
+
+    return ([node], [scores, labels, weights], [loss])
+
+
+@onnx_test()
+def softmaxcrossentropyloss_2d_sum_reduction_weighted_test():
+    scores = helper.make_tensor_value_info('0', TensorProto.FLOAT, [4, 4])
+    labels = helper.make_tensor_value_info('1', TensorProto.INT32, [4])
+    weights = helper.make_tensor_value_info('2', TensorProto.FLOAT, [4])
+    loss = helper.make_tensor_value_info('3', TensorProto.FLOAT, [4])
+
+    node = onnx.helper.make_node(
+        "SoftmaxCrossEntropyLoss",
+        inputs=[
+            "0",
+            "1",
+            "2",
+        ],
+        outputs=["3"],
+        reduction="sum",
+    )
+
+    return ([node], [scores, labels, weights], [loss])
+
+
+@onnx_test()
+def softmaxcrossentropyloss_2d_sum_reduction_double_weighted_test():
+    scores = helper.make_tensor_value_info('0', TensorProto.DOUBLE, [4, 4])
+    labels = helper.make_tensor_value_info('1', TensorProto.INT32, [4])
+    weights = helper.make_tensor_value_info('2', TensorProto.DOUBLE, [4])
+    loss = helper.make_tensor_value_info('3', TensorProto.DOUBLE, [4])
+
+    node = onnx.helper.make_node(
+        "SoftmaxCrossEntropyLoss",
+        inputs=[
+            "0",
+            "1",
+            "2",
+        ],
+        outputs=["3"],
+        reduction="sum",
+    )
+
+    return ([node], [scores, labels, weights], [loss])
+
+
+@onnx_test()
+def softmaxcrossentropyloss_2d_sum_reduction_half_weighted_test():
+    scores = helper.make_tensor_value_info('0', TensorProto.FLOAT16, [4, 4])
+    labels = helper.make_tensor_value_info('1', TensorProto.INT32, [4])
+    weights = helper.make_tensor_value_info('2', TensorProto.FLOAT16, [4])
+    loss = helper.make_tensor_value_info('3', TensorProto.FLOAT16, [4])
+
+    node = onnx.helper.make_node(
+        "SoftmaxCrossEntropyLoss",
+        inputs=[
+            "0",
+            "1",
+            "2",
+        ],
+        outputs=["3"],
+        reduction="sum",
+    )
+
+    return ([node], [scores, labels, weights], [loss])
+
+
+@onnx_test()
+def softmaxcrossentropyloss_2d_mean_reduction_weighted_test():
+    scores = helper.make_tensor_value_info('0', TensorProto.FLOAT, [4, 4])
+    labels = helper.make_tensor_value_info('1', TensorProto.INT32, [4])
+    weights = helper.make_tensor_value_info('2', TensorProto.FLOAT, [4])
+    loss = helper.make_tensor_value_info('3', TensorProto.FLOAT, [4])
+
+    node = onnx.helper.make_node(
+        "SoftmaxCrossEntropyLoss",
+        inputs=[
+            "0",
+            "1",
+            "2",
+        ],
+        outputs=["3"],
+        reduction="mean",
+    )
+
+    return ([node], [scores, labels, weights], [loss])
+
+
+@onnx_test()
+def softmaxcrossentropyloss_2d_mean_reduction_double_weighted_test():
+    scores = helper.make_tensor_value_info('0', TensorProto.DOUBLE, [4, 4])
+    labels = helper.make_tensor_value_info('1', TensorProto.INT32, [4])
+    weights = helper.make_tensor_value_info('2', TensorProto.DOUBLE, [4])
+    loss = helper.make_tensor_value_info('3', TensorProto.DOUBLE, [4])
+
+    node = onnx.helper.make_node(
+        "SoftmaxCrossEntropyLoss",
+        inputs=[
+            "0",
+            "1",
+            "2",
+        ],
+        outputs=["3"],
+        reduction="mean",
+    )
+
+    return ([node], [scores, labels, weights], [loss])
+
+
+@onnx_test()
+def softmaxcrossentropyloss_2d_mean_reduction_half_weighted_test():
+    scores = helper.make_tensor_value_info('0', TensorProto.FLOAT16, [4, 4])
+    labels = helper.make_tensor_value_info('1', TensorProto.INT32, [4])
+    weights = helper.make_tensor_value_info('2', TensorProto.FLOAT16, [4])
+    loss = helper.make_tensor_value_info('3', TensorProto.FLOAT16, [4])
+
+    node = onnx.helper.make_node(
+        "SoftmaxCrossEntropyLoss",
+        inputs=[
+            "0",
+            "1",
+            "2",
+        ],
+        outputs=["3"],
+        reduction="mean",
+    )
+
+    return ([node], [scores, labels, weights], [loss])
+
+
+@onnx_test()
+def softmaxcrossentropyloss_kdim_not_equal_test():
+    scores = helper.make_tensor_value_info('0', TensorProto.FLOAT16,
+                                           [4, 4, 2, 1])
+    labels = helper.make_tensor_value_info('1', TensorProto.INT32, [4, 1, 2])
+    weights = helper.make_tensor_value_info('2', TensorProto.FLOAT16, [4])
+    loss = helper.make_tensor_value_info('3', TensorProto.FLOAT16, [4])
+
+    node = onnx.helper.make_node(
+        "SoftmaxCrossEntropyLoss",
+        inputs=[
+            "0",
+            "1",
+            "2",
+        ],
+        outputs=["3"],
+        reduction="mean",
+    )
+
+    return ([node], [scores, labels, weights], [loss])
+
+
+@onnx_test()
+def softmaxcrossentropyloss_kd_mean_reduction_half_weighted_test():
+    scores = helper.make_tensor_value_info('0', TensorProto.FLOAT16,
+                                           [4, 4, 2, 2])
+    labels = helper.make_tensor_value_info('1', TensorProto.INT32, [4, 2, 2])
+    weights = helper.make_tensor_value_info('2', TensorProto.FLOAT16, [4])
+    loss = helper.make_tensor_value_info('3', TensorProto.FLOAT16, [4])
+
+    node = onnx.helper.make_node(
+        "SoftmaxCrossEntropyLoss",
+        inputs=[
+            "0",
+            "1",
+            "2",
+        ],
+        outputs=["3"],
+        reduction="mean",
+    )
+
+    return ([node], [scores, labels, weights], [loss])
+
+
+@onnx_test()
+def softmaxcrossentropyloss_kd_sum_reduction_double_weighted_test():
+    scores = helper.make_tensor_value_info('0', TensorProto.DOUBLE,
+                                           [4, 4, 2, 2])
+    labels = helper.make_tensor_value_info('1', TensorProto.INT32, [4, 2, 2])
+    weights = helper.make_tensor_value_info('2', TensorProto.DOUBLE, [4])
+    loss = helper.make_tensor_value_info('3', TensorProto.DOUBLE, [4])
+
+    node = onnx.helper.make_node(
+        "SoftmaxCrossEntropyLoss",
+        inputs=[
+            "0",
+            "1",
+            "2",
+        ],
+        outputs=["3"],
+        reduction="sum",
+    )
+
+    return ([node], [scores, labels, weights], [loss])
+
+
+@onnx_test()
+def softmaxcrossentropyloss_kd_no_reduction_weighted_test():
+    scores = helper.make_tensor_value_info('0', TensorProto.FLOAT,
+                                           [4, 4, 2, 2])
+    labels = helper.make_tensor_value_info('1', TensorProto.INT32, [4, 2, 2])
+    weights = helper.make_tensor_value_info('2', TensorProto.FLOAT, [4])
+    loss = helper.make_tensor_value_info('3', TensorProto.FLOAT, [4])
+
+    node = onnx.helper.make_node(
+        "SoftmaxCrossEntropyLoss",
+        inputs=[
+            "0",
+            "1",
+            "2",
+        ],
+        outputs=["3"],
+        reduction="none",
+    )
+
+    return ([node], [scores, labels, weights], [loss])
 
 
 @onnx_test()
@@ -12342,3 +13332,366 @@ def where_mixed_test():
                                  outputs=['z'])
 
     return ([node], [c, x, y], [z])
+
+
+def scan_test(scan_input_axes=[0, 0],
+              scan_input_directions=[0, 0],
+              scan_output_axes=[0, 0],
+              scan_output_directions=[0, 0]):
+    sum_in = helper.make_tensor_value_info("sum_in", TensorProto.FLOAT, [2, 2])
+    scan_in1 = helper.make_tensor_value_info("scan_in1", TensorProto.FLOAT,
+                                             [2, 2])
+    scan_in2 = helper.make_tensor_value_info("scan_in2", TensorProto.FLOAT,
+                                             [1])
+    sum_out = helper.make_tensor_value_info("sum_out", TensorProto.FLOAT,
+                                            [2, 2])
+    scan_out1 = helper.make_tensor_value_info("scan_out1", TensorProto.FLOAT,
+                                              [2, 2])
+    scan_out2 = helper.make_tensor_value_info("scan_out2", TensorProto.FLOAT,
+                                              [2])
+    add1 = helper.make_node("Add",
+                            inputs=["sum_in", "scan_in1"],
+                            outputs=["add1_out"])
+    add2 = helper.make_node("Add",
+                            inputs=["add1_out", "scan_in2"],
+                            outputs=["sum_out"])
+    id = helper.make_node("Identity",
+                          inputs=["sum_out"],
+                          outputs=["scan_out1"])
+    reduce_sum = helper.make_node("ReduceSum",
+                                  axes=[0],
+                                  keepdims=0,
+                                  inputs=["sum_out"],
+                                  outputs=["scan_out2"])
+    scan_body = helper.make_graph([add1, add2, id, reduce_sum], "scan_body",
+                                  [sum_in, scan_in1, scan_in2],
+                                  [sum_out, scan_out1, scan_out2])
+
+    init_state = helper.make_tensor_value_info("init_state", TensorProto.FLOAT,
+                                               [2, 2])
+    scan_ins1_sh = [2, 2, 2]
+    scan_ins1_sh[scan_input_axes[0]] = 3
+    scan_ins1 = helper.make_tensor_value_info("scan_ins1", TensorProto.FLOAT,
+                                              scan_ins1_sh)
+    scan_ins2_sh = [1, 1]
+    scan_ins2_sh[scan_input_axes[1]] = 3
+    scan_ins2 = helper.make_tensor_value_info("scan_ins2", TensorProto.FLOAT,
+                                              scan_ins2_sh)
+
+    final_state = helper.make_tensor_value_info("final_state",
+                                                TensorProto.FLOAT, [2, 2])
+    scan_outs1_sh = [2, 2, 2]
+    scan_outs1_sh[scan_output_axes[0]] = 3
+    scan_outs1 = helper.make_tensor_value_info("scan_outs1", TensorProto.FLOAT,
+                                               scan_outs1_sh)
+    scan_outs2_sh = [2, 2]
+    scan_outs2_sh[scan_output_axes[1]] = 3
+    scan_outs2 = helper.make_tensor_value_info("scan_outs2", TensorProto.FLOAT,
+                                               scan_outs2_sh)
+    node = helper.make_node(
+        "Scan",
+        inputs=["init_state", "scan_ins1", "scan_ins2"],
+        outputs=["final_state", "scan_outs1", "scan_outs2"],
+        num_scan_inputs=2,
+        scan_input_axes=scan_input_axes,
+        scan_input_directions=scan_input_directions,
+        scan_output_axes=scan_output_axes,
+        scan_output_directions=scan_output_directions,
+        body=scan_body,
+    )
+
+    return ([node], [init_state, scan_ins1,
+                     scan_ins2], [final_state, scan_outs1, scan_outs2])
+
+
+@onnx_test()
+def scan_test1():
+    return scan_test()
+
+
+@onnx_test()
+def scan_test2():
+    return scan_test(scan_output_directions=[1, 0])
+
+
+@onnx_test()
+def scan_test3():
+    return scan_test(scan_output_axes=[1, -1])
+
+
+@onnx_test()
+def scan_test4():
+    return scan_test(scan_input_directions=[1, 0])
+
+
+@onnx_test()
+def scan_test5():
+    return scan_test(scan_input_axes=[2, -1])
+
+
+@onnx_test()
+def scan_test6():
+    return scan_test(scan_input_axes=[-2, 0],
+                     scan_input_directions=[0, 1],
+                     scan_output_directions=[1, 1],
+                     scan_output_axes=[2, 1])
+
+
+@onnx_test()
+def scan_test7():
+    sum_in = helper.make_tensor_value_info("sum_in", TensorProto.FLOAT, [2, 2])
+    scan_in = helper.make_tensor_value_info("scan_in", TensorProto.FLOAT,
+                                            [2, 2])
+    sum_out = helper.make_tensor_value_info("sum_out", TensorProto.FLOAT,
+                                            [2, 2])
+    scan_out = helper.make_tensor_value_info("scan_out", TensorProto.FLOAT,
+                                             [2, 2])
+    add1 = helper.make_node("Add",
+                            inputs=["sum_in", "scan_in"],
+                            outputs=["add1_out"])
+    add2 = helper.make_node("Add",
+                            inputs=["add1_out", "scan_in"],
+                            outputs=["sum_out"])
+    id = helper.make_node("Identity", inputs=["scan_in"], outputs=["scan_out"])
+
+    scan_body = helper.make_graph([add1, add2, id], "scan_body",
+                                  [sum_in, scan_in], [sum_out, scan_out])
+
+    init_state = helper.make_tensor_value_info("init_state", TensorProto.FLOAT,
+                                               [2, 2])
+    scan_ins_sh = [3, 2, 2]
+    scan_ins = helper.make_tensor_value_info("scan_ins", TensorProto.FLOAT,
+                                             scan_ins_sh)
+
+    final_state = helper.make_tensor_value_info("final_state",
+                                                TensorProto.FLOAT, [2, 2])
+    scan_outs_sh = [3, 2, 2]
+    scan_outs = helper.make_tensor_value_info("scan_outs", TensorProto.FLOAT,
+                                              scan_outs_sh)
+    node = helper.make_node(
+        "Scan",
+        inputs=["init_state", "scan_ins"],
+        outputs=["final_state", "scan_outs"],
+        num_scan_inputs=1,
+        scan_input_axes=[0],
+        scan_input_directions=[0],
+        scan_output_axes=[0],
+        scan_output_directions=[0],
+        body=scan_body,
+    )
+
+    return ([node], [init_state, scan_ins], [final_state, scan_outs])
+
+
+def scan_negative_test(scan_input_axes=[0],
+                       scan_input_directions=[0],
+                       scan_output_axes=[0],
+                       scan_output_directions=[0]):
+    sum_in = helper.make_tensor_value_info("sum_in", TensorProto.FLOAT, [2, 2])
+    scan_in = helper.make_tensor_value_info("scan_in", TensorProto.FLOAT,
+                                            [2, 2])
+    sum_out = helper.make_tensor_value_info("sum_out", TensorProto.FLOAT,
+                                            [2, 2])
+    scan_out = helper.make_tensor_value_info("scan_out", TensorProto.FLOAT,
+                                             [2, 2])
+    add = helper.make_node("Add",
+                           inputs=["sum_in", "scan_in"],
+                           outputs=["sum_out"])
+    id = helper.make_node("Identity", inputs=["sum_out"], outputs=["scan_out"])
+    scan_body = helper.make_graph([add, id], "scan_body", [sum_in, scan_in],
+                                  [sum_out, scan_out])
+
+    init_state = helper.make_tensor_value_info("init_state", TensorProto.FLOAT,
+                                               [2, 2])
+    scan_ins = helper.make_tensor_value_info("scan_ins", TensorProto.FLOAT,
+                                             [3, 2, 2])
+
+    final_state = helper.make_tensor_value_info("final_state",
+                                                TensorProto.FLOAT, [2, 2])
+    scan_outs = helper.make_tensor_value_info("scan_outs", TensorProto.FLOAT,
+                                              [3, 2, 2])
+    node = helper.make_node(
+        "Scan",
+        inputs=["init_state", "scan_ins"],
+        outputs=["final_state", "scan_outs"],
+        num_scan_inputs=1,
+        scan_input_axes=scan_input_axes,
+        scan_input_directions=scan_input_directions,
+        scan_output_axes=scan_output_axes,
+        scan_output_directions=scan_output_directions,
+        body=scan_body,
+    )
+
+    return ([node], [init_state, scan_ins], [final_state, scan_outs])
+
+
+@onnx_test()
+def scan_invalid_input_axes_len_test():
+    return scan_negative_test(scan_input_axes=[0, 0])
+
+
+@onnx_test()
+def scan_invalid_input_dirs_len_test():
+    return scan_negative_test(scan_input_directions=[0, 0])
+
+
+@onnx_test()
+def scan_invalid_output_axes_len_test():
+    return scan_negative_test(scan_output_axes=[0, 0])
+
+
+@onnx_test()
+def scan_invalid_output_dirs_len_test():
+    return scan_negative_test(scan_output_directions=[0, 0])
+
+
+@onnx_test()
+def scan_invalid_input_axes_vals_test():
+    return scan_negative_test(scan_input_axes=[3])
+
+
+@onnx_test()
+def scan_invalid_input_dirs_vals_test():
+    return scan_negative_test(scan_input_directions=[2])
+
+
+@onnx_test()
+def scan_invalid_output_axes_vals_test():
+    return scan_negative_test(scan_output_axes=[-4])
+
+
+@onnx_test()
+def scan_invalid_output_dirs_vals_test():
+    return scan_negative_test(scan_output_directions=[-1])
+
+
+@onnx_test()
+def scan_arg_count_mismatch_test():
+    sum_in = helper.make_tensor_value_info("sum_in", TensorProto.FLOAT, [2, 2])
+    scan_in1 = helper.make_tensor_value_info("scan_in1", TensorProto.FLOAT,
+                                             [2, 2])
+    sum_out = helper.make_tensor_value_info("sum_out", TensorProto.FLOAT,
+                                            [2, 2])
+    scan_out = helper.make_tensor_value_info("scan_out", TensorProto.FLOAT,
+                                             [2, 2])
+    add = helper.make_node("Add",
+                           inputs=["sum_in", "scan_in1"],
+                           outputs=["sum_out"])
+    id = helper.make_node("Identity", inputs=["sum_out"], outputs=["scan_out"])
+    scan_body = helper.make_graph([add, id], "scan_body", [sum_in, scan_in1],
+                                  [sum_out, scan_out])
+
+    init_state = helper.make_tensor_value_info("init_state", TensorProto.FLOAT,
+                                               [2, 2])
+    scan_ins1 = helper.make_tensor_value_info("scan_ins1", TensorProto.FLOAT,
+                                              [3, 2, 2])
+    scan_ins2 = helper.make_tensor_value_info("scan_ins2", TensorProto.FLOAT,
+                                              [2, 3, 2])
+
+    final_state = helper.make_tensor_value_info("final_state",
+                                                TensorProto.FLOAT, [2, 2])
+    scan_outs = helper.make_tensor_value_info("scan_outs", TensorProto.FLOAT,
+                                              [3, 2, 2])
+    node = helper.make_node(
+        "Scan",
+        inputs=["init_state", "scan_ins1", "scan_ins2"],
+        outputs=["final_state", "scan_outs"],
+        num_scan_inputs=2,
+        scan_input_axes=[0, 0],
+        scan_input_directions=[0, 0],
+        scan_output_axes=[0],
+        scan_output_directions=[0],
+        body=scan_body,
+    )
+    return ([node], [init_state, scan_ins1,
+                     scan_ins2], [final_state, scan_outs])
+
+
+@onnx_test()
+def scan_input_axes_lens_mismatch_test():
+    sum_in = helper.make_tensor_value_info("sum_in", TensorProto.FLOAT, [2, 2])
+    scan_in1 = helper.make_tensor_value_info("scan_in1", TensorProto.FLOAT,
+                                             [2, 2])
+    scan_in2 = helper.make_tensor_value_info("scan_in2", TensorProto.FLOAT,
+                                             [2, 2])
+    sum_out = helper.make_tensor_value_info("sum_out", TensorProto.FLOAT,
+                                            [2, 2])
+    scan_out = helper.make_tensor_value_info("scan_out", TensorProto.FLOAT,
+                                             [2, 2])
+    add = helper.make_node("Add",
+                           inputs=["sum_in", "scan_in1"],
+                           outputs=["sum_out"])
+    id = helper.make_node("Identity", inputs=["sum_out"], outputs=["scan_out"])
+    scan_body = helper.make_graph([add, id], "scan_body",
+                                  [sum_in, scan_in1, scan_in2],
+                                  [sum_out, scan_out])
+
+    init_state = helper.make_tensor_value_info("init_state", TensorProto.FLOAT,
+                                               [2, 2])
+    scan_ins1 = helper.make_tensor_value_info("scan_ins1", TensorProto.FLOAT,
+                                              [3, 2, 2])
+    scan_ins2 = helper.make_tensor_value_info("scan_ins2", TensorProto.FLOAT,
+                                              [2, 3, 2])
+
+    final_state = helper.make_tensor_value_info("final_state",
+                                                TensorProto.FLOAT, [2, 2])
+    scan_outs = helper.make_tensor_value_info("scan_outs", TensorProto.FLOAT,
+                                              [3, 2, 2])
+    node = helper.make_node(
+        "Scan",
+        inputs=["init_state", "scan_ins1", "scan_ins2"],
+        outputs=["final_state", "scan_outs"],
+        num_scan_inputs=2,
+        scan_input_axes=[0, 0],
+        scan_input_directions=[0, 0],
+        scan_output_axes=[0],
+        scan_output_directions=[0],
+        body=scan_body,
+    )
+    return ([node], [init_state, scan_ins1,
+                     scan_ins2], [final_state, scan_outs])
+
+
+@onnx_test()
+def scan_arg_shapes_mismatch_test():
+    sum_in = helper.make_tensor_value_info("sum_in", TensorProto.FLOAT, [2, 2])
+    scan_in1 = helper.make_tensor_value_info("scan_in1", TensorProto.FLOAT,
+                                             [2, 2])
+    scan_in2 = helper.make_tensor_value_info("scan_in2", TensorProto.FLOAT,
+                                             [2, 2])
+    sum_out = helper.make_tensor_value_info("sum_out", TensorProto.FLOAT,
+                                            [2, 2])
+    scan_out = helper.make_tensor_value_info("scan_out", TensorProto.FLOAT,
+                                             [2, 2])
+    add = helper.make_node("Add",
+                           inputs=["sum_in", "scan_in1"],
+                           outputs=["sum_out"])
+    id = helper.make_node("Identity", inputs=["sum_out"], outputs=["scan_out"])
+    scan_body = helper.make_graph([add, id], "scan_body",
+                                  [sum_in, scan_in1, scan_in2],
+                                  [sum_out, scan_out])
+
+    init_state = helper.make_tensor_value_info("init_state", TensorProto.FLOAT,
+                                               [2, 2])
+    scan_ins1 = helper.make_tensor_value_info("scan_ins1", TensorProto.FLOAT,
+                                              [3, 2, 2])
+    scan_ins2 = helper.make_tensor_value_info("scan_ins2", TensorProto.FLOAT,
+                                              [3, 2])
+
+    final_state = helper.make_tensor_value_info("final_state",
+                                                TensorProto.FLOAT, [2, 2])
+    scan_outs = helper.make_tensor_value_info("scan_outs", TensorProto.FLOAT,
+                                              [3, 2, 2])
+    node = helper.make_node(
+        "Scan",
+        inputs=["init_state", "scan_ins1", "scan_ins2"],
+        outputs=["final_state", "scan_outs"],
+        num_scan_inputs=2,
+        scan_input_axes=[0, 0],
+        scan_input_directions=[0, 0],
+        scan_output_axes=[0],
+        scan_output_directions=[0],
+        body=scan_body,
+    )
+    return ([node], [init_state, scan_ins1,
+                     scan_ins2], [final_state, scan_outs])

@@ -264,12 +264,10 @@ struct group_query_attention
         T past_key,                         // past key only
         T present_key,                      // present key only
         bool past_present_share_buffer,     // whether present key and value share the same buffer
-        bool packed_qkv,                    // whether Q, K, V are packed
         shape::type_t dtype) const
     {
         const bool is_prompt = sequence_length != 1;
-        const int packed_batch_stride =
-            packed_qkv ? (num_heads + 2 * kv_num_heads) * sequence_length * head_size : 0;
+        const int packed_batch_stride = (num_heads + 2 * kv_num_heads) * sequence_length * head_size ;
         const int kv_num_heads_factor = num_heads / kv_num_heads;
         const size_t q_input_chunk_length =
             static_cast<size_t>(sequence_length) * head_size; // S x H
@@ -313,15 +311,7 @@ struct group_query_attention
             // A: Q                (B x N x) S x H          (B x N x) S x H        S x H
             // B: K'               (B x N x) T x H          (B x N x) H x T        H x T
             // C: attention_probs  (B x N x) S x T          (B x N x) S x T        S x T
-            T q;
-            if(packed_qkv)
-            {
-                q = query + packed_batch_stride * batch_index + q_input_chunk_length * head_index;
-            }
-            else
-            {
-                q = query + q_input_chunk_length * i;
-            }
+            auto q = query + packed_batch_stride * batch_index + q_input_chunk_length * head_index;
 
             gemm(sequence_length,
                  total_seqlen,
@@ -384,12 +374,10 @@ struct group_query_attention
         const T past_value,                 // past value only
         T present_value,                    // present value only
         bool past_present_share_buffer,     // whether present key and value share the same buffer
-        bool packed_qkv,
         shape::type_t dtype) const // whether Q, K, V are packed
     {
         const bool is_prompt = sequence_length != 1;
-        const int packed_batch_stride =
-            packed_qkv ? (num_heads + 2 * kv_num_heads) * sequence_length * head_size : 0;
+        const int packed_batch_stride = (num_heads + 2 * kv_num_heads) * sequence_length * head_size;
         const int kv_num_heads_factor   = num_heads / kv_num_heads;
         const int kv_input_chunk_length = sequence_length * head_size; // L x H
         const size_t past_buff_chunk_length =
@@ -406,16 +394,8 @@ struct group_query_attention
             const size_t past_chunk_length = static_cast<size_t>(past_seqlen) * head_size;
             const int total_seqlen         = seqlens_k[batch_index] + 1;
 
-            T v;
-            if(packed_qkv)
-            {
-                v = val + packed_batch_stride * batch_index +
+            auto v = val + packed_batch_stride * batch_index +
                     kv_input_chunk_length * (head_index / kv_num_heads_factor);
-            }
-            else
-            {
-                v = val + kv_input_chunk_length * (i / kv_num_heads_factor);
-            }
 
             v = concat_state_chunk(past_value,
                                    v,
@@ -463,7 +443,6 @@ struct group_query_attention
         const int sequence_length = parameters.sequence_length;
         const int head_size       = parameters.head_size;
         const int hidden_size     = parameters.hidden_size;
-        const bool packed_qkv     = true;
 
         int seqlen_present_kv_cache = parameters.seqlen_present_kv_cache;
         int seqlen_past_kv_cache    = seqlen_present_kv_cache;
@@ -483,7 +462,6 @@ struct group_query_attention
                                   past_key,
                                   present_key,
                                   past_present_share_buffer,
-                                  packed_qkv,
                                   dtype);
 
         const T v = qkv + (num_heads + kv_num_heads) * sequence_length * head_size;
@@ -500,7 +478,6 @@ struct group_query_attention
                                   past_value,
                                   present_value,
                                   past_present_share_buffer,
-                                  packed_qkv,
                                   dtype);
     }
 
@@ -516,7 +493,6 @@ struct group_query_attention
         std::size_t q_hidden_size         = q_lens[2];
         std::size_t head_size             = q_hidden_size / (num_heads + 2 * kv_num_heads);
         q_hidden_size                     = head_size * num_heads;
-        const bool packed_qkv             = true;
         std::size_t rotary_dim            = args[7].get_shape().lens()[1] * 2;
 
         auto output_shape_0 = output_shape.sub_shapes().front();
@@ -578,8 +554,7 @@ struct group_query_attention
                     });
                     auto seq_stride  = head_size;
                     auto head_stride = sequence_length * seq_stride;
-                    auto batch_stride =
-                        (packed_qkv ? (num_heads + 2 * kv_num_heads) : num_heads) * head_stride;
+                    auto batch_stride = num_heads + 2 * kv_num_heads;
                     auto position_ids_format = sequence_length == 1 ? 1 : 0;
                     bool transposed          = true;
                     std::vector<int64_t> pos_ids(sequence_length == 1 ? batch_size : 1);

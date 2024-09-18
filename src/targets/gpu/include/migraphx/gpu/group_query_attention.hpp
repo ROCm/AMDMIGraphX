@@ -56,7 +56,6 @@ struct gqa_parameters
     int local_window_size;
     int rotary_interleaved;
     int past_present_share_buffer;
-    int packed_qkv;
 
     std::string make_init_str()
     {
@@ -69,7 +68,7 @@ struct gqa_parameters
                std::to_string(transposed) + ", " + std::to_string(seqlen_present_kv_cache) + ", " +
                std::to_string(do_rotary) + ", " + std::to_string(kv_num_heads) + ", " +
                std::to_string(local_window_size) + ", " + std::to_string(rotary_interleaved) +
-               ", " + std::to_string(past_present_share_buffer) + ", " + std::to_string(packed_qkv);
+               ", " + std::to_string(past_present_share_buffer);
     }
 };
 
@@ -98,7 +97,6 @@ static inline gqa_parameters init_params(const std::vector<shape>& inputs, const
     auto q_hidden_size                = kv_num_heads * head_size;
 
     std::size_t rotary_dim         = inputs[3].lens()[1] * 2;
-    bool packed_qkv                = true;
     auto seq_stride                = head_size;
     auto head_stride               = sequence_length * seq_stride;
     auto batch_stride              = (num_heads + 2 * kv_num_heads) * head_stride;
@@ -125,7 +123,6 @@ static inline gqa_parameters init_params(const std::vector<shape>& inputs, const
     gqa_params.rotary_interleaved        = rotary_interleaved;
     gqa_params.scale                     = scale;
     gqa_params.past_present_share_buffer = past_present_share_buffer;
-    gqa_params.packed_qkv                = packed_qkv;
 
     return gqa_params;
 }

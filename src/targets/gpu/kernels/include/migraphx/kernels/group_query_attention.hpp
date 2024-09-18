@@ -56,7 +56,6 @@ struct gqa_parameters
     int local_window_size;
     int rotary_interleaved;
     int past_present_share_buffer;
-    int packed_qkv;
 
     __host__ __device__ void print() const
     {
@@ -79,7 +78,6 @@ struct gqa_parameters
         printf("local_window_size: %d\n", local_window_size);
         printf("rotary_interleaved: %d\n", rotary_interleaved);
         printf("past_present_share_buffer: %d\n", past_present_share_buffer);
-        printf("packed_qkv: %d\n", packed_qkv);
     }
 };
 

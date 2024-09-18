@@ -46,12 +46,10 @@ calculate_attention_probs(Attn_Probs attention_probs, // output buffer with size
     const int batch_size                        = params.batch_size;
     const int sequence_length                   = params.sequence_length;
     const int head_size                         = params.head_size;
-    const bool packed_qkv                       = params.packed_qkv;
     const size_t present_buffer_sequence_length = params.seqlen_present_kv_cache;
     const int num_heads                         = params.num_heads;
     const int kv_num_heads                      = params.kv_num_heads;
-    const int packed_batch_stride =
-        packed_qkv ? (num_heads + 2 * kv_num_heads) * sequence_length * head_size : 0;
+    const int packed_batch_stride = (num_heads + 2 * kv_num_heads) * sequence_length * head_size;
     const int kv_num_heads_factor     = num_heads / kv_num_heads;
     const size_t q_input_chunk_length = static_cast<size_t>(sequence_length) * head_size; // S x H
     const size_t present_buff_chunk_length =
@@ -71,15 +69,8 @@ calculate_attention_probs(Attn_Probs attention_probs, // output buffer with size
         const index_int output_offset = i * sequence_length * present_buffer_sequence_length;
         auto output                   = attention_probs + output_offset;
         auto pk = present_key + ((i / kv_num_heads_factor) * present_buff_chunk_length);
-        Query q;
-        if(packed_qkv)
-        {
-            q = query + packed_batch_stride * batch_index + q_input_chunk_length * head_index;
-        }
-        else
-        {
-            q = query + q_input_chunk_length * i;
-        }
+        auto q = query + packed_batch_stride * batch_index + q_input_chunk_length * head_index;
+
         gemm(sequence_length,
              total_seqlen,
              head_size,

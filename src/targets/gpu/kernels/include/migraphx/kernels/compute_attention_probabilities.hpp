@@ -69,7 +69,7 @@ calculate_attention_probs(Attn_Probs attention_probs, // output buffer with size
         const index_int output_offset = i * sequence_length * present_buffer_sequence_length;
         auto output                   = attention_probs + output_offset;
         auto pk = present_key + ((i / kv_num_heads_factor) * present_buff_chunk_length);
-        auto q = query + packed_batch_stride * batch_index + q_input_chunk_length * head_index;
+        auto q  = query + packed_batch_stride * batch_index + q_input_chunk_length * head_index;
 
         gemm(sequence_length,
              total_seqlen,

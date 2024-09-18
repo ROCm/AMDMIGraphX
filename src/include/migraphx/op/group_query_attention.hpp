@@ -267,7 +267,8 @@ struct group_query_attention
         shape::type_t dtype) const
     {
         const bool is_prompt = sequence_length != 1;
-        const int packed_batch_stride = (num_heads + 2 * kv_num_heads) * sequence_length * head_size ;
+        const int packed_batch_stride =
+            (num_heads + 2 * kv_num_heads) * sequence_length * head_size;
         const int kv_num_heads_factor = num_heads / kv_num_heads;
         const size_t q_input_chunk_length =
             static_cast<size_t>(sequence_length) * head_size; // S x H
@@ -374,10 +375,11 @@ struct group_query_attention
         const T past_value,                 // past value only
         T present_value,                    // present value only
         bool past_present_share_buffer,     // whether present key and value share the same buffer
-        shape::type_t dtype) const // whether Q, K, V are packed
+        shape::type_t dtype) const          // whether Q, K, V are packed
     {
         const bool is_prompt = sequence_length != 1;
-        const int packed_batch_stride = (num_heads + 2 * kv_num_heads) * sequence_length * head_size;
+        const int packed_batch_stride =
+            (num_heads + 2 * kv_num_heads) * sequence_length * head_size;
         const int kv_num_heads_factor   = num_heads / kv_num_heads;
         const int kv_input_chunk_length = sequence_length * head_size; // L x H
         const size_t past_buff_chunk_length =
@@ -395,7 +397,7 @@ struct group_query_attention
             const int total_seqlen         = seqlens_k[batch_index] + 1;
 
             auto v = val + packed_batch_stride * batch_index +
-                    kv_input_chunk_length * (head_index / kv_num_heads_factor);
+                     kv_input_chunk_length * (head_index / kv_num_heads_factor);
 
             v = concat_state_chunk(past_value,
                                    v,
@@ -554,7 +556,7 @@ struct group_query_attention
                     });
                     auto seq_stride  = head_size;
                     auto head_stride = sequence_length * seq_stride;
-                    auto batch_stride = num_heads + 2 * kv_num_heads;
+                    auto batch_stride        = num_heads + 2 * kv_num_heads;
                     auto position_ids_format = sequence_length == 1 ? 1 : 0;
                     bool transposed          = true;
                     std::vector<int64_t> pos_ids(sequence_length == 1 ? batch_size : 1);

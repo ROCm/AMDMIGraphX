@@ -238,8 +238,7 @@ void verify_reduced_program(const program& p,
 }
 
 void verify_bisect(program p,
-                    int left_n,
-                    int right_n,
+                    int mid_n,
                     const target& t,
                     compile_options options,
                     verify_options vo,
@@ -247,15 +246,13 @@ void verify_bisect(program p,
                     verify::tolerance tols)
 {
     auto* mm  = p.get_main_module();
-    auto left = std::next(mm->begin(), left_n);
-    auto right = std::next(mm->begin(), right_n);
-    std::cout << "Verify from: " << left_n << " to " << right_n << std::endl;
+    auto mid = std::next(mm->begin(), mid_n);
+    std::cout << "Verify up to: " << mid_n << std::endl;
 
-    mm->remove_instructions(mm->begin(), left);
-    mm->remove_instructions(right, mm->end());
+    mm->remove_instructions(mid, mm->end());
     
     std::cout << p << std::endl;
-    verify_program(std::to_string(left_n), p, t, options, vo, inputs, tols);
+    verify_program(std::to_string(mid_n), p, t, options, vo, inputs, tols);
 }
 
 void verify_bisected_program(const program& p,
@@ -275,7 +272,7 @@ void verify_bisected_program(const program& p,
         std::size_t mid = (left + right) / 2;
 
         try {
-            verify_bisect(p, left, mid, t, options, vo, inputs, tols);
+            verify_bisect(p, mid, t, options, vo, inputs, tols);
             left = mid + 1;
         }
         catch(const std::exception& e)

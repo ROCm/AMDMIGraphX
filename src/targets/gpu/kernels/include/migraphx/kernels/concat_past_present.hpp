@@ -81,7 +81,7 @@ update_cache(Present present, SeqLensK seqlens_k, Cache cache, Params params, in
     const int kv_num_heads                      = params.kv_num_heads;
     const bool is_prompt                        = sequence_length != 1;
     const int packed_batch_stride = (num_heads + 2 * kv_num_heads) * sequence_length * head_size;
-    const int kv_num_heads_factor      = num_heads / kv_num_heads;
+    const int kv_num_heads_factor = num_heads / kv_num_heads;
     const size_t kv_input_chunk_length = static_cast<size_t>(sequence_length) * head_size; // L x H
     const size_t past_buff_chunk_length =
         static_cast<size_t>(past_buffer_sequence_length) * head_size; // L x H

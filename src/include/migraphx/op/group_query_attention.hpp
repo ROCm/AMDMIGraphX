@@ -554,8 +554,8 @@ struct group_query_attention
                         present_k[i] = past_key[i];
                         present_v[i] = past_value[i];
                     });
-                    auto seq_stride  = head_size;
-                    auto head_stride = sequence_length * seq_stride;
+                    auto seq_stride          = head_size;
+                    auto head_stride         = sequence_length * seq_stride;
                     auto batch_stride        = num_heads + 2 * kv_num_heads;
                     auto position_ids_format = sequence_length == 1 ? 1 : 0;
                     bool transposed          = true;

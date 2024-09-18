@@ -37,10 +37,10 @@ TEST_CASE(instructions_tuple_test)
     migraphx::shape s1{migraphx::shape::float_type, {1, 1}};
     migraphx::shape s2{migraphx::shape::float_type, {1, 2}};
     migraphx::shape s3{migraphx::shape::float_type, {1, 4}};
-    auto x = mm->add_parameter("x", s1);
-    auto y = mm->add_parameter("y", s2);
-    auto z = mm->add_parameter("z", s3);
-    auto t = mm->add_instruction(migraphx::make_op("instructions_tuple"), x, y, z);
+    auto x  = mm->add_parameter("x", s1);
+    auto y  = mm->add_parameter("y", s2);
+    auto z  = mm->add_parameter("z", s3);
+    auto t  = mm->add_instruction(migraphx::make_op("instructions_tuple"), x, y, z);
     auto r0 = mm->add_instruction(migraphx::make_op("get_tuple_elem", {{"index", 0}}), t);
     auto r1 = mm->add_instruction(migraphx::make_op("get_tuple_elem", {{"index", 1}}), t);
     auto r2 = mm->add_instruction(migraphx::make_op("get_tuple_elem", {{"index", 2}}), t);
@@ -49,9 +49,9 @@ TEST_CASE(instructions_tuple_test)
 
     migraphx::parameter_map pp;
     std::vector<float> data{1.0, 2.0, 3.0, 4.0};
-    pp["x"] = migraphx::argument(s1, data.data());
-    pp["y"] = migraphx::argument(s2, data.data());
-    pp["z"] = migraphx::argument(s3, data.data());
+    pp["x"]      = migraphx::argument(s1, data.data());
+    pp["y"]      = migraphx::argument(s2, data.data());
+    pp["z"]      = migraphx::argument(s3, data.data());
     auto results = p.eval(pp);
 
     std::vector<float> res0;

@@ -802,6 +802,7 @@ struct find_mlir_standalone_attention_op
 
         module_ref mpm_attn = mpm.create_module(
             "mlir_attn_" + fused_reduce->module_inputs().front()->name(), std::move(m_attn));
+        mpm_attn->set_bypass();
 
         mpm.get_module().replace_instruction(
             r.result, mlir_op{gemm1->get_operator()}, mlir_contiguous(mpm, new_inputs), {mpm_attn});

@@ -46,7 +46,6 @@ if [[ ("${ID}" == "sles") ]]; then
     libgfortran5 \
     hipblas-devel \
     hipblaslt-devel \
-
 else
   # Need pip3 and Python headers to build dependencies
   apt update && apt install -y \

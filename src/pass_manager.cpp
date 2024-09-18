@@ -114,12 +114,6 @@ struct module_pm : module_pass_manager
         prog->rename_module(old_name, new_name);
     }
 
-    virtual void remove_module(const std::string& name) override
-    {
-        assert(prog);
-        return prog->remove_module(name);
-    }
-
     virtual module* get_common_parent() override { return common_parent; }
 
     virtual module* get_root_module() override

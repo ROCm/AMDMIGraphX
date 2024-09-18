@@ -56,6 +56,12 @@ void verify_reduced_program(const program& p,
                             verify_options vo           = verify_options{},
                             const parameter_map& inputs = {},
                             verify::tolerance tols      = verify::tolerance{});
+void verify_bisected_program(const program& p,
+                            const target& t,
+                            compile_options options     = compile_options{},
+                            verify_options vo           = verify_options{},
+                            const parameter_map& inputs = {},
+                            verify::tolerance tols      = verify::tolerance{});
 
 } // namespace MIGRAPHX_INLINE_NS
 } // namespace driver

@@ -36,23 +36,23 @@ TEST_CASE(group_query_attention_test)
     migraphx::shape outs{migraphx::shape::half_type, {1, 1, 4096}};
 
     std::vector<float> cs_data(cs.elements(), 1.0);
-    auto slk = mm->add_literal(migraphx::literal{consts, {1}});
-    auto tsl = mm->add_literal(migraphx::literal{consts, {2}});
-    auto cc  = mm->add_literal(migraphx::literal{cs, cs_data});
-    auto sc  = mm->add_literal(migraphx::literal{cs, cs_data});
-    auto qkv = mm->add_parameter("qkv", qkvs);
-    auto key = mm->add_parameter("key", kvs);
+    auto slk   = mm->add_literal(migraphx::literal{consts, {1}});
+    auto tsl   = mm->add_literal(migraphx::literal{consts, {2}});
+    auto cc    = mm->add_literal(migraphx::literal{cs, cs_data});
+    auto sc    = mm->add_literal(migraphx::literal{cs, cs_data});
+    auto qkv   = mm->add_parameter("qkv", qkvs);
+    auto key   = mm->add_parameter("key", kvs);
     auto value = mm->add_parameter("value", kvs);
-    auto pk = mm->add_parameter("past_key_values_key", pkvs);
-    auto pv = mm->add_parameter("past_key_values_value", pkvs);
+    auto pk    = mm->add_parameter("past_key_values_key", pkvs);
+    auto pv    = mm->add_parameter("past_key_values_value", pkvs);
 
-    auto gqa        = mm->add_instruction(migraphx::make_op("group_query_attention",
-                                                            {{"do_rotary", 1},
-                                                             {"kv_num_heads", 32},
-                                                             {"local_window_size", -1},
-                                                             {"num_heads", 32},
-                                                             {"rotary_interleaved", 0},
-                                                             {"scale", 1.0}}),
+    auto gqa = mm->add_instruction(migraphx::make_op("group_query_attention",
+                                                     {{"do_rotary", 1},
+                                                      {"kv_num_heads", 32},
+                                                      {"local_window_size", -1},
+                                                      {"num_heads", 32},
+                                                      {"rotary_interleaved", 0},
+                                                      {"scale", 1.0}}),
                                    qkv,
                                    key,
                                    value,

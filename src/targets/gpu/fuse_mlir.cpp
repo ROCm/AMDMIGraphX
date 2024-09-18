@@ -698,7 +698,9 @@ struct find_mlir_standalone_attention_op
             match::skip(match::name("contiguous"))(match::used_once(), is_mlir_dot(dot_mode))
                 .bind("gemm1");
         auto fused_reduce =
-            match::name("fused_reduce")(match::used_once(), match::any_of[match::inputs()](gemm1))
+            match::name("fused_reduce")(
+                match::used_once(),
+                match::any_of[match::inputs()](match::skip(match::name("reshape").bind("rsp"))(gemm1)))
                 .bind("fused_reduce");
         return is_mlir_dot(dot_mode)(match::arg(0)(fused_reduce)).bind("gemm2");
     }
@@ -745,6 +747,12 @@ struct find_mlir_standalone_attention_op
         auto m_gemm1             = m_attn.fuse(fuse_gemm1, top_inputs, &map_gemm1_to_mattn).front();
         map_main_to_mattn[gemm1] = m_gemm1;
 
+        if(contains(r.instructions, "rsp"))
+        {
+            auto rsp = r.instructions["rsp"];
+            auto m_rsp = m_attn.add_instruction(rsp->get_operator(), {m_gemm1});
+            map_main_to_mattn[rsp] = m_rsp;
+        }
         // Add pointwise-softmax, unroll any pointwise modules back to base ops
         m_attn.add_params(fused_reduce->inputs(), &map_main_to_mattn);
         std::unordered_map<instruction_ref, instruction_ref> map_mfr_to_mattn(map_main_to_mattn);

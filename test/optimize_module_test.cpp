@@ -185,54 +185,76 @@ TEST_CASE(mul_add_transpose_dot)
 TEST_CASE(reshape_transpose_dot_mul_softmax_dot)
 {
     migraphx::shape s{migraphx::shape::float_type, {2, 4096, 320}};
-    migraphx::literal lit1 = {0.125f}; 
+    migraphx::literal lit1 = {0.125f};
     migraphx::module m1;
     {
-        auto x      = m1.add_parameter("x", s);
-        auto y      = m1.add_parameter("y", s);
-        auto z      = m1.add_parameter("z", s);
-        auto xreshape1 = m1.add_instruction(migraphx::make_op("reshape", {{"dims", {2, 4096, 5, 64}}}), x);
-        auto xtranspose1 = m1.add_instruction(migraphx::make_op("transpose", {{"permutation", {0, 2, 1, 3}}}), xreshape1);
-        auto xreshape2 = m1.add_instruction(migraphx::make_op("reshape", {{"dims", {10, 4096, 64}}}), xtranspose1);
+        auto x = m1.add_parameter("x", s);
+        auto y = m1.add_parameter("y", s);
+        auto z = m1.add_parameter("z", s);
+        auto xreshape1 =
+            m1.add_instruction(migraphx::make_op("reshape", {{"dims", {2, 4096, 5, 64}}}), x);
+        auto xtranspose1 = m1.add_instruction(
+            migraphx::make_op("transpose", {{"permutation", {0, 2, 1, 3}}}), xreshape1);
+        auto xreshape2 = m1.add_instruction(
+            migraphx::make_op("reshape", {{"dims", {10, 4096, 64}}}), xtranspose1);
 
-        auto yreshape1 = m1.add_instruction(migraphx::make_op("reshape", {{"dims", {2, 4096, 5, 64}}}), y);
-        auto ytranspose1 = m1.add_instruction(migraphx::make_op("transpose", {{"permutation", {0, 2, 1, 3}}}), yreshape1);
-        auto yreshape2 = m1.add_instruction(migraphx::make_op("reshape", {{"dims", {10, 4096, 64}}}), ytranspose1);
-        auto ytranspose2 = m1.add_instruction(migraphx::make_op("transpose", {{"permutation", {0, 2, 1}}}), yreshape2);
+        auto yreshape1 =
+            m1.add_instruction(migraphx::make_op("reshape", {{"dims", {2, 4096, 5, 64}}}), y);
+        auto ytranspose1 = m1.add_instruction(
+            migraphx::make_op("transpose", {{"permutation", {0, 2, 1, 3}}}), yreshape1);
+        auto yreshape2 = m1.add_instruction(
+            migraphx::make_op("reshape", {{"dims", {10, 4096, 64}}}), ytranspose1);
+        auto ytranspose2 = m1.add_instruction(
+            migraphx::make_op("transpose", {{"permutation", {0, 2, 1}}}), yreshape2);
 
-        auto dot1 = m1.add_instruction(migraphx::make_op("dot"), xreshape2, ytranspose2);
+        auto dot1     = m1.add_instruction(migraphx::make_op("dot"), xreshape2, ytranspose2);
         auto lit1_ins = m1.add_literal(lit1);
-        auto lit1_b = m1.add_instruction(migraphx::make_op("multibroadcast", {{"out_lens", {10, 4096, 4096}}}), lit1_ins);
-        auto mul = m1.add_instruction(migraphx::make_op("mul"), dot1, lit1_b);
+        auto lit1_b   = m1.add_instruction(
+            migraphx::make_op("multibroadcast", {{"out_lens", {10, 4096, 4096}}}), lit1_ins);
+        auto mul     = m1.add_instruction(migraphx::make_op("mul"), dot1, lit1_b);
         auto softmax = m1.add_instruction(migraphx::make_op("softmax", {{"axis", -1}}), mul);
-        auto zreshape1 = m1.add_instruction(migraphx::make_op("reshape", {{"dims", {2, 4096, 5, 64}}}), z);
-        auto ztranspose1 = m1.add_instruction(migraphx::make_op("transpose", {{"permutation", {0, 2, 1, 3}}}), zreshape1);
-        auto zreshape2 = m1.add_instruction(migraphx::make_op("reshape", {{"dims", {10, 4096, 64}}}), ztranspose1);
+        auto zreshape1 =
+            m1.add_instruction(migraphx::make_op("reshape", {{"dims", {2, 4096, 5, 64}}}), z);
+        auto ztranspose1 = m1.add_instruction(
+            migraphx::make_op("transpose", {{"permutation", {0, 2, 1, 3}}}), zreshape1);
+        auto zreshape2 = m1.add_instruction(
+            migraphx::make_op("reshape", {{"dims", {10, 4096, 64}}}), ztranspose1);
         auto dot2 = m1.add_instruction(migraphx::make_op("dot"), softmax, zreshape2);
         m1.add_return({dot2});
     }
     migraphx::module m2;
     {
-        auto x      = m2.add_parameter("x", s);
-        auto y      = m2.add_parameter("y", s);
-        auto z      = m2.add_parameter("z", s);
-        auto xreshape1 = m2.add_instruction(migraphx::make_op("reshape", {{"dims", {2, 4096, 5, 64}}}), x);
-        auto xtranspose1 = m2.add_instruction(migraphx::make_op("transpose", {{"permutation", {0, 2, 1, 3}}}), xreshape1);
-        auto xreshape2 = m2.add_instruction(migraphx::make_op("reshape", {{"dims", {10, 4096, 64}}}), xtranspose1);
+        auto x = m2.add_parameter("x", s);
+        auto y = m2.add_parameter("y", s);
+        auto z = m2.add_parameter("z", s);
+        auto xreshape1 =
+            m2.add_instruction(migraphx::make_op("reshape", {{"dims", {2, 4096, 5, 64}}}), x);
+        auto xtranspose1 = m2.add_instruction(
+            migraphx::make_op("transpose", {{"permutation", {0, 2, 1, 3}}}), xreshape1);
+        auto xreshape2 = m2.add_instruction(
+            migraphx::make_op("reshape", {{"dims", {10, 4096, 64}}}), xtranspose1);
 
-        auto yreshape1 = m2.add_instruction(migraphx::make_op("reshape", {{"dims", {2, 4096, 5, 64}}}), y);
-        auto ytranspose1 = m2.add_instruction(migraphx::make_op("transpose", {{"permutation", {0, 2, 1, 3}}}), yreshape1);
-        auto yreshape2 = m2.add_instruction(migraphx::make_op("reshape", {{"dims", {10, 4096, 64}}}), ytranspose1);
-        auto ytranspose2 = m2.add_instruction(migraphx::make_op("transpose", {{"permutation", {0, 2, 1}}}), yreshape2);
+        auto yreshape1 =
+            m2.add_instruction(migraphx::make_op("reshape", {{"dims", {2, 4096, 5, 64}}}), y);
+        auto ytranspose1 = m2.add_instruction(
+            migraphx::make_op("transpose", {{"permutation", {0, 2, 1, 3}}}), yreshape1);
+        auto yreshape2 = m2.add_instruction(
+            migraphx::make_op("reshape", {{"dims", {10, 4096, 64}}}), ytranspose1);
+        auto ytranspose2 = m2.add_instruction(
+            migraphx::make_op("transpose", {{"permutation", {0, 2, 1}}}), yreshape2);
 
-        auto dot1 = m2.add_instruction(migraphx::make_op("dot"), xreshape2, ytranspose2);
+        auto dot1     = m2.add_instruction(migraphx::make_op("dot"), xreshape2, ytranspose2);
         auto lit1_ins = m2.add_literal(lit1);
-        auto lit1_b = m2.add_instruction(migraphx::make_op("multibroadcast", {{"out_lens", {10, 4096, 4096}}}), lit1_ins);
-        auto mul = m2.add_instruction(migraphx::make_op("mul"), dot1, lit1_b);
+        auto lit1_b   = m2.add_instruction(
+            migraphx::make_op("multibroadcast", {{"out_lens", {10, 4096, 4096}}}), lit1_ins);
+        auto mul     = m2.add_instruction(migraphx::make_op("mul"), dot1, lit1_b);
         auto softmax = m2.add_instruction(migraphx::make_op("softmax", {{"axis", -1}}), mul);
-        auto zreshape1 = m2.add_instruction(migraphx::make_op("reshape", {{"dims", {2, 4096, 5, 64}}}), z);
-        auto ztranspose1 = m2.add_instruction(migraphx::make_op("transpose", {{"permutation", {0, 2, 1, 3}}}), zreshape1);
-        auto zreshape2 = m2.add_instruction(migraphx::make_op("reshape", {{"dims", {10, 4096, 64}}}), ztranspose1);
+        auto zreshape1 =
+            m2.add_instruction(migraphx::make_op("reshape", {{"dims", {2, 4096, 5, 64}}}), z);
+        auto ztranspose1 = m2.add_instruction(
+            migraphx::make_op("transpose", {{"permutation", {0, 2, 1, 3}}}), zreshape1);
+        auto zreshape2 = m2.add_instruction(
+            migraphx::make_op("reshape", {{"dims", {10, 4096, 64}}}), ztranspose1);
         auto dot2 = m2.add_instruction(migraphx::make_op("dot"), softmax, zreshape2);
         m2.add_return({dot2});
     }

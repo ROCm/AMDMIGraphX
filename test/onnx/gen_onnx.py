@@ -4459,10 +4459,8 @@ def group_norm_invalid_bias_shape_test():
 def group_query_attention_test():
     qkv = helper.make_tensor_value_info('qkv', TensorProto.FLOAT16,
                                         [1, 1, 12288])
-    key = helper.make_tensor_value_info('key', TensorProto.FLOAT,
-                                        [1])
-    value = helper.make_tensor_value_info('value', TensorProto.FLOAT,
-                                        [1])
+    key = helper.make_tensor_value_info('key', TensorProto.FLOAT, [1])
+    value = helper.make_tensor_value_info('value', TensorProto.FLOAT, [1])
     past_key_values_key = helper.make_tensor_value_info(
         'past_key_values_key', TensorProto.FLOAT16, [1, 32, 4096, 128])
     past_key_values_value = helper.make_tensor_value_info(
@@ -4498,8 +4496,9 @@ def group_query_attention_test():
     node = onnx.helper.make_node(
         'GroupQueryAttention',
         inputs=[
-            'qkv', 'key', 'value', 'past_key_values_key', 'past_key_values_value', 'seqlens_k',
-            'total_sequence_length', 'cos_cache', 'sin_cache'
+            'qkv', 'key', 'value', 'past_key_values_key',
+            'past_key_values_value', 'seqlens_k', 'total_sequence_length',
+            'cos_cache', 'sin_cache'
         ],
         outputs=['output', 'present_key', 'present_value'],
         do_rotary=1,
@@ -4510,8 +4509,9 @@ def group_query_attention_test():
         scale=1.0,
         domain="com.microsoft")
 
-    return ([node], [qkv, key, value, past_key_values_key, past_key_values_value
-                     ], [output, present_key, present_value],
+    return ([node
+             ], [qkv, key, value, past_key_values_key,
+                 past_key_values_value], [output, present_key, present_value],
             [seqlens_k, total_sequence_length, cos_cache, sin_cache])
 
 
@@ -4557,9 +4557,9 @@ def group_query_attention_invalid_test():
         scale=1.0,
         domain="com.microsoft")
 
-    return ([node], [qkv, past_key_values_key, past_key_values_value
-                     ], [output, present_key, present_value],
-            [seqlens_k, total_sequence_length])
+    return ([node], [qkv, past_key_values_key, past_key_values_value],
+            [output, present_key,
+             present_value], [seqlens_k, total_sequence_length])
 
 
 @onnx_test()

@@ -30,7 +30,7 @@ namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
 namespace onnx {
 
-struct parse_groupqueryattention : op_parser<parse_groupqueryattention>
+struct parse_group_query_attention : op_parser<parse_group_query_attention>
 {
     std::vector<op_desc> operators() const { return {{"GroupQueryAttention"}}; }
 

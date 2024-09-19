@@ -144,7 +144,6 @@ bool verify_program(const std::string& name,
     }
     if(passed)
         std::cout << "MIGraphX verification passed successfully." << std::endl;
-
     return passed;
 }
 
@@ -249,13 +248,21 @@ bool verify_bisect(program p,
 {
     auto* mm  = p.get_main_module();
     auto mid = std::next(mm->begin(), mid_n);
-    std::cout << "Verify up to: " << mid_n << std::endl;
-
     mm->remove_instructions(mid, mm->end());
-    
+    std::cout << "Verify up to: " << mid_n << std::endl;
     std::cout << p << std::endl;
-    return verify_program(std::to_string(mid_n), p, t, options, vo, inputs, tols);
-}
+    try
+    {
+        return verify_program(std::to_string(mid_n), p, t, options, vo, inputs, tols);
+    }
+    catch(const std::exception& e)
+    {
+        std::cout << "FAILED: " << mid_n << std::endl;
+        std::cout << "Exception: " << e.what() << std::endl;
+        return false;
+    }
+
+}   
 
 void verify_bisected_program(const program& p,
                             const target& t,
@@ -272,22 +279,12 @@ void verify_bisected_program(const program& p,
     std::cout << "Bisect Verify steps: " << right << std::endl;
     while (left <= right) {
         std::size_t mid = left + (right - left) / 2;
-
-        try {
-            passed = verify_bisect(p, mid, t, options, vo, inputs, tols);
-            if (passed)  {
-                left = mid + 1;
-            } else {
-                right = mid - 1;
-            }
-        }
-        catch(const std::exception& e)
-        {
-            std::cout << "FAILED: " << mid << std::endl;
-            std::cout << "Exception: " << e.what() << std::endl;
+        passed = verify_bisect(p, mid, t, options, vo, inputs, tols);
+        if (passed)  {
+            left = mid + 1;
+        } else {
             right = mid - 1;
         }
-
     }
 }
 

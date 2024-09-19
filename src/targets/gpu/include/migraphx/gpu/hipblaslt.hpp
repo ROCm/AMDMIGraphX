@@ -31,11 +31,15 @@
 #include <hipblaslt/hipblaslt.h>
 #include <hipblaslt/hipblaslt-ext.hpp>
 
-// TODO: Remove hipblasStatusToString() function when hipblaslt
+namespace migraphx {
+inline namespace MIGRAPHX_INLINE_NS {
+namespace gpu {
+
+// TODO: Remove hipblas_status_to_string() function when hipblaslt
 // provides an API for doing this in hipBLASLt.
 
 // Convert hipblas_status to string
-inline const char* hipblasStatusToString(hipblasStatus_t status)
+inline const char* hipblas_status_to_string(hipblasStatus_t status)
 {
     switch(status)
     {
@@ -64,7 +68,7 @@ inline auto hipblaslt_invoke(F f, Ts... xs)
     if(status != HIPBLAS_STATUS_SUCCESS)
     {
         std::string error_message =
-            "hipBLAS error: '" + std::string(hipblasStatusToString(status)) + "'(" +
+            "hipBLAS error: '" + std::string(hipblas_status_to_string(status)) + "'(" +
             std::to_string(status) + ") at " + __FILE__ + ":" + std::to_string(__LINE__);
         MIGRAPHX_THROW(EXIT_FAILURE, error_message);
     }
@@ -85,13 +89,6 @@ auto hipblaslt_invoke(F f, Pack p, Ts... xs)
     });
 }
 
-#endif // MIGRAPHX_USE_HIPBLASLT
-
-namespace migraphx {
-inline namespace MIGRAPHX_INLINE_NS {
-namespace gpu {
-
-#if MIGRAPHX_USE_HIPBLASLT
 using hipblaslt_handle_ptr     = MIGRAPHX_MANAGE_PTR(hipblasLtHandle_t, hipblasLtDestroy);
 using hipblaslt_preference_ptr = MIGRAPHX_MANAGE_PTR(hipblasLtMatmulPreference_t,
                                                      hipblasLtMatmulPreferenceDestroy);
@@ -100,10 +97,8 @@ hipblaslt_handle_ptr create_hipblaslt_handle_ptr();
 hipblaslt_preference_ptr create_hipblaslt_preference_ptr();
 bool hipblaslt_supported();
 const size_t hipblaslt_workspace_size = 2 * 128 * 1024 * 1024;
-#endif // MIGRAPHX_USE_HIPBLASLT
-
 } // namespace gpu
 } // namespace MIGRAPHX_INLINE_NS
 } // namespace migraphx
-
+#endif // MIGRAPHX_USE_HIPBLASLT
 #endif // MIGRAPHX_GUARD_MIGRAPHLIB_HIPBLASLT_HPP

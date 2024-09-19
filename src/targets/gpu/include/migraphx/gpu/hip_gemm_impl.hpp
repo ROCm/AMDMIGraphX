@@ -32,12 +32,12 @@
 // --exhaustive-tune option isn't set.  Can be used to skip slow convolution tuning.
 MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_ENABLE_HIP_GEMM_TUNING);
 
-using milliseconds = std::chrono::duration<double, std::milli>;
-using microseconds = std::chrono::duration<double, std::micro>;
-
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
 namespace gpu {
+
+using milliseconds = std::chrono::duration<double, std::milli>;
+using microseconds = std::chrono::duration<double, std::micro>;
 
 /**
  * @brief Templated implementations of the compute() and finalize() methods of the Gemm operator.

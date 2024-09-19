@@ -32,11 +32,11 @@
 #include <migraphx/generate.hpp>
 #include <migraphx/time.hpp>
 
-using microseconds = std::chrono::duration<double, std::micro>;
-
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
 namespace gpu {
+
+using microseconds = std::chrono::duration<double, std::micro>;
 
 hipDataType compute_to_hip_type(hipblasComputeType_t type)
 {

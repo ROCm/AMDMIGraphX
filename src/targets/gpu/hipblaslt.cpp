@@ -23,49 +23,45 @@
  */
 
 #include <migraphx/ranges.hpp>
-#include <migraphx/stringutils.hpp>
-#include <migraphx/gpu/device_name.hpp>
-#include <migraphx/gpu/rocblas.hpp>
+#include <migraphx/gpu/hipblaslt.hpp>
 #include <migraphx/gpu/context.hpp>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
 namespace gpu {
-#if MIGRAPHX_USE_ROCBLAS
-rocblas_handle_ptr create_rocblas_handle_ptr()
+#if MIGRAPHX_USE_HIPBLASLT
+// for hipblaslt only
+static const size_t workspace_size = hipblaslt_workspace_size;
+
+hipblaslt_handle_ptr create_hipblaslt_handle_ptr()
 {
-    // add a call to rocblas_initialize() to workaround a rocblas bug SWDEV-438929
-    rocblas_initialize();
-    rocblas_handle handle;
-    rocblas_create_handle(&handle);
-    return rocblas_handle_ptr{handle};
+    hipblasLtHandle_t handle;
+    hipblasLtCreate(&handle);
+    return hipblaslt_handle_ptr{handle};
 }
 
-rocblas_handle_ptr create_rocblas_handle_ptr(hipStream_t s)
+hipblaslt_preference_ptr create_hipblaslt_preference_ptr()
 {
-    rocblas_handle_ptr rb = create_rocblas_handle_ptr();
-    rocblas_set_stream(rb.get(), s);
-    return rb;
+    hipblasLtMatmulPreference_t preference;
+    hipblasLtMatmulPreferenceCreate(&preference);
+    hipblaslt_invoke([&]() {
+        return hipblasLtMatmulPreferenceSetAttribute(preference,
+                                                     HIPBLASLT_MATMUL_PREF_MAX_WORKSPACE_BYTES,
+                                                     &workspace_size,
+                                                     sizeof(workspace_size));
+    });
+    return hipblaslt_preference_ptr{preference};
 }
-#endif
-bool get_compute_fp32_flag()
+
+bool hipblaslt_supported()
 {
     const auto device_name = trim(split_string(get_device_name(), ':').front());
-    return (starts_with(device_name, "gfx9") and device_name >= "gfx908");
+    // hipblaslt is supported for MI100 and above and Navi3x and above
+    return (starts_with(device_name, "gfx9") and device_name >= "gfx908" and
+            not starts_with(device_name, "gfx10"));
 }
 
-bool rocblas_fp8_available()
-{
-#if MIGRAPHX_USE_ROCBLAS
-#ifndef MIGRAPHX_USE_ROCBLAS_FP8_API
-    return false;
-#else
-    return gfx_has_fp8fnuz_intrinsics();
-#endif
-#else
-    return false;
-#endif
-}
+#endif // MIGRAPHX_USE_HIPBLASLT
 
 } // namespace gpu
 } // namespace MIGRAPHX_INLINE_NS

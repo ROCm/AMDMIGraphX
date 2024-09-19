@@ -29,6 +29,7 @@
 #include <migraphx/generate.hpp>
 #include <migraphx/matcher.hpp>
 #include <migraphx/quantize_int4.hpp>
+#include <migraphx/simplify_qdq.hpp>
 #include <basic_ops.hpp>
 #include <test.hpp>
 
@@ -86,6 +87,29 @@ TEST_CASE(int4_const_prop_test)
     auto chk_2 = match::name("unpack_int4").bind("unpack_int4");
     auto res_2 = find_match(m1, chk_2);
     EXPECT(migraphx::contains(res_2.instructions, "unpack_int4"));
+}
+
+TEST_CASE(int4_simplify_qdq_pass_test)
+{
+    migraphx::module m1;
+    {
+        auto x        = m1.add_parameter("x", {migraphx::shape::float_type, {1, 8, 16, 16}});
+        auto scale    = m1.add_parameter("sc", {migraphx::shape::float_type, {1, 8, 16, 16}});
+        auto zp       = m1.add_parameter("zp", {migraphx::shape::int8_type, {1, 8, 16, 8}});
+        auto un_pk_zp = m1.add_instruction(migraphx::make_op("unpack_int4"), zp);
+        auto q        = m1.add_instruction(migraphx::make_op("quantizelinear"), x, scale, un_pk_zp);
+        auto dq = m1.add_instruction(migraphx::make_op("dequantizelinear"), q, scale, un_pk_zp);
+        m1.add_return({dq});
+    }
+
+    migraphx::run_passes(m1, {migraphx::simplify_qdq{}});
+
+    auto chk_1 = match::name("quantizelinear")(
+                     match::output(match::name("pack_int4")(match::output(match::name(
+                         "unpack_int4")(match::output(match::name("dequantizelinear")))))))
+                     .bind("q");
+    auto res_1 = find_match(m1, chk_1);
+    EXPECT(migraphx::contains(res_1.instructions, "q"));
 }
 
 int main(int argc, const char* argv[]) { test::run(argc, argv); }

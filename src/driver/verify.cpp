@@ -274,7 +274,6 @@ void verify_bisected_program(const program& p,
         std::size_t mid = left + (right - left) / 2;
 
         try {
-            std::cout << "try: " << left << " " << right;
             passed = verify_bisect(p, mid, t, options, vo, inputs, tols);
             if (passed)  {
                 left = mid + 1;

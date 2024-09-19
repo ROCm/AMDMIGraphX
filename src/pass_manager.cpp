@@ -40,6 +40,14 @@ inline namespace MIGRAPHX_INLINE_NS {
 
 MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_TRACE_PASSES);
 MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_TIME_PASSES);
+MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_DISABLE_PASSES);
+
+static bool is_pass_disabled(const std::string& name)
+{
+    static const auto passes =
+        split_string(string_value_of(MIGRAPHX_DISABLE_PASSES{}, ""), ',');
+    return contains(passes, name);
+}
 
 void validate_pass(module& mod, const pass& p, tracer trace)
 {
@@ -126,6 +134,8 @@ struct module_pm : module_pass_manager
 
     virtual void run_pass(const pass& p) override
     {
+        if(is_pass_disabled(p.name()))
+            return;
         trace("Pass: ", p.name());
         assert(mod);
         assert(mod->validate() == mod->end());

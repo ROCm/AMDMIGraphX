@@ -110,7 +110,7 @@ struct miopen_apply
         add_convolution_op("quant_convolution");
         add_extend_op("lrn");
 #endif
-#if MIGRAPHX_USE_ROCBLAS
+#if MIGRAPHX_USE_ROCBLAS or MIGRAPHX_USE_HIPBLASLT
         add_gemm_op<op::dot>("dot");
         add_gemm_op<op::quant_dot>("quant_dot");
 #endif

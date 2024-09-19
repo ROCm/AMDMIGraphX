@@ -125,11 +125,14 @@ static bool specific_op(std::string_view option, bool fallback = false)
     return contains(options, option);
 }
 
-bool mlir_attention_enabled()
+bool mlir_attention_enabled(context* ctx)
 {
 #ifdef MIGRAPHX_MLIR
     if(not mlir_enabled())
         return false;
+    // Enable attention by default for mi300
+    if(starts_with(ctx->get_current_device().get_gfx_name(), "gfx94"))
+        return true;
     return specific_op<requested>("attention");
 #else
     return false;
@@ -892,7 +895,7 @@ void fuse_mlir::apply(module_pass_manager& mpm) const
     };
 
     // Attention offloads; default disabled
-    if(mlir_attention_enabled() or enable_extra)
+    if(mlir_attention_enabled(ctx) or enable_extra)
     {
         match::find_matches(mpm, find_mlir_attention_fused_ops{mlir_mode::all});
         mpm.run_pass(dead_code_elimination{});

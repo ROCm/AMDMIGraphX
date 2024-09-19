@@ -38,7 +38,7 @@ verify::tolerance get_tolerances(const program& p,
                                  std::optional<double> atol,
                                  std::optional<double> rtol);
 
-void verify_program(const std::string& name,
+bool verify_program(const std::string& name,
                     const program& p,
                     const target& t,
                     compile_options options     = compile_options{},

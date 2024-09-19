@@ -115,7 +115,7 @@ std::vector<argument> run_target(program p,
     return output;
 }
 
-void verify_program(const std::string& name,
+bool verify_program(const std::string& name,
                     const program& p,
                     const target& t,
                     compile_options options,
@@ -144,6 +144,8 @@ void verify_program(const std::string& name,
     }
     if(passed)
         std::cout << "MIGraphX verification passed successfully." << std::endl;
+
+    return passed;
 }
 
 void verify_instructions(const program& prog,
@@ -237,7 +239,7 @@ void verify_reduced_program(const program& p,
     }
 }
 
-void verify_bisect(program p,
+bool verify_bisect(program p,
                     int mid_n,
                     const target& t,
                     compile_options options,
@@ -252,7 +254,7 @@ void verify_bisect(program p,
     mm->remove_instructions(mid, mm->end());
     
     std::cout << p << std::endl;
-    verify_program(std::to_string(mid_n), p, t, options, vo, inputs, tols);
+    return verify_program(std::to_string(mid_n), p, t, options, vo, inputs, tols);
 }
 
 void verify_bisected_program(const program& p,
@@ -265,22 +267,28 @@ void verify_bisected_program(const program& p,
     const auto* mm = p.get_main_module();
     auto right         = std::distance(mm->begin(), mm->end());
     std::size_t left = 0;
-    auto n = right;
+    bool passed;
 
     std::cout << "Bisect Verify steps: " << right << std::endl;
     while (left <= right) {
-        std::size_t mid = (left + right) / 2;
+        std::size_t mid = left + (right - left) / 2;
 
         try {
-            verify_bisect(p, mid, t, options, vo, inputs, tols);
-            left = mid + 1;
+            std::cout << "try: " << left << " " << right;
+            passed = verify_bisect(p, mid, t, options, vo, inputs, tols);
+            if (passed)  {
+                left = mid + 1;
+            } else {
+                right = mid - 1;
+            }
         }
         catch(const std::exception& e)
         {
             std::cout << "FAILED: " << mid << std::endl;
             std::cout << "Exception: " << e.what() << std::endl;
-            right = mid;
+            right = mid - 1;
         }
+
     }
 }
 

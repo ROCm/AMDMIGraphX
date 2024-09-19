@@ -38,8 +38,8 @@ inline namespace MIGRAPHX_INLINE_NS {
 struct module;
 namespace gpu {
 
-MIGRAPHX_GPU_EXPORT std::string dump_mlir(const module& m);
-MIGRAPHX_GPU_EXPORT std::string dump_mlir(const module& m, const std::vector<shape>& inputs);
+MIGRAPHX_GPU_EXPORT std::string dump_mlir(module m);
+MIGRAPHX_GPU_EXPORT std::string dump_mlir(module m, const std::vector<shape>& inputs);
 
 MIGRAPHX_GPU_EXPORT bool
 is_module_fusible(const module& m, const context& migraphx_ctx, const value& solution);
@@ -50,6 +50,8 @@ struct MIGRAPHX_GPU_EXPORT mlir_code_object
     std::vector<size_t> prefill_indices = {};
     std::vector<value> prefill_values   = {};
 };
+
+MIGRAPHX_GPU_EXPORT bool is_reduce(const instruction& ins);
 
 MIGRAPHX_GPU_EXPORT mlir_code_object compile_mlir(const context& migraphx_ctx,
                                                   module m,

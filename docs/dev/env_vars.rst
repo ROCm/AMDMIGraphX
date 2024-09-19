@@ -136,6 +136,11 @@ Uses ``hip_copy_to_gpu`` with a new ``literal`` instruction rather than using ``
 Set to "1", "enable", "enabled", "yes", or "true" to use.
 Disables layrnorm fusion.
 
+.. envvar:: MIGRAPHX_DISABLE_MIOPEN_POOLING
+
+Set to "1", "enable", "enabled", "yes", or "true" to use.
+Disables use of MIOpen for pooling operations and uses JIT implementation instead.
+
 Compilation traces
 ----------------------
 
@@ -241,6 +246,12 @@ Set to "1" to print benchmarking trace.
 Set to "2" to print detailed benchmarking trace.
 Set to "3" to print compiled traces.
 
+.. envvar:: MIGRAPHX_PROBLEM_CACHE
+
+Set to path to json file to load and save problem cache.
+This will load the json file into the problem cache if it exists, and when
+compilation finishes it will save the problem cache.
+
 MLIR vars
 -------------
 
@@ -277,6 +288,11 @@ Limits the number of solutions available to MLIR for tuning.
 
 Set to "1", "enable", "enabled", "yes", or "true" to use.
 Enable input fusions in MLIR.
+
+.. envvar:: MIGRAPHX_ENABLE_MLIR_REDUCE_FUSION
+
+Set to "1", "enable", "enabled", "yes", or "true" to use.
+Enable reduction fusions in MLIR.
 
 .. envvar:: MIGRAPHX_MLIR_ENABLE_SPLITK
 

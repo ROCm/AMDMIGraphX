@@ -50,3 +50,5 @@ struct test_gemm_2args_mv : verify_program<test_gemm_2args_mv<DType>>
 template struct test_gemm_2args_mv<migraphx::shape::float_type>;
 template struct test_gemm_2args_mv<migraphx::shape::half_type>;
 template struct test_gemm_2args_mv<migraphx::shape::fp8e4m3fnuz_type>;
+template struct test_gemm_2args_mv<migraphx::shape::fp8e4m3fn_type>;
+template struct test_gemm_2args_mv<migraphx::shape::fp8e5m2_type>;

@@ -44,3 +44,5 @@ struct test_log2 : verify_program<test_log2<DType>>
 template struct test_log2<migraphx::shape::float_type>;
 template struct test_log2<migraphx::shape::half_type>;
 template struct test_log2<migraphx::shape::fp8e4m3fnuz_type>;
+template struct test_log2<migraphx::shape::fp8e4m3fn_type>;
+template struct test_log2<migraphx::shape::fp8e5m2_type>;

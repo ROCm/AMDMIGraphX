@@ -55,6 +55,8 @@ namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
 namespace gpu {
 
+MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_DISABLE_MIOPEN_POOLING)
+
 struct miopen_apply
 {
     module* mod              = nullptr;
@@ -299,23 +301,34 @@ struct miopen_apply
         });
     }
 
+    static bool use_miopen_pooling(instruction_ref ins)
+    {
+        if(enabled(MIGRAPHX_DISABLE_MIOPEN_POOLING{}))
+            return false;
+        auto&& op   = ins->get_operator();
+        auto op_val = op.to_value();
+        auto mode   = op_val.at("mode").to<op::pooling_mode>();
+        if(op_val.at("count_include_pad").to<bool>() and mode == op::pooling_mode::average)
+            return false;
+        if(mode == op::pooling_mode::lpnorm)
+            return false;
+        auto op_padding = op_val.at("padding").to_vector<size_t>();
+        auto kdims      = ins->get_shape().lens().size() - 2;
+        return std::equal(op_padding.begin(),
+                          op_padding.begin() + kdims,
+                          op_padding.begin() + kdims,
+                          op_padding.end());
+    }
+
     void add_pooling_op()
     {
         apply_map.emplace("pooling", [=](instruction_ref ins) {
-            auto&& op   = ins->get_operator();
-            auto op_val = op.to_value();
-            if(op_val.at("count_include_pad").to<bool>() and
-               op_val["mode"].to<op::pooling_mode>() == op::pooling_mode::average)
-            {
+            if(not use_miopen_pooling(ins))
                 return insert_precompile_op(ins);
-            }
-            if(op_val["mode"].to<op::pooling_mode>() == op::pooling_mode::lpnorm)
-            {
-                return insert_precompile_op(ins);
-            }
 #if MIGRAPHX_USE_MIOPEN
             auto output                       = insert_allocation(ins, ins->get_shape());
             std::vector<instruction_ref> refs = ins->inputs();
+            auto&& op                         = ins->get_operator();
             refs.push_back(output);
             return mod->replace_instruction(ins, make_op("gpu::pooling", op.to_value()), refs);
 #else 

@@ -101,7 +101,14 @@ struct mlir_compiler : compiler<mlir_compiler>
             dot_mlir_inputs.push_back(mod_splits[0].mod.get_output_shapes().front());
             mlir_code_object cop1 = compile_mlir(ctx, mod_splits[0].mod, dot_mlir_inputs, solution);
             auto pw_shapes        = to_shapes(mod_splits[1].inputs);
-            pw_shapes.push_back(mod_splits[1].mod.get_output_shapes().front());
+            if(mod_splits[1].mod.get_output_shapes().size() == 1)
+            {
+                pw_shapes.push_back(mod_splits[1].mod.get_output_shapes().front());
+            }
+            else
+            {
+                pw_shapes.push_back(shape{mod_splits[1].mod.get_output_shapes()});
+            }
             assert(pw_shapes.back() == ins->get_shape());
             auto pw_mod                        = create_pointwise_module(&mod_splits[1].mod);
             auto cop2                          = compile_pointwise(ctx, pw_shapes, &pw_mod);

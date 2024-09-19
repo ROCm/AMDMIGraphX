@@ -163,7 +163,6 @@ struct MIGRAPHX_EXPORT program
     void assign(const program& p);
     std::unique_ptr<program_impl> impl;
 };
-
 } // namespace MIGRAPHX_INLINE_NS
 } // namespace migraphx
 

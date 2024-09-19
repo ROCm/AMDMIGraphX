@@ -21,35 +21,52 @@
  * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
  * THE SOFTWARE.
  */
-#include <migraphx/optimize_module.hpp>
-#include <migraphx/pass_manager.hpp>
-#include <migraphx/simplify_reshapes.hpp>
-#include <migraphx/simplify_algebra.hpp>
-#include <migraphx/eliminate_common_subexpression.hpp>
-#include <migraphx/eliminate_convert.hpp>
-#include <migraphx/dead_code_elimination.hpp>
-#include <migraphx/propagate_constant.hpp>
-#include <migraphx/module.hpp>
+#ifndef MIGRAPHX_GUARD_MATCH_SOFTMAX_HPP
+#define MIGRAPHX_GUARD_MATCH_SOFTMAX_HPP
+
+#include <migraphx/config.hpp>
+#include <migraphx/matcher.hpp>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
+namespace match {
 
-void optimize_module::apply(module_pass_manager& mpm) const
+namespace detail {
+template <class F>
+struct softmax_matcher
 {
-    mpm.get_module().repeat_while_changes(2, [&] {
-        // loop to further optimize after initial transformations
-        mpm.get_module().repeat_while_changes(4, [&] {
-            mpm.run_pass(simplify_reshapes{});
-            mpm.run_pass(eliminate_convert{});
-            mpm.run_pass(dead_code_elimination{});
-            mpm.run_pass(simplify_algebra{});
-        });
-        mpm.run_pass(eliminate_common_subexpression{});
-        mpm.run_pass(dead_code_elimination{});
-        mpm.run_pass(propagate_constant{propagate_constant_skip_ops});
-        mpm.run_pass(dead_code_elimination{});
-    });
+    F f;
+
+    auto exp_x_minus_max() const
+    {
+        auto x_minus_max =
+            f("sub")(arg(0)(any().bind("x")), arg(1)(skip_broadcasts(f("reduce_max"))));
+        return f("exp")(arg(0)(x_minus_max));
+    }
+
+    auto softmax_base_ops() const
+    {
+        auto sum_exp_x_minus_max = f("reduce_sum")(arg(0)(exp_x_minus_max()));
+        return f("div")(arg(0)(exp_x_minus_max()), arg(1)(skip_broadcasts(sum_exp_x_minus_max)));
+    }
+
+    auto matcher() const { return softmax_base_ops(); }
+};
+} // namespace detail
+
+template <class F>
+auto softmax(F f)
+{
+    return detail::softmax_matcher<F>{f}.matcher();
 }
 
+inline auto softmax()
+{
+    return softmax([](auto x) { return name(x); });
+}
+
+} // namespace match
 } // namespace MIGRAPHX_INLINE_NS
 } // namespace migraphx
+
+#endif

@@ -44,8 +44,7 @@ MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_DISABLE_PASSES);
 
 static bool is_pass_disabled(const std::string& name)
 {
-    static const auto passes =
-        split_string(string_value_of(MIGRAPHX_DISABLE_PASSES{}, ""), ',');
+    static const auto passes = split_string(string_value_of(MIGRAPHX_DISABLE_PASSES{}, ""), ',');
     return contains(passes, name);
 }
 

@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2023 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2024 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -73,11 +73,19 @@ TEST_CASE_REGISTER(test_equality<double, float>);
 TEST_CASE_REGISTER(test_equality<double, int>);
 TEST_CASE_REGISTER(test_equality<double, migraphx::half>);
 TEST_CASE_REGISTER(test_equality<double, migraphx::fp8::fp8e4m3fnuz>);
+TEST_CASE_REGISTER(test_equality<double, migraphx::fp8::fp8e4m3fn>);
+TEST_CASE_REGISTER(test_equality<double, migraphx::fp8::fp8e5m2>);
 TEST_CASE_REGISTER(test_equality<float, int>);
 TEST_CASE_REGISTER(test_equality<float, migraphx::fp8::fp8e4m3fnuz>);
+TEST_CASE_REGISTER(test_equality<float, migraphx::fp8::fp8e4m3fn>);
+TEST_CASE_REGISTER(test_equality<float, migraphx::fp8::fp8e5m2>);
 TEST_CASE_REGISTER(test_equality<migraphx::half, int>);
 TEST_CASE_REGISTER(test_equality<migraphx::half, migraphx::fp8::fp8e4m3fnuz>);
+TEST_CASE_REGISTER(test_equality<migraphx::half, migraphx::fp8::fp8e4m3fn>);
+TEST_CASE_REGISTER(test_equality<migraphx::half, migraphx::fp8::fp8e5m2>);
 TEST_CASE_REGISTER(test_equality<migraphx::fp8::fp8e4m3fnuz, int>);
+TEST_CASE_REGISTER(test_equality<migraphx::fp8::fp8e4m3fn, int>);
+TEST_CASE_REGISTER(test_equality<migraphx::fp8::fp8e5m2, int>);
 
 template <class T, class U>
 void test_limits()
@@ -116,11 +124,19 @@ TEST_CASE_REGISTER(test_limits<double, float>);
 TEST_CASE_REGISTER(test_limits<double, int>);
 TEST_CASE_REGISTER(test_limits<double, migraphx::half>);
 TEST_CASE_REGISTER(test_limits<double, migraphx::fp8::fp8e4m3fnuz>);
+TEST_CASE_REGISTER(test_limits<double, migraphx::fp8::fp8e4m3fn>);
+TEST_CASE_REGISTER(test_limits<double, migraphx::fp8::fp8e5m2>);
 TEST_CASE_REGISTER(test_limits<float, int>);
 TEST_CASE_REGISTER(test_limits<float, migraphx::fp8::fp8e4m3fnuz>);
+TEST_CASE_REGISTER(test_limits<float, migraphx::fp8::fp8e4m3fn>);
+TEST_CASE_REGISTER(test_limits<float, migraphx::fp8::fp8e5m2>);
 TEST_CASE_REGISTER(test_limits<int, migraphx::half>);
 TEST_CASE_REGISTER(test_limits<int, migraphx::fp8::fp8e4m3fnuz>);
+TEST_CASE_REGISTER(test_limits<int, migraphx::fp8::fp8e4m3fn>);
+TEST_CASE_REGISTER(test_limits<int, migraphx::fp8::fp8e5m2>);
 TEST_CASE_REGISTER(test_limits<migraphx::fp8::fp8e4m3fnuz, migraphx::half>);
+TEST_CASE_REGISTER(test_limits<migraphx::fp8::fp8e4m3fn, migraphx::half>);
+TEST_CASE_REGISTER(test_limits<migraphx::fp8::fp8e5m2, migraphx::half>);
 
 #ifndef _WIN32
 // On Windows, types int and long have the same min and max values.

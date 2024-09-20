@@ -229,6 +229,12 @@ struct MIGRAPHX_EXPORT module
     std::unordered_map<instruction_ref, instruction_ref>
     get_ins_param_map(const std::vector<instruction_ref>& inputs, bool reverse = false) const;
 
+    /// Given a mapping from submodule instructions to parent module instructions
+    /// construct a vector of inputs with parent module instructions in the
+    /// correct order
+    std::vector<instruction_ref>
+    get_inputs(const std::unordered_map<instruction_ref, instruction_ref>& map_ins) const;
+
     using with_inputs = module_with_inputs;
 
     /// This will split the module into two parts at the instruction splits.
@@ -244,6 +250,11 @@ struct MIGRAPHX_EXPORT module
     std::array<with_inputs, 3> split(const std::vector<instruction_ref>& args,
                                      const std::vector<instruction_ref>& splits1,
                                      const std::vector<instruction_ref>& splits2) const;
+
+    // Insert params to module based on given input instructions and add
+    // mappings from inputs to corresponding params in instructions map
+    void add_params(const std::vector<instruction_ref>& inputs,
+                    std::unordered_map<instruction_ref, instruction_ref>* map_ins = nullptr);
 
     // Fuse the instruction into the module by inserting the instructions and
     // parameters for any missing inputs.

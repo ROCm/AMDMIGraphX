@@ -41,7 +41,12 @@ struct MIGRAPHX_EXPORT dominator_info
     std::unordered_map<instruction_ref, instruction_ref> ins2idom;
 };
 
-MIGRAPHX_EXPORT dominator_info compute_dominator(const module& m);
+struct MIGRAPHX_EXPORT dominator_options
+{
+    bool ignore_constants = false;
+};
+
+MIGRAPHX_EXPORT dominator_info compute_dominator(const module& m, dominator_options options = {});
 // MIGRAPHX_EXPORT dominator_info compute_dominator_naive(const module& m);
 
 } // namespace MIGRAPHX_INLINE_NS

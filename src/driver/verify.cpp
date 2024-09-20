@@ -32,6 +32,9 @@
 #include <migraphx/quantization.hpp>
 #include <migraphx/ranges.hpp>
 #include <migraphx/fp_to_double.hpp>
+#include <migraphx/dom_info.hpp>
+#include <migraphx/iterator_for.hpp>
+#include <migraphx/stringutils.hpp>
 
 namespace migraphx {
 namespace driver {
@@ -192,7 +195,7 @@ void verify_instructions(const program& prog,
     }
 }
 
-void verify_reduced(program p,
+bool verify_reduced(program p,
                     int n,
                     const target& t,
                     compile_options options,
@@ -207,12 +210,13 @@ void verify_reduced(program p,
     std::cout << p << std::endl;
     try
     {
-        verify_program(std::to_string(n), p, t, options, vo, inputs, tols);
+        return verify_program(std::to_string(n), p, t, options, vo, inputs, tols);
     }
     catch(const std::exception& e)
     {
         std::cout << "FAILED: " << n << std::endl;
         std::cout << "Exception: " << e.what() << std::endl;
+        return false;
     }
 }
 
@@ -261,8 +265,23 @@ bool verify_bisect(program p,
         std::cout << "Exception: " << e.what() << std::endl;
         return false;
     }
+}
 
-}   
+std::vector<std::size_t> find_trim_instructions(const module& m)
+{
+    std::vector<std::size_t> result;
+    auto dom = compute_dominator(m, {.ignore_constants = true});
+    auto next = dom.ins2idom.at(std::prev(m.end()));
+    std::size_t i = 0;
+    while(contains(dom.ins2idom, next))
+    {
+        auto ins = dom.ins2idom.at(next);
+        i += std::distance(ins, next);
+        result.push_back(i + 1);
+        next = ins;
+    }
+    return result;
+}
 
 void verify_bisected_program(const program& p,
                             const target& t,
@@ -272,20 +291,27 @@ void verify_bisected_program(const program& p,
                             verify::tolerance tols)
 {
     const auto* mm = p.get_main_module();
-    auto right         = std::distance(mm->begin(), mm->end());
-    std::size_t left = 0;
-    bool passed;
+    
+    std::vector<std::size_t> trims = find_trim_instructions(*mm);
+    std::int64_t right         = trims.size();
+    std::int64_t left = 0;
+    std::int64_t failed = 0;
 
     std::cout << "Bisect Verify steps: " << right << std::endl;
     while (left <= right) {
-        std::size_t mid = left + (right - left) / 2;
-        passed = verify_bisect(p, mid, t, options, vo, inputs, tols);
+        std::int64_t mid = left + (right - left) / 2;
+        assert(mid < trims.size() and mid >= 0);
+        std::int64_t trim = trims.rbegin()[mid];
+        bool passed = verify_reduced(p, trim, t, options, vo, inputs, tols);
         if (passed)  {
             left = mid + 1;
         } else {
+            failed = trim;
             right = mid - 1;
         }
     }
+    std::cout << "Failure starts at: " << failed << std::endl;
+
 }
 
 

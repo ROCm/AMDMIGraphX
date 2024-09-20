@@ -243,14 +243,14 @@ void verify_reduced_program(const program& p,
 }
 
 bool verify_bisect(program p,
-                    int mid_n,
-                    const target& t,
-                    compile_options options,
-                    verify_options vo,
-                    const parameter_map& inputs,
-                    verify::tolerance tols)
+                   int mid_n,
+                   const target& t,
+                   compile_options options,
+                   verify_options vo,
+                   const parameter_map& inputs,
+                   verify::tolerance tols)
 {
-    auto* mm  = p.get_main_module();
+    auto* mm = p.get_main_module();
     auto mid = std::next(mm->begin(), mid_n);
     mm->remove_instructions(mid, mm->end());
     std::cout << "Verify up to: " << mid_n << std::endl;
@@ -270,8 +270,8 @@ bool verify_bisect(program p,
 std::vector<std::size_t> find_trim_instructions(const module& m)
 {
     std::vector<std::size_t> result;
-    auto dom = compute_dominator(m, {.ignore_constants = true});
-    auto next = dom.ins2idom.at(std::prev(m.end()));
+    auto dom      = compute_dominator(m, {.ignore_constants = true});
+    auto next     = dom.ins2idom.at(std::prev(m.end()));
     std::size_t i = 0;
     while(contains(dom.ins2idom, next))
     {
@@ -284,36 +284,38 @@ std::vector<std::size_t> find_trim_instructions(const module& m)
 }
 
 void verify_bisected_program(const program& p,
-                            const target& t,
-                            compile_options options,
-                            verify_options vo,
-                            const parameter_map& inputs,
-                            verify::tolerance tols)
+                             const target& t,
+                             compile_options options,
+                             verify_options vo,
+                             const parameter_map& inputs,
+                             verify::tolerance tols)
 {
     const auto* mm = p.get_main_module();
-    
+
     std::vector<std::size_t> trims = find_trim_instructions(*mm);
-    std::int64_t right         = trims.size();
-    std::int64_t left = 0;
-    std::int64_t failed = 0;
+    std::int64_t right             = trims.size();
+    std::int64_t left              = 0;
+    std::int64_t failed            = 0;
 
     std::cout << "Bisect Verify steps: " << right << std::endl;
-    while (left <= right) {
+    while(left <= right)
+    {
         std::int64_t mid = left + (right - left) / 2;
         assert(mid < trims.size() and mid >= 0);
         std::int64_t trim = trims.rbegin()[mid];
-        bool passed = verify_reduced(p, trim, t, options, vo, inputs, tols);
-        if (passed)  {
+        bool passed       = verify_reduced(p, trim, t, options, vo, inputs, tols);
+        if(passed)
+        {
             left = mid + 1;
-        } else {
+        }
+        else
+        {
             failed = trim;
-            right = mid - 1;
+            right  = mid - 1;
         }
     }
     std::cout << "Failure starts at: " << failed << std::endl;
-
 }
-
 
 } // namespace MIGRAPHX_INLINE_NS
 } // namespace driver

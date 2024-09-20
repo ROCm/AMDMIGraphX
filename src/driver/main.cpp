@@ -646,7 +646,8 @@ struct verify : command<verify>
         {
             verify_reduced_program(p, t, c.co, vo, m, tols);
         }
-        else if (bisect) {
+        else if(bisect)
+        {
             std::cout << "Bisect selected" << std::endl;
             verify_bisected_program(p, t, c.co, vo, m, tols);
         }

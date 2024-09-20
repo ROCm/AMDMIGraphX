@@ -61,10 +61,10 @@ dominator_info compute_dominator_generic(Visitor v, dominator_options options)
     std::unordered_map<instruction_ref, std::unordered_set<instruction_ref>> instr2_doms;
     for(instruction_ref ins : iterator_for(v.get_nodes()))
     {
-        if (options.ignore_constants and ins->can_eval())
+        if(options.ignore_constants and ins->can_eval())
             continue;
         std::vector<instruction_ref> children;
-        if (options.ignore_constants)
+        if(options.ignore_constants)
         {
             copy_if(v.get_children(ins), std::back_inserter(children), [&](auto child) {
                 return not child->can_eval();

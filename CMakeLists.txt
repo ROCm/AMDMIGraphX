@@ -172,8 +172,10 @@ rocm_enable_clang_tidy(
         -bugprone-easily-swappable-parameters
         -bugprone-implicit-widening-of-multiplication-result
         -bugprone-macro-parentheses
+	-bugprone-multi-level-implicit-pointer-conversion
         -bugprone-signed-char-misuse
         -bugprone-unchecked-optional-access
+	-bugprone-unused-local-non-trivial-variable
         # Disable the aliased reserved identifiers
         -cert-dcl37-c
         -cert-dcl51-cpp

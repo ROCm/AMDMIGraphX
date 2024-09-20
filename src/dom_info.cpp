@@ -55,13 +55,25 @@ struct module_visitor
 };
 
 template <class Visitor>
-dominator_info compute_dominator_generic(Visitor v)
+dominator_info compute_dominator_generic(Visitor v, dominator_options options)
 {
     dominator_info info;
     std::unordered_map<instruction_ref, std::unordered_set<instruction_ref>> instr2_doms;
     for(instruction_ref ins : iterator_for(v.get_nodes()))
     {
-        const std::vector<instruction_ref>& children = v.get_children(ins);
+        if(options.ignore_constants and ins->can_eval())
+            continue;
+        std::vector<instruction_ref> children;
+        if(options.ignore_constants)
+        {
+            copy_if(v.get_children(ins), std::back_inserter(children), [&](auto child) {
+                return not child->can_eval();
+            });
+        }
+        else
+        {
+            children = v.get_children(ins);
+        }
         if(children.size() == 1)
         {
             info.ins2idom[ins] = children.front();
@@ -91,9 +103,9 @@ dominator_info compute_dominator_generic(Visitor v)
     return info;
 }
 
-dominator_info compute_dominator(const module& m)
+dominator_info compute_dominator(const module& m, dominator_options options)
 {
-    return compute_dominator_generic(module_visitor{&m});
+    return compute_dominator_generic(module_visitor{&m}, options);
 }
 
 } // namespace MIGRAPHX_INLINE_NS

@@ -39,6 +39,7 @@
 #include <migraphx/make_op.hpp>
 #include <migraphx/array.hpp>
 #include <migraphx/ranges.hpp>
+#include <migraphx/fp8_types.hpp>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
@@ -61,7 +62,7 @@ vectorize vectorize::elements(std::size_t axis,
 {
     // disable vectorization for fp8 types
     if(std::any_of(inputs.begin(), inputs.end(), [&](auto ishape) {
-           return ishape.type() == migraphx::shape::fp8e4m3fnuz_type;
+           return contains(fp8_types{}.get(), ishape.type());
        }))
         return {1, axis};
     if(std::all_of(
@@ -98,7 +99,7 @@ vectorize vectorize::elements(context& ctx, std::size_t axis, const std::vector<
 {
     // disable vectorization for fp8 types
     if(std::any_of(inputs.begin(), inputs.end(), [&](auto ishape) {
-           return ishape.type() == migraphx::shape::fp8e4m3fnuz_type;
+           return contains(fp8_types{}.get(), ishape.type());
        }))
         return {1, axis};
     if(inputs.empty())

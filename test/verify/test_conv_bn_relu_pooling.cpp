@@ -55,7 +55,9 @@ struct test_conv_bn_relu_pooling : verify_program<test_conv_bn_relu_pooling<DTyp
 
         auto rt  = mm->add_literal(migraphx::literal{DType, {0.5}});
         auto eps = mm->add_literal(migraphx::literal{DType, {1e-5f}});
-        if constexpr((DType) == migraphx::shape::fp8e4m3fnuz_type)
+        if constexpr(DType == migraphx::shape::fp8e4m3fnuz_type or
+                     DType == migraphx::shape::fp8e4m3fn_type or
+                     DType == migraphx::shape::fp8e5m2_type)
         {
             // use 0.250 for fp8
             eps = mm->add_literal(migraphx::literal{DType, {0.250}});
@@ -91,3 +93,5 @@ struct test_conv_bn_relu_pooling : verify_program<test_conv_bn_relu_pooling<DTyp
 
 template struct test_conv_bn_relu_pooling<migraphx::shape::float_type>;
 template struct test_conv_bn_relu_pooling<migraphx::shape::fp8e4m3fnuz_type>;
+template struct test_conv_bn_relu_pooling<migraphx::shape::fp8e4m3fn_type>;
+template struct test_conv_bn_relu_pooling<migraphx::shape::fp8e5m2_type>;

@@ -501,7 +501,7 @@ struct compiler
            ap.set_value(true));
         ap(to_fp16, {"--fp16"}, ap.help("Quantize for fp16"), ap.set_value(true));
         ap(to_int8, {"--int8"}, ap.help("Quantize for int8"), ap.set_value(true));
-        ap(to_fp8, {"--fp8"}, ap.help("Quantize for fp8e4m3fnuz type"), ap.set_value(true));
+        ap(to_fp8, {"--fp8"}, ap.help("Quantize for fp8"), ap.set_value(true));
     }
 
     auto params(const program& p)
@@ -595,6 +595,7 @@ struct verify : command<verify>
     std::optional<double> rtol;
     bool per_instruction = false;
     bool reduce          = false;
+    bool bisect          = false;
     verify_options vo;
     void parse(argument_parser& ap)
     {
@@ -607,6 +608,7 @@ struct verify : command<verify>
            ap.help("Verify each instruction"),
            ap.set_value(true));
         ap(reduce, {"-r", "--reduce"}, ap.help("Reduce program and verify"), ap.set_value(true));
+        ap(bisect, {"-b", "--bisect"}, ap.help("Bisect program and verify"), ap.set_value(true));
         ap(vo.ref_use_double,
            {"--ref-use-double"},
            ap.help("Convert floating point values to double on ref"),
@@ -643,6 +645,11 @@ struct verify : command<verify>
         else if(reduce)
         {
             verify_reduced_program(p, t, c.co, vo, m, tols);
+        }
+        else if(bisect)
+        {
+            std::cout << "Bisect selected" << std::endl;
+            verify_bisected_program(p, t, c.co, vo, m, tols);
         }
         else
         {

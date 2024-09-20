@@ -76,7 +76,7 @@ def get_args():
 
     parser.add_argument(
         "--fp16",
-        choices=["all", "vae", "clip", "unet"],
+        choices=["all", "vae", "clip", "mmdit"],
         nargs="+",
         help="Quantize models with fp16 precision.",
     )
@@ -108,7 +108,7 @@ def get_args():
         "-t",
         "--steps",
         type=int,
-        default=1,
+        default=50,
         help="Number of steps",
     )
 

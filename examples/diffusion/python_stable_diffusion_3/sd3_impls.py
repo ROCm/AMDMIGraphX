@@ -20,7 +20,7 @@
 ### Impls of the SD3 core diffusion model and VAE
 
 import torch, math, einops
-from mmdit import MMDiT
+# from mmdit import MMDiT
 from PIL import Image
 
 
@@ -63,39 +63,39 @@ class ModelSamplingDiscreteFlow(torch.nn.Module):
         return sigma * noise + (1.0 - sigma) * latent_image
 
 
-class BaseModel(torch.nn.Module):
-    """Wrapper around the core MM-DiT model"""
-    def __init__(self, shift=1.0, device=None, dtype=torch.float32, file=None, prefix=""):
-        super().__init__()
-        # Important configuration values can be quickly determined by checking shapes in the source file
-        # Some of these will vary between models (eg 2B vs 8B primarily differ in their depth, but also other details change)
-        patch_size = file.get_tensor(f"{prefix}x_embedder.proj.weight").shape[2]
-        depth = file.get_tensor(f"{prefix}x_embedder.proj.weight").shape[0] // 64
-        num_patches = file.get_tensor(f"{prefix}pos_embed").shape[1]
-        pos_embed_max_size = round(math.sqrt(num_patches))
-        adm_in_channels = file.get_tensor(f"{prefix}y_embedder.mlp.0.weight").shape[1]
-        context_shape = file.get_tensor(f"{prefix}context_embedder.weight").shape
-        context_embedder_config = {
-            "target": "torch.nn.Linear",
-            "params": {
-                "in_features": context_shape[1],
-                "out_features": context_shape[0]
-            }
-        }
-        self.diffusion_model = MMDiT(input_size=None, pos_embed_scaling_factor=None, pos_embed_offset=None, pos_embed_max_size=pos_embed_max_size, patch_size=patch_size, in_channels=16, depth=depth, num_patches=num_patches, adm_in_channels=adm_in_channels, context_embedder_config=context_embedder_config, device=device, dtype=dtype)
-        self.model_sampling = ModelSamplingDiscreteFlow(shift=shift)
+# class BaseModel(torch.nn.Module):
+#     """Wrapper around the core MM-DiT model"""
+#     def __init__(self, shift=1.0, device=None, dtype=torch.float32, file=None, prefix=""):
+#         super().__init__()
+#         # Important configuration values can be quickly determined by checking shapes in the source file
+#         # Some of these will vary between models (eg 2B vs 8B primarily differ in their depth, but also other details change)
+#         patch_size = file.get_tensor(f"{prefix}x_embedder.proj.weight").shape[2]
+#         depth = file.get_tensor(f"{prefix}x_embedder.proj.weight").shape[0] // 64
+#         num_patches = file.get_tensor(f"{prefix}pos_embed").shape[1]
+#         pos_embed_max_size = round(math.sqrt(num_patches))
+#         adm_in_channels = file.get_tensor(f"{prefix}y_embedder.mlp.0.weight").shape[1]
+#         context_shape = file.get_tensor(f"{prefix}context_embedder.weight").shape
+#         context_embedder_config = {
+#             "target": "torch.nn.Linear",
+#             "params": {
+#                 "in_features": context_shape[1],
+#                 "out_features": context_shape[0]
+#             }
+#         }
+#         self.diffusion_model = MMDiT(input_size=None, pos_embed_scaling_factor=None, pos_embed_offset=None, pos_embed_max_size=pos_embed_max_size, patch_size=patch_size, in_channels=16, depth=depth, num_patches=num_patches, adm_in_channels=adm_in_channels, context_embedder_config=context_embedder_config, device=device, dtype=dtype)
+#         self.model_sampling = ModelSamplingDiscreteFlow(shift=shift)
 
-    def apply_model(self, x, sigma, c_crossattn=None, y=None):
-        dtype = self.get_dtype()
-        timestep = self.model_sampling.timestep(sigma).float()
-        model_output = self.diffusion_model(x.to(dtype), timestep, context=c_crossattn.to(dtype), y=y.to(dtype)).float()
-        return self.model_sampling.calculate_denoised(sigma, model_output, x)
+#     def apply_model(self, x, sigma, c_crossattn=None, y=None):
+#         dtype = self.get_dtype()
+#         timestep = self.model_sampling.timestep(sigma).float()
+#         model_output = self.diffusion_model(x.to(dtype), timestep, context=c_crossattn.to(dtype), y=y.to(dtype)).float()
+#         return self.model_sampling.calculate_denoised(sigma, model_output, x)
 
-    def forward(self, *args, **kwargs):
-        return self.apply_model(*args, **kwargs)
+#     def forward(self, *args, **kwargs):
+#         return self.apply_model(*args, **kwargs)
 
-    def get_dtype(self):
-        return self.diffusion_model.dtype
+#     def get_dtype(self):
+#         return self.diffusion_model.dtype
 
 
 class CFGDenoiser(torch.nn.Module):

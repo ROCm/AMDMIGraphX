@@ -9,9 +9,9 @@ pipe = StableDiffusion3Pipeline.from_pretrained("stabilityai/stable-diffusion-3-
 x=torch.randint(1, (1, 77))
 # pipe.text_encoder.eval()
 output_path='models'
-encoder_path=output_path+'/text_encoder/text_encoder.onnx'
-encoder_2_path=output_path+'/text_encoder_2/text_encoder_2.onnx'
-encoder_3_path=output_path+'/text_encoder_3/text_encoder_3.onnx'
+encoder_path=output_path+'/text_encoder/model.onnx'
+encoder_2_path=output_path+'/text_encoder_2/model.onnx'
+encoder_3_path=output_path+'/text_encoder_3/model.onnx'
 print(output_path)
 # os.makedirs(os.path.dirname(output_path), exist_ok=True)
 os.makedirs(os.path.dirname(encoder_path), exist_ok=True)

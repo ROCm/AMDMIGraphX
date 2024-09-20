@@ -76,9 +76,6 @@ RUN ldconfig
 # Workaround broken miopen cmake files
 RUN sed -i 's,;/usr/lib/x86_64-linux-gnu/librt.so,,g' /opt/rocm/lib/cmake/miopen/miopen-targets.cmake
 
-# Workaround for broken hip-clang
-RUN sed -i '/if(WIN32)/, /endif()/d' /opt/rocm/lib/cmake/hip/hip-config.cmake
-
 RUN locale-gen en_US.UTF-8
 RUN update-locale LANG=en_US.UTF-8
 

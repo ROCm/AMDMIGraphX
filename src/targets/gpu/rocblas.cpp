@@ -22,7 +22,6 @@
  * THE SOFTWARE.
  */
 
-#include <unordered_set>
 #include <migraphx/ranges.hpp>
 #include <migraphx/stringutils.hpp>
 #include <migraphx/gpu/device_name.hpp>
@@ -61,7 +60,7 @@ bool rocblas_fp8_available()
 #ifndef MIGRAPHX_USE_ROCBLAS_FP8_API
     return false;
 #else
-    return gfx_has_fp8_intrinsics();
+    return gfx_has_fp8fnuz_intrinsics();
 #endif
 #else
     return false;

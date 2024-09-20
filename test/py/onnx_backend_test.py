@@ -376,7 +376,6 @@ def disabled_tests_onnx_1_10_0(backend_test):
 def disabled_tests_onnx_1_11_0(backend_test):
     # errors
     # from OnnxBackendNodeModelTest
-    backend_test.exclude(r'test_gridsample_bicubic_cpu')
     backend_test.exclude(r'test_identity_opt_cpu')
     backend_test.exclude(r'test_if_opt_cpu')
     backend_test.exclude(r'test_loop16_seq_none_cpu')
@@ -1120,6 +1119,7 @@ def create_backend_test(testname=None, target_device=None):
         backend_test.include(r'.*test_operator_reduced_sum_keepdim.*')
         backend_test.include(r'.*test_operator_repeat.*')
         backend_test.include(r'.*test_operator_selu.*')
+        backend_test.include(r'.*test_operator_softmaxcrossentropyloss.*')
         backend_test.include(r'.*test_operator_sqrt.*')
         backend_test.include(r'.*test_operator_symbolic_override.*')
         backend_test.include(r'.*test_operator_symbolic_override_nested.*')

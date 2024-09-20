@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2023 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2024 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -51,3 +51,5 @@ struct test_reduce_add : verify_program<test_reduce_add<DType>>
 
 template struct test_reduce_add<migraphx::shape::float_type>;
 template struct test_reduce_add<migraphx::shape::fp8e4m3fnuz_type>;
+template struct test_reduce_add<migraphx::shape::fp8e4m3fn_type>;
+template struct test_reduce_add<migraphx::shape::fp8e5m2_type>;

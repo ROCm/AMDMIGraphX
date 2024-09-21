@@ -266,7 +266,6 @@ bool verify_bisect(program p,
     }
 }
 
-
 static std::unordered_map<instruction_ref, std::size_t> accumulate_weights(instruction_ref last)
 {
     std::unordered_map<instruction_ref, std::size_t> weights;
@@ -274,35 +273,40 @@ static std::unordered_map<instruction_ref, std::size_t> accumulate_weights(instr
         if(not contains(weights, ins))
         {
             std::size_t weight = ins->can_eval() ? 0 : 1;
-            weights[ins] = std::accumulate(
-                ins->inputs().begin(), ins->inputs().end(), weight, [&](std::size_t w, instruction_ref i) -> std::size_t {
-                    if(i->can_eval())
-                        return 0;
-                    return w + self(i);
-                });
+            weights[ins]       = std::accumulate(ins->inputs().begin(),
+                                           ins->inputs().end(),
+                                           weight,
+                                           [&](std::size_t w, instruction_ref i) -> std::size_t {
+                                               if(i->can_eval())
+                                                   return 0;
+                                               return w + self(i);
+                                           });
         }
         return weights[ins];
     })(last);
     return weights;
 }
 
-static optional<instruction_ref> get_parent(const std::unordered_map<instruction_ref, std::size_t>& weights, instruction_ref ins)
+static optional<instruction_ref>
+get_parent(const std::unordered_map<instruction_ref, std::size_t>& weights, instruction_ref ins)
 {
     if(ins->inputs().empty())
         return nullopt;
-    auto next = std::max_element(ins->inputs().begin(), ins->inputs().end(), by(std::less<>{}, [&](instruction_ref input) -> std::size_t {
-        if(not contains(weights, input))
-            return 0;
-        return weights.at(input);
-    }));
+    auto next = std::max_element(ins->inputs().begin(),
+                                 ins->inputs().end(),
+                                 by(std::less<>{}, [&](instruction_ref input) -> std::size_t {
+                                     if(not contains(weights, input))
+                                         return 0;
+                                     return weights.at(input);
+                                 }));
     return *next;
 }
 
 static std::vector<std::size_t> find_trim_instructions(const module& m)
 {
     std::vector<std::size_t> result;
-    auto last = std::prev(m.end());
-    auto weights = accumulate_weights(last);
+    auto last     = std::prev(m.end());
+    auto weights  = accumulate_weights(last);
     auto next     = get_parent(weights, last);
     std::size_t i = 0;
     while(auto parent = get_parent(weights, *next))

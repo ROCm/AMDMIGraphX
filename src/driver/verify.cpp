@@ -277,11 +277,12 @@ static optional<instruction_ref> get_parent(const dominator_info& dom, instructi
     });
     if(inputs.size() == 1)
         return *inputs.begin();
-    if (contains(dom.ins2idom, ins))
+    if(contains(dom.ins2idom, ins))
         return dom.ins2idom.at(ins);
-    auto closest = std::min_element(inputs.begin(), inputs.end(), by(std::less<>{}, [&](instruction_ref x) {
-        return std::distance(x, ins);
-    }));
+    auto closest =
+        std::min_element(inputs.begin(), inputs.end(), by(std::less<>{}, [&](instruction_ref x) {
+                             return std::distance(x, ins);
+                         }));
     return *closest;
 }
 
@@ -289,7 +290,7 @@ static std::vector<std::size_t> find_trim_instructions(const module& m)
 {
     std::vector<std::size_t> result;
     auto dom      = compute_dominator(m, {.ignore_constants = true});
-    auto last = std::prev(m.end());
+    auto last     = std::prev(m.end());
     auto next     = get_parent(dom, last);
     std::size_t i = 0;
     while(auto parent = get_parent(dom, *next))

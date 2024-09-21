@@ -66,7 +66,7 @@ struct MIGRAPHX_EXPORT instruction
 
     void clear_arguments();
 
-    friend bool operator==(const instruction& i, instruction_ref ref);
+    MIGRAPHX_EXPORT friend bool operator==(const instruction& i, instruction_ref ref);
 
     bool valid(instruction_ref start, bool check_order = false) const;
 
@@ -86,15 +86,15 @@ struct MIGRAPHX_EXPORT instruction
     /// Where this instruction is used as an input to another instruction
     const std::vector<instruction_ref>& outputs() const;
 
-    friend bool operator==(const instruction& x, const instruction& y);
+    MIGRAPHX_EXPORT friend bool operator==(const instruction& x, const instruction& y);
 
-    friend bool operator!=(const instruction& x, const instruction& y);
+    MIGRAPHX_EXPORT friend bool operator!=(const instruction& x, const instruction& y);
 
-    friend bool operator==(instruction_ref ref, const instruction& i);
+    MIGRAPHX_EXPORT friend bool operator==(instruction_ref ref, const instruction& i);
 
-    friend bool operator!=(const instruction& i, instruction_ref ref);
+    MIGRAPHX_EXPORT friend bool operator!=(const instruction& i, instruction_ref ref);
 
-    friend bool operator!=(instruction_ref ref, const instruction& i);
+    MIGRAPHX_EXPORT friend bool operator!=(instruction_ref ref, const instruction& i);
 
     void add_output(instruction_ref ins);
 

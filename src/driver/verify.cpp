@@ -32,7 +32,6 @@
 #include <migraphx/quantization.hpp>
 #include <migraphx/ranges.hpp>
 #include <migraphx/fp_to_double.hpp>
-#include <migraphx/dom_info.hpp>
 #include <migraphx/iterator_for.hpp>
 #include <migraphx/stringutils.hpp>
 
@@ -267,32 +266,50 @@ bool verify_bisect(program p,
     }
 }
 
-static optional<instruction_ref> get_parent(const dominator_info& dom, instruction_ref ins)
+static std::unordered_map<instruction_ref, std::size_t> accumulate_weights(instruction_ref last)
+{
+    std::unordered_map<instruction_ref, std::size_t> weights;
+    fix<std::size_t>([&](auto self, auto ins) -> std::size_t {
+        if(not contains(weights, ins))
+        {
+            std::size_t weight = ins->can_eval() ? 0 : 1;
+            weights[ins]       = std::accumulate(ins->inputs().begin(),
+                                           ins->inputs().end(),
+                                           weight,
+                                           [&](std::size_t w, instruction_ref i) -> std::size_t {
+                                               if(i->can_eval())
+                                                   return 0;
+                                               return w + self(i);
+                                           });
+        }
+        return weights[ins];
+    })(last);
+    return weights;
+}
+
+static optional<instruction_ref>
+get_parent(const std::unordered_map<instruction_ref, std::size_t>& weights, instruction_ref ins)
 {
     if(ins->inputs().empty())
         return nullopt;
-    std::unordered_set<instruction_ref> inputs;
-    copy_if(ins->inputs(), std::inserter(inputs, inputs.end()), [&](instruction_ref input) {
-        return not input->can_eval();
-    });
-    if(inputs.size() == 1)
-        return *inputs.begin();
-    if (contains(dom.ins2idom, ins))
-        return dom.ins2idom.at(ins);
-    auto closest = std::min_element(inputs.begin(), inputs.end(), by(std::less<>{}, [&](instruction_ref x) {
-        return std::distance(x, ins);
-    }));
-    return *closest;
+    auto next = std::max_element(ins->inputs().begin(),
+                                 ins->inputs().end(),
+                                 by(std::less<>{}, [&](instruction_ref input) -> std::size_t {
+                                     if(not contains(weights, input))
+                                         return 0;
+                                     return weights.at(input);
+                                 }));
+    return *next;
 }
 
 static std::vector<std::size_t> find_trim_instructions(const module& m)
 {
     std::vector<std::size_t> result;
-    auto dom      = compute_dominator(m, {.ignore_constants = true});
-    auto last = std::prev(m.end());
-    auto next     = get_parent(dom, last);
+    auto last     = std::prev(m.end());
+    auto weights  = accumulate_weights(last);
+    auto next     = get_parent(weights, last);
     std::size_t i = 0;
-    while(auto parent = get_parent(dom, *next))
+    while(auto parent = get_parent(weights, *next))
     {
         i += std::distance(*parent, *next);
         result.push_back(i + 1);

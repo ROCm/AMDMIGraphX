@@ -275,12 +275,11 @@ static std::unordered_map<instruction_ref, std::size_t> accumulate_weights(instr
             if(ins->can_eval())
                 return 0;
             std::size_t weight = 1;
-            weights[ins]       = std::accumulate(ins->inputs().begin(),
-                                           ins->inputs().end(),
-                                           weight,
-                                           [&](std::size_t w, instruction_ref i) -> std::size_t {
-                                               return w + self(i);
-                                           });
+            weights[ins]       = std::accumulate(
+                ins->inputs().begin(),
+                ins->inputs().end(),
+                weight,
+                [&](std::size_t w, instruction_ref i) -> std::size_t { return w + self(i); });
         }
         return weights[ins];
     })(last);

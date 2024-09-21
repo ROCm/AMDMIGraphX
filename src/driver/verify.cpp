@@ -267,18 +267,36 @@ bool verify_bisect(program p,
     }
 }
 
-std::vector<std::size_t> find_trim_instructions(const module& m)
+static optional<instruction_ref> get_parent(const dominator_info& dom, instruction_ref ins)
+{
+    if(ins->inputs().empty())
+        return nullopt;
+    std::unordered_set<instruction_ref> inputs;
+    copy_if(ins->inputs(), std::inserter(inputs, inputs.end()), [&](instruction_ref input) {
+        return not input->can_eval();
+    });
+    if(inputs.size() == 1)
+        return *inputs.begin();
+    if (contains(dom.ins2idom, ins))
+        return dom.ins2idom.at(ins);
+    auto closest = std::min_element(inputs.begin(), inputs.end(), by(std::less<>{}, [&](instruction_ref x) {
+        return std::distance(x, ins);
+    }));
+    return *closest;
+}
+
+static std::vector<std::size_t> find_trim_instructions(const module& m)
 {
     std::vector<std::size_t> result;
     auto dom      = compute_dominator(m, {.ignore_constants = true});
-    auto next     = dom.ins2idom.at(std::prev(m.end()));
+    auto last = std::prev(m.end());
+    auto next     = get_parent(dom, last);
     std::size_t i = 0;
-    while(contains(dom.ins2idom, next))
+    while(auto parent = get_parent(dom, *next))
     {
-        auto ins = dom.ins2idom.at(next);
-        i += std::distance(ins, next);
+        i += std::distance(*parent, *next);
         result.push_back(i + 1);
-        next = ins;
+        next = parent;
     }
     return result;
 }

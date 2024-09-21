@@ -146,15 +146,16 @@ TEST_CASE(dom2)
 TEST_CASE(dom3)
 {
     migraphx::module mm;
-    auto ins1 = mm.add_parameter("entry", {migraphx::shape::float_type}); // ins1 -> ins2, ins1 -> ins3
-    auto ins2 = mm.add_instruction(pass_op{}, ins1); // ins2 -> ins4, ins2 -> ins5
-    auto ins3 = mm.add_instruction(pass_op{}, ins1); // ins3 -> ins6, ins3 -> ins7
-    auto ins4 = mm.add_instruction(pass_op{}, ins2); // ins4 -> ins8
-    auto ins5 = mm.add_instruction(pass_op{}, ins2); // ins5 -> ins8
-    auto ins6 = mm.add_instruction(pass_op{}, ins3); // ins6 -> ins9
-    auto ins7 = mm.add_instruction(pass_op{}, ins3); // ins7 -> ins9
-    auto ins8 = mm.add_instruction(pass_op{}, ins4, ins5); // ins8 -> ins10
-    auto ins9 = mm.add_instruction(pass_op{}, ins6, ins7); // ins9 -> ins10
+    auto ins1 =
+        mm.add_parameter("entry", {migraphx::shape::float_type}); // ins1 -> ins2, ins1 -> ins3
+    auto ins2  = mm.add_instruction(pass_op{}, ins1);             // ins2 -> ins4, ins2 -> ins5
+    auto ins3  = mm.add_instruction(pass_op{}, ins1);             // ins3 -> ins6, ins3 -> ins7
+    auto ins4  = mm.add_instruction(pass_op{}, ins2);             // ins4 -> ins8
+    auto ins5  = mm.add_instruction(pass_op{}, ins2);             // ins5 -> ins8
+    auto ins6  = mm.add_instruction(pass_op{}, ins3);             // ins6 -> ins9
+    auto ins7  = mm.add_instruction(pass_op{}, ins3);             // ins7 -> ins9
+    auto ins8  = mm.add_instruction(pass_op{}, ins4, ins5);       // ins8 -> ins10
+    auto ins9  = mm.add_instruction(pass_op{}, ins6, ins7);       // ins9 -> ins10
     auto ins10 = mm.add_instruction(pass_op{}, ins8, ins9);
 
     auto dom = migraphx::compute_dominator(mm);
@@ -195,7 +196,6 @@ TEST_CASE(dom3)
     CHECK(not dom.strictly_dominate(ins9, ins10));
 }
 
-
 // clang-format off
 // ┌────┐    
 // │ins1│    
@@ -223,12 +223,12 @@ TEST_CASE(dom_unet1)
 {
     migraphx::module mm;
     auto ins1 = mm.add_parameter("entry", {migraphx::shape::float_type}); // ins1 -> ins2
-    auto ins2 = mm.add_instruction(pass_op{}, ins1); // ins2 -> ins3, ins2 -> ins6
-    auto ins3 = mm.add_instruction(pass_op{}, ins2); // ins3 -> ins4, ins3 -> ins5
-    auto ins4 = mm.add_instruction(pass_op{}, ins3); // ins4 -> ins5
+    auto ins2 = mm.add_instruction(pass_op{}, ins1);       // ins2 -> ins3, ins2 -> ins6
+    auto ins3 = mm.add_instruction(pass_op{}, ins2);       // ins3 -> ins4, ins3 -> ins5
+    auto ins4 = mm.add_instruction(pass_op{}, ins3);       // ins4 -> ins5
     auto ins5 = mm.add_instruction(pass_op{}, ins4, ins3); // ins5 -> ins6
     auto ins6 = mm.add_instruction(pass_op{}, ins5, ins2); // ins6 -> ins7
-    auto ins7 = mm.add_instruction(pass_op{}, ins6); // ins6 -> ins7
+    auto ins7 = mm.add_instruction(pass_op{}, ins6);       // ins6 -> ins7
 
     auto dom = migraphx::compute_dominator(mm);
     CHECK(not strictly_dominates_self(dom, mm));
@@ -289,14 +289,14 @@ TEST_CASE(dom_unet2)
 {
     migraphx::module mm;
     auto ins1 = mm.add_parameter("entry", {migraphx::shape::float_type}); // ins1 -> ins2
-    auto ins2 = mm.add_instruction(pass_op{}, ins1); // ins2 -> ins3, ins2 -> ins8
-    auto ins3 = mm.add_instruction(pass_op{}, ins2); // ins3 -> ins4, ins3 -> ins7
-    auto ins4 = mm.add_instruction(pass_op{}, ins3); // ins4 -> ins5, ins4 -> ins6
-    auto ins5 = mm.add_instruction(pass_op{}, ins4); // ins6 -> ins6
+    auto ins2 = mm.add_instruction(pass_op{}, ins1);       // ins2 -> ins3, ins2 -> ins8
+    auto ins3 = mm.add_instruction(pass_op{}, ins2);       // ins3 -> ins4, ins3 -> ins7
+    auto ins4 = mm.add_instruction(pass_op{}, ins3);       // ins4 -> ins5, ins4 -> ins6
+    auto ins5 = mm.add_instruction(pass_op{}, ins4);       // ins6 -> ins6
     auto ins6 = mm.add_instruction(pass_op{}, ins5, ins4); // ins6 -> ins7
     auto ins7 = mm.add_instruction(pass_op{}, ins6, ins3); // ins7 -> ins8
     auto ins8 = mm.add_instruction(pass_op{}, ins7, ins2); // ins7 -> ins8
-    auto ins9 = mm.add_instruction(pass_op{}, ins8); // ins8 -> ins9
+    auto ins9 = mm.add_instruction(pass_op{}, ins8);       // ins8 -> ins9
 
     auto dom = migraphx::compute_dominator(mm);
     CHECK(not strictly_dominates_self(dom, mm));

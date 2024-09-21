@@ -272,13 +272,13 @@ static std::unordered_map<instruction_ref, std::size_t> accumulate_weights(instr
     fix<std::size_t>([&](auto self, auto ins) -> std::size_t {
         if(not contains(weights, ins))
         {
-            std::size_t weight = ins->can_eval() ? 0 : 1;
+            if(ins->can_eval())
+                return 0;
+            std::size_t weight = 1;
             weights[ins]       = std::accumulate(ins->inputs().begin(),
                                            ins->inputs().end(),
                                            weight,
                                            [&](std::size_t w, instruction_ref i) -> std::size_t {
-                                               if(i->can_eval())
-                                                   return 0;
                                                return w + self(i);
                                            });
         }

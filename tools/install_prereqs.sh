@@ -41,7 +41,11 @@ if [[ ("${ID}" == "sles") ]]; then
     python3-devel \
     python3-pip \
     rocblas-devel \
-    rocm-cmake
+    rocm-cmake \
+    perl-File-BaseDir \
+    libgfortran5 \
+    hipblas-devel \
+    hipblaslt-devel
 else
   # Need pip3 and Python headers to build dependencies
   apt update && apt install -y \
@@ -53,6 +57,9 @@ else
     python3-pip \
     python3-venv \
     rocblas-dev \
+    libgfortran5 \
+    hipblas-dev \
+    hipblaslt-dev \
     rocm-cmake \
     rocm-llvm-dev \
     libtbb-dev

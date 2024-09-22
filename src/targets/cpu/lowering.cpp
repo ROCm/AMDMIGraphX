@@ -435,8 +435,23 @@ struct cpu_apply
         auto v    = op.to_value();
         if(has_op("dnnl::pooling") and ins->get_shape().type() == shape::type_t::float_type and
            not v["ceil_mode"].to<bool>() and
-           v["mode"].to<op::pooling_mode>() != op::pooling_mode::lpnorm)
+           v["mode"].to<op::pooling_mode>() != op::pooling_mode::lpnorm){
+            // Check for OneDNN's kernel size limit and padding issues
+            auto lengths = v["lengths"].to_vector<int>();
+            auto padding = v["padding"].to_vector<int>();
+
+            // Ensure that the kernel size does not exceed OneDNN's max of 14
+            if(std::any_of(lengths.begin(), lengths.end(), [](int len) { return len > 14; }) ||
+            std::any_of(padding.begin(), padding.end(), [](int pad) { return pad > 14; }))
+            {
+                // Fall back to reference backend if OneDNN cannot handle the pooling
+                return replace(ins, make_op("ref::pooling", op.to_value()));
+            }
+
+            // If conditions are met, apply the OneDNN pooling operation
             return replace(ins, make_op("dnnl::pooling", op.to_value()));
+        }
+            
         return ins;
     }
     /*

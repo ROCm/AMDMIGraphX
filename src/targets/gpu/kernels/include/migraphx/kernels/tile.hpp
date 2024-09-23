@@ -96,9 +96,8 @@ struct tile
     template <class T, class InnerLens, class OuterLens>
     static constexpr auto slice(T x, index_int group, InnerLens, OuterLens)
     {
-        constexpr auto outer_strides = transform_i(x.get_shape().strides, [&](auto stride, auto i) {
-            constexpr auto inner_lens = InnerLens{};
-            return stride * inner_lens[i];
+        constexpr auto outer_strides = transform(x.get_shape().strides, InnerLens{}, [](auto stride, auto inner_len) {
+            return stride * inner_len;
         });
         constexpr auto is            = make_shape(InnerLens{}, x.get_shape().strides);
         constexpr auto os            = make_shape(OuterLens{}, outer_strides);

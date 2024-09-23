@@ -65,9 +65,10 @@ struct find_permutation_impl
             iota(perm.begin(), perm.end(), 0);
             if constexpr(s.transposed() or s.broadcasted())
             {
-                stable_sort(perm.begin(),
-                            perm.end(),
-                            by([&](auto x) { return make_tuple(s.strides[x], s.lens[x]); }, greater{}));
+                stable_sort(
+                    perm.begin(),
+                    perm.end(),
+                    by([&](auto x) { return make_tuple(s.strides[x], s.lens[x]); }, greater{}));
             }
             return perm;
         });

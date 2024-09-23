@@ -445,7 +445,7 @@ struct cpu_apply
             std::any_of(padding.begin(), padding.end(), [](int pad) { return pad > 14; }))
             {
                 // Fall back to reference backend if OneDNN cannot handle the pooling
-                return replace(ins, make_op("ref::pooling", op.to_value()));
+                return ins;
             }
 
             // If conditions are met, apply the OneDNN pooling operation

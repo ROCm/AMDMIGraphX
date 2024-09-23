@@ -62,9 +62,10 @@ struct pack_int4
     {
         check_shapes{inputs, *this}.same_dims().has(1);
         auto in_shape = inputs.front();
-        if(in_shape.type() != migraphx::shape::uint8_type)
+        if(in_shape.type() != migraphx::shape::int8_type and
+           in_shape.type() != migraphx::shape::uint8_type)
         {
-            MIGRAPHX_THROW("PACK_INT4: Only Unsigned Int8 type is supported for packing");
+            MIGRAPHX_THROW("PACK_INT4: Only Int8 or Uint8 is supported for packing");
         }
         auto new_lens = in_shape.lens();
         if(new_lens[axis] % 2 != 0)
@@ -72,25 +73,51 @@ struct pack_int4
             MIGRAPHX_THROW("PACK_INT4: Can not pack axis that has odd lengths");
         }
         new_lens[axis] /= 2;
-        return {migraphx::shape::uint8_type, new_lens};
+        return {in_shape.type(), new_lens};
     }
 
     argument compute(const shape& output_shape, std::vector<argument> args) const
     {
+        auto input    = args.front();
+        auto in_shape = input.get_shape();
+
         argument result{output_shape};
-        auto in_shape = args.front().get_shape();
-        auto input    = args.at(0).get<uint8_t>();
-        auto output   = result.get<uint8_t>();
-        par_for(output_shape.elements(), [&](auto i) {
-            auto data_idx          = output_shape.multi(i);
-            auto in_data_multi_idx = data_idx;
-            in_data_multi_idx[axis] *= 2;
-            auto input_val = input[in_data_multi_idx];
-            // mask first 4 bits, keep it little endian.
-            output[i] = uint8_t(0x0F) & input_val;
-            in_data_multi_idx[axis] += 1;
-            input_val = input[in_data_multi_idx];
-            output[i] = (input_val << 4u) | output[i]; // NOLINT(hicpp-signed-bitwise)
+
+        visit_all(result, input)([&](auto out, auto inp) {
+            par_for(output_shape.elements(), [&](auto i) {
+                using type = typename decltype(inp)::value_type;
+                type min_4bit; // clip min value
+                type max_4bit; // clip max value
+
+                if constexpr(std::is_signed<type>{})
+                {
+                    min_4bit = -8;
+                    max_4bit = 7;
+                }
+                else
+                {
+                    min_4bit = 0;
+                    max_4bit = 15;
+                }
+
+                auto data_idx          = output_shape.multi(i);
+                auto in_data_multi_idx = data_idx;
+                in_data_multi_idx[axis] *= 2;
+                type val1 = inp[in_data_multi_idx];
+                in_data_multi_idx[axis] += 1;
+                type val2 = inp[in_data_multi_idx];
+
+                // clip:
+                val1 = std::min(std::max(val1, min_4bit), max_4bit);
+                val2 = std::min(std::max(val2, min_4bit), max_4bit);
+
+                // pack:
+                // the bit operations are forced into uint8_t mode,
+                // and this would avoid compiler warnings as well.
+                uint8_t val_ui8_1 = static_cast<uint8_t>(val1);
+                uint8_t val_ui8_2 = static_cast<uint8_t>(val2);
+                out[i] = (val_ui8_2 << 4) | (val_ui8_1 & 0xf); // NOLINT(hicpp-signed-bitwise)
+            });
         });
         return result;
     }

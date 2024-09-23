@@ -55,17 +55,30 @@ constexpr auto invert_permutation(const Array& permutation)
 }
 
 template <class Shape>
+struct find_permutation_impl
+{
+    static constexpr auto compute()
+    {
+        return return_array_c([] {
+            constexpr Shape s{};
+            typename Shape::index_array perm;
+            iota(perm.begin(), perm.end(), 0);
+            if constexpr(s.transposed() or s.broadcasted())
+            {
+                stable_sort(perm.begin(),
+                            perm.end(),
+                            by([&](auto x) { return make_tuple(s.strides[x], s.lens[x]); }, greater{}));
+            }
+            return perm;
+        });
+    }
+    using type = decltype(compute());
+};
+
+template <class Shape>
 constexpr auto find_permutation(Shape)
 {
-    return return_array_c([] {
-        constexpr Shape s{};
-        typename Shape::index_array perm;
-        iota(perm.begin(), perm.end(), 0);
-        stable_sort(perm.begin(),
-                    perm.end(),
-                    by([&](auto x) { return make_tuple(s.strides[x], s.lens[x]); }, greater{}));
-        return perm;
-    });
+    return typename find_permutation_impl<Shape>::type{};
 }
 
 template <class Shape1, class Shape2>

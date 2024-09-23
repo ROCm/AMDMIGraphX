@@ -46,7 +46,6 @@ if [[ ("${ID}" == "sles") ]]; then
     perl-File-BaseDir \
     libgfortran5 \
     hipblas-devel \
-    hipcc \   
     hipblaslt-devel
 else
   # Need pip3 and Python headers to build dependencies

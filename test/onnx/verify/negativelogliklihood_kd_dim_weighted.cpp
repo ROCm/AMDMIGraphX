@@ -49,20 +49,20 @@ TEST_CASE(negativeloglikelihoodloss_kd_no_reduction_weighted_test)
     auto result = p.eval(pp).back();
     std::vector<float> result_vector;
     result.visit([&](auto output) { result_vector.assign(output.begin(), output.end()); });
-    std::vector<float> gold = {1.0f,
+    std::vector<float> gold = {-1.0f,
                                -56.0f,
                                -3.5f,
                                -24.0f,
                                -17.0f,
                                -120.0f,
                                -11.5f,
-                               -56.0f, 
-                               -33.0f, 
-                               -184.0f, 
-                               -19.5f, 
-                               -88.0f, 
+                               -56.0f,
+                               -33.0f,
+                               -184.0f,
+                               -19.5f,
+                               -88.0f,
                                -49.0f,
-                               -248.0f, 
+                               -248.0f,
                                -27.5f,
                                -120.0f};
     EXPECT(migraphx::verify::verify_rms_range(result_vector, gold));

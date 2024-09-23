@@ -447,7 +447,11 @@ struct parse_softmaxcrossentropyloss : op_parser<parse_softmaxcrossentropyloss>
         // Do pointwise operators on the final set of indicies and scores we care about rather than
         // before so that we're not doing a bunch of pointwise on items that aren't part of the loss
         // calulation.
-        auto log_sm_scores  = info.add_instruction(migraphx::make_op("log"), scores);
+        auto log_sm_scores = scores;
+        if(has_softmax)
+        {
+            log_sm_scores = info.add_instruction(migraphx::make_op("log"), scores);
+        }
         auto neg_lsm_scores = info.add_instruction(migraphx::make_op("neg"), log_sm_scores);
 
         // Always multiply out the weights. Will get optmized out if its all 1's

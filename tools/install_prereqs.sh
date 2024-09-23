@@ -60,6 +60,7 @@ else
     libgfortran5 \
     hipblas-dev \
     hipblaslt-dev \
+    hipcc \
     rocm-cmake \
     rocm-llvm-dev \
     libtbb-dev

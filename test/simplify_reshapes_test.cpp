@@ -551,6 +551,48 @@ TEST_CASE(nested_squeeze_reshape)
     EXPECT(m1 == m2);
 }
 
+TEST_CASE(squeeze_unsqueeze_scalar)
+{
+    auto s = migraphx::shape{migraphx::shape::float_type, {1}};
+    migraphx::module m1;
+    {
+        auto x       = m1.add_parameter("x", s);
+        auto squeeze = m1.add_instruction(migraphx::make_op("squeeze", {{"axes", {0}}}), x);
+        auto unsqueeze =
+            m1.add_instruction(migraphx::make_op("unsqueeze", {{"axes", {0}}}), squeeze);
+        m1.add_return({unsqueeze});
+    }
+    run_pass(m1);
+    migraphx::module m2;
+    {
+        auto x = m2.add_parameter("x", s);
+        m2.add_return({x});
+    }
+    EXPECT(m1 == m2);
+}
+
+TEST_CASE(unsqueeze_broadcast_single)
+{
+    auto s = migraphx::shape{migraphx::shape::float_type, {1}};
+    migraphx::module m1;
+    {
+        auto x         = m1.add_parameter("x", s);
+        auto unsqueeze = m1.add_instruction(migraphx::make_op("unsqueeze", {{"axes", {0}}}), x);
+        auto broadcast = m1.add_instruction(
+            migraphx::make_op("multibroadcast", {{"out_lens", {1, 8}}}), unsqueeze);
+        m1.add_return({broadcast});
+    }
+    run_pass(m1);
+    migraphx::module m2;
+    {
+        auto x         = m2.add_parameter("x", s);
+        auto broadcast = m2.add_instruction(
+            migraphx::make_op("broadcast", {{"axis", 0}, {"out_lens", {1, 8}}}), x);
+        m2.add_return({broadcast});
+    }
+    EXPECT(m1 == m2);
+}
+
 TEST_CASE(concat_slice_different_axis_1)
 {
     auto s = migraphx::shape{migraphx::shape::float_type, {2, 160}};
@@ -1030,6 +1072,33 @@ TEST_CASE(concat_multibroadcasts9)
     auto m_original = m;
     run_pass(m);
     EXPECT(m == m_original);
+}
+
+TEST_CASE(concat_broadcast1)
+{
+    auto s = migraphx::shape{migraphx::shape::float_type, {1024, 1024}};
+    migraphx::module m1;
+    {
+        auto x  = m1.add_parameter("x", s);
+        auto y  = m1.add_parameter("y", s);
+        auto xb = m1.add_instruction(
+            migraphx::make_op("broadcast", {{"axis", 1}, {"out_lens", {8, 1024, 1024}}}), x);
+        auto yb = m1.add_instruction(
+            migraphx::make_op("broadcast", {{"axis", 1}, {"out_lens", {8, 1024, 1024}}}), y);
+        auto concat = m1.add_instruction(migraphx::make_op("concat", {{"axis", 2}}), xb, yb);
+        m1.add_return({concat});
+    }
+    migraphx::module m2;
+    {
+        auto x      = m2.add_parameter("x", s);
+        auto y      = m2.add_parameter("y", s);
+        auto concat = m2.add_instruction(migraphx::make_op("concat", {{"axis", 1}}), x, y);
+        auto b      = m2.add_instruction(
+            migraphx::make_op("broadcast", {{"axis", 1}, {"out_lens", {8, 1024, 2048}}}), concat);
+        m2.add_return({b});
+    }
+    run_pass(m1);
+    EXPECT(m1 == m2);
 }
 
 TEST_CASE(concat_transpose1)

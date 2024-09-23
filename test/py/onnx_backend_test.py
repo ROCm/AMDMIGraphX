@@ -1119,6 +1119,7 @@ def create_backend_test(testname=None, target_device=None):
         backend_test.include(r'.*test_operator_reduced_sum_keepdim.*')
         backend_test.include(r'.*test_operator_repeat.*')
         backend_test.include(r'.*test_operator_selu.*')
+        backend_test.include(r'.*test_operator_softmaxcrossentropyloss.*')
         backend_test.include(r'.*test_operator_sqrt.*')
         backend_test.include(r'.*test_operator_symbolic_override.*')
         backend_test.include(r'.*test_operator_symbolic_override_nested.*')

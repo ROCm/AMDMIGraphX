@@ -33,6 +33,7 @@
 #include <migraphx/manage_ptr.hpp>
 #endif
 #include <migraphx/gpu/rocblas.hpp>
+#include <migraphx/gpu/hipblaslt.hpp>
 #include <migraphx/gpu/hip.hpp>
 #include <migraphx/env.hpp>
 #include <migraphx/config.hpp>
@@ -126,6 +127,19 @@ struct hip_device
         }
 #endif
 
+#if MIGRAPHX_USE_HIPBLASLT
+        auto get_hipblaslt()
+        {
+            setup();
+            if(hblthandle == nullptr)
+            {
+                hblthandle = create_hipblaslt_handle_ptr();
+            }
+            assert(hblthandle.get() != nullptr);
+            return hblthandle.get();
+        }
+#endif
+
         void wait() const
         {
             if(s == nullptr)
@@ -160,6 +174,10 @@ struct hip_device
 #endif
 #if MIGRAPHX_USE_ROCBLAS
         shared<rocblas_handle_ptr> rbhandle = nullptr;
+#endif
+
+#if MIGRAPHX_USE_HIPBLASLT
+        shared<hipblaslt_handle_ptr> hblthandle = nullptr;
 #endif
     };
 

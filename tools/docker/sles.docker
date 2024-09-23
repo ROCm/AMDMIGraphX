@@ -31,6 +31,9 @@ RUN echo "/opt/rocm/lib" > /etc/ld.so.conf.d/rocm.conf
 RUN echo "/opt/rocm/llvm/lib" > /etc/ld.so.conf.d/rocm-llvm.conf
 RUN ldconfig
 
+# Workaround for broken hip-clang
+RUN sed -i '/if(WIN32)/, /endif()/d' /opt/rocm/lib/cmake/hip/hip-config.cmake || true
+
 ENV LC_ALL=C.UTF-8
 ENV LANG=C.UTF-8
 

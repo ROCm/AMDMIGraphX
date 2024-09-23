@@ -47,13 +47,14 @@ void run_lowering(migraphx::program& p, bool offload_copy = false)
         {migraphx::auto_contiguous{}, migraphx::gpu::lowering{&ctx, offload_copy}});
 }
 
-#if MIGRAPHX_USE_ROCBLAS
+#if MIGRAPHX_USE_ROCBLAS or MIGRAPHX_USE_HIPBLASLT
 /**
- * Tests the automatic GEMM tuning feature.  In the finalize() method of the gemm op,
+ * Tests the automatic GEMM tuning feature for rocBLAS and hipBLASLt.
+ * In the finalize() method of the gemm op,
  * rocBLAS API functions are called to quickly benchmark all the GEMM solutions
  * available in the currently installed rocBLAS library and choose the index of the fastest.
  */
-TEST_CASE(gemm_tune_with_rocblas)
+TEST_CASE(gemm_tune)
 {
     migraphx::program p;
     auto* mm = p.get_main_module();
@@ -77,7 +78,7 @@ TEST_CASE(gemm_tune_with_rocblas)
     migraphx::value solution_idx(0);
     for(auto ins : iterator_for(*p.get_main_module()))
     {
-        if(ins->name() == "gpu::gemm")
+        if(ins->name() == "gpu::gemm" or ins->name() == "gpu::hip_gemm")
         {
             auto gemm_op = migraphx::get_operation(ins);
 
@@ -88,7 +89,7 @@ TEST_CASE(gemm_tune_with_rocblas)
             break;
         }
     }
-#ifdef MIGRAPHX_USE_ROCBLAS_TUNING_API
+#if defined(MIGRAPHX_USE_ROCBLAS_TUNING_API) or MIGRAPHX_USE_HIPBLASLT
     EXPECT(0 != solution_idx.to<std::size_t>());
 #else
     EXPECT(0 == solution_idx.to<std::size_t>());
@@ -119,7 +120,7 @@ TEST_CASE(gemm_tune_strided)
     migraphx::value solution_idx(0);
     for(auto ins : iterator_for(*p.get_main_module()))
     {
-        if(ins->name() == "gpu::gemm")
+        if(ins->name() == "gpu::gemm" or ins->name() == "gpu::hip_gemm")
         {
             auto gemm_op = migraphx::get_operation(ins);
             auto gemmv   = gemm_op.to_value();
@@ -130,7 +131,7 @@ TEST_CASE(gemm_tune_strided)
             break;
         }
     }
-#ifdef MIGRAPHX_USE_ROCBLAS_TUNING_API
+#if defined(MIGRAPHX_USE_ROCBLAS_TUNING_API) or MIGRAPHX_USE_HIPBLASLT
     EXPECT(0 != solution_idx.to<std::size_t>());
 #else
     EXPECT(0 == solution_idx.to<std::size_t>());
@@ -166,7 +167,7 @@ TEST_CASE(gemm_tune_strided_lowered)
     migraphx::value solution_idx(0);
     for(auto ins : iterator_for(*p.get_main_module()))
     {
-        if(ins->name() == "gpu::gemm")
+        if(ins->name() == "gpu::gemm" or ins->name() == "gpu::hip_gemm")
         {
             auto gemm_op = migraphx::get_operation(ins);
 
@@ -176,7 +177,7 @@ TEST_CASE(gemm_tune_strided_lowered)
             break;
         }
     }
-#ifdef MIGRAPHX_USE_ROCBLAS_TUNING_API
+#if defined(MIGRAPHX_USE_ROCBLAS_TUNING_API) or MIGRAPHX_USE_HIPBLASLT
     EXPECT(0 != solution_idx.to<std::size_t>());
 #else
     EXPECT(0 == solution_idx.to<std::size_t>());
@@ -206,7 +207,7 @@ TEST_CASE(gemm_tune_invalid_sol_index)
     migraphx::value solution_idx(0);
     for(auto ins : iterator_for(*p.get_main_module()))
     {
-        if(ins->name() == "gpu::gemm")
+        if(ins->name() == "gpu::gemm" or ins->name() == "gpu::hip_gemm")
         {
             auto gemm_op = migraphx::get_operation(ins);
             auto gemmv   = gemm_op.to_value();
@@ -216,7 +217,7 @@ TEST_CASE(gemm_tune_invalid_sol_index)
             break;
         }
     }
-#ifdef MIGRAPHX_USE_ROCBLAS_TUNING_API
+#if defined(MIGRAPHX_USE_ROCBLAS_TUNING_API) or MIGRAPHX_USE_HIPBLASLT
     EXPECT(0 == solution_idx.to<std::size_t>());
 #else
     EXPECT(0 != solution_idx.to<std::size_t>());

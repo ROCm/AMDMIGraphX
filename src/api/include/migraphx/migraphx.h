@@ -64,6 +64,12 @@ typedef enum
 
 } migraphx_status;
 
+// A backward compatibility macro for migraphx_load()
+#define migraphx_load(out, name, options) migraphx_load_v2(out, name, options, true)
+
+// A backward compatibility macro for migraphx_save()
+#define migraphx_save(p, name, options) migraphx_save_v2(p, name, options, true)
+
 #define MIGRAPHX_SHAPE_GENERATE_ENUM_TYPES(x, t) migraphx_shape_##x,
 /// An enum to represent the different data type inputs
 typedef enum
@@ -485,13 +491,15 @@ MIGRAPHX_C_EXPORT migraphx_status migraphx_operation_name(char* out,
                                                           size_t out_size,
                                                           migraphx_operation_t operation);
 
-MIGRAPHX_C_EXPORT migraphx_status migraphx_load(migraphx_program_t* out,
-                                                const char* name,
-                                                migraphx_file_options_t options);
+MIGRAPHX_C_EXPORT migraphx_status migraphx_load_v2(migraphx_program_t* out,
+                                                   const char* name,
+                                                   migraphx_file_options_t options,
+                                                   bool output_error);
 
-MIGRAPHX_C_EXPORT migraphx_status migraphx_save(migraphx_program_t p,
-                                                const char* name,
-                                                migraphx_file_options_t options);
+MIGRAPHX_C_EXPORT migraphx_status migraphx_save_v2(migraphx_program_t p,
+                                                   const char* name,
+                                                   migraphx_file_options_t options,
+                                                   bool output_error);
 
 MIGRAPHX_C_EXPORT migraphx_status
 migraphx_onnx_options_destroy(migraphx_onnx_options_t onnx_options);

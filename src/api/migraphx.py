@@ -307,17 +307,19 @@ def operation(h):
     h.method('name', returns='std::string')
 
 
-api.add_function('migraphx_load',
+api.add_function('migraphx_load_v2',
                  api.params(name='const char*',
                             options='migraphx::file_options'),
                  fname='migraphx::load',
-                 returns='migraphx::program')
+                 returns='migraphx::program',
+                 output_error=True)
 
-api.add_function('migraphx_save',
+api.add_function('migraphx_save_v2',
                  api.params(p='migraphx::program&',
                             name='const char*',
                             options='migraphx::file_options'),
-                 fname='migraphx::save')
+                 fname='migraphx::save',
+                 output_error=True)
 
 
 @auto_handle()

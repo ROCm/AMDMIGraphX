@@ -128,7 +128,7 @@ class Type:
 
 
 header_function = Template('''
-${export_c_macro} ${error_type} ${name}(${params});
+${export_c_macro} ${error_type} ${name}(${params}${output_error_param});
 ''')
 
 function_pointer_typedef = Template('''
@@ -136,11 +136,11 @@ typedef ${error_type} (*${fname})(${params});
 ''')
 
 c_api_impl = Template('''
-extern "C" ${error_type} ${name}(${params})
+extern "C" ${error_type} ${name}(${params}${output_error_param})
 {
     ${va_start}auto api_error_result = ${try_wrap}([&] {
         ${body};
-    });
+    }${output_error_value});
     ${va_end}return api_error_result;
 }
 ''')
@@ -153,6 +153,9 @@ class CFunction:
         self.body: List[str] = []
         self.va_start: List[str] = []
         self.va_end: List[str] = []
+        self.output_error = False
+        self.output_error_param = ''
+        self.output_error_value = ''
 
     def add_param(self, type: str, pname: str) -> None:
         self.params.append('{} {}'.format(type, pname))
@@ -169,6 +172,15 @@ class CFunction:
         self.va_end = ['va_end({});'.format(name)]
         self.add_param('...', '')
 
+    def add_output_error(self, value: bool = True):
+        self.output_error = value
+        if self.output_error:
+            self.output_error_param = ', bool output_error'
+            self.output_error_value = ', output_error'
+        else:
+            self.output_error_param = ''
+            self.output_error_value = ''
+
     def substitute(self, form: Template, **kwargs) -> str:
         return form.substitute(error_type=error_type,
                                try_wrap=try_wrap,
@@ -177,6 +189,8 @@ class CFunction:
                                body=";\n        ".join(self.body),
                                va_start="\n    ".join(self.va_start),
                                va_end="\n    ".join(self.va_end),
+                               output_error_param = self.output_error_param,
+                               output_error_value = self.output_error_value,
                                **kwargs)
 
     def generate_header(self) -> str:
@@ -421,6 +435,7 @@ class Function:
                  fname: Optional[str] = None,
                  return_name: Optional[str] = None,
                  virtual: bool = False,
+                 output_error: bool = False,
                  **kwargs) -> None:
         self.name = name
         self.params = params or []
@@ -431,6 +446,7 @@ class Function:
         self.return_name = return_name or 'out'
         self.returns = Parameter(self.return_name, returns,
                                  returns=True) if returns else None
+        self.output_error = output_error
         for p in self.params:
             p.virtual = virtual
         if self.returns:
@@ -505,6 +521,7 @@ class Function:
             self.cfunction.add_statement(f)
         for assign in assigns:
             self.cfunction.add_statement(assign)
+        self.cfunction.add_output_error(self.output_error)
 
 
 cpp_class_template = Template('''

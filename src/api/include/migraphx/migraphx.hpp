@@ -1269,30 +1269,30 @@ struct file_options : MIGRAPHX_HANDLE_BASE(file_options)
 };
 
 /// Load a saved migraphx program from a file
-inline program load(const char* filename, const file_options& options)
+inline program load(const char* filename, const file_options& options, bool output_error = true)
 {
-    return program(make<migraphx_program>(&migraphx_load, filename, options.get_handle_ptr()),
-                   own{});
+    return program(make<migraphx_program>(&migraphx_load_v2, filename, options.get_handle_ptr(),
+        output_error), own{});
 }
 
 /// Load a saved migraphx program from a file
-inline program load(const char* filename)
+inline program load(const char* filename, bool output_error = true)
 {
     return program(
-        make<migraphx_program>(&migraphx_load, filename, migraphx::file_options{}.get_handle_ptr()),
-        own{});
+        make<migraphx_program>(&migraphx_load_v2, filename, file_options{}.get_handle_ptr(),
+        output_error), own{});
 }
 
 /// Save a program to a file
-inline void save(const program& p, const char* filename, const file_options& options)
+inline void save(const program& p, const char* filename, const file_options& options, bool output_error = true)
 {
-    call(&migraphx_save, p.get_handle_ptr(), filename, options.get_handle_ptr());
+    call(&migraphx_save_v2, p.get_handle_ptr(), filename, options.get_handle_ptr(), output_error);
 }
 
 /// Save a program to a file
-inline void save(const program& p, const char* filename)
+inline void save(const program& p, const char* filename, bool output_error = true)
 {
-    call(&migraphx_save, p.get_handle_ptr(), filename, migraphx::file_options{}.get_handle_ptr());
+    call(&migraphx_save_v2, p.get_handle_ptr(), filename, file_options{}.get_handle_ptr(), output_error);
 }
 
 /// Options for parsing onnx options

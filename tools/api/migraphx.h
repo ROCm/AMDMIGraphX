@@ -64,6 +64,12 @@ typedef enum
 
 } migraphx_status;
 
+// A backward compatibility macro for migraphx_load()
+#define migraphx_load(out, name, options) migraphx_load_v2(out, name, options, true)
+
+// A backward compatibility macro for migraphx_save()
+#define migraphx_save(p, name, options) migraphx_save_v2(p, name, options, true)
+
 #define MIGRAPHX_SHAPE_GENERATE_ENUM_TYPES(x, t) migraphx_shape_##x,
 /// An enum to represent the different data type inputs
 typedef enum

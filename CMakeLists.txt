@@ -178,8 +178,10 @@ rocm_enable_clang_tidy(
         -bugprone-easily-swappable-parameters
         -bugprone-implicit-widening-of-multiplication-result
         -bugprone-macro-parentheses
+	-bugprone-multi-level-implicit-pointer-conversion
         -bugprone-signed-char-misuse
         -bugprone-unchecked-optional-access
+	-bugprone-unused-local-non-trivial-variable
         # Disable the aliased reserved identifiers
         -cert-dcl37-c
         -cert-dcl51-cpp
@@ -202,6 +204,7 @@ rocm_enable_clang_tidy(
         clang-analyzer-alpha.cplusplus.MismatchedIterator
         clang-analyzer-alpha.cplusplus.MisusedMovedObject
         -bugprone-switch-missing-default-case
+        -bugprone-empty-catch
         -clang-analyzer-optin.performance.Padding
         -clang-diagnostic-deprecated-declarations
         -clang-diagnostic-disabled-macro-expansion
@@ -241,12 +244,15 @@ rocm_enable_clang_tidy(
         -modernize-use-transparent-functors
         -performance-avoid-endl
         -performance-type-promotion-in-math-fn
+        -performance-enum-size
         -readability-braces-around-statements
+        -readability-avoid-nested-conditional-operator
         -readability-convert-member-functions-to-static
         -readability-else-after-return
         -readability-function-cognitive-complexity
         -readability-identifier-length
         -readability-named-parameter
+        -readability-redundant-member-init
         -readability-redundant-string-init
         -readability-suspicious-call-argument
         -readability-uppercase-literal-suffix

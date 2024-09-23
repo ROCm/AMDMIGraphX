@@ -98,14 +98,13 @@ struct tile
     {
         constexpr auto outer_strides = transform_i(x.get_shape().strides, [&](auto stride, auto i) {
             constexpr auto inner_lens = InnerLens{};
-            constexpr auto outer_lens = OuterLens{};
-            if(inner_lens[i] == outer_lens[i])
-                return stride;
             return stride * inner_lens[i];
         });
         constexpr auto is            = make_shape(InnerLens{}, x.get_shape().strides);
         constexpr auto os            = make_shape(OuterLens{}, outer_strides);
         auto offset                  = os.index(group);
+        MIGRAPHX_ASSERT((is.elements() + group) < x.get_shape().elements());
+        MIGRAPHX_ASSERT((is.element_space() + offset) <= x.get_shape().element_space());
         return make_tensor_view(x.data() + offset, is);
     }
 

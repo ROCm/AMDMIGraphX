@@ -128,7 +128,8 @@ struct parse_softmaxcrossentropyloss : op_parser<parse_softmaxcrossentropyloss>
 {
     std::vector<op_desc> operators() const
     {
-        return {{"SoftmaxCrossEntropyLoss", "softmaxcrossentropyloss"}, {"NegativeLogLikelihoodLoss"}};
+        return {{"SoftmaxCrossEntropyLoss", "softmaxcrossentropyloss"},
+                {"NegativeLogLikelihoodLoss"}};
     }
 
     // Handle ignore index if it's within range of allowable classes
@@ -467,7 +468,7 @@ struct parse_softmaxcrossentropyloss : op_parser<parse_softmaxcrossentropyloss>
             loss_tensor = handle_ignored_labels(info, labels, ignore_index, loss_tensor);
         }
 
-        if (has_softmax)
+        if(has_softmax)
             return {loss_tensor, log_sm_scores};
         else
             return {loss_tensor};

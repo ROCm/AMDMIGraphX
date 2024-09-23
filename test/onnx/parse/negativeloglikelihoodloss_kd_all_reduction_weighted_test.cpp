@@ -96,7 +96,8 @@ TEST_CASE(negativeloglikelihoodloss_kd_sum_reduction_weighted_double_test)
     auto weighted_loss = mm->add_instruction(migraphx::make_op("mul"), neglog, gathernd2);
     mm->add_instruction(migraphx::make_op("reduce_sum", {{"axes", {0, 1, 2}}}), weighted_loss);
 
-    auto prog = optimize_onnx("negativeloglikelihoodloss_kd_sum_reduction_double_weighted_test.onnx");
+    auto prog =
+        optimize_onnx("negativeloglikelihoodloss_kd_sum_reduction_double_weighted_test.onnx");
 
     EXPECT(p == prog);
 }
@@ -254,6 +255,7 @@ TEST_CASE(negativeloglikelihoodloss_kd_mean_reduction_half_weighted_test)
 
     mm->add_instruction(migraphx::make_op("div"), loss_x, loss_w);
 
-    auto prog = optimize_onnx("negativeloglikelihoodloss_kd_mean_reduction_half_weighted_test.onnx");
+    auto prog =
+        optimize_onnx("negativeloglikelihoodloss_kd_mean_reduction_half_weighted_test.onnx");
     EXPECT(p == prog);
 }

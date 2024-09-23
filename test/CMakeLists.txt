@@ -160,6 +160,3 @@ endif()
 if(MIGRAPHX_ENABLE_FPGA)
     test_headers(migraphx/fpga HEADERS ${CMAKE_SOURCE_DIR}/src/targets/fpga/include/migraphx/fpga/*.hpp migraphx_fpga)
 endif()
-
-
-

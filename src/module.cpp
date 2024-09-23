@@ -859,6 +859,21 @@ module::get_ins_param_map(const std::vector<instruction_ref>& inputs, bool rever
     return result;
 }
 
+std::vector<instruction_ref>
+module::get_inputs(const std::unordered_map<instruction_ref, instruction_ref>& map_ins) const
+{
+    std::vector<instruction_ref> inputs;
+    auto params = this->get_parameters();
+    sort_params(params);
+
+    std::transform(params.begin(),
+                   params.end(),
+                   std::back_inserter(inputs),
+                   [&](instruction_ref param) { return map_ins.at(param); });
+
+    return inputs;
+}
+
 static std::vector<instruction_ref>
 select_params(const std::vector<instruction_ref>& instructions,
               const std::unordered_map<instruction_ref, instruction_ref>& param_map)
@@ -1006,6 +1021,12 @@ static void insert_params(module& m,
             continue;
         map_ins[input] = m.add_parameter(param_name(n++), input->get_shape().as_standard());
     }
+}
+
+void module::add_params(const std::vector<instruction_ref>& inputs,
+                        std::unordered_map<instruction_ref, instruction_ref>* map_ins)
+{
+    insert_params(*this, inputs, *map_ins);
 }
 
 std::vector<instruction_ref>

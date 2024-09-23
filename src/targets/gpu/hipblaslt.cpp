@@ -21,35 +21,48 @@
  * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
  * THE SOFTWARE.
  */
-#include <migraphx/optimize_module.hpp>
-#include <migraphx/pass_manager.hpp>
-#include <migraphx/simplify_reshapes.hpp>
-#include <migraphx/simplify_algebra.hpp>
-#include <migraphx/eliminate_common_subexpression.hpp>
-#include <migraphx/eliminate_convert.hpp>
-#include <migraphx/dead_code_elimination.hpp>
-#include <migraphx/propagate_constant.hpp>
-#include <migraphx/module.hpp>
+
+#include <migraphx/ranges.hpp>
+#include <migraphx/gpu/hipblaslt.hpp>
+#include <migraphx/gpu/context.hpp>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
+namespace gpu {
+#if MIGRAPHX_USE_HIPBLASLT
+// for hipblaslt only
+static const size_t workspace_size = hipblaslt_workspace_size;
 
-void optimize_module::apply(module_pass_manager& mpm) const
+hipblaslt_handle_ptr create_hipblaslt_handle_ptr()
 {
-    mpm.get_module().repeat_while_changes(2, [&] {
-        // loop to further optimize after initial transformations
-        mpm.get_module().repeat_while_changes(4, [&] {
-            mpm.run_pass(simplify_reshapes{});
-            mpm.run_pass(eliminate_convert{});
-            mpm.run_pass(dead_code_elimination{});
-            mpm.run_pass(simplify_algebra{});
-        });
-        mpm.run_pass(eliminate_common_subexpression{});
-        mpm.run_pass(dead_code_elimination{});
-        mpm.run_pass(propagate_constant{propagate_constant_skip_ops});
-        mpm.run_pass(dead_code_elimination{});
-    });
+    hipblasLtHandle_t handle;
+    hipblasLtCreate(&handle);
+    return hipblaslt_handle_ptr{handle};
 }
 
+hipblaslt_preference_ptr create_hipblaslt_preference_ptr()
+{
+    hipblasLtMatmulPreference_t preference;
+    hipblasLtMatmulPreferenceCreate(&preference);
+    hipblaslt_invoke([&]() {
+        return hipblasLtMatmulPreferenceSetAttribute(preference,
+                                                     HIPBLASLT_MATMUL_PREF_MAX_WORKSPACE_BYTES,
+                                                     &workspace_size,
+                                                     sizeof(workspace_size));
+    });
+    return hipblaslt_preference_ptr{preference};
+}
+
+bool hipblaslt_supported()
+{
+    const auto device_name = trim(split_string(get_device_name(), ':').front());
+    // hipblaslt is supported for MI100 and above and Navi3x and above
+    return (starts_with(device_name, "gfx9") and device_name >= "gfx908" and
+            not starts_with(device_name, "gfx10"));
+}
+
+#endif // MIGRAPHX_USE_HIPBLASLT
+
+} // namespace gpu
 } // namespace MIGRAPHX_INLINE_NS
 } // namespace migraphx

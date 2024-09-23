@@ -33,6 +33,7 @@ export LANG=C.UTF-8
 
 source /etc/os-release
 
+# hipcc added as workaround for broken hip-dev package
 if [[ ("${ID}" == "sles") ]]; then
   zypper -n --gpg-auto-import-keys install -y \
     cmake \
@@ -45,6 +46,7 @@ if [[ ("${ID}" == "sles") ]]; then
     perl-File-BaseDir \
     libgfortran5 \
     hipblas-devel \
+    hipcc \   
     hipblaslt-devel
 else
   # Need pip3 and Python headers to build dependencies

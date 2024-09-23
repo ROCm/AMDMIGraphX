@@ -73,8 +73,8 @@ struct print_buffer
         while(first < last)
         {
             char tmp = *first;
-            *first = *last;
-            *last = tmp;
+            *first   = *last;
+            *last    = tmp;
             first++;
             last--;
         }
@@ -88,7 +88,7 @@ struct print_buffer
             append('-');
             i = -i;
         }
-        if (i == 0)
+        if(i == 0)
         {
             append('0');
             return;

@@ -27,54 +27,63 @@
 #include <migraphx/generate.hpp>
 #include <migraphx/op/pooling.hpp>
 
-// Reusable Function to create a pooling program based on input parameters
-migraphx::program create_pooling_program(const std::vector<int>& lengths,
-                                         const std::vector<int>& stride,
-                                         const std::vector<int>& padding)
-{
-    migraphx::program p;
-    auto* mm = p.get_main_module();
 
-    migraphx::shape s{migraphx::shape::float_type, {1, 3, 32, 32}};
-    auto l0 = mm->add_parameter("x", s);
-
-    // Create a pooling operation with the specified parameters
-    migraphx::op::pooling pooling_op{migraphx::op::pooling_mode::max};
-    pooling_op.lengths = lengths;   
-    pooling_op.stride  = stride;    
-    pooling_op.padding = padding;   
-
-    mm->add_instruction(pooling_op, l0);
-
-    return p;
-}
-
-// Test Case 1: Valid pooling parameters (should work with OneDNN)
-struct test_valid_pooling : verify_program<test_valid_pooling>
+struct test_pooling_valid : verify_program<test_pooling_valid>
 {
     migraphx::program create_program() const
     {
-        // Valid case: Kernel size {2, 2}, Stride {2, 2}, No padding
-        return create_pooling_program({2, 2}, {2, 2}, {0, 0});
+        migraphx::program p;
+        auto* mm = p.get_main_module();
+
+        // Valid pooling operation
+        migraphx::shape s0{migraphx::shape::float_type, {1, 3, 32, 32}};
+        auto l0 = mm->add_parameter("x", s0);
+        migraphx::op::pooling valid_op{migraphx::op::pooling_mode::max};
+        valid_op.lengths = {3, 3};
+        valid_op.stride  = {1, 1};
+        valid_op.padding = {0, 0};
+        mm->add_instruction(valid_op, l0);
+
+        return p;
     }
 };
 
-// Test Case 2: Large kernel size (should trigger fallback)
-struct test_large_kernel_pooling : verify_program<test_large_kernel_pooling>
+struct test_pooling_large_kernel : verify_program<test_pooling_large_kernel>
 {
     migraphx::program create_program() const
     {
-        // Invalid case: Kernel size {15, 15}, Stride {1, 1}, No padding
-        return create_pooling_program({15, 15}, {1, 1}, {0, 0});
+        migraphx::program p;
+        auto* mm = p.get_main_module();
+
+        // Pooling operation with a large kernel size should fallback
+        migraphx::shape s0{migraphx::shape::float_type, {1, 3, 32, 32}};
+        auto l0 = mm->add_parameter("y", s0);
+        migraphx::op::pooling large_kernel_op{migraphx::op::pooling_mode::max};
+        large_kernel_op.lengths = {15, 15};
+        large_kernel_op.stride  = {1, 1};
+        large_kernel_op.padding = {0, 0};
+        mm->add_instruction(large_kernel_op, l0);
+
+        return p;
     }
 };
 
-// Test Case 3: Invalid padding (should trigger fallback)
-struct test_invalid_padding_pooling : verify_program<test_invalid_padding_pooling>
+struct test_pooling_invalid_padding : verify_program<test_pooling_invalid_padding>
 {
     migraphx::program create_program() const
     {
-        // Invalid case: Kernel size {2, 2}, Stride {2, 2}, Large padding {5, 5}
-        return create_pooling_program({2, 2}, {2, 2}, {5, 5});
+        migraphx::program p;
+        auto* mm = p.get_main_module();
+
+        // Pooling operation with invalid padding
+        migraphx::shape s0{migraphx::shape::float_type, {1, 3, 16, 16}};
+        auto l0 = mm->add_parameter("z", s0);
+        migraphx::op::pooling invalid_op{migraphx::op::pooling_mode::max};
+        invalid_op.lengths = {2, 2};
+        invalid_op.stride  = {1, 1};
+        invalid_op.padding = {3, 3};  // Large padding, should fallback
+        mm->add_instruction(invalid_op, l0);
+
+        return p;
     }
 };

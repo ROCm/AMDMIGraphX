@@ -287,10 +287,16 @@ rocm_install_targets(
 
 set(COMPILER_NAME ${CMAKE_CXX_COMPILER})
 if(NOT WIN32)
-    get_filename_component(GET_COMPILER_NAME ${CMAKE_CXX_COMPILER} NAME)
-    if(${GET_COMPILER_NAME} MATCHES "^amdclang")
-        set(COMPILER_NAME ${GET_COMPILER_NAME})
-    endif()
+    if(MIGRAPHX_ENABLE_CPU)
+        # Set the compiler as c++ for CPU compilation in linux
+        set(COMPILER_NAME "c++")
+    else()
+        # For GPU compilation, use amdclang
+        get_filename_component(GET_COMPILER_NAME ${CMAKE_CXX_COMPILER} NAME)
+        if(${GET_COMPILER_NAME} MATCHES "^amdclang")
+            set(COMPILER_NAME ${GET_COMPILER_NAME})
+        endif()
+    endif()# end of CPU/GPU check
 endif()
 
 if(NOT WIN32)

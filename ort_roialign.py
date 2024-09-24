@@ -13,13 +13,16 @@ x = np.reshape(x, [2, 2, 4, 3])
 
 y=np.ones([2, 2, 4, 7], dtype='f')
 
-# x = np.array([[[[2,3,4], [5,6, 7]]]], dtype='f')
-rois=np.array([[0.1, 0.15, 0.6, 0.35],
-                [0.1, 0.15, 2.6, 1.35]], dtype='f')
+# rois=np.array([[0.1, 0.15, 0.6, 0.35],
+#                 [0.1, 0.15, 2.6, 1.35]], dtype='f')
+
+rois=np.array([
+                [ 1.1, 0.73, 2.2, 1.13]], dtype='f')
 sess = rt.InferenceSession('/workspace/AMDMIGraphX/test/onnx/roialign_half_pixel_test.onnx')
 res = sess.run(['y'], {'x': x,
                     'rois': rois,
-                    'batch_ind': [0, 1]})
+                    # 'batch_ind': [0, 1]})
+                    'batch_ind': [0]})
 print(res)
        
 		

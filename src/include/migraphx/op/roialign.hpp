@@ -114,19 +114,24 @@ struct roialign
     {
         std::vector<pos_weight> results(bin_grid_size[0] * bin_grid_size[1] * output_height *
                                         output_width);
-
+std::vector<std::size_t> temp_lens = comp_s.lens();                                        
+shape temp_s = {shape::float_type,{temp_lens[1], temp_lens[0], temp_lens[3], temp_lens[2] }};
         shape_for_each(comp_s, [&](const auto& idx_v, size_t index) {
 
             // The p and i indexes correspond to nested looping parameters in ORT that go in y, x order.  The i[x] value is least significant
             // and iterates the fastest.
             std::array<std::size_t, 2> p = {idx_v[1], idx_v[0]};
             std::array<std::size_t, 2> i = {idx_v[3], idx_v[2]};//  <== these are always the same
-printf(" IIIII other index %lu , %lu , %lu , %lu  i=%lu \n", p[0], p[1], i[0], i[1], index);
+printf("\n IIIII other index %lu , %lu , %lu , %lu  i=%lu   temp_index = %lu \n", p[0], p[1], i[0], i[1], index, temp_s.index({p[0], p[1], i[0], i[1]}));
+printf(" my index= %lu  reverse temp=%lu\n ", comp_s.index({p[1], p[0], i[1], i[0]}), temp_s.index({p[1], p[0], i[1], i[0]}));
+printf(" more index= %lu  reverse ...=%lu\n ", comp_s.index({p[0], p[1], i[0], i[1]}), temp_s.index({p[0], p[1], i[0], i[1]}));
             // xy is scaled coordinates of start point of ROI
             std::array<float, 2> xy{};
             // low, high are floor and ceiling of the xy value (i.e. the bounds of the pixel it lies inside)
             std::array<int64_t, 2> low{};
             std::array<int64_t, 2> high{};
+
+            // size_t adj_index = temp_s.index({p[1], p[0], i[1], i[0]});
 
             for(auto ii : range(p.size()))
             {
@@ -136,48 +141,54 @@ printf(" IIIII other index %lu , %lu , %lu , %lu  i=%lu \n", p[0], p[1], i[0], i
     // printf("y: " );
                 // for width & height dimensions,
                 // transform the roi start point to scaled coordinates
-printf("    roi_start[ii] %f    p[ii]  %lu   bin_size[ii] %f   (i[ii] + .5f) %f      bin_grid_size[ii] %lu       \n",
-roi_start[ii], p[ii], bin_size[ii], (i[ii] + .5f),     bin_grid_size[ii] );
+// printf("    roi_start[ii] %f    p[ii]  %lu   bin_size[ii] %f   (i[ii] + .5f) %f      bin_grid_size[ii] %lu       \n",
+// roi_start[ii], p[ii], bin_size[ii], (i[ii] + .5f),     bin_grid_size[ii] );
 
                 xy[ii] = roi_start[ii] + p[ii] * bin_size[ii] +
                          (i[ii] + .5f) * bin_size[ii] / bin_grid_size[ii];
-printf(" QQQQQQ  L137 x=%f  y=%f\n", xy[0], xy[1]);                                        
+// printf(" QQQQQQ  L137 x=%f  y=%f  ", xy[0], xy[1]);                                        
                 xy[ii] = (coord_trans_mode != "half_pixel") ? (xy[ii] - 0.5f) : xy[ii];
-// printf("L139 %f ", xy[ii]);                        
+// printf(" L139 %f ", xy[ii]);                        
                 if(xy[ii] < -1.0 or xy[ii] > dims[ii])
                 {
-// printf("L142 results = pos_weight \n ");                    
-                    results[index] = pos_weight{};
+// printf(" L142 results = pos_weight i=%lu dims=%lu, %lu  \n ", index,  dims[0], dims[1]);                    
+                    // results[adj_index] = pos_weight{};  // all zeroes
+                    results[index] = pos_weight{};  // all zeroes
                     return;
                 }
 
                 xy[ii]   = std::max(xy[ii], 0.0f);
-// printf("L148 %f ", xy[ii]);                
                 low[ii]  = xy[ii];
                 high[ii] = low[ii] + 1;
+// printf(" L148 %f  low[ii] %lu, dims[ii] %lu", xy[ii],  low[ii], dims[ii]);                
                 if(low[ii] >= dims[ii] - 1)
                 {
-// printf("L154 %f ", xy[ii]);                    
                     xy[ii] = high[ii] = low[ii] = dims[ii] - 1;
+// printf(" L154 %f ", xy[ii]);                    
                 }
-// printf("\n");                
+// printf(" \n");                
             }
-            // printf(" JJJJJ  xy[0]=%f  xy[1] = %f                             dims[1]=%lu  low%ld-%ld  high %ld-%ld   i=%zu\n\n",
-            //                 xy[0], xy[1], dims[1], low[0], low[1],  high[0], high[1], index);
-            results[index].pos = {low[0] * dims[1] + low[1],
-                                  low[0] * dims[1] + high[1],
-                                  high[0] * dims[1] + low[1],
-                                  high[0] * dims[1] + high[1]};
+            printf(" JJJJJ  xy[0]=%f  xy[1] = %f                             dims[1]=%lu  low%ld-%ld  high %ld-%ld   i=%zu      dims[0]=%lu \n\n",
+                            xy[0], xy[1], dims[1], low[1], low[0],  high[1], high[0], index, dims[0]);
+            results[index].pos = {low[1] * dims[0] + low[0],
+                                  low[1] * dims[0] + high[0],
+                                  high[1] * dims[0] + low[0],
+                                  high[1] * dims[0] + high[0]};
 
             float lx = xy[0] - low[0];
             float ly = xy[1] - low[1];
             float hy = 1.0f - ly;
             float hx = 1.0f - lx;
-            // printf(" HHHHH partial pixel values, index=%lu  ly=%f, lx=%f, hy=%f, hx=%f\n\n", index, ly, lx, hy, hx);
+            // printf(" HHHHH partial pixel values, index=%lu pci=%lu  ly=%f, lx=%f, hy=%f, hx=%f\n\n", index, temp_s.index({p[1], p[0], i[1], i[0]}), 
+            //    ly, lx, hy, hx);
             // save weights and indices
             results[index].w = {hy * hx, hy * lx, ly * hx, ly * lx};
 
         });
+printf(" AAAAA here we are\n");
+        for(int iix = 0; iix < results.size(); iix++)
+          printf(" SSSSS %d    %lu  %lu  %lu  %lu   %f  %f  %f  %f\n", iix, results[iix].pos[0], results[iix].pos[1], results[iix].pos[2], results[iix].pos[3],
+                    results[iix].w[0], results[iix].w[1], results[iix].w[2], results[iix].w[3]);
 
         return results;
     }
@@ -236,7 +247,7 @@ printf(" QQQQQQ  L137 x=%f  y=%f\n", xy[0], xy[1]);
         std::array<std::size_t, 2> out_dims = {out_lens[2], out_lens[3]};
         const auto& x_lens                  = args.at(0).get_shape().lens();
         // input dims of height and width
-        std::array<std::size_t, 2> in_dims = {x_lens[2], x_lens[3]};
+        std::array<std::size_t, 2> in_dims = {x_lens[3], x_lens[2]};
         auto roi_s                         = args.at(1).get_shape();
 
         visit_all(result, args.at(0), args.at(1))([&](auto output, auto x, auto roi) {

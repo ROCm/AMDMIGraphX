@@ -39,11 +39,17 @@ TEST_CASE(roialign_verify_test)
     pp["x"]     = migraphx::argument(s, data.data());
     pp["y"]     = migraphx::argument(s, data.data());
 
-    migraphx::shape srois{migraphx::shape::float_type, {2, 4}};
-    std::vector<float> rois_data = {0.1, 0.15, 0.6, 0.35,
+    // migraphx::shape srois{migraphx::shape::float_type, {2, 4}};
+    // std::vector<float> rois_data = {0.1, 0.15, 0.6, 0.35,
+    //                                 2.1, 1.73, 3.8, 2.13};
+    // migraphx::shape sbi{migraphx::shape::int64_type, {2}};  // batch_index
+    // std::vector<float> bi_data = {0, 1};
+
+    migraphx::shape srois{migraphx::shape::float_type, {1, 4}};
+    std::vector<float> rois_data = {
                                     2.1, 1.73, 3.8, 2.13};
-    migraphx::shape sbi{migraphx::shape::int64_type, {2}};  // batch_index
-    std::vector<float> bi_data = {0, 1};
+    migraphx::shape sbi{migraphx::shape::int64_type, {1}};  // batch_index
+    std::vector<float> bi_data = {0};
 
     pp["rois"]    = migraphx::argument(srois, rois_data.data());
     pp["batch_ind"]    = migraphx::argument(sbi, bi_data.data());

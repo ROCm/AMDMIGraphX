@@ -85,10 +85,10 @@ __device__ void softmax_inplace(T score, int n, int d)
     }
 }
 
-template <class Attn_Probs,
+template <class AttnProbs,
           class SeqLensK,
           class Params>
-__device__ void calculate_softmax(Attn_Probs attention_probs, // output buffer with size BxNxSxT
+__device__ void calculate_softmax(AttnProbs attention_probs, // output buffer with size BxNxSxT
                                   SeqLensK seqlens_k,         // past sequence lengths tensor
                                   Params params,
                                   index_int idx)

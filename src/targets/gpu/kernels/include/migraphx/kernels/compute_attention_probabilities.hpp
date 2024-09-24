@@ -30,13 +30,13 @@
 
 namespace migraphx {
 
-template <class Attn_Probs,
+template <class AttnProbs,
           class Query,
           class SeqLensK,
           class PresentKey,
           class Params>
 __device__ void
-calculate_attention_probs(Attn_Probs attention_probs, // output buffer with size BxNxSxT
+calculate_attention_probs(AttnProbs attention_probs, // output buffer with size BxNxSxT
                           Query query,                // Q data. Its size is BxNxSxH
                           SeqLensK seqlens_k,         // past sequence lengths tensor
                           PresentKey present_key,     // present key only
@@ -71,19 +71,16 @@ calculate_attention_probs(Attn_Probs attention_probs, // output buffer with size
         auto pk = present_key + ((i / kv_num_heads_factor) * present_buff_chunk_length);
         auto q  = query + packed_batch_stride * batch_index + q_input_chunk_length * head_index;
 
-        gemm(sequence_length,
-             total_seqlen,
-             head_size,
-             head_size,
-             head_size,
-             present_buffer_sequence_length,
-             output,
-             q,
-             pk,
-             alpha,
-             0.0f,
-             inner_i,
-             true);
+        naive_gemm gemm{static_cast<std::size_t>(sequence_length),
+                        static_cast<std::size_t>(total_seqlen),
+                        static_cast<std::size_t>(head_size),
+                        static_cast<std::size_t>(head_size),
+                        static_cast<std::size_t>(head_size),
+                        present_buffer_sequence_length,
+                        true,       
+                        alpha,
+                        0.0f};
+        gemm.compute(output, q, pk, inner_i);
     }
 }
 

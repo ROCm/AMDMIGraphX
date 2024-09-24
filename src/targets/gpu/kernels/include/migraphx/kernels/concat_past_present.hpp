@@ -39,34 +39,40 @@ __device__ void copy_data(Dest destination, const Src source, index_int n, index
     }
 }
 
-template <class Past, class Chunk, class Present>
-__device__ Present concat_state_chunk(const Past past,
-                                      Chunk chunk,
-                                      Present present,
-                                      index_int present_buff_chunk_length,
-                                      index_int past_buff_chunk_length,
-                                      index_int past_chunk_length,
-                                      index_int new_chunk_length,
-                                      bool is_prompt,
-                                      bool past_present_share_buffer,
-                                      std::ptrdiff_t i,
-                                      index_int idx)
+struct concat_state_chunk
 {
-    auto start = present + i * present_buff_chunk_length;
+    size_t present_buff_chunk_length;
+    size_t past_buff_chunk_length;
+    size_t past_chunk_length;
+    size_t new_chunk_length;
+    bool is_prompt;
+    bool past_present_share_buffer;
+    std::ptrdiff_t i;
 
-    auto p = start;
-    if(not is_prompt)
+    template <class Past, class Chunk, class Present>
+    __device__ Present compute(const Past past,
+                                Chunk chunk,
+                                Present present,
+                                index_int idx)
     {
-        if(not past_present_share_buffer)
+        auto start = present + i * present_buff_chunk_length;
+
+        auto p = start;
+        if(not is_prompt)
         {
-            const auto src_past = past + i * past_buff_chunk_length;
-            copy_data(p, src_past, past_chunk_length, idx);
+            if(not past_present_share_buffer)
+            {
+                const auto src_past = past + i * past_buff_chunk_length;
+                copy_data(p, src_past, past_chunk_length, idx);
+            }
+            p += past_chunk_length;
         }
-        p += past_chunk_length;
+        copy_data(p, chunk, new_chunk_length, idx);
+        return start;
     }
-    copy_data(p, chunk, new_chunk_length, idx);
-    return start;
-}
+};
+
+
 
 template <class Present, class SeqLensK, class Cache, class Params>
 __device__ void
@@ -102,16 +108,17 @@ update_cache(Present present, SeqLensK seqlens_k, Cache cache, Params params, in
 
         auto current = present + packed_batch_stride * batch_index +
                        kv_input_chunk_length * (head_index / kv_num_heads_factor);
-        concat_state_chunk(cache,
+
+        concat_state_chunk concat{present_buff_chunk_length,
+                                past_buff_chunk_length,
+                                past_chunk_length,
+                                kv_input_chunk_length,
+                                is_prompt,
+                                static_cast<bool>(params.past_present_share_buffer),
+                                i / kv_num_heads_factor};
+        concat.compute(cache,
                            current,
                            cache,
-                           present_buff_chunk_length,
-                           past_buff_chunk_length,
-                           past_chunk_length,
-                           kv_input_chunk_length,
-                           is_prompt,
-                           params.past_present_share_buffer,
-                           i / kv_num_heads_factor,
                            inner_i);
     }
 }

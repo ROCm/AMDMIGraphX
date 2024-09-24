@@ -548,87 +548,96 @@ struct group_query_attention
                                        auto present_v,
                                        auto attn_probs) {
             visit_all(args[5])([&](auto seqlens_k) {
+                par_for(kv_shape.elements(), [&](auto i) {
+                    present_k[i] = past_key[i];
+                    present_v[i] = past_value[i];
+                });
+                auto seq_stride          = head_size;
+                auto head_stride         = sequence_length * seq_stride;
+                auto batch_stride        = num_heads + 2 * kv_num_heads;
+                auto position_ids_format = sequence_length == 1 ? 1 : 0;
+                bool transposed          = true;
+                std::vector<int64_t> pos_ids(sequence_length == 1 ? batch_size : 1);
+                if(sequence_length == 1)
+                {
+                    for(int b = 0; b < batch_size; b++)
+                    {
+                        pos_ids[b] = static_cast<int64_t>(seqlens_k[b]);
+                    }
+                }
+                else
+                {
+                    pos_ids[0] = static_cast<int64_t>(0);
+                }
+                auto q_input  = query.begin();
+                auto k_input  = q_input + num_heads * sequence_length * head_size;
+                auto q_rotary = rotary_qkv.begin();
+                auto k_rotary = q_rotary + num_heads * sequence_length * head_size;
+
+                gqa_parameters gqa_params          = {};
+                gqa_params.batch_size              = batch_size;
+                gqa_params.sequence_length         = sequence_length;
+                gqa_params.hidden_size             = q_hidden_size;
+                gqa_params.head_size               = head_size;
+                gqa_params.rotary_embedding_dim    = rotary_dim;
+                gqa_params.num_heads               = num_heads;
+                gqa_params.max_sequence_length     = sequence_length;
+                gqa_params.seq_stride              = head_size;
+                gqa_params.head_stride             = head_stride;
+                gqa_params.batch_stride            = batch_stride;
+                gqa_params.position_ids_format     = position_ids_format;
+                gqa_params.transposed              = transposed;
+                gqa_params.seqlen_present_kv_cache = present_kv_seqlen;
+                // for(int i = 0; i < query.get_shape().elements(); ++i)
+                // {
+                //     rotary_qkv[i] = 0.0;
+                // }
                 if(do_rotary)
                 {
-                    par_for(kv_shape.elements(), [&](auto i) {
-                        present_k[i] = past_key[i];
-                        present_v[i] = past_value[i];
-                    });
-                    auto seq_stride          = head_size;
-                    auto head_stride         = sequence_length * seq_stride;
-                    auto batch_stride        = num_heads + 2 * kv_num_heads;
-                    auto position_ids_format = sequence_length == 1 ? 1 : 0;
-                    bool transposed          = true;
-                    std::vector<int64_t> pos_ids(sequence_length == 1 ? batch_size : 1);
-                    if(sequence_length == 1)
-                    {
-                        for(int b = 0; b < batch_size; b++)
-                        {
-                            pos_ids[b] = static_cast<int64_t>(seqlens_k[b]);
-                        }
-                    }
-                    else
-                    {
-                        pos_ids[0] = static_cast<int64_t>(0);
-                    }
-                    auto q_input  = query.begin();
-                    auto k_input  = q_input + num_heads * sequence_length * head_size;
-                    auto q_rotary = rotary_qkv.begin();
-                    auto k_rotary = q_rotary + num_heads * sequence_length * head_size;
-
-                    gqa_parameters gqa_params          = {};
-                    gqa_params.batch_size              = batch_size;
-                    gqa_params.sequence_length         = sequence_length;
-                    gqa_params.hidden_size             = q_hidden_size;
-                    gqa_params.head_size               = head_size;
-                    gqa_params.rotary_embedding_dim    = rotary_dim;
-                    gqa_params.num_heads               = num_heads;
-                    gqa_params.max_sequence_length     = sequence_length;
-                    gqa_params.seq_stride              = head_size;
-                    gqa_params.head_stride             = head_stride;
-                    gqa_params.batch_stride            = batch_stride;
-                    gqa_params.position_ids_format     = position_ids_format;
-                    gqa_params.transposed              = transposed;
-                    gqa_params.seqlen_present_kv_cache = present_kv_seqlen;
-                    for(int i = 0; i < query.get_shape().elements(); ++i)
-                    {
-                        rotary_qkv[i] = 0.0;
-                    }
                     run_rotary_embedding(q_input,
-                                         cos_cache.begin(),
-                                         sin_cache.begin(),
-                                         q_rotary,
-                                         rotary_interleaved,
-                                         pos_ids.data(),
-                                         gqa_params);
-                    std::size_t kv_hidden_size = head_size * kv_num_heads;
-                    gqa_params.num_heads       = kv_num_heads;
-                    gqa_params.hidden_size     = kv_hidden_size;
-
-                    run_rotary_embedding(k_input,
-                                         cos_cache.begin(),
-                                         sin_cache.begin(),
-                                         k_rotary,
-                                         rotary_interleaved,
-                                         pos_ids.data(),
-                                         gqa_params);
-                    auto v_input         = k_input + kv_num_heads * sequence_length * head_size;
-                    auto v_rotary        = k_rotary + kv_num_heads * sequence_length * head_size;
-                    gqa_params.num_heads = num_heads;
-
-                    pack_v_into_rotary_qkv(gqa_params, v_input, v_rotary);
-
-                    apply_attention(rotary_qkv.begin(),
-                                    past_key.begin(),
-                                    past_value.begin(),
-                                    output.begin(),
-                                    present_k.begin(),
-                                    present_v.begin(),
-                                    seqlens_k.begin(),
-                                    attn_probs.begin(),
-                                    gqa_params,
-                                    output_shape_0.type());
+                                            cos_cache.begin(),
+                                            sin_cache.begin(),
+                                            q_rotary,
+                                            rotary_interleaved,
+                                            pos_ids.data(),
+                                            gqa_params);
                 }
+                std::size_t kv_hidden_size = head_size * kv_num_heads;
+                gqa_params.num_heads       = kv_num_heads;
+                gqa_params.hidden_size     = kv_hidden_size;
+
+                if(do_rotary)
+                {
+                    run_rotary_embedding(k_input,
+                                        cos_cache.begin(),
+                                        sin_cache.begin(),
+                                        k_rotary,
+                                        rotary_interleaved,
+                                        pos_ids.data(),
+                                        gqa_params);
+                }
+                auto v_input         = k_input + kv_num_heads * sequence_length * head_size;
+                auto v_rotary        = k_rotary + kv_num_heads * sequence_length * head_size;
+                gqa_params.num_heads = num_heads;
+
+                if(do_rotary)
+                {
+                    pack_v_into_rotary_qkv(gqa_params, v_input, v_rotary);
+                }
+                if(not do_rotary)
+                {
+                    rotary_qkv = query;
+                }
+                apply_attention(rotary_qkv.begin(),
+                                past_key.begin(),
+                                past_value.begin(),
+                                output.begin(),
+                                present_k.begin(),
+                                present_v.begin(),
+                                seqlens_k.begin(),
+                                attn_probs.begin(),
+                                gqa_params,
+                                output_shape_0.type());
             });
         });
 

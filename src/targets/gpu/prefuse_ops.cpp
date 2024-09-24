@@ -349,18 +349,22 @@ struct find_group_query_attention
         transposed_qkv =
             mpm.get_module().insert_instruction(ins, make_op("contiguous"), transposed_qkv);
 
-        std::vector<instruction_ref> rotary_inputs{
-            transposed_qkv, inputs.at(5), inputs.at(7), inputs.at(8)};
-        auto rotary_qkv =
-            mpm.get_module().insert_instruction(ins,
-                                                gpu_gqa_rotary_embedding{do_rotary,
-                                                                         kv_num_heads,
-                                                                         local_window_size,
-                                                                         num_heads,
-                                                                         rotary_interleaved,
-                                                                         scale,
-                                                                         present_kv_seqlen},
-                                                rotary_inputs);
+        auto rotary_qkv = transposed_qkv;
+        if(do_rotary)
+        {
+            std::vector<instruction_ref> rotary_inputs{
+                transposed_qkv, inputs.at(5), inputs.at(7), inputs.at(8)};
+            rotary_qkv =
+                mpm.get_module().insert_instruction(ins,
+                                                    gpu_gqa_rotary_embedding{do_rotary,
+                                                                            kv_num_heads,
+                                                                            local_window_size,
+                                                                            num_heads,
+                                                                            rotary_interleaved,
+                                                                            scale,
+                                                                            present_kv_seqlen},
+                                                    rotary_inputs);
+        }
 
         std::vector<instruction_ref> concat_inputs{
             rotary_qkv, inputs.at(3), inputs.at(4), inputs.at(5)};

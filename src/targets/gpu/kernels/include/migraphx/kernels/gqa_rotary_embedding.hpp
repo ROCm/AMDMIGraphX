@@ -30,12 +30,12 @@
 
 namespace migraphx {
 
-template <class Input, class Cos_Cache, class Sin_Cache, class Output, class Pos_IDs, class Params>
+template <class Input, class CosCache, class SinCache, class Output, class PosIDs, class Params>
 __device__ void run_rotary_embedding(Input input,
-                                     Cos_Cache cos_cache,
-                                     Sin_Cache sin_cache,
+                                     CosCache cos_cache,
+                                     SinCache sin_cache,
                                      Output output,
-                                     Pos_IDs pos_ids,
+                                     PosIDs pos_ids,
                                      Params params,
                                      index_int idx,
                                      bool is_query = false)
@@ -126,12 +126,12 @@ pack_v_into_rotary_qkv(Params params, const Input input, Output output, index_in
     }
 }
 
-template <class Output, class Query, class SeqLensK, class Cos_Cache, class Sin_Cache, class Params>
+template <class Output, class Query, class SeqLensK, class CosCache, class SinCache, class Params>
 __device__ void gqa_rotary_embedding(Output output,
                                      Query query,
                                      SeqLensK seqlens_k,
-                                     Cos_Cache cos_cache,
-                                     Sin_Cache sin_cache,
+                                     CosCache cos_cache,
+                                     SinCache sin_cache,
                                      Params params)
 {
     auto ind = make_index();

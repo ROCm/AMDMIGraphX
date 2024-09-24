@@ -27,13 +27,13 @@
 #include <migraphx/generate.hpp>
 #include <migraphx/make_op.hpp>
 
-struct test_group_query_attention_prompt : verify_program<test_group_query_attention_prompt>
+struct test_group_query_attention_no_rotary : verify_program<test_group_query_attention_no_rotary>
 {
     migraphx::program create_program() const
     {
         migraphx::program p;
         auto* mm = p.get_main_module();
-        std::vector<size_t> query_lens{1, 10, 12288};
+        std::vector<size_t> query_lens{1, 1, 12288};
         std::vector<size_t> kv_lens{1, 32, 4096, 128};
         std::vector<size_t> slk_lens{1, 1};
         std::vector<size_t> tsl_lens{1, 1};
@@ -45,8 +45,8 @@ struct test_group_query_attention_prompt : verify_program<test_group_query_atten
         migraphx::shape tsl_s{migraphx::shape::int64_type, tsl_lens};
         migraphx::shape cs_cache_s{dtype, cs_cache_lens};
         auto query = mm->add_parameter("query", query_s);
-        std::vector<int> slk_vec(slk_s.elements(), 10);
-        std::vector<int> tsl_vec(tsl_s.elements(), 11);
+        std::vector<int> slk_vec(slk_s.elements(), 2);
+        std::vector<int> tsl_vec(tsl_s.elements(), 3);
         auto k_cache   = mm->add_parameter("k_cache", kv_s);
         auto v_cache   = mm->add_parameter("v_cache", kv_s);
         auto slk       = mm->add_literal(slk_s, slk_vec);
@@ -56,7 +56,7 @@ struct test_group_query_attention_prompt : verify_program<test_group_query_atten
         auto cos_cache = mm->add_parameter("cos_cache", cs_cache_s);
         auto sin_cache = mm->add_parameter("sin_cache", cs_cache_s);
         auto r         = mm->add_instruction(migraphx::make_op("group_query_attention",
-                                                               {{"do_rotary", 1},
+                                                               {{"do_rotary", 0},
                                                                 {"kv_num_heads", 32},
                                                                 {"local_window_size", -1},
                                                                 {"num_heads", 32},

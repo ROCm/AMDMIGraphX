@@ -68,18 +68,16 @@ calculate_attention_score(Output output, // buffer for the result with size BxSx
             output + (batch_index * sequence_length * num_heads + head_index) * head_size;
         ptrdiff_t attention_probs_offset = sequence_length * present_buffer_sequence_length * i;
 
-        gemm(sequence_length,
-             head_size,
-             total_seqlen,
-             present_buffer_sequence_length,
-             head_size,
-             hidden_size,
-             output_current,
-             attention_probs + attention_probs_offset,
-             pv,
-             1.0f,
-             0.0f,
-             inner_i);
+        naive_gemm gemm{static_cast<std::size_t>(sequence_length),
+                        static_cast<std::size_t>(head_size),
+                        static_cast<std::size_t>(total_seqlen),
+                        present_buffer_sequence_length,
+                        static_cast<std::size_t>(head_size),
+                        static_cast<std::size_t>(hidden_size),
+                        false,
+                        1.0f,
+                        0.0f};
+        gemm.compute(output_current, attention_probs + attention_probs_offset, pv, inner_i);
     }
 }
 

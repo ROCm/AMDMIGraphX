@@ -87,41 +87,45 @@ __device__ gqa_parameters make_gqa_params(S s, Ts... ts)
     return {static_cast<float>(s), ts...};
 }
 
-template <class C, class A, class B, class F>
-__device__ void gemm(std::size_t m,
-                     std::size_t n,
-                     std::size_t k,
-                     std::size_t lda,
-                     std::size_t ldb,
-                     std::size_t ldc,
-                     C cmat,
-                     A amat,
-                     B bmat,
-                     F alpha,
-                     F beta,
-                     std::size_t idx,
-                     const bool b_transpose = false)
+struct naive_gemm
 {
-    auto m_    = idx / n;
-    auto n_    = idx % n;
-    auto index = [&](auto x, auto y, auto z) { return y + (x * z); };
+    std::size_t _m;
+    std::size_t _n;
+    std::size_t _k;
+    std::size_t lda;
+    std::size_t ldb;
+    std::size_t ldc;
+    bool b_transpose;
+    float alpha;
+    float beta;
 
-    if(m_ < m)
+    template <class C, class A, class B>
+    __device__ void compute(C cmat,
+                            const A amat,
+                            const B bmat,
+                            const std::size_t idx)
     {
-        if(n_ < n)
+        auto m    = idx / _n;
+        auto n    = idx % _n;
+        auto index = [&](auto x, auto y, auto z) { return y + (x * z); };
+
+        if(m < _m)
         {
-            double s = 0.0;
-            for(int k_ = 0; k_ < k; ++k_)
+            if(n < _n)
             {
-                auto a_i = index(m_, k_, lda);
-                auto b_i = b_transpose ? index(n_, k_, ldb) : index(k_, n_, ldb);
-                s += static_cast<double>(amat[a_i]) * static_cast<double>(bmat[b_i]);
+                double s = 0.0;
+                for(int k = 0; k < _k; ++k)
+                {
+                    auto a_i = index(m, k, lda);
+                    auto b_i = b_transpose ? index(n, k, ldb) : index(k, n, ldb);
+                    s += static_cast<double>(amat[a_i]) * static_cast<double>(bmat[b_i]);
+                }
+                auto c_i  = index(m, n, ldc);
+                cmat[c_i] = static_cast<double>(alpha) * s + cmat[c_i] * static_cast<double>(beta);
             }
-            auto c_i  = index(m_, n_, ldc);
-            cmat[c_i] = static_cast<double>(alpha) * s + cmat[c_i] * static_cast<double>(beta);
         }
     }
-}
+};
 
 } // namespace migraphx
 #endif

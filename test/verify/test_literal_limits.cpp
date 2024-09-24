@@ -58,3 +58,5 @@ template struct test_literal_limits<migraphx::shape::half_type, migraphx::half>;
 template struct test_literal_limits<migraphx::shape::int32_type, int32_t>;
 template struct test_literal_limits<migraphx::shape::int8_type, int8_t>;
 template struct test_literal_limits<migraphx::shape::fp8e4m3fnuz_type, migraphx::fp8::fp8e4m3fnuz>;
+template struct test_literal_limits<migraphx::shape::fp8e4m3fn_type, migraphx::fp8::fp8e4m3fn>;
+template struct test_literal_limits<migraphx::shape::fp8e5m2_type, migraphx::fp8::fp8e5m2>;

@@ -22,7 +22,6 @@
  * THE SOFTWARE.
  */
 
-#include <unordered_set>
 #include <migraphx/ranges.hpp>
 #include <migraphx/stringutils.hpp>
 #include <migraphx/gpu/device_name.hpp>

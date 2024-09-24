@@ -100,9 +100,9 @@ struct tile
             transform(x.get_shape().strides, InnerLens{}, [](auto stride, auto inner_len) {
                 return stride * inner_len;
             });
-        constexpr auto is            = make_shape(InnerLens{}, x.get_shape().strides);
-        constexpr auto os            = make_shape(OuterLens{}, outer_strides);
-        auto offset                  = os.index(group);
+        constexpr auto is = make_shape(InnerLens{}, x.get_shape().strides);
+        constexpr auto os = make_shape(OuterLens{}, outer_strides);
+        auto offset       = os.index(group);
         MIGRAPHX_ASSERT((os.element_space() + is.element_space()) ==
                         (x.get_shape().element_space() + _c<1>));
         MIGRAPHX_ASSERT((is.elements() + group) < x.get_shape().elements());

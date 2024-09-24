@@ -50,10 +50,7 @@ struct concat_state_chunk
     std::ptrdiff_t i;
 
     template <class Past, class Chunk, class Present>
-    __device__ Present compute(const Past past,
-                                Chunk chunk,
-                                Present present,
-                                index_int idx)
+    __device__ Present compute(const Past past, Chunk chunk, Present present, index_int idx)
     {
         auto start = present + i * present_buff_chunk_length;
 
@@ -71,8 +68,6 @@ struct concat_state_chunk
         return start;
     }
 };
-
-
 
 template <class Present, class SeqLensK, class Cache, class Params>
 __device__ void
@@ -110,16 +105,13 @@ update_cache(Present present, SeqLensK seqlens_k, Cache cache, Params params, in
                        kv_input_chunk_length * (head_index / kv_num_heads_factor);
 
         concat_state_chunk concat{present_buff_chunk_length,
-                                past_buff_chunk_length,
-                                past_chunk_length,
-                                kv_input_chunk_length,
-                                is_prompt,
-                                static_cast<bool>(params.past_present_share_buffer),
-                                i / kv_num_heads_factor};
-        concat.compute(cache,
-                           current,
-                           cache,
-                           inner_i);
+                                  past_buff_chunk_length,
+                                  past_chunk_length,
+                                  kv_input_chunk_length,
+                                  is_prompt,
+                                  static_cast<bool>(params.past_present_share_buffer),
+                                  i / kv_num_heads_factor};
+        concat.compute(cache, current, cache, inner_i);
     }
 }
 

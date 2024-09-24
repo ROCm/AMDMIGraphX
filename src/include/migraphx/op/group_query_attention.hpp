@@ -595,12 +595,12 @@ struct group_query_attention
                 if(do_rotary)
                 {
                     run_rotary_embedding(q_input,
-                                            cos_cache.begin(),
-                                            sin_cache.begin(),
-                                            q_rotary,
-                                            rotary_interleaved,
-                                            pos_ids.data(),
-                                            gqa_params);
+                                         cos_cache.begin(),
+                                         sin_cache.begin(),
+                                         q_rotary,
+                                         rotary_interleaved,
+                                         pos_ids.data(),
+                                         gqa_params);
                 }
                 std::size_t kv_hidden_size = head_size * kv_num_heads;
                 gqa_params.num_heads       = kv_num_heads;
@@ -609,12 +609,12 @@ struct group_query_attention
                 if(do_rotary)
                 {
                     run_rotary_embedding(k_input,
-                                        cos_cache.begin(),
-                                        sin_cache.begin(),
-                                        k_rotary,
-                                        rotary_interleaved,
-                                        pos_ids.data(),
-                                        gqa_params);
+                                         cos_cache.begin(),
+                                         sin_cache.begin(),
+                                         k_rotary,
+                                         rotary_interleaved,
+                                         pos_ids.data(),
+                                         gqa_params);
                 }
                 auto v_input         = k_input + kv_num_heads * sequence_length * head_size;
                 auto v_rotary        = k_rotary + kv_num_heads * sequence_length * head_size;

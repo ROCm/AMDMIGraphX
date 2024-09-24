@@ -357,12 +357,12 @@ struct find_group_query_attention
             rotary_qkv =
                 mpm.get_module().insert_instruction(ins,
                                                     gpu_gqa_rotary_embedding{do_rotary,
-                                                                            kv_num_heads,
-                                                                            local_window_size,
-                                                                            num_heads,
-                                                                            rotary_interleaved,
-                                                                            scale,
-                                                                            present_kv_seqlen},
+                                                                             kv_num_heads,
+                                                                             local_window_size,
+                                                                             num_heads,
+                                                                             rotary_interleaved,
+                                                                             scale,
+                                                                             present_kv_seqlen},
                                                     rotary_inputs);
         }
 

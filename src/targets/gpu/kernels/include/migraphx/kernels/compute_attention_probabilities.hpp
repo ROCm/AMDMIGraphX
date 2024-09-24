@@ -37,9 +37,9 @@ template <class AttnProbs,
           class Params>
 __device__ void
 calculate_attention_probs(AttnProbs attention_probs, // output buffer with size BxNxSxT
-                          Query query,                // Q data. Its size is BxNxSxH
-                          SeqLensK seqlens_k,         // past sequence lengths tensor
-                          PresentKey present_key,     // present key only
+                          Query query,               // Q data. Its size is BxNxSxH
+                          SeqLensK seqlens_k,        // past sequence lengths tensor
+                          PresentKey present_key,    // present key only
                           Params params,
                           index_int idx)
 {
@@ -77,7 +77,7 @@ calculate_attention_probs(AttnProbs attention_probs, // output buffer with size 
                         static_cast<std::size_t>(head_size),
                         static_cast<std::size_t>(head_size),
                         present_buffer_sequence_length,
-                        true,       
+                        true,
                         alpha,
                         0.0f};
         gemm.compute(output, q, pk, inner_i);

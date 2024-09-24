@@ -89,7 +89,7 @@ template <class AttnProbs,
           class SeqLensK,
           class Params>
 __device__ void calculate_softmax(AttnProbs attention_probs, // output buffer with size BxNxSxT
-                                  SeqLensK seqlens_k,         // past sequence lengths tensor
+                                  SeqLensK seqlens_k,        // past sequence lengths tensor
                                   Params params,
                                   index_int idx)
 {

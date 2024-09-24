@@ -100,13 +100,10 @@ struct naive_gemm
     float beta;
 
     template <class C, class A, class B>
-    __device__ void compute(C cmat,
-                            const A amat,
-                            const B bmat,
-                            const std::size_t idx)
+    __device__ void compute(C cmat, const A amat, const B bmat, const std::size_t idx)
     {
-        auto m    = idx / _n;
-        auto n    = idx % _n;
+        auto m     = idx / _n;
+        auto n     = idx % _n;
         auto index = [&](auto x, auto y, auto z) { return y + (x * z); };
 
         if(m < _m)

@@ -93,7 +93,7 @@ struct print_buffer
             append('0');
             return;
         }
-        auto start = pos;
+        char* start = pos;
         while(i != 0)
         {
             char c = (i % 10) + '0';

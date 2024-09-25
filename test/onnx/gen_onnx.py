@@ -10133,11 +10133,11 @@ def roialign_test():
 @onnx_test()
 def roialign_half_pixel_test():
     x = helper.make_tensor_value_info('x', TensorProto.FLOAT, [2, 2, 4, 3])
-    roi = helper.make_tensor_value_info('rois', TensorProto.FLOAT, [1, 4])
-    bi = helper.make_tensor_value_info('batch_ind', TensorProto.INT64, [1])
+    roi = helper.make_tensor_value_info('rois', TensorProto.FLOAT, [2, 4])
+    bi = helper.make_tensor_value_info('batch_ind', TensorProto.INT64, [2])
     y = helper.make_tensor_value_info('y', TensorProto.FLOAT, [2, 2, 4, 3])
 
-    # half_pixel is the new mode we're developing for
+    # half_pixel is the newer mode for ROIAlign
     node = onnx.helper.make_node(
         'RoiAlign',
         inputs=['x', 'rois', 'batch_ind'],

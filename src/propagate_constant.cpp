@@ -38,13 +38,18 @@ MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_TRACE_PROPAGATE_CONSTANT)
 
 bool skip_propagate(instruction_ref ins)
 {
-    if(ins->name() == "contiguous")
+    if(contains({"contiguous", "dequantizelinear", "reshape"}, ins->name()))
         return skip_propagate(ins->inputs().front());
+    if(ins->name() == "unpack_int4")
+        return true;
     auto&& s = ins->get_shape();
     if(s.broadcasted() and not s.scalar())
         return true;
     if(s.scalar() and s.elements() != 1)
         return true;
+    auto alias = instruction::get_output_alias(ins, true);
+    if(alias != ins)
+        return skip_propagate(alias);
     return false;
 }
 

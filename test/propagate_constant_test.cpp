@@ -252,6 +252,32 @@ TEST_CASE(fold_broadcast_non_overlapping_broadcast)
     EXPECT(m1 == m2);
 }
 
+TEST_CASE(pack_unpack_int4)
+{
+    migraphx::shape s1{migraphx::shape::int8_type, {4}};
+    migraphx::shape s2{migraphx::shape::int8_type, {2}};
+    migraphx::module m1;
+    {
+        const std::vector<int8_t> vec = {1, 0, 2, 0};
+        auto l = m1.add_literal(migraphx::literal(s1, vec));
+        auto pack = m1.add_instruction(migraphx::make_op("pack_int4"), l);
+        auto unpack = m1.add_instruction(migraphx::make_op("unpack_int4"), pack);
+        m1.add_return({unpack});
+    }
+
+    run_pass(m1);
+
+    migraphx::module m2;
+    {
+        const std::vector<int8_t> vec = {1, 2};
+        auto l = m2.add_literal(migraphx::literal(s2, vec));
+        auto unpack = m2.add_instruction(migraphx::make_op("unpack_int4"), l);
+        m2.add_return({unpack});
+    }
+
+    EXPECT(m1 == m2);
+}
+
 TEST_CASE(skip_ops)
 {
     const std::vector<float> vec = {1.0f, 2.0f, 1.0f, 2.0f};

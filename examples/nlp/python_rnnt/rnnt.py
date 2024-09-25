@@ -23,10 +23,11 @@
 from typing import List, Optional, Tuple
 import argparse
 
+import torch
 import migraphx as mgx
 import os
 import sys
-import torch
+
 import torch.nn.functional as F
 
 from rnnt_data import librespeech_huggingface
@@ -88,7 +89,7 @@ def allocate_torch_tensors(model):
 
 
 class RNNT_MGX():
-    def __init__(self, seq_length, onnx_model_path):
+    def __init__(self, x, onnx_model_path):
 
         fp16 = []
 
@@ -102,8 +103,7 @@ class RNNT_MGX():
             RNNT_MGX.load_mgx_model(
                 "rnnt_encoder",
                 {
-                    "input": [seq_length, 1, 240
-                              ],  # seq_length, batch_size, feature_length
+                    "input": x.shape,  # seq_length, batch_size, feature_length
                     "feature_length": [1]
                 },
                 onnx_model_path,
@@ -344,7 +344,6 @@ if __name__ == "__main__":
 
     print("Getting data...")
     x, out_lens, transcript = librespeech_huggingface()
-    seq_length = x.shape[0]
 
     if any(check_onnx_files) == False:
         from rnnt_torch_model import pytorch_rnnt_model
@@ -354,12 +353,11 @@ if __name__ == "__main__":
         pytorch_model = pytorch_rnnt_model()
 
         print("Export pytorch model to ONNX...")
-        export_rnnt_onnx(pytorch_model, seq_length=seq_length)
+        export_rnnt_onnx(pytorch_model, x, args.onnx_model_path)
 
     print("Read MIGX model from ONNX and run...")
-    migx_model = RNNT_MGX(seq_length=seq_length,
-                          onnx_model_path=args.onnx_model_path)
-    rnnt_migx = GreedyDecoder(migx_model)
-    _, _, result = rnnt_migx.run(x.to(torch.float32), out_lens)
+    migx_model = RNNT_MGX(x, onnx_model_path=args.onnx_model_path)
+    rnnt_decoder = GreedyDecoder(migx_model)
+    _, _, result = rnnt_decoder.run(x.to(torch.float32), out_lens)
     print("Transcribed Sentence: ", decode_string(result))
     print("Ground Truth: ", transcript)

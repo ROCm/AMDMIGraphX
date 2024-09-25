@@ -37,6 +37,16 @@
 MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_ENABLE_MLIR_INPUT_FUSION);
 MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_ENABLE_MLIR_REDUCE_FUSION);
 
+struct non_mlir_op
+{
+    std::string name() const { return "non_mlir_op"; }
+    migraphx::shape compute_shape(const std::vector<migraphx::shape>& inputs) const
+    {
+        migraphx::check_shapes{inputs, *this}.has(1);
+        return inputs.at(0);
+    }
+};
+
 void run_pass(migraphx::program& p)
 {
     migraphx::run_passes(
@@ -1083,9 +1093,7 @@ TEST_CASE(gemm_invalid_pw_softmax_gemm)
         auto b   = mm->add_parameter("2", s1);
         auto b1  = mm->add_parameter("3", s1);
         std::vector<float> eights(s1_elements, 0.125);
-        std::vector<float> tens(s1_elements, 10);
         auto eight = mm->add_literal(migraphx::literal{s1, eights});
-        auto ten   = mm->add_literal(migraphx::literal{s1, tens});
         b = mm->add_instruction(migraphx::make_op("transpose", {{"permutation", {0, 1, 3, 2}}}), b);
         b = mm->add_instruction(migraphx::make_op("contiguous"), b);
         b1 = mm->add_instruction(migraphx::make_op("transpose", {{"permutation", {0, 1, 3, 2}}}),
@@ -1096,7 +1104,7 @@ TEST_CASE(gemm_invalid_pw_softmax_gemm)
         auto pw_reduce = add_reduce(
             p1,
             "main:fused_reduce0",
-            {gemm1, eight, ten},
+            {gemm1, eight},
             {3},
             [&](auto* rm,
                 const auto& inputs,
@@ -1105,7 +1113,7 @@ TEST_CASE(gemm_invalid_pw_softmax_gemm)
                     p1, rm, "main:pointwise0", inputs, [](auto* pm, const auto& pw_inputs) {
                         auto mul = pm->add_instruction(
                             migraphx::make_op("mul"), pw_inputs[0], pw_inputs[1]);
-                        return pm->add_instruction(migraphx::make_op("max"), mul, pw_inputs[2]);
+                        return pm->add_instruction(non_mlir_op{}, mul);
                     });
                 auto rmax =
                     rm->add_instruction(migraphx::make_op("reduce_max", {{"axes", axes}}), pw);
@@ -1139,9 +1147,7 @@ TEST_CASE(gemm_invalid_pw_softmax_gemm)
         auto b   = mm->add_parameter("2", s1);
         auto b1  = mm->add_parameter("3", s1);
         std::vector<float> eights(s1_elements, 0.125);
-        std::vector<float> tens(s1_elements, 10);
         auto eight = mm->add_literal(migraphx::literal{s1, eights});
-        auto ten   = mm->add_literal(migraphx::literal{s1, tens});
         auto gemm1 =
             add_mlir(p2, "mlir_dot11", {a, b}, {"y0", "y1"}, [=](auto* pm, const auto& inputs) {
                 auto tp = pm->add_instruction(
@@ -1154,7 +1160,7 @@ TEST_CASE(gemm_invalid_pw_softmax_gemm)
         auto pw_reduce = add_reduce(
             p2,
             "main:fused_reduce0",
-            {gemm1, eight, ten},
+            {gemm1, eight},
             {3},
             [&](auto* rm,
                 const auto& inputs,
@@ -1163,7 +1169,7 @@ TEST_CASE(gemm_invalid_pw_softmax_gemm)
                     p2, rm, "main:pointwise0", inputs, [](auto* pm, const auto& pw_inputs) {
                         auto mul = pm->add_instruction(
                             migraphx::make_op("mul"), pw_inputs[0], pw_inputs[1]);
-                        return pm->add_instruction(migraphx::make_op("max"), mul, pw_inputs[2]);
+                        return pm->add_instruction(non_mlir_op{}, mul);
                     });
                 auto rmax =
                     rm->add_instruction(migraphx::make_op("reduce_max", {{"axes", axes}}), pw);

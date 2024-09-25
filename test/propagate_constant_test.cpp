@@ -186,6 +186,72 @@ TEST_CASE(last_const)
     EXPECT(m1 == m2);
 }
 
+TEST_CASE(skip_broadcast)
+{
+    migraphx::module m1;
+    {
+        auto one  = m1.add_literal(1);
+        auto oneb = m1.add_instruction(migraphx::make_op("multibroadcast", {{"out_lens", {2, 2}}}), one);
+        m1.add_return({oneb});
+    }
+
+    migraphx::module m2 = m1;
+    run_pass(m1);
+
+    EXPECT(m1 == m2);
+}
+
+TEST_CASE(fold_broadcast)
+{
+    const std::vector<float> vec = {1.0f, 2.0f, 1.0f, 2.0f};
+    migraphx::shape s{migraphx::shape::float_type, {2, 2}};
+    migraphx::module m1;
+    {
+        auto one  = m1.add_literal(1.0f);
+        auto oneb = m1.add_instruction(migraphx::make_op("multibroadcast", {{"out_lens", {2, 2}}}), one);
+        auto l = m1.add_literal(migraphx::literal(s, vec));
+        auto mul = m1.add_instruction(migraphx::make_op("mul"), oneb, l);
+        m1.add_return({mul});
+    }
+
+    run_pass(m1);
+
+    migraphx::module m2;
+    {
+        auto l = m2.add_literal(migraphx::literal(s, vec));
+        m2.add_return({l});
+    }
+
+    EXPECT(m1 == m2);
+}
+
+TEST_CASE(fold_broadcast_non_overlapping_broadcast)
+{
+    const std::vector<float> vec = {1.0f, 2.0f};
+    migraphx::shape s1{migraphx::shape::float_type, {1, 2}};
+    migraphx::shape s2{migraphx::shape::float_type, {2, 1}};
+    migraphx::module m1;
+    {
+        auto l1 = m1.add_literal(migraphx::literal(s1, vec));
+        auto l1b = m1.add_instruction(migraphx::make_op("multibroadcast", {{"out_lens", {2, 2}}}), l1);
+        auto l2 = m1.add_literal(migraphx::literal(s2, vec));
+        auto l2b = m1.add_instruction(migraphx::make_op("multibroadcast", {{"out_lens", {2, 2}}}), l2);
+        auto mul = m1.add_instruction(migraphx::make_op("mul"), l1b, l2b);
+        m1.add_return({mul});
+    }
+
+    run_pass(m1);
+
+    migraphx::module m2;
+    {
+        migraphx::shape s{migraphx::shape::float_type, {2, 2}};
+        auto l = m2.add_literal(migraphx::literal(s, {1.0f, 2.0f, 2.0f, 4.0f}));
+        m2.add_return({l});
+    }
+
+    EXPECT(m1 == m2);
+}
+
 TEST_CASE(skip_ops)
 {
     const std::vector<float> vec = {1.0f, 2.0f, 1.0f, 2.0f};

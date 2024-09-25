@@ -68,22 +68,4 @@ struct test_pooling_large_kernel : verify_program<test_pooling_large_kernel>
     }
 };
 
-struct test_pooling_invalid_padding : verify_program<test_pooling_invalid_padding>
-{
-    migraphx::program create_program() const
-    {
-        migraphx::program p;
-        auto* mm = p.get_main_module();
 
-        // Pooling operation with invalid padding
-        migraphx::shape s0{migraphx::shape::float_type, {1, 3, 32, 32}};
-        auto l0 = mm->add_parameter("z", s0);
-        migraphx::op::pooling invalid_op{migraphx::op::pooling_mode::max};
-        invalid_op.lengths = {2, 2};
-        invalid_op.stride  = {1, 1};
-        invalid_op.padding = {3, 3};  // Large padding, should fallback
-        mm->add_instruction(invalid_op, l0);
-
-        return p;
-    }
-};

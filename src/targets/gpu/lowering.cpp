@@ -22,10 +22,8 @@
  * THE SOFTWARE.
  */
 #include <iterator>
-#include <utility>
 #include <functional>
 #include <algorithm>
-#include <map>
 
 #include <migraphx/manage_ptr.hpp>
 #include <migraphx/instruction.hpp>
@@ -47,14 +45,17 @@
 #include <migraphx/gpu/lowering.hpp>
 #include <migraphx/gpu/device_name.hpp>
 #include <migraphx/gpu/gemm.hpp>
+#include <migraphx/gpu/hip_gemm.hpp>
 #include <migraphx/gpu/miopen.hpp>
 #include <migraphx/gpu/rocblas.hpp>
+#include <migraphx/gpu/hipblaslt.hpp>
 #include <migraphx/gpu/compiler.hpp>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
 namespace gpu {
 
+MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_ENABLE_HIPBLASLT_GEMM);
 MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_DISABLE_MIOPEN_POOLING)
 
 struct miopen_apply
@@ -109,7 +110,7 @@ struct miopen_apply
         add_convolution_op("quant_convolution");
         add_extend_op("lrn");
 #endif
-#if MIGRAPHX_USE_ROCBLAS
+#if MIGRAPHX_USE_ROCBLAS or MIGRAPHX_USE_HIPBLASLT
         add_gemm_op<op::dot>("dot");
         add_gemm_op<op::quant_dot>("quant_dot");
 #endif
@@ -242,16 +243,31 @@ struct miopen_apply
         return mod->insert_instruction(ins, make_op("allocate", {{"shape", to_value(s)}}));
     }
 
-#if MIGRAPHX_USE_ROCBLAS
+#if MIGRAPHX_USE_ROCBLAS or MIGRAPHX_USE_HIPBLASLT
     template <typename Op>
     void add_gemm_op(const std::string& name)
     {
         apply_map.emplace(name, [=](instruction_ref ins) {
             std::vector<instruction_ref> refs = ins->inputs();
             assert(refs.size() == 2);
+#if MIGRAPHX_USE_HIPBLASLT
+            if(enabled(MIGRAPHX_ENABLE_HIPBLASLT_GEMM{}))
+            {
+                shape workspace_shape{shape::uint8_type, {hipblaslt_workspace_size}};
+                auto workspace = insert_allocation(ins, workspace_shape);
+                refs.push_back(workspace);
+            }
+#endif
             auto output = insert_allocation(ins, ins->get_shape());
             refs.push_back(output);
-            return mod->replace_instruction(ins, rocblas_gemm<Op>{Op{}, 1, 0, compute_fp32}, refs);
+#if MIGRAPHX_USE_HIPBLASLT
+            if(not enabled(MIGRAPHX_ENABLE_HIPBLASLT_GEMM{}) or not hipblaslt_supported())
+            {
+                return mod->replace_instruction(
+                    ins, rocblas_gemm<Op>{Op{}, 1, 0, compute_fp32}, refs);
+            }
+#endif
+            return mod->replace_instruction(ins, hip_gemm<Op>{Op{}, 1, 0}, refs);
         });
     }
 #endif
@@ -301,27 +317,34 @@ struct miopen_apply
         });
     }
 
+    static bool use_miopen_pooling(instruction_ref ins)
+    {
+        if(enabled(MIGRAPHX_DISABLE_MIOPEN_POOLING{}))
+            return false;
+        auto&& op   = ins->get_operator();
+        auto op_val = op.to_value();
+        auto mode   = op_val.at("mode").to<op::pooling_mode>();
+        if(op_val.at("count_include_pad").to<bool>() and mode == op::pooling_mode::average)
+            return false;
+        if(mode == op::pooling_mode::lpnorm)
+            return false;
+        auto op_padding = op_val.at("padding").to_vector<size_t>();
+        auto kdims      = ins->get_shape().lens().size() - 2;
+        return std::equal(op_padding.begin(),
+                          op_padding.begin() + kdims,
+                          op_padding.begin() + kdims,
+                          op_padding.end());
+    }
+
     void add_pooling_op()
     {
         apply_map.emplace("pooling", [=](instruction_ref ins) {
-            if(enabled(MIGRAPHX_DISABLE_MIOPEN_POOLING{}))
-            {
+            if(not use_miopen_pooling(ins))
                 return insert_precompile_op(ins);
-            }
-            auto&& op   = ins->get_operator();
-            auto op_val = op.to_value();
-            if(op_val.at("count_include_pad").to<bool>() and
-               op_val["mode"].to<op::pooling_mode>() == op::pooling_mode::average)
-            {
-                return insert_precompile_op(ins);
-            }
-            if(op_val["mode"].to<op::pooling_mode>() == op::pooling_mode::lpnorm)
-            {
-                return insert_precompile_op(ins);
-            }
 #if MIGRAPHX_USE_MIOPEN
             auto output                       = insert_allocation(ins, ins->get_shape());
             std::vector<instruction_ref> refs = ins->inputs();
+            auto&& op                         = ins->get_operator();
             refs.push_back(output);
             return mod->replace_instruction(ins, make_op("gpu::pooling", op.to_value()), refs);
 #else 

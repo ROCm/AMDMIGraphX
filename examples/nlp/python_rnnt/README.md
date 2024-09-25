@@ -11,8 +11,8 @@ To run the RNN-T, follow these steps below.
 2) Require the python venv to installed
 
 ```bash
-python3 -m venv sd_venv
-. sd_venv/bin/activate
+python3 -m venv rnnt_venv
+. rnnt_venv/bin/activate
 ```
 
 3) Install dependencies

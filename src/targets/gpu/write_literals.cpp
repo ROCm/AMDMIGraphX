@@ -21,6 +21,8 @@
  * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
  * THE SOFTWARE.
  */
+#include <fstream>
+#include <filesystem>
 #include <migraphx/gpu/write_literals.hpp>
 #include <migraphx/iterator_for.hpp>
 #include <migraphx/gpu/hip.hpp>
@@ -32,6 +34,7 @@
 #include <fstream>
 #include <functional>
 
+namespace fs = std::filesystem;
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
 namespace gpu {
@@ -43,6 +46,7 @@ struct fetch_literal
     std::string id{};
     shape l_shape;
     std::string literal_file;
+    argument data;
     std::string name() const { return "fetch_literal"; }
 
     template <class Self, class F>
@@ -55,7 +59,11 @@ struct fetch_literal
     shape compute_shape(const std::vector<shape>&) const { return l_shape; }
     argument compute(context&, const shape&, const std::vector<argument>&) const
     {
+        return data;
+    }
 
+    void finalize(context&, const shape&, const std::vector<shape>&)
+    {
         std::ifstream is;
         is.open(literal_file);
         if(not is.is_open())
@@ -71,7 +79,7 @@ struct fetch_literal
         }
         is.close();
 
-        return {l_shape, buffer};
+        data = {l_shape, buffer};
     }
     friend std::ostream& operator<<(std::ostream& os, const fetch_literal& x)
     {
@@ -87,21 +95,17 @@ void write_literals::apply(module& m) const
     std::size_t n = 0;
     std::ofstream fs;
     std::string output_file_header;
-    bool create_file   = true;
     bool save_literals = strip_weights;
 
     if(output.empty())
-    {
         save_literals = false;
-    }
 
     if(save_literals)
     {
         output_file_header = output + "_literals";
-        if(mkdir(output_file_header.c_str(), 0777) == -1)
+        if(not fs::exists(output_file_header))
         {
-            std::cout << "Using past saved literals\n\n";
-            create_file = false;
+            fs::create_directory(output_file_header);
         }
     }
 
@@ -119,10 +123,8 @@ void write_literals::apply(module& m) const
                 std::string output_file = output_file_header + "/" + std::to_string(hash_v) +
                                           ".mxr_literal" +
                                           ins->get_literal().get_shape().type_string();
-                std::ifstream file(output_file);
-
                 // check and see if new file needs to be saved
-                if(not file || create_file)
+                if(not fs::exists(output_file))
                 {
                     fs.open(output_file,
                             std::ofstream::out | std::ofstream::trunc | std::ios::binary);
@@ -133,7 +135,7 @@ void write_literals::apply(module& m) const
                 if(enabled(MIGRAPHX_COPY_LITERALS{}))
                 {
                     auto pre =
-                        m.insert_instruction(ins, fetch_literal{id, ins->get_shape(), output_file});
+                        m.insert_instruction(ins, fetch_literal{id, ins->get_shape(), output_file, argument()});
                     auto alloc = m.insert_instruction(std::next(pre),
                                                       hip_allocate{ins->get_literal().get_shape()});
                     m.replace_instruction(ins, hip_copy_to_gpu{}, pre, alloc);

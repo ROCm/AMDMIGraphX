@@ -21,8 +21,9 @@
  * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
  * THE SOFTWARE.
  */
-#include <fstream>
 #include <filesystem>
+#include <fstream>
+#include <functional>
 #include <migraphx/gpu/write_literals.hpp>
 #include <migraphx/iterator_for.hpp>
 #include <migraphx/gpu/hip.hpp>
@@ -31,8 +32,6 @@
 #include <migraphx/env.hpp>
 #include <migraphx/register_op.hpp>
 #include <sys/stat.h>
-#include <fstream>
-#include <functional>
 
 namespace fs = std::filesystem;
 namespace migraphx {
@@ -57,10 +56,7 @@ struct fetch_literal
     }
 
     shape compute_shape(const std::vector<shape>&) const { return l_shape; }
-    argument compute(context&, const shape&, const std::vector<argument>&) const
-    {
-        return data;
-    }
+    argument compute(context&, const shape&, const std::vector<argument>&) const { return data; }
 
     void finalize(context&, const shape&, const std::vector<shape>&)
     {
@@ -134,8 +130,8 @@ void write_literals::apply(module& m) const
 
                 if(enabled(MIGRAPHX_COPY_LITERALS{}))
                 {
-                    auto pre =
-                        m.insert_instruction(ins, fetch_literal{id, ins->get_shape(), output_file, argument()});
+                    auto pre = m.insert_instruction(
+                        ins, fetch_literal{id, ins->get_shape(), output_file, argument()});
                     auto alloc = m.insert_instruction(std::next(pre),
                                                       hip_allocate{ins->get_literal().get_shape()});
                     m.replace_instruction(ins, hip_copy_to_gpu{}, pre, alloc);

@@ -455,7 +455,7 @@ struct find_scalar_mul_conv
                 conv_const_weights().bind("conv"),
                 match::either_arg(0, 1)(
                     match::name("broadcast", "multibroadcast", "constant").bind("scalar"),
-                    match::any().bind("scalar") // Matching any instruction that could be scalar-like
+                    match::any().bind("scalar")
                 )
             )
         );
@@ -470,7 +470,6 @@ struct find_scalar_mul_conv
         if(scalar_ins->get_shape().elements() != 1)
             return;
         const auto& w_shape = w_ins->get_shape().lens();
-
 
         if(scalar_ins->get_shape().ndim() != w_shape.size())
         {

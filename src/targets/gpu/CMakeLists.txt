@@ -22,6 +22,11 @@
 # THE SOFTWARE.
 # ####################################################################################
 
+# HIP SDK on Windows does not detect platform correctly, defaulting to "amd"
+if(NOT HIP_PLATFORM AND CMAKE_SYSTEM_NAME STREQUAL "Windows")
+    set(HIP_PLATFORM "amd")
+endif()
+
 find_package(hip REQUIRED)
 if(NOT GPU_TARGETS)
     set(fatal_msg "HIP package is broken and has no GPU_TARGETS. Please pass GPU_TARGETS to cmake.")
@@ -44,6 +49,16 @@ if(MIGRAPHX_USE_ROCBLAS)
     message(STATUS "MIGraphX build with rocBLAS")
 else()
     message(STATUS "MIGraphX build without rocBLAS")
+endif()
+
+if(MIGRAPHX_USE_HIPBLASLT)
+    # hipblaslt
+    find_package(hipblaslt REQUIRED)
+    # Making hipblas required to workaround the broken hipblaslt package.
+    find_package(hipblas REQUIRED)
+    message(STATUS "MIGraphx build with hipBLAS and hipBLASLt")
+else()
+    message(STATUS "MIGraphX build without hipBLAS and hipBLASLt")
 endif()
 
 if(MIGRAPHX_USE_COMPOSABLEKERNEL)
@@ -147,6 +162,8 @@ add_library(migraphx_gpu
     fuse_ops.cpp
     gemm_impl.cpp
     hip.cpp
+    hipblaslt.cpp
+    hip_gemm_impl.cpp
     kernel.cpp
     lowering.cpp
     logsoftmax.cpp
@@ -215,6 +232,12 @@ if(MIGRAPHX_USE_ROCBLAS)
     register_op(migraphx_gpu
         HEADER migraphx/gpu/gemm.hpp
         OPERATORS gpu::rocblas_gemm<op::dot> gpu::rocblas_gemm<op::quant_dot>
+        INCLUDES migraphx/gpu/context.hpp)
+endif()
+if(MIGRAPHX_USE_HIPBLASLT)
+    register_op(migraphx_gpu
+        HEADER migraphx/gpu/hip_gemm.hpp
+        OPERATORS gpu::hip_gemm<op::dot> gpu::hip_gemm<op::quant_dot>
         INCLUDES migraphx/gpu/context.hpp)
 endif()
 if (MIGRAPHX_USE_MIOPEN)
@@ -305,6 +328,12 @@ else()
     target_compile_definitions(migraphx_gpu PUBLIC MIGRAPHX_USE_ROCBLAS=0)
 endif()
 
+if(MIGRAPHX_USE_HIPBLASLT)
+    target_compile_definitions(migraphx_gpu PUBLIC MIGRAPHX_USE_HIPBLASLT=1)
+else()
+    target_compile_definitions(migraphx_gpu PUBLIC MIGRAPHX_USE_HIPBLASLT=0)
+endif()
+
 if(MIGRAPHX_USE_MIOPEN)
     set(MIGRAPHX_USE_FIND_2_API "${HAS_FIND_2_API}" CACHE BOOL "")
 
@@ -347,6 +376,10 @@ if(MIGRAPHX_USE_ROCBLAS)
 
 
     target_link_libraries(migraphx_gpu PUBLIC roc::rocblas)
+endif()
+
+if(MIGRAPHX_USE_HIPBLASLT)
+    target_link_libraries(migraphx_gpu PUBLIC roc::hipblaslt)
 endif()
 
 if(WIN32)

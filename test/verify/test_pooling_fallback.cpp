@@ -76,7 +76,7 @@ struct test_pooling_invalid_padding : verify_program<test_pooling_invalid_paddin
         auto* mm = p.get_main_module();
 
         // Pooling operation with invalid padding
-        migraphx::shape s0{migraphx::shape::float_type, {1, 3, 16, 16}};
+        migraphx::shape s0{migraphx::shape::float_type, {1, 3, 32, 32}};
         auto l0 = mm->add_parameter("z", s0);
         migraphx::op::pooling invalid_op{migraphx::op::pooling_mode::max};
         invalid_op.lengths = {2, 2};

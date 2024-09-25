@@ -60,7 +60,7 @@ def rocmtestnode(Map conf) {
                 sh 'printenv'
                 checkout scm
             }
-            gitStatusWrapper(credentialsId: "${env.status_wrapper_creds}", gitHubContext: "Jenkins - ${variant}", account: 'ROCmSoftwarePlatform', repo: 'AMDMIGraphX') {
+            gitStatusWrapper(credentialsId: "${env.migraphx_ci_creds}", gitHubContext: "Jenkins - ${variant}", account: 'ROCmSoftwarePlatform', repo: 'AMDMIGraphX') {
                 pre()
                 stage("image ${variant}") {
                     try {

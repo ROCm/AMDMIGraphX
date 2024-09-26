@@ -53,3 +53,5 @@ struct test_convert : verify_program<test_convert<From, To>>
 
 template struct test_convert<migraphx::shape::int8_type, migraphx::shape::float_type>;
 template struct test_convert<migraphx::shape::fp8e4m3fnuz_type, migraphx::shape::float_type>;
+template struct test_convert<migraphx::shape::fp8e4m3fn_type, migraphx::shape::float_type>;
+template struct test_convert<migraphx::shape::fp8e5m2_type, migraphx::shape::float_type>;

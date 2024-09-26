@@ -23,6 +23,7 @@
  */
 #include <algorithm>
 #include <cstdint>
+#include <migraphx/shape.hpp>
 #include <migraphx/algorithm.hpp>
 #include <migraphx/make_op.hpp>
 #include <migraphx/stringutils.hpp>
@@ -310,6 +311,10 @@ struct mlir_program
                 result = mlirF16TypeGet(ctx.get());
             else if(as.type_enum() == shape::fp8e4m3fnuz_type)
                 result = mlirFloat8E4M3FNUZTypeGet(ctx.get());
+            else if(as.type_enum() == shape::fp8e4m3fn_type)
+                result = mlirFloat8E4M3FNTypeGet(ctx.get());
+            else if(as.type_enum() == shape::fp8e5m2_type)
+                result = mlirFloat8E5M2TypeGet(ctx.get());
             else if(as.type_enum() == shape::double_type)
                 result = mlirF64TypeGet(ctx.get());
             else if(as.is_integral())
@@ -321,7 +326,7 @@ struct mlir_program
                 {
                     MIGRAPHX_THROW("Unsupported type: " + std::to_string(as.type_enum()));
                 }
-                result = mlirIntegerTypeGet(ctx.get(), as.size() * 8);
+                result = mlirIntegerTypeGet(ctx.get(), as.size() * 8); // number of bits
             }
             else
                 MIGRAPHX_THROW("Unsupported type: " + std::to_string(as.type_enum()));
@@ -619,9 +624,9 @@ struct mlir_program
         if(ins->name() == "@return")
             return "func.return";
         if(ins->name() == "@literal")
-        {
             return "migraphx.literal";
-        }
+        if(ins->name() == "unpack_int4")
+            return "migraphx.unpack";
         return "migraphx." + ins->name();
     }
 
@@ -644,6 +649,10 @@ struct mlir_program
                 std::copy(padding.begin(), padding.end(), std::back_inserter(v.at("padding")));
             }
         }
+
+        if(op.name() == "unpack_int4")
+            v["axis"] = ins->get_shape().ndim() - 1;
+
         return v;
     }
 
@@ -693,15 +702,30 @@ struct mlir_program
             ops.add_attribute_value(get_operator_value(ins));
             if(ins->name() != "@return")
                 ops.add_results({get_shape(ins)});
+
             if(ins->name() == "@literal")
             {
-                literal r            = ins->get_literal();
-                MlirType shaped_type = make_mlir_shaped(ins->get_shape());
+                literal r = ins->get_literal();
+                auto sh   = ins->get_shape();
+
+                // mlir works only with signed types. change uint4 to (int4 + unsigned-flag)
+                if(shape::is_unsigned(sh.type()) and ins->outputs()[0]->name() == "unpack_int4")
+                    sh = ins->get_shape().with_type(shape::int8_type);
+
+                MlirType shaped_type = make_mlir_shaped(sh);
                 MlirType tensor_type = rocmlirMIXRShapedTypeAsTensor(shaped_type);
                 MlirAttribute mlir_value_attr =
                     mlirDenseElementsAttrRawBufferGet(tensor_type, r.get_shape().bytes(), r.data());
                 ops.add_attributes({{"value", mlir_value_attr}});
             }
+
+            if(ins->name() == "unpack_int4")
+            {
+                auto sh = get_shape(ins);
+                ops.add_attributes(
+                    {{"isUnsigned", shape::is_unsigned(sh.type())}}); // flag for uint4
+            }
+
             if(ins->name() == "convolution" or ins->name() == "dot")
             {
                 pp =

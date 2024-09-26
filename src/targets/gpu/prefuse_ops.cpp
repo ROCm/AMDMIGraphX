@@ -38,6 +38,8 @@ namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
 namespace gpu {
 
+MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_DISABLE_LAYERNORM_FUSION);
+
 namespace {
 
 template <class Derived, std::size_t N>
@@ -150,19 +152,6 @@ auto is_ck_gemm()
     });
 }
 
-auto is_mlir_gemm()
-{
-    return match::make_basic_pred_matcher([=](instruction_ref ins) {
-        if(not mlir_attention_enabled())
-            return false;
-        if(ins->name() != "dot")
-            return false;
-        return std::all_of(ins->inputs().begin(), ins->inputs().end(), [&](auto i) {
-            return pre_gemm_softmax_gemm::is_mlir_supported_type(i->get_shape().type());
-        });
-    });
-}
-
 auto is_test_gemm(bool enable_attention)
 {
     return match::make_basic_pred_matcher([=](instruction_ref ins) {
@@ -190,19 +179,22 @@ struct find_gemm_softmax_gemm
     auto matcher() const
     {
         auto gemm1 = match::skip(match::name("contiguous"))(match::name("dot")(
-            match::any_of(is_ck_gemm(), is_mlir_gemm(), is_test_gemm(enable_attention))
-                .bind("gemm1")));
+            match::any_of(is_ck_gemm(), is_test_gemm(enable_attention)).bind("gemm1")));
         auto mul   = match::name("mul")(
             match::nargs(2), match::either_arg(0, 1)(match::is_constant().bind("scale"), gemm1));
-        auto add = match::name("add")(is_bias_supported(),
-                                      match::nargs(2),
-                                      match::any_arg(0, 1)(match::none_of(mul).bind("bias")));
-        auto softmax =
-            match::name("softmax")(match::arg(0)(match::any_of(mul, add, gemm1))).bind("softmax");
+        auto where = match::name("where")(match::arg(2)(match::is_constant().bind("select_const")),
+                                          match::arg(1)(mul),
+                                          match::arg(0)(match::any().bind("select_cond")));
+        auto add =
+            match::name("add")(is_bias_supported(),
+                               match::nargs(2),
+                               match::either_arg(0, 1)(match::none_of(mul).bind("bias"), mul));
+        auto softmax = match::name("softmax")(match::arg(0)(match::any_of(mul, add, gemm1, where)))
+                           .bind("softmax");
 
         return match::name("dot")(
-            match::any_of(is_ck_gemm(), is_mlir_gemm(), is_test_gemm(enable_attention))
-                .bind("gemm2"))(match::arg(0)(softmax));
+            match::any_of(is_ck_gemm(), is_test_gemm(enable_attention)).bind("gemm2"))(
+            match::arg(0)(softmax));
     }
 
     void apply(module_pass_manager& mpm, const match::matcher_result& r) const
@@ -226,10 +218,16 @@ struct find_gemm_softmax_gemm
         }
 
         auto inputs = gemm1_ins->inputs(); // A, B
+        if(contains(r.instructions, "select_cond"))
+        {
+            inputs.push_back(r.instructions["select_cond"]);
+            inputs.push_back(r.instructions["select_const"]);
+        }
         if(contains(r.instructions, "bias"))
         {
             inputs.push_back(r.instructions["bias"]);
         }
+
         inputs.push_back(gemm2_ins->inputs().back()); // B1
 
         mpm.get_module().replace_instruction(
@@ -241,9 +239,12 @@ struct find_gemm_softmax_gemm
 
 void prefuse_ops::apply(module_pass_manager& mpm) const
 {
-    match::find_matches(mpm.get_module(), find_layernorm{});
-    mpm.run_pass(dead_code_elimination{});
-    match::find_matches(mpm.get_module(), find_add_layernorm{});
+    if(not enabled(MIGRAPHX_DISABLE_LAYERNORM_FUSION{}))
+    {
+        match::find_matches(mpm.get_module(), find_layernorm{});
+        mpm.run_pass(dead_code_elimination{});
+        match::find_matches(mpm.get_module(), find_add_layernorm{});
+    }
     match::find_matches(mpm, find_gemm_softmax_gemm{enable_attention});
 }
 

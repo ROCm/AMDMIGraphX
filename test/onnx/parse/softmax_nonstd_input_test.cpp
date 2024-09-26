@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2023 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2024 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -34,7 +34,7 @@ TEST_CASE(softmax_nonstd_input_test)
     auto l2 = mm->add_instruction(migraphx::make_op("softmax", {{"axis", -1}}), l1);
     mm->add_return({l2});
 
-    auto prog = migraphx::parse_onnx("softmax_nonstd_input_test.onnx");
+    auto prog = read_onnx("softmax_nonstd_input_test.onnx");
 
     EXPECT(p == prog);
 }

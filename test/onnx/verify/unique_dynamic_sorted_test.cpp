@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2023 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2024 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -28,7 +28,7 @@
 
 TEST_CASE(unique_dynamic_sorted_test)
 {
-    migraphx::program p = migraphx::parse_onnx("unique_dynamic_sorted_test.onnx");
+    migraphx::program p = read_onnx("unique_dynamic_sorted_test.onnx");
     p.compile(migraphx::make_target("ref"));
 
     std::vector<float> x{2, 1, 1, 3, 4, 3};

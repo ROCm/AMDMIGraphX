@@ -426,6 +426,33 @@ void preview_argument(std::ostream& os, const argument& a)
         });
 }
 
+// This function currently used only in an Assertion.
+// "Almost identical" shapes.  To support an MLIR feature, there is a limited
+// case where shapes may both be standard but have non-identical strides.
+#ifndef NDEBUG
+static bool is_compatible_shape(const shape& actual, const shape& expected)
+{
+    // Check subshapes
+    if(expected.type() == shape::tuple_type)
+        return equal(actual.sub_shapes().begin(),
+                     actual.sub_shapes().end(),
+                     expected.sub_shapes().begin(),
+                     &is_compatible_shape);
+    // Only the expected can be dynamic
+    if(expected.dynamic())
+        return true;
+    if(actual == expected)
+        return true;
+    if(actual.type() != expected.type())
+        return false;
+    // If both shapes are standard and lens match, they are considered compatible
+    // even if strides are different.
+    if(actual.standard() and expected.standard())
+        return actual.lens() == expected.lens();
+    return false;
+}
+#endif
+
 template <class F>
 std::vector<argument> generic_eval(const module* mod,
                                    std::vector<context>& ctx,
@@ -507,8 +534,7 @@ std::vector<argument> generic_eval(const module* mod,
                 }));
         }
         assert(results.find(ins) != results.end());
-        assert(ins->get_shape().any_of_dynamic() or
-               results.at(ins).get_shape() == ins->get_shape());
+        assert(is_compatible_shape(results.at(ins).get_shape(), ins->get_shape()));
     }
     return {results.at(std::prev(mod->end()))};
 }
@@ -772,9 +798,9 @@ void program::from_value(const value& v)
     auto migx_version = v.at("migraphx_version").to<std::string>();
     if(migx_version != get_migraphx_version())
     {
-        std::cout << "WARNING: MXR File was created using MIGraphX version: " << migx_version
+        std::cout << "[WARNING]: MXR File was created using MIGraphX version: " << migx_version
                   << ", while installed MIGraphX is at version: " << get_migraphx_version()
-                  << ", operators implementation could be mismatched.";
+                  << ", operators implementation could be mismatched.\n";
     }
 
     migraphx::from_value(v.at("targets"), this->impl->targets);
@@ -1081,10 +1107,12 @@ const module* program::get_module(const std::string& name) const { return &impl-
 
 module* program::create_module(const std::string& name)
 {
+
     assert(not contains(impl->modules, name));
     auto r = impl->modules.emplace(name, name);
     return &(r.first->second);
 }
+
 module* program::create_module(const std::string& name, module m)
 {
     assert(not contains(impl->modules, name));

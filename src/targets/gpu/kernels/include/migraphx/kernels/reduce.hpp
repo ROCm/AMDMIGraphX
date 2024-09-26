@@ -29,6 +29,7 @@
 #include <migraphx/kernels/tensor_view.hpp>
 #include <migraphx/kernels/ops.hpp>
 #include <migraphx/kernels/scatter_reduction_modes.hpp>
+#include <migraphx/kernels/tuple.hpp>
 #include <migraphx/kernels/pp.hpp>
 
 namespace migraphx {
@@ -142,6 +143,15 @@ __device__ void dpp_reduce(T& in, Op op)
     }
 #endif
 
+// Navi21 doesn't support int32 dpp
+#if defined(__gfx1030__)
+// NOLINTNEXTLINE
+#define MIGRAPHX_DPP_REDUCE(op, prefix, sign)              \
+    MIGRAPHX_DPP_REDUCE_ASM_FUN(double, op, prefix##_f64); \
+    MIGRAPHX_DPP_REDUCE_ASM_FUN(float, op, prefix##_f32);  \
+    MIGRAPHX_DPP_REDUCE_ASM_FUN(half, op, prefix##_f16);   \
+    MIGRAPHX_DPP_REDUCE_ASM_FUN(uint32_t, op, prefix##_u32);
+#else
 // NOLINTNEXTLINE
 #define MIGRAPHX_DPP_REDUCE(op, prefix, sign)                   \
     MIGRAPHX_DPP_REDUCE_ASM_FUN(double, op, prefix##_f64);      \
@@ -149,6 +159,7 @@ __device__ void dpp_reduce(T& in, Op op)
     MIGRAPHX_DPP_REDUCE_ASM_FUN(half, op, prefix##_f16);        \
     MIGRAPHX_DPP_REDUCE_ASM_FUN(int32_t, op, prefix##sign##32); \
     MIGRAPHX_DPP_REDUCE_ASM_FUN(uint32_t, op, prefix##_u32);
+#endif
 
 // Note: when max and min are in int32_t, signed version of instruction needs to be used.
 MIGRAPHX_DPP_REDUCE(op::sum, v_add, _u)
@@ -279,6 +290,12 @@ constexpr lazy_inner_storage<Size, F> make_lazy_inner_storage(Size, F f)
     return {{}, f};
 }
 
+template <class Size>
+constexpr auto make_indices(Size size)
+{
+    return make_lazy_inner_storage(size, [](auto j, auto) { return j; });
+}
+
 template <class R, class F>
 struct storage_access : F
 {
@@ -312,6 +329,18 @@ constexpr auto compute_reduce_axis()
     return make_shape(lens, get_shape_c<Input>{}.strides);
 }
 
+template <class T, class F>
+constexpr auto final_reduce(T x, F f)
+{
+    return vec_reduce(x, f);
+}
+
+template <class T, index_int N, class F>
+constexpr auto final_reduce(array<T, N> a, F f)
+{
+    return a.apply([&](auto x) { return final_reduce(x, f); });
+}
+
 template <class Input, index_int Axis>
 using with_axis = decltype(compute_reduce_axis<Input, Axis>());
 
@@ -319,7 +348,7 @@ template <class Derived>
 struct reducer_base
 {
     template <class T>
-    __device__ auto make_inner_slice(T x) const
+    __device__ decltype(auto) make_inner_slice(T&& x) const
     {
         if constexpr(is_inner_storage<T>{})
         {
@@ -455,7 +484,7 @@ struct block
         __device__ auto reduce_impl(Op op, T init, Read read, N n, Ts&&... xs) const
         {
             return block_reduce(idx, op, init, n, [&](auto j, auto d) {
-                return vec_reduce(read(xs(j, d)...), op);
+                return final_reduce(read(xs(j, d)...), op);
             });
         }
 
@@ -512,7 +541,7 @@ struct block_large
         __device__ auto reduce_impl(Op op, T init, Read read, N n, Ts&&... xs) const
         {
             return block_reduce(idx, op, init, index_int{n}, [&](auto j, auto d) {
-                return vec_reduce(read(xs(j, d)...), op);
+                return final_reduce(read(xs(j, d)...), op);
             });
         }
 
@@ -585,7 +614,7 @@ struct subwave
         __device__ auto reduce_impl(Op op, T init, Read read, N n, Ts&&... xs) const
         {
             return subwave_reduce<SubWaveSize>(idx, op, init, n, [&](auto j, auto d) {
-                return vec_reduce(read(xs(j, d)...), op);
+                return final_reduce(read(xs(j, d)...), op);
             });
         }
 
@@ -645,7 +674,7 @@ struct lane
         template <class Op, class T, class Read, class N, class U, class... Us>
         __device__ auto reduce_impl(Op op, T init, Read read, N n, U&& x, Us&&... xs) const
         {
-            using type = remove_reference_t<decltype(x(0, _c<0>))>;
+            using type = remove_reference_t<decltype(read(x(0, _c<0>), xs(0, _c<0>)...))>;
             type r     = type(init);
             for(index_int j = 0; j < n; j++)
             {
@@ -732,18 +761,23 @@ simple_reduce(Op op, T init, Input input, Output output, ReadInput read, WriteOu
 }
 
 template <class Algo, class Reduced, class Output, class Assign, class F>
-__device__ void fused_reduce(Output output, Assign assign, F f)
+__device__ void fused_reduce(Output output_pack, Assign assign, F f)
 {
     Algo::template run<Reduced>([&](auto out_idx, auto r) {
-        auto result = f(r, out_idx);
-        if constexpr(reduce::is_inner_storage<decltype(result)>{})
-        {
-            r.inner([&](auto& y, auto x) { assign(y, x); })(output, result);
-        }
-        else
-        {
-            r.outer([&] { assign(output[out_idx], implicit_conversion(result)); });
-        }
+        auto result_tuple = f(r, out_idx);
+        unpack_each(
+            [&](auto output, auto result) {
+                if constexpr(reduce::is_inner_storage<decltype(result)>{})
+                {
+                    r.inner([&](auto& y, auto x) { assign(y, x); })(output, result);
+                }
+                else
+                {
+                    r.outer([&] { assign(output[out_idx], implicit_conversion(result)); });
+                }
+            },
+            output_pack,
+            result_tuple);
     });
 }
 

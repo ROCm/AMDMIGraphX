@@ -31,6 +31,7 @@
 #include <migraphx/iterator_for.hpp>
 #include <migraphx/ranges.hpp>
 #include <migraphx/matcher.hpp>
+#include <migraphx/param_utils.hpp>
 #include <migraphx/rewrite_reshapes.hpp>
 #include <iterator>
 
@@ -41,7 +42,7 @@ inline namespace MIGRAPHX_INLINE_NS {
 
 static literal get_scalar(instruction_ref ins)
 {
-    if(ins->name() == "contiguous")
+    if(contains({"contiguous", "broadcast", "multibroadcast"}, ins->name()))
         return get_scalar(ins->inputs().front());
     const auto& s = ins->get_shape();
     if(s.elements() != 1 and not(s.scalar()))
@@ -88,7 +89,7 @@ static void create_pointwise_modules(module_pass_manager& mpm)
             {
                 pointwise_inputs.push_back(input);
                 param_map[input] =
-                    pm->add_parameter("x" + std::to_string(i), shape{input->get_shape().type()});
+                    pm->add_parameter(param_name(i), shape{input->get_shape().type()});
                 i++;
             }
             else
@@ -133,7 +134,7 @@ static module::with_inputs append_pointwise_module(instruction_ref ins, instruct
     for(auto i : range(inputs.size()))
     {
         auto input = inputs[i];
-        auto param = pm.get_parameter("x" + std::to_string(i));
+        auto param = pm.get_parameter(param_name(i));
         assert(param != pm.end());
         input_map[input] = param;
     }
@@ -141,7 +142,7 @@ static module::with_inputs append_pointwise_module(instruction_ref ins, instruct
     for(auto i : range(output->inputs().size()))
     {
         auto input = output->inputs()[i];
-        auto param = xm->get_parameter("x" + std::to_string(i));
+        auto param = xm->get_parameter(param_name(i));
         assert(param != xm->end());
         if(input == ins)
         {
@@ -156,7 +157,7 @@ static module::with_inputs append_pointwise_module(instruction_ref ins, instruct
         else
         {
             map_ins[param] =
-                pm.add_parameter("x" + std::to_string(inputs.size()), {input->get_shape().type()});
+                pm.add_parameter(param_name(inputs.size()), {input->get_shape().type()});
             inputs.push_back(input);
             input_map[input] = map_ins[param];
         }
@@ -199,7 +200,42 @@ struct pointwise_reshape : rewrite_reshapes_base
     static std::string name() { return "pointwise"; }
 };
 
+struct pointwise_broadcast_pointwise
+{
+    auto matcher() const
+    {
+        auto broadcast_pointwise =
+            match::name("multibroadcast")(
+                match::used_once(),
+                match::args(match::name("pointwise")(match::used_once()).bind("x")))
+                .bind("broadcast");
+        return match::name("pointwise")(match::any_of[match::inputs()](broadcast_pointwise));
+    }
+
+    void apply(module& m, const match::matcher_result& r) const
+    {
+        auto broadcast_ins = r.instructions["broadcast"];
+        auto x_ins         = r.instructions["x"];
+
+        auto broadcast = broadcast_ins->get_operator();
+
+        auto x_inputs = x_ins->inputs();
+        std::transform(x_inputs.begin(), x_inputs.end(), x_inputs.begin(), [&](auto input) {
+            return m.insert_instruction(broadcast_ins, broadcast, input);
+        });
+
+        m.replace_instruction(
+            broadcast_ins, x_ins->get_operator(), x_inputs, x_ins->module_inputs());
+    }
+};
+
 } // namespace
+
+static void rewrite_broadcasts(module_pass_manager& mpm)
+{
+    match::find_matches(mpm.get_module(), pointwise_broadcast_pointwise{});
+    mpm.run_pass(dead_code_elimination{});
+}
 
 void fuse_pointwise::apply(module_pass_manager& mpm) const
 {
@@ -212,7 +248,10 @@ void fuse_pointwise::apply(module_pass_manager& mpm) const
     }
     for(int i = 0; i < 8; i++)
     {
-        mpm.run_pass(rewrite_reshapes<pointwise_reshape>{});
+        if(enable_rewrite_reshapes)
+            mpm.run_pass(rewrite_reshapes<pointwise_reshape>{});
+        if(enable_rewrite_broadcasts)
+            rewrite_broadcasts(mpm);
         if(not find_pointwise_modules(mpm))
             break;
         mpm.run_pass(dead_code_elimination{});

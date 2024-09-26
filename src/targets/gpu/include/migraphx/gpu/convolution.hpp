@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2023 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2024 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -52,7 +52,7 @@ inline shape reshape_if_1d(const shape& input)
     }
     return new_shape;
 }
-
+#if MIGRAPHX_USE_MIOPEN
 template <class Op>
 struct miopen_convolution
 {
@@ -180,6 +180,7 @@ struct miopen_convolution
         const auto& x_shape = inputs[0];
         const auto& w_shape = inputs[1];
 
+        unsigned long seed = 0;
 #ifdef MIGRAPHX_HAS_FIND_2_API
         {
             auto conv_problem = make_obj<miopen_problem>(
@@ -192,8 +193,10 @@ struct miopen_convolution
             // MIOpen has APIs to pass pre-allocated buffers starting from rocm-5.6
             preallocate = true;
 #endif
-            auto x = preallocate ? to_gpu(generate_argument(x_shape)) : argument{inputs[0]};
-            auto w = preallocate ? to_gpu(generate_argument(w_shape)) : argument{inputs[1]};
+            auto x = preallocate ? to_gpu(generate_argument(x_shape, seed++, random_mode::random))
+                                 : argument{inputs[0]};
+            auto w = preallocate ? to_gpu(generate_argument(w_shape, seed++, random_mode::random))
+                                 : argument{inputs[1]};
             auto y = preallocate ? allocate_gpu(output_shape) : argument{inputs[2]};
             auto workspace =
                 preallocate ? allocate_gpu(workspace_shape) : migraphx::argument(workspace_shape);
@@ -233,8 +236,8 @@ struct miopen_convolution
             return shape{shape::int8_type, {workspace_size}};
         }
 #else
-        auto x         = to_gpu(generate_argument(x_shape));
-        auto w         = to_gpu(generate_argument(w_shape));
+        auto x         = to_gpu(generate_argument(x_shape, seed++, random_mode::random));
+        auto w         = to_gpu(generate_argument(w_shape, seed++, random_mode::random));
         auto y         = allocate_gpu(output_shape);
         auto workspace = allocate_gpu(workspace_shape);
         int algo_count = 1;
@@ -341,7 +344,7 @@ struct miopen_convolution
         return shapes.size() - 1;
     }
 };
-
+#endif
 } // namespace gpu
 } // namespace MIGRAPHX_INLINE_NS
 } // namespace migraphx

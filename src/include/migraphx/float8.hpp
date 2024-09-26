@@ -1,5 +1,5 @@
 /* ************************************************************************
- * Copyright (C) 2015-2023 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (C) 2015-2024 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -40,6 +40,7 @@
 #include <string>
 #include <utility>
 #include <migraphx/config.hpp>
+#include <migraphx/functional.hpp>
 #include <migraphx/float8_impl.hpp>
 
 namespace migraphx {
@@ -115,6 +116,8 @@ struct float8
         } // else
         return migraphx::fp8::impl::cast_from_f8<2, 5, float, FNUZ /*negative_zero_nan*/>(data);
     }
+
+    inline explicit constexpr operator bool() const { return not is_zero(); }
 
     inline constexpr bool is_zero() const
     {
@@ -390,7 +393,7 @@ namespace std {
     {                                                                       \
     };                                                                      \
     template <class U>                                                      \
-    struct common_type<U, T> : std::common_type<float, U>                   \
+    struct common_type<U, T> : std::common_type<U, float>                   \
     {                                                                       \
     };                                                                      \
     template <>                                                             \
@@ -403,6 +406,24 @@ MIGRAPHX_FP8_STD_OVERLOADS(migraphx::fp8::fp8e4m3fn)
 MIGRAPHX_FP8_STD_OVERLOADS(migraphx::fp8::fp8e5m2)
 MIGRAPHX_FP8_STD_OVERLOADS(migraphx::fp8::fp8e4m3fnuz)
 MIGRAPHX_FP8_STD_OVERLOADS(migraphx::fp8::fp8e5m2fnuz)
+
+// needed to resolve between multiple ambiguous definition from previous templates
+#define MIGRAPHX_FP8_COMMON_TYPE_OVERLOAD_RESOLUTION(T, U)    \
+    template <>                                               \
+    struct common_type<T, U> : std::common_type<float, float> \
+    {                                                         \
+    };                                                        \
+    template <>                                               \
+    struct common_type<U, T> : std::common_type<float, float> \
+    {                                                         \
+    };
+
+MIGRAPHX_FP8_COMMON_TYPE_OVERLOAD_RESOLUTION(migraphx::fp8::fp8e4m3fn, migraphx::fp8::fp8e5m2)
+MIGRAPHX_FP8_COMMON_TYPE_OVERLOAD_RESOLUTION(migraphx::fp8::fp8e4m3fn, migraphx::fp8::fp8e4m3fnuz)
+MIGRAPHX_FP8_COMMON_TYPE_OVERLOAD_RESOLUTION(migraphx::fp8::fp8e4m3fn, migraphx::fp8::fp8e5m2fnuz)
+MIGRAPHX_FP8_COMMON_TYPE_OVERLOAD_RESOLUTION(migraphx::fp8::fp8e5m2, migraphx::fp8::fp8e4m3fnuz)
+MIGRAPHX_FP8_COMMON_TYPE_OVERLOAD_RESOLUTION(migraphx::fp8::fp8e5m2, migraphx::fp8::fp8e5m2fnuz)
+MIGRAPHX_FP8_COMMON_TYPE_OVERLOAD_RESOLUTION(migraphx::fp8::fp8e4m3fnuz, migraphx::fp8::fp8e5m2fnuz)
 } // namespace std
 // NOLINTEND
 // =================================================================================================

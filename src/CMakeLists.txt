@@ -59,6 +59,7 @@ add_library(migraphx
     fp_to_double.cpp
     fuse_concat.cpp
     fuse_pointwise.cpp
+    fuse_pointwise_reduce.cpp
     fuse_reduce.cpp
     generate.cpp
     inline_module.cpp
@@ -66,6 +67,7 @@ add_library(migraphx
     instruction.cpp
     json.cpp
     layout_nhwc.cpp
+    lexing.cpp
     load_save.cpp
     make_op.cpp
     memory_coloring.cpp
@@ -89,6 +91,7 @@ add_library(migraphx
     promote_literals.cpp
     quantization.cpp
     quantize_fp16.cpp
+    quantize_int4.cpp
     quantize_8bits.cpp
     reduce_dims.cpp
     register_op.cpp
@@ -106,6 +109,7 @@ add_library(migraphx
     schedule.cpp
     serialize.cpp
     shape.cpp
+    shape_transform_descriptor.cpp
     simplify_algebra.cpp
     simplify_dyn_ops.cpp
     simplify_reshapes.cpp
@@ -141,6 +145,7 @@ register_migraphx_ops(
     as_shape
     atanh
     atan
+    bitwise_and
     broadcast
     broadcast_for_dot
     broadcast_with_dims
@@ -181,6 +186,7 @@ register_migraphx_ops(
     less
     load
     log
+    log2
     logical_and
     logical_or
     logical_xor
@@ -198,6 +204,7 @@ register_migraphx_ops(
     neg
     nonmaxsuppression
     nonzero
+    onehot
     outline
     pack_int4
     pad
@@ -212,6 +219,8 @@ register_migraphx_ops(
     random_uniform
     random_seed
     recip
+    reduce_all
+    reduce_any
     reduce_max
     reduce_mean
     reduce_min
@@ -230,6 +239,7 @@ register_migraphx_ops(
     rsqrt
     run_on_target
     scalar
+    scan_slice
     scatter_none
     scatter_add
     scatter_mul
@@ -269,6 +279,7 @@ register_op(migraphx HEADER migraphx/builtin.hpp OPERATORS builtin::literal buil
 rocm_clang_tidy_check(migraphx)
 migraphx_generate_export_header(migraphx)
 rocm_install_targets(
+  PRIVATE
   TARGETS migraphx
   INCLUDE
     ${CMAKE_CURRENT_SOURCE_DIR}/include
@@ -331,7 +342,15 @@ target_link_libraries(migraphx_all_targets INTERFACE migraphx_cpu)
 target_compile_definitions(migraphx_all_targets INTERFACE -DHAVE_CPU)
 endif()
 if(MIGRAPHX_ENABLE_GPU)
-list(APPEND MIGRAPHX_CONFIG_DEPENDS PACKAGE MIOpen PACKAGE rocblas)
+    if(MIGRAPHX_USE_MIOPEN)
+        list(APPEND MIGRAPHX_CONFIG_DEPENDS PACKAGE MIOpen)
+    endif()
+    if(MIGRAPHX_USE_ROCBLAS)
+        list(APPEND MIGRAPHX_CONFIG_DEPENDS PACKAGE rocblas)
+    endif()
+    if(MIGRAPHX_USE_HIPBLASLT)
+        list(APPEND MIGRAPHX_CONFIG_DEPENDS PACKAGE hipblaslt)
+    endif()
 add_subdirectory(targets/gpu)
 target_link_libraries(migraphx_all_targets INTERFACE migraphx_gpu)
 target_compile_definitions(migraphx_all_targets INTERFACE -DHAVE_GPU)
@@ -340,6 +359,12 @@ if(MIGRAPHX_ENABLE_FPGA)
 add_subdirectory(targets/fpga)
 target_link_libraries(migraphx_all_targets INTERFACE migraphx_fpga)
 target_compile_definitions(migraphx_all_targets INTERFACE -DHAVE_FPGA)
+endif()
+
+if(MIGRAPHX_USE_MIOPEN)
+    target_compile_definitions(migraphx_all_targets INTERFACE MIGRAPHX_USE_MIOPEN=1)
+else()
+    target_compile_definitions(migraphx_all_targets INTERFACE MIGRAPHX_USE_MIOPEN=0)
 endif()
 
 if(HAVE_HALF_EXPR)

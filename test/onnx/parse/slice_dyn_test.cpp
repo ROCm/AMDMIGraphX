@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2023 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2024 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -39,7 +39,7 @@ TEST_CASE(slice_dyn_test)
     // Parser converts the dynamic input shape to static unless there is at least one non-fixed
     // dynamic dimension. Slicing is not allowed along the non-fixed axis 1.
     options.map_dyn_input_dims["0"] = {{3, 3}, {1, 3}, {2, 2}};
-    auto prog                       = migraphx::parse_onnx("slice_dyn_test.onnx", options);
+    auto prog                       = read_onnx("slice_dyn_test.onnx", options);
 
     EXPECT(p == prog);
 }

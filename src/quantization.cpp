@@ -26,6 +26,7 @@
 #include <migraphx/quantization.hpp>
 #include <migraphx/quantize_fp16.hpp>
 #include <migraphx/quantize_8bits.hpp>
+#include <migraphx/quantize_int4.hpp>
 #include <migraphx/simplify_reshapes.hpp>
 #include <migraphx/simplify_qdq.hpp>
 #include <migraphx/eliminate_common_subexpression.hpp>
@@ -42,6 +43,7 @@
 #include <migraphx/pass_manager.hpp>
 #include <migraphx/normalize_ops.hpp>
 #include <set>
+#include <map>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
@@ -75,8 +77,10 @@ void quantize_8bits(program& prog,
     std::shared_ptr<std::vector<std::pair<float, float>>> quant_8bit_params =
         std::make_shared<std::vector<std::pair<float, float>>>();
     std::shared_ptr<std::vector<float>> max_abs_vals = std::make_shared<std::vector<float>>();
-
-    float quantized_range  = (precision == shape::type_t::int8_type) ? 127.0 : 240.0;
+    std::map<shape::type_t, float> type_ranges       = {{shape::type_t::int8_type, 127.0},
+                                                        {shape::type_t::fp8e4m3fnuz_type, 240.0},
+                                                        {shape::type_t::fp8e4m3fn_type, 448.0}};
+    float quantized_range                            = type_ranges.at(precision);
     auto calc_quant_params = [&](std::size_t ins_index, std::vector<argument> args) {
         std::pair<float, float> param_pair{64.0f, 0.0f};
         // scale and shift is need for only int8 type, and we do not
@@ -162,6 +166,11 @@ void quantize_int8(program& prog,
     quantize_8bits(prog, t, shape::int8_type, calibration, ins_names);
 }
 
+void quantize_int4_weights(program& prog)
+{
+    run_passes(prog, {normalize_ops{}, optimize_module{}, quantize_int4_pass{}});
+}
+
 void quantize_fp8(program& prog, const target& t, const std::vector<parameter_map>& calibration)
 {
     std::cout << "[Warning] : MIGraphX has BETA support for FP8. Using FP8 may result in "
@@ -180,7 +189,23 @@ void quantize_fp8(program& prog, const target& t, const std::vector<parameter_ma
             supported_ins_names.insert(ins->name());
         }
     }
-    quantize_8bits(prog, t, shape::fp8e4m3fnuz_type, calibration, supported_ins_names);
+    auto gfx_has_fp8fnuz = [&]() {
+        if(t.name() == "gpu")
+        {
+            auto context_value = t.get_context().to_value();
+            auto device_name   = context_value["gfx_name"].to<std::string>();
+            return (starts_with(device_name, "gfx9") and device_name >= "gfx940");
+        }
+        return false;
+    };
+    if(gfx_has_fp8fnuz())
+    {
+        quantize_8bits(prog, t, shape::fp8e4m3fnuz_type, calibration, supported_ins_names);
+    }
+    else
+    {
+        quantize_8bits(prog, t, shape::fp8e4m3fn_type, calibration, supported_ins_names);
+    }
 }
 } // namespace MIGRAPHX_INLINE_NS
 } // namespace migraphx

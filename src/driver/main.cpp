@@ -70,11 +70,11 @@ inline std::string get_version()
 
 struct loader
 {
-    std::string model;
     std::string file;
     std::string file_type;
     unsigned batch              = 1;
     bool is_nhwc                = true;
+    bool is_test                = false;
     unsigned trim               = 0;
     bool optimize               = false;
     bool skip_unknown_operators = false;
@@ -91,11 +91,10 @@ struct loader
     void parse(argument_parser& ap)
     {
         ap(file, {}, ap.metavar("<input file>"), ap.file_exist(), ap.required(), ap.group("input"));
-        ap(model,
-           {"--model"},
-           ap.help("Load model"),
-           ap.type("resnet50|inceptionv3|alexnet"),
-           ap.matches({"resnet50", "inceptionv3", "alexnet"}),
+        ap(is_test,
+           {"--test"},
+           ap.help("Run a single GEMM to test MIGraphX"),
+           ap.set_value(true),
            ap.group("input"));
         ap(file_type, {"--onnx"}, ap.help("Load as onnx"), ap.set_value("onnx"));
         ap(file_type, {"--tf"}, ap.help("Load as tensorflow"), ap.set_value("tf"));
@@ -312,7 +311,11 @@ struct loader
     program load()
     {
         program p;
-        if(model.empty())
+        if(is_test)
+        {
+            p = test_gemm();
+        }
+        else
         {
             if(file_type.empty())
             {
@@ -343,17 +346,6 @@ struct loader
             {
                 p = migraphx::load(file);
             }
-        }
-        else
-        {
-            if(model == "resnet50")
-                p = resnet50(batch);
-            else if(model == "inceptionv3")
-                p = inceptionv3(batch);
-            else if(model == "alexnet")
-                p = alexnet(batch);
-            else
-                MIGRAPHX_THROW("Unknown model: " + model);
         }
         if(trim > 0)
         {
@@ -396,7 +388,7 @@ struct loader
         std::ofstream fs;
         if(not output.empty())
         {
-            fs.open(output);
+            fs.open(output, std::ios::binary);
             os = &fs;
         }
 
@@ -487,6 +479,7 @@ struct compiler
     bool to_fp16 = false;
     bool to_fp8  = false;
     bool to_int8 = false;
+    bool to_int4 = false;
 
     std::vector<std::string> fill0;
     std::vector<std::string> fill1;
@@ -509,7 +502,8 @@ struct compiler
            ap.set_value(true));
         ap(to_fp16, {"--fp16"}, ap.help("Quantize for fp16"), ap.set_value(true));
         ap(to_int8, {"--int8"}, ap.help("Quantize for int8"), ap.set_value(true));
-        ap(to_fp8, {"--fp8"}, ap.help("Quantize for fp8e4m3fnuz type"), ap.set_value(true));
+        ap(to_fp8, {"--fp8"}, ap.help("Quantize for fp8"), ap.set_value(true));
+        ap(to_int4, {"--int4-weights"}, ap.help("Quantize weights for int4"), ap.set_value(true));
     }
 
     auto params(const program& p)
@@ -539,12 +533,12 @@ struct compiler
                            "passing "
                            "`--enable-offload-copy` if program run fails.\n";
                 }
-                else if(co.offload_copy)
+                else if(not is_offload_copy_set(p) and co.offload_copy)
                 {
                     std::cout << "[WARNING]: MIGraphX program was likely compiled without "
                                  "offload_copy set, Try "
                                  "removing "
-                                 "`--enable-offload-copy` flag if passed to driver, if program run "
+                                 "`--enable-offload-copy` if program run "
                                  "fails.\n";
                 }
             }
@@ -563,6 +557,10 @@ struct compiler
         if(to_fp8)
         {
             quantize_fp8(p, t, {host_params(p)});
+        }
+        if(to_int4)
+        {
+            quantize_int4_weights(p);
         }
         p.compile(t, co);
         l.save(p);
@@ -690,7 +688,7 @@ struct run_cmd : command<run_cmd>
 struct perf : command<perf>
 {
     compiler c;
-    unsigned n = 100;
+    unsigned n    = 100;
     bool detailed = false;
     void parse(argument_parser& ap)
     {

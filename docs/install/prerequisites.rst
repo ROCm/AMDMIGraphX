@@ -8,7 +8,7 @@ MIGraphX Installation prerequisites
 
 The following components and tools must be installed before MIGraphX can be installed.
 
-The installation steps include installing these dependencies.
+The installation steps include information about installing these dependencies.
 
 * `ROCm CMake <https://github.com/RadeonOpenCompute/rocm-cmake>`_
 * `MIOpen <https://github.com/ROCmSoftwarePlatform/MIOpen>`_

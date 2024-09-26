@@ -8,6 +8,12 @@
 What is MIGraphX?
 =====================
 
-AMD MIGraphX is AMD's graph inference engine that accelerates machine learning model inference. The optimized execution engine is useful for deep learning neural networks.
+AMD MIGraphX is a graph inference engine and graph compiler. MIGraphX accelerates machine-learning models by leveraging several graph-level transformations and optimizations. These optimizations include:
 
-You can utilize MIGraphX functions using :ref:`C++ APIs <cpp-api-reference>`, :ref:`Python APIs <python-api-reference>`, and the :ref:`command-line tool migraphx-driver <migraphx-driver>`.
+* Operator fusion
+* Arithmetic simplifications
+* Dead-code elimination
+* Common subexpression elimination (CSE)
+* Constant propagation
+
+After optimization, MIGraphX generates code for AMD GPUs by calling MIOpen or rocBLAS, or by creating HIP kernels. MIGraphX can also target CPUs using DNNL or ZenDNN libraries.

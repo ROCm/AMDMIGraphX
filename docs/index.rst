@@ -8,31 +8,34 @@
 AMD MIGraphX documentation
 ===========================
 
-Welcome to the MIGraphX docs home page! To learn more, see :ref:`what-is-migraphx`.
+AMD MIGraphX is AMD's graph inference engine. This optimized execution engine is useful for deep learning neural networks.
+
+To learn more, see :ref:`what-is-migraphx`.
 
 Our documentation is structured as follows:
 
 .. grid:: 2
   :gutter: 3
 
-  .. grid-item-card:: Install
+  .. grid-item-card:: Installating and building
 
     * :doc:`Prerequisites <./install/prerequisites>`
-    * :doc:`Tested configurations <./install/tested_configurations>`
     * :doc:`Install MIGraphX <./install/install>`
+    * :doc:`Install MIGraphX with the package installer <./install/installing_with_package>`
+    * :doc:`Build and install MIGraphX with CMake <./install/build_and_install_with_cmake>`
+    * :doc:`Build and install MIGraphX with rbuild <./install/build_and_install_with_rbuild>`
     * :doc:`Build and install MIGraphX with Docker <./install/build_and_install_with_docker>`
-    * :doc:`Build and install MIGraphX with Docker <./install/build_and_install_with_cmake>`
-    * :doc:`Build and install MIGraphX with Docker <./install/build_and_install_with_rbuild>`
-  
+      
   .. grid-item-card:: Reference
 
     * :ref:`cpp-api-reference`
     * :ref:`python-api-reference`
     * :ref:`migraphx-driver`
    
-  .. grid-item-card:: Contribution
+  .. grid-item-card:: Developing for MIGraphX
 
     * :ref:`contributing-to-migraphx`
+ 
 
 To contribute to the documentation refer to
 `Contributing to ROCm  <https://rocm.docs.amd.com/en/latest/contribute/contributing.html>`_.

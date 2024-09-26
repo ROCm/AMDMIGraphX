@@ -8,13 +8,15 @@ subtrees:
   - caption: Installation
     entries:
     
-    - file: install/tested_configurations
     - file: install/prerequisites
     - file: install/install
-    - file: install/build_and_install_with_cmake
-    - file: install/build_and_install_with_docker
-    - file: install/build_and_install_with_rbuild
-
+      subtrees:
+        - entries:
+          - file: install/installing_with_package
+          - file: install/build_and_install_with_cmake
+          - file: install/build_and_install_with_rbuild
+          - file: install/build_and_install_with_docker
+    
   - caption: Reference
     entries:
     - file: reference/cpp
@@ -24,7 +26,7 @@ subtrees:
         - entries:
           - file: reference/driver-options
 
-  - caption:  Contribution
+  - caption:  Developing for MIGraphX
     entries:
     - file: dev/contributing-to-migraphx
       subtrees:

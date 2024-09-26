@@ -1,19 +1,17 @@
 .. meta::
-  :description: Installing MIGraphX
-  :keywords: install, MIGraphX, AMD, ROCm
+  :description: Building and Installing MIGraphX using the package installer
+  :keywords: install, MIGraphX, AMD, ROCm, general
 
 ********************************************************************
-Installing MIGraphX using binaries
+Building and Installing MIGraphX
 ********************************************************************
 
-ROCm must be installed before installing MIGraphX. See `ROCm installation for Linux <https://rocm.docs.amd.com/projects/install-on-linux/en/latest/>`_ for information on how to install ROCm on Linux.
+Installing MIGraphX using `the package installer <https://rocm.docs.amd.com/projects/AMDMIGraphX/en/latest/install/installing_with_package.html>`_ is sufficient for most MIGraphX users. 
 
-All prerequisites needed to install MIGraphX are installed when the package install is used.
+Users who want to use pre-release features or want to contribute to the MIGRaphX project can build MIGraphX from its source code. 
 
-MIGraphX can be installed using the following command: 
+There are three ways of building and installing MIGraphX from source code:
 
-  .. code:: shell
-  
-    sudo apt update && sudo apt install -y migraphx
-
-
+1. `Using CMake <https://rocm.docs.amd.com/projects/AMDMIGraphX/en/latest/install/build_and_install_with_cmake.html>`_
+2. `Using rbuild <https://rocm.docs.amd.com/projects/AMDMIGraphX/en/latest/install/build_and_install_with_rbuild.html>`_
+3. `Using Docker <https://rocm.docs.amd.com/projects/AMDMIGraphX/en/latest/install/build_and_install_with_docker.html>`_

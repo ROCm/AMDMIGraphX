@@ -89,9 +89,12 @@ def allocate_torch_tensors(model):
 
 
 class RNNT_MGX():
-    def __init__(self, x, onnx_model_path):
+    def __init__(self, x, onnx_model_path, fp16):
 
-        fp16 = []
+        if fp16 is None:
+            fp16 = []
+        elif "all" in fp16:
+            fp16 = ["rnnt_encoder", "rnnt_prediction", "rnnt_joint"]
 
         compiled_model_path = None
         force_compile = False
@@ -334,6 +337,13 @@ def decode_string(result):
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument('--onnx_model_path', default='models/rnnt/')
+    parser.add_argument(
+        "--fp16",
+        choices=["all", "rnnt_encoder", "rnnt_prediction", "rnnt_joint"],
+        nargs="+",
+        help="Quantize models with fp16 precision.",
+    )
+
     args = parser.parse_args()
 
     model_parts = ['rnnt_encoder', 'rnnt_joint', 'rnnt_prediction']
@@ -356,7 +366,7 @@ if __name__ == "__main__":
         export_rnnt_onnx(pytorch_model, x, args.onnx_model_path)
 
     print("Read MIGX model from ONNX and run...")
-    migx_model = RNNT_MGX(x, onnx_model_path=args.onnx_model_path)
+    migx_model = RNNT_MGX(x, onnx_model_path=args.onnx_model_path, fp16=args.fp16)
     rnnt_decoder = GreedyDecoder(migx_model)
     _, _, result = rnnt_decoder.run(x.to(torch.float32), out_lens)
     print("Transcribed Sentence: ", decode_string(result))

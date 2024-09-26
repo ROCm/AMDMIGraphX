@@ -38,8 +38,10 @@ namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
 namespace gpu {
 
+// Environment variable used if weight streaming
 MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_COPY_LITERALS)
 
+// Operation used for efficient weight streaming
 struct fetch_literal
 {
     std::string id{};
@@ -109,17 +111,17 @@ void write_literals::apply(module& m) const
     {
         if(ins->name() == "@literal")
         {
+            // Strategy used when stripping weights
             if(save_literals)
             {
                 std::string id = m.name() + ":@literal:" + std::to_string(n);
                 std::string buffer(ins->get_literal().data(), ins->get_shape().bytes());
                 std::hash<std::string> create_hash;
-                // can use better hashing method, this is just the easiest that worked
                 std::size_t hash_v      = create_hash(buffer);
                 std::string output_file = output_file_header + "/" + std::to_string(hash_v) +
                                           ".mxr_literal" +
                                           ins->get_literal().get_shape().type_string();
-                // check and see if new file needs to be saved
+                // Check and see if new file needs to be saved
                 if(not fs::exists(output_file))
                 {
                     fs.open(output_file,
@@ -128,6 +130,7 @@ void write_literals::apply(module& m) const
                     fs.close();
                 }
 
+                // If weight streaming
                 if(enabled(MIGRAPHX_COPY_LITERALS{}))
                 {
                     auto pre = m.insert_instruction(
@@ -144,7 +147,7 @@ void write_literals::apply(module& m) const
                 n++;
             }
 
-            // base strategy without stripping weights
+            // Base strategy without stripping weights
             else
             {
                 if(enabled(MIGRAPHX_COPY_LITERALS{}))

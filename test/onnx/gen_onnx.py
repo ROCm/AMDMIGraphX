@@ -8567,6 +8567,24 @@ def qlinearmatmul_3D_test():
 
 
 @onnx_test()
+def matmulnbits_test():
+    a = onnx.helper.make_tensor_value_info("a", onnx.TensorProto.FLOAT, [2, 16])
+    b = onnx.helper.make_tensor_value_info("b", onnx.TensorProto.UINT8, [4, 1, 8])
+    scales = onnx.helper.make_tensor_value_info("scales", onnx.TensorProto.FLOAT, [4])
+    c = onnx.helper.make_tensor_value_info("c", onnx.TensorProto.FLOAT, [2, 4])
+
+    node = onnx.helper.make_node("MatMulNBits",
+                                     inputs=["a", "b", "scales"],
+                                     outputs=["c"],
+                                     bits=4,
+                                     block_size=16,
+                                     K=16,
+                                     N=4,
+                                     domain='com.microsoft')
+    return ([node], [a, b, scales], [c])
+
+
+@onnx_test()
 def qlinearmul_test():
     a = helper.make_tensor_value_info('A', TensorProto.UINT8, [64])
     sc_a = helper.make_tensor('A_scale', TensorProto.FLOAT, [], [0.05])

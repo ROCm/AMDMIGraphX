@@ -441,7 +441,7 @@ struct cpu_apply
             auto padding = v["padding"].to_vector<int>();
 
             // Ensure that the kernel size does not exceed OneDNN's max of 14
-            if(std::any_of(lengths.begin(), lengths.end(), [](int len) { return len > 14; }) ||
+            if(std::any_of(lengths.begin(), lengths.end(), [](int len) { return len > 14; }) or
             std::any_of(padding.begin(), padding.end(), [](int pad) { return pad > 14; }))
             {
                 // Fall back to reference backend if OneDNN cannot handle the pooling

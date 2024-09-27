@@ -8,10 +8,10 @@ Example usage::
 
 The input json file describes the gpu kernel and the input data settings.
 Random data is passed into the gpu kernel and the kernel is run a set number of iterations
-and timed for performance.
+(1000 in the example below) and timed for performance.
 
-json file formatting
---------------------
+Format for the input json file
+------------------------------
 
 * settings:
     * iterations: the number of iterations to run the kernel
@@ -25,7 +25,8 @@ json file formatting
 
 *TODO: many other possible settings*
 
-Example gpu-driver hjson testing a pointwise GELU approximation::
+Example hjson file that tests a pointwise GELU approximation (note this is hjson and needs
+to be converted to json before usage)::
 
     # sigmoid GELU approximation
     {
@@ -50,4 +51,4 @@ Example gpu-driver hjson testing a pointwise GELU approximation::
         }
     }
 
-To convert the hjson file to a json file you can use ``hjson -j``.
+To convert the hjson file to a json file you can use ``hjson -j``. To install hjson: ``pip install hjson``

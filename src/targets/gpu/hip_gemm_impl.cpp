@@ -473,6 +473,44 @@ struct hip_gemm_impl
     }
 
     /**
+     * Get workspace size for the solution index:  Gets algo from the solution index,
+     * and calls matmulIsAlgoSupported() to get the workspace size.
+     */
+
+    size_t get_workspace_size(context& ctx,
+                              const std::vector<shape>& input_shapes,
+                              int32_t solution_idx) const
+    {
+        size_t workspace_size = hipblaslt_workspace_size;
+
+        std::vector<argument> input_args;
+        std::transform(input_shapes.begin(),
+                       input_shapes.end(),
+                       std::back_inserter(input_args),
+                       [](const shape& x) { return to_gpu(generate_argument(x)); });
+
+        std::vector<int32_t> algo_index = {solution_idx};
+        std::vector<hipblasLtMatmulHeuristicResult_t> heuristic_result;
+
+        hipblaslt_invoke([&]() {
+            return hipblaslt_ext::getAlgosFromIndex(
+                ctx.get_stream().get_hipblaslt(), algo_index, heuristic_result);
+        });
+        assert(heuristic_result.size() == 1);
+
+        auto algo                 = heuristic_result[0].algo;
+        size_t ret_workspace_size = 0;
+        auto supporting_args =
+            create_hipblaslt_supporting_args_common(ctx, input_args, algo, ret_workspace_size);
+        hipblaslt_invoke(&hipblaslt_ext::matmulIsAlgoSupported, supporting_args);
+        workspace_size = ret_workspace_size;
+
+        if(workspace_size == 0)
+            workspace_size = 1;
+        return workspace_size;
+    }
+
+    /**
      * Find best hipBLASLt solution:  Get list of solutions and try them all, returning the index
      * of the fastest one.
      */
@@ -656,6 +694,17 @@ int32_t hip_gemm_default_solution(context& ctx,
     if(sol.has_value())
         return sol->to<int32_t>();
     return 0;
+}
+
+size_t hip_gemm_workspace_size(context& ctx,
+                               const shape& output_shape,
+                               const std::vector<shape>& input_shapes,
+                               float alpha,
+                               float beta,
+                               int32_t solution_idx)
+{
+    auto gemm_item = hip_gemm_impl(output_shape, input_shapes, alpha, beta);
+    return gemm_item.get_workspace_size(ctx, input_shapes, solution_idx);
 }
 
 } // namespace gpu

@@ -56,6 +56,7 @@
 #include <migraphx/split_reduce.hpp>
 #include <migraphx/split_single_dyn_dim.hpp>
 #include <migraphx/gpu/allocation_model.hpp>
+#include <migraphx/gpu/compile_hipblaslt.hpp>
 #include <migraphx/gpu/compile_miopen.hpp>
 #include <migraphx/gpu/compile_ops.hpp>
 #include <migraphx/gpu/concat_gpu_opt.hpp>
@@ -211,6 +212,10 @@ std::vector<pass> target::get_passes(migraphx::context& gctx, const compile_opti
         dead_code_elimination{},
         eliminate_concat{concat_gpu_optimization{}},
         dead_code_elimination{},
+#if MIGRAPHX_USE_HIPBLASLT
+        compile_hipblaslt{&gctx},
+        dead_code_elimination{},
+#endif
 #if MIGRAPHX_USE_MIOPEN
         compile_miopen{&gctx},
         dead_code_elimination{},

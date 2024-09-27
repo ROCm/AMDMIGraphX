@@ -26,6 +26,7 @@
 #include <migraphx/quantization.hpp>
 #include <migraphx/quantize_fp16.hpp>
 #include <migraphx/quantize_8bits.hpp>
+#include <migraphx/quantize_int4.hpp>
 #include <migraphx/simplify_reshapes.hpp>
 #include <migraphx/simplify_qdq.hpp>
 #include <migraphx/eliminate_common_subexpression.hpp>
@@ -163,6 +164,11 @@ void quantize_int8(program& prog,
         MIGRAPHX_THROW("QUANTIZE_INT8: only support DOT and CONVOLUTION operation");
     }
     quantize_8bits(prog, t, shape::int8_type, calibration, ins_names);
+}
+
+void quantize_int4_weights(program& prog)
+{
+    run_passes(prog, {normalize_ops{}, optimize_module{}, quantize_int4_pass{}});
 }
 
 void quantize_fp8(program& prog, const target& t, const std::vector<parameter_map>& calibration)

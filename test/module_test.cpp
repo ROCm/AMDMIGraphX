@@ -691,4 +691,74 @@ TEST_CASE(fuse_module)
     EXPECT(m1 == m2);
 }
 
+TEST_CASE(get_inputs)
+{
+    // Test a use case for get_inputs
+    migraphx::shape s{migraphx::shape::float_type, {2, 3}};
+    migraphx::module m1;
+    migraphx::program p;
+    auto* mm = p.get_main_module();
+    auto x   = mm->add_parameter("x", s);
+    auto y   = mm->add_parameter("y", s);
+    auto z   = mm->add_parameter("z", s);
+    auto add = add_pointwise(p, "main:pointwise0", {x, z}, single_pointwise("add"));
+    auto mul = add_pointwise(p, "main:pointwise1", {add, y}, single_pointwise("mul"));
+
+    std::unordered_map<migraphx::instruction_ref, migraphx::instruction_ref> map_ins;
+    auto rins    = m1.fuse(*add->module_inputs().front(), add->inputs(), &map_ins).front();
+    map_ins[add] = rins;
+    auto ret     = m1.fuse(*mul->module_inputs().front(), mul->inputs(), &map_ins);
+    m1.add_return(ret);
+
+    // After using the fuse methods above, map_ins contains the following mappings:
+    // - instruction in mm -> instruction in m1
+    // - instruction in add -> instruction in m1
+    // - instruction in mul -> instruction in m1
+
+    // create a map of instructions in m1 to instruction in mm (all the parameters will
+    // map to some instruction in mm)
+    std::unordered_map<migraphx::instruction_ref, migraphx::instruction_ref> map_m1_to_mm;
+    for(auto const& [i1, i2] : map_ins)
+    {
+        if(contains(*mm, i1))
+            map_m1_to_mm[i2] = i1;
+    }
+    // get_inputs should return the instructions from mm in the correct order that should
+    // be the new inputs to m1
+    auto inputs = m1.get_inputs(map_m1_to_mm);
+
+    EXPECT(inputs.size() == 3);
+    EXPECT(bool{inputs[0] == x});
+    EXPECT(bool{inputs[1] == z});
+    EXPECT(bool{inputs[2] == y});
+}
+
+TEST_CASE(add_params)
+{
+    migraphx::shape s{migraphx::shape::float_type, {2, 3}};
+    migraphx::module m1;
+    migraphx::program p;
+    auto* mm = p.get_main_module();
+    auto x   = mm->add_parameter("x", s);
+    auto y   = mm->add_parameter("y", s);
+    auto z   = mm->add_parameter("z", s);
+    auto add = mm->add_instruction(migraphx::make_op("add"), x, y);
+    auto mul = mm->add_instruction(migraphx::make_op("mul"), add, z);
+
+    // use case: add and mul are to be used as input parameters to a new submodule m1
+    std::unordered_map<migraphx::instruction_ref, migraphx::instruction_ref> map_ins;
+    m1.add_params({mul, add}, &map_ins);
+
+    migraphx::module m2;
+    m2.add_parameter("x0", mul->get_shape());
+    m2.add_parameter("x1", add->get_shape());
+
+    // m1 should have parameters x0 and x1 with the shapes of mul and add outputs, respectively
+    EXPECT(m1 == m2);
+    // map_ins should contain a mapping: mul (in mm) -> x0 (in m1)
+    EXPECT(bool{m1.get_parameter("x0") == map_ins[mul]});
+    // map_ins should contain a mapping: add (in mm) -> x1 (in m1)
+    EXPECT(bool{m1.get_parameter("x1") == map_ins[add]});
+}
+
 int main(int argc, const char* argv[]) { test::run(argc, argv); }

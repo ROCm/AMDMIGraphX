@@ -5944,6 +5944,173 @@ def instance_norm_val_3d_test():
 
 
 @onnx_test()
+def int4_const_identity_qdq_test():
+    # Graph for int4, with an identity opr + QDQ
+    zp_values = np.array([0, 0, 0, 0])
+    x_t = helper.make_tensor(name='i_x',
+                             data_type=TensorProto.INT4,
+                             dims=zp_values.shape,
+                             vals=zp_values.flatten().astype(np.int32))
+
+    i_node = onnx.helper.make_node(
+        'Identity',
+        inputs=['i_x'],
+        outputs=['i_y_zp'],
+    )
+
+    data_values = np.array([[-3, -4, -5, 2], [2, 2, 4, 4], [2, -2, 4, 6],
+                            [2, 6, 6, 8]])
+    data_t = helper.make_tensor(name='data',
+                                data_type=TensorProto.FLOAT16,
+                                dims=data_values.shape,
+                                vals=data_values.flatten().astype(np.float16))
+
+    sc_values = np.array([1.0, 0.5, 1.0, 0.25])
+    sc_t = helper.make_tensor(name='sc_q',
+                              data_type=TensorProto.FLOAT16,
+                              dims=sc_values.shape,
+                              vals=sc_values.flatten().astype(np.float16))
+
+    q_node = onnx.helper.make_node(
+        'QuantizeLinear',
+        inputs=['data', 'sc_q', 'i_y_zp'],
+        outputs=['q_y'],
+    )
+
+    #dequantizer uses same scale values as the quantizer:
+    sc_2_t = helper.make_tensor(name='sc_dq',
+                                data_type=TensorProto.FLOAT16,
+                                dims=sc_values.shape,
+                                vals=sc_values.flatten().astype(np.float16))
+
+    dq_node = onnx.helper.make_node(
+        'DequantizeLinear',
+        inputs=['q_y', 'sc_dq', 'i_y_zp'],
+        outputs=['dq_y'],
+    )
+
+    t_node = helper.make_node(
+        'Transpose',
+        inputs=['dq_y'],
+        outputs=['y'],
+        perm=[1, 0],
+    )
+
+    y_t = helper.make_tensor_value_info('y', TensorProto.FLOAT16, [4, 4])
+
+    return ([i_node, q_node, dq_node,
+             t_node], [], [y_t], [x_t, data_t, sc_t, sc_2_t])
+
+
+@onnx_test()
+def int4_const_identity_block_sz_1_qdq_test():
+    # Graph for int4, with an identity opr + QDQ. Quantization Block size = 1
+    zp_values = np.array([[0, 0, 0, 0], [0, 0, 0, 0]])
+    x_t = helper.make_tensor(name='i_x',
+                             data_type=TensorProto.INT4,
+                             dims=zp_values.shape,
+                             vals=zp_values.flatten().astype(np.int32))
+
+    i_node = onnx.helper.make_node(
+        'Identity',
+        inputs=['i_x'],
+        outputs=['i_y_zp'],
+    )
+
+    data_values = np.array([[-3, -4, -5, -6], [2, 3, 4, 5]])
+    data_t = helper.make_tensor(name='data',
+                                data_type=TensorProto.FLOAT16,
+                                dims=data_values.shape,
+                                vals=data_values.flatten().astype(np.float16))
+
+    sc_values = np.array([[0.5, 0.25, 0.5, 0.125], [0.25, 0.5, 0.5, 0.25]])
+    sc_t = helper.make_tensor(name='sc_q',
+                              data_type=TensorProto.FLOAT16,
+                              dims=sc_values.shape,
+                              vals=sc_values.flatten().astype(np.float16))
+
+    q_node = onnx.helper.make_node(
+        'QuantizeLinear',
+        inputs=['data', 'sc_q', 'i_y_zp'],
+        outputs=['q_y'],
+    )
+
+    # dequantizer uses same scale values as the quantizer:
+    sc_2_t = helper.make_tensor(name='sc_dq',
+                                data_type=TensorProto.FLOAT16,
+                                dims=sc_values.shape,
+                                vals=sc_values.flatten().astype(np.float16))
+
+    dq_node = onnx.helper.make_node(
+        'DequantizeLinear',
+        inputs=['q_y', 'sc_dq', 'i_y_zp'],
+        outputs=['dq_y'],
+    )
+
+    t_node = helper.make_node(
+        'Transpose',
+        inputs=['dq_y'],
+        outputs=['y'],
+        perm=[1, 0],
+    )
+
+    y_t = helper.make_tensor_value_info('y', TensorProto.FLOAT16, [4, 2])
+
+    return ([i_node, q_node, dq_node,
+             t_node], [], [y_t], [x_t, data_t, sc_t, sc_2_t])
+
+
+@onnx_test()
+def int4_const_identity_block_sz_2_qdq_test():
+    # Graph for int4, with an identity opr + QDQ. Quantization Block size = 2
+    zp_values = np.array([[0, 0], [0, 0]])
+    x_t = helper.make_tensor(name='i_x',
+                             data_type=TensorProto.INT4,
+                             dims=zp_values.shape,
+                             vals=zp_values.flatten().astype(np.int32))
+
+    i_node = onnx.helper.make_node(
+        'Identity',
+        inputs=['i_x'],
+        outputs=['i_y_zp'],
+    )
+
+    data_values = np.array([[-3, -4, -6, -8], [2, 3, 4, 6]])
+    data_t = helper.make_tensor(name='data',
+                                data_type=TensorProto.FLOAT16,
+                                dims=data_values.shape,
+                                vals=data_values.flatten().astype(np.float16))
+
+    sc_values = np.array([[0.5, 0.125], [0.5, 0.25]])
+    sc_t = helper.make_tensor(name='sc_q',
+                              data_type=TensorProto.FLOAT16,
+                              dims=sc_values.shape,
+                              vals=sc_values.flatten().astype(np.float16))
+
+    q_node = onnx.helper.make_node(
+        'QuantizeLinear',
+        inputs=['data', 'sc_q', 'i_y_zp'],
+        outputs=['q_y'],
+    )
+
+    # dequantizer uses same scale values as the quantizer:
+    sc_2_t = helper.make_tensor(name='sc_dq',
+                                data_type=TensorProto.FLOAT16,
+                                dims=sc_values.shape,
+                                vals=sc_values.flatten().astype(np.float16))
+
+    dq_node = onnx.helper.make_node(
+        'DequantizeLinear',
+        inputs=['q_y', 'sc_dq', 'i_y_zp'],
+        outputs=['y'],
+    )
+
+    y_t = helper.make_tensor_value_info('y', TensorProto.FLOAT16, [2, 4])
+
+    return ([i_node, q_node, dq_node], [], [y_t], [x_t, data_t, sc_t, sc_2_t])
+
+
+@onnx_test()
 def isinf_half_test():
     t1 = helper.make_tensor_value_info('t1', TensorProto.FLOAT16, [2, 3])
     t2 = helper.make_tensor_value_info('t2', TensorProto.BOOL, [2, 3])

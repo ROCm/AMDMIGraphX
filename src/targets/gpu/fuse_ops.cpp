@@ -42,7 +42,7 @@ inline namespace MIGRAPHX_INLINE_NS {
 namespace gpu {
 
 MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_DISABLE_MIOPEN_FUSION)
-
+#if MIGRAPHX_USE_MIOPEN
 struct fusion
 {
     using op_t = miopenFusionOpDescriptor_t;
@@ -162,6 +162,7 @@ struct fusion
         return y;
     }
 };
+#endif
 
 const std::unordered_set<std::string>& get_supported_archs()
 {
@@ -169,7 +170,7 @@ const std::unordered_set<std::string>& get_supported_archs()
         "gfx900", "gfx906", "gfx908", "gfx1030", "gfx940"};
     return supported_archs;
 }
-
+#if MIGRAPHX_USE_MIOPEN
 MIGRAPHX_PRED_MATCHER(bias_shape, instruction_ref ins)
 {
     auto&& s = ins->get_shape();
@@ -210,6 +211,7 @@ MIGRAPHX_PRED_MATCHER(fusable_conv, instruction_ref ins)
     return contains({{0, 0, 0, 0}, {1, 1, 1, 1}, {2, 2, 2, 2}}, conv_op.padding) and
            contains({{0, 0}, {1, 1}}, conv_op.stride) and contains({{1, 1}}, conv_op.dilation);
 }
+#endif
 
 void move_broadcasted_back(std::vector<instruction_ref>& args)
 {
@@ -234,6 +236,7 @@ void move_standard_front(std::vector<instruction_ref>& args)
 auto gpu_name(const std::string& s) { return match::name("gpu::" + s); }
 
 namespace {
+#if MIGRAPHX_USE_MIOPEN
 struct miopen_fusion
 {
     struct fuse_op_data
@@ -473,6 +476,7 @@ void apply_conv_bias(context& ctx, module& m, const match::matcher_result& r)
     (void)ws;
     m.replace_instruction(ins, cb, input_ins, weights_ins, old_ws_ins, bias_ins, alloc_ins);
 }
+#endif
 
 template <class... Strings>
 inline auto precompile_name(Strings... names) // NOLINT
@@ -485,13 +489,14 @@ inline auto precompile_name(Strings... names) // NOLINT
     });
 }
 
+#if MIGRAPHX_USE_MIOPEN
 struct find_conv_bias
 {
     context* ctx = nullptr;
     auto matcher() const
     {
-        return conv_bias(match::none_of(
-            match::output(match::name(std::unordered_set<std::string>{"gpu::relu"}))));
+        auto relu = match::name(std::unordered_set<std::string>{"gpu::relu"});
+        return conv_bias(match::none_of(match::output(relu)));
     }
 
     void apply(module& m, const match::matcher_result& r) const
@@ -510,7 +515,6 @@ struct find_conv_bias_relu
         apply_conv_bias<miopen_conv_bias_relu>(*ctx, m, r);
     }
 };
-
 struct find_conv_pointwise
 {
     context* ctx = nullptr;
@@ -549,7 +553,9 @@ struct find_conv_pointwise
         m.replace_instruction(ins, op, inputs);
     }
 };
+#endif
 
+#if MIGRAPHX_USE_ROCBLAS
 struct find_gemm_pointwise
 {
     auto matcher() const
@@ -660,8 +666,10 @@ struct find_gemm_pointwise
         if(ins->inputs().size() == 3)
         {
             auto c_ins = r.instructions["c"];
+            shape s    = c_ins->get_shape();
             // const-fold input if not standard shape since rocblas can't handle it
-            if(not c_ins->get_shape().standard())
+            // Updated for a case where "standard" shape has out-of-sequence strides
+            if(not s.standard() or s.normalize_standard() != s)
             {
                 auto c = make_op("contiguous");
                 auto l = c.compute(c.compute_shape({c_ins->get_shape()}), {c_ins->eval()});
@@ -675,6 +683,7 @@ struct find_gemm_pointwise
         m.replace_instruction(ins, gemm, inputs);
     }
 };
+#endif
 
 struct find_contiguous_tranpose_gemm
 {
@@ -767,11 +776,43 @@ struct find_contiguous
     }
 };
 
-struct find_contiguous_pointwise
+struct find_contiguous_layout_pointwise
 {
     auto matcher() const
     {
-        return match::name("gpu::contiguous")(match::arg(0)(precompile_name("pointwise")));
+        auto cont_pw   = precompile_name("pointwise")(match::any_of[match::inputs()](
+            match::name("gpu::contiguous")(match::used_once()).bind("layout_ins")));
+        auto layout_pw = precompile_name("pointwise")(match::any_of[match::inputs()](
+            precompile_name("layout")(match::used_once()).bind("layout_ins")));
+        return match::any_of(cont_pw, layout_pw);
+    }
+
+    void apply(module& m, const match::matcher_result& r) const
+    {
+        auto pw_ins        = r.result;
+        auto layout_ins    = r.instructions["layout_ins"];
+        auto layout_input  = layout_ins->inputs().front();
+        auto pw_ins_inputs = pw_ins->inputs();
+        replace(pw_ins_inputs, layout_ins, layout_input);
+        // Ensure the output shape of the pointwise module retains the memory layout
+        auto pw_op_val            = pw_ins->get_operator().to_value();
+        pw_op_val["output_shape"] = to_value(pw_ins->get_shape());
+
+        auto new_ins = m.insert_instruction(
+            pw_ins, make_op(pw_ins->name(), pw_op_val), pw_ins_inputs, pw_ins->module_inputs());
+        m.replace_instruction(pw_ins, new_ins);
+    }
+};
+
+struct find_pointwise_layout_contiguous
+{
+    auto matcher() const
+    {
+        auto is_layout = precompile_name("layout")(
+            match::arg(0)(match::used_once(), precompile_name("pointwise")));
+        auto is_contiguous = match::name("gpu::contiguous")(
+            match::arg(0)(match::used_once(), precompile_name("pointwise")));
+        return match::any_of(is_layout, is_contiguous);
     }
 
     void apply(module& m, const match::matcher_result& r) const
@@ -782,7 +823,7 @@ struct find_contiguous_pointwise
         auto args   = pw->inputs();
         args.back() = alloc;
 
-        // Ensure the output shape of the pointwise module is contiguous
+        // Ensure the output shape of the pointwise module retains the memory layout
         auto pw_op_val            = pw->get_operator().to_value();
         pw_op_val["output_shape"] = to_value(ins->get_shape());
 
@@ -813,7 +854,11 @@ struct find_layernorm_pointwise
         inputs.pop_back();
         inputs.insert(inputs.end(), pw_inputs.begin(), pw_inputs.end());
 
-        m.replace_instruction(pw_ins, layernorm->get_operator(), inputs, {pm});
+        // Ensure the output shape retains the memory layout
+        auto layernorm_op_val            = layernorm->get_operator().to_value();
+        layernorm_op_val["output_shape"] = to_value(pw_ins->get_shape());
+
+        m.replace_instruction(pw_ins, make_op(layernorm->name(), layernorm_op_val), inputs, {pm});
     }
 };
 
@@ -842,7 +887,9 @@ struct find_concat_pointwise
         inputs.insert(inputs.end(), ins->inputs().begin() + 1, ins->inputs().end());
 
         auto op = concat->get_operator();
-        op.from_value({{"additional_args", ins->inputs().size() - 1}, {"ignore_modules", true}});
+        op.from_value({{"additional_args", ins->inputs().size() - 1},
+                       {"ignore_modules", true},
+                       {"output_shape", to_value(ins->get_shape())}});
 
         m.replace_instruction(ins, op, inputs, {pm});
     }
@@ -850,12 +897,16 @@ struct find_concat_pointwise
 
 void fuse_ops::apply(module& m) const
 {
-    match::find_matches(m, find_contiguous_pointwise{});
+    match::find_matches(m, find_pointwise_layout_contiguous{}, find_contiguous_layout_pointwise{});
     run_passes(m, {dead_code_elimination{}});
+#if MIGRAPHX_USE_MIOPEN
     match::find_matches(m, find_conv_pointwise{ctx}, find_conv_bias_relu{ctx}, find_conv_bias{ctx});
     run_passes(m, {dead_code_elimination{}});
+#endif
     match::find_matches(m,
+#if MIGRAPHX_USE_ROCBLAS
                         find_gemm_pointwise{},
+#endif
                         find_layernorm_pointwise{},
                         find_concat_pointwise{},
                         find_contiguous_tranpose_gemm{},

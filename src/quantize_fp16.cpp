@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2023 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2024 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -65,14 +65,34 @@ static void quantize_module(module& m, const std::vector<std::string>& ins_names
         // Insert quantized ins
         auto converted_ins = m.insert_instruction(ins, ins->get_operator(), inputs, mod_inputs);
 
-        // Convert back to original type after quantizing
-        if(mod_inputs.empty())
+        // tuple can't be directly converted, get_tuple_elem needs conversion
+        if(ins->get_shape().type() == shape::tuple_type)
         {
-            converted_ins = m.insert_instruction(
-                ins, make_op("convert", {{"target_type", s.type()}}), converted_ins);
+            auto outputs = ins->outputs();
+            std::transform(
+                outputs.begin(), outputs.end(), outputs.begin(), [&](const auto gte_ins) {
+                    auto gte_ins_half =
+                        m.insert_instruction(ins, gte_ins->get_operator(), converted_ins);
+                    // Convert back to output type after quantizing
+                    auto gte_converted = m.insert_instruction(
+                        ins,
+                        make_op("convert", {{"target_type", gte_ins->get_shape().type()}}),
+                        gte_ins_half);
+                    // Replace output instruction
+                    return m.replace_instruction(gte_ins, gte_converted);
+                });
         }
-        // Replace original instruction
-        m.replace_instruction(ins, converted_ins);
+        else
+        {
+            // Convert back to original type after quantizing
+            if(mod_inputs.empty())
+            {
+                converted_ins = m.insert_instruction(
+                    ins, make_op("convert", {{"target_type", s.type()}}), converted_ins);
+            }
+            // Replace original instruction
+            m.replace_instruction(ins, converted_ins);
+        }
     }
 }
 

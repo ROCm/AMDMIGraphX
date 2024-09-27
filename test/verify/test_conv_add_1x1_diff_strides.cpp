@@ -45,7 +45,15 @@ struct test_conv_add_1x1_diff_strides : verify_program<test_conv_add_1x1_diff_st
         mm->add_instruction(migraphx::make_op("exp"), sum);
         return p;
     }
+    std::string section() const { return "conv"; }
+    // Turn on Exhaustive-tune to enable split-k perf-configs from MLIR
+    migraphx::compile_options get_compile_options() const
+    {
+        return migraphx::compile_options{.exhaustive_tune = true};
+    }
 };
 
 template struct test_conv_add_1x1_diff_strides<migraphx::shape::float_type>;
 template struct test_conv_add_1x1_diff_strides<migraphx::shape::fp8e4m3fnuz_type>;
+template struct test_conv_add_1x1_diff_strides<migraphx::shape::fp8e4m3fn_type>;
+template struct test_conv_add_1x1_diff_strides<migraphx::shape::fp8e5m2_type>;

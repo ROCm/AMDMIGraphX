@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2023 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2024 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -39,6 +39,6 @@ TEST_CASE(split_test_uneven_num_outputs)
         migraphx::make_op("slice", {{"axes", {0}}, {"starts", {9}}, {"ends", {11}}}), input);
     mm->add_return({r1, r2, r3, r4});
 
-    auto prog = migraphx::parse_onnx("split_test_uneven_num_outputs.onnx");
+    auto prog = read_onnx("split_test_uneven_num_outputs.onnx");
     EXPECT(p == prog);
 }

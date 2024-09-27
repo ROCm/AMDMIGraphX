@@ -92,6 +92,8 @@ struct matcher_context
         return ins == std::prev(mod->end());
     }
 
+    void debug_print(instruction_ref ins) const { mod->debug_print(ins); }
+
     private:
     module* mod = nullptr;
 };
@@ -330,9 +332,27 @@ struct matcher_result
             });
         }
 
+        void debug_print() const
+        {
+            for(const auto& it : ins_map)
+            {
+                std::cout << it.first << ": \n";
+                it.second->debug_print();
+            }
+        }
+
         private:
         std::unordered_map<std::string, instruction_ref> ins_map;
     };
+
+    void debug_print() const
+    {
+        std::cout << "matcher_container: \n  instructions:";
+        instructions.debug_print();
+        std::cout << "  result: \n";
+        result->debug_print();
+    }
+
     instruction_container instructions;
     instruction_ref result;
 };
@@ -564,6 +584,52 @@ inline auto outputs()
     };
 }
 
+inline auto trace(const std::string& s)
+{
+    return [=](auto m) {
+        return make_basic_fun_matcher([=](matcher_context& ctx, instruction_ref ins) {
+            std::cout << s << ": ";
+            ctx.debug_print(ins);
+            optional<instruction_ref> result = m.match(ctx, ins);
+            if(result.has_value())
+                std::cout << "Found\n";
+            else
+                std::cout << "Not Found\n";
+            return result;
+        });
+    };
+}
+
+inline auto trace_found(const std::string& s)
+{
+    return [=](auto m) {
+        return make_basic_fun_matcher([=](matcher_context& ctx, instruction_ref ins) {
+            optional<instruction_ref> result = m.match(ctx, ins);
+            if(result.has_value())
+            {
+                std::cout << "Found: " << s << ": ";
+                ctx.debug_print(ins);
+            }
+            return result;
+        });
+    };
+}
+
+inline auto trace_not_found(const std::string& s)
+{
+    return [=](auto m) {
+        return make_basic_fun_matcher([=](matcher_context& ctx, instruction_ref ins) {
+            optional<instruction_ref> result = m.match(ctx, ins);
+            if(not result.has_value())
+            {
+                std::cout << "Not Found: " << s << ": ";
+                ctx.debug_print(ins);
+            }
+            return result;
+        });
+    };
+}
+
 MIGRAPHX_PRED_MATCHER(any, instruction_ref) { return true; }
 MIGRAPHX_PRED_MATCHER(none, instruction_ref) { return false; }
 MIGRAPHX_PRED_MATCHER(standard_shape, instruction_ref ins) { return ins->get_shape().standard(); }
@@ -578,6 +644,8 @@ MIGRAPHX_PRED_MATCHER(broadcast_shape, instruction_ref ins)
     return ins->get_shape().broadcasted();
 }
 
+MIGRAPHX_PRED_MATCHER(scalar_shape, instruction_ref ins) { return ins->get_shape().scalar(); }
+
 MIGRAPHX_PRED_MATCHER(transpose_shape, instruction_ref ins)
 {
     return ins->get_shape().transposed();
@@ -590,6 +658,15 @@ MIGRAPHX_PRED_MATCHER(same_input_shapes, instruction_ref ins)
     auto s = ins->inputs().front()->get_shape();
     return std::all_of(
         ins->inputs().begin(), ins->inputs().end(), [&](auto x) { return x->get_shape() == s; });
+}
+
+MIGRAPHX_PRED_MATCHER(same_inputs, instruction_ref ins)
+{
+    if(ins->inputs().empty())
+        return false;
+    auto input = ins->inputs().front();
+    return std::all_of(
+        ins->inputs().begin(), ins->inputs().end(), [&](auto x) { return x == input; });
 }
 
 MIGRAPHX_PRED_MATCHER(has_same_value, instruction_ref ins)

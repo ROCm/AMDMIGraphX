@@ -65,21 +65,39 @@ struct concat_compiler : compiler<concat_compiler>
 {
     std::vector<std::string> names() const { return {"fused_concat", "concat"}; }
 
+    static std::vector<shape> normalize(std::vector<shape> inputs, std::size_t& axis)
+    {
+        auto s = inputs.back();
+        std::vector<std::size_t> strides(s.lens().size());
+        strides[axis] = 1;
+
+        inputs.push_back(shape{s.type(), s.lens(), strides});
+
+        auto result   = reduce_dims(normalize_permutation(inputs));
+        auto rstrides = result.back().strides();
+        auto it = std::find_if(rstrides.begin(), rstrides.end(), [](auto x) { return x == 1; });
+        axis    = it - rstrides.begin();
+        result.pop_back();
+        return result;
+    }
+
     operation compile_op(context& ctx, const std::vector<shape>& inputs, const value& v) const
     {
         hip_compile_options options;
         options.inputs      = inputs;
         options.output      = inputs.back();
-        options.params      = "-Wno-float-equal";
+        auto concat_axis       = v.at("axis").to<std::size_t>();
+        options.virtual_inputs = normalize(inputs, concat_axis);
         options.kernel_name = v.get("kernel", "concat_kernel");
-        auto axis           = find_fast_axis(options.inputs);
+        auto axis              = find_fast_axis(options.virtual_inputs);
         auto op_names       = v.at("ops").to_vector<std::string>();
         auto args           = v.at("args");
         vectorize vec{};
-        if(axis != v.at("axis").to<std::size_t>())
-            vec = vectorize::elements(ctx, axis, options.inputs);
-        auto nelements_per_op = options.inputs.back().elements() / op_names.size();
+        if(axis != concat_axis)
+            vec = vectorize::elements(ctx, axis, options.virtual_inputs);
+        auto nelements_per_op = options.virtual_inputs.back().elements() / op_names.size();
         options.set_launch_params(v, compute_global_for(ctx, nelements_per_op / vec.size, 256));
+        options.emplace_param("-Wno-float-equal");
         std::vector<std::string> concat_params;
         std::vector<std::string> concat_args;
         for(auto i : range(op_names.size()))
@@ -105,7 +123,7 @@ struct concat_compiler : compiler<concat_compiler>
                                        {"post", v.get("post", std::string{"op::id{}"})},
                                        {"transformers", make_transformer_args(vec)},
                                        {"preamble", v.get("preamble", std::string{})},
-                                       {"axis", v.at("axis").to<std::string>()}});
+                                       {"axis", std::to_string(concat_axis)}});
         return compile_hip_code_object(src, options);
     }
 

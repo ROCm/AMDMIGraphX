@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2023 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2024 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -60,7 +60,7 @@ struct test_select_module_conv : verify_program<test_select_module_conv>
         migraphx::shape out_attr = migraphx::shape{sub_shapes};
         auto sm_ins              = mm->add_instruction(
             migraphx::make_op("select_module",
-                              {{"output_dyn_shapes", migraphx::to_value(out_attr)}}),
+                                           {{"output_dyn_shapes", migraphx::to_value(out_attr)}}),
             {input},
             {batch1, batch2, batch3, batch4});
         auto ret = mm->add_instruction(migraphx::make_op("get_tuple_elem", {{"index", 0}}), sm_ins);
@@ -68,4 +68,5 @@ struct test_select_module_conv : verify_program<test_select_module_conv>
 
         return p;
     }
+    std::string section() const { return "conv"; }
 };

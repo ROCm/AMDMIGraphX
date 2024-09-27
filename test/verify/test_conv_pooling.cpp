@@ -43,7 +43,10 @@ struct test_conv_pooling : verify_program<test_conv_pooling<DType>>
         mm->add_instruction(migraphx::make_op("relu"), pooling);
         return p;
     }
+    std::string section() const { return "conv"; }
 };
 
 template struct test_conv_pooling<migraphx::shape::float_type>;
 template struct test_conv_pooling<migraphx::shape::fp8e4m3fnuz_type>;
+template struct test_conv_pooling<migraphx::shape::fp8e4m3fn_type>;
+template struct test_conv_pooling<migraphx::shape::fp8e5m2_type>;

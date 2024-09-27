@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2023 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2024 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -26,6 +26,8 @@
 #include <migraphx/register_target.hpp>
 #include <migraphx/ranges.hpp>
 #include <migraphx/dynamic_loader.hpp>
+#include <migraphx/fileutils.hpp>
+#include <migraphx/version.h>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
@@ -56,12 +58,25 @@ target make_target(const std::string& name)
 {
     if(not contains(target_map(), name))
     {
-#ifdef _WIN32
-        std::string target_name = "migraphx_" + name + ".dll";
-#else
-        std::string target_name = "libmigraphx_" + name + ".so";
-#endif
-        store_target_lib(dynamic_loader(target_name));
+        std::string so_major_version = "." + std::to_string(MIGRAPHX_SO_MAJOR_VERSION);
+        auto target_name             = make_shared_object_filename("migraphx_" + name);
+
+        // Try to load library with so_major_version appended to the name.
+        // If library with so_major_version name is not found,
+        // try loading the library without the so_major_version name appended.
+        // For example, if "libmigraphx_ref.so.2010000" is not found,
+        // try loading "libmigraphx_ref.so".
+        try
+        {
+            // Default to loading shared libraries with
+            // so_major_version appended.
+            store_target_lib(dynamic_loader(target_name + so_major_version));
+        }
+        catch(...)
+        {
+            // Load the library without the so_major_version in the name.
+            store_target_lib(dynamic_loader(target_name));
+        }
     }
     const auto it = target_map().find(name);
     if(it == target_map().end())

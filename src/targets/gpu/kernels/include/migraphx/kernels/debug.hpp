@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2023 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2024 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -130,10 +130,28 @@ struct source_location_capture
         : x(px), loc(ploc)
     {
     }
+    template <class U, class = decltype(T(declval<U>()))>
+    constexpr source_location_capture(source_location_capture<U> slc) : x(slc.x), loc(slc.loc)
+    {
+    }
+
     constexpr operator source_location() const { return loc; }
 
     constexpr operator T() const { return x; }
 };
+
+template <class T, class F>
+constexpr auto capture_transform(source_location_capture<T> slc, F f)
+{
+    auto r = f(slc.x);
+    return source_location_capture<decltype(r)>(r, slc.loc);
+}
+
+template <class T, class F>
+constexpr auto capture_transform(T x, F f)
+{
+    return f(x);
+}
 
 // noreturn cannot be used on this function because abort in hip is broken
 template <class T1, class T2, class T3, class T4>

@@ -28,6 +28,7 @@
 #include <migraphx/functional.hpp>
 #include <migraphx/simple_par_for.hpp>
 #include <migraphx/env.hpp>
+#include <thread>
 #include <unordered_set>
 
 namespace migraphx {
@@ -37,8 +38,10 @@ MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_TRACE_PROPAGATE_CONSTANT)
 
 bool skip_propagate(instruction_ref ins)
 {
-    if(ins->name() == "contiguous")
+    if(ins->name() == "contiguous" or ins->name() == "dequantizelinear")
         return skip_propagate(ins->inputs().front());
+    if(ins->name() == "unpack_int4")
+        return true;
     auto&& s = ins->get_shape();
     if(s.broadcasted() and not s.scalar())
         return true;
@@ -47,7 +50,7 @@ bool skip_propagate(instruction_ref ins)
     return false;
 }
 
-bool is_const_ins(instruction_ref ins, std::unordered_set<std::string> skip_ops)
+bool is_const_ins(instruction_ref ins, const std::unordered_set<std::string>& skip_ops)
 {
     return ins->can_eval() and not skip_propagate(ins) and
            skip_ops.find(ins->name()) == skip_ops.end();
@@ -83,7 +86,12 @@ void propagate_constant::apply(module& m) const
     // Compute literals in parallel
     std::vector<instruction_ref> const_instrs_vec{const_instrs.begin(), const_instrs.end()};
     std::vector<argument> literals(const_instrs_vec.size());
-    simple_par_for(const_instrs_vec.size(), 1, [&](const auto i) {
+    std::size_t grainsize = 1;
+#if !MIGRAPHX_HAS_EXECUTORS
+    std::size_t n = std::max<std::size_t>(2048 / std::thread::hardware_concurrency(), 1);
+    grainsize     = const_instrs_vec.size() / n;
+#endif
+    simple_par_for(const_instrs_vec.size(), grainsize, [&](const auto i) {
         literals[i] = const_instrs_vec[i]->eval();
     });
 

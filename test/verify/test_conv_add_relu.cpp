@@ -48,7 +48,10 @@ struct test_conv_add_relu : verify_program<test_conv_add_relu<DType>>
         mm->add_instruction(migraphx::make_op("relu"), bias_add);
         return p;
     }
+    std::string section() const { return "conv"; }
 };
 
 template struct test_conv_add_relu<migraphx::shape::float_type>;
 template struct test_conv_add_relu<migraphx::shape::fp8e4m3fnuz_type>;
+template struct test_conv_add_relu<migraphx::shape::fp8e4m3fn_type>;
+template struct test_conv_add_relu<migraphx::shape::fp8e5m2_type>;

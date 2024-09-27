@@ -86,6 +86,17 @@ TEST_CASE(test_shape_standard_singleton_dim)
     EXPECT(not s.broadcasted());
 }
 
+TEST_CASE(test_shape_standard_stray_singleton_dim)
+{
+    // A shape can be transposed (nonzero strides out of order) but still be considered
+    // standard if the only out-of-order strides are on axes with a length of 1.
+    migraphx::shape s{migraphx::shape::float_type, {5, 1, 1, 8}, {8, 3, 4, 1}};
+    EXPECT(s.standard());
+    EXPECT(s.packed());
+    EXPECT(s.transposed());
+    EXPECT(not s.broadcasted());
+}
+
 TEST_CASE(test_shape_min_max_opt)
 {
     migraphx::shape s{migraphx::shape::float_type, {2, 2, 3}, {6, 3, 1}};
@@ -227,6 +238,35 @@ TEST_CASE(dynamic_dimension_add_sub_fixed)
     EXPECT((d - 2) == e);
     EXPECT((e + 2) == d);
     EXPECT((2 + e) == d);
+}
+
+TEST_CASE(dynamic_dimension_intersection)
+{
+    using migraphx::shape;
+    auto a   = shape::dynamic_dimension{2, 5, {2, 5}};
+    auto b   = shape::dynamic_dimension{3, 4};
+    auto aib = a.intersection(b);
+    auto bia = b.intersection(a);
+    EXPECT(aib.has_value());
+    EXPECT(bia.has_value());
+    EXPECT(aib.value() == shape::dynamic_dimension{3, 4});
+    EXPECT(aib.value() == bia.value());
+
+    auto c   = shape::dynamic_dimension{3, 8};
+    auto cia = c.intersection(a);
+    EXPECT(cia.value() == shape::dynamic_dimension{3, 5});
+
+    auto d   = shape::dynamic_dimension{8, 10};
+    auto dib = d.intersection(b);
+    EXPECT(not dib.has_value());
+
+    auto e   = shape::dynamic_dimension{4, 10};
+    auto eib = e.intersection(b);
+    EXPECT(eib.value() == shape::dynamic_dimension{4, 4});
+
+    auto f   = shape::dynamic_dimension{0, std::numeric_limits<std::size_t>::max()};
+    auto fib = f.intersection(b);
+    EXPECT(fib.value() == shape::dynamic_dimension{3, 4});
 }
 
 TEST_CASE(dynamic_dimension_serialize)
@@ -497,7 +537,7 @@ TEST_CASE(test_shape_broadcasted)
 TEST_CASE(test_shape_broadcasted2)
 {
     migraphx::shape s{migraphx::shape::float_type, {1, 2}, {0, 1}};
-    EXPECT(not s.standard());
+    EXPECT(s.standard());
     EXPECT(s.packed());
     EXPECT(not s.transposed());
     EXPECT(s.broadcasted());
@@ -1054,6 +1094,84 @@ TEST_CASE(from_4d_permutation)
         migraphx::shape::from_permutation(migraphx::shape::float_type, out_lens, permutation);
     EXPECT(out_shape.lens() == out_lens);
     EXPECT(migraphx::find_permutation(out_shape) == permutation);
+}
+
+TEST_CASE(multi_within_bounds)
+{
+    migraphx::shape in_shape{migraphx::shape::float_type, {3, 2, 2}};
+    std::vector<std::size_t> multi_0 = {3, 1, 1};
+    EXPECT(not in_shape.multi_within_bounds(multi_0));
+    std::vector<std::size_t> multi_1 = {2, 1, 1};
+    EXPECT(in_shape.multi_within_bounds(multi_1));
+    std::vector<std::size_t> multi_2 = {0, 0, 0};
+    EXPECT(in_shape.multi_within_bounds(multi_2));
+    std::vector<std::size_t> multi_3 = {100, 1, 1};
+    EXPECT(not in_shape.multi_within_bounds(multi_3));
+    std::vector<std::size_t> multi_4 = {1, 2, 1};
+    EXPECT(not in_shape.multi_within_bounds(multi_4));
+}
+TEST_CASE(shape_is_compatible_diff_strides)
+{
+    migraphx::shape actual{migraphx::shape::float_type, {1, 1, 8}, {8, 8, 1}};
+    migraphx::shape expected{migraphx::shape::float_type, {1, 1, 8}, {1, 1, 1}};
+    EXPECT(actual != expected);
+    EXPECT(migraphx::shape::is_compatible(actual, expected));
+}
+TEST_CASE(shape_is_compatible_diff_lens)
+{
+    migraphx::shape actual{migraphx::shape::float_type, {1, 2, 8}, {8, 8, 1}};
+    migraphx::shape expected{migraphx::shape::float_type, {1, 1, 8}, {8, 8, 1}};
+    EXPECT(actual != expected);
+    EXPECT(not migraphx::shape::is_compatible(actual, expected));
+}
+TEST_CASE(shape_is_compatible_diff_type)
+{
+    migraphx::shape actual{migraphx::shape::float_type, {1, 2, 8}};
+    migraphx::shape expected{migraphx::shape::half_type, {1, 2, 8}};
+    EXPECT(actual != expected);
+    EXPECT(not migraphx::shape::is_compatible(actual, expected));
+}
+TEST_CASE(shape_is_compatible_dynamic)
+{
+    migraphx::shape actual{migraphx::shape::float_type, {1, 2, 2, 4}};
+    migraphx::shape expected{migraphx::shape::float_type, {{1, 1}, {2, 4}, {2, 4}, {2, 4}}};
+    EXPECT(actual != expected);
+    EXPECT(migraphx::shape::is_compatible(actual, expected));
+}
+TEST_CASE(shape_is_compatible_dynamic_actual)
+{
+    migraphx::shape actual{migraphx::shape::float_type, {{1, 1}, {2, 4}, {2, 4}, {2, 4}}};
+    migraphx::shape expected{migraphx::shape::float_type, {1, 2, 2, 4}};
+    EXPECT(actual != expected);
+    EXPECT(not migraphx::shape::is_compatible(actual, expected));
+}
+TEST_CASE(shape_is_compatible_dynamic_diff_type)
+{
+    migraphx::shape actual{migraphx::shape::float_type, {1, 2, 2, 4}};
+    migraphx::shape expected{migraphx::shape::half_type, {{1, 1}, {2, 4}, {2, 4}, {2, 4}}};
+    EXPECT(actual != expected);
+    EXPECT(not migraphx::shape::is_compatible(actual, expected));
+}
+TEST_CASE(shape_is_compatible_dynamic_diff_rank)
+{
+    migraphx::shape actual{migraphx::shape::float_type, {1, 2, 2}};
+    migraphx::shape expected{migraphx::shape::half_type, {{1, 1}, {2, 4}, {2, 4}, {2, 4}}};
+    EXPECT(actual != expected);
+    EXPECT(not migraphx::shape::is_compatible(actual, expected));
+}
+TEST_CASE(shape_is_compatible_diff_strides_tuple)
+{
+    migraphx::shape actual{migraphx::shape{migraphx::shape::float_type, {1, 1, 8}, {8, 8, 1}}};
+    migraphx::shape expected{migraphx::shape{migraphx::shape::float_type, {1, 1, 8}, {1, 1, 1}}};
+    EXPECT(actual != expected);
+    EXPECT(migraphx::shape::is_compatible(actual, expected));
+}
+TEST_CASE(shape_is_compatible_diff_lens_tuple)
+{
+    migraphx::shape actual{migraphx::shape{migraphx::shape::float_type, {1, 2, 8}}};
+    migraphx::shape expected{migraphx::shape{migraphx::shape::float_type, {1, 1, 8}}};
+    EXPECT(actual != expected);
+    EXPECT(not migraphx::shape::is_compatible(actual, expected));
 }
 
 int main(int argc, const char* argv[]) { test::run(argc, argv); }

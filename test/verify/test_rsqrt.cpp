@@ -55,3 +55,5 @@ struct test_rsqrt : verify_program<test_rsqrt<CType>>
 template struct test_rsqrt<float>;
 template struct test_rsqrt<migraphx::half>;
 template struct test_rsqrt<migraphx::fp8::fp8e4m3fnuz>;
+template struct test_rsqrt<migraphx::fp8::fp8e4m3fn>;
+template struct test_rsqrt<migraphx::fp8::fp8e5m2>;

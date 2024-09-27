@@ -40,8 +40,8 @@ jobs:
       - name: Create Image Tag
         id: image_hash
         run: |
-          echo "imagetag=hip-clang-${{hashFiles('**/hip-clang.docker', '**/*requirements.txt', '**/install_prereqs.sh', '**/rbuild.ini')}}" >> $GITHUB_OUTPUT
-          echo "imagetag_sles=hip-clang-${{hashFiles('**/tools/docker/sles.docker', '**/*requirements.txt', '**/install_prereqs.sh', '**/rbuild.ini')}}" >> $GITHUB_OUTPUT
+          echo "imagetag=hip-clang-${{hashFiles('**/hip-clang.docker', '**/*requirements.txt', '**/requirements-py.txt', '**/install_prereqs.sh', '**/rbuild.ini')}}" >> $GITHUB_OUTPUT
+          echo "imagetag_sles=hip-clang-${{hashFiles('**/tools/docker/sles.docker', '**/*requirements.txt','**/requirements-py.txt', '**/install_prereqs.sh', '**/rbuild.ini')}}" >> $GITHUB_OUTPUT
 
       - name: Check if image is built already
         id: check_image
@@ -356,7 +356,7 @@ jobs:
       with:
         python-version: 3.8
     - name: run License Check
-      run: python3 tools/check_stamped.py
+      run: python3 tools/check_stamped.py ${GITHUB_HEAD_REF:-${GITHUB_REF#refs/heads/}}
 
   linux:
 

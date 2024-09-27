@@ -46,8 +46,11 @@ struct test_gemm_copy : verify_program<test_gemm_copy<DType>>
         mm->add_instruction(migraphx::make_op("add"), dr, dr);
         return p;
     }
+    std::string section() const { return "gemm"; }
 };
 
 template struct test_gemm_copy<migraphx::shape::float_type>;
 template struct test_gemm_copy<migraphx::shape::half_type>;
 template struct test_gemm_copy<migraphx::shape::fp8e4m3fnuz_type>;
+template struct test_gemm_copy<migraphx::shape::fp8e4m3fn_type>;
+template struct test_gemm_copy<migraphx::shape::fp8e5m2_type>;

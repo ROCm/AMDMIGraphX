@@ -1,4 +1,4 @@
-FROM ubuntu:20.04
+FROM ubuntu:22.04
 
 ARG PREFIX=/usr/local
 
@@ -6,22 +6,27 @@ ARG PREFIX=/usr/local
 RUN dpkg --add-architecture i386
 
 # Install rocm key
-RUN apt-get update && apt-get install -y gnupg2 --no-install-recommends curl && \
+RUN apt-get update && apt-get install -y software-properties-common gnupg2 --no-install-recommends curl && \
     curl -sL http://repo.radeon.com/rocm/rocm.gpg.key | apt-key add -
 
 # Add rocm repository
-RUN sh -c 'echo deb [arch=amd64 trusted=yes] http://repo.radeon.com/rocm/apt/6.0.2/ focal main > /etc/apt/sources.list.d/rocm.list'
+RUN sh -c 'echo deb [arch=amd64 trusted=yes] http://repo.radeon.com/rocm/apt/6.2/ jammy main > /etc/apt/sources.list.d/rocm.list'
 
 # From docs.amd.com for installing rocm. Needed to install properly
 RUN sh -c "echo 'Package: *\nPin: release o=repo.radeon.com\nPin-priority: 600' > /etc/apt/preferences.d/rocm-pin-600"
 
+# rocgdb doesn't work on 22.04, workaround by installing the older python packages that are in 20.04
+RUN add-apt-repository -y ppa:deadsnakes/ppa
+
 # Install dependencies
 RUN apt-get update && DEBIAN_FRONTEND=noninteractive apt-get install -y --allow-unauthenticated \
     apt-utils \
+    bison \
     build-essential \
+    clang-14 \
     cmake \
     curl \
-    doxygen \
+    flex \
     g++ \
     gdb \
     git \
@@ -31,12 +36,13 @@ RUN apt-get update && DEBIAN_FRONTEND=noninteractive apt-get install -y --allow-
     python3 \
     python3-dev \
     python3-pip \
-    software-properties-common \
+    libpython3.8 \
     wget \
     rocm-device-libs \
-    hip-base \
+    hip-dev \
     libnuma-dev \
     miopen-hip \
+    libomp-dev \
     rocblas \
     hipfft \
     rocthrust \
@@ -67,6 +73,9 @@ RUN echo "/opt/rocm/lib" > /etc/ld.so.conf.d/rocm.conf
 RUN echo "/opt/rocm/llvm/lib" > /etc/ld.so.conf.d/rocm-llvm.conf
 RUN ldconfig
 
+# Workaround broken miopen cmake files
+RUN sed -i 's,;/usr/lib/x86_64-linux-gnu/librt.so,,g' /opt/rocm/lib/cmake/miopen/miopen-targets.cmake
+
 RUN locale-gen en_US.UTF-8
 RUN update-locale LANG=en_US.UTF-8
 
@@ -78,15 +87,13 @@ ADD dev-requirements.txt /dev-requirements.txt
 ADD requirements.txt /requirements.txt
 ADD rbuild.ini /rbuild.ini
 
-# Temporarily install a new cmake until switching to ubuntu 22.04
-RUN pip3 install cmake==3.22.1
-
 # Location where onnx unit tests models are cached
 ENV ONNX_HOME=/.onnx
 RUN mkdir -p $ONNX_HOME/models && chmod 777 $ONNX_HOME/models
 
 COPY ./tools/install_prereqs.sh /
-RUN /install_prereqs.sh /usr/local / && rm /install_prereqs.sh
+COPY ./tools/requirements-py.txt /requirements-py.txt
+RUN /install_prereqs.sh /usr/local / && rm /install_prereqs.sh && rm /requirements-py.txt
 RUN test -f /usr/local/hash || exit 1
 
 # Install yapf
@@ -99,7 +106,9 @@ RUN pip3 install -r /doc-requirements.txt
 # Install latest ccache version
 RUN cget -p $PREFIX install facebook/zstd@v1.4.5 -X subdir -DCMAKE_DIR=build/cmake
 RUN cget -p $PREFIX install ccache@v4.1 -DENABLE_TESTING=OFF
-RUN cget -p /opt/cmake install kitware/cmake@v3.26.4
+RUN cget -p /opt/cmake install kitware/cmake@v3.27.0
+# Install a newer version of doxygen because the one that comes with ubuntu is broken
+RUN cget -p $PREFIX install doxygen@Release_1_9_8
 
 COPY ./test/onnx/.onnxrt-commit /
 
@@ -121,5 +130,7 @@ ENV LD_LIBRARY_PATH=$PREFIX/lib
 
 # Setup ubsan environment to printstacktrace
 ENV UBSAN_OPTIONS=print_stacktrace=1
+# Disable odr detection since its broken with shared libraries
+# See: https://github.com/google/sanitizers/issues/1017
 ENV ASAN_OPTIONS=detect_stack_use_after_return=1:check_initialization_order=1:strict_init_order=1
 RUN ln -s /opt/rocm/llvm/bin/llvm-symbolizer /usr/bin/llvm-symbolizer

@@ -27,7 +27,6 @@
 #include <migraphx/generate.hpp>
 #include <migraphx/op/pooling.hpp>
 
-
 struct test_pooling_valid : verify_program<test_pooling_valid>
 {
     migraphx::program create_program() const
@@ -67,5 +66,3 @@ struct test_pooling_large_kernel : verify_program<test_pooling_large_kernel>
         return p;
     }
 };
-
-

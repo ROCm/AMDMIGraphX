@@ -39,7 +39,7 @@ struct parse_dequantizelinear : op_parser<parse_dequantizelinear>
     instruction_ref parse(const op_desc& opd,
                           const onnx_parser& /*parser*/,
                           const onnx_parser::node_info& info,
-                          std::vector<instruction_ref>& args) const
+                          std::vector<instruction_ref> args) const
     {
         if(args.size() < 2 or args.size() > 3)
         {
@@ -54,7 +54,7 @@ struct parse_dequantizelinear : op_parser<parse_dequantizelinear>
 
             if(args[1]->get_shape().lens() != args[2]->get_shape().lens())
             {
-                MIGRAPHX_THROW("DequantizeLinear: y_scale and y_zero_point shapes must be equal. "
+                MIGRAPHX_THROW("DequantizeLinear: y_scale and y_zero_point shape mismatch. "
                                "Provided y_scale "
                                "shape: " +
                                to_string_range(args[1]->get_shape().lens()) +
@@ -71,7 +71,8 @@ struct parse_dequantizelinear : op_parser<parse_dequantizelinear>
         if(contains(info.attributes, "block_size"))
             block_size = info.attributes.at("block_size").i();
 
-        transform_quantize_dequantize_linear_inputs(info, opd.op_name, block_size, axis, args);
+        args =
+            transform_quantize_dequantize_linear_inputs(info, opd.op_name, block_size, axis, args);
 
         return info.add_instruction(make_op("dequantizelinear"), args);
     }

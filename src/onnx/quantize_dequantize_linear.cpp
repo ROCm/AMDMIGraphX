@@ -32,11 +32,12 @@ namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
 namespace onnx {
 
-void transform_quantize_dequantize_linear_inputs(const onnx_parser::node_info& info,
-                                                 const std::string& op_name,
-                                                 int block_size,
-                                                 int axis,
-                                                 std::vector<instruction_ref>& args)
+std::vector<instruction_ref>
+transform_quantize_dequantize_linear_inputs(const onnx_parser::node_info& info,
+                                            const std::string& op_name,
+                                            int block_size,
+                                            int axis,
+                                            std::vector<instruction_ref> args)
 {
     const auto x      = args.at(0);
     const auto x_lens = x->get_shape().lens();
@@ -132,6 +133,8 @@ void transform_quantize_dequantize_linear_inputs(const onnx_parser::node_info& i
             return ins;
         });
     }
+
+    return args;
 }
 
 } // namespace onnx

@@ -21,25 +21,21 @@
  * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
  * THE SOFTWARE.
  */
-#ifndef MIGRAPHX_GUARD_AMDMIGRAPHX_ONNX_QUANTIZE_DEQUANTIZE_LINEAR_HPP
-#define MIGRAPHX_GUARD_AMDMIGRAPHX_ONNX_QUANTIZE_DEQUANTIZE_LINEAR_HPP
 
-#include <migraphx/onnx/op_parser.hpp>
-#include <migraphx/instruction.hpp>
+#include "migraphx/make_op.hpp"
+#include <onnx_test.hpp>
 
-namespace migraphx {
-inline namespace MIGRAPHX_INLINE_NS {
-namespace onnx {
+TEST_CASE(dequantizelinear_2d_blocked_with_zp_test)
+{
+    migraphx::program p;
+    auto* mm = p.get_main_module();
 
-std::vector<instruction_ref>
-transform_quantize_dequantize_linear_inputs(const onnx_parser::node_info& info,
-                                            const std::string& op_name,
-                                            int block_size,
-                                            int axis,
-                                            std::vector<instruction_ref> args);
+    auto x     = mm->add_parameter("x", migraphx::shape{migraphx::shape::int8_type, {2, 2}});
+    auto scale = mm->add_parameter("scale", migraphx::shape{migraphx::shape::float_type, {2, 2}});
+    auto zp    = mm->add_parameter("zp", migraphx::shape{migraphx::shape::int8_type, {2, 2}});
 
-} // namespace onnx
-} // namespace MIGRAPHX_INLINE_NS
-} // namespace migraphx
+    mm->add_instruction(migraphx::make_op("dequantizelinear"), x, scale, zp);
 
-#endif
+    auto prog = optimize_onnx("dequantizelinear_2d_blocked_with_zp_test.onnx");
+    EXPECT(p == prog);
+}

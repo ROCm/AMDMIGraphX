@@ -62,7 +62,7 @@ def get_args():
     parser.add_argument(
         "--onnx-model-path",
         type=str,
-        default="models/",
+        default="models/sd3",
         help="Path to onnx model files.",
     )
 
@@ -210,17 +210,9 @@ def allocate_torch_tensors(model):
 class StableDiffusionMGX():
     def __init__(self, onnx_model_path, compiled_model_path, fp16, batch,
                  force_compile, exhaustive_tune):
-        model_id = "stabilityai/stable-diffusion-2-1"
-        print(f"Using {model_id}")
 
         self.model_sampling = ModelSamplingDiscreteFlow(shift=1.0)
-        # print("Creating EulerDiscreteScheduler scheduler")
-        # self.scheduler = EulerDiscreteScheduler.from_pretrained(
-        #     model_id, subfolder="scheduler")
 
-        # print("Creating CLIPTokenizer tokenizer...")
-        # self.clip_tokenizer = CLIPTokenizer.from_pretrained(model_id,
-        #                                                subfolder="tokenizer")
         self.tokenizer = SD3Tokenizer()
         self.device = "cuda"
 
@@ -365,13 +357,6 @@ class StableDiffusionMGX():
         neg_prompt_embeddings = self.get_embeddings(neg_prompt_tokens)
         self.profile_end("clip")
 
-        # print(
-        #     f"Creating random input data ({self.batch}x{16}x{128}x{128}) (latents) with seed={seed}..."
-        # )
-        # latents = torch.randn(
-        #     (self.batch, 16, 128, 128),
-        #     generator=torch.manual_seed(seed)).to(device="cuda")
-
         # print("Apply initial noise sigma\n")
         # latents = latents * self.scheduler.init_noise_sigma
 
@@ -461,6 +446,7 @@ class StableDiffusionMGX():
     def encode_token_weights(self, model_name, token_weight_pairs):
         tokens = list(map(lambda a: a[0], token_weight_pairs[0]))
         tokens = torch.tensor([tokens], dtype=torch.int64, device=self.device)
+        # print(f'token val: {tokens.flatten()[0:5]}')
         copy_tensor_sync(self.tensors[model_name]["input_ids"],
                          tokens.to(torch.int32))
         run_model_sync(self.models[model_name], self.model_args[model_name])
@@ -476,6 +462,9 @@ class StableDiffusionMGX():
         else:
             first_pooled = encoder_out2
         output = [encoder_out[0:1]]
+        # print(f'token weight output for model {model_name}: {output[0].flatten()[0:5]}')
+        # if first_pooled is not None:
+        #     print(f'token weight first_pooled for model {model_name}: {first_pooled.flatten()[0:5]}')
         return torch.cat(output, dim=-2), first_pooled
 
 
@@ -511,6 +500,11 @@ class StableDiffusionMGX():
         timestep = torch.cat([timestep, timestep])
         c_crossattn = torch.cat([cond["c_crossattn"], uncond["c_crossattn"]])
         y = torch.cat([cond["y"], uncond["y"]])
+        # print(f'x out: {x.flatten()[0:5]}')
+        # print(f'timestep out: {timestep.flatten()[0:5]}')
+        # print(f'c_crossattn out: {c_crossattn.flatten()[0:5]}')
+        # print(f'y out: {y.flatten()[0:5]}')
+
         # batched = self.model.apply_model(torch.cat([x, x]), torch.cat([timestep, timestep]), c_crossattn=torch.cat([cond["c_crossattn"], uncond["c_crossattn"]]), y=torch.cat([cond["y"], uncond["y"]]))
         copy_tensor_sync(self.tensors["mmdit"]["sample"], x)
         copy_tensor_sync(self.tensors["mmdit"]["sigma"], timestep)
@@ -521,6 +515,9 @@ class StableDiffusionMGX():
 
         pos_out, neg_out = torch.tensor_split(
             self.tensors["mmdit"][get_output_name(0)], 2)
+        # print(f'mmdit pos out: {pos_out.flatten()[0:5]}')
+        # print(f'mmdit neg_out out: {neg_out.flatten()[0:5]}')
+
         # Then split and apply CFG Scaling
         # pos_out, neg_out = batched.chunk(2)
         scaled = neg_out + (pos_out - neg_out) * cond_scale
@@ -581,18 +578,16 @@ class StableDiffusionMGX():
 
     def do_sampling(self, latent, seed, conditioning, neg_cond, steps, cfg_scale, denoise=1.0) -> torch.Tensor:
         latent = latent.half().cuda()
-        # self.sd3.model = self.sd3.model.cuda()
+        # print(f'latent vals: {latent.flatten()[0:5]}')
         noise = self.get_noise(seed, latent).cuda()
+        # print(f'noise vals: {noise.flatten()[0:5]}')
         sigmas = self.get_sigmas(self.model_sampling, steps).cuda()
         sigmas = sigmas[int(steps * (1 - denoise)):]
         conditioning = self.fix_cond(conditioning)
         neg_cond = self.fix_cond(neg_cond)
-        # extra_args = { "cond": conditioning, "uncond": neg_cond, "cond_scale": cfg_scale }
         noise_scaled = self.model_sampling.noise_scaling(sigmas[0], noise, latent, self.max_denoise(sigmas))
         latent = self.sample_euler(noise_scaled, sigmas, conditioning, neg_cond, cfg_scale)
         latent = SD3LatentFormat().process_out(latent)
-        # self.sd3.model = self.sd3.model.cpu()
-        print("Sampling done")
         return latent
 
     @measure
@@ -625,28 +620,32 @@ class StableDiffusionMGX():
         run_model_sync(self.models["vae"], self.model_args["vae"])
         return self.tensors["vae"][get_output_name(0)]
 
-    # @measure
-    # def warmup(self, num_runs):
-    #     self.profile_start("warmup")
-    #     copy_tensor_sync(self.tensors["clip"]["input_ids"],
-    #                      torch.ones((2, 77)).to(torch.int32))
-    #     copy_tensor_sync(
-    #         self.tensors["unet"]["sample"],
-    #         torch.randn((2 * self.batch, 4, 64, 64)).to(torch.float32))
-    #     copy_tensor_sync(
-    #         self.tensors["unet"]["encoder_hidden_states"],
-    #         torch.randn((2 * self.batch, 77, 1024)).to(torch.float32))
-    #     copy_tensor_sync(self.tensors["unet"]["timestep"],
-    #                      torch.atleast_1d(torch.randn(1).to(torch.int64)))
-    #     copy_tensor_sync(
-    #         self.tensors["vae"]["latent_sample"],
-    #         torch.randn((self.batch, 4, 64, 64)).to(torch.float32))
+    @measure
+    def warmup(self, num_runs):
+        self.profile_start("warmup")
+        copy_tensor_sync(self.tensors["clip-l"]["input_ids"],
+                         torch.ones((1, 77)).to(torch.int32))
+        copy_tensor_sync(self.tensors["clip-g"]["input_ids"],
+                         torch.ones((1, 77)).to(torch.int32))
+        copy_tensor_sync(self.tensors["t5xxl"]["input_ids"],
+                         torch.ones((1, 77)).to(torch.int32))
+        copy_tensor_sync(
+            self.tensors["mmdit"]["sample"],
+            torch.randn((2 * self.batch, 16, 128, 128)).to(torch.float16))
+        copy_tensor_sync(
+            self.tensors["unet"]["encoder_hidden_states"],
+            torch.randn((2 * self.batch, 77, 1024)).to(torch.float32))
+        copy_tensor_sync(self.tensors["unet"]["timestep"],
+                         torch.atleast_1d(torch.randn(1).to(torch.int64)))
+        copy_tensor_sync(
+            self.tensors["vae"]["latent_sample"],
+            torch.randn((self.batch, 4, 64, 64)).to(torch.float32))
 
-    #     for _ in range(num_runs):
-    #         run_model_sync(self.models["clip"], self.model_args["clip"])
-    #         run_model_sync(self.models["unet"], self.model_args["unet"])
-    #         run_model_sync(self.models["vae"], self.model_args["vae"])
-    #     self.profile_end("warmup")
+        for _ in range(num_runs):
+            run_model_sync(self.models["clip"], self.model_args["clip"])
+            run_model_sync(self.models["unet"], self.model_args["unet"])
+            run_model_sync(self.models["vae"], self.model_args["vae"])
+        self.profile_end("warmup")
 
 
 if __name__ == "__main__":

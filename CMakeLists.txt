@@ -73,6 +73,12 @@ else()
 option(MIGRAPHX_USE_MIOPEN "Enable MIGraphX to use MIOpen" ON)
 endif()
 
+if(WIN32)
+option(MIGRAPHX_USE_HIPBLASLT "Enable MIGraphX to use hipBLASLt" OFF)
+else()
+option(MIGRAPHX_USE_HIPBLASLT "Enable MIGraphX to use hipBLASLt" ON)
+endif()
+
 # By default build shared libraries
 option(BUILD_SHARED_LIBS "Create shared libraries" ON)
 
@@ -172,8 +178,10 @@ rocm_enable_clang_tidy(
         -bugprone-easily-swappable-parameters
         -bugprone-implicit-widening-of-multiplication-result
         -bugprone-macro-parentheses
+	-bugprone-multi-level-implicit-pointer-conversion
         -bugprone-signed-char-misuse
         -bugprone-unchecked-optional-access
+	-bugprone-unused-local-non-trivial-variable
         # Disable the aliased reserved identifiers
         -cert-dcl37-c
         -cert-dcl51-cpp
@@ -196,6 +204,7 @@ rocm_enable_clang_tidy(
         clang-analyzer-alpha.cplusplus.MismatchedIterator
         clang-analyzer-alpha.cplusplus.MisusedMovedObject
         -bugprone-switch-missing-default-case
+        -bugprone-empty-catch
         -clang-analyzer-optin.performance.Padding
         -clang-diagnostic-deprecated-declarations
         -clang-diagnostic-disabled-macro-expansion
@@ -235,12 +244,15 @@ rocm_enable_clang_tidy(
         -modernize-use-transparent-functors
         -performance-avoid-endl
         -performance-type-promotion-in-math-fn
+        -performance-enum-size
         -readability-braces-around-statements
+        -readability-avoid-nested-conditional-operator
         -readability-convert-member-functions-to-static
         -readability-else-after-return
         -readability-function-cognitive-complexity
         -readability-identifier-length
         -readability-named-parameter
+        -readability-redundant-member-init
         -readability-redundant-string-init
         -readability-suspicious-call-argument
         -readability-uppercase-literal-suffix
@@ -315,6 +327,7 @@ rocm_enable_cppcheck(
         ${CMAKE_CURRENT_SOURCE_DIR}/test/include
     DEFINE
         MIGRAPHX_MLIR=1
+        MIGRAPHX_ENABLE_HIPBLASLT_GEMM=1
         MIGRAPHX_HAS_EXECUTORS=0
         CPPCHECK=1
         MIGRAPHX_USE_MIOPEN=1
@@ -362,6 +375,10 @@ if(MIGRAPHX_USE_MIOPEN)
 endif()
 if(MIGRAPHX_USE_ROCBLAS)
     list(APPEND PACKAGE_DEPENDS rocblas)
+endif()
+
+if(MIGRAPHX_USE_HIPBLASLT)
+    list(APPEND PACKAGE_DEPENDS hipblaslt)
 endif()
 
 rocm_package_add_deb_dependencies(SHARED_DEPENDS "hip-dev")

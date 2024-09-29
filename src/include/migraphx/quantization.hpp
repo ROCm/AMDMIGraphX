@@ -49,6 +49,8 @@ MIGRAPHX_EXPORT void quantize_int8(program& prog,
 MIGRAPHX_EXPORT void
 quantize_fp8(program& prog, const target& t, const std::vector<parameter_map>& calibration);
 
+MIGRAPHX_EXPORT void quantize_int4_weights(program& prog);
+
 } // namespace MIGRAPHX_INLINE_NS
 } // namespace migraphx
 

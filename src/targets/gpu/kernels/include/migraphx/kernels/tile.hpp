@@ -105,7 +105,7 @@ struct tile
         auto offset       = os.index(group);
         MIGRAPHX_ASSERT((os.element_space() + is.element_space()) ==
                         (x.get_shape().element_space() + _c<1>));
-        MIGRAPHX_ASSERT((is.elements() + group) < x.get_shape().elements());
+        MIGRAPHX_ASSERT((is.elements() + group) <= x.get_shape().elements());
         MIGRAPHX_ASSERT((is.element_space() + offset) <= x.get_shape().element_space());
         return make_tensor_view(x.data() + offset, is);
     }

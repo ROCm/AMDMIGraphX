@@ -18,4 +18,3 @@ struct MIGRAPHX_EXPORT rewrite_dot
 } // namespace MIGRAPHX_INLINE_NS
 } // namespace migraphx
 #endif // MIGRAPHX_GUARD_MIGRAPHX_REWRITE_DOT_HPP
-

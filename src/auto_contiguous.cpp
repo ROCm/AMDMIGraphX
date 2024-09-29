@@ -64,6 +64,8 @@ void auto_contiguous::apply(module& m) const
         if(ins->outputs().empty() and ins != last)
             continue;
         shape s = ins->get_shape();
+        // If s is not standard layout or has out of sequence strides, insert "contiguous" op
+        // to make a standard shape
         if(not s.dynamic() and (not s.standard() or s.normalize_standard() != s) and
            s.elements() > 1)
         {

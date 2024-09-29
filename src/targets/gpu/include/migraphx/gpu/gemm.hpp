@@ -154,10 +154,10 @@ struct rocblas_gemm
 #else
         // suppress compiler warnings
         (void)ctx, (void)output_shape, (void)input_shapes;
-#endif
+#endif // MIGRAPHX_USE_ROCBLAS_TUNING_API
     }
 };
-#endif
 } // namespace gpu
 } // namespace MIGRAPHX_INLINE_NS
 } // namespace migraphx
+#endif // MIGRAPHX_GUARD_RTGLIB_GPU_GEMM_HPP

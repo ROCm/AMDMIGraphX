@@ -22,9 +22,20 @@
  * THE SOFTWARE.
  */
 
+#include "migraphx/make_op.hpp"
 #include <onnx_test.hpp>
 
-TEST_CASE(gridsample_bicubic_test)
+TEST_CASE(dequantizelinear_2d_blocked_with_zp_test)
 {
-    EXPECT(test::throws([&] { read_onnx("gridsample_bicubic_test.onnx"); }));
+    migraphx::program p;
+    auto* mm = p.get_main_module();
+
+    auto x     = mm->add_parameter("x", migraphx::shape{migraphx::shape::int8_type, {2, 2}});
+    auto scale = mm->add_parameter("scale", migraphx::shape{migraphx::shape::float_type, {2, 2}});
+    auto zp    = mm->add_parameter("zp", migraphx::shape{migraphx::shape::int8_type, {2, 2}});
+
+    mm->add_instruction(migraphx::make_op("dequantizelinear"), x, scale, zp);
+
+    auto prog = optimize_onnx("dequantizelinear_2d_blocked_with_zp_test.onnx");
+    EXPECT(p == prog);
 }

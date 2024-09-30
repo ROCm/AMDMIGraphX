@@ -53,3 +53,5 @@ struct test_gemm_multi_transpose : verify_program<test_gemm_multi_transpose<DTyp
 template struct test_gemm_multi_transpose<migraphx::shape::float_type>;
 template struct test_gemm_multi_transpose<migraphx::shape::half_type>;
 template struct test_gemm_multi_transpose<migraphx::shape::fp8e4m3fnuz_type>;
+template struct test_gemm_multi_transpose<migraphx::shape::fp8e4m3fn_type>;
+template struct test_gemm_multi_transpose<migraphx::shape::fp8e5m2_type>;

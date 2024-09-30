@@ -46,3 +46,5 @@ struct test_contiguous : verify_program<test_contiguous<DType>>
 
 template struct test_contiguous<migraphx::shape::float_type>;
 template struct test_contiguous<migraphx::shape::fp8e4m3fnuz_type>;
+template struct test_contiguous<migraphx::shape::fp8e4m3fn_type>;
+template struct test_contiguous<migraphx::shape::fp8e5m2_type>;

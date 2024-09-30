@@ -87,13 +87,13 @@ struct quant_convolution
             MIGRAPHX_THROW("quant_convolution: input k-dims does not match attribute size");
         }
 
-        // all input type must be int8_type and output is float_type
-        std::set<migraphx::shape::type_t> supported_types = {shape::int8_type,
-                                                             shape::fp8e4m3fnuz_type};
+        // all input type must be int8_type or fp8 types
+        // output should be float_type
+        std::set<migraphx::shape::type_t> supported_types = {
+            shape::int8_type, shape::fp8e4m3fnuz_type, shape::fp8e4m3fn_type, shape::fp8e5m2_type};
         if(not contains(supported_types, t))
         {
-            MIGRAPHX_THROW("QUANT_CONVOLUTION: only accept input and weights of type int8_t or "
-                           "fp8e4m3fnuz_type");
+            MIGRAPHX_THROW("QUANT_CONVOLUTION: only accept input and weights of type int8 or fp8");
         }
 
         std::vector<size_t> output_lens{input.lens()[0], weights.lens()[0]};

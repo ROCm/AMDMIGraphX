@@ -152,11 +152,32 @@ struct npy_format_descriptor<migraphx::fp8::fp8e4m3fnuz>
 {
     static std::string format()
     {
-        // following: https://docs.python.org/3/library/struct.html#format-characters
-        // TODO: need to figure out correct encoding
+        // TODO: no standard format in numpy for fp8
         return "z";
     }
     static constexpr auto name() { return _("fp8e4m3fnuz"); }
+};
+
+template <>
+struct npy_format_descriptor<migraphx::fp8::fp8e4m3fn>
+{
+    static std::string format()
+    {
+        // TODO: no standard format in numpy for fp8
+        return "z";
+    }
+    static constexpr auto name() { return _("fp8e4m3fn"); }
+};
+
+template <>
+struct npy_format_descriptor<migraphx::fp8::fp8e5m2>
+{
+    static std::string format()
+    {
+        // TODO: no standard format in numpy for fp8
+        return "z";
+    }
+    static constexpr auto name() { return _("fp8e5m2"); }
 };
 
 } // namespace detail

@@ -110,7 +110,7 @@ void insert_pad::apply(module& m) const
     for(auto ins : iterator_for(m))
     {
         const std::string& op_name = ins->name();
-        if(op_name != "convolution" and op_name != "im2col" and op_name != "pooling")
+        if(not contains(ops, op_name))
             continue;
         auto input = ins->inputs().front();
         if(op_name == "convolution" or op_name == "im2col")

@@ -39,7 +39,7 @@ The MIGraphX public repository is located at `https://github.com/ROCm/AMDMIGraph
     * :doc:`Developing for MIGraphX <./dev/contributing-to-migraphx>` 
 
 To contribute to the documentation refer to
-`Contributing to ROCm  <https://rocm.docs.amd.com/en/latest/contribute/contributing.html>`_.
+`Contribute to ROCm documentation <https://rocm.docs.amd.com/en/latest/contribute/contributing.html>`_.
 
 Licensing information can be found on the
 `Licensing <https://rocm.docs.amd.com/en/latest/about/license.html>`_ page.

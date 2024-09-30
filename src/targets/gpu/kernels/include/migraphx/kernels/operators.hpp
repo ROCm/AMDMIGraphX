@@ -20,43 +20,24 @@
  * LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
  * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
  * THE SOFTWARE.
+ *
  */
-#ifndef MIGRAPHX_GUARD_KERNELS_POINTWISE_HPP
-#define MIGRAPHX_GUARD_KERNELS_POINTWISE_HPP
+#ifndef MIGRAPHX_GUARD_KERNELS_OPERATORS_HPP
+#define MIGRAPHX_GUARD_KERNELS_OPERATORS_HPP
 
-#include <migraphx/kernels/index.hpp>
 #include <migraphx/kernels/functional.hpp>
-#include <migraphx/kernels/math.hpp>
-#include <migraphx/kernels/preload.hpp>
-#include <migraphx/kernels/vectorize.hpp>
-#include <migraphx/kernels/args.hpp>
-#include <migraphx/kernels/tile.hpp>
-#include <migraphx/kernels/tuple.hpp>
+#include <migraphx/kernels/type_traits.hpp>
 
 namespace migraphx {
 
-template <class Stride, class F, class Output, class T, class... Ts>
-__device__ void pointwise_tensor(Stride stride, F f, Output out, T x, Ts... xs)
+template <class T>
+struct equality_comparable
 {
-    stride(x.get_shape().elements(), [&](auto i) {
-        auto r = f(x[i], xs[i]...);
-        out([&](auto... outs) {
-            r([&](auto... rs) {
-                static_assert(sizeof...(outs) == sizeof...(rs));
-                swallow{(outs[i] = implicit_conversion(rs))...};
-            });
-        });
-    });
-}
-
-template <index_int N, bool Tiled, class... Transforms>
-__device__ auto pointwise(index idx, Transforms... transforms)
-{
-    return [=](auto f, auto*... ps) {
-        auto t = transform_args(make_tensors(), transforms..., rotate_and_pack_last<N>());
-        t(ps...)([&](auto... xs) { pointwise_tensor(tile_stride<Tiled>(idx), f, xs...); });
-    };
-}
+    template <class U>
+    friend constexpr auto operator!=(const T& x, const U& y) MIGRAPHX_RETURNS(not(x == y));
+    template <class U, class V, MIGRAPHX_REQUIRES(not is_same<T, U>{} and is_same<V, T>{})>
+    friend constexpr auto operator!=(const U& x, const V& y) MIGRAPHX_RETURNS(not(x == y));
+};
 
 } // namespace migraphx
-#endif // MIGRAPHX_GUARD_KERNELS_POINTWISE_HPP
+#endif // MIGRAPHX_GUARD_KERNELS_OPERATORS_HPP

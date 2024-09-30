@@ -366,7 +366,9 @@ if __name__ == "__main__":
         export_rnnt_onnx(pytorch_model, x, args.onnx_model_path)
 
     print("Read MIGX model from ONNX and run...")
-    migx_model = RNNT_MGX(x, onnx_model_path=args.onnx_model_path, fp16=args.fp16)
+    migx_model = RNNT_MGX(x,
+                          onnx_model_path=args.onnx_model_path,
+                          fp16=args.fp16)
     rnnt_decoder = GreedyDecoder(migx_model)
     _, _, result = rnnt_decoder.run(x.to(torch.float32), out_lens)
     print("Transcribed Sentence: ", decode_string(result))

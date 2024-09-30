@@ -28,6 +28,7 @@
 #include <migraphx/module_ref.hpp>
 #include <migraphx/instruction_ref.hpp>
 #include <migraphx/shape.hpp>
+#include <migraphx/gpu/export.h>
 #include <string>
 #include <unordered_map>
 #include <vector>
@@ -81,8 +82,8 @@ struct tile
     std::string str() const;
 };
 
-std::size_t find_fast_axis(const shape& input);
-std::size_t find_fast_axis(const std::vector<shape>& inputs);
+MIGRAPHX_GPU_EXPORT std::size_t find_fast_axis(const shape& input);
+MIGRAPHX_GPU_EXPORT std::size_t find_fast_axis(const std::vector<shape>& inputs);
 
 std::string make_transformer_args(std::vector<std::string> transformers);
 

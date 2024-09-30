@@ -21,37 +21,26 @@
  * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
  * THE SOFTWARE.
  */
-#ifndef MIGRAPHX_GUARD_RTGLIB_QUANTIZATION_HPP
-#define MIGRAPHX_GUARD_RTGLIB_QUANTIZATION_HPP
 
-#include <string>
-#include <vector>
-#include <migraphx/instruction_ref.hpp>
-#include <migraphx/operation.hpp>
-#include <migraphx/config.hpp>
-#include <migraphx/target.hpp>
-#include <migraphx/program.hpp>
-#include <migraphx/env.hpp>
+#include <onnx_test.hpp>
 
-namespace migraphx {
-inline namespace MIGRAPHX_INLINE_NS {
+TEST_CASE(dequantizelinear_too_few_inputs_test)
+{
+    EXPECT(test::throws([&] { read_onnx("dequantizelinear_too_few_inputs_test.onnx"); }));
+}
 
-struct program;
+TEST_CASE(dequantizelinear_too_many_inputs_test)
+{
+    EXPECT(test::throws([&] { read_onnx("dequantizelinear_too_many_inputs_test.onnx"); }));
+}
 
-MIGRAPHX_EXPORT void quantize_fp16(program& prog,
-                                   const std::vector<std::string>& ins_names = {"all"});
+TEST_CASE(dequantizelinear_x_and_zp_type_mismatch_test)
+{
+    EXPECT(test::throws([&] { read_onnx("dequantizelinear_x_and_zp_type_mismatch_test.onnx"); }));
+}
 
-MIGRAPHX_EXPORT void quantize_int8(program& prog,
-                                   const target& t,
-                                   const std::vector<parameter_map>& calibration,
-                                   const std::unordered_set<std::string>& ins_names = {
-                                       "dot", "convolution"});
-MIGRAPHX_EXPORT void
-quantize_fp8(program& prog, const target& t, const std::vector<parameter_map>& calibration);
-
-MIGRAPHX_EXPORT void quantize_int4_weights(program& prog);
-
-} // namespace MIGRAPHX_INLINE_NS
-} // namespace migraphx
-
-#endif
+TEST_CASE(dequantizelinear_scale_and_zp_shape_mismatch_test)
+{
+    EXPECT(
+        test::throws([&] { read_onnx("dequantizelinear_scale_and_zp_shape_mismatch_test.onnx"); }));
+}

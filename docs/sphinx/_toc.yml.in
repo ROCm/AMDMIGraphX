@@ -6,16 +6,8 @@ subtrees:
     - file: what-is-migraphx
 
   - caption: Installation
-    entries:
-    
-    - file: install/prerequisites
-    - file: install/install
-      subtrees:
-        - entries:
-          - file: install/installing_with_package
-          - file: install/build_and_install_with_cmake
-          - file: install/build_and_install_with_rbuild
-          - file: install/build_and_install_with_docker
+    entries: 
+    - file: install/installing_with_package
     
   - caption: Reference
     entries:
@@ -28,6 +20,7 @@ subtrees:
 
   - caption:  Developing for MIGraphX
     entries:
+    - file: install/building_migraphx
     - file: dev/contributing-to-migraphx
       subtrees:
         - entries:

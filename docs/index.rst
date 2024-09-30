@@ -5,37 +5,38 @@
 .. _index:
 
 ===========================
-AMD MIGraphX documentation
+MIGraphX documentation
 ===========================
 
-AMD MIGraphX is AMD's graph inference engine. This optimized execution engine is useful for deep learning neural networks.
+MIGraphX is a graph inference engine and graph compiler. MIGraphX accelerates machine-learning models by leveraging several graph-level transformations and optimizations. These optimizations include:
 
-To learn more, see :ref:`what-is-migraphx`.
+* Operator fusion
+* Arithmetic simplifications
+* Dead-code elimination
+* Common subexpression elimination (CSE)
+* Constant propagation
 
-Our documentation is structured as follows:
+After optimization, MIGraphX generates code for AMD GPUs by calling various ROCm libraries to create the fastest combinations of HIP kernels.
+
+The MIGraphX public repository is located at `https://github.com/ROCm/AMDMIGraphX/ <https://github.com/ROCm/AMDMIGraphX/>`_
 
 .. grid:: 2
   :gutter: 3
 
-  .. grid-item-card:: Installating and building
+  .. grid-item-card:: Install
 
-    * :doc:`Prerequisites <./install/prerequisites>`
-    * :doc:`Install MIGraphX <./install/install>`
-    * :doc:`Install MIGraphX with the package installer <./install/installing_with_package>`
-    * :doc:`Build and install MIGraphX with CMake <./install/build_and_install_with_cmake>`
-    * :doc:`Build and install MIGraphX with rbuild <./install/build_and_install_with_rbuild>`
-    * :doc:`Build and install MIGraphX with Docker <./install/build_and_install_with_docker>`
-      
-  .. grid-item-card:: Reference
+    * :doc:`Installing MIGraphX <./install/installing_with_package>`
+
+  .. grid-item-card:: Using the MIGraphX API
 
     * :ref:`cpp-api-reference`
     * :ref:`python-api-reference`
     * :ref:`migraphx-driver`
    
-  .. grid-item-card:: Developing for MIGraphX
+  .. grid-item-card:: Contributing to the MIGraphX code base
 
-    * :ref:`contributing-to-migraphx`
- 
+    * :doc:`Building MIGraphX <./install/building_migraphx>`
+    * :doc:`Developing for MIGraphX <./dev/contributing-to-migraphx>` 
 
 To contribute to the documentation refer to
 `Contributing to ROCm  <https://rocm.docs.amd.com/en/latest/contribute/contributing.html>`_.

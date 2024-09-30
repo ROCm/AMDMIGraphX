@@ -21,36 +21,24 @@
  * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
  * THE SOFTWARE.
  */
-#ifndef MIGRAPHX_GUARD_RTGLIB_QUANTIZATION_HPP
-#define MIGRAPHX_GUARD_RTGLIB_QUANTIZATION_HPP
+#ifndef MIGRAPHX_GUARD_AMDMIGRAPHX_ONNX_QUANTIZE_DEQUANTIZE_LINEAR_HPP
+#define MIGRAPHX_GUARD_AMDMIGRAPHX_ONNX_QUANTIZE_DEQUANTIZE_LINEAR_HPP
 
-#include <string>
-#include <vector>
-#include <migraphx/instruction_ref.hpp>
-#include <migraphx/operation.hpp>
-#include <migraphx/config.hpp>
-#include <migraphx/target.hpp>
-#include <migraphx/program.hpp>
-#include <migraphx/env.hpp>
+#include <migraphx/onnx/op_parser.hpp>
+#include <migraphx/instruction.hpp>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
+namespace onnx {
 
-struct program;
+std::vector<instruction_ref>
+transform_quantize_dequantize_linear_inputs(const onnx_parser::node_info& info,
+                                            const std::string& op_name,
+                                            int block_size,
+                                            int axis,
+                                            std::vector<instruction_ref> args);
 
-MIGRAPHX_EXPORT void quantize_fp16(program& prog,
-                                   const std::vector<std::string>& ins_names = {"all"});
-
-MIGRAPHX_EXPORT void quantize_int8(program& prog,
-                                   const target& t,
-                                   const std::vector<parameter_map>& calibration,
-                                   const std::unordered_set<std::string>& ins_names = {
-                                       "dot", "convolution"});
-MIGRAPHX_EXPORT void
-quantize_fp8(program& prog, const target& t, const std::vector<parameter_map>& calibration);
-
-MIGRAPHX_EXPORT void quantize_int4_weights(program& prog);
-
+} // namespace onnx
 } // namespace MIGRAPHX_INLINE_NS
 } // namespace migraphx
 

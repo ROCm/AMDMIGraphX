@@ -21,37 +21,30 @@
  * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
  * THE SOFTWARE.
  */
-#ifndef MIGRAPHX_GUARD_RTGLIB_QUANTIZATION_HPP
-#define MIGRAPHX_GUARD_RTGLIB_QUANTIZATION_HPP
 
-#include <string>
-#include <vector>
-#include <migraphx/instruction_ref.hpp>
-#include <migraphx/operation.hpp>
-#include <migraphx/config.hpp>
-#include <migraphx/target.hpp>
-#include <migraphx/program.hpp>
-#include <migraphx/env.hpp>
+#include "migraphx/make_op.hpp"
+#include <onnx_test.hpp>
 
-namespace migraphx {
-inline namespace MIGRAPHX_INLINE_NS {
+TEST_CASE(quantizelinear_2d_blocked_with_zp_test)
+{
+    migraphx::program p;
+    auto* mm = p.get_main_module();
 
-struct program;
+    auto x     = mm->add_parameter("x", migraphx::shape{migraphx::shape::float_type, {6, 2}});
+    auto scale = mm->add_parameter("scale", migraphx::shape{migraphx::shape::float_type, {2, 2}});
+    auto zp    = mm->add_parameter("zp", migraphx::shape{migraphx::shape::int8_type, {2, 2}});
 
-MIGRAPHX_EXPORT void quantize_fp16(program& prog,
-                                   const std::vector<std::string>& ins_names = {"all"});
+    scale = mm->add_instruction(migraphx::make_op("unsqueeze", {{"axes", {1}}}), scale);
+    scale =
+        mm->add_instruction(migraphx::make_op("multibroadcast", {{"out_lens", {2, 3, 2}}}), scale);
+    scale = mm->add_instruction(migraphx::make_op("reshape", {{"dims", {6, 2}}}), scale);
 
-MIGRAPHX_EXPORT void quantize_int8(program& prog,
-                                   const target& t,
-                                   const std::vector<parameter_map>& calibration,
-                                   const std::unordered_set<std::string>& ins_names = {
-                                       "dot", "convolution"});
-MIGRAPHX_EXPORT void
-quantize_fp8(program& prog, const target& t, const std::vector<parameter_map>& calibration);
+    zp = mm->add_instruction(migraphx::make_op("unsqueeze", {{"axes", {1}}}), zp);
+    zp = mm->add_instruction(migraphx::make_op("multibroadcast", {{"out_lens", {2, 3, 2}}}), zp);
+    zp = mm->add_instruction(migraphx::make_op("reshape", {{"dims", {6, 2}}}), zp);
 
-MIGRAPHX_EXPORT void quantize_int4_weights(program& prog);
+    mm->add_instruction(migraphx::make_op("quantizelinear"), x, scale, zp);
 
-} // namespace MIGRAPHX_INLINE_NS
-} // namespace migraphx
-
-#endif
+    auto prog = optimize_onnx("quantizelinear_2d_blocked_with_zp_test.onnx");
+    EXPECT(p == prog);
+}

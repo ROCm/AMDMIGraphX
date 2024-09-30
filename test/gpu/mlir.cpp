@@ -454,4 +454,57 @@ module {
     EXPECT(verify_mlir(m));
 }
 
+TEST_CASE(int4_unpack_ir)
+{
+    std::string mlir_output = R"__migraphx__(
+module  {
+   func.func  @mlir_unpack_int4(%arg0:  !migraphx.shaped<2x1xi8,  1x1>)  ->  !migraphx.shaped<2x2xi8,  2x1>  attributes ${attrs}   {
+       %0  =  migraphx.unpack  %arg0  {axis  =  1  :  i64,  isUnsigned  =  false}  :  <2x1xi8,  1x1>  ->  <2x2xi8,  2x1>
+       return  %0  :  !migraphx.shaped<2x2xi8,  2x1>
+   }
+}
+)__migraphx__";
+    migraphx::module m;
+    auto arg0 = m.add_parameter("arg0", {migraphx::shape::int8_type, {2, 1}});
+    auto unpk = m.add_instruction(migraphx::make_op("unpack_int4"), arg0);
+    m.add_return({unpk});
+    auto s = migraphx::gpu::dump_mlir(m);
+
+    // Skip test if MLIR is not enabled
+    if(s.empty())
+        return;
+
+    auto mlir_output_with_attrs =
+        migraphx::interpolate_string(mlir_output, {{"attrs", get_attrs()}});
+
+    CHECK(encode(s) == encode(mlir_output_with_attrs));
+}
+
+TEST_CASE(int4_unpack_conv)
+{
+    std::string mlir_output = R"__migraphx__(
+ module  {
+    func.func  @mlir_unpack_int4_quant_convolution(%arg0:  !migraphx.shaped<2x8x2x1xi8,  16x2x1x1>,  %arg1:  !migraphx.shaped<1x8x4x4xi8,  128x16x4x1>)  ->  !migraphx.shaped<1x2x3x3xi32,  18x9x3x1>  attributes ${attrs} {
+        %0  =  migraphx.unpack  %arg0  {axis  =  3  :  i64,  isUnsigned  =  false}  :  <2x8x2x1xi8,  16x2x1x1>  ->  <2x8x2x2xi8,  32x4x2x1>
+        %1  =  migraphx.quant_convolution  %arg1,  %0  {dilation  =  [1,  1],  group  =  1  :  i64,  padding  =  [0,  0,  0,  0],  padding_mode  =  0  :  i64,  stride  =  [1,  1]}  :  <1x8x4x4xi8,  128x16x4x1>,  <2x8x2x2xi8,  32x4x2x1>  ->  <1x2x3x3xi32,  18x9x3x1>
+        return  %1  :  !migraphx.shaped<1x2x3x3xi32,  18x9x3x1>
+    }
+}
+)__migraphx__";
+    migraphx::module m;
+    auto x    = m.add_parameter("x", {migraphx::shape::int8_type, {1, 8, 4, 4}});
+    auto pk_w = m.add_parameter("w", {migraphx::shape::int8_type, {2, 8, 2, 1}});
+    auto w    = m.add_instruction(migraphx::make_op("unpack_int4"), pk_w);
+    auto conv = m.add_instruction(migraphx::make_op("quant_convolution"), x, w); // w: {2,8,2,2}
+    m.add_return({conv});
+    auto s = migraphx::gpu::dump_mlir(m);
+    // Skip test if MLIR is not enabled
+    if(s.empty())
+        return;
+    auto mlir_output_with_attrs =
+        migraphx::interpolate_string(mlir_output, {{"attrs", get_attrs()}});
+    CHECK(encode(s) == encode(mlir_output_with_attrs));
+    EXPECT(verify_mlir(m));
+}
+
 int main(int argc, const char* argv[]) { test::run(argc, argv); }

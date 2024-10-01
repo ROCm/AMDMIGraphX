@@ -63,9 +63,7 @@ argument as_packed(const argument& c)
         return c;
     auto s = c.get_shape().with_lens(c.get_shape().lens());
     argument result;
-    c.visit([&](auto x) {
-        result = literal{s, x.begin(), x.end()}.get_argument();
-    });
+    c.visit([&](auto x) { result = literal{s, x.begin(), x.end()}.get_argument(); });
     return result;
 }
 

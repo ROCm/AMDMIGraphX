@@ -280,7 +280,8 @@ TEST_CASE(fold_packed_broadcast)
     {
         migraphx::shape s{migraphx::shape::float_type, {2}};
         auto l = m1.add_literal(migraphx::literal(s, vec));
-        auto lb = m1.add_instruction(migraphx::make_op("multibroadcast", {{"out_lens", {1, 2}}}), l);
+        auto lb =
+            m1.add_instruction(migraphx::make_op("multibroadcast", {{"out_lens", {1, 2}}}), l);
         auto mul = m1.add_instruction(migraphx::make_op("mul"), lb, lb);
         m1.add_return({mul});
     }

@@ -24,8 +24,9 @@
 #include <migraphx/propagate_constant.hpp>
 #include <migraphx/dead_code_elimination.hpp>
 #include <migraphx/pass_manager.hpp>
-#include <basic_ops.hpp>
+#include <migraphx/generate.hpp>
 #include <migraphx/make_op.hpp>
+#include <basic_ops.hpp>
 
 #include <test.hpp>
 
@@ -272,6 +273,30 @@ TEST_CASE(fold_broadcast_non_overlapping_broadcast)
     EXPECT(m1 == m2);
 }
 
+TEST_CASE(fold_slice)
+{
+    migraphx::module m1;
+    {
+        migraphx::shape s{migraphx::shape::float_type, {2, 2}};
+        const std::vector<float> vec = {1.0f, 2.0f, 1.0f, 2.0f};
+        auto l = m1.add_literal(migraphx::literal(s, vec));
+        auto slice = m1.add_instruction(migraphx::make_op("slice", {{"axes", {0}}, {"starts", {0}}, {"ends", {1}}}), l);
+        m1.add_return({slice});
+    }
+
+    run_pass(m1);
+
+    migraphx::module m2;
+    {
+        migraphx::shape s{migraphx::shape::float_type, {1, 2}};
+        const std::vector<float> vec = {1.0f, 2.0f};
+        auto l = m2.add_literal(migraphx::literal(s, vec));
+        m2.add_return({l});
+    }
+
+    EXPECT(m1 == m2);
+}
+
 TEST_CASE(pack_unpack_int4)
 {
     migraphx::shape s1{migraphx::shape::int8_type, {4}};
@@ -317,6 +342,119 @@ TEST_CASE(skip_ops)
 
     run_pass(m1, {"quantizelinear", "dequantizelinear"});
     EXPECT(m1 == m2);
+}
+
+TEST_CASE(block_dequantize)
+{
+    migraphx::module m1;
+    {
+        auto x = m1.add_parameter("x", migraphx::shape{migraphx::shape::int8_type, {2, 5, 2}});
+        auto scalelit = m1.add_literal(migraphx::generate_literal({migraphx::shape::float_type, {2, 2, 2}}));
+        auto zplit = m1.add_literal(migraphx::generate_literal({migraphx::shape::int8_type, {2, 2, 2}}));
+
+        auto unsqueeze1 = m1.add_instruction(migraphx::make_op("unsqueeze", {{"axes", {2}}}), scalelit);
+        auto broadcast1 = m1.add_instruction(migraphx::make_op("multibroadcast", {{"out_lens", {2, 2, 3, 2}}}),
+                                    unsqueeze1);
+        auto reshape1 = m1.add_instruction(migraphx::make_op("reshape", {{"dims", {2, 6, 2}}}), broadcast1);
+        auto scale = m1.add_instruction(
+            migraphx::make_op("slice", {{"axes", {1}}, {"starts", {0}}, {"ends", {5}}}), reshape1);
+
+        auto unsqueeze2 = m1.add_instruction(migraphx::make_op("unsqueeze", {{"axes", {2}}}), zplit);
+        auto broadcast2 = m1.add_instruction(migraphx::make_op("multibroadcast", {{"out_lens", {2, 2, 3, 2}}}),
+                                    unsqueeze2);
+        auto reshape2 = m1.add_instruction(migraphx::make_op("reshape", {{"dims", {2, 6, 2}}}), broadcast2);
+        auto zp = m1.add_instruction(
+            migraphx::make_op("slice", {{"axes", {1}}, {"starts", {0}}, {"ends", {5}}}), reshape2);
+
+        auto dq = m1.add_instruction(migraphx::make_op("dequantizelinear"), x, scale, zp);
+        m1.add_return({dq});
+    }
+
+    run_pass(m1);
+    migraphx::module m2;
+    {
+        auto x = m2.add_parameter("x", migraphx::shape{migraphx::shape::int8_type, {2, 5, 2}});
+        auto scalelit = m2.add_literal(migraphx::generate_literal({migraphx::shape::float_type, {2, 2, 1, 2}}));
+        auto zplit = m2.add_literal(migraphx::generate_literal({migraphx::shape::int8_type, {2, 2, 1, 2}}));
+
+        auto broadcast1 = m2.add_instruction(migraphx::make_op("multibroadcast", {{"out_lens", {2, 2, 3, 2}}}),
+                                    scalelit);
+        auto reshape1 = m2.add_instruction(migraphx::make_op("reshape", {{"dims", {2, 6, 2}}}), broadcast1);
+        auto scale = m2.add_instruction(
+            migraphx::make_op("slice", {{"axes", {1}}, {"starts", {0}}, {"ends", {5}}}), reshape1);
+
+        auto broadcast2 = m2.add_instruction(migraphx::make_op("multibroadcast", {{"out_lens", {2, 2, 3, 2}}}),
+                                    zplit);
+        auto reshape2 = m2.add_instruction(migraphx::make_op("reshape", {{"dims", {2, 6, 2}}}), broadcast2);
+        auto zp = m2.add_instruction(
+            migraphx::make_op("slice", {{"axes", {1}}, {"starts", {0}}, {"ends", {5}}}), reshape2);
+
+        auto dq = m2.add_instruction(migraphx::make_op("dequantizelinear"), x, scale, zp);
+        m2.add_return({dq});
+    }
+
+    EXPECT(m1.sort() == m2.sort());
+}
+
+TEST_CASE(block_dequantize_int4)
+{
+    migraphx::module m1;
+    {
+        auto x = m1.add_parameter("x", migraphx::shape{migraphx::shape::float_type, {2, 5, 2}});
+        auto w = m1.add_literal(migraphx::generate_literal({migraphx::shape::int8_type, {2, 5, 1}}));
+        auto wunpack = m1.add_instruction(migraphx::make_op("unpack_int4"), w);
+        auto scalelit = m1.add_literal(migraphx::generate_literal({migraphx::shape::float_type, {2, 2, 2}}));
+        auto zplit = m1.add_literal(migraphx::generate_literal({migraphx::shape::int8_type, {2, 2, 2}}));
+
+        auto unsqueeze1 = m1.add_instruction(migraphx::make_op("unsqueeze", {{"axes", {2}}}), scalelit);
+        auto broadcast1 = m1.add_instruction(migraphx::make_op("multibroadcast", {{"out_lens", {2, 2, 3, 2}}}),
+                                    unsqueeze1);
+        auto reshape1 = m1.add_instruction(migraphx::make_op("reshape", {{"dims", {2, 6, 2}}}), broadcast1);
+        auto scale = m1.add_instruction(
+            migraphx::make_op("slice", {{"axes", {1}}, {"starts", {0}}, {"ends", {5}}}), reshape1);
+
+        auto unsqueeze2 = m1.add_instruction(migraphx::make_op("unsqueeze", {{"axes", {2}}}), zplit);
+        auto broadcast2 = m1.add_instruction(migraphx::make_op("multibroadcast", {{"out_lens", {2, 2, 3, 2}}}),
+                                    unsqueeze2);
+        auto reshape2 = m1.add_instruction(migraphx::make_op("reshape", {{"dims", {2, 6, 2}}}), broadcast2);
+        auto zp = m1.add_instruction(
+            migraphx::make_op("slice", {{"axes", {1}}, {"starts", {0}}, {"ends", {5}}}), reshape2);
+
+        auto dq = m1.add_instruction(migraphx::make_op("dequantizelinear"), wunpack, scale, zp);
+        auto transpose = m1.add_instruction(migraphx::make_op("transpose", {{"permutation", {0, 2, 1}}}), dq);
+
+        auto dot = m1.add_instruction(migraphx::make_op("dot"), x, transpose);
+        m1.add_return({dot});
+    }
+    run_pass(m1);
+
+    migraphx::module m2;
+    {
+        auto x = m2.add_parameter("x", migraphx::shape{migraphx::shape::float_type, {2, 5, 2}});
+        auto w = m2.add_literal(migraphx::generate_literal({migraphx::shape::int8_type, {2, 5, 1}}));
+        auto wunpack = m2.add_instruction(migraphx::make_op("unpack_int4"), w);
+        auto scalelit = m2.add_literal(migraphx::generate_literal({migraphx::shape::float_type, {2, 2, 1, 2}}));
+        auto zplit = m2.add_literal(migraphx::generate_literal({migraphx::shape::int8_type, {2, 2, 1, 2}}));
+
+        auto broadcast1 = m2.add_instruction(migraphx::make_op("multibroadcast", {{"out_lens", {2, 2, 3, 2}}}),
+                                    scalelit);
+        auto reshape1 = m2.add_instruction(migraphx::make_op("reshape", {{"dims", {2, 6, 2}}}), broadcast1);
+        auto scale = m2.add_instruction(
+            migraphx::make_op("slice", {{"axes", {1}}, {"starts", {0}}, {"ends", {5}}}), reshape1);
+
+        auto broadcast2 = m2.add_instruction(migraphx::make_op("multibroadcast", {{"out_lens", {2, 2, 3, 2}}}),
+                                    zplit);
+        auto reshape2 = m2.add_instruction(migraphx::make_op("reshape", {{"dims", {2, 6, 2}}}), broadcast2);
+        auto zp = m2.add_instruction(
+            migraphx::make_op("slice", {{"axes", {1}}, {"starts", {0}}, {"ends", {5}}}), reshape2);
+
+        auto dq = m2.add_instruction(migraphx::make_op("dequantizelinear"), wunpack, scale, zp);
+        auto transpose = m2.add_instruction(migraphx::make_op("transpose", {{"permutation", {0, 2, 1}}}), dq);
+
+        auto dot = m2.add_instruction(migraphx::make_op("dot"), x, transpose);
+        m2.add_return({dot});
+    }
+    EXPECT(m1.sort() == m2.sort());
 }
 
 int main(int argc, const char* argv[]) { test::run(argc, argv); }

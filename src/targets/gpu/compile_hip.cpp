@@ -236,7 +236,7 @@ bool hip_has_flags(const std::vector<std::string>& flags)
 
     try
     {
-        compile_hip_src(srcs, flags, arch); // prog.compile(flags, true);
+        compile_hip_src(srcs, flags, arch); 
         return true;
     }
     catch(...)

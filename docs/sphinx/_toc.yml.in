@@ -2,8 +2,6 @@
 # These comments will also be removed.
 root: index
 subtrees:
-  - entries:
-    - file: what-is-migraphx
 
   - caption: Installation
     entries: 

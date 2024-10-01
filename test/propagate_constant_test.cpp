@@ -273,6 +273,29 @@ TEST_CASE(fold_broadcast_non_overlapping_broadcast)
     EXPECT(m1 == m2);
 }
 
+TEST_CASE(fold_packed_broadcast)
+{
+    const std::vector<float> vec = {0.0f, 1.0f};
+    migraphx::module m1;
+    {
+        migraphx::shape s{migraphx::shape::float_type, {2}};
+        auto l = m1.add_literal(migraphx::literal(s, vec));
+        auto lb = m1.add_instruction(migraphx::make_op("multibroadcast", {{"out_lens", {1, 2}}}), l);
+        auto mul = m1.add_instruction(migraphx::make_op("mul"), lb, lb);
+        m1.add_return({mul});
+    }
+    run_pass(m1);
+
+    migraphx::module m2;
+    {
+        migraphx::shape s{migraphx::shape::float_type, {1, 2}, {0, 1}};
+        auto l = m2.add_literal(migraphx::literal(s, vec));
+        m2.add_return({l});
+    }
+
+    EXPECT(m1 == m2);
+}
+
 TEST_CASE(fold_slice)
 {
     migraphx::module m1;
@@ -290,6 +313,31 @@ TEST_CASE(fold_slice)
     migraphx::module m2;
     {
         migraphx::shape s{migraphx::shape::float_type, {1, 2}};
+        const std::vector<float> vec = {1.0f, 2.0f};
+        auto l                       = m2.add_literal(migraphx::literal(s, vec));
+        m2.add_return({l});
+    }
+
+    EXPECT(m1 == m2);
+}
+
+TEST_CASE(fold_slice_nonpack)
+{
+    migraphx::module m1;
+    {
+        migraphx::shape s{migraphx::shape::float_type, {2, 2}};
+        const std::vector<float> vec = {1.0f, 1.0f, 2.0f, 2.0f};
+        auto l                       = m1.add_literal(migraphx::literal(s, vec));
+        auto slice                   = m1.add_instruction(
+            migraphx::make_op("slice", {{"axes", {1}}, {"starts", {0}}, {"ends", {1}}}), l);
+        m1.add_return({slice});
+    }
+
+    run_pass(m1);
+
+    migraphx::module m2;
+    {
+        migraphx::shape s{migraphx::shape::float_type, {2, 1}};
         const std::vector<float> vec = {1.0f, 2.0f};
         auto l                       = m2.add_literal(migraphx::literal(s, vec));
         m2.add_return({l});

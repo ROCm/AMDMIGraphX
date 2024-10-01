@@ -774,6 +774,13 @@ struct find_mlir_standalone_attention_op
             std::next(softmax_in), make_op("softmax", {{"axis", axes.front()}}), softmax_in);
         map_main_to_mattn[fused_reduce] = softmax;
 
+        // all preceeding ops should be fusable ops
+        if(not std::all_of(m_gemm1, softmax, [](auto i) {
+               return (is_pointwise_op_supported_by_mlir(i) or
+                       contains(reshaper_names(), i.name()));
+           }))
+            return;
+
         // Add second gemm and fuse any input shape ops
         module fuse_gemm2;
         auto [anchor_op2, top_inputs2] =

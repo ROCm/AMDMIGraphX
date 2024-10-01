@@ -53,7 +53,7 @@ bool skip_propagate(instruction_ref ins)
     return false;
 }
 
-bool is_const_ins(instruction_ref ins, std::unordered_set<std::string> skip_ops)
+bool is_const_ins(instruction_ref ins, const std::unordered_set<std::string>& skip_ops)
 {
     return ins->can_eval() and not skip_propagate(ins) and
            skip_ops.find(ins->name()) == skip_ops.end();

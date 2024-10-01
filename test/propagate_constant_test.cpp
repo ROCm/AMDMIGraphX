@@ -201,6 +201,24 @@ TEST_CASE(skip_broadcast)
     EXPECT(m1 == m2);
 }
 
+TEST_CASE(skip_broadcast_transpose)
+{
+    const std::vector<float> vec = {1.0f, 2.0f};
+    migraphx::shape s{migraphx::shape::float_type, {1, 2}};
+    migraphx::module m1;
+    {
+        auto one  = m1.add_literal(migraphx::literal(s, vec));
+        auto oneb = m1.add_instruction(migraphx::make_op("multibroadcast", {{"out_lens", {2, 2}}}), one);
+        auto transpose = m1.add_instruction(migraphx::make_op("transpose", {{"permutation", {1, 0}}}), oneb);
+        m1.add_return({transpose});
+    }
+
+    migraphx::module m2 = m1;
+    run_pass(m1);
+
+    EXPECT(m1 == m2);
+}
+
 TEST_CASE(fold_broadcast)
 {
     const std::vector<float> vec = {1.0f, 2.0f, 1.0f, 2.0f};

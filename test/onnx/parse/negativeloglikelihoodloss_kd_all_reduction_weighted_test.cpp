@@ -51,6 +51,8 @@ TEST_CASE(negativeloglikelihoodloss_kd_sum_reduction_weighted_double_test)
 
     mm->add_instruction(migraphx::make_op("multibroadcast", {{"out_lens", {class_size}}}),
                         weights_dflt);
+
+    weights = mm->add_instruction(migraphx::make_op("neg"), weights);
     auto unsq_labels =
         mm->add_instruction(migraphx::make_op("unsqueeze", {{"axes", {-1}}}), labels);
 
@@ -91,9 +93,7 @@ TEST_CASE(negativeloglikelihoodloss_kd_sum_reduction_weighted_double_test)
         migraphx::make_op("transpose", {{"permutation", {0, 2, 3, 1}}}), unsq_mb);
     auto gathernd2 = mm->add_instruction(migraphx::make_op("gathernd"), transpose2, concat);
 
-    auto neglog = mm->add_instruction(migraphx::make_op("neg"), gathernd);
-
-    auto weighted_loss = mm->add_instruction(migraphx::make_op("mul"), neglog, gathernd2);
+    auto weighted_loss = mm->add_instruction(migraphx::make_op("mul"), gathernd, gathernd2);
     mm->add_instruction(migraphx::make_op("reduce_sum", {{"axes", {0, 1, 2}}}), weighted_loss);
 
     auto prog =
@@ -129,6 +129,9 @@ TEST_CASE(negativeloglikelihoodloss_kd_no_reduction_weighted_test)
 
     mm->add_instruction(migraphx::make_op("multibroadcast", {{"out_lens", {class_size}}}),
                         weights_dflt);
+
+    weights = mm->add_instruction(migraphx::make_op("neg"), weights);
+
     auto unsq_labels =
         mm->add_instruction(migraphx::make_op("unsqueeze", {{"axes", {-1}}}), labels);
 
@@ -169,8 +172,7 @@ TEST_CASE(negativeloglikelihoodloss_kd_no_reduction_weighted_test)
         migraphx::make_op("transpose", {{"permutation", {0, 2, 3, 1}}}), unsq_mb);
     auto gathernd2 = mm->add_instruction(migraphx::make_op("gathernd"), transpose2, concat);
 
-    auto neglog = mm->add_instruction(migraphx::make_op("neg"), gathernd);
-    mm->add_instruction(migraphx::make_op("mul"), neglog, gathernd2);
+    mm->add_instruction(migraphx::make_op("mul"), gathernd, gathernd2);
 
     auto prog = optimize_onnx("negativeloglikelihoodloss_kd_no_reduction_weighted_test.onnx");
 
@@ -204,6 +206,8 @@ TEST_CASE(negativeloglikelihoodloss_kd_mean_reduction_half_weighted_test)
 
     mm->add_instruction(migraphx::make_op("multibroadcast", {{"out_lens", {class_size}}}),
                         weights_dflt);
+
+    weights = mm->add_instruction(migraphx::make_op("neg"), weights);
     auto unsq_labels =
         mm->add_instruction(migraphx::make_op("unsqueeze", {{"axes", {-1}}}), labels);
 
@@ -244,14 +248,14 @@ TEST_CASE(negativeloglikelihoodloss_kd_mean_reduction_half_weighted_test)
         migraphx::make_op("transpose", {{"permutation", {0, 2, 3, 1}}}), unsq_mb);
     auto gathernd2 = mm->add_instruction(migraphx::make_op("gathernd"), transpose2, concat);
 
-    auto neglog = mm->add_instruction(migraphx::make_op("neg"), gathernd);
-
-    auto weighted_loss = mm->add_instruction(migraphx::make_op("mul"), neglog, gathernd2);
+    auto weighted_loss = mm->add_instruction(migraphx::make_op("mul"), gathernd, gathernd2);
 
     auto loss_x =
         mm->add_instruction(migraphx::make_op("reduce_sum", {{"axes", {0, 1, 2}}}), weighted_loss);
     auto loss_w =
         mm->add_instruction(migraphx::make_op("reduce_sum", {{"axes", {0, 1, 2}}}), gathernd2);
+
+    loss_w = mm->add_instruction(migraphx::make_op("neg"), loss_w);
 
     mm->add_instruction(migraphx::make_op("div"), loss_x, loss_w);
 

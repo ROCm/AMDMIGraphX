@@ -243,7 +243,8 @@ struct gpu_compute_attention_probabilities : op::group_query_attention
     shape compute_shape(std::vector<shape> inputs) const
     {
         auto query_lens = inputs.front().lens();
-        std::vector<std::size_t> output_lens{query_lens.at(0), num_heads, query_lens.at(2), 4096};
+        auto present_kv_seqlen = inputs.at(1).lens().at(2);
+        std::vector<std::size_t> output_lens{query_lens.at(0), num_heads, query_lens.at(2), present_kv_seqlen};
         shape output_shape{inputs.front().type(), output_lens};
         return shape({output_shape, inputs[1], inputs[2]});
     }
@@ -300,19 +301,12 @@ struct find_group_query_attention
         auto inputs = ins->inputs();
         auto v      = ins->get_operator().to_value();
 
-        assert(v.contains("num_heads"));
         auto num_heads = v.at("num_heads").to<std::size_t>();
-        assert(v.contains("kv_num_heads"));
         auto kv_num_heads = v.at("kv_num_heads").to<int>();
-        assert(v.contains("do_rotary"));
         auto do_rotary = v.at("do_rotary").to<int>();
-        assert(v.contains("local_window_size"));
         auto local_window_size = v.at("local_window_size").to<int>();
-        assert(v.contains("rotary_interleaved"));
         auto rotary_interleaved = v.at("rotary_interleaved").to<int>();
-        assert(v.contains("scale"));
         auto scale = v.at("scale").to<float>();
-        assert(v.contains("present_kv_seqlen"));
         auto present_kv_seqlen = v.at("present_kv_seqlen").to<std::size_t>();
 
         auto q_shape                      = inputs[0]->get_shape();
@@ -332,8 +326,6 @@ struct find_group_query_attention
 
         transposed_qkv = mpm.get_module().insert_instruction(
             ins, make_op("transpose", {{"permutation", {0, 2, 1, 3}}}), transposed_qkv);
-        transposed_qkv =
-            mpm.get_module().insert_instruction(ins, make_op("contiguous"), transposed_qkv);
 
         auto rotary_qkv = transposed_qkv;
         if(do_rotary)

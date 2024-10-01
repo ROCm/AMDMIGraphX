@@ -35,50 +35,28 @@ namespace migraphx {
 struct gqa_parameters
 {
     float scale;
-    int batch_size;           // Batch size used by input
-    int sequence_length;      // Sequence length used by input
-    int hidden_size;          // Hidden size used by input
-    int head_size;            // Head size
-    int rotary_embedding_dim; // Rotary embedding dimension.
-    int num_heads;            // num_heads = hidden_size / head_size
-    int max_sequence_length;  // Sequence length used by cos/sin cache
-    int head_stride;          // Head stride
-    int seq_stride;           // Sequence stride
-    int batch_stride;         // Batch stride
-    int position_ids_format;  // Format of position ids - 0 is (1), 1 is (batch_size,
+    index_int batch_size;           // Batch size used by input
+    index_int sequence_length;      // Sequence length used by input
+    index_int hidden_size;          // Hidden size used by input
+    index_int head_size;            // Head size
+    index_int rotary_embedding_dim; // Rotary embedding dimension.
+    index_int num_heads;            // num_heads = hidden_size / head_size
+    index_int max_sequence_length;  // Sequence length used by cos/sin cache
+    index_int head_stride;          // Head stride
+    index_int seq_stride;           // Sequence stride
+    index_int batch_stride;         // Batch stride
+    index_int position_ids_format;  // Format of position ids - 0 is (1), 1 is (batch_size,
                               // sequence_length)
-    int transposed; // Whether the input tensor has been transposed into (batch, num_heads,
+    bool transposed; // Whether the input tensor has been transposed into (batch, num_heads,
                     // seq_len, hidden)
-    int seqlen_present_kv_cache;
-
-    int do_rotary;
-    int kv_num_heads;
-    int local_window_size;
-    int rotary_interleaved;
-    int past_present_share_buffer;
-
-    __host__ __device__ void print() const
-    {
-        printf("scale: %f\n", scale);
-        printf("batch_size: %d\n", batch_size);
-        printf("sequence_length: %d\n", sequence_length);
-        printf("hidden_size: %d\n", hidden_size);
-        printf("head_size: %d\n", head_size);
-        printf("rotary_embedding_dim: %d\n", rotary_embedding_dim);
-        printf("num_heads: %d\n", num_heads);
-        printf("max_sequence_length: %d\n", max_sequence_length);
-        printf("head_stride: %d\n", head_stride);
-        printf("seq_stride: %d\n", seq_stride);
-        printf("batch_stride: %d\n", batch_stride);
-        printf("position_ids_format: %d\n", position_ids_format);
-        printf("transposed: %d\n", transposed);
-        printf("seqlen_present_kv_cache: %d\n", seqlen_present_kv_cache);
-        printf("do_rotary: %d\n", do_rotary);
-        printf("kv_num_heads: %d\n", kv_num_heads);
-        printf("local_window_size: %d\n", local_window_size);
-        printf("rotary_interleaved: %d\n", rotary_interleaved);
-        printf("past_present_share_buffer: %d\n", past_present_share_buffer);
-    }
+    index_int seqlen_present_kv_cache; // Sequence length of present kv-cache (4096 when using shared
+                                 // buffer)
+    bool do_rotary;               // Whether to use rotary position embedding. Default value is 0.
+    index_int kv_num_heads;            // Number of attention heads for k and v
+    int local_window_size;  // left_window_size for local attention. Default value is -1 meaning
+                            // unused.
+    bool rotary_interleaved; // Rotate using interleaved pattern. Default value is 0 (False).
+    bool past_present_share_buffer; // Whether to use same buffer for KV-cache inputs and outputs
 };
 
 template <class S, class... Ts>
@@ -89,18 +67,18 @@ __device__ gqa_parameters make_gqa_params(S s, Ts... ts)
 
 struct naive_gemm
 {
-    std::size_t _m;
-    std::size_t _n;
-    std::size_t _k;
-    std::size_t lda;
-    std::size_t ldb;
-    std::size_t ldc;
+    index_int _m;
+    index_int _n;
+    index_int _k;
+    index_int lda;
+    index_int ldb;
+    index_int ldc;
     bool b_transpose;
     float alpha;
     float beta;
 
     template <class C, class A, class B>
-    __device__ void compute(C cmat, const A amat, const B bmat, const std::size_t idx)
+    __device__ void compute(C cmat, const A amat, const B bmat, const index_int idx)
     {
         auto m     = idx / _n;
         auto n     = idx % _n;

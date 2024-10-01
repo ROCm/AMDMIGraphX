@@ -31,13 +31,6 @@
 namespace migraphx {
 
 template <class T>
-__device__ bool float_equal(T x, T y)
-{
-    return isfinite(x) and isfinite(y) and nextafterf(x, numeric_lowest<T>()) <= y and
-           nextafterf(x, numeric_max<T>()) >= y;
-}
-
-template <class T>
 __device__ void softmax_inplace(T score, int n, int d)
 {
     for(int j = 0; j < n; ++j)
@@ -62,25 +55,14 @@ __device__ void softmax_inplace(T score, int n, int d)
         }
 
         float sum        = 0.0;
-        const float zero = 0.0;
         for(int i = 0; i < d; i++)
         {
             sum += x[i];
         }
 
-        if(float_equal(sum, zero))
+        for(int i = 0; i < d; i++)
         {
-            for(int i = 0; i < d; i++)
-            {
-                y[i] = 1.0f / static_cast<float>(d);
-            }
-        }
-        else
-        {
-            for(int i = 0; i < d; i++)
-            {
-                y[i] = x[i] / static_cast<float>(sum);
-            }
+            y[i] = x[i] / static_cast<float>(sum);
         }
     }
 }
@@ -93,10 +75,10 @@ __device__ void calculate_softmax(AttnProbs attention_probs, // output buffer wi
                                   Params params,
                                   index_int idx)
 {
-    const int batch_size                        = params.batch_size;
-    const int sequence_length                   = params.sequence_length;
-    const int num_heads                         = params.num_heads;
-    const size_t present_buffer_sequence_length = params.seqlen_present_kv_cache;
+    const index_int batch_size                        = params.batch_size;
+    const index_int sequence_length                   = params.sequence_length;
+    const index_int num_heads                         = params.num_heads;
+    const index_int present_buffer_sequence_length = params.seqlen_present_kv_cache;
 
     const index_int loop_len = batch_size * num_heads;
     const index_int i        = idx / sequence_length;
@@ -104,7 +86,7 @@ __device__ void calculate_softmax(AttnProbs attention_probs, // output buffer wi
     if(i < loop_len)
     {
         const index_int batch_index   = i / num_heads;
-        const int total_seqlen        = seqlens_k[batch_index] + 1;
+        const index_int total_seqlen        = seqlens_k[batch_index] + 1;
         const index_int output_offset = i * sequence_length * present_buffer_sequence_length;
         auto output                   = attention_probs + output_offset;
 
@@ -144,7 +126,7 @@ __device__ void calculate_softmax(AttnProbs attention_probs, // output buffer wi
 template <class Output, class Input, class Probs, class SeqLensK, class Params>
 __device__ void gqa_softmax(Output output, Input, Probs, SeqLensK seqlens_k, Params params)
 {
-    const int elements = params.batch_size * params.num_heads * params.sequence_length;
+    const index_int elements = params.batch_size * params.num_heads * params.sequence_length;
     auto ind           = make_index();
     ind.global_stride(elements, [&](auto idx) {
         calculate_softmax(output.begin(), seqlens_k.begin(), params, idx);

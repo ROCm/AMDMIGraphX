@@ -41,10 +41,10 @@ __device__ void copy_data(Dest destination, const Src source, index_int n, index
 
 struct concat_state_chunk
 {
-    size_t present_buff_chunk_length;
-    size_t past_buff_chunk_length;
-    size_t past_chunk_length;
-    size_t new_chunk_length;
+    index_int present_buff_chunk_length;
+    index_int past_buff_chunk_length;
+    index_int past_chunk_length;
+    index_int new_chunk_length;
     bool is_prompt;
     bool past_present_share_buffer;
     std::ptrdiff_t i;
@@ -73,21 +73,19 @@ template <class Present, class SeqLensK, class Cache, class Params>
 __device__ void
 update_cache(Present present, SeqLensK seqlens_k, Cache cache, Params params, index_int idx)
 {
-    const int batch_size                        = params.batch_size;
-    const int sequence_length                   = params.sequence_length;
-    const int head_size                         = params.head_size;
-    const size_t past_buffer_sequence_length    = params.seqlen_present_kv_cache;
-    const size_t present_buffer_sequence_length = past_buffer_sequence_length;
-    const int num_heads                         = params.num_heads;
-    const int kv_num_heads                      = params.kv_num_heads;
+    const index_int batch_size                        = params.batch_size;
+    const index_int sequence_length                   = params.sequence_length;
+    const index_int head_size                         = params.head_size;
+    const index_int past_buffer_sequence_length    = params.seqlen_present_kv_cache;
+    const index_int present_buffer_sequence_length = past_buffer_sequence_length;
+    const index_int num_heads                         = params.num_heads;
+    const index_int kv_num_heads                      = params.kv_num_heads;
     const bool is_prompt                        = sequence_length != 1;
-    const int packed_batch_stride = (num_heads + 2 * kv_num_heads) * sequence_length * head_size;
-    const int kv_num_heads_factor = num_heads / kv_num_heads;
-    const size_t kv_input_chunk_length = static_cast<size_t>(sequence_length) * head_size; // L x H
-    const size_t past_buff_chunk_length =
-        static_cast<size_t>(past_buffer_sequence_length) * head_size; // L x H
-    const size_t present_buff_chunk_length =
-        static_cast<size_t>(present_buffer_sequence_length) * head_size; // T x H
+    const index_int packed_batch_stride = (num_heads + 2 * kv_num_heads) * sequence_length * head_size;
+    const index_int kv_num_heads_factor = num_heads / kv_num_heads;
+    const index_int kv_input_chunk_length = sequence_length * head_size; // L x H
+    const index_int past_buff_chunk_length = past_buffer_sequence_length * head_size; // L x H
+    const index_int present_buff_chunk_length = present_buffer_sequence_length * head_size; // T x H
 
     const index_int loop_len = batch_size * num_heads;
     const index_int i        = idx / (sequence_length * head_size);
@@ -97,9 +95,9 @@ update_cache(Present present, SeqLensK seqlens_k, Cache cache, Params params, in
         const index_int batch_index       = i / num_heads;
         const index_int head_index        = i % num_heads;
         const index_int past_seqlen       = sequence_length == 1
-                                                ? static_cast<int>(seqlens_k[batch_index])
+                                                ? static_cast<index_int>(seqlens_k[batch_index])
                                                 : past_buffer_sequence_length;
-        const index_int past_chunk_length = static_cast<size_t>(past_seqlen) * head_size;
+        const index_int past_chunk_length = past_seqlen * head_size;
 
         auto current = present + packed_batch_stride * batch_index +
                        kv_input_chunk_length * (head_index / kv_num_heads_factor);
@@ -109,7 +107,7 @@ update_cache(Present present, SeqLensK seqlens_k, Cache cache, Params params, in
                                   past_chunk_length,
                                   kv_input_chunk_length,
                                   is_prompt,
-                                  static_cast<bool>(params.past_present_share_buffer),
+                                  params.past_present_share_buffer,
                                   i / kv_num_heads_factor};
         concat.compute(cache, current, cache, inner_i);
     }

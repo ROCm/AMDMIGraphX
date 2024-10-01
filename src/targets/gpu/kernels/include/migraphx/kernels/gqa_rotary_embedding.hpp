@@ -40,16 +40,16 @@ __device__ void run_rotary_embedding(Input input,
                                      index_int idx,
                                      bool is_query = false)
 {
-    const int batch_size          = params.batch_size;
-    const int sequence_length     = params.sequence_length;
-    const int n_heads             = is_query ? params.num_heads : params.kv_num_heads;
-    const int head_size           = params.head_size;
-    const int head_stride         = params.head_stride;
-    const int seq_stride          = params.seq_stride;
-    const int batch_stride        = params.batch_stride;
+    const index_int batch_size          = params.batch_size;
+    const index_int sequence_length     = params.sequence_length;
+    const index_int n_heads             = is_query ? params.num_heads : params.kv_num_heads;
+    const index_int head_size           = params.head_size;
+    const index_int head_stride         = params.head_stride;
+    const index_int seq_stride          = params.seq_stride;
+    const index_int batch_stride        = params.batch_stride;
     const int position_ids_format = params.position_ids_format;
-    const int rotary_emb_dim      = params.rotary_embedding_dim;
-    const int half_rotary_emb_dim = rotary_emb_dim / 2;
+    const index_int rotary_emb_dim      = params.rotary_embedding_dim;
+    const index_int half_rotary_emb_dim = rotary_emb_dim / 2;
 
     const index_int loop_len = batch_size * sequence_length * n_heads;
     const index_int i        = idx / head_size;
@@ -107,7 +107,7 @@ template <class Params, class Input, class Output>
 __device__ void
 pack_v_into_rotary_qkv(Params params, const Input input, Output output, index_int idx)
 {
-    const int loop_len = params.batch_size * params.sequence_length * params.kv_num_heads;
+    const index_int loop_len = params.batch_size * params.sequence_length * params.kv_num_heads;
     auto i             = idx / params.head_size;
     auto ii            = idx % params.head_size;
     if(i < loop_len)

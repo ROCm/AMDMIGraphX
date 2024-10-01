@@ -64,7 +64,7 @@ MIGRAPHX_GLOBAL void ${kernel}(${params})
 {
     transform_args(make_tensors(), rotate_last())(${args})([](auto... xs) {
         
-        gqa_softmax(xs..., make_gqa_params(${gqa_params}));
+        gqa_softmax(xs..., gqa_parameters{${gqa_params}});
     });
 }
 

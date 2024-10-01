@@ -64,7 +64,7 @@ MIGRAPHX_GLOBAL void ${kernel}(${params})
 {
     transform_args(make_tensors(), rotate_and_pack_last<${noutputs}>())(${args})([](auto... xs) {
         
-        concat_past_present(xs..., make_gqa_params(${gqa_params}));
+        concat_past_present(xs..., gqa_parameters{${gqa_params}});
     });
 }
 

@@ -64,7 +64,7 @@ MIGRAPHX_GLOBAL void ${kernel}(${params})
 {
     transform_args(make_tensors(), rotate_and_pack_last<${noutputs}>())(${args})([](auto... xs) {
         
-        compute_attention_scores(xs..., make_gqa_params(${gqa_params}));
+        compute_attention_scores(xs..., gqa_parameters{${gqa_params}});
     });
 }
 

@@ -43,16 +43,15 @@ calculate_attention_score(Output output, // buffer for the result with size BxSx
                           Params params,
                           index_int idx)
 {
-    const int batch_size                        = params.batch_size;
-    const int num_heads                         = params.num_heads;
-    const int sequence_length                   = params.sequence_length;
-    const int head_size                         = params.head_size;
-    const int hidden_size                       = params.hidden_size;
-    const size_t present_buffer_sequence_length = params.seqlen_present_kv_cache;
-    const int kv_num_heads                      = params.kv_num_heads;
-    const int kv_num_heads_factor               = num_heads / kv_num_heads;
-    const size_t present_buff_chunk_length =
-        static_cast<size_t>(present_buffer_sequence_length) * head_size; // T x H
+    const index_int batch_size                        = params.batch_size;
+    const index_int num_heads                         = params.num_heads;
+    const index_int sequence_length                   = params.sequence_length;
+    const index_int head_size                         = params.head_size;
+    const index_int hidden_size                       = params.hidden_size;
+    const index_int present_buffer_sequence_length = params.seqlen_present_kv_cache;
+    const index_int kv_num_heads                      = params.kv_num_heads;
+    const index_int kv_num_heads_factor               = num_heads / kv_num_heads;
+    const index_int present_buff_chunk_length = present_buffer_sequence_length * head_size; // T x H
 
     auto loop_len           = batch_size * num_heads;
     const index_int i       = idx / (sequence_length * head_size);
@@ -68,12 +67,12 @@ calculate_attention_score(Output output, // buffer for the result with size BxSx
             output + (batch_index * sequence_length * num_heads + head_index) * head_size;
         ptrdiff_t attention_probs_offset = sequence_length * present_buffer_sequence_length * i;
 
-        naive_gemm gemm{static_cast<std::size_t>(sequence_length),
-                        static_cast<std::size_t>(head_size),
-                        static_cast<std::size_t>(total_seqlen),
+        naive_gemm gemm{sequence_length,
+                        head_size,
+                        total_seqlen,
                         present_buffer_sequence_length,
-                        static_cast<std::size_t>(head_size),
-                        static_cast<std::size_t>(hidden_size),
+                        head_size,
+                        hidden_size,
                         false,
                         1.0f,
                         0.0f};
@@ -91,7 +90,7 @@ template <class Output,
 __device__ void compute_attention_scores(
     Output output, Query, Key, Value, SeqLensK seqlens_k, AttnProbs attn_probs, Params params)
 {
-    const int elements =
+    const index_int elements =
         params.batch_size * params.num_heads * params.sequence_length * params.head_size;
     auto ind = make_index();
     ind.global_stride(elements, [&](auto idx) {

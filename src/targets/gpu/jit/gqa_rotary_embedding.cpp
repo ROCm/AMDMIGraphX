@@ -64,7 +64,7 @@ MIGRAPHX_GLOBAL void ${kernel}(${params})
 {
     transform_args(make_tensors(), rotate_last())(${args})([](auto... xs) {
         
-        gqa_rotary_embedding(xs..., make_gqa_params(${gqa_params}));
+        gqa_rotary_embedding(xs..., gqa_parameters{${gqa_params}});
     });
 }
 

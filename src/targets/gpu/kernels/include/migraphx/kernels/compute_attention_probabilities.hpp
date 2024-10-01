@@ -43,17 +43,16 @@ calculate_attention_probs(AttnProbs attention_probs, // output buffer with size 
                           Params params,
                           index_int idx)
 {
-    const int batch_size                        = params.batch_size;
-    const int sequence_length                   = params.sequence_length;
-    const int head_size                         = params.head_size;
-    const size_t present_buffer_sequence_length = params.seqlen_present_kv_cache;
-    const int num_heads                         = params.num_heads;
-    const int kv_num_heads                      = params.kv_num_heads;
-    const int packed_batch_stride = (num_heads + 2 * kv_num_heads) * sequence_length * head_size;
-    const int kv_num_heads_factor = num_heads / kv_num_heads;
-    const size_t q_input_chunk_length = static_cast<size_t>(sequence_length) * head_size; // S x H
-    const size_t present_buff_chunk_length =
-        static_cast<size_t>(present_buffer_sequence_length) * head_size; // T x H
+    const index_int batch_size                        = params.batch_size;
+    const index_int sequence_length                   = params.sequence_length;
+    const index_int head_size                         = params.head_size;
+    const index_int present_buffer_sequence_length = params.seqlen_present_kv_cache;
+    const index_int num_heads                         = params.num_heads;
+    const index_int kv_num_heads                      = params.kv_num_heads;
+    const index_int packed_batch_stride = (num_heads + 2 * kv_num_heads) * sequence_length * head_size;
+    const index_int kv_num_heads_factor = num_heads / kv_num_heads;
+    const index_int q_input_chunk_length = sequence_length * head_size; // S x H
+    const index_int present_buff_chunk_length = present_buffer_sequence_length * head_size; // T x H
 
     const index_int loop_len = batch_size * num_heads;
     const float alpha =
@@ -65,17 +64,17 @@ calculate_attention_probs(AttnProbs attention_probs, // output buffer with size 
     {
         const auto batch_index        = i / num_heads;
         const auto head_index         = i % num_heads;
-        const int total_seqlen        = seqlens_k[batch_index] + 1;
+        const index_int total_seqlen        = seqlens_k[batch_index] + 1;
         const index_int output_offset = i * sequence_length * present_buffer_sequence_length;
         auto output                   = attention_probs + output_offset;
         auto pk = present_key + ((i / kv_num_heads_factor) * present_buff_chunk_length);
         auto q  = query + packed_batch_stride * batch_index + q_input_chunk_length * head_index;
 
-        naive_gemm gemm{static_cast<std::size_t>(sequence_length),
-                        static_cast<std::size_t>(total_seqlen),
-                        static_cast<std::size_t>(head_size),
-                        static_cast<std::size_t>(head_size),
-                        static_cast<std::size_t>(head_size),
+        naive_gemm gemm{sequence_length,
+                        total_seqlen,
+                        head_size,
+                        head_size,
+                        head_size,
                         present_buffer_sequence_length,
                         true,
                         alpha,

@@ -207,9 +207,11 @@ TEST_CASE(skip_broadcast_transpose)
     migraphx::shape s{migraphx::shape::float_type, {1, 2}};
     migraphx::module m1;
     {
-        auto one  = m1.add_literal(migraphx::literal(s, vec));
-        auto oneb = m1.add_instruction(migraphx::make_op("multibroadcast", {{"out_lens", {2, 2}}}), one);
-        auto transpose = m1.add_instruction(migraphx::make_op("transpose", {{"permutation", {1, 0}}}), oneb);
+        auto one = m1.add_literal(migraphx::literal(s, vec));
+        auto oneb =
+            m1.add_instruction(migraphx::make_op("multibroadcast", {{"out_lens", {2, 2}}}), one);
+        auto transpose =
+            m1.add_instruction(migraphx::make_op("transpose", {{"permutation", {1, 0}}}), oneb);
         m1.add_return({transpose});
     }
 

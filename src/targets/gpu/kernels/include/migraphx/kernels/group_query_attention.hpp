@@ -46,15 +46,15 @@ struct gqa_parameters
     index_int seq_stride;           // Sequence stride
     index_int batch_stride;         // Batch stride
     index_int position_ids_format;  // Format of position ids - 0 is (1), 1 is (batch_size,
-                              // sequence_length)
+                                    // sequence_length)
     bool transposed; // Whether the input tensor has been transposed into (batch, num_heads,
-                    // seq_len, hidden)
-    index_int seqlen_present_kv_cache; // Sequence length of present kv-cache (4096 when using shared
-                                 // buffer)
-    bool do_rotary;               // Whether to use rotary position embedding. Default value is 0.
-    index_int kv_num_heads;            // Number of attention heads for k and v
-    int local_window_size;  // left_window_size for local attention. Default value is -1 meaning
-                            // unused.
+                     // seq_len, hidden)
+    index_int seqlen_present_kv_cache; // Sequence length of present kv-cache (4096 when using
+                                       // shared buffer)
+    bool do_rotary;          // Whether to use rotary position embedding. Default value is 0.
+    index_int kv_num_heads;  // Number of attention heads for k and v
+    int local_window_size;   // left_window_size for local attention. Default value is -1 meaning
+                             // unused.
     bool rotary_interleaved; // Rotate using interleaved pattern. Default value is 0 (False).
     bool past_present_share_buffer; // Whether to use same buffer for KV-cache inputs and outputs
 };

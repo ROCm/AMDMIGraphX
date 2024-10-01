@@ -73,18 +73,19 @@ template <class Present, class SeqLensK, class Cache, class Params>
 __device__ void
 update_cache(Present present, SeqLensK seqlens_k, Cache cache, Params params, index_int idx)
 {
-    const index_int batch_size                        = params.batch_size;
-    const index_int sequence_length                   = params.sequence_length;
-    const index_int head_size                         = params.head_size;
+    const index_int batch_size                     = params.batch_size;
+    const index_int sequence_length                = params.sequence_length;
+    const index_int head_size                      = params.head_size;
     const index_int past_buffer_sequence_length    = params.seqlen_present_kv_cache;
     const index_int present_buffer_sequence_length = past_buffer_sequence_length;
-    const index_int num_heads                         = params.num_heads;
-    const index_int kv_num_heads                      = params.kv_num_heads;
+    const index_int num_heads                      = params.num_heads;
+    const index_int kv_num_heads                   = params.kv_num_heads;
     const bool is_prompt                        = sequence_length != 1;
-    const index_int packed_batch_stride = (num_heads + 2 * kv_num_heads) * sequence_length * head_size;
-    const index_int kv_num_heads_factor = num_heads / kv_num_heads;
-    const index_int kv_input_chunk_length = sequence_length * head_size; // L x H
-    const index_int past_buff_chunk_length = past_buffer_sequence_length * head_size; // L x H
+    const index_int packed_batch_stride =
+        (num_heads + 2 * kv_num_heads) * sequence_length * head_size;
+    const index_int kv_num_heads_factor       = num_heads / kv_num_heads;
+    const index_int kv_input_chunk_length     = sequence_length * head_size;                // L x H
+    const index_int past_buff_chunk_length    = past_buffer_sequence_length * head_size;    // L x H
     const index_int present_buff_chunk_length = present_buffer_sequence_length * head_size; // T x H
 
     const index_int loop_len = batch_size * num_heads;

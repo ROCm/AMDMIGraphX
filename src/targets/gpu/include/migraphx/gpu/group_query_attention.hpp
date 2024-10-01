@@ -46,16 +46,16 @@ struct gqa_parameters
     std::uint32_t seq_stride;           // Sequence stride
     std::uint32_t batch_stride;         // Batch stride
     std::uint32_t position_ids_format;  // Format of position ids - 0 is (1), 1 is (batch_size,
-                              // sequence_length)
+                                        // sequence_length)
     bool transposed; // Whether the input tensor has been transposed into (batch, num_heads,
-                    // seq_len, hidden)
-    std::uint32_t seqlen_present_kv_cache; // Sequence length of present kv-cache (4096 when using shared
-                                 // buffer)
-    bool do_rotary;               // Whether to use rotary position embedding. Default value is 0.
-    std::uint32_t kv_num_heads;            // Number of attention heads for k and v
+                     // seq_len, hidden)
+    std::uint32_t seqlen_present_kv_cache; // Sequence length of present kv-cache (4096 when using
+                                           // shared buffer)
+    bool do_rotary;             // Whether to use rotary position embedding. Default value is 0.
+    std::uint32_t kv_num_heads; // Number of attention heads for k and v
     int local_window_size;  // left_window_size for local attention. Default value is -1 meaning
                             // unused.
-    bool rotary_interleaved; // Rotate using interleaved pattern. Default value is 0 (False).
+    bool rotary_interleaved;        // Rotate using interleaved pattern. Default value is 0 (False).
     bool past_present_share_buffer; // Whether to use same buffer for KV-cache inputs and outputs
 
     std::string make_init_str()
@@ -66,21 +66,23 @@ struct gqa_parameters
                std::to_string(num_heads) + ", " + std::to_string(max_sequence_length) + ", " +
                std::to_string(head_stride) + ", " + std::to_string(seq_stride) + ", " +
                std::to_string(batch_stride) + ", " + std::to_string(position_ids_format) + ", " +
-               std::to_string(static_cast<int>(transposed)) + ", " + std::to_string(seqlen_present_kv_cache) + ", " +
-               std::to_string(static_cast<int>(do_rotary)) + ", " + std::to_string(kv_num_heads) + ", " +
-               std::to_string(local_window_size) + ", " + std::to_string(static_cast<int>(rotary_interleaved)) +
-               ", " + std::to_string(static_cast<int>(past_present_share_buffer));
+               std::to_string(static_cast<int>(transposed)) + ", " +
+               std::to_string(seqlen_present_kv_cache) + ", " +
+               std::to_string(static_cast<int>(do_rotary)) + ", " + std::to_string(kv_num_heads) +
+               ", " + std::to_string(local_window_size) + ", " +
+               std::to_string(static_cast<int>(rotary_interleaved)) + ", " +
+               std::to_string(static_cast<int>(past_present_share_buffer));
     }
 };
 
 static inline gqa_parameters init_params(const std::vector<shape>& inputs, const value& v)
 {
-    auto num_heads = v.at("num_heads").to<std::uint32_t>();
-    auto kv_num_heads = v.at("kv_num_heads").to<std::uint32_t>();
-    auto do_rotary = v.at("do_rotary").to<std::uint32_t>();
-    auto local_window_size = v.at("local_window_size").to<std::uint32_t>();
+    auto num_heads          = v.at("num_heads").to<std::uint32_t>();
+    auto kv_num_heads       = v.at("kv_num_heads").to<std::uint32_t>();
+    auto do_rotary          = v.at("do_rotary").to<std::uint32_t>();
+    auto local_window_size  = v.at("local_window_size").to<std::uint32_t>();
     auto rotary_interleaved = v.at("rotary_interleaved").to<std::uint32_t>();
-    auto scale = v.at("scale").to<float>();
+    auto scale              = v.at("scale").to<float>();
     auto present_kv_seqlen = v.at("present_kv_seqlen").to<std::size_t>();
 
     const auto& q_shape               = inputs[0];

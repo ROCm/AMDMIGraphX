@@ -54,7 +54,7 @@ __device__ void softmax_inplace(T score, int n, int d)
             y[i] = expf(x[i] - max);
         }
 
-        float sum        = 0.0;
+        float sum = 0.0;
         for(int i = 0; i < d; i++)
         {
             sum += x[i];
@@ -75,9 +75,9 @@ __device__ void calculate_softmax(AttnProbs attention_probs, // output buffer wi
                                   Params params,
                                   index_int idx)
 {
-    const index_int batch_size                        = params.batch_size;
-    const index_int sequence_length                   = params.sequence_length;
-    const index_int num_heads                         = params.num_heads;
+    const index_int batch_size                     = params.batch_size;
+    const index_int sequence_length                = params.sequence_length;
+    const index_int num_heads                      = params.num_heads;
     const index_int present_buffer_sequence_length = params.seqlen_present_kv_cache;
 
     const index_int loop_len = batch_size * num_heads;
@@ -86,7 +86,7 @@ __device__ void calculate_softmax(AttnProbs attention_probs, // output buffer wi
     if(i < loop_len)
     {
         const index_int batch_index   = i / num_heads;
-        const index_int total_seqlen        = seqlens_k[batch_index] + 1;
+        const index_int total_seqlen  = seqlens_k[batch_index] + 1;
         const index_int output_offset = i * sequence_length * present_buffer_sequence_length;
         auto output                   = attention_probs + output_offset;
 

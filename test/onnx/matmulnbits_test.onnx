@@ -1,8 +1,9 @@
-	matmulnbits_test:Î
-a
+	matmulnbits_test:ä
+e
 a
 b
-scalesc"MatMulNBits*
+scales
+zpc"MatMulNBits*
 K *
 N *
 bits *
@@ -20,6 +21,10 @@ block_size :com.microsoftmatmulnbits_testZ
 scales
 
 
+Z
+zp
+
+
 b
 c
 

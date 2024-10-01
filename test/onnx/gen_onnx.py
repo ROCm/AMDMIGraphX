@@ -8568,19 +8568,44 @@ def qlinearmatmul_3D_test():
 
 @onnx_test()
 def matmulnbits_test():
-    a = onnx.helper.make_tensor_value_info("a", onnx.TensorProto.FLOAT, [2, 16])
-    b = onnx.helper.make_tensor_value_info("b", onnx.TensorProto.UINT8, [4, 1, 8])
-    scales = onnx.helper.make_tensor_value_info("scales", onnx.TensorProto.FLOAT, [4])
+    a = onnx.helper.make_tensor_value_info("a", onnx.TensorProto.FLOAT,
+                                           [2, 16])
+    b = onnx.helper.make_tensor_value_info("b", onnx.TensorProto.UINT8,
+                                           [4, 1, 8])
+    scales = onnx.helper.make_tensor_value_info("scales",
+                                                onnx.TensorProto.FLOAT, [4])
+    zp = onnx.helper.make_tensor_value_info("zp", onnx.TensorProto.UINT8, [4])
     c = onnx.helper.make_tensor_value_info("c", onnx.TensorProto.FLOAT, [2, 4])
 
     node = onnx.helper.make_node("MatMulNBits",
-                                     inputs=["a", "b", "scales"],
-                                     outputs=["c"],
-                                     bits=4,
-                                     block_size=16,
-                                     K=16,
-                                     N=4,
-                                     domain='com.microsoft')
+                                 inputs=["a", "b", "scales", "zp"],
+                                 outputs=["c"],
+                                 bits=4,
+                                 block_size=16,
+                                 K=16,
+                                 N=4,
+                                 domain='com.microsoft')
+    return ([node], [a, b, scales, zp], [c])
+
+
+@onnx_test()
+def matmulnbits2_test():
+    a = onnx.helper.make_tensor_value_info("a", onnx.TensorProto.FLOAT,
+                                           [2, 33])
+    b = onnx.helper.make_tensor_value_info("b", onnx.TensorProto.UINT8,
+                                           [2, 3, 8])
+    scales = onnx.helper.make_tensor_value_info("scales",
+                                                onnx.TensorProto.FLOAT, [6])
+    c = onnx.helper.make_tensor_value_info("c", onnx.TensorProto.FLOAT, [2, 2])
+
+    node = onnx.helper.make_node("MatMulNBits",
+                                 inputs=["a", "b", "scales"],
+                                 outputs=["c"],
+                                 bits=4,
+                                 block_size=16,
+                                 K=33,
+                                 N=2,
+                                 domain='com.microsoft')
     return ([node], [a, b, scales], [c])
 
 

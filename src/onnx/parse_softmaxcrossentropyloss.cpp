@@ -260,6 +260,9 @@ struct parse_softmaxcrossentropyloss : op_parser<parse_softmaxcrossentropyloss>
             }
         }
 
+        // Always make weights negative saves pointwise after indexing
+        weights = info.add_instruction(migraphx::make_op("neg"), weights);
+
         return weights;
     }
 
@@ -332,6 +335,8 @@ struct parse_softmaxcrossentropyloss : op_parser<parse_softmaxcrossentropyloss>
                 migraphx::make_op("reduce_sum", {{"axes", loss_dims}}), final_loss_tensor);
             auto reduced_weights = info.add_instruction(
                 migraphx::make_op("reduce_sum", {{"axes", weight_dims}}), weights);
+            reduced_weights = info.add_instruction(migraphx::make_op("neg"), reduced_weights);
+
             final_loss_tensor =
                 info.add_instruction(migraphx::make_op("div"), final_loss_tensor, reduced_weights);
         }
@@ -453,11 +458,10 @@ struct parse_softmaxcrossentropyloss : op_parser<parse_softmaxcrossentropyloss>
         {
             log_sm_scores = info.add_instruction(migraphx::make_op("log"), scores);
         }
-        auto neg_lsm_scores = info.add_instruction(migraphx::make_op("neg"), log_sm_scores);
 
-        // Always multiply out the weights. Will get optmized out if its all 1's
+        // Always multiply out the weights.
         auto weighted_result =
-            info.add_instruction(migraphx::make_op("mul"), neg_lsm_scores, weights);
+            info.add_instruction(migraphx::make_op("mul"), log_sm_scores, weights);
 
         auto loss_tensor = handle_reduction(info, weighted_result, weights, reduction, has_weights);
 

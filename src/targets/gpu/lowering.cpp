@@ -264,11 +264,13 @@ struct miopen_apply
 #if MIGRAPHX_USE_HIPBLASLT
             if(not enabled(MIGRAPHX_ENABLE_HIPBLASLT_GEMM{}) or not hipblaslt_supported())
             {
+#endif
                 return mod->replace_instruction(
                     ins, rocblas_gemm<Op>{Op{}, 1, 0, compute_fp32}, refs);
+#if MIGRAPHX_USE_HIPBLASLT
             }
-#endif
             return mod->replace_instruction(ins, hip_gemm<Op>{Op{}, 1, 0}, refs);
+#endif
         });
     }
 #endif

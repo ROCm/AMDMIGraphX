@@ -33,6 +33,7 @@ export LANG=C.UTF-8
 
 source /etc/os-release
 
+# hipcc added as workaround for broken hip-dev package
 if [[ ("${ID}" == "sles") ]]; then
   zypper -n --gpg-auto-import-keys install -y \
     cmake \
@@ -60,6 +61,7 @@ else
     libgfortran5 \
     hipblas-dev \
     hipblaslt-dev \
+    hipcc \
     rocm-cmake \
     rocm-llvm-dev \
     libtbb-dev

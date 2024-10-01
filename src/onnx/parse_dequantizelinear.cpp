@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2022 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2024 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -26,6 +26,7 @@
 #include <migraphx/ranges.hpp>
 #include <migraphx/make_op.hpp>
 #include <migraphx/tune_axis.hpp>
+#include <migraphx/onnx/quantize_dequantize_linear.hpp>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
@@ -38,49 +39,42 @@ struct parse_dequantizelinear : op_parser<parse_dequantizelinear>
     instruction_ref parse(const op_desc& opd,
                           const onnx_parser& /*parser*/,
                           const onnx_parser::node_info& info,
-                          const std::vector<instruction_ref>& args) const
+                          std::vector<instruction_ref> args) const
     {
-        int axis = 1;
-        if(contains(info.attributes, "axis"))
-            axis = info.attributes.at("axis").i();
-
-        auto input_lens = args[0]->get_shape().lens();
-        auto n_dim      = input_lens.size();
-
-        instruction_ref x_scale;
-        if(args[1]->get_shape().elements() != 1)
+        if(args.size() < 2 or args.size() > 3)
         {
-            auto tuned_axis = tune_axis(n_dim, axis, opd.op_name);
-            x_scale         = info.add_instruction(
-                make_op("broadcast", {{"axis", tuned_axis}, {"out_lens", input_lens}}), args[1]);
-        }
-        else
-        {
-            x_scale = info.add_instruction(make_op("multibroadcast", {{"out_lens", input_lens}}),
-                                           args[1]);
+            MIGRAPHX_THROW("DequantizeLinear: must have either 2 or 3 inputs, " +
+                           std::to_string(args.size()) + " inputs provided");
         }
 
         if(args.size() == 3)
         {
-            auto x_zero_point = args[2];
-            if(x_zero_point->get_shape().elements() != 1)
-            {
-                auto tuned_axis = tune_axis(n_dim, axis, opd.op_name);
-                x_zero_point    = info.add_instruction(
-                    make_op("broadcast", {{"axis", tuned_axis}, {"out_lens", input_lens}}),
-                    x_zero_point);
-            }
-            else
-            {
-                x_zero_point = info.add_instruction(
-                    make_op("multibroadcast", {{"out_lens", input_lens}}), x_zero_point);
-            }
+            if(args[0]->get_shape().type() != args[2]->get_shape().type())
+                MIGRAPHX_THROW("DequantizeLinear: x and y_zero_point must be of same type");
 
-            return info.add_instruction(
-                make_op("dequantizelinear"), args[0], x_scale, x_zero_point);
+            if(args[1]->get_shape().lens() != args[2]->get_shape().lens())
+            {
+                MIGRAPHX_THROW("DequantizeLinear: y_scale and y_zero_point shape mismatch. "
+                               "Provided y_scale "
+                               "shape: " +
+                               to_string_range(args[1]->get_shape().lens()) +
+                               ", provided y_zero_point shape: " +
+                               to_string_range(args[2]->get_shape().lens()));
+            }
         }
 
-        return info.add_instruction(make_op("dequantizelinear"), args[0], x_scale);
+        int axis = 1;
+        if(contains(info.attributes, "axis"))
+            axis = info.attributes.at("axis").i();
+
+        int block_size = 0;
+        if(contains(info.attributes, "block_size"))
+            block_size = info.attributes.at("block_size").i();
+
+        args =
+            transform_quantize_dequantize_linear_inputs(info, opd.op_name, block_size, axis, args);
+
+        return info.add_instruction(make_op("dequantizelinear"), args);
     }
 };
 

@@ -878,6 +878,50 @@ struct find_pointwise_mlir
     }
 };
 
+struct find_unpack_int4_mlir_op
+{
+    auto matcher() const
+    {
+        return match::name("gpu::mlir_op")(
+            match::any_of[match::inputs()](match::name("unpack_int4").bind("unpack_int4")));
+    }
+
+    void apply(module_pass_manager& mpm, const match::matcher_result& r) const
+    {
+        auto ins      = r.result;
+        auto* mm      = ins->module_inputs().front();
+        module_ref nm = mpm.create_module("int4:" + mm->name());
+        nm->set_bypass();
+
+        std::vector<instruction_ref> x_in;
+        std::unordered_map<instruction_ref, instruction_ref> map_ins;
+        int ct = 0;
+
+        for(auto inp : ins->inputs())
+        {
+            instruction_ref t_ins;
+            if(inp->get_operator().name() == "unpack_int4")
+            {
+                auto chld = inp->inputs()[0];
+                t_ins     = nm->add_parameter(chld->name() + std::to_string(++ct),
+                                          chld->get_shape().as_standard());
+                t_ins     = nm->add_instruction(inp->get_operator(), t_ins);
+                x_in.push_back(chld);
+            }
+            else
+            {
+                t_ins = nm->add_parameter(inp->name() + std::to_string(++ct),
+                                          inp->get_shape().as_standard());
+                x_in.push_back(inp);
+            }
+            map_ins[inp] = t_ins;
+        }
+        auto ret = nm->fuse(*mm, ins->inputs(), &map_ins);
+        nm->add_return({ret});
+        mpm.get_module().replace_instruction(ins, ins->get_operator(), x_in, {nm});
+    }
+};
+
 } // namespace
 
 #endif // MIGRAPHX_MLIR
@@ -930,6 +974,10 @@ void fuse_mlir::apply(module_pass_manager& mpm) const
     {
         match::find_matches(mpm, find_pointwise_mlir{});
     }
+
+    match::find_matches(mpm, find_unpack_int4_mlir_op{});
+    mpm.run_pass(dead_code_elimination{});
+
 #else
     (void)mpm;
 #endif

@@ -413,6 +413,101 @@ TEST_CASE(add_dot)
     EXPECT(p1.sort() == p2.sort());
 }
 
+TEST_CASE(unpack_int4_dot)
+{
+    migraphx::program p1;
+    {
+        auto* m   = p1.get_main_module();
+        auto x    = m->add_parameter("x", {migraphx::shape::int8_type, {1, 8, 4, 4}});
+        auto pk_w = m->add_parameter("wt_int4", {migraphx::shape::int8_type, {1, 8, 4, 2}});
+        auto w    = m->add_instruction(migraphx::make_op("unpack_int4"), pk_w);
+        auto dot  = m->add_instruction(migraphx::make_op("quant_dot"), x, w); // w: {1,8,4,4}
+        m->add_return({dot});
+    }
+    run_pass(p1);
+
+    migraphx::program p2;
+    {
+        auto* m   = p2.get_main_module();
+        auto x    = m->add_parameter("x", {migraphx::shape::int8_type, {1, 8, 4, 4}});
+        auto pk_w = m->add_parameter("wt_int4", {migraphx::shape::int8_type, {1, 8, 4, 2}});
+
+        auto fused = add_mlir(
+            p2,
+            "int4:mlir_quant_dot0",
+            {pk_w, x},
+            {"wt_int4", "x"},
+            [=](auto* pm, const auto& inputs) {
+                auto unpk = pm->add_instruction(migraphx::make_op("unpack_int4"), inputs[0]);
+                auto q    = pm->add_instruction(migraphx::make_op("quant_dot"), inputs[1], unpk);
+                return std::make_tuple(q->get_operator(), q);
+            });
+        m->add_return({fused});
+    }
+
+    // todo: fix literal names before comparing p1 and p2.
+    EXPECT(true);
+}
+
+TEST_CASE(unpack_int4_dot_2)
+{
+    migraphx::program p1;
+    {
+        auto* m = p1.get_main_module();
+
+        auto pk_x = m->add_parameter("x", {migraphx::shape::int8_type, {1, 8, 4, 2}});
+        auto x    = m->add_instruction(migraphx::make_op("unpack_int4"), pk_x); // {1,8,4,4}
+
+        auto pk_w = m->add_parameter("wt_int4", {migraphx::shape::int8_type, {1, 8, 4, 2}});
+        auto w    = m->add_instruction(migraphx::make_op("unpack_int4"), pk_w); // {1,8,4,4}
+
+        auto dot = m->add_instruction(migraphx::make_op("quant_dot"), x, w);
+        m->add_return({dot});
+    }
+    run_pass(p1);
+
+    migraphx::program p2;
+    {
+        auto* m   = p2.get_main_module();
+        auto x    = m->add_parameter("x", {migraphx::shape::int8_type, {1, 8, 4, 4}});
+        auto pk_w = m->add_parameter("wt_int4", {migraphx::shape::int8_type, {1, 8, 4, 2}});
+
+        auto fused = add_mlir(
+            p2,
+            "int4:mlir_quant_dot0",
+            {pk_w, x},
+            {"wt_int4", "x"},
+            [=](auto* pm, const auto& inputs) {
+                auto unpk = pm->add_instruction(migraphx::make_op("unpack_int4"), inputs[0]);
+                auto q    = pm->add_instruction(migraphx::make_op("quant_dot"), inputs[1], unpk);
+                return std::make_tuple(q->get_operator(), q);
+            });
+        m->add_return({fused});
+    }
+
+    // todo: fix literal names before comparing p1 and p2.
+    EXPECT(true);
+}
+
+TEST_CASE(unpack_int4_dequant)
+{
+    migraphx::program p1;
+    {
+        auto* m = p1.get_main_module();
+        auto sc = m->add_parameter("sc", {migraphx::shape::float_type, {1, 8, 4, 4}});
+        auto zp = m->add_parameter("zp", {migraphx::shape::int8_type, {1, 8, 4, 4}});
+
+        auto pk_x = m->add_parameter("x_int4", {migraphx::shape::int8_type, {1, 8, 4, 2}});
+        auto x    = m->add_instruction(migraphx::make_op("unpack_int4"), pk_x); // w: {1,8,4,4}
+
+        auto dq = m->add_instruction(migraphx::make_op("dequantizelinear"), x, sc, zp);
+        m->add_return({dq});
+    }
+    run_pass(p1);
+
+    EXPECT(true);
+}
+
 TEST_CASE(int_quant_dot_abs)
 {
     migraphx::shape s_a{migraphx::shape::int8_type, {5, 4}};

@@ -231,12 +231,12 @@ bool hip_has_flags(const std::vector<std::string>& flags)
 
     std::string src = " ";
     src_file input{"main.cpp", src};
-    std::vector<src_file> srcs = { input };
-    std::string arch = "gfx900";
+    std::vector<src_file> srcs = {input};
+    std::string arch           = "gfx900";
 
     try
     {
-        compile_hip_src(srcs, flags, arch); 
+        compile_hip_src(srcs, flags, arch);
         return true;
     }
     catch(...)

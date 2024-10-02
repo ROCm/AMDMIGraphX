@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2023 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2024 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -27,6 +27,7 @@
 #include <migraphx/make_op.hpp>
 #include <migraphx/tune_axis.hpp>
 #include <migraphx/common.hpp>
+#include <migraphx/onnx/quantize_dequantize_linear.hpp>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
@@ -37,47 +38,75 @@ struct parse_quantizelinear : op_parser<parse_quantizelinear>
     std::vector<op_desc> operators() const { return {{"QuantizeLinear"}}; }
 
     instruction_ref parse(const op_desc& opd,
-                          const onnx_parser& /*parser*/,
+                          const onnx_parser& parser,
                           const onnx_parser::node_info& info,
-                          const std::vector<instruction_ref>& args) const
+                          std::vector<instruction_ref> args) const
     {
+        if(args.size() < 2 or args.size() > 3)
+        {
+            MIGRAPHX_THROW("QuantizeLinear: must have either 2 or 3 inputs, " +
+                           std::to_string(args.size()) + " input(s) provided");
+        }
+
+        // Starting with version 19 ONNX introduced the constraint that x and y_scale types must be
+        // the same
+        if(parser.opset_version >= 19 and
+           args[0]->get_shape().type() != args[1]->get_shape().type())
+        {
+            MIGRAPHX_THROW("QuantizeLinear: x and y_scale must be of same type");
+        }
+
+        if(args.size() == 3 and args[1]->get_shape().lens() != args[2]->get_shape().lens())
+        {
+            MIGRAPHX_THROW(
+                "QuantizeLinear: y_scale and y_zero_point shapes must be equal. Provided y_scale "
+                "shape: " +
+                to_string_range(args[1]->get_shape().lens()) +
+                ", provided y_zero_point shape: " + to_string_range(args[2]->get_shape().lens()));
+        }
+
         int axis = 1;
         if(contains(info.attributes, "axis"))
             axis = info.attributes.at("axis").i();
 
-        auto input_lens = args[0]->get_shape().lens();
-        auto n_dim      = input_lens.size();
+        int block_size = 0;
+        if(contains(info.attributes, "block_size"))
+            block_size = info.attributes.at("block_size").i();
 
-        instruction_ref y_scale = args[1];
-        if(args[1]->get_shape().elements() != 1)
+        std::optional<migraphx::shape::type_t> output_type;
+        if(contains(info.attributes, "output_dtype"))
         {
-            auto tuned_axis = tune_axis(n_dim, axis, opd.op_name);
-            y_scale         = info.add_instruction(
-                make_op("broadcast", {{"axis", tuned_axis}, {"out_lens", input_lens}}), args[1]);
+            output_type = get_type(info.attributes.at("output_dtype").i());
         }
 
-        auto common_args = add_common_args(*info.mod, {args[0], y_scale});
-
-        if(args.size() == 3)
+        if(output_type.has_value() and args.size() == 3 and
+           *output_type != args[2]->get_shape().type())
         {
-            auto y_zero_point = args[2];
-            if(y_zero_point->get_shape().elements() != 1)
-            {
-                auto tuned_axis = tune_axis(n_dim, axis, opd.op_name);
-                y_zero_point    = info.add_instruction(
-                    make_op("broadcast", {{"axis", tuned_axis}, {"out_lens", input_lens}}),
-                    y_zero_point);
-            }
-            else
-            {
-                y_zero_point = info.add_instruction(
-                    make_op("multibroadcast", {{"out_lens", input_lens}}), y_zero_point);
-            }
-
-            common_args.push_back(y_zero_point);
+            MIGRAPHX_THROW(
+                "QuantizeLinear: output_type and y_zero_point type must match. output_type: " +
+                to_string(*output_type) +
+                +", y_zero_point type: " + to_string(args[2]->get_shape().type()));
         }
 
-        return info.add_instruction(make_op("quantizelinear"), common_args);
+        args =
+            transform_quantize_dequantize_linear_inputs(info, opd.op_name, block_size, axis, args);
+
+        if(parser.opset_version < 19)
+        {
+            auto common_type = common_shape({args[0]->get_shape(), args[1]->get_shape()}).type();
+            std::transform(args.begin(), args.begin() + 2, args.begin(), [&](auto ins) {
+                if(ins->get_shape().type() != common_type)
+                    ins = info.add_instruction(make_op("convert", {{"target_type", common_type}}),
+                                               ins);
+                return ins;
+            });
+        }
+
+        if(output_type.has_value())
+            return info.add_instruction(make_op("quantizelinear", {{"out_type", *output_type}}),
+                                        args);
+        else
+            return info.add_instruction(make_op("quantizelinear"), args);
     }
 };
 

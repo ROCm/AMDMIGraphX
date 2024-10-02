@@ -74,12 +74,12 @@ struct roialign
         auto type     = inputs.at(0).type();
 
         // check input correct
-        if(shape::is_integral(inputs.at(0).type()))
-            MIGRAPHX_THROW("ROIALIGN: incorrect type for input 1!");
+        if(shape::is_integral(type))
+            MIGRAPHX_THROW("ROIALIGN: incorrect type for input data! (should be non-integer)");
         if(shape::is_integral(inputs.at(1).type())) 
-            MIGRAPHX_THROW("ROIALIGN: incorrect type for input 2!");
-        if(shape::is_integral(inputs.at(2).type()))
-            MIGRAPHX_THROW("ROIALIGN: incorrect type for input 3!");
+            MIGRAPHX_THROW("ROIALIGN: incorrect data type for rois! (should be non-integer)");
+        if(!shape::is_integral(inputs.at(2).type()))
+            MIGRAPHX_THROW("ROIALIGN: incorrect datatype for roi indices! (should be an integral type)");
         if(bi_lens.size() != 1)
         {
             MIGRAPHX_THROW("ROIALIGN: batch indices should be 1 dimension!");

@@ -1,4 +1,4 @@
-	matmulnbits2_test:Ï
+	matmulnbits_mm2_test:Ò
 a
 a
 b
@@ -7,7 +7,7 @@ a
 N *
 bits *
 
-block_size :com.microsoftmatmulnbits2_testZ
+block_size :com.microsoftmatmulnbits_mm2_testZ
 a
 
 

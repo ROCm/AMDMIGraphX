@@ -21,8 +21,8 @@
  * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
  * THE SOFTWARE.
  */
+#include "migraphx/common.hpp"
 #include "migraphx/errors.hpp"
-#include "migraphx/functional.hpp"
 #include "migraphx/instruction_ref.hpp"
 #include "migraphx/onnx/onnx_parser.hpp"
 #include <migraphx/onnx/op_parser.hpp>
@@ -53,7 +53,7 @@ struct parse_matmulnbits : op_parser<parse_matmulnbits>
             MIGRAPHX_THROW("MatMulNBits: bits only supported for value of 4, actual value " +
                            std::to_string(bits));
 
-        if(block_size < 16 and block_size % 2 != 0)
+        if(block_size < 16 and (block_size & (block_size - 1)) != 0)
             MIGRAPHX_THROW("MatMulNBits: block_size must be a power of 2 and greater or equal to "
                            "16, actual value " +
                            std::to_string(block_size));
@@ -65,25 +65,29 @@ struct parse_matmulnbits : op_parser<parse_matmulnbits>
                                             static_cast<size_t>(n_blocks_per_col),
                                             static_cast<size_t>(blob_size)};
         if(args[1]->get_shape().lens() != expected_b_lens)
-            MIGRAPHX_THROW("Input B does not match expected dims TODO");
+            MIGRAPHX_THROW("MatMulNBits: Input B does not match expected dims: " +
+                           to_string_range(expected_b_lens) +
+                           ". Actual dims: " + to_string_range(args[1]->get_shape().lens()));
 
         std::vector<size_t> expected_scales_lens{static_cast<size_t>(N * n_blocks_per_col)};
         if(args[2]->get_shape().lens() != expected_scales_lens)
-            MIGRAPHX_THROW("Input Scales does not match expected dims TODO");
+            MIGRAPHX_THROW("MatMulNBits: Input scales does not match expected dims: " +
+                           to_string_range(expected_scales_lens) +
+                           ". Actual dims: " + to_string_range(args[2]->get_shape().lens()));
 
         if(args.size() > 3)
         {
             std::vector<size_t> expected_zp_lens{
                 static_cast<size_t>(N * std::ceil(n_blocks_per_col * bits / 8.0f))};
             if(args[3]->get_shape().lens() != expected_zp_lens)
-                MIGRAPHX_THROW("MatMulNBits: TODO");
+                MIGRAPHX_THROW("MatMulNBits: Input zero_points does not match expected dims: " +
+                               to_string_range(expected_zp_lens) +
+                               ". Actual dims: " + to_string_range(args[3]->get_shape().lens()));
         }
 
         auto b = dequantize_b(info, N, K, block_size, args);
-
-        b = info.add_instruction(make_op("transpose", {{"permutation", {1, 0}}}), b);
-        // Replace with proper matmul
-        return info.add_instruction(make_op("dot"), args[0], b);
+        b      = info.add_instruction(make_op("transpose", {{"permutation", {1, 0}}}), b);
+        return matmul(info, args[0], b);
     }
 
     private:
@@ -155,6 +159,47 @@ struct parse_matmulnbits : op_parser<parse_matmulnbits>
         }
 
         return x;
+    }
+
+    instruction_ref matmul(onnx_parser::node_info& info, instruction_ref a, instruction_ref b) const
+    {
+        bool is_a_prepended = false;
+        // B will always be a rank 2 matrix([N, K]), only need to check for A
+        if(a->get_shape().ndim() == 1)
+        {
+            is_a_prepended = true;
+            a              = info.add_instruction(make_op("unsqueeze", {{"axes", {0}}}), a);
+        }
+
+        auto a_lens = a->get_shape().lens();
+        auto b_lens = b->get_shape().lens();
+        if(not std::equal(a_lens.rbegin() + 2, a_lens.rend(), b_lens.rbegin() + 2, b_lens.rend()))
+        {
+            auto a_it = a_lens.begin() + a_lens.size() - 2;
+            std::vector<std::size_t> a_broadcasted_lens(a_lens.begin(), a_it);
+            auto b_it = b_lens.begin() + b_lens.size() - 2;
+            std::vector<std::size_t> b_broadcasted_lens(b_lens.begin(), b_it);
+            auto output_lens   = compute_broadcasted_lens(a_broadcasted_lens, b_broadcasted_lens);
+            a_broadcasted_lens = output_lens;
+            a_broadcasted_lens.insert(a_broadcasted_lens.end(), a_it, a_lens.end());
+            b_broadcasted_lens = output_lens;
+            b_broadcasted_lens.insert(b_broadcasted_lens.end(), b_it, b_lens.end());
+
+            if(a_lens != a_broadcasted_lens)
+                a = info.add_instruction(
+                    make_op("multibroadcast", {{"out_lens", a_broadcasted_lens}}), a);
+
+            if(b_lens != b_broadcasted_lens)
+                b = info.add_instruction(
+                    make_op("multibroadcast", {{"out_lens", b_broadcasted_lens}}), b);
+        }
+        auto dot = info.add_instruction(make_op("dot"), a, b);
+
+        if(is_a_prepended)
+            dot = info.add_instruction(
+                make_op("squeeze", {{"axes", {dot->get_shape().ndim() - 2}}}), dot);
+
+        return dot;
     }
 };
 

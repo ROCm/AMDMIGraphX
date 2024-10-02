@@ -1,4 +1,4 @@
-	matmulnbits_test:ä
+	matmulnbits_mm_test:ç
 e
 a
 b
@@ -8,7 +8,7 @@ e
 N *
 bits *
 
-block_size :com.microsoftmatmulnbits_testZ
+block_size :com.microsoftmatmulnbits_mm_testZ
 a
 
 

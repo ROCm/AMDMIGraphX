@@ -10154,30 +10154,6 @@ def roialign_half_pixel_test():
 
 
 @onnx_test()
-def roialign_half_pixel_roi_test():
-    # Same as roialign_half_pixel_test but contains more ROIs than there
-    # are batch dimensions.
-    x = helper.make_tensor_value_info('x', TensorProto.FLOAT, [1, 1, 2, 3])
-    roi = helper.make_tensor_value_info('rois', TensorProto.FLOAT, [2, 4])
-    bi = helper.make_tensor_value_info('batch_ind', TensorProto.INT64, [2])
-    y = helper.make_tensor_value_info('y', TensorProto.FLOAT, [2, 4, 2, 2])
-
-    # half_pixel is the new mode we're developing for
-    node = onnx.helper.make_node(
-        'RoiAlign',
-        inputs=['x', 'rois', 'batch_ind'],
-        outputs=['y'],
-        spatial_scale=2.0,
-        output_height=2,
-        output_width=3,
-        sampling_ratio=2,
-        mode="avg",
-        coordinate_transformation_mode="half_pixel")
-
-    return ([node], [x, roi, bi], [y])
-
-
-@onnx_test()
 def round_half_test():
     x = helper.make_tensor_value_info('x', TensorProto.FLOAT16, [4, 4])
     y = helper.make_tensor_value_info('y', TensorProto.FLOAT16, [4, 4])

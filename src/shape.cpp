@@ -260,6 +260,7 @@ std::string shape::cpp_type(shape::type_t t)
     }
     MIGRAPHX_THROW("Invalid type");
 }
+
 bool shape::is_integral(shape::type_t t)
 {
     bool result = false;
@@ -289,6 +290,13 @@ bool shape::is_compatible(const shape& actual, const shape& expected)
             return true;
         return actual.strides()[i] == expected.strides()[i];
     });
+}
+
+bool shape::is_unsigned(shape::type_t t)
+{
+    bool result = false;
+    visit(t, [&](auto as) { result = as.is_unsigned(); });
+    return result;
 }
 
 shape::shape() : impl(shape_impl::default_shape()) {}

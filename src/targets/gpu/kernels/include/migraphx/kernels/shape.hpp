@@ -26,11 +26,13 @@
 
 #include <migraphx/kernels/array.hpp>
 #include <migraphx/kernels/algorithm.hpp>
+#include <migraphx/kernels/permutation.hpp>
+#include <migraphx/kernels/operators.hpp>
 
 namespace migraphx {
 
 template <class Lens, class Strides>
-struct shape
+struct shape : equality_comparable<shape<Lens, Strides>>
 {
     using shape_type  = shape;
     using index_array = typename Lens::base_array;
@@ -120,6 +122,12 @@ struct shape
 
     constexpr shape get_shape() const { return *this; }
 
+    template <class... Ts>
+    friend constexpr bool operator==(const shape& x, const shape<Ts...>& y)
+    {
+        return x.lens == y.lens and x.strides == y.strides;
+    }
+
     template <class Stream>
     friend constexpr const Stream& operator<<(const Stream& ss, const shape& s)
     {
@@ -128,10 +136,64 @@ struct shape
     }
 };
 
+template <class Lens>
+constexpr auto calculate_strides(Lens)
+{
+    return return_array_c([] {
+        Lens lens{};
+        array<typename Lens::value_type, Lens{}.size()> strides{1};
+        const auto n     = lens.size() - 1;
+        index_int stride = 1;
+        for(index_int i = 0; i < n; i++)
+        {
+            auto ri = n - i;
+            stride *= lens[ri];
+            strides[ri - 1] = stride;
+        }
+        return strides;
+    });
+}
+
 template <class Lens, class Strides>
 constexpr shape<Lens, Strides> make_shape(Lens lens, Strides strides)
 {
     return {lens, strides};
+}
+
+template <class Lens>
+constexpr auto make_shape(Lens lens)
+{
+    return make_shape(lens, calculate_strides(lens));
+}
+
+template <class Shape, class Permutation>
+constexpr auto reorder_shape(Shape, Permutation)
+{
+    constexpr auto lens = return_array_c([] { return reorder_dims(Shape{}.lens, Permutation{}); });
+    constexpr auto strides =
+        return_array_c([] { return reorder_dims(Shape{}.strides, Permutation{}); });
+    return make_shape(lens, strides);
+}
+
+template <class Lens, class Permutation>
+constexpr auto make_shape_from_permutation(Lens, Permutation)
+{
+    constexpr auto new_lens = reorder_dims(Lens{}, Permutation{});
+    return reorder_shape(make_shape(new_lens), invert_permutation(Permutation{}));
+}
+
+template <class Shape>
+constexpr auto make_packed_shape(Shape)
+{
+    constexpr auto s = Shape{};
+    if constexpr(s.packed())
+    {
+        return s;
+    }
+    else
+    {
+        return make_shape_from_permutation(s.lens, find_permutation(s));
+    }
 }
 
 } // namespace migraphx

@@ -216,7 +216,7 @@ struct common_type<T, U, Us...>
 template <class... Ts>
 using common_type_t = typename common_type<Ts...>::type;
 
-#define MIGRAPHX_REQUIRES(...) class = enable_if_t<__VA_ARGS__>
+#define MIGRAPHX_REQUIRES(...) enable_if_t<__VA_ARGS__, int> = 0
 
 constexpr unsigned long long int_max(unsigned long n)
 {

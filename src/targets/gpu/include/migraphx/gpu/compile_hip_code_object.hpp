@@ -27,6 +27,7 @@
 #include <migraphx/gpu/config.hpp>
 #include <migraphx/operation.hpp>
 #include <migraphx/compile_src.hpp>
+#include <migraphx/stringutils.hpp>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
@@ -76,6 +77,12 @@ MIGRAPHX_GPU_EXPORT operation compile_hip_code_object(const std::string& content
 
 MIGRAPHX_GPU_EXPORT std::size_t
 compute_block_size(context& ctx, std::size_t n, std::size_t max_block_size = 1024);
+
+template <class T>
+std::string generate_index_ints(const std::vector<T>& v)
+{
+    return "index_ints<" + to_string_range(v) + ">{}";
+}
 
 MIGRAPHX_GPU_EXPORT std::string generate_make_shape(const shape& s);
 

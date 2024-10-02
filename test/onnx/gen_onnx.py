@@ -8652,6 +8652,64 @@ def matmulnbits_bmm_test():
     return ([node], [a, b, scales], [c])
 
 
+def matmulnbits_negative_test(bits=4,
+                              block_size=16,
+                              a_dims=[2, 16],
+                              b_dims=[4, 1, 8],
+                              scales_dims=[4],
+                              zp_dims=[4],
+                              out_dims=[2, 4]):
+    a = onnx.helper.make_tensor_value_info("a", onnx.TensorProto.FLOAT, a_dims)
+    b = onnx.helper.make_tensor_value_info("b", onnx.TensorProto.UINT8, b_dims)
+    scales = onnx.helper.make_tensor_value_info("scales",
+                                                onnx.TensorProto.FLOAT,
+                                                scales_dims)
+    zp = onnx.helper.make_tensor_value_info("zp", onnx.TensorProto.UINT8,
+                                            zp_dims)
+    c = onnx.helper.make_tensor_value_info("c", onnx.TensorProto.FLOAT,
+                                           out_dims)
+
+    node = onnx.helper.make_node("MatMulNBits",
+                                 inputs=["a", "b", "scales", "zp"],
+                                 outputs=["c"],
+                                 bits=bits,
+                                 block_size=block_size,
+                                 K=16,
+                                 N=4,
+                                 domain='com.microsoft')
+    return ([node], [a, b, scales, zp], [c])
+
+
+@onnx_test()
+def matmulnbits_invalid_bits_value_test():
+    return matmulnbits_negative_test(bits=5)
+
+
+@onnx_test()
+def matmulnbits_block_size_too_small_test():
+    return matmulnbits_negative_test(block_size=8)
+
+
+@onnx_test()
+def matmulnbits_block_size_not_power_of_two_test():
+    return matmulnbits_negative_test(block_size=20)
+
+
+@onnx_test()
+def matmulnbits_invalid_b_dims_test():
+    return matmulnbits_negative_test(b_dims=[4, 2, 8])
+
+
+@onnx_test()
+def matmulnbits_invalid_scales_dims_test():
+    return matmulnbits_negative_test(scales_dims=[3])
+
+
+@onnx_test()
+def matmulnbits_invalid_zp_dims_test():
+    return matmulnbits_negative_test(zp_dims=[5])
+
+
 @onnx_test()
 def qlinearmul_test():
     a = helper.make_tensor_value_info('A', TensorProto.UINT8, [64])

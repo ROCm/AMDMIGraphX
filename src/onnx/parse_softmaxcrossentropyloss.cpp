@@ -397,7 +397,14 @@ struct parse_softmaxcrossentropyloss : op_parser<parse_softmaxcrossentropyloss>
         // Meta parameters based on input scores shape
         size_t ndims      = scores_shape.ndim();
         size_t class_size = scores_shape.lens().at(1);
-        bool is_k_dim     = (ndims > 3);
+        bool is_k_dim     = (ndims >= 3);
+        // Ensure first k-th dimension is greater then one if ndims == 3
+        if(ndims == 3)
+        {
+            auto last_dim = scores_shape.lens().at(2);
+            if(last_dim < 2)
+                is_k_dim = false;
+        }
 
         // Ignore_index is optional attribute, assign this as a scalar literal input to the op
         instruction_ref ignore_index;

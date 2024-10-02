@@ -247,7 +247,7 @@ struct gpu_compute_attention_probabilities : op::group_query_attention
         std::vector<std::size_t> output_lens{
             query_lens.at(0), num_heads, query_lens.at(2), present_kv_seqlen};
         shape output_shape{inputs.front().type(), output_lens};
-        return output_shape/* shape({output_shape, inputs[1], inputs[2]}) */;
+        return output_shape /* shape({output_shape, inputs[1], inputs[2]}) */;
     }
 };
 MIGRAPHX_REGISTER_OP(gpu_compute_attention_probabilities);
@@ -263,7 +263,7 @@ struct gpu_compute_attention_scores : op::group_query_attention
             (query_lens[1] * query_lens[3] * num_heads) / (num_heads + 2 * kv_num_heads);
         std::vector<std::size_t> output_lens{query_lens.at(0), query_lens.at(2), q_hidden_size};
         shape output_shape{inputs.front().type(), output_lens};
-        return output_shape/* shape({output_shape, inputs[1], inputs[2]}) */;
+        return output_shape /* shape({output_shape, inputs[1], inputs[2]}) */;
     }
 };
 MIGRAPHX_REGISTER_OP(gpu_compute_attention_scores);
@@ -347,8 +347,7 @@ struct find_group_query_attention
 
         auto pres_k = inputs.at(3);
         auto pres_v = inputs.at(4);
-        std::vector<instruction_ref> concat_inputs{
-            rotary_qkv, pres_k, pres_v, inputs.at(5)};
+        std::vector<instruction_ref> concat_inputs{rotary_qkv, pres_k, pres_v, inputs.at(5)};
 
         auto concat =
             mpm.get_module().insert_instruction(ins,
@@ -360,7 +359,8 @@ struct find_group_query_attention
                                                                         scale,
                                                                         present_kv_seqlen},
                                                 concat_inputs);
-        auto id = mpm.get_module().insert_instruction(ins, make_op("identity"), concat, pres_k, pres_v);
+        auto id =
+            mpm.get_module().insert_instruction(ins, make_op("identity"), concat, pres_k, pres_v);
 
         std::vector<instruction_ref> attn_probs_inputs{id, pres_k, pres_v, inputs.at(5)};
         auto attn_probs = mpm.get_module().insert_instruction(
@@ -384,8 +384,7 @@ struct find_group_query_attention
                                                                            scale,
                                                                            present_kv_seqlen},
                                                            softmax_inputs);
-        std::vector<instruction_ref> new_inputs{
-            rotary_qkv, pres_k, pres_v, inputs.at(5), softmax};
+        std::vector<instruction_ref> new_inputs{rotary_qkv, pres_k, pres_v, inputs.at(5), softmax};
 
         auto get_tuple_elm_0 = std::next(ins);
         auto get_tuple_elm_1 = std::next(get_tuple_elm_0);

@@ -87,8 +87,13 @@ template <class Output,
           class SeqLensK,
           class AttnProbs,
           class Params>
-__device__ void compute_attention_scores(
-    Output output, Query, PresentKey, PresentValue present_value, SeqLensK seqlens_k, AttnProbs attn_probs, Params params)
+__device__ void compute_attention_scores(Output output,
+                                         Query,
+                                         PresentKey,
+                                         PresentValue present_value,
+                                         SeqLensK seqlens_k,
+                                         AttnProbs attn_probs,
+                                         Params params)
 {
     const index_int elements =
         params.batch_size * params.num_heads * params.sequence_length * params.head_size;
@@ -103,11 +108,11 @@ __device__ void compute_attention_scores(
         //                               idx);
         // });
         calculate_attention_score(output.begin(),
-                                      attn_probs.begin(),
-                                      seqlens_k.begin(),
-                                      present_value.begin(),
-                                      params,
-                                      idx);
+                                  attn_probs.begin(),
+                                  seqlens_k.begin(),
+                                  present_value.begin(),
+                                  params,
+                                  idx);
     });
 }
 

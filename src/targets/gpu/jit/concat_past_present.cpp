@@ -96,14 +96,13 @@ struct concat_past_present_compiler : compiler<concat_past_present_compiler>
         options.inputs      = inputs;
         options.output      = inputs.front();
         options.kernel_name = v.get("kernel", "concat_past_present_kernel");
-        options.output_arg = 0;
+        options.output_arg  = 0;
 
-        auto src = interpolate_string(
-            concat_past_present_kernel,
-            {{"params", enum_params(inputs.size(), "void * private_p")},
-             {"args", enum_params(inputs.size(), "private_p")},
-             {"gqa_params", gqa_params_str},
-             {"kernel", options.kernel_name}});
+        auto src = interpolate_string(concat_past_present_kernel,
+                                      {{"params", enum_params(inputs.size(), "void * private_p")},
+                                       {"args", enum_params(inputs.size(), "private_p")},
+                                       {"gqa_params", gqa_params_str},
+                                       {"kernel", options.kernel_name}});
         return compile_hip_code_object(src, options);
     }
 

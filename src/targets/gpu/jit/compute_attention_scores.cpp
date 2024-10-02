@@ -97,12 +97,11 @@ struct compute_attention_scores_compiler : compiler<compute_attention_scores_com
         options.output      = inputs.back();
         options.kernel_name = v.get("kernel", "compute_attention_scores_kernel");
 
-        auto src = interpolate_string(
-            compute_attention_scores_kernel,
-            {{"params", enum_params(inputs.size(), "void * private_p")},
-             {"args", enum_params(inputs.size(), "private_p")},
-             {"gqa_params", gqa_params_str},
-             {"kernel", options.kernel_name}});
+        auto src = interpolate_string(compute_attention_scores_kernel,
+                                      {{"params", enum_params(inputs.size(), "void * private_p")},
+                                       {"args", enum_params(inputs.size(), "private_p")},
+                                       {"gqa_params", gqa_params_str},
+                                       {"kernel", options.kernel_name}});
         return compile_hip_code_object(src, options);
     }
 

@@ -186,7 +186,7 @@ struct find_all_convolution
                                      iwindow->get_shape().lens().begin() + 2 + kdims,
                                      iwindow->get_shape().lens().front(),
                                      std::multiplies<>{});
-        auto k_dim   = std::accumulate(weights->get_shape().lens().begin() + 2, weights->get_shape().lens().end(), in_channels);
+        auto k_dim   = std::accumulate(weights->get_shape().lens().begin() + 2, weights->get_shape().lens().end(), in_channels, std::multiplies<>{});
         auto n_dim   = out_channels;
 
         std::vector<int64_t> aperm(iwindow->get_shape().ndim());

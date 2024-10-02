@@ -54,9 +54,8 @@ struct parse_matmulnbits : op_parser<parse_matmulnbits>
             MIGRAPHX_THROW("MatMulNBits: bits only supported for value of 4, actual value " +
                            std::to_string(bits));
 
-        if(block_size < 16 and (block_size & (block_size - 1)) != 0)
-            MIGRAPHX_THROW("MatMulNBits: block_size must be a power of 2 and greater or equal to "
-                           "16, actual value " +
+        if(block_size < 16 or (block_size & (block_size - 1)) != 0)
+            MIGRAPHX_THROW("MatMulNBits: block_size must be a power of 2 and >=16, actual value " +
                            std::to_string(block_size));
 
         int n_blocks_per_col = (K + block_size - 1) / block_size;

@@ -87,17 +87,16 @@ struct gqa_rotary_embedding_compiler : compiler<gqa_rotary_embedding_compiler>
         auto params         = init_params(inputs, v);
         auto gqa_params_str = params.make_init_str();
 
-        auto flattened_inputs = flatten(inputs);
         hip_compile_options options;
         options.set_launch_params(v, compute_global_for(ctx, inputs.back().elements()));
-        options.inputs      = flattened_inputs;
+        options.inputs      = inputs;
         options.output      = inputs.back();
         options.kernel_name = v.get("kernel", "gqa_rotary_embedding_kernel");
 
         auto src = interpolate_string(
             gqa_rotary_embedding_kernel,
-            {{"params", enum_params(flattened_inputs.size(), "void * private_p")},
-             {"args", enum_params(flattened_inputs.size(), "private_p")},
+            {{"params", enum_params(inputs.size(), "void * private_p")},
+             {"args", enum_params(inputs.size(), "private_p")},
              {"gqa_params", gqa_params_str},
              {"kernel", options.kernel_name}});
         return compile_hip_code_object(src, options);

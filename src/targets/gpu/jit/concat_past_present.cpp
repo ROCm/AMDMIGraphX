@@ -62,7 +62,7 @@ extern "C" {
 
 MIGRAPHX_GLOBAL void ${kernel}(${params})
 {
-    transform_args(make_tensors(), rotate_and_pack_last<${noutputs}>())(${args})([](auto... xs) {
+    transform_args(make_tensors())(${args})([](auto... xs) {
         
         concat_past_present(xs..., gqa_parameters{${gqa_params}});
     });
@@ -87,24 +87,23 @@ struct concat_past_present_compiler : compiler<concat_past_present_compiler>
         auto params         = init_params(inputs, v);
         auto gqa_params_str = params.make_init_str();
 
-        auto flattened_inputs = flatten(inputs);
         hip_compile_options options;
         options.set_launch_params(v,
                                   compute_global_for(ctx,
                                                      2 * params.batch_size * params.kv_num_heads *
                                                          params.sequence_length *
                                                          params.head_size));
-        options.inputs      = flattened_inputs;
-        options.output      = inputs.back();
+        options.inputs      = inputs;
+        options.output      = inputs.front();
         options.kernel_name = v.get("kernel", "concat_past_present_kernel");
+        options.output_arg = 0;
 
         auto src = interpolate_string(
             concat_past_present_kernel,
-            {{"params", enum_params(flattened_inputs.size(), "void * private_p")},
-             {"args", enum_params(flattened_inputs.size(), "private_p")},
+            {{"params", enum_params(inputs.size(), "void * private_p")},
+             {"args", enum_params(inputs.size(), "private_p")},
              {"gqa_params", gqa_params_str},
-             {"kernel", options.kernel_name},
-             {"noutputs", std::to_string(2)}});
+             {"kernel", options.kernel_name}});
         return compile_hip_code_object(src, options);
     }
 

@@ -82,26 +82,32 @@ calculate_attention_score(Output output, // buffer for the result with size BxSx
 
 template <class Output,
           class Query,
-          class Key,
-          class Value,
+          class PresentKey,
+          class PresentValue,
           class SeqLensK,
           class AttnProbs,
           class Params>
 __device__ void compute_attention_scores(
-    Output output, Query, Key, Value, SeqLensK seqlens_k, AttnProbs attn_probs, Params params)
+    Output output, Query, PresentKey, PresentValue present_value, SeqLensK seqlens_k, AttnProbs attn_probs, Params params)
 {
     const index_int elements =
         params.batch_size * params.num_heads * params.sequence_length * params.head_size;
     auto ind = make_index();
     ind.global_stride(elements, [&](auto idx) {
-        output([&](auto output0, auto, auto v_cache) {
-            calculate_attention_score(output0.begin(),
+        // output([&](auto output0, auto, auto v_cache) {
+        //     calculate_attention_score(output0.begin(),
+        //                               attn_probs.begin(),
+        //                               seqlens_k.begin(),
+        //                               v_cache.begin(),
+        //                               params,
+        //                               idx);
+        // });
+        calculate_attention_score(output.begin(),
                                       attn_probs.begin(),
                                       seqlens_k.begin(),
-                                      v_cache.begin(),
+                                      present_value.begin(),
                                       params,
                                       idx);
-        });
     });
 }
 

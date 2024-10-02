@@ -532,31 +532,17 @@ struct miopen_apply
         });
 
         apply_map.emplace("gpu::concat_past_present", [=](instruction_ref ins) {
-            auto inputs = ins->inputs();
-            auto past_k = inputs[1];
-            auto past_v = inputs[2];
-
-            auto outputs =
-                mod->insert_instruction(ins, make_op("instructions_tuple"), past_k, past_v);
-            auto new_inputs = ins->inputs();
-            new_inputs.push_back(outputs);
             return mod->replace_instruction(
                 ins,
                 make_op("gpu::precompile_op", {{"op", to_value(ins->get_operator())}}),
-                new_inputs);
+                ins->inputs());
         });
 
         apply_map.emplace("gpu::compute_attention_probabilities", [=](instruction_ref ins) {
-            auto s      = ins->get_shape().sub_shapes().front();
+            auto s      = ins->get_shape();
             auto output = insert_allocation(ins, s);
-            auto inputs = ins->inputs();
-            auto past_k = inputs[1];
-            auto past_v = inputs[2];
-
-            auto outputs =
-                mod->insert_instruction(ins, make_op("instructions_tuple"), output, past_k, past_v);
             auto new_inputs = ins->inputs();
-            new_inputs.push_back(outputs);
+            new_inputs.push_back(output);
             return mod->replace_instruction(
                 ins,
                 make_op("gpu::precompile_op", {{"op", to_value(ins->get_operator())}}),
@@ -576,16 +562,10 @@ struct miopen_apply
         });
 
         apply_map.emplace("gpu::compute_attention_scores", [=](instruction_ref ins) {
-            auto s      = ins->get_shape().sub_shapes().front();
+            auto s      = ins->get_shape();
             auto output = insert_allocation(ins, s);
-            auto inputs = ins->inputs();
-            auto past_k = inputs[1];
-            auto past_v = inputs[2];
-
-            auto outputs =
-                mod->insert_instruction(ins, make_op("instructions_tuple"), output, past_k, past_v);
             auto new_inputs = ins->inputs();
-            new_inputs.push_back(outputs);
+            new_inputs.push_back(output);
             return mod->replace_instruction(
                 ins,
                 make_op("gpu::precompile_op", {{"op", to_value(ins->get_operator())}}),

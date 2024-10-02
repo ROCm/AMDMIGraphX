@@ -84,22 +84,28 @@ calculate_attention_probs(AttnProbs attention_probs, // output buffer with size 
     }
 }
 
-template <class Output, class Query, class Key, class Value, class SeqLensK, class Params>
+template <class Output, class Query, class PresentKey, class PresentValue, class SeqLensK, class Params>
 __device__ void compute_attention_probabilities(
-    Output output, Query query, Key, Value, SeqLensK seqlens_k, Params params)
+    Output output, Query query, PresentKey present_key, PresentValue, SeqLensK seqlens_k, Params params)
 {
     auto ind = make_index();
     ind.global_stride(params.batch_size * params.num_heads * params.sequence_length *
                           params.seqlen_present_kv_cache,
                       [&](auto idx) {
-                          output([&](auto output0, auto k_cache, auto) {
-                              calculate_attention_probs(output0.begin(),
+                        //   output([&](auto output0, auto k_cache, auto) {
+                        //       calculate_attention_probs(output0.begin(),
+                        //                                 query.begin(),
+                        //                                 seqlens_k.begin(),
+                        //                                 k_cache.begin(),
+                        //                                 params,
+                        //                                 idx);
+                        //   });
+                        calculate_attention_probs(output.begin(),
                                                         query.begin(),
                                                         seqlens_k.begin(),
-                                                        k_cache.begin(),
+                                                        present_key.begin(),
                                                         params,
                                                         idx);
-                          });
                       });
 }
 

@@ -179,7 +179,6 @@ register_migraphx_ops(
     identity
     if_op
     im2col
-    instructions_tuple
     isinf
     isnan
     layout

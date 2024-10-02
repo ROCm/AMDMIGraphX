@@ -50,7 +50,7 @@ struct concat_state_chunk
     std::ptrdiff_t i;
 
     template <class Past, class Chunk, class Present>
-    __device__ Present compute(const Past past, Chunk chunk, Present present, index_int idx)
+    __device__ Present compute(Past past, const Chunk chunk, Present present, index_int idx)
     {
         auto start = present + i * present_buff_chunk_length;
 
@@ -71,7 +71,7 @@ struct concat_state_chunk
 
 template <class Present, class SeqLensK, class Cache, class Params>
 __device__ void
-update_cache(Present present, SeqLensK seqlens_k, Cache cache, Params params, index_int idx)
+update_cache(const Present present, SeqLensK seqlens_k, Cache cache, Params params, index_int idx)
 {
     const index_int batch_size                     = params.batch_size;
     const index_int sequence_length                = params.sequence_length;
@@ -114,9 +114,12 @@ update_cache(Present present, SeqLensK seqlens_k, Cache cache, Params params, in
     }
 }
 
-template <class Output, class Query, class Key, class Value, class SeqLensK, class Params>
+// template <class Output, class Query, class PastKey, class PastValue, class SeqLensK, class Params>
+// __device__ void
+// concat_past_present(Output, const Query query, PastKey past_key, PastValue past_value, SeqLensK seqlens_k, Params params)
+template <class Query, class PastKey, class PastValue, class SeqLensK, /* class Output, */ class Params>
 __device__ void
-concat_past_present(Output output, Query query, Key, Value, SeqLensK seqlens_k, Params params)
+concat_past_present(const Query query, PastKey past_key, PastValue past_value, SeqLensK seqlens_k, /* const Output, */ Params params)
 {
     auto ind = make_index();
     auto elements =
@@ -126,16 +129,14 @@ concat_past_present(Output output, Query query, Key, Value, SeqLensK seqlens_k, 
         auto k = q + params.num_heads * params.sequence_length * params.head_size;
         auto v = q + (params.num_heads + params.kv_num_heads) * params.sequence_length *
                          params.head_size;
-        output([&](auto k_cache, auto v_cache) {
-            if(idx < elements / 2)
-            {
-                update_cache(k, seqlens_k, k_cache.begin(), params, idx);
-            }
-            else if(idx < elements)
-            {
-                update_cache(v, seqlens_k, v_cache.begin(), params, idx - (elements / 2));
-            }
-        });
+        if(idx < elements / 2)
+        {
+            update_cache(k, seqlens_k, past_key.begin(), params, idx);
+        }
+        else if(idx < elements)
+        {
+            update_cache(v, seqlens_k, past_value.begin(), params, idx - (elements / 2));
+        }
     });
 }
 

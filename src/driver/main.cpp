@@ -356,10 +356,6 @@ struct loader
             auto last = std::prev(mm->end(), trim);
             mm->remove_instructions(last, mm->end());
         }
-        if(mlir)
-        {
-            offload_to_mlir(p);
-        }
         // Remove unused variable when exporting to cpp
         if(output_type == "cpp")
             migraphx::run_passes(*p.get_main_module(), {migraphx::dead_code_elimination{}});
@@ -381,6 +377,8 @@ struct loader
         }
         if(not passes.empty())
             migraphx::run_passes(p, get_passes(passes));
+        if(mlir)
+            offload_to_mlir(p);
         return p;
     }
 

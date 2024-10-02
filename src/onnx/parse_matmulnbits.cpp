@@ -25,6 +25,7 @@
 #include "migraphx/errors.hpp"
 #include "migraphx/instruction_ref.hpp"
 #include "migraphx/onnx/onnx_parser.hpp"
+#include <cstddef>
 #include <migraphx/onnx/op_parser.hpp>
 #include <migraphx/ranges.hpp>
 #include <migraphx/make_op.hpp>
@@ -131,8 +132,8 @@ struct parse_matmulnbits : op_parser<parse_matmulnbits>
 
     instruction_ref unpack(onnx_parser::node_info& info, instruction_ref x, int N, int dim1) const
     {
-        x = info.add_instruction(make_op("unpack_int4"), x);
         x = info.add_instruction(make_op("reshape", {{"dims", {N, -1}}}), x);
+        x = info.add_instruction(make_op("unpack_int4"), x);
         if(x->get_shape().lens()[1] > dim1)
         {
             x = info.add_instruction(
@@ -163,39 +164,26 @@ struct parse_matmulnbits : op_parser<parse_matmulnbits>
 
     instruction_ref matmul(onnx_parser::node_info& info, instruction_ref a, instruction_ref b) const
     {
-        bool is_a_prepended = false;
-        // B will always be a rank 2 matrix([N, K]), only need to check for A
-        if(a->get_shape().ndim() == 1)
+        const auto a_rank = a->get_shape().ndim();
+        // B is always rank 2:
+        // If A is rank 1, unsqueeze A to make it rank 2 to prepare for dot
+        // If A is rank 2, just a regular dot
+        // If A is rank > 2, broadcast B to match outer dims of A to prepare for dot
+        if(a_rank == 1)
         {
-            is_a_prepended = true;
-            a              = info.add_instruction(make_op("unsqueeze", {{"axes", {0}}}), a);
+            a = info.add_instruction(make_op("unsqueeze", {{"axes", {0}}}), a);
+        }
+        else if(a_rank > 2)
+        {
+            auto b_lens    = b->get_shape().lens();
+            auto b_bc_lens = a->get_shape().lens();
+            std::copy(b_lens.begin(), b_lens.end(), b_bc_lens.end() - 2);
+            b = info.add_instruction(make_op("multibroadcast", {{"out_lens", b_bc_lens}}), b);
         }
 
-        auto a_lens = a->get_shape().lens();
-        auto b_lens = b->get_shape().lens();
-        if(not std::equal(a_lens.rbegin() + 2, a_lens.rend(), b_lens.rbegin() + 2, b_lens.rend()))
-        {
-            auto a_it = a_lens.begin() + a_lens.size() - 2;
-            std::vector<std::size_t> a_broadcasted_lens(a_lens.begin(), a_it);
-            auto b_it = b_lens.begin() + b_lens.size() - 2;
-            std::vector<std::size_t> b_broadcasted_lens(b_lens.begin(), b_it);
-            auto output_lens   = compute_broadcasted_lens(a_broadcasted_lens, b_broadcasted_lens);
-            a_broadcasted_lens = output_lens;
-            a_broadcasted_lens.insert(a_broadcasted_lens.end(), a_it, a_lens.end());
-            b_broadcasted_lens = output_lens;
-            b_broadcasted_lens.insert(b_broadcasted_lens.end(), b_it, b_lens.end());
-
-            if(a_lens != a_broadcasted_lens)
-                a = info.add_instruction(
-                    make_op("multibroadcast", {{"out_lens", a_broadcasted_lens}}), a);
-
-            if(b_lens != b_broadcasted_lens)
-                b = info.add_instruction(
-                    make_op("multibroadcast", {{"out_lens", b_broadcasted_lens}}), b);
-        }
         auto dot = info.add_instruction(make_op("dot"), a, b);
 
-        if(is_a_prepended)
+        if(a_rank == 1)
             dot = info.add_instruction(
                 make_op("squeeze", {{"axes", {dot->get_shape().ndim() - 2}}}), dot);
 

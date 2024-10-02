@@ -15,7 +15,7 @@ inline namespace MIGRAPHX_INLINE_NS {
 
 void offload_to_mlir(program& p)
 {
-    auto mm = p.get_main_module();
+    auto mm    = p.get_main_module();
     auto mlirm = p.create_module("mlir");
     mlirm->set_bypass();
     std::vector<instruction_ref> inputs;
@@ -29,7 +29,7 @@ void offload_to_mlir(program& p)
 
     std::unordered_map<instruction_ref, instruction_ref> map_ins;
     std::size_t n = 0;
-    for(auto ins:inputs)
+    for(auto ins : inputs)
     {
         map_ins[ins] = mlirm->add_parameter(param_name(n++), ins->get_shape());
     }
@@ -57,4 +57,3 @@ void offload_to_mlir(program& p)
 } // namespace MIGRAPHX_INLINE_NS
 } // namespace driver
 } // namespace migraphx
-

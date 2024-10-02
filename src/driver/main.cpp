@@ -78,7 +78,7 @@ struct loader
     bool is_test                = false;
     unsigned trim               = 0;
     bool optimize               = false;
-    bool mlir = false;
+    bool mlir                   = false;
     bool skip_unknown_operators = false;
     bool brief                  = false;
     std::string output_type;

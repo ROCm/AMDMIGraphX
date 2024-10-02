@@ -21,7 +21,6 @@
  * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
  * THE SOFTWARE.
  */
-#include "migraphx/common.hpp"
 #include "migraphx/errors.hpp"
 #include "migraphx/instruction_ref.hpp"
 #include "migraphx/onnx/onnx_parser.hpp"
@@ -45,10 +44,10 @@ struct parse_matmulnbits : op_parser<parse_matmulnbits>
                           onnx_parser::node_info info,
                           const std::vector<instruction_ref>& args) const
     {
-        const int N          = parse_attribute(parser, info, "N");
-        const int K          = parse_attribute(parser, info, "K");
-        const int bits       = parse_attribute(parser, info, "bits");
-        const int block_size = parse_attribute(parser, info, "block_size");
+        const size_t n          = parse_attribute(parser, info, "N");
+        const size_t k          = parse_attribute(parser, info, "K");
+        const size_t bits       = parse_attribute(parser, info, "bits");
+        const size_t block_size = parse_attribute(parser, info, "block_size");
 
         if(bits != 4)
             MIGRAPHX_THROW("MatMulNBits: bits only supported for value of 4, actual value " +
@@ -58,18 +57,16 @@ struct parse_matmulnbits : op_parser<parse_matmulnbits>
             MIGRAPHX_THROW("MatMulNBits: block_size must be a power of 2 and >=16, actual value " +
                            std::to_string(block_size));
 
-        int n_blocks_per_col = (K + block_size - 1) / block_size;
-        int blob_size        = std::ceil(block_size * bits / 8.0f);
+        const size_t n_blocks_per_col = (k + block_size - 1) / block_size;
+        const size_t blob_size        = std::ceil(block_size * bits / 8.0f);
 
-        std::vector<size_t> expected_b_lens{static_cast<size_t>(N),
-                                            static_cast<size_t>(n_blocks_per_col),
-                                            static_cast<size_t>(blob_size)};
+        std::vector<size_t> expected_b_lens{n, n_blocks_per_col, blob_size};
         if(args[1]->get_shape().lens() != expected_b_lens)
             MIGRAPHX_THROW("MatMulNBits: Input B does not match expected dims: " +
                            to_string_range(expected_b_lens) +
                            ". Actual dims: " + to_string_range(args[1]->get_shape().lens()));
 
-        std::vector<size_t> expected_scales_lens{static_cast<size_t>(N * n_blocks_per_col)};
+        std::vector<size_t> expected_scales_lens{n * n_blocks_per_col};
         if(args[2]->get_shape().lens() != expected_scales_lens)
             MIGRAPHX_THROW("MatMulNBits: Input scales does not match expected dims: " +
                            to_string_range(expected_scales_lens) +
@@ -78,14 +75,14 @@ struct parse_matmulnbits : op_parser<parse_matmulnbits>
         if(args.size() > 3)
         {
             std::vector<size_t> expected_zp_lens{
-                static_cast<size_t>(N * std::ceil(n_blocks_per_col * bits / 8.0f))};
+                static_cast<size_t>(n * std::ceil(n_blocks_per_col * bits / 8.0f))};
             if(args[3]->get_shape().lens() != expected_zp_lens)
                 MIGRAPHX_THROW("MatMulNBits: Input zero_points does not match expected dims: " +
                                to_string_range(expected_zp_lens) +
                                ". Actual dims: " + to_string_range(args[3]->get_shape().lens()));
         }
 
-        auto b = dequantize_b(info, N, K, block_size, args);
+        auto b = dequantize_b(info, n, k, block_size, args);
         b      = info.add_instruction(make_op("transpose", {{"permutation", {1, 0}}}), b);
         return matmul(info, args[0], b);
     }
@@ -103,22 +100,22 @@ struct parse_matmulnbits : op_parser<parse_matmulnbits>
     }
 
     instruction_ref dequantize_b(onnx_parser::node_info& info,
-                                 int N,
-                                 int K,
+                                 int n,
+                                 int k,
                                  int block_size,
                                  const std::vector<instruction_ref>& args) const
     {
-        auto b = unpack(info, args[1], N, K);
+        auto b = unpack(info, n, k, args[1]);
 
-        auto n_blocks_per_col = (K + block_size - 1) / block_size;
-        auto scales = info.add_instruction(make_op("reshape", {{"dims", {N, -1}}}), args[2]);
-        scales      = prepare_blockwise_dq_arg(info, scales, N, K, block_size);
+        auto n_blocks_per_col = (k + block_size - 1) / block_size;
+        auto scales = info.add_instruction(make_op("reshape", {{"dims", {n, -1}}}), args[2]);
+        scales      = prepare_blockwise_dq_arg(info, n, k, block_size, scales);
 
         instruction_ref zp;
         if(args.size() == 4)
         {
-            zp = unpack(info, args[3], N, n_blocks_per_col);
-            zp = prepare_blockwise_dq_arg(info, zp, N, K, block_size);
+            zp = unpack(info, n, n_blocks_per_col, args[3]);
+            zp = prepare_blockwise_dq_arg(info, n, k, block_size, zp);
         }
         else
         {
@@ -129,9 +126,9 @@ struct parse_matmulnbits : op_parser<parse_matmulnbits>
         return info.add_instruction(make_op("dequantizelinear"), {b, scales, zp});
     }
 
-    instruction_ref unpack(onnx_parser::node_info& info, instruction_ref x, int N, int dim1) const
+    instruction_ref unpack(onnx_parser::node_info& info, int n, int dim1, instruction_ref x) const
     {
-        x = info.add_instruction(make_op("reshape", {{"dims", {N, -1}}}), x);
+        x = info.add_instruction(make_op("reshape", {{"dims", {n, -1}}}), x);
         x = info.add_instruction(make_op("unpack_int4"), x);
         if(x->get_shape().lens()[1] > dim1)
         {
@@ -142,20 +139,20 @@ struct parse_matmulnbits : op_parser<parse_matmulnbits>
     }
 
     instruction_ref prepare_blockwise_dq_arg(
-        onnx_parser::node_info& info, instruction_ref x, int N, int K, int block_size) const
+        onnx_parser::node_info& info, int n, int k, int block_size, instruction_ref x) const
     {
         x = info.add_instruction(make_op("unsqueeze", {{"axes", {2}}}), x);
 
         auto bc_lens = x->get_shape().lens();
         bc_lens[2]   = block_size;
         x            = info.add_instruction(make_op("multibroadcast", {{"out_lens", bc_lens}}), x);
-        x            = info.add_instruction(make_op("reshape", {{"dims", {N, -1}}}), x);
+        x            = info.add_instruction(make_op("reshape", {{"dims", {n, -1}}}), x);
 
         // Detect runt block
-        if(x->get_shape().lens()[1] > K)
+        if(x->get_shape().lens()[1] > k)
         {
             x = info.add_instruction(
-                make_op("slice", {{"axes", {1}}, {"starts", {0}}, {"ends", {K}}}), x);
+                make_op("slice", {{"axes", {1}}, {"starts", {0}}, {"ends", {k}}}), x);
         }
 
         return x;

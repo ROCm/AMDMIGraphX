@@ -21,37 +21,22 @@
  * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
  * THE SOFTWARE.
  */
-#ifndef MIGRAPHX_GUARD_RTGLIB_QUANTIZATION_HPP
-#define MIGRAPHX_GUARD_RTGLIB_QUANTIZATION_HPP
+#include <test.hpp>
+#include <migraphx/gpu/compile_gen.hpp>
 
-#include <string>
-#include <vector>
-#include <migraphx/instruction_ref.hpp>
-#include <migraphx/operation.hpp>
-#include <migraphx/config.hpp>
-#include <migraphx/target.hpp>
-#include <migraphx/program.hpp>
-#include <migraphx/env.hpp>
+static const auto find_fast_axis = test::make_function("find_fast_axis", [](auto&&... xs) {
+    return migraphx::gpu::gen::find_fast_axis(static_cast<decltype(xs)>(xs)...);
+});
 
-namespace migraphx {
-inline namespace MIGRAPHX_INLINE_NS {
+TEST_CASE(test_find_fast_axis)
+{
+    EXPECT(find_fast_axis(migraphx::shape{migraphx::shape::float_type, {2, 2, 2, 6, 3}}) == 4);
+    EXPECT(find_fast_axis(migraphx::shape{
+               migraphx::shape::float_type, {2, 2, 2, 6, 3}, {72, 6, 1, 12, 2}}) == 2);
+    EXPECT(find_fast_axis(
+               migraphx::shape{migraphx::shape::float_type, {64, 512, 32, 32}, {0, 1, 0, 0}}) == 1);
+    EXPECT(find_fast_axis(
+               migraphx::shape{migraphx::shape::float_type, {64, 512, 32, 32}, {0, 0, 0, 0}}) == 3);
+}
 
-struct program;
-
-MIGRAPHX_EXPORT void quantize_fp16(program& prog,
-                                   const std::vector<std::string>& ins_names = {"all"});
-
-MIGRAPHX_EXPORT void quantize_int8(program& prog,
-                                   const target& t,
-                                   const std::vector<parameter_map>& calibration,
-                                   const std::unordered_set<std::string>& ins_names = {
-                                       "dot", "convolution"});
-MIGRAPHX_EXPORT void
-quantize_fp8(program& prog, const target& t, const std::vector<parameter_map>& calibration);
-
-MIGRAPHX_EXPORT void quantize_int4_weights(program& prog);
-
-} // namespace MIGRAPHX_INLINE_NS
-} // namespace migraphx
-
-#endif
+int main(int argc, const char* argv[]) { test::run(argc, argv); }

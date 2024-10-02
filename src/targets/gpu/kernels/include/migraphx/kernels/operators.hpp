@@ -20,38 +20,24 @@
  * LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
  * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
  * THE SOFTWARE.
+ *
  */
-#ifndef MIGRAPHX_GUARD_RTGLIB_QUANTIZATION_HPP
-#define MIGRAPHX_GUARD_RTGLIB_QUANTIZATION_HPP
+#ifndef MIGRAPHX_GUARD_KERNELS_OPERATORS_HPP
+#define MIGRAPHX_GUARD_KERNELS_OPERATORS_HPP
 
-#include <string>
-#include <vector>
-#include <migraphx/instruction_ref.hpp>
-#include <migraphx/operation.hpp>
-#include <migraphx/config.hpp>
-#include <migraphx/target.hpp>
-#include <migraphx/program.hpp>
-#include <migraphx/env.hpp>
+#include <migraphx/kernels/functional.hpp>
+#include <migraphx/kernels/type_traits.hpp>
 
 namespace migraphx {
-inline namespace MIGRAPHX_INLINE_NS {
 
-struct program;
+template <class T>
+struct equality_comparable
+{
+    template <class U>
+    friend constexpr auto operator!=(const T& x, const U& y) MIGRAPHX_RETURNS(not(x == y));
+    template <class U, class V, MIGRAPHX_REQUIRES(not is_same<T, U>{} and is_same<V, T>{})>
+    friend constexpr auto operator!=(const U& x, const V& y) MIGRAPHX_RETURNS(not(x == y));
+};
 
-MIGRAPHX_EXPORT void quantize_fp16(program& prog,
-                                   const std::vector<std::string>& ins_names = {"all"});
-
-MIGRAPHX_EXPORT void quantize_int8(program& prog,
-                                   const target& t,
-                                   const std::vector<parameter_map>& calibration,
-                                   const std::unordered_set<std::string>& ins_names = {
-                                       "dot", "convolution"});
-MIGRAPHX_EXPORT void
-quantize_fp8(program& prog, const target& t, const std::vector<parameter_map>& calibration);
-
-MIGRAPHX_EXPORT void quantize_int4_weights(program& prog);
-
-} // namespace MIGRAPHX_INLINE_NS
 } // namespace migraphx
-
-#endif
+#endif // MIGRAPHX_GUARD_KERNELS_OPERATORS_HPP

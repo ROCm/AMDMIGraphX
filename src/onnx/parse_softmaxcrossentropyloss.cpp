@@ -187,7 +187,7 @@ struct parse_softmaxcrossentropyloss : op_parser<parse_softmaxcrossentropyloss>
     }
 
     instruction_ref
-    get_labels(const instruction_ref& arg, const std::string& name, shape& scores_shape) const
+    get_labels(const instruction_ref& arg, const std::string& name, const shape& scores_shape) const
     {
         auto labels      = arg;
         auto label_shape = labels->get_shape();

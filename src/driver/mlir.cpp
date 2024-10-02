@@ -21,24 +21,23 @@ void offload_to_mlir(program& p)
     std::vector<instruction_ref> inputs;
     copy_if(iterator_for(*mm), std::back_inserter(inputs), [&](instruction_ref ins) {
         if(ins->name() == "@param")
-            return false;
+            return true;
         if(ins->name() == "@literal")
-            return ins->get_shape().elements() == 1;
-        return true;
+            return ins->get_shape().elements() != 1;
+        return false;
     });
 
     std::unordered_map<instruction_ref, instruction_ref> map_ins;
     std::size_t n = 0;
     for(auto ins : inputs)
     {
-        map_ins[ins] = mlirm->add_parameter(param_name(n++), ins->get_shape());
+        map_ins[ins] = mlirm->add_parameter(param_name(n++), ins->get_shape().as_standard());
     }
 
     auto mlir_last = mlirm->add_instructions(mm, &map_ins);
     mlirm->add_return(mlir_last);
 
     auto last = std::prev(mm->end());
-
     auto mlir_op = mm->insert_instruction(last, make_op("gpu::mlir_op"), inputs, {mlirm});
     if(mlir_last.size() > 1)
     {
@@ -46,6 +45,7 @@ void offload_to_mlir(program& p)
         transform(range(mlir_last.size()), std::back_inserter(outputs), [&](auto i) {
             return mm->insert_instruction(last, make_op("get_tuple_elem", {{"index", i}}), mlir_op);
         });
+        mm->replace_return(outputs);
     }
     else
     {

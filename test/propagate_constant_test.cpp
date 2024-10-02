@@ -191,8 +191,9 @@ TEST_CASE(skip_broadcast)
 {
     migraphx::module m1;
     {
-        auto one  = m1.add_literal(1);
-        auto oneb = m1.add_instruction(migraphx::make_op("multibroadcast", {{"out_lens", {2, 2}}}), one);
+        auto one = m1.add_literal(1);
+        auto oneb =
+            m1.add_instruction(migraphx::make_op("multibroadcast", {{"out_lens", {2, 2}}}), one);
         m1.add_return({oneb});
     }
 
@@ -228,9 +229,10 @@ TEST_CASE(fold_broadcast)
     migraphx::shape s{migraphx::shape::float_type, {2, 2}};
     migraphx::module m1;
     {
-        auto one  = m1.add_literal(1.0f);
-        auto oneb = m1.add_instruction(migraphx::make_op("multibroadcast", {{"out_lens", {2, 2}}}), one);
-        auto l = m1.add_literal(migraphx::literal(s, vec));
+        auto one = m1.add_literal(1.0f);
+        auto oneb =
+            m1.add_instruction(migraphx::make_op("multibroadcast", {{"out_lens", {2, 2}}}), one);
+        auto l   = m1.add_literal(migraphx::literal(s, vec));
         auto mul = m1.add_instruction(migraphx::make_op("mul"), oneb, l);
         m1.add_return({mul});
     }
@@ -254,9 +256,11 @@ TEST_CASE(fold_broadcast_non_overlapping_broadcast)
     migraphx::module m1;
     {
         auto l1 = m1.add_literal(migraphx::literal(s1, vec));
-        auto l1b = m1.add_instruction(migraphx::make_op("multibroadcast", {{"out_lens", {2, 2}}}), l1);
+        auto l1b =
+            m1.add_instruction(migraphx::make_op("multibroadcast", {{"out_lens", {2, 2}}}), l1);
         auto l2 = m1.add_literal(migraphx::literal(s2, vec));
-        auto l2b = m1.add_instruction(migraphx::make_op("multibroadcast", {{"out_lens", {2, 2}}}), l2);
+        auto l2b =
+            m1.add_instruction(migraphx::make_op("multibroadcast", {{"out_lens", {2, 2}}}), l2);
         auto mul = m1.add_instruction(migraphx::make_op("mul"), l1b, l2b);
         m1.add_return({mul});
     }
@@ -354,9 +358,9 @@ TEST_CASE(pack_unpack_int4)
     migraphx::module m1;
     {
         const std::vector<int8_t> vec = {1, 0, 2, 0};
-        auto l = m1.add_literal(migraphx::literal(s1, vec));
-        auto pack = m1.add_instruction(migraphx::make_op("pack_int4"), l);
-        auto unpack = m1.add_instruction(migraphx::make_op("unpack_int4"), pack);
+        auto l                        = m1.add_literal(migraphx::literal(s1, vec));
+        auto pack                     = m1.add_instruction(migraphx::make_op("pack_int4"), l);
+        auto unpack                   = m1.add_instruction(migraphx::make_op("unpack_int4"), pack);
         m1.add_return({unpack});
     }
 
@@ -365,8 +369,8 @@ TEST_CASE(pack_unpack_int4)
     migraphx::module m2;
     {
         const std::vector<int8_t> vec = {1, 2};
-        auto l = m2.add_literal(migraphx::literal(s2, vec));
-        auto unpack = m2.add_instruction(migraphx::make_op("unpack_int4"), l);
+        auto l                        = m2.add_literal(migraphx::literal(s2, vec));
+        auto unpack                   = m2.add_instruction(migraphx::make_op("unpack_int4"), l);
         m2.add_return({unpack});
     }
 

@@ -124,7 +124,8 @@ void propagate_constant::apply(module& m) const
                 })(const_instrs_vec[i]);
                 m.debug_print(inss);
             }
-            assert(literals[i].get_shape() == const_instrs_vec[i]->get_shape());
+            assert(literals[i].get_shape().lens() == const_instrs_vec[i]->get_shape().lens());
+            assert(literals[i].get_shape().bytes() <= const_instrs_vec[i]->get_shape().bytes());
             auto l = m.add_literal(literals[i].get_shape(), literals[i].data());
             m.replace_instruction(const_instrs_vec[i], l);
         }

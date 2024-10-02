@@ -74,6 +74,11 @@ struct roialign
         auto type     = inputs.at(0).type();
 
         // check input correct
+        if(inputs.at(0).type() != shape::float_type or inputs.at(1).type() != shape::float_type or inputs.at(2).type() != shape::int64_type)
+        {
+            MIGRAPHX_THROW("ROIALIGN: incorrect type for input 1 or 2 or 3!");
+        }
+
         if(bi_lens.size() != 1)
         {
             MIGRAPHX_THROW("ROIALIGN: batch indices should be 1 dimension!");
@@ -122,9 +127,9 @@ shape temp_s = {shape::float_type,{temp_lens[1], temp_lens[0], temp_lens[3], tem
             // and iterates the fastest.
             std::array<std::size_t, 2> p = {idx_v[1], idx_v[0]};
             std::array<std::size_t, 2> i = {idx_v[3], idx_v[2]};//  <== these are always the same
-printf("\n IIIII other index %lu , %lu , %lu , %lu  i=%lu   temp_index = %lu \n", p[0], p[1], i[0], i[1], index, temp_s.index({p[0], p[1], i[0], i[1]}));
-printf(" my index= %lu  reverse temp=%lu\n ", comp_s.index({p[1], p[0], i[1], i[0]}), temp_s.index({p[1], p[0], i[1], i[0]}));
-printf(" more index= %lu  reverse ...=%lu\n ", comp_s.index({p[0], p[1], i[0], i[1]}), temp_s.index({p[0], p[1], i[0], i[1]}));
+// printf("\n IIIII other index %lu , %lu , %lu , %lu  i=%lu   temp_index = %lu \n", p[0], p[1], i[0], i[1], index, temp_s.index({p[0], p[1], i[0], i[1]}));
+// printf(" my index= %lu  reverse temp=%lu\n ", comp_s.index({p[1], p[0], i[1], i[0]}), temp_s.index({p[1], p[0], i[1], i[0]}));
+// printf(" more index= %lu  reverse ...=%lu\n ", comp_s.index({p[0], p[1], i[0], i[1]}), temp_s.index({p[0], p[1], i[0], i[1]}));
             // xy is scaled coordinates of start point of ROI
             std::array<float, 2> xy{};
             // low, high are floor and ceiling of the xy value (i.e. the bounds of the pixel it lies inside)
@@ -168,8 +173,8 @@ printf(" more index= %lu  reverse ...=%lu\n ", comp_s.index({p[0], p[1], i[0], i
                 }
 // printf(" \n");                
             }
-            printf(" JJJJJ  xy[0]=%f  xy[1] = %f                             dims[1]=%lu  low%ld-%ld  high %ld-%ld   i=%zu      dims[0]=%lu \n\n",
-                            xy[0], xy[1], dims[1], low[1], low[0],  high[1], high[0], index, dims[0]);
+            // printf(" JJJJJ  xy[0]=%f  xy[1] = %f                             dims[1]=%lu  low%ld-%ld  high %ld-%ld   i=%zu      dims[0]=%lu \n\n",
+            //                 xy[0], xy[1], dims[1], low[1], low[0],  high[1], high[0], index, dims[0]);
             results[index].pos = {low[1] * dims[0] + low[0],
                                   low[1] * dims[0] + high[0],
                                   high[1] * dims[0] + low[0],
@@ -183,12 +188,14 @@ printf(" more index= %lu  reverse ...=%lu\n ", comp_s.index({p[0], p[1], i[0], i
             //    ly, lx, hy, hx);
             // save weights and indices
             results[index].w = {hy * hx, hy * lx, ly * hx, ly * lx};
+// printf(" DDDDD index %d    %f  %f  %f  %f \n", pre_calc_index,
+//     float(pc.w1), float(pc.w2), float(pc.w3), float(pc.w4));
 
         });
-printf(" AAAAA here we are\n");
-        for(int iix = 0; iix < results.size(); iix++)
-          printf(" SSSSS %d    %lu  %lu  %lu  %lu   %f  %f  %f  %f\n", iix, results[iix].pos[0], results[iix].pos[1], results[iix].pos[2], results[iix].pos[3],
-                    results[iix].w[0], results[iix].w[1], results[iix].w[2], results[iix].w[3]);
+// // printf(" AAAAA here we are\n");
+//         for(int iix = 0; iix < results.size(); iix++)
+//           printf(" SSSSS %d    %lu  %lu  %lu  %lu   %f  %f  %f  %f\n", iix, results[iix].pos[0], results[iix].pos[1], results[iix].pos[2], results[iix].pos[3],
+//                    results[iix].w[0], results[iix].w[1], results[iix].w[2], results[iix].w[3]);
 
         return results;
     }
@@ -211,11 +218,12 @@ printf(" AAAAA here we are\n");
         double final(double x, std::size_t y) { return (y == 0) ? 0.0 : (x / y); }
     };
 
+    // Calculate a pooling value for 1 block of bin_grid_size*bin_grid_size weights
     template <class T, class Op>
-    std::tuple<double, int64_t> calc_pooling(const T& data,
+    double calc_pooling(const T& data,
                                              const std::array<std::size_t, 2>& bin_grid_size,
                                              const std::vector<pos_weight>& pos_weights,
-                                             int64_t index,
+                                             int64_t& index,
                                              Op op) const
     {
         double output_val   = op.init();
@@ -223,17 +231,26 @@ printf(" AAAAA here we are\n");
         dfor(bin_grid_size[0], bin_grid_size[1])([&](auto, auto) {
             const auto& pc = pos_weights[index];
             std::array<double, 4> wv;
+            // printf(" WWWWW ");
             std::transform(
                 pc.w.begin(), pc.w.end(), pc.pos.begin(), wv.begin(), [&](auto w, auto pos) {
+
+
+
+// std::cout << " YYYYY data starting at " << &(*(data)) ;
+// printf("  %lu, %f->%f   \n", pos, w, *(data + pos) * w);
                     return *(data + pos) * w;
                 });
+    // for(double aa : wv)
+    //   printf(" %d   ", aa);
+            // printf("\n");
             output_val = std::accumulate(wv.begin(), wv.end(), output_val, op);
             index += 1;
         });
 
         output_val = op.final(output_val, count);
 
-        return {output_val, index};
+        return output_val;
     }
 
     argument compute(const shape& output_shape, std::vector<argument> args) const
@@ -274,7 +291,7 @@ printf(" AAAAA here we are\n");
                     roi_size[ii] = roi_ends[ii] - roi_starts[ii];
                     if(coord_trans_mode != "half_pixel")
                         roi_size[ii] = std::max(roi_size[ii], 1.0f);
-printf("\n KKKKK roi_size %f out_dims %lu     \n", roi_size[ii] , out_dims[ii]);
+// printf("\n KKKKK ii %ld  roi_size %f   roi_batch_ind %ld  out_dims %lu     \n", ii, roi_size[ii] , roi_batch_ind,  out_dims[ii]);
                     bin_size[ii]      = roi_size[ii] / out_dims[ii];
                     bin_grid_size[ii] = (sampling_ratio > 0)
                                             ? sampling_ratio
@@ -292,8 +309,14 @@ printf("\n KKKKK roi_size %f out_dims %lu     \n", roi_size[ii] , out_dims[ii]);
                 std::vector<std::size_t> comp_lens1 = {channels, out_dims[0], out_dims[1]};
                 shape comp_s1{migraphx::shape::float_type, comp_lens1};
                 std::vector<int64_t> vec_index(channels, 0);
-                shape_for_each(comp_s1, [&](const auto& idx) {
-                    auto c  = idx[0];
+// printf(" XXXXX  %lu    (bottom_data + %d * %ld + %ld) * %lu * %lu\n",// ORT does this for 2 channels, 2 ROI
+//  static_cast<int64_t>((roi_batch_ind * channels + 0) *
+//                                                            in_dims[0] * in_dims[1]),
+//      int(roi_batch_ind),  channels, (size_t)0, in_dims[0], in_dims[1]);  // offset pointer to data for this ROI (4 total)
+    
+                    // Iterate through each dimension in [channels, out_dims[1], out_dims[2]]
+                    shape_for_each(comp_s1, [&](const auto& idx) {
+                    auto c  = idx[0];  // channel count
                     auto ph = idx[1];
                     auto pw = idx[2];
 
@@ -301,7 +324,13 @@ printf("\n KKKKK roi_size %f out_dims %lu     \n", roi_size[ii] , out_dims[ii]);
                         bottom_data + static_cast<int64_t>((roi_batch_ind * channels + c) *
                                                            in_dims[0] * in_dims[1]);
                     double output_val;
-                    std::tie(output_val, vec_index[c]) =
+// printf(" UUUUU  bottom_data %d  %lu %lu pre_calc size=%lu vec_index %lu    ", int(*offset_bottom_data), 
+// bin_grid_size[0], bin_grid_size[1],
+// pre_calc.size(), vec_index[c]);
+
+// printf("cont.  c=%ld  ph  =  %ld  pw = %ld  n=%ld roi_batch_ind %ld\n", c, ph, pw, n, roi_batch_ind);
+
+                    output_val =
                         (mode == migraphx::op::pooling_mode::average)
                             ? this->calc_pooling(offset_bottom_data,
                                                  bin_grid_size,
@@ -313,6 +342,7 @@ printf("\n KKKKK roi_size %f out_dims %lu     \n", roi_size[ii] , out_dims[ii]);
                                                  pre_calc,
                                                  vec_index[c],
                                                  max_pool{});
+// printf(" TTTTT idx=%3ld  output_val=%f\n", vec_index[c] % 9 - 1, output_val);                                                 
                     output(n, c, ph, pw) = output_val;
                 });
             });

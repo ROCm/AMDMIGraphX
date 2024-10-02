@@ -37,7 +37,7 @@ void offload_to_mlir(program& p)
     auto mlir_last = mlirm->add_instructions(mm, &map_ins);
     mlirm->add_return(mlir_last);
 
-    auto last = std::prev(mm->end());
+    auto last    = std::prev(mm->end());
     auto mlir_op = mm->insert_instruction(last, make_op("gpu::mlir_op"), inputs, {mlirm});
     if(mlir_last.size() > 1)
     {

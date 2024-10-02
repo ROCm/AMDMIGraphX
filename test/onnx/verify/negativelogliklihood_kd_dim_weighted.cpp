@@ -68,6 +68,33 @@ TEST_CASE(negativeloglikelihoodloss_kd_no_reduction_weighted_test)
     EXPECT(migraphx::verify::verify_rms_range(result_vector, gold));
 }
 
+TEST_CASE(negativeloglikelihoodloss_kd_no_reduction_weighted_test2)
+{
+    migraphx::program p =
+        optimize_onnx("negativeloglikelihoodloss_kd_no_reduction_weighted_test2.onnx");
+    p.compile(migraphx::make_target("ref"));
+
+    migraphx::shape score_shape{migraphx::shape::float_type, {2, 3, 2}};
+    std::vector<float> score_data = {
+        1.0f, 2.0f, 2.0f, 2.0f, 3.0f, 2.0f, 0.0f, 1.0f, 2.0f, 2.0f, 1.0f, 2.0f};
+
+    migraphx::shape label_shape{migraphx::shape::int32_type, {2, 2}};
+    std::vector<int32_t> label_data = {2, 1, 0, 2};
+    migraphx::shape weight_shape{migraphx::shape::float_type, {3}};
+    std::vector<float> weight_data = {1.0f, 1.0f, 1.0f, 1.0f};
+
+    migraphx::parameter_map pp;
+    pp["0"] = migraphx::argument(score_shape, score_data.data());
+    pp["1"] = migraphx::argument(label_shape, label_data.data());
+    pp["2"] = migraphx::argument(weight_shape, weight_data.data());
+
+    auto result = p.eval(pp).back();
+    std::vector<float> result_vector;
+    result.visit([&](auto output) { result_vector.assign(output.begin(), output.end()); });
+    std::vector<float> gold = {-3.0f, -2.0f, 0.0f, -2.0f};
+    EXPECT(migraphx::verify::verify_rms_range(result_vector, gold));
+}
+
 TEST_CASE(negativeloglikelihoodloss_kd_sum_reduction_weighted_test)
 {
     migraphx::program p =
@@ -92,6 +119,32 @@ TEST_CASE(negativeloglikelihoodloss_kd_sum_reduction_weighted_test)
     std::vector<double> result_vector;
     result.visit([&](auto output) { result_vector.assign(output.begin(), output.end()); });
     std::vector<double> gold = {-1058.0};
+    EXPECT(migraphx::verify::verify_rms_range(result_vector, gold));
+}
+
+TEST_CASE(negativeloglikelihoodloss_kd_sum_reduction_weighted_test2)
+{
+    migraphx::program p =
+        optimize_onnx("negativeloglikelihoodloss_kd_sum_reduction_double_weighted_test2.onnx");
+    p.compile(migraphx::make_target("ref"));
+
+    migraphx::shape score_shape{migraphx::shape::double_type, {2, 3, 2}};
+    std::vector<double> score_data = {1.0, 2.0, 2.0, 2.0, 3.0, 2.0, 0.0, 1.0, 2.0, 2.0, 1.0, 2.0};
+
+    migraphx::shape label_shape{migraphx::shape::int32_type, {2, 2}};
+    std::vector<int32_t> label_data = {2, 1, 0, 2};
+    migraphx::shape weight_shape{migraphx::shape::double_type, {3}};
+    std::vector<double> weight_data = {0.2, 0.3, 0.1};
+
+    migraphx::parameter_map pp;
+    pp["0"] = migraphx::argument(score_shape, score_data.data());
+    pp["1"] = migraphx::argument(label_shape, label_data.data());
+    pp["2"] = migraphx::argument(weight_shape, weight_data.data());
+
+    auto result = p.eval(pp).back();
+    std::vector<double> result_vector;
+    result.visit([&](auto output) { result_vector.assign(output.begin(), output.end()); });
+    std::vector<double> gold = {-1.1};
     EXPECT(migraphx::verify::verify_rms_range(result_vector, gold));
 }
 
@@ -120,5 +173,43 @@ TEST_CASE(negativeloglikelihoodloss_kd_mean_reduction_weighted_test)
     std::vector<half_float::half> result_vector;
     result.visit([&](auto output) { result_vector.assign(output.begin(), output.end()); });
     std::vector<half> gold = {half{-35.266666666666666}};
+    EXPECT(migraphx::verify::verify_rms_range(result_vector, gold));
+}
+
+TEST_CASE(negativeloglikelihoodloss_kd_mean_reduction_weighted_test2)
+{
+    using migraphx::half;
+    migraphx::program p =
+        optimize_onnx("negativeloglikelihoodloss_kd_mean_reduction_half_weighted_test2.onnx");
+    p.compile(migraphx::make_target("ref"));
+
+    migraphx::shape score_shape{migraphx::shape::half_type, {2, 3, 2}};
+    std::vector<half> score_data = {half(1.0),
+                                    half(2.0),
+                                    half(2.0),
+                                    half(2.0),
+                                    half(3.0),
+                                    half(2.0),
+                                    half(0.0),
+                                    half(1.0),
+                                    half(2.0),
+                                    half(2.0),
+                                    half(1.0),
+                                    half(2.0)};
+
+    migraphx::shape label_shape{migraphx::shape::int32_type, {2, 2}};
+    std::vector<int32_t> label_data = {2, 1, 0, 2};
+    migraphx::shape weight_shape{migraphx::shape::half_type, {3}};
+    std::vector<half_float::half> weight_data = {half(0.2), half(0.3), half(0.1)};
+
+    migraphx::parameter_map pp;
+    pp["0"] = migraphx::argument(score_shape, score_data.data());
+    pp["1"] = migraphx::argument(label_shape, label_data.data());
+    pp["2"] = migraphx::argument(weight_shape, weight_data.data());
+
+    auto result = p.eval(pp).back();
+    std::vector<half_float::half> result_vector;
+    result.visit([&](auto output) { result_vector.assign(output.begin(), output.end()); });
+    std::vector<half> gold = {half{-1.5714285714285714}};
     EXPECT(migraphx::verify::verify_rms_range(result_vector, gold));
 }

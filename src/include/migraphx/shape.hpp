@@ -62,8 +62,10 @@ struct MIGRAPHX_EXPORT shape
     m(int64_type, int64_t) \
     m(uint32_type, uint32_t) \
     m(uint64_type, uint64_t) \
-    m(fp8e4m3fnuz_type, migraphx::fp8::fp8e4m3fnuz)
-    // clang-format on
+    m(fp8e4m3fnuz_type, migraphx::fp8::fp8e4m3fnuz) \
+    m(fp8e4m3fn_type, migraphx::fp8::fp8e4m3fn) \
+    m(fp8e5m2_type, migraphx::fp8::fp8e5m2)
+// clang-format on
 
 #define MIGRAPHX_SHAPE_GENERATE_ENUM_TYPES(x, t) x,
     enum type_t
@@ -147,6 +149,7 @@ struct MIGRAPHX_EXPORT shape
     static std::string cpp_type(type_t t);
 
     static bool is_integral(type_t t);
+    static bool is_compatible(const shape& actual, const shape& expected);
 
     shape();
     shape(type_t t);
@@ -430,30 +433,6 @@ struct MIGRAPHX_EXPORT shape
     shape(std::shared_ptr<shape_impl> pimpl);
     std::shared_ptr<const shape_impl> impl;
 };
-
-// "Almost identical" shapes.  To support an MLIR feature, there is a limited
-// case where shapes may both be standard but have non-identical strides.
-static bool inline is_compatible_shape(const shape& actual, const shape& expected)
-{
-    // Check subshapes
-    if(expected.type() == shape::tuple_type)
-        return equal(actual.sub_shapes().begin(),
-                     actual.sub_shapes().end(),
-                     expected.sub_shapes().begin(),
-                     &is_compatible_shape);
-    // Only the expected can be dynamic
-    if(expected.dynamic())
-        return true;
-    if(actual == expected)
-        return true;
-    if(actual.type() != expected.type())
-        return false;
-    // If both shapes are standard and lens match, they are considered compatible
-    // even if strides are different.
-    if(actual.standard() and expected.standard())
-        return actual.lens() == expected.lens();
-    return false;
-}
 
 /// Flatten subshapes to a single vector of non-tuple type of shapes
 MIGRAPHX_EXPORT std::vector<shape> flatten(const std::vector<shape>& shapes);

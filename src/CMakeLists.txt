@@ -90,6 +90,7 @@ add_library(migraphx
     promote_literals.cpp
     quantization.cpp
     quantize_fp16.cpp
+    quantize_int4.cpp
     quantize_8bits.cpp
     reduce_dims.cpp
     register_op.cpp
@@ -107,6 +108,7 @@ add_library(migraphx
     schedule.cpp
     serialize.cpp
     shape.cpp
+    shape_transform_descriptor.cpp
     simplify_algebra.cpp
     simplify_dyn_ops.cpp
     simplify_reshapes.cpp
@@ -344,6 +346,9 @@ if(MIGRAPHX_ENABLE_GPU)
     endif()
     if(MIGRAPHX_USE_ROCBLAS)
         list(APPEND MIGRAPHX_CONFIG_DEPENDS PACKAGE rocblas)
+    endif()
+    if(MIGRAPHX_USE_HIPBLASLT)
+        list(APPEND MIGRAPHX_CONFIG_DEPENDS PACKAGE hipblaslt)
     endif()
 add_subdirectory(targets/gpu)
 target_link_libraries(migraphx_all_targets INTERFACE migraphx_gpu)

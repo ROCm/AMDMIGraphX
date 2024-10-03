@@ -80,10 +80,28 @@ int main(int argc, const char* argv[])
             "float>",
             "test_quant_dot_3args_5<migraphx::fp8::float8<migraphx::fp8::f8_type::fp8, true>, "
             "float>",
+            "test_batch_quant_dot_1<migraphx::fp8::float8<migraphx::fp8::f8_type::fp8, false>, "
+            "float>",
+            "test_quant_dot_3args_4<migraphx::fp8::float8<migraphx::fp8::f8_type::fp8, false>, "
+            "float>",
+            "test_quant_dot_3args_5<migraphx::fp8::float8<migraphx::fp8::f8_type::fp8, false>, "
+            "float>",
+            "test_batch_quant_dot_1<migraphx::fp8::float8<migraphx::fp8::f8_type::bf8, false>, "
+            "float>",
+            "test_quant_dot_3args_4<migraphx::fp8::float8<migraphx::fp8::f8_type::bf8, false>, "
+            "float>",
+            "test_quant_dot_3args_5<migraphx::fp8::float8<migraphx::fp8::f8_type::bf8, false>, "
+            "float>",
 #else
                 "test_batch_quant_dot_1<migraphx::fp8::fp8e4m3fnuz, float>",
                 "test_quant_dot_3args_4<migraphx::fp8::fp8e4m3fnuz, float>",
                 "test_quant_dot_3args_5<migraphx::fp8::fp8e4m3fnuz, float>",
+                "test_batch_quant_dot_1<migraphx::fp8::fp8e4m3fn, float>",
+                "test_quant_dot_3args_4<migraphx::fp8::fp8e4m3fn, float>",
+                "test_quant_dot_3args_5<migraphx::fp8::fp8e4m3fn, float>",
+                "test_batch_quant_dot_1<migraphx::fp8::fp8e5m2, float>",
+                "test_quant_dot_3args_4<migraphx::fp8::fp8e5m2, float>",
+                "test_quant_dot_3args_5<migraphx::fp8::fp8e5m2, float>",
 #endif
             "test_block_reduce_small<3, migraphx::shape::int8_type>",
             "test_block_reduce_small<4, migraphx::shape::int8_type>",
@@ -100,9 +118,17 @@ int main(int argc, const char* argv[])
             "test_bitwise_and<migraphx::shape::uint8_type>",
     });
     rv.disable_test_for("gpu",
-                        {// These passes on MI300 but fails on others, same issue as CPU.
-                         "test_batch_quant_dot_1<migraphx::fp8::fp8e4m3fnuz, float>",
-                         "test_quant_dot_3args_4<migraphx::fp8::fp8e4m3fnuz, float>",
-                         "test_quant_dot_3args_5<migraphx::fp8::fp8e4m3fnuz, float>"});
+                        {
+                            // These passes on MI300 but fails on others, same issue as CPU.
+                            "test_batch_quant_dot_1<migraphx::fp8::fp8e4m3fnuz, float>",
+                            "test_quant_dot_3args_4<migraphx::fp8::fp8e4m3fnuz, float>",
+                            "test_quant_dot_3args_5<migraphx::fp8::fp8e4m3fnuz, float>",
+                            "test_batch_quant_dot_1<migraphx::fp8::fp8e4m3fn, float>",
+                            "test_quant_dot_3args_4<migraphx::fp8::fp8e4m3fn, float>",
+                            "test_quant_dot_3args_5<migraphx::fp8::fp8e4m3fn, float>",
+                            "test_batch_quant_dot_1<migraphx::fp8::fp8e5m2, float>",
+                            "test_quant_dot_3args_4<migraphx::fp8::fp8e5m2, float>",
+                            "test_quant_dot_3args_5<migraphx::fp8::fp8e5m2, float>",
+                        });
     rv.run(argc, argv);
 }

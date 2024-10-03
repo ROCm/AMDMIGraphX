@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2023 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2024 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -130,8 +130,9 @@ auto operator==(const T& x, const U& y) -> decltype(x.name() == y.name())
 } // namespace operation_operators
 
 template <class T>
-auto compute_shape_op(rank<3>, const T& x, const std::vector<shape>& inputs)
-    -> decltype(x.compute_shape(inputs))
+auto compute_shape_op(rank<3>,
+                      const T& x,
+                      const std::vector<shape>& inputs) -> decltype(x.compute_shape(inputs))
 {
     return x.compute_shape(inputs);
 }
@@ -148,8 +149,9 @@ auto compute_shape_op(rank<2>, const T& x, const std::vector<shape>& inputs)
 }
 
 template <class T>
-auto compute_shape_op(rank<1>, const T& x, const std::vector<shape>& inputs)
-    -> decltype(x.compute_shape(inputs, {}))
+auto compute_shape_op(rank<1>,
+                      const T& x,
+                      const std::vector<shape>& inputs) -> decltype(x.compute_shape(inputs, {}))
 {
     return x.compute_shape(inputs, {});
 }
@@ -325,8 +327,8 @@ auto compute_op(rank<2>,
                 const shape& output,
                 const std::vector<argument>& inputs,
                 const std::vector<module_ref>&,
-                F)
-    -> decltype(x.compute(make_compute_output_shape(pack(x, output, inputs)), inputs))
+                F) -> decltype(x.compute(make_compute_output_shape(pack(x, output, inputs)),
+                                         inputs))
 {
     return x.compute(make_compute_output_shape(pack(x, output, inputs)), inputs);
 }
@@ -383,8 +385,9 @@ auto is_context_free_op(rank<0>, const T&, const shape&, const std::vector<argum
     -> std::false_type;
 
 template <class T>
-auto is_context_free_op(const T& x) -> decltype(is_context_free_op(
-    rank<1>{}, x, std::declval<const shape&>(), std::declval<std::vector<argument>>()))
+auto is_context_free_op(const T& x)
+    -> decltype(is_context_free_op(
+        rank<1>{}, x, std::declval<const shape&>(), std::declval<std::vector<argument>>()))
 {
     return {};
 }
@@ -1425,8 +1428,8 @@ inline shape compute_shape(const operation& op, const std::vector<shape>& inputs
 }
 
 template <class T>
-inline auto compute_shape(const T& op, const std::vector<shape>& inputs)
-    -> decltype(op.compute_shape(inputs))
+inline auto compute_shape(const T& op,
+                          const std::vector<shape>& inputs) -> decltype(op.compute_shape(inputs))
 {
     return op.compute_shape(inputs);
 }

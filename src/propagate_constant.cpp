@@ -38,20 +38,33 @@ MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_TRACE_PROPAGATE_CONSTANT)
 
 bool skip_propagate(instruction_ref ins)
 {
-    if(ins->name() == "contiguous")
+    if(contains({"contiguous", "dequantizelinear", "reshape"}, ins->name()))
         return skip_propagate(ins->inputs().front());
+    if(ins->name() == "unpack_int4")
+        return true;
     auto&& s = ins->get_shape();
-    if(s.broadcasted() and not s.scalar())
+    if(s.broadcasted() and s.element_space() < s.elements())
         return true;
-    if(s.scalar() and s.elements() != 1)
-        return true;
+    auto alias = instruction::get_output_alias(ins, true);
+    if(alias != ins)
+        return skip_propagate(alias);
     return false;
 }
 
-bool is_const_ins(instruction_ref ins, std::unordered_set<std::string> skip_ops)
+bool is_const_ins(instruction_ref ins, const std::unordered_set<std::string>& skip_ops)
 {
     return ins->can_eval() and not skip_propagate(ins) and
            skip_ops.find(ins->name()) == skip_ops.end();
+}
+
+argument as_packed(const argument& c)
+{
+    if(c.get_shape().packed())
+        return c;
+    auto s = c.get_shape().with_lens(c.get_shape().lens());
+    argument result;
+    c.visit([&](auto x) { result = literal{s, x.begin(), x.end()}.get_argument(); });
+    return result;
 }
 
 void propagate_constant::apply(module& m) const
@@ -90,7 +103,7 @@ void propagate_constant::apply(module& m) const
     grainsize     = const_instrs_vec.size() / n;
 #endif
     simple_par_for(const_instrs_vec.size(), grainsize, [&](const auto i) {
-        literals[i] = const_instrs_vec[i]->eval();
+        literals[i] = as_packed(const_instrs_vec[i]->eval());
     });
 
     // Replace instructions in m
@@ -111,7 +124,8 @@ void propagate_constant::apply(module& m) const
                 })(const_instrs_vec[i]);
                 m.debug_print(inss);
             }
-            assert(literals[i].get_shape() == const_instrs_vec[i]->get_shape());
+            assert(literals[i].get_shape().lens() == const_instrs_vec[i]->get_shape().lens());
+            assert(literals[i].get_shape().bytes() <= const_instrs_vec[i]->get_shape().bytes());
             auto l = m.add_literal(literals[i].get_shape(), literals[i].data());
             m.replace_instruction(const_instrs_vec[i], l);
         }

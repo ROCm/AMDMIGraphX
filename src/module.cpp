@@ -38,6 +38,7 @@
 #include <migraphx/param_utils.hpp>
 #include <migraphx/register_target.hpp>
 #include <migraphx/json.hpp>
+#include <migraphx/fp8_types.hpp>
 #include <iostream>
 #include <sstream>
 #include <algorithm>
@@ -814,8 +815,8 @@ void module::finalize(std::vector<context>& contexts)
         }
     }
 #ifndef BUILD_DEV
-    if(std::any_of(this->begin(), this->end(), [](const auto i) {
-           return i.get_shape().type() == migraphx::shape::fp8e4m3fnuz_type;
+    if(std::any_of(this->begin(), this->end(), [&](const auto i) {
+           return contains(fp8_types{}.get(), i.get_shape().type());
        }))
     {
         std::cout << "[Warning] : MIGraphX has BETA support for FP8. Using FP8 may result in "
@@ -856,6 +857,21 @@ module::get_ins_param_map(const std::vector<instruction_ref>& inputs, bool rever
             [&](instruction_ref param, auto input) { return std::make_pair(input, param); });
     }
     return result;
+}
+
+std::vector<instruction_ref>
+module::get_inputs(const std::unordered_map<instruction_ref, instruction_ref>& map_ins) const
+{
+    std::vector<instruction_ref> inputs;
+    auto params = this->get_parameters();
+    sort_params(params);
+
+    std::transform(params.begin(),
+                   params.end(),
+                   std::back_inserter(inputs),
+                   [&](instruction_ref param) { return map_ins.at(param); });
+
+    return inputs;
 }
 
 static std::vector<instruction_ref>
@@ -1007,6 +1023,12 @@ static void insert_params(module& m,
     }
 }
 
+void module::add_params(const std::vector<instruction_ref>& inputs,
+                        std::unordered_map<instruction_ref, instruction_ref>* map_ins)
+{
+    insert_params(*this, inputs, *map_ins);
+}
+
 std::vector<instruction_ref>
 module::fuse(const std::vector<instruction_ref>& inss,
              std::unordered_map<instruction_ref, instruction_ref>* map_ins,
@@ -1041,12 +1063,27 @@ module::fuse(const module& m,
     if(map_ins == nullptr)
         map_ins = &default_map_ins;
     insert_params(*this, inputs, *map_ins);
-    auto param_map = m.get_ins_param_map(inputs);
-    for(auto&& [input, param] : param_map)
+    auto param_map = m.get_ins_param_map(inputs, true);
+    for(auto&& [param, input] : param_map)
     {
         (*map_ins)[param] = map_ins->at(input);
     }
     return this->add_instructions(&m, map_ins, std::move(insert));
+}
+
+std::vector<instruction_ref>
+module::insert_inline(instruction_ref ins,
+                      const module& m,
+                      const std::vector<instruction_ref>& inputs,
+                      std::unordered_map<instruction_ref, instruction_ref>* map_ins,
+                      module::inserter insert)
+{
+    std::unordered_map<instruction_ref, instruction_ref> default_map_ins;
+    if(map_ins == nullptr)
+        map_ins = &default_map_ins;
+    auto param_map = m.get_ins_param_map(inputs, true);
+    map_ins->insert(param_map.begin(), param_map.end());
+    return this->insert_instructions(ins, &m, map_ins, std::move(insert));
 }
 
 void module_with_inputs::replace(instruction_ref ins, instruction_ref rep)

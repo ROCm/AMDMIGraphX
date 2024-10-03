@@ -422,14 +422,16 @@ struct find_mul_add
 {
     auto matcher() const
     {
-        return match::name("mul")(match::either_arg(0, 1)(
-            match::name("add")(
-                match::either_arg(0, 1)(
-                    match::any().bind("x"),
-                    match::any_of(conv_const_weights(), match::is_constant()).bind("b")),
-                match::none_of(match::args(match::is_constant(), match::is_constant())),
-                match::used_once()),
-            match::is_constant().bind("a")));
+        return match::name("mul")(
+            match::none_of[match::outputs()](match::name("convolution")),
+            match::either_arg(0, 1)(
+                match::name("add")(
+                    match::either_arg(0, 1)(
+                        match::any().bind("x"),
+                        match::any_of(conv_const_weights(), match::is_constant()).bind("b")),
+                    match::none_of(match::args(match::is_constant(), match::is_constant())),
+                    match::used_once()),
+                match::is_constant().bind("a")));
     }
 
     void apply(module& m, const match::matcher_result& r) const
@@ -440,15 +442,42 @@ struct find_mul_add
         auto x_ins = r.instructions["x"];
         assert(x_ins != b_ins);
 
-        if(a_ins->get_shape().scalar()){
-            return;
-            }
+        auto ax_ins = m.insert_instruction(ins, make_op("mul"), a_ins, x_ins);
+        auto ab_ins = m.insert_instruction(ins, make_op("mul"), a_ins, b_ins);
+        m.replace_instruction(ins, make_op("add"), ax_ins, ab_ins);
+    }
+};
+/* Delete this later
+struct find_mul_add
+{
+    auto matcher() const
+    {
+        return match::name("mul")(
+            match::none_of[match::outputs()](match::name("convolution")),
+            match::either_arg(0, 1)(
+                match::name("add")(
+                    match::either_arg(0, 1)(
+                        match::any().bind("x"),
+                        match::any_of(conv_const_weights(), match::is_constant()).bind("b")),
+                    match::none_of(match::args(match::is_constant(), match::is_constant())),
+                    match::used_once()),
+                match::is_constant().bind("a")));
+    }
+
+    void apply(module& m, const match::matcher_result& r) const
+    {
+        auto ins   = r.result;
+        auto a_ins = r.instructions["a"];
+        auto b_ins = r.instructions["b"];
+        auto x_ins = r.instructions["x"];
+        assert(x_ins != b_ins);
 
         auto ax_ins = m.insert_instruction(ins, make_op("mul"), a_ins, x_ins);
         auto ab_ins = m.insert_instruction(ins, make_op("mul"), a_ins, b_ins);
         m.replace_instruction(ins, make_op("add"), ax_ins, ab_ins);
     }
 };
+*/
 
 struct find_scalar_mul_conv
 {
@@ -456,38 +485,30 @@ struct find_scalar_mul_conv
     {
         return match::name("mul")(
             match::either_arg(0, 1)(
-                conv_const_weights().bind("conv"),
-                match::either_arg(0, 1)(
-                    match::name("broadcast", "multibroadcast", "constant").bind("scalar"),
-                    match::any().bind("scalar")
-                )
-            )
-        );
+                match::is_constant().bind("scalar"),
+                match::name("convolution").bind("conv")
+            ));
     }
- void apply(module& m, const match::matcher_result& r) const
+
+    void apply(module& m, const match::matcher_result& r) const
     {
-        auto ins        = r.result;
-        auto conv_ins   = r.instructions["conv"];
-        auto scalar_ins = r.instructions["scalar"];
-        auto w_ins      = r.instructions["w"];
+        auto ins      = r.result;
+        auto scalar   = r.instructions["scalar"];
+        auto conv_ins = r.instructions["conv"];
 
-        if(scalar_ins->get_shape().elements() != 1)
-            return;
-        const auto& w_shape = w_ins->get_shape().lens();
+        // Get the convol's input and weights
+        auto conv_input   = conv_ins->inputs().front();  // input to conv
+        auto conv_weights = conv_ins->inputs().back();   // weights of the conv
 
-        if(scalar_ins->get_shape().ndim() != w_shape.size())
-        {
-            scalar_ins = m.insert_instruction(ins, make_op("broadcast", {{"axis", 0}, {"out_lens", w_shape}}), scalar_ins);
-        }
+        auto scaled_weights = m.insert_instruction(ins, make_op("mul"), scalar, conv_weights);
 
-        auto new_weights = m.insert_instruction(ins, make_op("mul"), scalar_ins, w_ins);
-
-        auto new_conv = m.insert_instruction(
-            ins, conv_ins->get_operator(), conv_ins->inputs().front(), new_weights);
+        // new conv with modified weights
+        auto new_conv = m.insert_instruction(ins, conv_ins->get_operator(), conv_input, scaled_weights);
 
         m.replace_instruction(ins, new_conv);
     }
 };
+
 
 struct find_dot_add
 {

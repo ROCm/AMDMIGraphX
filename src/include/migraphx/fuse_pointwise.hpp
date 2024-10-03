@@ -37,7 +37,7 @@ struct MIGRAPHX_EXPORT fuse_pointwise
     std::string name() const { return "fuse_pointwise"; }
     void apply(module_pass_manager& mpm) const;
 
-    bool enable_rewrite_reshapes = true;
+    bool enable_rewrite_reshapes   = true;
     bool enable_rewrite_broadcasts = false;
 };
 

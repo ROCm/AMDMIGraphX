@@ -5183,7 +5183,6 @@ TEST_CASE(roialign_test)
 
     migraphx::shape sbi_float{migraphx::shape::float_type, {2}};
     throws_shape(migraphx::make_op("roialign"), sx, srois, sbi_float);
-
 }
 
 TEST_CASE(test_concat)

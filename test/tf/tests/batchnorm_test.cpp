@@ -44,7 +44,7 @@ TEST_CASE(batchnorm_test)
         migraphx::make_op("broadcast", {{"axis", 1}, {"out_lens", x->get_shape().lens()}}), bias);
     auto usq_mean = mm->add_instruction(
         migraphx::make_op("broadcast", {{"axis", 1}, {"out_lens", x->get_shape().lens()}}), mean);
-    auto usq_var   = mm->add_instruction(migraphx::make_op("unsqueeze", {{"axes", {1, 2}}}), var);
+    auto usq_var = mm->add_instruction(migraphx::make_op("unsqueeze", {{"axes", {1, 2}}}), var);
 
     auto x_sub_mean = add_common_op(*mm, migraphx::make_op("sub"), {x, usq_mean});
     auto var_eps    = add_common_op(*mm, migraphx::make_op("add"), {usq_var, eps});

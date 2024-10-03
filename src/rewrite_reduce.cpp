@@ -59,7 +59,7 @@ struct find_reduce_mean_variance
 {
     auto matcher() const
     {
-        auto reduce_mean = match::name("reduce_mean");
+        auto reduce_mean          = match::name("reduce_mean");
         auto skip_broadcasts_mean = match::skip_broadcasts(reduce_mean.bind("mean"));
         auto x_minus_mean         = match::name("sub")(match::arg(0)(match::any().bind("x")),
                                                match::arg(1)(skip_broadcasts_mean));

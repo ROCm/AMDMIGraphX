@@ -76,10 +76,11 @@ struct roialign
         // check input correct
         if(shape::is_integral(type))
             MIGRAPHX_THROW("ROIALIGN: incorrect type for input data! (should be non-integer)");
-        if(shape::is_integral(inputs.at(1).type())) 
+        if(shape::is_integral(inputs.at(1).type()))
             MIGRAPHX_THROW("ROIALIGN: incorrect data type for rois! (should be non-integer)");
         if(!shape::is_integral(inputs.at(2).type()))
-            MIGRAPHX_THROW("ROIALIGN: incorrect datatype for roi indices! (should be an integral type)");
+            MIGRAPHX_THROW(
+                "ROIALIGN: incorrect datatype for roi indices! (should be an integral type)");
         if(bi_lens.size() != 1)
         {
             MIGRAPHX_THROW("ROIALIGN: batch indices should be 1 dimension!");
@@ -122,15 +123,14 @@ struct roialign
                                         output_width);
 
         shape_for_each(comp_s, [&](const auto& idx_v, size_t index) {
-
-            // The p and i indexes correspond to nested looping parameters in ORT that go in y, x order.  The i[x] value is least significant
-            // and iterates the fastest.
+            // The p and i indexes correspond to nested looping parameters in ORT that go in y, x
+            // order.  The i[x] value is least significant and iterates the fastest.
             std::array<std::size_t, 2> p = {idx_v[1], idx_v[0]};
-            std::array<std::size_t, 2> i = {idx_v[3], idx_v[2]};//  <== these are always the same
+            std::array<std::size_t, 2> i = {idx_v[3], idx_v[2]}; //  <== these are always the same
             // xy is scaled coordinates of start point of ROI
             std::array<float, 2> xy{};
-            // low, high are floor and ceiling of the xy value (i.e. the bounds of the pixel it lies inside)
-            // from which we will interpolate.
+            // low, high are floor and ceiling of the xy value (i.e. the bounds of the pixel it lies
+            // inside) from which we will interpolate.
             std::array<int64_t, 2> low{};
             std::array<int64_t, 2> high{};
 
@@ -190,10 +190,10 @@ struct roialign
     // Calculate a pooling value for 1 block of bin_grid_size*bin_grid_size weights
     template <class T, class Op>
     double calc_pooling(const T& data,
-                                             const std::array<std::size_t, 2>& bin_grid_size,
-                                             const std::vector<pos_weight>& pos_weights,
-                                             int64_t& index,
-                                             Op op) const
+                        const std::array<std::size_t, 2>& bin_grid_size,
+                        const std::vector<pos_weight>& pos_weights,
+                        int64_t& index,
+                        Op op) const
     {
         double output_val   = op.init();
         const int64_t count = bin_grid_size[0] * bin_grid_size[1];
@@ -233,7 +233,7 @@ struct roialign
                 const auto bottom_data   = x.begin();
                 const auto roi_batch_ind = batch_indices[n];
                 // Do not use rounding; this implementation detail is critical
-                float offset = (coord_trans_mode == "half_pixel") ? 0.5 : 0.0;
+                float offset                    = (coord_trans_mode == "half_pixel") ? 0.5 : 0.0;
                 std::array<float, 2> roi_starts = {
                     static_cast<float>(roi[roi_s.index({n, 0})] * spatial_scale - offset),
                     static_cast<float>(roi[roi_s.index({n, 1})] * spatial_scale - offset)};
@@ -270,7 +270,7 @@ struct roialign
                 std::vector<int64_t> vec_index(channels, 0);
 
                 shape_for_each(comp_s1, [&](const auto& idx) {
-                    auto c  = idx[0];  // channel count
+                    auto c  = idx[0]; // channel count
                     auto ph = idx[1];
                     auto pw = idx[2];
 
@@ -278,18 +278,17 @@ struct roialign
                         bottom_data + static_cast<int64_t>((roi_batch_ind * channels + c) *
                                                            in_dims[0] * in_dims[1]);
                     double output_val;
-                    output_val =
-                        (mode == migraphx::op::pooling_mode::average)
-                            ? this->calc_pooling(offset_bottom_data,
-                                                 bin_grid_size,
-                                                 pre_calc,
-                                                 vec_index[c],
-                                                 avg_pool{})
-                            : this->calc_pooling(offset_bottom_data,
-                                                 bin_grid_size,
-                                                 pre_calc,
-                                                 vec_index[c],
-                                                 max_pool{});
+                    output_val           = (mode == migraphx::op::pooling_mode::average)
+                                               ? this->calc_pooling(offset_bottom_data,
+                                                          bin_grid_size,
+                                                          pre_calc,
+                                                          vec_index[c],
+                                                          avg_pool{})
+                                               : this->calc_pooling(offset_bottom_data,
+                                                          bin_grid_size,
+                                                          pre_calc,
+                                                          vec_index[c],
+                                                          max_pool{});
                     output(n, c, ph, pw) = output_val;
                 });
             });

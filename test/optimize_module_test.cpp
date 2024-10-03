@@ -86,9 +86,9 @@ TEST_CASE(broadcast_transpose_inner_broadcast_generic)
     run_pass(m1);
     migraphx::module m2;
     {
-        auto x         = m2.add_parameter("x", {migraphx::shape::float_type, {5, 10}});
-        auto y         = m2.add_parameter("y", {migraphx::shape::float_type, {5}});
-        auto yb        = m2.add_instruction(
+        auto x  = m2.add_parameter("x", {migraphx::shape::float_type, {5, 10}});
+        auto y  = m2.add_parameter("y", {migraphx::shape::float_type, {5}});
+        auto yb = m2.add_instruction(
             migraphx::make_op("broadcast", {{"axis", 0}, {"out_lens", {5, 10}}}), y);
         auto mul = m2.add_instruction(migraphx::make_op("mul"), x, yb);
         auto mb2 = m2.add_instruction(
@@ -139,8 +139,8 @@ TEST_CASE(mul_add_transpose_dot)
     migraphx::literal lit23;
     migraphx::module lit_mod;
     {
-        auto lit1_ins  = lit_mod.add_literal(lit1);
-        auto lit1_b    = lit_mod.add_instruction(
+        auto lit1_ins = lit_mod.add_literal(lit1);
+        auto lit1_b   = lit_mod.add_instruction(
             migraphx::make_op("broadcast", {{"axis", 0}, {"out_lens", {64, 64}}}), lit1_ins);
 
         auto lit3_ins = lit_mod.add_literal(lit3);

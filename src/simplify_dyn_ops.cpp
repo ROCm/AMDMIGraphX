@@ -530,7 +530,7 @@ struct find_static_onehot
             depth_ins->eval().visit([&](auto d) { depth_val = d[0]; });
             values_ins = onehot_inputs[2];
         }
-        shape values_shape  = values_ins->get_shape();
+        shape values_shape                          = values_ins->get_shape();
         std::vector<std::size_t> static_output_lens = indices_shape.lens();
         auto normalized_axis =
             (onehot_op.axis < 0) ? onehot_op.axis + indices_shape.ndim() + 1 : onehot_op.axis;

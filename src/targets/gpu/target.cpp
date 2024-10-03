@@ -129,13 +129,6 @@ std::vector<pass> target::get_passes(migraphx::context& gctx, const compile_opti
     unsupported_fp8e4m3fnuz_ops.insert("argmin");
 
     std::set<std::string> unsupported_fp8ocp_ops = {};
-    // TODO update with hipBLASLt support
-#if !MIGRAPHX_ENABLE_HIPBLASLT_GEMM
-    {
-        unsupported_fp8ocp_ops.insert("dot");
-        unsupported_fp8ocp_ops.insert("quant_dot");
-    }
-#endif
 #if MIGRAPHX_USE_MIOPEN
     // MIOpen doesn't have support for fp8 pooling yet.
     unsupported_fp8ocp_ops.insert("pooling");

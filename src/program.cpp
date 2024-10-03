@@ -426,33 +426,6 @@ void preview_argument(std::ostream& os, const argument& a)
         });
 }
 
-// This function currently used only in an Assertion.
-// "Almost identical" shapes.  To support an MLIR feature, there is a limited
-// case where shapes may both be standard but have non-identical strides.
-#ifndef NDEBUG
-static bool is_compatible_shape(const shape& actual, const shape& expected)
-{
-    // Check subshapes
-    if(expected.type() == shape::tuple_type)
-        return equal(actual.sub_shapes().begin(),
-                     actual.sub_shapes().end(),
-                     expected.sub_shapes().begin(),
-                     &is_compatible_shape);
-    // Only the expected can be dynamic
-    if(expected.dynamic())
-        return true;
-    if(actual == expected)
-        return true;
-    if(actual.type() != expected.type())
-        return false;
-    // If both shapes are standard and lens match, they are considered compatible
-    // even if strides are different.
-    if(actual.standard() and expected.standard())
-        return actual.lens() == expected.lens();
-    return false;
-}
-#endif
-
 template <class F>
 std::vector<argument> generic_eval(const module* mod,
                                    std::vector<context>& ctx,
@@ -534,7 +507,8 @@ std::vector<argument> generic_eval(const module* mod,
                 }));
         }
         assert(results.find(ins) != results.end());
-        assert(is_compatible_shape(results.at(ins).get_shape(), ins->get_shape()));
+        assert(ins->get_shape().any_of_dynamic() or
+               results.at(ins).get_shape() == ins->get_shape());
     }
     return {results.at(std::prev(mod->end()))};
 }
@@ -841,6 +815,29 @@ double common_average(const std::vector<double>& v)
     return total / std::distance(v.begin() + n, v.end() - n);
 }
 
+double mean(const std::vector<double>& v) 
+{
+    double total = std::accumulate(v.begin(), v.end(), 0.0);
+    return total / v.size();
+}
+
+double median(const std::vector<double>& v) 
+{
+    size_t mid = v.size() / 2;
+    if (v.size() % 2 == 0) {
+        return (v[mid - 1] + v[mid]) / 2.0; 
+    } else {
+        return v[mid]; 
+    }
+}
+
+double percentile(const std::vector<double>& v, double percentile) 
+{
+    size_t index = static_cast<size_t>((percentile) * (v.size() - 1));
+    return v[index]; 
+}
+
+
 std::string perf_group(instruction_ref ins, bool detailed)
 {
     std::string result;
@@ -933,6 +930,11 @@ void program::perf_report(
     }
 
     double total_time             = common_average(total_vec);
+    double min_time               = total_vec.front();
+    double max_time               = total_vec.back();
+    double mean_time              = mean(total_vec);
+    double median_time            = median(total_vec);
+    double percentile_99_time     = percentile(total_vec, 0.99);
     double rate                   = 1000.0 / total_time;
     double overhead_time          = common_average(overhead_vec);
     double overhead_percent       = overhead_time * 100.0 / total_time;
@@ -985,6 +987,11 @@ void program::perf_report(
     os << "Batch size: " << batch << std::endl;
     os << "Rate: " << rate * batch << " inferences/sec" << std::endl;
     os << "Total time: " << total_time << "ms" << std::endl;
+    os << "Min time: " << min_time << "ms" << std::endl;
+    os << "Max time: " << max_time << "ms" << std::endl;
+    os << "Mean time: " << mean_time << "ms" << std::endl;
+    os << "Median time: " << median_time << "ms" << std::endl;
+    os << "99 percentile time: " << percentile_99_time << "ms" << std::endl;
     os << "Total instructions time: " << total_instruction_time << "ms" << std::endl;
     os << "Overhead time: " << overhead_time << "ms"
        << ", " << calculate_overhead_time << "ms" << std::endl;

@@ -24,7 +24,7 @@ TEST_CASE(copy_slot)
     migraphx::bit_signal<64> signals;
     EXPECT(signals.nslots() == 0);
     auto slot1 = signals.subscribe();
-    auto slot2 = slot1;
+    auto slot2 = slot1; // NOLINT
     EXPECT(signals.nslots() == 2);
     EXPECT(slot1.i != slot2.i);
     EXPECT(slot1.valid());

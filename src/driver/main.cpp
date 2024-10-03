@@ -26,6 +26,7 @@
 #include "verify_options.hpp"
 #include "argument_parser.hpp"
 #include "command.hpp"
+#include "mlir.hpp"
 #include "precision.hpp"
 #include "passes.hpp"
 #include "perf.hpp"
@@ -77,6 +78,7 @@ struct loader
     bool is_test                = false;
     unsigned trim               = 0;
     bool optimize               = false;
+    bool mlir                   = false;
     bool skip_unknown_operators = false;
     bool brief                  = false;
     std::string output_type;
@@ -140,6 +142,7 @@ struct loader
            ap.append(),
            ap.nargs(2));
         ap(optimize, {"--optimize", "-O"}, ap.help("Optimize when reading"), ap.set_value(true));
+        ap(mlir, {"--mlir"}, ap.help("Offload everything to mlir"), ap.set_value(true));
         ap(passes, {"--apply-pass", "-p"}, ap.help("Passes to apply to model"), ap.append());
         ap(output_type,
            {"--graphviz", "-g"},
@@ -374,6 +377,8 @@ struct loader
         }
         if(not passes.empty())
             migraphx::run_passes(p, get_passes(passes));
+        if(mlir)
+            offload_to_mlir(p);
         return p;
     }
 
@@ -479,6 +484,7 @@ struct compiler
     bool to_fp16 = false;
     bool to_fp8  = false;
     bool to_int8 = false;
+    bool to_int4 = false;
 
     std::vector<std::string> fill0;
     std::vector<std::string> fill1;
@@ -502,6 +508,7 @@ struct compiler
         ap(to_fp16, {"--fp16"}, ap.help("Quantize for fp16"), ap.set_value(true));
         ap(to_int8, {"--int8"}, ap.help("Quantize for int8"), ap.set_value(true));
         ap(to_fp8, {"--fp8"}, ap.help("Quantize for fp8"), ap.set_value(true));
+        ap(to_int4, {"--int4-weights"}, ap.help("Quantize weights for int4"), ap.set_value(true));
     }
 
     auto params(const program& p)
@@ -555,6 +562,10 @@ struct compiler
         if(to_fp8)
         {
             quantize_fp8(p, t, {host_params(p)});
+        }
+        if(to_int4)
+        {
+            quantize_int4_weights(p);
         }
         p.compile(t, co);
         l.save(p);

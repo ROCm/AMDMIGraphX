@@ -298,7 +298,7 @@ else()
     endif()
 endif()
 
-target_compile_definitions(migraphx_gpu PUBLIC MIGRAPHX_CXX_COMPILER="${COMPILER_NAME}")
+target_compile_definitions(migraphx_gpu PUBLIC MIGRAPHX_CXX_COMPILER="${CMAKE_CXX_COMPILER}")
 
 # Check miopen find mode api
 

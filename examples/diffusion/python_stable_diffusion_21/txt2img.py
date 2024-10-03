@@ -32,6 +32,10 @@ import torch
 import time
 from functools import wraps
 
+from hip import hip
+from collections import namedtuple
+HipEventPair = namedtuple('HipEventPair', ['start', 'end'])
+
 
 # measurement helper
 def measure(fn):
@@ -103,6 +107,12 @@ def get_args():
         default=20,
         help="Number of steps",
     )
+
+    parser.add_argument("-b",
+                        "--batch",
+                        type=int,
+                        default=1,
+                        help="Batch count or number of images to produce")
 
     parser.add_argument(
         "-p",
@@ -194,7 +204,7 @@ def allocate_torch_tensors(model):
 
 
 class StableDiffusionMGX():
-    def __init__(self, onnx_model_path, compiled_model_path, fp16,
+    def __init__(self, onnx_model_path, compiled_model_path, fp16, batch,
                  force_compile, exhaustive_tune):
         model_id = "stabilityai/stable-diffusion-2-1"
         print(f"Using {model_id}")
@@ -211,17 +221,20 @@ class StableDiffusionMGX():
         elif "all" in fp16:
             fp16 = ["vae", "clip", "unet"]
 
+        self.batch = batch
+
         print("Load models...")
         self.models = {
             "vae":
             StableDiffusionMGX.load_mgx_model(
-                "vae_decoder", {"latent_sample": [1, 4, 64, 64]},
+                "vae_decoder", {"latent_sample": [self.batch, 4, 64, 64]},
                 onnx_model_path,
                 compiled_model_path=compiled_model_path,
                 use_fp16="vae" in fp16,
                 force_compile=force_compile,
                 exhaustive_tune=exhaustive_tune,
-                offload_copy=False),
+                offload_copy=False,
+                batch=self.batch),
             "clip":
             StableDiffusionMGX.load_mgx_model(
                 "text_encoder", {"input_ids": [2, 77]},
@@ -234,8 +247,8 @@ class StableDiffusionMGX():
             "unet":
             StableDiffusionMGX.load_mgx_model(
                 "unet", {
-                    "sample": [2, 4, 64, 64],
-                    "encoder_hidden_states": [2, 77, 1024],
+                    "sample": [2 * self.batch, 4, 64, 64],
+                    "encoder_hidden_states": [2 * self.batch, 77, 1024],
                     "timestep": [1],
                 },
                 onnx_model_path,
@@ -243,7 +256,8 @@ class StableDiffusionMGX():
                 use_fp16="unet" in fp16,
                 force_compile=force_compile,
                 exhaustive_tune=exhaustive_tune,
-                offload_copy=False)
+                offload_copy=False,
+                batch=self.batch)
         }
 
         self.tensors = {
@@ -258,10 +272,46 @@ class StableDiffusionMGX():
             "vae": tensors_to_args(self.tensors['vae']),
         }
 
+        self.events = {
+            "warmup":
+            HipEventPair(start=hip.hipEventCreate()[1],
+                         end=hip.hipEventCreate()[1]),
+            "run":
+            HipEventPair(start=hip.hipEventCreate()[1],
+                         end=hip.hipEventCreate()[1]),
+            "clip":
+            HipEventPair(start=hip.hipEventCreate()[1],
+                         end=hip.hipEventCreate()[1]),
+            "denoise":
+            HipEventPair(start=hip.hipEventCreate()[1],
+                         end=hip.hipEventCreate()[1]),
+            "decode":
+            HipEventPair(start=hip.hipEventCreate()[1],
+                         end=hip.hipEventCreate()[1]),
+        }
+
+        self.stream = hip.hipStreamCreate()[1]
+
+    def cleanup(self):
+        for event in self.events.values():
+            hip.hipEventDestroy(event.start)
+            hip.hipEventDestroy(event.end)
+        hip.hipStreamDestroy(self.stream)
+
+    def profile_start(self, name):
+        if name in self.events:
+            hip.hipEventRecord(self.events[name].start, None)
+
+    def profile_end(self, name):
+        if name in self.events:
+            hip.hipEventRecord(self.events[name].end, None)
+
     @measure
     @torch.no_grad()
     def run(self, prompt, negative_prompt, steps, seed, scale):
         torch.cuda.synchronize()
+        self.profile_start("run")
+
         # need to set this for each run
         self.scheduler.set_timesteps(steps, device="cuda")
 
@@ -269,31 +319,56 @@ class StableDiffusionMGX():
         prompt_tokens = self.tokenize(prompt, negative_prompt)
 
         print("Creating text embeddings...")
+        self.profile_start("clip")
         text_embeddings = self.get_embeddings(prompt_tokens)
+        self.profile_end("clip")
 
         print(
             f"Creating random input data ({1}x{4}x{64}x{64}) (latents) with seed={seed}..."
         )
         latents = torch.randn(
-            (1, 4, 64, 64),
+            (self.batch, 4, 64, 64),
             generator=torch.manual_seed(seed)).to(device="cuda")
 
         print("Apply initial noise sigma\n")
         latents = latents * self.scheduler.init_noise_sigma
 
         print("Running denoising loop...")
+        self.profile_start("denoise")
         for step, t in enumerate(self.scheduler.timesteps):
             print(f"#{step}/{len(self.scheduler.timesteps)} step")
             latents = self.denoise_step(text_embeddings, latents, t, scale)
+        self.profile_end("denoise")
 
         print("Scale denoised result...")
         latents = 1 / 0.18215 * latents
 
+        self.profile_start("decode")
         print("Decode denoised result...")
         image = self.decode(latents)
+        self.profile_end("decode")
 
         torch.cuda.synchronize()
+        self.profile_end("run")
         return image
+
+    def print_summary(self, denoise_steps):
+        print('WARMUP\t{:>9.2f} ms'.format(
+            hip.hipEventElapsedTime(self.events['warmup'].start,
+                                    self.events['warmup'].end)[1]))
+        print('CLIP\t{:>9.2f} ms'.format(
+            hip.hipEventElapsedTime(self.events['clip'].start,
+                                    self.events['clip'].end)[1]))
+        print('UNetx{}\t{:>9.2f} ms'.format(
+            str(denoise_steps),
+            hip.hipEventElapsedTime(self.events['denoise'].start,
+                                    self.events['denoise'].end)[1]))
+        print('VAE-Dec\t{:>9.2f} ms'.format(
+            hip.hipEventElapsedTime(self.events['decode'].start,
+                                    self.events['decode'].end)[1]))
+        print('RUN\t{:>9.2f} ms'.format(
+            hip.hipEventElapsedTime(self.events['run'].start,
+                                    self.events['run'].end)[1]))
 
     @staticmethod
     @measure
@@ -304,12 +379,13 @@ class StableDiffusionMGX():
                        use_fp16=False,
                        force_compile=False,
                        exhaustive_tune=False,
-                       offload_copy=True):
+                       offload_copy=True,
+                       batch=1):
         print(f"Loading {name} model...")
         if compiled_model_path is None:
             compiled_model_path = onnx_model_path
         onnx_file = f"{onnx_model_path}/{name}/model.onnx"
-        mxr_file = f"{compiled_model_path}/{name}/model_{'fp16' if use_fp16 else 'fp32'}_{'gpu' if not offload_copy else 'oc'}.mxr"
+        mxr_file = f"{compiled_model_path}/{name}/model_{'fp16' if use_fp16 else 'fp32'}_b{batch}_{'gpu' if not offload_copy else 'oc'}.mxr"
         if not force_compile and os.path.isfile(mxr_file):
             print(f"Found mxr, loading it from {mxr_file}")
             model = mgx.load(mxr_file, format="msgpack")
@@ -345,14 +421,16 @@ class StableDiffusionMGX():
         copy_tensor_sync(self.tensors["clip"]["input_ids"],
                          prompt_tokens.input_ids.to(torch.int32))
         run_model_sync(self.models["clip"], self.model_args["clip"])
-        return self.tensors["clip"][get_output_name(0)]
+        text_embeds = self.tensors["clip"][get_output_name(0)]
+        return torch.cat(
+            [torch.cat([i] * self.batch) for i in text_embeds.split(1)])
 
     @staticmethod
     def convert_to_rgb_image(image):
         image = (image / 2 + 0.5).clamp(0, 1)
         image = image.detach().cpu().permute(0, 2, 3, 1).numpy()
         images = (image * 255).round().astype("uint8")
-        return Image.fromarray(images[0])
+        return [Image.fromarray(images[i]) for i in range(images.shape[0])]
 
     @staticmethod
     def save_image(pil_image, filename="output.png"):
@@ -390,36 +468,48 @@ class StableDiffusionMGX():
 
     @measure
     def warmup(self, num_runs):
-
+        self.profile_start("warmup")
         copy_tensor_sync(self.tensors["clip"]["input_ids"],
                          torch.ones((2, 77)).to(torch.int32))
-        copy_tensor_sync(self.tensors["unet"]["sample"],
-                         torch.randn((2, 4, 64, 64)).to(torch.float32))
-        copy_tensor_sync(self.tensors["unet"]["encoder_hidden_states"],
-                         torch.randn((2, 77, 1024)).to(torch.float32))
+        copy_tensor_sync(
+            self.tensors["unet"]["sample"],
+            torch.randn((2 * self.batch, 4, 64, 64)).to(torch.float32))
+        copy_tensor_sync(
+            self.tensors["unet"]["encoder_hidden_states"],
+            torch.randn((2 * self.batch, 77, 1024)).to(torch.float32))
         copy_tensor_sync(self.tensors["unet"]["timestep"],
                          torch.atleast_1d(torch.randn(1).to(torch.int64)))
-        copy_tensor_sync(self.tensors["vae"]["latent_sample"],
-                         torch.randn((1, 4, 64, 64)).to(torch.float32))
+        copy_tensor_sync(
+            self.tensors["vae"]["latent_sample"],
+            torch.randn((self.batch, 4, 64, 64)).to(torch.float32))
 
         for _ in range(num_runs):
             run_model_sync(self.models["clip"], self.model_args["clip"])
             run_model_sync(self.models["unet"], self.model_args["unet"])
             run_model_sync(self.models["vae"], self.model_args["vae"])
+        self.profile_end("warmup")
 
 
 if __name__ == "__main__":
     args = get_args()
 
     sd = StableDiffusionMGX(args.onnx_model_path, args.compiled_model_path,
-                            args.fp16, args.force_compile,
+                            args.fp16, args.batch, args.force_compile,
                             args.exhaustive_tune)
+    print("Warmup")
     sd.warmup(5)
+    print("Run")
     result = sd.run(args.prompt, args.negative_prompt, args.steps, args.seed,
                     args.scale)
 
+    print("Summary")
+    sd.print_summary(args.steps)
+    print("Cleanup")
+    sd.cleanup()
+
     print("Convert result to rgb image...")
-    image = StableDiffusionMGX.convert_to_rgb_image(result)
-    filename = args.output if args.output else f"output_s{args.seed}_t{args.steps}.png"
-    StableDiffusionMGX.save_image(image, filename)
-    print(f"Image saved to {filename}")
+    images = StableDiffusionMGX.convert_to_rgb_image(result)
+    for i, image in enumerate(images):
+        filename = f"{args.batch}_{args.output}" if args.output else f"output_s{args.seed}_t{args.steps}_{i}.png"
+        StableDiffusionMGX.save_image(image, filename)
+        print(f"Image saved to {filename}")

@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2023 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2024 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -62,24 +62,61 @@ struct MIGRAPHX_EXPORT marker
 
 struct marker
 {
+    private:
+    template <class PrivateDetailTypeErasedT>
+    struct private_te_unwrap_reference
+    {
+        using type = PrivateDetailTypeErasedT;
+    };
+    template <class PrivateDetailTypeErasedT>
+    struct private_te_unwrap_reference<std::reference_wrapper<PrivateDetailTypeErasedT>>
+    {
+        using type = PrivateDetailTypeErasedT;
+    };
+    template <class PrivateDetailTypeErasedT>
+    using private_te_pure = typename std::remove_cv<
+        typename std::remove_reference<PrivateDetailTypeErasedT>::type>::type;
+
+    template <class PrivateDetailTypeErasedT>
+    using private_te_constraints_impl =
+        decltype(std::declval<PrivateDetailTypeErasedT>().mark_start(
+                     std::declval<instruction_ref>()),
+                 std::declval<PrivateDetailTypeErasedT>().mark_start(
+                     std::declval<const program&>()),
+                 std::declval<PrivateDetailTypeErasedT>().mark_stop(
+                     std::declval<instruction_ref>()),
+                 std::declval<PrivateDetailTypeErasedT>().mark_stop(std::declval<const program&>()),
+                 void());
+
+    template <class PrivateDetailTypeErasedT>
+    using private_te_constraints = private_te_constraints_impl<
+        typename private_te_unwrap_reference<private_te_pure<PrivateDetailTypeErasedT>>::type>;
+
+    public:
     // Constructors
     marker() = default;
 
-    template <typename PrivateDetailTypeErasedT>
-    marker(PrivateDetailTypeErasedT value)
+    template <typename PrivateDetailTypeErasedT,
+              typename = private_te_constraints<PrivateDetailTypeErasedT>,
+              typename = typename std::enable_if<
+                  not std::is_same<private_te_pure<PrivateDetailTypeErasedT>, marker>{}>::type>
+    marker(PrivateDetailTypeErasedT&& value)
         : private_detail_te_handle_mem_var(
-              std::make_shared<private_detail_te_handle_type<
-                  typename std::remove_reference<PrivateDetailTypeErasedT>::type>>(
+              std::make_shared<
+                  private_detail_te_handle_type<private_te_pure<PrivateDetailTypeErasedT>>>(
                   std::forward<PrivateDetailTypeErasedT>(value)))
     {
     }
 
     // Assignment
-    template <typename PrivateDetailTypeErasedT>
-    marker& operator=(PrivateDetailTypeErasedT value)
+    template <typename PrivateDetailTypeErasedT,
+              typename = private_te_constraints<PrivateDetailTypeErasedT>,
+              typename = typename std::enable_if<
+                  not std::is_same<private_te_pure<PrivateDetailTypeErasedT>, marker>{}>::type>
+    marker& operator=(PrivateDetailTypeErasedT&& value)
     {
         using std::swap;
-        auto* derived = this->any_cast<PrivateDetailTypeErasedT>();
+        auto* derived = this->any_cast<private_te_pure<PrivateDetailTypeErasedT>>();
         if(derived and private_detail_te_handle_mem_var.use_count() == 1)
         {
             *derived = std::forward<PrivateDetailTypeErasedT>(value);

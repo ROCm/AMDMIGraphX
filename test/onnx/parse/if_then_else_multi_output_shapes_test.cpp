@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2023 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2024 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -56,6 +56,6 @@ TEST_CASE(if_then_else_multi_output_shapes_test)
     auto r2  = mm->add_instruction(migraphx::make_op("get_tuple_elem", {{"index", 1}}), ret);
     mm->add_return({r1, r2});
 
-    auto prog = migraphx::parse_onnx("if_then_else_multi_output_shapes_test.onnx");
+    auto prog = read_onnx("if_then_else_multi_output_shapes_test.onnx");
     EXPECT(p == prog);
 }

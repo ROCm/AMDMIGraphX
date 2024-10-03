@@ -228,7 +228,33 @@ struct array
         return true;
     }
 
-    friend constexpr bool operator!=(const array& x, const array& y) { return not(x == y); }
+    template <class U, MIGRAPHX_REQUIRES(is_convertible<U, T>{})>
+    friend constexpr bool operator==(const array& x, const U& y)
+    {
+        for(index_int i = 0; i < N; i++)
+        {
+            if(x[i] != y)
+                return false;
+        }
+        return true;
+    }
+
+    template <class U, MIGRAPHX_REQUIRES(is_convertible<U, T>{})>
+    friend constexpr bool operator==(const U& x, const array& y)
+    {
+        return y == x;
+    }
+
+    template <class U>
+    friend constexpr bool operator!=(const U& x, const array& y)
+    {
+        return not(x == y);
+    }
+    template <class U>
+    friend constexpr bool operator!=(const array& x, const U& y)
+    {
+        return not(x == y);
+    }
     // This uses the product order rather than lexical order
     friend constexpr bool operator<(const array& x, const array& y)
     {
@@ -263,6 +289,20 @@ struct array
         return result;
     }
 
+    /// Get the multi-dimensional index from the given 1D index.
+    constexpr array multi(T idx) const
+    {
+        array result;
+        index_int tidx = idx;
+        for(diff_int is = result.size() - 1; is > 0; is--)
+        {
+            result[is] = tidx % d[is];
+            tidx       = tidx / d[is];
+        }
+        result[0] = tidx;
+        return result;
+    }
+
     template <class Stream>
     friend constexpr const Stream& operator<<(const Stream& ss, const array& a)
     {
@@ -292,12 +332,20 @@ struct integral_const_array : array<T, sizeof...(Xs)>
 {
     using base_array = array<T, sizeof...(Xs)>;
     MIGRAPHX_DEVICE_CONSTEXPR integral_const_array() : base_array({Xs...}) {}
+
+    constexpr const base_array& base() const { return *this; }
 };
 
 template <class T, class... Ts>
 constexpr auto make_const_array(T x, Ts... xs)
 {
     return integral_const_array<typename T::value_type, x, xs...>{};
+}
+
+template <class T, class N, class F>
+constexpr auto generate_array(N n, F f)
+{
+    return sequence_c<n>([=](auto... is) { return array<T, n>{f(is)...}; });
 }
 
 template <class T, T... Xs, class F>
@@ -323,6 +371,13 @@ template <class T, T... Xs, class U, U... Ys, class F>
 constexpr auto transform(integral_const_array<T, Xs...>, integral_const_array<U, Ys...>, F f)
 {
     return integral_const_array<T, f(Xs, Ys)...>{};
+}
+
+template <class F>
+constexpr auto return_array_c(F f)
+{
+    constexpr auto r = f();
+    return sequence(r.size(), [&](auto... is) { return make_const_array(_c<r[is]>...); });
 }
 
 template <index_int... Ns>

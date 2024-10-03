@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2022 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2024 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -27,6 +27,9 @@
 #include <migraphx/gpu/pack_args.hpp>
 #include <cassert>
 
+#ifdef _WIN32
+#include <hip/hip_ext.h>
+#else
 // extern declare the function since hip/hip_ext.h header is broken
 extern hipError_t hipExtModuleLaunchKernel(hipFunction_t, // NOLINT
                                            uint32_t,
@@ -42,6 +45,7 @@ extern hipError_t hipExtModuleLaunchKernel(hipFunction_t, // NOLINT
                                            hipEvent_t = nullptr,
                                            hipEvent_t = nullptr,
                                            uint32_t   = 0);
+#endif
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {

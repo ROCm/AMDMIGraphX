@@ -36,6 +36,7 @@ MIGRAPHX_EXPORT std::vector<char>
 read_buffer(const fs::path& filename, size_t offset = 0, size_t nbytes = 0);
 MIGRAPHX_EXPORT std::string read_string(const fs::path& filename);
 
+MIGRAPHX_EXPORT void write_string(const fs::path& filename, const std::string& buffer);
 MIGRAPHX_EXPORT void write_buffer(const fs::path& filename, const char* buffer, std::size_t size);
 MIGRAPHX_EXPORT void write_buffer(const fs::path& filename, const std::vector<char>& buffer);
 

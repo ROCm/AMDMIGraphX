@@ -3,7 +3,7 @@
 #####################################################################################
 # The MIT License (MIT)
 #
-# Copyright (c) 2015-2023 Advanced Micro Devices, Inc. All rights reserved.
+# Copyright (c) 2015-2024 Advanced Micro Devices, Inc. All rights reserved.
 #
 # Permission is hereby granted, free of charge, to any person obtaining a copy
 # of this software and associated documentation files (the "Software"), to deal
@@ -33,6 +33,7 @@ export LANG=C.UTF-8
 
 source /etc/os-release
 
+# hipcc added as workaround for broken hip-dev package
 if [[ ("${ID}" == "sles") ]]; then
   zypper -n --gpg-auto-import-keys install -y \
     cmake \
@@ -41,7 +42,11 @@ if [[ ("${ID}" == "sles") ]]; then
     python3-devel \
     python3-pip \
     rocblas-devel \
-    rocm-cmake
+    rocm-cmake \
+    perl-File-BaseDir \
+    libgfortran5 \
+    hipblas-devel \
+    hipblaslt-devel
 else
   # Need pip3 and Python headers to build dependencies
   apt update && apt install -y \
@@ -53,7 +58,12 @@ else
     python3-pip \
     python3-venv \
     rocblas-dev \
+    libgfortran5 \
+    hipblas-dev \
+    hipblaslt-dev \
+    hipcc \
     rocm-cmake \
+    rocm-llvm-dev \
     libtbb-dev
 fi
 
@@ -66,7 +76,7 @@ pip3 install https://github.com/RadeonOpenCompute/rbuild/archive/master.tar.gz
 
 
 PREFIX=/usr/local
-REQ_FILE_DIR=""
+REQ_FILE_DIR="$(dirname -- "$0")"
 if [ "$#" -ge 2 ]; then
   PREFIX=$1
   cd $2
@@ -81,9 +91,5 @@ rbuild prepare -d $PREFIX -s develop
 
 if [[ ("${ID}" != "sles") ]]; then
 export CMAKE_ARGS="-DONNX_USE_PROTOBUF_SHARED_LIBS=ON"
-
-pip3 install onnx==1.14.1 numpy==1.21.6 typing==3.7.4 pytest==6.0.1 packaging==23.0
-
-# pin version of protobuf in Python for onnx runtime unit tests between dist versions
-pip3 install protobuf==3.20.2
+pip3 install -r $REQ_FILE_DIR/requirements-py.txt
 fi

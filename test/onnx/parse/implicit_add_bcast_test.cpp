@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2023 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2024 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -53,7 +53,7 @@ TEST_CASE(implicit_add_bcast_user_input_shape_test)
     migraphx::onnx_options options;
     options.map_input_dims["0"] = {3, 4, 5, 6};
     options.map_input_dims["1"] = {4, 5, 1};
-    auto prog                   = migraphx::parse_onnx("implicit_add_bcast_test.onnx", options);
+    auto prog                   = read_onnx("implicit_add_bcast_test.onnx", options);
 
     EXPECT(p == prog);
 }

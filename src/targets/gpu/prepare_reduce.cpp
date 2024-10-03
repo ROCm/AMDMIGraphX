@@ -29,7 +29,6 @@
 #include <migraphx/register_op.hpp>
 #include <migraphx/ranges.hpp>
 #include <migraphx/make_op.hpp>
-#include <migraphx/dom_info.hpp>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
@@ -72,8 +71,7 @@ std::vector<instruction_ref> find_reduce(module& m)
     return result;
 }
 
-std::vector<instruction_ref> find_parallel_reduce(const std::vector<instruction_ref>& r,
-                                                  const dominator_info& dom)
+std::vector<instruction_ref> find_parallel_reduce(const std::vector<instruction_ref>& r)
 {
     std::vector<instruction_ref> result;
     auto ir = iterator_for(r);
@@ -82,9 +80,8 @@ std::vector<instruction_ref> find_parallel_reduce(const std::vector<instruction_
         ir.end(),
         std::back_inserter(result),
         [&](auto x) {
-            return std::none_of(std::next(x), r.end(), [&](auto reduce) {
-                return dom.strictly_dominate(*x, reduce);
-            });
+            return std::none_of(
+                std::next(x), r.end(), [&](auto reduce) { return reaches(*x, reduce); });
         },
         [](auto x) { return *x; });
     return result;
@@ -92,8 +89,7 @@ std::vector<instruction_ref> find_parallel_reduce(const std::vector<instruction_
 
 void fuse_reductions(module& m)
 {
-    auto dom = compute_dominator(m);
-    auto rs  = find_parallel_reduce(find_reduce(m), dom);
+    auto rs = find_parallel_reduce(find_reduce(m));
     if(rs.size() < 2)
         return;
     // Only handle the same reduction operator for now

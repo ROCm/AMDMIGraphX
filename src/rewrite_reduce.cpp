@@ -60,15 +60,15 @@ struct find_reduce_mean_variance
     auto matcher() const
     {
         auto reduce_mean = match::name("reduce_mean");
-        auto x_minus_mean =
-            match::name("sub")(match::arg(0)(match::any().bind("x")),
-                               match::arg(1)(match::skip_broadcasts(reduce_mean.bind("mean"))));
+        auto skip_broadcasts_mean = match::skip_broadcasts(reduce_mean.bind("mean"));
+        auto x_minus_mean         = match::name("sub")(match::arg(0)(match::any().bind("x")),
+                                               match::arg(1)(skip_broadcasts_mean));
         auto pow_x_minus_mean =
             match::name("pow")(match::arg(0)(x_minus_mean), match::arg(1)(match::has_value(2.0f)));
         auto mul_x_minus_mean =
             match::name("mul")(match::arg(0)(x_minus_mean), match::arg(1)(x_minus_mean));
-        auto sqdiff = match::name("sqdiff")(match::either_arg(0, 1)(
-            match::any().bind("x"), skip_broadcasts(reduce_mean.bind("mean"))));
+        auto sqdiff = match::name("sqdiff")(
+            match::either_arg(0, 1)(match::any().bind("x"), skip_broadcasts_mean));
         return reduce_mean(
             match::arg(0)(match::any_of(pow_x_minus_mean, mul_x_minus_mean, sqdiff)));
     }
@@ -114,7 +114,8 @@ struct find_reduce_mean
 
         auto n = input->get_shape().elements() / ins->get_shape().elements();
 
-        if(n >= max_n / 4 and size < 3)
+        // Convert accumulator to float if <= 8bit type or if < 3 bytes and n >= max_n /4
+        if(size == 1 or (n >= max_n / 4 and size < 3))
         {
             shape::type_t t = is_integral ? shape::int32_type : shape::float_type;
             input = m.insert_instruction(ins, make_op("convert", {{"target_type", t}}), input);

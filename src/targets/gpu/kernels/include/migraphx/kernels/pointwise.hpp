@@ -30,14 +30,15 @@
 #include <migraphx/kernels/preload.hpp>
 #include <migraphx/kernels/vectorize.hpp>
 #include <migraphx/kernels/args.hpp>
+#include <migraphx/kernels/tile.hpp>
 #include <migraphx/kernels/tuple.hpp>
 
 namespace migraphx {
 
-template <class F, class Output, class T, class... Ts>
-__device__ void pointwise_tensor(index idx, F f, Output out, T x, Ts... xs)
+template <class Stride, class F, class Output, class T, class... Ts>
+__device__ void pointwise_tensor(Stride stride, F f, Output out, T x, Ts... xs)
 {
-    idx.global_stride(x.get_shape().elements(), [&](auto i) {
+    stride(x.get_shape().elements(), [&](auto i) {
         auto r = f(x[i], xs[i]...);
         out([&](auto... outs) {
             r([&](auto... rs) {
@@ -48,12 +49,12 @@ __device__ void pointwise_tensor(index idx, F f, Output out, T x, Ts... xs)
     });
 }
 
-template <index_int N, class... Transforms>
+template <index_int N, bool Tiled, class... Transforms>
 __device__ auto pointwise(index idx, Transforms... transforms)
 {
     return [=](auto f, auto*... ps) {
         auto t = transform_args(make_tensors(), transforms..., rotate_and_pack_last<N>());
-        t(ps...)([&](auto... xs) { pointwise_tensor(idx, f, xs...); });
+        t(ps...)([&](auto... xs) { pointwise_tensor(tile_stride<Tiled>(idx), f, xs...); });
     };
 }
 

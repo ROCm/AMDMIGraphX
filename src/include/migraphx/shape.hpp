@@ -62,8 +62,10 @@ struct MIGRAPHX_EXPORT shape
     m(int64_type, int64_t) \
     m(uint32_type, uint32_t) \
     m(uint64_type, uint64_t) \
-    m(fp8e4m3fnuz_type, migraphx::fp8::fp8e4m3fnuz)
-    // clang-format on
+    m(fp8e4m3fnuz_type, migraphx::fp8::fp8e4m3fnuz) \
+    m(fp8e4m3fn_type, migraphx::fp8::fp8e4m3fn) \
+    m(fp8e5m2_type, migraphx::fp8::fp8e5m2)
+// clang-format on
 
 #define MIGRAPHX_SHAPE_GENERATE_ENUM_TYPES(x, t) x,
     enum type_t
@@ -147,6 +149,9 @@ struct MIGRAPHX_EXPORT shape
     static std::string cpp_type(type_t t);
 
     static bool is_integral(type_t t);
+    static bool is_compatible(const shape& actual, const shape& expected);
+
+    static bool is_unsigned(type_t t);
 
     shape();
     shape(type_t t);
@@ -277,6 +282,9 @@ struct MIGRAPHX_EXPORT shape
     /// Map element index to multi-dimensional index and put them them into location provided by
     /// pointers
     void multi_copy(std::size_t idx, std::size_t* start, const std::size_t* end) const;
+
+    /// Check if a multi-dimensional index is within bounds for the shape.
+    bool multi_within_bounds(std::vector<std::size_t> multi) const;
 
     /// Returns true if the shape is packed (number of elements and buffer size the same) with
     /// no padding

@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2023 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2024 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -37,7 +37,6 @@ This pass will convert model with fp8 input parameter to model with fp32
 input parameter and internally add casts to fp8 for those converted params.*/
 struct MIGRAPHX_EXPORT autocast_fp8_pass
 {
-    std::set<shape::type_t> fp8_types = {migraphx::shape::fp8e4m3fnuz_type};
     shape::type_t target_type         = migraphx::shape::float_type;
     std::string name() const { return "autocast_fp8_pass"; }
     void apply(module& m) const;

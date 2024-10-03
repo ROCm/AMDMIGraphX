@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2023 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2024 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -29,7 +29,7 @@
 TEST_CASE(qlinearconv_test)
 {
     // https://xadupre.github.io/draft/onnx/onnx_doc_folder/onnx__QLinearConv.html
-    migraphx::program p = migraphx::parse_onnx("qlinearconv_test.onnx");
+    migraphx::program p = read_onnx("qlinearconv_test.onnx");
     p.compile(migraphx::make_target("ref"));
 
     migraphx::shape sx{migraphx::shape::uint8_type, {1, 1, 7, 7}};

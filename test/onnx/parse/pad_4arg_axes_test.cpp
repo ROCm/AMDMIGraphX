@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2023 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2024 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -39,7 +39,7 @@ TEST_CASE(pad_4arg_axes_test)
         migraphx::make_op("pad", {{"pads", {0, 1, 0, 3, 0, 2, 0, 4}}, {"value", 1.0f}}), l0);
     mm->add_return({r});
 
-    auto prog = migraphx::parse_onnx("pad_4arg_axes_test.onnx");
+    auto prog = read_onnx("pad_4arg_axes_test.onnx");
 
     EXPECT(p == prog);
 }

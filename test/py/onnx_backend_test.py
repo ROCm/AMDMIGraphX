@@ -42,7 +42,12 @@ class MIGraphXBackendTest(onnx.backend.test.BackendTest):
         super(MIGraphXBackendTest, self).__init__(backend, parent_module)
 
     @classmethod
-    def assert_similar_outputs(cls, ref_outputs, outputs, rtol, atol):
+    def assert_similar_outputs(cls,
+                               ref_outputs,
+                               outputs,
+                               rtol,
+                               atol,
+                               model_dir=None):
         prog_string = c2.get_program()
         np.testing.assert_equal(len(ref_outputs),
                                 len(outputs),
@@ -112,16 +117,8 @@ def disabled_tests_onnx_1_7_0(backend_test):
     backend_test.exclude(r'test_det_2d_cpu')
     backend_test.exclude(r'test_det_nd_cpu')
     backend_test.exclude(r'test_edge_pad_cpu')
-    backend_test.exclude(r'test_einsum_batch_diagonal_cpu')
-    backend_test.exclude(r'test_einsum_batch_matmul_cpu')
-    backend_test.exclude(r'test_einsum_inner_prod_cpu')
-    backend_test.exclude(r'test_einsum_sum_cpu')
-    backend_test.exclude(r'test_einsum_transpose_cpu')
-    backend_test.exclude(r'test_maxpool_2d_uint8_cpu')
     backend_test.exclude(r'test_maxunpool_export_with_output_shape_cpu')
     backend_test.exclude(r'test_maxunpool_export_without_output_shape_cpu')
-    backend_test.exclude(r'test_mod_mixed_sign_int32_cpu')
-    backend_test.exclude(r'test_mod_mixed_sign_int8_cpu')
     backend_test.exclude(r'test_qlinearmatmul_2D_cpu')
     backend_test.exclude(r'test_qlinearmatmul_3D_cpu')
     backend_test.exclude(r'test_range_float_type_positive_delta_expanded_cpu')
@@ -151,7 +148,6 @@ def disabled_tests_onnx_1_7_0(backend_test):
     backend_test.exclude(r'test_resize_upsample_sizes_cubic_cpu')
     backend_test.exclude(r'test_reversesequence_batch_cpu')
     backend_test.exclude(r'test_reversesequence_time_cpu')
-    backend_test.exclude(r'test_scan9_sum_cpu')
     backend_test.exclude(r'test_scan_sum_cpu')
     backend_test.exclude(r'test_slice_cpu')
     backend_test.exclude(r'test_slice_end_out_of_bounds_cpu')
@@ -380,14 +376,6 @@ def disabled_tests_onnx_1_10_0(backend_test):
 def disabled_tests_onnx_1_11_0(backend_test):
     # errors
     # from OnnxBackendNodeModelTest
-    backend_test.exclude(r'test_gridsample_aligncorners_true_cpu')
-    backend_test.exclude(r'test_gridsample_bicubic_cpu')
-    backend_test.exclude(r'test_gridsample_bilinear_cpu')
-    backend_test.exclude(r'test_gridsample_border_padding_cpu')
-    backend_test.exclude(r'test_gridsample_cpu')
-    backend_test.exclude(r'test_gridsample_nearest_cpu')
-    backend_test.exclude(r'test_gridsample_reflection_padding_cpu')
-    backend_test.exclude(r'test_gridsample_zeros_padding_cpu')
     backend_test.exclude(r'test_identity_opt_cpu')
     backend_test.exclude(r'test_if_opt_cpu')
     backend_test.exclude(r'test_loop16_seq_none_cpu')
@@ -572,9 +560,89 @@ def disabled_tests_onnx_1_14_0(backend_test):
     backend_test.exclude(r'test_wrap_pad_cpu')
 
 
+def disabled_tests_onnx_1_16_0(backend_test):
+    backend_test.exclude(r'test_dft_axis_opset19_cpu')
+    backend_test.exclude(r'test_dft_inverse_opset19_cpu')
+    backend_test.exclude(r'test_dft_opset19_cpu')
+    backend_test.exclude(
+        r'test_gridsample_bicubic_align_corners_0_additional_1_cpu')
+    backend_test.exclude(
+        r'test_gridsample_bicubic_align_corners_1_additional_1_cpu')
+    backend_test.exclude(
+        r'test_gridsample_volumetric_bilinear_align_corners_0_cpu')
+    backend_test.exclude(
+        r'test_gridsample_volumetric_bilinear_align_corners_1_cpu')
+    backend_test.exclude(
+        r'test_gridsample_volumetric_nearest_align_corners_0_cpu')
+    backend_test.exclude(
+        r'test_gridsample_volumetric_nearest_align_corners_1_cpu')
+    backend_test.exclude(r'test_group_normalization_epsilon_cpu')
+    backend_test.exclude(r'test_group_normalization_example_cpu')
+    backend_test.exclude(r'test_quantizelinear_int16_cpu')
+    backend_test.exclude(r'test_quantizelinear_uint16_cpu')
+    backend_test.exclude(r'test_qlinearmatmul_2D_int8_float16_cpu')
+    backend_test.exclude(r'test_qlinearmatmul_2D_int8_float32_cpu')
+    backend_test.exclude(r'test_qlinearmatmul_2D_uint8_float16_cpu')
+    backend_test.exclude(r'test_qlinearmatmul_2D_uint8_float32_cpu')
+    backend_test.exclude(r'test_qlinearmatmul_3D_int8_float16_cpu')
+    backend_test.exclude(r'test_qlinearmatmul_3D_int8_float32_cpu')
+    backend_test.exclude(r'test_qlinearmatmul_3D_uint8_float16_cpu')
+    backend_test.exclude(r'test_qlinearmatmul_3D_uint8_float32_cpu')
+    backend_test.exclude(r'test_reduce_l1_empty_set_cpu')
+    backend_test.exclude(r'test_reduce_l1_empty_set_expanded_cpu')
+    backend_test.exclude(r'test_reduce_l2_empty_set_cpu')
+    backend_test.exclude(r'test_reduce_l2_empty_set_expanded_cpu')
+    backend_test.exclude(r'test_reduce_log_sum_empty_set_cpu')
+    backend_test.exclude(r'test_reduce_log_sum_empty_set_expanded_cpu')
+    backend_test.exclude(r'test_reduce_log_sum_exp_empty_set_cpu')
+    backend_test.exclude(r'test_reduce_log_sum_exp_empty_set_expanded_cpu')
+    backend_test.exclude(r'test_reduce_max_bool_inputs_cpu')
+    backend_test.exclude(r'test_reduce_min_bool_inputs_cpu')
+    # TODO: empty set ReduceOps tests are generating dynamic shapes
+    backend_test.exclude(r'test_reduce_min_empty_set_cpu')
+    backend_test.exclude(r'test_reduce_prod_empty_set_cpu')
+    backend_test.exclude(r'test_reduce_sum_empty_set_cpu')
+    backend_test.exclude(
+        r'test_reduce_sum_empty_set_non_reduced_axis_zero_cpu')
+    backend_test.exclude(r'test_reduce_sum_square_empty_set_cpu')
+    backend_test.exclude(r'test_reduce_sum_square_empty_set_expanded_cpu')
+    # TODO: Pooling tests are failing with shape mismatches, look into it.
+    backend_test.exclude(
+        r'test_averagepool_3d_dilations_large_count_include_pad_is_0_ceil_mode_is_True_cpu'
+    )
+    backend_test.exclude(
+        r'test_averagepool_3d_dilations_large_count_include_pad_is_1_ceil_mode_is_True_cpu'
+    )
+    backend_test.exclude(r'test_maxpool_2d_ceil_output_size_reduce_by_one_cpu')
+    backend_test.exclude(r'test_maxpool_3d_dilations_use_ref_impl_large_cpu')
+
+
+def disabled_tests_int4(backend_test):
+    # quantizelinear
+    backend_test.exclude(r'test_quantizelinear_int4')
+    backend_test.exclude(r'test_quantizelinear_uint4')
+    # dequantizelinear
+    backend_test.exclude(r'test_dequantizelinear_int4')
+    backend_test.exclude(r'test_dequantizelinear_uint4')
+    # cast
+    backend_test.exclude(r'test_cast_FLOAT16_to_UINT4')
+    backend_test.exclude(r'test_cast_FLOAT16_to_INT4')
+    backend_test.exclude(r'test_cast_FLOAT_to_INT4')
+    backend_test.exclude(r'test_cast_FLOAT_to_UINT4')
+    backend_test.exclude(r'test_cast_INT4_to_FLOAT')
+    backend_test.exclude(r'test_cast_INT4_to_FLOAT16')
+    backend_test.exclude(r'test_cast_INT4_to_INT8')
+    backend_test.exclude(r'test_cast_UINT4_to_FLOAT')
+    backend_test.exclude(r'test_cast_UINT4_to_FLOAT16')
+    backend_test.exclude(r'test_cast_UINT4_to_INT8')
+    backend_test.exclude(r'test_cast_UINT4_to_UINT8_cpu')
+
+
 def disabled_tests_float8(backend_test):
     # e4m3fn (Prototensor data type 17 not supported)
     backend_test.exclude(r'test_dequantizelinear_e4m3fn_cpu')
+    backend_test.exclude(r'test_dequantizelinear_e4m3fn_float16_cpu')
+    backend_test.exclude(r'test_dequantizelinear_e4m3fn_zero_point_cpu')
     backend_test.exclude(r'test_quantizelinear_e4m3fn_cpu')
     backend_test.exclude(r'test_cast_FLOAT16_to_FLOAT8E4M3FN_cpu')
     backend_test.exclude(r'test_cast_FLOAT8E4M3FN_to_FLOAT16_cpu')
@@ -886,6 +954,7 @@ def create_backend_test(testname=None, target_device=None):
         backend_test.include(r'.*test_lrn.*')
         backend_test.include(r'.*test_lstm.*')
         backend_test.include(r'.*test_log.*')
+        backend_test.include(r'.*test_log2.*')
         backend_test.include(r'.*test_loop.*')
         backend_test.include(r'.*test_lpnorm.*')
         backend_test.include(r'.*test_lppool.*')
@@ -1047,6 +1116,7 @@ def create_backend_test(testname=None, target_device=None):
         backend_test.include(r'.*test_operator_reduced_sum_keepdim.*')
         backend_test.include(r'.*test_operator_repeat.*')
         backend_test.include(r'.*test_operator_selu.*')
+        backend_test.include(r'.*test_operator_softmaxcrossentropyloss.*')
         backend_test.include(r'.*test_operator_sqrt.*')
         backend_test.include(r'.*test_operator_symbolic_override.*')
         backend_test.include(r'.*test_operator_symbolic_override_nested.*')
@@ -1089,6 +1159,9 @@ def create_backend_test(testname=None, target_device=None):
         # Remove when float8 is supported
         disabled_tests_float8(backend_test)
 
+        # Remove Int4 tests
+        disabled_tests_int4(backend_test)
+
         # Remove when dynamic shapes are supported
         disabled_tests_dynamic_shape(backend_test)
 
@@ -1116,6 +1189,9 @@ def create_backend_test(testname=None, target_device=None):
 
         if version.parse(onnx.__version__) >= version.parse("1.14.0"):
             disabled_tests_onnx_1_14_0(backend_test)
+
+        if version.parse(onnx.__version__) >= version.parse("1.16.0"):
+            disabled_tests_onnx_1_16_0(backend_test)
 
 
 # import all test cases at global scope to make

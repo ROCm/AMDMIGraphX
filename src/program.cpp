@@ -1019,7 +1019,7 @@ void program::perf_report(
     os << "Max time: " << max_time << "ms" << std::endl;
     os << "Mean time: " << mean_time << "ms" << std::endl;
     os << "Median time: " << median_time << "ms" << std::endl;
-    os << "99 percentile time: " << percentile_99_time << "ms" << std::endl;
+    os << "Percentile(99%) time: " << percentile_99_time << "ms" << std::endl;
     os << "Total instructions time: " << total_instruction_time << "ms" << std::endl;
     os << "Overhead time: " << overhead_time << "ms"
        << ", " << calculate_overhead_time << "ms" << std::endl;

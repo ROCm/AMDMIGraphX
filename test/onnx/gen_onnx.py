@@ -751,6 +751,7 @@ def celu_default_test():
 
     return ([node], [x], [y])
 
+
 @onnx_test()
 def celu_verify_test():
     x = helper.make_tensor_value_info('x', TensorProto.FLOAT, [2, 3])
@@ -10629,16 +10630,15 @@ def roialign_half_pixel_test():
     y = helper.make_tensor_value_info('y', TensorProto.FLOAT, [2, 2, 4, 3])
 
     # half_pixel is the newer mode for ROIAlign
-    node = onnx.helper.make_node(
-        'RoiAlign',
-        inputs=['x', 'rois', 'batch_ind'],
-        outputs=['y'],
-        spatial_scale=2.0,
-        output_height=2,
-        output_width=3,
-        sampling_ratio=2,
-        mode="avg",
-        coordinate_transformation_mode="half_pixel")
+    node = onnx.helper.make_node('RoiAlign',
+                                 inputs=['x', 'rois', 'batch_ind'],
+                                 outputs=['y'],
+                                 spatial_scale=2.0,
+                                 output_height=2,
+                                 output_width=3,
+                                 sampling_ratio=2,
+                                 mode="avg",
+                                 coordinate_transformation_mode="half_pixel")
 
     return ([node], [x, roi, bi], [y])
 

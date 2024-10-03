@@ -126,7 +126,7 @@ struct roialign
             // The p and i indexes correspond to nested looping parameters in ORT that go in y, x
             // order.  The i[x] value is least significant and iterates the fastest.
             std::array<std::size_t, 2> p = {idx_v[1], idx_v[0]};
-            std::array<std::size_t, 2> i = {idx_v[3], idx_v[2]}; //  <== these are always the same
+            std::array<std::size_t, 2> i = {idx_v[3], idx_v[2]}; // these are always equal
             // xy is scaled coordinates of start point of ROI
             std::array<float, 2> xy{};
             // low, high are floor and ceiling of the xy value (i.e. the bounds of the pixel it lies
@@ -189,11 +189,11 @@ struct roialign
 
     // Calculate a pooling value for 1 block of bin_grid_size*bin_grid_size weights
     template <class T, class Op>
-    double calc_pooling(const T& data,
-                        const std::array<std::size_t, 2>& bin_grid_size,
-                        const std::vector<pos_weight>& pos_weights,
-                        int64_t& index,
-                        Op op) const
+    std::tuple<double, int64_t> calc_pooling(const T& data,
+                                             const std::array<std::size_t, 2>& bin_grid_size,
+                                             const std::vector<pos_weight>& pos_weights,
+                                             int64_t index,
+                                             Op op) const
     {
         double output_val   = op.init();
         const int64_t count = bin_grid_size[0] * bin_grid_size[1];
@@ -210,7 +210,7 @@ struct roialign
 
         output_val = op.final(output_val, count);
 
-        return output_val;
+        return {output_val, index};
     }
 
     argument compute(const shape& output_shape, std::vector<argument> args) const
@@ -278,17 +278,18 @@ struct roialign
                         bottom_data + static_cast<int64_t>((roi_batch_ind * channels + c) *
                                                            in_dims[0] * in_dims[1]);
                     double output_val;
-                    output_val           = (mode == migraphx::op::pooling_mode::average)
-                                               ? this->calc_pooling(offset_bottom_data,
-                                                          bin_grid_size,
-                                                          pre_calc,
-                                                          vec_index[c],
-                                                          avg_pool{})
-                                               : this->calc_pooling(offset_bottom_data,
-                                                          bin_grid_size,
-                                                          pre_calc,
-                                                          vec_index[c],
-                                                          max_pool{});
+                    std::tie(output_val, vec_index[c]) =
+                        (mode == migraphx::op::pooling_mode::average)
+                            ? this->calc_pooling(offset_bottom_data,
+                                                 bin_grid_size,
+                                                 pre_calc,
+                                                 vec_index[c],
+                                                 avg_pool{})
+                            : this->calc_pooling(offset_bottom_data,
+                                                 bin_grid_size,
+                                                 pre_calc,
+                                                 vec_index[c],
+                                                 max_pool{});
                     output(n, c, ph, pw) = output_val;
                 });
             });

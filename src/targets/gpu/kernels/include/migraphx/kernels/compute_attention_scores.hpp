@@ -99,14 +99,6 @@ __device__ void compute_attention_scores(Output output,
         params.batch_size * params.num_heads * params.sequence_length * params.head_size;
     auto ind = make_index();
     ind.global_stride(elements, [&](auto idx) {
-        // output([&](auto output0, auto, auto v_cache) {
-        //     calculate_attention_score(output0.begin(),
-        //                               attn_probs.begin(),
-        //                               seqlens_k.begin(),
-        //                               v_cache.begin(),
-        //                               params,
-        //                               idx);
-        // });
         calculate_attention_score(output.begin(),
                                   attn_probs.begin(),
                                   seqlens_k.begin(),

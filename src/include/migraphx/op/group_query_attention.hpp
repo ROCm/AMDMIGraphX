@@ -16,44 +16,29 @@ namespace op {
 
 struct gqa_parameters
 {
-    int batch_size;           // Batch size used by input
-    int sequence_length;      // Sequence length used by input
-    int hidden_size;          // Hidden size used by input
-    int head_size;            // Head size
-    int rotary_embedding_dim; // Rotary embedding dimension.
-    int num_heads;            // num_heads = hidden_size / head_size
-    int max_sequence_length;  // Sequence length used by cos/sin cache
-    int head_stride;          // Head stride
-    int seq_stride;           // Sequence stride
-    int batch_stride;         // Batch stride
-    int position_ids_format;  // Format of position ids - 0 is (1), 1 is (batch_size,
+    std::size_t batch_size;           // Batch size used by input
+    std::size_t sequence_length;      // Sequence length used by input
+    std::size_t hidden_size;          // Hidden size used by input
+    std::size_t head_size;            // Head size
+    std::size_t rotary_embedding_dim; // Rotary embedding dimension.
+    std::size_t num_heads;            // num_heads = hidden_size / head_size
+    std::size_t max_sequence_length;  // Sequence length used by cos/sin cache
+    std::size_t head_stride;          // Head stride
+    std::size_t seq_stride;           // Sequence stride
+    std::size_t batch_stride;         // Batch stride
+    std::size_t position_ids_format;  // Format of position ids - 0 is (1), 1 is (batch_size,
                               // sequence_length)
-    bool transposed; // Whether the input tensor has been transposed into (batch, num_heads,
+    bool transposed; // Whether the input tensor has been transposed std::size_to (batch, num_heads,
                      // seq_len, hidden)
-    int seqlen_present_kv_cache;
-
-    void print() const
-    {
-        printf("batch_size: %d\n", batch_size);
-        printf("sequence_length: %d\n", sequence_length);
-        printf("hidden_size: %d\n", hidden_size);
-        printf("head_size: %d\n", head_size);
-        printf("rotary_embedding_dim: %d\n", rotary_embedding_dim);
-        printf("num_heads: %d\n", num_heads);
-        printf("max_sequence_length: %d\n", max_sequence_length);
-        printf("head_stride: %d\n", head_stride);
-        printf("seq_stride: %d\n", seq_stride);
-        printf("batch_stride: %d\n", batch_stride);
-        printf("position_ids_format: %d\n", position_ids_format);
-        printf("transposed: %d\n", static_cast<int>(transposed));
-        printf("seqlen_present_kv_cache: %d\n", seqlen_present_kv_cache);
-    }
+    std::size_t seqlen_present_kv_cache; // Sequence length of present kv-cache (4096 when using
+                                    // shared buffer)
+    bool past_present_share_buffer; // Whether to use same buffer for KV-cache inputs and outputs
 };
 
 struct group_query_attention
 {
     int do_rotary                 = 0;
-    int kv_num_heads              = 0;
+    std::size_t kv_num_heads      = 0;
     int local_window_size         = -1;
     std::size_t num_heads         = 1;
     int rotary_interleaved        = 0;
@@ -92,38 +77,38 @@ struct group_query_attention
                               const int64_t* pos_ids,
                               gqa_parameters parameters) const
     {
-        const int batch_size          = parameters.batch_size;
-        const int sequence_length     = parameters.sequence_length;
-        const int n_heads             = parameters.num_heads;
-        const int head_size           = parameters.head_size;
-        const int head_stride         = parameters.head_stride;
-        const int seq_stride          = parameters.seq_stride;
-        const int batch_stride        = parameters.batch_stride;
-        const int position_ids_format = parameters.position_ids_format;
-        const int rotary_emb_dim      = parameters.rotary_embedding_dim;
-        const int half_rotary_emb_dim = rotary_emb_dim / 2;
+        const std::size_t batch_size          = parameters.batch_size;
+        const std::size_t sequence_length     = parameters.sequence_length;
+        const std::size_t n_heads             = parameters.num_heads;
+        const std::size_t head_size           = parameters.head_size;
+        const std::size_t head_stride         = parameters.head_stride;
+        const std::size_t seq_stride          = parameters.seq_stride;
+        const std::size_t batch_stride        = parameters.batch_stride;
+        const std::size_t position_ids_format = parameters.position_ids_format;
+        const std::size_t rotary_emb_dim      = parameters.rotary_embedding_dim;
+        const std::size_t half_rotary_emb_dim = rotary_emb_dim / 2;
 
-        const int loop_len = batch_size * sequence_length * n_heads;
+        const std::size_t loop_len = batch_size * sequence_length * n_heads;
         par_for(loop_len, [&](const auto idx) {
-            const int b            = static_cast<int>((idx / n_heads) / sequence_length);
-            const int s            = static_cast<int>((idx / n_heads) % sequence_length);
-            const int n            = static_cast<int>(idx % n_heads);
-            const int block_offset = b * batch_stride + s * seq_stride + n * head_stride;
+            const std::size_t b            = (idx / n_heads) / sequence_length;
+            const std::size_t s            = (idx / n_heads) % sequence_length;
+            const std::size_t n            = idx % n_heads;
+            const std::size_t block_offset = b * batch_stride + s * seq_stride + n * head_stride;
             auto input_data        = input + block_offset;
             auto output_data       = output + block_offset;
 
             // Cache is (M, H/2) or (M, rotary_embedding_dim/2)
-            const int position_id  = (position_ids_format == 0)
-                                         ? static_cast<int>(pos_ids[0]) + s
-                                         : static_cast<int>(pos_ids[b * sequence_length + s]);
-            const int cache_offset = position_id * half_rotary_emb_dim;
+            const std::size_t position_id  = (position_ids_format == 0)
+                                         ? static_cast<std::size_t>(pos_ids[0]) + s
+                                         : static_cast<std::size_t>(pos_ids[b * sequence_length + s]);
+            const std::size_t cache_offset = position_id * half_rotary_emb_dim;
             auto cos_data          = cos_cache + cache_offset;
             auto sin_data          = sin_cache + cache_offset;
 
-            int cache_idx = 0;
+            std::size_t cache_idx = 0;
             float sign    = 0.0;
-            int j         = 0;
-            for(int i = 0; i < rotary_emb_dim; i++)
+            std::size_t j         = 0;
+            for(std::size_t i = 0; i < rotary_emb_dim; i++)
             {
                 if(interleaved)
                 {
@@ -140,7 +125,7 @@ struct group_query_attention
                 output_data[i] = input_data[i] * cos_data[cache_idx] +
                                  sign * input_data[j] * sin_data[cache_idx];
             }
-            for(int i = rotary_emb_dim; i < head_size; i++)
+            for(std::size_t i = rotary_emb_dim; i < head_size; i++)
             {
                 output_data[i] = input_data[i];
             }
@@ -150,16 +135,16 @@ struct group_query_attention
     template <class T>
     void pack_v_into_rotary_qkv(gqa_parameters parameters, const T input, T output) const
     {
-        const int loop_len = parameters.batch_size * parameters.sequence_length * kv_num_heads;
+        const std::size_t loop_len = parameters.batch_size * parameters.sequence_length * kv_num_heads;
         par_for(loop_len, [&](const auto idx) {
-            const int b = static_cast<int>((idx / kv_num_heads) / parameters.sequence_length);
-            const int s = static_cast<int>((idx / kv_num_heads) % parameters.sequence_length);
-            const int n = static_cast<int>(idx % kv_num_heads);
-            const int block_offset = b * parameters.batch_stride + s * parameters.seq_stride +
+            const std::size_t b = (idx / kv_num_heads) / parameters.sequence_length;
+            const std::size_t s = (idx / kv_num_heads) % parameters.sequence_length;
+            const std::size_t n = idx % kv_num_heads;
+            const std::size_t block_offset = b * parameters.batch_stride + s * parameters.seq_stride +
                                      n * parameters.head_stride;
             const T input_data = input + block_offset;
             T output_data      = output + block_offset;
-            for(int i = 0; i < parameters.head_size; i++)
+            for(std::size_t i = 0; i < parameters.head_size; i++)
             {
                 output_data[i] = input_data[i];
             }
@@ -176,10 +161,10 @@ struct group_query_attention
     T concat_state_chunk(const T past,
                          const T chunk,
                          T present,
-                         size_t present_buff_chunk_length,
-                         size_t past_buff_chunk_length,
-                         size_t past_chunk_length,
-                         size_t new_chunk_length,
+                         std::size_t present_buff_chunk_length,
+                         std::size_t past_buff_chunk_length,
+                         std::size_t past_chunk_length,
+                         std::size_t new_chunk_length,
                          bool is_prompt,
                          bool past_present_share_buffer,
                          std::ptrdiff_t i) const
@@ -201,7 +186,7 @@ struct group_query_attention
     }
 
     template <class T>
-    void softmax_inplace(T score, int n, int d) const
+    void softmax_inplace(T score, std::size_t n, std::size_t d) const
     {
         par_for(n, [&](const auto j) {
             auto x = score + j * d;
@@ -213,36 +198,26 @@ struct group_query_attention
             // leveraged to get a stable softmax: e^xi/(e^x1 + ...e^xn) = e^(xi -
             // max) / (e^(x1 - max) + ... + e^(xn - max))
             float max = -std::numeric_limits<float>::infinity();
-            for(int i = 0; i < d; i++)
+            for(std::size_t i = 0; i < d; i++)
             {
                 if(max < x[i])
                     max = x[i];
             }
-            for(int i = 0; i < d; i++)
+            for(std::size_t i = 0; i < d; i++)
             {
                 y[i] = expf(x[i] - max);
             }
 
             double sum = 0.0;
 
-            for(int i = 0; i < d; i++)
+            for(std::size_t i = 0; i < d; i++)
             {
                 sum += x[i];
             }
 
-            if(float_equal(sum, 0.0))
+            for(std::size_t i = 0; i < d; i++)
             {
-                for(int i = 0; i < d; i++)
-                {
-                    y[i] = 1.0f / static_cast<float>(d);
-                }
-            }
-            else
-            {
-                for(int i = 0; i < d; i++)
-                {
-                    y[i] = x[i] / static_cast<float>(sum);
-                }
+                y[i] = x[i] / static_cast<float>(sum);
             }
         });
     }
@@ -256,42 +231,44 @@ struct group_query_attention
         T query,                            // Q data. Its size is BxNxSxH
         T key,                              // k data. Its size is BxNxLxH
         U seqlens_k,                        // past sequence lengths tensor
-        int batch_size,                     // batch size of self-attention
-        int sequence_length,                // sequence length of self-attention (S)
-        int past_buffer_sequence_length,    // sequence length of past state
-        int present_buffer_sequence_length, // sequence length of present state
-        int head_size,                      // head size of self-attention
         T past_key,                         // past key only
         T present_key,                      // present key only
-        bool past_present_share_buffer,     // whether present key and value share the same buffer
-        shape::type_t dtype) const
+        shape::type_t dtype,
+        gqa_parameters params) const
     {
-        const bool is_prompt = sequence_length != 1;
-        const int packed_batch_stride =
-            (num_heads + 2 * kv_num_heads) * sequence_length * head_size;
-        const int kv_num_heads_factor = num_heads / kv_num_heads;
-        const size_t q_input_chunk_length =
-            static_cast<size_t>(sequence_length) * head_size; // S x H
-        const size_t kv_input_chunk_length =
-            static_cast<size_t>(sequence_length) * head_size; // L x H
-        const size_t past_buff_chunk_length =
-            static_cast<size_t>(past_buffer_sequence_length) * head_size; // L x H
-        const size_t present_buff_chunk_length =
-            static_cast<size_t>(present_buffer_sequence_length) * head_size; // T x H
+        const std::size_t batch_size      = params.batch_size;
+        const std::size_t sequence_length = params.sequence_length;
+        const std::size_t head_size       = params.head_size;
+        const std::size_t past_buffer_sequence_length = params.seqlen_present_kv_cache;
+        const std::size_t present_buffer_sequence_length = past_buffer_sequence_length;
+        const bool past_present_share_buffer = params.past_present_share_buffer;
 
-        const int loop_len = batch_size * num_heads;
+        const bool is_prompt = sequence_length != 1;
+        const std::size_t packed_batch_stride =
+            (num_heads + 2 * kv_num_heads) * sequence_length * head_size;
+        const std::size_t kv_num_heads_factor = num_heads / kv_num_heads;
+        const std::size_t q_input_chunk_length =
+            sequence_length * head_size; // S x H
+        const std::size_t kv_input_chunk_length =
+            sequence_length * head_size; // L x H
+        const std::size_t past_buff_chunk_length =
+            past_buffer_sequence_length * head_size; // L x H
+        const std::size_t present_buff_chunk_length =
+            present_buffer_sequence_length * head_size; // T x H
+
+        const std::size_t loop_len = batch_size * num_heads;
         const float alpha  = scale == 0.0f ? 1.0f / sqrt(static_cast<float>(head_size)) : scale;
 
         par_for(loop_len, [&](const auto i) {
-            const int batch_index = static_cast<int>(i) / num_heads;
-            const int head_index  = static_cast<int>(i) % num_heads;
-            const int past_seqlen = sequence_length == 1 ? static_cast<int>(seqlens_k[batch_index])
+            const std::size_t batch_index = i / num_heads;
+            const std::size_t head_index  = i % num_heads;
+            const std::size_t past_seqlen = sequence_length == 1 ? seqlens_k[batch_index]
                                                          : past_buffer_sequence_length;
-            const size_t past_chunk_length = static_cast<size_t>(past_seqlen) * head_size;
-            const int total_seqlen         = seqlens_k[batch_index] + 1;
+            const std::size_t past_chunk_length = past_seqlen * head_size;
+            const std::size_t total_seqlen         = seqlens_k[batch_index] + 1;
 
-            const int output_offset =
-                static_cast<int>(i) * sequence_length * present_buffer_sequence_length;
+            const std::size_t output_offset =
+                i * sequence_length * present_buffer_sequence_length;
             auto output = attention_probs + output_offset;
 
             auto k = key + packed_batch_stride * batch_index +
@@ -313,28 +290,29 @@ struct group_query_attention
             // B: K'               (B x N x) T x H          (B x N x) H x T        H x T
             // C: attention_probs  (B x N x) S x T          (B x N x) S x T        S x T
             auto q = query + packed_batch_stride * batch_index + q_input_chunk_length * head_index;
+            auto output_ptr = &(*output);
+            auto q_ptr = &(*q);
+            auto k_ptr = &(*k);
+            auto output_shape = shape{dtype, {sequence_length, total_seqlen}, {present_buffer_sequence_length, 1}};
+            auto q_shape = shape{dtype, {sequence_length, head_size}, {head_size, 1}};
+            auto k_shape = shape{dtype, {head_size, total_seqlen}, {1, head_size}};
+            tensor_view<typename std::remove_pointer<decltype(output_ptr)>::type> cmat(output_shape, output_ptr);
+            tensor_view<typename std::remove_pointer<decltype(q_ptr)>::type> amat(q_shape, q_ptr);
+            tensor_view<typename std::remove_pointer<decltype(k_ptr)>::type> bmat(k_shape, k_ptr);
 
-            gemm(sequence_length,
-                 total_seqlen,
-                 head_size,
-                 head_size,
-                 head_size,
-                 present_buffer_sequence_length,
-                 output,
-                 q,
-                 k,
+            gemm(cmat,
+                 amat,
+                 bmat,
                  alpha,
-                 0.0f,
-                 dtype,
-                 true);
+                 0.0f);
 
             T output_softmax = output;
-            for(int seq = 0; seq < sequence_length; seq++)
+            for(std::size_t seq = 0; seq < sequence_length; seq++)
             {
-                int seq_causal_length = sequence_length == 1 ? total_seqlen : seq + 1;
+                std::size_t seq_causal_length = sequence_length == 1 ? total_seqlen : seq + 1;
                 if(local_window_size > 0 and seq_causal_length > local_window_size + 1)
                 {
-                    for(int total_seq_id = 0;
+                    for(std::size_t total_seq_id = 0;
                         total_seq_id < seq_causal_length - local_window_size - 1;
                         total_seq_id++)
                     {
@@ -349,7 +327,7 @@ struct group_query_attention
                     softmax_inplace(output_softmax, 1, seq_causal_length);
                 }
                 // set causal [seq_causal_length, total_seqlen) to 0.f
-                for(int total_seq_id = seq_causal_length; total_seq_id < total_seqlen;
+                for(std::size_t total_seq_id = seq_causal_length; total_seq_id < total_seqlen;
                     total_seq_id++)
                 {
                     output_softmax[total_seq_id] = 0.f;
@@ -366,35 +344,37 @@ struct group_query_attention
         const W attention_probs,            // Attention probs with size BxNxSxT
         const T val,                        // V value with size BxN_kvxSxH
         const U seqlens_k,                  // past sequence lengths tensor
-        int batch_size,                     // batch size
-        int sequence_length,                // sequence length
-        int past_buffer_sequence_length,    // sequence length in past state
-        int present_buffer_sequence_length, // sequence length in past state
-        int head_size,                      // head size of Q, K, V
-        int hidden_size,                    // hidden size of Output
         const T past_value,                 // past value only
         T present_value,                    // present value only
-        bool past_present_share_buffer,     // whether present key and value share the same buffer
-        shape::type_t dtype) const          // whether Q, K, V are packed
+        shape::type_t dtype,
+        gqa_parameters params) const          // whether Q, K, V are packed
     {
+        const std::size_t batch_size      = params.batch_size;
+        const std::size_t sequence_length = params.sequence_length;
+        const std::size_t head_size       = params.head_size;
+        const std::size_t hidden_size     = params.hidden_size;
+        const std::size_t past_buffer_sequence_length = params.seqlen_present_kv_cache;
+        const std::size_t present_buffer_sequence_length = past_buffer_sequence_length;
+        const bool past_present_share_buffer = params.past_present_share_buffer;
+
         const bool is_prompt = sequence_length != 1;
-        const int packed_batch_stride =
+        const std::size_t packed_batch_stride =
             (num_heads + 2 * kv_num_heads) * sequence_length * head_size;
-        const int kv_num_heads_factor   = num_heads / kv_num_heads;
-        const int kv_input_chunk_length = sequence_length * head_size; // L x H
-        const size_t past_buff_chunk_length =
-            static_cast<size_t>(past_buffer_sequence_length) * head_size; // L x H
-        const size_t present_buff_chunk_length =
-            static_cast<size_t>(present_buffer_sequence_length) * head_size; // T x H
+        const std::size_t kv_num_heads_factor   = num_heads / kv_num_heads;
+        const std::size_t kv_input_chunk_length = sequence_length * head_size; // L x H
+        const std::size_t past_buff_chunk_length =
+            past_buffer_sequence_length * head_size; // L x H
+        const std::size_t present_buff_chunk_length =
+            present_buffer_sequence_length * head_size; // T x H
 
         auto loop_len = batch_size * num_heads;
         par_for(loop_len, [&](const auto i) {
-            const int batch_index = static_cast<int>(i / num_heads);
-            const int head_index  = static_cast<int>(i % num_heads);
-            const int past_seqlen = sequence_length == 1 ? static_cast<int>(seqlens_k[batch_index])
+            const std::size_t batch_index = i / num_heads;
+            const std::size_t head_index  = i % num_heads;
+            const std::size_t past_seqlen = sequence_length == 1 ? seqlens_k[batch_index]
                                                          : past_buffer_sequence_length;
-            const size_t past_chunk_length = static_cast<size_t>(past_seqlen) * head_size;
-            const int total_seqlen         = seqlens_k[batch_index] + 1;
+            const std::size_t past_chunk_length = past_seqlen * head_size;
+            const std::size_t total_seqlen         = seqlens_k[batch_index] + 1;
 
             auto v = val + packed_batch_stride * batch_index +
                      kv_input_chunk_length * (head_index / kv_num_heads_factor);
@@ -414,18 +394,21 @@ struct group_query_attention
                 output + (batch_index * sequence_length * num_heads + head_index) * head_size;
             ptrdiff_t attention_probs_offset = sequence_length * present_buffer_sequence_length * i;
 
-            gemm(sequence_length,
-                 head_size,
-                 total_seqlen,
-                 present_buffer_sequence_length,
-                 head_size,
-                 hidden_size,
-                 output_current,
-                 attention_probs + attention_probs_offset,
-                 v,
+            auto output_ptr = &(*output_current);
+            auto probs_ptr = &(*(attention_probs + attention_probs_offset));
+            auto v_ptr = &(*v);
+            auto output_shape = shape{dtype, {sequence_length, head_size}, {hidden_size, 1}};
+            auto probs_shape = shape{dtype, {sequence_length, total_seqlen}, {present_buffer_sequence_length, 1}};
+            auto v_shape = shape{dtype, {total_seqlen, head_size}, {head_size, 1}};
+            tensor_view<typename std::remove_pointer<decltype(output_ptr)>::type> cmat(output_shape, output_ptr);
+            tensor_view<typename std::remove_pointer<decltype(probs_ptr)>::type> amat(probs_shape, probs_ptr);
+            tensor_view<typename std::remove_pointer<decltype(v_ptr)>::type> bmat(v_shape, v_ptr);
+
+            gemm(cmat,
+                 amat,
+                 bmat,
                  1.0f,
-                 0.0f,
-                 dtype);
+                 0.0f);
         });
     }
 
@@ -441,46 +424,25 @@ struct group_query_attention
                          gqa_parameters parameters,
                          shape::type_t dtype) const
     {
-        const int batch_size      = parameters.batch_size;
-        const int sequence_length = parameters.sequence_length;
-        const int head_size       = parameters.head_size;
-        const int hidden_size     = parameters.hidden_size;
-
-        int seqlen_present_kv_cache = parameters.seqlen_present_kv_cache;
-        int seqlen_past_kv_cache    = seqlen_present_kv_cache;
-
-        bool past_present_share_buffer = false;
-        const T k                      = qkv + num_heads * sequence_length * head_size;
-
+        const T k = qkv + num_heads * parameters.sequence_length * parameters.head_size;
         calculate_attention_probs(attention_probs,
                                   qkv,
                                   k,
                                   seqlens_k,
-                                  batch_size,
-                                  sequence_length,
-                                  seqlen_past_kv_cache,
-                                  seqlen_present_kv_cache,
-                                  head_size,
                                   past_key,
                                   present_key,
-                                  past_present_share_buffer,
-                                  dtype);
+                                  dtype,
+                                  parameters);
 
-        const T v = qkv + (num_heads + kv_num_heads) * sequence_length * head_size;
+        const T v = qkv + (num_heads + kv_num_heads) * parameters.sequence_length * parameters.head_size;
         calculate_attention_score(output,
                                   attention_probs,
                                   v,
                                   seqlens_k,
-                                  batch_size,
-                                  sequence_length,
-                                  seqlen_past_kv_cache,
-                                  seqlen_present_kv_cache,
-                                  head_size,
-                                  hidden_size,
                                   past_value,
                                   present_value,
-                                  past_present_share_buffer,
-                                  dtype);
+                                  dtype,
+                                  parameters);
     }
 
     argument compute(const shape& output_shape, std::vector<argument> args) const
@@ -501,13 +463,13 @@ struct group_query_attention
         argument result{output_shape_0};
         argument qkv_rotary{shape{output_shape_0.type(),
                                   {batch_size,
-                                   static_cast<std::size_t>(num_heads + 2 * kv_num_heads),
+                                   num_heads + 2 * kv_num_heads,
                                    sequence_length,
                                    head_size}}};
 
         shape kv_shape{
             output_shape_0.type(),
-            {batch_size, static_cast<std::size_t>(kv_num_heads), past_sequence_length, head_size}};
+            {batch_size, kv_num_heads, past_sequence_length, head_size}};
         argument present_k_out{kv_shape};
         argument present_v_out{kv_shape};
         argument attention_probs{shape{
@@ -516,7 +478,7 @@ struct group_query_attention
         args[0] = args[0].reshape(shape{output_shape_0.type(),
                                         {batch_size,
                                          sequence_length,
-                                         static_cast<std::size_t>(num_heads + 2 * kv_num_heads),
+                                         num_heads + 2 * kv_num_heads,
                                          head_size}});
         argument qkv{qkv_rotary.get_shape()};
         visit_all(qkv, args[0])([&](auto a, auto b) {
@@ -560,7 +522,7 @@ struct group_query_attention
                 std::vector<int64_t> pos_ids(sequence_length == 1 ? batch_size : 1);
                 if(sequence_length == 1)
                 {
-                    for(int b = 0; b < batch_size; b++)
+                    for(std::size_t b = 0; b < batch_size; b++)
                     {
                         pos_ids[b] = static_cast<int64_t>(seqlens_k[b]);
                     }
@@ -588,10 +550,8 @@ struct group_query_attention
                 gqa_params.position_ids_format     = position_ids_format;
                 gqa_params.transposed              = transposed;
                 gqa_params.seqlen_present_kv_cache = present_kv_seqlen;
-                // for(int i = 0; i < query.get_shape().elements(); ++i)
-                // {
-                //     rotary_qkv[i] = 0.0;
-                // }
+                gqa_params.past_present_share_buffer = false;
+                
                 if(do_rotary)
                 {
                     run_rotary_embedding(q_input,

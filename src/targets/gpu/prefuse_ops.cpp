@@ -247,7 +247,7 @@ struct gpu_compute_attention_probabilities : op::group_query_attention
         std::vector<std::size_t> output_lens{
             query_lens.at(0), num_heads, query_lens.at(2), present_kv_seqlen};
         shape output_shape{inputs.front().type(), output_lens};
-        return output_shape /* shape({output_shape, inputs[1], inputs[2]}) */;
+        return output_shape;
     }
 };
 MIGRAPHX_REGISTER_OP(gpu_compute_attention_probabilities);
@@ -263,7 +263,7 @@ struct gpu_compute_attention_scores : op::group_query_attention
             (query_lens[1] * query_lens[3] * num_heads) / (num_heads + 2 * kv_num_heads);
         std::vector<std::size_t> output_lens{query_lens.at(0), query_lens.at(2), q_hidden_size};
         shape output_shape{inputs.front().type(), output_lens};
-        return output_shape /* shape({output_shape, inputs[1], inputs[2]}) */;
+        return output_shape;
     }
 };
 MIGRAPHX_REGISTER_OP(gpu_compute_attention_scores);
@@ -303,7 +303,7 @@ struct find_group_query_attention
         auto v      = ins->get_operator().to_value();
 
         auto num_heads          = v.at("num_heads").to<std::size_t>();
-        auto kv_num_heads       = v.at("kv_num_heads").to<int>();
+        auto kv_num_heads       = v.at("kv_num_heads").to<std::size_t>();
         auto do_rotary          = v.at("do_rotary").to<int>();
         auto local_window_size  = v.at("local_window_size").to<int>();
         auto rotary_interleaved = v.at("rotary_interleaved").to<int>();
@@ -319,7 +319,7 @@ struct find_group_query_attention
 
         std::vector<std::size_t> bsnh{batch_size,
                                       sequence_length,
-                                      static_cast<std::size_t>(num_heads + 2 * kv_num_heads),
+                                      num_heads + 2 * kv_num_heads,
                                       head_size};
 
         auto transposed_qkv = mpm.get_module().insert_instruction(

@@ -60,42 +60,6 @@ void gemm(tensor_view<T> cmat, tensor_view<U> amat, tensor_view<U> bmat, F alpha
     });
 }
 
-// Strided 2D GEMM
-// NOLINTBEGIN(readability-function-size)
-template <class T, class U, class F>
-void gemm(std::size_t m,
-          std::size_t n,
-          std::size_t k,
-          std::size_t lda,
-          std::size_t ldb,
-          std::size_t ldc,
-          T cmat,
-          U amat,
-          U bmat,
-          F alpha,
-          F beta,
-          shape::type_t dtype,
-          const bool b_transpose = false)
-{
-    auto cs  = shape{dtype, {m, n}};
-    auto idx = [&](auto x, auto y, auto z) { return y + (x * z); };
-
-    par_for(cs.elements(), [&](auto i) {
-        auto c_midx = cs.multi(i);
-        auto ii     = c_midx[0];
-        auto jj     = c_midx[1];
-        double s    = 0.0;
-        dfor(k)([&](auto kk) {
-            auto a_i = idx(ii, kk, lda);
-            auto b_i = b_transpose ? idx(jj, kk, ldb) : idx(kk, jj, ldb);
-            s += static_cast<double>(amat[a_i]) * static_cast<double>(bmat[b_i]);
-        });
-        auto c_i  = idx(ii, jj, ldc);
-        cmat[c_i] = static_cast<double>(alpha) * s + cmat[c_i] * static_cast<double>(beta);
-    });
-}
-// NOLINTEND(readability-function-size)
-
 } // namespace MIGRAPHX_INLINE_NS
 } // namespace migraphx
 

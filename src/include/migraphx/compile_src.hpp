@@ -53,11 +53,11 @@ struct src_file
 
 struct MIGRAPHX_EXPORT src_compiler
 {
-    #ifdef _WIN32
+#ifdef _WIN32
     fs::path compiler                         = MIGRAPHX_CXX_COMPILER;
-    #else
+#else
     fs::path compiler                         = "c++";
-    #endif
+#endif
     std::vector<std::string> flags            = {};
     fs::path output                           = {};
     fs::path launcher                         = {};

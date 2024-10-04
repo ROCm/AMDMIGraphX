@@ -113,9 +113,9 @@ __device__ gqa_parameters<Ts...> make_gqa_parameters(Ts... ts)
 
 struct naive_gemm
 {
-    index_int _m;
-    index_int _n;
-    index_int _k;
+    index_int max_m;
+    index_int max_n;
+    index_int max_k;
     index_int lda;
     index_int ldb;
     index_int ldc;
@@ -126,16 +126,16 @@ struct naive_gemm
     template <class C, class A, class B>
     __device__ void compute(C cmat, const A amat, const B bmat, const index_int idx)
     {
-        auto m     = idx / _n;
-        auto n     = idx % _n;
+        auto m     = idx / max_n;
+        auto n     = idx % max_n;
         auto index = [&](auto x, auto y, auto z) { return y + (x * z); };
 
-        if(m < _m)
+        if(m < max_m)
         {
-            if(n < _n)
+            if(n < max_n)
             {
                 double s = 0.0;
-                for(int k = 0; k < _k; ++k)
+                for(int k = 0; k < max_k; ++k)
                 {
                     auto a_i = index(m, k, lda);
                     auto b_i = b_transpose ? index(n, k, ldb) : index(k, n, ldb);

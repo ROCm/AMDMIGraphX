@@ -59,25 +59,25 @@ namespace migraphx {
 //     bool past_present_share_buffer; // Whether to use same buffer for KV-cache inputs and outputs
 // };
 
-template<class T1,
-         class T2,
-         class T3,
-         class T4,
-         class T5,
-         class T6,
-         class T7,
-         class T8,
-         class T9,
-         class T10,
-         class T11,
-         class T12,
-         class T13,
-         class T14,
-         class T15,
-         class T16,
-         class T17,
-         class T18,
-         class T19>
+template <class T1,
+          class T2,
+          class T3,
+          class T4,
+          class T5,
+          class T6,
+          class T7,
+          class T8,
+          class T9,
+          class T10,
+          class T11,
+          class T12,
+          class T13,
+          class T14,
+          class T15,
+          class T16,
+          class T17,
+          class T18,
+          class T19>
 struct gqa_parameters
 {
     T1 scale;
@@ -89,18 +89,18 @@ struct gqa_parameters
     T7 num_heads;            // num_heads = hidden_size / head_size
     T8 max_sequence_length;  // Sequence length used by cos/sin cache
     T9 head_stride;          // Head stride
-    T10 seq_stride;           // Sequence stride
-    T11 batch_stride;         // Batch stride
-    T12 position_ids_format;  // Format of position ids - 0 is (1), 1 is (batch_size,
-                                    // sequence_length)
-    T13 transposed; // Whether the input tensor has been transposed into (batch, num_heads,
-                     // seq_len, hidden)
+    T10 seq_stride;          // Sequence stride
+    T11 batch_stride;        // Batch stride
+    T12 position_ids_format; // Format of position ids - 0 is (1), 1 is (batch_size,
+                             // sequence_length)
+    T13 transposed;          // Whether the input tensor has been transposed into (batch, num_heads,
+                             // seq_len, hidden)
     T14 seqlen_present_kv_cache; // Sequence length of present kv-cache (4096 when using
-                                       // shared buffer)
-    T15 do_rotary;          // Whether to use rotary position embedding. Default value is 0.
-    T16 kv_num_heads;  // Number of attention heads for k and v
-    T17 local_window_size;   // left_window_size for local attention. Default value is -1 meaning
-                             // unused.
+                                 // shared buffer)
+    T15 do_rotary;               // Whether to use rotary position embedding. Default value is 0.
+    T16 kv_num_heads;            // Number of attention heads for k and v
+    T17 local_window_size;  // left_window_size for local attention. Default value is -1 meaning
+                            // unused.
     T18 rotary_interleaved; // Rotate using interleaved pattern. Default value is 0 (False).
     T19 past_present_share_buffer; // Whether to use same buffer for KV-cache inputs and outputs
 };

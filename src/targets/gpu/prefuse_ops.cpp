@@ -317,10 +317,8 @@ struct find_group_query_attention
         std::size_t q_hidden_size         = q_lens[2];
         std::size_t head_size             = q_hidden_size / (num_heads + 2 * kv_num_heads);
 
-        std::vector<std::size_t> bsnh{batch_size,
-                                      sequence_length,
-                                      num_heads + 2 * kv_num_heads,
-                                      head_size};
+        std::vector<std::size_t> bsnh{
+            batch_size, sequence_length, num_heads + 2 * kv_num_heads, head_size};
 
         auto transposed_qkv = mpm.get_module().insert_instruction(
             ins, make_op("reshape", {{"dims", bsnh}}), inputs.at(0));

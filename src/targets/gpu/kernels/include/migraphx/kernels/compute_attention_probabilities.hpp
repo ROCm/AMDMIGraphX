@@ -102,14 +102,6 @@ __device__ void compute_attention_probabilities(Output output,
         params.batch_size * params.num_heads * params.sequence_length *
             params.seqlen_present_kv_cache,
         [&](auto idx) {
-            //   output([&](auto output0, auto k_cache, auto) {
-            //       calculate_attention_probs(output0.begin(),
-            //                                 query.begin(),
-            //                                 seqlens_k.begin(),
-            //                                 k_cache.begin(),
-            //                                 params,
-            //                                 idx);
-            //   });
             calculate_attention_probs(
                 output.begin(), query.begin(), seqlens_k.begin(), present_key.begin(), params, idx);
         });

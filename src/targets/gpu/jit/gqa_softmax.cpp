@@ -51,7 +51,7 @@ static const char* const gqa_softmax_kernel = R"__migraphx__(
 #include <migraphx/kernels/gqa_softmax.hpp>
 #include <migraphx/kernels/pointwise.hpp>
 #include <migraphx/kernels/ops.hpp>
-
+#include <migraphx/kernels/generic_constant.hpp>
 
 namespace migraphx {
 
@@ -64,7 +64,7 @@ MIGRAPHX_GLOBAL void ${kernel}(${params})
 {
     transform_args(make_tensors(), rotate_last())(${args})([](auto... xs) {
         
-        gqa_softmax(xs..., gqa_parameters{${gqa_params}});
+        gqa_softmax(xs..., make_gqa_parameters(${gqa_params}));
     });
 }
 

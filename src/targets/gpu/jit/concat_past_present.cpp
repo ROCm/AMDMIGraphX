@@ -51,7 +51,7 @@ static const char* const concat_past_present_kernel = R"__migraphx__(
 #include <migraphx/kernels/concat_past_present.hpp>
 #include <migraphx/kernels/pointwise.hpp>
 #include <migraphx/kernels/ops.hpp>
-
+#include <migraphx/kernels/generic_constant.hpp>
 
 namespace migraphx {
 
@@ -64,7 +64,7 @@ MIGRAPHX_GLOBAL void ${kernel}(${params})
 {
     transform_args(make_tensors())(${args})([](auto... xs) {
         
-        concat_past_present(xs..., gqa_parameters{${gqa_params}});
+        concat_past_present(xs..., make_gqa_parameters(${gqa_params}));
     });
 }
 

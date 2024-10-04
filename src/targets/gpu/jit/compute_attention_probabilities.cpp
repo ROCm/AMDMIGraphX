@@ -51,6 +51,7 @@ static const char* const compute_attention_probabilities_kernel = R"__migraphx__
 #include <migraphx/kernels/compute_attention_probabilities.hpp>
 #include <migraphx/kernels/pointwise.hpp>
 #include <migraphx/kernels/ops.hpp>
+#include <migraphx/kernels/generic_constant.hpp>
 
 namespace migraphx {
 
@@ -60,7 +61,7 @@ MIGRAPHX_GLOBAL void ${kernel}(${params})
 {
     transform_args(make_tensors(), rotate_last())(${args})([](auto... xs) {
         
-        compute_attention_probabilities(xs..., gqa_parameters{${gqa_params}});
+        compute_attention_probabilities(xs..., make_gqa_parameters(${gqa_params}));
     });
 }
 

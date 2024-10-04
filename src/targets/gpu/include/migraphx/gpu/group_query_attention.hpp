@@ -60,18 +60,25 @@ struct gqa_parameters
 
     std::string make_init_str()
     {
-        return std::to_string(scale) + ", " + std::to_string(batch_size) + ", " +
-               std::to_string(sequence_length) + ", " + std::to_string(hidden_size) + ", " +
-               std::to_string(head_size) + ", " + std::to_string(rotary_embedding_dim) + ", " +
-               std::to_string(num_heads) + ", " + std::to_string(max_sequence_length) + ", " +
-               std::to_string(head_stride) + ", " + std::to_string(seq_stride) + ", " +
-               std::to_string(batch_stride) + ", " + std::to_string(position_ids_format) + ", " +
-               std::to_string(static_cast<int>(transposed)) + ", " +
-               std::to_string(seqlen_present_kv_cache) + ", " +
-               std::to_string(static_cast<int>(do_rotary)) + ", " + std::to_string(kv_num_heads) +
-               ", " + std::to_string(local_window_size) + ", " +
-               std::to_string(static_cast<int>(rotary_interleaved)) + ", " +
-               std::to_string(static_cast<int>(past_present_share_buffer));
+        return "MIGRAPHX_MAKE_CONSTANT(float{" + std::to_string(scale) + "}), " + 
+               "MIGRAPHX_MAKE_CONSTANT(uint32_t{" + std::to_string(batch_size) + "}), " +
+               "MIGRAPHX_MAKE_CONSTANT(uint32_t{" + std::to_string(sequence_length) + "}), " + 
+               "MIGRAPHX_MAKE_CONSTANT(uint32_t{" + std::to_string(hidden_size) + "}), " +
+               "MIGRAPHX_MAKE_CONSTANT(uint32_t{" + std::to_string(head_size) + "}), " + 
+               "MIGRAPHX_MAKE_CONSTANT(uint32_t{" + std::to_string(rotary_embedding_dim) + "}), " +
+               "MIGRAPHX_MAKE_CONSTANT(uint32_t{" + std::to_string(num_heads) + "}), " + 
+               "MIGRAPHX_MAKE_CONSTANT(uint32_t{" + std::to_string(max_sequence_length) + "}), " +
+               "MIGRAPHX_MAKE_CONSTANT(uint32_t{" + std::to_string(head_stride) + "}), " + 
+               "MIGRAPHX_MAKE_CONSTANT(uint32_t{" + std::to_string(seq_stride) + "}), " +
+               "MIGRAPHX_MAKE_CONSTANT(uint32_t{" + std::to_string(batch_stride) + "}), " + 
+               "MIGRAPHX_MAKE_CONSTANT(uint32_t{" + std::to_string(position_ids_format) + "}), " +
+               "MIGRAPHX_MAKE_CONSTANT(bool{" + std::to_string(static_cast<int>(transposed)) + "}), " +
+               "MIGRAPHX_MAKE_CONSTANT(uint32_t{" + std::to_string(seqlen_present_kv_cache) + "}), " +
+               "MIGRAPHX_MAKE_CONSTANT(bool{" + std::to_string(static_cast<int>(do_rotary)) + "}), " + 
+               "MIGRAPHX_MAKE_CONSTANT(uint32_t{" + std::to_string(kv_num_heads) + "}), " + 
+               "MIGRAPHX_MAKE_CONSTANT(int32_t{" + std::to_string(local_window_size) + "}), " +
+               "MIGRAPHX_MAKE_CONSTANT(bool{" + std::to_string(static_cast<int>(rotary_interleaved)) + "}), " +
+               "MIGRAPHX_MAKE_CONSTANT(bool{" + std::to_string(static_cast<int>(past_present_share_buffer)) + "})";
     }
 };
 

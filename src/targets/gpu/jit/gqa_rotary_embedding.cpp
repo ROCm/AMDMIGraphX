@@ -51,7 +51,7 @@ static const char* const gqa_rotary_embedding_kernel = R"__migraphx__(
 #include <migraphx/kernels/gqa_rotary_embedding.hpp>
 #include <migraphx/kernels/pointwise.hpp>
 #include <migraphx/kernels/ops.hpp>
-
+#include <migraphx/kernels/generic_constant.hpp>
 
 namespace migraphx {
 
@@ -64,7 +64,7 @@ MIGRAPHX_GLOBAL void ${kernel}(${params})
 {
     transform_args(make_tensors(), rotate_last())(${args})([](auto... xs) {
         
-        gqa_rotary_embedding(xs..., gqa_parameters{${gqa_params}});
+        gqa_rotary_embedding(xs..., make_gqa_parameters(${gqa_params}));
     });
 }
 

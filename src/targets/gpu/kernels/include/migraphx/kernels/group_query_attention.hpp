@@ -32,37 +32,83 @@
 #include <migraphx/kernels/type_traits.hpp>
 
 namespace migraphx {
+// struct gqa_parameters
+// {
+//     float scale;
+//     index_int batch_size;           // Batch size used by input
+//     index_int sequence_length;      // Sequence length used by input
+//     index_int hidden_size;          // Hidden size used by input
+//     index_int head_size;            // Head size
+//     index_int rotary_embedding_dim; // Rotary embedding dimension.
+//     index_int num_heads;            // num_heads = hidden_size / head_size
+//     index_int max_sequence_length;  // Sequence length used by cos/sin cache
+//     index_int head_stride;          // Head stride
+//     index_int seq_stride;           // Sequence stride
+//     index_int batch_stride;         // Batch stride
+//     index_int position_ids_format;  // Format of position ids - 0 is (1), 1 is (batch_size,
+//                                     // sequence_length)
+//     bool transposed; // Whether the input tensor has been transposed into (batch, num_heads,
+//                      // seq_len, hidden)
+//     index_int seqlen_present_kv_cache; // Sequence length of present kv-cache (4096 when using
+//                                        // shared buffer)
+//     bool do_rotary;          // Whether to use rotary position embedding. Default value is 0.
+//     index_int kv_num_heads;  // Number of attention heads for k and v
+//     int local_window_size;   // left_window_size for local attention. Default value is -1 meaning
+//                              // unused.
+//     bool rotary_interleaved; // Rotate using interleaved pattern. Default value is 0 (False).
+//     bool past_present_share_buffer; // Whether to use same buffer for KV-cache inputs and outputs
+// };
+
+template<class T1,
+         class T2,
+         class T3,
+         class T4,
+         class T5,
+         class T6,
+         class T7,
+         class T8,
+         class T9,
+         class T10,
+         class T11,
+         class T12,
+         class T13,
+         class T14,
+         class T15,
+         class T16,
+         class T17,
+         class T18,
+         class T19>
 struct gqa_parameters
 {
-    float scale;
-    index_int batch_size;           // Batch size used by input
-    index_int sequence_length;      // Sequence length used by input
-    index_int hidden_size;          // Hidden size used by input
-    index_int head_size;            // Head size
-    index_int rotary_embedding_dim; // Rotary embedding dimension.
-    index_int num_heads;            // num_heads = hidden_size / head_size
-    index_int max_sequence_length;  // Sequence length used by cos/sin cache
-    index_int head_stride;          // Head stride
-    index_int seq_stride;           // Sequence stride
-    index_int batch_stride;         // Batch stride
-    index_int position_ids_format;  // Format of position ids - 0 is (1), 1 is (batch_size,
+    T1 scale;
+    T2 batch_size;           // Batch size used by input
+    T3 sequence_length;      // Sequence length used by input
+    T4 hidden_size;          // Hidden size used by input
+    T5 head_size;            // Head size
+    T6 rotary_embedding_dim; // Rotary embedding dimension.
+    T7 num_heads;            // num_heads = hidden_size / head_size
+    T8 max_sequence_length;  // Sequence length used by cos/sin cache
+    T9 head_stride;          // Head stride
+    T10 seq_stride;           // Sequence stride
+    T11 batch_stride;         // Batch stride
+    T12 position_ids_format;  // Format of position ids - 0 is (1), 1 is (batch_size,
                                     // sequence_length)
-    bool transposed; // Whether the input tensor has been transposed into (batch, num_heads,
+    T13 transposed; // Whether the input tensor has been transposed into (batch, num_heads,
                      // seq_len, hidden)
-    index_int seqlen_present_kv_cache; // Sequence length of present kv-cache (4096 when using
+    T14 seqlen_present_kv_cache; // Sequence length of present kv-cache (4096 when using
                                        // shared buffer)
-    bool do_rotary;          // Whether to use rotary position embedding. Default value is 0.
-    index_int kv_num_heads;  // Number of attention heads for k and v
-    int local_window_size;   // left_window_size for local attention. Default value is -1 meaning
+    T15 do_rotary;          // Whether to use rotary position embedding. Default value is 0.
+    T16 kv_num_heads;  // Number of attention heads for k and v
+    T17 local_window_size;   // left_window_size for local attention. Default value is -1 meaning
                              // unused.
-    bool rotary_interleaved; // Rotate using interleaved pattern. Default value is 0 (False).
-    bool past_present_share_buffer; // Whether to use same buffer for KV-cache inputs and outputs
+    T18 rotary_interleaved; // Rotate using interleaved pattern. Default value is 0 (False).
+    T19 past_present_share_buffer; // Whether to use same buffer for KV-cache inputs and outputs
 };
 
-template <class S, class... Ts>
-__device__ gqa_parameters make_gqa_params(S s, Ts... ts)
+template <class... Ts>
+__device__ gqa_parameters<Ts...> make_gqa_parameters(Ts... ts)
 {
-    return {static_cast<float>(s), ts...};
+    return {ts...};
 }
 
 struct naive_gemm

@@ -843,6 +843,21 @@ struct find_pointwise_mlir
             mlir_input_pointwise(match::used_once()).bind("pointwise")));
     }
 
+    static bool is_simple_op(const_module_ref pm, std::initializer_list<std::string> op_names)
+    {
+        auto last = std::prev(pm->end());
+        assert(last->name() == "@return");
+        if(last->inputs().size() != 1)
+            return false;
+        auto rins = last->inputs().front();
+        auto op_ins = std::find_if(pm->begin(), pm->end(), [](const instruction& x) {
+            return not contains({"@param", "@literal", "broadcast", "multibroadcast"}, x.name());
+        });
+        if(op_ins != rins)
+            return false;
+        return contains(op_names, op_ins->name());
+    }
+
     static instruction_ref insert_pointwise(module& m,
                                             instruction_ref ins,
                                             const operation& op,
@@ -862,6 +877,12 @@ struct find_pointwise_mlir
 
         auto* mm = ins->module_inputs().front();
         auto* pm = pw->module_inputs().front();
+
+        if(pw->inputs().size() > 1 and not is_simple_op(pm, {"dequantizelinear"}))
+        {
+            if(not enabled(MIGRAPHX_ENABLE_MLIR_INPUT_FUSION{}))
+                return;
+        }
 
         std::unordered_map<instruction_ref, instruction_ref> map_ins;
         module_ref m = mpm.create_module(pm->name() + ":" + mm->name());
@@ -926,10 +947,8 @@ void fuse_mlir::apply(module_pass_manager& mpm) const
                                    .dot_mode  = get_mode("fused_dot", mlir_mode::fast)});
     }
 
-    if(enabled(MIGRAPHX_ENABLE_MLIR_INPUT_FUSION{}))
-    {
-        match::find_matches(mpm, find_pointwise_mlir{});
-    }
+    match::find_matches(mpm, find_pointwise_mlir{});
+
 #else
     (void)mpm;
 #endif

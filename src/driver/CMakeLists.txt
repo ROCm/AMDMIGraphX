@@ -26,7 +26,6 @@ add_executable(driver
     main.cpp
     verify.cpp
     passes.cpp
-    mlir.cpp
     models.cpp
     perf.cpp
     marker_roctx.cpp

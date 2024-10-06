@@ -288,6 +288,7 @@ constexpr auto join(G g, F f)
 template <class G, class F, class... Fs>
 constexpr auto join(G g, F f, Fs... fs)
 {
+    // return f1([=](auto x) { return f2([=](auto y) { return g(x, y); }); });
     return f([=](auto... xs) { return join([=](auto... ys) { return g(xs..., ys...); }, fs...); });
 }
 

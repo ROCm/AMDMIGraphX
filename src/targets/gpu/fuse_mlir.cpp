@@ -205,6 +205,26 @@ get_fusable_input_op_stream(instruction_ref lower_input)
     return {upper_input, op_stream};
 }
 
+void
+fuse_input_ops(module_ref mm, const std::vector<instruction_ref>& inputs, std::unordered_map<instruction_ref, instruction_ref>* map_ins)
+{
+    assert(map_ins != nullptr);
+    size_t input_cnt = 0;
+    for(instruction_ref input : inputs)
+    {
+        auto [upper_input, op_stream] = get_fusable_input_op_stream(input);
+        instruction_ref prev_input =
+            mm->add_parameter(param_name(input_cnt++), upper_input->get_shape().as_standard());
+        (*map_ins)[upper_input] = prev_input;
+        for(const auto& op : reverse(op_stream))
+        {
+            prev_input = mm->add_instruction(op, {prev_input});
+        }
+        (*map_ins)[input] = prev_input;
+    }
+}
+
+
 std::tuple<instruction_ref, std::vector<instruction_ref>>
 fuse_input_ops_and_gemm_based_op(module_ref mm,
                                  const std::vector<instruction_ref>& gemm_based_op_inputs,
@@ -867,7 +887,7 @@ struct find_pointwise_mlir
         // Only used in assert
         (void)mod_args;
         assert(mod_args.empty());
-        return insert_common_op(m, ins, op, inputs);
+        return insert_common_op(m, ins, op, inputs, {.common_type = false});
     }
 
     void apply(module_pass_manager& mpm, const match::matcher_result& r) const
@@ -887,6 +907,7 @@ struct find_pointwise_mlir
         std::unordered_map<instruction_ref, instruction_ref> map_ins;
         module_ref m = mpm.create_module(pm->name() + ":" + mm->name());
         m->set_bypass();
+        fuse_input_ops(m, pw->inputs(), &map_ins);
         auto rins   = m->fuse(*pm, pw->inputs(), &map_ins, &insert_pointwise).front();
         map_ins[pw] = rins;
 

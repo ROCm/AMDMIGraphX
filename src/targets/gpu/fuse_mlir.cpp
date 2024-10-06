@@ -679,8 +679,7 @@ struct find_mlir_standalone_op
                                    i->get_shape().type());
            }))
             return;
-        module_ref mm =
-            mpm.create_module("mlir_" + gemm_based_op->name() + get_count());
+        module_ref mm = mpm.create_module("mlir_" + gemm_based_op->name() + get_count());
         mm->set_bypass();
         auto [anchor_op, top_inputs] = fuse_input_ops_and_gemm_based_op(
             mm, gemm_based_op->inputs(), gemm_based_op->get_operator());
@@ -892,7 +891,7 @@ struct find_pointwise_mlir
 void fuse_mlir::apply(module_pass_manager& mpm) const
 {
 #ifdef MIGRAPHX_MLIR
-    std::size_t counter = 0;
+    std::size_t counter     = 0;
     const auto& device_name = ctx == nullptr ? "" : ctx->get_current_device().get_gfx_name();
     const bool is_navi      = starts_with(device_name, "gfx11");
 
@@ -922,7 +921,8 @@ void fuse_mlir::apply(module_pass_manager& mpm) const
 
     match::find_matches(
         mpm,
-        find_mlir_standalone_convolution_op{.mode = get_mode("convolution", mlir_mode::fast), .counter = &counter},
+        find_mlir_standalone_convolution_op{.mode    = get_mode("convolution", mlir_mode::fast),
+                                            .counter = &counter},
         find_mlir_standalone_dot_op{.mode = get_mode("dot", mlir_mode::fast), .counter = &counter});
 
     mpm.run_pass(dead_code_elimination{});

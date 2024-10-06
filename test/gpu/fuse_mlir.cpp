@@ -313,12 +313,12 @@ TEST_CASE(dot_dot_pointwise)
         auto b   = mm->add_parameter("b", s2);
         auto c   = mm->add_parameter("c", s2);
         auto dot1 =
-            add_mlir(p2, "mlir_dot4", {a, b}, {"y0", "y1"}, [=](auto* pm, const auto& inputs) {
+            add_mlir(p2, "mlir_dot0", {a, b}, {"y0", "y1"}, [=](auto* pm, const auto& inputs) {
                 auto dot = pm->add_instruction(migraphx::make_op("dot"), inputs[0], inputs[1]);
                 return std::make_tuple(dot->get_operator(), dot);
             });
         auto dot2 =
-            add_mlir(p2, "mlir_dot5", {dot1, c}, {"y0", "y1"}, [=](auto* pm, const auto& inputs) {
+            add_mlir(p2, "mlir_dot1", {dot1, c}, {"y0", "y1"}, [=](auto* pm, const auto& inputs) {
                 auto dot = pm->add_instruction(migraphx::make_op("dot"), inputs[0], inputs[1]);
                 return std::make_tuple(dot->get_operator(), dot);
             });
@@ -354,7 +354,7 @@ TEST_CASE(dot_dot_pointwise_pointwise)
         auto c   = mm->add_parameter("c", s2);
         auto x   = mm->add_parameter("d", s1);
         auto dot1 =
-            add_mlir(p2, "mlir_dot6", {a, b}, {"y0", "y1"}, [=](auto* pm, const auto& inputs) {
+            add_mlir(p2, "mlir_dot0", {a, b}, {"y0", "y1"}, [=](auto* pm, const auto& inputs) {
                 auto dot = pm->add_instruction(migraphx::make_op("dot"), inputs[0], inputs[1]);
                 return std::make_tuple(dot->get_operator(), dot);
             });
@@ -397,7 +397,7 @@ TEST_CASE(add_dot)
         auto y   = mm->add_parameter("y", s);
         auto fused =
             add_mlir(p2,
-                     "main:pointwise0:mlir_dot8",
+                     "main:pointwise0:mlir_dot0",
                      {x, y, b},
                      {"x0", "x1", "x2"},
                      [=](auto* pm, const auto& inputs) {
@@ -759,7 +759,7 @@ TEST_CASE(conv_add_split_reduce_multi_use_conv)
             mm->add_instruction(migraphx::make_op("reshape", {{"dims", {2, 320, 64, 64}}}), cba);
         auto input_fused_conv = add_mlir(
             p2,
-            "main:pointwise2:mlir_convolution3",
+            "main:pointwise2:mlir_convolution1",
             {cba_rsp, mean_rsp, var_rsp, w2},
             {"x0", "x1", "x2", "x3"},
             [=](auto* pm, const auto& inputs) {
@@ -1149,7 +1149,7 @@ TEST_CASE(gemm_invalid_pw_softmax_gemm)
         std::vector<float> eights(s1_elements, 0.125);
         auto eight = mm->add_literal(migraphx::literal{s1, eights});
         auto gemm1 =
-            add_mlir(p2, "mlir_dot11", {a, b}, {"y0", "y1"}, [=](auto* pm, const auto& inputs) {
+            add_mlir(p2, "mlir_dot0", {a, b}, {"y0", "y1"}, [=](auto* pm, const auto& inputs) {
                 auto tp = pm->add_instruction(
                     migraphx::make_op("transpose", {{"permutation", {0, 1, 3, 2}}}), inputs[1]);
                 auto ct  = pm->add_instruction(migraphx::make_op("contiguous"), tp);
@@ -1192,7 +1192,7 @@ TEST_CASE(gemm_invalid_pw_softmax_gemm)
             });
 
         auto gemm2 = add_mlir(
-            p2, "mlir_dot12", {pw_reduce, b1}, {"y0", "y1"}, [=](auto* pm, const auto& inputs) {
+            p2, "mlir_dot1", {pw_reduce, b1}, {"y0", "y1"}, [=](auto* pm, const auto& inputs) {
                 auto tp = pm->add_instruction(
                     migraphx::make_op("transpose", {{"permutation", {0, 1, 3, 2}}}), inputs[1]);
                 auto ct  = pm->add_instruction(migraphx::make_op("contiguous"), tp);

@@ -15,8 +15,8 @@ inline namespace MIGRAPHX_INLINE_NS {
 
 void offload_to_mlir(program& p)
 {
-    auto mm    = p.get_main_module();
-    auto mlirm = p.create_module("mlir");
+    auto* mm    = p.get_main_module();
+    auto* mlirm = p.create_module("mlir");
     mlirm->set_bypass();
     std::vector<instruction_ref> inputs;
     copy_if(iterator_for(*mm), std::back_inserter(inputs), [&](instruction_ref ins) {

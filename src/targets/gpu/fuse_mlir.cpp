@@ -205,8 +205,9 @@ get_fusable_input_op_stream(instruction_ref lower_input)
     return {upper_input, op_stream};
 }
 
-void
-fuse_input_ops(module_ref mm, const std::vector<instruction_ref>& inputs, std::unordered_map<instruction_ref, instruction_ref>* map_ins)
+void fuse_input_ops(module_ref mm,
+                    const std::vector<instruction_ref>& inputs,
+                    std::unordered_map<instruction_ref, instruction_ref>* map_ins)
 {
     assert(map_ins != nullptr);
     size_t input_cnt = 0;
@@ -223,7 +224,6 @@ fuse_input_ops(module_ref mm, const std::vector<instruction_ref>& inputs, std::u
         (*map_ins)[input] = prev_input;
     }
 }
-
 
 std::tuple<instruction_ref, std::vector<instruction_ref>>
 fuse_input_ops_and_gemm_based_op(module_ref mm,
@@ -869,7 +869,7 @@ struct find_pointwise_mlir
         assert(last->name() == "@return");
         if(last->inputs().size() != 1)
             return false;
-        auto rins = last->inputs().front();
+        auto rins   = last->inputs().front();
         auto op_ins = std::find_if(pm->begin(), pm->end(), [](const instruction& x) {
             return not contains({"@param", "@literal", "broadcast", "multibroadcast"}, x.name());
         });

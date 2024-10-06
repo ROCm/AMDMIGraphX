@@ -151,8 +151,10 @@ shape common_shape(const std::vector<shape>& shapes)
     return {compute_common_types(shapes), compute_common_lens(shapes)};
 }
 
-std::vector<instruction_ref>
-insert_common_args(module& m, instruction_ref ins, std::vector<instruction_ref> inputs, common_options options)
+std::vector<instruction_ref> insert_common_args(module& m,
+                                                instruction_ref ins,
+                                                std::vector<instruction_ref> inputs,
+                                                common_options options)
 {
     if(std::any_of(
            inputs.cbegin(), inputs.cend(), [](auto input) { return input->get_shape().dynamic(); }))
@@ -160,7 +162,7 @@ insert_common_args(module& m, instruction_ref ins, std::vector<instruction_ref> 
         auto input_shapes = to_shapes(inputs);
         if(options.common_lens)
         {
-            auto c_dyn_dims   = compute_common_dyn_dims(input_shapes);
+            auto c_dyn_dims = compute_common_dyn_dims(input_shapes);
 
             auto s0 = inputs[0]->get_shape();
             // always add both multibroadcast instructions for dynamic shapes
@@ -179,12 +181,12 @@ insert_common_args(module& m, instruction_ref ins, std::vector<instruction_ref> 
         }
         if(options.common_type)
         {
-            auto c_type       = compute_common_types(input_shapes);
+            auto c_type = compute_common_types(input_shapes);
             std::transform(inputs.begin(), inputs.end(), inputs.begin(), [&](auto input) {
                 if(input->get_shape().type() != c_type)
                 {
-                    input =
-                        m.insert_instruction(ins, make_op("convert", {{"target_type", c_type}}), input);
+                    input = m.insert_instruction(
+                        ins, make_op("convert", {{"target_type", c_type}}), input);
                 }
                 return input;
             });
@@ -210,7 +212,8 @@ insert_common_args(module& m, instruction_ref ins, std::vector<instruction_ref> 
     return inputs;
 }
 
-std::vector<instruction_ref> add_common_args(module& m, std::vector<instruction_ref> inputs, common_options options)
+std::vector<instruction_ref>
+add_common_args(module& m, std::vector<instruction_ref> inputs, common_options options)
 {
     return insert_common_args(m, m.end(), std::move(inputs), options);
 }
@@ -218,12 +221,16 @@ std::vector<instruction_ref> add_common_args(module& m, std::vector<instruction_
 instruction_ref insert_common_op(module& m,
                                  instruction_ref ins,
                                  const operation& op,
-                                 std::vector<instruction_ref> inputs, common_options options)
+                                 std::vector<instruction_ref> inputs,
+                                 common_options options)
 {
     return m.insert_instruction(ins, op, insert_common_args(m, ins, std::move(inputs), options));
 }
 
-instruction_ref add_common_op(module& m, const operation& op, std::vector<instruction_ref> inputs, common_options options)
+instruction_ref add_common_op(module& m,
+                              const operation& op,
+                              std::vector<instruction_ref> inputs,
+                              common_options options)
 {
     return insert_common_op(m, m.end(), op, std::move(inputs), options);
 }

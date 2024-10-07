@@ -241,31 +241,6 @@ void verify_reduced_program(const program& p,
     }
 }
 
-bool verify_bisect(program p,
-                   int mid_n,
-                   const target& t,
-                   compile_options options,
-                   verify_options vo,
-                   const parameter_map& inputs,
-                   verify::tolerance tols)
-{
-    auto* mm = p.get_main_module();
-    auto mid = std::next(mm->begin(), mid_n);
-    mm->remove_instructions(mid, mm->end());
-    std::cout << "Verify up to: " << mid_n << std::endl;
-    std::cout << p << std::endl;
-    try
-    {
-        return verify_program(std::to_string(mid_n), p, t, options, vo, inputs, tols);
-    }
-    catch(const std::exception& e)
-    {
-        std::cout << "FAILED: " << mid_n << std::endl;
-        std::cout << "Exception: " << e.what() << std::endl;
-        return false;
-    }
-}
-
 static std::unordered_map<instruction_ref, std::size_t> accumulate_weights(instruction_ref last)
 {
     std::unordered_map<instruction_ref, std::size_t> weights;
@@ -329,9 +304,8 @@ void verify_bisected_program(const program& p,
     std::vector<std::size_t> trims = find_trim_instructions(*mm);
     std::int64_t right             = trims.size();
     std::int64_t left              = 0;
-    std::int64_t failed            = 0;
+    std::int64_t failed            = -1;
 
-    std::cout << "Bisect Verify steps: " << right << std::endl;
     while(left <= right)
     {
         std::int64_t mid = left + (right - left) / 2;
@@ -348,7 +322,10 @@ void verify_bisected_program(const program& p,
             right  = mid - 1;
         }
     }
-    std::cout << "Failure starts at: " << failed << std::endl;
+    if(failed != -1)
+    {
+        std::cout << "Failure starts at: " << failed << std::endl;
+    }
 }
 
 } // namespace MIGRAPHX_INLINE_NS

@@ -53,12 +53,12 @@ struct gqa_parameters
                                            // shared buffer)
     bool do_rotary;             // Whether to use rotary position embedding. Default value is 0.
     std::uint32_t kv_num_heads; // Number of attention heads for k and v
-    int local_window_size;  // left_window_size for local attention. Default value is -1 meaning
-                            // unused.
-    bool rotary_interleaved;        // Rotate using interleaved pattern. Default value is 0 (False).
+    int local_window_size;      // left_window_size for local attention. Default value is -1 meaning
+                                // unused.
+    bool rotary_interleaved;    // Rotate using interleaved pattern. Default value is 0 (False).
     bool past_present_share_buffer; // Whether to use same buffer for KV-cache inputs and outputs
 
-    std::string make_init_str()
+    std::string make_init_str() const
     {
         return "MIGRAPHX_MAKE_CONSTANT(float{" + std::to_string(scale) + "}), " +
                "MIGRAPHX_MAKE_CONSTANT(uint32_t{" + std::to_string(batch_size) + "}), " +
@@ -93,7 +93,7 @@ static inline gqa_parameters init_params(const std::vector<shape>& inputs, const
     auto local_window_size  = v.at("local_window_size").to<std::uint32_t>();
     auto rotary_interleaved = v.at("rotary_interleaved").to<std::uint32_t>();
     auto scale              = v.at("scale").to<float>();
-    auto present_kv_seqlen = v.at("present_kv_seqlen").to<std::size_t>();
+    auto present_kv_seqlen  = v.at("present_kv_seqlen").to<std::size_t>();
 
     const auto& q_shape               = inputs[0];
     auto q_lens                       = q_shape.lens();
@@ -123,10 +123,10 @@ static inline gqa_parameters init_params(const std::vector<shape>& inputs, const
     gqa_params.position_ids_format       = position_ids_format;
     gqa_params.transposed                = transposed;
     gqa_params.seqlen_present_kv_cache   = present_kv_seqlen;
-    gqa_params.do_rotary                 = do_rotary;
+    gqa_params.do_rotary                 = static_cast<bool>(do_rotary);
     gqa_params.kv_num_heads              = kv_num_heads;
     gqa_params.local_window_size         = local_window_size;
-    gqa_params.rotary_interleaved        = rotary_interleaved;
+    gqa_params.rotary_interleaved        = static_cast<bool>(rotary_interleaved);
     gqa_params.scale                     = scale;
     gqa_params.past_present_share_buffer = past_present_share_buffer;
 

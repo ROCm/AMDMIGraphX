@@ -94,8 +94,8 @@ struct group_query_attention
             const std::size_t s            = (idx / n_heads) % sequence_length;
             const std::size_t n            = idx % n_heads;
             const std::size_t block_offset = b * batch_stride + s * seq_stride + n * head_stride;
-            auto input_data        = input + block_offset;
-            auto output_data       = output + block_offset;
+            auto input_data                = input + block_offset;
+            auto output_data               = output + block_offset;
 
             // Cache is (M, H/2) or (M, rotary_embedding_dim/2)
             const std::size_t position_id =
@@ -103,11 +103,11 @@ struct group_query_attention
                     ? static_cast<std::size_t>(pos_ids[0]) + s
                     : static_cast<std::size_t>(pos_ids[b * sequence_length + s]);
             const std::size_t cache_offset = position_id * half_rotary_emb_dim;
-            auto cos_data          = cos_cache + cache_offset;
-            auto sin_data          = sin_cache + cache_offset;
+            auto cos_data                  = cos_cache + cache_offset;
+            auto sin_data                  = sin_cache + cache_offset;
 
             std::size_t cache_idx = 0;
-            float sign    = 0.0;
+            float sign            = 0.0;
             std::size_t j         = 0;
             for(std::size_t i = 0; i < rotary_emb_dim; i++)
             {
@@ -255,7 +255,7 @@ struct group_query_attention
             present_buffer_sequence_length * head_size; // T x H
 
         const std::size_t loop_len = batch_size * num_heads;
-        const float alpha  = scale == 0.0f ? 1.0f / sqrt(static_cast<float>(head_size)) : scale;
+        const float alpha = scale == 0.0f ? 1.0f / sqrt(static_cast<float>(head_size)) : scale;
 
         par_for(loop_len, [&](const auto i) {
             const std::size_t batch_index = i / num_heads;
@@ -266,7 +266,7 @@ struct group_query_attention
             const std::size_t total_seqlen      = seqlens_k[batch_index] + 1;
 
             const std::size_t output_offset = i * sequence_length * present_buffer_sequence_length;
-            auto output = attention_probs + output_offset;
+            auto output                     = attention_probs + output_offset;
 
             auto k = key + packed_batch_stride * batch_index +
                      kv_input_chunk_length * (head_index / kv_num_heads_factor);
@@ -512,20 +512,20 @@ struct group_query_attention
                 auto q_rotary = rotary_qkv.begin();
                 auto k_rotary = q_rotary + num_heads * sequence_length * head_size;
 
-                gqa_parameters gqa_params          = {};
-                gqa_params.batch_size              = batch_size;
-                gqa_params.sequence_length         = sequence_length;
-                gqa_params.hidden_size             = q_hidden_size;
-                gqa_params.head_size               = head_size;
-                gqa_params.rotary_embedding_dim    = rotary_dim;
-                gqa_params.num_heads               = num_heads;
-                gqa_params.max_sequence_length     = sequence_length;
-                gqa_params.seq_stride              = head_size;
-                gqa_params.head_stride             = head_stride;
-                gqa_params.batch_stride            = batch_stride;
-                gqa_params.position_ids_format     = position_ids_format;
-                gqa_params.transposed              = transposed;
-                gqa_params.seqlen_present_kv_cache = present_kv_seqlen;
+                gqa_parameters gqa_params            = {};
+                gqa_params.batch_size                = batch_size;
+                gqa_params.sequence_length           = sequence_length;
+                gqa_params.hidden_size               = q_hidden_size;
+                gqa_params.head_size                 = head_size;
+                gqa_params.rotary_embedding_dim      = rotary_dim;
+                gqa_params.num_heads                 = num_heads;
+                gqa_params.max_sequence_length       = sequence_length;
+                gqa_params.seq_stride                = head_size;
+                gqa_params.head_stride               = head_stride;
+                gqa_params.batch_stride              = batch_stride;
+                gqa_params.position_ids_format       = position_ids_format;
+                gqa_params.transposed                = transposed;
+                gqa_params.seqlen_present_kv_cache   = present_kv_seqlen;
                 gqa_params.past_present_share_buffer = false;
 
                 if(do_rotary)

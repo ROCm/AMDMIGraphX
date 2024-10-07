@@ -47,7 +47,7 @@ __device__ void run_rotary_embedding(Input input,
     const index_int head_stride         = params.head_stride;
     const index_int seq_stride          = params.seq_stride;
     const index_int batch_stride        = params.batch_stride;
-    const int position_ids_format = params.position_ids_format;
+    const int position_ids_format       = params.position_ids_format;
     const index_int rotary_emb_dim      = params.rotary_embedding_dim;
     const index_int half_rotary_emb_dim = rotary_emb_dim / 2;
 
@@ -108,8 +108,8 @@ __device__ void
 pack_v_into_rotary_qkv(Params params, const Input input, Output output, index_int idx)
 {
     const index_int loop_len = params.batch_size * params.sequence_length * params.kv_num_heads;
-    auto i             = idx / params.head_size;
-    auto ii            = idx % params.head_size;
+    auto i                   = idx / params.head_size;
+    auto ii                  = idx % params.head_size;
     if(i < loop_len)
     {
         const index_int b = (i / params.kv_num_heads) / params.sequence_length;

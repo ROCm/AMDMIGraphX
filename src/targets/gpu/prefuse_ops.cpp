@@ -242,7 +242,7 @@ struct gpu_compute_attention_probabilities : op::group_query_attention
 
     shape compute_shape(std::vector<shape> inputs) const
     {
-        auto query_lens = inputs.front().lens();
+        auto query_lens        = inputs.front().lens();
         auto present_kv_seqlen = inputs.at(1).lens().at(2);
         std::vector<std::size_t> output_lens{
             query_lens.at(0), num_heads, query_lens.at(2), present_kv_seqlen};
@@ -304,11 +304,11 @@ struct find_group_query_attention
 
         auto num_heads          = v.at("num_heads").to<std::size_t>();
         auto kv_num_heads       = v.at("kv_num_heads").to<std::size_t>();
-        auto do_rotary          = v.at("do_rotary").to<int>();
+        auto do_rotary          = static_cast<bool>(v.at("do_rotary").to<int>());
         auto local_window_size  = v.at("local_window_size").to<int>();
         auto rotary_interleaved = v.at("rotary_interleaved").to<int>();
         auto scale              = v.at("scale").to<float>();
-        auto present_kv_seqlen = v.at("present_kv_seqlen").to<std::size_t>();
+        auto present_kv_seqlen  = v.at("present_kv_seqlen").to<std::size_t>();
 
         auto q_shape                      = inputs[0]->get_shape();
         auto q_lens                       = q_shape.lens();

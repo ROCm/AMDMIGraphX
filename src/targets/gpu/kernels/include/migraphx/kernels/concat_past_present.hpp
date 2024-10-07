@@ -80,7 +80,7 @@ update_cache(const Present present, SeqLensK seqlens_k, Cache cache, Params para
     const index_int present_buffer_sequence_length = past_buffer_sequence_length;
     const index_int num_heads                      = params.num_heads;
     const index_int kv_num_heads                   = params.kv_num_heads;
-    const bool is_prompt                        = sequence_length != 1;
+    const bool is_prompt                           = sequence_length != 1;
     const index_int packed_batch_stride =
         (num_heads + 2 * kv_num_heads) * sequence_length * head_size;
     const index_int kv_num_heads_factor       = num_heads / kv_num_heads;

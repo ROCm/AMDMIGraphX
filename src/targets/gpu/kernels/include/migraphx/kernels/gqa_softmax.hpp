@@ -127,7 +127,7 @@ template <class Output, class Input, class Probs, class SeqLensK, class Params>
 __device__ void gqa_softmax(Output output, Input, Probs, SeqLensK seqlens_k, Params params)
 {
     const index_int elements = params.batch_size * params.num_heads * params.sequence_length;
-    auto ind           = make_index();
+    auto ind                 = make_index();
     ind.global_stride(elements, [&](auto idx) {
         calculate_softmax(output.begin(), seqlens_k.begin(), params, idx);
     });

@@ -14,14 +14,15 @@ y = np.ones([10, 5, 4, 7], dtype='f')
 rois = np.array(
     [
         [0.1, 0.15, 0.6, 0.35],
-        [2.1, 1.73, 3.8, 2.13]        
+        [2.1, 1.73, 3.8, 2.13]
     ],
     dtype='f')
 
 themodel = 'roialign_test.onnx'
 sess = rt.InferenceSession(
     '/workspace/AMDMIGraphX/test/onnx/' + themodel)
-res = sess.run(['y'], {'x': x, 'rois': rois, 'batch_ind': [0, 1]})
+res = sess.run(['y'], {'x': x, 'rois': rois, 'batch_ind': [1, 0]})
 
 print(' ORT test model is ' + themodel + ', rois_data is \n',
       rois, ' result is \n', res)
+ 

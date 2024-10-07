@@ -169,7 +169,6 @@ struct roialign
             float ly = xy[1] - low[1];
             float hy = 1.0f - ly;
             float hx = 1.0f - lx;
-printf(" !!!!! %ld\n", index);
             // save weights and indices
             results[index].w = {hy * hx, hy * lx, ly * hx, ly * lx};
         });
@@ -263,12 +262,12 @@ printf(" !!!!! %ld\n", index);
                     roi_size[ii] = roi_ends[ii] - roi_starts[ii];
                     if(coord_trans_mode != "half_pixel")
                         roi_size[ii] = std::max(roi_size[ii], 1.0f);
-printf("\n KKKKK ii %ld  roi_size %f   roi_batch_ind %ld  out_dims %lu     \n", ii, roi_size[ii] , roi_batch_ind,  out_dims[ii]);
+// printf("\n KKKKK ii %ld  roi_size %f   roi_batch_ind %ld  out_dims %lu     \n", ii, roi_size[ii] , roi_batch_ind,  out_dims[ii]);
                     bin_size[ii]      = roi_size[ii] / out_dims[ii];
                     bin_grid_size[ii] = (sampling_ratio > 0)
                                             ? sampling_ratio
                                             : std::ceil(roi_size[ii] / out_dims[ii]);
-printf(" KLKLKL bin_grid_size= %ld x %ld\n", bin_grid_size[0], bin_grid_size[1]);                                            
+// printf(" KLKLKL bin_grid_size= %ld x %ld\n", bin_grid_size[0], bin_grid_size[1]);                                            
                 }
 
                 // we want to precalculate indices and weights shared by all channels,

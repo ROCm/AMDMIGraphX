@@ -304,7 +304,7 @@ struct find_group_query_attention
 
         auto num_heads          = v.at("num_heads").to<std::size_t>();
         auto kv_num_heads       = v.at("kv_num_heads").to<std::size_t>();
-        auto do_rotary          = static_cast<bool>(v.at("do_rotary").to<int>());
+        auto do_rotary          = v.at("do_rotary").to<int>();
         auto local_window_size  = v.at("local_window_size").to<int>();
         auto rotary_interleaved = v.at("rotary_interleaved").to<int>();
         auto scale              = v.at("scale").to<float>();
@@ -327,7 +327,7 @@ struct find_group_query_attention
             ins, make_op("transpose", {{"permutation", {0, 2, 1, 3}}}), transposed_qkv);
 
         auto rotary_qkv = transposed_qkv;
-        if(do_rotary)
+        if(static_cast<bool>(do_rotary))
         {
             std::vector<instruction_ref> rotary_inputs{
                 transposed_qkv, inputs.at(5), inputs.at(7), inputs.at(8)};

@@ -255,7 +255,7 @@ struct group_query_attention
             present_buffer_sequence_length * head_size; // T x H
 
         const std::size_t loop_len = batch_size * num_heads;
-        const float alpha = scale == 0.0f ? 1.0f / sqrt(static_cast<float>(head_size)) : scale;
+        const float alpha = scale == 0.0f ? 1.0f / std::sqrt(static_cast<float>(head_size)) : scale;
 
         par_for(loop_len, [&](const auto i) {
             const std::size_t batch_index = i / num_heads;

@@ -10605,17 +10605,18 @@ def roialign_default_test():
 def roialign_test():
     # Roialign with output_half_pixel mode is backward-compatible.
     x = helper.make_tensor_value_info('x', TensorProto.FLOAT, [10, 5, 4, 7])
-    roi = helper.make_tensor_value_info('rois', TensorProto.FLOAT, [8, 4])
-    bi = helper.make_tensor_value_info('batch_ind', TensorProto.INT64, [8])
-    y = helper.make_tensor_value_info('y', TensorProto.FLOAT, [8, 4, 5, 5])
+    roi = helper.make_tensor_value_info('rois', TensorProto.FLOAT, [2, 4])
+    bi = helper.make_tensor_value_info('batch_ind', TensorProto.INT64, [2])
+    y = helper.make_tensor_value_info('y', TensorProto.FLOAT, [2, 4, 5, 5])
     node = onnx.helper.make_node(
         'RoiAlign',
         inputs=['x', 'rois', 'batch_ind'],
         outputs=['y'],
         spatial_scale=2.0,
         output_height=5,
-        output_width=5,
+        output_width=3,
         sampling_ratio=3,
+        # todo:  max test
         mode="avg",
         coordinate_transformation_mode="output_half_pixel")
 

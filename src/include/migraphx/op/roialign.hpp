@@ -121,8 +121,6 @@ struct roialign
     {
         std::vector<pos_weight> results(bin_grid_size[0] * bin_grid_size[1] * output_height *
                                         output_width);
-// printf(" bin grid %ldx%ld, height %lu width %lu\n", bin_grid_size[0], bin_grid_size[1], output_height,
-//                                         output_width);
         shape_for_each(comp_s, [&](const auto& idx_v, size_t index) {
             // The p and i indexes correspond to nested looping parameters in ORT that go in y, x
             // order.  The i[x] value is least significant and iterates the fastest.
@@ -139,12 +137,8 @@ struct roialign
             {
                 xy[ii] = roi_start[ii] + p[ii] * bin_size[ii] +
                          (i[ii] + .5f) * bin_size[ii] / bin_grid_size[ii];
-// printf(" QQQQQQ  L137 x=%f  y=%f  ", xy[0], xy[1]);                                        
-                // xy[ii] = (coord_trans_mode != "half_pixel") ? (xy[ii] - 0.5f) : xy[ii];
-// printf(" L139 %f ", xy[ii]);   
                 if(xy[ii] < -1.0 or xy[ii] > dims[ii])
                 {
-// printf(" L142 results = pos_weight i=%lu dims=%lu, %lu  \n ", index,  dims[0], dims[1]);                    
                     results[index] = pos_weight{};
                     return;
                 }
@@ -152,13 +146,10 @@ struct roialign
                 xy[ii]   = std::max(xy[ii], 0.0f);
                 low[ii]  = xy[ii];
                 high[ii] = low[ii] + 1;
-// printf(" L148 %f  low[ii] %lu, dims[ii] %lu", xy[ii],  low[ii], dims[ii]);                
                 if(low[ii] >= dims[ii] - 1)
                 {
                     xy[ii] = high[ii] = low[ii] = dims[ii] - 1;
-// printf(" L154 %f ", xy[ii]);                    
                 }
-// printf(" \n");            
             }
             results[index].pos = {low[1] * dims[0] + low[0],
                                   low[1] * dims[0] + high[0],
@@ -172,11 +163,6 @@ struct roialign
             // save weights and indices
             results[index].w = {hy * hx, hy * lx, ly * hx, ly * lx};
         });
-// printf(" AAAAA here we are\n");
-        // for(int iix = 0; iix < results.size(); iix++)
-        //     printf(" SSSSS %ld %d\n", results.size(), iix);
-        //   printf(" SSSSS %d    %lu  %lu  %lu  %lu   %f  %f  %f  %f\n", iix, results[iix].pos[0], results[iix].pos[1], results[iix].pos[2], results[iix].pos[3],
-        //            results[iix].w[0], results[iix].w[1], results[iix].w[2], results[iix].w[3]);
         return results;
     }
 
@@ -262,12 +248,10 @@ struct roialign
                     roi_size[ii] = roi_ends[ii] - roi_starts[ii];
                     if(coord_trans_mode != "half_pixel")
                         roi_size[ii] = std::max(roi_size[ii], 1.0f);
-// printf("\n KKKKK ii %ld  roi_size %f   roi_batch_ind %ld  out_dims %lu     \n", ii, roi_size[ii] , roi_batch_ind,  out_dims[ii]);
                     bin_size[ii]      = roi_size[ii] / out_dims[ii];
                     bin_grid_size[ii] = (sampling_ratio > 0)
                                             ? sampling_ratio
                                             : std::ceil(roi_size[ii] / out_dims[ii]);
-// printf(" KLKLKL bin_grid_size= %ld x %ld\n", bin_grid_size[0], bin_grid_size[1]);                                            
                 }
 
                 // we want to precalculate indices and weights shared by all channels,

@@ -679,7 +679,10 @@ struct find_mlir_standalone_op
                                    i->get_shape().type());
            }))
             return;
-        module_ref mm = mpm.create_module("mlir_" + gemm_based_op->name() + get_count());
+        std::string module_name = "mlir_" + gemm_based_op->name() + get_count();
+        if(mpm.get_module().name() != "main")
+            module_name = mpm.get_module().name() + ":" + module_name;
+        module_ref mm = mpm.create_module(module_name);
         mm->set_bypass();
         auto [anchor_op, top_inputs] = fuse_input_ops_and_gemm_based_op(
             mm, gemm_based_op->inputs(), gemm_based_op->get_operator());

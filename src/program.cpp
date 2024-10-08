@@ -867,12 +867,15 @@ double percentile(const std::vector<double>& v, double percentile)
     return v[index];
 }
 
-void dump_vector_to_csv(const std::vector<double>& vec, const std::string& file_name) {
+void dump_vector_to_csv(const std::vector<double>& vec, const std::string& file_name)
+{
     std::ofstream file(file_name);
 
-    if (file.is_open()) {
-        for (const auto& value : vec) {
-            file << value << "\n"; 
+    if(file.is_open())
+    {
+        for(const auto& value : vec)
+        {
+            file << value << "\n";
         }
         file.close();
         std::cout << "Vector dumped to " << file_name << std::endl;

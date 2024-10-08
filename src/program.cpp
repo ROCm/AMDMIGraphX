@@ -862,7 +862,7 @@ double median(const std::vector<double>& v)
 
 double percentile(const std::vector<double>& v, double percentile)
 {
-    size_t index = static_cast<size_t>((percentile) * (v.size() - 1));
+    size_t index = (percentile * (v.size() - 1));
     return v[index];
 }
 

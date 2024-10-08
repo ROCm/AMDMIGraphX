@@ -44,6 +44,7 @@
 #include <iostream>
 #include <queue>
 #include <sstream>
+#include <fstream>
 #include <algorithm>
 #include <set>
 #include <unordered_map>
@@ -866,6 +867,18 @@ double percentile(const std::vector<double>& v, double percentile)
     return v[index];
 }
 
+void dump_vector_to_csv(const std::vector<double>& vec, const std::string& file_name) {
+    std::ofstream file(file_name);
+
+    if (file.is_open()) {
+        for (const auto& value : vec) {
+            file << value << "\n"; 
+        }
+        file.close();
+        std::cout << "Vector dumped to " << file_name << std::endl;
+    }
+}
+
 std::string perf_group(instruction_ref ins, bool detailed)
 {
     std::string result;
@@ -956,6 +969,8 @@ void program::perf_report(
     {
         overhead_vec.push_back(time<milliseconds>([&] { dry_run(params); }));
     }
+
+    dump_vector_to_csv(total_vec, "perf_output.csv");
 
     double total_time             = common_average(total_vec);
     double min_time               = total_vec.front();

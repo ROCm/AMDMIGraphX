@@ -24,6 +24,7 @@
 #ifndef MIGRAPHX_GUARD_KERNELS_ROIALIGN_HPP
 #define MIGRAPHX_GUARD_KERNELS_ROIALIGN_HPP
 
+#include <migraphx/kernels/debug.hpp>
 #include <migraphx/kernels/index.hpp>
 #include <migraphx/kernels/dfor.hpp>
 #include <migraphx/kernels/ops.hpp>
@@ -87,18 +88,19 @@ MIGRAPHX_DEVICE_CONSTEXPR typename Iterator::value_type bilinear_interpolate(
             xy[ii] = high[ii] = low[ii] = dims[ii] - 1;
         }
     }
-    array<index_int, 4> locs = {low[0] * dims[1] + low[1],
-                                low[0] * dims[1] + high[1],
-                                high[0] * dims[1] + low[1],
-                                high[0] * dims[1] + high[1]};
+    array<index_int, 4> locs = {low[1] * dims[0] + low[0],
+                                low[1] * dims[0] + high[0],
+                                high[1] * dims[0] + low[0],
+                                high[1] * dims[0] + high[0]};
 
-    float ly = xy[0] - low[0];
-    float lx = xy[1] - low[1];
+    float lx = xy[0] - low[0];
+    float ly = xy[1] - low[1];
     float hy = 1.0f - ly;
     float hx = 1.0f - lx;
     // do calculations in floating point and convert final result to required type
     array<float, 4> ws = {hy * hx, hy * lx, ly * hx, ly * lx};
 
+    // todo:  Should we change the order of these indices?
     auto v01 = pooling(data[locs[0]] * ws[0], data[locs[1]] * ws[1]);
     auto v23 = pooling(data[locs[2]] * ws[2], data[locs[3]] * ws[3]);
     return implicit_conversion(pooling(v01, v23));
@@ -177,12 +179,15 @@ __device__ void roialign(const T& x_t, const U& rois_t, const V& ind_t, W& y_t, 
         const auto offset_rois = rois + (n * roi_column_num);
         const int batch_ind    = ind[n];
 
+        // todo:  did roi_offset get initialized to -0.5 in src/targets/gpu/jit/roialign.cpp?
         array<float, 2> roi_starts = {
-            static_cast<float>(offset_rois[1]) * static_cast<float>(s.spatial_scale),
-            static_cast<float>(offset_rois[0]) * static_cast<float>(s.spatial_scale)};
+            static_cast<float>(offset_rois[0]) * static_cast<float>(s.spatial_scale) - s.roi_offset,
+            static_cast<float>(offset_rois[1]) * static_cast<float>(s.spatial_scale) -
+                s.roi_offset};
         array<float, 2> roi_ends = {
-            static_cast<float>(offset_rois[3]) * static_cast<float>(s.spatial_scale),
-            static_cast<float>(offset_rois[2]) * static_cast<float>(s.spatial_scale)};
+            static_cast<float>(offset_rois[2]) * static_cast<float>(s.spatial_scale) - s.roi_offset,
+            static_cast<float>(offset_rois[3]) * static_cast<float>(s.spatial_scale) -
+                s.roi_offset};
 
         array<float, 2> roi_size{};
         array<float, 2> bin_size{};
@@ -191,7 +196,8 @@ __device__ void roialign(const T& x_t, const U& rois_t, const V& ind_t, W& y_t, 
         for(index_int ii = 0; ii < roi_size.size(); ++ii)
         {
             roi_size[ii] = roi_ends[ii] - roi_starts[ii];
-            roi_size[ii] = migraphx::max(roi_size[ii], 1.0f);
+            if(s.roi_offset == 0.f)
+                roi_size[ii] = migraphx::max(roi_size[ii], 1.0f);
 
             bin_size[ii]      = roi_size[ii] / out_dims[ii];
             bin_grid_size[ii] = (s.sampling_ratio > 0)

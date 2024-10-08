@@ -10591,7 +10591,7 @@ def rnn_r_3arg_layout_test():
     return ([node], [seq, w, r], [hs, output])
 
 
-@onnx_test(external_data=False, opset_imports=16)
+@onnx_test(opset_imports=16)
 def roialign_default_test():
     # The op. ROIAlign had an attribute coordinate_transformation_mode added
     # as of Onnx opset 16; we make opset-specific test models which give
@@ -10608,7 +10608,7 @@ def roialign_default_test():
     return ([node], [x, roi, bi], [y])
 
 
-@onnx_test(external_data=False, opset_imports=12)
+@onnx_test(opset_imports=12)
 def roialign_default_test_12():
     # Same model as in roialign_default_test() but with an older opset specified
     x = helper.make_tensor_value_info('x', TensorProto.FLOAT, [10, 4, 7, 8])

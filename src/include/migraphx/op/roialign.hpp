@@ -230,7 +230,7 @@ struct roialign
                 const auto bottom_data   = x.begin();
                 const auto roi_batch_ind = batch_indices[n];
                 // Do not use rounding; this implementation detail is critical
-                float offset                    = (coord_trans_mode == "half_pixel") ? 0.5 : 0.0;
+                const float offset              = (coord_trans_mode == "half_pixel") ? 0.5 : 0.0;
                 std::array<float, 2> roi_starts = {
                     static_cast<float>(roi[roi_s.index({n, 0})] * spatial_scale - offset),
                     static_cast<float>(roi[roi_s.index({n, 1})] * spatial_scale - offset)};

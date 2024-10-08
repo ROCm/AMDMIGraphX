@@ -322,7 +322,7 @@ void verify_bisected_program(const program& p,
             right  = mid - 1;
         }
     }
-    if(failed != -1)
+    if(failed > 0)
     {
         std::cout << "Failure starts at: " << failed << std::endl;
     }

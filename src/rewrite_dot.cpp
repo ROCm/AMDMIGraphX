@@ -52,7 +52,9 @@ MIGRAPHX_PRED_MATCHER(conv_1x1, instruction_ref ins)
 
 struct find_1x1_convolution
 {
-    auto matcher() const { return conv_1x1(); }
+    bool channels_last = true;
+
+    auto matcher() const { return conv_1x1(match::arg(1)(match::is_constant())); }
 
     void apply(module& m, const match::matcher_result& r) const
     {
@@ -70,22 +72,22 @@ struct find_1x1_convolution
         std::vector<int64_t> aperm(ins->get_shape().ndim());
         std::iota(aperm.begin(), aperm.end(), 0);
         std::rotate(aperm.begin() + 1, aperm.begin() + 2, aperm.end());
-        auto transpose =
-            m.insert_instruction(ins, make_op("transpose", {{"permutation", aperm}}), input);
         auto a_mat =
-            m.insert_instruction(ins, make_op("reshape", {{"dims", {m_dim, k_dim}}}), transpose);
+            m.insert_instruction(ins, make_op("transpose", {{"permutation", aperm}}), input);
 
-        auto reshape =
-            m.insert_instruction(ins, make_op("reshape", {{"dims", {n_dim, k_dim}}}), weights);
-        auto b_mat =
-            m.insert_instruction(ins, make_op("transpose", {{"permutation", {1, 0}}}), reshape);
+        std::vector<int64_t> sq_axes(ins->get_shape().ndim() - 2);
+        std::iota(sq_axes.begin(), sq_axes.end(), 2);
+        auto squeeze =
+            m.insert_instruction(ins, make_op("squeeze", {{"axes", sq_axes}}), weights);
+        auto transpose =
+            m.insert_instruction(ins, make_op("transpose", {{"permutation", {1, 0}}}), squeeze);
+        auto b_lens = a_mat->get_shape().lens(); 
+        copy(transpose->get_shape().lens(), b_lens.end() - 2);
+        auto b_mat = m.insert_instruction(ins, make_op("multibroadcast", {{"out_lens", b_lens}}), transpose);
 
         auto dot        = m.insert_instruction(ins, make_op("dot"), a_mat, b_mat);
-        auto out_dims   = transpose->get_shape().lens();
-        out_dims.back() = n_dim;
-        auto creshape   = m.insert_instruction(ins, make_op("reshape", {{"dims", out_dims}}), dot);
         m.replace_instruction(
-            ins, make_op("transpose", {{"permutation", invert_permutation(aperm)}}), creshape);
+            ins, make_op("transpose", {{"permutation", invert_permutation(aperm)}}), dot);
     }
 };
 
@@ -95,7 +97,8 @@ void rewrite_dot::apply(module& m) const
 {
     if(not enabled(MIGRAPHX_ENABLE_REWRITE_DOT{}))
         return;
-    match::find_matches(m, find_1x1_convolution{}); 
+    match::find_matches(m, find_1x1_convolution{});
+    // m.debug_print();
 }
 
 } // namespace MIGRAPHX_INLINE_NS

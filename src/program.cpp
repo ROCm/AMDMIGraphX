@@ -943,6 +943,7 @@ void program::perf_report(
             this->finish();
         }));
     }
+    dump_vector_to_csv(total_vec, "perf_output.csv");
     std::sort(total_vec.begin(), total_vec.end());
     std::unordered_map<instruction_ref, std::vector<double>> ins_vec;
     // Fill the map
@@ -972,9 +973,6 @@ void program::perf_report(
     {
         overhead_vec.push_back(time<milliseconds>([&] { dry_run(params); }));
     }
-
-    dump_vector_to_csv(total_vec, "perf_output.csv");
-
     double total_time             = common_average(total_vec);
     double min_time               = total_vec.front();
     double max_time               = total_vec.back();

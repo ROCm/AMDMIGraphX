@@ -35,7 +35,6 @@
 #include <migraphx/register_target.hpp>
 #include <migraphx/iterator_for.hpp>
 #include <migraphx/iterator.hpp>
-#include <migraphx/shape.hpp>
 #include <migraphx/algorithm.hpp>
 #include <migraphx/output_iterator.hpp>
 #include <migraphx/make_op.hpp>

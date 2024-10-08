@@ -36,9 +36,9 @@ TEST_CASE(roialign_default_test)
     auto rois = mm->add_parameter("rois", srois);
     auto bi   = mm->add_parameter("batch_ind", sbi);
 
-    // Depending on whether the model was built for opset 16 or earlier, the default
-    // coordinate_transformation_mode is different.  These models had opset specified 
-    // when they were created..
+    // Depending on whether the model was built for Onnx opset 16 or earlier, the default
+    // coordinate_transformation_mode is different.  These model files had explicit opset given
+    // when they were created.
     auto r = mm->add_instruction(
         migraphx::make_op("roialign", {{"coordinate_transformation_mode", "half_pixel"}}),
         x,
@@ -48,7 +48,7 @@ TEST_CASE(roialign_default_test)
     auto prog = read_onnx("roialign_default_test.onnx");
     EXPECT(p == prog);
 
-
+    // Opset 12 program
     migraphx::program p_12;
     auto* mm_12  = p_12.get_main_module();
     auto x_12    = mm_12->add_parameter("x", sx);
@@ -63,6 +63,4 @@ TEST_CASE(roialign_default_test)
     mm_12->add_return({r_12});
     auto prog_12 = read_onnx("roialign_default_test_12.onnx");
     EXPECT(p_12 == prog_12);
-
-
 }

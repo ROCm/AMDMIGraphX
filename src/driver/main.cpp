@@ -26,7 +26,6 @@
 #include "verify_options.hpp"
 #include "argument_parser.hpp"
 #include "command.hpp"
-#include "mlir.hpp"
 #include "precision.hpp"
 #include "passes.hpp"
 #include "perf.hpp"
@@ -78,7 +77,6 @@ struct loader
     bool is_test                = false;
     unsigned trim               = 0;
     bool optimize               = false;
-    bool mlir                   = false;
     bool skip_unknown_operators = false;
     bool brief                  = false;
     std::string output_type;
@@ -142,7 +140,6 @@ struct loader
            ap.append(),
            ap.nargs(2));
         ap(optimize, {"--optimize", "-O"}, ap.help("Optimize when reading"), ap.set_value(true));
-        ap(mlir, {"--mlir"}, ap.help("Offload everything to mlir"), ap.set_value(true));
         ap(passes, {"--apply-pass", "-p"}, ap.help("Passes to apply to model"), ap.append());
         ap(output_type,
            {"--graphviz", "-g"},
@@ -377,8 +374,6 @@ struct loader
         }
         if(not passes.empty())
             migraphx::run_passes(p, get_passes(passes));
-        if(mlir)
-            offload_to_mlir(p);
         return p;
     }
 

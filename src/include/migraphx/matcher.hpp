@@ -766,6 +766,12 @@ inline auto var(std::string s)
         });
 }
 
+inline auto has_type(shape::type_t t)
+{
+    return make_basic_pred_matcher(
+        [=](instruction_ref ins) { return ins->get_shape().type() == t; });
+}
+
 inline auto name(std::string s)
 {
     return make_basic_pred_matcher(
@@ -933,6 +939,12 @@ template <class... Ms>
 auto skip_broadcasts_converts(Ms... ms)
 {
     return skip(name("broadcast", "multibroadcast", "contiguous", "convert"))(ms...);
+}
+
+template <class... Ms>
+auto skip_broadcast_squeeze(Ms... ms)
+{
+    return skip(name("broadcast", "multibroadcast", "contiguous", "squeeze", "unsqueeze"))(ms...);
 }
 
 template <class F>

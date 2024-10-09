@@ -50,9 +50,9 @@ struct test_group_query_attention_no_rotary : verify_program<test_group_query_at
         std::vector<float> k_vec(kv_s.elements(), 1.0);
         std::vector<float> v_vec(kv_s.elements(), 0.0);
         std::vector<float> q_vec(query_s.elements(), 2.0);
-        auto query = mm->add_literal(query_s, q_vec);
-        auto k_cache = mm->add_literal(kv_s, k_vec);
-        auto v_cache = mm->add_literal(kv_s, v_vec);
+        auto query     = mm->add_literal(query_s, q_vec);
+        auto k_cache   = mm->add_literal(kv_s, k_vec);
+        auto v_cache   = mm->add_literal(kv_s, v_vec);
         auto slk       = mm->add_literal(slk_s, slk_vec);
         auto tsl       = mm->add_literal(tsl_s, tsl_vec);
         auto key       = mm->add_literal(0.0f);

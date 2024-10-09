@@ -25,6 +25,7 @@
 #define MIGRAPHX_GUARD_KERNELS_ROIALIGN_HPP
 
 #include <migraphx/kernels/debug.hpp>
+#include <migraphx/kernels/print.hpp>
 #include <migraphx/kernels/index.hpp>
 #include <migraphx/kernels/dfor.hpp>
 #include <migraphx/kernels/ops.hpp>
@@ -75,34 +76,47 @@ MIGRAPHX_DEVICE_CONSTEXPR typename Iterator::value_type bilinear_interpolate(
     array<int, 2> high{};
     for(index_int ii = 0; ii < xy.size(); ++ii)
     {
+        println_once(" fffff xy: ", xy[ii]);
         if(xy[ii] < -1.0f or xy[ii] > dims[ii])
         {
+        println_once(" ggggg xy: ", xy[ii]);
             return implicit_conversion(0);
         }
 
         xy[ii]   = migraphx::max(xy[ii], 0.0f);
+        println_once(" hhhhh xy: ", xy[ii]);
         low[ii]  = xy[ii];
         high[ii] = low[ii] + 1;
         if(low[ii] >= dims[ii] - 1)
         {
             xy[ii] = high[ii] = low[ii] = dims[ii] - 1;
+    println_once(" iiiii xy: ", xy[ii]);
         }
+        println_once(" FFFFF xy: ", xy[ii]);
     }
-    array<index_int, 4> locs = {low[1] * dims[0] + low[0],
+println(" FUFUFU xy: ", xy);    
+    array<index_int, 4> locs = {low[1] * dims[0] + low[0],  // new
                                 low[1] * dims[0] + high[0],
                                 high[1] * dims[0] + low[0],
                                 high[1] * dims[0] + high[0]};
-
-    float lx = xy[0] - low[0];
-    float ly = xy[1] - low[1];
+// array<index_int, 4> locs = {low[0] * dims[1] + low[1],  //old
+//                                 low[0] * dims[1] + high[1],
+//                                 high[0] * dims[1] + low[1],
+//                                 high[0] * dims[1] + high[1]};
+    // float lx = xy[0] - low[0];  // new
+    // float ly = xy[1] - low[1];
+    float ly = xy[0] - low[0];
+    float lx = xy[1] - low[1];
     float hy = 1.0f - ly;
     float hx = 1.0f - lx;
     // do calculations in floating point and convert final result to required type
     array<float, 4> ws = {hy * hx, hy * lx, ly * hx, ly * lx};
 
     // todo:  Should we change the order of these indices?
-    auto v01 = pooling(data[locs[0]] * ws[0], data[locs[1]] * ws[1]);
-    auto v23 = pooling(data[locs[2]] * ws[2], data[locs[3]] * ws[3]);
+    // auto v01 = pooling(data[locs[0]] * ws[0], data[locs[1]] * ws[1]);
+    // auto v23 = pooling(data[locs[2]] * ws[2], data[locs[3]] * ws[3]);
+    auto v01 = pooling(data[locs[1]] * ws[1], data[locs[0]] * ws[0]);
+    auto v23 = pooling(data[locs[3]] * ws[3], data[locs[2]] * ws[2]);
     return implicit_conversion(pooling(v01, v23));
 }
 
@@ -121,9 +135,18 @@ MIGRAPHX_DEVICE_CONSTEXPR auto calc_pooling(const Iterator& data,
     const int64_t count = bin_grid_size[0] * bin_grid_size[1];
     dfor(bin_grid_size[0], bin_grid_size[1])([&](auto iy, auto ix) {
         array<index_int, 2> id = {iy, ix};
+println_once(" eeeee roi_starts: ",  roi_starts);
+println(" eeeee idx: ",  idx);
+println_once(" eeeee bin_size: ",  bin_size);
+println_once(" eeeee (id + 0.5f): ",  (id + 0.5f));
+println_once(" eeeee bin_grid_size: ",  bin_grid_size);
+println_once(" eeeee roi_offset: ",  roi_offset);
+        // array<float, 2> locs =
+        //     roi_starts + idx * bin_size + bin_size * (id + 0.5f) / bin_grid_size + roi_offset;    // old
         array<float, 2> locs =
-            roi_starts + idx * bin_size + bin_size * (id + 0.5f) / bin_grid_size + roi_offset;
-
+            roi_starts + idx * bin_size + bin_size * (id + 0.5f) / bin_grid_size;       // new
+print(" EEEEE locs: ", locs);
+println("", "");
         auto val   = bilinear_interpolate(data, dims, locs, op);
         output_val = op(output_val, val);
     });
@@ -179,19 +202,25 @@ __device__ void roialign(const T& x_t, const U& rois_t, const V& ind_t, W& y_t, 
         const auto offset_rois = rois + (n * roi_column_num);
         const int batch_ind    = ind[n];
 
-        // todo:  did roi_offset get initialized to -0.5 in src/targets/gpu/jit/roialign.cpp?
+        // Note that roi_offset in src/targets/gpu/jit/roialign.cpp uses a negative value, so we add it here
+println_once(" AAAAA s.roi_offset: ", s.roi_offset);
         array<float, 2> roi_starts = {
-            static_cast<float>(offset_rois[0]) * static_cast<float>(s.spatial_scale) - s.roi_offset,
-            static_cast<float>(offset_rois[1]) * static_cast<float>(s.spatial_scale) -
+            static_cast<float>(offset_rois[0]) * static_cast<float>(s.spatial_scale) + s.roi_offset,
+            static_cast<float>(offset_rois[1]) * static_cast<float>(s.spatial_scale) +
                 s.roi_offset};
-        array<float, 2> roi_ends = {
-            static_cast<float>(offset_rois[2]) * static_cast<float>(s.spatial_scale) - s.roi_offset,
-            static_cast<float>(offset_rois[3]) * static_cast<float>(s.spatial_scale) -
-                s.roi_offset};
+// static_cast<float>(offset_rois[1]) * static_cast<float>(s.spatial_scale),
+//             static_cast<float>(offset_rois[0]) * static_cast<float>(s.spatial_scale)};
 
+        array<float, 2> roi_ends = {
+            static_cast<float>(offset_rois[2]) * static_cast<float>(s.spatial_scale) + s.roi_offset,
+            static_cast<float>(offset_rois[3]) * static_cast<float>(s.spatial_scale) +
+                s.roi_offset};
+            // static_cast<float>(offset_rois[3]) * static_cast<float>(s.spatial_scale),
+            // static_cast<float>(offset_rois[2]) * static_cast<float>(s.spatial_scale)};
         array<float, 2> roi_size{};
         array<float, 2> bin_size{};
         array<index_int, 2> bin_grid_size{};
+
 
         for(index_int ii = 0; ii < roi_size.size(); ++ii)
         {
@@ -204,8 +233,9 @@ __device__ void roialign(const T& x_t, const U& rois_t, const V& ind_t, W& y_t, 
                                     ? s.sampling_ratio
                                     : migraphx::ceil(roi_size[ii] / out_dims[ii]);
         }
-
+// const auto offset_asdf = ((batch_ind * channel_num + c) * in_dims[0] * in_dims[1]);
         const auto offset_x = x + ((batch_ind * channel_num + c) * in_dims[0] * in_dims[1]);
+// println_once(" CCCCC offset_asdf: ", offset_asdf);
         if constexpr(s.is_avg_pooling)
         {
             y_t[i] = calc_pooling(offset_x,
@@ -216,6 +246,10 @@ __device__ void roialign(const T& x_t, const U& rois_t, const V& ind_t, W& y_t, 
                                   in_dims,
                                   s.roi_offset,
                                   avg_pool{});
+// println_once(" ddddd roi_starts[0]:  ", roi_starts[0]);   looks good here
+// println_once(" ddddd1 roi_starts[1]:  ", roi_starts[1]);
+// print(" DDDDD  i: ",  i)  ;
+// println("   y_t[i]: ",  y_t[i])   ;  // these are all y_t[i]:  0.500000   make sense?
         }
         else
         {
@@ -227,6 +261,9 @@ __device__ void roialign(const T& x_t, const U& rois_t, const V& ind_t, W& y_t, 
                                   in_dims,
                                   s.roi_offset,
                                   max_pool{});
+println(" EEEEE  i: ",  i)  ;//  EEEEE locs:  -0.805208 EEEEE locs:  -0.805208 EEEEE locs:  -0.805208 EEEEE locs:  -0.805208 EEEEE locs:  -0.805208 EEEEE locs:  -0.576042 EEEEE locs:  -0.576042 EEEEE locs:  -0.576042 EEEEE locs:  -0.576042 EEEEE locs:  -0.576042 EEEEE locs:  -0.346875 EEEEE locs:  -0.346875 EEEEE locs:  -0.346875 EEEEE locs:  -0.346875 EEEEE locs:  -0.346875,   -0.212812,   -0.364062,   -0.515312,   -0.666562,   -0.817813,   -0.212812,   -0.364062,   -0.515312,   -0.666562,   -0.817813,   -0.212812,   -0.364062,   -0.515312,   -0.666562,   -0.817813 FFFFF xy:  0.000000 
+
+print("   y_t[i]: ",  y_t[i])   ;
         }
     }
 }

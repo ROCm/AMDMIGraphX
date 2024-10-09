@@ -135,22 +135,30 @@ struct roialign
 
             for(auto ii : range(p.size()))
             {
+// printf(" ttttt roi_start[%d] = %f  p=%lu bin_size = %f   i[%d] + .5f = %f  bin_grid_size = %lu\n", ii, 
+// roi_start[ii], p[ii], bin_size[ii], ii, (i[ii] + .5f), bin_grid_size[ii]);
+                
                 xy[ii] = roi_start[ii] + p[ii] * bin_size[ii] +
                          (i[ii] + .5f) * bin_size[ii] / bin_grid_size[ii];
+// printf(" uuuuu    xy[%d]:   %f\n", ii, xy[ii]);
                 if(xy[ii] < -1.0 or xy[ii] > dims[ii])
                 {
                     results[index] = pos_weight{};
+// printf(" vvvvv    xy[%d]:   %f\n", ii, xy[ii]);
                     return;
                 }
 
                 xy[ii]   = std::max(xy[ii], 0.0f);
+// printf(" wwwww    xy[%d]:   %f\n", ii, xy[ii]);
                 low[ii]  = xy[ii];
                 high[ii] = low[ii] + 1;
                 if(low[ii] >= dims[ii] - 1)
                 {
                     xy[ii] = high[ii] = low[ii] = dims[ii] - 1;
+// printf(" xxxxx    xy[%d]:   %f\n", ii, xy[ii]);
                 }
             }
+printf(" fufufu   xy:   %f, %f    index %d\n",  xy[0],  xy[1], index);
             results[index].pos = {low[1] * dims[0] + low[0],
                                   low[1] * dims[0] + high[0],
                                   high[1] * dims[0] + low[0],
@@ -226,6 +234,8 @@ struct roialign
 
         visit_all(result, args.at(0), args.at(1))([&](auto output, auto x, auto roi) {
             const auto* batch_indices = args.at(2).cast<int64_t>();
+// printf(" UUUUU roi = %f, %f  roi_s.index(0, 0) = %zu   roi_s.index(0, 1) = %zu   (1, 0)=%zu    (1, 1)=%zu\n", roi[0], roi[1], 
+// roi_s.index({0, 0}), roi_s.index({0, 1}), roi_s.index({1, 0}), roi_s.index({1, 1}))   ;         
             par_for(n_rois, [&](auto n) {
                 const auto bottom_data   = x.begin();
                 const auto roi_batch_ind = batch_indices[n];
@@ -237,6 +247,7 @@ struct roialign
                 std::array<float, 2> roi_ends = {
                     static_cast<float>(roi[roi_s.index({n, 2})] * spatial_scale - offset),
                     static_cast<float>(roi[roi_s.index({n, 3})] * spatial_scale - offset)};
+
 
                 // Force malformed ROIs to be 1x1, output_half_pixel transform mode
                 std::array<float, 2> roi_size{};
@@ -274,6 +285,9 @@ struct roialign
                     const auto offset_bottom_data =
                         bottom_data + static_cast<int64_t>((roi_batch_ind * channels + c) *
                                                            in_dims[0] * in_dims[1]);
+// std::cout << " VVVVV offset_bottom_data: "  << offset_bottom_data[0] << "\n" ;
+// std::cout << " WWWWW offset_bottom_data_asdf: "  << static_cast<int64_t>((roi_batch_ind * channels + c) *
+//                                                            in_dims[0] * in_dims[1]) << "\n"   ;
                     double output_val;
                     std::tie(output_val, vec_index[c]) =
                         (mode == migraphx::op::pooling_mode::average)
@@ -287,6 +301,7 @@ struct roialign
                                                  pre_calc,
                                                  vec_index[c],
                                                  max_pool{});
+// printf(" XXXXX output_val: %f  \n", output_val)                                                 ;
                     output(n, c, ph, pw) = output_val;
                 });
             });

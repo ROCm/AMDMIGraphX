@@ -890,7 +890,7 @@ int main(int argc, const char* argv[], const char* envp[])
             std::string(argv[0]) + " " + migraphx::to_string_range(args, " ");
         std::cout << "Running [ " << get_version() << " ]: " << driver_invocation << std::endl;
 
-        for(const char** env = envp; *env; ++env)
+        for(const char** env = envp; *env != nullptr; ++env)
         {
             std::string env_var(*env);
             size_t pos = env_var.find('=');

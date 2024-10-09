@@ -158,7 +158,7 @@ struct roialign
 // printf(" xxxxx    xy[%d]:   %f\n", ii, xy[ii]);
                 }
             }
-printf(" fufufu   xy:   %f, %f    index %d\n",  xy[0],  xy[1], index);
+printf(" fufufu   xy:   %f, %f\n",  xy[0],  xy[1]);
             results[index].pos = {low[1] * dims[0] + low[0],
                                   low[1] * dims[0] + high[0],
                                   high[1] * dims[0] + low[0],
@@ -272,7 +272,7 @@ printf(" fufufu   xy:   %f, %f    index %d\n",  xy[0],  xy[1], index);
                 shape comp_s{shape::float_type, comp_lens};
                 auto pre_calc =
                     this->calc_pos_weight(in_dims, comp_s, roi_starts, bin_size, bin_grid_size);
-
+// The array returned here should correspond to the GGGGG and HHHHH values in the GPU
                 std::vector<std::size_t> comp_lens1 = {channels, out_dims[0], out_dims[1]};
                 shape comp_s1{migraphx::shape::float_type, comp_lens1};
                 std::vector<int64_t> vec_index(channels, 0);

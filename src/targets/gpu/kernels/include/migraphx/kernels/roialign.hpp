@@ -76,23 +76,23 @@ MIGRAPHX_DEVICE_CONSTEXPR typename Iterator::value_type bilinear_interpolate(
     array<int, 2> high{};
     for(index_int ii = 0; ii < xy.size(); ++ii)
     {
-        println_once(" fffff xy: ", xy[ii]);
+        // println_once(" fffff xy: ", xy[ii]);
         if(xy[ii] < -1.0f or xy[ii] > dims[ii])
         {
-        println_once(" ggggg xy: ", xy[ii]);
+        // println_once(" ggggg xy: ", xy[ii]);
             return implicit_conversion(0);
         }
 
         xy[ii]   = migraphx::max(xy[ii], 0.0f);
-        println_once(" hhhhh xy: ", xy[ii]);
+        // println_once(" hhhhh xy: ", xy[ii]);
         low[ii]  = xy[ii];
         high[ii] = low[ii] + 1;
         if(low[ii] >= dims[ii] - 1)
         {
             xy[ii] = high[ii] = low[ii] = dims[ii] - 1;
-    println_once(" iiiii xy: ", xy[ii]);
+    // println_once(" iiiii xy: ", xy[ii]);
         }
-        println_once(" FFFFF xy: ", xy[ii]);
+        // println_once(" FFFFF xy: ", xy[ii]);
     }
 println(" FUFUFU xy: ", xy);    
     array<index_int, 4> locs = {low[1] * dims[0] + low[0],  // new
@@ -112,6 +112,11 @@ println(" FUFUFU xy: ", xy);
     // do calculations in floating point and convert final result to required type
     array<float, 4> ws = {hy * hx, hy * lx, ly * hx, ly * lx};
 
+    //debug
+     array<float, 2> pooling_input01 = {data[locs[1]] * ws[1], data[locs[0]] * ws[0]};
+     array<float, 2> pooling_input23 = {data[locs[3]] * ws[3], data[locs[2]] * ws[2]};
+println(" GGGGG pooling_input01", pooling_input01);
+println(" HHHHH pooling_input23", pooling_input23);
     // todo:  Should we change the order of these indices?
     // auto v01 = pooling(data[locs[0]] * ws[0], data[locs[1]] * ws[1]);
     // auto v23 = pooling(data[locs[2]] * ws[2], data[locs[3]] * ws[3]);

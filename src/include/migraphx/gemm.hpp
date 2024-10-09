@@ -28,7 +28,6 @@
 #include <migraphx/dfor.hpp>
 #include <migraphx/par_for.hpp>
 #include <migraphx/tensor_view.hpp>
-#include <migraphx/argument.hpp>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {

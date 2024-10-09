@@ -47,14 +47,15 @@ struct test_group_query_attention_prompt : verify_program<test_group_query_atten
         auto query = mm->add_parameter("query", query_s);
         std::vector<int> slk_vec(slk_s.elements(), 10);
         std::vector<int> tsl_vec(tsl_s.elements(), 11);
+        std::vector<float> cs_vec(cs_cache_s.elements(), 1.0);
         auto k_cache   = mm->add_parameter("k_cache", kv_s);
         auto v_cache   = mm->add_parameter("v_cache", kv_s);
         auto slk       = mm->add_literal(slk_s, slk_vec);
         auto tsl       = mm->add_literal(tsl_s, tsl_vec);
         auto key       = mm->add_literal(0.0f);
         auto value     = mm->add_literal(0.0f);
-        auto cos_cache = mm->add_parameter("cos_cache", cs_cache_s);
-        auto sin_cache = mm->add_parameter("sin_cache", cs_cache_s);
+        auto cos_cache = mm->add_literal(cs_cache_s, cs_vec);
+        auto sin_cache = mm->add_literal(cs_cache_s, cs_vec);
         auto r         = mm->add_instruction(migraphx::make_op("group_query_attention",
                                                                {{"do_rotary", 1},
                                                                 {"kv_num_heads", 32},

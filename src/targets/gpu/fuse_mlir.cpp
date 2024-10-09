@@ -654,7 +654,7 @@ struct find_mlir_fused_ops
 template <auto Matcher>
 struct find_mlir_standalone_op
 {
-    mlir_mode mode = mlir_mode::none;
+    mlir_mode mode       = mlir_mode::none;
     std::size_t* counter = nullptr;
     auto matcher() const { return Matcher(mode); }
 
@@ -910,16 +910,16 @@ struct find_unpack_int4_mlir_op
         {
             if(input->get_operator().name() == "unpack_int4")
             {
-                auto unpack_input     = input->inputs()[0];
-                instruction_ref t_ins = nm->add_parameter(unpack_input->name() + param_name(++ct),
-                                                          unpack_input->get_shape().as_standard());
-                map_ins[input]        = nm->add_instruction(input->get_operator(), t_ins);
+                auto unpack_input = input->inputs()[0];
+                instruction_ref t_ins =
+                    nm->add_parameter(param_name(++ct), unpack_input->get_shape().as_standard());
+                map_ins[input] = nm->add_instruction(input->get_operator(), t_ins);
                 x_in.push_back(unpack_input);
             }
             else
             {
-                map_ins[input] = nm->add_parameter(input->name() + param_name(++ct),
-                                                   input->get_shape().as_standard());
+                map_ins[input] =
+                    nm->add_parameter(param_name(++ct), input->get_shape().as_standard());
                 x_in.push_back(input);
             }
         }

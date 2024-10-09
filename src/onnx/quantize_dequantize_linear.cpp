@@ -74,10 +74,6 @@ transform_quantize_dequantize_linear_inputs(const onnx_parser::node_info& info,
     else
     {
         axis = tune_axis(x_rank, axis, op_name);
-        if(block_size == 0)
-        {
-            MIGRAPHX_THROW(op_name + ": Invalid blocksize(0)");
-        }
 
         if(x_rank != y_scale_rank)
         {
@@ -103,6 +99,9 @@ transform_quantize_dequantize_linear_inputs(const onnx_parser::node_info& info,
         float si           = y_scale_lens[axis];
         int block_size_min = std::ceil(di / si);
         int block_size_max = std::ceil(di / (si - 1)) - 1;
+        // default block_size if not given is calculated (to support quark generated models):
+        if(block_size == 0)
+            block_size = block_size_min;
         if(block_size < block_size_min or block_size > block_size_max)
             MIGRAPHX_THROW(op_name + ": Block size(actual: " + to_string(block_size) +
                            ") must be within range [" + to_string(block_size_min) + ", " +

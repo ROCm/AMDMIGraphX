@@ -655,7 +655,15 @@ template <auto Matcher>
 struct find_mlir_standalone_op
 {
     mlir_mode mode = mlir_mode::none;
+    std::size_t* counter = nullptr;
     auto matcher() const { return Matcher(mode); }
+
+    std::string get_count() const
+    {
+        if(counter == nullptr)
+            MIGRAPHX_THROW("Invalid counter");
+        return std::to_string((*counter)++);
+    }
 
     void apply(module_pass_manager& mpm, const match::matcher_result& r) const
     {
@@ -671,9 +679,10 @@ struct find_mlir_standalone_op
                                    i->get_shape().type());
            }))
             return;
-        static size_t counter = 0;
-        module_ref mm =
-            mpm.create_module("mlir_" + gemm_based_op->name() + std::to_string(counter++));
+        std::string module_name = "mlir_" + gemm_based_op->name() + get_count();
+        if(mpm.get_module().name() != "main")
+            module_name = mpm.get_module().name() + ":" + module_name;
+        module_ref mm = mpm.create_module(module_name);
         mm->set_bypass();
         auto [anchor_op, top_inputs] = fuse_input_ops_and_gemm_based_op(
             mm, gemm_based_op->inputs(), gemm_based_op->get_operator());
@@ -885,6 +894,7 @@ struct find_pointwise_mlir
 void fuse_mlir::apply(module_pass_manager& mpm) const
 {
 #ifdef MIGRAPHX_MLIR
+    std::size_t counter     = 0;
     const auto& device_name = ctx == nullptr ? "" : ctx->get_current_device().get_gfx_name();
     const bool is_navi      = starts_with(device_name, "gfx11");
 
@@ -914,8 +924,9 @@ void fuse_mlir::apply(module_pass_manager& mpm) const
 
     match::find_matches(
         mpm,
-        find_mlir_standalone_convolution_op{get_mode("convolution", mlir_mode::fast)},
-        find_mlir_standalone_dot_op{get_mode("dot", mlir_mode::fast)});
+        find_mlir_standalone_convolution_op{.mode    = get_mode("convolution", mlir_mode::fast),
+                                            .counter = &counter},
+        find_mlir_standalone_dot_op{.mode = get_mode("dot", mlir_mode::fast), .counter = &counter});
 
     mpm.run_pass(dead_code_elimination{});
     if(enabled(MIGRAPHX_ENABLE_MLIR_REDUCE_FUSION{}))

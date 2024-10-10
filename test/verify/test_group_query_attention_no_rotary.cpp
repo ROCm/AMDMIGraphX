@@ -46,19 +46,28 @@ struct test_group_query_attention_no_rotary : verify_program<test_group_query_at
         migraphx::shape cs_cache_s{dtype, cs_cache_lens};
         std::vector<int> slk_vec(slk_s.elements(), 2);
         std::vector<int> tsl_vec(tsl_s.elements(), 3);
-        std::vector<float> cs_vec(cs_cache_s.elements(), 0.0);
         std::vector<float> k_vec(kv_s.elements(), 1.0);
         std::vector<float> v_vec(kv_s.elements(), 0.0);
-        std::vector<float> q_vec(query_s.elements(), 2.0);
-        auto query     = mm->add_literal(query_s, q_vec);
+        std::vector<float> q_min_vec(query_s.elements(), -100.0);
+        std::vector<float> q_max_vec(query_s.elements(), 100.0);
+        std::vector<float> cs_min_vec(cs_cache_s.elements(), -1.0);
+        std::vector<float> cs_max_vec(cs_cache_s.elements(), 1.0);
         auto k_cache   = mm->add_literal(kv_s, k_vec);
         auto v_cache   = mm->add_literal(kv_s, v_vec);
+        auto query = mm->add_parameter("query", query_s);
+        auto q_min = mm->add_literal(query_s, q_min_vec);
+        auto q_max = mm->add_literal(query_s, q_max_vec);
+        query = mm->add_instruction(migraphx::make_op("clip"), query, q_min, q_max);
         auto slk       = mm->add_literal(slk_s, slk_vec);
         auto tsl       = mm->add_literal(tsl_s, tsl_vec);
         auto key       = mm->add_literal(0.0f);
         auto value     = mm->add_literal(0.0f);
-        auto cos_cache = mm->add_literal(cs_cache_s, cs_vec);
-        auto sin_cache = mm->add_literal(cs_cache_s, cs_vec);
+        auto cs_min = mm->add_literal(cs_cache_s, cs_min_vec);
+        auto cs_max = mm->add_literal(cs_cache_s, cs_max_vec);
+        auto cos_cache = mm->add_parameter("cos_cache", cs_cache_s);
+        auto sin_cache = mm->add_parameter("sin_cache", cs_cache_s);
+        cos_cache = mm->add_instruction(migraphx::make_op("clip"), cos_cache, cs_min, cs_max);
+        sin_cache = mm->add_instruction(migraphx::make_op("clip"), sin_cache, cs_min, cs_max);
         auto r         = mm->add_instruction(migraphx::make_op("group_query_attention",
                                                                {{"do_rotary", 0},
                                                                 {"kv_num_heads", 32},

@@ -35,7 +35,9 @@ struct parse_matmul : op_parser<parse_matmul>
 {
     std::vector<op_desc> operators() const
     {
-        return {{"MatMul", "dot"}, {"MatMulInteger", "quant_dot"}};
+        return {{"MatMul", "dot"},
+                {"MatMulInteger", "quant_dot"},
+                {"MatMulIntegerToFloat", "quant_dot_scaled"}};
     }
 
     static void broadcast_dimensions(const onnx_parser::node_info& info,
@@ -106,6 +108,55 @@ struct parse_matmul : op_parser<parse_matmul>
         return all_zeros;
     }
 
+    static instruction_ref set_scale_arg(const std::vector<instruction_ref>& args, const int index)
+    {
+        instruction_ref scale_arg                            = args[index];
+        std::set<migraphx::shape::type_t> supported_dq_types = {migraphx::shape::float_type,
+                                                                migraphx::shape::half_type};
+
+        if(not(contains(supported_dq_types, scale_arg->get_shape().type())))
+        {
+            MIGRAPHX_THROW("PARSE_QUANT_DOT_SCALDED: Scales must be float or half_type");
+        }
+
+        return scale_arg;
+    }
+
+    static instruction_ref set_scale_bias(const std::vector<instruction_ref>& args,
+                                          const int index,
+                                          const migraphx::shape& scale_arg_shape,
+                                          const instruction_ref& compare_arg,
+                                          bool& has_valid_scale_bias)
+    {
+        has_valid_scale_bias = false;
+
+        if(args.size() > index)
+        {
+            instruction_ref scale_bias_arg                       = args[index];
+            std::set<migraphx::shape::type_t> supported_dq_types = {migraphx::shape::float_type,
+                                                                    migraphx::shape::half_type};
+
+            if(not(contains(supported_dq_types, scale_bias_arg->get_shape().type())))
+            {
+                MIGRAPHX_THROW("PARSE_QUANT_DOT_SCALDED: Bias must be float or half_type");
+            }
+
+            if(scale_bias_arg->get_shape().type() != scale_arg_shape.type())
+            {
+                MIGRAPHX_THROW("PARSE_QUANT_DOT_SCALED: Bias must be the same type as scales");
+            }
+
+            if(scale_bias_arg->get_shape().lens().at(0) != compare_arg->get_shape().lens().at(1))
+            {
+                MIGRAPHX_THROW("PARSE_QUANT_DOT_SCALED: Bias have same dim as matrix B column");
+            }
+
+            has_valid_scale_bias = true;
+            return scale_bias_arg;
+        }
+        return compare_arg;
+    }
+
     static instruction_ref set_bias_arg(const std::vector<instruction_ref>& args,
                                         const int index,
                                         const instruction_ref& input,
@@ -148,6 +199,32 @@ struct parse_matmul : op_parser<parse_matmul>
         }
     }
 
+    static instruction_ref handle_scaled_output(const onnx_parser::node_info& info,
+                                                const instruction_ref& ba0,
+                                                const instruction_ref& ba1,
+                                                const instruction_ref& scale_a0,
+                                                const instruction_ref& scale_a1,
+                                                const instruction_ref& scaled_bias,
+                                                const bool has_scale_bias)
+    {
+        auto bias_a0 = ba0;
+        auto bias_a1 = ba1;
+        // Convert if we're half types as dot will scream if we try to multipy half int8
+        bias_a0 = info.add_instruction(
+            make_op("convert", {{"target_type", scale_a0->get_shape().type()}}), bias_a0);
+        bias_a1 = info.add_instruction(
+            make_op("convert", {{"target_type", scale_a1->get_shape().type()}}), bias_a1);
+        auto dq_a0 = info.add_instruction(make_op("dot"), ba0, scale_a0);
+        auto dq_a1 = info.add_instruction(make_op("dot"), ba1, scale_a1);
+        auto res   = info.add_instruction(make_op("dot"), dq_a0, dq_a1);
+
+        // Handle case of the bias after scaling
+        if(has_scale_bias)
+            res = info.add_common_op("sub", res, scaled_bias);
+
+        return res;
+    }
+
     instruction_ref parse(const op_desc& opd,
                           const onnx_parser& /*parser*/,
                           const onnx_parser::node_info& info,
@@ -172,7 +249,8 @@ struct parse_matmul : op_parser<parse_matmul>
             a1            = info.add_instruction(make_op("unsqueeze", {{"axes", {1}}}), args[1]);
         }
 
-        auto is_quant_dot = opd.op_name == "quant_dot";
+        auto is_quant_dot = opd.op_name == "quant_dot" or opd.op_name == "quant_dot_scaled";
+        auto has_scales   = opd.op_name == "quant_dot_scaled";
         if(s0.dynamic() or s1.dynamic())
         {
             if(is_quant_dot)
@@ -200,15 +278,42 @@ struct parse_matmul : op_parser<parse_matmul>
             auto s0_lens        = a0->get_shape().lens();
             auto s1_lens        = a1->get_shape().lens();
 
-            if(not is_quant_dot and args.size() > 2)
+            if(not is_quant_dot and args.size() > 2 and not has_scales)
             {
                 MIGRAPHX_THROW("PARSE_MATMUL: Bias Args not supported for MatMul");
             }
 
             bool has_ba0        = false;
             bool has_ba1        = false;
-            instruction_ref ba0 = set_bias_arg(args, 2, a0, has_ba0);
-            instruction_ref ba1 = set_bias_arg(args, 3, a1, has_ba1);
+            bool has_scale_bias = false;
+
+            int a0_zp_index = 2;
+            int a1_zp_index = 3;
+
+            instruction_ref scale_a0;
+            instruction_ref scale_a1;
+            // Handles case with for when scales are present in operator
+            if(has_scales)
+            {
+                a0_zp_index = 4;
+                a1_zp_index = 5;
+                scale_a0    = set_scale_arg(args, 2);
+                scale_a1    = set_scale_arg(args, 3);
+                if(scale_a0->get_shape().type() != scale_a1->get_shape().type())
+                {
+                    MIGRAPHX_THROW("PARSE_MATMULINTEGERTOFLOAT: Scales must be the same type");
+                }
+            }
+
+            instruction_ref ba0 = set_bias_arg(args, a0_zp_index, a0, has_ba0);
+            instruction_ref ba1 = set_bias_arg(args, a1_zp_index, a1, has_ba1);
+
+            // handle optional bias arg to the result
+            instruction_ref scaled_bias;
+            if(has_scales)
+            {
+                scaled_bias = set_scale_bias(args, 6, scale_a1->get_shape(), a1, has_scale_bias);
+            }
 
             // Only INT8 or UINT8 type currently supported
             std::set<migraphx::shape::type_t> supported_types = {migraphx::shape::uint8_type,
@@ -254,7 +359,19 @@ struct parse_matmul : op_parser<parse_matmul>
 
             broadcast_dimensions(info, s0_lens, s1_lens, a0, a1, ba0, ba1);
 
-            dot_res = info.add_instruction(make_op(opd.op_name), ba0, ba1);
+            // Apply the scale to dequantize input to then perform a simple dot
+            // after the zero points are applied otherwise get a int32 output from the quantized
+            // equivalent. Ensure these are broadcasted accordingly before we perform a dot
+            if(has_scales)
+            {
+                broadcast_dimensions(info, s0_lens, s1_lens, a0, a1, scale_a0, scale_a1);
+                dot_res = handle_scaled_output(
+                    info, ba0, ba1, scale_a0, scale_a1, scaled_bias, has_scale_bias);
+            }
+            else
+            {
+                dot_res = info.add_instruction(make_op(opd.op_name), ba0, ba1);
+            }
         }
 
         // squeeze the appended or prepended dimensions

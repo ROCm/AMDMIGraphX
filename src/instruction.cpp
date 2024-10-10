@@ -26,6 +26,7 @@
 #include <migraphx/erase.hpp>
 #include <migraphx/module.hpp>
 #include <migraphx/ranges.hpp>
+#include <deque>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
@@ -61,10 +62,7 @@ void instruction::replace(const shape& r)
 {
     if (r != result){
         result = r;
-        std::deque<instruction_ref> q;
-        for (instruction_ref ins: output){
-            q.push_back(ins);
-        }
+        std::deque<instruction_ref> q(output.begin(), output.end());
         while(!q.empty())
         {
             instruction_ref ins = q.front();
@@ -74,10 +72,7 @@ void instruction::replace(const shape& r)
             if (new_r != ins->result)
             {
                 ins->result = new_r;
-                for(instruction_ref child_ins: ins->output)
-                {
-                    q.push_back(child_ins);
-                }
+                std::copy(ins->output.begin(), ins->output.end(), std::back_inserter(q));
             }
        }
     }

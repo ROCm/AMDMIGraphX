@@ -70,8 +70,8 @@ struct gqa_parameters
                "MIGRAPHX_MAKE_CONSTANT(uint32_t{" + std::to_string(seq_stride) + "}), " +
                "MIGRAPHX_MAKE_CONSTANT(uint32_t{" + std::to_string(batch_stride) + "}), " +
                "MIGRAPHX_MAKE_CONSTANT(uint32_t{" + std::to_string(position_ids_format) + "}), " +
-               std::to_string(seqlen_present_kv_cache) + "}), " + "MIGRAPHX_MAKE_CONSTANT(bool{" +
-               std::to_string(static_cast<int>(do_rotary)) + "}), " +
+               "MIGRAPHX_MAKE_CONSTANT(uint32_t{" + std::to_string(seqlen_present_kv_cache) + "}), " + 
+               "MIGRAPHX_MAKE_CONSTANT(bool{" + std::to_string(static_cast<int>(do_rotary)) + "}), " +
                "MIGRAPHX_MAKE_CONSTANT(uint32_t{" + std::to_string(kv_num_heads) + "}), " +
                "MIGRAPHX_MAKE_CONSTANT(int32_t{" + std::to_string(local_window_size) + "}), " +
                "MIGRAPHX_MAKE_CONSTANT(bool{" +

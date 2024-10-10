@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2023 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2024 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -74,6 +74,13 @@ struct roialign
         auto type     = inputs.at(0).type();
 
         // check input correct
+        if(shape::is_integral(type))
+            MIGRAPHX_THROW("ROIALIGN: incorrect type for input data! (should be non-integer)");
+        if(shape::is_integral(inputs.at(1).type()))
+            MIGRAPHX_THROW("ROIALIGN: incorrect data type for rois! (should be non-integer)");
+        if(!shape::is_integral(inputs.at(2).type()))
+            MIGRAPHX_THROW(
+                "ROIALIGN: incorrect datatype for roi indices! (should be an integral type)");
         if(bi_lens.size() != 1)
         {
             MIGRAPHX_THROW("ROIALIGN: batch indices should be 1 dimension!");
@@ -92,8 +99,8 @@ struct roialign
 
         std::vector<std::size_t> out_lens = x_lens;
         out_lens[0]                       = roi_lens[0];
-        out_lens[2]                       = output_height;
-        out_lens[3]                       = output_width;
+        out_lens[2]                       = output_width;
+        out_lens[3]                       = output_height;
 
         return {type, out_lens};
     }
@@ -115,17 +122,22 @@ struct roialign
         std::vector<pos_weight> results(bin_grid_size[0] * bin_grid_size[1] * output_height *
                                         output_width);
         shape_for_each(comp_s, [&](const auto& idx_v, size_t index) {
-            std::array<std::size_t, 2> p = {idx_v[0], idx_v[1]};
-            std::array<std::size_t, 2> i = {idx_v[2], idx_v[3]};
-
+            // The p and i indexes correspond to nested looping parameters in ORT that go in y, x
+            // order.  The i[x] value is least significant and iterates the fastest.
+            std::array<std::size_t, 2> p = {idx_v[1], idx_v[0]};
+            std::array<std::size_t, 2> i = {idx_v[3], idx_v[2]}; // these are always equal
+            // xy is scaled coordinates of start point of ROI
             std::array<float, 2> xy{};
+            // low, high are floor and ceiling of the xy value (i.e. the bounds of the pixel it lies
+            // inside) from which we will interpolate.
             std::array<int64_t, 2> low{};
             std::array<int64_t, 2> high{};
+
             for(auto ii : range(p.size()))
             {
                 xy[ii] = roi_start[ii] + p[ii] * bin_size[ii] +
                          (i[ii] + .5f) * bin_size[ii] / bin_grid_size[ii];
-                xy[ii] = (coord_trans_mode == "half_pixel") ? (xy[ii] - 0.5f) : xy[ii];
+printf(" FUFUFU index %lu    xy:   (%f, %f)\n", index,  xy[0],  xy[1]);
                 if(xy[ii] < -1.0 or xy[ii] > dims[ii])
                 {
                     results[index] = pos_weight{};
@@ -140,21 +152,19 @@ struct roialign
                     xy[ii] = high[ii] = low[ii] = dims[ii] - 1;
                 }
             }
+printf(" FFFFF index %lu    xy:   (%f, %f)\n", index,  xy[0],  xy[1]);
+            results[index].pos = {low[1] * dims[0] + low[0],
+                                  low[1] * dims[0] + high[0],
+                                  high[1] * dims[0] + low[0],
+                                  high[1] * dims[0] + high[0]};
 
-            results[index].pos = {low[0] * dims[1] + low[1],
-                                  low[0] * dims[1] + high[1],
-                                  high[0] * dims[1] + low[1],
-                                  high[0] * dims[1] + high[1]};
-
-            float ly = xy[0] - low[0];
-            float lx = xy[1] - low[1];
+            float lx = xy[0] - low[0];
+            float ly = xy[1] - low[1];
             float hy = 1.0f - ly;
             float hx = 1.0f - lx;
-
-            // save weights and indeces
+            // save weights and indices
             results[index].w = {hy * hx, hy * lx, ly * hx, ly * lx};
         });
-
         return results;
     }
 
@@ -176,6 +186,7 @@ struct roialign
         double final(double x, std::size_t y) { return (y == 0) ? 0.0 : (x / y); }
     };
 
+    // Calculate a pooling value for 1 block of bin_grid_size*bin_grid_size weights
     template <class T, class Op>
     std::tuple<double, int64_t> calc_pooling(const T& data,
                                              const std::array<std::size_t, 2>& bin_grid_size,
@@ -185,13 +196,19 @@ struct roialign
     {
         double output_val   = op.init();
         const int64_t count = bin_grid_size[0] * bin_grid_size[1];
-        dfor(bin_grid_size[0], bin_grid_size[1])([&](auto, auto) {
+        dfor(bin_grid_size[0], bin_grid_size[1])([&](auto iy, auto ix) {
             const auto& pc = pos_weights[index];
             std::array<double, 4> wv;
+// printf(" HHHHH dfor index: (%lu, %lu)\n", iy, ix);            
+// printf(" GGGGG transform:  ");                    
+printf(" IIIII transform ws:  ");  
             std::transform(
                 pc.w.begin(), pc.w.end(), pc.pos.begin(), wv.begin(), [&](auto w, auto pos) {
+printf(" %f ", w);
+// printf("  %f ", *(data + pos) * w);
                     return *(data + pos) * w;
                 });
+printf("\n");                
             output_val = std::accumulate(wv.begin(), wv.end(), output_val, op);
             index += 1;
         });
@@ -208,11 +225,11 @@ struct roialign
         int64_t n_rois       = out_lens[0];
         std::size_t channels = out_lens[1];
         // output dims of height and width, in all 2-dim arrays, the first dim
-        // is for height and second dim is for width
+        // is for height and second dim is for width i.e. (y, x) order
         std::array<std::size_t, 2> out_dims = {out_lens[2], out_lens[3]};
         const auto& x_lens                  = args.at(0).get_shape().lens();
         // input dims of height and width
-        std::array<std::size_t, 2> in_dims = {x_lens[2], x_lens[3]};
+        std::array<std::size_t, 2> in_dims = {x_lens[3], x_lens[2]};
         auto roi_s                         = args.at(1).get_shape();
 
         visit_all(result, args.at(0), args.at(1))([&](auto output, auto x, auto roi) {
@@ -220,15 +237,17 @@ struct roialign
             par_for(n_rois, [&](auto n) {
                 const auto bottom_data   = x.begin();
                 const auto roi_batch_ind = batch_indices[n];
-                // Do not using rounding; this implementation detail is critical
+                // Do not use rounding; this implementation detail is critical
+                const float offset              = (coord_trans_mode == "half_pixel") ? 0.5 : 0.0;
                 std::array<float, 2> roi_starts = {
-                    static_cast<float>(roi[roi_s.index({n, 1})] * spatial_scale),
-                    static_cast<float>(roi[roi_s.index({n, 0})] * spatial_scale)};
+                    static_cast<float>(roi[roi_s.index({n, 0})] * spatial_scale - offset),
+                    static_cast<float>(roi[roi_s.index({n, 1})] * spatial_scale - offset)};
                 std::array<float, 2> roi_ends = {
-                    static_cast<float>(roi[roi_s.index({n, 3})] * spatial_scale),
-                    static_cast<float>(roi[roi_s.index({n, 2})] * spatial_scale)};
+                    static_cast<float>(roi[roi_s.index({n, 2})] * spatial_scale - offset),
+                    static_cast<float>(roi[roi_s.index({n, 3})] * spatial_scale - offset)};
 
-                // Force malformed ROIs to be 1x1
+
+                // Force malformed ROIs to be 1x1, output_half_pixel transform mode
                 std::array<float, 2> roi_size{};
                 std::array<float, 2> bin_size{};
                 std::array<std::size_t, 2> bin_grid_size{};
@@ -236,8 +255,8 @@ struct roialign
                 for(auto ii : range(roi_size.size()))
                 {
                     roi_size[ii] = roi_ends[ii] - roi_starts[ii];
-                    roi_size[ii] = std::max(roi_size[ii], 1.0f);
-
+                    if(coord_trans_mode != "half_pixel")
+                        roi_size[ii] = std::max(roi_size[ii], 1.0f);
                     bin_size[ii]      = roi_size[ii] / out_dims[ii];
                     bin_grid_size[ii] = (sampling_ratio > 0)
                                             ? sampling_ratio
@@ -247,22 +266,24 @@ struct roialign
                 // we want to precalculate indices and weights shared by all channels,
                 // this is the key point of optimization
                 std::vector<std::size_t> comp_lens = {
-                    out_dims[0], out_dims[1], bin_grid_size[0], bin_grid_size[1]};
+                    out_dims[1], out_dims[0], bin_grid_size[1], bin_grid_size[0]};
                 shape comp_s{shape::float_type, comp_lens};
                 auto pre_calc =
                     this->calc_pos_weight(in_dims, comp_s, roi_starts, bin_size, bin_grid_size);
-
+// The array returned here should correspond to the GGGGG and HHHHH values in the GPU
                 std::vector<std::size_t> comp_lens1 = {channels, out_dims[0], out_dims[1]};
                 shape comp_s1{migraphx::shape::float_type, comp_lens1};
                 std::vector<int64_t> vec_index(channels, 0);
+
                 shape_for_each(comp_s1, [&](const auto& idx) {
-                    auto c  = idx[0];
+                    auto c  = idx[0]; // channel count
                     auto ph = idx[1];
                     auto pw = idx[2];
 
                     const auto offset_bottom_data =
                         bottom_data + static_cast<int64_t>((roi_batch_ind * channels + c) *
                                                            in_dims[0] * in_dims[1]);
+printf(" KKKKK n, c, ph, pw = %lu %lu %lu %lu\n",  n, c, ph, pw);
                     double output_val;
                     std::tie(output_val, vec_index[c]) =
                         (mode == migraphx::op::pooling_mode::average)
@@ -276,6 +297,7 @@ struct roialign
                                                  pre_calc,
                                                  vec_index[c],
                                                  max_pool{});
+// printf(" XXXXX output_val: %f  \n", output_val)                                                 ;
                     output(n, c, ph, pw) = output_val;
                 });
             });

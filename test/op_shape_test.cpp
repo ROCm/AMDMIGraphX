@@ -5166,6 +5166,23 @@ TEST_CASE(roialign_test)
 
     migraphx::shape srois2{migraphx::shape::float_type, {2, 3}};
     throws_shape(migraphx::make_op("roialign"), sx, srois2, sbi);
+
+    // alternate data types
+    migraphx::shape sx_d{migraphx::shape::double_type, {3, 4, 5, 6}};
+    migraphx::shape srois_d{migraphx::shape::double_type, {2, 4}};
+    migraphx::shape sbi_int{migraphx::shape::int32_type, {2}};
+    migraphx::shape sout_d{migraphx::shape::double_type, {2, 4, 1, 1}};
+    expect_shape(sout_d, migraphx::make_op("roialign"), sx_d, srois_d, sbi_int);
+
+    // wrong data types
+    migraphx::shape srois_int{migraphx::shape::int32_type, {2, 3}};
+    throws_shape(migraphx::make_op("roialign"), sx, srois_int, sbi);
+
+    migraphx::shape sx_int{migraphx::shape::int64_type, {3, 4, 5, 6}};
+    throws_shape(migraphx::make_op("roialign"), sx_int, srois, sbi);
+
+    migraphx::shape sbi_float{migraphx::shape::float_type, {2}};
+    throws_shape(migraphx::make_op("roialign"), sx, srois, sbi_float);
 }
 
 TEST_CASE(test_concat)

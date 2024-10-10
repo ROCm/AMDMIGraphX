@@ -34,6 +34,12 @@ inline namespace MIGRAPHX_INLINE_NS {
 struct module;
 struct operation;
 
+struct common_options
+{
+    bool common_type = true;
+    bool common_lens = true;
+};
+
 /**
  * Broadcasting works by comparing the shapes element-wise starting with
  * the trailing (right-most) dimensions and working leftwards. This is equivalent
@@ -112,23 +118,30 @@ std::vector<shape::dynamic_dimension> compute_common_dyn_dims(const std::vector<
  *                  attached to each instruction_ref are considered for broadcasting
  * @return std::vector<instruction_ref>   a modified argument list
  */
-MIGRAPHX_EXPORT std::vector<instruction_ref>
-insert_common_args(module& m, instruction_ref ins, std::vector<instruction_ref> inputs);
+MIGRAPHX_EXPORT std::vector<instruction_ref> insert_common_args(module& m,
+                                                                instruction_ref ins,
+                                                                std::vector<instruction_ref> inputs,
+                                                                common_options options = {});
 
 MIGRAPHX_EXPORT
-std::vector<instruction_ref> add_common_args(module& m, std::vector<instruction_ref> inputs);
+std::vector<instruction_ref>
+add_common_args(module& m, std::vector<instruction_ref> inputs, common_options options = {});
 
 MIGRAPHX_EXPORT
 instruction_ref insert_common_op(module& m,
                                  instruction_ref ins,
                                  const operation& op,
-                                 std::vector<instruction_ref> inputs);
+                                 std::vector<instruction_ref> inputs,
+                                 common_options options = {});
 
 /**
  * @brief Wrapper for insert_common_args() which inserts operation at the end of the module.
  */
 MIGRAPHX_EXPORT
-instruction_ref add_common_op(module& m, const operation& op, std::vector<instruction_ref> inputs);
+instruction_ref add_common_op(module& m,
+                              const operation& op,
+                              std::vector<instruction_ref> inputs,
+                              common_options options = {});
 
 /**
  * Calculates the broadcasted shape with the given input_shape and broadcasted dimensions.

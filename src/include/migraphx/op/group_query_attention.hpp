@@ -32,7 +32,7 @@ struct gqa_parameters
                                               // (batch, num_heads, seq_len, hidden)
     std::size_t seqlen_present_kv_cache = 0;  // Sequence length of present kv-cache
                                               // (4096 when using shared buffer)
-    bool past_present_share_buffer = false;   // Whether to use same buffer for KV-cache 
+    bool past_present_share_buffer = false;   // Whether to use same buffer for KV-cache
                                               // inputs and outputs
 };
 

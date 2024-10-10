@@ -6153,14 +6153,22 @@ def int4_const_identity_qdq_test():
     t_node = helper.make_node(
         'Transpose',
         inputs=['dq_y'],
-        outputs=['y'],
+        outputs=['t_y'],
         perm=[1, 0],
+    )
+
+    x2_t = helper.make_tensor_value_info('x2', TensorProto.FLOAT16, [2, 4])
+
+    dot_node = helper.make_node(
+        'MatMul',
+        inputs=['t_y', 'x2'],
+        outputs=['y'],
     )
 
     y_t = helper.make_tensor_value_info('y', TensorProto.FLOAT16, [4, 4])
 
-    return ([i_node, q_node, dq_node,
-             t_node], [], [y_t], [x_t, data_t, sc_t, sc_2_t])
+    return ([i_node, q_node, dq_node, t_node,
+             dot_node], [x2_t], [y_t], [x_t, data_t, sc_t, sc_2_t])
 
 
 @onnx_test()
@@ -6211,14 +6219,22 @@ def int4_const_identity_block_sz_1_qdq_test():
     t_node = helper.make_node(
         'Transpose',
         inputs=['dq_y'],
-        outputs=['y'],
+        outputs=['t_y'],
         perm=[1, 0],
     )
 
-    y_t = helper.make_tensor_value_info('y', TensorProto.FLOAT16, [4, 2])
+    x2_t = helper.make_tensor_value_info('x2', TensorProto.FLOAT16, [2, 4])
 
-    return ([i_node, q_node, dq_node,
-             t_node], [], [y_t], [x_t, data_t, sc_t, sc_2_t])
+    dot_node = helper.make_node(
+        'MatMul',
+        inputs=['t_y', 'x2'],
+        outputs=['y'],
+    )
+
+    y_t = helper.make_tensor_value_info('y', TensorProto.FLOAT16, [4, 4])
+
+    return ([i_node, q_node, dq_node, t_node,
+             dot_node], [x2_t], [y_t], [x_t, data_t, sc_t, sc_2_t])
 
 
 @onnx_test()
@@ -6263,12 +6279,21 @@ def int4_const_identity_block_sz_2_qdq_test():
     dq_node = onnx.helper.make_node(
         'DequantizeLinear',
         inputs=['q_y', 'sc_dq', 'i_y_zp'],
+        outputs=['dq_y'],
+    )
+
+    x2_t = helper.make_tensor_value_info('x2', TensorProto.FLOAT16, [4, 2])
+
+    dot_node = helper.make_node(
+        'MatMul',
+        inputs=['dq_y', 'x2'],
         outputs=['y'],
     )
 
-    y_t = helper.make_tensor_value_info('y', TensorProto.FLOAT16, [2, 4])
+    y_t = helper.make_tensor_value_info('y', TensorProto.FLOAT16, [2, 2])
 
-    return ([i_node, q_node, dq_node], [], [y_t], [x_t, data_t, sc_t, sc_2_t])
+    return ([i_node, q_node, dq_node,
+             dot_node], [x2_t], [y_t], [x_t, data_t, sc_t, sc_2_t])
 
 
 @onnx_test()

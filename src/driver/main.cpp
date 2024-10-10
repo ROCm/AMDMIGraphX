@@ -867,7 +867,7 @@ struct main_command
 } // namespace migraphx
 
 using namespace migraphx::driver; // NOLINT
-int main(int argc, const char* argv[])
+int main(int argc, const char* argv[], const char* envp[])
 {
     std::vector<std::string> args(argv + 1, argv + argc);
     // no argument, print the help infomration by default
@@ -895,6 +895,20 @@ int main(int argc, const char* argv[])
         std::string driver_invocation =
             std::string(argv[0]) + " " + migraphx::to_string_range(args, " ");
         std::cout << "Running [ " << get_version() << " ]: " << driver_invocation << std::endl;
+
+        for(const char** env = envp; *env != nullptr; ++env)
+        {
+            std::string env_var(*env);
+            size_t pos = env_var.find('=');
+            if(pos != std::string::npos)
+            {
+                std::string key = env_var.substr(0, pos);
+                if(key.find("MIGRAPHX") != std::string::npos)
+                {
+                    std::cout << env_var << std::endl;
+                }
+            }
+        }
 
         m.at(cmd)(argv[0],
                   {args.begin() + 1, args.end()}); // run driver command found in commands map

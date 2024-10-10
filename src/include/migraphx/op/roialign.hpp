@@ -135,30 +135,24 @@ struct roialign
 
             for(auto ii : range(p.size()))
             {
-// printf(" ttttt roi_start[%d] = %f  p=%lu bin_size = %f   i[%d] + .5f = %f  bin_grid_size = %lu\n", ii, 
-// roi_start[ii], p[ii], bin_size[ii], ii, (i[ii] + .5f), bin_grid_size[ii]);
-                
                 xy[ii] = roi_start[ii] + p[ii] * bin_size[ii] +
                          (i[ii] + .5f) * bin_size[ii] / bin_grid_size[ii];
-// printf(" uuuuu    xy[%d]:   %f\n", ii, xy[ii]);
+printf(" FUFUFU index %lu    xy:   (%f, %f)\n", index,  xy[0],  xy[1]);
                 if(xy[ii] < -1.0 or xy[ii] > dims[ii])
                 {
                     results[index] = pos_weight{};
-// printf(" vvvvv    xy[%d]:   %f\n", ii, xy[ii]);
                     return;
                 }
 
                 xy[ii]   = std::max(xy[ii], 0.0f);
-// printf(" wwwww    xy[%d]:   %f\n", ii, xy[ii]);
                 low[ii]  = xy[ii];
                 high[ii] = low[ii] + 1;
                 if(low[ii] >= dims[ii] - 1)
                 {
                     xy[ii] = high[ii] = low[ii] = dims[ii] - 1;
-// printf(" xxxxx    xy[%d]:   %f\n", ii, xy[ii]);
                 }
             }
-printf(" fufufu   xy:   %f, %f\n",  xy[0],  xy[1]);
+printf(" FFFFF index %lu    xy:   (%f, %f)\n", index,  xy[0],  xy[1]);
             results[index].pos = {low[1] * dims[0] + low[0],
                                   low[1] * dims[0] + high[0],
                                   high[1] * dims[0] + low[0],
@@ -202,13 +196,19 @@ printf(" fufufu   xy:   %f, %f\n",  xy[0],  xy[1]);
     {
         double output_val   = op.init();
         const int64_t count = bin_grid_size[0] * bin_grid_size[1];
-        dfor(bin_grid_size[0], bin_grid_size[1])([&](auto, auto) {
+        dfor(bin_grid_size[0], bin_grid_size[1])([&](auto iy, auto ix) {
             const auto& pc = pos_weights[index];
             std::array<double, 4> wv;
+// printf(" HHHHH dfor index: (%lu, %lu)\n", iy, ix);            
+// printf(" GGGGG transform:  ");                    
+printf(" IIIII transform ws:  ");  
             std::transform(
                 pc.w.begin(), pc.w.end(), pc.pos.begin(), wv.begin(), [&](auto w, auto pos) {
+printf(" %f ", w);
+// printf("  %f ", *(data + pos) * w);
                     return *(data + pos) * w;
                 });
+printf("\n");                
             output_val = std::accumulate(wv.begin(), wv.end(), output_val, op);
             index += 1;
         });
@@ -234,8 +234,6 @@ printf(" fufufu   xy:   %f, %f\n",  xy[0],  xy[1]);
 
         visit_all(result, args.at(0), args.at(1))([&](auto output, auto x, auto roi) {
             const auto* batch_indices = args.at(2).cast<int64_t>();
-// printf(" UUUUU roi = %f, %f  roi_s.index(0, 0) = %zu   roi_s.index(0, 1) = %zu   (1, 0)=%zu    (1, 1)=%zu\n", roi[0], roi[1], 
-// roi_s.index({0, 0}), roi_s.index({0, 1}), roi_s.index({1, 0}), roi_s.index({1, 1}))   ;         
             par_for(n_rois, [&](auto n) {
                 const auto bottom_data   = x.begin();
                 const auto roi_batch_ind = batch_indices[n];
@@ -285,9 +283,7 @@ printf(" fufufu   xy:   %f, %f\n",  xy[0],  xy[1]);
                     const auto offset_bottom_data =
                         bottom_data + static_cast<int64_t>((roi_batch_ind * channels + c) *
                                                            in_dims[0] * in_dims[1]);
-// std::cout << " VVVVV offset_bottom_data: "  << offset_bottom_data[0] << "\n" ;
-// std::cout << " WWWWW offset_bottom_data_asdf: "  << static_cast<int64_t>((roi_batch_ind * channels + c) *
-//                                                            in_dims[0] * in_dims[1]) << "\n"   ;
+printf(" KKKKK n, c, ph, pw = %lu %lu %lu %lu\n",  n, c, ph, pw);
                     double output_val;
                     std::tie(output_val, vec_index[c]) =
                         (mode == migraphx::op::pooling_mode::average)

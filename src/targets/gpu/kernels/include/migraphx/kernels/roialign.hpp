@@ -79,22 +79,20 @@ MIGRAPHX_DEVICE_CONSTEXPR typename Iterator::value_type bilinear_interpolate(
         // println_once(" fffff xy: ", xy[ii]);
         if(xy[ii] < -1.0f or xy[ii] > dims[ii])
         {
-        // println_once(" ggggg xy: ", xy[ii]);
+        // println_once(" g@gggg xy: ", xy[ii]);
             return implicit_conversion(0);
         }
 
         xy[ii]   = migraphx::max(xy[ii], 0.0f);
-        // println_once(" hhhhh xy: ", xy[ii]);
+        // println_once(" h@hhhh xy: ", xy[ii]);
         low[ii]  = xy[ii];
         high[ii] = low[ii] + 1;
         if(low[ii] >= dims[ii] - 1)
         {
             xy[ii] = high[ii] = low[ii] = dims[ii] - 1;
-    // println_once(" iiiii xy: ", xy[ii]);
         }
-        // println_once(" FFFFF xy: ", xy[ii]);
     }
-println(" FUFUFU xy: ", xy);    
+println_once(" fffff xy: ", xy);
     array<index_int, 4> locs = {low[1] * dims[0] + low[0],  // new
                                 low[1] * dims[0] + high[0],
                                 high[1] * dims[0] + low[0],
@@ -110,13 +108,16 @@ println(" FUFUFU xy: ", xy);
     float hy = 1.0f - ly;
     float hx = 1.0f - lx;
     // do calculations in floating point and convert final result to required type
-    array<float, 4> ws = {hy * hx, hy * lx, ly * hx, ly * lx};
+    // array<float, 4> ws = {hy * hx, hy * lx, ly * hx, ly * lx}; //old
+    array<float, 4> ws = {hy * hx, ly * hx, hy * lx, ly * lx};  // new
 
     //debug
-     array<float, 2> pooling_input01 = {data[locs[1]] * ws[1], data[locs[0]] * ws[0]};
-     array<float, 2> pooling_input23 = {data[locs[3]] * ws[3], data[locs[2]] * ws[2]};
-println(" GGGGG pooling_input01", pooling_input01);
-println(" HHHHH pooling_input23", pooling_input23);
+//  array<float, 2> pooling_input01 = {data[locs[1]] * ws[1], data[locs[0]] * ws[0]};
+//  array<float, 2> pooling_input23 = {data[locs[3]] * ws[3], data[locs[2]] * ws[2]};
+// println(" ggggg pooling_input01", pooling_input01);
+// println(" hhhhh pooling_input23", pooling_input23);
+println(" iiiii ws:  ", ws);
+println();
     // todo:  Should we change the order of these indices?
     // auto v01 = pooling(data[locs[0]] * ws[0], data[locs[1]] * ws[1]);
     // auto v23 = pooling(data[locs[2]] * ws[2], data[locs[3]] * ws[3]);
@@ -140,18 +141,24 @@ MIGRAPHX_DEVICE_CONSTEXPR auto calc_pooling(const Iterator& data,
     const int64_t count = bin_grid_size[0] * bin_grid_size[1];
     dfor(bin_grid_size[0], bin_grid_size[1])([&](auto iy, auto ix) {
         array<index_int, 2> id = {iy, ix};
+println_once(" hhhhh id: ", id); 
+(void) roi_offset;
+println("How does locs increment?  12 steps in idx = 1 step in ref version", "");    
 println_once(" eeeee roi_starts: ",  roi_starts);
 println(" eeeee idx: ",  idx);
 println_once(" eeeee bin_size: ",  bin_size);
 println_once(" eeeee (id + 0.5f): ",  (id + 0.5f));
 println_once(" eeeee bin_grid_size: ",  bin_grid_size);
+array<float, 2> zap = idx * bin_size;
+println("idx * bin_size: ", zap);
+array<float, 2> zap2 = bin_size * (id + 0.5f) / bin_grid_size;
+println("(id + 0.5f) / bin_grid_size: ", zap2);
 println_once(" eeeee roi_offset: ",  roi_offset);
         // array<float, 2> locs =
-        //     roi_starts + idx * bin_size + bin_size * (id + 0.5f) / bin_grid_size + roi_offset;    // old
+        //     roi_starts + idx * bin_size + bin_size * (id + 0.5f) / bin_grid_size + roi_offset;    // old leads to all 0's
         array<float, 2> locs =
             roi_starts + idx * bin_size + bin_size * (id + 0.5f) / bin_grid_size;       // new
-print(" EEEEE locs: ", locs);
-println("", "");
+println(" eeeeeEEE locs: ", locs);
         auto val   = bilinear_interpolate(data, dims, locs, op);
         output_val = op(output_val, val);
     });
@@ -208,7 +215,8 @@ __device__ void roialign(const T& x_t, const U& rois_t, const V& ind_t, W& y_t, 
         const int batch_ind    = ind[n];
 
         // Note that roi_offset in src/targets/gpu/jit/roialign.cpp uses a negative value, so we add it here
-println_once(" AAAAA s.roi_offset: ", s.roi_offset);
+println(" aaaaa idx: ", idx);
+// println("   out_dims ", out_lens);
         array<float, 2> roi_starts = {
             static_cast<float>(offset_rois[0]) * static_cast<float>(s.spatial_scale) + s.roi_offset,
             static_cast<float>(offset_rois[1]) * static_cast<float>(s.spatial_scale) +
@@ -238,9 +246,11 @@ println_once(" AAAAA s.roi_offset: ", s.roi_offset);
                                     ? s.sampling_ratio
                                     : migraphx::ceil(roi_size[ii] / out_dims[ii]);
         }
-// const auto offset_asdf = ((batch_ind * channel_num + c) * in_dims[0] * in_dims[1]);
+array<int, 4> zap = {n, c, ph, pw};
+
+println(" kkkkk n, c, ph, pw: ", zap);
+
         const auto offset_x = x + ((batch_ind * channel_num + c) * in_dims[0] * in_dims[1]);
-// println_once(" CCCCC offset_asdf: ", offset_asdf);
         if constexpr(s.is_avg_pooling)
         {
             y_t[i] = calc_pooling(offset_x,
@@ -266,9 +276,8 @@ println_once(" AAAAA s.roi_offset: ", s.roi_offset);
                                   in_dims,
                                   s.roi_offset,
                                   max_pool{});
-println(" EEEEE  i: ",  i)  ;//  EEEEE locs:  -0.805208 EEEEE locs:  -0.805208 EEEEE locs:  -0.805208 EEEEE locs:  -0.805208 EEEEE locs:  -0.805208 EEEEE locs:  -0.576042 EEEEE locs:  -0.576042 EEEEE locs:  -0.576042 EEEEE locs:  -0.576042 EEEEE locs:  -0.576042 EEEEE locs:  -0.346875 EEEEE locs:  -0.346875 EEEEE locs:  -0.346875 EEEEE locs:  -0.346875 EEEEE locs:  -0.346875,   -0.212812,   -0.364062,   -0.515312,   -0.666562,   -0.817813,   -0.212812,   -0.364062,   -0.515312,   -0.666562,   -0.817813,   -0.212812,   -0.364062,   -0.515312,   -0.666562,   -0.817813 FFFFF xy:  0.000000 
 
-print("   y_t[i]: ",  y_t[i])   ;
+// print("   y_t[i]: ",  y_t[i])   ;
         }
     }
 }

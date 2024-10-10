@@ -35,18 +35,18 @@ namespace gpu {
 struct gqa_parameters
 {
     float scale;
-    std::uint32_t batch_size;           // Batch size used by input
-    std::uint32_t sequence_length;      // Sequence length used by input
-    std::uint32_t hidden_size;          // Hidden size used by input
-    std::uint32_t head_size;            // Head size
-    std::uint32_t rotary_embedding_dim; // Rotary embedding dimension.
-    std::uint32_t num_heads;            // num_heads = hidden_size / head_size
-    std::uint32_t max_sequence_length;  // Sequence length used by cos/sin cache
-    std::uint32_t head_stride;          // Head stride
-    std::uint32_t seq_stride;           // Sequence stride
-    std::uint32_t batch_stride;         // Batch stride
-    std::uint32_t position_ids_format;  // Format of position ids - 0 is (1), 1 is (batch_size,
-                                        // sequence_length)
+    std::uint32_t batch_size;              // Batch size used by input
+    std::uint32_t sequence_length;         // Sequence length used by input
+    std::uint32_t hidden_size;             // Hidden size used by input
+    std::uint32_t head_size;               // Head size
+    std::uint32_t rotary_embedding_dim;    // Rotary embedding dimension.
+    std::uint32_t num_heads;               // num_heads = hidden_size / head_size
+    std::uint32_t max_sequence_length;     // Sequence length used by cos/sin cache
+    std::uint32_t head_stride;             // Head stride
+    std::uint32_t seq_stride;              // Sequence stride
+    std::uint32_t batch_stride;            // Batch stride
+    std::uint32_t position_ids_format;     // Format of position ids - 0 is (1), 1 is (batch_size,
+                                           // sequence_length)
     std::uint32_t seqlen_present_kv_cache; // Sequence length of present kv-cache (4096 when using
                                            // shared buffer)
     bool do_rotary;             // Whether to use rotary position embedding. Default value is 0.

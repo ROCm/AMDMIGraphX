@@ -213,11 +213,12 @@ void fuse_input_ops(module_ref mm,
     size_t input_cnt = 0;
     for(instruction_ref input : inputs)
     {
-        if (contains(*map_ins, input))
+        if(contains(*map_ins, input))
             continue;
         auto [upper_input, op_stream] = get_fusable_input_op_stream(input);
-        if (not contains(*map_ins, upper_input))
-            (*map_ins)[upper_input] = mm->add_parameter(param_name(input_cnt++), upper_input->get_shape().as_standard());    
+        if(not contains(*map_ins, upper_input))
+            (*map_ins)[upper_input] =
+                mm->add_parameter(param_name(input_cnt++), upper_input->get_shape().as_standard());
         instruction_ref prev_input = (*map_ins)[upper_input];
         for(const auto& op : reverse(op_stream))
         {

@@ -123,10 +123,7 @@ struct group_query_attention
                 output_data[i] = input_data[i] * cos_data[cache_idx] +
                                  sign * input_data[j] * sin_data[cache_idx];
             }
-            for(std::size_t i = rotary_emb_dim; i < head_size; i++)
-            {
-                output_data[i] = input_data[i];
-            }
+            std::copy(input_data + rotary_emb_dim, input_data + head_size, output_data + rotary_emb_dim);
         });
     }
 
@@ -544,7 +541,7 @@ struct group_query_attention
                 {
                     pack_v_into_rotary_qkv(gqa_params, v_input, v_rotary);
                 }
-                if(not do_rotary)
+                else
                 {
                     rotary_qkv = query;
                 }

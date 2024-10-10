@@ -86,9 +86,9 @@ static inline gqa_parameters init_params(const std::vector<shape>& inputs, const
 {
     auto num_heads          = v.at("num_heads").to<std::uint32_t>();
     auto kv_num_heads       = v.at("kv_num_heads").to<std::uint32_t>();
-    auto do_rotary          = v.at("do_rotary").to<std::uint32_t>();
+    auto do_rotary          = v.at("do_rotary").to<bool>();
     auto local_window_size  = v.at("local_window_size").to<std::uint32_t>();
-    auto rotary_interleaved = v.at("rotary_interleaved").to<std::uint32_t>();
+    auto rotary_interleaved = v.at("rotary_interleaved").to<bool>();
     auto scale              = v.at("scale").to<float>();
     auto present_kv_seqlen  = v.at("present_kv_seqlen").to<std::size_t>();
 
@@ -118,10 +118,10 @@ static inline gqa_parameters init_params(const std::vector<shape>& inputs, const
     gqa_params.batch_stride              = batch_stride;
     gqa_params.position_ids_format       = position_ids_format;
     gqa_params.seqlen_present_kv_cache   = present_kv_seqlen;
-    gqa_params.do_rotary                 = static_cast<bool>(do_rotary);
+    gqa_params.do_rotary                 = do_rotary;
     gqa_params.kv_num_heads              = kv_num_heads;
     gqa_params.local_window_size         = local_window_size;
-    gqa_params.rotary_interleaved        = static_cast<bool>(rotary_interleaved);
+    gqa_params.rotary_interleaved        = rotary_interleaved;
     gqa_params.scale                     = scale;
     gqa_params.past_present_share_buffer = past_present_share_buffer;
 

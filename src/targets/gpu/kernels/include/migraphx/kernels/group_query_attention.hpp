@@ -80,18 +80,18 @@ template <class T1,
 struct gqa_parameters
 {
     T1 scale;
-    T2 batch_size;           // Batch size used by input
-    T3 sequence_length;      // Sequence length used by input
-    T4 hidden_size;          // Hidden size used by input
-    T5 head_size;            // Head size
-    T6 rotary_embedding_dim; // Rotary embedding dimension.
-    T7 num_heads;            // num_heads = hidden_size / head_size
-    T8 max_sequence_length;  // Sequence length used by cos/sin cache
-    T9 head_stride;          // Head stride
-    T10 seq_stride;          // Sequence stride
-    T11 batch_stride;        // Batch stride
-    T12 position_ids_format; // Format of position ids - 0 is (1), 1 is (batch_size,
-                             // sequence_length)
+    T2 batch_size;               // Batch size used by input
+    T3 sequence_length;          // Sequence length used by input
+    T4 hidden_size;              // Hidden size used by input
+    T5 head_size;                // Head size
+    T6 rotary_embedding_dim;     // Rotary embedding dimension.
+    T7 num_heads;                // num_heads = hidden_size / head_size
+    T8 max_sequence_length;      // Sequence length used by cos/sin cache
+    T9 head_stride;              // Head stride
+    T10 seq_stride;              // Sequence stride
+    T11 batch_stride;            // Batch stride
+    T12 position_ids_format;     // Format of position ids - 0 is (1), 1 is (batch_size,
+                                 // sequence_length)
     T13 seqlen_present_kv_cache; // Sequence length of present kv-cache (4096 when using
                                  // shared buffer)
     T14 do_rotary;               // Whether to use rotary position embedding. Default value is 0.

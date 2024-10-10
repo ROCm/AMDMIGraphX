@@ -31,7 +31,6 @@
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
-namespace half {
 
 template<unsigned int N>
 constexpr unsigned int all_ones() noexcept
@@ -272,7 +271,7 @@ struct generic_float
     }
 };
 
-using half = migraphx::half::generic_float<10, 5>;
+using half = migraphx::generic_float<10, 5>;
 
 namespace detail {
 template <class T>
@@ -293,62 +292,61 @@ struct deduce<half_float::detail::expr>
 template <class T>
 using deduce = typename detail::deduce<T>::type;
 
-} // namespace half
 } // namespace MIGRAPHX_INLINE_NS
 } // namespace migraphx
 
 namespace std {
 
 template <class T>
-struct common_type<migraphx::half::half, T> : std::common_type<float, T> // NOLINT
+struct common_type<migraphx::half, T> : std::common_type<float, T> // NOLINT
 {
 };
 
 template <class T>
-struct common_type<T, migraphx::half::half> : std::common_type<float, T> // NOLINT
+struct common_type<T, migraphx::half> : std::common_type<float, T> // NOLINT
 {
 };
 
 template <>
-struct common_type<migraphx::fp8::fp8e4m3fnuz, migraphx::half::half>
+struct common_type<migraphx::fp8::fp8e4m3fnuz, migraphx::half>
 {
     using type = float;
 };
 
 template <>
-struct common_type<migraphx::half::half, migraphx::fp8::fp8e4m3fnuz>
+struct common_type<migraphx::half, migraphx::fp8::fp8e4m3fnuz>
 {
     using type = float;
 };
 
 template <>
-struct common_type<migraphx::fp8::fp8e4m3fn, migraphx::half::half>
+struct common_type<migraphx::fp8::fp8e4m3fn, migraphx::half>
 {
     using type = float;
 };
 
 template <>
-struct common_type<migraphx::half::half, migraphx::fp8::fp8e4m3fn>
+struct common_type<migraphx::half, migraphx::fp8::fp8e4m3fn>
 {
     using type = float;
 };
 
 template <>
-struct common_type<migraphx::fp8::fp8e5m2, migraphx::half::half>
+struct common_type<migraphx::fp8::fp8e5m2, migraphx::half>
 {
     using type = float;
 };
 
 template <>
-struct common_type<migraphx::half::half, migraphx::fp8::fp8e5m2>
+struct common_type<migraphx::half, migraphx::fp8::fp8e5m2>
 {
     using type = float;
 };
 
 template <>
-struct common_type<migraphx::half::half, migraphx::half::half>
+struct common_type<migraphx::half, migraphx::half>
 {
-    using type = migraphx::half::half;
+    using type = migraphx::half;
 };
 
 } // namespace std

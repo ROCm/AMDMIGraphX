@@ -59,14 +59,27 @@ instruction::instruction(literal l)
 
 void instruction::replace(const shape& r)
 {
-    if(r != result)
-    {
+    if (r != result){
         result = r;
-        for(auto&& ins : output)
-        {
-            assert(ins->name() == "@return" or ins->name().front() != '@');
-            ins->recompute_shape();
+        std::deque<instruction_ref> q;
+        for (instruction_ref ins: output){
+            q.push_back(ins);
         }
+        while(!q.empty())
+        {
+            instruction_ref ins = q.front();
+            q.pop_front();
+            assert(ins->name() == "@return" or ins->name().front() != '@');
+            shape new_r = compute_shape(ins->op, ins->arguments, ins->module_args);
+            if (new_r != ins->result)
+            {
+                ins->result = new_r;
+                for(instruction_ref child_ins: ins->output)
+                {
+                    q.push_back(child_ins);
+                }
+            }
+       }
     }
 }
 

@@ -123,7 +123,8 @@ struct group_query_attention
                 output_data[i] = input_data[i] * cos_data[cache_idx] +
                                  sign * input_data[j] * sin_data[cache_idx];
             }
-            std::copy(input_data + rotary_emb_dim, input_data + head_size, output_data + rotary_emb_dim);
+            std::copy(
+                input_data + rotary_emb_dim, input_data + head_size, output_data + rotary_emb_dim);
         });
     }
 

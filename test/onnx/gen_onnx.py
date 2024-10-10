@@ -5992,14 +5992,22 @@ def int4_const_identity_qdq_test():
     t_node = helper.make_node(
         'Transpose',
         inputs=['dq_y'],
-        outputs=['y'],
+        outputs=['t_y'],
         perm=[1, 0],
+    )
+
+    x2_t = helper.make_tensor_value_info('x2', TensorProto.FLOAT16, [2, 4])
+
+    dot_node = helper.make_node(
+        'MatMul',
+        inputs=['t_y', 'x2'],
+        outputs=['y'],
     )
 
     y_t = helper.make_tensor_value_info('y', TensorProto.FLOAT16, [4, 4])
 
-    return ([i_node, q_node, dq_node,
-             t_node], [], [y_t], [x_t, data_t, sc_t, sc_2_t])
+    return ([i_node, q_node, dq_node, t_node,
+             dot_node], [x2_t], [y_t], [x_t, data_t, sc_t, sc_2_t])
 
 
 @onnx_test()
@@ -6050,14 +6058,22 @@ def int4_const_identity_block_sz_1_qdq_test():
     t_node = helper.make_node(
         'Transpose',
         inputs=['dq_y'],
-        outputs=['y'],
+        outputs=['t_y'],
         perm=[1, 0],
     )
 
-    y_t = helper.make_tensor_value_info('y', TensorProto.FLOAT16, [4, 2])
+    x2_t = helper.make_tensor_value_info('x2', TensorProto.FLOAT16, [2, 4])
 
-    return ([i_node, q_node, dq_node,
-             t_node], [], [y_t], [x_t, data_t, sc_t, sc_2_t])
+    dot_node = helper.make_node(
+        'MatMul',
+        inputs=['t_y', 'x2'],
+        outputs=['y'],
+    )
+
+    y_t = helper.make_tensor_value_info('y', TensorProto.FLOAT16, [4, 4])
+
+    return ([i_node, q_node, dq_node, t_node,
+             dot_node], [x2_t], [y_t], [x_t, data_t, sc_t, sc_2_t])
 
 
 @onnx_test()
@@ -6102,12 +6118,21 @@ def int4_const_identity_block_sz_2_qdq_test():
     dq_node = onnx.helper.make_node(
         'DequantizeLinear',
         inputs=['q_y', 'sc_dq', 'i_y_zp'],
+        outputs=['dq_y'],
+    )
+
+    x2_t = helper.make_tensor_value_info('x2', TensorProto.FLOAT16, [4, 2])
+
+    dot_node = helper.make_node(
+        'MatMul',
+        inputs=['dq_y', 'x2'],
         outputs=['y'],
     )
 
-    y_t = helper.make_tensor_value_info('y', TensorProto.FLOAT16, [2, 4])
+    y_t = helper.make_tensor_value_info('y', TensorProto.FLOAT16, [2, 2])
 
-    return ([i_node, q_node, dq_node], [], [y_t], [x_t, data_t, sc_t, sc_2_t])
+    return ([i_node, q_node, dq_node,
+             dot_node], [x2_t], [y_t], [x_t, data_t, sc_t, sc_2_t])
 
 
 @onnx_test()
@@ -9018,6 +9043,150 @@ def qlinearmatmul_3D_test():
     )
     return ([node], [a, b], [c],
             [sc_a, zero_pt_a, sc_b, zero_pt_b, sc_c, zero_pt_c])
+
+
+@onnx_test()
+def matmulnbits_mm_test():
+    a = onnx.helper.make_tensor_value_info("a", onnx.TensorProto.FLOAT,
+                                           [2, 16])
+    b = onnx.helper.make_tensor_value_info("b", onnx.TensorProto.UINT8,
+                                           [4, 1, 8])
+    scales = onnx.helper.make_tensor_value_info("scales",
+                                                onnx.TensorProto.FLOAT, [4])
+    zp = onnx.helper.make_tensor_value_info("zp", onnx.TensorProto.UINT8, [4])
+    c = onnx.helper.make_tensor_value_info("c", onnx.TensorProto.FLOAT, [2, 4])
+
+    node = onnx.helper.make_node("MatMulNBits",
+                                 inputs=["a", "b", "scales", "zp"],
+                                 outputs=["c"],
+                                 bits=4,
+                                 block_size=16,
+                                 K=16,
+                                 N=4,
+                                 domain='com.microsoft')
+    return ([node], [a, b, scales, zp], [c])
+
+
+@onnx_test()
+def matmulnbits_mm2_test():
+    a = onnx.helper.make_tensor_value_info("a", onnx.TensorProto.FLOAT,
+                                           [2, 33])
+    b = onnx.helper.make_tensor_value_info("b", onnx.TensorProto.UINT8,
+                                           [2, 3, 8])
+    scales = onnx.helper.make_tensor_value_info("scales",
+                                                onnx.TensorProto.FLOAT, [6])
+    c = onnx.helper.make_tensor_value_info("c", onnx.TensorProto.FLOAT, [2, 2])
+
+    node = onnx.helper.make_node("MatMulNBits",
+                                 inputs=["a", "b", "scales"],
+                                 outputs=["c"],
+                                 bits=4,
+                                 block_size=16,
+                                 K=33,
+                                 N=2,
+                                 domain='com.microsoft')
+    return ([node], [a, b, scales], [c])
+
+
+@onnx_test()
+def matmulnbits_vm_test():
+    a = onnx.helper.make_tensor_value_info("a", onnx.TensorProto.FLOAT, [20])
+    b = onnx.helper.make_tensor_value_info("b", onnx.TensorProto.UINT8,
+                                           [3, 2, 8])
+    scales = onnx.helper.make_tensor_value_info("scales",
+                                                onnx.TensorProto.FLOAT, [6])
+    zp = onnx.helper.make_tensor_value_info("zp", onnx.TensorProto.UINT8, [3])
+    c = onnx.helper.make_tensor_value_info("c", onnx.TensorProto.FLOAT, [3])
+
+    node = onnx.helper.make_node("MatMulNBits",
+                                 inputs=["a", "b", "scales", "zp"],
+                                 outputs=["c"],
+                                 bits=4,
+                                 block_size=16,
+                                 K=20,
+                                 N=3,
+                                 domain='com.microsoft')
+    return ([node], [a, b, scales, zp], [c])
+
+
+@onnx_test()
+def matmulnbits_bmm_test():
+    a = onnx.helper.make_tensor_value_info("a", onnx.TensorProto.FLOAT,
+                                           [2, 3, 8])
+    b = onnx.helper.make_tensor_value_info("b", onnx.TensorProto.UINT8,
+                                           [2, 1, 8])
+    scales = onnx.helper.make_tensor_value_info("scales",
+                                                onnx.TensorProto.FLOAT, [2])
+    c = onnx.helper.make_tensor_value_info("c", onnx.TensorProto.FLOAT,
+                                           [2, 3, 2])
+
+    node = onnx.helper.make_node("MatMulNBits",
+                                 inputs=["a", "b", "scales"],
+                                 outputs=["c"],
+                                 bits=4,
+                                 block_size=16,
+                                 K=8,
+                                 N=2,
+                                 domain='com.microsoft')
+    return ([node], [a, b, scales], [c])
+
+
+def matmulnbits_negative_test(bits=4,
+                              block_size=16,
+                              a_dims=[2, 16],
+                              b_dims=[4, 1, 8],
+                              scales_dims=[4],
+                              zp_dims=[4],
+                              out_dims=[2, 4]):
+    a = onnx.helper.make_tensor_value_info("a", onnx.TensorProto.FLOAT, a_dims)
+    b = onnx.helper.make_tensor_value_info("b", onnx.TensorProto.UINT8, b_dims)
+    scales = onnx.helper.make_tensor_value_info("scales",
+                                                onnx.TensorProto.FLOAT,
+                                                scales_dims)
+    zp = onnx.helper.make_tensor_value_info("zp", onnx.TensorProto.UINT8,
+                                            zp_dims)
+    c = onnx.helper.make_tensor_value_info("c", onnx.TensorProto.FLOAT,
+                                           out_dims)
+
+    node = onnx.helper.make_node("MatMulNBits",
+                                 inputs=["a", "b", "scales", "zp"],
+                                 outputs=["c"],
+                                 bits=bits,
+                                 block_size=block_size,
+                                 K=16,
+                                 N=4,
+                                 domain='com.microsoft')
+    return ([node], [a, b, scales, zp], [c])
+
+
+@onnx_test()
+def matmulnbits_invalid_bits_value_test():
+    return matmulnbits_negative_test(bits=5)
+
+
+@onnx_test()
+def matmulnbits_block_size_too_small_test():
+    return matmulnbits_negative_test(block_size=8)
+
+
+@onnx_test()
+def matmulnbits_block_size_not_power_of_two_test():
+    return matmulnbits_negative_test(block_size=20)
+
+
+@onnx_test()
+def matmulnbits_invalid_b_dims_test():
+    return matmulnbits_negative_test(b_dims=[4, 2, 8])
+
+
+@onnx_test()
+def matmulnbits_invalid_scales_dims_test():
+    return matmulnbits_negative_test(scales_dims=[3])
+
+
+@onnx_test()
+def matmulnbits_invalid_zp_dims_test():
+    return matmulnbits_negative_test(zp_dims=[5])
 
 
 @onnx_test()

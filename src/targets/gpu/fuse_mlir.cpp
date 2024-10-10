@@ -677,7 +677,7 @@ struct find_mlir_fused_ops
 template <auto Matcher>
 struct find_mlir_standalone_op
 {
-    mlir_mode mode = mlir_mode::none;
+    mlir_mode mode       = mlir_mode::none;
     std::size_t* counter = nullptr;
     auto matcher() const { return Matcher(mode); }
 
@@ -932,6 +932,48 @@ struct find_pointwise_mlir
     }
 };
 
+struct find_unpack_int4_mlir_op
+{
+    auto matcher() const
+    {
+        return match::name("gpu::mlir_op")(
+            match::any_of[match::inputs()](match::name("unpack_int4").bind("unpack_int4")));
+    }
+
+    void apply(module_pass_manager& mpm, const match::matcher_result& r) const
+    {
+        auto ins      = r.result;
+        auto* mm      = ins->module_inputs().front();
+        module_ref nm = mpm.create_module("int4:" + mm->name());
+        nm->set_bypass();
+
+        std::vector<instruction_ref> x_in;
+        std::unordered_map<instruction_ref, instruction_ref> map_ins;
+        int ct = 0;
+
+        for(auto input : ins->inputs())
+        {
+            if(input->get_operator().name() == "unpack_int4")
+            {
+                auto unpack_input = input->inputs()[0];
+                instruction_ref t_ins =
+                    nm->add_parameter(param_name(++ct), unpack_input->get_shape().as_standard());
+                map_ins[input] = nm->add_instruction(input->get_operator(), t_ins);
+                x_in.push_back(unpack_input);
+            }
+            else
+            {
+                map_ins[input] =
+                    nm->add_parameter(param_name(++ct), input->get_shape().as_standard());
+                x_in.push_back(input);
+            }
+        }
+        auto ret = nm->fuse(*mm, ins->inputs(), &map_ins);
+        nm->add_return({ret});
+        mpm.get_module().replace_instruction(ins, ins->get_operator(), x_in, {nm});
+    }
+};
+
 } // namespace
 
 #endif // MIGRAPHX_MLIR
@@ -983,6 +1025,7 @@ void fuse_mlir::apply(module_pass_manager& mpm) const
     }
 
     match::find_matches(mpm, find_pointwise_mlir{});
+    match::find_matches(mpm, find_unpack_int4_mlir_op{});
 
 #else
     (void)mpm;

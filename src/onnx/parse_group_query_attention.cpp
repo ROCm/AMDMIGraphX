@@ -39,11 +39,11 @@ struct parse_group_query_attention : op_parser<parse_group_query_attention>
                                        const onnx_parser::node_info& info,
                                        std::vector<instruction_ref> args) const
     {
-        bool do_rotary          = false;
-        std::size_t kv_num_heads       = 0;
+        bool do_rotary           = false;
+        std::size_t kv_num_heads = 0;
         int local_window_size  = -1;
-        std::size_t num_heads          = 1;
-        bool rotary_interleaved = false;
+        std::size_t num_heads    = 1;
+        bool rotary_interleaved  = false;
         float scale            = 0.0;
         if(contains(info.attributes, "do_rotary"))
         {

@@ -16,32 +16,33 @@ namespace op {
 
 struct gqa_parameters
 {
-    std::size_t batch_size = 0;           // Batch size used by input
-    std::size_t sequence_length = 0;      // Sequence length used by input
-    std::size_t hidden_size = 0;          // Hidden size used by input
-    std::size_t head_size = 0;            // Head size
-    std::size_t rotary_embedding_dim = 0; // Rotary embedding dimension.
-    std::size_t num_heads = 0;            // num_heads = hidden_size / head_size
-    std::size_t max_sequence_length = 0;  // Sequence length used by cos/sin cache
-    std::size_t head_stride = 0;          // Head stride
-    std::size_t seq_stride = 0;           // Sequence stride
-    std::size_t batch_stride = 0;         // Batch stride
-    bool position_ids_use_batch = false;  // Format of position ids - false is (1), true is 
-                                          // (batch_size, sequence_length)
-    bool transposed = false; // Whether the input tensor has been transposed to 
-                             // (batch, num_heads, seq_len, hidden)
-    std::size_t seqlen_present_kv_cache = 0; // Sequence length of present kv-cache 
-                                             // (4096 when using shared buffer)
-    bool past_present_share_buffer = false; // Whether to use same buffer for KV-cache inputs and outputs
+    std::size_t batch_size           = 0;     // Batch size used by input
+    std::size_t sequence_length      = 0;     // Sequence length used by input
+    std::size_t hidden_size          = 0;     // Hidden size used by input
+    std::size_t head_size            = 0;     // Head size
+    std::size_t rotary_embedding_dim = 0;     // Rotary embedding dimension.
+    std::size_t num_heads            = 0;     // num_heads = hidden_size / head_size
+    std::size_t max_sequence_length  = 0;     // Sequence length used by cos/sin cache
+    std::size_t head_stride          = 0;     // Head stride
+    std::size_t seq_stride           = 0;     // Sequence stride
+    std::size_t batch_stride         = 0;     // Batch stride
+    bool position_ids_use_batch      = false; // Format of position ids - false is (1), true is
+                                              // (batch_size, sequence_length)
+    bool transposed = false;                  // Whether the input tensor has been transposed to
+                                              // (batch, num_heads, seq_len, hidden)
+    std::size_t seqlen_present_kv_cache = 0;  // Sequence length of present kv-cache
+                                              // (4096 when using shared buffer)
+    bool past_present_share_buffer = false;   // Whether to use same buffer for KV-cache 
+                                              // inputs and outputs
 };
 
 struct group_query_attention
 {
-    bool do_rotary                 = false;
+    bool do_rotary                = false;
     std::size_t kv_num_heads      = 0;
     int local_window_size         = -1;
     std::size_t num_heads         = 1;
-    bool rotary_interleaved        = false;
+    bool rotary_interleaved       = false;
     float scale                   = 1.0;
     std::size_t present_kv_seqlen = 4096;
 
@@ -77,16 +78,16 @@ struct group_query_attention
                               const std::size_t* pos_ids,
                               gqa_parameters parameters) const
     {
-        const std::size_t batch_size          = parameters.batch_size;
-        const std::size_t sequence_length     = parameters.sequence_length;
-        const std::size_t n_heads             = parameters.num_heads;
-        const std::size_t head_size           = parameters.head_size;
-        const std::size_t head_stride         = parameters.head_stride;
-        const std::size_t seq_stride          = parameters.seq_stride;
-        const std::size_t batch_stride        = parameters.batch_stride;
+        const std::size_t batch_size             = parameters.batch_size;
+        const std::size_t sequence_length        = parameters.sequence_length;
+        const std::size_t n_heads                = parameters.num_heads;
+        const std::size_t head_size              = parameters.head_size;
+        const std::size_t head_stride            = parameters.head_stride;
+        const std::size_t seq_stride             = parameters.seq_stride;
+        const std::size_t batch_stride           = parameters.batch_stride;
         const std::size_t position_ids_use_batch = parameters.position_ids_use_batch;
-        const std::size_t rotary_emb_dim      = parameters.rotary_embedding_dim;
-        const std::size_t half_rotary_emb_dim = rotary_emb_dim / 2;
+        const std::size_t rotary_emb_dim         = parameters.rotary_embedding_dim;
+        const std::size_t half_rotary_emb_dim    = rotary_emb_dim / 2;
 
         const std::size_t loop_len = batch_size * sequence_length * n_heads;
         par_for(loop_len, [&](const auto idx) {
@@ -98,7 +99,8 @@ struct group_query_attention
             auto output_data               = output + block_offset;
 
             // Cache is (M, H/2) or (M, rotary_embedding_dim/2)
-            const std::size_t position_id = position_ids_use_batch ? pos_ids[b * sequence_length + s] : pos_ids[0] + s;
+            const std::size_t position_id =
+                position_ids_use_batch ? pos_ids[b * sequence_length + s] : pos_ids[0] + s;
             const std::size_t cache_offset = position_id * half_rotary_emb_dim;
             auto cos_data                  = cos_cache + cache_offset;
             auto sin_data                  = sin_cache + cache_offset;
@@ -289,9 +291,9 @@ struct group_query_attention
                 shape{dtype, {sequence_length, total_seqlen}, {present_buffer_sequence_length, 1}};
             auto q_shape = shape{dtype, {sequence_length, head_size}, {head_size, 1}};
             auto k_shape = shape{dtype, {head_size, total_seqlen}, {1, head_size}};
-            auto cmat = make_view(output_shape, &(*output));
-            auto amat = make_view(q_shape, &(*q));
-            auto bmat = make_view(k_shape, &(*k));
+            auto cmat    = make_view(output_shape, &(*output));
+            auto amat    = make_view(q_shape, &(*q));
+            auto bmat    = make_view(k_shape, &(*k));
 
             gemm(cmat, amat, bmat, alpha, 0.0f);
 
@@ -385,9 +387,9 @@ struct group_query_attention
             auto probs_shape =
                 shape{dtype, {sequence_length, total_seqlen}, {present_buffer_sequence_length, 1}};
             auto v_shape = shape{dtype, {total_seqlen, head_size}, {head_size, 1}};
-            auto cmat = make_view(output_shape, &(*output_current));
-            auto amat = make_view(probs_shape, &(*(attention_probs + attention_probs_offset)));
-            auto bmat = make_view(v_shape, &(*v));
+            auto cmat    = make_view(output_shape, &(*output_current));
+            auto amat    = make_view(probs_shape, &(*(attention_probs + attention_probs_offset)));
+            auto bmat    = make_view(v_shape, &(*v));
 
             gemm(cmat, amat, bmat, 1.0f, 0.0f);
         });
@@ -479,11 +481,11 @@ struct group_query_attention
                     present_k[i] = past_key[i];
                     present_v[i] = past_value[i];
                 });
-                auto seq_stride          = head_size;
-                auto head_stride         = sequence_length * seq_stride;
-                auto batch_stride        = num_heads + 2 * kv_num_heads;
+                auto seq_stride             = head_size;
+                auto head_stride            = sequence_length * seq_stride;
+                auto batch_stride           = num_heads + 2 * kv_num_heads;
                 auto position_ids_use_batch = sequence_length == 1;
-                bool transposed          = true;
+                bool transposed             = true;
                 std::vector<std::size_t> pos_ids(sequence_length == 1 ? batch_size : 1);
                 if(sequence_length == 1)
                 {
@@ -509,7 +511,7 @@ struct group_query_attention
                 gqa_params.seq_stride                = head_size;
                 gqa_params.head_stride               = head_stride;
                 gqa_params.batch_stride              = batch_stride;
-                gqa_params.position_ids_use_batch       = position_ids_use_batch;
+                gqa_params.position_ids_use_batch    = position_ids_use_batch;
                 gqa_params.transposed                = transposed;
                 gqa_params.seqlen_present_kv_cache   = present_kv_seqlen;
                 gqa_params.past_present_share_buffer = false;

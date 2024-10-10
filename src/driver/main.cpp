@@ -79,6 +79,7 @@ struct loader
     bool optimize               = false;
     bool skip_unknown_operators = false;
     bool brief                  = false;
+    bool weight_streaming       = false;
     std::string output_type;
     std::string output;
     std::string default_dyn_dim;
@@ -436,6 +437,13 @@ struct program_params
             param_shapes.cend(),
             std::inserter(static_param_shapes, static_param_shapes.end()),
             [&](const auto& x) { return std::make_pair(x.first, x.second.to_static(batch)); });
+
+        size_t shape_size = std::accumulate(static_param_shapes.begin(),
+                                            static_param_shapes.end(),
+                                            static_cast<unsigned long long>(0),
+                                            [](auto s, auto x) { return s + x.second.bytes(); });
+        std::cout << "Total parameter size: " << shape_size << " bytes" << std::endl;
+
         for(auto&& s : fill0)
             m[s] = fill_argument(static_param_shapes.at(s), 0);
         for(auto&& s : fill1)
@@ -500,6 +508,14 @@ struct compiler
            {"--exhaustive-tune"},
            ap.help("Exhastively search for best tuning parameters for kernels"),
            ap.set_value(true));
+        ap(co.weight_streaming,
+           {"--enable-weight-streaming"},
+           ap.help("Enables weight streaming during runtime."),
+           ap.set_value(true));
+        ap(co.max_memory,
+           {"--max-memory"},
+           ap.help("Sets the max amount of memory to use for literals. Weight streaming must be "
+                   "enabled to set this value."));
         ap(to_fp16, {"--fp16"}, ap.help("Quantize for fp16"), ap.set_value(true));
         ap(to_int8, {"--int8"}, ap.help("Quantize for int8"), ap.set_value(true));
         ap(to_fp8, {"--fp8"}, ap.help("Quantize for fp8"), ap.set_value(true));
@@ -686,6 +702,7 @@ struct run_cmd : command<run_cmd>
         auto p = c.compile();
         std::cout << "Allocating params ... " << std::endl;
         auto m = c.params(p);
+        std::cout << "Executing ... " << std::endl;
         p.eval(m);
         std::cout << p << std::endl;
     }

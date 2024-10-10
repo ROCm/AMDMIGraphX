@@ -49,6 +49,8 @@ target get_target(bool gpu);
  */
 bool is_offload_copy_set(const program& p);
 
+double time_run(const program& p, const parameter_map& m, int n = 100);
+
 } // namespace MIGRAPHX_INLINE_NS
 } // namespace driver
 } // namespace migraphx

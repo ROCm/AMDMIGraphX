@@ -203,7 +203,8 @@ operation compile_hip_code_object(const std::string& content, hip_compile_option
                           options.global,
                           options.local,
                           options.inputs,
-                          options.output};
+                          options.output,
+                          options.output_arg};
 }
 
 } // namespace gpu

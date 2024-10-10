@@ -39,19 +39,19 @@ struct parse_group_query_attention : op_parser<parse_group_query_attention>
                                        const onnx_parser::node_info& info,
                                        std::vector<instruction_ref> args) const
     {
-        int do_rotary          = 0;
-        int kv_num_heads       = 0;
+        bool do_rotary          = false;
+        std::size_t kv_num_heads       = 0;
         int local_window_size  = -1;
-        int num_heads          = 1;
-        int rotary_interleaved = 0;
+        std::size_t num_heads          = 1;
+        bool rotary_interleaved = false;
         float scale            = 0.0;
         if(contains(info.attributes, "do_rotary"))
         {
-            do_rotary = parser.parse_value(info.attributes.at("do_rotary")).at<int>();
+            do_rotary = parser.parse_value(info.attributes.at("do_rotary")).at<bool>();
         }
         if(contains(info.attributes, "kv_num_heads"))
         {
-            kv_num_heads = parser.parse_value(info.attributes.at("kv_num_heads")).at<int>();
+            kv_num_heads = parser.parse_value(info.attributes.at("kv_num_heads")).at<std::size_t>();
         }
         if(contains(info.attributes, "local_window_size"))
         {
@@ -60,12 +60,12 @@ struct parse_group_query_attention : op_parser<parse_group_query_attention>
         }
         if(contains(info.attributes, "num_heads"))
         {
-            num_heads = parser.parse_value(info.attributes.at("num_heads")).at<int>();
+            num_heads = parser.parse_value(info.attributes.at("num_heads")).at<std::size_t>();
         }
         if(contains(info.attributes, "rotary_interleaved"))
         {
             rotary_interleaved =
-                parser.parse_value(info.attributes.at("rotary_interleaved")).at<int>();
+                parser.parse_value(info.attributes.at("rotary_interleaved")).at<bool>();
         }
         if(contains(info.attributes, "scale"))
         {

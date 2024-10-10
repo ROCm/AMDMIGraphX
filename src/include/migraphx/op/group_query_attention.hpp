@@ -16,32 +16,32 @@ namespace op {
 
 struct gqa_parameters
 {
-    std::size_t batch_size;           // Batch size used by input
-    std::size_t sequence_length;      // Sequence length used by input
-    std::size_t hidden_size;          // Hidden size used by input
-    std::size_t head_size;            // Head size
-    std::size_t rotary_embedding_dim; // Rotary embedding dimension.
-    std::size_t num_heads;            // num_heads = hidden_size / head_size
-    std::size_t max_sequence_length;  // Sequence length used by cos/sin cache
-    std::size_t head_stride;          // Head stride
-    std::size_t seq_stride;           // Sequence stride
-    std::size_t batch_stride;         // Batch stride
-    std::size_t position_ids_format;  // Format of position ids - 0 is (1), 1 is (batch_size,
-                                      // sequence_length)
-    bool transposed; // Whether the input tensor has been transposed std::size_to (batch, num_heads,
-                     // seq_len, hidden)
-    std::size_t seqlen_present_kv_cache; // Sequence length of present kv-cache (4096 when using
-                                         // shared buffer)
-    bool past_present_share_buffer; // Whether to use same buffer for KV-cache inputs and outputs
+    std::size_t batch_size = 0;           // Batch size used by input
+    std::size_t sequence_length = 0;      // Sequence length used by input
+    std::size_t hidden_size = 0;          // Hidden size used by input
+    std::size_t head_size = 0;            // Head size
+    std::size_t rotary_embedding_dim = 0; // Rotary embedding dimension.
+    std::size_t num_heads = 0;            // num_heads = hidden_size / head_size
+    std::size_t max_sequence_length = 0;  // Sequence length used by cos/sin cache
+    std::size_t head_stride = 0;          // Head stride
+    std::size_t seq_stride = 0;           // Sequence stride
+    std::size_t batch_stride = 0;         // Batch stride
+    bool position_ids_use_batch = false;  // Format of position ids - false is (1), true is 
+                                          // (batch_size, sequence_length)
+    bool transposed = false; // Whether the input tensor has been transposed to 
+                             // (batch, num_heads, seq_len, hidden)
+    std::size_t seqlen_present_kv_cache = 0; // Sequence length of present kv-cache 
+                                             // (4096 when using shared buffer)
+    bool past_present_share_buffer = false; // Whether to use same buffer for KV-cache inputs and outputs
 };
 
 struct group_query_attention
 {
-    int do_rotary                 = 0;
+    bool do_rotary                 = false;
     std::size_t kv_num_heads      = 0;
     int local_window_size         = -1;
     std::size_t num_heads         = 1;
-    int rotary_interleaved        = 0;
+    bool rotary_interleaved        = false;
     float scale                   = 1.0;
     std::size_t present_kv_seqlen = 4096;
 
@@ -74,7 +74,7 @@ struct group_query_attention
                               T sin_cache,
                               T output,
                               bool interleaved,
-                              const int64_t* pos_ids,
+                              const std::size_t* pos_ids,
                               gqa_parameters parameters) const
     {
         const std::size_t batch_size          = parameters.batch_size;
@@ -84,7 +84,7 @@ struct group_query_attention
         const std::size_t head_stride         = parameters.head_stride;
         const std::size_t seq_stride          = parameters.seq_stride;
         const std::size_t batch_stride        = parameters.batch_stride;
-        const std::size_t position_ids_format = parameters.position_ids_format;
+        const std::size_t position_ids_use_batch = parameters.position_ids_use_batch;
         const std::size_t rotary_emb_dim      = parameters.rotary_embedding_dim;
         const std::size_t half_rotary_emb_dim = rotary_emb_dim / 2;
 
@@ -98,10 +98,7 @@ struct group_query_attention
             auto output_data               = output + block_offset;
 
             // Cache is (M, H/2) or (M, rotary_embedding_dim/2)
-            const std::size_t position_id =
-                (position_ids_format == 0)
-                    ? static_cast<std::size_t>(pos_ids[0]) + s
-                    : static_cast<std::size_t>(pos_ids[b * sequence_length + s]);
+            const std::size_t position_id = position_ids_use_batch ? pos_ids[b * sequence_length + s] : pos_ids[0] + s;
             const std::size_t cache_offset = position_id * half_rotary_emb_dim;
             auto cos_data                  = cos_cache + cache_offset;
             auto sin_data                  = sin_cache + cache_offset;
@@ -287,17 +284,14 @@ struct group_query_attention
             // B: K'               (B x N x) T x H          (B x N x) H x T        H x T
             // C: attention_probs  (B x N x) S x T          (B x N x) S x T        S x T
             auto q = query + packed_batch_stride * batch_index + q_input_chunk_length * head_index;
-            auto output_ptr = &(*output);
-            auto q_ptr      = &(*q);
-            auto k_ptr      = &(*k);
+
             auto output_shape =
                 shape{dtype, {sequence_length, total_seqlen}, {present_buffer_sequence_length, 1}};
             auto q_shape = shape{dtype, {sequence_length, head_size}, {head_size, 1}};
             auto k_shape = shape{dtype, {head_size, total_seqlen}, {1, head_size}};
-            tensor_view<typename std::remove_pointer<decltype(output_ptr)>::type> cmat(output_shape,
-                                                                                       output_ptr);
-            tensor_view<typename std::remove_pointer<decltype(q_ptr)>::type> amat(q_shape, q_ptr);
-            tensor_view<typename std::remove_pointer<decltype(k_ptr)>::type> bmat(k_shape, k_ptr);
+            auto cmat = make_view(output_shape, &(*output));
+            auto amat = make_view(q_shape, &(*q));
+            auto bmat = make_view(k_shape, &(*k));
 
             gemm(cmat, amat, bmat, alpha, 0.0f);
 
@@ -387,18 +381,13 @@ struct group_query_attention
                 output + (batch_index * sequence_length * num_heads + head_index) * head_size;
             ptrdiff_t attention_probs_offset = sequence_length * present_buffer_sequence_length * i;
 
-            auto output_ptr   = &(*output_current);
-            auto probs_ptr    = &(*(attention_probs + attention_probs_offset));
-            auto v_ptr        = &(*v);
             auto output_shape = shape{dtype, {sequence_length, head_size}, {hidden_size, 1}};
             auto probs_shape =
                 shape{dtype, {sequence_length, total_seqlen}, {present_buffer_sequence_length, 1}};
             auto v_shape = shape{dtype, {total_seqlen, head_size}, {head_size, 1}};
-            tensor_view<typename std::remove_pointer<decltype(output_ptr)>::type> cmat(output_shape,
-                                                                                       output_ptr);
-            tensor_view<typename std::remove_pointer<decltype(probs_ptr)>::type> amat(probs_shape,
-                                                                                      probs_ptr);
-            tensor_view<typename std::remove_pointer<decltype(v_ptr)>::type> bmat(v_shape, v_ptr);
+            auto cmat = make_view(output_shape, &(*output_current));
+            auto amat = make_view(probs_shape, &(*(attention_probs + attention_probs_offset)));
+            auto bmat = make_view(v_shape, &(*v));
 
             gemm(cmat, amat, bmat, 1.0f, 0.0f);
         });
@@ -493,19 +482,16 @@ struct group_query_attention
                 auto seq_stride          = head_size;
                 auto head_stride         = sequence_length * seq_stride;
                 auto batch_stride        = num_heads + 2 * kv_num_heads;
-                auto position_ids_format = sequence_length == 1 ? 1 : 0;
+                auto position_ids_use_batch = sequence_length == 1;
                 bool transposed          = true;
-                std::vector<int64_t> pos_ids(sequence_length == 1 ? batch_size : 1);
+                std::vector<std::size_t> pos_ids(sequence_length == 1 ? batch_size : 1);
                 if(sequence_length == 1)
                 {
-                    for(std::size_t b = 0; b < batch_size; b++)
-                    {
-                        pos_ids[b] = static_cast<int64_t>(seqlens_k[b]);
-                    }
+                    std::copy(seqlens_k.begin(), seqlens_k.begin() + batch_size, pos_ids.begin());
                 }
                 else
                 {
-                    pos_ids[0] = static_cast<int64_t>(0);
+                    pos_ids[0] = 0;
                 }
                 auto q_input  = query.begin();
                 auto k_input  = q_input + num_heads * sequence_length * head_size;
@@ -523,7 +509,7 @@ struct group_query_attention
                 gqa_params.seq_stride                = head_size;
                 gqa_params.head_stride               = head_stride;
                 gqa_params.batch_stride              = batch_stride;
-                gqa_params.position_ids_format       = position_ids_format;
+                gqa_params.position_ids_use_batch       = position_ids_use_batch;
                 gqa_params.transposed                = transposed;
                 gqa_params.seqlen_present_kv_cache   = present_kv_seqlen;
                 gqa_params.past_present_share_buffer = false;

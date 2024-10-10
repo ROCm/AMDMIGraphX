@@ -39,6 +39,15 @@
 #include <migraphx/algorithm.hpp>
 #include <unordered_set>
 
+namespace matcher_logger{
+    template<typename Matcher>
+    void log(const Matcher& matcher){
+        std::string matcher_name = typeid(matcher).name();
+        std::cout<< "Mathcer applied: "<< matcher_name<<std::endl;
+    }
+}
+
+
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
 
@@ -434,7 +443,8 @@ struct find_mul_add
 
     void apply(module& m, const match::matcher_result& r) const
     {
-        auto ins   = r.result;
+        matcher_logger::log(*this);
+	    auto ins   = r.result;
         auto a_ins = r.instructions["a"];
         auto b_ins = r.instructions["b"];
         auto x_ins = r.instructions["x"];

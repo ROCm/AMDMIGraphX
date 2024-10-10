@@ -688,11 +688,11 @@ struct run_cmd : command<run_cmd>
 struct time_cmd : command<time_cmd>
 {
     compiler c;
-    unsigned n    = 100;
-    void parse(argument_parser& ap) 
+    unsigned n = 100;
+    void parse(argument_parser& ap)
     {
         ap(n, {"--iterations", "-n"}, ap.help("Number of iterations to run."));
-        c.parse(ap); 
+        c.parse(ap);
     }
 
     void run()

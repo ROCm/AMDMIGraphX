@@ -76,8 +76,7 @@ template <class T1,
           class T15,
           class T16,
           class T17,
-          class T18,
-          class T19>
+          class T18>
 struct gqa_parameters
 {
     T1 scale;
@@ -93,16 +92,14 @@ struct gqa_parameters
     T11 batch_stride;        // Batch stride
     T12 position_ids_format; // Format of position ids - 0 is (1), 1 is (batch_size,
                              // sequence_length)
-    T13 transposed;          // Whether the input tensor has been transposed into (batch, num_heads,
-                             // seq_len, hidden)
-    T14 seqlen_present_kv_cache; // Sequence length of present kv-cache (4096 when using
+    T13 seqlen_present_kv_cache; // Sequence length of present kv-cache (4096 when using
                                  // shared buffer)
-    T15 do_rotary;               // Whether to use rotary position embedding. Default value is 0.
-    T16 kv_num_heads;            // Number of attention heads for k and v
-    T17 local_window_size;  // left_window_size for local attention. Default value is -1 meaning
+    T14 do_rotary;               // Whether to use rotary position embedding. Default value is 0.
+    T15 kv_num_heads;            // Number of attention heads for k and v
+    T16 local_window_size;  // left_window_size for local attention. Default value is -1 meaning
                             // unused.
-    T18 rotary_interleaved; // Rotate using interleaved pattern. Default value is 0 (False).
-    T19 past_present_share_buffer; // Whether to use same buffer for KV-cache inputs and outputs
+    T17 rotary_interleaved; // Rotate using interleaved pattern. Default value is 0 (False).
+    T18 past_present_share_buffer; // Whether to use same buffer for KV-cache inputs and outputs
 };
 
 template <class... Ts>

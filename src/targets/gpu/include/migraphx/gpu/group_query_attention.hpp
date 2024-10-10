@@ -47,8 +47,6 @@ struct gqa_parameters
     std::uint32_t batch_stride;         // Batch stride
     std::uint32_t position_ids_format;  // Format of position ids - 0 is (1), 1 is (batch_size,
                                         // sequence_length)
-    bool transposed; // Whether the input tensor has been transposed into (batch, num_heads,
-                     // seq_len, hidden)
     std::uint32_t seqlen_present_kv_cache; // Sequence length of present kv-cache (4096 when using
                                            // shared buffer)
     bool do_rotary;             // Whether to use rotary position embedding. Default value is 0.
@@ -72,8 +70,6 @@ struct gqa_parameters
                "MIGRAPHX_MAKE_CONSTANT(uint32_t{" + std::to_string(seq_stride) + "}), " +
                "MIGRAPHX_MAKE_CONSTANT(uint32_t{" + std::to_string(batch_stride) + "}), " +
                "MIGRAPHX_MAKE_CONSTANT(uint32_t{" + std::to_string(position_ids_format) + "}), " +
-               "MIGRAPHX_MAKE_CONSTANT(bool{" + std::to_string(static_cast<int>(transposed)) +
-               "}), " + "MIGRAPHX_MAKE_CONSTANT(uint32_t{" +
                std::to_string(seqlen_present_kv_cache) + "}), " + "MIGRAPHX_MAKE_CONSTANT(bool{" +
                std::to_string(static_cast<int>(do_rotary)) + "}), " +
                "MIGRAPHX_MAKE_CONSTANT(uint32_t{" + std::to_string(kv_num_heads) + "}), " +
@@ -107,7 +103,6 @@ static inline gqa_parameters init_params(const std::vector<shape>& inputs, const
     auto head_stride               = sequence_length * seq_stride;
     auto batch_stride              = (num_heads + 2 * kv_num_heads) * head_stride;
     auto position_ids_format       = sequence_length == 1 ? 1 : 0;
-    bool transposed                = true;
     bool past_present_share_buffer = true;
     gqa_parameters gqa_params;
     gqa_params.batch_size                = batch_size;
@@ -121,7 +116,6 @@ static inline gqa_parameters init_params(const std::vector<shape>& inputs, const
     gqa_params.head_stride               = sequence_length * gqa_params.seq_stride;
     gqa_params.batch_stride              = batch_stride;
     gqa_params.position_ids_format       = position_ids_format;
-    gqa_params.transposed                = transposed;
     gqa_params.seqlen_present_kv_cache   = present_kv_seqlen;
     gqa_params.do_rotary                 = static_cast<bool>(do_rotary);
     gqa_params.kv_num_heads              = kv_num_heads;

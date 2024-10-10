@@ -28,8 +28,6 @@ struct gqa_parameters
     std::size_t batch_stride         = 0;     // Batch stride
     bool position_ids_use_batch      = false; // Format of position ids - false is (1), true is
                                               // (batch_size, sequence_length)
-    bool transposed = false;                  // Whether the input tensor has been transposed to
-                                              // (batch, num_heads, seq_len, hidden)
     std::size_t seqlen_present_kv_cache = 0;  // Sequence length of present kv-cache
                                               // (4096 when using shared buffer)
     bool past_present_share_buffer = false;   // Whether to use same buffer for KV-cache
@@ -485,7 +483,6 @@ struct group_query_attention
                 auto head_stride            = sequence_length * seq_stride;
                 auto batch_stride           = num_heads + 2 * kv_num_heads;
                 auto position_ids_use_batch = sequence_length == 1;
-                bool transposed             = true;
                 std::vector<std::size_t> pos_ids(sequence_length == 1 ? batch_size : 1);
                 if(sequence_length == 1)
                 {
@@ -512,7 +509,6 @@ struct group_query_attention
                 gqa_params.head_stride               = head_stride;
                 gqa_params.batch_stride              = batch_stride;
                 gqa_params.position_ids_use_batch    = position_ids_use_batch;
-                gqa_params.transposed                = transposed;
                 gqa_params.seqlen_present_kv_cache   = present_kv_seqlen;
                 gqa_params.past_present_share_buffer = false;
 

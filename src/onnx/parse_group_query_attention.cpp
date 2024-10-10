@@ -41,10 +41,10 @@ struct parse_group_query_attention : op_parser<parse_group_query_attention>
     {
         bool do_rotary           = false;
         std::size_t kv_num_heads = 0;
-        int local_window_size  = -1;
+        int local_window_size    = -1;
         std::size_t num_heads    = 1;
         bool rotary_interleaved  = false;
-        float scale            = 0.0;
+        float scale              = 0.0;
         if(contains(info.attributes, "do_rotary"))
         {
             do_rotary = parser.parse_value(info.attributes.at("do_rotary")).at<bool>();

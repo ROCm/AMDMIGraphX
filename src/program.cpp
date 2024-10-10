@@ -77,6 +77,10 @@ struct program_impl
 };
 
 program::program() : impl(std::make_unique<program_impl>()) { this->create_module("main"); }
+program::program(module m) : impl(std::make_unique<program_impl>())
+{
+    this->create_module("main", std::move(m));
+}
 
 program::program(program&&) noexcept = default;
 program::~program() noexcept         = default;
@@ -852,17 +856,7 @@ std::string perf_group(instruction_ref ins, bool detailed)
     if(detailed)
     {
         result += "<" + ins->get_shape().type_string();
-        std::vector<std::string> sizes;
-        std::transform(ins->inputs().begin(),
-                       ins->inputs().end(),
-                       std::back_inserter(sizes),
-                       [&](instruction_ref input) {
-                           std::string r = to_string_range(input->get_shape().lens(), "x");
-                           if(not input->get_shape().standard())
-                               r += ":" + to_string_range(input->get_shape().strides(), "x");
-                           return r;
-                       });
-        result += "(" + join_strings(sizes, ", ") + ")>";
+        result += "(" + shape::to_sizes_string(to_shapes(ins->inputs())) + ")>";
     }
     return result;
 }

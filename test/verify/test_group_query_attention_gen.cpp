@@ -54,20 +54,20 @@ struct test_group_query_attention_gen : verify_program<test_group_query_attentio
         std::vector<float> cs_max_vec(cs_cache_s.elements(), 1.0);
         auto k_cache   = mm->add_literal(kv_s, k_vec);
         auto v_cache   = mm->add_literal(kv_s, v_vec);
-        auto query = mm->add_parameter("query", query_s);
-        auto q_min = mm->add_literal(query_s, q_min_vec);
-        auto q_max = mm->add_literal(query_s, q_max_vec);
-        query = mm->add_instruction(migraphx::make_op("clip"), query, q_min, q_max);
+        auto query     = mm->add_parameter("query", query_s);
+        auto q_min     = mm->add_literal(query_s, q_min_vec);
+        auto q_max     = mm->add_literal(query_s, q_max_vec);
+        query          = mm->add_instruction(migraphx::make_op("clip"), query, q_min, q_max);
         auto slk       = mm->add_literal(slk_s, slk_vec);
         auto tsl       = mm->add_literal(tsl_s, tsl_vec);
         auto key       = mm->add_literal(0.0f);
         auto value     = mm->add_literal(0.0f);
-        auto cs_min = mm->add_literal(cs_cache_s, cs_min_vec);
-        auto cs_max = mm->add_literal(cs_cache_s, cs_max_vec);
+        auto cs_min    = mm->add_literal(cs_cache_s, cs_min_vec);
+        auto cs_max    = mm->add_literal(cs_cache_s, cs_max_vec);
         auto cos_cache = mm->add_parameter("cos_cache", cs_cache_s);
         auto sin_cache = mm->add_parameter("sin_cache", cs_cache_s);
-        cos_cache = mm->add_instruction(migraphx::make_op("clip"), cos_cache, cs_min, cs_max);
-        sin_cache = mm->add_instruction(migraphx::make_op("clip"), sin_cache, cs_min, cs_max);
+        cos_cache      = mm->add_instruction(migraphx::make_op("clip"), cos_cache, cs_min, cs_max);
+        sin_cache      = mm->add_instruction(migraphx::make_op("clip"), sin_cache, cs_min, cs_max);
         auto r         = mm->add_instruction(migraphx::make_op("group_query_attention",
                                                                {{"do_rotary", 1},
                                                                 {"kv_num_heads", 32},

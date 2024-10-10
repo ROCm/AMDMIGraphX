@@ -46,7 +46,7 @@ struct float16_parts
 
     static constexpr unsigned int mantissa_width()
     {
-        return 23;
+        return 10;
     }
 
     static constexpr unsigned int max_exponent()

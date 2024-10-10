@@ -5958,8 +5958,8 @@ def int4_const_identity_qdq_test():
         outputs=['i_y_zp'],
     )
 
-    data_values = np.array([[-3, -4, -5, 2], [2, 2, 4, 4], [2, -2, 4, 6],
-                            [2, 6, 6, 8]])
+    data_values = np.array([[1, 0, 0, 0], [0, 1, 0, 0], [0, 0, 1, 0],
+                            [0, 0, 0, 1]])
     data_t = helper.make_tensor(name='data',
                                 data_type=TensorProto.FLOAT16,
                                 dims=data_values.shape,
@@ -5978,14 +5978,9 @@ def int4_const_identity_qdq_test():
     )
 
     #dequantizer uses same scale values as the quantizer:
-    sc_2_t = helper.make_tensor(name='sc_dq',
-                                data_type=TensorProto.FLOAT16,
-                                dims=sc_values.shape,
-                                vals=sc_values.flatten().astype(np.float16))
-
     dq_node = onnx.helper.make_node(
         'DequantizeLinear',
-        inputs=['q_y', 'sc_dq', 'i_y_zp'],
+        inputs=['q_y', 'sc_q', 'i_y_zp'],
         outputs=['dq_y'],
     )
 
@@ -5996,7 +5991,7 @@ def int4_const_identity_qdq_test():
         perm=[1, 0],
     )
 
-    x2_t = helper.make_tensor_value_info('x2', TensorProto.FLOAT16, [2, 4])
+    x2_t = helper.make_tensor_value_info('x2', TensorProto.FLOAT16, [4, 4])
 
     dot_node = helper.make_node(
         'MatMul',
@@ -6007,7 +6002,7 @@ def int4_const_identity_qdq_test():
     y_t = helper.make_tensor_value_info('y', TensorProto.FLOAT16, [4, 4])
 
     return ([i_node, q_node, dq_node, t_node,
-             dot_node], [x2_t], [y_t], [x_t, data_t, sc_t, sc_2_t])
+             dot_node], [x2_t], [y_t], [x_t, data_t, sc_t])
 
 
 @onnx_test()
@@ -6025,7 +6020,7 @@ def int4_const_identity_block_sz_1_qdq_test():
         outputs=['i_y_zp'],
     )
 
-    data_values = np.array([[-3, -4, -5, -6], [2, 3, 4, 5]])
+    data_values = np.array([[1, 0, 0, 0], [0, 1, 0, 0]])
     data_t = helper.make_tensor(name='data',
                                 data_type=TensorProto.FLOAT16,
                                 dims=data_values.shape,
@@ -6044,14 +6039,9 @@ def int4_const_identity_block_sz_1_qdq_test():
     )
 
     # dequantizer uses same scale values as the quantizer:
-    sc_2_t = helper.make_tensor(name='sc_dq',
-                                data_type=TensorProto.FLOAT16,
-                                dims=sc_values.shape,
-                                vals=sc_values.flatten().astype(np.float16))
-
     dq_node = onnx.helper.make_node(
         'DequantizeLinear',
-        inputs=['q_y', 'sc_dq', 'i_y_zp'],
+        inputs=['q_y', 'sc_q', 'i_y_zp'],
         outputs=['dq_y'],
     )
 
@@ -6073,7 +6063,7 @@ def int4_const_identity_block_sz_1_qdq_test():
     y_t = helper.make_tensor_value_info('y', TensorProto.FLOAT16, [4, 4])
 
     return ([i_node, q_node, dq_node, t_node,
-             dot_node], [x2_t], [y_t], [x_t, data_t, sc_t, sc_2_t])
+             dot_node], [x2_t], [y_t], [x_t, data_t, sc_t])
 
 
 @onnx_test()
@@ -6091,7 +6081,7 @@ def int4_const_identity_block_sz_2_qdq_test():
         outputs=['i_y_zp'],
     )
 
-    data_values = np.array([[-3, -4, -6, -8], [2, 3, 4, 6]])
+    data_values = np.array([[0, 0, 1, 0], [0, 0, 0, 1]])
     data_t = helper.make_tensor(name='data',
                                 data_type=TensorProto.FLOAT16,
                                 dims=data_values.shape,
@@ -6110,29 +6100,31 @@ def int4_const_identity_block_sz_2_qdq_test():
     )
 
     # dequantizer uses same scale values as the quantizer:
-    sc_2_t = helper.make_tensor(name='sc_dq',
-                                data_type=TensorProto.FLOAT16,
-                                dims=sc_values.shape,
-                                vals=sc_values.flatten().astype(np.float16))
-
     dq_node = onnx.helper.make_node(
         'DequantizeLinear',
-        inputs=['q_y', 'sc_dq', 'i_y_zp'],
+        inputs=['q_y', 'sc_q', 'i_y_zp'],
         outputs=['dq_y'],
     )
 
-    x2_t = helper.make_tensor_value_info('x2', TensorProto.FLOAT16, [4, 2])
+    t_node = helper.make_node(
+        'Transpose',
+        inputs=['dq_y'],
+        outputs=['t_y'],
+        perm=[1, 0],
+    )
+
+    x2_t = helper.make_tensor_value_info('x2', TensorProto.FLOAT16, [2, 4])
 
     dot_node = helper.make_node(
         'MatMul',
-        inputs=['dq_y', 'x2'],
+        inputs=['t_y', 'x2'],
         outputs=['y'],
     )
 
-    y_t = helper.make_tensor_value_info('y', TensorProto.FLOAT16, [2, 2])
+    y_t = helper.make_tensor_value_info('y', TensorProto.FLOAT16, [4, 4])
 
-    return ([i_node, q_node, dq_node,
-             dot_node], [x2_t], [y_t], [x_t, data_t, sc_t, sc_2_t])
+    return ([i_node, q_node, dq_node, t_node,
+             dot_node], [x2_t], [y_t], [x_t, data_t, sc_t])
 
 
 @onnx_test()

@@ -38,14 +38,7 @@
 
 #include <migraphx/algorithm.hpp>
 #include <unordered_set>
-
-namespace matcher_logger{
-    template<typename Matcher>
-    void log(const Matcher& matcher){
-        std::string matcher_name = typeid(matcher).name();
-        std::cout<< "Mathcer applied: "<< matcher_name<<std::endl;
-    }
-}
+#include <migraphx/time.hpp>
 
 
 namespace migraphx {
@@ -80,6 +73,9 @@ struct find_mul_conv
 
     void apply(module& m, const match::matcher_result& r) const
     {
+        // Start the timer for applying this matcher
+        auto elapsed_time = migraphx::time<std::chrono::milliseconds>([&] {
+
         auto ins      = r.result;
         auto conv_ins = r.instructions["conv"];
         auto a_ins    = r.instructions["a"];
@@ -118,6 +114,8 @@ struct find_mul_conv
         auto new_conv = m.insert_instruction(
             ins, conv_ins->get_operator(), conv_ins->inputs().front(), new_mul);
         m.replace_instruction(ins, new_conv);
+        });
+        std::cout << "Matcher find_mul_conv took: " << elapsed_time << " ms" << std::endl;
     }
 };
 
@@ -443,8 +441,8 @@ struct find_mul_add
 
     void apply(module& m, const match::matcher_result& r) const
     {
-        matcher_logger::log(*this);
-	    auto ins   = r.result;
+	    auto elapsed_time = migraphx::time<std::chrono::nanoseconds>([&] {
+        auto ins   = r.result;
         auto a_ins = r.instructions["a"];
         auto b_ins = r.instructions["b"];
         auto x_ins = r.instructions["x"];
@@ -453,6 +451,8 @@ struct find_mul_add
         auto ax_ins = m.insert_instruction(ins, make_op("mul"), a_ins, x_ins);
         auto ab_ins = m.insert_instruction(ins, make_op("mul"), a_ins, b_ins);
         m.replace_instruction(ins, make_op("add"), ax_ins, ab_ins);
+        });
+        std::cout << "Matcher find_mul_conv took: " << elapsed_time << " ms" << std::endl;
     }
 };
 

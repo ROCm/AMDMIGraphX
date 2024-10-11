@@ -22,6 +22,9 @@
  * THE SOFTWARE.
  */
 
+namespace migraphx {
+inline namespace MIGRAPHX_INLINE_NS {
+
 template<unsigned int N>
 constexpr unsigned int all_ones() noexcept
 {
@@ -260,3 +263,6 @@ struct generic_float
         return not(x == y);
     }
 };
+
+}
+}

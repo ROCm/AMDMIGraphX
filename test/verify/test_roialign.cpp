@@ -49,7 +49,7 @@ struct test_roialign_half_pixel : verify_program<test_roialign_half_pixel<DType>
                                 {{"spatial_scale", 1.1},
                                  {"output_height", 5},
                                  {"output_width", 3},
-                                 {"sampling_ratio", 2},
+                                 {"sampling_ratio", 3},
                                  {"coordinate_transformation_mode", "half_pixel"}}),
             x,
             roi,

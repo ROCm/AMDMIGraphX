@@ -126,18 +126,28 @@ struct roialign
             // order.  The i[x] value is least significant and iterates the fastest.
             std::array<std::size_t, 2> p = {idx_v[1], idx_v[0]};
             std::array<std::size_t, 2> i = {idx_v[3], idx_v[2]}; // these are always equal
+printf(" EEEEE p, i-index   %lu  %lu  %lu %lu    ( %lu  %lu  %lu %lu)\n", p[0], p[1], i[0], i[1],
+idx_v[0], idx_v[1], idx_v[2], idx_v[3]);
+
+
+
+
+
             // xy is scaled coordinates of start point of ROI
             std::array<float, 2> xy{};
             // low, high are floor and ceiling of the xy value (i.e. the bounds of the pixel it lies
             // inside) from which we will interpolate.
             std::array<int64_t, 2> low{};
             std::array<int64_t, 2> high{};
-
+float asdf=-1.f;
             for(auto ii : range(p.size()))
             {
                 xy[ii] = roi_start[ii] + p[ii] * bin_size[ii] +
                          (i[ii] + .5f) * bin_size[ii] / bin_grid_size[ii];
-printf(" FUFUFU index %lu    xy:   (%f, %f)\n", index,  xy[0],  xy[1]);
+// initial calculated values, before adjustments
+if(ii == 0 ) asdf = xy[0];
+if(ii == 1)
+printf(" IIIII index %lu    xy:   (%f, %f)\n", index,  asdf,  xy[1]);
                 if(xy[ii] < -1.0 or xy[ii] > dims[ii])
                 {
                     results[index] = pos_weight{};
@@ -152,7 +162,7 @@ printf(" FUFUFU index %lu    xy:   (%f, %f)\n", index,  xy[0],  xy[1]);
                     xy[ii] = high[ii] = low[ii] = dims[ii] - 1;
                 }
             }
-printf(" FFFFF index %lu    xy:   (%f, %f)\n", index,  xy[0],  xy[1]);
+// printf(" FFFFF index %lu    xy:   (%f, %f)\n", index,  xy[0],  xy[1]);
             results[index].pos = {low[1] * dims[0] + low[0],
                                   low[1] * dims[0] + high[0],
                                   high[1] * dims[0] + low[0],
@@ -164,6 +174,12 @@ printf(" FFFFF index %lu    xy:   (%f, %f)\n", index,  xy[0],  xy[1]);
             float hx = 1.0f - lx;
             // save weights and indices
             results[index].w = {hy * hx, hy * lx, ly * hx, ly * lx};
+    printf(" AAAAA index %lu results.w:  %f, %f, %f, %f\n", index, 
+    results[index].w[0],
+    results[index].w[1],
+    results[index].w[2],
+    results[index].w[3]
+            );
         });
         return results;
     }
@@ -191,24 +207,19 @@ printf(" FFFFF index %lu    xy:   (%f, %f)\n", index,  xy[0],  xy[1]);
     std::tuple<double, int64_t> calc_pooling(const T& data,
                                              const std::array<std::size_t, 2>& bin_grid_size,
                                              const std::vector<pos_weight>& pos_weights,
-                                             int64_t index,
+                                             int64_t index,  // index to c
                                              Op op) const
     {
         double output_val   = op.init();
         const int64_t count = bin_grid_size[0] * bin_grid_size[1];
         dfor(bin_grid_size[0], bin_grid_size[1])([&](auto iy, auto ix) {
+printf(" IIIIIKKKKK  iy, ix, index =      %lu  %lu  %ld\n", iy, ix, index );
             const auto& pc = pos_weights[index];
-            std::array<double, 4> wv;
-// printf(" HHHHH dfor index: (%lu, %lu)\n", iy, ix);            
-// printf(" GGGGG transform:  ");                    
-printf(" IIIII transform ws:  ");  
+            std::array<double, 4> wv; 
             std::transform(
                 pc.w.begin(), pc.w.end(), pc.pos.begin(), wv.begin(), [&](auto w, auto pos) {
-printf(" %f ", w);
-// printf("  %f ", *(data + pos) * w);
                     return *(data + pos) * w;
                 });
-printf("\n");                
             output_val = std::accumulate(wv.begin(), wv.end(), output_val, op);
             index += 1;
         });
@@ -270,7 +281,7 @@ printf("\n");
                 shape comp_s{shape::float_type, comp_lens};
                 auto pre_calc =
                     this->calc_pos_weight(in_dims, comp_s, roi_starts, bin_size, bin_grid_size);
-// The array returned here should correspond to the GGGGG and HHHHH values in the GPU
+
                 std::vector<std::size_t> comp_lens1 = {channels, out_dims[0], out_dims[1]};
                 shape comp_s1{migraphx::shape::float_type, comp_lens1};
                 std::vector<int64_t> vec_index(channels, 0);
@@ -280,11 +291,15 @@ printf("\n");
                     auto ph = idx[1];
                     auto pw = idx[2];
 
+// n anc c are 0 because that's the size of the test case
+printf(" IIIII n, c, ph, pw =                       %lu %lu    %lu  %lu\n", n, c, ph, pw);
+
                     const auto offset_bottom_data =
                         bottom_data + static_cast<int64_t>((roi_batch_ind * channels + c) *
                                                            in_dims[0] * in_dims[1]);
-printf(" KKKKK n, c, ph, pw = %lu %lu %lu %lu\n",  n, c, ph, pw);
+
                     double output_val;
+printf(" IIIIIc vec_index[c] = %ld\n", vec_index[c]);
                     std::tie(output_val, vec_index[c]) =
                         (mode == migraphx::op::pooling_mode::average)
                             ? this->calc_pooling(offset_bottom_data,
@@ -297,7 +312,7 @@ printf(" KKKKK n, c, ph, pw = %lu %lu %lu %lu\n",  n, c, ph, pw);
                                                  pre_calc,
                                                  vec_index[c],
                                                  max_pool{});
-// printf(" XXXXX output_val: %f  \n", output_val)                                                 ;
+printf(" DDDDD %f\n", output_val);                                                 
                     output(n, c, ph, pw) = output_val;
                 });
             });

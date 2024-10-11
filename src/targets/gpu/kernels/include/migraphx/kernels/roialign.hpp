@@ -76,15 +76,12 @@ MIGRAPHX_DEVICE_CONSTEXPR typename Iterator::value_type bilinear_interpolate(
     array<int, 2> high{};
     for(index_int ii = 0; ii < xy.size(); ++ii)
     {
-        // println_once(" fffff xy: ", xy[ii]);
         if(xy[ii] < -1.0f or xy[ii] > dims[ii])
         {
-        // println_once(" g@gggg xy: ", xy[ii]);
             return implicit_conversion(0);
         }
 
         xy[ii]   = migraphx::max(xy[ii], 0.0f);
-        // println_once(" h@hhhh xy: ", xy[ii]);
         low[ii]  = xy[ii];
         high[ii] = low[ii] + 1;
         if(low[ii] >= dims[ii] - 1)
@@ -92,40 +89,25 @@ MIGRAPHX_DEVICE_CONSTEXPR typename Iterator::value_type bilinear_interpolate(
             xy[ii] = high[ii] = low[ii] = dims[ii] - 1;
         }
     }
-println_once(" fffff xy: ", xy);
     array<index_int, 4> locs = {low[1] * dims[0] + low[0],  // new
                                 low[1] * dims[0] + high[0],
                                 high[1] * dims[0] + low[0],
                                 high[1] * dims[0] + high[0]};
-// array<index_int, 4> locs = {low[0] * dims[1] + low[1],  //old
-//                                 low[0] * dims[1] + high[1],
-//                                 high[0] * dims[1] + low[1],
-//                                 high[0] * dims[1] + high[1]};
-    // float lx = xy[0] - low[0];  // new
-    // float ly = xy[1] - low[1];
-    float ly = xy[0] - low[0];
-    float lx = xy[1] - low[1];
+
+    float lx = xy[0] - low[0];  // new
+    float ly = xy[1] - low[1];
+\
     float hy = 1.0f - ly;
     float hx = 1.0f - lx;
     // do calculations in floating point and convert final result to required type
-    // array<float, 4> ws = {hy * hx, hy * lx, ly * hx, ly * lx}; //old
-    array<float, 4> ws = {hy * hx, ly * hx, hy * lx, ly * lx};  // new
+    array<float, 4> ws = {hy * hx, hy * lx, ly * hx, ly * lx}; //old
 
-    //debug
-//  array<float, 2> pooling_input01 = {data[locs[1]] * ws[1], data[locs[0]] * ws[0]};
-//  array<float, 2> pooling_input23 = {data[locs[3]] * ws[3], data[locs[2]] * ws[2]};
-// println(" ggggg pooling_input01", pooling_input01);
-// println(" hhhhh pooling_input23", pooling_input23);
-println(" iiiii ws:  ", ws);
-println();
-    // todo:  Should we change the order of these indices?
-    // auto v01 = pooling(data[locs[0]] * ws[0], data[locs[1]] * ws[1]);
-    // auto v23 = pooling(data[locs[2]] * ws[2], data[locs[3]] * ws[3]);
     auto v01 = pooling(data[locs[1]] * ws[1], data[locs[0]] * ws[0]);
     auto v23 = pooling(data[locs[3]] * ws[3], data[locs[2]] * ws[2]);
     return implicit_conversion(pooling(v01, v23));
 }
 
+// Calculate a single pooled output value
 template <class Iterator, class Op>
 MIGRAPHX_DEVICE_CONSTEXPR auto calc_pooling(const Iterator& data,
                                             const array<float, 2>& roi_starts,
@@ -136,29 +118,24 @@ MIGRAPHX_DEVICE_CONSTEXPR auto calc_pooling(const Iterator& data,
                                             float roi_offset,
                                             Op op)
 {
+    // for one idx (output height and width coordinates) we iterate through all bin_grid values
     using in_dtype      = typename Iterator::value_type;
     in_dtype output_val = in_dtype{op.init()};
     const int64_t count = bin_grid_size[0] * bin_grid_size[1];
     dfor(bin_grid_size[0], bin_grid_size[1])([&](auto iy, auto ix) {
         array<index_int, 2> id = {iy, ix};
-println_once(" hhhhh id: ", id); 
+println_once(" jjjjj id: ", id); 
 (void) roi_offset;
-println("How does locs increment?  12 steps in idx = 1 step in ref version", "");    
-println_once(" eeeee roi_starts: ",  roi_starts);
+println_once(" jjjjj roi_starts: ",  roi_starts);
 println(" eeeee idx: ",  idx);
-println_once(" eeeee bin_size: ",  bin_size);
-println_once(" eeeee (id + 0.5f): ",  (id + 0.5f));
-println_once(" eeeee bin_grid_size: ",  bin_grid_size);
-array<float, 2> zap = idx * bin_size;
-println("idx * bin_size: ", zap);
-array<float, 2> zap2 = bin_size * (id + 0.5f) / bin_grid_size;
-println("(id + 0.5f) / bin_grid_size: ", zap2);
-println_once(" eeeee roi_offset: ",  roi_offset);
-        // array<float, 2> locs =
-        //     roi_starts + idx * bin_size + bin_size * (id + 0.5f) / bin_grid_size + roi_offset;    // old leads to all 0's
+
         array<float, 2> locs =
             roi_starts + idx * bin_size + bin_size * (id + 0.5f) / bin_grid_size;       // new
-println(" eeeeeEEE locs: ", locs);
+// idx same as ph, pw
+ array<float, 6> asdf_idx = {float(iy),  float(ix), float(idx[0]), float(idx[1]),locs[0], locs[1]};
+// put idx, ix, iy, and locs into a single array to debug together        
+
+println(" iiiii asdf_idx/locs: ", asdf_idx);
         auto val   = bilinear_interpolate(data, dims, locs, op);
         output_val = op(output_val, val);
     });
@@ -192,7 +169,7 @@ __device__ void roialign(const T& x_t, const U& rois_t, const V& ind_t, W& y_t, 
     auto channel_num = x_lens[1];
     // input dims of height and width, in all 2-dim arrays, the first dim
     // is for height and second dim is for width
-    array<index_int, 2> in_dims = {x_lens[2], x_lens[3]};
+    array<index_int, 2> in_dims = {x_lens[3], x_lens[2]};
 
     const auto stride   = index.nglobal();
     auto out_s          = y_t.get_shape();
@@ -202,6 +179,7 @@ __device__ void roialign(const T& x_t, const U& rois_t, const V& ind_t, W& y_t, 
     // is for height and second dim is for width
     const auto& out_lens         = out_s.lens;
     array<index_int, 2> out_dims = {out_lens[2], out_lens[3]};
+println_once(" aaaaa stride: ", stride);
 
     for(index_int i = index.global; i < out_s.elements(); i += stride)
     {
@@ -215,8 +193,6 @@ __device__ void roialign(const T& x_t, const U& rois_t, const V& ind_t, W& y_t, 
         const int batch_ind    = ind[n];
 
         // Note that roi_offset in src/targets/gpu/jit/roialign.cpp uses a negative value, so we add it here
-println(" aaaaa idx: ", idx);
-// println("   out_dims ", out_lens);
         array<float, 2> roi_starts = {
             static_cast<float>(offset_rois[0]) * static_cast<float>(s.spatial_scale) + s.roi_offset,
             static_cast<float>(offset_rois[1]) * static_cast<float>(s.spatial_scale) +
@@ -251,6 +227,8 @@ array<int, 4> zap = {n, c, ph, pw};
 println(" kkkkk n, c, ph, pw: ", zap);
 
         const auto offset_x = x + ((batch_ind * channel_num + c) * in_dims[0] * in_dims[1]);
+array<int, 4> reindex = {n, c, pw, ph};//;;  rearrange the gpu indices to what the ref indices would be
+// and insert that location in y_t        
         if constexpr(s.is_avg_pooling)
         {
             y_t[i] = calc_pooling(offset_x,
@@ -263,8 +241,8 @@ println(" kkkkk n, c, ph, pw: ", zap);
                                   avg_pool{});
 // println_once(" ddddd roi_starts[0]:  ", roi_starts[0]);   looks good here
 // println_once(" ddddd1 roi_starts[1]:  ", roi_starts[1]);
-// print(" DDDDD  i: ",  i)  ;
-// println("   y_t[i]: ",  y_t[i])   ;  // these are all y_t[i]:  0.500000   make sense?
+print(" ddddd  i: ",  i)  ;
+println("   y_t[i]: ",  y_t[i])   ;  // these are all y_t[i]:  0.500000   make sense?
         }
         else
         {

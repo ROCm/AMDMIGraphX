@@ -929,25 +929,25 @@ TEST_CASE(conv_add_split_reduce_multi_use_conv)
         auto cba  = mm->add_instruction(migraphx::make_op("get_tuple_elem", {{"index", 2}}), fused);
         auto var  = mm->add_instruction(migraphx::make_op("get_tuple_elem", {{"index", 0}}), fused);
         auto mean = mm->add_instruction(migraphx::make_op("get_tuple_elem", {{"index", 1}}), fused);
-        auto mean_mb = mm->add_instruction(
-            migraphx::make_op("multibroadcast", {{"out_lens", cba->get_shape().lens()}}), mean);
-        auto mean_rsp = mm->add_instruction(
-            migraphx::make_op("reshape", {{"dims", {2, 320, 64, 64}}}), mean_mb);
-        auto var_mb = mm->add_instruction(
-            migraphx::make_op("multibroadcast", {{"out_lens", cba->get_shape().lens()}}), var);
-        auto var_rsp =
-            mm->add_instruction(migraphx::make_op("reshape", {{"dims", {2, 320, 64, 64}}}), var_mb);
-        auto cba_rsp =
-            mm->add_instruction(migraphx::make_op("reshape", {{"dims", {2, 320, 64, 64}}}), cba);
         auto input_fused_conv = add_mlir(
             p2,
             "main:pointwise2:mlir_convolution1",
-            {cba_rsp, mean_rsp, var_rsp, w2},
+            {cba, mean, var, w2},
             {"x0", "x1", "x2", "x3"},
             [=](auto* pm, const auto& inputs) {
+                auto mean_mb = pm->add_instruction(
+                    migraphx::make_op("multibroadcast", {{"out_lens", cba->get_shape().lens()}}), inputs.at(1));
+                auto mean_rsp = pm->add_instruction(
+                    migraphx::make_op("reshape", {{"dims", {2, 320, 64, 64}}}), mean_mb);
+                auto var_mb = pm->add_instruction(
+                    migraphx::make_op("multibroadcast", {{"out_lens", cba->get_shape().lens()}}), inputs.at(2));
+                auto var_rsp =
+                    pm->add_instruction(migraphx::make_op("reshape", {{"dims", {2, 320, 64, 64}}}), var_mb);
+                auto cba_rsp =
+                    pm->add_instruction(migraphx::make_op("reshape", {{"dims", {2, 320, 64, 64}}}), inputs.at(0));
                 auto sub =
-                    pm->add_instruction(migraphx::make_op("sub"), inputs.at(0), inputs.at(1));
-                auto div  = pm->add_instruction(migraphx::make_op("div"), sub, inputs.at(2));
+                    pm->add_instruction(migraphx::make_op("sub"), cba_rsp, mean_rsp);
+                auto div  = pm->add_instruction(migraphx::make_op("div"), sub, var_rsp);
                 auto conv = pm->add_instruction(
                     migraphx::make_op("convolution", {{"padding", {1, 1, 1, 1}}}),
                     div,

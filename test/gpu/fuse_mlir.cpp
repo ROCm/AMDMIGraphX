@@ -313,12 +313,12 @@ TEST_CASE(dot_dot_pointwise)
         auto b   = mm->add_parameter("b", s2);
         auto c   = mm->add_parameter("c", s2);
         auto dot1 =
-            add_mlir(p2, "mlir_dot4", {a, b}, {"y0", "y1"}, [=](auto* pm, const auto& inputs) {
+            add_mlir(p2, "mlir_dot0", {a, b}, {"y0", "y1"}, [=](auto* pm, const auto& inputs) {
                 auto dot = pm->add_instruction(migraphx::make_op("dot"), inputs[0], inputs[1]);
                 return std::make_tuple(dot->get_operator(), dot);
             });
         auto dot2 =
-            add_mlir(p2, "mlir_dot5", {dot1, c}, {"y0", "y1"}, [=](auto* pm, const auto& inputs) {
+            add_mlir(p2, "mlir_dot1", {dot1, c}, {"y0", "y1"}, [=](auto* pm, const auto& inputs) {
                 auto dot = pm->add_instruction(migraphx::make_op("dot"), inputs[0], inputs[1]);
                 return std::make_tuple(dot->get_operator(), dot);
             });
@@ -354,7 +354,7 @@ TEST_CASE(dot_dot_pointwise_pointwise)
         auto c   = mm->add_parameter("c", s2);
         auto x   = mm->add_parameter("d", s1);
         auto dot1 =
-            add_mlir(p2, "mlir_dot6", {a, b}, {"y0", "y1"}, [=](auto* pm, const auto& inputs) {
+            add_mlir(p2, "mlir_dot0", {a, b}, {"y0", "y1"}, [=](auto* pm, const auto& inputs) {
                 auto dot = pm->add_instruction(migraphx::make_op("dot"), inputs[0], inputs[1]);
                 return std::make_tuple(dot->get_operator(), dot);
             });
@@ -397,7 +397,7 @@ TEST_CASE(add_dot)
         auto y   = mm->add_parameter("y", s);
         auto fused =
             add_mlir(p2,
-                     "main:pointwise0:mlir_dot8",
+                     "main:pointwise0:mlir_dot0",
                      {x, y, b},
                      {"x0", "x1", "x2"},
                      [=](auto* pm, const auto& inputs) {
@@ -410,6 +410,73 @@ TEST_CASE(add_dot)
     }
     if(not migraphx::enabled(MIGRAPHX_ENABLE_MLIR_INPUT_FUSION{}))
         return;
+    EXPECT(p1.sort() == p2.sort());
+}
+
+TEST_CASE(unpack_int4_dot)
+{
+    migraphx::program p1;
+    {
+        auto* m   = p1.get_main_module();
+        auto x    = m->add_parameter("x", {migraphx::shape::int8_type, {1, 8, 4, 4}});
+        auto pk_w = m->add_parameter("wt_int4", {migraphx::shape::int8_type, {1, 8, 4, 2}});
+        auto w    = m->add_instruction(migraphx::make_op("unpack_int4"), pk_w);
+        auto dot  = m->add_instruction(migraphx::make_op("quant_dot"), x, w); // w: {1,8,4,4}
+        m->add_return({dot});
+    }
+    run_pass(p1);
+
+    migraphx::program p2;
+    {
+        auto* m   = p2.get_main_module();
+        auto x    = m->add_parameter("x", {migraphx::shape::int8_type, {1, 8, 4, 4}});
+        auto pk_w = m->add_parameter("wt_int4", {migraphx::shape::int8_type, {1, 8, 4, 2}});
+
+        auto fused = add_mlir(
+            p2, "int4:mlir_quant_dot0", {x, pk_w}, {"x1", "x2"}, [=](auto* pm, const auto& inputs) {
+                auto unpk_w = pm->add_instruction(migraphx::make_op("unpack_int4"), inputs[1]);
+                auto q = pm->add_instruction(migraphx::make_op("quant_dot"), inputs[0], unpk_w);
+                return std::make_tuple(q->get_operator(), q);
+            });
+        m->add_return({fused});
+    }
+
+    EXPECT(p1.sort() == p2.sort());
+}
+
+TEST_CASE(unpack_int4_dot_2)
+{
+    migraphx::program p1;
+    {
+        auto* m = p1.get_main_module();
+
+        auto pk_x = m->add_parameter("x", {migraphx::shape::int8_type, {1, 8, 4, 2}});
+        auto x    = m->add_instruction(migraphx::make_op("unpack_int4"), pk_x); // {1,8,4,4}
+
+        auto pk_w = m->add_parameter("wt_int4", {migraphx::shape::int8_type, {1, 8, 4, 2}});
+        auto w    = m->add_instruction(migraphx::make_op("unpack_int4"), pk_w); // {1,8,4,4}
+
+        auto dot = m->add_instruction(migraphx::make_op("quant_dot"), x, w);
+        m->add_return({dot});
+    }
+    run_pass(p1);
+
+    migraphx::program p2;
+    {
+        auto* m   = p2.get_main_module();
+        auto x    = m->add_parameter("x", {migraphx::shape::int8_type, {1, 8, 4, 2}});
+        auto pk_w = m->add_parameter("wt_int4", {migraphx::shape::int8_type, {1, 8, 4, 2}});
+
+        auto fused = add_mlir(
+            p2, "int4:mlir_quant_dot0", {x, pk_w}, {"x1", "x2"}, [=](auto* pm, const auto& inputs) {
+                auto unpk_x = pm->add_instruction(migraphx::make_op("unpack_int4"), inputs[0]);
+                auto unpk_w = pm->add_instruction(migraphx::make_op("unpack_int4"), inputs[1]);
+                auto q      = pm->add_instruction(migraphx::make_op("quant_dot"), unpk_x, unpk_w);
+                return std::make_tuple(q->get_operator(), q);
+            });
+        m->add_return({fused});
+    }
+
     EXPECT(p1.sort() == p2.sort());
 }
 
@@ -759,7 +826,7 @@ TEST_CASE(conv_add_split_reduce_multi_use_conv)
             mm->add_instruction(migraphx::make_op("reshape", {{"dims", {2, 320, 64, 64}}}), cba);
         auto input_fused_conv = add_mlir(
             p2,
-            "main:pointwise2:mlir_convolution3",
+            "main:pointwise2:mlir_convolution1",
             {cba_rsp, mean_rsp, var_rsp, w2},
             {"x0", "x1", "x2", "x3"},
             [=](auto* pm, const auto& inputs) {
@@ -1149,7 +1216,7 @@ TEST_CASE(gemm_invalid_pw_softmax_gemm)
         std::vector<float> eights(s1_elements, 0.125);
         auto eight = mm->add_literal(migraphx::literal{s1, eights});
         auto gemm1 =
-            add_mlir(p2, "mlir_dot11", {a, b}, {"y0", "y1"}, [=](auto* pm, const auto& inputs) {
+            add_mlir(p2, "mlir_dot0", {a, b}, {"y0", "y1"}, [=](auto* pm, const auto& inputs) {
                 auto tp = pm->add_instruction(
                     migraphx::make_op("transpose", {{"permutation", {0, 1, 3, 2}}}), inputs[1]);
                 auto ct  = pm->add_instruction(migraphx::make_op("contiguous"), tp);
@@ -1192,7 +1259,7 @@ TEST_CASE(gemm_invalid_pw_softmax_gemm)
             });
 
         auto gemm2 = add_mlir(
-            p2, "mlir_dot12", {pw_reduce, b1}, {"y0", "y1"}, [=](auto* pm, const auto& inputs) {
+            p2, "mlir_dot1", {pw_reduce, b1}, {"y0", "y1"}, [=](auto* pm, const auto& inputs) {
                 auto tp = pm->add_instruction(
                     migraphx::make_op("transpose", {{"permutation", {0, 1, 3, 2}}}), inputs[1]);
                 auto ct  = pm->add_instruction(migraphx::make_op("contiguous"), tp);

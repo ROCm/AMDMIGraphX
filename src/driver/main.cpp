@@ -26,7 +26,6 @@
 #include "verify_options.hpp"
 #include "argument_parser.hpp"
 #include "command.hpp"
-#include "mlir.hpp"
 #include "precision.hpp"
 #include "passes.hpp"
 #include "perf.hpp"
@@ -78,7 +77,6 @@ struct loader
     bool is_test                = false;
     unsigned trim               = 0;
     bool optimize               = false;
-    bool mlir                   = false;
     bool skip_unknown_operators = false;
     bool brief                  = false;
     std::string output_type;
@@ -142,7 +140,6 @@ struct loader
            ap.append(),
            ap.nargs(2));
         ap(optimize, {"--optimize", "-O"}, ap.help("Optimize when reading"), ap.set_value(true));
-        ap(mlir, {"--mlir"}, ap.help("Offload everything to mlir"), ap.set_value(true));
         ap(passes, {"--apply-pass", "-p"}, ap.help("Passes to apply to model"), ap.append());
         ap(output_type,
            {"--graphviz", "-g"},
@@ -377,8 +374,6 @@ struct loader
         }
         if(not passes.empty())
             migraphx::run_passes(p, get_passes(passes));
-        if(mlir)
-            offload_to_mlir(p);
         return p;
     }
 
@@ -606,6 +601,7 @@ struct verify : command<verify>
     std::optional<double> rtol;
     bool per_instruction = false;
     bool reduce          = false;
+    bool bisect          = false;
     verify_options vo;
     void parse(argument_parser& ap)
     {
@@ -618,6 +614,7 @@ struct verify : command<verify>
            ap.help("Verify each instruction"),
            ap.set_value(true));
         ap(reduce, {"-r", "--reduce"}, ap.help("Reduce program and verify"), ap.set_value(true));
+        ap(bisect, {"-b", "--bisect"}, ap.help("Bisect program and verify"), ap.set_value(true));
         ap(vo.ref_use_double,
            {"--ref-use-double"},
            ap.help("Convert floating point values to double on ref"),
@@ -654,6 +651,10 @@ struct verify : command<verify>
         else if(reduce)
         {
             verify_reduced_program(p, t, c.co, vo, m, tols);
+        }
+        else if(bisect)
+        {
+            verify_bisected_program(p, t, c.co, vo, m, tols);
         }
         else
         {
@@ -866,7 +867,7 @@ struct main_command
 } // namespace migraphx
 
 using namespace migraphx::driver; // NOLINT
-int main(int argc, const char* argv[])
+int main(int argc, const char* argv[], const char* envp[])
 {
     std::vector<std::string> args(argv + 1, argv + argc);
     // no argument, print the help infomration by default
@@ -894,6 +895,20 @@ int main(int argc, const char* argv[])
         std::string driver_invocation =
             std::string(argv[0]) + " " + migraphx::to_string_range(args, " ");
         std::cout << "Running [ " << get_version() << " ]: " << driver_invocation << std::endl;
+
+        for(const char** env = envp; *env != nullptr; ++env)
+        {
+            std::string env_var(*env);
+            size_t pos = env_var.find('=');
+            if(pos != std::string::npos)
+            {
+                std::string key = env_var.substr(0, pos);
+                if(key.find("MIGRAPHX") != std::string::npos)
+                {
+                    std::cout << env_var << std::endl;
+                }
+            }
+        }
 
         m.at(cmd)(argv[0],
                   {args.begin() + 1, args.end()}); // run driver command found in commands map

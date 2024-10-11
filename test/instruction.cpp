@@ -67,5 +67,4 @@ TEST_CASE(check_replace_shape)
     EXPECT(add->get_shape() == r);
 }
 
-
 int main(int argc, const char* argv[]) { test::run(argc, argv); }

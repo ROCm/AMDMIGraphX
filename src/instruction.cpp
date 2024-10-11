@@ -64,7 +64,7 @@ void instruction::replace(const shape& r)
     {
         result = r;
         std::deque<instruction_ref> q(output.begin(), output.end());
-        while(!q.empty())
+        while(not q.empty())
         {
             instruction_ref ins = q.front();
             q.pop_front();

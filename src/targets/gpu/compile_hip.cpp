@@ -235,7 +235,7 @@ bool hip_has_flags(const std::vector<std::string>& flags)
 
     try
     {
-        std::string arch           = "gfx900";
+        std::string arch = "gfx900";
         compile_hip_src(srcs, flags, arch);
         return true;
     }

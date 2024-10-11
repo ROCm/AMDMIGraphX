@@ -4743,6 +4743,167 @@ def group_norm_invalid_bias_shape_test():
 
 
 @onnx_test()
+def group_query_attention_test():
+    qkv = helper.make_tensor_value_info('qkv', TensorProto.FLOAT16,
+                                        [1, 1, 12288])
+    key = helper.make_tensor_value_info('key', TensorProto.FLOAT, [1])
+    value = helper.make_tensor_value_info('value', TensorProto.FLOAT, [1])
+    past_key_values_key = helper.make_tensor_value_info(
+        'past_key_values_key', TensorProto.FLOAT16, [1, 32, 4096, 128])
+    past_key_values_value = helper.make_tensor_value_info(
+        'past_key_values_value', TensorProto.FLOAT16, [1, 32, 4096, 128])
+    slk_val = np.array([1])
+    seqlens_k = helper.make_tensor(name="seqlens_k",
+                                   data_type=TensorProto.INT32,
+                                   dims=slk_val.shape,
+                                   vals=slk_val.astype(int))
+    tsl_val = np.array([2])
+    total_sequence_length = helper.make_tensor(name="total_sequence_length",
+                                               data_type=TensorProto.INT32,
+                                               dims=tsl_val.shape,
+                                               vals=tsl_val.astype(int))
+    cc_val = np.ones([4096, 64], dtype=np.float16)
+    cos_cache = helper.make_tensor(name="cos_cache",
+                                   data_type=TensorProto.FLOAT16,
+                                   dims=cc_val.shape,
+                                   vals=cc_val)
+    sin_cache = helper.make_tensor(name="sin_cache",
+                                   data_type=TensorProto.FLOAT16,
+                                   dims=cc_val.shape,
+                                   vals=cc_val)
+    output = helper.make_tensor_value_info('output', TensorProto.FLOAT16,
+                                           [1, 1, 4096])
+    present_key = helper.make_tensor_value_info('present_key',
+                                                TensorProto.FLOAT16,
+                                                [1, 32, 4096, 128])
+    present_value = helper.make_tensor_value_info('present_value',
+                                                  TensorProto.FLOAT16,
+                                                  [1, 32, 4096, 128])
+
+    node = onnx.helper.make_node(
+        'GroupQueryAttention',
+        inputs=[
+            'qkv', 'key', 'value', 'past_key_values_key',
+            'past_key_values_value', 'seqlens_k', 'total_sequence_length',
+            'cos_cache', 'sin_cache'
+        ],
+        outputs=['output', 'present_key', 'present_value'],
+        do_rotary=1,
+        kv_num_heads=32,
+        local_window_size=-1,
+        num_heads=32,
+        rotary_interleaved=0,
+        scale=1.0,
+        domain="com.microsoft")
+
+    return ([node
+             ], [qkv, key, value, past_key_values_key,
+                 past_key_values_value], [output, present_key, present_value],
+            [seqlens_k, total_sequence_length, cos_cache, sin_cache])
+
+
+@onnx_test()
+def group_query_attention_defaults_test():
+    qkv = helper.make_tensor_value_info('qkv', TensorProto.FLOAT16,
+                                        [1, 1, 12288])
+    key = helper.make_tensor_value_info('key', TensorProto.FLOAT, [1])
+    value = helper.make_tensor_value_info('value', TensorProto.FLOAT, [1])
+    past_key_values_key = helper.make_tensor_value_info(
+        'past_key_values_key', TensorProto.FLOAT16, [1, 32, 4096, 128])
+    past_key_values_value = helper.make_tensor_value_info(
+        'past_key_values_value', TensorProto.FLOAT16, [1, 32, 4096, 128])
+    slk_val = np.array([1])
+    seqlens_k = helper.make_tensor(name="seqlens_k",
+                                   data_type=TensorProto.INT32,
+                                   dims=slk_val.shape,
+                                   vals=slk_val.astype(int))
+    tsl_val = np.array([2])
+    total_sequence_length = helper.make_tensor(name="total_sequence_length",
+                                               data_type=TensorProto.INT32,
+                                               dims=tsl_val.shape,
+                                               vals=tsl_val.astype(int))
+    cc_val = np.ones([4096, 64], dtype=np.float16)
+    cos_cache = helper.make_tensor(name="cos_cache",
+                                   data_type=TensorProto.FLOAT16,
+                                   dims=cc_val.shape,
+                                   vals=cc_val)
+    sin_cache = helper.make_tensor(name="sin_cache",
+                                   data_type=TensorProto.FLOAT16,
+                                   dims=cc_val.shape,
+                                   vals=cc_val)
+    output = helper.make_tensor_value_info('output', TensorProto.FLOAT16,
+                                           [1, 1, 4096])
+    present_key = helper.make_tensor_value_info('present_key',
+                                                TensorProto.FLOAT16,
+                                                [1, 32, 4096, 128])
+    present_value = helper.make_tensor_value_info('present_value',
+                                                  TensorProto.FLOAT16,
+                                                  [1, 32, 4096, 128])
+
+    node = onnx.helper.make_node(
+        'GroupQueryAttention',
+        inputs=[
+            'qkv', 'key', 'value', 'past_key_values_key',
+            'past_key_values_value', 'seqlens_k', 'total_sequence_length',
+            'cos_cache', 'sin_cache'
+        ],
+        outputs=['output', 'present_key', 'present_value'],
+        domain="com.microsoft")
+
+    return ([node
+             ], [qkv, key, value, past_key_values_key,
+                 past_key_values_value], [output, present_key, present_value],
+            [seqlens_k, total_sequence_length, cos_cache, sin_cache])
+
+
+@onnx_test()
+def group_query_attention_invalid_test():
+    qkv = helper.make_tensor_value_info('qkv', TensorProto.FLOAT16,
+                                        [1, 1, 12288])
+    past_key_values_key = helper.make_tensor_value_info(
+        'past_key_values_key', TensorProto.FLOAT16, [1, 32, 4096, 128])
+    past_key_values_value = helper.make_tensor_value_info(
+        'past_key_values_value', TensorProto.FLOAT16, [1, 32, 4096, 128])
+    slk_val = np.array([1])
+    seqlens_k = helper.make_tensor(name="seqlens_k",
+                                   data_type=TensorProto.INT32,
+                                   dims=slk_val.shape,
+                                   vals=slk_val.astype(int))
+    tsl_val = np.array([2])
+    total_sequence_length = helper.make_tensor(name="total_sequence_length",
+                                               data_type=TensorProto.INT32,
+                                               dims=tsl_val.shape,
+                                               vals=tsl_val.astype(int))
+    output = helper.make_tensor_value_info('output', TensorProto.FLOAT16,
+                                           [1, 1, 4096])
+    present_key = helper.make_tensor_value_info('present_key',
+                                                TensorProto.FLOAT16,
+                                                [1, 32, 4096, 128])
+    present_value = helper.make_tensor_value_info('present_value',
+                                                  TensorProto.FLOAT16,
+                                                  [1, 32, 4096, 128])
+
+    node = onnx.helper.make_node(
+        'GroupQueryAttention',
+        inputs=[
+            'qkv', 'past_key_values_key', 'past_key_values_value', 'seqlens_k',
+            'total_sequence_length', 'cos_cache', 'sin_cache'
+        ],
+        outputs=['output', 'present_key', 'present_value'],
+        do_rotary=1,
+        kv_num_heads=32,
+        local_window_size=-1,
+        num_heads=32,
+        rotary_interleaved=0,
+        scale=1.0,
+        domain="com.microsoft")
+
+    return ([node], [qkv, past_key_values_key, past_key_values_value],
+            [output, present_key,
+             present_value], [seqlens_k, total_sequence_length])
+
+
+@onnx_test()
 def gru_bi_layout_test():
     seq = helper.make_tensor_value_info('seq', TensorProto.FLOAT, [3, 5, 10])
     w = helper.make_tensor_value_info('w', TensorProto.FLOAT, [2, 60, 10])
@@ -5992,14 +6153,22 @@ def int4_const_identity_qdq_test():
     t_node = helper.make_node(
         'Transpose',
         inputs=['dq_y'],
-        outputs=['y'],
+        outputs=['t_y'],
         perm=[1, 0],
+    )
+
+    x2_t = helper.make_tensor_value_info('x2', TensorProto.FLOAT16, [2, 4])
+
+    dot_node = helper.make_node(
+        'MatMul',
+        inputs=['t_y', 'x2'],
+        outputs=['y'],
     )
 
     y_t = helper.make_tensor_value_info('y', TensorProto.FLOAT16, [4, 4])
 
-    return ([i_node, q_node, dq_node,
-             t_node], [], [y_t], [x_t, data_t, sc_t, sc_2_t])
+    return ([i_node, q_node, dq_node, t_node,
+             dot_node], [x2_t], [y_t], [x_t, data_t, sc_t, sc_2_t])
 
 
 @onnx_test()
@@ -6050,14 +6219,22 @@ def int4_const_identity_block_sz_1_qdq_test():
     t_node = helper.make_node(
         'Transpose',
         inputs=['dq_y'],
-        outputs=['y'],
+        outputs=['t_y'],
         perm=[1, 0],
     )
 
-    y_t = helper.make_tensor_value_info('y', TensorProto.FLOAT16, [4, 2])
+    x2_t = helper.make_tensor_value_info('x2', TensorProto.FLOAT16, [2, 4])
 
-    return ([i_node, q_node, dq_node,
-             t_node], [], [y_t], [x_t, data_t, sc_t, sc_2_t])
+    dot_node = helper.make_node(
+        'MatMul',
+        inputs=['t_y', 'x2'],
+        outputs=['y'],
+    )
+
+    y_t = helper.make_tensor_value_info('y', TensorProto.FLOAT16, [4, 4])
+
+    return ([i_node, q_node, dq_node, t_node,
+             dot_node], [x2_t], [y_t], [x_t, data_t, sc_t, sc_2_t])
 
 
 @onnx_test()
@@ -6102,12 +6279,21 @@ def int4_const_identity_block_sz_2_qdq_test():
     dq_node = onnx.helper.make_node(
         'DequantizeLinear',
         inputs=['q_y', 'sc_dq', 'i_y_zp'],
+        outputs=['dq_y'],
+    )
+
+    x2_t = helper.make_tensor_value_info('x2', TensorProto.FLOAT16, [4, 2])
+
+    dot_node = helper.make_node(
+        'MatMul',
+        inputs=['dq_y', 'x2'],
         outputs=['y'],
     )
 
-    y_t = helper.make_tensor_value_info('y', TensorProto.FLOAT16, [2, 4])
+    y_t = helper.make_tensor_value_info('y', TensorProto.FLOAT16, [2, 2])
 
-    return ([i_node, q_node, dq_node], [], [y_t], [x_t, data_t, sc_t, sc_2_t])
+    return ([i_node, q_node, dq_node,
+             dot_node], [x2_t], [y_t], [x_t, data_t, sc_t, sc_2_t])
 
 
 @onnx_test()

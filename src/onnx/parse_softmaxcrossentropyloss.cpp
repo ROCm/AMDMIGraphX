@@ -126,7 +126,11 @@ namespace onnx {
 
 struct parse_softmaxcrossentropyloss : op_parser<parse_softmaxcrossentropyloss>
 {
-    std::vector<op_desc> operators() const { return {{"SoftmaxCrossEntropyLoss"}}; }
+    std::vector<op_desc> operators() const
+    {
+        return {{"SoftmaxCrossEntropyLoss", "softmaxcrossentropyloss"},
+                {"NegativeLogLikelihoodLoss", "negativelikelihoodloss"}};
+    }
 
     // Handle ignore index if it's within range of allowable classes
     // return false if ignore index out of bounds and never add literal to graph
@@ -149,7 +153,8 @@ struct parse_softmaxcrossentropyloss : op_parser<parse_softmaxcrossentropyloss>
         return false;
     }
 
-    std::string get_reduction_param(const onnx_parser::node_info& info) const
+    std::string get_reduction_param(const onnx_parser::node_info& info,
+                                    const std::string& name) const
     {
         std::string reduction = "mean";
         if(contains(info.attributes, "reduction"))
@@ -157,32 +162,32 @@ struct parse_softmaxcrossentropyloss : op_parser<parse_softmaxcrossentropyloss>
             reduction = info.attributes.at("reduction").s();
             if(not contains({"mean", "sum", "none"}, reduction))
             {
-                MIGRAPHX_THROW("Invalid reduction mode: " + reduction +
+                MIGRAPHX_THROW(name + ":Invalid reduction mode: " + reduction +
                                "\n Valid options are [none, mean, sum]");
             }
         }
         return reduction;
     }
 
-    instruction_ref get_scores(const instruction_ref& arg) const
+    instruction_ref get_scores(const instruction_ref& arg, const std::string& name) const
     {
         auto scores       = arg;
         auto scores_shape = scores->get_shape();
         if(scores_shape.ndim() < 2)
         {
-            MIGRAPHX_THROW("softmaxcrossentropyloss: Scores must be two or more dimensions [batch, "
-                           "class_size, D1...Dk]");
+            MIGRAPHX_THROW(name +
+                           "Scores must be two or more dimensions [batch, class_size, D1...Dk]");
         }
 
         if(migraphx::shape::is_integral(scores_shape.type()))
         {
-            MIGRAPHX_THROW(
-                "softmaxcrossentropyloss: Score must be either half, float, or double type");
+            MIGRAPHX_THROW(name + ": Score must be either half, float, or double type");
         }
         return scores;
     }
 
-    instruction_ref get_labels(const instruction_ref& arg, const shape& scores_shape) const
+    instruction_ref
+    get_labels(const instruction_ref& arg, const std::string& name, const shape& scores_shape) const
     {
         auto labels      = arg;
         auto label_shape = labels->get_shape();
@@ -190,19 +195,17 @@ struct parse_softmaxcrossentropyloss : op_parser<parse_softmaxcrossentropyloss>
         if(label_shape.type() != migraphx::shape::int32_type and
            label_shape.type() != migraphx::shape::int64_type)
         {
-            MIGRAPHX_THROW("softmaxcrossentropyloss: Labels must either be int32 or int64 types");
+            MIGRAPHX_THROW(name + ": Labels must either be int32 or int64 types");
         }
 
         if(scores_shape.lens()[0] != label_shape.lens()[0])
         {
-            MIGRAPHX_THROW("softmaxcrossentropyloss: Score and Labels should have identical batch "
-                           "size inputs");
+            MIGRAPHX_THROW(name + ": Score and Labels must identical batch size inputs");
         }
 
         if((scores_shape.ndim() - 1) != label_shape.ndim())
         {
-            MIGRAPHX_THROW("softmaxcrossentropyloss: Score and Labels must contain identical "
-                           "number of K-Dimensions");
+            MIGRAPHX_THROW(name + ": Score and Labels must contain identical K-Dimensions");
         }
 
         // Check that K-Dimensions are equal between scores and labels
@@ -213,8 +216,8 @@ struct parse_softmaxcrossentropyloss : op_parser<parse_softmaxcrossentropyloss>
 
             if(not std::equal(score_len.begin() + 2, score_len.end(), label_len.begin() + 1))
             {
-                MIGRAPHX_THROW("softmaxcrossentropyloss: K-Dimensions must be equal values between "
-                               "score and labels");
+                MIGRAPHX_THROW(name + ": K-Dimensions must be equal values between "
+                                      "score and labels");
             }
         }
 
@@ -222,6 +225,7 @@ struct parse_softmaxcrossentropyloss : op_parser<parse_softmaxcrossentropyloss>
     }
 
     instruction_ref get_weights(const onnx_parser::node_info& info,
+                                const std::string& name,
                                 const std::vector<instruction_ref>& args,
                                 const shape& scores_shape,
                                 size_t class_size) const
@@ -241,22 +245,23 @@ struct parse_softmaxcrossentropyloss : op_parser<parse_softmaxcrossentropyloss>
 
             if(weights_shape.lens()[0] != scores_shape.lens()[1])
             {
-                MIGRAPHX_THROW("softmaxcrossentropyloss: Invalid weight vector shape. Weight must "
-                               "contain weight for each class");
+                MIGRAPHX_THROW(name + ": Invalid weight vector shape. Weight must "
+                                      "contain weight for each class");
             }
 
             if(migraphx::shape::is_integral(weights_shape.type()))
             {
-                MIGRAPHX_THROW(
-                    "softmaxcrossentropyloss: weight must be either half, float, or double type");
+                MIGRAPHX_THROW(name + ": weight must be either half, float, or double type");
             }
 
             if(weights_shape.type() != scores_shape.type())
             {
-                MIGRAPHX_THROW(
-                    "softmaxcrossentropyloss: Weight and Scores inputs must be the same type");
+                MIGRAPHX_THROW(name + ": Weight and Scores inputs must be the same type");
             }
         }
+
+        // Always make weights negative saves pointwise after indexing
+        weights = info.add_instruction(migraphx::make_op("neg"), weights);
 
         return weights;
     }
@@ -330,6 +335,8 @@ struct parse_softmaxcrossentropyloss : op_parser<parse_softmaxcrossentropyloss>
                 migraphx::make_op("reduce_sum", {{"axes", loss_dims}}), final_loss_tensor);
             auto reduced_weights = info.add_instruction(
                 migraphx::make_op("reduce_sum", {{"axes", weight_dims}}), weights);
+            reduced_weights = info.add_instruction(migraphx::make_op("neg"), reduced_weights);
+
             final_loss_tensor =
                 info.add_instruction(migraphx::make_op("div"), final_loss_tensor, reduced_weights);
         }
@@ -370,23 +377,34 @@ struct parse_softmaxcrossentropyloss : op_parser<parse_softmaxcrossentropyloss>
             migraphx::make_op("where"), equals_mask, zero_vector, loss_tensor);
     }
 
-    std::vector<instruction_ref> parse(const op_desc& /*opd */,
+    std::vector<instruction_ref> parse(const op_desc& opd,
                                        const onnx_parser& parser,
                                        const onnx_parser::node_info& info,
                                        const std::vector<instruction_ref>& args) const
     {
+        // Get the op name to be used for parsing
+        std::string op_name{opd.op_name};
+        auto is_softmaxcrossentropy = (opd.op_name == "softmaxcrossentropyloss");
+
         // Get and handle attributes
-        auto reduction = get_reduction_param(info);
+        auto reduction = get_reduction_param(info, op_name);
 
         // Get and validate Inputs
-        auto scores       = get_scores(args.at(0));
+        auto scores       = get_scores(args.at(0), op_name);
         auto scores_shape = scores->get_shape();
-        auto labels       = get_labels(args.at(1), scores_shape);
+        auto labels       = get_labels(args.at(1), op_name, scores_shape);
 
         // Meta parameters based on input scores shape
         size_t ndims      = scores_shape.ndim();
         size_t class_size = scores_shape.lens().at(1);
-        bool is_k_dim     = (ndims > 3);
+        bool is_k_dim     = (ndims >= 3);
+        // Ensure first k-th dimension is greater then one if ndims == 3
+        if(ndims == 3)
+        {
+            auto last_dim = scores_shape.lens().at(2);
+            if(last_dim < 2)
+                is_k_dim = false;
+        }
 
         // Ignore_index is optional attribute, assign this as a scalar literal input to the op
         instruction_ref ignore_index;
@@ -394,7 +412,7 @@ struct parse_softmaxcrossentropyloss : op_parser<parse_softmaxcrossentropyloss>
         auto has_ignore_index = normalize_input_index(parser, info, ignore_index, ignore_index_val);
 
         bool has_weights        = (args.size() > 2);
-        instruction_ref weights = get_weights(info, args, scores_shape, class_size);
+        instruction_ref weights = get_weights(info, op_name, args, scores_shape, class_size);
 
         // Adjust weights based on ignore index if its in bounds of [0, class_size) if that's set to
         // reduce output after mul to zero. Saves us from doing a where() here and just scale at the
@@ -408,8 +426,11 @@ struct parse_softmaxcrossentropyloss : op_parser<parse_softmaxcrossentropyloss>
                 migraphx::make_op("scatter_none", {{"axis", 0}}), weights, ignore_index, zero_val);
         }
 
-        // Need to perform softmax on all the data before we select final axes
-        scores = info.add_instruction(migraphx::make_op("softmax", {{"axis", 1}}), scores);
+        if(is_softmaxcrossentropy)
+        {
+            // Need to perform softmax on all the data before we select final axes
+            scores = info.add_instruction(migraphx::make_op("softmax", {{"axis", 1}}), scores);
+        }
 
         // Index selection before loss calculation completed
         auto gathernd_indicies = handle_index_selection(info, labels);
@@ -439,12 +460,15 @@ struct parse_softmaxcrossentropyloss : op_parser<parse_softmaxcrossentropyloss>
         // Do pointwise operators on the final set of indicies and scores we care about rather than
         // before so that we're not doing a bunch of pointwise on items that aren't part of the loss
         // calulation.
-        auto log_sm_scores  = info.add_instruction(migraphx::make_op("log"), scores);
-        auto neg_lsm_scores = info.add_instruction(migraphx::make_op("neg"), log_sm_scores);
+        auto log_sm_scores = scores;
+        if(is_softmaxcrossentropy)
+        {
+            log_sm_scores = info.add_instruction(migraphx::make_op("log"), scores);
+        }
 
-        // Always multiply out the weights. Will get optmized out if its all 1's
+        // Always multiply out the weights.
         auto weighted_result =
-            info.add_instruction(migraphx::make_op("mul"), neg_lsm_scores, weights);
+            info.add_instruction(migraphx::make_op("mul"), log_sm_scores, weights);
 
         auto loss_tensor = handle_reduction(info, weighted_result, weights, reduction, has_weights);
 
@@ -455,7 +479,10 @@ struct parse_softmaxcrossentropyloss : op_parser<parse_softmaxcrossentropyloss>
             loss_tensor = handle_ignored_labels(info, labels, ignore_index, loss_tensor);
         }
 
-        return {loss_tensor, log_sm_scores};
+        if(is_softmaxcrossentropy)
+            return {loss_tensor, log_sm_scores};
+        else
+            return {loss_tensor};
     }
 };
 

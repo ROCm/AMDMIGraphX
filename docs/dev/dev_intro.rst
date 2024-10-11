@@ -2,6 +2,7 @@ Developer Introduction
 ======================
 
 MIGraphX provides an optimized execution engine for deep learning neural networks.
+
 We will cover some simple operations in the MIGraphX framework here.
 For a quick start guide to using MIGraphX, look in the examples directory: ``https://github.com/ROCmSoftwarePlatform/AMDMIGraphX/tree/develop/examples/migraphx``.
 

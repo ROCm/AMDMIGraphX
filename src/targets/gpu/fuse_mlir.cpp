@@ -654,8 +654,16 @@ struct find_mlir_fused_ops
 template <auto Matcher>
 struct find_mlir_standalone_op
 {
-    mlir_mode mode = mlir_mode::none;
+    mlir_mode mode       = mlir_mode::none;
+    std::size_t* counter = nullptr;
     auto matcher() const { return Matcher(mode); }
+
+    std::string get_count() const
+    {
+        if(counter == nullptr)
+            MIGRAPHX_THROW("Invalid counter");
+        return std::to_string((*counter)++);
+    }
 
     void apply(module_pass_manager& mpm, const match::matcher_result& r) const
     {
@@ -671,9 +679,10 @@ struct find_mlir_standalone_op
                                    i->get_shape().type());
            }))
             return;
-        static size_t counter = 0;
-        module_ref mm =
-            mpm.create_module("mlir_" + gemm_based_op->name() + std::to_string(counter++));
+        std::string module_name = "mlir_" + gemm_based_op->name() + get_count();
+        if(mpm.get_module().name() != "main")
+            module_name = mpm.get_module().name() + ":" + module_name;
+        module_ref mm = mpm.create_module(module_name);
         mm->set_bypass();
         auto [anchor_op, top_inputs] = fuse_input_ops_and_gemm_based_op(
             mm, gemm_based_op->inputs(), gemm_based_op->get_operator());
@@ -774,6 +783,13 @@ struct find_mlir_standalone_attention_op
             std::next(softmax_in), make_op("softmax", {{"axis", axes.front()}}), softmax_in);
         map_main_to_mattn[fused_reduce] = softmax;
 
+        // all preceeding ops should be fusable ops
+        if(not std::all_of(m_gemm1, softmax, [](auto i) {
+               return (is_pointwise_op_supported_by_mlir(i) or
+                       contains(reshaper_names(), i.name()));
+           }))
+            return;
+
         // Add second gemm and fuse any input shape ops
         module fuse_gemm2;
         auto [anchor_op2, top_inputs2] =
@@ -871,6 +887,48 @@ struct find_pointwise_mlir
     }
 };
 
+struct find_unpack_int4_mlir_op
+{
+    auto matcher() const
+    {
+        return match::name("gpu::mlir_op")(
+            match::any_of[match::inputs()](match::name("unpack_int4").bind("unpack_int4")));
+    }
+
+    void apply(module_pass_manager& mpm, const match::matcher_result& r) const
+    {
+        auto ins      = r.result;
+        auto* mm      = ins->module_inputs().front();
+        module_ref nm = mpm.create_module("int4:" + mm->name());
+        nm->set_bypass();
+
+        std::vector<instruction_ref> x_in;
+        std::unordered_map<instruction_ref, instruction_ref> map_ins;
+        int ct = 0;
+
+        for(auto input : ins->inputs())
+        {
+            if(input->get_operator().name() == "unpack_int4")
+            {
+                auto unpack_input = input->inputs()[0];
+                instruction_ref t_ins =
+                    nm->add_parameter(param_name(++ct), unpack_input->get_shape().as_standard());
+                map_ins[input] = nm->add_instruction(input->get_operator(), t_ins);
+                x_in.push_back(unpack_input);
+            }
+            else
+            {
+                map_ins[input] =
+                    nm->add_parameter(param_name(++ct), input->get_shape().as_standard());
+                x_in.push_back(input);
+            }
+        }
+        auto ret = nm->fuse(*mm, ins->inputs(), &map_ins);
+        nm->add_return({ret});
+        mpm.get_module().replace_instruction(ins, ins->get_operator(), x_in, {nm});
+    }
+};
+
 } // namespace
 
 #endif // MIGRAPHX_MLIR
@@ -878,6 +936,7 @@ struct find_pointwise_mlir
 void fuse_mlir::apply(module_pass_manager& mpm) const
 {
 #ifdef MIGRAPHX_MLIR
+    std::size_t counter     = 0;
     const auto& device_name = ctx == nullptr ? "" : ctx->get_current_device().get_gfx_name();
     const bool is_navi      = starts_with(device_name, "gfx11");
 
@@ -907,8 +966,9 @@ void fuse_mlir::apply(module_pass_manager& mpm) const
 
     match::find_matches(
         mpm,
-        find_mlir_standalone_convolution_op{get_mode("convolution", mlir_mode::fast)},
-        find_mlir_standalone_dot_op{get_mode("dot", mlir_mode::fast)});
+        find_mlir_standalone_convolution_op{.mode    = get_mode("convolution", mlir_mode::fast),
+                                            .counter = &counter},
+        find_mlir_standalone_dot_op{.mode = get_mode("dot", mlir_mode::fast), .counter = &counter});
 
     mpm.run_pass(dead_code_elimination{});
     if(enabled(MIGRAPHX_ENABLE_MLIR_REDUCE_FUSION{}))
@@ -923,6 +983,9 @@ void fuse_mlir::apply(module_pass_manager& mpm) const
     {
         match::find_matches(mpm, find_pointwise_mlir{});
     }
+
+    match::find_matches(mpm, find_unpack_int4_mlir_op{});
+
 #else
     (void)mpm;
 #endif

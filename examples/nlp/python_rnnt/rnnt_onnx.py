@@ -7,13 +7,12 @@ def make_directories(dir_path, model_name):
         os.makedirs(f"{dir_path}/{model_name}/")
 
 
-def export_rnnt_onnx(model, seq_length):
-    dir_path = './models/rnnt/'
+def export_rnnt_onnx(model, x, dir_path):
 
     for component in ['rnnt_encoder', 'rnnt_prediction', 'rnnt_joint']:
         make_directories(dir_path, component)
 
-    batch_size, feature_length = 1, 240
+    seq_length, batch_size, feature_length = x.shape
     inp = torch.randn([seq_length, batch_size, feature_length]).to('cuda')
     feature_length = torch.LongTensor([seq_length]).to('cuda')
     x_padded, x_lens = model.encoder(inp, feature_length)

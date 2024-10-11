@@ -40,6 +40,12 @@
 #include <unordered_set>
 #include <migraphx/time.hpp>
 
+template <typename Callable>
+void time_matcher(const std::string& matcher_name, Callable&& func)
+{
+    auto elapsed_time = migraphx::time<std::chrono::nanoseconds>(std::forward<Callable>(func));
+    std::cout << "Matcher " << matcher_name << " took: " << elapsed_time << " ns" << std::endl;
+}
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
@@ -441,7 +447,9 @@ struct find_mul_add
 
     void apply(module& m, const match::matcher_result& r) const
     {
-	    auto elapsed_time = migraphx::time<std::chrono::nanoseconds>([&] {
+	    time_matcher("find_mul_conv", [&] {
+
+        //auto elapsed_time = migraphx::time<std::chrono::nanoseconds>([&] {
         auto ins   = r.result;
         auto a_ins = r.instructions["a"];
         auto b_ins = r.instructions["b"];
@@ -452,7 +460,7 @@ struct find_mul_add
         auto ab_ins = m.insert_instruction(ins, make_op("mul"), a_ins, b_ins);
         m.replace_instruction(ins, make_op("add"), ax_ins, ab_ins);
         });
-        std::cout << "Matcher find_mul_conv took: " << elapsed_time << " ms" << std::endl;
+        //std::cout << "Matcher find_mul_conv took: " << elapsed_time << " ms" << std::endl;
     }
 };
 

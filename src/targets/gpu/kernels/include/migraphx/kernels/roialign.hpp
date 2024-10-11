@@ -124,10 +124,10 @@ MIGRAPHX_DEVICE_CONSTEXPR auto calc_pooling(const Iterator& data,
     const int64_t count = bin_grid_size[0] * bin_grid_size[1];
     dfor(bin_grid_size[0], bin_grid_size[1])([&](auto iy, auto ix) {
         array<index_int, 2> id = {iy, ix};
-println_once(" jjjjj id: ", id); 
+// println_once(" jjjjj id: ", id); 
 (void) roi_offset;
-println_once(" jjjjj roi_starts: ",  roi_starts);
-println(" eeeee idx: ",  idx);
+// println_once(" jjjjj roi_starts: ",  roi_starts);
+// println(" eeeee idx: ",  idx);
 
         array<float, 2> locs =
             roi_starts + idx * bin_size + bin_size * (id + 0.5f) / bin_grid_size;       // new
@@ -135,7 +135,7 @@ println(" eeeee idx: ",  idx);
  array<float, 6> asdf_idx = {float(iy),  float(ix), float(idx[0]), float(idx[1]),locs[0], locs[1]};
 // put idx, ix, iy, and locs into a single array to debug together        
 
-println(" iiiii asdf_idx/locs: ", asdf_idx);
+// println(" iiiii asdf_idx/locs: ", asdf_idx);
         auto val   = bilinear_interpolate(data, dims, locs, op);
         output_val = op(output_val, val);
     });
@@ -197,15 +197,12 @@ println_once(" aaaaa stride: ", stride);
             static_cast<float>(offset_rois[0]) * static_cast<float>(s.spatial_scale) + s.roi_offset,
             static_cast<float>(offset_rois[1]) * static_cast<float>(s.spatial_scale) +
                 s.roi_offset};
-// static_cast<float>(offset_rois[1]) * static_cast<float>(s.spatial_scale),
-//             static_cast<float>(offset_rois[0]) * static_cast<float>(s.spatial_scale)};
 
         array<float, 2> roi_ends = {
             static_cast<float>(offset_rois[2]) * static_cast<float>(s.spatial_scale) + s.roi_offset,
             static_cast<float>(offset_rois[3]) * static_cast<float>(s.spatial_scale) +
                 s.roi_offset};
-            // static_cast<float>(offset_rois[3]) * static_cast<float>(s.spatial_scale),
-            // static_cast<float>(offset_rois[2]) * static_cast<float>(s.spatial_scale)};
+
         array<float, 2> roi_size{};
         array<float, 2> bin_size{};
         array<index_int, 2> bin_grid_size{};
@@ -227,8 +224,10 @@ array<int, 4> zap = {n, c, ph, pw};
 println(" kkkkk n, c, ph, pw: ", zap);
 
         const auto offset_x = x + ((batch_ind * channel_num + c) * in_dims[0] * in_dims[1]);
-array<int, 4> reindex = {n, c, pw, ph};//;;  rearrange the gpu indices to what the ref indices would be
-// and insert that location in y_t        
+// array<size_t, 4> reindex = {size_t(n), size_t(c), size_t(pw), size_t(ph)};//;;  rearrange the gpu indices to what the ref indices would be
+// migraphx::shape reindex_shape(reindex);
+// and insert that location in y_t    
+
         if constexpr(s.is_avg_pooling)
         {
             y_t[i] = calc_pooling(offset_x,
@@ -239,10 +238,54 @@ array<int, 4> reindex = {n, c, pw, ph};//;;  rearrange the gpu indices to what t
                                   in_dims,
                                   s.roi_offset,
                                   avg_pool{});
-// println_once(" ddddd roi_starts[0]:  ", roi_starts[0]);   looks good here
-// println_once(" ddddd1 roi_starts[1]:  ", roi_starts[1]);
-print(" ddddd  i: ",  i)  ;
-println("   y_t[i]: ",  y_t[i])   ;  // these are all y_t[i]:  0.500000   make sense?
+// what are the indices corresponding to i?
+
+        std::size_t jj = 0;
+        // std::size_t ss      = 1;
+array<size_t, 4> m_lens{out_lens[0], out_lens[1], out_lens[3], out_lens[2]};
+array<size_t, 4> m_strides;
+m_strides[3] = 1;
+    for(auto k: {2, 1, 0})
+    {
+        m_strides[k] = m_strides[k+1] * m_lens[k+1]; 
+
+    }
+println_once(" m_lens: ", m_lens);
+println_once(" m_strides: ", m_strides);
+        // for(auto k : {3, 2, 1, 0})
+        // {
+        //     std::size_t stride2 = m_strides[k];
+        //     std::size_t len    = m_lens[k];
+        //     std::size_t idxx    = (i % (ss * len)) / ss;
+        //     jj += stride2 * idxx;
+        //     ss *= len;
+        // }
+        // println(" jj2: ", jj);
+
+size_t pp = i;
+jj = (pp/m_strides[0])*m_strides[0];
+pp = pp % m_strides[1];
+jj += (pp/m_strides[1])*m_strides[1];
+pp %= m_strides[2];
+jj += (pp/m_strides[2])*m_strides[2];
+pp %= m_strides[3];
+jj += pp;
+
+
+// jj = i/m_strides[2] + (i%m_strides[2])*m_lens[2] + (i/m_strides[1])*m_strides[1] + (i/m_strides[0])*m_strides[0];
+// jj = (i % m_strides[1])
+
+array<float, 7> zapzap = {float(n), float(c), float(ph), float(pw), y_t[i], float(i), static_cast<float>(jj)};
+// array<size_t, 2> zapzap = {i, jj};
+
+/**
+ * I want to turn  0->0,
+ *                 1->5,
+ *                 2->10,
+ *                 3->1,
+ * i.e.  (i%3) * 5 + (i/3)   but accounting for n and c too.
+ */
+println(" ddddd  y_t[i]: ",  zapzap)   ;
         }
         else
         {
@@ -255,7 +298,6 @@ println("   y_t[i]: ",  y_t[i])   ;  // these are all y_t[i]:  0.500000   make s
                                   s.roi_offset,
                                   max_pool{});
 
-// print("   y_t[i]: ",  y_t[i])   ;
         }
     }
 }

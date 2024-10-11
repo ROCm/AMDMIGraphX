@@ -49,10 +49,13 @@ struct dequantizelinear
     std::string name() const { return "dequantizelinear"; }
     shape compute_shape(std::vector<shape> inputs) const
     {
-        check_shapes{inputs, *this}.same_dims().has(2, 3);
-        if(inputs.size() == 3 and inputs[0].type() != inputs[2].type())
+        if(inputs.size() == 3)
         {
-            MIGRAPHX_THROW("DEQUANTIZELINEAR: Zero point and input should be the same type.");
+            check_shapes{inputs, *this}.same_dims().has(2, 3);
+            if(inputs[0].type() != inputs[2].type())
+            {
+                MIGRAPHX_THROW("DEQUANTIZELINEAR: Zero point and input should be the same type.");
+            }
         }
         return {inputs[1].type(), inputs[0].lens(), inputs[0].strides()};
     }

@@ -52,15 +52,15 @@ TEST_CASE(check_replace_shape)
 {
     migraphx::module m;
     migraphx::shape s{migraphx::shape::float_type, {3, 2}};
-    auto input = m.add_parameter("x", s);
+    auto input  = m.add_parameter("x", s);
     auto reduce = m.add_instruction(migraphx::make_op("reduce_sum", {{"axes", {0}}}), input);
-    auto abs = m.add_instruction(migraphx::make_op("abs"), reduce);
-    auto sin = m.add_instruction(migraphx::make_op("sin"), reduce);
-    auto add = m.add_instruction(migraphx::make_op("add"), abs, sin);
+    auto abs    = m.add_instruction(migraphx::make_op("abs"), reduce);
+    auto sin    = m.add_instruction(migraphx::make_op("sin"), reduce);
+    auto add    = m.add_instruction(migraphx::make_op("add"), abs, sin);
 
     reduce->replace(migraphx::make_op("reduce_sum", {{"axes", {1}}}));
 
-    migraphx::shape r{migraphx::shape::float_type, {3,1}};
+    migraphx::shape r{migraphx::shape::float_type, {3, 1}};
     EXPECT(reduce->get_shape() == r);
     EXPECT(abs->get_shape() == r);
     EXPECT(sin->get_shape() == r);

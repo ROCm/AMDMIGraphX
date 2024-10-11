@@ -936,17 +936,18 @@ TEST_CASE(conv_add_split_reduce_multi_use_conv)
             {"x0", "x1", "x2", "x3"},
             [=](auto* pm, const auto& inputs) {
                 auto mean_mb = pm->add_instruction(
-                    migraphx::make_op("multibroadcast", {{"out_lens", cba->get_shape().lens()}}), inputs.at(1));
+                    migraphx::make_op("multibroadcast", {{"out_lens", cba->get_shape().lens()}}),
+                    inputs.at(1));
                 auto mean_rsp = pm->add_instruction(
                     migraphx::make_op("reshape", {{"dims", {2, 320, 64, 64}}}), mean_mb);
                 auto var_mb = pm->add_instruction(
-                    migraphx::make_op("multibroadcast", {{"out_lens", cba->get_shape().lens()}}), inputs.at(2));
-                auto var_rsp =
-                    pm->add_instruction(migraphx::make_op("reshape", {{"dims", {2, 320, 64, 64}}}), var_mb);
-                auto cba_rsp =
-                    pm->add_instruction(migraphx::make_op("reshape", {{"dims", {2, 320, 64, 64}}}), inputs.at(0));
-                auto sub =
-                    pm->add_instruction(migraphx::make_op("sub"), cba_rsp, mean_rsp);
+                    migraphx::make_op("multibroadcast", {{"out_lens", cba->get_shape().lens()}}),
+                    inputs.at(2));
+                auto var_rsp = pm->add_instruction(
+                    migraphx::make_op("reshape", {{"dims", {2, 320, 64, 64}}}), var_mb);
+                auto cba_rsp = pm->add_instruction(
+                    migraphx::make_op("reshape", {{"dims", {2, 320, 64, 64}}}), inputs.at(0));
+                auto sub  = pm->add_instruction(migraphx::make_op("sub"), cba_rsp, mean_rsp);
                 auto div  = pm->add_instruction(migraphx::make_op("div"), sub, var_rsp);
                 auto conv = pm->add_instruction(
                     migraphx::make_op("convolution", {{"padding", {1, 1, 1, 1}}}),

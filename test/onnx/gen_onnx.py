@@ -7477,8 +7477,8 @@ def matmulinteger_int8_uint8_dual_zero_zp_test():
 def matmulintegertofloat_test():
     m1 = helper.make_tensor_value_info('1', TensorProto.INT8, [4, 3])
     m2 = helper.make_tensor_value_info('2', TensorProto.INT8, [3, 2])
-    s1 = helper.make_tensor_value_info('3', TensorProto.FLOAT, [4, 3])
-    s2 = helper.make_tensor_value_info('4', TensorProto.FLOAT, [3, 2])
+    s1 = helper.make_tensor_value_info('3', TensorProto.FLOAT, [4])
+    s2 = helper.make_tensor_value_info('4', TensorProto.FLOAT, [2])
     y = helper.make_tensor_value_info('y', TensorProto.INT32, [4, 2])
 
     node = onnx.helper.make_node(
@@ -7494,8 +7494,8 @@ def matmulintegertofloat_test():
 def matmulintegertofloat_zp_test():
     m1 = helper.make_tensor_value_info('1', TensorProto.INT8, [4, 3])
     m2 = helper.make_tensor_value_info('2', TensorProto.INT8, [3, 2])
-    s1 = helper.make_tensor_value_info('3', TensorProto.FLOAT, [4, 3])
-    s2 = helper.make_tensor_value_info('4', TensorProto.FLOAT, [3, 2])
+    s1 = helper.make_tensor_value_info('3', TensorProto.FLOAT, [4])
+    s2 = helper.make_tensor_value_info('4', TensorProto.FLOAT, [2])
     zp1 = helper.make_tensor('5', TensorProto.INT8, [], [0])
     zp2 = helper.make_tensor('6', TensorProto.UINT8, [], [128])
     y = helper.make_tensor_value_info('y', TensorProto.INT32, [4, 2])
@@ -7513,8 +7513,8 @@ def matmulintegertofloat_zp_test():
 def matmulintegertofloat_zp_bias_test():
     m1 = helper.make_tensor_value_info('1', TensorProto.INT8, [4, 3])
     m2 = helper.make_tensor_value_info('2', TensorProto.INT8, [3, 2])
-    s1 = helper.make_tensor_value_info('3', TensorProto.FLOAT, [4, 3])
-    s2 = helper.make_tensor_value_info('4', TensorProto.FLOAT, [3, 2])
+    s1 = helper.make_tensor_value_info('3', TensorProto.FLOAT, [4])
+    s2 = helper.make_tensor_value_info('4', TensorProto.FLOAT, [2])
     zp1 = helper.make_tensor('5', TensorProto.INT8, [], [0])
     zp2 = helper.make_tensor('6', TensorProto.UINT8, [], [128])
     b1 = helper.make_tensor('7', TensorProto.UINT8, [2], [128, -128])
@@ -7650,8 +7650,8 @@ def matmulintegertofloat_bad_bias_test3():
 def matmulintegertofloat_half_test():
     m1 = helper.make_tensor_value_info('1', TensorProto.INT8, [4, 3])
     m2 = helper.make_tensor_value_info('2', TensorProto.UINT8, [3, 2])
-    s1 = helper.make_tensor_value_info('3', TensorProto.FLOAT16, [4, 3])
-    s2 = helper.make_tensor_value_info('4', TensorProto.FLOAT16, [3, 2])
+    s1 = helper.make_tensor_value_info('3', TensorProto.FLOAT16, [4])
+    s2 = helper.make_tensor_value_info('4', TensorProto.FLOAT16, [2])
     y = helper.make_tensor_value_info('y', TensorProto.INT32, [4, 2])
 
     node = onnx.helper.make_node(
@@ -7667,8 +7667,8 @@ def matmulintegertofloat_half_test():
 def matmulintegertofloat_half_zp_test():
     m1 = helper.make_tensor_value_info('1', TensorProto.INT8, [4, 3])
     m2 = helper.make_tensor_value_info('2', TensorProto.UINT8, [3, 2])
-    s1 = helper.make_tensor_value_info('3', TensorProto.FLOAT16, [4, 3])
-    s2 = helper.make_tensor_value_info('4', TensorProto.FLOAT16, [3, 2])
+    s1 = helper.make_tensor_value_info('3', TensorProto.FLOAT16, [4])
+    s2 = helper.make_tensor_value_info('4', TensorProto.FLOAT16, [2])
     zp1 = helper.make_tensor('5', TensorProto.INT8, [], [0])
     zp2 = helper.make_tensor('6', TensorProto.UINT8, [], [128])
     y = helper.make_tensor_value_info('y', TensorProto.INT32, [4, 2])
@@ -7686,8 +7686,8 @@ def matmulintegertofloat_half_zp_test():
 def matmulintegertofloat_half_zp_bias_test():
     m1 = helper.make_tensor_value_info('1', TensorProto.INT8, [4, 3])
     m2 = helper.make_tensor_value_info('2', TensorProto.UINT8, [3, 2])
-    s1 = helper.make_tensor_value_info('3', TensorProto.FLOAT16, [4, 3])
-    s2 = helper.make_tensor_value_info('4', TensorProto.FLOAT16, [3, 2])
+    s1 = helper.make_tensor_value_info('3', TensorProto.FLOAT16, [4])
+    s2 = helper.make_tensor_value_info('4', TensorProto.FLOAT16, [2])
     zp1 = helper.make_tensor('5', TensorProto.INT8, [], [0])
     zp2 = helper.make_tensor('6', TensorProto.UINT8, [], [128])
     b1 = helper.make_tensor('7', TensorProto.FLOAT16, [2], [128, -128])

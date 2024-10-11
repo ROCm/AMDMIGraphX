@@ -28,17 +28,13 @@ TEST_CASE(matmulintegertofloat_test)
 {
     migraphx::program p;
     auto* mm = p.get_main_module();
-    auto l0  = mm->add_parameter("1", migraphx::shape{migraphx::shape::int8_type, {3, 6, 16}});
-    auto l1  = mm->add_parameter("2", migraphx::shape{migraphx::shape::int8_type, {3, 16, 8}});
-    auto s0  = mm->add_parameter("1", migraphx::shape{migraphx::shape::half_type, {3, 6, 16}});
-    auto s1  = mm->add_parameter("2", migraphx::shape{migraphx::shape::half_type, {3, 16, 8}});
-    s0       = mm->add_instruction(
-        migraphx::make_op("convert", {{"target_type", migraphx::shape::float_type}}), s0);
-    s1 = mm->add_instruction(
-        migraphx::make_op("convert", {{"target_type", migraphx::shape::float_type}}), s1);
+    auto x0       = mm->add_parameter("1", migraphx::shape{migraphx::shape::int8_type, {4, 3}});
+    auto x1       = mm->add_parameter("2", migraphx::shape{migraphx::shape::int8_type, {3, 2}});
+    auto scale_x0 = mm->add_parameter("3", migraphx::shape{migraphx::shape::float_type, {4}});
+    auto scale_x1 = mm->add_parameter("4", migraphx::shape{migraphx::shape::float_type, {2}});
 
-    auto r0 = mm->add_instruction(migraphx::make_op("dot"), l0, s0);
-    auto r1 = mm->add_instruction(migraphx::make_op("dot"), l1, s1);
+    auto r0 = mm->add_instruction(migraphx::make_op("dequantizelinear"), x0, scale_x0);
+    auto r1 = mm->add_instruction(migraphx::make_op("dequantizelinear"), x1, scale_x1);
     mm->add_instruction(migraphx::make_op("dot"), r0, r1);
 
     auto prog = optimize_onnx("matmulintegertofloat_test.onnx");

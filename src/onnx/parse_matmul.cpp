@@ -199,23 +199,33 @@ struct parse_matmul : op_parser<parse_matmul>
         }
     }
 
+    static instruction_ref handle_dequantized(const onnx_parser::node_info& info,
+                                              const instruction_ref& a0,
+                                              const instruction_ref& scale_a0,
+                                              const instruction_ref& zp_a0)
+    {
+        instruction_ref dequantized_op;
+
+        if(a0 == zp_a0)
+            dequantized_op = info.add_instruction(make_op("dequantizelinear"), a0, scale_a0);
+        else
+            dequantized_op = info.add_instruction(make_op("dequantizelinear"), a0, scale_a0, zp_a0);
+
+        return dequantized_op;
+    }
+
     static instruction_ref handle_scaled_output(const onnx_parser::node_info& info,
-                                                const instruction_ref& ba0,
-                                                const instruction_ref& ba1,
+                                                const instruction_ref& a0,
+                                                const instruction_ref& a1,
                                                 const instruction_ref& scale_a0,
                                                 const instruction_ref& scale_a1,
+                                                const instruction_ref& zp_a0,
+                                                const instruction_ref& zp_a1,
                                                 const instruction_ref& scaled_bias,
                                                 const bool has_scale_bias)
     {
-        auto bias_a0 = ba0;
-        auto bias_a1 = ba1;
-        // Convert if we're half types as dot will scream if we try to multipy half int8
-        bias_a0 = info.add_instruction(
-            make_op("convert", {{"target_type", scale_a0->get_shape().type()}}), bias_a0);
-        bias_a1 = info.add_instruction(
-            make_op("convert", {{"target_type", scale_a1->get_shape().type()}}), bias_a1);
-        auto dq_a0 = info.add_instruction(make_op("dot"), ba0, scale_a0);
-        auto dq_a1 = info.add_instruction(make_op("dot"), ba1, scale_a1);
+        auto dq_a0 = handle_dequantized(info, a0, scale_a0, zp_a0);
+        auto dq_a1 = handle_dequantized(info, a1, scale_a1, zp_a1);
         auto res   = info.add_instruction(make_op("dot"), dq_a0, dq_a1);
 
         // Handle case of the bias after scaling
@@ -249,7 +259,7 @@ struct parse_matmul : op_parser<parse_matmul>
             a1            = info.add_instruction(make_op("unsqueeze", {{"axes", {1}}}), args[1]);
         }
 
-        auto is_quant_dot = opd.op_name == "quant_dot" or opd.op_name == "quant_dot_scaled";
+        auto is_quant_dot = opd.op_name == "quant_dot";
         auto has_scales   = opd.op_name == "quant_dot_scaled";
         if(s0.dynamic() or s1.dynamic())
         {
@@ -257,6 +267,13 @@ struct parse_matmul : op_parser<parse_matmul>
             {
                 MIGRAPHX_THROW("PARSE_MATMUL: dynamic MatMulInteger not supported");
             }
+
+            if(has_scales)
+            {
+                MIGRAPHX_THROW(
+                    "PARSE_MATMULINTEGERTOFLOAT: dynamic MatMulIntegerToFloat not supported");
+            }
+
             auto s0_dds = a0->get_shape().to_dynamic().dyn_dims();
             auto s1_dds = a1->get_shape().to_dynamic().dyn_dims();
 
@@ -321,7 +338,7 @@ struct parse_matmul : op_parser<parse_matmul>
             const auto a0_type                                = a0->get_shape().type();
             const auto a1_type                                = a1->get_shape().type();
 
-            if(is_quant_dot and
+            if((is_quant_dot or has_scales) and
                (not contains(supported_types, a0_type) or not contains(supported_types, a1_type)))
             {
                 MIGRAPHX_THROW("PARSE_MATMULINTEGER: Unsupported type");
@@ -364,9 +381,8 @@ struct parse_matmul : op_parser<parse_matmul>
             // equivalent. Ensure these are broadcasted accordingly before we perform a dot
             if(has_scales)
             {
-                broadcast_dimensions(info, s0_lens, s1_lens, a0, a1, scale_a0, scale_a1);
                 dot_res = handle_scaled_output(
-                    info, ba0, ba1, scale_a0, scale_a1, scaled_bias, has_scale_bias);
+                    info, a0, a1, scale_a0, scale_a1, ba0, ba1, scaled_bias, has_scale_bias);
             }
             else
             {

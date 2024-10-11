@@ -601,6 +601,7 @@ struct verify : command<verify>
     std::optional<double> rtol;
     bool per_instruction = false;
     bool reduce          = false;
+    bool bisect          = false;
     verify_options vo;
     void parse(argument_parser& ap)
     {
@@ -613,6 +614,7 @@ struct verify : command<verify>
            ap.help("Verify each instruction"),
            ap.set_value(true));
         ap(reduce, {"-r", "--reduce"}, ap.help("Reduce program and verify"), ap.set_value(true));
+        ap(bisect, {"-b", "--bisect"}, ap.help("Bisect program and verify"), ap.set_value(true));
         ap(vo.ref_use_double,
            {"--ref-use-double"},
            ap.help("Convert floating point values to double on ref"),
@@ -649,6 +651,10 @@ struct verify : command<verify>
         else if(reduce)
         {
             verify_reduced_program(p, t, c.co, vo, m, tols);
+        }
+        else if(bisect)
+        {
+            verify_bisected_program(p, t, c.co, vo, m, tols);
         }
         else
         {
@@ -861,7 +867,7 @@ struct main_command
 } // namespace migraphx
 
 using namespace migraphx::driver; // NOLINT
-int main(int argc, const char* argv[])
+int main(int argc, const char* argv[], const char* envp[])
 {
     std::vector<std::string> args(argv + 1, argv + argc);
     // no argument, print the help infomration by default
@@ -889,6 +895,20 @@ int main(int argc, const char* argv[])
         std::string driver_invocation =
             std::string(argv[0]) + " " + migraphx::to_string_range(args, " ");
         std::cout << "Running [ " << get_version() << " ]: " << driver_invocation << std::endl;
+
+        for(const char** env = envp; *env != nullptr; ++env)
+        {
+            std::string env_var(*env);
+            size_t pos = env_var.find('=');
+            if(pos != std::string::npos)
+            {
+                std::string key = env_var.substr(0, pos);
+                if(key.find("MIGRAPHX") != std::string::npos)
+                {
+                    std::cout << env_var << std::endl;
+                }
+            }
+        }
 
         m.at(cmd)(argv[0],
                   {args.begin() + 1, args.end()}); // run driver command found in commands map

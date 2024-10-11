@@ -54,6 +54,12 @@ struct deduce<half_float::detail::expr>
 template <class T>
 using deduce = typename detail::deduce<T>::type;
 
+template <class T>
+struct is_floating_point : std::false_type {};
+
+template <unsigned int E, unsigned int M, unsigned int F>
+struct is_floating_point<generic_float<E, M, F>> : std::true_type {};
+
 } // namespace MIGRAPHX_INLINE_NS
 } // namespace migraphx
 

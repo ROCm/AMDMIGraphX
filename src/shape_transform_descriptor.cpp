@@ -99,7 +99,8 @@ std::vector<std::size_t> compute_dims(const std::vector<operation>& ops,
     return s.lens();
 }
 
-shape_transform_descriptor shape_transform_descriptor::create(const std::vector<std::size_t>& dims, const std::vector<operation>& ops)
+shape_transform_descriptor shape_transform_descriptor::create(const std::vector<std::size_t>& dims,
+                                                              const std::vector<operation>& ops)
 {
     shape_transform_descriptor result{dims};
     if(not result.apply(ops))
@@ -989,10 +990,7 @@ std::vector<std::vector<std::size_t>> shape_transform_descriptor::common_axes_ma
     return result;
 }
 
-bool shape_transform_descriptor::empty() const
-{
-    return dimensions.empty();
-}
+bool shape_transform_descriptor::empty() const { return dimensions.empty(); }
 
 std::size_t dimension::len() const
 {

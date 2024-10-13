@@ -73,11 +73,13 @@ struct rewrite_reshapes
 
         auto matcher() const
         {
-            auto reshapes =
-                match::name("reshape", "squeeze", "unsqueeze", "flatten", "transpose")(match::used_once());
+            auto reshapes = match::name("reshape", "squeeze", "unsqueeze", "flatten", "transpose")(
+                match::used_once());
             auto pointwise         = match::name(op1)(match::used_once());
-            auto reshapes_pointwise = reshapes(match::arg(0)(match::skip(reshapes())(pointwise.bind("x"))));
-            return match::name(op2)(match::any_of[match::inputs()](reshapes_pointwise.bind("input")));
+            auto reshapes_pointwise =
+                reshapes(match::arg(0)(match::skip(reshapes())(pointwise.bind("x"))));
+            return match::name(op2)(
+                match::any_of[match::inputs()](reshapes_pointwise.bind("input")));
         }
 
         template <class F>
@@ -135,9 +137,9 @@ struct rewrite_reshapes
                 return;
             auto reshape_input = [&](const auto& ins_to_insert, auto generate) {
                 return [&, generate](auto input) {
-                    auto gops = std::invoke(generate, desc, input->get_shape().lens());
+                    auto gops  = std::invoke(generate, desc, input->get_shape().lens());
                     auto start = input;
-                    for(auto op:gops)
+                    for(auto op : gops)
                     {
                         start = mpm.get_module().insert_instruction(ins_to_insert, op, start);
                     }
@@ -146,17 +148,22 @@ struct rewrite_reshapes
             };
             auto x_inputs = x_ins->inputs();
             std::transform(
-                x_inputs.begin(), x_inputs.end(), x_inputs.begin(), reshape_input(x_ins, &shape_transform_descriptor::generate_common_from_src));
+                x_inputs.begin(),
+                x_inputs.end(),
+                x_inputs.begin(),
+                reshape_input(x_ins, &shape_transform_descriptor::generate_common_from_src));
             auto new_x_ins = insert(mpm, x_ins, x_inputs, desc.common_axes_map_from_src());
 
             auto inputs = ins->inputs();
             std::transform(inputs.begin(), inputs.end(), inputs.begin(), [&](auto input) {
                 if(input == input_ins)
                     return new_x_ins;
-                return reshape_input(ins, &shape_transform_descriptor::generate_common_from_dst)(input);
+                return reshape_input(ins,
+                                     &shape_transform_descriptor::generate_common_from_dst)(input);
             });
             auto pw = insert(mpm, ins, inputs, desc.common_axes_map_from_dst());
-            auto rins = reshape_input(ins, &shape_transform_descriptor::generate_dst_from_common)(pw);
+            auto rins =
+                reshape_input(ins, &shape_transform_descriptor::generate_dst_from_common)(pw);
             mpm.get_module().replace_instruction(ins, rins);
         }
 

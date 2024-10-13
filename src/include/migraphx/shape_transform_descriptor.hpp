@@ -74,6 +74,8 @@ struct MIGRAPHX_EXPORT shape_transform_descriptor
     shape_transform_descriptor() = default;
     explicit shape_transform_descriptor(const std::vector<std::size_t>& dims);
 
+    static shape_transform_descriptor create(const std::vector<std::size_t>& dims, const std::vector<operation>& ops);
+
     bool apply(const std::vector<operation>& ops);
     bool apply_reshape(const std::vector<std::size_t>& rdims);
     bool apply_transpose(const std::vector<std::int64_t>& permutation);
@@ -86,8 +88,12 @@ struct MIGRAPHX_EXPORT shape_transform_descriptor
     generate_common_from_src(const std::vector<std::size_t>& input_dims) const;
     std::vector<operation>
     generate_common_from_dst(const std::vector<std::size_t>& input_dims) const;
+    std::vector<operation>
+    generate_dst_from_common(const std::vector<std::size_t>& input_dims) const;
     std::vector<std::vector<std::size_t>> common_axes_map_from_src() const;
     std::vector<std::vector<std::size_t>> common_axes_map_from_dst() const;
+
+    bool empty() const;
 
     struct MIGRAPHX_EXPORT dimension
     {

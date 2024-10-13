@@ -99,6 +99,16 @@ std::vector<std::size_t> compute_dims(const std::vector<operation>& ops,
     return s.lens();
 }
 
+shape_transform_descriptor shape_transform_descriptor::create(const std::vector<std::size_t>& dims, const std::vector<operation>& ops)
+{
+    shape_transform_descriptor result{dims};
+    if(not result.apply(ops))
+        return {};
+    result.simplify();
+    assert(compute_dims(ops, dims) == compute_dims(result.generate(), dims));
+    return result;
+}
+
 bool shape_transform_descriptor::apply(const std::vector<operation>& ops)
 {
     std::vector<std::size_t> dims;
@@ -538,9 +548,9 @@ void shape_transform_descriptor::simplify()
 static std::size_t get_len(const dimension::sub& s, const std::vector<std::size_t>& input_dims)
 {
     if(not s.axis.empty() and not input_dims.empty() and input_dims.at(s.axis.front()) == 1)
-    {
         return 1;
-    }
+    if(s.axis.size() == 1)
+        return input_dims.at(s.axis.front());
     return s.len;
 }
 
@@ -872,6 +882,59 @@ std::vector<operation> shape_transform_descriptor::generate_common_from_dst(
     std::reverse(result.begin(), result.end());
     return result;
 }
+std::vector<operation> shape_transform_descriptor::generate_dst_from_common(
+    const std::vector<std::size_t>& input_dims) const
+{
+    std::vector<operation> result;
+    std::vector<dimension> new_dims = dimensions;
+    // Need broadcast
+    if(std::any_of(new_dims.begin(), new_dims.end(), &is_broadcast_dim))
+    {
+        std::vector<std::size_t> out_lens;
+        std::transform(new_dims.begin(),
+                       new_dims.end(),
+                       std::back_inserter(out_lens),
+                       [](const dimension& d) { return d.len(); });
+        auto startb     = std::find_if_not(new_dims.begin(), new_dims.end(), &has_no_axes);
+        auto trailb     = std::find_if_not(startb, new_dims.end(), &has_axes);
+        auto axis       = std::distance(new_dims.begin(), startb);
+        auto extra_dims = axis + std::distance(trailb, new_dims.end());
+        // Use broadcast instead of multibroadcast
+        if(std::all_of(trailb, new_dims.end(), &has_no_axes) and extra_dims > 0 and
+           axis < new_dims.size())
+        {
+            result.push_back(make_op("broadcast", {{"axis", axis}, {"out_lens", out_lens}}));
+            new_dims.erase(trailb, new_dims.end());
+            new_dims.erase(new_dims.begin(), new_dims.begin() + axis);
+        }
+        else
+        {
+            result.push_back(make_op("multibroadcast", {{"out_lens", out_lens}}));
+        }
+    }
+    // If all the dimensions have no axes then there isnt anthing else to do
+    // so just clear the new_dims
+    if(std::all_of(new_dims.begin(), new_dims.end(), &has_no_axes))
+        new_dims.clear();
+    // Flatten broadcasted dimensions
+    for(auto& d : new_dims)
+    {
+        if(d.subdimensions.size() != 1)
+            continue;
+        flatten_broadcasted_dim(d.subdimensions.front());
+    }
+    // Need squeeze reshape
+    if(std::any_of(new_dims.begin(), new_dims.end(), [](const dimension& d) {
+           if(d.subdimensions.size() != 1)
+               return true;
+           return is_broadcast_dim(d);
+       }))
+    {
+        result.push_back(make_reshape_squeeze(new_dims));
+    }
+    std::reverse(result.begin(), result.end());
+    return result;
+}
 
 std::vector<std::vector<std::size_t>> shape_transform_descriptor::common_axes_map_from_src() const
 {
@@ -900,10 +963,12 @@ std::vector<std::vector<std::size_t>> shape_transform_descriptor::common_axes_ma
                       return s->axis;
                   }));
     }
+    assert(not axes_map.empty());
     auto max_axis = std::prev(axes_map.end())->first;
-    result.resize(max_axis);
+    result.resize(max_axis + 1);
     for(auto&& p : axes_map)
     {
+        assert(p.first < result.size());
         std::transform(p.second.begin(),
                        p.second.end(),
                        std::back_inserter(result[p.first]),
@@ -922,6 +987,11 @@ std::vector<std::vector<std::size_t>> shape_transform_descriptor::common_axes_ma
         start += d.subdimensions.size();
     }
     return result;
+}
+
+bool shape_transform_descriptor::empty() const
+{
+    return dimensions.empty();
 }
 
 std::size_t dimension::len() const

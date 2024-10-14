@@ -124,7 +124,7 @@ struct miopen_apply
         add_reshape_lazy_op();
         add_group_query_attention_op();
         add_scan_slice_op();
-        add_unpack_int4_op();
+        // add_unpack_int4_op();
     }
 
     void copy_params() const

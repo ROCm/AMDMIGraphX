@@ -147,7 +147,7 @@ bool shape_transform_descriptor::apply_reshape(const std::vector<std::size_t>& r
     std::vector<std::size_t> idims;
     transform(get_all_subdimensions(dimensions), std::back_inserter(idims), std::mem_fn(&dimension::sub::len));
     auto cdims = common_dims::compute(idims, rdims).dims;
-    if(not cdims.empty() and not apply_reshape_impl(cdims)
+    if(not cdims.empty() and not apply_reshape_impl(cdims))
         return false;
     return apply_reshape_impl(rdims);
 

@@ -126,8 +126,8 @@ struct roialign
             // order.  The i[x] value is least significant and iterates the fastest.
             std::array<std::size_t, 2> p = {idx_v[1], idx_v[0]};
             std::array<std::size_t, 2> i = {idx_v[3], idx_v[2]}; // these are always equal
-printf(" EEEEE p, i-index   %lu  %lu  %lu %lu    ( %lu  %lu  %lu %lu)\n", p[0], p[1], i[0], i[1],
-idx_v[0], idx_v[1], idx_v[2], idx_v[3]);
+// printf(" EEEEE p, i-index   %lu  %lu  %lu %lu    ( %lu  %lu  %lu %lu)\n", p[0], p[1], i[0], i[1],
+// idx_v[0], idx_v[1], idx_v[2], idx_v[3]);
 
 
 
@@ -139,15 +139,15 @@ idx_v[0], idx_v[1], idx_v[2], idx_v[3]);
             // inside) from which we will interpolate.
             std::array<int64_t, 2> low{};
             std::array<int64_t, 2> high{};
-float asdf=-1.f;
+// float asdf=-1.f;
             for(auto ii : range(p.size()))
             {
                 xy[ii] = roi_start[ii] + p[ii] * bin_size[ii] +
                          (i[ii] + .5f) * bin_size[ii] / bin_grid_size[ii];
 // initial calculated values, before adjustments
-if(ii == 0 ) asdf = xy[0];
-if(ii == 1)
-printf(" IIIII index %lu    xy:   (%f, %f)\n", index,  asdf,  xy[1]);
+// if(ii == 0 ) asdf = xy[0];
+// if(ii == 1)
+// printf(" IIIII index %lu    xy:   (%f, %f)\n", index,  asdf,  xy[1]);
                 if(xy[ii] < -1.0 or xy[ii] > dims[ii])
                 {
                     results[index] = pos_weight{};
@@ -174,12 +174,12 @@ printf(" IIIII index %lu    xy:   (%f, %f)\n", index,  asdf,  xy[1]);
             float hx = 1.0f - lx;
             // save weights and indices
             results[index].w = {hy * hx, hy * lx, ly * hx, ly * lx};
-    printf(" AAAAA index %lu results.w:  %f, %f, %f, %f\n", index, 
-    results[index].w[0],
-    results[index].w[1],
-    results[index].w[2],
-    results[index].w[3]
-            );
+    // printf(" AAAAA index %lu results.w:  %f, %f, %f, %f\n", index, 
+    // results[index].w[0],
+    // results[index].w[1],
+    // results[index].w[2],
+    // results[index].w[3]
+    //         );
         });
         return results;
     }
@@ -213,7 +213,7 @@ printf(" IIIII index %lu    xy:   (%f, %f)\n", index,  asdf,  xy[1]);
         double output_val   = op.init();
         const int64_t count = bin_grid_size[0] * bin_grid_size[1];
         dfor(bin_grid_size[0], bin_grid_size[1])([&](auto iy, auto ix) {
-printf(" IIIIIKKKKK  iy, ix, index =      %lu  %lu  %ld\n", iy, ix, index );
+// printf(" IIIIIKKKKK  iy, ix, index =      %lu  %lu  %ld\n", iy, ix, index );
             const auto& pc = pos_weights[index];
             std::array<double, 4> wv; 
             std::transform(
@@ -292,14 +292,14 @@ printf(" IIIIIKKKKK  iy, ix, index =      %lu  %lu  %ld\n", iy, ix, index );
                     auto pw = idx[2];
 
 // n anc c are 0 because that's the size of the test case
-printf(" IIIII n, c, ph, pw =                       %lu %lu    %lu  %lu\n", n, c, ph, pw);
+// printf(" IIIII n, c, ph, pw =                       %lu %lu    %lu  %lu\n", n, c, ph, pw);
 
                     const auto offset_bottom_data =
                         bottom_data + static_cast<int64_t>((roi_batch_ind * channels + c) *
                                                            in_dims[0] * in_dims[1]);
 
                     double output_val;
-printf(" IIIIIc vec_index[c] = %ld\n", vec_index[c]);
+// printf(" IIIIIc vec_index[c] = %ld\n", vec_index[c]);
                     std::tie(output_val, vec_index[c]) =
                         (mode == migraphx::op::pooling_mode::average)
                             ? this->calc_pooling(offset_bottom_data,
@@ -312,7 +312,7 @@ printf(" IIIIIc vec_index[c] = %ld\n", vec_index[c]);
                                                  pre_calc,
                                                  vec_index[c],
                                                  max_pool{});
-printf(" DDDDD %f\n", output_val);                                                 
+printf(" DDDDD  index %lu %f\n",   output_shape.index({n, c, ph, pw}), output_val);                                                 
                     output(n, c, ph, pw) = output_val;
                 });
             });

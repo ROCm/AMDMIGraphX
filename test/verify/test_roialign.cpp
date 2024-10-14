@@ -34,7 +34,7 @@ struct test_roialign_half_pixel : verify_program<test_roialign_half_pixel<DType>
     {
         migraphx::program p;
         auto* mm = p.get_main_module();
-        migraphx::shape x_s{DType, {1, 7, 2, 2}};
+        migraphx::shape x_s{DType, {1, 5, 2, 2}};
 
         migraphx::shape roi_s{DType, {1, 4}};
 

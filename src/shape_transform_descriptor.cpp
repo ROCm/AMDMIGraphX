@@ -145,12 +145,13 @@ bool shape_transform_descriptor::apply(const std::vector<operation>& ops)
 bool shape_transform_descriptor::apply_reshape(const std::vector<std::size_t>& rdims)
 {
     std::vector<std::size_t> idims;
-    transform(get_all_subdimensions(dimensions), std::back_inserter(idims), std::mem_fn(&dimension::sub::len));
+    transform(get_all_subdimensions(dimensions),
+              std::back_inserter(idims),
+              std::mem_fn(&dimension::sub::len));
     auto cdims = common_dims::compute(idims, rdims).dims;
     if(not cdims.empty() and not apply_reshape_impl(common_dims::compute(idims, rdims).dims))
         return false;
     return apply_reshape_impl(rdims);
-
 }
 bool shape_transform_descriptor::apply_reshape_impl(const std::vector<std::size_t>& rdims)
 {

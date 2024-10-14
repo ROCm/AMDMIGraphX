@@ -177,24 +177,15 @@ auto elements(const Range& r, Projection proj)
 
 struct reshape_get_dim
 {
-    std::size_t operator()(std::size_t i) const
-    {
-        return i;
-    }
-    std::size_t operator()(const dimension::sub& s) const
-    {
-        return s.len;
-    }
+    std::size_t operator()(std::size_t i) const { return i; }
+    std::size_t operator()(const dimension::sub& s) const { return s.len; }
 };
 
-template<class Dims>
+template <class Dims>
 struct reshape_state
 {
-    reshape_state(const Dims& pdims)
-        : dims(&pdims), it(dims->begin())
-    {
-    }
-    const Dims* dims            = nullptr;
+    reshape_state(const Dims& pdims) : dims(&pdims), it(dims->begin()) {}
+    const Dims* dims = nullptr;
     typename Dims::const_iterator it{};
     std::size_t rem = 1;
     std::size_t get() const { return reshape_get_dim{}(*it) / rem; }
@@ -262,11 +253,11 @@ struct reshape_state
 //     return true;
 // }
 
-template<class ReshapeState1, class ReshapeState2>
+template <class ReshapeState1, class ReshapeState2>
 static bool compute_reshape_dims(ReshapeState1& istate, ReshapeState2& rstate)
 {
-    auto rdim = rstate.get();
-    auto dims = istate.dims_for(rdim);
+    auto rdim  = rstate.get();
+    auto dims  = istate.dims_for(rdim);
     auto n     = elements(dims, reshape_get_dim{});
     auto naxes = distance(dims);
     if(naxes == 0)
@@ -288,19 +279,15 @@ bool shape_transform_descriptor::apply_reshape(const std::vector<std::size_t>& r
     assert(migraphx::elements(rdims) == this->elements());
     std::vector<dimension> new_dims;
     auto subs     = get_all_subdimensions(dimensions);
-    auto istate = reshape_state{subs};
-    auto rstate = reshape_state{rdims};
+    auto istate   = reshape_state{subs};
+    auto rstate   = reshape_state{rdims};
     while(not istate.is_end() and not rstate.is_end())
     {
         auto idim = istate.get();
         auto rdim = rstate.get();
-        if(idim >= rdim)
-        {
-
-        }
+        if(idim >= rdim) {}
         else // if(idim < rdim)
         {
-
         }
     }
 
@@ -320,7 +307,8 @@ bool shape_transform_descriptor::apply_reshape(const std::vector<std::size_t>& r
         {
             auto start = subs.begin() + i;
             auto it = compute_end_dim(start, subs.end(), rdim, std::mem_fn(&dimension::sub::len));
-            if(it == start) {
+            if(it == start)
+            {
                 std::cout << "Failed squeeze\n";
                 return false;
             }
@@ -334,7 +322,8 @@ bool shape_transform_descriptor::apply_reshape(const std::vector<std::size_t>& r
         {
             auto start = rdims.begin() + r;
             auto it    = compute_end_dim(start, rdims.end(), idim, id{});
-            if(it == start) {
+            if(it == start)
+            {
                 std::cout << "Failed unsqueeze\n";
                 return false;
             }
@@ -358,7 +347,8 @@ bool shape_transform_descriptor::apply_reshape(const std::vector<std::size_t>& r
     {
         for(auto d : range(rdims.begin() + new_dims.size(), rdims.end()))
         {
-            if(d != 1) {
+            if(d != 1)
+            {
                 std::cout << "Failed trailing 1\n";
                 return false;
             }

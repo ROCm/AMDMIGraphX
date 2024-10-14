@@ -23,7 +23,6 @@
  */
 #include <cmath>
 #include <migraphx/float_equal.hpp>
-#include <migraphx/half.hpp>
 #include <migraphx/ranges.hpp>
 #include "test.hpp"
 

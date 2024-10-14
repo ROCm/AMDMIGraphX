@@ -39,18 +39,18 @@ inline namespace MIGRAPHX_INLINE_NS {
 
 using dimension = shape_transform_descriptor::dimension;
 
-template <class Iterator, class Projection>
-static auto compute_end_dim(Iterator start, Iterator last, std::size_t dim, Projection proj)
-{
-    std::size_t x = 1;
-    auto it       = std::find_if(start, last, [&](auto d) {
-        x *= proj(d);
-        return x == dim;
-    });
-    if(it != last)
-        return it;
-    return start;
-}
+// template <class Iterator, class Projection>
+// static auto compute_end_dim(Iterator start, Iterator last, std::size_t dim, Projection proj)
+// {
+//     std::size_t x = 1;
+//     auto it       = std::find_if(start, last, [&](auto d) {
+//         x *= proj(d);
+//         return x >= dim;
+//     });
+//     if(it != last)
+//         return it;
+//     return start;
+// }
 
 void debug_print(const std::vector<dimension::sub>& subs)
 {
@@ -142,11 +142,168 @@ bool shape_transform_descriptor::apply(const std::vector<operation>& ops)
     }
     return true;
 }
+
+// template <class Iterator>
+// static auto compute_end_dim(Iterator start, Iterator last, std::size_t dim)
+// {
+//     std::size_t x = 1;
+//     auto it       = std::find_if(start, last, [&](auto i) {
+//         x *= i;
+//         return x > dim;
+//     });
+//     if(x < dim)
+//         return start;
+//     return it;
+// }
+
+template <class Iterator, class Projection>
+static auto compute_end_dim(Iterator start, Iterator last, std::size_t dim, Projection proj)
+{
+    std::size_t x = 1;
+    auto it       = std::find_if(start, last, [&](auto d) {
+        x *= proj(d);
+        return x > dim;
+    });
+    if(x < dim)
+        return start;
+    return it;
+}
+
+template <class Range, class Projection>
+auto elements(const Range& r, Projection proj)
+{
+    return transform_accumulate(r.begin(), r.end(), std::size_t{1}, std::multiplies<>{}, proj);
+}
+
+struct reshape_get_dim
+{
+    std::size_t operator()(std::size_t i) const
+    {
+        return i;
+    }
+    std::size_t operator()(const dimension::sub& s) const
+    {
+        return s.len;
+    }
+};
+
+template<class Dims>
+struct reshape_state
+{
+    reshape_state(const Dims& pdims)
+        : dims(&pdims), it(dims->begin())
+    {
+    }
+    const Dims* dims            = nullptr;
+    typename Dims::const_iterator it{};
+    std::size_t rem = 1;
+    std::size_t get() const { return reshape_get_dim{}(*it) / rem; }
+    bool is_end() const { return it == dims->end(); }
+    void next(std::size_t i = 1) { it += i; }
+    auto dims_for(std::size_t d) const
+    {
+        auto dim_end = compute_end_dim(it, dims->end(), d, reshape_get_dim{});
+        return range(it, dim_end);
+    }
+    // void add_axes(std::size_t naxes, std::size_t start) MIGRAPHX_TIDY_CONST
+    // {
+    //     auto axes = compute_axes(naxes, start);
+    //     axes_map->push_back(std::move(axes));
+    // }
+
+    // void add_multi_axes(std::size_t naxes, std::size_t start) MIGRAPHX_TIDY_CONST
+    // {
+    //     auto axes = compute_axes(naxes, start);
+    //     std::transform(axes.begin(),
+    //                    axes.end(),
+    //                    std::back_inserter(*axes_map),
+    //                    [&](auto axis) -> std::vector<std::size_t> { return {axis}; });
+    // }
+    // std::vector<std::size_t> compute_axes(std::size_t naxes, std::size_t start) const
+    // {
+    //     if(rem != 1)
+    //     {
+    //         assert(start > 0);
+    //         naxes++;
+    //         start--;
+    //     }
+    //     std::vector<std::size_t> axes(naxes);
+    //     std::iota(axes.begin(), axes.end(), start);
+    //     return axes;
+    // }
+};
+
+// static bool compute_common_dim(std::vector<std::size_t>& cd_dims,
+//                                common_dim_state& state1,
+//                                common_dim_state& state2)
+// {
+//     assert(state1.get() <= state2.get());
+//     auto d2    = state2.get();
+//     auto dims  = state1.dims_for(d2);
+//     auto n     = elements(dims);
+//     auto naxes = distance(dims);
+//     if(naxes == 0)
+//         return false;
+//     // If not divisible then we can't compute a common dim
+//     if((d2 % n) != 0)
+//         return false;
+//     auto rem = d2 / n;
+//     state1.add_multi_axes(naxes, cd_dims.size());
+//     state2.add_axes(rem == 1 ? naxes : naxes + 1, cd_dims.size());
+
+//     state1.rem = rem;
+//     state2.rem = 1;
+
+//     cd_dims.insert(cd_dims.end(), dims.begin(), dims.end());
+//     if(state1.rem != 1)
+//         cd_dims.push_back(state1.rem);
+//     state1.next(distance(dims));
+//     state2.next();
+//     return true;
+// }
+
+template<class ReshapeState1, class ReshapeState2>
+static bool compute_reshape_dims(ReshapeState1& istate, ReshapeState2& rstate)
+{
+    auto rdim = rstate.get();
+    auto dims = istate.dims_for(rdim);
+    auto n     = elements(dims, reshape_get_dim{});
+    auto naxes = distance(dims);
+    if(naxes == 0)
+        return false;
+    // If not divisible then we can't compute a common dim
+    if((rdim % n) != 0)
+        return false;
+    auto rem = rdim / n;
+
+    istate.rem = rem;
+    rstate.rem = 1;
+
+    istate.next(naxes);
+    rstate.next();
+}
+
 bool shape_transform_descriptor::apply_reshape(const std::vector<std::size_t>& rdims)
 {
     assert(migraphx::elements(rdims) == this->elements());
     std::vector<dimension> new_dims;
     auto subs     = get_all_subdimensions(dimensions);
+    auto istate = reshape_state{subs};
+    auto rstate = reshape_state{rdims};
+    while(not istate.is_end() and not rstate.is_end())
+    {
+        auto idim = istate.get();
+        auto rdim = rstate.get();
+        if(idim >= rdim)
+        {
+
+        }
+        else // if(idim < rdim)
+        {
+
+        }
+    }
+
     std::size_t i = 0;
     std::size_t r = 0;
     while(i < subs.size() and r < rdims.size())
@@ -163,8 +320,10 @@ bool shape_transform_descriptor::apply_reshape(const std::vector<std::size_t>& r
         {
             auto start = subs.begin() + i;
             auto it = compute_end_dim(start, subs.end(), rdim, std::mem_fn(&dimension::sub::len));
-            if(it == start)
+            if(it == start) {
+                std::cout << "Failed squeeze\n";
                 return false;
+            }
             assert(it != subs.end());
             auto n = it - start;
             i += n;
@@ -175,8 +334,10 @@ bool shape_transform_descriptor::apply_reshape(const std::vector<std::size_t>& r
         {
             auto start = rdims.begin() + r;
             auto it    = compute_end_dim(start, rdims.end(), idim, id{});
-            if(it == start)
+            if(it == start) {
+                std::cout << "Failed unsqueeze\n";
                 return false;
+            }
             assert(it != rdims.end());
             auto n = it - start;
             r += n;
@@ -197,8 +358,10 @@ bool shape_transform_descriptor::apply_reshape(const std::vector<std::size_t>& r
     {
         for(auto d : range(rdims.begin() + new_dims.size(), rdims.end()))
         {
-            if(d != 1)
+            if(d != 1) {
+                std::cout << "Failed trailing 1\n";
                 return false;
+            }
             new_dims.push_back({{dimension::sub{1}}});
         }
     }

@@ -22,6 +22,11 @@
  * THE SOFTWARE.
  */
 
+#include <migraphx/config.hpp>
+#include <migraphx/bit_cast.hpp>
+#include <algorithm>
+#include <limits>
+
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
 
@@ -75,10 +80,24 @@ struct generic_float
         return all_ones<ExponentSize - 1>();
     }
 
-    explicit generic_float(float f = 0.0) noexcept
+    explicit constexpr generic_float(float f = 0.0) noexcept
     {
         from_float(get_parts(f));
     }
+
+    constexpr generic_float &operator=(float f) noexcept
+    {
+        from_float(get_parts(f));
+        return *this;
+    }
+
+    constexpr generic_float operator-() const noexcept
+    {
+        generic_float result = *this;
+        result.sign = !this->sign;
+        return result;
+    }
+
 
     constexpr float to_float() const noexcept
     {
@@ -251,18 +270,81 @@ struct generic_float
     MIGRAPHX_GENERIC_FLOAT_BINARY_OP(>)
     MIGRAPHX_GENERIC_FLOAT_BINARY_OP(>=)
 
-    friend constexpr generic_float operator==(const generic_float& x, const generic_float& y)
+    friend constexpr bool operator==(const generic_float& x, const generic_float& y)
     {
         if (not x.is_finite() or not y.is_finite())
             return false;
         return std::tie(x.mantissa, x.exponent, x.sign) == std::tie(y.mantissa, y.exponent, y.sign);
     }
 
-    friend constexpr generic_float operator!=(const generic_float& x, const generic_float& y)
+    friend constexpr bool operator!=(const generic_float& x, const generic_float& y)
     {
         return not(x == y);
     }
 };
 
+
 }
+}
+
+namespace std {
+
+template<unsigned int E, unsigned int M, unsigned int F>
+class numeric_limits<migraphx::generic_float<E, M, F>>
+{
+    public:
+    static constexpr bool has_infinity = true;
+    static constexpr migraphx::generic_float<E, M, F> epsilon() { return migraphx::generic_float<E, M, F>::epsilon(); }
+
+    static constexpr migraphx::generic_float<E, M, F> quiet_NaN() { return migraphx::generic_float<E, M, F>::qnan(); }
+
+    static constexpr migraphx::generic_float<E, M, F> max() { return migraphx::generic_float<E, M, F>::max(); }
+
+    static constexpr migraphx::generic_float<E, M, F> min() { return migraphx::generic_float<E, M, F>::min(); }
+
+    static constexpr migraphx::generic_float<E, M, F> lowest() { return migraphx::generic_float<E, M, F>::lowest(); }
+
+    static constexpr migraphx::generic_float<E, M, F> infinity() { return migraphx::generic_float<E, M, F>::infinity(); }
+
+};
+
+template<unsigned int E, unsigned int M, unsigned int F, class T>
+struct common_type<migraphx::generic_float<E, M, F>, T> : std::common_type<float, T> // NOLINT
+{
+};
+
+template<unsigned int E, unsigned int M, unsigned int F, class T>
+struct common_type<T, migraphx::generic_float<E, M, F>> : std::common_type<float, T> // NOLINT
+{
+};
+
+// template<unsigned int E, unsigned int M, unsigned int F, bool FNUZ>
+// struct common_type<migraphx::generic_float<E, M, F>, migraphx::fp8::float8<migraphx::fp8::f8_type::fp8, FNUZ>> : std::common_type<float, float>
+// {};
+
+// template<unsigned int E, unsigned int M, unsigned int F, bool FNUZ>
+// struct common_type<migraphx::fp8::float8<migraphx::fp8::f8_type::fp8, FNUZ>, migraphx::generic_float<E, M, F>> : std::common_type<float, float>
+// {};
+
+// template<unsigned int E, unsigned int M, unsigned int F, migraphx::fp8::f8_type T, bool FNUZ>
+// struct common_type<migraphx::generic_float<E, M, F>, migraphx::fp8::float8<T, FNUZ>> : std::common_type<float, float>
+// {};
+
+// template<unsigned int E, unsigned int M, unsigned int F, migraphx::fp8::f8_type T, bool FNUZ>
+// struct common_type<migraphx::fp8::float8<T, FNUZ>, migraphx::generic_float<E, M, F>> : std::common_type<float, float>
+// {};
+
+template<unsigned int E, unsigned int M, unsigned int F>
+struct common_type<migraphx::generic_float<E, M, F>,  migraphx::generic_float<E, M, F>>
+{
+    using type = migraphx::generic_float<E, M, F>;
+};
+
+// template<unsigned int E, unsigned int M, unsigned int F, unsigned int E1, .....>
+// struct common_type<migraphx::generic_float<E, M, F>,  migraphx::generic_float<E1, M1, F1>>
+// {
+//     using type = float;
+// };
+
+
 }

@@ -35,7 +35,8 @@ def onnx_test(external_data=False, opset_imports=None):
     def create_onnx_test(op_test):
         def run_test():
             op_info = op_test()
-            opset_id = [helper.make_operatorsetid('', opset_imports)] if opset_imports is not None else None
+            opset_id = [helper.make_operatorsetid('', opset_imports)
+                        ] if opset_imports is not None else None
 
             if len(op_info) > 3:
                 graph_def = helper.make_graph(op_info[0],
@@ -48,8 +49,7 @@ def onnx_test(external_data=False, opset_imports=None):
                                               op_info[1], op_info[2])
             model_def = helper.make_model(graph_def,
                                           producer_name=op_test.__name__,
-                                              opset_imports=opset_id
-            )
+                                          opset_imports=opset_id)
             onnx.save_model(model_def,
                             '{}.onnx'.format(op_test.__name__),
                             save_as_external_data=external_data,

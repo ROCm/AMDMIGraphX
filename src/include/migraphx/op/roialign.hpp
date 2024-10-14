@@ -126,12 +126,6 @@ struct roialign
             // order.  The i[x] value is least significant and iterates the fastest.
             std::array<std::size_t, 2> p = {idx_v[1], idx_v[0]};
             std::array<std::size_t, 2> i = {idx_v[3], idx_v[2]}; // these are always equal
-// printf(" EEEEE p, i-index   %lu  %lu  %lu %lu    ( %lu  %lu  %lu %lu)\n", p[0], p[1], i[0], i[1],
-// idx_v[0], idx_v[1], idx_v[2], idx_v[3]);
-
-
-
-
 
             // xy is scaled coordinates of start point of ROI
             std::array<float, 2> xy{};
@@ -139,15 +133,11 @@ struct roialign
             // inside) from which we will interpolate.
             std::array<int64_t, 2> low{};
             std::array<int64_t, 2> high{};
-// float asdf=-1.f;
             for(auto ii : range(p.size()))
             {
                 xy[ii] = roi_start[ii] + p[ii] * bin_size[ii] +
                          (i[ii] + .5f) * bin_size[ii] / bin_grid_size[ii];
-// initial calculated values, before adjustments
-// if(ii == 0 ) asdf = xy[0];
-// if(ii == 1)
-// printf(" IIIII index %lu    xy:   (%f, %f)\n", index,  asdf,  xy[1]);
+
                 if(xy[ii] < -1.0 or xy[ii] > dims[ii])
                 {
                     results[index] = pos_weight{};
@@ -162,7 +152,6 @@ struct roialign
                     xy[ii] = high[ii] = low[ii] = dims[ii] - 1;
                 }
             }
-// printf(" FFFFF index %lu    xy:   (%f, %f)\n", index,  xy[0],  xy[1]);
             results[index].pos = {low[1] * dims[0] + low[0],
                                   low[1] * dims[0] + high[0],
                                   high[1] * dims[0] + low[0],
@@ -174,12 +163,6 @@ struct roialign
             float hx = 1.0f - lx;
             // save weights and indices
             results[index].w = {hy * hx, hy * lx, ly * hx, ly * lx};
-    // printf(" AAAAA index %lu results.w:  %f, %f, %f, %f\n", index, 
-    // results[index].w[0],
-    // results[index].w[1],
-    // results[index].w[2],
-    // results[index].w[3]
-    //         );
         });
         return results;
     }
@@ -207,15 +190,14 @@ struct roialign
     std::tuple<double, int64_t> calc_pooling(const T& data,
                                              const std::array<std::size_t, 2>& bin_grid_size,
                                              const std::vector<pos_weight>& pos_weights,
-                                             int64_t index,  // index to c
+                                             int64_t index, // index to c
                                              Op op) const
     {
         double output_val   = op.init();
         const int64_t count = bin_grid_size[0] * bin_grid_size[1];
-        dfor(bin_grid_size[0], bin_grid_size[1])([&](auto iy, auto ix) {
-// printf(" IIIIIKKKKK  iy, ix, index =      %lu  %lu  %ld\n", iy, ix, index );
+        dfor(bin_grid_size[0], bin_grid_size[1])([&](auto, auto) {
             const auto& pc = pos_weights[index];
-            std::array<double, 4> wv; 
+            std::array<double, 4> wv;
             std::transform(
                 pc.w.begin(), pc.w.end(), pc.pos.begin(), wv.begin(), [&](auto w, auto pos) {
                     return *(data + pos) * w;
@@ -257,7 +239,6 @@ struct roialign
                     static_cast<float>(roi[roi_s.index({n, 2})] * spatial_scale - offset),
                     static_cast<float>(roi[roi_s.index({n, 3})] * spatial_scale - offset)};
 
-
                 // Force malformed ROIs to be 1x1, output_half_pixel transform mode
                 std::array<float, 2> roi_size{};
                 std::array<float, 2> bin_size{};
@@ -291,15 +272,11 @@ struct roialign
                     auto ph = idx[1];
                     auto pw = idx[2];
 
-// n anc c are 0 because that's the size of the test case
-// printf(" IIIII n, c, ph, pw =                       %lu %lu    %lu  %lu\n", n, c, ph, pw);
-
                     const auto offset_bottom_data =
                         bottom_data + static_cast<int64_t>((roi_batch_ind * channels + c) *
                                                            in_dims[0] * in_dims[1]);
 
                     double output_val;
-// printf(" IIIIIc vec_index[c] = %ld\n", vec_index[c]);
                     std::tie(output_val, vec_index[c]) =
                         (mode == migraphx::op::pooling_mode::average)
                             ? this->calc_pooling(offset_bottom_data,
@@ -312,7 +289,6 @@ struct roialign
                                                  pre_calc,
                                                  vec_index[c],
                                                  max_pool{});
-printf(" DDDDD  index %lu %f\n",   output_shape.index({n, c, ph, pw}), output_val);                                                 
                     output(n, c, ph, pw) = output_val;
                 });
             });

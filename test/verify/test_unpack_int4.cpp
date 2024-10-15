@@ -21,37 +21,28 @@
  * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
  * THE SOFTWARE.
  */
-#ifndef MIGRAPHX_GUARD_KERNELS_UNPACK_INT4_HPP
-#define MIGRAPHX_GUARD_KERNELS_UNPACK_INT4_HPP
 
-#include "migraphx/kernels/types.hpp"
-#include <migraphx/kernels/index.hpp>
-#include <migraphx/kernels/tensor_view.hpp>
+#include "verify_program.hpp"
+#include <migraphx/program.hpp>
+#include <migraphx/generate.hpp>
+#include <migraphx/make_op.hpp>
 
-namespace migraphx {
-
-template <int Axis, class Output, class Input>
-__device__ void unpack_int4(Output output, Input input)
+template <migraphx::shape::type_t T, int Axis = -1>
+struct test_unpack_int4 : verify_program<test_unpack_int4<T, Axis>>
 {
-    const auto input_shape = input.get_shape();
+    migraphx::program create_program() const
+    {
+        migraphx::program p;
+        auto* mm = p.get_main_module();
 
-    make_index().global_stride(input_shape.elements(), [&](auto i) {
-        auto idx = input_shape.multi(i);
-        idx[Axis] *= 2;
-        const auto input_val = input[i];
+        auto x = mm->add_parameter("x", migraphx::shape{T, {64, 32}});
+        mm->add_instruction(migraphx::make_op("unpack_int4", {{"axis", Axis}}), x);
 
-        // unpack_int4 op's normalize_compute_shape will ensure that Input::type is either uint8_t
-        // or int8_t
-        if constexpr(is_same<typename Input::type, uint8_t>::value)
-            output[idx] = input_val & 0xfu;
-        else
-            // NOLINTNEXTLINE (hicpp-signed-bitwise)
-            output[idx] = static_cast<int8_t>(static_cast<uint8_t>(input_val) << 4) >> 4;
+        return p;
+    }
+};
 
-        idx[Axis] += 1;
-        output[idx] = input_val >> 4;
-    });
-}
-
-} // namespace migraphx
-#endif
+template struct test_unpack_int4<migraphx::shape::uint8_type>;
+template struct test_unpack_int4<migraphx::shape::int8_type>;
+template struct test_unpack_int4<migraphx::shape::uint8_type, 0>;
+template struct test_unpack_int4<migraphx::shape::int8_type, 0>;

@@ -116,6 +116,10 @@ int main(int argc, const char* argv[])
             // disabled because CPU does eliminate_data_type to float for everything
             "test_bitwise_and<migraphx::shape::int32_type>",
             "test_bitwise_and<migraphx::shape::uint8_type>",
+            "test_unpack_int4<migraphx::shape::uint8_type>",
+            "test_unpack_int4<migraphx::shape::int8_type>",
+            "test_unpack_int4<migraphx::shape::uint8_type, 0>",
+            "test_unpack_int4<migraphx::shape::int8_type, 0>"
     });
     rv.disable_test_for("gpu",
                         {

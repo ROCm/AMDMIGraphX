@@ -33,32 +33,22 @@ namespace migraphx {
 template <int Axis, class Output, class Input>
 __device__ void unpack_int4(Output output, Input input)
 {
-    auto gpu_idx           = make_index();
     const auto input_shape = input.get_shape();
 
-    gpu_idx.global_stride(input.get_shape().elements(), [&](auto i) {
+    make_index().global_stride(input_shape.elements(), [&](auto i) {
         auto idx = input_shape.multi(i);
         idx[Axis] *= 2;
+        const auto input_val = input[i];
 
-        if constexpr(is_same<uint8_t, typename Input::type>::value)
-        {
-            // printf("%d: %d, ", i, input[idx]);
-            // printf("%d: [%d, %d]\n", i, idx[0], idx[1]);
-
-            auto val    = input[i];
-            output[idx] = val & 0xfu;
-
-            idx[Axis] += 1;
-            output[idx] = val >> 4;
-            // printf("%d updated: [%d, %d]\n", i, idx[0], idx[1]);
-            // printf("%d: %x, val1: %x, val2: %x\n", i, val, val1, val2);
-            // printf("%d: {%d, %d}\n", i, output.get_shape().lens[0], output.get_shape().lens[1]);
-        }
+        // unpack_int4 op's normalize_compute_shape will ensure that Input::type is either uint8_t
+        // or int8_t
+        if constexpr(is_same<typename Input::type, uint8_t>::value)
+            output[idx] = input_val & 0xfu;
         else
-        {
-            // TODO
-            printf("%s, ", "TODO");
-        }
+            output[idx] = static_cast<int8_t>(static_cast<uint8_t>(input_val) << 4) >> 4;
+
+        idx[Axis] += 1;
+        output[idx] = input_val >> 4;
     });
 }
 

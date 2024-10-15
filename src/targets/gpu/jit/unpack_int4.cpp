@@ -64,29 +64,18 @@ struct unpack_int4_compiler : compiler<unpack_int4_compiler>
     operation compile_op(context& ctx, const std::vector<shape>& inputs, const value& v) const
     {
         hip_compile_options options;
-        options.inputs         = flatten(inputs);
+        options.inputs         = inputs;
         options.output         = inputs.back();
         options.virtual_inputs = reduce_dims(normalize_permutation(options.inputs));
-        options.emplace_param("-Wno-float-equal");
-        auto axis           = find_fast_axis(options.virtual_inputs);
-        auto vec            = vectorize::elements(ctx, axis, options.virtual_inputs);
-        options.kernel_name = "unpack_int4_kernel";
-        auto noutputs       = options.inputs.size() - inputs.size() + 1;
-        auto t              = tile::elements(options.virtual_inputs, noutputs);
-        // auto t = tile{};
-        if(t.ntiles == 0)
-            options.set_launch_params(
-                v, compute_global_for(ctx, options.inputs.front().elements() / vec.size, 256));
-        else
-            options.set_launch_params(
-                v, compute_global_for(ctx, t.ntiles * t.block_size, 256), t.block_size);
+        options.kernel_name    = "unpack_int4_kernel";
+        options.set_launch_params(v, compute_global_for(ctx, inputs.front().elements()));
+
         auto src =
             interpolate_string(unpack_int4_kernel,
                                {{"kernel", options.kernel_name},
                                 {"params", enum_params(options.inputs.size(), "void * private_p")},
                                 {"args", enum_params(options.inputs.size(), "private_p")},
-                                // TODO don't use default value, axis will be in there
-                                {"axis", std::to_string(v.get("axis", 1))}});
+                                {"axis", std::to_string(v.at("axis").to<int>())}});
         return compile_hip_code_object(src, options);
     }
 

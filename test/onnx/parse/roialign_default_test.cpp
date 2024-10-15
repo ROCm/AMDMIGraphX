@@ -37,7 +37,7 @@ TEST_CASE(roialign_default_test)
     auto bi   = mm->add_parameter("batch_ind", sbi);
 
     // Depending on whether the model was built for Onnx opset 16 or earlier, the default
-    // coordinate_transformation_mode is different.  These model files had explicit opset given
+    // coordinate_transformation_mode will be different.  These model files had explicit opset given
     // when they were created.
     auto r = mm->add_instruction(
         migraphx::make_op("roialign", {{"coordinate_transformation_mode", "half_pixel"}}),

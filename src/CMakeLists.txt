@@ -90,6 +90,7 @@ add_library(migraphx
     promote_literals.cpp
     quantization.cpp
     quantize_fp16.cpp
+    quantize_int4.cpp
     quantize_8bits.cpp
     reduce_dims.cpp
     register_op.cpp
@@ -173,6 +174,7 @@ register_migraphx_ops(
     gathernd
     get_tuple_elem
     greater
+    group_query_attention
     gru
     identity
     if_op
@@ -346,6 +348,9 @@ if(MIGRAPHX_ENABLE_GPU)
     if(MIGRAPHX_USE_ROCBLAS)
         list(APPEND MIGRAPHX_CONFIG_DEPENDS PACKAGE rocblas)
     endif()
+    if(MIGRAPHX_USE_HIPBLASLT)
+        list(APPEND MIGRAPHX_CONFIG_DEPENDS PACKAGE hipblaslt)
+    endif()
 add_subdirectory(targets/gpu)
 target_link_libraries(migraphx_all_targets INTERFACE migraphx_gpu)
 target_compile_definitions(migraphx_all_targets INTERFACE -DHAVE_GPU)
@@ -379,5 +384,5 @@ rocm_export_targets(
     Threads
     ${MIGRAPHX_CONFIG_DEPENDS}
 )
- 
+
 

@@ -21,10 +21,22 @@
  * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
  * THE SOFTWARE.
  */
+#include <test.hpp>
+#include <migraphx/gpu/compile_gen.hpp>
 
-#include <onnx_test.hpp>
+static const auto find_fast_axis = test::make_function("find_fast_axis", [](auto&&... xs) {
+    return migraphx::gpu::gen::find_fast_axis(static_cast<decltype(xs)>(xs)...);
+});
 
-TEST_CASE(gridsample_bicubic_test)
+TEST_CASE(test_find_fast_axis)
 {
-    EXPECT(test::throws([&] { read_onnx("gridsample_bicubic_test.onnx"); }));
+    EXPECT(find_fast_axis(migraphx::shape{migraphx::shape::float_type, {2, 2, 2, 6, 3}}) == 4);
+    EXPECT(find_fast_axis(migraphx::shape{
+               migraphx::shape::float_type, {2, 2, 2, 6, 3}, {72, 6, 1, 12, 2}}) == 2);
+    EXPECT(find_fast_axis(
+               migraphx::shape{migraphx::shape::float_type, {64, 512, 32, 32}, {0, 1, 0, 0}}) == 1);
+    EXPECT(find_fast_axis(
+               migraphx::shape{migraphx::shape::float_type, {64, 512, 32, 32}, {0, 0, 0, 0}}) == 3);
 }
+
+int main(int argc, const char* argv[]) { test::run(argc, argv); }

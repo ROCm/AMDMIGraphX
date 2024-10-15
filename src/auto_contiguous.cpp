@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2023 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2024 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -26,6 +26,7 @@
 #include <migraphx/instruction.hpp>
 #include <migraphx/make_op.hpp>
 #include <migraphx/iterator_for.hpp>
+#include <migraphx/ranges.hpp>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
@@ -58,13 +59,16 @@ void auto_contiguous::apply(module& m) const
     auto last = std::prev(m.end());
     for(auto ins : iterator_for(m))
     {
-        if(ins->name() == "layout")
+        if(contains({"layout", "@return"}, ins->name()))
             continue;
         // for last instruction that is NOT a return
         if(ins->outputs().empty() and ins != last)
             continue;
         shape s = ins->get_shape();
-        if(not s.dynamic() and not s.standard() and s.elements() != 0)
+        // If s is not standard layout or has out of sequence strides, insert "contiguous" op
+        // to make a standard shape
+        if(not s.dynamic() and (not s.standard() or s.normalize_standard() != s) and
+           s.elements() > 1)
         {
             auto c = m.insert_instruction(std::next(ins), make_op("contiguous"), ins);
             m.replace_instruction(ins, c);

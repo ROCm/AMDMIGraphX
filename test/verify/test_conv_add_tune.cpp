@@ -74,3 +74,5 @@ struct test_conv_add_tune : verify_program<test_conv_add_tune<DType>>
 template struct test_conv_add_tune<migraphx::shape::float_type>;
 template struct test_conv_add_tune<migraphx::shape::half_type>;
 template struct test_conv_add_tune<migraphx::shape::fp8e4m3fnuz_type>;
+template struct test_conv_add_tune<migraphx::shape::fp8e4m3fn_type>;
+template struct test_conv_add_tune<migraphx::shape::fp8e5m2_type>;

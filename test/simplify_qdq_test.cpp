@@ -41,7 +41,10 @@ namespace match = migraphx::match;
 bool is_convolution(const migraphx::instruction& ins) { return ins.name() == "convolution"; }
 bool is_dot(const migraphx::instruction& ins) { return ins.name() == "dot"; }
 
-void run_pass(migraphx::module& m) { run_passes(m, {migraphx::simplify_qdq{}, migraphx::dead_code_elimination{}}); }
+void run_pass(migraphx::module& m)
+{
+    run_passes(m, {migraphx::simplify_qdq{}, migraphx::dead_code_elimination{}});
+}
 void run_cse(migraphx::module& m)
 {
     run_passes(m, {migraphx::eliminate_common_subexpression{}, migraphx::dead_code_elimination{}});
@@ -1513,7 +1516,7 @@ TEST_CASE(dot_reused)
         auto dot2       = m2.add_instruction(migraphx::make_op("quant_dot"), q3, q4);
         auto out_scale2 = add_scale_mul(m2, scale, scale, 1, 1, sh.lens());
         auto d2         = add_quantize_op(m2, "dequantizelinear", dot2, out_scale2);
-        auto d3   = add_quantize_op(m2, "dequantizelinear", q3, q3->inputs()[1]);
+        auto d3         = add_quantize_op(m2, "dequantizelinear", q3, q3->inputs()[1]);
         auto add2 = m2.add_instruction(migraphx::make_op("add"), d2, d3);
         m2.add_return({add2});
     }

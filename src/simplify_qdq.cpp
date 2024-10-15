@@ -427,7 +427,7 @@ void remove_zero_point(module& m)
         auto zp = ins->inputs().at(2);
         if(not zp->can_eval())
             continue;
-        auto a = zp->eval();
+        auto a       = zp->eval();
         bool is_zero = false;
         a.visit([&](auto t) {
             is_zero = std::all_of(t.begin(), t.end(), [](auto x) { return float_equal(x, 0); });

@@ -81,6 +81,8 @@ struct roialign
         if(!shape::is_integral(inputs.at(2).type()))
             MIGRAPHX_THROW(
                 "ROIALIGN: incorrect datatype for roi indices! (should be an integral type)");
+        if(x_lens.size() != 4)
+            MIGRAPHX_THROW("ROIALIGN: data input must have 4 dimensions n, c, h, w");
         if(bi_lens.size() != 1)
         {
             MIGRAPHX_THROW("ROIALIGN: batch indices should be 1 dimension!");
@@ -230,7 +232,8 @@ struct roialign
             par_for(n_rois, [&](auto n) {
                 const auto bottom_data   = x.begin();
                 const auto roi_batch_ind = batch_indices[n];
-                // Do not use rounding; this implementation detail is critical
+                // Do not use rounding here even if data is a quantized type; this
+                // implementation detail is critical
                 const float offset              = (coord_trans_mode == "half_pixel") ? 0.5 : 0.0;
                 std::array<float, 2> roi_starts = {
                     static_cast<float>(roi[roi_s.index({n, 0})] * spatial_scale - offset),
@@ -239,7 +242,7 @@ struct roialign
                     static_cast<float>(roi[roi_s.index({n, 2})] * spatial_scale - offset),
                     static_cast<float>(roi[roi_s.index({n, 3})] * spatial_scale - offset)};
 
-                // Force malformed ROIs to be 1x1, output_half_pixel transform mode
+                // Force malformed ROIs to be 1x1, if in output_half_pixel transform mode
                 std::array<float, 2> roi_size{};
                 std::array<float, 2> bin_size{};
                 std::array<std::size_t, 2> bin_grid_size{};

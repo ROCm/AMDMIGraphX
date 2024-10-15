@@ -5155,6 +5155,11 @@ TEST_CASE(roialign_test)
 
     expect_shape(sout, migraphx::make_op("roialign"), sx, srois, sbi);
 
+    // data input must be 4 dimensions
+    migraphx::shape sx2{migraphx::shape::float_type, {2, 3, 4, 5, 6}};
+    throws_shape(migraphx::make_op("roialign"), sx2, srois, sbi);
+
+    // batch index must be 1 dimension
     migraphx::shape sbi1{migraphx::shape::int64_type, {2, 3}};
     throws_shape(migraphx::make_op("roialign"), sx, srois, sbi1);
 

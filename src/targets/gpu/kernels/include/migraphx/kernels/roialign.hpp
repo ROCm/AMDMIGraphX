@@ -24,8 +24,8 @@
 #ifndef MIGRAPHX_GUARD_KERNELS_ROIALIGN_HPP
 #define MIGRAPHX_GUARD_KERNELS_ROIALIGN_HPP
 
-#include <migraphx/kernels/debug.hpp>
-#include <migraphx/kernels/print.hpp>
+// #include <migraphx/kernels/debug.hpp>
+// #include <migraphx/kernels/print.hpp>
 #include <migraphx/kernels/index.hpp>
 #include <migraphx/kernels/dfor.hpp>
 #include <migraphx/kernels/ops.hpp>
@@ -89,21 +89,21 @@ MIGRAPHX_DEVICE_CONSTEXPR typename Iterator::value_type bilinear_interpolate(
             xy[ii] = high[ii] = low[ii] = dims[ii] - 1;
         }
     }
-    array<index_int, 4> locs = {low[1] * dims[0] + low[0], // new
+    array<index_int, 4> locs = {low[1] * dims[0] + low[0],
                                 low[1] * dims[0] + high[0],
                                 high[1] * dims[0] + low[0],
                                 high[1] * dims[0] + high[0]};
 
-    float lx = xy[0] - low[0]; // new
+    float lx = xy[0] - low[0];
     float ly = xy[1] - low[1];
 
     float hy = 1.0f - ly;
     float hx = 1.0f - lx;
     // do calculations in floating point and convert final result to required type
-    array<float, 4> ws = {hy * hx, hy * lx, ly * hx, ly * lx}; // old
+    array<float, 4> ws = {hy * hx, hy * lx, ly * hx, ly * lx};
 
-    auto v01 = pooling(data[locs[1]] * ws[1], data[locs[0]] * ws[0]);
-    auto v23 = pooling(data[locs[3]] * ws[3], data[locs[2]] * ws[2]);
+    auto v01 = pooling(data[locs[0]] * ws[0], data[locs[1]] * ws[1]);
+    auto v23 = pooling(data[locs[2]] * ws[2], data[locs[3]] * ws[3]);
     return implicit_conversion(pooling(v01, v23));
 }
 
@@ -124,8 +124,6 @@ MIGRAPHX_DEVICE_CONSTEXPR auto calc_pooling(const Iterator& data,
     dfor(bin_grid_size[0], bin_grid_size[1])([&](auto iy, auto ix) {
         array<index_int, 2> id = {iy, ix};
         array<float, 2> locs = roi_starts + idx * bin_size + bin_size * (id + 0.5f) / bin_grid_size;
-        array<float, 6> asdf_idx = {
-            float(iy), float(ix), float(idx[0]), float(idx[1]), locs[0], locs[1]};
         auto val   = bilinear_interpolate(data, dims, locs, op);
         output_val = op(output_val, val);
     });
@@ -176,7 +174,7 @@ __device__ void roialign(const T& x_t, const U& rois_t, const V& ind_t, W& y_t, 
     array<size_t, 4> m_lens{out_lens[0], out_lens[1], out_lens[3], out_lens[2]};
     array<size_t, 4> m_strides;
     m_strides[3] = 1;
-    for(auto k : {2, 1, 0})
+    for(int k = 2; k >= 0; k--)
     {
         m_strides[k] = m_strides[k + 1] * m_lens[k + 1];
     }

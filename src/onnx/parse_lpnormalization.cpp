@@ -38,7 +38,7 @@ namespace onnx {
 */
 struct parse_lpnormalization : op_parser<parse_lpnormalization>
 {
-    std::vector<op_desc> operators() const { return {{"LpNormalization"}}; }
+    std::vector<op_desc> operators() const { return {{"LpNormalization", "Lp_normalization"}}; }
 
     instruction_ref parse(const op_desc&,
                           const onnx_parser&,

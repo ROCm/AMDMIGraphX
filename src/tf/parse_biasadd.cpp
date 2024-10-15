@@ -33,7 +33,7 @@ namespace tf {
 struct parse_biasadd : op_parser<parse_biasadd>
 {
     bool transpose() const { return true; }
-    std::vector<op_desc> operators() const { return {{"BiasAdd"}}; }
+    std::vector<op_desc> operators() const { return {{"BiasAdd", "bias_add"}}; }
 
     instruction_ref parse(const op_desc& /*opd*/,
                           const tf_parser& /*parser*/,

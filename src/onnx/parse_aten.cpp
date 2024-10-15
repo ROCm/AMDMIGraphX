@@ -39,7 +39,7 @@ enum class reduce_mode_t
 
 struct parse_aten : op_parser<parse_aten>
 {
-    std::vector<op_desc> operators() const { return {{"ATen"}}; }
+    std::vector<op_desc> operators() const { return {{"ATen", "aten"}}; }
 
     instruction_ref parse(const op_desc& /*opd*/,
                           const onnx_parser& /*parser*/,

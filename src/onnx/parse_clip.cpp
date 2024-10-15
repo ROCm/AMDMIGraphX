@@ -32,7 +32,7 @@ namespace onnx {
 
 struct parse_clip : op_parser<parse_clip>
 {
-    std::vector<op_desc> operators() const { return {{"Clip"}}; }
+    std::vector<op_desc> operators() const { return {{"Clip", "clip"}}; }
 
     instruction_ref parse(const op_desc& /*opd*/,
                           const onnx_parser& parser,

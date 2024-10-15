@@ -33,7 +33,7 @@ namespace tf {
 
 struct parse_cast : op_parser<parse_cast>
 {
-    std::vector<op_desc> operators() const { return {{"Cast"}}; }
+    std::vector<op_desc> operators() const { return {{"Cast", "cast"}}; }
 
     instruction_ref parse(const op_desc& /*opd*/,
                           const tf_parser& parser,

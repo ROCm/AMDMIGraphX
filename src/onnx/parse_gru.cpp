@@ -58,7 +58,7 @@ void gru_transpose_outputs(onnx_parser::node_info& info,
 
 struct parse_gru : op_parser<parse_gru>
 {
-    std::vector<op_desc> operators() const { return {{"GRU"}}; }
+    std::vector<op_desc> operators() const { return {{"GRU", "gru"}}; }
 
     std::vector<instruction_ref> parse(const op_desc& /*opd*/,
                                        const onnx_parser& parser,

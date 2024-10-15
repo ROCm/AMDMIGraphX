@@ -32,7 +32,7 @@ namespace onnx {
 
 struct parse_castlike : op_parser<parse_castlike>
 {
-    std::vector<op_desc> operators() const { return {{"CastLike"}}; }
+    std::vector<op_desc> operators() const { return {{"CastLike", "cast_like"}}; }
 
     instruction_ref parse(const op_desc& /*opd*/,
                           const onnx_parser& /*parser*/,

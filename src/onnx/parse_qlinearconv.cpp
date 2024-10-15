@@ -83,7 +83,7 @@ https://xadupre.github.io/draft/onnx/onnx_doc_folder/onnx__QLinearConv.html
 
 struct parse_qlinearconv : op_parser<parse_qlinearconv>
 {
-    std::vector<op_desc> operators() const { return {{"QLinearConv"}}; }
+    std::vector<op_desc> operators() const { return {{"QLinearConv", "q_linear_conv"}}; }
 
     // basic type checking for QLinearConv Operator
     void check_inputs(const std::vector<instruction_ref>& inp_arg) const

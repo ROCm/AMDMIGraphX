@@ -34,7 +34,7 @@ namespace onnx {
 
 struct parse_dequantizelinear : op_parser<parse_dequantizelinear>
 {
-    std::vector<op_desc> operators() const { return {{"DequantizeLinear"}}; }
+    std::vector<op_desc> operators() const { return {{"DequantizeLinear", "dequantize_linear"}}; }
 
     instruction_ref parse(const op_desc& opd,
                           const onnx_parser& /*parser*/,

@@ -46,7 +46,7 @@ static std::vector<std::size_t> nonzero_indices(const std::vector<T>& data)
 
 struct parse_nonzero : op_parser<parse_nonzero>
 {
-    std::vector<op_desc> operators() const { return {{"NonZero"}}; }
+    std::vector<op_desc> operators() const { return {{"NonZero", "non_zero"}}; }
 
     instruction_ref parse(const op_desc& /*opd*/,
                           const onnx_parser& /*parser*/,

@@ -37,7 +37,7 @@ struct parse_randomuniform_ops : op_parser<parse_randomuniform_ops>
 {
     std::set<shape::type_t> valid_types = {shape::float_type, shape::half_type, shape::double_type};
 
-    std::vector<op_desc> operators() const { return {{"RandomUniform"}, {"RandomUniformLike"}}; }
+    std::vector<op_desc> operators() const { return {{"RandomUniform", "random_uniform"}, {"RandomUniformLike", "random_uniform_like"}}; }
 
     instruction_ref parse(const op_desc& opd,
                           const onnx_parser& parser,

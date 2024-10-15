@@ -56,7 +56,7 @@ auto compute_type(shape::type_t t1, shape::type_t t2)
 
 struct parse_pow : op_parser<parse_pow>
 {
-    std::vector<op_desc> operators() const { return {{"Pow"}}; }
+    std::vector<op_desc> operators() const { return {{"Pow", "pow"}}; }
 
     instruction_ref parse(const op_desc& /*opd*/,
                           const onnx_parser& /*parser*/,

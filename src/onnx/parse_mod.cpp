@@ -32,7 +32,7 @@ namespace onnx {
 
 struct parse_mod : op_parser<parse_mod>
 {
-    std::vector<op_desc> operators() const { return {{"Mod"}}; }
+    std::vector<op_desc> operators() const { return {{"Mod", "mod"}}; }
 
     instruction_ref parse(const op_desc& /*opd*/,
                           const onnx_parser& parser,

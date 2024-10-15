@@ -32,7 +32,7 @@ namespace onnx {
 
 struct parse_softsign : op_parser<parse_softsign>
 {
-    std::vector<op_desc> operators() const { return {{"Softsign"}}; }
+    std::vector<op_desc> operators() const { return {{"Softsign", "softsign"}}; }
 
     instruction_ref parse(const op_desc& /*opd*/,
                           const onnx_parser& /*parser*/,

@@ -35,7 +35,7 @@ namespace tf {
 struct parse_pooling : op_parser<parse_pooling>
 {
     bool transpose() const { return true; }
-    std::vector<op_desc> operators() const { return {{"AvgPool"}, {"MaxPool"}}; }
+    std::vector<op_desc> operators() const { return {{"AvgPool", "avg_pool"}, {"MaxPool", "max_pool"}}; }
 
     instruction_ref parse(const op_desc& opd,
                           const tf_parser& parser,

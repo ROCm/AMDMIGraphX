@@ -33,7 +33,7 @@ namespace onnx {
 
 struct parse_shrink : op_parser<parse_shrink>
 {
-    std::vector<op_desc> operators() const { return {{"Shrink"}}; }
+    std::vector<op_desc> operators() const { return {{"Shrink", "shrink"}}; }
 
     instruction_ref parse(const op_desc&,
                           const onnx_parser& parser,

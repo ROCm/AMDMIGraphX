@@ -33,7 +33,7 @@ namespace tf {
 
 struct parse_squeeze : op_parser<parse_squeeze>
 {
-    std::vector<op_desc> operators() const { return {{"Squeeze"}}; }
+    std::vector<op_desc> operators() const { return {{"Squeeze", "squeeze"}}; }
 
     instruction_ref parse(const op_desc& /*opd*/,
                           const tf_parser& /*parser*/,

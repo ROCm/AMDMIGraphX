@@ -35,7 +35,7 @@ struct parse_matmul : op_parser<parse_matmul>
 {
     std::vector<op_desc> operators() const
     {
-        return {{"BatchMatMul"}, {"BatchMatMulV2"}, {"MatMul"}};
+        return {{"BatchMatMul", "batch_mat_mul"}, {"BatchMatMulV2", "batch_mat_mul_v2"}, {"MatMul", "mat_mul"}};
     }
 
     instruction_ref parse(const op_desc& /*opd*/,

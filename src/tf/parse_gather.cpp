@@ -33,7 +33,7 @@ namespace tf {
 
 struct parse_gather : op_parser<parse_gather>
 {
-    std::vector<op_desc> operators() const { return {{"GatherV2"}}; }
+    std::vector<op_desc> operators() const { return {{"GatherV2", "gather_v2"}}; }
 
     instruction_ref parse(const op_desc& /*opd*/,
                           const tf_parser& /*parser*/,

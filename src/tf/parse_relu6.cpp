@@ -34,7 +34,7 @@ namespace tf {
 struct parse_relu6 : op_parser<parse_relu6>
 {
     bool transpose() const { return true; }
-    std::vector<op_desc> operators() const { return {{"Relu6"}}; }
+    std::vector<op_desc> operators() const { return {{"Relu6", "relu6"}}; }
 
     instruction_ref parse(const op_desc& /*opd*/,
                           const tf_parser& /*parser*/,

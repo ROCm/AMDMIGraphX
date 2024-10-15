@@ -35,7 +35,7 @@ struct parse_mean : op_parser<parse_mean>
 {
     std::set<shape::type_t> float_types = {shape::float_type, shape::half_type, shape::double_type};
 
-    std::vector<op_desc> operators() const { return {{"Mean"}}; }
+    std::vector<op_desc> operators() const { return {{"Mean", "mean"}}; }
 
     /// Calculates the element-wise mean of n>=1 input tensors
     instruction_ref parse(const op_desc& /*opd*/,

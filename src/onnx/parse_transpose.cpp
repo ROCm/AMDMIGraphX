@@ -32,7 +32,7 @@ namespace onnx {
 
 struct parse_transpose : op_parser<parse_transpose>
 {
-    std::vector<op_desc> operators() const { return {{"Transpose"}}; }
+    std::vector<op_desc> operators() const { return {{"Transpose", "transpose"}}; }
 
     instruction_ref parse(const op_desc& /*opd*/,
                           const onnx_parser& /*parser*/,

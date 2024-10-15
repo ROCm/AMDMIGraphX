@@ -38,7 +38,7 @@ namespace onnx {
 
 struct parse_qlinearconcat : op_parser<parse_qlinearconcat>
 {
-    std::vector<op_desc> operators() const { return {{"QLinearConcat"}}; }
+    std::vector<op_desc> operators() const { return {{"QLinearConcat", "q_linear_concat"}}; }
 
     // basic type checking for QLinearConcat Operator
     void check_inputs(const std::vector<instruction_ref>& args) const

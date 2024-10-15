@@ -34,7 +34,7 @@ namespace tf {
 struct parse_batchnorm : op_parser<parse_batchnorm>
 {
     bool transpose() const { return true; }
-    std::vector<op_desc> operators() const { return {{"FusedBatchNorm"}, {"FusedBatchNormV3"}}; }
+    std::vector<op_desc> operators() const { return {{"FusedBatchNorm", "fused_batch_norm" }, {"FusedBatchNormV3", "fused_batch_norm_v3"}}; }
 
     instruction_ref parse(const op_desc& /*opd*/,
                           const tf_parser& /*parser*/,

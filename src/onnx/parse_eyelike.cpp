@@ -33,7 +33,7 @@ namespace onnx {
 
 struct parse_eyelike : op_parser<parse_eyelike>
 {
-    std::vector<op_desc> operators() const { return {{"EyeLike"}}; }
+    std::vector<op_desc> operators() const { return {{"EyeLike", "eye_like"}}; }
 
     instruction_ref parse(const op_desc&,
                           const onnx_parser&,

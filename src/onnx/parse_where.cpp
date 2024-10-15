@@ -33,7 +33,7 @@ namespace onnx {
 
 struct parse_where : op_parser<parse_where>
 {
-    std::vector<op_desc> operators() const { return {{"Where"}}; }
+    std::vector<op_desc> operators() const { return {{"Where", "where"}}; }
 
     instruction_ref parse(const op_desc& /*opd*/,
                           const onnx_parser& /*parser*/,

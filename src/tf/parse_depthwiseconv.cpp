@@ -35,7 +35,7 @@ namespace tf {
 struct parse_depthwiseconv : op_parser<parse_depthwiseconv>
 {
     bool transpose() const { return true; }
-    std::vector<op_desc> operators() const { return {{"DepthwiseConv2dNative"}}; }
+    std::vector<op_desc> operators() const { return {{"DepthwiseConv2dNative", "depthwise_conv2d_native"}}; }
 
     instruction_ref parse(const op_desc& /*opd*/,
                           const tf_parser& parser,

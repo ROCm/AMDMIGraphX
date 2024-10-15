@@ -33,7 +33,7 @@ namespace tf {
 
 struct parse_mean : op_parser<parse_mean>
 {
-    std::vector<op_desc> operators() const { return {{"Mean"}}; }
+    std::vector<op_desc> operators() const { return {{"Mean", "mean"}}; }
 
     instruction_ref parse(const op_desc& /*opd*/,
                           const tf_parser& /*parser*/,

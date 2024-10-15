@@ -85,7 +85,7 @@ Constrain 'y_zero_point' and 'y' to 8-bit unsigned integer tensor.
 
 struct parse_dynamicquantizelinear : op_parser<parse_dynamicquantizelinear>
 {
-    std::vector<op_desc> operators() const { return {{"DynamicQuantizeLinear"}}; }
+    std::vector<op_desc> operators() const { return {{"DynamicQuantizeLinear", "dynamic_quantize_linear"}}; }
 
     std::vector<instruction_ref> parse(const op_desc& /*opd*/,
                                        const onnx_parser& /*parser*/,

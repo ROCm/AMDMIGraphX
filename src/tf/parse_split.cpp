@@ -33,7 +33,7 @@ namespace tf {
 
 struct parse_split : op_parser<parse_split>
 {
-    std::vector<op_desc> operators() const { return {{"Split"}, {"SplitV"}}; }
+    std::vector<op_desc> operators() const { return {{"Split", "split"}, {"SplitV", "split_v"}}; }
 
     std::vector<instruction_ref> parse(const op_desc& /*opd*/,
                                        const tf_parser& /*parser*/,

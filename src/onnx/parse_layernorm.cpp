@@ -32,7 +32,7 @@ namespace onnx {
 
 struct parse_layernorm : op_parser<parse_layernorm>
 {
-    std::vector<op_desc> operators() const { return {{"LayerNormalization"}}; }
+    std::vector<op_desc> operators() const { return {{"LayerNormalization", "layer_normalization"}}; }
 
     std::vector<instruction_ref> parse(const op_desc& /*opd*/,
                                        const onnx_parser& parser,

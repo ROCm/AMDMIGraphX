@@ -32,7 +32,7 @@ namespace onnx {
 
 struct parse_selu : op_parser<parse_selu>
 {
-    std::vector<op_desc> operators() const { return {{"Selu"}}; }
+    std::vector<op_desc> operators() const { return {{"Selu", "selu"}}; }
 
     instruction_ref parse(const op_desc& /*opd*/,
                           const onnx_parser& /*parser*/,

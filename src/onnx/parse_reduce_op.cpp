@@ -158,7 +158,7 @@ struct parse_reduce_op : reduce_parser<parse_reduce_op>
 
 struct parse_reduce_l1 : reduce_parser<parse_reduce_l1>
 {
-    std::vector<op_desc> operators() const { return {{"ReduceL1"}}; }
+    std::vector<op_desc> operators() const { return {{"ReduceL1", "reduce_L1"}}; }
 
     instruction_ref parse(const op_desc& /*opd*/,
                           const onnx_parser& parser,
@@ -172,7 +172,7 @@ struct parse_reduce_l1 : reduce_parser<parse_reduce_l1>
 
 struct parse_reduce_l2 : reduce_parser<parse_reduce_l2>
 {
-    std::vector<op_desc> operators() const { return {{"ReduceL2"}}; }
+    std::vector<op_desc> operators() const { return {{"ReduceL2", "reduce_L2"}}; }
 
     instruction_ref parse(const op_desc& /*opd*/,
                           const onnx_parser& parser,
@@ -187,7 +187,7 @@ struct parse_reduce_l2 : reduce_parser<parse_reduce_l2>
 
 struct parse_reduce_log_sum : reduce_parser<parse_reduce_log_sum>
 {
-    std::vector<op_desc> operators() const { return {{"ReduceLogSum"}}; }
+    std::vector<op_desc> operators() const { return {{"ReduceLogSum", "reduce_log_sum"}}; }
 
     instruction_ref parse(const op_desc& /*opd*/,
                           const onnx_parser& parser,
@@ -201,7 +201,7 @@ struct parse_reduce_log_sum : reduce_parser<parse_reduce_log_sum>
 
 struct parse_reduce_log_sum_exp : reduce_parser<parse_reduce_log_sum_exp>
 {
-    std::vector<op_desc> operators() const { return {{"ReduceLogSumExp"}}; }
+    std::vector<op_desc> operators() const { return {{"ReduceLogSumExp", "reduce_log_sum_exp"}}; }
 
     instruction_ref parse(const op_desc& /*opd*/,
                           const onnx_parser& parser,
@@ -216,7 +216,7 @@ struct parse_reduce_log_sum_exp : reduce_parser<parse_reduce_log_sum_exp>
 
 struct parse_reduce_sum_square : reduce_parser<parse_reduce_sum_square>
 {
-    std::vector<op_desc> operators() const { return {{"ReduceSumSquare"}}; }
+    std::vector<op_desc> operators() const { return {{"ReduceSumSquare", "reduce_sum_square"}}; }
 
     instruction_ref parse(const op_desc& /*opd*/,
                           const onnx_parser& parser,

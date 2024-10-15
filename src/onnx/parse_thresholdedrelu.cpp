@@ -33,7 +33,7 @@ namespace onnx {
 
 struct parse_thresholdedrelu : op_parser<parse_thresholdedrelu>
 {
-    std::vector<op_desc> operators() const { return {{"ThresholdedRelu"}}; }
+    std::vector<op_desc> operators() const { return {{"ThresholdedRelu", "thresholded_relu"}}; }
 
     instruction_ref parse(const op_desc& /*opd*/,
                           const onnx_parser& parser,

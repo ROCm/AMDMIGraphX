@@ -89,7 +89,7 @@ integer tensor.
 
 struct parse_qlinearmatmul : op_parser<parse_qlinearmatmul>
 {
-    std::vector<op_desc> operators() const { return {{"QLinearMatMul"}}; }
+    std::vector<op_desc> operators() const { return {{"QLinearMatMul", "q_linear_mat_mul"}}; }
 
     // basic type checking for QLinearMatMul Operator
 

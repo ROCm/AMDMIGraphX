@@ -34,7 +34,7 @@ namespace tf {
 
 struct parse_softmax : op_parser<parse_softmax>
 {
-    std::vector<op_desc> operators() const { return {{"Softmax"}}; }
+    std::vector<op_desc> operators() const { return {{"Softmax", "softmax"}}; }
 
     instruction_ref parse(const op_desc& /*opd*/,
                           const tf_parser& /*parser*/,

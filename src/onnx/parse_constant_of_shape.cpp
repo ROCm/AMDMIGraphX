@@ -34,7 +34,7 @@ namespace onnx {
 
 struct parse_constant_of_shape : op_parser<parse_constant_of_shape>
 {
-    std::vector<op_desc> operators() const { return {{"ConstantOfShape"}}; }
+    std::vector<op_desc> operators() const { return {{"ConstantOfShape", "constant_of_shape"}}; }
 
     instruction_ref parse(const op_desc& /*opd*/,
                           const onnx_parser& parser,

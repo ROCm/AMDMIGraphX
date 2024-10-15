@@ -41,7 +41,7 @@ namespace onnx {
 */
 struct parse_reversesequence : op_parser<parse_reversesequence>
 {
-    std::vector<op_desc> operators() const { return {{"ReverseSequence"}}; }
+    std::vector<op_desc> operators() const { return {{"ReverseSequence", "reverse_sequence"}}; }
 
     instruction_ref parse(const op_desc& /*opd*/,
                           const onnx_parser& parser,

@@ -33,7 +33,7 @@ namespace tf {
 
 struct parse_concat : op_parser<parse_concat>
 {
-    std::vector<op_desc> operators() const { return {{"ConcatV2"}}; }
+    std::vector<op_desc> operators() const { return {{"ConcatV2", "concat_v2"}}; }
 
     instruction_ref parse(const op_desc& /*opd*/,
                           const tf_parser& /*parser*/,

@@ -34,7 +34,7 @@ namespace tf {
 
 struct parse_pack : op_parser<parse_pack>
 {
-    std::vector<op_desc> operators() const { return {{"Pack"}}; }
+    std::vector<op_desc> operators() const { return {{"Pack", "pack"}}; }
 
     instruction_ref parse(const op_desc& /*opd*/,
                           const tf_parser& parser,

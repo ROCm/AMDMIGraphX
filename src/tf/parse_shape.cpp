@@ -33,7 +33,7 @@ namespace tf {
 
 struct parse_shape : op_parser<parse_shape>
 {
-    std::vector<op_desc> operators() const { return {{"Shape"}}; }
+    std::vector<op_desc> operators() const { return {{"Shape", "shape"}}; }
 
     // Use a literal instruction to replace the shape since output of
     // shape operator are literals in migraphx

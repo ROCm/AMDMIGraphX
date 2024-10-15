@@ -35,7 +35,7 @@ namespace onnx {
 
 struct parse_if : op_parser<parse_if>
 {
-    std::vector<op_desc> operators() const { return {{"If"}}; }
+    std::vector<op_desc> operators() const { return {{"If", "if"}}; }
 
     std::vector<instruction_ref> parse(const op_desc& /*opd*/,
                                        onnx_parser& parser,

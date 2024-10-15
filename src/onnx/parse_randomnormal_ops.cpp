@@ -37,7 +37,7 @@ struct parse_randomnormal_ops : op_parser<parse_randomnormal_ops>
 {
     std::set<shape::type_t> valid_types = {shape::float_type, shape::half_type, shape::double_type};
 
-    std::vector<op_desc> operators() const { return {{"RandomNormal"}, {"RandomNormalLike"}}; }
+    std::vector<op_desc> operators() const { return {{"RandomNormal", "random_normal"}, {"RandomNormalLike", "random_normal_like"}}; }
 
     instruction_ref parse(const op_desc& opd,
                           const onnx_parser& parser,

@@ -58,7 +58,7 @@ void rnn_transpose_outputs(onnx_parser::node_info& info,
 
 struct parse_rnn : op_parser<parse_rnn>
 {
-    std::vector<op_desc> operators() const { return {{"RNN"}}; }
+    std::vector<op_desc> operators() const { return {{"RNN", "RNN"}}; }
 
     std::vector<instruction_ref> parse(const op_desc& /*opd*/,
                                        const onnx_parser& parser,

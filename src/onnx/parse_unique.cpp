@@ -54,7 +54,7 @@ namespace onnx {
 struct parse_unique : op_parser<parse_unique>
 {
 
-    std::vector<op_desc> operators() const { return {{"Unique"}}; }
+    std::vector<op_desc> operators() const { return {{"Unique", "unique"}}; }
 
     std::vector<instruction_ref> parse(const op_desc& opd,
                                        const onnx_parser& parser,

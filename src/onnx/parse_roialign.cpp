@@ -34,7 +34,7 @@ namespace onnx {
 
 struct parse_roialign : op_parser<parse_roialign>
 {
-    std::vector<op_desc> operators() const { return {{"RoiAlign"}}; }
+    std::vector<op_desc> operators() const { return {{"RoiAlign", "RoI_align"}}; }
 
     instruction_ref parse(const op_desc& /*opd*/,
                           const onnx_parser& parser,

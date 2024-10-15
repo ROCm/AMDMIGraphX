@@ -32,7 +32,7 @@ namespace onnx {
 
 struct parse_spacetodepth : op_parser<parse_spacetodepth>
 {
-    std::vector<op_desc> operators() const { return {{"SpaceToDepth"}}; }
+    std::vector<op_desc> operators() const { return {{"SpaceToDepth", "space_to_depth"}}; }
 
     instruction_ref parse(const op_desc& /*opd*/,
                           const onnx_parser& /*parser*/,

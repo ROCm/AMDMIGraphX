@@ -32,7 +32,7 @@ namespace onnx {
 
 struct parse_greaterorequal : op_parser<parse_greaterorequal>
 {
-    std::vector<op_desc> operators() const { return {{"GreaterOrEqual"}}; }
+    std::vector<op_desc> operators() const { return {{"GreaterOrEqual", "greater_or_equal"}}; }
 
     instruction_ref parse(const op_desc& /*opd*/,
                           const onnx_parser& /*parser*/,

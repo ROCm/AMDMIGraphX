@@ -38,7 +38,7 @@ struct parse_instancenorm : op_parser<parse_instancenorm>
 {
     std::set<shape::type_t> valid_types = {shape::float_type, shape::half_type, shape::double_type};
 
-    std::vector<op_desc> operators() const { return {{"InstanceNormalization"}}; }
+    std::vector<op_desc> operators() const { return {{"InstanceNormalization", "instance_normalization"}}; }
 
     instruction_ref parse(const op_desc& opd,
                           const onnx_parser& parser,
@@ -79,6 +79,7 @@ struct parse_instancenorm : op_parser<parse_instancenorm>
         auto x     = args[0];
         auto scale = args[1];
         auto bias  = args[2];
+
         if(not contains(valid_types, dtype))
             MIGRAPHX_THROW(opd.op_name + ": invalid output type: " + std::to_string(dtype) +
                            ". Valid types are 1 (float), 10 (half), and 11 (double).");

@@ -33,7 +33,7 @@ namespace onnx {
 
 struct parse_trilu : op_parser<parse_trilu>
 {
-    std::vector<op_desc> operators() const { return {{"Trilu"}}; }
+    std::vector<op_desc> operators() const { return {{"Trilu", "trilu"}}; }
 
     instruction_ref parse(const op_desc&,
                           const onnx_parser&,

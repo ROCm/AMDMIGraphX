@@ -33,7 +33,7 @@ namespace onnx {
 
 struct parse_tile : op_parser<parse_tile>
 {
-    std::vector<op_desc> operators() const { return {{"Tile"}}; }
+    std::vector<op_desc> operators() const { return {{"Tile", "tile"}}; }
 
     instruction_ref parse(const op_desc& /*opd*/,
                           const onnx_parser& /*parser*/,

@@ -33,7 +33,7 @@ namespace tf {
 struct parse_constant_op : op_parser<parse_constant_op>
 {
     bool transpose() const { return true; }
-    std::vector<op_desc> operators() const { return {{"Const"}}; }
+    std::vector<op_desc> operators() const { return {{"Const", "const"}}; }
 
     instruction_ref parse(const op_desc& /*opd*/,
                           const tf_parser& parser,

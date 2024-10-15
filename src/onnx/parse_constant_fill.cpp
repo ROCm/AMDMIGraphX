@@ -37,7 +37,7 @@ namespace onnx {
 // operator
 struct parse_constant_fill : op_parser<parse_constant_fill>
 {
-    std::vector<op_desc> operators() const { return {{"ConstantFill"}}; }
+    std::vector<op_desc> operators() const { return {{"ConstantFill", "constant_fill"}}; }
 
     instruction_ref parse(const op_desc& /*opd*/,
                           const onnx_parser& parser,

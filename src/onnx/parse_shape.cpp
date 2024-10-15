@@ -37,7 +37,7 @@ namespace onnx {
  */
 struct parse_shape : op_parser<parse_shape>
 {
-    std::vector<op_desc> operators() const { return {{"Shape"}}; }
+    std::vector<op_desc> operators() const { return {{"Shape", "shape"}}; }
 
     instruction_ref parse(const op_desc& /*opd*/,
                           const onnx_parser& /*parser*/,

@@ -33,7 +33,7 @@ namespace onnx {
 
 struct parse_gather_elements : op_parser<parse_gather_elements>
 {
-    std::vector<op_desc> operators() const { return {{"GatherElements"}}; }
+    std::vector<op_desc> operators() const { return {{"GatherElements", "gather_elements"}}; }
 
     instruction_ref parse(const op_desc& opd,
                           const onnx_parser& parser,

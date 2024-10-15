@@ -33,7 +33,7 @@ namespace onnx {
 
 struct parse_topk : op_parser<parse_topk>
 {
-    std::vector<op_desc> operators() const { return {{"TopK"}}; }
+    std::vector<op_desc> operators() const { return {{"TopK", "top_k"}}; }
 
     std::vector<instruction_ref> parse(const op_desc& /*opd*/,
                                        const onnx_parser& parser,

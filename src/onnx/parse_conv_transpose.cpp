@@ -44,7 +44,7 @@ std::vector<int64_t> to_int64_vector(const std::vector<T>& input_vector)
 
 struct parse_conv_transpose : op_parser<parse_conv_transpose>
 {
-    std::vector<op_desc> operators() const { return {{"ConvTranspose"}}; }
+    std::vector<op_desc> operators() const { return {{"ConvTranspose", "conv_transpose"}}; }
 
     instruction_ref parse(const op_desc& /*opd*/,
                           const onnx_parser& parser,

@@ -113,7 +113,7 @@ instruction_ref reflect_pad(const onnx_parser::node_info& info,
 
 struct parse_pad : op_parser<parse_pad>
 {
-    std::vector<op_desc> operators() const { return {{"Pad"}}; }
+    std::vector<op_desc> operators() const { return {{"Pad", "pad"}}; }
 
     std::string parse_mode(const onnx_parser::node_info& info,
                            const std::vector<instruction_ref>& args) const

@@ -32,7 +32,7 @@ namespace onnx {
 
 struct parse_groupnorm : op_parser<parse_groupnorm>
 {
-    std::vector<op_desc> operators() const { return {{"GroupNormalization"}}; }
+    std::vector<op_desc> operators() const { return {{"GroupNormalization", "group_normalization"}}; }
 
     instruction_ref parse(const op_desc& /*opd*/,
                           const onnx_parser& parser,

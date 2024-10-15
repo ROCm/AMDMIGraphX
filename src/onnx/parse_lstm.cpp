@@ -77,7 +77,7 @@ void lstm_transpose_outputs(onnx_parser::node_info& info,
 
 struct parse_lstm : op_parser<parse_lstm>
 {
-    std::vector<op_desc> operators() const { return {{"LSTM"}}; }
+    std::vector<op_desc> operators() const { return {{"LSTM", "LSTM"}}; }
 
     std::vector<instruction_ref> parse(const op_desc& /*opd*/,
                                        const onnx_parser& parser,

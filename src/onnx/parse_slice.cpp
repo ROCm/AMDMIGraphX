@@ -35,7 +35,7 @@ namespace onnx {
 struct parse_slice : op_parser<parse_slice>
 {
 
-    std::vector<op_desc> operators() const { return {{"Slice"}}; }
+    std::vector<op_desc> operators() const { return {{"Slice", "slice"}}; }
 
     struct slice_desc
     {

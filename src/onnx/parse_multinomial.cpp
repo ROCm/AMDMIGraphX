@@ -34,7 +34,7 @@ namespace onnx {
 
 struct parse_multinomial : op_parser<parse_multinomial>
 {
-    std::vector<op_desc> operators() const { return {{"Multinomial"}}; }
+    std::vector<op_desc> operators() const { return {{"Multinomial", "multinomial"}}; }
 
     instruction_ref parse(const op_desc& /*opd*/,
                           const onnx_parser& /*parser*/,

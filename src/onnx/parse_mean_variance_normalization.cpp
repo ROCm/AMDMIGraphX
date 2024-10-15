@@ -33,7 +33,7 @@ namespace onnx {
 
 struct parse_mean_variance_normalization : op_parser<parse_mean_variance_normalization>
 {
-    std::vector<op_desc> operators() const { return {{"MeanVarianceNormalization"}}; }
+    std::vector<op_desc> operators() const { return {{"MeanVarianceNormalization", "mean_variance_normalization"}}; }
 
     instruction_ref parse(const op_desc& /*opd*/,
                           const onnx_parser& /*parser*/,

@@ -33,7 +33,7 @@ namespace tf {
 
 struct parse_reshape : op_parser<parse_reshape>
 {
-    std::vector<op_desc> operators() const { return {{"Reshape"}}; }
+    std::vector<op_desc> operators() const { return {{"Reshape", "reshape"}}; }
 
     instruction_ref parse(const op_desc& /*opd*/,
                           const tf_parser& /*parser*/,

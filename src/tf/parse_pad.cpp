@@ -34,7 +34,7 @@ namespace tf {
 struct parse_pad : op_parser<parse_pad>
 {
     bool transpose() const { return true; }
-    std::vector<op_desc> operators() const { return {{"Pad"}}; }
+    std::vector<op_desc> operators() const { return {{"Pad", "pad"}}; }
 
     instruction_ref parse(const op_desc& /*opd*/,
                           const tf_parser& parser,

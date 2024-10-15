@@ -32,7 +32,7 @@ namespace onnx {
 
 struct parse_lessorequal : op_parser<parse_lessorequal>
 {
-    std::vector<op_desc> operators() const { return {{"LessOrEqual"}}; }
+    std::vector<op_desc> operators() const { return {{"LessOrEqual", "less_or_equal"}}; }
 
     instruction_ref parse(const op_desc& /*opd*/,
                           const onnx_parser& /*parser*/,

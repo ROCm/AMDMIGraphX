@@ -32,7 +32,7 @@ namespace onnx {
 
 struct parse_imagescalar : op_parser<parse_imagescalar>
 {
-    std::vector<op_desc> operators() const { return {{"ImageScaler"}}; }
+    std::vector<op_desc> operators() const { return {{"ImageScaler", "image_scaler"}}; }
 
     instruction_ref parse(const op_desc& /*opd*/,
                           const onnx_parser& parser,

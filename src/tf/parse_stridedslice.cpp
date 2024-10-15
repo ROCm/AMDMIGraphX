@@ -33,7 +33,7 @@ namespace tf {
 
 struct parse_strideslice : op_parser<parse_strideslice>
 {
-    std::vector<op_desc> operators() const { return {{"StridedSlice"}}; }
+    std::vector<op_desc> operators() const { return {{"StridedSlice", "strided_slice"}}; }
 
     instruction_ref parse(const op_desc& /*opd*/,
                           const tf_parser& /*parser*/,

@@ -34,7 +34,7 @@ namespace onnx {
 
 struct parse_loop : op_parser<parse_loop>
 {
-    std::vector<op_desc> operators() const { return {{"Loop"}}; }
+    std::vector<op_desc> operators() const { return {{"Loop", "loop"}}; }
 
     std::vector<instruction_ref> parse(const op_desc& /*opd*/,
                                        onnx_parser& parser,

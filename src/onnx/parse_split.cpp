@@ -161,7 +161,7 @@ auto parse_static_split(const onnx_parser::node_info& info,
 
 struct parse_split : op_parser<parse_split>
 {
-    std::vector<op_desc> operators() const { return {{"Split"}}; }
+    std::vector<op_desc> operators() const { return {{"Split", "split"}}; }
 
     std::vector<instruction_ref> parse(const op_desc& opd,
                                        const onnx_parser& parser,

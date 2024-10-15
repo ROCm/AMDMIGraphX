@@ -34,7 +34,7 @@ namespace onnx {
 
 struct parse_expand : op_parser<parse_expand>
 {
-    std::vector<op_desc> operators() const { return {{"Expand"}}; }
+    std::vector<op_desc> operators() const { return {{"Expand", "expand"}}; }
 
     instruction_ref parse(const op_desc& /*opd*/,
                           const onnx_parser& /*parser*/,

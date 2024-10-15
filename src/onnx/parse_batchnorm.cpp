@@ -32,7 +32,7 @@ namespace onnx {
 
 struct parse_batchnorm : op_parser<parse_batchnorm>
 {
-    std::vector<op_desc> operators() const { return {{"BatchNormalization"}}; }
+    std::vector<op_desc> operators() const { return {{"BatchNormalization", "batch_normalization"}}; }
 
     instruction_ref parse(const op_desc& /*opd*/,
                           const onnx_parser& parser,

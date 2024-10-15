@@ -33,7 +33,7 @@ namespace onnx {
 
 struct parse_range : op_parser<parse_range>
 {
-    std::vector<op_desc> operators() const { return {{"Range"}}; }
+    std::vector<op_desc> operators() const { return {{"Range", "range"}}; }
 
     instruction_ref parse(const op_desc& /*opd*/,
                           const onnx_parser& /*parser*/,

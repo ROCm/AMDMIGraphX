@@ -35,7 +35,7 @@ namespace tf {
 struct parse_conv : op_parser<parse_conv>
 {
     bool transpose() const { return true; }
-    std::vector<op_desc> operators() const { return {{"Conv2D"}}; }
+    std::vector<op_desc> operators() const { return {{"Conv2D", "conv2d"}}; }
 
     instruction_ref parse(const op_desc& /*opd*/,
                           const tf_parser& parser,

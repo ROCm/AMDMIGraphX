@@ -155,6 +155,10 @@ bool shape_transform_descriptor::apply_reshape(const std::vector<std::size_t>& r
 bool shape_transform_descriptor::apply_reshape_impl(const std::vector<std::size_t>& rdims)
 {
     assert(migraphx::elements(rdims) == this->elements());
+    if(migraphx::equal(dimensions, rdims, [](const dimension& d, std::size_t rdim) {
+        return d.len() == rdim;
+    }))
+        return true;
     std::vector<dimension> new_dims;
     auto subs     = get_all_subdimensions(dimensions);
     std::size_t i = 0;

@@ -744,7 +744,8 @@ struct find_unary_shape_transforms
     {
         return ins->name() == "@literal" or
                ins->get_operator().attributes().contains("pointwise") or
-               contains(ins->name(), "reduce");
+               contains(ins->name(), "reduce") or
+               ins->get_operator().attributes().contains("scalar"); //For scalar operation
     }
 
     void apply(module& m, const match::matcher_result& mr) const

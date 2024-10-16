@@ -49,3 +49,5 @@ struct test_gemm_literal : verify_program<test_gemm_literal<DType>>
 template struct test_gemm_literal<migraphx::shape::float_type>;
 template struct test_gemm_literal<migraphx::shape::half_type>;
 template struct test_gemm_literal<migraphx::shape::fp8e4m3fnuz_type>;
+template struct test_gemm_literal<migraphx::shape::fp8e4m3fn_type>;
+template struct test_gemm_literal<migraphx::shape::fp8e5m2_type>;

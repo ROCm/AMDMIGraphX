@@ -30,49 +30,12 @@
 #include <migraphx/make_op.hpp>
 
 #include <test.hpp>
+#include <reduce.hpp>
 #include <pointwise.hpp>
 
 void run_pass(migraphx::program& p)
 {
     migraphx::run_passes(p, {migraphx::fuse_reduce{}, migraphx::dead_code_elimination{}});
-}
-
-bool all_instructions_are_local(const migraphx::module& m)
-{
-    return std::all_of(m.begin(), m.end(), [&](const auto& ins) {
-        return std::all_of(ins.inputs().begin(), ins.inputs().end(), [&](auto input) {
-            return m.has_instruction(input);
-        });
-    });
-}
-
-template <class F>
-migraphx::instruction_ref add_reduce(migraphx::program& p,
-                                     const std::string& name,
-                                     std::vector<migraphx::instruction_ref> inputs,
-                                     const std::vector<int64_t>& axes,
-                                     F f)
-{
-    auto* rm = p.create_module(name);
-    auto* mm = p.get_main_module();
-    rm->set_bypass();
-    std::vector<migraphx::instruction_ref> params;
-    std::transform(inputs.begin(), inputs.end(), std::back_inserter(params), [&](auto input) {
-        return rm->add_parameter(
-            "x" + std::to_string(params.size()),
-            migraphx::shape{input->get_shape().type(), input->get_shape().lens()});
-    });
-    auto r = f(rm, params, axes);
-    rm->add_return({r});
-    EXPECT(all_instructions_are_local(*rm));
-    return mm->add_instruction(migraphx::make_op("fused_reduce", {{"axes", axes}}), inputs, {rm});
-}
-
-inline auto single_reduce(const std::string& name)
-{
-    return [=](auto* rm, const auto& inputs, const auto& axes) {
-        return rm->add_instruction(migraphx::make_op(name, {{"axes", axes}}), inputs);
-    };
 }
 
 TEST_CASE(single)
@@ -928,6 +891,108 @@ TEST_CASE(reduce_reshape_reduce)
             mm->add_instruction(migraphx::make_op("reshape", {{"dims", s2.lens()}}), freduce);
         mm->add_return({freducer});
     }
+    EXPECT(p1.sort() == p2.sort());
+}
+
+TEST_CASE(reshape_reduce_reduce_reduce_diff_axes)
+{
+    migraphx::shape s1{migraphx::shape::float_type, {128, 196, 256}};
+    migraphx::shape s2{migraphx::shape::float_type, {1}};
+    migraphx::shape s3{migraphx::shape::float_type, {25088, 256}};
+
+    migraphx::program p1;
+    {
+        auto* mm = p1.get_main_module();
+        auto x1  = mm->add_parameter("x1", s1);
+        auto x2  = mm->add_parameter("x2", s1);
+        auto l1  = mm->add_literal(migraphx::literal(s2, {1.0}));
+        auto l2  = mm->add_literal(migraphx::literal(s2, {2.0}));
+
+        auto x1_rsp = mm->add_instruction(migraphx::make_op("reshape", {{"dims", s3.lens()}}), x1);
+        auto l2_mb =
+            mm->add_instruction(migraphx::make_op("multibroadcast", {{"out_lens", s3.lens()}}), l2);
+        auto l2_ct = mm->add_instruction(migraphx::make_op("contiguous"), l2_mb);
+        auto pw0   = add_pointwise(p1, "main:pointwise0", {l2_ct, x1_rsp}, single_pointwise("add"));
+        auto pw0_rsp =
+            mm->add_instruction(migraphx::make_op("reshape", {{"dims", s1.lens()}}), pw0);
+        auto pw1   = add_pointwise(p1, "main:pointwise1", {x2, pw0_rsp}, single_pointwise("mul"));
+        auto pw2   = add_pointwise(p1, "main:pointwise2", {pw1}, single_pointwise("log"));
+        auto rsum0 = mm->add_instruction(migraphx::make_op("reduce_sum", {{"axes", {2}}}), pw2);
+        auto rsum0_mb = mm->add_instruction(
+            migraphx::make_op("multibroadcast", {{"out_lens", s1.lens()}}), rsum0);
+        auto rsum0_ct = mm->add_instruction(migraphx::make_op("contiguous"), rsum0_mb);
+        auto pw3 =
+            add_pointwise(p1, "main:pointwise3", {pw0_rsp, rsum0_ct}, single_pointwise("add"));
+        auto pw4    = add_pointwise(p1, "main:pointwise4", {pw3}, single_pointwise("log"));
+        auto rsum1  = mm->add_instruction(migraphx::make_op("reduce_sum", {{"axes", {2}}}), pw4);
+        auto pw5    = add_pointwise(p1, "main:pointwise5", {rsum1}, single_pointwise("log"));
+        auto pw5_mb = mm->add_instruction(
+            migraphx::make_op("multibroadcast", {{"out_lens", s1.lens()}}), pw5);
+        auto pw5_ct = mm->add_instruction(migraphx::make_op("contiguous"), pw5_mb);
+
+        auto l1_mb =
+            mm->add_instruction(migraphx::make_op("multibroadcast", {{"out_lens", s1.lens()}}), l1);
+        auto pw6 = add_pointwise(p1, "main:pointwise6", {pw5_ct, l1_mb}, single_pointwise("mul"));
+
+        auto rsum2 = mm->add_instruction(migraphx::make_op("reduce_sum", {{"axes", {1}}}), pw6);
+        mm->add_return({rsum2});
+    }
+    run_pass(p1);
+    migraphx::program p2;
+    {
+        auto* mm = p2.get_main_module();
+        auto x1  = mm->add_parameter("x1", s1);
+        auto x2  = mm->add_parameter("x2", s1);
+        auto l1  = mm->add_literal(migraphx::literal(s2, {1.0}));
+        auto l2  = mm->add_literal(migraphx::literal(s2, {2.0}));
+
+        auto l1_mb =
+            mm->add_instruction(migraphx::make_op("multibroadcast", {{"out_lens", s1.lens()}}), l1);
+        auto l2_mb =
+            mm->add_instruction(migraphx::make_op("multibroadcast", {{"out_lens", s1.lens()}}), l2);
+
+        auto reduce0 = add_reduce(
+            p2,
+            "main:pointwise0:main:pointwise1:main:reduce_sum1:main:pointwise2:main:reduce_sum0:"
+            "main:pointwise3:main:pointwise4:main:pointwise5:main:pointwise6_reshape_reshape",
+            {l2_mb, x1, x2, l1_mb},
+            {2},
+            [&](auto* rm, const auto& inputs, const auto& axes) {
+                auto pw0 = add_pointwise(
+                    p2, rm, "main:pointwise0", {inputs[0], inputs[1]}, single_pointwise("add"));
+                auto pw1 = add_pointwise(
+                    p2, rm, "main:pointwise1", {inputs[2], pw0}, single_pointwise("mul"));
+                auto pw2 = add_pointwise(p2, rm, "main:pointwise2", {pw1}, single_pointwise("log"));
+                auto rsum0 =
+                    rm->add_instruction(migraphx::make_op("reduce_sum", {{"axes", axes}}), pw2);
+                auto rsum0_mb = rm->add_instruction(
+                    migraphx::make_op("multibroadcast", {{"out_lens", s1.lens()}}), rsum0);
+                auto pw3 = add_pointwise(
+                    p2, rm, "main:pointwise3", {pw0, rsum0_mb}, single_pointwise("add"));
+                auto pw4 = add_pointwise(p2, rm, "main:pointwise4", {pw3}, single_pointwise("log"));
+                auto rsum1 =
+                    rm->add_instruction(migraphx::make_op("reduce_sum", {{"axes", axes}}), pw4);
+                auto pw5 =
+                    add_pointwise(p2, rm, "main:pointwise5", {rsum1}, single_pointwise("log"));
+                auto pw5_mb = rm->add_instruction(
+                    migraphx::make_op("multibroadcast", {{"out_lens", s1.lens()}}), pw5);
+                return add_pointwise(
+                    p2, rm, "main:pointwise6", {pw5_mb, inputs[3]}, single_pointwise("mul"));
+            });
+
+        auto reduce1 =
+            add_reduce(p2,
+                       "main:reduce_sum2_reshape",
+                       {reduce0},
+                       {1},
+                       [&](auto* rm, const auto& inputs, const auto& axes) {
+                           return rm->add_instruction(
+                               migraphx::make_op("reduce_sum", {{"axes", axes}}), inputs[0]);
+                       });
+
+        mm->add_return({reduce1});
+    }
+
     EXPECT(p1.sort() == p2.sort());
 }
 

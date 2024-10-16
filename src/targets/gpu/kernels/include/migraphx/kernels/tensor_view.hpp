@@ -35,7 +35,7 @@ template <class T>
 struct tensor_view_iterator_read
 {
     T* view;
-    constexpr auto& operator()(index_int n) const
+    constexpr auto& operator()(MIGRAPHX_CAPTURE_SOURCE_LOCATION(index_int) n) const
     {
         MIGRAPHX_ASSERT(view != nullptr);
         return (*view)[n];
@@ -101,6 +101,12 @@ template <class T, class Shape>
 constexpr tensor_view<T, Shape> make_tensor_view(T* x, Shape)
 {
     return {x};
+}
+
+template <class T, class Permutation>
+constexpr auto reorder_tensor_view(T x, Permutation perm)
+{
+    return make_tensor_view(x.data(), reorder_shape(x.get_shape(), perm));
 }
 
 } // namespace migraphx

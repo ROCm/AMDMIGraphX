@@ -332,7 +332,7 @@ struct check_shapes
      */
     const check_shapes& not_broadcasted() const
     {
-        if(not this->all_of([](const shape& s) { return not s.broadcasted(); }))
+        if(not this->all_of([](const shape& s) { return s.standard() or not s.broadcasted(); }))
             MIGRAPHX_THROW(prefix() + "Shapes are broadcasted");
         return *this;
     }

@@ -48,7 +48,7 @@ extern "C" {
 MIGRAPHX_GLOBAL void ${kernel}(${params}) 
 {
     auto idx = make_index();
-    pointwise<${noutputs}>(idx, ${transformers})(${lambda}, ${args});
+    pointwise<${noutputs}, ${tiled}>(idx, ${transformers})(${lambda}, ${args});
 }
     
 }
@@ -78,16 +78,23 @@ struct pointwise_compiler : compiler<pointwise_compiler>
         auto axis              = find_fast_axis(options.virtual_inputs);
         auto vec               = vectorize::elements(ctx, axis, options.virtual_inputs);
         options.kernel_name    = v.get("kernel", "kernel");
-        options.set_launch_params(
-            v, compute_global_for(ctx, options.inputs.front().elements() / vec.size, 256));
         auto noutputs = options.inputs.size() - inputs.size() + 1;
+        auto t                 = tile::elements(options.virtual_inputs, noutputs);
+        // auto t = tile{};
+        if(t.ntiles == 0)
+            options.set_launch_params(
+                v, compute_global_for(ctx, options.inputs.front().elements() / vec.size, 256));
+        else
+            options.set_launch_params(
+                v, compute_global_for(ctx, t.ntiles * t.block_size, 256), t.block_size);
         auto src =
             interpolate_string(pointwise_kernel,
                                {{"kernel", options.kernel_name},
                                 {"params", enum_params(options.inputs.size(), "void * private_p")},
                                 {"args", enum_params(options.inputs.size(), "private_p")},
                                 {"lambda", v.at("lambda").to<std::string>()},
-                                {"transformers", make_transformer_args(vec)},
+                                {"transformers", make_transformer_args(t, vec)},
+                                {"tiled", t.ntiles > 0 ? "true" : "false"},
                                 {"noutputs", std::to_string(noutputs)},
                                 {"preamble", v.get("preamble", std::string{})}});
         return compile_hip_code_object(src, options);

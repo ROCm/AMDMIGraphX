@@ -31,17 +31,11 @@ TEST_CASE(pack_test_nhwc)
 
     auto* mm = p.get_main_module();
     auto l0  = mm->add_parameter("0", migraphx::shape{migraphx::shape::float_type, {1, 2, 1, 1}});
-    auto lt0 =
-        mm->add_instruction(migraphx::make_op("transpose", {{"permutation", {0, 2, 3, 1}}}), l0);
-    auto l1 = mm->add_parameter("1", migraphx::shape{migraphx::shape::float_type, {1, 2, 1, 1}});
-    auto lt1 =
-        mm->add_instruction(migraphx::make_op("transpose", {{"permutation", {0, 2, 3, 1}}}), l1);
+    auto l1  = mm->add_parameter("1", migraphx::shape{migraphx::shape::float_type, {1, 2, 1, 1}});
     auto l2 = mm->add_parameter("2", migraphx::shape{migraphx::shape::float_type, {1, 2, 1, 1}});
-    auto lt2 =
-        mm->add_instruction(migraphx::make_op("transpose", {{"permutation", {0, 2, 3, 1}}}), l2);
-    std::vector<migraphx::instruction_ref> args{lt0, lt1, lt2};
+    std::vector<migraphx::instruction_ref> args{l0, l1, l2};
     std::vector<migraphx::instruction_ref> unsqueezed_args;
-    int64_t nchw_axis = 3;
+    int64_t nchw_axis = 1;
 
     std::transform(args.begin(),
                    args.end(),
@@ -50,8 +44,9 @@ TEST_CASE(pack_test_nhwc)
                        return mm->add_instruction(
                            migraphx::make_op("unsqueeze", {{"axes", {nchw_axis}}}), arg);
                    });
-    mm->add_instruction(migraphx::make_op("concat", {{"axis", static_cast<int>(nchw_axis)}}),
-                        unsqueezed_args);
+    auto concat =
+        mm->add_instruction(migraphx::make_op("concat", {{"axis", nchw_axis}}), unsqueezed_args);
+    mm->add_instruction(migraphx::make_op("transpose", {{"permutation", {0, 3, 4, 1, 2}}}), concat);
     auto prog = optimize_tf("pack_test_nhwc.pb", true);
 
     EXPECT(p == prog);

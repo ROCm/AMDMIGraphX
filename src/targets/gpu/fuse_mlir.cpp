@@ -131,7 +131,7 @@ bool mlir_attention_enabled(context* ctx)
     if(not mlir_enabled())
         return false;
     // Enable attention by default for mi300
-    if(starts_with(ctx->get_current_device().get_gfx_name(), "gfx94"))
+    if(ctx and starts_with(ctx->get_current_device().get_gfx_name(), "gfx94"))
         return true;
     return specific_op<requested>("attention");
 #else

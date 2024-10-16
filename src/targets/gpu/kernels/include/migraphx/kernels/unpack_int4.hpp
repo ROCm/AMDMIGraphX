@@ -42,7 +42,7 @@ __device__ void unpack_int4(Output output, Input input)
 
         // unpack_int4 op's normalize_compute_shape will ensure that Input::type is either uint8_t
         // or int8_t
-        if constexpr(is_same<typename Input::type, uint8_t>::value)
+        if constexpr(is_unsigned<typename Input::type>{})
             output[idx] = input_val & 0xfu;
         else
             // NOLINTNEXTLINE (hicpp-signed-bitwise)

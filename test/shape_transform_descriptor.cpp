@@ -134,6 +134,15 @@ TEST_CASE(record_reshape_split)
     EXPECT(get_all_axes(desc) == all_axes{d_axes{{0}}, d_axes{{1, 0}}, d_axes{{1, 1}}});
 }
 
+TEST_CASE(record_reshape_merge_split)
+{
+    auto desc = make_descriptor({3, 10, 16}, make_op("reshape", {{"dims", {3, 40, 2, 2}}}));
+    EXPECT(get_final_lens(desc) == final_lens{3, 40, 2, 2});
+    EXPECT(get_all_lens(desc) == all_lens{{3}, {10, 4}, {2}, {2}});
+    EXPECT(get_all_axes(desc) ==
+           all_axes{d_axes{{0}}, d_axes{{1}, {2, 0}}, d_axes{{2, 1}}, d_axes{{2, 2}}});
+}
+
 TEST_CASE(record_squeeze_trailing_1s)
 {
     auto desc = make_descriptor({3, 4, 4, 1, 1}, make_op("reshape", {{"dims", {3, 4, 4}}}));

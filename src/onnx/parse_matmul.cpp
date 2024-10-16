@@ -199,18 +199,47 @@ struct parse_matmul : op_parser<parse_matmul>
         }
     }
 
+    static void handle_scaled_transposes(const onnx_parser::node_info& info,
+                                         instruction_ref& scale_a0,
+                                         instruction_ref& zp_a0,
+                                         bool has_zp)
+    {
+        if(has_zp)
+        {
+            scale_a0 =
+                info.add_instruction(make_op("transpose", {{"permutation", {0, 1}}}), scale_a0);
+        }
+        else
+        {
+            scale_a0 =
+                info.add_instruction(make_op("transpose", {{"permutation", {0, 1}}}), scale_a0);
+            zp_a0 = info.add_instruction(make_op("transpose", {{"permutation", {0, 1}}}), zp_a0);
+        }
+    }
+
     static instruction_ref handle_dequantized(const onnx_parser::node_info& info,
                                               const instruction_ref& a0,
                                               const instruction_ref& scale_a0,
-                                              const instruction_ref& zp_a0)
+                                              const instruction_ref& zp_a0,
+                                              bool has_zp)
     {
         instruction_ref dequantized_op;
 
-        if(a0 == zp_a0)
-            dequantized_op = info.add_instruction(make_op("dequantizelinear"), a0, scale_a0);
+        if(has_zp)
+        {
+            auto bc_scale_a0 = info.add_instruction(
+                make_op("multibroadcast", {{"out_lens", a0->get_shape().lens()}}), scale_a0);
+            dequantized_op = info.add_instruction(make_op("dequantizelinear"), a0, bc_scale_a0);
+        }
         else
-            dequantized_op = info.add_instruction(make_op("dequantizelinear"), a0, scale_a0, zp_a0);
-
+        {
+            auto bc_scale_a0 = info.add_instruction(
+                make_op("multibroadcast", {{"out_lens", a0->get_shape().lens()}}), scale_a0);
+            auto bc_zp_a0 = info.add_instruction(
+                make_op("multibroadcast", {{"out_lens", a0->get_shape().lens()}}), zp_a0);
+            dequantized_op =
+                info.add_instruction(make_op("dequantizelinear"), a0, bc_scale_a0, bc_zp_a0);
+        }
         return dequantized_op;
     }
 
@@ -224,8 +253,23 @@ struct parse_matmul : op_parser<parse_matmul>
                                                 const instruction_ref& scaled_bias,
                                                 const bool has_scale_bias)
     {
-        auto dq_a0 = handle_dequantized(info, a0, scale_a0, zp_a0);
-        auto dq_a1 = handle_dequantized(info, a1, scale_a1, zp_a1);
+
+        instruction_ref unsq_zp_a0;
+        instruction_ref unsq_zp_a1;
+
+        bool a0_has_no_zp = (a0 == zp_a0);
+        bool a1_has_no_zp = (a1 == zp_a1);
+
+        auto unsq_scale_a0 = info.add_instruction(make_op("unsqueeze", {{"axes", {-1}}}), scale_a0);
+        auto dq_a0         = handle_dequantized(info, a0, unsq_scale_a0, unsq_zp_a0, a0_has_no_zp);
+
+        // Transpose second input to get column dims before we broadcast to dequantizelinear
+        auto unsq_scale_a1 = info.add_instruction(make_op("unsqueeze", {{"axes", {0}}}), scale_a1);
+        instruction_ref scale_a1_tp = unsq_scale_a1;
+        instruction_ref zp_a1_tp    = unsq_zp_a1;
+        handle_scaled_transposes(info, scale_a1_tp, zp_a1_tp, a1_has_no_zp);
+
+        auto dq_a1 = handle_dequantized(info, a1, scale_a1_tp, zp_a1_tp, a1_has_no_zp);
         auto res   = info.add_instruction(make_op("dot"), dq_a0, dq_a1);
 
         // Handle case of the bias after scaling

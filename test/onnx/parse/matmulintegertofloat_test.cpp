@@ -33,8 +33,20 @@ TEST_CASE(matmulintegertofloat_test)
     auto scale_x0 = mm->add_parameter("3", migraphx::shape{migraphx::shape::float_type, {4}});
     auto scale_x1 = mm->add_parameter("4", migraphx::shape{migraphx::shape::float_type, {2}});
 
-    auto r0 = mm->add_instruction(migraphx::make_op("dequantizelinear"), x0, scale_x0);
-    auto r1 = mm->add_instruction(migraphx::make_op("dequantizelinear"), x1, scale_x1);
+    auto sq_scale_x0 =
+        mm->add_instruction(migraphx::make_op("unsqueeze", {{"axes", {-1}}}), scale_x0);
+    auto bc_scale_x0 = mm->add_instruction(
+        migraphx::make_op("multibroadcast", {{"out_lens", x0->get_shape().lens()}}), sq_scale_x0);
+    auto r0 = mm->add_instruction(migraphx::make_op("dequantizelinear"), x0, bc_scale_x0);
+
+    auto sq_scale_x1 =
+        mm->add_instruction(migraphx::make_op("unsqueeze", {{"axes", {0}}}), scale_x1);
+    auto t_sq_scale_x1 =
+        mm->add_instruction(migraphx::make_op("transpose", {{"permutation", {0, 1}}}), sq_scale_x1);
+    auto bc_scale_x1 = mm->add_instruction(
+        migraphx::make_op("multibroadcast", {{"out_lens", x1->get_shape().lens()}}), t_sq_scale_x1);
+
+    auto r1 = mm->add_instruction(migraphx::make_op("dequantizelinear"), x1, bc_scale_x1);
     mm->add_instruction(migraphx::make_op("dot"), r0, r1);
 
     auto prog = optimize_onnx("matmulintegertofloat_test.onnx");

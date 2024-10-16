@@ -374,12 +374,12 @@ module {
 }
 )__migraphx__";
     migraphx::module m;
-    auto arg0 = m.add_parameter("arg0", {migraphx::shape::float_type, {5, 4}});
-    auto arg1 = m.add_parameter("arg1", {migraphx::shape::float_type, {1, 4, 3}});
-    auto arg2 = m.add_parameter("arg2", {migraphx::shape::float_type, {1, 5, 3}});
+    auto arg0      = m.add_parameter("arg0", {migraphx::shape::float_type, {5, 4}});
+    auto arg1      = m.add_parameter("arg1", {migraphx::shape::float_type, {1, 4, 3}});
+    auto arg2      = m.add_parameter("arg2", {migraphx::shape::float_type, {1, 5, 3}});
     auto unsqueeze = m.add_instruction(migraphx::make_op("unsqueeze", {{"axes", {0}}}), arg0);
-    auto dot = m.add_instruction(migraphx::make_op("dot"), unsqueeze, arg1);
-    auto add  = m.add_instruction(migraphx::make_op("add"), dot, arg2);
+    auto dot       = m.add_instruction(migraphx::make_op("dot"), unsqueeze, arg1);
+    auto add       = m.add_instruction(migraphx::make_op("add"), dot, arg2);
     m.add_return({add});
     auto s = migraphx::gpu::dump_mlir(m);
     // Skip test if MLIR is not enabled

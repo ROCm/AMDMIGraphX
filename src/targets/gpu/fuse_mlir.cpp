@@ -336,10 +336,10 @@ create_param_map_with_literals(module_ref mm, const module* pm, const shape& sha
 }
 
 static instruction_ref insert_pointwise(module& m,
-                                            instruction_ref ins,
-                                            const operation& op,
-                                            const std::vector<instruction_ref>& inputs,
-                                            const std::vector<module_ref>& mod_args)
+                                        instruction_ref ins,
+                                        const operation& op,
+                                        const std::vector<instruction_ref>& inputs,
+                                        const std::vector<module_ref>& mod_args)
 {
     // Only used in assert
     (void)mod_args;
@@ -348,10 +348,10 @@ static instruction_ref insert_pointwise(module& m,
 }
 
 static instruction_ref unroll_pointwise(module& main_mod,
-                                 instruction_ref pos,
-                                 const operation& op,
-                                 const std::vector<instruction_ref>& inputs,
-                                 const std::vector<module_ref>& mod_args)
+                                        instruction_ref pos,
+                                        const operation& op,
+                                        const std::vector<instruction_ref>& inputs,
+                                        const std::vector<module_ref>& mod_args)
 {
     if(op.name() == "pointwise")
     {
@@ -620,7 +620,7 @@ struct find_mlir_fused_ops
                return i != x_ins and reaches(gemm_based_op, i);
            }))
             return;
-        
+
         std::unordered_map<instruction_ref, instruction_ref> map_ins;
         module_ref mm = mpm.create_module("mlir_" + pm->name());
         mm->set_bypass();
@@ -646,17 +646,20 @@ struct find_mlir_fused_ops
         }
         mm->add_return(rins);
 
-        auto inputs = find_inputs(map_ins, &mpm.get_module(), mm);
+        auto inputs    = find_inputs(map_ins, &mpm.get_module(), mm);
         auto fused_ins = mpm.get_module().insert_instruction(
-                pw_ins, mlir_op{gemm_based_op->get_operator()}, mlir_contiguous(mpm, inputs), {mm});
+            pw_ins, mlir_op{gemm_based_op->get_operator()}, mlir_contiguous(mpm, inputs), {mm});
         if(gemm_has_multi_outs)
         {
             auto dot_ins = mpm.get_module().insert_instruction(
-                pw_ins, migraphx::make_op("get_tuple_elem", {{"index", rins.size() - 1}}), fused_ins);
+                pw_ins,
+                migraphx::make_op("get_tuple_elem", {{"index", rins.size() - 1}}),
+                fused_ins);
             mpm.get_module().replace_instruction(gemm_based_op, dot_ins);
             if(rins.size() == 2)
             {
-                mpm.get_module().replace_instruction(pw_ins, migraphx::make_op("get_tuple_elem", {{"index", 0}}), fused_ins);
+                mpm.get_module().replace_instruction(
+                    pw_ins, migraphx::make_op("get_tuple_elem", {{"index", 0}}), fused_ins);
             }
         }
         else

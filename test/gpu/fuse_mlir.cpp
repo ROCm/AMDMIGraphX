@@ -85,7 +85,7 @@ migraphx::instruction_ref add_mlir(migraphx::program& p,
                                    F f)
 {
     std::vector<std::string> arg_names;
-    for(auto i:migraphx::range(inputs.size()))
+    for(auto i : migraphx::range(inputs.size()))
     {
         arg_names.push_back(migraphx::param_name(i));
     }
@@ -155,15 +155,11 @@ TEST_CASE(dot_add)
         auto b   = mm->add_parameter("b", s);
         auto x   = mm->add_parameter("x", s);
         auto fused =
-            add_mlir(p2,
-                     "mlir_main:pointwise0",
-                     {a, b, x},
-                     [=](auto* pm, const auto& inputs) {
-                         auto dot =
-                             pm->add_instruction(migraphx::make_op("dot"), inputs[0], inputs[1]);
-                         auto add = pm->add_instruction(migraphx::make_op("add"), dot, inputs[2]);
-                         return std::make_tuple(dot->get_operator(), add);
-                     });
+            add_mlir(p2, "mlir_main:pointwise0", {a, b, x}, [=](auto* pm, const auto& inputs) {
+                auto dot = pm->add_instruction(migraphx::make_op("dot"), inputs[0], inputs[1]);
+                auto add = pm->add_instruction(migraphx::make_op("add"), dot, inputs[2]);
+                return std::make_tuple(dot->get_operator(), add);
+            });
         mm->add_return({fused});
     }
     EXPECT(p1.sort() == p2.sort());

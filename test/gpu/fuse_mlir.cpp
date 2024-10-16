@@ -29,6 +29,7 @@
 #include <migraphx/op/common.hpp>
 #include <migraphx/program.hpp>
 #include <migraphx/make_op.hpp>
+#include <migraphx/param_utils.hpp>
 #include <basic_ops.hpp>
 #include <test.hpp>
 #include <pointwise.hpp>
@@ -75,6 +76,20 @@ migraphx::instruction_ref add_mlir(migraphx::program& p,
     auto_add_return(pm, r);
     return mm->add_instruction(
         migraphx::make_op("gpu::mlir_op", {{"op", migraphx::to_value(root)}}), inputs, {pm});
+}
+
+template <class F>
+migraphx::instruction_ref add_mlir(migraphx::program& p,
+                                   const std::string& name,
+                                   std::vector<migraphx::instruction_ref> inputs,
+                                   F f)
+{
+    std::vector<std::string> arg_names;
+    for(auto i:migraphx::range(inputs.size()))
+    {
+        arg_names.push_back(migraphx::param_name(i));
+    }
+    return add_mlir(p, name, std::move(inputs), std::move(arg_names), f);
 }
 
 TEST_CASE(dot_reshapes_add)
@@ -142,12 +157,11 @@ TEST_CASE(dot_add)
         auto fused =
             add_mlir(p2,
                      "mlir_main:pointwise0",
-                     {x, a, b},
-                     {"x2", "y0", "y1"},
+                     {a, b, x},
                      [=](auto* pm, const auto& inputs) {
                          auto dot =
-                             pm->add_instruction(migraphx::make_op("dot"), inputs[1], inputs[2]);
-                         auto add = pm->add_instruction(migraphx::make_op("add"), dot, inputs[0]);
+                             pm->add_instruction(migraphx::make_op("dot"), inputs[0], inputs[1]);
+                         auto add = pm->add_instruction(migraphx::make_op("add"), dot, inputs[2]);
                          return std::make_tuple(dot->get_operator(), add);
                      });
         mm->add_return({fused});

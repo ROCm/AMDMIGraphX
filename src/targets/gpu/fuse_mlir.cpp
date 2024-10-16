@@ -210,7 +210,7 @@ void fuse_input_ops(module_ref mm,
                     std::unordered_map<instruction_ref, instruction_ref>* map_ins)
 {
     assert(map_ins != nullptr);
-    size_t input_cnt = 0;
+    size_t input_cnt = mm->get_parameters().size();
     for(instruction_ref input : inputs)
     {
         if(contains(*map_ins, input))
@@ -335,7 +335,19 @@ create_param_map_with_literals(module_ref mm, const module* pm, const shape& sha
     return ins_map;
 }
 
-instruction_ref unroll_pointwise(module& main_mod,
+static instruction_ref insert_pointwise(module& m,
+                                            instruction_ref ins,
+                                            const operation& op,
+                                            const std::vector<instruction_ref>& inputs,
+                                            const std::vector<module_ref>& mod_args)
+{
+    // Only used in assert
+    (void)mod_args;
+    assert(mod_args.empty());
+    return insert_common_op(m, ins, op, inputs, {.common_type = false});
+}
+
+static instruction_ref unroll_pointwise(module& main_mod,
                                  instruction_ref pos,
                                  const operation& op,
                                  const std::vector<instruction_ref>& inputs,
@@ -608,68 +620,48 @@ struct find_mlir_fused_ops
                return i != x_ins and reaches(gemm_based_op, i);
            }))
             return;
-        auto names = pm->get_parameter_names();
-        std::sort(names.begin(), names.end());
+        
+        std::unordered_map<instruction_ref, instruction_ref> map_ins;
         module_ref mm = mpm.create_module("mlir_" + pm->name());
         mm->set_bypass();
-        auto [anchor_op, top_inputs] = fuse_input_ops_and_gemm_based_op(
-            mm, gemm_based_op->inputs(), gemm_based_op->get_operator());
-        std::unordered_map<instruction_ref, instruction_ref> param_map =
-            create_param_map_with_literals(mm, pm, pw_ins->get_shape());
-        auto [upper_input, op_stream] = get_fusable_input_op_stream(x_ins);
-        assert(upper_input == gemm_based_op);
-        auto prev_input = anchor_op;
-        for(const auto& op : reverse(op_stream))
-        {
-            prev_input = mm->add_instruction(op, {prev_input});
-        }
-        assert(prev_input->get_shape().lens() == x_ins->get_shape().lens());
-        param_map[x_ins] = prev_input; // this is to avoid adding parameter for gemm/conv reshaped
-                                       // input to pointwise in new fused module
+        fuse_input_ops(mm, gemm_based_op->inputs(), &map_ins);
+
         bool gemm_has_multi_outs = gemm_based_op->outputs().size() > 1;
-        auto reshaped_gemm       = x_ins;
-        std::vector<instruction_ref> reshapes_vec;
-        while(reshaped_gemm != gemm_based_op)
+        std::vector<instruction_ref> inss_to_insert;
+        auto reshape_ins = x_ins;
+        while(reshape_ins != gemm_based_op)
         {
-            reshapes_vec.push_back(reshaped_gemm);
-            gemm_has_multi_outs = gemm_has_multi_outs or reshaped_gemm->outputs().size() > 1;
-            reshaped_gemm       = reshaped_gemm->inputs().at(0);
+            inss_to_insert.push_back(reshape_ins);
+            reshape_ins = reshape_ins->inputs().front();
+            gemm_has_multi_outs |= reshape_ins->outputs().size() > 1;
         }
-        reshapes_vec.push_back(reshaped_gemm);
+        inss_to_insert.push_back(gemm_based_op);
+        mm->add_instructions(inss_to_insert, &map_ins);
 
-        auto return_vals = mm->fuse(*pm, pw_ins->inputs(), &param_map);
+        fuse_input_ops(mm, pw_ins->inputs(), &map_ins);
+        auto rins = mm->fuse(*pm, pw_ins->inputs(), &map_ins, &insert_pointwise);
         if(gemm_has_multi_outs)
         {
-            return_vals.insert(return_vals.begin(), anchor_op);
+            rins.push_back(map_ins.at(gemm_based_op));
         }
-        mm->add_return(return_vals);
+        mm->add_return(rins);
 
-        std::vector<instruction_ref> inputs;
-        std::copy_if(pw_ins->inputs().begin(),
-                     pw_ins->inputs().end(),
-                     std::back_inserter(inputs),
-                     [&](auto input) { return input != x_ins; });
-        inputs.insert(inputs.end(), top_inputs.begin(), top_inputs.end());
-        if(gemm_has_multi_outs)
-        {
-            auto fused_ins = mpm.get_module().insert_instruction(
+        auto inputs = find_inputs(map_ins, &mpm.get_module(), mm);
+        auto fused_ins = mpm.get_module().insert_instruction(
                 pw_ins, mlir_op{gemm_based_op->get_operator()}, mlir_contiguous(mpm, inputs), {mm});
-            mpm.get_module().replace_instruction(
-                pw_ins, migraphx::make_op("get_tuple_elem", {{"index", 1}}), fused_ins);
+        if(gemm_has_multi_outs)
+        {
             auto dot_ins = mpm.get_module().insert_instruction(
-                pw_ins, migraphx::make_op("get_tuple_elem", {{"index", 0}}), fused_ins);
-            // move all the reshape instructions and original GEMM instruction after the fused op to
-            // avoid generating invalid migraphx program
-            for(const auto& orig_i : reverse(reshapes_vec))
-            {
-                mpm.get_module().move_instruction(orig_i, pw_ins);
-            }
+                pw_ins, migraphx::make_op("get_tuple_elem", {{"index", rins.size() - 1}}), fused_ins);
             mpm.get_module().replace_instruction(gemm_based_op, dot_ins);
+            if(rins.size() == 2)
+            {
+                mpm.get_module().replace_instruction(pw_ins, migraphx::make_op("get_tuple_elem", {{"index", 0}}), fused_ins);
+            }
         }
         else
         {
-            mpm.get_module().replace_instruction(
-                pw_ins, mlir_op{gemm_based_op->get_operator()}, mlir_contiguous(mpm, inputs), {mm});
+            mpm.get_module().replace_instruction(pw_ins, fused_ins);
         }
     }
 };
@@ -888,18 +880,6 @@ struct find_pointwise_mlir
         if(op_ins != rins)
             return false;
         return contains(op_names, op_ins->name());
-    }
-
-    static instruction_ref insert_pointwise(module& m,
-                                            instruction_ref ins,
-                                            const operation& op,
-                                            const std::vector<instruction_ref>& inputs,
-                                            const std::vector<module_ref>& mod_args)
-    {
-        // Only used in assert
-        (void)mod_args;
-        assert(mod_args.empty());
-        return insert_common_op(m, ins, op, inputs, {.common_type = false});
     }
 
     void apply(module_pass_manager& mpm, const match::matcher_result& r) const

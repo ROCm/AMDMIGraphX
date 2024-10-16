@@ -619,6 +619,11 @@ struct mlir_program
         return result;
     }
 
+    static bool is_reshape(const std::string& name)
+    {
+        return contains({"reshape", "lazy_reshape", "squeeze", "unsqueeze", "flatten"}, name);
+    }
+
     static std::string get_name(instruction_ref ins)
     {
         if(ins->name() == "@return")
@@ -627,6 +632,8 @@ struct mlir_program
             return "migraphx.literal";
         if(ins->name() == "unpack_int4")
             return "migraphx.unpack";
+        if(is_reshape(ins->name()))
+            return "migraphx.reshape";
         return "migraphx." + ins->name();
     }
 
@@ -637,8 +644,8 @@ struct mlir_program
 
         // Reshape operator can have dim 0 or -1.
         // Avoid passing those on to MLIR:
-        if(op.name() == "reshape")
-            v["dims"] = ins->get_shape().lens();
+        if(is_reshape(op.name()))
+            v = {{"dims", ins->get_shape().lens()}};
 
         if(op.name() == "convolution" or op.name() == "quant_convolution")
         {

@@ -179,6 +179,7 @@ const auto& reshaper_names()
         "broadcast",
         "contiguous",
         "reshape",
+        "lazy_reshape",
         "squeeze",
         "flatten",
         "unsqueeze"
@@ -195,10 +196,6 @@ get_fusable_input_op_stream(instruction_ref lower_input)
     while(contains(reshaper_names(), upper_input->name()))
     {
         operation op = upper_input->get_operator();
-        if(contains({"squeeze", "flatten", "unsqueeze"}, upper_input->name()))
-        {
-            op = migraphx::make_op("reshape", {{"dims", upper_input->get_shape().lens()}});
-        }
         op_stream.push_back(op);
         upper_input = upper_input->inputs().at(0);
     }

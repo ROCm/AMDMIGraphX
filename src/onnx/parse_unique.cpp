@@ -71,7 +71,7 @@ struct parse_unique : op_parser<parse_unique>
         {
             auto n_dim = args[0]->get_shape().ndim();
             axis       = parser.parse_value(info.attributes.at("axis")).at<int>();
-            axis       = tune_axis(n_dim, *axis, opd.op_name);
+            axis       = tune_axis(n_dim, *axis, opd.onnx_name);
         }
         migraphx::argument data_arg = args.back()->eval();
 

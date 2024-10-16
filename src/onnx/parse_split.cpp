@@ -176,7 +176,7 @@ struct parse_split : op_parser<parse_split>
 
         const auto& input_shape = args[0]->get_shape();
         // axis over which the split occurs (split_axis)
-        int64_t tuned_axis = tune_axis(input_shape.ndim(), axis, opd.op_name);
+        int64_t tuned_axis = tune_axis(input_shape.ndim(), axis, opd.onnx_name);
 
         auto split_axis_is_fixed = [&]() {
             return input_shape.dyn_dims().at(tuned_axis).is_fixed();

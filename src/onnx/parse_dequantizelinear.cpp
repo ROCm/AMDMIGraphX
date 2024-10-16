@@ -71,8 +71,8 @@ struct parse_dequantizelinear : op_parser<parse_dequantizelinear>
         if(contains(info.attributes, "block_size"))
             block_size = info.attributes.at("block_size").i();
 
-        args =
-            transform_quantize_dequantize_linear_inputs(info, opd.op_name, block_size, axis, args);
+        args = transform_quantize_dequantize_linear_inputs(
+            info, opd.onnx_name, block_size, axis, args);
 
         return info.add_instruction(make_op("dequantizelinear"), args);
     }

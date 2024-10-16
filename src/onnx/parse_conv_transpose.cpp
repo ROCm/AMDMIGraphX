@@ -46,7 +46,7 @@ struct parse_conv_transpose : op_parser<parse_conv_transpose>
 {
     std::vector<op_desc> operators() const { return {{"ConvTranspose"}}; }
 
-    instruction_ref parse(const op_desc& /*opd*/,
+    instruction_ref parse(const op_desc& opd,
                           const onnx_parser& parser,
                           onnx_parser::node_info info,
                           std::vector<instruction_ref> args) const
@@ -60,7 +60,7 @@ struct parse_conv_transpose : op_parser<parse_conv_transpose>
         auto kdims = l0->get_shape().ndim() - 2;
 
         // ensure pads available only when auto_pad is "NOT_SET"
-        check_padding_mode(info, "CONV_TRANSPOSE");
+        check_padding_mode(info, opd.onnx_name);
 
         if(contains(info.attributes, "pads"))
         {

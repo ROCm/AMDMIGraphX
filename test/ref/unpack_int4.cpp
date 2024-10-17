@@ -133,7 +133,7 @@ TEST_CASE(unpack_int4_signed)
     migraphx::shape s{migraphx::shape::int8_type, {2, 2}};
     auto l0 = mm->add_literal(migraphx::literal{
         s,
-        {0b1000'0111 /*-8'7*/, 0b0001'1111 /*-1'1*/, 0b1110'1001 /*-2'-7*/, 0b0101'0111 /*5'7*/}});
+        {0b1000'0111 /*-8'7*/, 0b0001'1111 /*1'-1*/, 0b1110'1001 /*-2'-7*/, 0b0101'0111 /*5'7*/}});
     mm->add_instruction(migraphx::make_op("unpack_int4"), l0);
 
     p.compile(migraphx::make_target("ref"));

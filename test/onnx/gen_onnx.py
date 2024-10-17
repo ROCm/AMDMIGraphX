@@ -7510,6 +7510,42 @@ def matmulintegertofloat_zp_test():
 
 
 @onnx_test()
+def matmulintegertofloat_scalar_zp_test():
+    m1 = helper.make_tensor_value_info('1', TensorProto.INT8, [4, 3])
+    m2 = helper.make_tensor_value_info('2', TensorProto.INT8, [3, 2])
+    s1 = helper.make_tensor_value_info('3', TensorProto.FLOAT, [4])
+    s2 = helper.make_tensor_value_info('4', TensorProto.FLOAT, [2])
+    zp1 = helper.make_tensor_value_info('5', TensorProto.INT8, [4])
+    zp2 = helper.make_tensor('6', TensorProto.INT8, [], [129])
+    y = helper.make_tensor_value_info('y', TensorProto.INT32, [4, 2])
+
+    node = onnx.helper.make_node(
+        'MatMulIntegerToFloat',
+        inputs=['1', '2', '3', '4', '5', '6'],
+        outputs=['y'],
+    )
+
+    return ([node], [m1, m2, s1, s2, zp1], [y], [zp2])
+
+
+@onnx_test()
+def matmulintegertofloat_scalar_scale_test():
+    m1 = helper.make_tensor_value_info('1', TensorProto.INT8, [4, 3])
+    m2 = helper.make_tensor_value_info('2', TensorProto.INT8, [3, 2])
+    s1 = helper.make_tensor_value_info('3', TensorProto.FLOAT, [4])
+    s2 = helper.make_tensor('4', TensorProto.FLOAT, [], [10])
+    y = helper.make_tensor_value_info('y', TensorProto.INT32, [4, 2])
+
+    node = onnx.helper.make_node(
+        'MatMulIntegerToFloat',
+        inputs=['1', '2', '3', '4'],
+        outputs=['y'],
+    )
+
+    return ([node], [m1, m2, s1], [y], [s2])
+
+
+@onnx_test()
 def matmulintegertofloat_zp_bias_test():
     m1 = helper.make_tensor_value_info('1', TensorProto.INT8, [4, 3])
     m2 = helper.make_tensor_value_info('2', TensorProto.INT8, [3, 2])
@@ -7526,7 +7562,7 @@ def matmulintegertofloat_zp_bias_test():
         outputs=['y'],
     )
 
-    return ([node], [m1, m2, s1, s2], [y], [zp1, zp2, b1])
+    return ([node], [m1, m2, s1, s2, zp1, zp2, b1], [y], [])
 
 
 @onnx_test()

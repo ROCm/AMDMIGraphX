@@ -108,7 +108,9 @@ struct parse_matmul : op_parser<parse_matmul>
         return all_zeros;
     }
 
-    static instruction_ref set_scale_arg(const std::vector<instruction_ref>& args, const int index)
+    static instruction_ref set_scale_arg(const onnx_parser::node_info& info,
+                                         const std::vector<instruction_ref>& args,
+                                         const int index)
     {
         instruction_ref scale_arg                            = args[index];
         std::set<migraphx::shape::type_t> supported_dq_types = {migraphx::shape::float_type,
@@ -117,6 +119,11 @@ struct parse_matmul : op_parser<parse_matmul>
         if(not(contains(supported_dq_types, scale_arg->get_shape().type())))
         {
             MIGRAPHX_THROW("PARSE_QUANT_DOT_SCALDED: Scales must be float or half_type");
+        }
+
+        if(scale_arg->get_shape().scalar())
+        {
+            scale_arg = info.add_instruction(make_op("unsqueeze", {{"axes", {-1}}}), scale_arg);
         }
 
         return scale_arg;
@@ -264,10 +271,24 @@ struct parse_matmul : op_parser<parse_matmul>
 
         auto unsq_scale_a0 = info.add_instruction(make_op("unsqueeze", {{"axes", {-1}}}), scale_a0);
         if(not a0_has_no_zp)
+        {
             unsq_zp_a0 = info.add_instruction(make_op("unsqueeze", {{"axes", {-1}}}), zp_a0);
+            if(zp_a0->get_shape().scalar())
+            {
+                unsq_zp_a0 =
+                    info.add_instruction(make_op("unsqueeze", {{"axes", {-1}}}), unsq_zp_a0);
+            }
+        }
 
         if(not a1_has_no_zp)
+        {
             unsq_zp_a1 = info.add_instruction(make_op("unsqueeze", {{"axes", {-1}}}), zp_a1);
+            if(zp_a1->get_shape().scalar())
+            {
+                unsq_zp_a1 =
+                    info.add_instruction(make_op("unsqueeze", {{"axes", {-1}}}), unsq_zp_a1);
+            }
+        }
 
         auto dq_a0 = handle_dequantized(info, a0, unsq_scale_a0, unsq_zp_a0, a0_has_no_zp);
 
@@ -366,8 +387,8 @@ struct parse_matmul : op_parser<parse_matmul>
             {
                 a0_zp_index = 4;
                 a1_zp_index = 5;
-                scale_a0    = set_scale_arg(args, 2);
-                scale_a1    = set_scale_arg(args, 3);
+                scale_a0    = set_scale_arg(info, args, 2);
+                scale_a1    = set_scale_arg(info, args, 3);
                 if(scale_a0->get_shape().type() != scale_a1->get_shape().type())
                 {
                     MIGRAPHX_THROW("PARSE_MATMULINTEGERTOFLOAT: Scales must be the same type");

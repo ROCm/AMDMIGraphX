@@ -114,7 +114,7 @@ static inline gqa_parameters init_params(const std::vector<shape>& inputs, const
     gqa_params.num_heads                 = num_heads;
     gqa_params.max_sequence_length       = sequence_length;
     gqa_params.seq_stride                = head_size;
-    gqa_params.head_stride               = sequence_length * gqa_params.seq_stride;
+    gqa_params.head_stride               = head_stride;
     gqa_params.batch_stride              = batch_stride;
     gqa_params.position_ids_format       = position_ids_format;
     gqa_params.seqlen_present_kv_cache   = present_kv_seqlen;

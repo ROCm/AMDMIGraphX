@@ -434,7 +434,8 @@ struct find_mul_add
 
     void apply(module& m, const match::matcher_result& r) const
     {
-	    auto ins   = r.result;
+	    
+        auto ins   = r.result;
         auto a_ins = r.instructions["a"];
         auto b_ins = r.instructions["b"];
         auto x_ins = r.instructions["x"];

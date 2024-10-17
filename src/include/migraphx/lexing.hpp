@@ -27,6 +27,7 @@
 #include <functional>
 #include <string>
 #include <vector>
+#include <algorithm>
 #include <migraphx/errors.hpp>
 
 namespace migraphx {

@@ -69,9 +69,15 @@ int main(int argc, const char* argv[])
     rv.add_validation_for("gpu", &validate_gpu);
     rv.disable_test_for(
         "cpu",
-        {"test_if_lp", "test_if_param", "test_if_literal", "test_select_module_add",
-         "test_select_module_reduce", "test_select_module_conv", "test_split_single_dyn_dim",
-         "test_resize_dyn", "test_instancenorm_large_3d<migraphx::shape::float_type>",
+        {"test_if_lp",
+         "test_if_param",
+         "test_if_literal",
+         "test_select_module_add",
+         "test_select_module_reduce",
+         "test_select_module_conv",
+         "test_split_single_dyn_dim",
+         "test_resize_dyn",
+         "test_instancenorm_large_3d<migraphx::shape::float_type>",
          "test_instancenorm_large_3d<migraphx::shape::half_type>",
     // these tests are disabled due issue of lossy downcast, see issue#2517
 #if defined(__GNUC__) and !defined(__clang__)
@@ -121,8 +127,7 @@ int main(int argc, const char* argv[])
          "test_unpack_int4<migraphx::shape::uint8_type>",
          "test_unpack_int4<migraphx::shape::int8_type>",
          "test_unpack_int4<migraphx::shape::uint8_type, 0>",
-         "test_unpack_int4<migraphx::shape::int8_type, 0>"
-    });
+         "test_unpack_int4<migraphx::shape::int8_type, 0>"});
     rv.disable_test_for("gpu",
                         {
                             // These passes on MI300 but fails on others, same issue as CPU.

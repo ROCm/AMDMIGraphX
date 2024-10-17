@@ -109,7 +109,7 @@ TEST_CASE(dot_reshapes_add)
                 auto dot = pm->add_instruction(migraphx::make_op("dot"), inputs[1], inputs[2]);
                 auto dot_trans = pm->add_instruction(
                     migraphx::make_op("transpose", {{"permutation", {0, 2, 1}}}), dot);
-                auto dot_rsp = pm->add_instruction(migraphx::make_op("reshape", {{"dims", {3, 3}}}),
+                auto dot_rsp = pm->add_instruction(migraphx::make_op("squeeze"),
                                                    dot_trans);
                 auto add     = pm->add_instruction(migraphx::make_op("add"), dot_rsp, inputs[0]);
                 return std::make_tuple(dot->get_operator(), add);
@@ -500,7 +500,7 @@ TEST_CASE(dequantizelinear_dot)
             {"x0", "x1", "x2", "x3"},
             [=](auto* pm, const auto& inputs) {
                 auto unsqueeze1 = pm->add_instruction(
-                    migraphx::make_op("reshape", {{"dims", {2, 2, 1, 2}}}), inputs[1]);
+                    migraphx::make_op("unsqueeze", {{"axes", {2}}}), inputs[1]);
                 auto broadcast1 = pm->add_instruction(
                     migraphx::make_op("multibroadcast", {{"out_lens", {2, 2, 3, 2}}}), unsqueeze1);
                 auto reshape1 = pm->add_instruction(
@@ -510,7 +510,7 @@ TEST_CASE(dequantizelinear_dot)
                     reshape1);
 
                 auto unsqueeze2 = pm->add_instruction(
-                    migraphx::make_op("reshape", {{"dims", {2, 2, 1, 2}}}), inputs[2]);
+                    migraphx::make_op("unsqueeze", {{"axes", {2}}}), inputs[2]);
                 auto broadcast2 = pm->add_instruction(
                     migraphx::make_op("multibroadcast", {{"out_lens", {2, 2, 3, 2}}}), unsqueeze2);
                 auto reshape2 = pm->add_instruction(

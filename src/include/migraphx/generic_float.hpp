@@ -149,7 +149,7 @@ struct generic_float
             }
         }
 
-        exponent = std::min(f.exponent, all_ones<ExponentSize>());
+        exponent = std::min(exponent, all_ones<ExponentSize>());
     }
 
     constexpr bool is_normal() const noexcept

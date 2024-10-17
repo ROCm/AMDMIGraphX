@@ -1,0 +1,85 @@
+/*
+ * The MIT License (MIT)
+ *
+ * Copyright (c) 2015-2024 Advanced Micro Devices, Inc. All rights reserved.
+ *
+ * Permission is hereby granted, free of charge, to any person obtaining a copy
+ * of this software and associated documentation files (the "Software"), to deal
+ * in the Software without restriction, including without limitation the rights
+ * to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+ * copies of the Software, and to permit persons to whom the Software is
+ * furnished to do so, subject to the following conditions:
+ *
+ * The above copyright notice and this permission notice shall be included in
+ * all copies or substantial portions of the Software.
+ *
+ * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+ * IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+ * FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT.  IN NO EVENT SHALL THE
+ * AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+ * LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+ * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
+ * THE SOFTWARE.
+ */
+#include <cmath>
+#include <migraphx/float_equal.hpp>
+#include <migraphx/ranges.hpp>
+#include "test.hpp"
+#define HIP_ENABLE_PRINTF
+
+#include <limits>
+
+using fp16 = migraphx::half;
+
+#define CHECK_FLOAT(x, y) \
+    CHECK(migraphx::float_equal(x, y)); \
+    CHECK(migraphx::float_equal(x, y.to_float())); \
+    CHECK(migraphx::float_equal(fp16{x}, y)); \
+    CHECK(migraphx::float_equal(fp16{x}.to_float(), y.to_float()))
+
+
+TEST_CASE(fp16_values)
+{   
+    
+    CHECK_FLOAT(1.0f, fp16{1.0f});
+    CHECK_FLOAT(-1.0f, fp16{-1.0f});
+    // CHECK_FLOAT(std::numeric_limits<float>::min(), fp16::min());
+    // CHECK_FLOAT(std::numeric_limits<float>::lowest(), fp16::lowest());
+    // CHECK_FLOAT(std::numeric_limits<float>::max(), fp16::max());
+    // CHECK_FLOAT(std::numeric_limits<float>::epsilon(), fp16::epsilon());
+    // CHECK_FLOAT(std::numeric_limits<float>::infinity(), fp16::infinity());
+    // CHECK_FLOAT(std::numeric_limits<float>::quiet_NaN(), fp16::qnan());
+    // CHECK_FLOAT(std::numeric_limits<float>::signaling_NaN(), fp16::snan());
+    // CHECK_FLOAT(std::numeric_limits<float>::denorm_min(), fp16::denorm_min());
+}
+
+TEST_CASE(test_infinity_1)
+{
+    float f_inf = std::numeric_limits<float>::infinity();
+    float f16_inf = fp16::infinity().to_float();
+    EXPECT(f16_inf == f_inf);
+}
+
+TEST_CASE(test_infinity_2)
+{
+    float f_inf = -1.0 * std::numeric_limits<float>::infinity();
+    float f16_inf = -1.0 * fp16::infinity().to_float();
+    EXPECT(f16_inf == f_inf);
+}
+
+TEST_CASE(test_snan)
+{
+    fp16 fp16_snan = fp16::snan();
+    EXPECT(fp16_snan.is_nan());
+    EXPECT(std::isnan(fp16_snan));
+}
+
+TEST_CASE(test_qnan)
+{
+    fp16 fp16_snan = fp16::qnan();
+    EXPECT(fp16_snan.is_nan());
+    EXPECT(std::isnan(fp16_snan));
+}
+
+
+int main(int argc, const char* argv[]) { test::run(argc, argv); }

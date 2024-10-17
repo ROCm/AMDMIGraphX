@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2022 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2024 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -46,6 +46,25 @@ TEST_CASE(check_undefined)
     EXPECT(abs->is_undefined());
     EXPECT(not lit->is_undefined());
     EXPECT(not mul->is_undefined());
+}
+
+TEST_CASE(check_replace_shape)
+{
+    migraphx::module m;
+    migraphx::shape s{migraphx::shape::float_type, {3, 2}};
+    auto input  = m.add_parameter("x", s);
+    auto reduce = m.add_instruction(migraphx::make_op("reduce_sum", {{"axes", {0}}}), input);
+    auto abs    = m.add_instruction(migraphx::make_op("abs"), reduce);
+    auto sin    = m.add_instruction(migraphx::make_op("sin"), reduce);
+    auto add    = m.add_instruction(migraphx::make_op("add"), abs, sin);
+
+    reduce->replace(migraphx::make_op("reduce_sum", {{"axes", {1}}}));
+
+    migraphx::shape r{migraphx::shape::float_type, {3, 1}};
+    EXPECT(reduce->get_shape() == r);
+    EXPECT(abs->get_shape() == r);
+    EXPECT(sin->get_shape() == r);
+    EXPECT(add->get_shape() == r);
 }
 
 int main(int argc, const char* argv[]) { test::run(argc, argv); }

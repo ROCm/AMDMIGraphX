@@ -361,6 +361,36 @@ module {
     EXPECT(verify_mlir(m));
 }
 
+TEST_CASE(unsqueeze_dot_add)
+{
+    std::string mlir_output = R"__migraphx__(
+module {
+  func.func @mlir_unsqueeze_dot_add(%arg0: !migraphx.shaped<5x4xf32, 4x1>, %arg1: !migraphx.shaped<1x4x3xf32, 12x3x1>, %arg2: !migraphx.shaped<1x5x3xf32, 15x3x1>) -> !migraphx.shaped<1x5x3xf32, 15x3x1> attributes ${attrs} {
+    %0 = migraphx.reshape %arg0 {dims = [1, 5, 4]} : <5x4xf32, 4x1> -> <1x5x4xf32, 20x4x1>
+    %1 = migraphx.dot %0, %arg1 : <1x5x4xf32, 20x4x1>, <1x4x3xf32, 12x3x1> -> <1x5x3xf32, 15x3x1>
+    %2 = migraphx.add %1, %arg2 : <1x5x3xf32, 15x3x1>, <1x5x3xf32, 15x3x1> -> <1x5x3xf32, 15x3x1>
+    return %2 : !migraphx.shaped<1x5x3xf32, 15x3x1>
+  }
+}
+)__migraphx__";
+    migraphx::module m;
+    auto arg0      = m.add_parameter("arg0", {migraphx::shape::float_type, {5, 4}});
+    auto arg1      = m.add_parameter("arg1", {migraphx::shape::float_type, {1, 4, 3}});
+    auto arg2      = m.add_parameter("arg2", {migraphx::shape::float_type, {1, 5, 3}});
+    auto unsqueeze = m.add_instruction(migraphx::make_op("unsqueeze", {{"axes", {0}}}), arg0);
+    auto dot       = m.add_instruction(migraphx::make_op("dot"), unsqueeze, arg1);
+    auto add       = m.add_instruction(migraphx::make_op("add"), dot, arg2);
+    m.add_return({add});
+    auto s = migraphx::gpu::dump_mlir(m);
+    // Skip test if MLIR is not enabled
+    if(s.empty())
+        return;
+    auto mlir_output_with_attrs =
+        migraphx::interpolate_string(mlir_output, {{"attrs", get_attrs()}});
+    CHECK(encode(s) == encode(mlir_output_with_attrs));
+    EXPECT(verify_mlir(m));
+}
+
 TEST_CASE(conv_int8_dequantize_quantize)
 {
     std::string mlir_output = R"__migraphx__(

@@ -152,14 +152,36 @@ struct mlir_op
         return pack(f(self.op, "op"));
     }
 
+    // Check if the shape can be created from a transpose/broadcast/slice
+    static bool is_mlir_compatible(const shape& s)
+    {
+        if(s.standard() or s.packed() or s.scalar() or s.ndim() == 1)
+            return true;
+        auto ns = reorder_shape(s, find_permutation(s));
+        std::vector<std::size_t> stride_ratios;
+        auto last = std::find(ns.strides().begin(), ns.strides().end(), 0);
+        if(*std::prev(last) != 1)
+            return false;
+        std::adjacent_difference(ns.strides().begin(), last, std::back_inserter(stride_ratios), [](auto y, auto x) {
+            assert(y != 0);
+            if((x % y) != 0)
+                return 0;
+            return x / y;
+        });
+        return std::equal(stride_ratios.begin()+1, stride_ratios.end(), ns.lens().begin()+1, [](auto ratio, auto len) {
+            return ratio >= len;
+        });
+    }
+
     shape compute_shape(const std::vector<shape>& inputs, const std::vector<module_ref>& mods) const
     {
         module_ref mod = mods[0];
-        check_shapes{inputs, *this}.packed_or_broadcasted();
+        check_shapes{inputs, *this}.has_at_least(1);
         if(mods.size() != 1)
             MIGRAPHX_THROW("should have one submodule.");
-        if(inputs.empty())
-            MIGRAPHX_THROW("should have at least one input.");
+
+        if(not std::all_of(inputs.begin(), inputs.end(), &is_mlir_compatible))
+            MIGRAPHX_THROW("Shape is not mlir compatible.");
 
         auto result =
             mod->compute_shapes(inputs, {.name = name(), .strict_type = true, .strict_lens = true});

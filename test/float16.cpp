@@ -25,7 +25,6 @@
 #include <migraphx/float_equal.hpp>
 #include <migraphx/ranges.hpp>
 #include "test.hpp"
-#define HIP_ENABLE_PRINTF
 
 #include <limits>
 
@@ -43,7 +42,7 @@ TEST_CASE(fp16_values)
     
     CHECK_FLOAT(1.0f, fp16{1.0f});
     CHECK_FLOAT(-1.0f, fp16{-1.0f});
-    // CHECK_FLOAT(std::numeric_limits<float>::min(), fp16::min());
+    CHECK_FLOAT(std::numeric_limits<float>::min(), fp16::min());
     // CHECK_FLOAT(std::numeric_limits<float>::lowest(), fp16::lowest());
     // CHECK_FLOAT(std::numeric_limits<float>::max(), fp16::max());
     // CHECK_FLOAT(std::numeric_limits<float>::epsilon(), fp16::epsilon());

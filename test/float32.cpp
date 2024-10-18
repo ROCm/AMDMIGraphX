@@ -47,6 +47,7 @@ TEST_CASE(fp32_values_working)
     CHECK_FLOAT(std::numeric_limits<float>::max(), fp32::max());
     CHECK_FLOAT(std::numeric_limits<float>::epsilon(), fp32::epsilon());
     CHECK_FLOAT(std::numeric_limits<float>::denorm_min(), fp32::denorm_min());
+
     // CHECK_FLOAT(std::numeric_limits<float>::infinity(), fp32::infinity());
     // CHECK_FLOAT(std::numeric_limits<float>::quiet_NaN(), fp32::qnan());
     // CHECK_FLOAT(std::numeric_limits<float>::signaling_NaN(), fp32::snan());

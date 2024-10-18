@@ -104,7 +104,12 @@ struct generic_float
         float32_parts f{};
         f.sign = sign;
         f.mantissa = mantissa << (float32_parts::mantissa_width() - MantissaSize);
-        if(exponent == all_ones<ExponentSize>())
+
+        if(exponent == 1 and mantissa == 0) 
+        {
+            f.exponent = 1;
+        }
+        else if(exponent == all_ones<ExponentSize>())
         {
             f.exponent = float32_parts::max_exponent();
         }
@@ -125,6 +130,10 @@ struct generic_float
         {
             exponent = 0;
         }
+        else if (f.exponent == 1 and f.mantissa == 0)
+        {
+            exponent = 1;
+        }
         else if(f.exponent == float32_parts::max_exponent())
         {
             exponent = all_ones<ExponentSize>();
@@ -133,7 +142,8 @@ struct generic_float
         {
             constexpr const int diff = float32_parts::exponent_bias() - exponent_bias();
             auto e = int(f.exponent) - diff;
-            if(e >= all_ones<ExponentSize>())
+
+            if(e >= static_cast<int>(all_ones<ExponentSize>()))
             {
                 exponent = all_ones<ExponentSize>();
                 mantissa = 0;

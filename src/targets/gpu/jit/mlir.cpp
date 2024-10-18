@@ -38,6 +38,8 @@ namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
 namespace gpu {
 
+MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_MLIR_DUMP_TO_MXR);
+
 static module create_pointwise_module(module_ref in_mod)
 {
     module pw_mod;
@@ -209,8 +211,14 @@ struct mlir_compiler : compiler<mlir_compiler>
                                               const operation&,
                                               bool exhaustive) const
     {
+        static const auto mxr_loc = string_value_of(MIGRAPHX_MLIR_DUMP_TO_MXR{});
+
         auto shapes = to_shapes(ins->inputs());
         auto* smod  = ins->module_inputs().front();
+        if(not mxr_loc.empty())
+        {
+            dump_mlir_to_mxr(*smod, ins->inputs(), mxr_loc);
+        }
         return get_tuning_config_mlir(ctx, *smod, shapes, exhaustive);
     }
 

@@ -1072,6 +1072,18 @@ TEST_CASE(check_half_values)
     }
 }
 
+TEST_CASE(check_numeric_limits)
+{
+    CHECK(bit_equal(std::numeric_limits<migraphx::half>::min(), uint16_t{0x0400}));
+    CHECK(bit_equal(std::numeric_limits<migraphx::half>::lowest(), uint16_t{0xfbff}));
+    CHECK(bit_equal(std::numeric_limits<migraphx::half>::max(), uint16_t{0x7bff}));
+    CHECK(bit_equal(std::numeric_limits<migraphx::half>::epsilon(), uint16_t{0x1400}));
+    CHECK(bit_equal(std::numeric_limits<migraphx::half>::denorm_min(), uint16_t{0x0001}));
+    CHECK(bit_equal(std::numeric_limits<migraphx::half>::infinity(), uint16_t{0x7c00}));
+    CHECK(bit_equal(std::numeric_limits<migraphx::half>::quiet_NaN(), uint16_t{0x7fff}));
+    CHECK(bit_equal(std::numeric_limits<migraphx::half>::signaling_NaN(), uint16_t{0x7dff}));
+}
+
 template <class T>
 std::string to_hex(T i)
 {
@@ -1094,6 +1106,7 @@ std::string to_decimal(T i)
 }
 
 float to_float(uint16_t i) { return reinterpret_cast<const migraphx::half&>(i); }
+uint16_t to_int(migraphx::half h) { return migraphx::bit_cast<uint16_t>(h); }
 
 void show(uint16_t i)
 {
@@ -1141,8 +1154,24 @@ void sample()
     }
 }
 
+#define SHOW_VALUE(x) \
+    std::cout << #x << ", " << to_hex(to_int(x)) << std::endl
+
+void numeric_limits()
+{
+    SHOW_VALUE(std::numeric_limits<migraphx::half>::min());
+    SHOW_VALUE(std::numeric_limits<migraphx::half>::lowest());
+    SHOW_VALUE(std::numeric_limits<migraphx::half>::max());
+    SHOW_VALUE(std::numeric_limits<migraphx::half>::epsilon());
+    SHOW_VALUE(std::numeric_limits<migraphx::half>::denorm_min());
+    SHOW_VALUE(std::numeric_limits<migraphx::half>::infinity());
+    SHOW_VALUE(std::numeric_limits<migraphx::half>::quiet_NaN());
+    SHOW_VALUE(std::numeric_limits<migraphx::half>::signaling_NaN());
+}
+
 int main(int argc, const char* argv[])
 {
+    // numeric_limits();
     // sample();
     test::run(argc, argv);
 }

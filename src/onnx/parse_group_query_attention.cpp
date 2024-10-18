@@ -37,7 +37,7 @@ struct parse_group_query_attention : op_parser<parse_group_query_attention>
     std::vector<instruction_ref> parse(const op_desc& /*opd*/,
                                        const onnx_parser& parser,
                                        const onnx_parser::node_info& info,
-                                       std::vector<instruction_ref> args) const
+                                       const std::vector<instruction_ref>& args) const
     {
         bool do_rotary           = false;
         std::size_t kv_num_heads = 0;

@@ -1154,8 +1154,7 @@ void sample()
     }
 }
 
-#define SHOW_VALUE(x) \
-    std::cout << #x << ", " << to_hex(to_int(x)) << std::endl
+#define SHOW_VALUE(x) std::cout << #x << ", " << to_hex(to_int(x)) << std::endl
 
 void numeric_limits()
 {

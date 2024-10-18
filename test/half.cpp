@@ -13,6 +13,14 @@
 #include <random>
 #include <limits>
 
+template <class T, class U>
+bool bit_equal(const T& x, const U& y)
+{
+    static_assert(sizeof(T) == sizeof(U));
+    using type = std::array<char, sizeof(T)>;
+    return migraphx::bit_cast<type>(x) == migraphx::bit_cast<type>(y);
+}
+
 static const std::map<uint16_t, float> half_lut = {
     {0x0000, 0},
     {0x0058, 0.0000052452087402},
@@ -1038,16 +1046,8 @@ static const std::map<uint16_t, float> half_lut = {
     {0xfe93, std::numeric_limits<float>::quiet_NaN()},
     {0xfed1, std::numeric_limits<float>::quiet_NaN()},
     {0xff7a, std::numeric_limits<float>::quiet_NaN()},
-    {0xffa3, std::numeric_limits<float>::quiet_NaN()}
+    {0xffa3, std::numeric_limits<float>::quiet_NaN()},
 };
-
-template <class T, class U>
-bool bit_equal(const T& x, const U& y)
-{
-    static_assert(sizeof(T) == sizeof(U));
-    using type = std::array<char, sizeof(T)>;
-    return migraphx::bit_cast<type>(x) == migraphx::bit_cast<type>(y);
-}
 
 TEST_CASE(check_half_values)
 {
@@ -1062,6 +1062,7 @@ TEST_CASE(check_half_values)
         {
             CHECK(std::isinf(h));
             CHECK((h < 0) == (f < 0));
+            CHECK(bit_equal(x, migraphx::half(f)));
         }
         else
         {

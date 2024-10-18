@@ -162,15 +162,17 @@ struct mlir_op
         auto last = std::find(ns.strides().begin(), ns.strides().end(), 0);
         if(*std::prev(last) != 1)
             return false;
-        std::adjacent_difference(ns.strides().begin(), last, std::back_inserter(stride_ratios), [](auto y, auto x) {
-            assert(y != 0);
-            if((x % y) != 0)
-                return 0;
-            return x / y;
-        });
-        return std::equal(stride_ratios.begin()+1, stride_ratios.end(), ns.lens().begin()+1, [](auto ratio, auto len) {
-            return ratio >= len;
-        });
+        std::adjacent_difference(
+            ns.strides().begin(), last, std::back_inserter(stride_ratios), [](auto y, auto x) {
+                assert(y != 0);
+                if((x % y) != 0)
+                    return 0;
+                return x / y;
+            });
+        return std::equal(stride_ratios.begin() + 1,
+                          stride_ratios.end(),
+                          ns.lens().begin() + 1,
+                          [](auto ratio, auto len) { return ratio >= len; });
     }
 
     shape compute_shape(const std::vector<shape>& inputs, const std::vector<module_ref>& mods) const

@@ -41,6 +41,9 @@ struct compile_options
     bool fast_math       = true;
     bool exhaustive_tune = false;
 
+    bool strip_weights = false;
+    std::string output = "";
+
     tracer trace{};
 };
 

@@ -131,11 +131,6 @@ Disables use of the rocMLIR library.
 Set to "1", "enable", "enabled", "yes", or "true" to use.
 Uses ``hip_copy_to_gpu`` with a new ``literal`` instruction rather than using ``hip_copy_literal{}``.
 
-.. envvar:: MIGRAPHX_DISABLE_LAYERNORM_FUSION
-
-Set to "1", "enable", "enabled", "yes", or "true" to use.
-Disables layrnorm fusion.
-
 .. envvar:: MIGRAPHX_DISABLE_MIOPEN_POOLING
 
 Set to "1", "enable", "enabled", "yes", or "true" to use.

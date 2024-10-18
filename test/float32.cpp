@@ -23,6 +23,7 @@
  */
 #include <cmath>
 #include <migraphx/float_equal.hpp>
+#include <migraphx/bit_cast.hpp>
 #include <migraphx/ranges.hpp>
 #include "test.hpp"
 #include <iostream>
@@ -31,11 +32,19 @@
 
 using fp32 = migraphx::generic_float<23, 8>;
 
+template<class T, class U>
+bool bit_equal(const T& x, const U& y)
+{
+    static_assert(sizeof(T) == sizeof(U));
+    using type = std::array<char, sizeof(T)>;
+    return migraphx::bit_cast<type>(x) == migraphx::bit_cast<type>(y);
+}
+
 #define CHECK_FLOAT(x, y) \
-    CHECK(migraphx::float_equal(x, y)); \
-    CHECK(migraphx::float_equal(x, y.to_float())); \
-    CHECK(migraphx::float_equal(fp32{x}, y)); \
-    CHECK(migraphx::float_equal(fp32{x}.to_float(), y.to_float()))
+    CHECK(bit_equal(x, y)); \
+    CHECK(bit_equal(x, y.to_float())); \
+    CHECK(bit_equal(fp32{x}, y)); \
+    CHECK(bit_equal(fp32{x}.to_float(), y.to_float()))
 
 
 TEST_CASE(fp32_values_working)
@@ -47,38 +56,9 @@ TEST_CASE(fp32_values_working)
     CHECK_FLOAT(std::numeric_limits<float>::max(), fp32::max());
     CHECK_FLOAT(std::numeric_limits<float>::epsilon(), fp32::epsilon());
     CHECK_FLOAT(std::numeric_limits<float>::denorm_min(), fp32::denorm_min());
-
-    // CHECK_FLOAT(std::numeric_limits<float>::infinity(), fp32::infinity());
-    // CHECK_FLOAT(std::numeric_limits<float>::quiet_NaN(), fp32::qnan());
-    // CHECK_FLOAT(std::numeric_limits<float>::signaling_NaN(), fp32::snan());
-}
-
-TEST_CASE(test_infinity_1)
-{
-    float f_inf = std::numeric_limits<float>::infinity();
-    float f32_inf = fp32::infinity().to_float();
-    EXPECT(f32_inf == f_inf);
-}
-
-TEST_CASE(test_infinity_2)
-{
-    float f_inf = -1.0 * std::numeric_limits<float>::infinity();
-    float f32_inf = -1.0 * fp32::infinity().to_float();
-    EXPECT(f32_inf == f_inf);
-}
-
-TEST_CASE(test_snan)
-{
-    fp32 fp32_snan = fp32::snan();
-    EXPECT(fp32_snan.is_nan());
-    EXPECT(std::isnan(fp32_snan));
-}
-
-TEST_CASE(test_qnan)
-{
-    fp32 fp32_snan = fp32::qnan();
-    EXPECT(fp32_snan.is_nan());
-    EXPECT(std::isnan(fp32_snan));
+    CHECK_FLOAT(std::numeric_limits<float>::infinity(), fp32::infinity());
+    CHECK_FLOAT(std::numeric_limits<float>::quiet_NaN(), fp32::qnan());
+    CHECK_FLOAT(std::numeric_limits<float>::signaling_NaN(), fp32::snan());
 }
 
 

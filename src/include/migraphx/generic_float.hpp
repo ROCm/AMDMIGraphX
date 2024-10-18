@@ -26,6 +26,7 @@
 #include <migraphx/bit_cast.hpp>
 #include <algorithm>
 #include <limits>
+#include <iostream>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
@@ -33,7 +34,7 @@ inline namespace MIGRAPHX_INLINE_NS {
 template<unsigned int N>
 constexpr unsigned int all_ones() noexcept
 {
-    return (1 << N) - 1;
+    return (1u << N) - 1u;
 }
 
 struct float32_parts 
@@ -68,8 +69,9 @@ constexpr float32_parts get_parts(float f)
     return migraphx::bit_cast<float32_parts>(f);
 }
 
+
 template<unsigned int MantissaSize, unsigned int ExponentSize, unsigned int Flags = 0>
-struct generic_float
+struct __attribute__((packed)) generic_float
 {
     unsigned int mantissa : MantissaSize;
     unsigned int exponent : ExponentSize;
@@ -105,11 +107,7 @@ struct generic_float
         f.sign = sign;
         f.mantissa = mantissa << (float32_parts::mantissa_width() - MantissaSize);
 
-        if(exponent == 1 and mantissa == 0) 
-        {
-            f.exponent = 1;
-        }
-        else if(exponent == all_ones<ExponentSize>())
+        if(exponent == all_ones<ExponentSize>())
         {
             f.exponent = float32_parts::max_exponent();
         }
@@ -129,10 +127,6 @@ struct generic_float
         if(f.exponent == 0)
         {
             exponent = 0;
-        }
-        else if (f.exponent == 1 and f.mantissa == 0)
-        {
-            exponent = 1;
         }
         else if(f.exponent == float32_parts::max_exponent())
         {
@@ -308,6 +302,8 @@ class numeric_limits<migraphx::generic_float<E, M, F>>
 
     static constexpr migraphx::generic_float<E, M, F> quiet_NaN() { return migraphx::generic_float<E, M, F>::qnan(); }
 
+    static constexpr migraphx::generic_float<E, M, F> signaling_NaN() { return migraphx::generic_float<E, M, F>::snan(); }
+
     static constexpr migraphx::generic_float<E, M, F> max() { return migraphx::generic_float<E, M, F>::max(); }
 
     static constexpr migraphx::generic_float<E, M, F> min() { return migraphx::generic_float<E, M, F>::min(); }
@@ -315,6 +311,8 @@ class numeric_limits<migraphx::generic_float<E, M, F>>
     static constexpr migraphx::generic_float<E, M, F> lowest() { return migraphx::generic_float<E, M, F>::lowest(); }
 
     static constexpr migraphx::generic_float<E, M, F> infinity() { return migraphx::generic_float<E, M, F>::infinity(); }
+
+    static constexpr migraphx::generic_float<E, M, F> denorm_min() { return migraphx::generic_float<E, M, F>::denorm_min(); }
 
 };
 

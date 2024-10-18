@@ -123,8 +123,9 @@ __device__ void calculate_softmax(AttnProbs attention_probs, // output buffer wi
     }
 }
 
-template <class Output, class Input, class Probs, class SeqLensK, class Params>
-__device__ void gqa_softmax(Output output, Input, Probs, SeqLensK seqlens_k, Params params)
+template <class Output, class Input, class PresentKey, class Probs, class SeqLensK, class Params>
+__device__ void
+gqa_softmax(Output output, Input, PresentKey, Probs, SeqLensK seqlens_k, Params params)
 {
     const index_int elements = params.batch_size * params.num_heads * params.sequence_length;
     auto ind                 = make_index();

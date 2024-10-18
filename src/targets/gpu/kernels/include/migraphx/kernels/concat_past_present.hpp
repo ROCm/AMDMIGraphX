@@ -114,21 +114,9 @@ update_cache(const Present present, SeqLensK seqlens_k, Cache cache, Params para
     }
 }
 
-// template <class Output, class Query, class PastKey, class PastValue, class SeqLensK, class
-// Params>
-// __device__ void
-// concat_past_present(Output, const Query query, PastKey past_key, PastValue past_value, SeqLensK
-// seqlens_k, Params params)
-template <class Query,
-          class PastKey,
-          class PastValue,
-          class SeqLensK,
-          /* class Output, */ class Params>
-__device__ void concat_past_present(const Query query,
-                                    PastKey past_key,
-                                    PastValue past_value,
-                                    SeqLensK seqlens_k,
-                                    /* const Output, */ Params params)
+template <class Query, class PastKey, class PastValue, class SeqLensK, class Params>
+__device__ void concat_past_present(
+    const Query query, PastKey past_key, PastValue past_value, SeqLensK seqlens_k, Params params)
 {
     auto ind = make_index();
     auto elements =

@@ -280,7 +280,7 @@ struct gpu_gqa_softmax : op::group_query_attention
 {
     std::string name() const { return "gpu::gqa_softmax"; }
 
-    shape compute_shape(std::vector<shape> inputs) const { return inputs.at(1); }
+    shape compute_shape(std::vector<shape> inputs) const { return inputs.at(2); }
 };
 MIGRAPHX_REGISTER_OP(gpu_gqa_softmax);
 
@@ -308,7 +308,6 @@ struct find_group_query_attention
         auto local_window_size  = v.at("local_window_size").to<int>();
         auto rotary_interleaved = v.at("rotary_interleaved").to<bool>();
         auto scale              = v.at("scale").to<float>();
-        auto present_kv_seqlen  = v.at("present_kv_seqlen").to<std::size_t>();
 
         auto q_shape                      = inputs[0]->get_shape();
         auto q_lens                       = q_shape.lens();
@@ -338,8 +337,7 @@ struct find_group_query_attention
                                                                              local_window_size,
                                                                              num_heads,
                                                                              rotary_interleaved,
-                                                                             scale,
-                                                                             present_kv_seqlen},
+                                                                             scale},
                                                     rotary_inputs);
         }
 
@@ -347,41 +345,27 @@ struct find_group_query_attention
         auto pres_v = inputs.at(4);
         std::vector<instruction_ref> concat_inputs{rotary_qkv, pres_k, pres_v, inputs.at(5)};
 
-        auto concat =
-            mpm.get_module().insert_instruction(ins,
-                                                gpu_concat_past_present{do_rotary,
-                                                                        kv_num_heads,
-                                                                        local_window_size,
-                                                                        num_heads,
-                                                                        rotary_interleaved,
-                                                                        scale,
-                                                                        present_kv_seqlen},
-                                                concat_inputs);
+        auto concat = mpm.get_module().insert_instruction(
+            ins,
+            gpu_concat_past_present{
+                do_rotary, kv_num_heads, local_window_size, num_heads, rotary_interleaved, scale},
+            concat_inputs);
         auto id =
             mpm.get_module().insert_instruction(ins, make_op("identity"), concat, pres_k, pres_v);
 
         std::vector<instruction_ref> attn_probs_inputs{id, pres_k, pres_v, inputs.at(5)};
         auto attn_probs = mpm.get_module().insert_instruction(
             ins,
-            gpu_compute_attention_probabilities{do_rotary,
-                                                kv_num_heads,
-                                                local_window_size,
-                                                num_heads,
-                                                rotary_interleaved,
-                                                scale,
-                                                present_kv_seqlen},
+            gpu_compute_attention_probabilities{
+                do_rotary, kv_num_heads, local_window_size, num_heads, rotary_interleaved, scale},
             attn_probs_inputs);
 
-        std::vector<instruction_ref> softmax_inputs{rotary_qkv, attn_probs, inputs.at(5)};
-        auto softmax = mpm.get_module().insert_instruction(ins,
-                                                           gpu_gqa_softmax{do_rotary,
-                                                                           kv_num_heads,
-                                                                           local_window_size,
-                                                                           num_heads,
-                                                                           rotary_interleaved,
-                                                                           scale,
-                                                                           present_kv_seqlen},
-                                                           softmax_inputs);
+        std::vector<instruction_ref> softmax_inputs{rotary_qkv, pres_k, attn_probs, inputs.at(5)};
+        auto softmax = mpm.get_module().insert_instruction(
+            ins,
+            gpu_gqa_softmax{
+                do_rotary, kv_num_heads, local_window_size, num_heads, rotary_interleaved, scale},
+            softmax_inputs);
         std::vector<instruction_ref> new_inputs{rotary_qkv, pres_k, pres_v, inputs.at(5), softmax};
 
         auto get_tuple_elm_0 = std::next(ins);
@@ -389,15 +373,11 @@ struct find_group_query_attention
         auto get_tuple_elm_2 = std::next(get_tuple_elm_1);
         mpm.get_module().replace_instruction(get_tuple_elm_2, pres_v);
         mpm.get_module().replace_instruction(get_tuple_elm_1, pres_k);
-        mpm.get_module().replace_instruction(get_tuple_elm_0,
-                                             gpu_compute_attention_scores{do_rotary,
-                                                                          kv_num_heads,
-                                                                          local_window_size,
-                                                                          num_heads,
-                                                                          rotary_interleaved,
-                                                                          scale,
-                                                                          present_kv_seqlen},
-                                             new_inputs);
+        mpm.get_module().replace_instruction(
+            get_tuple_elm_0,
+            gpu_compute_attention_scores{
+                do_rotary, kv_num_heads, local_window_size, num_heads, rotary_interleaved, scale},
+            new_inputs);
     }
 };
 

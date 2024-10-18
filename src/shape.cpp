@@ -129,7 +129,7 @@ struct shape_impl
     {
         if(not m_dyn_dims.empty())
         {
-            auto maxes = max_lens();
+            auto maxes          = max_lens();
             std::size_t max_val = std::numeric_limits<std::size_t>::max();
 
             return std::accumulate(
@@ -231,7 +231,9 @@ const std::vector<shape::type_t>& shape::types()
 {
     static const std::vector<shape::type_t> result = {
 #define MIGRAPHX_GENERATE_TYPE_VECTOR(x, t) x,
-        MIGRAPHX_SHAPE_VISIT_TYPES(MIGRAPHX_GENERATE_TYPE_VECTOR) tuple_type};
+        MIGRAPHX_SHAPE_VISIT_TYPES(MIGRAPHX_GENERATE_TYPE_VECTOR) tuple_type,
+        int4_type,
+        uint4_type};
     return result;
 }
 
@@ -240,6 +242,8 @@ std::string shape::name(shape::type_t t)
     switch(t)
     {
     case tuple_type: return "tuple_type";
+    case int4_type: return "int4_type";
+    case uint4_type: return "uint4_type";
 #define MIGRAPHX_SHAPE_GENERATE_TYPE_NAME_CASE(x, t) \
     case x: return #x;
         MIGRAPHX_SHAPE_VISIT_TYPES(MIGRAPHX_SHAPE_GENERATE_TYPE_NAME_CASE)
@@ -253,6 +257,8 @@ std::string shape::cpp_type(shape::type_t t)
     switch(t)
     {
     case tuple_type: MIGRAPHX_THROW("No C++ type for tuple");
+    case int4_type: MIGRAPHX_THROW("No C++ type for int4_type");
+    case uint4_type: MIGRAPHX_THROW("No C++ type for uint4_type");
 #define MIGRAPHX_SHAPE_GENERATE_CPP_TYPE_CASE(x, t) \
     case x: return #t;
         MIGRAPHX_SHAPE_VISIT_TYPES(MIGRAPHX_SHAPE_GENERATE_CPP_TYPE_CASE)
@@ -767,7 +773,11 @@ shape::type_t shape::parse_type(const std::string& s)
 #define MIGRAPHX_SHAPE_GENERATE_TYPE_STRING_MAP(x, t) {#x, x}, {#t, x},
         MIGRAPHX_SHAPE_VISIT_TYPES(MIGRAPHX_SHAPE_GENERATE_TYPE_STRING_MAP){"tuple_type",
                                                                             tuple_type},
-        {"tuple", tuple_type}};
+        {"tuple", tuple_type},
+        {"int4_type", int4_type},
+        {"int4", int4_type},
+        {"uint4_type", uint4_type},
+        {"uint4", uint4_type}};
     return m.at(s);
 }
 

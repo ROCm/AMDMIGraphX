@@ -90,7 +90,7 @@ static inline gqa_parameters init_params(const std::vector<shape>& inputs, const
     auto local_window_size  = v.at("local_window_size").to<std::uint32_t>();
     auto rotary_interleaved = v.at("rotary_interleaved").to<bool>();
     auto scale              = v.at("scale").to<float>();
-    auto present_kv_seqlen  = v.at("present_kv_seqlen").to<std::size_t>();
+    auto present_kv_seqlen  = inputs[1].lens().size() == 4 ? inputs[1].lens()[2] : 0;
 
     const auto& q_shape               = inputs[0];
     auto q_lens                       = q_shape.lens();

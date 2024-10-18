@@ -1038,8 +1038,7 @@ static const std::map<uint16_t, float> half_lut = {
     {0xfe93, std::numeric_limits<float>::quiet_NaN()},
     {0xfed1, std::numeric_limits<float>::quiet_NaN()},
     {0xff7a, std::numeric_limits<float>::quiet_NaN()},
-    {0xffa3, std::numeric_limits<float>::quiet_NaN()},
-
+    {0xffa3, std::numeric_limits<float>::quiet_NaN()}
 };
 
 template <class T, class U>

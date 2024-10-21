@@ -76,6 +76,48 @@ struct ck_gemm
 };
 MIGRAPHX_REGISTER_OP(ck_gemm);
 
+struct ck_gemm_gemm
+{
+    operation op = make_op("dot");
+
+    template <class Self, class F>
+    static auto reflect(Self& self, F f)
+    {
+        return pack(f(self.op, "op"));
+    }
+
+    std::string name() const { return "gpu::ck_gemm_gemm"; }
+
+    void check_gemm_shape(const shape& s) const
+    {
+        if(not contains(range(s.strides().rbegin(), s.strides().rbegin() + 3), 1) and
+           not s.scalar())
+            MIGRAPHX_THROW("Invalid shape for " + name());
+    }
+
+    shape compute_shape(std::vector<shape> inputs, const std::vector<module_ref>&) const
+    {
+        check_shapes{inputs, *this}.same_ndims();
+        if(inputs.size() < 3)
+            MIGRAPHX_THROW(name() + ": Expected 3 inputs but got " + to_string(inputs.size()));
+
+        auto a                     = inputs[0];
+        auto b                     = inputs[1];
+        auto b1                    = inputs.back();
+
+        for(const auto& input : inputs)
+        {
+            check_gemm_shape(input);
+        }
+
+        auto gemm0_shape = op.compute_shape({a, b});
+        return op.compute_shape({gemm0_shape, b1});
+    }
+
+    static bool is_ck_supported_type(shape::type_t t) { return contains({shape::half_type}, t); }
+};
+MIGRAPHX_REGISTER_OP(ck_gemm_gemm);
+
 struct ck_gemm_softmax_gemm : gemm_softmax_gemm
 {
     std::string name() const { return "gpu::ck_gemm_softmax_gemm"; }
@@ -203,11 +245,35 @@ struct find_ck_gemm_softmax_gemm
     }
 };
 
+struct find_ck_gemm_gemm
+{
+    auto matcher() const
+    {
+        // TODO don't mix dot and quant_dot
+        auto gemm1 = match::skip(match::name("contiguous"))(
+            match::name("dot", "quant_dot")(is_ck_gemm().bind("gemm1")));
+        return match::name("dot", "quant_dot")(is_ck_gemm().bind("gemm2"))(match::arg(0)(gemm1));
+    }
+
+    void apply(module_pass_manager& mpm, const match::matcher_result& r) const
+    {
+        auto ins       = r.result;
+        auto gemm1_ins = r.instructions["gemm1"];
+        auto gemm2_ins = r.instructions["gemm2"];
+
+        auto inputs = gemm1_ins->inputs();            // A, B
+        inputs.push_back(gemm2_ins->inputs().back()); // B1
+
+        mpm.get_module().replace_instruction(ins, ck_gemm_gemm{gemm2_ins->get_operator()}, inputs);
+    }
+};
+
 } // namespace
 
 void fuse_ck::apply(module_pass_manager& mpm) const
 {
     match::find_matches(mpm, find_ck_gemm_softmax_gemm{}, find_ck_gemm_pointwise{});
+    match::find_matches(mpm, find_ck_gemm_gemm{});
     match::find_matches(mpm, find_ck_gemm{});
 }
 

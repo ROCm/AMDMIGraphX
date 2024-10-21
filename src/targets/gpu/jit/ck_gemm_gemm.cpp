@@ -21,15 +21,13 @@
  * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
  * THE SOFTWARE.
  */
-#include <fstream>
 #include <migraphx/filesystem.hpp>
 #include <migraphx/gpu/compiler.hpp>
 #include <migraphx/make_op.hpp>
 #include <migraphx/gpu/context.hpp>
-
+#include <migraphx/gpu/ck.hpp>
 #include <migraphx/env.hpp>
 #include <migraphx/file_buffer.hpp>
-#include <migraphx/gpu/ck.hpp>
 #include <migraphx/gpu/compile_gen.hpp>
 #include <migraphx/gpu/compile_hip.hpp>
 #include <migraphx/gpu/compile_hip_code_object.hpp>
@@ -47,13 +45,11 @@ namespace gpu {
 using namespace migraphx::gpu::gen; // NOLINT
 
 // NOLINTNEXTLINE
-static const char* const ck_gemm_softmax_gemm_kernel = R"__migraphx__(
+static const char* const ck_gemm_gemm_kernel = R"__migraphx__(
 #include <args.hpp>
-#include <migraphx/kernels/ck_gemm_softmax_gemm.hpp>
+#include <migraphx/kernels/ck_gemm_gemm.hpp>
 #include <migraphx/kernels/pointwise.hpp>
 #include <migraphx/kernels/ops.hpp>
-#include <migraphx/kernels/integral_constant.hpp>
-#include <migraphx/kernels/generic_constant.hpp>
 #include <${include}>
 
 namespace migraphx {
@@ -65,8 +61,7 @@ extern "C" {
 MIGRAPHX_GLOBAL void ${kernel}(${params})
 {
     transform_args(make_tensors(), rotate_last())(${args})([](auto... xs) {
-        auto settings = make_ck_gemm_softmax_gemm_settings(MIGRAPHX_MAKE_CONSTANT(float{SCALE}));
-        ck_gemm_softmax_gemm<${solution}, ${blocks_per_batch}>(settings, xs...);
+        ck_gemm_gemm<${solution}, ${blocks_per_batch}>(xs...);
     });
 }
 
@@ -76,73 +71,98 @@ MIGRAPHX_GLOBAL void ${kernel}(${params})
 
 )__migraphx__";
 
-struct ck_gemm_softmax_gemm_compiler : compiler<ck_gemm_softmax_gemm_compiler>
+struct ck_gemm_gemm_compiler : compiler<ck_gemm_gemm_compiler>
 {
-    std::vector<std::string> names() const
-    {
-        return {"ck_gemm_softmax_gemm", "gpu::ck_gemm_softmax_gemm"};
-    }
+    std::vector<std::string> names() const { return {"ck_gemm_gemm", "gpu::ck_gemm_gemm"}; }
 
-    ck::host::device_batched_gemm_softmax_gemm::Problem
-    create_problem(const std::vector<shape>& inputs, const value&) const
+    ck::host::device_batched_gemm_multiple_d_gemm_multiple_d::Problem
+    create_problem(const std::vector<shape>& inputs, const value& v) const
     {
-        const auto& a_shape  = inputs[0];
-        const auto& b_shape  = inputs[1];
+        const auto& a0_shape = inputs[0];
+        const auto& b0_shape = inputs[1];
         const auto& b1_shape = inputs[2];
-        const auto& c_shape  = inputs.back();
+        const auto& e1_shape = inputs.back();
 
         // cppcheck-suppress unreadVariable
-        auto rank        = a_shape.ndim();
-        auto batch_count = get_batch_count(c_shape);
-        auto m           = c_shape.lens()[rank - 2];
+        auto rank        = a0_shape.ndim();
+        auto batch_count = get_batch_count(e1_shape);
+        auto m           = e1_shape.lens()[rank - 2];
         m                = can_fold_batch(inputs) ? m * batch_count : m;
-        auto n           = c_shape.lens().back();
-        auto k           = a_shape.lens().back();
-        auto o           = c_shape.lens().back();
+        auto n           = b0_shape.lens().back();
+        auto k           = a0_shape.lens().back();
+        auto o           = e1_shape.lens().back();
 
-        const bool trans_a  = transposed_matrix(a_shape);
-        const bool trans_b  = transposed_matrix(b_shape);
+        const bool trans_a0 = transposed_matrix(a0_shape);
+        const bool trans_b0 = transposed_matrix(b0_shape);
         const bool trans_b1 = transposed_matrix(b1_shape);
-        const bool trans_c  = transposed_matrix(c_shape);
-        const auto a_type   = get_type(a_shape);
-        const auto b_type   = get_type(b_shape);
-        const auto b1_type  = get_type(b1_shape);
-        const auto c_type   = get_type(c_shape);
+        const bool trans_e1 = transposed_matrix(e1_shape);
+
+        std::vector<bool> trans_d0s;
+        std::transform(inputs.begin() + 3,
+                       inputs.end() - 1,
+                       std::back_inserter(trans_d0s),
+                       [](const auto& i) { return transposed_matrix(i); });
+        // TODO trans_d1s
+
+        const auto a0_type = get_type(a0_shape);
+        const auto b0_type = get_type(b0_shape);
+        const auto b1_type = get_type(b1_shape);
+        const auto e1_type = get_type(e1_shape);
+
+        std::vector<ck::host::DataType> d0s_type;
+        std::transform(inputs.begin() + 3,
+                       inputs.end() - 1,
+                       std::back_inserter(d0s_type),
+                       [](const auto& i) { return get_type(i); });
+        // TODO d1s_type
 
         std::string ck_passthrough = "ck_passthrough";
-        return ck::host::device_batched_gemm_softmax_gemm::Problem{m,
-                                                                   n,
-                                                                   k,
-                                                                   o,
-                                                                   trans_a,
-                                                                   trans_b,
-                                                                   trans_b1,
-                                                                   trans_c,
-                                                                   a_type,
-                                                                   b_type,
-                                                                   b1_type,
-                                                                   c_type,
-                                                                   ck_passthrough,
-                                                                   ck_passthrough,
-                                                                   ck_passthrough,
-                                                                   ck_passthrough};
+        std::string cde0_op        = ck_passthrough;
+        std::string cde1_op        = ck_passthrough;
+        assert(inputs.size() < 5 or v.contains("post"));
+        if(v.contains("post"))
+        {
+            cde0_op = v.at("post").to<std::string>();
+            // TODO CDE1ElementOp
+        }
+
+        return ck::host::device_batched_gemm_multiple_d_gemm_multiple_d::Problem{m,
+                                                                                 n,
+                                                                                 k,
+                                                                                 o,
+                                                                                 trans_a0,
+                                                                                 trans_b0,
+                                                                                 trans_d0s,
+                                                                                 trans_b1,
+                                                                                 {}, // trans_d1s
+                                                                                 trans_e1,
+                                                                                 a0_type,
+                                                                                 b0_type,
+                                                                                 d0s_type,
+                                                                                 b1_type,
+                                                                                 {}, // d1s_type
+                                                                                 e1_type,
+                                                                                 ck_passthrough,
+                                                                                 ck_passthrough,
+                                                                                 cde0_op,
+                                                                                 ck_passthrough,
+                                                                                 cde1_op};
     }
 
     operation compile_op(context& ctx, const std::vector<shape>& inputs, const value& v) const
     {
-
-        const auto& c_shape = inputs.back();
-        auto tuning_value   = v.get("tuning_value", 5);
-        auto batch_count    = get_batch_count(c_shape);
-        auto problem        = create_problem(inputs, v);
+        const auto& e1_shape = inputs.back();
+        auto tuning_value    = v.get("tuning_value", 0);
+        auto batch_count     = get_batch_count(e1_shape);
+        auto problem         = create_problem(inputs, v);
 
         const auto include_header = problem.GetIncludeHeader();
         const auto solutions =
             problem.GetSolutions(ctx.get_current_device().get_gfx_name(), "", "");
-        const auto& solution = solutions.at(tuning_value);
+        const auto& solution        = solutions.at(tuning_value);
         const auto template_str     = solution.ToTemplateString();
         const auto block_size       = solution.GetTemplateParameter<std::size_t>("BlockSize");
-        const auto m_per_block      = solution.GetTemplateParameter<std::size_t>("Gemm01MPerBlock");
+        const auto m_per_block      = solution.GetTemplateParameter<std::size_t>("Gemm0MPerBlock");
         const auto n1_per_block     = solution.GetTemplateParameter<std::size_t>("Gemm1NPerBlock");
         const auto blocks_per_batch = ck::host::integer_divide_ceil(problem.M, m_per_block) *
                                       ck::host::integer_divide_ceil(problem.O, n1_per_block);
@@ -153,8 +173,8 @@ struct ck_gemm_softmax_gemm_compiler : compiler<ck_gemm_softmax_gemm_compiler>
         auto grid_size = can_fold_batch(inputs) ? blocks_per_batch : batch_count * blocks_per_batch;
         options.set_launch_params(v, grid_size * block_size, block_size);
         options.inputs         = inputs;
-        options.output         = c_shape;
-        options.kernel_name    = v.get("kernel", "ck_gemm_softmax_gemm_kernel");
+        options.output         = e1_shape;
+        options.kernel_name    = v.get("kernel", "ck_gemm_gemm_kernel");
         options.virtual_inputs = inputs;
         if(can_fold_batch(inputs))
         {
@@ -168,12 +188,7 @@ struct ck_gemm_softmax_gemm_compiler : compiler<ck_gemm_softmax_gemm_compiler>
         if(v.get("check", false) or enabled(MIGRAPHX_CK_DEBUG{}))
             options.emplace_param("-DMIGRAPHX_CK_CHECK=1");
 
-        // scale
-        assert(v.contains("scale"));
-        auto scale = v.at("scale").to<float>();
-        options.emplace_param("-DSCALE=" + std::to_string(scale));
-
-        auto src = interpolate_string(ck_gemm_softmax_gemm_kernel,
+        auto src = interpolate_string(ck_gemm_gemm_kernel,
                                       {{"solution", template_str},
                                        {"include", include_header},
                                        {"params", enum_params(inputs.size(), "void * private_p")},
@@ -182,24 +197,20 @@ struct ck_gemm_softmax_gemm_compiler : compiler<ck_gemm_softmax_gemm_compiler>
                                        {"preamble", v.get("preamble", std::string{})},
                                        {"kernel", options.kernel_name}});
 
-        // std::cout << "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA" << std::endl;
-        // std::cout << src << std::endl;
-
         return compile_hip_code_object(src, options);
     }
 
     value create_settings(instruction_ref ins, const operation& op) const
     {
         auto v      = op.to_value();
-        v["kernel"] = "ck_gemm_softmax_gemm_kernel";
+        v["kernel"] = "ck_gemm_gemm_kernel";
         if(not ins->module_inputs().empty())
         {
             auto* pm      = ins->module_inputs().front();
-            v["preamble"] = generate_pointwise(*pm, "post_ck_gemm_softmax_gemm_function") +
-                            "\nMIGRAPHX_LIFT_CLASS(post_ck_gemm_softmax_gemm, "
-                            "post_ck_gemm_softmax_gemm_function);";
-            v["post"]   = "ck_function_adaptor<post_ck_gemm_softmax_gemm>";
-            v["kernel"] = "ck_gemm_softmax_gemm_" + generate_name_from_ops(*pm) + "_kernel";
+            v["preamble"] = generate_pointwise(*pm, "post_ck_gemm0_function") +
+                            "\nMIGRAPHX_LIFT_CLASS(post_ck_gemm0, post_ck_gemm0_function);";
+            v["post"]   = "ck_function_adaptor<post_ck_gemm0>";
+            v["kernel"] = to_c_id("ck_gemm_" + generate_name_from_ops(*pm) + "_gemm_kernel");
         }
         return v;
     }
@@ -207,6 +218,8 @@ struct ck_gemm_softmax_gemm_compiler : compiler<ck_gemm_softmax_gemm_compiler>
     compiler_replace
     compile(context& ctx, instruction_ref ins, const operation& op, const value& solution) const
     {
+        std::cout << "USING GEMM GEMM" << std::endl;
+
         auto shapes = to_shapes(ins->inputs());
         auto v      = create_settings(ins, op);
         if(not solution.is_null())
@@ -217,8 +230,8 @@ struct ck_gemm_softmax_gemm_compiler : compiler<ck_gemm_softmax_gemm_compiler>
                     {
                         std::vector<shape> gemm_shapes{
                             shapes[0], shapes[1], shapes.back().with_type(shapes[0].type())};
-                        std::cout << "gpu::ck_gemm_softmax_gemm: "
-                                  << to_json_string(to_value(gemm_shapes)) << std::endl;
+                        std::cout << "gpu::ck_gemm_gemm: " << to_json_string(to_value(gemm_shapes))
+                                  << std::endl;
                     }
                     m.replace_instruction(ins2, code_object, ins2->inputs());
                 }};

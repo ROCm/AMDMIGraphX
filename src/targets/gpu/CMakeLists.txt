@@ -131,7 +131,8 @@ file(GLOB JIT_GPU_SRCS CONFIGURE_DEPENDS ${CMAKE_CURRENT_SOURCE_DIR}/jit/*.cpp)
 if(NOT MIGRAPHX_USE_COMPOSABLEKERNEL)
     list(REMOVE_ITEM JIT_GPU_SRCS
             ${CMAKE_CURRENT_SOURCE_DIR}/jit/ck_gemm.cpp
-            ${CMAKE_CURRENT_SOURCE_DIR}/jit/ck_gemm_softmax_gemm.cpp)
+            ${CMAKE_CURRENT_SOURCE_DIR}/jit/ck_gemm_softmax_gemm.cpp
+            ${CMAKE_CURRENT_SOURCE_DIR}/jit/ck_gemm_gemm.cpp)
 endif()
 
 if(MIGRAPHX_USE_MIOPEN)

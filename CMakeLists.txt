@@ -76,7 +76,7 @@ endif()
 if(WIN32)
 option(MIGRAPHX_USE_HIPBLASLT "Enable MIGraphX to use hipBLASLt" OFF)
 else()
-option(MIGRAPHX_USE_HIPBLASLT "Enable MIGraphX to use hipBLASLt" ON)
+option(MIGRAPHX_USE_HIPBLASLT "Enable MIGraphX to use hipBLASLt" OFF)
 endif()
 
 # By default build shared libraries

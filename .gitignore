@@ -79,7 +79,7 @@ docs/html
 # JetBrains config directories (ignoring symlinks)
 .idea/
 cmake-build*/
-build*/
+#build*/
 
 # Recommended location to install rbuild dependencies from README.md
 depend*/

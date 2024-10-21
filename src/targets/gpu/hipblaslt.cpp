@@ -57,8 +57,10 @@ bool hipblaslt_supported()
 {
     const auto device_name = trim(split_string(get_device_name(), ':').front());
     // hipblaslt is supported for MI100 and above and Navi3x and above
-    return (starts_with(device_name, "gfx9") and device_name >= "gfx908" and
-            not starts_with(device_name, "gfx10"));
+    return ((starts_with(device_name, "gfx9") and device_name >= "gfx908" and
+             not starts_with(device_name, "gfx10")) ||
+            starts_with(device_name, "gfx110") ||
+            starts_with(device_name, "gfx120"));
 }
 
 #endif // MIGRAPHX_USE_HIPBLASLT

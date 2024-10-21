@@ -44,6 +44,7 @@
 #include <iostream>
 #include <queue>
 #include <sstream>
+#include <fstream>
 #include <algorithm>
 #include <set>
 #include <unordered_map>
@@ -841,6 +842,46 @@ double common_average(const std::vector<double>& v)
     return total / std::distance(v.begin() + n, v.end() - n);
 }
 
+double mean(const std::vector<double>& v)
+{
+    double total = std::accumulate(v.begin(), v.end(), 0.0);
+    return total / v.size();
+}
+
+double median(const std::vector<double>& v)
+{
+    size_t mid = v.size() / 2;
+    if(v.size() % 2 == 0)
+    {
+        return (v[mid - 1] + v[mid]) / 2.0;
+    }
+    else
+    {
+        return v[mid];
+    }
+}
+
+double percentile(const std::vector<double>& v, double percentile)
+{
+    size_t index = (percentile * (v.size() - 1));
+    return v[index];
+}
+
+void dump_vector_to_csv(const std::vector<double>& vec, const std::string& file_name)
+{
+    std::ofstream file(file_name);
+
+    if(file.is_open())
+    {
+        for(const auto& value : vec)
+        {
+            file << value << "\n";
+        }
+        file.close();
+        std::cout << "Vector dumped to " << file_name << std::endl;
+    }
+}
+
 std::string perf_group(instruction_ref ins, bool detailed)
 {
     std::string result;
@@ -902,6 +943,7 @@ void program::perf_report(
             this->finish();
         }));
     }
+    dump_vector_to_csv(total_vec, "perf_output.csv");
     std::sort(total_vec.begin(), total_vec.end());
     std::unordered_map<instruction_ref, std::vector<double>> ins_vec;
     // Fill the map
@@ -931,8 +973,12 @@ void program::perf_report(
     {
         overhead_vec.push_back(time<milliseconds>([&] { dry_run(params); }));
     }
-
     double total_time             = common_average(total_vec);
+    double min_time               = total_vec.front();
+    double max_time               = total_vec.back();
+    double mean_time              = mean(total_vec);
+    double median_time            = median(total_vec);
+    double percentile_99_time     = percentile(total_vec, 0.99);
     double rate                   = 1000.0 / total_time;
     double overhead_time          = common_average(overhead_vec);
     double overhead_percent       = overhead_time * 100.0 / total_time;
@@ -985,6 +1031,11 @@ void program::perf_report(
     os << "Batch size: " << batch << std::endl;
     os << "Rate: " << rate * batch << " inferences/sec" << std::endl;
     os << "Total time: " << total_time << "ms" << std::endl;
+    os << "Min time: " << min_time << "ms" << std::endl;
+    os << "Max time: " << max_time << "ms" << std::endl;
+    os << "Mean time: " << mean_time << "ms" << std::endl;
+    os << "Median time: " << median_time << "ms" << std::endl;
+    os << "Percentile(99%) time: " << percentile_99_time << "ms" << std::endl;
     os << "Total instructions time: " << total_instruction_time << "ms" << std::endl;
     os << "Overhead time: " << overhead_time << "ms"
        << ", " << calculate_overhead_time << "ms" << std::endl;

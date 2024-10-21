@@ -145,20 +145,28 @@ static bool parse_args(const std::vector<instruction_ref>& args,
                        std::vector<std::size_t>& out_lens,
                        instruction_ref& r_arg)
 {
+    int argcount = 1;  // not zero-indexed
+           
+            // parser.opset_version 
     for(const auto& arg : args)
     {
         if(arg->name() == "undefined" or arg == args.front())
+        {
+            argcount++;
             continue;
-
+        }
         // skip any empty input (some of the Onnx args. are optional)
         auto lens = arg->get_shape().lens();
         if(lens.empty())
+        {
+            argcount++;
             continue;
-
+        }
         r_arg = arg;
 
+        // One or the other of scales and sizes must appear in the inputs
         auto type = arg->get_shape().type();
-        if(type == shape::int64_type)
+        if((parser.opset_version >= 13 and argcount == 4) or type == shape::int64_type)
         {
             // this argument is output sizes
             auto arg_out_s = arg->eval();
@@ -181,9 +189,18 @@ static bool parse_args(const std::vector<instruction_ref>& args,
                            [](auto iss, auto oss) { return 1.0 * oss / iss; });
             return false;
         }
+        else if (parser.opset_version >= 13 and argcount == 2)
+        {
+            // this argument is roi; not currently supported.  The input roi is optional
+            // for opset versions 11 and earlier; if it appears in the inputs list it
+            // will be interpreted as scales (below) and cause an error.  In later opsets
+            // it's a required positional argument and we skip it.
+            argcount++;
+            continue;
+        }
         else
         {
-            // this argument is scale input
+            // Assume this argument is scales input
             if(lens[0] == in_lens.size())
             {
                 auto arg_scale = arg->eval();

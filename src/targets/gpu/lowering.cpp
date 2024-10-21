@@ -554,7 +554,7 @@ struct miopen_apply
             auto inputs = ins->inputs();
 
             auto new_inputs = ins->inputs();
-            new_inputs.push_back(inputs.at(1));
+            new_inputs.push_back(inputs.at(2));
             return mod->replace_instruction(
                 ins,
                 make_op("gpu::precompile_op", {{"op", to_value(ins->get_operator())}}),

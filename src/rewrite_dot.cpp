@@ -71,7 +71,13 @@ struct window
             return input.strides()[axis];
         });
         shape result{input.type(), lens, strides};
-        if(result.element_space() > input.element_space())
+        // std::cout << "op: " << operation{*this} << std::endl;
+        // std::cout << "input: " << input << std::endl;
+        // std::cout << "result: " << result << std::endl;
+        // std::cout << "input space: " << input.element_space() << std::endl;
+        // std::cout << "result space: " << result.element_space() << std::endl;
+        // if(result.element_space() > input.element_space())
+        if(result.element_space() != input.element_space())
             MIGRAPHX_THROW("Out of bounds window access");
         return result;
     }
@@ -220,6 +226,7 @@ void rewrite_dot::apply(module& m) const
         return;
     match::find_matches(m, find_1x1_convolution{});
     match::find_matches(m, find_all_convolution{});
+    // m.debug_print();
 }
 
 } // namespace MIGRAPHX_INLINE_NS

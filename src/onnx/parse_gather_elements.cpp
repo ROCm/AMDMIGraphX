@@ -59,7 +59,7 @@ struct parse_gather_elements : op_parser<parse_gather_elements>
         }
 
         int n_rank     = data_s.lens().size();
-        int tuned_axis = tune_axis(n_rank, axis, opd.op_name);
+        int tuned_axis = tune_axis(n_rank, axis, opd.onnx_name);
 
         auto axis_stride      = data_s.strides()[tuned_axis];
         int64_t data_elem_num = data_s.elements();

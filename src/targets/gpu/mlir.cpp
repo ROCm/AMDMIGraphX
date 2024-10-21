@@ -59,6 +59,8 @@
 #include <migraphx/env.hpp>
 #include <migraphx/manage_ptr.hpp>
 #include <migraphx/module.hpp>
+#include <migraphx/program.hpp>
+#include <migraphx/load_save.hpp>
 #include <migraphx/instruction.hpp>
 #include <migraphx/config.hpp>
 #include <migraphx/ranges.hpp>
@@ -619,6 +621,11 @@ struct mlir_program
         return result;
     }
 
+    static bool is_reshape(const std::string& name)
+    {
+        return contains({"reshape", "lazy_reshape", "squeeze", "unsqueeze", "flatten"}, name);
+    }
+
     static std::string get_name(instruction_ref ins)
     {
         if(ins->name() == "@return")
@@ -627,6 +634,8 @@ struct mlir_program
             return "migraphx.literal";
         if(ins->name() == "unpack_int4")
             return "migraphx.unpack";
+        if(is_reshape(ins->name()))
+            return "migraphx.reshape";
         return "migraphx." + ins->name();
     }
 
@@ -637,8 +646,8 @@ struct mlir_program
 
         // Reshape operator can have dim 0 or -1.
         // Avoid passing those on to MLIR:
-        if(op.name() == "reshape")
-            v["dims"] = ins->get_shape().lens();
+        if(is_reshape(op.name()))
+            v = {{"dims", ins->get_shape().lens()}};
 
         if(op.name() == "convolution" or op.name() == "quant_convolution")
         {
@@ -1056,6 +1065,23 @@ void adjust_param_shapes(module& m, const std::vector<shape>& inputs)
     }
 }
 
+void replace_params_with_literals(module& m, const std::vector<instruction_ref>& inputs)
+{
+    auto names = m.get_parameter_names();
+    std::sort(names.begin(), names.end());
+    for(auto i : range(names.size()))
+    {
+        const auto& name  = names[i];
+        const auto& input = inputs[i];
+        if(input->name() != "@literal")
+            continue;
+        auto param = m.get_parameter(name);
+        auto lit   = m.add_literal(input->get_literal());
+        m.replace_instruction(param, lit);
+        m.remove_instruction(param);
+    }
+}
+
 std::string dump_mlir(module m, const std::vector<shape>& inputs)
 {
     const_module_ref mr = &m;
@@ -1173,6 +1199,30 @@ tuning_config get_tuning_config_mlir(const context& migraphx_ctx,
         std::cout << mlir_print(&mlirOperationPrint, mod_op) << std::endl;
     }
     return tc;
+}
+
+void dump_mlir_to_mxr(module m,
+                      const std::vector<instruction_ref>& inputs,
+                      const fs::path& location)
+{
+    static std::mutex mutex;
+    const std::lock_guard<std::mutex> lock(mutex);
+
+    adjust_param_shapes(m, to_shapes(inputs));
+    replace_params_with_literals(m, inputs);
+    std::vector<instruction_ref> sizes;
+    for(auto ins : iterator_for(m))
+    {
+        if(not contains({"convolution", "dot"}, ins->name()))
+            continue;
+        sizes.insert(sizes.end(), ins->inputs().begin(), ins->inputs().end());
+    }
+    auto name =
+        mlir_program::get_symbol_name(m) + "_" + shape::to_sizes_string(to_shapes(sizes)) + ".mxr";
+    replace_string_inplace(name, ", ", "_");
+    replace_string_inplace(name, ":", "s");
+    auto f = location / name;
+    save(program{std::move(m)}, f.string());
 }
 
 #else

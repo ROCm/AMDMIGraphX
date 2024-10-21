@@ -175,6 +175,7 @@ register_migraphx_ops(
     gathernd
     get_tuple_elem
     greater
+    group_query_attention
     gru
     identity
     if_op
@@ -384,5 +385,5 @@ rocm_export_targets(
     Threads
     ${MIGRAPHX_CONFIG_DEPENDS}
 )
- 
+
 

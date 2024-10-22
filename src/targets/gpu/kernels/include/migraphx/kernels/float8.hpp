@@ -137,7 +137,7 @@ struct float8
            migraphx::fp8::rounding_mode rm = migraphx::fp8::rounding_mode::standard,
            uint32_t rng                    = 0)
     {
-        if constexpr(FNUZ)
+        if(__builtin_is_constant_evaluated() or FNUZ)
         {
             if constexpr(T == migraphx::fp8::f8_type::fp8)
             {
@@ -150,35 +150,18 @@ struct float8
                     cast_to_f8<3, 4, float, FNUZ /*negative_zero_nan*/, false /*clip*/>(
                         v, (rm == migraphx::fp8::rounding_mode::stochastic), rng);
 #endif // MIGRAPHX_F8_DOWNCAST_CLIPPING
-        }
-        else
-        {
-            if(__builtin_is_constant_evaluated())
+            }
+            else
             {
-                if constexpr(T == migraphx::fp8::f8_type::fp8)
-                {
 #ifdef MIGRAPHX_F8_DOWNCAST_CLIPPING
-                    data = migraphx::fp8::impl::
-                        cast_to_f8<3, 4, float, FNUZ /*negative_zero_nan*/, true /*clip*/>(
-                            v, (rm == migraphx::fp8::rounding_mode::stochastic), rng);
+                data = migraphx::fp8::impl::
+                    cast_to_f8<2, 5, float, FNUZ /*negative_zero_nan*/, true /*clip*/>(
+                        v, (rm == migraphx::fp8::rounding_mode::stochastic), rng);
 #else  // MIGRAPHX_F8_DOWNCAST_CLIPPING
-                    data = migraphx::fp8::impl::
-                        cast_to_f8<3, 4, float, FNUZ /*negative_zero_nan*/, false /*clip*/>(
-                            v, (rm == migraphx::fp8::rounding_mode::stochastic), rng);
-#endif // MIGRAPHX_F8_DOWNCAST_CLIPPING
-                }
-                else
-                {
-#ifdef MIGRAPHX_F8_DOWNCAST_CLIPPING
-                    data = migraphx::fp8::impl::
-                        cast_to_f8<2, 5, float, FNUZ /*negative_zero_nan*/, true /*clip*/>(
-                            v, (rm == migraphx::fp8::rounding_mode::stochastic), rng);
-#else  // MIGRAPHX_F8_DOWNCAST_CLIPPING
-                    data = migraphx::fp8::impl::
-                        cast_to_f8<2, 5, float, FNUZ /*negative_zero_nan*/, false /*clip*/>(
-                            v, (rm == migraphx::fp8::rounding_mode::stochastic), rng);
+                data = migraphx::fp8::impl::
+                    cast_to_f8<2, 5, float, FNUZ /*negative_zero_nan*/, false /*clip*/>(
+                        v, (rm == migraphx::fp8::rounding_mode::stochastic), rng);
 #endif // MIGRAPHX_FP8_DOWNCAST_CLIPPING}
-                }
             }
         }
         else

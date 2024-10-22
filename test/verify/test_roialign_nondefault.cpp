@@ -40,6 +40,7 @@ struct test_roialign_nondefault : verify_program<test_roialign_nondefault>
 
         migraphx::shape ind_s{migraphx::shape::int64_type, {5}};
         std::vector<int64_t> ind_vec = {0, 2, 3, 4, 1};
+
         auto x   = mm->add_parameter("x", x_s);
         auto roi = mm->add_parameter("roi", roi_s);
         auto ind = mm->add_literal(migraphx::literal(ind_s, ind_vec));

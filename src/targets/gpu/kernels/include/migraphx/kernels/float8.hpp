@@ -137,7 +137,7 @@ struct float8
            migraphx::fp8::rounding_mode rm = migraphx::fp8::rounding_mode::standard,
            uint32_t rng                    = 0)
     {
-        if(__builtin_is_constant_evaluated() or FNUZ)
+        if(__builtin_is_constant_evaluated() or !FNUZ)
         {
             if constexpr(T == migraphx::fp8::f8_type::fp8)
             {
@@ -246,16 +246,7 @@ struct float8
     // upcast using device specific intrinsic
     inline constexpr __device__ operator float() const
     {
-        if constexpr(FNUZ)
-        {
-            if constexpr(T == migraphx::fp8::f8_type::fp8)
-            {
-                return migraphx::fp8::impl::cast_from_f8<3, 4, float, FNUZ /*negative_zero_nan*/>(
-                    data);
-            } // else
-            return migraphx::fp8::impl::cast_from_f8<2, 5, float, FNUZ /*negative_zero_nan*/>(data);
-        }
-        if(__builtin_is_constant_evaluated())
+        if(__builtin_is_constant_evaluated() or !FNUZ)
         {
             if constexpr(T == migraphx::fp8::f8_type::fp8)
             {

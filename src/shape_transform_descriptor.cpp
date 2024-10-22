@@ -900,7 +900,7 @@ std::vector<operation> shape_transform_descriptor::generate_common_from_dst(
     {
         // Map the input dims back to the src input if possible
         std::vector<std::size_t> src_input_dims(this->rank);
-        for(auto i:range(dimensions.size()))
+        for(auto i : range(dimensions.size()))
         {
             const auto& d = dimensions[i];
             if(d.subdimensions.size() != 1)
@@ -908,7 +908,7 @@ std::vector<operation> shape_transform_descriptor::generate_common_from_dst(
             const auto& sub = d.subdimensions.front();
             if(sub.axis.size() != 1)
                 continue;
-            auto axis = sub.axis.front();
+            auto axis            = sub.axis.front();
             src_input_dims[axis] = input_dims[i];
         }
         return {make_reshape_unsqueeze(subs, src_input_dims)};

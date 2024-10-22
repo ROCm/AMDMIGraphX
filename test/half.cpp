@@ -29,8 +29,9 @@
 
 #include <limits>
 #include <map>
+#include <iomanip>
 
-template<class T, class U>
+template <class T, class U>
 bool bit_equal(const T& x, const U& y)
 {
     static_assert(sizeof(T) == sizeof(U));
@@ -1078,7 +1079,6 @@ static const std::map<uint16_t, float> half_lut = {
     {0xffa3, std::numeric_limits<float>::quiet_NaN()},
 };
 
-
 TEST_CASE(check_half_values)
 {
     for(auto [x, f] : half_lut)
@@ -1096,16 +1096,8 @@ TEST_CASE(check_half_values)
         }
         else
         {
-            std::cout << h << " " << x << " " << f << std::endl;
-
-            std::cout << float(h) << " " << f << std::endl;
-
-            std::cout << x << " " << migraphx::half(f) << std::endl;
-
-            CHECK(migraphx::float_equal(float(h), f));
             CHECK(bit_equal(x, migraphx::half(f)));
-            std::cout << " "  << std::endl;
-            std::cout << " "  << std::endl;
+            CHECK(migraphx::float_equal(float(h), f));
         }
     }
 }

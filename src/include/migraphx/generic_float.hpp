@@ -27,6 +27,7 @@
 #include <algorithm>
 #include <limits>
 #include <iostream>
+#include <bitset>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
@@ -34,7 +35,7 @@ inline namespace MIGRAPHX_INLINE_NS {
 template<unsigned int N>
 constexpr unsigned int all_ones() noexcept
 {
-    return (1u << N) - 1u;
+    return (1 << N) - 1;
 }
 
 struct float32_parts 
@@ -100,37 +101,65 @@ struct __attribute__((packed)) generic_float
         return result;
     }
 
-
     constexpr float to_float() const noexcept
     {
         float32_parts f{};
-        f.sign = sign;
-        f.mantissa = mantissa << (float32_parts::mantissa_width() - MantissaSize);
 
-        if(exponent == all_ones<ExponentSize>())
+        f.sign = sign;
+
+        if(exponent == 0)
         {
+
+            if(mantissa == 0)
+            {
+
+                f.exponent = 0;
+                f.mantissa = 0;
+            }
+            else
+            {
+                int shift  = 0;
+                f.mantissa = mantissa;
+
+                while((f.mantissa & (1 << MantissaSize)) == 0)
+                {
+                    f.mantissa <<= 1;
+                    shift++;
+                }
+
+                f.mantissa &= all_ones<MantissaSize>();
+
+                f.exponent = float32_parts::exponent_bias() - exponent_bias() - shift + 1;
+                f.mantissa = f.mantissa << (float32_parts::mantissa_width() - MantissaSize);
+            }
+        }
+        else if(exponent == all_ones<ExponentSize>())
+        {
+            f.mantissa = mantissa << (float32_parts::mantissa_width() - MantissaSize);
             f.exponent = float32_parts::max_exponent();
         }
         else
         {
-            constexpr const auto diff = float32_parts::exponent_bias() - exponent_bias();
-            f.exponent = exponent + diff;
+            f.mantissa               = mantissa << (float32_parts::mantissa_width() - MantissaSize);
+            constexpr const int diff = float32_parts::exponent_bias() - exponent_bias();
+            f.exponent               = int(exponent) + diff;
         }
         return f.to_float();
     }
 
     constexpr void from_float(float32_parts f) noexcept
     {
-        sign  = f.sign;
-        mantissa = f.mantissa >> (float32_parts::mantissa_width() - MantissaSize);
+        sign = f.sign;
 
         if(f.exponent == 0)
         {
             exponent = 0;
+            mantissa = f.mantissa >> (float32_parts::mantissa_width() - MantissaSize);
         }
         else if(f.exponent == float32_parts::max_exponent())
         {
             exponent = all_ones<ExponentSize>();
+            mantissa = f.mantissa >> (float32_parts::mantissa_width() - MantissaSize);
         }
         else
         {
@@ -142,14 +171,19 @@ struct __attribute__((packed)) generic_float
                 exponent = all_ones<ExponentSize>();
                 mantissa = 0;
             }
-            else if(e < 0)
+            else if(e <= 0)
             {
                 exponent = 0;
-                mantissa = 0;
+
+                auto shift = diff - int(f.exponent);
+                mantissa =
+                    (f.mantissa | (1 << static_cast<int>(float32_parts::mantissa_width()))) >>
+                    (shift + (float32_parts::mantissa_width() - MantissaSize) + 1);
             }
             else
             {
-                exponent = f.exponent - diff;
+                exponent = int(f.exponent) - diff;
+                mantissa = f.mantissa >> (float32_parts::mantissa_width() - MantissaSize);
             }
         }
 

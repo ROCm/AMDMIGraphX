@@ -68,11 +68,11 @@ struct float8
 
     __device__ explicit constexpr float8(uint8_t bits, from_bits_t) : data(bits) {}
 
-#if false
+#if defined(__gfx940__) || defined(__gfx941__) || defined(__gfx942__)
     // device specific optimized F8 down-conversion code
 
     template <bool stochastic_rounding = false>
-    static __device__ uint8_t cast_to_f8_from_f32(float v, uint32_t rng = 0)
+    static __device__ uint8_t cast_to_f8fnuz_from_f32(float v, uint32_t rng = 0)
     {
         uint8_t i8data = 0x00;
         union
@@ -129,7 +129,7 @@ struct float8
 #endif // __gfx940__
 
        // constructor from float
-#if false
+#if defined(__gfx940__) || defined(__gfx941__) || defined(__gfx942__)
 
     // NOTE: ON-DEVICE... always optimal bias
     explicit constexpr __device__
@@ -137,7 +137,7 @@ struct float8
            migraphx::fp8::rounding_mode rm = migraphx::fp8::rounding_mode::standard,
            uint32_t rng                    = 0)
     {
-        if(__builtin_is_constant_evaluated())
+        if(__builtin_is_constant_evaluated() or FNUZ)
         {
             if constexpr(T == migraphx::fp8::f8_type::fp8)
             {
@@ -166,11 +166,11 @@ struct float8
         }
         else
         {
-            // runtime branch, use cast_to_f8_from_f32 if want to avoid it
+            // runtime branch, use cast_to_f8fnuz_from_f32 if want to avoid it
             if(rm == migraphx::fp8::rounding_mode::stochastic)
-                data = cast_to_f8_from_f32<true>(v, rng);
+                data = cast_to_f8fnuz_from_f32<true>(v, rng);
             else
-                data = cast_to_f8_from_f32<false>(v);
+                data = cast_to_f8fnuz_from_f32<false>(v);
         }
     }
 #else
@@ -242,11 +242,11 @@ struct float8
     {
     }
     // convert to float
-#if false
+#if defined(__gfx940__) || defined(__gfx941__) || defined(__gfx942__) // NOLINT
     // upcast using device specific intrinsic
     inline constexpr __device__ operator float() const
     {
-        if(__builtin_is_constant_evaluated())
+        if(__builtin_is_constant_evaluated() or FNUZ)
         {
             if constexpr(T == migraphx::fp8::f8_type::fp8)
             {

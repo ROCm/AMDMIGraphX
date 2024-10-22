@@ -68,7 +68,7 @@ struct float8
 
     __device__ explicit constexpr float8(uint8_t bits, from_bits_t) : data(bits) {}
 
-#if defined(__gfx940__) || defined(__gfx941__) || defined(__gfx942__)
+#if false
     // device specific optimized F8 down-conversion code
 
     template <bool stochastic_rounding = false>
@@ -129,7 +129,7 @@ struct float8
 #endif // __gfx940__
 
        // constructor from float
-#if defined(__gfx940__) || defined(__gfx941__) || defined(__gfx942__)
+#if false
 
     // NOTE: ON-DEVICE... always optimal bias
     explicit constexpr __device__
@@ -242,7 +242,7 @@ struct float8
     {
     }
     // convert to float
-#if defined(__gfx940__) || defined(__gfx941__) || defined(__gfx942__) // NOLINT
+#if false
     // upcast using device specific intrinsic
     inline constexpr __device__ operator float() const
     {

@@ -51,14 +51,6 @@ TEST_CASE(roialign_half_pixel_verify_test)
     std::vector<float> result_vector;
     result.visit([&](auto output) { result_vector.assign(output.begin(), output.end()); });
 
-    printf(" result:  \n");
-    for(int i = 0; i < result_vector.size(); i++)
-    {
-        printf(" %f ", result_vector[i]);
-        if(i % 6 == 5)
-            printf("\n");
-    }
-    printf("\n");
     // Gold values were generated with onnxruntime
     std::vector<float> gold = {5.38,      5.4799995, 5.4799995, 6.58,      6.68,  6.68,
                                17.38,     17.48,     17.48,     18.58,     18.68, 18.68,

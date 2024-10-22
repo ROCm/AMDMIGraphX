@@ -51,7 +51,7 @@ TEST_CASE(roialign_verify_test)
     std::vector<float> result_vector;
     result.visit([&](auto output) { result_vector.assign(output.begin(), output.end()); });
 
-    // gold results were generated with onnxruntime
+    // gold values were generated with onnxruntime
     std::vector<float> gold = {
         143.16667, 143.49998, 143.83333, 144.56667, 144.9,     145.23334, 145.96667, 146.3,
         146.63333, 147.36667, 147.70001, 148.03334, 148.76666, 149.09999, 149.43333,

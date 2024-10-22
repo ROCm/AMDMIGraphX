@@ -72,7 +72,7 @@ struct float8
     // device specific optimized F8 down-conversion code
 
     template <bool stochastic_rounding = false>
-    static __device__ uint8_t cast_to_f8_from_f32(float v, uint32_t rng = 0)
+    static __device__ uint8_t cast_to_f8fnuz_from_f32(float v, uint32_t rng = 0)
     {
         uint8_t i8data = 0x00;
         union
@@ -137,7 +137,7 @@ struct float8
            migraphx::fp8::rounding_mode rm = migraphx::fp8::rounding_mode::standard,
            uint32_t rng                    = 0)
     {
-        if(__builtin_is_constant_evaluated())
+        if constexpr(FNUZ)
         {
             if constexpr(T == migraphx::fp8::f8_type::fp8)
             {
@@ -150,27 +150,44 @@ struct float8
                     cast_to_f8<3, 4, float, FNUZ /*negative_zero_nan*/, false /*clip*/>(
                         v, (rm == migraphx::fp8::rounding_mode::stochastic), rng);
 #endif // MIGRAPHX_F8_DOWNCAST_CLIPPING
-            }
-            else
+        }
+        else
+        {
+            if(__builtin_is_constant_evaluated())
             {
+                if constexpr(T == migraphx::fp8::f8_type::fp8)
+                {
 #ifdef MIGRAPHX_F8_DOWNCAST_CLIPPING
-                data = migraphx::fp8::impl::
-                    cast_to_f8<2, 5, float, FNUZ /*negative_zero_nan*/, true /*clip*/>(
-                        v, (rm == migraphx::fp8::rounding_mode::stochastic), rng);
+                    data = migraphx::fp8::impl::
+                        cast_to_f8<3, 4, float, FNUZ /*negative_zero_nan*/, true /*clip*/>(
+                            v, (rm == migraphx::fp8::rounding_mode::stochastic), rng);
 #else  // MIGRAPHX_F8_DOWNCAST_CLIPPING
-                data = migraphx::fp8::impl::
-                    cast_to_f8<2, 5, float, FNUZ /*negative_zero_nan*/, false /*clip*/>(
-                        v, (rm == migraphx::fp8::rounding_mode::stochastic), rng);
+                    data = migraphx::fp8::impl::
+                        cast_to_f8<3, 4, float, FNUZ /*negative_zero_nan*/, false /*clip*/>(
+                            v, (rm == migraphx::fp8::rounding_mode::stochastic), rng);
+#endif // MIGRAPHX_F8_DOWNCAST_CLIPPING
+                }
+                else
+                {
+#ifdef MIGRAPHX_F8_DOWNCAST_CLIPPING
+                    data = migraphx::fp8::impl::
+                        cast_to_f8<2, 5, float, FNUZ /*negative_zero_nan*/, true /*clip*/>(
+                            v, (rm == migraphx::fp8::rounding_mode::stochastic), rng);
+#else  // MIGRAPHX_F8_DOWNCAST_CLIPPING
+                    data = migraphx::fp8::impl::
+                        cast_to_f8<2, 5, float, FNUZ /*negative_zero_nan*/, false /*clip*/>(
+                            v, (rm == migraphx::fp8::rounding_mode::stochastic), rng);
 #endif // MIGRAPHX_FP8_DOWNCAST_CLIPPING}
+                }
             }
         }
         else
         {
-            // runtime branch, use cast_to_f8_from_f32 if want to avoid it
+            // runtime branch, use cast_to_f8fnuz_from_f32 if want to avoid it
             if(rm == migraphx::fp8::rounding_mode::stochastic)
-                data = cast_to_f8_from_f32<true>(v, rng);
+                data = cast_to_f8fnuz_from_f32<true>(v, rng);
             else
-                data = cast_to_f8_from_f32<false>(v);
+                data = cast_to_f8fnuz_from_f32<false>(v);
         }
     }
 #else
@@ -246,6 +263,15 @@ struct float8
     // upcast using device specific intrinsic
     inline constexpr __device__ operator float() const
     {
+        if constexpr(FNUZ)
+        {
+            if constexpr(T == migraphx::fp8::f8_type::fp8)
+            {
+                return migraphx::fp8::impl::cast_from_f8<3, 4, float, FNUZ /*negative_zero_nan*/>(
+                    data);
+            } // else
+            return migraphx::fp8::impl::cast_from_f8<2, 5, float, FNUZ /*negative_zero_nan*/>(data);
+        }
         if(__builtin_is_constant_evaluated())
         {
             if constexpr(T == migraphx::fp8::f8_type::fp8)

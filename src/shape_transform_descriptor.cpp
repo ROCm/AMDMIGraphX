@@ -562,7 +562,9 @@ void shape_transform_descriptor::simplify()
 
 static std::size_t get_len(const dimension::sub& s, const std::vector<std::size_t>& input_dims)
 {
-    if(not s.axis.empty() and not input_dims.empty() and input_dims.at(s.axis.front()) == 1)
+    if(input_dims.empty())
+        return s.len;
+    if(not s.axis.empty() and input_dims.at(s.axis.front()) == 1)
         return 1;
     if(s.axis.size() == 1)
         return input_dims.at(s.axis.front());

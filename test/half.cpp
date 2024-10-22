@@ -1102,4 +1102,17 @@ TEST_CASE(check_half_values)
     }
 }
 
+TEST_CASE(check_flows)
+{
+    // check positive underflow
+    CHECK(bit_equal(std::numeric_limits<migraphx::half>::min() * std::numeric_limits<migraphx::half>::min(), migraphx::half(0)));
+
+    // check overflow
+    CHECK(bit_equal(std::numeric_limits<migraphx::half>::max() + std::numeric_limits<migraphx::half>::max(), std::numeric_limits<migraphx::half>::infinity()));
+    CHECK(bit_equal(std::numeric_limits<migraphx::half>::max() / std::numeric_limits<migraphx::half>::epsilon(), std::numeric_limits<migraphx::half>::infinity()));
+
+    // check negative underflow 
+    CHECK(bit_equal(std::numeric_limits<migraphx::half>::lowest() + std::numeric_limits<migraphx::half>::lowest(), -std::numeric_limits<migraphx::half>::infinity()));
+}
+
 int main(int argc, const char* argv[]) { test::run(argc, argv); }

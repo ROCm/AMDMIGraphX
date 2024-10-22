@@ -1135,12 +1135,12 @@ TEST_CASE(test_bool)
     float zero  = 0.0;
     float two   = 2.0;
     float other = -0.375;
-    migraphx::half fp8_zero(zero);
-    migraphx::half fp8_two(two);
-    migraphx::half fp8_other(other);
-    EXPECT(not static_cast<bool>(fp8_zero));
-    EXPECT(static_cast<bool>(fp8_two));
-    EXPECT(static_cast<bool>(fp8_other));
+    migraphx::half half_zero(zero);
+    migraphx::half half_two(two);
+    migraphx::half half_other(other);
+    EXPECT(not static_cast<bool>(half_zero));
+    EXPECT(static_cast<bool>(half_two));
+    EXPECT(static_cast<bool>(half_other));
 }
 
 TEST_CASE(test_pos_infinity)

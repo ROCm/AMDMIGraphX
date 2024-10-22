@@ -1115,4 +1115,68 @@ TEST_CASE(check_flows)
     CHECK(bit_equal(std::numeric_limits<migraphx::half>::lowest() + std::numeric_limits<migraphx::half>::lowest(), -std::numeric_limits<migraphx::half>::infinity()));
 }
 
+
+float halfToFloat(uint16_t half) {
+    uint32_t sign = (half >> 15) & 0x1;
+    uint32_t exponent = (half >> 10) & 0x1F;
+    uint32_t mantissa = half & 0x3FF;
+
+    if (exponent == 31) {
+        if (mantissa == 0) {
+            return sign ? -std::numeric_limits<float>::infinity() : std::numeric_limits<float>::infinity();
+        } else {
+            return std::numeric_limits<float>::quiet_NaN();
+        }
+    }
+
+    float result;
+    if (exponent == 0) {
+        result = std::ldexp(static_cast<float>(mantissa), -24);
+    } else {
+        result = std::ldexp(static_cast<float>(mantissa | 0x400), exponent - 25);
+    }
+
+    if (sign) {
+        result = -result;
+    }
+
+    return result;
+}
+
+TEST_CASE(check_map) {
+    std::map<uint16_t, float> half_lut_all;
+
+    for (uint16_t hexValue = 0x0000; hexValue <= 0x03FF; ++hexValue) {
+        float floatValue = halfToFloat(hexValue);
+        half_lut_all[hexValue] = floatValue;
+    }
+
+    half_lut_all[0x7c00] = std::numeric_limits<float>::infinity();
+    half_lut_all[0xfc00] = -std::numeric_limits<float>::infinity();
+    half_lut_all[0x7c05] = std::numeric_limits<float>::quiet_NaN();
+
+
+    for(auto [x, f] : half_lut_all)
+    {
+        auto h = migraphx::bit_cast<migraphx::half>(x);
+        if(std::isnan(f))
+        {
+            CHECK(std::isnan(h));
+        }
+        else if(std::isinf(f))
+        {
+            CHECK(std::isinf(h));
+            CHECK((h < 0) == (f < 0));
+            CHECK(bit_equal(x, migraphx::half(f)));
+        }
+        else
+        {
+            CHECK(bit_equal(x, migraphx::half(f)));
+            CHECK(migraphx::float_equal(float(h), f));
+        }
+    }
+
+}
+
+
 int main(int argc, const char* argv[]) { test::run(argc, argv); }

@@ -714,7 +714,7 @@ struct time_cmd : command<time_cmd>
         auto m = c.params(p);
         std::cout << "Running ... " << std::endl;
         double t = time_run(p, m, n);
-        std::cout << t << "ms" << std::endl;
+        std::cout << "Total time: " << t << "ms" << std::endl;
     }
 };
 

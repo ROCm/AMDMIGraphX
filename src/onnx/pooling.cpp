@@ -92,7 +92,7 @@ value handle_pooling_values(const op_desc& opd,
     }
 
     // ensure pads available only when auto_pad is "NOT_SET"
-    check_padding_mode(info, "POOLING");
+    check_padding_mode(info, opd.onnx_name);
 
     return values;
 }

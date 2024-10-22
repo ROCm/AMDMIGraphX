@@ -228,9 +228,12 @@ make_simplified_layer_norm(const std::vector<int64_t>& input_shape,
 
     auto eps = mm->add_literal(migraphx::literal{dtype, {eps_value}});
 
-    auto x_sq      = add_common_op(*mm, migraphx::make_op("mul"), {x, x});
+    auto float_x = mm->add_instruction(
+        migraphx::make_op("convert", {{"target_type", migraphx::shape::float_type}}), x);
+    auto x_sq      = add_common_op(*mm, migraphx::make_op("mul"), {float_x, float_x});
     auto norm_axis = axis < 0 ? axis + x->get_shape().lens().size() : axis;
     auto rms = mm->add_instruction(migraphx::make_op("reduce_mean", {{"axes", {norm_axis}}}), x_sq);
+    rms         = mm->add_instruction(migraphx::make_op("convert", {{"target_type", dtype}}), rms);
     rms      = add_common_op(*mm, migraphx::make_op("add"), {rms, eps});
     auto rrms   = mm->add_instruction(migraphx::make_op("rsqrt"), {rms});
     auto result = add_common_op(*mm, migraphx::make_op("mul"), {x, rrms});

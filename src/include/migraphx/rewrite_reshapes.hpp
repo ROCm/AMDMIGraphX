@@ -73,7 +73,8 @@ struct rewrite_reshapes
 
         auto matcher() const
         {
-            auto reshapes = match::name("reshape", "squeeze", "unsqueeze", "flatten", "transpose", "contiguous")(
+            auto reshapes = match::name(
+                "reshape", "squeeze", "unsqueeze", "flatten", "transpose", "contiguous")(
                 match::used_once());
             auto pointwise         = match::name(op1)(match::used_once());
             auto reshapes_pointwise =

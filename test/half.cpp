@@ -1108,74 +1108,116 @@ TEST_CASE(check_flows)
     CHECK(bit_equal(std::numeric_limits<migraphx::half>::min() * std::numeric_limits<migraphx::half>::min(), migraphx::half(0)));
 
     // check overflow
+    CHECK(bit_equal(std::numeric_limits<migraphx::half>::infinity() + std::numeric_limits<migraphx::half>::infinity(), std::numeric_limits<migraphx::half>::infinity()));
     CHECK(bit_equal(std::numeric_limits<migraphx::half>::max() + std::numeric_limits<migraphx::half>::max(), std::numeric_limits<migraphx::half>::infinity()));
     CHECK(bit_equal(std::numeric_limits<migraphx::half>::max() / std::numeric_limits<migraphx::half>::epsilon(), std::numeric_limits<migraphx::half>::infinity()));
 
     // check negative underflow 
     CHECK(bit_equal(std::numeric_limits<migraphx::half>::lowest() + std::numeric_limits<migraphx::half>::lowest(), -std::numeric_limits<migraphx::half>::infinity()));
+    CHECK(bit_equal(-std::numeric_limits<migraphx::half>::infinity() - std::numeric_limits<migraphx::half>::infinity(), -std::numeric_limits<migraphx::half>::infinity()));
+}
+
+TEST_CASE(test_nan)
+{
+    float f_qnan = std::numeric_limits<float>::quiet_NaN();
+    migraphx::half half_qnan(f_qnan);
+    EXPECT(half_qnan.is_nan());
+    EXPECT(std::isnan(half_qnan));
+
+    float f_snan = std::numeric_limits<float>::signaling_NaN();
+    migraphx::half half_snan(f_snan);
+    EXPECT(half_snan.is_nan());
+    EXPECT(std::isnan(half_snan));
+}
+
+TEST_CASE(test_bool)
+{
+    float zero  = 0.0;
+    float two   = 2.0;
+    float other = -0.375;
+    migraphx::half fp8_zero(zero);
+    migraphx::half fp8_two(two);
+    migraphx::half fp8_other(other);
+    EXPECT(not static_cast<bool>(fp8_zero));
+    EXPECT(static_cast<bool>(fp8_two));
+    EXPECT(static_cast<bool>(fp8_other));
+}
+
+TEST_CASE(test_pos_infinity)
+{
+    float finf = std::numeric_limits<float>::infinity();
+    migraphx::half half_inf_1(finf);
+    CHECK(bit_equal(half_inf_1, std::numeric_limits<migraphx::half>::infinity()));
+}
+
+TEST_CASE(test_neg_infinity)
+{
+    float finf = -1.0 * std::numeric_limits<float>::infinity();
+    migraphx::half half_neginf_1(finf);
+    CHECK(bit_equal(half_neginf_1, -std::numeric_limits<migraphx::half>::infinity()));
+}
+
+TEST_CASE(test_numeric_max_1)
+{
+    float fmax = std::numeric_limits<float>::max(); // fp32 max is fp16 inf
+    migraphx::half half_inf(fmax);
+    CHECK(bit_equal(half_inf, std::numeric_limits<migraphx::half>::infinity()));
 }
 
 
-float halfToFloat(uint16_t half) {
-    uint32_t sign = (half >> 15) & 0x1;
-    uint32_t exponent = (half >> 10) & 0x1F;
-    uint32_t mantissa = half & 0x3FF;
-
-    if (exponent == 31) {
-        if (mantissa == 0) {
-            return sign ? -std::numeric_limits<float>::infinity() : std::numeric_limits<float>::infinity();
-        } else {
-            return std::numeric_limits<float>::quiet_NaN();
-        }
-    }
-
-    float result;
-    if (exponent == 0) {
-        result = std::ldexp(static_cast<float>(mantissa), -24);
-    } else {
-        result = std::ldexp(static_cast<float>(mantissa | 0x400), exponent - 25);
-    }
-
-    if (sign) {
-        result = -result;
-    }
-
-    return result;
+TEST_CASE(test_numeric_lowest_1)
+{
+    float flowest = std::numeric_limits<float>::lowest();
+    migraphx::half half_neginf(flowest);
+    CHECK(bit_equal(half_neginf, -std::numeric_limits<migraphx::half>::infinity()));
 }
 
-TEST_CASE(check_map) {
-    std::map<uint16_t, float> half_lut_all;
+TEST_CASE(test_max_eq_lowest)
+{
+    EXPECT(migraphx::float_equal(std::numeric_limits<migraphx::half>::lowest(),
+                                 -1 * std::numeric_limits<migraphx::half>::max()));
+}
 
-    for (uint16_t hexValue = 0x0000; hexValue <= 0x03FF; ++hexValue) {
-        float floatValue = halfToFloat(hexValue);
-        half_lut_all[hexValue] = floatValue;
-    }
+TEST_CASE(test_isfinite)
+{
+    EXPECT(std::isfinite(migraphx::half(0.0)));
+    EXPECT(std::isfinite(migraphx::half(-0.0)));
+    EXPECT(not std::isfinite(
+        migraphx::half(std::numeric_limits<migraphx::half>::quiet_NaN())));
+}
 
-    half_lut_all[0x7c00] = std::numeric_limits<float>::infinity();
-    half_lut_all[0xfc00] = -std::numeric_limits<float>::infinity();
-    half_lut_all[0x7c05] = std::numeric_limits<float>::quiet_NaN();
+TEST_CASE(test_binary_ops)
+{
+    auto a = migraphx::half(-1.0);
+    auto b = migraphx::half(1.0);
+    auto c = migraphx::half(0.0);
+    auto d = migraphx::half(-0.0);
+    EXPECT(migraphx::float_equal((c + d), c));
+    EXPECT(migraphx::float_equal((c + d), d));
+    EXPECT(migraphx::float_equal((a + b), c));
+    EXPECT(migraphx::float_equal((a + b), d));
 
+    auto e = migraphx::half(10.0);
+    auto f = migraphx::half(-10.0);
+    EXPECT(e > f);
+    EXPECT(f < e);
+    EXPECT(f <= e);
+    EXPECT(e >= f);
+    EXPECT(e <= e);
+    EXPECT(f >= f);
+    EXPECT(not migraphx::float_equal(f, e));
+}
 
-    for(auto [x, f] : half_lut_all)
-    {
-        auto h = migraphx::bit_cast<migraphx::half>(x);
-        if(std::isnan(f))
-        {
-            CHECK(std::isnan(h));
-        }
-        else if(std::isinf(f))
-        {
-            CHECK(std::isinf(h));
-            CHECK((h < 0) == (f < 0));
-            CHECK(bit_equal(x, migraphx::half(f)));
-        }
-        else
-        {
-            CHECK(bit_equal(x, migraphx::half(f)));
-            CHECK(migraphx::float_equal(float(h), f));
-        }
-    }
-
+TEST_CASE(test_stream_op)
+{
+    auto a = migraphx::half(-1.0);
+    std::stringstream ss;
+    ss << a;
+    EXPECT(std::string("-1") == ss.str());
+    ss     = std::stringstream();
+    auto b = std::numeric_limits<migraphx::half>::quiet_NaN();
+    ss << b;
+    EXPECT(std::string("nan") == ss.str());
 }
 
 

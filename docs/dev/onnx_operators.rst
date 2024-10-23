@@ -697,8 +697,11 @@ Operator Support Matrix
 |                          |           |                 | functions are                |
 |                          |           |                 | not enabled                  |
 +--------------------------+-----------+-----------------+------------------------------+
-| RoiAlign                 | ✅        | FP8, FP16,      |                               |
-|                          |           | FP32, FP64      |                              |
+| RoiAlign                 | ✅        | FP8, FP16,      | ``X``,                       |
+|                          |           | FP32, FP64,     | ``ROI`` take any floating-   |
+|                          |           | UINT8, UINT16,   | point type;                 |
+|                          |           | UINT32, UINT64,  | ``batch_indices``           |
+|                          |           |                  | takes any integral type     |
 +--------------------------+-----------+-----------------+------------------------------+
 | Round                    | ✅        | FP8, FP16,      |                              |
 |                          |           | FP32, FP64      |                              |

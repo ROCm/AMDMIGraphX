@@ -443,7 +443,7 @@ void find_matches_for(source_location location, Mod& mod, instruction_ref ins, M
                 }
                 match = true;
             });
-            if(time_matchers)
+            if(time_matchers and trace_for)
             {
                 std::cout << "Matcher " << matcher_name << " took " << elapsed_time << "ns." << std::endl;
             }

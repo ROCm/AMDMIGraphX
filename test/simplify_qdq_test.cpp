@@ -36,6 +36,8 @@
 #include <migraphx/verify.hpp>
 #include <migraphx/apply_alpha_beta.hpp>
 
+namespace match = migraphx::match;
+
 bool is_convolution(const migraphx::instruction& ins) { return ins.name() == "convolution"; }
 bool is_dot(const migraphx::instruction& ins) { return ins.name() == "dot"; }
 
@@ -1590,6 +1592,29 @@ TEST_CASE(dot_asymmetric_correctness)
     std::vector<float> rv2(sh3.elements());
     result2.visit([&](auto output) { rv2.assign(output.begin(), output.end()); });
     EXPECT(migraphx::verify::verify_rms_range(rv1, rv2));
+}
+
+TEST_CASE(int4_simplify_qdq_pass_test)
+{
+    migraphx::module m1;
+    {
+        auto x        = m1.add_parameter("x", {migraphx::shape::float_type, {1, 8, 16, 16}});
+        auto scale    = m1.add_parameter("sc", {migraphx::shape::float_type, {1, 8, 16, 16}});
+        auto zp       = m1.add_parameter("zp", {migraphx::shape::int8_type, {1, 8, 16, 8}});
+        auto un_pk_zp = m1.add_instruction(migraphx::make_op("unpack_int4"), zp);
+        auto q        = m1.add_instruction(migraphx::make_op("quantizelinear"), x, scale, un_pk_zp);
+        auto dq = m1.add_instruction(migraphx::make_op("dequantizelinear"), q, scale, un_pk_zp);
+        m1.add_return({dq});
+    }
+
+    migraphx::run_passes(m1, {migraphx::simplify_qdq{}});
+
+    auto chk_1 = match::name("quantizelinear")(
+                     match::output(match::name("pack_int4")(match::output(match::name(
+                         "unpack_int4")(match::output(match::name("dequantizelinear")))))))
+                     .bind("q");
+    auto res_1 = find_match(m1, chk_1);
+    EXPECT(migraphx::contains(res_1.instructions, "q"));
 }
 
 int main(int argc, const char* argv[]) { test::run(argc, argv); }

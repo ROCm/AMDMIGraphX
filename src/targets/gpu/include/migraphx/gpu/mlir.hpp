@@ -27,6 +27,7 @@
 #include <string>
 #include <vector>
 #include <migraphx/value.hpp>
+#include <migraphx/filesystem.hpp>
 #include <migraphx/gpu/config.hpp>
 #include <migraphx/gpu/code_object_op.hpp>
 #include <migraphx/instruction_ref.hpp>
@@ -66,6 +67,9 @@ MIGRAPHX_GPU_EXPORT tuning_config get_tuning_config_mlir(const context& migraphx
                                                          module m,
                                                          const std::vector<shape>& inputs,
                                                          bool exhaustive);
+
+MIGRAPHX_GPU_EXPORT void
+dump_mlir_to_mxr(module m, const std::vector<instruction_ref>& inputs, const fs::path& location);
 
 } // namespace gpu
 } // namespace MIGRAPHX_INLINE_NS

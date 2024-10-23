@@ -230,7 +230,6 @@ struct mlir_compiler : compiler<mlir_compiler>
 
     static void trace(std::ostream& os, instruction_ref ins)
     {
-        std::cout << "tracing" << std::endl;
         auto shapes = to_shapes(ins->inputs());
         auto* smod  = ins->module_inputs().front();
         os << dump_mlir(*smod, shapes);

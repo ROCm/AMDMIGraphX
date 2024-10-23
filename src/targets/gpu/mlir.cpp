@@ -1116,7 +1116,7 @@ std::string dump_mlir(module m, const std::vector<shape>& inputs, const fs::path
 
     std::string mlir_str = mlir_print(&mlirOperationPrint, mod_op);
     
-    std::ofstream outfile(f);
+    std::ofstream outfile(f, std::ios_base::app);
     if (outfile.is_open()) {
         outfile << mlir_str;
         outfile.close();
@@ -1235,7 +1235,7 @@ tuning_config get_tuning_config_mlir(const context& migraphx_ctx,
 void dump_mlir_to_mxr(module m,
                       const std::vector<instruction_ref>& inputs,
                       const fs::path& location)
-{
+{ 
     static std::mutex mutex;
     const std::lock_guard<std::mutex> lock(mutex);
 

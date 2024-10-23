@@ -1096,6 +1096,37 @@ std::string dump_mlir(module m, const std::vector<shape>& inputs)
     return mlir_print(&mlirOperationPrint, mod_op);
 }
 
+std::string dump_mlir(module m, const std::vector<shape>& inputs, const fs::path& location)
+{
+    auto name =
+        mlir_program::get_symbol_name(m) + ".mlir";
+    replace_string_inplace(name, ", ", "_");
+    replace_string_inplace(name, ":", "s");
+    auto f = location / name;
+
+    const_module_ref mr = &m;
+    if(not inputs.empty())
+    {
+        adjust_param_shapes(m, inputs);
+    }
+    rewrite_reduce(m);
+    mlir_program mp;
+    mp.parse(*mr);
+    auto mod_op = mlirModuleGetOperation(mp.mmodule.get());
+
+    std::string mlir_str = mlir_print(&mlirOperationPrint, mod_op);
+    
+    std::ofstream outfile(f);
+    if (outfile.is_open()) {
+        outfile << mlir_str;
+        outfile.close();
+    } else {
+        throw std::runtime_error("Unable to open file");
+    }
+
+    return mlir_str;
+}
+
 std::string dump_mlir(module m) { return dump_mlir(std::move(m), {}); }
 
 mlir_code_object compile_mlir(const context& migraphx_ctx,
@@ -1122,6 +1153,7 @@ mlir_code_object compile_mlir(const context& migraphx_ctx,
     if(trace)
     {
         const std::lock_guard<std::mutex> lock(mutex);
+        std::cout << "printing mlir" << std::endl;
         std::cout << mlir_print(&mlirOperationPrint, mod_op) << std::endl;
     }
     auto co            = mp.compile(solution);

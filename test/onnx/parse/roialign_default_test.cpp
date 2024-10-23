@@ -35,7 +35,6 @@ TEST_CASE(roialign_default_test)
     auto x    = mm->add_parameter("x", sx);
     auto rois = mm->add_parameter("rois", srois);
     auto bi   = mm->add_parameter("batch_ind", sbi);
-asdf
     // Depending on whether the model was built for Onnx opset 16 or earlier, the default
     // coordinate_transformation_mode will be different.  These model files had explicit opset given
     // when they were created.
@@ -71,5 +70,5 @@ TEST_CASE(roialign_default_12_test)
         bi_12);
     mm_12->add_return({r_12});
     auto prog_12 = read_onnx("roialign_default_test_12.onnx");
-    EXPECT(p == prog_12);
+    EXPECT(p_12 == prog_12);
 }

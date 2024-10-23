@@ -1111,10 +1111,13 @@ TEST_CASE(check_flows)
     CHECK(bit_equal(std::numeric_limits<migraphx::half>::infinity() + std::numeric_limits<migraphx::half>::infinity(), std::numeric_limits<migraphx::half>::infinity()));
     CHECK(bit_equal(std::numeric_limits<migraphx::half>::max() + std::numeric_limits<migraphx::half>::max(), std::numeric_limits<migraphx::half>::infinity()));
     CHECK(bit_equal(std::numeric_limits<migraphx::half>::max() / std::numeric_limits<migraphx::half>::epsilon(), std::numeric_limits<migraphx::half>::infinity()));
+    CHECK(bit_equal(std::numeric_limits<migraphx::half>::max() + std::numeric_limits<migraphx::half>::min(), std::numeric_limits<migraphx::half>::max()));
 
     // check negative underflow 
     CHECK(bit_equal(std::numeric_limits<migraphx::half>::lowest() + std::numeric_limits<migraphx::half>::lowest(), -std::numeric_limits<migraphx::half>::infinity()));
     CHECK(bit_equal(-std::numeric_limits<migraphx::half>::infinity() - std::numeric_limits<migraphx::half>::infinity(), -std::numeric_limits<migraphx::half>::infinity()));
+    CHECK(bit_equal(std::numeric_limits<migraphx::half>::lowest() - std::numeric_limits<migraphx::half>::min(), std::numeric_limits<migraphx::half>::lowest()));
+
 }
 
 TEST_CASE(test_nan)

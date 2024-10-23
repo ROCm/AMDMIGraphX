@@ -38,14 +38,6 @@
 
 #include <migraphx/algorithm.hpp>
 #include <unordered_set>
-#include <migraphx/time.hpp>
-
-template <typename Callable>
-void time_matcher(const std::string& matcher_name, Callable&& func)
-{
-    auto elapsed_time = migraphx::time<std::chrono::nanoseconds>(std::forward<Callable>(func));
-    std::cout << "Matcher " << matcher_name << " took: " << elapsed_time << " ns" << std::endl;
-}
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
@@ -79,7 +71,6 @@ struct find_mul_conv
 
     void apply(module& m, const match::matcher_result& r) const
     {
-        time_matcher("find_mul_conv", [&] {
         auto ins      = r.result;
         auto conv_ins = r.instructions["conv"];
         auto a_ins    = r.instructions["a"];
@@ -118,8 +109,6 @@ struct find_mul_conv
         auto new_conv = m.insert_instruction(
             ins, conv_ins->get_operator(), conv_ins->inputs().front(), new_mul);
         m.replace_instruction(ins, new_conv);
-        });
-        //std::cout << "Matcher find_mul_conv took: " << elapsed_time << " ms" << std::endl;
     }
 };
 
@@ -141,7 +130,6 @@ struct find_mul_slice_conv
 
     void apply(module& m, const match::matcher_result& r) const
     {
-        time_matcher("find_mul_slice_conv", [&] {
         auto ins       = r.result;
         auto slice_ins = r.instructions["slice"];
         auto conv_ins  = r.instructions["conv"];
@@ -213,7 +201,6 @@ struct find_mul_slice_conv
         for(auto output : outputs)
             if(output != slice_ins)
                 instruction::replace_argument(output, conv_ins, new_conv);
-        });
     }
 };
 
@@ -229,7 +216,6 @@ struct find_mul_dot
 
     void apply(module& m, const match::matcher_result& r) const
     {
-        time_matcher("find_mul_dot", [&] {
         auto ins     = r.result;
         auto dot_ins = r.instructions["dot"];
         auto a_ins   = dot_ins->inputs()[0];
@@ -277,7 +263,6 @@ struct find_mul_dot
             return;
 
         m.replace_instruction(ins, make_op("dot"), a_ins, b_ins);
-        });
     }
 };
 
@@ -296,7 +281,6 @@ struct find_dot_slice
 
     void apply(module& m, const match::matcher_result& r) const
     {
-        time_matcher("find_dot_slice", [&] {
         auto slice_ins = r.result;
         auto dot_ins   = r.instructions["dot_ins"];
         auto slice_op  = slice_ins->normalized_operator().to_value();
@@ -362,7 +346,6 @@ struct find_dot_slice
                 dot_inputs.at(1));
         }
         m.replace_instruction(slice_ins, dot_ins->get_operator(), {slice_1, slice_2});
-        });
     }
 };
 
@@ -380,7 +363,6 @@ struct find_dot_mul
 
     void apply(module& m, const match::matcher_result& r) const
     {
-        time_matcher("find_dot_mul", [&] {
         auto ins   = r.result;
         auto a_ins = ins->inputs()[0];
         auto b_ins = ins->inputs()[1];
@@ -427,7 +409,6 @@ struct find_dot_mul
         }
 
         m.replace_instruction(ins, make_op("dot"), a_ins, b_ins);
-        });
     }
 };
 
@@ -453,7 +434,6 @@ struct find_mul_add
 
     void apply(module& m, const match::matcher_result& r) const
     {
-	    time_matcher("find_mul_add", [&] {
         auto ins   = r.result;
         auto a_ins = r.instructions["a"];
         auto b_ins = r.instructions["b"];
@@ -463,8 +443,6 @@ struct find_mul_add
         auto ax_ins = m.insert_instruction(ins, make_op("mul"), a_ins, x_ins);
         auto ab_ins = m.insert_instruction(ins, make_op("mul"), a_ins, b_ins);
         m.replace_instruction(ins, make_op("add"), ax_ins, ab_ins);
-        });
-        //std::cout << "Matcher find_mul_conv took: " << elapsed_time << " ms" << std::endl;
     }
 };
 
@@ -483,7 +461,6 @@ struct find_dot_add
 
     void apply(module& m, const match::matcher_result& r) const
     {
-        time_matcher("find_dot_add", [&] {
         auto ins   = r.result;
         auto a_ins = r.instructions["a"];
         auto b_ins = r.instructions["b"];
@@ -502,7 +479,6 @@ struct find_dot_add
         auto ax_ins = insert_dot(a_ins, x_ins);
         auto ab_ins = insert_dot(a_ins, b_ins);
         m.replace_instruction(ins, make_op("add"), ax_ins, ab_ins);
-        });
     }
 };
 
@@ -520,7 +496,6 @@ struct find_conv_add
 
     void apply(module& m, const match::matcher_result& r) const
     {
-        time_matcher("find_conv_add", [&] {
         auto ins   = r.result;
         auto a_ins = r.instructions["a"];
         auto x_ins = r.instructions["x"];
@@ -530,7 +505,6 @@ struct find_conv_add
         auto conv2 = m.insert_instruction(ins, ins->get_operator(), x_ins, w_ins);
 
         m.replace_instruction(ins, make_op("add"), conv1, conv2);
-        });
     }
 };
 
@@ -544,7 +518,6 @@ struct find_add_lit_broadcast
 
     void apply(module& m, const match::matcher_result& r) const
     {
-        time_matcher("find_add_lit_broadcast", [&] {
         auto ins   = r.result;
         auto x_ins = r.instructions["x"];
         auto a_ins = r.instructions["a"];
@@ -552,7 +525,6 @@ struct find_add_lit_broadcast
 
         auto sumab = m.insert_instruction(ins, make_op("add"), a_ins, b_ins);
         m.replace_instruction(ins, make_op("add"), x_ins, sumab);
-        });
     }
 };
 
@@ -566,7 +538,6 @@ struct find_double_add_lit_broadcast
 
     void apply(module& m, const match::matcher_result& r) const
     {
-        time_matcher("find_double_add_lit_broadcast", [&] {
         auto ins   = r.result;
         auto x_ins = r.instructions["x"];
         auto y_ins = r.instructions["y"];
@@ -591,7 +562,6 @@ struct find_double_add_lit_broadcast
 
         auto sumxy = m.insert_instruction(ins, make_op("add"), x_ins, y_ins);
         m.replace_instruction(ins, make_op("add"), sumxy, sumab);
-        });
     }
 };
 
@@ -773,7 +743,6 @@ struct find_inner_broadcast
 
     void apply(module& m, const match::matcher_result& r) const
     {
-        time_matcher("find_inner_broadcast", [&] {
         auto ins               = r.result;
         const auto& broadcasts = ins->inputs();
         if(broadcasts.empty())
@@ -822,7 +791,6 @@ struct find_inner_broadcast
         {
             apply_diff_broadcasts(m, ins);
         }
-        });
     }
 };
 
@@ -835,7 +803,6 @@ struct find_dot_broadcast
 
     void apply(module& m, const match::matcher_result& r) const
     {
-        time_matcher("find_dot_broadcast", [&] {
         auto ins = r.result;
         auto a   = ins->inputs()[0];
         auto b   = ins->inputs()[1];
@@ -895,7 +862,6 @@ struct find_dot_broadcast
         auto broadcast = m.insert_instruction(
             ins, make_op("multibroadcast", {{"out_lens", ins->get_shape().lens()}}), dot);
         m.replace_instruction(ins, broadcast);
-        });
     }
 };
 
@@ -942,7 +908,6 @@ struct find_concat_op
 
     void apply(module& m, const match::matcher_result& r) const
     {
-        time_matcher("find_concat_op", [&] {
         auto ins  = r.result;
         auto axis = any_cast<op::concat>(ins->get_operator()).axis;
 
@@ -1009,7 +974,6 @@ struct find_concat_op
             m.replace_instruction(ins, args.front());
         else
             m.replace_instruction(ins, make_op("concat", {{"axis", axis}}), args);
-        });
     }
 };
 
@@ -1023,7 +987,6 @@ struct find_concat_conv
 
     void apply(module& m, const match::matcher_result& r) const
     {
-        time_matcher("find_concat_conv", [&] {
         auto ins  = r.result;
         auto axis = ins->get_operator().to_value()["axis"].to<int>();
         if(axis != 1)
@@ -1060,7 +1023,6 @@ struct find_concat_conv
         auto w              = m.insert_instruction(ins, make_op("concat", {{"axis", 0}}), weights);
         conv.from_value({{"group", original_group * inputs.size()}});
         m.replace_instruction(ins, conv, x, w);
-        });
     }
 };
 
@@ -1259,7 +1221,6 @@ struct find_splits
 
     void apply(module& m, const match::matcher_result& r) const
     {
-        time_matcher("find_splits", [&] {
         auto ins    = r.result;
         auto splits = get_splits(ins);
         if(splits.empty())
@@ -1349,7 +1310,6 @@ struct find_splits
                 }
             }
         }
-        });
     }
 };
 
@@ -1370,7 +1330,6 @@ struct find_split_concat
         // Verifies that the slices meet several conditions: they must all output to the same
         // concat instruction, slice on the same (1 only) axis, and the end of one slice
         // must match the start of the next.
-        time_matcher("find_split_concat", [&] {
         auto ins = r.result;
 
         auto splits = get_splits(ins);
@@ -1425,7 +1384,6 @@ struct find_split_concat
             m.replace_instruction(concat, args.front());
         else
             m.replace_instruction(concat, concat->get_operator(), args);
-        });
     }
 };
 
@@ -1470,7 +1428,6 @@ struct find_add_convs
 
     void apply(module& m, const match::matcher_result& r) const
     {
-        time_matcher("find_add_convs", [&] {
         auto ins       = r.result;
         auto a_conv    = r.instructions["a"];
         auto a_input   = a_conv->inputs().at(0);
@@ -1522,7 +1479,6 @@ struct find_add_convs
         auto concat_weights =
             m.insert_instruction(ins, make_op("concat", {{"axis", 1}}), a_weights, b_weights);
         m.replace_instruction(ins, new_op, concat_input, concat_weights);
-        });
     }
 };
 
@@ -1546,7 +1502,6 @@ struct find_conv_dot_horiz_fusion
 
     void apply(module& m, const match::matcher_result& r) const
     {
-        time_matcher("find_conv_dot_horiz_fusion", [&] {
         auto ins = r.result;
 
         auto pred = [](auto i, auto j) {
@@ -1614,7 +1569,6 @@ struct find_conv_dot_horiz_fusion
 
         auto outputs = ins->outputs();
         group_by(outputs.begin(), outputs.end(), each, pred);
-        });
     }
 };
 
@@ -1627,7 +1581,6 @@ struct find_div_const
 
     void apply(module& m, const match::matcher_result& r) const
     {
-        time_matcher("find_div_const", [&] {
         auto ins   = r.result;
         auto c_ins = r.instructions["c"];
 
@@ -1639,7 +1592,6 @@ struct find_div_const
         auto args = ins->inputs();
 
         m.replace_instruction(ins, make_op("mul"), args.front(), recip);
-        });
     }
 };
 
@@ -1660,12 +1612,10 @@ struct find_unit_ops
 
     void apply(module& m, const match::matcher_result& r) const
     {
-        time_matcher("find_unit_ops", [&] {
         auto ins  = r.result;
         auto c_in = r.instructions["x"];
 
         m.replace_instruction(ins, c_in);
-        });
     }
 };
 
@@ -1684,13 +1634,11 @@ struct find_neg_unit_ops
 
     void apply(module& m, const match::matcher_result& r) const
     {
-        time_matcher("find_neg_unit_ops", [&] {
         auto ins  = r.result;
         auto c_in = r.instructions["x"];
 
         auto neg = m.insert_instruction(ins, make_op("neg"), c_in);
         m.replace_instruction(ins, neg);
-        });
     }
 };
 
@@ -1710,7 +1658,6 @@ struct eliminate_zero_point
 
     void apply(module& m, const match::matcher_result& r) const
     {
-        time_matcher("eliminate_zero_point", [&] {
         auto ins   = r.result;
         auto x     = r.instructions["x"];
         auto scale = r.instructions["scale"];
@@ -1722,7 +1669,6 @@ struct eliminate_zero_point
         }
         auto qdq_ins = m.insert_instruction(ins, migraphx::make_op(ins->name(), op), {x, scale});
         m.replace_instruction(ins, qdq_ins);
-        });
     }
 };
 
@@ -1739,12 +1685,10 @@ struct find_zero_ops
 
     void apply(module& m, const match::matcher_result& r) const
     {
-        time_matcher("find_zero_ops", [&] {
         auto ins      = r.result;
         auto zero_ins = r.instructions["x"];
 
         m.replace_instruction(ins, zero_ins);
-        });
     }
 };
 
@@ -1757,7 +1701,6 @@ struct find_sub_const
 
     void apply(module& m, const match::matcher_result& r) const
     {
-        time_matcher("find_sub_const", [&] {
         auto ins   = r.result;
         auto c_ins = r.instructions["c"];
 
@@ -1766,7 +1709,6 @@ struct find_sub_const
         auto args = ins->inputs();
 
         m.replace_instruction(ins, make_op("add"), args.front(), neg);
-        });
     }
 };
 
@@ -1780,12 +1722,10 @@ struct find_rsqrt
 
     void apply(module& m, const match::matcher_result& r) const
     {
-        time_matcher("find_rqrt", [&] {
         auto ins   = r.result;
         auto x_ins = r.instructions["x"];
 
         m.replace_instruction(ins, make_op("rsqrt"), x_ins);
-        });
     }
 };
 
@@ -1807,7 +1747,6 @@ struct find_split_reshape
 
     void apply(module& m, const match::matcher_result& r) const
     {
-        time_matcher("find_split_reshape", [&] {
         auto slc   = r.instructions["slice"];
         auto rsp   = r.instructions["reshape"];
         auto input = slc->inputs().front();
@@ -1962,7 +1901,6 @@ struct find_split_reshape
                     {{"axes", {rsp_axis}}, {"starts", {new_starts[i]}}, {"ends", {new_ends[i]}}}),
                 rsp_ins);
         }
-        });
     }
 };
 
@@ -1976,7 +1914,6 @@ struct find_split_transpose
 
     void apply(module& m, const match::matcher_result& r) const
     {
-        time_matcher("find_split_transpose", [&] {
         auto slc   = r.instructions["slice"];
         auto trans = r.instructions["trans"];
 
@@ -2024,7 +1961,6 @@ struct find_split_transpose
                 make_op("slice", {{"axes", {axis_new}}, {"starts", starts}, {"ends", ends}}),
                 tr);
         }
-        });
     }
 };
 

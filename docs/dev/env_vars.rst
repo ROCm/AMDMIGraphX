@@ -126,6 +126,10 @@ Use it in conjunction with ``MIGRAPHX_DISABLE_MLIR=1``.
 Set to "1", "enable", "enabled", "yes", or "true" to use.
 Disables use of the rocMLIR library.
 
+.. envvar:: MIGRAPHX_ENABLE_HIPBLASLT_GEMM
+Set to "1", "enable", "enabled", "yes", or "true" to use.
+Enables use of hipBLASLt.
+
 .. envvar:: MIGRAPHX_COPY_LITERALS
 
 Set to "1", "enable", "enabled", "yes", or "true" to use.
@@ -299,6 +303,11 @@ Enable reduction fusions in MLIR.
 Set to "1", "enable", "enabled", "yes", or "true" to use.
 Enable Split-k perf configs when tuning with MLIR.
 
+.. envvar:: MIGRAPHX_MLIR_DUMP_TO_MXR
+
+Set to path where MXRs will be saved.
+Dumps MLIRs module to mxr files.
+
 CK vars
 -----------
 
@@ -316,6 +325,14 @@ Mandatorily adds ``-DMIGRAPHX_CK_CHECK=1`` for compiling composable kernel opera
 
 Set to "1", "enable", "enabled", "yes", or "true" to use.
 Performs tuning for composable kernels.
+
+hipBLASLt vars
+--------------
+
+.. envvar:: MIGRAPHX_ENABLE_HIP_GEMM_TUNING
+
+Set to "1", "enable", "enabled", "yes", or "true" to use.
+Performs exhaustive tuning for hipBLASLt.
 
 Testing 
 ------------

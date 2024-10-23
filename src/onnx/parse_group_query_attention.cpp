@@ -76,6 +76,10 @@ struct parse_group_query_attention : op_parser<parse_group_query_attention>
         {
             MIGRAPHX_THROW("GroupQueryAttention: Wrong number of inputs provided");
         }
+        if(args.at(3)->get_shape().lens().at(2) <= 1)
+        {
+            MIGRAPHX_THROW("GroupQueryAttention: Dim param past_sequence_length must be set to MAX_SEQUENCE_LENGTH(>1)");
+        }
 
         auto gqa             = info.add_instruction(make_op("group_query_attention",
                                                             {{"do_rotary", do_rotary},

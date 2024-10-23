@@ -895,8 +895,8 @@ std::vector<operation> shape_transform_descriptor::generate_common_from_dst(
 {
     // Need reshape
     if(std::all_of(dimensions.begin(), dimensions.end(), [](const dimension& d) {
-        return d.subdimensions.size() == 1;
-    }))
+           return d.subdimensions.size() == 1;
+       }))
         return {};
     auto subs = get_all_subdimensions(dimensions);
     // Map the input dims back to the src input if possible

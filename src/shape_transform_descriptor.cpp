@@ -893,27 +893,26 @@ std::vector<operation> shape_transform_descriptor::generate_common_from_src(
 std::vector<operation> shape_transform_descriptor::generate_common_from_dst(
     const std::vector<std::size_t>& input_dims) const
 {
+    // Need reshape
+    if(std::all_of(dimensions.begin(), dimensions.end(), [](const dimension& d) {
+        return d.subdimensions.size() == 1;
+    }))
+        return {};
     auto subs = get_all_subdimensions(dimensions);
-    // Need reshape unsqueeze
-    if(std::any_of(
-           subs.begin(), subs.end(), [](const dimension::sub& s) { return s.axis.size() != 1; }))
+    // Map the input dims back to the src input if possible
+    std::vector<std::size_t> src_input_dims(this->rank);
+    for(auto i : range(dimensions.size()))
     {
-        // Map the input dims back to the src input if possible
-        std::vector<std::size_t> src_input_dims(this->rank);
-        for(auto i : range(dimensions.size()))
-        {
-            const auto& d = dimensions[i];
-            if(d.subdimensions.size() != 1)
-                continue;
-            const auto& sub = d.subdimensions.front();
-            if(sub.axis.size() != 1)
-                continue;
-            auto axis            = sub.axis.front();
-            src_input_dims[axis] = input_dims[i];
-        }
-        return {make_reshape_unsqueeze(subs, src_input_dims)};
+        const auto& d = dimensions[i];
+        if(d.subdimensions.size() != 1)
+            continue;
+        const auto& sub = d.subdimensions.front();
+        if(sub.axis.size() != 1)
+            continue;
+        auto axis            = sub.axis.front();
+        src_input_dims[axis] = input_dims[i];
     }
-    return {};
+    return {make_reshape_unsqueeze(subs, src_input_dims)};
 }
 std::vector<operation> shape_transform_descriptor::generate_dst_from_common(
     const std::vector<std::size_t>& input_dims) const

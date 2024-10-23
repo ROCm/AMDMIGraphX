@@ -59,3 +59,41 @@ TEST_CASE(roialign_half_pixel_verify_test)
 
     EXPECT(migraphx::verify::verify_rms_range(result_vector, gold));
 }
+
+// The half_pixel mode for the ROIAlign op, max pooling
+TEST_CASE(roialign_half_pixel_max_verify_test)
+{
+    migraphx::program p = read_onnx("roialign_half_pixel_max_test.onnx");
+    p.compile(migraphx::make_target("ref"));
+    migraphx::shape s{migraphx::shape::float_type, {2, 2, 4, 3}};
+    std::vector<float> data(2 * 2 * 4 * 3);
+    std::iota(data.begin(), data.end(), 0.f);
+    migraphx::parameter_map pp;
+    pp["x"] = migraphx::argument(s, data.data());
+    pp["y"] = migraphx::argument(s, data.data());
+
+    migraphx::shape srois{migraphx::shape::float_type, {2, 4}};
+    std::vector<float> rois_data = {1.1, 0.73, 1.7, 1.13, 1.1, 0.73, 2.6, 1.13};
+    migraphx::shape sbi{migraphx::shape::int64_type, {2}}; // batch_index
+    std::vector<int64_t> bi_data = {0, 1};
+
+    pp["rois"]      = migraphx::argument(srois, rois_data.data());
+    pp["batch_ind"] = migraphx::argument(sbi, bi_data.data());
+    pp["y"]         = migraphx::argument(s, data.data());
+
+    auto result = p.eval(pp).back();
+    std::vector<float> result_vector;
+    result.visit([&](auto output) { result_vector.assign(output.begin(), output.end()); });
+
+    // Gold values were generated with onnxruntime
+    std::vector<float> gold = { 4.7      ,  4.7      ,  4.7      ,5.2799997,  5.2799997,  5.2799997,
+
+        15.979999 , 15.979999 , 15.979999 ,     13.199999 , 13.199999 , 13.199999 ,
+
+
+       27.477499 , 27.477499 ,  0.       ,19.440002 , 19.440002 ,  0.       ,
+
+        38.8475   , 38.8475   ,  0.       , 26.730003 , 26.730003 ,  0.   };
+
+    EXPECT(migraphx::verify::verify_rms_range(result_vector, gold));
+}

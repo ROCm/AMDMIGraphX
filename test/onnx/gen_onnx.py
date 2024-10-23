@@ -14151,7 +14151,7 @@ def upsample_test():
 
     node = onnx.helper.make_node(
         'Upsample',
-        inputs=['X', 'scales'],
+        inputs=['X', '', 'scales'],
         outputs=['Y'],
         mode='nearest',
     )

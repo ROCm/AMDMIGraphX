@@ -1153,7 +1153,6 @@ mlir_code_object compile_mlir(const context& migraphx_ctx,
     if(trace)
     {
         const std::lock_guard<std::mutex> lock(mutex);
-        std::cout << "printing mlir" << std::endl;
         std::cout << mlir_print(&mlirOperationPrint, mod_op) << std::endl;
     }
     auto co            = mp.compile(solution);

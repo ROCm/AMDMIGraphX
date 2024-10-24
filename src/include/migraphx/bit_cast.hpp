@@ -30,8 +30,12 @@
 #include <migraphx/requires.hpp>
 #include <migraphx/config.hpp>
 
+#if defined(__GNUC__) and !defined(__clang__)
+#define MIGRAPHX_CONST_FOLD(x) (x)
+#else
 // NOLINTNEXTLINE(cppcoreguidelines-macro-usage)
 #define MIGRAPHX_CONST_FOLD(x) (__builtin_constant_p(x) ? (x) : (x))
+#endif
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {

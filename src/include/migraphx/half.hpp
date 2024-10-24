@@ -28,11 +28,12 @@
 #include <half/half.hpp>
 #include <migraphx/config.hpp>
 #include <migraphx/float8.hpp>
+#include <migraphx/generic_float.hpp>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
 
-using half = half_float::half;
+using half = migraphx::generic_float<10,5>;
 
 namespace detail {
 template <class T>

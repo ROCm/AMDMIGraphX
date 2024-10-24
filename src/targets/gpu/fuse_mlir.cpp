@@ -282,7 +282,7 @@ auto is_mlir_dot(mlir_mode mode)
         // Skipping GEMMs with a K dimension greater than 2048 is a course-grained strategy
         // to avoid poor-performing GEMM kernels from MLIR
         // To-do: Investigate a more precise strategy
-        if (k > 2048)
+        if (k > 1535)
             return false;
         if (k < 1024)
             return true;

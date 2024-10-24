@@ -1097,7 +1097,7 @@ std::string dump_mlir(module m, const std::vector<shape>& inputs)
     return mlir_print(&mlirOperationPrint, mod_op);
 }
 
-static std::string compute_dump_name(const module& m, const std::string ext)
+static std::string compute_dump_name(const module& m, const std::string& ext)
 {
     std::vector<instruction_ref> sizes;
     for(auto ins : iterator_for(m))

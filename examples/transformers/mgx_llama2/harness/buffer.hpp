@@ -106,54 +106,60 @@ namespace mlinfer
     using DeviceBuffer = GenericBuffer<DeviceAllocator, DeviceFree>;
     using HostBuffer = GenericBuffer<HostAllocator, HostFree>;
 
-    struct ManagedBuffer
+    template<typename T>
+    struct ManagedBuffer_v2
     {
 
-        explicit ManagedBuffer(size_t size_in_bytes_, size_t stride_in_bytes_ = 0)
+        explicit ManagedBuffer_v2(std::vector<T>&& host_data, bool with_offload_copy=true): with_offload_copy(with_offload_copy)
         {
-            dbuff = DeviceBuffer(size_in_bytes_, stride_in_bytes_);
-            hbuff = HostBuffer(size_in_bytes_, stride_in_bytes_);
+            size_in_bytes = host_data.size() * sizeof(T);
+            hbuff = std::move(host_data);
+            if (not with_offload_copy)
+            {
+                dbuff = DeviceBuffer(size_in_bytes, 0);
+            }
         }
 
-        template <typename T>
-        T get_host_ptr()
+        void* data()
         {
-            return static_cast<T>(hbuff.tensor_ptr);
+            return with_offload_copy ? static_cast<void*>(hbuff.data()) : dbuff.tensor_ptr;
         }
 
-        template <typename T>
-        T get_device_ptr()
+        void upload_to_device()
         {
-            return static_cast<T>(dbuff.tensor_ptr);
+            assert(not with_offload_copy);
+            check_hip_status(hipMemcpyHtoD(dbuff.tensor_ptr, static_cast<void*>(hbuff.data()), size_in_bytes));
         }
 
-        void upload_to_device(void* data, size_t size_in_bytes)
+        void download_from_device()
         {
-            memcpy(get_host_ptr<void*>(), data, size_in_bytes);
-            check_hip_status(hipMemcpy(get_device_ptr<void*>(), get_host_ptr<void*>(), size_in_bytes, hipMemcpyKind::hipMemcpyHostToDevice));
+            assert(not with_offload_copy);
+            // TODO: use a separate stream for eval and upload download, so we don't have to sync here
+            check_hip_status(hipDeviceSynchronize());
+            check_hip_status(hipMemcpyDtoH(static_cast<void*>(hbuff.data()), dbuff.tensor_ptr, size_in_bytes));
         }
 
-        template <typename T>
-        std::vector<T> download_from_device(size_t size_in_bytes)
+        void update_data(T data, size_t position)
         {
-            check_hip_status(hipMemcpy(get_host_ptr<void*>(), get_device_ptr<void*>(), size_in_bytes, hipMemcpyKind::hipMemcpyDeviceToHost));
-            return std::vector<T>(get_host_ptr<T*>(), get_host_ptr<T*>() + (size_in_bytes / sizeof(T)));
+            hbuff.at(position) = data;
+            if (not with_offload_copy)
+            {
+                // TODO: don't copy over the entire buffer just the changed range
+                // check_hip_status(hipMemcpy(get_device_ptr<void*>(), get_host_ptr<void*>(), dbuff.size_in_bytes, hipMemcpyKind::hipMemcpyHostToDevice));
+                upload_to_device();
+            }
         }
 
-        template <typename T>
-        void update_device_data(T data, size_t position)
-        {
-            T* host_data = get_host_ptr<T*>();
-            host_data[position] = data;
-            // TODO: don't copy over the entire buffer just the changed range
-            check_hip_status(hipMemcpy(get_device_ptr<void*>(), get_host_ptr<void*>(), dbuff.size_in_bytes, hipMemcpyKind::hipMemcpyHostToDevice));
-        }
-
-        ManagedBuffer() = delete;
-        ManagedBuffer(const ManagedBuffer &buf) = delete;
-        ManagedBuffer &operator=(const ManagedBuffer &buf) = delete;
+        ManagedBuffer_v2() = delete;
+        ManagedBuffer_v2(const ManagedBuffer_v2 &buf) = delete;
+        ManagedBuffer_v2 &operator=(const ManagedBuffer_v2 &buf) = delete;
 
         DeviceBuffer dbuff;
-        HostBuffer hbuff;
+        std::vector<T> hbuff;
+        size_t size_in_bytes;
+        bool with_offload_copy;
     };
+
+    using LLama2InputBuffer = ManagedBuffer_v2<int64_t>;
+    using LLama2OutputBuffer = ManagedBuffer_v2<float>;
 }

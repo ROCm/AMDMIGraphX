@@ -86,14 +86,13 @@ TEST_CASE(roialign_half_pixel_max_verify_test)
     result.visit([&](auto output) { result_vector.assign(output.begin(), output.end()); });
 
     // Gold values were generated with onnxruntime
-    std::vector<float> gold = { 4.7      ,  4.7      ,  4.7      ,5.2799997,  5.2799997,  5.2799997,
+    std::vector<float> gold = {4.7,       4.7,       4.7,       5.2799997, 5.2799997, 5.2799997,
 
-        15.979999 , 15.979999 , 15.979999 ,     13.199999 , 13.199999 , 13.199999 ,
+                               15.979999, 15.979999, 15.979999, 13.199999, 13.199999, 13.199999,
 
+                               27.477499, 27.477499, 0.,        19.440002, 19.440002, 0.,
 
-       27.477499 , 27.477499 ,  0.       ,19.440002 , 19.440002 ,  0.       ,
-
-        38.8475   , 38.8475   ,  0.       , 26.730003 , 26.730003 ,  0.   };
+                               38.8475,   38.8475,   0.,        26.730003, 26.730003, 0.};
 
     EXPECT(migraphx::verify::verify_rms_range(result_vector, gold));
 }

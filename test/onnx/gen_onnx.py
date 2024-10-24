@@ -10642,23 +10642,23 @@ def roialign_test():
         mode="avg",
         coordinate_transformation_mode="output_half_pixel")
 
-    return ([node], [x, roi, bi], [y])
+    return ([node], [x, roi, bi])
 
 
 @onnx_test()
 def roialign_half_pixel_test():
-    x = helper.make_tensor_value_info('x', TensorProto.FLOAT, [2, 2, 4, 3])
-    roi = helper.make_tensor_value_info('rois', TensorProto.FLOAT, [2, 4])
-    bi = helper.make_tensor_value_info('batch_ind', TensorProto.INT64, [2])
-    y = helper.make_tensor_value_info('y', TensorProto.FLOAT, [2, 2, 4, 3])
+    x = helper.make_tensor_value_info('x', TensorProto.FLOAT, [5, 2, 5, 4])
+    roi = helper.make_tensor_value_info('rois', TensorProto.FLOAT, [4, 4])
+    bi = helper.make_tensor_value_info('batch_ind', TensorProto.INT64, [4])
+    y = helper.make_tensor_value_info('y', TensorProto.FLOAT, [2, 4, 5, 5])
 
     # half_pixel is the newer mode for ROIAlign
     node = onnx.helper.make_node('RoiAlign',
                                  inputs=['x', 'rois', 'batch_ind'],
                                  outputs=['y'],
-                                 spatial_scale=2.0,
-                                 output_height=2,
-                                 output_width=3,
+                                 spatial_scale=0.9,
+                                 output_height=3,
+                                 output_width=2,
                                  sampling_ratio=2,
                                  mode="avg",
                                  coordinate_transformation_mode="half_pixel")

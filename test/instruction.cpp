@@ -67,4 +67,24 @@ TEST_CASE(check_replace_shape)
     EXPECT(add->get_shape() == r);
 }
 
+TEST_CASE(check_replace_dag)
+{
+    migraphx::module m;
+    migraphx::shape s{migraphx::shape::float_type, {3, 2}};
+    auto input  = m.add_parameter("x", s);
+    auto reduce = m.add_instruction(migraphx::make_op("reduce_sum", {{"axes", {0}}}), input);
+    auto abs    = m.add_instruction(migraphx::make_op("abs"), reduce);
+    auto sin    = m.add_instruction(migraphx::make_op("sin"), reduce);
+    auto add    = m.add_instruction(migraphx::make_op("add"), abs, sin);
+    auto add2   = m.add_instruction(migraphx::make_op("add"), add, reduce);
+
+    reduce->replace(migraphx::make_op("reduce_sum", {{"axes", {1}}}));
+
+    migraphx::shape r{migraphx::shape::float_type, {3, 1}};
+    EXPECT(reduce->get_shape() == r);
+    EXPECT(abs->get_shape() == r);
+    EXPECT(sin->get_shape() == r);
+    EXPECT(add->get_shape() == r);
+    EXPECT(add2->get_shape() == r);
+}
 int main(int argc, const char* argv[]) { test::run(argc, argv); }

@@ -63,17 +63,38 @@ void instruction::replace(const shape& r)
     if(r != result)
     {
         result = r;
-        std::deque<instruction_ref> q(output.begin(), output.end());
-        while(not q.empty())
+        std::deque<instruction_ref> s(output.begin(), output.end());
+        std::deque<instruction_ref> sorted_ins;
+        std::set<instruction*> marked;
+        std::set<instruction*> visited;
+        while(not s.empty())
         {
-            instruction_ref ins = q.front();
-            q.pop_front();
+            instruction_ref ins = s.back();
+            instruction* addr = as_address(ins);
+            if(marked.count(addr))
+            {
+               s.pop_back();
+               continue;
+            }
+            if(visited.count(addr) or ins->output.empty())
+            {
+               marked.insert(addr);
+               sorted_ins.push_front(ins);
+               s.pop_back();
+               continue;
+            }
+            visited.insert(addr);
+            std::copy(ins->output.begin(), ins->output.end(), std::back_inserter(s));
+        }
+        while(not sorted_ins.empty())
+        {
+            instruction_ref ins = sorted_ins.front();
+            sorted_ins.pop_front();
             assert(ins->name() == "@return" or ins->name().front() != '@');
             shape new_r = compute_shape(ins->op, ins->arguments, ins->module_args);
             if(new_r != ins->result)
             {
                 ins->result = new_r;
-                std::copy(ins->output.begin(), ins->output.end(), std::back_inserter(q));
             }
         }
     }

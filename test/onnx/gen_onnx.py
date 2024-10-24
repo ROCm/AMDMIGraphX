@@ -31,10 +31,13 @@ from onnx import TensorProto
 from onnx.numpy_helper import from_array
 
 
-def onnx_test(external_data=False):
+def onnx_test(external_data=False, opset_imports=None):
     def create_onnx_test(op_test):
         def run_test():
             op_info = op_test()
+            opset_id = [helper.make_operatorsetid('', opset_imports)
+                        ] if opset_imports is not None else None
+
             if len(op_info) > 3:
                 graph_def = helper.make_graph(op_info[0],
                                               op_test.__name__,
@@ -45,7 +48,8 @@ def onnx_test(external_data=False):
                 graph_def = helper.make_graph(op_info[0], op_test.__name__,
                                               op_info[1], op_info[2])
             model_def = helper.make_model(graph_def,
-                                          producer_name=op_test.__name__)
+                                          producer_name=op_test.__name__,
+                                          opset_imports=opset_id)
             onnx.save_model(model_def,
                             '{}.onnx'.format(op_test.__name__),
                             save_as_external_data=external_data,
@@ -10909,8 +10913,26 @@ def rnn_r_3arg_layout_test():
     return ([node], [seq, w, r], [hs, output])
 
 
-@onnx_test()
+@onnx_test(opset_imports=16)
 def roialign_default_test():
+    # The op. ROIAlign had an attribute coordinate_transformation_mode added
+    # as of Onnx opset 16; we make opset-specific test models which give
+    # different default values.
+    x = helper.make_tensor_value_info('x', TensorProto.FLOAT, [10, 4, 7, 8])
+    roi = helper.make_tensor_value_info('rois', TensorProto.FLOAT, [8, 4])
+    bi = helper.make_tensor_value_info('batch_ind', TensorProto.INT64, [8])
+    y = helper.make_tensor_value_info('y', TensorProto.FLOAT, [8, 4, 1, 1])
+
+    node = onnx.helper.make_node('RoiAlign',
+                                 inputs=['x', 'rois', 'batch_ind'],
+                                 outputs=['y'])
+
+    return ([node], [x, roi, bi], [y])
+
+
+@onnx_test(opset_imports=12)
+def roialign_default_test_12():
+    # Same model as in roialign_default_test() but with an older opset specified
     x = helper.make_tensor_value_info('x', TensorProto.FLOAT, [10, 4, 7, 8])
     roi = helper.make_tensor_value_info('rois', TensorProto.FLOAT, [8, 4])
     bi = helper.make_tensor_value_info('batch_ind', TensorProto.INT64, [8])
@@ -10925,21 +10947,64 @@ def roialign_default_test():
 
 @onnx_test()
 def roialign_test():
+    # Roialign with output_half_pixel mode is backward-compatible.
     x = helper.make_tensor_value_info('x', TensorProto.FLOAT, [10, 5, 4, 7])
-    roi = helper.make_tensor_value_info('rois', TensorProto.FLOAT, [8, 4])
-    bi = helper.make_tensor_value_info('batch_ind', TensorProto.INT64, [8])
-    y = helper.make_tensor_value_info('y', TensorProto.FLOAT, [8, 4, 5, 5])
-
+    roi = helper.make_tensor_value_info('rois', TensorProto.FLOAT, [2, 4])
+    bi = helper.make_tensor_value_info('batch_ind', TensorProto.INT64, [2])
+    y = helper.make_tensor_value_info('y', TensorProto.FLOAT, [2, 4, 5, 5])
     node = onnx.helper.make_node(
         'RoiAlign',
         inputs=['x', 'rois', 'batch_ind'],
         outputs=['y'],
         spatial_scale=2.0,
         output_height=5,
-        output_width=5,
+        output_width=3,
         sampling_ratio=3,
+        # todo:  max test
         mode="avg",
         coordinate_transformation_mode="output_half_pixel")
+
+    return ([node], [x, roi, bi])
+
+
+@onnx_test()
+def roialign_half_pixel_test():
+    x = helper.make_tensor_value_info('x', TensorProto.FLOAT, [5, 2, 5, 4])
+    roi = helper.make_tensor_value_info('rois', TensorProto.FLOAT, [4, 4])
+    bi = helper.make_tensor_value_info('batch_ind', TensorProto.INT64, [4])
+    y = helper.make_tensor_value_info('y', TensorProto.FLOAT, [2, 4, 5, 5])
+
+    # half_pixel is the newer mode for ROIAlign
+    node = onnx.helper.make_node('RoiAlign',
+                                 inputs=['x', 'rois', 'batch_ind'],
+                                 outputs=['y'],
+                                 spatial_scale=0.9,
+                                 output_height=3,
+                                 output_width=2,
+                                 sampling_ratio=2,
+                                 mode="avg",
+                                 coordinate_transformation_mode="half_pixel")
+
+    return ([node], [x, roi, bi], [y])
+
+
+@onnx_test()
+def roialign_half_pixel_max_test():
+    x = helper.make_tensor_value_info('x', TensorProto.FLOAT, [2, 2, 4, 3])
+    roi = helper.make_tensor_value_info('rois', TensorProto.FLOAT, [2, 4])
+    bi = helper.make_tensor_value_info('batch_ind', TensorProto.INT64, [2])
+    y = helper.make_tensor_value_info('y', TensorProto.FLOAT, [2, 2, 4, 3])
+
+    # half_pixel is the newer mode for ROIAlign
+    node = onnx.helper.make_node('RoiAlign',
+                                 inputs=['x', 'rois', 'batch_ind'],
+                                 outputs=['y'],
+                                 spatial_scale=2.0,
+                                 output_height=2,
+                                 output_width=3,
+                                 sampling_ratio=2,
+                                 mode="max",
+                                 coordinate_transformation_mode="half_pixel")
 
     return ([node], [x, roi, bi], [y])
 

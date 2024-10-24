@@ -1245,7 +1245,7 @@ tuning_config get_tuning_config_mlir(const context& migraphx_ctx,
 void dump_mlir_to_mxr(module m,
                       const std::vector<instruction_ref>& inputs,
                       const fs::path& location)
-{ 
+{
     static std::mutex mutex;
     const std::lock_guard<std::mutex> lock(mutex);
 

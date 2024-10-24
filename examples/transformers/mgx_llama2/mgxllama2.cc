@@ -10,17 +10,21 @@
 
 using namespace mlinfer;
 
-const std::string MODEL_FILE_PATH = "/code/AMDMIGraphX/examples/transformers/python_llama2/models/llama-2-7b-chat-hf/model-256.mxr";
+const std::string MODEL_PATH = "/code/AMDMIGraphX/examples/transformers/python_llama2/models/llama-2-7b-chat-hf/";
+const std::string MODEL_FILE_NAME = "model-256.mxr";
+const std::string ONNX_FILE_NAME = "model.onnx";
 std::vector<int64_t> SAMPLE_IDS = {1,6804,5207,387,287,29973};
 // sequence length from model config
 const size_t SEQ_SIZE = 256;
 const size_t VOCAB_SIZE = 32000;
 // EOS token from model config
 const size_t EOS = 2;
+// Onnx config
+const bool USE_ONNX = true;
 
 static migraphx::program loadProgram()
 {
-    std::filesystem::path compiled_path(MODEL_FILE_PATH);
+    std::filesystem::path compiled_path(MODEL_PATH + MODEL_FILE_NAME);
 
     migraphx::file_options file_options;
     file_options.set_file_format("msgpack");
@@ -38,9 +42,43 @@ static migraphx::program loadProgram()
     return prog;
 }
 
+static migraphx::program loadOnnx()
+{
+    std::filesystem::path onnx_path(MODEL_PATH + ONNX_FILE_NAME);
+
+    migraphx::program prog;
+    std::ifstream f(onnx_path.c_str());
+    if (f.good())
+    {
+        migraphx::onnx_options onnx_opts;
+        std::vector<std::size_t> dims = {1, SEQ_SIZE};
+        onnx_opts.set_input_parameter_shape("input_ids", dims);
+        onnx_opts.set_input_parameter_shape("attention_mask", dims);
+        onnx_opts.set_input_parameter_shape("position_ids", dims);
+        std::cout << "Parsing onnx file ..." << std::endl;
+        prog = parse_onnx(onnx_path.c_str(), onnx_opts);
+
+        std::string target_str = "gpu";
+        migraphx::target targ = migraphx::target(target_str.c_str());
+
+        std::cout << "Quantize FP16 ..." << std::endl;
+        migraphx::quantize_fp16(prog);
+
+        migraphx::compile_options comp_opts;
+        comp_opts.set_offload_copy();
+        std::cout << "Compile to target..." << std::endl;
+        prog.compile(targ, comp_opts);
+    }
+    else
+    {
+        std::cout << "Onnx file is not available.\n";
+    }
+    return prog;
+}
+
 int main() {
     std::cout << "Loading model ..." << std::endl;
-    migraphx::program prog = loadProgram();
+    migraphx::program prog = USE_ONNX ? loadOnnx() : loadProgram();
     std::cout << "Model loaded" << std::endl;
 
     prog.print();

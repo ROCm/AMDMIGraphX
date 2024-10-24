@@ -35,7 +35,7 @@ inline namespace MIGRAPHX_INLINE_NS {
 template<unsigned int N>
 constexpr unsigned int all_ones() noexcept
 {
-    return (1 << N) - 1;
+    return (1u << N) - 1u;
 }
 
 struct float32_parts 

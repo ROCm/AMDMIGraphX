@@ -696,6 +696,28 @@ struct run_cmd : command<run_cmd>
     }
 };
 
+struct time_cmd : command<time_cmd>
+{
+    compiler c;
+    unsigned n = 100;
+    void parse(argument_parser& ap)
+    {
+        ap(n, {"--iterations", "-n"}, ap.help("Number of iterations to run."));
+        c.parse(ap);
+    }
+
+    void run()
+    {
+        std::cout << "Compiling ... " << std::endl;
+        auto p = c.compile();
+        std::cout << "Allocating params ... " << std::endl;
+        auto m = c.params(p);
+        std::cout << "Running ... " << std::endl;
+        double t = time_run(p, m, n);
+        std::cout << "Total time: " << t << "ms" << std::endl;
+    }
+};
+
 struct perf : command<perf>
 {
     compiler c;

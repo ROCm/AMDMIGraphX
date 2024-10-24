@@ -72,6 +72,7 @@
 #include <migraphx/gpu/tuning_config.hpp>
 #include <migraphx/iterator_for.hpp>
 #include <migraphx/permutation.hpp>
+#include <migraphx/file_buffer.hpp>
 #include <deque>
 #include <variant>
 #include <fstream>
@@ -1096,6 +1097,46 @@ std::string dump_mlir(module m, const std::vector<shape>& inputs)
     return mlir_print(&mlirOperationPrint, mod_op);
 }
 
+static std::string compute_dump_name(const module& m, const std::string& ext)
+{
+    std::vector<instruction_ref> sizes;
+    for(auto ins : iterator_for(m))
+    {
+        if(not contains({"convolution", "dot"}, ins->name()))
+            continue;
+        sizes.insert(sizes.end(), ins->inputs().begin(), ins->inputs().end());
+    }
+    auto name =
+        mlir_program::get_symbol_name(m) + "_" + shape::to_sizes_string(to_shapes(sizes)) + ext;
+    replace_string_inplace(name, ", ", "_");
+    replace_string_inplace(name, ":", "s");
+    return name;
+}
+
+void dump_mlir_to_file(module m, const std::vector<shape>& inputs, const fs::path& location)
+{
+    static std::mutex mutex;
+    const std::lock_guard<std::mutex> lock(mutex);
+
+    const_module_ref mr = &m;
+    if(not inputs.empty())
+    {
+        adjust_param_shapes(m, inputs);
+    }
+    rewrite_reduce(m);
+
+    auto name = compute_dump_name(m, ".mlir");
+    auto f    = location / name;
+
+    mlir_program mp;
+    mp.parse(*mr);
+    auto mod_op = mlirModuleGetOperation(mp.mmodule.get());
+
+    std::string mlir_str = mlir_print(&mlirOperationPrint, mod_op);
+
+    write_string(f, mlir_str);
+}
+
 std::string dump_mlir(module m) { return dump_mlir(std::move(m), {}); }
 
 mlir_code_object compile_mlir(const context& migraphx_ctx,
@@ -1217,10 +1258,7 @@ void dump_mlir_to_mxr(module m,
             continue;
         sizes.insert(sizes.end(), ins->inputs().begin(), ins->inputs().end());
     }
-    auto name =
-        mlir_program::get_symbol_name(m) + "_" + shape::to_sizes_string(to_shapes(sizes)) + ".mxr";
-    replace_string_inplace(name, ", ", "_");
-    replace_string_inplace(name, ":", "s");
+    auto name = compute_dump_name(m, ".mxr");
     auto f = location / name;
     save(program{std::move(m)}, f.string());
 }

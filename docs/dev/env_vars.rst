@@ -308,6 +308,11 @@ Enable Split-k perf configs when tuning with MLIR.
 Set to path where MXRs will be saved.
 Dumps MLIRs module to mxr files.
 
+.. envvar:: MIGRAPHX_MLIR_DUMP
+
+Set to path where MLIRs will be saved.
+Dumps MLIRs module to .mlir files.
+
 CK vars
 -----------
 

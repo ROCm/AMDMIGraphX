@@ -125,28 +125,26 @@ namespace mlinfer
             return with_offload_copy ? static_cast<void*>(hbuff.data()) : dbuff.tensor_ptr;
         }
 
-        void upload_to_device()
+        void upload_to_device(hipStream_t stream)
         {
             assert(not with_offload_copy);
-            check_hip_status(hipMemcpyHtoD(dbuff.tensor_ptr, static_cast<void*>(hbuff.data()), size_in_bytes));
+            check_hip_status(hipMemcpyHtoDAsync(dbuff.tensor_ptr, static_cast<void*>(hbuff.data()), size_in_bytes, stream));
         }
 
-        void download_from_device()
+        void download_from_device(hipStream_t stream)
         {
             assert(not with_offload_copy);
-            // TODO: use a separate stream for eval and upload download, so we don't have to sync here
-            check_hip_status(hipDeviceSynchronize());
-            check_hip_status(hipMemcpyDtoH(static_cast<void*>(hbuff.data()), dbuff.tensor_ptr, size_in_bytes));
+            check_hip_status(hipMemcpyDtoHAsync(static_cast<void*>(hbuff.data()), dbuff.tensor_ptr, size_in_bytes, stream));
         }
 
-        void update_data(T data, size_t position)
+        void update_data(T data, size_t position, hipStream_t stream)
         {
             hbuff.at(position) = data;
             if (not with_offload_copy)
             {
                 // TODO: don't copy over the entire buffer just the changed range
                 // check_hip_status(hipMemcpy(get_device_ptr<void*>(), get_host_ptr<void*>(), dbuff.size_in_bytes, hipMemcpyKind::hipMemcpyHostToDevice));
-                upload_to_device();
+                upload_to_device(stream);
             }
         }
 

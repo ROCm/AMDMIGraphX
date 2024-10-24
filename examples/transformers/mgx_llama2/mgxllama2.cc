@@ -72,7 +72,7 @@ static migraphx::program loadProgram(std::string& mxr_path, std::string& model_p
     std::ifstream f(compiled_path.c_str());
     if (f.good())
     {
-        std::cout << "Loadind model from MXR ...\n";
+        std::cout << "Loading model from MXR ...\n";
         prog = migraphx::load(compiled_path.c_str(), file_options);
     }
     else
@@ -85,7 +85,11 @@ static migraphx::program loadProgram(std::string& mxr_path, std::string& model_p
 
 struct LLama2Inputs
 {
-    LLama2Inputs(migraphx::program& prog, migraphx::program_parameters& prog_args, bool offload_copy=true): offload_copy(offload_copy)
+    LLama2Inputs(
+        migraphx::program& prog,
+        migraphx::program_parameters& prog_args,
+        bool offload_copy)
+        : offload_copy(offload_copy)
     {
         auto input_ids = SAMPLE_IDS;    
         input_ids.resize(SEQ_SIZE, 0);
@@ -114,12 +118,12 @@ struct LLama2Inputs
         prog_args.add(position_ids_str, migraphx::argument(param_shapes[position_ids_str], position_ids_buffer->data()));
     };
 
-    void upload_to_device()
+    void upload_to_device(hipStream_t stream)
     {
         assert(not offload_copy);
-        input_ids_buffer->upload_to_device();
-        attention_mask_buffer->upload_to_device();
-        position_ids_buffer->upload_to_device();
+        input_ids_buffer->upload_to_device(stream);
+        attention_mask_buffer->upload_to_device(stream);
+        position_ids_buffer->upload_to_device(stream);
     }
 
     LLama2Inputs() = delete;
@@ -143,10 +147,12 @@ int main() {
     // Setup model inputs
     auto output_tokens = SAMPLE_IDS;
     migraphx::program_parameters prog_args;
+    hipStream_t stream;
+    check_hip_status(hipStreamCreateWithFlags(&stream, hipStreamNonBlocking));
     auto model_inputs = LLama2Inputs(prog, prog_args, offload_copy);
     if (not offload_copy)
     {
-        model_inputs.upload_to_device();
+        model_inputs.upload_to_device(stream);
     }
 
     // Setup model output for non-offload copy
@@ -157,15 +163,17 @@ int main() {
     prog_args.add(output_name, migraphx::argument(out_shape, output_buffer.data()));
 
     std::cout << "Starting evaluation" << std::endl;
-    for (int i = SAMPLE_IDS.size() - 1; i < SEQ_SIZE - 1; ++i)
+    for (int i = SAMPLE_IDS.size() - 1; i < SEQ_SIZE; ++i)
     {
         // std::cout << "# iter: " << i << std::endl;
-        auto outputs = prog.eval(prog_args);
+        auto outputs = prog.run_async(prog_args, stream);
         // TODO: Only download the relevant data range
         if (not offload_copy)
         {
-            output_buffer.download_from_device();
+            output_buffer.download_from_device(stream);
         }
+
+        check_hip_status(hipStreamSynchronize(stream));
         float* results   = offload_copy ? reinterpret_cast<float*>(outputs[0].data()) : reinterpret_cast<float*>(output_buffer.hbuff.data());
         std::vector<float> logits(results, results + output_size);
         std::vector<float>::iterator max = std::max_element(std::begin(logits) + (i * VOCAB_SIZE), std::begin(logits) + ((i + 1) * VOCAB_SIZE));
@@ -176,8 +184,8 @@ int main() {
         {
             break;
         }
-        model_inputs.input_ids_buffer->update_data(new_token, i +1);
-        model_inputs.attention_mask_buffer->update_data(1, i +1);
+        model_inputs.input_ids_buffer->update_data(new_token, i +1, stream);
+        model_inputs.attention_mask_buffer->update_data(1, i +1, stream);
     }
 
     std::cout << "######### Output token ids #########" << std::endl;

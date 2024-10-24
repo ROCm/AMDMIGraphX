@@ -10,7 +10,7 @@
 
 using namespace mlinfer;
 
-const std::string MODEL_PATH = "/code/AMDMIGraphX/examples/transformers/python_llama2/models/llama-2-7b-chat-hf/";
+const std::string MODEL_PATH = "/model/";
 const std::string MODEL_FILE_NAME = "model-256.mxr";
 const std::string ONNX_FILE_NAME = "model.onnx";
 std::vector<int64_t> SAMPLE_IDS = {1,6804,5207,387,287,29973};

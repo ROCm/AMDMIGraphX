@@ -127,8 +127,6 @@ struct __attribute__((packed)) generic_float
                     shift++;
                 }
 
-                f.mantissa &= all_ones<MantissaSize>();
-
                 f.exponent = float32_parts::exponent_bias() - exponent_bias() - shift + 1;
                 f.mantissa = f.mantissa << (float32_parts::mantissa_width() - MantissaSize);
             }

@@ -317,6 +317,12 @@ struct __attribute__((packed)) generic_float
     {
         return not(x == y);
     }
+
+    constexpr generic_float& operator++() noexcept 
+    {
+        *this += generic_float(1.0f); 
+        return *this;
+    }
 };
 
 

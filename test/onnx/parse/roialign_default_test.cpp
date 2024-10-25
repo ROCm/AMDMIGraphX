@@ -48,7 +48,6 @@ TEST_CASE(roialign_default_test)
     EXPECT(p == prog);
 }
 
-
 TEST_CASE(roialign_default_12_test)
 {
     // opset 12 version

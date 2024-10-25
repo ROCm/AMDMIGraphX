@@ -12,21 +12,21 @@ half_pixel *
 spatial_scalefff? roialign_half_pixel_testZ
 x
 
-
 
-
-Z
+
+
+Z
 rois
 
-
+
 Z
 	batch_ind
 
 
-b
+b
 y
 
+
 
-
-
-B
+
+B

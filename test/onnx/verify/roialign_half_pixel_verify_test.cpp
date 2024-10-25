@@ -52,10 +52,13 @@ TEST_CASE(roialign_half_pixel_verify_test)
     result.visit([&](auto output) { result_vector.assign(output.begin(), output.end()); });
 
     // Gold values were generated with onnxruntime
-    std::vector<float> gold = {5.38,      5.4799995, 5.4799995, 6.58,      6.68,  6.68,
-                               17.38,     17.48,     17.48,     18.58,     18.68, 18.68,
-                               29.454998, 14.74,     0.,        30.654999, 15.34, 0.,
-                               41.455,    20.74,     0.,        42.655003, 21.34, 0.};
+    std::vector<float> gold = {1.276,     1.546,   1.6359999, 1.9059999, 1.9959998, 2.2659998,
+
+                               13.276001, 13.546,  13.636,    13.906,    13.996,    14.266,
+
+                               25.478498, 26.1535, 25.838501, 26.5135,   26.198502, 26.8735,
+
+                               37.4785,   38.1535, 37.8385,   38.5135,   38.1985,   38.8735};
 
     EXPECT(migraphx::verify::verify_rms_range(result_vector, gold));
 }
@@ -85,14 +88,21 @@ TEST_CASE(roialign_half_pixel_max_verify_test)
     std::vector<float> result_vector;
     result.visit([&](auto output) { result_vector.assign(output.begin(), output.end()); });
 
-    // Gold values were generated with onnxruntime
-    std::vector<float> gold = {4.7,       4.7,       4.7,       5.2799997, 5.2799997, 5.2799997,
-
+    // Note:  these Gold values have not been cross-checked with onnxruntime because
+    // at the time of writing, onnxruntime is reporting a bug in its own max pooling
+    // feature (onnxruntime commit f25f3868a75d4422cde0090abc2781a5277e8eee).  Ref. the
+    // following log message in onnxruntime/core/providers/cpu/object_detection/roialign.h:
+    //   // TODO(fdwr): Issue #6146. ORT 1.13 will correct the incorrect summation of max mode with
+    //   PR #7354. LOGS_DEFAULT(WARNING) << "The existing summation for max mode and sampling ratios
+    //   besides 1 is incorrect "
+    //                         << "and will be fixed in the next ORT 1.13 release. Thus the results
+    //                         of RoiAlign "
+    //                         << "will be different.";
+    // TODO for AMDMIGraphX:  Recheck the gold values when onnxruntime fix is released
+    std::vector<float> gold = {4.700000,  4.700000,  4.700000,  5.280000,  5.280000,  5.280000,
                                15.979999, 15.979999, 15.979999, 13.199999, 13.199999, 13.199999,
-
-                               27.477499, 27.477499, 0.,        19.440002, 19.440002, 0.,
-
-                               38.8475,   38.8475,   0.,        26.730003, 26.730003, 0.};
+                               27.259998, 27.259998, 0.000000,  21.119999, 21.119999, 0.000000,
+                               38.539997, 38.539997, 0.000000,  29.039999, 29.039999, 0.000000};
 
     EXPECT(migraphx::verify::verify_rms_range(result_vector, gold));
 }

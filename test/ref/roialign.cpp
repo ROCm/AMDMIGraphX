@@ -84,10 +84,11 @@ TEST_CASE(roialign_out_of_bound_test)
     }
 }
 
-auto create_program(const std::string& trans_mode = "half_pixel",
-                        const migraphx::op::pooling_mode pooling_mode =
-                            migraphx::op::pooling_mode::average,
-                        int64_t sampling_ratio = 2) {
+auto create_program(
+    const std::string& trans_mode                 = "half_pixel",
+    const migraphx::op::pooling_mode pooling_mode = migraphx::op::pooling_mode::average,
+    int64_t sampling_ratio                        = 2)
+{
     migraphx::program p;
     auto* mm = p.get_main_module();
     migraphx::shape x_s{migraphx::shape::float_type, {5, 2, 5, 4}};
@@ -131,15 +132,15 @@ auto create_program(const std::string& trans_mode = "half_pixel",
     auto roi = mm->add_literal(migraphx::literal(roi_s, roi_vec));
     auto ind = mm->add_literal(migraphx::literal(ind_s, ind_vec));
     auto r   = mm->add_instruction(migraphx::make_op("roialign",
-                                                    {{"coordinate_transformation_mode", trans_mode},
-                                                    {"spatial_scale", 0.9},
-                                                    {"output_height", 3},
-                                                    {"output_width", 2},
-                                                    {"sampling_ratio", sampling_ratio},
-                                                    {"mode", pooling_mode}}),
-                                x,
-                                roi,
-                                ind);
+                                                     {{"coordinate_transformation_mode", trans_mode},
+                                                      {"spatial_scale", 0.9},
+                                                      {"output_height", 3},
+                                                      {"output_width", 2},
+                                                      {"sampling_ratio", sampling_ratio},
+                                                      {"mode", pooling_mode}}),
+                                 x,
+                                 roi,
+                                 ind);
     mm->add_return({r});
     return p;
 }

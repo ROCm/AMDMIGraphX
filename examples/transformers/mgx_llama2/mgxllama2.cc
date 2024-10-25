@@ -186,12 +186,10 @@ int main() {
     std::cout << "Starting evaluation" << std::endl;
     for (int i = SAMPLE_IDS.size() - 1; i < SEQ_SIZE; ++i)
     {
-        // std::cout << "# iter: " << i << std::endl;
         auto outputs = prog.run_async(prog_args, stream);
-        // TODO: Only download the relevant data range
         if (not offload_copy)
         {
-            output_buffer.download_from_device(stream);
+            output_buffer.download_from_device(stream, i * VOCAB_SIZE, (i + 1) * VOCAB_SIZE);
         }
 
         check_hip_status(hipStreamSynchronize(stream));

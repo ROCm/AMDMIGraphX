@@ -125,16 +125,40 @@ namespace mlinfer
             return with_offload_copy ? static_cast<void*>(hbuff.data()) : dbuff.tensor_ptr;
         }
 
-        void upload_to_device(hipStream_t stream)
+        void upload_to_device(hipStream_t stream, size_t start_idx=0, size_t end_idx=0)
         {
             assert(not with_offload_copy);
-            check_hip_status(hipMemcpyHtoDAsync(dbuff.tensor_ptr, static_cast<void*>(hbuff.data()), size_in_bytes, stream));
+            char* src_addr = reinterpret_cast<char*>(hbuff.data());
+            char* dst_addr = static_cast<char*>(dbuff.tensor_ptr);
+            size_t copy_size_in_bytes = size_in_bytes;
+
+            size_t range_size_in_bytes = (end_idx - start_idx) * sizeof(T);
+            if (range_size_in_bytes > 0)
+            {
+                size_t offset = start_idx * sizeof(T);
+                src_addr += offset;
+                dst_addr += offset;
+                copy_size_in_bytes = range_size_in_bytes;
+            }
+            check_hip_status(hipMemcpyHtoDAsync(dst_addr, src_addr, copy_size_in_bytes, stream));
         }
 
-        void download_from_device(hipStream_t stream)
+        void download_from_device(hipStream_t stream, size_t start_idx=0, size_t end_idx=0)
         {
             assert(not with_offload_copy);
-            check_hip_status(hipMemcpyDtoHAsync(static_cast<void*>(hbuff.data()), dbuff.tensor_ptr, size_in_bytes, stream));
+            char* src_addr = static_cast<char*>(dbuff.tensor_ptr);
+            char* dst_addr = reinterpret_cast<char*>(hbuff.data());
+            size_t copy_size_in_bytes = size_in_bytes;
+
+            size_t range_size_in_bytes = (end_idx - start_idx) * sizeof(T);
+            if (range_size_in_bytes > 0)
+            {
+                size_t offset = start_idx * sizeof(T);
+                src_addr += offset;
+                dst_addr += offset;
+                copy_size_in_bytes = range_size_in_bytes;
+            }
+            check_hip_status(hipMemcpyDtoHAsync(dst_addr, src_addr, copy_size_in_bytes, stream));
         }
 
         void update_data(T data, size_t position, hipStream_t stream)
@@ -144,7 +168,7 @@ namespace mlinfer
             {
                 // TODO: don't copy over the entire buffer just the changed range
                 // check_hip_status(hipMemcpy(get_device_ptr<void*>(), get_host_ptr<void*>(), dbuff.size_in_bytes, hipMemcpyKind::hipMemcpyHostToDevice));
-                upload_to_device(stream);
+                upload_to_device(stream, position, position + 1);
             }
         }
 

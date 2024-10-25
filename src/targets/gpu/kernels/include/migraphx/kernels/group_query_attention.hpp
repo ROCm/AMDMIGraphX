@@ -28,36 +28,9 @@
 #include <migraphx/kernels/algorithm.hpp>
 #include <migraphx/kernels/integral_constant.hpp>
 #include <migraphx/kernels/tensor_view.hpp>
-#include <limits>
 #include <migraphx/kernels/type_traits.hpp>
 
 namespace migraphx {
-// struct gqa_parameters
-// {
-//     float scale;
-//     index_int batch_size;           // Batch size used by input
-//     index_int sequence_length;      // Sequence length used by input
-//     index_int hidden_size;          // Hidden size used by input
-//     index_int head_size;            // Head size
-//     index_int rotary_embedding_dim; // Rotary embedding dimension.
-//     index_int num_heads;            // num_heads = hidden_size / head_size
-//     index_int max_sequence_length;  // Sequence length used by cos/sin cache
-//     index_int head_stride;          // Head stride
-//     index_int seq_stride;           // Sequence stride
-//     index_int batch_stride;         // Batch stride
-//     index_int position_ids_format;  // Format of position ids - 0 is (1), 1 is (batch_size,
-//                                     // sequence_length)
-//     bool transposed; // Whether the input tensor has been transposed into (batch, num_heads,
-//                      // seq_len, hidden)
-//     index_int seqlen_present_kv_cache; // Sequence length of present kv-cache (4096 when using
-//                                        // shared buffer)
-//     bool do_rotary;          // Whether to use rotary position embedding. Default value is 0.
-//     index_int kv_num_heads;  // Number of attention heads for k and v
-//     int local_window_size;   // left_window_size for local attention. Default value is -1 meaning
-//                              // unused.
-//     bool rotary_interleaved; // Rotate using interleaved pattern. Default value is 0 (False).
-//     bool past_present_share_buffer; // Whether to use same buffer for KV-cache inputs and outputs
-// };
 
 template <class T1,
           class T2,

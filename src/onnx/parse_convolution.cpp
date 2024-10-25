@@ -240,7 +240,7 @@ struct parse_convolution : op_parser<parse_convolution>
         auto kdims = in_lens.size() - 2;
 
         // ensure pads available only when auto_pad is "NOT_SET"
-        check_padding_mode(info, "CONV");
+        check_padding_mode(info, opd.onnx_name);
 
         if(contains(info.attributes, "strides"))
         {

@@ -115,11 +115,8 @@ TEST_CASE(dot_reshapes_add)
         auto a     = mm->add_parameter("a", s);
         auto b     = mm->add_parameter("b", s);
         auto x     = mm->add_parameter("x", migraphx::shape{migraphx::shape::float_type, {3, 3}});
-        auto fused = add_mlir(
-            p2,
-            "mlir_main:pointwise0",
-            {a, b, x},
-            [=](auto* pm, const auto& inputs) {
+        auto fused =
+            add_mlir(p2, "mlir_main:pointwise0", {a, b, x}, [=](auto* pm, const auto& inputs) {
                 auto dot = pm->add_instruction(migraphx::make_op("dot"), inputs[0], inputs[1]);
                 auto dot_trans = pm->add_instruction(
                     migraphx::make_op("transpose", {{"permutation", {0, 2, 1}}}), dot);
@@ -195,11 +192,8 @@ TEST_CASE(multi_use_dot_trans_add_pooling_sub)
         auto a   = mm->add_parameter("a", s1);
         auto b   = mm->add_parameter("b", s2);
         auto x = mm->add_parameter("x", migraphx::shape{migraphx::shape::float_type, {1, 1, 5, 4}});
-        auto fused = add_mlir(
-            p2,
-            "mlir_main:pointwise0",
-            {x, a, b},
-            [=](auto* pm, const auto& inputs) {
+        auto fused =
+            add_mlir(p2, "mlir_main:pointwise0", {x, a, b}, [=](auto* pm, const auto& inputs) {
                 auto dot = pm->add_instruction(migraphx::make_op("dot"), inputs[1], inputs[2]);
                 auto dot_trans = pm->add_instruction(
                     migraphx::make_op("transpose", {{"permutation", {0, 1, 3, 2}}}), dot);

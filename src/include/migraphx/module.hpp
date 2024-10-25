@@ -119,7 +119,7 @@ struct MIGRAPHX_EXPORT module
                                         std::vector<instruction_ref> args,
                                         std::vector<module_ref> module_args) MIGRAPHX_TIDY_CONST;
 
-    instruction_ref replace_instruction(instruction_ref ins, instruction_ref rep);
+    instruction_ref replace_instruction(instruction_ref ins, instruction_ref rep, const std::vector<instruction_ref>& skip = {});
 
     instruction_ref remove_instruction(instruction_ref ins);
     instruction_ref remove_instructions(instruction_ref first, instruction_ref last);

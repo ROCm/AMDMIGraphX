@@ -11,9 +11,7 @@
 using namespace mlinfer;
 
 // TODO: fix paths
-const std::string MODEL_PATH = "/code/AMDMIGraphX/examples/transformers/python_llama2/models/llama-2-7b-chat-hf/";
-const std::string MXR_FILE = "model-256_fp32_offload.mxr";
-const std::string MXR_FILE_NO_OFFLOAD = "model-256_fp32_nooffload.mxr";
+const std::string MODEL_FOLDER = "/code/AMDMIGraphX/examples/transformers/python_llama2/models/llama-2-7b-chat-hf/";
 const std::string ONNX_FILE = "model.onnx";
 std::vector<int64_t> SAMPLE_IDS = {1,6804,5207,387,287,29973};
 // sequence length from model config
@@ -23,26 +21,34 @@ const size_t VOCAB_SIZE = 32000;
 // EOS token from model config
 const size_t EOS = 2;
 
-static std::string getModelPath(bool offload_copy, bool quantize_fp16)
+struct ModelLoadSettings
 {
-    std::string path{MODEL_PATH + "model-" + std::to_string(SEQ_SIZE)};
+    size_t sequnce_length;
+    bool quantize_fp16;
+    bool offload_copy;
+    bool fast_math;
+};
 
-    path += "_fp";
-    path += quantize_fp16 ? "16" : "32";
-
-    path += "_";
-    if (!offload_copy)
+static std::string getModelPath(ModelLoadSettings& s)
+{
+    std::stringstream path;
+    path << MODEL_FOLDER << "model-" << std::to_string(s.sequnce_length) << "_fp" << (s.quantize_fp16 ? "16" : "32") << "_";
+    if (!s.offload_copy)
     {
-        path += "no";
+        path << "no";
     }
-    path += "offload";
-    return path;
+    path << "offload_";
+    if (!s.fast_math)
+    {
+        path << "no";
+    }
+    path << "fastmath.mxr";
+    return path.str();
 }
 
-// TODO: enable fp16 quant and fast math
-static migraphx::program loadOnnx(std::string& model_path, bool offload_copy, bool quantize_fp16 = false)
+static migraphx::program loadOnnx(ModelLoadSettings& settings)
 {
-    std::filesystem::path onnx_path(model_path);
+    std::filesystem::path onnx_path(MODEL_FOLDER + ONNX_FILE);
 
     migraphx::program prog;
     std::ifstream f(onnx_path.c_str());
@@ -60,15 +66,23 @@ static migraphx::program loadOnnx(std::string& model_path, bool offload_copy, bo
         migraphx::target targ = migraphx::target(target_str.c_str());
 
         std::cout << "Quantize FP16 ..." << std::endl;
-        if (quantize_fp16)
+        if (settings.quantize_fp16)
             migraphx::quantize_fp16(prog);
 
         migraphx::compile_options comp_opts;
-        comp_opts.set_offload_copy();
-        std::cout << "Compile to target..." << std::endl;
+
+        if (settings.offload_copy)
+            comp_opts.set_offload_copy();
+
+        if (settings.fast_math)
+            comp_opts.set_fast_math();
+
+        comp_opts.set_exhaustive_tune_flag();
+
+        std::cout << "Compile to target ..." << std::endl;
         prog.compile(targ, comp_opts);
 
-        std::string modelPath = getModelPath(offload_copy, quantize_fp16) + ".mxr";
+        std::string modelPath = getModelPath(settings);
         migraphx::file_options file_options;
         file_options.set_file_format("msgpack");
         std::cout << "Saving mxr file to: " << modelPath << "\n";
@@ -76,15 +90,15 @@ static migraphx::program loadOnnx(std::string& model_path, bool offload_copy, bo
     }
     else
     {
-        std::cerr << "Onnx file is not available on path: " << model_path << std::endl;
+        std::cerr << "Onnx file is not available on path: " << onnx_path << std::endl;
         exit(1);
     }
     return prog;
 };
 
-static migraphx::program loadProgram(std::string& mxr_path, std::string& model_path, bool offload_copy)
+static migraphx::program loadProgram(ModelLoadSettings& settings)
 {
-    std::filesystem::path compiled_path(mxr_path);
+    std::filesystem::path compiled_path(getModelPath(settings));
 
     migraphx::file_options file_options;
     file_options.set_file_format("msgpack");
@@ -93,13 +107,13 @@ static migraphx::program loadProgram(std::string& mxr_path, std::string& model_p
     std::ifstream f(compiled_path.c_str());
     if (f.good())
     {
-        std::cout << "Loading model from MXR ...\n";
+        std::cout << "Loading model from " << compiled_path << " ...\n";
         prog = migraphx::load(compiled_path.c_str(), file_options);
     }
     else
     {
         std::cout << "MXR file can't be loaded try to load ONNX\n";
-        prog = loadOnnx(model_path, offload_copy);
+        prog = loadOnnx(settings);
     }
     return prog;
 };
@@ -112,7 +126,7 @@ struct LLama2Inputs
         bool offload_copy)
         : offload_copy(offload_copy)
     {
-        auto input_ids = SAMPLE_IDS;    
+        auto input_ids = SAMPLE_IDS;
         input_ids.resize(SEQ_SIZE, 0);
         std::vector<int64_t> attention_mask = input_ids;
         std::transform(std::begin(attention_mask), std::end(attention_mask), std::begin(attention_mask), [](auto i){
@@ -160,9 +174,8 @@ struct LLama2Inputs
 int main() {
     bool offload_copy = false;
     std::cout << "Offload copy: " << std::boolalpha << offload_copy << std::endl;
-    auto mxr_path = offload_copy ? MODEL_PATH + MXR_FILE : MODEL_PATH + MXR_FILE_NO_OFFLOAD;
-    auto onnx_path = MODEL_PATH + ONNX_FILE;
-    migraphx::program prog = loadProgram(mxr_path, onnx_path, offload_copy);
+    ModelLoadSettings settings = {SEQ_SIZE, true /*quantize_fp16*/, false /*offload_copy*/, true /*fast_math*/};
+    migraphx::program prog = loadProgram(settings);
     std::cout << "Model loaded" << std::endl;
 
     // Setup model inputs

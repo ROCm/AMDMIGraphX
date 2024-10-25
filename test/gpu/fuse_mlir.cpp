@@ -254,11 +254,8 @@ TEST_CASE(dot_multi_use_trans_add_pooling_sub)
         auto a   = mm->add_parameter("a", s1);
         auto b   = mm->add_parameter("b", s2);
         auto x = mm->add_parameter("x", migraphx::shape{migraphx::shape::float_type, {1, 1, 5, 4}});
-        auto fused = add_mlir(
-            p2,
-            "mlir_main:pointwise0",
-            {a, b, x},
-            [=](auto* pm, const auto& inputs) {
+        auto fused =
+            add_mlir(p2, "mlir_main:pointwise0", {a, b, x}, [=](auto* pm, const auto& inputs) {
                 auto dot = pm->add_instruction(migraphx::make_op("dot"), inputs[0], inputs[1]);
                 auto dot_trans = pm->add_instruction(
                     migraphx::make_op("transpose", {{"permutation", {0, 2, 1}}}), dot);
@@ -359,15 +356,11 @@ TEST_CASE(dot_dot_pointwise_pointwise)
                 return std::make_tuple(dot->get_operator(), dot);
             });
         auto fused =
-            add_mlir(p2,
-                     "mlir_main:pointwise0",
-                     {dot1, c, x},
-                     [=](auto* pm, const auto& inputs) {
-                         auto dot =
-                             pm->add_instruction(migraphx::make_op("dot"), inputs[0], inputs[1]);
-                         auto add = pm->add_instruction(migraphx::make_op("add"), dot, inputs[2]);
-                         return std::make_tuple(dot->get_operator(), add);
-                     });
+            add_mlir(p2, "mlir_main:pointwise0", {dot1, c, x}, [=](auto* pm, const auto& inputs) {
+                auto dot = pm->add_instruction(migraphx::make_op("dot"), inputs[0], inputs[1]);
+                auto add = pm->add_instruction(migraphx::make_op("add"), dot, inputs[2]);
+                return std::make_tuple(dot->get_operator(), add);
+            });
         auto add2 = add_pointwise(p2, "main:pointwise1", {dot1, fused}, single_pointwise("add"));
         mm->add_return({add2});
     }
@@ -613,8 +606,8 @@ TEST_CASE(int_quant_dot_abs)
         auto* mm   = p2.get_main_module();
         auto a     = mm->add_parameter("a", s_a);
         auto b     = mm->add_parameter("b", s_b);
-        auto fused = add_mlir(
-            p2, "mlir_main:pointwise0", {a, b}, [=](auto* pm, const auto& inputs) {
+        auto fused =
+            add_mlir(p2, "mlir_main:pointwise0", {a, b}, [=](auto* pm, const auto& inputs) {
                 auto dot =
                     pm->add_instruction(migraphx::make_op("quant_dot"), inputs[0], inputs[1]);
                 auto abs = pm->add_instruction(migraphx::make_op("abs"), dot);

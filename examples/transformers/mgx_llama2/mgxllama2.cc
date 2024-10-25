@@ -12,7 +12,7 @@ using namespace mlinfer;
 
 // TODO: fix paths
 const std::string MODEL_PATH = "/code/AMDMIGraphX/examples/transformers/python_llama2/models/llama-2-7b-chat-hf/";
-const std::string MXR_FILE = "model-256.mxr";
+const std::string MXR_FILE = "model-256_fp32_offload.mxr";
 const std::string MXR_FILE_NO_OFFLOAD = "model-256_fp32_nooffload.mxr";
 const std::string ONNX_FILE = "model.onnx";
 std::vector<int64_t> SAMPLE_IDS = {1,6804,5207,387,287,29973};
@@ -22,6 +22,22 @@ const size_t SEQ_SIZE = 256;
 const size_t VOCAB_SIZE = 32000;
 // EOS token from model config
 const size_t EOS = 2;
+
+static std::string getModelPath(bool offload_copy, bool quantize_fp16)
+{
+    std::string path{MODEL_PATH + "model-" + std::to_string(SEQ_SIZE)};
+
+    path += "_fp";
+    path += quantize_fp16 ? "16" : "32";
+
+    path += "_";
+    if (!offload_copy)
+    {
+        path += "no";
+    }
+    path += "offload";
+    return path;
+}
 
 // TODO: enable fp16 quant and fast math
 static migraphx::program loadOnnx(std::string& model_path, bool offload_copy, bool quantize_fp16 = false)
@@ -51,7 +67,12 @@ static migraphx::program loadOnnx(std::string& model_path, bool offload_copy, bo
         comp_opts.set_offload_copy();
         std::cout << "Compile to target..." << std::endl;
         prog.compile(targ, comp_opts);
-        // TODO: save model to mxr
+
+        std::string modelPath = getModelPath(offload_copy, quantize_fp16) + ".mxr";
+        migraphx::file_options file_options;
+        file_options.set_file_format("msgpack");
+        std::cout << "Saving mxr file to: " << modelPath << "\n";
+        migraphx::save(prog, modelPath.c_str(), file_options);
     }
     else
     {

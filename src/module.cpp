@@ -351,7 +351,9 @@ instruction_ref module::replace_instruction(instruction_ref ins,
     return ins;
 }
 
-instruction_ref module::replace_instruction(instruction_ref ins, instruction_ref rep, const std::vector<instruction_ref>& skip)
+instruction_ref module::replace_instruction(instruction_ref ins,
+                                            instruction_ref rep,
+                                            const std::vector<instruction_ref>& skip)
 {
     impl->changed.notify();
     assert(has_instruction(ins));
@@ -385,9 +387,10 @@ instruction_ref module::replace_instruction(instruction_ref ins, instruction_ref
     assert(not rep->outputs().empty() or rep == std::prev(end()));
     // Output of the original instruction should only be the replacement
     // unless skipped or empty
-    assert(ins->outputs().empty() or std::all_of(ins->outputs().begin(),
-                                                 ins->outputs().end(),
-                                                 [&](auto i) { return i == rep or contains(skip, i); }));
+    assert(ins->outputs().empty() or
+           std::all_of(ins->outputs().begin(), ins->outputs().end(), [&](auto i) {
+               return i == rep or contains(skip, i);
+           }));
     assert(ins->valid(begin()));
     assert(rep->valid(begin()));
     return rep;

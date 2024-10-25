@@ -656,7 +656,7 @@ struct find_mlir_fused_ops
                 pw_ins,
                 migraphx::make_op("get_tuple_elem", {{"index", rins.size() - 1}}),
                 fused_ins);
-            
+
             // Skip replacing the reshape instructions since they can cause
             // unordered instructions and will be dead code anyways.
             mpm.get_module().replace_instruction(gemm_based_op, dot_ins, inss_to_insert);

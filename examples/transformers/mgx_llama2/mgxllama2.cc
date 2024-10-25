@@ -65,9 +65,11 @@ static migraphx::program loadOnnx(ModelLoadSettings& settings)
         std::string target_str = "gpu";
         migraphx::target targ = migraphx::target(target_str.c_str());
 
-        std::cout << "Quantize FP16 ..." << std::endl;
         if (settings.quantize_fp16)
+        {
+            std::cout << "Quantize FP16 ..." << std::endl;
             migraphx::quantize_fp16(prog);
+        }
 
         migraphx::compile_options comp_opts;
 

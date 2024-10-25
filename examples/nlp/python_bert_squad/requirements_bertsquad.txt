@@ -21,6 +21,7 @@
 # OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 # THE SOFTWARE.
 #####################################################################################
-tensorflow==2.11.1
+tensorflow
 onnxruntime
-tokenizers
+tokenizers==0.11.1; python_version == "3.6"
+tokenizers; python_version > "3.6"

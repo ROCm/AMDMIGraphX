@@ -118,14 +118,13 @@ TEST_CASE(dot_reshapes_add)
         auto fused = add_mlir(
             p2,
             "mlir_main:pointwise0",
-            {x, a, b},
-            {"x2", "y0", "y1"},
+            {a, b, x},
             [=](auto* pm, const auto& inputs) {
-                auto dot = pm->add_instruction(migraphx::make_op("dot"), inputs[1], inputs[2]);
+                auto dot = pm->add_instruction(migraphx::make_op("dot"), inputs[0], inputs[1]);
                 auto dot_trans = pm->add_instruction(
                     migraphx::make_op("transpose", {{"permutation", {0, 2, 1}}}), dot);
                 auto dot_rsp = pm->add_instruction(migraphx::make_op("squeeze"), dot_trans);
-                auto add     = pm->add_instruction(migraphx::make_op("add"), dot_rsp, inputs[0]);
+                auto add     = pm->add_instruction(migraphx::make_op("add"), dot_rsp, inputs[2]);
                 return std::make_tuple(dot->get_operator(), add);
             });
         mm->add_return({fused});
@@ -200,7 +199,6 @@ TEST_CASE(multi_use_dot_trans_add_pooling_sub)
             p2,
             "mlir_main:pointwise0",
             {x, a, b},
-            {"x2", "y0", "y1"},
             [=](auto* pm, const auto& inputs) {
                 auto dot = pm->add_instruction(migraphx::make_op("dot"), inputs[1], inputs[2]);
                 auto dot_trans = pm->add_instruction(

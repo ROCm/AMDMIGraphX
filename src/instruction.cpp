@@ -63,38 +63,43 @@ void instruction::replace(const shape& r)
     if(r != result)
     {
         result = r;
-        std::deque<instruction_ref> s(output.begin(), output.end());
-        std::deque<instruction_ref> sorted_ins;
-        std::set<instruction*> marked;
-        std::set<instruction*> visited;
-        while(not s.empty())
+        std::deque<instruction_ref> q(output.begin(), output.end());
+        std::unordered_map<instruction*, int> arg_count;
+        std::unordered_map<instruction*, instruction_ref> addr2ref;
+        while(not q.empty())
         {
-            instruction_ref ins = s.back();
-            instruction* addr = as_address(ins);
-            if(marked.count(addr))
-            {
-               s.pop_back();
-               continue;
-            }
-            if(visited.count(addr) or ins->output.empty())
-            {
-               marked.insert(addr);
-               sorted_ins.push_front(ins);
-               s.pop_back();
-               continue;
-            }
-            visited.insert(addr);
-            std::copy(ins->output.begin(), ins->output.end(), std::back_inserter(s));
-        }
-        while(not sorted_ins.empty())
-        {
-            instruction_ref ins = sorted_ins.front();
-            sorted_ins.pop_front();
+            instruction_ref ins = q.front();
+            q.pop_front();
             assert(ins->name() == "@return" or ins->name().front() != '@');
+            int n = ins->arguments.size();
+            if(n > 1)
+            {
+                instruction* addr = as_address(ins);
+                if(arg_count.find(addr) == arg_count.end())
+                {
+                    arg_count[addr] = n;
+                    addr2ref[addr]     = ins;
+                }
+                arg_count[addr] -= 1;
+                if(arg_count[addr] > 0)
+                {
+                    //If there is still arguments that hasn't been replaced, skip this instruction and wait for it to be called later. 
+                    continue;
+                }
+                arg_count.erase(addr);
+            }
             shape new_r = compute_shape(ins->op, ins->arguments, ins->module_args);
             if(new_r != ins->result)
             {
                 ins->result = new_r;
+                std::copy(ins->output.begin(), ins->output.end(), std::back_inserter(q));
+            }
+            if(q.empty())
+            {
+                for(auto&& kv: arg_count){
+                    instruction* addr = kv.first;
+                    q.push_back(addr2ref[addr]);
+                }
             }
         }
     }

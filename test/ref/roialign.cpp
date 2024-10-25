@@ -147,6 +147,7 @@ auto create_program(
 
 TEST_CASE(roialign_test)
 {
+    // output_half_pixel coordinate transformation mode
     auto p = create_program("output_half_pixel");
     p.compile(migraphx::make_target("ref"));
     auto result = p.eval({}).back();
@@ -170,6 +171,7 @@ TEST_CASE(roialign_test)
 
 TEST_CASE(roialign_test_half_pixel)
 {
+    // half_pixel coordinate transformation mode
     auto p = create_program("half_pixel");
     p.compile(migraphx::make_target("ref"));
     auto result = p.eval({}).back();
@@ -193,56 +195,44 @@ TEST_CASE(roialign_test_half_pixel)
 
 TEST_CASE(roialign_test_half_pixel_max)
 {
-    // TODO: max pooling mode currently fails testing
+    // half_pixel coordinate transformation mode with max pooling
+    // Note: gold values were not cross-checked with onnxruntime because onnxruntime
+    // roialign with max pooling is known to give incorrect results (ORT Issue #6146).
     auto p = create_program("half_pixel", migraphx::op::pooling_mode::max, 0);
     p.compile(migraphx::make_target("ref"));
     auto result = p.eval({}).back();
     std::vector<float> results_vector;
     result.visit([&](auto output) { results_vector.assign(output.begin(), output.end()); });
-    std::vector<float> gold = {
-        0.4062,     0.335475,   0.73333544, 0.6809158,  0.5071119,  0.3496595,
 
-        0.4062,     0.335475,   0.73333544, 0.6809158,  0.5071119,  0.3496595,
-
-        0.4511997,  0.31101292, 0.37753808, 0.24310073, 0.4388,     0.4627349,
-
-        0.4511997,  0.31101292, 0.37753808, 0.11221313, 0.4388,     0.4627349,
-
-        0.5697,     0.5697,     0.5697,     0.5697,     0.5697,     0.5697,
-
-        0.5697,     0.5697,     0.5697,     0.5697,     0.5697,     0.5697,
-
-        0.26071548, 0.4336742,  0.24798042, 0.3766743,  0.35943243, 0.31967437,
-
-        0.26071548, 0.4336742,  0.24798042, 0.3766743,  0.35943243, 0.31967437};
+    std::vector<float> gold = {0.406200, 0.335475, 0.673876, 0.625706, 0.390086, 0.184031, 0.406200,
+                               0.335475, 0.673876, 0.625706, 0.390086, 0.184031, 0.451200, 0.311013,
+                               0.377538, 0.243101, 0.438800, 0.462735, 0.451200, 0.311013, 0.377538,
+                               0.112213, 0.438800, 0.462735, 0.569700, 0.569700, 0.569700, 0.569700,
+                               0.569700, 0.569700, 0.569700, 0.569700, 0.569700, 0.569700, 0.569700,
+                               0.569700, 0.202111, 0.309352, 0.176437, 0.267311, 0.265772, 0.225270,
+                               0.202111, 0.309352, 0.176437, 0.267311, 0.265772, 0.225270};
 
     EXPECT(migraphx::verify::verify_rms_range(results_vector, gold));
 }
 
 TEST_CASE(roialign_test_output_half_max)
 {
-    // TODO: max pooling mode currently fails testing
+    // output_half_pixel coordinate transformation mode with max pooling
+    // Note: gold values were not cross-checked with onnxruntime because onnxruntime
+    // roialign with max pooling is known to give incorrect results (ORT Issue #6146).
     auto p = create_program("output_half_pixel", migraphx::op::pooling_mode::max, 0);
     p.compile(migraphx::make_target("ref"));
     auto result = p.eval({}).back();
     std::vector<float> results_vector;
     result.visit([&](auto output) { results_vector.assign(output.begin(), output.end()); });
-    std::vector<float> gold = {
-        0.40922216, 0.49688435, 0.53047323, 0.6441095,  0.38779172, 0.22646816,
 
-        0.40922216, 0.49688435, 0.53047323, 0.6441095,  0.38779172, 0.22646816,
-
-        0.36691064, 0.21427372, 0.26765385, 0.5285856,  0.24134001, 0.7119,
-
-        0.36691064, 0.21427372, 0.26765385, 0.5285856,  0.24134001, 0.7119,
-
-        0.34957266, 0.6419918,  0.49346158, 0.5196164,  0.6514608,  0.6859901,
-
-        0.34957266, 0.6419918,  0.49346158, 0.5196164,  0.6514608,  0.6859901,
-
-        0.7145173,  0.23443075, 0.8620839,  0.14426728, 0.61358184, 0.2904524,
-
-        0.7145173,  0.23443075, 0.8620839,  0.14426728, 0.61358184, 0.2904524};
+    std::vector<float> gold = {0.272815, 0.331256, 0.394066, 0.478481, 0.298301, 0.174206, 0.272815,
+                               0.331256, 0.394066, 0.478481, 0.298301, 0.174206, 0.366911, 0.214274,
+                               0.267654, 0.528586, 0.241340, 0.711900, 0.366911, 0.214274, 0.267654,
+                               0.528586, 0.241340, 0.711900, 0.262575, 0.499255, 0.366754, 0.399837,
+                               0.559276, 0.609725, 0.262575, 0.499255, 0.366754, 0.399837, 0.559276,
+                               0.609725, 0.507357, 0.180114, 0.661130, 0.084399, 0.427432, 0.239352,
+                               0.507357, 0.180114, 0.661130, 0.084399, 0.427432, 0.239352};
 
     EXPECT(migraphx::verify::verify_rms_range(results_vector, gold));
 }

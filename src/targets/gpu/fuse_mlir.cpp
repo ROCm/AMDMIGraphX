@@ -629,10 +629,9 @@ struct find_mlir_fused_ops
         bool gemm_has_multi_outs = gemm_based_op->outputs().size() > 1;
         std::vector<instruction_ref> inss_to_insert;
         auto reshape_ins = x_ins;
-        while(reshape_ins != gemm_based_op)
+        for(;reshape_ins != gemm_based_op;reshape_ins = reshape_ins->inputs().front())
         {
             inss_to_insert.push_back(reshape_ins);
-            reshape_ins = reshape_ins->inputs().front();
             gemm_has_multi_outs |= reshape_ins->outputs().size() > 1;
         }
         inss_to_insert.push_back(gemm_based_op);
@@ -657,9 +656,17 @@ struct find_mlir_fused_ops
                 migraphx::make_op("get_tuple_elem", {{"index", rins.size() - 1}}),
                 fused_ins);
 
-            // Skip replacing the reshape instructions since they can cause
-            // unordered instructions and will be dead code anyways.
-            mpm.get_module().replace_instruction(gemm_based_op, dot_ins, inss_to_insert);
+            // move all the reshape instructions after the fused op to avoid
+            // generating invalid migraphx program since the reshapes can be
+            // used by the replaced dot_ins
+            for(instruction_ref x : inss_to_insert)
+            {
+                if(x == gemm_based_op)
+                    continue;
+                mpm.get_module().move_instruction(x, pw_ins);
+            }
+
+            mpm.get_module().replace_instruction(gemm_based_op, dot_ins);
             if(rins.size() == 2)
             {
                 mpm.get_module().replace_instruction(

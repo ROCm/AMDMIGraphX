@@ -27,6 +27,7 @@
 #include <migraphx/instruction.hpp>
 #include <migraphx/instruction_ref.hpp>
 #include <migraphx/register_target.hpp>
+#include <migraphx/ranges.hpp>
 #include <migraphx/time.hpp>
 #ifdef HAVE_GPU
 #include <migraphx/gpu/hip.hpp>

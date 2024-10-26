@@ -138,6 +138,9 @@ bool is_offload_copy_set(const program& p)
 
 double time_run(const program& p, const parameter_map& m, int n)
 {
+    // Run once without timing
+    p.eval(m);
+    p.finish();
     double total = time<milliseconds>([&] {
         for(auto i : range(n))
         {

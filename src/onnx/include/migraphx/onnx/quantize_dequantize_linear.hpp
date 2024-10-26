@@ -33,7 +33,7 @@ namespace onnx {
 
 std::vector<instruction_ref>
 transform_quantize_dequantize_linear_inputs(const onnx_parser::node_info& info,
-                                            const std::string& op_name,
+                                            const std::string& onnx_name,
                                             int block_size,
                                             int axis,
                                             std::vector<instruction_ref> args);

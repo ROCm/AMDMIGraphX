@@ -439,7 +439,8 @@ TEST_CASE(add_transpose_reshape_add)
         auto y    = mm->add_parameter("y", s1);
         auto z    = mm->add_parameter("z", s2);
         auto add1 = mm->add_instruction(migraphx::make_op("add"), x, y);
-        auto transpose = mm->add_instruction(migraphx::make_op("transpose", {{"permutation", {0, 2, 1}}}), add1);
+        auto transpose =
+            mm->add_instruction(migraphx::make_op("transpose", {{"permutation", {0, 2, 1}}}), add1);
         auto reshape =
             mm->add_instruction(migraphx::make_op("reshape", {{"dims", s2.lens()}}), transpose);
         auto add2 = mm->add_instruction(migraphx::make_op("add"), reshape, z);
@@ -452,11 +453,15 @@ TEST_CASE(add_transpose_reshape_add)
         auto x   = mm->add_parameter("x", s1);
         auto y   = mm->add_parameter("y", s1);
         auto z   = mm->add_parameter("z", s2);
-        auto x2  = mm->add_instruction(migraphx::make_op("reshape", {{"dims", {3, 4, 2, 2, 10}}}), x);
-        auto x3 = mm->add_instruction(migraphx::make_op("transpose", {{"permutation", {0, 4, 1, 2, 3}}}), x2);
-        auto y2  = mm->add_instruction(migraphx::make_op("reshape", {{"dims", {3, 4, 2, 2, 10}}}), y);
-        auto y3 = mm->add_instruction(migraphx::make_op("transpose", {{"permutation", {0, 4, 1, 2, 3}}}), y2);
-        auto z2  = mm->add_instruction(migraphx::make_op("reshape", {{"dims", s3.lens()}}), z);
+        auto x2 =
+            mm->add_instruction(migraphx::make_op("reshape", {{"dims", {3, 4, 2, 2, 10}}}), x);
+        auto x3 = mm->add_instruction(
+            migraphx::make_op("transpose", {{"permutation", {0, 4, 1, 2, 3}}}), x2);
+        auto y2 =
+            mm->add_instruction(migraphx::make_op("reshape", {{"dims", {3, 4, 2, 2, 10}}}), y);
+        auto y3 = mm->add_instruction(
+            migraphx::make_op("transpose", {{"permutation", {0, 4, 1, 2, 3}}}), y2);
+        auto z2 = mm->add_instruction(migraphx::make_op("reshape", {{"dims", s3.lens()}}), z);
         auto fadd =
             add_pointwise(p2, "main:pointwise0", {x3, y3, z2}, [=](auto* pm, const auto& inputs) {
                 auto add1 = pm->add_instruction(migraphx::make_op("add"), inputs[0], inputs[1]);

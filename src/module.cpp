@@ -351,9 +351,7 @@ instruction_ref module::replace_instruction(instruction_ref ins,
     return ins;
 }
 
-instruction_ref module::replace_instruction(instruction_ref ins,
-                                            instruction_ref rep,
-                                            const std::vector<instruction_ref>& skip)
+instruction_ref module::replace_instruction(instruction_ref ins, instruction_ref rep)
 {
     impl->changed.notify();
     assert(has_instruction(ins));
@@ -377,7 +375,7 @@ instruction_ref module::replace_instruction(instruction_ref ins,
     for(auto out : outputs)
     {
         // TODO: Check for possible cycles
-        if(out != rep and not contains(skip, out))
+        if(out != rep)
         {
             instruction::replace_argument(out, ins, rep);
         }
@@ -385,12 +383,10 @@ instruction_ref module::replace_instruction(instruction_ref ins,
     }
     // Replacement should not be dead code unless its the last instruction
     assert(not rep->outputs().empty() or rep == std::prev(end()));
-    // Output of the original instruction should only be the replacement
-    // unless skipped or empty
-    assert(ins->outputs().empty() or
-           std::all_of(ins->outputs().begin(), ins->outputs().end(), [&](auto i) {
-               return i == rep or contains(skip, i);
-           }));
+    // Output of the original instruction should only be the replacement or empty
+    assert(ins->outputs().empty() or std::all_of(ins->outputs().begin(),
+                                                 ins->outputs().end(),
+                                                 [&](auto i) { return i == rep; }));
     assert(ins->valid(begin()));
     assert(rep->valid(begin()));
     return rep;

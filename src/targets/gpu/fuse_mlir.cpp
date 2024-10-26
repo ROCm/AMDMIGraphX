@@ -176,7 +176,6 @@ const auto& reshaper_names()
 {
     // clang-format off
     static const std::unordered_set<std::string> names = {
-        "slice",
         "transpose",
         "multibroadcast",
         "broadcast",
@@ -191,12 +190,17 @@ const auto& reshaper_names()
     return names;
 }
 
+bool is_fusable_input_op(const std::string& name)
+{
+    return contains(reshaper_names(), name) or contains({"slice"}, name);
+}
+
 std::tuple<instruction_ref, std::vector<operation>>
 get_fusable_input_op_stream(instruction_ref lower_input)
 {
     instruction_ref upper_input = lower_input;
     std::vector<operation> op_stream;
-    while(contains(reshaper_names(), upper_input->name()))
+    while(is_fusable_input_op(upper_input->name()))
     {
         operation op = upper_input->get_operator();
         op_stream.push_back(op);
@@ -472,8 +476,6 @@ MIGRAPHX_PRED_MATCHER(mlir_split_reduce, instruction_ref ins)
     if(ins->name() != "split_fused_reduce")
         return false;
     auto* mod_arg           = ins->module_inputs().front();
-    auto supported_reshapes = reshaper_names();
-    supported_reshapes.erase("slice");
     std::unordered_set<std::string> builtins = {"@param", "@literal", "@return"};
     for(const auto i : iterator_for(*mod_arg))
     {
@@ -599,10 +601,7 @@ struct find_mlir_fused_ops
     mlir_mode dot_mode  = mlir_mode::none;
     auto matcher() const
     {
-        auto reshapes = reshaper_names();
-        // slice is not supported
-        reshapes.erase("slice");
-        auto dot_or_conv = match::skip(match::name(reshapes))(
+        auto dot_or_conv = match::skip(match::name(reshaper_names()))(
             match::any_of(is_mlir_dot(dot_mode), is_mlir_conv(conv_mode)).bind("gemm_based_op"));
         return mlir_pointwise()(match::any_of[match::inputs()](dot_or_conv.bind("x")));
     }
@@ -813,9 +812,9 @@ struct find_mlir_standalone_attention_op
         map_main_to_mattn[fused_reduce] = softmax;
 
         // all preceeding ops should be fusable ops
-        if(not std::all_of(m_gemm1, softmax, [](auto i) {
+        if(not std::all_of(m_gemm1, softmax, [](const instruction& i) {
                return (is_pointwise_op_supported_by_mlir(i) or
-                       contains(reshaper_names(), i.name()));
+                       is_fusable_input_op(i.name()));
            }))
             return;
 

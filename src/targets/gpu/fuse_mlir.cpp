@@ -629,7 +629,7 @@ struct find_mlir_fused_ops
         bool gemm_has_multi_outs = gemm_based_op->outputs().size() > 1;
         std::vector<instruction_ref> inss_to_insert;
         auto reshape_ins = x_ins;
-        for(;reshape_ins != gemm_based_op;reshape_ins = reshape_ins->inputs().front())
+        for(; reshape_ins != gemm_based_op; reshape_ins = reshape_ins->inputs().front())
         {
             inss_to_insert.push_back(reshape_ins);
             gemm_has_multi_outs |= reshape_ins->outputs().size() > 1;

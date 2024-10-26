@@ -475,7 +475,7 @@ MIGRAPHX_PRED_MATCHER(mlir_split_reduce, instruction_ref ins)
 {
     if(ins->name() != "split_fused_reduce")
         return false;
-    auto* mod_arg           = ins->module_inputs().front();
+    auto* mod_arg                            = ins->module_inputs().front();
     std::unordered_set<std::string> builtins = {"@param", "@literal", "@return"};
     for(const auto i : iterator_for(*mod_arg))
     {
@@ -813,8 +813,7 @@ struct find_mlir_standalone_attention_op
 
         // all preceeding ops should be fusable ops
         if(not std::all_of(m_gemm1, softmax, [](const instruction& i) {
-               return (is_pointwise_op_supported_by_mlir(i) or
-                       is_fusable_input_op(i.name()));
+               return (is_pointwise_op_supported_by_mlir(i) or is_fusable_input_op(i.name()));
            }))
             return;
 

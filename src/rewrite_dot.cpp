@@ -31,7 +31,7 @@
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
 
-MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_ENABLE_REWRITE_DOT);
+MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_DISABLE_REWRITE_DOT);
 
 namespace {
 
@@ -111,7 +111,7 @@ struct find_1x1_convolution
 
 void rewrite_dot::apply(module& m) const
 {
-    if(not enabled(MIGRAPHX_ENABLE_REWRITE_DOT{}))
+    if(enabled(MIGRAPHX_DISABLE_REWRITE_DOT{}))
         return;
     match::find_matches(m, find_1x1_convolution{});
 }

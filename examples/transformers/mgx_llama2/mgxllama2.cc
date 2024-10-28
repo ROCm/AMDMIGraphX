@@ -199,7 +199,9 @@ int main() {
     prog_args.add(output_name, migraphx::argument(out_shape, output_buffer.data()));
 
     std::cout << "Starting evaluation" << std::endl;
-    for (int i = SAMPLE_IDS.size() - 1; i < SEQ_SIZE; ++i)
+    size_t token_count = 0;
+    auto start = std::chrono::steady_clock::now();
+    for (int i = SAMPLE_IDS.size() - 1; i < SEQ_SIZE - 1; ++i)
     {
         auto outputs = prog.run_async(prog_args, stream);
         if (not offload_copy)
@@ -212,6 +214,7 @@ int main() {
         std::vector<float> logits(results, results + output_size);
         std::vector<float>::iterator max = std::max_element(std::begin(logits) + (i * VOCAB_SIZE), std::begin(logits) + ((i + 1) * VOCAB_SIZE));
         int64_t new_token = std::distance(std::begin(logits) + (i * VOCAB_SIZE), max);
+        token_count++;
         // std::cout << "New token: " << new_token << std::endl;
         output_tokens.push_back(new_token);
         if (new_token == EOS)
@@ -221,6 +224,10 @@ int main() {
         model_inputs.input_ids_buffer->update_data(new_token, i +1, stream);
         model_inputs.attention_mask_buffer->update_data(1, i +1, stream);
     }
+    float dur = std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::steady_clock::now() - start).count() / 1000.f;
+    std::cout << "Duration: " << dur << " seconds." << std::endl;
+    std::cout << "Completed " << token_count << " tokens." << std::endl;
+    std::cout << "Tokens/sec: " << token_count / dur << std::endl;
 
     std::cout << "######### Output token ids #########" << std::endl;
     // print output tokens

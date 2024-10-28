@@ -26,7 +26,7 @@
 #include <migraphx/erase.hpp>
 #include <migraphx/module.hpp>
 #include <migraphx/ranges.hpp>
-#include <deque>
+#include <queue>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
@@ -58,47 +58,43 @@ instruction::instruction(literal l)
 {
 }
 
+struct replace_shape_order
+{
+    instruction_ref start;
+
+    std::size_t location(instruction_ref x) const
+    {
+        return std::distance(start, x);
+    }
+
+    bool operator()(instruction_ref x, instruction_ref y) const
+    {
+        return location(x) > location(y);
+    }
+};
+
 void instruction::replace(const shape& r)
 {
     if(r != result)
     {
         result = r;
-        std::deque<instruction_ref> q(output.begin(), output.end());
-        std::unordered_map<instruction*, int> arg_count;
-        std::unordered_map<instruction*, instruction_ref> addr2ref;
+        auto start = std::find_if(output.front()->inputs().begin(), output.front()->inputs().end(), [&](instruction_ref x) {
+            return this == as_address(x);
+        });
+        assert(as_address(*start) == this);
+        std::priority_queue<instruction_ref, std::vector<instruction_ref>, replace_shape_order> q(output.begin(), output.end(), replace_shape_order{*start});
         while(not q.empty())
         {
-            instruction_ref ins = q.front();
-            q.pop_front();
+            instruction_ref ins = q.top();
+            q.pop();
             assert(ins->name() == "@return" or ins->name().front() != '@');
-            int n = ins->arguments.size();
-            if(n > 1)
-            {
-                instruction* addr = as_address(ins);
-                if(arg_count.find(addr) == arg_count.end())
-                {
-                    arg_count[addr] = n;
-                    addr2ref[addr]     = ins;
-                }
-                arg_count[addr] -= 1;
-                if(arg_count[addr] > 0)
-                {
-                    //If there is still arguments that hasn't been replaced, skip this instruction and wait for it to be called later. 
-                    continue;
-                }
-                arg_count.erase(addr);
-            }
             shape new_r = compute_shape(ins->op, ins->arguments, ins->module_args);
             if(new_r != ins->result)
             {
                 ins->result = new_r;
-                std::copy(ins->output.begin(), ins->output.end(), std::back_inserter(q));
-            }
-            if(q.empty())
-            {
-                for(auto&& kv: arg_count){
-                    instruction* addr = kv.first;
-                    q.push_back(addr2ref[addr]);
+                for(auto&& child: ins->output)
+                {
+                    q.push(child);
                 }
             }
         }

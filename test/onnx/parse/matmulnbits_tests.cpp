@@ -96,6 +96,41 @@ TEST_CASE(matmulnbits_mm2_test)
     EXPECT(p == prog);
 }
 
+TEST_CASE(matmulnbits_mm2_signed_test)
+{
+    migraphx::program p;
+    auto* mm    = p.get_main_module();
+    auto a      = mm->add_parameter("a", migraphx::shape{migraphx::shape::float_type, {2, 33}});
+    auto b      = mm->add_parameter("b", migraphx::shape{migraphx::shape::int8_type, {2, 3, 8}});
+    auto scales = mm->add_parameter("scales", migraphx::shape{migraphx::shape::float_type, {6}});
+
+    scales = mm->add_instruction(migraphx::make_op("reshape", {{"dims", {2, -1}}}), scales);
+    scales = mm->add_instruction(migraphx::make_op("unsqueeze", {{"axes", {2}}}), scales);
+    scales = mm->add_instruction(migraphx::make_op("multibroadcast", {{"out_lens", {2, 3, 16}}}),
+                                 scales);
+    scales = mm->add_instruction(migraphx::make_op("reshape", {{"dims", {2, -1}}}), scales);
+    scales = mm->add_instruction(
+        migraphx::make_op("slice", {{"axes", {1}}, {"starts", {0}}, {"ends", {33}}}), scales);
+
+    auto zp =
+        mm->add_literal(migraphx::literal{migraphx::shape{migraphx::shape::int8_type, {1}}, {8}});
+    zp = mm->add_instruction(migraphx::make_op("multibroadcast", {{"out_lens", {2, 33}}}), zp);
+
+    b = mm->add_instruction(migraphx::make_op("reshape", {{"dims", {2, -1}}}), b);
+    b = mm->add_instruction(migraphx::make_op("unpack_int4"), b);
+    b = mm->add_instruction(
+        migraphx::make_op("slice", {{"axes", {1}}, {"starts", {0}}, {"ends", {33}}}), b);
+    b = mm->add_instruction(migraphx::make_op("dequantizelinear"), b, scales, zp);
+    b = mm->add_instruction(migraphx::make_op("transpose", {{"permutation", {1, 0}}}), b);
+    mm->add_instruction(migraphx::make_op("dot"), a, b);
+
+    auto prog = optimize_onnx("matmulnbits_mm2_signed_test.onnx");
+
+    p.sort();
+    prog.sort();
+    EXPECT(p == prog);
+}
+
 TEST_CASE(matmulnbits_vm_test)
 {
     migraphx::program p;

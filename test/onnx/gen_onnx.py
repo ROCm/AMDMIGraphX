@@ -9242,6 +9242,27 @@ def matmulnbits_mm2_test():
 
 
 @onnx_test()
+def matmulnbits_mm2_signed_test():
+    a = onnx.helper.make_tensor_value_info("a", onnx.TensorProto.FLOAT,
+                                           [2, 33])
+    b = onnx.helper.make_tensor_value_info("b", onnx.TensorProto.INT8,
+                                           [2, 3, 8])
+    scales = onnx.helper.make_tensor_value_info("scales",
+                                                onnx.TensorProto.FLOAT, [6])
+    c = onnx.helper.make_tensor_value_info("c", onnx.TensorProto.FLOAT, [2, 2])
+
+    node = onnx.helper.make_node("MatMulNBits",
+                                 inputs=["a", "b", "scales"],
+                                 outputs=["c"],
+                                 bits=4,
+                                 block_size=16,
+                                 K=33,
+                                 N=2,
+                                 domain='com.microsoft')
+    return ([node], [a, b, scales], [c])
+
+
+@onnx_test()
 def matmulnbits_vm_test():
     a = onnx.helper.make_tensor_value_info("a", onnx.TensorProto.FLOAT, [20])
     b = onnx.helper.make_tensor_value_info("b", onnx.TensorProto.UINT8,

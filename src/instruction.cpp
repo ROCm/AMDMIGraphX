@@ -26,6 +26,7 @@
 #include <migraphx/erase.hpp>
 #include <migraphx/module.hpp>
 #include <migraphx/ranges.hpp>
+#include <migraphx/output_iterator.hpp>
 #include <queue>
 
 namespace migraphx {
@@ -90,10 +91,7 @@ void instruction::replace(const shape& r)
             if(new_r != ins->result)
             {
                 ins->result = new_r;
-                for(auto&& child : ins->output)
-                {
-                    q.push(child);
-                }
+                std::copy(ins->output.begin(), ins->output.end(), migraphx::push_inserter(q));
             }
         }
     }

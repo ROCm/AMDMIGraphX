@@ -37,6 +37,7 @@ namespace math {
 constexpr float as_float(migraphx::half x) { return x; }
 
 constexpr float as_float(migraphx::fp8::fp8e4m3fnuz x) { return x; }
+constexpr float as_float(migraphx::fp8::fp8e5m2fnuz x) { return x; }
 constexpr float as_float(migraphx::fp8::fp8e4m3fn x) { return x; }
 constexpr float as_float(migraphx::fp8::fp8e5m2 x) { return x; }
 

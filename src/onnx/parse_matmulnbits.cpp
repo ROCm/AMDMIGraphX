@@ -119,7 +119,7 @@ struct parse_matmulnbits : op_parser<parse_matmulnbits>
         }
         else
         {
-            zp = info.add_literal(literal{shape{shape::uint8_type, {1}}, {8}});
+            zp = info.add_literal(literal{shape{args[1]->get_shape().type(), {1}}, {8}});
             zp = info.add_instruction(
                 make_op("multibroadcast", {{"out_lens", b->get_shape().lens()}}), zp);
         }

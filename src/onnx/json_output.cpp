@@ -30,7 +30,7 @@ namespace onnx {
 
 void write_program_to_onnx_json(const program& prog, std::string filename)
 {
-    const module* mm = p.get_main_module();
+    const module* mm = prog.get_main_module();
     for(auto ins : iterator_for(*mm))
     {
         const auto& name = ins->name();
@@ -50,7 +50,7 @@ void write_program_to_onnx_json(const program& prog, std::string filename)
         {
 
         }
-        else
+        else // handle operators and submodules
         {
 
         }

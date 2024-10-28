@@ -27,7 +27,6 @@
 #include <algorithm>
 #include <limits>
 #include <iostream>
-#include <bitset>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
@@ -36,6 +35,23 @@ template<unsigned int N>
 constexpr unsigned int all_ones() noexcept
 {
     return (1u << N) - 1u;
+}
+
+template <typename T>
+constexpr int countl_zero(T value)
+{
+    if(value == 0)
+        return sizeof(T) * 8;
+
+    int count          = 0;
+    constexpr int bits = sizeof(T) * 8;
+
+    while(count < bits && (value & (static_cast<T>(1) << (bits - 1 - count))) == 0)
+    {
+        count++;
+    }
+
+    return count;
 }
 
 struct float32_parts 
@@ -104,7 +120,6 @@ struct __attribute__((packed)) generic_float
     constexpr float to_float() const noexcept
     {
         float32_parts f{};
-
         f.sign = sign;
 
         if(exponent == 0)
@@ -112,7 +127,6 @@ struct __attribute__((packed)) generic_float
 
             if(mantissa == 0)
             {
-
                 f.exponent = 0;
                 f.mantissa = 0;
             }
@@ -121,13 +135,13 @@ struct __attribute__((packed)) generic_float
                 int shift  = 0;
                 f.mantissa = mantissa;
 
-                while((f.mantissa & (1 << MantissaSize)) == 0)
+                if(MantissaSize < float32_parts::mantissa_width())
                 {
-                    f.mantissa <<= 1;
-                    shift++;
+                    shift = MantissaSize - (32 - countl_zero(mantissa));
+                    f.mantissa <<= (shift + 1);
                 }
 
-                f.exponent = float32_parts::exponent_bias() - exponent_bias() - shift + 1;
+                f.exponent = float32_parts::exponent_bias() - exponent_bias() - shift;
                 f.mantissa = f.mantissa << (float32_parts::mantissa_width() - MantissaSize);
             }
         }
@@ -142,6 +156,7 @@ struct __attribute__((packed)) generic_float
             constexpr const int diff = float32_parts::exponent_bias() - exponent_bias();
             f.exponent               = int(exponent) + diff;
         }
+
         return f.to_float();
     }
 
@@ -175,7 +190,7 @@ struct __attribute__((packed)) generic_float
 
                 auto shift = diff - int(f.exponent);
                 mantissa =
-                    (f.mantissa | (1 << static_cast<int>(float32_parts::mantissa_width()))) >>
+                    (f.mantissa | (1u << static_cast<int>(float32_parts::mantissa_width()))) >>
                     (shift + (float32_parts::mantissa_width() - MantissaSize) + 1);
             }
             else

@@ -60,6 +60,9 @@ struct float32_parts
     unsigned int exponent : 8;
     unsigned int sign : 1;
 
+    constexpr float32_parts(unsigned int m = 0, unsigned int e = 0, unsigned int s = 0) 
+        : mantissa(m), exponent(e), sign(s) {}
+
     static constexpr unsigned int mantissa_width()
     {
         return 23;

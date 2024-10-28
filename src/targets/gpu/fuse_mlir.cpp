@@ -125,11 +125,14 @@ static bool specific_op(std::string_view option, bool fallback = false)
     return contains(options, option);
 }
 
-bool mlir_attention_enabled()
+bool mlir_attention_enabled(context* ctx)
 {
 #ifdef MIGRAPHX_MLIR
     if(not mlir_enabled())
         return false;
+    // Enable attention by default for mi300
+    if(ctx != nullptr and starts_with(ctx->get_current_device().get_gfx_name(), "gfx94"))
+        return true;
     return specific_op<requested>("attention");
 #else
     return false;
@@ -179,6 +182,7 @@ const auto& reshaper_names()
         "broadcast",
         "contiguous",
         "reshape",
+        "lazy_reshape",
         "squeeze",
         "flatten",
         "unsqueeze"
@@ -195,10 +199,6 @@ get_fusable_input_op_stream(instruction_ref lower_input)
     while(contains(reshaper_names(), upper_input->name()))
     {
         operation op = upper_input->get_operator();
-        if(contains({"squeeze", "flatten", "unsqueeze"}, upper_input->name()))
-        {
-            op = migraphx::make_op("reshape", {{"dims", upper_input->get_shape().lens()}});
-        }
         op_stream.push_back(op);
         upper_input = upper_input->inputs().at(0);
     }
@@ -983,7 +983,7 @@ void fuse_mlir::apply(module_pass_manager& mpm) const
 #ifdef MIGRAPHX_MLIR
     std::size_t counter     = 0;
     const auto& device_name = ctx == nullptr ? "" : ctx->get_current_device().get_gfx_name();
-    const bool is_navi      = starts_with(device_name, "gfx11");
+    const bool is_navi = starts_with(device_name, "gfx11") or starts_with(device_name, "gfx12");
 
     auto get_mode = [&](std::string_view option, mlir_mode m1, mlir_mode m2 = mlir_mode::fast) {
         if(specific_op<rejected>(option))
@@ -996,7 +996,7 @@ void fuse_mlir::apply(module_pass_manager& mpm) const
     };
 
     // Attention offloads; default disabled
-    if(mlir_attention_enabled() or enable_extra)
+    if(mlir_attention_enabled(ctx) or enable_extra)
     {
         match::find_matches(mpm, find_mlir_attention_fused_ops{mlir_mode::all});
         mpm.run_pass(dead_code_elimination{});

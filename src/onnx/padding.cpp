@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2023 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2024 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -81,7 +81,7 @@ bool is_asym_padding(const std::vector<int64_t>& padding)
     return false;
 }
 
-void check_padding_mode(const onnx_parser::node_info& info, const std::string& op_name)
+void check_padding_mode(const onnx_parser::node_info& info, const std::string& onnx_name)
 {
     // ensure pads availabe only when auto_pad is "NOT_SET"
     if(contains(info.attributes, "pads") and contains(info.attributes, "auto_pad"))
@@ -89,7 +89,7 @@ void check_padding_mode(const onnx_parser::node_info& info, const std::string& o
         auto s = info.attributes.at("auto_pad").s();
         if(to_upper(s) != "NOTSET")
         {
-            MIGRAPHX_THROW("PARSE_" + op_name +
+            MIGRAPHX_THROW("PARSE_" + to_upper(onnx_name) +
                            ": auto_pad and padding cannot be specified simultaneously");
         }
     }

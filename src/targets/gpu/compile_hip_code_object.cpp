@@ -34,12 +34,6 @@ namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
 namespace gpu {
 
-template <class T>
-std::string generate_index_ints(const std::vector<T>& v)
-{
-    return "index_ints<" + to_string_range(v) + ">{}";
-}
-
 std::string generate_make_shape(const shape& s)
 {
     return "make_shape(" + generate_index_ints(s.lens()) + ", " + generate_index_ints(s.strides()) +
@@ -209,7 +203,8 @@ operation compile_hip_code_object(const std::string& content, hip_compile_option
                           options.global,
                           options.local,
                           options.inputs,
-                          options.output};
+                          options.output,
+                          options.output_arg};
 }
 
 } // namespace gpu

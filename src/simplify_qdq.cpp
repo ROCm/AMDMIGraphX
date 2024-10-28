@@ -152,7 +152,7 @@ struct match_find_quantizable_ops
             return;
 
         // Propagate q1 and q2 through any broadcasts and transposes before qop
-        auto qop_args  = qop->inputs();
+        auto qop_args      = qop->inputs();
         bool is_fp16_model = false;
         if(dq1->get_shape().type() != qop->get_shape().type() and
            qop->get_shape().type() == migraphx::shape::half_type)
@@ -379,6 +379,24 @@ bool is_same_scale_zero(instruction_ref a, instruction_ref b)
     return is_same_value(a->inputs().at(2), b->inputs().at(2));
 }
 
+// When an unpack instruction is inserted, its original input must be an int4/uint4.
+// Therefore check for an unpack_int4 operator -- while ignoring out shape related ops.
+bool is_any_input_int4(instruction_ref a)
+{
+    static std::set<std::string> ign = {"unsqueeze",
+                                        "broadcast",
+                                        "multibroadcast",
+                                        "contiguous",
+                                        "transpose",
+                                        "reshape",
+                                        "convert"};
+    return std::any_of(a->inputs().begin(), a->inputs().end(), [](auto i) {
+        while(ign.find(i->name()) != ign.end())
+            i = i->inputs()[0];
+        return i->name() == "unpack_int4";
+    });
+}
+
 void remove_qdq_pairs(module& m)
 {
     for(auto ins : iterator_for(m))
@@ -397,10 +415,32 @@ void remove_qdq_pairs(module& m)
         }
     }
 }
+
+void add_int4_pack_unpack_pair(module& m)
+{
+    for(auto ins : iterator_for(m))
+    {
+        if(ins->name() != "dequantizelinear")
+            continue;
+
+        for(auto&& inp : ins->inputs())
+        {
+            if((inp->name() == "quantizelinear") and is_any_input_int4(inp))
+            {
+                auto pk   = m.insert_instruction(ins, make_op("pack_int4"), inp);
+                auto unpk = m.insert_instruction(ins, make_op("unpack_int4"), pk);
+                instruction::replace_argument(ins, inp, unpk);
+            }
+        }
+    }
+}
+
 } // namespace
 
 void simplify_qdq::apply(module& m) const
 {
+    // first step: add pack/unpack pair between qdq for int4 weights
+    add_int4_pack_unpack_pair(m);
     match::find_matches(m, match_find_quantizable_ops{});
     migraphx::run_passes(m, {migraphx::dead_code_elimination{}});
     remove_qdq_pairs(m);

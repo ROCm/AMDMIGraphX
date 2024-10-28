@@ -28,7 +28,6 @@ RUN apt-get update && DEBIAN_FRONTEND=noninteractive apt-get install -y --allow-
     wget \
     rocm-device-libs \
     hip-dev \
-    hipcc \
     libnuma-dev \
     miopen-hip \
     rocblas \
@@ -44,9 +43,6 @@ RUN ldconfig
 
 # Workaround broken miopen cmake files
 RUN sed -i 's,;/usr/lib/x86_64-linux-gnu/librt.so,,g' /opt/rocm/lib/cmake/miopen/miopen-targets.cmake
-
-# Workaround for broken hip-clang
-# RUN sed -i -e '/if(WIN32)/, /endif()/d' /opt/rocm/lib/cmake/hip/hip-config.cmake && sed -i -n 5p /opt/rocm/lib/cmake/hip/hip-config.cmake
 
 ENV LC_ALL=C.UTF-8
 ENV LANG=C.UTF-8

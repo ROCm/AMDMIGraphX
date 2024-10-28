@@ -151,49 +151,57 @@ shape common_shape(const std::vector<shape>& shapes)
     return {compute_common_types(shapes), compute_common_lens(shapes)};
 }
 
-std::vector<instruction_ref>
-insert_common_args(module& m, instruction_ref ins, std::vector<instruction_ref> inputs)
+std::vector<instruction_ref> insert_common_args(module& m,
+                                                instruction_ref ins,
+                                                std::vector<instruction_ref> inputs,
+                                                common_options options)
 {
     if(std::any_of(
            inputs.cbegin(), inputs.cend(), [](auto input) { return input->get_shape().dynamic(); }))
     {
         auto input_shapes = to_shapes(inputs);
-        auto c_type       = compute_common_types(input_shapes);
-        auto c_dyn_dims   = compute_common_dyn_dims(input_shapes);
+        if(options.common_lens)
+        {
+            auto c_dyn_dims = compute_common_dyn_dims(input_shapes);
 
-        auto s0 = inputs[0]->get_shape();
-        // always add both multibroadcast instructions for dynamic shapes
-        inputs[0] = m.insert_instruction(
-            ins, make_op("multibroadcast", {{"out_dyn_dims", to_value(c_dyn_dims)}}), inputs);
-        std::transform(inputs.begin() + 1, inputs.end(), inputs.begin() + 1, [&](auto input) {
-            // uses previous input to avoid recalculating the common shape from the
-            // full set of input shapes at runtime
-            auto s = input->get_shape();
-            return m.insert_instruction(
-                ins,
-                make_op("multibroadcast", {{"out_dyn_dims", to_value(c_dyn_dims)}}),
-                input,
-                inputs[0]);
-        });
-        std::transform(inputs.begin(), inputs.end(), inputs.begin(), [&](auto input) {
-            if(input->get_shape().type() != c_type)
-            {
-                input =
-                    m.insert_instruction(ins, make_op("convert", {{"target_type", c_type}}), input);
-            }
-            return input;
-        });
+            auto s0 = inputs[0]->get_shape();
+            // always add both multibroadcast instructions for dynamic shapes
+            inputs[0] = m.insert_instruction(
+                ins, make_op("multibroadcast", {{"out_dyn_dims", to_value(c_dyn_dims)}}), inputs);
+            std::transform(inputs.begin() + 1, inputs.end(), inputs.begin() + 1, [&](auto input) {
+                // uses previous input to avoid recalculating the common shape from the
+                // full set of input shapes at runtime
+                auto s = input->get_shape();
+                return m.insert_instruction(
+                    ins,
+                    make_op("multibroadcast", {{"out_dyn_dims", to_value(c_dyn_dims)}}),
+                    input,
+                    inputs[0]);
+            });
+        }
+        if(options.common_type)
+        {
+            auto c_type = compute_common_types(input_shapes);
+            std::transform(inputs.begin(), inputs.end(), inputs.begin(), [&](auto input) {
+                if(input->get_shape().type() != c_type)
+                {
+                    input = m.insert_instruction(
+                        ins, make_op("convert", {{"target_type", c_type}}), input);
+                }
+                return input;
+            });
+        }
     }
     else
     {
         auto common = common_shape(to_shapes(inputs));
         std::transform(inputs.begin(), inputs.end(), inputs.begin(), [&](auto input) {
-            if(input->get_shape().lens() != common.lens())
+            if(options.common_lens and input->get_shape().lens() != common.lens())
             {
                 input = m.insert_instruction(
                     ins, make_op("multibroadcast", {{"out_lens", common.lens()}}), input);
             }
-            if(input->get_shape().type() != common.type())
+            if(options.common_type and input->get_shape().type() != common.type())
             {
                 input = m.insert_instruction(
                     ins, make_op("convert", {{"target_type", common.type()}}), input);
@@ -204,22 +212,27 @@ insert_common_args(module& m, instruction_ref ins, std::vector<instruction_ref> 
     return inputs;
 }
 
-std::vector<instruction_ref> add_common_args(module& m, std::vector<instruction_ref> inputs)
+std::vector<instruction_ref>
+add_common_args(module& m, std::vector<instruction_ref> inputs, common_options options)
 {
-    return insert_common_args(m, m.end(), std::move(inputs));
+    return insert_common_args(m, m.end(), std::move(inputs), options);
 }
 
 instruction_ref insert_common_op(module& m,
                                  instruction_ref ins,
                                  const operation& op,
-                                 std::vector<instruction_ref> inputs)
+                                 std::vector<instruction_ref> inputs,
+                                 common_options options)
 {
-    return m.insert_instruction(ins, op, insert_common_args(m, ins, std::move(inputs)));
+    return m.insert_instruction(ins, op, insert_common_args(m, ins, std::move(inputs), options));
 }
 
-instruction_ref add_common_op(module& m, const operation& op, std::vector<instruction_ref> inputs)
+instruction_ref add_common_op(module& m,
+                              const operation& op,
+                              std::vector<instruction_ref> inputs,
+                              common_options options)
 {
-    return insert_common_op(m, m.end(), op, std::move(inputs));
+    return insert_common_op(m, m.end(), op, std::move(inputs), options);
 }
 
 shape make_bcast_shape(const shape& input_shape, const std::vector<std::size_t>& bcast_lens)

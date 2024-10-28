@@ -132,7 +132,7 @@ static std::vector<double> get_scales(const onnx_parser::attribute_map& attr)
     return scales;
 }
 
-// Hunts through the argument list to find either scales or sizes, and
+// Looks in the argument list to find either scales or sizes, and
 // populates both scales and sizes vectors from it.
 // r_arg: a reference to the argument that was found.
 //
@@ -147,8 +147,8 @@ static bool parse_args(const std::vector<instruction_ref>& args,
 {
     assert(args.size() == 3 or args.size() == 4);
 
-        // One and only one of sizes (4th arg) or scales (3rd arg) is required to be populated.
-        // The second argument, roi, is not currently used by Migraphx.
+    // One and only one of sizes (4th arg) or scales (3rd arg) is required to be populated.
+    // The second argument, roi, is not currently used by Migraphx.
 
     if(args.size() == 4 and args[3]->get_shape().type() == shape::int64_type
             and not (args[3]->get_shape().lens().empty() 
@@ -189,58 +189,6 @@ static bool parse_args(const std::vector<instruction_ref>& args,
         }
         return false;
     }
-
-
-    // for(const auto& arg : args)
-    // {
-    //     if(arg->name() == "undefined" or arg == args.front())
-    //         continue;
-
-    //     // skip any empty input (some of the Onnx args. are optional)
-    //     auto lens = arg->get_shape().lens();
-    //     if(lens.empty())
-    //         continue;
-
-    //     r_arg = arg;
-
-    //     auto type = arg->get_shape().type();
-    //     if(type == shape::int64_type)
-    //     {
-    //         // this argument is output sizes
-    //         auto arg_out_s = arg->eval();
-    //         if(arg_out_s.empty())
-    //             return true;
-    //         arg_out_s.visit([&](const auto& ol) { out_lens.assign(ol.begin(), ol.end()); });
-
-    //         if(out_lens.size() != in_lens.size())
-    //         {
-    //             MIGRAPHX_THROW("PARSE_" + onnx_name +
-    //                            ": specified output size's rank does not match input size");
-    //         }
-
-    //         // compute the scales
-    //         vec_scale.resize(in_lens.size());
-    //         std::transform(in_lens.begin(),
-    //                        in_lens.end(),
-    //                        out_lens.begin(),
-    //                        vec_scale.begin(),
-    //                        [](auto iss, auto oss) { return 1.0 * oss / iss; });
-    //         return false;
-    //     }
-    //     else
-    //     {
-    //         // this argument is scale input
-    //         if(lens[0] == in_lens.size())
-    //         {
-    //             auto arg_scale = arg->eval();
-    //             if(arg_scale.empty())
-    //                 return true;
-
-    //             arg_scale.visit([&](const auto& v) { vec_scale.assign(v.begin(), v.end()); });
-    //         }
-    //         return false;
-    //     }
-    // }
     MIGRAPHX_THROW("PARSE_" + onnx_name + ": no shapes or scales input provided");
 }
 

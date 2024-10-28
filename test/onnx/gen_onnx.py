@@ -10505,6 +10505,7 @@ def resize_nonstd_input_test():
 
 @onnx_test()
 def resize_outsize_test():
+    # Takes output sizes as an input, with scales as a null placeholder
     out_lens = np.array([1, 1, 4, 6], dtype=np.int64)
     out_lens_tensor = helper.make_tensor(name='out_lens',
                                          data_type=TensorProto.INT64,

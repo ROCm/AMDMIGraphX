@@ -62,10 +62,7 @@ struct replace_shape_order
 {
     instruction_ref start;
 
-    std::size_t location(instruction_ref x) const
-    {
-        return std::distance(start, x);
-    }
+    std::size_t location(instruction_ref x) const { return std::distance(start, x); }
 
     bool operator()(instruction_ref x, instruction_ref y) const
     {
@@ -78,11 +75,12 @@ void instruction::replace(const shape& r)
     if(r != result)
     {
         result = r;
-        auto start = std::find_if(output.front()->inputs().begin(), output.front()->inputs().end(), [&](instruction_ref x) {
-            return this == as_address(x);
-        });
+        auto start = std::find_if(output.front()->inputs().begin(),
+                                  output.front()->inputs().end(),
+                                  [&](instruction_ref x) { return this == as_address(x); });
         assert(as_address(*start) == this);
-        std::priority_queue<instruction_ref, std::vector<instruction_ref>, replace_shape_order> q(output.begin(), output.end(), replace_shape_order{*start});
+        std::priority_queue<instruction_ref, std::vector<instruction_ref>, replace_shape_order> q(
+            output.begin(), output.end(), replace_shape_order{*start});
         while(not q.empty())
         {
             instruction_ref ins = q.top();
@@ -92,7 +90,7 @@ void instruction::replace(const shape& r)
             if(new_r != ins->result)
             {
                 ins->result = new_r;
-                for(auto&& child: ins->output)
+                for(auto&& child : ins->output)
                 {
                     q.push(child);
                 }

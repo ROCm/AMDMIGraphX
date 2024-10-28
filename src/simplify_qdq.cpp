@@ -35,6 +35,7 @@
 #include <migraphx/op/dot.hpp>
 #include <migraphx/op/quant_dot.hpp>
 #include <migraphx/register_op.hpp>
+#include <migraphx/fp8_types.hpp>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
@@ -143,10 +144,8 @@ struct match_find_quantizable_ops
         auto zp1    = r.instructions["zp1"];
         auto zp2    = r.instructions["zp2"];
         // Only INT8 or FP8 type currently supported
-        std::set<migraphx::shape::type_t> supported_types = {migraphx::shape::fp8e4m3fnuz_type,
-                                                             migraphx::shape::fp8e4m3fn_type,
-                                                             migraphx::shape::fp8e5m2_type,
-                                                             migraphx::shape::int8_type};
+        std::set<migraphx::shape::type_t> supported_types = fp8_types{}.get();
+        supported_types.insert(migraphx::shape::int8_type);
         if(not contains(supported_types, dq1->inputs().front()->get_shape().type()) or
            not contains(supported_types, dq2->inputs().front()->get_shape().type()))
             return;

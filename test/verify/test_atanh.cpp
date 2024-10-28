@@ -54,5 +54,6 @@ struct test_atanh : verify_program<test_atanh<CType>>
 template struct test_atanh<float>;
 template struct test_atanh<migraphx::half>;
 template struct test_atanh<migraphx::fp8::fp8e4m3fnuz>;
+template struct test_atanh<migraphx::fp8::fp8e5m2fnuz>;
 template struct test_atanh<migraphx::fp8::fp8e4m3fn>;
 template struct test_atanh<migraphx::fp8::fp8e5m2>;

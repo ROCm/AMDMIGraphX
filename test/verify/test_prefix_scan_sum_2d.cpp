@@ -47,6 +47,7 @@ struct test_prefix_scan_sum_2d_small : verify_program<test_prefix_scan_sum_2d_sm
 template struct test_prefix_scan_sum_2d_small<migraphx::shape::float_type>;
 template struct test_prefix_scan_sum_2d_small<migraphx::shape::half_type>;
 template struct test_prefix_scan_sum_2d_small<migraphx::shape::fp8e4m3fnuz_type>;
+template struct test_prefix_scan_sum_2d_small<migraphx::shape::fp8e5m2fnuz_type>;
 template struct test_prefix_scan_sum_2d_small<migraphx::shape::fp8e4m3fn_type>;
 template struct test_prefix_scan_sum_2d_small<migraphx::shape::fp8e5m2_type>;
 
@@ -68,5 +69,6 @@ struct test_prefix_scan_sum_2d_large : verify_program<test_prefix_scan_sum_2d_la
 template struct test_prefix_scan_sum_2d_large<migraphx::shape::float_type>;
 template struct test_prefix_scan_sum_2d_large<migraphx::shape::half_type>;
 template struct test_prefix_scan_sum_2d_large<migraphx::shape::fp8e4m3fnuz_type>;
+template struct test_prefix_scan_sum_2d_large<migraphx::shape::fp8e5m2fnuz_type>;
 template struct test_prefix_scan_sum_2d_large<migraphx::shape::fp8e4m3fn_type>;
 template struct test_prefix_scan_sum_2d_large<migraphx::shape::fp8e5m2_type>;

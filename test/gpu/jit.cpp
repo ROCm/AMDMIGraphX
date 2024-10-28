@@ -407,6 +407,7 @@ TEST_CASE(assert_type_min_max)
     {
         if(contains({migraphx::shape::bool_type,
                      migraphx::shape::fp8e4m3fnuz_type,
+                     migraphx::shape::fp8e5m2fnuz_type,
                      migraphx::shape::tuple_type},
                     t))
             continue;

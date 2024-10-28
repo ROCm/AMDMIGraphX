@@ -418,34 +418,41 @@ void find_matches_for(source_location location, Mod& mod, instruction_ref ins, M
                 return;
             if(trace > 1 and trace_for)
                 std::cout << "Match: " << matcher_name << std::endl;
-            auto elapsed_time = time<std::chrono::nanoseconds>([&] {
-                auto r = match_instruction(get_module(mod), ins, m.matcher());
-                if(r.result == get_module(mod).end())
+
+            timer match_timer;
+            auto r = match_instruction(get_module(mod), ins, m.matcher());
+            auto match_time = match_timer.record<std::chrono::nanoseconds>();
+
+            if(r.result == get_module(mod).end())
                 return;
-                if(trace > 0 or trace_for)
-                {
-                    std::cout << "Matched by " << matcher_name << std::endl;
-                    get_module(mod).debug_print(ins);
-                }
-                // If its already invalid dont validate it again
-                bool invalidated = validate and get_module(mod).validate() != get_module(mod).end();
-                m.apply(mod, r);
-                if(validate and not invalidated)
-                {
-                    auto invalid = get_module(mod).validate();
-                    if(invalid != get_module(mod).end())
-                    {
-                        std::cout << "Invalid program from match: " << matcher_name << std::endl;
-                        std::cout << "Invalid instructions: " << std::endl;
-                        get_module(mod).debug_print(invalid->inputs());
-                        get_module(mod).debug_print(invalid);
-                    }
-                }
-                match = true;
-            });
-            if(time_matchers and trace_for)
+            if(trace > 0 or trace_for)
             {
-                std::cout << "Matcher " << matcher_name << " took " << elapsed_time << "ns." << std::endl;
+                std::cout << "Matched by " << matcher_name << std::endl;
+                get_module(mod).debug_print(ins);
+            }
+            // If its already invalid dont validate it again
+            bool invalidated = validate and get_module(mod).validate() != get_module(mod).end();
+                
+            timer apply_timer;
+            m.apply(mod, r);
+            auto apply_time = apply_timer.record<std::chrono::nanoseconds>();
+                
+            if(validate and not invalidated)
+            {
+                auto invalid = get_module(mod).validate();
+                if(invalid != get_module(mod).end())
+                {
+                    std::cout << "Invalid program from match: " << matcher_name << std::endl;
+                    std::cout << "Invalid instructions: " << std::endl;
+                    get_module(mod).debug_print(invalid->inputs());
+                    get_module(mod).debug_print(invalid);
+                }
+            }
+            match = true;
+            if(time_matchers)
+            {
+                std::cout << "Matching for " << matcher_name << " took " << match_time << "ns." << std::endl;
+                std::cout << "Apply for " << matcher_name << " took " << apply_time << "ns." << std::endl;
             }
         },
         ms...);

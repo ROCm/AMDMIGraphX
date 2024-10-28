@@ -40,18 +40,10 @@ constexpr unsigned int all_ones() noexcept
 template <typename T>
 constexpr int countl_zero(T value)
 {
-    if(value == 0)
-        return sizeof(T) * 8;
-
-    int count          = 0;
-    constexpr int bits = sizeof(T) * 8;
-
-    while(count < bits && (value & (static_cast<T>(1) << (bits - 1 - count))) == 0)
-    {
-        count++;
-    }
-
-    return count;
+    unsigned int r = 0;
+    for(; value != 0; value >>= 1)
+        r++;
+    return 8 * sizeof(value) - r;
 }
 
 struct float32_parts 

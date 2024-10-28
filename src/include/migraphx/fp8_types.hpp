@@ -28,12 +28,10 @@ namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
 struct fp8_types
 {
-    const std::set<shape::type_t> types = {
-        shape::fp8e4m3fnuz_type,
-        shape::fp8e5m2fnuz_type,
-        shape::fp8e4m3fn_type,
-        shape::fp8e5m2_type
-    };
+    const std::set<shape::type_t> types = {shape::fp8e4m3fnuz_type,
+                                           shape::fp8e5m2fnuz_type,
+                                           shape::fp8e4m3fn_type,
+                                           shape::fp8e5m2_type};
 
     std::set<shape::type_t> get() const { return types; }
 };

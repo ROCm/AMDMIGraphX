@@ -24,7 +24,6 @@
 #include <type_traits>
 #if defined(__GNUC__) && !defined(__clang__)
 #pragma GCC diagnostic push
-#pragma GCC diagnostic ignored "-Wpsabi"
 #pragma GCC diagnostic ignored "-Wstrict-aliasing"
 #pragma GCC diagnostic ignored "-Wduplicated-branches"
 #endif

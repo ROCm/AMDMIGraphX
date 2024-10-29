@@ -136,12 +136,18 @@ struct rewrite_reshapes
             auto x_ins       = r.instructions["x"];
             auto input_ins   = r.instructions["input"];
 
+            // If its just a broadcast then skip
+            if(not any_input_of(input_ins, x_ins, [](instruction_ref x) {
+                return not contains({"multibroadcast", "broadcast", "contiguous"}, x->name());
+            }))
+                return;
+
             auto dims1 = T::base_dims(ins);
             auto dims2 = T::base_dims(x_ins);
 
             if(elements(dims1) != elements(dims2))
                 return;
-
+            
             std::vector<operation> ops;
             auto next_ins = input_ins;
             while(next_ins != x_ins)
@@ -152,11 +158,10 @@ struct rewrite_reshapes
             assert(next_ins == x_ins);
             std::reverse(ops.begin(), ops.end());
 
-            auto desc =
-                shape_transform_descriptor::create(x_ins->get_shape().lens(), ops).rebase(dims2);
+            auto desc = shape_transform_descriptor::create(x_ins->get_shape().lens(), ops).rebase(dims2);
             if(desc.empty())
                 return;
-            auto cdims         = desc.common_dims();
+            auto cdims = desc.common_dims();
             auto reshape_input = [&](const auto& ins_to_insert, auto generate) {
                 return [&, generate](auto input) {
                     auto gops  = std::invoke(generate, desc, input->get_shape().lens());
@@ -178,7 +183,9 @@ struct rewrite_reshapes
             if(new_x_ins->get_shape().lens() != cdims)
             {
                 new_x_ins = mpm.get_module().insert_instruction(
-                    x_ins, make_op("multibroadcast", {{"out_lens", cdims}}), new_x_ins);
+                    x_ins,
+                    make_op("multibroadcast", {{"out_lens", cdims}}),
+                    new_x_ins);
             }
 
             auto inputs = ins->inputs();

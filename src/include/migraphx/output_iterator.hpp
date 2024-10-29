@@ -72,12 +72,6 @@ auto join_back_inserter(Container& c)
         [&](const auto& r) { c.insert(c.end(), r.begin(), r.end()); });
 }
 
-template <class Container>
-auto push_inserter(Container& c)
-{
-    return make_function_output_iterator([&](const auto& x) { c.push(x); });
-}
 } // namespace MIGRAPHX_INLINE_NS
 } // namespace migraphx
-
 #endif // MIGRAPHX_GUARD_MIGRAPHX_OUTPUT_ITERATOR_HPP

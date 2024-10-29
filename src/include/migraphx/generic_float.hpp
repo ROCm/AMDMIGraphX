@@ -28,6 +28,11 @@
 #include <limits>
 #include <iostream>
 
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wabi"
+// Code that triggers the ABI warning
+#pragma GCC diagnostic pop
+
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
 

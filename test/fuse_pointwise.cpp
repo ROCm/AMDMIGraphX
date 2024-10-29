@@ -578,8 +578,8 @@ TEST_CASE(add_unsqueeze_add_nonstandard)
         auto x   = mm->add_parameter("x", s1);
         auto y   = mm->add_parameter("y", s1);
         auto z   = mm->add_parameter("z", s2);
-        auto x2  = mm->add_instruction(migraphx::make_op("reshape", {{"dims", s2.lens()}}), x);
-        auto y2  = mm->add_instruction(migraphx::make_op("reshape", {{"dims", s2.lens()}}), y);
+        auto x2  = mm->add_instruction(migraphx::make_op("unsqueeze", {{"axes", {2}}}), x);
+        auto y2  = mm->add_instruction(migraphx::make_op("unsqueeze", {{"axes", {2}}}), y);
         auto fadd =
             add_pointwise(p2, "main:pointwise0", {x2, y2, z}, [=](auto* pm, const auto& inputs) {
                 auto add1 = pm->add_instruction(migraphx::make_op("add"), inputs[0], inputs[1]);

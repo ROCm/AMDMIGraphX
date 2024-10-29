@@ -85,6 +85,7 @@ struct MIGRAPHX_EXPORT shape_transform_descriptor
                          optional<std::size_t> axis = nullopt);
     void simplify();
     std::size_t elements() const;
+    std::vector<std::size_t> common_dims(const std::vector<std::size_t>& input_dims = {}) const;
     std::vector<operation> generate() const;
     std::vector<operation>
     generate_common_from_src(const std::vector<std::size_t>& input_dims) const;

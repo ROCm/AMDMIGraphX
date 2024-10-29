@@ -1040,6 +1040,17 @@ std::size_t shape_transform_descriptor::elements() const
                                 std::multiplies<>{},
                                 [](const auto& s) { return s.len(); });
 }
+std::vector<std::size_t> shape_transform_descriptor::common_dims(const std::vector<std::size_t>& input_dims) const
+{
+    std::vector<std::size_t> result;
+    for(const auto& d : dimensions)
+    {
+        std::transform(d.subdimensions.begin(), d.subdimensions.end(), std::back_inserter(result), [&](const dimension::sub& s) {
+            return get_len(s, input_dims);
+        });
+    }
+    return result;
+}
 
 bool operator==(const dimension::sub& x, const dimension::sub& y)
 {

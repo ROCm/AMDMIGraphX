@@ -304,7 +304,7 @@ struct LLama2Inputs
         position_ids_buffer->upload_to_device(stream);
     }
 
-    void updateData(migraphx::program& prog, migraphx::program_parameters& prog_args)
+    bool updateData(migraphx::program& prog, migraphx::program_parameters& prog_args)
     {
         auto currentIdx = data.currentIdx();
         if (currentIdx != data.getNext())
@@ -331,7 +331,9 @@ struct LLama2Inputs
             {
                 prog_args.add(POSITION_IDS_STR, migraphx::argument(param_shapes[POSITION_IDS_STR], position_ids_buffer->data()));
             }
+            return true;
         }
+        return false;
     }
 
     size_t getLastInputIndex() const { return data.getLastIdx(); }
@@ -420,7 +422,12 @@ int main() {
         }
         std::cout << std::endl;
 #endif
-        model_inputs.updateData(prog, prog_args);
+        auto updated = model_inputs.updateData(prog, prog_args);
+
+        if (updated && not offload_copy)
+        {
+            model_inputs.upload_to_device(stream);
+        }
 
         output_tokens.clear();
     }

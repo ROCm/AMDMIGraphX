@@ -129,7 +129,7 @@ struct __attribute__((packed, may_alias)) generic_float
 
                 if(MantissaSize < float32_parts::mantissa_width())
                 {
-                    shift = MantissaSize - (32 - countl_zero(mantissa));
+                    shift = MantissaSize - ((sizeof(unsigned int) * 8) - countl_zero(mantissa));
                     f.mantissa <<= (shift + 1);
                 }
 

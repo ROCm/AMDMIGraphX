@@ -141,7 +141,7 @@ struct rewrite_reshapes
 
             if(elements(dims1) != elements(dims2))
                 return;
-
+            
             std::vector<operation> ops;
             auto next_ins = input_ins;
             while(next_ins != x_ins)
@@ -152,12 +152,10 @@ struct rewrite_reshapes
             assert(next_ins == x_ins);
             std::reverse(ops.begin(), ops.end());
 
-            auto desc = shape_transform_descriptor::create(x_ins->get_shape().lens(), ops);
+            auto desc = shape_transform_descriptor::create(x_ins->get_shape().lens(), ops).rebase(dims2);
             if(desc.empty())
                 return;
-            const auto has_broadcast = desc.has_broadcast();
-            if(has_broadcast)
-                desc.flatten_broadcast();
+            auto cdims = desc.common_dims();
             auto reshape_input = [&](const auto& ins_to_insert, auto generate) {
                 return [&, generate](auto input) {
                     auto gops  = std::invoke(generate, desc, input->get_shape().lens());
@@ -176,11 +174,11 @@ struct rewrite_reshapes
                 x_inputs.begin(),
                 reshape_input(x_ins, &shape_transform_descriptor::generate_common_from_src));
             auto new_x_ins = insert(mpm, x_ins, x_inputs, desc.common_axes_map_from_src());
-            if(has_broadcast)
+            if(new_x_ins->get_shape().lens() != cdims)
             {
                 new_x_ins = mpm.get_module().insert_instruction(
                     x_ins,
-                    make_op("multibroadcast", {{"out_lens", desc.common_dims(dims2)}}),
+                    make_op("multibroadcast", {{"out_lens", cdims}}),
                     new_x_ins);
             }
 
@@ -191,7 +189,6 @@ struct rewrite_reshapes
                 return reshape_input(ins,
                                      &shape_transform_descriptor::generate_common_from_dst)(input);
             });
-            mpm.get_module().debug_print(inputs);
             auto pw = insert(mpm, ins, inputs, desc.common_axes_map_from_dst());
             auto rins =
                 reshape_input(ins, &shape_transform_descriptor::generate_dst_from_common)(pw);

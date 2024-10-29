@@ -110,6 +110,36 @@ shape_transform_descriptor shape_transform_descriptor::create(const std::vector<
     return result;
 }
 
+shape_transform_descriptor shape_transform_descriptor::rebase(const std::vector<std::size_t>& dims) const
+{
+    auto result = *this;
+    for(auto& d:result.dimensions)
+    {
+        for(auto& sub:d.subdimensions)
+        {
+            if(sub.axis.empty() and sub.hidden_axis.has_value())
+            {
+                sub.len = dims.at(sub.hidden_axis.value());
+                sub.axis = {sub.hidden_axis.value()};
+                sub.hidden_axis = nullopt;
+            }
+            else if(sub.axis.size() == 1)
+            {
+                sub.len = dims.at(sub.axis.front());
+            }
+        }
+    }
+    // TODO: Handle resizes
+    result.flatten_broadcast();
+    if(not result.apply_reshape(this->common_dims()))
+        return {};
+    if(not result.apply_reshape(this->lens()))
+        return {};
+    result.simplify();
+
+    return result;
+}
+
 bool shape_transform_descriptor::apply(const std::vector<operation>& ops)
 {
     std::vector<std::size_t> dims;
@@ -1036,6 +1066,15 @@ std::vector<std::vector<std::size_t>> shape_transform_descriptor::common_axes_ma
 }
 
 bool shape_transform_descriptor::empty() const { return dimensions.empty(); }
+
+std::vector<std::size_t> shape_transform_descriptor::lens() const 
+{ 
+    std::vector<std::size_t> result;
+    std::transform(dimensions.begin(), dimensions.end(), std::back_inserter(result), [](const dimension& d) {
+        return d.len();
+    });
+    return result;
+}
 
 std::size_t dimension::len() const
 {

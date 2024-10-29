@@ -77,6 +77,8 @@ struct MIGRAPHX_EXPORT shape_transform_descriptor
     static shape_transform_descriptor create(const std::vector<std::size_t>& dims,
                                              const std::vector<operation>& ops);
 
+    shape_transform_descriptor rebase(const std::vector<std::size_t>& dims) const;
+
     bool apply(const std::vector<operation>& ops);
     bool apply_reshape(const std::vector<std::size_t>& rdims);
     bool apply_reshape_impl(const std::vector<std::size_t>& rdims);
@@ -101,6 +103,7 @@ struct MIGRAPHX_EXPORT shape_transform_descriptor
     std::vector<std::vector<std::size_t>> common_axes_map_from_dst() const;
 
     bool empty() const;
+    std::vector<std::size_t> lens() const;
 
     struct MIGRAPHX_EXPORT dimension
     {

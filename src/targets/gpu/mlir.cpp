@@ -1102,7 +1102,7 @@ static std::string compute_dump_name(const module& m, const std::string& ext)
     std::vector<instruction_ref> sizes;
     for(auto ins : iterator_for(m))
     {
-        if(contains({"convolution", "dot"}, ins->name()))
+        if(contains({"quant_convolution", "quant_dot", "convolution", "dot"}, ins->name()))
             sizes.insert(sizes.end(), ins->inputs().begin(), ins->inputs().end());
     }
     auto name =
@@ -1253,7 +1253,7 @@ void dump_mlir_to_mxr(module m,
     std::vector<instruction_ref> sizes;
     for(auto ins : iterator_for(m))
     {
-        if(contains({"mlir"}, ins->name()))
+        if(contains({"quant_convolution", "quant_dot", "convolution", "dot"}, ins->name()))
             sizes.insert(sizes.end(), ins->inputs().begin(), ins->inputs().end());
     }
     auto name = compute_dump_name(m, ".mxr");

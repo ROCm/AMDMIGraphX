@@ -419,9 +419,14 @@ void find_matches_for(source_location location, Mod& mod, instruction_ref ins, M
             if(trace > 1 and trace_for)
                 std::cout << "Match: " << matcher_name << std::endl;
 
-            timer match_timer;
+            timer match_timer;            
             auto r = match_instruction(get_module(mod), ins, m.matcher());
-            auto match_time = match_timer.record<std::chrono::nanoseconds>();
+            auto match_time = match_timer.record<std::chrono::duration<double, std::micro>>();
+            
+            if(time_matchers or trace_for)
+            {
+                std::cout << "Matching for " << matcher_name << " took " << match_time << "ns." << std::endl;
+            }
 
             if(r.result == get_module(mod).end())
                 return;
@@ -433,10 +438,15 @@ void find_matches_for(source_location location, Mod& mod, instruction_ref ins, M
             // If its already invalid dont validate it again
             bool invalidated = validate and get_module(mod).validate() != get_module(mod).end();
                 
-            timer apply_timer;
-            m.apply(mod, r);
-            auto apply_time = apply_timer.record<std::chrono::nanoseconds>();
-                
+            auto apply_time = time<std::chrono::duration<double, std::micro>>([&] {
+                m.apply(mod, r);
+            });
+            
+            if(time_matchers or trace_for)
+            {
+                std::cout << "Apply for " << matcher_name << " took " << apply_time << "ns." << std::endl;
+            }
+
             if(validate and not invalidated)
             {
                 auto invalid = get_module(mod).validate();
@@ -449,11 +459,6 @@ void find_matches_for(source_location location, Mod& mod, instruction_ref ins, M
                 }
             }
             match = true;
-            if(time_matchers)
-            {
-                std::cout << "Matching for " << matcher_name << " took " << match_time << "ns." << std::endl;
-                std::cout << "Apply for " << matcher_name << " took " << apply_time << "ns." << std::endl;
-            }
         },
         ms...);
 }

@@ -1124,8 +1124,8 @@ void dump_mlir_to_file(module m, const std::vector<shape>& inputs, const fs::pat
     rewrite_reduce(m);
 
     auto name = compute_dump_name(m, ".mlir");
-    std::cout << "Dumping MLIR file to: " << name << std::endl;
-   auto f = location / name;
+    auto f = location / name;
+    std::cout << "Dumping MLIR file to: " << f << std::endl;
 
     mlir_program mp;
     mp.parse(m);
@@ -1257,8 +1257,8 @@ void dump_mlir_to_mxr(module m,
             sizes.insert(sizes.end(), ins->inputs().begin(), ins->inputs().end());
     }
     auto name = compute_dump_name(m, ".mxr");
-    std::cout << "Dumping MXR file to: " << name << std::endl;
     auto f = location / name;
+    std::cout << "Dumping MXR file to: " << f << std::endl;
     save(program{std::move(m)}, f.string());
 }
 

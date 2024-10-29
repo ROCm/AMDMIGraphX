@@ -14,7 +14,7 @@ using namespace mlinfer;
 const std::string MODEL_FOLDER = "/model/";
 const std::string ONNX_FILE = "model.onnx";
 const std::string DATASET_FOLDER = "/dataset/";
-std::vector<int64_t> SAMPLE_IDS = {1,6804,5207,387,287,29973};
+const size_t DATASET_SIZE = 3;
 // sequence length from model config
 const size_t SEQ_SIZE = 256;
 // vocab size from model config
@@ -129,9 +129,88 @@ struct Dataset
 
     void initialize()
     {
-        std::string input_file_path = DATASET_FOLDER + "input_ids_size_1_seq_256.npy";
-        std::string attention_mask_file_path = DATASET_FOLDER + "attention_mask_size_1_seq_256.npy";
-        std::string position_ids_file_path = DATASET_FOLDER + "position_ids_size_1_seq_256.npy";
+        loadDataset();
+        if (!_npy_files_loaded)
+        {
+            prepareSampleDataset();
+        }
+    }
+
+    NumpyVector loadNumpy(npy::NpyFile& file)
+    {
+        NumpyVector numpyDataAll;
+        auto load_size = file.GetTensorSize()/sizeof(int64_t);
+        numpyDataAll.push_back(std::vector<int64_t>(load_size));
+        file.LoadAll(numpyDataAll.back().data());
+
+        NumpyVector numpyData;
+        for(size_t i = 0; i < numpyDataAll.back().size(); i += SEQ_SIZE)
+        {
+            auto last = std::min(numpyDataAll.back().size(), i + SEQ_SIZE);
+            numpyData.emplace_back(numpyDataAll.back().begin() + i, numpyDataAll.back().begin() + last);
+        }
+
+#ifdef TRACE
+        for (auto& vec: numpyData)
+        {
+            std::cout << "Vector size: " << vec.size() <<  std::endl;
+            for (auto val: vec)
+            {
+                std::cout << val << " ";
+            }
+            std::cout << "\n";
+        }
+#endif
+        return numpyData;
+    }
+
+    size_t getLastIdx() const
+    {
+        auto res = std::find_if(std::rbegin(attention_mask[_current_idx]), std::rend(attention_mask[_current_idx]), [](uint64_t val) { return 1 == val;});
+        size_t last_idx = std::distance(res, std::rend(attention_mask[_current_idx]));
+        #ifdef TRACE
+        std::cout << "Last input idx: " << last_idx << std::endl;
+        #endif
+        return last_idx;
+    }
+
+    std::vector<int64_t> getInputIds() { return input_ids[_current_idx]; }
+    std::vector<int64_t> getAttentionMask() { return attention_mask[_current_idx]; }
+    std::vector<int64_t> getPositionIds() { return position_ids[_current_idx]; }
+
+    size_t size() const { return _size; }
+    size_t currentIdx() const { return _current_idx; }
+    size_t getNext()
+    {
+        if (_current_idx < size() - 1)
+        {
+            ++_current_idx;
+        }
+        #ifdef TRACE
+        std::cout << "Current idx: " << _current_idx << std::endl;
+        #endif
+        return _current_idx;
+    }
+
+    Dataset(const Dataset &buf) = delete;
+    Dataset &operator=(const Dataset &buf) = delete;
+private:
+
+    // e.g.: /dataset/input_ids_size_3_seq_256.npy
+    std::string getDatasetPath(const std::string& datasetName)
+    {
+        std::stringstream path;
+        path << DATASET_FOLDER << datasetName << "_size_" << std::to_string(DATASET_SIZE) << "_seq_" << std::to_string(SEQ_SIZE) << ".npy";
+        return path.str();
+    }
+
+    void loadDataset()
+    {
+        std::string input_file_path = getDatasetPath("input_ids");
+        std::string attention_mask_file_path = getDatasetPath("attention_mask");
+        std::string position_ids_file_path = getDatasetPath("position_ids");
+
+        std::cout << "Input ids file: " << input_file_path << std::endl;
         std::ifstream input_file(input_file_path.c_str());
         std::ifstream attention_mask_file(attention_mask_file_path.c_str());
         std::ifstream position_ids_file(position_ids_file_path.c_str());
@@ -144,10 +223,12 @@ struct Dataset
             attention_mask = loadNumpy(attention_mask_npy);
             position_ids = loadNumpy(position_ids_npy);
 
-            if (input_ids.size() == attention_mask.size() == position_ids.size())
+            _size = input_ids.size();
+
+            if ((input_ids.size() == attention_mask.size()) && (attention_mask.size() == position_ids.size()))
             {
                 std::cout << "Loaded numpy files\n";
-                npy_files_loaded = true;
+                _npy_files_loaded = true;
             }
             else
             {
@@ -157,70 +238,37 @@ struct Dataset
                 position_ids.clear();
             }
         }
-
-        if (!npy_files_loaded)
-        {
-            std::cout << "Numpy files are not loaded, using dummy data\n";
-            auto input_ids_sample = SAMPLE_IDS;
-            input_ids_sample.resize(SEQ_SIZE, EOS);
-            input_ids.emplace_back(input_ids_sample);
-            std::vector<int64_t> attention_mask_sample = input_ids_sample;
-            std::transform(std::begin(attention_mask_sample), std::end(attention_mask_sample), std::begin(attention_mask_sample), [](auto i){
-                return (i != EOS) ? 1 : 0;
-            });
-            attention_mask.emplace_back(attention_mask_sample);
-
-            std::vector<int64_t> position_ids_sample;
-            for (int64_t i=0; i < SEQ_SIZE; ++i)
-            {
-                position_ids_sample.emplace_back(i);
-            }
-            position_ids.emplace_back(std::move(position_ids_sample));
-        }
-
     }
 
-    NumpyVector loadNumpy(npy::NpyFile& file)
+    void prepareSampleDataset()
     {
-        NumpyVector numpyData;
-        auto load_size = file.GetTensorSize()/sizeof(int64_t);
-        numpyData.push_back(std::vector<int64_t>(load_size));
-        file.LoadAll(numpyData.back().data());
+        std::cout << "Numpy files are not loaded, using dummy data\n";
+        std::vector<int64_t> input_ids_sample = {1,6804,5207,387,287,29973};
+        input_ids_sample.resize(SEQ_SIZE, EOS);
+        std::vector<int64_t> attention_mask_sample = input_ids_sample;
+        input_ids.emplace_back(std::move(input_ids_sample));
+        std::transform(std::begin(attention_mask_sample), std::end(attention_mask_sample), std::begin(attention_mask_sample), [](auto i){
+            return (i != EOS) ? 1 : 0;
+        });
+        attention_mask.emplace_back(std::move(attention_mask_sample));
 
-    #ifdef TRACE
-        for (auto& vec: numpyData)
+        std::vector<int64_t> position_ids_sample;
+        for (int64_t i=0; i < SEQ_SIZE; ++i)
         {
-            for (auto val: vec)
-            {
-                std::cout << val << " ";
-            }
-            std::cout << "\n";
+            position_ids_sample.emplace_back(i);
         }
-    #endif
-        return numpyData;
+        position_ids.emplace_back(std::move(position_ids_sample));
+
+        _size = 1;
     }
-
-    size_t getLastIdx() const
-    {
-        auto res = std::find_if(std::rbegin(attention_mask[current_idx]), std::rend(attention_mask[current_idx]), [](uint64_t val) { return 1 == val;});
-        size_t last_idx = std::distance(res, std::rend(attention_mask[current_idx]));
-        //std::cout << "Last input idx: " << last_idx << std::endl;
-        return last_idx;
-    }
-
-    std::vector<int64_t> getInputIds() { return input_ids[current_idx]; }
-    std::vector<int64_t> getAttentionMask() { return attention_mask[current_idx]; }
-    std::vector<int64_t> getPositionIds() { return position_ids[current_idx]; }
-
-    Dataset(const Dataset &buf) = delete;
-    Dataset &operator=(const Dataset &buf) = delete;
 
     NumpyVector input_ids;
     NumpyVector attention_mask;
     NumpyVector position_ids;
 
-    size_t current_idx = 0;
-    bool npy_files_loaded = false;
+    size_t _size = 0;
+    size_t _current_idx = 0;
+    bool _npy_files_loaded = false;
 };
 
 struct LLama2Inputs
@@ -233,21 +281,19 @@ struct LLama2Inputs
     {
         data.initialize();
 
-        auto input_ids = data.getInputIds();
         auto param_shapes = prog.get_parameter_shapes();
-        auto input_ids_str = "input_ids";
+
+        auto input_ids = data.getInputIds();
         input_ids_buffer = std::make_unique<LLama2InputBuffer>(std::move(input_ids), offload_copy);
-        prog_args.add(input_ids_str, migraphx::argument(param_shapes[input_ids_str], input_ids_buffer->data()));
+        prog_args.add(INPUTS_ID_STR, migraphx::argument(param_shapes[INPUTS_ID_STR], input_ids_buffer->data()));
 
         auto attention_mask = data.getAttentionMask();
-        auto attention_mask_str = "attention_mask";
         attention_mask_buffer = std::make_unique<LLama2InputBuffer>(std::move(attention_mask), offload_copy);
-        prog_args.add(attention_mask_str, migraphx::argument(param_shapes[attention_mask_str], attention_mask_buffer->data()));
+        prog_args.add(ATTENTION_MASK_STR, migraphx::argument(param_shapes[ATTENTION_MASK_STR], attention_mask_buffer->data()));
 
         auto position_ids = data.getPositionIds();
-        auto position_ids_str = "position_ids";
         position_ids_buffer = std::make_unique<LLama2InputBuffer>(std::move(position_ids), offload_copy);
-        prog_args.add(position_ids_str, migraphx::argument(param_shapes[position_ids_str], position_ids_buffer->data()));
+        prog_args.add(POSITION_IDS_STR, migraphx::argument(param_shapes[POSITION_IDS_STR], position_ids_buffer->data()));
     };
 
     void upload_to_device(hipStream_t stream)
@@ -258,7 +304,38 @@ struct LLama2Inputs
         position_ids_buffer->upload_to_device(stream);
     }
 
-    size_t getLastInputIndex() { return data.getLastIdx(); }
+    void updateData(migraphx::program& prog, migraphx::program_parameters& prog_args)
+    {
+        auto currentIdx = data.currentIdx();
+        if (currentIdx != data.getNext())
+        {
+            auto param_shapes = prog.get_parameter_shapes();
+
+            auto input_ids = data.getInputIds();
+            input_ids_buffer->update(std::move(input_ids));
+            if (offload_copy)
+            {
+                prog_args.add(INPUTS_ID_STR, migraphx::argument(param_shapes[INPUTS_ID_STR], input_ids_buffer->data()));
+            }
+
+            auto attention_mask = data.getAttentionMask();
+            attention_mask_buffer->update(std::move(attention_mask));
+            if (offload_copy)
+            {
+                prog_args.add(ATTENTION_MASK_STR, migraphx::argument(param_shapes[ATTENTION_MASK_STR], attention_mask_buffer->data()));
+            }
+
+            auto position_ids = data.getPositionIds();
+            position_ids_buffer->update(std::move(position_ids));
+            if (offload_copy)
+            {
+                prog_args.add(POSITION_IDS_STR, migraphx::argument(param_shapes[POSITION_IDS_STR], position_ids_buffer->data()));
+            }
+        }
+    }
+
+    size_t getLastInputIndex() const { return data.getLastIdx(); }
+    size_t dataSize() const { return data.size(); }
 
     LLama2Inputs() = delete;
     LLama2Inputs(const LLama2Inputs &buf) = delete;
@@ -269,10 +346,16 @@ struct LLama2Inputs
     std::unique_ptr<LLama2InputBuffer> position_ids_buffer;
     Dataset data;
     bool offload_copy;
+
+    const char* INPUTS_ID_STR = "input_ids";
+    const char* ATTENTION_MASK_STR = "attention_mask";
+    const char* POSITION_IDS_STR = "position_ids";
 };
 
+
+
 int main() {
-    bool offload_copy = true;
+    bool offload_copy = false;
     std::cout << "Offload copy: " << std::boolalpha << offload_copy << std::endl;
     ModelLoadSettings settings = {SEQ_SIZE, true /*quantize_fp16*/, offload_copy /*offload_copy*/, true /*fast_math*/};
     migraphx::program prog = loadProgram(settings);
@@ -299,39 +382,51 @@ int main() {
     std::cout << "Starting evaluation" << std::endl;
     size_t token_count = 0;
     auto start = std::chrono::steady_clock::now();
-    for (int i = model_inputs.getLastInputIndex(); i < SEQ_SIZE - 1; ++i)
+    std::cout << "Dataset size: " << model_inputs.dataSize() << std::endl;
+    for (size_t i = 0; i < model_inputs.dataSize(); ++i)
     {
-        auto outputs = prog.run_async(prog_args, stream);
-        if (not offload_copy)
+        #ifdef TRACE
+        std::cout << "Iter #" << i << std::endl;
+        #endif
+        for (size_t i = model_inputs.getLastInputIndex(); i < SEQ_SIZE - 1; ++i)
         {
-            output_buffer.download_from_device(stream, i * VOCAB_SIZE, (i + 1) * VOCAB_SIZE);
+            auto outputs = prog.run_async(prog_args, stream);
+            if (not offload_copy)
+            {
+                output_buffer.download_from_device(stream, i * VOCAB_SIZE, (i + 1) * VOCAB_SIZE);
+            }
+
+            check_hip_status(hipStreamSynchronize(stream));
+            float* results   = offload_copy ? reinterpret_cast<float*>(outputs[0].data()) : reinterpret_cast<float*>(output_buffer.hbuff.data());
+            std::vector<float> logits(results, results + output_size);
+            std::vector<float>::iterator max = std::max_element(std::begin(logits) + (i * VOCAB_SIZE), std::begin(logits) + ((i + 1) * VOCAB_SIZE));
+            int64_t new_token = std::distance(std::begin(logits) + (i * VOCAB_SIZE), max);
+            token_count++;
+            // std::cout << "New token: " << new_token << std::endl;
+            output_tokens.push_back(new_token);
+            if (new_token == EOS)
+            {
+                break;
+            }
+            model_inputs.input_ids_buffer->update_data(new_token, i +1, stream);
+            model_inputs.attention_mask_buffer->update_data(1, i +1, stream);
         }
 
-        check_hip_status(hipStreamSynchronize(stream));
-        float* results   = offload_copy ? reinterpret_cast<float*>(outputs[0].data()) : reinterpret_cast<float*>(output_buffer.hbuff.data());
-        std::vector<float> logits(results, results + output_size);
-        std::vector<float>::iterator max = std::max_element(std::begin(logits) + (i * VOCAB_SIZE), std::begin(logits) + ((i + 1) * VOCAB_SIZE));
-        int64_t new_token = std::distance(std::begin(logits) + (i * VOCAB_SIZE), max);
-        token_count++;
-        // std::cout << "New token: " << new_token << std::endl;
-        output_tokens.push_back(new_token);
-        if (new_token == EOS)
-        {
-            break;
+#ifdef TRACE
+        std::cout << "######### Output token ids for #" << i << " #########" << std::endl;
+        // print output tokens
+        for (auto tok: output_tokens){
+            std::cout << tok << ", ";
         }
-        model_inputs.input_ids_buffer->update_data(new_token, i +1, stream);
-        model_inputs.attention_mask_buffer->update_data(1, i +1, stream);
+        std::cout << std::endl;
+#endif
+        model_inputs.updateData(prog, prog_args);
+
+        output_tokens.clear();
     }
     float dur = std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::steady_clock::now() - start).count() / 1000.f;
     std::cout << "Duration: " << dur << " seconds." << std::endl;
     std::cout << "Completed " << token_count << " tokens." << std::endl;
     std::cout << "Tokens/sec: " << token_count / dur << std::endl;
-
-    std::cout << "######### Output token ids #########" << std::endl;
-    // print output tokens
-    for (auto tok: output_tokens){
-        std::cout << tok << ", ";
-    }
-    std::cout << std::endl;
     return 0;
 }

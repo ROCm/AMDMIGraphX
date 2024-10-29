@@ -125,6 +125,11 @@ namespace mlinfer
             return with_offload_copy ? static_cast<void*>(hbuff.data()) : dbuff.tensor_ptr;
         }
 
+        void update(std::vector<T>&& host_data)
+        {
+            hbuff = std::move(host_data);
+        }
+
         void upload_to_device(hipStream_t stream, size_t start_idx=0, size_t end_idx=0)
         {
             assert(not with_offload_copy);

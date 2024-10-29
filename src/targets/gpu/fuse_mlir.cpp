@@ -125,11 +125,14 @@ static bool specific_op(std::string_view option, bool fallback = false)
     return contains(options, option);
 }
 
-bool mlir_attention_enabled()
+bool mlir_attention_enabled(context* ctx)
 {
 #ifdef MIGRAPHX_MLIR
     if(not mlir_enabled())
         return false;
+    // Enable attention by default for mi300
+    if(ctx != nullptr and starts_with(ctx->get_current_device().get_gfx_name(), "gfx94"))
+        return true;
     return specific_op<requested>("attention");
 #else
     return false;
@@ -179,6 +182,7 @@ const auto& reshaper_names()
         "broadcast",
         "contiguous",
         "reshape",
+        "lazy_reshape",
         "squeeze",
         "flatten",
         "unsqueeze"
@@ -195,14 +199,33 @@ get_fusable_input_op_stream(instruction_ref lower_input)
     while(contains(reshaper_names(), upper_input->name()))
     {
         operation op = upper_input->get_operator();
-        if(contains({"squeeze", "flatten", "unsqueeze"}, upper_input->name()))
-        {
-            op = migraphx::make_op("reshape", {{"dims", upper_input->get_shape().lens()}});
-        }
         op_stream.push_back(op);
         upper_input = upper_input->inputs().at(0);
     }
     return {upper_input, op_stream};
+}
+
+void fuse_input_ops(module_ref mm,
+                    const std::vector<instruction_ref>& inputs,
+                    std::unordered_map<instruction_ref, instruction_ref>* map_ins)
+{
+    assert(map_ins != nullptr);
+    size_t input_cnt = 0;
+    for(instruction_ref input : inputs)
+    {
+        if(contains(*map_ins, input))
+            continue;
+        auto [upper_input, op_stream] = get_fusable_input_op_stream(input);
+        if(not contains(*map_ins, upper_input))
+            (*map_ins)[upper_input] =
+                mm->add_parameter(param_name(input_cnt++), upper_input->get_shape().as_standard());
+        instruction_ref prev_input = (*map_ins)[upper_input];
+        for(const auto& op : reverse(op_stream))
+        {
+            prev_input = mm->add_instruction(op, {prev_input});
+        }
+        (*map_ins)[input] = prev_input;
+    }
 }
 
 std::tuple<instruction_ref, std::vector<instruction_ref>>
@@ -654,7 +677,7 @@ struct find_mlir_fused_ops
 template <auto Matcher>
 struct find_mlir_standalone_op
 {
-    mlir_mode mode = mlir_mode::none;
+    mlir_mode mode       = mlir_mode::none;
     std::size_t* counter = nullptr;
     auto matcher() const { return Matcher(mode); }
 
@@ -852,6 +875,21 @@ struct find_pointwise_mlir
             mlir_input_pointwise(match::used_once()).bind("pointwise")));
     }
 
+    static bool is_simple_op(const_module_ref pm, std::initializer_list<std::string> op_names)
+    {
+        auto last = std::prev(pm->end());
+        assert(last->name() == "@return");
+        if(last->inputs().size() != 1)
+            return false;
+        auto rins   = last->inputs().front();
+        auto op_ins = std::find_if(pm->begin(), pm->end(), [](const instruction& x) {
+            return not contains({"@param", "@literal", "broadcast", "multibroadcast"}, x.name());
+        });
+        if(op_ins != rins)
+            return false;
+        return contains(op_names, op_ins->name());
+    }
+
     static instruction_ref insert_pointwise(module& m,
                                             instruction_ref ins,
                                             const operation& op,
@@ -861,7 +899,7 @@ struct find_pointwise_mlir
         // Only used in assert
         (void)mod_args;
         assert(mod_args.empty());
-        return insert_common_op(m, ins, op, inputs);
+        return insert_common_op(m, ins, op, inputs, {.common_type = false});
     }
 
     void apply(module_pass_manager& mpm, const match::matcher_result& r) const
@@ -872,9 +910,16 @@ struct find_pointwise_mlir
         auto* mm = ins->module_inputs().front();
         auto* pm = pw->module_inputs().front();
 
+        if(pw->inputs().size() > 1 and not is_simple_op(pm, {"dequantizelinear"}))
+        {
+            if(not enabled(MIGRAPHX_ENABLE_MLIR_INPUT_FUSION{}))
+                return;
+        }
+
         std::unordered_map<instruction_ref, instruction_ref> map_ins;
         module_ref m = mpm.create_module(pm->name() + ":" + mm->name());
         m->set_bypass();
+        fuse_input_ops(m, pw->inputs(), &map_ins);
         auto rins   = m->fuse(*pm, pw->inputs(), &map_ins, &insert_pointwise).front();
         map_ins[pw] = rins;
 
@@ -887,6 +932,48 @@ struct find_pointwise_mlir
     }
 };
 
+struct find_unpack_int4_mlir_op
+{
+    auto matcher() const
+    {
+        return match::name("gpu::mlir_op")(
+            match::any_of[match::inputs()](match::name("unpack_int4").bind("unpack_int4")));
+    }
+
+    void apply(module_pass_manager& mpm, const match::matcher_result& r) const
+    {
+        auto ins      = r.result;
+        auto* mm      = ins->module_inputs().front();
+        module_ref nm = mpm.create_module("int4:" + mm->name());
+        nm->set_bypass();
+
+        std::vector<instruction_ref> x_in;
+        std::unordered_map<instruction_ref, instruction_ref> map_ins;
+        int ct = 0;
+
+        for(auto input : ins->inputs())
+        {
+            if(input->get_operator().name() == "unpack_int4")
+            {
+                auto unpack_input = input->inputs()[0];
+                instruction_ref t_ins =
+                    nm->add_parameter(param_name(++ct), unpack_input->get_shape().as_standard());
+                map_ins[input] = nm->add_instruction(input->get_operator(), t_ins);
+                x_in.push_back(unpack_input);
+            }
+            else
+            {
+                map_ins[input] =
+                    nm->add_parameter(param_name(++ct), input->get_shape().as_standard());
+                x_in.push_back(input);
+            }
+        }
+        auto ret = nm->fuse(*mm, ins->inputs(), &map_ins);
+        nm->add_return({ret});
+        mpm.get_module().replace_instruction(ins, ins->get_operator(), x_in, {nm});
+    }
+};
+
 } // namespace
 
 #endif // MIGRAPHX_MLIR
@@ -896,7 +983,7 @@ void fuse_mlir::apply(module_pass_manager& mpm) const
 #ifdef MIGRAPHX_MLIR
     std::size_t counter     = 0;
     const auto& device_name = ctx == nullptr ? "" : ctx->get_current_device().get_gfx_name();
-    const bool is_navi      = starts_with(device_name, "gfx11");
+    const bool is_navi = starts_with(device_name, "gfx11") or starts_with(device_name, "gfx12");
 
     auto get_mode = [&](std::string_view option, mlir_mode m1, mlir_mode m2 = mlir_mode::fast) {
         if(specific_op<rejected>(option))
@@ -909,7 +996,7 @@ void fuse_mlir::apply(module_pass_manager& mpm) const
     };
 
     // Attention offloads; default disabled
-    if(mlir_attention_enabled() or enable_extra)
+    if(mlir_attention_enabled(ctx) or enable_extra)
     {
         match::find_matches(mpm, find_mlir_attention_fused_ops{mlir_mode::all});
         mpm.run_pass(dead_code_elimination{});
@@ -937,10 +1024,9 @@ void fuse_mlir::apply(module_pass_manager& mpm) const
                                    .dot_mode  = get_mode("fused_dot", mlir_mode::fast)});
     }
 
-    if(enabled(MIGRAPHX_ENABLE_MLIR_INPUT_FUSION{}))
-    {
-        match::find_matches(mpm, find_pointwise_mlir{});
-    }
+    match::find_matches(mpm, find_pointwise_mlir{});
+    match::find_matches(mpm, find_unpack_int4_mlir_op{});
+
 #else
     (void)mpm;
 #endif

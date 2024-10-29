@@ -101,8 +101,8 @@ struct roialign
 
         std::vector<std::size_t> out_lens = x_lens;
         out_lens[0]                       = roi_lens[0];
-        out_lens[2]                       = output_width;
-        out_lens[3]                       = output_height;
+        out_lens[2]                       = output_height;
+        out_lens[3]                       = output_width;
 
         return {type, out_lens};
     }
@@ -215,19 +215,23 @@ struct roialign
 
     argument compute(const shape& output_shape, std::vector<argument> args) const
     {
-        argument result{output_shape};
+        // argument result{output_shape};
         const auto& out_lens = output_shape.lens();
         int64_t n_rois       = out_lens[0];
         std::size_t channels = out_lens[1];
         // output dims of height and width, in all 2-dim arrays, the first dim
         // is for height and second dim is for width i.e. (y, x) order
-        std::array<std::size_t, 2> out_dims = {out_lens[2], out_lens[3]};
+        std::array<std::size_t, 2> out_dims = {out_lens[3], out_lens[2]};
         const auto& x_lens                  = args.at(0).get_shape().lens();
         // input dims of height and width
         std::array<std::size_t, 2> in_dims = {x_lens[3], x_lens[2]};
         auto roi_s                         = args.at(1).get_shape();
 
-        visit_all(result, args.at(0), args.at(1))([&](auto output, auto x, auto roi) {
+        // new: I've changed the shape of the output but the internal 
+        // computations must be done on the shape I had before.
+        shape visit_shape{output_shape.type(), {out_lens[0], out_lens[1], out_lens[3], out_lens[2]}};        
+        argument visit_result({visit_shape});
+        visit_all(visit_result, args.at(0), args.at(1))([&](auto output, auto x, auto roi) {
             const auto* batch_indices = args.at(2).cast<int64_t>();
             par_for(n_rois, [&](auto n) {
                 const auto bottom_data   = x.begin();
@@ -296,6 +300,9 @@ struct roialign
                 });
             });
         });
+
+        // reshape visit_result to result
+        argument result{output_shape, visit_result.data()};
 
         return result;
     }

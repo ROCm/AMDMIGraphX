@@ -1102,9 +1102,8 @@ static std::string compute_dump_name(const module& m, const std::string& ext)
     std::vector<instruction_ref> sizes;
     for(auto ins : iterator_for(m))
     {
-        if(not contains({"convolution", "dot"}, ins->name()))
-            continue;
-        sizes.insert(sizes.end(), ins->inputs().begin(), ins->inputs().end());
+        if(contains({"convolution", "dot"}, ins->name()))
+            sizes.insert(sizes.end(), ins->inputs().begin(), ins->inputs().end());
     }
     auto name =
         mlir_program::get_symbol_name(m) + "_" + shape::to_sizes_string(to_shapes(sizes)) + ext;
@@ -1254,9 +1253,8 @@ void dump_mlir_to_mxr(module m,
     std::vector<instruction_ref> sizes;
     for(auto ins : iterator_for(m))
     {
-        if(not contains({"convolution", "dot"}, ins->name()))
-            continue;
-        sizes.insert(sizes.end(), ins->inputs().begin(), ins->inputs().end());
+        if(contains({"mlir"}, ins->name()))
+            sizes.insert(sizes.end(), ins->inputs().begin(), ins->inputs().end());
     }
     auto name = compute_dump_name(m, ".mxr");
     std::cout << "Dumping MXR file to: " << name << std::endl;

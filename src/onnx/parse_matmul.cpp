@@ -118,7 +118,7 @@ struct parse_matmul : op_parser<parse_matmul>
 
         if(not(contains(supported_dq_types, scale_arg->get_shape().type())))
         {
-            MIGRAPHX_THROW("PARSE_QUANT_DOT_SCALDED: Scales must be float or half_type");
+            MIGRAPHX_THROW("PARSE_QUANT_DOT_SCALED: Scales must be float or half_type");
         }
 
         if(scale_arg->get_shape().scalar())
@@ -164,7 +164,8 @@ struct parse_matmul : op_parser<parse_matmul>
         return compare_arg;
     }
 
-    static instruction_ref set_bias_arg(const std::vector<instruction_ref>& args,
+    static instruction_ref set_bias_arg(const std::string& name,
+                                        const std::vector<instruction_ref>& args,
                                         const int index,
                                         const instruction_ref& input,
                                         bool& has_valid_bias)
@@ -176,7 +177,7 @@ struct parse_matmul : op_parser<parse_matmul>
             instruction_ref bias_arg = args[index];
             if(bias_arg->get_shape().type() != input->get_shape().type())
             {
-                MIGRAPHX_THROW("PARSE_QUANT_DOT: zero point must be the same type as data");
+                MIGRAPHX_THROW(name + ": zero point must be the same type as data");
             }
 
             // Don't return zero point if it will cause symmetric zero point. No need to bias
@@ -313,6 +314,7 @@ struct parse_matmul : op_parser<parse_matmul>
                           const onnx_parser::node_info& info,
                           std::vector<instruction_ref> args) const
     {
+        std::string op_name{opd.op_name};
         auto a0 = args[0];
         auto a1 = args[1];
         auto s0 = a0->get_shape();
@@ -336,15 +338,9 @@ struct parse_matmul : op_parser<parse_matmul>
         auto has_scales   = opd.op_name == "quant_dot_scaled";
         if(s0.dynamic() or s1.dynamic())
         {
-            if(is_quant_dot)
+            if(is_quant_dot or has_scales)
             {
-                MIGRAPHX_THROW("PARSE_MATMUL: dynamic MatMulInteger not supported");
-            }
-
-            if(has_scales)
-            {
-                MIGRAPHX_THROW(
-                    "PARSE_MATMULINTEGERTOFLOAT: dynamic MatMulIntegerToFloat not supported");
+                MIGRAPHX_THROW(op_name + ": dynamic inputs not supported");
             }
 
             auto s0_dds = a0->get_shape().to_dynamic().dyn_dims();
@@ -370,7 +366,7 @@ struct parse_matmul : op_parser<parse_matmul>
 
             if(not is_quant_dot and args.size() > 2 and not has_scales)
             {
-                MIGRAPHX_THROW("PARSE_MATMUL: Bias Args not supported for MatMul");
+                MIGRAPHX_THROW(op_name + ": Bias Args not supported for MatMul");
             }
 
             bool has_ba0        = false;
@@ -391,12 +387,12 @@ struct parse_matmul : op_parser<parse_matmul>
                 scale_a1    = set_scale_arg(info, args, 3);
                 if(scale_a0->get_shape().type() != scale_a1->get_shape().type())
                 {
-                    MIGRAPHX_THROW("PARSE_MATMULINTEGERTOFLOAT: Scales must be the same type");
+                    MIGRAPHX_THROW( op_name + ": Scales must be the same type");
                 }
             }
 
-            instruction_ref ba0 = set_bias_arg(args, a0_zp_index, a0, has_ba0);
-            instruction_ref ba1 = set_bias_arg(args, a1_zp_index, a1, has_ba1);
+            instruction_ref ba0 = set_bias_arg(op_name, args, a0_zp_index, a0, has_ba0);
+            instruction_ref ba1 = set_bias_arg(op_name, args, a1_zp_index, a1, has_ba1);
 
             // handle optional bias arg to the result
             instruction_ref scaled_bias;
@@ -414,7 +410,7 @@ struct parse_matmul : op_parser<parse_matmul>
             if((is_quant_dot or has_scales) and
                (not contains(supported_types, a0_type) or not contains(supported_types, a1_type)))
             {
-                MIGRAPHX_THROW("PARSE_MATMULINTEGER: Unsupported type");
+                MIGRAPHX_THROW(op_name + ": Unsupported type");
             }
 
             instruction_ref offset_op;

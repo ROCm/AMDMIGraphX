@@ -1118,7 +1118,6 @@ void dump_mlir_to_file(module m, const std::vector<shape>& inputs, const fs::pat
     static std::mutex mutex;
     const std::lock_guard<std::mutex> lock(mutex);
 
-    const_module_ref mr = &m;
     if(not inputs.empty())
     {
         adjust_param_shapes(m, inputs);
@@ -1129,7 +1128,7 @@ void dump_mlir_to_file(module m, const std::vector<shape>& inputs, const fs::pat
     auto f    = location / name;
 
     mlir_program mp;
-    mp.parse(*mr);
+    mp.parse(m);
     auto mod_op = mlirModuleGetOperation(mp.mmodule.get());
 
     std::string mlir_str = mlir_print(&mlirOperationPrint, mod_op);

@@ -208,20 +208,18 @@ struct parse_matmul : op_parser<parse_matmul>
     }
 
     static void handle_scaled_transposes(const onnx_parser::node_info& info,
-                                         instruction_ref& scale_a0,
-                                         instruction_ref& zp_a0,
+                                         instruction_ref& scale,
+                                         instruction_ref& zp,
                                          bool no_zp)
     {
         if(no_zp)
         {
-            scale_a0 =
-                info.add_instruction(make_op("transpose", {{"permutation", {0, 1}}}), scale_a0);
+            scale = info.add_instruction(make_op("transpose", {{"permutation", {0, 1}}}), scale);
         }
         else
         {
-            scale_a0 =
-                info.add_instruction(make_op("transpose", {{"permutation", {0, 1}}}), scale_a0);
-            zp_a0 = info.add_instruction(make_op("transpose", {{"permutation", {1, 0}}}), zp_a0);
+            scale = info.add_instruction(make_op("transpose", {{"permutation", {0, 1}}}), scale);
+            zp    = info.add_instruction(make_op("transpose", {{"permutation", {1, 0}}}), zp);
         }
     }
 

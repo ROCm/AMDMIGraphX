@@ -33,7 +33,7 @@
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
 
-using half = migraphx::generic_float<10,5>;
+using half = migraphx::generic_float<10, 5>;
 
 namespace detail {
 template <class T>

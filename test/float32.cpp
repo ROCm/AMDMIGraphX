@@ -32,7 +32,7 @@
 
 using fp32 = migraphx::generic_float<23, 8>;
 
-template<class T, class U>
+template <class T, class U>
 bool bit_equal(const T& x, const U& y)
 {
     static_assert(sizeof(T) == sizeof(U));
@@ -40,12 +40,11 @@ bool bit_equal(const T& x, const U& y)
     return migraphx::bit_cast<type>(x) == migraphx::bit_cast<type>(y);
 }
 
-#define CHECK_FLOAT(x, y) \
-    CHECK(bit_equal(x, y)); \
+#define CHECK_FLOAT(x, y)              \
+    CHECK(bit_equal(x, y));            \
     CHECK(bit_equal(x, y.to_float())); \
-    CHECK(bit_equal(fp32{x}, y)); \
+    CHECK(bit_equal(fp32{x}, y));      \
     CHECK(bit_equal(fp32{x}.to_float(), y.to_float()))
-
 
 TEST_CASE(fp32_values_working)
 {
@@ -60,6 +59,5 @@ TEST_CASE(fp32_values_working)
     CHECK_FLOAT(std::numeric_limits<float>::quiet_NaN(), fp32::qnan());
     CHECK_FLOAT(std::numeric_limits<float>::signaling_NaN(), fp32::snan());
 }
-
 
 int main(int argc, const char* argv[]) { test::run(argc, argv); }

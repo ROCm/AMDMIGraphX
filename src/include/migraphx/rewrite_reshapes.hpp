@@ -74,17 +74,13 @@ struct rewrite_reshapes
         auto matcher() const
         {
             auto reshapes = match::name(
-                "reshape", "squeeze", "unsqueeze", "flatten", "transpose", "contiguous")(
+                "reshape", "squeeze", "unsqueeze", "flatten", "transpose", "contiguous", "multibroadcast", "broadcast")(
                 match::used_once());
-            auto skip_broadcasts =
-                match::skip(match::name("contiguous", "multibroadcast")(match::used_once()));
             auto pointwise         = match::name(op1)(match::used_once());
             auto reshapes_pointwise =
-                reshapes(match::arg(0)(match::skip(reshapes())(pointwise.bind("x"))))
-                    .bind("reshape");
-            auto broadcast_reshapes_pointwise = skip_broadcasts(reshapes_pointwise);
+                reshapes(match::arg(0)(match::skip(reshapes())(pointwise.bind("x"))));
             return match::name(op2)(
-                match::any_of[match::inputs()](broadcast_reshapes_pointwise.bind("input")));
+                match::any_of[match::inputs()](reshapes_pointwise.bind("input")));
         }
 
         template <class F>
@@ -134,14 +130,6 @@ struct rewrite_reshapes
             auto ins         = r.result;
             auto x_ins       = r.instructions["x"];
             auto input_ins   = r.instructions["input"];
-            auto reshape_ins = r.instructions["reshape"];
-
-            auto broadcast_ins = find_input_if(input_ins, reshape_ins, &is_broadcast);
-            if(broadcast_ins != reshape_ins and
-               any_input_of(broadcast_ins, reshape_ins, &is_broadcast))
-                return;
-            const auto has_broadcast =
-                broadcast_ins != reshape_ins and broadcast_ins->name() == "multibroadcast";
 
             auto dims1 = T::base_dims(ins);
             auto dims2 = T::base_dims(x_ins);
@@ -162,6 +150,9 @@ struct rewrite_reshapes
             auto desc = shape_transform_descriptor::create(x_ins->get_shape().lens(), ops);
             if(desc.empty())
                 return;
+            const auto has_broadcast = desc.has_broadcast();
+            if(has_broadcast)
+                desc.flatten_broadcast();
             auto reshape_input = [&](const auto& ins_to_insert, auto generate) {
                 return [&, generate](auto input) {
                     auto gops  = std::invoke(generate, desc, input->get_shape().lens());
@@ -184,7 +175,7 @@ struct rewrite_reshapes
             {
                 new_x_ins = mpm.get_module().insert_instruction(
                     x_ins,
-                    make_op("multibroadcast", {{"out_lens", desc.common_dims(dims1)}}),
+                    make_op("multibroadcast", {{"out_lens", desc.common_dims(dims2)}}),
                     new_x_ins);
             }
 
@@ -195,6 +186,7 @@ struct rewrite_reshapes
                 return reshape_input(ins,
                                      &shape_transform_descriptor::generate_common_from_dst)(input);
             });
+            mpm.get_module().debug_print(inputs);
             auto pw = insert(mpm, ins, inputs, desc.common_axes_map_from_dst());
             auto rins =
                 reshape_input(ins, &shape_transform_descriptor::generate_dst_from_common)(pw);

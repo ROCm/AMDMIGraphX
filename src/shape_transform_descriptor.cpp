@@ -47,7 +47,7 @@ static auto compute_end_dim(Iterator start, Iterator last, std::size_t dim, Proj
         x *= proj(d);
         return x == dim;
     });
-    if(it != last)
+    if(it != last) 
         return it;
     return start;
 }
@@ -833,6 +833,20 @@ std::vector<operation> shape_transform_descriptor::generate() const
     }
     std::reverse(result.begin(), result.end());
     return result;
+}
+
+bool shape_transform_descriptor::has_broadcast() const
+{
+    return std::any_of(dimensions.begin(), dimensions.end(), [&](const dimension& d) {
+        return std::any_of(d.subdimensions.begin(), d.subdimensions.end(), [&](const dimension::sub& s) {
+            return s.axis.empty() and s.len != 1;
+        });
+    });
+}
+void shape_transform_descriptor::flatten_broadcast()
+{
+    for(auto& d:dimensions)
+        std::for_each(d.subdimensions.begin(), d.subdimensions.end(), &flatten_broadcasted_dim);
 }
 
 std::vector<operation> shape_transform_descriptor::generate_common_from_src(

@@ -358,8 +358,9 @@ TEST_CASE(compile_math)
         data_types.push_back(name);
         // fp8 doesn't have vectorization support yet, therefore skip it for now.
         std::set<migraphx::shape::type_t> fp8_types = {migraphx::shape::fp8e4m3fnuz_type,
-                                                       migraphx::shape::fp8e5m2_type,
-                                                       migraphx::shape::fp8e4m3fn_type};
+                                                       migraphx::shape::fp8e5m2fnuz_type,
+                                                       migraphx::shape::fp8e4m3fn_type,
+                                                       migraphx::shape::fp8e5m2_type};
         if(not contains(fp8_types, t))
         {
             migraphx::transform(vec_sizes, std::back_inserter(data_types), [&](auto i) {
@@ -405,11 +406,7 @@ TEST_CASE(assert_type_min_max)
     migraphx::gpu::hip_compile_options options;
     for(auto&& t : migraphx::shape::types())
     {
-        if(contains({migraphx::shape::bool_type,
-                     migraphx::shape::fp8e4m3fnuz_type,
-                     migraphx::shape::fp8e5m2fnuz_type,
-                     migraphx::shape::tuple_type},
-                    t))
+        if(contains({migraphx::shape::bool_type, migraphx::shape::tuple_type}, t))
             continue;
         auto name = migraphx::shape::cpp_type(t);
         if(t == migraphx::shape::half_type)

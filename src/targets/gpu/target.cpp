@@ -81,6 +81,7 @@ MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_ENABLE_NHWC)
 #ifndef _WIN32
 MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_ENABLE_CK)
 #endif
+MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_ENABLE_HIPBLASLT_GEMM)
 
 std::vector<pass> target::get_passes(migraphx::context& gctx, const compile_options& options) const
 {
@@ -142,6 +143,8 @@ std::vector<pass> target::get_passes(migraphx::context& gctx, const compile_opti
     {
         unsupported_fp8ocp_ops.insert("convolution");
         unsupported_fp8ocp_ops.insert("quant_convolution");
+        unsupported_fp8ocp_ops.insert("dot");
+        unsupported_fp8ocp_ops.insert("quant_dot");
     }
     // add all device kernels
     unsupported_fp8ocp_ops.insert("logsoftmax");

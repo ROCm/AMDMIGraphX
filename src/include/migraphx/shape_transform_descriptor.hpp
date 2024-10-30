@@ -76,6 +76,7 @@ struct MIGRAPHX_EXPORT shape_transform_descriptor
 
     bool apply(const std::vector<operation>& ops);
     bool apply_reshape(const std::vector<std::size_t>& rdims);
+    bool apply_reshape_impl(const std::vector<std::size_t>& rdims);
     bool apply_transpose(const std::vector<std::int64_t>& permutation);
     bool apply_broadcast(const std::vector<std::size_t>& out_lens,
                          optional<std::size_t> axis = nullopt);

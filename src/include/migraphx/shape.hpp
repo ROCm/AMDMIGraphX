@@ -143,6 +143,8 @@ struct MIGRAPHX_EXPORT shape
                                                            const std::size_t& y);
     };
 
+    static std::string to_sizes_string(const std::vector<shape>& shapes);
+
     static const std::vector<type_t>& types();
 
     static std::string name(type_t t);
@@ -150,6 +152,8 @@ struct MIGRAPHX_EXPORT shape
 
     static bool is_integral(type_t t);
     static bool is_compatible(const shape& actual, const shape& expected);
+
+    static bool is_unsigned(type_t t);
 
     shape();
     shape(type_t t);

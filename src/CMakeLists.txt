@@ -90,6 +90,7 @@ add_library(migraphx
     promote_literals.cpp
     quantization.cpp
     quantize_fp16.cpp
+    quantize_int4.cpp
     quantize_8bits.cpp
     reduce_dims.cpp
     register_op.cpp
@@ -173,6 +174,7 @@ register_migraphx_ops(
     gathernd
     get_tuple_elem
     greater
+    group_query_attention
     gru
     identity
     if_op
@@ -382,5 +384,5 @@ rocm_export_targets(
     Threads
     ${MIGRAPHX_CONFIG_DEPENDS}
 )
- 
+
 

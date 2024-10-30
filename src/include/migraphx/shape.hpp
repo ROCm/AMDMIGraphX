@@ -143,6 +143,8 @@ struct MIGRAPHX_EXPORT shape
                                                            const std::size_t& y);
     };
 
+    static std::string to_sizes_string(const std::vector<shape>& shapes);
+
     static const std::vector<type_t>& types();
 
     static std::string name(type_t t);

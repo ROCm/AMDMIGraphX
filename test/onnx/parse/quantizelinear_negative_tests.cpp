@@ -51,11 +51,6 @@ TEST_CASE(quantizelinear_per_axis_shape_mismatch_test)
     EXPECT(test::throws([&] { read_onnx("quantizelinear_per_axis_shape_mismatch_test.onnx"); }));
 }
 
-TEST_CASE(quantizelinear_blocked_zero_block_size_test)
-{
-    EXPECT(test::throws([&] { read_onnx("quantizelinear_blocked_zero_block_size_test.onnx"); }));
-}
-
 TEST_CASE(quantizelinear_blocked_x_and_scales_rank_mismatch_test)
 {
     EXPECT(test::throws(

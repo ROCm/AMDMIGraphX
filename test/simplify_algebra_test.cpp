@@ -491,10 +491,7 @@ TEST_CASE(simplify_mul_add_no_slice)
         auto one   = m1.add_literal(3);
         auto two   = m1.add_literal(2);
         
-        // Adding slice on 'two' to act as 'a'
         auto slice = m1.add_instruction(migraphx::make_op("slice", {{"axes", {0}}, {"starts", {0}}, {"ends", {1}}}), two);
-        
-        // Create add and mul expressions
         auto sum   = m1.add_instruction(migraphx::make_op("add"), one, x);
         auto mul   = m1.add_instruction(migraphx::make_op("mul"), sum, slice);  // a is slice
         

@@ -483,6 +483,42 @@ TEST_CASE(simplify_mul_add)
     EXPECT(m1 == m2);
 }
 
+TEST_CASE(simplify_mul_add_no_slice)
+{
+    migraphx::module m1;
+    {
+        auto x     = m1.add_parameter("x", {migraphx::shape::int32_type, {1}});
+        auto one   = m1.add_literal(3);
+        auto two   = m1.add_literal(2);
+        
+        // Adding slice on 'two' to act as 'a'
+        auto slice = m1.add_instruction(migraphx::make_op("slice", {{"axes", {0}}, {"starts", {0}}, {"ends", {1}}}), two);
+        
+        // Create add and mul expressions
+        auto sum   = m1.add_instruction(migraphx::make_op("add"), one, x);
+        auto mul   = m1.add_instruction(migraphx::make_op("mul"), sum, slice);  // a is slice
+        
+        m1.add_instruction(pass_op{}, mul);
+    }
+    run_pass(m1);
+
+    migraphx::module m2;
+    {
+        auto x     = m2.add_parameter("x", {migraphx::shape::int32_type, {1}});
+        auto one   = m2.add_literal(3);
+        auto two   = m2.add_literal(2);
+
+        // Repeating original structure without transformation
+        auto slice = m2.add_instruction(migraphx::make_op("slice", {{"axes", {0}}, {"starts", {0}}, {"ends", {1}}}), two);
+        auto sum   = m2.add_instruction(migraphx::make_op("add"), one, x);
+        auto mul   = m2.add_instruction(migraphx::make_op("mul"), sum, slice);  // a remains as slice
+        
+        m2.add_instruction(pass_op{}, mul);
+    }
+
+    EXPECT(m1 == m2);
+}
+
 TEST_CASE(simplify_dot_add)
 {
     migraphx::module m1;

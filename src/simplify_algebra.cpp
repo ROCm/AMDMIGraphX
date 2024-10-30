@@ -429,7 +429,8 @@ struct find_mul_add
                     match::any_of(conv_const_weights(), match::is_constant()).bind("b")),
                 match::none_of(match::args(match::is_constant(), match::is_constant())),
                 match::used_once()),
-            match::is_constant().bind("a")));
+            //match::is_constant().bind("a")));
+            match::all_of(match::is_constant(), match::none_of(match::name("slice"))).bind("a")));
     }
 
     void apply(module& m, const match::matcher_result& r) const

@@ -27,6 +27,7 @@
 #include <algorithm>
 #include <limits>
 #include <iostream>
+#include <bitset>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
@@ -154,14 +155,21 @@ struct __attribute__((packed, may_alias)) generic_float
                 exponent = all_ones<ExponentSize>();
                 mantissa = 0;
             }
-            else if(e <= 0)
+            else if(e < 1) 
             {
                 exponent = 0;
 
                 auto shift = diff - int(f.exponent);
-                mantissa =
-                    (f.mantissa | (1u << static_cast<int>(float32_parts::mantissa_width()))) >>
-                    (shift + (float32_parts::mantissa_width() - MantissaSize) + 1);
+                auto shift_amount = shift + (float32_parts::mantissa_width() - MantissaSize) + 1;
+                
+                if (shift_amount <= 32) {
+                    mantissa =
+                        (f.mantissa | (1u << static_cast<int>(float32_parts::mantissa_width()))) >>
+                        shift_amount;
+                } else {
+                    mantissa = 0;
+                }  
+                
             }
             else
             {

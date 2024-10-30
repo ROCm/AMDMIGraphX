@@ -173,9 +173,6 @@ void quantize_int4_weights(program& prog)
 
 void quantize_fp8(program& prog, const target& t, const std::vector<parameter_map>& calibration)
 {
-    std::cout << "[Warning] : MIGraphX has BETA support for FP8. Using FP8 may result in "
-                 "incorrect final outputs\n";
-
     std::unordered_set<std::string> supported_ins_names;
     auto* mm = prog.get_main_module();
     for(auto ins : iterator_for(*mm))

@@ -441,7 +441,6 @@ struct find_mul_add
         auto x_ins = r.instructions["x"];
         assert(x_ins != b_ins);
 
-
         auto ax_ins = m.insert_instruction(ins, make_op("mul"), a_ins, x_ins);
         auto ab_ins = m.insert_instruction(ins, make_op("mul"), a_ins, b_ins);
         m.replace_instruction(ins, make_op("add"), ax_ins, ab_ins);

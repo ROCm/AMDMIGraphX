@@ -82,6 +82,11 @@ Prints debug statements for the ``schedule`` pass.
 Set to "1", "enable", "enabled", "yes", or "true" to use.
 Traces instructions replaced with a constant.
 
+.. envvar:: MIGRAPHX_TRACE_QUANTIZATION
+
+Set to "1", "enable", "enabled", "yes", or "true" to use.
+Prints traces for any passes run during quantization.
+
 .. envvar:: MIGRAPHX_8BITS_QUANTIZATION_PARAMS
 
 Set to "1", "enable", "enabled", "yes", or "true" to use.

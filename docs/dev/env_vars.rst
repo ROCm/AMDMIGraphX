@@ -82,6 +82,11 @@ Prints debug statements for the ``schedule`` pass.
 Set to "1", "enable", "enabled", "yes", or "true" to use.
 Traces instructions replaced with a constant.
 
+.. envvar:: MIGRAPHX_TRACE_QUANTIZATION
+
+Set to "1", "enable", "enabled", "yes", or "true" to use.
+Prints traces for any passes run during quantization.
+
 .. envvar:: MIGRAPHX_8BITS_QUANTIZATION_PARAMS
 
 Set to "1", "enable", "enabled", "yes", or "true" to use.
@@ -307,6 +312,11 @@ Enable Split-k perf configs when tuning with MLIR.
 
 Set to path where MXRs will be saved.
 Dumps MLIRs module to mxr files.
+
+.. envvar:: MIGRAPHX_MLIR_DUMP
+
+Set to path where MLIRs will be saved.
+Dumps MLIRs module to .mlir files.
 
 CK vars
 -----------

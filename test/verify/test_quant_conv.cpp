@@ -46,3 +46,5 @@ struct test_quant_conv : verify_program<test_quant_conv<DType>>
 
 template struct test_quant_conv<migraphx::shape::int8_type>;
 template struct test_quant_conv<migraphx::shape::fp8e4m3fnuz_type>;
+template struct test_quant_conv<migraphx::shape::fp8e4m3fn_type>;
+template struct test_quant_conv<migraphx::shape::fp8e5m2_type>;

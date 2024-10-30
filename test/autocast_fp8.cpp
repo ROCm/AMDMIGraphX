@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2023 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2024 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -23,6 +23,7 @@
  */
 #include <basic_ops.hpp>
 #include <migraphx/autocast_fp8.hpp>
+#include <migraphx/float8.hpp>
 #include <migraphx/eliminate_identity.hpp>
 #include <migraphx/make_op.hpp>
 #include <migraphx/pass_manager.hpp>
@@ -34,12 +35,13 @@ void run_pass(migraphx::module& m)
 }
 
 // with return
-TEST_CASE(autocast_fp8_1)
+template <migraphx::shape::type_t DType>
+void autocast_fp8_1()
 {
     migraphx::module m1;
     {
-        auto x   = m1.add_parameter("x", {migraphx::shape::fp8e4m3fnuz_type, {1}});
-        auto y   = m1.add_parameter("y", {migraphx::shape::fp8e4m3fnuz_type, {1}});
+        auto x   = m1.add_parameter("x", {DType, {1}});
+        auto y   = m1.add_parameter("y", {DType, {1}});
         auto sum = m1.add_instruction(migraphx::make_op("add"), x, y);
         m1.add_return({sum});
     }
@@ -49,12 +51,10 @@ TEST_CASE(autocast_fp8_1)
     {
         auto y_fp32 = m2.add_parameter("y", {migraphx::shape::float_type, {1}});
         auto x_fp32 = m2.add_parameter("x", {migraphx::shape::float_type, {1}});
-        auto y_fp8  = m2.add_instruction(
-            migraphx::make_op("convert", {{"target_type", migraphx::shape::fp8e4m3fnuz_type}}),
-            y_fp32);
-        auto x_fp8 = m2.add_instruction(
-            migraphx::make_op("convert", {{"target_type", migraphx::shape::fp8e4m3fnuz_type}}),
-            x_fp32);
+        auto y_fp8 =
+            m2.add_instruction(migraphx::make_op("convert", {{"target_type", DType}}), y_fp32);
+        auto x_fp8 =
+            m2.add_instruction(migraphx::make_op("convert", {{"target_type", DType}}), x_fp32);
         auto sum_fp8  = m2.add_instruction(migraphx::make_op("add"), x_fp8, y_fp8);
         auto sum_fp32 = m2.add_instruction(
             migraphx::make_op("convert", {{"target_type", migraphx::shape::float_type}}), sum_fp8);
@@ -62,14 +62,18 @@ TEST_CASE(autocast_fp8_1)
     }
     EXPECT(m1 == m2);
 }
+TEST_CASE_REGISTER(autocast_fp8_1<migraphx::shape::fp8e4m3fnuz_type>);
+TEST_CASE_REGISTER(autocast_fp8_1<migraphx::shape::fp8e4m3fn_type>);
+TEST_CASE_REGISTER(autocast_fp8_1<migraphx::shape::fp8e5m2_type>);
 
 // without return
-TEST_CASE(autocast_fp8_2)
+template <migraphx::shape::type_t DType>
+void autocast_fp8_2()
 {
     migraphx::module m1;
     {
-        auto x = m1.add_parameter("x", {migraphx::shape::fp8e4m3fnuz_type, {1}});
-        auto y = m1.add_parameter("y", {migraphx::shape::fp8e4m3fnuz_type, {1}});
+        auto x = m1.add_parameter("x", {DType, {1}});
+        auto y = m1.add_parameter("y", {DType, {1}});
         m1.add_instruction(migraphx::make_op("sub"), x, y);
     }
     run_pass(m1);
@@ -78,24 +82,26 @@ TEST_CASE(autocast_fp8_2)
     {
         auto y_fp32 = m2.add_parameter("y", {migraphx::shape::float_type, {1}});
         auto x_fp32 = m2.add_parameter("x", {migraphx::shape::float_type, {1}});
-        auto y_fp8  = m2.add_instruction(
-            migraphx::make_op("convert", {{"target_type", migraphx::shape::fp8e4m3fnuz_type}}),
-            y_fp32);
-        auto x_fp8 = m2.add_instruction(
-            migraphx::make_op("convert", {{"target_type", migraphx::shape::fp8e4m3fnuz_type}}),
-            x_fp32);
+        auto y_fp8 =
+            m2.add_instruction(migraphx::make_op("convert", {{"target_type", DType}}), y_fp32);
+        auto x_fp8 =
+            m2.add_instruction(migraphx::make_op("convert", {{"target_type", DType}}), x_fp32);
         m2.add_instruction(migraphx::make_op("sub"), x_fp8, y_fp8);
     }
     EXPECT(m1 == m2);
 }
+TEST_CASE_REGISTER(autocast_fp8_2<migraphx::shape::fp8e4m3fnuz_type>);
+TEST_CASE_REGISTER(autocast_fp8_2<migraphx::shape::fp8e4m3fn_type>);
+TEST_CASE_REGISTER(autocast_fp8_2<migraphx::shape::fp8e5m2_type>);
 
 // multiple inputs (of same type) to return
-TEST_CASE(autocast_fp8_3)
+template <migraphx::shape::type_t DType>
+void autocast_fp8_3()
 {
     migraphx::module m1;
     {
-        auto x    = m1.add_parameter("x", {migraphx::shape::fp8e4m3fnuz_type, {1}});
-        auto y    = m1.add_parameter("y", {migraphx::shape::fp8e4m3fnuz_type, {1}});
+        auto x    = m1.add_parameter("x", {DType, {1}});
+        auto y    = m1.add_parameter("y", {DType, {1}});
         auto sum  = m1.add_instruction(migraphx::make_op("add"), x, y);
         auto diff = m1.add_instruction(migraphx::make_op("sub"), x, y);
         m1.add_return({sum, diff});
@@ -106,12 +112,10 @@ TEST_CASE(autocast_fp8_3)
     {
         auto y_fp32 = m2.add_parameter("y", {migraphx::shape::float_type, {1}});
         auto x_fp32 = m2.add_parameter("x", {migraphx::shape::float_type, {1}});
-        auto y_fp8  = m2.add_instruction(
-            migraphx::make_op("convert", {{"target_type", migraphx::shape::fp8e4m3fnuz_type}}),
-            y_fp32);
-        auto x_fp8 = m2.add_instruction(
-            migraphx::make_op("convert", {{"target_type", migraphx::shape::fp8e4m3fnuz_type}}),
-            x_fp32);
+        auto y_fp8 =
+            m2.add_instruction(migraphx::make_op("convert", {{"target_type", DType}}), y_fp32);
+        auto x_fp8 =
+            m2.add_instruction(migraphx::make_op("convert", {{"target_type", DType}}), x_fp32);
         auto sum_fp8  = m2.add_instruction(migraphx::make_op("add"), x_fp8, y_fp8);
         auto diff_fp8 = m2.add_instruction(migraphx::make_op("sub"), x_fp8, y_fp8);
         auto sum_fp32 = m2.add_instruction(
@@ -122,14 +126,18 @@ TEST_CASE(autocast_fp8_3)
     }
     EXPECT(m1 == m2);
 }
+TEST_CASE_REGISTER(autocast_fp8_3<migraphx::shape::fp8e4m3fnuz_type>);
+TEST_CASE_REGISTER(autocast_fp8_3<migraphx::shape::fp8e4m3fn_type>);
+TEST_CASE_REGISTER(autocast_fp8_3<migraphx::shape::fp8e5m2_type>);
 
 // multiple inputs (of different types) to return
-TEST_CASE(autocast_fp8_4)
+template <migraphx::shape::type_t DType>
+void autocast_fp8_4()
 {
     migraphx::module m1;
     {
-        auto x1   = m1.add_parameter("x1", {migraphx::shape::fp8e4m3fnuz_type, {3, 4}, {1, 3}});
-        auto y1   = m1.add_parameter("y1", {migraphx::shape::fp8e4m3fnuz_type, {3, 4}, {1, 3}});
+        auto x1   = m1.add_parameter("x1", {DType, {3, 4}, {1, 3}});
+        auto y1   = m1.add_parameter("y1", {DType, {3, 4}, {1, 3}});
         auto x2   = m1.add_parameter("x2", {migraphx::shape::float_type, {3, 4}, {1, 3}});
         auto y2   = m1.add_parameter("y2", {migraphx::shape::float_type, {3, 4}, {1, 3}});
         auto sum1 = m1.add_instruction(migraphx::make_op("add"), x1, y1);
@@ -140,14 +148,15 @@ TEST_CASE(autocast_fp8_4)
 
     migraphx::module m2;
     {
+
         auto x2     = m2.add_parameter("x2", {migraphx::shape::float_type, {3, 4}, {1, 3}});
         auto y2     = m2.add_parameter("y2", {migraphx::shape::float_type, {3, 4}, {1, 3}});
         auto y1     = m2.add_parameter("y1", {migraphx::shape::float_type, {3, 4}, {1, 3}});
         auto x1     = m2.add_parameter("x1", {migraphx::shape::float_type, {3, 4}, {1, 3}});
-        auto y1_fp8 = m2.add_instruction(
-            migraphx::make_op("convert", {{"target_type", migraphx::shape::fp8e4m3fnuz_type}}), y1);
-        auto x1_fp8 = m2.add_instruction(
-            migraphx::make_op("convert", {{"target_type", migraphx::shape::fp8e4m3fnuz_type}}), x1);
+        auto y1_fp8 =
+            m2.add_instruction(migraphx::make_op("convert", {{"target_type", DType}}), y1);
+        auto x1_fp8 =
+            m2.add_instruction(migraphx::make_op("convert", {{"target_type", DType}}), x1);
         auto sum1        = m2.add_instruction(migraphx::make_op("add"), x1_fp8, y1_fp8);
         auto sum2        = m2.add_instruction(migraphx::make_op("add"), x2, y2);
         auto result_sum1 = m2.add_instruction(
@@ -156,6 +165,9 @@ TEST_CASE(autocast_fp8_4)
     }
     EXPECT(m1 == m2);
 }
+TEST_CASE_REGISTER(autocast_fp8_4<migraphx::shape::fp8e4m3fnuz_type>);
+TEST_CASE_REGISTER(autocast_fp8_4<migraphx::shape::fp8e4m3fn_type>);
+TEST_CASE_REGISTER(autocast_fp8_4<migraphx::shape::fp8e5m2_type>);
 
 // autocast pass does not do any changes
 TEST_CASE(autocast_fp8_5)

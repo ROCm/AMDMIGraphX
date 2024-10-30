@@ -23,6 +23,7 @@
  */
 #include <algorithm>
 #include <cstdint>
+#include <migraphx/shape.hpp>
 #include <migraphx/algorithm.hpp>
 #include <migraphx/make_op.hpp>
 #include <migraphx/stringutils.hpp>
@@ -58,6 +59,8 @@
 #include <migraphx/env.hpp>
 #include <migraphx/manage_ptr.hpp>
 #include <migraphx/module.hpp>
+#include <migraphx/program.hpp>
+#include <migraphx/load_save.hpp>
 #include <migraphx/instruction.hpp>
 #include <migraphx/config.hpp>
 #include <migraphx/ranges.hpp>
@@ -310,6 +313,10 @@ struct mlir_program
                 result = mlirF16TypeGet(ctx.get());
             else if(as.type_enum() == shape::fp8e4m3fnuz_type)
                 result = mlirFloat8E4M3FNUZTypeGet(ctx.get());
+            else if(as.type_enum() == shape::fp8e4m3fn_type)
+                result = mlirFloat8E4M3FNTypeGet(ctx.get());
+            else if(as.type_enum() == shape::fp8e5m2_type)
+                result = mlirFloat8E5M2TypeGet(ctx.get());
             else if(as.type_enum() == shape::double_type)
                 result = mlirF64TypeGet(ctx.get());
             else if(as.is_integral())
@@ -321,7 +328,7 @@ struct mlir_program
                 {
                     MIGRAPHX_THROW("Unsupported type: " + std::to_string(as.type_enum()));
                 }
-                result = mlirIntegerTypeGet(ctx.get(), as.size() * 8);
+                result = mlirIntegerTypeGet(ctx.get(), as.size() * 8); // number of bits
             }
             else
                 MIGRAPHX_THROW("Unsupported type: " + std::to_string(as.type_enum()));
@@ -614,14 +621,21 @@ struct mlir_program
         return result;
     }
 
+    static bool is_reshape(const std::string& name)
+    {
+        return contains({"reshape", "lazy_reshape", "squeeze", "unsqueeze", "flatten"}, name);
+    }
+
     static std::string get_name(instruction_ref ins)
     {
         if(ins->name() == "@return")
             return "func.return";
         if(ins->name() == "@literal")
-        {
             return "migraphx.literal";
-        }
+        if(ins->name() == "unpack_int4")
+            return "migraphx.unpack";
+        if(is_reshape(ins->name()))
+            return "migraphx.reshape";
         return "migraphx." + ins->name();
     }
 
@@ -632,8 +646,8 @@ struct mlir_program
 
         // Reshape operator can have dim 0 or -1.
         // Avoid passing those on to MLIR:
-        if(op.name() == "reshape")
-            v["dims"] = ins->get_shape().lens();
+        if(is_reshape(op.name()))
+            v = {{"dims", ins->get_shape().lens()}};
 
         if(op.name() == "convolution" or op.name() == "quant_convolution")
         {
@@ -644,6 +658,10 @@ struct mlir_program
                 std::copy(padding.begin(), padding.end(), std::back_inserter(v.at("padding")));
             }
         }
+
+        if(op.name() == "unpack_int4")
+            v["axis"] = ins->get_shape().ndim() - 1;
+
         return v;
     }
 
@@ -693,15 +711,30 @@ struct mlir_program
             ops.add_attribute_value(get_operator_value(ins));
             if(ins->name() != "@return")
                 ops.add_results({get_shape(ins)});
+
             if(ins->name() == "@literal")
             {
-                literal r            = ins->get_literal();
-                MlirType shaped_type = make_mlir_shaped(ins->get_shape());
+                literal r = ins->get_literal();
+                auto sh   = ins->get_shape();
+
+                // mlir works only with signed types. change uint4 to (int4 + unsigned-flag)
+                if(shape::is_unsigned(sh.type()) and ins->outputs()[0]->name() == "unpack_int4")
+                    sh = ins->get_shape().with_type(shape::int8_type);
+
+                MlirType shaped_type = make_mlir_shaped(sh);
                 MlirType tensor_type = rocmlirMIXRShapedTypeAsTensor(shaped_type);
                 MlirAttribute mlir_value_attr =
                     mlirDenseElementsAttrRawBufferGet(tensor_type, r.get_shape().bytes(), r.data());
                 ops.add_attributes({{"value", mlir_value_attr}});
             }
+
+            if(ins->name() == "unpack_int4")
+            {
+                auto sh = get_shape(ins);
+                ops.add_attributes(
+                    {{"isUnsigned", shape::is_unsigned(sh.type())}}); // flag for uint4
+            }
+
             if(ins->name() == "convolution" or ins->name() == "dot")
             {
                 pp =
@@ -1032,6 +1065,23 @@ void adjust_param_shapes(module& m, const std::vector<shape>& inputs)
     }
 }
 
+void replace_params_with_literals(module& m, const std::vector<instruction_ref>& inputs)
+{
+    auto names = m.get_parameter_names();
+    std::sort(names.begin(), names.end());
+    for(auto i : range(names.size()))
+    {
+        const auto& name  = names[i];
+        const auto& input = inputs[i];
+        if(input->name() != "@literal")
+            continue;
+        auto param = m.get_parameter(name);
+        auto lit   = m.add_literal(input->get_literal());
+        m.replace_instruction(param, lit);
+        m.remove_instruction(param);
+    }
+}
+
 std::string dump_mlir(module m, const std::vector<shape>& inputs)
 {
     const_module_ref mr = &m;
@@ -1149,6 +1199,30 @@ tuning_config get_tuning_config_mlir(const context& migraphx_ctx,
         std::cout << mlir_print(&mlirOperationPrint, mod_op) << std::endl;
     }
     return tc;
+}
+
+void dump_mlir_to_mxr(module m,
+                      const std::vector<instruction_ref>& inputs,
+                      const fs::path& location)
+{
+    static std::mutex mutex;
+    const std::lock_guard<std::mutex> lock(mutex);
+
+    adjust_param_shapes(m, to_shapes(inputs));
+    replace_params_with_literals(m, inputs);
+    std::vector<instruction_ref> sizes;
+    for(auto ins : iterator_for(m))
+    {
+        if(not contains({"convolution", "dot"}, ins->name()))
+            continue;
+        sizes.insert(sizes.end(), ins->inputs().begin(), ins->inputs().end());
+    }
+    auto name =
+        mlir_program::get_symbol_name(m) + "_" + shape::to_sizes_string(to_shapes(sizes)) + ".mxr";
+    replace_string_inplace(name, ", ", "_");
+    replace_string_inplace(name, ":", "s");
+    auto f = location / name;
+    save(program{std::move(m)}, f.string());
 }
 
 #else

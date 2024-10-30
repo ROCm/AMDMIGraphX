@@ -228,9 +228,15 @@ std::vector<std::vector<char>> compile_hip_src_with_hiprtc(std::vector<hiprtc_sr
 bool hip_has_flags(const std::vector<std::string>& flags)
 {
     hiprtc_program prog{" "};
+
+    std::string src = " ";
+    src_file input{"main.cpp", src};
+    std::vector<src_file> srcs = {input};
+
     try
     {
-        prog.compile(flags, true);
+        std::string arch = "gfx900";
+        compile_hip_src(srcs, flags, arch);
         return true;
     }
     catch(...)

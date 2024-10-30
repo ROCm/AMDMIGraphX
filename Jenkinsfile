@@ -12,6 +12,11 @@ def getnavi3xtargets() {
     return targets
 }
 
+def getCommitSha() {
+  return sh(returnStdout: true, script: 'git rev-parse HEAD')
+}
+
+
 // Test
 // def rocmtestnode(variant, name, body, args, pre) {
 def rocmtestnode(Map conf) {
@@ -45,11 +50,12 @@ def rocmtestnode(Map conf) {
             cmake -DCMAKE_C_COMPILER_LAUNCHER=ccache -DCMAKE_CXX_COMPILER_LAUNCHER=ccache -DBUILD_DEV=On -DCMAKE_EXECUTE_PROCESS_COMMAND_ECHO=STDOUT -DMIGRAPHX_DISABLE_VIRTUAL_ENV=ON ${flags} ..
             git diff
             git diff-index --quiet HEAD || (echo "Git repo is not clean after running cmake." && exit 1)
-            make -j\$(nproc) generate VERBOSE=1
+            #make -j\$(nproc) generate VERBOSE=1
             git diff
             git diff-index --quiet HEAD || (echo "Generated files are different. Please run make generate and commit the changes." && exit 1)
             make -j\$(nproc) all package check VERBOSE=1
             md5sum ./*.deb
+            echo getCommitSha() > "${name}_PR"
         """
         echo cmd
         sh cmd

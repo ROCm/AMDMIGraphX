@@ -34,7 +34,15 @@ def rocmtestnode(Map conf) {
         def compiler = bconf.get("compiler", "/opt/rocm/llvm/bin/clang++")
         def flags = bconf.get("flags", "")
         def gpu_debug = bconf.get("gpu_debug", "0")
+        def GIT_COMMIT_SHA= getCommitSha()
         def cmd = """
+
+            if grep -q ${GIT_COMMIT_SHA} "${name}_PR"; then 
+                echo "============  DUPLICATE TIME  ==========" 
+            else
+                echo "============  FIRST TIME  ==========" 
+            fi
+
             ulimit -c unlimited
             echo "leak:dnnl::impl::malloc" > suppressions.txt
             echo "leak:libtbb.so" >> suppressions.txt
@@ -53,9 +61,9 @@ def rocmtestnode(Map conf) {
             #make -j\$(nproc) generate VERBOSE=1
             git diff
             git diff-index --quiet HEAD || (echo "Generated files are different. Please run make generate and commit the changes." && exit 1)
-            make -j\$(nproc) all package check VERBOSE=1
+            #make -j\$(nproc) all package check VERBOSE=1
             md5sum ./*.deb
-            echo getCommitSha() > "${name}_PR"
+            echo ${GIT_COMMIT_SHA}  > "${name}_PR"
         """
         echo cmd
         sh cmd

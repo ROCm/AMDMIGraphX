@@ -83,6 +83,7 @@ void instruction::replace(const shape& r)
         auto start = std::find_if(output.front()->inputs().begin(),
                                   output.front()->inputs().end(),
                                   [&](instruction_ref x) { return this == as_address(x); });
+        assert((*start) == this);
         std::priority_queue<instruction_ref, std::vector<instruction_ref>, replace_shape_order> q(
             output.begin(), output.end(), replace_shape_order{*start});
         while(not q.empty())

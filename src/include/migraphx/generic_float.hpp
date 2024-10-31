@@ -84,7 +84,7 @@ struct __attribute__((packed, may_alias)) generic_float
     constexpr generic_float operator-() const noexcept
     {
         generic_float result = *this;
-        result.sign          = !this->sign;
+        result.sign          = not this->sign;
         return result;
     }
 
@@ -109,7 +109,7 @@ struct __attribute__((packed, may_alias)) generic_float
                 if(MantissaSize < float32_parts::mantissa_width())
                 {
                     shift = MantissaSize - ((sizeof(unsigned int) * 8) - countl_zero(mantissa));
-                    f.mantissa <<= (shift + 1);
+                    f.mantissa <<= static_cast<unsigned int>(shift + 1);
                 }
 
                 f.exponent = float32_parts::exponent_bias() - exponent_bias() - shift;
@@ -159,13 +159,14 @@ struct __attribute__((packed, may_alias)) generic_float
             {
                 exponent = 0;
 
-                auto shift = diff - int(f.exponent);
+                auto shift        = diff - int(f.exponent);
                 auto shift_amount = shift + (float32_parts::mantissa_width() - MantissaSize) + 1;
 
-                if(shift_amount < 32)
+                if(shift_amount < (sizeof(unsigned int) * 8))
                 {
                     mantissa =
-                        (f.mantissa | (1u << static_cast<int>(float32_parts::mantissa_width()))) >>
+                        (f.mantissa |
+                         (1u << static_cast<unsigned int>(float32_parts::mantissa_width()))) >>
                         (shift + (float32_parts::mantissa_width() - MantissaSize) + 1);
                 }
                 else
@@ -213,7 +214,7 @@ struct __attribute__((packed, may_alias)) generic_float
     {
         generic_float x{};
         x.exponent = all_ones<ExponentSize>();
-        x.mantissa = 1 << (MantissaSize - 2);
+        x.mantissa = 1u << static_cast<unsigned int>(MantissaSize - 2);
         return x;
     }
 
@@ -221,7 +222,7 @@ struct __attribute__((packed, may_alias)) generic_float
     {
         generic_float x{};
         x.exponent = all_ones<ExponentSize>();
-        x.mantissa = 1 << (MantissaSize - 1);
+        x.mantissa = 1u << static_cast<unsigned int>(MantissaSize - 1);
         return x;
     }
 

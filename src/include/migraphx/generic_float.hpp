@@ -106,7 +106,7 @@ struct __attribute__((packed, may_alias)) generic_float
             else
             {
                 unsigned int shift = 0;
-                f.mantissa = mantissa;
+                f.mantissa         = mantissa;
 
                 if(MantissaSize < float32_parts::mantissa_width())
                 {

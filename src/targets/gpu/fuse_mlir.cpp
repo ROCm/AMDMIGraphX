@@ -366,7 +366,9 @@ bool is_pointwise_op_supported_by_mlir(const instruction& i)
                                                          type_t::fp8e4m3fn_type,
                                                          type_t::fp8e5m2_type,
                                                          type_t::int8_type,
+                                                         type_t::uint8_type,
                                                          type_t::int32_type,
+                                                         type_t::uint32_type,
                                                          type_t::bool_type};
     // Preliminary type check.
     if(not contains(allowed_types, result_type))

@@ -27,7 +27,7 @@
 #include <algorithm>
 #include <limits>
 #include <iostream>
-#include <bitset>
+#include <tuple>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {

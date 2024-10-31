@@ -40,7 +40,7 @@ bool bit_equal(const T& x, const U& y)
     return migraphx::bit_cast<type>(x) == migraphx::bit_cast<type>(y);
 }
 
-#define CHECK_FLOAT(x, y)              \
+#define MIGRAPHX_CHECK_FLOAT(x, y)     \
     CHECK(bit_equal(x, y));            \
     CHECK(bit_equal(x, y.to_float())); \
     CHECK(bit_equal(fp32{x}, y));      \
@@ -48,16 +48,16 @@ bool bit_equal(const T& x, const U& y)
 
 TEST_CASE(fp32_values_working)
 {
-    CHECK_FLOAT(1.0f, fp32{1.0f});
-    CHECK_FLOAT(-1.0f, fp32{-1.0f});
-    CHECK_FLOAT(std::numeric_limits<float>::min(), fp32::min());
-    CHECK_FLOAT(std::numeric_limits<float>::lowest(), fp32::lowest());
-    CHECK_FLOAT(std::numeric_limits<float>::max(), fp32::max());
-    CHECK_FLOAT(std::numeric_limits<float>::epsilon(), fp32::epsilon());
-    CHECK_FLOAT(std::numeric_limits<float>::denorm_min(), fp32::denorm_min());
-    CHECK_FLOAT(std::numeric_limits<float>::infinity(), fp32::infinity());
-    CHECK_FLOAT(std::numeric_limits<float>::quiet_NaN(), fp32::qnan());
-    CHECK_FLOAT(std::numeric_limits<float>::signaling_NaN(), fp32::snan());
+    MIGRAPHX_CHECK_FLOAT(1.0f, fp32{1.0f});
+    MIGRAPHX_CHECK_FLOAT(-1.0f, fp32{-1.0f});
+    MIGRAPHX_CHECK_FLOAT(std::numeric_limits<float>::min(), fp32::min());
+    MIGRAPHX_CHECK_FLOAT(std::numeric_limits<float>::lowest(), fp32::lowest());
+    MIGRAPHX_CHECK_FLOAT(std::numeric_limits<float>::max(), fp32::max());
+    MIGRAPHX_CHECK_FLOAT(std::numeric_limits<float>::epsilon(), fp32::epsilon());
+    MIGRAPHX_CHECK_FLOAT(std::numeric_limits<float>::denorm_min(), fp32::denorm_min());
+    MIGRAPHX_CHECK_FLOAT(std::numeric_limits<float>::infinity(), fp32::infinity());
+    MIGRAPHX_CHECK_FLOAT(std::numeric_limits<float>::quiet_NaN(), fp32::qnan());
+    MIGRAPHX_CHECK_FLOAT(std::numeric_limits<float>::signaling_NaN(), fp32::snan());
 }
 
 int main(int argc, const char* argv[]) { test::run(argc, argv); }

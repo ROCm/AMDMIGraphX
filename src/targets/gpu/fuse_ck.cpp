@@ -78,12 +78,15 @@ MIGRAPHX_REGISTER_OP(ck_gemm);
 
 struct ck_gemm_gemm
 {
-    operation op = make_op("dot");
+    operation op     = make_op("dot");
+    size_t d0s_count = 0u;
+    size_t d1s_count = 0u;
 
     template <class Self, class F>
     static auto reflect(Self& self, F f)
     {
-        return pack(f(self.op, "op"));
+        return pack(
+            f(self.op, "op"), f(self.d0s_count, "d0s_count"), f(self.d1s_count, "d1s_count"));
     }
 
     std::string name() const { return "gpu::ck_gemm_gemm"; }
@@ -101,9 +104,9 @@ struct ck_gemm_gemm
         if(inputs.size() < 3)
             MIGRAPHX_THROW(name() + ": Expected 3 inputs but got " + to_string(inputs.size()));
 
-        auto a                     = inputs[0];
-        auto b                     = inputs[1];
-        auto b1                    = inputs.back();
+        auto a  = inputs[0];
+        auto b  = inputs[1];
+        auto b1 = inputs[2];
 
         for(const auto& input : inputs)
         {
@@ -132,11 +135,11 @@ MIGRAPHX_PRED_MATCHER(is_ck_gemm, instruction_ref ins)
         return false;
     if(not ck_gemm::is_ck_supported_type(ins->get_shape().type()))
         return false;
-    auto a = ins->inputs().front()->get_shape();
-    auto b = ins->inputs().back()->get_shape();
-    auto m = a.lens()[a.lens().size() - 2];
-    auto n = b.lens().back();
-    auto k = a.lens().back();
+    auto a          = ins->inputs().front()->get_shape();
+    auto b          = ins->inputs().back()->get_shape();
+    auto m          = a.lens()[a.lens().size() - 2];
+    auto n          = b.lens().back();
+    auto k          = a.lens().back();
     auto batch_size = std::accumulate(
         a.lens().rbegin() + 2, a.lens().rend(), std::size_t{1}, std::multiplies<std::size_t>());
     // Integer gemms must be divisible by 4 in ck
@@ -245,26 +248,137 @@ struct find_ck_gemm_softmax_gemm
     }
 };
 
-struct find_ck_gemm_gemm
+struct find_ck_gemm_pointwise_gemm
 {
     auto matcher() const
     {
         // TODO don't mix dot and quant_dot
-        auto gemm1 = match::skip(match::name("contiguous"))(
-            match::name("dot", "quant_dot")(is_ck_gemm().bind("gemm1")));
-        return match::name("dot", "quant_dot")(is_ck_gemm().bind("gemm2"))(match::arg(0)(gemm1));
+        // TODO match used_once?
+        auto gemm0 = match::skip(match::name("contiguous"))(
+            match::name("dot", "quant_dot")(is_ck_gemm().bind("gemm0")));
+        auto pw0 =
+            match::name("pointwise")(match::any_of[match::inputs()](gemm0.bind("x0")).bind("pw0"));
+        return match::name("dot", "quant_dot")(is_ck_gemm().bind("gemm1"))(
+            match::arg(0)(match::any_of(pw0, gemm0)));
     }
 
-    void apply(module_pass_manager& mpm, const match::matcher_result& r) const
+    bool transposed_matrix(const shape& s) { return s.strides().back() != 1; }
+
+    void apply(module_pass_manager& mpm, const match::matcher_result& r)
     {
+        std::cout << "matching ck_gemm_gemm" << std::endl;
+
         auto ins       = r.result;
+        auto gemm0_ins = r.instructions["gemm0"];
         auto gemm1_ins = r.instructions["gemm1"];
-        auto gemm2_ins = r.instructions["gemm2"];
 
-        auto inputs = gemm1_ins->inputs();            // A, B
-        inputs.push_back(gemm2_ins->inputs().back()); // B1
+        auto inputs = gemm0_ins->inputs();            // A, B
+        inputs.push_back(gemm1_ins->inputs().back()); // B1
 
-        mpm.get_module().replace_instruction(ins, ck_gemm_gemm{gemm2_ins->get_operator()}, inputs);
+        if (!transposed_matrix(inputs[1]->get_shape()))
+            return;
+
+        size_t d0s_count = 0, d1s_count = 0;
+        std::vector<module_ref> module_inputs;
+        if(r.instructions.find("pw0") != r.instructions.end())
+        {
+            auto pw0    = r.instructions["pw0"];
+            auto x0_ins = r.instructions["x0"];
+
+            if(gemm0_ins->get_shape().type() != shape::int32_type and
+               pw0->get_shape().type() != gemm0_ins->get_shape().type())
+                return;
+            if(std::any_of(pw0->inputs().begin(), pw0->inputs().end(), [](auto input) {
+                   return not ck_gemm::is_ck_supported_type(input->get_shape().type());
+               }))
+                return;
+            if(std::any_of(pw0->inputs().begin(), pw0->inputs().end(), [](auto input) {
+                   return not input->inputs().empty() and
+                          input->inputs().front()->name() == "capture";
+               }))
+                return;
+
+            auto pw0_inputs = pw0->inputs();
+            auto* pw0m      = pw0->module_inputs().front();
+
+            auto gemm_it  = std::find(pw0_inputs.begin(), pw0_inputs.end(), x0_ins);
+            auto gemm_idx = gemm_it - pw0_inputs.begin();
+            if(gemm_idx != 0)
+            {
+                rotate_gemm_input(pw0m, gemm_idx);
+            }
+
+            pw0_inputs.erase(gemm_it);
+            inputs.insert(inputs.end(), pw0_inputs.begin(), pw0_inputs.end()); // D0s
+
+            d0s_count = pw0_inputs.size();
+            module_inputs.push_back(pw0m);
+        }
+        if(r.instructions.find("pw1") != r.instructions.end())
+        {
+            auto pw1 = r.instructions["pw1"];
+
+            if(gemm1_ins->get_shape().type() != shape::int32_type and
+               pw1->get_shape().type() != gemm1_ins->get_shape().type())
+                return;
+            if(std::any_of(pw1->inputs().begin(), pw1->inputs().end(), [](auto input) {
+                   return not ck_gemm::is_ck_supported_type(input->get_shape().type());
+               }))
+                return;
+            if(std::any_of(pw1->inputs().begin(), pw1->inputs().end(), [](auto input) {
+                   return not input->inputs().empty() and
+                          input->inputs().front()->name() == "capture";
+               }))
+                return;
+
+            auto pw1_inputs = pw1->inputs();
+            auto* pw1m      = pw1->module_inputs().front();
+
+            auto gemm_it  = std::find(pw1_inputs.begin(), pw1_inputs.end(), gemm1_ins);
+            auto gemm_idx = gemm_it - pw1_inputs.begin();
+            if(gemm_idx != 0)
+            {
+                rotate_gemm_input(pw1m, gemm_idx);
+            }
+
+            pw1_inputs.erase(gemm_it);
+            inputs.insert(inputs.end(), pw1_inputs.begin(), pw1_inputs.end()); // D1s
+
+            d1s_count = pw1_inputs.size();
+            module_inputs.push_back(pw1m);
+        }
+
+        mpm.get_module().replace_instruction(
+            ins,
+            ck_gemm_gemm{gemm1_ins->get_operator(), d0s_count, d1s_count},
+            inputs,
+            module_inputs);
+    }
+
+    void rotate_gemm_input(module* pwm, size_t gemm_idx)
+    {
+        auto names = pwm->get_parameter_names();
+
+        auto first_param = pwm->get_parameter(names[0]);
+        auto gemm_param  = pwm->get_parameter(names[gemm_idx]);
+
+        auto new_gemm_param  = pwm->add_parameter(names[0] + "_0", gemm_param->get_shape());
+        auto new_first_param = pwm->add_parameter(names[gemm_idx] + "_0", first_param->get_shape());
+
+        pwm->replace_instruction(gemm_param, new_gemm_param);
+        pwm->replace_instruction(first_param, new_first_param);
+        pwm->remove_instruction(first_param);
+        pwm->remove_instruction(gemm_param);
+    }
+};
+
+struct find_ck_gemm_pointwise_gemm_pointwise : find_ck_gemm_pointwise_gemm
+{
+    auto matcher() const
+    {
+        // TODO match used_once?
+        auto gemm1 = find_ck_gemm_pointwise_gemm::matcher();
+        return match::name("pointwise")(match::any_of[match::inputs()](gemm1).bind("pw1"));
     }
 };
 
@@ -272,8 +386,10 @@ struct find_ck_gemm_gemm
 
 void fuse_ck::apply(module_pass_manager& mpm) const
 {
-    match::find_matches(mpm, find_ck_gemm_softmax_gemm{}, find_ck_gemm_pointwise{});
-    match::find_matches(mpm, find_ck_gemm_gemm{});
+    match::find_matches(mpm, find_ck_gemm_softmax_gemm{});
+    match::find_matches(mpm, find_ck_gemm_pointwise_gemm_pointwise{});
+    match::find_matches(mpm, find_ck_gemm_pointwise_gemm{});
+    match::find_matches(mpm, find_ck_gemm_pointwise{});
     match::find_matches(mpm, find_ck_gemm{});
 }
 

@@ -27,7 +27,8 @@
 #include <migraphx/generate.hpp>
 #include <migraphx/make_op.hpp>
 
-struct test_ck_gemm_gemm : verify_program<test_ck_gemm_gemm>
+struct test_ck_gemm_pointwise_gemm_pointwise_rotated
+    : verify_program<test_ck_gemm_pointwise_gemm_pointwise_rotated>
 {
     migraphx::program create_program() const
     {
@@ -36,16 +37,24 @@ struct test_ck_gemm_gemm : verify_program<test_ck_gemm_gemm>
 
         migraphx::shape m1_shape{migraphx::shape::half_type, {1, 12, 256, 128}};
         migraphx::shape m2_shape{migraphx::shape::half_type, {1, 12, 512, 128}};
-        migraphx::shape m3_shape{migraphx::shape::half_type, {1, 12, 512, 64}};
         migraphx::shape x_shape{migraphx::shape::half_type, {1, 12, 256, 512}};
+        migraphx::shape m3_shape{migraphx::shape::half_type, {1, 12, 512, 64}};
+        migraphx::shape y_shape{migraphx::shape::half_type, {1, 12, 256, 64}};
 
         auto a  = mm->add_parameter("1", m1_shape);
         auto b  = mm->add_parameter("2", m2_shape);
         auto b1 = mm->add_parameter("3", m3_shape);
+        auto x  = mm->add_parameter("x", x_shape);
+        auto y  = mm->add_parameter("y", y_shape);
+        auto z  = mm->add_parameter("z", y_shape);
 
         b = mm->add_instruction(migraphx::make_op("transpose", {{"permutation", {0, 1, 3, 2}}}), b);
         auto gemm0 = mm->add_instruction(migraphx::make_op("dot"), a, b);
-        mm->add_instruction(migraphx::make_op("dot"), gemm0, b1);
+        auto add   = mm->add_instruction(migraphx::make_op("sub"), x, gemm0);
+
+        auto gemm1 = mm->add_instruction(migraphx::make_op("dot"), add, b1);
+        auto sub   = mm->add_instruction(migraphx::make_op("sub"), y, gemm1);
+        mm->add_instruction(migraphx::make_op("mul"), sub, z);
 
         return p;
     }

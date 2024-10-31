@@ -178,9 +178,6 @@ void run_passes(program& prog, module_ref root_mod, const std::vector<pass>& pas
             mpm.run_pass(p);
         }
         run_pass(prog, p, trace);
-
-        std::cout << "PASS " << p.name() << std::endl;
-        std::cout << prog << std::endl;
     }
 }
 

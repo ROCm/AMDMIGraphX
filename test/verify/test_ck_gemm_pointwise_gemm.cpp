@@ -27,7 +27,7 @@
 #include <migraphx/generate.hpp>
 #include <migraphx/make_op.hpp>
 
-struct test_ck_gemm_gemm : verify_program<test_ck_gemm_gemm>
+struct test_ck_gemm_pointwise_gemm : verify_program<test_ck_gemm_pointwise_gemm>
 {
     migraphx::program create_program() const
     {
@@ -42,10 +42,15 @@ struct test_ck_gemm_gemm : verify_program<test_ck_gemm_gemm>
         auto a  = mm->add_parameter("1", m1_shape);
         auto b  = mm->add_parameter("2", m2_shape);
         auto b1 = mm->add_parameter("3", m3_shape);
+        auto x  = mm->add_parameter("x", x_shape);
 
         b = mm->add_instruction(migraphx::make_op("transpose", {{"permutation", {0, 1, 3, 2}}}), b);
         auto gemm0 = mm->add_instruction(migraphx::make_op("dot"), a, b);
-        mm->add_instruction(migraphx::make_op("dot"), gemm0, b1);
+        auto sin   = mm->add_instruction(migraphx::make_op("sin"), gemm0);
+        auto cos   = mm->add_instruction(migraphx::make_op("cos"), sin);
+        auto add   = mm->add_instruction(migraphx::make_op("add"), cos, x);
+        auto add2  = mm->add_instruction(migraphx::make_op("add"), add, sin);
+        mm->add_instruction(migraphx::make_op("dot"), add2, b1);
 
         return p;
     }

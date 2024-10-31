@@ -24,6 +24,7 @@
 #ifndef MIGRAPHX_GUARD_KERNELS_CK_GEMM_HPP
 #define MIGRAPHX_GUARD_KERNELS_CK_GEMM_HPP
 
+#include "migraphx/kernels/type_traits.hpp"
 #include <migraphx/kernels/index.hpp>
 #include <migraphx/kernels/algorithm.hpp>
 #include <migraphx/kernels/integral_constant.hpp>
@@ -33,33 +34,54 @@
 
 namespace migraphx {
 
-template <class G, class E1, class A0, class B0, class B1, class... D0s>
-__device__ void ck_gemm_gemm_matrix(E1 e1, A0 a0, B0 b0, B1 b1, D0s... d0s)
+template <class G,
+          class E1,
+          class A0,
+          class B0,
+          class B1,
+          index_int... D0s_I,
+          index_int... D1s_I,
+          class... Ds>
+__device__ void ck_gemm_gemm_matrix_impl(
+    E1 e1, A0 a0, B0 b0, B1 b1, detail::seq<D0s_I...>, detail::seq<D1s_I...>, tuple<Ds...> ds)
 {
-    constexpr auto desc = G::make_descriptor(to_ck_tensor<A0>(),
-                                             to_ck_tensor<ck_transposeb<B0>>(),
-                                             ck::make_tuple(to_ck_tensor<D0s>()...),
-                                             to_ck_tensor<ck_transposeb<B1>>(),
-                                             ck::make_tuple(),
-                                             to_ck_tensor<E1>());
+    constexpr auto desc = G::make_descriptor(
+        to_ck_tensor<A0>(),
+        to_ck_tensor<ck_transposeb<B0>>(),
+        ck::make_tuple(
+            to_ck_tensor<remove_reference_t<decltype(tuple_detail::get_element<D0s_I>(ds))>>()...),
+        to_ck_tensor<ck_transposeb<B1>>(),
+        ck::make_tuple(
+            to_ck_tensor<remove_reference_t<
+                decltype(tuple_detail::get_element<sizeof...(D0s_I) + D1s_I>(ds))>>()...),
+        to_ck_tensor<E1>());
 
     MIGRAPHX_STATIC_ASSERT_FOR(desc.IsValid())
     {
         G::Run(desc,
                to_ck_const_pointer(a0.data()),
                to_ck_const_pointer(b0.data()),
-               ck::make_tuple(to_ck_const_pointer(d0s.data())...),
+               ck::make_tuple(to_ck_const_pointer(tuple_detail::get_element<D0s_I>(ds).data())...),
                to_ck_const_pointer(b1.data()),
-               ck::make_tuple(),
+               ck::make_tuple(to_ck_const_pointer(
+                   tuple_detail::get_element<sizeof...(D0s_I) + D1s_I>(ds).data())...),
                to_ck_pointer(e1.data()));
     }
 }
 
-template <class G, index_int BlocksPerBatch, class... Ts>
+template <class G, index_int D0s_N, class E1, class A0, class B0, class B1, class... Ds>
+__device__ void ck_gemm_gemm_matrix(E1 e1, A0 a0, B0 b0, B1 b1, Ds... ds)
+{
+    auto all_ds = make_tuple(ds...);
+    ck_gemm_gemm_matrix_impl<G>(
+        e1, a0, b0, b1, detail::gens<D0s_N>{}, detail::gens<sizeof...(Ds) - D0s_N>{}, all_ds);
+}
+
+template <class G, index_int BlocksPerBatch, index_int D0s_N, class... Ts>
 __device__ void ck_gemm_gemm(Ts... xs)
 {
     gemm_batch_args(make_index(), _c<BlocksPerBatch>, xs...)(
-        [](auto... ys) { ck_gemm_gemm_matrix<G>(ys...); });
+        [](auto... ys) { ck_gemm_gemm_matrix<G, D0s_N>(ys...); });
 }
 
 } // namespace migraphx

@@ -1,4 +1,7 @@
 diffusers==0.30.3
 einops==0.8.0
+transformers==4.46.0
+tiktoken==0.8.0
+sentencepiece==0.2.0
 --extra-index-url https://test.pypi.org/simple
 hip-python-as-cuda

@@ -7548,11 +7548,11 @@ def matmulintegertofloat_scalar_scale_test():
 @onnx_test()
 def matmulintegertofloat_zp_bias_test():
     m1 = helper.make_tensor_value_info('1', TensorProto.INT8, [4, 3])
-    m2 = helper.make_tensor_value_info('2', TensorProto.INT8, [3, 2])
+    m2 = helper.make_tensor_value_info('2', TensorProto.UINT8, [3, 2])
     s1 = helper.make_tensor_value_info('3', TensorProto.FLOAT, [4])
     s2 = helper.make_tensor_value_info('4', TensorProto.FLOAT, [2])
     zp1 = helper.make_tensor_value_info('5', TensorProto.INT8, [4])
-    zp2 = helper.make_tensor_value_info('6', TensorProto.INT8, [2])
+    zp2 = helper.make_tensor_value_info('6', TensorProto.UINT8, [2])
     b1 = helper.make_tensor_value_info('7', TensorProto.FLOAT, [2])
     y = helper.make_tensor_value_info('y', TensorProto.INT32, [4, 2])
 

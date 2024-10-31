@@ -29,11 +29,11 @@ TEST_CASE(matmulintegertofloat_zp_bias_test)
     migraphx::program p;
     auto* mm      = p.get_main_module();
     auto x0       = mm->add_parameter("1", migraphx::shape{migraphx::shape::int8_type, {4, 3}});
-    auto x1       = mm->add_parameter("2", migraphx::shape{migraphx::shape::int8_type, {3, 2}});
+    auto x1       = mm->add_parameter("2", migraphx::shape{migraphx::shape::uint8_type, {3, 2}});
     auto scale_x0 = mm->add_parameter("3", migraphx::shape{migraphx::shape::float_type, {4}});
     auto scale_x1 = mm->add_parameter("4", migraphx::shape{migraphx::shape::float_type, {2}});
     auto zp_x0    = mm->add_parameter("5", migraphx::shape{migraphx::shape::int8_type, {4}});
-    auto zp_x1    = mm->add_parameter("6", migraphx::shape{migraphx::shape::int8_type, {2}});
+    auto zp_x1    = mm->add_parameter("6", migraphx::shape{migraphx::shape::uint8_type, {2}});
     auto bias     = mm->add_parameter("7", migraphx::shape{migraphx::shape::float_type, {2}});
 
     auto sq_scale_x0 =

@@ -334,6 +334,8 @@ struct parse_matmul : op_parser<parse_matmul>
 
         auto is_quant_dot = opd.op_name == "quant_dot";
         auto has_scales   = opd.op_name == "quant_dot_scaled";
+        auto is_dot       = opd.op_name == "dot";
+
         if(s0.dynamic() or s1.dynamic())
         {
             if(is_quant_dot or has_scales)
@@ -362,7 +364,7 @@ struct parse_matmul : op_parser<parse_matmul>
             auto s0_lens        = a0->get_shape().lens();
             auto s1_lens        = a1->get_shape().lens();
 
-            if(not is_quant_dot and args.size() > 2 and not has_scales)
+            if(is_dot and args.size() > 2)
             {
                 MIGRAPHX_THROW(op_name + ": Bias Args not supported for MatMul");
             }
@@ -405,40 +407,43 @@ struct parse_matmul : op_parser<parse_matmul>
             const auto a0_type                                = a0->get_shape().type();
             const auto a1_type                                = a1->get_shape().type();
 
-            if((is_quant_dot or has_scales) and
+            if((not is_dot) and
                (not contains(supported_types, a0_type) or not contains(supported_types, a1_type)))
             {
                 MIGRAPHX_THROW(op_name + ": Unsupported type");
             }
 
             instruction_ref offset_op;
-            if(is_quant_dot and ((a0_type == migraphx::shape::uint8_type) or
-                                 (a1_type == migraphx::shape::uint8_type)))
+            if(is_quant_dot)
             {
-                offset_op = info.add_literal(
-                    migraphx::literal{migraphx::shape{migraphx::shape::half_type}, {-128}});
-            }
+                if(((a0_type == migraphx::shape::uint8_type) or
+                    (a1_type == migraphx::shape::uint8_type)))
+                {
+                    offset_op = info.add_literal(
+                        migraphx::literal{migraphx::shape{migraphx::shape::half_type}, {-128}});
+                }
 
-            // always convert uint8 to int8 to avoid rollover
-            if(is_quant_dot and (a0_type == migraphx::shape::uint8_type))
-            {
-                shift_input_and_bias(info, offset_op, has_ba0, a0, ba0);
-            }
+                // always convert uint8 to int8 to avoid rollover
+                if((a0_type == migraphx::shape::uint8_type))
+                {
+                    shift_input_and_bias(info, offset_op, has_ba0, a0, ba0);
+                }
 
-            if(is_quant_dot and (a1_type == migraphx::shape::uint8_type))
-            {
-                shift_input_and_bias(info, offset_op, has_ba1, a1, ba1);
-            }
+                if((a1_type == migraphx::shape::uint8_type))
+                {
+                    shift_input_and_bias(info, offset_op, has_ba1, a1, ba1);
+                }
 
-            // subtract bias from result after conversion
-            if(is_quant_dot and has_ba0)
-            {
-                ba0 = info.add_common_op("sub", a0, ba0);
-            }
+                // subtract bias from result after conversion
+                if(has_ba0)
+                {
+                    ba0 = info.add_common_op("sub", a0, ba0);
+                }
 
-            if(is_quant_dot and has_ba1)
-            {
-                ba1 = info.add_common_op("sub", a1, ba1);
+                if(has_ba1)
+                {
+                    ba1 = info.add_common_op("sub", a1, ba1);
+                }
             }
 
             broadcast_dimensions(info, s0_lens, s1_lens, a0, a1, ba0, ba1);

@@ -88,6 +88,8 @@ struct __attribute__((packed, may_alias)) generic_float
         return result;
     }
 
+    constexpr generic_float operator+() const noexcept { return *this; }
+
     constexpr float to_float() const noexcept
     {
         float32_parts f{};
@@ -103,13 +105,13 @@ struct __attribute__((packed, may_alias)) generic_float
             }
             else
             {
-                int shift  = 0;
+                unsigned int shift = 0;
                 f.mantissa = mantissa;
 
                 if(MantissaSize < float32_parts::mantissa_width())
                 {
                     shift = MantissaSize - ((sizeof(unsigned int) * 8) - countl_zero(mantissa));
-                    f.mantissa <<= static_cast<unsigned int>(shift + 1);
+                    f.mantissa <<= (shift + 1);
                 }
 
                 f.exponent = float32_parts::exponent_bias() - exponent_bias() - shift;
@@ -164,10 +166,8 @@ struct __attribute__((packed, may_alias)) generic_float
 
                 if(shift_amount < (sizeof(unsigned int) * 8))
                 {
-                    mantissa =
-                        (f.mantissa |
-                         (1u << static_cast<unsigned int>(float32_parts::mantissa_width()))) >>
-                        (shift + (float32_parts::mantissa_width() - MantissaSize) + 1);
+                    mantissa = (f.mantissa | (1u << float32_parts::mantissa_width())) >>
+                               (shift + (float32_parts::mantissa_width() - MantissaSize) + 1);
                 }
                 else
                 {
@@ -214,7 +214,7 @@ struct __attribute__((packed, may_alias)) generic_float
     {
         generic_float x{};
         x.exponent = all_ones<ExponentSize>();
-        x.mantissa = 1u << static_cast<unsigned int>(MantissaSize - 2);
+        x.mantissa = 1u << (MantissaSize - 2u);
         return x;
     }
 
@@ -222,7 +222,7 @@ struct __attribute__((packed, may_alias)) generic_float
     {
         generic_float x{};
         x.exponent = all_ones<ExponentSize>();
-        x.mantissa = 1u << static_cast<unsigned int>(MantissaSize - 1);
+        x.mantissa = 1u << (MantissaSize - 1u);
         return x;
     }
 
@@ -291,10 +291,16 @@ struct __attribute__((packed, may_alias)) generic_float
     MIGRAPHX_GENERIC_FLOAT_BINARY_OP(-)
     MIGRAPHX_GENERIC_FLOAT_BINARY_OP(+)
     MIGRAPHX_GENERIC_FLOAT_BINARY_OP(/)
-    MIGRAPHX_GENERIC_FLOAT_BINARY_OP(<)
-    MIGRAPHX_GENERIC_FLOAT_BINARY_OP(<=)
-    MIGRAPHX_GENERIC_FLOAT_BINARY_OP(>)
-    MIGRAPHX_GENERIC_FLOAT_BINARY_OP(>=)
+// NOLINTNEXTLINE
+#define MIGRAPHX_GENERIC_FLOAT_COMPARE_OP(op)                                         \
+    friend constexpr bool operator op(const generic_float& x, const generic_float& y) \
+    {                                                                                 \
+        return float(x) op float(y);                                                  \
+    }
+    MIGRAPHX_GENERIC_FLOAT_COMPARE_OP(<)
+    MIGRAPHX_GENERIC_FLOAT_COMPARE_OP(<=)
+    MIGRAPHX_GENERIC_FLOAT_COMPARE_OP(>)
+    MIGRAPHX_GENERIC_FLOAT_COMPARE_OP(>=)
 
     friend constexpr bool operator==(const generic_float& x, const generic_float& y)
     {
@@ -312,6 +318,13 @@ struct __attribute__((packed, may_alias)) generic_float
     {
         *this += generic_float(1.0f);
         return *this;
+    }
+
+    constexpr generic_float operator++(int) noexcept
+    {
+        generic_float temp = *this;
+        *this += generic_float(1.0f);
+        return temp;
     }
 };
 

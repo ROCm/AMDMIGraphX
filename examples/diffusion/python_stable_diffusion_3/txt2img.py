@@ -296,24 +296,15 @@ class StableDiffusionMGX():
         }
 
         self.events = {
-            # "warmup":
-            # HipEventPair(start=hip.hipEventCreate()[1],
-            #              end=hip.hipEventCreate()[1]),
+            "warmup":
+            HipEventPair(start=hip.hipEventCreate()[1],
+                         end=hip.hipEventCreate()[1]),
             "run":
             HipEventPair(start=hip.hipEventCreate()[1],
                          end=hip.hipEventCreate()[1]),
             "clip":
             HipEventPair(start=hip.hipEventCreate()[1],
                          end=hip.hipEventCreate()[1]),
-            # "clip-g":
-            # HipEventPair(start=hip.hipEventCreate()[1],
-            #              end=hip.hipEventCreate()[1]),
-            # "clip-l":
-            # HipEventPair(start=hip.hipEventCreate()[1],
-            #              end=hip.hipEventCreate()[1]),
-            # "t5xxl":
-            # HipEventPair(start=hip.hipEventCreate()[1],
-            #              end=hip.hipEventCreate()[1]),
             "denoise":
             HipEventPair(start=hip.hipEventCreate()[1],
                          end=hip.hipEventCreate()[1]),
@@ -344,9 +335,6 @@ class StableDiffusionMGX():
         torch.cuda.synchronize()
         self.profile_start("run")
 
-        # need to set this for each run
-        # self.scheduler.set_timesteps(steps, device="cuda")
-
         print("Tokenizing prompts...")
         prompt_tokens = self.tokenize(prompt)
         neg_prompt_tokens = self.tokenize(negative_prompt)
@@ -357,22 +345,14 @@ class StableDiffusionMGX():
         neg_prompt_embeddings = self.get_embeddings(neg_prompt_tokens)
         self.profile_end("clip")
 
-        # print("Apply initial noise sigma\n")
-        # latents = latents * self.scheduler.init_noise_sigma
-
         cfg_scale = 5
         latent = self.get_empty_latent(1024, 1024)
 
         print("Running denoising loop...")
         self.profile_start("denoise")
         latent = self.do_sampling(latent, seed, prompt_embeddings, neg_prompt_embeddings, steps, cfg_scale)
-        # for step, t in enumerate(self.scheduler.timesteps):
-        #     print(f"#{step}/{len(self.scheduler.timesteps)} step")
-        #     latents = self.denoise_step(text_embeddings, latents, t, scale)
+        
         self.profile_end("denoise")
-
-        # print("Scale denoised result...")
-        # latents = 1 / 0.18215 * latents
 
         self.profile_start("decode")
         print("Decode denoised result...")
@@ -384,9 +364,9 @@ class StableDiffusionMGX():
         return image
 
     def print_summary(self, denoise_steps):
-        # print('WARMUP\t{:>9.2f} ms'.format(
-        #     hip.hipEventElapsedTime(self.events['warmup'].start,
-        #                             self.events['warmup'].end)[1]))
+        print('WARMUP\t{:>9.2f} ms'.format(
+            hip.hipEventElapsedTime(self.events['warmup'].start,
+                                    self.events['warmup'].end)[1]))
         print('CLIP\t{:>9.2f} ms'.format(
             hip.hipEventElapsedTime(self.events['clip'].start,
                                     self.events['clip'].end)[1]))
@@ -446,7 +426,6 @@ class StableDiffusionMGX():
     def encode_token_weights(self, model_name, token_weight_pairs):
         tokens = list(map(lambda a: a[0], token_weight_pairs[0]))
         tokens = torch.tensor([tokens], dtype=torch.int64, device=self.device)
-        # print(f'token val: {tokens.flatten()[0:5]}')
         copy_tensor_sync(self.tensors[model_name]["input_ids"],
                          tokens.to(torch.int32))
         run_model_sync(self.models[model_name], self.model_args[model_name])
@@ -462,9 +441,7 @@ class StableDiffusionMGX():
         else:
             first_pooled = encoder_out2
         output = [encoder_out[0:1]]
-        # print(f'token weight output for model {model_name}: {output[0].flatten()[0:5]}')
-        # if first_pooled is not None:
-        #     print(f'token weight first_pooled for model {model_name}: {first_pooled.flatten()[0:5]}')
+        
         return torch.cat(output, dim=-2), first_pooled
 
 
@@ -475,10 +452,6 @@ class StableDiffusionMGX():
         t5_out, _ = self.encode_token_weights("t5xxl", prompt_tokens["t5xxl"])
         lg_out = torch.cat([l_out, g_out], dim=-1)
         lg_out = torch.nn.functional.pad(lg_out, (0, 4096 - lg_out.shape[-1]))
-        print(f"lg_out shape: {lg_out.shape}")
-        print(f"t5_out shape: {t5_out.shape}")
-        print(f"l_pooled shape: {l_pooled.shape}")
-        print(f"g_pooled shape: {g_pooled.shape}")
 
         return torch.cat([lg_out, t5_out], dim=-2), torch.cat((l_pooled, g_pooled), dim=-1)
         
@@ -500,12 +473,7 @@ class StableDiffusionMGX():
         timestep = torch.cat([timestep, timestep])
         c_crossattn = torch.cat([cond["c_crossattn"], uncond["c_crossattn"]])
         y = torch.cat([cond["y"], uncond["y"]])
-        # print(f'x out: {x.flatten()[0:5]}')
-        # print(f'timestep out: {timestep.flatten()[0:5]}')
-        # print(f'c_crossattn out: {c_crossattn.flatten()[0:5]}')
-        # print(f'y out: {y.flatten()[0:5]}')
 
-        # batched = self.model.apply_model(torch.cat([x, x]), torch.cat([timestep, timestep]), c_crossattn=torch.cat([cond["c_crossattn"], uncond["c_crossattn"]]), y=torch.cat([cond["y"], uncond["y"]]))
         copy_tensor_sync(self.tensors["mmdit"]["sample"], x)
         copy_tensor_sync(self.tensors["mmdit"]["sigma"], timestep)
         copy_tensor_sync(self.tensors["mmdit"]["c_crossattn"], c_crossattn)
@@ -513,13 +481,10 @@ class StableDiffusionMGX():
         
         run_model_sync(self.models["mmdit"], self.model_args['mmdit'])
 
+        # Then split and apply CFG Scaling
         pos_out, neg_out = torch.tensor_split(
             self.tensors["mmdit"][get_output_name(0)], 2)
-        # print(f'mmdit pos out: {pos_out.flatten()[0:5]}')
-        # print(f'mmdit neg_out out: {neg_out.flatten()[0:5]}')
 
-        # Then split and apply CFG Scaling
-        # pos_out, neg_out = batched.chunk(2)
         scaled = neg_out + (pos_out - neg_out) * cond_scale
         return scaled
 
@@ -548,7 +513,6 @@ class StableDiffusionMGX():
         return x
 
     def get_empty_latent(self, width, height):
-        # print("Prep an empty latent...")
         return torch.ones(1, 16, height // 8, width // 8, device="cpu") * 0.0609
 
     def get_sigmas(self, sampling, steps):
@@ -578,9 +542,7 @@ class StableDiffusionMGX():
 
     def do_sampling(self, latent, seed, conditioning, neg_cond, steps, cfg_scale, denoise=1.0) -> torch.Tensor:
         latent = latent.half().cuda()
-        # print(f'latent vals: {latent.flatten()[0:5]}')
         noise = self.get_noise(seed, latent).cuda()
-        # print(f'noise vals: {noise.flatten()[0:5]}')
         sigmas = self.get_sigmas(self.model_sampling, steps).cuda()
         sigmas = sigmas[int(steps * (1 - denoise)):]
         conditioning = self.fix_cond(conditioning)
@@ -590,29 +552,6 @@ class StableDiffusionMGX():
         latent = SD3LatentFormat().process_out(latent)
         return latent
 
-    @measure
-    def denoise_step(self, text_embeddings, latents, t, scale):
-        latents_model_input = torch.cat([latents] * 2)
-        latents_model_input = self.scheduler.scale_model_input(
-            latents_model_input, t).to(torch.float32).to(device="cuda")
-        timestep = torch.atleast_1d(t.to(torch.int64)).to(
-            device="cuda")  # convert 0D -> 1D
-
-        copy_tensor_sync(self.tensors["unet"]["sample"], latents_model_input)
-        copy_tensor_sync(self.tensors["unet"]["encoder_hidden_states"],
-                         text_embeddings)
-        copy_tensor_sync(self.tensors["unet"]["timestep"], timestep)
-        run_model_sync(self.models["unet"], self.model_args['unet'])
-
-        noise_pred_text, noise_pred_uncond = torch.tensor_split(
-            self.tensors["unet"][get_output_name(0)], 2)
-
-        # perform guidance
-        noise_pred = noise_pred_uncond + scale * (noise_pred_text -
-                                                  noise_pred_uncond)
-
-        # compute the previous noisy sample x_t -> x_t-1
-        return self.scheduler.step(noise_pred, t, latents).prev_sample
 
     @measure
     def decode(self, latents):
@@ -633,17 +572,23 @@ class StableDiffusionMGX():
             self.tensors["mmdit"]["sample"],
             torch.randn((2 * self.batch, 16, 128, 128)).to(torch.float16))
         copy_tensor_sync(
-            self.tensors["unet"]["encoder_hidden_states"],
-            torch.randn((2 * self.batch, 77, 1024)).to(torch.float32))
-        copy_tensor_sync(self.tensors["unet"]["timestep"],
-                         torch.atleast_1d(torch.randn(1).to(torch.int64)))
+            self.tensors["mmdit"]["sigma"],
+            torch.randn((2 * self.batch)).to(torch.float16))
         copy_tensor_sync(
-            self.tensors["vae"]["latent_sample"],
-            torch.randn((self.batch, 4, 64, 64)).to(torch.float32))
+            self.tensors["mmdit"]["c_crossattn"],
+            torch.randn((2 * self.batch, 154, 4096)).to(torch.float16))
+        copy_tensor_sync(
+            self.tensors["mmdit"]["y"],
+            torch.randn((2 * self.batch, 2048)).to(torch.float16))
+        copy_tensor_sync(
+            self.tensors["vae"]["latent"],
+            torch.randn((self.batch, 16, 128, 128)).to(torch.float16))
 
         for _ in range(num_runs):
-            run_model_sync(self.models["clip"], self.model_args["clip"])
-            run_model_sync(self.models["unet"], self.model_args["unet"])
+            run_model_sync(self.models["clip-l"], self.model_args["clip-l"])
+            run_model_sync(self.models["clip-g"], self.model_args["clip-g"])
+            run_model_sync(self.models["t5xxl"], self.model_args["t5xxl"])
+            run_model_sync(self.models["mmdit"], self.model_args["mmdit"])
             run_model_sync(self.models["vae"], self.model_args["vae"])
         self.profile_end("warmup")
 
@@ -654,8 +599,8 @@ if __name__ == "__main__":
     sd = StableDiffusionMGX(args.onnx_model_path, args.compiled_model_path,
                             args.fp16, args.batch, args.force_compile,
                             args.exhaustive_tune)
-    # print("Warmup")
-    # sd.warmup(5)
+    print("Warmup")
+    sd.warmup(5)
     print("Run")
     result = sd.run(args.prompt, args.negative_prompt, args.steps, args.seed,
                     args.scale)

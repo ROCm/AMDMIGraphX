@@ -21,13 +21,5 @@
 # OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 # THE SOFTWARE.
 #####################################################################################
-
-diffusers==0.30.3
-einops==0.8.0
-onnx==1.17.0
-protobuf==5.28.3
-transformers==4.46.0
-tiktoken==0.8.0
-sentencepiece==0.2.0
---extra-index-url https://test.pypi.org/simple
-hip-python-as-cuda
+--index-url https://download.pytorch.org/whl/rocm6.2/
+torch 

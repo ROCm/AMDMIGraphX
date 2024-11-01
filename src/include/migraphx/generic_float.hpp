@@ -95,7 +95,7 @@ struct __attribute__((packed, may_alias)) generic_float
         float32_parts f{};
         f.sign = sign;
 
-        if(exponent == 0)
+        if(exponent == 0) // subnormal fps
         {
 
             if(mantissa == 0)
@@ -320,7 +320,7 @@ struct __attribute__((packed, may_alias)) generic_float
         return *this;
     }
 
-    constexpr generic_float operator++(int) noexcept
+    const generic_float operator++(int) noexcept
     {
         generic_float temp = *this;
         *this += generic_float(1.0f);
@@ -331,6 +331,7 @@ struct __attribute__((packed, may_alias)) generic_float
 } // namespace MIGRAPHX_INLINE_NS
 } // namespace migraphx
 
+// NOLINT(cert-dcl58-cpp)
 namespace std {
 
 template <unsigned int E, unsigned int M, unsigned int F>

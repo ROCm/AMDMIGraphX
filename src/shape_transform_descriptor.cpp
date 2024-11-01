@@ -84,6 +84,23 @@ static std::vector<dimension::sub> get_all_subdimensions(const std::vector<dimen
     return result;
 }
 
+template<class Dimensions, class Range, class F>
+static void for_each_subdimension(Dimensions&& dimensions, Range&& r, F f)
+{
+    auto start = r.begin();
+    auto last = r.end();
+    for(auto& dim : dimensions)
+    {
+        for(auto& s:dim.subdimensions)
+        {
+            if(start == last)
+                return;
+            f(s, *start);
+            start++;
+        }
+    }
+}
+
 std::vector<std::size_t> compute_dims(const operation& op, const std::vector<std::size_t>& idims)
 {
     shape s{shape::float_type, idims};
@@ -943,27 +960,29 @@ std::vector<operation> shape_transform_descriptor::generate_common_from_dst(
            return d.subdimensions.size() == 1;
        }))
         return {};
-    auto subs = get_all_subdimensions(dimensions);
-    // Map the input dims back to the src input if possible
-    std::vector<std::size_t> src_input_dims(this->rank);
-    for(auto i : range(dimensions.size()))
+    std::vector<dimension::sub> subs;
+    // Update axes to point to the destination
+    for(std::size_t i : range(dimensions.size()))
     {
         const auto& d = dimensions[i];
-        if(d.subdimensions.size() != 1)
-            continue;
-        const auto& sub = d.subdimensions.front();
-        if(sub.axis.size() != 1)
-            continue;
-        auto axis            = sub.axis.front();
-        src_input_dims[axis] = input_dims[i];
+        std::transform(d.subdimensions.begin(), d.subdimensions.end(), range(d.subdimensions.size()).begin(), std::back_inserter(subs), [&](dimension::sub s, auto j) {
+            s.axis = {i};
+            if(d.subdimensions.size() > 1)
+                s.axis.push_back(j);
+            return s;
+        });
     }
-    return {make_reshape_unsqueeze(subs, src_input_dims)};
+    return {make_reshape_unsqueeze(subs, input_dims)};
 }
 std::vector<operation> shape_transform_descriptor::generate_dst_from_common(
     const std::vector<std::size_t>& input_dims) const
 {
     std::vector<operation> result;
     std::vector<dimension> new_dims = dimensions;
+    for_each_subdimension(new_dims, input_dims, [&](auto& s, auto dim) {
+        s.len = dim;
+    });
+
     // Need broadcast
     if(std::any_of(new_dims.begin(), new_dims.end(), &is_broadcast_dim))
     {

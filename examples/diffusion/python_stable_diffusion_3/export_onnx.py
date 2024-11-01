@@ -25,6 +25,7 @@ import torch
 from diffusers import StableDiffusion3Pipeline
 import os
 
+
 def argparser():
     parser = ArgumentParser()
     parser.add_argument(
@@ -37,37 +38,47 @@ def argparser():
     )
     return parser.parse_args()
 
+
 def export_encoders(output_path):
-    pipe = StableDiffusion3Pipeline.from_pretrained("stabilityai/stable-diffusion-3-medium-diffusers", torch_dtype=torch.float16)
-    x=torch.randint(1, (1, 77))
-    encoder_path=output_path+'/text_encoder/model.onnx'
-    encoder_2_path=output_path+'/text_encoder_2/model.onnx'
-    encoder_3_path=output_path+'/text_encoder_3/model.onnx'
+    pipe = StableDiffusion3Pipeline.from_pretrained(
+        "stabilityai/stable-diffusion-3-medium-diffusers",
+        torch_dtype=torch.float16)
+    x = torch.randint(1, (1, 77))
+    encoder_path = output_path + '/text_encoder/model.onnx'
+    encoder_2_path = output_path + '/text_encoder_2/model.onnx'
+    encoder_3_path = output_path + '/text_encoder_3/model.onnx'
     os.makedirs(os.path.dirname(encoder_path), exist_ok=True)
     os.makedirs(os.path.dirname(encoder_2_path), exist_ok=True)
     os.makedirs(os.path.dirname(encoder_3_path), exist_ok=True)
 
     torch.onnx.export(pipe.text_encoder,
-                        x,
-                        encoder_path,
-                        export_params=True,
-                        do_constant_folding=True,
-                        input_names=['input_ids'],
-                        dynamic_axes={'input_ids': { 0: 'batch_size'}})
+                      x,
+                      encoder_path,
+                      export_params=True,
+                      do_constant_folding=True,
+                      input_names=['input_ids'],
+                      dynamic_axes={'input_ids': {
+                          0: 'batch_size'
+                      }})
     torch.onnx.export(pipe.text_encoder_2,
-                        x,
-                        encoder_2_path,
-                        export_params=True,
-                        do_constant_folding=True,
-                        input_names=['input_ids'],
-                        dynamic_axes={'input_ids': { 0: 'batch_size'}})
+                      x,
+                      encoder_2_path,
+                      export_params=True,
+                      do_constant_folding=True,
+                      input_names=['input_ids'],
+                      dynamic_axes={'input_ids': {
+                          0: 'batch_size'
+                      }})
     torch.onnx.export(pipe.text_encoder_3,
-                        x,
-                        encoder_3_path,
-                        export_params=True,
-                        do_constant_folding=True,
-                        input_names=['input_ids'],
-                        dynamic_axes={'input_ids': { 0: 'batch_size'}})
+                      x,
+                      encoder_3_path,
+                      export_params=True,
+                      do_constant_folding=True,
+                      input_names=['input_ids'],
+                      dynamic_axes={'input_ids': {
+                          0: 'batch_size'
+                      }})
+
 
 if __name__ == "__main__":
     args = argparser()

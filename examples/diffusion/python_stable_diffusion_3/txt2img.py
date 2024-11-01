@@ -350,8 +350,9 @@ class StableDiffusionMGX():
 
         print("Running denoising loop...")
         self.profile_start("denoise")
-        latent = self.do_sampling(latent, seed, prompt_embeddings, neg_prompt_embeddings, steps, cfg_scale)
-        
+        latent = self.do_sampling(latent, seed, prompt_embeddings,
+                                  neg_prompt_embeddings, steps, cfg_scale)
+
         self.profile_end("denoise")
 
         self.profile_start("decode")
@@ -441,20 +442,21 @@ class StableDiffusionMGX():
         else:
             first_pooled = encoder_out2
         output = [encoder_out[0:1]]
-        
-        return torch.cat(output, dim=-2), first_pooled
 
+        return torch.cat(output, dim=-2), first_pooled
 
     @measure
     def get_embeddings(self, prompt_tokens):
-        l_out, l_pooled = self.encode_token_weights("clip-l", prompt_tokens["l"])
-        g_out, g_pooled = self.encode_token_weights("clip-g", prompt_tokens["g"])
+        l_out, l_pooled = self.encode_token_weights("clip-l",
+                                                    prompt_tokens["l"])
+        g_out, g_pooled = self.encode_token_weights("clip-g",
+                                                    prompt_tokens["g"])
         t5_out, _ = self.encode_token_weights("t5xxl", prompt_tokens["t5xxl"])
         lg_out = torch.cat([l_out, g_out], dim=-1)
         lg_out = torch.nn.functional.pad(lg_out, (0, 4096 - lg_out.shape[-1]))
 
-        return torch.cat([lg_out, t5_out], dim=-2), torch.cat((l_pooled, g_pooled), dim=-1)
-        
+        return torch.cat([lg_out, t5_out], dim=-2), torch.cat(
+            (l_pooled, g_pooled), dim=-1)
 
     @staticmethod
     def convert_to_rgb_image(image):
@@ -478,7 +480,7 @@ class StableDiffusionMGX():
         copy_tensor_sync(self.tensors["mmdit"]["sigma"], timestep)
         copy_tensor_sync(self.tensors["mmdit"]["c_crossattn"], c_crossattn)
         copy_tensor_sync(self.tensors["mmdit"]["y"], y)
-        
+
         run_model_sync(self.models["mmdit"], self.model_args['mmdit'])
 
         # Then split and apply CFG Scaling
@@ -488,24 +490,23 @@ class StableDiffusionMGX():
         scaled = neg_out + (pos_out - neg_out) * cond_scale
         return scaled
 
-
-
     def sample_euler(self, x, sigmas, conditioning, neg_cond, cfg_scale):
         def append_dims(x, target_dims):
             """Appends dimensions to the end of a tensor until it has target_dims dimensions."""
             dims_to_append = target_dims - x.ndim
-            return x[(...,) + (None,) * dims_to_append]    
+            return x[(..., ) + (None, ) * dims_to_append]
 
         def to_d(x, sigma, denoised):
             """Converts a denoiser output to a Karras ODE derivative."""
             return (x - denoised) / append_dims(sigma, x.ndim)
-        
+
         """Implements Algorithm 2 (Euler steps) from Karras et al. (2022)."""
         # extra_args = {} if extra_args is None else extra_args
         s_in = x.new_ones([x.shape[0]])
         for i in range(len(sigmas) - 1):
             sigma_hat = sigmas[i]
-            denoised = self.CFGDenoiser(x, sigma_hat * s_in, conditioning, neg_cond, cfg_scale)
+            denoised = self.CFGDenoiser(x, sigma_hat * s_in, conditioning,
+                                        neg_cond, cfg_scale)
             d = to_d(x, sigma_hat, denoised)
             dt = sigmas[i + 1] - sigma_hat
             # Euler method
@@ -513,7 +514,8 @@ class StableDiffusionMGX():
         return x
 
     def get_empty_latent(self, width, height):
-        return torch.ones(1, 16, height // 8, width // 8, device="cpu") * 0.0609
+        return torch.ones(1, 16, height // 8, width // 8,
+                          device="cpu") * 0.0609
 
     def get_sigmas(self, sampling, steps):
         start = sampling.timestep(sampling.sigma_max)
@@ -528,30 +530,44 @@ class StableDiffusionMGX():
 
     def get_noise(self, seed, latent):
         generator = torch.manual_seed(seed)
-        print(f"dtype = {latent.dtype}, layout = {latent.layout}, device = {latent.device}")
-        return torch.randn(latent.size(), dtype=torch.float32, layout=latent.layout, generator=generator).to(latent.dtype)
+        print(
+            f"dtype = {latent.dtype}, layout = {latent.layout}, device = {latent.device}"
+        )
+        return torch.randn(latent.size(),
+                           dtype=torch.float32,
+                           layout=latent.layout,
+                           generator=generator).to(latent.dtype)
 
     def max_denoise(self, sigmas):
         max_sigma = float(self.model_sampling.sigma_max)
         sigma = float(sigmas[0])
-        return math.isclose(max_sigma, sigma, rel_tol=1e-05) or sigma > max_sigma
+        return math.isclose(max_sigma, sigma,
+                            rel_tol=1e-05) or sigma > max_sigma
 
     def fix_cond(self, cond):
         cond, pooled = (cond[0].half().cuda(), cond[1].half().cuda())
-        return { "c_crossattn": cond, "y": pooled }
+        return {"c_crossattn": cond, "y": pooled}
 
-    def do_sampling(self, latent, seed, conditioning, neg_cond, steps, cfg_scale, denoise=1.0) -> torch.Tensor:
+    def do_sampling(self,
+                    latent,
+                    seed,
+                    conditioning,
+                    neg_cond,
+                    steps,
+                    cfg_scale,
+                    denoise=1.0) -> torch.Tensor:
         latent = latent.half().cuda()
         noise = self.get_noise(seed, latent).cuda()
         sigmas = self.get_sigmas(self.model_sampling, steps).cuda()
         sigmas = sigmas[int(steps * (1 - denoise)):]
         conditioning = self.fix_cond(conditioning)
         neg_cond = self.fix_cond(neg_cond)
-        noise_scaled = self.model_sampling.noise_scaling(sigmas[0], noise, latent, self.max_denoise(sigmas))
-        latent = self.sample_euler(noise_scaled, sigmas, conditioning, neg_cond, cfg_scale)
+        noise_scaled = self.model_sampling.noise_scaling(
+            sigmas[0], noise, latent, self.max_denoise(sigmas))
+        latent = self.sample_euler(noise_scaled, sigmas, conditioning,
+                                   neg_cond, cfg_scale)
         latent = SD3LatentFormat().process_out(latent)
         return latent
-
 
     @measure
     def decode(self, latents):
@@ -571,15 +587,13 @@ class StableDiffusionMGX():
         copy_tensor_sync(
             self.tensors["mmdit"]["sample"],
             torch.randn((2 * self.batch, 16, 128, 128)).to(torch.float16))
-        copy_tensor_sync(
-            self.tensors["mmdit"]["sigma"],
-            torch.randn((2 * self.batch)).to(torch.float16))
+        copy_tensor_sync(self.tensors["mmdit"]["sigma"],
+                         torch.randn((2 * self.batch)).to(torch.float16))
         copy_tensor_sync(
             self.tensors["mmdit"]["c_crossattn"],
             torch.randn((2 * self.batch, 154, 4096)).to(torch.float16))
-        copy_tensor_sync(
-            self.tensors["mmdit"]["y"],
-            torch.randn((2 * self.batch, 2048)).to(torch.float16))
+        copy_tensor_sync(self.tensors["mmdit"]["y"],
+                         torch.randn((2 * self.batch, 2048)).to(torch.float16))
         copy_tensor_sync(
             self.tensors["vae"]["latent"],
             torch.randn((self.batch, 16, 128, 128)).to(torch.float16))

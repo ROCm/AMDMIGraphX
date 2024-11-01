@@ -84,14 +84,14 @@ static std::vector<dimension::sub> get_all_subdimensions(const std::vector<dimen
     return result;
 }
 
-template<class Dimensions, class Range, class F>
+template <class Dimensions, class Range, class F>
 static void for_each_subdimension(Dimensions&& dimensions, Range&& r, F f)
 {
     auto start = r.begin();
-    auto last = r.end();
+    auto last  = r.end();
     for(auto& dim : dimensions)
     {
-        for(auto& s:dim.subdimensions)
+        for(auto& s : dim.subdimensions)
         {
             if(start == last)
                 return;
@@ -965,12 +965,16 @@ std::vector<operation> shape_transform_descriptor::generate_common_from_dst(
     for(std::size_t i : range(dimensions.size()))
     {
         const auto& d = dimensions[i];
-        std::transform(d.subdimensions.begin(), d.subdimensions.end(), range(d.subdimensions.size()).begin(), std::back_inserter(subs), [&](dimension::sub s, auto j) {
-            s.axis = {i};
-            if(d.subdimensions.size() > 1)
-                s.axis.push_back(j);
-            return s;
-        });
+        std::transform(d.subdimensions.begin(),
+                       d.subdimensions.end(),
+                       range(d.subdimensions.size()).begin(),
+                       std::back_inserter(subs),
+                       [&](dimension::sub s, auto j) {
+                           s.axis = {i};
+                           if(d.subdimensions.size() > 1)
+                               s.axis.push_back(j);
+                           return s;
+                       });
     }
     return {make_reshape_unsqueeze(subs, input_dims)};
 }
@@ -979,9 +983,7 @@ std::vector<operation> shape_transform_descriptor::generate_dst_from_common(
 {
     std::vector<operation> result;
     std::vector<dimension> new_dims = dimensions;
-    for_each_subdimension(new_dims, input_dims, [&](auto& s, auto dim) {
-        s.len = dim;
-    });
+    for_each_subdimension(new_dims, input_dims, [&](auto& s, auto dim) { s.len = dim; });
 
     // Need broadcast
     if(std::any_of(new_dims.begin(), new_dims.end(), &is_broadcast_dim))

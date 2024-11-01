@@ -97,7 +97,7 @@ struct flatten
             std::copy(input.begin(), input.end(), output.begin());
         });
         return result;
-}
+    }
 };
 
 } // namespace op

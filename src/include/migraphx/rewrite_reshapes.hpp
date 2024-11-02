@@ -136,6 +136,7 @@ struct rewrite_reshapes
             auto x_ins       = r.instructions["x"];
             auto input_ins   = r.instructions["input"];
 
+
             // If its just a broadcast then skip
             if(not any_input_of(input_ins, x_ins, [](instruction_ref x) {
                    return not contains({"multibroadcast", "broadcast", "contiguous"}, x->name());

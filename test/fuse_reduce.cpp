@@ -954,7 +954,7 @@ TEST_CASE(reshape_reduce_reduce_reduce_diff_axes)
         auto reduce0 = add_reduce(
             p2,
             "main:pointwise0:main:pointwise1:main:reduce_sum1:main:pointwise2:main:reduce_sum0:"
-            "main:pointwise3:main:pointwise4:main:pointwise5:main:pointwise6_reshape_reshape",
+            "main:pointwise3:main:pointwise4:main:pointwise5:main:pointwise6_reshape",
             {l2_mb, x1, x2, l1_mb},
             {2},
             [&](auto* rm, const auto& inputs, const auto& axes) {
@@ -982,7 +982,7 @@ TEST_CASE(reshape_reduce_reduce_reduce_diff_axes)
 
         auto reduce1 =
             add_reduce(p2,
-                       "main:reduce_sum2_reshape",
+                       "main:reduce_sum2",
                        {reduce0},
                        {1},
                        [&](auto* rm, const auto& inputs, const auto& axes) {

@@ -47,7 +47,7 @@ TEST_CASE(check_numeric_limits)
     CHECK(bit_equal(std::numeric_limits<migraphx::bf16>::min(), uint16_t{0x0080}));
     CHECK(bit_equal(std::numeric_limits<migraphx::bf16>::lowest(), uint16_t{0xff7f}));
     CHECK(bit_equal(std::numeric_limits<migraphx::bf16>::max(), uint16_t{0x7f7f}));
-    CHECK(bit_equal(std::numeric_limits<migraphx::bf16>::epsilon(), uint16_t{0x3c0}));
+    CHECK(bit_equal(std::numeric_limits<migraphx::bf16>::epsilon(), uint16_t{0x3c00}));
     CHECK(bit_equal(std::numeric_limits<migraphx::bf16>::denorm_min(), uint16_t{0x0001}));
     CHECK(bit_equal(std::numeric_limits<migraphx::bf16>::infinity(), uint16_t{0x7f80}));
     CHECK(bit_equal(std::numeric_limits<migraphx::bf16>::quiet_NaN(), uint16_t{0x7fc0}));

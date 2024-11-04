@@ -42,7 +42,7 @@ template <typename T>
 constexpr int countl_zero(T value)
 {
     unsigned int r = 0;
-    for(; value != 0; value >>= 1)
+    for(; value != 0u; value >>= 1u)
         r++;
     return 8 * sizeof(value) - r;
 }
@@ -95,7 +95,7 @@ struct __attribute__((packed, may_alias)) generic_float
         float32_parts f{};
         f.sign = sign;
 
-        if(exponent == 0) // subnormal fps
+        if(exponent == 0 and ExponentSize != 8) // subnormal fps
         {
 
             if(mantissa == 0)
@@ -306,6 +306,12 @@ struct __attribute__((packed, may_alias)) generic_float
     {
         if(not x.is_finite() or not y.is_finite())
             return false;
+
+        if((x.mantissa == 0 and x.exponent == 0) and (y.mantissa == 0 and y.exponent == 0))
+        {
+            return true;
+        }
+
         return std::tie(x.mantissa, x.exponent, x.sign) == std::tie(y.mantissa, y.exponent, y.sign);
     }
 
@@ -320,7 +326,7 @@ struct __attribute__((packed, may_alias)) generic_float
         return *this;
     }
 
-    const generic_float operator++(int) noexcept
+    const generic_float operator++(int) noexcept // NOLINT(readability-const-return-type)
     {
         generic_float temp = *this;
         *this += generic_float(1.0f);
@@ -331,11 +337,10 @@ struct __attribute__((packed, may_alias)) generic_float
 } // namespace MIGRAPHX_INLINE_NS
 } // namespace migraphx
 
-// NOLINT(cert-dcl58-cpp)
 namespace std {
 
 template <unsigned int E, unsigned int M, unsigned int F>
-class numeric_limits<migraphx::generic_float<E, M, F>>
+class numeric_limits<migraphx::generic_float<E, M, F>> // NOLINT(cert-dcl58-cpp)
 {
     public:
     static constexpr bool has_infinity = true;

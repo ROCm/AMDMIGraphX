@@ -15,7 +15,18 @@ def getnavi3xtargets() {
 def getCommitSha() {
   return sh(returnStdout: true, script: 'git rev-parse HEAD')
 }
+def getJobStatus(name) {
+    GIT_COMMIT_SHA=getCommitSha()
+    cmd = """ 
+    curl -L   -H "Accept: application/vnd.github+json"   -H "Authorization: Bearer ${env.migraphx_ci_creds}"   -H "X-GitHub-Api-Version: 2022-11-28"   https://api.github.com/repos/ROCm/AMDMIGraphX/commits/${GIT_COMMIT_SHA}/status |jq -c '[ .statuses[] | select(.context| contains("Jenkins - ${name}")) ] '|jq .[].state """
 
+     echo cmd
+     status = sh(returnStdout: true, script:cmd)
+     echo status
+
+     return status
+  
+}
 
 // Test
 // def rocmtestnode(variant, name, body, args, pre) {
@@ -34,15 +45,7 @@ def rocmtestnode(Map conf) {
         def compiler = bconf.get("compiler", "/opt/rocm/llvm/bin/clang++")
         def flags = bconf.get("flags", "")
         def gpu_debug = bconf.get("gpu_debug", "0")
-        def GIT_COMMIT_SHA= getCommitSha()
         def cmd = """
-
-            if grep -q ${GIT_COMMIT_SHA} "${name}_PR"; then 
-                echo "============  DUPLICATE TIME  ==========" 
-            else
-                echo "============  FIRST TIME  ==========" 
-            fi
-
             ulimit -c unlimited
             echo "leak:dnnl::impl::malloc" > suppressions.txt
             echo "leak:libtbb.so" >> suppressions.txt
@@ -58,18 +61,20 @@ def rocmtestnode(Map conf) {
             cmake -DCMAKE_C_COMPILER_LAUNCHER=ccache -DCMAKE_CXX_COMPILER_LAUNCHER=ccache -DBUILD_DEV=On -DCMAKE_EXECUTE_PROCESS_COMMAND_ECHO=STDOUT -DMIGRAPHX_DISABLE_VIRTUAL_ENV=ON ${flags} ..
             git diff
             git diff-index --quiet HEAD || (echo "Git repo is not clean after running cmake." && exit 1)
-            #make -j\$(nproc) generate VERBOSE=1
+            make -j\$(nproc) generate VERBOSE=1
             git diff
             git diff-index --quiet HEAD || (echo "Generated files are different. Please run make generate and commit the changes." && exit 1)
-            #make -j\$(nproc) all package check VERBOSE=1
+            make -j\$(nproc) all package check VERBOSE=1
             md5sum ./*.deb
-            echo ${GIT_COMMIT_SHA}  > "${name}_PR"
         """
-        echo cmd
-        sh cmd
-        // Only archive from master or develop
-        if (env.BRANCH_NAME == "develop" || env.BRANCH_NAME == "master") {
-            archiveArtifacts artifacts: "build/*.deb", allowEmptyArchive: true, fingerprint: true
+
+        if ( getJobStatus(${variant}) != "success" )  {
+            echo cmd
+            sh cmd
+            // Only archive from master or develop
+            if (env.BRANCH_NAME == "develop" || env.BRANCH_NAME == "master") {
+                archiveArtifacts artifacts: "build/*.deb", allowEmptyArchive: true, fingerprint: true
+            }
         }
     }
     node(name) {

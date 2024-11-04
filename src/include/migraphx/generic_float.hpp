@@ -95,7 +95,7 @@ struct __attribute__((packed, may_alias)) generic_float
         float32_parts f{};
         f.sign = sign;
 
-        if(exponent == 0 and ExponentSize != 8) // subnormal fps
+        if(exponent == 0) // subnormal fps
         {
 
             if(mantissa == 0)

@@ -1104,7 +1104,6 @@ TEST_CASE(check_bf16_values)
     }
 }
 
-
 TEST_CASE(check_flows)
 {
     // check positive underflow

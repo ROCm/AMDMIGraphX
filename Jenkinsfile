@@ -30,7 +30,7 @@ def getJobStatus(String variant) {
 
     echo "getJobStatus"
  
-    withCredentials([string(credentialsId: "${env.migraphx_ci_creds}", variable: 'GITHUB_TOKEN')]) {
+    withCredentials([usernamePassword(credentialsId: "${env.migraphx_ci_creds}", usernameVariable: 'GITHUB_USERNAME', passwordVariable: 'GITHUB_TOKEN')]) {
         def commit_hash = sh(script: 'git rev-parse --short HEAD', returnStdout: true).trim()
 
         echo commit_hash

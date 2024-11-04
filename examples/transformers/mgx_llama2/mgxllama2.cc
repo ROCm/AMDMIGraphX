@@ -14,13 +14,15 @@ using namespace mlinfer;
 const std::string MODEL_FOLDER = "/model/";
 const std::string ONNX_FILE = "model.onnx";
 const std::string DATASET_FOLDER = "/dataset/";
-const size_t DATASET_SIZE = 3;
+const size_t DATASET_SIZE = 10;
 // sequence length from model config
-const size_t SEQ_SIZE = 256;
+const size_t SEQ_SIZE = 1024;
 // vocab size from model config
 const size_t VOCAB_SIZE = 32000;
 // EOS token from model config
 const size_t EOS = 2;
+// Write output tokens to file
+const bool WRITE_RESULT_FILE = true;
 
 struct ModelLoadSettings
 {
@@ -354,7 +356,23 @@ struct LLama2Inputs
     const char* POSITION_IDS_STR = "position_ids";
 };
 
-
+void writeResults(const std::vector<std::vector<uint64_t>>& results)
+{
+    std::string RESULT_FILE = "result.txt";
+    std::ofstream outFile(RESULT_FILE);
+    for (auto& resVec : results)
+    {
+        for (auto& res : resVec)
+        {
+            outFile << res;
+            if (&res != &resVec.back())
+            {
+                outFile << ", ";
+            }
+        }
+        outFile << "\n";
+    }
+}
 
 int main() {
     bool offload_copy = false;
@@ -364,6 +382,7 @@ int main() {
     std::cout << "Model loaded" << std::endl;
 
     // Setup model inputs
+    std::vector<std::vector<uint64_t>> results;
     std::vector<uint64_t> output_tokens;
     migraphx::program_parameters prog_args;
     hipStream_t stream;
@@ -428,12 +447,18 @@ int main() {
         {
             model_inputs.upload_to_device(stream);
         }
-
+        results.emplace_back(output_tokens);
         output_tokens.clear();
     }
+
     float dur = std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::steady_clock::now() - start).count() / 1000.f;
     std::cout << "Duration: " << dur << " seconds." << std::endl;
     std::cout << "Completed " << token_count << " tokens." << std::endl;
     std::cout << "Tokens/sec: " << token_count / dur << std::endl;
+
+    if (WRITE_RESULT_FILE)
+    {
+        writeResults(results);
+    }
     return 0;
 }

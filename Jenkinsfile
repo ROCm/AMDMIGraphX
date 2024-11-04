@@ -16,17 +16,43 @@ def getCommitSha() {
   return sh(returnStdout: true, script: 'git rev-parse HEAD')
 }
 def getJobStatus(name) {
-    GIT_COMMIT_SHA=getCommitSha()
-    cmd = """ 
-    curl -L   -H "Accept: application/vnd.github+json"   -H "Authorization: Bearer ${env.migraphx_ci_creds}"   -H "X-GitHub-Api-Version: 2022-11-28"   https://api.github.com/repos/ROCm/AMDMIGraphX/commits/${GIT_COMMIT_SHA}/status |jq -c '[ .statuses[] | select(.context| contains("Jenkins - ${name}")) ] '|jq .[].state """
+    //GIT_COMMIT_SHA=getCommitSha()
+    //c = """ 
+    //curl -L   -H "Accept: application/vnd.github+json"   -H "Authorization: Bearer ${env.migraphx_ci_creds}"   -H "X-GitHub-Api-Version: 2022-11-28"   https://api.github.com/repos/ROCm/AMDMIGraphX/commits/${GIT_COMMIT_SHA}/status |jq -c '[ .statuses[] | select(.context| contains("Jenkins - ${name}")) ] '|jq .[].state """
+//
+     //echo cmd
+     //status = sh(returnStdout: true, script:cmd)
+     //echo status
 
-     echo cmd
-     status = sh(returnStdout: true, script:cmd)
-     echo status
-
-     return status
+     //return status
   
+//}
+
+    echo "getJobStatus"
+
+    withCredentials([string(credentialsId: "${env.migraphx_ci_creds}", variable: 'GITHUB_TOKEN')]) {
+        def commit_hash = sh(script: 'git rev-parse --short HEAD', returnStdout: true).trim()
+
+        echo commit_hash
+        def response = sh(
+            script: """curl -H "Accept: application/vnd.github+json" \
+                           -H "Authorization: token ${GITHUB_TOKEN}" \
+                           https://api.github.com/repos/ROCm/AMDMIGraphX/commits/${commit_hash}/status""",
+            returnStdout: true
+        ).trim()
+        echo response
+        
+        def statuses = response.statuses
+        echo statuses 
+
+        def contextStatus = statuses.find { it.context == "Jenkins - ${variant}" }
+        echo contextStatus
+        
+        env.COMMIT_PASSED = contextStatus != null && contextStatus.state == 'success'
+        echo env.COMMIT_PASSED
+    }
 }
+
 
 // Test
 // def rocmtestnode(variant, name, body, args, pre) {
@@ -68,14 +94,14 @@ def rocmtestnode(Map conf) {
             md5sum ./*.deb
         """
 
-        if ( getJobStatus(${variant}) != "success" )  {
+        getJobStatus(${variant}) 
+        echo  env.COMMIT_PASSED
             echo cmd
             sh cmd
             // Only archive from master or develop
             if (env.BRANCH_NAME == "develop" || env.BRANCH_NAME == "master") {
                 archiveArtifacts artifacts: "build/*.deb", allowEmptyArchive: true, fingerprint: true
             }
-        }
     }
     node(name) {
         withEnv(['HSA_ENABLE_SDMA=0']) {

@@ -103,7 +103,7 @@ void remove_layout(module& m)
     }
 }
 
-void layout_nhwc::apply(module_pass_manager& mpm) const
+void layout_convolution::apply(module_pass_manager& mpm) const
 {
     preserve_output_layout(mpm.get_module());
     transform_convolutions(mpm.get_module());

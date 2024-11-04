@@ -21,8 +21,8 @@
  * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
  * THE SOFTWARE.
  */
-#ifndef MIGRAPHX_GUARD_MIGRAPHX_LAYOUT_NHWC_HPP
-#define MIGRAPHX_GUARD_MIGRAPHX_LAYOUT_NHWC_HPP
+#ifndef MIGRAPHX_GUARD_MIGRAPHX_LAYOUT_CONVOLUTION_HPP
+#define MIGRAPHX_GUARD_MIGRAPHX_LAYOUT_CONVOLUTION_HPP
 
 #include <string>
 #include <migraphx/instruction_ref.hpp>
@@ -34,14 +34,14 @@ inline namespace MIGRAPHX_INLINE_NS {
 struct module_pass_manager;
 
 /**
- * Transform convolutions to nhwc
+ * Transform convolutions layout
  */
-struct MIGRAPHX_EXPORT layout_nhwc
+struct MIGRAPHX_EXPORT layout_convolution
 {
-    std::string name() const { return "layout_nhwc"; }
+    std::string name() const { return "layout_convolution"; }
     void apply(module_pass_manager& mpm) const;
 };
 
 } // namespace MIGRAPHX_INLINE_NS
 } // namespace migraphx
-#endif // MIGRAPHX_GUARD_MIGRAPHX_LAYOUT_NHWC_HPP
+#endif // MIGRAPHX_GUARD_MIGRAPHX_LAYOUT_CONVOLUTION_HPP

@@ -34,7 +34,7 @@
 
 void run_pass(migraphx::module& m)
 {
-    migraphx::run_passes(m, {migraphx::layout_nhwc{}, migraphx::dead_code_elimination{}});
+    migraphx::run_passes(m, {migraphx::layout_convolution{}, migraphx::dead_code_elimination{}});
 }
 
 migraphx::operation layout(std::vector<int64_t> permutation = {0, 1, 2, 3})

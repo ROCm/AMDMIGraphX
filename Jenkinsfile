@@ -29,8 +29,8 @@ def getJobStatus(String variant) {
 //}
 
     echo "getJobStatus"
-
-    withCredentials([string(credentialsId: "${env.github-app-amdmigraphx}", variable: 'GITHUB_TOKEN')]) {
+ 
+    withCredentials([string(credentialsId: "${env.migraphx_ci_creds}", variable: 'GITHUB_TOKEN')]) {
         def commit_hash = sh(script: 'git rev-parse --short HEAD', returnStdout: true).trim()
 
         echo commit_hash

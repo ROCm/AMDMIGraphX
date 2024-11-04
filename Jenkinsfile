@@ -37,16 +37,16 @@ def getJobStatus(String variant) {
         def response = sh(
             script: """curl -H "Accept: application/vnd.github+json" \
                            -H "Authorization: token ${GITHUB_TOKEN}" \
-                           https://api.github.com/repos/ROCm/AMDMIGraphX/commits/${commit_hash}/status""",
+                           https://api.github.com/repos/ROCm/AMDMIGraphX/commits/${commit_hash}/status |jq -c '[ .statuses[] | select(.context| contains("Jenkins - ${name}")) ] '|jq .[].state """,
             returnStdout: true
         ).trim()
         echo response
         
-        def statuses = response.statuses
-        echo statuses 
+        // statuses = response.statuses
+        // statuses 
 
-        def contextStatus = statuses.find { it.context == "Jenkins - ${variant}" }
-        echo contextStatus
+        //def contextStatus = statuses.find { it.context == "Jenkins - ${variant}" }
+        // contextStatus
         
         env.COMMIT_PASSED = contextStatus != null && contextStatus.state == 'success'
         echo env.COMMIT_PASSED

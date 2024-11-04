@@ -32,24 +32,21 @@
 #include <migraphx/eliminate_contiguous.hpp>
 #include <migraphx/dead_code_elimination.hpp>
 #include <migraphx/pass_manager.hpp>
+#include <migraphx/stringutils.hpp>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
 
-template <class Predicate>
-std::vector<instruction_ref> find_lasts(const module& m, Predicate pred)
+std::vector<int64_t> get_permutation(instruction_ref ins, const layout_convolution& lc)
 {
-    std::vector<instruction_ref> result;
-    fix([&](auto self, auto ins) {
-        if(pred(ins))
-        {
-            result.push_back(ins);
-            return;
-        }
-        for(auto input : ins->inputs())
-            self(input);
-    })(std::prev(m.end()));
-    return result;
+    if(lc.channels_last)
+    {
+        std::vector<int64_t> perm(ins->get_shape().ndim());
+        std::iota(perm.begin() + 1, perm.end() - 1, 2);
+        perm.back() = 1;
+        return perm;
+    }
+    return find_permutation(ins->inputs().front()->get_shape());
 }
 
 void preserve_output_layout(module& m)
@@ -70,7 +67,7 @@ void preserve_output_layout(module& m)
     }
 }
 
-void transform_convolutions(module& m)
+void transform_convolutions(module& m, const layout_convolution& lc)
 {
     for(auto ins : iterator_for(m))
     {
@@ -82,8 +79,9 @@ void transform_convolutions(module& m)
         if(v.at("group").to<int>() > 1)
             continue;
         auto args = ins->inputs();
+        auto perm = get_permutation(ins, lc);
         std::transform(args.begin(), args.end(), args.begin(), [&](const auto& i) {
-            return m.insert_instruction(ins, make_op("layout", {{"permutation", {0, 2, 3, 1}}}), i);
+            return m.insert_instruction(ins, make_op("layout", {{"permutation", perm}}), i);
         });
         auto conv = m.insert_instruction(ins, ins->get_operator(), args);
         auto c    = m.insert_instruction(ins, make_op("contiguous"), conv);
@@ -106,7 +104,7 @@ void remove_layout(module& m)
 void layout_convolution::apply(module_pass_manager& mpm) const
 {
     preserve_output_layout(mpm.get_module());
-    transform_convolutions(mpm.get_module());
+    transform_convolutions(mpm.get_module(), *this);
     mpm.run_pass(dead_code_elimination{});
     mpm.run_pass(eliminate_contiguous{"contiguous"});
     mpm.run_pass(dead_code_elimination{});

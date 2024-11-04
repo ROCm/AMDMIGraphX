@@ -32,9 +32,9 @@
 
 #include <test.hpp>
 
-void run_pass(migraphx::module& m)
+void run_pass(migraphx::module& m, migraphx::layout_convolution lc)
 {
-    migraphx::run_passes(m, {migraphx::layout_convolution{}, migraphx::dead_code_elimination{}});
+    migraphx::run_passes(m, {lc, migraphx::dead_code_elimination{}});
 }
 
 migraphx::operation layout(std::vector<int64_t> permutation = {0, 1, 2, 3})
@@ -61,7 +61,7 @@ TEST_CASE(conv_relu)
             w);
         m1.add_instruction(migraphx::make_op("relu"), conv);
     }
-    run_pass(m1);
+    run_pass(m1, {.channels_last = true});
 
     migraphx::module m2;
     {
@@ -99,7 +99,7 @@ TEST_CASE(conv_add)
             y);
         m1.add_instruction(migraphx::make_op("add"), conv, b);
     }
-    run_pass(m1);
+    run_pass(m1, {.channels_last = true});
 
     migraphx::module m2;
     {
@@ -149,7 +149,7 @@ TEST_CASE(conv_conv)
         auto relu2 = m1.add_instruction(migraphx::make_op("relu"), add2);
         m1.add_return({relu2});
     }
-    run_pass(m1);
+    run_pass(m1, {.channels_last = true});
 
     migraphx::module m2;
     {
@@ -201,7 +201,7 @@ TEST_CASE(conv_reduce)
         auto squeeze = m1.add_instruction(migraphx::make_op("squeeze", {{"axes", {2, 3}}}), reduce);
         m1.add_return({squeeze});
     }
-    run_pass(m1);
+    run_pass(m1, {.channels_last = true});
 
     migraphx::module m2;
     {

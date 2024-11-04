@@ -407,6 +407,8 @@ void find_matches_for(source_location location, Mod& mod, instruction_ref ins, M
     const auto trace_filter = string_value_of(MIGRAPHX_TRACE_MATCHES_FOR{});
     const bool time_matchers = enabled(MIGRAPHX_TIME_MATCHERS{});
     bool match              = false;
+    timer match_timer{};
+    
     each_args(
         [&](auto&& m) {
             const auto& matcher_name = get_type_name(m);
@@ -419,9 +421,8 @@ void find_matches_for(source_location location, Mod& mod, instruction_ref ins, M
             if(trace > 1 and trace_for)
                 std::cout << "Match: " << matcher_name << std::endl;
 
-            timer match_timer;            
             auto r = match_instruction(get_module(mod), ins, m.matcher());
-            auto match_time = match_timer.record<std::chrono::duration<double, std::micro>>();
+            const auto match_time = match_timer.record<std::chrono::duration<double, std::micro>>();
             
             if(time_matchers or trace_for)
             {

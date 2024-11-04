@@ -408,7 +408,6 @@ void find_matches_for(source_location location, Mod& mod, instruction_ref ins, M
     const bool time_matchers = enabled(MIGRAPHX_TIME_MATCHERS{});
     bool match              = false;
     timer match_timer{};
-    
     each_args(
         [&](auto&& m) {
             const auto& matcher_name = get_type_name(m);
@@ -423,10 +422,10 @@ void find_matches_for(source_location location, Mod& mod, instruction_ref ins, M
 
             auto r = match_instruction(get_module(mod), ins, m.matcher());
             const auto match_time = match_timer.record<std::chrono::duration<double, std::micro>>();
-            
             if(time_matchers or trace_for)
             {
-                std::cout << "Matching for " << matcher_name << " took " << match_time << "us." << std::endl;
+                std::cout << "Matching for " << matcher_name << " took " << match_time << "us."
+                          << std::endl;
             }
 
             if(r.result == get_module(mod).end())
@@ -439,13 +438,13 @@ void find_matches_for(source_location location, Mod& mod, instruction_ref ins, M
             // If its already invalid dont validate it again
             bool invalidated = validate and get_module(mod).validate() != get_module(mod).end();
                 
-            auto apply_time = time<std::chrono::duration<double, std::micro>>([&] {
-                m.apply(mod, r);
-            });
+            auto apply_time =
+                time<std::chrono::duration<double, std::micro>>([&] { m.apply(mod, r); });
             
             if(time_matchers or trace_for)
             {
-                std::cout << "Apply for " << matcher_name << " took " << apply_time << "us." << std::endl;
+                std::cout << "Apply for " << matcher_name << " took " << apply_time << "us."
+                          << std::endl;
             }
 
             if(validate and not invalidated)

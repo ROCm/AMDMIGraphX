@@ -39,7 +39,7 @@ bool bit_equal(const T& x, const U& y)
     using type = std::array<char, sizeof(T)>;
     return migraphx::bit_cast<type>(x) == migraphx::bit_cast<type>(y);
 }
-
+// NOLINTNEXTLINE
 #define MIGRAPHX_CHECK_FLOAT(x, y)     \
     CHECK(bit_equal(x, y));            \
     CHECK(bit_equal(x, y.to_float())); \

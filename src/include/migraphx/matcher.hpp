@@ -426,7 +426,7 @@ void find_matches_for(source_location location, Mod& mod, instruction_ref ins, M
             
             if(time_matchers or trace_for)
             {
-                std::cout << "Matching for " << matcher_name << " took " << match_time << "ns." << std::endl;
+                std::cout << "Matching for " << matcher_name << " took " << match_time << "us." << std::endl;
             }
 
             if(r.result == get_module(mod).end())
@@ -445,7 +445,7 @@ void find_matches_for(source_location location, Mod& mod, instruction_ref ins, M
             
             if(time_matchers or trace_for)
             {
-                std::cout << "Apply for " << matcher_name << " took " << apply_time << "ns." << std::endl;
+                std::cout << "Apply for " << matcher_name << " took " << apply_time << "us." << std::endl;
             }
 
             if(validate and not invalidated)

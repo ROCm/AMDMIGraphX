@@ -72,14 +72,14 @@ TEST_CASE(auto_conv_nhwc)
     auto transpose = migraphx::make_op("transpose", {{"permutation", {0, 3, 1, 2}}});
     migraphx::module m1;
     {
-        auto x = m1.add_parameter("x", {migraphx::shape::float_type, {1, 16, 16, 8}});
+        auto x          = m1.add_parameter("x", {migraphx::shape::float_type, {1, 16, 16, 8}});
         auto xtranspose = m1.add_instruction(transpose, x);
-        auto w = m1.add_literal(
+        auto w          = m1.add_literal(
             migraphx::generate_literal({migraphx::shape::float_type, {16, 3, 3, 8}}));
         auto wtranspose = m1.add_instruction(transpose, w);
-        auto conv = m1.add_instruction(
+        auto conv       = m1.add_instruction(
             migraphx::make_op("convolution",
-                              {{"padding", {1, 1}}, {"stride", {2, 2}}, {"dilation", {1, 1}}}),
+                                    {{"padding", {1, 1}}, {"stride", {2, 2}}, {"dilation", {1, 1}}}),
             xtranspose,
             wtranspose);
         auto relu = m1.add_instruction(migraphx::make_op("relu"), conv);
@@ -97,7 +97,8 @@ TEST_CASE(auto_conv_mixed)
         auto x = m1.add_parameter("x", {migraphx::shape::float_type, {1, 8, 16, 16}});
         auto w = m1.add_literal(
             migraphx::generate_literal({migraphx::shape::float_type, {3, 3, 16, 8}}));
-        auto wtranspose = m1.add_instruction(migraphx::make_op("transpose", {{"permutation", {2, 3, 0, 1}}}), w);
+        auto wtranspose =
+            m1.add_instruction(migraphx::make_op("transpose", {{"permutation", {2, 3, 0, 1}}}), w);
         auto conv = m1.add_instruction(
             migraphx::make_op("convolution",
                               {{"padding", {1, 1}}, {"stride", {2, 2}}, {"dilation", {1, 1}}}),
@@ -112,8 +113,10 @@ TEST_CASE(auto_conv_mixed)
         auto x = m2.add_parameter("x", {migraphx::shape::float_type, {1, 8, 16, 16}});
         auto w = m2.add_literal(
             migraphx::generate_literal({migraphx::shape::float_type, {3, 3, 16, 8}}));
-        auto wtranspose = m2.add_instruction(migraphx::make_op("transpose", {{"permutation", {2, 3, 0, 1}}}), w);
-        auto wlayout = m2.add_instruction(migraphx::make_op("layout", {{"permutation", {0, 1, 2, 3}}}), wtranspose);
+        auto wtranspose =
+            m2.add_instruction(migraphx::make_op("transpose", {{"permutation", {2, 3, 0, 1}}}), w);
+        auto wlayout = m2.add_instruction(
+            migraphx::make_op("layout", {{"permutation", {0, 1, 2, 3}}}), wtranspose);
         auto conv = m2.add_instruction(
             migraphx::make_op("convolution",
                               {{"padding", {1, 1}}, {"stride", {2, 2}}, {"dilation", {1, 1}}}),
@@ -130,9 +133,10 @@ TEST_CASE(auto_quant_conv_mixed)
     migraphx::module m1;
     {
         auto x = m1.add_parameter("x", {migraphx::shape::int8_type, {1, 8, 16, 16}});
-        auto w = m1.add_literal(
-            migraphx::generate_literal({migraphx::shape::int8_type, {3, 3, 16, 8}}));
-        auto wtranspose = m1.add_instruction(migraphx::make_op("transpose", {{"permutation", {2, 3, 0, 1}}}), w);
+        auto w =
+            m1.add_literal(migraphx::generate_literal({migraphx::shape::int8_type, {3, 3, 16, 8}}));
+        auto wtranspose =
+            m1.add_instruction(migraphx::make_op("transpose", {{"permutation", {2, 3, 0, 1}}}), w);
         auto conv = m1.add_instruction(
             migraphx::make_op("quant_convolution",
                               {{"padding", {1, 1}}, {"stride", {2, 2}}, {"dilation", {1, 1}}}),
@@ -145,10 +149,12 @@ TEST_CASE(auto_quant_conv_mixed)
     migraphx::module m2;
     {
         auto x = m2.add_parameter("x", {migraphx::shape::int8_type, {1, 8, 16, 16}});
-        auto w = m2.add_literal(
-            migraphx::generate_literal({migraphx::shape::int8_type, {3, 3, 16, 8}}));
-        auto wtranspose = m2.add_instruction(migraphx::make_op("transpose", {{"permutation", {2, 3, 0, 1}}}), w);
-        auto wlayout = m2.add_instruction(migraphx::make_op("layout", {{"permutation", {0, 1, 2, 3}}}), wtranspose);
+        auto w =
+            m2.add_literal(migraphx::generate_literal({migraphx::shape::int8_type, {3, 3, 16, 8}}));
+        auto wtranspose =
+            m2.add_instruction(migraphx::make_op("transpose", {{"permutation", {2, 3, 0, 1}}}), w);
+        auto wlayout = m2.add_instruction(
+            migraphx::make_op("layout", {{"permutation", {0, 1, 2, 3}}}), wtranspose);
         auto conv = m2.add_instruction(
             migraphx::make_op("quant_convolution",
                               {{"padding", {1, 1}}, {"stride", {2, 2}}, {"dilation", {1, 1}}}),
@@ -227,7 +233,7 @@ TEST_CASE(nhwc_conv_add)
                               {{"padding", {1, 1}}, {"stride", {2, 2}}, {"dilation", {1, 1}}}),
             x,
             w);
-        auto b           = m2.add_instruction(
+        auto b = m2.add_instruction(
             migraphx::make_op("broadcast", {{"axis", 1}, {"out_lens", conv->get_shape().lens()}}),
             y);
         auto add = m2.add_instruction(migraphx::make_op("add"), conv, b);
@@ -241,8 +247,8 @@ TEST_CASE(nhwc_quant_conv_add)
     migraphx::module m1;
     {
         auto x = m1.add_parameter("x", {migraphx::shape::int8_type, {1, 8, 16, 16}});
-        auto w = m1.add_literal(
-            migraphx::generate_literal({migraphx::shape::int8_type, {16, 8, 3, 3}}));
+        auto w =
+            m1.add_literal(migraphx::generate_literal({migraphx::shape::int8_type, {16, 8, 3, 3}}));
         auto y    = m1.add_literal(migraphx::generate_literal({migraphx::shape::int32_type, {16}}));
         auto conv = m1.add_instruction(
             migraphx::make_op("quant_convolution",
@@ -269,7 +275,7 @@ TEST_CASE(nhwc_quant_conv_add)
                               {{"padding", {1, 1}}, {"stride", {2, 2}}, {"dilation", {1, 1}}}),
             x,
             w);
-        auto b           = m2.add_instruction(
+        auto b = m2.add_instruction(
             migraphx::make_op("broadcast", {{"axis", 1}, {"out_lens", conv->get_shape().lens()}}),
             y);
         auto add = m2.add_instruction(migraphx::make_op("add"), conv, b);

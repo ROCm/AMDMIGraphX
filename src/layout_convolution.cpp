@@ -71,7 +71,7 @@ void transform_convolutions(module& m, const layout_convolution& lc)
 {
     for(auto ins : iterator_for(m))
     {
-        if(ins->name() != "convolution")
+        if(not contains({"convolution", "quant_convolution"}, ins->name()))
             continue;
         if(ins->get_shape().lens().size() != 4)
             continue;

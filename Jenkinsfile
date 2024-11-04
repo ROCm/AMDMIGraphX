@@ -15,7 +15,7 @@ def getnavi3xtargets() {
 def getCommitSha() {
   return sh(returnStdout: true, script: 'git rev-parse HEAD')
 }
-def getJobStatus(name) {
+def getJobStatus(String variant) {
     //GIT_COMMIT_SHA=getCommitSha()
     //c = """ 
     //curl -L   -H "Accept: application/vnd.github+json"   -H "Authorization: Bearer ${env.migraphx_ci_creds}"   -H "X-GitHub-Api-Version: 2022-11-28"   https://api.github.com/repos/ROCm/AMDMIGraphX/commits/${GIT_COMMIT_SHA}/status |jq -c '[ .statuses[] | select(.context| contains("Jenkins - ${name}")) ] '|jq .[].state """
@@ -94,7 +94,7 @@ def rocmtestnode(Map conf) {
             md5sum ./*.deb
         """
 
-        getJobStatus(${variant}) 
+        getJobStatus(variant) 
         echo  env.COMMIT_PASSED
             echo cmd
             sh cmd

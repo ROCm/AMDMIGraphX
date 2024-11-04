@@ -386,12 +386,14 @@ class numeric_limits<migraphx::generic_float<E, M, F>> // NOLINT(cert-dcl58-cpp)
 };
 
 template <unsigned int E, unsigned int M, unsigned int F, class T>
-struct common_type<migraphx::generic_float<E, M, F>, T> : std::common_type<float, T> // NOLINT(cert-dcl58-cpp)
+struct common_type<migraphx::generic_float<E, M, F>, T>
+    : std::common_type<float, T> // NOLINT(cert-dcl58-cpp)
 {
 };
 
 template <unsigned int E, unsigned int M, unsigned int F, class T>
-struct common_type<T, migraphx::generic_float<E, M, F>> : std::common_type<float, T> // NOLINT(cert-dcl58-cpp)
+struct common_type<T, migraphx::generic_float<E, M, F>>
+    : std::common_type<float, T> // NOLINT(cert-dcl58-cpp)
 {
 };
 
@@ -416,7 +418,8 @@ struct common_type<T, migraphx::generic_float<E, M, F>> : std::common_type<float
 // {};
 
 template <unsigned int E, unsigned int M, unsigned int F>
-struct common_type<migraphx::generic_float<E, M, F>, migraphx::generic_float<E, M, F>> // NOLINT(cert-dcl58-cpp)
+struct common_type<migraphx::generic_float<E, M, F>,
+                   migraphx::generic_float<E, M, F>> // NOLINT(cert-dcl58-cpp)
 {
     using type = migraphx::generic_float<E, M, F>;
 };

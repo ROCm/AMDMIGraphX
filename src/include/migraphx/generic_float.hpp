@@ -307,8 +307,7 @@ struct __attribute__((packed, may_alias)) generic_float
         if(not x.is_finite() or not y.is_finite())
             return false;
 
-        if((x.mantissa == 0 and x.exponent == 0) and (y.mantissa == 0 and y.exponent == 0))
-        {
+        if((x.mantissa == 0 and x.exponent == 0) and (y.mantissa == 0 and y.exponent == 0)) {
             return true;
         }
 
@@ -337,7 +336,7 @@ struct __attribute__((packed, may_alias)) generic_float
 } // namespace MIGRAPHX_INLINE_NS
 } // namespace migraphx
 
-namespace std {
+namespace std { 
 
 template <unsigned int E, unsigned int M, unsigned int F>
 class numeric_limits<migraphx::generic_float<E, M, F>> // NOLINT(cert-dcl58-cpp)

@@ -34,6 +34,7 @@
 #include <migraphx/functional.hpp>
 #include <migraphx/errors.hpp>
 #include <migraphx/half.hpp>
+#include <migraphx/bf16.hpp>
 #include <migraphx/float8.hpp>
 #include <migraphx/serialize.hpp>
 #include <migraphx/config.hpp>
@@ -52,6 +53,7 @@ struct MIGRAPHX_EXPORT shape
 #define MIGRAPHX_SHAPE_VISIT_TYPES(m) \
     m(bool_type, bool) \
     m(half_type, half) \
+    m(bf16_type, bf16) \
     m(float_type, float) \
     m(double_type, double) \
     m(uint8_type, uint8_t) \

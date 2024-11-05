@@ -1484,6 +1484,19 @@ inline void quantize_fp16(const program& prog)
     call(&migraphx_quantize_fp16, prog.get_handle_ptr());
 }
 
+/// Quantize program to use bf16
+inline void quantize_bf16(const program& prog, const quantize_op_names& names)
+{
+    call(&migraphx_quantize_bf16_with_op_names, prog.get_handle_ptr(), names.get_handle_ptr());
+}
+
+/// Quantize program to use bf16
+inline void quantize_bf16(const program& prog)
+{
+    call(&migraphx_quantize_bf16, prog.get_handle_ptr());
+}
+
+
 /// Options to be passed when quantizing for int8
 struct quantize_int8_options : MIGRAPHX_HANDLE_BASE(quantize_int8_options)
 {

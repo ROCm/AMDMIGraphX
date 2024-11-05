@@ -65,6 +65,7 @@ hipDataType get_type_hipblas(shape::type_t type)
     case shape::double_type: return HIP_R_64F;
     case shape::float_type: return HIP_R_32F;
     case shape::half_type: return HIP_R_16F;
+    case shape::bf16_type: return HIP_R_16BF;
     case shape::int8_type: return HIP_R_8I;
     case shape::uint8_type: return HIP_R_8U;
     case shape::int32_type: return HIP_R_32I;

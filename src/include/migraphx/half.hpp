@@ -25,9 +25,10 @@
 #ifndef MIGRAPHX_GUARD_RTGLIB_HALF_HPP
 #define MIGRAPHX_GUARD_RTGLIB_HALF_HPP
 
+#include <migraphx/generic_float.hpp>
 #include <migraphx/config.hpp>
 #include <migraphx/float8.hpp>
-#include <migraphx/generic_float.hpp>
+#include <migraphx/bf16.hpp>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
@@ -100,6 +101,12 @@ template <>
 struct common_type<migraphx::half, migraphx::half>
 {
     using type = migraphx::half;
+};
+
+template <>
+struct common_type<migraphx::half, migraphx::generic_float<7, 8>>
+{
+    using type = float;
 };
 
 } // namespace std

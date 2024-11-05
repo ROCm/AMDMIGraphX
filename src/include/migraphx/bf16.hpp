@@ -34,8 +34,8 @@ inline namespace MIGRAPHX_INLINE_NS {
 
 using bf16 = migraphx::generic_float<7, 8>;
 
-template <class T>
-using deduce = typename detail::deduce<T>::type;
+// template <class T>
+// using deduce = typename detail::deduce<T>::type;
 
 } // namespace MIGRAPHX_INLINE_NS
 } // namespace migraphx
@@ -92,6 +92,12 @@ template <>
 struct common_type<migraphx::bf16, migraphx::bf16>
 {
     using type = migraphx::bf16;
+};
+
+template <>
+struct common_type<migraphx::bf16, migraphx::generic_float<10,5>>
+{
+    using type = float;
 };
 
 } // namespace std

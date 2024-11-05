@@ -15,8 +15,9 @@ else
 fi
 
 docker run --device='/dev/kfd' --device='/dev/dri' --group-add video \
+-v $(pwd):/mgx_llama2 \
 -v $MODEL_DIR:/model \
 -v $DATA_DIR:/dataset \
 -w /mgx_llama2/build \
--it mgx_llama2:v0.1
+-it mgx_llama2:v0.2
 

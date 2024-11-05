@@ -53,7 +53,7 @@ def getJobStatus(String variant) {
 
         echo "Now planning to find the correct context"
         def contextStatus = statuses.find { it.context == "Jenkins - ${variant}" }
-        echo contextStatus
+        println contextStatus.state
         
         env.COMMIT_PASSED = contextStatus != null && contextStatus.state == 'success'
         echo env.COMMIT_PASSED

@@ -41,14 +41,18 @@ def getJobStatus(String variant) {
                            https://api.github.com/repos/ROCm/AMDMIGraphX/commits/${commit_hash}/status """,
             returnStdout: true
         ).trim()
+        echo "Print entire response"
         echo response
 
+        echo "Slurp"
         def jstr = new JsonSlurper().parseText( response )
         jstr.each { println it }
         
         def statuses = jstr.statuses
+        echo "Made it to statuses"
         echo statuses 
 
+        echo "Now planning to find the correct context"
         def contextStatus = statuses.find { it.context == "Jenkins - ${variant}" }
         echo contextStatus
         

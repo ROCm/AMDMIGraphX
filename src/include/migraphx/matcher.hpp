@@ -437,10 +437,8 @@ void find_matches_for(source_location location, Mod& mod, instruction_ref ins, M
             }
             // If its already invalid dont validate it again
             bool invalidated = validate and get_module(mod).validate() != get_module(mod).end();
-                
             auto apply_time =
                 time<std::chrono::duration<double, std::micro>>([&] { m.apply(mod, r); });
-            
             if(time_matchers or trace_for)
             {
                 std::cout << "Apply for " << matcher_name << " took " << apply_time << "us."

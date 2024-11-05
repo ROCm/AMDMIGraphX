@@ -150,12 +150,11 @@ static bool parse_args(const std::vector<instruction_ref>& args,
     // One and only one of sizes (4th arg) or scales (3rd arg) is required to be populated.
     // The second argument, roi, is not currently used by Migraphx.
 
-    if(args.size() == 4 and args[3]->get_shape().type() == shape::int64_type
-            and not (args[3]->get_shape().lens().empty() 
-            and args[3]->name() != "undefined"))
+    if(args.size() == 4 and args[3]->get_shape().type() == shape::int64_type and
+       not(args[3]->get_shape().lens().empty() and args[3]->name() != "undefined"))
     {
         // the 4th input argument, if present, is output sizes
-        r_arg = args[3];
+        r_arg          = args[3];
         auto arg_out_s = r_arg->eval();
         if(arg_out_s.empty())
             return true;
@@ -164,19 +163,19 @@ static bool parse_args(const std::vector<instruction_ref>& args,
         if(out_lens.size() != in_lens.size())
         {
             MIGRAPHX_THROW("PARSE_" + onnx_name +
-                            ": specified output size's rank does not match input size");
+                           ": specified output size's rank does not match input size");
         }
 
         // compute the scales
         vec_scale.resize(in_lens.size());
         std::transform(in_lens.begin(),
-                        in_lens.end(),
-                        out_lens.begin(),
-                        vec_scale.begin(),
-                        [](auto iss, auto oss) { return 1.0 * oss / iss; });
+                       in_lens.end(),
+                       out_lens.begin(),
+                       vec_scale.begin(),
+                       [](auto iss, auto oss) { return 1.0 * oss / iss; });
         return false;
     }
-    else if((args[2]->name() != "undefined") and not (args[2]->get_shape().lens().empty()))
+    else if((args[2]->name() != "undefined") and not(args[2]->get_shape().lens().empty()))
     {
         // this argument is scale input
         r_arg = args[2];

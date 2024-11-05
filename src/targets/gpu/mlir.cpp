@@ -322,14 +322,11 @@ struct mlir_program
                 result = mlirF64TypeGet(ctx.get());
             else if(as.is_integral())
             {
-                // Note: rocMLIR use signless integer type for tensors types. This
-                // will translate to signed implementation for current supported
-                // operations.
                 if(as.is_unsigned())
                 {
-                    MIGRAPHX_THROW("Unsupported type: " + std::to_string(as.type_enum()));
+                    result = mlirIntegerTypeUnsignedGet(ctx.get(), as.size() * 8);
                 }
-                result = mlirIntegerTypeGet(ctx.get(), as.size() * 8); // number of bits
+                result = mlirIntegerTypeSignedGet(ctx.get(), as.size() * 8); // number of bits
             }
             else
                 MIGRAPHX_THROW("Unsupported type: " + std::to_string(as.type_enum()));
@@ -718,22 +715,11 @@ struct mlir_program
                 literal r = ins->get_literal();
                 auto sh   = ins->get_shape();
 
-                // mlir works only with signed types. change uint4 to (int4 + unsigned-flag)
-                if(shape::is_unsigned(sh.type()) and ins->outputs()[0]->name() == "unpack_int4")
-                    sh = ins->get_shape().with_type(shape::int8_type);
-
                 MlirType shaped_type = make_mlir_shaped(sh);
                 MlirType tensor_type = rocmlirMIXRShapedTypeAsTensor(shaped_type);
                 MlirAttribute mlir_value_attr =
                     mlirDenseElementsAttrRawBufferGet(tensor_type, r.get_shape().bytes(), r.data());
                 ops.add_attributes({{"value", mlir_value_attr}});
-            }
-
-            if(ins->name() == "unpack_int4")
-            {
-                auto sh = get_shape(ins);
-                ops.add_attributes(
-                    {{"isUnsigned", shape::is_unsigned(sh.type())}}); // flag for uint4
             }
 
             if(ins->name() == "convolution" or ins->name() == "dot")

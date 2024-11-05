@@ -1,4 +1,5 @@
 import org.jenkinsci.plugins.pipeline.modeldefinition.Utils
+import groovy.json.JsonSlurper
 
 DOCKER_IMAGE = 'rocm/migraphx-ci-jenkins-ubuntu'
 
@@ -41,8 +42,11 @@ def getJobStatus(String variant) {
             returnStdout: true
         ).trim()
         echo response
+
+        def jstr = new JsonSlurper().parseText( response )
+        jstr.each { println it }
         
-        def statuses = response.statuses
+        def statuses = jstr.statuses
         echo statuses 
 
         def contextStatus = statuses.find { it.context == "Jenkins - ${variant}" }

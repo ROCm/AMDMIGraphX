@@ -67,7 +67,7 @@ struct MIGRAPHX_EXPORT shape
     m(fp8e4m3fnuz_type, migraphx::fp8::fp8e4m3fnuz) \
     m(fp8e4m3fn_type, migraphx::fp8::fp8e4m3fn) \
     m(fp8e5m2_type, migraphx::fp8::fp8e5m2)
-// clang-format on
+    // clang-format on
 
 #define MIGRAPHX_SHAPE_GENERATE_ENUM_TYPES(x, t) x,
     enum type_t

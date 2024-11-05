@@ -84,7 +84,6 @@ void quantize_bf16(program& prog, const std::vector<std::string>& ins_names)
                quant_tracer());
 }
 
-
 void quantize_8bits(program& prog,
                     const target& t,
                     shape::type_t precision,

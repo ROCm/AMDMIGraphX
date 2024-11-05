@@ -95,7 +95,7 @@ struct common_type<migraphx::bf16, migraphx::bf16>
 };
 
 template <>
-struct common_type<migraphx::bf16, migraphx::generic_float<10,5>>
+struct common_type<migraphx::bf16, migraphx::generic_float<10, 5>>
 {
     using type = float;
 };

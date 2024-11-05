@@ -40,7 +40,7 @@ struct program;
 
 MIGRAPHX_EXPORT void quantize_fp16(program& prog,
                                    const std::vector<std::string>& ins_names = {"all"});
-                                   
+
 MIGRAPHX_EXPORT void quantize_bf16(program& prog,
                                    const std::vector<std::string>& ins_names = {"all"});
 

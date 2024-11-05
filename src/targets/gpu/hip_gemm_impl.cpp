@@ -71,7 +71,15 @@ hipDataType get_type_hipblas(shape::type_t type)
     case shape::uint32_type: return HIP_R_32U;
     case shape::fp8e4m3fnuz_type: return HIP_R_8F_E4M3_FNUZ;
     case shape::fp8e4m3fn_type:
+        if(gfx_has_fp8ocp_intrinsics())
+        {
+            return HIP_R_8F_E4M3;
+        }
     case shape::fp8e5m2_type:
+        if(gfx_has_fp8ocp_intrinsics())
+        {
+            return HIP_R_8F_E5M2;
+        }
     case shape::tuple_type:
     case shape::bool_type:
     case shape::uint16_type:

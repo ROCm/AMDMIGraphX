@@ -50,7 +50,6 @@ def getJobStatus(String variant) {
         
         def statuses = jstr.statuses
         echo "Made it to statuses"
-        echo statuses 
 
         echo "Now planning to find the correct context"
         def contextStatus = statuses.find { it.context == "Jenkins - ${variant}" }

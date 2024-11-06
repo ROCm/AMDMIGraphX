@@ -55,10 +55,14 @@ void preserve_output_layout(module& m)
     if(last->name() == "@return")
     {
         std::vector<instruction_ref> outputs;
-        std::transform(last->inputs().begin(), last->inputs().end(), std::back_inserter(outputs), [&](instruction_ref ins) {
-            auto permutation = find_permutation(ins->get_shape());
-            return m.insert_instruction(last, make_op("layout", {{"permutation", permutation}}), ins);
-        });
+        std::transform(last->inputs().begin(),
+                       last->inputs().end(),
+                       std::back_inserter(outputs),
+                       [&](instruction_ref ins) {
+                           auto permutation = find_permutation(ins->get_shape());
+                           return m.insert_instruction(
+                               last, make_op("layout", {{"permutation", permutation}}), ins);
+                       });
         m.replace_return(outputs);
     }
     else

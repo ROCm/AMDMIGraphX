@@ -66,7 +66,7 @@ constexpr float32_parts get_parts(float f) { return migraphx::bit_cast<float32_p
 
 #pragma pack(push, 1)
 template <unsigned int MantissaSize, unsigned int ExponentSize, unsigned int Flags = 0>
-struct __attribute__((may_alias)) generic_float
+struct alignas(1) __attribute__((may_alias)) generic_float
 {
     unsigned int mantissa : MantissaSize;
     unsigned int exponent : ExponentSize;

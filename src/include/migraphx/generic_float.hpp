@@ -65,7 +65,7 @@ struct float32_parts
 constexpr float32_parts get_parts(float f) { return migraphx::bit_cast<float32_parts>(f); }
 
 template <unsigned int MantissaSize, unsigned int ExponentSize, unsigned int Flags = 0>
-struct [[gnu::packed, gnu::may_alias]] generic_float
+struct alignas((MantissaSize + ExponentSize + 1) / 8) [[gnu::packed, gnu::may_alias]] generic_float
 {
     unsigned int mantissa : MantissaSize;
     unsigned int exponent : ExponentSize;

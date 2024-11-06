@@ -2630,4 +2630,26 @@ TEST_CASE(add_transpose)
     EXPECT(m1.sort() == m2.sort());
 }
 
+TEST_CASE(flatten)
+{
+    migraphx::shape s{migraphx::shape::float_type, {4608, 8, 2}};
+
+    migraphx::module m1;
+    {
+        auto inp  = m1.add_parameter("input", s);
+        auto flat = m1.add_instruction(migraphx::make_op("flatten", {{"axis", 1}}), inp);
+        m1.add_return({flat});
+    };
+    run_pass(m1);
+
+    migraphx::module m2;
+    {
+        auto inp  = m2.add_parameter("input", s);
+        auto flat = m2.add_instruction(migraphx::make_op("reshape", {{"dims", {4608, 16}}}), inp);
+        m2.add_return({flat});
+    };
+
+    EXPECT(m1.sort() == m2.sort());
+}
+
 int main(int argc, const char* argv[]) { test::run(argc, argv); }

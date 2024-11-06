@@ -1,6 +1,7 @@
 #  The MIT License (MIT)
 #
 #  Copyright (c) 2015-2024 Advanced Micro Devices, Inc. All rights reserved.
+#  Copyright (c) 2024 Stability AI
 #
 #  Permission is hereby granted, free of charge, to any person obtaining a copy
 #  of this software and associated documentation files (the 'Software'), to deal
@@ -21,10 +22,9 @@
 #  THE SOFTWARE.
 
 from argparse import ArgumentParser
-from diffusers import EulerDiscreteScheduler
+from diffusers import FlowMatchEulerDiscreteScheduler
 
 from other_impls import SD3Tokenizer
-from sd3_impls import ModelSamplingDiscreteFlow, SD3LatentFormat
 
 from PIL import Image
 
@@ -137,7 +137,7 @@ def get_args():
     parser.add_argument(
         "--scale",
         type=float,
-        default=7.0,
+        default=5.0,
         help="Guidance scale",
     )
 
@@ -211,7 +211,9 @@ class StableDiffusionMGX():
     def __init__(self, onnx_model_path, compiled_model_path, fp16, batch,
                  force_compile, exhaustive_tune):
 
-        self.model_sampling = ModelSamplingDiscreteFlow(shift=1.0)
+        self.scheduler = FlowMatchEulerDiscreteScheduler.from_pretrained(
+                "stabilityai/stable-diffusion-3-medium-diffusers",
+                subfolder="scheduler")
 
         self.tokenizer = SD3Tokenizer()
         self.device = "cuda"
@@ -219,7 +221,7 @@ class StableDiffusionMGX():
         if fp16 is None:
             fp16 = []
         elif "all" in fp16:
-            fp16 = ["vae", "clip", "unet"]
+            fp16 = ["vae", "clip", "mmdit"]
 
         self.batch = batch
 
@@ -227,7 +229,7 @@ class StableDiffusionMGX():
         self.models = {
             "vae":
             StableDiffusionMGX.load_mgx_model(
-                "vae_decoder", {"latent": [self.batch, 16, 128, 128]},
+                "vae_decoder", {"latent_sample": [self.batch, 16, 128, 128]},
                 onnx_model_path,
                 compiled_model_path=compiled_model_path,
                 use_fp16="vae" in fp16,
@@ -264,11 +266,11 @@ class StableDiffusionMGX():
                 offload_copy=False),
             "mmdit":
             StableDiffusionMGX.load_mgx_model(
-                "mmdit", {
-                    "sample": [2 * self.batch, 16, 128, 128],
-                    "sigma": [2 * self.batch],
-                    "c_crossattn": [2 * self.batch, 154, 4096],
-                    "y": [2 * self.batch, 2048],
+                "transformer", {
+                    "hidden_states": [2 * self.batch, 16, 128, 128],
+                    "timestep": [2 * self.batch],
+                    "encoder_hidden_states": [2 * self.batch, 154, 4096],
+                    "pooled_projections": [2 * self.batch, 2048],
                 },
                 onnx_model_path,
                 compiled_model_path=compiled_model_path,
@@ -345,15 +347,32 @@ class StableDiffusionMGX():
         neg_prompt_embeddings = self.get_embeddings(neg_prompt_tokens)
         self.profile_end("clip")
 
-        cfg_scale = 5
-        latent = self.get_empty_latent(1024, 1024)
+        # fix height and width for now
+        # TODO: check for valid height/width combinations
+        # and make them member variables
+        height = 1024
+        width = 1024
+        latent = torch.empty(1, 16, height // 8, width // 8,
+                          device="cpu")
+        
+        generator = torch.manual_seed(seed)
+        latent = torch.randn(latent.size(),
+                           dtype=torch.float32,
+                           layout=latent.layout,
+                           generator=generator).to(latent.dtype)
+
+        self.scheduler.set_timesteps(steps)
+        timesteps=self.scheduler.timesteps
 
         print("Running denoising loop...")
         self.profile_start("denoise")
-        latent = self.do_sampling(latent, seed, prompt_embeddings,
-                                  neg_prompt_embeddings, steps, cfg_scale)
+        for step in timesteps:
+            latent = self.denoise(latent, prompt_embeddings, 
+                                  neg_prompt_embeddings, step, scale)
 
         self.profile_end("denoise")
+
+        latent = (latent / 1.5305) + 0.0609
 
         self.profile_start("decode")
         print("Decode denoised result...")
@@ -471,107 +490,47 @@ class StableDiffusionMGX():
 
     def CFGDenoiser(self, x, timestep, cond, uncond, cond_scale):
         # Run cond and uncond in a batch together
-        x = torch.cat([x, x])
-        timestep = torch.cat([timestep, timestep])
+        x_concat = torch.cat([x, x])
+        timestep_concat = timestep.expand([2])
         c_crossattn = torch.cat([cond["c_crossattn"], uncond["c_crossattn"]])
         y = torch.cat([cond["y"], uncond["y"]])
 
-        copy_tensor_sync(self.tensors["mmdit"]["sample"], x)
-        copy_tensor_sync(self.tensors["mmdit"]["sigma"], timestep)
-        copy_tensor_sync(self.tensors["mmdit"]["c_crossattn"], c_crossattn)
-        copy_tensor_sync(self.tensors["mmdit"]["y"], y)
+        copy_tensor_sync(self.tensors["mmdit"]["hidden_states"], x_concat)
+        copy_tensor_sync(self.tensors["mmdit"]["timestep"], timestep_concat)
+        copy_tensor_sync(self.tensors["mmdit"]["encoder_hidden_states"], c_crossattn)
+        copy_tensor_sync(self.tensors["mmdit"]["pooled_projections"], y)
 
         run_model_sync(self.models["mmdit"], self.model_args['mmdit'])
 
+        mmdit_out = self.tensors["mmdit"][get_output_name(0)]
+        
         # Then split and apply CFG Scaling
-        pos_out, neg_out = torch.tensor_split(
-            self.tensors["mmdit"][get_output_name(0)], 2)
+        pos_out, neg_out = torch.tensor_split(mmdit_out, 2)
 
         scaled = neg_out + (pos_out - neg_out) * cond_scale
-        return scaled
 
-    def sample_euler(self, x, sigmas, conditioning, neg_cond, cfg_scale):
-        def append_dims(x, target_dims):
-            """Appends dimensions to the end of a tensor until it has target_dims dimensions."""
-            dims_to_append = target_dims - x.ndim
-            return x[(..., ) + (None, ) * dims_to_append]
+        # scheduler step function requies all tensors be on the CPU
+        scaled = scaled.detach().clone().cpu()
+        scheduler_out = self.scheduler.step(
+                    model_output=scaled, timestep=timestep, sample=x, return_dict=False
+                )[0]
+        return scheduler_out
 
-        def to_d(x, sigma, denoised):
-            """Converts a denoiser output to a Karras ODE derivative."""
-            return (x - denoised) / append_dims(sigma, x.ndim)
-
-        """Implements Algorithm 2 (Euler steps) from Karras et al. (2022)."""
-        # extra_args = {} if extra_args is None else extra_args
-        s_in = x.new_ones([x.shape[0]])
-        for i in range(len(sigmas) - 1):
-            sigma_hat = sigmas[i]
-            denoised = self.CFGDenoiser(x, sigma_hat * s_in, conditioning,
-                                        neg_cond, cfg_scale)
-            d = to_d(x, sigma_hat, denoised)
-            dt = sigmas[i + 1] - sigma_hat
-            # Euler method
-            x = x + d * dt
-        return x
-
-    def get_empty_latent(self, width, height):
-        return torch.ones(1, 16, height // 8, width // 8,
-                          device="cpu") * 0.0609
-
-    def get_sigmas(self, sampling, steps):
-        start = sampling.timestep(sampling.sigma_max)
-        end = sampling.timestep(sampling.sigma_min)
-        timesteps = torch.linspace(start, end, steps)
-        sigs = []
-        for x in range(len(timesteps)):
-            ts = timesteps[x]
-            sigs.append(sampling.sigma(ts))
-        sigs += [0.0]
-        return torch.FloatTensor(sigs)
-
-    def get_noise(self, seed, latent):
-        generator = torch.manual_seed(seed)
-        print(
-            f"dtype = {latent.dtype}, layout = {latent.layout}, device = {latent.device}"
-        )
-        return torch.randn(latent.size(),
-                           dtype=torch.float32,
-                           layout=latent.layout,
-                           generator=generator).to(latent.dtype)
-
-    def max_denoise(self, sigmas):
-        max_sigma = float(self.model_sampling.sigma_max)
-        sigma = float(sigmas[0])
-        return math.isclose(max_sigma, sigma,
-                            rel_tol=1e-05) or sigma > max_sigma
 
     def fix_cond(self, cond):
-        cond, pooled = (cond[0].half().cuda(), cond[1].half().cuda())
+        cond, pooled = (cond[0].cuda(), cond[1].cuda())
         return {"c_crossattn": cond, "y": pooled}
+        
 
-    def do_sampling(self,
-                    latent,
-                    seed,
-                    conditioning,
-                    neg_cond,
-                    steps,
-                    cfg_scale,
-                    denoise=1.0) -> torch.Tensor:
-        latent = latent.half().cuda()
-        noise = self.get_noise(seed, latent).cuda()
-        sigmas = self.get_sigmas(self.model_sampling, steps).cuda()
-        sigmas = sigmas[int(steps * (1 - denoise)):]
+    def denoise(self, latent, conditioning, neg_cond, step, cfg_scale):
         conditioning = self.fix_cond(conditioning)
         neg_cond = self.fix_cond(neg_cond)
-        noise_scaled = self.model_sampling.noise_scaling(
-            sigmas[0], noise, latent, self.max_denoise(sigmas))
-        latent = self.sample_euler(noise_scaled, sigmas, conditioning,
-                                   neg_cond, cfg_scale)
-        latent = SD3LatentFormat().process_out(latent)
-        return latent
+        return self.CFGDenoiser(latent, step, conditioning, neg_cond, cfg_scale)
+
 
     @measure
     def decode(self, latents):
-        copy_tensor_sync(self.tensors["vae"]["latent"], latents)
+        copy_tensor_sync(self.tensors["vae"]["latent_sample"], latents)
         run_model_sync(self.models["vae"], self.model_args["vae"])
         return self.tensors["vae"][get_output_name(0)]
 
@@ -585,18 +544,19 @@ class StableDiffusionMGX():
         copy_tensor_sync(self.tensors["t5xxl"]["input_ids"],
                          torch.ones((1, 77)).to(torch.int32))
         copy_tensor_sync(
-            self.tensors["mmdit"]["sample"],
-            torch.randn((2 * self.batch, 16, 128, 128)).to(torch.float16))
-        copy_tensor_sync(self.tensors["mmdit"]["sigma"],
-                         torch.randn((2 * self.batch)).to(torch.float16))
+            self.tensors["mmdit"]["hidden_states"],
+            torch.randn((2 * self.batch, 16, 128, 128)).to(torch.float))
+        copy_tensor_sync(self.tensors["mmdit"]["timestep"],
+                         torch.randn((2 * self.batch)).to(torch.float))
         copy_tensor_sync(
-            self.tensors["mmdit"]["c_crossattn"],
-            torch.randn((2 * self.batch, 154, 4096)).to(torch.float16))
-        copy_tensor_sync(self.tensors["mmdit"]["y"],
-                         torch.randn((2 * self.batch, 2048)).to(torch.float16))
+            self.tensors["mmdit"]["encoder_hidden_states"],
+            torch.randn((2 * self.batch, 154, 4096)).to(torch.float))
+        copy_tensor_sync(self.tensors["mmdit"]["pooled_projections"],
+                         torch.randn((2 * self.batch, 2048)).to(torch.float))
         copy_tensor_sync(
-            self.tensors["vae"]["latent"],
-            torch.randn((self.batch, 16, 128, 128)).to(torch.float16))
+            self.tensors["vae"]["latent_sample"],
+            torch.randn((self.batch, 16, 128, 128)).to(torch.float))
+        
 
         for _ in range(num_runs):
             run_model_sync(self.models["clip-l"], self.model_args["clip-l"])

@@ -52,18 +52,19 @@ std::vector<int64_t> get_permutation(instruction_ref ins, const layout_convoluti
 void preserve_output_layout(module& m)
 {
     auto last = std::prev(m.end());
-    std::vector<instruction_ref> outputs;
     if(last->name() == "@return")
-        outputs = last->inputs();
-    else
-        outputs = {last};
-
-    for(auto output : outputs)
     {
-        auto permutation = find_permutation(output->get_shape());
-        auto layout      = m.insert_instruction(
-            std::next(output), make_op("layout", {{"permutation", permutation}}), output);
-        m.replace_instruction(output, layout);
+        std::vector<instruction_ref> outputs;
+        std::transform(last->inputs().begin(), last->inputs().end(), std::back_inserter(outputs), [&](instruction_ref ins) {
+            auto permutation = find_permutation(ins->get_shape());
+            return m.insert_instruction(last, make_op("layout", {{"permutation", permutation}}), ins);
+        });
+        m.replace_return(outputs);
+    }
+    else
+    {
+        auto permutation = find_permutation(last->get_shape());
+        m.add_instruction(make_op("layout", {{"permutation", permutation}}), last);
     }
 }
 
@@ -72,6 +73,8 @@ void transform_convolutions(module& m, const layout_convolution& lc)
     for(auto ins : iterator_for(m))
     {
         if(not contains({"convolution", "quant_convolution"}, ins->name()))
+            continue;
+        if(ins->get_shape().dynamic())
             continue;
         if(ins->get_shape().lens().size() != 4)
             continue;

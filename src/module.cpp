@@ -355,7 +355,6 @@ instruction_ref module::replace_instruction(instruction_ref ins, instruction_ref
 {
     impl->changed.notify();
     assert(has_instruction(ins));
-    assert(has_instruction(rep));
     assert(ins != rep);
 
     if(ins == std::prev(this->end()))

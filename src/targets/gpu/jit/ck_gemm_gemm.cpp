@@ -168,9 +168,7 @@ struct ck_gemm_gemm_compiler : compiler<ck_gemm_gemm_compiler>
     }
 
     operation compile_op(context& ctx, const std::vector<shape>& inputs, const value& v) const
-    {
-        std::cout << "compiling ck_gemm_gemm: " << v.get("kernel", std::string{}) << std::endl;
-        
+    {        
         const auto& e1_shape = inputs.back();
         auto tuning_value    = v.get("tuning_value", 0);
         auto batch_count     = get_batch_count(e1_shape);

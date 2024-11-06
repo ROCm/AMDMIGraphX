@@ -133,9 +133,6 @@ run_verify::run_ref(migraphx::program p,
     auto trace_target = migraphx::string_value_of(MIGRAPHX_TRACE_TEST_COMPILE{});
     compile_check(p, t, c_opts, (trace_target == "ref"));
 
-    std::cout << "REF PROGRAM" << std::endl;
-    p.debug_print();
-
     return std::make_pair(std::move(p), p.eval(std::move(inputs)));
 }
 
@@ -162,9 +159,6 @@ run_verify::run_target(const migraphx::target& t,
     }
     validate(t, p, m);
     p.eval(m);
-
-    std::cout << "GPU PROGRAM" << std::endl;
-    p.debug_print();
 
     auto tres = p.eval(m);
     std::vector<migraphx::argument> res(tres.size());

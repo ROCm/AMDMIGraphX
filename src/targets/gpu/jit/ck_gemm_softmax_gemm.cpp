@@ -182,9 +182,6 @@ struct ck_gemm_softmax_gemm_compiler : compiler<ck_gemm_softmax_gemm_compiler>
                                        {"preamble", v.get("preamble", std::string{})},
                                        {"kernel", options.kernel_name}});
 
-        // std::cout << "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA" << std::endl;
-        // std::cout << src << std::endl;
-
         return compile_hip_code_object(src, options);
     }
 

@@ -266,8 +266,6 @@ struct find_ck_gemm_pointwise_gemm
 
     void apply(module_pass_manager& mpm, const match::matcher_result& r)
     {
-        std::cout << "matching ck_gemm_gemm" << std::endl;
-
         auto ins       = r.result;
         auto gemm0_ins = r.instructions["gemm0"];
         auto gemm1_ins = r.instructions["gemm1"];

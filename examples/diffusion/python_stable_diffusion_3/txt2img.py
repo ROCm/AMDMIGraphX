@@ -212,8 +212,8 @@ class StableDiffusionMGX():
                  force_compile, exhaustive_tune):
 
         self.scheduler = FlowMatchEulerDiscreteScheduler.from_pretrained(
-                "stabilityai/stable-diffusion-3-medium-diffusers",
-                subfolder="scheduler")
+            "stabilityai/stable-diffusion-3-medium-diffusers",
+            subfolder="scheduler")
 
         self.tokenizer = SD3Tokenizer()
         self.device = "cuda"
@@ -352,22 +352,21 @@ class StableDiffusionMGX():
         # and make them member variables
         height = 1024
         width = 1024
-        latent = torch.empty(1, 16, height // 8, width // 8,
-                          device="cpu")
-        
+        latent = torch.empty(1, 16, height // 8, width // 8, device="cpu")
+
         generator = torch.manual_seed(seed)
         latent = torch.randn(latent.size(),
-                           dtype=torch.float32,
-                           layout=latent.layout,
-                           generator=generator).to(latent.dtype)
+                             dtype=torch.float32,
+                             layout=latent.layout,
+                             generator=generator).to(latent.dtype)
 
         self.scheduler.set_timesteps(steps)
-        timesteps=self.scheduler.timesteps
+        timesteps = self.scheduler.timesteps
 
         print("Running denoising loop...")
         self.profile_start("denoise")
         for step in timesteps:
-            latent = self.denoise(latent, prompt_embeddings, 
+            latent = self.denoise(latent, prompt_embeddings,
                                   neg_prompt_embeddings, step, scale)
 
         self.profile_end("denoise")
@@ -497,13 +496,14 @@ class StableDiffusionMGX():
 
         copy_tensor_sync(self.tensors["mmdit"]["hidden_states"], x_concat)
         copy_tensor_sync(self.tensors["mmdit"]["timestep"], timestep_concat)
-        copy_tensor_sync(self.tensors["mmdit"]["encoder_hidden_states"], c_crossattn)
+        copy_tensor_sync(self.tensors["mmdit"]["encoder_hidden_states"],
+                         c_crossattn)
         copy_tensor_sync(self.tensors["mmdit"]["pooled_projections"], y)
 
         run_model_sync(self.models["mmdit"], self.model_args['mmdit'])
 
         mmdit_out = self.tensors["mmdit"][get_output_name(0)]
-        
+
         # Then split and apply CFG Scaling
         pos_out, neg_out = torch.tensor_split(mmdit_out, 2)
 
@@ -511,22 +511,21 @@ class StableDiffusionMGX():
 
         # scheduler step function requies all tensors be on the CPU
         scaled = scaled.detach().clone().cpu()
-        scheduler_out = self.scheduler.step(
-                    model_output=scaled, timestep=timestep, sample=x, return_dict=False
-                )[0]
+        scheduler_out = self.scheduler.step(model_output=scaled,
+                                            timestep=timestep,
+                                            sample=x,
+                                            return_dict=False)[0]
         return scheduler_out
-
 
     def fix_cond(self, cond):
         cond, pooled = (cond[0].cuda(), cond[1].cuda())
         return {"c_crossattn": cond, "y": pooled}
-        
 
     def denoise(self, latent, conditioning, neg_cond, step, cfg_scale):
         conditioning = self.fix_cond(conditioning)
         neg_cond = self.fix_cond(neg_cond)
-        return self.CFGDenoiser(latent, step, conditioning, neg_cond, cfg_scale)
-
+        return self.CFGDenoiser(latent, step, conditioning, neg_cond,
+                                cfg_scale)
 
     @measure
     def decode(self, latents):
@@ -556,7 +555,6 @@ class StableDiffusionMGX():
         copy_tensor_sync(
             self.tensors["vae"]["latent_sample"],
             torch.randn((self.batch, 16, 128, 128)).to(torch.float))
-        
 
         for _ in range(num_runs):
             run_model_sync(self.models["clip-l"], self.model_args["clip-l"])

@@ -9,11 +9,15 @@
 #include <vector>
 #include <iostream>
 #include <string>
+#include <half/half.hpp>
 
 #define TIMER_ON 0
 #define TRACE_ON 0
 
 #define assertm(exp, msg) assert(((void)msg, exp))
+
+using half = half_float::half;
+using namespace half_float::literal;
 
 namespace mlinfer
 {

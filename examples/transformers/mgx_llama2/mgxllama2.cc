@@ -1,4 +1,5 @@
 #include "buffer.hpp"
+#include "common.hpp"
 #include "numpy.hpp"
 #include <migraphx/migraphx.hpp>
 
@@ -22,7 +23,9 @@ const size_t VOCAB_SIZE = 32000;
 // EOS token from model config
 const size_t EOS = 2;
 // Write output tokens to file
-const bool WRITE_RESULT_FILE = true;
+const bool WRITE_RESULT_FILE = false;
+
+const size_t HIDDEN_LAYERS_NUM = 32;
 
 struct ModelLoadSettings
 {
@@ -52,6 +55,10 @@ static std::string getModelPath(ModelLoadSettings& s)
 static migraphx::program loadOnnx(ModelLoadSettings& settings)
 {
     std::filesystem::path onnx_path(MODEL_FOLDER + ONNX_FILE);
+
+    #ifdef TRACE
+    std::cout << "Using model: " << MODEL_FOLDER + ONNX_FILE << std::endl;
+    #endif
 
     migraphx::program prog;
     std::ifstream f(onnx_path.c_str());
@@ -285,17 +292,47 @@ struct LLama2Inputs
 
         auto param_shapes = prog.get_parameter_shapes();
 
+        auto inputShape = param_shapes[INPUTS_ID_STR];
         auto input_ids = data.getInputIds();
         input_ids_buffer = std::make_unique<LLama2InputBuffer>(std::move(input_ids), offload_copy);
-        prog_args.add(INPUTS_ID_STR, migraphx::argument(param_shapes[INPUTS_ID_STR], input_ids_buffer->data()));
+        prog_args.add(INPUTS_ID_STR, migraphx::argument(inputShape, input_ids_buffer->data()));
 
+
+        auto attShape = param_shapes[ATTENTION_MASK_STR];
         auto attention_mask = data.getAttentionMask();
         attention_mask_buffer = std::make_unique<LLama2InputBuffer>(std::move(attention_mask), offload_copy);
-        prog_args.add(ATTENTION_MASK_STR, migraphx::argument(param_shapes[ATTENTION_MASK_STR], attention_mask_buffer->data()));
+        prog_args.add(ATTENTION_MASK_STR, migraphx::argument(attShape, attention_mask_buffer->data()));
 
+        //auto positionShape = param_shapes[POSITION_IDS_STR];
+        auto positionShape = inputShape;
         auto position_ids = data.getPositionIds();
         position_ids_buffer = std::make_unique<LLama2InputBuffer>(std::move(position_ids), offload_copy);
-        prog_args.add(POSITION_IDS_STR, migraphx::argument(param_shapes[POSITION_IDS_STR], position_ids_buffer->data()));
+        prog_args.add(POSITION_IDS_STR, migraphx::argument(inputShape, position_ids_buffer->data()));
+
+        const size_t HEAD_SIZE = 128;
+
+        const size_t PAST_KEY_VAL_SIZE = HIDDEN_LAYERS_NUM*HEAD_SIZE;
+
+        // past_key_values.0.key = @param:past_key_values.0.key -> half_type, {1, 32, 1, 128}, {4096, 128, 128, 1}
+        // past_key_values.0.value = @param:past_key_values.0.value -> half_type, {1, 32, 1, 128}, {4096, 128, 128, 1}
+        for (size_t i = 0; i < HIDDEN_LAYERS_NUM; ++i)
+        {
+            std::stringstream past_key;
+            past_key << "past_key_values." << std::to_string(i) << ".key";
+            auto past_keyStr = past_key.str();
+            auto past_keyString = past_keyStr.c_str();
+            past_key_buffers.emplace_back(std::make_unique<LLama2PastKeyValueBuffer>(std::vector<half>(PAST_KEY_VAL_SIZE, 0.0_h), offload_copy));
+            auto pastKeyShape = param_shapes[past_keyString];
+            prog_args.add(past_keyString, migraphx::argument(pastKeyShape, past_key_buffers[i]->data()));
+
+            std::stringstream past_val;
+            past_val << "past_key_values." << std::to_string(i) << ".value";
+            auto past_valueStr = past_val.str();
+            auto past_valueString = past_valueStr.c_str();
+            past_value_buffers.emplace_back(std::make_unique<LLama2PastKeyValueBuffer>(std::vector<half>(PAST_KEY_VAL_SIZE, 0.0_h), offload_copy));
+            auto pastValueShape = param_shapes[past_valueString];
+            prog_args.add(past_valueString, migraphx::argument(pastValueShape, past_value_buffers[i]->data()));
+        }
     };
 
     void upload_to_device(hipStream_t stream)
@@ -348,6 +385,8 @@ struct LLama2Inputs
     std::unique_ptr<LLama2InputBuffer> input_ids_buffer;
     std::unique_ptr<LLama2InputBuffer> attention_mask_buffer;
     std::unique_ptr<LLama2InputBuffer> position_ids_buffer;
+    std::vector<std::unique_ptr<LLama2PastKeyValueBuffer>> past_key_buffers;
+    std::vector<std::unique_ptr<LLama2PastKeyValueBuffer>> past_value_buffers;
     Dataset data;
     bool offload_copy;
 
@@ -399,6 +438,12 @@ int main() {
     auto output_buffer = LLama2OutputBuffer(std::vector<float>(output_size), offload_copy);
     migraphx::shape out_shape{migraphx_shape_float_type, {1, SEQ_SIZE, VOCAB_SIZE}};
     prog_args.add(output_name, migraphx::argument(out_shape, output_buffer.data()));
+
+    const size_t logit_size = 4096 * VOCAB_SIZE;
+    auto logit_name = "logits";
+    auto logit_buffer = LLama2PastKeyValueBuffer(std::vector<half>(logit_size, 0.0_h), offload_copy);
+    migraphx::shape logit_shape{migraphx_shape_float_type, {1, 4096, VOCAB_SIZE}};
+    prog_args.add(logit_name, migraphx::argument(logit_shape, output_buffer.data()));
 
     std::cout << "Starting evaluation" << std::endl;
     size_t token_count = 0;

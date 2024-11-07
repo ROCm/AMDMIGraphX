@@ -7,6 +7,7 @@ SHELL ["/bin/bash", "-c"]
 RUN apt-get update && apt-get install -y --allow-unauthenticated \
     apt-utils \
     cmake \
+    half \
     git  && \
     apt-get clean && \
     rm -rf /var/lib/apt/lists/*

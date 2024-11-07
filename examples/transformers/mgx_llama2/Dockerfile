@@ -34,3 +34,4 @@ RUN rm -rf /mgx_llama2/build && mkdir /mgx_llama2/build
 WORKDIR /mgx_llama2/build
 
 RUN CXX=/opt/rocm/llvm/bin/clang++ cmake .. && make
+RUN pip install pandas

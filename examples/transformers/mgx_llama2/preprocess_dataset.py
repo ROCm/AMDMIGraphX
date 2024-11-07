@@ -13,6 +13,8 @@ _p = Path(DATASET_PATH)
 if _p.exists():
     with _p.open(mode="rb") as f:
         d = pickle.load(f)
+else:
+    raise RuntimeError(f"Missing dataset from {DATASET_PATH}")
 
 toks = d['tok_input'].to_list()
 #toks = [toks[0]]

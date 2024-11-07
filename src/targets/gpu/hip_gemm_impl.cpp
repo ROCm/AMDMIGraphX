@@ -393,7 +393,8 @@ struct hip_gemm_impl
                                       const std::vector<argument>& args,
                                       int32_t solution_idx)
     {
-        auto* algo = &solution.get_result(ctx, *this, solution_idx)[0].algo;
+        auto* algo            = &solution.get_result(ctx, *this, solution_idx)[0].algo;
+        size_t workspace_size = ((is_3inputs ? args[3] : args[2]).get_shape()).bytes();
         return pack(ctx.get_stream().get_hipblaslt(),
                     hipblaslt_desc,
                     get_alpha(),                                  // alpha
@@ -408,7 +409,7 @@ struct hip_gemm_impl
                     is_3inputs ? mat_d : mat_c,                   // Ddesc
                     algo,                                         // algo
                     is_3inputs ? args[3].data() : args[2].data(), // workspace
-                    algo->max_workspace_bytes,                    // workspaceSizeInBytes
+                    workspace_size,                               // workspaceSizeInBytes
                     ctx.get_stream().get()                        // stream
         );
     }
@@ -505,8 +506,6 @@ struct hip_gemm_impl
         hipblaslt_invoke(&hipblaslt_ext::matmulIsAlgoSupported, supporting_args);
         workspace_size = ret_workspace_size;
 
-        if(workspace_size == 0)
-            workspace_size = 1;
         return workspace_size;
     }
 

@@ -34,7 +34,7 @@ struct test_roialign_half_pixel : verify_program<test_roialign_half_pixel<DType>
     {
         migraphx::program p;
         auto* mm = p.get_main_module();
-        migraphx::shape x_s{DType, {5, 7, 2, 2}};
+        migraphx::shape x_s{DType, {2, 3, 2, 2}};
 
         migraphx::shape roi_s{DType, {2, 4}};
 
@@ -47,7 +47,7 @@ struct test_roialign_half_pixel : verify_program<test_roialign_half_pixel<DType>
         auto r   = mm->add_instruction(
             migraphx::make_op("roialign",
                                 {{"spatial_scale", 1.1},
-                                 {"output_height", 5},
+                                 {"output_height", 4},
                                  {"output_width", 3},
                                  {"sampling_ratio", 3},
                                  {"coordinate_transformation_mode", "half_pixel"}}),

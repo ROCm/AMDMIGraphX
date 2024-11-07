@@ -24,8 +24,8 @@
 #ifndef MIGRAPHX_GUARD_KERNELS_ROIALIGN_HPP
 #define MIGRAPHX_GUARD_KERNELS_ROIALIGN_HPP
 
-// #include <migraphx/kernels/debug.hpp>
-// #include <migraphx/kernels/print.hpp>
+#include <migraphx/kernels/debug.hpp>
+#include <migraphx/kernels/print.hpp>
 #include <migraphx/kernels/index.hpp>
 #include <migraphx/kernels/dfor.hpp>
 #include <migraphx/kernels/ops.hpp>
@@ -166,7 +166,7 @@ __device__ void roialign(const T& x_t, const U& rois_t, const V& ind_t, W& y_t, 
     // output dims of height and width, in all 2-dim arrays, the first dim
     // is for height and second dim is for width
     const auto& out_lens         = out_s.lens;
-    array<index_int, 2> out_dims = {out_lens[2], out_lens[3]};
+    array<index_int, 2> out_dims = {out_lens[3], out_lens[2]};
 
     // Compute lens and strides vectors for use in reindexing output.
     // Todo: look for a less indirect way to reconcile the ordering of iteration
@@ -178,7 +178,7 @@ __device__ void roialign(const T& x_t, const U& rois_t, const V& ind_t, W& y_t, 
     {
         m_strides[k] = m_strides[k + 1] * m_lens[k + 1];
     }
-
+println_once(" aaaaa out_lens: ", out_lens);
     for(index_int i = index.global; i < out_s.elements(); i += stride)
     {
         auto idx = out_s.multi(i);
@@ -217,7 +217,16 @@ __device__ void roialign(const T& x_t, const U& rois_t, const V& ind_t, W& y_t, 
                                     ? s.sampling_ratio
                                     : migraphx::ceil(roi_size[ii] / out_dims[ii]);
         }
-        const auto offset_x = x + ((batch_ind * channel_num + c) * in_dims[0] * in_dims[1]);
+array<int, 4> zap = {n, c, ph, pw};
+
+// println(" kkkkk n, c, ph, pw: ", zap);
+
+
+
+
+         const auto offset_x = x + ((batch_ind * channel_num + c) * in_dims[0] * in_dims[1]);
+// array<size_t, 4> reindex = {size_t(n), size_t(c), size_t(pw), size_t(ph)};//;
+ // migraphx::shape reindex_shape(reindex);
 
         //
         //  Reindexing.  Calculations to this point did not iterate in the same order as
@@ -226,15 +235,29 @@ __device__ void roialign(const T& x_t, const U& rois_t, const V& ind_t, W& y_t, 
         size_t pp = i;
         size_t jj = (pp / m_strides[0]) * m_strides[0];
         pp        = pp % m_strides[0];
+if( i == 57)println(" xxx ", jj);
         jj += (pp / m_strides[1]) * m_strides[1];
         pp %= m_strides[1];
-        pp = pp / m_lens[2] + (pp % m_lens[2]) * m_strides[2];
-        jj += pp;
+if( i == 57)println(" yyy ", jj);
+        jj += (pp / m_strides[2]) * m_strides[2];
+if( i == 57){
+    array<size_t, 3>asd = {pp, m_lens[2], m_strides[2]};
+    println(" asd: ", asd) ;   
+}    
+        pp = pp / m_lens[2] + (pp % m_lens[2]) * m_strides[3];
+if( i == 57)println(" pp: ", pp);
+        jj += pp * m_strides[2];
+if( i == 57)println(" zzz ", jj);
 
         if constexpr(s.is_avg_pooling)
         {
-            y_t[jj] = calc_pooling(
+            y_t[i] = calc_pooling(
                 offset_x, roi_starts, bin_size, {ph, pw}, bin_grid_size, in_dims, avg_pool{});
+array<float, 7> zapzap = {float(n), float(c), float(ph), float(pw), float(i), float(jj),  y_t[i]};
+
+
+// println(" ddddd  y_t[jj]: ",  zapzap)   ;
+println(" bbbbb ",  zapzap)   ;
         }
         else
         {

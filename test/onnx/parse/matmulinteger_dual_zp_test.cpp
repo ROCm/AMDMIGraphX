@@ -79,5 +79,5 @@ TEST_CASE(matmulinteger_dual_zp_test)
 
     auto prog = optimize_onnx("matmulinteger_int8_uint8_dual_zp_test.onnx");
 
-    EXPECT(p == prog);
+    EXPECT(p.sort() == prog.sort());
 }

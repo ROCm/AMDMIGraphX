@@ -22,18 +22,19 @@
  * THE SOFTWARE.
  */
 
+#pragma once
+
 #include <migraphx/config.hpp>
 #include <migraphx/bit_cast.hpp>
 #include <algorithm>
 #include <limits>
-#include <iostream>
 #include <tuple>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
 
-template <unsigned int N>
-constexpr unsigned int all_ones() noexcept
+template <unsigned int N, typename T = unsigned int>
+constexpr T all_ones() noexcept
 {
     return (1u << N) - 1u;
 }
@@ -65,16 +66,82 @@ struct float32_parts
 constexpr float32_parts get_parts(float f) { return migraphx::bit_cast<float32_parts>(f); }
 
 #ifdef _MSC_VER
-#pragma pack(push, 1)
+#define PACKED(...) __pragma(pack(push, 1)) __VA_ARGS__; __pragma(pack(pop))
+#else
+#define PACKED(...) __VA_ARGS__ __attribute__((__packed__, may_alias))
 #endif
-template <unsigned int MantissaSize, unsigned int ExponentSize, unsigned int Flags = 0>
-struct __attribute__((packed, may_alias)) generic_float
-{
-    unsigned int mantissa : MantissaSize;
-    unsigned int exponent : ExponentSize;
-    unsigned int sign : 1;
 
-    static constexpr int exponent_bias() { return all_ones<ExponentSize - 1>(); }
+// NOLINTNEXTLINE
+#define MIGRAPHX_GENERIC_FLOAT_ASSIGN_OP(op)                        \
+    constexpr generic_float& operator op(const generic_float & rhs) \
+    {                                                               \
+        float self = *this;                                         \
+        float frhs = rhs;                                           \
+        self op frhs;                                               \
+        *this = generic_float(self);                                \
+        return *this;                                               \
+    }
+
+// NOLINTNEXTLINE
+#define MIGRAPHX_GENERIC_FLOAT_BINARY_OP(op)                                                   \
+    friend constexpr generic_float operator op(const generic_float& x, const generic_float& y) \
+    {                                                                                          \
+        return generic_float(float(x) op float(y));                                            \
+    }
+
+// NOLINTNEXTLINE
+#define MIGRAPHX_GENERIC_FLOAT_COMPARE_OP(op)                                         \
+    friend constexpr bool operator op(const generic_float& x, const generic_float& y) \
+    {                                                                                 \
+        return float(x) op float(y);                                                  \
+    }
+
+template <unsigned int M, unsigned int E, unsigned int S = 1>
+struct Tag
+{
+    enum { tag = ((M + E + S) / 8) + ((M + E + S) % 8 ? 1 : 0) };
+};
+
+template <unsigned int T>
+struct Type
+{
+    static_assert("An invalid joined size for Mantissa, Exponent, and Sign was given.");
+};
+
+template <>
+struct Type<1>
+{
+    using type = unsigned char;
+};
+
+template <>
+struct Type<2>
+{
+    using type = unsigned short;
+};
+
+template <>
+struct Type<4>
+{
+    using type = unsigned int;
+};
+
+template <>
+struct Type<8>
+{
+    using type = unsigned long long int;
+};
+
+template <unsigned int MantissaSize, unsigned int ExponentSize, unsigned int Flag = 0>
+PACKED(struct generic_float
+{
+    using T = typename Type<Tag<MantissaSize, ExponentSize>::tag>::type;
+
+    T mantissa : MantissaSize;
+    T exponent : ExponentSize;
+    T sign : 1;
+
+    static constexpr T exponent_bias() { return all_ones<ExponentSize - 1>(); }
 
     explicit constexpr generic_float(float f = 0.0) noexcept { from_float(get_parts(f)); }
 
@@ -184,39 +251,39 @@ struct __attribute__((packed, may_alias)) generic_float
             }
         }
 
-        exponent = std::min(exponent, all_ones<ExponentSize>());
+        exponent = std::min(exponent, all_ones<ExponentSize, T>());
     }
 
     constexpr bool is_normal() const noexcept
     {
-        return exponent != all_ones<ExponentSize>() and exponent != 0;
+        return exponent != all_ones<ExponentSize, T>() and exponent != 0;
     }
 
     constexpr bool is_inf() const noexcept
     {
-        return exponent == all_ones<ExponentSize>() and mantissa == 0;
+        return exponent == all_ones<ExponentSize, T>() and mantissa == 0;
     }
 
     constexpr bool is_nan() const noexcept
     {
-        return exponent == all_ones<ExponentSize>() and mantissa != 0;
+        return exponent == all_ones<ExponentSize, T>() and mantissa != 0;
     }
 
-    constexpr bool is_finite() const noexcept { return exponent != all_ones<ExponentSize>(); }
+    constexpr bool is_finite() const noexcept { return exponent != all_ones<ExponentSize, T>(); }
 
     constexpr operator float() const noexcept { return this->to_float(); }
 
     static constexpr generic_float infinity()
     {
         generic_float x{};
-        x.exponent = all_ones<ExponentSize>();
+        x.exponent = all_ones<ExponentSize, T>();
         return x;
     }
 
     static constexpr generic_float snan()
     {
         generic_float x{};
-        x.exponent = all_ones<ExponentSize>();
+        x.exponent = all_ones<ExponentSize, T>();
         x.mantissa = 1u << (MantissaSize - 2u);
         return x;
     }
@@ -224,7 +291,7 @@ struct __attribute__((packed, may_alias)) generic_float
     static constexpr generic_float qnan()
     {
         generic_float x{};
-        x.exponent = all_ones<ExponentSize>();
+        x.exponent = all_ones<ExponentSize, T>();
         x.mantissa = 1u << (MantissaSize - 1u);
         return x;
     }
@@ -249,8 +316,8 @@ struct __attribute__((packed, may_alias)) generic_float
     static constexpr generic_float lowest()
     {
         generic_float x{};
-        x.exponent = all_ones<ExponentSize>() - 1;
-        x.mantissa = all_ones<MantissaSize>();
+        x.exponent = all_ones<ExponentSize, T>() - 1;
+        x.mantissa = all_ones<MantissaSize, T>();
         x.sign     = 1;
         return x;
     }
@@ -258,8 +325,8 @@ struct __attribute__((packed, may_alias)) generic_float
     static constexpr generic_float max()
     {
         generic_float x{};
-        x.exponent = all_ones<ExponentSize>() - 1;
-        x.mantissa = all_ones<MantissaSize>();
+        x.exponent = all_ones<ExponentSize, T>() - 1;
+        x.mantissa = all_ones<MantissaSize, T>();
         x.sign     = 0;
         return x;
     }
@@ -270,36 +337,17 @@ struct __attribute__((packed, may_alias)) generic_float
         x.mantissa++;
         return generic_float{x.to_float() - 1.0f};
     }
-// NOLINTNEXTLINE
-#define MIGRAPHX_GENERIC_FLOAT_ASSIGN_OP(op)                        \
-    constexpr generic_float& operator op(const generic_float & rhs) \
-    {                                                               \
-        float self = *this;                                         \
-        float frhs = rhs;                                           \
-        self op frhs;                                               \
-        *this = generic_float(self);                                \
-        return *this;                                               \
-    }
+
     MIGRAPHX_GENERIC_FLOAT_ASSIGN_OP(*=)
     MIGRAPHX_GENERIC_FLOAT_ASSIGN_OP(-=)
     MIGRAPHX_GENERIC_FLOAT_ASSIGN_OP(+=)
     MIGRAPHX_GENERIC_FLOAT_ASSIGN_OP(/=)
-// NOLINTNEXTLINE
-#define MIGRAPHX_GENERIC_FLOAT_BINARY_OP(op)                                                   \
-    friend constexpr generic_float operator op(const generic_float& x, const generic_float& y) \
-    {                                                                                          \
-        return generic_float(float(x) op float(y));                                            \
-    }
+
     MIGRAPHX_GENERIC_FLOAT_BINARY_OP(*)
     MIGRAPHX_GENERIC_FLOAT_BINARY_OP(-)
     MIGRAPHX_GENERIC_FLOAT_BINARY_OP(+)
     MIGRAPHX_GENERIC_FLOAT_BINARY_OP(/)
-// NOLINTNEXTLINE
-#define MIGRAPHX_GENERIC_FLOAT_COMPARE_OP(op)                                         \
-    friend constexpr bool operator op(const generic_float& x, const generic_float& y) \
-    {                                                                                 \
-        return float(x) op float(y);                                                  \
-    }
+
     MIGRAPHX_GENERIC_FLOAT_COMPARE_OP(<)
     MIGRAPHX_GENERIC_FLOAT_COMPARE_OP(<=)
     MIGRAPHX_GENERIC_FLOAT_COMPARE_OP(>)
@@ -335,10 +383,7 @@ struct __attribute__((packed, may_alias)) generic_float
         *this += generic_float(1.0f);
         return temp;
     }
-};
-#ifdef _MSC_VER
-#pragma pack(pop)
-#endif
+});
 
 } // namespace MIGRAPHX_INLINE_NS
 } // namespace migraphx

@@ -75,6 +75,8 @@ inline auto hipblaslt_invoke(F f, Ts... xs)
     return status;
 }
 
+// Invoke a hipBLASLt call. If used to validate a call, set fatal_error = false to prevent
+// throwing an exception on failure.
 template <class F, class Pack, class... Ts>
 auto hipblaslt_invoke(F f, Pack p, Ts... xs, bool fatal_error = true)
 {

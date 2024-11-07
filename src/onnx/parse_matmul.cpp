@@ -145,7 +145,7 @@ struct parse_matmul : op_parser<parse_matmul>
 
             if(not(contains(supported_dq_types, scale_bias_arg->get_shape().type())))
             {
-                MIGRAPHX_THROW("PARSE_QUANT_DOT_SCALDED: Bias must be float or half_type");
+                MIGRAPHX_THROW("PARSE_QUANT_DOT_SCALED: Bias must be float or half_type");
             }
 
             if(scale_bias_arg->get_shape().type() != scale_arg_shape.type())
@@ -332,13 +332,13 @@ struct parse_matmul : op_parser<parse_matmul>
             a1            = info.add_instruction(make_op("unsqueeze", {{"axes", {1}}}), args[1]);
         }
 
-        auto is_quant_dot = opd.op_name == "quant_dot";
-        auto has_scales   = opd.op_name == "quant_dot_scaled";
+        auto is_quant_dot        = opd.op_name == "quant_dot";
+        auto is_quant_dot_scaled = opd.op_name == "quant_dot_scaled";
         auto is_dot       = opd.op_name == "dot";
 
         if(s0.dynamic() or s1.dynamic())
         {
-            if(is_quant_dot or has_scales)
+            if(is_quant_dot or is_quant_dot_scaled)
             {
                 MIGRAPHX_THROW(op_name + ": dynamic inputs not supported");
             }
@@ -379,7 +379,7 @@ struct parse_matmul : op_parser<parse_matmul>
             instruction_ref scale_a0;
             instruction_ref scale_a1;
             // Handles case with for when scales are present in operator
-            if(has_scales)
+            if(is_quant_dot_scaled)
             {
                 a0_zp_index = 4;
                 a1_zp_index = 5;
@@ -396,9 +396,11 @@ struct parse_matmul : op_parser<parse_matmul>
 
             // handle optional bias arg to the result
             instruction_ref scaled_bias;
-            if(has_scales)
+            if(is_quant_dot_scaled)
             {
-                scaled_bias = set_scale_bias(args, 6, scale_a1->get_shape(), a1, has_scale_bias);
+                auto scaled_index = 6;
+                scaled_bias =
+                    set_scale_bias(args, scaled_index, scale_a1->get_shape(), a1, has_scale_bias);
             }
 
             // Only INT8 or UINT8 type currently supported
@@ -451,7 +453,7 @@ struct parse_matmul : op_parser<parse_matmul>
             // Apply the scale to dequantize input to then perform a simple dot
             // after the zero points are applied otherwise get a int32 output from the quantized
             // equivalent. Ensure these are broadcasted accordingly before we perform a dot
-            if(has_scales)
+            if(is_quant_dot_scaled)
             {
                 dot_res = handle_scaled_output(
                     info, a0, a1, scale_a0, scale_a1, ba0, ba1, scaled_bias, has_scale_bias);

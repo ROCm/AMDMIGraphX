@@ -21,6 +21,8 @@
  * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
  * THE SOFTWARE.
  */
+
+#if MIGRAPHX_USE_HIPBLASLT
 #include <migraphx/gpu/compile_hipblaslt.hpp>
 #include <migraphx/gpu/context.hpp>
 #include <migraphx/module.hpp>
@@ -100,3 +102,4 @@ void compile_hipblaslt::apply(module& m) const
 } // namespace gpu
 } // namespace MIGRAPHX_INLINE_NS
 } // namespace migraphx
+#endif // MIGRAPHX_USE_HIPBLASLT

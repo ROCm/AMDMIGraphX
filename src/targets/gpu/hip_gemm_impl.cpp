@@ -463,7 +463,7 @@ struct hip_gemm_impl
     validate(context& ctx, const std::vector<argument>& input_args, int32_t solution_idx) // const
     {
         auto common_args = create_hipblaslt_args_common(ctx, input_args, solution_idx);
-        auto check_valid = hipblaslt_invoke(&hipblasLtMatmul, common_args);
+        auto check_valid = hipblaslt_invoke(&hipblasLtMatmul, common_args, false);
         if(check_valid != HIPBLAS_STATUS_SUCCESS)
         {
             std::cerr << "WARNING:  tuned solution is invalid; reverting to default" << std::endl;

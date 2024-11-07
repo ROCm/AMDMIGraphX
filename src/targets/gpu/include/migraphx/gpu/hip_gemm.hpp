@@ -130,17 +130,9 @@ struct hip_gemm
     value
     compile(migraphx::context& ctx, const shape& output, const std::vector<shape>& input_shapes)
     {
-        size_t ws = hipblaslt_workspace_size;
         finalize(any_cast<migraphx::gpu::context>(ctx), output, input_shapes);
-        if(solution_idx != 0)
-        {
-            ws = hip_gemm_workspace_size(any_cast<migraphx::gpu::context>(ctx),
-                                         output,
-                                         input_shapes,
-                                         alpha,
-                                         beta,
-                                         solution_idx);
-        }
+        size_t ws = hip_gemm_workspace_size(
+            any_cast<migraphx::gpu::context>(ctx), output, input_shapes, alpha, beta, solution_idx);
         return {{"workspace", ws}};
     }
 };

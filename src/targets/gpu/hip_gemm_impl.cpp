@@ -482,8 +482,6 @@ struct hip_gemm_impl
                               const std::vector<shape>& input_shapes,
                               int32_t solution_idx) const
     {
-        size_t workspace_size = hipblaslt_workspace_size;
-
         std::vector<argument> input_args;
         std::transform(input_shapes.begin(),
                        input_shapes.end(),
@@ -503,9 +501,17 @@ struct hip_gemm_impl
         size_t ret_workspace_size = 0;
         auto supporting_args =
             create_hipblaslt_supporting_args_common(ctx, input_args, algo, ret_workspace_size);
-        hipblaslt_invoke(&hipblaslt_ext::matmulIsAlgoSupported, supporting_args);
-        workspace_size = ret_workspace_size;
 
+        auto status =
+            hipblaslt_invoke(&hipblaslt_ext::matmulIsAlgoSupported, supporting_args, false);
+
+        size_t workspace_size = hipblaslt_workspace_size;
+        // If algo is supported, update the workspace size to the actual size needed.
+        // Otherwise, use the default workspace size.
+        if(status == HIPBLAS_STATUS_SUCCESS)
+        {
+            workspace_size = ret_workspace_size;
+        }
         return workspace_size;
     }
 

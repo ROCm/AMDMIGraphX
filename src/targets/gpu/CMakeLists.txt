@@ -22,6 +22,8 @@
 # THE SOFTWARE.
 # ####################################################################################
 
+include(CheckSymbolExists)
+
 find_package(hip REQUIRED)
 if(NOT GPU_TARGETS)
     set(fatal_msg "HIP package is broken and has no GPU_TARGETS. Please pass GPU_TARGETS to cmake.")
@@ -52,7 +54,8 @@ if(MIGRAPHX_USE_HIPBLASLT)
     # Making hipblas required to workaround the broken hipblaslt package.
     find_package(hipblas REQUIRED)
     message(STATUS "MIGraphx build with hipBLAS and hipBLASLt")
-else()
+    check_symbol_exists(HIP_R_8F_E4M3 "hipblaslt.h" MIGRAPHX_HIPBLASLT_HAS_8F_E4M3)
+    check_symbol_exists(HIP_R_8F_E5M2 "hipblaslt.h" MIGRAPHX_HIPBLASLT_HAS_8F_E5M2)
     message(STATUS "MIGraphX build without hipBLAS and hipBLASLt")
 endif()
 

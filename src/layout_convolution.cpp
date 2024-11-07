@@ -37,6 +37,7 @@
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
 
+namespace {
 std::vector<int64_t> get_permutation(instruction_ref ins, const layout_convolution& lc)
 {
     if(lc.channels_last)
@@ -49,6 +50,11 @@ std::vector<int64_t> get_permutation(instruction_ref ins, const layout_convoluti
     return find_permutation(ins->inputs().front()->get_shape());
 }
 
+static bool skip_layout(const shape& s)
+{
+    return s.ndim() == 1 or s.dynamic() or s.type() == shape::tuple_type;
+}
+
 void preserve_output_layout(module& m)
 {
     auto last = std::prev(m.end());
@@ -59,13 +65,15 @@ void preserve_output_layout(module& m)
                        last->inputs().end(),
                        std::back_inserter(outputs),
                        [&](instruction_ref ins) {
+                            if(skip_layout(ins->get_shape()))
+                                return ins;
                            auto permutation = find_permutation(ins->get_shape());
                            return m.insert_instruction(
                                last, make_op("layout", {{"permutation", permutation}}), ins);
                        });
         m.replace_return(outputs);
     }
-    else
+    else if(not skip_layout(last->get_shape()))
     {
         auto permutation = find_permutation(last->get_shape());
         m.add_instruction(make_op("layout", {{"permutation", permutation}}), last);
@@ -106,6 +114,7 @@ void remove_layout(module& m)
             continue;
         m.replace_instruction(ins, ins->inputs().front());
     }
+}
 }
 
 void layout_convolution::apply(module_pass_manager& mpm) const

@@ -60,19 +60,8 @@ def test_roialign():
     themodel = 'roialign_half_pixel_test.onnx'
     sess = rt.InferenceSession('../onnx/' + themodel)
     
-    
-    #     TODO:  this output warning appears important because Migraphx and ORT results have 
-    #   different shapes:  (2, 2, 2, 3) vs (2, 2, 3, 2)
-    #   But is the Migraphx result an error?
-
-    # root@rocm-rome-6:/workspace/AMDMIGraphX/test/py# python3 ./test_roialign.py 
-    # 2024-10-28 22:13:54.675372471 [W:onnxruntime:, graph.cc:109 MergeShapeInfo] Error merging shape info for output. 'y' source:{2,2,3,2} target:{3,2,2,2}. Falling back to lenient merge.
-    
     res = sess.run(['y'], {'x': data, 'rois': roi_data, 'batch_ind': index_data})
-    print(' mgx result is a list with 1 item of shape ', mgx_result.get_shape().lens(), mgx_result)
-    print(' ORT result is a list with 1 item of shape', res[0].shape, res)
     assert np.allclose(mgx_result, res[-1], rtol=1e-05, atol=1e-08, equal_nan=False)
-
 
 if __name__ == "__main__":
     test_roialign()

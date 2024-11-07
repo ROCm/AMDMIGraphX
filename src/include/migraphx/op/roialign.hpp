@@ -227,9 +227,10 @@ struct roialign
         std::array<std::size_t, 2> in_dims = {x_lens[3], x_lens[2]};
         auto roi_s                         = args.at(1).get_shape();
 
-        // new: I've changed the shape of the output but the internal 
-        // computations must be done on the shape I had before.
-        shape visit_shape{output_shape.type(), {out_lens[0], out_lens[1], out_lens[3], out_lens[2]}};        
+        // the internal
+        // computations are done on a different shape than the eventual output.
+        shape visit_shape{output_shape.type(),
+                          {out_lens[0], out_lens[1], out_lens[3], out_lens[2]}};
         argument visit_result({visit_shape});
         visit_all(visit_result, args.at(0), args.at(1))([&](auto output, auto x, auto roi) {
             const auto* batch_indices = args.at(2).cast<int64_t>();
@@ -301,10 +302,8 @@ struct roialign
             });
         });
 
-        // reshape visit_result to result
-        argument result{output_shape, visit_result.data()};
-
-        return result;
+        // reshape visit_result to the final result
+        return visit_result.reshape(output_shape);
     }
 };
 

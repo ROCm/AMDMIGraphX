@@ -440,50 +440,17 @@ struct find_mul_add
         auto b_ins = r.instructions["b"];
         auto x_ins = r.instructions["x"];
         assert(x_ins != b_ins);
-
-        std::cout<<"mul_add_before" << std::endl;
-        m.debug_print(a_ins);
-        m.debug_print(b_ins);
-        m.debug_print(x_ins);
     
         //if(x_ins->name() != "slice") // Can't use this because once the matcher is matched in mul_add and enters apply function it will not match with find_slice_add_mul
         //{
             auto ax_ins = m.insert_instruction(ins, make_op("mul"), a_ins, x_ins);
             auto ab_ins = m.insert_instruction(ins, make_op("mul"), a_ins, b_ins);
             m.replace_instruction(ins, make_op("add"), ax_ins, ab_ins);
-
-        //    std::cout<<"mul_add_after" << std::endl;
-        //}
-        
-        std::cout<<"mul_add_after" << std::endl;
-        m.debug_print(a_ins);
-        m.debug_print(b_ins);
-        m.debug_print(x_ins);
+        //}   
 
     }
 };
 
-
-
-
-//auto slice() { return match::name("slice"); }
-
-/*auto slice()
-{
-    return match::name("slice")(match::arg(0)(
-        match::name("add")(
-            match::either_arg(0, 1)(
-                match::name("dot").bind("dot"),  // Match a dot operation and bind it
-                match::any_of(conv_const_weights(), match::is_constant()).bind("const_arg")
-            )
-        ).bind("add1")));
-}*/
-
-auto slice()
-{
-    return match::name("slice")(match::arg(0)(
-        match::name("add").bind("add1")));
-}
 
 /*
 
@@ -500,6 +467,13 @@ mlir_dot_add
 mlir_slice_mul_reshape_transpose_squeeze_slice_reshape_transpose_squeeze_dot
 
 */
+
+auto slice()
+{
+    return match::name("slice")(match::arg(0)(
+        match::name("add").bind("add1")));
+}
+
 struct find_slice_add_mul
 {
     auto matcher() const
@@ -520,75 +494,15 @@ struct find_slice_add_mul
         auto a_ins  = r.instructions["a"];
         auto b_ins  = r.instructions["b"];
         auto x_ins  = r.instructions["x"];
-        //auto add1_ins  = r.instructions["add1"];
-        //auto dot_ins  = r.instructions["dot"];
 
         assert(x_ins != b_ins);
 
-        std::cout<<"find_slice_add_mul_before" << std::endl;
-        //m.debug_print();
-        m.debug_print(ins);
-        m.debug_print(a_ins);
-        m.debug_print(b_ins);
-        m.debug_print(x_ins);
-        //m.debug_print(add1_ins);
-        //m.debug_print(dot_ins);
-
         auto ax_ins = m.insert_instruction(ins, make_op("add"), x_ins, b_ins);
         m.replace_instruction(ins, make_op("mul"), ax_ins, a_ins);
-
-        std::cout<<"find_slice_add_mul_after" << std::endl;
-
-        m.debug_print(ax_ins);
-        m.debug_print(ins);
         
     }
-/*
-    void apply(module& m, const match::matcher_result& r) const
-    {
-    
-    auto ins    = r.result; // This is the "mul" instruction (@309)
-    auto x_ins  = r.instructions["x"]; // The slice result (@305)
-    auto add1_ins  = r.instructions["add1"]; // The add instruction inside slice (@304)
-    auto dot_ins  = r.instructions["dot"]; // The dot instruction (@302)
 
-    
-    auto a_ins = r.instructions["a"];
-    auto b_ins = r.instructions["b"];
-
-    
-    assert(x_ins != b_ins);
-    
-    
-    std::cout << "find_add_slice_mul_before" << std::endl;
-    m.debug_print(ins);
-    m.debug_print(a_ins);
-    m.debug_print(b_ins);
-    m.debug_print(x_ins);
-    m.debug_print(add1_ins);
-    m.debug_print(dot_ins);
-
-    // Slice the output of add1_ins (@304) into S1, S2, S3 using the existing slices
-    auto s1 = m.insert_instruction(ins, make_op("slice", {{"axes", {2}}, {"starts", {0}}, {"ends", {768}}}), add1_ins);
-    auto s2 = m.insert_instruction(ins, make_op("slice", {{"axes", {2}}, {"starts", {768}}, {"ends", {1536}}}), add1_ins);
-    auto s3 = m.insert_instruction(ins, make_op("slice", {{"axes", {2}}, {"starts", {1536}}, {"ends", {2304}}}), add1_ins);
-
-    // Create the add and mul operations on S1
-    auto add_s1 = m.insert_instruction(ins, make_op("add"), b_ins, s1);
-    auto mul_s1 = m.insert_instruction(ins, make_op("mul"), add_s1, a_ins);
-
-
-    m.replace_instruction(ins, mul_s1);
-
-    // Perform the add operations on S2 and S3
-    auto add_s2 = m.insert_instruction(ins, make_op("add"), s2, b_ins);
-    auto add_s3 = m.insert_instruction(ins, make_op("add"), s3, b_ins);
-
-    std::cout << "find_add_slice_mul_after" << std::endl;
-    m.debug_print();
-    }*/
 };
-
 
 
 struct find_dot_add

@@ -66,9 +66,9 @@ struct float32_parts
 constexpr float32_parts get_parts(float f) { return migraphx::bit_cast<float32_parts>(f); }
 
 #ifdef _MSC_VER
-#define PACKED(...) __pragma(pack(push, 1)) __VA_ARGS__; __pragma(pack(pop))
+#define MIGRAPHX_PACKED(...) __pragma(pack(push, 1)) __VA_ARGS__; __pragma(pack(pop))
 #else
-#define PACKED(...) __VA_ARGS__ __attribute__((__packed__, may_alias))
+#define MIGRAPHX_PACKED(...) __VA_ARGS__ __attribute__((__packed__, may_alias))
 #endif
 
 // NOLINTNEXTLINE
@@ -97,45 +97,45 @@ constexpr float32_parts get_parts(float f) { return migraphx::bit_cast<float32_p
     }
 
 template <unsigned int M, unsigned int E, unsigned int S = 1>
-struct Tag
+struct unsigned_type_tag
 {
-    enum { tag = ((M + E + S) / 8) + ((M + E + S) % 8 ? 1 : 0) };
+    enum { tag = ((M + E + S) / 8) + ((M + E + S) % 8 == 0 ? 0 : 1) };
 };
 
 template <unsigned int T>
-struct Type
+struct unsigned_type
 {
     static_assert("An invalid joined size for Mantissa, Exponent, and Sign was given.");
 };
 
 template <>
-struct Type<1>
+struct unsigned_type<1>
 {
     using type = unsigned char;
 };
 
 template <>
-struct Type<2>
+struct unsigned_type<2>
 {
     using type = unsigned short;
 };
 
 template <>
-struct Type<4>
+struct unsigned_type<4>
 {
     using type = unsigned int;
 };
 
 template <>
-struct Type<8>
+struct unsigned_type<8>
 {
     using type = unsigned long long int;
 };
 
 template <unsigned int MantissaSize, unsigned int ExponentSize, unsigned int Flag = 0>
-PACKED(struct generic_float
+MIGRAPHX_PACKED(struct generic_float
 {
-    using T = typename Type<Tag<MantissaSize, ExponentSize>::tag>::type;
+    using T = typename unsigned_type<unsigned_type_tag<MantissaSize, ExponentSize>::tag>::type;
 
     T mantissa : MantissaSize;
     T exponent : ExponentSize;

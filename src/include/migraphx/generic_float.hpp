@@ -22,7 +22,8 @@
  * THE SOFTWARE.
  */
 
-#pragma once
+#ifndef MIGRAPHX_GUARD_GENERIC_FLOAT_HPP
+#define MIGRAPHX_GUARD_GENERIC_FLOAT_HPP
 
 #include <migraphx/config.hpp>
 #include <migraphx/bit_cast.hpp>
@@ -99,7 +100,10 @@ constexpr float32_parts get_parts(float f) { return migraphx::bit_cast<float32_p
 template <unsigned int M, unsigned int E, unsigned int S = 1>
 struct unsigned_type_tag
 {
-    enum { tag = ((M + E + S) / 8) + ((M + E + S) % 8 == 0 ? 0 : 1) };
+    enum
+    {
+        tag = ((M + E + S) / 8) + ((M + E + S) % 8 == 0 ? 0 : 1)
+    };
 };
 
 template <unsigned int T>
@@ -133,8 +137,7 @@ struct unsigned_type<8>
 };
 
 template <unsigned int MantissaSize, unsigned int ExponentSize, unsigned int Flag = 0>
-MIGRAPHX_PACKED(struct generic_float
-{
+MIGRAPHX_PACKED(struct generic_float {
     using T = typename unsigned_type<unsigned_type_tag<MantissaSize, ExponentSize>::tag>::type;
 
     T mantissa : MantissaSize;
@@ -482,3 +485,5 @@ struct common_type<migraphx::generic_float<E, M, F>, // NOLINT(cert-dcl58-cpp)
 // };
 
 } // namespace std
+
+#endif // MIGRAPHX_GUARD_GENERIC_FLOAT_HPP

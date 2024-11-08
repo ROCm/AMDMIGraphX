@@ -1124,7 +1124,7 @@ void module::debug_print(instruction_ref ins,
         std::cout << "Instruction not part of module" << std::endl;
         return;
     }
-    std::stringstream ss;
+
     names = this->print(
         [&](auto x, auto ins_names) {
             if(x == ins)

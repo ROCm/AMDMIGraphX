@@ -50,7 +50,7 @@ std::vector<int64_t> get_permutation(instruction_ref ins, const layout_convoluti
     return find_permutation(ins->inputs().front()->get_shape());
 }
 
-static bool skip_layout(const shape& s)
+bool skip_layout(const shape& s)
 {
     return s.ndim() == 1 or s.dynamic() or s.type() == shape::tuple_type;
 }

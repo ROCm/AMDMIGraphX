@@ -98,7 +98,10 @@ struct MIGRAPHX_EXPORT shape_transform_descriptor
             // the axis. However, it still needs to accounted for. After we
             // generate the broadcast we will set the axis to the hidden
             // axis, and then length to 1.
-            optional<std::size_t> hidden_axis = nullopt;
+            std::vector<std::size_t> hidden_axis = {};
+
+            const std::vector<std::size_t>& origin_axis() const;
+            bool has_hidden_axis() const;
 
             MIGRAPHX_EXPORT friend bool operator==(const sub& x, const sub& y);
             MIGRAPHX_EXPORT friend bool operator!=(const sub& x, const sub& y);

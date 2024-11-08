@@ -25,10 +25,9 @@
 #ifndef MIGRAPHX_GUARD_RTGLIB_HALF_HPP
 #define MIGRAPHX_GUARD_RTGLIB_HALF_HPP
 
-#include <migraphx/generic_float.hpp>
 #include <migraphx/config.hpp>
 #include <migraphx/float8.hpp>
-#include <migraphx/bf16.hpp>
+#include <migraphx/generic_float.hpp>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {

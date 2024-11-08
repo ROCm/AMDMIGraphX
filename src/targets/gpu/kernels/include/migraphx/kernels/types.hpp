@@ -28,7 +28,7 @@
 
 namespace migraphx {
 
-#if defined(MIGRAPHX_ENABLE_HIPRTC_WORKAROUNDS) and defined(MIGRAPHX_USE_HIPRTC)
+#if defined(MIGRAPHX_USE_HIPRTC)
 using int8_t   = signed char;
 using uint8_t  = unsigned char;
 using int16_t  = signed short;

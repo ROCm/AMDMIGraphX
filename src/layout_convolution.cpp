@@ -65,8 +65,8 @@ void preserve_output_layout(module& m)
                        last->inputs().end(),
                        std::back_inserter(outputs),
                        [&](instruction_ref ins) {
-                            if(skip_layout(ins->get_shape()))
-                                return ins;
+                           if(skip_layout(ins->get_shape()))
+                               return ins;
                            auto permutation = find_permutation(ins->get_shape());
                            return m.insert_instruction(
                                last, make_op("layout", {{"permutation", permutation}}), ins);
@@ -115,7 +115,7 @@ void remove_layout(module& m)
         m.replace_instruction(ins, ins->inputs().front());
     }
 }
-}
+} // namespace
 
 void layout_convolution::apply(module_pass_manager& mpm) const
 {

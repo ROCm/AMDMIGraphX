@@ -17,7 +17,7 @@ const std::string ONNX_FILE = "model.onnx";
 const std::string DATASET_FOLDER = "/dataset/";
 const size_t DATASET_SIZE = 10;
 // sequence length from model config
-const size_t SEQ_SIZE = 1024;
+const size_t SEQ_SIZE = 4096;
 // vocab size from model config
 const size_t VOCAB_SIZE = 32000;
 // EOS token from model config
@@ -26,6 +26,7 @@ const size_t EOS = 2;
 const bool WRITE_RESULT_FILE = false;
 
 const size_t HIDDEN_LAYERS_NUM = 32;
+const size_t HEAD_SIZE = 128;
 
 struct ModelLoadSettings
 {
@@ -52,6 +53,20 @@ static std::string getModelPath(ModelLoadSettings& s)
     return path.str();
 }
 
+std::string getPastKeyString(size_t i)
+{
+    std::stringstream past_key;
+    past_key << "past_key_values." << std::to_string(i) << ".key";
+    return past_key.str();
+}
+
+std::string getPastValueStr(size_t i)
+{
+    std::stringstream past_val;
+    past_val << "past_key_values." << std::to_string(i) << ".value";
+    return past_val.str();
+}
+
 static migraphx::program loadOnnx(ModelLoadSettings& settings)
 {
     std::filesystem::path onnx_path(MODEL_FOLDER + ONNX_FILE);
@@ -66,9 +81,15 @@ static migraphx::program loadOnnx(ModelLoadSettings& settings)
     {
         migraphx::onnx_options onnx_opts;
         std::vector<std::size_t> dims = {1, SEQ_SIZE};
+        std::vector<std::size_t> dimsPastKey = {1, HIDDEN_LAYERS_NUM, SEQ_SIZE, HEAD_SIZE};
         onnx_opts.set_input_parameter_shape("input_ids", dims);
         onnx_opts.set_input_parameter_shape("attention_mask", dims);
         onnx_opts.set_input_parameter_shape("position_ids", dims);
+        for (size_t i = 0; i < HIDDEN_LAYERS_NUM; ++i)
+        {
+            onnx_opts.set_input_parameter_shape(getPastKeyString(i), dimsPastKey);
+            onnx_opts.set_input_parameter_shape(getPastValueStr(i), dimsPastKey);
+        }
         std::cout << "Parsing onnx file ..." << std::endl;
         prog = parse_onnx(onnx_path.c_str(), onnx_opts);
 
@@ -252,12 +273,12 @@ private:
     void prepareSampleDataset()
     {
         std::cout << "Numpy files are not loaded, using dummy data\n";
-        std::vector<int64_t> input_ids_sample = {1,6804,5207,387,287,29973};
-        input_ids_sample.resize(SEQ_SIZE, EOS);
+        std::vector<int64_t> input_ids_sample = {1,6804,338,5207,387,287,29973};
+        input_ids_sample.resize(SEQ_SIZE, 0);
         std::vector<int64_t> attention_mask_sample = input_ids_sample;
         input_ids.emplace_back(std::move(input_ids_sample));
         std::transform(std::begin(attention_mask_sample), std::end(attention_mask_sample), std::begin(attention_mask_sample), [](auto i){
-            return (i != EOS) ? 1 : 0;
+            return (i != 0) ? 1 : 0;
         });
         attention_mask.emplace_back(std::move(attention_mask_sample));
 
@@ -307,27 +328,21 @@ struct LLama2Inputs
         auto positionShape = inputShape;
         auto position_ids = data.getPositionIds();
         position_ids_buffer = std::make_unique<LLama2InputBuffer>(std::move(position_ids), offload_copy);
-        prog_args.add(POSITION_IDS_STR, migraphx::argument(inputShape, position_ids_buffer->data()));
+        //prog_args.add(POSITION_IDS_STR, migraphx::argument(inputShape, position_ids_buffer->data()));
 
-        const size_t HEAD_SIZE = 128;
-
-        const size_t PAST_KEY_VAL_SIZE = HIDDEN_LAYERS_NUM*HEAD_SIZE;
+        const size_t PAST_KEY_VAL_SIZE = HIDDEN_LAYERS_NUM*HEAD_SIZE*SEQ_SIZE;
 
         // past_key_values.0.key = @param:past_key_values.0.key -> half_type, {1, 32, 1, 128}, {4096, 128, 128, 1}
         // past_key_values.0.value = @param:past_key_values.0.value -> half_type, {1, 32, 1, 128}, {4096, 128, 128, 1}
         for (size_t i = 0; i < HIDDEN_LAYERS_NUM; ++i)
         {
-            std::stringstream past_key;
-            past_key << "past_key_values." << std::to_string(i) << ".key";
-            auto past_keyStr = past_key.str();
+            auto past_keyStr = getPastKeyString(i);
             auto past_keyString = past_keyStr.c_str();
             past_key_buffers.emplace_back(std::make_unique<LLama2PastKeyValueBuffer>(std::vector<half>(PAST_KEY_VAL_SIZE, 0.0_h), offload_copy));
             auto pastKeyShape = param_shapes[past_keyString];
             prog_args.add(past_keyString, migraphx::argument(pastKeyShape, past_key_buffers[i]->data()));
 
-            std::stringstream past_val;
-            past_val << "past_key_values." << std::to_string(i) << ".value";
-            auto past_valueStr = past_val.str();
+            auto past_valueStr = getPastValueStr(i);
             auto past_valueString = past_valueStr.c_str();
             past_value_buffers.emplace_back(std::make_unique<LLama2PastKeyValueBuffer>(std::vector<half>(PAST_KEY_VAL_SIZE, 0.0_h), offload_copy));
             auto pastValueShape = param_shapes[past_valueString];
@@ -433,17 +448,17 @@ int main() {
     }
 
     // Setup model output for non-offload copy
+    // const size_t output_size = SEQ_SIZE * VOCAB_SIZE;
+    // auto output_name = "main:#output_0";
+    // auto output_buffer = LLama2OutputBuffer(std::vector<float>(output_size), offload_copy);
+    // migraphx::shape out_shape{migraphx_shape_float_type, {1, SEQ_SIZE, VOCAB_SIZE}};
+    // prog_args.add(output_name, migraphx::argument(out_shape, output_buffer.data()));
+
     const size_t output_size = SEQ_SIZE * VOCAB_SIZE;
-    auto output_name = "main:#output_0";
-    auto output_buffer = LLama2OutputBuffer(std::vector<float>(output_size), offload_copy);
+    auto output_name = "logits";
+    auto output_buffer = LLama2PastKeyValueBuffer(std::vector<half>(output_size), offload_copy);
     migraphx::shape out_shape{migraphx_shape_float_type, {1, SEQ_SIZE, VOCAB_SIZE}};
     prog_args.add(output_name, migraphx::argument(out_shape, output_buffer.data()));
-
-    const size_t logit_size = 4096 * VOCAB_SIZE;
-    auto logit_name = "logits";
-    auto logit_buffer = LLama2PastKeyValueBuffer(std::vector<half>(logit_size, 0.0_h), offload_copy);
-    migraphx::shape logit_shape{migraphx_shape_float_type, {1, 4096, VOCAB_SIZE}};
-    prog_args.add(logit_name, migraphx::argument(logit_shape, output_buffer.data()));
 
     std::cout << "Starting evaluation" << std::endl;
     size_t token_count = 0;
@@ -463,9 +478,9 @@ int main() {
             }
 
             check_hip_status(hipStreamSynchronize(stream));
-            float* results   = offload_copy ? reinterpret_cast<float*>(outputs[0].data()) : reinterpret_cast<float*>(output_buffer.hbuff.data());
-            std::vector<float> logits(results, results + output_size);
-            std::vector<float>::iterator max = std::max_element(std::begin(logits) + (i * VOCAB_SIZE), std::begin(logits) + ((i + 1) * VOCAB_SIZE));
+            half* results   = offload_copy ? reinterpret_cast<half*>(outputs[0].data()) : reinterpret_cast<half*>(output_buffer.hbuff.data());
+            std::vector<half> logits(results, results + output_size);
+            std::vector<half>::iterator max = std::max_element(std::begin(logits) + (i * VOCAB_SIZE), std::begin(logits) + ((i + 1) * VOCAB_SIZE));
             int64_t new_token = std::distance(std::begin(logits) + (i * VOCAB_SIZE), max);
             token_count++;
             // std::cout << "New token: " << new_token << std::endl;

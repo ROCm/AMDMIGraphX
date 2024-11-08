@@ -425,7 +425,8 @@ struct find_mul_add
         return match::name("mul")(match::either_arg(0, 1)(
             match::name("add")(
                 match::either_arg(0, 1)(
-                    match::any().bind("x"),
+                    //match::any().bind("x"),
+                    match::none_of(match::name("slice")).bind("x"),
                     match::any_of(conv_const_weights(), match::is_constant()).bind("b")),
                 match::none_of(match::args(match::is_constant(), match::is_constant())),
                 match::used_once()),
@@ -445,21 +446,19 @@ struct find_mul_add
         m.debug_print(b_ins);
         m.debug_print(x_ins);
     
-        //if (x_ins->name() == "slice")
-        return;
+        //if(x_ins->name() != "slice") // Can't use this because once the matcher is matched in mul_add and enters apply function it will not match with find_slice_add_mul
+        //{
+            auto ax_ins = m.insert_instruction(ins, make_op("mul"), a_ins, x_ins);
+            auto ab_ins = m.insert_instruction(ins, make_op("mul"), a_ins, b_ins);
+            m.replace_instruction(ins, make_op("add"), ax_ins, ab_ins);
 
-
-        //std::cout<<"mul_add_before" << std::endl;
-        //m.debug_print(x_ins);
+        //    std::cout<<"mul_add_after" << std::endl;
+        //}
         
-
-        auto ax_ins = m.insert_instruction(ins, make_op("mul"), a_ins, x_ins);
-        auto ab_ins = m.insert_instruction(ins, make_op("mul"), a_ins, b_ins);
-        m.replace_instruction(ins, make_op("add"), ax_ins, ab_ins);
-
         std::cout<<"mul_add_after" << std::endl;
-        m.debug_print(ins);
-        //m.debug_print();
+        m.debug_print(a_ins);
+        m.debug_print(b_ins);
+        m.debug_print(x_ins);
 
     }
 };
@@ -467,9 +466,9 @@ struct find_mul_add
 
 
 
-//auto slice() { return match::name("slice")(match::arg(0)(match::name("add").bind("d"))); }
+//auto slice() { return match::name("slice"); }
 
-auto slice()
+/*auto slice()
 {
     return match::name("slice")(match::arg(0)(
         match::name("add")(
@@ -478,9 +477,30 @@ auto slice()
                 match::any_of(conv_const_weights(), match::is_constant()).bind("const_arg")
             )
         ).bind("add1")));
+}*/
+
+auto slice()
+{
+    return match::name("slice")(match::arg(0)(
+        match::name("add").bind("add1")));
 }
 
-struct find_add_slice_mul
+/*
+
+----before-----
+mlir_dot_add
+mul_add
+add
+add
+mlir_reshape_transpose_squeeze_slice_reshape_transpose_squeeze_dot
+
+
+----after-----
+mlir_dot_add
+mlir_slice_mul_reshape_transpose_squeeze_slice_reshape_transpose_squeeze_dot
+
+*/
+struct find_slice_add_mul
 {
     auto matcher() const
     {        
@@ -500,40 +520,28 @@ struct find_add_slice_mul
         auto a_ins  = r.instructions["a"];
         auto b_ins  = r.instructions["b"];
         auto x_ins  = r.instructions["x"];
-        auto add1_ins  = r.instructions["add1"];
-        auto dot_ins  = r.instructions["dot"];
+        //auto add1_ins  = r.instructions["add1"];
+        //auto dot_ins  = r.instructions["dot"];
 
         assert(x_ins != b_ins);
 
-        std::cout<<"find_add_slice_mul_before" << std::endl;
+        std::cout<<"find_slice_add_mul_before" << std::endl;
         //m.debug_print();
         m.debug_print(ins);
         m.debug_print(a_ins);
         m.debug_print(b_ins);
         m.debug_print(x_ins);
-        m.debug_print(add1_ins);
-        m.debug_print(dot_ins);
+        //m.debug_print(add1_ins);
+        //m.debug_print(dot_ins);
 
         auto ax_ins = m.insert_instruction(ins, make_op("add"), x_ins, b_ins);
         m.replace_instruction(ins, make_op("mul"), ax_ins, a_ins);
 
-        /*
-        auto ax_ins = m.insert_instruction(ins, make_op("mul"), a_ins, x_ins);
-        auto ab_ins = m.insert_instruction(ins, make_op("mul"), a_ins, b_ins);
-        m.replace_instruction(ins, make_op("add"), ax_ins, ab_ins);
-        */
-        std::cout<<"find_add_slice_mul_after" << std::endl;
-        //m.debug_print();
+        std::cout<<"find_slice_add_mul_after" << std::endl;
+
         m.debug_print(ax_ins);
         m.debug_print(ins);
-        /*if (x_ins->name() == "slice")
-        {
-            std::cout<<"Inside_slice" << std::endl;
-            auto ax_ins = m.insert_instruction(ins, make_op("add"), b_ins, x_ins);
-            m.replace_instruction(ins, make_op("mul"), ax_ins, a_ins);
-        }*/
-       // std::cout<<"find_add_slice_mul_after" << std::endl;
-        //m.debug_print();
+        
     }
 /*
     void apply(module& m, const match::matcher_result& r) const
@@ -2123,8 +2131,8 @@ void simplify_algebra::apply(module& m) const
                             find_mul_dot{},
                             find_dot_slice{},
                             find_dot_mul{},
-                            //find_mul_add{},
-                            find_add_slice_mul{},
+                            find_mul_add{},
+                            find_slice_add_mul{},
                             find_unit_ops{},
                             find_neg_unit_ops{},
                             eliminate_zero_point{},

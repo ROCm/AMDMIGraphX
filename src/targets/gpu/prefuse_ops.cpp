@@ -350,10 +350,8 @@ struct find_group_query_attention
             gpu_concat_past_present{
                 do_rotary, kv_num_heads, local_window_size, num_heads, rotary_interleaved, scale},
             concat_inputs);
-        auto id =
-            mpm.get_module().insert_instruction(ins, make_op("identity"), concat, pres_k, pres_v);
 
-        std::vector<instruction_ref> attn_probs_inputs{id, pres_k, pres_v, inputs.at(5)};
+        std::vector<instruction_ref> attn_probs_inputs{concat, pres_k, pres_v, inputs.at(5), rotary_qkv};
         auto attn_probs = mpm.get_module().insert_instruction(
             ins,
             gpu_compute_attention_probabilities{

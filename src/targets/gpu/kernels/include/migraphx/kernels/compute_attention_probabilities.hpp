@@ -85,16 +85,18 @@ calculate_attention_probs(AttnProbs attention_probs, // output buffer with size 
 }
 
 template <class Output,
-          class Query,
+          class Passthrough,
           class PresentKey,
           class PresentValue,
           class SeqLensK,
+          class Query,
           class Params>
 __device__ void compute_attention_probabilities(Output output,
-                                                Query query,
+                                                Passthrough, // Used for shape info and graph ordering only
                                                 PresentKey present_key,
                                                 PresentValue,
                                                 SeqLensK seqlens_k,
+                                                Query query,
                                                 Params params)
 {
     auto ind = make_index();

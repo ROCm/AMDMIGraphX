@@ -1107,6 +1107,19 @@ struct find_mul_add_shape_op_dot
     }
 };
 
+struct find_flatten
+{
+    auto matcher() const { return match::name("flatten"); }
+
+    void apply(module& m, const match::matcher_result& r) const
+    {
+        auto flatten = r.result;
+        m.replace_instruction(flatten,
+                              make_op("reshape", {{"dims", flatten->get_shape().lens()}}),
+                              flatten->inputs());
+    }
+};
+
 void simplify_reshapes::apply(module& m) const
 {
     m.repeat_while_changes(depth, [&] {
@@ -1114,6 +1127,7 @@ void simplify_reshapes::apply(module& m) const
                             find_where_op{},
                             find_resize{},
                             find_nop_reshapes{},
+                            find_flatten{},
                             find_reshape_cont{},
                             find_nested_shape_transforms{},
                             find_concat_slice{},

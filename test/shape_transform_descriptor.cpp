@@ -79,16 +79,16 @@ all_axes get_all_axes(const shape_transform_descriptor& d)
 }
 
 std::vector<int64_t> run_shape_transforms(const std::vector<std::size_t>& dims,
-                                                 const std::vector<migraphx::operation>& ops)
+                                          const std::vector<migraphx::operation>& ops)
 {
     migraphx::shape s{migraphx::shape::int64_type, dims};
     std::vector<int64_t> data(s.elements());
     std::iota(data.begin(), data.end(), 0);
-    
+
     migraphx::program p;
-    auto mm = p.get_main_module();
+    auto mm    = p.get_main_module();
     auto start = mm->add_literal(s, data);
-    for(const auto& op: ops)
+    for(const auto& op : ops)
         start = mm->add_instruction(op, start);
     mm->add_return({start});
 
@@ -96,8 +96,9 @@ std::vector<int64_t> run_shape_transforms(const std::vector<std::size_t>& dims,
     return result.to_vector<int64_t>();
 }
 
-std::vector<migraphx::operation> check_optimize_shape_transforms(const std::vector<std::size_t>& dims,
-                                                 const std::vector<migraphx::operation>& ops)
+std::vector<migraphx::operation>
+check_optimize_shape_transforms(const std::vector<std::size_t>& dims,
+                                const std::vector<migraphx::operation>& ops)
 {
     auto result = migraphx::optimize_shape_transforms(dims, ops);
     CHECK(run_shape_transforms(dims, ops) == run_shape_transforms(dims, result));
@@ -263,36 +264,36 @@ TEST_CASE(simplify_dimension_remove_1_dim)
 
 TEST_CASE(optimize_transpose_transpose)
 {
-    EXPECT(check_optimize_shape_transforms(
-               {3, 5, 2},
-               {
-                   make_op("transpose", {{"permutation", {0, 2, 1}}}),
-                   make_op("transpose", {{"permutation", {1, 0, 2}}}),
-               }) == ops{
-                         make_op("transpose", {{"permutation", {2, 0, 1}}}),
-                     });
+    EXPECT(check_optimize_shape_transforms({3, 5, 2},
+                                           {
+                                               make_op("transpose", {{"permutation", {0, 2, 1}}}),
+                                               make_op("transpose", {{"permutation", {1, 0, 2}}}),
+                                           }) ==
+           ops{
+               make_op("transpose", {{"permutation", {2, 0, 1}}}),
+           });
 }
 
 TEST_CASE(optimize_reshape_reshape1)
 {
     EXPECT(check_optimize_shape_transforms({3, 5, 2},
-                                               {
-                                                   make_op("reshape", {{"dims", {30}}}),
-                                                   make_op("reshape", {{"dims", {3, 10}}}),
-                                               }) == ops{
-                                                         make_op("reshape", {{"dims", {3, 10}}}),
-                                                     });
+                                           {
+                                               make_op("reshape", {{"dims", {30}}}),
+                                               make_op("reshape", {{"dims", {3, 10}}}),
+                                           }) == ops{
+                                                     make_op("reshape", {{"dims", {3, 10}}}),
+                                                 });
 }
 
 TEST_CASE(optimize_reshape_reshape2)
 {
     EXPECT(check_optimize_shape_transforms({15, 4},
-                                               {
-                                                   make_op("reshape", {{"dims", {3, 5, 2, 2}}}),
-                                                   make_op("reshape", {{"dims", {15, 2, 2}}}),
-                                               }) == ops{
-                                                         make_op("reshape", {{"dims", {15, 2, 2}}}),
-                                                     });
+                                           {
+                                               make_op("reshape", {{"dims", {3, 5, 2, 2}}}),
+                                               make_op("reshape", {{"dims", {15, 2, 2}}}),
+                                           }) == ops{
+                                                     make_op("reshape", {{"dims", {15, 2, 2}}}),
+                                                 });
 }
 
 TEST_CASE(optimize_reshape_transpose_reshape_to_none)
@@ -336,15 +337,15 @@ TEST_CASE(optimize_reshape_transpose_reshape_to_transpose)
 
 TEST_CASE(optimize_reshape_transpose_reshape_to_reshape)
 {
-    EXPECT(check_optimize_shape_transforms(
-               {6, 5, 2},
-               {
-                   make_op("reshape", {{"dims", {6, 5, 2, 1}}}),
-                   make_op("transpose", {{"permutation", {0, 1, 3, 2}}}),
-                   make_op("reshape", {{"dims", {6, 10}}}),
-               }) == ops{
-                         make_op("reshape", {{"dims", {6, 10}}}),
-                     });
+    EXPECT(
+        check_optimize_shape_transforms({6, 5, 2},
+                                        {
+                                            make_op("reshape", {{"dims", {6, 5, 2, 1}}}),
+                                            make_op("transpose", {{"permutation", {0, 1, 3, 2}}}),
+                                            make_op("reshape", {{"dims", {6, 10}}}),
+                                        }) == ops{
+                                                  make_op("reshape", {{"dims", {6, 10}}}),
+                                              });
 }
 
 TEST_CASE(optimize_multibroadcast_transpose_reshape)
@@ -396,23 +397,22 @@ TEST_CASE(optimize_resize2)
 TEST_CASE(optimize_reshape_2_squeeze)
 {
     EXPECT(check_optimize_shape_transforms({3, 1, 5, 1, 2, 1, 1},
-                                               {
-                                                   make_op("reshape", {{"dims", {3, 5, 2}}}),
-                                               }) ==
-           ops{
-               make_op("squeeze", {{"axes", {1, 3, 5, 6}}}),
-           });
+                                           {
+                                               make_op("reshape", {{"dims", {3, 5, 2}}}),
+                                           }) == ops{
+                                                     make_op("squeeze", {{"axes", {1, 3, 5, 6}}}),
+                                                 });
 }
 
 TEST_CASE(optimize_reshape_2_unsqueeze)
 {
-    EXPECT(check_optimize_shape_transforms(
-               {3, 5, 2},
-               {
-                   make_op("reshape", {{"dims", {3, 1, 5, 1, 2, 1, 1}}}),
-               }) == ops{
-                         make_op("unsqueeze", {{"axes", {1, 3, 5, 6}}}),
-                     });
+    EXPECT(
+        check_optimize_shape_transforms({3, 5, 2},
+                                        {
+                                            make_op("reshape", {{"dims", {3, 1, 5, 1, 2, 1, 1}}}),
+                                        }) == ops{
+                                                  make_op("unsqueeze", {{"axes", {1, 3, 5, 6}}}),
+                                              });
 }
 
 TEST_CASE(optimize_unsqueeze_multibroadcast)
@@ -429,15 +429,15 @@ TEST_CASE(optimize_unsqueeze_multibroadcast)
 
 TEST_CASE(optimize_multibroadcast_reshape)
 {
-    EXPECT(check_optimize_shape_transforms(
-               {1, 4, 1},
-               {
-                   make_op("multibroadcast", {{"out_lens", {2, 4, 6}}}),
-                   make_op("reshape", {{"dims", {2, 2, 2, 6}}}),
-               }) == ops{
-                         make_op("reshape", {{"dims", {1, 2, 2, 1}}}),
-                         make_op("multibroadcast", {{"out_lens", {2, 2, 2, 6}}}),
-                     });
+    EXPECT(check_optimize_shape_transforms({1, 4, 1},
+                                           {
+                                               make_op("multibroadcast", {{"out_lens", {2, 4, 6}}}),
+                                               make_op("reshape", {{"dims", {2, 2, 2, 6}}}),
+                                           }) ==
+           ops{
+               make_op("reshape", {{"dims", {1, 2, 2, 1}}}),
+               make_op("multibroadcast", {{"out_lens", {2, 2, 2, 6}}}),
+           });
 }
 
 TEST_CASE(optimize_squeeze_broadcast)
@@ -481,10 +481,10 @@ TEST_CASE(optimize_transpose_reshape_to_transpose)
 TEST_CASE(optimize_scalar_broadcast_unsqueeze)
 {
     EXPECT(check_optimize_shape_transforms({1},
-                                               {
-                                                   make_op("multibroadcast", {{"out_lens", {2}}}),
-                                                   make_op("unsqueeze", {{"axes", {1}}}),
-                                               }) ==
+                                           {
+                                               make_op("multibroadcast", {{"out_lens", {2}}}),
+                                               make_op("unsqueeze", {{"axes", {1}}}),
+                                           }) ==
            ops{
                make_op("multibroadcast", {{"out_lens", {2, 1}}}),
            });

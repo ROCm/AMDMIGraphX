@@ -67,7 +67,9 @@ struct float32_parts
 constexpr float32_parts get_parts(float f) { return migraphx::bit_cast<float32_parts>(f); }
 
 #ifdef _MSC_VER
-#define MIGRAPHX_PACKED(...) __pragma(pack(push, 1)) __VA_ARGS__; __pragma(pack(pop))
+#define MIGRAPHX_PACKED(...)             \
+    __pragma(pack(push, 1)) __VA_ARGS__; \
+    __pragma(pack(pop))
 #else
 #define MIGRAPHX_PACKED(...) __VA_ARGS__ __attribute__((__packed__, may_alias))
 #endif

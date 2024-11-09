@@ -52,12 +52,12 @@ constexpr std::size_t bit_ceil(std::size_t v)
     if(v <= 1)
         return 1;
     v--;
-    v |= v >> 1;
-    v |= v >> 2;
-    v |= v >> 4;
-    v |= v >> 8;
-    v |= v >> 16;
-    v |= v >> 32;
+    v |= v >> 1u;
+    v |= v >> 2u;
+    v |= v >> 4u;
+    v |= v >> 8u;
+    v |= v >> 16u;
+    v |= v >> 32u;
     return v + 1;
 }
 
@@ -165,7 +165,7 @@ struct __attribute__((packed, may_alias)) generic_float
                 if(MantissaSize < float32_parts::mantissa_width())
                 {
                     shift = MantissaSize - ((sizeof(type) * 8) - countl_zero(mantissa));
-                    f.mantissa <<= (shift + 1);
+                    f.mantissa <<= (shift + 1u);
                 }
 
                 f.exponent = float32_parts::exponent_bias() - exponent_bias() - shift;

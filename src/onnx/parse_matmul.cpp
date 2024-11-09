@@ -354,7 +354,7 @@ struct parse_matmul : op_parser<parse_matmul>
 
         auto is_quant_dot        = opd.op_name == "quant_dot";
         auto is_quant_dot_scaled = opd.op_name == "quant_dot_scaled";
-        auto is_dot       = opd.op_name == "dot";
+        auto is_dot              = opd.op_name == "dot";
 
         if(s0.dynamic() or s1.dynamic())
         {
@@ -386,7 +386,7 @@ struct parse_matmul : op_parser<parse_matmul>
 
             if(is_dot and args.size() > 2)
             {
-                MIGRAPHX_THROW(op_name + ": Bias Args not supported for MatMul");
+                MIGRAPHX_THROW(op_name + ": Bias Args not supported");
             }
 
             bool has_ba0        = false;
@@ -407,7 +407,7 @@ struct parse_matmul : op_parser<parse_matmul>
                 scale_a1    = set_scale_arg(info, args, 3);
                 if(scale_a0->get_shape().type() != scale_a1->get_shape().type())
                 {
-                    MIGRAPHX_THROW( op_name + ": Scales must be the same type");
+                    MIGRAPHX_THROW(op_name + ": Scales must be the same type");
                 }
             }
 

@@ -27,7 +27,7 @@
 TEST_CASE(matmulintegertofloat_test)
 {
     migraphx::program p;
-    auto* mm = p.get_main_module();
+    auto* mm      = p.get_main_module();
     auto x0       = mm->add_parameter("1", migraphx::shape{migraphx::shape::int8_type, {4, 3}});
     auto x1       = mm->add_parameter("2", migraphx::shape{migraphx::shape::int8_type, {3, 2}});
     auto scale_x0 = mm->add_parameter("3", migraphx::shape{migraphx::shape::float_type, {4}});

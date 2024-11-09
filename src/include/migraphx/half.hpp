@@ -25,14 +25,14 @@
 #ifndef MIGRAPHX_GUARD_RTGLIB_HALF_HPP
 #define MIGRAPHX_GUARD_RTGLIB_HALF_HPP
 
-#include <half/half.hpp>
 #include <migraphx/config.hpp>
 #include <migraphx/float8.hpp>
+#include <migraphx/generic_float.hpp>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
 
-using half = half_float::half;
+using half = migraphx::generic_float<10, 5>;
 
 namespace detail {
 template <class T>
@@ -40,14 +40,6 @@ struct deduce
 {
     using type = T;
 };
-
-#ifdef HAS_HALF_V1
-template <>
-struct deduce<half_float::detail::expr>
-{
-    using type = half;
-};
-#endif
 } // namespace detail
 
 template <class T>

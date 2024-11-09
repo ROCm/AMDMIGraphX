@@ -66,29 +66,30 @@ constexpr std::size_t integer_divide_ceil(std::size_t x, std::size_t y)
     return (x + y - std::size_t{1}) / y;
 }
 
-template<unsigned int Bytes>
+template <unsigned int Bytes>
 struct unsigned_type
-{};
+{
+};
 
-template<>
+template <>
 struct unsigned_type<1>
 {
     using type = std::uint8_t;
 };
 
-template<>
+template <>
 struct unsigned_type<2>
 {
     using type = std::uint16_t;
 };
 
-template<>
+template <>
 struct unsigned_type<4>
 {
     using type = std::uint32_t;
 };
 
-template<>
+template <>
 struct unsigned_type<8>
 {
     using type = std::uint64_t;
@@ -117,7 +118,8 @@ constexpr float32_parts get_parts(float f) { return migraphx::bit_cast<float32_p
 template <unsigned int MantissaSize, unsigned int ExponentSize, unsigned int Flags = 0>
 struct __attribute__((packed, may_alias)) generic_float
 {
-    using type = typename unsigned_type<bit_ceil(integer_divide_ceil(MantissaSize + ExponentSize + 1, 8))>::type;
+    using type = typename unsigned_type<bit_ceil(
+        integer_divide_ceil(MantissaSize + ExponentSize + 1, 8))>::type;
 
     type mantissa : MantissaSize;
     type exponent : ExponentSize;
@@ -157,7 +159,7 @@ struct __attribute__((packed, may_alias)) generic_float
             }
             else
             {
-                type shift = 0;
+                type shift         = 0;
                 f.mantissa         = mantissa;
 
                 if(MantissaSize < float32_parts::mantissa_width())

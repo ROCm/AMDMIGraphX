@@ -381,49 +381,37 @@ class numeric_limits<fp8e5m2>
 // define numeric limits for the new data type
 // NOLINTBEGIN
 namespace std {
-#define MIGRAPHX_FP8_STD_OVERLOADS(T)                                       \
-    inline bool isfinite(T x) { return not x.is_inf() and not x.is_nan(); } \
-    inline bool isnan(T x) { return x.is_nan(); }                           \
-    template <>                                                             \
-    class numeric_limits<T> : public migraphx::fp8::numeric_limits<T>       \
-    {                                                                       \
-    };                                                                      \
-    template <class U>                                                      \
-    struct common_type<T, U> : std::common_type<float, U>                   \
-    {                                                                       \
-    };                                                                      \
-    template <class U>                                                      \
-    struct common_type<U, T> : std::common_type<U, float>                   \
-    {                                                                       \
-    };                                                                      \
-    template <>                                                             \
-    struct common_type<T, T>                                                \
-    {                                                                       \
-        using type = T;                                                     \
-    };
 
-MIGRAPHX_FP8_STD_OVERLOADS(migraphx::fp8::fp8e4m3fn)
-MIGRAPHX_FP8_STD_OVERLOADS(migraphx::fp8::fp8e5m2)
-MIGRAPHX_FP8_STD_OVERLOADS(migraphx::fp8::fp8e4m3fnuz)
-MIGRAPHX_FP8_STD_OVERLOADS(migraphx::fp8::fp8e5m2fnuz)
+template<migraphx::fp8::f8_type T, bool FNUZ>
+inline bool isfinite(migraphx::fp8::float8<T, FNUZ> x) { return not x.is_inf() and not x.is_nan(); }
 
-// needed to resolve between multiple ambiguous definition from previous templates
-#define MIGRAPHX_FP8_COMMON_TYPE_OVERLOAD_RESOLUTION(T, U)    \
-    template <>                                               \
-    struct common_type<T, U> : std::common_type<float, float> \
-    {                                                         \
-    };                                                        \
-    template <>                                               \
-    struct common_type<U, T> : std::common_type<float, float> \
-    {                                                         \
-    };
+template<migraphx::fp8::f8_type T, bool FNUZ>
+inline bool isnan(migraphx::fp8::float8<T, FNUZ> x) { return x.is_nan(); }
 
-MIGRAPHX_FP8_COMMON_TYPE_OVERLOAD_RESOLUTION(migraphx::fp8::fp8e4m3fn, migraphx::fp8::fp8e5m2)
-MIGRAPHX_FP8_COMMON_TYPE_OVERLOAD_RESOLUTION(migraphx::fp8::fp8e4m3fn, migraphx::fp8::fp8e4m3fnuz)
-MIGRAPHX_FP8_COMMON_TYPE_OVERLOAD_RESOLUTION(migraphx::fp8::fp8e4m3fn, migraphx::fp8::fp8e5m2fnuz)
-MIGRAPHX_FP8_COMMON_TYPE_OVERLOAD_RESOLUTION(migraphx::fp8::fp8e5m2, migraphx::fp8::fp8e4m3fnuz)
-MIGRAPHX_FP8_COMMON_TYPE_OVERLOAD_RESOLUTION(migraphx::fp8::fp8e5m2, migraphx::fp8::fp8e5m2fnuz)
-MIGRAPHX_FP8_COMMON_TYPE_OVERLOAD_RESOLUTION(migraphx::fp8::fp8e4m3fnuz, migraphx::fp8::fp8e5m2fnuz)
+template<migraphx::fp8::f8_type T, bool FNUZ>
+class numeric_limits<migraphx::fp8::float8<T, FNUZ>> : public migraphx::fp8::numeric_limits<migraphx::fp8::float8<T, FNUZ>>       
+{                                                                       
+};                                                                      
+template <migraphx::fp8::f8_type T, bool FNUZ, class U>                                                      
+struct common_type<migraphx::fp8::float8<T, FNUZ>, U> : std::common_type<float, U>                   
+{                                                                       
+};                                                                      
+template <migraphx::fp8::f8_type T, bool FNUZ, class U>                                                      
+struct common_type<U, migraphx::fp8::float8<T, FNUZ>> : std::common_type<U, float>                   
+{                                                                       
+};                                                                      
+template<migraphx::fp8::f8_type T, bool FNUZ>                                                            
+struct common_type<migraphx::fp8::float8<T, FNUZ>, migraphx::fp8::float8<T, FNUZ>>                                                
+{                                                                       
+using type = migraphx::fp8::float8<T, FNUZ>;                                                     
+};
+
+template<migraphx::fp8::f8_type T1, bool FNUZ1, migraphx::fp8::f8_type T2, bool FNUZ2>                                                            
+struct common_type<migraphx::fp8::float8<T1, FNUZ1>, migraphx::fp8::float8<T2, FNUZ2>>                                                
+{                                                                       
+using type = float;                                                     
+};
+
 } // namespace std
 // NOLINTEND
 // =================================================================================================

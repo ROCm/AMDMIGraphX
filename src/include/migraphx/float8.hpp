@@ -382,34 +382,41 @@ class numeric_limits<fp8e5m2>
 // NOLINTBEGIN(cert-dcl58-cpp)
 namespace std {
 
-template<migraphx::fp8::f8_type T, bool FNUZ>
-inline bool isfinite(migraphx::fp8::float8<T, FNUZ> x) { return not x.is_inf() and not x.is_nan(); }
+template <migraphx::fp8::f8_type T, bool FNUZ>
+inline bool isfinite(migraphx::fp8::float8<T, FNUZ> x)
+{
+    return not x.is_inf() and not x.is_nan();
+}
 
-template<migraphx::fp8::f8_type T, bool FNUZ>
-inline bool isnan(migraphx::fp8::float8<T, FNUZ> x) { return x.is_nan(); }
+template <migraphx::fp8::f8_type T, bool FNUZ>
+inline bool isnan(migraphx::fp8::float8<T, FNUZ> x)
+{
+    return x.is_nan();
+}
 
-template<migraphx::fp8::f8_type T, bool FNUZ>
-class numeric_limits<migraphx::fp8::float8<T, FNUZ>> : public migraphx::fp8::numeric_limits<migraphx::fp8::float8<T, FNUZ>>       
-{                                                                       
-};                                                                      
-template <migraphx::fp8::f8_type T, bool FNUZ, class U>                                                      
-struct common_type<migraphx::fp8::float8<T, FNUZ>, U> : std::common_type<float, U>                   
-{                                                                       
-};                                                                      
-template <migraphx::fp8::f8_type T, bool FNUZ, class U>                                                      
-struct common_type<U, migraphx::fp8::float8<T, FNUZ>> : std::common_type<U, float>                   
-{                                                                       
-};                                                                      
-template<migraphx::fp8::f8_type T, bool FNUZ>                                                            
-struct common_type<migraphx::fp8::float8<T, FNUZ>, migraphx::fp8::float8<T, FNUZ>>                                                
-{                                                                       
-using type = migraphx::fp8::float8<T, FNUZ>;                                                     
+template <migraphx::fp8::f8_type T, bool FNUZ>
+class numeric_limits<migraphx::fp8::float8<T, FNUZ>>
+    : public migraphx::fp8::numeric_limits<migraphx::fp8::float8<T, FNUZ>>
+{
+};
+template <migraphx::fp8::f8_type T, bool FNUZ, class U>
+struct common_type<migraphx::fp8::float8<T, FNUZ>, U> : std::common_type<float, U>
+{
+};
+template <migraphx::fp8::f8_type T, bool FNUZ, class U>
+struct common_type<U, migraphx::fp8::float8<T, FNUZ>> : std::common_type<U, float>
+{
+};
+template <migraphx::fp8::f8_type T, bool FNUZ>
+struct common_type<migraphx::fp8::float8<T, FNUZ>, migraphx::fp8::float8<T, FNUZ>>
+{
+    using type = migraphx::fp8::float8<T, FNUZ>;
 };
 
-template<migraphx::fp8::f8_type T1, bool FNUZ1, migraphx::fp8::f8_type T2, bool FNUZ2>                                                            
-struct common_type<migraphx::fp8::float8<T1, FNUZ1>, migraphx::fp8::float8<T2, FNUZ2>>                                                
-{                                                                       
-using type = float;                                                     
+template <migraphx::fp8::f8_type T1, bool FNUZ1, migraphx::fp8::f8_type T2, bool FNUZ2>
+struct common_type<migraphx::fp8::float8<T1, FNUZ1>, migraphx::fp8::float8<T2, FNUZ2>>
+{
+    using type = float;
 };
 
 } // namespace std

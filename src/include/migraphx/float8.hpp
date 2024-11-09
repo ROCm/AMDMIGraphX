@@ -42,6 +42,7 @@
 #include <migraphx/config.hpp>
 #include <migraphx/functional.hpp>
 #include <migraphx/float8_impl.hpp>
+#include <migraphx/generic_float.hpp>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
@@ -417,6 +418,32 @@ template <migraphx::fp8::f8_type T1, bool FNUZ1, migraphx::fp8::f8_type T2, bool
 struct common_type<migraphx::fp8::float8<T1, FNUZ1>, migraphx::fp8::float8<T2, FNUZ2>>
 {
     using type = float;
+};
+
+template <unsigned int E, unsigned int M, unsigned int F, bool FNUZ>
+struct common_type<migraphx::generic_float<E, M, F>,
+                   migraphx::fp8::float8<migraphx::fp8::f8_type::fp8, FNUZ>>
+{
+    using type = float;
+};
+
+template <unsigned int E, unsigned int M, unsigned int F, bool FNUZ>
+struct common_type<migraphx::fp8::float8<migraphx::fp8::f8_type::fp8, FNUZ>,
+                   migraphx::generic_float<E, M, F>>
+{
+    using type = float;
+};
+
+template <unsigned int E, unsigned int M, unsigned int F, migraphx::fp8::f8_type T, bool FNUZ>
+struct common_type<migraphx::generic_float<E, M, F>, migraphx::fp8::float8<T, FNUZ>>
+    : std::common_type<float, float>
+{
+};
+
+template <unsigned int E, unsigned int M, unsigned int F, migraphx::fp8::f8_type T, bool FNUZ>
+struct common_type<migraphx::fp8::float8<T, FNUZ>, migraphx::generic_float<E, M, F>>
+    : std::common_type<float, float>
+{
 };
 
 } // namespace std

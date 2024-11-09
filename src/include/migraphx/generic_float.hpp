@@ -411,13 +411,13 @@ struct common_type<migraphx::generic_float<E, M, F>, migraphx::generic_float<E, 
     using type = migraphx::generic_float<E, M, F>;
 };
 
-template <unsigned int E,
-          unsigned int M,
-          unsigned int F,
-          unsigned int E1,
+template <unsigned int E1,
           unsigned int M1,
-          unsigned int F1>
-struct common_type<migraphx::generic_float<E, M, F>, migraphx::generic_float<E1, M1, F1>>
+          unsigned int F1,
+          unsigned int E2,
+          unsigned int M2,
+          unsigned int F2>
+struct common_type<migraphx::generic_float<E1, M1, F1>, migraphx::generic_float<E2, M2, F2>>
 {
     using type = float;
 };

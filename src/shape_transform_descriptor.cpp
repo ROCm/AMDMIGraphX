@@ -425,7 +425,6 @@ static void set_origin_axis(dimension::sub& s, const std::vector<std::size_t>& a
         s.axis = axis;
 }
 
-
 // If an axis is split and some dimensions are hidden and others are not, then
 // remove the hidden axis so only the non-hidden axis is used in
 // simplificaiton

@@ -86,7 +86,7 @@ std::vector<int64_t> run_shape_transforms(const std::vector<std::size_t>& dims,
     std::iota(data.begin(), data.end(), 0);
 
     migraphx::program p;
-    auto mm    = p.get_main_module();
+    auto* mm    = p.get_main_module();
     auto start = mm->add_literal(s, data);
     for(const auto& op : ops)
         start = mm->add_instruction(op, start);
@@ -145,7 +145,7 @@ TEST_CASE(record_reshape_trailing_1s)
     EXPECT(get_final_lens(desc) == final_lens{3, 4, 4, 1, 1});
     EXPECT(get_all_lens(desc) == all_lens{{3}, {4}, {4}, {1}, {1}});
     EXPECT(get_all_axes(desc) ==
-           all_axes{d_axes{{0}}, d_axes{{1}}, d_axes{{2}}, d_axes{{}}, d_axes{{}}});
+           all_axes{d_axes{{0}}, d_axes{{1}}, d_axes{{2, 0}}, d_axes{{2, 1}}, d_axes{{2, 2}}});
 }
 
 TEST_CASE(record_reshape_merge)
@@ -188,7 +188,7 @@ TEST_CASE(record_reshape_squeeze_trailing_1s)
                                 make_op("reshape", {{"dims", {3, 4, 4}}}));
     EXPECT(get_final_lens(desc) == final_lens{3, 4, 4});
     EXPECT(get_all_lens(desc) == all_lens{{3}, {4}, {4}});
-    EXPECT(get_all_axes(desc) == all_axes{d_axes{{0}}, d_axes{{1}}, d_axes{{2}}});
+    EXPECT(get_all_axes(desc) == all_axes{d_axes{{0}}, d_axes{{1}}, d_axes{{2, 0}}});
 }
 
 TEST_CASE(record_reshape_non_divisible_fail)
@@ -490,6 +490,17 @@ TEST_CASE(optimize_scalar_broadcast_unsqueeze)
            });
 }
 
+// unsqueeze[axes={1, 2, 5},steps={}]
+// multibroadcast[out_lens={2, 1, 1, 16, 1, 10},out_dyn_dims={}]
+// reshape[dims={2, 1, 1, 160}]
+// multibroadcast[out_lens={2, 32, 32, 160},out_dyn_dims={}]
+// ...
+// unsqueeze[axes={3, 4},steps={}], 
+// transpose[permutation={0, 3, 4, 1, 2}],
+// multibroadcast[out_lens={2, 1, 1, 16, 10},out_dyn_dims={}],
+// reshape[dims={2, 1, 1, 160}],
+// multibroadcast[out_lens={2, 32, 32, 160},out_dyn_dims={}]
+
 TEST_CASE(optimize_broadcast_reshape_transpose)
 {
     EXPECT(check_optimize_shape_transforms(
@@ -499,9 +510,11 @@ TEST_CASE(optimize_broadcast_reshape_transpose)
                    make_op("reshape", {{"dims", {2, 160, 32, 32}}}),
                    make_op("transpose", {{"permutation", {0, 2, 3, 1}}}),
                }) == ops{
-                         make_op("multibroadcast", {{"out_lens", {2, 16, 10240}}}),
-                         make_op("reshape", {{"dims", {2, 160, 32, 32}}}),
-                         make_op("transpose", {{"permutation", {0, 2, 3, 1}}}),
+                         make_op("unsqueeze", {{"axes", {3, 4}}}),
+                         make_op("transpose", {{"permutation", {0, 3, 4, 1, 2}}}),
+                         make_op("multibroadcast", {{"out_lens", {2, 1, 1, 16, 10}}}),
+                         make_op("reshape", {{"dims", {2, 1, 1, 160}}}),
+                         make_op("multibroadcast", {{"out_lens", {2, 32, 32, 160}}}),
                      });
 }
 

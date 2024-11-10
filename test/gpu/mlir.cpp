@@ -563,8 +563,7 @@ module {
     auto x2 = m.add_parameter("x2", migraphx::shape{migraphx::shape::float_type, {2, 2, 2}});
     auto x3 = m.add_parameter("x3", migraphx::shape{migraphx::shape::int8_type, {2, 2, 2}});
 
-    auto unsqueeze1 =
-        m.add_instruction(migraphx::make_op("unsqueeze", {{"axes", {2}}}), x2);
+    auto unsqueeze1 = m.add_instruction(migraphx::make_op("unsqueeze", {{"axes", {2}}}), x2);
     auto broadcast1 = m.add_instruction(
         migraphx::make_op("multibroadcast", {{"out_lens", {2, 2, 3, 2}}}), unsqueeze1);
     auto reshape1 =
@@ -572,8 +571,7 @@ module {
     auto scale = m.add_instruction(
         migraphx::make_op("slice", {{"axes", {1}}, {"starts", {0}}, {"ends", {5}}}), reshape1);
 
-    auto unsqueeze2 =
-        m.add_instruction(migraphx::make_op("unsqueeze", {{"axes", {2}}}), x3);
+    auto unsqueeze2 = m.add_instruction(migraphx::make_op("unsqueeze", {{"axes", {2}}}), x3);
     auto broadcast2 = m.add_instruction(
         migraphx::make_op("multibroadcast", {{"out_lens", {2, 2, 3, 2}}}), unsqueeze2);
     auto reshape2 =
@@ -582,8 +580,8 @@ module {
         migraphx::make_op("slice", {{"axes", {1}}, {"starts", {0}}, {"ends", {5}}}), reshape2);
 
     auto unpack = m.add_instruction(migraphx::make_op("unpack_int4"), x1);
-    auto dq = m.add_instruction(migraphx::make_op("dequantizelinear"), unpack, scale, zp);
-    auto dot = m.add_instruction(migraphx::make_op("dot"), x0, dq);
+    auto dq     = m.add_instruction(migraphx::make_op("dequantizelinear"), unpack, scale, zp);
+    auto dot    = m.add_instruction(migraphx::make_op("dot"), x0, dq);
     m.add_return({dot});
     auto s = migraphx::gpu::dump_mlir(m);
     // Skip test if MLIR is not enabled
@@ -621,8 +619,7 @@ module {
     auto x2 = m.add_parameter("x2", migraphx::shape{migraphx::shape::float_type, {2, 2, 2}});
     auto x3 = m.add_parameter("x3", migraphx::shape{migraphx::shape::uint8_type, {2, 2, 2}});
 
-    auto unsqueeze1 =
-        m.add_instruction(migraphx::make_op("unsqueeze", {{"axes", {2}}}), x2);
+    auto unsqueeze1 = m.add_instruction(migraphx::make_op("unsqueeze", {{"axes", {2}}}), x2);
     auto broadcast1 = m.add_instruction(
         migraphx::make_op("multibroadcast", {{"out_lens", {2, 2, 3, 2}}}), unsqueeze1);
     auto reshape1 =
@@ -630,8 +627,7 @@ module {
     auto scale = m.add_instruction(
         migraphx::make_op("slice", {{"axes", {1}}, {"starts", {0}}, {"ends", {5}}}), reshape1);
 
-    auto unsqueeze2 =
-        m.add_instruction(migraphx::make_op("unsqueeze", {{"axes", {2}}}), x3);
+    auto unsqueeze2 = m.add_instruction(migraphx::make_op("unsqueeze", {{"axes", {2}}}), x3);
     auto broadcast2 = m.add_instruction(
         migraphx::make_op("multibroadcast", {{"out_lens", {2, 2, 3, 2}}}), unsqueeze2);
     auto reshape2 =
@@ -640,8 +636,8 @@ module {
         migraphx::make_op("slice", {{"axes", {1}}, {"starts", {0}}, {"ends", {5}}}), reshape2);
 
     auto unpack = m.add_instruction(migraphx::make_op("unpack_int4"), x1);
-    auto dq = m.add_instruction(migraphx::make_op("dequantizelinear"), unpack, scale, zp);
-    auto dot = m.add_instruction(migraphx::make_op("dot"), x0, dq);
+    auto dq     = m.add_instruction(migraphx::make_op("dequantizelinear"), unpack, scale, zp);
+    auto dot    = m.add_instruction(migraphx::make_op("dot"), x0, dq);
     m.add_return({dot});
     auto s = migraphx::gpu::dump_mlir(m);
     // Skip test if MLIR is not enabled

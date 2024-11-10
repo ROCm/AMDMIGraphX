@@ -101,16 +101,6 @@ std::vector<std::size_t> compute_dims(const std::vector<operation>& ops,
     return s.lens();
 }
 
-static std::vector<std::size_t> get_last_axis(const std::vector<dimension>& dims)
-{
-    if(dims.empty())
-        return {};
-    const auto& d = dims.back();
-    if(d.subdimensions.empty())
-        return {};
-    return d.subdimensions.back().axis;
-}
-
 static dimension::sub* get_last_subdimension(std::vector<dimension>& dims)
 {
     if(dims.empty())
@@ -439,7 +429,6 @@ static void remove_split_hidden_axes(std::map<std::size_t, std::vector<dimension
 {
     for(auto&& p : axes_map)
     {
-        // const auto& axis = p.first;
         auto& subs = p.second;
         if(std::all_of(subs.begin(), subs.end(), [](const dimension::sub* s) {
                return s->has_hidden_axis();

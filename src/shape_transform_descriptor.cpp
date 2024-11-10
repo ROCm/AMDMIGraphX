@@ -233,7 +233,7 @@ bool shape_transform_descriptor::apply_reshape_impl(const std::vector<std::size_
     // Handle trailing 1s
     if(new_dims.size() < rdims.size() and not new_dims.empty())
     {
-        auto* sub = get_last_subdimension(new_dims);
+        auto* sub          = get_last_subdimension(new_dims);
         auto axis          = sub == nullptr ? std::vector<std::size_t>{} : sub->axis;
         auto trailing_dims = range(rdims.begin() + new_dims.size(), rdims.end());
         if(any_of(trailing_dims, [](auto d) { return d != 1; }))
@@ -243,9 +243,9 @@ bool shape_transform_descriptor::apply_reshape_impl(const std::vector<std::size_
                   [&](std::size_t j) -> dimension {
                       dimension::sub s{1, axis};
                       if(not s.axis.empty())
-                          s.axis.push_back(j+1);
+                          s.axis.push_back(j + 1);
                       if(not s.hidden_axis.empty())
-                        s.hidden_axis.push_back(j+1);
+                          s.hidden_axis.push_back(j + 1);
                       return {{s}};
                   });
     }

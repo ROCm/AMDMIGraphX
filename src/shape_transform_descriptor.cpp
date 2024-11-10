@@ -425,6 +425,10 @@ static void set_origin_axis(dimension::sub& s, const std::vector<std::size_t>& a
         s.axis = axis;
 }
 
+
+// If an axis is split and some dimensions are hidden and others are not, then
+// remove the hidden axis so only the non-hidden axis is used in
+// simplificaiton
 static void remove_split_hidden_axes(std::map<std::size_t, std::vector<dimension::sub*>>& axes_map)
 {
     for(auto&& p : axes_map)
@@ -452,6 +456,7 @@ static void remove_split_hidden_axes(std::map<std::size_t, std::vector<dimension
     erase_if(axes_map, [](auto&& p) { return p.second.empty(); });
 }
 
+// If this is scalar, then remove all axes
 static void remove_scalar_axis(std::vector<dimension>& dimensions)
 {
     dimension::sub* s = nullptr;

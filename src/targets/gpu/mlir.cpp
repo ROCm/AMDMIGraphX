@@ -325,7 +325,10 @@ struct mlir_program
                 {
                     result = mlirIntegerTypeUnsignedGet(ctx.get(), as.size() * 8);
                 }
-                result = mlirIntegerTypeSignedGet(ctx.get(), as.size() * 8); // number of bits
+                else
+                {
+                    result = mlirIntegerTypeSignedGet(ctx.get(), as.size() * 8);
+                }
             }
             else
                 MIGRAPHX_THROW("Unsupported type: " + std::to_string(as.type_enum()));

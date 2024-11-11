@@ -140,7 +140,7 @@ static std::vector<double> get_scales(const onnx_parser::attribute_map& attr)
 // at compile time).  If true, we'll need to use Resize op.
 static bool parse_args(const std::vector<instruction_ref>& args,
                        const std::vector<size_t>& in_lens,
-                       const std::string& op_name,
+                       const std::string& onnx_name,
                        std::vector<double>& vec_scale,
                        std::vector<std::size_t>& out_lens,
                        instruction_ref& r_arg)
@@ -168,7 +168,7 @@ static bool parse_args(const std::vector<instruction_ref>& args,
 
             if(out_lens.size() != in_lens.size())
             {
-                MIGRAPHX_THROW("PARSE_" + op_name +
+                MIGRAPHX_THROW("PARSE_" + onnx_name +
                                ": specified output size's rank does not match input size");
             }
 
@@ -195,7 +195,7 @@ static bool parse_args(const std::vector<instruction_ref>& args,
             return false;
         }
     }
-    MIGRAPHX_THROW("PARSE_" + op_name + ": no shapes or scales input provided");
+    MIGRAPHX_THROW("PARSE_" + onnx_name + ": no shapes or scales input provided");
 }
 
 struct parse_resize : op_parser<parse_resize>
@@ -264,7 +264,7 @@ struct parse_resize : op_parser<parse_resize>
         if(contains(info.attributes, "exclude_outside") and
            info.attributes.at("exclude_outside").i() == 1)
         {
-            MIGRAPHX_THROW("PARSE_" + opd.op_name + ": exclude_outside 1 is not supported!");
+            MIGRAPHX_THROW("PARSE_" + opd.onnx_name + ": exclude_outside 1 is not supported!");
         }
 
         // input data shape info
@@ -290,14 +290,14 @@ struct parse_resize : op_parser<parse_resize>
             // Depending on the args, it *must* populate the `vec_scale`, and might populate
             // `out_lens`
             is_constant_scale_input =
-                not parse_args(args, in_lens, opd.op_name, vec_scale, out_lens, scales_sizes_arg);
+                not parse_args(args, in_lens, opd.onnx_name, vec_scale, out_lens, scales_sizes_arg);
         }
 
         if(is_constant_scale_input)
         {
             if(in_lens.size() != vec_scale.size())
             {
-                MIGRAPHX_THROW("PARSE_" + opd.op_name +
+                MIGRAPHX_THROW("PARSE_" + opd.onnx_name +
                                ": ranks of input and scale are different!");
             }
 
@@ -346,7 +346,7 @@ struct parse_resize : op_parser<parse_resize>
             // out_lens and other variables can't be populated if non-constant (runtime) size
             // inputs.
             if(not is_constant_scale_input)
-                MIGRAPHX_THROW("PARSE_" + opd.op_name +
+                MIGRAPHX_THROW("PARSE_" + opd.onnx_name +
                                ": linear mode not supported for non-constant inputs");
 
             shape out_s{in_s.type(), out_lens};

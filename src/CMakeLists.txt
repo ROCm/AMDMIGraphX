@@ -122,6 +122,7 @@ add_library(migraphx
 if(WIN32)
     # Due to compilation crashing, we need to use type-erased matchers on Windows.
     target_compile_definitions(migraphx PUBLIC MIGRAPHX_USE_TYPE_ERASED_MATCHERS=1)
+    target_compile_options(migraphx PUBLIC "-mno-ms-bitfields")
 endif()
 
 configure_file(version.h.in include/migraphx/version.h)
@@ -174,6 +175,7 @@ register_migraphx_ops(
     gathernd
     get_tuple_elem
     greater
+    group_query_attention
     gru
     identity
     if_op
@@ -383,5 +385,5 @@ rocm_export_targets(
     Threads
     ${MIGRAPHX_CONFIG_DEPENDS}
 )
- 
+
 

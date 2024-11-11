@@ -682,11 +682,7 @@ shape::type_t get_type(int dtype)
     case 11: return shape::double_type;
     case 12: return shape::uint32_type;
     case 13: return shape::uint64_type;
-    case 18: {
-        std::cout << "[Warning] : MIGraphX has BETA support for FP8. Using FP8 may result in "
-                     "incorrect final outputs\n";
-        return shape::fp8e4m3fnuz_type;
-    }
+    case 18: return shape::fp8e4m3fnuz_type;
     case 21: return shape::uint8_type;
     case 22: return shape::int8_type;
     case 14:

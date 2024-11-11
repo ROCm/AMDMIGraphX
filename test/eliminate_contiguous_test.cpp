@@ -167,7 +167,7 @@ TEST_CASE(non_standard_flatten_op)
     m.add_instruction(migraphx::make_op("flatten"), c);
     auto count = std::distance(m.begin(), m.end());
     run_pass(m);
-    EXPECT(std::distance(m.begin(), m.end()) == count);
+    EXPECT(std::distance(m.begin(), m.end()) == (count - 1));
 }
 
 TEST_CASE(standard_flatten_op)

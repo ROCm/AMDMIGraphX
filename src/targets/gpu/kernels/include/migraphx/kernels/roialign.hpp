@@ -166,22 +166,28 @@ __device__ void roialign(const T& x_t, const U& rois_t, const V& ind_t, W& y_t, 
     // output dims of height and width, in all 2-dim arrays, the first dim
     // is for height and second dim is for width
     const auto& out_lens         = out_s.lens;
+
+println_once(" ccccc ", out_s);
+
     array<index_int, 2> out_dims = {out_lens[3], out_lens[2]};
+    array<index_int, 4> visit_lens({out_lens[0],out_lens[1], out_lens[3], out_lens[2] });
+
 
     // Compute lens and strides vectors for use in reindexing output.
     // Todo: look for a less indirect way to reconcile the ordering of iteration
     // between this op. and the reference.
-    array<size_t, 4> m_lens{out_lens[0], out_lens[1], out_lens[3], out_lens[2]};
+    array<size_t, 4> m_lens{out_lens[0], out_lens[1], out_lens[2], out_lens[3]};
     array<size_t, 4> m_strides;
     m_strides[3] = 1;
     for(int k = 2; k >= 0; k--)
     {
         m_strides[k] = m_strides[k + 1] * m_lens[k + 1];
     }
-println_once(" aaaaa out_lens: ", out_lens);
+println_once(" m_strides ", m_strides);
     for(index_int i = index.global; i < out_s.elements(); i += stride)
     {
-        auto idx = out_s.multi(i);
+        auto idx = visit_lens.multi(i);
+        // auto idx = out_s.multi(i);
         int n    = idx[0];
         int c    = idx[1];
         int ph   = idx[2];
@@ -217,14 +223,9 @@ println_once(" aaaaa out_lens: ", out_lens);
                                     ? s.sampling_ratio
                                     : migraphx::ceil(roi_size[ii] / out_dims[ii]);
         }
-array<int, 4> zap = {n, c, ph, pw};
-
-// println(" kkkkk n, c, ph, pw: ", zap);
-
-
-
-
-         const auto offset_x = x + ((batch_ind * channel_num + c) * in_dims[0] * in_dims[1]);
+// array<size_t, 4> reindex = {size_t(n), size_t(c), size_t(pw), size_t(ph)};//;
+ // migraphx::shape reindex_shape(reindex);
+        const auto offset_x = x + ((batch_ind * channel_num + c) * in_dims[0] * in_dims[1]);
 // array<size_t, 4> reindex = {size_t(n), size_t(c), size_t(pw), size_t(ph)};//;
  // migraphx::shape reindex_shape(reindex);
 
@@ -235,28 +236,24 @@ array<int, 4> zap = {n, c, ph, pw};
         size_t pp = i;
         size_t jj = (pp / m_strides[0]) * m_strides[0];
         pp        = pp % m_strides[0];
-if( i == 57)println(" xxx ", jj);
         jj += (pp / m_strides[1]) * m_strides[1];
         pp %= m_strides[1];
-if( i == 57)println(" yyy ", jj);
-        jj += (pp / m_strides[2]) * m_strides[2];
-if( i == 57){
-    array<size_t, 3>asd = {pp, m_lens[2], m_strides[2]};
-    println(" asd: ", asd) ;   
-}    
-        pp = pp / m_lens[2] + (pp % m_lens[2]) * m_strides[3];
-if( i == 57)println(" pp: ", pp);
-        jj += pp * m_strides[2];
-if( i == 57)println(" zzz ", jj);
+        pp = pp / m_lens[2] + (pp % m_lens[2]) * m_strides[2];
+        jj += pp;
+
+        // size_t pp = i;
+        // size_t jj = (pp / m_strides[0]) * m_strides[0];
+        // pp        = pp % m_strides[0];
+        // jj += (pp / m_strides[1]) * m_strides[1];
+        // pp %= m_strides[1];
+        // pp = pp / m_lens[3] + (pp % m_lens[3]) * m_strides[2];
+        // jj += pp;
 
         if constexpr(s.is_avg_pooling)
         {
-            y_t[i] = calc_pooling(
+            y_t[jj] = calc_pooling(
                 offset_x, roi_starts, bin_size, {ph, pw}, bin_grid_size, in_dims, avg_pool{});
-array<float, 7> zapzap = {float(n), float(c), float(ph), float(pw), float(i), float(jj),  y_t[i]};
-
-
-// println(" ddddd  y_t[jj]: ",  zapzap)   ;
+array<float, 7> zapzap = {float(n), float(c), float(ph), float(pw), float(i), float(jj),  y_t[jj]};
 println(" bbbbb ",  zapzap)   ;
         }
         else

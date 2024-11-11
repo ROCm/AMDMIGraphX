@@ -126,18 +126,28 @@ struct mlir_compiler : compiler<mlir_compiler>
                 [=](module& m, instruction_ref ins, const std::vector<operation>& ops) {
                     std::vector<instruction_ref> inputs = ins->inputs();
 
+                    // Tuple inputs not supported
+                    assert(std::all_of(inputs.begin(), inputs.end() - 1, [](auto i) {
+                        return i->get_shape().sub_shapes().empty();
+                    }));
+
                     // Multiple output case (allocate ins will give a tuple)
                     std::vector<instruction_ref> flat_inputs(inputs);
-                    bool multi_out  = not flat_inputs.back()->get_shape().sub_shapes().empty();
+                    bool multi_out = not flat_inputs.back()->get_shape().sub_shapes().empty();
                     if(multi_out)
                     {
                         auto allocs = flat_inputs.back();
                         flat_inputs.pop_back();
-                        for(const auto i : range(allocs->get_shape().sub_shapes().size()))
-                        {
-                            flat_inputs.push_back(m.insert_instruction(
-                                ins, migraphx::make_op("get_tuple_elem", {{"index", i}}), allocs));
-                        }
+                        auto sub_shape_idx = range(allocs->get_shape().sub_shapes().size());
+                        std::transform(sub_shape_idx.begin(),
+                                       sub_shape_idx.end(),
+                                       std::back_inserter(flat_inputs),
+                                       [&](int i) {
+                                           return m.insert_instruction(
+                                               ins,
+                                               migraphx::make_op("get_tuple_elem", {{"index", i}}),
+                                               allocs);
+                                       });
                     }
                     std::vector<instruction_ref> tuple_replacements;
 
@@ -147,7 +157,7 @@ struct mlir_compiler : compiler<mlir_compiler>
                             ins,
                             migraphx::make_op("hip::fill", {{"value", mco.prefill_values[i]}}),
                             flat_inputs[mco.prefill_indices[i]]);
-                        if (not multi_out or mco.prefill_indices[i] < inputs.size() - 1)
+                        if(not multi_out or mco.prefill_indices[i] < inputs.size() - 1)
                         {
                             replace(inputs, inputs[mco.prefill_indices[i]], prefilled_ins);
                         }
@@ -161,7 +171,8 @@ struct mlir_compiler : compiler<mlir_compiler>
                     {
                         // Add identity to make sure fill operations happen before kernel call
                         tuple_replacements.insert(tuple_replacements.begin(), inputs.back());
-                        inputs.back() = m.insert_instruction(ins, migraphx::make_op("identity"), tuple_replacements);
+                        inputs.back() = m.insert_instruction(
+                            ins, migraphx::make_op("identity"), tuple_replacements);
                     }
 
                     auto mlir = insert_mlir(m, ins, any_cast<code_object_op>(ops.front()), inputs);

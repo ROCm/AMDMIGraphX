@@ -53,6 +53,8 @@ struct float32_parts
     unsigned int exponent : 8;
     unsigned int sign : 1;
 
+    static constexpr unsigned int exponent_width() { return 8; }
+
     static constexpr unsigned int mantissa_width() { return 23; }
 
     static constexpr unsigned int max_exponent() { return all_ones<8>(); }
@@ -98,7 +100,7 @@ struct __attribute__((packed, may_alias)) generic_float
         float32_parts f{};
         f.sign = sign;
 
-        if(exponent == 0 and ExponentSize != 8) // subnormal fps
+        if(exponent == 0 and ExponentSize != float32_parts::exponent_width()) // subnormal fps
         {
 
             if(mantissa == 0)

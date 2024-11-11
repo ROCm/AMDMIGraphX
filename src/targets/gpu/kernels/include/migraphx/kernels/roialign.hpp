@@ -24,8 +24,8 @@
 #ifndef MIGRAPHX_GUARD_KERNELS_ROIALIGN_HPP
 #define MIGRAPHX_GUARD_KERNELS_ROIALIGN_HPP
 
-#include <migraphx/kernels/debug.hpp>
-#include <migraphx/kernels/print.hpp>
+// #include <migraphx/kernels/debug.hpp>
+// #include <migraphx/kernels/print.hpp>
 #include <migraphx/kernels/index.hpp>
 #include <migraphx/kernels/dfor.hpp>
 #include <migraphx/kernels/ops.hpp>
@@ -72,6 +72,10 @@ template <class Iterator, class Op>
 MIGRAPHX_DEVICE_CONSTEXPR typename Iterator::value_type bilinear_interpolate(
     const Iterator data, const array<index_int, 2>& dims, array<float, 2> xy, Op pooling)
 {
+    // TODO:  The values calculated here are geometric, depending only
+    // on the ROI/batch layer pairs, and are the same
+    // locations for each channel c.  They could be precalculated and reused as they are in the ref.
+    // implementation.
     array<int, 2> low{};
     array<int, 2> high{};
     for(index_int ii = 0; ii < xy.size(); ++ii)
@@ -94,11 +98,16 @@ MIGRAPHX_DEVICE_CONSTEXPR typename Iterator::value_type bilinear_interpolate(
                                 high[1] * dims[0] + low[0],
                                 high[1] * dims[0] + high[0]};
 
+    // lx, ly, hx, hy are the distances from (x, y) to the upper and lower edges of the
+    // containing pixel; aka the fractional part of a floating-point number
     float lx = xy[0] - low[0];
     float ly = xy[1] - low[1];
 
     float hy = 1.0f - ly;
     float hx = 1.0f - lx;
+
+    // weighting values, which in bilinear interpolation are based on distance
+    // of the point from the index points.
     // do calculations in floating point and convert final result to required type
     array<float, 4> ws = {hy * hx, hy * lx, ly * hx, ly * lx};
 
@@ -165,15 +174,12 @@ __device__ void roialign(const T& x_t, const U& rois_t, const V& ind_t, W& y_t, 
 
     // output dims of height and width, in all 2-dim arrays, the first dim
     // is for height and second dim is for width
-    const auto& out_lens         = out_s.lens;
-
-println_once(" ccccc ", out_s);
+    const auto& out_lens = out_s.lens;
 
     array<index_int, 2> out_dims = {out_lens[3], out_lens[2]};
-    array<index_int, 4> visit_lens({out_lens[0],out_lens[1], out_lens[3], out_lens[2] });
-
 
     // Compute lens and strides vectors for use in reindexing output.
+    array<index_int, 4> visit_lens({out_lens[0], out_lens[1], out_lens[3], out_lens[2]});
     // Todo: look for a less indirect way to reconcile the ordering of iteration
     // between this op. and the reference.
     array<size_t, 4> m_lens{out_lens[0], out_lens[1], out_lens[2], out_lens[3]};
@@ -183,11 +189,9 @@ println_once(" ccccc ", out_s);
     {
         m_strides[k] = m_strides[k + 1] * m_lens[k + 1];
     }
-println_once(" m_strides ", m_strides);
     for(index_int i = index.global; i < out_s.elements(); i += stride)
     {
         auto idx = visit_lens.multi(i);
-        // auto idx = out_s.multi(i);
         int n    = idx[0];
         int c    = idx[1];
         int ph   = idx[2];
@@ -223,11 +227,7 @@ println_once(" m_strides ", m_strides);
                                     ? s.sampling_ratio
                                     : migraphx::ceil(roi_size[ii] / out_dims[ii]);
         }
-// array<size_t, 4> reindex = {size_t(n), size_t(c), size_t(pw), size_t(ph)};//;
- // migraphx::shape reindex_shape(reindex);
         const auto offset_x = x + ((batch_ind * channel_num + c) * in_dims[0] * in_dims[1]);
-// array<size_t, 4> reindex = {size_t(n), size_t(c), size_t(pw), size_t(ph)};//;
- // migraphx::shape reindex_shape(reindex);
 
         //
         //  Reindexing.  Calculations to this point did not iterate in the same order as
@@ -241,20 +241,10 @@ println_once(" m_strides ", m_strides);
         pp = pp / m_lens[2] + (pp % m_lens[2]) * m_strides[2];
         jj += pp;
 
-        // size_t pp = i;
-        // size_t jj = (pp / m_strides[0]) * m_strides[0];
-        // pp        = pp % m_strides[0];
-        // jj += (pp / m_strides[1]) * m_strides[1];
-        // pp %= m_strides[1];
-        // pp = pp / m_lens[3] + (pp % m_lens[3]) * m_strides[2];
-        // jj += pp;
-
         if constexpr(s.is_avg_pooling)
         {
             y_t[jj] = calc_pooling(
                 offset_x, roi_starts, bin_size, {ph, pw}, bin_grid_size, in_dims, avg_pool{});
-array<float, 7> zapzap = {float(n), float(c), float(ph), float(pw), float(i), float(jj),  y_t[jj]};
-println(" bbbbb ",  zapzap)   ;
         }
         else
         {

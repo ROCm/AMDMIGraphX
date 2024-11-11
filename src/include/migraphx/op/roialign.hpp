@@ -109,12 +109,18 @@ struct roialign
 
     struct pos_weight
     {
-        // neighbor indices for the bilinear interpolation
+        // neighbor indices for the bilinear interpolation, i.e.
+        // the integral bounds of the pixel containing a point.
         std::array<std::size_t, 4> pos = {0, 0, 0, 0};
-        // neighbor weights for the bilinear interpolation
+        // neighbor weights for the bilinear interpolation.  "weights"
+        // for interpolation are defined as the distances of the point from the
+        // surrounding indices in pos. aka the fractional parts of floating-point values.
         std::array<float, 4> w = {0.0f, 0.0f, 0.0f, 0.0f};
     };
 
+    // Precalculate the indices/weights used in bilinear interpolation.
+    //   These depend only on the
+    // ROI/batch layer pairs, and are reused across all channels c.
     auto calc_pos_weight(const std::array<std::size_t, 2>& dims,
                          const shape& comp_s,
                          const std::array<float, 2>& roi_start,
@@ -219,7 +225,7 @@ struct roialign
         const auto& out_lens = output_shape.lens();
         int64_t n_rois       = out_lens[0];
         std::size_t channels = out_lens[1];
-printf(" AAAAA CCCCC output shape is %lu %lu %lu %lu\n", out_lens[0], out_lens[1], out_lens[2], out_lens[3] );        
+
         // output dims of height and width, in all 2-dim arrays, the first dim
         // is for height and second dim is for width i.e. (y, x) order
         std::array<std::size_t, 2> out_dims = {out_lens[3], out_lens[2]};
@@ -299,7 +305,6 @@ printf(" AAAAA CCCCC output shape is %lu %lu %lu %lu\n", out_lens[0], out_lens[1
                                                  vec_index[c],
                                                  max_pool{});
                     output(n, c, ph, pw) = output_val;
-                    printf(" BBBBB %lu %lu %lu %lu %f\n", n, c, ph, pw, output_val);
                 });
             });
         });

@@ -23,6 +23,7 @@
  */
 
 #include "verify_program.hpp"
+#include <migraphx/op/pooling.hpp>
 #include <migraphx/program.hpp>
 #include <migraphx/generate.hpp>
 #include <migraphx/make_op.hpp>
@@ -50,6 +51,40 @@ struct test_roialign_half_pixel : verify_program<test_roialign_half_pixel<DType>
                                  {"output_height", 4},
                                  {"output_width", 3},
                                  {"sampling_ratio", 3},
+                                 {"coordinate_transformation_mode", "half_pixel"}}),
+            x,
+            roi,
+            ind);
+        mm->add_return({r});
+
+        return p;
+    }
+};
+
+template <migraphx::shape::type_t DType>
+struct test_roialign_half_pixel_max : verify_program<test_roialign_half_pixel_max<DType>>
+{
+    migraphx::program create_program() const
+    {
+        migraphx::program p;
+        auto* mm = p.get_main_module();
+        migraphx::shape x_s{DType, {2, 3, 5, 2}};
+
+        migraphx::shape roi_s{DType, {2, 4}};
+
+        migraphx::shape ind_s{migraphx::shape::int64_type, {2}};
+        std::vector<int64_t> ind_vec = {1, 0};
+
+        auto x   = mm->add_parameter("x", x_s);
+        auto roi = mm->add_parameter("roi", roi_s);
+        auto ind = mm->add_literal(migraphx::literal(ind_s, ind_vec));
+        auto r   = mm->add_instruction(
+            migraphx::make_op("roialign",
+                                {{"spatial_scale", 1.1},
+                                 {"output_height", 4},
+                                 {"output_width", 3},
+                                 {"sampling_ratio", 3},
+                                 {"mode", migraphx::op::pooling_mode::max},
                                  {"coordinate_transformation_mode", "half_pixel"}}),
             x,
             roi,
@@ -98,6 +133,7 @@ template struct test_roialign_half_pixel<migraphx::shape::half_type>;
 template struct test_roialign_half_pixel<migraphx::shape::fp8e4m3fnuz_type>;
 template struct test_roialign_half_pixel<migraphx::shape::fp8e4m3fn_type>;
 template struct test_roialign_half_pixel<migraphx::shape::fp8e5m2_type>;
+template struct test_roialign_half_pixel_max<migraphx::shape::float_type>;
 template struct test_roialign<migraphx::shape::float_type>;
 template struct test_roialign<migraphx::shape::half_type>;
 template struct test_roialign<migraphx::shape::fp8e4m3fnuz_type>;

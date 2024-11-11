@@ -490,17 +490,6 @@ TEST_CASE(optimize_scalar_broadcast_unsqueeze)
            });
 }
 
-// unsqueeze[axes={1, 2, 5},steps={}]
-// multibroadcast[out_lens={2, 1, 1, 16, 1, 10},out_dyn_dims={}]
-// reshape[dims={2, 1, 1, 160}]
-// multibroadcast[out_lens={2, 32, 32, 160},out_dyn_dims={}]
-// ...
-// unsqueeze[axes={3, 4},steps={}],
-// transpose[permutation={0, 3, 4, 1, 2}],
-// multibroadcast[out_lens={2, 1, 1, 16, 10},out_dyn_dims={}],
-// reshape[dims={2, 1, 1, 160}],
-// multibroadcast[out_lens={2, 32, 32, 160},out_dyn_dims={}]
-
 TEST_CASE(optimize_broadcast_reshape_transpose)
 {
     EXPECT(check_optimize_shape_transforms(

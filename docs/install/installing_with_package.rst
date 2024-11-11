@@ -10,7 +10,7 @@ ROCm must be installed before installing MIGraphX. See `ROCm installation for Li
 
 Installing MIGraphX using the package installer is sufficient for users who want to use the MIGraphX API.
 
-If you want to develop for MIGraphX and contribute to the source code, see :doc:`Building MIGraphX <./install/building_migraphx>` and :doc:`Developing for MIGraphX <./dev/contributing-to-migraphx>`.
+If you want to develop for MIGraphX and contribute to the source code, see :doc:`Building MIGraphX </install/building_migraphx>` and :doc:`Developing for MIGraphX <../dev/contributing-to-migraphx>`.
 
 The package installer will install all the prerequisites needed for MIGraphX.
 

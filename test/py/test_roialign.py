@@ -22,17 +22,16 @@
 # THE SOFTWARE.
 #####################################################################################
 import migraphx
-
-import onnx
 import onnxruntime as rt
 import numpy as np
 
 
 def test_roialign():
 
-    data = np.array(np.arange(2*2*4*3), dtype='f')
+    data = np.array(np.arange(2 * 2 * 4 * 3), dtype='f')
     data = np.reshape(data, [2, 2, 4, 3])
-    roi_data = np.array([[ 0.1, 0.15, 0.6, 0.35], [ 0.1, 1.73, 0.8, 1.13]], dtype='f')
+    roi_data = np.array([[0.1, 0.15, 0.6, 0.35], [0.1, 1.73, 0.8, 1.13]],
+                        dtype='f')
     index_data = np.array([1, 0], dtype='int64')
 
     # Create a program
@@ -41,15 +40,15 @@ def test_roialign():
     x = mm.add_literal(data)
     roi = mm.add_literal(roi_data)
     roi_index = mm.add_literal(index_data)
-    
+
     roialign_op = mm.add_instruction(
-        migraphx.op('roialign', coordinate_transformation_mode='half_pixel',
+        migraphx.op('roialign',
+                    coordinate_transformation_mode='half_pixel',
                     output_height=3,
                     output_width=2,
-                    spatial_scale = 0.9,
-                    sampling_ratio = 2),
-                    [x, roi, roi_index])
-    
+                    spatial_scale=0.9,
+                    sampling_ratio=2), [x, roi, roi_index])
+
     mm.add_return([roialign_op])
     p.compile(migraphx.get_target("ref"))
     params = {}
@@ -59,12 +58,18 @@ def test_roialign():
     # Make an ORT session from the *.onnx file
     themodel = 'roialign_half_pixel_test.onnx'
     sess = rt.InferenceSession('../onnx/' + themodel)
-    
-    res = sess.run(['y'], {'x': data, 'rois': roi_data, 'batch_ind': index_data})
-    assert np.allclose(mgx_result, res[-1], rtol=1e-05, atol=1e-08, equal_nan=False)
+
+    res = sess.run(['y'], {
+        'x': data,
+        'rois': roi_data,
+        'batch_ind': index_data
+    })
+    assert np.allclose(mgx_result,
+                       res[-1],
+                       rtol=1e-05,
+                       atol=1e-08,
+                       equal_nan=False)
+
 
 if __name__ == "__main__":
     test_roialign()
-
-
-

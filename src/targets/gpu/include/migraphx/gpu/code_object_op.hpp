@@ -84,7 +84,7 @@ struct code_object_op
         os << "symbol_name=" << op.symbol_name << ",";
         os << "global=" << op.global << ",";
         os << "local=" << op.local << ",";
-        if(output_arg != -1)
+        if(op.output_arg != -1)
             os << "output_arg=" << op.output_arg << ",";
         os << "]";
         return os;

@@ -37,6 +37,7 @@
 #include <migraphx/ranges.hpp>
 #include <migraphx/reduce_dims.hpp>
 #include <migraphx/stringutils.hpp>
+#include <ck/host/utils.hpp>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
@@ -129,20 +130,26 @@ struct ck_gemm_softmax_gemm_compiler : compiler<ck_gemm_softmax_gemm_compiler>
 
     operation compile_op(context& ctx, const std::vector<shape>& inputs, const value& v) const
     {
+
         const auto& c_shape = inputs.back();
         auto tuning_value   = v.get("tuning_value", 5);
         auto batch_count    = get_batch_count(c_shape);
         auto problem        = create_problem(inputs, v);
 
-        const auto include_header   = problem.GetIncludeHeader();
-        const auto solutions        = problem.GetSolutions(ctx.get_current_device().get_gfx_name());
-        const auto& solution        = solutions.at(tuning_value);
-        const auto template_str     = solution.template_str;
-        const auto blocks_per_batch = solution.grid_size;
-        const auto block_size       = solution.block_size;
+        const auto include_header = problem.GetIncludeHeader();
+        const auto solutions =
+            problem.GetSolutions(ctx.get_current_device().get_gfx_name(), "", "");
+        const auto& solution = solutions.at(tuning_value);
+        const auto template_str     = solution.ToTemplateString();
+        const auto block_size       = solution.GetTemplateParameter<std::size_t>("BlockSize");
+        const auto m_per_block      = solution.GetTemplateParameter<std::size_t>("Gemm01MPerBlock");
+        const auto n1_per_block     = solution.GetTemplateParameter<std::size_t>("Gemm1NPerBlock");
+        const auto blocks_per_batch = ck::host::integer_divide_ceil(problem.M, m_per_block) *
+                                      ck::host::integer_divide_ceil(problem.O, n1_per_block);
 
         hip_compile_options options;
         options.additional_src_files = ck_headers();
+
         auto grid_size = can_fold_batch(inputs) ? blocks_per_batch : batch_count * blocks_per_batch;
         options.set_launch_params(v, grid_size * block_size, block_size);
         options.inputs         = inputs;
@@ -222,7 +229,7 @@ struct ck_gemm_softmax_gemm_compiler : compiler<ck_gemm_softmax_gemm_compiler>
         tuning_config tc;
         auto shapes    = to_shapes(ins->inputs());
         auto problem   = create_problem(shapes, create_settings(ins, op));
-        auto solutions = problem.GetSolutions(ctx.get_current_device().get_gfx_name());
+        auto solutions = problem.GetSolutions(ctx.get_current_device().get_gfx_name(), "", "");
         tc.solutions.resize(solutions.size());
         std::iota(tc.solutions.begin(), tc.solutions.end(), 0);
         std::vector<shape> gemm_shapes{shapes[0], shapes[1], shapes.back()};

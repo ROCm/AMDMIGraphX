@@ -132,6 +132,7 @@ run_verify::run_ref(migraphx::program p,
     auto_print pp{p, t.name()};
     auto trace_target = migraphx::string_value_of(MIGRAPHX_TRACE_TEST_COMPILE{});
     compile_check(p, t, c_opts, (trace_target == "ref"));
+
     return std::make_pair(std::move(p), p.eval(std::move(inputs)));
 }
 

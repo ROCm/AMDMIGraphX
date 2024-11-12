@@ -57,7 +57,7 @@ else()
 endif()
 
 if(MIGRAPHX_USE_COMPOSABLEKERNEL)
-    find_package(composable_kernel 1.0.0 REQUIRED COMPONENTS jit_library)
+    find_package(composable_kernel 1.0.0 REQUIRED COMPONENTS ck_host)
 endif()
 
 if(BUILD_DEV)
@@ -121,7 +121,7 @@ target_compile_definitions(kernel_file_check PRIVATE -DMIGRAPHX_NLOCAL=256)
 target_include_directories(kernel_file_check PRIVATE $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/kernels/include/>)
 target_link_libraries(kernel_file_check compile_for_gpu)
 if(MIGRAPHX_USE_COMPOSABLEKERNEL)
-    target_link_libraries(kernel_file_check composable_kernel::jit_library)
+    target_link_libraries(kernel_file_check composable_kernel::ck_host)
 endif()
 
 rocm_clang_tidy_check(kernel_file_check)
@@ -131,7 +131,8 @@ file(GLOB JIT_GPU_SRCS CONFIGURE_DEPENDS ${CMAKE_CURRENT_SOURCE_DIR}/jit/*.cpp)
 if(NOT MIGRAPHX_USE_COMPOSABLEKERNEL)
     list(REMOVE_ITEM JIT_GPU_SRCS
             ${CMAKE_CURRENT_SOURCE_DIR}/jit/ck_gemm.cpp
-            ${CMAKE_CURRENT_SOURCE_DIR}/jit/ck_gemm_softmax_gemm.cpp)
+            ${CMAKE_CURRENT_SOURCE_DIR}/jit/ck_gemm_softmax_gemm.cpp
+            ${CMAKE_CURRENT_SOURCE_DIR}/jit/ck_gemm_gemm.cpp)
 endif()
 
 if(MIGRAPHX_USE_MIOPEN)
@@ -390,7 +391,7 @@ else()
 endif()
 target_link_libraries(migraphx_gpu PRIVATE migraphx_kernels)
 if(MIGRAPHX_USE_COMPOSABLEKERNEL)
-    target_link_libraries(migraphx_gpu PRIVATE composable_kernel::jit_library)
+    target_link_libraries(migraphx_gpu PRIVATE composable_kernel::ck_host)
     target_compile_definitions(migraphx_gpu PRIVATE MIGRAPHX_USE_COMPOSABLEKERNEL=1)
 endif()
 

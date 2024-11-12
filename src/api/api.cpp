@@ -234,6 +234,16 @@ void quantize_fp16_with_op_names(program& prog, std::vector<std::string>& names)
     migraphx::quantize_fp16(prog, names);
 }
 
+void quantize_bf16_with_op_names(program& prog, std::vector<std::string>& names)
+{
+    if(names.empty())
+    {
+        names = {"all"};
+    }
+
+    migraphx::quantize_bf16(prog, names);
+}
+
 struct quantize_int8_options
 {
     std::vector<parameter_map> calibration   = {};
@@ -2195,6 +2205,29 @@ extern "C" migraphx_status migraphx_quantize_fp16(migraphx_program_t prog)
         if(prog == nullptr)
             MIGRAPHX_THROW(migraphx_status_bad_param, "Bad parameter prog: Null pointer");
         migraphx::quantize_fp16((prog->object));
+    });
+    return api_error_result;
+}
+
+extern "C" migraphx_status migraphx_quantize_bf16_with_op_names(migraphx_program_t prog,
+                                                                migraphx_quantize_op_names_t name)
+{
+    auto api_error_result = migraphx::try_([&] {
+        if(prog == nullptr)
+            MIGRAPHX_THROW(migraphx_status_bad_param, "Bad parameter prog: Null pointer");
+        if(name == nullptr)
+            MIGRAPHX_THROW(migraphx_status_bad_param, "Bad parameter name: Null pointer");
+        migraphx::quantize_bf16_with_op_names((prog->object), (name->object));
+    });
+    return api_error_result;
+}
+
+extern "C" migraphx_status migraphx_quantize_bf16(migraphx_program_t prog)
+{
+    auto api_error_result = migraphx::try_([&] {
+        if(prog == nullptr)
+            MIGRAPHX_THROW(migraphx_status_bad_param, "Bad parameter prog: Null pointer");
+        migraphx::quantize_bf16((prog->object));
     });
     return api_error_result;
 }

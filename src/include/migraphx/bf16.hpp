@@ -21,40 +21,85 @@
  * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
  * THE SOFTWARE.
  */
-#ifndef MIGRAPHX_GUARD_RTGLIB_QUANTIZATION_HPP
-#define MIGRAPHX_GUARD_RTGLIB_QUANTIZATION_HPP
 
-#include <string>
-#include <vector>
-#include <migraphx/instruction_ref.hpp>
-#include <migraphx/operation.hpp>
+#ifndef MIGRAPHX_GUARD_RTGLIB_BF16_HPP
+#define MIGRAPHX_GUARD_RTGLIB_BF16_HPP
+
+#include <migraphx/half.hpp>
 #include <migraphx/config.hpp>
-#include <migraphx/target.hpp>
-#include <migraphx/program.hpp>
-#include <migraphx/env.hpp>
+#include <migraphx/float8.hpp>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
 
-struct program;
+using bf16 = migraphx::generic_float<7, 8>;
 
-MIGRAPHX_EXPORT void quantize_fp16(program& prog,
-                                   const std::vector<std::string>& ins_names = {"all"});
-
-MIGRAPHX_EXPORT void quantize_bf16(program& prog,
-                                   const std::vector<std::string>& ins_names = {"all"});
-
-MIGRAPHX_EXPORT void quantize_int8(program& prog,
-                                   const target& t,
-                                   const std::vector<parameter_map>& calibration,
-                                   const std::unordered_set<std::string>& ins_names = {
-                                       "dot", "convolution"});
-MIGRAPHX_EXPORT void
-quantize_fp8(program& prog, const target& t, const std::vector<parameter_map>& calibration);
-
-MIGRAPHX_EXPORT void quantize_int4_weights(program& prog);
+// template <class T>
+// using deduce = typename detail::deduce<T>::type;
 
 } // namespace MIGRAPHX_INLINE_NS
 } // namespace migraphx
+
+namespace std {
+
+template <class T>
+struct common_type<migraphx::bf16, T> : std::common_type<float, T> // NOLINT
+{
+};
+
+template <class T>
+struct common_type<T, migraphx::bf16> : std::common_type<float, T> // NOLINT
+{
+};
+
+template <>
+struct common_type<migraphx::fp8::fp8e4m3fnuz, migraphx::bf16>
+{
+    using type = float;
+};
+
+template <>
+struct common_type<migraphx::bf16, migraphx::fp8::fp8e4m3fnuz>
+{
+    using type = float;
+};
+
+template <>
+struct common_type<migraphx::fp8::fp8e4m3fn, migraphx::bf16>
+{
+    using type = float;
+};
+
+template <>
+struct common_type<migraphx::bf16, migraphx::fp8::fp8e4m3fn>
+{
+    using type = float;
+};
+
+template <>
+struct common_type<migraphx::fp8::fp8e5m2, migraphx::bf16>
+{
+    using type = float;
+};
+
+template <>
+struct common_type<migraphx::bf16, migraphx::fp8::fp8e5m2>
+{
+    using type = float;
+};
+
+template <>
+struct common_type<migraphx::bf16, migraphx::bf16>
+{
+    using type = migraphx::bf16;
+};
+
+template <>
+struct common_type<migraphx::bf16, migraphx::generic_float<10, 5>>
+{
+    using type = float;
+};
+
+} // namespace std
 
 #endif

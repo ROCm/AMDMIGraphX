@@ -30,8 +30,8 @@
 #include <migraphx/verify.hpp>
 #include <migraphx/apply_alpha_beta.hpp>
 #include <migraphx/quantization.hpp>
+#include <migraphx/truncate_float.hpp>
 #include <migraphx/quantize_8bits.hpp>
-#include <migraphx/quantize_fp16.hpp>
 #include <migraphx/dead_code_elimination.hpp>
 #include <migraphx/simplify_reshapes.hpp>
 #include <migraphx/eliminate_common_subexpression.hpp>
@@ -262,7 +262,7 @@ TEST_CASE(param_add_sub)
 
         auto p0 = create_program_float();
         migraphx::run_passes(
-            p0, {migraphx::quantize_fp16_pass{{"all"}}, migraphx::dead_code_elimination{}});
+            p0, {migraphx::truncate_float_pass{{"all"}}, migraphx::dead_code_elimination{}});
         EXPECT(p0 == create_program_fp16());
 
         auto p1 = create_program_float();

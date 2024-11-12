@@ -102,6 +102,12 @@ struct common_type<migraphx::half, migraphx::half>
     using type = migraphx::half;
 };
 
+template <>
+struct common_type<migraphx::half, migraphx::generic_float<7, 8>>
+{
+    using type = float;
+};
+
 } // namespace std
 
 #endif

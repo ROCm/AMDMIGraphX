@@ -610,6 +610,10 @@ MIGRAPHX_PYBIND11_MODULE(migraphx, m)
           &migraphx::quantize_fp16,
           py::arg("prog"),
           py::arg("ins_names") = std::vector<std::string>{"all"});
+    m.def("quantize_bf16",
+          &migraphx::quantize_bf16,
+          py::arg("prog"),
+          py::arg("ins_names") = std::vector<std::string>{"all"});
     m.def("quantize_int8",
           &migraphx::quantize_int8,
           py::arg("prog"),

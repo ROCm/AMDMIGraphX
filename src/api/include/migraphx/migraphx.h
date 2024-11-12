@@ -35,6 +35,7 @@
 #define MIGRAPHX_SHAPE_VISIT_TYPES(m) \
     m(bool_type, bool) \
     m(half_type, half) \
+    m(bf16_type, bf16) \
     m(float_type, float) \
     m(double_type, double) \
     m(uint8_type, uint8_t) \
@@ -601,6 +602,11 @@ MIGRAPHX_C_EXPORT migraphx_status
 migraphx_quantize_fp16_with_op_names(migraphx_program_t prog, migraphx_quantize_op_names_t name);
 
 MIGRAPHX_C_EXPORT migraphx_status migraphx_quantize_fp16(migraphx_program_t prog);
+
+MIGRAPHX_C_EXPORT migraphx_status
+migraphx_quantize_bf16_with_op_names(migraphx_program_t prog, migraphx_quantize_op_names_t name);
+
+MIGRAPHX_C_EXPORT migraphx_status migraphx_quantize_bf16(migraphx_program_t prog);
 
 MIGRAPHX_C_EXPORT migraphx_status
 migraphx_quantize_int8_options_destroy(migraphx_quantize_int8_options_t quantize_int8_options);

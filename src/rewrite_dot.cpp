@@ -40,6 +40,8 @@ MIGRAPHX_PRED_MATCHER(conv_1x1, instruction_ref ins)
     if(ins->name() != "convolution")
         return false;
     auto v = ins->get_operator().to_value();
+    if(v.at("group").to<int>() != 1)
+        return false;
     if(not all_of(v.at("stride"), [](const value& x) { return x.to<std::size_t>() == 1; }))
         return false;
     if(not all_of(v.at("padding"), [](const value& x) { return x.to<std::size_t>() == 0; }))

@@ -74,4 +74,22 @@ TEST_CASE(nhwc_conv_1x1)
     EXPECT(m1.sort() == m2.sort());
 }
 
+TEST_CASE(nhwc_group_conv_1x1)
+{
+    auto s1 = migraphx::shape::from_permutation(
+        migraphx::shape::float_type, {64, 192, 83, 83}, {0, 2, 3, 1});
+    auto s2 = migraphx::shape::from_permutation(
+        migraphx::shape::float_type, {84, 96, 1, 1}, {0, 2, 3, 1});
+    migraphx::module m1;
+    {
+        auto x    = m1.add_parameter("x", s1);
+        auto w    = m1.add_literal(migraphx::generate_literal(s2));
+        auto conv = m1.add_instruction(migraphx::make_op("convolution", {{"group", 2}}), x, w);
+        m1.add_return({conv});
+    }
+    migraphx::module m2 = m1;
+    run_pass(m1);
+    EXPECT(m1.sort() == m2.sort());
+}
+
 int main(int argc, const char* argv[]) { test::run(argc, argv); }

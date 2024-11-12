@@ -2176,6 +2176,293 @@ def dequantizelinear_neg_axis_test():
 
 
 @onnx_test()
+def dequantizelinear_2d_blocked_with_zp_test():
+    x = helper.make_tensor_value_info('x', TensorProto.INT8, [2, 2])
+    scale = helper.make_tensor_value_info('scale', TensorProto.FLOAT, [2, 2])
+    zp = helper.make_tensor_value_info('zp', TensorProto.INT8, [2, 2])
+    y = helper.make_tensor_value_info('y', TensorProto.FLOAT, [2, 2])
+
+    node = onnx.helper.make_node('DequantizeLinear',
+                                 inputs=['x', 'scale', 'zp'],
+                                 outputs=['y'],
+                                 axis=0,
+                                 block_size=1)
+
+    return ([node], [x, scale, zp], [y])
+
+
+@onnx_test()
+def dequantizelinear_3d_blocked_with_zp_runt_block_test():
+    x = helper.make_tensor_value_info('x', TensorProto.INT8, [2, 5, 2])
+    scale = helper.make_tensor_value_info('scale', TensorProto.FLOAT,
+                                          [2, 2, 2])
+    zp = helper.make_tensor_value_info('zp', TensorProto.INT8, [2, 2, 2])
+    y = helper.make_tensor_value_info('y', TensorProto.FLOAT, [2, 5, 2])
+
+    node = onnx.helper.make_node('DequantizeLinear',
+                                 inputs=['x', 'scale', 'zp'],
+                                 outputs=['y'],
+                                 axis=1,
+                                 block_size=3)
+
+    return ([node], [x, scale, zp], [y])
+
+
+@onnx_test()
+def dequantizelinear_too_few_inputs_test():
+    x = helper.make_tensor_value_info('x', TensorProto.INT8, [2, 2])
+    y = helper.make_tensor_value_info('y', TensorProto.FLOAT, [2, 2])
+
+    node = onnx.helper.make_node('DequantizeLinear',
+                                 inputs=['x'],
+                                 outputs=['y'],
+                                 axis=0,
+                                 block_size=1)
+
+    return ([node], [x], [y])
+
+
+@onnx_test()
+def dequantizelinear_too_many_inputs_test():
+    x = helper.make_tensor_value_info('x', TensorProto.INT8, [2, 2])
+    scale = helper.make_tensor_value_info('scale', TensorProto.FLOAT, [2, 2])
+    zp = helper.make_tensor_value_info('zp', TensorProto.INT8, [2, 2])
+    zp2 = helper.make_tensor_value_info('zp2', TensorProto.INT8, [2, 2])
+    y = helper.make_tensor_value_info('y', TensorProto.FLOAT, [2, 2])
+
+    node = onnx.helper.make_node('DequantizeLinear',
+                                 inputs=['x', 'scale', 'zp', 'zp2'],
+                                 outputs=['y'],
+                                 axis=0,
+                                 block_size=1)
+
+    return ([node], [x, scale, zp, zp2], [y])
+
+
+@onnx_test()
+def dequantizelinear_x_and_zp_type_mismatch_test():
+    x = helper.make_tensor_value_info('x', TensorProto.INT8, [2, 2])
+    scale = helper.make_tensor_value_info('scale', TensorProto.FLOAT, [2, 2])
+    zp = helper.make_tensor_value_info('zp', TensorProto.UINT8, [2, 2])
+    y = helper.make_tensor_value_info('y', TensorProto.FLOAT, [2, 2])
+
+    node = onnx.helper.make_node('DequantizeLinear',
+                                 inputs=['x', 'scale', 'zp'],
+                                 outputs=['y'],
+                                 axis=0,
+                                 block_size=1)
+
+    return ([node], [x, scale, zp], [y])
+
+
+@onnx_test()
+def dequantizelinear_scale_and_zp_shape_mismatch_test():
+    x = helper.make_tensor_value_info('x', TensorProto.INT8, [2, 2])
+    scale = helper.make_tensor_value_info('scale', TensorProto.FLOAT, [2, 2])
+    zp = helper.make_tensor_value_info('zp', TensorProto.INT8, [2, 3])
+    y = helper.make_tensor_value_info('y', TensorProto.FLOAT, [2, 2])
+
+    node = onnx.helper.make_node('DequantizeLinear',
+                                 inputs=['x', 'scale', 'zp'],
+                                 outputs=['y'],
+                                 axis=0,
+                                 block_size=1)
+
+    return ([node], [x, scale, zp], [y])
+
+
+@onnx_test()
+def quantizelinear_2d_blocked_with_zp_test():
+    x = helper.make_tensor_value_info('x', TensorProto.FLOAT, [6, 2])
+    scale = helper.make_tensor_value_info('scale', TensorProto.FLOAT, [2, 2])
+    zp = helper.make_tensor_value_info('zp', TensorProto.INT8, [2, 2])
+    y = helper.make_tensor_value_info('y', TensorProto.INT8, [6, 2])
+
+    node = onnx.helper.make_node('QuantizeLinear',
+                                 inputs=['x', 'scale', 'zp'],
+                                 outputs=['y'],
+                                 axis=0,
+                                 block_size=3)
+
+    return ([node], [x, scale, zp], [y])
+
+
+@onnx_test()
+def quantizelinear_2d_blocked_runt_block_test():
+    x = helper.make_tensor_value_info('x', TensorProto.FLOAT, [3, 5])
+    y_scale = helper.make_tensor_value_info('y_scale', TensorProto.FLOAT,
+                                            [3, 3])
+    y = helper.make_tensor_value_info('y', TensorProto.UINT8, [3, 5])
+
+    node = onnx.helper.make_node('QuantizeLinear',
+                                 inputs=['x', 'y_scale'],
+                                 outputs=['y'],
+                                 axis=1,
+                                 block_size=2)
+
+    return ([node], [x, y_scale], [y])
+
+
+@onnx_test()
+def quantizelinear_3d_blocked_with_zp_runt_block_test():
+    x = helper.make_tensor_value_info('x', TensorProto.FLOAT, [2, 5, 2])
+    scale = helper.make_tensor_value_info('scale', TensorProto.FLOAT,
+                                          [2, 2, 2])
+    zp = helper.make_tensor_value_info('zp', TensorProto.INT8, [2, 2, 2])
+    y = helper.make_tensor_value_info('y', TensorProto.INT8, [2, 5, 2])
+
+    node = onnx.helper.make_node('QuantizeLinear',
+                                 inputs=['x', 'scale', 'zp'],
+                                 outputs=['y'],
+                                 axis=1,
+                                 block_size=3)
+
+    return ([node], [x, scale, zp], [y])
+
+
+@onnx_test()
+def quantizelinear_too_few_inputs_test():
+    x = helper.make_tensor_value_info('x', TensorProto.FLOAT, [6, 2])
+    y = helper.make_tensor_value_info('y', TensorProto.INT8, [6, 2])
+
+    node = onnx.helper.make_node('QuantizeLinear',
+                                 inputs=['x'],
+                                 outputs=['y'],
+                                 axis=0,
+                                 block_size=3)
+
+    return ([node], [x], [y])
+
+
+@onnx_test()
+def quantizelinear_too_many_inputs_test():
+    x = helper.make_tensor_value_info('x', TensorProto.FLOAT, [6, 2])
+    scale = helper.make_tensor_value_info('scale', TensorProto.FLOAT, [2, 2])
+    zp = helper.make_tensor_value_info('zp', TensorProto.INT8, [2, 2])
+    zp2 = helper.make_tensor_value_info('zp2', TensorProto.INT8, [2, 2])
+    y = helper.make_tensor_value_info('y', TensorProto.INT8, [6, 2])
+
+    node = onnx.helper.make_node('QuantizeLinear',
+                                 inputs=['x', 'scale', 'zp', 'zp2'],
+                                 outputs=['y'],
+                                 axis=0,
+                                 block_size=3)
+
+    return ([node], [x, scale, zp, zp2], [y])
+
+
+@onnx_test()
+def quantizelinear_scales_and_zp_shape_mismatch_test():
+    x = helper.make_tensor_value_info('x', TensorProto.FLOAT, [6, 2])
+    scale = helper.make_tensor_value_info('scale', TensorProto.FLOAT, [2, 2])
+    zp = helper.make_tensor_value_info('zp', TensorProto.INT8, [1, 2])
+    y = helper.make_tensor_value_info('y', TensorProto.INT8, [6, 2])
+
+    node = onnx.helper.make_node('QuantizeLinear',
+                                 inputs=['x', 'scale', 'zp'],
+                                 outputs=['y'],
+                                 axis=0,
+                                 block_size=3)
+
+    return ([node], [x, scale, zp], [y])
+
+
+@onnx_test()
+def quantizelinear_output_dtype_and_zp_type_mismatch_test():
+    x = helper.make_tensor_value_info('x', TensorProto.FLOAT, [6, 2])
+    scale = helper.make_tensor_value_info('scale', TensorProto.FLOAT, [2, 2])
+    zp = helper.make_tensor_value_info('zp', TensorProto.INT8, [2, 2])
+    y = helper.make_tensor_value_info('y', TensorProto.INT8, [6, 2])
+
+    node = onnx.helper.make_node('QuantizeLinear',
+                                 inputs=['x', 'scale', 'zp'],
+                                 outputs=['y'],
+                                 axis=0,
+                                 block_size=3,
+                                 output_dtype=2)
+
+    return ([node], [x, scale, zp], [y])
+
+
+@onnx_test()
+def quantizelinear_per_axis_shape_mismatch_test():
+    x = helper.make_tensor_value_info('x', TensorProto.FLOAT, [3, 5])
+    y_scale = helper.make_tensor_value_info('y_scale', TensorProto.FLOAT, [4])
+    y = helper.make_tensor_value_info('y', TensorProto.UINT8, [3, 5])
+
+    node = onnx.helper.make_node('QuantizeLinear',
+                                 inputs=['x', 'y_scale'],
+                                 outputs=['y'],
+                                 axis=1)
+
+    return ([node], [x, y_scale], [y])
+
+
+@onnx_test()
+def quantizelinear_blocked_zero_block_size_test():
+    x = helper.make_tensor_value_info('x', TensorProto.FLOAT, [3, 5])
+    y_scale = helper.make_tensor_value_info('y_scale', TensorProto.FLOAT,
+                                            [3, 3])
+    y = helper.make_tensor_value_info('y', TensorProto.UINT8, [3, 5])
+
+    node = onnx.helper.make_node('QuantizeLinear',
+                                 inputs=['x', 'y_scale'],
+                                 outputs=['y'],
+                                 axis=1,
+                                 block_size=0)
+
+    return ([node], [x, y_scale], [y])
+
+
+@onnx_test()
+def quantizelinear_blocked_x_and_scales_rank_mismatch_test():
+    x = helper.make_tensor_value_info('x', TensorProto.FLOAT, [3, 5])
+    y_scale = helper.make_tensor_value_info('y_scale', TensorProto.FLOAT,
+                                            [3, 3, 3])
+    y = helper.make_tensor_value_info('y', TensorProto.UINT8, [3, 5])
+
+    node = onnx.helper.make_node('QuantizeLinear',
+                                 inputs=['x', 'y_scale'],
+                                 outputs=['y'],
+                                 axis=1,
+                                 block_size=2)
+
+    return ([node], [x, y_scale], [y])
+
+
+@onnx_test()
+def quantizelinear_blocked_non_bc_axis_size_mismatch_test():
+    x = helper.make_tensor_value_info('x', TensorProto.FLOAT, [3, 5])
+    y_scale = helper.make_tensor_value_info('y_scale', TensorProto.FLOAT,
+                                            [2, 3])
+    y = helper.make_tensor_value_info('y', TensorProto.UINT8, [3, 5])
+
+    node = onnx.helper.make_node('QuantizeLinear',
+                                 inputs=['x', 'y_scale'],
+                                 outputs=['y'],
+                                 axis=1,
+                                 block_size=2)
+
+    return ([node], [x, y_scale], [y])
+
+
+@onnx_test()
+def quantizelinear_blocked_invalid_block_size_test():
+    x = helper.make_tensor_value_info('x', TensorProto.FLOAT, [3, 5])
+    y_scale = helper.make_tensor_value_info('y_scale', TensorProto.FLOAT,
+                                            [3, 3])
+    y = helper.make_tensor_value_info('y', TensorProto.UINT8, [3, 5])
+
+    node = onnx.helper.make_node('QuantizeLinear',
+                                 inputs=['x', 'y_scale'],
+                                 outputs=['y'],
+                                 axis=1,
+                                 block_size=3)
+
+    return ([node], [x, y_scale], [y])
+
+
+@onnx_test()
 def dim_param_test():
     x = helper.make_tensor_value_info('0', TensorProto.FLOAT, ["dim0", "dim1"])
 
@@ -4456,6 +4743,167 @@ def group_norm_invalid_bias_shape_test():
 
 
 @onnx_test()
+def group_query_attention_test():
+    qkv = helper.make_tensor_value_info('qkv', TensorProto.FLOAT16,
+                                        [1, 1, 12288])
+    key = helper.make_tensor_value_info('key', TensorProto.FLOAT, [1])
+    value = helper.make_tensor_value_info('value', TensorProto.FLOAT, [1])
+    past_key_values_key = helper.make_tensor_value_info(
+        'past_key_values_key', TensorProto.FLOAT16, [1, 32, 4096, 128])
+    past_key_values_value = helper.make_tensor_value_info(
+        'past_key_values_value', TensorProto.FLOAT16, [1, 32, 4096, 128])
+    slk_val = np.array([1])
+    seqlens_k = helper.make_tensor(name="seqlens_k",
+                                   data_type=TensorProto.INT32,
+                                   dims=slk_val.shape,
+                                   vals=slk_val.astype(int))
+    tsl_val = np.array([2])
+    total_sequence_length = helper.make_tensor(name="total_sequence_length",
+                                               data_type=TensorProto.INT32,
+                                               dims=tsl_val.shape,
+                                               vals=tsl_val.astype(int))
+    cc_val = np.ones([4096, 64], dtype=np.float16)
+    cos_cache = helper.make_tensor(name="cos_cache",
+                                   data_type=TensorProto.FLOAT16,
+                                   dims=cc_val.shape,
+                                   vals=cc_val)
+    sin_cache = helper.make_tensor(name="sin_cache",
+                                   data_type=TensorProto.FLOAT16,
+                                   dims=cc_val.shape,
+                                   vals=cc_val)
+    output = helper.make_tensor_value_info('output', TensorProto.FLOAT16,
+                                           [1, 1, 4096])
+    present_key = helper.make_tensor_value_info('present_key',
+                                                TensorProto.FLOAT16,
+                                                [1, 32, 4096, 128])
+    present_value = helper.make_tensor_value_info('present_value',
+                                                  TensorProto.FLOAT16,
+                                                  [1, 32, 4096, 128])
+
+    node = onnx.helper.make_node(
+        'GroupQueryAttention',
+        inputs=[
+            'qkv', 'key', 'value', 'past_key_values_key',
+            'past_key_values_value', 'seqlens_k', 'total_sequence_length',
+            'cos_cache', 'sin_cache'
+        ],
+        outputs=['output', 'present_key', 'present_value'],
+        do_rotary=1,
+        kv_num_heads=32,
+        local_window_size=-1,
+        num_heads=32,
+        rotary_interleaved=0,
+        scale=1.0,
+        domain="com.microsoft")
+
+    return ([node
+             ], [qkv, key, value, past_key_values_key,
+                 past_key_values_value], [output, present_key, present_value],
+            [seqlens_k, total_sequence_length, cos_cache, sin_cache])
+
+
+@onnx_test()
+def group_query_attention_defaults_test():
+    qkv = helper.make_tensor_value_info('qkv', TensorProto.FLOAT16,
+                                        [1, 1, 12288])
+    key = helper.make_tensor_value_info('key', TensorProto.FLOAT, [1])
+    value = helper.make_tensor_value_info('value', TensorProto.FLOAT, [1])
+    past_key_values_key = helper.make_tensor_value_info(
+        'past_key_values_key', TensorProto.FLOAT16, [1, 32, 4096, 128])
+    past_key_values_value = helper.make_tensor_value_info(
+        'past_key_values_value', TensorProto.FLOAT16, [1, 32, 4096, 128])
+    slk_val = np.array([1])
+    seqlens_k = helper.make_tensor(name="seqlens_k",
+                                   data_type=TensorProto.INT32,
+                                   dims=slk_val.shape,
+                                   vals=slk_val.astype(int))
+    tsl_val = np.array([2])
+    total_sequence_length = helper.make_tensor(name="total_sequence_length",
+                                               data_type=TensorProto.INT32,
+                                               dims=tsl_val.shape,
+                                               vals=tsl_val.astype(int))
+    cc_val = np.ones([4096, 64], dtype=np.float16)
+    cos_cache = helper.make_tensor(name="cos_cache",
+                                   data_type=TensorProto.FLOAT16,
+                                   dims=cc_val.shape,
+                                   vals=cc_val)
+    sin_cache = helper.make_tensor(name="sin_cache",
+                                   data_type=TensorProto.FLOAT16,
+                                   dims=cc_val.shape,
+                                   vals=cc_val)
+    output = helper.make_tensor_value_info('output', TensorProto.FLOAT16,
+                                           [1, 1, 4096])
+    present_key = helper.make_tensor_value_info('present_key',
+                                                TensorProto.FLOAT16,
+                                                [1, 32, 4096, 128])
+    present_value = helper.make_tensor_value_info('present_value',
+                                                  TensorProto.FLOAT16,
+                                                  [1, 32, 4096, 128])
+
+    node = onnx.helper.make_node(
+        'GroupQueryAttention',
+        inputs=[
+            'qkv', 'key', 'value', 'past_key_values_key',
+            'past_key_values_value', 'seqlens_k', 'total_sequence_length',
+            'cos_cache', 'sin_cache'
+        ],
+        outputs=['output', 'present_key', 'present_value'],
+        domain="com.microsoft")
+
+    return ([node
+             ], [qkv, key, value, past_key_values_key,
+                 past_key_values_value], [output, present_key, present_value],
+            [seqlens_k, total_sequence_length, cos_cache, sin_cache])
+
+
+@onnx_test()
+def group_query_attention_invalid_test():
+    qkv = helper.make_tensor_value_info('qkv', TensorProto.FLOAT16,
+                                        [1, 1, 12288])
+    past_key_values_key = helper.make_tensor_value_info(
+        'past_key_values_key', TensorProto.FLOAT16, [1, 32, 4096, 128])
+    past_key_values_value = helper.make_tensor_value_info(
+        'past_key_values_value', TensorProto.FLOAT16, [1, 32, 4096, 128])
+    slk_val = np.array([1])
+    seqlens_k = helper.make_tensor(name="seqlens_k",
+                                   data_type=TensorProto.INT32,
+                                   dims=slk_val.shape,
+                                   vals=slk_val.astype(int))
+    tsl_val = np.array([2])
+    total_sequence_length = helper.make_tensor(name="total_sequence_length",
+                                               data_type=TensorProto.INT32,
+                                               dims=tsl_val.shape,
+                                               vals=tsl_val.astype(int))
+    output = helper.make_tensor_value_info('output', TensorProto.FLOAT16,
+                                           [1, 1, 4096])
+    present_key = helper.make_tensor_value_info('present_key',
+                                                TensorProto.FLOAT16,
+                                                [1, 32, 4096, 128])
+    present_value = helper.make_tensor_value_info('present_value',
+                                                  TensorProto.FLOAT16,
+                                                  [1, 32, 4096, 128])
+
+    node = onnx.helper.make_node(
+        'GroupQueryAttention',
+        inputs=[
+            'qkv', 'past_key_values_key', 'past_key_values_value', 'seqlens_k',
+            'total_sequence_length', 'cos_cache', 'sin_cache'
+        ],
+        outputs=['output', 'present_key', 'present_value'],
+        do_rotary=1,
+        kv_num_heads=32,
+        local_window_size=-1,
+        num_heads=32,
+        rotary_interleaved=0,
+        scale=1.0,
+        domain="com.microsoft")
+
+    return ([node], [qkv, past_key_values_key, past_key_values_value],
+            [output, present_key,
+             present_value], [seqlens_k, total_sequence_length])
+
+
+@onnx_test()
 def gru_bi_layout_test():
     seq = helper.make_tensor_value_info('seq', TensorProto.FLOAT, [3, 5, 10])
     w = helper.make_tensor_value_info('w', TensorProto.FLOAT, [2, 60, 10])
@@ -5654,6 +6102,190 @@ def instance_norm_val_3d_test():
         outputs=['y'])
 
     return ([node], [], [y], [x_tensor, scale_tensor, bias_tensor])
+
+
+@onnx_test()
+def int4_const_identity_qdq_test():
+    # Graph for int4, with an identity opr + QDQ
+    zp_values = np.array([0, 0, 0, 0])
+    x_t = helper.make_tensor(name='i_x',
+                             data_type=TensorProto.INT4,
+                             dims=zp_values.shape,
+                             vals=zp_values.flatten().astype(np.int32))
+
+    i_node = onnx.helper.make_node(
+        'Identity',
+        inputs=['i_x'],
+        outputs=['i_y_zp'],
+    )
+
+    data_values = np.array([[1, 0, 0, 0], [0, 1, 0, 0], [0, 0, 1, 0],
+                            [0, 0, 0, 1]])
+    data_t = helper.make_tensor(name='data',
+                                data_type=TensorProto.FLOAT16,
+                                dims=data_values.shape,
+                                vals=data_values.flatten().astype(np.float16))
+
+    sc_values = np.array([1.0, 0.5, 1.0, 0.25])
+    sc_t = helper.make_tensor(name='sc_q',
+                              data_type=TensorProto.FLOAT16,
+                              dims=sc_values.shape,
+                              vals=sc_values.flatten().astype(np.float16))
+
+    q_node = onnx.helper.make_node(
+        'QuantizeLinear',
+        inputs=['data', 'sc_q', 'i_y_zp'],
+        outputs=['q_y'],
+    )
+
+    #dequantizer uses same scale values as the quantizer:
+    dq_node = onnx.helper.make_node(
+        'DequantizeLinear',
+        inputs=['q_y', 'sc_q', 'i_y_zp'],
+        outputs=['dq_y'],
+    )
+
+    t_node = helper.make_node(
+        'Transpose',
+        inputs=['dq_y'],
+        outputs=['t_y'],
+        perm=[1, 0],
+    )
+
+    x2_t = helper.make_tensor_value_info('x2', TensorProto.FLOAT16, [4, 4])
+
+    dot_node = helper.make_node(
+        'MatMul',
+        inputs=['t_y', 'x2'],
+        outputs=['y'],
+    )
+
+    y_t = helper.make_tensor_value_info('y', TensorProto.FLOAT16, [4, 4])
+
+    return ([i_node, q_node, dq_node, t_node,
+             dot_node], [x2_t], [y_t], [x_t, data_t, sc_t])
+
+
+@onnx_test()
+def int4_const_identity_block_sz_1_qdq_test():
+    # Graph for int4, with an identity opr + QDQ. Quantization Block size = 1
+    zp_values = np.array([[0, 0, 0, 0], [0, 0, 0, 0]])
+    x_t = helper.make_tensor(name='i_x',
+                             data_type=TensorProto.INT4,
+                             dims=zp_values.shape,
+                             vals=zp_values.flatten().astype(np.int32))
+
+    i_node = onnx.helper.make_node(
+        'Identity',
+        inputs=['i_x'],
+        outputs=['i_y_zp'],
+    )
+
+    data_values = np.array([[1, 0, 0, 0], [0, 1, 0, 0]])
+    data_t = helper.make_tensor(name='data',
+                                data_type=TensorProto.FLOAT16,
+                                dims=data_values.shape,
+                                vals=data_values.flatten().astype(np.float16))
+
+    sc_values = np.array([[0.5, 0.25, 0.5, 0.125], [0.25, 0.5, 0.5, 0.25]])
+    sc_t = helper.make_tensor(name='sc_q',
+                              data_type=TensorProto.FLOAT16,
+                              dims=sc_values.shape,
+                              vals=sc_values.flatten().astype(np.float16))
+
+    q_node = onnx.helper.make_node(
+        'QuantizeLinear',
+        inputs=['data', 'sc_q', 'i_y_zp'],
+        outputs=['q_y'],
+    )
+
+    # dequantizer uses same scale values as the quantizer:
+    dq_node = onnx.helper.make_node(
+        'DequantizeLinear',
+        inputs=['q_y', 'sc_q', 'i_y_zp'],
+        outputs=['dq_y'],
+    )
+
+    t_node = helper.make_node(
+        'Transpose',
+        inputs=['dq_y'],
+        outputs=['t_y'],
+        perm=[1, 0],
+    )
+
+    x2_t = helper.make_tensor_value_info('x2', TensorProto.FLOAT16, [2, 4])
+
+    dot_node = helper.make_node(
+        'MatMul',
+        inputs=['t_y', 'x2'],
+        outputs=['y'],
+    )
+
+    y_t = helper.make_tensor_value_info('y', TensorProto.FLOAT16, [4, 4])
+
+    return ([i_node, q_node, dq_node, t_node,
+             dot_node], [x2_t], [y_t], [x_t, data_t, sc_t])
+
+
+@onnx_test()
+def int4_const_identity_block_sz_2_qdq_test():
+    # Graph for int4, with an identity opr + QDQ. Quantization Block size = 2
+    zp_values = np.array([[0, 0], [0, 0]])
+    x_t = helper.make_tensor(name='i_x',
+                             data_type=TensorProto.INT4,
+                             dims=zp_values.shape,
+                             vals=zp_values.flatten().astype(np.int32))
+
+    i_node = onnx.helper.make_node(
+        'Identity',
+        inputs=['i_x'],
+        outputs=['i_y_zp'],
+    )
+
+    data_values = np.array([[0, 0, 1, 0], [0, 0, 0, 1]])
+    data_t = helper.make_tensor(name='data',
+                                data_type=TensorProto.FLOAT16,
+                                dims=data_values.shape,
+                                vals=data_values.flatten().astype(np.float16))
+
+    sc_values = np.array([[0.5, 0.125], [0.5, 0.25]])
+    sc_t = helper.make_tensor(name='sc_q',
+                              data_type=TensorProto.FLOAT16,
+                              dims=sc_values.shape,
+                              vals=sc_values.flatten().astype(np.float16))
+
+    q_node = onnx.helper.make_node(
+        'QuantizeLinear',
+        inputs=['data', 'sc_q', 'i_y_zp'],
+        outputs=['q_y'],
+    )
+
+    # dequantizer uses same scale values as the quantizer:
+    dq_node = onnx.helper.make_node(
+        'DequantizeLinear',
+        inputs=['q_y', 'sc_q', 'i_y_zp'],
+        outputs=['dq_y'],
+    )
+
+    t_node = helper.make_node(
+        'Transpose',
+        inputs=['dq_y'],
+        outputs=['t_y'],
+        perm=[1, 0],
+    )
+
+    x2_t = helper.make_tensor_value_info('x2', TensorProto.FLOAT16, [2, 4])
+
+    dot_node = helper.make_node(
+        'MatMul',
+        inputs=['t_y', 'x2'],
+        outputs=['y'],
+    )
+
+    y_t = helper.make_tensor_value_info('y', TensorProto.FLOAT16, [4, 4])
+
+    return ([i_node, q_node, dq_node, t_node,
+             dot_node], [x2_t], [y_t], [x_t, data_t, sc_t])
 
 
 @onnx_test()
@@ -8564,6 +9196,150 @@ def qlinearmatmul_3D_test():
     )
     return ([node], [a, b], [c],
             [sc_a, zero_pt_a, sc_b, zero_pt_b, sc_c, zero_pt_c])
+
+
+@onnx_test()
+def matmulnbits_mm_test():
+    a = onnx.helper.make_tensor_value_info("a", onnx.TensorProto.FLOAT,
+                                           [2, 16])
+    b = onnx.helper.make_tensor_value_info("b", onnx.TensorProto.UINT8,
+                                           [4, 1, 8])
+    scales = onnx.helper.make_tensor_value_info("scales",
+                                                onnx.TensorProto.FLOAT, [4])
+    zp = onnx.helper.make_tensor_value_info("zp", onnx.TensorProto.UINT8, [4])
+    c = onnx.helper.make_tensor_value_info("c", onnx.TensorProto.FLOAT, [2, 4])
+
+    node = onnx.helper.make_node("MatMulNBits",
+                                 inputs=["a", "b", "scales", "zp"],
+                                 outputs=["c"],
+                                 bits=4,
+                                 block_size=16,
+                                 K=16,
+                                 N=4,
+                                 domain='com.microsoft')
+    return ([node], [a, b, scales, zp], [c])
+
+
+@onnx_test()
+def matmulnbits_mm2_test():
+    a = onnx.helper.make_tensor_value_info("a", onnx.TensorProto.FLOAT,
+                                           [2, 33])
+    b = onnx.helper.make_tensor_value_info("b", onnx.TensorProto.UINT8,
+                                           [2, 3, 8])
+    scales = onnx.helper.make_tensor_value_info("scales",
+                                                onnx.TensorProto.FLOAT, [6])
+    c = onnx.helper.make_tensor_value_info("c", onnx.TensorProto.FLOAT, [2, 2])
+
+    node = onnx.helper.make_node("MatMulNBits",
+                                 inputs=["a", "b", "scales"],
+                                 outputs=["c"],
+                                 bits=4,
+                                 block_size=16,
+                                 K=33,
+                                 N=2,
+                                 domain='com.microsoft')
+    return ([node], [a, b, scales], [c])
+
+
+@onnx_test()
+def matmulnbits_vm_test():
+    a = onnx.helper.make_tensor_value_info("a", onnx.TensorProto.FLOAT, [20])
+    b = onnx.helper.make_tensor_value_info("b", onnx.TensorProto.UINT8,
+                                           [3, 2, 8])
+    scales = onnx.helper.make_tensor_value_info("scales",
+                                                onnx.TensorProto.FLOAT, [6])
+    zp = onnx.helper.make_tensor_value_info("zp", onnx.TensorProto.UINT8, [3])
+    c = onnx.helper.make_tensor_value_info("c", onnx.TensorProto.FLOAT, [3])
+
+    node = onnx.helper.make_node("MatMulNBits",
+                                 inputs=["a", "b", "scales", "zp"],
+                                 outputs=["c"],
+                                 bits=4,
+                                 block_size=16,
+                                 K=20,
+                                 N=3,
+                                 domain='com.microsoft')
+    return ([node], [a, b, scales, zp], [c])
+
+
+@onnx_test()
+def matmulnbits_bmm_test():
+    a = onnx.helper.make_tensor_value_info("a", onnx.TensorProto.FLOAT,
+                                           [2, 3, 8])
+    b = onnx.helper.make_tensor_value_info("b", onnx.TensorProto.UINT8,
+                                           [2, 1, 8])
+    scales = onnx.helper.make_tensor_value_info("scales",
+                                                onnx.TensorProto.FLOAT, [2])
+    c = onnx.helper.make_tensor_value_info("c", onnx.TensorProto.FLOAT,
+                                           [2, 3, 2])
+
+    node = onnx.helper.make_node("MatMulNBits",
+                                 inputs=["a", "b", "scales"],
+                                 outputs=["c"],
+                                 bits=4,
+                                 block_size=16,
+                                 K=8,
+                                 N=2,
+                                 domain='com.microsoft')
+    return ([node], [a, b, scales], [c])
+
+
+def matmulnbits_negative_test(bits=4,
+                              block_size=16,
+                              a_dims=[2, 16],
+                              b_dims=[4, 1, 8],
+                              scales_dims=[4],
+                              zp_dims=[4],
+                              out_dims=[2, 4]):
+    a = onnx.helper.make_tensor_value_info("a", onnx.TensorProto.FLOAT, a_dims)
+    b = onnx.helper.make_tensor_value_info("b", onnx.TensorProto.UINT8, b_dims)
+    scales = onnx.helper.make_tensor_value_info("scales",
+                                                onnx.TensorProto.FLOAT,
+                                                scales_dims)
+    zp = onnx.helper.make_tensor_value_info("zp", onnx.TensorProto.UINT8,
+                                            zp_dims)
+    c = onnx.helper.make_tensor_value_info("c", onnx.TensorProto.FLOAT,
+                                           out_dims)
+
+    node = onnx.helper.make_node("MatMulNBits",
+                                 inputs=["a", "b", "scales", "zp"],
+                                 outputs=["c"],
+                                 bits=bits,
+                                 block_size=block_size,
+                                 K=16,
+                                 N=4,
+                                 domain='com.microsoft')
+    return ([node], [a, b, scales, zp], [c])
+
+
+@onnx_test()
+def matmulnbits_invalid_bits_value_test():
+    return matmulnbits_negative_test(bits=5)
+
+
+@onnx_test()
+def matmulnbits_block_size_too_small_test():
+    return matmulnbits_negative_test(block_size=8)
+
+
+@onnx_test()
+def matmulnbits_block_size_not_power_of_two_test():
+    return matmulnbits_negative_test(block_size=20)
+
+
+@onnx_test()
+def matmulnbits_invalid_b_dims_test():
+    return matmulnbits_negative_test(b_dims=[4, 2, 8])
+
+
+@onnx_test()
+def matmulnbits_invalid_scales_dims_test():
+    return matmulnbits_negative_test(scales_dims=[3])
+
+
+@onnx_test()
+def matmulnbits_invalid_zp_dims_test():
+    return matmulnbits_negative_test(zp_dims=[5])
 
 
 @onnx_test()
@@ -12102,6 +12878,135 @@ def softmaxcrossentropyloss_kd_no_reduction_weighted_test():
 
     node = onnx.helper.make_node(
         "SoftmaxCrossEntropyLoss",
+        inputs=[
+            "0",
+            "1",
+            "2",
+        ],
+        outputs=["3"],
+        reduction="none",
+    )
+
+    return ([node], [scores, labels, weights], [loss])
+
+
+@onnx_test()
+def negativeloglikelihoodloss_kd_mean_reduction_half_weighted_test():
+    scores = helper.make_tensor_value_info('0', TensorProto.FLOAT16,
+                                           [4, 4, 2, 2])
+    labels = helper.make_tensor_value_info('1', TensorProto.INT32, [4, 2, 2])
+    weights = helper.make_tensor_value_info('2', TensorProto.FLOAT16, [4])
+    loss = helper.make_tensor_value_info('3', TensorProto.FLOAT16, [4])
+
+    node = onnx.helper.make_node(
+        "NegativeLogLikelihoodLoss",
+        inputs=[
+            "0",
+            "1",
+            "2",
+        ],
+        outputs=["3"],
+        reduction="mean",
+    )
+
+    return ([node], [scores, labels, weights], [loss])
+
+
+@onnx_test()
+def negativeloglikelihoodloss_kd_mean_reduction_half_weighted_test2():
+    scores = helper.make_tensor_value_info('0', TensorProto.FLOAT16, [2, 3, 2])
+    labels = helper.make_tensor_value_info('1', TensorProto.INT32, [2, 2])
+    weights = helper.make_tensor_value_info('2', TensorProto.FLOAT16, [3])
+    loss = helper.make_tensor_value_info('3', TensorProto.FLOAT16, [2])
+
+    node = onnx.helper.make_node(
+        "NegativeLogLikelihoodLoss",
+        inputs=[
+            "0",
+            "1",
+            "2",
+        ],
+        outputs=["3"],
+        reduction="mean",
+    )
+
+    return ([node], [scores, labels, weights], [loss])
+
+
+@onnx_test()
+def negativeloglikelihoodloss_kd_sum_reduction_double_weighted_test():
+    scores = helper.make_tensor_value_info('0', TensorProto.DOUBLE,
+                                           [4, 4, 2, 2])
+    labels = helper.make_tensor_value_info('1', TensorProto.INT32, [4, 2, 2])
+    weights = helper.make_tensor_value_info('2', TensorProto.DOUBLE, [4])
+    loss = helper.make_tensor_value_info('3', TensorProto.DOUBLE, [4])
+
+    node = onnx.helper.make_node(
+        "NegativeLogLikelihoodLoss",
+        inputs=[
+            "0",
+            "1",
+            "2",
+        ],
+        outputs=["3"],
+        reduction="sum",
+    )
+
+    return ([node], [scores, labels, weights], [loss])
+
+
+@onnx_test()
+def negativeloglikelihoodloss_kd_sum_reduction_double_weighted_test2():
+    scores = helper.make_tensor_value_info('0', TensorProto.DOUBLE, [2, 3, 2])
+    labels = helper.make_tensor_value_info('1', TensorProto.INT32, [2, 2])
+    weights = helper.make_tensor_value_info('2', TensorProto.DOUBLE, [3])
+    loss = helper.make_tensor_value_info('3', TensorProto.DOUBLE, [1])
+
+    node = onnx.helper.make_node(
+        "NegativeLogLikelihoodLoss",
+        inputs=[
+            "0",
+            "1",
+            "2",
+        ],
+        outputs=["3"],
+        reduction="sum",
+    )
+
+    return ([node], [scores, labels, weights], [loss])
+
+
+@onnx_test()
+def negativeloglikelihoodloss_kd_no_reduction_weighted_test():
+    scores = helper.make_tensor_value_info('0', TensorProto.FLOAT,
+                                           [4, 4, 2, 2])
+    labels = helper.make_tensor_value_info('1', TensorProto.INT32, [4, 2, 2])
+    weights = helper.make_tensor_value_info('2', TensorProto.FLOAT, [4])
+    loss = helper.make_tensor_value_info('3', TensorProto.FLOAT, [4])
+
+    node = onnx.helper.make_node(
+        "NegativeLogLikelihoodLoss",
+        inputs=[
+            "0",
+            "1",
+            "2",
+        ],
+        outputs=["3"],
+        reduction="none",
+    )
+
+    return ([node], [scores, labels, weights], [loss])
+
+
+@onnx_test()
+def negativeloglikelihoodloss_kd_no_reduction_weighted_test2():
+    scores = helper.make_tensor_value_info('0', TensorProto.FLOAT, [2, 3, 2])
+    labels = helper.make_tensor_value_info('1', TensorProto.INT32, [2, 2])
+    weights = helper.make_tensor_value_info('2', TensorProto.FLOAT, [3])
+    loss = helper.make_tensor_value_info('3', TensorProto.FLOAT, [2, 2])
+
+    node = onnx.helper.make_node(
+        "NegativeLogLikelihoodLoss",
         inputs=[
             "0",
             "1",

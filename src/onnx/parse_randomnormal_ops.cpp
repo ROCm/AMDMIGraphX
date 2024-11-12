@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2023 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2024 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -53,7 +53,7 @@ struct parse_randomnormal_ops : op_parser<parse_randomnormal_ops>
         }
         shape::type_t out_type = get_type(dtype);
         if(not contains(valid_types, out_type))
-            MIGRAPHX_THROW(opd.op_name + ": invalid output type: " + std::to_string(dtype) +
+            MIGRAPHX_THROW(opd.onnx_name + ": invalid output type: " + std::to_string(dtype) +
                            ". Valid types are 1 (float), 10 (half), and 11 (double).");
 
         float mean = 0.0;
@@ -80,7 +80,7 @@ struct parse_randomnormal_ops : op_parser<parse_randomnormal_ops>
             // output type and shape are the same as the input's by default
             // dtype is used instead when attribute is set
             if(not contains(valid_types, args[0]->get_shape().type()))
-                MIGRAPHX_THROW(opd.op_name + ": invalid output type: " +
+                MIGRAPHX_THROW(opd.onnx_name + ": invalid output type: " +
                                std::to_string(args[0]->get_shape().type()) +
                                ". Valid types are float, half, and double.");
             out_shape =
@@ -88,7 +88,7 @@ struct parse_randomnormal_ops : op_parser<parse_randomnormal_ops>
         }
         else
         {
-            MIGRAPHX_THROW(opd.op_name +
+            MIGRAPHX_THROW(opd.onnx_name +
                            ": cannot deduce shape without shape attribute or argument.");
         }
 

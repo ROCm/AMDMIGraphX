@@ -35,7 +35,7 @@
 #include <migraphx/fuse_pointwise_reduce.hpp>
 #include <migraphx/inline_module.hpp>
 #include <migraphx/insert_pad.hpp>
-#include <migraphx/layout_nhwc.hpp>
+#include <migraphx/layout_convolution.hpp>
 #include <migraphx/memory_coloring.hpp>
 #include <migraphx/normalize_ops.hpp>
 #include <migraphx/optimize_module.hpp>
@@ -161,6 +161,8 @@ std::vector<pass> target::get_passes(migraphx::context& gctx, const compile_opti
         dead_code_elimination{},
         normalize_ops{},
         dead_code_elimination{},
+        eliminate_identity{},
+        dead_code_elimination{},
         simplify_qdq{},
         enable_pass(not mlir_enabled(), rewrite_quantization{}),
         dead_code_elimination{},
@@ -180,11 +182,10 @@ std::vector<pass> target::get_passes(migraphx::context& gctx, const compile_opti
         dead_code_elimination{},
         rewrite_gelu{options.fast_math},
         optimize_module{},
-        enable_pass(enabled(MIGRAPHX_ENABLE_NHWC{}), layout_nhwc{}),
+        layout_convolution{.channels_last = enabled(MIGRAPHX_ENABLE_NHWC{})},
         dead_code_elimination{},
         prefuse_ops{},
         dead_code_elimination{},
-        enable_pass(not enabled(MIGRAPHX_ENABLE_NHWC{}), auto_contiguous{}),
         eliminate_data_type{{migraphx::shape::fp8e4m3fnuz_type}, shape::float_type, unsupported_fp8e4m3fnuz_ops},
         eliminate_data_type{{migraphx::shape::fp8e4m3fn_type, migraphx::shape::fp8e5m2_type}, shape::float_type, unsupported_fp8ocp_ops},
         dead_code_elimination{},
@@ -203,7 +204,7 @@ std::vector<pass> target::get_passes(migraphx::context& gctx, const compile_opti
         dead_code_elimination{},
         fuse_concat{},
         dead_code_elimination{},
-        enable_pass(enabled(MIGRAPHX_ENABLE_NHWC{}), auto_contiguous{}),
+        auto_contiguous{},
         dead_code_elimination{},
         lowering{&ctx, options.offload_copy},
         eliminate_contiguous{"gpu::contiguous"},

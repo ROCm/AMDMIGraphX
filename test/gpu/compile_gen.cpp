@@ -21,27 +21,22 @@
  * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
  * THE SOFTWARE.
  */
-#ifndef MIGRAPHX_GUARD_MIGRAPHX_LAYOUT_NHWC_HPP
-#define MIGRAPHX_GUARD_MIGRAPHX_LAYOUT_NHWC_HPP
+#include <test.hpp>
+#include <migraphx/gpu/compile_gen.hpp>
 
-#include <string>
-#include <migraphx/instruction_ref.hpp>
-#include <migraphx/config.hpp>
+static const auto find_fast_axis = test::make_function("find_fast_axis", [](auto&&... xs) {
+    return migraphx::gpu::gen::find_fast_axis(static_cast<decltype(xs)>(xs)...);
+});
 
-namespace migraphx {
-inline namespace MIGRAPHX_INLINE_NS {
-
-struct module_pass_manager;
-
-/**
- * Transform convolutions to nhwc
- */
-struct MIGRAPHX_EXPORT layout_nhwc
+TEST_CASE(test_find_fast_axis)
 {
-    std::string name() const { return "layout_nhwc"; }
-    void apply(module_pass_manager& mpm) const;
-};
+    EXPECT(find_fast_axis(migraphx::shape{migraphx::shape::float_type, {2, 2, 2, 6, 3}}) == 4);
+    EXPECT(find_fast_axis(migraphx::shape{
+               migraphx::shape::float_type, {2, 2, 2, 6, 3}, {72, 6, 1, 12, 2}}) == 2);
+    EXPECT(find_fast_axis(
+               migraphx::shape{migraphx::shape::float_type, {64, 512, 32, 32}, {0, 1, 0, 0}}) == 1);
+    EXPECT(find_fast_axis(
+               migraphx::shape{migraphx::shape::float_type, {64, 512, 32, 32}, {0, 0, 0, 0}}) == 3);
+}
 
-} // namespace MIGRAPHX_INLINE_NS
-} // namespace migraphx
-#endif // MIGRAPHX_GUARD_MIGRAPHX_LAYOUT_NHWC_HPP
+int main(int argc, const char* argv[]) { test::run(argc, argv); }

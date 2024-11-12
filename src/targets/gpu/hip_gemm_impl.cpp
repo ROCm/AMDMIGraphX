@@ -575,7 +575,7 @@ struct hip_gemm_impl
         int32_t best_sol = 0;
         // If no valid/supported solution is returned, use hipblasLtMatmulAlgoGetHeuristic
         // to get an algo and use solution index from that algo.
-        if(solution_indices.size() == 0)
+        if(solution_indices.empty())
         {
             auto algo = solution.get_result(ctx, *this, 0)[0].algo;
             solution_indices.push_back(hipblaslt_ext::getIndexFromAlgo(algo));

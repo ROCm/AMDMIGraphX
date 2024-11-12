@@ -41,7 +41,7 @@ struct module;
 struct MIGRAPHX_EXPORT truncate_float_pass
 {
     std::vector<std::string> ins_names = {"all"};
-    shape::type_t float_type;
+    shape::type_t float_type = shape::float_type;
     std::string name() const { return "truncate_float"; }
     void apply(module& m) const;
 };

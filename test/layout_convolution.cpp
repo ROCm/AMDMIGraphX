@@ -21,7 +21,7 @@
  * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
  * THE SOFTWARE.
  */
-#include <migraphx/layout_nhwc.hpp>
+#include <migraphx/layout_convolution.hpp>
 #include <migraphx/dead_code_elimination.hpp>
 #include <migraphx/pass_manager.hpp>
 #include <migraphx/generate.hpp>
@@ -32,9 +32,9 @@
 
 #include <test.hpp>
 
-void run_pass(migraphx::module& m)
+void run_pass(migraphx::module& m, migraphx::layout_convolution lc = {})
 {
-    migraphx::run_passes(m, {migraphx::layout_nhwc{}, migraphx::dead_code_elimination{}});
+    migraphx::run_passes(m, {lc, migraphx::dead_code_elimination{}});
 }
 
 migraphx::operation layout(std::vector<int64_t> permutation = {0, 1, 2, 3})
@@ -47,7 +47,126 @@ migraphx::instruction_ref add_layout_nhwc(migraphx::module& m, migraphx::instruc
     return m.add_instruction(layout({0, 2, 3, 1}), ins);
 }
 
-TEST_CASE(conv_relu)
+TEST_CASE(auto_conv_nchw)
+{
+    migraphx::module m1;
+    {
+        auto x = m1.add_parameter("x", {migraphx::shape::float_type, {1, 8, 16, 16}});
+        auto w = m1.add_literal(
+            migraphx::generate_literal({migraphx::shape::float_type, {16, 8, 3, 3}}));
+        auto conv = m1.add_instruction(
+            migraphx::make_op("convolution",
+                              {{"padding", {1, 1}}, {"stride", {2, 2}}, {"dilation", {1, 1}}}),
+            x,
+            w);
+        auto relu = m1.add_instruction(migraphx::make_op("relu"), conv);
+        m1.add_return({relu});
+    }
+    migraphx::module m2 = m1;
+    run_pass(m1);
+    EXPECT(m1.sort() == m2.sort());
+}
+
+TEST_CASE(auto_conv_nhwc)
+{
+    auto transpose = migraphx::make_op("transpose", {{"permutation", {0, 3, 1, 2}}});
+    migraphx::module m1;
+    {
+        auto x          = m1.add_parameter("x", {migraphx::shape::float_type, {1, 16, 16, 8}});
+        auto xtranspose = m1.add_instruction(transpose, x);
+        auto w          = m1.add_literal(
+            migraphx::generate_literal({migraphx::shape::float_type, {16, 3, 3, 8}}));
+        auto wtranspose = m1.add_instruction(transpose, w);
+        auto conv       = m1.add_instruction(
+            migraphx::make_op("convolution",
+                                    {{"padding", {1, 1}}, {"stride", {2, 2}}, {"dilation", {1, 1}}}),
+            xtranspose,
+            wtranspose);
+        auto relu = m1.add_instruction(migraphx::make_op("relu"), conv);
+        m1.add_return({relu});
+    }
+    migraphx::module m2 = m1;
+    run_pass(m1);
+    EXPECT(m1.sort() == m2.sort());
+}
+
+TEST_CASE(auto_conv_mixed)
+{
+    migraphx::module m1;
+    {
+        auto x = m1.add_parameter("x", {migraphx::shape::float_type, {1, 8, 16, 16}});
+        auto w = m1.add_literal(
+            migraphx::generate_literal({migraphx::shape::float_type, {3, 3, 16, 8}}));
+        auto wtranspose =
+            m1.add_instruction(migraphx::make_op("transpose", {{"permutation", {2, 3, 0, 1}}}), w);
+        auto conv = m1.add_instruction(
+            migraphx::make_op("convolution",
+                              {{"padding", {1, 1}}, {"stride", {2, 2}}, {"dilation", {1, 1}}}),
+            x,
+            wtranspose);
+        auto relu = m1.add_instruction(migraphx::make_op("relu"), conv);
+        m1.add_return({relu});
+    }
+    run_pass(m1);
+    migraphx::module m2;
+    {
+        auto x = m2.add_parameter("x", {migraphx::shape::float_type, {1, 8, 16, 16}});
+        auto w = m2.add_literal(
+            migraphx::generate_literal({migraphx::shape::float_type, {3, 3, 16, 8}}));
+        auto wtranspose =
+            m2.add_instruction(migraphx::make_op("transpose", {{"permutation", {2, 3, 0, 1}}}), w);
+        auto wlayout = m2.add_instruction(
+            migraphx::make_op("layout", {{"permutation", {0, 1, 2, 3}}}), wtranspose);
+        auto conv = m2.add_instruction(
+            migraphx::make_op("convolution",
+                              {{"padding", {1, 1}}, {"stride", {2, 2}}, {"dilation", {1, 1}}}),
+            x,
+            wlayout);
+        auto relu = m2.add_instruction(migraphx::make_op("relu"), conv);
+        m2.add_return({relu});
+    }
+    EXPECT(m1.sort() == m2.sort());
+}
+
+TEST_CASE(auto_quant_conv_mixed)
+{
+    migraphx::module m1;
+    {
+        auto x = m1.add_parameter("x", {migraphx::shape::int8_type, {1, 8, 16, 16}});
+        auto w =
+            m1.add_literal(migraphx::generate_literal({migraphx::shape::int8_type, {3, 3, 16, 8}}));
+        auto wtranspose =
+            m1.add_instruction(migraphx::make_op("transpose", {{"permutation", {2, 3, 0, 1}}}), w);
+        auto conv = m1.add_instruction(
+            migraphx::make_op("quant_convolution",
+                              {{"padding", {1, 1}}, {"stride", {2, 2}}, {"dilation", {1, 1}}}),
+            x,
+            wtranspose);
+        auto relu = m1.add_instruction(migraphx::make_op("relu"), conv);
+        m1.add_return({relu});
+    }
+    run_pass(m1);
+    migraphx::module m2;
+    {
+        auto x = m2.add_parameter("x", {migraphx::shape::int8_type, {1, 8, 16, 16}});
+        auto w =
+            m2.add_literal(migraphx::generate_literal({migraphx::shape::int8_type, {3, 3, 16, 8}}));
+        auto wtranspose =
+            m2.add_instruction(migraphx::make_op("transpose", {{"permutation", {2, 3, 0, 1}}}), w);
+        auto wlayout = m2.add_instruction(
+            migraphx::make_op("layout", {{"permutation", {0, 1, 2, 3}}}), wtranspose);
+        auto conv = m2.add_instruction(
+            migraphx::make_op("quant_convolution",
+                              {{"padding", {1, 1}}, {"stride", {2, 2}}, {"dilation", {1, 1}}}),
+            x,
+            wlayout);
+        auto relu = m2.add_instruction(migraphx::make_op("relu"), conv);
+        m2.add_return({relu});
+    }
+    EXPECT(m1.sort() == m2.sort());
+}
+
+TEST_CASE(nhwc_conv_relu)
 {
     migraphx::module m1;
     {
@@ -61,7 +180,7 @@ TEST_CASE(conv_relu)
             w);
         m1.add_instruction(migraphx::make_op("relu"), conv);
     }
-    run_pass(m1);
+    run_pass(m1, {.channels_last = true});
 
     migraphx::module m2;
     {
@@ -81,7 +200,7 @@ TEST_CASE(conv_relu)
     EXPECT(m1.sort() == m2.sort());
 }
 
-TEST_CASE(conv_add)
+TEST_CASE(nhwc_conv_add)
 {
     migraphx::module m1;
     {
@@ -99,7 +218,7 @@ TEST_CASE(conv_add)
             y);
         m1.add_instruction(migraphx::make_op("add"), conv, b);
     }
-    run_pass(m1);
+    run_pass(m1, {.channels_last = true});
 
     migraphx::module m2;
     {
@@ -114,7 +233,7 @@ TEST_CASE(conv_add)
                               {{"padding", {1, 1}}, {"stride", {2, 2}}, {"dilation", {1, 1}}}),
             x,
             w);
-        auto b           = m2.add_instruction(
+        auto b = m2.add_instruction(
             migraphx::make_op("broadcast", {{"axis", 1}, {"out_lens", conv->get_shape().lens()}}),
             y);
         auto add = m2.add_instruction(migraphx::make_op("add"), conv, b);
@@ -123,7 +242,49 @@ TEST_CASE(conv_add)
     EXPECT(m1.sort() == m2.sort());
 }
 
-TEST_CASE(conv_conv)
+TEST_CASE(nhwc_quant_conv_add)
+{
+    migraphx::module m1;
+    {
+        auto x = m1.add_parameter("x", {migraphx::shape::int8_type, {1, 8, 16, 16}});
+        auto w =
+            m1.add_literal(migraphx::generate_literal({migraphx::shape::int8_type, {16, 8, 3, 3}}));
+        auto y    = m1.add_literal(migraphx::generate_literal({migraphx::shape::int32_type, {16}}));
+        auto conv = m1.add_instruction(
+            migraphx::make_op("quant_convolution",
+                              {{"padding", {1, 1}}, {"stride", {2, 2}}, {"dilation", {1, 1}}}),
+            x,
+            w);
+        auto b = m1.add_instruction(
+            migraphx::make_op("broadcast", {{"axis", 1}, {"out_lens", conv->get_shape().lens()}}),
+            y);
+        m1.add_instruction(migraphx::make_op("add"), conv, b);
+    }
+    run_pass(m1, {.channels_last = true});
+
+    migraphx::module m2;
+    {
+        auto x = add_layout_nhwc(
+            m2, m2.add_parameter("x", {migraphx::shape::int8_type, {1, 8, 16, 16}}));
+        auto w    = add_layout_nhwc(m2,
+                                 m2.add_literal(migraphx::generate_literal(
+                                     {migraphx::shape::int8_type, {16, 8, 3, 3}})));
+        auto y    = m2.add_literal(migraphx::generate_literal({migraphx::shape::int32_type, {16}}));
+        auto conv = m2.add_instruction(
+            migraphx::make_op("quant_convolution",
+                              {{"padding", {1, 1}}, {"stride", {2, 2}}, {"dilation", {1, 1}}}),
+            x,
+            w);
+        auto b = m2.add_instruction(
+            migraphx::make_op("broadcast", {{"axis", 1}, {"out_lens", conv->get_shape().lens()}}),
+            y);
+        auto add = m2.add_instruction(migraphx::make_op("add"), conv, b);
+        m2.add_instruction(layout(), add);
+    }
+    EXPECT(m1.sort() == m2.sort());
+}
+
+TEST_CASE(nhwc_conv_conv)
 {
     migraphx::module m1;
     {
@@ -149,7 +310,7 @@ TEST_CASE(conv_conv)
         auto relu2 = m1.add_instruction(migraphx::make_op("relu"), add2);
         m1.add_return({relu2});
     }
-    run_pass(m1);
+    run_pass(m1, {.channels_last = true});
 
     migraphx::module m2;
     {
@@ -182,7 +343,7 @@ TEST_CASE(conv_conv)
     EXPECT(m1.sort() == m2.sort());
 }
 
-TEST_CASE(conv_reduce)
+TEST_CASE(nhwc_conv_reduce)
 {
     migraphx::module m1;
     {
@@ -201,7 +362,7 @@ TEST_CASE(conv_reduce)
         auto squeeze = m1.add_instruction(migraphx::make_op("squeeze", {{"axes", {2, 3}}}), reduce);
         m1.add_return({squeeze});
     }
-    run_pass(m1);
+    run_pass(m1, {.channels_last = true});
 
     migraphx::module m2;
     {

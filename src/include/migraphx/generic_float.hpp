@@ -22,6 +22,9 @@
  * THE SOFTWARE.
  */
 
+#ifndef MIGRAPHX_GUARD_MIGRAPHX_GENERIC_FLOAT_HPP
+#define MIGRAPHX_GUARD_MIGRAPHX_GENERIC_FLOAT_HPP
+
 #include <migraphx/config.hpp>
 #include <migraphx/bit_cast.hpp>
 #include <algorithm>
@@ -394,10 +397,11 @@ struct __attribute__((packed, may_alias)) generic_float
 } // namespace MIGRAPHX_INLINE_NS
 } // namespace migraphx
 
+// NOLINTBEGIN(cert-dcl58-cpp)
 namespace std {
 
 template <unsigned int E, unsigned int M, unsigned int F>
-class numeric_limits<migraphx::generic_float<E, M, F>> // NOLINT(cert-dcl58-cpp)
+class numeric_limits<migraphx::generic_float<E, M, F>>
 {
     public:
     static constexpr bool has_infinity = true;
@@ -443,48 +447,33 @@ class numeric_limits<migraphx::generic_float<E, M, F>> // NOLINT(cert-dcl58-cpp)
 };
 
 template <unsigned int E, unsigned int M, unsigned int F, class T>
-struct common_type<migraphx::generic_float<E, M, F>, T> // NOLINT(cert-dcl58-cpp)
-    : std::common_type<float, T>
+struct common_type<migraphx::generic_float<E, M, F>, T> : std::common_type<float, T>
 {
 };
 
 template <unsigned int E, unsigned int M, unsigned int F, class T>
-struct common_type<T, migraphx::generic_float<E, M, F>> // NOLINT(cert-dcl58-cpp)
-    : std::common_type<float, T>
+struct common_type<T, migraphx::generic_float<E, M, F>> : std::common_type<float, T>
 {
 };
 
-// template<unsigned int E, unsigned int M, unsigned int F, bool FNUZ>
-// struct common_type<migraphx::generic_float<E, M, F>,
-// migraphx::fp8::float8<migraphx::fp8::f8_type::fp8, FNUZ>> : std::common_type<float, float>
-// {};
-
-// template<unsigned int E, unsigned int M, unsigned int F, bool FNUZ>
-// struct common_type<migraphx::fp8::float8<migraphx::fp8::f8_type::fp8, FNUZ>,
-// migraphx::generic_float<E, M, F>> : std::common_type<float, float>
-// {};
-
-// template<unsigned int E, unsigned int M, unsigned int F, migraphx::fp8::f8_type T, bool FNUZ>
-// struct common_type<migraphx::generic_float<E, M, F>, migraphx::fp8::float8<T, FNUZ>> :
-// std::common_type<float, float>
-// {};
-
-// template<unsigned int E, unsigned int M, unsigned int F, migraphx::fp8::f8_type T, bool FNUZ>
-// struct common_type<migraphx::fp8::float8<T, FNUZ>, migraphx::generic_float<E, M, F>> :
-// std::common_type<float, float>
-// {};
-
 template <unsigned int E, unsigned int M, unsigned int F>
-struct common_type<migraphx::generic_float<E, M, F>, // NOLINT(cert-dcl58-cpp)
-                   migraphx::generic_float<E, M, F>>
+struct common_type<migraphx::generic_float<E, M, F>, migraphx::generic_float<E, M, F>>
 {
     using type = migraphx::generic_float<E, M, F>;
 };
 
-// template<unsigned int E, unsigned int M, unsigned int F, unsigned int E1, .....>
-// struct common_type<migraphx::generic_float<E, M, F>,  migraphx::generic_float<E1, M1, F1>>
-// {
-//     using type = float;
-// };
+template <unsigned int E1,
+          unsigned int M1,
+          unsigned int F1,
+          unsigned int E2,
+          unsigned int M2,
+          unsigned int F2>
+struct common_type<migraphx::generic_float<E1, M1, F1>, migraphx::generic_float<E2, M2, F2>>
+{
+    using type = float;
+};
 
 } // namespace std
+// NOLINTEND(cert-dcl58-cpp)
+
+#endif // MIGRAPHX_GUARD_MIGRAPHX_GENERIC_FLOAT_HPP

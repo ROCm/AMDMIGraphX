@@ -25,17 +25,13 @@
 #ifndef MIGRAPHX_GUARD_RTGLIB_BF16_HPP
 #define MIGRAPHX_GUARD_RTGLIB_BF16_HPP
 
-#include <migraphx/half.hpp>
+#include <migraphx/generic_float.hpp>
 #include <migraphx/config.hpp>
-#include <migraphx/float8.hpp>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
 
 using bf16 = migraphx::generic_float<7, 8>;
-
-template <class T>
-using deduce = typename detail::deduce<T>::type;
 
 } // namespace MIGRAPHX_INLINE_NS
 } // namespace migraphx

@@ -22,6 +22,9 @@
  * THE SOFTWARE.
  */
 
+#ifndef MIGRAPHX_GUARD_MIGRAPHX_GENERIC_FLOAT_HPP
+#define MIGRAPHX_GUARD_MIGRAPHX_GENERIC_FLOAT_HPP
+
 #include <migraphx/config.hpp>
 #include <migraphx/bit_cast.hpp>
 #include <algorithm>
@@ -47,6 +50,54 @@ constexpr int countl_zero(T value)
     return 8 * sizeof(value) - r;
 }
 
+constexpr std::size_t bit_ceil(std::size_t v)
+{
+    if(v <= 1)
+        return 1;
+    v--;
+    v |= v >> 1u;
+    v |= v >> 2u;
+    v |= v >> 4u;
+    v |= v >> 8u;
+    v |= v >> 16u;
+    v |= v >> 32u;
+    return v + 1;
+}
+
+constexpr std::size_t integer_divide_ceil(std::size_t x, std::size_t y)
+{
+    return (x + y - std::size_t{1}) / y;
+}
+
+template <unsigned int Bytes>
+struct unsigned_type
+{
+};
+
+template <>
+struct unsigned_type<1>
+{
+    using type = std::uint8_t;
+};
+
+template <>
+struct unsigned_type<2>
+{
+    using type = std::uint16_t;
+};
+
+template <>
+struct unsigned_type<4>
+{
+    using type = std::uint32_t;
+};
+
+template <>
+struct unsigned_type<8>
+{
+    using type = std::uint64_t;
+};
+
 struct float32_parts
 {
     unsigned int mantissa : 23;
@@ -70,9 +121,12 @@ constexpr float32_parts get_parts(float f) { return migraphx::bit_cast<float32_p
 template <unsigned int MantissaSize, unsigned int ExponentSize, unsigned int Flags = 0>
 struct __attribute__((packed, may_alias)) generic_float
 {
-    unsigned int mantissa : MantissaSize;
-    unsigned int exponent : ExponentSize;
-    unsigned int sign : 1;
+    using type = typename unsigned_type<bit_ceil(
+        integer_divide_ceil(MantissaSize + ExponentSize + 1, 8))>::type;
+
+    type mantissa : MantissaSize;
+    type exponent : ExponentSize;
+    type sign : 1;
 
     static constexpr int exponent_bias() { return all_ones<ExponentSize - 1>(); }
 
@@ -108,13 +162,13 @@ struct __attribute__((packed, may_alias)) generic_float
             }
             else
             {
-                unsigned int shift = 0;
+                type shift         = 0;
                 f.mantissa         = mantissa;
 
                 if(MantissaSize < float32_parts::mantissa_width())
                 {
-                    shift = MantissaSize - ((sizeof(unsigned int) * 8) - countl_zero(mantissa));
-                    f.mantissa <<= (shift + 1);
+                    shift = MantissaSize - ((sizeof(type) * 8) - countl_zero(mantissa));
+                    f.mantissa <<= (shift + 1u);
                 }
 
                 f.exponent = float32_parts::exponent_bias() - exponent_bias() - shift;
@@ -184,7 +238,7 @@ struct __attribute__((packed, may_alias)) generic_float
             }
         }
 
-        exponent = std::min(exponent, all_ones<ExponentSize>());
+        exponent = std::min<type>(exponent, all_ones<ExponentSize>());
     }
 
     constexpr bool is_normal() const noexcept
@@ -343,10 +397,11 @@ struct __attribute__((packed, may_alias)) generic_float
 } // namespace MIGRAPHX_INLINE_NS
 } // namespace migraphx
 
+// NOLINTBEGIN(cert-dcl58-cpp)
 namespace std {
 
 template <unsigned int E, unsigned int M, unsigned int F>
-class numeric_limits<migraphx::generic_float<E, M, F>> // NOLINT(cert-dcl58-cpp)
+class numeric_limits<migraphx::generic_float<E, M, F>>
 {
     public:
     static constexpr bool has_infinity = true;
@@ -392,48 +447,33 @@ class numeric_limits<migraphx::generic_float<E, M, F>> // NOLINT(cert-dcl58-cpp)
 };
 
 template <unsigned int E, unsigned int M, unsigned int F, class T>
-struct common_type<migraphx::generic_float<E, M, F>, T> // NOLINT(cert-dcl58-cpp)
-    : std::common_type<float, T>
+struct common_type<migraphx::generic_float<E, M, F>, T> : std::common_type<float, T>
 {
 };
 
 template <unsigned int E, unsigned int M, unsigned int F, class T>
-struct common_type<T, migraphx::generic_float<E, M, F>> // NOLINT(cert-dcl58-cpp)
-    : std::common_type<float, T>
+struct common_type<T, migraphx::generic_float<E, M, F>> : std::common_type<float, T>
 {
 };
 
-// template<unsigned int E, unsigned int M, unsigned int F, bool FNUZ>
-// struct common_type<migraphx::generic_float<E, M, F>,
-// migraphx::fp8::float8<migraphx::fp8::f8_type::fp8, FNUZ>> : std::common_type<float, float>
-// {};
-
-// template<unsigned int E, unsigned int M, unsigned int F, bool FNUZ>
-// struct common_type<migraphx::fp8::float8<migraphx::fp8::f8_type::fp8, FNUZ>,
-// migraphx::generic_float<E, M, F>> : std::common_type<float, float>
-// {};
-
-// template<unsigned int E, unsigned int M, unsigned int F, migraphx::fp8::f8_type T, bool FNUZ>
-// struct common_type<migraphx::generic_float<E, M, F>, migraphx::fp8::float8<T, FNUZ>> :
-// std::common_type<float, float>
-// {};
-
-// template<unsigned int E, unsigned int M, unsigned int F, migraphx::fp8::f8_type T, bool FNUZ>
-// struct common_type<migraphx::fp8::float8<T, FNUZ>, migraphx::generic_float<E, M, F>> :
-// std::common_type<float, float>
-// {};
-
 template <unsigned int E, unsigned int M, unsigned int F>
-struct common_type<migraphx::generic_float<E, M, F>, // NOLINT(cert-dcl58-cpp)
-                   migraphx::generic_float<E, M, F>>
+struct common_type<migraphx::generic_float<E, M, F>, migraphx::generic_float<E, M, F>>
 {
     using type = migraphx::generic_float<E, M, F>;
 };
 
-// template<unsigned int E, unsigned int M, unsigned int F, unsigned int E1, .....>
-// struct common_type<migraphx::generic_float<E, M, F>,  migraphx::generic_float<E1, M1, F1>>
-// {
-//     using type = float;
-// };
+template <unsigned int E1,
+          unsigned int M1,
+          unsigned int F1,
+          unsigned int E2,
+          unsigned int M2,
+          unsigned int F2>
+struct common_type<migraphx::generic_float<E1, M1, F1>, migraphx::generic_float<E2, M2, F2>>
+{
+    using type = float;
+};
 
 } // namespace std
+// NOLINTEND(cert-dcl58-cpp)
+
+#endif // MIGRAPHX_GUARD_MIGRAPHX_GENERIC_FLOAT_HPP

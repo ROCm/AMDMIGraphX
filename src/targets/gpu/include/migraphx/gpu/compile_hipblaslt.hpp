@@ -42,7 +42,6 @@ struct compile_hipblaslt
     context* ctx = nullptr;
     std::string name() const { return "gpu::compile_hipblaslt"; }
     void apply(module& m) const;
-    std::size_t compile(operation& op, instruction_ref ins) const;
 };
 
 } // namespace gpu

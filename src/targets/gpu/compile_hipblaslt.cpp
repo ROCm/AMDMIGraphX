@@ -61,9 +61,9 @@ struct hipblaslt_op
 };
 MIGRAPHX_REGISTER_OP(hipblaslt_op);
 
-std::size_t compile_hipblaslt::compile(operation& op, instruction_ref ins) const
+static size_t compile(migraphx::context& ctx, operation& op, instruction_ref ins)
 {
-    auto v = op.compile(*ctx, ins->get_shape(), to_shapes(ins->inputs()));
+    auto v = op.compile(ctx, ins->get_shape(), to_shapes(ins->inputs()));
     return v.get<std::size_t>("workspace", 0);
 }
 
@@ -85,7 +85,7 @@ void compile_hipblaslt::apply(module& m) const
         m.replace_instruction(ins, op, inputs);
 
         // Calculate workspace size
-        ws               = compile(op, ins);
+        ws               = compile(*ctx, op, ins);
         auto alloc_after = m.insert_instruction(
             ins, make_op("allocate", {{"shape", to_value(shape{shape::uint8_type, {ws}})}}));
 

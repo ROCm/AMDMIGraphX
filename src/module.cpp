@@ -355,7 +355,6 @@ instruction_ref module::replace_instruction(instruction_ref ins, instruction_ref
 {
     impl->changed.notify();
     assert(has_instruction(ins));
-    assert(has_instruction(rep));
     assert(ins != rep);
 
     if(ins == std::prev(this->end()))
@@ -541,7 +540,6 @@ instruction_ref module::insert_parameter(instruction_ref ins, std::string name, 
 instruction_ref module::replace_return(std::vector<instruction_ref> args)
 {
     impl->changed.notify();
-    assert(std::all_of(args.begin(), args.end(), [&](auto ins) { return has_instruction(ins); }));
     auto last = std::prev(this->end());
     // If there is no return then add a return
     if(last->name() != "@return")

@@ -482,6 +482,7 @@ struct hip_gemm_impl
                               const std::vector<shape>& input_shapes,
                               int32_t solution_idx) const
     {
+        size_t workspace_size = hipblaslt_workspace_size;
         std::vector<argument> input_args;
         std::transform(input_shapes.begin(),
                        input_shapes.end(),
@@ -505,12 +506,16 @@ struct hip_gemm_impl
         auto status =
             hipblaslt_invoke(&hipblaslt_ext::matmulIsAlgoSupported, supporting_args, false);
 
-        size_t workspace_size = hipblaslt_workspace_size;
         // If algo is supported, update the workspace size to the actual size needed.
         // Otherwise, use the default workspace size.
         if(status == HIPBLAS_STATUS_SUCCESS)
         {
-            workspace_size = ret_workspace_size;
+            // TODO: Remove this check once issues with '0' workspace size are resolved.
+            // Temporarily, we use the approach where, if the returned workspace size is '0',
+            // we use the default workspace size.
+            // Otherwise, we use the returned workspace size.
+            if(ret_workspace_size != 0)
+                workspace_size = ret_workspace_size;
         }
         return workspace_size;
     }
@@ -568,6 +573,13 @@ struct hip_gemm_impl
 
         // Initialize to default solution index
         int32_t best_sol = 0;
+        // If no valid/supported solution is returned, use hipblasLtMatmulAlgoGetHeuristic
+        // to get an algo and use solution index from that algo.
+        if(solution_indices.size() == 0)
+        {
+            auto algo = solution.get_result(ctx, *this, 0)[0].algo;
+            solution_indices.push_back(hipblaslt_ext::getIndexFromAlgo(algo));
+        }
         for(auto sol : solution_indices)
         {
             // Warmup: the first call to an op. may not be representative since there is

@@ -66,7 +66,7 @@ add_library(migraphx
     insert_pad.cpp
     instruction.cpp
     json.cpp
-    layout_nhwc.cpp
+    layout_convolution.cpp
     lexing.cpp
     load_save.cpp
     make_op.cpp
@@ -89,7 +89,6 @@ add_library(migraphx
     propagate_constant.cpp
     promote_literals.cpp
     quantization.cpp
-    quantize_fp16.cpp
     quantize_int4.cpp
     quantize_8bits.cpp
     reduce_dims.cpp
@@ -116,6 +115,7 @@ add_library(migraphx
     split_single_dyn_dim.cpp
     target.cpp
     tmp_dir.cpp
+    truncate_float.cpp
     value.cpp
     verify_args.cpp
 )

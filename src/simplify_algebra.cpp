@@ -571,7 +571,7 @@ auto fusable_split()
 
         std::vector<instruction_ref> slices;
 
-        // Collect all outputs that are 'slice' operations
+
         for (auto& output : ins->outputs())
         {
             if (output->name() == "slice")
@@ -580,13 +580,11 @@ auto fusable_split()
             }
         }
 
-        // We need at least one slice to proceed
         if (slices.empty())
             return false;
 
         std::cout << "Slices size: " << slices.size() << std::endl;
 
-        // Collect 'add' instructions connected to slices
         std::vector<instruction_ref> add_instructions;
         for (auto& slice : slices)
         {
@@ -598,7 +596,6 @@ auto fusable_split()
                     used_by_add = true;
                     add_instructions.push_back(user);
                     std::cout << "Slice used by add: " << std::endl;
-                    // Do not use break; allow all 'add's to be collected
                 }
             }
             if (!used_by_add)
@@ -615,7 +612,6 @@ auto fusable_split()
                 {
                     any_add_followed_by_mul = true;
                     std::cout << "Add followed by mul found: " << std::endl;
-                    // Do not use break; continue checking all outputs
                 }
             }
         }

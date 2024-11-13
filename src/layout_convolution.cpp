@@ -21,7 +21,7 @@
  * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
  * THE SOFTWARE.
  */
-#include <migraphx/layout_nhwc.hpp>
+#include <migraphx/layout_convolution.hpp>
 #include <migraphx/module.hpp>
 #include <migraphx/instruction.hpp>
 #include <migraphx/iterator_for.hpp>
@@ -32,49 +32,61 @@
 #include <migraphx/eliminate_contiguous.hpp>
 #include <migraphx/dead_code_elimination.hpp>
 #include <migraphx/pass_manager.hpp>
+#include <migraphx/stringutils.hpp>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
 
-template <class Predicate>
-std::vector<instruction_ref> find_lasts(const module& m, Predicate pred)
+namespace {
+std::vector<int64_t> get_permutation(instruction_ref ins, const layout_convolution& lc)
 {
-    std::vector<instruction_ref> result;
-    fix([&](auto self, auto ins) {
-        if(pred(ins))
-        {
-            result.push_back(ins);
-            return;
-        }
-        for(auto input : ins->inputs())
-            self(input);
-    })(std::prev(m.end()));
-    return result;
+    if(lc.channels_last)
+    {
+        std::vector<int64_t> perm(ins->get_shape().ndim());
+        std::iota(perm.begin() + 1, perm.end() - 1, 2);
+        perm.back() = 1;
+        return perm;
+    }
+    return find_permutation(ins->inputs().front()->get_shape());
+}
+
+bool skip_layout(const shape& s)
+{
+    return s.ndim() == 1 or s.dynamic() or s.type() == shape::tuple_type;
 }
 
 void preserve_output_layout(module& m)
 {
     auto last = std::prev(m.end());
-    std::vector<instruction_ref> outputs;
     if(last->name() == "@return")
-        outputs = last->inputs();
-    else
-        outputs = {last};
-
-    for(auto output : outputs)
     {
-        auto permutation = find_permutation(output->get_shape());
-        auto layout      = m.insert_instruction(
-            std::next(output), make_op("layout", {{"permutation", permutation}}), output);
-        m.replace_instruction(output, layout);
+        std::vector<instruction_ref> outputs;
+        std::transform(last->inputs().begin(),
+                       last->inputs().end(),
+                       std::back_inserter(outputs),
+                       [&](instruction_ref ins) {
+                           if(skip_layout(ins->get_shape()))
+                               return ins;
+                           auto permutation = find_permutation(ins->get_shape());
+                           return m.insert_instruction(
+                               last, make_op("layout", {{"permutation", permutation}}), ins);
+                       });
+        m.replace_return(outputs);
+    }
+    else if(not skip_layout(last->get_shape()))
+    {
+        auto permutation = find_permutation(last->get_shape());
+        m.add_instruction(make_op("layout", {{"permutation", permutation}}), last);
     }
 }
 
-void transform_convolutions(module& m)
+void transform_convolutions(module& m, const layout_convolution& lc)
 {
     for(auto ins : iterator_for(m))
     {
-        if(ins->name() != "convolution")
+        if(not contains({"convolution", "quant_convolution"}, ins->name()))
+            continue;
+        if(ins->get_shape().dynamic())
             continue;
         if(ins->get_shape().lens().size() != 4)
             continue;
@@ -82,8 +94,9 @@ void transform_convolutions(module& m)
         if(v.at("group").to<int>() > 1)
             continue;
         auto args = ins->inputs();
+        auto perm = get_permutation(ins, lc);
         std::transform(args.begin(), args.end(), args.begin(), [&](const auto& i) {
-            return m.insert_instruction(ins, make_op("layout", {{"permutation", {0, 2, 3, 1}}}), i);
+            return m.insert_instruction(ins, make_op("layout", {{"permutation", perm}}), i);
         });
         auto conv = m.insert_instruction(ins, ins->get_operator(), args);
         auto c    = m.insert_instruction(ins, make_op("contiguous"), conv);
@@ -102,11 +115,12 @@ void remove_layout(module& m)
         m.replace_instruction(ins, ins->inputs().front());
     }
 }
+} // namespace
 
-void layout_nhwc::apply(module_pass_manager& mpm) const
+void layout_convolution::apply(module_pass_manager& mpm) const
 {
     preserve_output_layout(mpm.get_module());
-    transform_convolutions(mpm.get_module());
+    transform_convolutions(mpm.get_module(), *this);
     mpm.run_pass(dead_code_elimination{});
     mpm.run_pass(eliminate_contiguous{"contiguous"});
     mpm.run_pass(dead_code_elimination{});

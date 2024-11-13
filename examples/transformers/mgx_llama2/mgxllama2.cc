@@ -27,6 +27,7 @@ const bool WRITE_RESULT_FILE = false;
 
 const size_t HIDDEN_LAYERS_NUM = 32;
 const size_t HEAD_SIZE = 128;
+const size_t PAST_KEY_VAL_SIZE = HIDDEN_LAYERS_NUM*HEAD_SIZE*SEQ_SIZE;
 
 struct ModelLoadSettings
 {
@@ -34,6 +35,7 @@ struct ModelLoadSettings
     bool quantize_fp16;
     bool offload_copy;
     bool fast_math;
+    bool input_one_dim;
 };
 
 static std::string getModelPath(ModelLoadSettings& s)
@@ -49,7 +51,12 @@ static std::string getModelPath(ModelLoadSettings& s)
     {
         path << "no";
     }
-    path << "fastmath.mxr";
+    path << "fastmath";
+    if (s.input_one_dim)
+    {
+        path << "_inputonedim";
+    }
+    path << ".mxr";
     return path.str();
 }
 
@@ -64,6 +71,20 @@ std::string getPastValueStr(size_t i)
 {
     std::stringstream past_val;
     past_val << "past_key_values." << std::to_string(i) << ".value";
+    return past_val.str();
+}
+
+std::string getPresentKeyString(size_t i)
+{
+    std::stringstream past_key;
+    past_key << "present." << std::to_string(i) << ".key";
+    return past_key.str();
+}
+
+std::string getPresentValueStr(size_t i)
+{
+    std::stringstream past_val;
+    past_val << "present." << std::to_string(i) << ".value";
     return past_val.str();
 }
 
@@ -82,7 +103,16 @@ static migraphx::program loadOnnx(ModelLoadSettings& settings)
         migraphx::onnx_options onnx_opts;
         std::vector<std::size_t> dims = {1, SEQ_SIZE};
         std::vector<std::size_t> dimsPastKey = {1, HIDDEN_LAYERS_NUM, SEQ_SIZE, HEAD_SIZE};
-        onnx_opts.set_input_parameter_shape("input_ids", dims);
+        std::vector<std::size_t> inputDim;
+        if (settings.input_one_dim)
+        {
+            inputDim = {1,1};
+        }
+        else
+        {
+            inputDim = dims;
+        }
+        onnx_opts.set_input_parameter_shape("input_ids", inputDim);
         onnx_opts.set_input_parameter_shape("attention_mask", dims);
         onnx_opts.set_input_parameter_shape("position_ids", dims);
         for (size_t i = 0; i < HIDDEN_LAYERS_NUM; ++i)
@@ -328,9 +358,7 @@ struct LLama2Inputs
         auto positionShape = inputShape;
         auto position_ids = data.getPositionIds();
         position_ids_buffer = std::make_unique<LLama2InputBuffer>(std::move(position_ids), offload_copy);
-        //prog_args.add(POSITION_IDS_STR, migraphx::argument(inputShape, position_ids_buffer->data()));
-
-        const size_t PAST_KEY_VAL_SIZE = HIDDEN_LAYERS_NUM*HEAD_SIZE*SEQ_SIZE;
+        prog_args.add(POSITION_IDS_STR, migraphx::argument(inputShape, position_ids_buffer->data()));
 
         // past_key_values.0.key = @param:past_key_values.0.key -> half_type, {1, 32, 1, 128}, {4096, 128, 128, 1}
         // past_key_values.0.value = @param:past_key_values.0.value -> half_type, {1, 32, 1, 128}, {4096, 128, 128, 1}
@@ -429,11 +457,16 @@ void writeResults(const std::vector<std::vector<uint64_t>>& results)
 }
 
 int main() {
-    bool offload_copy = false;
+    bool offload_copy = true;
     std::cout << "Offload copy: " << std::boolalpha << offload_copy << std::endl;
-    ModelLoadSettings settings = {SEQ_SIZE, true /*quantize_fp16*/, offload_copy /*offload_copy*/, true /*fast_math*/};
+    ModelLoadSettings settings = {SEQ_SIZE, false /*quantize_fp16*/, offload_copy /*offload_copy*/, false /*fast_math*/, false /*input_one_dim*/};
     migraphx::program prog = loadProgram(settings);
     std::cout << "Model loaded" << std::endl;
+
+    // Load {1,1} input_ids model
+    settings.input_one_dim = true;
+    migraphx::program progSimpleInput = loadProgram(settings);
+    std::cout << "Model 1 dim input loaded" << std::endl;
 
     // Setup model inputs
     std::vector<std::vector<uint64_t>> results;
@@ -454,11 +487,27 @@ int main() {
     // migraphx::shape out_shape{migraphx_shape_float_type, {1, SEQ_SIZE, VOCAB_SIZE}};
     // prog_args.add(output_name, migraphx::argument(out_shape, output_buffer.data()));
 
-    const size_t output_size = SEQ_SIZE * VOCAB_SIZE;
+    size_t output_size = SEQ_SIZE * VOCAB_SIZE;
     auto output_name = "logits";
     auto output_buffer = LLama2PastKeyValueBuffer(std::vector<half>(output_size), offload_copy);
     migraphx::shape out_shape{migraphx_shape_float_type, {1, SEQ_SIZE, VOCAB_SIZE}};
     prog_args.add(output_name, migraphx::argument(out_shape, output_buffer.data()));
+
+    // std::vector<std::unique_ptr<LLama2PastKeyValueBuffer>> present_key_buffers;
+    // std::vector<std::unique_ptr<LLama2PastKeyValueBuffer>> present_value_buffers;
+    // for (size_t i = 0; i < HIDDEN_LAYERS_NUM; ++i)
+    // {
+    //     migraphx::shape present_shape{migraphx_shape_half_type, {1, HIDDEN_LAYERS_NUM, SEQ_SIZE, HEAD_SIZE}};
+    //     auto present_keyStr = getPresentKeyString(i);
+    //     auto present_keyString = present_keyStr.c_str();
+    //     present_key_buffers.emplace_back(std::make_unique<LLama2PastKeyValueBuffer>(std::vector<half>(PAST_KEY_VAL_SIZE, 0.0_h), offload_copy));
+    //     prog_args.add(present_keyString, migraphx::argument(present_shape, present_key_buffers[i]->data()));
+
+    //     auto present_valueStr = getPresentValueStr(i);
+    //     auto present_valueString = present_valueStr.c_str();
+    //     present_value_buffers.emplace_back(std::make_unique<LLama2PastKeyValueBuffer>(std::vector<half>(PAST_KEY_VAL_SIZE, 0.0_h), offload_copy));
+    //     prog_args.add(present_valueString, migraphx::argument(present_shape, present_value_buffers[i]->data()));
+    // }
 
     std::cout << "Starting evaluation" << std::endl;
     size_t token_count = 0;
@@ -469,7 +518,8 @@ int main() {
         #ifdef TRACE
         std::cout << "Iter #" << i << std::endl;
         #endif
-        for (size_t i = model_inputs.getLastInputIndex(); i < SEQ_SIZE - 1; ++i)
+        auto lastInputIdx = model_inputs.getLastInputIndex();
+        for (size_t i = lastInputIdx; i < SEQ_SIZE - 1; ++i)
         {
             auto outputs = prog.run_async(prog_args, stream);
             if (not offload_copy)
@@ -480,17 +530,59 @@ int main() {
             check_hip_status(hipStreamSynchronize(stream));
             half* results   = offload_copy ? reinterpret_cast<half*>(outputs[0].data()) : reinterpret_cast<half*>(output_buffer.hbuff.data());
             std::vector<half> logits(results, results + output_size);
-            std::vector<half>::iterator max = std::max_element(std::begin(logits) + (i * VOCAB_SIZE), std::begin(logits) + ((i + 1) * VOCAB_SIZE));
-            int64_t new_token = std::distance(std::begin(logits) + (i * VOCAB_SIZE), max);
+
+            bool firstIter = (i == lastInputIdx);
+            auto logits_begin = firstIter ? std::begin(logits) + (i * VOCAB_SIZE) : std::begin(logits);
+            auto logits_end = firstIter ? std::begin(logits) + ((i + 1) * VOCAB_SIZE) : std::end(logits);
+            std::vector<half>::iterator max = std::max_element(logits_begin, logits_end);
+            int64_t new_token = std::distance(logits_begin, max);
+
             token_count++;
-            // std::cout << "New token: " << new_token << std::endl;
+            #ifdef TRACE
+            std::cout << "New token: " << new_token << std::endl;
+            #endif
             output_tokens.push_back(new_token);
+
+            for (size_t i = 0; i < HIDDEN_LAYERS_NUM; ++i)
+            {
+                migraphx::shape past_shape{migraphx_shape_half_type, {1, HIDDEN_LAYERS_NUM, SEQ_SIZE, HEAD_SIZE}};
+                half* res   = reinterpret_cast<half*>(outputs[2*i+1].data());
+                std::vector<half> present_key(res, res + PAST_KEY_VAL_SIZE);
+
+                auto past_keyStr = getPastKeyString(i);
+                model_inputs.past_key_buffers[i]->update(std::move(present_key));
+                prog_args.add(past_keyStr.c_str(), migraphx::argument(past_shape, model_inputs.past_key_buffers[i]->data()));
+
+                res = reinterpret_cast<half*>(outputs[2*i+2].data());
+                std::vector<half> present_value(res, res + PAST_KEY_VAL_SIZE);
+
+                auto past_valueStr = getPastValueStr(i);
+                model_inputs.past_value_buffers[i]->update(std::move(present_value));
+                prog_args.add(past_valueStr.c_str(), migraphx::argument(past_shape, model_inputs.past_value_buffers[i]->data()));
+            }
+
             if (new_token == EOS)
             {
                 break;
             }
-            model_inputs.input_ids_buffer->update_data(new_token, i +1, stream);
-            model_inputs.attention_mask_buffer->update_data(1, i +1, stream);
+
+            model_inputs.attention_mask_buffer->update_data(1, i + 1, stream);
+
+            if (firstIter)
+            {
+                prog = progSimpleInput;
+                output_size = VOCAB_SIZE;
+
+                auto param_shapes = prog.get_parameter_shapes();
+                auto inputShape = param_shapes[model_inputs.INPUTS_ID_STR];
+                std::vector<int64_t> input_ids = {new_token};
+                model_inputs.input_ids_buffer = std::make_unique<LLama2InputBuffer>(std::move(input_ids), offload_copy);
+                prog_args.add(model_inputs.INPUTS_ID_STR, migraphx::argument(inputShape, model_inputs.input_ids_buffer->data()));
+            }
+            else
+            {
+                model_inputs.input_ids_buffer->update_data(new_token, 0, stream);
+            }
         }
 
 #ifdef TRACE

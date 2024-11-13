@@ -35,6 +35,7 @@
 #define MIGRAPHX_SHAPE_VISIT_TYPES(m) \
     m(bool_type, bool) \
     m(half_type, half) \
+    m(bf16_type, bf16) \
     m(float_type, float) \
     m(double_type, double) \
     m(uint8_type, uint8_t) \

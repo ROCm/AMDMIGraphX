@@ -802,7 +802,8 @@ struct mlir_program
     {
         // 1st pipeline to call
         run_high_level_pipeline();
-        if(solution.is_null())
+        std::string tuning_cfg_path = string_value_of(MIGRAPHX_MLIR_TUNING_CFG{});
+        if(solution.is_null() or not tuning_cfg_path.empty())
             get_module_tuned();
         else
             set_tuning(solution);

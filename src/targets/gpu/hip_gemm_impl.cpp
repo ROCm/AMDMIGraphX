@@ -70,8 +70,14 @@ hipDataType get_type_hipblas(shape::type_t type)
     case shape::int32_type: return HIP_R_32I;
     case shape::uint32_type: return HIP_R_32U;
     case shape::fp8e4m3fnuz_type: return HIP_R_8F_E4M3_FNUZ;
+// TODO can remove this preprocessor conditional when hip verison defaults to have these types
+#ifdef ROCM_USE_FLOAT8
+    case shape::fp8e4m3fn_type: return HIP_R_8F_E4M3;
+    case shape::fp8e5m2_type: return HIP_R_8F_E5M2;
+#else
     case shape::fp8e4m3fn_type:
     case shape::fp8e5m2_type:
+#endif
     case shape::tuple_type:
     case shape::bool_type:
     case shape::uint16_type:

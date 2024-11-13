@@ -32,26 +32,46 @@ namespace onnx {
 
 struct parse_groupnorm : op_parser<parse_groupnorm>
 {
-    std::vector<op_desc> operators() const { return {{"GroupNormalization"}}; }
+    std::vector<op_desc> operators() const { return {{"GroupNormalization"}, {"GroupNorm"}}; }
 
     instruction_ref parse(const op_desc& /*opd*/,
                           const onnx_parser& parser,
                           const onnx_parser::node_info& info,
                           std::vector<instruction_ref> args) const
     {
+        auto is_contrib == opd.op_name == "GroupNorm"
         float epsilon = 1e-5f;
         if(contains(info.attributes, "epsilon"))
         {
             epsilon = parser.parse_value(info.attributes.at("epsilon")).at<float>();
         }
         size_t num_groups;
-        if(contains(info.attributes, "num_groups"))
+        if(contains(info.attributes, "num_groups") or contains(info.attributes, "groups"))
         {
-            num_groups = parser.parse_value(info.attributes.at("num_groups")).at<size_t>();
+            if (is_contrib)
+                num_groups = parser.parse_value(info.attributes.at("groups")).at<size_t>();
+            else
+                num_groups = parser.parse_value(info.attributes.at("num_groups")).at<size_t>();
         }
         else
         {
             MIGRAPHX_THROW("PARSE_GROUPNORM: num_groups must be available");
+        }
+
+        bool is_nhwc = false; //default to nchw
+        if(contains(info.attributes, "channels_last"))
+        {
+            is_nhwc = parser.parse_value(info.attributes.at("channels_last").at<size_t>());
+        }
+
+        bool silu_activation = false;
+        if(contains(info.attributes, "activation") and is_contrib)
+        {
+            silu_activation = (1 == parser.parse_value(info.attributes.at("activation").at<size_t>()));
+        }
+        else if(is_contrib)
+        {
+            MIGRAPHX_THROW("PARSE_GROUPNORM: activation must be available");
         }
 
         if(args.size() != 3)
@@ -120,7 +140,14 @@ struct parse_groupnorm : op_parser<parse_groupnorm>
             info.add_instruction(make_op("broadcast", {{"axis", 1}, {"out_lens", dims}}), bias);
         auto scaled = info.add_instruction(make_op("mul"), result, scale_bcast);
         auto y      = info.add_instruction(make_op("add"), scaled, bias_bcast);
-        return info.add_instruction(make_op("reshape", {{"dims", x_dims}}), y);
+        auto output = info.add_instruction(make_op("reshape", {{"dims", x_dims}}), y);
+
+        if (silu_activation)
+        {
+            output = info.add_instruction(make_op("Silu"), output);
+        }
+
+        return output;
     }
 };
 

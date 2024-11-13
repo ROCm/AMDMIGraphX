@@ -441,12 +441,16 @@ struct find_mul_add
         auto x_ins = r.instructions["x"];
         assert(x_ins != b_ins);
     
-        //if(x_ins->name() != "slice") // Can't use this because once the matcher is matched in mul_add and enters apply function it will not match with find_slice_add_mul
+        std::cout<<"inside find_mul_add";
+        
+        
+        //if(x_ins->inputs() != "slice") // Can't use this because once the matcher is matched in mul_add and enters apply function it will not match with find_slice_add_mul
         //{
             auto ax_ins = m.insert_instruction(ins, make_op("mul"), a_ins, x_ins);
             auto ab_ins = m.insert_instruction(ins, make_op("mul"), a_ins, b_ins);
             m.replace_instruction(ins, make_op("add"), ax_ins, ab_ins);
-        //}   
+        //}
+        //std::cout<<"inside find_mul_add";   
 
     }
 };
@@ -465,112 +469,14 @@ mlir_reshape_transpose_squeeze_slice_reshape_transpose_squeeze_dot
 ----after-----
 mlir_dot_add
 mlir_slice_mul_reshape_transpose_squeeze_slice_reshape_transpose_squeeze_dot
-
 */
-/*
-auto slice()
-{
-    return match::name("slice")(match::arg(0)(
-        match::name("add").bind("add1")));
-}
 
 auto fusable_split()
 {
     return match::make_basic_pred_matcher([](instruction_ref ins) {
 
-        if (ins->name() != "slice")
-            return false;
-        
-        std::cout<<"Reached slice_add_mul";
-
-        // Get outputs of the slice instruction
-        //auto slice_outputs = ins->outputs();
-
-        //auto first_output = slice_outputs.front();
-        //if(first_output->name() == "add")
-            //std::cout<<"Found add operation";
-        //m.debug_print(slice_outputs);
-        //std::cout<<"slice output"<<slice_outputs.size();
-        //std::cout << "Reached slice\n";
-
-        int cnt = 0;
-        auto slice_op = ins->outputs();
-        for (auto& output : slice_op)
-        {
-            if (output->name() == "add")
-            {
-                std::cout << "Found add operation connected to slice"<<std::endl;
-                //std::cout<< ins->outputs().size()<<std::endl;
-                cnt = cnt+1;
-                std::cout<<"Count is "<<cnt<<std::endl;
-            }
-        }
-
-        /*std::vector<instruction_ref> add_instructions;
-        for (auto& user : ins->outputs())
-        {
-            if (user->name() == "add")
-            {
-                add_instructions.push_back(user);
-                cnt = cnt+1;
-                std::cout<<"Count is "<<cnt<<std::endl;
-            }
-        }
-
-       //return true;
-    });
-
-}
-
-*/
-/*
-auto fusable_split()
-{
-    return match::make_basic_pred_matcher([](instruction_ref ins) {
-
+        //std::cout << "Slices size: ";
         std::vector<instruction_ref> slices;
-        for (auto& output : ins->outputs())
-        {
-            if (output->name() == "slice")
-            {
-                slices.push_back(output);
-            }
-        }
-
-        // We need at least one slice to proceed
-        if (slices.empty())
-            return false;
-
-        
-        std::cout<<"slices size"<< slices.size();
-        // For each slice, check that it is used by an 'add' operation
-        for (auto& slice : slices)
-        {
-            bool used_by_add = false;
-            for (auto& user : slice->outputs())
-            {
-                if (user->name() == "add")
-                {
-                    used_by_add = true;
-                    std::cout<<"I am here";
-                }
-            }
-            if (!used_by_add)
-                return false; // If any slice is not used by an 'add', return false
-        }
-
-        // All slices are used by 'add' operations
-        return true;
-    });
-}
-*/
-
-auto fusable_split()
-{
-    return match::make_basic_pred_matcher([](instruction_ref ins) {
-
-        std::vector<instruction_ref> slices;
-
 
         for (auto& output : ins->outputs())
         {
@@ -611,6 +517,7 @@ auto fusable_split()
                 if (user->name() == "mul")
                 {
                     any_add_followed_by_mul = true;
+                    ins->outputs();
                     std::cout << "Add followed by mul found: " << std::endl;
                 }
             }
@@ -628,17 +535,32 @@ auto fusable_split()
 
 struct find_slice_add_mul
 {
-    auto matcher() const
+    /*auto matcher() const
     {       
            return fusable_split().bind("slice");
-    }
+    }*/
+    
+        auto matcher() const
+        {        
+            return match::name("mul")(match::either_arg(0, 1)(
+                match::name("add")(
+                    match::either_arg(0, 1)(
+                        match::name("slice")(match::arg(0)(
+                            fusable_split().bind("slc")
+                        )).bind("x"),
+                        match::any_of(conv_const_weights(), match::is_constant()).bind("b")),
+                    match::none_of(match::args(match::is_constant(), match::is_constant())),
+                    match::used_once()),
+                match::is_constant().bind("a")));
+        }
+
 
     void apply(module& m, const match::matcher_result& r) const
     {
         //auto slice_ins = r.instructions["slice"];
 
         std::cout<<"Reached slice_add_mul";
-        /*
+        
         auto ins    = r.result;
         auto a_ins  = r.instructions["a"];
         auto b_ins  = r.instructions["b"];
@@ -646,9 +568,10 @@ struct find_slice_add_mul
 
         assert(x_ins != b_ins);
 
+        m.debug_print(x_ins);
         auto ax_ins = m.insert_instruction(ins, make_op("add"), x_ins, b_ins);
         m.replace_instruction(ins, make_op("mul"), ax_ins, a_ins);
-        */
+        
     }
 
 };

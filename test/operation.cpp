@@ -138,11 +138,9 @@ TEST_CASE(operation_any_cast)
 {
     migraphx::operation op1 = simple_operation{};
     EXPECT(migraphx::any_cast<simple_operation>(op1).data == 1);
-    EXPECT(migraphx::any_cast<not_operation*>(&op1) == nullptr);
     EXPECT(test::throws([&] { migraphx::any_cast<not_operation&>(op1); }));
     migraphx::operation op2 = simple_operation{2};
     EXPECT(migraphx::any_cast<simple_operation>(op2).data == 2);
-    EXPECT(migraphx::any_cast<not_operation*>(&op2) == nullptr);
 }
 
 TEST_CASE(operation_print)

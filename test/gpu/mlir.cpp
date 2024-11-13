@@ -537,4 +537,116 @@ module {
     EXPECT(verify_mlir(m));
 }
 
+TEST_CASE(int4_unpack_dequantizelinear)
+{
+    std::string mlir_output = R"__migraphx__(
+module {
+  func.func @mlir_unsqueeze_reshape_slice_unsqueeze_reshape_slice_unpack_int4_dequantizelinear_dot(%arg0: !migraphx.shaped<2x3x5xf32, 15x5x1>, %arg1: !migraphx.shaped<2x5x1xsi8, 5x1x1>, %arg2: !migraphx.shaped<2x2x2xf32, 4x2x1>, %arg3: !migraphx.shaped<2x2x2xsi8, 4x2x1>) -> !migraphx.shaped<2x3x2xf32, 6x2x1> attributes ${attrs} {
+    %0 = migraphx.reshape %arg2 {dims = [2, 2, 1, 2]} : <2x2x2xf32, 4x2x1> -> <2x2x1x2xf32, 4x2x2x1>
+    %1 = migraphx.multibroadcast %0 {out_dyn_dims = [], out_lens = [2, 2, 3, 2]} : <2x2x1x2xf32, 4x2x2x1> -> <2x2x3x2xf32, 4x2x0x1>
+    %2 = migraphx.reshape %1 {dims = [2, 6, 2]} : <2x2x3x2xf32, 4x2x0x1> -> <2x6x2xf32, 12x2x1>
+    %3 = migraphx.slice %2 {axes = [1], ends = [5], starts = [0]} : <2x6x2xf32, 12x2x1> -> <2x5x2xf32, 12x2x1>
+    %4 = migraphx.reshape %arg3 {dims = [2, 2, 1, 2]} : <2x2x2xsi8, 4x2x1> -> <2x2x1x2xsi8, 4x2x2x1>
+    %5 = migraphx.multibroadcast %4 {out_dyn_dims = [], out_lens = [2, 2, 3, 2]} : <2x2x1x2xsi8, 4x2x2x1> -> <2x2x3x2xsi8, 4x2x0x1>
+    %6 = migraphx.reshape %5 {dims = [2, 6, 2]} : <2x2x3x2xsi8, 4x2x0x1> -> <2x6x2xsi8, 12x2x1>
+    %7 = migraphx.slice %6 {axes = [1], ends = [5], starts = [0]} : <2x6x2xsi8, 12x2x1> -> <2x5x2xsi8, 12x2x1>
+    %8 = migraphx.unpack %arg1 {axis = 2 : i64} : <2x5x1xsi8, 5x1x1> -> <2x5x2xsi8, 10x2x1>
+    %9 = migraphx.dequantizelinear %8, %3, %7 : <2x5x2xsi8, 10x2x1>, <2x5x2xf32, 12x2x1>, !migraphx.shaped<2x5x2xsi8, 12x2x1> -> <2x5x2xf32, 10x2x1>
+    %10 = migraphx.dot %arg0, %9 : <2x3x5xf32, 15x5x1>, <2x5x2xf32, 10x2x1> -> <2x3x2xf32, 6x2x1>
+    return %10 : !migraphx.shaped<2x3x2xf32, 6x2x1>
+  }
+}
+)__migraphx__";
+    migraphx::module m;
+    auto x0 = m.add_parameter("x0", migraphx::shape{migraphx::shape::float_type, {2, 3, 5}});
+    auto x1 = m.add_parameter("x1", migraphx::shape{migraphx::shape::int8_type, {2, 5, 1}});
+    auto x2 = m.add_parameter("x2", migraphx::shape{migraphx::shape::float_type, {2, 2, 2}});
+    auto x3 = m.add_parameter("x3", migraphx::shape{migraphx::shape::int8_type, {2, 2, 2}});
+
+    auto unsqueeze1 = m.add_instruction(migraphx::make_op("unsqueeze", {{"axes", {2}}}), x2);
+    auto broadcast1 = m.add_instruction(
+        migraphx::make_op("multibroadcast", {{"out_lens", {2, 2, 3, 2}}}), unsqueeze1);
+    auto reshape1 =
+        m.add_instruction(migraphx::make_op("reshape", {{"dims", {2, 6, 2}}}), broadcast1);
+    auto scale = m.add_instruction(
+        migraphx::make_op("slice", {{"axes", {1}}, {"starts", {0}}, {"ends", {5}}}), reshape1);
+
+    auto unsqueeze2 = m.add_instruction(migraphx::make_op("unsqueeze", {{"axes", {2}}}), x3);
+    auto broadcast2 = m.add_instruction(
+        migraphx::make_op("multibroadcast", {{"out_lens", {2, 2, 3, 2}}}), unsqueeze2);
+    auto reshape2 =
+        m.add_instruction(migraphx::make_op("reshape", {{"dims", {2, 6, 2}}}), broadcast2);
+    auto zp = m.add_instruction(
+        migraphx::make_op("slice", {{"axes", {1}}, {"starts", {0}}, {"ends", {5}}}), reshape2);
+
+    auto unpack = m.add_instruction(migraphx::make_op("unpack_int4"), x1);
+    auto dq     = m.add_instruction(migraphx::make_op("dequantizelinear"), unpack, scale, zp);
+    auto dot    = m.add_instruction(migraphx::make_op("dot"), x0, dq);
+    m.add_return({dot});
+    auto s = migraphx::gpu::dump_mlir(m);
+    // Skip test if MLIR is not enabled
+    if(s.empty())
+        return;
+    auto mlir_output_with_attrs =
+        migraphx::interpolate_string(mlir_output, {{"attrs", get_attrs()}});
+    CHECK(encode(s) == encode(mlir_output_with_attrs));
+    EXPECT(verify_mlir(m));
+}
+
+TEST_CASE(uint4_unpack_dequantizelinear)
+{
+    std::string mlir_output = R"__migraphx__(
+module {
+  func.func @mlir_unsqueeze_reshape_slice_unsqueeze_reshape_slice_unpack_int4_dequantizelinear_dot(%arg0: !migraphx.shaped<2x3x5xf32, 15x5x1>, %arg1: !migraphx.shaped<2x5x1xui8, 5x1x1>, %arg2: !migraphx.shaped<2x2x2xf32, 4x2x1>, %arg3: !migraphx.shaped<2x2x2xui8, 4x2x1>) -> !migraphx.shaped<2x3x2xf32, 6x2x1> attributes {arch = "", kernel = "mixr", num_cu = 0 : i64} {
+    %0 = migraphx.reshape %arg2 {dims = [2, 2, 1, 2]} : <2x2x2xf32, 4x2x1> -> <2x2x1x2xf32, 4x2x2x1>
+    %1 = migraphx.multibroadcast %0 {out_dyn_dims = [], out_lens = [2, 2, 3, 2]} : <2x2x1x2xf32, 4x2x2x1> -> <2x2x3x2xf32, 4x2x0x1>
+    %2 = migraphx.reshape %1 {dims = [2, 6, 2]} : <2x2x3x2xf32, 4x2x0x1> -> <2x6x2xf32, 12x2x1>
+    %3 = migraphx.slice %2 {axes = [1], ends = [5], starts = [0]} : <2x6x2xf32, 12x2x1> -> <2x5x2xf32, 12x2x1>
+    %4 = migraphx.reshape %arg3 {dims = [2, 2, 1, 2]} : <2x2x2xui8, 4x2x1> -> <2x2x1x2xui8, 4x2x2x1>
+    %5 = migraphx.multibroadcast %4 {out_dyn_dims = [], out_lens = [2, 2, 3, 2]} : <2x2x1x2xui8, 4x2x2x1> -> <2x2x3x2xui8, 4x2x0x1>
+    %6 = migraphx.reshape %5 {dims = [2, 6, 2]} : <2x2x3x2xui8, 4x2x0x1> -> <2x6x2xui8, 12x2x1>
+    %7 = migraphx.slice %6 {axes = [1], ends = [5], starts = [0]} : <2x6x2xui8, 12x2x1> -> <2x5x2xui8, 12x2x1>
+    %8 = migraphx.unpack %arg1 {axis = 2 : i64} : <2x5x1xui8, 5x1x1> -> <2x5x2xui8, 10x2x1>
+    %9 = migraphx.dequantizelinear %8, %3, %7 : <2x5x2xui8, 10x2x1>, <2x5x2xf32, 12x2x1>, !migraphx.shaped<2x5x2xui8, 12x2x1> -> <2x5x2xf32, 10x2x1>
+    %10 = migraphx.dot %arg0, %9 : <2x3x5xf32, 15x5x1>, <2x5x2xf32, 10x2x1> -> <2x3x2xf32, 6x2x1>
+    return %10 : !migraphx.shaped<2x3x2xf32, 6x2x1>
+  }
+}
+)__migraphx__";
+    migraphx::module m;
+    auto x0 = m.add_parameter("x0", migraphx::shape{migraphx::shape::float_type, {2, 3, 5}});
+    auto x1 = m.add_parameter("x1", migraphx::shape{migraphx::shape::uint8_type, {2, 5, 1}});
+    auto x2 = m.add_parameter("x2", migraphx::shape{migraphx::shape::float_type, {2, 2, 2}});
+    auto x3 = m.add_parameter("x3", migraphx::shape{migraphx::shape::uint8_type, {2, 2, 2}});
+
+    auto unsqueeze1 = m.add_instruction(migraphx::make_op("unsqueeze", {{"axes", {2}}}), x2);
+    auto broadcast1 = m.add_instruction(
+        migraphx::make_op("multibroadcast", {{"out_lens", {2, 2, 3, 2}}}), unsqueeze1);
+    auto reshape1 =
+        m.add_instruction(migraphx::make_op("reshape", {{"dims", {2, 6, 2}}}), broadcast1);
+    auto scale = m.add_instruction(
+        migraphx::make_op("slice", {{"axes", {1}}, {"starts", {0}}, {"ends", {5}}}), reshape1);
+
+    auto unsqueeze2 = m.add_instruction(migraphx::make_op("unsqueeze", {{"axes", {2}}}), x3);
+    auto broadcast2 = m.add_instruction(
+        migraphx::make_op("multibroadcast", {{"out_lens", {2, 2, 3, 2}}}), unsqueeze2);
+    auto reshape2 =
+        m.add_instruction(migraphx::make_op("reshape", {{"dims", {2, 6, 2}}}), broadcast2);
+    auto zp = m.add_instruction(
+        migraphx::make_op("slice", {{"axes", {1}}, {"starts", {0}}, {"ends", {5}}}), reshape2);
+
+    auto unpack = m.add_instruction(migraphx::make_op("unpack_int4"), x1);
+    auto dq     = m.add_instruction(migraphx::make_op("dequantizelinear"), unpack, scale, zp);
+    auto dot    = m.add_instruction(migraphx::make_op("dot"), x0, dq);
+    m.add_return({dot});
+    auto s = migraphx::gpu::dump_mlir(m);
+    // Skip test if MLIR is not enabled
+    if(s.empty())
+        return;
+    auto mlir_output_with_attrs =
+        migraphx::interpolate_string(mlir_output, {{"attrs", get_attrs()}});
+    CHECK(encode(s) == encode(mlir_output_with_attrs));
+    EXPECT(verify_mlir(m));
+}
+
 int main(int argc, const char* argv[]) { test::run(argc, argv); }

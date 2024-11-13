@@ -163,7 +163,7 @@ MIGRAPHX_PRED_MATCHER(is_ck_gemm, instruction_ref ins)
         }
         return true;
     }
-    return k <= 2048;
+    return k <= 1024;
 }
 
 struct find_ck_gemm_pointwise

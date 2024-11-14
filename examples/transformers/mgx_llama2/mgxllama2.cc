@@ -501,21 +501,21 @@ int main() {
     migraphx::shape out_shape{migraphx_shape_half_type, {1, SEQ_SIZE, VOCAB_SIZE}};
     prog_args.add(output_name, migraphx::argument(out_shape, output_buffer.data()));
 
-    std::vector<std::unique_ptr<LLama2PastKeyValueBuffer>> present_key_buffers;
-    std::vector<std::unique_ptr<LLama2PastKeyValueBuffer>> present_value_buffers;
-    for (size_t i = 0; i < HIDDEN_LAYERS_NUM; ++i)
-    {
-        migraphx::shape present_shape{migraphx_shape_half_type, {1, HIDDEN_LAYERS_NUM, SEQ_SIZE, HEAD_SIZE}};
-        auto present_keyStr = getPresentKeyString(i);
-        auto present_keyString = present_keyStr.c_str();
-        present_key_buffers.emplace_back(std::make_unique<LLama2PastKeyValueBuffer>(std::vector<half>(PAST_KEY_VAL_SIZE, 0.0_h), offload_copy));
-        prog_args.add(present_keyString, migraphx::argument(present_shape, present_key_buffers[i]->data()));
+    // std::vector<std::unique_ptr<LLama2PastKeyValueBuffer>> present_key_buffers;
+    // std::vector<std::unique_ptr<LLama2PastKeyValueBuffer>> present_value_buffers;
+    // for (size_t i = 0; i < HIDDEN_LAYERS_NUM; ++i)
+    // {
+    //     migraphx::shape present_shape{migraphx_shape_half_type, {1, HIDDEN_LAYERS_NUM, SEQ_SIZE, HEAD_SIZE}};
+    //     auto present_keyStr = getPresentKeyString(i);
+    //     auto present_keyString = present_keyStr.c_str();
+    //     present_key_buffers.emplace_back(std::make_unique<LLama2PastKeyValueBuffer>(std::vector<half>(PAST_KEY_VAL_SIZE, 0.0_h), offload_copy));
+    //     prog_args.add(present_keyString, migraphx::argument(present_shape, present_key_buffers[i]->data()));
 
-        auto present_valueStr = getPresentValueStr(i);
-        auto present_valueString = present_valueStr.c_str();
-        present_value_buffers.emplace_back(std::make_unique<LLama2PastKeyValueBuffer>(std::vector<half>(PAST_KEY_VAL_SIZE, 0.0_h), offload_copy));
-        prog_args.add(present_valueString, migraphx::argument(present_shape, present_value_buffers[i]->data()));
-    }
+    //     auto present_valueStr = getPresentValueStr(i);
+    //     auto present_valueString = present_valueStr.c_str();
+    //     present_value_buffers.emplace_back(std::make_unique<LLama2PastKeyValueBuffer>(std::vector<half>(PAST_KEY_VAL_SIZE, 0.0_h), offload_copy));
+    //     prog_args.add(present_valueString, migraphx::argument(present_shape, present_value_buffers[i]->data()));
+    // }
 
     std::cout << "Dataset size: " << model_inputs.dataSize() << std::endl;
     std::cout << "Starting evaluation" << std::endl;
@@ -542,11 +542,11 @@ int main() {
                     output_buffer_oneDim.download_from_device(stream);
                 }
 
-                for (size_t i = 0; i < HIDDEN_LAYERS_NUM; ++i)
-                {
-                    present_key_buffers[i]->download_from_device(stream);
-                    present_value_buffers[i]->download_from_device(stream);
-                }
+                // for (size_t i = 0; i < HIDDEN_LAYERS_NUM; ++i)
+                // {
+                //     present_key_buffers[i]->download_from_device(stream);
+                //     present_value_buffers[i]->download_from_device(stream);
+                // }
             }
 
             check_hip_status(hipStreamSynchronize(stream));
@@ -564,23 +564,23 @@ int main() {
             #endif
             output_tokens.push_back(new_token);
 
-            for (size_t i = 0; i < HIDDEN_LAYERS_NUM; ++i)
-            {
-                migraphx::shape past_shape{migraphx_shape_half_type, {1, HIDDEN_LAYERS_NUM, SEQ_SIZE, HEAD_SIZE}};
-                half* res   = offload_copy ? reinterpret_cast<half*>(outputs[2*i+1].data()) : reinterpret_cast<half*>(present_key_buffers[i]->hbuff.data());
-                std::vector<half> present_key(res, res + PAST_KEY_VAL_SIZE);
+            // for (size_t i = 0; i < HIDDEN_LAYERS_NUM; ++i)
+            // {
+            //     migraphx::shape past_shape{migraphx_shape_half_type, {1, HIDDEN_LAYERS_NUM, SEQ_SIZE, HEAD_SIZE}};
+            //     half* res   = offload_copy ? reinterpret_cast<half*>(outputs[2*i+1].data()) : reinterpret_cast<half*>(present_key_buffers[i]->hbuff.data());
+            //     std::vector<half> present_key(res, res + PAST_KEY_VAL_SIZE);
 
-                auto past_keyStr = getPastKeyString(i);
-                model_inputs.past_key_buffers[i]->update(std::move(present_key));
-                prog_args.add(past_keyStr.c_str(), migraphx::argument(past_shape, model_inputs.past_key_buffers[i]->data()));
+            //     auto past_keyStr = getPastKeyString(i);
+            //     model_inputs.past_key_buffers[i]->update(std::move(present_key));
+            //     prog_args.add(past_keyStr.c_str(), migraphx::argument(past_shape, present_key_buffers[i]->data()));
 
-                res = offload_copy ? reinterpret_cast<half*>(outputs[2*i+2].data()) : reinterpret_cast<half*>(present_value_buffers[i]->hbuff.data());
-                std::vector<half> present_value(res, res + PAST_KEY_VAL_SIZE);
+            //     res = offload_copy ? reinterpret_cast<half*>(outputs[2*i+2].data()) : reinterpret_cast<half*>(present_value_buffers[i]->hbuff.data());
+            //     std::vector<half> present_value(res, res + PAST_KEY_VAL_SIZE);
 
-                auto past_valueStr = getPastValueStr(i);
-                model_inputs.past_value_buffers[i]->update(std::move(present_value));
-                prog_args.add(past_valueStr.c_str(), migraphx::argument(past_shape, model_inputs.past_value_buffers[i]->data()));
-            }
+            //     auto past_valueStr = getPastValueStr(i);
+            //     model_inputs.past_value_buffers[i]->update(std::move(present_value));
+            //     prog_args.add(past_valueStr.c_str(), migraphx::argument(past_shape, present_value_buffers[i]->data()));
+            // }
 
             if (new_token == EOS)
             {
@@ -625,7 +625,7 @@ int main() {
         migraphx::shape out_shape{migraphx_shape_half_type, {1, SEQ_SIZE, VOCAB_SIZE}};
         prog_args.add(output_name, migraphx::argument(out_shape, output_buffer.data()));
 
-        model_inputs.resetPastKeyValueBuffers(stream);
+        //model_inputs.resetPastKeyValueBuffers(stream);
 
         auto updated = model_inputs.updateData(*prog, prog_args);
 

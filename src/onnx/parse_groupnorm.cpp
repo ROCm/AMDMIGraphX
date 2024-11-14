@@ -32,14 +32,17 @@ namespace onnx {
 
 struct parse_groupnorm : op_parser<parse_groupnorm>
 {
-    std::vector<op_desc> operators() const { return {{"GroupNormalization"}, {"GroupNorm"}}; }
+    std::vector<op_desc> operators() const 
+    { 
+        return {{"GroupNormalization"}, {"GroupNorm"}};
+    }
 
-    instruction_ref parse(const op_desc& /*opd*/,
+    instruction_ref parse(const op_desc& opd,
                           const onnx_parser& parser,
                           const onnx_parser::node_info& info,
                           std::vector<instruction_ref> args) const
     {
-        auto is_contrib == opd.op_name == "GroupNorm"
+        auto is_contrib = opd.op_name == "GroupNorm";
         float epsilon = 1e-5f;
         if(contains(info.attributes, "epsilon"))
         {
@@ -61,13 +64,13 @@ struct parse_groupnorm : op_parser<parse_groupnorm>
         bool is_nhwc = false; //default to nchw
         if(contains(info.attributes, "channels_last"))
         {
-            is_nhwc = parser.parse_value(info.attributes.at("channels_last").at<size_t>());
+            is_nhwc = parser.parse_value(info.attributes.at("channels_last")).at<size_t>();
         }
 
         bool silu_activation = false;
         if(contains(info.attributes, "activation") and is_contrib)
         {
-            silu_activation = (1 == parser.parse_value(info.attributes.at("activation").at<size_t>()));
+            silu_activation = (1 == parser.parse_value(info.attributes.at("activation")).at<size_t>());
         }
         else if(is_contrib)
         {

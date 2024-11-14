@@ -623,7 +623,7 @@ int main() {
         prog = &progMultipleInputDim;
         output_size = SEQ_SIZE * VOCAB_SIZE;
         migraphx::shape out_shape{migraphx_shape_half_type, {1, SEQ_SIZE, VOCAB_SIZE}};
-        prog_args.add(output_name, migraphx::argument(out_shape, output_buffer_oneDim.data()));
+        prog_args.add(output_name, migraphx::argument(out_shape, output_buffer.data()));
 
         model_inputs.resetPastKeyValueBuffers(stream);
 

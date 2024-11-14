@@ -63,13 +63,9 @@ struct quantizelinear
         }
         if(inputs.size() == 3)
         {
-            return {inputs[2].type(), inputs[0].lens(), inputs[0].strides()};
+            return inputs[0].with_lens(inputs[2].type(), inputs[0].lens());
         }
-        if(out_type.has_value())
-        {
-            return {out_type.value(), inputs[0].lens(), inputs[0].strides()};
-        }
-        return {shape::uint8_type, inputs[0].lens(), inputs[0].strides()};
+        return inputs[0].with_lens(out_type.value_or(shape::uint8_type), inputs[0].lens());
     }
 
     argument compute(const shape& output_shape, std::vector<argument> args) const

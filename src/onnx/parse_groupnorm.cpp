@@ -144,7 +144,9 @@ struct parse_groupnorm : op_parser<parse_groupnorm>
 
         if (silu_activation)
         {
-            output = info.add_instruction(make_op("Silu"), output);
+            // SiLU activation is just  out = x * sigmoid(x)
+            auto sigmoid = info.add_instruction(make_op("sigmoid"), output);
+            output = info.add_instruction(make_op("mul"), output, sigmoid);
         }
 
         return output;

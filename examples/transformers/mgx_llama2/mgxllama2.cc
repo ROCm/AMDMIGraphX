@@ -29,6 +29,8 @@ const size_t HIDDEN_LAYERS_NUM = 32;
 const size_t HEAD_SIZE = 128;
 const size_t PAST_KEY_VAL_SIZE = HIDDEN_LAYERS_NUM*HEAD_SIZE*SEQ_SIZE;
 
+const int DEVICE_ID = 4;
+
 struct ModelLoadSettings
 {
     size_t sequnce_length;
@@ -298,6 +300,10 @@ private:
                 position_ids.clear();
             }
         }
+        else
+        {
+            std::cout << "Unable to open numpy files\n";
+        }
     }
 
     void prepareSampleDataset()
@@ -463,8 +469,9 @@ void writeResults(const std::vector<std::vector<uint64_t>>& results)
 
 int main() {
     bool offload_copy = false;
+    check_hip_status(hipSetDevice(DEVICE_ID));
     std::cout << "Offload copy: " << std::boolalpha << offload_copy << std::endl;
-    ModelLoadSettings settings = {SEQ_SIZE, false /*quantize_fp16*/, offload_copy /*offload_copy*/, false /*fast_math*/, false /*input_one_dim*/};
+    ModelLoadSettings settings = {SEQ_SIZE, false /*quantize_fp16*/, offload_copy /*offload_copy*/, true /*fast_math*/, false /*input_one_dim*/};
     migraphx::program progMultipleInputDim = loadProgram(settings);
     std::cout << "Model loaded" << std::endl;
 

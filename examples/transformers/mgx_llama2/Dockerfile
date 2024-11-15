@@ -8,12 +8,18 @@ RUN apt-get update && apt-get install -y --allow-unauthenticated \
     apt-utils \
     cmake \
     half \
+    sqlite3 \
+    libsqlite3-dev \
+    libfmt-dev \
     git  && \
     apt-get clean && \
     rm -rf /var/lib/apt/lists/*
 
-RUN mkdir /migraphx && cd /migraphx && git clone --branch develop https://github.com/ROCm/AMDMIGraphX.git
+RUN mkdir /app && cd /app && git clone https://github.com/ROCm/rocmProfileData
+WORKDIR /app/rocmProfileData
+RUN make; make install
 
+RUN mkdir /migraphx && cd /migraphx && git clone --branch develop https://github.com/ROCm/AMDMIGraphX.git
 WORKDIR /migraphx/AMDMIGraphX
 
 RUN ./tools/install_prereqs.sh

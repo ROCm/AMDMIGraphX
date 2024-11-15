@@ -288,6 +288,16 @@ instruction_ref module::add_instruction(const operation& op, std::vector<instruc
 {
     return insert_instruction(impl->instructions.end(), op, std::move(args));
 }
+
+instruction_ref module::get_last_instruction()
+{
+    auto last_instr = std::prev(this->end());
+    if (last_instr->name() == "@return")
+        last_instr = std::prev(last_instr);
+    return last_instr;
+}
+
+
 instruction_ref module::insert_instruction(instruction_ref ins,
                                            const operation& op,
                                            std::vector<instruction_ref> args)

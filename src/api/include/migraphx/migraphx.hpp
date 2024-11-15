@@ -1049,6 +1049,16 @@ struct module
         return instruction(op_ins, own{});
     }
 
+    instruction get_last_instruction()
+    {
+        std::cout << "# get_last_instruction called" << std::endl;
+        migraphx_instruction_t op_ins;
+        call(&migraphx_module_get_last_instruction,
+             &op_ins,
+             mm.get());
+        return instruction(op_ins, own{});
+    }
+
     instruction add_instruction(const migraphx::operation& op,
                                 const migraphx::instructions& args,
                                 const migraphx::modules& module_args)
@@ -1084,6 +1094,13 @@ struct module
     {
         migraphx_instruction_t ret_ins;
         call(&migraphx_module_add_return, &ret_ins, mm.get(), args.get_handle_ptr());
+        return instruction(ret_ins, own{});
+    }
+
+    instruction replace_return(const migraphx::instructions& args)
+    {
+        migraphx_instruction_t ret_ins;
+        call(&migraphx_module_replace_return, &ret_ins, mm.get(), args.get_handle_ptr());
         return instruction(ret_ins, own{});
     }
 

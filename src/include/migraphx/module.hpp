@@ -86,6 +86,8 @@ struct MIGRAPHX_EXPORT module
         return add_instruction(op, {args...});
     }
 
+    instruction_ref get_last_instruction();
+
     instruction_ref add_instruction(const operation& op, std::vector<instruction_ref> args);
 
     instruction_ref add_instruction(const operation& op,

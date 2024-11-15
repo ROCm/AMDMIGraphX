@@ -12,7 +12,7 @@ Alternatively you can quantize the model yourself.
 
 **If you are using the pre-quantized model you can skip this section.**
 
-Get the latest quark quantizer version from https://xcoartifactory/ui/native/uai-pip-local/com/amd/quark/main/nightly/ . Donwloading the zip is recommended because it contains the required scripts. The quark version used when this was created: quark-1.0.0.dev20241028+eb46b7438 (28-10-24).
+Get the latest quark quantizer version from https://xcoartifactory/ui/native/uai-pip-local/com/amd/quark/main/nightly/ . Downloading the zip is recommended because it contains the required scripts. The quark version used when this was created: quark-1.0.0.dev20241028+eb46b7438 (28-10-24).
 
 Also we will need to install the onnxruntime-genai (OGA) tool to convert the quark_safetensors format to onnx format properly. 
 
@@ -32,7 +32,7 @@ RUN pip install quark-1.0.0.dev20241028+eb46b7438-py3-none-any.whl
 
 #### Quantizing the model and converting to ONNX
 ```bash
-cd examples/torch/language_modeling/llm_ptq
+cd quark/examples/torch/language_modeling/llm_ptq
 
 export MODEL_DIR = [local model checkpoint folder] or meta-llama/Llama-2-7b-chat-hf or meta-llama/Llama-2-70b-chat-hf
 export QUANTIZED_MODEL_DIR = [output model checkpoint folder]

@@ -183,6 +183,47 @@ static migraphx::program loadProgram(ModelLoadSettings& settings)
     return prog;
 };
 
+static migraphx::program create_argmax_program(ModelLoadSettings& settings)
+{
+    migraphx::program prog;
+    std::vector<size_t> dims {1, SEQ_SIZE, VOCAB_SIZE};
+    if (settings.input_one_dim)
+    {
+        dims[1] = 1;
+    }
+    migraphx::shape s{migraphx_shape_half_type, dims};
+    migraphx::module m = prog.get_main_module();
+    auto x             = m.add_parameter("x", s);
+    auto argmax_ins    = m.add_instruction(migraphx::operation("argmax", "{axis: 2}"), {x});
+    m.add_return({argmax_ins});
+
+    std::cout << "Creating ArgMax program ..." << std::endl;
+  
+    std::string target_str = "gpu";
+    migraphx::target targ = migraphx::target(target_str.c_str());
+
+    if (settings.quantize_fp16)
+    {
+        std::cout << "Quantize FP16 ..." << std::endl;
+        migraphx::quantize_fp16(prog);
+    }
+
+    migraphx::compile_options comp_opts;
+
+    if (settings.offload_copy)
+        comp_opts.set_offload_copy();
+
+    if (settings.fast_math)
+        comp_opts.set_fast_math();
+
+    comp_opts.set_exhaustive_tune_flag();
+
+    std::cout << "Compile to target ..." << std::endl;
+    prog.compile(targ, comp_opts);
+
+    return prog;
+}
+
 using NumpyVector = std::vector<std::vector<int64_t>>;
 
 struct Dataset
@@ -474,13 +515,18 @@ int main() {
     ModelLoadSettings settings = {SEQ_SIZE, false /*quantize_fp16*/, offload_copy /*offload_copy*/, true /*fast_math*/, false /*input_one_dim*/};
     migraphx::program progMultipleInputDim = loadProgram(settings);
     std::cout << "Model loaded" << std::endl;
+    migraphx::program progArgMaxMultipleInputDim = create_argmax_program(settings);
+    std::cout << "ArgMax model created" << std::endl;
 
     // Load {1,1} input_ids model
     settings.input_one_dim = true;
     migraphx::program progSimpleInput = loadProgram(settings);
     std::cout << "Model 1 dim input loaded" << std::endl;
+    migraphx::program progArgMaxSimpleInput = create_argmax_program(settings);
+    std::cout << "ArgMax model for 1 dim model created" << std::endl;
 
     migraphx::program *prog = &progMultipleInputDim;
+    migraphx::program *progArgMax = &progArgMaxMultipleInputDim;
 
     // Setup model inputs
     std::vector<std::vector<uint64_t>> results;
@@ -494,35 +540,28 @@ int main() {
         model_inputs.upload_to_device(stream);
     }
 
-    // Setup model output for non-offload copy
-    // const size_t output_size = SEQ_SIZE * VOCAB_SIZE;
-    // auto output_name = "main:#output_0";
-    // auto output_buffer = LLama2OutputBuffer(std::vector<float>(output_size), offload_copy);
-    // migraphx::shape out_shape{migraphx_shape_float_type, {1, SEQ_SIZE, VOCAB_SIZE}};
-    // prog_args.add(output_name, migraphx::argument(out_shape, output_buffer.data()));
+    auto output_name = "main:#output_0";
 
     size_t output_size = SEQ_SIZE * VOCAB_SIZE;
-    auto output_name = "main:#output_0";
     auto output_buffer = LLama2PastKeyValueBuffer(std::vector<half>(output_size), offload_copy);
     auto output_buffer_oneDim = LLama2PastKeyValueBuffer(std::vector<half>(VOCAB_SIZE), offload_copy);
     migraphx::shape out_shape{migraphx_shape_half_type, {1, SEQ_SIZE, VOCAB_SIZE}};
     prog_args.add(output_name, migraphx::argument(out_shape, output_buffer.data()));
 
-    // std::vector<std::unique_ptr<LLama2PastKeyValueBuffer>> present_key_buffers;
-    // std::vector<std::unique_ptr<LLama2PastKeyValueBuffer>> present_value_buffers;
-    // for (size_t i = 0; i < HIDDEN_LAYERS_NUM; ++i)
-    // {
-    //     migraphx::shape present_shape{migraphx_shape_half_type, {1, HIDDEN_LAYERS_NUM, SEQ_SIZE, HEAD_SIZE}};
-    //     auto present_keyStr = getPresentKeyString(i);
-    //     auto present_keyString = present_keyStr.c_str();
-    //     present_key_buffers.emplace_back(std::make_unique<LLama2PastKeyValueBuffer>(std::vector<half>(PAST_KEY_VAL_SIZE, 0.0_h), offload_copy));
-    //     prog_args.add(present_keyString, migraphx::argument(present_shape, present_key_buffers[i]->data()));
+    // setting up argmax arguments
+    migraphx::program_parameters prog_args_argmax;
+    migraphx::shape x_shape{migraphx_shape_half_type, {1, SEQ_SIZE, VOCAB_SIZE}};
+    prog_args_argmax.add("x", migraphx::argument(x_shape, output_buffer.data()));
+    auto argm_output_buffer = ArgMaxOutputBuffer(std::vector<int64_t>(VOCAB_SIZE), offload_copy);
+    migraphx::shape argm_out_shape{migraphx_shape_int64_type, {1, SEQ_SIZE, 1}};
+    prog_args_argmax.add(output_name, migraphx::argument(argm_out_shape, argm_output_buffer.data()));
 
-    //     auto present_valueStr = getPresentValueStr(i);
-    //     auto present_valueString = present_valueStr.c_str();
-    //     present_value_buffers.emplace_back(std::make_unique<LLama2PastKeyValueBuffer>(std::vector<half>(PAST_KEY_VAL_SIZE, 0.0_h), offload_copy));
-    //     prog_args.add(present_valueString, migraphx::argument(present_shape, present_value_buffers[i]->data()));
-    // }
+    migraphx::program_parameters prog_args_argmax_one_dim;
+    migraphx::shape x_shape_one_dim{migraphx_shape_half_type, {1, 1, VOCAB_SIZE}};
+    prog_args_argmax_one_dim.add("x", migraphx::argument(x_shape_one_dim, output_buffer_oneDim.data()));
+    auto argm_output_buffer_one_dim = ArgMaxOutputBuffer(std::vector<int64_t>(1), offload_copy);
+    migraphx::shape argm_out_shape_one_dim{migraphx_shape_int64_type, {1, 1, 1}};
+    prog_args_argmax_one_dim.add(output_name, migraphx::argument(argm_out_shape_one_dim, argm_output_buffer_one_dim.data()));
 
     std::cout << "Dataset size: " << model_inputs.dataSize() << std::endl;
     std::cout << "Starting evaluation" << std::endl;
@@ -537,57 +576,23 @@ int main() {
         for (size_t i = lastInputIdx; i < SEQ_SIZE - 1; ++i)
         {
             bool firstIter = (i == lastInputIdx);
-            auto outputs = prog->run_async(prog_args, stream);
+            prog->run_async(prog_args, stream);
+            auto outputs = progArgMax->run_async(firstIter ? prog_args_argmax : prog_args_argmax_one_dim, stream);
             if (not offload_copy)
             {
-                if (firstIter)
-                {
-                    output_buffer.download_from_device(stream, i * VOCAB_SIZE, (i + 1) * VOCAB_SIZE);
-                }
-                else
-                {
-                    output_buffer_oneDim.download_from_device(stream);
-                }
-
-                // for (size_t i = 0; i < HIDDEN_LAYERS_NUM; ++i)
-                // {
-                //     present_key_buffers[i]->download_from_device(stream);
-                //     present_value_buffers[i]->download_from_device(stream);
-                // }
+                firstIter ? argm_output_buffer.download_from_device(stream, i, i + 1) : argm_output_buffer_one_dim.download_from_device(stream);
             }
 
             check_hip_status(hipStreamSynchronize(stream));
-            half* results = offload_copy ? reinterpret_cast<half*>(outputs[0].data()) : reinterpret_cast<half*>( firstIter ? output_buffer.hbuff.data() : output_buffer_oneDim.hbuff.data());
-            std::vector<half> logits(results, results + output_size);
-
-            auto logits_begin = firstIter ? std::begin(logits) + (i * VOCAB_SIZE) : std::begin(logits);
-            auto logits_end = firstIter ? std::begin(logits) + ((i + 1) * VOCAB_SIZE) : std::end(logits);
-            std::vector<half>::iterator max = std::max_element(logits_begin, logits_end);
-            int64_t new_token = std::distance(logits_begin, max);
+            int64_t* results = offload_copy ? reinterpret_cast<int64_t*>(outputs[0].data()) : reinterpret_cast<int64_t*>( firstIter ? argm_output_buffer.hbuff.data() : argm_output_buffer_one_dim.hbuff.data());
+            auto new_token_idx = firstIter ? i : 0; 
+            int64_t new_token = results[new_token_idx];
 
             token_count++;
             #ifdef TRACE
             std::cout << "New token: " << new_token << std::endl;
             #endif
             output_tokens.push_back(new_token);
-
-            // for (size_t i = 0; i < HIDDEN_LAYERS_NUM; ++i)
-            // {
-            //     migraphx::shape past_shape{migraphx_shape_half_type, {1, HIDDEN_LAYERS_NUM, SEQ_SIZE, HEAD_SIZE}};
-            //     half* res   = offload_copy ? reinterpret_cast<half*>(outputs[2*i+1].data()) : reinterpret_cast<half*>(present_key_buffers[i]->hbuff.data());
-            //     std::vector<half> present_key(res, res + PAST_KEY_VAL_SIZE);
-
-            //     auto past_keyStr = getPastKeyString(i);
-            //     model_inputs.past_key_buffers[i]->update(std::move(present_key));
-            //     prog_args.add(past_keyStr.c_str(), migraphx::argument(past_shape, present_key_buffers[i]->data()));
-
-            //     res = offload_copy ? reinterpret_cast<half*>(outputs[2*i+2].data()) : reinterpret_cast<half*>(present_value_buffers[i]->hbuff.data());
-            //     std::vector<half> present_value(res, res + PAST_KEY_VAL_SIZE);
-
-            //     auto past_valueStr = getPastValueStr(i);
-            //     model_inputs.past_value_buffers[i]->update(std::move(present_value));
-            //     prog_args.add(past_valueStr.c_str(), migraphx::argument(past_shape, present_value_buffers[i]->data()));
-            // }
 
             if (new_token == EOS)
             {
@@ -599,7 +604,7 @@ int main() {
             if (firstIter)
             {
                 prog = &progSimpleInput;
-                output_size = VOCAB_SIZE;
+                progArgMax = &progArgMaxSimpleInput;
                 migraphx::shape out_shape{migraphx_shape_half_type, {1, 1, VOCAB_SIZE}};
                 prog_args.add(output_name, migraphx::argument(out_shape, output_buffer_oneDim.data()));
 
@@ -628,11 +633,9 @@ int main() {
         std::cout << std::endl;
 #endif
         prog = &progMultipleInputDim;
-        output_size = SEQ_SIZE * VOCAB_SIZE;
+        progArgMax = &progArgMaxMultipleInputDim;
         migraphx::shape out_shape{migraphx_shape_half_type, {1, SEQ_SIZE, VOCAB_SIZE}};
         prog_args.add(output_name, migraphx::argument(out_shape, output_buffer.data()));
-
-        //model_inputs.resetPastKeyValueBuffers(stream);
 
         auto updated = model_inputs.updateData(*prog, prog_args);
 

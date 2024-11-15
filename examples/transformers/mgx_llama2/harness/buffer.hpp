@@ -190,4 +190,5 @@ namespace mlinfer
     using LLama2InputBuffer = ManagedBuffer_v2<int64_t>;
     using LLama2OutputBuffer = ManagedBuffer_v2<float>;
     using LLama2PastKeyValueBuffer = ManagedBuffer_v2<half>;
+    using ArgMaxOutputBuffer = ManagedBuffer_v2<int64_t>;
 }

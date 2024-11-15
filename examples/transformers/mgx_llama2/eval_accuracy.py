@@ -15,7 +15,7 @@ G_LLAMA2_EOS = 2
 SAMPLE_SIZE = 10
 
 DATASET_PATH = "/dataset/open_orca_gpt4_tokenized_llama.sampled_24576.pkl"
-RESULT_PATH = "build/results.txt"
+RESULT_PATH = "build/result.txt"
 
 def main(dataset_path, result_path, sample_size, sequence_size):
     tokenizer = AutoTokenizer.from_pretrained(
@@ -25,7 +25,7 @@ def main(dataset_path, result_path, sample_size, sequence_size):
             use_fast=False,)
 
     metric = evaluate.load("rouge")
-    nltk.download("punkt")
+    nltk.download("punkt_tab")
 
     _p = Path(DATASET_PATH)
     if _p.exists():

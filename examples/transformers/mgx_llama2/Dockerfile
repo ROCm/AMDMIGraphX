@@ -19,12 +19,13 @@ RUN mkdir /app && cd /app && git clone https://github.com/ROCm/rocmProfileData
 WORKDIR /app/rocmProfileData
 RUN make; make install
 
-RUN mkdir /migraphx && cd /migraphx && git clone --branch develop https://github.com/ROCm/AMDMIGraphX.git
+RUN mkdir /migraphx && cd /migraphx && git clone --branch htec/mgx-llama2-7b-example https://github.com/ROCm/AMDMIGraphX.git
 WORKDIR /migraphx/AMDMIGraphX
 
 RUN ./tools/install_prereqs.sh
-
-RUN export test=$(/opt/rocm/bin/rocminfo | grep -o -m1 'gfx.*')
+RUN export MIGRAPHX_ENABLE_HIPBLASLT_GEMM=1
+RUN export MIGRAPHX_USE_HIPBLASLT=1
+RUN export MIGRAPHX_USE_MIOPEN=1
 
 #TODO: use $(/opt/rocm/bin/rocminfo | grep -o -m1 'gfx.*') for GPU_TARGETS
 RUN mkdir build && cd build && \

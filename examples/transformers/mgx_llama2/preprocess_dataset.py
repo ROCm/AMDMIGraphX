@@ -35,4 +35,4 @@ np.save(f"{OUTPUT_PATH}input_ids_size_{token_size}_seq_{G_MAX_TOK_LEN}.npy", tok
 np.save(f"{OUTPUT_PATH}attention_mask_size_{token_size}_seq_{G_MAX_TOK_LEN}.npy", mask_np)
 np.save(f"{OUTPUT_PATH}position_ids_size_{token_size}_seq_{G_MAX_TOK_LEN}.npy", position_nps)
 
-print("Npy filed are created")
+print("Npy files are created")

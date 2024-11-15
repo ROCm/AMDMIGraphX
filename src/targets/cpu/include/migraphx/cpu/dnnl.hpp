@@ -169,7 +169,7 @@ struct dnnl_op : auto_register_op<Derived>
 #ifdef MIGRAPHX_ENABLE_ZENDNN
         zendnn_primitive_desc_query(desc, zendnn_query_impl_info_str, 0, &str);
 #else
-        dnnl_primitive_desc_query(desc, dnnl_query_impl_info_str, 0, &str);
+        dnnl_primitive_desc_query(desc, dnnl_query_impl_info_str, 0, str);
 #endif
         return str == nullptr ? "" : str;
     }

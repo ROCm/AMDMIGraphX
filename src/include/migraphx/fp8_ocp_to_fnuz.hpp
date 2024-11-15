@@ -36,6 +36,8 @@ struct module;
 /**
  * Convert fp8 types from OCP format to FNUZ format if on
  * hardware that only supports the FNUZ format.
+ *
+ * Handles Uses the same bit represenation
  */
 struct MIGRAPHX_EXPORT fp8_ocp_to_fnuz
 {

@@ -25,6 +25,7 @@
 #include <migraphx/kernels/type_traits.hpp>
 
 namespace migraphx {
+
 template <typename To,
           typename From,
           MIGRAPHX_REQUIRES(is_trivially_copyable<To>{} and is_trivially_copyable<From>{})>
@@ -33,5 +34,6 @@ inline constexpr To bit_cast(From fr) noexcept
     static_assert(sizeof(To) == sizeof(From));
     return __builtin_bit_cast(To, fr);
 }
+
 } // namespace migraphx
 #endif // MIGRAPHX_GUARD_KERNELS_BITCAST_HPP

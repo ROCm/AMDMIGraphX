@@ -111,6 +111,12 @@ def get_args():
         help="Number of runs to do for benchmarking. Default: no benchmarking",
     )
     
+    parser.add_argument(
+        "--exhaustive-tune",
+        action='store_true', 
+        help="Perform exhaustive tuning when compiling"
+    )
+    
     return parser.parse_args()
     
 
@@ -130,7 +136,8 @@ if __name__ == "__main__":
         max_sequence_length=args.max_sequence_length,
         batch_size=len(prompt),
         denoising_steps=args.denoising_steps,
-        fp16=args.fp16
+        fp16=args.fp16,
+        exhaustive_tune=args.exhaustive_tune
     )
     
     pipe.load_models()

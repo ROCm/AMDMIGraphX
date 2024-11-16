@@ -39,6 +39,7 @@ class FluxPipeline:
                  batch_size=1,
                  denoising_steps=50,
                  fp16=True,
+                 exhaustive_tune=False,
                  manual_seed=None):
 
         self.hf_model_path = hf_model_path
@@ -50,6 +51,7 @@ class FluxPipeline:
         self.bs = batch_size
         self.steps = denoising_steps
         self.fp16 = fp16
+        self.exhaustive_tune = exhaustive_tune
 
         if not local_dir:
             self.local_dir = self.hf_model_path.split("/")[-1]
@@ -77,13 +79,15 @@ class FluxPipeline:
                                    self.hf_model_path,
                                    self.compile_dir,
                                    fp16=self.fp16,
-                                   bs=self.bs)
+                                   bs=self.bs,
+                                   exhaustive_tune=self.exhaustive_tune)
 
         self.t5 = get_t5_model(self.local_dir,
                                self.hf_model_path,
                                self.compile_dir,
                                self.max_sequence_length,
-                               bs=self.bs)
+                               bs=self.bs,
+                               exhaustive_tune=self.exhaustive_tune)
 
         self.flux_transformer = get_flux_transformer_model(
             self.local_dir,
@@ -93,15 +97,16 @@ class FluxPipeline:
             img_width=self.width,
             max_len=self.max_sequence_length,
             fp16=self.fp16,
-            # fp16=False,
-            bs=self.bs)
+            bs=self.bs,
+            exhaustive_tune=self.exhaustive_tune)
 
         self.vae = get_vae_model(self.local_dir,
                                  self.hf_model_path,
                                  self.compile_dir,
                                  img_height=self.height,
                                  img_width=self.width,
-                                 bs=self.bs)
+                                 bs=self.bs,
+                                 exhaustive_tune=self.exhaustive_tune)
 
     @staticmethod
     def _pack_latents(latents, batch_size, num_channels_latents, height,

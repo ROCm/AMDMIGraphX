@@ -85,6 +85,7 @@ CXX=/opt/rocm/llvm/bin/clang++ cmake ..
 make -j
 
 # Running the example
+export MIOPEN_FIND_ENFORCE=3
 ./mgxllama2
 
 # Test the accuracy of the output

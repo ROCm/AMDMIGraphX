@@ -512,7 +512,7 @@ int main() {
     bool offload_copy = false;
     check_hip_status(hipSetDevice(DEVICE_ID));
     std::cout << "Offload copy: " << std::boolalpha << offload_copy << std::endl;
-    ModelLoadSettings settings = {SEQ_SIZE, false /*quantize_fp16*/, offload_copy /*offload_copy*/, true /*fast_math*/, false /*input_one_dim*/};
+    ModelLoadSettings settings = {SEQ_SIZE, false /*quantize_fp16*/, offload_copy /*offload_copy*/, false /*fast_math*/, false /*input_one_dim*/};
     migraphx::program progMultipleInputDim = loadProgram(settings);
     std::cout << "Model loaded" << std::endl;
     migraphx::program progArgMaxMultipleInputDim = create_argmax_program(settings);

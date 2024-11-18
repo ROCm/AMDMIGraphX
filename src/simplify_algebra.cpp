@@ -412,64 +412,7 @@ struct find_dot_mul
     }
 };
 
-// ******************************
-//  a * (x + b) => a * x + a * b
-// ******************************
-// When a * (x + b) is followed by another add of constant, then the
-// additional add can be const folded. Also, better fusions can be applied
-// when the add comes after.
-struct find_mul_add
-{
-    auto matcher() const
-    {
-        return match::name("mul")(match::either_arg(0, 1)(
-            match::name("add")(
-                match::either_arg(0, 1)(
-                    //match::any().bind("x"),
-                    match::none_of(match::name("slice")).bind("x"),
-                    match::any_of(conv_const_weights(), match::is_constant()).bind("b")),
-                match::none_of(match::args(match::is_constant(), match::is_constant())),
-                match::used_once()),
-            match::is_constant().bind("a")));
-    }
 
-    void apply(module& m, const match::matcher_result& r) const
-    {
-        auto ins   = r.result;
-        auto a_ins = r.instructions["a"];
-        auto b_ins = r.instructions["b"];
-        auto x_ins = r.instructions["x"];
-        assert(x_ins != b_ins);
-    
-        std::cout<<"inside find_mul_add";
-        
-        
-        //if(x_ins->inputs() != "slice") // Can't use this because once the matcher is matched in mul_add and enters apply function it will not match with find_slice_add_mul
-        //{
-            auto ax_ins = m.insert_instruction(ins, make_op("mul"), a_ins, x_ins);
-            auto ab_ins = m.insert_instruction(ins, make_op("mul"), a_ins, b_ins);
-            m.replace_instruction(ins, make_op("add"), ax_ins, ab_ins);
-        //}
-        //std::cout<<"inside find_mul_add";   
-
-    }
-};
-
-
-/*
-
-----before-----
-mlir_dot_add
-mul_add
-add
-add
-mlir_reshape_transpose_squeeze_slice_reshape_transpose_squeeze_dot
-
-
-----after-----
-mlir_dot_add
-mlir_slice_mul_reshape_transpose_squeeze_slice_reshape_transpose_squeeze_dot
-*/
 
 auto fusable_split()
 {
@@ -532,13 +475,81 @@ auto fusable_split()
 }
 
 
+// ******************************
+//  a * (x + b) => a * x + a * b
+// ******************************
+// When a * (x + b) is followed by another add of constant, then the
+// additional add can be const folded. Also, better fusions can be applied
+// when the add comes after.
+
+struct find_mul_add
+{
+    auto matcher() const
+    {
+        /*return match::name("mul")(match::either_arg(0, 1)(
+            match::name("add")(
+                match::either_arg(0, 1)(
+                    //match::any().bind("x"),
+                    //match::none_of(match::name("slice")).bind("x"),
+
+                    match::any_of(conv_const_weights(), match::is_constant()).bind("b")),
+                match::none_of(match::args(match::is_constant(), match::is_constant())),
+                match::used_once()),
+            match::is_constant().bind("a")));
+        */
+
+        return match::name("mul")(match::either_arg(0, 1)(
+                match::name("add")(
+                    match::either_arg(0, 1)(
+                        match::none_of(match::name("slice")(match::arg(0)(
+                            fusable_split().bind("slc")
+                        ))).bind("x"),
+                        
+                        //match::any().bind("x"),
+                        match::any_of(conv_const_weights(), match::is_constant()).bind("b")),
+                    match::none_of(match::args(match::is_constant(), match::is_constant())),
+                    match::used_once()),
+                match::is_constant().bind("a")));
+    }
+
+    void apply(module& m, const match::matcher_result& r) const
+    {
+        auto ins   = r.result;
+        auto a_ins = r.instructions["a"];
+        auto b_ins = r.instructions["b"];
+        auto x_ins = r.instructions["x"];
+        assert(x_ins != b_ins);
+    
+        std::cout<<"inside find_mul_add";
+        
+
+            auto ax_ins = m.insert_instruction(ins, make_op("mul"), a_ins, x_ins);
+            auto ab_ins = m.insert_instruction(ins, make_op("mul"), a_ins, b_ins);
+            m.replace_instruction(ins, make_op("add"), ax_ins, ab_ins);
+
+    }
+};
+
+
+/*
+
+----before-----
+mlir_dot_add
+mul_add
+add
+add
+mlir_reshape_transpose_squeeze_slice_reshape_transpose_squeeze_dot
+
+
+----after-----
+mlir_dot_add
+mlir_slice_mul_reshape_transpose_squeeze_slice_reshape_transpose_squeeze_dot
+*/
+
+
 
 struct find_slice_add_mul
 {
-    /*auto matcher() const
-    {       
-           return fusable_split().bind("slice");
-    }*/
     
         auto matcher() const
         {        
@@ -568,7 +579,6 @@ struct find_slice_add_mul
 
         assert(x_ins != b_ins);
 
-        m.debug_print(x_ins);
         auto ax_ins = m.insert_instruction(ins, make_op("add"), x_ins, b_ins);
         m.replace_instruction(ins, make_op("mul"), ax_ins, a_ins);
         

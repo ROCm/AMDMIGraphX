@@ -167,7 +167,8 @@ struct dnnl_op : auto_register_op<Derived>
         auto desc       = prim.get_primitive_desc();
         const char* str = nullptr;
 #ifdef MIGRAPHX_ENABLE_ZENDNN
-        zendnn_primitive_desc_query(desc, zendnn_query_impl_info_str, 0, reinterpret_cast<void*>(&str));
+        zendnn_primitive_desc_query(
+            desc, zendnn_query_impl_info_str, 0, reinterpret_cast<void*>(&str));
 #else
         dnnl_primitive_desc_query(desc, dnnl_query_impl_info_str, 0, reinterpret_cast<void*>(&str));
 #endif

@@ -2166,7 +2166,7 @@ TEST_CASE(multinomial)
     migraphx::shape s1{migraphx::shape::float_type, {1, 2}};
     migraphx::shape s2{migraphx::shape::float_type, {3, 4}};
     migraphx::shape s3{migraphx::shape::float_type, {1, 4}};
-    int dtype = 3;
+    int dtype = 2;
 
     expect_shape(s3, migraphx::make_op("multinomial", {{"dtype", dtype}}), s1, s2);
 }
@@ -2175,7 +2175,7 @@ TEST_CASE(multinomial_0size_input)
 {
     migraphx::shape s1{migraphx::shape::float_type, {1, 2}};
     migraphx::shape s2{migraphx::shape::float_type, {}};
-    int dtype = 3;
+    int dtype = 2;
 
     throws_shape(migraphx::make_op("multinomial", {{"dtype", dtype}}), s1, s2);
 }

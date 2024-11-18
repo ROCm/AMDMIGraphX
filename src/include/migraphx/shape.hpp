@@ -53,7 +53,6 @@ struct MIGRAPHX_EXPORT shape
 #define MIGRAPHX_SHAPE_VISIT_TYPES(m) \
     m(bool_type, bool) \
     m(half_type, half) \
-    m(bf16_type, bf16) \
     m(float_type, float) \
     m(double_type, double) \
     m(uint8_type, uint8_t) \
@@ -66,7 +65,8 @@ struct MIGRAPHX_EXPORT shape
     m(uint64_type, uint64_t) \
     m(fp8e4m3fnuz_type, migraphx::fp8::fp8e4m3fnuz) \
     m(fp8e4m3fn_type, migraphx::fp8::fp8e4m3fn) \
-    m(fp8e5m2_type, migraphx::fp8::fp8e5m2)
+    m(fp8e5m2_type, migraphx::fp8::fp8e5m2) \
+    m(bf16_type, bf16)
     // clang-format on
 
 #define MIGRAPHX_SHAPE_GENERATE_ENUM_TYPES(x, t) x,

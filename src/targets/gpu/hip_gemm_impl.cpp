@@ -70,8 +70,14 @@ hipDataType get_type_hipblas(shape::type_t type)
     case shape::int32_type: return HIP_R_32I;
     case shape::uint32_type: return HIP_R_32U;
     case shape::fp8e4m3fnuz_type: return HIP_R_8F_E4M3_FNUZ;
+// TODO can remove this preprocessor conditional when hip verison defaults to have these types
+#ifdef ROCM_USE_FLOAT8
+    case shape::fp8e4m3fn_type: return HIP_R_8F_E4M3;
+    case shape::fp8e5m2_type: return HIP_R_8F_E5M2;
+#else
     case shape::fp8e4m3fn_type:
     case shape::fp8e5m2_type:
+#endif
     case shape::tuple_type:
     case shape::bool_type:
     case shape::uint16_type:
@@ -463,10 +469,9 @@ struct hip_gemm_impl
     int32_t
     validate(context& ctx, const std::vector<argument>& input_args, int32_t solution_idx) // const
     {
-        hipblasStatus_t check_valid(HIPBLAS_STATUS_SUCCESS);
         auto common_args = create_hipblaslt_args_common(ctx, input_args, solution_idx);
-        check_valid      = hipblaslt_invoke(&hipblasLtMatmul, common_args);
-        if(check_valid == HIPBLAS_STATUS_SUCCESS)
+        auto check_valid = hipblaslt_invoke(&hipblasLtMatmul, common_args, false);
+        if(check_valid != HIPBLAS_STATUS_SUCCESS)
         {
             std::cerr << "WARNING:  tuned solution is invalid; reverting to default" << std::endl;
             return 0;
@@ -634,10 +639,19 @@ int32_t hip_gemm_finalize(context& ctx,
                           float beta,
                           int32_t solution_idx)
 {
-    auto gemm_item   = hip_gemm_impl(output_shape, input_shapes, alpha, beta);
-    int32_t solution = gemm_item.tune(ctx, input_shapes);
-    hip_gemm_save_solution(ctx, output_shape, input_shapes, solution_idx);
-    return solution;
+    auto gemm_item = hip_gemm_impl(output_shape, input_shapes, alpha, beta);
+    if(solution_idx == 0)
+    {
+        solution_idx = gemm_item.tune(ctx, input_shapes);
+        hip_gemm_save_solution(ctx, output_shape, input_shapes, solution_idx);
+    }
+    // If a tuned solution index is already given, don't tune again but validate
+    // in case the data was tuned with a different hipBLASLt version.
+    else
+    {
+        solution_idx = gemm_item.validate(ctx, input_shapes, solution_idx);
+    }
+    return solution_idx;
 }
 
 int32_t hip_gemm_default_solution(context& ctx,

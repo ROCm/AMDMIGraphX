@@ -450,12 +450,12 @@ TEST_CASE(relu_relu_dot)
     migraphx::shape s{migraphx::shape::float_type, {1, 3, 3}};
     migraphx::program p1;
     {
-        auto* mm  = p1.get_main_module();
-        auto x    = mm->add_parameter("x", s);
-        auto y    = mm->add_parameter("y", s);
+        auto* mm   = p1.get_main_module();
+        auto x     = mm->add_parameter("x", s);
+        auto y     = mm->add_parameter("y", s);
         auto relux = add_pointwise(p1, "main:pointwise0", {x}, single_pointwise("relu"));
         auto reluy = add_pointwise(p1, "main:pointwise1", {y}, single_pointwise("relu"));
-        auto dot  = mm->add_instruction(migraphx::make_op("dot"), relux, reluy);
+        auto dot   = mm->add_instruction(migraphx::make_op("dot"), relux, reluy);
         mm->add_return({dot});
     }
     run_pass(p1);
@@ -472,7 +472,7 @@ TEST_CASE(relu_relu_dot)
                      [=](auto* pm, const auto& inputs) {
                          auto relux = pm->add_instruction(migraphx::make_op("relu"), inputs[0]);
                          auto reluy = pm->add_instruction(migraphx::make_op("relu"), inputs[1]);
-                         auto dot  = pm->add_instruction(migraphx::make_op("dot"), relux, reluy);
+                         auto dot   = pm->add_instruction(migraphx::make_op("dot"), relux, reluy);
                          return std::make_tuple(dot->get_operator(), dot);
                      });
         mm->add_return({fused});

@@ -138,6 +138,20 @@ def add_fp8_test():
 
     return ([node], [x, y], [z])
 
+@onnx_test()
+def add_bf16_test():
+    x = helper.make_tensor_value_info('0', TensorProto.BFLOAT16, [1])
+    y = helper.make_tensor_value_info('1', TensorProto.BFLOAT16, [1])
+    z = helper.make_tensor_value_info('2', TensorProto.BFLOAT16, [1])
+
+    node = onnx.helper.make_node(
+        'Add',
+        inputs=['0', '1'],
+        outputs=['2'],
+    )
+
+    return ([node], [x, y], [z])
+
 
 @onnx_test()
 def add_scalar_test():

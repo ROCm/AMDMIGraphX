@@ -486,26 +486,12 @@ struct find_mul_add
 {
     auto matcher() const
     {
-        /*return match::name("mul")(match::either_arg(0, 1)(
-            match::name("add")(
-                match::either_arg(0, 1)(
-                    //match::any().bind("x"),
-                    //match::none_of(match::name("slice")).bind("x"),
-
-                    match::any_of(conv_const_weights(), match::is_constant()).bind("b")),
-                match::none_of(match::args(match::is_constant(), match::is_constant())),
-                match::used_once()),
-            match::is_constant().bind("a")));
-        */
-
         return match::name("mul")(match::either_arg(0, 1)(
                 match::name("add")(
                     match::either_arg(0, 1)(
                         match::none_of(match::name("slice")(match::arg(0)(
                             fusable_split().bind("slc")
                         ))).bind("x"),
-                        
-                        //match::any().bind("x"),
                         match::any_of(conv_const_weights(), match::is_constant()).bind("b")),
                     match::none_of(match::args(match::is_constant(), match::is_constant())),
                     match::used_once()),
@@ -523,29 +509,12 @@ struct find_mul_add
         std::cout<<"inside find_mul_add";
         
 
-            auto ax_ins = m.insert_instruction(ins, make_op("mul"), a_ins, x_ins);
-            auto ab_ins = m.insert_instruction(ins, make_op("mul"), a_ins, b_ins);
-            m.replace_instruction(ins, make_op("add"), ax_ins, ab_ins);
+        auto ax_ins = m.insert_instruction(ins, make_op("mul"), a_ins, x_ins);
+        auto ab_ins = m.insert_instruction(ins, make_op("mul"), a_ins, b_ins);
+        m.replace_instruction(ins, make_op("add"), ax_ins, ab_ins);
 
     }
 };
-
-
-/*
-
-----before-----
-mlir_dot_add
-mul_add
-add
-add
-mlir_reshape_transpose_squeeze_slice_reshape_transpose_squeeze_dot
-
-
-----after-----
-mlir_dot_add
-mlir_slice_mul_reshape_transpose_squeeze_slice_reshape_transpose_squeeze_dot
-*/
-
 
 
 struct find_slice_add_mul
@@ -568,7 +537,6 @@ struct find_slice_add_mul
 
     void apply(module& m, const match::matcher_result& r) const
     {
-        //auto slice_ins = r.instructions["slice"];
 
         std::cout<<"Reached slice_add_mul";
         

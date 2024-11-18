@@ -445,6 +445,41 @@ TEST_CASE(relu_dot)
     EXPECT(p1.sort() == p2.sort());
 }
 
+TEST_CASE(relu_relu_dot)
+{
+    migraphx::shape s{migraphx::shape::float_type, {1, 3, 3}};
+    migraphx::program p1;
+    {
+        auto* mm   = p1.get_main_module();
+        auto x     = mm->add_parameter("x", s);
+        auto y     = mm->add_parameter("y", s);
+        auto relux = add_pointwise(p1, "main:pointwise0", {x}, single_pointwise("relu"));
+        auto reluy = add_pointwise(p1, "main:pointwise1", {y}, single_pointwise("relu"));
+        auto dot   = mm->add_instruction(migraphx::make_op("dot"), relux, reluy);
+        mm->add_return({dot});
+    }
+    run_pass(p1);
+    migraphx::program p2;
+    {
+        auto* mm = p2.get_main_module();
+        auto x   = mm->add_parameter("x", s);
+        auto y   = mm->add_parameter("y", s);
+        auto fused =
+            add_mlir(p2,
+                     "main:pointwise0:main:pointwise1:mlir_dot0",
+                     {x, y},
+                     {"x0", "x1"},
+                     [=](auto* pm, const auto& inputs) {
+                         auto relux = pm->add_instruction(migraphx::make_op("relu"), inputs[0]);
+                         auto reluy = pm->add_instruction(migraphx::make_op("relu"), inputs[1]);
+                         auto dot   = pm->add_instruction(migraphx::make_op("dot"), relux, reluy);
+                         return std::make_tuple(dot->get_operator(), dot);
+                     });
+        mm->add_return({fused});
+    }
+    EXPECT(p1.sort() == p2.sort());
+}
+
 TEST_CASE(dequantizelinear_dot)
 {
     migraphx::program p1;

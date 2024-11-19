@@ -222,7 +222,7 @@ struct gemm_impl
         compute_type = rb_compute_type{output_type};
         if(compute_fp32)
         {
-            if(arg_type == rocblas_datatype_f16_r)
+            if(arg_type == rocblas_datatype_f16_r or arg_type == rocblas_datatype_bf16_r)
                 compute_type = rocblas_datatype_f32_r;
         }
         if(arg_type == rocblas_datatype_f8_r)

@@ -870,7 +870,8 @@ struct find_concat_op
     auto matcher() const
     {
         return match::name("concat")(match::any_of[match::inputs()](
-            match::any_of(match::pointwise(), match::name("broadcast", "multibroadcast", "unpack_int4")),
+            match::any_of(match::pointwise(),
+                          match::name("broadcast", "multibroadcast", "unpack_int4")),
             match::used_once()));
     }
 

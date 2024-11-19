@@ -4165,7 +4165,6 @@ TEST_CASE(my_optim)
         auto add2 = m2.add_instruction(migraphx::make_op("add"), two, slice_b);
         auto add3 = m2.add_instruction(migraphx::make_op("add"), three, slice_c);
         
-        auto mul1 = m1.add_instruction(migraphx::make_op("mul"), dot, litb);
         m2.add_return({mul1});
     };
     migraphx::module m1 = m2;

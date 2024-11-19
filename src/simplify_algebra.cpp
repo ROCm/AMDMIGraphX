@@ -445,6 +445,7 @@ auto fusable_split()
             }
             if (!used_by_add)
                 return false;
+        }        
 
         bool any_add_followed_by_mul = false;
         for (auto& add_ins : add_instructions)

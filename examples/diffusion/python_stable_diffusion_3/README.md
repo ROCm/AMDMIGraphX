@@ -35,9 +35,9 @@ huggingface-cli login
 ```
 
 Export the models to onnx. 
-Currently, optimum does not have the changes required in their latest version. For this reason, please follow the steps to build optimum from scratch.
+Currently, optimum does not have the changes required in their latest release. Please follow the steps to build optimum from scratch.
 ```bash
-git clone --single-branch --branch diffusers-transformer-export https://github.com/huggingface/optimum.git
+git clone --single-branch --branch main https://github.com/huggingface/optimum.git
 cd optimum
 make build_dist_install_tools
 make build_dist
@@ -45,6 +45,7 @@ cd dist
 pip install *.whl
 cd ../..
 ```
+
 Once optimum is built, use the following command to export the models:
 ```bash
 optimum-cli export onnx --model stabilityai/stable-diffusion-3-medium-diffusers  models/sd3

@@ -29,7 +29,6 @@ from other_impls import SD3Tokenizer
 from PIL import Image
 
 import migraphx as mgx
-import math
 import os
 import sys
 import torch

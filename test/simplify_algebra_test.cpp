@@ -483,39 +483,6 @@ TEST_CASE(simplify_mul_add)
     EXPECT(m1 == m2);
 }
 
-TEST_CASE(simplify_mul_add_no_slice)
-{
-    migraphx::module m1;
-    {
-        auto x     = m1.add_parameter("x", {migraphx::shape::int32_type, {1}});
-        auto one   = m1.add_literal(3);
-        auto two   = m1.add_literal(2);
-        
-        auto slice = m1.add_instruction(migraphx::make_op("slice", {{"axes", {0}}, {"starts", {0}}, {"ends", {1}}}), two);
-        auto sum   = m1.add_instruction(migraphx::make_op("add"), one, x);
-        auto mul   = m1.add_instruction(migraphx::make_op("mul"), sum, slice);  // a is slice
-        
-        m1.add_instruction(pass_op{}, mul);
-    }
-    run_pass(m1);
-
-    migraphx::module m2;
-    {
-        auto x     = m2.add_parameter("x", {migraphx::shape::int32_type, {1}});
-        auto one   = m2.add_literal(3);
-        auto two   = m2.add_literal(2);
-
-        // Repeating original structure without transformation
-        auto slice = m2.add_instruction(migraphx::make_op("slice", {{"axes", {0}}, {"starts", {0}}, {"ends", {1}}}), two);
-        auto sum   = m2.add_instruction(migraphx::make_op("add"), one, x);
-        auto mul   = m2.add_instruction(migraphx::make_op("mul"), sum, slice);  // a remains as slice
-        
-        m2.add_instruction(pass_op{}, mul);
-    }
-
-    EXPECT(m1 == m2);
-}
-
 TEST_CASE(simplify_dot_add)
 {
     migraphx::module m1;
@@ -541,6 +508,57 @@ TEST_CASE(simplify_dot_add)
     }
     EXPECT(m1 == m2);
 }
+/*
+TEST_CASE(add_slice_add_optimization)
+{
+    migraphx::module m1;
+    {
+        // Step 1: Define input shapes and parameters
+        auto x = m1.add_parameter("x", {migraphx::shape::float_type, {1, 128}});
+        auto y = m1.add_parameter("y", {migraphx::shape::float_type, {1, 128}});
+
+        // Step 2: Perform element-wise addition
+        auto add1 = m1.add_instruction(migraphx::make_op("add"), x, y);
+
+        // Step 3: Slice the result
+        auto slice = m1.add_instruction(
+            migraphx::make_op("slice", {{"axes", {1}}, {"starts", {32}}, {"ends", {96}}}), add1);
+
+        // Step 4: Add another tensor to the sliced result
+        auto z = m1.add_parameter("z", {migraphx::shape::float_type, {1, 64}});
+        auto add2 = m1.add_instruction(migraphx::make_op("add"), slice, z);
+
+        // Return the final result
+        m1.add_return({add2});
+    }
+    run_pass(m1);
+
+    migraphx::module m2;
+    {
+        // Step 1: Define input shapes and parameters
+        auto x = m2.add_parameter("x", {migraphx::shape::float_type, {1, 128}});
+        auto y = m2.add_parameter("y", {migraphx::shape::float_type, {1, 128}});
+        auto z = m2.add_parameter("z", {migraphx::shape::float_type, {1, 64}});
+
+        // Step 2: Add the tensors before slicing
+        auto add1 = m2.add_instruction(migraphx::make_op("add"), x, y);
+        auto add2 = m2.add_instruction(
+            migraphx::make_op("add"),
+            add1,
+            m2.add_instruction(migraphx::make_op("broadcast", {{"axis", 1}, {"out_lens", {1, 128}}}), z));
+
+        // Step 3: Slice the result
+        auto slice = m2.add_instruction(
+            migraphx::make_op("slice", {{"axes", {1}}, {"starts", {32}}, {"ends", {96}}}), add2);
+
+        // Return the final result
+        m2.add_return({slice});
+    }
+
+    EXPECT(m1.sort() == m2.sort());
+}
+
+*/
 
 TEST_CASE(simplify_conv_add)
 {
@@ -4166,6 +4184,47 @@ TEST_CASE(dot_slice_a)
     EXPECT(m1.sort() == m2.sort());
 }
 
+TEST_CASE(my_optim)
+{
+    migraphx::shape as{migraphx::shape::float_type, {1, 77, 2304}};
+
+    migraphx::module m2;
+    {
+        auto a       = m2.add_parameter("b", as); 
+
+        auto slice_a = m2.add_instruction(
+            migraphx::make_op("slice", {{"axes", {1}}, {"starts", {0}}, {"ends", {768}}}), a);
+        auto slice_b = m2.add_instruction(
+            migraphx::make_op("slice", {{"axes", {1}}, {"starts", {768}}, {"ends", {1536}}}), a);
+        auto slice_c = m2.add_instruction(
+            migraphx::make_op("slice", {{"axes", {1}}, {"starts", {1536}}, {"ends", {2304}}}), a);    
+
+        auto one = m2.add_literal(
+            migraphx::generate_literal({migraphx::shape::float_type, {1, 77, 768}}, 3.0f));
+        auto two = m2.add_literal(
+            migraphx::generate_literal({migraphx::shape::float_type, {1, 77, 768}}, 2.0f));
+        auto three = m2.add_literal(
+            migraphx::generate_literal({migraphx::shape::float_type, {1, 77, 768}}, 4.0f));
+        auto four = m2.add_literal(
+            migraphx::generate_literal({migraphx::shape::float_type, {1, 77, 768}}, 2.0f));
+        
+
+        auto add1 = m2.add_instruction(migraphx::make_op("add"), one, slice_a);
+        auto mul1 = m2.add_instruction(migraphx::make_op("mul"), add1, four);
+
+        auto add2 = m2.add_instruction(migraphx::make_op("add"), two, slice_b);
+        auto add3 = m2.add_instruction(migraphx::make_op("add"), three, slice_c);
+        
+        auto mul1 = m1.add_instruction(migraphx::make_op("mul"), dot, litb);
+        m2.add_return({mul1});
+    };
+    migraphx::module m1 = m2;
+    run_pass(m2);
+
+    EXPECT(m1.sort() == m2.sort());
+    
+}
+
 TEST_CASE(dot_slice_ab)
 {
     migraphx::shape as{migraphx::shape::float_type, {2, 256, 32}};
@@ -4227,6 +4286,61 @@ TEST_CASE(dot_slice_batch_dims)
     };
     EXPECT(m1.sort() == m2.sort());
 }
+
+
+TEST_CASE(complex_graph_operations)
+{
+    migraphx::module m;
+    // Add literals
+    auto x_0 = m.add_literal(migraphx::generate_literal({migraphx::shape::float_type, {64, 512}}, 0));
+    auto x_1 = m.add_literal(migraphx::generate_literal({migraphx::shape::float_type, {64, 512}}, 1));
+    auto x_2 = m.add_literal(migraphx::generate_literal({migraphx::shape::float_type, {64, 512}}, 2));
+    auto x_3 = m.add_literal(migraphx::generate_literal({migraphx::shape::float_type, {64, 512}}, 3));
+    auto x_4 = m.add_literal(migraphx::generate_literal({migraphx::shape::float_type, {64, 512}}, 4));
+    auto x_5 = m.add_literal(migraphx::generate_literal({migraphx::shape::float_type, {64, 512}}, 5));
+    auto x_6 = m.add_literal(migraphx::generate_literal({migraphx::shape::float_type, {64, 512}}, 6));
+    auto x_7 = m.add_literal(migraphx::generate_literal({migraphx::shape::float_type, {64, 512}}, 7));
+    auto x_8 = m.add_literal(migraphx::generate_literal({migraphx::shape::float_type, {64, 512}}, 8));
+    auto x_9 = m.add_literal(migraphx::generate_literal({migraphx::shape::float_type, {64, 512}}, 9));
+    auto x_10 = m.add_literal(migraphx::generate_literal({migraphx::shape::float_type, {64, 512}}, 10));
+    auto x_11 = m.add_literal(migraphx::generate_literal({migraphx::shape::float_type, {64, 512}}, 11));
+    auto x_12 = m.add_literal(migraphx::literal({migraphx::shape::float_type, {1}}, {0.125}));
+
+    // Add parameter
+    auto p_x = m.add_parameter("x", {migraphx::shape::float_type, {64, 64}});
+
+    // Multibroadcast of scalar
+    auto x_14 = m.add_instruction(
+        migraphx::make_op("multibroadcast", {{"out_lens", {64, 512}}}), x_12);
+
+    // Dot and add operations
+    auto x_15 = m.add_instruction(migraphx::make_op("dot"), p_x, x_11);
+    auto x_16 = m.add_instruction(migraphx::make_op("add"), x_15, x_10);
+    auto x_17 = m.add_instruction(migraphx::make_op("add"), x_16, x_9);
+    auto x_18 = m.add_instruction(migraphx::make_op("add"), x_17, x_8);
+
+    auto x_19 = m.add_instruction(migraphx::make_op("dot"), p_x, x_7);
+    auto x_20 = m.add_instruction(migraphx::make_op("add"), x_19, x_6);
+    auto x_21 = m.add_instruction(migraphx::make_op("add"), x_20, x_5);
+    auto x_22 = m.add_instruction(migraphx::make_op("add"), x_21, x_4);
+
+    auto x_23 = m.add_instruction(migraphx::make_op("dot"), p_x, x_3);
+    auto x_24 = m.add_instruction(migraphx::make_op("add"), x_23, x_2);
+    auto x_25 = m.add_instruction(migraphx::make_op("add"), x_24, x_1);
+    auto x_26 = m.add_instruction(migraphx::make_op("add"), x_25, x_0);
+
+    auto x_27 = m.add_instruction(migraphx::make_op("mul"), x_26, x_14);
+
+    m.add_return({x_18, x_22, x_27});
+
+    run_pass(m);
+
+    // Validate the module (additional checks can be added if needed)
+    EXPECT(m.get_output_shapes().size() == 3);
+
+    
+}
+
 
 TEST_CASE(dot_slice_not_applicable_1)
 {

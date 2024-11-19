@@ -1227,8 +1227,8 @@ TEST_CASE(simplify_concat_clip)
         auto y      = m1.add_parameter("y", s);
         auto min    = m1.add_literal({s, {0}});
         auto max    = m1.add_literal({s, {10}});
-        auto clip1   = m1.add_instruction(migraphx::make_op("clip"), x, min, max);
-        auto clip2   = m1.add_instruction(migraphx::make_op("clip"), y, min, max);
+        auto clip1  = m1.add_instruction(migraphx::make_op("clip"), x, min, max);
+        auto clip2  = m1.add_instruction(migraphx::make_op("clip"), y, min, max);
         auto concat = m1.add_instruction(migraphx::make_op("concat", {{"axis", 0}}), clip1, clip2);
         m1.add_instruction(pass_op{}, concat);
     }
@@ -1238,12 +1238,12 @@ TEST_CASE(simplify_concat_clip)
     {
         auto x       = m2.add_parameter("x", s);
         auto y       = m2.add_parameter("y", s);
-        auto min    = m2.add_literal({s, {0}});
-        auto max    = m2.add_literal({s, {10}});
+        auto min     = m2.add_literal({s, {0}});
+        auto max     = m2.add_literal({s, {10}});
         auto concat1 = m2.add_instruction(migraphx::make_op("concat", {{"axis", 0}}), x, y);
         auto concat2 = m2.add_instruction(migraphx::make_op("concat", {{"axis", 0}}), min, min);
         auto concat3 = m2.add_instruction(migraphx::make_op("concat", {{"axis", 0}}), max, max);
-        auto clip     = m2.add_instruction(migraphx::make_op("clip"), concat1, concat2, concat3);
+        auto clip    = m2.add_instruction(migraphx::make_op("clip"), concat1, concat2, concat3);
         m2.add_instruction(pass_op{}, clip);
     }
     EXPECT(m1 == m2);

@@ -912,9 +912,8 @@ struct find_concat_op
             return true;
         if(inputs.size() < 3)
             return false;
-        auto nonconst = std::count_if(inputs.begin(), inputs.end(), [](instruction_ref ins) {
-            return not ins->can_eval();
-        });
+        auto nonconst = std::count_if(
+            inputs.begin(), inputs.end(), [](instruction_ref ins) { return not ins->can_eval(); });
         return nonconst > 2;
     }
 

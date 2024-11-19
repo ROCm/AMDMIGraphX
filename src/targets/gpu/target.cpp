@@ -99,6 +99,7 @@ std::vector<pass> target::get_passes(migraphx::context& gctx, const compile_opti
     unsupported_types.erase(shape::type_t::uint8_type);
     unsupported_types.erase(shape::type_t::int32_type);
     unsupported_types.erase(shape::type_t::tuple_type);
+    unsupported_types.erase(shape::type_t::bf16_type);
 
     // whiltelist supported Ops for the FP8 types
     // different between fp8e4m3fnuz and OCP types because rocBLAS only has

@@ -634,6 +634,10 @@ MIGRAPHX_PYBIND11_MODULE(migraphx, m)
         },
         "Auto-convert FP8 parameters and return values to Float for MIGraphX Program",
         py::arg("prog"));
+    m.def("quantize_bf16",
+          &migraphx::quantize_bf16,
+          py::arg("prog"),
+          py::arg("ins_names") = std::vector<std::string>{"all"});
 
 #ifdef HAVE_GPU
     m.def("allocate_gpu", &migraphx::gpu::allocate_gpu, py::arg("s"), py::arg("host") = false);

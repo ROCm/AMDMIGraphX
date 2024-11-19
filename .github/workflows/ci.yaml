@@ -605,4 +605,6 @@ jobs:
         uses: reviewdog/action-misspell@v1
         with:
           locale: "US"
+          reporter: github-pr-check
+          level: warning
 

@@ -508,57 +508,7 @@ TEST_CASE(simplify_dot_add)
     }
     EXPECT(m1 == m2);
 }
-/*
-TEST_CASE(add_slice_add_optimization)
-{
-    migraphx::module m1;
-    {
-        // Step 1: Define input shapes and parameters
-        auto x = m1.add_parameter("x", {migraphx::shape::float_type, {1, 128}});
-        auto y = m1.add_parameter("y", {migraphx::shape::float_type, {1, 128}});
 
-        // Step 2: Perform element-wise addition
-        auto add1 = m1.add_instruction(migraphx::make_op("add"), x, y);
-
-        // Step 3: Slice the result
-        auto slice = m1.add_instruction(
-            migraphx::make_op("slice", {{"axes", {1}}, {"starts", {32}}, {"ends", {96}}}), add1);
-
-        // Step 4: Add another tensor to the sliced result
-        auto z = m1.add_parameter("z", {migraphx::shape::float_type, {1, 64}});
-        auto add2 = m1.add_instruction(migraphx::make_op("add"), slice, z);
-
-        // Return the final result
-        m1.add_return({add2});
-    }
-    run_pass(m1);
-
-    migraphx::module m2;
-    {
-        // Step 1: Define input shapes and parameters
-        auto x = m2.add_parameter("x", {migraphx::shape::float_type, {1, 128}});
-        auto y = m2.add_parameter("y", {migraphx::shape::float_type, {1, 128}});
-        auto z = m2.add_parameter("z", {migraphx::shape::float_type, {1, 64}});
-
-        // Step 2: Add the tensors before slicing
-        auto add1 = m2.add_instruction(migraphx::make_op("add"), x, y);
-        auto add2 = m2.add_instruction(
-            migraphx::make_op("add"),
-            add1,
-            m2.add_instruction(migraphx::make_op("broadcast", {{"axis", 1}, {"out_lens", {1, 128}}}), z));
-
-        // Step 3: Slice the result
-        auto slice = m2.add_instruction(
-            migraphx::make_op("slice", {{"axes", {1}}, {"starts", {32}}, {"ends", {96}}}), add2);
-
-        // Return the final result
-        m2.add_return({slice});
-    }
-
-    EXPECT(m1.sort() == m2.sort());
-}
-
-*/
 
 TEST_CASE(simplify_conv_add)
 {
@@ -4340,6 +4290,7 @@ TEST_CASE(complex_graph_operations)
 
     
 }
+
 
 
 TEST_CASE(dot_slice_not_applicable_1)

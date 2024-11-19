@@ -420,7 +420,7 @@ auto fusable_split()
 
         std::vector<instruction_ref> slices;
 
-        for (auto& output : ins->outputs())
+        for (const auto& output : ins->outputs())
         {
             if (output->name() == "slice")
             {
@@ -432,7 +432,7 @@ auto fusable_split()
             return false;
 
         std::vector<instruction_ref> add_instructions;
-        for (auto& slice : slices)
+        for (const auto& slice : slices)
         {
             bool used_by_add = false;
             for (auto& user : slice->outputs())
@@ -448,7 +448,7 @@ auto fusable_split()
         }        
 
         bool any_add_followed_by_mul = false;
-        for (auto& add_ins : add_instructions)
+        for (const auto& add_ins : add_instructions)
         {
             for (auto& user : add_ins->outputs())
             {
@@ -463,7 +463,6 @@ auto fusable_split()
         if (!any_add_followed_by_mul)
             return false;
 
-        // All conditions met
         return true;
     });
 }

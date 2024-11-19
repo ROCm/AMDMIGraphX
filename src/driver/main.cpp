@@ -486,7 +486,6 @@ struct compiler
     bool to_fp8  = false;
     bool to_int8 = false;
     bool to_int4 = false;
-    bool to_bf16 = false;
 
     std::vector<std::string> fill0;
     std::vector<std::string> fill1;

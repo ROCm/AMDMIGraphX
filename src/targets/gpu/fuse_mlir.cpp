@@ -361,6 +361,7 @@ bool is_pointwise_op_supported_by_mlir(const instruction& i)
     const auto& name                                  = i.name();
     const auto result_type                            = i.get_shape().type();
     const std::initializer_list<type_t> allowed_types = {type_t::float_type,
+                                                         type_t::bf16_type,
                                                          type_t::half_type,
                                                          type_t::fp8e4m3fnuz_type,
                                                          type_t::fp8e4m3fn_type,
@@ -407,6 +408,7 @@ bool is_pointwise_op_supported_by_mlir(const instruction& i)
     };
     std::set<shape::type_t> float_types = {type_t::float_type,
                                            type_t::half_type,
+                                           type_t::bf16_type,
                                            type_t::fp8e4m3fnuz_type,
                                            type_t::fp8e4m3fn_type,
                                            type_t::fp8e5m2_type};
@@ -426,7 +428,7 @@ bool is_pointwise_op_supported_by_mlir(const instruction& i)
             return false;
         } // else
         return std::all_of(i.inputs().begin(), i.inputs().end(), [](const auto& arg) {
-            return contains({type_t::float_type, type_t::half_type}, arg->get_shape().type());
+            return contains({type_t::float_type, type_t::half_type, type_t::bf16_type}, arg->get_shape().type());
         });
     }
     return false;
@@ -438,7 +440,7 @@ bool is_reduce_op_supported_by_mlir(const instruction& i)
     const auto& name                                  = i.name();
     const auto result_type                            = i.get_shape().type();
     const std::initializer_list<type_t> allowed_types = {
-        type_t::float_type, type_t::half_type, type_t::fp8e4m3fnuz_type};
+        type_t::float_type, type_t::half_type, type_t::bf16_type, type_t::fp8e4m3fnuz_type};
     // Preliminary type check.
     if(not contains(allowed_types, result_type))
     {
@@ -695,6 +697,7 @@ struct find_mlir_standalone_op
         if(std::any_of(gemm_based_op->inputs().begin(), gemm_based_op->inputs().end(), [&](auto i) {
                return not contains({shape::type_t::float_type,
                                     shape::type_t::half_type,
+                                    shape::type_t::bf16_type,
                                     shape::type_t::int8_type,
                                     shape::type_t::fp8e4m3fnuz_type,
                                     shape::type_t::fp8e4m3fn_type,

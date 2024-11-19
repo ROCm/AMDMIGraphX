@@ -4240,7 +4240,7 @@ TEST_CASE(dot_slice_batch_dims)
 TEST_CASE(complex_graph_operations)
 {
     migraphx::module m;
-    // Add literals
+    
     auto x_0 = m.add_literal(migraphx::generate_literal({migraphx::shape::float_type, {64, 512}}, 0));
     auto x_1 = m.add_literal(migraphx::generate_literal({migraphx::shape::float_type, {64, 512}}, 1));
     auto x_2 = m.add_literal(migraphx::generate_literal({migraphx::shape::float_type, {64, 512}}, 2));
@@ -4255,14 +4255,14 @@ TEST_CASE(complex_graph_operations)
     auto x_11 = m.add_literal(migraphx::generate_literal({migraphx::shape::float_type, {64, 512}}, 11));
     auto x_12 = m.add_literal(migraphx::literal({migraphx::shape::float_type, {1}}, {0.125}));
 
-    // Add parameter
+    
     auto p_x = m.add_parameter("x", {migraphx::shape::float_type, {64, 64}});
 
-    // Multibroadcast of scalar
+    
     auto x_14 = m.add_instruction(
         migraphx::make_op("multibroadcast", {{"out_lens", {64, 512}}}), x_12);
 
-    // Dot and add operations
+
     auto x_15 = m.add_instruction(migraphx::make_op("dot"), p_x, x_11);
     auto x_16 = m.add_instruction(migraphx::make_op("add"), x_15, x_10);
     auto x_17 = m.add_instruction(migraphx::make_op("add"), x_16, x_9);
@@ -4284,7 +4284,6 @@ TEST_CASE(complex_graph_operations)
 
     run_pass(m);
 
-    // Validate the module (additional checks can be added if needed)
     EXPECT(m.get_output_shapes().size() == 3);
 
     

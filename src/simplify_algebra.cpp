@@ -1597,9 +1597,6 @@ struct find_conv_dot_horiz_fusion
     void apply(module& m, const match::matcher_result& r) const
     {
         auto ins = r.result;
-        std::cout << "find_conv_dot_horiz_fusion_before" << std::endl;
-        m.debug_print();
-         
 
         auto pred = [](auto i, auto j) {
             if(i->get_operator() != j->get_operator())
@@ -1667,8 +1664,6 @@ struct find_conv_dot_horiz_fusion
         auto outputs = ins->outputs();
         group_by(outputs.begin(), outputs.end(), each, pred);
 
-        std::cout << "find_conv_dot_horiz_fusion - after" << std::endl;
-        m.debug_print();
     }
 };
 

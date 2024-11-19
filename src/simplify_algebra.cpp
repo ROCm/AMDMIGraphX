@@ -418,7 +418,6 @@ auto fusable_split()
 {
     return match::make_basic_pred_matcher([](instruction_ref ins) {
 
-        //std::cout << "Slices size: ";
         std::vector<instruction_ref> slices;
 
         for (auto& output : ins->outputs())
@@ -432,8 +431,6 @@ auto fusable_split()
         if (slices.empty())
             return false;
 
-        std::cout << "Slices size: " << slices.size() << std::endl;
-
         std::vector<instruction_ref> add_instructions;
         for (auto& slice : slices)
         {
@@ -444,14 +441,11 @@ auto fusable_split()
                 {
                     used_by_add = true;
                     add_instructions.push_back(user);
-                    std::cout << "Slice used by add: " << std::endl;
                 }
             }
             if (!used_by_add)
-                return false; // If any slice is not used by an 'add', return false
-        }
+                return false;
 
-        // Now check if any of the 'add's is followed by a 'mul' operation
         bool any_add_followed_by_mul = false;
         for (auto& add_ins : add_instructions)
         {
@@ -461,7 +455,6 @@ auto fusable_split()
                 {
                     any_add_followed_by_mul = true;
                     ins->outputs();
-                    std::cout << "Add followed by mul found: " << std::endl;
                 }
             }
         }
@@ -506,9 +499,6 @@ struct find_mul_add
         auto x_ins = r.instructions["x"];
         assert(x_ins != b_ins);
     
-        std::cout<<"inside find_mul_add";
-        
-
         auto ax_ins = m.insert_instruction(ins, make_op("mul"), a_ins, x_ins);
         auto ab_ins = m.insert_instruction(ins, make_op("mul"), a_ins, b_ins);
         m.replace_instruction(ins, make_op("add"), ax_ins, ab_ins);
@@ -533,12 +523,8 @@ struct find_slice_add_mul
                     match::used_once()),
                 match::is_constant().bind("a")));
         }
-
-
     void apply(module& m, const match::matcher_result& r) const
     {
-
-        std::cout<<"Reached slice_add_mul";
         
         auto ins    = r.result;
         auto a_ins  = r.instructions["a"];
@@ -551,7 +537,6 @@ struct find_slice_add_mul
         m.replace_instruction(ins, make_op("mul"), ax_ins, a_ins);
         
     }
-
 };
 
 

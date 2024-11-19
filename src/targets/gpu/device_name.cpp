@@ -58,8 +58,8 @@ bool gfx_has_fp8fnuz_intrinsics()
 bool gfx_has_fp8ocp_intrinsics()
 {
     const auto device_name = trim(split_string(get_device_name(), ':').front());
-    bool is_navi_with_fp8ocp         = starts_with(device_name, "gfx12") and device_name >= "gfx1200";
-    bool is_mi_with_fp8ocp          = starts_with(device_name, "gfx9") and device_name >= "gfx950";
+    bool is_navi_with_fp8ocp = starts_with(device_name, "gfx12") and device_name >= "gfx1200";
+    bool is_mi_with_fp8ocp   = starts_with(device_name, "gfx9") and device_name >= "gfx950";
     return (is_navi_with_fp8ocp or is_mi_with_fp8ocp);
 }
 

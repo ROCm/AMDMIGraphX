@@ -1219,10 +1219,6 @@ TEST_CASE(concat_unsqueeze)
     EXPECT(m1 == m2);
 }
 
-// @118 = multibroadcast[out_lens={11008, 32, 128},out_dyn_dims={}](@117) -> half_type, {11008, 32,
-// 128}, {32, 1, 0}
-// @119 = reshape[dims={11008, 4096}](@118) -> half_type, {11008, 4096}, {4096, 1}
-
 TEST_CASE(concat_reshape)
 {
     auto s = migraphx::shape{migraphx::shape::float_type, {11008, 32, 128}};

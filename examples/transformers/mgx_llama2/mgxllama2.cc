@@ -116,7 +116,6 @@ static migraphx::program loadOnnx(ModelLoadSettings& settings)
         }
         onnx_opts.set_input_parameter_shape("input_ids", inputDim);
         onnx_opts.set_input_parameter_shape("attention_mask", dims);
-        onnx_opts.set_input_parameter_shape("position_ids", dims);
         for (size_t i = 0; i < HIDDEN_LAYERS_NUM; ++i)
         {
             onnx_opts.set_input_parameter_shape(getPastKeyString(i), dimsPastKey);
@@ -279,7 +278,6 @@ struct Dataset
 
     std::vector<int64_t> getInputIds() { return input_ids[_current_idx]; }
     std::vector<int64_t> getAttentionMask() { return attention_mask[_current_idx]; }
-    std::vector<int64_t> getPositionIds() { return position_ids[_current_idx]; }
 
     size_t size() const { return _size; }
     size_t currentIdx() const { return _current_idx; }
@@ -311,24 +309,20 @@ private:
     {
         std::string input_file_path = getDatasetPath("input_ids");
         std::string attention_mask_file_path = getDatasetPath("attention_mask");
-        std::string position_ids_file_path = getDatasetPath("position_ids");
 
         std::cout << "Input ids file: " << input_file_path << std::endl;
         std::ifstream input_file(input_file_path.c_str());
         std::ifstream attention_mask_file(attention_mask_file_path.c_str());
-        std::ifstream position_ids_file(position_ids_file_path.c_str());
-        if (input_file.good() && attention_mask_file.good() && position_ids_file.good())
+        if (input_file.good() && attention_mask_file.good())
         {
             npy::NpyFile input_ids_npy{input_file_path};
             npy::NpyFile attention_mask_npy{attention_mask_file_path};
-            npy::NpyFile position_ids_npy{position_ids_file_path};
             input_ids = loadNumpy(input_ids_npy);
             attention_mask = loadNumpy(attention_mask_npy);
-            position_ids = loadNumpy(position_ids_npy);
 
             _size = input_ids.size();
 
-            if ((input_ids.size() == attention_mask.size()) && (attention_mask.size() == position_ids.size()))
+            if (input_ids.size() == attention_mask.size())
             {
                 std::cout << "Loaded numpy files\n";
                 _npy_files_loaded = true;
@@ -338,7 +332,6 @@ private:
                 std::cout << "Numpy files do not have the same size\n";
                 input_ids.clear();
                 attention_mask.clear();
-                position_ids.clear();
             }
         }
         else
@@ -359,19 +352,11 @@ private:
         });
         attention_mask.emplace_back(std::move(attention_mask_sample));
 
-        std::vector<int64_t> position_ids_sample;
-        for (int64_t i=0; i < SEQ_SIZE; ++i)
-        {
-            position_ids_sample.emplace_back(i);
-        }
-        position_ids.emplace_back(std::move(position_ids_sample));
-
         _size = 1;
     }
 
     NumpyVector input_ids;
     NumpyVector attention_mask;
-    NumpyVector position_ids;
 
     size_t _size = 0;
     size_t _current_idx = 0;
@@ -387,18 +372,27 @@ struct LLama2Inputs
         : offload_copy(offload_copy)
     {
         data.initialize();
+        prepareProgArgs(prog, prog_args);
+    }
 
+    void prepareProgArgs(migraphx::program& prog, migraphx::program_parameters& prog_args, bool simple = false)
+    {
         auto param_shapes = prog.get_parameter_shapes();
-
-        auto inputShape = param_shapes[INPUTS_ID_STR];
-        auto input_ids = data.getInputIds();
-        input_ids_buffer = std::make_unique<LLama2InputBuffer>(std::move(input_ids), offload_copy);
-        prog_args.add(INPUTS_ID_STR, migraphx::argument(inputShape, input_ids_buffer->data()));
+        if (!simple)
+        {
+            auto inputShape = param_shapes[INPUTS_ID_STR];
+            auto input_ids = data.getInputIds();
+            input_ids_buffer = std::make_unique<LLama2InputBuffer>(std::move(input_ids), offload_copy);
+            prog_args.add(INPUTS_ID_STR, migraphx::argument(inputShape, input_ids_buffer->data()));
+        }
 
 
         auto attShape = param_shapes[ATTENTION_MASK_STR];
         auto attention_mask = data.getAttentionMask();
-        attention_mask_buffer = std::make_unique<LLama2InputBuffer>(std::move(attention_mask), offload_copy);
+        if (!simple)
+        {
+            attention_mask_buffer = std::make_unique<LLama2InputBuffer>(std::move(attention_mask), offload_copy);
+        }
         prog_args.add(ATTENTION_MASK_STR, migraphx::argument(attShape, attention_mask_buffer->data()));
 
         // past_key_values.0.key = @param:past_key_values.0.key -> half_type, {1, 32, 1, 128}, {4096, 128, 128, 1}
@@ -407,24 +401,29 @@ struct LLama2Inputs
         {
             auto past_keyStr = getPastKeyString(i);
             auto past_keyString = past_keyStr.c_str();
-            past_key_buffers.emplace_back(std::make_unique<LLama2PastKeyValueBuffer>(std::vector<half>(PAST_KEY_VAL_SIZE, 0.0_h), offload_copy));
+            if (!simple)
+            {
+                past_key_buffers.emplace_back(std::make_unique<LLama2PastKeyValueBuffer>(std::vector<half>(PAST_KEY_VAL_SIZE, 0.0_h), offload_copy));
+            }
             auto pastKeyShape = param_shapes[past_keyString];
             prog_args.add(past_keyString, migraphx::argument(pastKeyShape, past_key_buffers[i]->data()));
 
             auto past_valueStr = getPastValueStr(i);
             auto past_valueString = past_valueStr.c_str();
-            past_value_buffers.emplace_back(std::make_unique<LLama2PastKeyValueBuffer>(std::vector<half>(PAST_KEY_VAL_SIZE, 0.0_h), offload_copy));
+            if (!simple)
+            {
+                past_value_buffers.emplace_back(std::make_unique<LLama2PastKeyValueBuffer>(std::vector<half>(PAST_KEY_VAL_SIZE, 0.0_h), offload_copy));
+            }
             auto pastValueShape = param_shapes[past_valueString];
             prog_args.add(past_valueString, migraphx::argument(pastValueShape, past_value_buffers[i]->data()));
         }
-    };
+    }
 
     void upload_to_device(hipStream_t stream)
     {
         assert(not offload_copy);
         input_ids_buffer->upload_to_device(stream);
         attention_mask_buffer->upload_to_device(stream);
-        //position_ids_buffer->upload_to_device(stream);
     }
 
     bool updateData(migraphx::program& prog, migraphx::program_parameters& prog_args)
@@ -445,12 +444,6 @@ struct LLama2Inputs
                 prog_args.add(ATTENTION_MASK_STR, migraphx::argument(param_shapes[ATTENTION_MASK_STR], attention_mask_buffer->data()));
             }
 
-            // auto position_ids = data.getPositionIds();
-            // position_ids_buffer->update(std::move(position_ids));
-            // if (offload_copy)
-            // {
-            //     prog_args.add(POSITION_IDS_STR, migraphx::argument(param_shapes[POSITION_IDS_STR], position_ids_buffer->data()));
-            // }
             return true;
         }
         return false;
@@ -479,7 +472,6 @@ struct LLama2Inputs
 
     std::unique_ptr<LLama2InputBuffer> input_ids_buffer;
     std::unique_ptr<LLama2InputBuffer> attention_mask_buffer;
-    //std::unique_ptr<LLama2InputBuffer> position_ids_buffer;
     std::vector<std::unique_ptr<LLama2PastKeyValueBuffer>> past_key_buffers;
     std::vector<std::unique_ptr<LLama2PastKeyValueBuffer>> past_value_buffers;
     Dataset data;
@@ -487,7 +479,6 @@ struct LLama2Inputs
 
     const char* INPUTS_ID_STR = "input_ids";
     const char* ATTENTION_MASK_STR = "attention_mask";
-    const char* POSITION_IDS_STR = "position_ids";
 };
 
 void writeResults(const std::vector<std::vector<uint64_t>>& results)
@@ -563,6 +554,21 @@ int main() {
     migraphx::shape argm_out_shape_one_dim{migraphx_shape_int64_type, {1, 1, 1}};
     prog_args_argmax_one_dim.add(output_name, migraphx::argument(argm_out_shape_one_dim, argm_output_buffer_one_dim.data()));
 
+
+    migraphx::program_parameters prog_args_one_dim;
+    model_inputs.prepareProgArgs(progSimpleInput, prog_args_one_dim, true);
+    auto param_shapes = progSimpleInput.get_parameter_shapes();
+    auto inputShape = param_shapes[model_inputs.INPUTS_ID_STR];
+    std::vector<int64_t> oneDimInput = {0};
+    std::unique_ptr<LLama2InputBuffer> one_dim_input_buffer = std::make_unique<LLama2InputBuffer>(std::move(oneDimInput), offload_copy);
+    prog_args_one_dim.add(model_inputs.INPUTS_ID_STR, migraphx::argument(inputShape, one_dim_input_buffer->data()));
+    prog_args_one_dim.add(output_name, migraphx::argument(x_shape_one_dim, output_buffer_oneDim.data()));
+
+    if (not offload_copy)
+    {
+        one_dim_input_buffer->upload_to_device(stream);
+    }
+
     std::cout << "Dataset size: " << model_inputs.dataSize() << std::endl;
     std::cout << "Starting evaluation" << std::endl;
     size_t token_count = 0;
@@ -576,7 +582,7 @@ int main() {
         for (size_t i = lastInputIdx; i < SEQ_SIZE - 1; ++i)
         {
             bool firstIter = (i == lastInputIdx);
-            prog->run_async(prog_args, stream);
+            prog->run_async(firstIter ? prog_args : prog_args_one_dim, stream);
             auto outputs = progArgMax->run_async(firstIter ? prog_args_argmax : prog_args_argmax_one_dim, stream);
             if (not offload_copy)
             {
@@ -605,23 +611,9 @@ int main() {
             {
                 prog = &progSimpleInput;
                 progArgMax = &progArgMaxSimpleInput;
-                migraphx::shape out_shape{migraphx_shape_half_type, {1, 1, VOCAB_SIZE}};
-                prog_args.add(output_name, migraphx::argument(out_shape, output_buffer_oneDim.data()));
+            }
 
-                auto param_shapes = prog->get_parameter_shapes();
-                auto inputShape = param_shapes[model_inputs.INPUTS_ID_STR];
-                std::vector<int64_t> input_ids = {new_token};
-                model_inputs.input_ids_buffer = std::make_unique<LLama2InputBuffer>(std::move(input_ids), offload_copy);
-                prog_args.add(model_inputs.INPUTS_ID_STR, migraphx::argument(inputShape, model_inputs.input_ids_buffer->data()));
-                if (not offload_copy)
-                {
-                    model_inputs.input_ids_buffer->upload_to_device(stream);
-                }
-            }
-            else
-            {
-                model_inputs.input_ids_buffer->update_data(new_token, 0, stream);
-            }
+            one_dim_input_buffer->update_data(new_token, 0, stream);
         }
 
 #ifdef TRACE
@@ -634,8 +626,6 @@ int main() {
 #endif
         prog = &progMultipleInputDim;
         progArgMax = &progArgMaxMultipleInputDim;
-        migraphx::shape out_shape{migraphx_shape_half_type, {1, SEQ_SIZE, VOCAB_SIZE}};
-        prog_args.add(output_name, migraphx::argument(out_shape, output_buffer.data()));
 
         auto updated = model_inputs.updateData(*prog, prog_args);
 

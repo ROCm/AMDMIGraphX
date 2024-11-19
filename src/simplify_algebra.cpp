@@ -870,7 +870,7 @@ struct find_concat_op
     auto matcher() const
     {
         return match::name("concat")(match::any_of[match::inputs()](
-            match::any_of(match::pointwise(), match::name("broadcast", "multibroadcast")),
+            match::any_of(match::pointwise(), match::name("broadcast", "multibroadcast", "unpack_int4")),
             match::used_once()));
     }
 
@@ -890,7 +890,7 @@ struct find_concat_op
 
     static bool is_valid_op(const operation& op)
     {
-        return contains({"broadcast", "multibroadcast"}, op.name()) or
+        return contains({"broadcast", "multibroadcast", "unpack_int4"}, op.name()) or
                op.attributes().contains("pointwise");
     }
 

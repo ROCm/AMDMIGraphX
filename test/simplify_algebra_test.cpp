@@ -1036,6 +1036,31 @@ TEST_CASE(simplify_add_conv_no_fusion_asymetrical_strides2)
                m.begin(), m.end(), [](auto&& ins) { return ins.name() == "convolution"; }) == 2);
 }
 
+TEST_CASE(simplify_concat_unpack_int4)
+{
+    auto s = migraphx::shape{migraphx::shape::int8_type, {11008, 2048}};
+    migraphx::module m1;
+    {
+        auto x      = m1.add_parameter("x", s);
+        auto y      = m1.add_parameter("y", s);
+        auto unpack1   = m1.add_instruction(migraphx::make_op("unpack_int4"), x);
+        auto unpack2   = m1.add_instruction(migraphx::make_op("unpack_int4"), y);
+        auto concat = m1.add_instruction(migraphx::make_op("concat", {{"axis", 0}}), unpack1, unpack2);
+        m1.add_return({concat});
+    }
+    run_pass(m1);
+
+    migraphx::module m2;
+    {
+        auto x      = m2.add_parameter("x", s);
+        auto y      = m2.add_parameter("y", s);
+        auto concat = m2.add_instruction(migraphx::make_op("concat", {{"axis", 0}}), x, y);
+        auto unpack   = m2.add_instruction(migraphx::make_op("unpack_int4"), concat);
+        m2.add_return({unpack});
+    }
+    EXPECT(m1 == m2);
+}
+
 TEST_CASE(simplify_concat_add_relu)
 {
     auto s = migraphx::shape{migraphx::shape::int32_type, {1}};

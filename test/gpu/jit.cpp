@@ -209,11 +209,8 @@ TEST_CASE(compile_warnings)
     EXPECT(not compile({"-Wunused-parameter", "-Wno-error"}).empty());
     EXPECT(not compile({"-Wno-unused-parameter", "-Werror"}).empty());
 #ifdef MIGRAPHX_USE_HIPRTC
-    if(not migraphx::enabled(migraphx::gpu::MIGRAPHX_ENABLE_HIPRTC_WORKAROUNDS{}))
-    {
-        EXPECT(test::throws([&] { compile({"-Werror=unused-parameter"}); }));
-        EXPECT(test::throws([&] { compile({"-Wunused-parameter", "-Werror"}); }));
-    }
+    EXPECT(test::throws([&] { compile({"-Werror=unused-parameter"}); }));
+    EXPECT(test::throws([&] { compile({"-Wunused-parameter", "-Werror"}); }));
 #else
     EXPECT(test::throws([&] { compile({"-Werror=unused-parameter"}); }));
     EXPECT(test::throws([&] { compile({"-Wunused-parameter", "-Werror"}); }));

@@ -35,7 +35,7 @@
 #include <migraphx/fuse_pointwise_reduce.hpp>
 #include <migraphx/inline_module.hpp>
 #include <migraphx/insert_pad.hpp>
-#include <migraphx/layout_nhwc.hpp>
+#include <migraphx/layout_convolution.hpp>
 #include <migraphx/memory_coloring.hpp>
 #include <migraphx/normalize_ops.hpp>
 #include <migraphx/optimize_module.hpp>
@@ -81,6 +81,7 @@ MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_ENABLE_NHWC)
 #ifndef _WIN32
 MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_ENABLE_CK)
 #endif
+MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_ENABLE_HIPBLASLT_GEMM)
 
 std::vector<pass> target::get_passes(migraphx::context& gctx, const compile_options& options) const
 {
@@ -130,9 +131,12 @@ std::vector<pass> target::get_passes(migraphx::context& gctx, const compile_opti
     unsupported_fp8fnuz_ops.insert("argmin");
 
     std::set<std::string> unsupported_fp8ocp_ops = {};
-    // TODO update with hipBLASLt support
-    unsupported_fp8ocp_ops.insert("dot");
-    unsupported_fp8ocp_ops.insert("quant_dot");
+    // TODO: remove this when the flag is removed
+    if(not enabled(MIGRAPHX_ENABLE_HIPBLASLT_GEMM{}))
+    {
+        unsupported_fp8ocp_ops.insert("dot");
+        unsupported_fp8ocp_ops.insert("quant_dot");
+    }
 #if MIGRAPHX_USE_MIOPEN
     // MIOpen doesn't have support for fp8 pooling yet.
     unsupported_fp8ocp_ops.insert("pooling");
@@ -141,6 +145,8 @@ std::vector<pass> target::get_passes(migraphx::context& gctx, const compile_opti
     {
         unsupported_fp8ocp_ops.insert("convolution");
         unsupported_fp8ocp_ops.insert("quant_convolution");
+        unsupported_fp8ocp_ops.insert("dot");
+        unsupported_fp8ocp_ops.insert("quant_dot");
     }
     // add all device kernels
     unsupported_fp8ocp_ops.insert("logsoftmax");
@@ -183,7 +189,7 @@ std::vector<pass> target::get_passes(migraphx::context& gctx, const compile_opti
         dead_code_elimination{},
         rewrite_gelu{options.fast_math},
         optimize_module{},
-        enable_pass(enabled(MIGRAPHX_ENABLE_NHWC{}), layout_nhwc{}),
+        layout_convolution{.channels_last = enabled(MIGRAPHX_ENABLE_NHWC{})},
         dead_code_elimination{},
         prefuse_ops{},
         dead_code_elimination{},

@@ -415,6 +415,28 @@ void remove_qdq_pairs(module& m)
     }
 }
 
+void remove_zero_point(module& m)
+{
+    for(auto ins : iterator_for(m))
+    {
+        if(ins->name() != "dequantizelinear")
+            continue;
+        if(ins->inputs().size() != 3)
+            continue;
+        auto zp = ins->inputs().at(2);
+        if(not zp->can_eval())
+            continue;
+        auto a       = zp->eval();
+        bool is_zero = false;
+        a.visit([&](auto t) {
+            is_zero = std::all_of(t.begin(), t.end(), [](auto x) { return float_equal(x, 0); });
+        });
+        if(not is_zero)
+            continue;
+        m.replace_instruction(ins, ins->get_operator(), ins->inputs().at(0), ins->inputs().at(1));
+    }
+}
+
 void add_int4_pack_unpack_pair(module& m)
 {
     for(auto ins : iterator_for(m))
@@ -445,6 +467,8 @@ void simplify_qdq::apply(module& m) const
     remove_qdq_pairs(m);
     migraphx::run_passes(m, {migraphx::dead_code_elimination{}});
     match::find_matches(m, match_qlinear_reused{});
+    migraphx::run_passes(m, {migraphx::dead_code_elimination{}});
+    remove_zero_point(m);
 }
 
 } // namespace MIGRAPHX_INLINE_NS

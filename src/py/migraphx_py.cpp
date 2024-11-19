@@ -48,7 +48,7 @@
 #include <migraphx/gpu/hip.hpp>
 #endif
 
-using half   = half_float::half;
+using half   = migraphx::half;
 namespace py = pybind11;
 
 #ifdef __clang__

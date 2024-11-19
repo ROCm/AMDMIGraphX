@@ -249,11 +249,10 @@ class FluxPipeline:
 
         # handle guidance
         if self.flux_transformer.config["guidance_embeds"] and guidance is None:
-            guidance = torch.full([1],
+            guidance = torch.full([latents.shape[0]],
                                   self.guidance_scale,
                                   device=self.device,
                                   dtype=torch.float32)
-            guidance = guidance.expand(latents.shape[0])
 
         for step_index, timestep in enumerate(timesteps):
             # prepare inputs
@@ -379,15 +378,3 @@ class FluxPipeline:
         for mod in (self.clip, self.t5, self.flux_transformer, self.vae):
             mod.clear_events()
 
-
-if __name__ == "__main__":
-    pipe = FluxPipeline()
-    prompt = ["A cat holding a sign that says hello world"]
-    pipe.load_models()
-    torch_out = pipe.infer(prompt, prompt, image_height=1024, image_width=1024)
-    # breakpoint()
-    # pipe.save_image(torch_out)
-    for _ in range(50):
-        pipe.infer(prompt, prompt, image_height=1024, image_width=1024)
-    
-    

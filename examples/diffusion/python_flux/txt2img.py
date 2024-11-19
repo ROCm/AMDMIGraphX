@@ -117,6 +117,13 @@ def get_args():
         help="Perform exhaustive tuning when compiling"
     )
     
+    parser.add_argument(
+        "--batch-size",
+        type=int,
+        default=None,
+        help="Set custom batch size (expects len 1 prompt, useful for benchmarking)"
+    )
+    
     return parser.parse_args()
     
 
@@ -126,6 +133,11 @@ if __name__ == "__main__":
     prompt = args.prompt
     prompt2 = args.prompt2 if args.prompt2 else prompt
     
+    if args.batch_size:
+        assert len(prompt) == 1 and len(prompt2) == 1
+        prompt = prompt * args.batch_size
+        prompt2 = prompt2 * args.batch_size
+      
     pipe = FluxPipeline(
         hf_model_path=args.hf_model,
         local_dir=args.local_dir,

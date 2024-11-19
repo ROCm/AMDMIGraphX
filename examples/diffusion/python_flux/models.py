@@ -388,6 +388,7 @@ def get_flux_transformer_model(local_dir,
 
     return model
     # migraphx-driver perf FLUX.1-schnell/transformer/model.onnx --input-dim @hidden_states 1 4096 64 @encoder_hidden_states 1 512 4096 @pooled_projections 1 768 @timestep 1 @img_ids 4096 3 @txt_ids 512 3 --fp16
+    # migraphx-driver perf FLUX.1-dev/transformer/model.onnx --input-dim @hidden_states 1 4096 64 @encoder_hidden_states 1 512 4096 @pooled_projections 1 768 @timestep 1 @img_ids 4096 3 @txt_ids 512 3 @guidance 1 --fp16
 
 
 def get_vae_model(local_dir,

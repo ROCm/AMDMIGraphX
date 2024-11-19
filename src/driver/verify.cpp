@@ -100,6 +100,10 @@ std::vector<argument> run_target(program p,
     {
         quantize_fp16(p);
     }
+    if(vo.quantize == precision::bf16)
+    {
+        quantize_bf16(p);
+    }
     p.compile(t, options);
 
     parameter_map m;

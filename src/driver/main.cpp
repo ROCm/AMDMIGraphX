@@ -482,6 +482,7 @@ struct compiler
     compiler_target ct;
     compile_options co;
     bool to_fp16 = false;
+    bool to_bf16 = false;
     bool to_fp8  = false;
     bool to_int8 = false;
     bool to_int4 = false;
@@ -507,6 +508,7 @@ struct compiler
            ap.help("Exhastively search for best tuning parameters for kernels"),
            ap.set_value(true));
         ap(to_fp16, {"--fp16"}, ap.help("Quantize for fp16"), ap.set_value(true));
+        ap(to_bf16, {"--bf16"}, ap.help("Quantize for bf16"), ap.set_value(true));
         ap(to_int8, {"--int8"}, ap.help("Quantize for int8"), ap.set_value(true));
         ap(to_fp8, {"--fp8"}, ap.help("Quantize for fp8"), ap.set_value(true));
         ap(to_int4, {"--int4-weights"}, ap.help("Quantize weights for int4"), ap.set_value(true));
@@ -556,6 +558,10 @@ struct compiler
         if(to_fp16)
         {
             quantize_fp16(p);
+        }
+        if(to_bf16)
+        {
+            quantize_bf16(p);
         }
         if(to_int8)
         {
@@ -644,6 +650,10 @@ struct verify : command<verify>
         if(c.to_fp16)
         {
             vo.quantize = precision::fp16;
+        }
+        if(c.to_bf16)
+        {
+            vo.quantize = precision::bf16;
         }
         if(c.to_int8)
         {

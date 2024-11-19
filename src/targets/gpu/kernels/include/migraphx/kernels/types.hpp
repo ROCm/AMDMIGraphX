@@ -74,6 +74,7 @@ static_assert(sizeof(uint64_t) == 8, "uint64_t must be 8 bytes");
 template <class T, index_int N>
 using vec = T __attribute__((ext_vector_type(N)));
 
+using bf16 = __hip_uint16_t;
 using half  = _Float16;
 using half2 = migraphx::vec<half, 2>;
 using bf16 =  ushort;

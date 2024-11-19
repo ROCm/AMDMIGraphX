@@ -1198,26 +1198,29 @@ TEST_CASE(concat_unsqueeze)
     auto s = migraphx::shape{migraphx::shape::float_type, {11008, 4096}};
     migraphx::module m1;
     {
-        auto x  = m1.add_parameter("x", s);
-        auto y  = m1.add_parameter("y", s);
+        auto x          = m1.add_parameter("x", s);
+        auto y          = m1.add_parameter("y", s);
         auto xunsqueeze = m1.add_instruction(migraphx::make_op("unsqueeze", {{"axes", {0}}}), x);
         auto yunsqueeze = m1.add_instruction(migraphx::make_op("unsqueeze", {{"axes", {0}}}), y);
-        auto concat = m1.add_instruction(migraphx::make_op("concat", {{"axis", 1}}), xunsqueeze, yunsqueeze);
+        auto concat =
+            m1.add_instruction(migraphx::make_op("concat", {{"axis", 1}}), xunsqueeze, yunsqueeze);
         m1.add_return({concat});
     }
     migraphx::module m2;
     {
-        auto x  = m2.add_parameter("x", s);
-        auto y  = m2.add_parameter("y", s);
+        auto x      = m2.add_parameter("x", s);
+        auto y      = m2.add_parameter("y", s);
         auto concat = m2.add_instruction(migraphx::make_op("concat", {{"axis", 0}}), x, y);
-        auto unsqueeze = m2.add_instruction(migraphx::make_op("reshape", {{"dims", {1, 22016, 4096}}}), concat);
+        auto unsqueeze =
+            m2.add_instruction(migraphx::make_op("reshape", {{"dims", {1, 22016, 4096}}}), concat);
         m2.add_return({unsqueeze});
     }
     run_pass(m1);
     EXPECT(m1 == m2);
 }
 
-// @118 = multibroadcast[out_lens={11008, 32, 128},out_dyn_dims={}](@117) -> half_type, {11008, 32, 128}, {32, 1, 0}
+// @118 = multibroadcast[out_lens={11008, 32, 128},out_dyn_dims={}](@117) -> half_type, {11008, 32,
+// 128}, {32, 1, 0}
 // @119 = reshape[dims={11008, 4096}](@118) -> half_type, {11008, 4096}, {4096, 1}
 
 TEST_CASE(concat_reshape)
@@ -1225,19 +1228,23 @@ TEST_CASE(concat_reshape)
     auto s = migraphx::shape{migraphx::shape::float_type, {11008, 32, 128}};
     migraphx::module m1;
     {
-        auto x  = m1.add_parameter("x", s);
-        auto y  = m1.add_parameter("y", s);
-        auto xreshape = m1.add_instruction(migraphx::make_op("reshape", {{"dims", {11008, 4096}}}), x);
-        auto yreshape = m1.add_instruction(migraphx::make_op("reshape", {{"dims", {11008, 4096}}}), y);
-        auto concat = m1.add_instruction(migraphx::make_op("concat", {{"axis", 0}}), xreshape, yreshape);
+        auto x = m1.add_parameter("x", s);
+        auto y = m1.add_parameter("y", s);
+        auto xreshape =
+            m1.add_instruction(migraphx::make_op("reshape", {{"dims", {11008, 4096}}}), x);
+        auto yreshape =
+            m1.add_instruction(migraphx::make_op("reshape", {{"dims", {11008, 4096}}}), y);
+        auto concat =
+            m1.add_instruction(migraphx::make_op("concat", {{"axis", 0}}), xreshape, yreshape);
         m1.add_return({concat});
     }
     migraphx::module m2;
     {
-        auto x  = m2.add_parameter("x", s);
-        auto y  = m2.add_parameter("y", s);
+        auto x      = m2.add_parameter("x", s);
+        auto y      = m2.add_parameter("y", s);
         auto concat = m2.add_instruction(migraphx::make_op("concat", {{"axis", 0}}), x, y);
-        auto reshape = m2.add_instruction(migraphx::make_op("reshape", {{"dims", {22016, 4096}}}), concat);
+        auto reshape =
+            m2.add_instruction(migraphx::make_op("reshape", {{"dims", {22016, 4096}}}), concat);
         m2.add_return({reshape});
     }
     run_pass(m1);
@@ -1251,24 +1258,33 @@ TEST_CASE(concat_reshape_broadcast)
     {
         auto x  = m1.add_parameter("x", s);
         auto y  = m1.add_parameter("y", s);
-        auto xb = m1.add_instruction(migraphx::make_op("multibroadcast", {{"out_lens", {11008, 32, 128}}}), x);
-        auto yb = m1.add_instruction(migraphx::make_op("multibroadcast", {{"out_lens", {11008, 32, 128}}}), y);
-        auto xreshape = m1.add_instruction(migraphx::make_op("reshape", {{"dims", {11008, 4096}}}), xb);
-        auto yreshape = m1.add_instruction(migraphx::make_op("reshape", {{"dims", {11008, 4096}}}), yb);
-        auto concat = m1.add_instruction(migraphx::make_op("concat", {{"axis", 0}}), xreshape, yreshape);
+        auto xb = m1.add_instruction(
+            migraphx::make_op("multibroadcast", {{"out_lens", {11008, 32, 128}}}), x);
+        auto yb = m1.add_instruction(
+            migraphx::make_op("multibroadcast", {{"out_lens", {11008, 32, 128}}}), y);
+        auto xreshape =
+            m1.add_instruction(migraphx::make_op("reshape", {{"dims", {11008, 4096}}}), xb);
+        auto yreshape =
+            m1.add_instruction(migraphx::make_op("reshape", {{"dims", {11008, 4096}}}), yb);
+        auto concat =
+            m1.add_instruction(migraphx::make_op("concat", {{"axis", 0}}), xreshape, yreshape);
         m1.add_return({concat});
     }
     migraphx::module m2;
     {
-        auto x  = m2.add_parameter("x", s);
-        auto y  = m2.add_parameter("y", s);
+        auto x      = m2.add_parameter("x", s);
+        auto y      = m2.add_parameter("y", s);
         auto concat = m2.add_instruction(migraphx::make_op("concat", {{"axis", 0}}), x, y);
         // TODO: This could just be a broadcast
-        // auto broadcast = m2.add_instruction(migraphx::make_op("multibroadcast", {{"out_lens", {22016, 32, 128}}}), concat);
-        auto unsqueeze = m2.add_instruction(migraphx::make_op("unsqueeze", {{"axes", {3}}}), concat);
-        auto broadcast = m2.add_instruction(migraphx::make_op("multibroadcast", {{"out_lens", {22016, 32, 1, 128}}}), unsqueeze);
-        
-        auto reshape = m2.add_instruction(migraphx::make_op("reshape", {{"dims", {22016, 4096}}}), broadcast);
+        // auto broadcast = m2.add_instruction(migraphx::make_op("multibroadcast", {{"out_lens",
+        // {22016, 32, 128}}}), concat);
+        auto unsqueeze =
+            m2.add_instruction(migraphx::make_op("unsqueeze", {{"axes", {3}}}), concat);
+        auto broadcast = m2.add_instruction(
+            migraphx::make_op("multibroadcast", {{"out_lens", {22016, 32, 1, 128}}}), unsqueeze);
+
+        auto reshape =
+            m2.add_instruction(migraphx::make_op("reshape", {{"dims", {22016, 4096}}}), broadcast);
         m2.add_return({reshape});
     }
     run_pass(m1);

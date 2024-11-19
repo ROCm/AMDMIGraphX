@@ -466,51 +466,65 @@ struct find_concat_reshape
 {
     auto matcher() const
     {
-        return match::name("concat")(match::all_of[match::inputs()](match::name("reshape", "unsqueeze", "squeeze", "lazy_reshape")));
+        return match::name("concat")(match::all_of[match::inputs()](
+            match::name("reshape", "unsqueeze", "squeeze", "lazy_reshape")));
     }
 
     void apply(module& m, const match::matcher_result& mr) const
     {
         auto ins          = mr.result;
         auto concat_shape = ins->get_shape();
-        auto reshapes = ins->inputs();
+        auto reshapes     = ins->inputs();
         if(reshapes.empty())
             return;
         auto input_shape = reshapes.front()->inputs().front()->get_shape();
         // All inputs should have the same dimensions
-        if(not std::all_of(std::next(reshapes.begin()), reshapes.end(), [&](instruction_ref reshape) {
-            return reshape->inputs().front()->get_shape().lens() == input_shape.lens();
-        }))
+        if(not std::all_of(
+               std::next(reshapes.begin()), reshapes.end(), [&](instruction_ref reshape) {
+                   return reshape->inputs().front()->get_shape().lens() == input_shape.lens();
+               }))
             return;
         // axis could be a negative value
-        auto op          = any_cast<op::concat>(ins->get_operator());
+        auto op       = any_cast<op::concat>(ins->get_operator());
         int64_t n_dim = input_shape.lens().size();
-        auto axis       = tune_axis(n_dim, op.axis, op.name());
+        auto axis     = tune_axis(n_dim, op.axis, op.name());
 
-        auto predims = std::accumulate(concat_shape.lens().begin(), concat_shape.lens().begin()+axis, std::size_t{1}, std::multiplies<>{});
-        auto postdims = std::accumulate(concat_shape.lens().begin()+axis+1, concat_shape.lens().end(), std::size_t{1}, std::multiplies<>{});
+        auto predims  = std::accumulate(concat_shape.lens().begin(),
+                                       concat_shape.lens().begin() + axis,
+                                       std::size_t{1},
+                                       std::multiplies<>{});
+        auto postdims = std::accumulate(concat_shape.lens().begin() + axis + 1,
+                                        concat_shape.lens().end(),
+                                        std::size_t{1},
+                                        std::multiplies<>{});
 
         // Find the axis on the input
         std::size_t x = 1;
-        auto it       = std::find_if(input_shape.lens().begin(), input_shape.lens().end(), [&](auto d) {
+        auto it = std::find_if(input_shape.lens().begin(), input_shape.lens().end(), [&](auto d) {
             x *= d;
             return x > predims;
         });
         if(it == input_shape.lens().end())
             return;
-        op.axis = it - input_shape.lens().begin();
-        auto ipredims = std::accumulate(input_shape.lens().begin(), input_shape.lens().begin()+op.axis, std::size_t{1}, std::multiplies<>{});
+        op.axis       = it - input_shape.lens().begin();
+        auto ipredims = std::accumulate(input_shape.lens().begin(),
+                                        input_shape.lens().begin() + op.axis,
+                                        std::size_t{1},
+                                        std::multiplies<>{});
         if(ipredims != predims)
             return;
-        auto ipostdims = std::accumulate(input_shape.lens().begin()+op.axis+1, input_shape.lens().end(), std::size_t{1}, std::multiplies<>{});
+        auto ipostdims = std::accumulate(input_shape.lens().begin() + op.axis + 1,
+                                         input_shape.lens().end(),
+                                         std::size_t{1},
+                                         std::multiplies<>{});
         if(ipostdims != postdims)
             return;
 
         std::vector<instruction_ref> inputs;
-        std::transform(
-            reshapes.begin(), reshapes.end(), std::back_inserter(inputs), [&](instruction_ref i) {
-                return i->inputs().front();
-            });
+        std::transform(reshapes.begin(),
+                       reshapes.end(),
+                       std::back_inserter(inputs),
+                       [&](instruction_ref i) { return i->inputs().front(); });
         auto concat = m.insert_instruction(ins, op, inputs);
         m.replace_instruction(ins, make_op("reshape", {{"dims", concat_shape.lens()}}), concat);
     }

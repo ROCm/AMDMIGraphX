@@ -3978,16 +3978,17 @@ TEST_CASE(mul_dot_a_int4_dq)
 
         auto lit =
             m1.add_literal(migraphx::generate_literal({migraphx::shape::float_type, {4096}}));
-        auto litb =
-            m1.add_instruction(migraphx::make_op("broadcast", {{"axis", 2}, {"out_lens", as.lens()}}), lit);
+        auto litb = m1.add_instruction(
+            migraphx::make_op("broadcast", {{"axis", 2}, {"out_lens", as.lens()}}), lit);
         auto mul = m1.add_instruction(migraphx::make_op("mul"), a, litb);
 
-        auto b   = m1.add_literal(migraphx::generate_literal(bs));
-        auto unpack = m1.add_instruction(migraphx::make_op("unpack_int4"), b);
-        auto scales   = m1.add_literal(migraphx::generate_literal(cs));
-        auto dq = m1.add_instruction(migraphx::make_op("dequantizelinear"), unpack, scales);
+        auto b         = m1.add_literal(migraphx::generate_literal(bs));
+        auto unpack    = m1.add_instruction(migraphx::make_op("unpack_int4"), b);
+        auto scales    = m1.add_literal(migraphx::generate_literal(cs));
+        auto dq        = m1.add_instruction(migraphx::make_op("dequantizelinear"), unpack, scales);
         auto unsqueeze = m1.add_instruction(migraphx::make_op("unsqueeze", {{"axes", {0}}}), dq);
-        auto transpose = m1.add_instruction(migraphx::make_op("transpose", {{"permutation", {0, 2, 1}}}), unsqueeze);
+        auto transpose = m1.add_instruction(
+            migraphx::make_op("transpose", {{"permutation", {0, 2, 1}}}), unsqueeze);
         auto dot = m1.add_instruction(migraphx::make_op("dot"), mul, transpose);
         m1.add_return({dot});
     };

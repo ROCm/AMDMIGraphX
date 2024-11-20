@@ -59,14 +59,17 @@ auto conv_const_weights()
 
 auto from_int4()
 {
-    return match::skip(match::name("unsqueeze", "squeeze", "reshape", "lazy_reshape", "transpose", "broadcast", "multibroadcast", "dequantizelinear"))
-    (match::name("unpack_int4"));
+    return match::skip(match::name("unsqueeze",
+                                   "squeeze",
+                                   "reshape",
+                                   "lazy_reshape",
+                                   "transpose",
+                                   "broadcast",
+                                   "multibroadcast",
+                                   "dequantizelinear"))(match::name("unpack_int4"));
 }
 
-auto not_from_int4()
-{
-    return match::none_of(from_int4());
-}
+auto not_from_int4() { return match::none_of(from_int4()); }
 
 auto reduction() { return match::name_contains("reduce"); }
 
@@ -369,7 +372,8 @@ struct find_dot_mul
             match::used_once(),
             match::either_arg(0, 1)(const_broadcast.bind("d"),
                                     match::none_of(match::is_constant()).bind("z")));
-        return match::name("dot")(match::either_arg(0, 1)(mul, match::is_constant(not_from_int4()).bind("c")));
+        return match::name("dot")(
+            match::either_arg(0, 1)(mul, match::is_constant(not_from_int4()).bind("c")));
     }
 
     void apply(module& m, const match::matcher_result& r) const

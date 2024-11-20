@@ -4014,16 +4014,17 @@ TEST_CASE(mul_dot_a_int4_dq_concat)
         auto mul = m1.add_instruction(migraphx::make_op("mul"), a, litb);
 
         std::vector<migraphx::instruction_ref> concats;
-        for(int i=0;i<2;i++)
+        for(int i = 0; i < 2; i++)
         {
-            auto b         = m1.add_literal(migraphx::generate_literal(bs));
-            auto unpack    = m1.add_instruction(migraphx::make_op("unpack_int4"), b);
-            auto scales    = m1.add_literal(migraphx::generate_literal(cs));
-            auto dq        = m1.add_instruction(migraphx::make_op("dequantizelinear"), unpack, scales);
-            concats.push_back(m1.add_instruction(migraphx::make_op("unsqueeze", {{"axes", {0}}}), dq));
+            auto b      = m1.add_literal(migraphx::generate_literal(bs));
+            auto unpack = m1.add_instruction(migraphx::make_op("unpack_int4"), b);
+            auto scales = m1.add_literal(migraphx::generate_literal(cs));
+            auto dq     = m1.add_instruction(migraphx::make_op("dequantizelinear"), unpack, scales);
+            concats.push_back(
+                m1.add_instruction(migraphx::make_op("unsqueeze", {{"axes", {0}}}), dq));
         }
         auto concat = m1.add_instruction(migraphx::make_op("concat", {{"axis", 2}}), concats);
-        auto dot = m1.add_instruction(migraphx::make_op("dot"), mul, concat);
+        auto dot    = m1.add_instruction(migraphx::make_op("dot"), mul, concat);
         m1.add_return({dot});
     };
     migraphx::module m2 = m1;

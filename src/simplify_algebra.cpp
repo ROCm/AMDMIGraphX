@@ -57,6 +57,20 @@ auto conv_const_weights()
         match::args(match::none_of(match::is_constant()), match::is_constant().bind("w")));
 }
 
+auto from_int4()
+{
+    return match::skip(match::name("unsqueeze",
+                                   "squeeze",
+                                   "reshape",
+                                   "lazy_reshape",
+                                   "transpose",
+                                   "broadcast",
+                                   "multibroadcast",
+                                   "dequantizelinear"))(match::name("unpack_int4"));
+}
+
+auto not_from_int4() { return match::none_of(from_int4()); }
+
 auto reduction() { return match::name_contains("reduce"); }
 
 // conv(x, w) * a => conv(x, a * w)
@@ -209,7 +223,7 @@ struct find_mul_dot
     auto matcher() const
     {
         auto is_dot_const_inputs =
-            match::name("dot")(match::any_of[match::inputs()](match::is_constant()));
+            match::name("dot")(match::any_of[match::inputs()](match::is_constant(not_from_int4())));
         return match::name("mul")(match::either_arg(0, 1)(
             is_dot_const_inputs.bind("dot"), match::name("broadcast", "multibroadcast").bind("c")));
     }
@@ -358,7 +372,8 @@ struct find_dot_mul
             match::used_once(),
             match::either_arg(0, 1)(const_broadcast.bind("d"),
                                     match::none_of(match::is_constant()).bind("z")));
-        return match::name("dot")(match::either_arg(0, 1)(mul, match::is_constant().bind("c")));
+        return match::name("dot")(
+            match::either_arg(0, 1)(mul, match::is_constant(not_from_int4()).bind("c")));
     }
 
     void apply(module& m, const match::matcher_result& r) const

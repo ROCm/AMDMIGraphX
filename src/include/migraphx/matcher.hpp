@@ -727,7 +727,7 @@ auto skip(Ms... ms)
     return make_basic_fun_matcher([=](matcher_context& ctx, instruction_ref start) {
         return fix<optional<instruction_ref>>(
             [&](auto self, auto ins) -> optional<instruction_ref> {
-                if(ins->inputs().size() == 1 and ctx.matched(m, ins))
+                if(not ins->inputs().empty() and ctx.matched(m, ins))
                 {
                     auto next = ins->inputs().front();
                     return self(next);

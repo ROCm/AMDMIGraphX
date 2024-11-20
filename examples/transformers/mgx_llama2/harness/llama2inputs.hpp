@@ -59,6 +59,16 @@ struct LLama2Inputs
         }
     }
 
+    void prepareOneDimProgArgs(migraphx::program& prog, migraphx::program_parameters& prog_args)
+    {
+        prepareProgArgs(prog, prog_args, true);
+        auto param_shapes = prog.get_parameter_shapes();
+        auto inputShape = param_shapes[INPUTS_ID_STR];
+        std::vector<int64_t> oneDimInput = {0};
+        one_dim_input_buffer = std::make_unique<LLama2InputBuffer>(std::move(oneDimInput), offload_copy);
+        prog_args.add(INPUTS_ID_STR, migraphx::argument(inputShape, one_dim_input_buffer->data()));
+    }
+
     void upload_to_device(hipStream_t stream)
     {
         assert(not offload_copy);
@@ -111,6 +121,7 @@ struct LLama2Inputs
     LLama2Inputs &operator=(const LLama2Inputs &buf) = delete;
 
     std::unique_ptr<LLama2InputBuffer> input_ids_buffer;
+    std::unique_ptr<LLama2InputBuffer> one_dim_input_buffer;
     std::unique_ptr<LLama2InputBuffer> attention_mask_buffer;
     std::vector<std::unique_ptr<LLama2PastKeyValueBuffer>> past_key_buffers;
     std::vector<std::unique_ptr<LLama2PastKeyValueBuffer>> past_value_buffers;

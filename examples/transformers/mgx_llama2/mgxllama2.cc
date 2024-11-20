@@ -63,17 +63,12 @@ int main() {
 
 
     migraphx::program_parameters prog_args_one_dim;
-    model_inputs.prepareProgArgs(progSimpleInput, prog_args_one_dim, true);
-    auto param_shapes = progSimpleInput.get_parameter_shapes();
-    auto inputShape = param_shapes[model_inputs.INPUTS_ID_STR];
-    std::vector<int64_t> oneDimInput = {0};
-    std::unique_ptr<LLama2InputBuffer> one_dim_input_buffer = std::make_unique<LLama2InputBuffer>(std::move(oneDimInput), offload_copy);
-    prog_args_one_dim.add(model_inputs.INPUTS_ID_STR, migraphx::argument(inputShape, one_dim_input_buffer->data()));
+    model_inputs.prepareOneDimProgArgs(progSimpleInput, prog_args_one_dim);
     prog_args_one_dim.add(output_name, migraphx::argument(x_shape_one_dim, output_buffer_oneDim.data()));
 
     if (not offload_copy)
     {
-        one_dim_input_buffer->upload_to_device(stream);
+        model_inputs.one_dim_input_buffer->upload_to_device(stream);
     }
 
     std::cout << "Dataset size: " << model_inputs.dataSize() << std::endl;
@@ -120,7 +115,7 @@ int main() {
                 progArgMax = &progArgMaxSimpleInput;
             }
 
-            one_dim_input_buffer->update_data(new_token, 0, stream);
+            model_inputs.one_dim_input_buffer->update_data(new_token, 0, stream);
         }
 
 #ifdef TRACE

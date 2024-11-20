@@ -59,14 +59,16 @@ auto conv_const_weights()
 
 auto from_int4()
 {
-    return match::skip(match::name("unsqueeze",
-                                   "squeeze",
-                                   "reshape",
-                                   "lazy_reshape",
-                                   "transpose",
-                                   "broadcast",
-                                   "multibroadcast",
-                                   "dequantizelinear"))(match::name("unpack_int4"));
+    return match::make_predicate_matcher([](instruction_ref start) {
+        return fix<bool>([&](auto self, instruction_ref ins) {
+            auto alias = instruction::get_output_alias(ins);
+            if(contains({"reshape", "dequantizelinear"}, alias->name()))
+                return self(alias->inputs().front());
+            if(alias->name() == "concat")
+                return all_of(alias->inputs(), self);
+            return alias->name() == "unpack_int4";
+        })(start);
+    });
 }
 
 auto not_from_int4() { return match::none_of(from_int4()); }

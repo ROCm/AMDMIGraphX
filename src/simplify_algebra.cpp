@@ -906,6 +906,17 @@ struct find_concat_op
         });
     }
 
+    static bool rejected_inputs(const std::vector<instruction_ref>& inputs)
+    {
+        if(inputs.empty())
+            return true;
+        if(inputs.size() < 3)
+            return false;
+        auto nonconst = std::count_if(
+            inputs.begin(), inputs.end(), [](instruction_ref ins) { return not ins->can_eval(); });
+        return nonconst > 2;
+    }
+
     void apply(module& m, const match::matcher_result& r) const
     {
         auto ins  = r.result;
@@ -915,7 +926,7 @@ struct find_concat_op
             if(std::distance(start, last) < 2)
                 return {start, last};
             auto x = *start;
-            if(x->inputs().size() > 2 or x->inputs().empty() or x->outputs().size() > 1)
+            if(x->outputs().size() > 1 or rejected_inputs(x->inputs()))
                 return {start, last};
             auto op = x->get_operator();
             if(not is_valid_op(op))

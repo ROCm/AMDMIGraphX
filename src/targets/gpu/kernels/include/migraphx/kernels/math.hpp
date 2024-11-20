@@ -40,6 +40,8 @@ constexpr float as_float(migraphx::fp8::fp8e4m3fnuz x) { return x; }
 constexpr float as_float(migraphx::fp8::fp8e4m3fn x) { return x; }
 constexpr float as_float(migraphx::fp8::fp8e5m2 x) { return x; }
 
+constexpr float as_float(migraphx::bf16 x) { return x; }
+
 template <class T>
 constexpr T as_float(T x)
 {
@@ -76,6 +78,12 @@ constexpr T as_float(T x)
 #define MIGRAPHX_DEVICE_MATH_HALF(name, fname)                         \
     template <class... Ts, MIGRAPHX_REQUIRES(not is_any_vec<Ts...>())> \
     auto __device__ name(migraphx::half x, Ts... xs)                   \
+        MIGRAPHX_RETURNS(fname(math::as_float(x), math::as_float(xs)...))
+
+// NOLINTNEXTLINE
+#define MIGRAPHX_DEVICE_MATH_BF16(name, fname)                         \
+    template <class... Ts, MIGRAPHX_REQUIRES(not is_any_vec<Ts...>())> \
+    auto __device__ name(migraphx::bf16 x, Ts... xs)                   \
         MIGRAPHX_RETURNS(fname(math::as_float(x), math::as_float(xs)...))
 
 // NOLINTNEXTLINE
@@ -166,6 +174,20 @@ MIGRAPHX_DEVICE_MATH_FOR(migraphx::half, rsqrt, ::hrsqrt)
 MIGRAPHX_DEVICE_MATH_FOR(migraphx::half, sin, ::hsin)
 MIGRAPHX_DEVICE_MATH_FOR(migraphx::half, sqrt, ::hsqrt)
 
+// Builtin half functions
+// MIGRAPHX_DEVICE_MATH_FOR(migraphx::bf16, abs, ::__habs)
+// MIGRAPHX_DEVICE_MATH_FOR(migraphx::bf16, ceil, ::hceil)
+// MIGRAPHX_DEVICE_MATH_FOR(migraphx::bf16, cos, ::hcos)
+// MIGRAPHX_DEVICE_MATH_FOR(migraphx::bf16, exp, ::hexp)
+// MIGRAPHX_DEVICE_MATH_FOR(migraphx::bf16, floor, ::hfloor)
+// MIGRAPHX_DEVICE_MATH_FOR(migraphx::bf16, isinf, ::__hisinf)
+// MIGRAPHX_DEVICE_MATH_FOR(migraphx::bf16, isnan, ::__hisnan)
+// MIGRAPHX_DEVICE_MATH_FOR(migraphx::bf16, log, ::hlog)
+// MIGRAPHX_DEVICE_MATH_FOR(migraphx::bf16, log2, ::hlog2)
+// MIGRAPHX_DEVICE_MATH_FOR(migraphx::bf16, rsqrt, ::hrsqrt)
+// MIGRAPHX_DEVICE_MATH_FOR(migraphx::bf16, sin, ::hsin)
+// MIGRAPHX_DEVICE_MATH_FOR(migraphx::bf16, sqrt, ::hsqrt)
+
 // Use float to compute half overload
 MIGRAPHX_DEVICE_MATH_HALF(acos, ::acos)
 MIGRAPHX_DEVICE_MATH_HALF(acosh, ::acosh)
@@ -183,6 +205,34 @@ MIGRAPHX_DEVICE_MATH_HALF(sinh, ::sinh)
 MIGRAPHX_DEVICE_MATH_HALF(tan, ::tan)
 MIGRAPHX_DEVICE_MATH_HALF(tanh, ::tanh)
 MIGRAPHX_DEVICE_MATH_HALF(fmod, ::fmod)
+
+// Use float to compute bf16 overload
+MIGRAPHX_DEVICE_MATH_BF16(abs, ::abs)
+MIGRAPHX_DEVICE_MATH_BF16(acos, ::acos)
+MIGRAPHX_DEVICE_MATH_BF16(acosh, ::acosh)
+MIGRAPHX_DEVICE_MATH_BF16(asin, ::asin)
+MIGRAPHX_DEVICE_MATH_BF16(asinh, ::asinh)
+MIGRAPHX_DEVICE_MATH_BF16(atan, ::atan)
+MIGRAPHX_DEVICE_MATH_BF16(atanh, ::atanh)
+MIGRAPHX_DEVICE_MATH_BF16(ceil, ::ceil)
+MIGRAPHX_DEVICE_MATH_BF16(cos, ::cos)
+MIGRAPHX_DEVICE_MATH_BF16(cosh, ::cosh)
+MIGRAPHX_DEVICE_MATH_BF16(erf, ::erf)
+MIGRAPHX_DEVICE_MATH_BF16(exp, ::exp)
+MIGRAPHX_DEVICE_MATH_BF16(floor, ::floor)
+MIGRAPHX_DEVICE_MATH_BF16(isnan, ::isnan)
+MIGRAPHX_DEVICE_MATH_BF16(log, ::log)
+MIGRAPHX_DEVICE_MATH_BF16(log2, ::log2)
+MIGRAPHX_DEVICE_MATH_BF16(pow, ::pow)
+MIGRAPHX_DEVICE_MATH_BF16(remainder, ::remainder)
+MIGRAPHX_DEVICE_MATH_BF16(round, ::round)
+MIGRAPHX_DEVICE_MATH_BF16(rsqrt, ::rsqrt)
+MIGRAPHX_DEVICE_MATH_BF16(sin, ::sin)
+MIGRAPHX_DEVICE_MATH_BF16(sinh, ::sinh)
+MIGRAPHX_DEVICE_MATH_BF16(sqrt, ::sqrt)
+MIGRAPHX_DEVICE_MATH_BF16(tan, ::tan)
+MIGRAPHX_DEVICE_MATH_BF16(tanh, ::tanh)
+MIGRAPHX_DEVICE_MATH_BF16(fmod, ::fmod)
 
 // use float to compute fp8 overload
 MIGRAPHX_DEVICE_MATH_FP8(abs, ::abs)
@@ -244,6 +294,8 @@ MIGRAPHX_DEVICE_MATH_BINARY_FOR(double, max, ::max)
 MIGRAPHX_DEVICE_MATH_BINARY_FOR(double, min, ::min)
 MIGRAPHX_DEVICE_MATH_BINARY_FOR(migraphx::half, max, ::__hmax)
 MIGRAPHX_DEVICE_MATH_BINARY_FOR(migraphx::half, min, ::__hmin)
+// MIGRAPHX_DEVICE_MATH_BINARY_FOR(migraphx::bf16, max, ::__hmax)
+// MIGRAPHX_DEVICE_MATH_BINARY_FOR(migraphx::bf16, min, ::__hmin)
 
 template <class T, MIGRAPHX_REQUIRES(not is_any_vec<T>())>
 constexpr auto max(const T& a, const T& b)

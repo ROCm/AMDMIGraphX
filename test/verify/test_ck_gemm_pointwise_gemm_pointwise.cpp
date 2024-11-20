@@ -35,7 +35,7 @@ struct test_ck_gemm_pointwise_gemm_pointwise : verify_program<test_ck_gemm_point
         auto* mm = p.get_main_module();
 
         migraphx::shape m1_shape{migraphx::shape::half_type, {1, 12, 256, 128}};
-        migraphx::shape m2_shape{migraphx::shape::half_type, {1, 12, 128, 512}};
+        migraphx::shape m2_shape{migraphx::shape::half_type, {1, 12, 512, 128}};
         migraphx::shape x_shape{migraphx::shape::half_type, {1, 12, 256, 512}};
         migraphx::shape m3_shape{migraphx::shape::half_type, {1, 12, 64, 512}};
         migraphx::shape y_shape{migraphx::shape::half_type, {1, 12, 256, 64}};

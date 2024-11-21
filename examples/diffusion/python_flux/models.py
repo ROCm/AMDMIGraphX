@@ -293,6 +293,33 @@ def get_t5_model(local_dir,
     # migraphx-driver perf FLUX.1-schnell/text_encoder_2/model.onnx --input-dim @input_ids 1 512 --fill1 input_ids --fp16
 
 
+## Following decorators required to apply fp16 inference patch to the transformer blocks
+## Note that we do not export fp16 weights directly to ONNX to allow migraphx to 
+##  perform optimizations before quantizing down to fp16. This results in better
+##  accuracy compared to exporting fp16 directly to onnx
+def transformer_block_clip_wrapper(fn):
+    
+    def new_forward(*args, **kwargs):
+        encoder_hidden_states, hidden_states = fn(*args, **kwargs)
+        return encoder_hidden_states.clip(-65504, 65504), hidden_states
+    
+    return new_forward
+
+def single_transformer_block_clip_wrapper(fn):
+    
+    def new_forward(*args, **kwargs):
+        hidden_states = fn(*args, **kwargs)
+        return hidden_states.clip(-65504, 65504)
+    
+    return new_forward
+    
+def add_output_clippings_for_fp16(model):
+    for b in model.transformer_blocks:
+        b.forward = transformer_block_clip_wrapper(b.forward)
+        
+    for b in model.single_transformer_blocks:
+        b.forward = single_transformer_block_clip_wrapper(b.forward)
+
 def get_flux_transformer_model(local_dir,
                                hf_model_path,
                                compiled_dir,
@@ -355,6 +382,8 @@ def get_flux_transformer_model(local_dir,
         model = FluxTransformer2DModel.from_pretrained(hf_model_path,
                                                        subfolder=model_dir,
                                                        torch_dtype=torch_dtype)
+        
+        add_output_clippings_for_fp16(model)
 
         output_names = ["latent"]
         dynamic_axes = {

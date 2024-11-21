@@ -17,7 +17,7 @@ huggingface-cli login
 
 ## Generate Image
 ```
-python3 txt2img.py -p "A cat holding a sign that says hello world" -o ./
+python3 txt2img.py -p "A cat holding a sign that says hello world"
 ```
 
 ## Benchmark

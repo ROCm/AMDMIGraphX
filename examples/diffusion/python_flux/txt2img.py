@@ -89,14 +89,14 @@ def get_args():
     )
     
     parser.add_argument(
-        "-o",
         "--output-dir",
         type=str,
-        default=None,
+        default="./",
         help="Specify directory where images should be saved",
     )
     
     parser.add_argument(
+        "-o",
         "--output-prefix",
         type=str,
         default="flux",

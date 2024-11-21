@@ -412,58 +412,25 @@ struct find_dot_mul
     }
 };
 
-
-
-auto fusable_split()
+auto fusable_split(const std::string& name)
 {
-    return match::make_basic_pred_matcher([](instruction_ref ins) {
-
-        std::vector<instruction_ref> slices;
-
-        for (const auto& output : ins->outputs())
+    return match::make_basic_pred_matcher([&](instruction_ref ins) {
+        // at least one slice output
+        if (not any_of(ins->outputs(), [](instruction_ref out) {
+                return out->name() == "slice";
+            }))
         {
-            if (output->name() == "slice")
-            {
-                slices.push_back(output);
-            }
+            return false;
         }
 
-        if (slices.empty())
-            return false;
-
-        std::vector<instruction_ref> add_instructions;
-        for (const auto& slice : slices)
-        {
-            bool used_by_add = false;
-            for (auto& user : slice->outputs())
-            {
-                if (user->name() == "add")
-                {
-                    used_by_add = true;
-                    add_instructions.push_back(user);
-                }
-            }
-            if (!used_by_add)
-                return false;
-        }        
-
-        bool any_add_followed_by_mul = false;
-        for (const auto& add_ins : add_instructions)
-        {
-            for (auto& user : add_ins->outputs())
-            {
-                if (user->name() == "mul")
-                {
-                    any_add_followed_by_mul = true;
-                    ins->outputs();
-                }
-            }
-        }
-
-        if (!any_add_followed_by_mul)
-            return false;
-
-        return true;
+        // check all slice outputs
+        return all_of(ins->outputs(), [&](instruction_ref slice) {
+            if (slice->name() != "slice")
+                return true;
+            return any_of(slice->outputs(), [&](instruction_ref x) {
+                return x->name() == name;
+            });
+        });
     });
 }
 
@@ -482,9 +449,7 @@ struct find_mul_add
         return match::name("mul")(match::either_arg(0, 1)(
                 match::name("add")(
                     match::either_arg(0, 1)(
-                        match::none_of(match::name("slice")(match::arg(0)(
-                            fusable_split().bind("slc")
-                        ))).bind("x"),
+                        match::all_of(fusable_split("add")).bind("x"),
                         match::any_of(conv_const_weights(), match::is_constant()).bind("b")),
                     match::none_of(match::args(match::is_constant(), match::is_constant())),
                     match::used_once()),
@@ -493,6 +458,7 @@ struct find_mul_add
 
     void apply(module& m, const match::matcher_result& r) const
     {
+        std::cout<< "I am inside mul_add";
         auto ins   = r.result;
         auto a_ins = r.instructions["a"];
         auto b_ins = r.instructions["b"];
@@ -514,10 +480,7 @@ struct find_slice_add_mul
         {        
             return match::name("mul")(match::either_arg(0, 1)(
                 match::name("add")(
-                    match::either_arg(0, 1)(
-                        match::name("slice")(match::arg(0)(
-                            fusable_split().bind("slc")
-                        )).bind("x"),
+                    match::either_arg(0, 1)(match::none_of(fusable_split("add")).bind("x"),
                         match::any_of(conv_const_weights(), match::is_constant()).bind("b")),
                     match::none_of(match::args(match::is_constant(), match::is_constant())),
                     match::used_once()),
@@ -526,6 +489,7 @@ struct find_slice_add_mul
     void apply(module& m, const match::matcher_result& r) const
     {
         
+        std::cout<< "I am inside slice_add_mul";
         auto ins    = r.result;
         auto a_ins  = r.instructions["a"];
         auto b_ins  = r.instructions["b"];

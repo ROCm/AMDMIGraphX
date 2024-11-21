@@ -68,6 +68,13 @@ int32_t hip_gemm_default_solution(context& ctx,
                                   const shape& output_shape,
                                   const std::vector<shape>& input_shapes);
 
+size_t hip_gemm_workspace_size(context& ctx,
+                               const shape& output_shape,
+                               const std::vector<shape>& input_shapes,
+                               float alpha,
+                               float beta,
+                               int32_t solution_idx);
+
 } // namespace gpu
 } // namespace MIGRAPHX_INLINE_NS
 } // namespace migraphx

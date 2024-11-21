@@ -21,48 +21,57 @@
  * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
  * THE SOFTWARE.
  */
-#include <migraphx/gpu/device_name.hpp>
-#include <migraphx/errors.hpp>
-#include <migraphx/rank.hpp>
-#include <migraphx/stringutils.hpp>
-#include <hip/hip_runtime_api.h>
+#ifndef MIGRAPHX_GUARD_GPU_COMPILE_HIPBLASLT_HPP
+#define MIGRAPHX_GUARD_GPU_COMPILE_HIPBLASLT_HPP
+
+#include <migraphx/config.hpp>
+#include <migraphx/instruction_ref.hpp>
+#include <migraphx/op/identity.hpp>
+#include <migraphx/register_op.hpp>
+#include <string>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
+
+struct module;
+struct context;
+struct operation;
+
 namespace gpu {
 
-int get_device_id()
+struct hipblaslt_op
 {
-    int device;
-    auto status = hipGetDevice(&device);
-    if(status != hipSuccess)
-        MIGRAPHX_THROW("No device");
-    return device;
-}
+    operation op = op::identity{};
 
-std::string get_device_name()
-{
-    hipDeviceProp_t props{};
-    auto status = hipGetDeviceProperties(&props, get_device_id());
-    if(status != hipSuccess)
-        MIGRAPHX_THROW("Failed to get device properties");
-    return props.gcnArchName;
-}
+    template <class Self, class F>
+    static auto reflect(Self& self, F f)
+    {
+        return pack(f(self.op, "op"));
+    }
 
-bool gfx_has_fp8fnuz_intrinsics()
-{
-    const auto device_name = trim(split_string(get_device_name(), ':').front());
-    return (starts_with(device_name, "gfx94"));
-}
+    std::string name() const { return "gpu::hipblaslt_op"; }
 
-bool gfx_has_fp8ocp_intrinsics()
+    shape compute_shape(std::vector<shape> inputs) const
+    {
+        inputs.push_back(inputs.back());
+        return op.compute_shape(inputs);
+    }
+
+    std::ptrdiff_t output_alias(const std::vector<shape>& shapes) const
+    {
+        return shapes.size() - 1;
+    }
+};
+MIGRAPHX_REGISTER_OP(hipblaslt_op);
+
+struct compile_hipblaslt
 {
-    const auto device_name = trim(split_string(get_device_name(), ':').front());
-    bool is_navi_with_fp8ocp = starts_with(device_name, "gfx12") and device_name >= "gfx1200";
-    bool is_mi_with_fp8ocp   = starts_with(device_name, "gfx9") and device_name >= "gfx950";
-    return (is_navi_with_fp8ocp or is_mi_with_fp8ocp);
-}
+    context* ctx = nullptr;
+    std::string name() const { return "gpu::compile_hipblaslt"; }
+    void apply(module& m) const;
+};
 
 } // namespace gpu
 } // namespace MIGRAPHX_INLINE_NS
 } // namespace migraphx
+#endif // MIGRAPHX_GUARD_GPU_COMPILE_HIPBLASLT_HPP

@@ -246,6 +246,8 @@ constexpr T numeric_max()
         return __FLT_MAX__;
     else if constexpr(is_same<T, migraphx::half>{})
         return __FLT16_MAX__;
+    else if constexpr(is_same<T, migraphx::bf16>{})
+        return 338953138925153547590470800371487866880.000000;
     else
         return 0;
 }

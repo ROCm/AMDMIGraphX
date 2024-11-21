@@ -408,13 +408,12 @@ TEST_CASE(assert_type_min_max)
         if(contains({migraphx::shape::bool_type,
                      migraphx::shape::fp8e4m3fnuz_type,
                      migraphx::shape::tuple_type,
-                     migraphx::shape::bf16_type},
+                     },
                     t))
             continue;
         auto name = migraphx::shape::cpp_type(t);
-        if(t == migraphx::shape::half_type)
+        if((t == migraphx::shape::half_type) or (t == migraphx::shape::bf16_type))
             name.insert(0, "migraphx::");
-
         migraphx::shape::visit(t, [&](auto as) {
             std::string min = "";
             std::string max = "";

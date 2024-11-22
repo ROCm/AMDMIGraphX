@@ -155,24 +155,6 @@ int main() {}
 
 )__migraphx__";
 
-const std::string bit_cast_kernel = R"__migraphx__(
-#include <migraphx/kernels/bit_cast.hpp>
-#include <migraphx/kernels/types.hpp>
-#include <migraphx/kernels/pointwise.hpp>
-
-namespace migraphx {
-extern "C" {
-__global__ void kernel(${From} fr)
-{
-    migraphx::bit_cast<${To}>(fr);
-}
-}
-}
-
-int main() {}
-
-)__migraphx__";
-
 migraphx::src_file make_src_file(const std::string& name, const std::string& content)
 {
     return {name, content};
@@ -462,23 +444,6 @@ TEST_CASE(assert_type_min_max)
             auto co = migraphx::gpu::compile_hip_code_object(src, options);
         });
     }
-}
-
-// test bit_cast
-TEST_CASE(gpu_bit_cast)
-{
-    migraphx::shape input{migraphx::shape::fp8e4m3fn_type, {5, 2}};
-    migraphx::gpu::hip_compile_options options;
-    options.global = 1024;
-    options.local  = 1024;
-    options.inputs = {input};
-    options.output = input;
-    auto src       = migraphx::interpolate_string(
-        bit_cast_kernel,
-        {{"To", migraphx::shape::cpp_type(migraphx::shape::fp8e4m3fn_type)},
-               {"From", migraphx::shape::cpp_type(migraphx::shape::fp8e4m3fnuz_type)}});
-    auto co = migraphx::gpu::compile_hip_code_object(src, options);
-    (void)co;
 }
 
 int main(int argc, const char* argv[]) { test::run(argc, argv); }

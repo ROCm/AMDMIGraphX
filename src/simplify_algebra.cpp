@@ -487,7 +487,6 @@ struct find_mul_add
 
     void apply(module& m, const match::matcher_result& r) const
     {
-        std::cout<< "I am inside mul_add";
         auto ins   = r.result;
         auto a_ins = r.instructions["a"];
         auto b_ins = r.instructions["b"];
@@ -511,7 +510,6 @@ struct find_slice_add_mul
         }
     void apply(module& m, const match::matcher_result& r) const
     {
-        std::cout<< "I am inside slice_add_mul";
         auto ins    = r.result;
         auto a_ins  = r.instructions["a"];
         auto b_ins  = r.instructions["b"];

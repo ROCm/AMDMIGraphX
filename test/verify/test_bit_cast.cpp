@@ -40,16 +40,15 @@ struct test_bit_cast : verify_program<test_bit_cast<From, To>>
         migraphx::shape sb{From, {24, 6}};
         auto pa = mm->add_parameter("a", sa);
         auto pb = mm->add_parameter("b", sb);
-        auto ia = mm->add_instruction(
+        mm->add_instruction(
             migraphx::make_op("bit_cast", {{"target_type", migraphx::to_value(To)}}), pa);
-        auto ib = mm->add_instruction(
+        mm->add_instruction(
             migraphx::make_op("bit_cast", {{"target_type", migraphx::to_value(To)}}), pb);
-        mm->add_instruction(migraphx::make_op("dot"), ia, ib);
-
         return p;
     };
-    std::string section() const { return "gemm"; }
 };
 
+template struct test_bit_cast<migraphx::shape::uint8_type, migraphx::shape::int8_type>;
 template struct test_bit_cast<migraphx::shape::int8_type, migraphx::shape::uint8_type>;
 template struct test_bit_cast<migraphx::shape::fp8e4m3fn_type, migraphx::shape::fp8e4m3fnuz_type>;
+template struct test_bit_cast<migraphx::shape::fp8e4m3fnuz_type, migraphx::shape::fp8e4m3fn_type>;

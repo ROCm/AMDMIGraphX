@@ -412,7 +412,7 @@ struct find_dot_mul
     }
 };
 
-auto fusable_slice_add_mul_split(const std::string& name)
+auto fusable_split(const std::string& name)
 {    
     return match::make_basic_pred_matcher([&](instruction_ref ins) {
         return all_of(ins->outputs(), [&](instruction_ref slice) {
@@ -427,51 +427,6 @@ auto fusable_slice_add_mul_split(const std::string& name)
 }
 
 
-auto slice_add_mul()
-{
-    auto slice_1 = match::name("slice")(
-                        match::arg(0)(
-                            match::any_of(fusable_slice_add_mul_split("add"))
-                        ));
-
-    return match::name("mul")(
-        match::either_arg(0, 1)(
-            match::name("add")(
-                match::either_arg(0, 1)(
-                    slice_1.bind("x"),
-                    match::any_of(conv_const_weights(), match::is_constant()).bind("b")
-                ),
-                match::none_of(match::args(match::is_constant(), match::is_constant())),
-                match::used_once()
-            ),
-            match::is_constant().bind("a")
-        )
-    );
-     
-}
-
-auto mul_add()
-{
-    auto slice_1 = match::none_of(match::name("slice")(
-                        match::arg(0)(
-                            match::none_of(fusable_slice_add_mul_split("add"))
-                        )));
-
-    return match::name("mul")(
-        match::either_arg(0, 1)(
-            match::name("add")(
-                match::either_arg(0, 1)(
-                    slice_1.bind("x"),
-                    match::any_of(conv_const_weights(), match::is_constant()).bind("b")
-                ),
-                match::none_of(match::args(match::is_constant(), match::is_constant())),
-                match::used_once()
-            ),
-            match::is_constant().bind("a")
-        )
-    );
-}
-
 // ******************************
 //  a * (x + b) => a * x + a * b
 // ******************************
@@ -482,8 +437,23 @@ struct find_mul_add
 {
     auto matcher() const
     {   
-        return mul_add();
+        //auto slice_1 = match::all_of(match::name("slice")(match::args(0)(match::none_of(fusable_split("add")))));
+        //auto slice_1 = match::skip(match::name("slice"))(fusable_split("add"));
+        auto slice_1 = match::skip(match::name("slice"))(match::none_of(fusable_split("add")));
 
+        return match::name("mul")(
+            match::either_arg(0, 1)(
+                match::name("add")(
+                    match::either_arg(0, 1)(
+                        slice_1.bind("x"),
+                        match::any_of(conv_const_weights(), match::is_constant()).bind("b")
+                    ),
+                    match::none_of(match::args(match::is_constant(), match::is_constant())),
+                    match::used_once()
+                ),
+                match::is_constant().bind("a")
+            )
+    );
     }
 
     void apply(module& m, const match::matcher_result& r) const
@@ -494,7 +464,6 @@ struct find_mul_add
         auto x_ins = r.instructions["x"];
         assert(x_ins != b_ins);
 
-        std::cout<<"inside mul_add";    
         auto ax_ins = m.insert_instruction(ins, make_op("mul"), a_ins, x_ins);
         auto ab_ins = m.insert_instruction(ins, make_op("mul"), a_ins, b_ins);
         m.replace_instruction(ins, make_op("add"), ax_ins, ab_ins);
@@ -502,13 +471,25 @@ struct find_mul_add
     }
 };
 
-
-
 struct find_slice_add_mul
 {
         auto matcher() const
         {        
-             return slice_add_mul();
+            auto slice_1 = match::name("slice")(match::arg(0)(fusable_split("add")));
+
+            return match::name("mul")(
+                match::either_arg(0, 1)(
+                    match::name("add")(
+                        match::either_arg(0, 1)(
+                            slice_1.bind("x"),
+                            match::any_of(conv_const_weights(), match::is_constant()).bind("b")
+                        ),
+                        match::none_of(match::args(match::is_constant(), match::is_constant())),
+                        match::used_once()
+                    ),
+                    match::is_constant().bind("a")
+                )
+            );
         }
     void apply(module& m, const match::matcher_result& r) const
     {
@@ -519,13 +500,11 @@ struct find_slice_add_mul
 
         assert(x_ins != b_ins);
 
-        std::cout<<"inside";
         auto ax_ins = m.insert_instruction(ins, make_op("add"), x_ins, b_ins);
         m.replace_instruction(ins, make_op("mul"), ax_ins, a_ins);
         
     }
 };
-
 
 struct find_dot_add
 {

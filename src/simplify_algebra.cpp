@@ -428,15 +428,16 @@ auto fusable_slice_add_mul_split(const std::string& name)
 
 auto slice_add_mul()
 {
+    auto slice_1 = match::name("slice")(
+                        match::arg(0)(
+                            match::any_of(fusable_slice_add_mul_split("add"))
+                        ));
+
     return match::name("mul")(
         match::either_arg(0, 1)(
             match::name("add")(
                 match::either_arg(0, 1)(
-                    match::name("slice")(
-                        match::arg(0)(
-                            match::any_of(fusable_slice_add_mul_split("add"))
-                        )
-                    ).bind("x"),
+                    slice_1.bind("x"),
                     match::any_of(conv_const_weights(), match::is_constant()).bind("b")
                 ),
                 match::none_of(match::args(match::is_constant(), match::is_constant())),
@@ -450,15 +451,16 @@ auto slice_add_mul()
 
 auto mul_add()
 {
+    auto slice_1 = match::name("slice")(
+                        match::arg(0)(
+                            match::none_of(fusable_slice_add_mul_split("add"))
+                        ));
+
     return match::name("mul")(
         match::either_arg(0, 1)(
             match::name("add")(
                 match::either_arg(0, 1)(
-                    match::name("slice")(
-                        match::arg(0)(
-                            match::none_of(fusable_slice_add_mul_split("add"))
-                        )
-                    ).bind("x"),
+                    slice_1.bind("x"),
                     match::any_of(conv_const_weights(), match::is_constant()).bind("b")
                 ),
                 match::none_of(match::args(match::is_constant(), match::is_constant())),

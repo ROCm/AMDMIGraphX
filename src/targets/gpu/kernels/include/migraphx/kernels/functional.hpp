@@ -63,11 +63,11 @@ template <class... Fs>
 struct overloaded : Fs...
 {
     using Fs::operator()...;
-    overloaded(Fs... fs) : Fs(fs)... {}
+    constexpr overloaded(Fs... fs) : Fs(fs)... {}
 };
 
 template <class... Fs>
-overloaded<Fs...> overload(Fs... fs)
+constexpr overloaded<Fs...> overload(Fs... fs)
 {
     return {fs...};
 }

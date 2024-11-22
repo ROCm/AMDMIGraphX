@@ -29,6 +29,9 @@
 
 namespace migraphx {
 
+template< class... >
+using void_t = void;
+
 template <class T, class U = T&&>
 U private_declval(int);
 
@@ -37,6 +40,15 @@ T private_declval(long);
 
 template <class T>
 auto declval() noexcept -> decltype(private_declval<T>(0));
+
+template<class Void, class F, class... Ts>
+struct is_callable_impl : false_type {};
+
+template<class F, class... Ts>
+struct is_callable_impl<void_t<decltype(declval<F>()(declval<Ts>()...))>, F, Ts...> : true_type {};
+
+template<class F, class... Ts>
+using is_callable = is_callable_impl<void, F, Ts...>;
 
 template <class T>
 struct type_identity

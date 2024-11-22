@@ -30,22 +30,115 @@
 #include <migraphx/kernels/type_traits.hpp>
 #include <migraphx/kernels/hip.hpp>
 #include <migraphx/kernels/float8.hpp>
+#include <migraphx/kernels/pp.hpp>
 
 namespace migraphx {
 
 namespace math {
-constexpr float as_float(migraphx::half x) { return x; }
+// constexpr float as_float(migraphx::half x) { return x; }
 
-constexpr float as_float(migraphx::fp8::fp8e4m3fnuz x) { return x; }
-constexpr float as_float(migraphx::fp8::fp8e4m3fn x) { return x; }
-constexpr float as_float(migraphx::fp8::fp8e5m2 x) { return x; }
+// constexpr float as_float(migraphx::fp8::fp8e4m3fnuz x) { return x; }
+// constexpr float as_float(migraphx::fp8::fp8e4m3fn x) { return x; }
+// constexpr float as_float(migraphx::fp8::fp8e5m2 x) { return x; }
 
 template <class T>
-constexpr T as_float(T x)
+constexpr auto as_float(T x)
 {
-    return x;
+    if constexpr(is_integral<T>{})
+        return x;
+    else
+        return float(x);
 }
+
+template<class Sig, class F>
+struct function_wrapper;
+
+template<class Result, class... Ts, class F>
+struct function_wrapper<Result(*)(Ts...) noexcept, F>
+{
+    F f;
+
+    constexpr Result operator()(Ts... xs) const noexcept
+    {
+        return f(xs...);
+    }
+};
+
+template<class Result, class... Ts, class F>
+struct function_wrapper<Result(*)(Ts...), F>
+{
+    F f;
+
+    constexpr Result operator()(Ts... xs) const
+    {
+        return f(xs...);
+    }
+};
+
+// template<class F>
+// struct function_wrapper;
+
+// template<class Result, class... Ts>
+// struct function_wrapper<Result(*)(Ts...) noexcept>
+// {
+//     using type = Result(*)(Ts...) noexcept;
+//     type f;
+
+//     constexpr Result operator()(Ts... xs) const noexcept
+//     {
+//         return f(xs...);
+//     }
+// };
+
+// template<class Result, class... Ts>
+// struct function_wrapper<Result(*)(Ts...)>
+// {
+//     using type = Result(*)(Ts...);
+//     type f;
+
+//     constexpr Result operator()(Ts... xs) const
+//     {
+//         return f(xs...);
+//     }
+// };
+
+template<class Sig, class F>
+constexpr function_wrapper<Sig, F> make_function_wrapper(Sig, F f)
+{
+    return {f};
+}
+
+template<class Key, class T, class = void>
+struct disable_wrap : false_type {};
+
+template<class F, class T, class... Ts, MIGRAPHX_REQUIRES(not is_any_vec<T, Ts...>())>
+__device__ auto wrap(F f, T x, Ts... xs)
+{
+    if constexpr(is_integral<T>{})
+    {
+        return wrap(f, double(x), double(xs)...);
+    }
+    else if constexpr(is_callable<F, T, Ts...>{})
+    {
+        return f(x, xs...);
+    }
+    else
+    {
+        T result = f(as_float(x), as_float(xs)...);
+        return result;
+    }
+}
+
 } // namespace math
+
+#define MIGRAPHX_DEVICE_MATH_LIFT(...) make_function_wrapper(&__VA_ARGS__, MIGRAPHX_LIFT(__VA_ARGS__))
+
+// NOLINTNEXTLINE
+#define MIGRAPHX_DEVICE_MATH_WRAP(name, ...)                              \
+    namespace math { inline static constexpr auto wrap_##name = overload(MIGRAPHX_PP_TRANSFORM_ARGS(MIGRAPHX_DEVICE_MATH_LIFT, __VA_ARGS__)); } \
+    template <class... Ts> \
+    auto __device__ name(Ts... xs) MIGRAPHX_RETURNS(math::wrap(math::wrap_##name, xs...))
+
 
 // NOLINTNEXTLINE
 #define MIGRAPHX_DEVICE_MATH(name, fname)                              \
@@ -107,110 +200,110 @@ constexpr T as_float(T x)
             [](auto... ys) -> migraphx::vec<migraphx::half, 2> { return fname(ys...); }); \
     }
 
-MIGRAPHX_DEVICE_MATH(abs, ::abs)
-MIGRAPHX_DEVICE_MATH(acos, ::acos)
-MIGRAPHX_DEVICE_MATH(acosh, ::acosh)
-MIGRAPHX_DEVICE_MATH(asin, ::asin)
-MIGRAPHX_DEVICE_MATH(asinh, ::asinh)
-MIGRAPHX_DEVICE_MATH(atan, ::atan)
-MIGRAPHX_DEVICE_MATH(atanh, ::atanh)
-MIGRAPHX_DEVICE_MATH(ceil, ::ceil)
-MIGRAPHX_DEVICE_MATH(cos, ::cos)
-MIGRAPHX_DEVICE_MATH(cosh, ::cosh)
-MIGRAPHX_DEVICE_MATH(erf, ::erf)
-MIGRAPHX_DEVICE_MATH(exp, ::exp)
-MIGRAPHX_DEVICE_MATH(floor, ::floor)
-MIGRAPHX_DEVICE_MATH(isnan, ::isnan)
-MIGRAPHX_DEVICE_MATH(isinf, ::isinf)
-MIGRAPHX_DEVICE_MATH(log, ::log)
-MIGRAPHX_DEVICE_MATH(log2, ::log2)
-MIGRAPHX_DEVICE_MATH(nearbyint, ::nearbyint)
-MIGRAPHX_DEVICE_MATH(pow, ::pow)
-MIGRAPHX_DEVICE_MATH(remainder, ::remainder)
-MIGRAPHX_DEVICE_MATH(round, ::round)
-MIGRAPHX_DEVICE_MATH(rsqrt, ::rsqrt)
-MIGRAPHX_DEVICE_MATH(sin, ::sin)
-MIGRAPHX_DEVICE_MATH(sinh, ::sinh)
-MIGRAPHX_DEVICE_MATH(sqrt, ::sqrt)
-MIGRAPHX_DEVICE_MATH(tan, ::tan)
-MIGRAPHX_DEVICE_MATH(tanh, ::tanh)
-MIGRAPHX_DEVICE_MATH(fmod, ::fmod)
+MIGRAPHX_DEVICE_MATH_WRAP(abs, ::abs, ::__habs)
+MIGRAPHX_DEVICE_MATH_WRAP(acos, ::acos, ::acosf)
+MIGRAPHX_DEVICE_MATH_WRAP(acosh, ::acosh, ::acoshf)
+MIGRAPHX_DEVICE_MATH_WRAP(asin, ::asin, ::asinf)
+MIGRAPHX_DEVICE_MATH_WRAP(asinh, ::asinh, ::asinh)
+MIGRAPHX_DEVICE_MATH_WRAP(atan, ::atan, ::atan)
+MIGRAPHX_DEVICE_MATH_WRAP(atanh, ::atanh, ::atanh)
+MIGRAPHX_DEVICE_MATH_WRAP(ceil, ::ceil, ::hceil)
+MIGRAPHX_DEVICE_MATH_WRAP(cos, ::cos, ::cosf, ::hcos)
+MIGRAPHX_DEVICE_MATH_WRAP(cosh, ::cosh, ::coshf)
+MIGRAPHX_DEVICE_MATH_WRAP(erf, ::erf)
+MIGRAPHX_DEVICE_MATH_WRAP(exp, ::exp, ::hexp)
+MIGRAPHX_DEVICE_MATH_WRAP(floor, ::floor, ::hfloor)
+MIGRAPHX_DEVICE_MATH_WRAP(isnan, ::isnan, ::__hisinf)
+MIGRAPHX_DEVICE_MATH_WRAP(isinf, ::isinf, ::__hisnan)
+MIGRAPHX_DEVICE_MATH_WRAP(log, ::log, ::hlog)
+MIGRAPHX_DEVICE_MATH_WRAP(log2, ::log2, ::hlog2)
+MIGRAPHX_DEVICE_MATH_WRAP(nearbyint, ::nearbyint)
+MIGRAPHX_DEVICE_MATH_WRAP(pow, ::pow)
+MIGRAPHX_DEVICE_MATH_WRAP(remainder, ::remainder)
+MIGRAPHX_DEVICE_MATH_WRAP(round, ::round)
+MIGRAPHX_DEVICE_MATH_WRAP(rsqrt, ::rsqrt, ::rsqrtf, ::hrsqrt)
+MIGRAPHX_DEVICE_MATH_WRAP(sin, ::sin, ::sinf, ::hsin)
+MIGRAPHX_DEVICE_MATH_WRAP(sinh, ::sinh, ::sinhf)
+MIGRAPHX_DEVICE_MATH_WRAP(sqrt, ::sqrt, ::hsqrt)
+MIGRAPHX_DEVICE_MATH_WRAP(tan, ::tan, ::tanf)
+MIGRAPHX_DEVICE_MATH_WRAP(tanh, ::tanh, ::tanhf)
+MIGRAPHX_DEVICE_MATH_WRAP(fmod, ::fmod, ::fmodf)
 
-// Float overloads
-MIGRAPHX_DEVICE_MATH_FOR(float, acos, ::acosf)
-MIGRAPHX_DEVICE_MATH_FOR(float, acosh, ::acoshf)
-MIGRAPHX_DEVICE_MATH_FOR(float, asin, ::asinf)
-MIGRAPHX_DEVICE_MATH_FOR(float, asinh, ::asinhf)
-MIGRAPHX_DEVICE_MATH_FOR(float, atan, ::atanf)
-MIGRAPHX_DEVICE_MATH_FOR(float, atanh, ::atanhf)
-MIGRAPHX_DEVICE_MATH_FOR(float, cos, ::cosf)
-MIGRAPHX_DEVICE_MATH_FOR(float, cosh, ::coshf)
-MIGRAPHX_DEVICE_MATH_FOR(float, rsqrt, ::rsqrtf)
-MIGRAPHX_DEVICE_MATH_FOR(float, sin, ::sinf)
-MIGRAPHX_DEVICE_MATH_FOR(float, sinh, ::sinhf)
-MIGRAPHX_DEVICE_MATH_FOR(float, tan, ::tanf)
-MIGRAPHX_DEVICE_MATH_FOR(float, tanh, ::tanhf)
-MIGRAPHX_DEVICE_MATH_FOR(float, fmod, ::fmodf)
+// // Float overloads
+// MIGRAPHX_DEVICE_MATH_FOR(float, acos, ::acosf)
+// MIGRAPHX_DEVICE_MATH_FOR(float, acosh, ::acoshf)
+// MIGRAPHX_DEVICE_MATH_FOR(float, asin, ::asinf)
+// MIGRAPHX_DEVICE_MATH_FOR(float, asinh, ::asinhf)
+// MIGRAPHX_DEVICE_MATH_FOR(float, atan, ::atanf)
+// MIGRAPHX_DEVICE_MATH_FOR(float, atanh, ::atanhf)
+// MIGRAPHX_DEVICE_MATH_FOR(float, cos, ::cosf)
+// MIGRAPHX_DEVICE_MATH_FOR(float, cosh, ::coshf)
+// MIGRAPHX_DEVICE_MATH_FOR(float, rsqrt, ::rsqrtf)
+// MIGRAPHX_DEVICE_MATH_FOR(float, sin, ::sinf)
+// MIGRAPHX_DEVICE_MATH_FOR(float, sinh, ::sinhf)
+// MIGRAPHX_DEVICE_MATH_FOR(float, tan, ::tanf)
+// MIGRAPHX_DEVICE_MATH_FOR(float, tanh, ::tanhf)
+// MIGRAPHX_DEVICE_MATH_FOR(float, fmod, ::fmodf)
 
-// Builtin half functions
-MIGRAPHX_DEVICE_MATH_FOR(migraphx::half, abs, ::__habs)
-MIGRAPHX_DEVICE_MATH_FOR(migraphx::half, ceil, ::hceil)
-MIGRAPHX_DEVICE_MATH_FOR(migraphx::half, cos, ::hcos)
-MIGRAPHX_DEVICE_MATH_FOR(migraphx::half, exp, ::hexp)
-MIGRAPHX_DEVICE_MATH_FOR(migraphx::half, floor, ::hfloor)
-MIGRAPHX_DEVICE_MATH_FOR(migraphx::half, isinf, ::__hisinf)
-MIGRAPHX_DEVICE_MATH_FOR(migraphx::half, isnan, ::__hisnan)
-MIGRAPHX_DEVICE_MATH_FOR(migraphx::half, log, ::hlog)
-MIGRAPHX_DEVICE_MATH_FOR(migraphx::half, log2, ::hlog2)
-MIGRAPHX_DEVICE_MATH_FOR(migraphx::half, rsqrt, ::hrsqrt)
-MIGRAPHX_DEVICE_MATH_FOR(migraphx::half, sin, ::hsin)
-MIGRAPHX_DEVICE_MATH_FOR(migraphx::half, sqrt, ::hsqrt)
+// // Builtin half functions
+// MIGRAPHX_DEVICE_MATH_FOR(migraphx::half, abs, ::__habs)
+// MIGRAPHX_DEVICE_MATH_FOR(migraphx::half, ceil, ::hceil)
+// MIGRAPHX_DEVICE_MATH_FOR(migraphx::half, cos, ::hcos)
+// MIGRAPHX_DEVICE_MATH_FOR(migraphx::half, exp, ::hexp)
+// MIGRAPHX_DEVICE_MATH_FOR(migraphx::half, floor, ::hfloor)
+// MIGRAPHX_DEVICE_MATH_FOR(migraphx::half, isinf, ::__hisinf)
+// MIGRAPHX_DEVICE_MATH_FOR(migraphx::half, isnan, ::__hisnan)
+// MIGRAPHX_DEVICE_MATH_FOR(migraphx::half, log, ::hlog)
+// MIGRAPHX_DEVICE_MATH_FOR(migraphx::half, log2, ::hlog2)
+// MIGRAPHX_DEVICE_MATH_FOR(migraphx::half, rsqrt, ::hrsqrt)
+// MIGRAPHX_DEVICE_MATH_FOR(migraphx::half, sin, ::hsin)
+// MIGRAPHX_DEVICE_MATH_FOR(migraphx::half, sqrt, ::hsqrt)
 
 // Use float to compute half overload
-MIGRAPHX_DEVICE_MATH_HALF(acos, ::acos)
-MIGRAPHX_DEVICE_MATH_HALF(acosh, ::acosh)
-MIGRAPHX_DEVICE_MATH_HALF(asin, ::asin)
-MIGRAPHX_DEVICE_MATH_HALF(asinh, ::asinh)
-MIGRAPHX_DEVICE_MATH_HALF(atan, ::atan)
-MIGRAPHX_DEVICE_MATH_HALF(atanh, ::atanh)
-MIGRAPHX_DEVICE_MATH_HALF(cosh, ::cosh)
-MIGRAPHX_DEVICE_MATH_HALF(erf, ::erf)
-MIGRAPHX_DEVICE_MATH_HALF(nearbyint, ::nearbyint)
-MIGRAPHX_DEVICE_MATH_HALF(pow, ::pow)
-MIGRAPHX_DEVICE_MATH_HALF(remainder, ::remainder)
-MIGRAPHX_DEVICE_MATH_HALF(round, ::round)
-MIGRAPHX_DEVICE_MATH_HALF(sinh, ::sinh)
-MIGRAPHX_DEVICE_MATH_HALF(tan, ::tan)
-MIGRAPHX_DEVICE_MATH_HALF(tanh, ::tanh)
-MIGRAPHX_DEVICE_MATH_HALF(fmod, ::fmod)
+// MIGRAPHX_DEVICE_MATH_HALF(acos, ::acos)
+// MIGRAPHX_DEVICE_MATH_HALF(acosh, ::acosh)
+// MIGRAPHX_DEVICE_MATH_HALF(asin, ::asin)
+// MIGRAPHX_DEVICE_MATH_HALF(asinh, ::asinh)
+// MIGRAPHX_DEVICE_MATH_HALF(atan, ::atan)
+// MIGRAPHX_DEVICE_MATH_HALF(atanh, ::atanh)
+// MIGRAPHX_DEVICE_MATH_HALF(cosh, ::cosh)
+// MIGRAPHX_DEVICE_MATH_HALF(erf, ::erf)
+// MIGRAPHX_DEVICE_MATH_HALF(nearbyint, ::nearbyint)
+// MIGRAPHX_DEVICE_MATH_HALF(pow, ::pow)
+// MIGRAPHX_DEVICE_MATH_HALF(remainder, ::remainder)
+// MIGRAPHX_DEVICE_MATH_HALF(round, ::round)
+// MIGRAPHX_DEVICE_MATH_HALF(sinh, ::sinh)
+// MIGRAPHX_DEVICE_MATH_HALF(tan, ::tan)
+// MIGRAPHX_DEVICE_MATH_HALF(tanh, ::tanh)
+// MIGRAPHX_DEVICE_MATH_HALF(fmod, ::fmod)
 
-// use float to compute fp8 overload
-MIGRAPHX_DEVICE_MATH_FP8(abs, ::abs)
-MIGRAPHX_DEVICE_MATH_FP8(acos, ::acos)
-MIGRAPHX_DEVICE_MATH_FP8(acosh, ::acosh)
-MIGRAPHX_DEVICE_MATH_FP8(asin, ::asin)
-MIGRAPHX_DEVICE_MATH_FP8(asinh, ::asinh)
-MIGRAPHX_DEVICE_MATH_FP8(atan, ::atan)
-MIGRAPHX_DEVICE_MATH_FP8(atanh, ::atanh)
-MIGRAPHX_DEVICE_MATH_FP8(ceil, ::ceil)
-MIGRAPHX_DEVICE_MATH_FP8(cos, ::cos)
-MIGRAPHX_DEVICE_MATH_FP8(cosh, ::cosh)
-MIGRAPHX_DEVICE_MATH_FP8(erf, ::erf)
-MIGRAPHX_DEVICE_MATH_FP8(exp, ::exp)
-MIGRAPHX_DEVICE_MATH_FP8(floor, ::floor)
-MIGRAPHX_DEVICE_MATH_FP8(isnan, ::isnan)
-MIGRAPHX_DEVICE_MATH_FP8(log, ::log)
-MIGRAPHX_DEVICE_MATH_FP8(log2, ::log2)
-MIGRAPHX_DEVICE_MATH_FP8(pow, ::pow)
-MIGRAPHX_DEVICE_MATH_FP8(remainder, ::remainder)
-MIGRAPHX_DEVICE_MATH_FP8(round, ::round)
-MIGRAPHX_DEVICE_MATH_FP8(rsqrt, ::rsqrt)
-MIGRAPHX_DEVICE_MATH_FP8(sin, ::sin)
-MIGRAPHX_DEVICE_MATH_FP8(sinh, ::sinh)
-MIGRAPHX_DEVICE_MATH_FP8(sqrt, ::sqrt)
-MIGRAPHX_DEVICE_MATH_FP8(tan, ::tan)
-MIGRAPHX_DEVICE_MATH_FP8(tanh, ::tanh)
-MIGRAPHX_DEVICE_MATH_FP8(fmod, ::fmod)
+// // use float to compute fp8 overload
+// MIGRAPHX_DEVICE_MATH_FP8(abs, ::abs)
+// MIGRAPHX_DEVICE_MATH_FP8(acos, ::acos)
+// MIGRAPHX_DEVICE_MATH_FP8(acosh, ::acosh)
+// MIGRAPHX_DEVICE_MATH_FP8(asin, ::asin)
+// MIGRAPHX_DEVICE_MATH_FP8(asinh, ::asinh)
+// MIGRAPHX_DEVICE_MATH_FP8(atan, ::atan)
+// MIGRAPHX_DEVICE_MATH_FP8(atanh, ::atanh)
+// MIGRAPHX_DEVICE_MATH_FP8(ceil, ::ceil)
+// MIGRAPHX_DEVICE_MATH_FP8(cos, ::cos)
+// MIGRAPHX_DEVICE_MATH_FP8(cosh, ::cosh)
+// MIGRAPHX_DEVICE_MATH_FP8(erf, ::erf)
+// MIGRAPHX_DEVICE_MATH_FP8(exp, ::exp)
+// MIGRAPHX_DEVICE_MATH_FP8(floor, ::floor)
+// MIGRAPHX_DEVICE_MATH_FP8(isnan, ::isnan)
+// MIGRAPHX_DEVICE_MATH_FP8(log, ::log)
+// MIGRAPHX_DEVICE_MATH_FP8(log2, ::log2)
+// MIGRAPHX_DEVICE_MATH_FP8(pow, ::pow)
+// MIGRAPHX_DEVICE_MATH_FP8(remainder, ::remainder)
+// MIGRAPHX_DEVICE_MATH_FP8(round, ::round)
+// MIGRAPHX_DEVICE_MATH_FP8(rsqrt, ::rsqrt)
+// MIGRAPHX_DEVICE_MATH_FP8(sin, ::sin)
+// MIGRAPHX_DEVICE_MATH_FP8(sinh, ::sinh)
+// MIGRAPHX_DEVICE_MATH_FP8(sqrt, ::sqrt)
+// MIGRAPHX_DEVICE_MATH_FP8(tan, ::tan)
+// MIGRAPHX_DEVICE_MATH_FP8(tanh, ::tanh)
+// MIGRAPHX_DEVICE_MATH_FP8(fmod, ::fmod)
 
 // Map math functions to hip half2 functions
 // The half2 type is defined in include/hip/amd_detail/hip_fp16_gcc.h and is 2 16-bit floats

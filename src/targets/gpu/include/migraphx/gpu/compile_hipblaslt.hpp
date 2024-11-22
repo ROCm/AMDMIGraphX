@@ -21,31 +21,57 @@
  * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
  * THE SOFTWARE.
  */
-
-#ifndef MIGRAPHX_GUARD_RTGLIB_HALF_HPP
-#define MIGRAPHX_GUARD_RTGLIB_HALF_HPP
+#ifndef MIGRAPHX_GUARD_GPU_COMPILE_HIPBLASLT_HPP
+#define MIGRAPHX_GUARD_GPU_COMPILE_HIPBLASLT_HPP
 
 #include <migraphx/config.hpp>
-#include <migraphx/float8.hpp>
-#include <migraphx/generic_float.hpp>
+#include <migraphx/instruction_ref.hpp>
+#include <migraphx/op/identity.hpp>
+#include <migraphx/register_op.hpp>
+#include <string>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
 
-using half = migraphx::generic_float<10, 5>;
+struct module;
+struct context;
+struct operation;
 
-namespace detail {
-template <class T>
-struct deduce
+namespace gpu {
+
+struct hipblaslt_op
 {
-    using type = T;
+    operation op = op::identity{};
+
+    template <class Self, class F>
+    static auto reflect(Self& self, F f)
+    {
+        return pack(f(self.op, "op"));
+    }
+
+    std::string name() const { return "gpu::hipblaslt_op"; }
+
+    shape compute_shape(std::vector<shape> inputs) const
+    {
+        inputs.push_back(inputs.back());
+        return op.compute_shape(inputs);
+    }
+
+    std::ptrdiff_t output_alias(const std::vector<shape>& shapes) const
+    {
+        return shapes.size() - 1;
+    }
 };
-} // namespace detail
+MIGRAPHX_REGISTER_OP(hipblaslt_op);
 
-template <class T>
-using deduce = typename detail::deduce<T>::type;
+struct compile_hipblaslt
+{
+    context* ctx = nullptr;
+    std::string name() const { return "gpu::compile_hipblaslt"; }
+    void apply(module& m) const;
+};
 
+} // namespace gpu
 } // namespace MIGRAPHX_INLINE_NS
 } // namespace migraphx
-
-#endif
+#endif // MIGRAPHX_GUARD_GPU_COMPILE_HIPBLASLT_HPP

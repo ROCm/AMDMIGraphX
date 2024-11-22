@@ -26,6 +26,7 @@
 
 #include <migraphx/op/unary.hpp>
 #include <migraphx/config.hpp>
+#include <migraphx/bit_cast.hpp>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
@@ -81,7 +82,7 @@ struct bit_cast : unary<bit_cast>
                 if constexpr(sizeof(otype) == sizeof(itype))
                 {
                     par_transform(input.begin(), input.end(), output.begin(), [&](auto x) {
-                        return __builtin_bit_cast(otype, x);
+                        return migraphx::bit_cast<otype>(x);
                     });
                 }
                 else

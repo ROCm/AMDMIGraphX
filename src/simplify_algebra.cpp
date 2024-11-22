@@ -469,6 +469,10 @@ struct find_mul_add
     }
 };
 
+// When a slice is followed by a*(x+b), a⋅(x+b), this matcher performs 
+// the add first, followed by the mul. 
+// If multiple slices originate from the same instruction and are followed by add,
+// all the adds can be const folded and performed before the slicing.
 struct find_slice_add_mul
 {
         auto matcher() const

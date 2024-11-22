@@ -7577,6 +7577,22 @@ def mean_fp16_test():
 
 
 @onnx_test()
+def mean_bf16_test():
+    data_0 = helper.make_tensor_value_info('0', TensorProto.BFLOAT16, [1, 2, 3])
+    data_1 = helper.make_tensor_value_info('1', TensorProto.BFLOAT16, [1, 2, 3])
+    data_2 = helper.make_tensor_value_info('2', TensorProto.BFLOAT16, [1, 2, 3])
+
+    mean = helper.make_tensor_value_info('mean', TensorProto.BFLOAT16,
+                                         [1, 2, 3])
+
+    node = onnx.helper.make_node("Mean",
+                                 inputs=["0", "1", "2"],
+                                 outputs=["mean"])
+
+    return ([node], [data_0, data_1, data_2], [mean])
+
+
+@onnx_test()
 def mean_invalid_broadcast_test():
     data_0 = helper.make_tensor_value_info('0', TensorProto.FLOAT, [1, 2, 3])
     data_1 = helper.make_tensor_value_info('1', TensorProto.FLOAT, [1, 2, 3])

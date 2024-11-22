@@ -7698,6 +7698,9 @@ def mvn_rank_2_test():
 def mvn_rank_2_fp16_test():
     return mvn_n_rank_test_base([1], [2, 2], TensorProto.FLOAT16)
 
+@onnx_test()
+def mvn_rank_2_bf16_test():
+    return mvn_n_rank_test_base([1], [2, 2], TensorProto.BFLOAT16)
 
 @onnx_test()
 def mvn_rank_3_test():
@@ -7708,6 +7711,9 @@ def mvn_rank_3_test():
 def mvn_rank_3_fp16_test():
     return mvn_n_rank_test_base([0, 1], [2, 2, 2], TensorProto.FLOAT16)
 
+@onnx_test()
+def mvn_rank_3_bf16_test():
+    return mvn_n_rank_test_base([0, 1], [2, 2, 2], TensorProto.BFLOAT16)
 
 @onnx_test()
 def mvn_axes_rank_too_small_test():

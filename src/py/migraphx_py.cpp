@@ -191,6 +191,17 @@ struct npy_format_descriptor<migraphx::fp8::fp8e5m2>
     static constexpr auto name() { return _("fp8e5m2"); }
 };
 
+template <>
+struct npy_format_descriptor<migraphx::bf16>
+{
+    static std::string format()
+    {
+        // TODO: no standard format in numpy for bf16
+        return "z";
+    }
+    static constexpr auto name() { return _("bf16"); }
+};
+
 } // namespace detail
 } // namespace pybind11
 

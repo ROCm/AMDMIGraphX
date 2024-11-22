@@ -32,6 +32,7 @@
 #include <migraphx/eliminate_common_subexpression.hpp>
 #include <migraphx/common.hpp>
 #include <migraphx/algorithm.hpp>
+#include <migraphx/output_iterator.hpp>
 #include <migraphx/param_utils.hpp>
 #include <migraphx/match/softmax.hpp>
 #include <migraphx/fp8_types.hpp>
@@ -210,7 +211,7 @@ void fuse_input_ops(module_ref mm,
                     std::unordered_map<instruction_ref, instruction_ref>* map_ins)
 {
     assert(map_ins != nullptr);
-    size_t input_cnt = 0;
+    size_t input_cnt = mm->get_parameters().size();
     for(instruction_ref input : inputs)
     {
         if(contains(*map_ins, input))
@@ -878,10 +879,11 @@ struct find_mlir_attention_fused_ops : public find_mlir_standalone_attention_op
 
 struct find_pointwise_mlir
 {
+    auto supported_pointwise() const { return mlir_input_pointwise(match::used_once()); }
+
     auto matcher() const
     {
-        return match::name("gpu::mlir_op")(match::any_of[match::inputs()](
-            mlir_input_pointwise(match::used_once()).bind("pointwise")));
+        return match::name("gpu::mlir_op")(match::any_of[match::inputs()](supported_pointwise()));
     }
 
     static bool is_simple_op(const_module_ref pm, std::initializer_list<std::string> op_names)
@@ -914,23 +916,44 @@ struct find_pointwise_mlir
     void apply(module_pass_manager& mpm, const match::matcher_result& r) const
     {
         auto ins = r.result;
-        auto pw  = r.instructions["pointwise"];
 
         auto* mm = ins->module_inputs().front();
-        auto* pm = pw->module_inputs().front();
+        std::vector<instruction_ref> pws;
+        std::copy_if(
+            ins->inputs().begin(),
+            ins->inputs().end(),
+            std::back_inserter(pws),
+            [&](instruction_ref input) {
+                if(not match::instruction_matches(mpm.get_module(), input, supported_pointwise()))
+                    return false;
+                auto* pm = input->module_inputs().front();
+                if(input->inputs().size() > 1 and not is_simple_op(pm, {"dequantizelinear"}))
+                {
+                    if(not enabled(MIGRAPHX_ENABLE_MLIR_INPUT_FUSION{}))
+                        return false;
+                }
+                return true;
+            });
+        if(pws.empty())
+            return;
 
-        if(pw->inputs().size() > 1 and not is_simple_op(pm, {"dequantizelinear"}))
-        {
-            if(not enabled(MIGRAPHX_ENABLE_MLIR_INPUT_FUSION{}))
-                return;
-        }
+        std::string module_name;
+        std::transform(
+            pws.begin(), pws.end(), join_back_inserter(module_name), [](instruction_ref pw) {
+                return pw->module_inputs().front()->name() + ":";
+            });
+        module_name += mm->name();
+        module_ref m = mpm.create_module(module_name);
+        m->set_bypass();
 
         std::unordered_map<instruction_ref, instruction_ref> map_ins;
-        module_ref m = mpm.create_module(pm->name() + ":" + mm->name());
-        m->set_bypass();
-        fuse_input_ops(m, pw->inputs(), &map_ins);
-        auto rins   = m->fuse(*pm, pw->inputs(), &map_ins, &insert_pointwise).front();
-        map_ins[pw] = rins;
+        for(auto pw : pws)
+        {
+            auto* pm = pw->module_inputs().front();
+            fuse_input_ops(m, pw->inputs(), &map_ins);
+            auto rins   = m->fuse(*pm, pw->inputs(), &map_ins, &insert_pointwise).front();
+            map_ins[pw] = rins;
+        }
 
         auto ret = m->fuse(*mm, ins->inputs(), &map_ins);
         m->add_return({ret});

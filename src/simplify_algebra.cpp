@@ -224,9 +224,8 @@ struct find_mul_dot
 {
     auto matcher() const
     {
-        auto constant = match::is_constant(not_from_int4());
-        auto is_dot_const_inputs =
-            match::name("dot")(match::any_of[match::inputs()](constant));
+        auto constant            = match::is_constant(not_from_int4());
+        auto is_dot_const_inputs = match::name("dot")(match::any_of[match::inputs()](constant));
         return match::name("mul")(match::either_arg(0, 1)(
             is_dot_const_inputs.bind("dot"), match::name("broadcast", "multibroadcast").bind("c")));
     }

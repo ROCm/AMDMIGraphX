@@ -7664,6 +7664,9 @@ def mvn_default_axes_test():
 def mvn_default_axes_fp16_test():
     return mvn_default_axes_test_base([2, 2, 2, 2], TensorProto.FLOAT16)
 
+@onnx_test()
+def mvn_default_axes_bf16_test():
+    return mvn_default_axes_test_base([2, 2, 2, 2], TensorProto.BFLOAT16)
 
 @onnx_test()
 def mvn_default_axes_rank_too_small_test():

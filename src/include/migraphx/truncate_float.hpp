@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2024 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2023 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -21,29 +21,30 @@
  * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
  * THE SOFTWARE.
  */
+#ifndef MIGRAPHX_GUARD_RTGLIB_TRUNCATE_FLOAT_HPP
+#define MIGRAPHX_GUARD_RTGLIB_TRUNCATE_FLOAT_HPP
 
-#ifndef MIGRAPHX_GUARD_RTGLIB_HALF_HPP
-#define MIGRAPHX_GUARD_RTGLIB_HALF_HPP
-
+#include <string>
+#include <vector>
 #include <migraphx/config.hpp>
-#include <migraphx/float8.hpp>
-#include <migraphx/generic_float.hpp>
+#include <migraphx/shape.hpp>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
 
-using half = migraphx::generic_float<10, 5>;
+struct program;
+struct module;
 
-namespace detail {
-template <class T>
-struct deduce
+/**
+ * quantize a program to fp
+ */
+struct MIGRAPHX_EXPORT truncate_float_pass
 {
-    using type = T;
+    std::vector<std::string> ins_names = {"all"};
+    shape::type_t float_type           = shape::float_type;
+    std::string name() const { return "truncate_float"; }
+    void apply(module& m) const;
 };
-} // namespace detail
-
-template <class T>
-using deduce = typename detail::deduce<T>::type;
 
 } // namespace MIGRAPHX_INLINE_NS
 } // namespace migraphx

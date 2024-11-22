@@ -1036,6 +1036,32 @@ TEST_CASE(simplify_add_conv_no_fusion_asymetrical_strides2)
                m.begin(), m.end(), [](auto&& ins) { return ins.name() == "convolution"; }) == 2);
 }
 
+TEST_CASE(simplify_concat_unpack_int4)
+{
+    auto s = migraphx::shape{migraphx::shape::int8_type, {11008, 2048}};
+    migraphx::module m1;
+    {
+        auto x       = m1.add_parameter("x", s);
+        auto y       = m1.add_parameter("y", s);
+        auto unpack1 = m1.add_instruction(migraphx::make_op("unpack_int4"), x);
+        auto unpack2 = m1.add_instruction(migraphx::make_op("unpack_int4"), y);
+        auto concat =
+            m1.add_instruction(migraphx::make_op("concat", {{"axis", 0}}), unpack1, unpack2);
+        m1.add_return({concat});
+    }
+    run_pass(m1);
+
+    migraphx::module m2;
+    {
+        auto x      = m2.add_parameter("x", s);
+        auto y      = m2.add_parameter("y", s);
+        auto concat = m2.add_instruction(migraphx::make_op("concat", {{"axis", 0}}), x, y);
+        auto unpack = m2.add_instruction(migraphx::make_op("unpack_int4"), concat);
+        m2.add_return({unpack});
+    }
+    EXPECT(m1 == m2);
+}
+
 TEST_CASE(simplify_concat_add_relu)
 {
     auto s = migraphx::shape{migraphx::shape::int32_type, {1}};
@@ -1214,6 +1240,37 @@ TEST_CASE(simplify_concat_add_relu_broadcast_same_axis)
         auto sum     = m2.add_instruction(migraphx::make_op("add"), concat1, concat2);
         auto relu    = m2.add_instruction(migraphx::make_op("relu"), sum);
         m2.add_instruction(pass_op{}, relu);
+    }
+    EXPECT(m1 == m2);
+}
+
+TEST_CASE(simplify_concat_clip)
+{
+    auto s = migraphx::shape{migraphx::shape::int32_type, {1}};
+    migraphx::module m1;
+    {
+        auto x      = m1.add_parameter("x", s);
+        auto y      = m1.add_parameter("y", s);
+        auto min    = m1.add_literal({s, {0}});
+        auto max    = m1.add_literal({s, {10}});
+        auto clip1  = m1.add_instruction(migraphx::make_op("clip"), x, min, max);
+        auto clip2  = m1.add_instruction(migraphx::make_op("clip"), y, min, max);
+        auto concat = m1.add_instruction(migraphx::make_op("concat", {{"axis", 0}}), clip1, clip2);
+        m1.add_instruction(pass_op{}, concat);
+    }
+    run_pass(m1);
+
+    migraphx::module m2;
+    {
+        auto x       = m2.add_parameter("x", s);
+        auto y       = m2.add_parameter("y", s);
+        auto min     = m2.add_literal({s, {0}});
+        auto max     = m2.add_literal({s, {10}});
+        auto concat1 = m2.add_instruction(migraphx::make_op("concat", {{"axis", 0}}), x, y);
+        auto concat2 = m2.add_instruction(migraphx::make_op("concat", {{"axis", 0}}), min, min);
+        auto concat3 = m2.add_instruction(migraphx::make_op("concat", {{"axis", 0}}), max, max);
+        auto clip    = m2.add_instruction(migraphx::make_op("clip"), concat1, concat2, concat3);
+        m2.add_instruction(pass_op{}, clip);
     }
     EXPECT(m1 == m2);
 }

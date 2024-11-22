@@ -437,8 +437,6 @@ struct find_mul_add
 {
     auto matcher() const
     {   
-        //auto slice_1 = match::all_of(match::name("slice")(match::args(0)(match::none_of(fusable_split("add")))));
-        //auto slice_1 = match::skip(match::name("slice"))(fusable_split("add"));
         auto slice_1 = match::skip(match::name("slice"))(match::none_of(fusable_split("add")));
 
         return match::name("mul")(

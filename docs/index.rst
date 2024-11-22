@@ -25,9 +25,10 @@ The MIGraphX public repository is located at `https://github.com/ROCm/AMDMIGraph
 
   .. grid-item-card:: Install
 
-    * :doc:`Installing MIGraphX <./install/installing_with_package>`
+    * :doc:`Installing MIGraphX with the package installer <./install/installing_with_package>`
+    * :doc:`Building and installing MIGraphX from source code <./install/building_migraphx>`
 
-  .. grid-item-card:: Using the MIGraphX API
+  .. grid-item-card:: Reference
 
     * :ref:`cpp-api-reference`
     * :ref:`python-api-reference`
@@ -35,11 +36,10 @@ The MIGraphX public repository is located at `https://github.com/ROCm/AMDMIGraph
    
   .. grid-item-card:: Contributing to the MIGraphX code base
 
-    * :doc:`Building MIGraphX <./install/building_migraphx>`
     * :doc:`Developing for MIGraphX <./dev/contributing-to-migraphx>` 
 
 To contribute to the documentation refer to
-`Contribute to ROCm documentation <https://rocm.docs.amd.com/en/latest/contribute/contributing.html>`_.
+`Contributing to ROCm <https://rocm.docs.amd.com/en/latest/contribute/contributing.html>`_.
 
 Licensing information can be found on the
 `Licensing <https://rocm.docs.amd.com/en/latest/about/license.html>`_ page.

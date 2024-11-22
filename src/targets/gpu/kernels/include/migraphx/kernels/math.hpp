@@ -50,30 +50,57 @@ constexpr auto as_float(T x)
         return float(x);
 }
 
-template<class Sig, class F>
+template<class Sig, Sig>
 struct function_wrapper;
 
-template<class Result, class... Ts, class F>
+template<class Result, class... Ts, Result(*F)(Ts...) noexcept>
 struct function_wrapper<Result(*)(Ts...) noexcept, F>
 {
-    F f;
-
     constexpr Result operator()(Ts... xs) const noexcept
     {
-        return f(xs...);
+        return F{}(xs...);
     }
 };
 
-template<class Result, class... Ts, class F>
+template<class Result, class... Ts, Result(*F)(Ts...)>
 struct function_wrapper<Result(*)(Ts...), F>
 {
-    F f;
-
     constexpr Result operator()(Ts... xs) const
     {
-        return f(xs...);
+        return F{}(xs...);
     }
 };
+
+// template<class Sig, class F>
+// struct function_wrapper;
+
+// template<class Result, class... Ts, class F>
+// struct function_wrapper<Result(*)(Ts...) noexcept, F>
+// {
+//     F f;
+
+//     constexpr Result operator()(Ts... xs) const noexcept
+//     {
+//         return f(xs...);
+//     }
+// };
+
+// template<class Result, class... Ts, class F>
+// struct function_wrapper<Result(*)(Ts...), F>
+// {
+//     F f;
+
+//     constexpr Result operator()(Ts... xs) const
+//     {
+//         return f(xs...);
+//     }
+// };
+
+// template<class Sig, class F>
+// constexpr function_wrapper<Sig, F> make_function_wrapper(Sig, F f)
+// {
+//     return {f};
+// }
 
 // template<class F>
 // struct function_wrapper;
@@ -102,11 +129,6 @@ struct function_wrapper<Result(*)(Ts...), F>
 //     }
 // };
 
-template<class Sig, class F>
-constexpr function_wrapper<Sig, F> make_function_wrapper(Sig, F f)
-{
-    return {f};
-}
 
 template<class Key, class T, class = void>
 struct disable_wrap : false_type {};
@@ -131,7 +153,8 @@ __device__ auto wrap(F f, T x, Ts... xs)
 
 } // namespace math
 
-#define MIGRAPHX_DEVICE_MATH_LIFT(...) make_function_wrapper(&__VA_ARGS__, MIGRAPHX_LIFT(__VA_ARGS__))
+// #define MIGRAPHX_DEVICE_MATH_LIFT(...) make_function_wrapper(&__VA_ARGS__, MIGRAPHX_LIFT(__VA_ARGS__))
+#define MIGRAPHX_DEVICE_MATH_LIFT(...) function_wrapper<decltype(&__VA_ARGS__), &__VA_ARGS__>{}
 
 // NOLINTNEXTLINE
 #define MIGRAPHX_DEVICE_MATH_WRAP(name, ...)                              \

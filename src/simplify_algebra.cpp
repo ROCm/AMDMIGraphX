@@ -426,6 +426,7 @@ auto fusable_slice_add_mul_split(const std::string& name)
     });
 }
 
+
 auto slice_add_mul()
 {
     auto slice_1 = match::name("slice")(
@@ -451,10 +452,10 @@ auto slice_add_mul()
 
 auto mul_add()
 {
-    auto slice_1 = match::name("slice")(
+    auto slice_1 = match::none_of(match::name("slice")(
                         match::arg(0)(
                             match::none_of(fusable_slice_add_mul_split("add"))
-                        ));
+                        )));
 
     return match::name("mul")(
         match::either_arg(0, 1)(
@@ -492,7 +493,8 @@ struct find_mul_add
         auto b_ins = r.instructions["b"];
         auto x_ins = r.instructions["x"];
         assert(x_ins != b_ins);
-    
+
+        std::cout<<"inside mul_add";    
         auto ax_ins = m.insert_instruction(ins, make_op("mul"), a_ins, x_ins);
         auto ab_ins = m.insert_instruction(ins, make_op("mul"), a_ins, b_ins);
         m.replace_instruction(ins, make_op("add"), ax_ins, ab_ins);
@@ -517,6 +519,7 @@ struct find_slice_add_mul
 
         assert(x_ins != b_ins);
 
+        std::cout<<"inside";
         auto ax_ins = m.insert_instruction(ins, make_op("add"), x_ins, b_ins);
         m.replace_instruction(ins, make_op("mul"), ax_ins, a_ins);
         

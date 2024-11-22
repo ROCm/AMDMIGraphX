@@ -412,25 +412,15 @@ struct find_dot_mul
     }
 };
 
-
-
 auto fusable_slice_add_mul_split(const std::string& name)
-{
+{    
     return match::make_basic_pred_matcher([&](instruction_ref ins) {
-        
-        /*if (not any_of(ins->outputs(), [](instruction_ref out) {
-                return out->name() == "slice";
-            }))
-        {
-            return false;
-        }*/
-        std::cout<< "Here";
-
         return all_of(ins->outputs(), [&](instruction_ref slice) {
-            if (slice->name() != "slice")
-                return true;
+            if(slice->name() != "slice")
+                return false;
             return any_of(slice->outputs(), [&](instruction_ref x) {
-                return x->name() == name;
+                if (x->name() == name)
+                return true;
             });
         });
     });
@@ -438,19 +428,45 @@ auto fusable_slice_add_mul_split(const std::string& name)
 
 auto slice_add_mul()
 {
-    return match::name("mul")(match::arg(0)(fusable_slice_add_mul_split("add")));
+    return match::name("mul")(
+        match::either_arg(0, 1)(
+            match::name("add")(
+                match::either_arg(0, 1)(
+                    match::name("slice")(
+                        match::arg(0)(
+                            match::any_of(fusable_slice_add_mul_split("add"))
+                        )
+                    ).bind("x"),
+                    match::any_of(conv_const_weights(), match::is_constant()).bind("b")
+                ),
+                match::none_of(match::args(match::is_constant(), match::is_constant())),
+                match::used_once()
+            ),
+            match::is_constant().bind("a")
+        )
+    );
+     
 }
 
 auto mul_add()
 {
-           return match::name("mul")(match::either_arg(0, 1)(
+    return match::name("mul")(
+        match::either_arg(0, 1)(
             match::name("add")(
                 match::either_arg(0, 1)(
-                    match::any().bind("x"),
-                    match::any_of(conv_const_weights(), match::is_constant()).bind("b")),
+                    match::name("slice")(
+                        match::arg(0)(
+                            match::none_of(fusable_slice_add_mul_split("add"))
+                        )
+                    ).bind("x"),
+                    match::any_of(conv_const_weights(), match::is_constant()).bind("b")
+                ),
                 match::none_of(match::args(match::is_constant(), match::is_constant())),
-                match::used_once()),
-            match::is_constant().bind("a")));
+                match::used_once()
+            ),
+            match::is_constant().bind("a")
+        )
+    );
 }
 
 // ******************************
@@ -463,7 +479,7 @@ struct find_mul_add
 {
     auto matcher() const
     {   
-        return match::all_of(mul_add(), match::none_of(slice_add_mul()));
+        return mul_add();
 
     }
 
@@ -487,11 +503,9 @@ struct find_mul_add
 
 struct find_slice_add_mul
 {
-    
         auto matcher() const
         {        
-             return match::all_of(mul_add(), slice_add_mul());
-
+             return slice_add_mul();
         }
     void apply(module& m, const match::matcher_result& r) const
     {

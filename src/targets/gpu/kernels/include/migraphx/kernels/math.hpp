@@ -50,25 +50,19 @@ constexpr auto as_float(T x)
         return float(x);
 }
 
-template<class Sig, Sig>
+template <class Sig, Sig>
 struct function_wrapper;
 
-template<class Result, class... Ts, Result(*F)(Ts...) noexcept>
-struct function_wrapper<Result(*)(Ts...) noexcept, F>
+template <class Result, class... Ts, Result (*F)(Ts...) noexcept>
+struct function_wrapper<Result (*)(Ts...) noexcept, F>
 {
-    constexpr Result operator()(Ts... xs) const noexcept
-    {
-        return F{}(xs...);
-    }
+    constexpr Result operator()(Ts... xs) const noexcept { return F{}(xs...); }
 };
 
-template<class Result, class... Ts, Result(*F)(Ts...)>
-struct function_wrapper<Result(*)(Ts...), F>
+template <class Result, class... Ts, Result (*F)(Ts...)>
+struct function_wrapper<Result (*)(Ts...), F>
 {
-    constexpr Result operator()(Ts... xs) const
-    {
-        return F{}(xs...);
-    }
+    constexpr Result operator()(Ts... xs) const { return F{}(xs...); }
 };
 
 // template<class Sig, class F>
@@ -129,11 +123,12 @@ struct function_wrapper<Result(*)(Ts...), F>
 //     }
 // };
 
+template <class Key, class T, class = void>
+struct disable_wrap : false_type
+{
+};
 
-template<class Key, class T, class = void>
-struct disable_wrap : false_type {};
-
-template<class F, class T, class... Ts, MIGRAPHX_REQUIRES(not is_any_vec<T, Ts...>())>
+template <class F, class T, class... Ts, MIGRAPHX_REQUIRES(not is_any_vec<T, Ts...>())>
 __device__ auto wrap(F f, T x, Ts... xs)
 {
     if constexpr(is_integral<T>{})
@@ -153,15 +148,19 @@ __device__ auto wrap(F f, T x, Ts... xs)
 
 } // namespace math
 
-// #define MIGRAPHX_DEVICE_MATH_LIFT(...) make_function_wrapper(&__VA_ARGS__, MIGRAPHX_LIFT(__VA_ARGS__))
-#define MIGRAPHX_DEVICE_MATH_LIFT(...) function_wrapper<decltype(&__VA_ARGS__), &__VA_ARGS__>{}
+// #define MIGRAPHX_DEVICE_MATH_LIFT(...) make_function_wrapper(&__VA_ARGS__,
+// MIGRAPHX_LIFT(__VA_ARGS__))
+#define MIGRAPHX_DEVICE_MATH_LIFT(...) \
+    function_wrapper<decltype(&__VA_ARGS__), &__VA_ARGS__> {}
 
 // NOLINTNEXTLINE
-#define MIGRAPHX_DEVICE_MATH_WRAP(name, ...)                              \
-    namespace math { inline static constexpr auto wrap_##name = overload(MIGRAPHX_PP_TRANSFORM_ARGS(MIGRAPHX_DEVICE_MATH_LIFT, __VA_ARGS__)); } \
-    template <class... Ts> \
+#define MIGRAPHX_DEVICE_MATH_WRAP(name, ...)                                          \
+    namespace math {                                                                  \
+    inline static constexpr auto wrap_##name =                                        \
+        overload(MIGRAPHX_PP_TRANSFORM_ARGS(MIGRAPHX_DEVICE_MATH_LIFT, __VA_ARGS__)); \
+    }                                                                                 \
+    template <class... Ts>                                                            \
     auto __device__ name(Ts... xs) MIGRAPHX_RETURNS(math::wrap(math::wrap_##name, xs...))
-
 
 // NOLINTNEXTLINE
 #define MIGRAPHX_DEVICE_MATH(name, fname)                              \

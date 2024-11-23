@@ -700,7 +700,7 @@ shape::type_t get_type(int dtype)
 bool is_type_float(shape::type_t dtype)
 {
     bool r = false;
-    if(dtype == shape::float_type or dtype == shape::double_type or dtype == shape::half_type)
+    if(dtype == shape::float_type or dtype == shape::double_type or dtype == shape::half_type or dtype == shape::bf16_type)
     {
         r = true;
     }

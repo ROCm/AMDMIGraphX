@@ -3568,6 +3568,17 @@ def eyelike_half_test():
     )
     return ([node], [T1], [T2])
 
+@onnx_test()
+def eyelike_bf16_test():
+    T1 = helper.make_tensor_value_info('T1', TensorProto.BFLOAT16, [8, 8])
+    T2 = helper.make_tensor_value_info('T2', TensorProto.BFLOAT16, [8, 8])
+
+    node = onnx.helper.make_node(
+        'EyeLike',
+        inputs=['T1'],
+        outputs=['T2'],
+    )
+    return ([node], [T1], [T2])
 
 @onnx_test()
 def eyelike_k_test():
@@ -3848,6 +3859,15 @@ def gelu_default_half_test():
 
     return ([node], [x], [y])
 
+# @onnx_test()
+# def gelu_default_bf16_test():
+#     x = helper.make_tensor_value_info('x', TensorProto.BFLOAT16, [3, 3])
+#     y = helper.make_tensor_value_info('y', TensorProto.BFLOAT16, [3, 3])
+
+#     node = onnx.helper.make_node("Gelu", inputs=["x"], outputs=["y"])
+
+#     return ([node], [x], [y])
+
 
 @onnx_test()
 def gelu_tanh_test():
@@ -4018,6 +4038,21 @@ def gemm_half_test():
 
     return ([node], [A, B, C], [Y])
 
+@onnx_test()
+def gemm_bf16_test():
+    A = helper.make_tensor_value_info('A', TensorProto.BFLOAT16, [8, 6])
+    B = helper.make_tensor_value_info('B', TensorProto.BFLOAT16, [8, 7])
+    C = helper.make_tensor_value_info('C', TensorProto.BFLOAT16, [6, 1])
+    Y = helper.make_tensor_value_info('Y', TensorProto.BFLOAT16, [6, 7])
+
+    node = onnx.helper.make_node('Gemm',
+                                 inputs=['A', 'B', 'C'],
+                                 outputs=['Y'],
+                                 alpha=0.5,
+                                 beta=0.8,
+                                 transA=1)
+
+    return ([node], [A, B, C], [Y])
 
 @onnx_test()
 def gemm_fp8_test():
@@ -4311,6 +4346,24 @@ def gridsample_half_test():
 
     return ([node], [x, grid], [y])
 
+
+@onnx_test()
+def gridsample_bf16_test():
+    x = helper.make_tensor_value_info('x', TensorProto.BFLOAT16, [1, 1, 4, 4])
+    grid = helper.make_tensor_value_info('grid', TensorProto.FLOAT,
+                                         [1, 6, 6, 2])
+    y = helper.make_tensor_value_info('y', TensorProto.BFLOAT16, [1, 1, 6, 6])
+
+    node = onnx.helper.make_node(
+        "GridSample",
+        inputs=["x", "grid"],
+        outputs=["y"],
+        mode="linear",
+        padding_mode="zeros",
+        align_corners=0,
+    )
+
+    return ([node], [x, grid], [y])
 
 @onnx_test()
 def gridsample_int_test():
@@ -4675,6 +4728,11 @@ def group_norm_3d_half_test():
                            2,
                            dtype=TensorProto.FLOAT16)
 
+@onnx_test()
+def group_norm_3d_bf16_test():
+    return group_norm_test([1, 4, 2], [2], [2], [1, 4, 2],
+                           2,
+                           dtype=TensorProto.BFLOAT16)
 
 @onnx_test()
 def group_norm_4d_test():
@@ -4687,6 +4745,11 @@ def group_norm_4d_half_test():
                            2,
                            dtype=TensorProto.FLOAT16)
 
+@onnx_test()
+def group_norm_4d_bf16_test():
+    return group_norm_test([1, 4, 3, 3], [2], [2], [1, 4, 3, 3],
+                           2,
+                           dtype=TensorProto.BFLOAT16)
 
 @onnx_test()
 def group_norm_5d_test():
@@ -4699,6 +4762,12 @@ def group_norm_5d_half_test():
                            1,
                            dtype=TensorProto.FLOAT16)
 
+@onnx_test()
+def group_norm_5d_bf16_test():
+    return group_norm_test([3, 3, 3, 3, 3], [1], [1], [3, 3, 3, 3, 3],
+                           1,
+                           dtype=TensorProto.BFLOAT16)
+
 
 @onnx_test()
 def group_norm_small_eps_half_test():
@@ -4707,6 +4776,12 @@ def group_norm_small_eps_half_test():
                            eps_value=1e-12,
                            dtype=TensorProto.FLOAT16)
 
+@onnx_test()
+def group_norm_small_eps_bf16_test():
+    return group_norm_test([1, 4, 2], [2], [2], [1, 4, 2],
+                           2,
+                           eps_value=1e-7,
+                           dtype=TensorProto.BFLOAT16)
 
 @onnx_test()
 def group_norm_invalid_num_groups_error_test():
@@ -5158,6 +5233,15 @@ def hardsigmoid_half_test():
 
     return ([node], [x], [y])
 
+
+@onnx_test()
+def hardsigmoid_bf16_test():
+    x = helper.make_tensor_value_info('x', TensorProto.BFLOAT16, [1, 3, 4, 5])
+    y = helper.make_tensor_value_info('y', TensorProto.BFLOAT16, [1, 3, 4, 5])
+
+    node = onnx.helper.make_node('HardSigmoid', inputs=['x'], outputs=['y'])
+
+    return ([node], [x], [y])
 
 @onnx_test()
 def hardsigmoid_verify_test():
@@ -5889,6 +5973,21 @@ def imagescaler_half_test():
     return ([node], [x], [y])
 
 
+
+@onnx_test()
+def imagescaler_bf16_test():
+    x = helper.make_tensor_value_info('0', TensorProto.BFLOAT16, [1, 3, 16, 16])
+    y = helper.make_tensor_value_info('1', TensorProto.BFLOAT16, [1, 3, 16, 16])
+
+    node = onnx.helper.make_node('ImageScaler',
+                                 inputs=['0'],
+                                 outputs=['1'],
+                                 bias=[0.01, 0.02, 0.03],
+                                 scale=0.5)
+
+    return ([node], [x], [y])
+
+
 @onnx_test()
 def implicit_add_bcast_test():
     x = helper.make_tensor_value_info('0', TensorProto.FLOAT, [2, 3, 4, 5])
@@ -5985,6 +6084,20 @@ def instance_norm_half_test():
 
 
 @onnx_test()
+def instance_norm_bf16_test():
+    x = helper.make_tensor_value_info('0', TensorProto.BFLOAT16, [1, 2, 3, 3])
+    scale = helper.make_tensor_value_info('1', TensorProto.BFLOAT16, [2])
+    bias = helper.make_tensor_value_info('2', TensorProto.BFLOAT16, [2])
+    y = helper.make_tensor_value_info('3', TensorProto.BFLOAT16, [1, 2, 3, 3])
+
+    node = onnx.helper.make_node('InstanceNormalization',
+                                 inputs=['0', '1', '2'],
+                                 outputs=['3'])
+
+    return ([node], [x, scale, bias], [y])
+
+
+@onnx_test()
 def instance_norm_type_mismatch_test():
     x = helper.make_tensor_value_info('0', TensorProto.FLOAT, [1, 2, 3, 3])
     scale = helper.make_tensor_value_info('1', TensorProto.FLOAT16, [2])
@@ -6029,6 +6142,22 @@ def instance_norm_dyn_batch_half_test():
 
     return ([node], [x, scale, bias], [y])
 
+
+@onnx_test()
+def instance_norm_dyn_batch_bf16_test():
+    # the batch size is a dynamic dimension
+    x = helper.make_tensor_value_info('0', TensorProto.BFLOAT16,
+                                      [None, 2, 3, 3])
+    scale = helper.make_tensor_value_info('1', TensorProto.BFLOAT16, [2])
+    bias = helper.make_tensor_value_info('2', TensorProto.BFLOAT16, [2])
+    y = helper.make_tensor_value_info('3', TensorProto.BFLOAT16,
+                                      [None, 2, 3, 3])
+
+    node = onnx.helper.make_node('InstanceNormalization',
+                                 inputs=['0', '1', '2'],
+                                 outputs=['3'])
+
+    return ([node], [x, scale, bias], [y])
 
 @onnx_test()
 def instance_norm_invalid_type_test():
@@ -6316,6 +6445,19 @@ def isinf_half_test():
 
 
 @onnx_test()
+def isinf_bf16_test():
+    t1 = helper.make_tensor_value_info('t1', TensorProto.BFLOAT16, [2, 3])
+    t2 = helper.make_tensor_value_info('t2', TensorProto.BOOL, [2, 3])
+
+    node = onnx.helper.make_node(
+        'IsInf',
+        inputs=['t1'],
+        outputs=['t2'],
+    )
+    return ([node], [t1], [t2])
+
+
+@onnx_test()
 def isinf_neg_test():
     t1 = helper.make_tensor_value_info('t1', TensorProto.FLOAT, [2, 3])
     t2 = helper.make_tensor_value_info('t2', TensorProto.BOOL, [2, 3])
@@ -6385,6 +6527,17 @@ def isnan_half_test():
     )
     return ([node], [t1], [t2])
 
+@onnx_test()
+def isnan_bf16_test():
+    t1 = helper.make_tensor_value_info('t1', TensorProto.BFLOAT16, [2, 3])
+    t2 = helper.make_tensor_value_info('t2', TensorProto.BFLOAT16, [2, 3])
+
+    node = onnx.helper.make_node(
+        'IsNaN',
+        inputs=['t1'],
+        outputs=['t2'],
+    )
+    return ([node], [t1], [t2])
 
 @onnx_test()
 def layernorm_test():
@@ -6493,6 +6646,9 @@ def layer_norm_3d_test():
 def layer_norm_3d_half_test():
     return make_layer_norm([1, 4, 2], -1, TensorProto.FLOAT16)
 
+@onnx_test()
+def layer_norm_3d_bf16_test():
+    return make_layer_norm([1, 4, 2], -1, TensorProto.BFLOAT16)
 
 @onnx_test()
 def layer_norm_4d_test():
@@ -6503,6 +6659,9 @@ def layer_norm_4d_test():
 def layer_norm_4d_half_test():
     return make_layer_norm([3, 3, 3, 3], -1, TensorProto.FLOAT16)
 
+@onnx_test()
+def layer_norm_4d_bf16_test():
+    return make_layer_norm([3, 3, 3, 3], -1, TensorProto.BFLOAT16)
 
 @onnx_test()
 def layer_norm_invalid_axis_error_test():
@@ -6552,6 +6711,18 @@ def layer_norm_small_eps_half_test():
 
     return ([node], [x, scale], [y])
 
+@onnx_test()
+def layer_norm_small_eps_bf16_test():
+    x = helper.make_tensor_value_info('x', TensorProto.BFLOAT16, [1, 2])
+    scale = helper.make_tensor_value_info('scale', TensorProto.BFLOAT16, [2])
+    y = helper.make_tensor_value_info('y', TensorProto.BFLOAT16, [1, 2])
+
+    node = onnx.helper.make_node('LayerNormalization',
+                                 inputs=['x', 'scale'],
+                                 outputs=['y'],
+                                 epsilon=1e-7)
+
+    return ([node], [x, scale], [y])
 
 @onnx_test()
 def leaky_relu_test():
@@ -7762,6 +7933,15 @@ def mod_test_half():
 
     return ([node], [a, b], [y])
 
+# @onnx_test()
+# def mod_test_bf16():
+#     a = helper.make_tensor_value_info('0', TensorProto.BFLOAT16, [3, 3, 3])
+#     b = helper.make_tensor_value_info('1', TensorProto.BFLOAT16, [3, 3, 3])
+#     y = helper.make_tensor_value_info('2', TensorProto.BFLOAT16, [3, 3, 3])
+
+#     node = onnx.helper.make_node('Mod', inputs=['0', '1'], outputs=['2'])
+
+#     return ([node], [a, b], [y])
 
 @onnx_test()
 def mod_test_different_dtypes():
@@ -7807,6 +7987,18 @@ def mod_test_fmod_half():
 
     return ([node], [a, b], [y])
 
+@onnx_test()
+def mod_test_fmod_bf16():
+    a = helper.make_tensor_value_info('0', TensorProto.BFLOAT16, [3, 3, 3])
+    b = helper.make_tensor_value_info('1', TensorProto.BFLOAT16, [3, 3, 3])
+    y = helper.make_tensor_value_info('2', TensorProto.BFLOAT16, [3, 3, 3])
+
+    node = onnx.helper.make_node('Mod',
+                                 inputs=['0', '1'],
+                                 outputs=['2'],
+                                 fmod=1)
+
+    return ([node], [a, b], [y])
 
 @onnx_test()
 def mod_test_fmod_different_dtypes():
@@ -10992,6 +11184,14 @@ def round_half_test():
 
     return ([node], [x], [y])
 
+@onnx_test()
+def round_bf16_test():
+    x = helper.make_tensor_value_info('x', TensorProto.BFLOAT16, [4, 4])
+    y = helper.make_tensor_value_info('y', TensorProto.BFLOAT16, [4, 4])
+
+    node = onnx.helper.make_node('Round', inputs=['x'], outputs=['y'])
+
+    return ([node], [x], [y])
 
 def make_scatter_elements_test(reduction="none"):
     x = helper.make_tensor_value_info('data', TensorProto.FLOAT, [3, 4, 5, 6])
@@ -11519,6 +11719,16 @@ def size_half_test():
     )
     return ([node], [x], [y])
 
+@onnx_test()
+def size_bf16_test():
+    x = helper.make_tensor_value_info('x', TensorProto.BFLOAT16, [3, 1])
+    y = helper.make_tensor_value_info('y', TensorProto.INT64, [1])
+    node = onnx.helper.make_node(
+        'Size',
+        inputs=['x'],
+        outputs=['y'],
+    )
+    return ([node], [x], [y])
 
 @onnx_test()
 def size_int_test():
@@ -12385,6 +12595,24 @@ def softmaxcrossentropyloss_2d_no_reduction_half_test():
 
 
 @onnx_test()
+def softmaxcrossentropyloss_2d_no_reduction_bf16_test():
+    scores = helper.make_tensor_value_info('0', TensorProto.BFLOAT16, [4, 4])
+    labels = helper.make_tensor_value_info('1', TensorProto.INT32, [4])
+    loss = helper.make_tensor_value_info('2', TensorProto.BFLOAT16, [4])
+
+    node = onnx.helper.make_node(
+        "SoftmaxCrossEntropyLoss",
+        inputs=[
+            "0",
+            "1",
+        ],
+        outputs=["2"],
+        reduction="none",
+    )
+
+    return ([node], [scores, labels], [loss])
+
+@onnx_test()
 def softmaxcrossentropyloss_2d_sum_reduction_test():
     scores = helper.make_tensor_value_info('0', TensorProto.FLOAT, [4, 4])
     labels = helper.make_tensor_value_info('1', TensorProto.INT32, [4])
@@ -12427,6 +12655,25 @@ def softmaxcrossentropyloss_2d_sum_reduction_half_test():
     scores = helper.make_tensor_value_info('0', TensorProto.FLOAT16, [4, 4])
     labels = helper.make_tensor_value_info('1', TensorProto.INT32, [4])
     loss = helper.make_tensor_value_info('2', TensorProto.FLOAT16, [4])
+
+    node = onnx.helper.make_node(
+        "SoftmaxCrossEntropyLoss",
+        inputs=[
+            "0",
+            "1",
+        ],
+        outputs=["2"],
+        reduction="sum",
+    )
+
+    return ([node], [scores, labels], [loss])
+
+
+@onnx_test()
+def softmaxcrossentropyloss_2d_sum_reduction_bf16_test():
+    scores = helper.make_tensor_value_info('0', TensorProto.BFLOAT16, [4, 4])
+    labels = helper.make_tensor_value_info('1', TensorProto.INT32, [4])
+    loss = helper.make_tensor_value_info('2', TensorProto.BFLOAT16, [4])
 
     node = onnx.helper.make_node(
         "SoftmaxCrossEntropyLoss",
@@ -12497,6 +12744,23 @@ def softmaxcrossentropyloss_2d_mean_reduction_half_test():
 
     return ([node], [scores, labels], [loss])
 
+@onnx_test()
+def softmaxcrossentropyloss_2d_mean_reduction_bf16_test():
+    scores = helper.make_tensor_value_info('0', TensorProto.BFLOAT16, [4, 4])
+    labels = helper.make_tensor_value_info('1', TensorProto.INT32, [4])
+    loss = helper.make_tensor_value_info('2', TensorProto.BFLOAT16, [4])
+
+    node = onnx.helper.make_node(
+        "SoftmaxCrossEntropyLoss",
+        inputs=[
+            "0",
+            "1",
+        ],
+        outputs=["2"],
+        reduction="mean",
+    )
+
+    return ([node], [scores, labels], [loss])
 
 @onnx_test()
 def softmaxcrossentropyloss_2d_no_reduction_weighted_test():
@@ -12716,6 +12980,28 @@ def softmaxcrossentropyloss_2d_no_reduction_half_weighted_test():
 
 
 @onnx_test()
+def softmaxcrossentropyloss_2d_no_reduction_bf16_weighted_test():
+    scores = helper.make_tensor_value_info('0', TensorProto.BFLOAT16, [4, 4])
+    labels = helper.make_tensor_value_info('1', TensorProto.INT32, [4])
+    weights = helper.make_tensor_value_info('2', TensorProto.BFLOAT16, [4])
+    loss = helper.make_tensor_value_info('3', TensorProto.BFLOAT16, [4])
+
+    node = onnx.helper.make_node(
+        "SoftmaxCrossEntropyLoss",
+        inputs=[
+            "0",
+            "1",
+            "2",
+        ],
+        outputs=["3"],
+        reduction="none",
+    )
+
+    return ([node], [scores, labels, weights], [loss])
+
+
+
+@onnx_test()
 def softmaxcrossentropyloss_2d_sum_reduction_weighted_test():
     scores = helper.make_tensor_value_info('0', TensorProto.FLOAT, [4, 4])
     labels = helper.make_tensor_value_info('1', TensorProto.INT32, [4])
@@ -12763,6 +13049,26 @@ def softmaxcrossentropyloss_2d_sum_reduction_half_weighted_test():
     labels = helper.make_tensor_value_info('1', TensorProto.INT32, [4])
     weights = helper.make_tensor_value_info('2', TensorProto.FLOAT16, [4])
     loss = helper.make_tensor_value_info('3', TensorProto.FLOAT16, [4])
+
+    node = onnx.helper.make_node(
+        "SoftmaxCrossEntropyLoss",
+        inputs=[
+            "0",
+            "1",
+            "2",
+        ],
+        outputs=["3"],
+        reduction="sum",
+    )
+
+    return ([node], [scores, labels, weights], [loss])
+
+@onnx_test()
+def softmaxcrossentropyloss_2d_sum_reduction_bf16_weighted_test():
+    scores = helper.make_tensor_value_info('0', TensorProto.BFLOAT16, [4, 4])
+    labels = helper.make_tensor_value_info('1', TensorProto.INT32, [4])
+    weights = helper.make_tensor_value_info('2', TensorProto.BFLOAT16, [4])
+    loss = helper.make_tensor_value_info('3', TensorProto.BFLOAT16, [4])
 
     node = onnx.helper.make_node(
         "SoftmaxCrossEntropyLoss",
@@ -12840,6 +13146,26 @@ def softmaxcrossentropyloss_2d_mean_reduction_half_weighted_test():
 
     return ([node], [scores, labels, weights], [loss])
 
+@onnx_test()
+def softmaxcrossentropyloss_2d_mean_reduction_bf16_weighted_test():
+    scores = helper.make_tensor_value_info('0', TensorProto.BFLOAT16, [4, 4])
+    labels = helper.make_tensor_value_info('1', TensorProto.INT32, [4])
+    weights = helper.make_tensor_value_info('2', TensorProto.BFLOAT16, [4])
+    loss = helper.make_tensor_value_info('3', TensorProto.BFLOAT16, [4])
+
+    node = onnx.helper.make_node(
+        "SoftmaxCrossEntropyLoss",
+        inputs=[
+            "0",
+            "1",
+            "2",
+        ],
+        outputs=["3"],
+        reduction="mean",
+    )
+
+    return ([node], [scores, labels, weights], [loss])
+
 
 @onnx_test()
 def softmaxcrossentropyloss_kdim_not_equal_test():
@@ -12870,6 +13196,28 @@ def softmaxcrossentropyloss_kd_mean_reduction_half_weighted_test():
     labels = helper.make_tensor_value_info('1', TensorProto.INT32, [4, 2, 2])
     weights = helper.make_tensor_value_info('2', TensorProto.FLOAT16, [4])
     loss = helper.make_tensor_value_info('3', TensorProto.FLOAT16, [4])
+
+    node = onnx.helper.make_node(
+        "SoftmaxCrossEntropyLoss",
+        inputs=[
+            "0",
+            "1",
+            "2",
+        ],
+        outputs=["3"],
+        reduction="mean",
+    )
+
+    return ([node], [scores, labels, weights], [loss])
+
+
+@onnx_test()
+def softmaxcrossentropyloss_kd_mean_reduction_bf16_weighted_test():
+    scores = helper.make_tensor_value_info('0', TensorProto.BFLOAT16,
+                                           [4, 4, 2, 2])
+    labels = helper.make_tensor_value_info('1', TensorProto.INT32, [4, 2, 2])
+    weights = helper.make_tensor_value_info('2', TensorProto.BFLOAT16, [4])
+    loss = helper.make_tensor_value_info('3', TensorProto.BFLOAT16, [4])
 
     node = onnx.helper.make_node(
         "SoftmaxCrossEntropyLoss",
@@ -12952,6 +13300,28 @@ def negativeloglikelihoodloss_kd_mean_reduction_half_weighted_test():
 
 
 @onnx_test()
+def negativeloglikelihoodloss_kd_mean_reduction_bf16_weighted_test():
+    scores = helper.make_tensor_value_info('0', TensorProto.BFLOAT16,
+                                           [4, 4, 2, 2])
+    labels = helper.make_tensor_value_info('1', TensorProto.INT32, [4, 2, 2])
+    weights = helper.make_tensor_value_info('2', TensorProto.BFLOAT16, [4])
+    loss = helper.make_tensor_value_info('3', TensorProto.BFLOAT16, [4])
+
+    node = onnx.helper.make_node(
+        "NegativeLogLikelihoodLoss",
+        inputs=[
+            "0",
+            "1",
+            "2",
+        ],
+        outputs=["3"],
+        reduction="mean",
+    )
+
+    return ([node], [scores, labels, weights], [loss])
+
+
+@onnx_test()
 def negativeloglikelihoodloss_kd_mean_reduction_half_weighted_test2():
     scores = helper.make_tensor_value_info('0', TensorProto.FLOAT16, [2, 3, 2])
     labels = helper.make_tensor_value_info('1', TensorProto.INT32, [2, 2])
@@ -12970,6 +13340,28 @@ def negativeloglikelihoodloss_kd_mean_reduction_half_weighted_test2():
     )
 
     return ([node], [scores, labels, weights], [loss])
+
+
+@onnx_test()
+def negativeloglikelihoodloss_kd_mean_reduction_bf16_weighted_test2():
+    scores = helper.make_tensor_value_info('0', TensorProto.BFLOAT16, [2, 3, 2])
+    labels = helper.make_tensor_value_info('1', TensorProto.INT32, [2, 2])
+    weights = helper.make_tensor_value_info('2', TensorProto.BFLOAT16, [3])
+    loss = helper.make_tensor_value_info('3', TensorProto.BFLOAT16, [2])
+
+    node = onnx.helper.make_node(
+        "NegativeLogLikelihoodLoss",
+        inputs=[
+            "0",
+            "1",
+            "2",
+        ],
+        outputs=["3"],
+        reduction="mean",
+    )
+
+    return ([node], [scores, labels, weights], [loss])
+
 
 
 @onnx_test()

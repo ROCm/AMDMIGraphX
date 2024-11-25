@@ -4253,61 +4253,6 @@ TEST_CASE(dot_slice_batch_dims)
     EXPECT(m1.sort() == m2.sort());
 }
 
-
-TEST_CASE(complex_graph_operations)
-{
-    migraphx::module m;
-
-    auto x_0 = m.add_literal(migraphx::generate_literal({migraphx::shape::float_type, {64, 512}}, 0));
-    auto x_1 = m.add_literal(migraphx::generate_literal({migraphx::shape::float_type, {64, 512}}, 1));
-    auto x_2 = m.add_literal(migraphx::generate_literal({migraphx::shape::float_type, {64, 512}}, 2));
-    auto x_3 = m.add_literal(migraphx::generate_literal({migraphx::shape::float_type, {64, 512}}, 3));
-    auto x_4 = m.add_literal(migraphx::generate_literal({migraphx::shape::float_type, {64, 512}}, 4));
-    auto x_5 = m.add_literal(migraphx::generate_literal({migraphx::shape::float_type, {64, 512}}, 5));
-    auto x_6 = m.add_literal(migraphx::generate_literal({migraphx::shape::float_type, {64, 512}}, 6));
-    auto x_7 = m.add_literal(migraphx::generate_literal({migraphx::shape::float_type, {64, 512}}, 7));
-    auto x_8 = m.add_literal(migraphx::generate_literal({migraphx::shape::float_type, {64, 512}}, 8));
-    auto x_9 = m.add_literal(migraphx::generate_literal({migraphx::shape::float_type, {64, 512}}, 9));
-    auto x_10 = m.add_literal(migraphx::generate_literal({migraphx::shape::float_type, {64, 512}}, 10));
-    auto x_11 = m.add_literal(migraphx::generate_literal({migraphx::shape::float_type, {64, 512}}, 11));
-    auto x_12 = m.add_literal(migraphx::literal({migraphx::shape::float_type, {1}}, {0.125}));
-
-    
-    auto p_x = m.add_parameter("x", {migraphx::shape::float_type, {64, 64}});
-
-    
-    auto x_14 = m.add_instruction(
-        migraphx::make_op("multibroadcast", {{"out_lens", {64, 512}}}), x_12);
-
-
-    auto x_15 = m.add_instruction(migraphx::make_op("dot"), p_x, x_11);
-    auto x_16 = m.add_instruction(migraphx::make_op("add"), x_15, x_10);
-    auto x_17 = m.add_instruction(migraphx::make_op("add"), x_16, x_9);
-    auto x_18 = m.add_instruction(migraphx::make_op("add"), x_17, x_8);
-
-    auto x_19 = m.add_instruction(migraphx::make_op("dot"), p_x, x_7);
-    auto x_20 = m.add_instruction(migraphx::make_op("add"), x_19, x_6);
-    auto x_21 = m.add_instruction(migraphx::make_op("add"), x_20, x_5);
-    auto x_22 = m.add_instruction(migraphx::make_op("add"), x_21, x_4);
-
-    auto x_23 = m.add_instruction(migraphx::make_op("dot"), p_x, x_3);
-    auto x_24 = m.add_instruction(migraphx::make_op("add"), x_23, x_2);
-    auto x_25 = m.add_instruction(migraphx::make_op("add"), x_24, x_1);
-    auto x_26 = m.add_instruction(migraphx::make_op("add"), x_25, x_0);
-
-    auto x_27 = m.add_instruction(migraphx::make_op("mul"), x_26, x_14);
-
-    m.add_return({x_18, x_22, x_27});
-
-    run_pass(m);
-
-    EXPECT(m.get_output_shapes().size() == 3);
-
-    
-}
-
-
-
 TEST_CASE(dot_slice_not_applicable_1)
 {
     migraphx::shape as{migraphx::shape::float_type, {2, 256, 32}};

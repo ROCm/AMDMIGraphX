@@ -135,7 +135,7 @@ MIGRAPHX_DEVICE_MATH_WRAP(asin, (double) ::asin, (float) ::asinf);
 MIGRAPHX_DEVICE_MATH_WRAP(asinh, (double) ::asinh, (float) ::asinh);
 MIGRAPHX_DEVICE_MATH_WRAP(atan, (double) ::atan, (float) ::atan);
 MIGRAPHX_DEVICE_MATH_WRAP(atanh, (double) ::atanh, (float) ::atanh);
-MIGRAPHX_DEVICE_MATH_WRAP(ceil, (double) ::ceil, (half) ::hceil);
+MIGRAPHX_DEVICE_MATH_WRAP(ceil, (double) ::ceil, (float)::ceilf, (half) ::hceil);
 MIGRAPHX_DEVICE_MATH_WRAP(cos, (double) ::cos, (float) ::cosf, (half) ::hcos);
 MIGRAPHX_DEVICE_MATH_WRAP(cosh, (double) ::cosh, (float) ::coshf);
 MIGRAPHX_DEVICE_MATH_WRAP(erf, (double) ::erf, (float) ::erff);

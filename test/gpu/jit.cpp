@@ -141,11 +141,46 @@ const std::string math_template = R"__migraphx__(
 #include <migraphx/kernels/types.hpp>
 
 namespace migraphx {
+
+template <class T>
+struct test_implicit_conversion_op
+{
+    T x;
+
+    template <index_int N, class U>
+    constexpr operator vec<U, N>() const
+    {
+        if constexpr(vec_size<T>() == 0)
+        {
+            return x;
+        }
+        else
+        {
+            static_assert(vec_size<T>() == N, "Vector mismatch size");
+            return __builtin_convertvector(x, vec<U, N>);
+        }
+    }
+
+    template <class U>
+    constexpr operator U() const
+    {
+        static_assert(is_same<T, bool>{} or not is_same<U, float>{} or is_same<T, U>{});
+        return static_cast<U>(x);
+    }
+};
+
+template <class T>
+constexpr test_implicit_conversion_op<T> test_implicit_conversion(T x)
+{
+    return {x};
+}
+
+
 extern "C" {
 __global__ void kernel(${type}* p) 
 {
     auto x = *p;
-    *p = migraphx::implicit_conversion(migraphx::${invoke});
+    *p = migraphx::test_implicit_conversion(migraphx::${invoke});
 
 }
 }

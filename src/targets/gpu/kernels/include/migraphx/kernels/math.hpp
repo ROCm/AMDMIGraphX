@@ -129,7 +129,6 @@ __device__ auto wrap(F f, T x, Ts... xs)
             [](auto... ys) -> migraphx::vec<type, 2> { return fname(ys...); }); \
     }
 
-MIGRAPHX_DEVICE_MATH_WRAP(abs, (double) ::abs, (float) ::abs, (half) ::__habs);
 MIGRAPHX_DEVICE_MATH_WRAP(acos, (double) ::acos, (float) ::acosf);
 MIGRAPHX_DEVICE_MATH_WRAP(acosh, (double) ::acosh, (float) ::acoshf);
 MIGRAPHX_DEVICE_MATH_WRAP(asin, (double) ::asin, (float) ::asinf);
@@ -158,38 +157,27 @@ MIGRAPHX_DEVICE_MATH_WRAP(tan, (double) ::tan, (float) ::tanf);
 MIGRAPHX_DEVICE_MATH_WRAP(tanh, (double) ::tanh, (float) ::tanhf);
 MIGRAPHX_DEVICE_MATH_WRAP(fmod, (double) ::fmod, (float) ::fmodf);
 
-// Map math functions to hip half2 functions
-// The half2 type is defined in include/hip/amd_detail/hip_fp16_gcc.h and is 2 16-bit floats
-// packed into a 32-bit number.  See include/hip/amd_detail/hip_fp16_math_fwd.h for the HIP names
-// Most but not all of these math ops have operators of the same names.
-MIGRAPHX_DEVICE_MATH_VEC2(migraphx::half, abs, ::__habs2)
-MIGRAPHX_DEVICE_MATH_VEC2(migraphx::half, ceil, ::h2ceil)
-MIGRAPHX_DEVICE_MATH_VEC2(migraphx::half, cos, ::h2cos)
-MIGRAPHX_DEVICE_MATH_VEC2(migraphx::half, exp, ::h2exp)
-MIGRAPHX_DEVICE_MATH_VEC2(migraphx::half, exp10, ::h2exp10)
-MIGRAPHX_DEVICE_MATH_VEC2(migraphx::half, exp2, ::h2exp2)
-MIGRAPHX_DEVICE_MATH_VEC2(migraphx::half, floor, ::h2floor)
-MIGRAPHX_DEVICE_MATH_VEC2(migraphx::half, isinf, ::__hisinf2)
-MIGRAPHX_DEVICE_MATH_VEC2(migraphx::half, isnan, ::__hisnan2)
-MIGRAPHX_DEVICE_MATH_VEC2(migraphx::half, log, ::h2log)
-MIGRAPHX_DEVICE_MATH_VEC2(migraphx::half, log10, ::h2log10)
-MIGRAPHX_DEVICE_MATH_VEC2(migraphx::half, log2, ::h2log2)
-MIGRAPHX_DEVICE_MATH_VEC2(migraphx::half, rsqrt, ::h2rsqrt)
-MIGRAPHX_DEVICE_MATH_VEC2(migraphx::half, sin, ::h2sin)
-MIGRAPHX_DEVICE_MATH_VEC2(migraphx::half, sqrt, ::h2sqrt)
-
 template <class T, class U>
 constexpr auto where(bool cond, const T& a, const U& b)
 {
     return cond ? a : b;
 }
 
+MIGRAPHX_DEVICE_MATH_FOR(float, abs, ::abs)
+MIGRAPHX_DEVICE_MATH_FOR(double, abs, ::abs)
+MIGRAPHX_DEVICE_MATH_FOR(migraphx::half, abs, ::__habs)
 MIGRAPHX_DEVICE_MATH_BINARY_FOR(float, max, ::fmaxf)
 MIGRAPHX_DEVICE_MATH_BINARY_FOR(float, min, ::fminf)
 MIGRAPHX_DEVICE_MATH_BINARY_FOR(double, max, ::max)
 MIGRAPHX_DEVICE_MATH_BINARY_FOR(double, min, ::min)
 MIGRAPHX_DEVICE_MATH_BINARY_FOR(migraphx::half, max, ::__hmax)
 MIGRAPHX_DEVICE_MATH_BINARY_FOR(migraphx::half, min, ::__hmin)
+
+template <class T, MIGRAPHX_REQUIRES(not is_any_vec<T>() and is_integral<T>{})>
+constexpr auto abs(const T& a)
+{
+    return where(a < 0, -a, a);
+}
 
 template <class T, MIGRAPHX_REQUIRES(not is_any_vec<T>())>
 constexpr auto max(const T& a, const T& b)
@@ -262,6 +250,26 @@ MIGRAPHX_DEVICE_MATH_VEC(sqrt)
 MIGRAPHX_DEVICE_MATH_VEC(tan)
 MIGRAPHX_DEVICE_MATH_VEC(tanh)
 MIGRAPHX_DEVICE_MATH_VEC(where)
+
+// Map math functions to hip half2 functions
+// The half2 type is defined in include/hip/amd_detail/hip_fp16_gcc.h and is 2 16-bit floats
+// packed into a 32-bit number.  See include/hip/amd_detail/hip_fp16_math_fwd.h for the HIP names
+// Most but not all of these math ops have operators of the same names.
+MIGRAPHX_DEVICE_MATH_VEC2(migraphx::half, abs, ::__habs2)
+MIGRAPHX_DEVICE_MATH_VEC2(migraphx::half, ceil, ::h2ceil)
+MIGRAPHX_DEVICE_MATH_VEC2(migraphx::half, cos, ::h2cos)
+MIGRAPHX_DEVICE_MATH_VEC2(migraphx::half, exp, ::h2exp)
+MIGRAPHX_DEVICE_MATH_VEC2(migraphx::half, exp10, ::h2exp10)
+MIGRAPHX_DEVICE_MATH_VEC2(migraphx::half, exp2, ::h2exp2)
+MIGRAPHX_DEVICE_MATH_VEC2(migraphx::half, floor, ::h2floor)
+MIGRAPHX_DEVICE_MATH_VEC2(migraphx::half, isinf, ::__hisinf2)
+MIGRAPHX_DEVICE_MATH_VEC2(migraphx::half, isnan, ::__hisnan2)
+MIGRAPHX_DEVICE_MATH_VEC2(migraphx::half, log, ::h2log)
+MIGRAPHX_DEVICE_MATH_VEC2(migraphx::half, log10, ::h2log10)
+MIGRAPHX_DEVICE_MATH_VEC2(migraphx::half, log2, ::h2log2)
+MIGRAPHX_DEVICE_MATH_VEC2(migraphx::half, rsqrt, ::h2rsqrt)
+MIGRAPHX_DEVICE_MATH_VEC2(migraphx::half, sin, ::h2sin)
+MIGRAPHX_DEVICE_MATH_VEC2(migraphx::half, sqrt, ::h2sqrt)
 
 template <class T, class U>
 constexpr auto convert(U v)

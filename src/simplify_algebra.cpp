@@ -57,6 +57,22 @@ auto conv_const_weights()
         match::args(match::none_of(match::is_constant()), match::is_constant().bind("w")));
 }
 
+auto from_int4()
+{
+    return match::make_predicate_matcher([](instruction_ref start) {
+        return fix<bool>([&](auto self, instruction_ref ins) {
+            auto alias = instruction::get_output_alias(ins);
+            if(contains({"reshape", "dequantizelinear"}, alias->name()))
+                return self(alias->inputs().front());
+            if(alias->name() == "concat")
+                return all_of(alias->inputs(), self);
+            return alias->name() == "unpack_int4";
+        })(start);
+    });
+}
+
+auto not_from_int4() { return match::none_of(from_int4()); }
+
 auto reduction() { return match::name_contains("reduce"); }
 
 // conv(x, w) * a => conv(x, a * w)
@@ -208,8 +224,8 @@ struct find_mul_dot
 {
     auto matcher() const
     {
-        auto is_dot_const_inputs =
-            match::name("dot")(match::any_of[match::inputs()](match::is_constant()));
+        auto constant            = match::is_constant(not_from_int4());
+        auto is_dot_const_inputs = match::name("dot")(match::any_of[match::inputs()](constant));
         return match::name("mul")(match::either_arg(0, 1)(
             is_dot_const_inputs.bind("dot"), match::name("broadcast", "multibroadcast").bind("c")));
     }
@@ -358,7 +374,8 @@ struct find_dot_mul
             match::used_once(),
             match::either_arg(0, 1)(const_broadcast.bind("d"),
                                     match::none_of(match::is_constant()).bind("z")));
-        return match::name("dot")(match::either_arg(0, 1)(mul, match::is_constant().bind("c")));
+        return match::name("dot")(
+            match::either_arg(0, 1)(mul, match::is_constant(not_from_int4()).bind("c")));
     }
 
     void apply(module& m, const match::matcher_result& r) const
@@ -870,7 +887,8 @@ struct find_concat_op
     auto matcher() const
     {
         return match::name("concat")(match::any_of[match::inputs()](
-            match::any_of(match::pointwise(), match::name("broadcast", "multibroadcast")),
+            match::any_of(match::pointwise(),
+                          match::name("broadcast", "multibroadcast", "unpack_int4")),
             match::used_once()));
     }
 
@@ -890,7 +908,7 @@ struct find_concat_op
 
     static bool is_valid_op(const operation& op)
     {
-        return contains({"broadcast", "multibroadcast"}, op.name()) or
+        return contains({"broadcast", "multibroadcast", "unpack_int4"}, op.name()) or
                op.attributes().contains("pointwise");
     }
 

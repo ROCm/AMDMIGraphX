@@ -25,18 +25,9 @@ cffi==1.17.1
 charset-normalizer==3.4.0
     # via requests
 click==8.1.7
-    # via
-    #   click-log
-    #   doxysphinx
-    #   sphinx-external-toc
-click-log==0.4.0
-    # via doxysphinx
-contourpy==1.3.1
-    # via matplotlib
+    # via sphinx-external-toc
 cryptography==43.0.3
     # via pyjwt
-cycler==0.12.1
-    # via matplotlib
 deprecated==1.2.15
     # via pygithub
 docutils==0.21.2
@@ -45,12 +36,8 @@ docutils==0.21.2
     #   myst-parser
     #   pydata-sphinx-theme
     #   sphinx
-doxysphinx==3.3.12
-    # via rocm-docs-core
 fastjsonschema==2.20.0
     # via rocm-docs-core
-fonttools==4.55.0
-    # via matplotlib
 gitdb==4.0.11
     # via gitpython
 gitpython==3.1.43
@@ -63,39 +50,20 @@ jinja2==3.1.4
     # via
     #   myst-parser
     #   sphinx
-kiwisolver==1.4.7
-    # via matplotlib
-libsass==0.22.0
-    # via doxysphinx
-lxml==5.2.1
-    # via doxysphinx
 markdown-it-py==3.0.0
     # via
     #   mdit-py-plugins
     #   myst-parser
 markupsafe==3.0.2
     # via jinja2
-matplotlib==3.9.2
-    # via doxysphinx
 mdit-py-plugins==0.4.2
     # via myst-parser
 mdurl==0.1.2
     # via markdown-it-py
-mpire==2.10.2
-    # via doxysphinx
 myst-parser==4.0.0
     # via rocm-docs-core
-numpy==1.26.4
-    # via
-    #   contourpy
-    #   doxysphinx
-    #   matplotlib
 packaging==24.2
-    # via
-    #   matplotlib
-    #   sphinx
-pillow==11.0.0
-    # via matplotlib
+    # via sphinx
 pycparser==2.22
     # via cffi
 pydata-sphinx-theme==0.16.0
@@ -107,21 +75,12 @@ pygithub==2.5.0
 pygments==2.18.0
     # via
     #   accessible-pygments
-    #   mpire
     #   pydata-sphinx-theme
     #   sphinx
-pyjson5==1.6.7
-    # via doxysphinx
 pyjwt[crypto]==2.10.0
     # via pygithub
 pynacl==1.5.0
     # via pygithub
-pyparsing==3.2.0
-    # via
-    #   doxysphinx
-    #   matplotlib
-python-dateutil==2.9.0.post0
-    # via matplotlib
 pyyaml==6.0.2
     # via
     #   myst-parser
@@ -131,10 +90,8 @@ requests==2.32.3
     # via
     #   pygithub
     #   sphinx
-rocm-docs-core[api-reference]==1.8.5
+rocm-docs-core==1.9.0
     # via -r requirements.in
-six==1.16.0
-    # via python-dateutil
 smmap==5.0.1
     # via gitdb
 snowballstemmer==2.2.0
@@ -148,12 +105,15 @@ sphinx==8.1.3
     #   pydata-sphinx-theme
     #   rocm-docs-core
     #   sphinx-book-theme
+    #   sphinx-collapse
     #   sphinx-copybutton
     #   sphinx-design
     #   sphinx-external-toc
     #   sphinx-notfound-page
 sphinx-book-theme==1.1.3
     # via rocm-docs-core
+sphinx-collapse==0.1.3
+    # via -r requirements.in
 sphinx-copybutton==0.5.2
     # via rocm-docs-core
 sphinx-design==0.6.1
@@ -176,8 +136,6 @@ sphinxcontrib-serializinghtml==2.0.0
     # via sphinx
 tomli==2.1.0
     # via sphinx
-tqdm==4.67.0
-    # via mpire
 typing-extensions==4.12.2
     # via
     #   pydata-sphinx-theme
@@ -186,5 +144,5 @@ urllib3==2.2.3
     # via
     #   pygithub
     #   requests
-wrapt==1.16.0
+wrapt==1.17.0
     # via deprecated

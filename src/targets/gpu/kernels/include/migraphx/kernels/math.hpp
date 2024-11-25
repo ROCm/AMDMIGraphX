@@ -44,11 +44,6 @@ constexpr auto as_float(T x)
         return float(x);
 }
 
-template <class Key, class T, class = void>
-struct disable_wrap : false_type
-{
-};
-
 template <class F, class T, class... Ts, MIGRAPHX_REQUIRES(not is_any_vec<T, Ts...>())>
 __device__ auto wrap(F f, T x, Ts... xs)
 {

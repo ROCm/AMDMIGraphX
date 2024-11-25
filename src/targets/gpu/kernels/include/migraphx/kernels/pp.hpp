@@ -27,6 +27,10 @@
 #define MIGRAPHX_PP_PRIMITIVE_CAT(x, y) x##y
 #define MIGRAPHX_PP_CAT(x, y) MIGRAPHX_PP_PRIMITIVE_CAT(x, y)
 
+#define MIGRAPHX_PP_EAT(...)
+#define MIGRAPHX_PP_EXPAND(...) __VA_ARGS__
+#define MIGRAPHX_PP_COMMA(...) ,
+
 #define MIGRAPHX_PP_IIF(c) MIGRAPHX_PP_PRIMITIVE_CAT(MIGRAPHX_PP_IIF_, c)
 #define MIGRAPHX_PP_IIF_0(t, ...) __VA_ARGS__
 #define MIGRAPHX_PP_IIF_1(t, ...) t
@@ -53,10 +57,6 @@
 #define MIGRAPHX_PP_IS_EMPTY_ARG(x)                                \
     MIGRAPHX_PP_BITAND(MIGRAPHX_PP_COMPL(MIGRAPHX_PP_IS_PAREN(x))) \
     (MIGRAPHX_PP_PRIMITIVE_IS_EMPTY(x))
-
-#define MIGRAPHX_PP_EAT(...)
-#define MIGRAPHX_PP_EXPAND(...) __VA_ARGS__
-#define MIGRAPHX_PP_COMMA(...) ,
 
 #define MIGRAPHX_PP_REPEAT0(m, ...) m(0, __VA_ARGS__)
 #define MIGRAPHX_PP_REPEAT1(m, ...) MIGRAPHX_PP_REPEAT0(m, __VA_ARGS__) m(1, __VA_ARGS__)

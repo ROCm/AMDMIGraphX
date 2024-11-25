@@ -12,6 +12,58 @@ struct MGXLlama2
     MGXLlama2()
     {
         check_hip_status(hipSetDevice(DEVICE_ID));
+        check_hip_status(hipStreamCreateWithFlags(&stream, hipStreamNonBlocking));
+
+        loadPrograms();
+
+        model_inputs = std::make_unique<LLama2Inputs>(*prog, prog_args, offload_copy);
+        model_inputs->prepareOneDimProgArgs(progSimpleInput, prog_args_one_dim);
+        if (not offload_copy)
+        {
+            model_inputs->upload_to_device(stream);
+            model_inputs->one_dim_input_buffer->upload_to_device(stream);
+        }
+
+        model_outputs = std::make_unique<LLama2Outputs>(offload_copy);
+        model_outputs->prepareProgArgs(prog_args,prog_args_one_dim);
+        // setting up argmax arguments
+        model_outputs->prepareProgArgsArgMax(prog_args_argmax, prog_args_argmax_one_dim);
+    }
+
+    void run()
+    {
+        std::cout << "Dataset size: " << model_inputs->dataSize() << std::endl;
+        std::cout << "Starting evaluation" << std::endl;
+        size_t token_count = 0;
+        auto start = std::chrono::steady_clock::now();
+        for (size_t i = 0; i < model_inputs->dataSize(); ++i)
+        {
+            evaluateSample(i, token_count);
+
+    #ifdef TRACE
+            std::cout << "######### Output token ids for #" << i << " #########" << std::endl;
+            // print output tokens
+            for (auto tok: output_tokens){
+                std::cout << tok << ", ";
+            }
+            std::cout << std::endl;
+    #endif
+            prepareNextSample();
+        }
+
+        float dur = std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::steady_clock::now() - start).count() / 1000.f;
+        std::cout << "Duration: " << dur << " seconds." << std::endl;
+        std::cout << "Completed " << token_count << " tokens." << std::endl;
+        std::cout << "Tokens/sec: " << token_count / dur << std::endl;
+
+        if (WRITE_RESULT_FILE)
+        {
+            writeResults(results);
+        }
+    }
+
+    void loadPrograms()
+    {
         std::cout << "Offload copy: " << std::boolalpha << offload_copy << std::endl;
         ModelLoadSettings settings = {SEQ_SIZE, false /*quantize_fp16*/, offload_copy /*offload_copy*/, false /*fast_math*/, false /*input_one_dim*/};
         progMultipleInputDim = loadProgram(settings);
@@ -28,106 +80,64 @@ struct MGXLlama2
 
         prog = &progMultipleInputDim;
         progArgMax = &progArgMaxMultipleInputDim;
+    }
 
-        check_hip_status(hipStreamCreateWithFlags(&stream, hipStreamNonBlocking));
-        model_inputs = std::make_unique<LLama2Inputs>(*prog, prog_args, offload_copy);
-        if (not offload_copy)
+    void evaluateSample(size_t sample_id, size_t& token_count)
+    {
+        #ifdef TRACE
+        std::cout << "Iter #" << sample_id << std::endl;
+        #endif
+        auto lastInputIdx = model_inputs->getLastInputIndex();
+        for (size_t i = lastInputIdx; i < SEQ_SIZE - 1; ++i)
         {
-            model_inputs->upload_to_device(stream);
-        }
+            bool firstIter = (i == lastInputIdx);
+            prog->run_async(firstIter ? prog_args : prog_args_one_dim, stream);
+            auto outputs = progArgMax->run_async(firstIter ? prog_args_argmax : prog_args_argmax_one_dim, stream);
+            if (not offload_copy)
+            {
+                firstIter ? model_outputs->argm_output_buffer->download_from_device(stream, i, i + 1) : model_outputs->argm_output_buffer_one_dim->download_from_device(stream);
+            }
 
-        model_inputs->prepareOneDimProgArgs(progSimpleInput, prog_args_one_dim);
+            check_hip_status(hipStreamSynchronize(stream));
+            int64_t* results = offload_copy ? reinterpret_cast<int64_t*>(outputs[0].data()) : reinterpret_cast<int64_t*>( firstIter ? model_outputs->argm_output_buffer->hbuff.data() : model_outputs->argm_output_buffer_one_dim->hbuff.data());
+            auto new_token_idx = firstIter ? i : 0;
+            int64_t new_token = results[new_token_idx];
 
-        model_outputs = std::make_unique<LLama2Outputs>(offload_copy);
-        model_outputs->prepareProgArgs(prog_args,prog_args_one_dim);
-        // setting up argmax arguments
-        model_outputs->prepareProgArgsArgMax(prog_args_argmax, prog_args_argmax_one_dim);
+            token_count++;
+            #ifdef TRACE
+            std::cout << "New token: " << new_token << std::endl;
+            #endif
+            output_tokens.push_back(new_token);
 
-        if (not offload_copy)
-        {
-            model_inputs->one_dim_input_buffer->upload_to_device(stream);
+            if (new_token == EOS)
+            {
+                break;
+            }
+
+            model_inputs->attention_mask_buffer->update_data(1, i + 1, stream);
+            model_inputs->one_dim_input_buffer->update_data(new_token, 0, stream);
+
+            if (firstIter)
+            {
+                prog = &progSimpleInput;
+                progArgMax = &progArgMaxSimpleInput;
+            }
         }
     }
 
-    void run()
+    void prepareNextSample()
     {
-        std::cout << "Dataset size: " << model_inputs->dataSize() << std::endl;
-        std::cout << "Starting evaluation" << std::endl;
-        size_t token_count = 0;
-        auto start = std::chrono::steady_clock::now();
-        for (size_t i = 0; i < model_inputs->dataSize(); ++i)
+        prog = &progMultipleInputDim;
+        progArgMax = &progArgMaxMultipleInputDim;
+
+        auto updated = model_inputs->updateData(*prog, prog_args);
+
+        if (updated && not offload_copy)
         {
-            #ifdef TRACE
-            std::cout << "Iter #" << i << std::endl;
-            #endif
-            auto lastInputIdx = model_inputs->getLastInputIndex();
-            for (size_t i = lastInputIdx; i < SEQ_SIZE - 1; ++i)
-            {
-                bool firstIter = (i == lastInputIdx);
-                prog->run_async(firstIter ? prog_args : prog_args_one_dim, stream);
-                auto outputs = progArgMax->run_async(firstIter ? prog_args_argmax : prog_args_argmax_one_dim, stream);
-                if (not offload_copy)
-                {
-                    firstIter ? model_outputs->argm_output_buffer->download_from_device(stream, i, i + 1) : model_outputs->argm_output_buffer_one_dim->download_from_device(stream);
-                }
-
-                check_hip_status(hipStreamSynchronize(stream));
-                int64_t* results = offload_copy ? reinterpret_cast<int64_t*>(outputs[0].data()) : reinterpret_cast<int64_t*>( firstIter ? model_outputs->argm_output_buffer->hbuff.data() : model_outputs->argm_output_buffer_one_dim->hbuff.data());
-                auto new_token_idx = firstIter ? i : 0;
-                int64_t new_token = results[new_token_idx];
-
-                token_count++;
-                #ifdef TRACE
-                std::cout << "New token: " << new_token << std::endl;
-                #endif
-                output_tokens.push_back(new_token);
-
-                if (new_token == EOS)
-                {
-                    break;
-                }
-
-                model_inputs->attention_mask_buffer->update_data(1, i + 1, stream);
-
-                if (firstIter)
-                {
-                    prog = &progSimpleInput;
-                    progArgMax = &progArgMaxSimpleInput;
-                }
-
-                model_inputs->one_dim_input_buffer->update_data(new_token, 0, stream);
-            }
-
-    #ifdef TRACE
-            std::cout << "######### Output token ids for #" << i << " #########" << std::endl;
-            // print output tokens
-            for (auto tok: output_tokens){
-                std::cout << tok << ", ";
-            }
-            std::cout << std::endl;
-    #endif
-            prog = &progMultipleInputDim;
-            progArgMax = &progArgMaxMultipleInputDim;
-
-            auto updated = model_inputs->updateData(*prog, prog_args);
-
-            if (updated && not offload_copy)
-            {
-                model_inputs->upload_to_device(stream);
-            }
-            results.emplace_back(output_tokens);
-            output_tokens.clear();
+            model_inputs->upload_to_device(stream);
         }
-
-        float dur = std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::steady_clock::now() - start).count() / 1000.f;
-        std::cout << "Duration: " << dur << " seconds." << std::endl;
-        std::cout << "Completed " << token_count << " tokens." << std::endl;
-        std::cout << "Tokens/sec: " << token_count / dur << std::endl;
-
-        if (WRITE_RESULT_FILE)
-        {
-            writeResults(results);
-        }
+        results.emplace_back(output_tokens);
+        output_tokens.clear();
     }
 
     MGXLlama2(const MGXLlama2 &buf) = delete;

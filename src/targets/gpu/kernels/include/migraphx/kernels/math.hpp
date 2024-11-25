@@ -71,12 +71,11 @@ __device__ auto wrap(F f, T x, Ts... xs)
 
 // NOLINTNEXTLINE
 #define MIGRAPHX_DEVICE_MATH_LIFT_IMPL(type, ...) \
-    [](type x, auto... xs) MIGRAPHX_RETURNS( \
-        (__VA_ARGS__)(x, xs...))
+    [](type x, auto... xs) MIGRAPHX_RETURNS((__VA_ARGS__)(x, xs...))
 
 #define MIGRAPHX_DEVICE_MATH_LIFT(...) MIGRAPHX_DEVICE_MATH_LIFT_IMPL(__VA_ARGS__)
 
-#define MIGRAPHX_DEVICE_MATH_PARSE(x) x, 
+#define MIGRAPHX_DEVICE_MATH_PARSE(x) x,
 
 // NOLINTNEXTLINE
 #define MIGRAPHX_DEVICE_MATH_EACH(f) MIGRAPHX_DEVICE_MATH_LIFT(MIGRAPHX_DEVICE_MATH_PARSE f)
@@ -118,44 +117,44 @@ __device__ auto wrap(F f, T x, Ts... xs)
 // Template with two overloads for math functions, one for half2 type and one for more generic
 // <half, N> vectorization where N is 4 or another even number.
 // NOLINTNEXTLINE
-#define MIGRAPHX_DEVICE_MATH_VEC2(type, name, fname)                                           \
-    template <class... Ts>                                                                \
-    auto __device__ name(migraphx::vec<type, 2> x, Ts... xs)                    \
-        MIGRAPHX_RETURNS(migraphx::vec<type, 2>{fname(x, xs...)});              \
-    template <class... Ts, index_int N, MIGRAPHX_REQUIRES(N % 2 == 0 && (N > 2))>         \
-    auto __device__ name(migraphx::vec<type, N> x, Ts... xs)                    \
-    {                                                                                     \
-        return vec_packed_transform<2>(x, xs...)(                                         \
-            [](auto... ys) -> migraphx::vec<type, 2> { return fname(ys...); }); \
+#define MIGRAPHX_DEVICE_MATH_VEC2(type, name, fname)                              \
+    template <class... Ts>                                                        \
+    auto __device__ name(migraphx::vec<type, 2> x, Ts... xs)                      \
+        MIGRAPHX_RETURNS(migraphx::vec<type, 2>{fname(x, xs...)});                \
+    template <class... Ts, index_int N, MIGRAPHX_REQUIRES(N % 2 == 0 && (N > 2))> \
+    auto __device__ name(migraphx::vec<type, N> x, Ts... xs)                      \
+    {                                                                             \
+        return vec_packed_transform<2>(x, xs...)(                                 \
+            [](auto... ys) -> migraphx::vec<type, 2> { return fname(ys...); });   \
     }
 
-MIGRAPHX_DEVICE_MATH_WRAP(acos, (double) ::acos, (float) ::acosf);
-MIGRAPHX_DEVICE_MATH_WRAP(acosh, (double) ::acosh, (float) ::acoshf);
-MIGRAPHX_DEVICE_MATH_WRAP(asin, (double) ::asin, (float) ::asinf);
-MIGRAPHX_DEVICE_MATH_WRAP(asinh, (double) ::asinh, (float) ::asinh);
-MIGRAPHX_DEVICE_MATH_WRAP(atan, (double) ::atan, (float) ::atan);
-MIGRAPHX_DEVICE_MATH_WRAP(atanh, (double) ::atanh, (float) ::atanh);
-MIGRAPHX_DEVICE_MATH_WRAP(ceil, (double) ::ceil, (float)::ceilf, (half) ::hceil);
-MIGRAPHX_DEVICE_MATH_WRAP(cos, (double) ::cos, (float) ::cosf, (half) ::hcos);
-MIGRAPHX_DEVICE_MATH_WRAP(cosh, (double) ::cosh, (float) ::coshf);
-MIGRAPHX_DEVICE_MATH_WRAP(erf, (double) ::erf, (float) ::erff);
-MIGRAPHX_DEVICE_MATH_WRAP(exp, (double) ::exp, (float) ::expf, (half) ::hexp);
-MIGRAPHX_DEVICE_MATH_WRAP(floor, (double) ::floor, (float) ::floorf, (half) ::hfloor);
-MIGRAPHX_DEVICE_MATH_WRAP(isnan, (double) ::isnan, (float) ::isnan, (half) ::__hisinf);
-MIGRAPHX_DEVICE_MATH_WRAP(isinf, (double) ::isinf, (float)::isinf, (half) ::__hisnan);
-MIGRAPHX_DEVICE_MATH_WRAP(log, (double) ::log, (float)::logf, (half) ::hlog);
-MIGRAPHX_DEVICE_MATH_WRAP(log2, (double) ::log2, (float)::log2f, (half) ::hlog2);
-MIGRAPHX_DEVICE_MATH_WRAP(nearbyint, (double) ::nearbyint, (float)::nearbyintf);
-MIGRAPHX_DEVICE_MATH_WRAP(pow, (double) ::pow, (float) ::powf);
-MIGRAPHX_DEVICE_MATH_WRAP(remainder, (double) ::remainder, (float) ::remainderf);
-MIGRAPHX_DEVICE_MATH_WRAP(round, (double) ::round, (float) ::roundf);
-MIGRAPHX_DEVICE_MATH_WRAP(rsqrt, (double) ::rsqrt, (float) ::rsqrtf, (half) ::hrsqrt);
-MIGRAPHX_DEVICE_MATH_WRAP(sin, (double) ::sin, (float) ::sinf, (half) ::hsin);
-MIGRAPHX_DEVICE_MATH_WRAP(sinh, (double) ::sinh, (float) ::sinhf);
-MIGRAPHX_DEVICE_MATH_WRAP(sqrt, (double) ::sqrt, (float) ::sqrtf, (half) ::hsqrt);
-MIGRAPHX_DEVICE_MATH_WRAP(tan, (double) ::tan, (float) ::tanf);
-MIGRAPHX_DEVICE_MATH_WRAP(tanh, (double) ::tanh, (float) ::tanhf);
-MIGRAPHX_DEVICE_MATH_WRAP(fmod, (double) ::fmod, (float) ::fmodf);
+MIGRAPHX_DEVICE_MATH_WRAP(acos, (double)::acos, (float)::acosf);
+MIGRAPHX_DEVICE_MATH_WRAP(acosh, (double)::acosh, (float)::acoshf);
+MIGRAPHX_DEVICE_MATH_WRAP(asin, (double)::asin, (float)::asinf);
+MIGRAPHX_DEVICE_MATH_WRAP(asinh, (double)::asinh, (float)::asinh);
+MIGRAPHX_DEVICE_MATH_WRAP(atan, (double)::atan, (float)::atan);
+MIGRAPHX_DEVICE_MATH_WRAP(atanh, (double)::atanh, (float)::atanh);
+MIGRAPHX_DEVICE_MATH_WRAP(ceil, (double)::ceil, (float)::ceilf, (half)::hceil);
+MIGRAPHX_DEVICE_MATH_WRAP(cos, (double)::cos, (float)::cosf, (half)::hcos);
+MIGRAPHX_DEVICE_MATH_WRAP(cosh, (double)::cosh, (float)::coshf);
+MIGRAPHX_DEVICE_MATH_WRAP(erf, (double)::erf, (float)::erff);
+MIGRAPHX_DEVICE_MATH_WRAP(exp, (double)::exp, (float)::expf, (half)::hexp);
+MIGRAPHX_DEVICE_MATH_WRAP(floor, (double)::floor, (float)::floorf, (half)::hfloor);
+MIGRAPHX_DEVICE_MATH_WRAP(isnan, (double)::isnan, (float)::isnan, (half)::__hisinf);
+MIGRAPHX_DEVICE_MATH_WRAP(isinf, (double)::isinf, (float)::isinf, (half)::__hisnan);
+MIGRAPHX_DEVICE_MATH_WRAP(log, (double)::log, (float)::logf, (half)::hlog);
+MIGRAPHX_DEVICE_MATH_WRAP(log2, (double)::log2, (float)::log2f, (half)::hlog2);
+MIGRAPHX_DEVICE_MATH_WRAP(nearbyint, (double)::nearbyint, (float)::nearbyintf);
+MIGRAPHX_DEVICE_MATH_WRAP(pow, (double)::pow, (float)::powf);
+MIGRAPHX_DEVICE_MATH_WRAP(remainder, (double)::remainder, (float)::remainderf);
+MIGRAPHX_DEVICE_MATH_WRAP(round, (double)::round, (float)::roundf);
+MIGRAPHX_DEVICE_MATH_WRAP(rsqrt, (double)::rsqrt, (float)::rsqrtf, (half)::hrsqrt);
+MIGRAPHX_DEVICE_MATH_WRAP(sin, (double)::sin, (float)::sinf, (half)::hsin);
+MIGRAPHX_DEVICE_MATH_WRAP(sinh, (double)::sinh, (float)::sinhf);
+MIGRAPHX_DEVICE_MATH_WRAP(sqrt, (double)::sqrt, (float)::sqrtf, (half)::hsqrt);
+MIGRAPHX_DEVICE_MATH_WRAP(tan, (double)::tan, (float)::tanf);
+MIGRAPHX_DEVICE_MATH_WRAP(tanh, (double)::tanh, (float)::tanhf);
+MIGRAPHX_DEVICE_MATH_WRAP(fmod, (double)::fmod, (float)::fmodf);
 
 template <class T, class U>
 constexpr auto where(bool cond, const T& a, const U& b)

@@ -4267,8 +4267,7 @@ TEST_CASE(dot_slice_not_applicable_1)
                               {{"axes", {1, 2}}, {"starts", {64, 64}}, {"ends", {128, 128}}}),
             dot);
         auto slice2 = m1.add_instruction(
-            migraphx::make_op("slice", {{"axes", {0}}, {"starts"
-            , {0}}, {"ends", {1}}}), dot);
+            migraphx::make_op("slice", {{"axes", {0}}, {"starts", {0}}, {"ends", {1}}}), dot);
 
         m1.add_return({slice1, slice2});
     };

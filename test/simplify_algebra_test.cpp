@@ -4224,7 +4224,7 @@ TEST_CASE(slice_add_mul)
     EXPECT(m1.sort() == m2.sort());
 }
 
-TEST_CASE(dot_add_mul_horiz)
+TEST_CASE(add_dot_add_mul)
 {
     migraphx::shape as{migraphx::shape::float_type, {1, 77, 768}};
 

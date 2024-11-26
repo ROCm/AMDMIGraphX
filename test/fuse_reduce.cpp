@@ -306,7 +306,7 @@ TEST_CASE(reduce_reduce)
         auto x    = mm->add_parameter("x", s);
         auto sqrt = add_reduce(
             p2,
-            "main:reduce_sum1:main:pointwise1:main:reduce_sum0:main:pointwise0",
+            "main:reduce_sum1:main:reduce_sum0:main:pointwise0:main:pointwise1",
             {x},
             {1},
             [&](auto* rm, const auto& inputs, const auto& axes) {
@@ -858,7 +858,7 @@ TEST_CASE(reduce_reshape_reduce)
         auto y   = mm->add_parameter("y", s2);
         auto x1r = mm->add_instruction(migraphx::make_op("reshape", {{"dims", s3.lens()}}), x1);
         auto x2r = mm->add_instruction(migraphx::make_op("reshape", {{"dims", s3r.lens()}}), x2);
-        auto yr      = mm->add_instruction(migraphx::make_op("reshape", {{"dims", s3.lens()}}), y);
+        auto yr  = mm->add_instruction(migraphx::make_op("reshape", {{"dims", s3.lens()}}), y);
         auto freduce = add_reduce(
             p2,
             "main:pointwise2:main:reduce_sum2_reshape_reshape:main:pointwise3_reshape:main:reduce_"
@@ -953,8 +953,8 @@ TEST_CASE(reshape_reduce_reduce_reduce_diff_axes)
 
         auto reduce0 = add_reduce(
             p2,
-            "main:pointwise0:main:reduce_sum1:main:pointwise5:main:pointwise6:main:pointwise1:"
-            "main:pointwise2:main:reduce_sum0:main:pointwise3:main:pointwise4_reshape_reshape",
+            "main:pointwise0:main:pointwise1:main:reduce_sum1:main:pointwise2:main:reduce_sum0:"
+            "main:pointwise3:main:pointwise4:main:pointwise5:main:pointwise6_reshape_reshape",
             {l2_mb, x1, x2, l1_mb},
             {2},
             [&](auto* rm, const auto& inputs, const auto& axes) {

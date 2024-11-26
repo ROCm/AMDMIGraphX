@@ -44,9 +44,11 @@ struct find_dot
         auto b_mat   = ins->inputs().back();
         auto a_shape = a_mat->get_shape();
         auto b_shape = b_mat->get_shape();
-        if(a_shape.lens().size() != 2)
+        auto ndim = a_shape.ndim();
+        auto batch = std::accumulate(a_shape.lens().begin(), a_shape.lens().end() - 2, 1, std::multiplies<>{});
+        if(batch != 1)
             return;
-        auto rows = a_shape.lens().front();
+        auto rows = a_shape.lens().at(ndim - 2);
         if(rows > 2)
             return;
 
@@ -54,14 +56,17 @@ struct find_dot
         // broadcasting
         if(b_mat->can_eval() and not b_shape.transposed())
         {
-            b_mat = m.insert_instruction(ins, make_op("layout", {{"permutation", {1, 0}}}), b_mat);
+            std::vector<int64_t> permutation(ndim);
+            std::iota(permutation.begin(), permutation.end(), 0);
+            std::swap(permutation.back(), permutation.at(ndim - 2));
+            b_mat = m.insert_instruction(ins, make_op("layout", {{"permutation", permutation}}), b_mat);
         }
 
-        auto a_unsqueeze = m.insert_instruction(ins, make_op("unsqueeze", {{"axes", {2}}}), a_mat);
-        auto b_unsqueeze = m.insert_instruction(ins, make_op("unsqueeze", {{"axes", {0}}}), b_mat);
+        auto a_unsqueeze = m.insert_instruction(ins, make_op("unsqueeze", {{"axes", {ndim}}}), a_mat);
+        auto b_unsqueeze = m.insert_instruction(ins, make_op("unsqueeze", {{"axes", {ndim - 2}}}), b_mat);
         auto mul         = insert_common_op(m, ins, make_op("mul"), {a_unsqueeze, b_unsqueeze});
-        auto reduce      = m.insert_instruction(ins, make_op("reduce_sum", {{"axes", {1}}}), mul);
-        m.replace_instruction(ins, make_op("squeeze", {{"axes", {1}}}), reduce);
+        auto reduce      = m.insert_instruction(ins, make_op("reduce_sum", {{"axes", {ndim - 1}}}), mul);
+        m.replace_instruction(ins, make_op("squeeze", {{"axes", {ndim - 1}}}), reduce);
     }
 };
 

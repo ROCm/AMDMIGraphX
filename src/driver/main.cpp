@@ -26,6 +26,7 @@
 #include "verify_options.hpp"
 #include "argument_parser.hpp"
 #include "command.hpp"
+#include "mlir.hpp"
 #include "precision.hpp"
 #include "passes.hpp"
 #include "perf.hpp"
@@ -70,13 +71,14 @@ inline std::string get_version()
 
 struct loader
 {
-    std::string model;
     std::string file;
     std::string file_type;
     unsigned batch              = 1;
     bool is_nhwc                = true;
+    bool is_test                = false;
     unsigned trim               = 0;
     bool optimize               = false;
+    bool mlir                   = false;
     bool skip_unknown_operators = false;
     bool brief                  = false;
     std::string output_type;
@@ -91,11 +93,10 @@ struct loader
     void parse(argument_parser& ap)
     {
         ap(file, {}, ap.metavar("<input file>"), ap.file_exist(), ap.required(), ap.group("input"));
-        ap(model,
-           {"--model"},
-           ap.help("Load model"),
-           ap.type("resnet50|inceptionv3|alexnet"),
-           ap.matches({"resnet50", "inceptionv3", "alexnet"}),
+        ap(is_test,
+           {"--test"},
+           ap.help("Run a single GEMM to test MIGraphX"),
+           ap.set_value(true),
            ap.group("input"));
         ap(file_type, {"--onnx"}, ap.help("Load as onnx"), ap.set_value("onnx"));
         ap(file_type, {"--tf"}, ap.help("Load as tensorflow"), ap.set_value("tf"));
@@ -141,6 +142,7 @@ struct loader
            ap.append(),
            ap.nargs(2));
         ap(optimize, {"--optimize", "-O"}, ap.help("Optimize when reading"), ap.set_value(true));
+        ap(mlir, {"--mlir"}, ap.help("Offload everything to mlir"), ap.set_value(true));
         ap(passes, {"--apply-pass", "-p"}, ap.help("Passes to apply to model"), ap.append());
         ap(output_type,
            {"--graphviz", "-g"},
@@ -312,7 +314,11 @@ struct loader
     program load()
     {
         program p;
-        if(model.empty())
+        if(is_test)
+        {
+            p = test_gemm();
+        }
+        else
         {
             if(file_type.empty())
             {
@@ -344,17 +350,6 @@ struct loader
                 p = migraphx::load(file);
             }
         }
-        else
-        {
-            if(model == "resnet50")
-                p = resnet50(batch);
-            else if(model == "inceptionv3")
-                p = inceptionv3(batch);
-            else if(model == "alexnet")
-                p = alexnet(batch);
-            else
-                MIGRAPHX_THROW("Unknown model: " + model);
-        }
         if(trim > 0)
         {
             auto* mm  = p.get_main_module();
@@ -382,6 +377,8 @@ struct loader
         }
         if(not passes.empty())
             migraphx::run_passes(p, get_passes(passes));
+        if(mlir)
+            offload_to_mlir(p);
         return p;
     }
 
@@ -396,7 +393,7 @@ struct loader
         std::ofstream fs;
         if(not output.empty())
         {
-            fs.open(output);
+            fs.open(output, std::ios::binary);
             os = &fs;
         }
 
@@ -487,6 +484,7 @@ struct compiler
     bool to_fp16 = false;
     bool to_fp8  = false;
     bool to_int8 = false;
+    bool to_int4 = false;
 
     std::vector<std::string> fill0;
     std::vector<std::string> fill1;
@@ -509,7 +507,8 @@ struct compiler
            ap.set_value(true));
         ap(to_fp16, {"--fp16"}, ap.help("Quantize for fp16"), ap.set_value(true));
         ap(to_int8, {"--int8"}, ap.help("Quantize for int8"), ap.set_value(true));
-        ap(to_fp8, {"--fp8"}, ap.help("Quantize for fp8e4m3fnuz type"), ap.set_value(true));
+        ap(to_fp8, {"--fp8"}, ap.help("Quantize for fp8"), ap.set_value(true));
+        ap(to_int4, {"--int4-weights"}, ap.help("Quantize weights for int4"), ap.set_value(true));
     }
 
     auto params(const program& p)
@@ -539,12 +538,12 @@ struct compiler
                            "passing "
                            "`--enable-offload-copy` if program run fails.\n";
                 }
-                else if(co.offload_copy)
+                else if(not is_offload_copy_set(p) and co.offload_copy)
                 {
                     std::cout << "[WARNING]: MIGraphX program was likely compiled without "
                                  "offload_copy set, Try "
                                  "removing "
-                                 "`--enable-offload-copy` flag if passed to driver, if program run "
+                                 "`--enable-offload-copy` if program run "
                                  "fails.\n";
                 }
             }
@@ -563,6 +562,10 @@ struct compiler
         if(to_fp8)
         {
             quantize_fp8(p, t, {host_params(p)});
+        }
+        if(to_int4)
+        {
+            quantize_int4_weights(p);
         }
         p.compile(t, co);
         l.save(p);
@@ -603,6 +606,7 @@ struct verify : command<verify>
     std::optional<double> rtol;
     bool per_instruction = false;
     bool reduce          = false;
+    bool bisect          = false;
     verify_options vo;
     void parse(argument_parser& ap)
     {
@@ -615,6 +619,7 @@ struct verify : command<verify>
            ap.help("Verify each instruction"),
            ap.set_value(true));
         ap(reduce, {"-r", "--reduce"}, ap.help("Reduce program and verify"), ap.set_value(true));
+        ap(bisect, {"-b", "--bisect"}, ap.help("Bisect program and verify"), ap.set_value(true));
         ap(vo.ref_use_double,
            {"--ref-use-double"},
            ap.help("Convert floating point values to double on ref"),
@@ -652,6 +657,10 @@ struct verify : command<verify>
         {
             verify_reduced_program(p, t, c.co, vo, m, tols);
         }
+        else if(bisect)
+        {
+            verify_bisected_program(p, t, c.co, vo, m, tols);
+        }
         else
         {
             verify_program(c.l.file, p, t, c.co, vo, m, tols);
@@ -687,14 +696,41 @@ struct run_cmd : command<run_cmd>
     }
 };
 
-struct perf : command<perf>
+struct time_cmd : command<time_cmd>
 {
     compiler c;
     unsigned n = 100;
     void parse(argument_parser& ap)
     {
+        ap(n, {"--iterations", "-n"}, ap.help("Number of iterations to run."));
+        c.parse(ap);
+    }
+
+    void run()
+    {
+        std::cout << "Compiling ... " << std::endl;
+        auto p = c.compile();
+        std::cout << "Allocating params ... " << std::endl;
+        auto m = c.params(p);
+        std::cout << "Running ... " << std::endl;
+        double t = time_run(p, m, n);
+        std::cout << "Total time: " << t << "ms" << std::endl;
+    }
+};
+
+struct perf : command<perf>
+{
+    compiler c;
+    unsigned n    = 100;
+    bool detailed = false;
+    void parse(argument_parser& ap)
+    {
         c.parse(ap);
         ap(n, {"--iterations", "-n"}, ap.help("Number of iterations to run for perf report"));
+        ap(detailed,
+           {"--detailed", "-d"},
+           ap.help("Show a more detailed summary report"),
+           ap.set_value(true));
     }
 
     void run()
@@ -704,7 +740,7 @@ struct perf : command<perf>
         std::cout << "Allocating params ... " << std::endl;
         auto m = c.params(p);
         std::cout << "Running performance report ... " << std::endl;
-        p.perf_report(std::cout, n, m, c.l.batch);
+        p.perf_report(std::cout, n, m, c.l.batch, detailed);
     }
 };
 
@@ -858,7 +894,7 @@ struct main_command
 } // namespace migraphx
 
 using namespace migraphx::driver; // NOLINT
-int main(int argc, const char* argv[])
+int main(int argc, const char* argv[], const char* envp[])
 {
     std::vector<std::string> args(argv + 1, argv + argc);
     // no argument, print the help infomration by default
@@ -886,6 +922,20 @@ int main(int argc, const char* argv[])
         std::string driver_invocation =
             std::string(argv[0]) + " " + migraphx::to_string_range(args, " ");
         std::cout << "Running [ " << get_version() << " ]: " << driver_invocation << std::endl;
+
+        for(const char** env = envp; *env != nullptr; ++env)
+        {
+            std::string env_var(*env);
+            size_t pos = env_var.find('=');
+            if(pos != std::string::npos)
+            {
+                std::string key = env_var.substr(0, pos);
+                if(key.find("MIGRAPHX") != std::string::npos)
+                {
+                    std::cout << env_var << std::endl;
+                }
+            }
+        }
 
         m.at(cmd)(argv[0],
                   {args.begin() + 1, args.end()}); // run driver command found in commands map

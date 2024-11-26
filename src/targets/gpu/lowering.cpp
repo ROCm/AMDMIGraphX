@@ -22,10 +22,8 @@
  * THE SOFTWARE.
  */
 #include <iterator>
-#include <utility>
 #include <functional>
 #include <algorithm>
-#include <map>
 
 #include <migraphx/manage_ptr.hpp>
 #include <migraphx/instruction.hpp>
@@ -36,6 +34,7 @@
 #include <migraphx/iterator_for.hpp>
 #include <migraphx/program.hpp>
 
+#include <migraphx/op/common.hpp>
 #include <migraphx/op/dot.hpp>
 #include <migraphx/op/if_op.hpp>
 #include <migraphx/op/reshape.hpp>
@@ -46,13 +45,18 @@
 #include <migraphx/gpu/lowering.hpp>
 #include <migraphx/gpu/device_name.hpp>
 #include <migraphx/gpu/gemm.hpp>
+#include <migraphx/gpu/hip_gemm.hpp>
 #include <migraphx/gpu/miopen.hpp>
 #include <migraphx/gpu/rocblas.hpp>
+#include <migraphx/gpu/hipblaslt.hpp>
 #include <migraphx/gpu/compiler.hpp>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
 namespace gpu {
+
+MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_ENABLE_HIPBLASLT_GEMM);
+MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_DISABLE_MIOPEN_POOLING)
 
 struct miopen_apply
 {
@@ -82,36 +86,44 @@ struct miopen_apply
     {
         assert(mod != nullptr);
         assert(pass != nullptr);
-
+#if MIGRAPHX_USE_ROCBLAS
         compute_fp32 = get_compute_fp32_flag();
+#endif
         offload_copy = (mod == mpm->get_root_module()) ? pass->offload_copy : false;
 
-        add_generic_op("contiguous");
         add_extend_op("argmax");
         add_extend_op("argmin");
         add_extend_op("logsoftmax");
-        add_extend_op("lrn");
         add_extend_op("multinomial");
         add_extend_op("nonzero");
-        add_extend_op("pooling");
         add_extend_op("prefix_scan_sum");
         add_extend_op("reverse");
         add_extend_op("rnn_var_sl_last_output");
         add_extend_op("rnn_var_sl_shift_output");
         add_extend_op("rnn_var_sl_shift_sequence");
         add_extend_op("topk");
-
+        add_generic_op("contiguous");
+        add_pooling_op();
+#if MIGRAPHX_USE_MIOPEN
         add_convolution_op("convolution");
         add_convolution_op("convolution_backwards");
         add_convolution_op("quant_convolution");
+        add_extend_op("lrn");
+#endif
+#if MIGRAPHX_USE_ROCBLAS or MIGRAPHX_USE_HIPBLASLT
         add_gemm_op<op::dot>("dot");
         add_gemm_op<op::quant_dot>("quant_dot");
+#endif
         add_if_op();
         add_loop_op();
         add_neg_op();
         add_nms_op();
+        add_lrn_op();
+        add_convolution_backwards_op();
         add_select_module_op();
         add_reshape_lazy_op();
+        add_group_query_attention_op();
+        add_scan_slice_op();
     }
 
     void copy_params() const
@@ -174,8 +186,21 @@ struct miopen_apply
             {
                 check_shape(s, insert_custom_op(it, attrs));
             }
+            if(attrs.contains("prefill"))
+            {
+                insert_fill(it, attrs.at("prefill"));
+            }
         }
         copy_params();
+    }
+
+    void insert_fill(instruction_ref ins, value v) const
+    {
+        instruction_ref alloc = instruction::get_output_alias(ins, true);
+        if(alloc == ins)
+            return;
+        auto fill = mod->insert_instruction(ins, make_op("hip::fill", {{"value", v}}), alloc);
+        instruction::replace_argument(ins, alloc, fill);
     }
 
     instruction_ref insert_custom_op(instruction_ref ins, const value& attrs) const
@@ -219,6 +244,7 @@ struct miopen_apply
         return mod->insert_instruction(ins, make_op("allocate", {{"shape", to_value(s)}}));
     }
 
+#if MIGRAPHX_USE_ROCBLAS or MIGRAPHX_USE_HIPBLASLT
     template <typename Op>
     void add_gemm_op(const std::string& name)
     {
@@ -227,10 +253,32 @@ struct miopen_apply
             assert(refs.size() == 2);
             auto output = insert_allocation(ins, ins->get_shape());
             refs.push_back(output);
-            return mod->replace_instruction(ins, rocblas_gemm<Op>{Op{}, 1, 0, compute_fp32}, refs);
+#if MIGRAPHX_USE_HIPBLASLT
+            if(not enabled(MIGRAPHX_ENABLE_HIPBLASLT_GEMM{}) or not hipblaslt_supported())
+            {
+#endif
+                return mod->replace_instruction(
+                    ins, rocblas_gemm<Op>{Op{}, 1, 0, compute_fp32}, refs);
+#if MIGRAPHX_USE_HIPBLASLT
+            }
+            std::string op_name = "gpu::hip_gemm";
+            if(contains(name, "quant_"))
+            {
+                op_name = "gpu::hip_quant_gemm";
+            }
+            operation gemm_op = make_op(op_name);
+            return mod->replace_instruction(
+                ins,
+                make_op("gpu::hipblaslt_op", {{"op", to_value(gemm_op)}}),
+                ins->inputs().at(0),
+                ins->inputs().at(1),
+                output);
+#endif
         });
     }
+#endif
 
+#if MIGRAPHX_USE_MIOPEN
     void add_convolution_op(const std::string& name)
     {
         apply_map.emplace(name, [=](instruction_ref ins) {
@@ -244,7 +292,7 @@ struct miopen_apply
                                             output);
         });
     }
-
+#endif
     // add_generic_op just constructs the operator with no fields whereas add_extend_op copies over
     // the fields Since it doesn't have fields its default constructed
 
@@ -272,6 +320,42 @@ struct miopen_apply
             refs.push_back(output);
 
             return mod->replace_instruction(ins, make_op(gpu_name, op.to_value()), refs);
+        });
+    }
+
+    static bool use_miopen_pooling(instruction_ref ins)
+    {
+        if(enabled(MIGRAPHX_DISABLE_MIOPEN_POOLING{}))
+            return false;
+        auto&& op   = ins->get_operator();
+        auto op_val = op.to_value();
+        auto mode   = op_val.at("mode").to<op::pooling_mode>();
+        if(op_val.at("count_include_pad").to<bool>() and mode == op::pooling_mode::average)
+            return false;
+        if(mode == op::pooling_mode::lpnorm)
+            return false;
+        auto op_padding = op_val.at("padding").to_vector<size_t>();
+        auto kdims      = ins->get_shape().lens().size() - 2;
+        return std::equal(op_padding.begin(),
+                          op_padding.begin() + kdims,
+                          op_padding.begin() + kdims,
+                          op_padding.end());
+    }
+
+    void add_pooling_op()
+    {
+        apply_map.emplace("pooling", [=](instruction_ref ins) {
+            if(not use_miopen_pooling(ins))
+                return insert_precompile_op(ins);
+#if MIGRAPHX_USE_MIOPEN
+            auto output                       = insert_allocation(ins, ins->get_shape());
+            std::vector<instruction_ref> refs = ins->inputs();
+            auto&& op                         = ins->get_operator();
+            refs.push_back(output);
+            return mod->replace_instruction(ins, make_op("gpu::pooling", op.to_value()), refs);
+#else 
+            return insert_precompile_op(ins);
+#endif
         });
     }
 
@@ -357,6 +441,46 @@ struct miopen_apply
         });
     }
 
+    void add_lrn_op()
+    {
+        apply_map.emplace("lrn", [=](instruction_ref ins) {
+            auto s      = ins->get_shape();
+            auto output = insert_allocation(ins, s);
+            std::vector<instruction_ref> cpu_inputs;
+            auto inputs = ins->inputs();
+            std::transform(
+                inputs.begin(), inputs.end(), std::back_inserter(cpu_inputs), [&](auto in) {
+                    return mod->insert_instruction(ins, make_op("hip::copy_from_gpu"), in);
+                });
+            cpu_inputs.front() =
+                mod->insert_instruction(ins, make_op("hip::sync_stream"), cpu_inputs);
+            auto cpu_out = mod->insert_instruction(ins, ins->get_operator(), cpu_inputs);
+            auto gpu_out =
+                mod->insert_instruction(ins, make_op("hip::copy_to_gpu"), cpu_out, output);
+            return mod->replace_instruction(ins, gpu_out);
+        });
+    }
+
+    void add_convolution_backwards_op()
+    {
+        apply_map.emplace("convolution_backwards", [=](instruction_ref ins) {
+            auto s      = ins->get_shape();
+            auto output = insert_allocation(ins, s);
+            std::vector<instruction_ref> cpu_inputs;
+            auto inputs = ins->inputs();
+            std::transform(
+                inputs.begin(), inputs.end(), std::back_inserter(cpu_inputs), [&](auto in) {
+                    return mod->insert_instruction(ins, make_op("hip::copy_from_gpu"), in);
+                });
+            cpu_inputs.front() =
+                mod->insert_instruction(ins, make_op("hip::sync_stream"), cpu_inputs);
+            auto cpu_out = mod->insert_instruction(ins, ins->get_operator(), cpu_inputs);
+            auto gpu_out =
+                mod->insert_instruction(ins, make_op("hip::copy_to_gpu"), cpu_out, output);
+            return mod->replace_instruction(ins, gpu_out);
+        });
+    }
+
     /**
      * Adds dynamic allocation for submodule output parameter.
      */
@@ -394,6 +518,72 @@ struct miopen_apply
             auto after_alloc = insert_allocation(new_lazy_reshape, new_lazy_reshape->get_shape());
             after_contiguous_args.push_back(after_alloc);
             return mod->replace_instruction(ins, make_op("gpu::contiguous"), after_contiguous_args);
+        });
+    }
+
+    void add_group_query_attention_op()
+    {
+        apply_map.emplace("gpu::gqa_rotary_embedding", [=](instruction_ref ins) {
+            auto s          = ins->get_shape();
+            auto output     = insert_allocation(ins, s);
+            auto new_inputs = ins->inputs();
+            new_inputs.push_back(output);
+            return mod->replace_instruction(
+                ins,
+                make_op("gpu::precompile_op", {{"op", to_value(ins->get_operator())}}),
+                new_inputs);
+        });
+
+        apply_map.emplace("gpu::concat_past_present", [=](instruction_ref ins) {
+            return mod->replace_instruction(
+                ins,
+                make_op("gpu::precompile_op", {{"op", to_value(ins->get_operator())}}),
+                ins->inputs());
+        });
+
+        apply_map.emplace("gpu::compute_attention_probabilities", [=](instruction_ref ins) {
+            auto s          = ins->get_shape();
+            auto output     = insert_allocation(ins, s);
+            auto new_inputs = ins->inputs();
+            new_inputs.push_back(output);
+            return mod->replace_instruction(
+                ins,
+                make_op("gpu::precompile_op", {{"op", to_value(ins->get_operator())}}),
+                new_inputs);
+        });
+
+        apply_map.emplace("gpu::gqa_softmax", [=](instruction_ref ins) {
+            auto s      = ins->get_shape();
+            auto inputs = ins->inputs();
+
+            auto new_inputs = ins->inputs();
+            new_inputs.push_back(inputs.at(2));
+            return mod->replace_instruction(
+                ins,
+                make_op("gpu::precompile_op", {{"op", to_value(ins->get_operator())}}),
+                new_inputs);
+        });
+
+        apply_map.emplace("gpu::compute_attention_scores", [=](instruction_ref ins) {
+            auto s          = ins->get_shape();
+            auto output     = insert_allocation(ins, s);
+            auto new_inputs = ins->inputs();
+            new_inputs.push_back(output);
+            return mod->replace_instruction(
+                ins,
+                make_op("gpu::precompile_op", {{"op", to_value(ins->get_operator())}}),
+                new_inputs);
+        });
+    }
+
+    void add_scan_slice_op()
+    {
+        apply_map.emplace("scan_slice", [=](instruction_ref ins) {
+            auto inputs  = ins->inputs();
+            auto cpu_idx = mod->insert_instruction(ins, make_op("hip::copy_from_gpu"), inputs[1]);
+            inputs[1]    = mod->insert_instruction(ins, make_op("hip::sync_stream"), cpu_idx);
+            return mod->replace_instruction(
+                ins, mod->insert_instruction(ins, ins->get_operator(), inputs));
         });
     }
 };

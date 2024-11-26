@@ -63,8 +63,15 @@ struct shape_impl
     {
         assert(t != shape::tuple_type);
         assert(m_lens.size() == m_strides.size());
+
+        // Calculate standard shape flag for these lens/strides.  Strides on size-1
+        // axes are ignored to support an MLIR rule.
+        std::vector<size_t> filtered_strides;
+        for(size_t ind = 0; ind < m_strides.size(); ind++)
+            if(m_lens[ind] != 1)
+                filtered_strides.push_back(m_strides[ind]);
         m_standard = this->elements() == this->element_space() and not skips() and
-                     std::is_sorted(m_strides.rbegin(), m_strides.rend());
+                     std::is_sorted(filtered_strides.rbegin(), filtered_strides.rend());
     }
 
     shape_impl(shape::type_t t, std::vector<shape::dynamic_dimension> dims)
@@ -220,6 +227,18 @@ struct shape_impl
     std::shared_ptr<shape_impl> copy() const { return std::make_shared<shape_impl>(*this); }
 };
 
+std::string shape::to_sizes_string(const std::vector<shape>& shapes)
+{
+    std::vector<std::string> sizes;
+    std::transform(shapes.begin(), shapes.end(), std::back_inserter(sizes), [&](const shape& s) {
+        std::string r = to_string_range(s.lens(), "x");
+        if(not s.standard())
+            r += ":" + to_string_range(s.strides(), "x");
+        return r;
+    });
+    return join_strings(sizes, ", ");
+}
+
 const std::vector<shape::type_t>& shape::types()
 {
     static const std::vector<shape::type_t> result = {
@@ -253,10 +272,42 @@ std::string shape::cpp_type(shape::type_t t)
     }
     MIGRAPHX_THROW("Invalid type");
 }
+
 bool shape::is_integral(shape::type_t t)
 {
     bool result = false;
     visit(t, [&](auto as) { result = as.is_integral(); });
+    return result;
+}
+
+bool shape::is_compatible(const shape& actual, const shape& expected)
+{
+    // Check subshapes
+    if(expected.type() == shape::tuple_type)
+        return migraphx::equal(actual.sub_shapes(), expected.sub_shapes(), &is_compatible);
+    if(actual == expected)
+        return true;
+    if(actual.type() != expected.type())
+        return false;
+    // Only the expected can be dynamic
+    if(expected.dynamic())
+        return actual.ndim() == expected.ndim();
+    if(actual.dynamic())
+        return false;
+    if(actual.lens() != expected.lens())
+        return false;
+    // Check strides from dimensions that are not 1
+    return all_of(range(actual.lens().size()), [&](auto i) {
+        if(actual.lens()[i] == 1)
+            return true;
+        return actual.strides()[i] == expected.strides()[i];
+    });
+}
+
+bool shape::is_unsigned(shape::type_t t)
+{
+    bool result = false;
+    visit(t, [&](auto as) { result = as.is_unsigned(); });
     return result;
 }
 
@@ -418,6 +469,12 @@ void shape::multi_copy(std::size_t idx, std::size_t* start, const std::size_t* e
         tidx          = tidx / lens()[ii];
     }
     *start = tidx;
+}
+
+bool shape::multi_within_bounds(std::vector<std::size_t> multi) const
+{
+    assert(this->lens().size() == multi.size());
+    return std::equal(multi.begin(), multi.end(), this->lens().begin(), std::less<>{});
 }
 
 bool shape::packed() const
@@ -727,6 +784,24 @@ shape::type_t shape::parse_type(const std::string& s)
 }
 
 const std::vector<shape>& shape::sub_shapes() const { return impl->m_shapes; }
+
+std::vector<shape> flatten(const std::vector<shape>& shapes)
+{
+    std::vector<shape> result;
+    for(const auto& s : shapes)
+    {
+        if(s.type() == shape::tuple_type)
+        {
+            auto subs = flatten(s.sub_shapes());
+            result.insert(result.end(), subs.begin(), subs.end());
+        }
+        else
+        {
+            result.push_back(s);
+        }
+    }
+    return result;
+}
 
 void migraphx_to_value(value& v, const shape& s)
 {

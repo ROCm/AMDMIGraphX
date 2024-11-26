@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2022 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2024 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -33,13 +33,16 @@ TEST_CASE(gpu_context_serialize)
     migraphx::context ctx = migraphx::gpu::context{0, 3};
 
     auto v = ctx.to_value();
-    EXPECT(v.size() == 2);
+    EXPECT(v.size() == 3);
 
     EXPECT(v.contains("events"));
     EXPECT(v.at("events").without_key().to<std::size_t>() == 0);
 
     EXPECT(v.contains("streams"));
     EXPECT(v.at("streams").without_key().to<std::size_t>() == 3);
+
+    EXPECT(v.contains("gfx_name"));
+    EXPECT(not v.at("gfx_name").without_key().to<std::string>().empty());
 
     migraphx::gpu::context g_ctx;
     g_ctx.from_value(v);

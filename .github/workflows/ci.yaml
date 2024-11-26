@@ -40,8 +40,8 @@ jobs:
       - name: Create Image Tag
         id: image_hash
         run: |
-          echo "imagetag=hip-clang-${{hashFiles('**/hip-clang.docker', '**/*requirements.txt', '**/install_prereqs.sh', '**/rbuild.ini')}}" >> $GITHUB_OUTPUT
-          echo "imagetag_sles=hip-clang-${{hashFiles('**/tools/docker/sles.docker', '**/*requirements.txt', '**/install_prereqs.sh', '**/rbuild.ini')}}" >> $GITHUB_OUTPUT
+          echo "imagetag=hip-clang-${{hashFiles('**/hip-clang.docker', '**/*requirements.txt', '**/requirements-py.txt', '**/install_prereqs.sh', '**/rbuild.ini')}}" >> $GITHUB_OUTPUT
+          echo "imagetag_sles=hip-clang-${{hashFiles('**/tools/docker/sles.docker', '**/*requirements.txt','**/requirements-py.txt', '**/install_prereqs.sh', '**/rbuild.ini')}}" >> $GITHUB_OUTPUT
 
       - name: Check if image is built already
         id: check_image
@@ -356,7 +356,7 @@ jobs:
       with:
         python-version: 3.8
     - name: run License Check
-      run: python3 tools/check_stamped.py
+      run: python3 tools/check_stamped.py ${GITHUB_HEAD_REF:-${GITHUB_REF#refs/heads/}}
 
   linux:
 
@@ -595,4 +595,16 @@ jobs:
       #    chmod +x codecov
       #    ./codecov -t ${CODECOV_TOKEN}
       #    echo "Uploaded"
+  misspell:
+    name: misspell
+    runs-on: ubuntu-20.04
+    steps:
+      - name: Check out code.
+        uses: actions/checkout@v4
+      - name: misspell
+        uses: reviewdog/action-misspell@v1
+        with:
+          locale: "US"
+          reporter: github-pr-check
+          level: warning
 

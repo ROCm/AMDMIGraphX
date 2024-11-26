@@ -2,8 +2,11 @@
 # These comments will also be removed.
 root: index
 subtrees:
-  - entries:
-    - file: what-is-migraphx
+
+  - caption: Installation
+    entries: 
+    - file: install/installing_with_package
+    - file: install/building_migraphx
     
   - caption: Reference
     entries:
@@ -14,7 +17,7 @@ subtrees:
         - entries:
           - file: reference/driver-options
 
-  - caption:  Contribution
+  - caption:  Developing for MIGraphX
     entries:
     - file: dev/contributing-to-migraphx
       subtrees:

@@ -24,6 +24,7 @@
 #include <migraphx/simplify_dyn_ops.hpp>
 #include <migraphx/split_single_dyn_dim.hpp>
 #include <migraphx/dead_code_elimination.hpp>
+#include <migraphx/common.hpp>
 #include <migraphx/program.hpp>
 #include <migraphx/pass_manager.hpp>
 #include <migraphx/make_op.hpp>
@@ -32,6 +33,147 @@
 void run_pass(migraphx::module& m)
 {
     migraphx::run_passes(m, {migraphx::simplify_dyn_ops{}, migraphx::dead_code_elimination{}});
+}
+
+TEST_CASE(broadcast_with_dims)
+{
+    migraphx::module m0;
+    {
+        // the X input
+        migraphx::shape sx{migraphx::shape::float_type, {3, 1, 1}};
+        auto inx = m0.add_parameter("x", sx);
+
+        // the shape input.  Broadcast to this
+        migraphx::shape dims_s{migraphx::shape::int64_type, {4}};
+        std::vector<size_t> dims = {2, 3, 4, 5};
+        auto out_dims            = m0.add_literal(migraphx::literal{dims_s, dims});
+
+        auto r = m0.add_instruction(migraphx::make_op("broadcast_with_dims"), inx, out_dims);
+        m0.add_return({r});
+    }
+    run_pass(m0);
+
+    migraphx::module m1;
+    {
+        migraphx::shape sx{migraphx::shape::float_type, {3, 1, 1}};
+        auto inx = m1.add_parameter("x", sx);
+
+        auto r = m1.add_instruction(
+            migraphx::make_op("multibroadcast", {{"out_lens", {2, 3, 4, 5}}}), inx);
+        m1.add_return({r});
+    }
+    EXPECT(m0 == m1);
+}
+
+TEST_CASE(broadcast_with_dims_invalid)
+{
+    migraphx::module m0;
+    {
+        // X input shape is not broadcastable to given shape
+        migraphx::shape sx{migraphx::shape::float_type, {3, 1, 2}};
+        auto inx = m0.add_parameter("x", sx);
+
+        // the shape input.  Broadcast to this
+        migraphx::shape dims_s{migraphx::shape::int64_type, {4}};
+        std::vector<size_t> dims = {2, 3, 4, 5};
+        auto out_dims            = m0.add_literal(migraphx::literal{dims_s, dims});
+
+        auto r = m0.add_instruction(migraphx::make_op("broadcast_with_dims"), inx, out_dims);
+        m0.add_return({r});
+    }
+    // replacement will be rejected by multibroadcast operation
+    EXPECT(test::throws([&] { run_pass(m0); }));
+}
+
+TEST_CASE(resize)
+{
+    migraphx::module m0;
+    {
+        std::vector<size_t> ds = {1, 1, 4, 6};
+        migraphx::shape ss{migraphx::shape::int64_type, {4}};
+
+        auto li = m0.add_literal(migraphx::literal{ss, ds});
+        m0.add_instruction(migraphx::make_op("undefined"));
+
+        migraphx::shape sx{migraphx::shape::int64_type, {1, 1, 2, 2}};
+        auto inx = m0.add_parameter("X", sx);
+
+        auto r = m0.add_instruction(
+            migraphx::make_op("resize",
+                              {{"mode", "nearest"},
+                               {"nearest_mode", "floor"},
+                               // scales attr. should be ignored when there are 2 inputs
+                               {"scales", {1., 2.1, 3.1, 4.1}},
+                               {"coordinate_transformation_mode", "asymmetric"}}),
+            inx,
+            li);
+
+        m0.add_return({r});
+    }
+    run_pass(m0);
+
+    migraphx::module m1;
+    {
+        migraphx::shape sx{migraphx::shape::int64_type, {1, 1, 2, 2}};
+        auto inx = m1.add_parameter("X", sx);
+
+        std::vector<float> indices = {0, 0, 0, 1, 1, 1, 0, 0, 0, 1, 1, 1,
+                                      2, 2, 2, 3, 3, 3, 2, 2, 2, 3, 3, 3};
+        migraphx::shape ss{migraphx::shape::int32_type, {1, 1, 4, 6}};
+        auto li = m1.insert_literal(inx, migraphx::literal{ss, indices});
+
+        auto reshape_ins = m1.add_instruction(migraphx::make_op("reshape", {{"dims", {4}}}), inx);
+        auto gather_ins =
+            m1.add_instruction(migraphx::make_op("gather", {{"axis", 0}}), reshape_ins, li);
+        m1.add_return({gather_ins});
+    }
+    EXPECT(m0 == m1);
+}
+
+TEST_CASE(resize_scales)
+{
+    migraphx::module m0;
+    {
+        // resize op. with scales (float_type) rather than sizes as an input
+        std::vector<float> ds = {1., 1., 2., 3.};
+        migraphx::shape ss{migraphx::shape::float_type, {4}};
+
+        auto li = m0.add_literal(migraphx::literal{ss, ds});
+        m0.add_instruction(migraphx::make_op("undefined"));
+
+        migraphx::shape sx{migraphx::shape::int64_type, {1, 1, 2, 2}};
+        auto inx = m0.add_parameter("X", sx);
+
+        auto r = m0.add_instruction(
+            migraphx::make_op("resize",
+                              {{"mode", "nearest"},
+                               {"nearest_mode", "floor"},
+                               // scales attr. should be ignored when there are 2 inputs
+                               {"scales", {1., 2.1, 3.1, 4.1}},
+                               {"coordinate_transformation_mode", "asymmetric"}}),
+            inx,
+            li);
+
+        m0.add_return({r});
+    }
+    run_pass(m0);
+
+    migraphx::module m1;
+    {
+        migraphx::shape sx{migraphx::shape::int64_type, {1, 1, 2, 2}};
+        auto inx = m1.add_parameter("X", sx);
+
+        std::vector<float> indices = {0, 0, 0, 1, 1, 1, 0, 0, 0, 1, 1, 1,
+                                      2, 2, 2, 3, 3, 3, 2, 2, 2, 3, 3, 3};
+        migraphx::shape ss{migraphx::shape::int32_type, {1, 1, 4, 6}};
+        auto li = m1.insert_literal(inx, migraphx::literal{ss, indices});
+
+        auto reshape_ins = m1.add_instruction(migraphx::make_op("reshape", {{"dims", {4}}}), inx);
+        auto gather_ins =
+            m1.add_instruction(migraphx::make_op("gather", {{"axis", 0}}), reshape_ins, li);
+        m1.add_return({gather_ins});
+    }
+    EXPECT(m0 == m1);
 }
 
 TEST_CASE(static_broadcast)
@@ -585,6 +727,91 @@ TEST_CASE(static_broadcast_for_dot)
         auto dot_ins = m1.add_instruction(migraphx::make_op("dot"), input, multibroadcast_ins);
         m1.add_return({dot_ins});
     }
+    EXPECT(m0 == m1);
+}
+
+TEST_CASE(static_onehot)
+{
+    // depth as a literal
+    migraphx::module m0;
+    {
+        migraphx::shape inds_s{migraphx::shape::int64_type, {4}};
+        migraphx::shape depth_s{migraphx::shape::int64_type, {1}};
+        migraphx::shape values_s{migraphx::shape::float_type, {2}};
+        auto inds_param   = m0.add_parameter("indices", inds_s);
+        auto depth_lit    = m0.add_literal(migraphx::literal{depth_s, {3}});
+        auto values_param = m0.add_parameter("values", values_s);
+        auto onehot_ins   = m0.add_instruction(
+            migraphx::make_op("onehot", {{"axis", -1}}), inds_param, depth_lit, values_param);
+        m0.add_return({onehot_ins});
+    }
+    run_pass(m0);
+
+    migraphx::module m1;
+    {
+        migraphx::shape inds_s{migraphx::shape::int64_type, {4}};
+        migraphx::shape depth_s{migraphx::shape::int64_type, {1}};
+        migraphx::shape values_s{migraphx::shape::float_type, {2}};
+        auto inds_param   = m1.add_parameter("indices", inds_s);
+        auto values_param = m1.add_parameter("values", values_s);
+        migraphx::shape output_shape{migraphx::shape::float_type, {4, 3}};
+        std::vector<float> zeros(output_shape.elements(), 0);
+        auto zeros_lit = m1.add_literal(migraphx::literal(output_shape, zeros));
+        auto unsqueeze_inds =
+            m1.add_instruction(migraphx::make_op("unsqueeze", {{"axes", {1}}}), inds_param);
+        auto ones_lit = m1.add_literal(
+            migraphx::literal(migraphx::shape{migraphx::shape::float_type, {1}, {0}}, {1}));
+        auto mb_ones = m1.add_instruction(
+            migraphx::make_op("multibroadcast", {{"out_lens", {4, 1}}}), ones_lit);
+        auto mask = m1.add_instruction(
+            migraphx::make_op("scatter_none", {{"axis", 1}, {"skip_out_of_bounds", 1}}),
+            zeros_lit,
+            unsqueeze_inds,
+            mb_ones);
+        auto off_val = m1.add_instruction(
+            migraphx::make_op("slice", {{"axes", {0}}, {"starts", {0}}, {"ends", {1}}}),
+            values_param);
+        auto on_val = m1.add_instruction(
+            migraphx::make_op("slice", {{"axes", {0}}, {"starts", {1}}, {"ends", {2}}}),
+            values_param);
+        auto diff_val      = m1.add_instruction(migraphx::make_op("sub"), on_val, off_val);
+        auto mul_diff_mask = add_common_op(m1, migraphx::make_op("mul"), {diff_val, mask});
+        auto ret           = add_common_op(m1, migraphx::make_op("add"), {off_val, mul_diff_mask});
+        m1.add_return({ret});
+    }
+    EXPECT(m0 == m1);
+
+    // depth as an attribute
+    migraphx::module m2;
+    {
+        migraphx::shape inds_s{migraphx::shape::int64_type, {4}};
+        migraphx::shape values_s{migraphx::shape::float_type, {2}};
+        auto inds_param   = m2.add_parameter("indices", inds_s);
+        auto values_param = m2.add_parameter("values", values_s);
+        auto onehot_ins   = m2.add_instruction(
+            migraphx::make_op("onehot", {{"axis", -1}, {"depth", 3}}), inds_param, values_param);
+        m2.add_return({onehot_ins});
+    }
+    run_pass(m2);
+    EXPECT(m2 == m1);
+}
+
+TEST_CASE(onehot_cannot_simplify)
+{
+    migraphx::module m0;
+    {
+        migraphx::shape inds_s{migraphx::shape::int64_type, {4}};
+        migraphx::shape depth_s{migraphx::shape::int64_type, {1}};
+        migraphx::shape values_s{migraphx::shape::float_type, {2}};
+        auto inds_param   = m0.add_parameter("indices", inds_s);
+        auto depth_param  = m0.add_parameter("depth", depth_s);
+        auto values_param = m0.add_parameter("values", values_s);
+        auto onehot_ins   = m0.add_instruction(
+            migraphx::make_op("onehot", {{"axis", -1}}), inds_param, depth_param, values_param);
+        m0.add_return({onehot_ins});
+    }
+    migraphx::module m1 = m0;
+    run_pass(m0);
     EXPECT(m0 == m1);
 }
 

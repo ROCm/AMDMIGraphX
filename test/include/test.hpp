@@ -120,6 +120,15 @@ inline Stream& operator<<(Stream& s, std::nullptr_t)
     return s;
 }
 
+template <class Stream, class T, class U>
+inline Stream& operator<<(Stream& s, const std::pair<T, U>& p)
+{
+    s << "{";
+    s << p.first << ", " << p.second;
+    s << "}";
+    return s;
+}
+
 template <class Stream,
           class Range,
           class = typename std::enable_if<not std::is_convertible<Range, std::string>{}>::type>
@@ -220,7 +229,15 @@ struct lhs_expression
         std::string op = Operator::as_string();
         if(not op.empty())
             s << Operator::as_string() << " ";
-        s << self.lhs;
+        if constexpr(std::is_pointer_v<decltype(self.lhs)>)
+        {
+            s << static_cast<void*>(self.lhs);
+        }
+        else
+        {
+            // NOLINTNEXTLINE
+            s << self.lhs;
+        }
         return s;
     }
 
@@ -830,8 +847,8 @@ inline void run(int argc, const char* argv[])
 #define TEST_PRIMITIVE_CAT(x, ...) x##__VA_ARGS__
 
 // NOLINTNEXTLINE
-#define TEST_CASE_REGISTER(...)                                                    \
-    static test::auto_register_test_case TEST_CAT(register_test_case_, __LINE__) = \
+#define TEST_CASE_REGISTER(...)                                                       \
+    static test::auto_register_test_case TEST_CAT(register_test_case_, __COUNTER__) = \
         test::auto_register_test_case(#__VA_ARGS__, &__VA_ARGS__);
 
 // NOLINTNEXTLINE

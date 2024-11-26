@@ -32,6 +32,8 @@
 #include <migraphx/quantization.hpp>
 #include <migraphx/ranges.hpp>
 #include <migraphx/fp_to_double.hpp>
+#include <migraphx/iterator_for.hpp>
+#include <migraphx/stringutils.hpp>
 
 namespace migraphx {
 namespace driver {
@@ -115,7 +117,7 @@ std::vector<argument> run_target(program p,
     return output;
 }
 
-void verify_program(const std::string& name,
+bool verify_program(const std::string& name,
                     const program& p,
                     const target& t,
                     compile_options options,
@@ -144,6 +146,7 @@ void verify_program(const std::string& name,
     }
     if(passed)
         std::cout << "MIGraphX verification passed successfully." << std::endl;
+    return passed;
 }
 
 void verify_instructions(const program& prog,
@@ -191,7 +194,7 @@ void verify_instructions(const program& prog,
     }
 }
 
-void verify_reduced(program p,
+bool verify_reduced(program p,
                     int n,
                     const target& t,
                     compile_options options,
@@ -206,12 +209,13 @@ void verify_reduced(program p,
     std::cout << p << std::endl;
     try
     {
-        verify_program(std::to_string(n), p, t, options, vo, inputs, tols);
+        return verify_program(std::to_string(n), p, t, options, vo, inputs, tols);
     }
     catch(const std::exception& e)
     {
         std::cout << "FAILED: " << n << std::endl;
         std::cout << "Exception: " << e.what() << std::endl;
+        return false;
     }
 }
 
@@ -234,6 +238,93 @@ void verify_reduced_program(const program& p,
             continue;
         }
         verify_reduced(p, i, t, options, vo, inputs, tols);
+    }
+}
+
+static std::unordered_map<instruction_ref, std::size_t> accumulate_weights(instruction_ref last)
+{
+    std::unordered_map<instruction_ref, std::size_t> weights;
+    fix<std::size_t>([&](auto self, auto ins) -> std::size_t {
+        if(not contains(weights, ins))
+        {
+            if(ins->can_eval())
+                return 0;
+            std::size_t weight = 1;
+            weights[ins]       = std::accumulate(
+                ins->inputs().begin(),
+                ins->inputs().end(),
+                weight,
+                [&](std::size_t w, instruction_ref i) -> std::size_t { return w + self(i); });
+        }
+        return weights[ins];
+    })(last);
+    return weights;
+}
+
+static optional<instruction_ref>
+get_parent(const std::unordered_map<instruction_ref, std::size_t>& weights, instruction_ref ins)
+{
+    if(ins->inputs().empty())
+        return nullopt;
+    auto next = std::max_element(ins->inputs().begin(),
+                                 ins->inputs().end(),
+                                 by(std::less<>{}, [&](instruction_ref input) -> std::size_t {
+                                     if(not contains(weights, input))
+                                         return 0;
+                                     return weights.at(input);
+                                 }));
+    return *next;
+}
+
+static std::vector<std::size_t> find_trim_instructions(const module& m)
+{
+    std::vector<std::size_t> result;
+    auto last     = std::prev(m.end());
+    auto weights  = accumulate_weights(last);
+    auto next     = get_parent(weights, last);
+    std::size_t i = 0;
+    while(auto parent = get_parent(weights, *next))
+    {
+        i += std::distance(*parent, *next);
+        result.push_back(i + 1);
+        next = parent;
+    }
+    return result;
+}
+
+void verify_bisected_program(const program& p,
+                             const target& t,
+                             compile_options options,
+                             verify_options vo,
+                             const parameter_map& inputs,
+                             verify::tolerance tols)
+{
+    const auto* mm = p.get_main_module();
+
+    std::vector<std::size_t> trims = find_trim_instructions(*mm);
+    std::int64_t right             = trims.size();
+    std::int64_t left              = 0;
+    std::int64_t failed            = -1;
+
+    while(left <= right)
+    {
+        std::int64_t mid = left + (right - left) / 2;
+        assert(mid < trims.size() and mid >= 0);
+        std::int64_t trim = trims.rbegin()[mid];
+        bool passed       = verify_reduced(p, trim, t, options, vo, inputs, tols);
+        if(passed)
+        {
+            left = mid + 1;
+        }
+        else
+        {
+            failed = trim;
+            right  = mid - 1;
+        }
+    }
+    if(failed > 0)
+    {
+        std::cout << "Failure starts at: " << failed << std::endl;
     }
 }
 

@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2023 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2024 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -36,12 +36,12 @@ struct module;
 
 struct MIGRAPHX_EXPORT dominator_info
 {
-    bool strictly_dominate(instruction_ref ins1, instruction_ref ins2);
+    bool strictly_dominate(instruction_ref ins1, instruction_ref ins2) const;
 
     std::unordered_map<instruction_ref, instruction_ref> ins2idom;
 };
 
-MIGRAPHX_EXPORT dominator_info compute_dominator(module& m);
+MIGRAPHX_EXPORT dominator_info compute_dominator(const module& m);
 // MIGRAPHX_EXPORT dominator_info compute_dominator_naive(const module& m);
 
 } // namespace MIGRAPHX_INLINE_NS

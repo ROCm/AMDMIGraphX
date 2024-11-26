@@ -21,5 +21,6 @@
 # OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 # THE SOFTWARE.
 #####################################################################################
-numpy==1.21.6
-onnxruntime==1.17.1
+numpy==1.26.4;python_version>="3.11"
+numpy==1.21.6;python_version<"3.11"
+onnxruntime==1.17.3

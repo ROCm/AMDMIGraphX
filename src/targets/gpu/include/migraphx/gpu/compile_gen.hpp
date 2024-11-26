@@ -27,6 +27,8 @@
 #include <migraphx/config.hpp>
 #include <migraphx/module_ref.hpp>
 #include <migraphx/instruction_ref.hpp>
+#include <migraphx/shape.hpp>
+#include <migraphx/gpu/export.h>
 #include <string>
 #include <unordered_map>
 #include <vector>
@@ -61,8 +63,27 @@ struct preload
     bool is_preloading() const;
     std::string str() const;
 };
+struct tile
+{
+    enum mode
+    {
+        store,
+        load,
+        none
+    };
+    std::vector<mode> args = {};
+    std::size_t axis       = 0;
+    std::size_t ntiles     = 0;
+    std::size_t block_size = 0;
+    std::vector<std::size_t> inner{};
+    std::vector<std::size_t> outer{};
+    static tile elements(const std::vector<shape>& inputs, std::size_t noutputs);
+    // bool is_preloading() const;
+    std::string str() const;
+};
 
-std::size_t find_fast_axis(const std::vector<shape>& inputs);
+MIGRAPHX_GPU_EXPORT std::size_t find_fast_axis(const shape& input);
+MIGRAPHX_GPU_EXPORT std::size_t find_fast_axis(const std::vector<shape>& inputs);
 
 std::string make_transformer_args(std::vector<std::string> transformers);
 
@@ -72,7 +93,8 @@ std::string make_transformer_args(Ts... xs)
     return make_transformer_args({xs.str()...});
 }
 
-std::string generate_pointwise(const module& pm, const std::string& name);
+std::string
+generate_pointwise(const module& pm, const std::string& name, bool always_return_tuple = false);
 
 std::string generate_reduce(module m, const std::string& name);
 
@@ -80,15 +102,16 @@ std::string generate_name_from_ops(const module& m, const std::string& postname 
 
 struct reduce_op
 {
-    std::string input     = "";
+    std::vector<std::string> inputs = {};
     std::string reduction = "";
     std::string init      = "0";
     std::string read      = "op::id{}";
     std::string write     = "op::id{}";
 
     void set(instruction_ref ins, const operation& op);
+    void set(const std::string& name, const shape& input, const shape& output);
     std::string str() const;
-    static std::string generate(instruction_ref ins, const std::string& x);
+    static std::string generate(instruction_ref ins, const std::vector<std::string>& x);
 };
 
 } // namespace gen

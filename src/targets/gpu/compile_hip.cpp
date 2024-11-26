@@ -201,16 +201,6 @@ std::vector<std::vector<char>> compile_hip_src_with_hiprtc(std::vector<hiprtc_sr
     hiprtc_program prog(std::move(srcs));
     auto options = params;
     options.push_back("-DMIGRAPHX_USE_HIPRTC=1");
-    // remove following three compilation flags for HIPRTC once fixes from hipRTC are available in
-    if(enabled(MIGRAPHX_ENABLE_HIPRTC_WORKAROUNDS{}))
-    {
-        options.push_back("-DMIGRAPHX_HAS_DPP=0");
-        options.push_back("-DMIGRAPHX_ENABLE_HIPRTC_WORKAROUNDS=1");
-        options.push_back("-Wno-reserved-identifier");
-        options.push_back("-Wno-unused-parameter");
-        options.push_back("-Wno-gnu-line-marker");
-        options.push_back("-Wno-old-style-cast");
-    }
     if(enabled(MIGRAPHX_GPU_DEBUG{}))
         options.push_back("-DMIGRAPHX_DEBUG");
     if(std::none_of(options.begin(), options.end(), [](const std::string& s) {
@@ -228,9 +218,15 @@ std::vector<std::vector<char>> compile_hip_src_with_hiprtc(std::vector<hiprtc_sr
 bool hip_has_flags(const std::vector<std::string>& flags)
 {
     hiprtc_program prog{" "};
+
+    std::string src = " ";
+    src_file input{"main.cpp", src};
+    std::vector<src_file> srcs = {input};
+
     try
     {
-        prog.compile(flags, true);
+        std::string arch = "gfx900";
+        compile_hip_src(srcs, flags, arch);
         return true;
     }
     catch(...)
@@ -275,7 +271,9 @@ std::vector<std::vector<char>> compile_hip_src(const std::vector<src_file>& srcs
         tmp_dir td{};
         auto out = td.path / "output";
 
-        process(driver, {out.string()}).write([&](auto writer) { to_msgpack(v, writer); });
+        process(driver, {quote_string(out.string())}).write([&](auto writer) {
+            to_msgpack(v, writer);
+        });
         if(fs::exists(out))
             return {read_buffer(out)};
     }

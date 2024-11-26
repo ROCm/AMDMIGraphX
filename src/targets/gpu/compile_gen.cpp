@@ -23,6 +23,9 @@
  */
 #include <migraphx/gpu/compile_gen.hpp>
 #include <migraphx/gpu/context.hpp>
+#include <migraphx/gpu/compile_hip_code_object.hpp>
+#include <migraphx/gpu/prepare_reduce.hpp>
+#include <migraphx/algorithm.hpp>
 #include <migraphx/shape.hpp>
 #include <migraphx/permutation.hpp>
 #include <migraphx/stringutils.hpp>
@@ -34,7 +37,9 @@
 #include <migraphx/iterator_for.hpp>
 #include <migraphx/instruction.hpp>
 #include <migraphx/make_op.hpp>
+#include <migraphx/array.hpp>
 #include <migraphx/ranges.hpp>
+#include <migraphx/fp8_types.hpp>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
@@ -57,7 +62,7 @@ vectorize vectorize::elements(std::size_t axis,
 {
     // disable vectorization for fp8 types
     if(std::any_of(inputs.begin(), inputs.end(), [&](auto ishape) {
-           return ishape.type() == migraphx::shape::fp8e4m3fnuz_type;
+           return contains(fp8_types{}.get(), ishape.type());
        }))
         return {1, axis};
     if(std::all_of(
@@ -94,7 +99,7 @@ vectorize vectorize::elements(context& ctx, std::size_t axis, const std::vector<
 {
     // disable vectorization for fp8 types
     if(std::any_of(inputs.begin(), inputs.end(), [&](auto ishape) {
-           return ishape.type() == migraphx::shape::fp8e4m3fnuz_type;
+           return contains(fp8_types{}.get(), ishape.type());
        }))
         return {1, axis};
     if(inputs.empty())
@@ -168,9 +173,132 @@ bool preload::is_preloading() const
     return std::accumulate(args.begin(), args.end(), false, std::logical_or<>{});
 }
 
+static std::size_t integer_divide_ceil(std::size_t x, std::size_t y)
+{
+    return (x + y - std::size_t{1}) / y;
+}
+
+static std::size_t compute_tile_factor(std::size_t r, std::size_t max_size = 64)
+{
+    std::size_t n = 1;
+    auto factors  = make_array(2, 3, 5, 7, 11);
+    while(n < max_size)
+    {
+        // NOLINTNEXTLINE(readability-qualified-auto)
+        auto it = std::find_if(factors.begin(), factors.end(), [&](auto d) { return r % d == 0; });
+        if(it == factors.end())
+            break;
+        r /= *it;
+        n *= *it;
+    }
+    return n;
+}
+
+tile tile::elements(const std::vector<shape>& inputs, std::size_t noutputs)
+{
+    tile result;
+    auto ndim = inputs.front().ndim();
+    std::vector<std::size_t> faxes;
+    std::transform(
+        inputs.begin(), inputs.end(), std::back_inserter(faxes), MIGRAPHX_LIFT(find_fast_axis));
+    result.axis = std::accumulate(faxes.begin(), faxes.end(), ndim, MIGRAPHX_LIFT(std::min));
+    if(result.axis >= (ndim - 1))
+        return {};
+    auto select = [&](auto m) {
+        return [&, m](std::size_t faxis, shape input) {
+            if(input.broadcasted())
+                return none;
+            if(faxis < (ndim - 1))
+                return m;
+            return none;
+        };
+    };
+    std::transform(faxes.begin(),
+                   faxes.end() - noutputs,
+                   inputs.begin(),
+                   std::back_inserter(result.args),
+                   select(load));
+    std::transform(faxes.end() - noutputs,
+                   faxes.end(),
+                   inputs.end() - noutputs,
+                   std::back_inserter(result.args),
+                   select(store));
+
+    auto nargs = std::count_if(
+        result.args.begin(), result.args.end(), [](auto m) { return m != mode::none; });
+    // TODO: Handle tiling more than one arguments
+    if(nargs != 1)
+        return {};
+
+    const auto& s = inputs.front();
+    auto dim1     = compute_tile_factor(s.lens()[result.axis]);
+    auto dim2     = compute_tile_factor(s.lens().back(), 4096 / dim1);
+    if(dim1 == 1 or dim2 == 1)
+        return {};
+
+    result.inner = s.lens();
+    std::fill(result.inner.begin(), result.inner.end(), 1);
+    result.inner[result.axis] = dim1;
+    result.inner.back()       = dim2;
+
+    result.outer = s.lens();
+    result.outer[result.axis] /= dim1;
+    result.outer.back() /= dim2;
+
+    auto tile_size = dim1 * dim2;
+    result.ntiles  = s.elements() / tile_size;
+    // equivalent to dim1 * (dim2 + 1) to avoid bank conflicts
+    auto tile_bytes = (tile_size + dim1) * s.type_size();
+    if(tile_bytes > 65536)
+        return {};
+
+    result.block_size = std::min<std::size_t>(256, integer_divide_ceil(tile_size / 4, 64) * 64);
+    return result;
+}
+
+std::string tile::str() const
+{
+    if(args.empty())
+        return "transform_args()";
+    std::vector<std::string> strs;
+    std::transform(args.begin(), args.end(), std::back_inserter(strs), [](mode m) {
+        switch(m)
+        {
+        case load: return "tile::load";
+        case store: return "tile::store";
+        case none: return "tile::none";
+        }
+        MIGRAPHX_THROW("Invalid mode");
+    });
+    const std::string auto_tile = "auto_tile<${modes}>(${inner}, ${outer})";
+    return interpolate_string(auto_tile,
+                              {{"modes", join_strings(strs, ", ")},
+                               {"inner", generate_index_ints(inner)},
+                               {"outer", generate_index_ints(outer)}});
+}
+
+std::size_t find_fast_axis(const shape& input)
+{
+    if(input.scalar())
+        return input.ndim() - 1;
+    if(input.broadcasted())
+    {
+        auto stride_it = std::min_element(
+            input.strides().begin(), input.strides().end(), by(std::less<>{}, [](std::size_t i) {
+                if(i == 0)
+                    return std::numeric_limits<std::size_t>::max();
+                return i;
+            }));
+        return stride_it - input.strides().begin();
+    }
+    auto permutation = invert_permutation(find_permutation(input));
+    auto it          = std::max_element(permutation.begin(), permutation.end());
+    return it - permutation.begin();
+}
+
 std::size_t find_fast_axis(const std::vector<shape>& inputs)
 {
-    auto permutation = find_permutation(inputs);
+    auto permutation = invert_permutation(find_permutation(inputs));
     auto it          = std::max_element(permutation.begin(), permutation.end());
     return it - permutation.begin();
 }
@@ -180,12 +308,16 @@ std::string make_transformer_args(std::vector<std::string> transformers)
     return join_strings(std::move(transformers), ", ");
 }
 
-void generate_pointwise(cpp_generator& gg, const module& pm, const std::string& name)
+static void generate_pointwise(cpp_generator& gg,
+                               const module& pm,
+                               const std::string& name,
+                               bool always_return_tuple = false)
 {
     module m = pm;
     run_passes(m, {rewrite_quantization{}, optimize_module{}});
     m.sort();
     cpp_generator g;
+    g.always_return_tuple(always_return_tuple);
     g.fmap([](const std::string& fname) { return "migraphx::" + fname; });
     g.add_point_op("where", "${function:where}(${0}, ${1}, ${2})");
     g.add_point_op("prelu", "${function:where}(${0} < 0, ${0} * ${1}, ${0})");
@@ -202,28 +334,30 @@ void generate_pointwise(cpp_generator& gg, const module& pm, const std::string& 
                            .set_generic_types(m)
                            .set_name(name));
 }
-std::string generate_pointwise(const module& pm, const std::string& name)
+std::string generate_pointwise(const module& pm, const std::string& name, bool always_return_tuple)
 {
     cpp_generator g;
-    generate_pointwise(g, pm, name);
+    generate_pointwise(g, pm, name, always_return_tuple);
     return g.str();
 }
 
 std::string reduce_op::str() const
 {
-    return write + "(r.reduce(" + reduction + ", " + init + ", " + read + ")(" + input + "))";
+    return write + "(r.reduce(" + reduction + ", " + init + ", " + read + ")(" +
+           join_strings(inputs, ", ") + "))";
 }
-void reduce_op::set(instruction_ref ins, const operation& op)
+void reduce_op::set(const std::string& name, const shape& input, const shape& output)
 {
-    if(op.name() == "reduce_sum")
+    assert(input.type() != shape::tuple_type);
+    assert(output.type() != shape::tuple_type);
+    if(name == "reduce_sum")
     {
         reduction = "op::sum{}";
     }
-    else if(op.name() == "reduce_mean")
+    else if(name == "reduce_mean")
     {
-        auto s               = ins->inputs().front()->get_shape();
-        auto reduce_elements = s.elements() / ins->get_shape().elements();
-        auto reduce_type     = s.type();
+        auto reduce_elements = input.elements() / output.elements();
+        auto reduce_type     = input.type();
         reduction            = "op::sum{}";
         std::string mean     = "op::mean<" + std::to_string(reduce_elements) + ">{}";
         // Use float accumulator when reduction size is too large for half
@@ -234,27 +368,53 @@ void reduce_op::set(instruction_ref ins, const operation& op)
         else
             write = mean;
     }
-    else if(op.name() == "reduce_max")
+    else if(name == "reduce_max")
     {
         reduction = "op::max{}";
         init      = "lowest{}";
     }
-    else if(op.name() == "reduce_min")
+    else if(name == "reduce_min")
     {
         reduction = "op::min{}";
         init      = "highest{}";
     }
-    else if(op.name() == "reduce_prod")
+    else if(name == "reduce_prod")
     {
         reduction = "op::product{}";
         init      = "1";
+    }
+    else if(name == "reduce_any")
+    {
+        reduction = "op::logical_or{}";
+        init      = "bool{false}";
+    }
+    else if(name == "reduce_all")
+    {
+        reduction = "op::logical_and{}";
+        init      = "bool{true}";
     }
     else
     {
         MIGRAPHX_THROW("Unsupported reduce");
     }
 }
-std::string reduce_op::generate(instruction_ref ins, const std::string& x)
+
+void reduce_op::set(instruction_ref ins, const operation& op)
+{
+    if(op.name() == "gpu::parallel_reduce")
+    {
+        auto rop    = from_value<operation>(op.to_value().at("op"));
+        auto input  = ins->inputs().front()->get_shape();
+        auto output = ins->get_shape().sub_shapes().front();
+        set(rop.name(), input, output);
+        read = "compose(array_apply(" + read + "), MIGRAPHX_LIFT(make_array))";
+    }
+    else
+    {
+        set(op.name(), ins->inputs().front()->get_shape(), ins->get_shape());
+    }
+}
+std::string reduce_op::generate(instruction_ref ins, const std::vector<std::string>& x)
 {
     reduce_op r{x};
     r.set(ins, ins->get_operator());
@@ -264,6 +424,15 @@ std::string reduce_op::generate(instruction_ref ins, const std::string& x)
 static bool use_lazy_inner(instruction_ref ins)
 {
     if(ins->outputs().size() != 1)
+        return false;
+    // When the inputs are broadcasted, it means the lambda will capture SGPRs
+    // when doing block/wave reduction. This can cause register spilling in
+    // the compiler when the lambda is evaluated at a later time although it
+    // shouldn't. Instead, use `inner` to workaround this issue in the
+    // compiler.
+    if(std::any_of(ins->inputs().begin(), ins->inputs().end(), [](instruction_ref input) {
+           return input->get_shape().broadcasted();
+       }))
         return false;
     auto output = ins->outputs().front();
     return contains(output->name(), "reduce") or output->name() == "@return";
@@ -285,9 +454,10 @@ void preload_params(module& m)
 std::string generate_reduce(module m, const std::string& name)
 {
     preload_params(m);
-    run_passes(m, {optimize_module{}});
+    run_passes(m, {optimize_module{}, prepare_reduce{}, optimize_module{}});
     m.sort();
     cpp_generator g;
+    g.always_return_tuple();
     auto param_shapes = m.get_parameter_shapes();
     auto max_shape =
         std::max_element(param_shapes.begin(),
@@ -298,9 +468,9 @@ std::string generate_reduce(module m, const std::string& name)
     auto f        = g.generate_module(m, [&](instruction_ref ins, const auto& names) {
         if(contains(ins->name(), "reduce"))
         {
-            return reduce_op::generate(ins, names.at(ins->inputs().front()));
+            return reduce_op::generate(ins, cpp_generator::to_args(ins->inputs(), names));
         }
-        else if(ins->name() == "pointwise")
+        if(ins->name() == "pointwise")
         {
             auto pointwise_name = "pointwise" + std::to_string(i);
             i++;
@@ -342,11 +512,18 @@ std::string generate_reduce(module m, const std::string& name)
                                        {"args", join_strings(args, ", ")},
                                        {"call", call_function}});
         }
-        else if(ins->name() == "multibroadcast")
+        if(ins->name() == "multibroadcast")
         {
             return names.at(ins->inputs().front());
         }
-        else if(ins->name() == "identity")
+        if(ins->name() == "get_tuple_elem")
+        {
+            const auto& x = names.at(ins->inputs().front());
+            auto index    = ins->get_operator().to_value()["index"].to<std::size_t>();
+            return interpolate_string("${x}[${index}]",
+                                      {{"x", x}, {"index", std::to_string(index)}});
+        }
+        if(ins->name() == "identity")
         {
             const auto& x = names.at(ins->inputs().front());
             return "r.inner(op::id{})(" + x + ")";

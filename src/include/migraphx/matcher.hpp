@@ -92,6 +92,8 @@ struct matcher_context
         return ins == std::prev(mod->end());
     }
 
+    void debug_print(instruction_ref ins) const { mod->debug_print(ins); }
+
     private:
     module* mod = nullptr;
 };
@@ -330,9 +332,27 @@ struct matcher_result
             });
         }
 
+        void debug_print() const
+        {
+            for(const auto& it : ins_map)
+            {
+                std::cout << it.first << ": \n";
+                it.second->debug_print();
+            }
+        }
+
         private:
         std::unordered_map<std::string, instruction_ref> ins_map;
     };
+
+    void debug_print() const
+    {
+        std::cout << "matcher_container: \n  instructions:";
+        instructions.debug_print();
+        std::cout << "  result: \n";
+        result->debug_print();
+    }
+
     instruction_container instructions;
     instruction_ref result;
 };
@@ -356,6 +376,12 @@ matcher_result match_instruction(module& mod, instruction_ref ins, M&& m)
         result.result = mod.end();
     }
     return result;
+}
+
+template <class M>
+bool instruction_matches(module& mod, instruction_ref ins, M&& m)
+{
+    return match_instruction(mod, ins, std::forward<M&&>(m)).result != mod.end();
 }
 
 /// Find first instance of a matching instruction in a module
@@ -561,6 +587,52 @@ inline auto outputs()
     return [](auto ins, auto f) {
         for(auto&& x : ins->outputs())
             f(x);
+    };
+}
+
+inline auto trace(const std::string& s)
+{
+    return [=](auto m) {
+        return make_basic_fun_matcher([=](matcher_context& ctx, instruction_ref ins) {
+            std::cout << s << ": ";
+            ctx.debug_print(ins);
+            optional<instruction_ref> result = m.match(ctx, ins);
+            if(result.has_value())
+                std::cout << "Found\n";
+            else
+                std::cout << "Not Found\n";
+            return result;
+        });
+    };
+}
+
+inline auto trace_found(const std::string& s)
+{
+    return [=](auto m) {
+        return make_basic_fun_matcher([=](matcher_context& ctx, instruction_ref ins) {
+            optional<instruction_ref> result = m.match(ctx, ins);
+            if(result.has_value())
+            {
+                std::cout << "Found: " << s << ": ";
+                ctx.debug_print(ins);
+            }
+            return result;
+        });
+    };
+}
+
+inline auto trace_not_found(const std::string& s)
+{
+    return [=](auto m) {
+        return make_basic_fun_matcher([=](matcher_context& ctx, instruction_ref ins) {
+            optional<instruction_ref> result = m.match(ctx, ins);
+            if(not result.has_value())
+            {
+                std::cout << "Not Found: " << s << ": ";
+                ctx.debug_print(ins);
+            }
+            return result;
+        });
     };
 }
 

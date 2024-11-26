@@ -58,6 +58,8 @@ struct MIGRAPHX_EXPORT program
 {
     program();
 
+    explicit program(module m);
+
     // move constructor
     program(program&&) noexcept;
 
@@ -79,6 +81,8 @@ struct MIGRAPHX_EXPORT program
 
     std::vector<argument> eval(parameter_map params,
                                execution_environment exec_env = execution_environment{}) const;
+
+    std::vector<argument> eval_with_context(std::vector<context>& ctx, parameter_map params) const;
 
     void finish() const;
 
@@ -102,8 +106,11 @@ struct MIGRAPHX_EXPORT program
 
     void finalize();
 
-    void
-    perf_report(std::ostream& os, std::size_t n, parameter_map params, std::size_t batch = 1) const;
+    void perf_report(std::ostream& os,
+                     std::size_t n,
+                     parameter_map params,
+                     std::size_t batch = 1,
+                     bool detailed     = false) const;
 
     void mark(const parameter_map& params, marker&& m);
 
@@ -149,13 +156,13 @@ struct MIGRAPHX_EXPORT program
     std::unordered_multimap<module_ref, module_ref> get_module_tree();
 
     void remove_module(const std::string& name);
+    void rename_module(const std::string& old_name, const std::string& new_name);
     void remove_unused_modules();
 
     private:
     void assign(const program& p);
     std::unique_ptr<program_impl> impl;
 };
-
 } // namespace MIGRAPHX_INLINE_NS
 } // namespace migraphx
 

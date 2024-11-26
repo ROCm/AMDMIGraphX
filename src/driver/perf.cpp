@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2023 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2024 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -27,6 +27,8 @@
 #include <migraphx/instruction.hpp>
 #include <migraphx/instruction_ref.hpp>
 #include <migraphx/register_target.hpp>
+#include <migraphx/ranges.hpp>
+#include <migraphx/time.hpp>
 #ifdef HAVE_GPU
 #include <migraphx/gpu/hip.hpp>
 #endif
@@ -34,6 +36,8 @@
 namespace migraphx {
 namespace driver {
 inline namespace MIGRAPHX_INLINE_NS {
+
+using milliseconds = std::chrono::duration<double, std::milli>;
 
 template <class T>
 auto get_hash(const T& x)
@@ -52,7 +56,7 @@ parameter_map fill_param_map(parameter_map& m,
         if(arg.empty())
         {
             assert(not x.second.dynamic());
-            arg = generate_argument(x.second, get_hash(x.first));
+            arg = generate_argument(x.second, get_hash(x.first), random_mode::random);
         }
         if(not offload)
             arg = t.copy_to(arg);
@@ -65,7 +69,7 @@ parameter_map create_param_map(const program& p, const target& t, bool offload)
     parameter_map m;
     for(auto&& x : p.get_parameter_shapes())
     {
-        auto arg = generate_argument(x.second, get_hash(x.first));
+        auto arg = generate_argument(x.second, get_hash(x.first), random_mode::random);
         if(offload)
             m[x.first] = arg;
         else
@@ -81,12 +85,13 @@ parameter_map create_param_map(const program& p, bool gpu)
     {
 #ifdef HAVE_GPU
         if(gpu)
-            m[x.first] = gpu::to_gpu(generate_argument(x.second, get_hash(x.first)));
+            m[x.first] =
+                gpu::to_gpu(generate_argument(x.second, get_hash(x.first), random_mode::random));
         else
 #else
         (void)gpu;
 #endif
-            m[x.first] = generate_argument(x.second, get_hash(x.first));
+            m[x.first] = generate_argument(x.second, get_hash(x.first), random_mode::random);
     }
     return m;
 }
@@ -129,6 +134,22 @@ bool is_offload_copy_set(const program& p)
         }
     }
     return param_ins.empty();
+}
+
+double time_run(const program& p, const parameter_map& m, int n)
+{
+    // Run once without timing
+    p.eval(m);
+    p.finish();
+    double total = time<milliseconds>([&] {
+        for(auto i : range(n))
+        {
+            (void)i;
+            p.eval(m);
+        }
+        p.finish();
+    });
+    return total / n;
 }
 
 } // namespace  MIGRAPHX_INLINE_NS

@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2023 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2024 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -28,7 +28,7 @@
 
 TEST_CASE(clip_args_type_mismatch)
 {
-    auto p = migraphx::parse_onnx("clip_test_args_type_mismatch.onnx");
+    auto p = read_onnx("clip_test_args_type_mismatch.onnx");
     p.compile(migraphx::make_target("ref"));
     migraphx::shape s_0{migraphx::shape::float_type, {3, 3}};
     migraphx::parameter_map pp;

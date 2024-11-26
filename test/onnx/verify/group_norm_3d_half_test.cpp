@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2023 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2024 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -32,8 +32,8 @@ TEST_CASE(group_norm_half_test)
     using migraphx::half;
     std::vector<half> scale{half{1.2}, half{0.8}};
     std::vector<half> bias{half{0.5}, half{0.2}};
-    std::vector<half> result_vector = norm_test<half>(
-        {1, 4, 2}, scale, bias, migraphx::parse_onnx("group_norm_3d_half_test.onnx"));
+    std::vector<half> result_vector =
+        norm_test<half>({1, 4, 2}, scale, bias, read_onnx("group_norm_3d_half_test.onnx"));
     std::vector<half> gold = {half{-1.10996256},
                               half{-0.0366542},
                               half{1.0366542},

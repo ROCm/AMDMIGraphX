@@ -33,7 +33,6 @@
 #include <migraphx/eliminate_identity.hpp>
 #include <migraphx/eliminate_pad.hpp>
 #include <migraphx/eliminate_convert.hpp>
-#include <migraphx/layout_nhwc.hpp>
 #include <migraphx/memory_coloring.hpp>
 #include <migraphx/propagate_constant.hpp>
 #include <migraphx/register_target.hpp>
@@ -66,11 +65,13 @@ std::vector<pass> target::get_passes(migraphx::context& gctx, const compile_opti
 {
     auto& ctx = any_cast<context>(gctx);
     std::set<shape::type_t> unsupported_types(shape::types().begin(), shape::types().end());
+    std::set<std::string> unsupported_ops{
+        "all", "scatternd_add", "scatternd_mul", "scatternd_none"};
     unsupported_types.erase(shape::type_t::float_type);
     return {normalize_ops{},
             rewrite_quantization{},
             dead_code_elimination{},
-            eliminate_data_type{unsupported_types, shape::type_t::float_type},
+            eliminate_data_type{unsupported_types, shape::type_t::float_type, unsupported_ops},
             dead_code_elimination{},
             simplify_reshapes{},
             eliminate_convert{},
@@ -89,12 +90,12 @@ std::vector<pass> target::get_passes(migraphx::context& gctx, const compile_opti
             eliminate_convert{},
             dead_code_elimination{},
             simplify_algebra{},
-            auto_contiguous{},
             simplify_reshapes{},
             eliminate_convert{},
             dead_code_elimination{},
             propagate_constant{},
             dead_code_elimination{},
+            auto_contiguous{},
             lowering{},
             eliminate_contiguous{"dnnl::reorder"},
             dead_code_elimination{},

@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2023 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2024 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -80,7 +80,7 @@ struct parse_instancenorm : op_parser<parse_instancenorm>
         auto scale = args[1];
         auto bias  = args[2];
         if(not contains(valid_types, dtype))
-            MIGRAPHX_THROW(opd.op_name + ": invalid output type: " + std::to_string(dtype) +
+            MIGRAPHX_THROW(opd.onnx_name + ": invalid output type: " + std::to_string(dtype) +
                            ". Valid types are 1 (float), 10 (half), and 11 (double).");
 
         auto ndims = x->get_shape().ndim();

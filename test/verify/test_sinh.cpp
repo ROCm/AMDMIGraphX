@@ -44,3 +44,5 @@ struct test_sinh : verify_program<test_sinh<DType>>
 template struct test_sinh<migraphx::shape::float_type>;
 template struct test_sinh<migraphx::shape::half_type>;
 template struct test_sinh<migraphx::shape::fp8e4m3fnuz_type>;
+template struct test_sinh<migraphx::shape::fp8e4m3fn_type>;
+template struct test_sinh<migraphx::shape::fp8e5m2_type>;

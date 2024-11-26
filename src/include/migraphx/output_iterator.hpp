@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2022 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2024 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -25,6 +25,7 @@
 #define MIGRAPHX_GUARD_MIGRAPHX_OUTPUT_ITERATOR_HPP
 
 #include <migraphx/config.hpp>
+#include <migraphx/copy_assignable_function.hpp>
 #include <iterator>
 
 namespace migraphx {
@@ -33,7 +34,7 @@ inline namespace MIGRAPHX_INLINE_NS {
 template <class F>
 struct function_output_iterator
 {
-    F f;
+    copy_assignable_function<F> f;
 
     using self              = function_output_iterator;
     using difference_type   = void;
@@ -51,7 +52,7 @@ struct function_output_iterator
             (*f)(value);
             return *this;
         }
-        F* f;
+        copy_assignable_function<F>* f;
     };
     output_proxy operator*() { return output_proxy{&f}; }
     self& operator++() { return *this; }
@@ -64,6 +65,19 @@ function_output_iterator<F> make_function_output_iterator(F f)
     return {std::move(f)};
 }
 
+template <class Container>
+auto join_back_inserter(Container& c)
+{
+    return make_function_output_iterator(
+        [&](const auto& r) { c.insert(c.end(), r.begin(), r.end()); });
+}
+
+template <class Container>
+auto push_inserter(Container& c)
+{
+    return make_function_output_iterator([&](const auto& x) { c.push(x); });
+}
 } // namespace MIGRAPHX_INLINE_NS
 } // namespace migraphx
+
 #endif // MIGRAPHX_GUARD_MIGRAPHX_OUTPUT_ITERATOR_HPP

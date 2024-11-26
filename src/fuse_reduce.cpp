@@ -197,7 +197,7 @@ struct find_pointwise_reduce
         return match::name("fused_reduce")(match_broadcastable_input("pointwise", "pointwise"));
     }
 
-    bool is_valid_broadcast(const instruction_ref b, const std::vector<size_t> reduce_axes) const
+    bool is_valid_broadcast(const instruction_ref b, const std::vector<size_t>& reduce_axes) const
     {
         std::vector<size_t> broadcast_axes;
         auto bstrides = b->get_shape().strides();

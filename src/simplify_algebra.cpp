@@ -436,7 +436,7 @@ struct find_mul_add
 {
     auto matcher() const
     {   
-        auto slice_1 = match::skip(match::name("slice"))(match::none_of(fusable_split("add")));
+        auto slice_1 = match::none_of(match::name("slice")(match::arg(0)(fusable_split("add"))));
 
          return match::name("mul")(match::either_arg(0, 1)(
             match::name("add")(
@@ -491,6 +491,7 @@ struct find_slice_add_mul
 
         assert(x_ins != b_ins);
 
+        std::cout<<"inside"<<std::endl;
         auto ax_ins = m.insert_instruction(ins, make_op("add"), x_ins, b_ins);
         m.replace_instruction(ins, make_op("mul"), ax_ins, a_ins);
     }
@@ -1553,7 +1554,7 @@ struct find_conv_dot_horiz_fusion
     void apply(module& m, const match::matcher_result& r) const
     {
         auto ins = r.result;
-
+        std::cout<<"horiz_fusion"<<std::endl;
         auto pred = [](auto i, auto j) {
             if(i->get_operator() != j->get_operator())
                 return false;

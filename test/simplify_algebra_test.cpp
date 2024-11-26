@@ -4133,7 +4133,7 @@ TEST_CASE(dot_slice_a)
     EXPECT(m1.sort() == m2.sort());
 }
 
-TEST_CASE(skip_mul_add_for_horizontal_add_fusion)
+TEST_CASE(slice_add)
 {
     migraphx::shape as{migraphx::shape::float_type, {1, 77, 2304}};
 
@@ -4215,13 +4215,43 @@ TEST_CASE(slice_add_mul)
 
         auto mul2 = m1.add_instruction(migraphx::make_op("mul"), slice_b, two);
         auto mul3 = m1.add_instruction(migraphx::make_op("mul"), slice_c, three);
-
+        
         m1.add_return({mul1, mul2, mul3});    
     };
     run_pass(m1);
-    
-    migraphx::module m2 = m1;
-    EXPECT(m1.sort() == m2.sort());
+    m1.debug_print();
+
+    //migraphx::module m2 = m1;
+    //EXPECT(m1.sort() == m2.sort());
+    migraphx::module m2;
+    {
+        auto a = m2.add_parameter("a", as); 
+
+        auto slice_a = m2.add_instruction(
+            migraphx::make_op("slice", {{"axes", {2}}, {"starts", {0}}, {"ends", {768}}}), a);
+        auto slice_b = m2.add_instruction(
+            migraphx::make_op("slice", {{"axes", {2}}, {"starts", {768}}, {"ends", {1536}}}), a);
+        auto slice_c = m2.add_instruction(
+            migraphx::make_op("slice", {{"axes", {2}}, {"starts", {1536}}, {"ends", {2304}}}), a);  
+
+        auto one = m2.add_literal(migraphx::generate_literal(
+            {migraphx::shape::float_type, {1, 77, 768}}, 3.0f));
+        auto two = m2.add_literal(migraphx::generate_literal(
+            {migraphx::shape::float_type, {1, 77, 768}}, 2.0f));
+        auto three = m2.add_literal(migraphx::generate_literal(
+            {migraphx::shape::float_type, {1, 77, 768}}, 4.0f));
+        auto four = m2.add_literal(migraphx::generate_literal(
+            {migraphx::shape::float_type, {1, 77, 768}}, 4.0f));
+
+        auto add1 = m2.add_instruction(migraphx::make_op("add"), slice_a, one);
+        auto mul1 = m2.add_instruction(migraphx::make_op("mul"), add1, four);
+
+        auto mul2 = m2.add_instruction(migraphx::make_op("mul"), slice_b, two);
+        auto mul3 = m2.add_instruction(migraphx::make_op("mul"), slice_c, three);
+        
+        m2.add_return({mul1, mul2, mul3});    
+    };
+    EXPECT(m1 == m2);
 }
 
 TEST_CASE(add_dot_add_mul)

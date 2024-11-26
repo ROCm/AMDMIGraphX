@@ -199,11 +199,16 @@ struct find_pointwise_reduce
 
     bool is_valid_broadcast(const instruction_ref b, const std::vector<size_t> reduce_axes) const
     {
-        std::vector<size_t> broadcast_indices;
+        std::vector<size_t> broadcast_axes;
         auto bstrides = b->get_shape().strides();
 
-        return std::all_of(
-            reduce_axes.begin(), reduce_axes.end(), [&](auto a) { return bstrides.at(a) == 0; });
+        for(size_t i = 0; i < bstrides.size(); ++i)
+        {
+            if(bstrides.at(i) == 0)
+                broadcast_axes.push_back(i);
+        }
+
+        return broadcast_axes == reduce_axes;
     }
 
     void apply(module_pass_manager& mpm, const match::matcher_result& r) const
@@ -215,10 +220,9 @@ struct find_pointwise_reduce
 
         if(contains(r.instructions, "broadcast"))
         {
-            auto axes       = reduce->get_operator().to_value().at("axes").to_vector<size_t>();
-            auto broadcast  = r.instructions["broadcast"];
-            auto fbroadcast = r.instructions["final_broadcast"];
-            if(not(is_valid_broadcast(broadcast, axes) and is_valid_broadcast(fbroadcast, axes)))
+            auto axes      = reduce->get_operator().to_value().at("axes").to_vector<size_t>();
+            auto broadcast = r.instructions["broadcast"];
+            if(not is_valid_broadcast(broadcast, axes))
                 return;
         }
 

@@ -68,8 +68,10 @@ __device__ auto wrap(F f, T x, Ts... xs)
 #define MIGRAPHX_DEVICE_MATH_LIFT_IMPL(type, ...) \
     [](type x, auto... xs) MIGRAPHX_RETURNS((__VA_ARGS__)(x, xs...))
 
+// NOLINTNEXTLINE
 #define MIGRAPHX_DEVICE_MATH_LIFT(...) MIGRAPHX_DEVICE_MATH_LIFT_IMPL(__VA_ARGS__)
 
+// NOLINTNEXTLINE
 #define MIGRAPHX_DEVICE_MATH_PARSE(x) x,
 
 // NOLINTNEXTLINE

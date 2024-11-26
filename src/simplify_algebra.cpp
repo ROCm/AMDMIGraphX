@@ -420,12 +420,11 @@ auto fusable_split(const std::string& name)
                 return false;
             return any_of(slice->outputs(), [&](instruction_ref x) {
                 if (x->name() == name)
-                return true;
+                    return true;
             });
         });
     });
 }
-
 
 // ******************************
 //  a * (x + b) => a * x + a * b
@@ -439,19 +438,14 @@ struct find_mul_add
     {   
         auto slice_1 = match::skip(match::name("slice"))(match::none_of(fusable_split("add")));
 
-        return match::name("mul")(
-            match::either_arg(0, 1)(
-                match::name("add")(
-                    match::either_arg(0, 1)(
-                        slice_1.bind("x"),
-                        match::any_of(conv_const_weights(), match::is_constant()).bind("b")
-                    ),
-                    match::none_of(match::args(match::is_constant(), match::is_constant())),
-                    match::used_once()
-                ),
-                match::is_constant().bind("a")
-            )
-    );
+         return match::name("mul")(match::either_arg(0, 1)(
+            match::name("add")(
+                match::either_arg(0, 1)(
+                    slice_1.bind("x"),
+                    match::any_of(conv_const_weights(), match::is_constant()).bind("b")),
+                match::none_of(match::args(match::is_constant(), match::is_constant())),
+                match::used_once()),
+            match::is_constant().bind("a")));
     }
 
     void apply(module& m, const match::matcher_result& r) const
@@ -465,34 +459,29 @@ struct find_mul_add
         auto ax_ins = m.insert_instruction(ins, make_op("mul"), a_ins, x_ins);
         auto ab_ins = m.insert_instruction(ins, make_op("mul"), a_ins, b_ins);
         m.replace_instruction(ins, make_op("add"), ax_ins, ab_ins);
-
     }
 };
 
-// When a slice is followed by a*(x+b), a⋅(x+b), this matcher performs 
-// the add first, followed by the mul. 
+// When a slice is followed by a*(x+b), a⋅(x+b), this matcher performs
+// the add first, followed by the mul.
 // If multiple slices originate from the same instruction and are followed by add,
 // all the adds can be const folded and performed before the slicing.
 struct find_slice_add_mul
 {
-        auto matcher() const
-        {        
-            auto slice_1 = match::name("slice")(match::arg(0)(fusable_split("add")));
+    auto matcher() const
+    {        
+        auto slice_1 = match::name("slice")(match::arg(0)(fusable_split("add")));
 
-            return match::name("mul")(
-                match::either_arg(0, 1)(
-                    match::name("add")(
-                        match::either_arg(0, 1)(
-                            slice_1.bind("x"),
-                            match::any_of(conv_const_weights(), match::is_constant()).bind("b")
-                        ),
-                        match::none_of(match::args(match::is_constant(), match::is_constant())),
-                        match::used_once()
-                    ),
-                    match::is_constant().bind("a")
-                )
-            );
-        }
+        return match::name("mul")(
+            match::either_arg(0, 1)(
+                match::name("add")(
+                    match::either_arg(0, 1)(
+                        slice_1.bind("x"),
+                        match::any_of(conv_const_weights(), match::is_constant()).bind("b")),
+                    match::none_of(match::args(match::is_constant(), match::is_constant())),
+                    match::used_once()),
+                match::is_constant().bind("a")));
+    }
     void apply(module& m, const match::matcher_result& r) const
     {
         auto ins    = r.result;
@@ -504,7 +493,6 @@ struct find_slice_add_mul
 
         auto ax_ins = m.insert_instruction(ins, make_op("add"), x_ins, b_ins);
         m.replace_instruction(ins, make_op("mul"), ax_ins, a_ins);
-        
     }
 };
 
@@ -1631,7 +1619,6 @@ struct find_conv_dot_horiz_fusion
 
         auto outputs = ins->outputs();
         group_by(outputs.begin(), outputs.end(), each, pred);
-
     }
 };
 

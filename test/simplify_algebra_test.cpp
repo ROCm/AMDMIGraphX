@@ -4191,6 +4191,75 @@ TEST_CASE(skip_mul_add_for_horizontal_add_fusion)
     EXPECT(m1.sort() == m2.sort());
 }
 
+TEST_CASE(add_dot_add_mul)
+{
+    migraphx::shape as{migraphx::shape::float_type, {1, 77, 768}};
+
+    migraphx::module m1;
+    {
+        auto a = m1.add_parameter("a", as); 
+
+        auto one = m1.add_literal(migraphx::generate_literal(
+            {migraphx::shape::float_type, {1, 77, 768}}, 3.0f));
+        auto two = m1.add_literal(migraphx::generate_literal(
+            {migraphx::shape::float_type, {1, 77, 768}}, 2.0f));
+        auto three = m1.add_literal(migraphx::generate_literal(
+            {migraphx::shape::float_type, {1, 77, 768}}, 4.0f));
+        auto four = m1.add_literal(migraphx::generate_literal(
+            {migraphx::shape::float_type, {1, 768, 768}}, 4.0f));
+
+
+        auto add1 = m1.add_instruction(migraphx::make_op("add"), a, one);
+        auto dot1 = m1.add_instruction(migraphx::make_op("dot"), add1, four);
+        
+        auto add2 = m1.add_instruction(migraphx::make_op("add"), dot1, two);
+        auto mul = m1.add_instruction(migraphx::make_op("mul"), add2, three);
+
+        m1.add_return({mul});    
+    };
+    run_pass(m1);
+    migraphx::module m2 = m1;
+    EXPECT(m1.sort() == m2.sort());
+}
+
+TEST_CASE(slice_add_mul)
+{
+    migraphx::shape as{migraphx::shape::float_type, {1, 77, 2304}};
+
+    migraphx::module m1;
+    {
+        auto a = m1.add_parameter("a", as); 
+
+        auto slice_a = m1.add_instruction(
+            migraphx::make_op("slice", {{"axes", {2}}, {"starts", {0}}, {"ends", {768}}}), a);
+        auto slice_b = m1.add_instruction(
+            migraphx::make_op("slice", {{"axes", {2}}, {"starts", {768}}, {"ends", {1536}}}), a);
+        auto slice_c = m1.add_instruction(
+            migraphx::make_op("slice", {{"axes", {2}}, {"starts", {1536}}, {"ends", {2304}}}), a);  
+
+        auto one = m1.add_literal(migraphx::generate_literal(
+            {migraphx::shape::float_type, {1, 77, 768}}, 3.0f));
+        auto two = m1.add_literal(migraphx::generate_literal(
+            {migraphx::shape::float_type, {1, 77, 768}}, 2.0f));
+        auto three = m1.add_literal(migraphx::generate_literal(
+            {migraphx::shape::float_type, {1, 77, 768}}, 4.0f));
+        auto four = m1.add_literal(migraphx::generate_literal(
+            {migraphx::shape::float_type, {1, 77, 768}}, 4.0f));
+
+        auto add1 = m1.add_instruction(migraphx::make_op("add"), slice_a, one);
+        auto mul1 = m1.add_instruction(migraphx::make_op("mul"), add1, four);
+
+        auto mul2 = m1.add_instruction(migraphx::make_op("mul"), slice_b, two);
+        auto mul3 = m1.add_instruction(migraphx::make_op("mul"), slice_c, three);
+
+        m1.add_return({mul1, mul2, mul3});    
+    };
+    run_pass(m1);
+    
+    migraphx::module m2 = m1;
+    EXPECT(m1.sort() == m2.sort());
+}
+
 TEST_CASE(dot_slice_ab)
 {
     migraphx::shape as{migraphx::shape::float_type, {2, 256, 32}};

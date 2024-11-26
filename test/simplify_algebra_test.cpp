@@ -4261,7 +4261,6 @@ TEST_CASE(add_dot_add_mul)
         
     }; 
     run_pass(m1);
-    m1.debug_print();
     migraphx::module m2;
     {
         auto a = m2.add_parameter("a", as); 

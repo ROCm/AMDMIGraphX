@@ -1247,6 +1247,34 @@ TEST_CASE(concat_reshape)
     EXPECT(m1 == m2);
 }
 
+TEST_CASE(concat_reshape_change_axis)
+{
+    auto s = migraphx::shape{migraphx::shape::float_type, {2, 256, 1280}};
+    migraphx::module m1;
+    {
+        auto x = m1.add_parameter("x", s);
+        auto y = m1.add_parameter("y", s);
+        auto xreshape =
+            m1.add_instruction(migraphx::make_op("reshape", {{"dims", {2, 16, 16, 1280}}}), x);
+        auto yreshape =
+            m1.add_instruction(migraphx::make_op("reshape", {{"dims", {2, 16, 16, 1280}}}), y);
+        auto concat =
+            m1.add_instruction(migraphx::make_op("concat", {{"axis", 3}}), xreshape, yreshape);
+        m1.add_return({concat});
+    }
+    migraphx::module m2;
+    {
+        auto x      = m2.add_parameter("x", s);
+        auto y      = m2.add_parameter("y", s);
+        auto concat = m2.add_instruction(migraphx::make_op("concat", {{"axis", 2}}), x, y);
+        auto reshape =
+            m2.add_instruction(migraphx::make_op("reshape", {{"dims", {2, 16, 16, 2560}}}), concat);
+        m2.add_return({reshape});
+    }
+    run_pass(m1);
+    EXPECT(m1 == m2);
+}
+
 TEST_CASE(concat_reshape_broadcast)
 {
     auto s = migraphx::shape{migraphx::shape::float_type, {11008, 32, 1}};

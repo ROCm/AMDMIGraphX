@@ -486,7 +486,7 @@ struct find_concat_reshape
             return;
         // axis could be a negative value
         auto op       = any_cast<op::concat>(ins->get_operator());
-        int64_t n_dim = input_shape.lens().size();
+        int64_t n_dim = reshapes.front()->get_shape().lens().size();
         auto axis     = tune_axis(n_dim, op.axis, op.name());
 
         auto predims  = std::accumulate(concat_shape.lens().begin(),

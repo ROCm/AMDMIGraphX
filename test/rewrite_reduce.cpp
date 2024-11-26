@@ -230,6 +230,23 @@ add_reduce_mean(migraphx::module& m, std::vector<std::size_t> axes, migraphx::in
     return m.add_instruction(migraphx::make_op("convert", {{"target_type", t}}), reduce);
 }
 
+static migraphx::instruction_ref add_reduce_mean_square(migraphx::module& m,
+                                                        std::vector<std::size_t> axes,
+                                                        migraphx::instruction_ref input)
+{
+    auto reduce_size = migraphx::transform_accumulate(
+        axes.begin(), axes.end(), std::size_t{1}, std::multiplies<>{}, [&](auto axis) {
+            return input->get_shape().lens()[axis];
+        });
+    auto t       = input->get_shape().type();
+    auto rl      = m.add_literal(migraphx::literal{{t, {1}}, {reduce_size}});
+    auto sqrt_r1 = migraphx::add_common_op(m, migraphx::make_op("sqrt"), {rl});
+    auto div     = migraphx::add_common_op(m, migraphx::make_op("div"), {input, sqrt_r1});
+    auto square  = migraphx::add_common_op(m, migraphx::make_op("mul"), {div, div});
+    auto reduce  = m.add_instruction(migraphx::make_op("reduce_sum", {{"axes", axes}}), square);
+    return m.add_instruction(migraphx::make_op("convert", {{"target_type", t}}), reduce);
+}
+
 TEST_CASE(reduce_mean_variance_sqdiff)
 {
     migraphx::shape s{migraphx::shape::float_type, {1, 3, 9}};
@@ -249,8 +266,7 @@ TEST_CASE(reduce_mean_variance_sqdiff)
     {
         auto x        = m2.add_parameter("x", s);
         auto mean     = add_reduce_mean(m2, {2}, x);
-        auto x2       = m2.add_instruction(migraphx::make_op("mul"), x, x);
-        auto mean_x2  = add_reduce_mean(m2, {2}, x2);
+        auto mean_x2  = add_reduce_mean_square(m2, {2}, x);
         auto mean2    = m2.add_instruction(migraphx::make_op("mul"), mean, mean);
         auto variance = m2.add_instruction(migraphx::make_op("sub"), mean_x2, mean2);
         m2.add_return({mean, variance});
@@ -277,8 +293,7 @@ TEST_CASE(reduce_mean_variance_mul_x_minus)
     {
         auto x        = m2.add_parameter("x", s);
         auto mean     = add_reduce_mean(m2, {2}, x);
-        auto x2       = m2.add_instruction(migraphx::make_op("mul"), x, x);
-        auto mean_x2  = add_reduce_mean(m2, {2}, x2);
+        auto mean_x2  = add_reduce_mean_square(m2, {2}, x);
         auto mean2    = m2.add_instruction(migraphx::make_op("mul"), mean, mean);
         auto variance = m2.add_instruction(migraphx::make_op("sub"), mean_x2, mean2);
         m2.add_return({mean, variance});
@@ -306,8 +321,7 @@ TEST_CASE(reduce_mean_variance_pow_x_minus)
     {
         auto x        = m2.add_parameter("x", s);
         auto mean     = add_reduce_mean(m2, {2}, x);
-        auto x2       = m2.add_instruction(migraphx::make_op("mul"), x, x);
-        auto mean_x2  = add_reduce_mean(m2, {2}, x2);
+        auto mean_x2  = add_reduce_mean_square(m2, {2}, x);
         auto mean2    = m2.add_instruction(migraphx::make_op("mul"), mean, mean);
         auto variance = m2.add_instruction(migraphx::make_op("sub"), mean_x2, mean2);
         m2.add_return({mean, variance});

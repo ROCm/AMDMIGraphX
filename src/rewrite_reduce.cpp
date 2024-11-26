@@ -59,7 +59,7 @@ struct find_reduce_mean_variance
 {
     auto matcher() const
     {
-        auto reduce_mean = match::name("reduce_mean");
+        auto reduce_mean          = match::name("reduce_mean");
         auto skip_broadcasts_mean = match::skip_broadcasts(reduce_mean.bind("mean"));
         auto x_minus_mean         = match::name("sub")(match::arg(0)(match::any().bind("x")),
                                                match::arg(1)(skip_broadcasts_mean));
@@ -112,7 +112,17 @@ struct find_reduce_mean
             size        = t.size();
         });
 
-        auto n = input->get_shape().elements() / ins->get_shape().elements();
+        auto n         = input->get_shape().elements() / ins->get_shape().elements();
+        auto n_literal = m.add_literal(literal{{input->get_shape().type(), {1}}, {n}});
+
+        if(contains(r.instructions, "sq_input") and not is_integral)
+        {
+            // Instead of computing (x*x)/n, compute (x/sqrt(n))*(x/sqrt(n))
+            auto sq_input     = r.instructions["sq_input"];
+            auto sqrt_n       = insert_common_op(m, ins, make_op("sqrt"), {n_literal});
+            auto new_sq_input = insert_common_op(m, ins, make_op("div"), {sq_input, sqrt_n});
+            input = insert_common_op(m, ins, make_op("mul"), {new_sq_input, new_sq_input});
+        }
 
         // Convert accumulator to float if <= 8bit type or if < 3 bytes and n >= max_n /4
         if(size == 1 or (n >= max_n / 4 and size < 3))
@@ -121,7 +131,6 @@ struct find_reduce_mean
             input = m.insert_instruction(ins, make_op("convert", {{"target_type", t}}), input);
         }
 
-        auto n_literal = m.add_literal(literal{{input->get_shape().type(), {1}}, {n}});
         if(is_integral)
         {
             auto reduce_sum =
@@ -132,12 +141,29 @@ struct find_reduce_mean
         }
         else
         {
-            auto new_input = insert_common_op(m, ins, make_op("div"), {input, n_literal});
+            if(not contains(r.instructions, "sq_input"))
+            {
+                input = insert_common_op(m, ins, make_op("div"), {input, n_literal});
+            }
             auto reduce_sum =
-                m.insert_instruction(ins, make_op("reduce_sum", {{"axes", axes}}), new_input);
+                m.insert_instruction(ins, make_op("reduce_sum", {{"axes", axes}}), input);
             m.replace_instruction(
                 ins, make_op("convert", {{"target_type", ins->get_shape().type()}}), reduce_sum);
         }
+    }
+};
+
+struct find_reduce_mean_square : find_reduce_mean
+{
+    auto matcher() const
+    {
+        auto pow2 = match::name("pow")(match::arg(0)(match::any().bind("sq_input")),
+                                       match::arg(1)(match::has_value(2.0f)));
+        auto same_mul =
+            match::name("mul")(match::same_inputs(), match::arg(0)(match::any().bind("sq_input")));
+        auto sq_op               = match::any_of(pow2, same_mul);
+        auto reduce_mean_matcher = find_reduce_mean::matcher();
+        return reduce_mean_matcher(match::any_of[match::inputs()](sq_op));
     }
 };
 
@@ -146,6 +172,7 @@ struct find_reduce_mean
 void rewrite_reduce::apply(module& m) const
 {
     match::find_matches(m, find_softmax{}, find_reduce_mean_variance{});
+    match::find_matches(m, find_reduce_mean_square{});
     match::find_matches(m, find_reduce_mean{});
 }
 

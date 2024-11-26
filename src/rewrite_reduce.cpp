@@ -117,11 +117,10 @@ struct find_reduce_mean
 
         if(contains(r.instructions, "sq_input") and not is_integral)
         {
-            // Instead of computing (x*x)/n, compute (x/sqrt(n))*(x/sqrt(n))
-            auto sq_input     = r.instructions["sq_input"];
-            auto sqrt_n       = insert_common_op(m, ins, make_op("sqrt"), {n_literal});
-            auto new_sq_input = insert_common_op(m, ins, make_op("div"), {sq_input, sqrt_n});
-            input = insert_common_op(m, ins, make_op("mul"), {new_sq_input, new_sq_input});
+            // Instead of computing (x*x)/n, compute x*(x/n)
+            auto sq_input = r.instructions["sq_input"];
+            auto x_div_n  = insert_common_op(m, ins, make_op("div"), {sq_input, n_literal});
+            input         = insert_common_op(m, ins, make_op("mul"), {sq_input, x_div_n});
         }
 
         // Convert accumulator to float if <= 8bit type or if < 3 bytes and n >= max_n /4

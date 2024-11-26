@@ -238,12 +238,11 @@ static migraphx::instruction_ref add_reduce_mean_square(migraphx::module& m,
         axes.begin(), axes.end(), std::size_t{1}, std::multiplies<>{}, [&](auto axis) {
             return input->get_shape().lens()[axis];
         });
-    auto t       = input->get_shape().type();
-    auto rl      = m.add_literal(migraphx::literal{{t, {1}}, {reduce_size}});
-    auto sqrt_r1 = migraphx::add_common_op(m, migraphx::make_op("sqrt"), {rl});
-    auto div     = migraphx::add_common_op(m, migraphx::make_op("div"), {input, sqrt_r1});
-    auto square  = migraphx::add_common_op(m, migraphx::make_op("mul"), {div, div});
-    auto reduce  = m.add_instruction(migraphx::make_op("reduce_sum", {{"axes", axes}}), square);
+    auto t      = input->get_shape().type();
+    auto rl     = m.add_literal(migraphx::literal{{t, {1}}, {reduce_size}});
+    auto div    = migraphx::add_common_op(m, migraphx::make_op("div"), {input, rl});
+    auto square = migraphx::add_common_op(m, migraphx::make_op("mul"), {input, div});
+    auto reduce = m.add_instruction(migraphx::make_op("reduce_sum", {{"axes", axes}}), square);
     return m.add_instruction(migraphx::make_op("convert", {{"target_type", t}}), reduce);
 }
 

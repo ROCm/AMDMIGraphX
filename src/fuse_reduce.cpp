@@ -197,12 +197,33 @@ struct find_pointwise_reduce
         return match::name("fused_reduce")(match_broadcastable_input("pointwise", "pointwise"));
     }
 
+    bool is_valid_broadcast(const instruction_ref b, const value reduce_axes) const
+    {
+        std::vector<size_t> broadcast_indices;
+        auto bstrides = b->get_shape().strides();
+        for(std::size_t i = 0; i < bstrides.size(); ++i)
+        {
+            if(bstrides.at(i) == 0 and not contains(reduce_axes, i))
+                return false;
+        }
+        return true;
+    }
+
     void apply(module_pass_manager& mpm, const match::matcher_result& r) const
     {
         auto reduce        = r.result;
         auto input         = r.instructions["pointwise"];
         const auto* pm     = input->module_inputs().front();
         const auto* old_rm = reduce->module_inputs().front();
+
+        if(contains(r.instructions, "broadcast"))
+        {
+            auto axes       = reduce->get_operator().to_value().at("axes");
+            auto broadcast  = r.instructions["broadcast"];
+            auto fbroadcast = r.instructions["final_broadcast"];
+            if(not(is_valid_broadcast(broadcast, axes) and is_valid_broadcast(fbroadcast, axes)))
+                return;
+        }
 
         auto* rm = mpm.create_module(pm->name() + ":" + old_rm->name());
         rm->set_bypass();
@@ -390,7 +411,8 @@ void fuse_reduce::apply(module_pass_manager& mpm) const
         if(enable_rewrite_reshapes)
             mpm.run_pass(rewrite_reshapes<reduce_reshape>{});
         match::find_matches(
-            mpm, find_reduce_pointwise{}, find_pointwise_reduce{}, find_reduce_reduce{});
+            mpm, find_reduce_pointwise{}, find_pointwise_reduce{});
+        match::find_matches(mpm, find_reduce_reduce{});
         mpm.run_pass(dead_code_elimination{});
     }
 }

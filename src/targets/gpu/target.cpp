@@ -222,7 +222,6 @@ std::vector<pass> target::get_passes(migraphx::context& gctx, const compile_opti
         compile_miopen{&gctx},
         dead_code_elimination{},
 #endif
-        dead_code_elimination{},
         fuse_ops{&ctx, options.fast_math},
         dead_code_elimination{},
 #if MIGRAPHX_USE_HIPBLASLT

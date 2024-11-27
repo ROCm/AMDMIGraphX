@@ -251,14 +251,6 @@ struct miopen_apply
         apply_map.emplace(name, [=](instruction_ref ins) {
             std::vector<instruction_ref> refs = ins->inputs();
             assert(refs.size() == 2);
-#if MIGRAPHX_USE_HIPBLASLT
-            if(enabled(MIGRAPHX_ENABLE_HIPBLASLT_GEMM{}))
-            {
-                shape workspace_shape{shape::uint8_type, {hipblaslt_workspace_size}};
-                auto workspace = insert_allocation(ins, workspace_shape);
-                refs.push_back(workspace);
-            }
-#endif
             auto output = insert_allocation(ins, ins->get_shape());
             refs.push_back(output);
 #if MIGRAPHX_USE_HIPBLASLT
@@ -269,7 +261,18 @@ struct miopen_apply
                     ins, rocblas_gemm<Op>{Op{}, 1, 0, compute_fp32}, refs);
 #if MIGRAPHX_USE_HIPBLASLT
             }
-            return mod->replace_instruction(ins, hip_gemm<Op>{Op{}, 1, 0}, refs);
+            std::string op_name = "gpu::hip_gemm";
+            if(contains(name, "quant_"))
+            {
+                op_name = "gpu::hip_quant_gemm";
+            }
+            operation gemm_op = make_op(op_name);
+            return mod->replace_instruction(
+                ins,
+                make_op("gpu::hipblaslt_op", {{"op", to_value(gemm_op)}}),
+                ins->inputs().at(0),
+                ins->inputs().at(1),
+                output);
 #endif
         });
     }
@@ -554,7 +557,7 @@ struct miopen_apply
             auto inputs = ins->inputs();
 
             auto new_inputs = ins->inputs();
-            new_inputs.push_back(inputs.at(1));
+            new_inputs.push_back(inputs.at(2));
             return mod->replace_instruction(
                 ins,
                 make_op("gpu::precompile_op", {{"op", to_value(ins->get_operator())}}),

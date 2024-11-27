@@ -118,6 +118,7 @@ struct match_find_quantizable_ops
 
     static auto dequantizelinear_op(const std::string& scale, const std::string& zp)
     {
+        // TODO: do we need the condition on arg(0)?
         return match::name("dequantizelinear")(
             match::arg(0)(match::skip(match::name("quantizelinear"))(match::any())),
             match::arg(1)(match::skip_broadcasts(match::is_constant().bind(scale))),

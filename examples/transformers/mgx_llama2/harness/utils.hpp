@@ -13,7 +13,6 @@ struct ModelLoadSettings
 {
     size_t sequnce_length;
     bool quantize_fp16;
-    bool offload_copy;
     bool fast_math;
     bool input_one_dim;
 };
@@ -22,11 +21,7 @@ static std::string getModelPath(ModelLoadSettings& s)
 {
     std::stringstream path;
     path << MODEL_FOLDER << "model-" << std::to_string(s.sequnce_length) << "_fp" << (s.quantize_fp16 ? "16" : "32") << "_";
-    if (!s.offload_copy)
-    {
-        path << "no";
-    }
-    path << "offload_";
+    path << "nooffload_";
     if (!s.fast_math)
     {
         path << "no";
@@ -113,9 +108,6 @@ static migraphx::program loadOnnx(ModelLoadSettings& settings)
 
         migraphx::compile_options comp_opts;
 
-        if (settings.offload_copy)
-            comp_opts.set_offload_copy();
-
         if (settings.fast_math)
             comp_opts.set_fast_math();
 
@@ -186,9 +178,6 @@ static migraphx::program create_argmax_program(ModelLoadSettings& settings)
     }
 
     migraphx::compile_options comp_opts;
-
-    if (settings.offload_copy)
-        comp_opts.set_offload_copy();
 
     if (settings.fast_math)
         comp_opts.set_fast_math();

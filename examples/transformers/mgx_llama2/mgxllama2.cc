@@ -16,15 +16,12 @@ struct MGXLlama2
 
         loadPrograms();
 
-        model_inputs = std::make_unique<LLama2Inputs>(*prog, prog_args, offload_copy);
+        model_inputs = std::make_unique<LLama2Inputs>(*prog, prog_args);
         model_inputs->prepareOneDimProgArgs(progSimpleInput, prog_args_one_dim);
-        if (not offload_copy)
-        {
-            model_inputs->upload_to_device(stream);
-            model_inputs->one_dim_input_buffer->upload_to_device(stream);
-        }
+        model_inputs->upload_to_device(stream);
+        model_inputs->one_dim_input_buffer->upload_to_device(stream);
 
-        model_outputs = std::make_unique<LLama2Outputs>(offload_copy);
+        model_outputs = std::make_unique<LLama2Outputs>();
         model_outputs->prepareProgArgs(prog_args,prog_args_one_dim);
         // setting up argmax arguments
         model_outputs->prepareProgArgsArgMax(prog_args_argmax, prog_args_argmax_one_dim);
@@ -64,8 +61,7 @@ struct MGXLlama2
 
     void loadPrograms()
     {
-        std::cout << "Offload copy: " << std::boolalpha << offload_copy << std::endl;
-        ModelLoadSettings settings = {SEQ_SIZE, false /*quantize_fp16*/, offload_copy /*offload_copy*/, false /*fast_math*/, false /*input_one_dim*/};
+        ModelLoadSettings settings = {SEQ_SIZE, false /*quantize_fp16*/, false /*fast_math*/, false /*input_one_dim*/};
         progMultipleInputDim = loadProgram(settings);
         std::cout << "Model loaded" << std::endl;
         progArgMaxMultipleInputDim = create_argmax_program(settings);
@@ -92,14 +88,11 @@ struct MGXLlama2
         {
             bool firstIter = (i == lastInputIdx);
             prog->run_async(firstIter ? prog_args : prog_args_one_dim, stream);
-            auto outputs = progArgMax->run_async(firstIter ? prog_args_argmax : prog_args_argmax_one_dim, stream);
-            if (not offload_copy)
-            {
-                firstIter ? model_outputs->argm_output_buffer->download_from_device(stream, i, i + 1) : model_outputs->argm_output_buffer_one_dim->download_from_device(stream);
-            }
+            progArgMax->run_async(firstIter ? prog_args_argmax : prog_args_argmax_one_dim, stream);
+            firstIter ? model_outputs->argm_output_buffer->download_from_device(stream, i, i + 1) : model_outputs->argm_output_buffer_one_dim->download_from_device(stream);
 
             check_hip_status(hipStreamSynchronize(stream));
-            int64_t* results = offload_copy ? reinterpret_cast<int64_t*>(outputs[0].data()) : reinterpret_cast<int64_t*>( firstIter ? model_outputs->argm_output_buffer->hbuff.data() : model_outputs->argm_output_buffer_one_dim->hbuff.data());
+            int64_t* results = reinterpret_cast<int64_t*>( firstIter ? model_outputs->argm_output_buffer->hbuff.data() : model_outputs->argm_output_buffer_one_dim->hbuff.data());
             auto new_token_idx = firstIter ? i : 0;
             int64_t new_token = results[new_token_idx];
 
@@ -132,7 +125,7 @@ struct MGXLlama2
 
         auto updated = model_inputs->updateData(*prog, prog_args);
 
-        if (updated && not offload_copy)
+        if (updated)
         {
             model_inputs->upload_to_device(stream);
         }
@@ -158,7 +151,6 @@ struct MGXLlama2
     std::vector<std::vector<uint64_t>> results;
     std::vector<uint64_t> output_tokens;
     hipStream_t stream;
-    bool offload_copy = false;
 
     std::unique_ptr<LLama2Inputs> model_inputs;
     std::unique_ptr<LLama2Outputs> model_outputs;

@@ -110,19 +110,16 @@ namespace mlinfer
     struct ManagedBuffer_v2
     {
 
-        explicit ManagedBuffer_v2(std::vector<T>&& host_data, bool with_offload_copy=true): with_offload_copy(with_offload_copy)
+        explicit ManagedBuffer_v2(std::vector<T>&& host_data)
         {
             size_in_bytes = host_data.size() * sizeof(T);
             hbuff = std::move(host_data);
-            if (not with_offload_copy)
-            {
-                dbuff = DeviceBuffer(size_in_bytes, 0);
-            }
+            dbuff = DeviceBuffer(size_in_bytes, 0);
         }
 
         void* data()
         {
-            return with_offload_copy ? static_cast<void*>(hbuff.data()) : dbuff.tensor_ptr;
+            return dbuff.tensor_ptr;
         }
 
         void update(std::vector<T>&& host_data)
@@ -132,7 +129,6 @@ namespace mlinfer
 
         void upload_to_device(hipStream_t stream, size_t start_idx=0, size_t end_idx=0)
         {
-            assert(not with_offload_copy);
             char* src_addr = reinterpret_cast<char*>(hbuff.data());
             char* dst_addr = static_cast<char*>(dbuff.tensor_ptr);
             size_t copy_size_in_bytes = size_in_bytes;
@@ -150,7 +146,6 @@ namespace mlinfer
 
         void download_from_device(hipStream_t stream, size_t start_idx=0, size_t end_idx=0)
         {
-            assert(not with_offload_copy);
             char* src_addr = static_cast<char*>(dbuff.tensor_ptr);
             char* dst_addr = reinterpret_cast<char*>(hbuff.data());
             size_t copy_size_in_bytes = size_in_bytes;
@@ -169,12 +164,9 @@ namespace mlinfer
         void update_data(T data, size_t position, hipStream_t stream)
         {
             hbuff.at(position) = data;
-            if (not with_offload_copy)
-            {
-                // TODO: don't copy over the entire buffer just the changed range
-                // check_hip_status(hipMemcpy(get_device_ptr<void*>(), get_host_ptr<void*>(), dbuff.size_in_bytes, hipMemcpyKind::hipMemcpyHostToDevice));
-                upload_to_device(stream, position, position + 1);
-            }
+            // TODO: don't copy over the entire buffer just the changed range
+            // check_hip_status(hipMemcpy(get_device_ptr<void*>(), get_host_ptr<void*>(), dbuff.size_in_bytes, hipMemcpyKind::hipMemcpyHostToDevice));
+            upload_to_device(stream, position, position + 1);
         }
 
         ManagedBuffer_v2() = delete;
@@ -184,7 +176,6 @@ namespace mlinfer
         DeviceBuffer dbuff;
         std::vector<T> hbuff;
         size_t size_in_bytes;
-        bool with_offload_copy;
     };
 
     using LLama2InputBuffer = ManagedBuffer_v2<int64_t>;

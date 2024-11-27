@@ -3832,11 +3832,11 @@ TEST_CASE(add_dot_add_mul_2)
 {
     migraphx::shape as{migraphx::shape::int8_type, {1, 77, 768}};
     
-    auto s1 = std::make_pair(migraphx::shape{migraphx::shape::int8_type, {1, 768, 768}}, 2);
-    auto s2 = std::make_pair(migraphx::shape{migraphx::shape::int8_type, {1, 77, 768}}, 4);
+    migraphx::shape s1{migraphx::shape::int8_type, {1, 768, 768}};
+    migraphx::shape s2{migraphx::shape::int8_type, {1, 77, 768}};
 
     std::vector<std::pair<migraphx::shape, int>> literals_info = {
-        s2, s2, s2, s1, s2, s1, s2, s1, s2, s2
+        {s2, 2}, {s2, 2}, {s2, 2}, {s1, 4}, {s2, 2}, {s1, 4}, {s2, 2}, {s1, 4}, {s2, 2}, {s2, 2} 
     };
 
     migraphx::module m1;
@@ -3912,11 +3912,11 @@ TEST_CASE(add_dot_add_mul_1)
 {
     migraphx::shape as{migraphx::shape::int8_type, {1, 77, 768}};
 
-    auto s1 = std::make_pair(migraphx::shape{migraphx::shape::int8_type, {1, 768, 768}}, 2);
-    auto s2 = std::make_pair(migraphx::shape{migraphx::shape::int8_type, {1, 77, 768}}, 4);
+    migraphx::shape s1{migraphx::shape::int8_type, {1, 768, 768}};
+    migraphx::shape s2{migraphx::shape::int8_type, {1, 77, 768}};
 
     std::vector<std::pair<migraphx::shape, int>> literals_info = {
-        s1, s2, s1, s2, s1, s2, s2
+        {s1, 2}, {s2, 4}, {s1, 2}, {s2, 4}, {s1, 2}, {s2, 4}, {s2, 2}
     };
 
     migraphx::module m1;

@@ -3915,10 +3915,10 @@ TEST_CASE(add_dot_add_mul_1)
     std::vector<std::pair<migraphx::shape, int>> literals_info = {
         {{migraphx::shape::int8_type, {1, 768, 768}}, 3},
         {{migraphx::shape::int8_type, {1, 77, 768}}, 2},
-        {{migraphx::shape::int8_type, {1, 768, 768}}, 4},
-        {{migraphx::shape::int8_type, {1, 77, 768}}, 3},
-        {{migraphx::shape::int8_type, {1, 768, 768}}, 2},
-        {{migraphx::shape::int8_type, {1, 77, 768}}, 4},
+        {{migraphx::shape::int8_type, {1, 768, 768}}, 3},
+        {{migraphx::shape::int8_type, {1, 77, 768}}, 2},
+        {{migraphx::shape::int8_type, {1, 768, 768}}, 3},
+        {{migraphx::shape::int8_type, {1, 77, 768}}, 2},
         {{migraphx::shape::int8_type, {1, 77, 768}}, 3}
     };
 

@@ -103,8 +103,8 @@ std::vector<pass> target::get_passes(migraphx::context& gctx, const compile_opti
     unsupported_types.erase(shape::type_t::tuple_type);
 
     // whiltelist supported Ops for the FP8 types
-    // different between fp8e4m3fnuz and OCP types because rocBLAS only has
-    // support for fp8e4m3fnuz
+    // different between NANOO and OCP types because rocBLAS only has
+    // support for NANOO
     std::set<std::string> unsupported_fp8e4m3fnuz_ops = {};
     if(not gpu::rocblas_fp8_available())
     {
@@ -171,6 +171,7 @@ std::vector<pass> target::get_passes(migraphx::context& gctx, const compile_opti
         dead_code_elimination{},
         eliminate_identity{},
         dead_code_elimination{},
+        enable_pass(not gpu::gfx_has_fp8ocp_intrinsics(), fp8_ocp_to_nanoo{}),
         simplify_qdq{},
         enable_pass(not mlir_enabled(), rewrite_quantization{}),
         dead_code_elimination{},

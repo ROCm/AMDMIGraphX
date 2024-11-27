@@ -81,12 +81,12 @@ static migraphx::program loadOnnx(ModelLoadSettings& settings)
     if (f.good())
     {
         migraphx::onnx_options onnx_opts;
-        std::vector<std::size_t> dims = {1, SEQ_SIZE};
-        std::vector<std::size_t> dimsPastKey = {1, HIDDEN_LAYERS_NUM, SEQ_SIZE, HEAD_SIZE};
+        std::vector<std::size_t> dims = {BATCH_SIZE, SEQ_SIZE};
+        std::vector<std::size_t> dimsPastKey = {BATCH_SIZE, HIDDEN_LAYERS_NUM, SEQ_SIZE, HEAD_SIZE};
         std::vector<std::size_t> inputDim;
         if (settings.input_one_dim)
         {
-            inputDim = {1,1};
+            inputDim = {BATCH_SIZE,1};
         }
         else
         {
@@ -163,7 +163,7 @@ static migraphx::program loadProgram(ModelLoadSettings& settings)
 static migraphx::program create_argmax_program(ModelLoadSettings& settings)
 {
     migraphx::program prog;
-    std::vector<size_t> dims {1, SEQ_SIZE, VOCAB_SIZE};
+    std::vector<size_t> dims {BATCH_SIZE, SEQ_SIZE, VOCAB_SIZE};
     if (settings.input_one_dim)
     {
         dims[1] = 1;

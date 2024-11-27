@@ -16,26 +16,26 @@ struct LLama2Outputs
     {
         output_buffer = std::make_unique<LLama2PastKeyValueBuffer>(std::vector<half>(OUTPUT_SIZE), offload_copy);
         one_dim_output_buffer = std::make_unique<LLama2PastKeyValueBuffer>(std::vector<half>(VOCAB_SIZE), offload_copy);
-        migraphx::shape out_shape{migraphx_shape_half_type, {1, SEQ_SIZE, VOCAB_SIZE}};
+        migraphx::shape out_shape{migraphx_shape_half_type, {BATCH_SIZE, SEQ_SIZE, VOCAB_SIZE}};
         prog_args.add(OUTPUT_NAME, migraphx::argument(out_shape, output_buffer->data()));
 
-        migraphx::shape x_shape_one_dim{migraphx_shape_half_type, {1, 1, VOCAB_SIZE}};
+        migraphx::shape x_shape_one_dim{migraphx_shape_half_type, {BATCH_SIZE, 1, VOCAB_SIZE}};
         prog_args_one_dim.add(OUTPUT_NAME, migraphx::argument(x_shape_one_dim, one_dim_output_buffer->data()));
     }
 
     void prepareProgArgsArgMax(migraphx::program_parameters& prog_args_argmax, migraphx::program_parameters& prog_args_argmax_one_dim)
     {
         // setting up argmax arguments
-        migraphx::shape x_shape{migraphx_shape_half_type, {1, SEQ_SIZE, VOCAB_SIZE}};
+        migraphx::shape x_shape{migraphx_shape_half_type, {BATCH_SIZE, SEQ_SIZE, VOCAB_SIZE}};
         prog_args_argmax.add("x", migraphx::argument(x_shape, output_buffer->data()));
         argm_output_buffer = std::make_unique<ArgMaxOutputBuffer>(std::vector<int64_t>(VOCAB_SIZE), offload_copy);
-        migraphx::shape argm_out_shape{migraphx_shape_int64_type, {1, SEQ_SIZE, 1}};
+        migraphx::shape argm_out_shape{migraphx_shape_int64_type, {BATCH_SIZE, SEQ_SIZE, 1}};
         prog_args_argmax.add(OUTPUT_NAME, migraphx::argument(argm_out_shape, argm_output_buffer->data()));
 
-        migraphx::shape x_shape_one_dim{migraphx_shape_half_type, {1, 1, VOCAB_SIZE}};
+        migraphx::shape x_shape_one_dim{migraphx_shape_half_type, {BATCH_SIZE, 1, VOCAB_SIZE}};
         prog_args_argmax_one_dim.add("x", migraphx::argument(x_shape_one_dim, one_dim_output_buffer->data()));
         argm_output_buffer_one_dim = std::make_unique<ArgMaxOutputBuffer>(std::vector<int64_t>(1), offload_copy);
-        migraphx::shape argm_out_shape_one_dim{migraphx_shape_int64_type, {1, 1, 1}};
+        migraphx::shape argm_out_shape_one_dim{migraphx_shape_int64_type, {BATCH_SIZE, 1, 1}};
         prog_args_argmax_one_dim.add(OUTPUT_NAME, migraphx::argument(argm_out_shape_one_dim, argm_output_buffer_one_dim->data()));
     }
 
@@ -51,5 +51,5 @@ struct LLama2Outputs
     bool offload_copy = false;
 
     const char* OUTPUT_NAME = "main:#output_0";
-    const size_t OUTPUT_SIZE = SEQ_SIZE * VOCAB_SIZE;
+    const size_t OUTPUT_SIZE = BATCH_SIZE * SEQ_SIZE * VOCAB_SIZE;
 };

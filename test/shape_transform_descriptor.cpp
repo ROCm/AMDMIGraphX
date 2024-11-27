@@ -188,7 +188,7 @@ TEST_CASE(record_reshape_squeeze_trailing_1s)
                                 make_op("reshape", {{"dims", {3, 4, 4}}}));
     EXPECT(get_final_lens(desc) == final_lens{3, 4, 4});
     EXPECT(get_all_lens(desc) == all_lens{{3}, {4}, {4}});
-    EXPECT(get_all_axes(desc) == all_axes{d_axes{{0}}, d_axes{{1}}, d_axes{{2, 0}}});
+    EXPECT(get_all_axes(desc) == all_axes{d_axes{{0}}, d_axes{{1}}, d_axes{{2}}});
 }
 
 TEST_CASE(record_reshape_non_divisible_fail)

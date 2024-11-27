@@ -208,10 +208,7 @@ bool shape_transform_descriptor::apply_reshape_impl(const std::vector<std::size_
             r += n;
             transform(range(n + 1), std::back_inserter(new_dims), [&](auto j) -> dimension {
                 auto new_sub = sub;
-                if(not new_sub.axis.empty())
-                    new_sub.axis.push_back(j);
-                if(not new_sub.hidden_axis.empty())
-                    new_sub.hidden_axis.push_back(j);
+                new_sub.add_split_axis(j);
                 new_sub.len = start[j];
                 return {{new_sub}};
             });
@@ -228,14 +225,13 @@ bool shape_transform_descriptor::apply_reshape_impl(const std::vector<std::size_
         auto trailing_dims = range(rdims.begin() + new_dims.size(), rdims.end());
         if(any_of(trailing_dims, [](auto d) { return d != 1; }))
             return false;
+        if(distance(trailing_dims) > 1)
+            sub->add_split_axis(0);
         transform(range(distance(trailing_dims)),
                   std::back_inserter(new_dims),
                   [&](std::size_t j) -> dimension {
                       dimension::sub s{1, axis};
-                      if(not s.axis.empty())
-                          s.axis.push_back(j + 1);
-                      if(not s.hidden_axis.empty())
-                          s.hidden_axis.push_back(j + 1);
+                      s.add_split_axis(j + 1);
                       return {{s}};
                   });
     }
@@ -940,6 +936,14 @@ const std::vector<std::size_t>& shape_transform_descriptor::dimension::sub::orig
 bool shape_transform_descriptor::dimension::sub::has_hidden_axis() const
 {
     return axis.empty() and not hidden_axis.empty();
+}
+
+void shape_transform_descriptor::dimension::sub::add_split_axis(std::size_t i)
+{
+    if(not axis.empty())
+        axis.push_back(i);
+    if(not hidden_axis.empty())
+        hidden_axis.push_back(i);
 }
 
 bool operator==(const dimension::sub& x, const dimension::sub& y)

@@ -103,6 +103,8 @@ struct MIGRAPHX_EXPORT shape_transform_descriptor
             const std::vector<std::size_t>& origin_axis() const;
             bool has_hidden_axis() const;
 
+            void add_split_axis(std::size_t i);
+
             MIGRAPHX_EXPORT friend bool operator==(const sub& x, const sub& y);
             MIGRAPHX_EXPORT friend bool operator!=(const sub& x, const sub& y);
             MIGRAPHX_EXPORT friend std::ostream& operator<<(std::ostream& os, const sub& x);

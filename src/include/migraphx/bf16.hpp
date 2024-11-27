@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2023 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2024 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -21,28 +21,17 @@
  * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
  * THE SOFTWARE.
  */
-#ifndef MIGRAPHX_GUARD_RTGLIB_QUANTIZE_FP16_HPP
-#define MIGRAPHX_GUARD_RTGLIB_QUANTIZE_FP16_HPP
 
-#include <string>
-#include <vector>
+#ifndef MIGRAPHX_GUARD_RTGLIB_BF16_HPP
+#define MIGRAPHX_GUARD_RTGLIB_BF16_HPP
+
+#include <migraphx/generic_float.hpp>
 #include <migraphx/config.hpp>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
 
-struct program;
-struct module;
-
-/**
- * quantize a program to fp16
- */
-struct MIGRAPHX_EXPORT quantize_fp16_pass
-{
-    std::vector<std::string> ins_names = {"all"};
-    std::string name() const { return "quantize_fp16"; }
-    void apply(module& m) const;
-};
+using bf16 = migraphx::generic_float<7, 8>;
 
 } // namespace MIGRAPHX_INLINE_NS
 } // namespace migraphx

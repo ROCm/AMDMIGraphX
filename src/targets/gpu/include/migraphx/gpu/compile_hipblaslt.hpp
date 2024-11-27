@@ -21,27 +21,57 @@
  * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
  * THE SOFTWARE.
  */
-#ifndef MIGRAPHX_GUARD_MIGRAPHX_LAYOUT_NHWC_HPP
-#define MIGRAPHX_GUARD_MIGRAPHX_LAYOUT_NHWC_HPP
+#ifndef MIGRAPHX_GUARD_GPU_COMPILE_HIPBLASLT_HPP
+#define MIGRAPHX_GUARD_GPU_COMPILE_HIPBLASLT_HPP
 
-#include <string>
-#include <migraphx/instruction_ref.hpp>
 #include <migraphx/config.hpp>
+#include <migraphx/instruction_ref.hpp>
+#include <migraphx/op/identity.hpp>
+#include <migraphx/register_op.hpp>
+#include <string>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
 
-struct module_pass_manager;
+struct module;
+struct context;
+struct operation;
 
-/**
- * Transform convolutions to nhwc
- */
-struct MIGRAPHX_EXPORT layout_nhwc
+namespace gpu {
+
+struct hipblaslt_op
 {
-    std::string name() const { return "layout_nhwc"; }
-    void apply(module_pass_manager& mpm) const;
+    operation op = op::identity{};
+
+    template <class Self, class F>
+    static auto reflect(Self& self, F f)
+    {
+        return pack(f(self.op, "op"));
+    }
+
+    std::string name() const { return "gpu::hipblaslt_op"; }
+
+    shape compute_shape(std::vector<shape> inputs) const
+    {
+        inputs.push_back(inputs.back());
+        return op.compute_shape(inputs);
+    }
+
+    std::ptrdiff_t output_alias(const std::vector<shape>& shapes) const
+    {
+        return shapes.size() - 1;
+    }
+};
+MIGRAPHX_REGISTER_OP(hipblaslt_op);
+
+struct compile_hipblaslt
+{
+    context* ctx = nullptr;
+    std::string name() const { return "gpu::compile_hipblaslt"; }
+    void apply(module& m) const;
 };
 
+} // namespace gpu
 } // namespace MIGRAPHX_INLINE_NS
 } // namespace migraphx
-#endif // MIGRAPHX_GUARD_MIGRAPHX_LAYOUT_NHWC_HPP
+#endif // MIGRAPHX_GUARD_GPU_COMPILE_HIPBLASLT_HPP

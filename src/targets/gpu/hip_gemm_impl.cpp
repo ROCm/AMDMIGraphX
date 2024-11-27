@@ -70,14 +70,21 @@ hipDataType get_type_hipblas(shape::type_t type)
     case shape::int32_type: return HIP_R_32I;
     case shape::uint32_type: return HIP_R_32U;
     case shape::fp8e4m3fnuz_type: return HIP_R_8F_E4M3_FNUZ;
+// TODO can remove this preprocessor conditional when hip verison defaults to have these types
+#ifdef ROCM_USE_FLOAT8
+    case shape::fp8e4m3fn_type: return HIP_R_8F_E4M3;
+    case shape::fp8e5m2_type: return HIP_R_8F_E5M2;
+#else
     case shape::fp8e4m3fn_type:
     case shape::fp8e5m2_type:
+#endif
     case shape::tuple_type:
     case shape::bool_type:
     case shape::uint16_type:
     case shape::int16_type:
     case shape::int64_type:
     case shape::uint64_type: MIGRAPHX_THROW("HIPBLAS_GEMM: data type not supported!");
+    case shape::bf16_type: return HIP_R_16BF;
     }
 
     MIGRAPHX_THROW("HIPBLAS_GEMM: data type not supported!");
@@ -393,7 +400,8 @@ struct hip_gemm_impl
                                       const std::vector<argument>& args,
                                       int32_t solution_idx)
     {
-        auto* algo = &solution.get_result(ctx, *this, solution_idx)[0].algo;
+        auto* algo            = &solution.get_result(ctx, *this, solution_idx)[0].algo;
+        size_t workspace_size = ((is_3inputs ? args[3] : args[2]).get_shape()).bytes();
         return pack(ctx.get_stream().get_hipblaslt(),
                     hipblaslt_desc,
                     get_alpha(),                                  // alpha
@@ -408,7 +416,7 @@ struct hip_gemm_impl
                     is_3inputs ? mat_d : mat_c,                   // Ddesc
                     algo,                                         // algo
                     is_3inputs ? args[3].data() : args[2].data(), // workspace
-                    algo->max_workspace_bytes,                    // workspaceSizeInBytes
+                    workspace_size,                               // workspaceSizeInBytes
                     ctx.get_stream().get()                        // stream
         );
     }
@@ -462,15 +470,61 @@ struct hip_gemm_impl
     int32_t
     validate(context& ctx, const std::vector<argument>& input_args, int32_t solution_idx) // const
     {
-        hipblasStatus_t check_valid(HIPBLAS_STATUS_SUCCESS);
         auto common_args = create_hipblaslt_args_common(ctx, input_args, solution_idx);
-        check_valid      = hipblaslt_invoke(&hipblasLtMatmul, common_args);
-        if(check_valid == HIPBLAS_STATUS_SUCCESS)
+        auto check_valid = hipblaslt_invoke(&hipblasLtMatmul, common_args, false);
+        if(check_valid != HIPBLAS_STATUS_SUCCESS)
         {
             std::cerr << "WARNING:  tuned solution is invalid; reverting to default" << std::endl;
             return 0;
         }
         return solution_idx;
+    }
+
+    /**
+     * Get workspace size for the solution index:  Gets algo from the solution index,
+     * and calls matmulIsAlgoSupported() to get the workspace size.
+     */
+
+    size_t get_workspace_size(context& ctx,
+                              const std::vector<shape>& input_shapes,
+                              int32_t solution_idx) const
+    {
+        size_t workspace_size = hipblaslt_workspace_size;
+        std::vector<argument> input_args;
+        std::transform(input_shapes.begin(),
+                       input_shapes.end(),
+                       std::back_inserter(input_args),
+                       [](const shape& x) { return to_gpu(generate_argument(x)); });
+
+        std::vector<int32_t> algo_index = {solution_idx};
+        std::vector<hipblasLtMatmulHeuristicResult_t> heuristic_result;
+
+        hipblaslt_invoke([&]() {
+            return hipblaslt_ext::getAlgosFromIndex(
+                ctx.get_stream().get_hipblaslt(), algo_index, heuristic_result);
+        });
+        assert(heuristic_result.size() == 1);
+
+        auto algo                 = heuristic_result[0].algo;
+        size_t ret_workspace_size = 0;
+        auto supporting_args =
+            create_hipblaslt_supporting_args_common(ctx, input_args, algo, ret_workspace_size);
+
+        auto status =
+            hipblaslt_invoke(&hipblaslt_ext::matmulIsAlgoSupported, supporting_args, false);
+
+        // If algo is supported, update the workspace size to the actual size needed.
+        // Otherwise, use the default workspace size.
+        if(status == HIPBLAS_STATUS_SUCCESS)
+        {
+            // TODO: Remove this check once issues with '0' workspace size are resolved.
+            // Temporarily, we use the approach where, if the returned workspace size is '0',
+            // we use the default workspace size.
+            // Otherwise, we use the returned workspace size.
+            if(ret_workspace_size != 0)
+                workspace_size = ret_workspace_size;
+        }
+        return workspace_size;
     }
 
     /**
@@ -526,6 +580,13 @@ struct hip_gemm_impl
 
         // Initialize to default solution index
         int32_t best_sol = 0;
+        // If no valid/supported solution is returned, use hipblasLtMatmulAlgoGetHeuristic
+        // to get an algo and use solution index from that algo.
+        if(solution_indices.empty())
+        {
+            auto algo = solution.get_result(ctx, *this, 0)[0].algo;
+            solution_indices.push_back(hipblaslt_ext::getIndexFromAlgo(algo));
+        }
         for(auto sol : solution_indices)
         {
             // Warmup: the first call to an op. may not be representative since there is
@@ -633,10 +694,19 @@ int32_t hip_gemm_finalize(context& ctx,
                           float beta,
                           int32_t solution_idx)
 {
-    auto gemm_item   = hip_gemm_impl(output_shape, input_shapes, alpha, beta);
-    int32_t solution = gemm_item.tune(ctx, input_shapes);
-    hip_gemm_save_solution(ctx, output_shape, input_shapes, solution_idx);
-    return solution;
+    auto gemm_item = hip_gemm_impl(output_shape, input_shapes, alpha, beta);
+    if(solution_idx == 0)
+    {
+        solution_idx = gemm_item.tune(ctx, input_shapes);
+        hip_gemm_save_solution(ctx, output_shape, input_shapes, solution_idx);
+    }
+    // If a tuned solution index is already given, don't tune again but validate
+    // in case the data was tuned with a different hipBLASLt version.
+    else
+    {
+        solution_idx = gemm_item.validate(ctx, input_shapes, solution_idx);
+    }
+    return solution_idx;
 }
 
 int32_t hip_gemm_default_solution(context& ctx,
@@ -648,6 +718,17 @@ int32_t hip_gemm_default_solution(context& ctx,
     if(sol.has_value())
         return sol->to<int32_t>();
     return 0;
+}
+
+size_t hip_gemm_workspace_size(context& ctx,
+                               const shape& output_shape,
+                               const std::vector<shape>& input_shapes,
+                               float alpha,
+                               float beta,
+                               int32_t solution_idx)
+{
+    auto gemm_item = hip_gemm_impl(output_shape, input_shapes, alpha, beta);
+    return gemm_item.get_workspace_size(ctx, input_shapes, solution_idx);
 }
 
 } // namespace gpu

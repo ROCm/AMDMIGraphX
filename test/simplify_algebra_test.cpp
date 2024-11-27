@@ -1036,6 +1036,32 @@ TEST_CASE(simplify_add_conv_no_fusion_asymetrical_strides2)
                m.begin(), m.end(), [](auto&& ins) { return ins.name() == "convolution"; }) == 2);
 }
 
+TEST_CASE(simplify_concat_unpack_int4)
+{
+    auto s = migraphx::shape{migraphx::shape::int8_type, {11008, 2048}};
+    migraphx::module m1;
+    {
+        auto x       = m1.add_parameter("x", s);
+        auto y       = m1.add_parameter("y", s);
+        auto unpack1 = m1.add_instruction(migraphx::make_op("unpack_int4"), x);
+        auto unpack2 = m1.add_instruction(migraphx::make_op("unpack_int4"), y);
+        auto concat =
+            m1.add_instruction(migraphx::make_op("concat", {{"axis", 0}}), unpack1, unpack2);
+        m1.add_return({concat});
+    }
+    run_pass(m1);
+
+    migraphx::module m2;
+    {
+        auto x      = m2.add_parameter("x", s);
+        auto y      = m2.add_parameter("y", s);
+        auto concat = m2.add_instruction(migraphx::make_op("concat", {{"axis", 0}}), x, y);
+        auto unpack = m2.add_instruction(migraphx::make_op("unpack_int4"), concat);
+        m2.add_return({unpack});
+    }
+    EXPECT(m1 == m2);
+}
+
 TEST_CASE(simplify_concat_add_relu)
 {
     auto s = migraphx::shape{migraphx::shape::int32_type, {1}};
@@ -1214,6 +1240,37 @@ TEST_CASE(simplify_concat_add_relu_broadcast_same_axis)
         auto sum     = m2.add_instruction(migraphx::make_op("add"), concat1, concat2);
         auto relu    = m2.add_instruction(migraphx::make_op("relu"), sum);
         m2.add_instruction(pass_op{}, relu);
+    }
+    EXPECT(m1 == m2);
+}
+
+TEST_CASE(simplify_concat_clip)
+{
+    auto s = migraphx::shape{migraphx::shape::int32_type, {1}};
+    migraphx::module m1;
+    {
+        auto x      = m1.add_parameter("x", s);
+        auto y      = m1.add_parameter("y", s);
+        auto min    = m1.add_literal({s, {0}});
+        auto max    = m1.add_literal({s, {10}});
+        auto clip1  = m1.add_instruction(migraphx::make_op("clip"), x, min, max);
+        auto clip2  = m1.add_instruction(migraphx::make_op("clip"), y, min, max);
+        auto concat = m1.add_instruction(migraphx::make_op("concat", {{"axis", 0}}), clip1, clip2);
+        m1.add_instruction(pass_op{}, concat);
+    }
+    run_pass(m1);
+
+    migraphx::module m2;
+    {
+        auto x       = m2.add_parameter("x", s);
+        auto y       = m2.add_parameter("y", s);
+        auto min     = m2.add_literal({s, {0}});
+        auto max     = m2.add_literal({s, {10}});
+        auto concat1 = m2.add_instruction(migraphx::make_op("concat", {{"axis", 0}}), x, y);
+        auto concat2 = m2.add_instruction(migraphx::make_op("concat", {{"axis", 0}}), min, min);
+        auto concat3 = m2.add_instruction(migraphx::make_op("concat", {{"axis", 0}}), max, max);
+        auto clip    = m2.add_instruction(migraphx::make_op("clip"), concat1, concat2, concat3);
+        m2.add_instruction(pass_op{}, clip);
     }
     EXPECT(m1 == m2);
 }
@@ -3959,6 +4016,72 @@ TEST_CASE(mul_dot_b_not_k_broadcast)
         auto a   = m1.add_literal(migraphx::generate_literal(as));
         auto dot = m1.add_instruction(migraphx::make_op("dot"), a, mul);
 
+        m1.add_return({dot});
+    };
+    migraphx::module m2 = m1;
+    run_pass(m1);
+
+    EXPECT(m1.sort() == m2.sort());
+}
+
+TEST_CASE(mul_dot_a_int4_dq)
+{
+    migraphx::shape as{migraphx::shape::float_type, {1, 32, 4096}};
+    migraphx::shape bs{migraphx::shape::int8_type, {22016, 2048}};
+    migraphx::shape cs{migraphx::shape::float_type, {22016, 4096}};
+    migraphx::module m1;
+    {
+        auto a = m1.add_parameter("input", as);
+
+        auto lit =
+            m1.add_literal(migraphx::generate_literal({migraphx::shape::float_type, {4096}}));
+        auto litb = m1.add_instruction(
+            migraphx::make_op("broadcast", {{"axis", 2}, {"out_lens", as.lens()}}), lit);
+        auto mul = m1.add_instruction(migraphx::make_op("mul"), a, litb);
+
+        auto b         = m1.add_literal(migraphx::generate_literal(bs));
+        auto unpack    = m1.add_instruction(migraphx::make_op("unpack_int4"), b);
+        auto scales    = m1.add_literal(migraphx::generate_literal(cs));
+        auto dq        = m1.add_instruction(migraphx::make_op("dequantizelinear"), unpack, scales);
+        auto unsqueeze = m1.add_instruction(migraphx::make_op("unsqueeze", {{"axes", {0}}}), dq);
+        auto transpose = m1.add_instruction(
+            migraphx::make_op("transpose", {{"permutation", {0, 2, 1}}}), unsqueeze);
+        auto dot = m1.add_instruction(migraphx::make_op("dot"), mul, transpose);
+        m1.add_return({dot});
+    };
+    migraphx::module m2 = m1;
+    run_pass(m1);
+
+    EXPECT(m1.sort() == m2.sort());
+}
+
+TEST_CASE(mul_dot_a_int4_dq_concat)
+{
+    migraphx::shape as{migraphx::shape::float_type, {1, 32, 4096}};
+    migraphx::shape bs{migraphx::shape::int8_type, {4096, 5504}};
+    migraphx::shape cs{migraphx::shape::float_type, {4096, 11008}};
+    migraphx::module m1;
+    {
+        auto a = m1.add_parameter("input", as);
+
+        auto lit =
+            m1.add_literal(migraphx::generate_literal({migraphx::shape::float_type, {4096}}));
+        auto litb = m1.add_instruction(
+            migraphx::make_op("broadcast", {{"axis", 2}, {"out_lens", as.lens()}}), lit);
+        auto mul = m1.add_instruction(migraphx::make_op("mul"), a, litb);
+
+        std::vector<migraphx::instruction_ref> concats;
+        for(int i = 0; i < 2; i++)
+        {
+            auto b      = m1.add_literal(migraphx::generate_literal(bs));
+            auto unpack = m1.add_instruction(migraphx::make_op("unpack_int4"), b);
+            auto scales = m1.add_literal(migraphx::generate_literal(cs));
+            auto dq     = m1.add_instruction(migraphx::make_op("dequantizelinear"), unpack, scales);
+            concats.push_back(
+                m1.add_instruction(migraphx::make_op("unsqueeze", {{"axes", {0}}}), dq));
+        }
+        auto concat = m1.add_instruction(migraphx::make_op("concat", {{"axis", 2}}), concats);
+        auto dot    = m1.add_instruction(migraphx::make_op("dot"), mul, concat);
         m1.add_return({dot});
     };
     migraphx::module m2 = m1;

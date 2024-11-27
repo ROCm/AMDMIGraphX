@@ -209,11 +209,8 @@ TEST_CASE(compile_warnings)
     EXPECT(not compile({"-Wunused-parameter", "-Wno-error"}).empty());
     EXPECT(not compile({"-Wno-unused-parameter", "-Werror"}).empty());
 #ifdef MIGRAPHX_USE_HIPRTC
-    if(not migraphx::enabled(migraphx::gpu::MIGRAPHX_ENABLE_HIPRTC_WORKAROUNDS{}))
-    {
-        EXPECT(test::throws([&] { compile({"-Werror=unused-parameter"}); }));
-        EXPECT(test::throws([&] { compile({"-Wunused-parameter", "-Werror"}); }));
-    }
+    EXPECT(test::throws([&] { compile({"-Werror=unused-parameter"}); }));
+    EXPECT(test::throws([&] { compile({"-Wunused-parameter", "-Werror"}); }));
 #else
     EXPECT(test::throws([&] { compile({"-Werror=unused-parameter"}); }));
     EXPECT(test::throws([&] { compile({"-Wunused-parameter", "-Werror"}); }));
@@ -350,7 +347,10 @@ TEST_CASE(compile_math)
     auto vec_sizes = {2, 4, 6};
     for(auto&& t : migraphx::shape::types())
     {
-        if(contains({migraphx::shape::bool_type, migraphx::shape::tuple_type}, t))
+        if(contains({migraphx::shape::bool_type,
+                     migraphx::shape::tuple_type,
+                     migraphx::shape::bf16_type},
+                    t))
             continue;
         auto name = migraphx::shape::cpp_type(t);
         if(t == migraphx::shape::half_type)
@@ -407,7 +407,8 @@ TEST_CASE(assert_type_min_max)
     {
         if(contains({migraphx::shape::bool_type,
                      migraphx::shape::fp8e4m3fnuz_type,
-                     migraphx::shape::tuple_type},
+                     migraphx::shape::tuple_type,
+                     migraphx::shape::bf16_type},
                     t))
             continue;
         auto name = migraphx::shape::cpp_type(t);

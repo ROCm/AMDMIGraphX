@@ -410,8 +410,8 @@ TEST_CASE(reduce_reduce_unfusable_broadcast)
         auto rsum  = mm->add_instruction(migraphx::make_op("reduce_sum", {{"axes", {2}}}), x);
         auto rsumb = mm->add_instruction(
             migraphx::make_op("multibroadcast", {{"out_lens", {2, 4, 3}}}), rsum);
-        auto xb = mm->add_instruction(
-            migraphx::make_op("multibroadcast", {{"out_lens", {2, 4, 3}}}), x);
+        auto xb =
+            mm->add_instruction(migraphx::make_op("multibroadcast", {{"out_lens", {2, 4, 3}}}), x);
         auto rsumdiff = add_pointwise(p1, "main:pointwise0", {rsumb, xb}, single_pointwise("sub"));
         auto rsum2 =
             mm->add_instruction(migraphx::make_op("reduce_sum", {{"axes", {2}}}), rsumdiff);
@@ -424,19 +424,15 @@ TEST_CASE(reduce_reduce_unfusable_broadcast)
         auto* mm  = p2.get_main_module();
         auto x    = mm->add_parameter("x", s);
         auto rsum = add_reduce(
-            p2,
-            "main:reduce_sum0",
-            {x},
-            {2},
-            [&](auto* rm, const auto& inputs, const auto& axes) {
+            p2, "main:reduce_sum0", {x}, {2}, [&](auto* rm, const auto& inputs, const auto& axes) {
                 return rm->add_instruction(migraphx::make_op("reduce_sum", {{"axes", axes}}),
-                                                inputs[0]);
+                                           inputs[0]);
             });
 
         auto rsumb = mm->add_instruction(
             migraphx::make_op("multibroadcast", {{"out_lens", {2, 4, 3}}}), rsum);
-        auto xb = mm->add_instruction(
-            migraphx::make_op("multibroadcast", {{"out_lens", {2, 4, 3}}}), x);
+        auto xb =
+            mm->add_instruction(migraphx::make_op("multibroadcast", {{"out_lens", {2, 4, 3}}}), x);
 
         auto sqrt = add_reduce(
             p2,

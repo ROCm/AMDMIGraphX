@@ -417,10 +417,9 @@ auto fusable_split(const std::string& name)
     return match::make_basic_pred_matcher([&](instruction_ref ins) {
         return all_of(ins->outputs(), [&](instruction_ref slice) {
             if(slice->name() != "slice")
-                return false;
+                return true;
             return any_of(slice->outputs(), [&](instruction_ref x) {
-                if (x->name() == name)
-                    return true;
+                return x->name() == name;
             });
         });
     });

@@ -53,24 +53,26 @@ struct find_dot
         if(rows > 2)
             return;
 
+        std::vector<int64_t> permutation(ndim);
+        std::iota(permutation.begin(), permutation.end(), 0);
+        std::swap(permutation.back(), permutation.at(ndim - 2));
+
         // If the b matrix is const foldable then make sure its a transposed layout unless its
         // broadcasting
         if(b_mat->can_eval() and not b_shape.transposed())
         {
-            std::vector<int64_t> permutation(ndim);
-            std::iota(permutation.begin(), permutation.end(), 0);
-            std::swap(permutation.back(), permutation.at(ndim - 2));
             b_mat =
                 m.insert_instruction(ins, make_op("layout", {{"permutation", permutation}}), b_mat);
         }
 
         auto a_unsqueeze =
-            m.insert_instruction(ins, make_op("unsqueeze", {{"axes", {ndim}}}), a_mat);
+            m.insert_instruction(ins, make_op("unsqueeze", {{"axes", {ndim - 1}}}), a_mat);
+        auto b_transpose = m.insert_instruction(ins, make_op("transpose", {{"permutation", permutation}}), b_mat);
         auto b_unsqueeze =
-            m.insert_instruction(ins, make_op("unsqueeze", {{"axes", {ndim - 2}}}), b_mat);
+            m.insert_instruction(ins, make_op("unsqueeze", {{"axes", {ndim - 2}}}), b_transpose);
         auto mul    = insert_common_op(m, ins, make_op("mul"), {a_unsqueeze, b_unsqueeze});
-        auto reduce = m.insert_instruction(ins, make_op("reduce_sum", {{"axes", {ndim - 1}}}), mul);
-        m.replace_instruction(ins, make_op("squeeze", {{"axes", {ndim - 1}}}), reduce);
+        auto reduce = m.insert_instruction(ins, make_op("reduce_sum", {{"axes", {ndim}}}), mul);
+        m.replace_instruction(ins, make_op("squeeze", {{"axes", {ndim}}}), reduce);
     }
 };
 

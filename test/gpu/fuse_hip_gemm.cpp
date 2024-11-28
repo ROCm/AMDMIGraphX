@@ -21,7 +21,7 @@
  * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
  * THE SOFTWARE.
  */
-#if MIGRAPHX_USE_HIPBLASLT
+
 #include <basic_ops.hpp>
 #include <migraphx/auto_contiguous.hpp>
 #include <migraphx/dead_code_elimination.hpp>
@@ -55,6 +55,7 @@ void run_fuse_ops(migraphx::program& p)
     migraphx::run_passes(p, {migraphx::gpu::fuse_ops{}, migraphx::dead_code_elimination{}});
 }
 
+#if MIGRAPHX_USE_HIPBLASLT
 TEST_CASE(hip_gemm_pointwise_add)
 {
     migraphx::shape s{migraphx::shape::float_type, {1, 3, 3}};

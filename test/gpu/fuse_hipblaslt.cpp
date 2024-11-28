@@ -40,7 +40,6 @@
 #include <pointwise.hpp>
 #include <test.hpp>
 
-
 MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_ENABLE_HIPBLASLT_GEMM)
 
 void run_lowering(migraphx::program& p, bool offload_copy = false)

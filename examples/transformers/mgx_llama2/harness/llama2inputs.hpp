@@ -62,7 +62,7 @@ struct LLama2Inputs
         prepareProgArgs(prog, prog_args, true);
         auto param_shapes = prog.get_parameter_shapes();
         auto inputShape = param_shapes[INPUTS_ID_STR];
-        std::vector<int64_t> oneDimInput = {0};
+        std::vector<int64_t> oneDimInput(BATCH_SIZE, 0);
         one_dim_input_buffer = std::make_unique<LLama2InputBuffer>(std::move(oneDimInput));
         prog_args.add(INPUTS_ID_STR, migraphx::argument(inputShape, one_dim_input_buffer->data()));
     }
@@ -75,8 +75,8 @@ struct LLama2Inputs
 
     bool updateData(migraphx::program& prog, migraphx::program_parameters& prog_args)
     {
-        auto currentIdx = data.currentIdx();
-        if (currentIdx != data.getNext())
+        auto batchIdx = data.currentBatchIdx();
+        if (batchIdx != data.getNext())
         {
             auto param_shapes = prog.get_parameter_shapes();
 
@@ -103,8 +103,9 @@ struct LLama2Inputs
         }
     }
 
-    size_t getLastInputIndex() const { return data.getLastIdx(); }
+    size_t getLastInputIndex(int current_batch_idx) const { return data.getLastIdx(current_batch_idx); }
     size_t dataSize() const { return data.size(); }
+    size_t batchNum() const { return data.batchNum(); }
 
     LLama2Inputs() = delete;
     LLama2Inputs(const LLama2Inputs &buf) = delete;

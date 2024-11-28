@@ -15,13 +15,14 @@ struct ModelLoadSettings
     bool quantize_fp16;
     bool fast_math;
     bool input_one_dim;
+    size_t batch_size;
 };
 
 static std::string getModelPath(ModelLoadSettings& s)
 {
     std::stringstream path;
     path << MODEL_FOLDER << "model-" << std::to_string(s.sequnce_length) << "_fp" << (s.quantize_fp16 ? "16" : "32") << "_";
-    path << "nooffload_";
+    path << "batch_" << std::to_string(s.batch_size) << "_";
     if (!s.fast_math)
     {
         path << "no";

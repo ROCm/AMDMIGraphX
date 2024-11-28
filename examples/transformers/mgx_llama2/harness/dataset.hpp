@@ -51,31 +51,56 @@ struct Dataset
         return numpyData;
     }
 
-    size_t getLastIdx() const
+    size_t getLastIdx(int current_batch_idx) const
     {
-        auto res = std::find_if(std::rbegin(attention_mask[_current_idx]), std::rend(attention_mask[_current_idx]), [](uint64_t val) { return 1 == val;});
-        size_t last_idx = std::distance(res, std::rend(attention_mask[_current_idx]));
+        auto idx = _current_batch * BATCH_SIZE + current_batch_idx;
+        auto res = std::find_if(std::rbegin(attention_mask[idx]), std::rend(attention_mask[idx]), [](uint64_t val) { return 1 == val;});
+        size_t last_idx = std::distance(res, std::rend(attention_mask[idx]));
         #ifdef TRACE
         std::cout << "Last input idx: " << last_idx << std::endl;
         #endif
         return last_idx;
     }
 
-    std::vector<int64_t> getInputIds() { return input_ids[_current_idx]; }
-    std::vector<int64_t> getAttentionMask() { return attention_mask[_current_idx]; }
+    std::vector<int64_t> getInputIds()
+    {
+        std::vector<int64_t> inputIdsBatch;
+        inputIdsBatch.reserve(SEQ_SIZE*BATCH_SIZE);
+        for (size_t i = 0; i < BATCH_SIZE; ++i)
+        {
+            auto inputVec = input_ids[BATCH_SIZE*_current_batch + i];
+            std::copy(inputVec.begin(), inputVec.end(), std::back_inserter(inputIdsBatch));
+        }
+        return inputIdsBatch;
+    }
+
+    std::vector<int64_t> getAttentionMask()
+    {
+        std::vector<int64_t> attentionMaskBatch;
+        attentionMaskBatch.reserve(SEQ_SIZE*BATCH_SIZE);
+        for (size_t i = 0; i < BATCH_SIZE; ++i)
+        {
+            auto attVec = attention_mask[BATCH_SIZE*_current_batch + i];
+            std::copy(attVec.begin(), attVec.end(), std::back_inserter(attentionMaskBatch));
+        }
+        return attentionMaskBatch;
+    }
 
     size_t size() const { return _size; }
-    size_t currentIdx() const { return _current_idx; }
+    size_t currentBatchIdx() const { return _current_batch; }
+    size_t batchNum() const {
+        return _size / BATCH_SIZE + (_size % BATCH_SIZE != 0);
+    }
     size_t getNext()
     {
-        if (_current_idx < size() - 1)
+        if (_current_batch < batchNum() - 1)
         {
-            ++_current_idx;
+            ++_current_batch;
         }
         #ifdef TRACE
-        std::cout << "Current idx: " << _current_idx << std::endl;
+        std::cout << "Current batch: " << _current_batch << std::endl;
         #endif
-        return _current_idx;
+        return _current_batch;
     }
 
     Dataset(const Dataset &buf) = delete;
@@ -144,6 +169,6 @@ private:
     NumpyVector attention_mask;
 
     size_t _size = 0;
-    size_t _current_idx = 0;
+    size_t _current_batch = 0;
     bool _npy_files_loaded = false;
 };

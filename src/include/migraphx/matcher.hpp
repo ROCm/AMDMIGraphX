@@ -378,6 +378,12 @@ matcher_result match_instruction(module& mod, instruction_ref ins, M&& m)
     return result;
 }
 
+template <class M>
+bool instruction_matches(module& mod, instruction_ref ins, M&& m)
+{
+    return match_instruction(mod, ins, std::forward<M&&>(m)).result != mod.end();
+}
+
 /// Find first instance of a matching instruction in a module
 template <class M>
 match::matcher_result find_match(module& modl, M&& m)

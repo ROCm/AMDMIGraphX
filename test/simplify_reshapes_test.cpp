@@ -1299,13 +1299,8 @@ TEST_CASE(concat_reshape_broadcast)
         auto x      = m2.add_parameter("x", s);
         auto y      = m2.add_parameter("y", s);
         auto concat = m2.add_instruction(migraphx::make_op("concat", {{"axis", 0}}), x, y);
-        // TODO: This could just be a broadcast
-        // auto broadcast = m2.add_instruction(migraphx::make_op("multibroadcast", {{"out_lens",
-        // {22016, 32, 128}}}), concat);
-        auto unsqueeze =
-            m2.add_instruction(migraphx::make_op("unsqueeze", {{"axes", {3}}}), concat);
-        auto broadcast = m2.add_instruction(
-            migraphx::make_op("multibroadcast", {{"out_lens", {22016, 32, 1, 128}}}), unsqueeze);
+        auto broadcast = m2.add_instruction(migraphx::make_op("multibroadcast", {{"out_lens",
+        {22016, 32, 128}}}), concat);
 
         auto reshape =
             m2.add_instruction(migraphx::make_op("reshape", {{"dims", {22016, 4096}}}), broadcast);

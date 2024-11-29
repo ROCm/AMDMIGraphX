@@ -198,3 +198,16 @@ struct test_add_layernorm_add_gemm_nonstd : verify_program<test_add_layernorm_ad
     }
     std::string section() const { return "gemm"; }
 };
+
+struct test_pw_layernorm : verify_program<test_pw_layernorm>
+{
+    migraphx::program create_program() const
+    {
+        migraphx::program p;
+        auto* mm                 = p.get_main_module();
+        std::vector<size_t> dims = {1, 9, 6};
+        auto x = mm->add_parameter("x", migraphx::shape{migraphx::shape::float_type, dims});
+        add_pointwise_layernorm(*mm, x, dims);
+        return p;
+    }
+};

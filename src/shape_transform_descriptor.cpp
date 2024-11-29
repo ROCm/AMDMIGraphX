@@ -392,7 +392,10 @@ static void set_broadcast_dim(dimension& d, std::size_t axis)
     if(d.subdimensions.empty())
         d.subdimensions.push_back({1, {axis}});
     else
+    {
+        assert(d.subdimensions.front().hidden_axis.empty());
         d.subdimensions.front().hidden_axis = {axis};
+    }
 }
 
 // Group all axes into a map with a key of the axis and the value is vector of

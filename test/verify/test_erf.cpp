@@ -44,5 +44,6 @@ struct test_erf : verify_program<test_erf<DType>>
 template struct test_erf<migraphx::shape::float_type>;
 template struct test_erf<migraphx::shape::half_type>;
 template struct test_erf<migraphx::shape::fp8e4m3fnuz_type>;
+template struct test_erf<migraphx::shape::fp8e5m2fnuz_type>;
 template struct test_erf<migraphx::shape::fp8e4m3fn_type>;
 template struct test_erf<migraphx::shape::fp8e5m2_type>;

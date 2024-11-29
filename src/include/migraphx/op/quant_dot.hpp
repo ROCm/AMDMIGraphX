@@ -45,11 +45,9 @@ struct quant_dot
         const shape& a = inputs.at(0);
         const shape& b = inputs.at(1);
         auto t         = a.type();
-        std::set<migraphx::shape::type_t> supported_types = {shape::int8_type,
-                                                             shape::uint8_type,
-                                                             shape::fp8e4m3fnuz_type,
-                                                             shape::fp8e4m3fn_type,
-                                                             shape::fp8e5m2_type};
+        std::set<migraphx::shape::type_t> supported_types = fp8_types{}.get();
+        supported_types.insert(shape::int8_type);
+        supported_types.insert(shape::uint8_type);
         if(not contains(supported_types, t))
         {
             MIGRAPHX_THROW("QUANT_DOT: only support data type int8_t, uint8_t and fp8 types");

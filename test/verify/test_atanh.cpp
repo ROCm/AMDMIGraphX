@@ -39,14 +39,15 @@ struct test_atanh : verify_program<test_atanh<CType>>
         migraphx::shape::type_t dtype = migraphx::shape::get_type<CType>();
         migraphx::shape s{dtype, {16}};
         auto x       = mm->add_parameter("x", s);
-        auto min_val = mm->add_literal(migraphx::literal{migraphx::shape{dtype}, {-0.95f}});
-        auto max_val = mm->add_literal(migraphx::literal{migraphx::shape{dtype}, {0.95f}});
+        auto min_val = mm->add_literal(migraphx::literal{migraphx::shape{dtype}, {-0.875f}});
+        auto max_val = mm->add_literal(migraphx::literal{migraphx::shape{dtype}, {0.875f}});
         min_val =
             mm->add_instruction(migraphx::make_op("multibroadcast", {{"out_lens", {16}}}), min_val);
         max_val =
             mm->add_instruction(migraphx::make_op("multibroadcast", {{"out_lens", {16}}}), max_val);
         auto cx = mm->add_instruction(migraphx::make_op("clip"), x, min_val, max_val);
-        mm->add_instruction(migraphx::make_op("atanh"), cx);
+        auto atanh_x = mm->add_instruction(migraphx::make_op("atanh"), cx);
+        mm->add_return({atanh_x});
         return p;
     }
 };
@@ -54,5 +55,6 @@ struct test_atanh : verify_program<test_atanh<CType>>
 template struct test_atanh<float>;
 template struct test_atanh<migraphx::half>;
 template struct test_atanh<migraphx::fp8::fp8e4m3fnuz>;
+template struct test_atanh<migraphx::fp8::fp8e5m2fnuz>;
 template struct test_atanh<migraphx::fp8::fp8e4m3fn>;
 template struct test_atanh<migraphx::fp8::fp8e5m2>;

@@ -6,21 +6,19 @@ Supported ONNX Operators
 ========================
 
 MIGraphX supports operators up to Opset 19. Latest information of ONNX
-operators can be found
-`here <https://github.com/onnx/onnx/blob/master/docs/Operators.md>`__
+operators can be found in `the ONNX GitHub repository <https://github.com/onnx/onnx/blob/master/docs/Operators.md>`_.
 
-MIGraphX supports the following ONNX data types: BOOL, UINT8, UINT16,
-UINT32, UINT64, INT8, INT16, INT32, INT64, FLOAT8, FLOAT16, FLOAT32,
-DOUBLE
+MIGraphX supports the following ONNX data types: BOOL, UINT8, UINT16, UINT32, UINT64, INT8, INT16, INT32, INT64, FLOAT8, FLOAT16, FLOAT32, and DOUBLE
 
-   NOTE: FP8 support is only for E4M3FNUZ, see
-   `here <https://onnx.ai/onnx/technical/float8.html>`__
+   .. Note::
+   
+      FP8 support is only for E4M3FNUZ, see `Float stored in 8 bits <https://onnx.ai/onnx/technical/float8.html>`_ in the ONNX documentation.
 
 See below for the support matrix of ONNX operators in MIGraphX.
 
-   NOTE: Supported Types are from ONNX specification. An operator might
-   support more datatypes (e.g. integer type for float operator) than
-   listed.
+   .. Note:: 
+   
+      The listed supported types are taken from the ONNX specification. An operator might support other additional datatypes.
 
 Operator Support Matrix
 -----------------------

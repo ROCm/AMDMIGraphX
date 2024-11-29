@@ -45,5 +45,6 @@ struct test_add : verify_program<test_add<DType>>
 template struct test_add<migraphx::shape::half_type>;
 template struct test_add<migraphx::shape::float_type>;
 template struct test_add<migraphx::shape::fp8e4m3fnuz_type>;
+template struct test_add<migraphx::shape::fp8e5m2fnuz_type>;
 template struct test_add<migraphx::shape::fp8e4m3fn_type>;
 template struct test_add<migraphx::shape::fp8e5m2_type>;

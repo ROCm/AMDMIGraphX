@@ -101,13 +101,26 @@ struct test_layernorm_fp8_2 : verify_program<test_layernorm_fp8_2>
         migraphx::program p;
         auto* mm                 = p.get_main_module();
         std::vector<size_t> dims = {1, 24, 64};
-        auto x = mm->add_parameter("x", migraphx::shape{migraphx::shape::fp8e4m3fn_type, dims});
+        auto x = mm->add_parameter("x", migraphx::shape{migraphx::shape::fp8e5m2fnuz_type, dims});
         add_layernorm(*mm, x, dims);
         return p;
     }
 };
 
 struct test_layernorm_fp8_3 : verify_program<test_layernorm_fp8_3>
+{
+    migraphx::program create_program() const
+    {
+        migraphx::program p;
+        auto* mm                 = p.get_main_module();
+        std::vector<size_t> dims = {1, 24, 64};
+        auto x = mm->add_parameter("x", migraphx::shape{migraphx::shape::fp8e4m3fn_type, dims});
+        add_layernorm(*mm, x, dims);
+        return p;
+    }
+};
+
+struct test_layernorm_fp8_4 : verify_program<test_layernorm_fp8_4>
 {
     migraphx::program create_program() const
     {

@@ -64,26 +64,37 @@ struct Dataset
 
     std::vector<int64_t> getInputIds()
     {
-        std::vector<int64_t> inputIdsBatch;
-        inputIdsBatch.reserve(SEQ_SIZE*BATCH_SIZE);
-        for (size_t i = 0; i < BATCH_SIZE; ++i)
-        {
-            auto inputVec = input_ids[BATCH_SIZE*_current_batch + i];
-            std::copy(inputVec.begin(), inputVec.end(), std::back_inserter(inputIdsBatch));
-        }
-        return inputIdsBatch;
+        return getBatchedBuffer(input_ids);
     }
 
     std::vector<int64_t> getAttentionMask()
     {
-        std::vector<int64_t> attentionMaskBatch;
-        attentionMaskBatch.reserve(SEQ_SIZE*BATCH_SIZE);
-        for (size_t i = 0; i < BATCH_SIZE; ++i)
+        return getBatchedBuffer(attention_mask, 1);
+    }
+
+    std::vector<int64_t> getBatchedBuffer(NumpyVector& buffer, size_t value = 0)
+    {
+        std::vector<int64_t> batchedBuffer;
+        const size_t buffer_size = SEQ_SIZE*BATCH_SIZE;
+        batchedBuffer.reserve(buffer_size);
+        auto batchSize = BATCH_SIZE;
+        if (_current_batch == batchNum() -1)
         {
-            auto attVec = attention_mask[BATCH_SIZE*_current_batch + i];
-            std::copy(attVec.begin(), attVec.end(), std::back_inserter(attentionMaskBatch));
+            batchSize = _size % BATCH_SIZE;
         }
-        return attentionMaskBatch;
+
+        for (size_t i = 0; i < batchSize; ++i)
+        {
+            auto buffVec = buffer[BATCH_SIZE*_current_batch + i];
+            std::copy(buffVec.begin(), buffVec.end(), std::back_inserter(batchedBuffer));
+        }
+
+        if (batchSize != BATCH_SIZE)
+        {
+            // For last batch, setting buffer values if no sample is available
+            batchedBuffer.resize(buffer_size, value);
+        }
+        return batchedBuffer;
     }
 
     size_t size() const { return _size; }

@@ -83,27 +83,22 @@ struct MGXLlama2
         std::cout << "Iter #" << batch_idx << std::endl;
         #endif
 
-        //auto lastInputIdx = model_inputs->getLastInputIndex();
         std::vector<size_t> sampleLastInputIdx;
-        std::vector<size_t> finishedBatches;
+        std::vector<size_t> batches = getBatchesToProcess(batch_idx);
+        
         for (size_t i = 0; i < SEQ_SIZE - 1; ++i)
         {
             bool firstIter = (i == 0);
             prog->run_async(firstIter ? prog_args : prog_args_one_dim, stream);
             progArgMax->run_async(firstIter ? prog_args_argmax : prog_args_argmax_one_dim, stream);
 
-            for (size_t b = 0; b < BATCH_SIZE; ++b)
+            auto batchIt = std::begin(batches);
+            while (batchIt != std::end(batches))
             {
+                auto b = *batchIt;
                 if (firstIter)
                 {
                     sampleLastInputIdx.emplace_back(model_inputs->getLastInputIndex(b) + (b * SEQ_SIZE));
-                }
-                else
-                {
-                    if (std::find(std::begin(finishedBatches), std::end(finishedBatches), b) != std::end(finishedBatches))
-                    {
-                        continue;
-                    }
                 }
 
                 firstIter ? model_outputs->argm_output_buffer->download_from_device(stream, sampleLastInputIdx[b], sampleLastInputIdx[b] + 1) : model_outputs->argm_output_buffer_one_dim->download_from_device(stream);
@@ -124,14 +119,18 @@ struct MGXLlama2
                 #ifdef TRACE
                     std::cout << b << " batch is added to finished" << std::endl;
                 #endif
-                    finishedBatches.emplace_back(b);
+                    batchIt = batches.erase(batchIt);
+                }
+                else
+                {
+                    ++batchIt;
                 }
 
                 model_inputs->attention_mask_buffer->update_data(1, sampleLastInputIdx[b] + i + 1, stream);
                 model_inputs->one_dim_input_buffer->update_data(new_token, b, stream);
             }
 
-            if (BATCH_SIZE == finishedBatches.size())
+            if (batches.empty())
                 break;
 
             if (firstIter)
@@ -160,11 +159,27 @@ struct MGXLlama2
         }
     }
 
+    std::vector<size_t> getBatchesToProcess(size_t batch_idx)
+    {
+        std::vector<size_t> batches;
+        size_t batchSizeRem = BATCH_SIZE;
+        if (batch_idx == model_inputs->batchNum() - 1)
+        {
+            batchSizeRem = model_inputs->dataSize() % BATCH_SIZE;
+        }
+        batches.resize(batchSizeRem);
+        std::iota(std::begin(batches), std::end(batches), 0);
+        return batches;
+    }
+
     void printOutputTokens() const
     {
         // print output tokens
         for (size_t b = 0; b < output_tokens.size(); ++b)
         {
+            if (output_tokens[b].empty())
+                continue;
+
             std::cout << "######### Batch #" << b << " #########" << std::endl;
             for (auto tok: output_tokens[b])
             {

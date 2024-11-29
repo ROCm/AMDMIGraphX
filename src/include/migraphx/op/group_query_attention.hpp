@@ -42,7 +42,6 @@ struct group_query_attention
     std::size_t num_heads         = 1;
     bool rotary_interleaved       = false;
     float scale                   = 1.0;
-    std::size_t present_kv_seqlen = 4096;
 
     template <class Self, class F>
     static auto reflect(Self& self, F f)
@@ -52,8 +51,7 @@ struct group_query_attention
                     f(self.local_window_size, "local_window_size"),
                     f(self.num_heads, "num_heads"),
                     f(self.rotary_interleaved, "rotary_interleaved"),
-                    f(self.scale, "scale"),
-                    f(self.present_kv_seqlen, "present_kv_seqlen"));
+                    f(self.scale, "scale"));
     }
 
     std::string name() const { return "group_query_attention"; }
@@ -438,7 +436,7 @@ struct group_query_attention
         argument present_k_out{kv_shape};
         argument present_v_out{kv_shape};
         argument attention_probs{shape{
-            output_shape_0.type(), {batch_size, num_heads, sequence_length, present_kv_seqlen}}};
+            output_shape_0.type(), {batch_size, num_heads, sequence_length, past_sequence_length}}};
 
         args[0] = args[0].reshape(
             shape{output_shape_0.type(),
@@ -507,7 +505,7 @@ struct group_query_attention
                 gqa_params.head_stride               = head_stride;
                 gqa_params.batch_stride              = batch_stride;
                 gqa_params.position_ids_use_batch    = position_ids_use_batch;
-                gqa_params.seqlen_present_kv_cache   = present_kv_seqlen;
+                gqa_params.seqlen_present_kv_cache   = past_sequence_length;
                 gqa_params.past_present_share_buffer = false;
 
                 if(do_rotary)

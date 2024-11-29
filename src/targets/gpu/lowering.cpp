@@ -124,7 +124,6 @@ struct miopen_apply
         add_reshape_lazy_op();
         add_group_query_attention_op();
         add_scan_slice_op();
-        add_unpack_int4_op();
     }
 
     void copy_params() const
@@ -252,14 +251,6 @@ struct miopen_apply
         apply_map.emplace(name, [=](instruction_ref ins) {
             std::vector<instruction_ref> refs = ins->inputs();
             assert(refs.size() == 2);
-#if MIGRAPHX_USE_HIPBLASLT
-            if(enabled(MIGRAPHX_ENABLE_HIPBLASLT_GEMM{}))
-            {
-                shape workspace_shape{shape::uint8_type, {hipblaslt_workspace_size}};
-                auto workspace = insert_allocation(ins, workspace_shape);
-                refs.push_back(workspace);
-            }
-#endif
             auto output = insert_allocation(ins, ins->get_shape());
             refs.push_back(output);
 #if MIGRAPHX_USE_HIPBLASLT
@@ -270,7 +261,18 @@ struct miopen_apply
                     ins, rocblas_gemm<Op>{Op{}, 1, 0, compute_fp32}, refs);
 #if MIGRAPHX_USE_HIPBLASLT
             }
-            return mod->replace_instruction(ins, hip_gemm<Op>{Op{}, 1, 0}, refs);
+            std::string op_name = "gpu::hip_gemm";
+            if(contains(name, "quant_"))
+            {
+                op_name = "gpu::hip_quant_gemm";
+            }
+            operation gemm_op = make_op(op_name);
+            return mod->replace_instruction(
+                ins,
+                make_op("gpu::hipblaslt_op", {{"op", to_value(gemm_op)}}),
+                ins->inputs().at(0),
+                ins->inputs().at(1),
+                output);
 #endif
         });
     }
@@ -555,7 +557,7 @@ struct miopen_apply
             auto inputs = ins->inputs();
 
             auto new_inputs = ins->inputs();
-            new_inputs.push_back(inputs.at(1));
+            new_inputs.push_back(inputs.at(2));
             return mod->replace_instruction(
                 ins,
                 make_op("gpu::precompile_op", {{"op", to_value(ins->get_operator())}}),
@@ -582,26 +584,6 @@ struct miopen_apply
             inputs[1]    = mod->insert_instruction(ins, make_op("hip::sync_stream"), cpu_idx);
             return mod->replace_instruction(
                 ins, mod->insert_instruction(ins, ins->get_operator(), inputs));
-        });
-    }
-
-    void add_unpack_int4_op()
-    {
-        apply_map.emplace("unpack_int4", [=](instruction_ref ins) {
-            auto inputs = ins->inputs();
-            auto output = insert_allocation(ins, ins->get_shape());
-            std::vector<instruction_ref> cpu_inputs;
-            auto gpu_inputs = ins->inputs();
-            std::transform(
-                gpu_inputs.begin(), gpu_inputs.end(), std::back_inserter(cpu_inputs), [&](auto in) {
-                    return mod->insert_instruction(ins, make_op("hip::copy_from_gpu"), in);
-                });
-            cpu_inputs.front() =
-                mod->insert_instruction(ins, make_op("hip::sync_stream"), cpu_inputs);
-            auto cpu_out = mod->insert_instruction(ins, ins->get_operator(), cpu_inputs);
-            auto gpu_out =
-                mod->insert_instruction(ins, make_op("hip::copy_to_gpu"), cpu_out, output);
-            return mod->replace_instruction(ins, gpu_out);
         });
     }
 };

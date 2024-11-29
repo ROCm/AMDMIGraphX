@@ -440,7 +440,7 @@ TEST_CASE(optimize_multibroadcast_reshape)
            });
 }
 
-TEST_CASE(optimize_squeeze_broadcast)
+TEST_CASE(optimize_squeeze_broadcast1)
 {
     EXPECT(check_optimize_shape_transforms(
                {256, 1, 1},
@@ -450,6 +450,19 @@ TEST_CASE(optimize_squeeze_broadcast)
                }) == ops{
                          make_op("unsqueeze", {{"axes", {3}}}),
                          make_op("multibroadcast", {{"out_lens", {256, 64, 1, 1}}}),
+                     });
+}
+
+TEST_CASE(optimize_squeeze_broadcast2)
+{
+    EXPECT(check_optimize_shape_transforms(
+               {1, 128, 1},
+               {
+                   make_op("squeeze", {{"axes", {0}}}),
+                   make_op("multibroadcast", {{"out_lens", {128, 768}}}),
+               }) == ops{
+                         make_op("squeeze", {{"axes", {0}}}),
+                   make_op("multibroadcast", {{"out_lens", {128, 768}}}),
                      });
 }
 

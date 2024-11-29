@@ -384,7 +384,7 @@ static bool missing_leading_axis(const dimension& d)
     if(d.subdimensions.empty())
         return true;
     const auto& sub = d.subdimensions.front();
-    return sub.axis.empty();
+    return sub.origin_axis().empty();
 }
 
 static void set_broadcast_dim(dimension& d, std::size_t axis)

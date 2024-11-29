@@ -1,3 +1,7 @@
+.. meta::
+  :description: MIGraphX targets
+  :keywords: MIGraphX, code base, contribution, developing, targets
+
 Targets
 =======
 

@@ -1,3 +1,7 @@
+.. meta::
+  :description: MIGraphX program
+  :keywords: MIGraphX, code base, contribution, developing, program
+
 Program
 =======
 

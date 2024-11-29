@@ -1,6 +1,6 @@
 .. meta::
-   :description: MIGraphX provides an optimized execution engine for deep learning neural networks
-   :keywords: MIGraphX, ROCm, library, API, tool
+   :description: MIGraphX driver options
+   :keywords: MIGraphX, ROCm, driver, options
 
 .. _driver-options:
 

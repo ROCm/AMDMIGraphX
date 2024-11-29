@@ -1,3 +1,7 @@
+.. meta::
+   :description: MIGraphX Python API reference
+   :keywords: MIGraphX, ROCm, Python, API, reference, development, developer
+
 .. py:module:: migraphx
 
 .. _python-api-reference:

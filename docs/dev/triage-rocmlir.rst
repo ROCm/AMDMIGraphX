@@ -1,3 +1,7 @@
+.. meta::
+  :description: Issue Triaging Guide for suspected issues
+  :keywords: MIGraphX, rocMLIR, issues, pipeline, compilation, bug, code base, kernel, contribution, developing
+
 Issue Triaging Guide for suspected rocMLIR issue
 ================================================
 

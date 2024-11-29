@@ -1,3 +1,7 @@
+.. meta::
+  :description: MIGraphX internal passes
+  :keywords: MIGraphX, code base, contribution, developing, passes
+
 Passes
 ======
 

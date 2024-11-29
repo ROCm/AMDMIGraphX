@@ -1,3 +1,7 @@
+.. meta::
+  :description: MIGraphX supported ONNX operators
+  :keywords: MIGraphX, code base, contribution, developing, ONNX operators
+
 Supported ONNX Operators
 ========================
 

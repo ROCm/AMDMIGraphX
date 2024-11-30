@@ -134,7 +134,7 @@ void kernel::launch(hipStream_t stream,
                     hipEvent_t stop) const
 {
     assert(impl != nullptr);
-    void* kernargs   = args.data();
+    void* kernargs   = reinterpret_cast<void*>(args.data());
     std::size_t size = args.size() * sizeof(void*);
 
     launch_kernel(impl->fun, stream, global, local, kernargs, size, start, stop);

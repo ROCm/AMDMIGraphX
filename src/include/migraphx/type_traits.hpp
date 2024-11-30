@@ -27,6 +27,7 @@
 
 #include <type_traits>
 #include <migraphx/half.hpp>
+#include <migraphx/bf16.hpp>
 #include <migraphx/config.hpp>
 #include <migraphx/float8.hpp>
 
@@ -53,9 +54,17 @@ MIGRAPHX_DETAIL_EXTEND_TRAIT_FOR(is_floating_point, half)
 MIGRAPHX_DETAIL_EXTEND_TRAIT_FOR(is_signed, half)
 MIGRAPHX_DETAIL_EXTEND_TRAIT_FOR(is_arithmetic, half)
 
+MIGRAPHX_DETAIL_EXTEND_TRAIT_FOR(is_floating_point, bf16)
+MIGRAPHX_DETAIL_EXTEND_TRAIT_FOR(is_signed, bf16)
+MIGRAPHX_DETAIL_EXTEND_TRAIT_FOR(is_arithmetic, bf16)
+
 MIGRAPHX_DETAIL_EXTEND_TRAIT_FOR(is_floating_point, migraphx::fp8::fp8e4m3fnuz)
 MIGRAPHX_DETAIL_EXTEND_TRAIT_FOR(is_signed, migraphx::fp8::fp8e4m3fnuz)
 MIGRAPHX_DETAIL_EXTEND_TRAIT_FOR(is_arithmetic, migraphx::fp8::fp8e4m3fnuz)
+
+MIGRAPHX_DETAIL_EXTEND_TRAIT_FOR(is_floating_point, migraphx::fp8::fp8e5m2fnuz)
+MIGRAPHX_DETAIL_EXTEND_TRAIT_FOR(is_signed, migraphx::fp8::fp8e5m2fnuz)
+MIGRAPHX_DETAIL_EXTEND_TRAIT_FOR(is_arithmetic, migraphx::fp8::fp8e5m2fnuz)
 
 MIGRAPHX_DETAIL_EXTEND_TRAIT_FOR(is_floating_point, migraphx::fp8::fp8e4m3fn)
 MIGRAPHX_DETAIL_EXTEND_TRAIT_FOR(is_signed, migraphx::fp8::fp8e4m3fn)

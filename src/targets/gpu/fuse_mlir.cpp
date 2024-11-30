@@ -32,6 +32,7 @@
 #include <migraphx/eliminate_common_subexpression.hpp>
 #include <migraphx/common.hpp>
 #include <migraphx/algorithm.hpp>
+#include <migraphx/output_iterator.hpp>
 #include <migraphx/param_utils.hpp>
 #include <migraphx/match/softmax.hpp>
 #include <migraphx/fp8_types.hpp>
@@ -129,6 +130,8 @@ bool mlir_attention_enabled(context* ctx)
 {
 #ifdef MIGRAPHX_MLIR
     if(not mlir_enabled())
+        return false;
+    if(specific_op<rejected>("attention"))
         return false;
     // Enable attention by default for mi300
     if(ctx != nullptr and starts_with(ctx->get_current_device().get_gfx_name(), "gfx94"))
@@ -302,8 +305,8 @@ auto is_mlir_conv(mlir_mode mode)
         // Avoid MLIR assertion: Index < Length && "Invalid index!"
         if(ins->get_shape().lens().size() != 4 and group > 1)
             return false;
-        std::set<shape::type_t> supported_types = {
-            shape::fp8e4m3fnuz_type, shape::fp8e4m3fn_type, shape::fp8e5m2_type, shape::int8_type};
+        std::set<shape::type_t> supported_types = fp8_types{}.get();
+        supported_types.insert(shape::int8_type);
         if(contains(supported_types, input.type()))
             return true;
         if(mode == mlir_mode::all)
@@ -379,10 +382,13 @@ bool is_pointwise_op_supported_by_mlir(const instruction& i)
     const std::initializer_list<type_t> allowed_types = {type_t::float_type,
                                                          type_t::half_type,
                                                          type_t::fp8e4m3fnuz_type,
+                                                         type_t::fp8e5m2fnuz_type,
                                                          type_t::fp8e4m3fn_type,
                                                          type_t::fp8e5m2_type,
                                                          type_t::int8_type,
+                                                         type_t::uint8_type,
                                                          type_t::int32_type,
+                                                         type_t::uint32_type,
                                                          type_t::bool_type};
     // Preliminary type check.
     if(not contains(allowed_types, result_type))
@@ -424,6 +430,7 @@ bool is_pointwise_op_supported_by_mlir(const instruction& i)
     std::set<shape::type_t> float_types = {type_t::float_type,
                                            type_t::half_type,
                                            type_t::fp8e4m3fnuz_type,
+                                           type_t::fp8e5m2fnuz_type,
                                            type_t::fp8e4m3fn_type,
                                            type_t::fp8e5m2_type};
     bool is_float                       = contains(float_types, result_type);
@@ -453,8 +460,12 @@ bool is_reduce_op_supported_by_mlir(const instruction& i)
     using type_t                                      = shape::type_t;
     const auto& name                                  = i.name();
     const auto result_type                            = i.get_shape().type();
-    const std::initializer_list<type_t> allowed_types = {
-        type_t::float_type, type_t::half_type, type_t::fp8e4m3fnuz_type};
+    const std::initializer_list<type_t> allowed_types = {type_t::float_type,
+                                                         type_t::half_type,
+                                                         type_t::fp8e4m3fnuz_type,
+                                                         type_t::fp8e5m2fnuz_type,
+                                                         type_t::fp8e4m3fn_type,
+                                                         type_t::fp8e5m2_type};
     // Preliminary type check.
     if(not contains(allowed_types, result_type))
     {
@@ -702,6 +713,7 @@ struct find_mlir_standalone_op
                                     shape::type_t::half_type,
                                     shape::type_t::int8_type,
                                     shape::type_t::fp8e4m3fnuz_type,
+                                    shape::type_t::fp8e5m2fnuz_type,
                                     shape::type_t::fp8e4m3fn_type,
                                     shape::type_t::fp8e5m2_type},
                                    i->get_shape().type());
@@ -873,10 +885,11 @@ struct find_mlir_attention_fused_ops : public find_mlir_standalone_attention_op
 
 struct find_pointwise_mlir
 {
+    auto supported_pointwise() const { return mlir_input_pointwise(match::used_once()); }
+
     auto matcher() const
     {
-        return match::name("gpu::mlir_op")(match::any_of[match::inputs()](
-            mlir_input_pointwise(match::used_once()).bind("pointwise")));
+        return match::name("gpu::mlir_op")(match::any_of[match::inputs()](supported_pointwise()));
     }
 
     static bool is_simple_op(const_module_ref pm, std::initializer_list<std::string> op_names)
@@ -897,23 +910,44 @@ struct find_pointwise_mlir
     void apply(module_pass_manager& mpm, const match::matcher_result& r) const
     {
         auto ins = r.result;
-        auto pw  = r.instructions["pointwise"];
 
         auto* mm = ins->module_inputs().front();
-        auto* pm = pw->module_inputs().front();
+        std::vector<instruction_ref> pws;
+        std::copy_if(
+            ins->inputs().begin(),
+            ins->inputs().end(),
+            std::back_inserter(pws),
+            [&](instruction_ref input) {
+                if(not match::instruction_matches(mpm.get_module(), input, supported_pointwise()))
+                    return false;
+                auto* pm = input->module_inputs().front();
+                if(input->inputs().size() > 1 and not is_simple_op(pm, {"dequantizelinear"}))
+                {
+                    if(not enabled(MIGRAPHX_ENABLE_MLIR_INPUT_FUSION{}))
+                        return false;
+                }
+                return true;
+            });
+        if(pws.empty())
+            return;
 
-        if(pw->inputs().size() > 1 and not is_simple_op(pm, {"dequantizelinear"}))
-        {
-            if(not enabled(MIGRAPHX_ENABLE_MLIR_INPUT_FUSION{}))
-                return;
-        }
+        std::string module_name;
+        std::transform(
+            pws.begin(), pws.end(), join_back_inserter(module_name), [](instruction_ref pw) {
+                return pw->module_inputs().front()->name() + ":";
+            });
+        module_name += mm->name();
+        module_ref m = mpm.create_module(module_name);
+        m->set_bypass();
 
         std::unordered_map<instruction_ref, instruction_ref> map_ins;
-        module_ref m = mpm.create_module(pm->name() + ":" + mm->name());
-        m->set_bypass();
-        fuse_input_ops(m, pw->inputs(), &map_ins);
-        auto rins   = m->fuse(*pm, pw->inputs(), &map_ins, &insert_pointwise).front();
-        map_ins[pw] = rins;
+        for(auto pw : pws)
+        {
+            auto* pm = pw->module_inputs().front();
+            fuse_input_ops(m, pw->inputs(), &map_ins);
+            auto rins   = m->fuse(*pm, pw->inputs(), &map_ins, &insert_pointwise).front();
+            map_ins[pw] = rins;
+        }
 
         auto ret = m->fuse(*mm, ins->inputs(), &map_ins);
         m->add_return({ret});
@@ -975,7 +1009,7 @@ void fuse_mlir::apply(module_pass_manager& mpm) const
 #ifdef MIGRAPHX_MLIR
     std::size_t counter     = 0;
     const auto& device_name = ctx == nullptr ? "" : ctx->get_current_device().get_gfx_name();
-    const bool is_navi      = starts_with(device_name, "gfx11");
+    const bool is_navi = starts_with(device_name, "gfx11") or starts_with(device_name, "gfx12");
 
     auto get_mode = [&](std::string_view option, mlir_mode m1, mlir_mode m2 = mlir_mode::fast) {
         if(specific_op<rejected>(option))

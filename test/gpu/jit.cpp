@@ -209,11 +209,8 @@ TEST_CASE(compile_warnings)
     EXPECT(not compile({"-Wunused-parameter", "-Wno-error"}).empty());
     EXPECT(not compile({"-Wno-unused-parameter", "-Werror"}).empty());
 #ifdef MIGRAPHX_USE_HIPRTC
-    if(not migraphx::enabled(migraphx::gpu::MIGRAPHX_ENABLE_HIPRTC_WORKAROUNDS{}))
-    {
-        EXPECT(test::throws([&] { compile({"-Werror=unused-parameter"}); }));
-        EXPECT(test::throws([&] { compile({"-Wunused-parameter", "-Werror"}); }));
-    }
+    EXPECT(test::throws([&] { compile({"-Werror=unused-parameter"}); }));
+    EXPECT(test::throws([&] { compile({"-Wunused-parameter", "-Werror"}); }));
 #else
     EXPECT(test::throws([&] { compile({"-Werror=unused-parameter"}); }));
     EXPECT(test::throws([&] { compile({"-Wunused-parameter", "-Werror"}); }));
@@ -350,7 +347,10 @@ TEST_CASE(compile_math)
     auto vec_sizes = {2, 4, 6};
     for(auto&& t : migraphx::shape::types())
     {
-        if(contains({migraphx::shape::bool_type, migraphx::shape::tuple_type}, t))
+        if(contains({migraphx::shape::bool_type,
+                     migraphx::shape::tuple_type,
+                     migraphx::shape::bf16_type},
+                    t))
             continue;
         auto name = migraphx::shape::cpp_type(t);
         if(t == migraphx::shape::half_type)
@@ -358,8 +358,9 @@ TEST_CASE(compile_math)
         data_types.push_back(name);
         // fp8 doesn't have vectorization support yet, therefore skip it for now.
         std::set<migraphx::shape::type_t> fp8_types = {migraphx::shape::fp8e4m3fnuz_type,
-                                                       migraphx::shape::fp8e5m2_type,
-                                                       migraphx::shape::fp8e4m3fn_type};
+                                                       migraphx::shape::fp8e5m2fnuz_type,
+                                                       migraphx::shape::fp8e4m3fn_type,
+                                                       migraphx::shape::fp8e5m2_type};
         if(not contains(fp8_types, t))
         {
             migraphx::transform(vec_sizes, std::back_inserter(data_types), [&](auto i) {
@@ -406,8 +407,8 @@ TEST_CASE(assert_type_min_max)
     for(auto&& t : migraphx::shape::types())
     {
         if(contains({migraphx::shape::bool_type,
-                     migraphx::shape::fp8e4m3fnuz_type,
-                     migraphx::shape::tuple_type},
+                     migraphx::shape::tuple_type,
+                     migraphx::shape::bf16_type},
                     t))
             continue;
         auto name = migraphx::shape::cpp_type(t);

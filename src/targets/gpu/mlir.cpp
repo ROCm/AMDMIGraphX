@@ -72,6 +72,7 @@
 #include <migraphx/gpu/tuning_config.hpp>
 #include <migraphx/iterator_for.hpp>
 #include <migraphx/permutation.hpp>
+#include <migraphx/file_buffer.hpp>
 #include <deque>
 #include <variant>
 #include <fstream>
@@ -313,6 +314,8 @@ struct mlir_program
                 result = mlirF16TypeGet(ctx.get());
             else if(as.type_enum() == shape::fp8e4m3fnuz_type)
                 result = mlirFloat8E4M3FNUZTypeGet(ctx.get());
+            else if(as.type_enum() == shape::fp8e5m2fnuz_type)
+                result = mlirFloat8E5M2FNUZTypeGet(ctx.get());
             else if(as.type_enum() == shape::fp8e4m3fn_type)
                 result = mlirFloat8E4M3FNTypeGet(ctx.get());
             else if(as.type_enum() == shape::fp8e5m2_type)
@@ -321,14 +324,14 @@ struct mlir_program
                 result = mlirF64TypeGet(ctx.get());
             else if(as.is_integral())
             {
-                // Note: rocMLIR use signless integer type for tensors types. This
-                // will translate to signed implementation for current supported
-                // operations.
                 if(as.is_unsigned())
                 {
-                    MIGRAPHX_THROW("Unsupported type: " + std::to_string(as.type_enum()));
+                    result = mlirIntegerTypeUnsignedGet(ctx.get(), as.size() * 8);
                 }
-                result = mlirIntegerTypeGet(ctx.get(), as.size() * 8); // number of bits
+                else
+                {
+                    result = mlirIntegerTypeSignedGet(ctx.get(), as.size() * 8);
+                }
             }
             else
                 MIGRAPHX_THROW("Unsupported type: " + std::to_string(as.type_enum()));
@@ -717,22 +720,11 @@ struct mlir_program
                 literal r = ins->get_literal();
                 auto sh   = ins->get_shape();
 
-                // mlir works only with signed types. change uint4 to (int4 + unsigned-flag)
-                if(shape::is_unsigned(sh.type()) and ins->outputs()[0]->name() == "unpack_int4")
-                    sh = ins->get_shape().with_type(shape::int8_type);
-
                 MlirType shaped_type = make_mlir_shaped(sh);
                 MlirType tensor_type = rocmlirMIXRShapedTypeAsTensor(shaped_type);
                 MlirAttribute mlir_value_attr =
                     mlirDenseElementsAttrRawBufferGet(tensor_type, r.get_shape().bytes(), r.data());
                 ops.add_attributes({{"value", mlir_value_attr}});
-            }
-
-            if(ins->name() == "unpack_int4")
-            {
-                auto sh = get_shape(ins);
-                ops.add_attributes(
-                    {{"isUnsigned", shape::is_unsigned(sh.type())}}); // flag for uint4
             }
 
             if(ins->name() == "convolution" or ins->name() == "dot")
@@ -1096,6 +1088,45 @@ std::string dump_mlir(module m, const std::vector<shape>& inputs)
     return mlir_print(&mlirOperationPrint, mod_op);
 }
 
+static std::string compute_dump_name(const module& m, const std::string& ext)
+{
+    std::vector<instruction_ref> sizes;
+    for(auto ins : iterator_for(m))
+    {
+        if(contains({"quant_convolution", "quant_dot", "convolution", "dot"}, ins->name()))
+            sizes.insert(sizes.end(), ins->inputs().begin(), ins->inputs().end());
+    }
+    auto name =
+        mlir_program::get_symbol_name(m) + "_" + shape::to_sizes_string(to_shapes(sizes)) + ext;
+    replace_string_inplace(name, ", ", "_");
+    replace_string_inplace(name, ":", "s");
+    return name;
+}
+
+void dump_mlir_to_file(module m, const std::vector<shape>& inputs, const fs::path& location)
+{
+    static std::mutex mutex;
+    const std::lock_guard<std::mutex> lock(mutex);
+
+    if(not inputs.empty())
+    {
+        adjust_param_shapes(m, inputs);
+    }
+    rewrite_reduce(m);
+
+    auto name = compute_dump_name(m, ".mlir");
+    auto f    = location / name;
+    std::cout << "Dumping MLIR file to: " << f << std::endl;
+
+    mlir_program mp;
+    mp.parse(m);
+    auto mod_op = mlirModuleGetOperation(mp.mmodule.get());
+
+    std::string mlir_str = mlir_print(&mlirOperationPrint, mod_op);
+
+    write_string(f, mlir_str);
+}
+
 std::string dump_mlir(module m) { return dump_mlir(std::move(m), {}); }
 
 mlir_code_object compile_mlir(const context& migraphx_ctx,
@@ -1213,15 +1244,12 @@ void dump_mlir_to_mxr(module m,
     std::vector<instruction_ref> sizes;
     for(auto ins : iterator_for(m))
     {
-        if(not contains({"convolution", "dot"}, ins->name()))
-            continue;
-        sizes.insert(sizes.end(), ins->inputs().begin(), ins->inputs().end());
+        if(contains({"quant_convolution", "quant_dot", "convolution", "dot"}, ins->name()))
+            sizes.insert(sizes.end(), ins->inputs().begin(), ins->inputs().end());
     }
-    auto name =
-        mlir_program::get_symbol_name(m) + "_" + shape::to_sizes_string(to_shapes(sizes)) + ".mxr";
-    replace_string_inplace(name, ", ", "_");
-    replace_string_inplace(name, ":", "s");
+    auto name = compute_dump_name(m, ".mxr");
     auto f = location / name;
+    std::cout << "Dumping MXR file to: " << f << std::endl;
     save(program{std::move(m)}, f.string());
 }
 

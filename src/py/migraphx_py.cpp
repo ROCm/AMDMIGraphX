@@ -48,7 +48,7 @@
 #include <migraphx/gpu/hip.hpp>
 #endif
 
-using half   = half_float::half;
+using half   = migraphx::half;
 namespace py = pybind11;
 
 #ifdef __clang__
@@ -159,6 +159,17 @@ struct npy_format_descriptor<migraphx::fp8::fp8e4m3fnuz>
 };
 
 template <>
+struct npy_format_descriptor<migraphx::fp8::fp8e5m2fnuz>
+{
+    static std::string format()
+    {
+        // TODO: no standard format in numpy for fp8
+        return "z";
+    }
+    static constexpr auto name() { return _("fp8e5m2fnuz"); }
+};
+
+template <>
 struct npy_format_descriptor<migraphx::fp8::fp8e4m3fn>
 {
     static std::string format()
@@ -178,6 +189,17 @@ struct npy_format_descriptor<migraphx::fp8::fp8e5m2>
         return "z";
     }
     static constexpr auto name() { return _("fp8e5m2"); }
+};
+
+template <>
+struct npy_format_descriptor<migraphx::bf16>
+{
+    static std::string format()
+    {
+        // TODO: no standard format in numpy for bf16
+        return "z";
+    }
+    static constexpr auto name() { return _("bf16"); }
 };
 
 } // namespace detail

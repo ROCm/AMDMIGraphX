@@ -6,6 +6,7 @@ subtrees:
   - caption: Installation
     entries: 
     - file: install/installing_with_package
+    - file: install/building_migraphx
     
   - caption: Reference
     entries:
@@ -18,7 +19,6 @@ subtrees:
 
   - caption:  Developing for MIGraphX
     entries:
-    - file: install/building_migraphx
     - file: dev/contributing-to-migraphx
       subtrees:
         - entries:

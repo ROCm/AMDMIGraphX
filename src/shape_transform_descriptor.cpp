@@ -624,18 +624,18 @@ void shape_transform_descriptor::simplify()
             // Search for the subdimension that has the next axis and try to
             // insert the axis before it will be in order.
             auto [sub, it, prev] = find_subdimension(*this, [&](const dimension::sub& s) {
-                if(s.axis.empty())
+                if(s.origin_axis().empty())
                     return false;
-                if(s.axis.front() != next_axis)
+                if(s.origin_axis().front() != next_axis)
                     return false;
-                if(s.axis.size() == 1)
+                if(s.origin_axis().size() == 1)
                     return true;
-                assert(s.axis.size() == 2);
-                return s.axis.back() == 0;
+                assert(s.origin_axis().size() == 2);
+                return s.origin_axis().back() == 0;
             });
             bool in_order        = false;
-            if(prev.has_value() and not(*prev)->axis.empty())
-                in_order = (*prev)->axis.front() == missing_axis - 1;
+            if(prev.has_value() and not(*prev)->origin_axis().empty())
+                in_order = (*prev)->origin_axis().front() == missing_axis - 1;
             // If the axis is not inorder then see if we can find a broadcast axis to place it
             auto bdims =
                 in_order ? broadcast_dims_map.end() : broadcast_dims_map.upper_bound(missing_axis);

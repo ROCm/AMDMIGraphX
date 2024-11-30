@@ -503,7 +503,6 @@ TEST_CASE(optimize_scalar_broadcast_unsqueeze)
            });
 }
 
-
 TEST_CASE(optimize_broadcast_reshape_transpose)
 {
     EXPECT(check_optimize_shape_transforms(
@@ -535,16 +534,15 @@ TEST_CASE(optimize_multibroadcast_transpose)
                      });
 }
 
-
 TEST_CASE(optimize_unsqueeze_transpose_squeeze_multibroadcast)
 {
     EXPECT(check_optimize_shape_transforms(
                {320, 1, 1},
                {
-                         make_op("unsqueeze", {{"axes", {0}}}),
-                         make_op("transpose", {{"permutation", {0, 2, 1, 3}}}),
-                         make_op("squeeze", {{"axes", {0, 1}}}),
-                         make_op("multibroadcast", {{"out_lens", {320, 320}}}),
+                   make_op("unsqueeze", {{"axes", {0}}}),
+                   make_op("transpose", {{"permutation", {0, 2, 1, 3}}}),
+                   make_op("squeeze", {{"axes", {0, 1}}}),
+                   make_op("multibroadcast", {{"out_lens", {320, 320}}}),
                }) == ops{
                          make_op("multibroadcast", {{"out_lens", {320, 1, 320}}}),
                          make_op("squeeze", {{"axes", {1}}}),

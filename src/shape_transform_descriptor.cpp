@@ -577,8 +577,8 @@ void shape_transform_descriptor::simplify()
             {
                 assert(not last->subdimensions.empty());
                 const auto& sub = last->subdimensions.front();
-                assert(not sub.axis.empty());
-                axis = sub.axis.front();
+                assert(not sub.origin_axis().empty());
+                axis = sub.origin_axis().front();
             }
             std::deque<std::size_t> dims(std::distance(start, last));
             std::iota(dims.begin(), dims.end(), std::distance(dimensions.begin(), start));

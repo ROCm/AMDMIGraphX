@@ -534,4 +534,18 @@ TEST_CASE(optimize_multibroadcast_transpose)
                      });
 }
 
+
+TEST_CASE(optimize_squeeze_multibroadcast_transpose)
+{
+    EXPECT(check_optimize_shape_transforms(
+               {16, 1, 16},
+               {
+                   make_op("squeeze", {{"axes", {1}}}),
+                   make_op("multibroadcast", {{"out_lens", {4, 16, 16}}}),
+                   make_op("transpose", {{"permutation", {1, 0, 2}}}),
+               }) == ops{
+                         make_op("multibroadcast", {{"out_lens", {16, 4, 16}}}),
+                     });
+}
+
 int main(int argc, const char* argv[]) { test::run(argc, argv); }

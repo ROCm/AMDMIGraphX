@@ -41,6 +41,7 @@ void run_pass(migraphx::program& p)
                          {migraphx::fuse_pointwise{},
                           migraphx::fuse_reduce{},
                           migraphx::split_reduce{.split_size = 8192},
+                         migraphx::fuse_pointwise{.enable_rewrite_broadcasts=true},
                           migraphx::dead_code_elimination{}});
 }
 

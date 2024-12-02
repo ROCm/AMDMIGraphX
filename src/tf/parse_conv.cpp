@@ -42,9 +42,6 @@ struct parse_conv : op_parser<parse_conv>
                           tf_parser::node_info info,
                           std::vector<instruction_ref> args) const
     {
-        if(contains(info.attributes, "data_format"))
-            std::cout << "data_format: " << info.attributes.at("data_format").s() << std::endl;
-
         op::convolution op;
         if(contains(info.attributes, "strides"))
         {

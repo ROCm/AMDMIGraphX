@@ -558,20 +558,9 @@ struct find_conv_pointwise
 };
 #endif
 
-#if MIGRAPHX_USE_ROCBLAS
-struct find_gemm_pointwise
+#if MIGRAPHX_USE_ROCBLAS or MIGRAPHX_USE_HIPBLASLT
+struct gemm_pointwise
 {
-    auto matcher() const
-    {
-        auto gemm_op   = match::name("gpu::gemm")(match::nargs(3), match::used_once()).bind("gemm");
-        auto binary_op = match::all_of(
-            match::nargs(3),
-            match::either_arg(0, 1)(
-                match::any_of(match::standard_shape(), match::is_constant()).bind("c"), gemm_op));
-        auto unary_op = match::all_of(match::nargs(2), match::arg(0)(gemm_op));
-        return precompile_name("pointwise")(match::any_of(binary_op, unary_op));
-    }
-
     // TODO: Move to matcher.hpp
     static auto match_param(const std::string& name)
     {
@@ -644,6 +633,22 @@ struct find_gemm_pointwise
         {
             return false;
         }
+    }
+};
+#endif
+
+#if MIGRAPHX_USE_ROCBLAS
+struct find_rocblas_gemm_pointwise : gemm_pointwise
+{
+    auto matcher() const
+    {
+        auto gemm_op   = match::name("gpu::gemm")(match::nargs(3), match::used_once()).bind("gemm");
+        auto binary_op = match::all_of(
+            match::nargs(3),
+            match::either_arg(0, 1)(
+                match::any_of(match::standard_shape(), match::is_constant()).bind("c"), gemm_op));
+        auto unary_op = match::all_of(match::nargs(2), match::arg(0)(gemm_op));
+        return precompile_name("pointwise")(match::any_of(binary_op, unary_op));
     }
 
     void apply(module& m, const match::matcher_result& r) const
@@ -689,7 +694,7 @@ struct find_gemm_pointwise
 #endif
 
 #if MIGRAPHX_USE_HIPBLASLT
-struct find_hip_gemm_pointwise
+struct find_hipblas_gemm_pointwise : gemm_pointwise
 {
     auto matcher() const
     {
@@ -701,80 +706,6 @@ struct find_hip_gemm_pointwise
                 match::any_of(match::standard_shape(), match::is_constant()).bind("c"), gemm_op));
         auto unary_op = match::all_of(match::nargs(2), match::arg(0)(gemm_op));
         return precompile_name("pointwise")(match::any_of(binary_op, unary_op));
-    }
-
-    // TODO: Move to matcher.hpp
-    static auto match_param(const std::string& name)
-    {
-        return match::make_basic_pred_matcher([=](auto ins) {
-            if(ins->name() != "@param")
-                return false;
-            auto p = any_cast<builtin::param>(ins->get_operator());
-            return p.parameter == name;
-        });
-    }
-
-    template <class M>
-    static auto match_mul_const(M m, const std::string& var)
-    {
-        return match::name("mul")(match::either_arg(0, 1)(match::name("@literal").bind(var), m))
-            .bind(var + "_mul");
-    }
-
-    static auto match_add(const std::string& input, const std::string& output)
-    {
-        auto param     = match::name("@param");
-        auto add       = match::name("add")(match::args(param, param));
-        auto inner_mul = match::any_of(match_mul_const(match_param(input), "alpha"),
-                                       match_mul_const(match_param(output), "beta"));
-        auto mul_add   = match::name("add")(match::either_arg(0, 1)(inner_mul, param));
-        auto add_mul   = match_mul_const(add, "gamma");
-        return match::name("@return")(match::args(match::any_of(add, mul_add, add_mul)));
-    }
-
-    static auto match_mul(const std::string& input)
-    {
-        auto mul = match_mul_const(match_param(input), "alpha");
-        return match::name("@return")(match::args(mul));
-    }
-
-    static float get_float(instruction_ref ins) { return ins->get_literal().at<float>(); }
-
-    template <class Gemm>
-    static bool update_gemm(Gemm& gemm, module_ref pm, unsigned input)
-    {
-        auto names = pm->get_parameter_names();
-        std::sort(names.begin(), names.end());
-        if(names.size() == 1)
-        {
-            auto mr = match::match_instruction(*pm, std::prev(pm->end()), match_mul(names[input]));
-            if(mr.result == pm->end())
-                return false;
-            gemm.alpha *= get_float(mr.instructions["alpha"]);
-            return true;
-        }
-        else if(names.size() == 2)
-        {
-            unsigned output = input == 0 ? 1 : 0;
-            auto mr         = match::match_instruction(
-                *pm, std::prev(pm->end()), match_add(names[input], names[output]));
-            if(mr.result == pm->end())
-                return false;
-            if(contains(mr.instructions, "alpha_mul"))
-                gemm.alpha *= get_float(mr.instructions["alpha"]);
-            else if(contains(mr.instructions, "beta_mul"))
-                gemm.beta *= get_float(mr.instructions["beta"]);
-            else if(contains(mr.instructions, "gamma_mul"))
-            {
-                gemm.alpha *= get_float(mr.instructions["gamma"]);
-                gemm.beta *= get_float(mr.instructions["gamma"]);
-            }
-            return true;
-        }
-        else
-        {
-            return false;
-        }
     }
 
     void apply(module& m, const match::matcher_result& r) const
@@ -1042,11 +973,11 @@ void fuse_ops::apply(module& m) const
 #endif
 #if MIGRAPHX_USE_ROCBLAS
     if(not enabled(MIGRAPHX_ENABLE_HIPBLASLT_GEMM{}) or not hipblaslt_supported())
-        match::find_matches(m, find_gemm_pointwise{});
+        match::find_matches(m, find_rocblas_gemm_pointwise{});
 #endif
 #if MIGRAPHX_USE_HIPBLASLT
     if(enabled(MIGRAPHX_ENABLE_HIPBLASLT_GEMM{}) and hipblaslt_supported())
-        match::find_matches(m, find_hip_gemm_pointwise{});
+        match::find_matches(m, find_hipblas_gemm_pointwise{});
 #endif
     match::find_matches(m,
                         find_layernorm_pointwise{},

@@ -65,6 +65,13 @@ def rocmtestnode(Map conf) {
                 checkout scm
             }
 
+            NCORES = sh (
+                script: 'nproc',
+                returnStdout: true
+            ).trim()
+
+            echo "ncores = {NCORES}"
+
             gitStatusWrapper(credentialsId: "${env.migraphx_ci_creds}", gitHubContext: "Jenkins - ${variant}", account: 'ROCmSoftwarePlatform', repo: 'AMDMIGraphX') {
                 withCredentials([usernamePassword(credentialsId: 'docker_test_cred', passwordVariable: 'DOCKERHUB_PASS', usernameVariable: 'DOCKERHUB_USER')]) {
                     sh "echo $DOCKERHUB_PASS | docker login --username $DOCKERHUB_USER --password-stdin"

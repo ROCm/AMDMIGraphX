@@ -3842,6 +3842,7 @@ TEST_CASE(add_dot_add_mul_2)
         auto a = m1.add_parameter("a", as);
 
         std::vector<migraphx::instruction_ref> literals;
+        literals.reserve(literals_info.size());
         for(const auto& literal_info : literals_info)
         {
             literals.push_back(m1.add_literal(

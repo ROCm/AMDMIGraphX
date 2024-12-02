@@ -3850,7 +3850,6 @@ TEST_CASE(add_dot_add_mul_2)
         }
 
         std::vector<migraphx::instruction_ref> final_add_results;
-        
         for(int i = 0; i < 3; ++i)
         {
             auto add_i = m1.add_instruction(migraphx::make_op("add"), a, literals[i]);
@@ -4285,9 +4284,8 @@ TEST_CASE(slice_add)
             migraphx::make_op("slice", {{"axes", {2}}, {"starts", {0}}, {"ends", {768}}}), a);
         auto slice_b = m1.add_instruction(
             migraphx::make_op("slice", {{"axes", {2}}, {"starts", {768}}, {"ends", {1536}}}), a);
-        auto slice_c = m1.add_instruction(  
+        auto slice_c = m1.add_instruction(
             migraphx::make_op("slice", {{"axes", {2}}, {"starts", {1536}}, {"ends", {2304}}}), a);
-
         auto one = m1.add_literal(
             migraphx::generate_literal({migraphx::shape::float_type, {1, 77, 768}}, 3.0f));
         auto two = m1.add_literal(
@@ -4335,14 +4333,13 @@ TEST_CASE(slice_add_mul)
 
     migraphx::module m1;
     {
-        auto a = m1.add_parameter("a", as);
+        auto a       = m1.add_parameter("a", as);
         auto slice_a = m1.add_instruction(
             migraphx::make_op("slice", {{"axes", {2}}, {"starts", {0}}, {"ends", {768}}}), a);
         auto slice_b = m1.add_instruction(
             migraphx::make_op("slice", {{"axes", {2}}, {"starts", {768}}, {"ends", {1536}}}), a);
-        auto slice_c = m1.add_instruction( 
+        auto slice_c = m1.add_instruction(
             migraphx::make_op("slice", {{"axes", {2}}, {"starts", {1536}}, {"ends", {2304}}}), a);
-
         auto one = m1.add_literal(
             migraphx::generate_literal({migraphx::shape::float_type, {1, 77, 768}}, 3.0f));
         auto two = m1.add_literal(
@@ -4356,7 +4353,7 @@ TEST_CASE(slice_add_mul)
         auto mul1 = m1.add_instruction(migraphx::make_op("mul"), add1, four);
 
         auto mul2 = m1.add_instruction(migraphx::make_op("mul"), slice_b, two);
-        auto mul3 = m1.add_instruction(migraphx::make_op("mul"), slice_c, three);   
+        auto mul3 = m1.add_instruction(migraphx::make_op("mul"), slice_c, three);
         m1.add_return({mul1, mul2, mul3});
     };
     run_pass(m1);
@@ -4377,7 +4374,6 @@ TEST_CASE(slice_add_mul)
         auto mul2    = m2.add_instruction(migraphx::make_op("mul"), a, concat);
         auto slice_a = m2.add_instruction(
             migraphx::make_op("slice", {{"axes", {2}}, {"starts", {0}}, {"ends", {768}}}), mul2);
-        
         auto slice_a_mul = m2.add_instruction(migraphx::make_op("mul"), four, one);
         auto slice_a_add = m2.add_instruction(migraphx::make_op("add"), slice_a, slice_a_mul);
         auto slice_b     = m2.add_instruction(

@@ -110,7 +110,8 @@ class MIGraphXBackend(Backend):
                     "Incompatible device expected '{0}', got '{1}'".format(
                         device, get_device()))
             inf = migraphx.parse_onnx_buffer(model)
-            cls._prog_string = str("\nPython =\n{}\nProgram =\n{}".format(inf.to_py(), inf))
+            cls._prog_string = str("\nPython =\n{}\nProgram =\n{}".format(
+                inf.to_py(), inf))
             device = cls._device
             cls._input_names = inf.get_parameter_names()
             inf.compile(migraphx.get_target(device.lower()))

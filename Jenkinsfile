@@ -72,11 +72,13 @@ def rocmtestnode(Map conf) {
 
             echo "ncores = ${NCORES}"
 
-            def working_cores = ${NCORES} as int
+            def working_cores = "${NCORES}" as int
 
-            if ( working_cores > 64)  {
+            if ( working_cores > 64)  { 
+                echo "Setting timeout to 2"
                 def MAXTIMEOUT = 2
             } else {
+                echo "Setting timeout to 3"
                 def MAXTIMEOUT = 3
             }
  

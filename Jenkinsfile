@@ -77,7 +77,7 @@ def rocmtestnode(Map conf) {
                 MAXTIMEOUT = 3
             }
  
-           echo "Timeout will be ${MAXTIMEOUT}
+           echo "Timeout will be ${MAXTIMEOUT}"
 
 
             gitStatusWrapper(credentialsId: "${env.migraphx_ci_creds}", gitHubContext: "Jenkins - ${variant}", account: 'ROCmSoftwarePlatform', repo: 'AMDMIGraphX') {

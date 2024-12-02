@@ -468,6 +468,11 @@ MIGRAPHX_PYBIND11_MODULE(migraphx, m)
                      migraphx::any_ptr(reinterpret_cast<void*>(stream), stream_name), true};
                  return p.eval(pm, exec_env);
              })
+        .def("to_py", [](const migraphx::program& p) { 
+            std::stringstream ss;
+            p.print_py(ss);
+            return ss.str();
+        })
         .def("sort", &migraphx::program::sort)
         .def("print", [](const migraphx::program& p) { std::cout << p << std::endl; })
         .def("__eq__", std::equal_to<migraphx::program>{})

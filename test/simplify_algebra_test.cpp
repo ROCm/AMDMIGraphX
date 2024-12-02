@@ -4296,7 +4296,7 @@ TEST_CASE(slice_add)
         auto add2 = m1.add_instruction(migraphx::make_op("add"), slice_b, two);
         auto add3 = m1.add_instruction(migraphx::make_op("add"), slice_c, three);
 
-        m1.add_return({add1});    
+        m1.add_return({add1, add2, add3});    
     };
     run_pass(m1);
 
@@ -4317,7 +4317,11 @@ TEST_CASE(slice_add)
 
         auto slice_a = m2.add_instruction(
             migraphx::make_op("slice", {{"axes", {2}}, {"starts", {0}}, {"ends", {768}}}), add);
-        m2.add_return({slice_a});
+        auto slice_b = m2.add_instruction(
+            migraphx::make_op("slice", {{"axes", {2}}, {"starts", {768}}, {"ends", {1536}}}), add);
+        auto slice_c = m2.add_instruction(
+            migraphx::make_op("slice", {{"axes", {2}}, {"starts", {1536}}, {"ends", {2304}}}), add);
+        m2.add_return({slice_a, slice_b, slice_c});
     };
     EXPECT(m1.sort() == m2.sort());
 }
@@ -4378,7 +4382,7 @@ TEST_CASE(slice_add_mul)
             migraphx::make_op("slice", {{"axes", {2}}, {"starts", {768}}, {"ends", {1536}}}), mul2);
         auto slice_c = m2.add_instruction(
             migraphx::make_op("slice", {{"axes", {2}}, {"starts", {1536}}, {"ends", {2304}}}),
-            mul2); 
+            mul2);
 
         m2.add_return({slice_a_add, slice_b, slice_c});
     }

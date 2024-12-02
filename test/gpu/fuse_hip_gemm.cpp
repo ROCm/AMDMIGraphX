@@ -90,11 +90,13 @@ TEST_CASE(hip_gemm_pointwise_add)
     }
     EXPECT(p1.sort() == p2.sort());
 }
+#endif
 
 int main(int argc, const char* argv[])
 {
+#if MIGRAPHX_USE_HIPBLASLT
     if(migraphx::enabled(MIGRAPHX_ENABLE_HIPBLASLT_GEMM{}) and migraphx::gpu::hipblaslt_supported())
+#endif
         test::run(argc, argv);
     return 0;
 }
-#endif

@@ -3850,7 +3850,7 @@ TEST_CASE(add_dot_add_mul_2)
         }
 
         std::vector<migraphx::instruction_ref> final_add_results;
-
+        
         for(int i = 0; i < 3; ++i)
         {
             auto add_i = m1.add_instruction(migraphx::make_op("add"), a, literals[i]);
@@ -3928,6 +3928,7 @@ TEST_CASE(add_dot_add_mul_1)
         }
 
         std::vector<migraphx::instruction_ref> add_results;
+        add_results.reserve(3);
         for(int i = 0; i < 3; ++i)
         {
             auto dot_i = m1.add_instruction(migraphx::make_op("dot"), a, literals[i * 2]);
@@ -4387,7 +4388,7 @@ TEST_CASE(slice_add_mul)
             mul2);
 
         m2.add_return({slice_a_add, slice_b, slice_c});
-    }
+    };
     EXPECT(m1.sort() == m2.sort());
 }
 

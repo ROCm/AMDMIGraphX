@@ -3863,7 +3863,7 @@ TEST_CASE(add_dot_add_mul_2)
         auto mul = m1.add_instruction(migraphx::make_op("mul"), final_add_results[2], literals[9]);
 
         m1.add_return({final_add_results[0], final_add_results[1], final_add_results[2], mul});
-    }
+    };
     run_pass(m1);
 
     migraphx::module m2;
@@ -3901,7 +3901,7 @@ TEST_CASE(add_dot_add_mul_2)
             migraphx::make_op("slice", {{"axes", {2}}, {"starts", {768}}, {"ends", {1536}}}),
             add1_1);
         m2.add_return({slice_a, slice_b, slice_c, mul});
-    }
+    };
     EXPECT(m1.sort() == m2.sort());
 }
 
@@ -3939,7 +3939,7 @@ TEST_CASE(add_dot_add_mul_1)
         auto mul = m1.add_instruction(migraphx::make_op("mul"), add_results[2], literals[6]);
 
         m1.add_return({mul});
-    }
+    };
     run_pass(m1);
 
     migraphx::module m2;

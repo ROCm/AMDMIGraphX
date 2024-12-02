@@ -83,9 +83,7 @@ def rocmtestnode(Map conf) {
                 int  MAXTIMEOUT = 4
                 echo "Done"
             }
- 
-           echo "Timeout will be ${MAXTIMEOUT}"
-
+           println("The value of max timeout  is " + MAXTIMEOUT)
 
             gitStatusWrapper(credentialsId: "${env.migraphx_ci_creds}", gitHubContext: "Jenkins - ${variant}", account: 'ROCmSoftwarePlatform', repo: 'AMDMIGraphX') {
                 withCredentials([usernamePassword(credentialsId: 'docker_test_cred', passwordVariable: 'DOCKERHUB_PASS', usernameVariable: 'DOCKERHUB_USER')]) {
@@ -93,7 +91,7 @@ def rocmtestnode(Map conf) {
                     pre()
                     sh "docker pull ${DOCKER_IMAGE}:${env.IMAGE_TAG}"
                     withDockerContainer(image: "${DOCKER_IMAGE}:${env.IMAGE_TAG}", args: "--device=/dev/kfd --device=/dev/dri --group-add video --cap-add SYS_PTRACE -v=/home/jenkins/:/home/jenkins ${docker_args}") {
-                        timeout(time: ${MAXTIMEOUT}, unit: 'HOURS') {
+                        timeout(time: MAXTIMEOUT, unit: 'HOURS') {
                             body(cmake_build)
                         }
                     }

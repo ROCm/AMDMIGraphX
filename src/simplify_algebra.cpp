@@ -413,7 +413,7 @@ struct find_dot_mul
 };
 
 auto fusable_split(const std::string& name)
-{    
+{
     return match::make_basic_pred_matcher([&](instruction_ref ins) {
         return all_of(ins->outputs(), [&](instruction_ref slice) {
             if(slice->name() != "slice")
@@ -432,7 +432,7 @@ auto fusable_split(const std::string& name)
 struct find_mul_add
 {
     auto matcher() const
-    {   
+    {
         auto slice_1 = match::none_of(match::name("slice")(match::arg(0)(fusable_split("add"))));
 
         return match::name("mul")(match::either_arg(0, 1)(
@@ -466,7 +466,7 @@ struct find_mul_add
 struct find_slice_add_mul
 {
     auto matcher() const
-    {        
+    {
         auto slice_1 = match::name("slice")(match::arg(0)(fusable_split("add")));
         return match::name("mul")(match::either_arg(0, 1)(
             match::name("add")(
@@ -1547,7 +1547,7 @@ struct find_conv_dot_horiz_fusion
 
     void apply(module& m, const match::matcher_result& r) const
     {
-        auto ins = r.result;
+        auto ins  = r.result;
         auto pred = [](auto i, auto j) {
             if(i->get_operator() != j->get_operator())
                 return false;

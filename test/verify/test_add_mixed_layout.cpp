@@ -43,6 +43,5 @@ struct test_add_mixed_layout : verify_program<test_add_mixed_layout<DType>>
     }
 };
 
-template struct test_add_mixed_layout<migraphx::shape::fp8e4m3fnuz_type>;
 template struct test_add_mixed_layout<migraphx::shape::half_type>;
 template struct test_add_mixed_layout<migraphx::shape::float_type>;

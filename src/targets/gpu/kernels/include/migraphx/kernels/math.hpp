@@ -35,6 +35,7 @@
 namespace migraphx {
 
 namespace math {
+
 template <class T>
 constexpr auto as_float(T x)
 {
@@ -110,6 +111,7 @@ __device__ auto wrap(F f, T x, Ts... xs)
 // NOLINTNEXTLINE
 #define MIGRAPHX_DEVICE_MATH_BINARY_FOR(type, name, fname) \
     inline auto __device__ name(type x, type y) -> type { return fname(x, y); }
+
 
 // Template with two overloads for math functions, one for half2 type and one for more generic
 // <half, N> vectorization where N is 4 or another even number.

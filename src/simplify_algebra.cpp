@@ -418,9 +418,7 @@ auto fusable_split(const std::string& name)
         return all_of(ins->outputs(), [&](instruction_ref slice) {
             if(slice->name() != "slice")
                 return true;
-            return any_of(slice->outputs(), [&](instruction_ref x) {
-                return x->name() == name;
-            });
+            return any_of(slice->outputs(), [&](instruction_ref x) { return x->name() == name; });
         });
     });
 }
@@ -437,7 +435,7 @@ struct find_mul_add
     {   
         auto slice_1 = match::none_of(match::name("slice")(match::arg(0)(fusable_split("add"))));
 
-         return match::name("mul")(match::either_arg(0, 1)(
+        return match::name("mul")(match::either_arg(0, 1)(
             match::name("add")(
                 match::either_arg(0, 1)(
                     slice_1.bind("x"),
@@ -470,27 +468,24 @@ struct find_slice_add_mul
     auto matcher() const
     {        
         auto slice_1 = match::name("slice")(match::arg(0)(fusable_split("add")));
-
-        return match::name("mul")(
-            match::either_arg(0, 1)(
-                match::name("add")(
-                    match::either_arg(0, 1)(
-                        slice_1.bind("x"),
-                        match::any_of(conv_const_weights(), match::is_constant()).bind("b")),
-                    match::none_of(match::args(match::is_constant(), match::is_constant())),
-                    match::used_once()),
-                match::is_constant().bind("a")));
+        return match::name("mul")(match::either_arg(0, 1)(
+            match::name("add")(
+                match::either_arg(0, 1)(
+                    slice_1.bind("x"),
+                    match::any_of(conv_const_weights(), match::is_constant()).bind("b")),
+                match::none_of(match::args(match::is_constant(), match::is_constant())),
+                match::used_once()),
+            match::is_constant().bind("a")));
     }
     void apply(module& m, const match::matcher_result& r) const
     {
-        auto ins    = r.result;
-        auto a_ins  = r.instructions["a"];
-        auto b_ins  = r.instructions["b"];
-        auto x_ins  = r.instructions["x"];
+        auto ins   = r.result;
+        auto a_ins = r.instructions["a"];
+        auto b_ins = r.instructions["b"];
+        auto x_ins = r.instructions["x"];
 
         assert(x_ins != b_ins);
 
-        std::cout<<"inside"<<std::endl;
         auto ax_ins = m.insert_instruction(ins, make_op("add"), x_ins, b_ins);
         m.replace_instruction(ins, make_op("mul"), ax_ins, a_ins);
     }
@@ -1553,7 +1548,6 @@ struct find_conv_dot_horiz_fusion
     void apply(module& m, const match::matcher_result& r) const
     {
         auto ins = r.result;
-        std::cout<<"horiz_fusion"<<std::endl;
         auto pred = [](auto i, auto j) {
             if(i->get_operator() != j->get_operator())
                 return false;

@@ -3831,32 +3831,31 @@ TEST_CASE(dot_fusion_reshape)
 TEST_CASE(add_dot_add_mul_2)
 {
     migraphx::shape as{migraphx::shape::int8_type, {1, 77, 768}};
-    
     migraphx::shape s1{migraphx::shape::int8_type, {1, 768, 768}};
     migraphx::shape s2{migraphx::shape::int8_type, {1, 77, 768}};
 
     std::vector<std::pair<migraphx::shape, int>> literals_info = {
-        {s2, 2}, {s2, 2}, {s2, 2}, {s1, 4}, {s2, 2}, {s1, 4}, {s2, 2}, {s1, 4}, {s2, 2}, {s2, 2} 
-    };
+        {s2, 2}, {s2, 2}, {s2, 2}, {s1, 4}, {s2, 2}, {s1, 4}, {s2, 2}, {s1, 4}, {s2, 2}, {s2, 2}};
 
     migraphx::module m1;
     {
         auto a = m1.add_parameter("a", as);
 
         std::vector<migraphx::instruction_ref> literals;
-        for (const auto& literal_info : literals_info)
+        for(const auto& literal_info : literals_info)
         {
-            literals.push_back(
-                m1.add_literal(migraphx::generate_literal(literal_info.first, literal_info.second)));
+            literals.push_back(m1.add_literal(
+                migraphx::generate_literal(literal_info.first, literal_info.second)));
         }
 
         std::vector<migraphx::instruction_ref> final_add_results;
 
-        for (int i = 0; i < 3; ++i)
+        for(int i = 0; i < 3; ++i)
         {
             auto add_i = m1.add_instruction(migraphx::make_op("add"), a, literals[i]);
             auto dot_i = m1.add_instruction(migraphx::make_op("dot"), add_i, literals[3 + i * 2]);
-            auto add_final = m1.add_instruction(migraphx::make_op("add"), dot_i, literals[4 + i * 2]);
+            auto add_final = 
+                m1.add_instruction(migraphx::make_op("add"), dot_i, literals[4 + i * 2]);
             final_add_results.push_back(add_final);
         }
 
@@ -3871,36 +3870,35 @@ TEST_CASE(add_dot_add_mul_2)
         auto a = m2.add_parameter("a", as);
 
         std::vector<migraphx::instruction_ref> literals;
-        for (const auto& literal_info : literals_info)
+        for(const auto& literal_info : literals_info)
         {
-            literals.push_back(
-                m2.add_literal(migraphx::generate_literal(literal_info.first, literal_info.second)));
+            literals.push_back(m2.add_literal(
+                migraphx::generate_literal(literal_info.first, literal_info.second)));
         }
 
-        auto concat_1 = m2.add_instruction(migraphx::make_op("concat", {{"axis", 2}}),
-                                           literals[4], literals[2], literals[0]);
+        auto concat_1 = m2.add_instruction(
+            migraphx::make_op("concat", {{"axis", 2}}), literals[4], literals[2], literals[0]);
         auto dot1 = m2.add_instruction(migraphx::make_op("dot"), literals[6], literals[5]);
         auto dot2 = m2.add_instruction(migraphx::make_op("dot"), literals[8], literals[7]);
         auto dot3 = m2.add_instruction(migraphx::make_op("dot"), literals[9], literals[3]);
-        auto concat_2 = m2.add_instruction(migraphx::make_op("concat", {{"axis", 2}}),
-                                           dot3, dot2, dot1);
-        auto add1 = m2.add_instruction(migraphx::make_op("add"), concat_2, concat_1);
-        auto concat_3 = m2.add_instruction(migraphx::make_op("concat", {{"axis", 2}}),
-                                           literals[3], literals[7], literals[5]);
+        auto concat_2 = 
+            m2.add_instruction(migraphx::make_op("concat", {{"axis", 2}}), dot3, dot2, dot1);
+        auto add1     = m2.add_instruction(migraphx::make_op("add"), concat_2, concat_1);
+        auto concat_3 = m2.add_instruction(
+            migraphx::make_op("concat", {{"axis", 2}}), literals[3], literals[7], literals[5]);
 
-        auto dot1_1 = m2.add_instruction(migraphx::make_op("dot"), a, concat_3);
-        auto add1_1 = m2.add_instruction(migraphx::make_op("add"), dot1_1, add1);
+        auto dot1_1  = m2.add_instruction(migraphx::make_op("dot"), a, concat_3);
+        auto add1_1  = m2.add_instruction(migraphx::make_op("add"), dot1_1, add1);
+
         auto slice_c = m2.add_instruction(
             migraphx::make_op("slice", {{"axes", {2}}, {"starts", {1536}}, {"ends", {2304}}}),
             add1_1);
         auto mul = m2.add_instruction(migraphx::make_op("mul"), slice_c, literals[1]);
 
         auto slice_a = m2.add_instruction(
-            migraphx::make_op("slice", {{"axes", {2}}, {"starts", {0}}, {"ends", {768}}}),
-            add1_1);
+            migraphx::make_op("slice", {{"axes", {2}}, {"starts", {0}}, {"ends", {768}}}), add1_1);
         auto slice_b = m2.add_instruction(
-            migraphx::make_op("slice", {{"axes", {2}}, {"starts", {768}}, {"ends", {1536}}}),
-            add1_1);
+            migraphx::make_op("slice", {{"axes", {2}}, {"starts", {768}}, {"ends", {1536}}}), add1_1);
 
         m2.add_return({slice_a, slice_b, slice_c, mul});
     }
@@ -3916,22 +3914,21 @@ TEST_CASE(add_dot_add_mul_1)
     migraphx::shape s2{migraphx::shape::int8_type, {1, 77, 768}};
 
     std::vector<std::pair<migraphx::shape, int>> literals_info = {
-        {s1, 2}, {s2, 4}, {s1, 2}, {s2, 4}, {s1, 2}, {s2, 4}, {s2, 2}
-    };
+        {s1, 2}, {s2, 4}, {s1, 2}, {s2, 4}, {s1, 2}, {s2, 4}, {s2, 2}};
 
     migraphx::module m1;
     {
         auto a = m1.add_parameter("a", as);
 
         std::vector<migraphx::instruction_ref> literals;
-        for (const auto& literal_info : literals_info)
+        for(const auto& literal_info : literals_info)
         {
-            literals.push_back(
-                m1.add_literal(migraphx::generate_literal(literal_info.first, literal_info.second)));
+            literals.push_back(m1.add_literal(
+                migraphx::generate_literal(literal_info.first, literal_info.second)));
         }
 
         std::vector<migraphx::instruction_ref> add_results;
-        for (int i = 0; i < 3; ++i)
+        for(int i = 0; i < 3; ++i)
         {
             auto dot_i = m1.add_instruction(migraphx::make_op("dot"), a, literals[i * 2]);
             auto add_i = m1.add_instruction(migraphx::make_op("add"), dot_i, literals[i * 2 + 1]);
@@ -3949,20 +3946,21 @@ TEST_CASE(add_dot_add_mul_1)
         auto a = m2.add_parameter("a", as);
 
         std::vector<migraphx::instruction_ref> literals;
-        for (const auto& literal_info : literals_info)
+        for(const auto& literal_info : literals_info)
         {
-            literals.push_back(
-                m2.add_literal(migraphx::generate_literal(literal_info.first, literal_info.second)));
+            literals.push_back(m2.add_literal(
+                migraphx::generate_literal(literal_info.first, literal_info.second)));
         }
 
-        auto concat_1 = m2.add_instruction(migraphx::make_op("concat", {{"axis", 2}}),
-                                           literals[0], literals[2], literals[4]);
-        auto concat_2 = m2.add_instruction(migraphx::make_op("concat", {{"axis", 2}}),
-                                           literals[1], literals[3], literals[5]);
-        auto dot1 = m2.add_instruction(migraphx::make_op("dot"), a, concat_1);
-        auto add1 = m2.add_instruction(migraphx::make_op("add"), dot1, concat_2);
+        auto concat_1 = m2.add_instruction(
+            migraphx::make_op("concat", {{"axis", 2}}), literals[0], literals[2], literals[4]);
+        auto concat_2 = m2.add_instruction(
+            migraphx::make_op("concat", {{"axis", 2}}), literals[1], literals[3], literals[5]);
+        auto dot1    = m2.add_instruction(migraphx::make_op("dot"), a, concat_1);
+        auto add1    = m2.add_instruction(migraphx::make_op("add"), dot1, concat_2);
         auto slice_c = m2.add_instruction(
-            migraphx::make_op("slice", {{"axes", {2}}, {"starts", {1536}}, {"ends", {2304}}}), add1);
+            migraphx::make_op("slice", {{"axes", {2}}, {"starts", {1536}}, {"ends", {2304}}}),
+            add1);
         auto mul = m2.add_instruction(migraphx::make_op("mul"), slice_c, literals[6]);
 
         m2.add_return({mul});
@@ -4282,7 +4280,7 @@ TEST_CASE(slice_add)
 
     migraphx::module m1;
     {
-        auto a = m1.add_parameter("a", as); 
+        auto a       = m1.add_parameter("a", as);
         auto slice_a = m1.add_instruction(
             migraphx::make_op("slice", {{"axes", {2}}, {"starts", {0}}, {"ends", {768}}}), a);
         auto slice_b = m1.add_instruction(
@@ -4303,12 +4301,11 @@ TEST_CASE(slice_add)
 
         m1.add_return({add1});    
     };
-    
     run_pass(m1);
 
     migraphx::module m2;
-    {
-        auto a = m2.add_parameter("a", as); 
+    {   
+        auto a   = m2.add_parameter("a", as);
         auto one = m2.add_literal(
             migraphx::generate_literal({migraphx::shape::float_type, {1, 77, 768}}, 3.0f));
         auto two = m2.add_literal(
@@ -4323,7 +4320,6 @@ TEST_CASE(slice_add)
 
         auto slice_a = m2.add_instruction(
             migraphx::make_op("slice", {{"axes", {2}}, {"starts", {0}}, {"ends", {768}}}), add);
-        
         m2.add_return({slice_a});
     };    
     EXPECT(m1.sort() == m2.sort());
@@ -4344,21 +4340,20 @@ TEST_CASE(slice_add_mul)
         auto slice_c = m1.add_instruction(
             migraphx::make_op("slice", {{"axes", {2}}, {"starts", {1536}}, {"ends", {2304}}}), a);  
 
-        auto one = m1.add_literal(migraphx::generate_literal(
-            {migraphx::shape::float_type, {1, 77, 768}}, 3.0f));
-        auto two = m1.add_literal(migraphx::generate_literal(
-            {migraphx::shape::float_type, {1, 77, 768}}, 2.0f));
-        auto three = m1.add_literal(migraphx::generate_literal(
-            {migraphx::shape::float_type, {1, 77, 768}}, 4.0f));
-        auto four = m1.add_literal(migraphx::generate_literal(
-            {migraphx::shape::float_type, {1, 77, 768}}, 4.0f));
+        auto one = m1.add_literal(
+            migraphx::generate_literal({migraphx::shape::float_type, {1, 77, 768}}, 3.0f));
+        auto two = m1.add_literal(
+            migraphx::generate_literal({migraphx::shape::float_type, {1, 77, 768}}, 2.0f));
+        auto three = m1.add_literal(
+            migraphx::generate_literal({migraphx::shape::float_type, {1, 77, 768}}, 4.0f));
+        auto four = m1.add_literal(
+            migraphx::generate_literal({migraphx::shape::float_type, {1, 77, 768}}, 4.0f));
 
         auto add1 = m1.add_instruction(migraphx::make_op("add"), slice_a, one);
         auto mul1 = m1.add_instruction(migraphx::make_op("mul"), add1, four);
 
         auto mul2 = m1.add_instruction(migraphx::make_op("mul"), slice_b, two);
         auto mul3 = m1.add_instruction(migraphx::make_op("mul"), slice_c, three);
-        
         m1.add_return({mul1, mul2, mul3});    
     };
     run_pass(m1);
@@ -4366,18 +4361,17 @@ TEST_CASE(slice_add_mul)
     {
         auto a = m2.add_parameter("a", as); 
 
-        auto one = m2.add_literal(migraphx::generate_literal(
-            {migraphx::shape::float_type, {1, 77, 768}}, 3.0f));
-        auto two = m2.add_literal(migraphx::generate_literal(
-            {migraphx::shape::float_type, {1, 77, 768}}, 2.0f));
-        auto three = m2.add_literal(migraphx::generate_literal(
-            {migraphx::shape::float_type, {1, 77, 768}}, 4.0f));
-        auto four = m2.add_literal(migraphx::generate_literal(
-            {migraphx::shape::float_type, {1, 77, 768}}, 4.0f));
+        auto one = m2.add_literal(
+            migraphx::generate_literal({migraphx::shape::float_type, {1, 77, 768}}, 3.0f));
+        auto two = m2.add_literal(
+            migraphx::generate_literal({migraphx::shape::float_type, {1, 77, 768}}, 2.0f));
+        auto three = m2.add_literal(
+            migraphx::generate_literal({migraphx::shape::float_type, {1, 77, 768}}, 4.0f));
+        auto four = m2.add_literal(
+            migraphx::generate_literal({migraphx::shape::float_type, {1, 77, 768}}, 4.0f));
 
         auto concat =
             m2.add_instruction(migraphx::make_op("concat", {{"axis", 2}}), four, two, three);
-        
         auto mul2 = m2.add_instruction(migraphx::make_op("mul"), a, concat);
         
         auto slice_a = m2.add_instruction(

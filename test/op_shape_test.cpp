@@ -201,6 +201,21 @@ TEST_CASE(binary_dyn_static_error)
     throws_shape(migraphx::make_op("add"), a_shape, b_shape);
 }
 
+TEST_CASE(bit_cast_typesize_mismatch)
+{
+    migraphx::shape a_shape{migraphx::shape::int8_type, {1, 4, 4}};
+    throws_shape(migraphx::make_op("bit_cast", {{"target_type", migraphx::shape::int32_type}}),
+                 a_shape);
+}
+
+TEST_CASE(bit_cast_dyn)
+{
+    migraphx::shape a_shape{migraphx::shape::int8_type, {{1, 1}, {4, 8}, {4, 8}}};
+    expect_shape(migraphx::shape{migraphx::shape::uint8_type, {{1, 1}, {4, 8}, {4, 8}}},
+                 migraphx::make_op("bit_cast", {{"target_type", migraphx::shape::uint8_type}}),
+                 a_shape);
+}
+
 TEST_CASE(bitwise_and_not_integral_error)
 {
     migraphx::shape a_shape{migraphx::shape::float_type, {1, 4, 4}};

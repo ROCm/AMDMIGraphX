@@ -86,7 +86,11 @@ struct bit_cast : unary<bit_cast>
                     });
                 }
                 else
+                {
+                    // not possible to hit this unless somehow the types change after compute_shape
+                    // is called
                     MIGRAPHX_THROW("BIT_CAST: type size mismatch");
+                }
             });
         });
         return result;

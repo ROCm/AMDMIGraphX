@@ -36,14 +36,15 @@ struct test_bit_cast : verify_program<test_bit_cast<From, To>>
     {
         migraphx::program p;
         auto* mm = p.get_main_module();
-        migraphx::shape sa{From, {8, 24}};
-        migraphx::shape sb{From, {24, 6}};
-        auto pa = mm->add_parameter("a", sa);
-        auto pb = mm->add_parameter("b", sb);
-        mm->add_instruction(
+        migraphx::shape s{From, {8}};
+        auto pa = mm->add_parameter("a", s);
+        auto pb = mm->add_parameter("b", s);
+        auto ia = mm->add_instruction(
             migraphx::make_op("bit_cast", {{"target_type", migraphx::to_value(To)}}), pa);
-        mm->add_instruction(
+        auto ib = mm->add_instruction(
             migraphx::make_op("bit_cast", {{"target_type", migraphx::to_value(To)}}), pb);
+        auto ret = mm->add_instruction(migraphx::make_op("add"), ia, ib);
+        mm->add_return({ret});
         return p;
     };
 };

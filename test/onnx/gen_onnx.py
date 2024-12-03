@@ -138,6 +138,7 @@ def add_fp8_test():
 
     return ([node], [x, y], [z])
 
+
 @onnx_test()
 def add_bf16_test():
     x = helper.make_tensor_value_info('0', TensorProto.BFLOAT16, [1])
@@ -3568,6 +3569,7 @@ def eyelike_half_test():
     )
     return ([node], [T1], [T2])
 
+
 @onnx_test()
 def eyelike_bf16_test():
     T1 = helper.make_tensor_value_info('T1', TensorProto.BFLOAT16, [8, 8])
@@ -3579,6 +3581,7 @@ def eyelike_bf16_test():
         outputs=['T2'],
     )
     return ([node], [T1], [T2])
+
 
 @onnx_test()
 def eyelike_k_test():
@@ -3859,6 +3862,7 @@ def gelu_default_half_test():
 
     return ([node], [x], [y])
 
+
 # @onnx_test()
 # def gelu_default_bf16_test():
 #     x = helper.make_tensor_value_info('x', TensorProto.BFLOAT16, [3, 3])
@@ -4038,6 +4042,7 @@ def gemm_half_test():
 
     return ([node], [A, B, C], [Y])
 
+
 @onnx_test()
 def gemm_bf16_test():
     A = helper.make_tensor_value_info('A', TensorProto.BFLOAT16, [8, 6])
@@ -4053,6 +4058,7 @@ def gemm_bf16_test():
                                  transA=1)
 
     return ([node], [A, B, C], [Y])
+
 
 @onnx_test()
 def gemm_fp8_test():
@@ -4364,6 +4370,7 @@ def gridsample_bf16_test():
     )
 
     return ([node], [x, grid], [y])
+
 
 @onnx_test()
 def gridsample_int_test():
@@ -4728,11 +4735,13 @@ def group_norm_3d_half_test():
                            2,
                            dtype=TensorProto.FLOAT16)
 
+
 @onnx_test()
 def group_norm_3d_bf16_test():
     return group_norm_test([1, 4, 2], [2], [2], [1, 4, 2],
                            2,
                            dtype=TensorProto.BFLOAT16)
+
 
 @onnx_test()
 def group_norm_4d_test():
@@ -4745,11 +4754,13 @@ def group_norm_4d_half_test():
                            2,
                            dtype=TensorProto.FLOAT16)
 
+
 @onnx_test()
 def group_norm_4d_bf16_test():
     return group_norm_test([1, 4, 3, 3], [2], [2], [1, 4, 3, 3],
                            2,
                            dtype=TensorProto.BFLOAT16)
+
 
 @onnx_test()
 def group_norm_5d_test():
@@ -4761,6 +4772,7 @@ def group_norm_5d_half_test():
     return group_norm_test([3, 3, 3, 3, 3], [1], [1], [3, 3, 3, 3, 3],
                            1,
                            dtype=TensorProto.FLOAT16)
+
 
 @onnx_test()
 def group_norm_5d_bf16_test():
@@ -4776,12 +4788,14 @@ def group_norm_small_eps_half_test():
                            eps_value=1e-12,
                            dtype=TensorProto.FLOAT16)
 
+
 @onnx_test()
 def group_norm_small_eps_bf16_test():
     return group_norm_test([1, 4, 2], [2], [2], [1, 4, 2],
                            2,
                            eps_value=1e-7,
                            dtype=TensorProto.BFLOAT16)
+
 
 @onnx_test()
 def group_norm_invalid_num_groups_error_test():
@@ -5242,6 +5256,7 @@ def hardsigmoid_bf16_test():
     node = onnx.helper.make_node('HardSigmoid', inputs=['x'], outputs=['y'])
 
     return ([node], [x], [y])
+
 
 @onnx_test()
 def hardsigmoid_verify_test():
@@ -5973,11 +5988,12 @@ def imagescaler_half_test():
     return ([node], [x], [y])
 
 
-
 @onnx_test()
 def imagescaler_bf16_test():
-    x = helper.make_tensor_value_info('0', TensorProto.BFLOAT16, [1, 3, 16, 16])
-    y = helper.make_tensor_value_info('1', TensorProto.BFLOAT16, [1, 3, 16, 16])
+    x = helper.make_tensor_value_info('0', TensorProto.BFLOAT16,
+                                      [1, 3, 16, 16])
+    y = helper.make_tensor_value_info('1', TensorProto.BFLOAT16,
+                                      [1, 3, 16, 16])
 
     node = onnx.helper.make_node('ImageScaler',
                                  inputs=['0'],
@@ -6158,6 +6174,7 @@ def instance_norm_dyn_batch_bf16_test():
                                  outputs=['3'])
 
     return ([node], [x, scale, bias], [y])
+
 
 @onnx_test()
 def instance_norm_invalid_type_test():
@@ -6527,6 +6544,7 @@ def isnan_half_test():
     )
     return ([node], [t1], [t2])
 
+
 @onnx_test()
 def isnan_bf16_test():
     t1 = helper.make_tensor_value_info('t1', TensorProto.BFLOAT16, [2, 3])
@@ -6538,6 +6556,7 @@ def isnan_bf16_test():
         outputs=['t2'],
     )
     return ([node], [t1], [t2])
+
 
 @onnx_test()
 def layernorm_test():
@@ -6646,9 +6665,11 @@ def layer_norm_3d_test():
 def layer_norm_3d_half_test():
     return make_layer_norm([1, 4, 2], -1, TensorProto.FLOAT16)
 
+
 @onnx_test()
 def layer_norm_3d_bf16_test():
     return make_layer_norm([1, 4, 2], -1, TensorProto.BFLOAT16)
+
 
 @onnx_test()
 def layer_norm_4d_test():
@@ -6659,9 +6680,11 @@ def layer_norm_4d_test():
 def layer_norm_4d_half_test():
     return make_layer_norm([3, 3, 3, 3], -1, TensorProto.FLOAT16)
 
+
 @onnx_test()
 def layer_norm_4d_bf16_test():
     return make_layer_norm([3, 3, 3, 3], -1, TensorProto.BFLOAT16)
+
 
 @onnx_test()
 def layer_norm_invalid_axis_error_test():
@@ -6711,6 +6734,7 @@ def layer_norm_small_eps_half_test():
 
     return ([node], [x, scale], [y])
 
+
 @onnx_test()
 def layer_norm_small_eps_bf16_test():
     x = helper.make_tensor_value_info('x', TensorProto.BFLOAT16, [1, 2])
@@ -6723,6 +6747,7 @@ def layer_norm_small_eps_bf16_test():
                                  epsilon=1e-7)
 
     return ([node], [x, scale], [y])
+
 
 @onnx_test()
 def leaky_relu_test():
@@ -7749,9 +7774,12 @@ def mean_fp16_test():
 
 @onnx_test()
 def mean_bf16_test():
-    data_0 = helper.make_tensor_value_info('0', TensorProto.BFLOAT16, [1, 2, 3])
-    data_1 = helper.make_tensor_value_info('1', TensorProto.BFLOAT16, [1, 2, 3])
-    data_2 = helper.make_tensor_value_info('2', TensorProto.BFLOAT16, [1, 2, 3])
+    data_0 = helper.make_tensor_value_info('0', TensorProto.BFLOAT16,
+                                           [1, 2, 3])
+    data_1 = helper.make_tensor_value_info('1', TensorProto.BFLOAT16,
+                                           [1, 2, 3])
+    data_2 = helper.make_tensor_value_info('2', TensorProto.BFLOAT16,
+                                           [1, 2, 3])
 
     mean = helper.make_tensor_value_info('mean', TensorProto.BFLOAT16,
                                          [1, 2, 3])
@@ -7835,9 +7863,11 @@ def mvn_default_axes_test():
 def mvn_default_axes_fp16_test():
     return mvn_default_axes_test_base([2, 2, 2, 2], TensorProto.FLOAT16)
 
+
 @onnx_test()
 def mvn_default_axes_bf16_test():
     return mvn_default_axes_test_base([2, 2, 2, 2], TensorProto.BFLOAT16)
+
 
 @onnx_test()
 def mvn_default_axes_rank_too_small_test():
@@ -7869,9 +7899,11 @@ def mvn_rank_2_test():
 def mvn_rank_2_fp16_test():
     return mvn_n_rank_test_base([1], [2, 2], TensorProto.FLOAT16)
 
+
 @onnx_test()
 def mvn_rank_2_bf16_test():
     return mvn_n_rank_test_base([1], [2, 2], TensorProto.BFLOAT16)
+
 
 @onnx_test()
 def mvn_rank_3_test():
@@ -7882,9 +7914,11 @@ def mvn_rank_3_test():
 def mvn_rank_3_fp16_test():
     return mvn_n_rank_test_base([0, 1], [2, 2, 2], TensorProto.FLOAT16)
 
+
 @onnx_test()
 def mvn_rank_3_bf16_test():
     return mvn_n_rank_test_base([0, 1], [2, 2, 2], TensorProto.BFLOAT16)
+
 
 @onnx_test()
 def mvn_axes_rank_too_small_test():
@@ -7933,6 +7967,7 @@ def mod_test_half():
 
     return ([node], [a, b], [y])
 
+
 # @onnx_test()
 # def mod_test_bf16():
 #     a = helper.make_tensor_value_info('0', TensorProto.BFLOAT16, [3, 3, 3])
@@ -7942,6 +7977,7 @@ def mod_test_half():
 #     node = onnx.helper.make_node('Mod', inputs=['0', '1'], outputs=['2'])
 
 #     return ([node], [a, b], [y])
+
 
 @onnx_test()
 def mod_test_different_dtypes():
@@ -7987,6 +8023,7 @@ def mod_test_fmod_half():
 
     return ([node], [a, b], [y])
 
+
 @onnx_test()
 def mod_test_fmod_bf16():
     a = helper.make_tensor_value_info('0', TensorProto.BFLOAT16, [3, 3, 3])
@@ -7999,6 +8036,7 @@ def mod_test_fmod_bf16():
                                  fmod=1)
 
     return ([node], [a, b], [y])
+
 
 @onnx_test()
 def mod_test_fmod_different_dtypes():
@@ -11184,6 +11222,7 @@ def round_half_test():
 
     return ([node], [x], [y])
 
+
 @onnx_test()
 def round_bf16_test():
     x = helper.make_tensor_value_info('x', TensorProto.BFLOAT16, [4, 4])
@@ -11192,6 +11231,7 @@ def round_bf16_test():
     node = onnx.helper.make_node('Round', inputs=['x'], outputs=['y'])
 
     return ([node], [x], [y])
+
 
 def make_scatter_elements_test(reduction="none"):
     x = helper.make_tensor_value_info('data', TensorProto.FLOAT, [3, 4, 5, 6])
@@ -11719,6 +11759,7 @@ def size_half_test():
     )
     return ([node], [x], [y])
 
+
 @onnx_test()
 def size_bf16_test():
     x = helper.make_tensor_value_info('x', TensorProto.BFLOAT16, [3, 1])
@@ -11729,6 +11770,7 @@ def size_bf16_test():
         outputs=['y'],
     )
     return ([node], [x], [y])
+
 
 @onnx_test()
 def size_int_test():
@@ -12612,6 +12654,7 @@ def softmaxcrossentropyloss_2d_no_reduction_bf16_test():
 
     return ([node], [scores, labels], [loss])
 
+
 @onnx_test()
 def softmaxcrossentropyloss_2d_sum_reduction_test():
     scores = helper.make_tensor_value_info('0', TensorProto.FLOAT, [4, 4])
@@ -12744,6 +12787,7 @@ def softmaxcrossentropyloss_2d_mean_reduction_half_test():
 
     return ([node], [scores, labels], [loss])
 
+
 @onnx_test()
 def softmaxcrossentropyloss_2d_mean_reduction_bf16_test():
     scores = helper.make_tensor_value_info('0', TensorProto.BFLOAT16, [4, 4])
@@ -12761,6 +12805,7 @@ def softmaxcrossentropyloss_2d_mean_reduction_bf16_test():
     )
 
     return ([node], [scores, labels], [loss])
+
 
 @onnx_test()
 def softmaxcrossentropyloss_2d_no_reduction_weighted_test():
@@ -13282,7 +13327,8 @@ def negativeloglikelihoodloss_kd_mean_reduction_half_weighted_test2():
 
 @onnx_test()
 def negativeloglikelihoodloss_kd_mean_reduction_bf16_weighted_test2():
-    scores = helper.make_tensor_value_info('0', TensorProto.BFLOAT16, [2, 3, 2])
+    scores = helper.make_tensor_value_info('0', TensorProto.BFLOAT16,
+                                           [2, 3, 2])
     labels = helper.make_tensor_value_info('1', TensorProto.INT32, [2, 2])
     weights = helper.make_tensor_value_info('2', TensorProto.BFLOAT16, [3])
     loss = helper.make_tensor_value_info('3', TensorProto.BFLOAT16, [2])
@@ -13299,7 +13345,6 @@ def negativeloglikelihoodloss_kd_mean_reduction_bf16_weighted_test2():
     )
 
     return ([node], [scores, labels, weights], [loss])
-
 
 
 @onnx_test()

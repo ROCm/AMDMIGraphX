@@ -173,7 +173,7 @@ TEST_CASE(softmaxcrossentropyloss_kd_no_reduction_weighted_test)
         migraphx::make_op("transpose", {{"permutation", {0, 2, 3, 1}}}), unsq_mb);
     auto gathernd2 = mm->add_instruction(migraphx::make_op("gathernd"), transpose2, concat);
 
-    auto logsoftmax    = mm->add_instruction(migraphx::make_op("log"), gathernd);
+    auto logsoftmax = mm->add_instruction(migraphx::make_op("log"), gathernd);
     mm->add_instruction(migraphx::make_op("mul"), logsoftmax, gathernd2);
 
     auto prog = optimize_onnx("softmaxcrossentropyloss_kd_no_reduction_weighted_test.onnx");

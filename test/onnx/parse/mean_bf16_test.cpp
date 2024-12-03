@@ -33,11 +33,11 @@ TEST_CASE(mean_bf16_test)
     auto data0   = mm->add_parameter("0", s);
     auto data1   = mm->add_parameter("1", s);
     auto data2   = mm->add_parameter("2", s);
-    auto add1 = mm->add_instruction(migraphx::make_op("add"), data0, data1);
-    auto mean = mm->add_instruction(migraphx::make_op("add"), add1, data2);
+    auto add1    = mm->add_instruction(migraphx::make_op("add"), data0, data1);
+    auto mean    = mm->add_instruction(migraphx::make_op("add"), add1, data2);
     auto div_lit = mm->add_literal(migraphx::literal{migraphx::shape{s.type()}, {num_data}});
     auto divisor =
-         mm->add_instruction(migraphx::make_op("multibroadcast", {{"out_lens", s.lens()}}), div_lit);
+        mm->add_instruction(migraphx::make_op("multibroadcast", {{"out_lens", s.lens()}}), div_lit);
     mean = mm->add_instruction(migraphx::make_op("div"), mean, divisor);
 
     auto prog = optimize_onnx("mean_bf16_test.onnx");

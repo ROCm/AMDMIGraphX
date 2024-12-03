@@ -109,8 +109,8 @@ TEST_CASE(softmaxcrossentropyloss_2d_no_reduction_negative_ignore_idx_test)
         unsq_mb_weights);
     auto gathernd2 = mm->add_instruction(migraphx::make_op("gathernd"), unsq_mb, concat);
 
-    auto logsoftmax    = mm->add_instruction(migraphx::make_op("log"), gathernd);
-    auto loss          = mm->add_instruction(migraphx::make_op("mul"), logsoftmax, gathernd2);
+    auto logsoftmax = mm->add_instruction(migraphx::make_op("log"), gathernd);
+    auto loss       = mm->add_instruction(migraphx::make_op("mul"), logsoftmax, gathernd2);
 
     auto ignore_idx_bc = mm->add_instruction(
         migraphx::make_op("multibroadcast", {{"out_lens", labels->get_shape().lens()}}),

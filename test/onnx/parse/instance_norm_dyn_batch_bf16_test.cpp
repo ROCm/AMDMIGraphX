@@ -31,7 +31,7 @@ TEST_CASE(instance_norm_dyn_batch_bf16_test)
     migraphx::shape s2{migraphx::shape::bf16_type, {2}};
 
     migraphx::program p;
-    auto* mm        = p.get_main_module();
+    auto* mm   = p.get_main_module();
     auto x     = mm->add_parameter("0", s1);
     auto scale = mm->add_parameter("1", s2);
     auto bias  = mm->add_parameter("2", s2);

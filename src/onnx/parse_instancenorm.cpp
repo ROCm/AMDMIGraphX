@@ -36,7 +36,8 @@ namespace onnx {
 
 struct parse_instancenorm : op_parser<parse_instancenorm>
 {
-    std::set<shape::type_t> valid_types = {shape::float_type, shape::half_type, shape::double_type, shape::bf16_type};
+    std::set<shape::type_t> valid_types = {
+        shape::float_type, shape::half_type, shape::double_type, shape::bf16_type};
 
     std::vector<op_desc> operators() const { return {{"InstanceNormalization"}}; }
 

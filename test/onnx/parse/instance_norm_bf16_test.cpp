@@ -31,7 +31,7 @@ TEST_CASE(instance_norm_bf16_test)
     migraphx::shape s2{migraphx::shape::bf16_type, {2}};
 
     migraphx::program p;
-    auto* mm        = p.get_main_module();
+    auto* mm   = p.get_main_module();
     auto x     = mm->add_parameter("0", s1);
     auto scale = mm->add_parameter("1", s2);
     auto bias  = mm->add_parameter("2", s2);
@@ -54,7 +54,7 @@ TEST_CASE(instance_norm_bf16_test)
         migraphx::make_op("broadcast", {{"axis", 1}, {"out_lens", dims}}), scale);
     auto bias_bcast = mm->add_instruction(
         migraphx::make_op("broadcast", {{"axis", 1}, {"out_lens", dims}}), bias);
-    auto l5                 = mm->add_instruction(migraphx::make_op("mul"), l4, scale_bcast);
+    auto l5 = mm->add_instruction(migraphx::make_op("mul"), l4, scale_bcast);
     mm->add_instruction(migraphx::make_op("add"), l5, bias_bcast);
 
     auto prog = optimize_onnx("instance_norm_bf16_test.onnx");

@@ -78,7 +78,7 @@ def rocmtestnode(Map conf) {
                 def  MAXTIMEOUT = 4
             }
             echo "Cores on server = ${NCORES}, Setting timeout to ${MAXTIMEOUT}  hours"
-            println("Cores on server = " + ${NCORES} + ", Setting timeout to " + ${MAXTIMEOUT} + "  hours"
+            println("Cores on server = " + ${NCORES} + ", Setting timeout to " + ${MAXTIMEOUT} + "  hours")
 
             gitStatusWrapper(credentialsId: "${env.migraphx_ci_creds}", gitHubContext: "Jenkins - ${variant}", account: 'ROCmSoftwarePlatform', repo: 'AMDMIGraphX') {
                 withCredentials([usernamePassword(credentialsId: 'docker_test_cred', passwordVariable: 'DOCKERHUB_PASS', usernameVariable: 'DOCKERHUB_USER')]) {

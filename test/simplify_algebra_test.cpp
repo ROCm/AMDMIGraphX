@@ -3911,31 +3911,24 @@ TEST_CASE(add_dot_add_mul_1)
     migraphx::shape s1{migraphx::shape::int8_type, {1, 768, 768}};
     migraphx::shape s2{migraphx::shape::int8_type, {1, 77, 768}};
 
-    std::vector<std::pair<migraphx::shape, int>> literals_info = {
-        {s1, 2}, {s2, 4}, {s1, 2}, {s2, 4}, {s1, 2}, {s2, 4}, {s2, 2}};
 
     migraphx::module m1;
     {
         auto a = m1.add_parameter("a", as);
 
-        std::vector<migraphx::instruction_ref> literals;
-        literals.reserve(literals_info.size());
-        for(const auto& literal_info : literals_info)
-        {
-            literals.push_back(m1.add_literal(
-                migraphx::generate_literal(literal_info.first, literal_info.second)));
-        }
-
         std::vector<migraphx::instruction_ref> add_results;
         add_results.reserve(3);
         for(int i = 0; i < 3; ++i)
         {
-            auto dot_i = m1.add_instruction(migraphx::make_op("dot"), a, literals[i * 2]);
-            auto add_i = m1.add_instruction(migraphx::make_op("add"), dot_i, literals[i * 2 + 1]);
+            auto lit1 = m1.add_literal(migraphx::generate_literal(s1, i));
+            auto lit2 = m1.add_literal(migraphx::generate_literal(s2, i));
+            auto dot_i = m1.add_instruction(migraphx::make_op("dot"), a, lit1);
+            auto add_i = m1.add_instruction(migraphx::make_op("add"), dot_i, lit2);
             add_results.push_back(add_i);
         }
 
-        auto mul = m1.add_instruction(migraphx::make_op("mul"), add_results[2], literals[6]);
+        auto lit3 = m1.add_literal(migraphx::generate_literal(s2, 6));
+        auto mul = m1.add_instruction(migraphx::make_op("mul"), add_results[2], lit3);
 
         m1.add_return({mul});
     };
@@ -3943,6 +3936,18 @@ TEST_CASE(add_dot_add_mul_1)
 
     migraphx::module m2;
     {
+        std::vector<std::pair<migraphx::shape, int>> literals_info = {
+            {s1, 0}, {s2, 1}, {s1, 2}, {s2, 3}, {s1, 4}, {s2, 5}, {s2, 6}};
+        
+        /*for(int i = 0; i < 6; i +=2)
+        {
+            auto lit1 = m2.add_literal(migraphx::generate_literal(s1, i));
+            auto lit2 = m2.add_literal(migraphx::generate_literal(s2, i+1));
+            literals.push_back(lit1);
+            literals.push_back(lit2);
+        }*/
+
+
         auto a = m2.add_parameter("a", as);
 
         std::vector<migraphx::instruction_ref> literals;

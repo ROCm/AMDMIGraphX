@@ -47,5 +47,6 @@ struct test_nearbyint : verify_program<test_nearbyint<T>>
 template struct test_nearbyint<migraphx::half>;
 template struct test_nearbyint<float>;
 template struct test_nearbyint<migraphx::fp8::fp8e4m3fnuz>;
+template struct test_nearbyint<migraphx::fp8::fp8e5m2fnuz>;
 template struct test_nearbyint<migraphx::fp8::fp8e4m3fn>;
 template struct test_nearbyint<migraphx::fp8::fp8e5m2>;

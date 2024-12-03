@@ -7849,6 +7849,71 @@ def mha_qkv_packed_test():
 
 
 @onnx_test()
+def mha_invalid_input_test():
+    node = helper.make_node('MultiHeadAttention',
+                            inputs=[],
+                            outputs=[],
+                            num_heads=1,
+                            domain='com.microsoft')
+
+    return ([node], [], [])
+
+
+@onnx_test()
+def mha_invalid_query_test():
+    query = helper.make_tensor_value_info("q", TensorProto.FLOAT, [1, 1])
+
+    node = helper.make_node('MultiHeadAttention',
+                            inputs=['q'],
+                            outputs=[],
+                            num_heads=1,
+                            domain='com.microsoft')
+
+    return ([node], [query], [])
+
+
+@onnx_test()
+def mha_invalid_qkv_test():
+    qkv = helper.make_tensor_value_info("qkv", TensorProto.FLOAT,
+                                        [1, 1, 1, 1, 1])
+
+    node = helper.make_node('MultiHeadAttention',
+                            inputs=['qkv'],
+                            outputs=[],
+                            num_heads=1,
+                            domain='com.microsoft')
+
+    return ([node], [qkv], [])
+
+
+@onnx_test()
+def mha_invalid_key_missing_test():
+    query = helper.make_tensor_value_info("q", TensorProto.FLOAT, [1, 1, 1])
+
+    node = helper.make_node('MultiHeadAttention',
+                            inputs=['q'],
+                            outputs=[],
+                            num_heads=1,
+                            domain='com.microsoft')
+
+    return ([node], [query], [])
+
+
+@onnx_test()
+def mha_invalid_key_test():
+    query = helper.make_tensor_value_info("q", TensorProto.FLOAT, [1, 1, 1])
+    key = helper.make_tensor_value_info("k", TensorProto.FLOAT, [1, 1])
+
+    node = helper.make_node('MultiHeadAttention',
+                            inputs=['q', 'k'],
+                            outputs=[],
+                            num_heads=1,
+                            domain='com.microsoft')
+
+    return ([node], [query, key], [])
+
+
+@onnx_test()
 def multinomial_test():
     sample_size = 13
     seed = 0.

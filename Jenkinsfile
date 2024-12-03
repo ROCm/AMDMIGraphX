@@ -70,20 +70,15 @@ def rocmtestnode(Map conf) {
                 returnStdout: true
             ).trim()
 
-            echo "ncores = ${NCORES}"
-
             def working_cores = "${NCORES}" as int
 
             if ( working_cores > 64)  { 
-                echo "Setting timeout to 3"
                 def MAXTIMEOUT = 3 
-                echo "Done"
             } else {
-                echo "Setting timeout to 4"
                 def  MAXTIMEOUT = 4
-                echo "Done"
             }
-           println("The value of max timeout  is " + MAXTIMEOUT)
+            echo "Cores on server = ${NCORES}, Setting timeout to ${MAXTIMEOUT}  hours"
+            println("Cores on server = " + ${NCORES} + ", Setting timeout to " + ${MAXTIMEOUT} + "  hours"
 
             gitStatusWrapper(credentialsId: "${env.migraphx_ci_creds}", gitHubContext: "Jenkins - ${variant}", account: 'ROCmSoftwarePlatform', repo: 'AMDMIGraphX') {
                 withCredentials([usernamePassword(credentialsId: 'docker_test_cred', passwordVariable: 'DOCKERHUB_PASS', usernameVariable: 'DOCKERHUB_USER')]) {

@@ -61,7 +61,7 @@ migraphx::instruction_ref add_mlir(migraphx::program& p,
                                    std::vector<std::string> arg_names,
                                    F f)
 {
-    assert(inputs.size() == arg_names.size() && "One interior parameter name given per input.");
+    assert(inputs.size() == arg_names.size() and "One interior parameter name given per input.");
     auto* mm = p.get_main_module();
     auto* pm = p.create_module(name);
     pm->set_bypass();
@@ -85,10 +85,9 @@ migraphx::instruction_ref add_mlir(migraphx::program& p,
                                    F f)
 {
     std::vector<std::string> arg_names;
-    for(auto i : migraphx::range(inputs.size()))
-    {
-        arg_names.push_back(migraphx::param_name(i));
-    }
+    migraphx::transform(migraphx::range(inputs.size()), std::back_inserter(arg_names), [&](auto i) {
+        return migraphx::param_name(i);
+    });
     return add_mlir(p, name, std::move(inputs), std::move(arg_names), f);
 }
 

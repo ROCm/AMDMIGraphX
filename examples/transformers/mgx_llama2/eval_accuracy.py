@@ -83,6 +83,7 @@ def postprocess_text(preds, targets):
 
     return preds, targets
 
+
 if __name__ == "__main__":
     parser = ArgumentParser()
     parser.add_argument("-d",

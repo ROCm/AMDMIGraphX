@@ -28,6 +28,7 @@
 #include <migraphx/generate.hpp>
 #include <migraphx/gpu/compile_hipblaslt.hpp>
 #include <migraphx/gpu/fuse_ops.hpp>
+#include <migraphx/gpu/gemm.hpp>
 #include <migraphx/gpu/hip_gemm.hpp>
 #include <migraphx/gpu/lowering.hpp>
 #include <migraphx/gpu/target.hpp>
@@ -56,7 +57,7 @@ void run_fuse_ops(migraphx::program& p)
 }
 
 #if MIGRAPHX_USE_HIPBLASLT
-TEST_CASE(hip_gemm_pointwise_add)
+TEST_CASE(gemm_pointwise_add)
 {
     migraphx::shape s{migraphx::shape::float_type, {1, 3, 3}};
     migraphx::program p1;
@@ -81,22 +82,25 @@ TEST_CASE(hip_gemm_pointwise_add)
 
         auto output = mm->add_instruction(migraphx::op::allocate{s, std::nullopt});
 
-        migraphx::op::dot dot_instance;
-        migraphx::gpu::hipblaslt_op hipblaslt_operator;
-        hipblaslt_operator.op = migraphx::gpu::hip_gemm<migraphx::op::dot>{dot_instance, 1, 1};
-        auto add              = mm->add_instruction(hipblaslt_operator, a, b, x, output);
-
-        mm->add_return({add});
+        if(migraphx::enabled(MIGRAPHX_ENABLE_HIPBLASLT_GEMM{}) and
+           migraphx::gpu::hipblaslt_supported())
+        {
+            migraphx::op::dot dot_instance;
+            migraphx::gpu::hipblaslt_op hipblaslt_operator;
+            hipblaslt_operator.op = migraphx::gpu::hip_gemm<migraphx::op::dot>{dot_instance, 1, 1};
+            auto add              = mm->add_instruction(hipblaslt_operator, a, b, x, output);
+            mm->add_return({add});
+        }
+        else
+        {
+            auto gemm_oper =
+                migraphx::make_op("gpu::gemm", {{"alpha", 1}, {"beta", 1}, {"compute_fp32", 1}});
+            auto add = mm->add_instruction(gemm_oper, a, b, x, output);
+            mm->add_return({add});
+        }
     }
     EXPECT(p1.sort() == p2.sort());
 }
 #endif
 
-int main(int argc, const char* argv[])
-{
-#if MIGRAPHX_USE_HIPBLASLT
-    if(migraphx::enabled(MIGRAPHX_ENABLE_HIPBLASLT_GEMM{}) and migraphx::gpu::hipblaslt_supported())
-#endif
-        test::run(argc, argv);
-    return 0;
-}
+int main(int argc, const char* argv[]) { test::run(argc, argv); }

@@ -1,3 +1,7 @@
+.. meta::
+  :description: MIGraphX internal data types
+  :keywords: MIGraphX, code base, contribution, developing, data types
+
 Data types
 ==========
 

@@ -1279,7 +1279,7 @@ struct find_splits
             {
                 assert(not std::none_of(start->inputs().begin(), start->inputs().end(), [](auto i) {
                     return i->name() == "slice";
-                }) && "one argument must be a split");
+                }) and "one argument must be a split");
 
                 split_idx = get_binary_op_split_idx(group, splits);
                 assert(split_idx < 2);

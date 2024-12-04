@@ -60,7 +60,7 @@ migraphx::instruction_ref add_mlir(migraphx::program& p,
                                    std::vector<std::string> arg_names,
                                    F f)
 {
-    assert(inputs.size() == arg_names.size() && "One interior parameter name given per input.");
+    assert(inputs.size() == arg_names.size() and "One interior parameter name given per input.");
     auto* mm = p.get_main_module();
     auto* pm = p.create_module(name);
     pm->set_bypass();

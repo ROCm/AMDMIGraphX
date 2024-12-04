@@ -127,7 +127,7 @@ bool operator==(const instruction& i, instruction_ref ref)
 
 bool instruction::valid(instruction_ref start, bool check_order) const
 {
-    return valid() && std::all_of(arguments.begin(), arguments.end(), [&](instruction_ref i) {
+    return valid() and std::all_of(arguments.begin(), arguments.end(), [&](instruction_ref i) {
                auto self = std::find(i->outputs().begin(), i->outputs().end(), *this);
                bool ret  = self != i->outputs().end();
                if(check_order)
@@ -162,7 +162,7 @@ bool instruction::valid() const
         }
     }
 
-    return (result == computed) &&
+    return (result == computed) and
            std::all_of(output.begin(), output.end(), [&](instruction_ref i) {
                return std::find(i->inputs().begin(), i->inputs().end(), *this) != i->inputs().end();
            });

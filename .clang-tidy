@@ -117,3 +117,7 @@ CheckOptions:
     value:           MIGRAPHX_
   - key:             readability-identifier-naming.ConstexprMethodIgnoredRegexp
     value:           'quiet_NaN|signaling_NaN'
+  - key:             readability-operators-representation.BinaryOperators
+    value:           'and;or;not'
+  - key:             readability-operators-representation.OverloadedOperators
+    value:           'and;or;not'

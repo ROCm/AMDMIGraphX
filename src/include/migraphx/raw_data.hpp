@@ -275,7 +275,7 @@ auto visit_all(const std::vector<T>& x)
 
 template <class T,
           class U,
-          MIGRAPHX_REQUIRES(std::is_base_of<raw_data_base, T>{} &&
+          MIGRAPHX_REQUIRES(std::is_base_of<raw_data_base, T>{} and
                             std::is_base_of<raw_data_base, U>{})>
 bool operator==(const T& x, const U& y)
 {
@@ -294,7 +294,7 @@ bool operator==(const T& x, const U& y)
 
 template <class T,
           class U,
-          MIGRAPHX_REQUIRES(std::is_base_of<raw_data_base, T>{} &&
+          MIGRAPHX_REQUIRES(std::is_base_of<raw_data_base, T>{} and
                             std::is_base_of<raw_data_base, U>{})>
 bool operator!=(const T& x, const U& y)
 {

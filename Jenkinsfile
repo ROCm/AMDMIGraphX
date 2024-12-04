@@ -65,13 +65,28 @@ def rocmtestnode(Map conf) {
                 checkout scm
             }
 
+            NCORES = sh (
+                script: 'nproc',
+                returnStdout: true
+            ).trim()
+
+            def working_cores = "${NCORES}" as int
+
+            if ( working_cores > 64)  { 
+                def MAXTIMEOUT = 3 
+            } else {
+                def  MAXTIMEOUT = 4
+            }
+            echo "Cores on server = ${NCORES}, Setting timeout to ${MAXTIMEOUT}  hours"
+            println("Cores on server = " + ${NCORES} + ", Setting timeout to " + ${MAXTIMEOUT} + "  hours")
+
             gitStatusWrapper(credentialsId: "${env.migraphx_ci_creds}", gitHubContext: "Jenkins - ${variant}", account: 'ROCmSoftwarePlatform', repo: 'AMDMIGraphX') {
                 withCredentials([usernamePassword(credentialsId: 'docker_test_cred', passwordVariable: 'DOCKERHUB_PASS', usernameVariable: 'DOCKERHUB_USER')]) {
                     sh "echo $DOCKERHUB_PASS | docker login --username $DOCKERHUB_USER --password-stdin"
                     pre()
                     sh "docker pull ${DOCKER_IMAGE}:${env.IMAGE_TAG}"
                     withDockerContainer(image: "${DOCKER_IMAGE}:${env.IMAGE_TAG}", args: "--device=/dev/kfd --device=/dev/dri --group-add video --cap-add SYS_PTRACE -v=/home/jenkins/:/home/jenkins ${docker_args}") {
-                        timeout(time: 2, unit: 'HOURS') {
+                        timeout(time: MAXTIMEOUT, unit: 'HOURS') {
                             body(cmake_build)
                         }
                     }

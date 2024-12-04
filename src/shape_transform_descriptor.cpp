@@ -1287,13 +1287,10 @@ std::ostream& operator<<(std::ostream& os, const shape_transform_descriptor& x)
 std::vector<operation> optimize_shape_transforms(const std::vector<std::size_t>& dims,
                                                  const std::vector<operation>& ops)
 {
-    shape_transform_descriptor sd{dims};
-    if(not sd.apply(ops))
+    auto sd = shape_transform_descriptor::create(dims, ops);
+    if(sd.empty())
         return ops;
-    sd.simplify();
-    auto result = sd.generate();
-    assert(compute_dims(ops, dims) == compute_dims(result, dims));
-    return result;
+    return sd.generate();
 }
 
 } // namespace MIGRAPHX_INLINE_NS

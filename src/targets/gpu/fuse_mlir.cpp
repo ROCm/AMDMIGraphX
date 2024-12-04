@@ -342,7 +342,7 @@ create_param_map_with_literals(module_ref mm, const module* pm, const shape& sha
     return ins_map;
 }
 
-static instruction_ref insert_pointwise(module& m,
+instruction_ref insert_pointwise(module& m,
                                         instruction_ref ins,
                                         const operation& op,
                                         const std::vector<instruction_ref>& inputs,
@@ -354,7 +354,7 @@ static instruction_ref insert_pointwise(module& m,
     return insert_common_op(m, ins, op, inputs, {.common_type = false});
 }
 
-static instruction_ref unroll_pointwise(module& main_mod,
+instruction_ref unroll_pointwise(module& main_mod,
                                         instruction_ref pos,
                                         const operation& op,
                                         const std::vector<instruction_ref>& inputs,

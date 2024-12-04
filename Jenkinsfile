@@ -42,7 +42,7 @@ def rocmtestnode(Map conf) {
             rm -rf build
             mkdir build
             cd build
-            cmake -DCMAKE_C_COMPILER_LAUNCHER=ccache -DCMAKE_CXX_COMPILER_LAUNCHER=ccache -DBUILD_DEV=On -DCMAKE_EXECUTE_PROCESS_COMMAND_ECHO=STDOUT -DMIGRAPHX_DISABLE_VIRTUAL_ENV=ON ${flags} ..
+            cmake -DCTEST_TIMEOUT=3600 -DCMAKE_C_COMPILER_LAUNCHER=ccache -DCMAKE_CXX_COMPILER_LAUNCHER=ccache -DBUILD_DEV=On -DCMAKE_EXECUTE_PROCESS_COMMAND_ECHO=STDOUT -DMIGRAPHX_DISABLE_VIRTUAL_ENV=ON ${flags} ..
             git diff
             git diff-index --quiet HEAD || (echo "Git repo is not clean after running cmake." && exit 1)
             make -j\$(nproc) generate VERBOSE=1
@@ -71,7 +71,7 @@ def rocmtestnode(Map conf) {
                     pre()
                     sh "docker pull ${DOCKER_IMAGE}:${env.IMAGE_TAG}"
                     withDockerContainer(image: "${DOCKER_IMAGE}:${env.IMAGE_TAG}", args: "--device=/dev/kfd --device=/dev/dri --group-add video --cap-add SYS_PTRACE -v=/home/jenkins/:/home/jenkins ${docker_args}") {
-                        timeout(time: 2, unit: 'HOURS') {
+                        timeout(time: 3, unit: 'HOURS') {
                             body(cmake_build)
                         }
                     }

@@ -126,7 +126,6 @@ __device__ auto wrap(F f, T x, Ts... xs)
             [](auto... ys) -> migraphx::vec<type, 2> { return fname(ys...); });   \
     }
 
-
 MIGRAPHX_DEVICE_MATH_WRAP(acos, (double)::acos, (float)::acosf);
 MIGRAPHX_DEVICE_MATH_WRAP(acosh, (double)::acosh, (float)::acoshf);
 MIGRAPHX_DEVICE_MATH_WRAP(asin, (double)::asin, (float)::asinf);

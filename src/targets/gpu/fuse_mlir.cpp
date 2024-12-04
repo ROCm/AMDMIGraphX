@@ -301,8 +301,8 @@ auto is_mlir_conv(mlir_mode mode)
         // Avoid MLIR assertion: Index < Length && "Invalid index!"
         if(ins->get_shape().lens().size() != 4 and group > 1)
             return false;
-        std::set<shape::type_t> supported_types = {
-            shape::fp8e4m3fnuz_type, shape::fp8e4m3fn_type, shape::fp8e5m2_type, shape::int8_type};
+        std::set<shape::type_t> supported_types = fp8_types{}.get();
+        supported_types.insert(shape::int8_type);
         if(contains(supported_types, input.type()))
             return true;
         if(mode == mlir_mode::all)
@@ -366,6 +366,7 @@ bool is_pointwise_op_supported_by_mlir(const instruction& i)
     const std::initializer_list<type_t> allowed_types = {type_t::float_type,
                                                          type_t::half_type,
                                                          type_t::fp8e4m3fnuz_type,
+                                                         type_t::fp8e5m2fnuz_type,
                                                          type_t::fp8e4m3fn_type,
                                                          type_t::fp8e5m2_type,
                                                          type_t::int8_type,
@@ -413,6 +414,7 @@ bool is_pointwise_op_supported_by_mlir(const instruction& i)
     std::set<shape::type_t> float_types = {type_t::float_type,
                                            type_t::half_type,
                                            type_t::fp8e4m3fnuz_type,
+                                           type_t::fp8e5m2fnuz_type,
                                            type_t::fp8e4m3fn_type,
                                            type_t::fp8e5m2_type};
     bool is_float                       = contains(float_types, result_type);
@@ -442,8 +444,12 @@ bool is_reduce_op_supported_by_mlir(const instruction& i)
     using type_t                                      = shape::type_t;
     const auto& name                                  = i.name();
     const auto result_type                            = i.get_shape().type();
-    const std::initializer_list<type_t> allowed_types = {
-        type_t::float_type, type_t::half_type, type_t::fp8e4m3fnuz_type};
+    const std::initializer_list<type_t> allowed_types = {type_t::float_type,
+                                                         type_t::half_type,
+                                                         type_t::fp8e4m3fnuz_type,
+                                                         type_t::fp8e5m2fnuz_type,
+                                                         type_t::fp8e4m3fn_type,
+                                                         type_t::fp8e5m2_type};
     // Preliminary type check.
     if(not contains(allowed_types, result_type))
     {
@@ -702,6 +708,7 @@ struct find_mlir_standalone_op
                                     shape::type_t::half_type,
                                     shape::type_t::int8_type,
                                     shape::type_t::fp8e4m3fnuz_type,
+                                    shape::type_t::fp8e5m2fnuz_type,
                                     shape::type_t::fp8e4m3fn_type,
                                     shape::type_t::fp8e5m2_type},
                                    i->get_shape().type());

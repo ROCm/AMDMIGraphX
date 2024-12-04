@@ -80,13 +80,18 @@ struct bit_cast : unary<bit_cast>
             args[0].visit([&](auto input) {
                 using itype = typename decltype(input)::value_type;
                 if constexpr(sizeof(otype) == sizeof(itype))
+
                 {
                     par_transform(input.begin(), input.end(), output.begin(), [&](auto x) {
                         return migraphx::bit_cast<otype>(x);
                     });
                 }
                 else
+                {
+                    // not possible to hit this unless somehow the types change after compute_shape
+                    // is called
                     MIGRAPHX_THROW("BIT_CAST: type size mismatch");
+                }
             });
         });
         return result;

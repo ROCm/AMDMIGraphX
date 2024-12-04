@@ -64,6 +64,7 @@ rocblas_datatype get_type(shape::type_t type)
     case shape::int32_type: return rocblas_datatype_i32_r;
     case shape::uint32_type: return rocblas_datatype_u32_r;
     case shape::fp8e4m3fnuz_type: return rocblas_datatype_f8_r;
+    case shape::fp8e5m2fnuz_type: return rocblas_datatype_bf8_r;
     case shape::fp8e4m3fn_type:
     case shape::fp8e5m2_type:
     case shape::tuple_type:

@@ -21,28 +21,13 @@
  * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
  * THE SOFTWARE.
  */
-
-#include "verify_program.hpp"
-#include <migraphx/program.hpp>
-#include <migraphx/generate.hpp>
+#include <migraphx/instruction.hpp>
+#include <migraphx/literal.hpp>
 #include <migraphx/make_op.hpp>
+#include <migraphx/program.hpp>
+#include <migraphx/register_target.hpp>
+#include <migraphx/verify.hpp>
 
-template <migraphx::shape::type_t DType>
-struct test_abs : verify_program<test_abs<DType>>
-{
-    migraphx::program create_program() const
-    {
-        migraphx::program p;
-        auto* mm = p.get_main_module();
-        auto x   = mm->add_parameter("x", migraphx::shape{DType, {4, 3, 3, 3}});
-        mm->add_instruction(migraphx::make_op("abs"), x);
-        return p;
-    }
-};
+#include <test.hpp>
 
-template struct test_abs<migraphx::shape::half_type>;
-template struct test_abs<migraphx::shape::float_type>;
-template struct test_abs<migraphx::shape::fp8e4m3fnuz_type>;
-template struct test_abs<migraphx::shape::fp8e5m2fnuz_type>;
-template struct test_abs<migraphx::shape::fp8e4m3fn_type>;
-template struct test_abs<migraphx::shape::fp8e5m2_type>;
+TEST_CASE(fp8_ocp_to_nanno) {}

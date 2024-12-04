@@ -172,6 +172,7 @@ std::vector<pass> target::get_passes(migraphx::context& gctx, const compile_opti
         eliminate_identity{},
         dead_code_elimination{},
         enable_pass(not gpu::gfx_has_fp8ocp_intrinsics(), fp8_ocp_to_nanoo{}),
+        enable_pass(not gpu::gfx_has_fp8ocp_intrinsics(), dead_code_elimination{}),
         simplify_qdq{},
         enable_pass(not mlir_enabled(), rewrite_quantization{}),
         dead_code_elimination{},

@@ -101,13 +101,13 @@ struct tensor_view
 
     T& operator[](std::size_t i)
     {
-        assert(not this->empty() && i < this->size());
+        assert(not this->empty() and i < this->size());
         return m_data[m_shape.index(i)];
     }
 
     const T& operator[](std::size_t i) const
     {
-        assert(not this->empty() && i < this->size());
+        assert(not this->empty() and i < this->size());
         return m_data[m_shape.index(i)];
     }
 

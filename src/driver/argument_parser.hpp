@@ -433,7 +433,7 @@ struct argument_parser
             argument* input_argument =
                 self.find_argument([](const auto& arg) { return arg.flags.empty(); });
             auto required_usages = get_argument_usages(get_required_arguments());
-            if(required_usages.empty() && input_argument)
+            if(required_usages.empty() and input_argument)
                 required_usages.push_back(input_argument->metavar);
             required_usages.insert(required_usages.begin(), "<options>");
             print_usage(required_usages);

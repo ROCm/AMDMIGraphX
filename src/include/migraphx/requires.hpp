@@ -49,7 +49,7 @@ using bool_c = std::integral_constant<bool, B>;
 #else
 #define MIGRAPHX_REQUIRES(...)                                           \
     long MIGRAPHX_REQUIRES_VAR()            = __LINE__,                  \
-         typename std::enable_if<(MIGRAPHX_REQUIRES_VAR() == __LINE__ && \
+         typename std::enable_if<(MIGRAPHX_REQUIRES_VAR() == __LINE__ and \
                                   (migraphx::and_<__VA_ARGS__>{})),      \
                                  int>::type = 0
 #define MIGRAPHX_CLASS_REQUIRES(...) typename std::enable_if<(migraphx::and_<__VA_ARGS__>{})>::type

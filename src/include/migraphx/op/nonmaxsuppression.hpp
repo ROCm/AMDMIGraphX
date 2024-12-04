@@ -335,7 +335,7 @@ struct nonmaxsuppression
             auto batch_boxes_start = boxes.begin() + batch_idx * num_boxes * 4;
             auto boxes_heap = filter_boxes_by_score(scores_start, num_boxes, score_threshold);
             int64_t selected_boxes_inside_class = 0;
-            while(not boxes_heap.empty() &&
+            while(not boxes_heap.empty() and
                   selected_boxes_inside_class < max_output_boxes_per_class)
             {
                 // select next top scorer box and remove any boxes from boxes_heap that exceeds IOU

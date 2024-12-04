@@ -296,7 +296,7 @@ struct float8
         }
         else
         {
-            return (data == 0x00) || (data == 0x80);
+            return (data == 0x00) or (data == 0x80);
         }
     }
 

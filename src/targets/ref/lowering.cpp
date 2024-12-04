@@ -184,7 +184,7 @@ struct ref_im2col
                          kernel_w)([&](std::size_t c, std::size_t koffset, std::size_t loffset) {
                         auto idx    = iinput + long(koffset) - kdiv2_h;
                         auto jdx    = jinput + long(loffset) - kdiv2_w;
-                        col(ldx, p) = ((idx >= 0) && (idx < height) && (jdx >= 0) && (jdx < width))
+                        col(ldx, p) = ((idx >= 0) and (idx < height) and (jdx >= 0) and (jdx < width))
                                           ? input(0, c, idx, jdx)
                                           : 0;
                         p++;

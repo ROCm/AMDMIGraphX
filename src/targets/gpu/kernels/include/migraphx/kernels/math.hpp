@@ -105,7 +105,7 @@ constexpr T as_float(T x)
     template <class... Ts>                                                                \
     auto __device__ name(migraphx::vec<migraphx::half, 2> x, Ts... xs)                    \
         MIGRAPHX_RETURNS(migraphx::vec<migraphx::half, 2>{fname(x, xs...)});              \
-    template <class... Ts, index_int N, MIGRAPHX_REQUIRES(N % 2 == 0 && (N > 2))>         \
+    template <class... Ts, index_int N, MIGRAPHX_REQUIRES(N % 2 == 0 and (N > 2))>         \
     auto __device__ name(migraphx::vec<migraphx::half, N> x, Ts... xs)                    \
     {                                                                                     \
         return vec_packed_transform<2>(x, xs...)(                                         \

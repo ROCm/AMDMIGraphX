@@ -50,7 +50,7 @@ struct GenericBuffer : public IBuffer<AllocFunc, FreeFunc>
         return *this;
     }
 
-    GenericBuffer(const GenericBuffer& buf) = delete;
+    GenericBuffer(const GenericBuffer& buf)            = delete;
     GenericBuffer& operator=(const GenericBuffer& buf) = delete;
 
     ~GenericBuffer() { this->free_fn(tensor_ptr); }
@@ -160,8 +160,8 @@ struct ManagedBuffer_v2
         upload_to_device(stream, position, position + 1);
     }
 
-    ManagedBuffer_v2()                            = delete;
-    ManagedBuffer_v2(const ManagedBuffer_v2& buf) = delete;
+    ManagedBuffer_v2()                                       = delete;
+    ManagedBuffer_v2(const ManagedBuffer_v2& buf)            = delete;
     ManagedBuffer_v2& operator=(const ManagedBuffer_v2& buf) = delete;
 
     DeviceBuffer dbuff;

@@ -22,9 +22,9 @@ using namespace half_float::literal;
 namespace mlinfer {
 struct INoCopy
 {
-    INoCopy()               = default;
-    virtual ~INoCopy()      = default;
-    INoCopy(const INoCopy&) = delete;
+    INoCopy()                          = default;
+    virtual ~INoCopy()                 = default;
+    INoCopy(const INoCopy&)            = delete;
     INoCopy& operator=(const INoCopy&) = delete;
 };
 

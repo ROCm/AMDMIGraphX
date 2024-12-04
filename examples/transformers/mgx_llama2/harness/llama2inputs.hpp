@@ -118,8 +118,8 @@ struct LLama2Inputs
     size_t dataSize() const { return data.size(); }
     size_t batchNum() const { return data.batchNum(); }
 
-    LLama2Inputs()                        = delete;
-    LLama2Inputs(const LLama2Inputs& buf) = delete;
+    LLama2Inputs()                                   = delete;
+    LLama2Inputs(const LLama2Inputs& buf)            = delete;
     LLama2Inputs& operator=(const LLama2Inputs& buf) = delete;
 
     std::unique_ptr<LLama2InputBuffer> input_ids_buffer;

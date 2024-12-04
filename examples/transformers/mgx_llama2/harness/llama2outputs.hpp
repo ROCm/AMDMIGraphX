@@ -46,7 +46,7 @@ struct LLama2Outputs
             migraphx::argument(argm_out_shape_one_dim, argm_output_buffer_one_dim->data()));
     }
 
-    LLama2Outputs(const LLama2Outputs& buf) = delete;
+    LLama2Outputs(const LLama2Outputs& buf)            = delete;
     LLama2Outputs& operator=(const LLama2Outputs& buf) = delete;
 
     std::unique_ptr<LLama2PastKeyValueBuffer> output_buffer;

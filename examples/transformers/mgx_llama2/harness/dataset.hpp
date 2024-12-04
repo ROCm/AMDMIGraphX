@@ -109,7 +109,7 @@ struct Dataset
         return _current_batch;
     }
 
-    Dataset(const Dataset& buf) = delete;
+    Dataset(const Dataset& buf)            = delete;
     Dataset& operator=(const Dataset& buf) = delete;
 
     private:

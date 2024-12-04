@@ -137,15 +137,15 @@ shape_transform_descriptor::rebase(const std::vector<std::size_t>& dims) const
     {
         for(auto& sub : d.subdimensions)
         {
-            if(sub.axis.empty() and sub.hidden_axis.has_value())
+            const auto& axis = sub.origin_axis();
+            if(axis.size() == 1 or sub.has_hidden_axis())
             {
-                sub.len         = dims.at(sub.hidden_axis.value());
-                sub.axis        = {sub.hidden_axis.value()};
-                sub.hidden_axis = nullopt;
-            }
-            else if(sub.axis.size() == 1)
-            {
-                sub.len = dims.at(sub.axis.front());
+                sub.len = dims.at(axis.front());
+                if(sub.has_hidden_axis())
+                {
+                    sub.axis = axis;
+                    sub.hidden_axis.clear();
+                }
             }
         }
     }
@@ -1149,17 +1149,8 @@ std::vector<std::vector<std::size_t>> shape_transform_descriptor::common_axes_ma
     for(const auto& s : subs)
     {
         std::size_t axis = -1;
-        if(s.axis.empty())
-        {
-            if(s.hidden_axis.has_value())
-                axis = s.hidden_axis.value();
-            else
-                continue;
-        }
-        else
-        {
-            axis = s.axis.front();
-        }
+        if(not s.origin_axis().empty())
+            axis = s.origin_axis().front();
         axes_map[axis].push_back(&s);
     }
     for(auto&& p : axes_map)

@@ -45,4 +45,6 @@ struct test_reduce_mean_bias_half : verify_program<test_reduce_mean_bias_half>
         mm->add_return({sqrt});
         return p;
     };
+
+    std::string section() const { return "reduce"; }
 };

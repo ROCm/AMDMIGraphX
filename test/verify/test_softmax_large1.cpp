@@ -40,4 +40,6 @@ struct test_softmax_large1 : verify_program<test_softmax_large1>
         mm->add_instruction(migraphx::make_op("softmax", {{"axis", -1}}), add);
         return p;
     }
+
+    std::string section() const { return "reduce"; }
 };

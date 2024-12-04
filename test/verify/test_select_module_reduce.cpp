@@ -66,4 +66,6 @@ struct test_select_module_reduce : verify_program<test_select_module_reduce>
 
         return p;
     }
+
+    std::string section() const { return "reduce"; }
 };

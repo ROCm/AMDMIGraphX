@@ -115,6 +115,8 @@ struct test_softmaxcrossentropyloss_kd_mean
 
         return p;
     }
+
+    std::string section() const { return "reduce"; }
 };
 
 // template struct test_softmaxcrossentropyloss_kd_mean<migraphx::shape::double_type,

@@ -45,4 +45,6 @@ struct test_reduce_noop_add : verify_program<test_reduce_noop_add>
         mm->add_return({add});
         return p;
     };
+
+    std::string section() const { return "reduce"; }
 };

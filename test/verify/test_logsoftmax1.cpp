@@ -40,4 +40,6 @@ struct test_logsoftmax1 : verify_program<test_logsoftmax1>
         mm->add_return({r});
         return p;
     }
+
+    std::string section() const { return "reduce"; }
 };

@@ -41,4 +41,6 @@ struct test_softmax3 : verify_program<test_softmax3>
         mm->add_return({r});
         return p;
     }
+
+    std::string section() const { return "reduce"; }
 };

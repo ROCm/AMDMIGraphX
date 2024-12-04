@@ -24,7 +24,7 @@
 #include <migraphx/float_equal.hpp>
 #include <migraphx/instruction_ref.hpp>
 #include <migraphx/quantization.hpp>
-#include <migraphx/quantize_fp16.hpp>
+#include <migraphx/truncate_float.hpp>
 #include <migraphx/quantize_8bits.hpp>
 #include <migraphx/quantize_int4.hpp>
 #include <migraphx/simplify_reshapes.hpp>
@@ -69,7 +69,7 @@ void quantize_fp16(program& prog, const std::vector<std::string>& ins_names)
     run_passes(prog,
                {normalize_ops{},
                 optimize_module{{"quantizelinear", "dequantizelinear"}},
-                quantize_fp16_pass{ins_names},
+                truncate_float_pass{ins_names, shape::half_type},
                 optimize_module{{"quantizelinear", "dequantizelinear"}}},
                quant_tracer());
 }

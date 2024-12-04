@@ -63,6 +63,7 @@ void autocast_fp8_1()
     EXPECT(m1 == m2);
 }
 TEST_CASE_REGISTER(autocast_fp8_1<migraphx::shape::fp8e4m3fnuz_type>);
+TEST_CASE_REGISTER(autocast_fp8_1<migraphx::shape::fp8e5m2fnuz_type>);
 TEST_CASE_REGISTER(autocast_fp8_1<migraphx::shape::fp8e4m3fn_type>);
 TEST_CASE_REGISTER(autocast_fp8_1<migraphx::shape::fp8e5m2_type>);
 
@@ -91,6 +92,7 @@ void autocast_fp8_2()
     EXPECT(m1 == m2);
 }
 TEST_CASE_REGISTER(autocast_fp8_2<migraphx::shape::fp8e4m3fnuz_type>);
+TEST_CASE_REGISTER(autocast_fp8_2<migraphx::shape::fp8e5m2fnuz_type>);
 TEST_CASE_REGISTER(autocast_fp8_2<migraphx::shape::fp8e4m3fn_type>);
 TEST_CASE_REGISTER(autocast_fp8_2<migraphx::shape::fp8e5m2_type>);
 
@@ -127,6 +129,7 @@ void autocast_fp8_3()
     EXPECT(m1 == m2);
 }
 TEST_CASE_REGISTER(autocast_fp8_3<migraphx::shape::fp8e4m3fnuz_type>);
+TEST_CASE_REGISTER(autocast_fp8_3<migraphx::shape::fp8e5m2fnuz_type>);
 TEST_CASE_REGISTER(autocast_fp8_3<migraphx::shape::fp8e4m3fn_type>);
 TEST_CASE_REGISTER(autocast_fp8_3<migraphx::shape::fp8e5m2_type>);
 
@@ -166,6 +169,7 @@ void autocast_fp8_4()
     EXPECT(m1 == m2);
 }
 TEST_CASE_REGISTER(autocast_fp8_4<migraphx::shape::fp8e4m3fnuz_type>);
+TEST_CASE_REGISTER(autocast_fp8_4<migraphx::shape::fp8e5m2fnuz_type>);
 TEST_CASE_REGISTER(autocast_fp8_4<migraphx::shape::fp8e4m3fn_type>);
 TEST_CASE_REGISTER(autocast_fp8_4<migraphx::shape::fp8e5m2_type>);
 

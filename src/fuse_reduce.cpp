@@ -174,12 +174,53 @@ static auto any_input(Ms... ms)
     return match::any_of[match::inputs()](match::any(ms...).bind("input"));
 }
 
+bool is_valid_broadcast(const instruction_ref b, const std::vector<size_t>& reduce_axes)
+{
+    std::vector<size_t> broadcast_axes;
+    auto bstrides = b->get_shape().strides();
+
+    for(size_t i = 0; i < bstrides.size(); ++i)
+    {
+        if(bstrides.at(i) == 0)
+            broadcast_axes.push_back(i);
+    }
+
+    return broadcast_axes == reduce_axes;
+}
+
+template <class M>
+static auto match_broadcast_axes(M m)
+{
+    return match::make_basic_fun_matcher(
+        [=](match::matcher_context& ctx, instruction_ref ins) -> optional<instruction_ref> {
+            optional<instruction_ref> result = m.match(ctx, ins);
+            if(contains(ctx.instructions, "broadcast"))
+            {
+                instruction_ref reduce;
+                if(ins->get_operator().name() == "fused_reduce")
+                {
+                    reduce = ins;
+                }
+                else
+                {
+                    assert(contains(ctx.instructions, "reduce"));
+                    reduce = ctx.instructions["reduce"];
+                }
+                auto axes      = reduce->get_operator().to_value().at("axes").to_vector<size_t>();
+                auto broadcast = ctx.instructions["broadcast"];
+                if(not is_valid_broadcast(broadcast, axes))
+                    return nullopt;
+            }
+            return result;
+        });
+}
+
 static auto match_broadcastable_input(const std::string& op, const std::string& name)
 {
     auto match_op                 = match::name(op)(used_once_except_broadcast()).bind(name);
     auto match_op_input           = any_input(match_op, match::used_once());
     auto broadcast_match_op_input = any_input(match_broadcast(match_op), match::used_once());
-    return match::any_of(match_op_input, broadcast_match_op_input);
+    return match::any_of(match_op_input, match_broadcast_axes(broadcast_match_op_input));
 }
 
 static void finalize_reduce_module(module_ref m)

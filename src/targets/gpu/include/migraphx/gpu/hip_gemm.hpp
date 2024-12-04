@@ -126,6 +126,15 @@ struct hip_gemm
                 hip_gemm_finalize(ctx, output_shape, input_shapes, alpha, beta, solution_idx);
         }
     }
+
+    value
+    compile(migraphx::context& ctx, const shape& output, const std::vector<shape>& input_shapes)
+    {
+        finalize(any_cast<migraphx::gpu::context>(ctx), output, input_shapes);
+        size_t ws = hip_gemm_workspace_size(
+            any_cast<migraphx::gpu::context>(ctx), output, input_shapes, alpha, beta, solution_idx);
+        return {{"workspace", ws}};
+    }
 };
 } // namespace gpu
 } // namespace MIGRAPHX_INLINE_NS

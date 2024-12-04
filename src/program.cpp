@@ -1005,7 +1005,6 @@ void program::debug_print(instruction_ref ins) const
         return;
     }
 
-    std::stringstream ss;
     this->print(names, [&](auto x, auto ins_names) {
         if(x == ins)
         {

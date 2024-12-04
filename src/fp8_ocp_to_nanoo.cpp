@@ -44,14 +44,14 @@ struct match_fp8ocp_convert_to_fp8nanoo
             match::arg(1)(skip_post_dq_ops(dequantizelinear_op("scale2", "zp2").bind("dq2")));
         return match::name(get_quantizable_op_names())(dq1, dq2);
     }
-    
+
     static auto bit_cast_and_handle_specials(module& m,
-                                      const instruction_ref dq,
-                                      const instruction_ref x,
-                                      const instruction_ref bits_0x80_lit,
-                                      const instruction_ref bits_0x7f_lit,
-                                      const instruction_ref bits_0xff_lit,
-                                      const instruction_ref bits_0x00_lit)
+                                             const instruction_ref dq,
+                                             const instruction_ref x,
+                                             const instruction_ref bits_0x80_lit,
+                                             const instruction_ref bits_0x7f_lit,
+                                             const instruction_ref bits_0xff_lit,
+                                             const instruction_ref bits_0x00_lit)
     {
         auto x_lens = x->get_shape().lens();
         auto cast_input = m.insert_instruction(
@@ -80,15 +80,14 @@ struct match_fp8ocp_convert_to_fp8nanoo
         return ret;
     }
 
-    // Add the same broadcast instructions after adjusted scales or 
-    // adjusted zero points from after the originals. Similar to 
+    // Add the same broadcast instructions after adjusted scales or
+    // adjusted zero points from after the originals. Similar to
     // propagate_quantized_ins in simplify_qdq.
     static auto propagate_broadcasts(module& m,
-            const instruction_ref adj,
-            const instruction_ref ori,
-            const instruction_ref start,
-            const instruction_ref insert_pt
-    )
+                                     const instruction_ref adj,
+                                     const instruction_ref ori,
+                                     const instruction_ref start,
+                                     const instruction_ref insert_pt)
     {
         auto prev_ins = start;
         std::vector<instruction_ref> ins_inbetween;
@@ -108,10 +107,10 @@ struct match_fp8ocp_convert_to_fp8nanoo
     }
 
     static auto cast_to_nanoo(module& m,
-                       const instruction_ref dq,
-                       const instruction_ref input,
-                       const instruction_ref dq_scale,
-                       const instruction_ref dq_zp)
+                              const instruction_ref dq,
+                              const instruction_ref input,
+                              const instruction_ref dq_scale,
+                              const instruction_ref dq_zp)
     {
         auto x                             = input;
         std::vector<fp8e4m3fnuz> bits_0x80 = {fp8e4m3fnuz(0x80, fp8e4m3fnuz::from_bits())};
@@ -138,7 +137,7 @@ struct match_fp8ocp_convert_to_fp8nanoo
         auto adj_dq_scale = m.insert_instruction(dq, make_op("mul"), dq_scale, two_lit);
 
         adj_dq_scale = propagate_broadcasts(m, adj_dq_scale, dq_scale, dq->inputs().at(1), dq);
-        adj_dq_zp = propagate_broadcasts(m, adj_dq_zp, dq_zp, dq->inputs().at(2), dq);
+        adj_dq_zp    = propagate_broadcasts(m, adj_dq_zp, dq_zp, dq->inputs().at(2), dq);
         m.replace_instruction(dq, make_op("dequantizelinear"), x, adj_dq_scale, adj_dq_zp);
     }
 

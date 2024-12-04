@@ -137,7 +137,8 @@ TEST_CASE(fp8_gemm_conversion)
         auto scale = m1.add_literal(0.5f);
         std::vector<fp8e4m3fn> data;
         data.push_back(fp8e4m3fn{0.f});
-        auto zero = m1.add_literal(migraphx::shape{migraphx::shape::fp8e4m3fn_type, {1}, {0}}, data);
+        auto zero =
+            m1.add_literal(migraphx::shape{migraphx::shape::fp8e4m3fn_type, {1}, {0}}, data);
 
         auto qa = add_quantize_op(m1, "quantizelinear", a, scale, zero);
         auto qb = add_quantize_op(m1, "quantizelinear", b, scale, zero);
@@ -158,21 +159,26 @@ TEST_CASE(fp8_gemm_conversion)
         auto scale = m2.add_literal(0.5f);
         std::vector<fp8e4m3fn> data;
         data.push_back(fp8e4m3fn{0.f});
-        auto zero = m2.add_literal(migraphx::shape{migraphx::shape::fp8e4m3fn_type, {1}, {0}}, data);
+        auto zero =
+            m2.add_literal(migraphx::shape{migraphx::shape::fp8e4m3fn_type, {1}, {0}}, data);
 
         auto qa = add_quantize_op(m2, "quantizelinear", a, scale, zero);
         auto qb = add_quantize_op(m2, "quantizelinear", b, scale, zero);
 
         auto outs_a = cast_fp8_helper(m2, qa, scale, zero);
-        auto adj_a = outs_a.at(0);
-        auto mb_scales_a = m2.add_instruction(make_op("multibroadcast", {{"out_lens", data_lens}}), outs_a.at(1));
-        auto mb_zp_a = m2.add_instruction(make_op("multibroadcast", {{"out_lens", data_lens}}), outs_a.at(2));
+        auto adj_a  = outs_a.at(0);
+        auto mb_scales_a =
+            m2.add_instruction(make_op("multibroadcast", {{"out_lens", data_lens}}), outs_a.at(1));
+        auto mb_zp_a =
+            m2.add_instruction(make_op("multibroadcast", {{"out_lens", data_lens}}), outs_a.at(2));
         auto da = m2.add_instruction(make_op("dequantizelinear"), adj_a, mb_scales_a, mb_zp_a);
 
         auto outs_b = cast_fp8_helper(m2, qb, scale, zero);
-        auto adj_b = outs_b.at(0);
-        auto mb_scales_b = m2.add_instruction(make_op("multibroadcast", {{"out_lens", data_lens}}), outs_b.at(1));
-        auto mb_zp_b = m2.add_instruction(make_op("multibroadcast", {{"out_lens", data_lens}}), outs_b.at(2));
+        auto adj_b  = outs_b.at(0);
+        auto mb_scales_b =
+            m2.add_instruction(make_op("multibroadcast", {{"out_lens", data_lens}}), outs_b.at(1));
+        auto mb_zp_b =
+            m2.add_instruction(make_op("multibroadcast", {{"out_lens", data_lens}}), outs_b.at(2));
         auto db = m2.add_instruction(make_op("dequantizelinear"), adj_b, mb_scales_b, mb_zp_b);
 
         auto dot = m2.add_instruction(migraphx::make_op("dot"), da, db);
@@ -189,7 +195,8 @@ TEST_CASE(fp8_gemm_conversion)
         auto scale = m3.add_literal(0.5f);
         std::vector<fp8e4m3fn> data;
         data.push_back(fp8e4m3fn{0.f});
-        auto zero = m3.add_literal(migraphx::shape{migraphx::shape::fp8e4m3fn_type, {1}, {0}}, data);
+        auto zero =
+            m3.add_literal(migraphx::shape{migraphx::shape::fp8e4m3fn_type, {1}, {0}}, data);
 
         auto qa = add_quantize_op(m3, "quantizelinear", a, scale, zero);
         auto qb = add_quantize_op(m3, "quantizelinear", b, scale, zero);
@@ -209,8 +216,8 @@ TEST_CASE(fp8_gemm_conversion)
     }
 
     run_simplify_qdq(m1);
-    //running propagate constant to simplify adjustments to literals
-    //could pass the test without, but a tedious amount of instructions to rearrange
+    // running propagate constant to simplify adjustments to literals
+    // could pass the test without, but a tedious amount of instructions to rearrange
     run_propagate_constant(m1);
     run_propagate_constant(m3);
     run_cse(m1);

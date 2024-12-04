@@ -229,7 +229,7 @@ struct match_find_quantizable_ops
             auto zero_lit = m.add_literal(literal{shape{dq->get_shape().type()}, {0}});
             out_zp        = m.insert_instruction(
                 qop, make_op("multibroadcast", {{"out_lens", dq->get_shape().lens()}}), zero_lit);
-            
+
             auto zp1_bc = m.insert_instruction(
                 qop, qparam_broadcast_op(zp1, arg1_lens, arg1_lens.size() - 2), zp1);
             auto zp2_bc = m.insert_instruction(

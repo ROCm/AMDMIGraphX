@@ -23,15 +23,20 @@
 #define MIGRAPHX_GUARD_KERNELS_BITCAST_HPP
 
 #include <migraphx/kernels/type_traits.hpp>
+#include <migraphx/kernels/vec.hpp>
 
 namespace migraphx {
+
 template <typename To,
           typename From,
           MIGRAPHX_REQUIRES(is_trivially_copyable<To>{} and is_trivially_copyable<From>{})>
-inline constexpr To bit_cast(From fr) noexcept
+inline constexpr auto bit_cast(From fr) noexcept
 {
-    static_assert(sizeof(To) == sizeof(From));
-    return __builtin_bit_cast(To, fr);
+    return vec_transform(fr)([](auto x) -> To {
+        static_assert(sizeof(To) == sizeof(decltype(x)));
+        return __builtin_bit_cast(To, x);
+    });
 }
+
 } // namespace migraphx
 #endif // MIGRAPHX_GUARD_KERNELS_BITCAST_HPP

@@ -2,10 +2,9 @@ from argparse import ArgumentParser
 import numpy as np
 import pickle
 from pathlib import Path
-import os
 import evaluate
 import nltk
-from transformers import AutoModelForCausalLM, AutoTokenizer, LlamaForCausalLM
+from transformers import AutoTokenizer
 
 
 MODEL_NAME = "meta-llama/Llama-2-7b-chat-hf"

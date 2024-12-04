@@ -1,7 +1,6 @@
 import numpy as np
 import pickle
 from pathlib import Path
-import os
 
 G_MAX_TOK_LEN = 1024
 G_LLAMA2_EOS = 2

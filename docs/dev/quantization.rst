@@ -1,3 +1,7 @@
+.. meta::
+  :description: MIGraphX internal quantization
+  :keywords: MIGraphX, code base, contribution, developing, quantization
+
 Quantization
 ============
 

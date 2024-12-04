@@ -159,6 +159,17 @@ struct npy_format_descriptor<migraphx::fp8::fp8e4m3fnuz>
 };
 
 template <>
+struct npy_format_descriptor<migraphx::fp8::fp8e5m2fnuz>
+{
+    static std::string format()
+    {
+        // TODO: no standard format in numpy for fp8
+        return "z";
+    }
+    static constexpr auto name() { return _("fp8e5m2fnuz"); }
+};
+
+template <>
 struct npy_format_descriptor<migraphx::fp8::fp8e4m3fn>
 {
     static std::string format()

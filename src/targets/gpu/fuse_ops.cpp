@@ -972,12 +972,10 @@ void fuse_ops::apply(module& m) const
     run_passes(m, {dead_code_elimination{}});
 #endif
 #if MIGRAPHX_USE_ROCBLAS
-    if(not enabled(MIGRAPHX_ENABLE_HIPBLASLT_GEMM{}) or not hipblaslt_supported())
-        match::find_matches(m, find_rocblas_gemm_pointwise{});
+    match::find_matches(m, find_rocblas_gemm_pointwise{});
 #endif
 #if MIGRAPHX_USE_HIPBLASLT
-    if(enabled(MIGRAPHX_ENABLE_HIPBLASLT_GEMM{}) and hipblaslt_supported())
-        match::find_matches(m, find_hipblas_gemm_pointwise{});
+    match::find_matches(m, find_hipblas_gemm_pointwise{});
 #endif
     match::find_matches(m,
                         find_layernorm_pointwise{},

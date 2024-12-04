@@ -401,9 +401,6 @@ MIGRAPHX_C_EXPORT migraphx_status migraphx_module_add_instruction(migraphx_instr
                                                                   migraphx_operation_t op,
                                                                   migraphx_instructions_t args);
 
-MIGRAPHX_C_EXPORT migraphx_status migraphx_module_get_last_instruction(migraphx_instruction_t* out,
-                                                                       migraphx_module_t module);
-
 MIGRAPHX_C_EXPORT migraphx_status
 migraphx_module_add_instruction_with_mod_args(migraphx_instruction_t* out,
                                               migraphx_module_t module,
@@ -422,10 +419,6 @@ MIGRAPHX_C_EXPORT migraphx_status migraphx_module_add_parameter(migraphx_instruc
                                                                 const_migraphx_shape_t shape);
 
 MIGRAPHX_C_EXPORT migraphx_status migraphx_module_add_return(migraphx_instruction_t* out,
-                                                             migraphx_module_t module,
-                                                             migraphx_instructions_t args);
-
-MIGRAPHX_C_EXPORT migraphx_status migraphx_module_replace_return(migraphx_instruction_t* out,
                                                              migraphx_module_t module,
                                                              migraphx_instructions_t args);
 

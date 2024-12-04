@@ -1,3 +1,7 @@
+.. meta::
+  :description: MIGraphX internal environment variables
+  :keywords: MIGraphX, code base, contribution, developing, env vars, environment variables
+
 Environment Variables
 =====================
 

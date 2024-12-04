@@ -343,10 +343,10 @@ create_param_map_with_literals(module_ref mm, const module* pm, const shape& sha
 }
 
 instruction_ref insert_pointwise(module& m,
-                                        instruction_ref ins,
-                                        const operation& op,
-                                        const std::vector<instruction_ref>& inputs,
-                                        const std::vector<module_ref>& mod_args)
+                                 instruction_ref ins,
+                                 const operation& op,
+                                 const std::vector<instruction_ref>& inputs,
+                                 const std::vector<module_ref>& mod_args)
 {
     // Only used in assert
     (void)mod_args;
@@ -355,10 +355,10 @@ instruction_ref insert_pointwise(module& m,
 }
 
 instruction_ref unroll_pointwise(module& main_mod,
-                                        instruction_ref pos,
-                                        const operation& op,
-                                        const std::vector<instruction_ref>& inputs,
-                                        const std::vector<module_ref>& mod_args)
+                                 instruction_ref pos,
+                                 const operation& op,
+                                 const std::vector<instruction_ref>& inputs,
+                                 const std::vector<module_ref>& mod_args)
 {
     if(op.name() == "pointwise")
     {

@@ -36,23 +36,11 @@
 #include <migraphx/op/quant_dot.hpp>
 #include <migraphx/register_op.hpp>
 #include <migraphx/fp8_types.hpp>
+#include <migraphx/qdq_helpers.hpp>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
 namespace {
-
-template <class... Ms>
-auto skip_post_dq_ops(Ms... ms)
-{
-    return match::skip(match::name(
-        "broadcast", "multibroadcast", "contiguous", "transpose", "reshape", "convert"))(ms...);
-}
-
-std::unordered_set<std::string> get_quantizable_op_names()
-{
-    static std::unordered_set<std::string> s = {"convolution", "dot"};
-    return s;
-}
 
 struct match_find_quantizable_ops
 {
@@ -115,13 +103,6 @@ struct match_find_quantizable_ops
             qinp = m.insert_instruction(dqins, (*ins)->get_operator(), {qinp});
         }
         return qinp;
-    }
-
-    static auto dequantizelinear_op(const std::string& scale, const std::string& zp)
-    {
-        return match::name("dequantizelinear")(
-            match::arg(1)(match::skip_broadcasts(match::is_constant().bind(scale))),
-            match::arg(2)(match::skip_broadcasts(match::is_constant().bind(zp))));
     }
 
     auto matcher() const
@@ -230,7 +211,9 @@ struct match_find_quantizable_ops
                    is_valid_qparam(zp1, out_lens, out_lens.size() - 2) and
                    is_valid_qparam(scale2, out_lens, out_lens.size() - 1) and
                    is_valid_qparam(zp2, out_lens, out_lens.size() - 1)))
+            {
                 return;
+            }
 
             // This implementation supports both arguments being per-axis affine quantized
             // In practice, inputs are per-tensor affine and weights are per-axis symmetric
@@ -246,7 +229,7 @@ struct match_find_quantizable_ops
             auto zero_lit = m.add_literal(literal{shape{dq->get_shape().type()}, {0}});
             out_zp        = m.insert_instruction(
                 qop, make_op("multibroadcast", {{"out_lens", dq->get_shape().lens()}}), zero_lit);
-
+            
             auto zp1_bc = m.insert_instruction(
                 qop, qparam_broadcast_op(zp1, arg1_lens, arg1_lens.size() - 2), zp1);
             auto zp2_bc = m.insert_instruction(

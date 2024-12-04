@@ -107,10 +107,10 @@ auto cast_fp8_helper(migraphx::module& m,
     std::vector<fp8e4m3fnuz> bits_0x7f = {fp8e4m3fnuz(0x7f, fp8e4m3fnuz::from_bits())};
     std::vector<fp8e4m3fnuz> bits_0xff = {fp8e4m3fnuz(0xff, fp8e4m3fnuz::from_bits())};
     std::vector<fp8e4m3fnuz> bits_0x00 = {fp8e4m3fnuz(0x00, fp8e4m3fnuz::from_bits())};
-    auto bits_0x80_lit = m.add_literal(shape{shape::fp8e4m3fnuz_type, {1}}, bits_0x80);
-    auto bits_0x7f_lit = m.add_literal(shape{shape::fp8e4m3fnuz_type, {1}}, bits_0x7f);
-    auto bits_0xff_lit = m.add_literal(shape{shape::fp8e4m3fnuz_type, {1}}, bits_0xff);
-    auto bits_0x00_lit = m.add_literal(shape{shape::fp8e4m3fnuz_type, {1}}, bits_0x00);
+    auto bits_0x80_lit = m.add_literal(shape{shape::fp8e4m3fnuz_type, {1}, {0}}, bits_0x80);
+    auto bits_0x7f_lit = m.add_literal(shape{shape::fp8e4m3fnuz_type, {1}, {0}}, bits_0x7f);
+    auto bits_0xff_lit = m.add_literal(shape{shape::fp8e4m3fnuz_type, {1}, {0}}, bits_0xff);
+    auto bits_0x00_lit = m.add_literal(shape{shape::fp8e4m3fnuz_type, {1}, {0}}, bits_0x00);
 
     auto cast_input = bit_cast_and_handle_specials(
         m, dq_input, bits_0x80_lit, bits_0x7f_lit, bits_0xff_lit, bits_0x00_lit);
@@ -129,14 +129,15 @@ TEST_CASE(fp8_gemm_conversion)
 {
     using migraphx::fp8::fp8e4m3fn;
     using migraphx::fp8::fp8e4m3fnuz;
+    std::vector<std::size_t> data_lens = {2, 3, 8, 8};
     migraphx::module m1;
     {
-        auto a     = m1.add_parameter("a", {migraphx::shape::float_type, {2, 3, 8, 8}});
-        auto b     = m1.add_parameter("b", {migraphx::shape::float_type, {2, 3, 8, 8}});
+        auto a     = m1.add_parameter("a", {migraphx::shape::float_type, data_lens});
+        auto b     = m1.add_parameter("b", {migraphx::shape::float_type, data_lens});
         auto scale = m1.add_literal(0.5f);
         std::vector<fp8e4m3fn> data;
         data.push_back(fp8e4m3fn{0.f});
-        auto zero = m1.add_literal(migraphx::shape{migraphx::shape::fp8e4m3fn_type, {1}}, data);
+        auto zero = m1.add_literal(migraphx::shape{migraphx::shape::fp8e4m3fn_type, {1}, {0}}, data);
 
         auto qa = add_quantize_op(m1, "quantizelinear", a, scale, zero);
         auto qb = add_quantize_op(m1, "quantizelinear", b, scale, zero);
@@ -152,21 +153,27 @@ TEST_CASE(fp8_gemm_conversion)
     // expected after fp8_ocp_to_nanoo
     migraphx::module m2;
     {
-
-        auto a     = m2.add_parameter("a", {migraphx::shape::float_type, {2, 3, 8, 8}});
-        auto b     = m2.add_parameter("b", {migraphx::shape::float_type, {2, 3, 8, 8}});
+        auto a     = m2.add_parameter("a", {migraphx::shape::float_type, data_lens});
+        auto b     = m2.add_parameter("b", {migraphx::shape::float_type, data_lens});
         auto scale = m2.add_literal(0.5f);
         std::vector<fp8e4m3fn> data;
         data.push_back(fp8e4m3fn{0.f});
-        auto zero = m2.add_literal(migraphx::shape{migraphx::shape::fp8e4m3fn_type, {1}}, data);
+        auto zero = m2.add_literal(migraphx::shape{migraphx::shape::fp8e4m3fn_type, {1}, {0}}, data);
 
         auto qa = add_quantize_op(m2, "quantizelinear", a, scale, zero);
         auto qb = add_quantize_op(m2, "quantizelinear", b, scale, zero);
 
-        auto outs_a = cast_fp8_helper(m2, qa, qa->inputs().at(1), qa->inputs().at(2));
-        auto da = add_quantize_op(m2, "dequantizelinear", outs_a.at(0), outs_a.at(1), outs_a.at(2));
-        auto outs_b = cast_fp8_helper(m2, qb, qb->inputs().at(1), qb->inputs().at(2));
-        auto db = add_quantize_op(m2, "dequantizelinear", outs_b.at(0), outs_b.at(1), outs_b.at(2));
+        auto outs_a = cast_fp8_helper(m2, qa, scale, zero);
+        auto adj_a = outs_a.at(0);
+        auto mb_scales_a = m2.add_instruction(make_op("multibroadcast", {{"out_lens", data_lens}}), outs_a.at(1));
+        auto mb_zp_a = m2.add_instruction(make_op("multibroadcast", {{"out_lens", data_lens}}), outs_a.at(2));
+        auto da = m2.add_instruction(make_op("dequantizelinear"), adj_a, mb_scales_a, mb_zp_a);
+
+        auto outs_b = cast_fp8_helper(m2, qb, scale, zero);
+        auto adj_b = outs_b.at(0);
+        auto mb_scales_b = m2.add_instruction(make_op("multibroadcast", {{"out_lens", data_lens}}), outs_b.at(1));
+        auto mb_zp_b = m2.add_instruction(make_op("multibroadcast", {{"out_lens", data_lens}}), outs_b.at(2));
+        auto db = m2.add_instruction(make_op("dequantizelinear"), adj_b, mb_scales_b, mb_zp_b);
 
         auto dot = m2.add_instruction(migraphx::make_op("dot"), da, db);
         m2.add_return({dot});
@@ -182,7 +189,7 @@ TEST_CASE(fp8_gemm_conversion)
         auto scale = m3.add_literal(0.5f);
         std::vector<fp8e4m3fn> data;
         data.push_back(fp8e4m3fn{0.f});
-        auto zero = m3.add_literal(migraphx::shape{migraphx::shape::fp8e4m3fn_type, {1}}, data);
+        auto zero = m3.add_literal(migraphx::shape{migraphx::shape::fp8e4m3fn_type, {1}, {0}}, data);
 
         auto qa = add_quantize_op(m3, "quantizelinear", a, scale, zero);
         auto qb = add_quantize_op(m3, "quantizelinear", b, scale, zero);
@@ -202,7 +209,14 @@ TEST_CASE(fp8_gemm_conversion)
     }
 
     run_simplify_qdq(m1);
+    //running propagate constant to simplify adjustments to literals
+    //could pass the test without, but a tedious amount of instructions to rearrange
+    run_propagate_constant(m1);
+    run_propagate_constant(m3);
+    run_cse(m1);
+    run_cse(m3);
     EXPECT(m1 == m3);
+    m1.debug_print();
 }
 
 int main(int argc, const char* argv[]) { test::run(argc, argv); }

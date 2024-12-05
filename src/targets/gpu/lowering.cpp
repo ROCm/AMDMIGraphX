@@ -514,6 +514,11 @@ struct miopen_apply
                 make_op("reshape_lazy", {{"dims", {ins->get_operator().to_value().at("dims")}}}),
                 before_contig);
 
+            if(ins->outputs().size() == 1 and ins->outputs().front()->name() == "@return")
+            {
+                return mod->replace_instruction(ins, new_lazy_reshape);
+            }
+
             std::vector<instruction_ref> after_contiguous_args = {new_lazy_reshape};
             auto after_alloc = insert_allocation(new_lazy_reshape, new_lazy_reshape->get_shape());
             after_contiguous_args.push_back(after_alloc);

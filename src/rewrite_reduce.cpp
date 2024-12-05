@@ -27,6 +27,7 @@
 #include <migraphx/matcher.hpp>
 #include <migraphx/make_op.hpp>
 #include <migraphx/common.hpp>
+#include <migraphx/array.hpp>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
@@ -141,12 +142,61 @@ struct find_reduce_mean
     }
 };
 
+struct find_large_reduce_sum
+{
+    auto matcher() const { return match::name("reduce_sum"); }
+
+    static std::size_t split_reduce(std::size_t& r, std::size_t min_size = 1024)
+    {
+        std::size_t n = 1;
+        auto factors  = make_array(2, 3, 5, 7, 11);
+        while(r > min_size)
+        {
+            // NOLINTNEXTLINE(readability-qualified-auto)
+            auto it = std::find_if(factors.begin(), factors.end(), [&](auto d) { return r % d == 0; });
+            if(it == factors.end())
+                break;
+            r /= *it;
+            n *= *it;
+        }
+        assert(n != 1);
+        return n;
+    }
+
+    void apply(module& m, const match::matcher_result& r) const
+    {
+        auto ins   = r.result;
+        auto op    = ins->get_operator().to_value();
+        auto axes  = op["axes"].to_vector<std::int64_t>();
+        auto input = ins->inputs().front();
+        auto n = input->get_shape().elements() / ins->get_shape().elements();
+        if (n < 4096)
+            return;
+        if (axes.size() != 1)
+            return;
+        if(axes.front() != ins->get_shape().ndim() - 1)
+            return;
+        auto dims = input->get_shape().lens();
+        // dims.back() = sqrt(n);
+        // dims.push_back(sqrt(n));
+        auto group = split_reduce(dims.back());
+        // dims.push_back(group);
+        dims.insert(std::prev(dims.end()), group);
+
+        auto ginput = m.insert_instruction(ins, make_op("reshape", {{"dims", dims}}), input);
+        auto reduce1 = m.insert_instruction(ins, make_op("reduce_sum", {{"axes", {input->get_shape().ndim()}}}), ginput);
+        auto squeeze = m.insert_instruction(ins, make_op("squeeze", {{"axes", {input->get_shape().ndim()}}}), reduce1);
+        m.replace_instruction(ins, ins->get_operator(), squeeze);
+    }
+};
+
 } // namespace
 
 void rewrite_reduce::apply(module& m) const
 {
     match::find_matches(m, find_softmax{}, find_reduce_mean_variance{});
     match::find_matches(m, find_reduce_mean{});
+    match::find_matches(m, find_large_reduce_sum{});
 }
 
 } // namespace MIGRAPHX_INLINE_NS

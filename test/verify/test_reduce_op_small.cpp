@@ -91,6 +91,31 @@ template struct test_reduce_op_small<migraphx::op::reduce_any,
                                      2,
                                      migraphx::shape::fp8e4m3fnuz_type>;
 
+template struct test_reduce_op_small<migraphx::op::reduce_sum,
+                                     2,
+                                     migraphx::shape::fp8e5m2fnuz_type>;
+template struct test_reduce_op_small<migraphx::op::reduce_sum,
+                                     3,
+                                     migraphx::shape::fp8e5m2fnuz_type>;
+template struct test_reduce_op_small<migraphx::op::reduce_mean,
+                                     2,
+                                     migraphx::shape::fp8e5m2fnuz_type>;
+template struct test_reduce_op_small<migraphx::op::reduce_max,
+                                     2,
+                                     migraphx::shape::fp8e5m2fnuz_type>;
+template struct test_reduce_op_small<migraphx::op::reduce_min,
+                                     2,
+                                     migraphx::shape::fp8e5m2fnuz_type>;
+template struct test_reduce_op_small<migraphx::op::reduce_prod,
+                                     -2,
+                                     migraphx::shape::fp8e5m2fnuz_type>;
+template struct test_reduce_op_small<migraphx::op::reduce_all,
+                                     2,
+                                     migraphx::shape::fp8e5m2fnuz_type>;
+template struct test_reduce_op_small<migraphx::op::reduce_any,
+                                     2,
+                                     migraphx::shape::fp8e5m2fnuz_type>;
+
 template struct test_reduce_op_small<migraphx::op::reduce_sum, 2, migraphx::shape::fp8e4m3fn_type>;
 template struct test_reduce_op_small<migraphx::op::reduce_sum, 3, migraphx::shape::fp8e4m3fn_type>;
 template struct test_reduce_op_small<migraphx::op::reduce_mean, 2, migraphx::shape::fp8e4m3fn_type>;

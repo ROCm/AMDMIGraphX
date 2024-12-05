@@ -137,6 +137,25 @@ TEST_CASE(fp16_test)
     EXPECT(migraphx::verify::verify_rms_range(results_vector, gold));
 }
 
+TEST_CASE(bf16_test)
+{
+    migraphx::program p;
+    auto* mm = p.get_main_module();
+    migraphx::shape s{migraphx::shape::bf16_type, {1}};
+    migraphx::bf16 a{1.5};
+    migraphx::bf16 b{2.5};
+    migraphx::bf16 c{4.0};
+    auto l0 = mm->add_literal(migraphx::literal{s, {a}});
+    auto l1 = mm->add_literal(migraphx::literal{s, {b}});
+    mm->add_instruction(migraphx::make_op("add"), l0, l1);
+    p.compile(migraphx::make_target("ref"));
+    auto result = p.eval({}).back();
+    std::vector<migraphx::bf16> results_vector(1);
+    result.visit([&](auto output) { results_vector.assign(output.begin(), output.end()); });
+    std::vector<migraphx::bf16> gold{c};
+    EXPECT(migraphx::verify::verify_rms_range(results_vector, gold));
+}
+
 TEST_CASE(fp32_fp16_test)
 {
     auto create_program = [] {

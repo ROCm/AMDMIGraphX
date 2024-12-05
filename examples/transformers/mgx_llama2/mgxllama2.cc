@@ -104,9 +104,9 @@ struct MGXLlama2
                 firstIter ? model_outputs->argm_output_buffer->download_from_device(stream, sampleLastInputIdx[b], sampleLastInputIdx[b] + 1) : model_outputs->argm_output_buffer_one_dim->download_from_device(stream);
 
                 check_hip_status(hipStreamSynchronize(stream));
-                int64_t* results = reinterpret_cast<int64_t*>( firstIter ? model_outputs->argm_output_buffer->hbuff.data() : model_outputs->argm_output_buffer_one_dim->hbuff.data());
+                const int64_t* output_results = reinterpret_cast<int64_t*>( firstIter ? model_outputs->argm_output_buffer->hbuff.data() : model_outputs->argm_output_buffer_one_dim->hbuff.data());
                 auto new_token_idx = firstIter ? sampleLastInputIdx[b] : b;
-                int64_t new_token = results[new_token_idx];
+                int64_t new_token = output_results[new_token_idx];
 
                 token_count++;
                 #ifdef TRACE

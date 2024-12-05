@@ -58,3 +58,6 @@ struct test_gemm_add : verify_program<test_gemm_add<DType>>
 template struct test_gemm_add<migraphx::shape::float_type>;
 template struct test_gemm_add<migraphx::shape::half_type>;
 // TODO template struct test_gemm_add<migraphx::shape::fp8e4m3fnuz_type>;
+// TODO template struct test_gemm_add<migraphx::shape::fp8e5m2fnuz_type>;
+// TODO template struct test_gemm_add<migraphx::shape::fp8e4m2fn_type>;
+// TODO template struct test_gemm_add<migraphx::shape::fp8e5m2_type>;

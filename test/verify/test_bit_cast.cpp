@@ -24,34 +24,32 @@
 
 #include "verify_program.hpp"
 #include <migraphx/program.hpp>
-#include <migraphx/shape.hpp>
 #include <migraphx/generate.hpp>
+#include <migraphx/serialize.hpp>
+
 #include <migraphx/make_op.hpp>
 
-template <migraphx::shape::type_t DType>
-struct test_gemm_2args_mm_3 : verify_program<test_gemm_2args_mm_3<DType>>
+template <migraphx::shape::type_t From, migraphx::shape::type_t To>
+struct test_bit_cast : verify_program<test_bit_cast<From, To>>
 {
     migraphx::program create_program() const
     {
         migraphx::program p;
         auto* mm = p.get_main_module();
-        migraphx::shape m1_shape{DType, {1, 2, 3}};
-        migraphx::shape m2_shape{DType, {3, 3, 4}};
-        auto l1 = mm->add_parameter("1", m1_shape);
-        auto bl1 =
-            mm->add_instruction(migraphx::make_op("multibroadcast", {{"out_lens", {3, 2, 3}}}), l1);
-        auto l2 = mm->add_parameter("2", m2_shape);
-
-        mm->add_instruction(migraphx::make_op("dot"), bl1, l2);
-
+        migraphx::shape s{From, {8}};
+        auto pa = mm->add_parameter("a", s);
+        auto pb = mm->add_parameter("b", s);
+        auto ia = mm->add_instruction(
+            migraphx::make_op("bit_cast", {{"target_type", migraphx::to_value(To)}}), pa);
+        auto ib = mm->add_instruction(
+            migraphx::make_op("bit_cast", {{"target_type", migraphx::to_value(To)}}), pb);
+        auto ret = mm->add_instruction(migraphx::make_op("add"), ia, ib);
+        mm->add_return({ret});
         return p;
-    }
-    std::string section() const { return "gemm"; }
+    };
 };
 
-template struct test_gemm_2args_mm_3<migraphx::shape::float_type>;
-template struct test_gemm_2args_mm_3<migraphx::shape::half_type>;
-template struct test_gemm_2args_mm_3<migraphx::shape::fp8e4m3fnuz_type>;
-template struct test_gemm_2args_mm_3<migraphx::shape::fp8e5m2fnuz_type>;
-template struct test_gemm_2args_mm_3<migraphx::shape::fp8e4m3fn_type>;
-template struct test_gemm_2args_mm_3<migraphx::shape::fp8e5m2_type>;
+template struct test_bit_cast<migraphx::shape::uint8_type, migraphx::shape::int8_type>;
+template struct test_bit_cast<migraphx::shape::int8_type, migraphx::shape::uint8_type>;
+template struct test_bit_cast<migraphx::shape::fp8e4m3fn_type, migraphx::shape::fp8e4m3fnuz_type>;
+template struct test_bit_cast<migraphx::shape::fp8e4m3fnuz_type, migraphx::shape::fp8e4m3fn_type>;

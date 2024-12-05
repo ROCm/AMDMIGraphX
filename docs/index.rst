@@ -33,6 +33,7 @@ The MIGraphX public repository is located at `https://github.com/ROCm/AMDMIGraph
     * :ref:`cpp-api-reference`
     * :ref:`python-api-reference`
     * :ref:`migraphx-driver`
+    * :doc:`Supported ONNX Operators <./dev/onnx_operators>`
    
   .. grid-item-card:: Contributing to the MIGraphX code base
 

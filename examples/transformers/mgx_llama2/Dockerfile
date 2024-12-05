@@ -2,6 +2,8 @@ FROM rocm/dev-ubuntu-22.04:6.2
 
 ENV DEBIAN_FRONTEND=noninteractive
 
+ARG GPU_TARGET
+
 SHELL ["/bin/bash", "-c"]
 
 RUN apt-get update && apt-get install -y --allow-unauthenticated \
@@ -27,9 +29,8 @@ ENV MIGRAPHX_ENABLE_HIPBLASLT_GEMM=1
 ENV MIGRAPHX_USE_HIPBLASLT=1
 ENV MIGRAPHX_USE_MIOPEN=1
 
-#TODO: use $(/opt/rocm/bin/rocminfo | grep -o -m1 'gfx.*') for GPU_TARGETS
 RUN mkdir build && cd build && \
-    CXX=/opt/rocm/llvm/bin/clang++ cmake .. -DGPU_TARGETS='gfx942' && \
+    CXX=/opt/rocm/llvm/bin/clang++ cmake .. -DGPU_TARGETS=${GPU_TARGET} && \
     make -j$(nproc) && \
     make install
 

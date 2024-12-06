@@ -170,8 +170,6 @@ MIGRAPHX_DEVICE_MATH_BINARY_FOR(double, max, ::max)
 MIGRAPHX_DEVICE_MATH_BINARY_FOR(double, min, ::min)
 MIGRAPHX_DEVICE_MATH_BINARY_FOR(migraphx::half, max, ::__hmax)
 MIGRAPHX_DEVICE_MATH_BINARY_FOR(migraphx::half, min, ::__hmin)
-// MIGRAPHX_DEVICE_MATH_BINARY_FOR(migraphx::bf16, max, ::max)
-// MIGRAPHX_DEVICE_MATH_BINARY_FOR(migraphx::bf16, min, ::min)
 
 template <class T, MIGRAPHX_REQUIRES(not is_any_vec<T>() and is_integral<T>{})>
 constexpr auto abs(const T& a)

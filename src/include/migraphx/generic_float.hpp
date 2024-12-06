@@ -104,6 +104,8 @@ struct float32_parts
     unsigned int exponent : 8;
     unsigned int sign : 1;
 
+    static constexpr unsigned int exponent_width() { return 8; }
+
     static constexpr unsigned int mantissa_width() { return 23; }
 
     static constexpr unsigned int max_exponent() { return all_ones<8>(); }
@@ -115,9 +117,6 @@ struct float32_parts
 
 constexpr float32_parts get_parts(float f) { return migraphx::bit_cast<float32_parts>(f); }
 
-#ifdef _MSC_VER
-#pragma pack(push, 1)
-#endif
 template <unsigned int MantissaSize, unsigned int ExponentSize, unsigned int Flags = 0>
 struct __attribute__((packed, may_alias)) generic_float
 {
@@ -152,7 +151,7 @@ struct __attribute__((packed, may_alias)) generic_float
         float32_parts f{};
         f.sign = sign;
 
-        if(exponent == 0) // subnormal fps
+        if(exponent == 0 and ExponentSize != float32_parts::exponent_width()) // subnormal fps
         {
 
             if(mantissa == 0)
@@ -162,8 +161,8 @@ struct __attribute__((packed, may_alias)) generic_float
             }
             else
             {
-                type shift         = 0;
-                f.mantissa         = mantissa;
+                type shift = 0;
+                f.mantissa = mantissa;
 
                 if(MantissaSize < float32_parts::mantissa_width())
                 {
@@ -390,9 +389,6 @@ struct __attribute__((packed, may_alias)) generic_float
         return temp;
     }
 };
-#ifdef _MSC_VER
-#pragma pack(pop)
-#endif
 
 } // namespace MIGRAPHX_INLINE_NS
 } // namespace migraphx

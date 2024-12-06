@@ -106,7 +106,7 @@ include(ROCMSetupVersion)
 
 option(BUILD_DEV "Build for development purpose only" OFF)
 
-rocm_setup_version(VERSION 2.11.0)
+rocm_setup_version(VERSION 2.12.0)
 math(EXPR MIGRAPHX_SO_MAJOR_VERSION "(${PROJECT_VERSION_MAJOR} * 1000 * 1000) + (${PROJECT_VERSION_MINOR} * 1000) + ${PROJECT_VERSION_PATCH}")
 set(MIGRAPHX_SO_VERSION ${MIGRAPHX_SO_MAJOR_VERSION}.0)
 
@@ -178,7 +178,6 @@ rocm_enable_clang_tidy(
         -bugprone-easily-swappable-parameters
         -bugprone-implicit-widening-of-multiplication-result
         -bugprone-macro-parentheses
-	-bugprone-multi-level-implicit-pointer-conversion
         -bugprone-signed-char-misuse
         -bugprone-unchecked-optional-access
         # Disable the aliased reserved identifiers

@@ -43,5 +43,6 @@ struct test_tanh : verify_program<test_tanh<DType>>
 template struct test_tanh<migraphx::shape::float_type>;
 template struct test_tanh<migraphx::shape::half_type>;
 template struct test_tanh<migraphx::shape::fp8e4m3fnuz_type>;
+template struct test_tanh<migraphx::shape::fp8e5m2fnuz_type>;
 template struct test_tanh<migraphx::shape::fp8e4m3fn_type>;
 template struct test_tanh<migraphx::shape::fp8e5m2_type>;

@@ -44,5 +44,6 @@ struct test_reverse : verify_program<test_reverse<DType>>
 template struct test_reverse<migraphx::shape::float_type>;
 template struct test_reverse<migraphx::shape::half_type>;
 template struct test_reverse<migraphx::shape::fp8e4m3fnuz_type>;
+template struct test_reverse<migraphx::shape::fp8e5m2fnuz_type>;
 template struct test_reverse<migraphx::shape::fp8e4m3fn_type>;
 template struct test_reverse<migraphx::shape::fp8e5m2_type>;

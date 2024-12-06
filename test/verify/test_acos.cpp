@@ -44,5 +44,6 @@ struct test_acos : verify_program<test_acos<DType>>
 template struct test_acos<migraphx::shape::half_type>;
 template struct test_acos<migraphx::shape::float_type>;
 template struct test_acos<migraphx::shape::fp8e4m3fnuz_type>;
+template struct test_acos<migraphx::shape::fp8e5m2fnuz_type>;
 template struct test_acos<migraphx::shape::fp8e4m3fn_type>;
 template struct test_acos<migraphx::shape::fp8e5m2_type>;

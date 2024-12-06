@@ -159,6 +159,17 @@ struct npy_format_descriptor<migraphx::fp8::fp8e4m3fnuz>
 };
 
 template <>
+struct npy_format_descriptor<migraphx::fp8::fp8e5m2fnuz>
+{
+    static std::string format()
+    {
+        // TODO: no standard format in numpy for fp8
+        return "z";
+    }
+    static constexpr auto name() { return _("fp8e5m2fnuz"); }
+};
+
+template <>
 struct npy_format_descriptor<migraphx::fp8::fp8e4m3fn>
 {
     static std::string format()
@@ -178,6 +189,17 @@ struct npy_format_descriptor<migraphx::fp8::fp8e5m2>
         return "z";
     }
     static constexpr auto name() { return _("fp8e5m2"); }
+};
+
+template <>
+struct npy_format_descriptor<migraphx::bf16>
+{
+    static std::string format()
+    {
+        // TODO: no standard format in numpy for bf16
+        return "z";
+    }
+    static constexpr auto name() { return _("bf16"); }
 };
 
 } // namespace detail
@@ -445,6 +467,12 @@ MIGRAPHX_PYBIND11_MODULE(migraphx, m)
                  migraphx::execution_environment exec_env{
                      migraphx::any_ptr(reinterpret_cast<void*>(stream), stream_name), true};
                  return p.eval(pm, exec_env);
+             })
+        .def("to_py",
+             [](const migraphx::program& p) {
+                 std::stringstream ss;
+                 p.print_py(ss);
+                 return ss.str();
              })
         .def("sort", &migraphx::program::sort)
         .def("print", [](const migraphx::program& p) { std::cout << p << std::endl; })

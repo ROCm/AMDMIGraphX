@@ -3,6 +3,7 @@ import onnx
 from onnx import helper, TensorProto, checker
 import numpy as np
 import os
+import argparse
 
 
 # Utility function to map MIGraphX types to ONNX data types
@@ -119,27 +120,45 @@ def generate_onnx(module):
 
 
 # Main function to process MIGraphX files and generate ONNX models
-def main(directory_path="mxr/"):
-    for file_name in os.listdir(directory_path):
-        file_path = os.path.join(directory_path, file_name)
-        try:
-            program = migraphx.load(file_path)
-            module = program.get_main_module()
-            model = generate_onnx(module)
-
-            # Validate the generated ONNX model
+def main(mxr_directory_path, onnx_directory_path):
+    for file_name in os.listdir(mxr_directory_path):
+        file_path = os.path.join(mxr_directory_path, file_name)
+        if ".mxr" in file_path:
             try:
-                checker.check_model(model)
-                print(f"ONNX model for {file_name} is valid.")
-            except onnx.checker.ValidationError as e:
-                print(f"Validation failed for {file_name}: {e}")
-            except Exception as e:
-                print(
-                    f"Unexpected error during validation for {file_name}: {e}")
+                program = migraphx.load(file_path)
+                module = program.get_main_module()
+                model = generate_onnx(module)
 
-        except Exception as e:
-            print(f"Error processing {file_name}: {e}")
+                # Validate the generated ONNX model
+                try:
+                    checker.check_model(model)
+                    print(f"ONNX model for {file_name} is valid.")
+                except onnx.checker.ValidationError as e:
+                    print(f"Validation failed for {file_name}: {e}")
+                except Exception as e:
+                    print(
+                        f"Unexpected error during validation for {file_name}: {e}"
+                    )
+
+                os.makedirs(onnx_directory_path, exist_ok=True)
+                onnx_file_path = os.path.join(onnx_directory_path,
+                                              file_name.replace("mxr", "onnx"))
+                onnx.save(model, onnx_file_path)
+
+            except Exception as e:
+                print(f"Error processing {file_name}: {e}")
 
 
 if __name__ == "__main__":
-    main()
+    parser = argparse.ArgumentParser(
+        description="Process MXR files and generate ONNX models.")
+    parser.add_argument("mxr_directory_path",
+                        type=str,
+                        help="Path to the directory containing MXR files.")
+    parser.add_argument(
+        "onnx_directory_path",
+        type=str,
+        help="Path to the directory where ONNX models will be saved.")
+
+    args = parser.parse_args()
+    main(args.mxr_directory_path, args.onnx_directory_path)

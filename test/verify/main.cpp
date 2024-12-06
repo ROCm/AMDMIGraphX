@@ -99,10 +99,19 @@ int main(int argc, const char* argv[])
          "float>",
          "test_quant_dot_3args_5<migraphx::fp8::float8<migraphx::fp8::f8_type::bf8, false>, "
          "float>",
+         "test_batch_quant_dot_1<migraphx::fp8::float8<migraphx::fp8::f8_type::bf8, true>, "
+         "float>",
+         "test_quant_dot_3args_4<migraphx::fp8::float8<migraphx::fp8::f8_type::bf8, true>, "
+         "float>",
+         "test_quant_dot_3args_5<migraphx::fp8::float8<migraphx::fp8::f8_type::bf8, true>, "
+         "float>",
 #else
          "test_batch_quant_dot_1<migraphx::fp8::fp8e4m3fnuz, float>",
          "test_quant_dot_3args_4<migraphx::fp8::fp8e4m3fnuz, float>",
          "test_quant_dot_3args_5<migraphx::fp8::fp8e4m3fnuz, float>",
+         "test_batch_quant_dot_1<migraphx::fp8::fp8e5m2fnuz, float>",
+         "test_quant_dot_3args_4<migraphx::fp8::fp8e5m2fnuz, float>",
+         "test_quant_dot_3args_5<migraphx::fp8::fp8e5m2fnuz, float>",
          "test_batch_quant_dot_1<migraphx::fp8::fp8e4m3fn, float>",
          "test_quant_dot_3args_4<migraphx::fp8::fp8e4m3fn, float>",
          "test_quant_dot_3args_5<migraphx::fp8::fp8e4m3fn, float>",
@@ -120,20 +129,27 @@ int main(int argc, const char* argv[])
          "test_block_reduce_small<67, migraphx::shape::int8_type>",
          "test_block_reduce_small<128, migraphx::shape::int8_type>",
          "test_block_reduce_small<129, migraphx::shape::int8_type>",
+
          // disabled because CPU does eliminate_data_type to float for everything
          "test_bitwise_and<migraphx::shape::int32_type>",
          "test_bitwise_and<migraphx::shape::uint8_type>",
-
          "test_unpack_int4<migraphx::shape::uint8_type>",
          "test_unpack_int4<migraphx::shape::int8_type>",
          "test_unpack_int4<migraphx::shape::uint8_type, 0>",
-         "test_unpack_int4<migraphx::shape::int8_type, 0>"});
+         "test_unpack_int4<migraphx::shape::int8_type, 0>",
+         "test_bit_cast<migraphx::shape::uint8_type, migraphx::shape::int8_type>",
+         "test_bit_cast<migraphx::shape::int8_type, migraphx::shape::uint8_type>",
+         "test_bit_cast<migraphx::shape::fp8e4m3fn_type, migraphx::shape::fp8e4m3fnuz_type>",
+         "test_bit_cast<migraphx::shape::fp8e4m3fnuz_type, migraphx::shape::fp8e4m3fn_type>"});
     rv.disable_test_for("gpu",
                         {
                             // These passes on MI300 but fails on others, same issue as CPU.
                             "test_batch_quant_dot_1<migraphx::fp8::fp8e4m3fnuz, float>",
                             "test_quant_dot_3args_4<migraphx::fp8::fp8e4m3fnuz, float>",
                             "test_quant_dot_3args_5<migraphx::fp8::fp8e4m3fnuz, float>",
+                            "test_batch_quant_dot_1<migraphx::fp8::fp8e5m2fnuz, float>",
+                            "test_quant_dot_3args_4<migraphx::fp8::fp8e5m2fnuz, float>",
+                            "test_quant_dot_3args_5<migraphx::fp8::fp8e5m2fnuz, float>",
                             "test_batch_quant_dot_1<migraphx::fp8::fp8e4m3fn, float>",
                             "test_quant_dot_3args_4<migraphx::fp8::fp8e4m3fn, float>",
                             "test_quant_dot_3args_5<migraphx::fp8::fp8e4m3fn, float>",

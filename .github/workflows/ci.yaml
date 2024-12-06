@@ -595,4 +595,16 @@ jobs:
       #    chmod +x codecov
       #    ./codecov -t ${CODECOV_TOKEN}
       #    echo "Uploaded"
+  misspell:
+    name: misspell
+    runs-on: ubuntu-20.04
+    steps:
+      - name: Check out code.
+        uses: actions/checkout@v4
+      - name: misspell
+        uses: reviewdog/action-misspell@v1
+        with:
+          locale: "US"
+          reporter: github-pr-check
+          level: warning
 

@@ -86,3 +86,6 @@ depend*/
 
 # local Python virtual environment
 .venv/
+
+# Ignore CMakePresets.json
+CMakePresets.json

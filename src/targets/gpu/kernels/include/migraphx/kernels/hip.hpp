@@ -27,9 +27,7 @@
 #ifndef MIGRAPHX_USE_HIPRTC
 #include <hip/hip_runtime.h>
 #include <hip/hip_fp16.h>
-#include <hip/hip_bf16.h>
 #include <hip/math_functions.h>
-#include <hip/hip_bf16.h>
 #endif
 
 #endif // MIGRAPHX_GUARD_KERNELS_HIP_HPP

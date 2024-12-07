@@ -33,6 +33,11 @@ namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
 namespace onnx {
 
+/**
+ * Writes the given MIGraphX program to a JSON format resembling the ONNX
+ * file format's JSON files. Used to allow visualization of MIGraphX graphs
+ * with ONNX tools such as Netron.
+ */
 void write_program_to_onnx_json(const program& arg, std::string filename);
 
 } // namespace onnx

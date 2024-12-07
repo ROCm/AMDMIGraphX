@@ -36,14 +36,14 @@ TEST_CASE(matmulintegertofloat_int8_uint8_scales_zp_bias_test)
     migraphx::shape s1{migraphx::shape::uint8_type, {3, 2}};
     std::vector<uint8_t> data1 = {128, 129, 126, 131, 124, 133};
 
-    migraphx::shape scale1_s{migraphx::shape::float_type, {4}};
-    std::vector<float> scale1 = {1.0f, 1.0f, 1.0f, 1.0f};
+    migraphx::shape scale1_s{migraphx::shape::float_type, {3}};
+    std::vector<float> scale1 = {1.0f, 1.0f, 1.0f};
 
     migraphx::shape scale2_s{migraphx::shape::float_type, {2}};
     std::vector<float> scale2 = {2.0f, 2.0f};
 
-    migraphx::shape zp1_s{migraphx::shape::int8_type, {4}};
-    std::vector<int8_t> zp1 = {1, 2, 3, -1};
+    migraphx::shape zp1_s{migraphx::shape::int8_type, {3}};
+    std::vector<int8_t> zp1 = {1, 2, 3};
 
     migraphx::shape zp2_s{migraphx::shape::uint8_type, {2}};
     std::vector<uint8_t> zp2 = {3, 5};
@@ -63,6 +63,6 @@ TEST_CASE(matmulintegertofloat_int8_uint8_scales_zp_bias_test)
     auto result = p.eval(pp).back();
     std::vector<int32_t> result_vector;
     result.visit([&](auto output) { result_vector.assign(output.begin(), output.end()); });
-    std::vector<int32_t> gold = {-1926, -2047, 1930, 2065, -3894, -4063, 1716, 1781};
+    std::vector<int32_t> gold = {-2656, -2811, 1938, 2057, -3148, -3315, -490, -495};
     EXPECT(migraphx::verify::verify_rms_range(result_vector, gold));
 }

@@ -45,5 +45,6 @@ struct test_sqrt : verify_program<test_sqrt<DType>>
 template struct test_sqrt<migraphx::shape::float_type>;
 template struct test_sqrt<migraphx::shape::half_type>;
 template struct test_sqrt<migraphx::shape::fp8e4m3fnuz_type>;
+template struct test_sqrt<migraphx::shape::fp8e5m2fnuz_type>;
 template struct test_sqrt<migraphx::shape::fp8e4m3fn_type>;
 template struct test_sqrt<migraphx::shape::fp8e5m2_type>;

@@ -55,7 +55,8 @@ struct code_object_op
                     f(self.global, "global"),
                     f(self.local, "local"),
                     f(self.expected_inputs, "expected_inputs"),
-                    f(self.output, "output"));
+                    f(self.output, "output"),
+                    f(self.output_arg, "output_arg"));
     }
 
     value attributes() const { return {{"group", group()}}; }
@@ -83,6 +84,8 @@ struct code_object_op
         os << "symbol_name=" << op.symbol_name << ",";
         os << "global=" << op.global << ",";
         os << "local=" << op.local << ",";
+        if(op.output_arg != -1)
+            os << "output_arg=" << op.output_arg << ",";
         os << "]";
         return os;
     }

@@ -40,7 +40,6 @@ add_library(migraphx
     common.cpp
     common_dims.cpp
     compile_src.cpp
-    convert_to_json.cpp
     cpp_generator.cpp
     dead_code_elimination.cpp
     dom_info.cpp
@@ -73,6 +72,7 @@ add_library(migraphx
     memory_coloring.cpp
     module.cpp
     msgpack.cpp
+    netron_output.cpp
     normalize_attributes.cpp
     normalize_ops.cpp
     op_enums.cpp

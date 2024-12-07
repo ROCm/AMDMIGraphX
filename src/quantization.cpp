@@ -74,6 +74,16 @@ void quantize_fp16(program& prog, const std::vector<std::string>& ins_names)
                quant_tracer());
 }
 
+void quantize_bf16(program& prog, const std::vector<std::string>& ins_names)
+{
+    run_passes(prog,
+               {normalize_ops{},
+                optimize_module{{"quantizelinear", "dequantizelinear"}},
+                truncate_float_pass{ins_names, shape::bf16_type},
+                optimize_module{{"quantizelinear", "dequantizelinear"}}},
+               quant_tracer());
+}
+
 void quantize_8bits(program& prog,
                     const target& t,
                     shape::type_t precision,

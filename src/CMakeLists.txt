@@ -40,6 +40,7 @@ add_library(migraphx
     common.cpp
     common_dims.cpp
     compile_src.cpp
+    convert_to_json.cpp
     cpp_generator.cpp
     dead_code_elimination.cpp
     dom_info.cpp

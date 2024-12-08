@@ -168,6 +168,10 @@ struct loader
            {"--binary"},
            ap.help("Print out program in binary format."),
            ap.set_value("binary"));
+        ap(output_type,
+           {"--netron"},
+           ap.help("Print out program as Netron readable json."),
+           ap.set_value("netron"));
         ap(output, {"--output", "-o"}, ap.help("Output to file."));
     }
 

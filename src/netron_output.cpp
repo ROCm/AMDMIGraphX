@@ -27,14 +27,13 @@
 #include <nlohmann/json.hpp>
 #include <migraphx/json.hpp>
 
-#include <migraphx/program.hpp>
+#include <migraphx/iterator_for.hpp>
 #include <migraphx/module.hpp>
 #include <migraphx/instruction.hpp>
 #include <migraphx/serialize.hpp>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
-namespace onnx {
 namespace {
 
 using json = nlohmann::json;
@@ -60,8 +59,9 @@ int get_onnx_type(shape::type_t s_type)
         case shape::fp8e4m3fnuz_type: return 18;
         case shape::fp8e5m2_type: return 19;
         case shape::fp8e5m2fnuz_type: return 20;
-    default: {
-        MIGRAPHX_THROW("MIGraphX type " + std::to_string(s_type) + " not supported");
+        case shape::tuple_type: return 0;
+        default: {
+            MIGRAPHX_THROW("MIGraphX type " + std::to_string(s_type) + " not supported");
     }
     }
 }
@@ -70,7 +70,7 @@ auto make_onnx_json_node(instruction_ref ins, std::unordered_map<instruction_ref
 {
     json node = json::object();
     json input_arr = json::array();
-    for(auto input_ins : ins->inputs())
+    for(instruction_ref input_ins : ins->inputs())
     {
         auto name = input_ins->name();
         if(name == "@literal" or name == "@param")
@@ -83,18 +83,38 @@ auto make_onnx_json_node(instruction_ref ins, std::unordered_map<instruction_ref
         }
     }
     json output_arr = json::array();
-    for(auto output_ins : ins->outputs())
+    for(instruction_ref output_ins : ins->outputs())
     {
-        output_arr.push_back(ins_uids.at(ins) + "->" + ins_uids.at(output_ins));
+        if(output_ins->name() == "@return")
+        {
+            output_arr.push_back(ins_uids.at(output_ins));
+        }
+        else
+        {
+            output_arr.push_back(ins_uids.at(ins) + "->" + ins_uids.at(output_ins));
+        }
     }
     node["input"]  = input_arr;
     node["output"] = output_arr;
     node["name"]   = ins_uids.at(ins);
     node["opType"] = ins->name();
-    json op_attribute_arr = json::object();
+    json op_attribute_arr = json::array();
     auto op_value = ins->get_operator().to_value();
-    std::for_each(op_value.begin(), op_value.end(), [&](auto v){
-        op_attribute_arr.emplace(v.get_key(), migraphx::from_value<std::string>(v));
+    std::for_each(op_value.begin(), op_value.end(), [&](auto v) {
+        std::string attr_key = v.get_key();
+        if(attr_key == "code_object")
+        {
+            return;
+        }
+        else if(attr_key == "symbol_name" or attr_key == "name")
+        {
+            node["opType"] = migraphx::from_value<std::string>(v);
+        }
+        // TODO: attributes need to know the type
+        else
+        {
+            op_attribute_arr.push_back({{"name", v.get_key()}, {"ints", {0}}, {"type", "INTS"}});
+        }
     });
     node["attribute"] = op_attribute_arr;
     return node;
@@ -106,21 +126,23 @@ auto make_onnx_json_literal(instruction_ref ins, std::unordered_map<instruction_
     json lit = json::object();
     lit["dims"] = ins->get_shape().lens();
     // TODO figure out the data types number
-    lit["dataType"] = 1;
+    lit["dataType"] = get_onnx_type(ins->get_shape().type());
     lit["name"] = ins_uids.at(ins);
-    // NULL in base64
+    // ignoring literal data, setting to "NULL" in base64
     lit["rawData"] = "TlVMTA==";
     return lit;
 }
 
+// TODO handle dynamic shapes
 auto make_onnx_json_shape(const shape& s)
 {
     json ret = json::object();
     json dim = json::array();
     for(std::size_t len : s.lens())
     {
-        dim.push_back({"dimValue", len});
+        dim.push_back({{"dimValue", len}});
     }
+    ret["dim"] = dim;
     return ret;
 }
 
@@ -130,12 +152,10 @@ auto make_onnx_json_edge(instruction_ref ins, instruction_ref out_ins, std::unor
     json ret = json::object();
     shape ins_shape = ins->get_shape();
     ret["name"] = ins_uids.at(ins) + "->" + ins_uids.at(out_ins);
-    ret["type"] = {
-        "tensorType", {
-            {"elemType", get_onnx_type(ins_shape.type())}, 
-            {"shape", make_onnx_json_shape(ins_shape)}
-        }
-    };
+    json type       = {{"tensorType",
+                        {{"elemType", get_onnx_type(ins_shape.type())},
+                         {"shape", make_onnx_json_shape(ins_shape)}}}};
+    ret["type"]     = type;
     return ret;
 }
 
@@ -144,26 +164,38 @@ auto make_onnx_json_in_out(instruction_ref ins, std::unordered_map<instruction_r
     json ret = json::object();
     shape ins_shape = ins->get_shape();
     ret["name"] = ins_uids.at(ins);
-    ret["type"] = {
-        "tensorType", {
-            {"elemType", get_onnx_type(ins_shape.type())}, 
-            {"shape", make_onnx_json_shape(ins_shape)}
-        }
-    };
+    json type       = {{"tensorType",
+                        {{"elemType", get_onnx_type(ins_shape.type())},
+                         {"shape", make_onnx_json_shape(ins_shape)}}}};
+    ret["type"]     = type;
+    return ret;
+}
+
+std::unordered_map<instruction_ref, std::string> make_ins_uids(const module& mod)
+{
+    std::unordered_map<instruction_ref, std::string> ret;
+    int count = 0;
+    for(auto ins : iterator_for(mod))
+    {
+        std::string var_name;
+        var_name = mod.name() + ":";
+        var_name.append(ins->name() + ":");
+        var_name.append("@" + std::to_string(count));
+        count++;
+        ret.emplace(ins, var_name);
+    }
     return ret;
 }
 
 } // namespace
 
-auto make_netron_output(const program& prog)
+std::string make_netron_output(const program& prog)
 {
     json output;
     auto prog_value           = prog.to_value();
     output["irVersion"]       = prog_value.at("version").to<std::string>();
     output["producerName"]    = "AMDMIGraphX";
     output["producerVersion"] = prog_value.at("migraphx_version").to<std::string>();
-    output["graph"]           = json::array();
-    std::unordered_map<instruction_ref, std::string> names;
     for(auto& mod : prog.get_modules())
     {
         json graph      = {{"node", json::array()},
@@ -171,42 +203,39 @@ auto make_netron_output(const program& prog)
                            {"input", json::array()},
                            {"output", json::array()},
                            {"valueInfo", json::array()}};
-        auto node_arr   = graph["node"];
-        auto lit_arr    = graph["initializer"];
-        auto input_arr  = graph["input"];
-        auto output_arr = graph["output"];
-        auto edge_arr   = graph["valueInfo"];
-        names           = mod->print(
-            [&](auto ins, auto ins_uids) {
-                const auto& name = ins->name();
-                if(name == "@literal")
+        auto ins_uids   = make_ins_uids(*mod);
+        for(auto ins = mod->begin(); ins != mod->end(); ++ins)
+        {
+            const auto& name = ins->name();
+            if(name == "@literal")
+            {
+                graph["initializer"].push_back(make_onnx_json_literal(ins, ins_uids));
+            }
+            else if(name == "@param")
+            {
+                graph["input"].push_back(make_onnx_json_in_out(ins, ins_uids));
+            }
+            else if(name == "@return")
+            {
+                graph["output"].push_back(make_onnx_json_in_out(ins, ins_uids));
+            }
+            else
+            {
+                graph["node"].push_back(make_onnx_json_node(ins, ins_uids));
+                const auto& outputs = ins->outputs();
+                for(auto out_ins : outputs)
                 {
-                    lit_arr.push_back(make_onnx_json_literal(ins, ins_uids));
-                }
-                else if(name == "@param")
-                {
-                    input_arr.push_back(make_onnx_json_in_out(ins, ins_uids));
-                }
-                else if(name == "@return")
-                {
-                    output_arr.push_back(make_onnx_json_in_out(ins, ins_uids));
-                }
-                else
-                {
-                    node_arr.push_back(make_onnx_json_node(ins, ins_uids));
-                    const auto& outputs = ins->outputs();
-                    for(auto out_ins : outputs)
+                    if(out_ins->name() != "@return")
                     {
-                        node_arr.push_back(make_onnx_json_edge(ins, out_ins, ins_uids));
+                        graph["valueInfo"].push_back(make_onnx_json_edge(ins, out_ins, ins_uids));
                     }
                 }
-            },
-            names);
-        output["graph"].push_back(graph);
+            }
+        }
+        output["graph"] = graph;
     }
-    return output.dump();
+    return output.dump(4);
 }
 
-} // namespace onnx
 } // namespace MIGRAPHX_INLINE_NS
 } // namespace migraphx

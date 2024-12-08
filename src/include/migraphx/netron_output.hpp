@@ -26,11 +26,12 @@
 
 #include <string>
 #include <migraphx/config.hpp>
+#include <migraphx/program.hpp>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
 
-MIGRAPHX_EXPORT std::string make_netron_output(const std::string& str);
+MIGRAPHX_EXPORT std::string make_netron_output(const program& prog);
 
 } // namespace MIGRAPHX_INLINE_NS
 } // namespace migraphx

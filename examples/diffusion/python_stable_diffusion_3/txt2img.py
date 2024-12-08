@@ -98,7 +98,8 @@ def get_args():
         "--skip-t5",
         action="store_true",
         default=False,
-        help="Skip the third text encoder. Small accuracy penalty but large memory savings."
+        help=
+        "Skip the third text encoder. Small accuracy penalty but large memory savings."
     )
 
     # Runtime
@@ -214,8 +215,14 @@ def allocate_torch_tensors(model):
 
 
 class StableDiffusionMGX():
-    def __init__(self, onnx_model_path, compiled_model_path, fp16, batch,
-                 force_compile=False, exhaustive_tune=False, skip_t5=False):
+    def __init__(self,
+                 onnx_model_path,
+                 compiled_model_path,
+                 fp16,
+                 batch,
+                 force_compile=False,
+                 exhaustive_tune=False,
+                 skip_t5=False):
 
         self.scheduler = FlowMatchEulerDiscreteScheduler.from_pretrained(
             "stabilityai/stable-diffusion-3-medium-diffusers",
@@ -297,14 +304,15 @@ class StableDiffusionMGX():
 
         if not self.skip_t5:
             self.models["t5xxl"] = StableDiffusionMGX.load_mgx_model(
-                    "text_encoder_3", {"input_ids": [1, 77]},
-                    onnx_model_path,
-                    compiled_model_path=compiled_model_path,
-                    use_fp16="clip" in fp16,
-                    force_compile=force_compile,
-                    exhaustive_tune=exhaustive_tune,
-                    offload_copy=False)
-            self.tensors["t5xxl"] = allocate_torch_tensors(self.models["t5xxl"])
+                "text_encoder_3", {"input_ids": [1, 77]},
+                onnx_model_path,
+                compiled_model_path=compiled_model_path,
+                use_fp16="clip" in fp16,
+                force_compile=force_compile,
+                exhaustive_tune=exhaustive_tune,
+                offload_copy=False)
+            self.tensors["t5xxl"] = allocate_torch_tensors(
+                self.models["t5xxl"])
             self.model_args["t5xxl"] = tensors_to_args(self.tensors['t5xxl'])
 
         self.events = {
@@ -480,9 +488,10 @@ class StableDiffusionMGX():
         g_out, g_pooled = self.encode_token_weights("clip-g",
                                                     prompt_tokens["g"])
         if not self.skip_t5:
-            t5_out, _ = self.encode_token_weights("t5xxl", prompt_tokens["t5xxl"])
+            t5_out, _ = self.encode_token_weights("t5xxl",
+                                                  prompt_tokens["t5xxl"])
         else:
-            t5_out = torch.zeros((1,77,4096)).cuda()
+            t5_out = torch.zeros((1, 77, 4096)).cuda()
         lg_out = torch.cat([l_out, g_out], dim=-1)
         lg_out = torch.nn.functional.pad(lg_out, (0, 4096 - lg_out.shape[-1]))
 
@@ -555,7 +564,7 @@ class StableDiffusionMGX():
                          torch.ones((1, 77)).to(torch.int32))
         if not self.skip_t5:
             copy_tensor_sync(self.tensors["t5xxl"]["input_ids"],
-                         torch.ones((1, 77)).to(torch.int32))
+                             torch.ones((1, 77)).to(torch.int32))
         copy_tensor_sync(
             self.tensors["mmdit"]["hidden_states"],
             torch.randn((2 * self.batch, 16, 128, 128)).to(torch.float))

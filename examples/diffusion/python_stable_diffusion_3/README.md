@@ -54,7 +54,7 @@ optimum-cli export onnx --model stabilityai/stable-diffusion-3-medium-diffusers 
 Run the text-to-image script with the following example prompt and seed (optionally, you can change the batch size / number of images generated for that prompt)
 
 ```bash
-MIGRAPHX_DISABLE_REDUCE_FUSION=1 python txt2img.py --prompt "a photograph of an astronaut riding a horse" --steps 50 --output astro_horse.jpg
+python txt2img.py --prompt "a photograph of an astronaut riding a horse" --steps 50 --output astro_horse.jpg
 ```
 > [!NOTE]
 > The first run will compile the models and cache them to make subsequent runs faster. New batch sizes will result in the models re-compiling.*
@@ -62,4 +62,12 @@ MIGRAPHX_DISABLE_REDUCE_FUSION=1 python txt2img.py --prompt "a photograph of an 
 The result should look like this:
 
 ![example_output.jpg](./example_output.jpg)
+
+## Lower Memory Usage Pipeline
+The entire pipeline is memory intensive, even when quantizing to fp16. The T5XXL encoder can be disabled alongside fp16 quantization to reduce total GPU memory usage to under 16G.
+
+There will be a slight accuracy penalty when disabling T5XXL.
+```bash
+python txt2img.py --prompt "a photograph of an astronaut riding a horse" --steps 50 --skip-t5 --fp16=all --output astro_horse.jpg
+```
 

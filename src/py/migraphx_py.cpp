@@ -44,6 +44,7 @@
 #include <migraphx/float8.hpp>
 #include <migraphx/pass_manager.hpp>
 #include <migraphx/version.h>
+#include <migraphx/iterator_for.hpp>
 #ifdef HAVE_GPU
 #include <migraphx/gpu/hip.hpp>
 #endif
@@ -259,6 +260,49 @@ py::buffer_info to_buffer_info(T& x)
     return b;
 }
 
+py::list to_py_object_nested(const std::vector<migraphx::value>& val)
+{
+    py::list result;
+
+    for(const auto& v : val)
+    {
+        migraphx::value v_val = v.without_key();
+        py::object py_obj;
+        v_val.visit_value([&](auto x) {
+            if constexpr(std::is_same_v<decltype(x), std::vector<migraphx::value>>)
+            {
+                // Recursively handle nested vectors
+                py_obj = to_py_object_nested(x);
+            }
+            else
+            {
+                py_obj = py::cast(x);
+            }
+        });
+
+        result.append(py_obj);
+    }
+    return result;
+}
+
+py::object to_py_object(const migraphx::value& val)
+{
+    py::object result;
+    val.visit_value([&](auto x) {
+        if constexpr(std::is_same_v<decltype(x), std::vector<migraphx::value>>)
+        {
+            // Handle the outermost vector of migraphx::value
+            result = to_py_object_nested(x);
+        }
+        else
+        {
+            result = py::cast(x);
+        }
+        return result;
+    });
+    return result;
+}
+
 migraphx::shape to_shape(const py::buffer_info& info)
 {
     migraphx::shape::type_t t;
@@ -373,7 +417,11 @@ MIGRAPHX_PYBIND11_MODULE(migraphx, m)
 
     py::class_<migraphx::instruction_ref>(m, "instruction_ref")
         .def("shape", [](migraphx::instruction_ref i) { return i->get_shape(); })
-        .def("op", [](migraphx::instruction_ref i) { return i->get_operator(); });
+        .def("op", [](migraphx::instruction_ref i) { return i->get_operator(); })
+        .def("inputs", [](migraphx::instruction_ref i) { return i->inputs(); })
+        .def("name", [](migraphx::instruction_ref i) { return i->name(); })
+        .def("__hash__", std::hash<migraphx::instruction_ref>{})
+        .def("__eq__", std::equal_to<migraphx::instruction_ref>{});
 
     py::class_<migraphx::module, std::unique_ptr<migraphx::module, py::nodelete>>(m, "module")
         .def("print", [](const migraphx::module& mm) { std::cout << mm << std::endl; })
@@ -409,7 +457,11 @@ MIGRAPHX_PYBIND11_MODULE(migraphx, m)
                 return mm.add_return(args);
             },
             py::arg("args"))
-        .def("__repr__", [](const migraphx::module& mm) { return migraphx::to_string(mm); });
+        .def("__repr__", [](const migraphx::module& mm) { return migraphx::to_string(mm); })
+        .def("__iter__", [](const migraphx::module& mm) {
+            auto r = migraphx::iterator_for(mm);
+            return py::make_iterator(r.begin(), r.end());
+        }, py::keep_alive<0, 1>());
 
     py::class_<migraphx::program>(m, "program")
         .def(py::init([]() { return migraphx::program(); }))
@@ -489,7 +541,19 @@ MIGRAPHX_PYBIND11_MODULE(migraphx, m)
           }
           return migraphx::make_op(name, v);
       }))
-        .def("name", &migraphx::operation::name);
+        .def("name", &migraphx::operation::name)
+        .def("values", [](const migraphx::operation& operation) -> py::dict {
+            migraphx::value val = operation.to_value();
+            py::dict result;
+            if(val.is_object())
+            {
+                for(const auto& v : val.get_object())
+                {
+                    result[py::str(v.get_key())] = to_py_object(v.without_key());
+                }
+            }
+            return result;
+        });
 
     py::enum_<migraphx::op::pooling_mode>(op, "pooling_mode")
         .value("average", migraphx::op::pooling_mode::average)

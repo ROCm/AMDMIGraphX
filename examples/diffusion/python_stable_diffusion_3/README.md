@@ -35,15 +35,9 @@ huggingface-cli login
 ```
 
 Export the models to onnx. 
-Currently, optimum does not have the changes required in their latest release. Please follow the steps to build optimum from scratch.
+Currently, optimum does not have the changes required in their latest release. Please install from their development branch instead.
 ```bash
-git clone --single-branch --branch main https://github.com/huggingface/optimum.git
-cd optimum
-make build_dist_install_tools
-make build_dist
-cd dist
-pip install *.whl
-cd ../..
+python -m pip install optimum[onnxruntime]@git+https://github.com/huggingface/optimum.git
 ```
 
 Once optimum is built, use the following command to export the models:

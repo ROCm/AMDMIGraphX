@@ -861,7 +861,7 @@ std::string perf_group(instruction_ref ins, bool detailed)
     return result;
 }
 
-void program::mark(const parameter_map& params, marker&& m)
+void program::mark(const parameter_map& params, marker&& m) const
 {
     auto& ctx = this->impl->contexts;
     // Run once by itself

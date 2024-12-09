@@ -68,11 +68,13 @@ struct parse_matmulnbits : op_parser<parse_matmulnbits>
 
         std::vector<size_t> expected_scales_lens{n * n_blocks_per_col};
 
-        // Reshape anything larger than 1 dimension into a 1d tensor so we can check if we have the right amount of elements. 
+        // Reshape anything larger than 1 dimension into a 1d tensor so we can check if we have the
+        // right amount of elements.
         auto scale_input = args[2];
         if(scale_input->get_shape().lens().size() > 1)
         {
-            scale_input = info.add_instruction(make_op("reshape", {{"dims", {scale_input->get_shape().elements()}}}), scale_input);
+            scale_input = info.add_instruction(
+                make_op("reshape", {{"dims", {scale_input->get_shape().elements()}}}), scale_input);
         }
 
         if(scale_input->get_shape().lens() != expected_scales_lens)

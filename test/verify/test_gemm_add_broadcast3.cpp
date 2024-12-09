@@ -26,40 +26,34 @@
 #include <migraphx/program.hpp>
 #include <migraphx/generate.hpp>
 #include <migraphx/make_op.hpp>
+#include <migraphx/apply_alpha_beta.hpp>
 
-template <int Axis, migraphx::shape::type_t T>
-struct test_logsoftmax : verify_program<test_logsoftmax<Axis, T>>
+template <migraphx::shape::type_t DType>
+struct test_gemm_add_broadcast3 : verify_program<test_gemm_add_broadcast3<DType>>
 {
     migraphx::program create_program() const
     {
         migraphx::program p;
         auto* mm = p.get_main_module();
-        migraphx::shape s{T, {10, 4, 2080, 6}};
-        auto param = mm->add_parameter("0", s);
-        mm->add_instruction(migraphx::make_op("logsoftmax", {{"axis", Axis}}), param);
+        migraphx::shape m1_shape{DType, {1, 2}};
+        migraphx::shape m2_shape{DType, {2, 4}};
+        migraphx::shape m3_shape{DType, {4}};
+        auto l1 = mm->add_parameter("1", m1_shape);
+        auto l2 = mm->add_parameter("2", m2_shape);
+        auto l3 = mm->add_parameter("3", m3_shape);
+        auto l3_b =
+            mm->add_instruction(migraphx::make_op("multibroadcast", {{"out_lens", {1, 4}}}), l3);
 
+        auto dot = mm->add_instruction(migraphx::make_op("dot"), l1, l2);
+        mm->add_instruction(migraphx::make_op("add"), l3_b, dot);
         return p;
     }
+    std::string section() const { return "gemm"; }
 };
 
-template struct test_logsoftmax<0, migraphx::shape::float_type>;
-template struct test_logsoftmax<1, migraphx::shape::float_type>;
-template struct test_logsoftmax<2, migraphx::shape::float_type>;
-template struct test_logsoftmax<3, migraphx::shape::float_type>;
-
-template struct test_logsoftmax<1, migraphx::shape::half_type>;
-template struct test_logsoftmax<0, migraphx::shape::half_type>;
-template struct test_logsoftmax<2, migraphx::shape::half_type>;
-template struct test_logsoftmax<3, migraphx::shape::half_type>;
-
-template struct test_logsoftmax<1, migraphx::shape::fp8e4m3fnuz_type>;
-template struct test_logsoftmax<3, migraphx::shape::fp8e4m3fnuz_type>;
-
-template struct test_logsoftmax<1, migraphx::shape::fp8e5m2fnuz_type>;
-template struct test_logsoftmax<3, migraphx::shape::fp8e5m2fnuz_type>;
-
-template struct test_logsoftmax<1, migraphx::shape::fp8e4m3fn_type>;
-template struct test_logsoftmax<3, migraphx::shape::fp8e4m3fn_type>;
-
-template struct test_logsoftmax<1, migraphx::shape::fp8e5m2_type>;
-template struct test_logsoftmax<3, migraphx::shape::fp8e5m2_type>;
+template struct test_gemm_add_broadcast3<migraphx::shape::float_type>;
+template struct test_gemm_add_broadcast3<migraphx::shape::half_type>;
+// template struct test_gemm_add_broadcast3<migraphx::shape::fp8e4m3fnuz_type>;
+// template struct test_gemm_add_broadcast3<migraphx::shape::fp8e5m2fnuz_type>;
+// template struct test_gemm_add_broadcast3<migraphx::shape::fp8e4m3fn_type>;
+// template struct test_gemm_add_broadcast3<migraphx::shape::fp8e5m2_type>;

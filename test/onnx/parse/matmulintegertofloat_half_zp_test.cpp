@@ -48,7 +48,7 @@ TEST_CASE(matmulintegertofloat_half_zp_test)
         migraphx::make_op("multibroadcast", {{"out_lens", x0->get_shape().lens()}}), sq_zp_x0);
 
     auto r0 = mm->add_instruction(migraphx::make_op("dequantizelinear"), x0, bc_scale_x0, bc_zp_x0);
- 
+
     auto bc_scale_x1 = mm->add_instruction(
         migraphx::make_op("multibroadcast", {{"out_lens", x1->get_shape().lens()}}), sq_scale_x1);
 

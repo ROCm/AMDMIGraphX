@@ -110,7 +110,7 @@ struct parse_matmul : op_parser<parse_matmul>
 
     static instruction_ref set_scale_arg(const onnx_parser::node_info& info,
                                          const std::vector<instruction_ref>& args,
-                                         const instruction_ref &mat_input,
+                                         const instruction_ref& mat_input,
                                          const int index)
     {
         instruction_ref scale_arg                            = args[index];
@@ -124,7 +124,8 @@ struct parse_matmul : op_parser<parse_matmul>
             MIGRAPHX_THROW("PARSE_QUANT_DOT_SCALED: Scales must be float or half_type");
         }
 
-        if(scale_shape.lens().at(0) != mat_input->get_shape().lens().at(1) and not scale_shape.scalar())
+        if(scale_shape.lens().at(0) != mat_input->get_shape().lens().at(1) and
+           not scale_shape.scalar())
         {
             MIGRAPHX_THROW("PARSE_QUANT_DOT_SCALED: Scale must have same dim as matrix column");
         }
@@ -134,9 +135,9 @@ struct parse_matmul : op_parser<parse_matmul>
             MIGRAPHX_THROW("PARSE_QUANT_DOT_SCALED: Scales shape must be scalar or 1-D tensor");
         }
 
-        if (scale_shape.scalar())
+        if(scale_shape.scalar())
         {
-            scale_arg = info.add_instruction(make_op("unsqueeze", {{"axes", {0}}}), scale_arg);
+            scale_arg   = info.add_instruction(make_op("unsqueeze", {{"axes", {0}}}), scale_arg);
             scale_shape = scale_arg->get_shape();
         }
 

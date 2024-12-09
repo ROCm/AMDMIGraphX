@@ -67,7 +67,8 @@ struct parse_matmulnbits : op_parser<parse_matmulnbits>
                            ". Actual dims: " + to_string_range(args[1]->get_shape().lens()));
 
         std::vector<size_t> expected_scales_lens{n * n_blocks_per_col};
-        if(args[2]->get_shape().lens() != expected_scales_lens)
+
+        if(args[2]->get_shape().elements() != expected_scales_lens[0])
             MIGRAPHX_THROW("MatMulNBits: Input scales does not match expected dims: " +
                            to_string_range(expected_scales_lens) +
                            ". Actual dims: " + to_string_range(args[2]->get_shape().lens()));

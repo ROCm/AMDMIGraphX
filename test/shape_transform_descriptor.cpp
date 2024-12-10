@@ -115,6 +115,14 @@ shape_transform_descriptor make_descriptor(const std::vector<std::size_t>& dims,
     return desc;
 }
 
+template <class... Ts>
+shape_transform_descriptor make_simple_descriptor(const std::vector<std::size_t>& dims, const Ts&... xs)
+{
+    auto desc = make_descriptor(dims, xs...);
+    desc.simplify();
+    return desc;
+}
+
 TEST_CASE(dimension_len)
 {
     dimension dim;
@@ -565,7 +573,7 @@ TEST_CASE(optimize_squeeze_multibroadcast_transpose)
 
 TEST_CASE(common_dims_reshape_less)
 {
-    auto desc = make_descriptor({2, 32, 40, 8}, make_op("reshape", {{"dims", {2, 1280, 8}}}));
+    auto desc = make_simple_descriptor({2, 32, 40, 8}, make_op("reshape", {{"dims", {2, 1280, 8}}}));
     EXPECT(desc.common_dims() == final_lens{2, 32, 40, 8});
     EXPECT(desc.common_axes_map_from_src() == axes_map{{0}, {1}, {2}, {3}});
     EXPECT(desc.common_axes_map_from_dst() == axes_map{{0}, {1, 2}, {3}});
@@ -576,7 +584,7 @@ TEST_CASE(common_dims_reshape_less)
 
 TEST_CASE(common_dims_reshape1)
 {
-    auto desc = make_descriptor({2, 32, 2560}, make_op("reshape", {{"dims", {2, 1280, 8, 8}}}));
+    auto desc = make_simple_descriptor({2, 32, 2560}, make_op("reshape", {{"dims", {2, 1280, 8, 8}}}));
     EXPECT(desc.common_dims() == final_lens{2, 32, 40, 8, 8});
     EXPECT(desc.common_axes_map_from_src() == axes_map{{{0}, {1}, {2, 3, 4}}});
     EXPECT(desc.common_axes_map_from_dst() == axes_map{{0}, {1, 2}, {3}, {4}});
@@ -587,7 +595,7 @@ TEST_CASE(common_dims_reshape1)
 
 TEST_CASE(common_dims_reshape2)
 {
-    auto desc = make_descriptor({2, 1280, 8, 8}, make_op("reshape", {{"dims", {2, 32, 2560}}}));
+    auto desc = make_simple_descriptor({2, 1280, 8, 8}, make_op("reshape", {{"dims", {2, 32, 2560}}}));
     EXPECT(desc.common_dims() == final_lens{2, 32, 40, 8, 8});
     EXPECT(desc.common_axes_map_from_src() == axes_map{{0}, {1, 2}, {3}, {4}});
     EXPECT(desc.common_axes_map_from_dst() == axes_map{{{0}, {1}, {2, 3, 4}}});
@@ -598,7 +606,7 @@ TEST_CASE(common_dims_reshape2)
 
 TEST_CASE(common_dims_reshape3)
 {
-    auto desc = make_descriptor({2, 32, 4096}, make_op("reshape", {{"dims", {4, 16, 64, 64}}}));
+    auto desc = make_simple_descriptor({2, 32, 4096}, make_op("reshape", {{"dims", {4, 16, 64, 64}}}));
 
     EXPECT(desc.common_dims() == final_lens{2, 2, 16, 64, 64});
     EXPECT(desc.common_dims({2, 1, 4096}) == final_lens{2, 1, 1, 64, 64});
@@ -623,7 +631,7 @@ TEST_CASE(common_dims_reshape3)
 
 TEST_CASE(common_dims_reshape4)
 {
-    auto desc = make_descriptor({4, 16, 64, 64}, make_op("reshape", {{"dims", {2, 32, 4096}}}));
+    auto desc = make_simple_descriptor({4, 16, 64, 64}, make_op("reshape", {{"dims", {2, 32, 4096}}}));
 
     EXPECT(desc.common_dims() == final_lens{2, 2, 16, 64, 64});
     EXPECT(desc.common_dims({4, 16, 1, 1}) == final_lens{2, 2, 16, 1, 1});
@@ -648,7 +656,7 @@ TEST_CASE(common_dims_reshape4)
 
 TEST_CASE(common_dims_transpose_reshape)
 {
-    auto desc = make_descriptor({2, 16, 64, 64}, make_op("transpose", {{"permutation", {0, 2, 3, 1}}}), make_op("reshape", {{"dims", {2, 32, 2048}}}));
+    auto desc = make_simple_descriptor({2, 16, 64, 64}, make_op("transpose", {{"permutation", {0, 2, 3, 1}}}), make_op("reshape", {{"dims", {2, 32, 2048}}}));
     EXPECT(desc.common_dims() == final_lens{2, 32, 2, 64, 16});
 
     EXPECT(desc.common_axes_map_from_src() == axes_map{{0}, {4}, {1, 2}, {3}});
@@ -666,6 +674,55 @@ TEST_CASE(common_dims_transpose_reshape)
     EXPECT(desc.generate_dst_from_common({2, 1, 2, 64, 16}) == ops{make_op("reshape", {{"dims", {2, 1, 2048}}})});
     EXPECT(desc.generate_dst_from_common({2, 1, 1, 1, 16}) == ops{make_op("squeeze", {{"axes", {2, 3}}})});
     EXPECT(desc.generate_dst_from_common({2, 32, 2, 64, 1}) == ops{make_op("reshape", {{"dims", {2, 32, 128}}})});
+}
+
+TEST_CASE(common_dims_broadcast_reshape)
+{
+    auto desc = make_simple_descriptor({2, 32, 1}, make_op("multibroadcast", {{"out_lens", {2, 32, 4096}}}), make_op("reshape", {{"dims", {4, 16, 64, 64}}}));
+
+    EXPECT(desc.common_dims() == final_lens{2, 2, 16, 64, 64});
+    EXPECT(desc.common_dims({2, 1, 1}) == final_lens{2, 1, 1, 64, 64});
+    EXPECT(desc.common_dims({2, 1, 4096}) == final_lens{2, 1, 1, 64, 64});
+    EXPECT(desc.common_dims({2, 32, 4096}) == final_lens{2, 2, 16, 64, 64});
+
+    EXPECT(desc.common_axes_map_from_src() == axes_map{{0}, {1, 2}, {3, 4}});
+    EXPECT(desc.common_axes_map_from_dst() == axes_map{{0, 1}, {2}, {3}, {4}});
+
+    EXPECT(desc.generate_common_from_src() == ops{make_op("reshape", {{"dims", {2, 2, 16, 1, 1}}}), make_op("multibroadcast", {{"out_lens", {2, 2, 16, 64, 64}}})});
+    EXPECT(desc.generate_common_from_src({2, 1, 1}) == ops{make_op("unsqueeze", {{"axes", {2, 4}}}), make_op("multibroadcast", {{"out_lens", {2, 1, 1, 64, 64}}})});
+
+    EXPECT(desc.generate_common_from_dst() == ops{make_op("reshape", {{"dims", {2, 2, 16, 64, 64}}})});
+    EXPECT(desc.generate_common_from_dst({4, 16, 1, 1}) == ops{make_op("reshape", {{"dims", {2, 2, 16, 1, 1}}})});
+    EXPECT(desc.generate_common_from_dst({4, 1, 64, 64}) == ops{make_op("reshape", {{"dims", {2, 2, 1, 64, 64}}})});
+
+    EXPECT(desc.generate_dst_from_common() == ops{make_op("reshape", {{"dims", {4, 16, 64, 64}}})});
+    EXPECT(desc.generate_dst_from_common({2, 2, 1, 64, 64}) == ops{make_op("reshape", {{"dims", {4, 1, 64, 64}}})});
+    EXPECT(desc.generate_dst_from_common({2, 2, 16, 1, 1}) == ops{make_op("reshape", {{"dims", {4, 16, 1, 1}}})});
+    EXPECT(desc.generate_dst_from_common({2, 1, 16, 64, 64}) == ops{make_op("squeeze", {{"axes", {1}}})});
+}
+
+TEST_CASE(common_dims_resize)
+{
+    auto desc = make_simple_descriptor({4, 16, 32, 32},  make_op("reshape", {{"dims", {4, 16, 32, 1, 32, 1}}}), make_op("multibroadcast", {{"out_lens", {4, 16, 32, 2, 32, 2}}}), make_op("reshape", {{"dims", {4, 16, 64, 64}}}));
+    
+    EXPECT(desc.common_dims() == final_lens{4, 16, 32, 2, 32, 2});
+    EXPECT(desc.common_dims({4, 16, 1, 1}) == final_lens{4, 16, 1, 2, 1, 2});
+    EXPECT(desc.common_dims({4, 1, 32, 32}) == final_lens{4, 1, 32, 2, 32, 2});
+
+    EXPECT(desc.common_axes_map_from_src() == axes_map{{0}, {1}, {2}, {4}});
+    EXPECT(desc.common_axes_map_from_dst() == axes_map{{0}, {1}, {2, 3}, {4, 5}});
+
+    EXPECT(desc.generate_common_from_src() == ops{make_op("unsqueeze", {{"axes", {3, 5}}}), make_op("multibroadcast", {{"out_lens", {4, 16, 32, 2, 32, 2}}})});
+    EXPECT(desc.generate_common_from_src({4, 16, 1, 1}) == ops{make_op("unsqueeze", {{"axes", {3, 5}}}), make_op("multibroadcast", {{"out_lens", {4, 16, 1, 2, 1, 2}}})});
+    EXPECT(desc.generate_common_from_src({4, 1, 32, 32}) == ops{make_op("unsqueeze", {{"axes", {3, 5}}}), make_op("multibroadcast", {{"out_lens", {4, 1, 32, 2, 32, 2}}})});
+
+    EXPECT(desc.generate_common_from_dst() == ops{make_op("reshape", {{"dims", {4, 16, 32, 2, 32, 2}}})});
+    EXPECT(desc.generate_common_from_dst({4, 16, 1, 1}) == ops{make_op("unsqueeze", {{"axes", {3, 5}}})});
+    EXPECT(desc.generate_common_from_dst({4, 1, 64, 64}) == ops{make_op("reshape", {{"dims", {4, 1, 32, 2, 32, 2}}})});
+
+    EXPECT(desc.generate_dst_from_common() == ops{make_op("reshape", {{"dims", {4, 16, 64, 64}}})});
+    EXPECT(desc.generate_dst_from_common({4, 16, 1, 2, 1, 2}) == ops{make_op("squeeze", {{"axes", {2, 4}}})});
+    EXPECT(desc.generate_dst_from_common({4, 1, 32, 2, 32, 2}) == ops{make_op("reshape", {{"dims", {4, 1, 64, 64}}})});
 }
 
 int main(int argc, const char* argv[]) { test::run(argc, argv); }

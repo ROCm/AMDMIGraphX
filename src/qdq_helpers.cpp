@@ -22,19 +22,16 @@
  * THE SOFTWARE.
  */
 
-#ifndef MIGRAPHX_GUARD_RTGLIB_QDQ_HELPERS_HPP
-#define MIGRAPHX_GUARD_RTGLIB_QDQ_HELPERS_HPP
-
-#include <migraphx/config.hpp>
-#include <migraphx/matcher.hpp>
-#include <migraphx/make_op.hpp>
+#include <migraphx/qdq_helpers.hpp>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
 
-std::unordered_set<std::string> get_quantizable_op_names();
+std::unordered_set<std::string> get_quantizable_op_names()
+{
+    static std::unordered_set<std::string> s = {"convolution", "dot"};
+    return s;
+}
 
 } // namespace MIGRAPHX_INLINE_NS
 } // namespace migraphx
-
-#endif

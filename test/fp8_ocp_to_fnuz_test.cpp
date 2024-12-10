@@ -27,12 +27,12 @@
 #include <migraphx/float8.hpp>
 #include <migraphx/half.hpp>
 #include <migraphx/ranges.hpp>
-#include <migraphx/fp8_ocp_to_nanoo.hpp>
+#include <migraphx/fp8_ocp_to_fnuz.hpp>
 #include <migraphx/simplify_qdq.hpp>
 #include <migraphx/propagate_constant.hpp>
 #include <migraphx/eliminate_common_subexpression.hpp>
 #include <migraphx/dead_code_elimination.hpp>
-#include <migraphx/propagate_constant.hpp>
+#include <migraphx/make_op.hpp>
 
 #include <test.hpp>
 #include <quantize_helpers.hpp>
@@ -41,9 +41,9 @@ using migraphx::make_op;
 using migraphx::shape;
 using migraphx::fp8::fp8e4m3fnuz;
 
-void run_fp8_ocp_to_nanoo(migraphx::module& m)
+void run_fp8_ocp_to_fnuz(migraphx::module& m)
 {
-    migraphx::run_passes(m, {migraphx::fp8_ocp_to_nanoo{}, migraphx::dead_code_elimination{}});
+    migraphx::run_passes(m, {migraphx::fp8_ocp_to_fnuz{}, migraphx::dead_code_elimination{}});
 }
 
 void run_simplify_qdq(migraphx::module& m)
@@ -149,9 +149,9 @@ TEST_CASE(fp8_gemm_conversion)
         auto dot = m1.add_instruction(migraphx::make_op("dot"), da, db);
         m1.add_return({dot});
     }
-    run_fp8_ocp_to_nanoo(m1);
+    run_fp8_ocp_to_fnuz(m1);
 
-    // expected after fp8_ocp_to_nanoo
+    // expected after fp8_ocp_to_fnuz
     migraphx::module m2;
     {
         auto a     = m2.add_parameter("a", {migraphx::shape::float_type, data_lens});

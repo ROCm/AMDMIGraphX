@@ -37,6 +37,7 @@
 #include <migraphx/register_op.hpp>
 #include <migraphx/fp8_types.hpp>
 #include <migraphx/qdq_helpers.hpp>
+#include <migraphx/match/dq_helpers.hpp>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
@@ -107,10 +108,10 @@ struct match_find_quantizable_ops
 
     auto matcher() const
     {
-        auto dq1 =
-            match::arg(0)(skip_post_dq_ops(dequantizelinear_op("scale1", "zp1").bind("dq1")));
-        auto dq2 =
-            match::arg(1)(skip_post_dq_ops(dequantizelinear_op("scale2", "zp2").bind("dq2")));
+        auto dq1 = match::arg(0)(
+            skip_post_dq_ops(match::dequantizelinear_op("scale1", "zp1").bind("dq1")));
+        auto dq2 = match::arg(1)(
+            skip_post_dq_ops(match::dequantizelinear_op("scale2", "zp2").bind("dq2")));
         return match::name(get_quantizable_op_names())(dq1, dq2);
     }
 

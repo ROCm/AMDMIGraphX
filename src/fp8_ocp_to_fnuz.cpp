@@ -21,12 +21,13 @@
  * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
  * THE SOFTWARE.
  */
-#include <migraphx/fp8_ocp_to_nanoo.hpp>
+#include <migraphx/fp8_ocp_to_fnuz.hpp>
 #include <migraphx/matcher.hpp>
 #include <migraphx/make_op.hpp>
 #include <migraphx/dead_code_elimination.hpp>
 #include <migraphx/pass_manager.hpp>
 #include <migraphx/qdq_helpers.hpp>
+#include <migraphx/match/dq_helpers.hpp>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
@@ -34,14 +35,14 @@ namespace {
 
 using fp8::fp8e4m3fnuz;
 
-struct match_fp8ocp_convert_to_fp8nanoo
+struct match_fp8ocp_convert_to_fp8fnuz
 {
     auto matcher() const
     {
-        auto dq1 =
-            match::arg(0)(skip_post_dq_ops(dequantizelinear_op("scale1", "zp1").bind("dq1")));
-        auto dq2 =
-            match::arg(1)(skip_post_dq_ops(dequantizelinear_op("scale2", "zp2").bind("dq2")));
+        auto dq1 = match::arg(0)(
+            skip_post_dq_ops(match::dequantizelinear_op("scale1", "zp1").bind("dq1")));
+        auto dq2 = match::arg(1)(
+            skip_post_dq_ops(match::dequantizelinear_op("scale2", "zp2").bind("dq2")));
         return match::name(get_quantizable_op_names())(dq1, dq2);
     }
 
@@ -53,7 +54,7 @@ struct match_fp8ocp_convert_to_fp8nanoo
                                              const instruction_ref bits_0xff_lit,
                                              const instruction_ref bits_0x00_lit)
     {
-        auto x_lens = x->get_shape().lens();
+        auto x_lens     = x->get_shape().lens();
         auto cast_input = m.insert_instruction(
             dq, make_op("bit_cast", {{"target_type", shape::fp8e4m3fnuz_type}}), x);
         auto mb_bits_0x80_lit = m.insert_instruction(
@@ -90,27 +91,27 @@ struct match_fp8ocp_convert_to_fp8nanoo
                                      const instruction_ref insert_pt)
     {
         auto prev_ins = start;
-        std::vector<instruction_ref> ins_inbetween;
+        std::vector<instruction_ref> ins_between;
         // matcher skips continguous, multi/broadcasts and transposes, collect all those
         // instructions
         while(prev_ins != ori)
         {
-            ins_inbetween.push_back(prev_ins);
+            ins_between.push_back(prev_ins);
             prev_ins = prev_ins->inputs().front();
         }
         auto ret = adj;
-        for(auto ins : reverse_iterator_for(ins_inbetween))
+        for(auto ins : reverse_iterator_for(ins_between))
         {
             ret = m.insert_instruction(insert_pt, (*ins)->get_operator(), {ret});
         }
         return ret;
     }
 
-    static auto cast_to_nanoo(module& m,
-                              const instruction_ref dq,
-                              const instruction_ref input,
-                              const instruction_ref dq_scale,
-                              const instruction_ref dq_zp)
+    static auto cast_to_fnuz(module& m,
+                             const instruction_ref dq,
+                             const instruction_ref input,
+                             const instruction_ref dq_scale,
+                             const instruction_ref dq_zp)
     {
         auto x                             = input;
         std::vector<fp8e4m3fnuz> bits_0x80 = {fp8e4m3fnuz(0x80, fp8e4m3fnuz::from_bits())};
@@ -132,7 +133,7 @@ struct match_fp8ocp_convert_to_fp8nanoo
 
         // adj_scale = 2 * scale
         auto two_lit = m.add_literal(literal{shape{dq_scale->get_shape().type()}, {2}});
-        two_lit = m.insert_instruction(
+        two_lit      = m.insert_instruction(
             dq, make_op("multibroadcast", {{"out_lens", dq_scale->get_shape().lens()}}), two_lit);
         auto adj_dq_scale = m.insert_instruction(dq, make_op("mul"), dq_scale, two_lit);
 
@@ -155,18 +156,17 @@ struct match_fp8ocp_convert_to_fp8nanoo
            not contains(supported_types, dq2->inputs().front()->get_shape().type()))
             return;
 
-        cast_to_nanoo(m, dq1, dq1->inputs().front(), scale1, zp1);
-        cast_to_nanoo(m, dq2, dq2->inputs().front(), scale2, zp2);
-        return;
+        cast_to_fnuz(m, dq1, dq1->inputs().front(), scale1, zp1);
+        cast_to_fnuz(m, dq2, dq2->inputs().front(), scale2, zp2);
     }
 };
 
 } // namespace
 
-void fp8_ocp_to_nanoo::apply(module_pass_manager& mpm) const
+void fp8_ocp_to_fnuz::apply(module_pass_manager& mpm) const
 {
     module_ref mm = &mpm.get_module();
-    match::find_matches(*mm, match_fp8ocp_convert_to_fp8nanoo{});
+    match::find_matches(*mm, match_fp8ocp_convert_to_fp8fnuz{});
 }
 
 } // namespace MIGRAPHX_INLINE_NS

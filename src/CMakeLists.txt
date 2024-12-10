@@ -57,7 +57,7 @@ add_library(migraphx
     file_buffer.cpp
     fileutils.cpp
     fp_to_double.cpp
-    fp8_ocp_to_nanoo.cpp
+    fp8_ocp_to_fnuz.cpp
     fuse_concat.cpp
     fuse_pointwise.cpp
     fuse_pointwise_reduce.cpp
@@ -89,6 +89,7 @@ add_library(migraphx
     program.cpp
     propagate_constant.cpp
     promote_literals.cpp
+    qdq_helpers.cpp
     quantization.cpp
     quantize_int4.cpp
     quantize_8bits.cpp

@@ -28,7 +28,7 @@
 #include <migraphx/register_target.hpp>
 #include <migraphx/verify.hpp>
 #include <migraphx/pass_manager.hpp>
-#include <migraphx/fp8_ocp_to_nanoo.hpp>
+#include <migraphx/fp8_ocp_to_fnuz.hpp>
 #include <migraphx/dead_code_elimination.hpp>
 #include <migraphx/generate.hpp>
 
@@ -36,16 +36,16 @@
 #include <quantize_helpers.hpp>
 
 /**
- * test that before and after the fp8_ocp_to_nanoo pass
+ * test that before and after the fp8_ocp_to_fnuz pass
  * have equivalent results
  */
 
-void run_fp8_ocp_to_nanoo(migraphx::module& m)
+void run_fp8_ocp_to_fnuz(migraphx::module& m)
 {
-    migraphx::run_passes(m, {migraphx::fp8_ocp_to_nanoo{}, migraphx::dead_code_elimination{}});
+    migraphx::run_passes(m, {migraphx::fp8_ocp_to_fnuz{}, migraphx::dead_code_elimination{}});
 }
 
-TEST_CASE(fp8_ocp_to_nanoo_gemm)
+TEST_CASE(fp8_ocp_to_fnuz_gemm)
 {
     using migraphx::fp8::fp8e4m3fn;
     using migraphx::fp8::fp8e4m3fnuz;
@@ -75,7 +75,7 @@ TEST_CASE(fp8_ocp_to_nanoo_gemm)
 
     migraphx::program p2 = p1;
     migraphx::module* m2 = p2.get_main_module();
-    run_fp8_ocp_to_nanoo(*m2);
+    run_fp8_ocp_to_fnuz(*m2);
 
     p1.compile(migraphx::make_target("ref"));
     p2.compile(migraphx::make_target("ref"));
@@ -95,7 +95,7 @@ TEST_CASE(fp8_ocp_to_nanoo_gemm)
     EXPECT(migraphx::verify::verify_rms_range(results_vector_1, results_vector_2));
 }
 
-TEST_CASE(fp8_ocp_to_nanoo_gemm_multi_scale)
+TEST_CASE(fp8_ocp_to_fnuz_gemm_multi_scale)
 {
     using migraphx::fp8::fp8e4m3fn;
     using migraphx::fp8::fp8e4m3fnuz;
@@ -127,7 +127,7 @@ TEST_CASE(fp8_ocp_to_nanoo_gemm_multi_scale)
 
     migraphx::program p2 = p1;
     migraphx::module* m2 = p2.get_main_module();
-    run_fp8_ocp_to_nanoo(*m2);
+    run_fp8_ocp_to_fnuz(*m2);
 
     p1.compile(migraphx::make_target("ref"));
     p2.compile(migraphx::make_target("ref"));
@@ -147,7 +147,7 @@ TEST_CASE(fp8_ocp_to_nanoo_gemm_multi_scale)
     EXPECT(migraphx::verify::verify_rms_range(results_vector_1, results_vector_2));
 }
 
-TEST_CASE(fp8_ocp_to_nanoo_conv)
+TEST_CASE(fp8_ocp_to_fnuz_conv)
 {
     using migraphx::fp8::fp8e4m3fn;
     using migraphx::fp8::fp8e4m3fnuz;
@@ -211,7 +211,7 @@ TEST_CASE(fp8_ocp_to_nanoo_conv)
 
     migraphx::program p2 = p1;
     migraphx::module* m2 = p2.get_main_module();
-    run_fp8_ocp_to_nanoo(*m2);
+    run_fp8_ocp_to_fnuz(*m2);
 
     p1.compile(migraphx::make_target("ref"));
     p2.compile(migraphx::make_target("ref"));

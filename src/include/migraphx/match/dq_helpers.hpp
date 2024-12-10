@@ -1,3 +1,4 @@
+
 /*
  * The MIT License (MIT)
  *
@@ -21,19 +22,40 @@
  * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
  * THE SOFTWARE.
  */
-
-#ifndef MIGRAPHX_GUARD_RTGLIB_QDQ_HELPERS_HPP
-#define MIGRAPHX_GUARD_RTGLIB_QDQ_HELPERS_HPP
+#ifndef MIGRAPHX_GUARD_MATCH_DQ_HELPERS_HPP
+#define MIGRAPHX_GUARD_MATCH_DQ_HELPERS_HPP
 
 #include <migraphx/config.hpp>
 #include <migraphx/matcher.hpp>
-#include <migraphx/make_op.hpp>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
+namespace match {
 
-std::unordered_set<std::string> get_quantizable_op_names();
+/**
+ * Find dequantizelinear (DQ) instruction with constant scale and zero point input
+ * while skipping broadcast instructions between DQ and scale/zero point. Used
+ * in simplify_qdq and fp8_ocp_to_fnuz.
+ */
+inline auto dequantizelinear_op(const std::string& scale, const std::string& zp)
+{
+    return match::name("dequantizelinear")(
+        match::arg(1)(match::skip_broadcasts(match::is_constant().bind(scale))),
+        match::arg(2)(match::skip_broadcasts(match::is_constant().bind(zp))));
+}
 
+/**
+ * Skip certain operators after DQ instruction.
+ * Used in simplify_qdq and fp8_ocp_to_fnuz.
+ */
+template <class... Ms>
+auto skip_post_dq_ops(Ms... ms)
+{
+    return match::skip(match::name(
+        "broadcast", "multibroadcast", "contiguous", "transpose", "reshape", "convert"))(ms...);
+}
+
+} // namespace match
 } // namespace MIGRAPHX_INLINE_NS
 } // namespace migraphx
 

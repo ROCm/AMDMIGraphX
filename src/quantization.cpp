@@ -158,10 +158,7 @@ void quantize_8bits(program& prog,
     }
 
     run_passes(prog,
-               {quantize_8bits_pass{precision, *quant_8bit_params},
-                simplify_qdq{},
-                optimize_module{},
-                dead_code_elimination{}},
+               {quantize_8bits_pass{precision, *quant_8bit_params}, dead_code_elimination{}},
                quant_tracer());
 }
 

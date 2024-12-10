@@ -715,6 +715,9 @@ struct find_hipblas_gemm_pointwise : gemm_pointwise
 
         auto gemm_op = any_cast<hipblaslt_op>(gemm_ins->get_operator()).op;
 
+        if(gemm_op.name() != "gpu::hip_gemm")
+            return;
+
         auto gemm = any_cast<hip_gemm<op::dot>>(gemm_op);
 
         // Already fused gemm

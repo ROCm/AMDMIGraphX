@@ -29,7 +29,6 @@
 #include <migraphx/quantize_int4.hpp>
 #include <migraphx/simplify_reshapes.hpp>
 #include <migraphx/simplify_qdq.hpp>
-#include <migraphx/fp8_ocp_to_fnuz.hpp>
 #include <migraphx/eliminate_common_subexpression.hpp>
 #include <migraphx/optimize_module.hpp>
 #include <migraphx/dead_code_elimination.hpp>
@@ -160,9 +159,7 @@ void quantize_8bits(program& prog,
 
     run_passes(prog,
                {quantize_8bits_pass{precision, *quant_8bit_params},
-                fp8_ocp_to_fnuz{},
-                dead_code_elimination{},
-                simplify_qdq{},
+                //simplify_qdq{},
                 optimize_module{},
                 dead_code_elimination{}},
                quant_tracer());

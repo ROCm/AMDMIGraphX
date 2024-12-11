@@ -1291,7 +1291,7 @@ module::print_py(std::ostream& os,
                 os << cpp_var_name(ins_names.at(ins)) << " = ";
             if(ins->name() == "@literal")
             {
-                os << mname << ".add_literal_from_argument(";
+                os << mname << ".add_literal(";
                 if(ins->get_shape().elements() < 10)
                 {
                     os << "migraphx.create_argument(";

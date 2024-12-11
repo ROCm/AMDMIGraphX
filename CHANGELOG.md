@@ -3,6 +3,85 @@
 Full documentation for MIGraphX is available at
 [https://rocmdocs.amd.com/projects/AMDMIGraphX/en/latest/](https://rocmdocs.amd.com/projects/AMDMIGraphX/en/latest/).
 
+## MIGraphX 2.11 for ROCm 6.3.0
+
+### Additions
+
+* Added initial code to run on Windows
+* Added support for gfx120x GPU 
+* Added support for FP8, and INT4
+* Added ONNX operators Bitwise And, Scan,SoftmaxCrossEntropyLoss, GridSample, NegativeLogLikelihoodLoss
+* Added Microsoft Contrib operators MatMulNBits, QuantizeLinear/DequantizeLinear, GroupQueryAttention
+* Added support for the Log2 internal operator
+* Added Split-K as an optional performance improvement
+* Added support for the GCC 14 compiler
+* Added the ablity to call hipBlasLt libaries using environment variable MIGRAPHX_ENABLE_HIPBLASLT_GEMM=1
+* Added scripts to validate ONNX models from the ONNX Model Zoo
+* Enabled the OneHot operator to accept a dynamic batch parameter 
+* Added a --mlir flag the migraphx-driver program to offload entire module to mlir
+* Added GPU Pooling Kernel
+* Added examples for RNNT, and ControlNet
+* Added support for Skip and Simplified LayerNormalization
+* Disabled requirement for MIOpen, and rocBlas when running on Windows
+* Introduced fusing split-reduce with MLIR 
+* Allow multiple outputs for the MLIR + Pointwise fusions 
+* Pointwise fusions with MLIR across reshape operations
+* Added reduce_any and reduce_all options from the Reduce operation via Torch MIGraphX
+* Added a flag to dump mlir modules to mxrs
+* Added MIGRAPHX_TRACE_BENCHMARKING=3 to print the MLIR program for improved debugability
+
+
+### Optimizations
+
+* Optimized the NHWC layout to improve performance of many convolution based models
+* Improved GPU utilization
+* Improved infrastructure code to enable better Kernel fusions with all supported data types
+* Optmized performance for the FP8 datatype 
+* Reduced model compilation time
+* Improved subsiquent model compile time by creating a cache for already performant kernels
+* Reorder some compiler passes to allow for more fusions
+* Improved the use of the Attention fusion with models
+* Preloaded tiles into LDS to improve performance of pointwise transposes
+* Improved all documentation
+* Improved gpu-driver utility documentation
+* Improved performance of the Softmax JIT kernel 
+* Improved performance of the Pooling opterator
+* Improved debugging of accuracy issues by addig the environment variable MIGRAPHX_VERIFY_DUMP_DIFF 
+* Improved Tuning operations by adding a 50 ms delay before running the next kernel
+* Improved the summary section of the `migrahx-driver perf` command
+* Improved verification tools
+* Improved debug prints
+* Exposed the external_data_path property in onnx_options to set the path from onnxruntime
+* Remove the hard coded path in MIGRAPHX_CXX_COMPILER allowing the compiler to be installed in different locations
+
+
+### Fixes
+
+* Fixed a bug with gfx1030 that overwrote dpp reduce
+* Fixed a bug in 1arg dynamic reshape that created a failure 
+* Fixed a bug with dot_broadcast, and inner_broadcast that caused compile failures
+* Fixed a bug where some configs were failing when using exhaustive-tune
+* Fixed the ROCM Install Guide Url
+* Fixed an issue while building a whl package due to an apostrophe
+* Fixed the BERT Squad example requirements file to support different versions of Python
+* Fixed a bug that stopped the Vicuna model from compiling
+* Fixed failures with the verify option of migraphx-driver that would cause the application to exit early
+
+
+### Changes
+
+* Switched to use MLIR's 3D Convolution operator
+* Enabled MLIR to be used for Attention operations by default on gfx942 and newer asics
+* Adjusted name and location for VRM specific libraries
+* Use random mode for benchmarking gemm and convolutions
+* Changed how the python version is printed from `dev` to an actual version number
+
+
+### Removals
+
+* Removed inaccuracte warning messages when using exhaustive-tune
+
+
 ## MIGraphX 2.10 for ROCm 6.2.0
 
 ### Additions

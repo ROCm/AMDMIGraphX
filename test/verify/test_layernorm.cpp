@@ -40,6 +40,8 @@ struct test_layernorm : verify_program<test_layernorm>
         add_layernorm(*mm, x, dims);
         return p;
     }
+
+    std::string section() const { return "reduce"; }
 };
 
 struct test_layernorm2 : verify_program<test_layernorm2>
@@ -53,6 +55,8 @@ struct test_layernorm2 : verify_program<test_layernorm2>
         add_layernorm(*mm, x, dims);
         return p;
     }
+
+    std::string section() const { return "reduce"; }
 };
 
 struct test_layernorm_large : verify_program<test_layernorm_large>
@@ -66,6 +70,8 @@ struct test_layernorm_large : verify_program<test_layernorm_large>
         add_layernorm(*mm, x, dims);
         return p;
     }
+
+    std::string section() const { return "reduce"; }
 };
 
 struct test_layernorm_fp16 : verify_program<test_layernorm_fp16>
@@ -79,6 +85,8 @@ struct test_layernorm_fp16 : verify_program<test_layernorm_fp16>
         add_layernorm(*mm, x, dims);
         return p;
     }
+
+    std::string section() const { return "reduce"; }
 };
 
 struct test_layernorm_fp8_1 : verify_program<test_layernorm_fp8_1>
@@ -92,6 +100,8 @@ struct test_layernorm_fp8_1 : verify_program<test_layernorm_fp8_1>
         add_layernorm(*mm, x, dims);
         return p;
     }
+
+    std::string section() const { return "reduce"; }
 };
 
 struct test_layernorm_fp8_2 : verify_program<test_layernorm_fp8_2>
@@ -105,6 +115,8 @@ struct test_layernorm_fp8_2 : verify_program<test_layernorm_fp8_2>
         add_layernorm(*mm, x, dims);
         return p;
     }
+
+    std::string section() const { return "reduce"; }
 };
 
 struct test_layernorm_fp8_3 : verify_program<test_layernorm_fp8_3>
@@ -118,6 +130,8 @@ struct test_layernorm_fp8_3 : verify_program<test_layernorm_fp8_3>
         add_layernorm(*mm, x, dims);
         return p;
     }
+
+    std::string section() const { return "reduce"; }
 };
 
 struct test_layernorm_eps : verify_program<test_layernorm_eps>
@@ -131,6 +145,8 @@ struct test_layernorm_eps : verify_program<test_layernorm_eps>
         add_layernorm(*mm, x, dims, 1e-5f);
         return p;
     }
+
+    std::string section() const { return "reduce"; }
 };
 
 struct test_layernorm_triadd : verify_program<test_layernorm_triadd>
@@ -148,6 +164,8 @@ struct test_layernorm_triadd : verify_program<test_layernorm_triadd>
         add_layernorm(*mm, add2, dims);
         return p;
     }
+
+    std::string section() const { return "reduce"; }
 };
 
 struct test_layernorm_triadd_large : verify_program<test_layernorm_triadd_large>
@@ -165,6 +183,8 @@ struct test_layernorm_triadd_large : verify_program<test_layernorm_triadd_large>
         add_layernorm(*mm, add2, dims);
         return p;
     }
+
+    std::string section() const { return "reduce"; }
 };
 
 struct test_add_layernorm_add_gemm_nonstd : verify_program<test_add_layernorm_add_gemm_nonstd>

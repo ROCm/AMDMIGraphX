@@ -24,11 +24,13 @@
 #include <migraphx/pass_manager.hpp>
 #include <migraphx/dead_code_elimination.hpp>
 #include <migraphx/gpu/fuse_ops.hpp>
+#include <migraphx/gpu/compile_hipblaslt.hpp>
 #include <migraphx/matcher.hpp>
 #include <migraphx/gpu/miopen.hpp>
 #include <migraphx/gpu/device_name.hpp>
 #include <migraphx/gpu/oper.hpp>
 #include <migraphx/gpu/gemm.hpp>
+#include <migraphx/gpu/hip_gemm.hpp>
 #include <migraphx/instruction.hpp>
 #include <migraphx/register_op.hpp>
 #include <migraphx/array.hpp>
@@ -41,6 +43,7 @@ namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
 namespace gpu {
 
+MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_ENABLE_HIPBLASLT_GEMM)
 MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_DISABLE_MIOPEN_FUSION)
 #if MIGRAPHX_USE_MIOPEN
 struct fusion
@@ -555,20 +558,9 @@ struct find_conv_pointwise
 };
 #endif
 
-#if MIGRAPHX_USE_ROCBLAS
-struct find_gemm_pointwise
+#if MIGRAPHX_USE_ROCBLAS or MIGRAPHX_USE_HIPBLASLT
+struct gemm_pointwise
 {
-    auto matcher() const
-    {
-        auto gemm_op   = match::name("gpu::gemm")(match::nargs(3), match::used_once()).bind("gemm");
-        auto binary_op = match::all_of(
-            match::nargs(3),
-            match::either_arg(0, 1)(
-                match::any_of(match::standard_shape(), match::is_constant()).bind("c"), gemm_op));
-        auto unary_op = match::all_of(match::nargs(2), match::arg(0)(gemm_op));
-        return precompile_name("pointwise")(match::any_of(binary_op, unary_op));
-    }
-
     // TODO: Move to matcher.hpp
     static auto match_param(const std::string& name)
     {
@@ -642,6 +634,22 @@ struct find_gemm_pointwise
             return false;
         }
     }
+};
+#endif
+
+#if MIGRAPHX_USE_ROCBLAS
+struct find_rocblas_gemm_pointwise : gemm_pointwise
+{
+    auto matcher() const
+    {
+        auto gemm_op   = match::name("gpu::gemm")(match::nargs(3), match::used_once()).bind("gemm");
+        auto binary_op = match::all_of(
+            match::nargs(3),
+            match::either_arg(0, 1)(
+                match::any_of(match::standard_shape(), match::is_constant()).bind("c"), gemm_op));
+        auto unary_op = match::all_of(match::nargs(2), match::arg(0)(gemm_op));
+        return precompile_name("pointwise")(match::any_of(binary_op, unary_op));
+    }
 
     void apply(module& m, const match::matcher_result& r) const
     {
@@ -669,7 +677,7 @@ struct find_gemm_pointwise
             shape s    = c_ins->get_shape();
             // const-fold input if not standard shape since rocblas can't handle it
             // Updated for a case where "standard" shape has out-of-sequence strides
-            if(not s.standard() or s.normalize_standard() != s)
+            if(not s.standard())
             {
                 auto c = make_op("contiguous");
                 auto l = c.compute(c.compute_shape({c_ins->get_shape()}), {c_ins->eval()});
@@ -681,6 +689,66 @@ struct find_gemm_pointwise
         inputs.push_back(ins->inputs().back());
 
         m.replace_instruction(ins, gemm, inputs);
+    }
+};
+#endif
+
+#if MIGRAPHX_USE_HIPBLASLT
+struct find_hipblas_gemm_pointwise : gemm_pointwise
+{
+    auto matcher() const
+    {
+        auto gemm_op =
+            match::name("gpu::hipblaslt_op")(match::nargs(3), match::used_once()).bind("hip_gemm");
+        auto binary_op = match::all_of(
+            match::nargs(3),
+            match::either_arg(0, 1)(
+                match::any_of(match::standard_shape(), match::is_constant()).bind("c"), gemm_op));
+        auto unary_op = match::all_of(match::nargs(2), match::arg(0)(gemm_op));
+        return precompile_name("pointwise")(match::any_of(binary_op, unary_op));
+    }
+
+    void apply(module& m, const match::matcher_result& r) const
+    {
+        auto ins      = r.result;
+        auto gemm_ins = r.instructions["hip_gemm"];
+
+        auto gemm_op = any_cast<hipblaslt_op>(gemm_ins->get_operator()).op;
+
+        auto gemm = any_cast<hip_gemm<op::dot>>(gemm_op);
+
+        // Already fused gemm
+        if(not float_equal(gemm.beta, 0))
+            return;
+        if(ins->inputs().size() == 3)
+            gemm.beta = 1;
+        if(not update_gemm(
+               gemm, ins->module_inputs().front(), ins->inputs().front() == gemm_ins ? 0 : 1))
+        {
+            return;
+        }
+        auto inputs = gemm_ins->inputs();
+        inputs.pop_back();
+        if(ins->inputs().size() == 3)
+        {
+            auto c_ins = r.instructions["c"];
+            shape s    = c_ins->get_shape();
+            // const-fold input if not standard shape
+            // Updated for a case where "standard" shape has out-of-sequence strides
+            if(not s.standard() or s.normalize_standard() != s)
+            {
+                auto c = make_op("contiguous");
+                auto l = c.compute(c.compute_shape({c_ins->get_shape()}), {c_ins->eval()});
+                c_ins  = m.add_literal(l.get_shape(), l.data());
+            }
+            inputs.push_back(c_ins);
+        }
+        inputs.push_back(ins->inputs().back());
+
+        operation new_gemm_op = gemm;
+        auto new_ins          = m.insert_instruction(
+            ins, make_op("gpu::hipblaslt_op", {{"op", to_value(new_gemm_op)}}), inputs);
+        m.replace_instruction(ins, new_ins);
     }
 };
 #endif
@@ -903,10 +971,13 @@ void fuse_ops::apply(module& m) const
     match::find_matches(m, find_conv_pointwise{ctx}, find_conv_bias_relu{ctx}, find_conv_bias{ctx});
     run_passes(m, {dead_code_elimination{}});
 #endif
-    match::find_matches(m,
 #if MIGRAPHX_USE_ROCBLAS
-                        find_gemm_pointwise{},
+    match::find_matches(m, find_rocblas_gemm_pointwise{});
 #endif
+#if MIGRAPHX_USE_HIPBLASLT
+    match::find_matches(m, find_hipblas_gemm_pointwise{});
+#endif
+    match::find_matches(m,
                         find_layernorm_pointwise{},
                         find_concat_pointwise{},
                         find_contiguous_tranpose_gemm{},

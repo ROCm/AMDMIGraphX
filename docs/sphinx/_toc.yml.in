@@ -16,6 +16,7 @@ subtrees:
       subtrees:
         - entries:
           - file: reference/driver-options
+    - file: dev/onnx_operators
 
   - caption:  Developing for MIGraphX
     entries:

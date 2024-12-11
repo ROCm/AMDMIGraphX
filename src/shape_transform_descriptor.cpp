@@ -873,13 +873,10 @@ struct operation_list
 
     void push_back(const operation& op) { ops.push_back(op); }
 
-    std::vector<operation> to_vector() const& { return {ops.crbegin(), ops.crend()}; }
-
     std::vector<operation> to_vector() &&
     {
         std::reverse(ops.begin(), ops.end());
         return std::move(ops);
-        ;
     }
 };
 

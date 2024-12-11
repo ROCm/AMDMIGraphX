@@ -266,8 +266,9 @@ migraphx::shape to_shape(const py::buffer_info& info)
     // Unsupported pybuffer types lead to undefined behaviour when comparing with migraphx type enum
     if(info.format == "z")
     {
-        MIGRAPHX_THROW("MIGRAPHX PYTHON: Unsupported data type. For fp8 and bf16 literals try using "
-                       "migraphx.generate_argument and migraphx.add_literal_from_argument");
+        MIGRAPHX_THROW(
+            "MIGRAPHX PYTHON: Unsupported data type. For fp8 and bf16 literals try using "
+            "migraphx.generate_argument and migraphx.add_literal_from_argument");
     }
     visit_types([&](auto as) {
         if(info.format == py::format_descriptor<decltype(as())>::format() or

@@ -51,4 +51,6 @@ struct test_reduce_mean_reduce_sum : verify_program<test_reduce_mean_reduce_sum>
         mm->add_return({mean_div2});
         return p;
     };
+
+    std::string section() const { return "reduce"; }
 };

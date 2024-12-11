@@ -150,23 +150,25 @@ shape_transform_descriptor shape_transform_descriptor::create(const std::vector<
 shape_transform_descriptor
 shape_transform_descriptor::rebase(const std::vector<std::size_t>& dims) const
 {
-    auto result = *this;
+    auto result   = *this;
     auto axes_map = group_axes(result.dimensions);
-    for(auto&[axis, subs]:axes_map)
+    for(auto& [axis, subs] : axes_map)
     {
         assert(axis < dims.size());
-        auto dim = dims[axis];
-        auto final_dim = transform_accumulate(subs.begin(), subs.end(), std::size_t{1}, std::multiplies<>{}, [](const dimension::sub* s) {
-            return s->len;
-        });
+        auto dim       = dims[axis];
+        auto final_dim = transform_accumulate(subs.begin(),
+                                              subs.end(),
+                                              std::size_t{1},
+                                              std::multiplies<>{},
+                                              [](const dimension::sub* s) { return s->len; });
         if(dim == final_dim)
         {
-            for(auto* sub:subs)
+            for(auto* sub : subs)
                 sub->expose();
         }
         else if(dim == 1)
         {
-            for(auto* sub:subs)
+            for(auto* sub : subs)
             {
                 if(not sub->has_hidden_axis())
                     sub->len = 1;
@@ -361,7 +363,7 @@ bool shape_transform_descriptor::apply_broadcast(const std::vector<std::size_t>&
                        }
                        for(auto& s : new_subs)
                        {
-                            s.hide();
+                           s.hide();
                        }
                        return {new_subs};
                    });
@@ -869,20 +871,15 @@ struct operation_list
 {
     std::vector<operation> ops;
 
-    void push_back(const operation& op)
-    {
-        ops.push_back(op);
-    }
+    void push_back(const operation& op) { ops.push_back(op); }
 
-    std::vector<operation> to_vector() const &
-    {
-        return {ops.crbegin(), ops.crend()};
-    }
+    std::vector<operation> to_vector() const& { return {ops.crbegin(), ops.crend()}; }
 
     std::vector<operation> to_vector() &&
     {
         std::reverse(ops.begin(), ops.end());
-        return std::move(ops);;
+        return std::move(ops);
+        ;
     }
 };
 
@@ -901,7 +898,9 @@ static bool has_axes(const dimension& d)
     });
 }
 
-static void generate_from_subdimensions(operation_list& result, std::vector<dimension::sub> subs, const std::vector<std::size_t>& input_dims = {})
+static void generate_from_subdimensions(operation_list& result,
+                                        std::vector<dimension::sub> subs,
+                                        const std::vector<std::size_t>& input_dims = {})
 {
     // Need multibroadcast
     if(std::any_of(subs.begin(), subs.end(), [&](const dimension::sub& s) {

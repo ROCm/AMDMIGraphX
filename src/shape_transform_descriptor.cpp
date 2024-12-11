@@ -361,11 +361,7 @@ bool shape_transform_descriptor::apply_broadcast(const std::vector<std::size_t>&
                        }
                        for(auto& s : new_subs)
                        {
-                           if(not s.axis.empty())
-                           {
-                               s.hidden_axis = s.axis;
-                               s.axis.clear();
-                           }
+                            s.hide();
                        }
                        return {new_subs};
                    });
@@ -798,8 +794,7 @@ static void flatten_broadcasted_dim(dimension::sub& s)
     if(s.axis.empty())
     {
         s.len = 1;
-        s.axis = s.hidden_axis;
-        s.hidden_axis.clear();
+        s.expose();
     }
 }
 
@@ -1086,11 +1081,7 @@ std::vector<operation> shape_transform_descriptor::generate_dst_from_common(
         if(d.subdimensions.size() != 1)
             continue;
         auto& s = d.subdimensions.front();
-        if(s.axis.empty())
-        {
-            s.axis = s.hidden_axis;
-            s.hidden_axis.clear();
-        }
+        s.expose();
     }
     // Need squeeze reshape
     if(std::any_of(new_dims.begin(), new_dims.end(), [](const dimension& d) {

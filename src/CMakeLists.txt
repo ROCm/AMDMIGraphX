@@ -145,6 +145,7 @@ register_migraphx_ops(
     as_shape
     atanh
     atan
+    bit_cast
     bitwise_and
     broadcast
     broadcast_for_dot

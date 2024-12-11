@@ -83,6 +83,8 @@ struct test_softmaxcrossentropyloss_2d_sum
 
         return p;
     }
+
+    std::string section() const { return "reduce"; }
 };
 
 // template struct test_softmaxcrossentropyloss_2d_sum<migraphx::shape::double_type,

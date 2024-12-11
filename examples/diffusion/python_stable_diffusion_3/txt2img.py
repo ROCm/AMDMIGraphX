@@ -485,6 +485,11 @@ class StableDiffusionMGX():
     def get_embeddings(self, prompt_tokens):
         l_out, l_pooled = self.encode_token_weights("clip-l",
                                                     prompt_tokens["l"])
+        if l_out.shape != (1, 77, 768):
+            tmp = l_pooled
+            l_pooled = l_out
+            l_out = tmp
+    
         g_out, g_pooled = self.encode_token_weights("clip-g",
                                                     prompt_tokens["g"])
         if not self.skip_t5:

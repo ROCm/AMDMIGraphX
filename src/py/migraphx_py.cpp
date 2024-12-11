@@ -263,6 +263,12 @@ migraphx::shape to_shape(const py::buffer_info& info)
 {
     migraphx::shape::type_t t;
     std::size_t n = 0;
+    // Unsupported pybuffer types lead to undefined behaviour when comparing with migraphx type enum
+    if(info.format == "z")
+    {
+        MIGRAPHX_THROW("MIGRAPHX PYTHON: Unsupported data type. For fp8 and bf16 literals try using "
+                       "migraphx.generate_argument and migraphx.add_literal_from_argument");
+    }
     visit_types([&](auto as) {
         if(info.format == py::format_descriptor<decltype(as())>::format() or
            (info.format == "l" and py::format_descriptor<decltype(as())>::format() == "q") or
@@ -394,6 +400,12 @@ MIGRAPHX_PYBIND11_MODULE(migraphx, m)
                 py::buffer_info info = data.request();
                 auto literal_shape   = to_shape(info);
                 return mm.add_literal(literal_shape, reinterpret_cast<char*>(info.ptr));
+            },
+            py::arg("data"))
+        .def(
+            "add_literal_from_argument",
+            [](migraphx::module& mm, migraphx::argument a) {
+                return mm.add_literal(a.get_shape(), a.data());
             },
             py::arg("data"))
         .def(

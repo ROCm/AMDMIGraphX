@@ -11,7 +11,7 @@ Full documentation for MIGraphX is available at
 * Added support for gfx120x GPU 
 * Added support for FP8, and INT4
 * Added ONNX operators Bitwise And, Scan,SoftmaxCrossEntropyLoss, GridSample, NegativeLogLikelihoodLoss
-* Added Microsoft Contrib operators MatMulNBits, QuantizeLinear/DequantizeLinear, GroupQueryAttention
+* Added Microsoft Contrib operators MatMulNBits, QuantizeLinear/DequantizeLinear, GroupQueryAttention, SkipSimplifiedLayerNormalization, and SimpliedLayerNormalization
 * Added support for the Log2 internal operator
 * Added Split-K as an optional performance improvement
 * Added support for the GCC 14 compiler
@@ -21,14 +21,13 @@ Full documentation for MIGraphX is available at
 * Added a --mlir flag the migraphx-driver program to offload entire module to mlir
 * Added GPU Pooling Kernel
 * Added examples for RNNT, and ControlNet
-* Added support for Skip and Simplified LayerNormalization
 * Disabled requirement for MIOpen, and rocBlas when running on Windows
 * Introduced fusing split-reduce with MLIR 
 * Allow multiple outputs for the MLIR + Pointwise fusions 
 * Pointwise fusions with MLIR across reshape operations
 * Added reduce_any and reduce_all options from the Reduce operation via Torch MIGraphX
 * Added a flag to dump mlir modules to mxrs
-* Added MIGRAPHX_TRACE_BENCHMARKING=3 to print the MLIR program for improved debugability
+* Added MIGRAPHX_TRACE_BENCHMARKING=3 to print the MLIR program for improved debug output
 
 
 ### Optimizations
@@ -38,7 +37,7 @@ Full documentation for MIGraphX is available at
 * Improved infrastructure code to enable better Kernel fusions with all supported data types
 * Optmized performance for the FP8 datatype 
 * Reduced model compilation time
-* Improved subsiquent model compile time by creating a cache for already performant kernels
+* Improved subsequent model compile time by creating a cache for already performant kernels
 * Reorder some compiler passes to allow for more fusions
 * Improved the use of the Attention fusion with models
 * Preloaded tiles into LDS to improve performance of pointwise transposes

@@ -268,7 +268,7 @@ migraphx::shape to_shape(const py::buffer_info& info)
     {
         MIGRAPHX_THROW(
             "MIGRAPHX PYTHON: Unsupported data type. For fp8 and bf16 literals try using "
-            "migraphx.generate_argument and migraphx.add_literal_from_argument");
+            "migraphx.generate_argument with migraphx.add_literal");
     }
     visit_types([&](auto as) {
         if(info.format == py::format_descriptor<decltype(as())>::format() or

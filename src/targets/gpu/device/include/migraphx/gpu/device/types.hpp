@@ -199,7 +199,7 @@ struct is_arithmetic<__fp16> : std::true_type {};
 
 // Redo for __bf16
 template <>
-struct is_floating_point<__bf16> : std::false_type {};
+struct is_floating_point<__bf16> : std::true_type {};
 template <>
 struct is_signed<__bf16> : std::true_type {};
 template <>

@@ -124,7 +124,7 @@ struct parse_matmul : op_parser<parse_matmul>
             MIGRAPHX_THROW("PARSE_QUANT_DOT_SCALED: Scales must be float or half_type");
         }
 
-        if(scale_shape.lens().at(0) != mat_input->get_shape().lens().at(1) and
+        if(scale_shape.lens().at(0) != *(mat_input->get_shape().lens().rbegin()) and
            not scale_shape.scalar())
         {
             MIGRAPHX_THROW("PARSE_QUANT_DOT_SCALED: Scale must have same dim as matrix column");
@@ -170,7 +170,7 @@ struct parse_matmul : op_parser<parse_matmul>
                 MIGRAPHX_THROW("PARSE_QUANT_DOT_SCALED: Bias must be the same type as scales");
             }
 
-            if(scale_bias_arg->get_shape().lens().at(0) != compare_arg->get_shape().lens().at(1))
+            if(scale_bias_arg->get_shape().lens().at(0) != *(compare_arg->get_shape().lens().rbegin()))
             {
                 MIGRAPHX_THROW("PARSE_QUANT_DOT_SCALED: Bias have same dim as matrix B column");
             }

@@ -7788,6 +7788,26 @@ def matmulintegertofloat_half_zp_bias_test():
 
 
 @onnx_test()
+def matmulintegertofloat_zp_bias_3d_test():
+    m1 = helper.make_tensor_value_info('1', TensorProto.INT8, [4, 3, 2])
+    m2 = helper.make_tensor_value_info('2', TensorProto.UINT8, [4, 2, 3])
+    s1 = helper.make_tensor_value_info('3', TensorProto.FLOAT, [2])
+    s2 = helper.make_tensor_value_info('4', TensorProto.FLOAT, [3])
+    zp1 = helper.make_tensor_value_info('5', TensorProto.INT8, [2])
+    zp2 = helper.make_tensor_value_info('6', TensorProto.UINT8, [3])
+    b1 = helper.make_tensor_value_info('7', TensorProto.FLOAT, [3])
+    y = helper.make_tensor_value_info('y', TensorProto.FLOAT, [4, 3, 3])
+
+    node = onnx.helper.make_node(
+        'MatMulIntegerToFloat',
+        inputs=['1', '2', '3', '4', '5', '6', '7'],
+        outputs=['y'],
+    )
+
+    return ([node], [m1, m2, s1, s2, zp1, zp2, b1], [y])
+
+
+@onnx_test()
 def max_test():
     a = helper.make_tensor_value_info('0', TensorProto.FLOAT, [3])
     b = helper.make_tensor_value_info('1', TensorProto.FLOAT, [3])

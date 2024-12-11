@@ -65,7 +65,7 @@ Full documentation for MIGraphX is available at
 * Preloaded tiles into LDS to improve performance of pointwise transposes
 * Exposed the external_data_path property in onnx_options to set the path from onnxruntime
 
-### Resovled Issues
+### Resolved Issues
 
 * Fixed a bug with gfx1030 that overwrote dpp_reduce.
 * Fixed a bug in 1arg dynamic reshape that created a failure.

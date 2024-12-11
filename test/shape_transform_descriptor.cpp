@@ -725,4 +725,30 @@ TEST_CASE(common_dims_resize)
     EXPECT(desc.generate_dst_from_common({4, 1, 32, 2, 32, 2}) == ops{make_op("reshape", {{"dims", {4, 1, 64, 64}}})});
 }
 
+TEST_CASE(rebase_reshape_broadcast)
+{
+    auto base_desc = make_simple_descriptor({3, 4, 64, 1}, make_op("reshape", {{"dims", {12, 8, 8, 1, 1}}}), make_op("multibroadcast", {{"out_lens", {12, 8, 8, 2, 2}}}));
+
+    {
+        auto desc = base_desc.rebase({3, 4, 64, 4});
+        EXPECT(get_final_lens(desc) == final_lens{12, 8, 8, 2, 2});
+        EXPECT(get_all_lens(desc) == all_lens{{3, 4}, {8}, {8}, {2}, {2}});
+        EXPECT(desc.generate() == ops{make_op("reshape", {{"dims", {3, 4, 8, 8, 2, 2}}}), make_op("reshape", {{"dims", {12, 8, 8, 2, 2}}})});
+    }
+
+    {
+        auto desc = base_desc.rebase({3, 5, 64, 1});
+        EXPECT(get_final_lens(desc) == final_lens{15, 8, 8, 2, 2});
+        EXPECT(get_all_lens(desc) == all_lens{{3, 5}, {8}, {8}, {2}, {2}});
+        EXPECT(desc.generate() == ops{make_op("reshape", {{"dims", {3, 5, 8, 8, 1, 1}}}), make_op("reshape", {{"dims", {15, 8, 8, 1, 1}}}), make_op("multibroadcast", {{"out_lens", {15, 8, 8, 2, 2}}})});
+    }
+
+    {
+        auto desc = base_desc.rebase({3, 4, 1, 1});
+        EXPECT(get_final_lens(desc) == final_lens{12, 1, 1, 2, 2});
+        EXPECT(get_all_lens(desc) == all_lens{{3, 4}, {1}, {1}, {2}, {2}});
+        EXPECT(desc.generate() == ops{make_op("unsqueeze", {{"axes", {3, 5}}}), make_op("reshape", {{"dims", {12, 1, 1, 1, 1}}}), make_op("multibroadcast", {{"out_lens", {12, 1, 1, 2, 2}}})});
+    }
+}
+
 int main(int argc, const char* argv[]) { test::run(argc, argv); }

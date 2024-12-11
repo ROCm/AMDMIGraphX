@@ -172,6 +172,13 @@ shape_transform_descriptor::rebase(const std::vector<std::size_t>& dims) const
                     sub->len = 1;
             }
         }
+        else if(subs.size() == 1)
+        {
+            subs.front()->len = dim;
+            subs.front()->expose();
+        }
+        else
+            MIGRAPHX_THROW("Invalid rebase");
     }
     result.simplify();
 

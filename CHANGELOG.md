@@ -13,12 +13,12 @@ Full documentation for MIGraphX is available at
 * Support for the Log2 internal operator
 * Support for the GCC 14 compiler
 * The BitwiseAnd, Scan, SoftmaxCrossEntropyLoss, GridSample, and NegativeLogLikelihoodLoss ONNX operators
-* The MatMulNBits, QuantizeLinear/DequantizeLinear, GroupQueryAttention, SkipSimplifiedLayerNormalization, and SimpliedLayerNormalizationMicrosoft Contrib operators
+* The MatMulNBits, QuantizeLinear/DequantizeLinear, GroupQueryAttention, SkipSimplifiedLayerNormalization, and SimpliedLayerNormalization Microsoft Contrib operators
 * Dymamic batch parameter support to OneHot operator
 * Split-K as an optional performance improvement
 * Scripts to validate ONNX models from the ONNX Model Zoo
 * GPU Pooling Kernel
-* --mlir flag the migraphx-driver program to offload entire module to mlir
+* --mlir flag to the migraphx-driver program to offload entire module to mlir
 * Fusing split-reduce with MLIR
 * Multiple outputs for the MLIR + Pointwise fusions
 * Pointwise fusions with MLIR across reshape operations
@@ -45,6 +45,7 @@ Full documentation for MIGraphX is available at
 * Removed inaccuracte warning messages when using exhaustive-tune.
 * Remove the hard coded path in MIGRAPHX_CXX_COMPILER allowing the compiler to be installed in different locations.
 
+
 ### Optimized
 
 * Improved:
@@ -64,6 +65,7 @@ Full documentation for MIGraphX is available at
 * Reordered some compiler passes to allow for more fusions
 * Preloaded tiles into LDS to improve performance of pointwise transposes
 * Exposed the external_data_path property in onnx_options to set the path from onnxruntime
+
 
 ### Resolved Issues
 

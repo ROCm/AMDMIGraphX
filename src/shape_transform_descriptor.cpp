@@ -103,6 +103,24 @@ static void for_each_subdimension(Dimensions&& dimensions, Range&& r, F f)
     }
 }
 
+// Group all axes into a map with a key of the axis and the value is vector of
+// all subdimensions that have that axis.
+static std::map<std::size_t, std::vector<dimension::sub*>>
+group_axes(std::vector<dimension>& dimensions)
+{
+    std::map<std::size_t, std::vector<dimension::sub*>> axes_map;
+    for(auto& d : dimensions)
+    {
+        for(auto& s : d.subdimensions)
+        {
+            if(s.origin_axis().empty())
+                continue;
+            axes_map[s.origin_axis().front()].push_back(&s);
+        }
+    }
+    return axes_map;
+}
+
 std::vector<std::size_t> compute_dims(const operation& op, const std::vector<std::size_t>& idims)
 {
     shape s{shape::float_type, idims};
@@ -133,28 +151,28 @@ shape_transform_descriptor
 shape_transform_descriptor::rebase(const std::vector<std::size_t>& dims) const
 {
     auto result = *this;
-    for(auto& d : result.dimensions)
+    auto axes_map = group_axes(result.dimensions);
+    for(auto&[axis, subs]:axes_map)
     {
-        for(auto& sub : d.subdimensions)
+        assert(axis < dims.size());
+        auto dim = dims[axis];
+        auto final_dim = transform_accumulate(subs.begin(), subs.end(), std::size_t{1}, std::multiplies<>{}, [](const dimension::sub* s) {
+            return s->len;
+        });
+        if(dim == final_dim)
         {
-            const auto& axis = sub.origin_axis();
-            if(axis.size() == 1 or sub.has_hidden_axis())
+            for(auto* sub:subs)
+                sub->expose();
+        }
+        else if(dim == 1)
+        {
+            for(auto* sub:subs)
             {
-                sub.len = dims.at(axis.front());
-                if(sub.has_hidden_axis())
-                {
-                    sub.axis = axis;
-                    sub.hidden_axis.clear();
-                }
+                if(not sub->has_hidden_axis())
+                    sub->len = 1;
             }
         }
     }
-    // TODO: Handle resizes
-    result.flatten_broadcast();
-    if(not result.apply_reshape(this->common_dims()))
-        return {};
-    if(not result.apply_reshape(this->lens()))
-        return {};
     result.simplify();
 
     return result;
@@ -454,24 +472,6 @@ static void set_broadcast_dim(dimension& d, std::size_t axis)
         assert(d.subdimensions.front().hidden_axis.empty());
         d.subdimensions.front().hidden_axis = {axis};
     }
-}
-
-// Group all axes into a map with a key of the axis and the value is vector of
-// all subdimensions that have that axis.
-static std::map<std::size_t, std::vector<dimension::sub*>>
-group_axes(std::vector<dimension>& dimensions)
-{
-    std::map<std::size_t, std::vector<dimension::sub*>> axes_map;
-    for(auto& d : dimensions)
-    {
-        for(auto& s : d.subdimensions)
-        {
-            if(s.origin_axis().empty())
-                continue;
-            axes_map[s.origin_axis().front()].push_back(&s);
-        }
-    }
-    return axes_map;
 }
 
 static void set_origin_axis(dimension::sub& s, const std::vector<std::size_t>& axis)
@@ -1217,6 +1217,24 @@ void shape_transform_descriptor::dimension::sub::add_split_axis(std::size_t i)
         axis.push_back(i);
     if(not hidden_axis.empty())
         hidden_axis.push_back(i);
+}
+
+void shape_transform_descriptor::dimension::sub::expose()
+{
+    if(has_hidden_axis())
+    {
+        axis = hidden_axis;
+        hidden_axis.clear();
+    }
+}
+
+void shape_transform_descriptor::dimension::sub::hide()
+{
+    if(not has_hidden_axis())
+    {
+        hidden_axis = axis;
+        axis.clear();
+    }
 }
 
 bool operator==(const dimension::sub& x, const dimension::sub& y)

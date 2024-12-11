@@ -32,6 +32,7 @@ enum class precision
 {
     fp32,
     fp16,
+    bf16,
     int8
 };
 

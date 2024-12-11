@@ -50,11 +50,14 @@ verify::tolerance get_tolerances(const program& p,
                                  std::optional<double> atol,
                                  std::optional<double> rtol)
 {
-    bool has_fp16 = any_of(p.get_modules(), [](auto&& m) {
-        return any_of(*m, [](auto&& ins) { return (ins.get_shape().type() == shape::half_type); });
+    bool has_16bit = any_of(p.get_modules(), [](auto&& m) {
+        return any_of(*m, [](auto&& ins) {
+            return (ins.get_shape().type() == shape::half_type or
+                    ins.get_shape().type() == shape::bf16_type);
+        });
     });
     migraphx::verify::tolerance result{};
-    if(has_fp16 or vo.quantize == precision::fp16)
+    if(has_16bit or vo.quantize == precision::fp16 or vo.quantize == precision::bf16)
     {
         result.rms_tol = 8e-2;
         result.atol    = 4e-2;
@@ -99,6 +102,10 @@ std::vector<argument> run_target(program p,
     if(vo.quantize == precision::fp16)
     {
         quantize_fp16(p);
+    }
+    if(vo.quantize == precision::bf16)
+    {
+        quantize_bf16(p);
     }
     p.compile(t, options);
 

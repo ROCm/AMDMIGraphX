@@ -76,6 +76,7 @@ struct MIGRAPHX_EXPORT shape_transform_descriptor
 
     bool apply(const std::vector<operation>& ops);
     bool apply_reshape(const std::vector<std::size_t>& rdims);
+    bool apply_reshape_impl(const std::vector<std::size_t>& rdims);
     bool apply_transpose(const std::vector<std::int64_t>& permutation);
     bool apply_broadcast(const std::vector<std::size_t>& out_lens,
                          optional<std::size_t> axis = nullopt);
@@ -97,7 +98,12 @@ struct MIGRAPHX_EXPORT shape_transform_descriptor
             // the axis. However, it still needs to accounted for. After we
             // generate the broadcast we will set the axis to the hidden
             // axis, and then length to 1.
-            optional<std::size_t> hidden_axis = nullopt;
+            std::vector<std::size_t> hidden_axis = {};
+
+            const std::vector<std::size_t>& origin_axis() const;
+            bool has_hidden_axis() const;
+
+            void add_split_axis(std::size_t i);
 
             MIGRAPHX_EXPORT friend bool operator==(const sub& x, const sub& y);
             MIGRAPHX_EXPORT friend bool operator!=(const sub& x, const sub& y);

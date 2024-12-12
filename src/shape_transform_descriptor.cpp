@@ -28,10 +28,12 @@
 #include <migraphx/algorithm.hpp>
 #include <migraphx/output_iterator.hpp>
 #include <migraphx/ranges.hpp>
+#include <migraphx/erase.hpp>
 #include <migraphx/common_dims.hpp>
 #include <migraphx/make_op.hpp>
 #include <migraphx/stringutils.hpp>
 #include <map>
+#include <unordered_set>
 #include <deque>
 
 namespace migraphx {
@@ -99,6 +101,16 @@ std::vector<std::size_t> compute_dims(const std::vector<operation>& ops,
     return s.lens();
 }
 
+static dimension::sub* get_last_subdimension(std::vector<dimension>& dims)
+{
+    if(dims.empty())
+        return {};
+    auto& d = dims.back();
+    if(d.subdimensions.empty())
+        return nullptr;
+    return &d.subdimensions.back();
+}
+
 bool shape_transform_descriptor::apply(const std::vector<operation>& ops)
 {
     std::vector<std::size_t> dims;
@@ -144,7 +156,21 @@ bool shape_transform_descriptor::apply(const std::vector<operation>& ops)
 }
 bool shape_transform_descriptor::apply_reshape(const std::vector<std::size_t>& rdims)
 {
+    std::vector<std::size_t> idims;
+    transform(get_all_subdimensions(dimensions),
+              std::back_inserter(idims),
+              std::mem_fn(&dimension::sub::len));
+    auto cdims = common_dims::compute(idims, rdims).dims;
+    if(not cdims.empty() and not apply_reshape_impl(cdims))
+        return false;
+    return apply_reshape_impl(rdims);
+}
+bool shape_transform_descriptor::apply_reshape_impl(const std::vector<std::size_t>& rdims)
+{
     assert(migraphx::elements(rdims) == this->elements());
+    if(migraphx::equal(
+           dimensions, rdims, [](const dimension& d, std::size_t rdim) { return d.len() == rdim; }))
+        return true;
     std::vector<dimension> new_dims;
     auto subs     = get_all_subdimensions(dimensions);
     std::size_t i = 0;
@@ -182,8 +208,7 @@ bool shape_transform_descriptor::apply_reshape(const std::vector<std::size_t>& r
             r += n;
             transform(range(n + 1), std::back_inserter(new_dims), [&](auto j) -> dimension {
                 auto new_sub = sub;
-                if(not new_sub.axis.empty())
-                    new_sub.axis.push_back(j);
+                new_sub.add_split_axis(j);
                 new_sub.len = start[j];
                 return {{new_sub}};
             });
@@ -195,12 +220,20 @@ bool shape_transform_descriptor::apply_reshape(const std::vector<std::size_t>& r
     // Handle trailing 1s
     if(new_dims.size() < rdims.size() and not new_dims.empty())
     {
-        for(auto d : range(rdims.begin() + new_dims.size(), rdims.end()))
-        {
-            if(d != 1)
-                return false;
-            new_dims.push_back({{dimension::sub{1}}});
-        }
+        auto* sub          = get_last_subdimension(new_dims);
+        auto axis          = sub == nullptr ? std::vector<std::size_t>{} : sub->axis;
+        auto trailing_dims = range(rdims.begin() + new_dims.size(), rdims.end());
+        if(any_of(trailing_dims, [](auto d) { return d != 1; }))
+            return false;
+        if(distance(trailing_dims) > 1)
+            sub->add_split_axis(0);
+        transform(range(distance(trailing_dims)),
+                  std::back_inserter(new_dims),
+                  [&](std::size_t j) -> dimension {
+                      dimension::sub s{1, axis};
+                      s.add_split_axis(j + 1);
+                      return {{s}};
+                  });
     }
     assert(rdims.size() == new_dims.size());
     if(rdims.size() != new_dims.size())
@@ -238,7 +271,20 @@ bool shape_transform_descriptor::apply_broadcast(const std::vector<std::size_t>&
                            return dim;
                        if(dim.len() != 1)
                            MIGRAPHX_THROW("Wrong out_lens for broadcast");
-                       return {{dimension::sub{len, {}}}};
+                       auto new_subs = dim.subdimensions;
+                       if(not new_subs.empty())
+                       {
+                           new_subs.front().len = len;
+                       }
+                       for(auto& s : new_subs)
+                       {
+                           if(not s.axis.empty())
+                           {
+                               s.hidden_axis = s.axis;
+                               s.axis.clear();
+                           }
+                       }
+                       return {new_subs};
                    });
     std::transform(out_lens.begin() + offset + dimensions.size(),
                    out_lens.end(),
@@ -267,14 +313,19 @@ void dimension::simplify()
     remove_1_sub_dims(subdimensions);
     // Flatten adjacent dimensions
     adjacent_for_each(subdimensions.begin(), subdimensions.end(), [&](sub& d1, sub& d2) {
-        if(d1.axis.size() < 2)
+        if(d1.origin_axis().size() < 2)
             return;
-        if(d2.axis.size() < 2)
+        if(d2.origin_axis().size() < 2)
             return;
-        if(not std::equal(d1.axis.begin(), d1.axis.end() - 1, d2.axis.begin(), d2.axis.end() - 1))
+        if(d1.has_hidden_axis() != d2.has_hidden_axis())
             return;
-        auto a1 = d1.axis.back();
-        auto a2 = d2.axis.back();
+        if(not std::equal(d1.origin_axis().begin(),
+                          d1.origin_axis().end() - 1,
+                          d2.origin_axis().begin(),
+                          d2.origin_axis().end() - 1))
+            return;
+        auto a1 = d1.origin_axis().back();
+        auto a2 = d2.origin_axis().back();
         assert(a2 != a1);
         if(a2 <= a1)
             return;
@@ -333,7 +384,7 @@ static bool missing_leading_axis(const dimension& d)
     if(d.subdimensions.empty())
         return true;
     const auto& sub = d.subdimensions.front();
-    return sub.axis.empty();
+    return sub.origin_axis().empty();
 }
 
 static void set_broadcast_dim(dimension& d, std::size_t axis)
@@ -341,7 +392,10 @@ static void set_broadcast_dim(dimension& d, std::size_t axis)
     if(d.subdimensions.empty())
         d.subdimensions.push_back({1, {axis}});
     else
-        d.subdimensions.front().hidden_axis = axis;
+    {
+        assert(d.subdimensions.front().hidden_axis.empty());
+        d.subdimensions.front().hidden_axis = {axis};
+    }
 }
 
 // Group all axes into a map with a key of the axis and the value is vector of
@@ -354,12 +408,75 @@ group_axes(std::vector<dimension>& dimensions)
     {
         for(auto& s : d.subdimensions)
         {
-            if(s.axis.empty())
+            if(s.origin_axis().empty())
                 continue;
-            axes_map[s.axis.front()].push_back(&s);
+            axes_map[s.origin_axis().front()].push_back(&s);
         }
     }
     return axes_map;
+}
+
+static void set_origin_axis(dimension::sub& s, const std::vector<std::size_t>& axis)
+{
+    if(s.has_hidden_axis())
+        s.hidden_axis = axis;
+    else
+        s.axis = axis;
+}
+
+// If an axis is split and some dimensions are hidden and others are not, then
+// remove the hidden axis so only the non-hidden axis is used in
+// simplificaiton
+static void remove_split_hidden_axes(std::map<std::size_t, std::vector<dimension::sub*>>& axes_map)
+{
+    for(auto&& p : axes_map)
+    {
+        auto& subs = p.second;
+        if(std::all_of(subs.begin(), subs.end(), [](const dimension::sub* s) {
+               return s->has_hidden_axis();
+           }))
+            continue;
+        for(auto* sub : subs)
+        {
+            if(not sub->has_hidden_axis())
+                continue;
+            sub->hidden_axis.clear();
+        }
+        // Remove the subdimesions that no longer have an axis
+        subs.erase(std::remove_if(subs.begin(),
+                                  subs.end(),
+                                  [](const dimension::sub* s) {
+                                      return s->axis.empty() and s->hidden_axis.empty();
+                                  }),
+                   subs.end());
+    }
+    // Remove axis from group if empty
+    erase_if(axes_map, [](auto&& p) { return p.second.empty(); });
+}
+
+// If this is scalar, then remove all axes
+static void remove_scalar_axis(std::vector<dimension>& dimensions)
+{
+    dimension::sub* s = nullptr;
+    for(auto& d : dimensions)
+    {
+        auto has_axis = [](const dimension::sub& x) { return not x.origin_axis().empty(); };
+        auto it       = std::find_if(d.subdimensions.begin(), d.subdimensions.end(), has_axis);
+        if(it == d.subdimensions.end())
+            continue;
+        if(s != nullptr)
+            return;
+        if(std::count_if(std::next(it), d.subdimensions.end(), has_axis) > 0)
+            return;
+        s = &*it;
+    }
+    if(s != nullptr)
+    {
+        if(s->has_hidden_axis())
+            s->hidden_axis.clear();
+        if(s->len == 1)
+            s->axis.clear();
+    }
 }
 
 // Renumber all axes while preserving the order of the axes
@@ -371,15 +488,15 @@ static void renumber_axes(std::map<std::size_t, std::vector<dimension::sub*>>& a
         auto& subs       = p.second;
         if(subs.size() == 1)
         {
-            subs[0]->axis = {axis};
+            set_origin_axis(*subs[0], {axis});
         }
         else
         {
             std::sort(subs.begin(), subs.end(), by(std::less<>{}, [](const dimension::sub* s) {
-                          return s->axis;
+                          return s->origin_axis();
                       }));
             for(std::size_t i : range(subs.size()))
-                subs[i]->axis = {axis, i};
+                set_origin_axis(*subs[i], {axis, i});
         }
     }
 }
@@ -423,6 +540,8 @@ void shape_transform_descriptor::simplify()
     for(auto& d : dimensions)
         d.simplify();
 
+    remove_scalar_axis(dimensions);
+
     std::map<std::size_t, std::size_t> missing_axes;
     std::vector<std::size_t> last_axis;
     {
@@ -431,6 +550,7 @@ void shape_transform_descriptor::simplify()
         if(axes_map.empty())
             return;
 
+        remove_split_hidden_axes(axes_map);
         renumber_axes(axes_map);
 
         // Find last axis
@@ -457,8 +577,8 @@ void shape_transform_descriptor::simplify()
             {
                 assert(not last->subdimensions.empty());
                 const auto& sub = last->subdimensions.front();
-                assert(not sub.axis.empty());
-                axis = sub.axis.front();
+                assert(not sub.origin_axis().empty());
+                axis = sub.origin_axis().front();
             }
             std::deque<std::size_t> dims(std::distance(start, last));
             std::iota(dims.begin(), dims.end(), std::distance(dimensions.begin(), start));
@@ -504,18 +624,18 @@ void shape_transform_descriptor::simplify()
             // Search for the subdimension that has the next axis and try to
             // insert the axis before it will be in order.
             auto [sub, it, prev] = find_subdimension(*this, [&](const dimension::sub& s) {
-                if(s.axis.empty())
+                if(s.origin_axis().empty())
                     return false;
-                if(s.axis.front() != next_axis)
+                if(s.origin_axis().front() != next_axis)
                     return false;
-                if(s.axis.size() == 1)
+                if(s.origin_axis().size() == 1)
                     return true;
-                assert(s.axis.size() == 2);
-                return s.axis.back() == 0;
+                assert(s.origin_axis().size() == 2);
+                return s.origin_axis().back() == 0;
             });
             bool in_order        = false;
-            if(prev.has_value() and not(*prev)->axis.empty())
-                in_order = (*prev)->axis.front() == missing_axis - 1;
+            if(prev.has_value() and not(*prev)->origin_axis().empty())
+                in_order = (*prev)->origin_axis().front() == missing_axis - 1;
             // If the axis is not inorder then see if we can find a broadcast axis to place it
             auto bdims =
                 in_order ? broadcast_dims_map.end() : broadcast_dims_map.upper_bound(missing_axis);
@@ -597,17 +717,15 @@ static void flatten_broadcasted_dim(dimension::sub& s)
     if(s.axis.empty())
     {
         s.len = 1;
-        if(s.hidden_axis.has_value())
-        {
-            s.axis        = {s.hidden_axis.value()};
-            s.hidden_axis = nullopt;
-        }
+        s.axis = s.hidden_axis;
+        s.hidden_axis.clear();
     }
 }
 
 static operation make_reshape_unsqueeze(const std::vector<dimension::sub>& subs)
 {
     bool use_reshape = false;
+    std::unordered_set<std::size_t> all_1s;
     // Check if split dimensions are all additional 1s
     if(std::any_of(
            subs.begin(), subs.end(), [](const dimension::sub& s) { return s.axis.size() > 1; }))
@@ -631,6 +749,8 @@ static operation make_reshape_unsqueeze(const std::vector<dimension::sub>& subs)
                 // Number of elements that are 1
                 auto n1 =
                     std::count_if(start, last, [](const dimension::sub& s) { return s.len == 1; });
+                if(n == n1 and not start->axis.empty())
+                    all_1s.insert(start->axis.front());
                 use_reshape |= std::max<int64_t>(0, n - n1 - 1) > 0;
             },
             by_axis);
@@ -658,6 +778,8 @@ static operation make_reshape_unsqueeze(const std::vector<dimension::sub>& subs)
                 continue;
             if(sub.len != 1 and not sub.axis.empty())
                 continue;
+            if(not sub.axis.empty() and contains(all_1s, sub.axis.front()) and sub.axis.back() == 0)
+                continue;
             axes.push_back(i);
         }
         return make_op("unsqueeze", {{"axes", axes}});
@@ -667,7 +789,7 @@ static operation make_reshape_unsqueeze(const std::vector<dimension::sub>& subs)
 static bool has_no_axes(const dimension& d)
 {
     return std::all_of(d.subdimensions.begin(), d.subdimensions.end(), [](const dimension::sub& s) {
-        return s.axis.empty() and not s.hidden_axis.has_value();
+        return s.axis.empty() and s.hidden_axis.empty();
     });
 }
 static bool has_axes(const dimension& d)
@@ -810,6 +932,23 @@ std::size_t shape_transform_descriptor::elements() const
                                 [](const auto& s) { return s.len(); });
 }
 
+const std::vector<std::size_t>& shape_transform_descriptor::dimension::sub::origin_axis() const
+{
+    return axis.empty() ? hidden_axis : axis;
+}
+bool shape_transform_descriptor::dimension::sub::has_hidden_axis() const
+{
+    return axis.empty() and not hidden_axis.empty();
+}
+
+void shape_transform_descriptor::dimension::sub::add_split_axis(std::size_t i)
+{
+    if(not axis.empty())
+        axis.push_back(i);
+    if(not hidden_axis.empty())
+        hidden_axis.push_back(i);
+}
+
 bool operator==(const dimension::sub& x, const dimension::sub& y)
 {
     return by(std::equal_to<>{},
@@ -819,8 +958,8 @@ bool operator!=(const dimension::sub& x, const dimension::sub& y) { return not(x
 std::ostream& operator<<(std::ostream& os, const dimension::sub& x)
 {
     os << x.len << ":" << to_string_range(x.axis, "x");
-    if(x.hidden_axis.has_value())
-        os << "$" << x.hidden_axis.value();
+    if(not x.hidden_axis.empty())
+        os << "$" << to_string_range(x.hidden_axis, "x");
     return os;
 }
 bool operator==(const dimension& x, const dimension& y)

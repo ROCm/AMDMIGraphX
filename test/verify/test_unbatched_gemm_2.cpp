@@ -51,5 +51,6 @@ struct test_unbatched_gemm_2 : verify_program<test_unbatched_gemm_2<DType>>
 template struct test_unbatched_gemm_2<migraphx::shape::float_type>;
 template struct test_unbatched_gemm_2<migraphx::shape::half_type>;
 template struct test_unbatched_gemm_2<migraphx::shape::fp8e4m3fnuz_type>;
+template struct test_unbatched_gemm_2<migraphx::shape::fp8e5m2fnuz_type>;
 template struct test_unbatched_gemm_2<migraphx::shape::fp8e4m3fn_type>;
 template struct test_unbatched_gemm_2<migraphx::shape::fp8e5m2_type>;

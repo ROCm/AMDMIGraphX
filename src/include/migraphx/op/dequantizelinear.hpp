@@ -54,7 +54,7 @@ struct dequantizelinear
         {
             MIGRAPHX_THROW("DEQUANTIZELINEAR: Zero point and input should be the same type.");
         }
-        return {inputs[1].type(), inputs[0].lens(), inputs[0].strides()};
+        return inputs[0].with_lens(inputs[1].type(), inputs[0].lens());
     }
 
     argument compute(const shape& output_shape, std::vector<argument> args) const

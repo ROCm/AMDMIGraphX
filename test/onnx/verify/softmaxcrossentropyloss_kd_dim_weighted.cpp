@@ -180,7 +180,7 @@ TEST_CASE(softmaxcrossentropyloss_kd_mean_reduction_weighted_test)
     pp["2"] = migraphx::argument(weight_shape, weight_data.data());
 
     auto result = p.eval(pp).back();
-    std::vector<half_float::half> result_vector;
+    std::vector<half> result_vector;
     result.visit([&](auto output) { result_vector.assign(output.begin(), output.end()); });
     std::vector<half> gold = {half{1.38629436}};
     EXPECT(migraphx::verify::verify_rms_range(result_vector, gold));
@@ -207,7 +207,7 @@ TEST_CASE(softmaxcrossentropyloss_kd_mean_reduction_uneven_weighted_test)
     pp["2"] = migraphx::argument(weight_shape, weight_data.data());
 
     auto result = p.eval(pp).back();
-    std::vector<half_float::half> result_vector;
+    std::vector<half> result_vector;
     result.visit([&](auto output) { result_vector.assign(output.begin(), output.end()); });
     std::vector<half> gold = {half{1.38629436}};
 

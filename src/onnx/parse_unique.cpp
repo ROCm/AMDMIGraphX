@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2023 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2024 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -71,7 +71,7 @@ struct parse_unique : op_parser<parse_unique>
         {
             auto n_dim = args[0]->get_shape().ndim();
             axis       = parser.parse_value(info.attributes.at("axis")).at<int>();
-            axis       = tune_axis(n_dim, *axis, opd.op_name);
+            axis       = tune_axis(n_dim, *axis, opd.onnx_name);
         }
         migraphx::argument data_arg = args.back()->eval();
 

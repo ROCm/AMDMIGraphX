@@ -125,3 +125,23 @@ TEST_CASE(unpack_int4_nchw)
                               0x06, 0x07, 0x08, 0x09, 0x0A, 0x0B, 0x0C, 0x0D, 0x0E, 0x0F};
     EXPECT(migraphx::verify::verify_rms_range(results_vector, gold));
 }
+
+TEST_CASE(unpack_int4_signed)
+{
+    migraphx::program p;
+    auto* mm = p.get_main_module();
+    migraphx::shape s{migraphx::shape::int8_type, {2, 2}};
+    auto l0 = mm->add_literal(migraphx::literal{
+        s,
+        {0b1000'0111 /*-8'7*/, 0b0001'1111 /*1'-1*/, 0b1110'1001 /*-2'-7*/, 0b0101'0111 /*5'7*/}});
+    mm->add_instruction(migraphx::make_op("unpack_int4"), l0);
+
+    p.compile(migraphx::make_target("ref"));
+
+    auto result = p.eval({}).back();
+    std::vector<int8_t> results_vector(s.elements());
+    result.visit([&](auto output) { results_vector.assign(output.begin(), output.end()); });
+
+    std::vector<int8_t> gold{7, -8, -1, 1, -7, -2, 7, 5};
+    EXPECT(migraphx::verify::verify_rms_range(results_vector, gold));
+}

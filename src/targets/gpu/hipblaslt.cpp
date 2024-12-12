@@ -56,9 +56,10 @@ hipblaslt_preference_ptr create_hipblaslt_preference_ptr()
 bool hipblaslt_supported()
 {
     const auto device_name = trim(split_string(get_device_name(), ':').front());
-    // hipblaslt is supported for MI100 and above and Navi3x and above
-    return (starts_with(device_name, "gfx9") and device_name >= "gfx908" and
-            not starts_with(device_name, "gfx10"));
+    // hipblaslt is supported for MI200 and above, and Navi3x and above.
+    return (device_name == "gfx90a" or
+            (starts_with(device_name, "gfx94") and device_name >= "gfx940") or
+            starts_with(device_name, "gfx110") or starts_with(device_name, "gfx120"));
 }
 
 #endif // MIGRAPHX_USE_HIPBLASLT

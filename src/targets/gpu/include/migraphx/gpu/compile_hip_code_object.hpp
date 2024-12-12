@@ -45,6 +45,7 @@ struct hip_compile_options
     std::vector<std::string> params            = {};
     std::vector<shape> virtual_inputs          = {};
     std::vector<src_file> additional_src_files = {};
+    std::int64_t output_arg                    = -1;
 
     /**
      * @brief Set the launch parameters but allow v to override the values

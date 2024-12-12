@@ -29,7 +29,6 @@
 #include <migraphx/split_reduce.hpp>
 #include <migraphx/env.hpp>
 
-
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
 MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_SPLIT_REDUCE_SIZE);

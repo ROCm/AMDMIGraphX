@@ -40,7 +40,6 @@
 #include <migraphx/make_op.hpp>
 #include <migraphx/marker.hpp>
 #include <migraphx/supported_segments.hpp>
-#include <migraphx/json.hpp>
 
 #include <iostream>
 #include <queue>
@@ -872,25 +871,6 @@ double percentile(const std::vector<double>& v, double percentile)
     return v[index];
 }
 
-void dump_runtimes_to_json(const std::vector<double>& vec, const std::string& file_name)
-{
-    migraphx::value val;
-    val["runtimes"] = vec;
-
-    std::ofstream file(file_name);
-
-    if(file.is_open())
-    {
-        file << migraphx::to_pretty_json_string(val, 4);
-        file.close();
-        std::cout << "Runtimes dumped to " << file_name << std::endl;
-    }
-    else
-    {
-        std::cerr << "Failed to open file: " << file_name << std::endl;
-    }
-}
-
 std::string perf_group(instruction_ref ins, bool detailed)
 {
     std::string result;
@@ -925,12 +905,8 @@ void program::mark(const parameter_map& params, marker&& m)
     m.mark_stop(*this);
 }
 
-void program::perf_report(std::ostream& os,
-                          std::size_t n,
-                          parameter_map params,
-                          std::size_t batch,
-                          bool detailed,
-                          bool runtimes) const
+void program::perf_report(
+    std::ostream& os, std::size_t n, parameter_map params, std::size_t batch, bool detailed) const
 {
     auto& ctx = this->impl->contexts;
     // Run once by itself
@@ -946,8 +922,6 @@ void program::perf_report(std::ostream& os,
             this->finish();
         }));
     }
-    if(runtimes)
-        dump_runtimes_to_json(total_vec, "perf_output.json");
     std::sort(total_vec.begin(), total_vec.end());
     std::unordered_map<instruction_ref, std::vector<double>> ins_vec;
     // Fill the map

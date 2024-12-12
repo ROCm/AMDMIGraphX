@@ -46,7 +46,7 @@ struct test_block_reduce_small : verify_program<test_block_reduce_small<N, T>>
         mm->add_return({add});
         return p;
     };
-    
+
     std::string section() const { return "reduce"; }
 };
 

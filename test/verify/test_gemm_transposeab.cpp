@@ -48,6 +48,6 @@ template struct test_gemm_transposeab<migraphx::shape::float_type>;
 template struct test_gemm_transposeab<migraphx::shape::half_type>;
 template struct test_gemm_transposeab<migraphx::shape::bf16_type>;
 template struct test_gemm_transposeab<migraphx::shape::fp8e4m3fnuz_type>;
-// template struct test_gemm_transposeab<migraphx::shape::fp8e5m2fnuz_type>;
+template struct test_gemm_transposeab<migraphx::shape::fp8e5m2fnuz_type>;
 template struct test_gemm_transposeab<migraphx::shape::fp8e4m3fn_type>;
 template struct test_gemm_transposeab<migraphx::shape::fp8e5m2_type>;

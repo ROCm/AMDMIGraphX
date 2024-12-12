@@ -51,6 +51,6 @@ template struct test_gemm_2args_mv<migraphx::shape::float_type>;
 template struct test_gemm_2args_mv<migraphx::shape::half_type>;
 template struct test_gemm_2args_mv<migraphx::shape::bf16_type>;
 template struct test_gemm_2args_mv<migraphx::shape::fp8e4m3fnuz_type>;
-// template struct test_gemm_2args_mv<migraphx::shape::fp8e5m2fnuz_type>;
+template struct test_gemm_2args_mv<migraphx::shape::fp8e5m2fnuz_type>;
 template struct test_gemm_2args_mv<migraphx::shape::fp8e4m3fn_type>;
 template struct test_gemm_2args_mv<migraphx::shape::fp8e5m2_type>;

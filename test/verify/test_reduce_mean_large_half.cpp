@@ -38,4 +38,6 @@ struct test_reduce_mean_large_half : verify_program<test_reduce_mean_large_half>
         mm->add_instruction(migraphx::make_op("reduce_mean", {{"axes", {2}}}), x);
         return p;
     };
+
+    std::string section() const { return "reduce"; }
 };

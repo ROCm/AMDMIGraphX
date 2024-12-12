@@ -40,6 +40,7 @@
 #include <migraphx/make_op.hpp>
 #include <migraphx/marker.hpp>
 #include <migraphx/supported_segments.hpp>
+#include <migraphx/stringutils.hpp>
 
 #include <iostream>
 #include <queue>
@@ -647,25 +648,24 @@ void program::finish() const
         ctx.finish();
 }
 
-std::string get_migraphx_version()
+constexpr std::string_view get_migraphx_version()
 {
-    std::stringstream ss;
-    ss << std::to_string(MIGRAPHX_VERSION_MAJOR) << "." << std::to_string(MIGRAPHX_VERSION_MINOR)
-       << "." << std::to_string(MIGRAPHX_VERSION_PATCH);
-    return ss.str();
+    return MIGRAPHX_STRINGIZE(MIGRAPHX_VERSION_MAJOR) "." \
+           MIGRAPHX_STRINGIZE(MIGRAPHX_VERSION_MINOR) "." \
+           MIGRAPHX_STRINGIZE(MIGRAPHX_VERSION_PATCH);
 }
 
 /*
 program file version is for the data structure or format of the MXR file. Version should be bumped
 if any changes occur to the format of the MXR file.
 */
-const int program_file_version = 7;
+constexpr int program_file_version = 7;
 
 value program::to_value() const
 {
     value result;
     result["version"]          = program_file_version;
-    result["migraphx_version"] = get_migraphx_version();
+    result["migraphx_version"] = std::string{get_migraphx_version()};
     result["targets"]          = migraphx::to_value(this->impl->targets);
     result["contexts"]         = migraphx::to_value(this->impl->contexts);
     value module_vals          = value::object{};

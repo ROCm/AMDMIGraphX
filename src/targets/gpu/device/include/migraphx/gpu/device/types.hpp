@@ -162,30 +162,48 @@ inline __device__ __host__ float to_hip_type(gpu_half x) { return x; }
 inline __device__ __host__ float to_hip_type(gpu_bf16 x) { return x; }
 
 template <class X>
-struct is_floating_point : std::is_floating_point<X> {};
+struct is_floating_point : std::is_floating_point<X>
+{
+};
 
 template <>
-struct is_floating_point<__fp16> : std::true_type {};
+struct is_floating_point<__fp16> : std::true_type
+{
+};
 
 template <class X>
-struct is_signed : std::is_signed<X> {};
+struct is_signed : std::is_signed<X>
+{
+};
 
 template <>
-struct is_signed<__fp16> : std::true_type {};
+struct is_signed<__fp16> : std::true_type
+{
+};
 
 template <class X>
-struct is_arithmetic : std::is_arithmetic<X> {};
+struct is_arithmetic : std::is_arithmetic<X>
+{
+};
 
 template <>
-struct is_arithmetic<__fp16> : std::true_type {};
+struct is_arithmetic<__fp16> : std::true_type
+{
+};
 
 // Redo for __bf16
 template <>
-struct is_floating_point<__bf16> : std::true_type {};
+struct is_floating_point<__bf16> : std::true_type
+{
+};
 template <>
-struct is_signed<__bf16> : std::true_type {};
+struct is_signed<__bf16> : std::true_type
+{
+};
 template <>
-struct is_arithmetic<__bf16> : std::true_type {};
+struct is_arithmetic<__bf16> : std::true_type
+{
+};
 
 } // namespace device
 } // namespace gpu

@@ -110,7 +110,8 @@ struct MIGRAPHX_EXPORT program
                      std::size_t n,
                      parameter_map params,
                      std::size_t batch = 1,
-                     bool detailed     = false) const;
+                     bool detailed     = false,
+                     bool runtimes     = false) const;
 
     void mark(const parameter_map& params, marker&& m);
 

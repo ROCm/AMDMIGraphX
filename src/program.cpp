@@ -40,6 +40,7 @@
 #include <migraphx/make_op.hpp>
 #include <migraphx/marker.hpp>
 #include <migraphx/supported_segments.hpp>
+#include <migraphx/json.hpp>
 
 #include <iostream>
 #include <queue>
@@ -871,18 +872,22 @@ double percentile(const std::vector<double>& v, double percentile)
     return v[index];
 }
 
-void dump_vector_to_csv(const std::vector<double>& vec, const std::string& file_name)
+void dump_runtimes_to_json(const std::vector<double>& vec, const std::string& file_name)
 {
+    migraphx::value val;
+    val["runtimes"] = vec;
+
     std::ofstream file(file_name);
 
     if(file.is_open())
     {
-        for(const auto& value : vec)
-        {
-            file << value << "\n";
-        }
+        file << migraphx::to_pretty_json_string(val, 4);
         file.close();
-        std::cout << "Vector dumped to " << file_name << std::endl;
+        std::cout << "Runtimes dumped to " << file_name << std::endl;
+    }
+    else
+    {
+        std::cerr << "Failed to open file: " << file_name << std::endl;
     }
 }
 
@@ -920,8 +925,12 @@ void program::mark(const parameter_map& params, marker&& m)
     m.mark_stop(*this);
 }
 
-void program::perf_report(
-    std::ostream& os, std::size_t n, parameter_map params, std::size_t batch, bool detailed) const
+void program::perf_report(std::ostream& os,
+                          std::size_t n,
+                          parameter_map params,
+                          std::size_t batch,
+                          bool detailed,
+                          bool runtimes) const
 {
     auto& ctx = this->impl->contexts;
     // Run once by itself
@@ -937,7 +946,8 @@ void program::perf_report(
             this->finish();
         }));
     }
-    dump_vector_to_csv(total_vec, "perf_output.csv");
+    if(runtimes)
+        dump_runtimes_to_json(total_vec, "perf_output.json");
     std::sort(total_vec.begin(), total_vec.end());
     std::unordered_map<instruction_ref, std::vector<double>> ins_vec;
     // Fill the map
@@ -972,6 +982,8 @@ void program::perf_report(
     double max_time               = total_vec.back();
     double mean_time              = mean(total_vec);
     double median_time            = median(total_vec);
+    double percentile_90_time     = percentile(total_vec, 0.90);
+    double percentile_95_time     = percentile(total_vec, 0.95);
     double percentile_99_time     = percentile(total_vec, 0.99);
     double rate                   = 1000.0 / total_time;
     double overhead_time          = common_average(overhead_vec);
@@ -1024,12 +1036,14 @@ void program::perf_report(
 
     os << "Batch size: " << batch << std::endl;
     os << "Rate: " << rate * batch << " inferences/sec" << std::endl;
-    os << "Total time: " << total_time << "ms" << std::endl;
-    os << "Min time: " << min_time << "ms" << std::endl;
-    os << "Max time: " << max_time << "ms" << std::endl;
-    os << "Mean time: " << mean_time << "ms" << std::endl;
-    os << "Median time: " << median_time << "ms" << std::endl;
-    os << "Percentile(99%) time: " << percentile_99_time << "ms" << std::endl;
+    os << "Total time: " << total_time << "ms ";
+    os << "(Min: " << min_time << "ms, ";
+    os << "Max: " << max_time << "ms, ";
+    os << "Mean: " << mean_time << "ms, ";
+    os << "Median: " << median_time << "ms)" << std::endl;
+    os << "Percentiles (90%, 95%, 99%): (";
+    os << percentile_90_time << "ms, " << percentile_95_time << "ms, " << percentile_99_time
+       << "ms)" << std::endl;
     os << "Total instructions time: " << total_instruction_time << "ms" << std::endl;
     os << "Overhead time: " << overhead_time << "ms"
        << ", " << calculate_overhead_time << "ms" << std::endl;

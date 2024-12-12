@@ -27,9 +27,20 @@
 #include <migraphx/fuse_pointwise.hpp>
 #include <migraphx/fuse_reduce.hpp>
 #include <migraphx/split_reduce.hpp>
+#include <migraphx/env.hpp>
+
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
+MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_SPLIT_REDUCE_SIZE);
+
+static std::size_t get_split_size(std::size_t default_split)
+{
+    std::string value = string_value_of(MIGRAPHX_SPLIT_REDUCE_SIZE{});
+    if(value.empty())
+        return default_split;
+    return std::stoul(value);
+}
 
 void fuse_pointwise_reduce::apply(module_pass_manager& mpm) const
 {
@@ -37,7 +48,7 @@ void fuse_pointwise_reduce::apply(module_pass_manager& mpm) const
     mpm.run_pass(fuse_reduce{.enable_rewrite_reshapes = false});
     mpm.run_pass(fuse_pointwise{.enable_rewrite_reshapes = true});
     mpm.run_pass(fuse_reduce{.enable_rewrite_reshapes = true});
-    mpm.run_pass(split_reduce{.split_size = split_size});
+    mpm.run_pass(split_reduce{.split_size = get_split_size(split_size)});
     mpm.run_pass(fuse_pointwise{.enable_rewrite_broadcasts = true});
 }
 

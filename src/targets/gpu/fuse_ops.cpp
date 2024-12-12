@@ -814,6 +814,7 @@ struct find_contiguous_transpose_rocblas_gemm : contiguous_transpose_gemm
     }
 };
 
+#if MIGRAPHX_USE_HIPBLASLT
 struct find_contiguous_transpose_hip_gemm : contiguous_transpose_gemm
 {
     auto matcher() const
@@ -872,6 +873,7 @@ struct find_contiguous_transpose_hip_gemm : contiguous_transpose_gemm
         m.replace_instruction(ins, gemm_transpoe);
     }
 };
+#endif
 
 struct find_commutative_broadcast
 {
@@ -1043,7 +1045,9 @@ void fuse_ops::apply(module& m) const
                         find_layernorm_pointwise{},
                         find_concat_pointwise{},
                         find_contiguous_transpose_rocblas_gemm{},
+#if MIGRAPHX_USE_HIPBLASLT
                         find_contiguous_transpose_hip_gemm{},
+#endif
                         find_commutative_broadcast{});
     match::find_matches(m, find_contiguous{});
 }

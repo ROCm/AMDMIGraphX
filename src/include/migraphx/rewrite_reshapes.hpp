@@ -167,7 +167,7 @@ struct rewrite_reshapes
                 return [&, generate](auto input) {
                     auto gops  = std::invoke(generate, desc, input->get_shape().lens());
                     auto start = input;
-                    for(auto op : gops)
+                    for(const auto& op : gops)
                     {
                         start = mpm.get_module().insert_instruction(ins_to_insert, op, start);
                     }

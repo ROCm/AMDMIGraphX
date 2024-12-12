@@ -70,4 +70,5 @@ struct test_conv_add_layernorm_conv : verify_program<test_conv_add_layernorm_con
 
 template struct test_conv_add_layernorm_conv<migraphx::shape::float_type>;
 template struct test_conv_add_layernorm_conv<migraphx::shape::half_type>;
+template struct test_conv_add_layernorm_conv<migraphx::shape::bf16_type>;
 template struct test_conv_add_layernorm_conv<migraphx::shape::fp8e4m3fnuz_type>;

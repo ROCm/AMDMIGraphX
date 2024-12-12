@@ -44,6 +44,7 @@ struct test_ceil : verify_program<test_ceil<DType>>
 
 template struct test_ceil<migraphx::shape::float_type>;
 template struct test_ceil<migraphx::shape::half_type>;
+template struct test_ceil<migraphx::shape::bf16_type>;
 template struct test_ceil<migraphx::shape::fp8e4m3fnuz_type>;
 template struct test_ceil<migraphx::shape::fp8e5m2fnuz_type>;
 template struct test_ceil<migraphx::shape::fp8e4m3fn_type>;

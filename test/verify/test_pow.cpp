@@ -45,6 +45,7 @@ struct test_pow : verify_program<test_pow<CType>>
 };
 template struct test_pow<float>;
 template struct test_pow<migraphx::half>;
+template struct test_pow<migraphx::bf16>;
 template struct test_pow<migraphx::fp8::fp8e4m3fnuz>;
 template struct test_pow<migraphx::fp8::fp8e5m2fnuz>;
 template struct test_pow<migraphx::fp8::fp8e4m3fn>;

@@ -47,6 +47,7 @@ struct test_concat_axis_0 : verify_program<test_concat_axis_0<DType>>
 };
 
 template struct test_concat_axis_0<migraphx::shape::half_type>;
+template struct test_concat_axis_0<migraphx::shape::bf16_type>;
 template struct test_concat_axis_0<migraphx::shape::float_type>;
 template struct test_concat_axis_0<migraphx::shape::int32_type>;
 template struct test_concat_axis_0<migraphx::shape::fp8e4m3fnuz_type>;

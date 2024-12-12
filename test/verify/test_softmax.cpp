@@ -40,8 +40,6 @@ struct test_softmax : verify_program<test_softmax<Axis, T>>
 
         return p;
     }
-
-    std::string section() const { return "reduce"; }
 };
 
 template struct test_softmax<0, migraphx::shape::float_type>;
@@ -51,6 +49,11 @@ template struct test_softmax<0, migraphx::shape::half_type>;
 template struct test_softmax<1, migraphx::shape::half_type>;
 template struct test_softmax<2, migraphx::shape::half_type>;
 template struct test_softmax<3, migraphx::shape::half_type>;
+
+template struct test_softmax<0, migraphx::shape::bf16_type>;
+template struct test_softmax<1, migraphx::shape::bf16_type>;
+template struct test_softmax<2, migraphx::shape::bf16_type>;
+template struct test_softmax<3, migraphx::shape::bf16_type>;
 
 template struct test_softmax<1, migraphx::shape::fp8e4m3fnuz_type>;
 template struct test_softmax<3, migraphx::shape::fp8e4m3fnuz_type>;

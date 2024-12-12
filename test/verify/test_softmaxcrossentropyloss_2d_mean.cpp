@@ -84,8 +84,6 @@ struct test_softmaxcrossentropyloss_2d_mean
 
         return p;
     }
-
-    std::string section() const { return "reduce"; }
 };
 
 // template struct test_softmaxcrossentropyloss_2d_mean<migraphx::shape::double_type,
@@ -108,3 +106,11 @@ template struct test_softmaxcrossentropyloss_2d_mean<migraphx::shape::half_type,
                                                      migraphx::shape::int64_type,
                                                      4,
                                                      4>;
+template struct test_softmaxcrossentropyloss_2d_mean<migraphx::shape::bf16_type,
+                                                     migraphx::shape::int32_type,
+                                                     4,
+                                                     4>;
+template struct test_softmaxcrossentropyloss_2d_mean<migraphx::shape::bf16_type,
+                                                     migraphx::shape::int64_type,
+                                                     4,
+                                                     4>;                                       

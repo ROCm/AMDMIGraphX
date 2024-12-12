@@ -46,12 +46,11 @@ struct test_block_reduce_small : verify_program<test_block_reduce_small<N, T>>
         mm->add_return({add});
         return p;
     };
-
-    std::string section() const { return "reduce"; }
 };
 
 template <int N>
 struct test_block_reduce_small_for_size : test_block_reduce_small<N, migraphx::shape::half_type>,
+                                          test_block_reduce_small<N, migraphx::shape::bf16_type>,
                                           test_block_reduce_small<N, migraphx::shape::float_type>,
                                           test_block_reduce_small<N, migraphx::shape::int8_type>
 {

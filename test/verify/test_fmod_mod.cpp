@@ -61,6 +61,7 @@ struct test_fmod : verify_program<test_fmod<DType>>
 };
 template struct test_fmod<migraphx::shape::float_type>;
 template struct test_fmod<migraphx::shape::half_type>;
+template struct test_fmod<migraphx::shape::bf16_type>;
 template struct test_fmod<migraphx::shape::fp8e4m3fnuz_type>;
 template struct test_fmod<migraphx::shape::fp8e4m3fn_type>;
 template struct test_fmod<migraphx::shape::fp8e5m2_type>;
@@ -83,6 +84,7 @@ struct test_mod : verify_program<test_mod<DType>>
 
 template struct test_mod<migraphx::shape::float_type>;
 template struct test_mod<migraphx::shape::half_type>;
+template struct test_mod<migraphx::shape::bf16_type>;
 template struct test_mod<migraphx::shape::fp8e4m3fnuz_type>;
 template struct test_mod<migraphx::shape::fp8e5m2fnuz_type>;
 template struct test_mod<migraphx::shape::fp8e4m3fn_type>;

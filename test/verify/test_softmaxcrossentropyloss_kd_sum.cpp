@@ -111,8 +111,6 @@ struct test_softmaxcrossentropyloss_kd_sum_reduction
 
         return p;
     }
-
-    std::string section() const { return "reduce"; }
 };
 
 // template struct test_softmaxcrossentropyloss_kd_sum_reduction<migraphx::shape::double_type,
@@ -128,6 +126,14 @@ template struct test_softmaxcrossentropyloss_kd_sum_reduction<migraphx::shape::h
                                                               4,
                                                               4>;
 template struct test_softmaxcrossentropyloss_kd_sum_reduction<migraphx::shape::half_type,
+                                                              migraphx::shape::int64_type,
+                                                              4,
+                                                              4>;
+template struct test_softmaxcrossentropyloss_kd_sum_reduction<migraphx::shape::bf16_type,
+                                                              migraphx::shape::int32_type,
+                                                              4,
+                                                              4>;
+template struct test_softmaxcrossentropyloss_kd_sum_reduction<migraphx::shape::bf16_type,
                                                               migraphx::shape::int64_type,
                                                               4,
                                                               4>;

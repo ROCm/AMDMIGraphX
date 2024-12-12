@@ -42,6 +42,7 @@ struct test_asin : verify_program<test_asin<DType>>
 };
 
 template struct test_asin<migraphx::shape::float_type>;
+template struct test_asin<migraphx::shape::bf16_type>;
 template struct test_asin<migraphx::shape::half_type>;
 template struct test_asin<migraphx::shape::fp8e4m3fnuz_type>;
 template struct test_asin<migraphx::shape::fp8e5m2fnuz_type>;

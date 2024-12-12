@@ -55,4 +55,5 @@ struct test_scatternd : verify_program<test_scatternd<DType>>
 
 template struct test_scatternd<migraphx::shape::float_type>;
 template struct test_scatternd<migraphx::shape::half_type>;
+template struct test_scatternd<migraphx::shape::bf16_type>;
 template struct test_scatternd<migraphx::shape::fp8e4m3fnuz_type>;

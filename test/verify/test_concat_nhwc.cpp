@@ -44,5 +44,6 @@ struct test_concat_nhwc : verify_program<test_concat_nhwc<DType>>
 
 template struct test_concat_nhwc<migraphx::shape::fp8e4m3fnuz_type>;
 template struct test_concat_nhwc<migraphx::shape::half_type>;
+template struct test_concat_nhwc<migraphx::shape::bf16_type>;
 template struct test_concat_nhwc<migraphx::shape::float_type>;
 template struct test_concat_nhwc<migraphx::shape::int32_type>;

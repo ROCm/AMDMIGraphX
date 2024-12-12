@@ -45,8 +45,6 @@ struct test_reduce_op_large : verify_program<test_reduce_op_large<Op, Axis, T>>
         mm->add_instruction(Op{{Axis}}, x);
         return p;
     };
-
-    std::string section() const { return "reduce"; }
 };
 
 template struct test_reduce_op_large<migraphx::op::reduce_max, 1, migraphx::shape::float_type>;

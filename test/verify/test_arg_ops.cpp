@@ -57,8 +57,6 @@ struct test_arg_ops : verify_program<test_arg_ops<T, DType, Axis, LastIndex, Non
         mm->add_instruction(T{Axis, LastIndex}, param);
         return p;
     }
-
-    std::string section() const { return "reduce"; }
 };
 // transpose argmax tests
 template struct test_arg_ops<migraphx::op::argmax, migraphx::shape::float_type, 0, true, 0>;

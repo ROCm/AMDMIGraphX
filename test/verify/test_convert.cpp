@@ -56,3 +56,5 @@ template struct test_convert<migraphx::shape::fp8e4m3fnuz_type, migraphx::shape:
 template struct test_convert<migraphx::shape::fp8e5m2fnuz_type, migraphx::shape::float_type>;
 template struct test_convert<migraphx::shape::fp8e4m3fn_type, migraphx::shape::float_type>;
 template struct test_convert<migraphx::shape::fp8e5m2_type, migraphx::shape::float_type>;
+template struct test_convert<migraphx::shape::half_type, migraphx::shape::float_type>;
+template struct test_convert<migraphx::shape::bf16_type, migraphx::shape::float_type>;

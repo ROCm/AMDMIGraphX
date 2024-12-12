@@ -58,6 +58,7 @@ struct test_conv_bias_clipped_relu : verify_program<test_conv_bias_clipped_relu<
 };
 
 template struct test_conv_bias_clipped_relu<migraphx::shape::float_type>;
+template struct test_conv_bias_clipped_relu<migraphx::shape::bf16_type>;
 template struct test_conv_bias_clipped_relu<migraphx::shape::fp8e4m3fnuz_type>;
 template struct test_conv_bias_clipped_relu<migraphx::shape::fp8e5m2fnuz_type>;
 template struct test_conv_bias_clipped_relu<migraphx::shape::fp8e4m3fn_type>;

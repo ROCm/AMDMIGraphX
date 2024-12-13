@@ -92,10 +92,11 @@ hipDataType get_type_hipblas(shape::type_t type)
     MIGRAPHX_THROW("HIPBLAS_GEMM: data type not supported!");
 }
 
-void blas_shape_hip(const shape& s)
+void blas_shape_hip(const shape& in_shape)
 {
-    if(s.lens().size() < 2)
+    if(in_shape.lens().size() < 2)
         return;
+    auto s = in_shape.normalize_standard();
     if(std::none_of(s.strides().end() - 2, s.strides().end(), [](auto i) { return i == 1; }))
         MIGRAPHX_THROW("GPU_GEMM: needs to have one matrix stride as 1");
     if(std::any_of(s.strides().end() - 2, s.strides().end(), [](auto i) { return i == 0; }))
@@ -669,7 +670,7 @@ void hip_gemm_compute(context& ctx,
     std::transform(args.begin(),
                    args.end(),
                    std::back_inserter(input_shapes),
-                   [](const argument& x) { return x.get_shape(); });
+                   [](const argument& x) { return x.get_shape().normalize_standard(); });
     auto gemm_item = hip_gemm_impl(output_shape, input_shapes, alpha, beta);
     gemm_item.run(ctx, args, solution_idx);
 }

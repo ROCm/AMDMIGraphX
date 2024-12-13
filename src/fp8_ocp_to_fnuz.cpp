@@ -26,7 +26,6 @@
 #include <migraphx/make_op.hpp>
 #include <migraphx/dead_code_elimination.hpp>
 #include <migraphx/pass_manager.hpp>
-#include <migraphx/qdq_helpers.hpp>
 #include <migraphx/match/dq_helpers.hpp>
 
 namespace migraphx {
@@ -34,6 +33,12 @@ inline namespace MIGRAPHX_INLINE_NS {
 namespace {
 
 using fp8::fp8e4m3fnuz;
+
+std::unordered_set<std::string> get_quantizable_op_names()
+{
+    static std::unordered_set<std::string> s = {"convolution", "dot"};
+    return s;
+}
 
 struct match_fp8ocp_convert_to_fp8fnuz
 {

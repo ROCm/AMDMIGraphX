@@ -36,12 +36,17 @@
 #include <migraphx/op/quant_dot.hpp>
 #include <migraphx/register_op.hpp>
 #include <migraphx/fp8_types.hpp>
-#include <migraphx/qdq_helpers.hpp>
 #include <migraphx/match/dq_helpers.hpp>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
 namespace {
+
+std::unordered_set<std::string> get_quantizable_op_names()
+{
+    static std::unordered_set<std::string> s = {"convolution", "dot"};
+    return s;
+}
 
 struct match_find_quantizable_ops
 {

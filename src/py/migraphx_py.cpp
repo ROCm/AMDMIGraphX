@@ -458,10 +458,13 @@ MIGRAPHX_PYBIND11_MODULE(migraphx, m)
             },
             py::arg("args"))
         .def("__repr__", [](const migraphx::module& mm) { return migraphx::to_string(mm); })
-        .def("__iter__", [](const migraphx::module& mm) {
-            auto r = migraphx::iterator_for(mm);
-            return py::make_iterator(r.begin(), r.end());
-        }, py::keep_alive<0, 1>());
+        .def(
+            "__iter__",
+            [](const migraphx::module& mm) {
+                auto r = migraphx::iterator_for(mm);
+                return py::make_iterator(r.begin(), r.end());
+            },
+            py::keep_alive<0, 1>());
 
     py::class_<migraphx::program>(m, "program")
         .def(py::init([]() { return migraphx::program(); }))

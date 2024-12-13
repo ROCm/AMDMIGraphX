@@ -8,7 +8,10 @@ import argparse
 
 # Utility function to map MIGraphX types to ONNX data types
 def get_dtype(instruction):
-    type_mapping = {'float_type': TensorProto.FLOAT}
+    type_mapping = {
+        'float_type': TensorProto.FLOAT,
+        'bf16_type': TensorProto.BFLOAT16
+    }
     return type_mapping[instruction.shape().type_string()]
 
 
@@ -67,7 +70,8 @@ def create_node(instruction, parameters, node_name, n, initializers):
         return helper.make_node(
             "Conv",
             inputs=[str(hash(i)) for i in instruction.inputs()],
-            outputs=[str(hash(instruction))],
+            outputs=[str(hash(instruction))
+                     ],  #[str(hash(i)) for i in instruction.outputs()],
             dilations=parameters["dilation"],
             group=parameters["group"],
             pads=parameters["padding"],
@@ -92,6 +96,7 @@ def generate_onnx(module):
 
         # Handle input nodes
         if op_name in ["@literal", "@param"]:
+
             inputs[str(hash(instruction))] = helper.make_tensor_value_info(
                 str(hash(instruction)), get_dtype(instruction),
                 get_shape(instruction))
@@ -100,21 +105,25 @@ def generate_onnx(module):
         elif "@" not in op_name:
             n += 1
             parameters = instruction.op().values()
+
             operations.append(
                 create_node(instruction, parameters, op_name, n, initializers))
 
         # Handle return node
         elif op_name == "@return":
-            output = helper.make_tensor_value_info(str(hash(instruction)),
-                                                   get_dtype(instruction),
-                                                   get_shape(instruction))
+
+            output = [
+                helper.make_tensor_value_info(str(hash(i)), get_dtype(i),
+                                              get_shape(i))
+                for i in instruction.inputs()
+            ]
 
     # Create the ONNX graph
     graph = helper.make_graph(nodes=operations,
                               name="Graph",
                               inputs=list(inputs.values()),
                               initializer=initializers,
-                              outputs=[output] if output else [])
+                              outputs=output if output else [])
 
     return helper.make_model(graph, producer_name="onnx-dot-add-example")
 
@@ -132,12 +141,12 @@ def main(mxr_directory_path, onnx_directory_path):
                 # Validate the generated ONNX model
                 try:
                     checker.check_model(model)
-                    print(f"ONNX model for {file_name} is valid.")
+                    print(f"ONNX model for {file_path} is valid.")
                 except onnx.checker.ValidationError as e:
-                    print(f"Validation failed for {file_name}: {e}")
+                    print(f"Validation failed for {file_path}: {e}")
                 except Exception as e:
                     print(
-                        f"Unexpected error during validation for {file_name}: {e}"
+                        f"Unexpected error during validation for {file_path}: {e}"
                     )
 
                 os.makedirs(onnx_directory_path, exist_ok=True)
@@ -146,7 +155,7 @@ def main(mxr_directory_path, onnx_directory_path):
                 onnx.save(model, onnx_file_path)
 
             except Exception as e:
-                print(f"Error processing {file_name}: {e}")
+                print(f"Error processing {file_path}: {e}")
 
 
 if __name__ == "__main__":

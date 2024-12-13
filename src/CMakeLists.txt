@@ -89,7 +89,6 @@ add_library(migraphx
     program.cpp
     propagate_constant.cpp
     promote_literals.cpp
-    qdq_helpers.cpp
     quantization.cpp
     quantize_int4.cpp
     quantize_8bits.cpp

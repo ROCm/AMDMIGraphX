@@ -26,20 +26,35 @@
 #include <migraphx/program.hpp>
 #include <migraphx/generate.hpp>
 #include <migraphx/make_op.hpp>
-#include <migraphx/common.hpp>
+#include <quantize_helpers.hpp>
 
-struct test_softmax_large2 : verify_program<test_softmax_large2>
+struct test_fp8_ocp_to_fnuz_gemm : verify_program<test_fp8_ocp_to_fnuz_gemm>
 {
+    using fp8e4m3fn   = migraphx::fp8::fp8e4m3fn;
+    using fp8e4m3fnuz = migraphx::fp8::fp8e4m3fnuz;
     migraphx::program create_program() const
     {
         migraphx::program p;
-        auto* mm   = p.get_main_module();
-        auto x     = mm->add_parameter("x", migraphx::shape{migraphx::shape::float_type, {2, 4}});
-        auto large = mm->add_literal({migraphx::shape{migraphx::shape::float_type}, {-10000}});
-        auto add   = migraphx::add_common_op(*mm, migraphx::make_op("add"), {x, large});
-        mm->add_instruction(migraphx::make_op("softmax", {{"axis", -1}}), add);
+        auto* mm                           = p.get_main_module();
+        std::vector<std::size_t> data_lens = {2, 2};
+        migraphx::shape data_shape{migraphx::shape::float_type, data_lens};
+        auto a     = mm->add_parameter("a", data_shape);
+        auto b     = mm->add_parameter("b", data_shape);
+        auto scale = mm->add_literal(0.5f);
+        std::vector<fp8e4m3fn> data;
+        data.push_back(fp8e4m3fn{0.f});
+        auto zero =
+            mm->add_literal(migraphx::shape{migraphx::shape::fp8e4m3fn_type, {1}, {0}}, data);
+
+        auto qa = add_quantize_op(*mm, "quantizelinear", a, scale, zero);
+        auto qb = add_quantize_op(*mm, "quantizelinear", b, scale, zero);
+        auto da =
+            add_quantize_op(*mm, "dequantizelinear", qa, qa->inputs().at(1), qa->inputs().at(2));
+        auto db =
+            add_quantize_op(*mm, "dequantizelinear", qb, qb->inputs().at(1), qb->inputs().at(2));
+        auto dot = mm->add_instruction(migraphx::make_op("dot"), da, db);
+        mm->add_return({dot});
         return p;
     }
-
-    std::string section() const { return "reduce"; }
+    std::string section() const { return "gemm"; }
 };

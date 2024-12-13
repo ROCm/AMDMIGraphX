@@ -65,8 +65,8 @@ TEST_CASE(matmulintegertofloat_int8_uint8_scales_zp_bias_3d_test)
     auto result = p.eval(pp).back();
     std::vector<int32_t> result_vector;
     result.visit([&](auto output) { result_vector.assign(output.begin(), output.end()); });
-    std::vector<int32_t> gold = {22,   13,   12,   70, 91, -60, -20,  -53, 66,   34,   25,   24,
-                                 -146, -117, -308, 16, -1, 38,  22,   13,  12,   -290, -269, -420,
-                                 268, 235,  354, 34, 25, 24,   -602, -573, -764, 112,  95,   134};
+    std::vector<int32_t> gold = {22,   13,   12,   70, 91, -60, -20,  -53,  66,   34,   25,   24,
+                                 -146, -117, -308, 16, -1, 38,  22,   13,   12,   -290, -269, -420,
+                                 268,  235,  354,  34, 25, 24,  -602, -573, -764, 112,  95,   134};
     EXPECT(migraphx::verify::verify_rms_range(result_vector, gold));
 }

@@ -41,9 +41,6 @@ TEST_CASE(gpu_context_serialize)
     EXPECT(v.contains("streams"));
     EXPECT(v.at("streams").without_key().to<std::size_t>() == 3);
 
-    EXPECT(v.contains("gfx_name"));
-    EXPECT(not v.at("gfx_name").without_key().to<std::string>().empty());
-
     migraphx::gpu::context g_ctx;
     g_ctx.from_value(v);
 

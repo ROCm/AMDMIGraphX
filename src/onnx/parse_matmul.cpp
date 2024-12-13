@@ -170,7 +170,8 @@ struct parse_matmul : op_parser<parse_matmul>
                 MIGRAPHX_THROW("PARSE_QUANT_DOT_SCALED: Bias must be the same type as scales");
             }
 
-            if(scale_bias_arg->get_shape().lens().at(0) != *(compare_arg->get_shape().lens().rbegin()))
+            if(scale_bias_arg->get_shape().lens().at(0) !=
+               *(compare_arg->get_shape().lens().rbegin()))
             {
                 MIGRAPHX_THROW("PARSE_QUANT_DOT_SCALED: Bias have same dim as matrix B column");
             }

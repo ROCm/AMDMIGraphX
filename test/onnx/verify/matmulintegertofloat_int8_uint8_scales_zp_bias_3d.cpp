@@ -32,9 +32,8 @@ TEST_CASE(matmulintegertofloat_int8_uint8_scales_zp_bias_3d_test)
     p.compile(migraphx::make_target("ref"));
 
     migraphx::shape s0{migraphx::shape::int8_type, {4, 3, 2}};
-    std::vector<int8_t> data0 = {-1, 5, -9, -2, 6, 10, -3, 7, 
-                                -11, -4, 8, 0, -1, 5, -9, -2,
-                                 6, 10, -3, 7, -11, -4, 8, 0};
+    std::vector<int8_t> data0 = {-1, 5, -9, -2, 6, 10, -3, 7, -11, -4, 8, 0,
+                                 -1, 5, -9, -2, 6, 10, -3, 7, -11, -4, 8, 0};
     migraphx::shape s1{migraphx::shape::uint8_type, {4, 2, 3}};
     std::vector<uint8_t> data1(s1.elements(), 0);
     std::iota(data1.begin(), data1.end(), 0);
@@ -66,8 +65,8 @@ TEST_CASE(matmulintegertofloat_int8_uint8_scales_zp_bias_3d_test)
     auto result = p.eval(pp).back();
     std::vector<int32_t> result_vector;
     result.visit([&](auto output) { result_vector.assign(output.begin(), output.end()); });
-    std::vector<int32_t> gold = {22, 13, 12, 70, 91, -60, -20, -53, 66, 34, 25, 24, -146, 
-                                 -117, -308, 16, -1, 38, 22, 13, 12, -290, -269, -420, 268,
-                                 235, 354, 34, 25, 24, -602, -573, -764, 112, 95, 134};
+    std::vector<int32_t> gold = {22,   13,   12,   70, 91, -60, -20,  -53, 66,   34,   25,   24,
+                                 -146, -117, -308, 16, -1, 38,  22,   13,  12,   -290, -269, -420,
+                                 268, 235,  354, 34, 25, 24,   -602, -573, -764, 112,  95,   134};
     EXPECT(migraphx::verify::verify_rms_range(result_vector, gold));
 }

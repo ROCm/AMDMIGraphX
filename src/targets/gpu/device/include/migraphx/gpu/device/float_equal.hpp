@@ -45,10 +45,10 @@ __device__ bool float_equal_device(T x, T y)
 }
 
 template <>
-__device__ bool float_equal_device(__bf16 x, __bf16 y)
+__device__ bool float_equal_device(__bf16 x, __bf16 y) // NOLINT(misc-definitions-in-headers)
 {
-    float xf = static_cast<float>(x);
-    float yf = static_cast<float>(y);
+    float xf = x;
+    float yf = y;
     return std::isfinite(xf) and std::isfinite(yf) and
            std::nextafter(xf, std::numeric_limits<float>::lowest()) <= yf and
            std::nextafter(xf, std::numeric_limits<float>::max()) >= yf;

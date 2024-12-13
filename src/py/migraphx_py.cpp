@@ -427,7 +427,10 @@ MIGRAPHX_PYBIND11_MODULE(migraphx, m)
         .def("op", [](migraphx::instruction_ref i) { return i->get_operator(); })
         .def("inputs", [](migraphx::instruction_ref i) { return i->inputs(); })
         .def("name", [](migraphx::instruction_ref i) { return i->name(); })
-        .def("__hash__", std::hash<migraphx::instruction_ref>{})
+        .def("__hash__",
+             [](const migraphx::instruction_ref& instr) {
+                 return std::hash<migraphx::instruction_ref>()(instr);
+             })
         .def("__eq__", std::equal_to<migraphx::instruction_ref>{});
 
     py::class_<migraphx::module, std::unique_ptr<migraphx::module, py::nodelete>>(m, "module")

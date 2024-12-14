@@ -735,7 +735,7 @@ struct find_hipblas_gemm_pointwise : gemm_pointwise
             shape s    = c_ins->get_shape();
             // const-fold input if not standard shape
             // Updated for a case where "standard" shape has out-of-sequence strides
-            if(not s.standard() or s.normalize_standard() != s)
+            if(not s.standard())
             {
                 auto c = make_op("contiguous");
                 auto l = c.compute(c.compute_shape({c_ins->get_shape()}), {c_ins->eval()});

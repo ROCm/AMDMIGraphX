@@ -62,7 +62,7 @@ struct parse_groupnorm : op_parser<parse_groupnorm>
         }
 
         bool is_nhwc = false; //default to nchw
-        if(contains(info.attributes, "channels_last"))
+        if(contains(info.attributes, "channels_last") and is_contrib)
         {
             is_nhwc = parser.parse_value(info.attributes.at("channels_last")).at<size_t>();
         }
@@ -83,8 +83,8 @@ struct parse_groupnorm : op_parser<parse_groupnorm>
         }
 
         auto x     = args.at(0);
-        auto scale = args.at(1);
-        auto bias  = args.at(2);
+        auto scale = args.at(1); //gamma in the GroupNorm contrib case
+        auto bias  = args.at(2); //beta in the GroupNorm contrib case
 
         auto x_shape = x->get_shape();
         auto x_dtype = x_shape.type();

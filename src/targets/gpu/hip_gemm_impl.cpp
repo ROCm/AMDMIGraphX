@@ -31,6 +31,7 @@
 #include <migraphx/reduce_dims.hpp>
 #include <migraphx/generate.hpp>
 #include <migraphx/time.hpp>
+#include <migraphx/permutation.hpp>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
@@ -109,6 +110,19 @@ void blas_shape_hip(const shape& in_shape)
     auto batch_shapes = reduce_dims({batch_shape});
     if(batch_shapes.front().lens().size() != 1)
         MIGRAPHX_THROW("GPU_GEMM: Batch dimension is not collapsible");
+}
+
+shape transpose_batch_hip(const shape& s, unsigned trans_batch)
+{
+    if(trans_batch == 0)
+        return s;
+    if(s.lens().size() < 3)
+        return s;
+    auto batch = s.lens().size() - 3;
+    std::vector<int64_t> perm(s.lens().size());
+    std::iota(perm.begin(), perm.end(), 0);
+    std::swap(perm[batch], perm[batch + trans_batch]);
+    return shape::from_permutation(s.type(), s.lens(), perm);
 }
 
 static bool is_transposed_hip(const shape& s) { return s.transposed() and s.strides().back() != 1; }

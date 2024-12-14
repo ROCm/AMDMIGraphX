@@ -753,16 +753,8 @@ struct find_hipblas_gemm_pointwise : gemm_pointwise
 };
 #endif
 
-struct find_contiguous_tranpose_gemm
+struct contiguous_transpose_gemm
 {
-    auto matcher() const
-    {
-        return match::name("gpu::contiguous")(match::arg(0)(
-            match::name("transpose")(
-                match::arg(0)(match::name("gpu::gemm")(match::used_once()).bind("gemm")))
-                .bind("transpose")));
-    }
-
     template <class Vector>
     static bool is_swapped(const Vector& perm, std::size_t i, std::size_t j)
     {
@@ -772,6 +764,17 @@ struct find_contiguous_tranpose_gemm
         std::iota(perm2.begin(), perm2.end(), 0);
         std::swap(perm2[i], perm2[j]);
         return perm2 == perm;
+    }
+};
+
+struct find_contiguous_transpose_rocblas_gemm : contiguous_transpose_gemm
+{
+    auto matcher() const
+    {
+        return match::name("gpu::contiguous")(match::arg(0)(
+            match::name("transpose")(
+                match::arg(0)(match::name("gpu::gemm")(match::used_once()).bind("gemm")))
+                .bind("transpose")));
     }
 
     void apply(module& m, const match::matcher_result& r) const
@@ -810,6 +813,67 @@ struct find_contiguous_tranpose_gemm
         m.replace_instruction(ins, gemm_transpoe);
     }
 };
+
+#if MIGRAPHX_USE_HIPBLASLT
+struct find_contiguous_transpose_hip_gemm : contiguous_transpose_gemm
+{
+    auto matcher() const
+    {
+        return match::name("gpu::contiguous")(match::arg(0)(
+            match::name("transpose")(
+                match::arg(0)(
+                    match::name("gpu::hipblaslt_op")(match::used_once()).bind("hip_gemm")))
+                .bind("transpose")));
+    }
+
+    void apply(module& m, const match::matcher_result& r) const
+    {
+        auto ins      = r.result;
+        auto gemm_ins = r.instructions["hip_gemm"];
+        auto gemm_op  = any_cast<hipblaslt_op>(gemm_ins->get_operator()).op;
+
+        if(gemm_op.name() != "gpu::hip_gemm")
+            return;
+
+        auto gemm = any_cast<hip_gemm<op::dot>>(gemm_op);
+
+        auto alloc     = gemm_ins->inputs().back();
+        auto transpose = r.instructions["transpose"];
+        auto perm      = transpose->get_operator().to_value()["permutation"].to_vector<int64_t>();
+        auto iperm     = invert_permutation(perm);
+
+        if(perm.size() < 3)
+            return;
+
+        if(not is_swapped(perm, perm.size() - 3, perm.size() - 2))
+            return;
+
+        auto lens = gemm_ins->get_shape().lens();
+        if(lens.size() > 3 and
+           not std::all_of(lens.begin(), lens.end() - 3, [](auto i) { return i == 1; }))
+            return;
+
+        gemm.trans_batch = 1;
+
+        auto s = shape{alloc->get_shape().type(), reorder_dims(alloc->get_shape().lens(), iperm)};
+        auto new_alloc =
+            m.insert_instruction(gemm_ins, make_op("allocate", {{"shape", to_value(s)}}));
+
+        auto alloc_transpose = m.insert_instruction(
+            gemm_ins, make_op("transpose", {{"permutation", perm}}), new_alloc);
+
+        auto inputs           = gemm_ins->inputs();
+        inputs.back()         = alloc_transpose;
+        operation new_gemm_op = gemm;
+        auto new_gemm         = m.insert_instruction(
+            gemm_ins, make_op("gpu::hipblaslt_op", {{"op", to_value(new_gemm_op)}}), inputs);
+
+        auto gemm_transpoe = m.insert_instruction(gemm_ins, transpose->get_operator(), new_gemm);
+
+        m.replace_instruction(ins, gemm_transpoe);
+    }
+};
+#endif
 
 struct find_commutative_broadcast
 {
@@ -980,7 +1044,10 @@ void fuse_ops::apply(module& m) const
     match::find_matches(m,
                         find_layernorm_pointwise{},
                         find_concat_pointwise{},
-                        find_contiguous_tranpose_gemm{},
+                        find_contiguous_transpose_rocblas_gemm{},
+#if MIGRAPHX_USE_HIPBLASLT
+                        find_contiguous_transpose_hip_gemm{},
+#endif
                         find_commutative_broadcast{});
     match::find_matches(m, find_contiguous{});
 }

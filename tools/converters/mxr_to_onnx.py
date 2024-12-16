@@ -137,7 +137,7 @@ def main(mxr_directory_path, onnx_directory_path):
                 program = migraphx.load(file_path)
                 module = program.get_main_module()
                 model = generate_onnx(module)
-
+            
                 # Validate the generated ONNX model
                 try:
                     checker.check_model(model)

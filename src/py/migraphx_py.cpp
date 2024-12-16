@@ -260,46 +260,38 @@ py::buffer_info to_buffer_info(T& x)
     return b;
 }
 
-py::list to_py_object_nested(const std::vector<migraphx::value>& val)
-{
-    py::list result;
-
-    for(const auto& v : val)
-    {
-        migraphx::value v_val = v.without_key();
-        py::object py_obj;
-        v_val.visit_value([&](auto x) {
-            if constexpr(std::is_same_v<decltype(x), std::vector<migraphx::value>>)
-            {
-                // Recursively handle nested vectors
-                py_obj = to_py_object_nested(x);
-            }
-            else
-            {
-                py_obj = py::cast(x);
-            }
-        });
-
-        result.append(py_obj);
-    }
-    return result;
-}
-
 py::object to_py_object(const migraphx::value& val)
 {
     py::object result;
-    val.visit_value([&](auto x) {
-        if constexpr(std::is_same_v<decltype(x), std::vector<migraphx::value>>)
+
+    if(val.is_object())
+    {
+        py::dict py_dict;
+        for(const auto& v : val.get_object())
         {
-            // Handle the outermost vector of migraphx::value
-            result = to_py_object_nested(x);
+            py_dict[py::str(v.get_key())] = to_py_object(v.without_key());
         }
-        else
-        {
-            result = py::cast(x);
-        }
-        return result;
-    });
+        result = py_dict;
+    }
+    else
+    {
+        val.visit_value([&](const auto& x) {
+            if constexpr(std::is_same_v<std::decay_t<decltype(x)>, std::vector<migraphx::value>>)
+            {
+                py::list py_list;
+                for(const auto& item : x)
+                {
+                    py_list.append(to_py_object(item));
+                }
+                result = py_list;
+            }
+            else
+            {
+                result = py::cast(x);
+            }
+        });
+    }
+
     return result;
 }
 
@@ -563,17 +555,8 @@ MIGRAPHX_PYBIND11_MODULE(migraphx, m)
           return migraphx::make_op(name, v);
       }))
         .def("name", &migraphx::operation::name)
-        .def("values", [](const migraphx::operation& operation) -> py::dict {
-            migraphx::value val = operation.to_value();
-            py::dict result;
-            if(val.is_object())
-            {
-                for(const auto& v : val.get_object())
-                {
-                    result[py::str(v.get_key())] = to_py_object(v.without_key());
-                }
-            }
-            return result;
+        .def("values", [](const migraphx::operation& operation) -> py::object {
+            return to_py_object(operation.to_value());
         });
 
     py::enum_<migraphx::op::pooling_mode>(op, "pooling_mode")

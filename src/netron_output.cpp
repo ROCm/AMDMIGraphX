@@ -32,6 +32,8 @@
 #include <migraphx/instruction.hpp>
 #include <migraphx/serialize.hpp>
 
+#include <base64.hpp>
+
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
 namespace {
@@ -60,15 +62,24 @@ int get_onnx_type(shape::type_t s_type)
         case shape::fp8e5m2_type: return 19;
         case shape::fp8e5m2fnuz_type: return 20;
         case shape::tuple_type: return 0;
-        default: {
-            MIGRAPHX_THROW("MIGraphX type " + std::to_string(s_type) + " not supported");
     }
-    }
+}
+
+auto make_attribute(migraphx::value val)
+{
+    json attribute    = json::object();
+    attribute["name"] = val.get_key();
+    auto val_string   = val.to<std::string>();
+    val_string        = val_string.substr(val_string.find(":") + 1);
+    attribute["s"]    = base64::to_base64(val_string);
+    attribute["type"] = "STRING";
+    return attribute;
 }
 
 auto make_onnx_json_node(instruction_ref ins, std::unordered_map<instruction_ref, std::string> ins_uids)
 {
     json node = json::object();
+    // TODO add support for module inputs
     json input_arr = json::array();
     for(instruction_ref input_ins : ins->inputs())
     {
@@ -76,6 +87,11 @@ auto make_onnx_json_node(instruction_ref ins, std::unordered_map<instruction_ref
         if(name == "@literal" or name == "@param")
         {
             input_arr.push_back(ins_uids.at(input_ins));
+        }
+        // TODO make a better process for handling nodes to ignore
+        else if(name.find("hip::hip_allocate_memory") != std::string::npos)
+        {
+            continue;
         }
         else
         {
@@ -110,10 +126,9 @@ auto make_onnx_json_node(instruction_ref ins, std::unordered_map<instruction_ref
         {
             node["opType"] = migraphx::from_value<std::string>(v);
         }
-        // TODO: attributes need to know the type
         else
         {
-            op_attribute_arr.push_back({{"name", v.get_key()}, {"ints", {0}}, {"type", "INTS"}});
+            op_attribute_arr.push_back(make_attribute(v));
         }
     });
     node["attribute"] = op_attribute_arr;
@@ -124,8 +139,7 @@ auto make_onnx_json_node(instruction_ref ins, std::unordered_map<instruction_ref
 auto make_onnx_json_literal(instruction_ref ins, std::unordered_map<instruction_ref, std::string> ins_uids)
 {
     json lit = json::object();
-    lit["dims"] = ins->get_shape().lens();
-    // TODO figure out the data types number
+    lit["dims"]     = ins->get_shape().lens();
     lit["dataType"] = get_onnx_type(ins->get_shape().type());
     lit["name"] = ins_uids.at(ins);
     // ignoring literal data, setting to "NULL" in base64
@@ -134,6 +148,7 @@ auto make_onnx_json_literal(instruction_ref ins, std::unordered_map<instruction_
 }
 
 // TODO handle dynamic shapes
+// TODO handle subshapes
 auto make_onnx_json_shape(const shape& s)
 {
     json ret = json::object();
@@ -218,6 +233,10 @@ std::string make_netron_output(const program& prog)
             else if(name == "@return")
             {
                 graph["output"].push_back(make_onnx_json_in_out(ins, ins_uids));
+            }
+            else if(name.find("hip::hip_allocate_memory") != std::string::npos)
+            {
+                continue;
             }
             else
             {

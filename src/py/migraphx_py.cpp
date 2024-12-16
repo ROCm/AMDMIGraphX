@@ -263,6 +263,13 @@ migraphx::shape to_shape(const py::buffer_info& info)
 {
     migraphx::shape::type_t t;
     std::size_t n = 0;
+    // Unsupported pybuffer types lead to undefined behaviour when comparing with migraphx type enum
+    if(info.format == "z")
+    {
+        MIGRAPHX_THROW(
+            "MIGRAPHX PYTHON: Unsupported data type. For fp8 and bf16 literals try using "
+            "migraphx.generate_argument with migraphx.add_literal");
+    }
     visit_types([&](auto as) {
         if(info.format == py::format_descriptor<decltype(as())>::format() or
            (info.format == "l" and py::format_descriptor<decltype(as())>::format() == "q") or
@@ -388,6 +395,12 @@ MIGRAPHX_PYBIND11_MODULE(migraphx, m)
             py::arg("op"),
             py::arg("args"),
             py::arg("mod_args") = std::vector<migraphx::module*>{})
+        .def(
+            "add_literal",
+            [](migraphx::module& mm, migraphx::argument a) {
+                return mm.add_literal(a.get_shape(), a.data());
+            },
+            py::arg("data"))
         .def(
             "add_literal",
             [](migraphx::module& mm, py::buffer data) {
@@ -651,6 +664,10 @@ MIGRAPHX_PYBIND11_MODULE(migraphx, m)
         },
         "Auto-convert FP8 parameters and return values to Float for MIGraphX Program",
         py::arg("prog"));
+    m.def("quantize_bf16",
+          &migraphx::quantize_bf16,
+          py::arg("prog"),
+          py::arg("ins_names") = std::vector<std::string>{"all"});
 
 #ifdef HAVE_GPU
     m.def("allocate_gpu", &migraphx::gpu::allocate_gpu, py::arg("s"), py::arg("host") = false);

@@ -31,6 +31,7 @@
 #include <migraphx/config.hpp>
 #include <migraphx/convolution.hpp>
 #include <migraphx/value.hpp>
+#include <migraphx/fp8_types.hpp>
 #include <cmath>
 #include <utility>
 
@@ -89,8 +90,8 @@ struct quant_convolution
 
         // all input type must be int8_type or fp8 types
         // output should be float_type
-        std::set<migraphx::shape::type_t> supported_types = {
-            shape::int8_type, shape::fp8e4m3fnuz_type, shape::fp8e4m3fn_type, shape::fp8e5m2_type};
+        std::set<migraphx::shape::type_t> supported_types = fp8_types{}.get();
+        supported_types.insert(shape::int8_type);
         if(not contains(supported_types, t))
         {
             MIGRAPHX_THROW("QUANT_CONVOLUTION: only accept input and weights of type int8 or fp8");

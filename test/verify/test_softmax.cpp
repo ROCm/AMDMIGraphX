@@ -40,6 +40,8 @@ struct test_softmax : verify_program<test_softmax<Axis, T>>
 
         return p;
     }
+
+    std::string section() const { return "reduce"; }
 };
 
 template struct test_softmax<0, migraphx::shape::float_type>;

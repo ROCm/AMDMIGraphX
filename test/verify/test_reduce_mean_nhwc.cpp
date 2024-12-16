@@ -43,6 +43,8 @@ struct test_reduce_mean_nhwc : verify_program<test_reduce_mean_nhwc<DType>>
         mm->add_return({sqrt});
         return p;
     };
+
+    std::string section() const { return "reduce"; }
 };
 
 template struct test_reduce_mean_nhwc<migraphx::shape::float_type>;

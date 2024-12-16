@@ -31,6 +31,7 @@
 #include <migraphx/reduce_dims.hpp>
 #include <migraphx/generate.hpp>
 #include <migraphx/time.hpp>
+#include <migraphx/permutation.hpp>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
@@ -92,10 +93,11 @@ hipDataType get_type_hipblas(shape::type_t type)
     MIGRAPHX_THROW("HIPBLAS_GEMM: data type not supported!");
 }
 
-void blas_shape_hip(const shape& s)
+void blas_shape_hip(const shape& in_shape)
 {
-    if(s.lens().size() < 2)
+    if(in_shape.lens().size() < 2)
         return;
+    auto s = in_shape.normalize_standard();
     if(std::none_of(s.strides().end() - 2, s.strides().end(), [](auto i) { return i == 1; }))
         MIGRAPHX_THROW("GPU_GEMM: needs to have one matrix stride as 1");
     if(std::any_of(s.strides().end() - 2, s.strides().end(), [](auto i) { return i == 0; }))
@@ -108,6 +110,19 @@ void blas_shape_hip(const shape& s)
     auto batch_shapes = reduce_dims({batch_shape});
     if(batch_shapes.front().lens().size() != 1)
         MIGRAPHX_THROW("GPU_GEMM: Batch dimension is not collapsible");
+}
+
+shape transpose_batch_hip(const shape& s, unsigned trans_batch)
+{
+    if(trans_batch == 0)
+        return s;
+    if(s.lens().size() < 3)
+        return s;
+    auto batch = s.lens().size() - 3;
+    std::vector<int64_t> perm(s.lens().size());
+    std::iota(perm.begin(), perm.end(), 0);
+    std::swap(perm[batch], perm[batch + trans_batch]);
+    return shape::from_permutation(s.type(), s.lens(), perm);
 }
 
 static bool is_transposed_hip(const shape& s) { return s.transposed() and s.strides().back() != 1; }
@@ -669,7 +684,7 @@ void hip_gemm_compute(context& ctx,
     std::transform(args.begin(),
                    args.end(),
                    std::back_inserter(input_shapes),
-                   [](const argument& x) { return x.get_shape(); });
+                   [](const argument& x) { return x.get_shape().normalize_standard(); });
     auto gemm_item = hip_gemm_impl(output_shape, input_shapes, alpha, beta);
     gemm_item.run(ctx, args, solution_idx);
 }

@@ -325,7 +325,8 @@ struct miopen_apply
 
     static bool use_miopen_pooling(instruction_ref ins)
     {
-        if(enabled(MIGRAPHX_DISABLE_MIOPEN_POOLING{}))
+        if(enabled(MIGRAPHX_DISABLE_MIOPEN_POOLING{}) or
+           not contains({shape::float_type, shape::half_type}, ins->get_shape().type()))
             return false;
         auto&& op   = ins->get_operator();
         auto op_val = op.to_value();

@@ -42,7 +42,7 @@ def rocmtestnode(Map conf) {
             rm -rf build
             mkdir build
             cd build
-            cmake -DCTEST_TIMEOUT=3600 -DCMAKE_C_COMPILER_LAUNCHER=ccache -DCMAKE_CXX_COMPILER_LAUNCHER=ccache -DBUILD_DEV=On -DCMAKE_EXECUTE_PROCESS_COMMAND_ECHO=STDOUT -DMIGRAPHX_DISABLE_VIRTUAL_ENV=ON ${flags} ..
+            cmake -DCMAKE_C_COMPILER_LAUNCHER=ccache -DCMAKE_CXX_COMPILER_LAUNCHER=ccache -DBUILD_DEV=On -DCMAKE_EXECUTE_PROCESS_COMMAND_ECHO=STDOUT -DMIGRAPHX_DISABLE_VIRTUAL_ENV=ON ${flags} ..
             git diff
             git diff-index --quiet HEAD || (echo "Git repo is not clean after running cmake." && exit 1)
             make -j\$(nproc) generate VERBOSE=1

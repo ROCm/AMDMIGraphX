@@ -27,6 +27,7 @@
 
 #include <hip/hip_runtime.h>
 #include <migraphx/half.hpp>
+#include <migraphx/bf16.hpp>
 #include <migraphx/config.hpp>
 #include <migraphx/tensor_view.hpp>
 
@@ -67,6 +68,7 @@ auto pack_vec(Ts... xs)
 }
 
 using gpu_half = __fp16;
+using gpu_bf16 = __bf16;
 
 namespace detail {
 template <class T>
@@ -87,6 +89,12 @@ struct device_type<half>
     using type = gpu_half;
 };
 
+template <>
+struct device_type<bf16>
+{
+    using type = gpu_bf16;
+};
+
 template <class T>
 struct host_type
 {
@@ -97,6 +105,12 @@ template <>
 struct host_type<gpu_half>
 {
     using type = half;
+};
+
+template <>
+struct host_type<gpu_bf16>
+{
+    using type = bf16;
 };
 
 } // namespace detail
@@ -143,23 +157,53 @@ __device__ __host__ T to_hip_type(T x)
     return x;
 }
 
-// Hip doens't support __fp16
+// Hip doens't support __fp16 and __bf16
 inline __device__ __host__ float to_hip_type(gpu_half x) { return x; }
+inline __device__ __host__ float to_hip_type(gpu_bf16 x) { return x; }
 
-#define MIGRAPHX_DEVICE_DETAIL_EXTEND_TRAIT_FOR(trait, T) \
-    template <class X>                                    \
-    struct trait : std::trait<X>                          \
-    {                                                     \
-    };                                                    \
-                                                          \
-    template <>                                           \
-    struct trait<T> : std::true_type                      \
-    {                                                     \
-    };
+template <class X>
+struct is_floating_point : std::is_floating_point<X>
+{
+};
 
-MIGRAPHX_DEVICE_DETAIL_EXTEND_TRAIT_FOR(is_floating_point, __fp16)
-MIGRAPHX_DEVICE_DETAIL_EXTEND_TRAIT_FOR(is_signed, __fp16)
-MIGRAPHX_DEVICE_DETAIL_EXTEND_TRAIT_FOR(is_arithmetic, __fp16)
+template <>
+struct is_floating_point<__fp16> : std::true_type
+{
+};
+
+template <class X>
+struct is_signed : std::is_signed<X>
+{
+};
+
+template <>
+struct is_signed<__fp16> : std::true_type
+{
+};
+
+template <class X>
+struct is_arithmetic : std::is_arithmetic<X>
+{
+};
+
+template <>
+struct is_arithmetic<__fp16> : std::true_type
+{
+};
+
+// Redo for __bf16
+template <>
+struct is_floating_point<__bf16> : std::true_type
+{
+};
+template <>
+struct is_signed<__bf16> : std::true_type
+{
+};
+template <>
+struct is_arithmetic<__bf16> : std::true_type
+{
+};
 
 } // namespace device
 } // namespace gpu

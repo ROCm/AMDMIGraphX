@@ -61,10 +61,14 @@ struct parse_groupnorm : op_parser<parse_groupnorm>
             MIGRAPHX_THROW("PARSE_GROUPNORM: num_groups must be available");
         }
 
-        bool is_nhwc = false; //default to nchw
-        if(contains(info.attributes, "channels_last") and is_contrib)
-        {
-            is_nhwc = parser.parse_value(info.attributes.at("channels_last")).at<size_t>();
+        bool is_nhwc = false; 
+        if(is_contrib)
+        {   // default state for GroupNorm Contrib op
+            is_nhwc = true;
+            if(contains(info.attributes, "channels_last") and is_contrib)
+            {
+                is_nhwc = parser.parse_value(info.attributes.at("channels_last")).at<size_t>();
+            }
         }
 
         bool silu_activation = false;
@@ -82,7 +86,13 @@ struct parse_groupnorm : op_parser<parse_groupnorm>
             MIGRAPHX_THROW("PARSE_GROUPNORM: invalid input count");
         }
 
-        auto x     = args.at(0);
+        // Adjust chanels from NHWC-> NCHW if last channel is set for contrib op
+        auto x = args.at(0);
+        if(is_nhwc and is_contrib)
+        {
+            x = info.add_instruction(make_op("transpose", {{"permutation", {0, 3, 2, 1}}}), x);
+        }
+
         auto scale = args.at(1); //gamma in the GroupNorm contrib case
         auto bias  = args.at(2); //beta in the GroupNorm contrib case
 
@@ -145,13 +155,17 @@ struct parse_groupnorm : op_parser<parse_groupnorm>
         auto y      = info.add_instruction(make_op("add"), scaled, bias_bcast);
         auto output = info.add_instruction(make_op("reshape", {{"dims", x_dims}}), y);
 
-        if (silu_activation)
+        if(silu_activation)
         {
             // SiLU activation is just  out = x * sigmoid(x)
             auto sigmoid = info.add_instruction(make_op("sigmoid"), output);
             output = info.add_instruction(make_op("mul"), output, sigmoid);
         }
-
+        // Convert to NCHW -> NHWC for contrib GroupNorm
+        if(is_nhwc and is_contrib)
+        {
+            output = info.add_instruction(make_op("transpose", {{"permutation", {0, 2, 3, 1}}}), output);
+        }
         return output;
     }
 };

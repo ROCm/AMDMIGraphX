@@ -4743,14 +4743,14 @@ def group_norm_invalid_bias_shape_test():
 
 
 def group_norm_contrib_test(x_dims,
-                    gamma_dims,
-                    beta_dims,
-                    y_dims,
-                    num_groups,
-                    eps_value=1e-5,
-                    activation=0,
-                    channels_last=0,
-                    dtype=TensorProto.FLOAT):
+                            gamma_dims,
+                            beta_dims,
+                            y_dims,
+                            num_groups,
+                            eps_value=1e-5,
+                            activation=0,
+                            channels_last=0,
+                            dtype=TensorProto.FLOAT):
     x = helper.make_tensor_value_info('x', dtype, x_dims)
     gamma = helper.make_tensor_value_info('gamma', dtype, gamma_dims)
     beta = helper.make_tensor_value_info('beta', dtype, beta_dims)

@@ -181,7 +181,7 @@ __global__ void kernel(${type}* p)
 {
     auto x = *p;
     *p = migraphx::test_implicit_conversion(migraphx::${invoke});
-
+    (void)1.f + migraphx::vec_at(migraphx::${invoke}, 0);
 }
 }
 }

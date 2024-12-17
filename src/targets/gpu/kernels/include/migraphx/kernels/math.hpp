@@ -31,6 +31,7 @@
 #include <migraphx/kernels/hip.hpp>
 #include <migraphx/kernels/float8.hpp>
 #include <migraphx/kernels/pp.hpp>
+#include <migraphx/kernels/bit_cast.hpp>
 
 namespace migraphx {
 
@@ -45,6 +46,17 @@ constexpr auto as_float(T x)
         return float(x);
 }
 
+template <class T>
+constexpr auto to_native(T x)
+{
+    return x;
+}
+
+constexpr migraphx::half to_native(__half x)
+{
+    return bit_cast<migraphx::half>(x);
+}
+
 template <class F, class T, class... Ts, MIGRAPHX_REQUIRES(not is_any_vec<T, Ts...>())>
 __device__ auto wrap(F f, T x, Ts... xs)
 {
@@ -54,7 +66,7 @@ __device__ auto wrap(F f, T x, Ts... xs)
     }
     else if constexpr(is_callable<F, T, Ts...>{})
     {
-        return f(x, xs...);
+        return to_native(f(x, xs...));
     }
     else
     {

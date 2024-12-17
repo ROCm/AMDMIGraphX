@@ -52,10 +52,7 @@ constexpr auto to_native(T x)
     return x;
 }
 
-constexpr migraphx::half to_native(__half x)
-{
-    return bit_cast<migraphx::half>(x);
-}
+constexpr migraphx::half to_native(__half x) { return bit_cast<migraphx::half>(x); }
 
 template <class F, class T, class... Ts, MIGRAPHX_REQUIRES(not is_any_vec<T, Ts...>())>
 __device__ auto wrap(F f, T x, Ts... xs)

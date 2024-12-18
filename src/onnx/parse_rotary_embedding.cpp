@@ -47,7 +47,7 @@ struct rotary_parameters
     bool interleaved                 = false; 
     bool is_packed_batching          = false;
     float scale                      = 0.0;
-}
+};
 
 struct parse_rotary_embedding : op_parser<parse_rotary_embedding>
 {
@@ -85,9 +85,9 @@ struct parse_rotary_embedding : op_parser<parse_rotary_embedding>
             param.scale = parser.parse_value(info.attributes.at("scale")).at<float>();
         }
 
-        if((param.num_heads != 0 xor param.rotary_embedding_dim != 0))
+        if((param.num_heads != 0) xor (param.rotary_embedding_dim != 0))
         {
-            MIGRPHAX_THROW("RotaryEmbedding: num_heads and rotary_embedding dims must be used together and non-zero");
+            MIGRAPHX_THROW("RotaryEmbedding: num_heads and rotary_embedding dims must be used together and non-zero");
         }
     }
 
@@ -103,7 +103,7 @@ struct parse_rotary_embedding : op_parser<parse_rotary_embedding>
                             4D (Batch, Num Heads, Sequence Length, Head Size))");
         }
 
-        param.batch = input_lens.at(0);
+        param.batch_size = input_lens.at(0);
 
         if (input_dims == 3)
         {
@@ -125,17 +125,17 @@ struct parse_rotary_embedding : op_parser<parse_rotary_embedding>
         auto position_len = position_ids->get_shape().lens();
         auto position_dim = position_ids->get_shape().lens().size();
 
-        if(position_dim > 2 or position_ids.get_shape().scalar())
+        if(position_dim > 2 or position_ids->get_shape().scalar())
         {
             MIGRAPHX_THROW("RotaryEmbedding: Position_ids must be either 1D tensor of shape (1) or 2d (Batch, Sequence Length)");
         }
 
         if(position_dim == 1 and position_len.at(0) != 1)
         {
-            MIGRAPHX_THROW("RotaryEmbedding: Position_id must have shape of 1 for 1D tensor")
+            MIGRAPHX_THROW("RotaryEmbedding: Position_id must have shape of 1 for 1D tensor");
         }
 
-        if(position_dim == 2 and position_len.at(0) != param.batch or position_len.at(1) != param.seq_len)
+        if((position_dim == 2) and ((position_len.at(0) != param.batch_size) or (position_len.at(1) != param.seq_len)))
         {
             MIGRAPHX_THROW("RotaryEmbedding: Position_id 2D dims must match input batch size and sequenec length");
         }
@@ -147,7 +147,7 @@ struct parse_rotary_embedding : op_parser<parse_rotary_embedding>
         auto cos_cache_len = cos_cache->get_shape().lens();
         param.max_seq_len = cos_cache_len.at(0);
 
-        compsare_sin_cos_cache_dims(cos_cache_len.at(1));
+        compare_sin_cos_cache_dims(cos_cache_len.at(1), param);
     }
 
     static void parse_sin_cache(const instruction_ref& sin_cache,
@@ -160,7 +160,7 @@ struct parse_rotary_embedding : op_parser<parse_rotary_embedding>
             MIGRAPHX_THROW("RotaryEmbedding: max_sequence_length must be the same between sin & cos caches!");
         }
 
-        compsare_sin_cos_cache_dims(sin_cache_len.at(1));
+        compare_sin_cos_cache_dims(sin_cache_len.at(1), param);
     }
 
     static void compare_sin_cos_cache_dims(const size_t dim,
@@ -189,8 +189,8 @@ struct parse_rotary_embedding : op_parser<parse_rotary_embedding>
         // Order matters as we're basing params related to the first input
         parse_input(args.at(0), param);
         parse_position_ids(args.at(1), param);       
-        parse_cos_cache(args.at(2), param;
-        parse_sin_cache(args.at(3), param;
+        parse_cos_cache(args.at(2), param);
+        parse_sin_cache(args.at(3), param);
 
 
     }
@@ -208,17 +208,19 @@ struct parse_rotary_embedding : op_parser<parse_rotary_embedding>
         }
 
         // Sanity check input dimension and shapes while extracting params
-        parse_attributes(parse, info, params);
+        parse_attributes(parser, info, params);
         parse_input_args(args, params);
 
+
+
         // Setup based on parsed params gathered from input attributes/inputs
-        auto input        = args.at(0)
-        auto position_ids = args.at(1)
+        auto input        = args.at(0);
+        auto position_ids = args.at(1);
         auto cos_cache    = args.at(2);
         auto sin_cache    = args.at(3);
 
-
-        return output;
+        auto output = input;
+        return {output};
     }
 };
 

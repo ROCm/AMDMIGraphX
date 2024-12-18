@@ -108,7 +108,7 @@ struct pad_compiler : compiler<pad_compiler>
         auto src = interpolate_string(
             pointwise_kernel,
             {{"pad_val", to_string(pad_val_string)}, {"offsets", to_string_range(roffsets)}});
-        return compile_hip_code_object(src, options);
+        return compile_hip_code_object(ctx, src, options);
     }
 
     compiler_replace compile(context& ctx, instruction_ref ins, const operation& op) const

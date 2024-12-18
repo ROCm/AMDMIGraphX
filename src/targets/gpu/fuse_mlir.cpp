@@ -480,6 +480,7 @@ bool is_reduce_op_supported_by_mlir(const instruction& i)
                                                          type_t::fp8e5m2fnuz_type,
                                                          type_t::fp8e4m3fn_type,
                                                          type_t::fp8e5m2_type};
+
     // Preliminary type check.
     if(not contains(allowed_types, result_type))
     {

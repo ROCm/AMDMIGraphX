@@ -108,28 +108,28 @@ std::vector<pass> target::get_passes(migraphx::context& gctx, const compile_opti
     std::set<std::string> unsupported_fp8e4m3fnuz_ops = {};
     if(not enabled(MIGRAPHX_ENABLE_HIPBLASLT_GEMM{}) and not gpu::rocblas_fp8_available())
     {
-        unsupported_fp8fnuz_ops.insert("dot");
-        unsupported_fp8fnuz_ops.insert("quant_dot");
+        unsupported_fp8e4m3fnuz_ops.insert("dot");
+        unsupported_fp8e4m3fnuz_ops.insert("quant_dot");
     }
 #if MIGRAPHX_USE_MIOPEN
     // MIOpen doesn't have support for fp8 pooling yet.
-    unsupported_fp8fnuz_ops.insert("pooling");
+    unsupported_fp8e4m3fnuz_ops.insert("pooling");
 #endif
     if(not gpu::gfx_has_fp8fnuz_intrinsics())
     {
-        unsupported_fp8fnuz_ops.insert("convolution");
-        unsupported_fp8fnuz_ops.insert("quant_convolution");
+        unsupported_fp8e4m3fnuz_ops.insert("convolution");
+        unsupported_fp8e4m3fnuz_ops.insert("quant_convolution");
     }
     // add all device kernels
-    unsupported_fp8fnuz_ops.insert("logsoftmax");
-    unsupported_fp8fnuz_ops.insert("nonzero");
-    unsupported_fp8fnuz_ops.insert("prefix_scan_sum");
-    unsupported_fp8fnuz_ops.insert("scatter_none");
-    unsupported_fp8fnuz_ops.insert("topk");
-    unsupported_fp8fnuz_ops.insert("rnn_var_sl_shift_output");
-    unsupported_fp8fnuz_ops.insert("multinomial");
-    unsupported_fp8fnuz_ops.insert("argmax");
-    unsupported_fp8fnuz_ops.insert("argmin");
+    unsupported_fp8e4m3fnuz_ops.insert("logsoftmax");
+    unsupported_fp8e4m3fnuz_ops.insert("nonzero");
+    unsupported_fp8e4m3fnuz_ops.insert("prefix_scan_sum");
+    unsupported_fp8e4m3fnuz_ops.insert("scatter_none");
+    unsupported_fp8e4m3fnuz_ops.insert("topk");
+    unsupported_fp8e4m3fnuz_ops.insert("rnn_var_sl_shift_output");
+    unsupported_fp8e4m3fnuz_ops.insert("multinomial");
+    unsupported_fp8e4m3fnuz_ops.insert("argmax");
+    unsupported_fp8e4m3fnuz_ops.insert("argmin");
 
     std::set<std::string> unsupported_fp8e5m2fnuz_ops = unsupported_fp8e4m3fnuz_ops;
     // disable gemm for fp8e5m2fnuz if rocBLAS is being used

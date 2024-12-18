@@ -71,7 +71,7 @@ def rocmtestnode(Map conf) {
                     pre()
                     sh "docker pull ${DOCKER_IMAGE}:${env.IMAGE_TAG}"
                     withDockerContainer(image: "${DOCKER_IMAGE}:${env.IMAGE_TAG}", args: "--device=/dev/kfd --device=/dev/dri --group-add video --cap-add SYS_PTRACE -v=/home/jenkins/:/home/jenkins ${docker_args}") {
-                        timeout(time: 2, unit: 'HOURS') {
+                        timeout(time: 4, unit: 'HOURS') {
                             body(cmake_build)
                         }
                     }

@@ -141,11 +141,46 @@ const std::string math_template = R"__migraphx__(
 #include <migraphx/kernels/types.hpp>
 
 namespace migraphx {
+
+template <class T>
+struct test_implicit_conversion_op
+{
+    T x;
+
+    template <index_int N, class U>
+    constexpr operator vec<U, N>() const
+    {
+        if constexpr(vec_size<T>() == 0)
+        {
+            return x;
+        }
+        else
+        {
+            static_assert(vec_size<T>() == N, "Vector mismatch size");
+            return __builtin_convertvector(x, vec<U, N>);
+        }
+    }
+
+    template <class U>
+    constexpr operator U() const
+    {
+        static_assert(is_same<T, bool>{} or not is_same<U, float>{} or is_same<T, U>{});
+        return static_cast<U>(x);
+    }
+};
+
+template <class T>
+constexpr test_implicit_conversion_op<T> test_implicit_conversion(T x)
+{
+    return {x};
+}
+
+
 extern "C" {
 __global__ void kernel(${type}* p) 
 {
     auto x = *p;
-    *p = migraphx::implicit_conversion(migraphx::${invoke});
+    *p = migraphx::test_implicit_conversion(migraphx::${invoke});
 
 }
 }
@@ -263,12 +298,13 @@ TEST_CASE(compile_code_object_hip)
 {
     migraphx::shape input{migraphx::shape::float_type, {5, 2}};
     migraphx::gpu::hip_compile_options options;
+    migraphx::gpu::context ctx;
     options.global = 256 * 1024;
     options.local  = 1024;
     options.inputs = {input, input};
     options.output = input;
 
-    auto co = migraphx::gpu::compile_hip_code_object(simple_pointwise_increment, options);
+    auto co = migraphx::gpu::compile_hip_code_object(ctx, simple_pointwise_increment, options);
 
     migraphx::program p;
     auto* mm            = p.get_main_module();
@@ -358,8 +394,9 @@ TEST_CASE(compile_math)
         data_types.push_back(name);
         // fp8 doesn't have vectorization support yet, therefore skip it for now.
         std::set<migraphx::shape::type_t> fp8_types = {migraphx::shape::fp8e4m3fnuz_type,
-                                                       migraphx::shape::fp8e5m2_type,
-                                                       migraphx::shape::fp8e4m3fn_type};
+                                                       migraphx::shape::fp8e5m2fnuz_type,
+                                                       migraphx::shape::fp8e4m3fn_type,
+                                                       migraphx::shape::fp8e5m2_type};
         if(not contains(fp8_types, t))
         {
             migraphx::transform(vec_sizes, std::back_inserter(data_types), [&](auto i) {
@@ -369,6 +406,7 @@ TEST_CASE(compile_math)
     }
     migraphx::shape input{migraphx::shape::float_type, {5, 2}};
     migraphx::gpu::hip_compile_options options;
+    migraphx::gpu::context ctx;
     options.global = 1024;
     options.local  = 1024;
     options.inputs = {input};
@@ -377,7 +415,7 @@ TEST_CASE(compile_math)
         const auto& t      = data_types[i % data_types.size()];
         const auto& invoke = math_invoke[i / data_types.size()];
         auto src = migraphx::interpolate_string(math_template, {{"type", t}, {"invoke", invoke}});
-        auto co  = migraphx::gpu::compile_hip_code_object(src, options);
+        auto co  = migraphx::gpu::compile_hip_code_object(ctx, src, options);
         (void)co;
     });
 }
@@ -403,10 +441,10 @@ TEST_CASE(assert_type_min_max)
 {
     std::vector<std::string> data_types;
     migraphx::gpu::hip_compile_options options;
+    migraphx::gpu::context ctx;
     for(auto&& t : migraphx::shape::types())
     {
         if(contains({migraphx::shape::bool_type,
-                     migraphx::shape::fp8e4m3fnuz_type,
                      migraphx::shape::tuple_type,
                      migraphx::shape::bf16_type},
                     t))
@@ -445,7 +483,7 @@ TEST_CASE(assert_type_min_max)
             options.output = input;
             options.emplace_param("-Wno-float-equal");
 
-            auto co = migraphx::gpu::compile_hip_code_object(src, options);
+            auto co = migraphx::gpu::compile_hip_code_object(ctx, src, options);
         });
     }
 }

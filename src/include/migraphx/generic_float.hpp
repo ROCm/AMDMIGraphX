@@ -31,6 +31,7 @@
 #include <limits>
 #include <iostream>
 #include <tuple>
+#include <cstdint>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
@@ -117,9 +118,6 @@ struct float32_parts
 
 constexpr float32_parts get_parts(float f) { return migraphx::bit_cast<float32_parts>(f); }
 
-#ifdef _MSC_VER
-#pragma pack(push, 1)
-#endif
 template <unsigned int MantissaSize, unsigned int ExponentSize, unsigned int Flags = 0>
 struct __attribute__((packed, may_alias)) generic_float
 {
@@ -164,8 +162,8 @@ struct __attribute__((packed, may_alias)) generic_float
             }
             else
             {
-                type shift         = 0;
-                f.mantissa         = mantissa;
+                type shift = 0;
+                f.mantissa = mantissa;
 
                 if(MantissaSize < float32_parts::mantissa_width())
                 {
@@ -392,9 +390,6 @@ struct __attribute__((packed, may_alias)) generic_float
         return temp;
     }
 };
-#ifdef _MSC_VER
-#pragma pack(pop)
-#endif
 
 } // namespace MIGRAPHX_INLINE_NS
 } // namespace migraphx

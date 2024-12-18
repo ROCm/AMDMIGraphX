@@ -64,6 +64,7 @@ rocblas_datatype get_type(shape::type_t type)
     case shape::int32_type: return rocblas_datatype_i32_r;
     case shape::uint32_type: return rocblas_datatype_u32_r;
     case shape::fp8e4m3fnuz_type: return rocblas_datatype_f8_r;
+    case shape::fp8e5m2fnuz_type: return rocblas_datatype_bf8_r;
     case shape::fp8e4m3fn_type:
     case shape::fp8e5m2_type:
     case shape::tuple_type:
@@ -78,10 +79,11 @@ rocblas_datatype get_type(shape::type_t type)
     MIGRAPHX_THROW("ROCBLAS_GEMM: data type not supported!");
 }
 
-void blas_shape(const shape& s)
+void blas_shape(const shape& in_shape)
 {
-    if(s.lens().size() < 2)
+    if(in_shape.lens().size() < 2)
         return;
+    auto s = in_shape.normalize_standard();
     if(std::none_of(s.strides().end() - 2, s.strides().end(), [](auto i) { return i == 1; }))
         MIGRAPHX_THROW("GPU_GEMM: needs to have one matrix stride as 1");
     if(std::any_of(s.strides().end() - 2, s.strides().end(), [](auto i) { return i == 0; }))
@@ -222,7 +224,7 @@ struct gemm_impl
         compute_type = rb_compute_type{output_type};
         if(compute_fp32)
         {
-            if(arg_type == rocblas_datatype_f16_r)
+            if(arg_type == rocblas_datatype_f16_r or arg_type == rocblas_datatype_bf16_r)
                 compute_type = rocblas_datatype_f32_r;
         }
         if(arg_type == rocblas_datatype_f8_r)
@@ -590,7 +592,7 @@ void gemm_compute(context& ctx,
     std::transform(args.begin(),
                    args.end(),
                    std::back_inserter(input_shapes),
-                   [](const argument& x) { return x.get_shape(); });
+                   [](const argument& x) { return x.get_shape().normalize_standard(); });
     auto gemm_item = gemm_impl<float>(output_shape, input_shapes, alpha, beta, compute_fp32);
     gemm_item.run(ctx, args, solution_idx);
 }
@@ -607,7 +609,7 @@ void gemm_compute(context& ctx,
     std::transform(args.begin(),
                    args.end(),
                    std::back_inserter(input_shapes),
-                   [](const argument& x) { return x.get_shape(); });
+                   [](const argument& x) { return x.get_shape().normalize_standard(); });
     auto gemm_item = gemm_impl<int32_t>(output_shape, input_shapes, alpha, beta, compute_fp32);
     gemm_item.run(ctx, args, solution_idx);
 }

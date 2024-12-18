@@ -312,8 +312,12 @@ struct mlir_program
                 result = mlirF32TypeGet(ctx.get());
             else if(as.type_enum() == shape::half_type)
                 result = mlirF16TypeGet(ctx.get());
+            else if(as.type_enum() == shape::bf16_type)
+                result = mlirBF16TypeGet(ctx.get());
             else if(as.type_enum() == shape::fp8e4m3fnuz_type)
                 result = mlirFloat8E4M3FNUZTypeGet(ctx.get());
+            else if(as.type_enum() == shape::fp8e5m2fnuz_type)
+                result = mlirFloat8E5M2FNUZTypeGet(ctx.get());
             else if(as.type_enum() == shape::fp8e4m3fn_type)
                 result = mlirFloat8E4M3FNTypeGet(ctx.get());
             else if(as.type_enum() == shape::fp8e5m2_type)
@@ -442,15 +446,15 @@ struct mlir_program
     }
 
     using attribute_t       = std::variant<std::nullptr_t,
-                                     std::uint64_t,
-                                     unsigned char,
-                                     bool,
-                                     double,
-                                     std::string,
-                                     value,
-                                     std::vector<value>,
-                                     MlirType,
-                                     MlirAttribute>;
+                                           std::uint64_t,
+                                           unsigned char,
+                                           bool,
+                                           double,
+                                           std::string,
+                                           value,
+                                           std::vector<value>,
+                                           MlirType,
+                                           MlirAttribute>;
     using named_attribute_t = std::pair<std::string_view, attribute_t>;
 
     MlirNamedAttribute name_attribute(const named_attribute_t& na) const
@@ -1153,7 +1157,7 @@ mlir_code_object compile_mlir(const context& migraphx_ctx,
         const std::lock_guard<std::mutex> lock(mutex);
         std::cout << mlir_print(&mlirOperationPrint, mod_op) << std::endl;
     }
-    auto co            = mp.compile(solution);
+    auto co = mp.compile(solution);
 
     co.expected_inputs = in_shapes;
     auto out_shapes    = m.get_output_shapes();
@@ -1246,7 +1250,7 @@ void dump_mlir_to_mxr(module m,
             sizes.insert(sizes.end(), ins->inputs().begin(), ins->inputs().end());
     }
     auto name = compute_dump_name(m, ".mxr");
-    auto f = location / name;
+    auto f    = location / name;
     std::cout << "Dumping MXR file to: " << f << std::endl;
     save(program{std::move(m)}, f.string());
 }

@@ -131,6 +131,8 @@ bool mlir_attention_enabled(context* ctx)
 #ifdef MIGRAPHX_MLIR
     if(not mlir_enabled())
         return false;
+    if(specific_op<rejected>("attention"))
+        return false;
     // Enable attention by default for mi300
     if(ctx != nullptr and starts_with(ctx->get_current_device().get_gfx_name(), "gfx94"))
         return true;
@@ -153,14 +155,40 @@ struct mlir_op
         return pack(f(self.op, "op"));
     }
 
+    // Check if the shape can be created from a transpose/broadcast/slice
+    static bool is_mlir_compatible(const shape& s)
+    {
+        if(s.standard() or s.packed() or s.scalar() or s.ndim() == 1)
+            return true;
+        auto ns = reorder_shape(s, find_permutation(s));
+        std::vector<std::size_t> stride_ratios;
+        auto last = std::find(ns.strides().begin(), ns.strides().end(), 0);
+        if(*std::prev(last) != 1)
+            return false;
+        std::adjacent_difference(ns.strides().begin(),
+                                 last,
+                                 std::back_inserter(stride_ratios),
+                                 [](auto y, auto x) -> std::size_t {
+                                     assert(y != 0);
+                                     if((x % y) != 0)
+                                         return 0;
+                                     return x / y;
+                                 });
+        return std::equal(stride_ratios.begin() + 1,
+                          stride_ratios.end(),
+                          ns.lens().begin() + 1,
+                          [](auto ratio, auto len) { return ratio >= len; });
+    }
+
     shape compute_shape(const std::vector<shape>& inputs, const std::vector<module_ref>& mods) const
     {
         module_ref mod = mods[0];
-        check_shapes{inputs, *this}.packed_or_broadcasted();
+        check_shapes{inputs, *this}.has_at_least(1);
         if(mods.size() != 1)
             MIGRAPHX_THROW("should have one submodule.");
-        if(inputs.empty())
-            MIGRAPHX_THROW("should have at least one input.");
+
+        if(not std::all_of(inputs.begin(), inputs.end(), &is_mlir_compatible))
+            MIGRAPHX_THROW("Shape is not mlir compatible.");
 
         auto result =
             mod->compute_shapes(inputs, {.name = name(), .strict_type = true, .strict_lens = true});
@@ -304,8 +332,8 @@ auto is_mlir_conv(mlir_mode mode)
         // Avoid MLIR assertion: Index < Length && "Invalid index!"
         if(ins->get_shape().lens().size() != 4 and group > 1)
             return false;
-        std::set<shape::type_t> supported_types = {
-            shape::fp8e4m3fnuz_type, shape::fp8e4m3fn_type, shape::fp8e5m2_type, shape::int8_type};
+        std::set<shape::type_t> supported_types = fp8_types{}.get();
+        supported_types.insert(shape::int8_type);
         if(contains(supported_types, input.type()))
             return true;
         if(mode == mlir_mode::all)
@@ -367,8 +395,10 @@ bool is_pointwise_op_supported_by_mlir(const instruction& i)
     const auto& name                                  = i.name();
     const auto result_type                            = i.get_shape().type();
     const std::initializer_list<type_t> allowed_types = {type_t::float_type,
+                                                         type_t::bf16_type,
                                                          type_t::half_type,
                                                          type_t::fp8e4m3fnuz_type,
+                                                         type_t::fp8e5m2fnuz_type,
                                                          type_t::fp8e4m3fn_type,
                                                          type_t::fp8e5m2_type,
                                                          type_t::int8_type,
@@ -415,7 +445,9 @@ bool is_pointwise_op_supported_by_mlir(const instruction& i)
     };
     std::set<shape::type_t> float_types = {type_t::float_type,
                                            type_t::half_type,
+                                           type_t::bf16_type,
                                            type_t::fp8e4m3fnuz_type,
+                                           type_t::fp8e5m2fnuz_type,
                                            type_t::fp8e4m3fn_type,
                                            type_t::fp8e5m2_type};
     bool is_float                       = contains(float_types, result_type);
@@ -434,7 +466,8 @@ bool is_pointwise_op_supported_by_mlir(const instruction& i)
             return false;
         } // else
         return std::all_of(i.inputs().begin(), i.inputs().end(), [](const auto& arg) {
-            return contains({type_t::float_type, type_t::half_type}, arg->get_shape().type());
+            return contains({type_t::float_type, type_t::half_type, type_t::bf16_type},
+                            arg->get_shape().type());
         });
     }
     return false;
@@ -445,8 +478,14 @@ bool is_reduce_op_supported_by_mlir(const instruction& i)
     using type_t                                      = shape::type_t;
     const auto& name                                  = i.name();
     const auto result_type                            = i.get_shape().type();
-    const std::initializer_list<type_t> allowed_types = {
-        type_t::float_type, type_t::half_type, type_t::fp8e4m3fnuz_type};
+    const std::initializer_list<type_t> allowed_types = {type_t::float_type,
+                                                         type_t::half_type,
+                                                         type_t::bf16_type,
+                                                         type_t::fp8e4m3fnuz_type,
+                                                         type_t::fp8e5m2fnuz_type,
+                                                         type_t::fp8e4m3fn_type,
+                                                         type_t::fp8e5m2_type};
+
     // Preliminary type check.
     if(not contains(allowed_types, result_type))
     {
@@ -703,8 +742,10 @@ struct find_mlir_standalone_op
         if(std::any_of(gemm_based_op->inputs().begin(), gemm_based_op->inputs().end(), [&](auto i) {
                return not contains({shape::type_t::float_type,
                                     shape::type_t::half_type,
+                                    shape::type_t::bf16_type,
                                     shape::type_t::int8_type,
                                     shape::type_t::fp8e4m3fnuz_type,
+                                    shape::type_t::fp8e5m2fnuz_type,
                                     shape::type_t::fp8e4m3fn_type,
                                     shape::type_t::fp8e5m2_type},
                                    i->get_shape().type());

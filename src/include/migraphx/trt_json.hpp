@@ -31,7 +31,8 @@
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
 
-MIGRAPHX_EXPORT std::string to_trt_json_string(const migraphx::program& p);
+MIGRAPHX_EXPORT std::string to_trt_json_string(const migraphx::program& p,
+                                               std::optional<size_t> indent);
 
 } // namespace MIGRAPHX_INLINE_NS
 } // namespace migraphx

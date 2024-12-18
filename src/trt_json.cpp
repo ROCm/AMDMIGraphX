@@ -21,14 +21,14 @@
  * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
  * THE SOFTWARE.
  */
-#include "migraphx/iterator_for.hpp"
-#include <migraphx/serialize.hpp>
 #include <migraphx/argument.hpp>
-#include <migraphx/literal.hpp>
-#include <nlohmann/json.hpp>
-#include <migraphx/trt_json.hpp>
 #include <migraphx/instruction.hpp>
+#include <migraphx/iterator_for.hpp>
+#include <nlohmann/json.hpp>
+#include <migraphx/literal.hpp>
 #include <migraphx/ranges.hpp>
+#include <migraphx/serialize.hpp>
+#include <migraphx/trt_json.hpp>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
@@ -45,8 +45,6 @@ template <>
 struct adl_serializer<migraphx::value>
 {
     static void to_json(json& j, const migraphx::value& val) { migraphx::value_to_json(val, j); }
-
-    static void from_json(const json& j, migraphx::value& val) {}
 };
 } // namespace nlohmann
 
@@ -98,43 +96,51 @@ static void value_to_json(const value& val, json& j)
 
     val.visit([&](auto v) { value_to_json(v, j); });
 }
-} // namespace MIGRAPHX_INLINE_NS
-} // namespace migraphx
 
-namespace migraphx {
-inline namespace MIGRAPHX_INLINE_NS {
-
-using json = nlohmann::json;
-
-std::string type_to_trt_type_string(migraphx::shape::type_t type)
+std::string type_to_trt_type_string(shape::type_t type)
 {
     switch(type)
     {
-    case migraphx::shape::float_type: return "FP32";
-    case migraphx::shape::int8_type: return "INT8";
-    case migraphx::shape::tuple_type: return "TUPLE";
-    default: throw 5;
+    case shape::bool_type: return "BOOL";
+    case shape::half_type: return "FP16";
+    case shape::float_type: return "FP32";
+    case shape::double_type: return "FP64";
+    case shape::uint8_type: return "UINT8";
+    case shape::int8_type: return "INT8";
+    case shape::uint16_type: return "UINT16";
+    case shape::int16_type: return "INT16";
+    case shape::uint32_type: return "UINT32";
+    case shape::int32_type: return "INT32";
+    case shape::uint64_type: return "UINT64";
+    case shape::int64_type: return "INT64";
+    case shape::bf16_type: return "BF16";
+    case shape::tuple_type: return "TUPLE";
+    // TODO fp8 types
+    default: MIGRAPHX_THROW("Unsupported type: " + shape::name(type));
     }
 }
 
-std::string to_trt_json_string(const program& p)
+std::string to_trt_json_string(const program& p, std::optional<size_t> indent = std::nullopt)
 {
-    std::cout << p << std::endl;
-    json j        = json::object();
-    auto& jlayers = j["Layers"] = json::array();
-
-    auto* mm = p.get_main_module();
-
     std::unordered_map<instruction_ref, std::string> ins_to_name;
     std::unordered_map<std::string, unsigned int> name_count;
 
+    auto* mm = p.get_main_module();
+
+    // Parameters are added as Bindings
     const auto& param_names = mm->get_parameter_names();
     for(const auto& param_name : param_names)
         ins_to_name[mm->get_parameter(param_name)] = param_name;
 
-    for(auto ins : iterator_for(*mm))
+    json j        = json::object();
+    auto& jlayers = j["Layers"] = json::array();
+
+    for(const auto ins : iterator_for(*mm))
     {
-        if(ins->name() == "@param")
+        // Skip these instructions to avoid clutter
+        static const std::vector<std::string> skip_instructions{
+            "@param", "check_context::migraphx::gpu::context", "hip::hip_allocate_memory", "load"};
+        if(contains(skip_instructions, ins->name()))
             continue;
 
         std::string ins_name;
@@ -143,20 +149,37 @@ std::string to_trt_json_string(const program& p)
             ins_name =
                 ins->get_operator().to_value()["symbol_name"].without_key().to<std::string>();
         }
+        // Differentiate literal broadcast from other broadcasts
+        else if(ins->name() == "broadcast" and ins->inputs().size() == 1 and
+                ins->inputs().front()->name() == "hip::hip_copy_literal")
+        {
+            ins_name = "broadcast_literal";
+        }
         else
         {
             ins_name = ins->name();
         }
         auto count       = name_count[ins_name]++;
-        ins_to_name[ins] = ins_name + "_" + std::to_string(count);
+        ins_name         = ins_name + "_" + std::to_string(count);
+        ins_to_name[ins] = ins_name;
+
+        // We don't want to show copy literal layers to avoid clutter
+        if(ins->name() == "hip::hip_copy_literal")
+            continue;
 
         auto jlayer         = json::object();
-        jlayer["Name"]      = ins_to_name[ins];
+        jlayer["Name"]      = ins_to_name.at(ins);
         jlayer["LayerType"] = ins->name();
-        auto& jlayer_inputs = jlayer["Inputs"] = json::array();
 
+        auto& jlayer_inputs = jlayer["Inputs"] = json::array();
         for(auto input : ins->inputs())
         {
+            if(input->name() == "load")
+                continue;
+            if(input->name() == "hip::hip_copy_literal")
+            {
+                // TODO add this information to the layer params
+            }
             auto jinput      = json::object();
             auto name_suffix = input->name() == "@param" ? "" : "_out";
             jinput["Name"]   = ins_to_name.at(input) + name_suffix;
@@ -168,12 +191,11 @@ std::string to_trt_json_string(const program& p)
 
         auto& jlayer_outputs = jlayer["Outputs"] = json::array();
         auto joutput                             = json::object();
-        joutput["Name"]                          = ins_to_name[ins] + "_out";
+        joutput["Name"]                          = ins_name + "_out";
         joutput["Dimensions"]                    = ins->get_shape().lens();
         joutput["Format/Datatype"]               = type_to_trt_type_string(ins->get_shape().type());
         jlayer_outputs.push_back(joutput);
 
-        // TODO add attributes
         auto val = ins->get_operator().to_value();
         static const std::vector<std::string> skip_keys{"code_object",
                                                         "shape",
@@ -182,9 +204,8 @@ std::string to_trt_json_string(const program& p)
                                                         "symbol_name",
                                                         "literal",
                                                         "bytes",
-                                                        "data", 
+                                                        "data",
                                                         "solution_object"};
-
         for(const auto& v : val)
         {
             if(not contains(skip_keys, v.get_key()))
@@ -196,12 +217,16 @@ std::string to_trt_json_string(const program& p)
         jlayers.push_back(jlayer);
     }
 
+    // Bindings indicate inputs and outputs
     auto& jbindings = j["Bindings"] = json::array();
     for(const auto& param_name : param_names)
     {
         jbindings.push_back(param_name);
     }
-    return j.dump(2);
+    // Bind return as output
+    jbindings.push_back(jlayers.back()["Outputs"][0]["Name"]);
+
+    return indent ? j.dump(*indent) : j.dump();
 }
 
 } // namespace MIGRAPHX_INLINE_NS

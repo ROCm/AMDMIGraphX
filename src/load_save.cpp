@@ -84,10 +84,6 @@ void print_miopen_warning(const program& p)
 std::vector<char> save_buffer(const program& p, const file_options& options)
 {
     value v = p.to_value();
-    // std::cout << "PROGRAM" << std::endl;
-    // std::cout << p << std::endl;
-    // std::cout << "PROGRAM AS VALUE" << std::endl;
-    // std::cout << v << std::endl;
     print_miopen_warning(p);
     std::vector<char> buffer;
     if(options.format == "msgpack")
@@ -101,7 +97,7 @@ std::vector<char> save_buffer(const program& p, const file_options& options)
     }
     else if(options.format == "trt.json")
     {
-        std::string s = to_trt_json_string(p);
+        std::string s = to_trt_json_string(p, 4);
         buffer        = std::vector<char>(s.begin(), s.end());
     }
     else

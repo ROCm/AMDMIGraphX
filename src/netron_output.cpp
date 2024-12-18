@@ -23,22 +23,16 @@
  */
 
 #include <migraphx/netron_output.hpp>
-
-#include <nlohmann/json.hpp>
 #include <migraphx/json.hpp>
-
 #include <migraphx/iterator_for.hpp>
 #include <migraphx/module.hpp>
 #include <migraphx/instruction.hpp>
 #include <migraphx/serialize.hpp>
-
-#include <base64.hpp>
+#include <migraphx/base64.hpp>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
 namespace {
-
-using json = nlohmann::json;
 
 int get_onnx_type(shape::type_t s_type)
 {
@@ -62,25 +56,29 @@ int get_onnx_type(shape::type_t s_type)
         case shape::fp8e5m2_type: return 19;
         case shape::fp8e5m2fnuz_type: return 20;
         case shape::tuple_type: return 0;
+        default: {
+            MIGRAPHX_THROW("MIGraphX type " + std::to_string(s_type) + " not supported");
+        }
     }
 }
 
 auto make_attribute(migraphx::value val)
 {
-    json attribute    = json::object();
+    value attribute;
     attribute["name"] = val.get_key();
     auto val_string   = val.to<std::string>();
     val_string        = val_string.substr(val_string.find(":") + 1);
-    attribute["s"]    = base64::to_base64(val_string);
+    attribute["s"]    = b64_encode(val_string);
     attribute["type"] = "STRING";
     return attribute;
 }
 
+/// Returns a value with the JSON structure needed for a node
 auto make_onnx_json_node(instruction_ref ins, std::unordered_map<instruction_ref, std::string> ins_uids)
 {
-    json node = json::object();
+    value node;
     // TODO add support for module inputs
-    json input_arr = json::array();
+    value input_arr;
     for(instruction_ref input_ins : ins->inputs())
     {
         auto name = input_ins->name();
@@ -98,7 +96,7 @@ auto make_onnx_json_node(instruction_ref ins, std::unordered_map<instruction_ref
             input_arr.push_back(ins_uids.at(input_ins) + "->" + ins_uids.at(ins));
         }
     }
-    json output_arr = json::array();
+    value output_arr;
     for(instruction_ref output_ins : ins->outputs())
     {
         if(output_ins->name() == "@return")
@@ -114,11 +112,11 @@ auto make_onnx_json_node(instruction_ref ins, std::unordered_map<instruction_ref
     node["output"] = output_arr;
     node["name"]   = ins_uids.at(ins);
     node["opType"] = ins->name();
-    json op_attribute_arr = json::array();
+    value op_attribute_arr;
     auto op_value = ins->get_operator().to_value();
     std::for_each(op_value.begin(), op_value.end(), [&](auto v) {
         std::string attr_key = v.get_key();
-        if(attr_key == "code_object")
+        if(v.is_binary())
         {
             return;
         }
@@ -138,7 +136,7 @@ auto make_onnx_json_node(instruction_ref ins, std::unordered_map<instruction_ref
 // ONNX graph constant data called "initializer"
 auto make_onnx_json_literal(instruction_ref ins, std::unordered_map<instruction_ref, std::string> ins_uids)
 {
-    json lit = json::object();
+    value lit;
     lit["dims"]     = ins->get_shape().lens();
     lit["dataType"] = get_onnx_type(ins->get_shape().type());
     lit["name"] = ins_uids.at(ins);
@@ -151,8 +149,8 @@ auto make_onnx_json_literal(instruction_ref ins, std::unordered_map<instruction_
 // TODO handle subshapes
 auto make_onnx_json_shape(const shape& s)
 {
-    json ret = json::object();
-    json dim = json::array();
+    value ret;
+    value dim;
     for(std::size_t len : s.lens())
     {
         dim.push_back({{"dimValue", len}});
@@ -164,10 +162,10 @@ auto make_onnx_json_shape(const shape& s)
 // ONNX graph edges called "valuetype"
 auto make_onnx_json_edge(instruction_ref ins, instruction_ref out_ins, std::unordered_map<instruction_ref, std::string> ins_uids)
 {
-    json ret = json::object();
+    value ret;
     shape ins_shape = ins->get_shape();
     ret["name"] = ins_uids.at(ins) + "->" + ins_uids.at(out_ins);
-    json type       = {{"tensorType",
+    value type      = {{"tensorType",
                         {{"elemType", get_onnx_type(ins_shape.type())},
                          {"shape", make_onnx_json_shape(ins_shape)}}}};
     ret["type"]     = type;
@@ -176,10 +174,10 @@ auto make_onnx_json_edge(instruction_ref ins, instruction_ref out_ins, std::unor
 
 auto make_onnx_json_in_out(instruction_ref ins, std::unordered_map<instruction_ref, std::string> ins_uids)
 {
-    json ret = json::object();
+    value ret;
     shape ins_shape = ins->get_shape();
     ret["name"] = ins_uids.at(ins);
-    json type       = {{"tensorType",
+    value type      = {{"tensorType",
                         {{"elemType", get_onnx_type(ins_shape.type())},
                          {"shape", make_onnx_json_shape(ins_shape)}}}};
     ret["type"]     = type;
@@ -206,18 +204,15 @@ std::unordered_map<instruction_ref, std::string> make_ins_uids(const module& mod
 
 std::string make_netron_output(const program& prog)
 {
-    json output;
+    value output;
     auto prog_value           = prog.to_value();
     output["irVersion"]       = prog_value.at("version").to<std::string>();
     output["producerName"]    = "AMDMIGraphX";
     output["producerVersion"] = prog_value.at("migraphx_version").to<std::string>();
     for(auto& mod : prog.get_modules())
     {
-        json graph      = {{"node", json::array()},
-                           {"initializer", json::array()},
-                           {"input", json::array()},
-                           {"output", json::array()},
-                           {"valueInfo", json::array()}};
+        value graph = {
+            {"node", {}}, {"initializer", {}}, {"input", {}}, {"output", {}}, {"valueInfo", {}}};
         auto ins_uids   = make_ins_uids(*mod);
         for(auto ins = mod->begin(); ins != mod->end(); ++ins)
         {
@@ -253,7 +248,7 @@ std::string make_netron_output(const program& prog)
         }
         output["graph"] = graph;
     }
-    return output.dump(4);
+    return to_json_string(output);
 }
 
 } // namespace MIGRAPHX_INLINE_NS

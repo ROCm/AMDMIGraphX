@@ -31,6 +31,7 @@
 #include <limits>
 #include <iostream>
 #include <tuple>
+#include <cstdint>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {

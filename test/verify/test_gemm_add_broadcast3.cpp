@@ -26,20 +26,34 @@
 #include <migraphx/program.hpp>
 #include <migraphx/generate.hpp>
 #include <migraphx/make_op.hpp>
-#include <migraphx/common.hpp>
+#include <migraphx/apply_alpha_beta.hpp>
 
-struct test_softmax_large2 : verify_program<test_softmax_large2>
+template <migraphx::shape::type_t DType>
+struct test_gemm_add_broadcast3 : verify_program<test_gemm_add_broadcast3<DType>>
 {
     migraphx::program create_program() const
     {
         migraphx::program p;
-        auto* mm   = p.get_main_module();
-        auto x     = mm->add_parameter("x", migraphx::shape{migraphx::shape::float_type, {2, 4}});
-        auto large = mm->add_literal({migraphx::shape{migraphx::shape::float_type}, {-10000}});
-        auto add   = migraphx::add_common_op(*mm, migraphx::make_op("add"), {x, large});
-        mm->add_instruction(migraphx::make_op("softmax", {{"axis", -1}}), add);
+        auto* mm = p.get_main_module();
+        migraphx::shape m1_shape{DType, {1, 2}};
+        migraphx::shape m2_shape{DType, {2, 4}};
+        migraphx::shape m3_shape{DType, {4}};
+        auto l1 = mm->add_parameter("1", m1_shape);
+        auto l2 = mm->add_parameter("2", m2_shape);
+        auto l3 = mm->add_parameter("3", m3_shape);
+        auto l3_b =
+            mm->add_instruction(migraphx::make_op("multibroadcast", {{"out_lens", {1, 4}}}), l3);
+
+        auto dot = mm->add_instruction(migraphx::make_op("dot"), l1, l2);
+        mm->add_instruction(migraphx::make_op("add"), l3_b, dot);
         return p;
     }
-
-    std::string section() const { return "reduce"; }
+    std::string section() const { return "gemm"; }
 };
+
+template struct test_gemm_add_broadcast3<migraphx::shape::float_type>;
+template struct test_gemm_add_broadcast3<migraphx::shape::half_type>;
+// template struct test_gemm_add_broadcast3<migraphx::shape::fp8e4m3fnuz_type>;
+// template struct test_gemm_add_broadcast3<migraphx::shape::fp8e5m2fnuz_type>;
+// template struct test_gemm_add_broadcast3<migraphx::shape::fp8e4m3fn_type>;
+// template struct test_gemm_add_broadcast3<migraphx::shape::fp8e5m2_type>;

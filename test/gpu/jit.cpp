@@ -298,12 +298,13 @@ TEST_CASE(compile_code_object_hip)
 {
     migraphx::shape input{migraphx::shape::float_type, {5, 2}};
     migraphx::gpu::hip_compile_options options;
+    migraphx::gpu::context ctx;
     options.global = 256 * 1024;
     options.local  = 1024;
     options.inputs = {input, input};
     options.output = input;
 
-    auto co = migraphx::gpu::compile_hip_code_object(simple_pointwise_increment, options);
+    auto co = migraphx::gpu::compile_hip_code_object(ctx, simple_pointwise_increment, options);
 
     migraphx::program p;
     auto* mm            = p.get_main_module();
@@ -405,6 +406,7 @@ TEST_CASE(compile_math)
     }
     migraphx::shape input{migraphx::shape::float_type, {5, 2}};
     migraphx::gpu::hip_compile_options options;
+    migraphx::gpu::context ctx;
     options.global = 1024;
     options.local  = 1024;
     options.inputs = {input};
@@ -413,7 +415,7 @@ TEST_CASE(compile_math)
         const auto& t      = data_types[i % data_types.size()];
         const auto& invoke = math_invoke[i / data_types.size()];
         auto src = migraphx::interpolate_string(math_template, {{"type", t}, {"invoke", invoke}});
-        auto co  = migraphx::gpu::compile_hip_code_object(src, options);
+        auto co  = migraphx::gpu::compile_hip_code_object(ctx, src, options);
         (void)co;
     });
 }
@@ -439,6 +441,7 @@ TEST_CASE(assert_type_min_max)
 {
     std::vector<std::string> data_types;
     migraphx::gpu::hip_compile_options options;
+    migraphx::gpu::context ctx;
     for(auto&& t : migraphx::shape::types())
     {
         if(contains({migraphx::shape::bool_type,
@@ -480,7 +483,7 @@ TEST_CASE(assert_type_min_max)
             options.output = input;
             options.emplace_param("-Wno-float-equal");
 
-            auto co = migraphx::gpu::compile_hip_code_object(src, options);
+            auto co = migraphx::gpu::compile_hip_code_object(ctx, src, options);
         });
     }
 }

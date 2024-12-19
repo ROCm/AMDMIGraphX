@@ -34,6 +34,7 @@ namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
 namespace {
 
+// from https://onnx.ai/onnx/intro/concepts.html
 int get_onnx_type(shape::type_t s_type)
 {
     switch(s_type)
@@ -56,13 +57,11 @@ int get_onnx_type(shape::type_t s_type)
         case shape::fp8e5m2_type: return 19;
         case shape::fp8e5m2fnuz_type: return 20;
         case shape::tuple_type: return 0;
-        default: {
             MIGRAPHX_THROW("MIGraphX type " + std::to_string(s_type) + " not supported");
-        }
     }
 }
 
-auto make_attribute(migraphx::value val)
+auto make_attribute(const migraphx::value val)
 {
     value attribute;
     attribute["name"] = val.get_key();
@@ -115,7 +114,7 @@ auto make_onnx_json_node(instruction_ref ins, std::unordered_map<instruction_ref
     value op_attribute_arr;
     auto op_value = ins->get_operator().to_value();
     std::for_each(op_value.begin(), op_value.end(), [&](auto v) {
-        std::string attr_key = v.get_key();
+        const std::string& attr_key = v.get_key();
         if(v.is_binary())
         {
             return;

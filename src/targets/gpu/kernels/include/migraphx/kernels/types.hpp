@@ -78,7 +78,6 @@ using half  = _Float16;
 using half2 = migraphx::vec<half, 2>;
 using bf16  = __bf16;
 
-
 } // namespace migraphx
 
 #endif

@@ -30,6 +30,7 @@
 #include <migraphx/check_shapes.hpp>
 #include <migraphx/functional.hpp>
 #include <migraphx/dyn_output.hpp>
+
 #include <utility>
 
 namespace migraphx {
@@ -280,7 +281,6 @@ struct hip_copy_literal
         return os;
     }
 };
-
 } // namespace gpu
 } // namespace MIGRAPHX_INLINE_NS
 } // namespace migraphx

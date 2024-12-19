@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2023 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2024 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -182,5 +182,17 @@ TEST_CASE(literal_to_string_float_precision)
     migraphx::literal x{126.99993142003703f};
     EXPECT(x.to_string() != "127");
 }
+
+// TEST_CASE(weight_streaming_literal)
+// {
+//     migraphx::literal l1{1};
+//     migraphx::literal l2{1};
+//     migraphx::literal l3{2};
+//     migraphx::literal l4{};
+
+//     EXPECT(l1.get_argument(true) == l2.get_argument(true));
+//     EXPECT(l1.get_argument(true) != l3.get_argument(true));
+//     EXPECT(l1.get_argument(true) != l4.get_argument(true));
+// }
 
 int main(int argc, const char* argv[]) { test::run(argc, argv); }

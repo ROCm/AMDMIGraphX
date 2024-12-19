@@ -39,10 +39,10 @@ std::array<char, 64> constexpr b64_chars{
     'w', 'x', 'y', 'z', '0', '1', '2', '3', '4', '5', '6', '7', '8', '9', '+', '/'};
 
 /// base64 encoder snippet altered from https://stackoverflow.com/a/37109258
-std::string encode(const std::string& buf)
+std::string encode(const std::vector<byte>& buf)
 {
     std::size_t len = buf.size();
-    std::string res_vec((len + 2) / 3 * 4, '=');
+    std::vector<byte> res_vec((len + 2) / 3 * 4, '=');
     std::size_t j        = 0;
     std::size_t remaining = len % 3;
     const size_t last     = len - remaining;
@@ -72,7 +72,10 @@ std::string encode(const std::string& buf)
 
 } // namespace
 
-std::string base64_encode(const std::string& str) { return encode(str); }
+std::string base64_encode(const std::string& str)
+{
+    return encode(std::vector<byte>(str.begin(), str.end()));
+}
 
 } // namespace MIGRAPHX_INLINE_NS
 } // namespace migraphx

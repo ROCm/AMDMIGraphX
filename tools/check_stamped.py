@@ -132,7 +132,7 @@ def main(branch) -> None:
 
     # Determine the base commit of the PR branch (merge base between PR branch and target branch)
     result = subprocess.run(
-        f"git merge-base {branch} origin/develop",
+        f"git merge-base {branch} develop",
         shell=True,
         stdout=subprocess.PIPE,
         text=True,
@@ -142,7 +142,7 @@ def main(branch) -> None:
     
     if debug: 
         print(f"Base commit: {base_commit}")
-        print(f"Target branch: origin/develop")
+        print(f"Target branch: develop")
     
     # Get a list of files that have changed or been added between the base commit and the PR branch
     proc = subprocess.run(

@@ -132,7 +132,7 @@ def main(branch) -> None:
 
     # Determine the base commit of the PR branch (merge base between PR branch and target branch)
     result = subprocess.run(
-        f"git merge-base {branch} develop",
+        f"git merge-base origin/{branch} origin/develop",
         shell=True,
         stdout=subprocess.PIPE,
         text=True,

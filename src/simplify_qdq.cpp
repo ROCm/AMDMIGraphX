@@ -456,6 +456,60 @@ void add_int4_pack_unpack_pair(module& m)
     }
 }
 
+struct match_block_dequantize
+{
+    std::size_t pack_by = 32;
+
+    static auto reshape_broadcast(const std::string& name)
+    {
+        auto broadcast_input = match::name("multibroadcast", "broadcast")(match::arg(0)(match::is_constant().bind(name)));
+        return match::name("reshape")(match::arg(0)(broadcast_input));
+    }
+
+    auto matcher() const
+    {
+        return match::name("dequantizelinear")(match::arg(1)(reshape_broadcast("scale")), match::arg(2)(reshape_broadcast("zero")));
+    }
+
+
+    bool can_pack(const shape& s) const
+    {
+        return (s.lens().front() % pack_by) == 0;
+    }
+
+    void pack_layout(module& m, instruction_ref ins) const
+    {
+        auto dims = ins->get_shape().lens();
+
+        dims.front() /= pack_by;
+        dims.insert(dims.begin() + 1, pack_by);
+
+        std::vector<std::size_t> perm(dims.size());
+        std::iota(perm.begin() + 1, perm.end() - 1, 2);
+        perm.back() = 1;
+
+        auto insert_ins = std::next(ins);
+        auto reshape1 = m.insert_instruction(insert_ins, make_op("reshape", {{"dims", dims}}), ins);
+        auto layout = m.insert_instruction(insert_ins, make_op("layout", {{"permutation", perm}}), reshape1);
+        auto reshape2 = m.insert_instruction(insert_ins, make_op("reshape", {{"dims", ins->get_shape().lens()}}), layout);
+        m.replace_instruction(ins, reshape2);
+    }
+
+    void apply(module& m, const match::matcher_result& r) const
+    {
+        auto scale_ins = r.instructions["scale"];
+        auto zero_ins = r.instructions["zero"];
+
+        if(not can_pack(scale_ins->get_shape()))
+            return;
+        if(not can_pack(zero_ins->get_shape()))
+            return;
+
+        pack_layout(m, scale_ins);
+        pack_layout(m, zero_ins);
+    }
+};
+
 } // namespace
 
 void simplify_qdq::apply(module& m) const
@@ -467,6 +521,8 @@ void simplify_qdq::apply(module& m) const
     remove_qdq_pairs(m);
     migraphx::run_passes(m, {migraphx::dead_code_elimination{}});
     match::find_matches(m, match_qlinear_reused{});
+    migraphx::run_passes(m, {migraphx::dead_code_elimination{}});
+    match::find_matches(m, match_block_dequantize{});
     migraphx::run_passes(m, {migraphx::dead_code_elimination{}});
     remove_zero_point(m);
 }

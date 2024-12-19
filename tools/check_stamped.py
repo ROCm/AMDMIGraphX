@@ -126,7 +126,7 @@ def main(branch) -> None:
     if debug: print(f"Target branch {branch}")
 
     # proc 2 is getting the list of file differences between FETCH_HEAD and the branch to be merged. (filters out deleted files from FETCH_HEAD)
-    proc = subprocess.run("git diff --name-only --diff-filter=d HEAD FETCH_HEAD",
+    proc = subprocess.run("git diff --name-only --diff-filter=d FETCH_HEAD...HEAD",
                           shell=True,
                           stdout=subprocess.PIPE)
     fileList = proc.stdout.decode().split('\n')

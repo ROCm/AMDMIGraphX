@@ -61,7 +61,7 @@ int get_onnx_type(shape::type_t s_type)
     }
 }
 
-auto make_attribute(const migraphx::value val)
+auto make_attribute(const migraphx::value& val)
 {
     value attribute;
     attribute["name"] = val.get_key();
@@ -200,6 +200,46 @@ std::unordered_map<instruction_ref, std::string> make_ins_uids(const module& mod
     return ret;
 }
 
+value make_graph(const module* mod)
+{
+    value graph = {
+        {"node", {}}, {"initializer", {}}, {"input", {}}, {"output", {}}, {"valueInfo", {}}};
+    auto ins_uids = make_ins_uids(*mod);
+    for(auto ins = mod->begin(); ins != mod->end(); ++ins)
+    {
+        const auto& name = ins->name();
+        if(name == "@literal")
+        {
+            graph["initializer"].push_back(make_onnx_json_literal(ins, ins_uids));
+        }
+        else if(name == "@param")
+        {
+            graph["input"].push_back(make_onnx_json_in_out(ins, ins_uids));
+        }
+        else if(name == "@return")
+        {
+            graph["output"].push_back(make_onnx_json_in_out(ins, ins_uids));
+        }
+        else if(name.find("hip::hip_allocate_memory") != std::string::npos)
+        {
+            continue;
+        }
+        else
+        {
+            graph["node"].push_back(make_onnx_json_node(ins, ins_uids));
+            const auto& outputs = ins->outputs();
+            for(auto out_ins : outputs)
+            {
+                if(out_ins->name() != "@return")
+                {
+                    graph["valueInfo"].push_back(make_onnx_json_edge(ins, out_ins, ins_uids));
+                }
+            }
+        }
+    }
+    return graph;
+}
+
 } // namespace
 
 std::string make_netron_output(const program& prog)
@@ -211,41 +251,7 @@ std::string make_netron_output(const program& prog)
     output["producerVersion"] = prog_value.at("migraphx_version").to<std::string>();
     for(auto& mod : prog.get_modules())
     {
-        value graph = {
-            {"node", {}}, {"initializer", {}}, {"input", {}}, {"output", {}}, {"valueInfo", {}}};
-        auto ins_uids   = make_ins_uids(*mod);
-        for(auto ins = mod->begin(); ins != mod->end(); ++ins)
-        {
-            const auto& name = ins->name();
-            if(name == "@literal")
-            {
-                graph["initializer"].push_back(make_onnx_json_literal(ins, ins_uids));
-            }
-            else if(name == "@param")
-            {
-                graph["input"].push_back(make_onnx_json_in_out(ins, ins_uids));
-            }
-            else if(name == "@return")
-            {
-                graph["output"].push_back(make_onnx_json_in_out(ins, ins_uids));
-            }
-            else if(name.find("hip::hip_allocate_memory") != std::string::npos)
-            {
-                continue;
-            }
-            else
-            {
-                graph["node"].push_back(make_onnx_json_node(ins, ins_uids));
-                const auto& outputs = ins->outputs();
-                for(auto out_ins : outputs)
-                {
-                    if(out_ins->name() != "@return")
-                    {
-                        graph["valueInfo"].push_back(make_onnx_json_edge(ins, out_ins, ins_uids));
-                    }
-                }
-            }
-        }
+        auto graph      = make_graph(mod);
         output["graph"] = graph;
     }
     return to_json_string(output);

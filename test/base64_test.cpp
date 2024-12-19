@@ -90,8 +90,8 @@ TEST_CASE(base64_encodes_empty)
 TEST_CASE(base64_encodes_three_bytes_zeros)
 {
     std::array<std::uint8_t, 3> const input{0x00, 0x00, 0x00};
-    auto const expected{"AAAA"};
-    auto const actual{migraphx::b64_encode({input.begin(), input.end()})};
+    std::string expected{"AAAA"};
+    std::string actual{migraphx::b64_encode({input.begin(), input.end()})};
     EXPECT(expected == actual);
 }
 
@@ -106,40 +106,40 @@ TEST_CASE(base64_encodes_three_bytes_random)
 TEST_CASE(base64_encodes_two_bytes)
 {
     std::array<std::uint8_t, 2> const input{0x00, 0x00};
-    auto const expected{"AAA="};
-    auto const actual{migraphx::b64_encode({input.begin(), input.end()})};
+    std::string expected{"AAA="};
+    std::string actual{migraphx::b64_encode({input.begin(), input.end()})};
     EXPECT(expected == actual);
 }
 
 TEST_CASE(base64_encodes_one_byte)
 {
     std::array<std::uint8_t, 1> const input{0x00};
-    auto const expected{"AA=="};
-    auto const actual{migraphx::b64_encode({input.begin(), input.end()})};
+    std::string expected{"AA=="};
+    std::string actual{migraphx::b64_encode({input.begin(), input.end()})};
     EXPECT(expected == actual);
 }
 
 TEST_CASE(base64_encodes_four_bytes)
 {
     std::array<std::uint8_t, 4> const input{0x74, 0x68, 0x65, 0x20};
-    auto const expected{"dGhlIA=="};
-    auto const actual{migraphx::b64_encode({input.begin(), input.end()})};
+    std::string expected{"dGhlIA=="};
+    std::string actual{migraphx::b64_encode({input.begin(), input.end()})};
     EXPECT(expected == actual);
 }
 
 TEST_CASE(base64_encodes_five_bytes)
 {
     std::array<std::uint8_t, 5> const input{0x20, 0x62, 0x72, 0x6f, 0x77};
-    auto const expected{"IGJyb3c="};
-    auto const actual{migraphx::b64_encode({input.begin(), input.end()})};
+    std::string expected{"IGJyb3c="};
+    std::string actual{migraphx::b64_encode({input.begin(), input.end()})};
     EXPECT(expected == actual);
 }
 
 TEST_CASE(base64_encodes_six_bytes)
 {
     std::array<std::uint8_t, 6> const input{0x20, 0x6a, 0x75, 0x6d, 0x70, 0x73};
-    auto const expected{"IGp1bXBz"};
-    auto const actual{migraphx::b64_encode({input.begin(), input.end()})};
+    std::string expected{"IGp1bXBz"};
+    std::string actual{migraphx::b64_encode({input.begin(), input.end()})};
     EXPECT(expected == actual);
 }
 
@@ -150,8 +150,8 @@ TEST_CASE(base64_encodes_BrownFox)
         0x20, 0x66, 0x6f, 0x78, 0x20, 0x6a, 0x75, 0x6d, 0x70, 0x73, 0x20, 0x6f, 0x76, 0x65, 0x72,
         0x20, 0x74, 0x68, 0x65, 0x20, 0x6c, 0x61, 0x7a, 0x79, 0x20, 0x64, 0x6f, 0x67};
 
-    auto const expected{"dGhlIHF1aWNrIGJyb3duIGZveCBqdW1wcyBvdmVyIHRoZSBsYXp5IGRvZw=="};
-    auto const actual{migraphx::b64_encode({input.begin(), input.end()})};
+    std::string expected{"dGhlIHF1aWNrIGJyb3duIGZveCBqdW1wcyBvdmVyIHRoZSBsYXp5IGRvZw=="};
+    std::string actual{migraphx::b64_encode({input.begin(), input.end()})};
     EXPECT(expected == actual);
 }
 
@@ -162,8 +162,8 @@ TEST_CASE(base64_encodes_EncodesBrownFastFoxNullInMiddle)
         0x6e, 0x20, 0x66, 0x6f, 0x78, 0x20, 0x6a, 0x75, 0x6d, 0x70, 0x73, 0x20, 0x6f, 0x76, 0x65,
         0x72, 0x20, 0x74, 0x68, 0x65, 0x00, 0x20, 0x6c, 0x61, 0x7a, 0x79, 0x20, 0x64, 0x6f, 0x67};
 
-    auto const expected{"dGhlIHF1aWNrISBicm93biBmb3gganVtcHMgb3ZlciB0aGUAIGxhenkgZG9n"};
-    auto const actual{migraphx::b64_encode({input.begin(), input.end()})};
+    std::string expected{"dGhlIHF1aWNrISBicm93biBmb3gganVtcHMgb3ZlciB0aGUAIGxhenkgZG9n"};
+    std::string actual{migraphx::b64_encode({input.begin(), input.end()})};
     EXPECT(expected == actual);
 }
 

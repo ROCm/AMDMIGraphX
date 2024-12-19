@@ -488,7 +488,7 @@ class StableDiffusionMGX():
         # stable-diffusion-3-lite-onnx has swapped outputs for clip-l text encoder
         if l_out.shape != (1, 77, 768):
             l_out, l_pooled = l_pooled, l_out
-    
+
         g_out, g_pooled = self.encode_token_weights("clip-g",
                                                     prompt_tokens["g"])
         if not self.skip_t5:

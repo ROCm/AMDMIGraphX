@@ -32,7 +32,7 @@
 #####################################################################################
 import subprocess, sys, datetime, argparse
 
-debug = False
+debug = True
 
 current_year = datetime.date.today().year
 
@@ -124,7 +124,7 @@ def main(branch) -> None:
         stdout=subprocess.PIPE)
 
     # proc 2 is getting the list of file differences between FETCH_HEAD and the branch to be merged. (filters out deleted files from FETCH_HEAD)
-    proc = subprocess.run("git diff --name-only --diff-filter=d FETCH_HEAD",
+    proc = subprocess.run("git diff --name-only --diff-filter=d FETCH_HEAD...HEAD",
                           shell=True,
                           stdout=subprocess.PIPE)
     fileList = proc.stdout.decode().split('\n')

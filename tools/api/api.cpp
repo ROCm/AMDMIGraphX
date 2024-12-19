@@ -260,6 +260,21 @@ void quantize_int8_wrap(program& prog, const target& t, quantize_int8_options& o
     migraphx::quantize_int8(prog, t, options.calibration, options.op_names);
 }
 
+struct quantize_fp8_options
+{
+    std::vector<parameter_map> calibration   = {};
+};
+
+void add_calibration_data(quantize_fp8_options& options, parameter_map& data)
+{
+    options.calibration.push_back(data);
+}
+
+void quantize_fp8_wrap(program& prog, const target& t, quantize_fp8_options& options)
+{
+    migraphx::quantize_fp8(prog, t, options.calibration);
+}
+
 #ifdef __clang__
 #pragma clang diagnostic push
 #pragma clang diagnostic ignored "-Wformat-nonliteral"

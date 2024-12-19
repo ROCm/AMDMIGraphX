@@ -467,6 +467,23 @@ api.add_function('migraphx_quantize_int8',
                  fname='migraphx::quantize_int8_wrap')
 
 
+@auto_handle()
+def quantize_fp8_options(h):
+    h.constructor('create')
+    h.method(
+        'add_calibration_data',
+        api.params(data='std::unordered_map<std::string, migraphx::argument>'),
+        invoke='migraphx::add_calibration_data($@)',
+    )
+
+
+api.add_function('migraphx_quantize_fp8',
+                 api.params(prog='migraphx::program&',
+                            target='migraphx::target',
+                            options='migraphx::quantize_fp8_options'),
+                 fname='migraphx::quantize_fp8_wrap')
+
+
 @auto_handle(ref=True)
 def context(h):
     h.method('finish', const=True)

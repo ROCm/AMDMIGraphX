@@ -102,6 +102,26 @@ TEST_CASE(quantize_int8)
     CHECK(bool{p1 == p2});
 }
 
+TEST_CASE(quantize_fp8)
+{
+    auto p1        = migraphx::parse_onnx("gemm_test.onnx");
+    const auto& p2 = p1;
+    auto t         = migraphx::target("ref");
+    migraphx::quantize_fp8_options options;
+    migraphx::quantize_fp8(p1, t, options);
+
+    migraphx::program_parameters pp;
+    auto param_shapes = p1.get_parameter_shapes();
+    for(auto&& name : param_shapes.names())
+    {
+        pp.add(name, migraphx::argument::generate(param_shapes[name]));
+    }
+    options.add_calibration_data(pp);
+
+    migraphx::quantize_fp8(p2, t, options);
+    CHECK(bool{p1 == p2});
+}
+
 TEST_CASE(load_and_run_user_input_shape)
 {
     migraphx::onnx_options options;

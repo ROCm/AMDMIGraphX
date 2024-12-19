@@ -114,25 +114,35 @@ def check_filename(filename: str, fileTuple: tuple or list) -> bool:
 def main(branch) -> None:
     unsupported_file_types.extend(specificIgnores)
 
-    ## Get a list of all files (not including deleted) that have changed/added in comparison to the latest Dev branch from MI Graphx
-
-    # Subprocess 1 is fetching the latest dev branch from the MIgraphX Url and naming it as 'FETCH_HEAD'
-    subprocess.run(
-        "git fetch https://github.com/ROCmSoftwarePlatform/AMDMIGraphX {0} --quiet"
-        .format(branch),
+    # Determine the base commit of the PR branch (merge base between PR branch and target branch)
+    result = subprocess.run(
+        f"git merge-base {branch} origin/develop",
         shell=True,
-        stdout=subprocess.PIPE)
+        stdout=subprocess.PIPE,
+        text=True,
+        check=True
+    )
+    base_commit = result.stdout.strip()
     
-    if debug: print(f"Target branch: {branch}")
-
-    # proc 2 is getting the list of file differences between FETCH_HEAD and the branch to be merged. (filters out deleted files from FETCH_HEAD)
-    proc = subprocess.run("git diff --name-only --diff-filter=d FETCH_HEAD...HEAD",
-                          shell=True,
-                          stdout=subprocess.PIPE)
-    fileList = proc.stdout.decode().split('\n')
-
-    if debug: print(f"Target file list {len(fileList)}:\n" + str(fileList))
-
+    if debug: 
+        print(f"Base commit: {base_commit}")
+        print(f"PR branch: {branch}")
+        print(f"Target branch: origin/develop")
+    
+    # Get a list of files that have changed or been added between the base commit and the PR branch
+    proc = subprocess.run(
+        f"git diff --name-only --diff-filter=d {base_commit} {branch}",
+        shell=True,
+        stdout=subprocess.PIPE,
+        text=True
+    )
+    
+    fileList = proc.stdout.strip().split('\n')
+    
+    if debug:
+        print("Changed/Added Files:")
+        print("\n".join(fileList))
+        
     for file in fileList:
         if check_filename(file, supported_file_types):
             if needStampCheck(file) and not check_filename(

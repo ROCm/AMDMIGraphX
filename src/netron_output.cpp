@@ -57,8 +57,8 @@ int get_onnx_type(shape::type_t s_type)
         case shape::fp8e5m2_type: return 19;
         case shape::fp8e5m2fnuz_type: return 20;
         case shape::tuple_type: return 0;
-        default: MIGRAPHX_THROW("MIGraphX type " + std::to_string(s_type) + " not supported");
     }
+    MIGRAPHX_THROW("MIGraphX type " + std::to_string(s_type) + " not supported");
 }
 
 auto make_attribute(const migraphx::value& val)

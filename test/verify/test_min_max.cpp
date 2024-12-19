@@ -45,6 +45,7 @@ struct test_min_max : verify_program<test_min_max<Op, T>>
 
 template struct test_min_max<migraphx::op::max, migraphx::shape::float_type>;
 template struct test_min_max<migraphx::op::max, migraphx::shape::half_type>;
+template struct test_min_max<migraphx::op::max, migraphx::shape::bf16_type>;
 template struct test_min_max<migraphx::op::max, migraphx::shape::double_type>;
 template struct test_min_max<migraphx::op::max, migraphx::shape::fp8e4m3fnuz_type>;
 template struct test_min_max<migraphx::op::max, migraphx::shape::fp8e5m2fnuz_type>;
@@ -53,6 +54,7 @@ template struct test_min_max<migraphx::op::max, migraphx::shape::fp8e5m2_type>;
 
 template struct test_min_max<migraphx::op::min, migraphx::shape::float_type>;
 template struct test_min_max<migraphx::op::min, migraphx::shape::half_type>;
+template struct test_min_max<migraphx::op::min, migraphx::shape::bf16_type>;
 template struct test_min_max<migraphx::op::min, migraphx::shape::double_type>;
 template struct test_min_max<migraphx::op::min, migraphx::shape::fp8e4m3fnuz_type>;
 template struct test_min_max<migraphx::op::min, migraphx::shape::fp8e5m2fnuz_type>;

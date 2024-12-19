@@ -48,4 +48,5 @@ struct test_gemm_multi_dim_2 : verify_program<test_gemm_multi_dim_2<DType>>
 
 template struct test_gemm_multi_dim_2<migraphx::shape::float_type>;
 template struct test_gemm_multi_dim_2<migraphx::shape::half_type>;
+template struct test_gemm_multi_dim_2<migraphx::shape::bf16_type>;
 template struct test_gemm_multi_dim_2<migraphx::shape::fp8e4m3fnuz_type>;

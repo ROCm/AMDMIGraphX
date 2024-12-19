@@ -76,6 +76,7 @@ struct test_shrink : verify_program<test_shrink<T>>
 template struct test_shrink<migraphx::shape::double_type>;
 template struct test_shrink<migraphx::shape::float_type>;
 template struct test_shrink<migraphx::shape::half_type>;
+template struct test_shrink<migraphx::shape::bf16_type>;
 template struct test_shrink<migraphx::shape::int64_type>;
 template struct test_shrink<migraphx::shape::int32_type>;
 template struct test_shrink<migraphx::shape::int16_type>;

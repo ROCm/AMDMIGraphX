@@ -47,5 +47,6 @@ struct test_conv_group_add : verify_program<test_conv_group_add<DType>>
     std::string section() const { return "conv"; }
 };
 template struct test_conv_group_add<migraphx::shape::float_type>;
+template struct test_conv_group_add<migraphx::shape::bf16_type>;
 // TODO grouped convolutions are not supported with MLIR therefore disable it
 // template struct test_conv_group_add<migraphx::shape::fp8e4m3fnuz_type>;

@@ -373,8 +373,7 @@ instruction_ref module::replace_instruction(instruction_ref ins, instruction_ref
     auto outputs = ins->outputs();
     for(auto out : outputs)
     {
-        // TODO: Check for possible cycles
-        if(out != rep)
+        if(out != rep and not reaches(out, rep))
         {
             instruction::replace_argument(out, ins, rep);
         }
@@ -385,7 +384,7 @@ instruction_ref module::replace_instruction(instruction_ref ins, instruction_ref
     // Output of the original instruction should only be the replacement or empty
     assert(ins->outputs().empty() or std::all_of(ins->outputs().begin(),
                                                  ins->outputs().end(),
-                                                 [&](auto i) { return i == rep; }));
+                                                 [&](auto i) { return i == rep or reaches(i, rep); }));
     assert(ins->valid(begin()));
     assert(rep->valid(begin()));
     return rep;

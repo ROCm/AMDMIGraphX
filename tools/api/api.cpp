@@ -262,7 +262,7 @@ void quantize_int8_wrap(program& prog, const target& t, quantize_int8_options& o
 
 struct quantize_fp8_options
 {
-    std::vector<parameter_map> calibration   = {};
+    std::vector<parameter_map> calibration = {};
 };
 
 void add_calibration_data(quantize_fp8_options& options, parameter_map& data)

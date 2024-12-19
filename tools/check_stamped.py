@@ -30,9 +30,9 @@
 # in the license stamp, with the assumption being that any modifications/creations will need to be stamped to the year that the
 # modification/creation was made.
 #####################################################################################
-import subprocess, sys, datetime, argparse, os
+import subprocess, sys, datetime, argparse
 
-debug = True
+debug = False
 
 current_year = datetime.date.today().year
 
@@ -123,31 +123,13 @@ def main(branch) -> None:
         shell=True,
         stdout=subprocess.PIPE)
     
-    target_branch = os.getenv("GITHUB_BASE_REF", branch)
-    if debug: print(f"Target Branch: {target_branch}")
+    if debug: print(f"Target branch {branch}")
 
-    subprocess.run(
-        f"git fetch origin {target_branch} --quiet",
-        shell=True,
-        stdout=subprocess.PIPE)
-
-    # Get the merge base between the current branch and the default branch as "HEAD"
-    proc_base = subprocess.run(
-        f"git merge-base origin/{target_branch} HEAD",
-        shell=True,
-        stdout=subprocess.PIPE)
-    merge_base = proc_base.stdout.decode().strip()
-
-    if not merge_base:
-        print("Error: Could not determine the merge base.")
-        sys.exit(1)
-
-    # Get the list of file differences that are part of the current branch only
-    proc_diff = subprocess.run(
-        f"git diff --name-only --diff-filter=d {merge_base}...HEAD",
-        shell=True,
-        stdout=subprocess.PIPE)
-    fileList = proc_diff.stdout.decode().split('\n')
+    # proc 2 is getting the list of file differences between FETCH_HEAD and the branch to be merged. (filters out deleted files from FETCH_HEAD)
+    proc = subprocess.run("git diff --name-only --diff-filter=d HEAD FETCH_HEAD",
+                          shell=True,
+                          stdout=subprocess.PIPE)
+    fileList = proc.stdout.decode().split('\n')
 
     if debug: print(f"Target file list {len(fileList)}:\n" + str(fileList))
 

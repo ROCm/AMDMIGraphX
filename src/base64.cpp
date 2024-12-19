@@ -39,13 +39,13 @@ std::array<char, 64> constexpr b64_chars{
     'w', 'x', 'y', 'z', '0', '1', '2', '3', '4', '5', '6', '7', '8', '9', '+', '/'};
 
 /// base64 encoder snippet altered from https://stackoverflow.com/a/37109258
-std::string b64_encode(const std::vector<byte>& buf)
+std::string encode(const std::string& buf)
 {
     std::size_t len = buf.size();
-    std::vector<byte> res_vec((len + 2) / 3 * 4, '=');
+    std::string res_vec((len + 2) / 3 * 4, '=');
     std::size_t j        = 0;
-    std::size_t pad_cond = len % 3;
-    const size_t last    = len - pad_cond;
+    std::size_t remaining = len % 3;
+    const size_t last     = len - remaining;
 
     for(size_t i = 0; i < last; i += 3)
     {
@@ -58,24 +58,21 @@ std::string b64_encode(const std::vector<byte>& buf)
         res_vec.at(j++) = b64_chars.at(n & 0x3Fu);
     }
     // Set padding
-    if(pad_cond != 0)
+    if(remaining != 0)
     {
-        std::size_t n   = --pad_cond != 0 ? static_cast<std::size_t>(buf.at(last)) << 8u |
-                                              static_cast<std::size_t>(buf.at(last + 1))
-                                          : static_cast<std::size_t>(buf.at(last));
-        res_vec.at(j++) = b64_chars.at(pad_cond != 0 ? n >> 10u & 0x3Fu : n >> 2u);
-        res_vec.at(j++) = b64_chars.at(pad_cond != 0 ? n >> 4u & 0x03Fu : n << 4u & 0x3Fu);
-        res_vec.at(j++) = pad_cond != 0 ? b64_chars.at(n << 2u & 0x3Fu) : '=';
+        std::size_t n   = --remaining != 0 ? static_cast<std::size_t>(buf.at(last)) << 8u |
+                                               static_cast<std::size_t>(buf.at(last + 1))
+                                           : static_cast<std::size_t>(buf.at(last));
+        res_vec.at(j++) = b64_chars.at(remaining != 0 ? n >> 10u & 0x3Fu : n >> 2u);
+        res_vec.at(j++) = b64_chars.at(remaining != 0 ? n >> 4u & 0x03Fu : n << 4u & 0x3Fu);
+        res_vec.at(j++) = remaining != 0 ? b64_chars.at(n << 2u & 0x3Fu) : '=';
     }
     return {res_vec.begin(), res_vec.end()};
 }
 
 } // namespace
 
-std::string b64_encode(const std::string& str)
-{
-    return b64_encode(std::vector<byte>(str.begin(), str.end()));
-}
+std::string base64_encode(const std::string& str) { return encode(str); }
 
 } // namespace MIGRAPHX_INLINE_NS
 } // namespace migraphx

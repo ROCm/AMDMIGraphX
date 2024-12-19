@@ -26,72 +26,42 @@
 
 TEST_CASE(base64_encoding)
 {
-    std::string input_0    = "abc";
-    std::string expected_0 = "YWJj";
-    EXPECT(migraphx::b64_encode(input_0) == expected_0);
+    EXPECT(migraphx::base64_encode("abc") == "YWJj");
 
-    std::string input_1    = "abcd";
-    std::string expected_1 = "YWJjZA==";
-    EXPECT(migraphx::b64_encode(input_1) == expected_1);
+    EXPECT(migraphx::base64_encode("abcd") == "YWJjZA==");
 
-    std::string input_2    = "convolution";
-    std::string expected_2 = "Y29udm9sdXRpb24=";
-    EXPECT(migraphx::b64_encode(input_2) == expected_2);
+    EXPECT(migraphx::base64_encode("convolution") == "Y29udm9sdXRpb24=");
 
-    std::string input_3    = "https://www.amd.com/en/products/software/rocm.html";
-    std::string expected_3 = "aHR0cHM6Ly93d3cuYW1kLmNvbS9lbi9wcm9kdWN0cy9zb2Z0d2FyZS9yb2NtLmh0bWw=";
-    EXPECT(migraphx::b64_encode(input_3) == expected_3);
+    EXPECT(migraphx::base64_encode("https://www.amd.com/en/products/software/rocm.html") ==
+           "aHR0cHM6Ly93d3cuYW1kLmNvbS9lbi9wcm9kdWN0cy9zb2Z0d2FyZS9yb2NtLmh0bWw=");
 
-    std::string input_4    = "{1, 3, 7, 9}";
-    std::string expected_4 = "ezEsIDMsIDcsIDl9";
-    EXPECT(migraphx::b64_encode(input_4) == expected_4);
+    EXPECT(migraphx::base64_encode("{1, 3, 7, 9}") == "ezEsIDMsIDcsIDl9");
 }
 
 TEST_CASE(base64_RFC_test_vectors)
 {
-    std::string input_0    = "";
-    std::string expected_0 = "";
-    EXPECT(migraphx::b64_encode(input_0) == expected_0);
+    EXPECT(migraphx::base64_encode("") == "");
 
-    std::string input_1    = "f";
-    std::string expected_1 = "Zg==";
-    EXPECT(migraphx::b64_encode(input_1) == expected_1);
+    EXPECT(migraphx::base64_encode("f") == "Zg==");
 
-    std::string input_2    = "fo";
-    std::string expected_2 = "Zm8=";
-    EXPECT(migraphx::b64_encode(input_2) == expected_2);
+    EXPECT(migraphx::base64_encode("fo") == "Zm8=");
 
-    std::string input_3    = "foo";
-    std::string expected_3 = "Zm9v";
-    EXPECT(migraphx::b64_encode(input_3) == expected_3);
+    EXPECT(migraphx::base64_encode("foo") == "Zm9v");
 
-    std::string input_4    = "foob";
-    std::string expected_4 = "Zm9vYg==";
-    EXPECT(migraphx::b64_encode(input_4) == expected_4);
+    EXPECT(migraphx::base64_encode("foob") == "Zm9vYg==");
 
-    std::string input_5    = "fooba";
-    std::string expected_5 = "Zm9vYmE=";
-    EXPECT(migraphx::b64_encode(input_5) == expected_5);
+    EXPECT(migraphx::base64_encode("fooba") == "Zm9vYmE=");
 
-    std::string input_6    = "foobar";
-    std::string expected_6 = "Zm9vYmFy";
-    EXPECT(migraphx::b64_encode(input_6) == expected_6);
+    EXPECT(migraphx::base64_encode("foobar") == "Zm9vYmFy");
 }
 
 // Following tests altered from
 // https://github.com/tobiaslocker/base64/blob/master/test/base64_tests.cpp
-TEST_CASE(base64_encodes_empty)
-{
-    std::string const expected{};
-    std::string const actual{migraphx::b64_encode({})};
-    EXPECT(expected == actual);
-}
-
 TEST_CASE(base64_encodes_three_bytes_zeros)
 {
     std::array<std::uint8_t, 3> const input{0x00, 0x00, 0x00};
     std::string expected{"AAAA"};
-    std::string actual{migraphx::b64_encode({input.begin(), input.end()})};
+    std::string actual{migraphx::base64_encode({input.begin(), input.end()})};
     EXPECT(expected == actual);
 }
 
@@ -99,7 +69,7 @@ TEST_CASE(base64_encodes_three_bytes_random)
 {
     std::array<std::uint8_t, 3> const input{0xFE, 0xE9, 0x72};
     std::string const expected{"/uly"};
-    std::string const actual{migraphx::b64_encode({input.begin(), input.end()})};
+    std::string const actual{migraphx::base64_encode({input.begin(), input.end()})};
     EXPECT(expected == actual);
 }
 
@@ -107,7 +77,7 @@ TEST_CASE(base64_encodes_two_bytes)
 {
     std::array<std::uint8_t, 2> const input{0x00, 0x00};
     std::string expected{"AAA="};
-    std::string actual{migraphx::b64_encode({input.begin(), input.end()})};
+    std::string actual{migraphx::base64_encode({input.begin(), input.end()})};
     EXPECT(expected == actual);
 }
 
@@ -115,7 +85,7 @@ TEST_CASE(base64_encodes_one_byte)
 {
     std::array<std::uint8_t, 1> const input{0x00};
     std::string expected{"AA=="};
-    std::string actual{migraphx::b64_encode({input.begin(), input.end()})};
+    std::string actual{migraphx::base64_encode({input.begin(), input.end()})};
     EXPECT(expected == actual);
 }
 
@@ -123,7 +93,7 @@ TEST_CASE(base64_encodes_four_bytes)
 {
     std::array<std::uint8_t, 4> const input{0x74, 0x68, 0x65, 0x20};
     std::string expected{"dGhlIA=="};
-    std::string actual{migraphx::b64_encode({input.begin(), input.end()})};
+    std::string actual{migraphx::base64_encode({input.begin(), input.end()})};
     EXPECT(expected == actual);
 }
 
@@ -131,7 +101,7 @@ TEST_CASE(base64_encodes_five_bytes)
 {
     std::array<std::uint8_t, 5> const input{0x20, 0x62, 0x72, 0x6f, 0x77};
     std::string expected{"IGJyb3c="};
-    std::string actual{migraphx::b64_encode({input.begin(), input.end()})};
+    std::string actual{migraphx::base64_encode({input.begin(), input.end()})};
     EXPECT(expected == actual);
 }
 
@@ -139,7 +109,7 @@ TEST_CASE(base64_encodes_six_bytes)
 {
     std::array<std::uint8_t, 6> const input{0x20, 0x6a, 0x75, 0x6d, 0x70, 0x73};
     std::string expected{"IGp1bXBz"};
-    std::string actual{migraphx::b64_encode({input.begin(), input.end()})};
+    std::string actual{migraphx::base64_encode({input.begin(), input.end()})};
     EXPECT(expected == actual);
 }
 
@@ -151,7 +121,7 @@ TEST_CASE(base64_encodes_BrownFox)
         0x20, 0x74, 0x68, 0x65, 0x20, 0x6c, 0x61, 0x7a, 0x79, 0x20, 0x64, 0x6f, 0x67};
 
     std::string expected{"dGhlIHF1aWNrIGJyb3duIGZveCBqdW1wcyBvdmVyIHRoZSBsYXp5IGRvZw=="};
-    std::string actual{migraphx::b64_encode({input.begin(), input.end()})};
+    std::string actual{migraphx::base64_encode({input.begin(), input.end()})};
     EXPECT(expected == actual);
 }
 
@@ -163,7 +133,7 @@ TEST_CASE(base64_encodes_EncodesBrownFastFoxNullInMiddle)
         0x72, 0x20, 0x74, 0x68, 0x65, 0x00, 0x20, 0x6c, 0x61, 0x7a, 0x79, 0x20, 0x64, 0x6f, 0x67};
 
     std::string expected{"dGhlIHF1aWNrISBicm93biBmb3gganVtcHMgb3ZlciB0aGUAIGxhenkgZG9n"};
-    std::string actual{migraphx::b64_encode({input.begin(), input.end()})};
+    std::string actual{migraphx::base64_encode({input.begin(), input.end()})};
     EXPECT(expected == actual);
 }
 

@@ -57,7 +57,7 @@ int get_onnx_type(shape::type_t s_type)
         case shape::fp8e5m2_type: return 19;
         case shape::fp8e5m2fnuz_type: return 20;
         case shape::tuple_type: return 0;
-            MIGRAPHX_THROW("MIGraphX type " + std::to_string(s_type) + " not supported");
+        default: MIGRAPHX_THROW("MIGraphX type " + std::to_string(s_type) + " not supported");
     }
 }
 
@@ -67,7 +67,7 @@ auto make_attribute(const migraphx::value& val)
     attribute["name"] = val.get_key();
     auto val_string   = val.to<std::string>();
     val_string        = val_string.substr(val_string.find(":") + 1);
-    attribute["s"]    = b64_encode(val_string);
+    attribute["s"]    = base64_encode(val_string);
     attribute["type"] = "STRING";
     return attribute;
 }

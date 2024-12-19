@@ -37,6 +37,7 @@
 #include <array>
 #include <unordered_map>
 #include <unordered_set>
+#include <migraphx/time.hpp>
 
 #ifndef MIGRAPHX_USE_TYPE_ERASED_MATCHERS
 #define MIGRAPHX_USE_TYPE_ERASED_MATCHERS 0
@@ -401,6 +402,7 @@ match::matcher_result find_match(module& modl, M&& m)
 MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_TRACE_MATCHES)
 MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_TRACE_MATCHES_FOR)
 MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_VALIDATE_MATCHES)
+MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_TIME_MATCHERS)
 
 /// Find matches for an instruction in the module for per section of matchers
 template <class Mod, class... Ms>
@@ -409,7 +411,9 @@ void find_matches_for(source_location location, Mod& mod, instruction_ref ins, M
     const int trace         = value_of(MIGRAPHX_TRACE_MATCHES{});
     const bool validate     = enabled(MIGRAPHX_VALIDATE_MATCHES{});
     const auto trace_filter = string_value_of(MIGRAPHX_TRACE_MATCHES_FOR{});
+    const bool time_matchers = enabled(MIGRAPHX_TIME_MATCHERS{});
     bool match              = false;
+    timer match_timer{};
     each_args(
         [&](auto&& m) {
             const auto& matcher_name = get_type_name(m);
@@ -421,7 +425,15 @@ void find_matches_for(source_location location, Mod& mod, instruction_ref ins, M
                 return;
             if(trace > 1 and trace_for)
                 std::cout << "Match: " << matcher_name << std::endl;
+
             auto r = match_instruction(get_module(mod), ins, m.matcher());
+            const auto match_time = match_timer.record<std::chrono::duration<double, std::micro>>();
+            if(time_matchers or trace_for)
+            {
+                std::cout << "Matching for " << matcher_name << " took " << match_time << "us."
+                          << std::endl;
+            }
+
             if(r.result == get_module(mod).end())
                 return;
             if(trace > 0 or trace_for)
@@ -431,7 +443,14 @@ void find_matches_for(source_location location, Mod& mod, instruction_ref ins, M
             }
             // If its already invalid dont validate it again
             bool invalidated = validate and get_module(mod).validate() != get_module(mod).end();
-            m.apply(mod, r);
+            auto apply_time =
+                time<std::chrono::duration<double, std::micro>>([&] { m.apply(mod, r); });
+            if(time_matchers or trace_for)
+            {
+                std::cout << "Apply for " << matcher_name << " took " << apply_time << "us."
+                          << std::endl;
+            }
+
             if(validate and not invalidated)
             {
                 auto invalid = get_module(mod).validate();

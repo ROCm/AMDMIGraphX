@@ -130,3 +130,11 @@ template struct test_softmaxcrossentropyloss_kd<migraphx::shape::half_type,
                                                 migraphx::shape::int64_type,
                                                 4,
                                                 4>;
+template struct test_softmaxcrossentropyloss_kd<migraphx::shape::bf16_type,
+                                                migraphx::shape::int32_type,
+                                                4,
+                                                4>;
+template struct test_softmaxcrossentropyloss_kd<migraphx::shape::bf16_type,
+                                                migraphx::shape::int64_type,
+                                                4,
+                                                4>;

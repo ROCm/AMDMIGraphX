@@ -89,6 +89,21 @@ struct test_layernorm_fp16 : verify_program<test_layernorm_fp16>
     std::string section() const { return "reduce"; }
 };
 
+struct test_layernorm_bf16 : verify_program<test_layernorm_bf16>
+{
+    migraphx::program create_program() const
+    {
+        migraphx::program p;
+        auto* mm                 = p.get_main_module();
+        std::vector<size_t> dims = {1, 24, 64};
+        auto x = mm->add_parameter("x", migraphx::shape{migraphx::shape::bf16_type, dims});
+        add_layernorm(*mm, x, dims);
+        return p;
+    }
+
+    std::string section() const { return "reduce"; }
+};
+
 struct test_layernorm_fp8_1 : verify_program<test_layernorm_fp8_1>
 {
     migraphx::program create_program() const
@@ -232,6 +247,4 @@ struct test_pw_layernorm : verify_program<test_pw_layernorm>
         add_pointwise_layernorm(*mm, x, dims);
         return p;
     }
-
-    std::string section() const { return "reduce"; }
 };

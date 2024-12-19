@@ -43,6 +43,7 @@ struct test_cos : verify_program<test_cos<DType>>
 
 template struct test_cos<migraphx::shape::float_type>;
 template struct test_cos<migraphx::shape::half_type>;
+template struct test_cos<migraphx::shape::bf16_type>;
 template struct test_cos<migraphx::shape::fp8e4m3fnuz_type>;
 template struct test_cos<migraphx::shape::fp8e5m2fnuz_type>;
 template struct test_cos<migraphx::shape::fp8e4m3fn_type>;

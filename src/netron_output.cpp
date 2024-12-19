@@ -151,10 +151,11 @@ auto make_onnx_json_shape(const shape& s)
 {
     value ret;
     value dim;
-    for(std::size_t len : s.lens())
-    {
-        dim.push_back({{"dimValue", len}});
-    }
+    auto shape_lens = s.lens();
+    std::transform(shape_lens.begin(),
+                   shape_lens.end(),
+                   std::back_inserter(dim),
+                   [](std::size_t len) { return len; });
     ret["dim"] = dim;
     return ret;
 }

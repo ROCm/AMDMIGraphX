@@ -7,6 +7,7 @@ namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
 
 namespace {
+typedef unsigned char byte;
 
 std::array<char, 64> constexpr B64chars{
     'A', 'B', 'C', 'D', 'E', 'F', 'G', 'H', 'I', 'J', 'K', 'L', 'M', 'N', 'O', 'P',
@@ -15,38 +16,42 @@ std::array<char, 64> constexpr B64chars{
     'w', 'x', 'y', 'z', '0', '1', '2', '3', '4', '5', '6', '7', '8', '9', '+', '/'};
 
 /// base64 encoder snippet altered from https://stackoverflow.com/a/37109258
-const std::string b64_encode(const void* data, const size_t& len)
+std::string b64_encode(const std::vector<byte> buf)
 {
-    std::vector<char> res_vec((len + 2) / 3 * 4, '=');
-    const unsigned char* p = static_cast<const unsigned char*>(data);
-    size_t j = 0, pad = len % 3;
-    const size_t last = len - pad;
+    std::size_t len = buf.size();
+    std::vector<byte> res_vec((len + 2) / 3 * 4, '=');
+    std::size_t j        = 0;
+    std::size_t pad_cond = len % 3;
+    const size_t last    = len - pad_cond;
 
-#pragma clang diagnostic push
-#pragma clang diagnostic ignored "-Wunsafe-buffer-usage"
     for(size_t i = 0; i < last; i += 3)
     {
-        unsigned n =
-            static_cast<unsigned>(p[i]) << 16 | static_cast<unsigned>(p[i + 1]) << 8 | p[i + 2];
-        res_vec.at(j++) = B64chars.at(n >> 18);
-        res_vec.at(j++) = B64chars.at(n >> 12 & 0x3F);
-        res_vec.at(j++) = B64chars.at(n >> 6 & 0x3F);
+        std::size_t n = static_cast<std::size_t>(buf.at(i)) << 16u |
+                        static_cast<std::size_t>(buf.at(i + 1)) << 8u |
+                        static_cast<std::size_t>(buf.at(i + 2));
+        res_vec.at(j++) = B64chars.at(n >> 18u);
+        res_vec.at(j++) = B64chars.at(n >> 12u & 0x3F);
+        res_vec.at(j++) = B64chars.at(n >> 6u & 0x3F);
         res_vec.at(j++) = B64chars.at(n & 0x3F);
     }
-    if(pad) /// Set padding
+    if(pad_cond) /// Set padding
     {
-        unsigned n      = --pad ? static_cast<unsigned>(p[last]) << 8 | p[last + 1] : p[last];
-        res_vec.at(j++) = B64chars.at(pad ? n >> 10 & 0x3F : n >> 2);
-        res_vec.at(j++) = B64chars.at(pad ? n >> 4 & 0x03F : n << 4 & 0x3F);
-        res_vec.at(j++) = pad ? B64chars.at(n << 2 & 0x3F) : '=';
+        std::size_t n   = --pad_cond ? static_cast<std::size_t>(buf.at(last)) << 8u |
+                                         static_cast<std::size_t>(buf.at(last + 1))
+                                     : static_cast<std::size_t>(buf.at(last));
+        res_vec.at(j++) = B64chars.at(pad_cond ? n >> 10u & 0x3F : n >> 2u);
+        res_vec.at(j++) = B64chars.at(pad_cond ? n >> 4u & 0x03F : n << 4u & 0x3F);
+        res_vec.at(j++) = pad_cond ? B64chars.at(n << 2u & 0x3F) : '=';
     }
-#pragma clang diagnostic pop
     return std::string(res_vec.begin(), res_vec.end());
 }
 
 } // namespace
 
-std::string b64_encode(const std::string& str) { return b64_encode(str.c_str(), str.size()); }
+std::string b64_encode(const std::string& str)
+{
+    return b64_encode(std::vector<byte>(str.begin(), str.end()));
+}
 
 } // namespace MIGRAPHX_INLINE_NS
 } // namespace migraphx

@@ -114,6 +114,22 @@ def check_filename(filename: str, fileTuple: tuple or list) -> bool:
 def main(branch) -> None:
     unsupported_file_types.extend(specificIgnores)
 
+    ## Get a list of all files (not including deleted) that have changed/added in comparison to the latest Dev branch from MI Graphx
+
+    ## Fetch the PR branch and target branch
+    subprocess.run(
+        f"git fetch https://github.com/ROCmSoftwarePlatform/AMDMIGraphX {branch} --quiet",
+        shell=True,
+        stdout=subprocess.PIPE
+    )
+    subprocess.run(
+        "git fetch https://github.com/ROCmSoftwarePlatform/AMDMIGraphX develop --quiet",
+        shell=True,
+        stdout=subprocess.PIPE
+    )
+    
+    if debug: print(f"PR branch: {branch}")
+
     # Determine the base commit of the PR branch (merge base between PR branch and target branch)
     result = subprocess.run(
         f"git merge-base {branch} origin/develop",
@@ -126,7 +142,6 @@ def main(branch) -> None:
     
     if debug: 
         print(f"Base commit: {base_commit}")
-        print(f"PR branch: {branch}")
         print(f"Target branch: origin/develop")
     
     # Get a list of files that have changed or been added between the base commit and the PR branch
@@ -142,7 +157,7 @@ def main(branch) -> None:
     if debug:
         print("Changed/Added Files:")
         print("\n".join(fileList))
-        
+
     for file in fileList:
         if check_filename(file, supported_file_types):
             if needStampCheck(file) and not check_filename(

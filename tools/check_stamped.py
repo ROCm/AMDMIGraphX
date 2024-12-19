@@ -32,7 +32,7 @@
 #####################################################################################
 import subprocess, sys, datetime, argparse
 
-debug = True
+debug = False
 
 current_year = datetime.date.today().year
 

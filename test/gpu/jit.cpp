@@ -383,13 +383,10 @@ TEST_CASE(compile_math)
     auto vec_sizes = {2, 4, 6};
     for(auto&& t : migraphx::shape::types())
     {
-        if(contains({migraphx::shape::bool_type,
-                     migraphx::shape::tuple_type,
-                     migraphx::shape::bf16_type},
-                    t))
+        if(contains({migraphx::shape::bool_type, migraphx::shape::tuple_type}, t))
             continue;
         auto name = migraphx::shape::cpp_type(t);
-        if(t == migraphx::shape::half_type)
+        if((t == migraphx::shape::half_type) or (t == migraphx::shape::bf16_type))
             name.insert(0, "migraphx::");
         data_types.push_back(name);
         // fp8 doesn't have vectorization support yet, therefore skip it for now.
@@ -444,15 +441,16 @@ TEST_CASE(assert_type_min_max)
     migraphx::gpu::context ctx;
     for(auto&& t : migraphx::shape::types())
     {
-        if(contains({migraphx::shape::bool_type,
-                     migraphx::shape::tuple_type,
-                     migraphx::shape::bf16_type},
-                    t))
+        if(contains(
+               {
+                   migraphx::shape::bool_type,
+                   migraphx::shape::tuple_type,
+               },
+               t))
             continue;
         auto name = migraphx::shape::cpp_type(t);
-        if(t == migraphx::shape::half_type)
+        if((t == migraphx::shape::half_type) or (t == migraphx::shape::bf16_type))
             name.insert(0, "migraphx::");
-
         migraphx::shape::visit(t, [&](auto as) {
             std::string min = "";
             std::string max = "";

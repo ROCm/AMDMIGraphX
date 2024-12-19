@@ -30,7 +30,7 @@
 # in the license stamp, with the assumption being that any modifications/creations will need to be stamped to the year that the
 # modification/creation was made.
 #####################################################################################
-import subprocess, sys, datetime, argparse
+import subprocess, sys, datetime, argparse, os
 
 debug = True
 
@@ -110,53 +110,88 @@ def check_filename(filename: str, fileTuple: tuple or list) -> bool:
         return True
     return False
 
+def is_excluded(f):
+    base = os.path.basename(f)
+    return base in unsupported_file_types
+
+
+def get_top():
+    return eval("git rev-parse --show-toplevel")
+
+def eval(cmd, **kwargs):
+    return subprocess.run(cmd,
+                          capture_output=True,
+                          shell=isinstance(cmd, str),
+                          check=True,
+                          **kwargs).stdout.decode('utf-8').strip()
+
+def get_head():
+    return eval("git rev-parse --abbrev-ref HEAD")
+
+def get_merge_base(branch):
+    head = get_head()
+    return eval(f"git merge-base {branch} {head}")
+
+def get_files_changed(against, ext=('.py')):
+    files = eval(
+        f"git diff-index --cached --name-only --diff-filter=d {against}",
+        cwd=get_top()).splitlines()
+    return (f for f in files if f.endswith(ext) and not is_excluded(f))
 
 def main(branch) -> None:
     unsupported_file_types.extend(specificIgnores)
 
+    base = get_merge_base("develop")
+    fileList = list(
+        get_files_changed(base,
+                          ext=supported_file_types))
+    
+
     ## Get a list of all files (not including deleted) that have changed/added in comparison to the latest Dev branch from MI Graphx
 
     ## Fetch the PR branch and target branch
-    subprocess.run(
-        f"git fetch https://github.com/ROCmSoftwarePlatform/AMDMIGraphX {branch} --quiet",
-        shell=True,
-        stdout=subprocess.PIPE
-    )
-    subprocess.run(
-        "git fetch https://github.com/ROCmSoftwarePlatform/AMDMIGraphX develop --quiet",
-        shell=True,
-        stdout=subprocess.PIPE
-    )
+    # subprocess.run(
+    #     f"git fetch https://github.com/ROCmSoftwarePlatform/AMDMIGraphX {branch} --quiet",
+    #     shell=True,
+    #     stdout=subprocess.PIPE
+    # )
+    # subprocess.run(
+    #     "git fetch https://github.com/ROCmSoftwarePlatform/AMDMIGraphX develop --quiet",
+    #     shell=True,
+    #     stdout=subprocess.PIPE
+    # )
     
-    if debug: print(f"PR branch: {branch}")
+    # if debug: print(f"PR branch: {branch}")
 
-    # Determine the base commit of the PR branch (merge base between PR branch and target branch)
-    result = subprocess.run(
-        f"git merge-base origin/{branch} origin/develop",
-        shell=True,
-        stdout=subprocess.PIPE,
-        text=True,
-        check=True
-    )
-    base_commit = result.stdout.strip()
+    # # Determine the base commit of the PR branch (merge base between PR branch and target branch)
+    # result = subprocess.run(
+    #     f"git merge-base origin/{branch} origin/develop",
+    #     shell=True,
+    #     stdout=subprocess.PIPE,
+    #     text=True,
+    #     check=True
+    # )
+    # base_commit = result.stdout.strip()
     
-    if debug: 
-        print(f"Base commit: {base_commit}")
-        print(f"Target branch: develop")
+    # if debug: 
+    #     print(f"Base commit: {base_commit}")
+    #     print(f"Target branch: develop")
     
-    # Get a list of files that have changed or been added between the base commit and the PR branch
-    proc = subprocess.run(
-        f"git diff --name-only --diff-filter=d {base_commit} {branch}",
-        shell=True,
-        stdout=subprocess.PIPE,
-        text=True
-    )
+    # # Get a list of files that have changed or been added between the base commit and the PR branch
+    # proc = subprocess.run(
+    #     f"git diff --name-only --diff-filter=d {base_commit} {branch}",
+    #     shell=True,
+    #     stdout=subprocess.PIPE,
+    #     text=True
+    # )
     
-    fileList = proc.stdout.strip().split('\n')
+    # fileList = proc.stdout.strip().split('\n')
     
-    if debug:
-        print("Changed/Added Files:")
-        print("\n".join(fileList))
+    # if debug:
+    #     print("Changed/Added Files:")
+    #     print("\n".join(fileList))
+
+    if debug: print(fileList)
 
     for file in fileList:
         if check_filename(file, supported_file_types):

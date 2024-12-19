@@ -141,6 +141,9 @@ typedef const struct migraphx_quantize_op_names* const_migraphx_quantize_op_name
 typedef struct migraphx_quantize_int8_options* migraphx_quantize_int8_options_t;
 typedef const struct migraphx_quantize_int8_options* const_migraphx_quantize_int8_options_t;
 
+typedef struct migraphx_quantize_fp8_options* migraphx_quantize_fp8_options_t;
+typedef const struct migraphx_quantize_fp8_options* const_migraphx_quantize_fp8_options_t;
+
 typedef struct migraphx_context* migraphx_context_t;
 typedef const struct migraphx_context* const_migraphx_context_t;
 
@@ -622,6 +625,22 @@ MIGRAPHX_C_EXPORT migraphx_status migraphx_quantize_int8_options_add_calibration
 MIGRAPHX_C_EXPORT migraphx_status migraphx_quantize_int8(migraphx_program_t prog,
                                                          migraphx_target_t target,
                                                          migraphx_quantize_int8_options_t options);
+
+MIGRAPHX_C_EXPORT migraphx_status
+migraphx_quantize_fp8_options_destroy(migraphx_quantize_fp8_options_t quantize_fp8_options);
+
+MIGRAPHX_C_EXPORT migraphx_status migraphx_quantize_fp8_options_assign_to(
+    migraphx_quantize_fp8_options_t output, const_migraphx_quantize_fp8_options_t input);
+
+MIGRAPHX_C_EXPORT migraphx_status
+migraphx_quantize_fp8_options_create(migraphx_quantize_fp8_options_t* quantize_fp8_options);
+
+MIGRAPHX_C_EXPORT migraphx_status migraphx_quantize_fp8_options_add_calibration_data(
+    migraphx_quantize_fp8_options_t quantize_fp8_options, migraphx_program_parameters_t data);
+
+MIGRAPHX_C_EXPORT migraphx_status migraphx_quantize_fp8(migraphx_program_t prog,
+                                                        migraphx_target_t target,
+                                                        migraphx_quantize_fp8_options_t options);
 
 MIGRAPHX_C_EXPORT migraphx_status migraphx_context_finish(const_migraphx_context_t context);
 

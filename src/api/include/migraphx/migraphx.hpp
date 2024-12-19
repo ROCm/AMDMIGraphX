@@ -1516,6 +1516,31 @@ quantize_int8(const program& prog, const target& ptarget, const quantize_int8_op
          options.get_handle_ptr());
 }
 
+/// Options to be passed when quantizing for int8
+struct quantize_fp8_options : MIGRAPHX_HANDLE_BASE(quantize_fp8_options)
+{
+    quantize_fp8_options() { this->make_handle(&migraphx_quantize_fp8_options_create); }
+
+    MIGRAPHX_HANDLE_CONSTRUCTOR(quantize_fp8_options)
+    /// Add calibrartion data to be used for quantizing
+    void add_calibration_data(const program_parameters& pp)
+    {
+        call(&migraphx_quantize_fp8_options_add_calibration_data,
+             this->get_handle_ptr(),
+             pp.get_handle_ptr());
+    }
+};
+
+/// Quantize program to use fp8
+inline void
+quantize_fp8(const program& prog, const target& ptarget, const quantize_fp8_options& options)
+{
+    call(&migraphx_quantize_fp8,
+         prog.get_handle_ptr(),
+         ptarget.get_handle_ptr(),
+         options.get_handle_ptr());
+}
+
 struct experimental_custom_op_base
 {
     experimental_custom_op_base()                                              = default;

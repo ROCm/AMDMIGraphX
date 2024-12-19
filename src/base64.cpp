@@ -43,7 +43,7 @@ std::string encode(const std::vector<byte>& buf)
 {
     std::size_t len = buf.size();
     std::vector<byte> res_vec((len + 2) / 3 * 4, '=');
-    std::size_t j        = 0;
+    std::size_t j         = 0;
     std::size_t remaining = len % 3;
     const size_t last     = len - remaining;
 

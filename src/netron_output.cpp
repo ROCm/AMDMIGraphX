@@ -39,24 +39,24 @@ int get_onnx_type(shape::type_t s_type)
 {
     switch(s_type)
     {
-        case shape::float_type: return 1;
-        case shape::uint8_type: return 2;
-        case shape::int8_type: return 3;
-        case shape::uint16_type: return 4;
-        case shape::int16_type: return 5;
-        case shape::int32_type: return 6;
-        case shape::int64_type: return 7;
-        case shape::bool_type: return 9;
-        case shape::half_type: return 10;
-        case shape::double_type: return 11;
-        case shape::uint32_type: return 12;
-        case shape::uint64_type: return 13;
-        case shape::bf16_type: return 16;
-        case shape::fp8e4m3fn_type: return 17;
-        case shape::fp8e4m3fnuz_type: return 18;
-        case shape::fp8e5m2_type: return 19;
-        case shape::fp8e5m2fnuz_type: return 20;
-        case shape::tuple_type: return 0;
+    case shape::float_type: return 1;
+    case shape::uint8_type: return 2;
+    case shape::int8_type: return 3;
+    case shape::uint16_type: return 4;
+    case shape::int16_type: return 5;
+    case shape::int32_type: return 6;
+    case shape::int64_type: return 7;
+    case shape::bool_type: return 9;
+    case shape::half_type: return 10;
+    case shape::double_type: return 11;
+    case shape::uint32_type: return 12;
+    case shape::uint64_type: return 13;
+    case shape::bf16_type: return 16;
+    case shape::fp8e4m3fn_type: return 17;
+    case shape::fp8e4m3fnuz_type: return 18;
+    case shape::fp8e5m2_type: return 19;
+    case shape::fp8e5m2fnuz_type: return 20;
+    case shape::tuple_type: return 0;
     }
     MIGRAPHX_THROW("MIGraphX type " + std::to_string(s_type) + " not supported");
 }
@@ -73,7 +73,8 @@ auto make_attribute(const migraphx::value& val)
 }
 
 /// Returns a value with the JSON structure needed for a node
-auto make_onnx_json_node(instruction_ref ins, std::unordered_map<instruction_ref, std::string> ins_uids)
+auto make_onnx_json_node(instruction_ref ins,
+                         std::unordered_map<instruction_ref, std::string> ins_uids)
 {
     value node;
     // TODO add support for module inputs
@@ -133,12 +134,13 @@ auto make_onnx_json_node(instruction_ref ins, std::unordered_map<instruction_ref
 }
 
 // ONNX graph constant data called "initializer"
-auto make_onnx_json_literal(instruction_ref ins, std::unordered_map<instruction_ref, std::string> ins_uids)
+auto make_onnx_json_literal(instruction_ref ins,
+                            std::unordered_map<instruction_ref, std::string> ins_uids)
 {
     value lit;
     lit["dims"]     = ins->get_shape().lens();
     lit["dataType"] = get_onnx_type(ins->get_shape().type());
-    lit["name"] = ins_uids.at(ins);
+    lit["name"]     = ins_uids.at(ins);
     // ignoring literal data, setting to "NULL" in base64
     lit["rawData"] = "TlVMTA==";
     return lit;
@@ -160,11 +162,13 @@ auto make_onnx_json_shape(const shape& s)
 }
 
 // ONNX graph edges called "valuetype"
-auto make_onnx_json_edge(instruction_ref ins, instruction_ref out_ins, std::unordered_map<instruction_ref, std::string> ins_uids)
+auto make_onnx_json_edge(instruction_ref ins,
+                         instruction_ref out_ins,
+                         std::unordered_map<instruction_ref, std::string> ins_uids)
 {
     value ret;
     shape ins_shape = ins->get_shape();
-    ret["name"] = ins_uids.at(ins) + "->" + ins_uids.at(out_ins);
+    ret["name"]     = ins_uids.at(ins) + "->" + ins_uids.at(out_ins);
     value type      = {{"tensorType",
                         {{"elemType", get_onnx_type(ins_shape.type())},
                          {"shape", make_onnx_json_shape(ins_shape)}}}};
@@ -172,11 +176,12 @@ auto make_onnx_json_edge(instruction_ref ins, instruction_ref out_ins, std::unor
     return ret;
 }
 
-auto make_onnx_json_in_out(instruction_ref ins, std::unordered_map<instruction_ref, std::string> ins_uids)
+auto make_onnx_json_in_out(instruction_ref ins,
+                           std::unordered_map<instruction_ref, std::string> ins_uids)
 {
     value ret;
     shape ins_shape = ins->get_shape();
-    ret["name"] = ins_uids.at(ins);
+    ret["name"]     = ins_uids.at(ins);
     value type      = {{"tensorType",
                         {{"elemType", get_onnx_type(ins_shape.type())},
                          {"shape", make_onnx_json_shape(ins_shape)}}}};

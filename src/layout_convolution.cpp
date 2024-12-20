@@ -51,7 +51,6 @@ std::vector<int64_t> get_permutation(instruction_ref ins, const layout_convoluti
         std::iota(perm.begin(), perm.end(), 0);
     }
     return perm;
-
 }
 
 bool skip_layout(const shape& s)

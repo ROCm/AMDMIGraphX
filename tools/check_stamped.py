@@ -128,9 +128,8 @@ def eval(cmd, **kwargs):
 def get_head():
     return eval("git rev-parse --abbrev-ref HEAD")
 
-def get_merge_base(branch):
-    head = get_head()
-    return eval(f"git merge-base {branch} {head}")
+def get_merge_base(against, branch):
+    return eval(f"git merge-base {against} {branch}")
 
 def get_files_changed(against, ext=('.py')):
     files = eval(
@@ -141,7 +140,7 @@ def get_files_changed(against, ext=('.py')):
 def main(branch) -> None:
     unsupported_file_types.extend(specificIgnores)
 
-    base = get_merge_base("origin/develop")
+    base = get_merge_base("origin/develop", branch)
     fileList = list(
         get_files_changed(base,
                           ext=supported_file_types))

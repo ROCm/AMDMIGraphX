@@ -894,15 +894,16 @@ void program::mark(const parameter_map& params, marker&& m)
     eval(params);
     this->finish();
     // Start marking
-    m.mark_start(*this);
+    auto moved_marker = std::move(m);
+    moved_marker.mark_start(*this);
     generic_eval(*this, ctx, params, [&](auto ins, auto f) {
         argument result;
-        m.mark_start(ins);
+        moved_marker.mark_start(ins);
         result = f();
-        m.mark_stop(ins);
+        moved_marker.mark_stop(ins);
         return result;
     });
-    m.mark_stop(*this);
+    moved_marker.mark_stop(*this);
 }
 
 void program::perf_report(

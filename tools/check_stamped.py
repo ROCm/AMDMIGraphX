@@ -141,55 +141,10 @@ def get_files_changed(against, ext=('.py')):
 def main(branch) -> None:
     unsupported_file_types.extend(specificIgnores)
 
-    base = get_merge_base("develop")
+    base = get_merge_base("origin/develop")
     fileList = list(
         get_files_changed(base,
                           ext=supported_file_types))
-    
-
-    ## Get a list of all files (not including deleted) that have changed/added in comparison to the latest Dev branch from MI Graphx
-
-    ## Fetch the PR branch and target branch
-    # subprocess.run(
-    #     f"git fetch https://github.com/ROCmSoftwarePlatform/AMDMIGraphX {branch} --quiet",
-    #     shell=True,
-    #     stdout=subprocess.PIPE
-    # )
-    # subprocess.run(
-    #     "git fetch https://github.com/ROCmSoftwarePlatform/AMDMIGraphX develop --quiet",
-    #     shell=True,
-    #     stdout=subprocess.PIPE
-    # )
-    
-    # if debug: print(f"PR branch: {branch}")
-
-    # # Determine the base commit of the PR branch (merge base between PR branch and target branch)
-    # result = subprocess.run(
-    #     f"git merge-base origin/{branch} origin/develop",
-    #     shell=True,
-    #     stdout=subprocess.PIPE,
-    #     text=True,
-    #     check=True
-    # )
-    # base_commit = result.stdout.strip()
-    
-    # if debug: 
-    #     print(f"Base commit: {base_commit}")
-    #     print(f"Target branch: develop")
-    
-    # # Get a list of files that have changed or been added between the base commit and the PR branch
-    # proc = subprocess.run(
-    #     f"git diff --name-only --diff-filter=d {base_commit} {branch}",
-    #     shell=True,
-    #     stdout=subprocess.PIPE,
-    #     text=True
-    # )
-    
-    # fileList = proc.stdout.strip().split('\n')
-    
-    # if debug:
-    #     print("Changed/Added Files:")
-    #     print("\n".join(fileList))
 
     if debug: print(fileList)
 

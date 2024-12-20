@@ -171,7 +171,7 @@ TEST_CASE(fp32_fp16_test)
     };
 
     auto test_case = [&](std::vector<std::string>&& op_names) {
-        auto local_op_names = std::move(op_names);
+        auto local_op_names         = std::move(op_names);
         std::vector<float> gold_res = {2.0, 4.0, 6.0, 8.0, 10.0, 12.0};
         auto p                      = create_program();
         migraphx::quantize_fp16(p, local_op_names);

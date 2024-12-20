@@ -60,3 +60,4 @@ struct test_gemm_reshapes_add : verify_program<test_gemm_reshapes_add<DType>>
 
 template struct test_gemm_reshapes_add<migraphx::shape::float_type>;
 template struct test_gemm_reshapes_add<migraphx::shape::half_type>;
+template struct test_gemm_reshapes_add<migraphx::shape::bf16_type>;

@@ -47,3 +47,4 @@ struct test_topk_0 : verify_program<test_topk_0<DType>>
 
 template struct test_topk_0<migraphx::shape::float_type>;
 template struct test_topk_0<migraphx::shape::half_type>;
+template struct test_topk_0<migraphx::shape::bf16_type>;

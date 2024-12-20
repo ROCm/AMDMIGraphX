@@ -43,6 +43,7 @@ struct test_sin : verify_program<test_sin<DType>>
 
 template struct test_sin<migraphx::shape::float_type>;
 template struct test_sin<migraphx::shape::half_type>;
+template struct test_sin<migraphx::shape::bf16_type>;
 template struct test_sin<migraphx::shape::fp8e4m3fnuz_type>;
 template struct test_sin<migraphx::shape::fp8e5m2fnuz_type>;
 template struct test_sin<migraphx::shape::fp8e4m3fn_type>;

@@ -99,3 +99,4 @@ struct test_instancenorm_large_3d : verify_program<test_instancenorm_large_3d<TY
 
 template struct test_instancenorm_large_3d<migraphx::shape::float_type>;
 template struct test_instancenorm_large_3d<migraphx::shape::half_type>;
+template struct test_instancenorm_large_3d<migraphx::shape::bf16_type>;

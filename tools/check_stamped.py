@@ -110,6 +110,14 @@ def check_filename(filename: str, fileTuple: tuple or list) -> bool:
         return True
     return False
 
+def eval(cmd, **kwargs):
+    return subprocess.run(cmd,
+                          capture_output=True,
+                          shell=isinstance(cmd, str),
+                          check=True,
+                          **kwargs).stdout.decode('utf-8').strip()
+
+
 def is_excluded(f):
     base = os.path.basename(f)
     return base in unsupported_file_types
@@ -118,18 +126,15 @@ def is_excluded(f):
 def get_top():
     return eval("git rev-parse --show-toplevel")
 
-def eval(cmd, **kwargs):
-    return subprocess.run(cmd,
-                          capture_output=True,
-                          shell=isinstance(cmd, str),
-                          check=True,
-                          **kwargs).stdout.decode('utf-8').strip()
 
 def get_head():
     return eval("git rev-parse --abbrev-ref HEAD")
 
-def get_merge_base(against, branch):
-    return eval(f"git merge-base {against} {branch}")
+
+def get_merge_base(branch):
+    head = get_head()
+    return eval(f"git merge-base {branch} {head}")
+
 
 def get_files_changed(against, ext=('.py')):
     files = eval(
@@ -137,10 +142,10 @@ def get_files_changed(against, ext=('.py')):
         cwd=get_top()).splitlines()
     return (f for f in files if f.endswith(ext) and not is_excluded(f))
 
-def main(branch) -> None:
+def main(against) -> None:
     unsupported_file_types.extend(specificIgnores)
 
-    base = get_merge_base("origin/develop", branch)
+    base = get_merge_base(against)
     fileList = list(
         get_files_changed(base,
                           ext=supported_file_types))
@@ -185,9 +190,8 @@ def main(branch) -> None:
 
 
 if __name__ == "__main__":
-
     parser = argparse.ArgumentParser()
-    parser.add_argument("branch")
+    parser.add_argument('against', default='develop', nargs='?')
     args = parser.parse_args()
 
-    main(args.branch)
+    main(args.against)

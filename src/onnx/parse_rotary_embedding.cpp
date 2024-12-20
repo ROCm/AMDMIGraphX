@@ -195,23 +195,36 @@ struct parse_rotary_embedding : op_parser<parse_rotary_embedding>
 
     }
 
+    // Generated matrix uses input parameters gathered to determine the shape and data in the matrix
+    // Represent the shape as an MIGraphx literal and populate the data vector accordingly
+    static instruction_ref create_rotation_matrix(const onnx_parser& parser,
+                                                 const onnx_parser::node_info& info,
+                                                 const rotary_parameters& params,
+                                                 const instruction_ref& cos_cache,
+                                                 const instruction_ref& sin_cache)
+
+    {
+        auto half_rotary_emb_dim = params.rotary_embedding_dim / 2;
+        auto rotation_matrix = cos_cache;
+
+
+        return rotation_matrix;
+    }
+
     std::vector<instruction_ref> parse(const op_desc& /*opd*/,
                                        const onnx_parser& parser,
                                        const onnx_parser::node_info& info,
                                        const std::vector<instruction_ref>& args) const
     {
-        rotary_parameters params{};
-
         if(args.size() != 4)
         {
             MIGRAPHX_THROW("RotaryEmbedding: Wrong number of inputs provided require 4");
         }
 
         // Sanity check input dimension and shapes while extracting params
+        rotary_parameters params{};
         parse_attributes(parser, info, params);
         parse_input_args(args, params);
-
-
 
         // Setup based on parsed params gathered from input attributes/inputs
         auto input        = args.at(0);
@@ -219,7 +232,13 @@ struct parse_rotary_embedding : op_parser<parse_rotary_embedding>
         auto cos_cache    = args.at(2);
         auto sin_cache    = args.at(3);
 
-        auto output = input;
+        // Gnerate rotation and embedding before modifying input and rotating
+        auto rotation_matrix    = create_rotation_matrix(parser, info, params, cos_cache, sin_cache);
+
+        // Perform the computation baesd on the generated input position embeddings and rotating the inputs via the rotation matrix
+        auto input_with_position_embedding = info.add_common_op("add", input, position_ids);
+        auto output = info.add_common_op("mul", input_with_position_embedding, rotation_matrix);
+
         return {output};
     }
 };

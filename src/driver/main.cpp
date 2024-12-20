@@ -56,6 +56,8 @@
 #include <migraphx/simplify_reshapes.hpp>
 #include <migraphx/register_target.hpp>
 
+#include <migraphx/netron_output.hpp>
+
 #include <fstream>
 
 namespace migraphx {
@@ -166,6 +168,10 @@ struct loader
            {"--binary"},
            ap.help("Print out program in binary format."),
            ap.set_value("binary"));
+        ap(output_type,
+           {"--netron"},
+           ap.help("Print out program as Netron readable json."),
+           ap.set_value("netron"));
         ap(output, {"--output", "-o"}, ap.help("Output to file."));
     }
 
@@ -418,6 +424,8 @@ struct loader
             *os << to_json_string(p.to_value()) << std::endl;
         else if(type == "binary")
             write(*os, save_buffer(p));
+        else if(type == "netron")
+            *os << make_netron_output(p) << std::endl;
     }
 };
 

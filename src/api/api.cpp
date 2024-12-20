@@ -260,6 +260,21 @@ void quantize_int8_wrap(program& prog, const target& t, quantize_int8_options& o
     migraphx::quantize_int8(prog, t, options.calibration, options.op_names);
 }
 
+struct quantize_fp8_options
+{
+    std::vector<parameter_map> calibration = {};
+};
+
+void add_calibration_data(quantize_fp8_options& options, parameter_map& data)
+{
+    options.calibration.push_back(data);
+}
+
+void quantize_fp8_wrap(program& prog, const target& t, quantize_fp8_options& options)
+{
+    migraphx::quantize_fp8(prog, t, options.calibration);
+}
+
 #ifdef __clang__
 #pragma clang diagnostic push
 #pragma clang diagnostic ignored "-Wformat-nonliteral"
@@ -689,6 +704,17 @@ struct migraphx_quantize_int8_options
     {
     }
     migraphx::quantize_int8_options object;
+};
+
+extern "C" struct migraphx_quantize_fp8_options;
+struct migraphx_quantize_fp8_options
+{
+    template <class... Ts>
+    migraphx_quantize_fp8_options(Ts&&... xs)
+        : object(std::forward<Ts>(xs)...) // NOLINT(readability-redundant-member-init)
+    {
+    }
+    migraphx::quantize_fp8_options object;
 };
 
 extern "C" struct migraphx_context;
@@ -2263,6 +2289,61 @@ extern "C" migraphx_status migraphx_quantize_int8(migraphx_program_t prog,
         if(options == nullptr)
             MIGRAPHX_THROW(migraphx_status_bad_param, "Bad parameter options: Null pointer");
         migraphx::quantize_int8_wrap((prog->object), (target->object), (options->object));
+    });
+    return api_error_result;
+}
+
+extern "C" migraphx_status
+migraphx_quantize_fp8_options_destroy(migraphx_quantize_fp8_options_t quantize_fp8_options)
+{
+    auto api_error_result = migraphx::try_([&] { destroy((quantize_fp8_options)); });
+    return api_error_result;
+}
+
+extern "C" migraphx_status
+migraphx_quantize_fp8_options_assign_to(migraphx_quantize_fp8_options_t output,
+                                        const_migraphx_quantize_fp8_options_t input)
+{
+    auto api_error_result = migraphx::try_([&] { *output = *input; });
+    return api_error_result;
+}
+
+extern "C" migraphx_status
+migraphx_quantize_fp8_options_create(migraphx_quantize_fp8_options_t* quantize_fp8_options)
+{
+    auto api_error_result = migraphx::try_([&] {
+        *quantize_fp8_options = object_cast<migraphx_quantize_fp8_options_t>(
+            allocate<migraphx::quantize_fp8_options>());
+    });
+    return api_error_result;
+}
+
+extern "C" migraphx_status migraphx_quantize_fp8_options_add_calibration_data(
+    migraphx_quantize_fp8_options_t quantize_fp8_options, migraphx_program_parameters_t data)
+{
+    auto api_error_result = migraphx::try_([&] {
+        if(quantize_fp8_options == nullptr)
+            MIGRAPHX_THROW(migraphx_status_bad_param,
+                           "Bad parameter quantize_fp8_options: Null pointer");
+        if(data == nullptr)
+            MIGRAPHX_THROW(migraphx_status_bad_param, "Bad parameter data: Null pointer");
+        migraphx::add_calibration_data((quantize_fp8_options->object), (data->object));
+    });
+    return api_error_result;
+}
+
+extern "C" migraphx_status migraphx_quantize_fp8(migraphx_program_t prog,
+                                                 migraphx_target_t target,
+                                                 migraphx_quantize_fp8_options_t options)
+{
+    auto api_error_result = migraphx::try_([&] {
+        if(prog == nullptr)
+            MIGRAPHX_THROW(migraphx_status_bad_param, "Bad parameter prog: Null pointer");
+        if(target == nullptr)
+            MIGRAPHX_THROW(migraphx_status_bad_param, "Bad parameter target: Null pointer");
+        if(options == nullptr)
+            MIGRAPHX_THROW(migraphx_status_bad_param, "Bad parameter options: Null pointer");
+        migraphx::quantize_fp8_wrap((prog->object), (target->object), (options->object));
     });
     return api_error_result;
 }

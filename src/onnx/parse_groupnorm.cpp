@@ -34,7 +34,7 @@ struct parse_groupnorm : op_parser<parse_groupnorm>
 {
     std::vector<op_desc> operators() const 
     { 
-        return {{"GroupNormalization"}, {"GroupNorm"}};
+        return {{"GroupNormalization", "GroupNormalization"}, {"GroupNorm", "Contrib_GroupNorm"}};
     }
 
     instruction_ref parse(const op_desc& opd,
@@ -42,7 +42,8 @@ struct parse_groupnorm : op_parser<parse_groupnorm>
                           const onnx_parser::node_info& info,
                           std::vector<instruction_ref> args) const
     {
-        auto is_contrib = opd.op_name == "GroupNorm";
+        bool is_contrib = (!opd.op_name.compare("Contrib_GroupNorm"));
+
         float epsilon = 1e-5f;
         if(contains(info.attributes, "epsilon"))
         {
@@ -52,7 +53,9 @@ struct parse_groupnorm : op_parser<parse_groupnorm>
         if(contains(info.attributes, "num_groups") or contains(info.attributes, "groups"))
         {
             if (is_contrib)
-                num_groups = parser.parse_value(info.attributes.at("groups")).at<size_t>();
+            {
+                num_groups = parser.parse_value(info.attributes.at("num_groups")).at<size_t>();
+            }
             else
                 num_groups = parser.parse_value(info.attributes.at("num_groups")).at<size_t>();
         }
@@ -90,7 +93,7 @@ struct parse_groupnorm : op_parser<parse_groupnorm>
         auto x = args.at(0);
         if(is_nhwc and is_contrib)
         {
-            x = info.add_instruction(make_op("transpose", {{"permutation", {0, 3, 2, 1}}}), x);
+            x = info.add_instruction(make_op("transpose", {{"permutation", {0, 2, 1}}}), x);
         }
 
         auto scale = args.at(1); //gamma in the GroupNorm contrib case
@@ -164,7 +167,7 @@ struct parse_groupnorm : op_parser<parse_groupnorm>
         // Convert to NCHW -> NHWC for contrib GroupNorm
         if(is_nhwc and is_contrib)
         {
-            output = info.add_instruction(make_op("transpose", {{"permutation", {0, 2, 3, 1}}}), output);
+            output = info.add_instruction(make_op("transpose", {{"permutation", {0, 2, 1}}}), output);
         }
         return output;
     }

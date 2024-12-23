@@ -4747,9 +4747,9 @@ def group_norm_contrib_test(x_dims,
                             beta_dims,
                             y_dims,
                             num_groups,
-                            eps_value=1e-5,
                             activation=0,
                             channels_last=0,
+                            eps_value=1e-5,
                             dtype=TensorProto.FLOAT):
     x = helper.make_tensor_value_info('x', dtype, x_dims)
     gamma = helper.make_tensor_value_info('gamma', dtype, gamma_dims)
@@ -4759,7 +4759,7 @@ def group_norm_contrib_test(x_dims,
     node = onnx.helper.make_node('GroupNorm',
                                  inputs=['x', 'gamma', 'beta'],
                                  outputs=['y'],
-                                 activaction=activation,
+                                 activation=activation,
                                  channels_last=channels_last,
                                  num_groups=num_groups,
                                  epsilon=eps_value)
@@ -4769,12 +4769,17 @@ def group_norm_contrib_test(x_dims,
 
 @onnx_test()
 def group_norm_contrib_3d_test():
-    return group_norm_contrib_test([1, 4, 2], [2], [2], [1, 4, 2], 1, 0, 0)
+    return group_norm_contrib_test([1, 4, 2], [2], [2], [1, 4, 2], 2, 0, 0)
 
 
 @onnx_test()
 def group_norm_contrib_silu_3d_test():
     return group_norm_contrib_test([1, 4, 2], [2], [2], [1, 4, 2], 2, 1, 0)
+
+
+@onnx_test()
+def group_norm_contrib_channels_last_3d_test():
+    return group_norm_contrib_test([1, 4, 2], [2], [2], [1, 4, 2], 2, 0, 1)
 
 
 @onnx_test()

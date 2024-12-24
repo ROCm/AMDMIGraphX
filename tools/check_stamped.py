@@ -30,9 +30,9 @@
 # in the license stamp, with the assumption being that any modifications/creations will need to be stamped to the year that the
 # modification/creation was made.
 #####################################################################################
-import subprocess, sys, datetime, argparse, os
+import subprocess, sys, datetime, argparse
 
-debug = True
+debug = False
 
 current_year = datetime.date.today().year
 
@@ -110,47 +110,26 @@ def check_filename(filename: str, fileTuple: tuple or list) -> bool:
         return True
     return False
 
-def eval(cmd, **kwargs):
-    return subprocess.run(cmd,
-                          capture_output=True,
-                          shell=isinstance(cmd, str),
-                          check=True,
-                          **kwargs).stdout.decode('utf-8').strip()
 
-
-def is_excluded(f):
-    base = os.path.basename(f)
-    return base in unsupported_file_types
-
-
-def get_top():
-    return eval("git rev-parse --show-toplevel")
-
-
-def get_head():
-    return eval("git rev-parse --abbrev-ref HEAD")
-
-
-def get_merge_base(branch):
-    head = get_head()
-    return eval(f"git merge-base {branch} {head}")
-
-
-def get_files_changed(against, ext=('.py')):
-    files = eval(
-        f"git diff-index --cached --name-only --diff-filter=d {against}",
-        cwd=get_top()).splitlines()
-    return (f for f in files if f.endswith(ext) and not is_excluded(f))
-
-def main(against) -> None:
+def main(branch) -> None:
     unsupported_file_types.extend(specificIgnores)
 
-    base = get_merge_base(against)
-    fileList = list(
-        get_files_changed(base,
-                          ext=supported_file_types))
+    ## Get a list of all files (not including deleted) that have changed/added in comparison to the latest Dev branch from MI Graphx
 
-    if debug: print(fileList)
+    # Subprocess 1 is fetching the latest dev branch from the MIgraphX Url and naming it as 'FETCH_HEAD'
+    subprocess.run(
+        "git fetch https://github.com/ROCmSoftwarePlatform/AMDMIGraphX {0} --quiet"
+        .format(branch),
+        shell=True,
+        stdout=subprocess.PIPE)
+
+    # proc 2 is getting the list of file differences between FETCH_HEAD and the branch to be merged. (filters out deleted files from FETCH_HEAD)
+    proc = subprocess.run("git diff --name-only --diff-filter=d FETCH_HEAD",
+                          shell=True,
+                          stdout=subprocess.PIPE)
+    fileList = proc.stdout.decode().split('\n')
+
+    if debug: print(f"Target file list {len(fileList)}:\n" + str(fileList))
 
     for file in fileList:
         if check_filename(file, supported_file_types):
@@ -190,8 +169,9 @@ def main(against) -> None:
 
 
 if __name__ == "__main__":
+
     parser = argparse.ArgumentParser()
-    parser.add_argument('against', default='develop', nargs='?')
+    parser.add_argument("branch")
     args = parser.parse_args()
 
-    main(args.against)
+    main(args.branch)

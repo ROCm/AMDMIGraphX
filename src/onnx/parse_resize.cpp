@@ -33,28 +33,86 @@ namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
 namespace onnx {
 
-static void calc_neighbor_points(const std::vector<std::vector<std::vector<std::size_t>>>& vvv_ind,
-                                 const std::size_t& n_dims,
-                                 const std::size_t& out_elements,
-                                 const shape& in_s,
-                                 std::vector<int>& vec_ind)
+/*
+ * Algorithm of calc_neighbor_points():
+ * Input: vvv_ind, 3-layer vector to compose vector of indices.
+ *        in_s, shape to get space index from, using the composed vector of indices.
+ * Output: vector contains the result of space index.
+ *
+ * From vvv_ind:
+ *              layer-1: size of 1st dimension, caller will pass as n_dim
+ *              layer-2: hardcode to 2 by caller
+ *              layer-3: a vector of out_elements (caller pass) integers.
+ * vvv_ind = {
+ *   {{...}, {...}},
+ *   {{...}, {...}},
+ *   {{...}, {...}},
+ *   ...
+ *   {{...}, {...}}
+ * };
+ *
+ * To Compose a series of vector of indices, which will further be used to get space index from
+ *   the input shape.
+ * indices{} has (2^n_dim) * out_elements members, each member is a vector of n_dim indices.
+ * indices = {
+ *     {...},
+ *     {...},
+ *     {...},
+ *     ...
+ *     {...}
+ * };
+ *
+ * Notate vvv_ind as:
+ *   0-1
+ *   A B
+ *   C D
+ *   E F
+ *   G H
+ * Notate A' as A's transpose.
+ * i.e. A  = {0,1,1,0,1};
+ *      A' = {{0},
+ *            {1},
+ *            {1},
+ *            {0},
+ *            {1}
+ *           };
+ *
+ * For each number within [0, (2^n_dim)) (outer loop), map each bit (inner loop, MSB to LSB)
+ *   to n_dim, and pick A|B, C|D, E|F, G|H based on bit 0|1.
+ *   i.e. 0110b -> A'D'F'G'
+ * Transpose A to A' and repeat for each elements within A' (medium loop).
+ * Use the new crafted vector of n_dim indices, get the mapping from shape in_s.
+ *
+ * Outer loop: loop all values within range [0, (2^n_dim))
+ *     Medium loop: loop all elements within layer-3, range [0, m_elements)
+ *         Inner loop: loop all bits of the value of current outer loop
+ */
+
+static std::vector<int>
+calc_neighbor_points(const std::vector<std::vector<std::vector<std::size_t>>>& vvv_ind,
+                     const shape& in_s)
 {
-    for(std::size_t start = 0; start < (std::size_t{1} << n_dims); start++)
+    std::size_t n_bits     = vvv_ind.size();
+    std::size_t m_elements = vvv_ind[0][0].size();
+    std::vector<int> vec_ind;
+
+    for(std::size_t val = 0; val < (std::size_t{1} << n_bits); val++)
     {
-        std::vector<std::size_t> idx(n_dims);
-        for(std::size_t idx_e = 0; idx_e < out_elements; idx_e++)
+        std::vector<std::size_t> indices(n_bits);
+        for(std::size_t i_element = 0; i_element < m_elements; i_element++)
         {
-            std::size_t bi = start;
-            idx.clear();
-            for(std::size_t dim = 0; dim < n_dims; dim++)
+            std::size_t bits_val = val;
+            indices.clear();
+            for(std::size_t dim = 0; dim < n_bits; dim++)
             {
-                idx.push_back(static_cast<bool>(bi & std::size_t{1}) ? vvv_ind[dim][1][idx_e]
-                                                                     : vvv_ind[dim][0][idx_e]);
-                bi = bi >> std::size_t{1};
+                indices.push_back(vvv_ind[dim][bits_val & std::size_t{1}][i_element]);
+                bits_val >>= std::size_t{1};
             }
-            vec_ind.push_back(in_s.index(idx));
+            vec_ind.push_back(in_s.index(indices));
         }
     }
+
+    return vec_ind;
 }
 
 static std::string get_coord_trans_mode(const onnx_parser::attribute_map& attr)
@@ -354,8 +412,7 @@ struct parse_resize : op_parser<parse_resize>
                 }
             });
 
-            std::vector<int> ind;
-            calc_neighbor_points(vvv_ind, n_dim, out_elements, in_s, ind);
+            auto ind = calc_neighbor_points(vvv_ind, in_s);
 
             auto ind_lens = out_lens;
             ind_lens[0] *= (std::size_t{1} << n_dim);

@@ -48,7 +48,7 @@
 #include <migraphx/gpu/hip.hpp>
 #endif
 
-using half   = half_float::half;
+using half   = migraphx::half;
 namespace py = pybind11;
 
 #ifdef __clang__
@@ -159,6 +159,17 @@ struct npy_format_descriptor<migraphx::fp8::fp8e4m3fnuz>
 };
 
 template <>
+struct npy_format_descriptor<migraphx::fp8::fp8e5m2fnuz>
+{
+    static std::string format()
+    {
+        // TODO: no standard format in numpy for fp8
+        return "z";
+    }
+    static constexpr auto name() { return _("fp8e5m2fnuz"); }
+};
+
+template <>
 struct npy_format_descriptor<migraphx::fp8::fp8e4m3fn>
 {
     static std::string format()
@@ -178,6 +189,17 @@ struct npy_format_descriptor<migraphx::fp8::fp8e5m2>
         return "z";
     }
     static constexpr auto name() { return _("fp8e5m2"); }
+};
+
+template <>
+struct npy_format_descriptor<migraphx::bf16>
+{
+    static std::string format()
+    {
+        // TODO: no standard format in numpy for bf16
+        return "z";
+    }
+    static constexpr auto name() { return _("bf16"); }
 };
 
 } // namespace detail
@@ -241,6 +263,13 @@ migraphx::shape to_shape(const py::buffer_info& info)
 {
     migraphx::shape::type_t t;
     std::size_t n = 0;
+    // Unsupported pybuffer types lead to undefined behaviour when comparing with migraphx type enum
+    if(info.format == "z")
+    {
+        MIGRAPHX_THROW(
+            "MIGRAPHX PYTHON: Unsupported data type. For fp8 and bf16 literals try using "
+            "migraphx.generate_argument with migraphx.add_literal");
+    }
     visit_types([&](auto as) {
         if(info.format == py::format_descriptor<decltype(as())>::format() or
            (info.format == "l" and py::format_descriptor<decltype(as())>::format() == "q") or
@@ -368,6 +397,12 @@ MIGRAPHX_PYBIND11_MODULE(migraphx, m)
             py::arg("mod_args") = std::vector<migraphx::module*>{})
         .def(
             "add_literal",
+            [](migraphx::module& mm, migraphx::argument a) {
+                return mm.add_literal(a.get_shape(), a.data());
+            },
+            py::arg("data"))
+        .def(
+            "add_literal",
             [](migraphx::module& mm, py::buffer data) {
                 py::buffer_info info = data.request();
                 auto literal_shape   = to_shape(info);
@@ -445,6 +480,12 @@ MIGRAPHX_PYBIND11_MODULE(migraphx, m)
                  migraphx::execution_environment exec_env{
                      migraphx::any_ptr(reinterpret_cast<void*>(stream), stream_name), true};
                  return p.eval(pm, exec_env);
+             })
+        .def("to_py",
+             [](const migraphx::program& p) {
+                 std::stringstream ss;
+                 p.print_py(ss);
+                 return ss.str();
              })
         .def("sort", &migraphx::program::sort)
         .def("print", [](const migraphx::program& p) { std::cout << p << std::endl; })
@@ -623,6 +664,10 @@ MIGRAPHX_PYBIND11_MODULE(migraphx, m)
         },
         "Auto-convert FP8 parameters and return values to Float for MIGraphX Program",
         py::arg("prog"));
+    m.def("quantize_bf16",
+          &migraphx::quantize_bf16,
+          py::arg("prog"),
+          py::arg("ins_names") = std::vector<std::string>{"all"});
 
 #ifdef HAVE_GPU
     m.def("allocate_gpu", &migraphx::gpu::allocate_gpu, py::arg("s"), py::arg("host") = false);

@@ -56,6 +56,8 @@
 #include <migraphx/simplify_reshapes.hpp>
 #include <migraphx/register_target.hpp>
 
+#include <migraphx/netron_output.hpp>
+
 #include <fstream>
 
 namespace migraphx {
@@ -166,6 +168,10 @@ struct loader
            {"--binary"},
            ap.help("Print out program in binary format."),
            ap.set_value("binary"));
+        ap(output_type,
+           {"--netron"},
+           ap.help("Print out program as Netron readable json."),
+           ap.set_value("netron"));
         ap(output, {"--output", "-o"}, ap.help("Output to file."));
     }
 
@@ -418,6 +424,8 @@ struct loader
             *os << to_json_string(p.to_value()) << std::endl;
         else if(type == "binary")
             write(*os, save_buffer(p));
+        else if(type == "netron")
+            *os << make_netron_output(p) << std::endl;
     }
 };
 
@@ -482,6 +490,7 @@ struct compiler
     compiler_target ct;
     compile_options co;
     bool to_fp16 = false;
+    bool to_bf16 = false;
     bool to_fp8  = false;
     bool to_int8 = false;
     bool to_int4 = false;
@@ -506,6 +515,7 @@ struct compiler
            ap.help("Exhastively search for best tuning parameters for kernels"),
            ap.set_value(true));
         ap(to_fp16, {"--fp16"}, ap.help("Quantize for fp16"), ap.set_value(true));
+        ap(to_bf16, {"--bf16"}, ap.help("Quantize for bf16"), ap.set_value(true));
         ap(to_int8, {"--int8"}, ap.help("Quantize for int8"), ap.set_value(true));
         ap(to_fp8, {"--fp8"}, ap.help("Quantize for fp8"), ap.set_value(true));
         ap(to_int4, {"--int4-weights"}, ap.help("Quantize weights for int4"), ap.set_value(true));
@@ -554,6 +564,10 @@ struct compiler
         if(to_fp16)
         {
             quantize_fp16(p);
+        }
+        if(to_bf16)
+        {
+            quantize_bf16(p);
         }
         if(to_int8)
         {
@@ -638,6 +652,10 @@ struct verify : command<verify>
         if(c.to_fp16)
         {
             vo.quantize = precision::fp16;
+        }
+        if(c.to_bf16)
+        {
+            vo.quantize = precision::bf16;
         }
         if(c.to_int8)
         {

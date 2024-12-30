@@ -46,5 +46,6 @@ struct test_gathernd_default : verify_program<test_gathernd_default<DType>>
 template struct test_gathernd_default<migraphx::shape::float_type>;
 template struct test_gathernd_default<migraphx::shape::half_type>;
 template struct test_gathernd_default<migraphx::shape::fp8e4m3fnuz_type>;
+template struct test_gathernd_default<migraphx::shape::fp8e5m2fnuz_type>;
 template struct test_gathernd_default<migraphx::shape::fp8e4m3fn_type>;
 template struct test_gathernd_default<migraphx::shape::fp8e5m2_type>;

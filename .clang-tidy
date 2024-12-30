@@ -115,3 +115,5 @@ CheckOptions:
     value:           UPPER_CASE
   - key:             readability-identifier-naming.MacroDefinitionPrefix
     value:           MIGRAPHX_
+  - key:             readability-identifier-naming.ConstexprMethodIgnoredRegexp
+    value:           'quiet_NaN|signaling_NaN'

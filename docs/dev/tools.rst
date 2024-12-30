@@ -1,3 +1,7 @@
+.. meta::
+  :description: MIGraphX tools
+  :keywords: MIGraphX, code base, contribution, developing, tooks, knobs
+
 .. _tools:
 
 Tools

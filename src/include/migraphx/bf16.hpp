@@ -21,27 +21,19 @@
  * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
  * THE SOFTWARE.
  */
-#ifndef MIGRAPHX_GUARD_MIGRAPHX_LAYOUT_NHWC_HPP
-#define MIGRAPHX_GUARD_MIGRAPHX_LAYOUT_NHWC_HPP
 
-#include <string>
-#include <migraphx/instruction_ref.hpp>
+#ifndef MIGRAPHX_GUARD_RTGLIB_BF16_HPP
+#define MIGRAPHX_GUARD_RTGLIB_BF16_HPP
+
+#include <migraphx/generic_float.hpp>
 #include <migraphx/config.hpp>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
 
-struct module_pass_manager;
-
-/**
- * Transform convolutions to nhwc
- */
-struct MIGRAPHX_EXPORT layout_nhwc
-{
-    std::string name() const { return "layout_nhwc"; }
-    void apply(module_pass_manager& mpm) const;
-};
+using bf16 = migraphx::generic_float<7, 8>;
 
 } // namespace MIGRAPHX_INLINE_NS
 } // namespace migraphx
-#endif // MIGRAPHX_GUARD_MIGRAPHX_LAYOUT_NHWC_HPP
+
+#endif

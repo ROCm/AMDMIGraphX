@@ -139,4 +139,5 @@ void quantizelinear_4()
     std::vector<float> gold{2.5, 1.75, -1.75, 1.5, -1, 1, 0.625, 8};
     EXPECT(results_vector == gold);
 }
+TEST_CASE_REGISTER(quantizelinear_4<migraphx::fp8::fp8e5m2fnuz>);
 TEST_CASE_REGISTER(quantizelinear_4<migraphx::fp8::fp8e5m2>);

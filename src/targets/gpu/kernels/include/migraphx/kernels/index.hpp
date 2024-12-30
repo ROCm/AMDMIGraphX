@@ -50,8 +50,8 @@ inline __device__ __attribute__((const)) index_int compute_global_size()
 #ifdef MIGRAPHX_NGLOBAL
     return MIGRAPHX_NGLOBAL;
 #else
-    // This actualy works even when global is not divisible by local size.
-    // This doesnt actually do a multiplicatiosn. Instead it calls a device
+    // This actually works even when global is not divisible by local size.
+    // This doesnt actually do a multiplication. Instead it calls a device
     // function to get the global size, which is why it works.
     return blockDim.x * gridDim.x; // NOLINT
 #endif
@@ -155,7 +155,7 @@ struct index
         return max_nlocal() / nlocal_subwave<SubWaveSize>();
     }
 
-    constexpr index_constant<__AMDGCN_WAVEFRONT_SIZE> nlocal_wave() const { return {}; }
+    constexpr index_constant<MIGRAPHX_WAVEFRONTSIZE> nlocal_wave() const { return {}; }
     constexpr auto local_wave() const { return local % nlocal_wave(); }
     constexpr auto nwave() const { return max_nlocal() / nlocal_wave(); }
     constexpr auto wave() const { return local / nlocal_wave(); }

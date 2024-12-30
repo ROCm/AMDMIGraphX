@@ -887,23 +887,21 @@ std::string perf_group(instruction_ref ins, bool detailed)
     return result;
 }
 
-void program::mark(const parameter_map& params, marker&& m)
+void program::mark(const parameter_map& params, marker m)
 {
     auto& ctx = this->impl->contexts;
     // Run once by itself
     eval(params);
     this->finish();
-    // Start marking
-    auto moved_marker = std::move(m);
-    moved_marker.mark_start(*this);
+    m.mark_start(*this);
     generic_eval(*this, ctx, params, [&](auto ins, auto f) {
         argument result;
-        moved_marker.mark_start(ins);
+        m.mark_start(ins);
         result = f();
-        moved_marker.mark_stop(ins);
+        m.mark_stop(ins);
         return result;
     });
-    moved_marker.mark_stop(*this);
+    m.mark_stop(*this);
 }
 
 void program::perf_report(

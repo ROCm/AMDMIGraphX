@@ -123,6 +123,7 @@ foreach(KERNEL_FILE ${KERNEL_FILES})
 endforeach()
 
 target_compile_definitions(kernel_file_check PRIVATE -DMIGRAPHX_NLOCAL=256)
+target_compile_definitions(kernel_file_check PRIVATE -DMIGRAPHX_WAVEFRONTSIZE=64)
 target_include_directories(kernel_file_check PRIVATE $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/kernels/include/>)
 target_link_libraries(kernel_file_check compile_for_gpu)
 if(MIGRAPHX_USE_COMPOSABLEKERNEL)

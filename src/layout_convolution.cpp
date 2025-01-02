@@ -40,14 +40,17 @@ inline namespace MIGRAPHX_INLINE_NS {
 namespace {
 std::vector<int64_t> get_permutation(instruction_ref ins, const layout_convolution& lc)
 {
+    std::vector<int64_t> perm(ins->get_shape().ndim());
     if(lc.channels_last)
     {
-        std::vector<int64_t> perm(ins->get_shape().ndim());
         std::iota(perm.begin() + 1, perm.end() - 1, 2);
         perm.back() = 1;
-        return perm;
     }
-    return find_permutation(ins->inputs().front()->get_shape());
+    else
+    {
+        std::iota(perm.begin(), perm.end(), 0);
+    }
+    return perm;
 }
 
 bool skip_layout(const shape& s)

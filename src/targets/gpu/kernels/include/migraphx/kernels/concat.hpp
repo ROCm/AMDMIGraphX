@@ -40,6 +40,7 @@ namespace migraphx {
 template<index_int Max, class I, class F>
 constexpr auto visit_concat_group(I i, F f)
 {
+#if 1
     if constexpr(Max > 0)
     {
         if(i == (Max - 1)) 
@@ -47,20 +48,21 @@ constexpr auto visit_concat_group(I i, F f)
         if constexpr(Max > 1)
             return visit_concat_group<Max - 1>(i, f);
     }
-
-    // static_assert(Max <= 8);
-    // MIGRAPHX_ASSUME(i < Max);
-    // switch(i)
-    // {
-    //     MIGRAPHX_CONCAT_GROUP_CASE(0)
-    //     MIGRAPHX_CONCAT_GROUP_CASE(1)
-    //     MIGRAPHX_CONCAT_GROUP_CASE(2)
-    //     MIGRAPHX_CONCAT_GROUP_CASE(3)
-    //     MIGRAPHX_CONCAT_GROUP_CASE(4)
-    //     MIGRAPHX_CONCAT_GROUP_CASE(5)
-    //     MIGRAPHX_CONCAT_GROUP_CASE(6)
-    //     MIGRAPHX_CONCAT_GROUP_CASE(7)
-    // }
+#else
+    static_assert(Max <= 8);
+    MIGRAPHX_ASSUME(i < Max);
+    switch(i)
+    {
+        MIGRAPHX_CONCAT_GROUP_CASE(0)
+        MIGRAPHX_CONCAT_GROUP_CASE(1)
+        MIGRAPHX_CONCAT_GROUP_CASE(2)
+        MIGRAPHX_CONCAT_GROUP_CASE(3)
+        MIGRAPHX_CONCAT_GROUP_CASE(4)
+        MIGRAPHX_CONCAT_GROUP_CASE(5)
+        MIGRAPHX_CONCAT_GROUP_CASE(6)
+        MIGRAPHX_CONCAT_GROUP_CASE(7)
+    }
+#endif
     MIGRAPHX_UNREACHABLE();
 }
 
@@ -217,6 +219,7 @@ __device__ auto concat(InputPacks... input_packs)
 template <index_int Axis, class... InputPacks>
 __device__ auto par_concat(InputPacks... input_packs)
 {
+#if 0
     return [=](auto f, auto z, auto... ys) {
         auto idx = make_index();
         auto ninputs = _c<sizeof...(input_packs)>;
@@ -236,6 +239,19 @@ __device__ auto par_concat(InputPacks... input_packs)
             slice(z)[i] = f(x(i), slice(ys)[i]...);
         });
     };
+#else
+    return [=](auto f, auto... ts) {
+        auto idx = make_index();
+        auto ninputs = _c<sizeof...(input_packs)>;
+        auto nteams = idx.ngroup() / ninputs;
+        auto team = idx.team<nteams>();
+        visit_concat_group<ninputs>(team, [&](auto gidx) {
+            auto start = concat_starts<Axis>(gidx, input_packs...);
+            auto fs = [&](auto n, auto g) { idx.local_team_stride<nteams>(n, g); };
+            concat_each<Axis>(fs, start, arg(gidx)(input_packs...), f, ts...);
+        });
+    };
+#endif
 }
 
 } // namespace migraphx

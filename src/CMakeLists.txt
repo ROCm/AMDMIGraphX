@@ -37,6 +37,7 @@ add_library(migraphx
     argument.cpp
     autocast_fp8.cpp
     auto_contiguous.cpp
+    base64.cpp
     common.cpp
     common_dims.cpp
     compile_src.cpp
@@ -74,6 +75,7 @@ add_library(migraphx
     memory_coloring.cpp
     module.cpp
     msgpack.cpp
+    netron_output.cpp
     normalize_attributes.cpp
     normalize_ops.cpp
     op_enums.cpp

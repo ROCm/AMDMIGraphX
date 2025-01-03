@@ -27,6 +27,8 @@
 #include <migraphx/instruction.hpp>
 #include <migraphx/instruction_ref.hpp>
 #include <migraphx/register_target.hpp>
+#include <migraphx/ranges.hpp>
+#include <migraphx/time.hpp>
 #ifdef HAVE_GPU
 #include <migraphx/gpu/hip.hpp>
 #endif
@@ -34,6 +36,8 @@
 namespace migraphx {
 namespace driver {
 inline namespace MIGRAPHX_INLINE_NS {
+
+using milliseconds = std::chrono::duration<double, std::milli>;
 
 template <class T>
 auto get_hash(const T& x)
@@ -130,6 +134,22 @@ bool is_offload_copy_set(const program& p)
         }
     }
     return param_ins.empty();
+}
+
+double time_run(const program& p, const parameter_map& m, int n)
+{
+    // Run once without timing
+    p.eval(m);
+    p.finish();
+    double total = time<milliseconds>([&] {
+        for(auto i : range(n))
+        {
+            (void)i;
+            p.eval(m);
+        }
+        p.finish();
+    });
+    return total / n;
 }
 
 } // namespace  MIGRAPHX_INLINE_NS

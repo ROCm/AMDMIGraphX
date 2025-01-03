@@ -5,24 +5,22 @@
 .. _contributing-to-migraphx:
 
 ==========================
-Contributing to MIGraphX
+Developing for MIGraphX
 ==========================
 
-This document explains the internal implementation of some commonly used MIGraphX APIs. You can utilize the information provided in this document and other documents under "Contributing to MIGraphX" section to contribute to the MIGraphX API implementation.
-Here is how some basic operations in the MIGraphX framework are performed.
+This document is intended for anyone who wants to contribute to MIGraphX. This document covers some basic operations that can be used to develop for MIGraphX. The complete source code for the example shown here can be found at `ref_dev_examples.cpp <https://github.com/ROCm/AMDMIGraphX/blob/develop/test/ref_dev_examples.cpp>`_ on the MIGraphX repository.
 
-Performing basic operations
+More examples can be found on `the MIGraphX GitHub repository <https://github.com/ROCmSoftwarePlatform/AMDMIGraphX/tree/develop/examples/migraphx>`_.
+
+
+Adding two literals
 ----------------------------
 
 A program is a collection of modules, which are collections of instructions to be executed when calling :cpp:any:`eval <migraphx::internal::program::eval>`.
 Each instruction has an associated :cpp:any:`operation <migraphx::internal::operation>` which represents the computation to be performed by the instruction.
 
-The following code snippets demonstrate some basic operations using MIGraphX.
+We start with a snippet of the simple ``add_two_literals()`` function::
 
-Adding literals
-******************
-
-Here is a ``add_two_literals()`` function::
 
     // create the program and get a pointer to the main module
     migraphx::program p;
@@ -55,7 +53,7 @@ To compile the program for the GPU, move the file to ``test/gpu/`` directory and
     #include <migraphx/gpu/target.hpp>
 
 Adding Parameters
-*******************
+----------------------------
 
 While the ``add_two_literals()`` function above demonstrates add operation on constant values ``1`` and ``2``,
 the following program demonstrates how to pass a parameter (``x``) to a module using ``add_parameter()`` function .
@@ -86,7 +84,7 @@ To map the parameter ``x`` to an :cpp:any:`argument <migraphx::internal::argumen
     EXPECT(result.at<int>() == 6);
 
 Handling Tensor Data
-**********************
+----------------------------
 
 The above two examples demonstrate scalar operations. To describe multi-dimensional tensors, use the :cpp:any:`shape <migraphx::internal::shape>` class to compute a simple convolution as shown below::
 
@@ -132,7 +130,7 @@ By default, the buffers are allocated on the CPU when compiling for CPU and on t
 To locate the buffers on the CPU even when compiling for GPU, set the option ``offload_copy=true``.
 
 Importing From ONNX
-**********************
+----------------------------
 
 To make it convenient to use neural networks directly from other frameworks, MIGraphX ONNX parser allows you to build a :cpp:any:`program <migraphx::internal::program>` directly from an ONNX file.
 For usage, refer to the ``parse_onnx()`` function below::
@@ -140,22 +138,16 @@ For usage, refer to the ``parse_onnx()`` function below::
     program p = migraphx::parse_onnx("model.onnx");
     p.compile(migraphx::gpu::target{});
 
-Sample programs
------------------
 
-You can find all the MIGraphX examples in the `Examples <https://github.com/ROCmSoftwarePlatform/AMDMIGraphX/tree/develop/examples/migraphx>`_ directory.
+Build this example
+----------------------------
 
-Build MIGraphX source code
-****************************
-
-To build a sample program `ref_dev_examples.cpp <https://github.com/ROCm/AMDMIGraphX/blob/develop/test/ref_dev_examples.cpp>`_, use:
+Build the `ref_dev_examples.cpp <https://github.com/ROCm/AMDMIGraphX/blob/develop/test/ref_dev_examples.cpp>`_ example with this command:
 
     make -j$(nproc) test_ref_dev_examples
 
-This creates an executable file ``test_ref_dev_examples`` in the ``bin/`` of the build directory.
+This creates the ``test_ref_dev_examples`` under ``bin/`` in the build directory.
 
 To verify the build, use:
 
     make -j$(nproc) check
-
-For detailed instructions on building MIGraphX from source, refer to the `README <https://github.com/ROCm/AMDMIGraphX#readme>`_ file.

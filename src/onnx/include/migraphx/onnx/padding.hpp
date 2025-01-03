@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2022 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2024 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -40,7 +40,7 @@ void cal_auto_padding_size(onnx_parser::node_info info,
                            const std::vector<std::size_t>& in_lens,
                            std::vector<int64_t>& paddings);
 
-void check_padding_mode(const onnx_parser::node_info& info, const std::string& op_name);
+void check_padding_mode(const onnx_parser::node_info& info, const std::string& onnx_name);
 
 void tune_padding_size(const value& v,
                        std::vector<int64_t>& padding,

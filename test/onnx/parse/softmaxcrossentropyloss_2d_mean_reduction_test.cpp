@@ -38,6 +38,7 @@ TEST_CASE(softmaxcrossentropyloss_2d_mean_reduction_test)
 
     auto mb_weights = mm->add_instruction(
         migraphx::make_op("multibroadcast", {{"out_lens", labels->get_shape().lens()}}), weights);
+    mb_weights = mm->add_instruction(migraphx::make_op("neg"), mb_weights);
 
     auto softmax = mm->add_instruction(migraphx::make_op("softmax"), scores);
 
@@ -59,9 +60,8 @@ TEST_CASE(softmaxcrossentropyloss_2d_mean_reduction_test)
     auto gathernd2 = mm->add_instruction(migraphx::make_op("gathernd"), unsq_mb, concat);
 
     auto logsoftmax    = mm->add_instruction(migraphx::make_op("log"), gathernd);
-    auto neglogsoftmax = mm->add_instruction(migraphx::make_op("neg"), logsoftmax);
+    auto weighted_loss = mm->add_instruction(migraphx::make_op("mul"), logsoftmax, gathernd2);
 
-    auto weighted_loss = mm->add_instruction(migraphx::make_op("mul"), neglogsoftmax, gathernd2);
     mm->add_instruction(migraphx::make_op("reduce_mean", {{"axes", {0}}}), weighted_loss);
 
     auto prog = optimize_onnx("softmaxcrossentropyloss_2d_mean_reduction_test.onnx");
@@ -84,6 +84,8 @@ TEST_CASE(softmaxcrossentropyloss_2d_mean_reduction_double_test)
     auto mb_weights = mm->add_instruction(
         migraphx::make_op("multibroadcast", {{"out_lens", labels->get_shape().lens()}}), weights);
 
+    mb_weights = mm->add_instruction(migraphx::make_op("neg"), mb_weights);
+
     auto softmax = mm->add_instruction(migraphx::make_op("softmax"), scores);
 
     auto unsq_labels =
@@ -103,10 +105,9 @@ TEST_CASE(softmaxcrossentropyloss_2d_mean_reduction_double_test)
         unsq_mb_weights);
     auto gathernd2 = mm->add_instruction(migraphx::make_op("gathernd"), unsq_mb, concat);
 
-    auto logsoftmax    = mm->add_instruction(migraphx::make_op("log"), gathernd);
-    auto neglogsoftmax = mm->add_instruction(migraphx::make_op("neg"), logsoftmax);
+    auto logsoftmax = mm->add_instruction(migraphx::make_op("log"), gathernd);
 
-    auto weighted_loss = mm->add_instruction(migraphx::make_op("mul"), neglogsoftmax, gathernd2);
+    auto weighted_loss = mm->add_instruction(migraphx::make_op("mul"), logsoftmax, gathernd2);
     mm->add_instruction(migraphx::make_op("reduce_mean", {{"axes", {0}}}), weighted_loss);
 
     auto prog = optimize_onnx("softmaxcrossentropyloss_2d_mean_reduction_double_test.onnx");
@@ -128,6 +129,9 @@ TEST_CASE(softmaxcrossentropyloss_2d_mean_reduction_half_test)
 
     auto mb_weights = mm->add_instruction(
         migraphx::make_op("multibroadcast", {{"out_lens", labels->get_shape().lens()}}), weights);
+
+    mb_weights = mm->add_instruction(migraphx::make_op("neg"), mb_weights);
+
     auto softmax = mm->add_instruction(migraphx::make_op("softmax"), scores);
     auto unsq_labels =
         mm->add_instruction(migraphx::make_op("unsqueeze", {{"axes", {-1}}}), labels);
@@ -147,9 +151,7 @@ TEST_CASE(softmaxcrossentropyloss_2d_mean_reduction_half_test)
     auto gathernd2 = mm->add_instruction(migraphx::make_op("gathernd"), unsq_mb, concat);
 
     auto logsoftmax    = mm->add_instruction(migraphx::make_op("log"), gathernd);
-    auto neglogsoftmax = mm->add_instruction(migraphx::make_op("neg"), logsoftmax);
-
-    auto weighted_loss = mm->add_instruction(migraphx::make_op("mul"), neglogsoftmax, gathernd2);
+    auto weighted_loss = mm->add_instruction(migraphx::make_op("mul"), logsoftmax, gathernd2);
     mm->add_instruction(migraphx::make_op("reduce_mean", {{"axes", {0}}}), weighted_loss);
 
     auto prog = optimize_onnx("softmaxcrossentropyloss_2d_mean_reduction_half_test.onnx");

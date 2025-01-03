@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2023 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2024 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -92,7 +92,7 @@ value handle_pooling_values(const op_desc& opd,
     }
 
     // ensure pads available only when auto_pad is "NOT_SET"
-    check_padding_mode(info, "POOLING");
+    check_padding_mode(info, opd.onnx_name);
 
     return values;
 }

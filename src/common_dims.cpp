@@ -94,7 +94,7 @@ static bool compute_common_dim(std::vector<std::size_t>& cd_dims,
                                common_dim_state& state1,
                                common_dim_state& state2)
 {
-    assert(state1.get() <= state2.get());
+    assert(state1.get() < state2.get());
     auto d2    = state2.get();
     auto dims  = state1.dims_for(d2);
     auto n     = elements(dims);
@@ -131,7 +131,17 @@ common_dims common_dims::compute(const std::vector<std::size_t>& dims1,
     {
         auto d1 = state1.get();
         auto d2 = state2.get();
-        if(d1 <= d2)
+        if(d1 == d2)
+        {
+            state1.add_axes(1, cd.dims.size());
+            state2.add_axes(1, cd.dims.size());
+            state1.rem = 1;
+            state2.rem = 1;
+            cd.dims.push_back(d1);
+            state1.next();
+            state2.next();
+        }
+        else if(d1 < d2)
         {
             if(not compute_common_dim(cd.dims, state1, state2))
                 return {};

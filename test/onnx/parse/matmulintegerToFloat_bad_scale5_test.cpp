@@ -21,27 +21,11 @@
  * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
  * THE SOFTWARE.
  */
-#ifndef MIGRAPHX_GUARD_MIGRAPHX_LAYOUT_NHWC_HPP
-#define MIGRAPHX_GUARD_MIGRAPHX_LAYOUT_NHWC_HPP
 
-#include <string>
-#include <migraphx/instruction_ref.hpp>
-#include <migraphx/config.hpp>
+#include <onnx_test.hpp>
 
-namespace migraphx {
-inline namespace MIGRAPHX_INLINE_NS {
-
-struct module_pass_manager;
-
-/**
- * Transform convolutions to nhwc
- */
-struct MIGRAPHX_EXPORT layout_nhwc
+TEST_CASE(matmulintegertofloat_bad_scale5_test)
 {
-    std::string name() const { return "layout_nhwc"; }
-    void apply(module_pass_manager& mpm) const;
-};
-
-} // namespace MIGRAPHX_INLINE_NS
-} // namespace migraphx
-#endif // MIGRAPHX_GUARD_MIGRAPHX_LAYOUT_NHWC_HPP
+    EXPECT(
+        test::throws([&] { migraphx::parse_onnx("matmulintegertofloat_bad_scale5_test.onnx"); }));
+}

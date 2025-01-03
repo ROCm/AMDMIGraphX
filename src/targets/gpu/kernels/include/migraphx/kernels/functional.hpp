@@ -63,11 +63,11 @@ template <class... Fs>
 struct overloaded : Fs...
 {
     using Fs::operator()...;
-    overloaded(Fs... fs) : Fs(fs)... {}
+    constexpr overloaded(Fs... fs) : Fs(fs)... {}
 };
 
 template <class... Fs>
-overloaded<Fs...> overload(Fs... fs)
+constexpr overloaded<Fs...> overload(Fs... fs)
 {
     return {fs...};
 }
@@ -288,6 +288,7 @@ constexpr auto join(G g, F f)
 template <class G, class F, class... Fs>
 constexpr auto join(G g, F f, Fs... fs)
 {
+    // return f1([=](auto x) { return f2([=](auto y) { return g(x, y); }); });
     return f([=](auto... xs) { return join([=](auto... ys) { return g(xs..., ys...); }, fs...); });
 }
 

@@ -31,18 +31,67 @@
 
 namespace migraphx {
 
+#define MIGRAPHX_CONCAT_GROUP_CASE(x) \
+    case x: { \
+        if constexpr(x < Max) \
+            return f(_c<x>);\
+        break; \
+    }
+template<index_int Max, class I, class F>
+constexpr auto visit_concat_group(I i, F f)
+{
+    if constexpr(Max > 0)
+    {
+        if(i == (Max - 1)) 
+            return f(_c<Max - 1>);
+        if constexpr(Max > 1)
+            return visit_concat_group<Max - 1>(i, f);
+    }
+
+    // static_assert(Max <= 8);
+    // MIGRAPHX_ASSUME(i < Max);
+    // switch(i)
+    // {
+    //     MIGRAPHX_CONCAT_GROUP_CASE(0)
+    //     MIGRAPHX_CONCAT_GROUP_CASE(1)
+    //     MIGRAPHX_CONCAT_GROUP_CASE(2)
+    //     MIGRAPHX_CONCAT_GROUP_CASE(3)
+    //     MIGRAPHX_CONCAT_GROUP_CASE(4)
+    //     MIGRAPHX_CONCAT_GROUP_CASE(5)
+    //     MIGRAPHX_CONCAT_GROUP_CASE(6)
+    //     MIGRAPHX_CONCAT_GROUP_CASE(7)
+    // }
+    MIGRAPHX_UNREACHABLE();
+}
+
+template<class I, class... InputPacks>
+constexpr auto visit_concat_pack(I i, InputPacks... input_packs)
+{
+    return [=](auto f) {
+        return visit_concat_group<sizeof...(InputPacks)>(i, [&](auto x) {
+            return f(arg(x)(input_packs...));
+        });
+    };
+}
+
+template <index_int Axis, class Output, class Start>
+constexpr auto concat_offset(Output, Start start)
+{
+    if constexpr(is_integral<Start>{})
+        return start * get_shape_c<Output>{}.strides[Axis];
+    else
+        return return_c([] { return Start{} * get_shape_c<Output>{}.strides[Axis]; });
+}
+
 template <index_int Axis, class Output, class Input, class Start>
-constexpr auto concat_slice(Output out, Input, Start)
+constexpr auto concat_slice(Output out, Input, Start start)
 {
     constexpr auto lens    = get_shape_c<Input>{}.lens;
     constexpr auto strides = get_shape_c<Output>{}.strides;
-    constexpr auto offset  = return_c([] {
-        constexpr auto output_shape = get_shape_c<Output>{};
-        return Start{} * output_shape.strides[Axis];
-    });
+    auto offset = concat_offset<Axis>(out, start);
     constexpr auto s       = make_shape(lens, strides);
-    MIGRAPHX_ASSERT(offset < out.get_shape().element_space());
-    MIGRAPHX_ASSERT((s.element_space() + offset) <= out.get_shape().element_space());
+    MIGRAPHX_ASSUME(offset < out.get_shape().element_space());
+    MIGRAPHX_ASSUME((s.element_space() + offset) <= out.get_shape().element_space());
     return make_tensor_view(out.data() + offset, s);
 }
 
@@ -59,12 +108,93 @@ constexpr auto concat_ends(Input)
     return _c<lens[Axis]>;
 }
 
-template <index_int Axis, class Start, class InputPack, class F, class... Ts>
-__device__ auto concat_each(index idx, Start start, InputPack input_pack, F f, Ts... ts)
+template <index_int Axis, class N, class InputPack, class... InputPacks>
+constexpr auto concat_starts(N n, InputPack input_pack, InputPacks... input_packs)
+{
+    static_assert(n <= sizeof...(InputPacks));
+    if constexpr(n == 0) {
+        return _c<0>;
+    }
+    else {
+        return input_pack([&](auto, auto x, auto...) {
+            return concat_starts<Axis>(n - _c<1>, input_packs...) +  concat_ends<Axis>(x);
+        });        
+    }
+}
+
+// template <index_int Axis>
+// constexpr index_int concat_starts(index_int)
+// {
+//     MIGRAPHX_UNREACHABLE();
+//     return 0;
+// }
+
+// template <index_int Axis, class InputPack, class... InputPacks>
+// constexpr index_int concat_starts(index_int n, InputPack input_pack, InputPacks... input_packs)
+// {
+//     MIGRAPHX_ASSUME(n <= sizeof...(InputPacks));
+//     if (n == 0)
+//         return 0;
+//     return input_pack([&](auto, auto x, auto...) {
+//         return concat_starts<Axis>(n - 1, input_packs...) +  concat_ends<Axis>(x);
+//     });        
+// }
+
+template <index_int Axis, class... InputPacks>
+constexpr auto concat_elements(index_int n, InputPacks... input_packs)
+{
+    return visit_concat_group<sizeof...(InputPacks)>(n, [&](auto i) {
+        return arg(i)(input_packs...)([&](auto, auto x, auto...) -> index_int {
+            return x.get_shape().elements();
+        });
+    });
+            
+}
+
+template<class... InputPacks>
+constexpr auto concat_pack_x(index_int n, InputPacks... input_packs)
+{
+    return [=](auto i) {
+        return visit_concat_group<sizeof...(InputPacks)>(n, [&](auto j) {
+            return arg(j)(input_packs...)([&](auto g, auto... xs) {
+                return g(xs[i]...);
+            });
+        });
+    };
+}
+
+template<class... InputPacks>
+constexpr auto concat_visit_x(index_int n, InputPacks... input_packs)
+{
+    return [=](auto f) {
+        return visit_concat_group<sizeof...(InputPacks)>(n, [&](auto j) {
+            return arg(j)(input_packs...)([&](auto g, auto... xs) {
+                return f(g, xs...);
+            });
+        });
+    };
+}
+
+template<index_int Axis, class... InputPacks>
+constexpr auto concat_slice_y(index_int n, InputPacks... input_packs)
+{
+    return [=](auto y) {
+        return visit_concat_group<sizeof...(InputPacks)>(n, [&](auto j) {
+            auto start = concat_starts<Axis>(j, input_packs...);
+            auto input_pack = arg(j)(input_packs...);
+            return input_pack([&](auto, auto x, auto...) {
+                return concat_slice<Axis>(y, x, start);
+            });
+        });
+    };
+}
+
+template <index_int Axis, class ForStride, class Start, class InputPack, class F, class... Ts>
+__device__ auto concat_each(ForStride for_stride, Start start, InputPack input_pack, F f, Ts... ts)
 {
     return input_pack([&](auto g, auto x, auto... xs) {
         return concat_slices<Axis>(x, start, ts...)([&](auto z, auto... ys) {
-            idx.global_stride(x.get_shape().elements(),
+            for_stride(x.get_shape().elements(),
                               [&](auto i) { z[i] = f(g(x[i], xs[i]...), ys[i]...); });
 
             return start + concat_ends<Axis>(x);
@@ -78,8 +208,33 @@ __device__ auto concat(InputPacks... input_packs)
     return [=](auto f, auto... ts) {
         auto idx = make_index();
         fold([&](auto start, auto input_pack) {
-            return concat_each<Axis>(idx, start, input_pack, f, ts...);
+            auto fs = [&](auto n, auto g) { idx.global_stride(n, g); };
+            return concat_each<Axis>(fs, start, input_pack, f, ts...);
         })(_c<0>, input_packs...);
+    };
+}
+
+template <index_int Axis, class... InputPacks>
+__device__ auto par_concat(InputPacks... input_packs)
+{
+    return [=](auto f, auto z, auto... ys) {
+        auto idx = make_index();
+        auto ninputs = _c<sizeof...(input_packs)>;
+        auto nteams = idx.ngroup() / ninputs;
+        auto team = idx.team<nteams>();
+        // auto start = concat_starts<Axis>(team, input_packs...);
+        // auto start = visit_concat_group<ninputs>(team, [&](auto i) -> index_int {
+        //     return concat_starts<Axis>(i, input_packs...);
+        // });
+        auto x = concat_pack_x(team, input_packs...);
+        auto slice = concat_slice_y<Axis>(team, input_packs...);
+
+        idx.local_team_stride<nteams>(concat_elements<Axis>(team, input_packs...), [&](auto i) {
+            // slice(z)[i] = concat_visit_x(team, input_packs...)([&](auto g, auto... xs) {
+            //     return f(g(xs[i]...), slice(ys)[i]...);
+            // });
+            slice(z)[i] = f(x(i), slice(ys)[i]...);
+        });
     };
 }
 

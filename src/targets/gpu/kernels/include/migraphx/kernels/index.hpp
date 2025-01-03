@@ -135,6 +135,24 @@ struct index
 
     constexpr auto ngroup() const { return nglobal() / max_nlocal(); }
 
+    template <unsigned int TeamSize>
+    constexpr auto nlocal_team() const
+    {
+        return _c<TeamSize> * max_nlocal();
+    }
+
+    template <unsigned int TeamSize>
+    constexpr auto local_team() const
+    {
+        return global % nlocal_team<TeamSize>();
+    }
+
+    template <unsigned int TeamSize>
+    constexpr auto team() const
+    {
+        return group / TeamSize;
+    }
+
     template <unsigned int SubWaveSize>
     constexpr index_constant<SubWaveSize> nlocal_subwave() const
     {
@@ -279,6 +297,13 @@ struct index
     {
         for_stride<false>(group, n, ngroup(), f);
     }
+
+    template <unsigned int TeamSize, class F, class N>
+    __device__ void local_team_stride(N n, F f) const
+    {
+        for_stride<true>(local_team<TeamSize>(), n, nlocal_team<TeamSize>(), f);
+    }
+
 
     template <unsigned int SubWaveSize, class F, class N>
     __device__ void local_subwave_stride(N n, F f) const

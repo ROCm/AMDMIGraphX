@@ -51,7 +51,7 @@ extern "C" {
 MIGRAPHX_GLOBAL void ${kernel}(${params}) 
 {
     transform_args(make_tensors(), rotate_last(), ${transformers})(${args})([](auto y, ${concat_params}, auto... xs) {
-        concat<${axis}>(${concat_args})(${post}, y, xs...);
+        ${algo}<${axis}>(${concat_args})(${post}, y, xs...);
     });
 }
 
@@ -60,6 +60,11 @@ MIGRAPHX_GLOBAL void ${kernel}(${params})
 } // namespace migraphx
 
 )__migraphx__";
+
+static std::size_t ceil_to_multiple(std::size_t x, std::size_t m) {
+    assert(m != 0);
+    return ((x + m - 1) / m) * m;
+}
 
 struct concat_compiler : compiler<concat_compiler>
 {
@@ -92,11 +97,16 @@ struct concat_compiler : compiler<concat_compiler>
         auto axis              = find_fast_axis(options.virtual_inputs);
         auto op_names       = v.at("ops").to_vector<std::string>();
         auto args           = v.at("args");
+        std::string algo = "concat";
+        if(op_names.size() < 8)
+            algo = "par_concat";
         vectorize vec{};
         if(axis != concat_axis)
             vec = vectorize::elements(ctx, axis, options.virtual_inputs);
-        auto nelements_per_op = options.virtual_inputs.back().elements() / op_names.size();
-        options.set_launch_params(v, compute_global_for(ctx, nelements_per_op / vec.size, 256));
+        auto nelements = options.virtual_inputs.back().elements();
+        auto nelements_per_op = nelements / op_names.size();
+        auto global = algo == "concat" ? (nelements_per_op / vec.size) : ceil_to_multiple(nelements / vec.size, 1024);
+        options.set_launch_params(v, compute_global_for(ctx, global, 256));
         options.emplace_param("-Wno-float-equal");
         std::vector<std::string> concat_params;
         std::vector<std::string> concat_args;
@@ -116,6 +126,7 @@ struct concat_compiler : compiler<concat_compiler>
         }
         auto src = interpolate_string(concat_kernel,
                                       {{"kernel", options.kernel_name},
+                                       {"algo", algo},
                                        {"params", enum_params(inputs.size(), "void * private_p")},
                                        {"args", enum_params(inputs.size(), "private_p")},
                                        {"concat_params", join_strings(concat_params, ", ")},

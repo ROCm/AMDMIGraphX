@@ -28,6 +28,7 @@
 #include <migraphx/shape_for_each.hpp>
 #include <migraphx/instruction.hpp>
 #include <migraphx/make_op.hpp>
+#include <bitset>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
@@ -40,7 +41,7 @@ namespace onnx {
  * Output: vector contains the result of space index.
  *
  * From vvv_ind:
- *              layer-1: size of 1st dimension, caller will pass as n_dim
+ *              layer-1: size of 1st dimension, caller will pass as n_bits
  *              layer-2: hardcode to 2 by caller
  *              layer-3: a vector of out_elements (caller pass) integers.
  * vvv_ind = {
@@ -53,7 +54,7 @@ namespace onnx {
  *
  * To Compose a series of vector of indices, which will further be used to get space index from
  *   the input shape.
- * indices{} has (2^n_dim) * out_elements members, each member is a vector of n_dim indices.
+ * indices{} has (2^n_bits) * out_elements members, each member is a vector of n_bits indices.
  * indices = {
  *     {...},
  *     {...},
@@ -77,15 +78,15 @@ namespace onnx {
  *            {1}
  *           };
  *
- * For each number within [0, (2^n_dim)) (outer loop), map each bit (inner loop, MSB to LSB)
- *   to n_dim, and pick A|B, C|D, E|F, G|H based on bit 0|1.
- *   i.e. 0110b -> A'D'F'G'
- * Transpose A to A' and repeat for each elements within A' (medium loop).
- * Use the new crafted vector of n_dim indices, get the mapping from shape in_s.
+ * Outer loop:
+ *   Iterate all values within range [0, (2^n_bits)) and maps to bitset for inner loop (MSB to LSB).
+ * Middle loop:
+ *   Transform all elements in layer-3: take indices from inner loop to get index from input shape,
+     append to vec_ind.
+ * Inner loop:
+ *   Compose a vector of indices by iterating all layer-1 using current bitset from current element.
  *
- * Outer loop: loop all values within range [0, (2^n_dim))
- *     Medium loop: loop all elements within layer-3, range [0, m_elements)
- *         Inner loop: loop all bits of the value of current outer loop
+ * i.e. val = 6 -> bitset 0110b -> indices: pick each value from A'D'F'G' -> in_s.index(indices)
  */
 
 static std::vector<int>
@@ -96,20 +97,26 @@ calc_neighbor_points(const std::vector<std::vector<std::vector<std::size_t>>>& v
     std::size_t m_elements = vvv_ind[0][0].size();
     std::vector<int> vec_ind;
 
+    if(n_bits >= std::numeric_limits<std::size_t>::digits)
+    {
+        throw std::runtime_error("Shape dimension " + std::to_string(n_bits) + " exceeds " +
+                                 std::to_string(std::numeric_limits<std::size_t>::digits));
+    }
+
     for(std::size_t val = 0; val < (std::size_t{1} << n_bits); val++)
     {
+        std::bitset<std::numeric_limits<std::size_t>::digits> bits_val = val;
         std::vector<std::size_t> indices(n_bits);
-        for(std::size_t i_element = 0; i_element < m_elements; i_element++)
-        {
-            std::size_t bits_val = val;
-            indices.clear();
-            for(std::size_t dim = 0; dim < n_bits; dim++)
-            {
-                indices.push_back(vvv_ind[dim][bits_val & std::size_t{1}][i_element]);
-                bits_val >>= std::size_t{1};
-            }
-            vec_ind.push_back(in_s.index(indices));
-        }
+        transform(
+            range(m_elements), std::back_inserter(vec_ind), [&](const std::size_t& i_element) {
+                transform(vvv_ind,
+                          range(n_bits),
+                          indices.begin(),
+                          [&](const auto& vv_ind, const std::size_t& bit) {
+                              return vv_ind[bits_val[bit]][i_element];
+                          });
+                return in_s.index(indices);
+            });
     }
 
     return vec_ind;

@@ -51,16 +51,13 @@ void run_simplify_qdq(migraphx::module& m)
     run_passes(m, {migraphx::simplify_qdq{}, migraphx::dead_code_elimination{}});
 }
 
-void run_cse(migraphx::module& m)
+void run_cse_pc(migraphx::module& m, const std::unordered_set<std::string>& skip_ops = {})
 {
-    run_passes(m, {migraphx::eliminate_common_subexpression{}, migraphx::dead_code_elimination{}});
-}
-
-void run_propagate_constant(migraphx::module& m,
-                            const std::unordered_set<std::string>& skip_ops = {})
-{
-    migraphx::run_passes(
-        m, {migraphx::propagate_constant{skip_ops}, migraphx::dead_code_elimination{}});
+    run_passes(m,
+               {migraphx::eliminate_common_subexpression{},
+                migraphx::dead_code_elimination{},
+                migraphx::propagate_constant{skip_ops},
+                migraphx::dead_code_elimination{}});
 }
 
 auto bit_cast_and_handle_specials(migraphx::module& m,
@@ -218,10 +215,8 @@ TEST_CASE(fp8_gemm_conversion)
     run_simplify_qdq(m1);
     // running propagate constant to simplify adjustments to literals
     // could pass the test without, but a tedious amount of instructions to rearrange
-    run_propagate_constant(m1);
-    run_propagate_constant(m3);
-    run_cse(m1);
-    run_cse(m3);
+    run_cse_pc(m1);
+    run_cse_pc(m3);
     EXPECT(m1 == m3);
     m1.debug_print();
 }

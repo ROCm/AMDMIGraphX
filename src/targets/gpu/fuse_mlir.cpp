@@ -771,7 +771,7 @@ struct find_mlir_standalone_attention_op
     auto matcher() const
     {
         auto gemm1 =
-            match::skip(match::name("contiguous"))(match::used_once(), is_mlir_dot(dot_mode))
+            match::skip(match::name("contiguous"))(match::used_once(), match::any_of(is_mlir_dot(dot_mode), is_mlir_conv(dot_mode)))
                 .bind("gemm1");
         auto fused_reduce =
             match::name("fused_reduce")(match::used_once(),

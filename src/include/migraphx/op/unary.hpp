@@ -66,13 +66,9 @@ struct unary : op_name<Derived>
     {
         check_shapes{inputs, static_cast<const Derived&>(*this), true}.has(1);
         auto s = inputs.at(0);
-        if(s.dynamic() or s.scalar())
+        if(s.dynamic() or s.broadcasted())
         {
             return s;
-        }
-        else if(s.broadcasted())
-        {
-            return {s.type(), s.lens()};
         }
         else
         {

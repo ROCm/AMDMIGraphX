@@ -78,6 +78,10 @@ Print out the program as cpp program.
 
 Print out program as json.
 
+.. option::  --netron
+
+Print out program as a Netron viewable json file.
+
 .. option::  --text
 
 Print out program in text format.

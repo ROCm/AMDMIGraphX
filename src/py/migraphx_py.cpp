@@ -264,19 +264,19 @@ py::object to_py_object(const migraphx::value& val)
 {
     py::object result;
 
-    if(val.is_object())
-    {
-        py::dict py_dict;
-        for(const auto& v : val.get_object())
+    val.visit_value([&](const auto& x) {
+        if constexpr(std::is_same<std::decay_t<decltype(x)>, std::vector<migraphx::value>>::value)
         {
-            py_dict[py::str(v.get_key())] = to_py_object(v.without_key());
-        }
-        result = py_dict;
-    }
-    else
-    {
-        val.visit_value([&](const auto& x) {
-            if constexpr(std::is_same_v<std::decay_t<decltype(x)>, std::vector<migraphx::value>>)
+            if(val.is_object())
+            {
+                py::dict py_dict;
+                for(const auto& item : x)
+                {
+                    py_dict[py::str(item.get_key())] = to_py_object(item.without_key());
+                }
+                result = py_dict;
+            }
+            else
             {
                 py::list py_list;
                 for(const auto& item : x)
@@ -285,12 +285,12 @@ py::object to_py_object(const migraphx::value& val)
                 }
                 result = py_list;
             }
-            else
-            {
-                result = py::cast(x);
-            }
-        });
-    }
+        }
+        else
+        {
+            result = py::cast(x);
+        }
+    });
 
     return result;
 }

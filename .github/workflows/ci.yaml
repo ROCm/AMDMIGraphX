@@ -355,8 +355,12 @@ jobs:
       uses: actions/setup-python@v4
       with:
         python-version: 3.8
-    - name: run License Check
-      run: python3 tools/check_stamped.py origin/${{ github.event_name == 'pull_request' && github.base_ref || 'develop' }}
+    - name: Check licensing
+      shell: bash -c "docker run -i -v=$GITHUB_WORKSPACE:/data -w /data $DOCKER_IMAGE_UBUNTU:$DOCKER_TAG_UBUNTU bash < {0}"
+      run: |
+        set -e
+        git config --global --add safe.directory /data
+        python3 tools/check_stamped.py origin/${{ github.event_name == 'pull_request' && github.base_ref || 'develop' }}
 
   linux:
 

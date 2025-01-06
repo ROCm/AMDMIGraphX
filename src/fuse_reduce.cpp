@@ -58,23 +58,18 @@ struct fused_reduce
         if(mods.size() != 1)
             MIGRAPHX_THROW("should have one submodule.");
         const auto* sm = mods.front();
-        if(sm->get_output_shapes().size() != 1)
-            MIGRAPHX_THROW("Only one output supported");
         if(not sm->bypass())
             MIGRAPHX_THROW("fused_reduce: bypass flag is not set");
         auto names = sm->get_parameter_names();
         check_shapes{inputs, *this}.has(names.size()).same_ndims();
         std::sort(names.begin(), names.end());
-        auto shapes = sm->get_parameter_shapes();
-        // Check dimension matches for each input
-        if(not equal(names, inputs, [&](const auto& name, const auto& input) {
-               return shapes.at(name).lens() == input.lens();
-           }))
-            MIGRAPHX_THROW("Input dimension does not match the submodule.");
 
-        return shape::from_permutation(sm->get_output_shapes().front().type(),
-                                       sm->get_output_shapes().front().lens(),
-                                       find_permutation(inputs));
+        auto result = sm->compute_shapes(
+            inputs,
+            {.name = name(), .strict_type = true, .strict_lens = true});
+        if(result.size() == 1)
+            return result.front();
+        return shape{result};
     }
 
     std::string name() const { return "fused_reduce"; }
@@ -215,13 +210,6 @@ static auto match_broadcast_axes(M m)
         });
 }
 
-static auto match_broadcastable_input(const std::string& op, const std::string& name)
-{
-    auto match_op                 = match::name(op)(used_once_except_broadcast()).bind(name);
-    auto match_op_input           = any_input(match_op, match::used_once());
-    auto broadcast_match_op_input = any_input(match_broadcast(match_op), match::used_once());
-    return match::any_of(match_op_input, match_broadcast_axes(broadcast_match_op_input));
-}
 
 static void finalize_reduce_module(module_ref m)
 {
@@ -230,7 +218,68 @@ static void finalize_reduce_module(module_ref m)
 }
 
 namespace {
-struct find_pointwise_reduce
+struct find_reduce_base
+{
+    bool multi_output = false;
+    template<class... Ms>
+    auto any_fusable_input_usage(Ms... ms) const
+    {
+        auto m = match::any(ms...);
+        return match::make_basic_fun_matcher(
+        [=](match::matcher_context& ctx, instruction_ref ins) -> optional<instruction_ref> {
+                    auto it = std::find_if(ins->inputs().begin(), ins->inputs().end(), [&](auto i) {
+                    return ctx.matched(m, i) and i->outputs().size() == 1;
+                });
+            if(it == ins->inputs().end() and multi_output) 
+            {
+                it = std::find_if(ins->inputs().begin(), ins->inputs().end(), [&](auto i) {
+                        return ctx.matched(m, i) and std::none_of(i->outputs().begin(), i->outputs().end(), [&](auto output) {
+                            return output != ins and reaches(output, ins);
+                        });
+                    });
+            }
+            if(it == ins->inputs().end())
+                return nullopt;
+            return *it;
+        });
+    }
+    auto match_broadcastable_input(const std::string& op, const std::string& name) const
+    {
+        auto match_op                 = match::name(op)(used_once_except_broadcast()).bind(name);
+        auto match_op_input           = any_input(match_op, match::used_once());
+        auto broadcast_match_op_input = any_input(match_broadcast(match_op), match::used_once());
+        return match::any_of(match_op_input, match_broadcast_axes(broadcast_match_op_input), any_fusable_input_usage(match::name(op).bind(name)));
+    }
+    void replace_return(instruction_ref input, module_ref sm, std::vector<instruction_ref> returns) const
+    {
+        if (multi_output and input->outputs().size() > 1)
+        {
+            auto r = sm->get_returns();
+            returns.insert(returns.end(), r.begin(), r.end());
+        }
+        sm->replace_return(returns);
+    }
+
+    void replace_instruction(instruction_ref input, module& m, instruction_ref ins, operation op, const std::vector<instruction_ref>& args, const std::vector<module_ref>& module_inputs) const
+    {
+        if(multi_output and input->outputs().size() > 1)
+        {
+            auto fins = m.insert_instruction(ins, op, args, module_inputs);
+            auto noutputs = std::max<std::size_t>(1, ins->get_shape().sub_shapes().size());
+            auto finput = m.insert_instruction(ins, make_op("get_tuple_elem", {{"index", noutputs}}), fins);
+            m.replace_instruction(input, finput);
+            if(noutputs == 1)
+                fins = m.insert_instruction(ins, make_op("get_tuple_elem", {{"index", 0}}), fins);
+            m.replace_instruction(ins, fins);
+        }
+        else
+        {
+            m.replace_instruction(ins, op, args, module_inputs);
+        }
+    }
+
+};
+struct find_pointwise_reduce : find_reduce_base
 {
     auto matcher() const
     {
@@ -251,6 +300,7 @@ struct find_pointwise_reduce
         // Insert pointwise
         auto rins      = rm->fuse({input}, &map_ins).front();
         map_ins[input] = rins;
+        rm->add_return({rins});
 
         if(contains(r.instructions, "broadcast"))
         {
@@ -262,15 +312,15 @@ struct find_pointwise_reduce
         }
 
         // Insert fused_reduce
-        rm->add_return(insert_module_in_submodule(rm, reduce, &map_ins));
+        replace_return(input, rm, insert_module_in_submodule(rm, reduce, &map_ins));
         finalize_reduce_module(rm);
 
         auto new_inputs = find_inputs(map_ins, &mpm.get_module(), rm);
-        mpm.get_module().replace_instruction(reduce, reduce->get_operator(), new_inputs, {rm});
+        replace_instruction(input, mpm.get_module(), reduce, reduce->get_operator(), new_inputs, {rm});
     }
 };
 
-struct find_reduce_pointwise
+struct find_reduce_pointwise : find_reduce_base
 {
 
     auto matcher() const
@@ -312,7 +362,7 @@ struct find_reduce_pointwise
     }
 };
 
-struct find_reduce_reduce
+struct find_reduce_reduce : find_reduce_base
 {
     auto matcher() const
     {
@@ -431,7 +481,7 @@ void fuse_reduce::apply(module_pass_manager& mpm) const
         if(enable_rewrite_reshapes)
             mpm.run_pass(rewrite_reshapes<reduce_reshape>{});
         match::find_matches(
-            mpm, find_reduce_pointwise{}, find_pointwise_reduce{}, find_reduce_reduce{});
+            mpm, find_reduce_pointwise{}, find_pointwise_reduce{{.multi_output = enable_multi_output}}, find_reduce_reduce{});
         mpm.run_pass(dead_code_elimination{});
     }
 }

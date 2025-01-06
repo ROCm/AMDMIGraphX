@@ -50,6 +50,7 @@ void fuse_pointwise_reduce::apply(module_pass_manager& mpm) const
     mpm.run_pass(split_reduce{.split_size = get_split_size(split_size)});
     mpm.run_pass(fuse_pointwise{.enable_rewrite_broadcasts = true});
     mpm.run_pass(fuse_pointwise{.enable_multi_output = true});
+    mpm.run_pass(fuse_reduce{.enable_multi_output = true});
 }
 
 } // namespace MIGRAPHX_INLINE_NS

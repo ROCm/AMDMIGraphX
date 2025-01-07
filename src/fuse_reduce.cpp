@@ -217,6 +217,28 @@ static void finalize_reduce_module(module_ref m)
     dead_code_elimination{}.apply(*m);
 }
 
+static void move_output_instructions_after(module& m, instruction_ref src, instruction_ref dst)
+{
+    auto d = std::distance(src, dst);
+    std::vector<std::pair<std::size_t, instruction_ref>> instructions;
+    fix([&](auto self, instruction_ref ins) {
+        for(auto output:ins->outputs())
+        {
+            if(any_of(instructions, [&](const auto& p) { return p.second == output; }))
+                continue;
+            auto i = std::distance(src, output);
+            if(i >= d)
+                continue;
+            instructions.emplace_back(i, output);
+            self(output);
+        }
+    })(src);
+    std::sort(instructions.begin(), instructions.end(), by(std::less<>{}, [](auto&& p) { return p.first; }));
+    auto loc = std::next(dst);
+    for(auto [i, ins]:instructions)
+        m.move_instruction(ins, loc);
+}
+
 namespace {
 struct find_reduce_base
 {
@@ -264,6 +286,7 @@ struct find_reduce_base
     {
         if(multi_output and input->outputs().size() > 1)
         {
+            move_output_instructions_after(m, input, ins);
             auto fins = m.insert_instruction(ins, op, args, module_inputs);
             auto noutputs = std::max<std::size_t>(1, ins->get_shape().sub_shapes().size());
             auto finput = m.insert_instruction(ins, make_op("get_tuple_elem", {{"index", noutputs}}), fins);
@@ -479,7 +502,7 @@ void fuse_reduce::apply(module_pass_manager& mpm) const
     for(int i = 0; i < 4; i++)
     {
         if(enable_rewrite_reshapes)
-            mpm.run_pass(rewrite_reshapes<reduce_reshape>{});
+            mpm.run_pass(rewrite_reshapes<reduce_reshape>{.enable_multi_output = enable_multi_output});
         match::find_matches(
             mpm, find_reduce_pointwise{}, find_pointwise_reduce{{.multi_output = enable_multi_output}}, find_reduce_reduce{});
         mpm.run_pass(dead_code_elimination{});

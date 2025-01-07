@@ -65,11 +65,22 @@ struct rewrite_reshapes_base
 template <class T>
 struct rewrite_reshapes
 {
+    bool enable_multi_output = false;
     std::string name() const { return "rewrite_reshapes"; }
     struct find_op_reshape_op
     {
         std::string op1;
         std::string op2;
+        bool multi_out = false;
+
+        auto used_once_or_multi_out() const
+        {
+            return match::make_basic_pred_matcher([=](instruction_ref ins) {
+                if(multi_out)
+                    return true;
+                return ins->outputs().size() == 1;
+            });
+        }
 
         auto matcher() const
         {
@@ -81,7 +92,7 @@ struct rewrite_reshapes
                                         "contiguous",
                                         "multibroadcast",
                                         "broadcast")(match::used_once());
-            auto pointwise         = match::name(op1)(match::used_once());
+            auto pointwise         = match::name(op1)(used_once_or_multi_out());
             auto reshapes_pointwise =
                 reshapes(match::arg(0)(match::skip(reshapes())(pointwise.bind("x"))));
             return match::name(op2)(
@@ -198,6 +209,11 @@ struct rewrite_reshapes
             auto rins =
                 reshape_input(ins, &shape_transform_descriptor::generate_dst_from_common)(pw);
             mpm.get_module().replace_instruction(ins, rins);
+            if(x_ins->outputs().size() > 1)
+            {
+                auto r_x_ins = reshape_input(x_ins, &shape_transform_descriptor::generate_src_from_common)(new_x_ins);
+                mpm.get_module().replace_instruction(x_ins, r_x_ins);
+            }
         }
 
         static bool same_dims(instruction_ref ins)
@@ -224,14 +240,14 @@ struct rewrite_reshapes
     {
         if(T::name() == "pointwise")
         {
-            match::find_matches(mpm, find_op_reshape_op{"pointwise", T::name()});
+            match::find_matches(mpm, find_op_reshape_op{"pointwise", T::name(), enable_multi_output});
         }
         else
         {
             match::find_matches(mpm,
-                                find_op_reshape_op{"pointwise", T::name()},
-                                find_op_reshape_op{T::name(), "pointwise"},
-                                find_op_reshape_op{T::name(), T::name()});
+                                find_op_reshape_op{"pointwise", T::name(), enable_multi_output},
+                                find_op_reshape_op{T::name(), "pointwise", enable_multi_output},
+                                find_op_reshape_op{T::name(), T::name(), enable_multi_output});
         }
         mpm.run_pass(simplify_reshapes{1});
         mpm.run_pass(eliminate_common_subexpression{});

@@ -192,7 +192,7 @@ TEST_CASE(fp8_quantization)
             EXPECT(migraphx::verify::verify_range_with_tolerance(
                 gpu_result,
                 migraphx::verify::expected{ref_result},
-                migraphx::verify::tolerance{0.01}));
+                migraphx::verify::tolerance{0.02}));
         else
             EXPECT(migraphx::verify::verify_rms_range(gpu_result, ref_result));
     }

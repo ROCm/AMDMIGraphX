@@ -265,7 +265,7 @@ py::object to_py_object(const migraphx::value& val)
     py::object result;
 
     val.visit_value([&](const auto& x) {
-        if constexpr(std::is_same<std::decay_t<decltype(x)>, std::vector<migraphx::value>>::value)
+        if constexpr(std::is_same<std::decay_t<decltype(x)>, std::vector<migraphx::value>>{})
         {
             if(val.is_object())
             {

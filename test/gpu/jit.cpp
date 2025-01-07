@@ -386,7 +386,7 @@ TEST_CASE(compile_math)
         if(contains({migraphx::shape::bool_type, migraphx::shape::tuple_type}, t))
             continue;
         auto name = migraphx::shape::cpp_type(t);
-        if((t == migraphx::shape::half_type) or (t == migraphx::shape::bf16_type))
+        if(contains({migraphx::shape::half_type, migraphx::shape::bf16_type}, t))
             name.insert(0, "migraphx::");
         data_types.push_back(name);
         // fp8 doesn't have vectorization support yet, therefore skip it for now.

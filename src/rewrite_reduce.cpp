@@ -55,6 +55,55 @@ struct find_softmax
     }
 };
 
+struct find_square_reduce_sum
+{
+    auto matcher() const
+    {
+        auto reduce_sum_mul = match::name("reduce_sum")(match::arg(0)(match::name("mul")(
+            match::arg(0)(match::name("mul")(
+                match::arg(0)(match::any().bind("x")),match::arg(1)(match::skip_broadcasts(match::is_constant.bind("scale")))
+                )
+            ),
+            match::arg(1)(match::name("mul")(
+                match::arg(0)(match::any().bind("x")),match::arg(1)(match::skip_broadcasts(match::is_constant.bind("scale")))
+                )
+            )
+            )));
+        return reduce_sum_mul;
+        // auto mul_constant = match::name("mul")(
+        //     match::arg(0)(match::any().bind("x")),match::arg(1)(match::any().bind("scale")));
+
+        // return reduce_sum_mul(match::arg(0)(mul_constant), match::arg(1)(mul_constant));
+
+    }
+
+    void apply(module& m, const match::matcher_result& r) const
+    {
+        auto ins   = r.result;
+        auto x_ins = r.instructions["x"];
+        auto scale  = r.instructions["scale"];
+        auto scale_val = scale->eval().at<float>();
+
+        auto x_dims = x_ins->get_shape().lens();
+
+        auto op   = ins->get_operator().to_value();
+        auto axes = op["axes"].to_vector<int64_t>();
+        auto reduce_size = 1;
+        for (auto axis : axes) {
+            reduce_size *= x_dims.at(axis);
+        }
+
+        float reduce_scale = 1 / std::sqrt(reduce_size);
+        // std::cout << reduce_scale << " " << scale_val << std::endl;
+        if(std::abs(reduce_scale - scale_val) > 1e-5)
+            return;
+        
+        auto new_mul = m.insert_instruction(ins, make_op("mul"), x_ins, x_ins);
+        auto new_reduce = m.insert_instruction(ins, make_op("reduce_mean", {{"axes", axes}}), new_mul);
+        m.replace_instruction(ins, new_reduce);
+    }
+};
+
 struct find_reduce_mean_variance
 {
     auto matcher() const
@@ -145,6 +194,7 @@ struct find_reduce_mean
 
 void rewrite_reduce::apply(module& m) const
 {
+    match::find_matches(m, find_square_reduce_sum{});
     match::find_matches(m, find_softmax{}, find_reduce_mean_variance{});
     match::find_matches(m, find_reduce_mean{});
 }

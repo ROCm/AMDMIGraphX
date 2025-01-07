@@ -32,8 +32,6 @@
 #####################################################################################
 import subprocess, sys, datetime, argparse, os
 
-debug = True
-
 current_year = datetime.date.today().year
 
 # The filetypes we want to check for that are stamped
@@ -63,7 +61,7 @@ def hasKeySequence(inputfile: str, key_message: str) -> bool:
 
 
 # Simple just open and write stuff to each file with the license stamp
-def needStampCheck(filename: str) -> bool:
+def needStampCheck(filename: str, debug: bool) -> bool:
     # open save old contents and append things here
     if debug: print("Open", filename, end=' ')
     #Empty name isn't a filename
@@ -145,7 +143,7 @@ def get_files_changed(against):
             if f.endswith(supported_file_types) and not is_excluded(f))
 
 
-def main(branch) -> None:
+def main(branch, debug) -> None:
     unsupported_file_types.extend(specificIgnores)
 
     fileList = list(get_files_changed(branch))
@@ -156,7 +154,7 @@ def main(branch) -> None:
 
     for file in fileList:
         if check_filename(file, supported_file_types):
-            if needStampCheck(file) and not check_filename(
+            if needStampCheck(file, debug) and not check_filename(
                     file, unsupported_file_types):
                 unstampedFiles.append(file)
             else:
@@ -195,6 +193,7 @@ if __name__ == "__main__":
 
     parser = argparse.ArgumentParser()
     parser.add_argument("branch")
+    parser.add_argument('-d', '--debug', action='store_true')
     args = parser.parse_args()
 
-    main(args.branch)
+    main(args.branch, args.debug)

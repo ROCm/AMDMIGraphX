@@ -220,6 +220,7 @@ std::vector<pass> target::get_passes(migraphx::context& gctx, const compile_opti
         dead_code_elimination{},
         fuse_concat{},
         dead_code_elimination{},
+        fuse_pointwise_reduce{.enable_multi_output = true},
         auto_contiguous{},
         dead_code_elimination{},
         lowering{&ctx, options.offload_copy},

@@ -88,7 +88,7 @@ struct binary : op_name<Derived>
         }
         else
         {
-            return {s0.type(), s0.lens()};
+            return shape::from_permutation(s0.type(), s0.lens(), find_permutation({s0, s1}));
         }
     }
 

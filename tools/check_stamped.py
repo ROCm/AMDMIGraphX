@@ -30,7 +30,7 @@
 # in the license stamp, with the assumption being that any modifications/creations will need to be stamped to the year that the
 # modification/creation was made.
 #####################################################################################
-import subprocess, sys, datetime, argparse, os 
+import subprocess, sys, datetime, argparse, os
 
 debug = True
 
@@ -110,12 +110,14 @@ def check_filename(filename: str, fileTuple: tuple or list) -> bool:
         return True
     return False
 
+
 def eval(cmd, **kwargs):
     return subprocess.run(cmd,
                           capture_output=True,
                           shell=isinstance(cmd, str),
                           check=True,
                           **kwargs).stdout.decode('utf-8').strip()
+
 
 def is_excluded(f):
     base = os.path.basename(f)
@@ -139,14 +141,18 @@ def get_files_changed(against):
     files = eval(
         f"git diff-index --cached --name-only --diff-filter=d {against}",
         cwd=get_top()).splitlines()
-    return (f for f in files if f.endswith(supported_file_types) and not is_excluded(f))
+    return (f for f in files
+            if f.endswith(supported_file_types) and not is_excluded(f))
+
 
 def main(branch) -> None:
     unsupported_file_types.extend(specificIgnores)
 
     fileList = list(get_files_changed(branch))
 
-    if debug: print(f"Branch: {branch}, Target file list {len(fileList)}:\n" + str(fileList))
+    if debug:
+        print(f"Branch: {branch}, Target file list {len(fileList)}:\n" +
+              str(fileList))
 
     for file in fileList:
         if check_filename(file, supported_file_types):

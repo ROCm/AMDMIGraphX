@@ -354,9 +354,6 @@ jobs:
       with:
         fetch-depth: 0 # Fetch the entire repository history and all branches
 
-    - name: Fetch All Branches
-      run: git fetch --prune --unshallow # Ensure all branches are fetched
-
     - name: Configure Git Safe Directory
       run: git config --global --add safe.directory $GITHUB_WORKSPACE
 

@@ -354,9 +354,6 @@ jobs:
       with:
         fetch-depth: 0 # Fetch the entire repository history and all branches
 
-    - name: Configure Git Safe Directory
-      run: git config --global --add safe.directory $GITHUB_WORKSPACE
-
     - name: Set up Python
       uses: actions/setup-python@v4
       with:

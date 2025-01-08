@@ -65,6 +65,21 @@ struct print_buffer
             pos++;
         }
     }
+    static constexpr void reverse(char* first, char* last)
+    {
+        if(first == last)
+            return;
+        last--;
+        while(first < last)
+        {
+            char tmp = *first;
+            *first   = *last;
+            *last    = tmp;
+            first++;
+            last--;
+        }
+    }
+
     template <class T, class = decltype(T{} % 10, -T{})>
     constexpr void append(T i)
     {
@@ -73,10 +88,19 @@ struct print_buffer
             append('-');
             i = -i;
         }
-        char c = (i % 10) + '0';
-        if(i > 9)
-            append(i / 10);
-        append(c);
+        if(i == 0)
+        {
+            append('0');
+            return;
+        }
+        char* start = pos;
+        while(i != 0)
+        {
+            char c = (i % 10) + '0';
+            append(c);
+            i = i / 10;
+        }
+        reverse(start, pos);
     }
 
     constexpr void append(const char* str)

@@ -227,6 +227,18 @@ struct shape_impl
     std::shared_ptr<shape_impl> copy() const { return std::make_shared<shape_impl>(*this); }
 };
 
+std::string shape::to_sizes_string(const std::vector<shape>& shapes)
+{
+    std::vector<std::string> sizes;
+    std::transform(shapes.begin(), shapes.end(), std::back_inserter(sizes), [&](const shape& s) {
+        std::string r = to_string_range(s.lens(), "x");
+        if(not s.standard())
+            r += ":" + to_string_range(s.strides(), "x");
+        return r;
+    });
+    return join_strings(sizes, ", ");
+}
+
 const std::vector<shape::type_t>& shape::types()
 {
     static const std::vector<shape::type_t> result = {

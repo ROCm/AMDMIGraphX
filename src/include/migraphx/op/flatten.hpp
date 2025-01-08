@@ -80,7 +80,6 @@ struct flatten
         }
         else
         {
-            check_shapes{inputs, *this}.standard();
             auto&& lens = s.lens();
             auto x      = std::accumulate(
                 lens.begin(), lens.begin() + axis, std::size_t{1}, std::multiplies<>{});
@@ -91,9 +90,14 @@ struct flatten
     }
     argument compute(const dyn_output& dyn_out, std::vector<argument> args) const
     {
-        return args[0].reshape(dyn_out.computed_shape);
+        assert(dyn_out.computed_shape.standard());
+        argument result{dyn_out.computed_shape};
+
+        visit_all(result, args[0])([&](auto output, auto input) {
+            std::copy(input.begin(), input.end(), output.begin());
+        });
+        return result;
     }
-    std::ptrdiff_t output_alias(const std::vector<shape>&) const { return 0; }
 };
 
 } // namespace op

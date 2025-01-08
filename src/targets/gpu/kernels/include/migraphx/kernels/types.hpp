@@ -28,7 +28,7 @@
 
 namespace migraphx {
 
-#if defined(MIGRAPHX_ENABLE_HIPRTC_WORKAROUNDS) and defined(MIGRAPHX_USE_HIPRTC)
+#if defined(MIGRAPHX_USE_HIPRTC)
 using int8_t   = signed char;
 using uint8_t  = unsigned char;
 using int16_t  = signed short;
@@ -76,6 +76,7 @@ using vec = T __attribute__((ext_vector_type(N)));
 
 using half  = _Float16;
 using half2 = migraphx::vec<half, 2>;
+using bf16  = __bf16;
 
 } // namespace migraphx
 

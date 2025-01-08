@@ -1,6 +1,6 @@
 .. meta::
-   :description: MIGraphX provides an optimized execution engine for deep learning neural networks
-   :keywords: MIGraphX, ROCm, library, API, tool
+   :description: MIGraphX driver options
+   :keywords: MIGraphX, ROCm, driver, options
 
 .. _driver-options:
 
@@ -16,7 +16,7 @@ read
 
 Loads and prints input graph.
 
-.. include:: ./driver/read.rst
+.. include:: ../driver/read.rst
 
 compile
 -------
@@ -25,8 +25,8 @@ compile
 
 Compiles and prints input graph.
 
-.. include:: ./driver/read.rst
-.. include:: ./driver/compile.rst
+.. include:: ../driver/read.rst
+.. include:: ../driver/compile.rst
 
 run
 ---
@@ -35,8 +35,8 @@ run
 
 Loads and prints input graph.
 
-.. include:: ./driver/read.rst
-.. include:: ./driver/compile.rst
+.. include:: ../driver/read.rst
+.. include:: ../driver/compile.rst
 
 perf
 ----
@@ -45,8 +45,8 @@ perf
 
 Compiles and runs input graph then prints performance report.
 
-.. include:: ./driver/read.rst
-.. include:: ./driver/compile.rst
+.. include:: ../driver/read.rst
+.. include:: ../driver/compile.rst
 
 .. option::  --iterations, -n [unsigned int]
 
@@ -59,8 +59,8 @@ verify
 
 Runs reference and CPU or GPU implementations and checks outputs for consistency.
 
-.. include:: ./driver/read.rst
-.. include:: ./driver/compile.rst
+.. include:: ../driver/read.rst
+.. include:: ../driver/compile.rst
 
 .. option::  --rms-tol [double]
 
@@ -104,5 +104,5 @@ Here is how you can use ``roctx`` combined with :doc:`rocprof <rocprofiler:rocpr
 Running :doc:`rocprof <rocprofiler:rocprofv1>` generates trace information for HIP, HCC and ROCTX in separate ``.txt`` files.
 To understand the interactions between API calls, utilize the :ref:`roctx.py <tools>` helper script.
 
-.. include:: ./driver/read.rst
-.. include:: ./driver/compile.rst
+.. include:: ../driver/read.rst
+.. include:: ../driver/compile.rst

@@ -29,6 +29,9 @@
 
 namespace migraphx {
 
+template <class...>
+using void_t = void;
+
 template <class T, class U = T&&>
 U private_declval(int);
 
@@ -37,6 +40,19 @@ T private_declval(long);
 
 template <class T>
 auto declval() noexcept -> decltype(private_declval<T>(0));
+
+template <class Void, class F, class... Ts>
+struct is_callable_impl : false_type
+{
+};
+
+template <class F, class... Ts>
+struct is_callable_impl<void_t<decltype(declval<F>()(declval<Ts>()...))>, F, Ts...> : true_type
+{
+};
+
+template <class F, class... Ts>
+using is_callable = is_callable_impl<void, F, Ts...>;
 
 template <class T>
 struct type_identity
@@ -216,7 +232,7 @@ struct common_type<T, U, Us...>
 template <class... Ts>
 using common_type_t = typename common_type<Ts...>::type;
 
-#define MIGRAPHX_REQUIRES(...) class = enable_if_t<__VA_ARGS__>
+#define MIGRAPHX_REQUIRES(...) enable_if_t<__VA_ARGS__, int> = 0
 
 constexpr unsigned long long int_max(unsigned long n)
 {

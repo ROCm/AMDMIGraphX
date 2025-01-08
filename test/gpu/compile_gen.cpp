@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2023 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2024 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -21,30 +21,22 @@
  * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
  * THE SOFTWARE.
  */
-#ifndef MIGRAPHX_GUARD_RTGLIB_QUANTIZE_FP16_HPP
-#define MIGRAPHX_GUARD_RTGLIB_QUANTIZE_FP16_HPP
+#include <test.hpp>
+#include <migraphx/gpu/compile_gen.hpp>
 
-#include <string>
-#include <vector>
-#include <migraphx/config.hpp>
+static const auto find_fast_axis = test::make_function("find_fast_axis", [](auto&&... xs) {
+    return migraphx::gpu::gen::find_fast_axis(static_cast<decltype(xs)>(xs)...);
+});
 
-namespace migraphx {
-inline namespace MIGRAPHX_INLINE_NS {
-
-struct program;
-struct module;
-
-/**
- * quantize a program to fp16
- */
-struct MIGRAPHX_EXPORT quantize_fp16_pass
+TEST_CASE(test_find_fast_axis)
 {
-    std::vector<std::string> ins_names = {"all"};
-    std::string name() const { return "quantize_fp16"; }
-    void apply(module& m) const;
-};
+    EXPECT(find_fast_axis(migraphx::shape{migraphx::shape::float_type, {2, 2, 2, 6, 3}}) == 4);
+    EXPECT(find_fast_axis(migraphx::shape{
+               migraphx::shape::float_type, {2, 2, 2, 6, 3}, {72, 6, 1, 12, 2}}) == 2);
+    EXPECT(find_fast_axis(
+               migraphx::shape{migraphx::shape::float_type, {64, 512, 32, 32}, {0, 1, 0, 0}}) == 1);
+    EXPECT(find_fast_axis(
+               migraphx::shape{migraphx::shape::float_type, {64, 512, 32, 32}, {0, 0, 0, 0}}) == 3);
+}
 
-} // namespace MIGRAPHX_INLINE_NS
-} // namespace migraphx
-
-#endif
+int main(int argc, const char* argv[]) { test::run(argc, argv); }

@@ -1,3 +1,7 @@
+.. meta::
+  :description: MIGraphX internal environment variables
+  :keywords: MIGraphX, code base, contribution, developing, env vars, environment variables
+
 Environment Variables
 =====================
 
@@ -82,6 +86,11 @@ Prints debug statements for the ``schedule`` pass.
 Set to "1", "enable", "enabled", "yes", or "true" to use.
 Traces instructions replaced with a constant.
 
+.. envvar:: MIGRAPHX_TRACE_QUANTIZATION
+
+Set to "1", "enable", "enabled", "yes", or "true" to use.
+Prints traces for any passes run during quantization.
+
 .. envvar:: MIGRAPHX_8BITS_QUANTIZATION_PARAMS
 
 Set to "1", "enable", "enabled", "yes", or "true" to use.
@@ -107,9 +116,9 @@ Disables the ``schedule`` pass.
 Set to "1", "enable", "enabled", "yes", or "true" to use.
 Disables the ``fuse_reduce`` pass.
 
-.. envvar:: MIGRAPHX_ENABLE_SPLIT_REDUCE
-Set to "1", "enable", "enabled", "yes", or "true" to use.
-Enable split_reduce.
+.. envvar:: MIGRAPHX_SPLIT_REDUCE_SIZE
+Set to the minimum size of a reduction to do a split reduce. Overrides what
+is set in the backend. Set to -1 to disable split reduce completely.
 
 .. envvar:: MIGRAPHX_ENABLE_NHWC
 
@@ -125,6 +134,10 @@ Use it in conjunction with ``MIGRAPHX_DISABLE_MLIR=1``.
 .. envvar:: MIGRAPHX_DISABLE_MLIR*
 Set to "1", "enable", "enabled", "yes", or "true" to use.
 Disables use of the rocMLIR library.
+
+.. envvar:: MIGRAPHX_ENABLE_HIPBLASLT_GEMM
+Set to "1", "enable", "enabled", "yes", or "true" to use.
+Enables use of hipBLASLt.
 
 .. envvar:: MIGRAPHX_COPY_LITERALS
 
@@ -299,6 +312,16 @@ Enable reduction fusions in MLIR.
 Set to "1", "enable", "enabled", "yes", or "true" to use.
 Enable Split-k perf configs when tuning with MLIR.
 
+.. envvar:: MIGRAPHX_MLIR_DUMP_TO_MXR
+
+Set to path where MXRs will be saved.
+Dumps MLIRs module to mxr files.
+
+.. envvar:: MIGRAPHX_MLIR_DUMP
+
+Set to path where MLIRs will be saved.
+Dumps MLIRs module to .mlir files.
+
 CK vars
 -----------
 
@@ -316,6 +339,14 @@ Mandatorily adds ``-DMIGRAPHX_CK_CHECK=1`` for compiling composable kernel opera
 
 Set to "1", "enable", "enabled", "yes", or "true" to use.
 Performs tuning for composable kernels.
+
+hipBLASLt vars
+--------------
+
+.. envvar:: MIGRAPHX_ENABLE_HIP_GEMM_TUNING
+
+Set to "1", "enable", "enabled", "yes", or "true" to use.
+Performs exhaustive tuning for hipBLASLt.
 
 Testing 
 ------------

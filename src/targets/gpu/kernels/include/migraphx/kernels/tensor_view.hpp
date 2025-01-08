@@ -103,5 +103,11 @@ constexpr tensor_view<T, Shape> make_tensor_view(T* x, Shape)
     return {x};
 }
 
+template <class T, class Permutation>
+constexpr auto reorder_tensor_view(T x, Permutation perm)
+{
+    return make_tensor_view(x.data(), reorder_shape(x.get_shape(), perm));
+}
+
 } // namespace migraphx
 #endif // MIGRAPHX_GUARD_KERNELS_TENSOR_VIEW_HPP

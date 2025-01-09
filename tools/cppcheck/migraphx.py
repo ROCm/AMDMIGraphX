@@ -436,6 +436,8 @@ def MatcherNestedParentheses(cfg, data):
         for tok2 in token.tokAt(4).forward(token.linkAt(4)):
             if not simpleMatch(tok2, ") ) ) )"):
                 continue
+            if simpleMatch(tok2.link.previous, "bind"):
+                continue
             cppcheck.reportError(
                 tok2, "style",
                 "Too many nested parentheses can affect readability; consider using variables instead."

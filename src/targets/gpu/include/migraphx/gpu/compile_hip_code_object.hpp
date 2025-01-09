@@ -73,7 +73,8 @@ struct hip_compile_options
 MIGRAPHX_GPU_EXPORT std::function<std::size_t(std::size_t local)>
 compute_global_for(context& ctx, std::size_t n, std::size_t over = 1);
 
-MIGRAPHX_GPU_EXPORT operation compile_hip_code_object(const std::string& content,
+MIGRAPHX_GPU_EXPORT operation compile_hip_code_object(context& ctx,
+                                                      const std::string& content,
                                                       hip_compile_options options);
 
 MIGRAPHX_GPU_EXPORT std::size_t

@@ -97,7 +97,7 @@ struct pointwise_compiler : compiler<pointwise_compiler>
                                 {"tiled", t.ntiles > 0 ? "true" : "false"},
                                 {"noutputs", std::to_string(noutputs)},
                                 {"preamble", v.get("preamble", std::string{})}});
-        return compile_hip_code_object(src, options);
+        return compile_hip_code_object(ctx, src, options);
     }
 
     compiler_replace compile(context& ctx, instruction_ref ins, const operation& op) const

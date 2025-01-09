@@ -449,7 +449,7 @@ TEST_CASE(assert_type_min_max)
                t))
             continue;
         auto name = migraphx::shape::cpp_type(t);
-        if((t == migraphx::shape::half_type) or (t == migraphx::shape::bf16_type))
+        if(contains({migraphx::shape::half_type, migraphx::shape::bf16_type}, t))
             name.insert(0, "migraphx::");
         migraphx::shape::visit(t, [&](auto as) {
             std::string min = "";

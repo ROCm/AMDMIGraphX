@@ -404,7 +404,7 @@ struct fused_reduce_compiler : compiler<fused_reduce_compiler>
     {
         assert(not ins->module_inputs().empty());
         auto v        = op.to_value();
-        for(const auto& x:v)
+        for(const auto& x:solution)
             v.insert(x);
         auto* rm      = ins->module_inputs().front();
         v["preamble"] = generate_reduce(*rm, "fused_reduce_op");
@@ -413,7 +413,7 @@ struct fused_reduce_compiler : compiler<fused_reduce_compiler>
         return compile_op(ctx, to_shapes(ins->inputs()), v);
     }
 
-     optional<tuning_config> get_tuning_config(const context& ctx,
+     optional<tuning_config> get_tuning_config(const context&,
                                               instruction_ref ins,
                                               const operation& op,
                                               bool exhaustive) const
@@ -435,7 +435,8 @@ struct fused_reduce_compiler : compiler<fused_reduce_compiler>
             tc.solutions.push_back({{"algo", "block"}, {"block_size", block_size}});
         }
         tc.solutions.push_back({{"algo", "lane"}});
-        tc.solutions.push_back({{"algo", "wave"}});
+        if (relements < 16384)
+            tc.solutions.push_back({{"algo", "wave"}});
         return tc;
     }
 

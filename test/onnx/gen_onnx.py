@@ -13067,7 +13067,7 @@ def softmaxcrossentropyloss_2d_sum_reduction_double_weighted_test():
 
 
 @onnx_test()
-def softmaxcrossentropyloss_2d_sum_reduction_bf16_weighted_tes():
+def softmaxcrossentropyloss_2d_sum_reduction_bf16_weighted_test():
     scores = helper.make_tensor_value_info('0', TensorProto.FLOAT16, [4, 4])
     labels = helper.make_tensor_value_info('1', TensorProto.INT32, [4])
     weights = helper.make_tensor_value_info('2', TensorProto.FLOAT16, [4])

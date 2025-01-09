@@ -103,7 +103,7 @@ struct compute_attention_scores_compiler : compiler<compute_attention_scores_com
                                        {"args", enum_params(inputs.size(), "private_p")},
                                        {"gqa_params", gqa_params_str},
                                        {"kernel", options.kernel_name}});
-        return compile_hip_code_object(src, options);
+        return compile_hip_code_object(ctx, src, options);
     }
 
     compiler_replace compile(context& ctx, instruction_ref ins, const operation& op) const

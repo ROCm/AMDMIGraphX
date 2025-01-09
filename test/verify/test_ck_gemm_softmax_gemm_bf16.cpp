@@ -44,11 +44,11 @@
 //         std::vector<float> zeros(m2_elements, 0);
 //         auto zero = mm->add_literal(migraphx::literal{m2_shape, zeros});
 
-//         b = mm->add_instruction(migraphx::make_op("transpose", {{"permutation", {0, 1, 3, 2}}}), b);
-//         auto gemm1   = mm->add_instruction(migraphx::make_op("dot"), a, b);
-//         auto scale   = mm->add_instruction(migraphx::make_op("mul"), gemm1, eight);
-//         auto bias    = mm->add_instruction(migraphx::make_op("add"), scale, zero);
-//         auto softmax = mm->add_instruction(migraphx::make_op("softmax", {{"axis", -1}}), bias);
+//         b = mm->add_instruction(migraphx::make_op("transpose", {{"permutation", {0, 1, 3, 2}}}),
+//         b); auto gemm1   = mm->add_instruction(migraphx::make_op("dot"), a, b); auto scale   =
+//         mm->add_instruction(migraphx::make_op("mul"), gemm1, eight); auto bias    =
+//         mm->add_instruction(migraphx::make_op("add"), scale, zero); auto softmax =
+//         mm->add_instruction(migraphx::make_op("softmax", {{"axis", -1}}), bias);
 //         mm->add_instruction(migraphx::make_op("dot"), softmax, b1);
 
 //         return p;

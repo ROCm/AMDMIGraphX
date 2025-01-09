@@ -27,7 +27,8 @@
 // #include <migraphx/generate.hpp>
 // #include <migraphx/make_op.hpp>
 
-// struct test_gemm_mul_where_softmax_gemm_bf16 : verify_program<test_gemm_mul_where_softmax_gemm_bf16>
+// struct test_gemm_mul_where_softmax_gemm_bf16 :
+// verify_program<test_gemm_mul_where_softmax_gemm_bf16>
 // {
 //     migraphx::program create_program() const
 //     {
@@ -44,11 +45,11 @@
 //         std::vector<float> tens(m1_elements, 10);
 //         auto eight = mm->add_literal(migraphx::literal{m1_shape, eights});
 //         auto ten   = mm->add_literal(migraphx::literal{m1_shape, tens});
-//         b = mm->add_instruction(migraphx::make_op("transpose", {{"permutation", {0, 1, 3, 2}}}), b);
-//         auto gemm1   = mm->add_instruction(migraphx::make_op("dot"), a, b);
-//         auto scale   = mm->add_instruction(migraphx::make_op("mul"), gemm1, eight);
-//         auto where   = mm->add_instruction(migraphx::make_op("where"), select, scale, ten);
-//         auto softmax = mm->add_instruction(migraphx::make_op("softmax", {{"axis", 3}}), where);
+//         b = mm->add_instruction(migraphx::make_op("transpose", {{"permutation", {0, 1, 3, 2}}}),
+//         b); auto gemm1   = mm->add_instruction(migraphx::make_op("dot"), a, b); auto scale   =
+//         mm->add_instruction(migraphx::make_op("mul"), gemm1, eight); auto where   =
+//         mm->add_instruction(migraphx::make_op("where"), select, scale, ten); auto softmax =
+//         mm->add_instruction(migraphx::make_op("softmax", {{"axis", 3}}), where);
 //         mm->add_instruction(migraphx::make_op("dot"), softmax, b1);
 //         return p;
 //     }

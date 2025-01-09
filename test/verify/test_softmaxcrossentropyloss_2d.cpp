@@ -112,4 +112,3 @@ template struct test_softmaxcrossentropyloss_2d<migraphx::shape::bf16_type,
                                                 migraphx::shape::int64_type,
                                                 4,
                                                 4>;
-

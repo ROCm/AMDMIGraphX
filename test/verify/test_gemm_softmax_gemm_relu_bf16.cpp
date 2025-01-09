@@ -35,7 +35,8 @@
 // };
 
 // template <bias Config>
-// struct test_gemm_softmax_gemm_relu_bf16 : verify_program<test_gemm_softmax_gemm_relu_bf16<Config>>
+// struct test_gemm_softmax_gemm_relu_bf16 :
+// verify_program<test_gemm_softmax_gemm_relu_bf16<Config>>
 // {
 //     migraphx::program create_program() const
 //     {
@@ -49,9 +50,9 @@
 //         std::vector<float> eights(m2_elements, 0.125);
 //         auto eight = mm->add_literal(migraphx::literal{m1_shape, eights});
 
-//         b = mm->add_instruction(migraphx::make_op("transpose", {{"permutation", {0, 1, 3, 2}}}), b);
-//         auto gemm1 = mm->add_instruction(migraphx::make_op("dot"), a, b);
-//         auto scale = mm->add_instruction(migraphx::make_op("mul"), gemm1, eight);
+//         b = mm->add_instruction(migraphx::make_op("transpose", {{"permutation", {0, 1, 3, 2}}}),
+//         b); auto gemm1 = mm->add_instruction(migraphx::make_op("dot"), a, b); auto scale =
+//         mm->add_instruction(migraphx::make_op("mul"), gemm1, eight);
 
 //         std::optional<migraphx::instruction_ref> add_bias{std::nullopt};
 //         if constexpr(Config == bias::with or Config == bias::with_standard_shape)

@@ -194,7 +194,7 @@ struct MIGRAPHX_EXPORT value
     };
 
     value() = default;
-
+    value(value&& rhs) = default;
     value(const value& rhs);
     value& operator=(value rhs);
     value(const std::string& pkey, const value& rhs);

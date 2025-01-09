@@ -231,24 +231,24 @@ struct simple_reduce_compiler : compiler<simple_reduce_compiler>
             auto relements  = get_reduce_elements(options.virtual_inputs) / vec.size;
             if(algo == "block")
             {
-                auto block_size = compute_block_size(ctx, relements, 256);
-                if(relements >= block_size * 256)
+                auto block_size = compute_block_size(ctx, relements, 1024);
+                if(relements >= block_size * 1024)
                     algo = "block_large";
                 options.set_launch_params(
-                    v, compute_global_for(ctx, nelements * block_size, 256), block_size);
+                    v, compute_global_for(ctx, nelements * block_size, 1024), block_size);
             }
             else
             {
                 auto subwave_size = compute_subwave_size(ctx, relements);
                 algo              = "subwave<" + std::to_string(subwave_size) + ">";
                 options.set_launch_params(v,
-                                          compute_global_for(ctx, nelements * subwave_size, 256),
+                                          compute_global_for(ctx, nelements * subwave_size, 1024),
                                           ctx.get_current_device().get_wavefront_size());
             }
         }
         else if(algo == "lane")
         {
-            options.set_launch_params(v, compute_global_for(ctx, nelements, 256));
+            options.set_launch_params(v, compute_global_for(ctx, nelements, 1024));
         }
         else
         {
@@ -352,11 +352,11 @@ struct fused_reduce_compiler : compiler<fused_reduce_compiler>
             auto relements  = reduction_shape.elements() / vec.size;
             if(algo == "block")
             {
-                auto block_size = compute_block_size(ctx, relements, 256);
-                if(relements >= block_size * 256)
+                auto block_size = compute_block_size(ctx, relements, 1024);
+                if(relements >= block_size * 1024)
                     algo = "block_large";
                 options.set_launch_params(
-                    v, compute_global_for(ctx, nelements * block_size, 256), block_size);
+                    v, compute_global_for(ctx, nelements * block_size, 1024), block_size);
             }
             else
             {

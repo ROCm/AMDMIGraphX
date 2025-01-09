@@ -1040,6 +1040,42 @@ struct find_unpack_int4_mlir_op
     }
 };
 
+struct find_convolution_reshape
+{
+    auto matcher() const
+    {
+        return match::name("reshape")(match::arg(0)(match::name("convolution").bind("convolution")));
+    }
+
+    void apply(module_pass_manager& mpm, const match::matcher_result& r) const
+    {
+        auto ins = r.result;
+        auto conv = r.instructions["convolution"];
+        auto out_dims = ins->get_shape().lens();
+        auto conv_dims = conv->get_shape().lens();
+        if(out_dims.size() != 5)
+            return;
+        if(conv_dims.size() != 4)
+            return;
+        auto perm = find_permutation(conv->get_shape());
+        if(perm.back() != 1)
+            return;
+        if(out_dims[0] != conv_dims[0])
+            return;
+        if(not std::equal(conv_dims.begin() + 2, conv_dims.end(), out_dims.begin() + 3, out_dims.end()))
+            return;
+        if(out_dims[2] > 32)
+            return;
+        if(out_dims[1] < 4)
+            return;
+        auto reshape = mpm.get_module().insert_instruction(ins,ins->get_operator(), ins->inputs());
+        auto t1 = mpm.get_module().insert_instruction(ins, make_op("transpose", {{"permutation", {0, 1, 3, 4, 2}}}), reshape);
+        auto c = mpm.get_module().insert_instruction(ins, make_op("contiguous"), t1);
+        auto t2 = mpm.get_module().insert_instruction(ins, make_op("transpose", {{"permutation", {0, 1, 4, 2, 3}}}), c);
+        mpm.get_module().replace_instruction(ins, t2);
+    }
+};
+
 } // namespace
 
 #endif // MIGRAPHX_MLIR
@@ -1061,6 +1097,9 @@ void fuse_mlir::apply(module_pass_manager& mpm) const
         return std::max(m1, m2);
     };
 
+    mpm.get_module().debug_print();
+    match::find_matches(mpm, find_convolution_reshape{});
+    mpm.get_module().debug_print();
     // Attention offloads; default disabled
     if(mlir_attention_enabled(ctx) or enable_extra)
     {

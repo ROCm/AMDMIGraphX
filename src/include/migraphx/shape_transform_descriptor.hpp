@@ -99,6 +99,8 @@ struct MIGRAPHX_EXPORT shape_transform_descriptor
     generate_common_from_dst(const std::vector<std::size_t>& input_dims = {}) const;
     std::vector<operation>
     generate_dst_from_common(const std::vector<std::size_t>& input_dims = {}) const;
+    std::vector<operation>
+    generate_src_from_common(const std::vector<std::size_t>& input_dims = {}) const;
     std::vector<std::vector<std::size_t>> common_axes_map_from_src() const;
     std::vector<std::vector<std::size_t>> common_axes_map_from_dst() const;
 

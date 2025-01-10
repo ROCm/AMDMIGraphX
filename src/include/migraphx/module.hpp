@@ -201,6 +201,7 @@ struct MIGRAPHX_EXPORT module
     std::size_t size() const;
     instruction_ref begin() const;
     instruction_ref end() const;
+    instruction_ref insert_end() const;
 
     struct compute_shapes_options
     {

@@ -84,7 +84,7 @@ struct layernorm_compiler : compiler<layernorm_compiler>
         auto block_size = compute_block_size(ctx, relements, 1024);
         hip_compile_options options;
         options.set_launch_params(
-            v, compute_global_for(ctx, nelements * block_size, 1024), block_size);
+            v, compute_global_for(ctx, nelements * block_size, 256), block_size);
         options.output      = inputs.back();
         options.inputs      = inputs;
         options.kernel_name = v.get("kernel", "layernorm_kernel");

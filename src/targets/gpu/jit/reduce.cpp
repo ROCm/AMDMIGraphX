@@ -353,10 +353,13 @@ struct fused_reduce_compiler : compiler<fused_reduce_compiler>
             if(algo == "block")
             {
                 auto block_size = compute_block_size(ctx, relements, 1024);
-                if(relements >= block_size * 1024)
+                
+                if(relements >= block_size * 256)
+                {
                     algo = "block_large";
+                }
                 options.set_launch_params(
-                    v, compute_global_for(ctx, nelements * block_size, 1024), block_size);
+                    v, compute_global_for(ctx, nelements * block_size, 256), block_size);
             }
             else
             {

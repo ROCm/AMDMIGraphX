@@ -79,6 +79,22 @@ static std::vector<std::size_t> get_reduce_lens(const std::vector<std::size_t>& 
     return reduce_lens;
 }
 
+static shape get_input_shape(const std::vector<shape>& inputs)
+{
+    auto it = std::max_element(inputs.begin(),
+                               inputs.end(),
+                               by(std::less<>{}, [](const shape& s) { return s.elements(); }));
+    return *it;
+}
+
+static shape get_reduce_shape(const std::vector<shape>& inputs)
+{
+    auto it = std::min_element(inputs.begin(),
+                               inputs.end(),
+                               by(std::less<>{}, [](const shape& s) { return s.elements(); }));
+    return *it;
+}
+
 template <class T>
 static shape get_reduced_shape(const shape& s, const std::vector<T>& axes)
 {
@@ -310,14 +326,6 @@ struct fused_reduce_compiler : compiler<fused_reduce_compiler>
 {
     std::vector<std::string> names() const { return {"fused_reduce", "split_fused_reduce"}; }
 
-    static shape get_input_shape(const std::vector<shape>& inputs)
-    {
-        auto it = std::max_element(inputs.begin(),
-                                   inputs.end(),
-                                   by(std::less<>{}, [](const shape& s) { return s.elements(); }));
-        return *it;
-    }
-
     operation compile_op(context& ctx, const std::vector<shape>& inputs, const value& v) const
     {
         auto assign         = v.get("assign", "assign_none");
@@ -352,7 +360,7 @@ struct fused_reduce_compiler : compiler<fused_reduce_compiler>
             auto relements  = reduction_shape.elements() / vec.size;
             if(algo == "block")
             {
-                auto block_size = compute_block_size(ctx, relements, 256);
+                auto block_size = v.get("block_size", compute_block_size(ctx, relements, 256));
                 if(relements >= block_size * 256)
                     algo = "block_large";
                 options.set_launch_params(
@@ -392,16 +400,46 @@ struct fused_reduce_compiler : compiler<fused_reduce_compiler>
         return compile_hip_code_object(ctx, src, options);
     }
 
-    compiler_replace compile(context& ctx, instruction_ref ins, const operation& op) const
+    compiler_replace compile(context& ctx, instruction_ref ins, const operation& op, const value& solution) const
     {
         assert(not ins->module_inputs().empty());
         auto v        = op.to_value();
+        for(const auto& x:solution)
+            v.insert(x);
         auto* rm      = ins->module_inputs().front();
         v["preamble"] = generate_reduce(*rm, "fused_reduce_op");
         v["lambda"]   = "MIGRAPHX_LIFT(fused_reduce_op)";
         v["kernel"]   = generate_name_from_ops(*rm) + "_kernel";
         return compile_op(ctx, to_shapes(ins->inputs()), v);
     }
+
+     optional<tuning_config> get_tuning_config(const context&,
+                                              instruction_ref ins,
+                                              const operation& op,
+                                              bool exhaustive) const
+    {
+        if(not exhaustive)
+            return nullopt;
+        if(op.name() != "fused_reduce")
+            return nullopt;
+        tuning_config tc;
+        auto shapes    = to_shapes(ins->inputs());
+        tc.problem = to_value(shapes);
+        auto input_shape = get_input_shape(shapes);
+        auto reduce_shape = get_reduce_shape(shapes);
+        auto relements = reduce_shape.elements();
+        for(auto block_size:{64, 128, 256, 512, 1024})
+        {
+            if(relements < block_size)
+                continue;
+            tc.solutions.push_back({{"algo", "block"}, {"block_size", block_size}});
+        }
+        tc.solutions.push_back({{"algo", "lane"}});
+        if (relements < 16384)
+            tc.solutions.push_back({{"algo", "wave"}});
+        return tc;
+    }
+
 };
 } // namespace gpu
 } // namespace MIGRAPHX_INLINE_NS

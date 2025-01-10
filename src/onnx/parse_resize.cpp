@@ -99,24 +99,21 @@ calc_neighbor_points(const std::vector<std::vector<std::vector<std::size_t>>>& v
 
     if(n_bits >= std::numeric_limits<std::size_t>::digits)
     {
-        throw std::runtime_error("Shape dimension " + std::to_string(n_bits) + " exceeds " +
-                                 std::to_string(std::numeric_limits<std::size_t>::digits));
+        MIGRAPHX_THROW("PARSE_RESIZE: Shape dimension " + std::to_string(n_bits) + " exceeds " +
+                       std::to_string(std::numeric_limits<std::size_t>::digits));
     }
 
     for(std::size_t val = 0; val < (std::size_t{1} << n_bits); val++)
     {
         std::bitset<std::numeric_limits<std::size_t>::digits> bits_val = val;
         std::vector<std::size_t> indices(n_bits);
-        transform(
-            range(m_elements), std::back_inserter(vec_ind), [&](const std::size_t& i_element) {
-                transform(vvv_ind,
-                          range(n_bits),
-                          indices.begin(),
-                          [&](const auto& vv_ind, const std::size_t& bit) {
-                              return vv_ind[bits_val[bit]][i_element];
-                          });
-                return in_s.index(indices);
-            });
+        transform(range(m_elements), std::back_inserter(vec_ind), [&](std::size_t i_element) {
+            transform(
+                vvv_ind, range(n_bits), indices.begin(), [&](const auto& vv_ind, std::size_t bit) {
+                    return vv_ind[bits_val[bit]][i_element];
+                });
+            return in_s.index(indices);
+        });
     }
 
     return vec_ind;

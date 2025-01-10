@@ -425,8 +425,9 @@ struct fused_reduce_compiler : compiler<fused_reduce_compiler>
         tuning_config tc;
         auto shapes    = to_shapes(ins->inputs());
         tc.problem = to_value(shapes);
+        auto axes           = op.to_value().at("axes").to_vector<std::size_t>();
         auto input_shape = get_input_shape(shapes);
-        auto reduce_shape = get_reduce_shape(shapes);
+        auto reduce_shape = get_reduced_shape(input_shape, axes);
         auto relements = reduce_shape.elements();
         for(auto block_size:{64, 128, 256, 512, 1024})
         {

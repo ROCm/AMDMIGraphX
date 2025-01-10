@@ -351,12 +351,14 @@ jobs:
         docker-images: true
 
     - uses: actions/checkout@v4.1.1
+      with:
+        fetch-depth: 0 # Fetch the entire repository history and all branches
     - name: Set up Python
       uses: actions/setup-python@v4
       with:
         python-version: 3.8
-    - name: run License Check
-      run: python3 tools/check_stamped.py ${GITHUB_HEAD_REF:-${GITHUB_REF#refs/heads/}}
+    - name: Run License Check
+      run: python3 tools/check_stamped.py origin/${{ github.event_name == 'pull_request' && github.base_ref || 'develop' }}
 
   linux:
 

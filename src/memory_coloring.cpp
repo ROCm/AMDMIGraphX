@@ -177,9 +177,9 @@ struct allocation_segment
     {
         assert(ins->get_shape().bytes() > 0);
         // Compute alignment
-        auto n = 1 + (ins->get_shape().bytes() - 1) / alignment;
+        std::size_t n = 1 + (ins->get_shape().bytes() - 1) / alignment;
         assert(n > 0);
-        auto start = 0;
+        std::size_t start = 0;
         // Insert at end if it cant fit at the begining
         if(segments.empty() or segments.begin()->first <= n)
         {

@@ -30,6 +30,7 @@
 #include "precision.hpp"
 #include "passes.hpp"
 #include "perf.hpp"
+#include "trim.hpp"
 #include "models.hpp"
 #include "marker_roctx.hpp"
 
@@ -79,6 +80,7 @@ struct loader
     bool is_nhwc                = true;
     bool is_test                = false;
     unsigned trim               = 0;
+    unsigned trim_size               = 0;
     bool optimize               = false;
     bool mlir                   = false;
     bool skip_unknown_operators = false;
@@ -116,6 +118,7 @@ struct loader
            ap.set_value(true));
         ap(is_nhwc, {"--nchw"}, ap.help("Treat tensorflow format as nchw"), ap.set_value(false));
         ap(trim, {"--trim", "-t"}, ap.help("Trim instructions from the end"));
+        ap(trim_size, {"--trim-size", "-s"}, ap.help("Number of instructions in the trim model"));
         ap(param_dims,
            {"--input-dim"},
            ap.help("Dim of a parameter (format: \"@name d1 d2 dn\")"),
@@ -358,9 +361,7 @@ struct loader
         }
         if(trim > 0)
         {
-            auto* mm  = p.get_main_module();
-            auto last = std::prev(mm->end(), trim);
-            mm->remove_instructions(last, mm->end());
+            trim_module(*p.get_main_module(), trim, trim_size);
         }
         // Remove unused variable when exporting to cpp
         if(output_type == "cpp")

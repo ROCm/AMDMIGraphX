@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2024 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2025 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -77,6 +77,22 @@ static std::vector<std::size_t> get_reduce_lens(const std::vector<std::size_t>& 
                            return y;
                    });
     return reduce_lens;
+}
+
+static shape get_input_shape(const std::vector<shape>& inputs)
+{
+    auto it = std::max_element(inputs.begin(),
+                               inputs.end(),
+                               by(std::less<>{}, [](const shape& s) { return s.elements(); }));
+    return *it;
+}
+
+static shape get_reduce_shape(const std::vector<shape>& inputs)
+{
+    auto it = std::min_element(inputs.begin(),
+                               inputs.end(),
+                               by(std::less<>{}, [](const shape& s) { return s.elements(); }));
+    return *it;
 }
 
 template <class T>
@@ -231,24 +247,24 @@ struct simple_reduce_compiler : compiler<simple_reduce_compiler>
             auto relements  = get_reduce_elements(options.virtual_inputs) / vec.size;
             if(algo == "block")
             {
-                auto block_size = compute_block_size(ctx, relements, 1024);
-                if(relements >= block_size * 1024)
+                auto block_size = v.get("block_size", compute_block_size(ctx, relements, 256));
+                if(relements >= block_size * 256)
                     algo = "block_large";
                 options.set_launch_params(
-                    v, compute_global_for(ctx, nelements * block_size, 1024), block_size);
+                    v, compute_global_for(ctx, nelements * block_size, 256), block_size);
             }
             else
             {
                 auto subwave_size = compute_subwave_size(ctx, relements);
                 algo              = "subwave<" + std::to_string(subwave_size) + ">";
                 options.set_launch_params(v,
-                                          compute_global_for(ctx, nelements * subwave_size, 1024),
+                                          compute_global_for(ctx, nelements * subwave_size, 256),
                                           ctx.get_current_device().get_wavefront_size());
             }
         }
         else if(algo == "lane")
         {
-            options.set_launch_params(v, compute_global_for(ctx, nelements, 1024));
+            options.set_launch_params(v, compute_global_for(ctx, nelements, 256));
         }
         else
         {
@@ -268,9 +284,11 @@ struct simple_reduce_compiler : compiler<simple_reduce_compiler>
         return compile_hip_code_object(ctx, src, options);
     }
 
-    compiler_replace compile(context& ctx, instruction_ref ins, const operation& op) const
+    compiler_replace compile(context& ctx, instruction_ref ins, const operation& op, const value& solution) const
     {
         value v = value::object{};
+        for(const auto& x:solution)
+            v.insert(x);
         reduce_op r{};
         r.set(ins, op);
         v["reduction"] = r.reduction;
@@ -278,6 +296,32 @@ struct simple_reduce_compiler : compiler<simple_reduce_compiler>
         v["write"]     = r.write;
         v["init"]      = r.init;
         return compile_op(ctx, to_shapes(ins->inputs()), v);
+    }
+
+    optional<tuning_config> get_tuning_config(const context& ctx,
+                                              instruction_ref ins,
+                                              const operation& op,
+                                              bool exhaustive) const
+    {
+        if(not exhaustive)
+            return nullopt;
+        // if(op.name() != "fused_reduce")
+        //     return nullopt;
+        tuning_config tc;
+        auto shapes    = to_shapes(ins->inputs());
+        tc.problem = to_value(shapes);
+        auto input_shape = get_input_shape(shapes);
+        auto reduce_shape = get_reduce_shape(shapes);
+        auto relements = reduce_shape.elements();
+        for(auto block_size:{64, 128, 256, 512})
+        {
+            if(relements < block_size)
+                continue;
+            tc.solutions.push_back({{"algo", "block"}, {"block_size", block_size}});
+        }
+        tc.solutions.push_back({{"algo", "lane"}});
+        tc.solutions.push_back({{"algo", "wave"}});
+        return tc;
     }
 };
 
@@ -309,14 +353,6 @@ MIGRAPHX_GLOBAL void ${kernel}(${params})
 struct fused_reduce_compiler : compiler<fused_reduce_compiler>
 {
     std::vector<std::string> names() const { return {"fused_reduce", "split_fused_reduce"}; }
-
-    static shape get_input_shape(const std::vector<shape>& inputs)
-    {
-        auto it = std::max_element(inputs.begin(),
-                                   inputs.end(),
-                                   by(std::less<>{}, [](const shape& s) { return s.elements(); }));
-        return *it;
-    }
 
     operation compile_op(context& ctx, const std::vector<shape>& inputs, const value& v) const
     {
@@ -352,12 +388,9 @@ struct fused_reduce_compiler : compiler<fused_reduce_compiler>
             auto relements  = reduction_shape.elements() / vec.size;
             if(algo == "block")
             {
-                auto block_size = compute_block_size(ctx, relements, 1024);
-                
+                auto block_size = v.get("block_size", compute_block_size(ctx, relements, 256));
                 if(relements >= block_size * 256)
-                {
                     algo = "block_large";
-                }
                 options.set_launch_params(
                     v, compute_global_for(ctx, nelements * block_size, 256), block_size);
             }
@@ -395,16 +428,45 @@ struct fused_reduce_compiler : compiler<fused_reduce_compiler>
         return compile_hip_code_object(ctx, src, options);
     }
 
-    compiler_replace compile(context& ctx, instruction_ref ins, const operation& op) const
+    compiler_replace compile(context& ctx, instruction_ref ins, const operation& op, const value& solution) const
     {
         assert(not ins->module_inputs().empty());
         auto v        = op.to_value();
+        for(const auto& x:v)
+            v.insert(x);
         auto* rm      = ins->module_inputs().front();
         v["preamble"] = generate_reduce(*rm, "fused_reduce_op");
         v["lambda"]   = "MIGRAPHX_LIFT(fused_reduce_op)";
         v["kernel"]   = generate_name_from_ops(*rm) + "_kernel";
         return compile_op(ctx, to_shapes(ins->inputs()), v);
     }
+
+     optional<tuning_config> get_tuning_config(const context& ctx,
+                                              instruction_ref ins,
+                                              const operation& op,
+                                              bool exhaustive) const
+    {
+        if(not exhaustive)
+            return nullopt;
+        if(op.name() != "fused_reduce")
+            return nullopt;
+        tuning_config tc;
+        auto shapes    = to_shapes(ins->inputs());
+        tc.problem = to_value(shapes);
+        auto input_shape = get_input_shape(shapes);
+        auto reduce_shape = get_reduce_shape(shapes);
+        auto relements = reduce_shape.elements();
+        for(auto block_size:{64, 128, 256, 512, 1024})
+        {
+            if(relements < block_size)
+                continue;
+            tc.solutions.push_back({{"algo", "block"}, {"block_size", block_size}});
+        }
+        tc.solutions.push_back({{"algo", "lane"}});
+        tc.solutions.push_back({{"algo", "wave"}});
+        return tc;
+    }
+
 };
 } // namespace gpu
 } // namespace MIGRAPHX_INLINE_NS

@@ -115,6 +115,8 @@ struct allocation_segment
         for(auto&& pp : ins2segment)
         {
             auto seg = pp.second;
+            // pp.first->debug_print();
+            // std::cout << " seg: " << seg.second << std::endl;
             n        = std::max(n, seg.second);
         }
         return n;
@@ -177,9 +179,9 @@ struct allocation_segment
     {
         assert(ins->get_shape().bytes() > 0);
         // Compute alignment
-        auto n = 1 + (ins->get_shape().bytes() - 1) / alignment;
+        size_t n = 1 + (ins->get_shape().bytes() - 1) / alignment;
         assert(n > 0);
-        auto start = 0;
+        size_t start = 0;
         // Insert at end if it cant fit at the begining
         if(segments.empty() or segments.begin()->first <= n)
         {
@@ -225,6 +227,12 @@ struct allocation_segment
 
         auto alloc_index = create_allocation_index(m, conflict_table);
 
+        // std::cout << "conflict queue size" << std::endl;
+        // for(auto c : conflict_queue)
+        // {
+        //     c->debug_print();
+        //     std::cout << "c size: " << conflict_table.at(c).size() << " bytes: " << c->get_shape().bytes() << " idx: " << alloc_index.at(c) << std::endl;
+        // }
         // Sort the conflict queue so we process the allocation with the most
         // number of adjacent allocations first
         std::sort(conflict_queue.begin(), conflict_queue.end(), by(std::greater<>{}, [&](auto x) {
@@ -241,6 +249,7 @@ struct allocation_segment
             std::sort(children.begin(), children.end(), by(std::less<>{}, [&](auto x) {
                           return std::make_tuple(x->get_shape().bytes(), alloc_index.at(x));
                       }));
+            
             assert(not contains(children, parent));
             // This set is to track the segments already processed
             std::set<segment> segments;
@@ -255,6 +264,7 @@ struct allocation_segment
             assert(as.get_segment(parent) == nullptr);
             as.add_segment(parent, next_segment(segments, parent, alignment));
         }
+        std::cout << "build as max: " << as.max() << std::endl;;
         // Reduce the number of segments
         for(std::size_t n = 0; n < 3; n++)
         {
@@ -337,6 +347,8 @@ void memory_coloring::apply(module& m) const
     }
 
     // Total memory
+    // std::cout << "as max: " << as.max() << std::endl;
+    // std::cout << "alignment: " << alignment << std::endl;
     std::size_t n = as.max() * alignment;
 
     // Replace allocations

@@ -7,7 +7,8 @@ from tabulate import tabulate
 import numpy as np
 import torch
 from models import (get_tokenizer, get_clip_model, get_t5_model,
-                    get_flux_transformer_model, get_vae_model, get_scheduler, AutoencoderKL)
+                    get_flux_transformer_model, get_vae_model, get_scheduler,
+                    AutoencoderKL)
 from PIL import Image
 # import migraphx as mgx
 
@@ -38,7 +39,8 @@ class FluxPipeline:
                  max_sequence_length=512,
                  batch_size=1,
                  denoising_steps=50,
-                 fp16=True,
+                 fp16=False,
+                 bf16=True,
                  exhaustive_tune=False,
                  manual_seed=None):
 
@@ -51,6 +53,7 @@ class FluxPipeline:
         self.bs = batch_size
         self.steps = denoising_steps
         self.fp16 = fp16
+        self.bf16 = bf16
         self.exhaustive_tune = exhaustive_tune
 
         if not local_dir:
@@ -66,7 +69,7 @@ class FluxPipeline:
         if manual_seed:
             self.generator.manual_seed(manual_seed)
         self.device = torch.cuda.current_device()
-        
+
         self.times = []
 
     def load_models(self):
@@ -79,6 +82,7 @@ class FluxPipeline:
                                    self.hf_model_path,
                                    self.compile_dir,
                                    fp16=self.fp16,
+                                   bf16=self.bf16,
                                    bs=self.bs,
                                    exhaustive_tune=self.exhaustive_tune)
 
@@ -87,6 +91,7 @@ class FluxPipeline:
                                self.compile_dir,
                                self.max_sequence_length,
                                bs=self.bs,
+                               bf16=self.bf16,
                                exhaustive_tune=self.exhaustive_tune)
 
         self.flux_transformer = get_flux_transformer_model(
@@ -97,6 +102,7 @@ class FluxPipeline:
             img_width=self.width,
             max_len=self.max_sequence_length,
             fp16=self.fp16,
+            bf16=self.bf16,
             bs=self.bs,
             exhaustive_tune=self.exhaustive_tune)
 
@@ -106,6 +112,7 @@ class FluxPipeline:
                                  img_height=self.height,
                                  img_width=self.width,
                                  bs=self.bs,
+                                 bf16=self.bf16,
                                  exhaustive_tune=self.exhaustive_tune)
 
     @staticmethod
@@ -294,18 +301,18 @@ class FluxPipeline:
 
         with torch.inference_mode():
             torch.cuda.synchronize()
-            
+
             self.e2e_tic = time.perf_counter()
-            
+
             latents, latent_image_ids = self.initialize_latents(
                 batch_size=batch_size,
-                num_channels_latents=self.flux_transformer.config["in_channels"] // 4,
+                num_channels_latents=self.flux_transformer.
+                config["in_channels"] // 4,
                 # num_channels_latents=16,
                 latent_height=latent_height,
                 latent_width=latent_width,
                 # latents_dtype=torch.float16 if self.fp16 else torch.float32,
-                latents_dtype=torch.float32
-            )
+                latents_dtype=torch.float32)
 
             pooled_embeddings = self.encode_prompt(prompt, pooled_output=True)
             text_embeddings = self.encode_prompt(
@@ -327,7 +334,9 @@ class FluxPipeline:
                 self.scheduler.config.base_shift,
                 self.scheduler.config.max_shift,
             )
-            self.scheduler.set_timesteps(sigmas=sigmas, mu=mu, device=self.device)
+            self.scheduler.set_timesteps(sigmas=sigmas,
+                                         mu=mu,
+                                         device=self.device)
             timesteps = self.scheduler.timesteps.to(self.device)
             num_inference_steps = len(timesteps)
 
@@ -345,7 +354,6 @@ class FluxPipeline:
             latents = (latents / self.vae.config["scaling_factor"]
                        ) + self.vae.config["shift_factor"]
 
-            
             images = self.decode_latent(latents)
             torch.cuda.synchronize()
             self.e2e_toc = time.perf_counter()
@@ -353,28 +361,28 @@ class FluxPipeline:
                 self.record_times()
 
         return images
-    
+
     def record_times(self):
         self.times.append(self.e2e_toc - self.e2e_tic)
-        
+
     def save_image(self, images, prefix, output_dir="./"):
-        images = ((images + 1) * 255 / 2).clamp(0, 255).detach().permute(0, 2, 3, 1).round().type(torch.uint8).cpu().numpy()
+        images = ((images + 1) * 255 / 2).clamp(0, 255).detach().permute(
+            0, 2, 3, 1).round().type(torch.uint8).cpu().numpy()
         for i in range(images.shape[0]):
             path = os.path.join(output_dir, f"{prefix}_{i}.png")
             Image.fromarray(images[i]).save(path)
-    
+
     def print_summary(self):
         headers = ["Model", "Latency(ms)"]
         rows = []
         for mod in ("clip", "t5", "flux_transformer", "vae"):
             name = f"{mod} (x{self.steps})" if mod == "flux_transformer" else mod
             rows.append([name, np.average(getattr(self, mod).get_run_times())])
-            
-        rows.append(["e2e", np.average(self.times)*1000])
+
+        rows.append(["e2e", np.average(self.times) * 1000])
         print(tabulate(rows, headers=headers))
-        
+
     def clear_run_data(self):
         self.times = []
         for mod in (self.clip, self.t5, self.flux_transformer, self.vae):
             mod.clear_events()
-

@@ -12,6 +12,7 @@ class MGXModel:
                  model,
                  input_shapes=None,
                  fp16=False,
+                 bf16=True,
                  exhaustive_tune=False,
                  config=None):
 
@@ -31,6 +32,8 @@ class MGXModel:
                 self.model = mgx.parse_onnx(model, map_input_dims=input_shapes)
                 if fp16:
                     mgx.quantize_fp16(self.model)
+                elif bf16:
+                    mgx.quantize_bf16(self.model)
                 self.model.compile(mgx.get_target("gpu"),
                                    exhaustive_tune=exhaustive_tune,
                                    offload_copy=False)
@@ -71,7 +74,7 @@ class MGXModel:
 
         self.torch_buffers = {}
         self.mgx_args = {}
-        
+
         self.start_events = []
         self.end_events = []
 
@@ -83,14 +86,14 @@ class MGXModel:
 
         for name, tensor in inputs.items():
             self.mgx_args[name] = self.tensor_to_arg(tensor)
-        
+
         self.start_events.append(torch.cuda.Event(enable_timing=True))
         self.end_events.append(torch.cuda.Event(enable_timing=True))
-        
+
         self.start_events[-1].record()
         self.model.run_async(self.mgx_args, stream.cuda_stream, "ihipStream_t")
         self.end_events[-1].record()
-        
+
         return {p: self.torch_buffers[p] for p in self.output_names}
 
     def save_model(self, path):
@@ -116,10 +119,13 @@ class MGXModel:
                                          device=torch.cuda.current_device())
             self.torch_buffers[param_name] = tensor
             self.mgx_args[param_name] = self.tensor_to_arg(tensor)
-        
+
     def get_run_times(self):
-        return [s.elapsed_time(e) for s, e in zip(self.start_events, self.end_events)]
-    
+        return [
+            s.elapsed_time(e)
+            for s, e in zip(self.start_events, self.end_events)
+        ]
+
     def clear_events(self):
         self.start_events = []
         self.end_events = []
@@ -128,17 +134,17 @@ class MGXModel:
 def get_scheduler(local_dir, hf_model_path, scheduler_dir="scheduler"):
     scheduler_local_dir = os.path.join(local_dir, scheduler_dir)
     scheduler_cls = FlowMatchEulerDiscreteScheduler
-    
+
     if not os.path.exists(scheduler_local_dir):
         model = scheduler_cls.from_pretrained(hf_model_path,
-                                                subfolder=scheduler_dir)
+                                              subfolder=scheduler_dir)
         model.save_pretrained(scheduler_local_dir)
     else:
         print(f"Loading {scheduler_cls} scheduler from {scheduler_local_dir}")
         model = scheduler_cls.from_pretrained(scheduler_local_dir)
 
     return model
-    
+
 
 def get_tokenizer(local_dir,
                   hf_model_path,
@@ -177,14 +183,19 @@ def get_clip_model(local_dir,
                    torch_dtype=torch.float32,
                    bs=1,
                    exhaustive_tune=False,
-                   fp16=True):
+                   fp16=False,
+                   bf16=True):
     clip_local_dir = get_local_path(local_dir, model_dir)
     onnx_file = "model.onnx"
     onnx_path = os.path.join(clip_local_dir, onnx_file)
 
     def get_compiled_file_name():
         name = f"model_b{bs}"
-        if fp16: name += "_fp16"
+        if fp16:
+            name += "_fp16"
+        elif bf16:
+            name += "_bf16"
+
         if exhaustive_tune: name += f"_exh"
         return name + ".mxr"
 
@@ -220,11 +231,15 @@ def get_clip_model(local_dir,
 
     assert os.path.isfile(onnx_path)
     print(f"Generating MXR from ONNX file: {onnx_path}")
-    input_shapes = {n: list(t.size()) for n, t in zip(input_names, sample_inputs)}
+    input_shapes = {
+        n: list(t.size())
+        for n, t in zip(input_names, sample_inputs)
+    }
     model = MGXModel(onnx_path,
                      input_shapes=input_shapes,
                      exhaustive_tune=exhaustive_tune,
-                     fp16=fp16)
+                     fp16=fp16,
+                     bf16=bf16)
     model.save_model(os.path.join(clip_compiled_dir, get_compiled_file_name()))
 
     return model
@@ -240,7 +255,8 @@ def get_t5_model(local_dir,
                  torch_dtype=torch.float32,
                  bs=1,
                  exhaustive_tune=False,
-                 fp16=False):
+                 fp16=False,
+                 bf16=True):
     t5_local_dir = get_local_path(local_dir, model_dir)
     onnx_file = "model.onnx"
     onnx_path = os.path.join(t5_local_dir, onnx_file)
@@ -248,7 +264,10 @@ def get_t5_model(local_dir,
     def get_compiled_file_name():
         name = f"model_b{bs}"
         name += f"_l{max_len}"
-        if fp16: name += "_fp16"
+        if fp16:
+            name += "_fp16"
+        elif bf16:
+            name += "_bf16"
         if exhaustive_tune: name += f"_exh"
         return name + ".mxr"
 
@@ -281,11 +300,15 @@ def get_t5_model(local_dir,
 
     assert os.path.isfile(onnx_path)
     print(f"Generating MXR from ONNX file: {onnx_path}")
-    input_shapes = {n: list(t.size()) for n, t in zip(input_names, sample_inputs)}
+    input_shapes = {
+        n: list(t.size())
+        for n, t in zip(input_names, sample_inputs)
+    }
     model = MGXModel(onnx_path,
                      input_shapes=input_shapes,
                      exhaustive_tune=exhaustive_tune,
-                     fp16=fp16)
+                     fp16=fp16,
+                     bf16=bf16)
     model.save_model(os.path.join(t5_compiled_dir, get_compiled_file_name()))
 
     return model
@@ -294,31 +317,34 @@ def get_t5_model(local_dir,
 
 
 ## Following decorators required to apply fp16 inference patch to the transformer blocks
-## Note that we do not export fp16 weights directly to ONNX to allow migraphx to 
+## Note that we do not export fp16 weights directly to ONNX to allow migraphx to
 ##  perform optimizations before quantizing down to fp16. This results in better
 ##  accuracy compared to exporting fp16 directly to onnx
 def transformer_block_clip_wrapper(fn):
-    
+
     def new_forward(*args, **kwargs):
         encoder_hidden_states, hidden_states = fn(*args, **kwargs)
         return encoder_hidden_states.clip(-65504, 65504), hidden_states
-    
+
     return new_forward
 
+
 def single_transformer_block_clip_wrapper(fn):
-    
+
     def new_forward(*args, **kwargs):
         hidden_states = fn(*args, **kwargs)
         return hidden_states.clip(-65504, 65504)
-    
+
     return new_forward
-    
+
+
 def add_output_clippings_for_fp16(model):
     for b in model.transformer_blocks:
         b.forward = transformer_block_clip_wrapper(b.forward)
-        
+
     for b in model.single_transformer_blocks:
         b.forward = single_transformer_block_clip_wrapper(b.forward)
+
 
 def get_flux_transformer_model(local_dir,
                                hf_model_path,
@@ -331,17 +357,21 @@ def get_flux_transformer_model(local_dir,
                                torch_dtype=torch.float32,
                                bs=1,
                                exhaustive_tune=False,
-                               fp16=True):
+                               fp16=False,
+                               bf16=True):
 
     transformer_local_dir = get_local_path(local_dir, model_dir)
-    onnx_file = "model.onnx"
+    onnx_file = "model_clip_workaround.onnx" if fp16 else "model.onnx"
     onnx_path = os.path.join(transformer_local_dir, onnx_file)
     latent_h, latent_w = img_height // compression_factor, img_width // compression_factor
 
     def get_compiled_file_name():
         name = f"model_b{bs}"
         name += f"_h{latent_h}_w{latent_w}_l{max_len}"
-        if fp16: name += "_fp16"
+        if fp16:
+            name += "_fp16"
+        elif bf16:
+            name += "_bf16"
         if exhaustive_tune: name += f"_exh"
         return name + ".mxr"
 
@@ -350,29 +380,28 @@ def get_flux_transformer_model(local_dir,
     mxr_path = os.path.join(transformer_compiled_dir, mxr_file)
 
     config = FluxTransformer2DModel.load_config(hf_model_path,
-                                                    subfolder=model_dir)
+                                                subfolder=model_dir)
 
     if os.path.isfile(mxr_path):
-        print(f"found compiled model.. loading flux transformer from {mxr_path}")
+        print(
+            f"found compiled model.. loading flux transformer from {mxr_path}")
         model = MGXModel(mxr_path, config=config)
         return model
 
-    sample_inputs = (torch.randn(bs, (latent_h // 2) * (latent_w // 2),
-                                     config["in_channels"],
-                                     dtype=torch_dtype),
-                         torch.randn(bs,
-                                     max_len,
-                                     config['joint_attention_dim'],
-                                     dtype=torch_dtype),
-                         torch.randn(bs,
-                                     config['pooled_projection_dim'],
-                                     dtype=torch_dtype),
-                         torch.tensor([1.]*bs, dtype=torch_dtype),
-                         torch.randn((latent_h // 2) * (latent_w // 2),
-                                     3,
-                                     dtype=torch_dtype),
-                         torch.randn(max_len, 3, dtype=torch_dtype),
-                         torch.tensor([1.]*bs, dtype=torch_dtype),)
+    sample_inputs = (
+        torch.randn(bs, (latent_h // 2) * (latent_w // 2),
+                    config["in_channels"],
+                    dtype=torch_dtype),
+        torch.randn(bs,
+                    max_len,
+                    config['joint_attention_dim'],
+                    dtype=torch_dtype),
+        torch.randn(bs, config['pooled_projection_dim'], dtype=torch_dtype),
+        torch.tensor([1.] * bs, dtype=torch_dtype),
+        torch.randn((latent_h // 2) * (latent_w // 2), 3, dtype=torch_dtype),
+        torch.randn(max_len, 3, dtype=torch_dtype),
+        torch.tensor([1.] * bs, dtype=torch_dtype),
+    )
 
     input_names = [
         'hidden_states', 'encoder_hidden_states', 'pooled_projections',
@@ -382,38 +411,61 @@ def get_flux_transformer_model(local_dir,
         model = FluxTransformer2DModel.from_pretrained(hf_model_path,
                                                        subfolder=model_dir,
                                                        torch_dtype=torch_dtype)
-        
-        add_output_clippings_for_fp16(model)
+
+        if fp16:
+            print("applying fp16 clip workarounds to transformer")
+            add_output_clippings_for_fp16(model)
 
         output_names = ["latent"]
         dynamic_axes = {
-            'hidden_states': {0: 'B', 1: 'latent_dim'},
-            'encoder_hidden_states': {0: 'B',1: 'L'},
-            'pooled_projections': {0: 'B'},
-            'timestep': {0: 'B'},
-            'img_ids': {0: 'latent_dim'},
-            'txt_ids': {0: 'L'},
-            'guidance': {0: 'B'},
+            'hidden_states': {
+                0: 'B',
+                1: 'latent_dim'
+            },
+            'encoder_hidden_states': {
+                0: 'B',
+                1: 'L'
+            },
+            'pooled_projections': {
+                0: 'B'
+            },
+            'timestep': {
+                0: 'B'
+            },
+            'img_ids': {
+                0: 'latent_dim'
+            },
+            'txt_ids': {
+                0: 'L'
+            },
+            'guidance': {
+                0: 'B'
+            },
         }
 
         with torch.inference_mode():
             torch.onnx.export(model,
-                                sample_inputs,
-                                onnx_path,
-                                export_params=True,
-                                input_names=input_names,
-                                output_names=output_names,
-                                dynamic_axes=dynamic_axes)
+                              sample_inputs,
+                              onnx_path,
+                              export_params=True,
+                              input_names=input_names,
+                              output_names=output_names,
+                              dynamic_axes=dynamic_axes)
 
     assert os.path.isfile(onnx_path)
     print(f"Generating MXR from ONNX file: {onnx_path}")
-    input_shapes = {n: list(t.size()) for n, t in zip(input_names, sample_inputs)}
+    input_shapes = {
+        n: list(t.size())
+        for n, t in zip(input_names, sample_inputs)
+    }
     model = MGXModel(onnx_path,
                      input_shapes=input_shapes,
                      exhaustive_tune=exhaustive_tune,
                      fp16=fp16,
+                     bf16=bf16,
                      config=config)
-    model.save_model(os.path.join(transformer_compiled_dir, get_compiled_file_name()))
+    model.save_model(
+        os.path.join(transformer_compiled_dir, get_compiled_file_name()))
 
     return model
     # migraphx-driver perf FLUX.1-schnell/transformer/model.onnx --input-dim @hidden_states 1 4096 64 @encoder_hidden_states 1 512 4096 @pooled_projections 1 768 @timestep 1 @img_ids 4096 3 @txt_ids 512 3 --fp16
@@ -430,7 +482,8 @@ def get_vae_model(local_dir,
                   torch_dtype=torch.float32,
                   bs=1,
                   exhaustive_tune=False,
-                  fp16=False):
+                  fp16=False,
+                  bf16=True):
 
     vae_local_dir = get_local_path(local_dir, model_dir)
     onnx_file = "model.onnx"
@@ -440,7 +493,10 @@ def get_vae_model(local_dir,
     def get_compiled_file_name():
         name = f"model_b{bs}"
         name += f"_h{latent_h}_w{latent_w}"
-        if fp16: name += "_fp16"
+        if fp16:
+            name += "_fp16"
+        elif bf16:
+            name += "_bf16"
         if exhaustive_tune: name += f"_exh"
         return name + ".mxr"
 
@@ -492,11 +548,15 @@ def get_vae_model(local_dir,
 
     assert os.path.isfile(onnx_path)
     print(f"Generating MXR from ONNX file: {onnx_path}")
-    input_shapes = {n: list(t.size()) for n, t in zip(input_names, sample_inputs)}
+    input_shapes = {
+        n: list(t.size())
+        for n, t in zip(input_names, sample_inputs)
+    }
     model = MGXModel(onnx_path,
                      input_shapes=input_shapes,
                      exhaustive_tune=exhaustive_tune,
                      fp16=fp16,
+                     bf16=bf16,
                      config=config)
     model.save_model(os.path.join(vae_compiled_dir, get_compiled_file_name()))
 

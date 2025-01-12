@@ -872,7 +872,10 @@ struct find_mlir_standalone_attention_op
         if(contains(r.instructions, "trailing_pm"))
         {
             auto trailing_pm_ins = r.instructions["trailing_pm"];
+            auto lit_map         = create_param_map_with_literals(
+                &m_attn, trailing_pm_ins->module_inputs().front(), trailing_pm_ins->get_shape());
             m_attn.add_params(trailing_pm_ins->inputs(), &map_main_to_mattn);
+            map_main_to_mattn.insert(lit_map.begin(), lit_map.end());
             std::unordered_map<instruction_ref, instruction_ref> map_pm_to_mattn(map_main_to_mattn);
             auto fused_pw_outs = m_attn
                                      .fuse(*trailing_pm_ins->module_inputs().front(),

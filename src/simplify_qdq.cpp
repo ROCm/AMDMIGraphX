@@ -36,17 +36,11 @@
 #include <migraphx/op/quant_dot.hpp>
 #include <migraphx/register_op.hpp>
 #include <migraphx/fp8_types.hpp>
+#include <migraphx/match/dq_helpers.hpp>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
 namespace {
-
-template <class... Ms>
-auto skip_post_dq_ops(Ms... ms)
-{
-    return match::skip(match::name(
-        "broadcast", "multibroadcast", "contiguous", "transpose", "reshape", "convert"))(ms...);
-}
 
 std::unordered_set<std::string> get_quantizable_op_names()
 {
@@ -117,20 +111,12 @@ struct match_find_quantizable_ops
         return qinp;
     }
 
-    static auto dequantizelinear_op(const std::string& scale, const std::string& zp)
-    {
-        return match::name("dequantizelinear")(
-            match::arg(0)(match::skip(match::name("quantizelinear"))(match::any())),
-            match::arg(1)(match::skip_broadcasts(match::is_constant().bind(scale))),
-            match::arg(2)(match::skip_broadcasts(match::is_constant().bind(zp))));
-    }
-
     auto matcher() const
     {
-        auto dq1 =
-            match::arg(0)(skip_post_dq_ops(dequantizelinear_op("scale1", "zp1").bind("dq1")));
-        auto dq2 =
-            match::arg(1)(skip_post_dq_ops(dequantizelinear_op("scale2", "zp2").bind("dq2")));
+        auto dq1 = match::arg(0)(
+            skip_post_dq_ops(match::dequantizelinear_op("scale1", "zp1").bind("dq1")));
+        auto dq2 = match::arg(1)(
+            skip_post_dq_ops(match::dequantizelinear_op("scale2", "zp2").bind("dq2")));
         return match::name(get_quantizable_op_names())(dq1, dq2);
     }
 
@@ -231,7 +217,9 @@ struct match_find_quantizable_ops
                    is_valid_qparam(zp1, out_lens, out_lens.size() - 2) and
                    is_valid_qparam(scale2, out_lens, out_lens.size() - 1) and
                    is_valid_qparam(zp2, out_lens, out_lens.size() - 1)))
+            {
                 return;
+            }
 
             // This implementation supports both arguments being per-axis affine quantized
             // In practice, inputs are per-tensor affine and weights are per-axis symmetric

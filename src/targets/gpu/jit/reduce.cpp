@@ -303,9 +303,9 @@ struct simple_reduce_compiler : compiler<simple_reduce_compiler>
                                               const operation& op,
                                               bool exhaustive) const
     {
-        if(not exhaustive)
-            return nullopt;
-        // if(op.name() != "fused_reduce")
+        // if(not exhaustive)
+        //     return nullopt;
+        // if(op.name() != "simple_reduce")
         //     return nullopt;
         tuning_config tc;
         auto shapes    = to_shapes(ins->inputs());
@@ -446,10 +446,10 @@ struct fused_reduce_compiler : compiler<fused_reduce_compiler>
                                               const operation& op,
                                               bool exhaustive) const
     {
-        if(not exhaustive)
-            return nullopt;
-        if(op.name() != "fused_reduce")
-            return nullopt;
+        // if(not exhaustive)
+        //     return nullopt;
+        // if(op.name() != "fused_reduce")
+        //     return nullopt;
         tuning_config tc;
         auto shapes    = to_shapes(ins->inputs());
         tc.problem = to_value(shapes);

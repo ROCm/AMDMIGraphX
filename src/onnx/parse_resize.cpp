@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2024 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2025 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -35,11 +35,15 @@ namespace onnx {
 
 static std::vector<int>
 calc_neighbor_points(const std::vector<std::vector<std::vector<std::size_t>>>& vvv_ind,
-                     int i_dim,
+                     size_t i_dim, // input lens index
+                     size_t r_dim, // resized index
                      std::vector<std::vector<std::size_t>> vec_dims,
-                     const shape& in_s)
+                     const shape& in_s,
+                     const shape& out_s)
 {
-    if(i_dim == vvv_ind.size())
+    auto&& o_lens = out_s.lens();
+
+    if(i_dim == o_lens.size())
     {
         std::vector<int> vec_ind(vec_dims.size());
         std::transform(vec_dims.begin(), vec_dims.end(), vec_ind.begin(), [&](auto idx) {
@@ -48,7 +52,19 @@ calc_neighbor_points(const std::vector<std::vector<std::vector<std::size_t>>>& v
         return vec_ind;
     }
 
-    const auto& vv_lo = vvv_ind[i_dim][0];
+    size_t o_dim_size = o_lens[i_dim];
+
+    // when a dimension is unchanged in Resize, its indices are identical, and just copied:
+    if(in_s.lens()[i_dim] == o_dim_size)
+    {
+        for(std::size_t v_idx = 0; v_idx < vec_dims.size(); v_idx += o_dim_size)
+            for(size_t i = 0; i < o_dim_size; i++)
+                vec_dims[v_idx + i].push_back(i);
+        return calc_neighbor_points(vvv_ind, i_dim + 1, r_dim, std::move(vec_dims), in_s, out_s);
+    }
+
+    // when a dimension is unchanged in Resize, its indices are processed below:
+    const auto& vv_lo = vvv_ind[r_dim][0];
     std::vector<std::vector<std::size_t>> vec_dims1;
     for(std::size_t start = 0; start < vec_dims.size(); start += vv_lo.size())
     {
@@ -62,7 +78,7 @@ calc_neighbor_points(const std::vector<std::vector<std::vector<std::size_t>>>& v
                        });
     }
 
-    const auto& vv_hi = vvv_ind[i_dim][1];
+    const auto& vv_hi = vvv_ind[r_dim][1];
     for(std::size_t start = 0; start < vec_dims.size(); start += vv_hi.size())
     {
         std::transform(vv_hi.begin(),
@@ -75,7 +91,7 @@ calc_neighbor_points(const std::vector<std::vector<std::vector<std::size_t>>>& v
                        });
     }
     vec_dims.clear();
-    return calc_neighbor_points(vvv_ind, i_dim + 1, std::move(vec_dims1), in_s);
+    return calc_neighbor_points(vvv_ind, i_dim + 1, r_dim + 1, std::move(vec_dims1), in_s, out_s);
 }
 
 static std::string get_coord_trans_mode(const onnx_parser::attribute_map& attr)
@@ -350,7 +366,6 @@ struct parse_resize : op_parser<parse_resize>
                                ": linear mode not supported for non-constant inputs");
 
             shape out_s{in_s.type(), out_lens};
-            std::size_t out_elements = out_s.elements();
 
             // reshape input to one-dimension
             std::vector<int64_t> rsp_lens = {static_cast<int64_t>(in_s.elements())};
@@ -359,41 +374,55 @@ struct parse_resize : op_parser<parse_resize>
             auto nearest_floor = op::resize::get_nearest_op("floor");
             auto nearest_ceil  = op::resize::get_nearest_op("ceil");
 
-            // get the number of dimensions
-            std::size_t n_dim = out_lens.size();
+            std::size_t n_dim        = out_lens.size();
+            std::size_t r_dim        = 0; // count: lens dimensions that are resized
+            std::size_t out_elements = 1; // count: number of elements to fix due to resize.
+            for(std::size_t dim = 0; dim < n_dim; dim++)
+            {
+                if(in_lens[dim] == out_lens[dim])
+                    continue;
+                r_dim++;
+                out_elements *= out_lens[dim];
+            }
             std::vector<std::vector<std::size_t>> vv_ind(2, std::vector<std::size_t>(out_elements));
-            std::vector<std::vector<std::vector<std::size_t>>> vvv_ind(n_dim, vv_ind);
-            std::vector<std::vector<float>> delta(n_dim, std::vector<float>(out_elements));
+            std::vector<std::vector<std::vector<std::size_t>>> vvv_ind(r_dim, vv_ind);
+            std::vector<std::vector<float>> delta(r_dim, std::vector<float>(out_elements));
 
-            shape_for_each(out_s, [&](const auto& out_idx_v, size_t out_idx) {
-                for(auto ii = 0; ii < in_lens.size(); ++ii)
+            shape_for_each(out_s, [&](const auto& out_idx_v, std::size_t out_idx) {
+                std::size_t ii = 0;
+                for(std::size_t idx = 0; idx < in_lens.size(); ++idx)
                 {
-                    auto idx_val = idx_op(in_lens[ii], out_lens[ii], out_idx_v[ii], vec_scale[ii]);
-                    vvv_ind[ii][0][out_idx] = nearest_floor(in_lens[ii], idx_val);
-                    vvv_ind[ii][1][out_idx] = nearest_ceil(in_lens[ii], idx_val);
+                    if(in_lens[idx] == out_lens[idx])
+                        continue;
+                    auto idx_val =
+                        idx_op(in_lens[idx], out_lens[idx], out_idx_v[idx], vec_scale[idx]);
+                    vvv_ind[ii][0][out_idx] = nearest_floor(in_lens[idx], idx_val);
+                    vvv_ind[ii][1][out_idx] = nearest_ceil(in_lens[idx], idx_val);
                     delta[ii][out_idx]      = idx_val - vvv_ind[ii][0][out_idx];
+                    ++ii;
                 }
             });
 
             auto ind = calc_neighbor_points(
-                vvv_ind, 0, std::vector<std::vector<std::size_t>>(out_elements), in_s);
-            auto ind_lens = out_lens;
-            ind_lens[0] *= (std::size_t{1} << n_dim);
-            shape ind_s{shape::int32_type, ind_lens};
+                vvv_ind, 0, 0, std::vector<std::vector<std::size_t>>(out_elements), in_s, out_s);
+
+            auto dim_lens = out_lens;
+            dim_lens[0] *= (1 << r_dim);
+            shape ind_s{shape::int32_type, dim_lens};
             auto ins_ind = info.add_literal(literal(ind_s, ind));
             auto data    = info.add_instruction(make_op("gather", {{"axis", 0}}), rsp, ins_ind);
 
-            auto dim_lens = out_lens;
-            dim_lens[0] *= (std::size_t{1} << (n_dim - 1));
-            for(std::size_t i = 0; i < n_dim; ++i)
+            std::size_t lens_idx = out_lens.size();
+            for(std::size_t i = 0; i < r_dim; lens_idx--)
             {
+                if(in_lens[lens_idx] == out_lens[lens_idx])
+                    continue;
+                dim_lens[0] >>= 1; // halved for 2 slices of data
                 shape dim_s{shape::float_type, dim_lens};
-                const auto& dim_delta = delta[n_dim - i - 1];
+                const auto& dim_delta = delta[r_dim - i - 1];
                 std::vector<float> delta_data;
                 for(std::size_t j = 0; j < dim_lens[0] / out_lens[0]; ++j)
-                {
                     delta_data.insert(delta_data.begin(), dim_delta.begin(), dim_delta.end());
-                }
                 auto ins_delta = info.add_literal(dim_s, delta_data);
 
                 // slice the data
@@ -408,9 +437,8 @@ struct parse_resize : op_parser<parse_resize>
                 auto diff = info.add_instruction(make_op("sub"), hi, low);
                 auto ddf  = info.add_instruction(make_op("mul"), diff, ins_delta);
                 data      = info.add_instruction(make_op("add"), ddf, low);
-                dim_lens[0] /= 2;
+                i++;
             }
-
             return data;
         }
     }

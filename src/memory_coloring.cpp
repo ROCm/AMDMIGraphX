@@ -264,7 +264,6 @@ struct allocation_segment
             assert(as.get_segment(parent) == nullptr);
             as.add_segment(parent, next_segment(segments, parent, alignment));
         }
-        std::cout << "build as max: " << as.max() << std::endl;;
         // Reduce the number of segments
         for(std::size_t n = 0; n < 3; n++)
         {

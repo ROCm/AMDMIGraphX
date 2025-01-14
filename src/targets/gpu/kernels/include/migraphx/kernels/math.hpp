@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2024 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2025 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -172,6 +172,7 @@ constexpr auto where(bool cond, const T& a, const U& b)
 MIGRAPHX_DEVICE_MATH_FOR(float, abs, ::abs)
 MIGRAPHX_DEVICE_MATH_FOR(double, abs, ::abs)
 MIGRAPHX_DEVICE_MATH_FOR(migraphx::half, abs, ::__habs)
+MIGRAPHX_DEVICE_MATH_FOR(migraphx::bf16, abs, ::fabsf)
 MIGRAPHX_DEVICE_MATH_BINARY_FOR(float, max, ::fmaxf)
 MIGRAPHX_DEVICE_MATH_BINARY_FOR(float, min, ::fminf)
 MIGRAPHX_DEVICE_MATH_BINARY_FOR(double, max, ::max)

@@ -887,13 +887,12 @@ std::string perf_group(instruction_ref ins, bool detailed)
     return result;
 }
 
-void program::mark(const parameter_map& params, marker&& m)
+void program::mark(const parameter_map& params, marker m)
 {
     auto& ctx = this->impl->contexts;
     // Run once by itself
     eval(params);
     this->finish();
-    // Start marking
     m.mark_start(*this);
     generic_eval(*this, ctx, params, [&](auto ins, auto f) {
         argument result;

@@ -3987,7 +3987,6 @@ TEST_CASE(add_dot_add_mul_1)
     migraphx::module m2;
     {
         auto a = m2.add_parameter("a", as);
-        
         std::vector<migraphx::instruction_ref> literals;
         for(int i = 0; i < 6; i += 2)
         {
@@ -3995,7 +3994,7 @@ TEST_CASE(add_dot_add_mul_1)
             auto lit2 = m2.add_literal(migraphx::generate_literal(s2, i + 1));
             literals.push_back(lit1);
             literals.push_back(lit2);
-        }        
+        }                
         auto lit6     = m2.add_literal(migraphx::generate_literal(s2, 6));
         auto concat_1 = m2.add_instruction(
             migraphx::make_op("concat", {{"axis", 2}}), literals[0], literals[2], literals[4]);

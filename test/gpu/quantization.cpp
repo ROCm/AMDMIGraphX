@@ -126,15 +126,14 @@ TEST_CASE(int8_quantization)
     }
 }
 
-
 TEST_CASE(fp8_quantization)
 {
     if(migraphx::gpu::gfx_has_fp8fnuz_intrinsics() or migraphx::gpu::gfx_has_fp8ocp_intrinsics())
     {
         auto run_prog = [](migraphx::program p,
-                        const migraphx::target& t,
-                        migraphx::parameter_map& m_in,
-                        std::vector<float>& res) {
+                           const migraphx::target& t,
+                           migraphx::parameter_map& m_in,
+                           std::vector<float>& res) {
             std::vector<migraphx::parameter_map> cali_data;
             cali_data.push_back(m_in);
             migraphx::quantize_fp8(p, t, cali_data);

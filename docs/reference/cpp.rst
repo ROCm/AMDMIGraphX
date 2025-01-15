@@ -1,3 +1,7 @@
+.. meta::
+   :description: MIGraphX C++ API reference
+   :keywords: MIGraphX, ROCm, C++, API, reference, development, developer
+
 .. _cpp-api-reference:
 
 C++ API reference

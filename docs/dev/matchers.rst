@@ -1,3 +1,7 @@
+.. meta::
+  :description: MIGraphX internal matchers
+  :keywords: MIGraphX, code base, contribution, developing, matchers
+
 Matchers
 ========
 

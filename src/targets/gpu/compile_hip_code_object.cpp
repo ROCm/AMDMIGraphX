@@ -165,7 +165,8 @@ std::size_t compute_block_size(context& ctx, std::size_t n, std::size_t max_bloc
     return std::min(std::max(min_block_size, block_size), max_block_size);
 }
 
-operation compile_hip_code_object(const std::string& content, hip_compile_options options)
+operation
+compile_hip_code_object(context& ctx, const std::string& content, hip_compile_options options)
 {
     assert(options.global > 0);
     assert(options.local > 0);
@@ -191,6 +192,8 @@ operation compile_hip_code_object(const std::string& content, hip_compile_option
 
     options.emplace_param("-DMIGRAPHX_NGLOBAL=" + std::to_string(options.global));
     options.emplace_param("-DMIGRAPHX_NLOCAL=" + std::to_string(options.local));
+    options.emplace_param("-DMIGRAPHX_WAVEFRONTSIZE=" +
+                          std::to_string(ctx.get_current_device().get_wavefront_size()));
     const auto& warnings = compiler_warnings();
     options.params.insert(options.params.end(), warnings.begin(), warnings.end());
     options.emplace_param("-ftemplate-backtrace-limit=0");
@@ -203,7 +206,8 @@ operation compile_hip_code_object(const std::string& content, hip_compile_option
                           options.global,
                           options.local,
                           options.inputs,
-                          options.output};
+                          options.output,
+                          options.output_arg};
 }
 
 } // namespace gpu

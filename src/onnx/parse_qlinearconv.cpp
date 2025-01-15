@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2023 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2024 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -119,7 +119,8 @@ struct parse_qlinearconv : op_parser<parse_qlinearconv>
     }
 
     // process all attributes of QLinearConv Operator..
-    value process_attributes(const onnx_parser& parser,
+    value process_attributes(const op_desc& opd,
+                             const onnx_parser& parser,
                              const onnx_parser::node_info& info,
                              const std::vector<instruction_ref>& args) const
     {
@@ -130,7 +131,7 @@ struct parse_qlinearconv : op_parser<parse_qlinearconv>
 
         size_t kdims = in_x->get_shape().ndim() - 2;
 
-        check_padding_mode(info, "QLINEARCONV");
+        check_padding_mode(info, opd.onnx_name);
 
         values["stride"]   = std::vector<int>(kdims, 1);
         values["dilation"] = std::vector<int>(kdims, 1);
@@ -195,14 +196,14 @@ struct parse_qlinearconv : op_parser<parse_qlinearconv>
         return info.add_instruction(migraphx::make_op("add"), conv_instr, f_bias);
     };
 
-    instruction_ref parse(const op_desc& /* opd */,
+    instruction_ref parse(const op_desc& opd,
                           const onnx_parser& parser,
                           const onnx_parser::node_info& info,
                           const std::vector<instruction_ref>& args) const
     {
         check_inputs(args);
 
-        auto values = process_attributes(parser, info, args);
+        auto values = process_attributes(opd, parser, info, args);
 
         // input: quantized x, scale, zero_pt
         const instruction_ref& in_x         = args[0];

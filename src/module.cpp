@@ -355,7 +355,6 @@ instruction_ref module::replace_instruction(instruction_ref ins, instruction_ref
 {
     impl->changed.notify();
     assert(has_instruction(ins));
-    assert(has_instruction(rep));
     assert(ins != rep);
 
     if(ins == std::prev(this->end()))
@@ -541,7 +540,6 @@ instruction_ref module::insert_parameter(instruction_ref ins, std::string name, 
 instruction_ref module::replace_return(std::vector<instruction_ref> args)
 {
     impl->changed.notify();
-    assert(std::all_of(args.begin(), args.end(), [&](auto ins) { return has_instruction(ins); }));
     auto last = std::prev(this->end());
     // If there is no return then add a return
     if(last->name() != "@return")
@@ -814,15 +812,6 @@ void module::finalize(std::vector<context>& contexts)
             smod->finalize(contexts);
         }
     }
-#ifndef BUILD_DEV
-    if(std::any_of(this->begin(), this->end(), [&](const auto i) {
-           return contains(fp8_types{}.get(), i.get_shape().type());
-       }))
-    {
-        std::cout << "[Warning] : MIGraphX has BETA support for FP8. Using FP8 may result in "
-                     "incorrect final outputs\n";
-    }
-#endif
 
     // Warn when an instruction is not normalized
     auto ins = std::find_if(begin(), end(), [](auto& i) { return i.need_normalization(); });
@@ -1133,7 +1122,7 @@ void module::debug_print(instruction_ref ins,
         std::cout << "Instruction not part of module" << std::endl;
         return;
     }
-    std::stringstream ss;
+
     names = this->print(
         [&](auto x, auto ins_names) {
             if(x == ins)

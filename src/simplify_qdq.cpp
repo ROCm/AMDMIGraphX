@@ -35,17 +35,12 @@
 #include <migraphx/op/dot.hpp>
 #include <migraphx/op/quant_dot.hpp>
 #include <migraphx/register_op.hpp>
+#include <migraphx/fp8_types.hpp>
+#include <migraphx/match/dq_helpers.hpp>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
 namespace {
-
-template <class... Ms>
-auto skip_post_dq_ops(Ms... ms)
-{
-    return match::skip(match::name(
-        "broadcast", "multibroadcast", "contiguous", "transpose", "reshape", "convert"))(ms...);
-}
 
 std::unordered_set<std::string> get_quantizable_op_names()
 {
@@ -116,20 +111,12 @@ struct match_find_quantizable_ops
         return qinp;
     }
 
-    static auto dequantizelinear_op(const std::string& scale, const std::string& zp)
-    {
-        return match::name("dequantizelinear")(
-            match::arg(0)(match::skip(match::name("quantizelinear"))(match::any())),
-            match::arg(1)(match::skip_broadcasts(match::is_constant().bind(scale))),
-            match::arg(2)(match::skip_broadcasts(match::is_constant().bind(zp))));
-    }
-
     auto matcher() const
     {
-        auto dq1 =
-            match::arg(0)(skip_post_dq_ops(dequantizelinear_op("scale1", "zp1").bind("dq1")));
-        auto dq2 =
-            match::arg(1)(skip_post_dq_ops(dequantizelinear_op("scale2", "zp2").bind("dq2")));
+        auto dq1 = match::arg(0)(
+            skip_post_dq_ops(match::dequantizelinear_op("scale1", "zp1").bind("dq1")));
+        auto dq2 = match::arg(1)(
+            skip_post_dq_ops(match::dequantizelinear_op("scale2", "zp2").bind("dq2")));
         return match::name(get_quantizable_op_names())(dq1, dq2);
     }
 
@@ -143,10 +130,8 @@ struct match_find_quantizable_ops
         auto zp1    = r.instructions["zp1"];
         auto zp2    = r.instructions["zp2"];
         // Only INT8 or FP8 type currently supported
-        std::set<migraphx::shape::type_t> supported_types = {migraphx::shape::fp8e4m3fnuz_type,
-                                                             migraphx::shape::fp8e4m3fn_type,
-                                                             migraphx::shape::fp8e5m2_type,
-                                                             migraphx::shape::int8_type};
+        std::set<migraphx::shape::type_t> supported_types = fp8_types{}.get();
+        supported_types.insert(migraphx::shape::int8_type);
         if(not contains(supported_types, dq1->inputs().front()->get_shape().type()) or
            not contains(supported_types, dq2->inputs().front()->get_shape().type()))
             return;
@@ -232,7 +217,9 @@ struct match_find_quantizable_ops
                    is_valid_qparam(zp1, out_lens, out_lens.size() - 2) and
                    is_valid_qparam(scale2, out_lens, out_lens.size() - 1) and
                    is_valid_qparam(zp2, out_lens, out_lens.size() - 1)))
+            {
                 return;
+            }
 
             // This implementation supports both arguments being per-axis affine quantized
             // In practice, inputs are per-tensor affine and weights are per-axis symmetric
@@ -416,6 +403,28 @@ void remove_qdq_pairs(module& m)
     }
 }
 
+void remove_zero_point(module& m)
+{
+    for(auto ins : iterator_for(m))
+    {
+        if(ins->name() != "dequantizelinear")
+            continue;
+        if(ins->inputs().size() != 3)
+            continue;
+        auto zp = ins->inputs().at(2);
+        if(not zp->can_eval())
+            continue;
+        auto a       = zp->eval();
+        bool is_zero = false;
+        a.visit([&](auto t) {
+            is_zero = std::all_of(t.begin(), t.end(), [](auto x) { return float_equal(x, 0); });
+        });
+        if(not is_zero)
+            continue;
+        m.replace_instruction(ins, ins->get_operator(), ins->inputs().at(0), ins->inputs().at(1));
+    }
+}
+
 void add_int4_pack_unpack_pair(module& m)
 {
     for(auto ins : iterator_for(m))
@@ -446,6 +455,8 @@ void simplify_qdq::apply(module& m) const
     remove_qdq_pairs(m);
     migraphx::run_passes(m, {migraphx::dead_code_elimination{}});
     match::find_matches(m, match_qlinear_reused{});
+    migraphx::run_passes(m, {migraphx::dead_code_elimination{}});
+    remove_zero_point(m);
 }
 
 } // namespace MIGRAPHX_INLINE_NS

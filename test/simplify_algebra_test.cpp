@@ -3896,7 +3896,8 @@ TEST_CASE(add_dot_add_mul_2)
     {
         auto a = m1.add_parameter("a", as);
 
-        std::vector<migraphx::instruction_ref> literals, final_add_results;
+        std::vector<migraphx::instruction_ref> literals;
+        std::vector<migraphx::instruction_ref> final_add_results;
         for(int i = 0; i < 3; ++i)
         {
             auto lit1      = m1.add_literal(migraphx::generate_literal(s2, i));

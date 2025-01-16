@@ -12,12 +12,12 @@ on:
         type: string
         description: ROCm release version
         required: true
-        default: '6.0.2'
+        default: '6.3.1'
       base_image:
         type: string
         description: Base image for ROCm Docker build
         required: true
-        default: 'rocm/dev-ubuntu-20.04'
+        default: 'rocm/dev-ubuntu-22.04'
       docker_image:
         type: string
         description: Docker image name for rocm Docker build

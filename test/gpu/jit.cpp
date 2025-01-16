@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2024 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2025 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -383,13 +383,10 @@ TEST_CASE(compile_math)
     auto vec_sizes = {2, 4, 6};
     for(auto&& t : migraphx::shape::types())
     {
-        if(contains({migraphx::shape::bool_type,
-                     migraphx::shape::tuple_type,
-                     migraphx::shape::bf16_type},
-                    t))
+        if(contains({migraphx::shape::bool_type, migraphx::shape::tuple_type}, t))
             continue;
         auto name = migraphx::shape::cpp_type(t);
-        if(t == migraphx::shape::half_type)
+        if(contains({migraphx::shape::half_type, migraphx::shape::bf16_type}, t))
             name.insert(0, "migraphx::");
         data_types.push_back(name);
         // fp8 doesn't have vectorization support yet, therefore skip it for now.
@@ -444,15 +441,16 @@ TEST_CASE(assert_type_min_max)
     migraphx::gpu::context ctx;
     for(auto&& t : migraphx::shape::types())
     {
-        if(contains({migraphx::shape::bool_type,
-                     migraphx::shape::tuple_type,
-                     migraphx::shape::bf16_type},
-                    t))
+        if(contains(
+               {
+                   migraphx::shape::bool_type,
+                   migraphx::shape::tuple_type,
+               },
+               t))
             continue;
         auto name = migraphx::shape::cpp_type(t);
-        if(t == migraphx::shape::half_type)
+        if(contains({migraphx::shape::half_type, migraphx::shape::bf16_type}, t))
             name.insert(0, "migraphx::");
-
         migraphx::shape::visit(t, [&](auto as) {
             std::string min = "";
             std::string max = "";

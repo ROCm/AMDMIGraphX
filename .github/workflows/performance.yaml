@@ -60,7 +60,7 @@ jobs:
       perf_timeout: ${{ steps.read_config.outputs.perf_timeout }}
     steps:
       - name: checkout
-        uses: actions/checkout@v4.1.1
+        uses: actions/checkout@v4.2.2
       - name: read_config
         id: read_config
         run: |

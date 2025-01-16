@@ -148,10 +148,7 @@ struct parse_convolution : op_parser<parse_convolution>
         {
             return migraphx::make_op("multibroadcast", {{"out_lens", lens}});
         }
-        else
-        {
-            return migraphx::make_op("broadcast", {{"out_lens", lens}, {"axis", axis}});
-        }
+        return migraphx::make_op("broadcast", {{"out_lens", lens}, {"axis", axis}});
     }
 
     static instruction_ref handle_quant_bias(const operation& op,

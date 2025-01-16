@@ -761,6 +761,8 @@ struct find_inner_broadcast
     void apply(module& m, const match::matcher_result& r) const
     {
         auto ins               = r.result;
+        if(ins->get_operator().name() == "layout")
+            return;
         const auto& broadcasts = ins->inputs();
         if(broadcasts.empty())
             return;

@@ -169,27 +169,27 @@ struct parse_convolution : op_parser<parse_convolution>
         // multibroadcast (or broadcast) zero points according to spec
         // x_zp should be a scalar or literal with one element
         // w_zp can be either a single element or a 1d tensor with size out_channels
-        migraphx::operation x_zp_bc = migraphx::make_op("multibroadcast", {{"out_lens", x->get_shape().lens()}});
+        migraphx::operation x_zp_bc =
+            migraphx::make_op("multibroadcast", {{"out_lens", x->get_shape().lens()}});
         migraphx::operation w_zp_bc = qparam_broadcast_op(w_zp, weights->get_shape().lens(), 0);
 
         if(not is_symmetric_zero_point(x_zp))
         {
-            auto x_zp_mb = info.add_instruction(x_zp_bc, x_zp);
+            auto x_zp_mb  = info.add_instruction(x_zp_bc, x_zp);
             auto out_zp_1 = info.add_instruction(op, x_zp_mb, weights);
             ret           = info.add_common_op("sub", ret, out_zp_1);
         }
 
         if(not is_symmetric_zero_point(w_zp))
         {
-            auto w_zp_mb = info.add_instruction(w_zp_bc, w_zp);
+            auto w_zp_mb  = info.add_instruction(w_zp_bc, w_zp);
             auto out_zp_2 = info.add_instruction(op, x, w_zp_mb);
             ret           = info.add_common_op("sub", ret, out_zp_2);
         }
 
         if(not(is_symmetric_zero_point(x_zp)) and not(is_symmetric_zero_point(w_zp)))
         {
-            auto x_zp_mb =
-                info.add_instruction(x_zp_bc, x_zp);
+            auto x_zp_mb = info.add_instruction(x_zp_bc, x_zp);
             auto w_zp_mb = info.add_instruction(w_zp_bc, w_zp);
 
             auto out_zp_3 = info.add_instruction(op, x_zp_mb, w_zp_mb);

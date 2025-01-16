@@ -44,7 +44,8 @@ TEST_CASE(convinteger_dual_bias_test)
     quant = mm->add_instruction(migraphx::make_op("sub"), quant, quant_mb_w);
 
     auto mbcast_weight_bias = mm->add_instruction(
-        migraphx::make_op("multibroadcast", {{"out_lens", weight->get_shape().lens()}}), weight_bias);
+        migraphx::make_op("multibroadcast", {{"out_lens", weight->get_shape().lens()}}),
+        weight_bias);
 
     auto quant_md_wb =
         mm->add_instruction(migraphx::make_op("quant_convolution"), data, mbcast_weight_bias);
@@ -54,7 +55,8 @@ TEST_CASE(convinteger_dual_bias_test)
     mbcast_data_bias = mm->add_instruction(
         migraphx::make_op("multibroadcast", {{"out_lens", data->get_shape().lens()}}), data_bias);
     mbcast_weight_bias = mm->add_instruction(
-        migraphx::make_op("multibroadcast", {{"out_lens", weight->get_shape().lens()}}), weight_bias);
+        migraphx::make_op("multibroadcast", {{"out_lens", weight->get_shape().lens()}}),
+        weight_bias);
     auto bias_quant = mm->add_instruction(
         migraphx::make_op("quant_convolution"), mbcast_data_bias, mbcast_weight_bias);
 

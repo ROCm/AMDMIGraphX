@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2025 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2023 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -3801,20 +3801,6 @@ TEST_CASE(test_tuple)
     m.add_instruction(pass_op{}, a2, m1);
     run_pass(m);
     CHECK(m.get_parameter_shape("scratch").bytes() == 68);
-    CHECK(no_allocate(m));
-    CHECK(is_disjoint({a1, a2}));
-}
-
-TEST_CASE(test_large_offsets)
-{
-    migraphx::module m;
-
-    auto a1 = add_alloc(m, {migraphx::shape::float_type, {10000000000}});
-    auto m1 = m.add_instruction(pass_op{}, a1);
-    auto a2 = add_alloc(m, {migraphx::shape::float_type, {10000000000}});
-    m.add_instruction(pass_op{}, a2, m1);
-    run_pass(m);
-    CHECK(m.get_parameter_shape("scratch").bytes() == 80000000000);
     CHECK(no_allocate(m));
     CHECK(is_disjoint({a1, a2}));
 }

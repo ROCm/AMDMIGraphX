@@ -36,8 +36,7 @@ TEST_CASE(convinteger_bias_test)
     auto quant = mm->add_instruction(migraphx::make_op("quant_convolution"), data, weights);
 
     auto bcast_data_bias = mm->add_instruction(
-        migraphx::make_op("multibroadcast", {{"out_lens", data->get_shape().lens()}}),
-        data_bias);
+        migraphx::make_op("multibroadcast", {{"out_lens", data->get_shape().lens()}}), data_bias);
 
     auto quant2 =
         mm->add_instruction(migraphx::make_op("quant_convolution"), bcast_data_bias, weights);

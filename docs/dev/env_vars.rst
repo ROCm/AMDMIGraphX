@@ -180,7 +180,7 @@ Times the compile passes.
 
 .. envvar:: MIGRAPHX_DISABLE_PASSES
 
-Set to the name of the pass you want to skip.  Comma seperated list is supported
+Set to the name of the pass you want to skip.  Comma separated list is supported
 Example "rewrite_pooling,rewrite_gelu"
 
 

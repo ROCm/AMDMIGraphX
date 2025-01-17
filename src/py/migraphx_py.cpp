@@ -712,6 +712,11 @@ MIGRAPHX_PYBIND11_MODULE(migraphx, m)
           py::arg("t"),
           py::arg("calibration") = std::vector<migraphx::parameter_map>{},
           py::arg("ins_names")   = std::unordered_set<std::string>{"dot", "convolution"});
+    m.def("quantize_fp8",
+          &migraphx::quantize_fp8,
+          py::arg("prog"),
+          py::arg("t"),
+          py::arg("calibration") = std::vector<migraphx::parameter_map>{});
     m.def(
         "autocast_fp8",
         [](migraphx::program& prog) {

@@ -83,7 +83,7 @@ TEST_CASE(quant_convolution_dual_zero_bias_test)
 TEST_CASE(quant_convolution_dual_non_zero_bias_test)
 {
     // github.com/microsoft/onnxruntime/blob/main/docs/ContribOperators.md#com.microsoft.QLinearMul
-    migraphx::program p = read_onnx("convinteger_dual_bias_test.onnx");
+    migraphx::program p = read_onnx("convinteger_dual_bias_simple_test.onnx");
     p.compile(migraphx::make_target("ref"));
 
     migraphx::shape a{migraphx::shape::int8_type, {1, 3, 5, 5}};

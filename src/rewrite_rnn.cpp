@@ -969,10 +969,10 @@ void rewrite_rnn::apply_lstm(module& m, instruction_ref ins) const
 
         // process weight of the peephole
         instruction_ref pph = m.end();
-        if(args.size() == 8 and not args[7]->is_undefined())
-        {
-            pph = args[7];
-        }
+        // if(args.size() == 8 and not args[7]->is_undefined())
+        // {
+        //     pph = args[7];
+        // }
 
         if(not is_forward and variable_seq_len)
         {

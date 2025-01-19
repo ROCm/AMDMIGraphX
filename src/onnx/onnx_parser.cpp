@@ -382,7 +382,7 @@ parse_inputs(const onnx_parser& parser,
             }
             else
             {
-                s = parser.parse_type(input.type());
+                s = parser.parse_type(name, input.type());
             }
             mod_insts[name] = mod->add_parameter(name, s);
         }
@@ -617,7 +617,7 @@ literal onnx_parser::parse_tensor(const onnx::TensorProto& t) const
     MIGRAPHX_THROW("PARSE_TENSOR: Invalid tensor type");
 }
 
-shape onnx_parser::parse_type(const onnx::TypeProto& t) const
+shape onnx_parser::parse_type(const std::string& name, const onnx::TypeProto& t) const
 {
     shape::type_t shape_type = get_type(t.tensor_type().elem_type());
 
@@ -646,6 +646,9 @@ shape onnx_parser::parse_type(const onnx::TypeProto& t) const
                        }
                        else
                        {
+                           if(&d != &tensor_dims[0])
+                               MIGRAPHX_THROW("Batch inserted at non-zero dynamic-dimension of " +
+                                              name);
                            return default_dyn_dim_value;
                        }
                    });

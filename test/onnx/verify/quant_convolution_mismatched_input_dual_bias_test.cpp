@@ -122,12 +122,12 @@ TEST_CASE(quant_convolution_mismatched_inputs_dual_non_zero_bias_test)
     migraphx::shape b_i32{migraphx::shape::int32_type, {1, 3, 2, 2}};
 
     migraphx::shape bias_i32{migraphx::shape::int32_type, {1}, {1}};
-    auto x = mm->add_parameter("0", a_i32);
-    auto weights = mm->add_parameter("1", b_i32);
-    auto x_bias = mm->add_parameter("2", bias_i32);
+    auto x            = mm->add_parameter("0", a_i32);
+    auto weights      = mm->add_parameter("1", b_i32);
+    auto x_bias       = mm->add_parameter("2", bias_i32);
     auto weights_bias = mm->add_parameter("3", bias_i32);
 
-    auto sub_input = add_common_op(*mm, migraphx::make_op("sub"), {x, x_bias});
+    auto sub_input   = add_common_op(*mm, migraphx::make_op("sub"), {x, x_bias});
     auto sub_weights = add_common_op(*mm, migraphx::make_op("sub"), {weights, weights_bias});
     mm->add_instruction(migraphx::make_op("convolution"), sub_input, sub_weights);
 
@@ -135,7 +135,6 @@ TEST_CASE(quant_convolution_mismatched_inputs_dual_non_zero_bias_test)
     std::vector<int32_t> data_b_i32(data_b.begin(), data_b.end());
     std::vector<int32_t> data_a_bias_i32 = {138};
     std::vector<int32_t> data_b_bias_i32 = {-2};
-
 
     migraphx::parameter_map pp2;
     pp2["0"] = migraphx::argument(a_i32, data_a_i32.data());

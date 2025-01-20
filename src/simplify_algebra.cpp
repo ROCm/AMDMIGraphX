@@ -764,6 +764,8 @@ struct find_inner_broadcast
         const auto& broadcasts = ins->inputs();
         if(broadcasts.empty())
             return;
+        if(ins->get_operator().name() == "layout")
+            return;
         // Skip if different data types are used
         if(any_of(broadcasts, [&](auto i) {
                return i->get_shape().type() != broadcasts.front()->get_shape().type();

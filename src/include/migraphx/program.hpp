@@ -112,7 +112,7 @@ struct MIGRAPHX_EXPORT program
                      std::size_t batch = 1,
                      bool detailed     = false) const;
 
-    void mark(const parameter_map& params, marker&& m);
+    void mark(const parameter_map& params, marker m);
 
     value to_value() const;
     void from_value(const value& v);

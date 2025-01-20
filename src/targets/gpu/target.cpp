@@ -31,6 +31,7 @@
 #include <migraphx/eliminate_data_type.hpp>
 #include <migraphx/eliminate_identity.hpp>
 #include <migraphx/eliminate_pad.hpp>
+#include <migraphx/fp8_ocp_to_fnuz.hpp>
 #include <migraphx/fuse_concat.hpp>
 #include <migraphx/fuse_pointwise_reduce.hpp>
 #include <migraphx/inline_module.hpp>
@@ -77,7 +78,6 @@ inline namespace MIGRAPHX_INLINE_NS {
 namespace gpu {
 
 MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_DISABLE_SCHEDULE_PASS)
-MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_ENABLE_SPLIT_REDUCE)
 MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_ENABLE_NHWC)
 #ifndef _WIN32
 MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_ENABLE_CK)
@@ -101,35 +101,44 @@ std::vector<pass> target::get_passes(migraphx::context& gctx, const compile_opti
     unsupported_types.erase(shape::type_t::uint8_type);
     unsupported_types.erase(shape::type_t::int32_type);
     unsupported_types.erase(shape::type_t::tuple_type);
+    unsupported_types.erase(shape::type_t::bf16_type);
 
     // whiltelist supported Ops for the FP8 types
     // different between fp8e4m3fnuz and OCP types because rocBLAS only has
     // support for fp8e4m3fnuz
-    std::set<std::string> unsupported_fp8fnuz_ops = {};
-    if(not gpu::rocblas_fp8_available())
+    std::set<std::string> unsupported_fp8e4m3fnuz_ops = {};
+    if(not enabled(MIGRAPHX_ENABLE_HIPBLASLT_GEMM{}) and not gpu::rocblas_fp8_available())
     {
-        unsupported_fp8fnuz_ops.insert("dot");
-        unsupported_fp8fnuz_ops.insert("quant_dot");
+        unsupported_fp8e4m3fnuz_ops.insert("dot");
+        unsupported_fp8e4m3fnuz_ops.insert("quant_dot");
     }
 #if MIGRAPHX_USE_MIOPEN
     // MIOpen doesn't have support for fp8 pooling yet.
-    unsupported_fp8fnuz_ops.insert("pooling");
+    unsupported_fp8e4m3fnuz_ops.insert("pooling");
 #endif
     if(not gpu::gfx_has_fp8fnuz_intrinsics())
     {
-        unsupported_fp8fnuz_ops.insert("convolution");
-        unsupported_fp8fnuz_ops.insert("quant_convolution");
+        unsupported_fp8e4m3fnuz_ops.insert("convolution");
+        unsupported_fp8e4m3fnuz_ops.insert("quant_convolution");
     }
     // add all device kernels
-    unsupported_fp8fnuz_ops.insert("logsoftmax");
-    unsupported_fp8fnuz_ops.insert("nonzero");
-    unsupported_fp8fnuz_ops.insert("prefix_scan_sum");
-    unsupported_fp8fnuz_ops.insert("scatter_none");
-    unsupported_fp8fnuz_ops.insert("topk");
-    unsupported_fp8fnuz_ops.insert("rnn_var_sl_shift_output");
-    unsupported_fp8fnuz_ops.insert("multinomial");
-    unsupported_fp8fnuz_ops.insert("argmax");
-    unsupported_fp8fnuz_ops.insert("argmin");
+    unsupported_fp8e4m3fnuz_ops.insert("logsoftmax");
+    unsupported_fp8e4m3fnuz_ops.insert("nonzero");
+    unsupported_fp8e4m3fnuz_ops.insert("prefix_scan_sum");
+    unsupported_fp8e4m3fnuz_ops.insert("scatter_none");
+    unsupported_fp8e4m3fnuz_ops.insert("topk");
+    unsupported_fp8e4m3fnuz_ops.insert("rnn_var_sl_shift_output");
+    unsupported_fp8e4m3fnuz_ops.insert("multinomial");
+    unsupported_fp8e4m3fnuz_ops.insert("argmax");
+    unsupported_fp8e4m3fnuz_ops.insert("argmin");
+
+    std::set<std::string> unsupported_fp8e5m2fnuz_ops = unsupported_fp8e4m3fnuz_ops;
+    // disable gemm for fp8e5m2fnuz if rocBLAS is being used
+    if(not enabled(MIGRAPHX_ENABLE_HIPBLASLT_GEMM{}))
+    {
+        unsupported_fp8e5m2fnuz_ops.insert("dot");
+        unsupported_fp8e5m2fnuz_ops.insert("quant_dot");
+    }
 
     std::set<std::string> unsupported_fp8ocp_ops = {};
     // TODO: remove this when the flag is removed
@@ -171,6 +180,8 @@ std::vector<pass> target::get_passes(migraphx::context& gctx, const compile_opti
         dead_code_elimination{},
         eliminate_identity{},
         dead_code_elimination{},
+        enable_pass(not gpu::gfx_has_fp8ocp_intrinsics() and gpu::gfx_has_fp8fnuz_intrinsics(), fp8_ocp_to_fnuz{}),
+        enable_pass(not gpu::gfx_has_fp8ocp_intrinsics() and gpu::gfx_has_fp8fnuz_intrinsics(), dead_code_elimination{}),
         simplify_qdq{},
         enable_pass(not mlir_enabled(), rewrite_quantization{}),
         dead_code_elimination{},
@@ -194,7 +205,8 @@ std::vector<pass> target::get_passes(migraphx::context& gctx, const compile_opti
         dead_code_elimination{},
         prefuse_ops{},
         dead_code_elimination{},
-        eliminate_data_type{{migraphx::shape::fp8e4m3fnuz_type, migraphx::shape::fp8e5m2fnuz_type}, shape::float_type, unsupported_fp8fnuz_ops},
+        eliminate_data_type{{migraphx::shape::fp8e4m3fnuz_type}, shape::float_type, unsupported_fp8e4m3fnuz_ops},
+        eliminate_data_type{{migraphx::shape::fp8e5m2fnuz_type}, shape::float_type, unsupported_fp8e5m2fnuz_ops},
         eliminate_data_type{{migraphx::shape::fp8e4m3fn_type, migraphx::shape::fp8e5m2_type}, shape::float_type, unsupported_fp8ocp_ops},
         dead_code_elimination{},
         rewrite_reduce{},
@@ -202,7 +214,6 @@ std::vector<pass> target::get_passes(migraphx::context& gctx, const compile_opti
         dead_code_elimination{},
         optimize_module{},
         fuse_pointwise_reduce{},
-        enable_pass(enabled(MIGRAPHX_ENABLE_SPLIT_REDUCE{}), split_reduce{}),
         dead_code_elimination{},
 #ifndef _WIN32
         enable_pass(enabled(MIGRAPHX_ENABLE_CK{}), fuse_ck{}),

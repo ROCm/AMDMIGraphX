@@ -623,6 +623,7 @@ shape onnx_parser::parse_type(const std::string& name, const onnx::TypeProto& t)
 
     std::vector<shape::dynamic_dimension> dynamic_dims;
     auto&& tensor_dims = t.tensor_type().shape().dim();
+    size_t idx         = 0;
     std::transform(tensor_dims.begin(),
                    tensor_dims.end(),
                    std::back_inserter(dynamic_dims),
@@ -632,11 +633,13 @@ shape onnx_parser::parse_type(const std::string& name, const onnx::TypeProto& t)
                            const auto& dim_param = d.dim_param();
                            if(contains(dim_params, dim_param))
                            {
+                               idx++;
                                return dim_params.at(dim_param);
                            }
                        }
                        if(d.has_dim_value())
                        {
+                           idx++;
                            if(static_cast<int>(d.dim_value()) <= 0)
                            {
                                return default_dyn_dim_value;
@@ -646,9 +649,10 @@ shape onnx_parser::parse_type(const std::string& name, const onnx::TypeProto& t)
                        }
                        else
                        {
-                           if(&d != &tensor_dims[0])
-                               MIGRAPHX_THROW("Batch inserted at non-zero dynamic-dimension of " +
-                                              name);
+                           if(idx)
+                               MIGRAPHX_THROW("Batch inserted at index " + std::to_string(idx) +
+                                              " of " + name);
+                           idx++;
                            return default_dyn_dim_value;
                        }
                    });

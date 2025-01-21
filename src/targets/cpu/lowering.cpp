@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2024 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2025 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -132,9 +132,10 @@ struct cpu_im2col
                          kernel_w)([&](std::size_t c, std::size_t koffset, std::size_t loffset) {
                         auto idx    = iinput + long(koffset) - kdiv2_h;
                         auto jdx    = jinput + long(loffset) - kdiv2_w;
-                        col(ldx, p) = ((idx >= 0) and (idx < height) and (jdx >= 0) and (jdx < width))
-                                          ? input(0, c, idx, jdx)
-                                          : 0;
+                        col(ldx, p) =
+		            ((idx >= 0) and (idx < height) and (jdx >= 0) and (jdx < width))
+                                ? input(0, c, idx, jdx)
+                                : 0;
                         p++;
                     });
                 }

@@ -136,15 +136,15 @@ __device__ auto wrap(F f, T x, Ts... xs)
 // Template with two overloads for math functions, one for half2 type and one for more generic
 // <half, N> vectorization where N is 4 or another even number.
 // NOLINTNEXTLINE
-#define MIGRAPHX_DEVICE_MATH_VEC2(type, name, fname)                              \
-    template <class... Ts>                                                        \
-    auto __device__ name(migraphx::vec<type, 2> x, Ts... xs)                      \
-        MIGRAPHX_RETURNS(migraphx::vec<type, 2>{fname(x, xs...)});                \
-    template <class... Ts, index_int N, MIGRAPHX_REQUIRES(N % 2 == 0 && (N > 2))> \
-    auto __device__ name(migraphx::vec<type, N> x, Ts... xs)                      \
-    {                                                                             \
-        return vec_packed_transform<2>(x, xs...)(                                 \
-            [](auto... ys) -> migraphx::vec<type, 2> { return fname(ys...); });   \
+#define MIGRAPHX_DEVICE_MATH_VEC2(type, name, fname)                               \
+    template <class... Ts>                                                         \
+    auto __device__ name(migraphx::vec<type, 2> x, Ts... xs)                       \
+        MIGRAPHX_RETURNS(migraphx::vec<type, 2>{fname(x, xs...)});                 \
+    template <class... Ts, index_int N, MIGRAPHX_REQUIRES(N % 2 == 0 and (N > 2))> \
+    auto __device__ name(migraphx::vec<type, N> x, Ts... xs)                       \
+    {                                                                              \
+        return vec_packed_transform<2>(x, xs...)(                                  \
+            [](auto... ys) -> migraphx::vec<type, 2> { return fname(ys...); });    \
     }
 
 MIGRAPHX_DEVICE_MATH_WRAP(acos, (double)::acos, (float)::acosf);

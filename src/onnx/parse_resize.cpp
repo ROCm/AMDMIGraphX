@@ -407,7 +407,7 @@ struct parse_resize : op_parser<parse_resize>
                 vvv_ind, 0, 0, std::vector<std::vector<std::size_t>>(out_elements), in_s, out_s);
 
             auto dim_lens = out_lens;
-            dim_lens[0] *= (1 << r_dim);
+            dim_lens[0] *= (1u << r_dim);
             shape ind_s{shape::int32_type, dim_lens};
             auto ins_ind = info.add_literal(literal(ind_s, ind));
             auto data    = info.add_instruction(make_op("gather", {{"axis", 0}}), rsp, ins_ind);
@@ -417,7 +417,7 @@ struct parse_resize : op_parser<parse_resize>
             {
                 if(in_lens[lens_idx] == out_lens[lens_idx])
                     continue;
-                dim_lens[0] >>= 1; // halved for 2 slices of data
+                dim_lens[0] /= 2; // halved for 2 slices of data
                 shape dim_s{shape::float_type, dim_lens};
                 const auto& dim_delta = delta[r_dim - i - 1];
                 std::vector<float> delta_data;

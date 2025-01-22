@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2024 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2025 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -30,7 +30,7 @@
 
 namespace migraphx {
 
-constexpr bool is_power_of_2(unsigned int x) { return x > 0 && (x & (x - 1)) == 0u; }
+constexpr bool is_power_of_2(unsigned int x) { return x > 0 and (x & (x - 1)) == 0u; }
 
 #ifndef MIGRAPHX_HAS_DPP
 #define MIGRAPHX_HAS_DPP 1

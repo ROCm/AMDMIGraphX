@@ -133,7 +133,7 @@ struct cpu_im2col
                         auto idx    = iinput + long(koffset) - kdiv2_h;
                         auto jdx    = jinput + long(loffset) - kdiv2_w;
                         col(ldx, p) =
-		            ((idx >= 0) and (idx < height) and (jdx >= 0) and (jdx < width))
+                            ((idx >= 0) and (idx < height) and (jdx >= 0) and (jdx < width))
                                 ? input(0, c, idx, jdx)
                                 : 0;
                         p++;

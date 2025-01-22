@@ -412,7 +412,7 @@ struct parse_resize : op_parser<parse_resize>
             auto ins_ind = info.add_literal(literal(ind_s, ind));
             auto data    = info.add_instruction(make_op("gather", {{"axis", 0}}), rsp, ins_ind);
 
-            std::size_t lens_idx = out_lens.size();
+            std::size_t lens_idx = out_lens.size() - 1;
             for(std::size_t i = 0; i < r_dim; lens_idx--)
             {
                 if(in_lens[lens_idx] == out_lens[lens_idx])

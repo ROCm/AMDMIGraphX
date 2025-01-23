@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2024 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2025 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -101,13 +101,13 @@ struct tensor_view
 
     T& operator[](std::size_t i)
     {
-        assert(not this->empty() && i < this->size());
+        assert(not this->empty() and i < this->size());
         return m_data[m_shape.index(i)];
     }
 
     const T& operator[](std::size_t i) const
     {
-        assert(not this->empty() && i < this->size());
+        assert(not this->empty() and i < this->size());
         return m_data[m_shape.index(i)];
     }
 

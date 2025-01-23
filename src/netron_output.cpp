@@ -63,19 +63,19 @@ int get_onnx_type(shape::type_t s_type)
 
 auto make_attribute(const migraphx::value& val)
 {
-    value attribute = value(std::unordered_map<std::string, value>());
+    value attribute     = value(std::unordered_map<std::string, value>());
     attribute["name"] = val.get_key();
     auto val_string   = val.to<std::string>();
     std::string sub_str = val.get_key() + ":";
-    auto find_key = val_string.find(sub_str);
+    auto find_key       = val_string.find(sub_str);
     if(find_key != std::string::npos)
     {
-        val_string        = val_string.substr(find_key + sub_str.length() + 1);
+        val_string = val_string.substr(find_key + sub_str.length() + 1);
     }
-    //TODO: doesn't work for some reason with Netron now
-    //attribute["s"]    = base64_encode(val_string);
-    //attribute["type"] = "STRING";
-    attribute["docString"]    = val_string;
+    // TODO: doesn't work for some reason with Netron now
+    // attribute["s"]    = base64_encode(val_string);
+    // attribute["type"] = "STRING";
+    attribute["docString"] = val_string;
     return attribute;
 }
 
@@ -115,7 +115,7 @@ auto make_onnx_json_node(instruction_ref ins,
             output_arr.push_back(ins_uids.at(ins) + "->" + ins_uids.at(output_ins));
         }
     }
-    node["input"] = input_arr;
+    node["input"]          = input_arr;
     node["output"] = output_arr;
     node["name"]   = ins_uids.at(ins);
     node["opType"] = ins->name();
@@ -213,13 +213,11 @@ std::unordered_map<instruction_ref, std::string> make_ins_uids(const module& mod
 
 value make_graph(const module* mod)
 {
-    value graph = {
-        {"node", value({})},
-        {"initializer", value({})},
-        {"input", value({})},
-        {"output", value({})},
-        {"valueInfo", value({})}
-    };
+    value graph   = {{"node", value({})},
+                     {"initializer", value({})},
+                     {"input", value({})},
+                     {"output", value({})},
+                     {"valueInfo", value({})}};
     auto ins_uids = make_ins_uids(*mod);
     for(auto ins = mod->begin(); ins != mod->end(); ++ins)
     {

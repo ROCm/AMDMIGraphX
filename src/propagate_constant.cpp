@@ -48,6 +48,8 @@ bool skip_propagate(instruction_ref ins)
     auto alias = instruction::get_output_alias(ins, true);
     if(alias != ins)
         return skip_propagate(alias);
+    if(ins->is_undefined())
+        return true;
     return false;
 }
 
@@ -75,6 +77,7 @@ void propagate_constant::apply(module& m) const
     // Find instructions that can be evaluated to a literal
     for(auto i : iterator_for(m))
     {
+        // std::cout << i->name() << " " << i->get_shape() << " " << i->is_undefined() << std::endl;
         const bool is_const = is_const_ins(i, skip_ops);
         if(is_const and i != last)
             continue;

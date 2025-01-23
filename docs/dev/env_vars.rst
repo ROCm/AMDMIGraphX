@@ -154,6 +154,7 @@ Disables layrnorm fusion.
 Set to "1", "enable", "enabled", "yes", or "true" to use.
 Disables use of MIOpen for pooling operations and uses JIT implementation instead.
 
+
 Compilation traces
 ----------------------
 
@@ -176,6 +177,11 @@ Prints the compile pass and the program after the pass.
 
 Set to "1", "enable", "enabled", "yes", or "true" to use.
 Times the compile passes.
+
+.. envvar:: MIGRAPHX_DISABLE_PASSES
+
+Set to the name of the pass you want to skip.  Comma separated list is supported
+Example "rewrite_pooling,rewrite_gelu"
 
 
 GPU kernels JIT compilation debugging 

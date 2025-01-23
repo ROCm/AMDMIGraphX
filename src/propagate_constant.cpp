@@ -77,7 +77,6 @@ void propagate_constant::apply(module& m) const
     // Find instructions that can be evaluated to a literal
     for(auto i : iterator_for(m))
     {
-        // std::cout << i->name() << " " << i->get_shape() << " " << i->is_undefined() << std::endl;
         const bool is_const = is_const_ins(i, skip_ops);
         if(is_const and i != last)
             continue;

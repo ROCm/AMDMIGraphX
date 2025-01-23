@@ -649,7 +649,7 @@ shape onnx_parser::parse_type(const std::string& name, const onnx::TypeProto& t)
                        }
                        else
                        {
-                           if(idx)
+                           if(idx && default_dim_value)
                                MIGRAPHX_THROW("Batch inserted at index " + std::to_string(idx) +
                                               " of " + name);
                            idx++;

@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2024 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2025 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -28,54 +28,95 @@
 #include <migraphx/shape_for_each.hpp>
 #include <migraphx/instruction.hpp>
 #include <migraphx/make_op.hpp>
+#include <bitset>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
 namespace onnx {
 
+/*
+ * Algorithm of calc_neighbor_points():
+ * Input: vvv_ind, 3-layer vector to compose vector of indices.
+ *        in_s, shape to get space index from, using the composed vector of indices.
+ * Output: vector contains the result of space index.
+ *
+ * From vvv_ind:
+ *              layer-1: size of 1st dimension, caller will pass as n_bits
+ *              layer-2: hardcode to 2 by caller
+ *              layer-3: a vector of out_elements (caller pass) integers.
+ * vvv_ind = {
+ *   {{...}, {...}},
+ *   {{...}, {...}},
+ *   {{...}, {...}},
+ *   ...
+ *   {{...}, {...}}
+ * };
+ *
+ * To Compose a series of vector of indices, which will further be used to get space index from
+ *   the input shape.
+ * indices{} has (2^n_bits) * out_elements members, each member is a vector of n_bits indices.
+ * indices = {
+ *     {...},
+ *     {...},
+ *     {...},
+ *     ...
+ *     {...}
+ * };
+ *
+ * Notate vvv_ind as:
+ *   0-1
+ *   A B
+ *   C D
+ *   E F
+ *   G H
+ * Notate A' as A's transpose.
+ * i.e. A  = {0,1,1,0,1};
+ *      A' = {{0},
+ *            {1},
+ *            {1},
+ *            {0},
+ *            {1}
+ *           };
+ *
+ * Outer loop:
+ *   Iterate all values within range [0, (2^n_bits)) and maps to bitset for inner loop (MSB to LSB).
+ * Middle loop:
+ *   Transform all elements in layer-3: take indices from inner loop to get index from input shape,
+     append to vec_ind.
+ * Inner loop:
+ *   Compose a vector of indices by iterating all layer-1 using current bitset from current element.
+ *
+ * i.e. val = 6 -> bitset 0110b -> indices: pick each value from A'D'F'G' -> in_s.index(indices)
+ */
+
 static std::vector<int>
 calc_neighbor_points(const std::vector<std::vector<std::vector<std::size_t>>>& vvv_ind,
-                     int i_dim,
-                     std::vector<std::vector<std::size_t>> vec_dims,
                      const shape& in_s)
 {
-    if(i_dim == vvv_ind.size())
+    std::size_t n_bits     = vvv_ind.size();
+    std::size_t m_elements = vvv_ind[0][0].size();
+    std::vector<int> vec_ind;
+
+    if(n_bits >= std::numeric_limits<std::size_t>::digits)
     {
-        std::vector<int> vec_ind(vec_dims.size());
-        std::transform(vec_dims.begin(), vec_dims.end(), vec_ind.begin(), [&](auto idx) {
-            return static_cast<int>(in_s.index(idx));
+        MIGRAPHX_THROW("PARSE_RESIZE: Shape dimension " + std::to_string(n_bits) + " exceeds " +
+                       std::to_string(std::numeric_limits<std::size_t>::digits));
+    }
+
+    for(std::size_t val = 0; val < (std::size_t{1} << n_bits); val++)
+    {
+        std::bitset<std::numeric_limits<std::size_t>::digits> bits_val = val;
+        std::vector<std::size_t> indices(n_bits);
+        transform(range(m_elements), std::back_inserter(vec_ind), [&](std::size_t i_element) {
+            transform(
+                vvv_ind, range(n_bits), indices.begin(), [&](const auto& vv_ind, std::size_t bit) {
+                    return vv_ind[bits_val[bit]][i_element];
+                });
+            return in_s.index(indices);
         });
-        return vec_ind;
     }
 
-    const auto& vv_lo = vvv_ind[i_dim][0];
-    std::vector<std::vector<std::size_t>> vec_dims1;
-    for(std::size_t start = 0; start < vec_dims.size(); start += vv_lo.size())
-    {
-        std::transform(vv_lo.begin(),
-                       vv_lo.end(),
-                       vec_dims.begin() + start,
-                       std::back_inserter(vec_dims1),
-                       [](auto i, auto dim) {
-                           dim.push_back(i);
-                           return dim;
-                       });
-    }
-
-    const auto& vv_hi = vvv_ind[i_dim][1];
-    for(std::size_t start = 0; start < vec_dims.size(); start += vv_hi.size())
-    {
-        std::transform(vv_hi.begin(),
-                       vv_hi.end(),
-                       vec_dims.begin() + start,
-                       std::back_inserter(vec_dims1),
-                       [](auto i, auto dim) {
-                           dim.push_back(i);
-                           return dim;
-                       });
-    }
-    vec_dims.clear();
-    return calc_neighbor_points(vvv_ind, i_dim + 1, std::move(vec_dims1), in_s);
+    return vec_ind;
 }
 
 static std::string get_coord_trans_mode(const onnx_parser::attribute_map& attr)
@@ -375,8 +416,8 @@ struct parse_resize : op_parser<parse_resize>
                 }
             });
 
-            auto ind = calc_neighbor_points(
-                vvv_ind, 0, std::vector<std::vector<std::size_t>>(out_elements), in_s);
+            auto ind = calc_neighbor_points(vvv_ind, in_s);
+
             auto ind_lens = out_lens;
             ind_lens[0] *= (std::size_t{1} << n_dim);
             shape ind_s{shape::int32_type, ind_lens};

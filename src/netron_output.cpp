@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2024 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2025 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -161,6 +161,7 @@ auto make_onnx_json_shape(const shape& s)
     value dim = value({});
     for(std::size_t len : s.lens())
     {
+        // cppcheck-suppress useStlAlgorithm
         dim.push_back({{"dimValue", len}});
     }
     ret["dim"] = dim;

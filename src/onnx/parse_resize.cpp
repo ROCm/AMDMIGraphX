@@ -374,32 +374,33 @@ struct parse_resize : op_parser<parse_resize>
             auto nearest_floor = op::resize::get_nearest_op("floor");
             auto nearest_ceil  = op::resize::get_nearest_op("ceil");
 
-            std::size_t n_dim        = out_lens.size();
-            std::size_t r_dim        = 0; // count: lens dimensions that are resized
-            std::size_t out_elements = 1; // count: number of elements to fix due to resize.
-            for(std::size_t dim = 0; dim < n_dim; dim++)
+            std::vector<size_t> resized_axes; // vector of dimensions to be resized
+            std::size_t out_elements = 1;     // total number of elements to be resized
+            for(std::size_t axis = 0; axis != out_lens.size(); ++axis)
             {
-                if(in_lens[dim] == out_lens[dim])
+                if(in_lens[axis] == out_lens[axis])
                     continue;
-                r_dim++;
-                out_elements *= out_lens[dim];
+                resized_axes.push_back(axis);
+                out_elements *= out_lens[axis];
             }
+
+            // Neighbor indices. For an axis. Two sets of max/min per element:
             std::vector<std::vector<std::size_t>> vv_ind(2, std::vector<std::size_t>(out_elements));
-            std::vector<std::vector<std::vector<std::size_t>>> vvv_ind(r_dim, vv_ind);
-            std::vector<std::vector<float>> delta(r_dim, std::vector<float>(out_elements));
+            // Neighbor indices. For all resized axes:
+            std::vector<std::vector<std::vector<std::size_t>>> vvv_ind(resized_axes.size(), vv_ind);
+            // Delta list. For each resized axes - per element.
+            std::vector<std::vector<float>> delta(resized_axes.size(),
+                                                  std::vector<float>(out_elements));
 
             shape_for_each(out_s, [&](const auto& out_idx_v, std::size_t out_idx) {
-                std::size_t ii = 0;
-                for(std::size_t idx = 0; idx < in_lens.size(); ++idx)
+                for(size_t ii = 0; ii != resized_axes.size(); ++ii)
                 {
-                    if(in_lens[idx] == out_lens[idx])
-                        continue;
+                    auto idx = resized_axes[ii];
                     auto idx_val =
                         idx_op(in_lens[idx], out_lens[idx], out_idx_v[idx], vec_scale[idx]);
                     vvv_ind[ii][0][out_idx] = nearest_floor(in_lens[idx], idx_val);
                     vvv_ind[ii][1][out_idx] = nearest_ceil(in_lens[idx], idx_val);
                     delta[ii][out_idx]      = idx_val - vvv_ind[ii][0][out_idx];
-                    ++ii;
                 }
             });
 
@@ -407,19 +408,17 @@ struct parse_resize : op_parser<parse_resize>
                 vvv_ind, 0, 0, std::vector<std::vector<std::size_t>>(out_elements), in_s, out_s);
 
             auto dim_lens = out_lens;
-            dim_lens[0] *= (1u << r_dim);
+            // indices matrix size grows 2x per resized-axis:
+            dim_lens[0] *= (1u << resized_axes.size());
             shape ind_s{shape::int32_type, dim_lens};
             auto ins_ind = info.add_literal(literal(ind_s, ind));
             auto data    = info.add_instruction(make_op("gather", {{"axis", 0}}), rsp, ins_ind);
 
-            std::size_t lens_idx = out_lens.size() - 1;
-            for(std::size_t i = 0; i < r_dim; lens_idx--)
+            for(auto idx = resized_axes.size(); idx; --idx)
             {
-                if(in_lens[lens_idx] == out_lens[lens_idx])
-                    continue;
-                dim_lens[0] /= 2; // halved for 2 slices of data
+                dim_lens[0] /= 2; // halved for 2 slices of data (hi & low below)
                 shape dim_s{shape::float_type, dim_lens};
-                const auto& dim_delta = delta[r_dim - i - 1];
+                const auto& dim_delta = delta[idx - 1];
                 std::vector<float> delta_data;
                 for(std::size_t j = 0; j < dim_lens[0] / out_lens[0]; ++j)
                     delta_data.insert(delta_data.begin(), dim_delta.begin(), dim_delta.end());
@@ -437,7 +436,6 @@ struct parse_resize : op_parser<parse_resize>
                 auto diff = info.add_instruction(make_op("sub"), hi, low);
                 auto ddf  = info.add_instruction(make_op("mul"), diff, ins_delta);
                 data      = info.add_instruction(make_op("add"), ddf, low);
-                i++;
             }
             return data;
         }

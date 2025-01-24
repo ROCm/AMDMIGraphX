@@ -22,36 +22,36 @@
 //  * THE SOFTWARE.
 //  */
 
-// #include "verify_program.hpp"
-// #include <migraphx/program.hpp>
-// #include <migraphx/generate.hpp>
-// #include <migraphx/make_op.hpp>
+#include "verify_program.hpp"
+#include <migraphx/program.hpp>
+#include <migraphx/generate.hpp>
+#include <migraphx/make_op.hpp>
 
-// struct test_ck_gemm_softmax_gemm_bf16 : verify_program<test_ck_gemm_softmax_gemm_bf16>
-// {
-//     migraphx::program create_program() const
-//     {
-//         migraphx::program p;
-//         auto* mm = p.get_main_module();
-//         migraphx::shape m1_shape{migraphx::shape::bf16_type, {1, 12, 256, 256}};
-//         migraphx::shape m2_shape{migraphx::shape::bf16_type, {1, 12, 256, 256}};
-//         auto m2_elements = m2_shape.elements();
-//         auto a           = mm->add_parameter("1", m1_shape);
-//         auto b           = mm->add_parameter("2", m1_shape);
-//         auto b1          = mm->add_parameter("3", m1_shape);
-//         std::vector<float> eights(m2_elements, 0.125);
-//         auto eight = mm->add_literal(migraphx::literal{m2_shape, eights});
-//         std::vector<float> zeros(m2_elements, 0);
-//         auto zero = mm->add_literal(migraphx::literal{m2_shape, zeros});
+struct test_ck_gemm_softmax_gemm_bf16 : verify_program<test_ck_gemm_softmax_gemm_bf16>
+{
+    migraphx::program create_program() const
+    {
+        migraphx::program p;
+        auto* mm = p.get_main_module();
+        migraphx::shape m1_shape{migraphx::shape::bf16_type, {1, 12, 256, 256}};
+        migraphx::shape m2_shape{migraphx::shape::bf16_type, {1, 12, 256, 256}};
+        auto m2_elements = m2_shape.elements();
+        auto a           = mm->add_parameter("1", m1_shape);
+        auto b           = mm->add_parameter("2", m1_shape);
+        auto b1          = mm->add_parameter("3", m1_shape);
+        std::vector<float> eights(m2_elements, 0.125);
+        auto eight = mm->add_literal(migraphx::literal{m2_shape, eights});
+        std::vector<float> zeros(m2_elements, 0);
+        auto zero = mm->add_literal(migraphx::literal{m2_shape, zeros});
 
-//         b = mm->add_instruction(migraphx::make_op("transpose", {{"permutation", {0, 1, 3, 2}}}),
-//         b); auto gemm1   = mm->add_instruction(migraphx::make_op("dot"), a, b); auto scale   =
-//         mm->add_instruction(migraphx::make_op("mul"), gemm1, eight); auto bias    =
-//         mm->add_instruction(migraphx::make_op("add"), scale, zero); auto softmax =
-//         mm->add_instruction(migraphx::make_op("softmax", {{"axis", -1}}), bias);
-//         mm->add_instruction(migraphx::make_op("dot"), softmax, b1);
+        b = mm->add_instruction(migraphx::make_op("transpose", {{"permutation", {0, 1, 3, 2}}}), b);
+        auto gemm1   = mm->add_instruction(migraphx::make_op("dot"), a, b);
+        auto scale   = mm->add_instruction(migraphx::make_op("mul"), gemm1, eight);
+        auto bias    = mm->add_instruction(migraphx::make_op("add"), scale, zero);
+        auto softmax = mm->add_instruction(migraphx::make_op("softmax", {{"axis", -1}}), bias);
+        mm->add_instruction(migraphx::make_op("dot"), softmax, b1);
 
-//         return p;
-//     }
-//     std::string section() const { return "gemm"; }
-// };
+        return p;
+    }
+    std::string section() const { return "gemm"; }
+};

@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2024 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2025 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -146,7 +146,7 @@ TEST_CASE(simplify_zero_add_constant)
     }
     run_pass(m3);
 
-    EXPECT((m1 == m2) && (m2 == m3));
+    EXPECT((m1 == m2) and (m2 == m3));
 }
 
 TEST_CASE(simplify_add_broadcast1)

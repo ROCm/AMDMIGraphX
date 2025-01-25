@@ -21,6 +21,7 @@
  * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
  * THE SOFTWARE.
  */
+
 #include <migraphx/onnx/op_parser.hpp>
 #include <migraphx/onnx/checks.hpp>
 #include <migraphx/ranges.hpp>
@@ -28,70 +29,64 @@
 #include <migraphx/shape_for_each.hpp>
 #include <migraphx/instruction.hpp>
 #include <migraphx/make_op.hpp>
+#include <vector>
+#include <map>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
 namespace onnx {
 
+/*
+ * Algorithm of calc_neighbor_points():
+ * Input: vvv_ind, a collection of neighbors per resized dimension as:
+ *              layer-1: (# resized dimensions, vector)
+ *              layer-2: (A vector of 2 of: hi/low)
+ *              layer-3: Neighor index of every pixel in that dimension (vector)
+ *        in_s, the original input tensor shape (vector)
+ *        resized_v, lens indices that have to resized (vector)
+ *
+ * Output: per resized pixel, its neighboring hi/lo indexes (vector).
+ * This api stitches all the neighbors (for every dimension) for a resized pixel,
+ * to yield its neighbor index w.r.t to the input shape, in_s.
+ */
+
 static std::vector<int>
 calc_neighbor_points(const std::vector<std::vector<std::vector<std::size_t>>>& vvv_ind,
-                     size_t i_dim, // input lens index
-                     size_t r_dim, // resized index
-                     std::vector<std::vector<std::size_t>> vec_dims,
                      const shape& in_s,
-                     const shape& out_s)
+                     const std::vector<size_t>& resized_v)
 {
-    auto&& o_lens = out_s.lens();
+    std::size_t ndims = in_s.ndim();
+    auto& in_strides  = in_s.strides();
+    std::vector<std::size_t> indices_l(ndims);
+    std::vector<std::size_t> indices_h(ndims);
+    std::size_t elements_ct = vvv_ind[0][0].size();
+    std::vector<int> vec_ind(elements_ct * 2); // hi + low
+    std::map<size_t, size_t> resized_m;
+    for(size_t i = 0; i < resized_v.size(); i++)
+        resized_m[resized_v[i]] = i;
 
-    if(i_dim == o_lens.size())
+    for(size_t e_idx = 0; e_idx < elements_ct; ++e_idx)
     {
-        std::vector<int> vec_ind(vec_dims.size());
-        std::transform(vec_dims.begin(), vec_dims.end(), vec_ind.begin(), [&](auto idx) {
-            return static_cast<int>(in_s.index(idx));
-        });
-        return vec_ind;
+        for(size_t l_idx = 0; l_idx < ndims; ++l_idx)
+        {
+            auto entry = resized_m.find(l_idx);
+            if(entry != resized_m.end())
+            {
+                indices_l[l_idx] = vvv_ind[entry->second][0][e_idx];
+                indices_h[l_idx] = vvv_ind[entry->second][1][e_idx];
+            }
+            else
+            {
+                auto idx         = e_idx % in_strides[l_idx];
+                indices_l[l_idx] = idx;
+                indices_h[l_idx] = idx;
+            }
+            vec_ind[e_idx]               = in_s.index(indices_l);
+            vec_ind[e_idx + elements_ct] = in_s.index(indices_h);
+        }
     }
 
-    size_t o_dim_size = o_lens[i_dim];
-
-    // when a dimension is unchanged in Resize, its indices are identical, and just copied:
-    if(in_s.lens()[i_dim] == o_dim_size)
-    {
-        for(std::size_t v_idx = 0; v_idx < vec_dims.size(); v_idx += o_dim_size)
-            for(size_t i = 0; i < o_dim_size; i++)
-                vec_dims[v_idx + i].push_back(i);
-        return calc_neighbor_points(vvv_ind, i_dim + 1, r_dim, std::move(vec_dims), in_s, out_s);
-    }
-
-    // when a dimension is unchanged in Resize, its indices are processed below:
-    const auto& vv_lo = vvv_ind[r_dim][0];
-    std::vector<std::vector<std::size_t>> vec_dims1;
-    for(std::size_t start = 0; start < vec_dims.size(); start += vv_lo.size())
-    {
-        std::transform(vv_lo.begin(),
-                       vv_lo.end(),
-                       vec_dims.begin() + start,
-                       std::back_inserter(vec_dims1),
-                       [](auto i, auto dim) {
-                           dim.push_back(i);
-                           return dim;
-                       });
-    }
-
-    const auto& vv_hi = vvv_ind[r_dim][1];
-    for(std::size_t start = 0; start < vec_dims.size(); start += vv_hi.size())
-    {
-        std::transform(vv_hi.begin(),
-                       vv_hi.end(),
-                       vec_dims.begin() + start,
-                       std::back_inserter(vec_dims1),
-                       [](auto i, auto dim) {
-                           dim.push_back(i);
-                           return dim;
-                       });
-    }
-    vec_dims.clear();
-    return calc_neighbor_points(vvv_ind, i_dim + 1, r_dim + 1, std::move(vec_dims1), in_s, out_s);
+    return vec_ind;
 }
 
 static std::string get_coord_trans_mode(const onnx_parser::attribute_map& attr)
@@ -404,8 +399,7 @@ struct parse_resize : op_parser<parse_resize>
                 }
             });
 
-            auto ind = calc_neighbor_points(
-                vvv_ind, 0, 0, std::vector<std::vector<std::size_t>>(out_elements), in_s, out_s);
+            auto ind = calc_neighbor_points(vvv_ind, in_s, resized_axes);
 
             auto dim_lens = out_lens;
             // indices matrix size grows 2x per resized-axis:
@@ -414,7 +408,7 @@ struct parse_resize : op_parser<parse_resize>
             auto ins_ind = info.add_literal(literal(ind_s, ind));
             auto data    = info.add_instruction(make_op("gather", {{"axis", 0}}), rsp, ins_ind);
 
-            for(auto idx = resized_axes.size(); idx; --idx)
+            for(auto idx = resized_axes.size(); idx != 0u; --idx)
             {
                 dim_lens[0] /= 2; // halved for 2 slices of data (hi & low below)
                 shape dim_s{shape::float_type, dim_lens};

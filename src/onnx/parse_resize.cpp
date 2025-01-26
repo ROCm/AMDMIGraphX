@@ -39,13 +39,14 @@ namespace onnx {
 /*
  * Algorithm of calc_neighbor_points():
  * Input: vvv_ind, a collection of neighbors per resized dimension as:
- *              layer-1: (# resized dimensions, vector)
- *              layer-2: (A vector of 2 of: hi/low)
- *              layer-3: Neighor index of every pixel in that dimension (vector)
- *        in_s, the original input tensor shape (vector)
- *        resized_v, lens indices that have to resized (vector)
+ *               layer-1: (# resized dimensions, vector)
+ *               layer-2: (A vector of 2 of: hi/low)
+ *               layer-3: Neighor index of every pixel in that output dimension (vector)
+ *        in_s,  the original input tensor shape (vector)
+ *        out_s, the output tensor shape (vector)
+ *    resized_m, lens indices that have to resized (map)
  *
- * Output: per resized pixel, its neighboring hi/lo indexes (vector).
+ * Output: per resized pixel, its neighboring hi/lo indexes (vector): all permutations.
  * This api stitches all the neighbors (for every dimension) for a resized pixel,
  * to yield its neighbor index w.r.t to the input shape, in_s.
  */
@@ -53,40 +54,49 @@ namespace onnx {
 static std::vector<int>
 calc_neighbor_points(const std::vector<std::vector<std::vector<std::size_t>>>& vvv_ind,
                      const shape& in_s,
-                     const std::vector<size_t>& resized_v)
+                     const shape& out_s,
+                     const std::map<size_t, size_t>& resized_m)
 {
-    std::size_t ndims = in_s.ndim();
-    auto& in_strides  = in_s.strides();
-    std::vector<std::size_t> indices_l(ndims);
-    std::vector<std::size_t> indices_h(ndims);
+    std::size_t ndims       = out_s.ndim();
+    const auto& strides     = out_s.strides();
     std::size_t elements_ct = vvv_ind[0][0].size();
-    std::vector<int> vec_ind(elements_ct * 2); // hi + low
-    std::map<size_t, size_t> resized_m;
-    for(size_t i = 0; i < resized_v.size(); i++)
-        resized_m[resized_v[i]] = i;
+
+    // This function computes for each element, all permutations of its neighbor indices into an
+    // Perm block in one go. (Instead of computing each permutation in isolation per element)
+    size_t permutations = 1u << resized_m.size();
+    std::vector<std::vector<std::size_t>> perm_blk(permutations, std::vector<size_t>(strides));
+
+    // final outputted vector: permutations of neighbors.
+    std::vector<int> out_idx_vec(permutations * elements_ct);
 
     for(size_t e_idx = 0; e_idx < elements_ct; ++e_idx)
     {
-        for(size_t l_idx = 0; l_idx < ndims; ++l_idx)
+        size_t t_idx = e_idx;
+        for(size_t l_idx = 0; l_idx != ndims; ++l_idx)
         {
             auto entry = resized_m.find(l_idx);
             if(entry != resized_m.end())
             {
-                indices_l[l_idx] = vvv_ind[entry->second][0][e_idx];
-                indices_h[l_idx] = vvv_ind[entry->second][1][e_idx];
+                size_t hi_cmp_bit = 1u << entry->second;
+                auto lo           = vvv_ind[entry->second][0][e_idx];
+                auto hi           = vvv_ind[entry->second][1][e_idx];
+                for(size_t i = 0; i < permutations; i++)
+                    perm_blk[i][l_idx] = ((i & hi_cmp_bit) != 0) ? hi : lo;
             }
             else
             {
-                auto idx         = e_idx % in_strides[l_idx];
-                indices_l[l_idx] = idx;
-                indices_h[l_idx] = idx;
+                size_t idx = t_idx / strides[l_idx];
+                // no permutations in an unmodified lens index, so idx is copied over:
+                for(size_t i = 0; i < permutations; i++)
+                    perm_blk[i][l_idx] = idx;
             }
-            vec_ind[e_idx]               = in_s.index(indices_l);
-            vec_ind[e_idx + elements_ct] = in_s.index(indices_h);
+            t_idx %= strides[l_idx];
         }
+        // write out the permuted indices, calculated off the perm_blk:
+        for(size_t i = 0; i < permutations; i++)
+            out_idx_vec[e_idx + elements_ct * i] = in_s.index(perm_blk[i]);
     }
-
-    return vec_ind;
+    return out_idx_vec;
 }
 
 static std::string get_coord_trans_mode(const onnx_parser::attribute_map& attr)
@@ -371,24 +381,26 @@ struct parse_resize : op_parser<parse_resize>
 
             std::vector<size_t> resized_axes; // vector of dimensions to be resized
             std::size_t out_elements = 1;     // total number of elements to be resized
+            size_t resized_ct        = 0;
+            std::map<size_t, size_t> resized_m; // modified indices --> vvv_ind index below
             for(std::size_t axis = 0; axis != out_lens.size(); ++axis)
             {
+                out_elements *= out_lens[axis];
                 if(in_lens[axis] == out_lens[axis])
                     continue;
                 resized_axes.push_back(axis);
-                out_elements *= out_lens[axis];
+                resized_m[axis] = resized_ct++;
             }
 
             // Neighbor indices. For an axis. Two sets of max/min per element:
             std::vector<std::vector<std::size_t>> vv_ind(2, std::vector<std::size_t>(out_elements));
             // Neighbor indices. For all resized axes:
-            std::vector<std::vector<std::vector<std::size_t>>> vvv_ind(resized_axes.size(), vv_ind);
+            std::vector<std::vector<std::vector<std::size_t>>> vvv_ind(resized_ct, vv_ind);
             // Delta list. For each resized axes - per element.
-            std::vector<std::vector<float>> delta(resized_axes.size(),
-                                                  std::vector<float>(out_elements));
+            std::vector<std::vector<float>> delta(resized_ct, std::vector<float>(out_elements));
 
             shape_for_each(out_s, [&](const auto& out_idx_v, std::size_t out_idx) {
-                for(size_t ii = 0; ii != resized_axes.size(); ++ii)
+                for(size_t ii = 0; ii != resized_ct; ++ii)
                 {
                     auto idx = resized_axes[ii];
                     auto idx_val =
@@ -399,16 +411,16 @@ struct parse_resize : op_parser<parse_resize>
                 }
             });
 
-            auto ind = calc_neighbor_points(vvv_ind, in_s, resized_axes);
+            auto ind = calc_neighbor_points(vvv_ind, in_s, out_s, resized_m);
 
             auto dim_lens = out_lens;
             // indices matrix size grows 2x per resized-axis:
-            dim_lens[0] *= (1u << resized_axes.size());
+            dim_lens[0] *= (1u << resized_ct);
             shape ind_s{shape::int32_type, dim_lens};
             auto ins_ind = info.add_literal(literal(ind_s, ind));
             auto data    = info.add_instruction(make_op("gather", {{"axis", 0}}), rsp, ins_ind);
 
-            for(auto idx = resized_axes.size(); idx != 0u; --idx)
+            for(auto idx = resized_ct; idx != 0u; --idx)
             {
                 dim_lens[0] /= 2; // halved for 2 slices of data (hi & low below)
                 shape dim_s{shape::float_type, dim_lens};

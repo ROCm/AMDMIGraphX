@@ -26,22 +26,9 @@
 #include <migraphx/program.hpp>
 #include <migraphx/generate.hpp>
 #include <migraphx/make_op.hpp>
-#include <migraphx/instruction.hpp>
-#include <migraphx/common.hpp>
 #include <reduce.hpp>
 #include <pointwise.hpp>
-
-#include <migraphx/generate.hpp>
-#include <migraphx/dead_code_elimination.hpp>
 #include <migraphx/instruction.hpp>
-#include <migraphx/pass_manager.hpp>
-#include <migraphx/op/common.hpp>
-#include <migraphx/program.hpp>
-#include <migraphx/make_op.hpp>
-#include <basic_ops.hpp>
-#include <test.hpp>
-#include <pointwise.hpp>
-#include <reduce.hpp>
 
 template <migraphx::shape::type_t DType>
 struct test_fuse_reduce_mlir : verify_program<test_fuse_reduce_mlir<DType>>

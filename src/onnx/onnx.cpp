@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2024 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2025 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -45,8 +45,9 @@ program parse_onnx_from(const onnx_options& options, Ts&&... xs)
     parser.map_input_dims     = options.map_input_dims;
     parser.dim_params         = options.dim_params;
     parser.map_dyn_input_dims = options.map_dyn_input_dims;
-    auto dim_val              = options.default_dim_value;
-    if(dim_val != 0)
+    parser.default_dim_value  = options.default_dim_value;
+
+    if(parser.default_dim_value)
     {
         if(options.default_dyn_dim_value != shape::dynamic_dimension{1, 1})
         {
@@ -55,7 +56,7 @@ program parse_onnx_from(const onnx_options& options, Ts&&... xs)
         }
         else
         {
-            parser.default_dyn_dim_value = {dim_val, dim_val};
+            parser.default_dyn_dim_value = {parser.default_dim_value, parser.default_dim_value};
         }
     }
     else

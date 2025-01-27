@@ -382,7 +382,7 @@ parse_inputs(const onnx_parser& parser,
             }
             else
             {
-                s = parser.parse_type(input.type());
+                s = parser.parse_type(name, input.type());
             }
             mod_insts[name] = mod->add_parameter(name, s);
         }
@@ -617,12 +617,13 @@ literal onnx_parser::parse_tensor(const onnx::TensorProto& t) const
     MIGRAPHX_THROW("PARSE_TENSOR: Invalid tensor type");
 }
 
-shape onnx_parser::parse_type(const onnx::TypeProto& t) const
+shape onnx_parser::parse_type(const std::string& name, const onnx::TypeProto& t) const
 {
     shape::type_t shape_type = get_type(t.tensor_type().elem_type());
 
     std::vector<shape::dynamic_dimension> dynamic_dims;
     auto&& tensor_dims = t.tensor_type().shape().dim();
+    size_t idx         = 0;
     std::transform(tensor_dims.begin(),
                    tensor_dims.end(),
                    std::back_inserter(dynamic_dims),
@@ -632,11 +633,13 @@ shape onnx_parser::parse_type(const onnx::TypeProto& t) const
                            const auto& dim_param = d.dim_param();
                            if(contains(dim_params, dim_param))
                            {
+                               idx++;
                                return dim_params.at(dim_param);
                            }
                        }
                        if(d.has_dim_value())
                        {
+                           idx++;
                            if(static_cast<int>(d.dim_value()) <= 0)
                            {
                                return default_dyn_dim_value;
@@ -646,6 +649,10 @@ shape onnx_parser::parse_type(const onnx::TypeProto& t) const
                        }
                        else
                        {
+                           if(idx && default_dim_value)
+                               MIGRAPHX_THROW("Batch inserted at index " + std::to_string(idx) +
+                                              " of " + name);
+                           idx++;
                            return default_dyn_dim_value;
                        }
                    });

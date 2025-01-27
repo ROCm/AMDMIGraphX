@@ -33,7 +33,6 @@
 
 #include <migraphx/generate.hpp>
 #include <migraphx/dead_code_elimination.hpp>
-#include <migraphx/gpu/fuse_mlir.hpp>
 #include <migraphx/instruction.hpp>
 #include <migraphx/pass_manager.hpp>
 #include <migraphx/op/common.hpp>

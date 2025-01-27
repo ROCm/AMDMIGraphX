@@ -11458,6 +11458,20 @@ def resize_upsample_linear_test():
 
 
 @onnx_test()
+def resize_upsample_linear_large_test():
+    x = helper.make_tensor_value_info('X', TensorProto.FLOAT,
+                                      [1, 1, 1024, 1024])
+    s = helper.make_tensor('scales', TensorProto.FLOAT, [4], [1, 1, 2, 2])
+    y = helper.make_tensor_value_info('Y', TensorProto.FLOAT,
+                                      [1, 1, 2048, 2048])
+    node = onnx.helper.make_node('Resize',
+                                 inputs=['X', '', 'scales'],
+                                 outputs=['Y'],
+                                 mode='linear')
+    return ([node], [x], [y], [s])
+
+
+@onnx_test()
 def resize_upsample_pf_test():
     scales = np.array([1.0, 1.0, 2.0, 3.0], dtype=np.float32)
     scale_tensor = helper.make_tensor(name='scales',

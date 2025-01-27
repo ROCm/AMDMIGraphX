@@ -708,6 +708,8 @@ struct find_mlir_split_reduce
 {
     mlir_mode conv_mode = mlir_mode::none;
     mlir_mode dot_mode  = mlir_mode::none;
+    bool is_navi3x;
+
     auto matcher() const
     {
         auto dot_or_conv = match::name("gpu::mlir_op");
@@ -718,6 +720,10 @@ struct find_mlir_split_reduce
     void apply(module_pass_manager& mpm, const match::matcher_result& r) const
     {
         auto reduce_ins = r.result;
+        if(is_navi3x and reduce_ins->get_shape().type() == shape::type_t::half_type)
+        {
+            return;
+        }
         auto gemm_ins   = r.instructions["gemm"];
         assert(gemm_ins->get_shape().sub_shapes().empty());
         auto* rm   = reduce_ins->module_inputs().front();
@@ -1707,7 +1713,8 @@ void fuse_mlir::apply(module_pass_manager& mpm) const
         match::find_matches(
             mpm,
             find_mlir_split_reduce{.conv_mode = get_mode("fused_convolution", mlir_mode::fast),
-                                   .dot_mode  = get_mode("fused_dot", mlir_mode::fast)});
+                                   .dot_mode  = get_mode("fused_dot", mlir_mode::fast),
+                                   .is_navi3x = is_navi3x});
     }
 
     match::find_matches(mpm, find_pointwise_mlir{});

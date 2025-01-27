@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2024 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2025 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -61,6 +61,7 @@ struct test_fmod : verify_program<test_fmod<DType>>
 };
 template struct test_fmod<migraphx::shape::float_type>;
 template struct test_fmod<migraphx::shape::half_type>;
+template struct test_fmod<migraphx::shape::bf16_type>;
 template struct test_fmod<migraphx::shape::fp8e4m3fnuz_type>;
 template struct test_fmod<migraphx::shape::fp8e4m3fn_type>;
 template struct test_fmod<migraphx::shape::fp8e5m2_type>;
@@ -83,6 +84,7 @@ struct test_mod : verify_program<test_mod<DType>>
 
 template struct test_mod<migraphx::shape::float_type>;
 template struct test_mod<migraphx::shape::half_type>;
+template struct test_mod<migraphx::shape::bf16_type>;
 template struct test_mod<migraphx::shape::fp8e4m3fnuz_type>;
 template struct test_mod<migraphx::shape::fp8e5m2fnuz_type>;
 template struct test_mod<migraphx::shape::fp8e4m3fn_type>;

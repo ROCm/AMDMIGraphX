@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2024 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2025 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -67,6 +67,15 @@ template struct test_reduce_op_small<migraphx::op::reduce_min, 2, migraphx::shap
 template struct test_reduce_op_small<migraphx::op::reduce_prod, -2, migraphx::shape::half_type>;
 template struct test_reduce_op_small<migraphx::op::reduce_all, 2, migraphx::shape::half_type>;
 template struct test_reduce_op_small<migraphx::op::reduce_any, 2, migraphx::shape::half_type>;
+
+template struct test_reduce_op_small<migraphx::op::reduce_sum, 3, migraphx::shape::bf16_type>;
+template struct test_reduce_op_small<migraphx::op::reduce_sum, 2, migraphx::shape::bf16_type>;
+template struct test_reduce_op_small<migraphx::op::reduce_mean, 2, migraphx::shape::bf16_type>;
+template struct test_reduce_op_small<migraphx::op::reduce_max, 2, migraphx::shape::bf16_type>;
+template struct test_reduce_op_small<migraphx::op::reduce_min, 2, migraphx::shape::bf16_type>;
+template struct test_reduce_op_small<migraphx::op::reduce_prod, -2, migraphx::shape::bf16_type>;
+template struct test_reduce_op_small<migraphx::op::reduce_all, 2, migraphx::shape::bf16_type>;
+template struct test_reduce_op_small<migraphx::op::reduce_any, 2, migraphx::shape::bf16_type>;
 
 template struct test_reduce_op_small<migraphx::op::reduce_sum,
                                      2,

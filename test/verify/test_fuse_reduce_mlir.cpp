@@ -38,9 +38,9 @@ struct test_fuse_reduce_mlir : verify_program<test_fuse_reduce_mlir<DType>>
         migraphx::program p;
         auto* mm = p.get_main_module();
 
-        migraphx::shape s_x{DType, {2, 4, 512, 512}};
-        migraphx::shape s_w{DType, {320, 4, 3, 3}};
-        migraphx::shape s_b{DType, {320}};
+        migraphx::shape s_x{DType, {1, 4, 512, 512}};
+        migraphx::shape s_w{DType, {64, 4, 3, 3}};
+        migraphx::shape s_b{DType, {64}};
 
         auto x    = mm->add_parameter("x", s_x);
         auto w    = mm->add_parameter("w", s_w);
@@ -56,3 +56,4 @@ struct test_fuse_reduce_mlir : verify_program<test_fuse_reduce_mlir<DType>>
 };
 
 template struct test_fuse_reduce_mlir<migraphx::shape::float_type>;
+template struct test_fuse_reduce_mlir<migraphx::shape::half_type>;

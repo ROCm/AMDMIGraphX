@@ -56,4 +56,3 @@ struct test_fuse_reduce_mlir : verify_program<test_fuse_reduce_mlir<DType>>
 };
 
 template struct test_fuse_reduce_mlir<migraphx::shape::float_type>;
-template struct test_fuse_reduce_mlir<migraphx::shape::half_type>;

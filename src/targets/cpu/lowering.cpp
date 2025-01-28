@@ -378,7 +378,7 @@ struct cpu_apply
             // skip lowering if input has fp8 as one of the inputs since oneDNN doesn't have fp8
             // supported yet.
             if(std::any_of(it->inputs().begin(), it->inputs().end(), [](const auto& i) {
-                   return contains(fp8_types{}.get(), i->get_shape().type());
+                   return contains(fp8_types{}.get(), i->get_shape().type()) or (i->get_shape().type() == shape::type_t::bf16_type)
                }))
                 continue;
             if(it->name() == "pow")
@@ -391,7 +391,7 @@ struct cpu_apply
             // skip lowering if input has fp8 as one of the inputs since oneDNN doesn't have fp8
             // supported yet.
             if(std::any_of(it->inputs().begin(), it->inputs().end(), [](const auto& i) {
-                   return contains(fp8_types{}.get(), i->get_shape().type());
+                   return contains(fp8_types{}.get(), i->get_shape().type()) or (i->get_shape().type() == shape::type_t::bf16_type)
                }))
                 continue;
             if(it->name() == "pooling")

@@ -134,7 +134,7 @@ std::vector<pass> target::get_passes(migraphx::context& gctx, const compile_opti
 
     std::set<std::string> unsupported_fp8e5m2fnuz_ops = unsupported_fp8e4m3fnuz_ops;
     // disable gemm for fp8e5m2fnuz if rocBLAS is being used
-    if(not enabled(MIGRAPHX_ENABLE_HIPBLASLT_GEMM{}))
+    if(disabled(MIGRAPHX_ENABLE_HIPBLASLT_GEMM{}))
     {
         unsupported_fp8e5m2fnuz_ops.insert("dot");
         unsupported_fp8e5m2fnuz_ops.insert("quant_dot");
@@ -142,7 +142,7 @@ std::vector<pass> target::get_passes(migraphx::context& gctx, const compile_opti
 
     std::set<std::string> unsupported_fp8ocp_ops = {};
     // TODO: remove this when the flag is removed
-    if(not enabled(MIGRAPHX_ENABLE_HIPBLASLT_GEMM{}))
+    if(disabled(MIGRAPHX_ENABLE_HIPBLASLT_GEMM{}))
     {
         unsupported_fp8ocp_ops.insert("dot");
         unsupported_fp8ocp_ops.insert("quant_dot");

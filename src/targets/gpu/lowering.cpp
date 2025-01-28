@@ -254,7 +254,7 @@ struct miopen_apply
             auto output = insert_allocation(ins, ins->get_shape());
             refs.push_back(output);
 #if MIGRAPHX_USE_HIPBLASLT
-            if(not enabled(MIGRAPHX_ENABLE_HIPBLASLT_GEMM{}) or not hipblaslt_supported())
+            if(disabled(MIGRAPHX_ENABLE_HIPBLASLT_GEMM{}) or not hipblaslt_supported())
             {
 #endif
                 return mod->replace_instruction(

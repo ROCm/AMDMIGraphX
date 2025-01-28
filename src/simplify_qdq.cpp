@@ -348,6 +348,76 @@ struct match_qlinear_reused
     }
 };
 
+struct match_concat_qlinear
+{
+    auto matcher() const
+    {
+        auto any_pointwise_input = match::any_of[match::inputs()](match::pointwise());
+        return match::name("quantizelinear")(
+            match::arg(0)(match::name("concat")(any_pointwise_input).bind("cat")));
+    }
+
+    auto get_prebroadcast_qparam(instruction_ref i, size_t channels) const
+    {
+        instruction_ref top = i;
+        while(top->get_shape().elements() != channels)
+        {
+            assert(top->inputs().size() == 1);
+            top = top->inputs()[0];
+        }
+        return top;
+    }
+
+    void apply(module& m, const match::matcher_result& r) const
+    {
+        auto ins     = r.result;
+        auto cat_ins = r.instructions["cat"];
+        auto has_zp = ins->inputs().size() == 3;
+        auto scale  = ins->inputs()[1];
+
+        std::vector<instruction_ref> new_cat_inputs;
+        if(scale->get_shape().scalar())
+        {
+            // get unbroadcasted scale and zp
+            auto sscale = get_prebroadcast_qparam(scale, 1);
+            instruction_ref szp;
+            if(has_zp)
+            {
+                assert(ins->inputs()[2]->get_shape().scalar());
+                szp = get_prebroadcast_qparam(ins->inputs()[2], 1);
+            }
+
+            std::transform(
+                cat_ins->inputs().begin(),
+                cat_ins->inputs().end(),
+                std::back_inserter(new_cat_inputs),
+                [&](auto i) {
+                    auto scale_mb = m.insert_instruction(
+                        ins,
+                        make_op("multibroadcast", {{"out_lens", i->get_shape().lens()}}),
+                        {sscale});
+
+                    if(has_zp)
+                    {
+                        auto zp_mb = m.insert_instruction(
+                            ins,
+                            make_op("multibroadcast", {{"out_lens", i->get_shape().lens()}}),
+                            {szp});
+                        return m.insert_instruction(ins, ins->get_operator(), {i, scale_mb, zp_mb});
+                    }
+                    return m.insert_instruction(ins, ins->get_operator(), {i, scale_mb});
+                });
+        }
+        // TODO: handle per-channel quantization
+        else
+        {
+            return;
+        }
+
+        m.replace_instruction(ins, cat_ins->get_operator(), new_cat_inputs);
+    }
+};
+
 bool is_same_value(instruction_ref a, instruction_ref b)
 {
     if(a == b)
@@ -455,6 +525,8 @@ void simplify_qdq::apply(module& m) const
     remove_qdq_pairs(m);
     migraphx::run_passes(m, {migraphx::dead_code_elimination{}});
     match::find_matches(m, match_qlinear_reused{});
+    migraphx::run_passes(m, {migraphx::dead_code_elimination{}});
+    match::find_matches(m, match_concat_qlinear{});
     migraphx::run_passes(m, {migraphx::dead_code_elimination{}});
     remove_zero_point(m);
 }

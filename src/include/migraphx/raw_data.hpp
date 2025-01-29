@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2024 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2025 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -275,7 +275,7 @@ auto visit_all(const std::vector<T>& x)
 
 template <class T,
           class U,
-          MIGRAPHX_REQUIRES(std::is_base_of<raw_data_base, T>{} &&
+          MIGRAPHX_REQUIRES(std::is_base_of<raw_data_base, T>{} and
                             std::is_base_of<raw_data_base, U>{})>
 bool operator==(const T& x, const U& y)
 {
@@ -294,7 +294,7 @@ bool operator==(const T& x, const U& y)
 
 template <class T,
           class U,
-          MIGRAPHX_REQUIRES(std::is_base_of<raw_data_base, T>{} &&
+          MIGRAPHX_REQUIRES(std::is_base_of<raw_data_base, T>{} and
                             std::is_base_of<raw_data_base, U>{})>
 bool operator!=(const T& x, const U& y)
 {

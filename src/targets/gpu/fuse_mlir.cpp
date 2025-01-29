@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2024 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2025 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -406,6 +406,7 @@ bool is_pointwise_op_supported_by_mlir(const instruction& i)
     const auto& name                                  = i.name();
     const auto result_type                            = i.get_shape().type();
     const std::initializer_list<type_t> allowed_types = {type_t::float_type,
+                                                         type_t::bf16_type,
                                                          type_t::half_type,
                                                          type_t::fp8e4m3fnuz_type,
                                                          type_t::fp8e5m2fnuz_type,
@@ -455,6 +456,7 @@ bool is_pointwise_op_supported_by_mlir(const instruction& i)
     };
     std::set<shape::type_t> float_types = {type_t::float_type,
                                            type_t::half_type,
+                                           type_t::bf16_type,
                                            type_t::fp8e4m3fnuz_type,
                                            type_t::fp8e5m2fnuz_type,
                                            type_t::fp8e4m3fn_type,
@@ -475,7 +477,8 @@ bool is_pointwise_op_supported_by_mlir(const instruction& i)
             return false;
         } // else
         return std::all_of(i.inputs().begin(), i.inputs().end(), [](const auto& arg) {
-            return contains({type_t::float_type, type_t::half_type}, arg->get_shape().type());
+            return contains({type_t::float_type, type_t::half_type, type_t::bf16_type},
+                            arg->get_shape().type());
         });
     }
     return false;
@@ -488,10 +491,12 @@ bool is_reduce_op_supported_by_mlir(const instruction& i)
     const auto result_type                            = i.get_shape().type();
     const std::initializer_list<type_t> allowed_types = {type_t::float_type,
                                                          type_t::half_type,
+                                                         type_t::bf16_type,
                                                          type_t::fp8e4m3fnuz_type,
                                                          type_t::fp8e5m2fnuz_type,
                                                          type_t::fp8e4m3fn_type,
                                                          type_t::fp8e5m2_type};
+
     // Preliminary type check.
     if(not contains(allowed_types, result_type))
     {
@@ -737,6 +742,7 @@ struct find_mlir_standalone_op
         if(std::any_of(gemm_based_op->inputs().begin(), gemm_based_op->inputs().end(), [&](auto i) {
                return not contains({shape::type_t::float_type,
                                     shape::type_t::half_type,
+                                    shape::type_t::bf16_type,
                                     shape::type_t::int8_type,
                                     shape::type_t::fp8e4m3fnuz_type,
                                     shape::type_t::fp8e5m2fnuz_type,
@@ -870,7 +876,10 @@ struct find_mlir_standalone_attention_op
         if(contains(r.instructions, "trailing_pm"))
         {
             auto trailing_pm_ins = r.instructions["trailing_pm"];
+            auto lit_map         = create_param_map_with_literals(
+                &m_attn, trailing_pm_ins->module_inputs().front(), trailing_pm_ins->get_shape());
             m_attn.add_params(trailing_pm_ins->inputs(), &map_main_to_mattn);
+            map_main_to_mattn.insert(lit_map.begin(), lit_map.end());
             std::unordered_map<instruction_ref, instruction_ref> map_pm_to_mattn(map_main_to_mattn);
             auto fused_pw_outs = m_attn
                                      .fuse(*trailing_pm_ins->module_inputs().front(),

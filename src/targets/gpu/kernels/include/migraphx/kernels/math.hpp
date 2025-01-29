@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2024 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2025 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -31,6 +31,7 @@
 #include <migraphx/kernels/hip.hpp>
 #include <migraphx/kernels/float8.hpp>
 #include <migraphx/kernels/pp.hpp>
+#include <migraphx/kernels/bit_cast.hpp>
 
 namespace migraphx {
 
@@ -45,6 +46,14 @@ constexpr auto as_float(T x)
         return float(x);
 }
 
+template <class T>
+constexpr auto to_native(T x)
+{
+    return x;
+}
+
+constexpr migraphx::half to_native(__half x) { return bit_cast<migraphx::half>(x); }
+
 template <class F, class T, class... Ts, MIGRAPHX_REQUIRES(not is_any_vec<T, Ts...>())>
 __device__ auto wrap(F f, T x, Ts... xs)
 {
@@ -54,7 +63,7 @@ __device__ auto wrap(F f, T x, Ts... xs)
     }
     else if constexpr(is_callable<F, T, Ts...>{})
     {
-        return f(x, xs...);
+        return to_native(f(x, xs...));
     }
     else
     {
@@ -112,18 +121,30 @@ __device__ auto wrap(F f, T x, Ts... xs)
 #define MIGRAPHX_DEVICE_MATH_BINARY_FOR(type, name, fname) \
     inline auto __device__ name(type x, type y) -> type { return fname(x, y); }
 
+// NOLINTNEXTLINE
+#define MIGRAPHX_DEVICE_MATH_HALF2(name, fname)                                           \
+    template <class... Ts>                                                                \
+    auto __device__ name(migraphx::vec<migraphx::half, 2> x, Ts... xs)                    \
+        MIGRAPHX_RETURNS(migraphx::vec<migraphx::half, 2>{fname(x, xs...)});              \
+    template <class... Ts, index_int N, MIGRAPHX_REQUIRES(N % 2 == 0 and (N > 2))>        \
+    auto __device__ name(migraphx::vec<migraphx::half, N> x, Ts... xs)                    \
+    {                                                                                     \
+        return vec_packed_transform<2>(x, xs...)(                                         \
+            [](auto... ys) -> migraphx::vec<migraphx::half, 2> { return fname(ys...); }); \
+    }
+
 // Template with two overloads for math functions, one for half2 type and one for more generic
 // <half, N> vectorization where N is 4 or another even number.
 // NOLINTNEXTLINE
-#define MIGRAPHX_DEVICE_MATH_VEC2(type, name, fname)                              \
-    template <class... Ts>                                                        \
-    auto __device__ name(migraphx::vec<type, 2> x, Ts... xs)                      \
-        MIGRAPHX_RETURNS(migraphx::vec<type, 2>{fname(x, xs...)});                \
-    template <class... Ts, index_int N, MIGRAPHX_REQUIRES(N % 2 == 0 && (N > 2))> \
-    auto __device__ name(migraphx::vec<type, N> x, Ts... xs)                      \
-    {                                                                             \
-        return vec_packed_transform<2>(x, xs...)(                                 \
-            [](auto... ys) -> migraphx::vec<type, 2> { return fname(ys...); });   \
+#define MIGRAPHX_DEVICE_MATH_VEC2(type, name, fname)                               \
+    template <class... Ts>                                                         \
+    auto __device__ name(migraphx::vec<type, 2> x, Ts... xs)                       \
+        MIGRAPHX_RETURNS(migraphx::vec<type, 2>{fname(x, xs...)});                 \
+    template <class... Ts, index_int N, MIGRAPHX_REQUIRES(N % 2 == 0 and (N > 2))> \
+    auto __device__ name(migraphx::vec<type, N> x, Ts... xs)                       \
+    {                                                                              \
+        return vec_packed_transform<2>(x, xs...)(                                  \
+            [](auto... ys) -> migraphx::vec<type, 2> { return fname(ys...); });    \
     }
 
 MIGRAPHX_DEVICE_MATH_WRAP(acos, (double)::acos, (float)::acosf);
@@ -163,6 +184,7 @@ constexpr auto where(bool cond, const T& a, const U& b)
 MIGRAPHX_DEVICE_MATH_FOR(float, abs, ::abs)
 MIGRAPHX_DEVICE_MATH_FOR(double, abs, ::abs)
 MIGRAPHX_DEVICE_MATH_FOR(migraphx::half, abs, ::__habs)
+MIGRAPHX_DEVICE_MATH_FOR(migraphx::bf16, abs, ::fabsf)
 MIGRAPHX_DEVICE_MATH_BINARY_FOR(float, max, ::fmaxf)
 MIGRAPHX_DEVICE_MATH_BINARY_FOR(float, min, ::fminf)
 MIGRAPHX_DEVICE_MATH_BINARY_FOR(double, max, ::max)

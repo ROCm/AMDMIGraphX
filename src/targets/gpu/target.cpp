@@ -31,6 +31,7 @@
 #include <migraphx/eliminate_data_type.hpp>
 #include <migraphx/eliminate_identity.hpp>
 #include <migraphx/eliminate_pad.hpp>
+#include <migraphx/fp8_ocp_to_fnuz.hpp>
 #include <migraphx/fuse_concat.hpp>
 #include <migraphx/fuse_pointwise_reduce.hpp>
 #include <migraphx/inline_module.hpp>
@@ -77,7 +78,6 @@ inline namespace MIGRAPHX_INLINE_NS {
 namespace gpu {
 
 MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_DISABLE_SCHEDULE_PASS)
-MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_ENABLE_SPLIT_REDUCE)
 MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_ENABLE_NHWC)
 #ifndef _WIN32
 MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_ENABLE_CK)
@@ -101,6 +101,7 @@ std::vector<pass> target::get_passes(migraphx::context& gctx, const compile_opti
     unsupported_types.erase(shape::type_t::uint8_type);
     unsupported_types.erase(shape::type_t::int32_type);
     unsupported_types.erase(shape::type_t::tuple_type);
+    unsupported_types.erase(shape::type_t::bf16_type);
 
     // whiltelist supported Ops for the FP8 types
     // different between fp8e4m3fnuz and OCP types because rocBLAS only has
@@ -179,6 +180,8 @@ std::vector<pass> target::get_passes(migraphx::context& gctx, const compile_opti
         dead_code_elimination{},
         eliminate_identity{},
         dead_code_elimination{},
+        enable_pass(not gpu::gfx_has_fp8ocp_intrinsics() and gpu::gfx_has_fp8fnuz_intrinsics(), fp8_ocp_to_fnuz{}),
+        enable_pass(not gpu::gfx_has_fp8ocp_intrinsics() and gpu::gfx_has_fp8fnuz_intrinsics(), dead_code_elimination{}),
         simplify_qdq{},
         enable_pass(not mlir_enabled(), rewrite_quantization{}),
         dead_code_elimination{},
@@ -211,7 +214,6 @@ std::vector<pass> target::get_passes(migraphx::context& gctx, const compile_opti
         dead_code_elimination{},
         optimize_module{},
         fuse_pointwise_reduce{},
-        enable_pass(enabled(MIGRAPHX_ENABLE_SPLIT_REDUCE{}), split_reduce{}),
         dead_code_elimination{},
 #ifndef _WIN32
         enable_pass(enabled(MIGRAPHX_ENABLE_CK{}), fuse_ck{}),

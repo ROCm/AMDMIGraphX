@@ -164,6 +164,7 @@ MIGRAPHX_DEVICE_MATH_WRAP(isinf, (double)::isinf, (float)::isinf, (half)::__hisi
 MIGRAPHX_DEVICE_MATH_WRAP(log, (double)::log, (float)::logf, (half)::hlog);
 MIGRAPHX_DEVICE_MATH_WRAP(log2, (double)::log2, (float)::log2f, (half)::hlog2);
 MIGRAPHX_DEVICE_MATH_WRAP(nearbyint, (double)::nearbyint, (float)::nearbyintf);
+MIGRAPHX_DEVICE_MATH_WRAP(pow, (double)::pow, (float)::powf);
 MIGRAPHX_DEVICE_MATH_WRAP(remainder, (double)::remainder, (float)::remainderf);
 MIGRAPHX_DEVICE_MATH_WRAP(round, (double)::round, (float)::roundf);
 MIGRAPHX_DEVICE_MATH_WRAP(rsqrt, (double)::rsqrt, (float)::rsqrtf, (half)::hrsqrt);
@@ -172,6 +173,7 @@ MIGRAPHX_DEVICE_MATH_WRAP(sinh, (double)::sinh, (float)::sinhf);
 MIGRAPHX_DEVICE_MATH_WRAP(sqrt, (double)::sqrt, (float)::sqrtf, (half)::hsqrt);
 MIGRAPHX_DEVICE_MATH_WRAP(tan, (double)::tan, (float)::tanf);
 MIGRAPHX_DEVICE_MATH_WRAP(tanh, (double)::tanh, (float)::tanhf);
+MIGRAPHX_DEVICE_MATH_WRAP(fmod, (double)::fmod, (float)::fmodf);
 
 template <class T, class U>
 constexpr auto where(bool cond, const T& a, const U& b)
@@ -183,15 +185,6 @@ MIGRAPHX_DEVICE_MATH_FOR(float, abs, ::abs)
 MIGRAPHX_DEVICE_MATH_FOR(double, abs, ::abs)
 MIGRAPHX_DEVICE_MATH_FOR(migraphx::half, abs, ::__habs)
 MIGRAPHX_DEVICE_MATH_FOR(migraphx::bf16, abs, ::fabsf)
-MIGRAPHX_DEVICE_MATH_FOR(float, pow, ::powf)
-MIGRAPHX_DEVICE_MATH_FOR(double, pow, ::pow)
-MIGRAPHX_DEVICE_MATH_FOR(migraphx::half, pow, ::powf)
-MIGRAPHX_DEVICE_MATH_FOR(migraphx::bf16, pow, ::powf)
-MIGRAPHX_DEVICE_MATH_FOR(float, fmod, ::fmodf)
-MIGRAPHX_DEVICE_MATH_FOR(double, fmod, ::fmod)
-MIGRAPHX_DEVICE_MATH_FOR(migraphx::half, fmod, ::fmodf)
-MIGRAPHX_DEVICE_MATH_FOR(migraphx::bf16, fmod, ::fmodf)
-MIGRAPHX_DEVICE_MATH_FOR(migraphx::bf16, mod, ::fmodf)
 MIGRAPHX_DEVICE_MATH_BINARY_FOR(float, max, ::fmaxf)
 MIGRAPHX_DEVICE_MATH_BINARY_FOR(float, min, ::fminf)
 MIGRAPHX_DEVICE_MATH_BINARY_FOR(double, max, ::max)

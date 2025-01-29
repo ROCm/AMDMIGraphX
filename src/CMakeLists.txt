@@ -117,6 +117,7 @@ add_library(migraphx
     split_single_dyn_dim.cpp
     target.cpp
     tmp_dir.cpp
+    trt_json.cpp
     truncate_float.cpp
     value.cpp
     verify_args.cpp

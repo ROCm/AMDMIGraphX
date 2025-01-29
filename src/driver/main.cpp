@@ -57,6 +57,7 @@
 #include <migraphx/register_target.hpp>
 
 #include <migraphx/netron_output.hpp>
+#include <migraphx/trt_json.hpp>
 
 #include <fstream>
 
@@ -172,6 +173,10 @@ struct loader
            {"--netron"},
            ap.help("Print out program as Netron readable json."),
            ap.set_value("netron"));
+        ap(output_type,
+           {"--trt-json"},
+           ap.help("Print out program as Nsight Designer readable trt.json"),
+           ap.set_value("trt.json"));
         ap(output, {"--output", "-o"}, ap.help("Output to file."));
     }
 
@@ -426,6 +431,8 @@ struct loader
             write(*os, save_buffer(p));
         else if(type == "netron")
             *os << make_netron_output(p) << std::endl;
+        else if(type == "trt.json")
+            *os << to_trt_json_string(p) << std::endl;
     }
 };
 

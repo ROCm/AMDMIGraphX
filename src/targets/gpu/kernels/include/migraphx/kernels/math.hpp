@@ -210,16 +210,28 @@ constexpr auto min(const T& a, const T& b)
     return where(a < b, a, b);
 }
 
-template <class T, class U, MIGRAPHX_REQUIRES(not is_same<T, U>{} and not is_any_vec<T, U>())>
-constexpr auto max(const T& a, const U& b)
+template <class T, class Compare, MIGRAPHX_REQUIRES(not is_any_vec<T>())>
+constexpr auto max(const T& a, const T& b, Compare compare)
 {
-    return max<common_type_t<T, U>>(a, b);
+    return where(compare(a, b), b, a);
 }
 
-template <class T, class U, MIGRAPHX_REQUIRES(not is_same<T, U>{} and not is_any_vec<T, U>())>
-constexpr auto min(const T& a, const U& b)
+template <class T, class Compare, MIGRAPHX_REQUIRES(not is_any_vec<T>())>
+constexpr auto min(const T& a, const T& b, Compare compare)
 {
-    return min<common_type_t<T, U>>(a, b);
+    return where(compare(a, b), a, b);
+}
+
+template <class T, class U, class... Compare, MIGRAPHX_REQUIRES(not is_same<T, U>{} and not is_any_vec<T, U>())>
+constexpr auto max(const T& a, const U& b, Compare... compare)
+{
+    return max<common_type_t<T, U>>(a, b, compare...);
+}
+
+template <class T, class U, class... Compare, MIGRAPHX_REQUIRES(not is_same<T, U>{} and not is_any_vec<T, U>())>
+constexpr auto min(const T& a, const U& b, Compare... compare)
+{
+    return min<common_type_t<T, U>>(a, b, compare...);
 }
 
 template <class T, MIGRAPHX_REQUIRES(not is_any_vec<T>())>

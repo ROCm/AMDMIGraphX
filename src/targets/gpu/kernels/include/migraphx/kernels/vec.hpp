@@ -47,7 +47,7 @@ constexpr auto vec_size(T, ...) // NOLINT
 template <class T>
 constexpr auto vec_size()
 {
-    return decltype(vec_size(T{})){};
+    return decltype(vec_size(declval<T>())){};
 }
 
 template <class... Ts>

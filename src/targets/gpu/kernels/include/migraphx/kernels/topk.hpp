@@ -1,0 +1,154 @@
+#ifndef MIGRAPHX_GUARD_KERNELS_TOPK_HPP
+#define MIGRAPHX_GUARD_KERNELS_TOPK_HPP
+
+#include <migraphx/kernels/index.hpp>
+#include <migraphx/kernels/tensor_view.hpp>
+#include <migraphx/kernels/math.hpp>
+#include <migraphx/kernels/algorithm.hpp>
+#include <migraphx/kernels/ops.hpp>
+#include <migraphx/kernels/bit.hpp>
+#include <migraphx/kernels/print.hpp>
+
+namespace migraphx {
+
+template<class T>
+struct topk_pair
+{
+    T key;
+    uint16_t val;
+};
+
+constexpr auto select_key()
+{
+    return [](const auto& p) { return p.key; };
+}
+
+constexpr auto powers_of_2(index_int start, index_int last)
+{
+    return [=](auto f) {
+        for(index_int i=start;i<last;i*=2)
+            f(i);
+    };
+}
+constexpr auto powers_of_2(index_int last)
+{
+    return powers_of_2(1, last);
+}
+
+constexpr auto reverse_powers_of_2(index_int start, index_int last = 1)
+{
+    return [=](auto f) {
+        for(index_int i=start;i>=last;i/=2)
+            f(i);
+    };
+}
+
+template<index_int N, class T, class Compare>
+constexpr void bitonic_sort_step(index idx, T* buf, index_int j, index_int k, Compare compare)
+{
+    idx.local_stride(N, [&](auto i) {
+        auto ij = i ^ j;
+        if(ij <= i)
+            return;
+        MIGRAPHX_ASSERT(ij < N);
+        bool reverse = (i & k) == 0;
+        if((reverse and compare(buf[ij], buf[i])) or (not reverse and compare(buf[i], buf[ij])))
+            swap(buf[ij], buf[i]);
+    });
+}
+
+
+template<index_int Axis, class Output, class Indices, class Input, class Compare, class T>
+__device__ void topk(Output output, Indices indices, Input input, Compare compare, T init)
+{
+    using type = typename Input::type;
+    auto idx = make_index();
+    constexpr auto n = return_c([] { return get_shape_c<Input>{}.get_shape().lens[Axis]; });
+    constexpr auto k = return_c([] { return get_shape_c<Output>{}.get_shape().lens[Axis]; });
+    constexpr auto aligned_k = return_c([=] { return bit_ceil(k); });
+    constexpr auto aligned_n = return_c([=] { return bit_ceil(n); });
+    __shared__ topk_pair<type> buf[aligned_n];
+    idx.group_stride(input.get_shape().elements() / n, [&](auto group) {
+        auto x = tensor_slice(input, group, slice_axes<Axis>());
+        auto y = tensor_slice(output, group, slice_axes<Axis>());
+        auto y_idx = tensor_slice(indices, group, slice_axes<Axis>());
+        // Copy to LDS
+        idx.local_stride(aligned_n, [&](auto i) {
+            auto key = i < x.get_shape().elements() ? x[i] : init;
+            buf[i].key = key;
+            buf[i].val = i;
+        });
+        __syncthreads();
+#if 0
+        // auto print_buf = [&] {
+        //     array<type, aligned_n> a;
+        //     for(index_int i=0;i<aligned_n;i++)
+        //         a[i] = buf[i].key;
+        //     println_once("buf:", a);
+        // };
+        // print_buf();
+        powers_of_2(aligned_n)([&](auto len) {
+            reverse_powers_of_2(len)([&](auto j) {
+                bitonic_sort_step<aligned_n>(idx, buf, j, len*2, by(select_key(), compare));
+                __syncthreads();
+            });
+            // print_buf();
+        });
+        // print_buf();
+#else
+        auto c = by(select_key(), compare);
+        auto bswap = [&](auto dir, auto i, auto j) {
+            bool reverse = (dir & i) == 0;
+            if(reverse ^ c(buf[i], buf[j]))
+                swap(buf[i], buf[j]);
+        };
+        // sort each K
+        powers_of_2(aligned_k)([&](auto len) {
+            auto dir = len * 2;
+            reverse_powers_of_2(len)([&](auto inc) {
+                idx.local_stride(aligned_n, [&](auto tid) {
+                    auto low = tid & (inc - 1);
+                    auto i = (tid * 2) - low;
+                    auto j = i + inc;
+                    if(j >= aligned_n)
+                        return;
+                    bswap(dir, i, j);
+                });
+                __syncthreads();
+            });
+        });
+        // merge and rebuild K
+        powers_of_2(aligned_k, aligned_n)([&](auto len) {
+            auto dir = len * 2;
+            idx.local_stride(aligned_n, [&](auto tid) {
+                auto i = (tid * 2) - (tid & (len - 1));
+                auto j = i + len;
+                if (i % dir < aligned_k and j < aligned_n)
+                {
+                    buf[i] = min(buf[i], buf[j], c);
+                }
+            });
+            __syncthreads();
+            reverse_powers_of_2(aligned_k / 2)([&](auto inc) {
+                idx.local_stride(aligned_n, [&](auto tid) {
+                    auto low = tid & (inc - 1);
+                    auto ii = (tid * 2) - low;
+                    auto jj = ii + inc;
+                    if (ii % dir < aligned_k and jj < aligned_n)
+                        bswap(dir, ii, jj);
+                });
+                __syncthreads();
+            });
+        });
+#endif
+        // save top K
+        idx.local_stride(aligned_k, [&](auto i) {
+            y[i] = buf[i].key;
+            y_idx[i] = buf[i].val;
+        });
+    });
+}
+
+} // namespace migraphx
+#endif // MIGRAPHX_GUARD_KERNELS_TOPK_HPP
+

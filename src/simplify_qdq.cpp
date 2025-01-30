@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2024 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2025 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -34,6 +34,7 @@
 #include <migraphx/op/quant_convolution.hpp>
 #include <migraphx/op/dot.hpp>
 #include <migraphx/op/quant_dot.hpp>
+#include <migraphx/op/concat.hpp>
 #include <migraphx/register_op.hpp>
 #include <migraphx/fp8_types.hpp>
 #include <migraphx/match/dq_helpers.hpp>
@@ -356,63 +357,42 @@ struct match_concat_qlinear
         return match::name("quantizelinear")(
             match::arg(0)(match::name("concat")(any_pointwise_input).bind("cat")));
     }
-
-    auto get_prebroadcast_qparam(instruction_ref i, size_t channels) const
+    auto get_slices(instruction_ref cat_ins) const
     {
-        instruction_ref top = i;
-        while(top->get_shape().elements() != channels)
+        std::vector<std::vector<std::pair<std::string, value>>> slices;
+        auto axis    = any_cast<op::concat>(cat_ins->get_operator()).axis;
+        size_t start = 0;
+        size_t end;
+        for(auto cat_inp : cat_ins->inputs())
         {
-            assert(top->inputs().size() == 1);
-            top = top->inputs()[0];
+            end = start + cat_inp->get_shape().lens()[axis];
+            slices.push_back({{"axes", {axis}}, {"starts", {start}}, {"ends", {end}}});
+            start = end;
         }
-        return top;
+        return slices;
     }
 
     void apply(module& m, const match::matcher_result& r) const
     {
         auto ins     = r.result;
         auto cat_ins = r.instructions["cat"];
-        auto has_zp = ins->inputs().size() == 3;
-        auto scale  = ins->inputs()[1];
 
+        assert(ins->inputs().size() == 3);
+        auto scale = ins->inputs()[1];
+        auto zp    = ins->inputs()[2];
+
+        auto slices = get_slices(cat_ins);
         std::vector<instruction_ref> new_cat_inputs;
-        if(scale->get_shape().scalar())
-        {
-            // get unbroadcasted scale and zp
-            auto sscale = get_prebroadcast_qparam(scale, 1);
-            instruction_ref szp;
-            if(has_zp)
-            {
-                assert(ins->inputs()[2]->get_shape().scalar());
-                szp = get_prebroadcast_qparam(ins->inputs()[2], 1);
-            }
-
-            std::transform(
-                cat_ins->inputs().begin(),
-                cat_ins->inputs().end(),
-                std::back_inserter(new_cat_inputs),
-                [&](auto i) {
-                    auto scale_mb = m.insert_instruction(
-                        ins,
-                        make_op("multibroadcast", {{"out_lens", i->get_shape().lens()}}),
-                        {sscale});
-
-                    if(has_zp)
-                    {
-                        auto zp_mb = m.insert_instruction(
-                            ins,
-                            make_op("multibroadcast", {{"out_lens", i->get_shape().lens()}}),
-                            {szp});
-                        return m.insert_instruction(ins, ins->get_operator(), {i, scale_mb, zp_mb});
-                    }
-                    return m.insert_instruction(ins, ins->get_operator(), {i, scale_mb});
-                });
-        }
-        // TODO: handle per-channel quantization
-        else
-        {
-            return;
-        }
+        std::transform(
+            cat_ins->inputs().begin(),
+            cat_ins->inputs().end(),
+            slices.begin(),
+            std::back_inserter(new_cat_inputs),
+            [&](auto i, auto slc) {
+                auto scale_slc = m.insert_instruction(ins, make_op("slice", slc), {scale});
+                auto zp_slc = m.insert_instruction(ins, make_op("slice", slc), {zp});
+                return m.insert_instruction(ins, ins->get_operator(), {i, scale_slc, zp_slc});
+            });
 
         m.replace_instruction(ins, cat_ins->get_operator(), new_cat_inputs);
     }

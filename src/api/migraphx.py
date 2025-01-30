@@ -1,7 +1,7 @@
 #####################################################################################
 # The MIT License (MIT)
 #
-# Copyright (c) 2015-2024 Advanced Micro Devices, Inc. All rights reserved.
+# Copyright (c) 2015-2025 Advanced Micro Devices, Inc. All rights reserved.
 #
 # Permission is hereby granted, free of charge, to any person obtaining a copy
 # of this software and associated documentation files (the "Software"), to deal
@@ -465,6 +465,23 @@ api.add_function('migraphx_quantize_int8',
                             target='migraphx::target',
                             options='migraphx::quantize_int8_options'),
                  fname='migraphx::quantize_int8_wrap')
+
+
+@auto_handle()
+def quantize_fp8_options(h):
+    h.constructor('create')
+    h.method(
+        'add_calibration_data',
+        api.params(data='std::unordered_map<std::string, migraphx::argument>'),
+        invoke='migraphx::add_calibration_data($@)',
+    )
+
+
+api.add_function('migraphx_quantize_fp8',
+                 api.params(prog='migraphx::program&',
+                            target='migraphx::target',
+                            options='migraphx::quantize_fp8_options'),
+                 fname='migraphx::quantize_fp8_wrap')
 
 
 @auto_handle(ref=True)

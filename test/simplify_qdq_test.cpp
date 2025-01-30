@@ -1543,7 +1543,6 @@ TEST_CASE(pointwise_concat_quant_per_tensor)
 {
     migraphx::shape s1{migraphx::shape::float_type, {1, 4, 28, 28}};
     migraphx::shape s2{migraphx::shape::float_type, {1, 2, 28, 28}};
-    std::vector<std::size_t> cat_lens{1, 6, 28, 28};
 
     migraphx::module m1;
     {
@@ -1560,6 +1559,7 @@ TEST_CASE(pointwise_concat_quant_per_tensor)
 
     migraphx::module m2;
     {
+        std::vector<std::size_t> cat_lens{1, 6, 28, 28};
         auto i1    = m2.add_parameter("i1", s1);
         auto i2    = m2.add_parameter("i2", s2);
         auto scale = m2.add_literal(0.5f);
@@ -1593,7 +1593,6 @@ TEST_CASE(pointwise_concat_quant_per_channel)
     migraphx::shape s1{migraphx::shape::float_type, {1, 4, 28, 28}};
     migraphx::shape s2{migraphx::shape::float_type, {1, 2, 28, 28}};
     migraphx::shape s3{migraphx::shape::float_type, {6}};
-    std::vector<std::size_t> cat_lens{1, 6, 28, 28};
 
     migraphx::module m1;
     {
@@ -1610,6 +1609,7 @@ TEST_CASE(pointwise_concat_quant_per_channel)
 
     migraphx::module m2;
     {
+        std::vector<std::size_t> cat_lens{1, 6, 28, 28};
         auto i1    = m2.add_parameter("i1", s1);
         auto i2    = m2.add_parameter("i2", s2);
         auto scale = m2.add_literal(migraphx::generate_literal(s3, 0));

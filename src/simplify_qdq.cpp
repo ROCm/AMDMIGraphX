@@ -354,18 +354,17 @@ struct match_concat_qlinear
     auto matcher() const
     {
         auto any_pointwise_input = match::any_of[match::inputs()](match::pointwise());
-        return match::name("quantizelinear")(
-            match::arg(0)(match::name("concat")(any_pointwise_input).bind("cat")));
+        return match::name("quantizelinear")(match::arg(0)(
+            match::name("concat")(match::used_once(), any_pointwise_input).bind("cat")));
     }
     auto get_slices(instruction_ref cat_ins) const
     {
         std::vector<std::vector<std::pair<std::string, value>>> slices;
         auto axis    = any_cast<op::concat>(cat_ins->get_operator()).axis;
         size_t start = 0;
-        size_t end;
         for(auto cat_inp : cat_ins->inputs())
         {
-            end = start + cat_inp->get_shape().lens()[axis];
+            auto end = start + cat_inp->get_shape().lens()[axis];
             slices.push_back({{"axes", {axis}}, {"starts", {start}}, {"ends", {end}}});
             start = end;
         }

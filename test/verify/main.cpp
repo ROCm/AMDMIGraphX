@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2024 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2025 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -79,6 +79,8 @@ int main(int argc, const char* argv[])
          "test_resize_dyn",
          "test_instancenorm_large_3d<migraphx::shape::float_type>",
          "test_instancenorm_large_3d<migraphx::shape::half_type>",
+         "test_isinf<migraphx::bf16>",
+         "test_multinomial<migraphx::shape::bf16_type>"
     // these tests are disabled due issue of lossy downcast, see issue#2517
 #if defined(__GNUC__) and !defined(__clang__)
          "test_batch_quant_dot_1<migraphx::fp8::float8<migraphx::fp8::f8_type::fp8, true>, "

@@ -49,5 +49,5 @@ struct test_isinf : verify_program<test_isinf<T>>
 };
 
 template struct test_isinf<migraphx::half>;
-// template struct test_isinf<migraphx::bf16>;
+template struct test_isinf<migraphx::bf16>;
 template struct test_isinf<float>;

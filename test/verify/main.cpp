@@ -79,6 +79,7 @@ int main(int argc, const char* argv[])
          "test_resize_dyn",
          "test_instancenorm_large_3d<migraphx::shape::float_type>",
          "test_instancenorm_large_3d<migraphx::shape::half_type>",
+         "test_fuse_reduce_mlir<migraphx::shape::float_type>",
     // these tests are disabled due issue of lossy downcast, see issue#2517
 #if defined(__GNUC__) and !defined(__clang__)
          "test_batch_quant_dot_1<migraphx::fp8::float8<migraphx::fp8::f8_type::fp8, true>, "

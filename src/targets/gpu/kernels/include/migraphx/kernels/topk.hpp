@@ -44,19 +44,85 @@ constexpr auto reverse_powers_of_2(index_int start, index_int last = 1)
 }
 
 template<index_int N, class T, class Compare>
-constexpr void bitonic_sort_step(index idx, T* buf, index_int j, index_int k, Compare compare)
+__device__ void bitonic_sort(index idx, T* buf, Compare compare)
 {
-    idx.local_stride(N, [&](auto i) {
-        auto ij = i ^ j;
-        if(ij <= i)
-            return;
-        MIGRAPHX_ASSERT(ij < N);
-        bool reverse = (i & k) == 0;
-        if((reverse and compare(buf[ij], buf[i])) or (not reverse and compare(buf[i], buf[ij])))
-            swap(buf[ij], buf[i]);
+    powers_of_2(N)([&](auto k) {
+        auto dir = k*2;
+        reverse_powers_of_2(k)([&](auto j) {
+            idx.local_stride(N, [&](auto i) {
+                auto ij = i ^ j;
+                if(ij <= i)
+                    return;
+                MIGRAPHX_ASSERT(ij < N);
+                bool reverse = (i & dir) == 0;
+                if((reverse and compare(buf[ij], buf[i])) or (not reverse and compare(buf[i], buf[ij])))
+                    swap(buf[ij], buf[i]);
+            });
+            __syncthreads();
+        });
     });
 }
 
+template<class N, class T, class Compare>
+__device__ void bitonic_topk_sort_step(index idx, T* buf, N n, index_int len, Compare compare)
+{
+    auto dir = len * 2;
+    reverse_powers_of_2(len)([&](auto inc) {
+        idx.local_stride(n, [&](auto tid) {
+            auto low = tid & (inc - 1);
+            auto i = (tid * 2) - low;
+            auto j = i + inc;
+            if(j >= n)
+                return;
+            MIGRAPHX_ASSERT(i < n);
+            MIGRAPHX_ASSERT(j < n);
+            bool reverse = (dir & i) == 0;
+            if(reverse ^ compare(buf[i], buf[j]))
+                swap(buf[i], buf[j]);
+        });
+        __syncthreads();
+    });
+}
+
+template<index_int K, class N, class T, class Compare>
+__device__ void bitonic_topk_merge_step(index idx, T* buf, N n, index_int len, Compare compare)
+{
+    auto dir = len * 2;
+    idx.local_stride(n, [&](auto tid) {
+        auto low = tid & (len - 1);
+        auto i = (tid * 2) - low;
+        auto j = i + len;
+        if(j >= n)
+            return;
+        if (i % dir >= K)
+            return;
+        MIGRAPHX_ASSERT(i < n);
+        buf[i] = min(buf[i], buf[j], compare);
+    });
+    __syncthreads();
+}
+
+template<index_int K, class N, class T, class Compare>
+__device__ void bitonic_topk_rebuild_step(index idx, T* buf, N n, index_int len, Compare compare)
+{
+    auto dir = len * 2;
+    reverse_powers_of_2(K / 2)([&](auto inc) {
+        idx.local_stride(n, [&](auto tid) {
+            auto low = tid & (inc - 1);
+            auto i = (tid * 2) - low;
+            auto j = i + inc;
+            if(j >= n)
+                return;
+            MIGRAPHX_ASSERT(i < n);
+            if (i % dir >= K)
+                return;
+            bool reverse = (dir & i) == 0;
+            if(reverse ^ compare(buf[i], buf[j]))
+                swap(buf[i], buf[j]);
+        });
+        __syncthreads();
+    });
+}
 
 template<index_int Axis, class Output, class Indices, class Input, class Compare, class T>
 __device__ void topk(Output output, Indices indices, Input input, Compare compare, T init)
@@ -79,22 +145,16 @@ __device__ void topk(Output output, Indices indices, Input input, Compare compar
             buf[i].val = i;
         });
         __syncthreads();
-#if 0
-        // auto print_buf = [&] {
-        //     array<type, aligned_n> a;
-        //     for(index_int i=0;i<aligned_n;i++)
-        //         a[i] = buf[i].key;
-        //     println_once("buf:", a);
-        // };
-        // print_buf();
-        powers_of_2(aligned_n)([&](auto len) {
-            reverse_powers_of_2(len)([&](auto j) {
-                bitonic_sort_step<aligned_n>(idx, buf, j, len*2, by(select_key(), compare));
-                __syncthreads();
-            });
-            // print_buf();
+#if 1
+        powers_of_2(aligned_k)([&](auto len) {
+            bitonic_topk_sort_step(idx, buf, aligned_n, len, by(select_key(), compare));
         });
-        // print_buf();
+        powers_of_2(aligned_k, aligned_n)([&](auto len) {
+            bitonic_topk_merge_step<aligned_k>(idx, buf, aligned_n, len, by(select_key(), compare));
+            bitonic_topk_rebuild_step<aligned_k>(idx, buf, aligned_n, len, by(select_key(), compare));
+        });
+#elif 0
+        bitonic_sort<aligned_n>(idx, buf, by(select_key(), compare));
 #else
         auto c = by(select_key(), compare);
         auto bswap = [&](auto dir, auto i, auto j) {

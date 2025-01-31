@@ -55,7 +55,7 @@ namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
 namespace gpu {
 
-MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_ENABLE_HIPBLASLT_GEMM);
+MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_DISABLE_HIPBLASLT_GEMM);
 MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_DISABLE_MIOPEN_POOLING)
 
 struct miopen_apply
@@ -254,7 +254,7 @@ struct miopen_apply
             auto output = insert_allocation(ins, ins->get_shape());
             refs.push_back(output);
 #if MIGRAPHX_USE_HIPBLASLT
-            if(disabled(MIGRAPHX_ENABLE_HIPBLASLT_GEMM{}) or not hipblaslt_supported())
+            if(enabled(MIGRAPHX_DISABLE_HIPBLASLT_GEMM{}) or not hipblaslt_supported())
             {
 #endif
                 return mod->replace_instruction(

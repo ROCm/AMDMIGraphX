@@ -55,7 +55,7 @@ __device__ void bitonic_sort(index idx, T* buf, Compare compare)
                     return;
                 MIGRAPHX_ASSERT(ij < N);
                 bool reverse = (i & dir) == 0;
-                if((reverse and compare(buf[ij], buf[i])) or (not reverse and compare(buf[i], buf[ij])))
+                if(reverse ^ compare(buf[i], buf[ij]))
                     swap(buf[ij], buf[i]);
             });
             __syncthreads();
@@ -153,7 +153,7 @@ __device__ void topk(Output output, Indices indices, Input input, Compare compar
             bitonic_topk_merge_step<aligned_k>(idx, buf, aligned_n, len, by(select_key(), compare));
             bitonic_topk_rebuild_step<aligned_k>(idx, buf, aligned_n, len, by(select_key(), compare));
         });
-#elif 0
+#elif 1
         bitonic_sort<aligned_n>(idx, buf, by(select_key(), compare));
 #else
         auto c = by(select_key(), compare);

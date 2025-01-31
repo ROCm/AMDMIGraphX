@@ -135,8 +135,8 @@ Use it in conjunction with ``MIGRAPHX_DISABLE_MLIR=1``.
 Set to "1", "enable", "enabled", "yes", or "true" to use.
 Disables use of the rocMLIR library.
 
-.. envvar:: MIGRAPHX_ENABLE_HIPBLASLT_GEMM
-Set to "0", "disable", "disabled", "no", or "false" to use.
+.. envvar:: MIGRAPHX_DISABLE_HIPBLASLT_GEMM
+Set to "1", "enable", "enabled", "yes", or "true" to use.
 Disables use of hipBLASLt.
 
 .. envvar:: MIGRAPHX_COPY_LITERALS

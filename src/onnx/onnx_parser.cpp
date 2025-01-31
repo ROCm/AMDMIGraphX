@@ -624,38 +624,38 @@ shape onnx_parser::parse_type(const std::string& name, const onnx::TypeProto& t)
     std::vector<shape::dynamic_dimension> dynamic_dims;
     auto&& tensor_dims = t.tensor_type().shape().dim();
     size_t idx         = 0;
-    std::transform(tensor_dims.begin(),
-                   tensor_dims.end(),
-                   std::back_inserter(dynamic_dims),
-                   [&](auto&& d) -> shape::dynamic_dimension {
-                       if(d.has_dim_param())
-                       {
-                           const auto& dim_param = d.dim_param();
-                           if(contains(dim_params, dim_param))
-                           {
-                               idx++;
-                               return dim_params.at(dim_param);
-                           }
-                       }
-                       if(d.has_dim_value())
-                       {
-                           idx++;
-                           if(static_cast<int>(d.dim_value()) <= 0)
-                           {
-                               return default_dyn_dim_value;
-                           }
-                           std::size_t tmp = d.dim_value();
-                           return {tmp, tmp};
-                       }
-                       else
-                       {
-                           if(idx && default_dim_value)
-                               MIGRAPHX_THROW("Batch inserted at index " + std::to_string(idx) +
-                                              " of " + name);
-                           idx++;
-                           return default_dyn_dim_value;
-                       }
-                   });
+    for(const auto& d : tensor_dims)
+    {
+        if(d.has_dim_param())
+        {
+            const auto& dim_param = d.dim_param();
+            if(contains(dim_params, dim_param))
+            {
+                idx++;
+                dynamic_dims.push_back(dim_params.at(dim_param));
+                continue;
+            }
+        }
+        if(d.has_dim_value())
+        {
+            idx++;
+            if(static_cast<int>(d.dim_value()) <= 0)
+            {
+                dynamic_dims.push_back(default_dyn_dim_value);
+                continue;
+            }
+            std::size_t tmp = d.dim_value();
+            dynamic_dims.push_back({tmp, tmp});
+        }
+        else
+        {
+            if(idx != 0 and default_dim_value != 0)
+                MIGRAPHX_THROW("Batch inserted at non-zero index: " + std::to_string(idx) +
+                               +", instead set input-dim option for node \'" + name + "\'");
+            idx++;
+            dynamic_dims.push_back(default_dyn_dim_value);
+        }
+    }
 
     if(dynamic_dims.empty())
     {

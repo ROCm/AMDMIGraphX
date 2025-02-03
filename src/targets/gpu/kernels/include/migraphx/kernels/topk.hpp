@@ -61,8 +61,8 @@ struct bitonic_sort
     constexpr bool compare(const T& x, const T& y, Reverse reverse) const
     {
         if(reverse)
-            return compare_function(y, x);
-        return compare_function(x, y);
+            return compare_function(x, y);
+        return compare_function(y, x);
     }
 
     template<class T>
@@ -133,14 +133,8 @@ struct bitonic_sort
         repeat(x.size(), [&](auto item) {
             auto& src = x[item];
             auto partner = readlane_xor<mask>(src);
-            // println_once("src: ", src);
-            // println_once("partner: ", partner);
-            (void)dir;
-            // if(compare(partner, src))
-            if(compare(partner, src, dir))
+            if(compare(src, partner, dir))
                 src = partner;
-            // println_once("src: ", src);
-            // println_once("partner: ", partner);
         });
     }
 
@@ -156,17 +150,15 @@ struct bitonic_sort
 
         const auto id = idx.local_wave();
         repeat(max_width + _c<1>, [&](auto w) {
-            // println_once("w: ", w);
             repeat(w, [&](auto i) {
                 auto j = w - i - _c<1>;
                 auto mask = _c<1u> << j; // pow(2, j)
                 dpp_swap(mask, get_bit(id, w) != get_bit(id, j), x);
             });
             if constexpr(w == 0)
-                lane_merge(get_bit(id, w) != 0, x);
-            else
                 lane_sort(get_bit(id, w) != 0, x);
-            // println(id, ": ", x);
+            else
+                lane_merge(get_bit(id, w) != 0, x);
         });
     }
 };

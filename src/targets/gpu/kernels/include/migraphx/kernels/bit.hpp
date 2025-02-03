@@ -2,8 +2,15 @@
 #define MIGRAPHX_GUARD_KERNELS_BIT_HPP
 
 #include <migraphx/kernels/types.hpp>
+#include <migraphx/kernels/debug.hpp>
 
 namespace migraphx {
+
+constexpr uint32_t get_bit(uint32_t x, uint32_t i)
+{
+    MIGRAPHX_ASSERT(i < 32);
+    return (x >> i) & 1;
+}
 
 constexpr uint64_t bit_ceil(uint64_t x)
 {

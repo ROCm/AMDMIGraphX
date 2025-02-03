@@ -37,6 +37,9 @@ namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
 namespace gpu {
 
+MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_HIPBLASLT_WARMUP_ITERATIONS)
+MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_HIPBLASLT_TUNING_ITERATIONS)
+
 using microseconds = std::chrono::duration<double, std::micro>;
 
 hipDataType compute_to_hip_type(hipblasComputeType_t type)
@@ -551,8 +554,15 @@ struct hip_gemm_impl
     int tune(context& ctx, const std::vector<shape>& input_shapes) // const
     {
         // tuning meta parameters
-        const int hot_calls = 1000;
-        const int cold_calls = 1000;
+        const int hot_calls = value_of(MIGRAPHX_HIPBLASLT_TUNING_ITERATIONS{});
+        const int cold_calls = value_of(MIGRAPHX_HIPBLASLT_WARMUP_ITERATIONS{});
+        static bool print_iteration_values = true;
+
+        if (print_iteration_values) {
+            std::cout << "Number of iterations for warmup/cold calls: " << cold_calls << std::endl;
+            std::cout << "Number of iterations for tuning/hot calls:  " << hot_calls << std::endl;
+            print_iteration_values = false;
+        }
 
         std::vector<argument> input_args;
         std::transform(input_shapes.begin(),

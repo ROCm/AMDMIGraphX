@@ -72,8 +72,8 @@ struct topk_compiler : compiler<topk_compiler>
         auto axis = v.at("axis").to<int64_t>();
         auto relements = inputs.front().lens()[axis];
         auto nelements = inputs.front().elements() / relements;
-        // auto block_size = compute_block_size(ctx, relements, 1024);
-        auto block_size = 64;
+        auto block_size = compute_block_size(ctx, relements, 1024);
+        // auto block_size = 64;
         options.set_launch_params(v, compute_global_for(ctx, block_size*nelements), block_size);
 
         std::string compare = "less{}";

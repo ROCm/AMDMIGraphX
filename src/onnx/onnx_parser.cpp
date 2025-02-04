@@ -647,7 +647,8 @@ shape onnx_parser::parse_type(const std::string& name, const onnx::TypeProto& t)
         {
             if(idx != 0 and default_dim_value != 0 and not is_params_cmd)
                 MIGRAPHX_THROW("Batch inserted at non-zero index: " + std::to_string(idx) +
-                               +", instead set input-dim option for node \'" + name + "\'");
+                               +", instead set \'input-dim\' option for node \'" + name +
+                               "\'. Use --help for details.");
             dynamic_dims.push_back(default_dyn_dim_value);
         }
     }

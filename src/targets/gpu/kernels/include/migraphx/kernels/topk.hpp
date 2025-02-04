@@ -78,6 +78,14 @@ struct bitonic_sort
             swap(x, y);
     }
 
+    template<class Reverse>
+    constexpr auto compare(Reverse reverse) const
+    {
+        return [=](const auto& x, const auto& y) {
+            return compare(x, y, reverse);
+        };
+    }
+
     template<class GroupSize, class Offset, class Dir, class Array>
     constexpr void lane_shuffle(GroupSize group_size, Offset offset, Dir dir, Array& x) const
     {

@@ -191,7 +191,7 @@ struct bitonic_topk
 {
     Compare compare;
 
-    static_assert(K < N, "K must be less than N");
+    static_assert(K <= N, "K must be less than N");
 
     // Constructor used to enable deduction guidelines
     constexpr bitonic_topk(index_constant<N>,
@@ -298,6 +298,14 @@ __device__ void topk(Output output, Indices indices, Input input, Compare compar
         array<topk_pair<type>, per_lane> local_buf;
         const auto local_shape = make_shape(index_ints<nwave, per_wave>{});
         const auto base = idx.local_wave() * per_lane;
+        MIGRAPHX_ASSERT(local_shape.elements() >= n);
+        
+        // for(index_int i:range(per_lane))
+        // {
+        //     local_buf[i].key = init;
+        //     local_buf[i].val = -1;
+        // }
+
         // copy to registers
         for(index_int i:range(per_lane))
         {
@@ -305,12 +313,15 @@ __device__ void topk(Output output, Indices indices, Input input, Compare compar
             local_buf[i].key = j < n ? x[j] : init;
             local_buf[i].val = j;
         }
-        // println(base, ": ", local_buf);
+        // println(idx.wave(), ", ", base, ": ", local_buf);
 
         // Deduction guide is broken for some reason
         // bitonic_sort{by(select_key(), compare)}.wave_sort(idx, local_buf);
         auto c = by(select_key(), compare);
         bitonic_sort<decltype(c)>{c}.wave_sort(idx, local_buf);
+
+        // println_once("After sort:");
+        // println(idx.wave(), ", ", base, ": ", local_buf);
 
         if constexpr(nwave == 1)
         {
@@ -336,17 +347,23 @@ __device__ void topk(Output output, Indices indices, Input input, Compare compar
             auto shared_shape = make_shape(index_ints<nwave, k>{});
             for(index_int i:range(per_lane))
             {
-                auto j = shared_shape.index({idx.wave(), i+base});
-                if(j >= shared_shape.elements())
+                auto ibase = i+base;
+                if(ibase >= k)
                     continue;
+                auto j = shared_shape.index({idx.wave(), ibase});
+                MIGRAPHX_ASSERT(j < aligned_m);
                 buf[j] = local_buf[i];
             }
             __syncthreads();
 
+            // array<topk_pair<type>, aligned_m> buf2;
+            // copy(buf, buf+aligned_m, buf2.begin());
+            // println_once("buf: ", buf2);
+
             bitonic_topk{aligned_m, aligned_k, by(select_key(), compare)}.block_topk(idx, buf);
 
             // save top K
-            idx.local_stride(aligned_k, [&](auto i) {
+            idx.local_stride(k, [&](auto i) {
                 y[i] = buf[i].key;
                 y_idx[i] = buf[i].val;
             });

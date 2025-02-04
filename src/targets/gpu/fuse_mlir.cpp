@@ -473,13 +473,7 @@ bool is_reduce_op_supported_by_mlir(const instruction& i)
     using type_t                                      = shape::type_t;
     const auto& name                                  = i.name();
     const auto result_type                            = i.get_shape().type();
-    const std::initializer_list<type_t> allowed_types = {type_t::float_type,
-                                                         type_t::half_type,
-                                                         type_t::bf16_type,
-                                                         type_t::fp8e4m3fnuz_type,
-                                                         type_t::fp8e5m2fnuz_type,
-                                                         type_t::fp8e4m3fn_type,
-                                                         type_t::fp8e5m2_type};
+    const std::initializer_list<type_t> allowed_types = {type_t::float_type, type_t::half_type};
 
     // Preliminary type check.
     if(not contains(allowed_types, result_type))
@@ -561,6 +555,8 @@ struct find_mlir_split_reduce
 {
     mlir_mode conv_mode = mlir_mode::none;
     mlir_mode dot_mode  = mlir_mode::none;
+    bool is_navi3x;
+
     auto matcher() const
     {
         auto dot_or_conv = match::name("gpu::mlir_op");
@@ -571,7 +567,12 @@ struct find_mlir_split_reduce
     void apply(module_pass_manager& mpm, const match::matcher_result& r) const
     {
         auto reduce_ins = r.result;
-        auto gemm_ins   = r.instructions["gemm"];
+        // reduce f16 should not be enabled for navi3x
+        if(is_navi3x and reduce_ins->inputs()[0]->get_shape().type() == shape::type_t::half_type)
+        {
+            return;
+        }
+        auto gemm_ins = r.instructions["gemm"];
         assert(gemm_ins->get_shape().sub_shapes().empty());
         auto* rm   = reduce_ins->module_inputs().front();
         auto names = rm->get_parameter_names();
@@ -1053,6 +1054,7 @@ void fuse_mlir::apply(module_pass_manager& mpm) const
     std::size_t counter     = 0;
     const auto& device_name = ctx == nullptr ? "" : ctx->get_current_device().get_gfx_name();
     const bool is_navi = starts_with(device_name, "gfx11") or starts_with(device_name, "gfx12");
+    const bool is_navi3x    = starts_with(device_name, "gfx11");
 
     auto get_mode = [&](std::string_view option, mlir_mode m1, mlir_mode m2 = mlir_mode::fast) {
         if(specific_op<rejected>(option))
@@ -1090,7 +1092,8 @@ void fuse_mlir::apply(module_pass_manager& mpm) const
         match::find_matches(
             mpm,
             find_mlir_split_reduce{.conv_mode = get_mode("fused_convolution", mlir_mode::fast),
-                                   .dot_mode  = get_mode("fused_dot", mlir_mode::fast)});
+                                   .dot_mode  = get_mode("fused_dot", mlir_mode::fast),
+                                   .is_navi3x = is_navi3x});
     }
 
     match::find_matches(mpm, find_pointwise_mlir{});

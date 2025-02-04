@@ -47,12 +47,12 @@ struct test_fuse_reduce_mlir : verify_program<test_fuse_reduce_mlir<DType>>
         auto conv = mm->add_instruction(
             migraphx::make_op("convolution", {{"padding", {1, 1, 1, 1}}}), x, w);
         auto xx    = add_pointwise(p, mm, "main:pointwise1", {conv}, squared());
-        auto rsum1 = mm->add_instruction(migraphx::make_op("reduce_sum", {{"axes", {2, 3}}}), conv);
-        auto rsum2 = mm->add_instruction(migraphx::make_op("reduce_sum", {{"axes", {2, 3}}}), xx);
-        mm->add_return({rsum2, rsum1});
+        mm->add_instruction(migraphx::make_op("reduce_sum", {{"axes", {2, 3}}}), conv);
+        mm->add_instruction(migraphx::make_op("reduce_sum", {{"axes", {2, 3}}}), xx);
         return p;
     }
     std::string section() const { return "conv"; }
 };
 
 template struct test_fuse_reduce_mlir<migraphx::shape::float_type>;
+template struct test_fuse_reduce_mlir<migraphx::shape::half_type>;

@@ -78,6 +78,7 @@ struct loader
     unsigned batch              = 1;
     bool is_nhwc                = true;
     bool is_test                = false;
+    bool is_params_cmd          = false;
     unsigned trim               = 0;
     bool optimize               = false;
     bool mlir                   = false;
@@ -300,6 +301,7 @@ struct loader
         options.map_input_dims         = map_input_dims;
         options.map_dyn_input_dims     = map_dyn_input_dims;
         options.dim_params             = map_dim_params;
+        options.is_params_cmd          = is_params_cmd;
         return options;
     }
 
@@ -606,7 +608,8 @@ struct params : command<params>
 
     void run()
     {
-        auto p = l.load();
+        l.is_params_cmd = true;
+        auto p          = l.load();
         for(auto&& param : p.get_parameter_shapes())
             std::cout << param.first << ": " << param.second << std::endl;
     }

@@ -59,6 +59,7 @@ struct onnx_options
     /// Use dynamic output for operators when available
     bool use_dyn_output = false;
     /// Path to use for the external data if it is stored at different location compared to onnx
+    bool is_params_cmd = false;
     /// file
     std::string external_data_path = "";
 };

@@ -132,6 +132,16 @@ static std::unordered_map<std::string, std::size_t> create_weight_map()
             {"hip::allocate", 0},
             {"gpu::convolution", 8},
             {"gpu::conv_bias_relu", 8},
+            {"mlir_convolution_add", 8},
+            {"mlir_convolution_sigmoid_mul", 8},
+            {"mlir_convolution_sigmoid_mul_add", 8},
+            {"mlir_reshape_slice_reshape_convolution", 8},
+            {"mlir_sigmoid_mul_convolution_sigmoid_mul", 8},
+            {"mlir_convolution", 8},
+            {"pooling_kernel", 4},
+            {"mlir_reshape_slice_transpose_dot_reshape_add", 4},
+            {"mul_reduce_max_sub_exp_reduce_sum_div_kernel", 4},
+            {"reduce_max_sub_exp_reduce_sum_div_kernel", 4},
             {"gpu::pooling", 4},
             {"gpu::gemm", 4}};
 }
@@ -144,11 +154,18 @@ static const std::unordered_map<std::string, std::size_t>& weight_map()
 
 std::size_t schedule_model::weight(const operation& op) const
 {
-    if(weight_map().count(op.name()) == 0)
+    std::string op_name = op.name();
+    if(op.name() == "gpu::code_object")
+    {
+        auto val = op.to_value();
+        op_name = val.at("symbol_name").to<std::string>();
+        // std::cout << op_name << std::endl;
+    }
+    if(weight_map().count(op_name) == 0)
     {
         return 2;
     }
-    return weight_map().at(op.name());
+    return weight_map().at(op_name);
 }
 
 } // namespace gpu

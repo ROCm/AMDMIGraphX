@@ -244,6 +244,8 @@ void fuse_input_ops(module_ref mm,
     {
         if(contains(*map_ins, input))
             continue;
+        // auto upper_input = input;
+        // std::vector<operation> op_stream{};
         auto [upper_input, op_stream] = get_fusable_input_op_stream(input);
         if(not contains(*map_ins, upper_input))
             (*map_ins)[upper_input] =
@@ -267,6 +269,8 @@ fuse_input_ops_and_gemm_based_op(module_ref mm,
     size_t input_cnt = 0;
     for(instruction_ref input : gemm_based_op_inputs)
     {
+        // auto upper_input = input;
+        // std::vector<operation> op_stream{};
         auto [upper_input, op_stream] = get_fusable_input_op_stream(input);
         top_inputs.push_back(upper_input);
         instruction_ref prev_input =

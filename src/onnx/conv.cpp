@@ -51,7 +51,7 @@ void recalc_conv_attributes(value& v, size_t kdims)
 
 static instruction_ref apply_nhwc_perm(const onnx_parser::node_info& info,
                                        instruction_ref ins,
-                                       std::function<void(std::vector<int>&)> f)
+                                       const std::function<void(std::vector<int>&)>& f)
 {
     std::vector<int> perm(ins->get_shape().ndim());
     std::iota(begin(perm), end(perm), 0);
@@ -62,18 +62,18 @@ static instruction_ref apply_nhwc_perm(const onnx_parser::node_info& info,
 instruction_ref from_nhwc(const onnx_parser::node_info& info, instruction_ref ins)
 {
     return apply_nhwc_perm(info, ins, [](std::vector<int>& perm) {
-        auto C = perm.back();
+        auto c = perm.back();
         perm.pop_back();
-        perm.insert(begin(perm) + 1, C);
+        perm.insert(begin(perm) + 1, c);
     });
 }
 
 instruction_ref to_nhwc(const onnx_parser::node_info& info, instruction_ref ins)
 {
     return apply_nhwc_perm(info, ins, [](std::vector<int>& perm) {
-        auto C = perm.at(1);
+        auto c = perm.at(1);
         perm.erase(begin(perm) + 1);
-        perm.push_back(C);
+        perm.push_back(c);
     });
 }
 

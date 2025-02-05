@@ -31,15 +31,9 @@ TEST_CASE(nhwcconv_test)
 {
     migraphx::program p = read_onnx("nhwcconv_test.onnx");
 
-    std::cout << "BEFORE COMPILE" << std::endl;
-    p.debug_print();
-
     migraphx::compile_options opts;
     opts.offload_copy = true;
     p.compile(migraphx::make_target("gpu"), opts);
-
-    std::cout << "AFTER COMPILE" << std::endl;
-    p.debug_print();
 
     migraphx::shape x_shape{migraphx::shape::float_type, {1, 7, 7, 1}};
     std::vector<float> x_data = {

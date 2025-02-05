@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2023 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2025 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -76,6 +76,7 @@ struct test_shrink : verify_program<test_shrink<T>>
 template struct test_shrink<migraphx::shape::double_type>;
 template struct test_shrink<migraphx::shape::float_type>;
 template struct test_shrink<migraphx::shape::half_type>;
+template struct test_shrink<migraphx::shape::bf16_type>;
 template struct test_shrink<migraphx::shape::int64_type>;
 template struct test_shrink<migraphx::shape::int32_type>;
 template struct test_shrink<migraphx::shape::int16_type>;

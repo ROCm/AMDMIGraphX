@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2024 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2025 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -99,6 +99,26 @@ TEST_CASE(quantize_int8)
     options.add_op_name("dot");
 
     migraphx::quantize_int8(p2, t, options);
+    CHECK(bool{p1 == p2});
+}
+
+TEST_CASE(quantize_fp8)
+{
+    auto p1        = migraphx::parse_onnx("gemm_test.onnx");
+    const auto& p2 = p1;
+    auto t         = migraphx::target("ref");
+    migraphx::quantize_fp8_options options;
+    migraphx::quantize_fp8(p1, t, options);
+
+    migraphx::program_parameters pp;
+    auto param_shapes = p1.get_parameter_shapes();
+    for(auto&& name : param_shapes.names())
+    {
+        pp.add(name, migraphx::argument::generate(param_shapes[name]));
+    }
+    options.add_calibration_data(pp);
+
+    migraphx::quantize_fp8(p2, t, options);
     CHECK(bool{p1 == p2});
 }
 

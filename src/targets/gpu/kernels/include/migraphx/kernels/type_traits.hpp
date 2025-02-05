@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2024 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2025 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -262,6 +262,8 @@ constexpr T numeric_max()
         return __FLT_MAX__;
     else if constexpr(is_same<T, migraphx::half>{})
         return __FLT16_MAX__;
+    else if constexpr(is_same<T, migraphx::bf16>{})
+        return 338953138925153547590470800371487866880.000000;
     else
         return 0;
 }

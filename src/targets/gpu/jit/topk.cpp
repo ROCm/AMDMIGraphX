@@ -44,10 +44,10 @@ namespace migraphx {
 
 extern "C" {
 
-MIGRAPHX_GLOBAL void topk_kernel(void* in_x, void* out_y, void* out_indices) 
+MIGRAPHX_GLOBAL void topk_kernel(${params}) 
 {
-    make_tensors()(in_x, out_y, out_indices)([](auto x, auto y, auto indices) {
-        topk<${axis}>(y, indices, x, ${compare}, ${init});
+    transform_args(make_tensors(), rotate_last<2>())(${args})([](auto... xs) {
+        topk<${axis}>(${compare}, ${init})(xs...);
     });
 }
 
@@ -73,7 +73,7 @@ struct topk_compiler : compiler<topk_compiler>
         auto relements = inputs.front().lens()[axis];
         auto nelements = inputs.front().elements() / relements;
         auto block_size = compute_block_size(ctx, relements, 1024);
-        // auto block_size = 256;
+        // auto block_size = 960;
         options.set_launch_params(v, compute_global_for(ctx, block_size*nelements), block_size);
 
         std::string compare = "less{}";
@@ -90,6 +90,8 @@ struct topk_compiler : compiler<topk_compiler>
             {
              {"compare", compare},
              {"init", init},
+             {"params", enum_params(options.inputs.size(), "void * private_p")},
+             {"args", enum_params(options.inputs.size(), "private_p")},
              {"axis", std::to_string(axis)}
          });
 

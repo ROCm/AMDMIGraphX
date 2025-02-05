@@ -286,172 +286,131 @@ struct bitonic_topk
 template <class N, class K, class Compare>
 bitonic_topk(N, K, Compare) -> bitonic_topk<N{}, K{}, Compare>;
 
-template<index_int Axis, class Output, class Indices, class Input, class Compare, class T>
-__device__ void topk(Output output, Indices indices, Input input, Compare compare, T init)
+template<index_int Axis, class Compare, class T>
+__device__ auto topk(Compare compare, T init)
 {
-    using type = typename Input::type;
-    auto idx = make_index();
-    constexpr auto n = return_c([] { return get_shape_c<Input>{}.get_shape().lens[Axis]; });
-    constexpr auto k = return_c([] { return get_shape_c<Output>{}.get_shape().lens[Axis]; });
-    constexpr auto aligned_k = return_c([=] { return bit_ceil(k); });
-    idx.group_stride(input.get_shape().elements() / n, [&](auto group) {
-        auto x = tensor_slice(input, group, slice_axes<Axis>());
-        auto y = tensor_slice(output, group, slice_axes<Axis>());
-        auto y_idx = tensor_slice(indices, group, slice_axes<Axis>());
+    return [=](auto output, auto out_indices, auto input, auto... in_indices) {
+        using type = typename decltype(input)::type;
+        auto idx = make_index();
+        constexpr auto n = return_c([] { return get_shape_c<decltype(input)>{}.get_shape().lens[Axis]; });
+        constexpr auto k = return_c([] { return get_shape_c<decltype(output)>{}.get_shape().lens[Axis]; });
+        constexpr auto aligned_k = return_c([=] { return bit_ceil(k); });
+        idx.group_stride(input.get_shape().elements() / n, [&](auto group) {
+            auto x = tensor_slice(input, group, slice_axes<Axis>());
+            auto y = tensor_slice(output, group, slice_axes<Axis>());
+            auto y_idx = tensor_slice(out_indices, group, slice_axes<Axis>());
+            auto get_index = [&] {
+                if constexpr(sizeof...(in_indices) == 1)
+                {
+                    auto x_idx = tensor_slice(in_indices..., group, slice_axes<Axis>());
+                    return [=](auto i) {
+                        return i < x_idx.get_shape().elements() ? x_idx[i] : -1;
+                    };
+                }
+                else
+                {
+                    return [](auto i) { return i; };
+                }
+            }();
 #if 1
-        constexpr auto nlocal_wave = idx.nlocal_wave();
-        constexpr auto nwave = idx.nwave();
-        constexpr auto per_wave = n / nwave;
-        constexpr auto per_lane = return_c([=] { return bit_ceil(per_wave / nlocal_wave); });
-        array<topk_pair<type>, per_lane> local_buf;
-        const auto local_shape = make_shape(index_ints<nwave, per_wave>{});
-        const auto base = idx.local_wave() * per_lane;
-        MIGRAPHX_ASSERT(local_shape.elements() >= n);
-        
-        // for(index_int i:range(per_lane))
-        // {
-        //     local_buf[i].key = init;
-        //     local_buf[i].val = -1;
-        // }
+            constexpr auto nlocal_wave = idx.nlocal_wave();
+            constexpr auto nwave = idx.nwave();
+            constexpr auto per_wave = n / nwave;
+            constexpr auto per_lane = return_c([=] { return bit_ceil(per_wave / nlocal_wave); });
+            array<topk_pair<type>, per_lane> local_buf;
+            const auto local_shape = make_shape(index_ints<nwave, per_wave>{});
+            const auto base = idx.local_wave() * per_lane;
+            MIGRAPHX_ASSERT(local_shape.elements() >= n);
+            
+            // for(index_int i:range(per_lane))
+            // {
+            //     local_buf[i].key = init;
+            //     local_buf[i].val = -1;
+            // }
 
-        // copy to registers
-        for(index_int i:range(per_lane))
-        {
-            auto j = local_shape.index({idx.wave(), i+base});
-            local_buf[i].key = j < n ? x[j] : init;
-            local_buf[i].val = j;
-        }
-        // println(idx.wave(), ", ", base, ": ", local_buf);
-
-        // Deduction guide is broken for some reason
-        // bitonic_sort{by(select_key(), compare)}.wave_sort(idx, local_buf);
-        auto c = by(select_key(), compare);
-        bitonic_sort<decltype(c)>{c}.wave_sort(idx, local_buf);
-
-        // println_once("After sort:");
-        // println(idx.wave(), ", ", base, ": ", local_buf);
-
-        if constexpr(nwave == 1)
-        {
-            // Copy to output
+            // copy to registers
             for(index_int i:range(per_lane))
             {
-                auto j = i + base;
-                if(j >= k)
-                    continue;
-                y[j] = local_buf[i].key;
-                y_idx[j] = local_buf[i].val;
+                auto j = local_shape.index({idx.wave(), i+base});
+                local_buf[i].key = j < n ? x[j] : init;
+                local_buf[i].val = get_index(j);
             }
-        }
-        else
-        {
-            constexpr auto aligned_m = return_c([=] { return bit_ceil(k * nwave); });
-            __shared__ topk_pair<type> buf[aligned_m];
-            idx.local_stride(aligned_m, [&](auto i) {
-                buf[i].key = init;
-                buf[i].val = -1;
+            // println(idx.wave(), ", ", base, ": ", local_buf);
+
+            // Deduction guide is broken for some reason
+            // bitonic_sort{by(select_key(), compare)}.wave_sort(idx, local_buf);
+            auto c = by(select_key(), compare);
+            bitonic_sort<decltype(c)>{c}.wave_sort(idx, local_buf);
+
+            // println_once("After sort:");
+            // println(idx.wave(), ", ", base, ": ", local_buf);
+
+            if constexpr(nwave == 1)
+            {
+                // Copy to output
+                for(index_int i:range(per_lane))
+                {
+                    auto j = i + base;
+                    if(j >= k)
+                        continue;
+                    y[j] = local_buf[i].key;
+                    y_idx[j] = local_buf[i].val;
+                }
+            }
+            else
+            {
+                constexpr auto aligned_m = return_c([=] { return bit_ceil(k * nwave); });
+                __shared__ topk_pair<type> buf[aligned_m];
+                idx.local_stride(aligned_m, [&](auto i) {
+                    buf[i].key = init;
+                    buf[i].val = -1;
+                });
+                __syncthreads();
+                auto shared_shape = make_shape(index_ints<nwave, k>{});
+                for(index_int i:range(per_lane))
+                {
+                    auto ibase = i+base;
+                    if(ibase >= k)
+                        continue;
+                    auto j = shared_shape.index({idx.wave(), ibase});
+                    MIGRAPHX_ASSERT(j < aligned_m);
+                    buf[j] = local_buf[i];
+                }
+                __syncthreads();
+
+                // array<topk_pair<type>, aligned_m> buf2;
+                // copy(buf, buf+aligned_m, buf2.begin());
+                // println_once("buf: ", buf2);
+
+                bitonic_topk{aligned_m, aligned_k, by(select_key(), compare)}.block_topk(idx, buf);
+
+                // save top K
+                idx.local_stride(k, [&](auto i) {
+                    y[i] = buf[i].key;
+                    y_idx[i] = buf[i].val;
+                });
+            }
+
+#else
+            constexpr auto aligned_n = return_c([=] { return bit_ceil(n); });
+            __shared__ topk_pair<type> buf[aligned_n];
+            // Copy to LDS
+            idx.local_stride(aligned_n, [&](auto i) {
+                auto key = i < x.get_shape().elements() ? x[i] : init;
+                buf[i].key = key;
+                buf[i].val = get_index(i);
             });
             __syncthreads();
-            auto shared_shape = make_shape(index_ints<nwave, k>{});
-            for(index_int i:range(per_lane))
-            {
-                auto ibase = i+base;
-                if(ibase >= k)
-                    continue;
-                auto j = shared_shape.index({idx.wave(), ibase});
-                MIGRAPHX_ASSERT(j < aligned_m);
-                buf[j] = local_buf[i];
-            }
-            __syncthreads();
-
-            // array<topk_pair<type>, aligned_m> buf2;
-            // copy(buf, buf+aligned_m, buf2.begin());
-            // println_once("buf: ", buf2);
-
-            bitonic_topk{aligned_m, aligned_k, by(select_key(), compare)}.block_topk(idx, buf);
+            bitonic_topk{aligned_n, aligned_k, by(select_key(), compare)}.block_topk(idx, buf);
 
             // save top K
-            idx.local_stride(k, [&](auto i) {
+            idx.local_stride(aligned_k, [&](auto i) {
                 y[i] = buf[i].key;
                 y_idx[i] = buf[i].val;
             });
-        }
-
-#else
-        constexpr auto aligned_n = return_c([=] { return bit_ceil(n); });
-        __shared__ topk_pair<type> buf[aligned_n];
-        // Copy to LDS
-        idx.local_stride(aligned_n, [&](auto i) {
-            auto key = i < x.get_shape().elements() ? x[i] : init;
-            buf[i].key = key;
-            buf[i].val = i;
-        });
-        __syncthreads();
-#if 1
-        bitonic_topk{aligned_n, aligned_k, by(select_key(), compare)}.block_topk(idx, buf);
-
-        // powers_of_2(aligned_k)([&](auto len) {
-        //     bitonic_topk_sort_step(idx, buf, aligned_n, len, by(select_key(), compare));
-        // });
-        // powers_of_2(aligned_k, aligned_n)([&](auto len) {
-        //     bitonic_topk_merge_step<aligned_k>(idx, buf, aligned_n, len, by(select_key(), compare));
-        //     bitonic_topk_rebuild_step<aligned_k>(idx, buf, aligned_n, len, by(select_key(), compare));
-        // });
-#elif 1
-        // bitonic_sort<aligned_n>(idx, buf, by(select_key(), compare));
-#else
-        auto c = by(select_key(), compare);
-        auto bswap = [&](auto dir, auto i, auto j) {
-            bool reverse = (dir & i) == 0;
-            if(reverse ^ c(buf[i], buf[j]))
-                swap(buf[i], buf[j]);
-        };
-        // sort each K
-        powers_of_2(aligned_k)([&](auto len) {
-            auto dir = len * 2;
-            reverse_powers_of_2(len)([&](auto inc) {
-                idx.local_stride(aligned_n, [&](auto tid) {
-                    auto low = tid & (inc - 1);
-                    auto i = (tid * 2) - low;
-                    auto j = i + inc;
-                    if(j >= aligned_n)
-                        return;
-                    bswap(dir, i, j);
-                });
-                __syncthreads();
-            });
-        });
-        // merge and rebuild K
-        powers_of_2(aligned_k, aligned_n)([&](auto len) {
-            auto dir = len * 2;
-            idx.local_stride(aligned_n, [&](auto tid) {
-                auto i = (tid * 2) - (tid & (len - 1));
-                auto j = i + len;
-                if (i % dir < aligned_k and j < aligned_n)
-                {
-                    buf[i] = min(buf[i], buf[j], c);
-                }
-            });
-            __syncthreads();
-            reverse_powers_of_2(aligned_k / 2)([&](auto inc) {
-                idx.local_stride(aligned_n, [&](auto tid) {
-                    auto low = tid & (inc - 1);
-                    auto ii = (tid * 2) - low;
-                    auto jj = ii + inc;
-                    if (ii % dir < aligned_k and jj < aligned_n)
-                        bswap(dir, ii, jj);
-                });
-                __syncthreads();
-            });
-        });
 #endif
-        // save top K
-        idx.local_stride(aligned_k, [&](auto i) {
-            y[i] = buf[i].key;
-            y_idx[i] = buf[i].val;
         });
-#endif
-    });
+    };
 }
 
 } // namespace migraphx

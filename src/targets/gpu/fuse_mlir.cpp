@@ -199,6 +199,63 @@ struct mlir_op
 };
 MIGRAPHX_REGISTER_OP(mlir_op);
 
+struct mlir_attn_op : mlir_op
+{
+    std::string name() const { return "gpu::mlir_attn_op"; }
+    // operation op = make_op("dot");
+
+    // template <class Self, class F>
+    // static auto reflect(Self& self, F f)
+    // {
+    //     return pack(f(self.op, "op"));
+    // }
+
+    // Check if the shape can be created from a transpose/broadcast/slice
+    // static bool is_mlir_compatible(const shape& s)
+    // {
+    //     if(s.standard() or s.packed() or s.scalar() or s.ndim() == 1)
+    //         return true;
+    //     auto ns = reorder_shape(s, find_permutation(s));
+    //     std::vector<std::size_t> stride_ratios;
+    //     auto last = std::find(ns.strides().begin(), ns.strides().end(), 0);
+    //     if(*std::prev(last) != 1)
+    //         return false;
+    //     std::adjacent_difference(ns.strides().begin(),
+    //                              last,
+    //                              std::back_inserter(stride_ratios),
+    //                              [](auto y, auto x) -> std::size_t {
+    //                                  assert(y != 0);
+    //                                  if((x % y) != 0)
+    //                                      return 0;
+    //                                  return x / y;
+    //                              });
+    //     return std::equal(stride_ratios.begin() + 1,
+    //                       stride_ratios.end(),
+    //                       ns.lens().begin() + 1,
+    //                       [](auto ratio, auto len) { return ratio >= len; });
+    // }
+
+    shape compute_shape(const std::vector<shape>& inputs, const std::vector<module_ref>& mods) const
+    {
+        module_ref mod = mods[0];
+        check_shapes{inputs, *this}.has_at_least(1);
+        if(mods.size() != 1)
+            MIGRAPHX_THROW("should have one submodule.");
+
+        if(not std::all_of(inputs.begin(), inputs.end(), &is_mlir_compatible))
+            MIGRAPHX_THROW("Shape is not mlir compatible.");
+
+        auto batch_size = inputs[0].lens()[0];
+        auto total_nheads = inputs[0].lens()[1];
+        auto seq_len = inputs[0].lens()[2];
+        auto head_size = inputs[0].lens()[3];
+        auto num_heads = total_nheads - (2 * inputs[1].lens()[1]);
+        std::vector<std::size_t> out_lens{batch_size, seq_len, num_heads * head_size};
+        return shape{inputs[0].type(), out_lens};
+    }
+};
+MIGRAPHX_REGISTER_OP(mlir_attn_op);
+
 namespace {
 
 const auto& reshaper_names()
@@ -278,6 +335,36 @@ fuse_input_ops_and_gemm_based_op(module_ref mm,
         imm_inputs.push_back(prev_input);
     }
     instruction_ref new_gemm_based_op = mm->add_instruction(gemm_based_op, imm_inputs);
+    return {new_gemm_based_op, top_inputs};
+}
+
+std::tuple<instruction_ref, std::vector<instruction_ref>>
+fuse_input_ops_and_gqa_gemm1(module_ref mm,
+                                 const std::vector<instruction_ref>& gemm_based_op_inputs,
+                                 const operation& gemm_based_op)
+{
+    std::vector<instruction_ref> top_inputs;
+    std::vector<instruction_ref> imm_inputs;
+    size_t input_cnt = 0;
+    for(instruction_ref input : gemm_based_op_inputs)
+    {
+        if(input_cnt > 1)
+            break;
+        auto [upper_input, op_stream] = get_fusable_input_op_stream(input);
+        top_inputs.push_back(upper_input);
+        instruction_ref prev_input =
+            mm->add_parameter(param_name(input_cnt++, "y"), upper_input->get_shape().as_standard());
+        for(const auto& op : reverse(op_stream))
+        {
+            prev_input = mm->add_instruction(op, {prev_input});
+        }
+        imm_inputs.push_back(prev_input);
+    }
+    auto transpose = mm->add_instruction(make_op("transpose", {{"permutation", {0, 1, 3, 2}}}), imm_inputs[1]);
+    transpose = mm->replace_instruction(imm_inputs[1], transpose);
+    auto slice = mm->add_instruction(make_op("slice", {{"axes", {1}}, {"starts", {0}}, {"ends", {32}}}), imm_inputs[0]);
+    slice = mm->replace_instruction(imm_inputs[0], slice);
+    instruction_ref new_gemm_based_op = mm->add_instruction(gemm_based_op, {slice, transpose});
     return {new_gemm_based_op, top_inputs};
 }
 
@@ -900,6 +987,128 @@ struct find_mlir_standalone_attention_op
     }
 };
 
+struct find_mlir_gqa_attention_op
+{
+    mlir_mode dot_mode = mlir_mode::none;
+
+    auto matcher() const
+    {
+        auto gemm1 = match::name("gpu::compute_attention_probabilities").bind("gemm1");
+        auto softmax = match::name("gpu::gqa_softmax")(match::arg(2)(gemm1)).bind("softmax");
+        return match::name("gpu::compute_attention_scores")(match::arg(4)(softmax)).bind("gemm2");
+    }
+
+    std::unordered_map<instruction_ref, instruction_ref>
+    invert_map_ins(const std::unordered_map<instruction_ref, instruction_ref>& map_ins) const
+    {
+        std::unordered_map<instruction_ref, instruction_ref> inverse_map;
+        for(auto const& [key, value] : map_ins)
+        {
+            assert(not contains(inverse_map, value));
+            inverse_map[value] = key;
+        }
+        return inverse_map;
+    }
+
+    auto finalize_attention_module(module_ref m) const
+    {
+        eliminate_common_subexpression{}.apply(*m);
+        dead_code_elimination{}.apply(*m);
+    }
+
+    void apply(module_pass_manager& mpm, const match::matcher_result& r) const
+    {
+        auto gemm2            = r.instructions["gemm2"];
+        auto softmax_ins      = r.instructions["softmax"];
+        auto gemm1            = r.instructions["gemm1"];
+
+        float scale_val = gemm1->get_operator().to_value().get("scale", 0.0);
+
+        auto qkv = gemm1->inputs().at(0);
+        auto k   = gemm1->inputs().at(1);
+        auto v   = gemm1->inputs().at(2);
+        auto csl = gemm1->inputs().at(3);
+        auto batch_size = k->get_shape().lens()[0];
+        auto num_heads = k->get_shape().lens()[1];
+        auto replace_csl = mpm.get_module().insert_instruction(gemm1, make_op("multibroadcast", {{"out_lens", {batch_size, num_heads}}}), csl);
+
+        csl = mpm.get_module().replace_instruction(csl, replace_csl);
+        mpm.get_module().debug_print();
+
+        auto inputs = {qkv, k, v, csl};
+
+        module m_attn;
+        std::unordered_map<instruction_ref, instruction_ref> map_main_to_mattn;
+
+        module fuse_gemm1;
+        auto [anchor_op, top_inputs] =
+            fuse_input_ops_and_gqa_gemm1(&fuse_gemm1, gemm1->inputs(), make_op("dot"));
+        fuse_gemm1.add_return({anchor_op});
+        m_attn.add_params(top_inputs, &map_main_to_mattn);
+        m_attn.add_params(inputs, &map_main_to_mattn);
+        auto mod_params = m_attn.get_parameters();
+
+        std::unordered_map<instruction_ref, instruction_ref> map_gemm1_to_mattn(map_main_to_mattn);
+        auto m_gemm1             = m_attn.fuse(fuse_gemm1, top_inputs, &map_gemm1_to_mattn).front();
+        map_main_to_mattn[gemm1] = m_gemm1;
+
+        auto seq_len = qkv->get_shape().lens()[2];
+        auto head_size = qkv->get_shape().lens()[3];
+        auto max_seq_len = k->get_shape().lens()[2];
+        std::vector<std::size_t> range_vec(max_seq_len);
+        std::iota(range_vec.begin(), range_vec.end(), 0);
+        shape range_s{shape::int32_type, {max_seq_len}};
+        auto range = m_attn.add_literal(range_s, range_vec);
+
+        
+        std::vector<std::size_t> bnsm{batch_size, num_heads, seq_len, max_seq_len};
+        auto zeroes = m_attn.add_literal(literal{{shape::int32_type}, {0}});
+        zeroes = m_attn.add_instruction(make_op("multibroadcast", {{"out_lens", bnsm}}), zeroes);
+        auto scalar_s = shape{qkv->get_shape().type(), {1}};
+        auto ninf = m_attn.add_literal(literal{scalar_s, {-std::numeric_limits<float>::infinity()}});
+        ninf =  m_attn.add_instruction(make_op("multibroadcast", {{"out_lens", bnsm}}), ninf);
+
+        if(float_equal(scale_val, 0.0))
+        {
+            scale_val = 1.0f / std::sqrt(static_cast<float>(head_size));
+        }
+        auto scale = m_attn.add_literal(literal{scalar_s, {scale_val}});
+        scale = m_attn.add_instruction(make_op("multibroadcast", {{"out_lens", bnsm}}), scale);
+
+        auto bc_range = m_attn.add_instruction(make_op("multibroadcast", {{"out_lens", bnsm}}), range);
+        auto bc_csl = m_attn.add_instruction(make_op("reshape", {{"dims", {batch_size, num_heads, 1, 1}}}), mod_params.front());
+        bc_csl = m_attn.add_instruction(make_op("multibroadcast", {{"out_lens", bnsm}}), bc_csl);
+
+        auto mask = m_attn.add_instruction(make_op("greater_or_equal"),  bc_range, bc_csl);
+        mask = m_attn.add_instruction(make_op("convert", {{"target_type", shape::bool_type}}), mask);
+
+        auto mul = m_attn.add_instruction(make_op("mul"), m_gemm1, scale);
+        auto where2 = m_attn.add_instruction(make_op("where"), mask, ninf, mul);
+
+        auto softmax = m_attn.add_instruction(make_op("softmax", {{"axis", 3}}), where2);
+
+
+        mod_params = m_attn.get_parameters();
+        auto scores = m_attn.add_instruction(make_op("dot"), softmax, mod_params[1]);
+        auto out = m_attn.add_instruction(make_op("reshape", {{"dims", gemm2->get_shape().lens()}}), scores);
+        
+        auto end = m_attn.add_return({out});
+
+
+        finalize_attention_module(&m_attn);
+        auto map_mattn_to_main = invert_map_ins(map_main_to_mattn);
+        auto new_inputs        = m_attn.get_inputs(map_mattn_to_main);
+
+        module_ref mpm_attn = mpm.create_module(
+            "mlir_attn", std::move(m_attn));
+        mpm_attn->set_bypass();
+        mpm.get_module().replace_instruction(
+            r.result, mlir_op{make_op("dot")}, mlir_contiguous(mpm, new_inputs), {mpm_attn});
+
+        return;
+    }
+};
+
 struct find_mlir_attention_fused_ops : public find_mlir_standalone_attention_op
 {
     auto matcher() const
@@ -1068,7 +1277,12 @@ void fuse_mlir::apply(module_pass_manager& mpm) const
         mpm.run_pass(dead_code_elimination{});
         match::find_matches(mpm, find_mlir_standalone_attention_op{mlir_mode::all});
         mpm.run_pass(dead_code_elimination{});
+        
     }
+    std::cout << "finding gqa matches..." << std::endl;
+    // mpm.get_module().debug_print();
+    match::find_matches(mpm, find_mlir_gqa_attention_op{mlir_mode::all});
+    mpm.run_pass(dead_code_elimination{});
 
     match::find_matches(
         mpm,

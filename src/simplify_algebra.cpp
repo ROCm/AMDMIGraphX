@@ -911,7 +911,7 @@ struct find_concat_op
     static bool is_valid_op(const operation& op)
     {
         return contains({"broadcast", "multibroadcast", "unpack_int4"}, op.name()) or
-               op.attributes().contains("pointwise");
+               (op.attributes().contains("pointwise") and op.name() != "quantizelinear");
     }
 
     static bool is_valid_concat(std::vector<instruction_ref> ins, size_t axis)

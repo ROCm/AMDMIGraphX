@@ -8803,6 +8803,23 @@ def neg_dynamic_test():
 
 
 @onnx_test()
+def nhwcconv_test():
+    x = helper.make_tensor_value_info('0', TensorProto.FLOAT, [1, 7, 7, 1])
+    y = helper.make_tensor_value_info('1', TensorProto.FLOAT, [1, 1, 1, 1])
+    out = helper.make_tensor_value_info('2', TensorProto.FLOAT, [1, 7, 7, 1])
+
+    node = onnx.helper.make_node('NhwcConv',
+                                 inputs=['0', '1'],
+                                 outputs=['2'],
+                                 dilations=[1, 1],
+                                 kernel_shape=[1, 1],
+                                 pads=[0, 0, 0, 0],
+                                 strides=[1, 1])
+
+    return ([node], [x, y], [out])
+
+
+@onnx_test()
 def nms_test():
     b = helper.make_tensor_value_info('boxes', TensorProto.FLOAT, [1, 6, 4])
     s = helper.make_tensor_value_info('scores', TensorProto.FLOAT, [1, 1, 6])

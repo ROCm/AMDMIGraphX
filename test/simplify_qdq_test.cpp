@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2024 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2025 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -1537,6 +1537,105 @@ TEST_CASE(int4_simplify_qdq_pass_test)
                      .bind("q");
     auto res_1 = find_match(m1, chk_1);
     EXPECT(migraphx::contains(res_1.instructions, "q"));
+}
+
+TEST_CASE(pointwise_concat_quant_per_tensor)
+{
+    migraphx::shape s1{migraphx::shape::float_type, {1, 4, 28, 28}};
+    migraphx::shape s2{migraphx::shape::float_type, {1, 2, 28, 28}};
+
+    migraphx::module m1;
+    {
+        auto i1    = m1.add_parameter("i1", s1);
+        auto i2    = m1.add_parameter("i2", s2);
+        auto scale = m1.add_literal(0.5f);
+        auto zero  = m1.add_literal(std::int8_t{0});
+
+        auto relu = m1.add_instruction(migraphx::make_op("relu"), i2);
+        auto cat  = m1.add_instruction(migraphx::make_op("concat", {{"axis", 1}}), i1, relu);
+        auto q    = add_quantize_op(m1, "quantizelinear", cat, scale, zero);
+        m1.add_return({q});
+    }
+
+    migraphx::module m2;
+    {
+        std::vector<std::size_t> cat_lens{1, 6, 28, 28};
+        auto i1    = m2.add_parameter("i1", s1);
+        auto i2    = m2.add_parameter("i2", s2);
+        auto scale = m2.add_literal(0.5f);
+        auto zero  = m2.add_literal(std::int8_t{0});
+
+        auto relu     = m2.add_instruction(migraphx::make_op("relu"), i2);
+        auto scale_mb = broadcast_scale(m2, scale, cat_lens, 1);
+        auto zero_mb  = broadcast_shift(m2, zero, cat_lens);
+
+        auto sc1 = m2.add_instruction(
+            migraphx::make_op("slice", {{"axes", {1}}, {"starts", {0}}, {"ends", {4}}}), scale_mb);
+        auto zp1 = m2.add_instruction(
+            migraphx::make_op("slice", {{"axes", {1}}, {"starts", {0}}, {"ends", {4}}}), zero_mb);
+        auto q1 = add_quantize_op(m2, "quantizelinear", i1, sc1, zp1);
+
+        auto sc2 = m2.add_instruction(
+            migraphx::make_op("slice", {{"axes", {1}}, {"starts", {4}}, {"ends", {6}}}), scale_mb);
+        auto zp2 = m2.add_instruction(
+            migraphx::make_op("slice", {{"axes", {1}}, {"starts", {4}}, {"ends", {6}}}), zero_mb);
+        auto q2 = add_quantize_op(m2, "quantizelinear", relu, sc2, zp2);
+
+        auto cat = m2.add_instruction(migraphx::make_op("concat", {{"axis", 1}}), q1, q2);
+        m2.add_return({cat});
+    }
+    run_pass(m1);
+    EXPECT(m1 == m2);
+}
+
+TEST_CASE(pointwise_concat_quant_per_channel)
+{
+    migraphx::shape s1{migraphx::shape::float_type, {1, 4, 28, 28}};
+    migraphx::shape s2{migraphx::shape::float_type, {1, 2, 28, 28}};
+    migraphx::shape s3{migraphx::shape::float_type, {6}};
+
+    migraphx::module m1;
+    {
+        auto i1    = m1.add_parameter("i1", s1);
+        auto i2    = m1.add_parameter("i2", s2);
+        auto scale = m1.add_literal(migraphx::generate_literal(s3, 0));
+        auto zero  = m1.add_literal(std::int8_t{0});
+
+        auto relu = m1.add_instruction(migraphx::make_op("relu"), i2);
+        auto cat  = m1.add_instruction(migraphx::make_op("concat", {{"axis", 1}}), i1, relu);
+        auto q    = add_quantize_op(m1, "quantizelinear", cat, scale, zero);
+        m1.add_return({q});
+    }
+
+    migraphx::module m2;
+    {
+        std::vector<std::size_t> cat_lens{1, 6, 28, 28};
+        auto i1    = m2.add_parameter("i1", s1);
+        auto i2    = m2.add_parameter("i2", s2);
+        auto scale = m2.add_literal(migraphx::generate_literal(s3, 0));
+        auto zero  = m2.add_literal(std::int8_t{0});
+
+        auto relu     = m2.add_instruction(migraphx::make_op("relu"), i2);
+        auto scale_mb = broadcast_scale(m2, scale, cat_lens, 1);
+        auto zero_mb  = broadcast_shift(m2, zero, cat_lens);
+
+        auto sc1 = m2.add_instruction(
+            migraphx::make_op("slice", {{"axes", {1}}, {"starts", {0}}, {"ends", {4}}}), scale_mb);
+        auto zp1 = m2.add_instruction(
+            migraphx::make_op("slice", {{"axes", {1}}, {"starts", {0}}, {"ends", {4}}}), zero_mb);
+        auto q1 = add_quantize_op(m2, "quantizelinear", i1, sc1, zp1);
+
+        auto sc2 = m2.add_instruction(
+            migraphx::make_op("slice", {{"axes", {1}}, {"starts", {4}}, {"ends", {6}}}), scale_mb);
+        auto zp2 = m2.add_instruction(
+            migraphx::make_op("slice", {{"axes", {1}}, {"starts", {4}}, {"ends", {6}}}), zero_mb);
+        auto q2 = add_quantize_op(m2, "quantizelinear", relu, sc2, zp2);
+
+        auto cat = m2.add_instruction(migraphx::make_op("concat", {{"axis", 1}}), q1, q2);
+        m2.add_return({cat});
+    }
+    run_pass(m1);
+    EXPECT(m1 == m2);
 }
 
 int main(int argc, const char* argv[]) { test::run(argc, argv); }

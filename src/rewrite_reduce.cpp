@@ -147,7 +147,7 @@ struct find_large_topk
 {
     auto matcher() const { return match::name("topk"); }
 
-    static std::size_t split_dim(std::size_t& r, std::size_t min_size = 4096)
+    static std::size_t split_dim(std::size_t& r, std::size_t min_size = 8192)
     {
         std::size_t n = 1;
         auto factors  = make_array(2, 3, 5, 7, 11);
@@ -173,7 +173,7 @@ struct find_large_topk
         auto k  = op["k"].to<std::int64_t>();
         auto dims = input->get_shape().lens();
         auto n = dims.at(axis);
-        if (n < 8192)
+        if (n < 16384)
             return;
 
         auto gdims = dims;

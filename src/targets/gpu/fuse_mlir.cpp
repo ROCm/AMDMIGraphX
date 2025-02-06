@@ -1030,9 +1030,10 @@ struct find_mlir_gqa_attention_op
         auto csl = gemm1->inputs().at(3);
         auto batch_size = k->get_shape().lens()[0];
         auto num_heads = k->get_shape().lens()[1];
-        auto replace_csl = mpm.get_module().insert_instruction(gemm1, make_op("multibroadcast", {{"out_lens", {batch_size, num_heads}}}), csl);
+        // auto replace_csl = mpm.get_module().insert_instruction(gemm1, make_op("multibroadcast", {{"out_lens", {batch_size, num_heads}}}), csl);
+        csl = mpm.get_module().insert_instruction(gemm1, make_op("multibroadcast", {{"out_lens", {batch_size, num_heads}}}), csl);
 
-        csl = mpm.get_module().replace_instruction(csl, replace_csl);
+        // csl = mpm.get_module().replace_instruction(csl, replace_csl);
         mpm.get_module().debug_print();
 
         auto inputs = {qkv, k, v, csl};

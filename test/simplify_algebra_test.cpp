@@ -146,7 +146,7 @@ TEST_CASE(simplify_zero_add_constant)
     }
     run_pass(m3);
 
-    EXPECT((m1 == m2) && (m2 == m3));
+    EXPECT((m1 == m2) and (m2 == m3));
 }
 
 TEST_CASE(simplify_add_broadcast1)

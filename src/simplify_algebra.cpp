@@ -806,6 +806,8 @@ struct find_inner_broadcast
     void apply(module& m, const match::matcher_result& r) const
     {
         auto ins               = r.result;
+        if(ins->get_operator().name() == "layout")
+            return;
         const auto& broadcasts = ins->inputs();
         if(broadcasts.empty())
             return;
@@ -954,7 +956,7 @@ struct find_concat_op
     static bool is_valid_op(const operation& op)
     {
         return contains({"broadcast", "multibroadcast", "unpack_int4"}, op.name()) or
-               op.attributes().contains("pointwise");
+               (op.attributes().contains("pointwise") and op.name() != "quantizelinear");
     }
 
     static bool is_valid_concat(std::vector<instruction_ref> ins, size_t axis)
@@ -1324,7 +1326,7 @@ struct find_splits
             {
                 assert(not std::none_of(start->inputs().begin(), start->inputs().end(), [](auto i) {
                     return i->name() == "slice";
-                }) && "one argument must be a split");
+                }) and "one argument must be a split");
 
                 split_idx = get_binary_op_split_idx(group, splits);
                 assert(split_idx < 2);

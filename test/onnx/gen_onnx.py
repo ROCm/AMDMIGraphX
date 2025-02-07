@@ -1670,10 +1670,10 @@ def convinteger_no_bias_uint8_test():
 
 @onnx_test()
 def convinteger_bias_test():
-    x = helper.make_tensor_value_info('0', TensorProto.INT8, [1, 3, 32, 32])
-    y = helper.make_tensor_value_info('1', TensorProto.INT8, [1, 3, 5, 5])
+    x = helper.make_tensor_value_info('0', TensorProto.INT8, [2, 3, 32, 32])
+    y = helper.make_tensor_value_info('1', TensorProto.INT8, [4, 3, 5, 5])
     z = helper.make_tensor_value_info('2', TensorProto.INT8, [1])
-    out = helper.make_tensor_value_info('3', TensorProto.INT32, [1, 2, 28, 28])
+    out = helper.make_tensor_value_info('3', TensorProto.INT32, [2, 4, 28, 28])
 
     node = onnx.helper.make_node('ConvInteger',
                                  inputs=['0', '1', '2'],
@@ -1686,6 +1686,23 @@ def convinteger_bias_test():
 
 @onnx_test()
 def convinteger_dual_bias_test():
+    x = helper.make_tensor_value_info('0', TensorProto.INT8, [2, 3, 10, 10])
+    y = helper.make_tensor_value_info('1', TensorProto.INT8, [4, 3, 3, 3])
+    z = helper.make_tensor_value_info('2', TensorProto.INT8, [1])
+    w = helper.make_tensor_value_info('3', TensorProto.INT8, [1])
+    out = helper.make_tensor_value_info('4', TensorProto.INT32, [2, 4, 8, 8])
+
+    node = onnx.helper.make_node('ConvInteger',
+                                 inputs=['0', '1', '2', '3'],
+                                 outputs=['4'],
+                                 dilations=[1, 1],
+                                 strides=[1, 1])
+
+    return ([node], [x, y, z, w], [out])
+
+
+@onnx_test()
+def convinteger_dual_bias_simple_test():
     x = helper.make_tensor_value_info('0', TensorProto.INT8, [1, 3, 5, 5])
     y = helper.make_tensor_value_info('1', TensorProto.INT8, [1, 3, 2, 2])
     z = helper.make_tensor_value_info('2', TensorProto.INT8, [1])
@@ -8397,6 +8414,269 @@ def mod_test_fmod_different_dtypes():
 
 
 @onnx_test()
+def mha_test():
+    query = helper.make_tensor_value_info("q", TensorProto.FLOAT, [1, 2, 4])
+    key = helper.make_tensor_value_info("k", TensorProto.FLOAT, [1, 2, 4])
+    value = helper.make_tensor_value_info("v", TensorProto.FLOAT, [1, 2, 4])
+    out = helper.make_tensor_value_info("out", TensorProto.FLOAT, [1, 2, 4])
+
+    node = helper.make_node('MultiHeadAttention',
+                            inputs=['q', 'k', 'v'],
+                            outputs=['out'],
+                            num_heads=2,
+                            domain='com.microsoft')
+
+    return ([node], [query, key, value], [out])
+
+
+@onnx_test()
+def mha_cross_attention_test():
+    query = helper.make_tensor_value_info("q", TensorProto.FLOAT, [1, 2, 4])
+    key = helper.make_tensor_value_info("k", TensorProto.FLOAT, [1, 2, 2, 2])
+    value = helper.make_tensor_value_info("v", TensorProto.FLOAT, [1, 2, 2, 2])
+    out = helper.make_tensor_value_info("out", TensorProto.FLOAT, [1, 2, 4])
+
+    node = helper.make_node('MultiHeadAttention',
+                            inputs=['q', 'k', 'v'],
+                            outputs=['out'],
+                            num_heads=2,
+                            domain='com.microsoft')
+
+    return ([node], [query, key, value], [out])
+
+
+@onnx_test()
+def mha_kv_packed_test():
+    query = helper.make_tensor_value_info("q", TensorProto.FLOAT, [1, 2, 4])
+    kv = helper.make_tensor_value_info("kv", TensorProto.FLOAT,
+                                       [1, 2, 2, 2, 2])
+    out = helper.make_tensor_value_info("out", TensorProto.FLOAT, [1, 2, 4])
+
+    node = helper.make_node('MultiHeadAttention',
+                            inputs=['q', 'kv'],
+                            outputs=['out'],
+                            num_heads=2,
+                            domain='com.microsoft')
+
+    return ([node], [query, kv], [out])
+
+
+@onnx_test()
+def mha_qkv_packed_test():
+    qkv = helper.make_tensor_value_info("qkv", TensorProto.FLOAT,
+                                        [1, 2, 2, 3, 2])
+    out = helper.make_tensor_value_info("out", TensorProto.FLOAT, [1, 2, 4])
+
+    node = helper.make_node('MultiHeadAttention',
+                            inputs=['qkv'],
+                            outputs=['out'],
+                            num_heads=2,
+                            domain='com.microsoft')
+
+    return ([node], [qkv], [out])
+
+
+def mha_scale_test():
+    query = helper.make_tensor_value_info("q", TensorProto.FLOAT, [1, 2, 4])
+    key = helper.make_tensor_value_info("k", TensorProto.FLOAT, [1, 2, 4])
+    value = helper.make_tensor_value_info("v", TensorProto.FLOAT, [1, 2, 4])
+    out = helper.make_tensor_value_info("out", TensorProto.FLOAT, [1, 2, 4])
+
+    node = helper.make_node('MultiHeadAttention',
+                            inputs=['q', 'k', 'v'],
+                            outputs=['out'],
+                            num_heads=2,
+                            scale=0.1,
+                            domain='com.microsoft')
+
+    return ([node], [query, key, value], [out])
+
+
+@onnx_test()
+def mha_invalid_attribute_test():
+    query = helper.make_tensor_value_info("q", TensorProto.FLOAT, [1, 2, 4])
+    key = helper.make_tensor_value_info("k", TensorProto.FLOAT, [1, 2, 4])
+    value = helper.make_tensor_value_info("v", TensorProto.FLOAT, [1, 2, 4])
+    out = helper.make_tensor_value_info("out", TensorProto.FLOAT, [1, 2, 4])
+
+    node = helper.make_node('MultiHeadAttention',
+                            inputs=['q', 'k', 'v'],
+                            outputs=['out'],
+                            domain='com.microsoft')
+
+    return ([node], [query, key, value], [out])
+
+
+@onnx_test()
+def mha_invalid_input_test():
+    node = helper.make_node('MultiHeadAttention',
+                            inputs=[],
+                            outputs=[],
+                            num_heads=1,
+                            domain='com.microsoft')
+
+    return ([node], [], [])
+
+
+@onnx_test()
+def mha_invalid_query_test():
+    query = helper.make_tensor_value_info("q", TensorProto.FLOAT, [1, 1])
+
+    node = helper.make_node('MultiHeadAttention',
+                            inputs=['q'],
+                            outputs=[],
+                            num_heads=1,
+                            domain='com.microsoft')
+
+    return ([node], [query], [])
+
+
+@onnx_test()
+def mha_invalid_qkv_test():
+    qkv = helper.make_tensor_value_info("qkv", TensorProto.FLOAT,
+                                        [1, 1, 1, 1, 1])
+
+    node = helper.make_node('MultiHeadAttention',
+                            inputs=['qkv'],
+                            outputs=[],
+                            num_heads=1,
+                            domain='com.microsoft')
+
+    return ([node], [qkv], [])
+
+
+@onnx_test()
+def mha_invalid_key_missing_test():
+    query = helper.make_tensor_value_info("q", TensorProto.FLOAT, [1, 1, 1])
+
+    node = helper.make_node('MultiHeadAttention',
+                            inputs=['q'],
+                            outputs=[],
+                            num_heads=1,
+                            domain='com.microsoft')
+
+    return ([node], [query], [])
+
+
+@onnx_test()
+def mha_invalid_key_ndim_test():
+    query = helper.make_tensor_value_info("q", TensorProto.FLOAT, [1, 1, 1])
+    key = helper.make_tensor_value_info("k", TensorProto.FLOAT, [1, 1])
+
+    node = helper.make_node('MultiHeadAttention',
+                            inputs=['q', 'k'],
+                            outputs=[],
+                            num_heads=1,
+                            domain='com.microsoft')
+
+    return ([node], [query, key], [])
+
+
+@onnx_test()
+def mha_invalid_kv_test():
+    query = helper.make_tensor_value_info("q", TensorProto.FLOAT, [1, 1, 1])
+    kv = helper.make_tensor_value_info("kv", TensorProto.FLOAT,
+                                       [1, 1, 1, 1, 1])
+
+    node = helper.make_node('MultiHeadAttention',
+                            inputs=['q', 'kv'],
+                            outputs=[],
+                            num_heads=1,
+                            domain='com.microsoft')
+
+    return ([node], [query, kv], [])
+
+
+@onnx_test()
+def mha_invalid_key_test():
+    query = helper.make_tensor_value_info("q", TensorProto.FLOAT, [1, 1, 1])
+    key = helper.make_tensor_value_info("k", TensorProto.FLOAT, [1, 1, 2])
+    value = helper.make_tensor_value_info("v", TensorProto.FLOAT, [1, 1, 1])
+
+    node = helper.make_node('MultiHeadAttention',
+                            inputs=['q', 'k', 'v'],
+                            outputs=[],
+                            num_heads=1,
+                            domain='com.microsoft')
+
+    return ([node], [query, key, value], [])
+
+
+@onnx_test()
+def mha_invalid_value_missing_test():
+    query = helper.make_tensor_value_info("q", TensorProto.FLOAT, [1, 1, 1])
+    key = helper.make_tensor_value_info("k", TensorProto.FLOAT, [1, 1, 1])
+
+    node = helper.make_node('MultiHeadAttention',
+                            inputs=['q', 'k'],
+                            outputs=[],
+                            num_heads=1,
+                            domain='com.microsoft')
+
+    return ([node], [query, key], [])
+
+
+@onnx_test()
+def mha_invalid_value_test():
+    query = helper.make_tensor_value_info("q", TensorProto.FLOAT, [1, 1, 1])
+    key = helper.make_tensor_value_info("k", TensorProto.FLOAT, [1, 1, 1])
+    value = helper.make_tensor_value_info("v", TensorProto.FLOAT, [2, 1, 1])
+
+    node = helper.make_node('MultiHeadAttention',
+                            inputs=['q', 'k', 'v'],
+                            outputs=[],
+                            num_heads=1,
+                            domain='com.microsoft')
+
+    return ([node], [query, key, value], [])
+
+
+@onnx_test()
+def mha_invalid_value_ndim_test():
+    query = helper.make_tensor_value_info("q", TensorProto.FLOAT, [1, 1, 1])
+    key = helper.make_tensor_value_info("k", TensorProto.FLOAT, [1, 1, 1])
+    value = helper.make_tensor_value_info("v", TensorProto.FLOAT, [1, 1, 1, 1])
+
+    node = helper.make_node('MultiHeadAttention',
+                            inputs=['q', 'k', 'v'],
+                            outputs=[],
+                            num_heads=1,
+                            domain='com.microsoft')
+
+    return ([node], [query, key, value], [])
+
+
+@onnx_test()
+def mha_invalid_cross_key_test():
+    query = helper.make_tensor_value_info("q", TensorProto.FLOAT, [1, 1, 1])
+    key = helper.make_tensor_value_info("k", TensorProto.FLOAT, [1, 2, 1, 1])
+    value = helper.make_tensor_value_info("v", TensorProto.FLOAT, [1, 1, 1, 1])
+
+    node = helper.make_node('MultiHeadAttention',
+                            inputs=['q', 'k', 'v'],
+                            outputs=[],
+                            num_heads=1,
+                            domain='com.microsoft')
+
+    return ([node], [query, key, value], [])
+
+
+@onnx_test()
+def mha_invalid_cross_value_test():
+    query = helper.make_tensor_value_info("q", TensorProto.FLOAT, [1, 1, 1])
+    key = helper.make_tensor_value_info("k", TensorProto.FLOAT, [1, 1, 1, 1])
+    value = helper.make_tensor_value_info("v", TensorProto.FLOAT, [1, 1, 2, 1])
+
+    node = helper.make_node('MultiHeadAttention',
+                            inputs=['q', 'k', 'v'],
+                            outputs=[],
+                            num_heads=1,
+                            domain='com.microsoft')
+
+    return ([node], [query, key, value], [])
+
+
+@onnx_test()
 def multinomial_test():
     sample_size = 13
     seed = 0.
@@ -11175,6 +11455,20 @@ def resize_upsample_linear_test():
                                  mode='linear')
 
     return ([node], [X], [Y], [scales_tensor])
+
+
+@onnx_test()
+def resize_upsample_linear_large_test():
+    x = helper.make_tensor_value_info('X', TensorProto.FLOAT,
+                                      [1, 1, 1024, 1024])
+    s = helper.make_tensor('scales', TensorProto.FLOAT, [4], [1, 1, 2, 2])
+    y = helper.make_tensor_value_info('Y', TensorProto.FLOAT,
+                                      [1, 1, 2048, 2048])
+    node = onnx.helper.make_node('Resize',
+                                 inputs=['X', '', 'scales'],
+                                 outputs=['Y'],
+                                 mode='linear')
+    return ([node], [x], [y], [s])
 
 
 @onnx_test()

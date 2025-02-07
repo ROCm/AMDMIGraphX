@@ -6,13 +6,13 @@
 
 namespace migraphx {
 
-constexpr uint32_t get_bit(uint32_t x, uint32_t i)
+constexpr uint32_t get_bit(uint32_t x, uint32_t i) noexcept
 {
     MIGRAPHX_ASSERT(i < 32);
     return (x >> i) & 1;
 }
 
-constexpr uint64_t bit_ceil(uint64_t x)
+constexpr uint64_t bit_ceil(uint64_t x) noexcept
 {
     if (x <= 1)
         return 1;
@@ -26,7 +26,7 @@ constexpr uint64_t bit_ceil(uint64_t x)
     return x + 1;
 }
 
-constexpr uint32_t bit_ceil(uint32_t x)
+constexpr uint32_t bit_ceil(uint32_t x) noexcept
 {
     if (x <= 1)
         return 1;
@@ -37,6 +37,27 @@ constexpr uint32_t bit_ceil(uint32_t x)
     x |= x >> 8;
     x |= x >> 16;
     return x + 1;
+}
+
+constexpr uint32_t popcount(uint32_t x) noexcept
+{
+    return __popc(x);
+}
+
+constexpr uint32_t popcount(uint64_t x) noexcept
+{
+    return __popcll(x);
+}
+
+constexpr uint32_t countr_zero(uint32_t x) noexcept
+{
+    // popcount(~(x | −x))
+    return __builtin_ctz(x);
+}
+
+constexpr uint32_t countr_zero(uint64_t x) noexcept
+{
+    return __builtin_ctzll(x);
 }
 
 } // namespace migraphx

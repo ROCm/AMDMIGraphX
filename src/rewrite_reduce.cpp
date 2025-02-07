@@ -145,9 +145,10 @@ struct find_reduce_mean
 
 struct find_large_topk
 {
+    std::size_t n_threshold = 16384;
     auto matcher() const { return match::name("topk"); }
 
-    static std::size_t split_dim(std::size_t& r, std::size_t min_size = 8192)
+    static std::size_t split_dim(std::size_t& r, std::size_t min_size)
     {
         std::size_t n = 1;
         auto factors  = make_array(2, 3, 5, 7, 11);
@@ -173,11 +174,11 @@ struct find_large_topk
         auto k  = op["k"].to<std::int64_t>();
         auto dims = input->get_shape().lens();
         auto n = dims.at(axis);
-        if (n < 16384)
+        if (n < n_threshold)
             return;
 
         auto gdims = dims;
-        auto group = split_dim(gdims[axis]);
+        auto group = split_dim(gdims[axis], std::max<std::size_t>(n_threshold / 2, k*4));
         gdims.insert(gdims.begin()+axis, group);
         op["axis"] = axis + 1;
 

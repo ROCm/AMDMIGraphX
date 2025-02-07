@@ -381,7 +381,6 @@ __device__ auto topk(Compare compare, T init)
                 // array<topk_pair<type>, aligned_m> buf2;
                 // copy(buf, buf+aligned_m, buf2.begin());
                 // println_once("buf: ", buf2);
-
                 bitonic_topk{aligned_m, aligned_k, by(select_key(), compare)}.block_topk(idx, buf);
 
                 // save top K

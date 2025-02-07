@@ -6,10 +6,10 @@
 
 namespace migraphx {
 
-constexpr uint32_t get_bit(uint32_t x, uint32_t i) noexcept
+constexpr bool get_bit(uint32_t x, uint32_t i) noexcept
 {
     MIGRAPHX_ASSERT(i < 32);
-    return (x >> i) & 1;
+    return ((x >> i) & 1) != 0;
 }
 
 constexpr uint64_t bit_ceil(uint64_t x) noexcept

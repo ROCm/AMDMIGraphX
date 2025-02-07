@@ -164,9 +164,9 @@ struct bitonic_sort
                 dpp_swap(mask, get_bit(id, w) != get_bit(id, j), x);
             });
             if constexpr(w == 0)
-                lane_sort(get_bit(id, w) != 0, x);
+                lane_sort(get_bit(id, w), x);
             else
-                lane_merge(get_bit(id, w) != 0, x);
+                lane_merge(get_bit(id, w), x);
         });
     }
 };

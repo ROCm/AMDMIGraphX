@@ -427,9 +427,9 @@ void find_matches_for(source_location location, Mod& mod, instruction_ref ins, M
                 std::cout << "Match: " << matcher_name << std::endl;
 
             auto r = match_instruction(get_module(mod), ins, m.matcher());
-            const auto match_time = match_timer.record<std::chrono::duration<double, std::micro>>();
             if(time_matchers or trace_for)
             {
+                const auto match_time = match_timer.record<std::chrono::duration<double, std::micro>>();
                 std::cout << "Matching for " << matcher_name << " took " << match_time << "us."
                           << std::endl;
             }

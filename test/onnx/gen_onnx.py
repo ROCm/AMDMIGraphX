@@ -8808,9 +8808,7 @@ def nhwcconv_test():
     w = helper.make_tensor_value_info('1', TensorProto.FLOAT, [1, 1, 1, 1])
     out = helper.make_tensor_value_info('2', TensorProto.FLOAT, [1, 7, 7, 1])
 
-    node = onnx.helper.make_node('NhwcConv',
-                                 inputs=['0', '1'],
-                                 outputs=['2'])
+    node = onnx.helper.make_node('NhwcConv', inputs=['0', '1'], outputs=['2'])
 
     return ([node], [x, w], [out])
 

@@ -30,10 +30,7 @@
 TEST_CASE(nhwcconv_test)
 {
     migraphx::program p = read_onnx("nhwcconv_test.onnx");
-
-    migraphx::compile_options opts;
-    opts.offload_copy = true;
-    p.compile(migraphx::make_target("gpu"), opts);
+    p.compile(migraphx::make_target("ref"));
 
     migraphx::shape x_shape{migraphx::shape::float_type, {1, 7, 7, 1}};
     std::vector<float> x_data = {
@@ -55,12 +52,12 @@ TEST_CASE(nhwcconv_test)
         0.034442365169525146f,  -0.33322954177856445f, 0.06049239635467529f,
         0.42619407176971436f};
 
-    migraphx::shape y_shape{migraphx::shape::float_type, {1, 1, 1, 1}};
-    std::vector<float> y_data = {-0.4406261742115021f};
+    migraphx::shape w_shape{migraphx::shape::float_type, {1, 1, 1, 1}};
+    std::vector<float> w_data = {-0.4406261742115021f};
 
     migraphx::parameter_map pm;
     pm["0"] = migraphx::argument{x_shape, x_data.data()};
-    pm["1"] = migraphx::argument{y_shape, y_data.data()};
+    pm["1"] = migraphx::argument{w_shape, w_data.data()};
 
     auto result = p.eval(pm).back();
     EXPECT(result.get_shape().lens() == std::vector<std::size_t>{1, 7, 7, 1});

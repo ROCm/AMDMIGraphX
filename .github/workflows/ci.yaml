@@ -20,7 +20,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Cancel Previous Runs
-        uses: styfle/cancel-workflow-action@0.11.0
+        uses: styfle/cancel-workflow-action@0.12.1
         with:
           access_token: ${{ github.token }}
 
@@ -35,7 +35,7 @@ jobs:
 
     steps: 
       - name: Checkout Code
-        uses: actions/checkout@v4.1.1
+        uses: actions/checkout@v4.2.2
 
       - name: Create Image Tag
         id: image_hash
@@ -72,7 +72,7 @@ jobs:
     needs: check_image
     if: ${{ needs.check_image.outputs.imageexists != 'true' }}
     steps:
-    - uses: actions/checkout@v4.1.1
+    - uses: actions/checkout@v4.2.2
 
     - name: Build and publish 
       env:            
@@ -94,7 +94,7 @@ jobs:
     needs: check_image
     if: ${{ needs.check_image.outputs.imageexists_sles != 'true' }}
     steps:
-    - uses: actions/checkout@v4.1.1
+    - uses: actions/checkout@v4.2.2
     - name: Build and publish SLES
       env:            
         DOCKER_TAG_SLES: ${{ needs.check_image.outputs.imagetag_sles }}
@@ -118,10 +118,10 @@ jobs:
 
     if: ${{ !cancelled() && (needs.build_image.result == 'success' || needs.build_image.result == 'skipped') }}
     steps: 
-    - uses: actions/checkout@v4.1.1
+    - uses: actions/checkout@v4.2.2
 
     - name: Restore cache files for tidy
-      uses: actions/cache/restore@v3 
+      uses: actions/cache/restore@v4.2.0
       id: tidy_restore
       with:
         path: tidy-cache
@@ -157,7 +157,7 @@ jobs:
         gh actions-cache delete ${{ steps.tidy_restore.outputs.cache-matched-key }} --confirm
 
     - name: Save cache files for tidy
-      uses: actions/cache/save@v3 
+      uses: actions/cache/save@v4.2.0
       if: always()
       with:
         path: tidy-cache
@@ -172,11 +172,11 @@ jobs:
 
     if: ${{ !cancelled() && (needs.build_image.result == 'success' || needs.build_image.result == 'skipped') }}
     steps:
-    - uses: actions/checkout@v4.1.1
+    - uses: actions/checkout@v4.2.2
 
     - name: Restore cache files for cppcheck
       id: cppcheck_restore
-      uses: actions/cache/restore@v3
+      uses: actions/cache/restore@v4.2.0
       with:
         path: cppcheck-cache
         key: cppcheck-cache-1-${{ hashFiles('tools/cppcheck/rules.xml', 'tools/cppcheck/migraphx.py', 'CMakeLists.txt') }}-${{ github.ref }}
@@ -207,7 +207,7 @@ jobs:
         gh actions-cache delete ${{ steps.cppcheck_restore.outputs.cache-matched-key }} --confirm
 
     - name: Save cache files for cppcheck
-      uses: actions/cache/save@v3
+      uses: actions/cache/save@v4.2.0
       if: always()
       with:
         path: cppcheck-cache
@@ -222,7 +222,7 @@ jobs:
 
     if: ${{ !cancelled() && (needs.build_image.result == 'success' || needs.build_image.result == 'skipped') }}
     steps:
-    - uses: actions/checkout@v4.1.1
+    - uses: actions/checkout@v4.2.2
       with:
         fetch-depth: 0
 
@@ -253,12 +253,12 @@ jobs:
     
     if: ${{ !cancelled() && (needs.build_SLES_image.result == 'success' || needs.build_SLES_image.result == 'skipped') }}      
     steps:
-    - uses: actions/checkout@v4.1.1
+    - uses: actions/checkout@v4.2.2
       with:
         fetch-depth: 0
 
     - name: Restore cache files for ccache
-      uses: actions/cache/restore@v3 
+      uses: actions/cache/restore@v4.2.0
       id: ccache_restore
       with:
         path: ${{ github.workspace }}/ccache
@@ -297,7 +297,7 @@ jobs:
         gh actions-cache delete ${{ steps.ccache_restore.outputs.cache-matched-key }} --confirm
 
     - name: Save cache files for ccache
-      uses: actions/cache/save@v3 
+      uses: actions/cache/save@v4.2.0
       if: always()
       with:
         path: ${{ github.workspace }}/ccache
@@ -319,7 +319,7 @@ jobs:
         swap-storage: true
         docker-images: true
 
-    - uses: actions/checkout@v4.1.1
+    - uses: actions/checkout@v4.2.2
     - name: Set up Python
       uses: actions/setup-python@v4
       with:
@@ -350,13 +350,15 @@ jobs:
         swap-storage: true
         docker-images: true
 
-    - uses: actions/checkout@v4.1.1
+    - uses: actions/checkout@v4.2.2
+      with:
+        fetch-depth: 0 # Fetch the entire repository history and all branches
     - name: Set up Python
       uses: actions/setup-python@v4
       with:
         python-version: 3.8
-    - name: run License Check
-      run: python3 tools/check_stamped.py ${GITHUB_HEAD_REF:-${GITHUB_REF#refs/heads/}}
+    - name: Run License Check
+      run: python3 tools/check_stamped.py origin/${{ github.event_name == 'pull_request' && github.base_ref || 'develop' }}
 
   linux:
 
@@ -397,7 +399,7 @@ jobs:
         python -m pip install --upgrade pip
         pip install https://github.com/RadeonOpenCompute/rbuild/archive/master.tar.gz
 
-    - uses: actions/checkout@v4.1.1
+    - uses: actions/checkout@v4.2.2
     - name: Set up Python
       uses: actions/setup-python@v4
       with:
@@ -405,7 +407,7 @@ jobs:
     - name: Cache dependencies
       # Ignore the failure of a step and avoid terminating the job.
       continue-on-error: true
-      uses: actions/cache@v3
+      uses: actions/cache@v4.2.0
       id: deps_cache
       with:
         # This path is specific to Ubuntu
@@ -418,7 +420,7 @@ jobs:
       run: rbuild prepare -d cget -s gh
 
     - name: Restore cache files for ccache
-      uses: actions/cache/restore@v3 
+      uses: actions/cache/restore@v4.2.0
       id: ccache_restore
       with:
         path: ${{ github.workspace }}/ccache
@@ -456,7 +458,7 @@ jobs:
         gh actions-cache delete ${{ steps.ccache_restore.outputs.cache-matched-key }} --confirm
 
     - name: Save cache files for ccache
-      uses: actions/cache/save@v3 
+      uses: actions/cache/save@v4.2.0
       if: always()
       with:
         path: ${{ github.workspace }}/ccache
@@ -510,7 +512,7 @@ jobs:
         swap-storage: true
         docker-images: true
 
-    - uses: actions/checkout@v4.1.1
+    - uses: actions/checkout@v4.2.2
     - name: Set up Python
       uses: actions/setup-python@v4
       with:
@@ -519,7 +521,7 @@ jobs:
     - name: Cache dependencies
       # Ignore the failure of a step and avoid terminating the job.
       continue-on-error: true
-      uses: actions/cache@v3
+      uses: actions/cache@v4.2.0
       with:
         # This path is specific to Ubuntu
         path: ${{ github.workspace }}/cget
@@ -537,7 +539,7 @@ jobs:
 
     - name: Restore cache files for ccache
       id: ccache_restore_fpga
-      uses: actions/cache/restore@v3 
+      uses: actions/cache/restore@v4.2.0
       with:
         path: ${{ github.workspace }}/ccache
         key: ${{ matrix.os }}-${{ matrix.configuration }}-ccache-${{ github.ref }}
@@ -575,7 +577,7 @@ jobs:
         gh actions-cache delete ${{ steps.ccache_restore_fpga.outputs.cache-matched-key }} --confirm
 
     - name: Save cache files for ccache
-      uses: actions/cache/save@v3 
+      uses: actions/cache/save@v4.2.0
       if: always()
       with:
         path: ${{ github.workspace }}/ccache

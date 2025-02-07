@@ -32,7 +32,9 @@ from onnx.numpy_helper import from_array
 
 
 def onnx_test(external_data=False):
+
     def create_onnx_test(op_test):
+
         def run_test():
             op_info = op_test()
             if len(op_info) > 3:
@@ -11852,21 +11854,19 @@ def roialign_test():
 @onnx_test()
 def rotary_embedding_test():
     input = helper.make_tensor_value_info('input', TensorProto.FLOAT16,
-                                        [1, 2, 18])
+                                          [1, 2, 18])
     pos_ids = helper.make_tensor_value_info('pos_ids', TensorProto.INT32,
-                                        [1, 2])
+                                            [1, 2])
     cos_cache = helper.make_tensor_value_info('cos_cache', TensorProto.FLOAT16,
-                                        [4, 3])
+                                              [4, 3])
     sin_cache = helper.make_tensor_value_info('sin_cache', TensorProto.FLOAT16,
-                                        [4, 3])
+                                              [4, 3])
     output = helper.make_tensor_value_info('output', TensorProto.FLOAT16,
                                            [1, 2, 18])
 
     node = onnx.helper.make_node(
         'RotaryEmbedding',
-        inputs=[
-            'input', 'pos_ids', 'cos_cache', 'sin_cache'
-        ],
+        inputs=['input', 'pos_ids', 'cos_cache', 'sin_cache'],
         outputs=['output'],
         interleaved=0,
         domain="com.microsoft")
@@ -11877,21 +11877,18 @@ def rotary_embedding_test():
 @onnx_test()
 def rotary_embedding_interleaved_test():
     input = helper.make_tensor_value_info('input', TensorProto.FLOAT16,
-                                        [1, 3, 8])
-    pos_ids = helper.make_tensor_value_info('pos_ids', TensorProto.INT32,
-                                        [1])
+                                          [1, 3, 8])
+    pos_ids = helper.make_tensor_value_info('pos_ids', TensorProto.INT32, [1])
     cos_cache = helper.make_tensor_value_info('cos_cache', TensorProto.FLOAT16,
-                                        [8, 2])
+                                              [8, 2])
     sin_cache = helper.make_tensor_value_info('sin_cache', TensorProto.FLOAT16,
-                                        [8, 2])
+                                              [8, 2])
     output = helper.make_tensor_value_info('output', TensorProto.FLOAT16,
                                            [1, 3, 8])
 
     node = onnx.helper.make_node(
         'RotaryEmbedding',
-        inputs=[
-            'input', 'pos_ids', 'cos_cache', 'sin_cache'
-        ],
+        inputs=['input', 'pos_ids', 'cos_cache', 'sin_cache'],
         outputs=['output'],
         interleaved=1,
         domain="com.microsoft")
@@ -11902,21 +11899,19 @@ def rotary_embedding_interleaved_test():
 @onnx_test()
 def rotary_embedding_float_test():
     input = helper.make_tensor_value_info('input', TensorProto.FLOAT,
-                                        [1, 2, 18])
+                                          [1, 2, 18])
     pos_ids = helper.make_tensor_value_info('pos_ids', TensorProto.INT32,
-                                        [1, 2])
+                                            [1, 2])
     cos_cache = helper.make_tensor_value_info('cos_cache', TensorProto.FLOAT,
-                                        [4, 3])
+                                              [4, 3])
     sin_cache = helper.make_tensor_value_info('sin_cache', TensorProto.FLOAT,
-                                        [4, 3])
+                                              [4, 3])
     output = helper.make_tensor_value_info('output', TensorProto.FLOAT,
                                            [1, 2, 18])
 
     node = onnx.helper.make_node(
         'RotaryEmbedding',
-        inputs=[
-            'input', 'pos_ids', 'cos_cache', 'sin_cache'
-        ],
+        inputs=['input', 'pos_ids', 'cos_cache', 'sin_cache'],
         outputs=['output'],
         interleaved=0,
         domain="com.microsoft")

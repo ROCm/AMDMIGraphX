@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2024 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2025 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -60,7 +60,7 @@ migraphx::instruction_ref add_mlir(migraphx::program& p,
                                    std::vector<std::string> arg_names,
                                    F f)
 {
-    assert(inputs.size() == arg_names.size() && "One interior parameter name given per input.");
+    assert(inputs.size() == arg_names.size() and "One interior parameter name given per input.");
     auto* mm = p.get_main_module();
     auto* pm = p.create_module(name);
     pm->set_bypass();
@@ -445,6 +445,41 @@ TEST_CASE(relu_dot)
     EXPECT(p1.sort() == p2.sort());
 }
 
+TEST_CASE(relu_relu_dot)
+{
+    migraphx::shape s{migraphx::shape::float_type, {1, 3, 3}};
+    migraphx::program p1;
+    {
+        auto* mm   = p1.get_main_module();
+        auto x     = mm->add_parameter("x", s);
+        auto y     = mm->add_parameter("y", s);
+        auto relux = add_pointwise(p1, "main:pointwise0", {x}, single_pointwise("relu"));
+        auto reluy = add_pointwise(p1, "main:pointwise1", {y}, single_pointwise("relu"));
+        auto dot   = mm->add_instruction(migraphx::make_op("dot"), relux, reluy);
+        mm->add_return({dot});
+    }
+    run_pass(p1);
+    migraphx::program p2;
+    {
+        auto* mm = p2.get_main_module();
+        auto x   = mm->add_parameter("x", s);
+        auto y   = mm->add_parameter("y", s);
+        auto fused =
+            add_mlir(p2,
+                     "main:pointwise0:main:pointwise1:mlir_dot0",
+                     {x, y},
+                     {"x0", "x1"},
+                     [=](auto* pm, const auto& inputs) {
+                         auto relux = pm->add_instruction(migraphx::make_op("relu"), inputs[0]);
+                         auto reluy = pm->add_instruction(migraphx::make_op("relu"), inputs[1]);
+                         auto dot   = pm->add_instruction(migraphx::make_op("dot"), relux, reluy);
+                         return std::make_tuple(dot->get_operator(), dot);
+                     });
+        mm->add_return({fused});
+    }
+    EXPECT(p1.sort() == p2.sort());
+}
+
 TEST_CASE(dequantizelinear_dot)
 {
     migraphx::program p1;
@@ -491,6 +526,89 @@ TEST_CASE(dequantizelinear_dot)
             mm->add_literal(migraphx::generate_literal({migraphx::shape::float_type, {2, 2, 2}}));
         auto zplit =
             mm->add_literal(migraphx::generate_literal({migraphx::shape::int8_type, {2, 2, 2}}));
+
+        auto fused = add_mlir(
+            p2,
+            "main:pointwise0:mlir_dot0",
+            {y, scalelit, zplit, x},
+            {"x0", "x1", "x2", "x3"},
+            [=](auto* pm, const auto& inputs) {
+                auto unsqueeze1 =
+                    pm->add_instruction(migraphx::make_op("unsqueeze", {{"axes", {2}}}), inputs[1]);
+                auto broadcast1 = pm->add_instruction(
+                    migraphx::make_op("multibroadcast", {{"out_lens", {2, 2, 3, 2}}}), unsqueeze1);
+                auto reshape1 = pm->add_instruction(
+                    migraphx::make_op("reshape", {{"dims", {2, 6, 2}}}), broadcast1);
+                auto scale = pm->add_instruction(
+                    migraphx::make_op("slice", {{"axes", {1}}, {"starts", {0}}, {"ends", {5}}}),
+                    reshape1);
+
+                auto unsqueeze2 =
+                    pm->add_instruction(migraphx::make_op("unsqueeze", {{"axes", {2}}}), inputs[2]);
+                auto broadcast2 = pm->add_instruction(
+                    migraphx::make_op("multibroadcast", {{"out_lens", {2, 2, 3, 2}}}), unsqueeze2);
+                auto reshape2 = pm->add_instruction(
+                    migraphx::make_op("reshape", {{"dims", {2, 6, 2}}}), broadcast2);
+                auto zp = pm->add_instruction(
+                    migraphx::make_op("slice", {{"axes", {1}}, {"starts", {0}}, {"ends", {5}}}),
+                    reshape2);
+
+                auto dq = pm->add_instruction(
+                    migraphx::make_op("dequantizelinear"), inputs[0], scale, zp);
+                auto dot = pm->add_instruction(migraphx::make_op("dot"), inputs[3], dq);
+                return std::make_tuple(dot->get_operator(), dot);
+            });
+        mm->add_return({fused});
+    }
+    EXPECT(p1.sort() == p2.sort());
+}
+
+TEST_CASE(unsigned_dequantizelinear_dot)
+{
+    migraphx::program p1;
+    {
+        auto* mm = p1.get_main_module();
+
+        auto x = mm->add_parameter("x", migraphx::shape{migraphx::shape::float_type, {2, 3, 5}});
+        auto y = mm->add_parameter("y", migraphx::shape{migraphx::shape::uint8_type, {2, 5, 2}});
+        auto scalelit =
+            mm->add_literal(migraphx::generate_literal({migraphx::shape::float_type, {2, 2, 2}}));
+        auto zplit =
+            mm->add_literal(migraphx::generate_literal({migraphx::shape::uint8_type, {2, 2, 2}}));
+
+        auto unsqueeze1 =
+            mm->add_instruction(migraphx::make_op("unsqueeze", {{"axes", {2}}}), scalelit);
+        auto broadcast1 = mm->add_instruction(
+            migraphx::make_op("multibroadcast", {{"out_lens", {2, 2, 3, 2}}}), unsqueeze1);
+        auto reshape1 =
+            mm->add_instruction(migraphx::make_op("reshape", {{"dims", {2, 6, 2}}}), broadcast1);
+        auto scale = mm->add_instruction(
+            migraphx::make_op("slice", {{"axes", {1}}, {"starts", {0}}, {"ends", {5}}}), reshape1);
+
+        auto unsqueeze2 =
+            mm->add_instruction(migraphx::make_op("unsqueeze", {{"axes", {2}}}), zplit);
+        auto broadcast2 = mm->add_instruction(
+            migraphx::make_op("multibroadcast", {{"out_lens", {2, 2, 3, 2}}}), unsqueeze2);
+        auto reshape2 =
+            mm->add_instruction(migraphx::make_op("reshape", {{"dims", {2, 6, 2}}}), broadcast2);
+        auto zp = mm->add_instruction(
+            migraphx::make_op("slice", {{"axes", {1}}, {"starts", {0}}, {"ends", {5}}}), reshape2);
+
+        auto dq = add_pointwise(
+            p1, "main:pointwise0", {y, scale, zp}, single_pointwise("dequantizelinear"));
+        auto dot = mm->add_instruction(migraphx::make_op("dot"), x, dq);
+        mm->add_return({dot});
+    }
+    run_pass(p1);
+    migraphx::program p2;
+    {
+        auto* mm = p2.get_main_module();
+        auto x   = mm->add_parameter("x", migraphx::shape{migraphx::shape::float_type, {2, 3, 5}});
+        auto y   = mm->add_parameter("y", migraphx::shape{migraphx::shape::uint8_type, {2, 5, 2}});
+        auto scalelit =
+            mm->add_literal(migraphx::generate_literal({migraphx::shape::float_type, {2, 2, 2}}));
+        auto zplit =
+            mm->add_literal(migraphx::generate_literal({migraphx::shape::uint8_type, {2, 2, 2}}));
 
         auto fused = add_mlir(
             p2,

@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2023 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2025 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -21,30 +21,23 @@
  * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
  * THE SOFTWARE.
  */
-#ifndef MIGRAPHX_GUARD_RTGLIB_QUANTIZE_FP16_HPP
-#define MIGRAPHX_GUARD_RTGLIB_QUANTIZE_FP16_HPP
 
-#include <string>
-#include <vector>
-#include <migraphx/config.hpp>
+#include "verify_program.hpp"
+#include <migraphx/program.hpp>
+#include <migraphx/generate.hpp>
+#include <migraphx/make_op.hpp>
 
-namespace migraphx {
-inline namespace MIGRAPHX_INLINE_NS {
-
-struct program;
-struct module;
-
-/**
- * quantize a program to fp16
- */
-struct MIGRAPHX_EXPORT quantize_fp16_pass
+struct test_reduce_mean_large_bf16 : verify_program<test_reduce_mean_large_bf16>
 {
-    std::vector<std::string> ins_names = {"all"};
-    std::string name() const { return "quantize_fp16"; }
-    void apply(module& m) const;
+    migraphx::program create_program() const
+    {
+        migraphx::program p;
+        auto* mm = p.get_main_module();
+        migraphx::shape s{migraphx::shape::bf16_type, {1, 32, 65536}};
+        auto x = mm->add_parameter("x", s);
+        mm->add_instruction(migraphx::make_op("reduce_mean", {{"axes", {2}}}), x);
+        return p;
+    };
+
+    std::string section() const { return "reduce"; }
 };
-
-} // namespace MIGRAPHX_INLINE_NS
-} // namespace migraphx
-
-#endif

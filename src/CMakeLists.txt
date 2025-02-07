@@ -37,6 +37,7 @@ add_library(migraphx
     argument.cpp
     autocast_fp8.cpp
     auto_contiguous.cpp
+    base64.cpp
     common.cpp
     common_dims.cpp
     compile_src.cpp
@@ -57,6 +58,7 @@ add_library(migraphx
     file_buffer.cpp
     fileutils.cpp
     fp_to_double.cpp
+    fp8_ocp_to_fnuz.cpp
     fuse_concat.cpp
     fuse_pointwise.cpp
     fuse_pointwise_reduce.cpp
@@ -73,6 +75,7 @@ add_library(migraphx
     memory_coloring.cpp
     module.cpp
     msgpack.cpp
+    netron_output.cpp
     normalize_attributes.cpp
     normalize_ops.cpp
     op_enums.cpp
@@ -89,7 +92,6 @@ add_library(migraphx
     propagate_constant.cpp
     promote_literals.cpp
     quantization.cpp
-    quantize_fp16.cpp
     quantize_int4.cpp
     quantize_8bits.cpp
     reduce_dims.cpp
@@ -115,6 +117,7 @@ add_library(migraphx
     split_single_dyn_dim.cpp
     target.cpp
     tmp_dir.cpp
+    truncate_float.cpp
     value.cpp
     verify_args.cpp
 )
@@ -145,6 +148,7 @@ register_migraphx_ops(
     as_shape
     atanh
     atan
+    bit_cast
     bitwise_and
     broadcast
     broadcast_for_dot

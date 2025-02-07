@@ -45,4 +45,6 @@ struct test_reduce_mean_variance : verify_program<test_reduce_mean_variance>
         mm->add_return({add});
         return p;
     };
+
+    std::string section() const { return "reduce"; }
 };

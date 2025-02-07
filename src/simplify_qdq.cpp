@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2024 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2025 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -34,18 +34,14 @@
 #include <migraphx/op/quant_convolution.hpp>
 #include <migraphx/op/dot.hpp>
 #include <migraphx/op/quant_dot.hpp>
+#include <migraphx/op/concat.hpp>
 #include <migraphx/register_op.hpp>
+#include <migraphx/fp8_types.hpp>
+#include <migraphx/match/dq_helpers.hpp>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
 namespace {
-
-template <class... Ms>
-auto skip_post_dq_ops(Ms... ms)
-{
-    return match::skip(match::name(
-        "broadcast", "multibroadcast", "contiguous", "transpose", "reshape", "convert"))(ms...);
-}
 
 std::unordered_set<std::string> get_quantizable_op_names()
 {
@@ -116,20 +112,12 @@ struct match_find_quantizable_ops
         return qinp;
     }
 
-    static auto dequantizelinear_op(const std::string& scale, const std::string& zp)
-    {
-        return match::name("dequantizelinear")(
-            match::arg(0)(match::skip(match::name("quantizelinear"))(match::any())),
-            match::arg(1)(match::skip_broadcasts(match::is_constant().bind(scale))),
-            match::arg(2)(match::skip_broadcasts(match::is_constant().bind(zp))));
-    }
-
     auto matcher() const
     {
-        auto dq1 =
-            match::arg(0)(skip_post_dq_ops(dequantizelinear_op("scale1", "zp1").bind("dq1")));
-        auto dq2 =
-            match::arg(1)(skip_post_dq_ops(dequantizelinear_op("scale2", "zp2").bind("dq2")));
+        auto dq1 = match::arg(0)(
+            skip_post_dq_ops(match::dequantizelinear_op("scale1", "zp1").bind("dq1")));
+        auto dq2 = match::arg(1)(
+            skip_post_dq_ops(match::dequantizelinear_op("scale2", "zp2").bind("dq2")));
         return match::name(get_quantizable_op_names())(dq1, dq2);
     }
 
@@ -143,10 +131,8 @@ struct match_find_quantizable_ops
         auto zp1    = r.instructions["zp1"];
         auto zp2    = r.instructions["zp2"];
         // Only INT8 or FP8 type currently supported
-        std::set<migraphx::shape::type_t> supported_types = {migraphx::shape::fp8e4m3fnuz_type,
-                                                             migraphx::shape::fp8e4m3fn_type,
-                                                             migraphx::shape::fp8e5m2_type,
-                                                             migraphx::shape::int8_type};
+        std::set<migraphx::shape::type_t> supported_types = fp8_types{}.get();
+        supported_types.insert(migraphx::shape::int8_type);
         if(not contains(supported_types, dq1->inputs().front()->get_shape().type()) or
            not contains(supported_types, dq2->inputs().front()->get_shape().type()))
             return;
@@ -232,7 +218,9 @@ struct match_find_quantizable_ops
                    is_valid_qparam(zp1, out_lens, out_lens.size() - 2) and
                    is_valid_qparam(scale2, out_lens, out_lens.size() - 1) and
                    is_valid_qparam(zp2, out_lens, out_lens.size() - 1)))
+            {
                 return;
+            }
 
             // This implementation supports both arguments being per-axis affine quantized
             // In practice, inputs are per-tensor affine and weights are per-axis symmetric
@@ -361,6 +349,54 @@ struct match_qlinear_reused
     }
 };
 
+struct match_concat_qlinear
+{
+    auto matcher() const
+    {
+        auto any_pointwise_input = match::any_of[match::inputs()](match::pointwise());
+        return match::name("quantizelinear")(match::arg(0)(
+            match::name("concat")(match::used_once(), any_pointwise_input).bind("cat")));
+    }
+    auto get_slices(instruction_ref cat_ins) const
+    {
+        std::vector<std::vector<std::pair<std::string, value>>> slices;
+        auto axis    = any_cast<op::concat>(cat_ins->get_operator()).axis;
+        size_t start = 0;
+        for(auto cat_inp : cat_ins->inputs())
+        {
+            auto end = start + cat_inp->get_shape().lens()[axis];
+            slices.push_back({{"axes", {axis}}, {"starts", {start}}, {"ends", {end}}});
+            start = end;
+        }
+        return slices;
+    }
+
+    void apply(module& m, const match::matcher_result& r) const
+    {
+        auto ins     = r.result;
+        auto cat_ins = r.instructions["cat"];
+
+        assert(ins->inputs().size() == 3);
+        auto scale = ins->inputs()[1];
+        auto zp    = ins->inputs()[2];
+
+        auto slices = get_slices(cat_ins);
+        std::vector<instruction_ref> new_cat_inputs;
+        std::transform(
+            cat_ins->inputs().begin(),
+            cat_ins->inputs().end(),
+            slices.begin(),
+            std::back_inserter(new_cat_inputs),
+            [&](auto i, auto slc) {
+                auto scale_slc = m.insert_instruction(ins, make_op("slice", slc), {scale});
+                auto zp_slc    = m.insert_instruction(ins, make_op("slice", slc), {zp});
+                return m.insert_instruction(ins, ins->get_operator(), {i, scale_slc, zp_slc});
+            });
+
+        m.replace_instruction(ins, cat_ins->get_operator(), new_cat_inputs);
+    }
+};
+
 bool is_same_value(instruction_ref a, instruction_ref b)
 {
     if(a == b)
@@ -416,6 +452,28 @@ void remove_qdq_pairs(module& m)
     }
 }
 
+void remove_zero_point(module& m)
+{
+    for(auto ins : iterator_for(m))
+    {
+        if(ins->name() != "dequantizelinear")
+            continue;
+        if(ins->inputs().size() != 3)
+            continue;
+        auto zp = ins->inputs().at(2);
+        if(not zp->can_eval())
+            continue;
+        auto a       = zp->eval();
+        bool is_zero = false;
+        a.visit([&](auto t) {
+            is_zero = std::all_of(t.begin(), t.end(), [](auto x) { return float_equal(x, 0); });
+        });
+        if(not is_zero)
+            continue;
+        m.replace_instruction(ins, ins->get_operator(), ins->inputs().at(0), ins->inputs().at(1));
+    }
+}
+
 void add_int4_pack_unpack_pair(module& m)
 {
     for(auto ins : iterator_for(m))
@@ -446,6 +504,10 @@ void simplify_qdq::apply(module& m) const
     remove_qdq_pairs(m);
     migraphx::run_passes(m, {migraphx::dead_code_elimination{}});
     match::find_matches(m, match_qlinear_reused{});
+    migraphx::run_passes(m, {migraphx::dead_code_elimination{}});
+    match::find_matches(m, match_concat_qlinear{});
+    migraphx::run_passes(m, {migraphx::dead_code_elimination{}});
+    remove_zero_point(m);
 }
 
 } // namespace MIGRAPHX_INLINE_NS

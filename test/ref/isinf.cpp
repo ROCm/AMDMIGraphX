@@ -83,6 +83,25 @@ TEST_CASE(isinf_half_test)
     EXPECT(migraphx::verify::verify_rms_range(results_vector, gold));
 }
 
+TEST_CASE(isinf_bf16_test)
+{
+    migraphx::program p;
+    auto* mm = p.get_main_module();
+    migraphx::shape s{migraphx::shape::bf16_type, {2, 3}};
+    auto inf_val = std::numeric_limits<migraphx::bf16>::infinity();
+    migraphx::bf16 a{1.2};
+    migraphx::bf16 b{5.2};
+    std::vector<migraphx::bf16> data0 = {a, b, inf_val, -inf_val, b, a};
+    auto l1                           = mm->add_literal(migraphx::literal{s, data0});
+    mm->add_instruction(migraphx::make_op("isinf"), l1);
+    p.compile(migraphx::make_target("ref"));
+    auto result = p.eval({}).back();
+    std::vector<float> results_vector;
+    result.visit([&](auto output) { results_vector.assign(output.begin(), output.end()); });
+    std::vector<float> gold = {0, 0, 1, 1, 0, 0};
+    EXPECT(migraphx::verify::verify_rms_range(results_vector, gold));
+}
+
 TEST_CASE(isinf_dyn_test)
 {
     migraphx::program p;

@@ -169,16 +169,16 @@ struct parse_groupnorm : op_parser<parse_groupnorm>
         auto y      = info.add_instruction(make_op("add"), scaled, bias_bcast);
         auto output = info.add_instruction(make_op("reshape", {{"dims", x_dims}}), y);
 
+        // Convert to NCHW -> NHWC for contrib GroupNorm
+        if(is_nhwc and is_contrib)
+        {
+            output = apply_nhwc_perm(info, output, false);
+        }
         if(silu_activation)
         {
             // SiLU activation is just  out = x * sigmoid(x)
             auto sigmoid = info.add_instruction(make_op("sigmoid"), output);
             output = info.add_instruction(make_op("mul"), output, sigmoid);
-        }
-        // Convert to NCHW -> NHWC for contrib GroupNorm
-        if(is_nhwc and is_contrib)
-        {
-            output = apply_nhwc_perm(info, output, false);
         }
         return output;
     }

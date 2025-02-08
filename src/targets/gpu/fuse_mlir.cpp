@@ -1043,6 +1043,102 @@ struct find_unpack_int4_mlir_op
     }
 };
 
+struct find_mlir_reshape_ops
+{
+    auto matcher() const
+    {
+        auto reshapes = reshaper_names();
+        // slice is not supported
+        reshapes.erase("slice");
+        return match::name(reshapes)(match::arg(0)(match::name("gpu::mlir_op")(match::used_once())));
+    }
+
+    void apply(module_pass_manager& mpm, const match::matcher_result& r) const
+    {
+        auto ins = r.result;
+        auto mlir_ins = ins->inputs().front();
+
+        auto* mm = mlir_ins->module_inputs().front();
+        module_ref nm = mpm.create_module(mm->name() + ":" + ins->name());
+        nm->set_bypass();
+
+        auto y = nm->fuse(*mm, mlir_ins->inputs());
+        auto ret = nm->add_instruction(ins->get_operator(), y);
+        nm->add_return({ret});
+        mpm.get_module().replace_instruction(ins, mlir_ins->get_operator(), mlir_ins->inputs(), {nm});
+    }
+};
+
+struct find_channel_slice_convolution
+{
+    auto matcher() const
+    {
+        return match::name("convolution")(match::arg(0)(match::name("slice").bind("slice")));
+    }
+
+    static std::size_t get_slice_group(instruction_ref slice)
+    {
+        auto input = slice->inputs().front();
+        auto op = slice->get_operator().to_value();
+        auto axes = op["axes"].to_vector<std::size_t>();
+        if(axes.size() != 1)
+            return 0;
+        if(axes.front() != 1)
+            return 0;
+        auto ichannels = input->get_shape().lens().at(1);
+        auto channels = slice->get_shape().lens().at(1);
+        if((ichannels % channels) != 0)
+            return 0;
+        return ichannels / channels;
+    }
+
+    void apply(module_pass_manager& mpm, const match::matcher_result& r) const
+    {
+        auto ins = r.result;
+        auto slice = r.instructions["slice"];
+        auto input = slice->inputs().front();
+        auto group = get_slice_group(slice);
+        if(group == 0)
+            return;
+        if(not all_of(input->outputs(), [&](instruction_ref output) {
+            if(output->name() != "slice")
+                return false;
+            auto ichannels = output->inputs().front()->get_shape().lens().at(1);
+            auto channels = output->get_shape().lens().at(1);
+            return channels * group == ichannels;
+        }))
+            return;
+        if(find_permutation(ins->get_shape()).back() != 1)
+            return;
+
+        auto dims = input->get_shape().lens();
+        dims[1] /= group;
+        dims.insert(dims.begin() + 1, group);
+
+        std::vector<int64_t> perm(dims.size());
+        std::iota(perm.begin(), perm.begin() + 2, 0);
+        std::iota(perm.begin() + 2, perm.end() - 1, 3);
+        perm.back() = 2;
+
+        auto outputs = input->outputs();
+        auto ins_to_insert = std::next(input);
+        auto reshape1 = mpm.get_module().insert_instruction(ins_to_insert, make_op("reshape", {{"dims", dims}}), input);
+        auto t1 = mpm.get_module().insert_instruction(ins_to_insert, make_op("transpose", {{"permutation", perm}}), reshape1);
+        auto c = mpm.get_module().insert_instruction(ins_to_insert, make_op("contiguous"), t1);
+        auto t2 = mpm.get_module().insert_instruction(ins_to_insert, make_op("transpose", {{"permutation", invert_permutation(perm)}}), c);
+        auto id = mpm.get_module().insert_instruction(ins_to_insert, make_op("identity"), t2);
+
+        for(auto output:outputs)
+        {
+            auto v = output->get_operator().to_value();
+            auto starts = v["starts"].to_vector<std::size_t>();
+            auto i = starts.front() / output->get_shape().lens()[1];
+            auto s = mpm.get_module().insert_instruction(output, make_op("slice", {{"axes", {1}}, {"starts", {i}}, {"ends", {i+1}}}), id);
+            mpm.get_module().replace_instruction(output, make_op("squeeze", {{"axes", {1}}}), s);
+        }
+    }
+};
+
 } // namespace
 
 #endif // MIGRAPHX_MLIR
@@ -1063,6 +1159,9 @@ void fuse_mlir::apply(module_pass_manager& mpm) const
             return mlir_mode::all;
         return std::max(m1, m2);
     };
+    
+    match::find_matches(mpm, find_channel_slice_convolution{});
+    mpm.run_pass(dead_code_elimination{});
 
     // Attention offloads; default disabled
     if(mlir_attention_enabled(ctx) or enable_extra)
@@ -1095,6 +1194,9 @@ void fuse_mlir::apply(module_pass_manager& mpm) const
 
     match::find_matches(mpm, find_pointwise_mlir{});
     match::find_matches(mpm, find_unpack_int4_mlir_op{});
+
+    for(int i=0;i<4;i++)
+        match::find_matches(mpm, find_mlir_reshape_ops{});
 
 #else
     (void)mpm;

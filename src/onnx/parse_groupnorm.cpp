@@ -25,10 +25,21 @@
 #include <migraphx/ranges.hpp>
 #include <migraphx/make_op.hpp>
 #include <migraphx/instruction.hpp>
+#include <migraphx/permutation.hpp>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
 namespace onnx {
+
+static instruction_ref apply_nhwc_perm(const onnx_parser::node_info& info,
+                                       instruction_ref ins,
+                                       bool invert)
+{
+    std::vector<int64_t> perm(ins->get_shape().ndim());
+    std::iota(perm.begin() + 1, perm.end() - 1, 2);
+    perm.back() = 1;
+    return info.add_instruction(make_op("transpose", {{"permutation", invert ? invert_permutation(perm) : perm}}), ins);
+}
 
 struct parse_groupnorm : op_parser<parse_groupnorm>
 {
@@ -93,7 +104,7 @@ struct parse_groupnorm : op_parser<parse_groupnorm>
         auto x = args.at(0);
         if(is_nhwc and is_contrib)
         {
-            x = info.add_instruction(make_op("transpose", {{"permutation", {0, 2, 1}}}), x);
+            x = apply_nhwc_perm(info, x, false);
         }
 
         auto scale = args.at(1); //gamma in the GroupNorm contrib case
@@ -167,7 +178,7 @@ struct parse_groupnorm : op_parser<parse_groupnorm>
         // Convert to NCHW -> NHWC for contrib GroupNorm
         if(is_nhwc and is_contrib)
         {
-            output = info.add_instruction(make_op("transpose", {{"permutation", {0, 2, 1}}}), output);
+            output = apply_nhwc_perm(info, output, false);
         }
         return output;
     }

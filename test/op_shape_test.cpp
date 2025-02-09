@@ -5233,8 +5233,8 @@ TEST_CASE(test_dyn_concat)
 
 TEST_CASE(test_binary_nonpacked)
 {
-    auto sx = migraphx::shape(migraphx::shape::float_type, {4, 3}, {1, 8});
-    auto sy = migraphx::shape(migraphx::shape::float_type, {4, 3}, {1, 16});
+    auto sx   = migraphx::shape(migraphx::shape::float_type, {4, 3}, {1, 8});
+    auto sy   = migraphx::shape(migraphx::shape::float_type, {4, 3}, {1, 16});
     auto sout = migraphx::shape::from_permutation(migraphx::shape::float_type, {4, 3}, {1, 0});
 
     expect_shape(sout, migraphx::make_op("mul"), sx, sy);

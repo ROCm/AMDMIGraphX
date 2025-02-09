@@ -403,7 +403,7 @@ __device__ auto topk(Compare compare, T init)
             bitonic_topk{aligned_n, aligned_k, by(select_key(), compare)}.block_topk(idx, buf);
 
             // save top K
-            idx.local_stride(aligned_k, [&](auto i) {
+            idx.local_stride(k, [&](auto i) {
                 y[i] = buf[i].key;
                 y_idx[i] = buf[i].val;
             });

@@ -316,9 +316,9 @@ __device__ auto topk(Compare compare, T init)
             constexpr auto nlocal_wave = idx.nlocal_wave();
             constexpr auto nwave = idx.nwave();
             constexpr auto per_wave = n / nwave;
-            constexpr auto per_lane = return_c([=] { return bit_ceil(per_wave / nlocal_wave); });
+            constexpr auto per_lane = return_c([=] { return bit_ceil(ceil_div(per_wave, nlocal_wave)); });
             array<topk_pair<type>, per_lane> local_buf;
-            const auto local_shape = make_shape(index_ints<nwave, per_wave>{});
+            const auto local_shape = make_shape(index_ints<nwave, nlocal_wave, per_lane>{});
             const auto base = idx.local_wave() * per_lane;
             MIGRAPHX_ASSERT(local_shape.elements() >= n);
             
@@ -331,7 +331,7 @@ __device__ auto topk(Compare compare, T init)
             // copy to registers
             for(index_int i:range(per_lane))
             {
-                auto j = local_shape.index({idx.wave(), i+base});
+                auto j = local_shape.index({idx.wave(), idx.local_wave(), i});
                 local_buf[i].key = j < n ? x[j] : init;
                 local_buf[i].val = get_index(j);
             }

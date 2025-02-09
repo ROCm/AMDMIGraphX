@@ -308,5 +308,11 @@ constexpr auto convert(U v)
     return vec_transform(v)([](auto x) -> T { return static_cast<T>(x); });
 }
 
+template<class T, class U>
+constexpr auto ceil_div(T x, U y)
+{
+    return (x + y - _c<1>) / y;
+}
+
 } // namespace migraphx
 #endif // MIGRAPHX_GUARD_KERNELS_MATH_HPP

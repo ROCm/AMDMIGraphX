@@ -189,8 +189,14 @@ struct find_large_topk
             return m.insert_instruction(ins, make_op("reshape", {{"dims", fdims}}), elem);
         };
 
+        std::vector<std::size_t> indices_data(n);
+        std::iota(indices_data.begin(), indices_data.end(), 0);
+        auto indices_lit = m.add_literal(shape{shape::int64_type, {n}}, indices_data);
+
+        auto indices = m.insert_instruction(ins, make_op("broadcast", {{"axis", axis}, {"out_lens", dims}}), indices_lit);
+        auto gindices = m.insert_instruction(ins, make_op("reshape", {{"dims", gdims}}), indices);
         auto ginput = m.insert_instruction(ins, make_op("reshape", {{"dims", gdims}}), input);
-        auto topk1 = m.insert_instruction(ins, make_op("topk", op), ginput);
+        auto topk1 = m.insert_instruction(ins, make_op("topk", op), ginput, gindices);
         auto finput = insert_final(topk1, 0);
         auto findices = insert_final(topk1, 1);
         m.replace_instruction(ins, ins->get_operator(), finput, findices);

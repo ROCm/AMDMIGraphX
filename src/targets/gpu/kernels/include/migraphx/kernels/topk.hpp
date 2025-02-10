@@ -13,11 +13,11 @@
 
 namespace migraphx {
 
-template<class T>
+template<class T, class U>
 struct topk_pair
 {
     T key;
-    uint16_t val;
+    U val;
 
     template <class Stream>
     friend constexpr const Stream& operator<<(const Stream& ss, const topk_pair& tp)
@@ -295,6 +295,7 @@ __device__ auto topk(Compare compare, T init)
         constexpr auto n = return_c([] { return get_shape_c<decltype(input)>{}.get_shape().lens[Axis]; });
         constexpr auto k = return_c([] { return get_shape_c<decltype(output)>{}.get_shape().lens[Axis]; });
         constexpr auto aligned_k = return_c([=] { return bit_ceil(k); });
+        using pair = topk_pair<type, conditional_t<(n > 32768 or sizeof...(in_indices) == 1), index_int, uint16_t>>;
         idx.group_stride(input.get_shape().elements() / n, [&](auto group) {
             auto x = tensor_slice(input, group, slice_axes<Axis>());
             auto y = tensor_slice(output, group, slice_axes<Axis>());
@@ -317,7 +318,7 @@ __device__ auto topk(Compare compare, T init)
             constexpr auto nwave = idx.nwave();
             constexpr auto per_wave = n / nwave;
             constexpr auto per_lane = return_c([=] { return bit_ceil(ceil_div(per_wave, nlocal_wave)); });
-            array<topk_pair<type>, per_lane> local_buf;
+            array<pair, per_lane> local_buf;
             const auto local_shape = make_shape(index_ints<nwave, nlocal_wave, per_lane>{});
             const auto base = idx.local_wave() * per_lane;
             MIGRAPHX_ASSERT(local_shape.elements() >= n);
@@ -360,7 +361,7 @@ __device__ auto topk(Compare compare, T init)
             else
             {
                 constexpr auto aligned_m = return_c([=] { return bit_ceil(k * nwave); });
-                __shared__ topk_pair<type> buf[aligned_m];
+                __shared__ pair buf[aligned_m];
                 idx.local_stride(aligned_m, [&](auto i) {
                     buf[i].key = init;
                     buf[i].val = -1;
@@ -378,7 +379,7 @@ __device__ auto topk(Compare compare, T init)
                 }
                 __syncthreads();
 
-                // array<topk_pair<type>, aligned_m> buf2;
+                // array<pair, aligned_m> buf2;
                 // copy(buf, buf+aligned_m, buf2.begin());
                 // println_once("buf: ", buf2);
                 bitonic_topk{aligned_m, aligned_k, by(select_key(), compare)}.block_topk(idx, buf);
@@ -392,7 +393,7 @@ __device__ auto topk(Compare compare, T init)
 
 #else
             constexpr auto aligned_n = return_c([=] { return bit_ceil(n); });
-            __shared__ topk_pair<type> buf[aligned_n];
+            __shared__ pair buf[aligned_n];
             // Copy to LDS
             idx.local_stride(aligned_n, [&](auto i) {
                 auto key = i < x.get_shape().elements() ? x[i] : init;

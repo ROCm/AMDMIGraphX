@@ -68,35 +68,32 @@ struct topk_compiler : compiler<topk_compiler>
         options.inputs      = flatten(inputs);
         options.kernel_name = "topk_kernel";
 
-
-        auto axis = v.at("axis").to<int64_t>();
-        auto kelements = v.at("k").to<int64_t>();
-        auto relements = inputs.front().lens()[axis];
-        auto nelements = inputs.front().elements() / relements;
+        auto axis           = v.at("axis").to<int64_t>();
+        auto kelements      = v.at("k").to<int64_t>();
+        auto relements      = inputs.front().lens()[axis];
+        auto nelements      = inputs.front().elements() / relements;
         auto max_wavefronts = std::max<std::size_t>(1, 8192 / kelements);
         auto max_block_size = std::min<std::size_t>(max_wavefronts * 64, 1024);
-        auto block_size = compute_block_size(ctx, relements / 4, max_block_size);
+        auto block_size     = compute_block_size(ctx, relements / 4, max_block_size);
         // auto block_size = 64;
-        options.set_launch_params(v, compute_global_for(ctx, block_size*nelements), block_size);
+        options.set_launch_params(v, compute_global_for(ctx, block_size * nelements), block_size);
 
         std::string compare = "less{}";
-        std::string init = "highest{}";
+        std::string init    = "highest{}";
 
         if(v.at("largest").to<bool>())
         {
             compare = "greater{}";
-            init = "lowest{}";
+            init    = "lowest{}";
         }
 
-        auto src = interpolate_string(
-            topk_kernel,
-            {
-             {"compare", compare},
-             {"init", init},
-             {"params", enum_params(options.inputs.size(), "void * private_p")},
-             {"args", enum_params(options.inputs.size(), "private_p")},
-             {"axis", std::to_string(axis)}
-         });
+        auto src =
+            interpolate_string(topk_kernel,
+                               {{"compare", compare},
+                                {"init", init},
+                                {"params", enum_params(options.inputs.size(), "void * private_p")},
+                                {"args", enum_params(options.inputs.size(), "private_p")},
+                                {"axis", std::to_string(axis)}});
 
         return compile_hip_code_object(ctx, src, options);
     }

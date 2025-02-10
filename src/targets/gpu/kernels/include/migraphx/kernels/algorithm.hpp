@@ -329,18 +329,20 @@ constexpr void stable_sort(Iterator first, Iterator last)
     stable_sort(first, last, less{});
 }
 
-template<class Iterator1, class Iterator2,
-         class OutputIterator, class Compare>
-constexpr OutputIterator merge(Iterator1 first1, Iterator1 last1,
-               Iterator2 first2, Iterator2 last2,
-               OutputIterator d_first, Compare comp)
+template <class Iterator1, class Iterator2, class OutputIterator, class Compare>
+constexpr OutputIterator merge(Iterator1 first1,
+                               Iterator1 last1,
+                               Iterator2 first2,
+                               Iterator2 last2,
+                               OutputIterator d_first,
+                               Compare comp)
 {
-    for (; first1 != last1; ++d_first)
+    for(; first1 != last1; ++d_first)
     {
-        if (first2 == last2)
+        if(first2 == last2)
             return copy(first1, last1, d_first);
- 
-        if (comp(*first2, *first1))
+
+        if(comp(*first2, *first1))
         {
             *d_first = *first2;
             ++first2;

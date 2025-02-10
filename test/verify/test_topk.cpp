@@ -35,33 +35,35 @@ struct test_topk : verify_program<test_topk<DType, K, N>>
     migraphx::program create_program() const
     {
         migraphx::program p;
-        auto* mm = p.get_main_module();
-        unsigned int batch= 1;
+        auto* mm           = p.get_main_module();
+        unsigned int batch = 1;
         migraphx::shape s{migraphx::shape::float_type, {batch, N}};
         auto x1 = mm->add_parameter("x1", s);
 
-        std::vector<int64_t> data(N*batch);
-        for(unsigned int i:migraphx::range(batch))
+        std::vector<int64_t> data(N * batch);
+        for(unsigned int i : migraphx::range(batch))
         {
-            auto start = i*N;
-            std::iota(data.begin()+start, data.begin()+start+K, -1);
+            auto start = i * N;
+            std::iota(data.begin() + start, data.begin() + start + K, -1);
             auto j = 0;
-            std::generate(data.begin()+start+K, data.begin()+start+N, [&] {
-                j = (j+1)%16384;
+            std::generate(data.begin() + start + K, data.begin() + start + N, [&] {
+                j = (j + 1) % 16384;
                 return -(2 + j);
             });
-            std::shuffle(data.begin()+start, data.begin()+start+N, std::minstd_rand{i+1});
+            std::shuffle(data.begin() + start, data.begin() + start + N, std::minstd_rand{i + 1});
         }
-        auto lit = mm->add_literal(s, data);
-        auto scale = mm->add_literal(migraphx::literal{migraphx::shape{migraphx::shape::float_type, {1}}, {4}});
+        auto lit   = mm->add_literal(s, data);
+        auto scale = mm->add_literal(
+            migraphx::literal{migraphx::shape{migraphx::shape::float_type, {1}}, {4}});
         auto mul = mm->add_instruction(migraphx::make_op("mul"), x1, x1);
         auto div = migraphx::add_common_op(*mm, migraphx::make_op("div"), {mul, scale});
         auto add = mm->add_instruction(migraphx::make_op("add"), lit, div);
-        auto input = mm->add_instruction(migraphx::make_op("convert", {{"target_type", DType}}), add);
+        auto input =
+            mm->add_instruction(migraphx::make_op("convert", {{"target_type", DType}}), add);
 
-        auto r    = mm->add_instruction(
+        auto r = mm->add_instruction(
             migraphx::make_op("topk", {{"axis", 1}, {"k", K}, {"largest", 1}}), input);
-        auto values = mm->add_instruction(migraphx::make_op("get_tuple_elem", {{"index", 0}}), r);
+        auto values  = mm->add_instruction(migraphx::make_op("get_tuple_elem", {{"index", 0}}), r);
         auto indices = mm->add_instruction(migraphx::make_op("get_tuple_elem", {{"index", 1}}), r);
         mm->add_return({values, indices});
 

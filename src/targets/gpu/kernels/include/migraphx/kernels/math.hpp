@@ -222,13 +222,19 @@ constexpr auto min(const T& a, const T& b, Compare compare)
     return where(compare(a, b), a, b);
 }
 
-template <class T, class U, class... Compare, MIGRAPHX_REQUIRES(not is_same<T, U>{} and not is_any_vec<T, U>())>
+template <class T,
+          class U,
+          class... Compare,
+          MIGRAPHX_REQUIRES(not is_same<T, U>{} and not is_any_vec<T, U>())>
 constexpr auto max(const T& a, const U& b, Compare... compare)
 {
     return max<common_type_t<T, U>>(a, b, compare...);
 }
 
-template <class T, class U, class... Compare, MIGRAPHX_REQUIRES(not is_same<T, U>{} and not is_any_vec<T, U>())>
+template <class T,
+          class U,
+          class... Compare,
+          MIGRAPHX_REQUIRES(not is_same<T, U>{} and not is_any_vec<T, U>())>
 constexpr auto min(const T& a, const U& b, Compare... compare)
 {
     return min<common_type_t<T, U>>(a, b, compare...);
@@ -308,7 +314,7 @@ constexpr auto convert(U v)
     return vec_transform(v)([](auto x) -> T { return static_cast<T>(x); });
 }
 
-template<class T, class U>
+template <class T, class U>
 constexpr auto ceil_div(T x, U y)
 {
     return (x + y - _c<1>) / y;

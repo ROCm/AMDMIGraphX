@@ -14,7 +14,7 @@ constexpr bool get_bit(uint32_t x, uint32_t i) noexcept
 
 constexpr uint64_t bit_ceil(uint64_t x) noexcept
 {
-    if (x <= 1)
+    if(x <= 1)
         return 1;
     --x;
     x |= x >> 1;
@@ -28,7 +28,7 @@ constexpr uint64_t bit_ceil(uint64_t x) noexcept
 
 constexpr uint32_t bit_ceil(uint32_t x) noexcept
 {
-    if (x <= 1)
+    if(x <= 1)
         return 1;
     --x;
     x |= x >> 1;
@@ -39,15 +39,9 @@ constexpr uint32_t bit_ceil(uint32_t x) noexcept
     return x + 1;
 }
 
-constexpr uint32_t popcount(uint32_t x) noexcept
-{
-    return __popc(x);
-}
+constexpr uint32_t popcount(uint32_t x) noexcept { return __popc(x); }
 
-constexpr uint32_t popcount(uint64_t x) noexcept
-{
-    return __popcll(x);
-}
+constexpr uint32_t popcount(uint64_t x) noexcept { return __popcll(x); }
 
 constexpr uint32_t countr_zero(uint32_t x) noexcept
 {
@@ -55,10 +49,7 @@ constexpr uint32_t countr_zero(uint32_t x) noexcept
     return __builtin_ctz(x);
 }
 
-constexpr uint32_t countr_zero(uint64_t x) noexcept
-{
-    return __builtin_ctzll(x);
-}
+constexpr uint32_t countr_zero(uint64_t x) noexcept { return __builtin_ctzll(x); }
 
 } // namespace migraphx
 #endif // MIGRAPHX_GUARD_KERNELS_BIT_HPP

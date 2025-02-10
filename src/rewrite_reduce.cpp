@@ -155,7 +155,8 @@ struct find_large_topk
         while(r > min_size)
         {
             // NOLINTNEXTLINE(readability-qualified-auto)
-            auto it = std::find_if(factors.begin(), factors.end(), [&](auto d) { return r % d == 0; });
+            auto it =
+                std::find_if(factors.begin(), factors.end(), [&](auto d) { return r % d == 0; });
             if(it == factors.end())
                 break;
             r /= *it;
@@ -171,19 +172,19 @@ struct find_large_topk
         auto input = ins->inputs().front();
         auto op    = ins->get_operator().to_value();
         auto axis  = op["axis"].to<std::int64_t>();
-        auto k  = op["k"].to<std::int64_t>();
-        auto dims = input->get_shape().lens();
-        auto n = dims.at(axis);
-        if (n < n_threshold)
+        auto k     = op["k"].to<std::int64_t>();
+        auto dims  = input->get_shape().lens();
+        auto n     = dims.at(axis);
+        if(n < n_threshold)
             return;
 
         auto gdims = dims;
-        auto group = split_dim(gdims[axis], std::max<std::size_t>(n_threshold / 2, k*4));
-        gdims.insert(gdims.begin()+axis, group);
+        auto group = split_dim(gdims[axis], std::max<std::size_t>(n_threshold / 2, k * 4));
+        gdims.insert(gdims.begin() + axis, group);
         op["axis"] = axis + 1;
 
-        auto fdims = dims;
-        fdims[axis] = k*group;
+        auto fdims        = dims;
+        fdims[axis]       = k * group;
         auto insert_final = [&](auto t, auto i) {
             auto elem = m.insert_instruction(ins, make_op("get_tuple_elem", {{"index", i}}), t);
             return m.insert_instruction(ins, make_op("reshape", {{"dims", fdims}}), elem);
@@ -193,11 +194,12 @@ struct find_large_topk
         std::iota(indices_data.begin(), indices_data.end(), 0);
         auto indices_lit = m.add_literal(shape{shape::int64_type, {n}}, indices_data);
 
-        auto indices = m.insert_instruction(ins, make_op("broadcast", {{"axis", axis}, {"out_lens", dims}}), indices_lit);
+        auto indices = m.insert_instruction(
+            ins, make_op("broadcast", {{"axis", axis}, {"out_lens", dims}}), indices_lit);
         auto gindices = m.insert_instruction(ins, make_op("reshape", {{"dims", gdims}}), indices);
-        auto ginput = m.insert_instruction(ins, make_op("reshape", {{"dims", gdims}}), input);
-        auto topk1 = m.insert_instruction(ins, make_op("topk", op), ginput, gindices);
-        auto finput = insert_final(topk1, 0);
+        auto ginput   = m.insert_instruction(ins, make_op("reshape", {{"dims", gdims}}), input);
+        auto topk1    = m.insert_instruction(ins, make_op("topk", op), ginput, gindices);
+        auto finput   = insert_final(topk1, 0);
         auto findices = insert_final(topk1, 1);
         m.replace_instruction(ins, ins->get_operator(), finput, findices);
     }

@@ -24,6 +24,7 @@
 #include <migraphx/onnx/conv.hpp>
 #include <migraphx/instruction.hpp>
 #include <migraphx/make_op.hpp>
+#include <migraphx/permutation.hpp>
 #include <algorithm>
 
 namespace migraphx {
@@ -49,32 +50,24 @@ void recalc_conv_attributes(value& v, size_t kdims)
     }
 }
 
-static instruction_ref apply_nhwc_perm(const onnx_parser::node_info& info,
-                                       instruction_ref ins,
-                                       const std::function<void(std::vector<int>&)>& f)
+static instruction_ref
+apply_nhwc_perm(const onnx_parser::node_info& info, instruction_ref ins, bool invert)
 {
-    std::vector<int> perm(ins->get_shape().ndim());
-    std::iota(begin(perm), end(perm), 0);
-    f(perm);
-    return info.add_instruction(make_op("transpose", {{"permutation", perm}}), ins);
+    std::vector<int64_t> perm(ins->get_shape().ndim());
+    std::iota(begin(perm) + 1, end(perm) - 1, 2);
+    perm.back() = 1;
+    return info.add_instruction(
+        make_op("transpose", {{"permutation", invert ? invert_permutation(perm) : perm}}), ins);
 }
 
 instruction_ref from_nhwc(const onnx_parser::node_info& info, instruction_ref ins)
 {
-    return apply_nhwc_perm(info, ins, [](std::vector<int>& perm) {
-        auto c = perm.back();
-        perm.pop_back();
-        perm.insert(begin(perm) + 1, c);
-    });
+    return apply_nhwc_perm(info, ins, true);
 }
 
 instruction_ref to_nhwc(const onnx_parser::node_info& info, instruction_ref ins)
 {
-    return apply_nhwc_perm(info, ins, [](std::vector<int>& perm) {
-        auto c = perm.at(1);
-        perm.erase(begin(perm) + 1);
-        perm.push_back(c);
-    });
+    return apply_nhwc_perm(info, ins, false);
 }
 
 } // namespace onnx

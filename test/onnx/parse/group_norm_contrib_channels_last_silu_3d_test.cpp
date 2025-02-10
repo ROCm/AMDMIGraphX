@@ -25,7 +25,7 @@
 #include <onnx_test.hpp>
 #include <onnx_test_utils.hpp>
 
-TEST_CASE(group_norm_contrib_channels_last_3d_test)
+TEST_CASE(group_norm_contrib_channels_last_silu_3d_test)
 {
     const std::vector<int64_t> input_dims{1,4,2};
     const std::vector<int64_t> scale_dims{2};
@@ -65,8 +65,12 @@ TEST_CASE(group_norm_contrib_channels_last_3d_test)
     auto scaled = mm->add_instruction(migraphx::make_op("mul"), {result, scale_bcast});
     auto y      = mm->add_instruction(migraphx::make_op("add"), {scaled, bias_bcast});
     auto reshape_out = mm->add_instruction(migraphx::make_op("reshape", {{"dims", {1, 2, 4}}}), y);
-    mm->add_instruction(migraphx::make_op("transpose", {{"permutation", {0, 2, 1}}}), reshape_out);
+    auto group_out   = mm->add_instruction(migraphx::make_op("transpose", {{"permutation", {0, 2, 1}}}), reshape_out);
 
-    auto prog = optimize_onnx("group_norm_contrib_channels_last_3d_test.onnx");
+    // Order matters for this operator as we MUST have SILU after a group norm is done when the activation flag is set
+    auto sigmoid_out = mm->add_instruction(migraphx::make_op("sigmoid"), group_out);
+    mm->add_instruction(migraphx::make_op("mul"), group_out, sigmoid_out);
+
+    auto prog = optimize_onnx("group_norm_contrib_channels_last_and_silu_3d_test.onnx");
     EXPECT(p == prog);
 }

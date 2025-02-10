@@ -64,11 +64,9 @@ struct parse_groupnorm : op_parser<parse_groupnorm>
         if(contains(info.attributes, "num_groups") or contains(info.attributes, "groups"))
         {
             if (is_contrib)
-            {
-                num_groups = parser.parse_value(info.attributes.at("num_groups")).at<size_t>();
-            }
+                num_groups = std::abs(parser.parse_value(info.attributes.at("groups")).at<int64_t>());
             else
-                num_groups = parser.parse_value(info.attributes.at("num_groups")).at<size_t>();
+                num_groups = std::abs(parser.parse_value(info.attributes.at("num_groups")).at<int64_t>());
         }
         else
         {

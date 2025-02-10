@@ -4881,7 +4881,7 @@ def group_norm_contrib_test(x_dims,
                                  outputs=['y'],
                                  activation=activation,
                                  channels_last=channels_last,
-                                 num_groups=num_groups,
+                                 groups=num_groups,
                                  epsilon=eps_value)
 
     return ([node], [x, gamma, beta], [y])
@@ -4927,7 +4927,7 @@ def group_norm_contrib_channels_last_3d_test():
 
 @onnx_test()
 def group_norm_contrib_channels_last_and_silu_3d_test():
-    return group_norm_contrib_test([1, 4, 2], [2], [2], [1, 4, 2], 2, 0, 1)
+    return group_norm_contrib_test([1, 4, 2], [2], [2], [1, 4, 2], 2, 1, 1)
 
 
 @onnx_test()
@@ -4941,7 +4941,7 @@ def group_norm_contrib_no_activation_attr_test():
                                  inputs=['x', 'gamma', 'Beta'],
                                  outputs=['y'],
                                  channels_last=0,
-                                 num_groups=2)
+                                 groups=2)
 
     return ([node], [x, gamma, beta], [y])
 

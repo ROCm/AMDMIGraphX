@@ -31,7 +31,7 @@ namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
 namespace onnx {
 
-static instruction_ref apply_nhwc_perm(const onnx_parser::node_info& info,
+static instruction_ref apply_channels_last_perm(const onnx_parser::node_info& info,
                                        instruction_ref ins,
                                        bool invert)
 {
@@ -73,13 +73,13 @@ struct parse_groupnorm : op_parser<parse_groupnorm>
             MIGRAPHX_THROW("PARSE_GROUPNORM: num_groups must be available");
         }
 
-        bool is_nhwc = false; 
+        bool is_channels_last = false; 
         if(is_contrib)
         {   // default state for GroupNorm Contrib op
-            is_nhwc = true;
+            is_channels_last = true;
             if(contains(info.attributes, "channels_last") and is_contrib)
             {
-                is_nhwc = parser.parse_value(info.attributes.at("channels_last")).at<size_t>();
+                is_channels_last = parser.parse_value(info.attributes.at("channels_last")).at<size_t>();
             }
         }
 
@@ -98,11 +98,11 @@ struct parse_groupnorm : op_parser<parse_groupnorm>
             MIGRAPHX_THROW("PARSE_GROUPNORM: invalid input count");
         }
 
-        // Adjust chanels from NHWC-> NCHW if last channel is set for contrib op
+        // Adjust chanels from channels_last-> NCHW if last channel is set for contrib op
         auto x = args.at(0);
-        if(is_nhwc and is_contrib)
+        if(is_channels_last and is_contrib)
         {
-            x = apply_nhwc_perm(info, x, false);
+            x = apply_channels_last_perm(info, x, false);
         }
 
         auto scale = args.at(1); //gamma in the GroupNorm contrib case
@@ -167,10 +167,10 @@ struct parse_groupnorm : op_parser<parse_groupnorm>
         auto y      = info.add_instruction(make_op("add"), scaled, bias_bcast);
         auto output = info.add_instruction(make_op("reshape", {{"dims", x_dims}}), y);
 
-        // Convert to NCHW -> NHWC for contrib GroupNorm
-        if(is_nhwc and is_contrib)
+        // Convert to NCHW -> channels_last for contrib GroupNorm
+        if(is_channels_last and is_contrib)
         {
-            output = apply_nhwc_perm(info, output, false);
+            output = apply_channels_last_perm(info, output, false);
         }
         if(silu_activation)
         {

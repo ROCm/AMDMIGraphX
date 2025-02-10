@@ -35,7 +35,7 @@ std::vector<T> norm_test(const std::vector<size_t>& x_dims,
                          std::vector<T>& bias,
                          migraphx::program p,
                          std::string scale_str = std::string{"scale"},
-                         std::string bias_str = std::string{"bias"})
+                         std::string bias_str  = std::string{"bias"})
 {
     p.compile(migraphx::make_target("ref"));
 

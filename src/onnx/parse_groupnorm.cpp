@@ -31,20 +31,20 @@ namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
 namespace onnx {
 
-static instruction_ref apply_channels_last_perm(const onnx_parser::node_info& info,
-                                       instruction_ref ins,
-                                       bool invert)
+static instruction_ref 
+apply_channels_last_perm(const onnx_parser::node_info& info, instruction_ref ins, bool invert)
 {
     std::vector<int64_t> perm(ins->get_shape().ndim());
     std::iota(perm.begin() + 1, perm.end() - 1, 2);
     perm.back() = 1;
-    return info.add_instruction(make_op("transpose", {{"permutation", invert ? invert_permutation(perm) : perm}}), ins);
+    return info.add_instruction(
+        make_op("transpose", {{"permutation", invert ? invert_permutation(perm) : perm}}), ins);
 }
 
 struct parse_groupnorm : op_parser<parse_groupnorm>
 {
-    std::vector<op_desc> operators() const 
-    { 
+    std::vector<op_desc> operators() const
+    {
         return {{"GroupNormalization", "GroupNormalization"}, {"GroupNorm", "Contrib_GroupNorm"}};
     }
 
@@ -53,7 +53,7 @@ struct parse_groupnorm : op_parser<parse_groupnorm>
                           const onnx_parser::node_info& info,
                           std::vector<instruction_ref> args) const
     {
-        bool is_contrib = (!opd.op_name.compare("Contrib_GroupNorm"));
+        bool is_contrib = (not opd.op_name.compare("Contrib_GroupNorm"));
 
         float epsilon = 1e-5f;
         if(contains(info.attributes, "epsilon"))
@@ -64,29 +64,37 @@ struct parse_groupnorm : op_parser<parse_groupnorm>
         if(contains(info.attributes, "num_groups") or contains(info.attributes, "groups"))
         {
             if (is_contrib)
-                num_groups = std::abs(parser.parse_value(info.attributes.at("groups")).at<int64_t>());
+            {
+                num_groups =
+                    std::abs(parser.parse_value(info.attributes.at("groups")).at<int64_t>());
+            }
             else
-                num_groups = std::abs(parser.parse_value(info.attributes.at("num_groups")).at<int64_t>());
+            {
+                num_groups =
+                    std::abs(parser.parse_value(info.attributes.at("num_groups")).at<int64_t>());
+            }
         }
         else
         {
             MIGRAPHX_THROW("PARSE_GROUPNORM: num_groups must be available");
         }
 
-        bool is_channels_last = false; 
+        bool is_channels_last = false;
         if(is_contrib)
-        {   // default state for GroupNorm Contrib op
+        { // default state for GroupNorm Contrib op
             is_channels_last = true;
             if(contains(info.attributes, "channels_last") and is_contrib)
             {
-                is_channels_last = parser.parse_value(info.attributes.at("channels_last")).at<size_t>();
+                is_channels_last =
+                    parser.parse_value(info.attributes.at("channels_last")).at<size_t>();
             }
         }
 
         bool silu_activation = false;
         if(contains(info.attributes, "activation") and is_contrib)
         {
-            silu_activation = (1 == parser.parse_value(info.attributes.at("activation")).at<size_t>());
+            silu_activation =
+                (1 == parser.parse_value(info.attributes.at("activation")).at<size_t>());
         }
         else if(is_contrib)
         {
@@ -105,8 +113,8 @@ struct parse_groupnorm : op_parser<parse_groupnorm>
             x = apply_channels_last_perm(info, x, false);
         }
 
-        auto scale = args.at(1); //gamma in the GroupNorm contrib case
-        auto bias  = args.at(2); //beta in the GroupNorm contrib case
+        auto scale = args.at(1); // gamma in the GroupNorm contrib case
+        auto bias  = args.at(2); // beta in the GroupNorm contrib case
 
         auto x_shape = x->get_shape();
         auto x_dtype = x_shape.type();
@@ -176,7 +184,7 @@ struct parse_groupnorm : op_parser<parse_groupnorm>
         {
             // SiLU activation is just  out = x * sigmoid(x)
             auto sigmoid = info.add_instruction(make_op("sigmoid"), output);
-            output = info.add_instruction(make_op("mul"), output, sigmoid);
+            output       = info.add_instruction(make_op("mul"), output, sigmoid);
         }
         return output;
     }

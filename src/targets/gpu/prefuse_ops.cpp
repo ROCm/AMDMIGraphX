@@ -236,25 +236,9 @@ struct find_gemm_softmax_gemm
     }
 };
 
-struct gpu_compute_attention_probabilities : op::group_query_attention
+struct gpu_kv_cache_attention : op::group_query_attention
 {
-    std::string name() const { return "gpu::compute_attention_probabilities"; }
-
-    shape compute_shape(std::vector<shape> inputs) const
-    {
-        auto query_lens        = inputs.front().lens();
-        auto present_kv_seqlen = inputs.at(1).lens().at(2);
-        std::vector<std::size_t> output_lens{
-            query_lens.at(0), num_heads, query_lens.at(2), present_kv_seqlen};
-        shape output_shape{inputs.front().type(), output_lens};
-        return output_shape;
-    }
-};
-MIGRAPHX_REGISTER_OP(gpu_compute_attention_probabilities);
-
-struct gpu_compute_attention_scores : op::group_query_attention
-{
-    std::string name() const { return "gpu::compute_attention_scores"; }
+    std::string name() const { return "gpu::kv_cache_attention"; }
 
     shape compute_shape(std::vector<shape> inputs) const
     {
@@ -266,7 +250,7 @@ struct gpu_compute_attention_scores : op::group_query_attention
         return output_shape;
     }
 };
-MIGRAPHX_REGISTER_OP(gpu_compute_attention_scores);
+MIGRAPHX_REGISTER_OP(gpu_kv_cache_attention);
 
 struct gpu_gqa_rotary_embedding : op::group_query_attention
 {
@@ -275,14 +259,6 @@ struct gpu_gqa_rotary_embedding : op::group_query_attention
     shape compute_shape(std::vector<shape> inputs) const { return inputs.front(); }
 };
 MIGRAPHX_REGISTER_OP(gpu_gqa_rotary_embedding);
-
-struct gpu_gqa_softmax : op::group_query_attention
-{
-    std::string name() const { return "gpu::gqa_softmax"; }
-
-    shape compute_shape(std::vector<shape> inputs) const { return inputs.at(2); }
-};
-MIGRAPHX_REGISTER_OP(gpu_gqa_softmax);
 
 struct gpu_concat_past_present : op::group_query_attention
 {
@@ -353,21 +329,7 @@ struct find_group_query_attention
         auto id =
             mpm.get_module().insert_instruction(ins, make_op("identity"), concat, pres_k, pres_v);
 
-        std::vector<instruction_ref> attn_probs_inputs{id, pres_k, pres_v, inputs.at(5)};
-        auto attn_probs = mpm.get_module().insert_instruction(
-            ins,
-            gpu_compute_attention_probabilities{
-                do_rotary, kv_num_heads, local_window_size, num_heads, rotary_interleaved, scale},
-            attn_probs_inputs);
-
-        std::vector<instruction_ref> softmax_inputs{rotary_qkv, pres_k, attn_probs, inputs.at(5)};
-        auto softmax = mpm.get_module().insert_instruction(
-            ins,
-            gpu_gqa_softmax{
-                do_rotary, kv_num_heads, local_window_size, num_heads, rotary_interleaved, scale},
-            softmax_inputs);
-        std::vector<instruction_ref> new_inputs{rotary_qkv, pres_k, pres_v, inputs.at(5), softmax};
-
+        std::vector<instruction_ref> new_inputs{id, pres_k, pres_v, inputs.at(5)};
         auto get_tuple_elm_0 = std::next(ins);
         auto get_tuple_elm_1 = std::next(get_tuple_elm_0);
         auto get_tuple_elm_2 = std::next(get_tuple_elm_1);
@@ -375,7 +337,7 @@ struct find_group_query_attention
         mpm.get_module().replace_instruction(get_tuple_elm_1, pres_k);
         mpm.get_module().replace_instruction(
             get_tuple_elm_0,
-            gpu_compute_attention_scores{
+            gpu_kv_cache_attention{
                 do_rotary, kv_num_heads, local_window_size, num_heads, rotary_interleaved, scale},
             new_inputs);
     }

@@ -103,6 +103,7 @@ std::vector<pass> target::get_passes(migraphx::context& gctx, const compile_opti
     unsupported_types.erase(shape::type_t::tuple_type);
     unsupported_types.erase(shape::type_t::bf16_type);
 
+#if MIGRAPHX_USE_HIPBLASLT
     // whiltelist supported Ops for the FP8 types
     // different between fp8e4m3fnuz and OCP types because rocBLAS only has
     // support for fp8e4m3fnuz
@@ -113,6 +114,7 @@ std::vector<pass> target::get_passes(migraphx::context& gctx, const compile_opti
         unsupported_fp8e4m3fnuz_ops.insert("dot");
         unsupported_fp8e4m3fnuz_ops.insert("quant_dot");
     }
+#endif
 #if MIGRAPHX_USE_MIOPEN
     // MIOpen doesn't have support for fp8 pooling yet.
     unsupported_fp8e4m3fnuz_ops.insert("pooling");

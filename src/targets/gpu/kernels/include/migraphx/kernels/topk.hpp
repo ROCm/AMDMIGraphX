@@ -38,11 +38,22 @@
 namespace migraphx {
 
 template <class T, class U>
-struct topk_pair
+struct topk_pair_t_u
 {
     T key;
     U val;
+};
 
+template <class T, class U>
+struct topk_pair_u_t
+{
+    U val;
+    T key;
+};
+
+template <class T, class U>
+struct topk_pair : conditional_t<(sizeof(T) >= sizeof(U)), topk_pair_t_u<T, U>, topk_pair_u_t<T, U>>
+{
     template <class Stream>
     friend constexpr const Stream& operator<<(const Stream& ss, const topk_pair& tp)
     {
@@ -295,6 +306,11 @@ struct bitonic_topk
     }
 };
 
+template<class T, class Type = typename T::type>
+constexpr auto get_index_type(T) -> conditional_t<(sizeof(Type) < sizeof(index_int)), Type, index_int>;
+
+constexpr auto get_index_type() -> uint16_t;
+
 template <class N, class K, class Compare>
 bitonic_topk(N, K, Compare) -> bitonic_topk<N{}, K{}, Compare>;
 
@@ -312,7 +328,7 @@ __device__ auto topk(Compare compare, T init)
         constexpr auto aligned_k = return_c([=] { return bit_ceil(k); });
         using pair               = topk_pair<
                           type,
-                          conditional_t<(n > 32768 or sizeof...(in_indices) == 1), index_int, uint16_t>>;
+                          conditional_t<(n > 32768), index_int, decltype(get_index_type(in_indices...))>>;
         idx.group_stride(input.get_shape().elements() / n, [&](auto group) {
             auto x         = tensor_slice(input, group, slice_axes<Axis>());
             auto y         = tensor_slice(output, group, slice_axes<Axis>());

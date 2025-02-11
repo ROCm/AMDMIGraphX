@@ -62,6 +62,11 @@ bool hipblaslt_supported()
             starts_with(device_name, "gfx110") or starts_with(device_name, "gfx120"));
 }
 
+bool hipblaslt_fp8_available()
+{
+    const auto device_name = trim(split_string(get_device_name(), ':').front());
+    return (starts_with(device_name, "gfx94") and device_name >= "gfx940");
+}
 #endif // MIGRAPHX_USE_HIPBLASLT
 
 } // namespace gpu

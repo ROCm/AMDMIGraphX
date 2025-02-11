@@ -107,7 +107,8 @@ std::vector<pass> target::get_passes(migraphx::context& gctx, const compile_opti
     // different between fp8e4m3fnuz and OCP types because rocBLAS only has
     // support for fp8e4m3fnuz
     std::set<std::string> unsupported_fp8e4m3fnuz_ops = {};
-    if(not enabled(MIGRAPHX_ENABLE_HIPBLASLT_GEMM{}) and not gpu::rocblas_fp8_available())
+    if(not enabled(MIGRAPHX_ENABLE_HIPBLASLT_GEMM{}) ? not gpu::rocblas_fp8_available()
+                                                     : not hipblaslt_fp8_available())
     {
         unsupported_fp8e4m3fnuz_ops.insert("dot");
         unsupported_fp8e4m3fnuz_ops.insert("quant_dot");

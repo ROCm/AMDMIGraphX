@@ -306,6 +306,7 @@ __device__ auto topk(Compare compare, T init)
         auto idx   = make_index();
         constexpr auto n =
             return_c([] { return get_shape_c<decltype(input)>{}.get_shape().lens[Axis]; });
+        constexpr auto aligned_n = return_c([=] { return bit_ceil(n); });
         constexpr auto k =
             return_c([] { return get_shape_c<decltype(output)>{}.get_shape().lens[Axis]; });
         constexpr auto aligned_k = return_c([=] { return bit_ceil(k); });
@@ -330,14 +331,19 @@ __device__ auto topk(Compare compare, T init)
 #if 1
             constexpr auto nlocal_wave = idx.nlocal_wave();
             constexpr auto nwave       = idx.nwave();
-            constexpr auto per_wave    = n / nwave;
+            constexpr auto m = k * nwave;
+            constexpr auto aligned_m = return_c([=] { return bit_ceil(m); });
+            constexpr auto extra_m = aligned_m - m;
+            constexpr auto over_n = where(n == aligned_n, _c<0>, n - aligned_n / _c<2>);
+            constexpr auto trimmed_n = max(where(over_n < extra_m, n - over_n, n), aligned_m);
+            constexpr auto per_wave    = trimmed_n / nwave;
             constexpr auto per_lane =
                 return_c([=] { return bit_ceil(ceil_div(per_wave, nlocal_wave)); });
-            array<pair, per_lane> local_buf;
             const auto local_shape = make_shape(index_ints<nwave, nlocal_wave, per_lane>{});
-            const auto base        = idx.local_wave() * per_lane;
-            MIGRAPHX_ASSERT(local_shape.elements() >= n);
+            MIGRAPHX_ASSERT(local_shape.elements() >= trimmed_n);
+            MIGRAPHX_ASSERT(per_wave >= k);
 
+            array<pair, per_lane> local_buf;
             // for(index_int i:range(per_lane))
             // {
             //     local_buf[i].key = init;
@@ -366,7 +372,7 @@ __device__ auto topk(Compare compare, T init)
                 // Copy to output
                 for(index_int i : range(per_lane))
                 {
-                    auto j = i + base;
+                    auto j = local_shape.index({idx.wave(), idx.local_wave(), i});
                     if(j >= k)
                         continue;
                     y[j]     = local_buf[i].key;
@@ -375,21 +381,33 @@ __device__ auto topk(Compare compare, T init)
             }
             else
             {
-                constexpr auto aligned_m = return_c([=] { return bit_ceil(k * nwave); });
+                // println_once("m: ", m);
+                // println_once("aligned_m: ", aligned_m);
+                // println_once("extra_m: ", extra_m);
+                // println_once("k: ", k);
+                // println_once("n: ", n);
+                // println_once("trimmed_n: ", trimmed_n);
+                // println_once("per_wave: ", per_wave);
                 __shared__ pair buf[aligned_m];
-                idx.local_stride(aligned_m, [&](auto i) {
-                    buf[i].key = init;
-                    buf[i].val = -1;
+                idx.local_stride(extra_m, [&](auto i) {
+                    auto in = i+trimmed_n;
+                    auto im = i+m;
+                    MIGRAPHX_ASSERT(im < aligned_m);
+                    buf[im].key = in < n ? x[in] : init;
+                    buf[im].val = get_index(in);
                 });
-                __syncthreads();
+                // __syncthreads();
                 auto shared_shape = make_shape(index_ints<nwave, k>{});
+                const auto base        = idx.local_wave() * per_lane;
                 for(index_int i : range(per_lane))
                 {
                     auto ibase = i + base;
+                    // if(idx.group == 0 and idx.wave() == 0)
+                    //     println("j: ", j, " i: ", i, " base: ", base, " lane: ", idx.local_wave());
                     if(ibase >= k)
                         continue;
                     auto j = shared_shape.index({idx.wave(), ibase});
-                    MIGRAPHX_ASSERT(j < aligned_m);
+                    MIGRAPHX_ASSERT(j < m);
                     buf[j] = local_buf[i];
                 }
                 __syncthreads();

@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2024 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2025 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -127,7 +127,7 @@ bool operator==(const instruction& i, instruction_ref ref)
 
 bool instruction::valid(instruction_ref start, bool check_order) const
 {
-    return valid() && std::all_of(arguments.begin(), arguments.end(), [&](instruction_ref i) {
+    return valid() and std::all_of(arguments.begin(), arguments.end(), [&](instruction_ref i) {
                auto self = std::find(i->outputs().begin(), i->outputs().end(), *this);
                bool ret  = self != i->outputs().end();
                if(check_order)
@@ -162,7 +162,7 @@ bool instruction::valid() const
         }
     }
 
-    return (result == computed) &&
+    return (result == computed) and
            std::all_of(output.begin(), output.end(), [&](instruction_ref i) {
                return std::find(i->inputs().begin(), i->inputs().end(), *this) != i->inputs().end();
            });

@@ -94,7 +94,10 @@ TEST_CASE(gemm_pointwise_add)
         else
         {
             auto gemm_oper =
-                migraphx::make_op("gpu::gemm", {{"alpha", 1}, {"beta", 1}, {"compute_fp32", 1}});
+                migraphx::make_op("gpu::gemm",
+                                  {{"alpha", 1},
+                                   {"beta", 1},
+                                   {"compute_fp32", migraphx::gpu::get_compute_fp32_flag()}});
             auto add = mm->add_instruction(gemm_oper, a, b, x, output);
             mm->add_return({add});
         }

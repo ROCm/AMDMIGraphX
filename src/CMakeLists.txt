@@ -37,6 +37,7 @@ add_library(migraphx
     argument.cpp
     autocast_fp8.cpp
     auto_contiguous.cpp
+    base64.cpp
     common.cpp
     common_dims.cpp
     compile_src.cpp
@@ -57,6 +58,7 @@ add_library(migraphx
     file_buffer.cpp
     fileutils.cpp
     fp_to_double.cpp
+    fp8_ocp_to_fnuz.cpp
     fuse_concat.cpp
     fuse_pointwise.cpp
     fuse_pointwise_reduce.cpp
@@ -73,6 +75,7 @@ add_library(migraphx
     memory_coloring.cpp
     module.cpp
     msgpack.cpp
+    netron_output.cpp
     normalize_attributes.cpp
     normalize_ops.cpp
     op_enums.cpp

@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2024 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2025 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -258,6 +258,21 @@ void quantize_int8_wrap(program& prog, const target& t, quantize_int8_options& o
     }
 
     migraphx::quantize_int8(prog, t, options.calibration, options.op_names);
+}
+
+struct quantize_fp8_options
+{
+    std::vector<parameter_map> calibration = {};
+};
+
+void add_calibration_data(quantize_fp8_options& options, parameter_map& data)
+{
+    options.calibration.push_back(data);
+}
+
+void quantize_fp8_wrap(program& prog, const target& t, quantize_fp8_options& options)
+{
+    migraphx::quantize_fp8(prog, t, options.calibration);
 }
 
 #ifdef __clang__

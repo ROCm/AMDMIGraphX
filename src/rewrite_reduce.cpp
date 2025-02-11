@@ -192,7 +192,7 @@ struct find_large_topk
 
         std::vector<std::size_t> indices_data(n);
         std::iota(indices_data.begin(), indices_data.end(), 0);
-        auto indices_lit = m.add_literal(shape{shape::int64_type, {n}}, indices_data);
+        auto indices_lit = m.add_literal(shape{(n < 65536 ? shape::uint16_type : shape::uint32_type), {n}}, indices_data);
 
         auto indices = m.insert_instruction(
             ins, make_op("broadcast", {{"axis", axis}, {"out_lens", dims}}), indices_lit);

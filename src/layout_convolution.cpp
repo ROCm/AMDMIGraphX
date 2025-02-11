@@ -50,6 +50,13 @@ std::vector<int64_t> get_permutation(instruction_ref ins, const layout_convoluti
     return find_permutation(ins->inputs().front()->get_shape());
 }
 
+std::vector<int64_t> get_default_permutation(instruction_ref ins)
+{
+    std::vector<int64_t> perm(ins->get_shape().ndim());
+    std::iota(perm.begin(), perm.end(), 0);
+    return perm;
+}
+
 bool skip_layout(const shape& s)
 {
     return s.ndim() == 1 or s.dynamic() or s.type() == shape::tuple_type;
@@ -91,10 +98,9 @@ void transform_convolutions(module& m, const layout_convolution& lc)
         if(ins->get_shape().lens().size() != 4)
             continue;
         auto v = ins->get_operator().to_value();
-        if(v.at("group").to<int>() > 1)
-            continue;
+        bool is_group_conv = v.at("group").to<int>() > 1;
         auto args = ins->inputs();
-        auto perm = get_permutation(ins, lc);
+        auto perm = is_group_conv ? get_default_permutation(ins) : get_permutation(ins, lc);
         std::transform(args.begin(), args.end(), args.begin(), [&](const auto& i) {
             return m.insert_instruction(ins, make_op("layout", {{"permutation", perm}}), i);
         });

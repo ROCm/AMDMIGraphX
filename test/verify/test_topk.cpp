@@ -36,7 +36,7 @@ struct test_topk : verify_program<test_topk<DType, K, N>>
     {
         migraphx::program p;
         auto* mm           = p.get_main_module();
-        unsigned int batch = 1;
+        unsigned int batch = 3;
         migraphx::shape s{migraphx::shape::float_type, {batch, N}};
         auto x1 = mm->add_parameter("x1", s);
 

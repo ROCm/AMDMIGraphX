@@ -60,7 +60,7 @@ struct topk
 
     shape normalize_compute_shape(std::vector<shape> inputs) const
     {
-        check_shapes{inputs, *this}.has(1, 2).standard();
+        check_shapes{inputs, *this}.has(1, 2);
         auto lens = inputs.at(0).lens();
         auto type = inputs.at(0).type();
 

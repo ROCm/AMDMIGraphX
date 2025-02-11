@@ -83,7 +83,7 @@ struct parse_groupnorm : op_parser<parse_groupnorm>
         if(is_contrib)
         { // default state for GroupNorm Contrib op
             is_channels_last = true;
-            if(contains(info.attributes, "channels_last") and is_contrib)
+            if(contains(info.attributes, "channels_last"))
             {
                 is_channels_last =
                     parser.parse_value(info.attributes.at("channels_last")).at<size_t>();

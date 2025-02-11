@@ -10,7 +10,8 @@ import argparse
 def get_dtype(instruction):
     type_mapping = {
         'float_type': TensorProto.FLOAT,
-        'bf16_type': TensorProto.BFLOAT16
+        'bf16_type': TensorProto.BFLOAT16,
+        'half_type': TensorProto.FLOAT16
     }
     return type_mapping[instruction.shape().type_string()]
 
@@ -26,14 +27,15 @@ def get_shape(instruction):
 def map_operation(operation):
     mxr_to_onnx_op = {
         "dot": "MatMul",
-        "mul": "MatMul",
+        "mul": "Mul",
         "add": "Add",
         "multibroadcast": "Expand",
         "erf": "Erf",
         "tanh": "Tanh",
         "exp": "Exp",
         "div": "Div",
-        "relu": "Relu"
+        "relu": "Relu",
+        "pow": "Pow"
     }
 
     if operation not in mxr_to_onnx_op:

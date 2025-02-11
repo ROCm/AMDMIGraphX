@@ -33,7 +33,12 @@ TEST_CASE(group_norm_contrib_bf16_test)
     std::vector<bf16> gamma{bf16{1.2}, bf16{0.8}};
     std::vector<bf16> beta{bf16{0.5}, bf16{0.2}};
     std::vector<bf16> result_vector =
-        norm_test<bf16>({1, 4, 2}, gamma, beta, read_onnx("group_norm_contrib_3d_channel_last_bf16_test.onnx"), "gamma", "beta");
+        norm_test<bf16>({1, 4, 2},
+                        gamma,
+                        beta,
+                        read_onnx("group_norm_contrib_3d_channel_last_bf16_test.onnx"),
+                        "gamma",
+                        "beta");
     std::vector<bf16> gold = {bf16{-1.10996256},
                               bf16{-0.87330837},
                               bf16{-0.0366542},

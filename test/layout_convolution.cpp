@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2024 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2025 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -46,7 +46,6 @@ migraphx::instruction_ref add_layout_nhwc(migraphx::module& m, migraphx::instruc
 {
     return m.add_instruction(layout({0, 2, 3, 1}), ins);
 }
-
 
 migraphx::instruction_ref add_layout_nchw(migraphx::module& m, migraphx::instruction_ref ins)
 {
@@ -397,11 +396,14 @@ TEST_CASE(nhwc_group_conv)
     migraphx::module m1;
     {
         auto x  = m1.add_parameter("x", {migraphx::shape::float_type, {64, 96, 80, 80}});
-        auto w1 = m1.add_literal(migraphx::generate_literal({migraphx::shape::float_type, {64, 96, 1, 1}}));
-        auto w2 = m1.add_literal(migraphx::generate_literal({migraphx::shape::float_type, {64, 1, 3, 3}}));
+        auto w1 = m1.add_literal(
+            migraphx::generate_literal({migraphx::shape::float_type, {64, 96, 1, 1}}));
+        auto w2 = m1.add_literal(
+            migraphx::generate_literal({migraphx::shape::float_type, {64, 1, 3, 3}}));
         auto conv1 = m1.add_instruction(migraphx::make_op("convolution"), x, w1);
         auto relu1 = m1.add_instruction(migraphx::make_op("relu"), conv1);
-        auto conv2 = m1.add_instruction(migraphx::make_op("convolution", {{"group", 64}}), relu1, w2);
+        auto conv2 =
+            m1.add_instruction(migraphx::make_op("convolution", {{"group", 64}}), relu1, w2);
         auto relu2 = m1.add_instruction(migraphx::make_op("relu"), conv2);
         m1.add_return({relu2});
     }
@@ -409,12 +411,18 @@ TEST_CASE(nhwc_group_conv)
 
     migraphx::module m2;
     {
-        auto x  = add_layout_nhwc(m2, m2.add_parameter("x", {migraphx::shape::float_type, {64, 96, 80, 80}}));
-        auto w1 = add_layout_nhwc(m2, m2.add_literal(migraphx::generate_literal({migraphx::shape::float_type, {64, 96, 1, 1}})));
-        auto w2 = add_layout_nchw(m2, m2.add_literal(migraphx::generate_literal({migraphx::shape::float_type, {64, 1, 3, 3}})));
+        auto x = add_layout_nhwc(
+            m2, m2.add_parameter("x", {migraphx::shape::float_type, {64, 96, 80, 80}}));
+        auto w1    = add_layout_nhwc(m2,
+                                  m2.add_literal(migraphx::generate_literal(
+                                      {migraphx::shape::float_type, {64, 96, 1, 1}})));
+        auto w2    = add_layout_nchw(m2,
+                                  m2.add_literal(migraphx::generate_literal(
+                                      {migraphx::shape::float_type, {64, 1, 3, 3}})));
         auto conv1 = m2.add_instruction(migraphx::make_op("convolution"), x, w1);
         auto relu1 = add_layout_nhwc(m2, m2.add_instruction(migraphx::make_op("relu"), conv1));
-        auto conv2 = m2.add_instruction(migraphx::make_op("convolution", {{"group", 64}}), relu1, w2);
+        auto conv2 =
+            m2.add_instruction(migraphx::make_op("convolution", {{"group", 64}}), relu1, w2);
         auto relu2 = add_layout_nchw(m2, m2.add_instruction(migraphx::make_op("relu"), conv2));
         m2.add_return({relu2});
     }

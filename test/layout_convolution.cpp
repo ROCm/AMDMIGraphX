@@ -47,6 +47,12 @@ migraphx::instruction_ref add_layout_nhwc(migraphx::module& m, migraphx::instruc
     return m.add_instruction(layout({0, 2, 3, 1}), ins);
 }
 
+
+migraphx::instruction_ref add_layout_nchw(migraphx::module& m, migraphx::instruction_ref ins)
+{
+    return m.add_instruction(layout(), ins);
+}
+
 TEST_CASE(auto_conv_nchw)
 {
     migraphx::module m1;
@@ -384,6 +390,34 @@ TEST_CASE(nhwc_conv_reduce)
         m2.add_return({squeeze});
     }
     EXPECT(m1.sort() == m2.sort());
+}
+
+TEST_CASE(nhwc_group_conv)
+{
+    migraphx::module m1;
+    {
+        auto x  = m1.add_parameter("x", {migraphx::shape::float_type, {64, 96, 80, 80}});
+        auto w1 = m1.add_literal(migraphx::generate_literal({migraphx::shape::float_type, {64, 96, 1, 1}}));
+        auto w2 = m1.add_literal(migraphx::generate_literal({migraphx::shape::float_type, {64, 1, 3, 3}}));
+        auto conv1 = m1.add_instruction(migraphx::make_op("convolution"), x, w1);
+        auto relu1 = m1.add_instruction(migraphx::make_op("relu"), conv1);
+        auto conv2 = m1.add_instruction(migraphx::make_op("convolution", {{"group", 64}}), relu1, w2);
+        auto relu2 = m1.add_instruction(migraphx::make_op("relu"), conv2);
+        m1.add_return({relu2});
+    }
+    run_pass(m1, {.channels_last = true});
+
+    migraphx::module m2;
+    {
+        auto x  = add_layout_nhwc(m2, m2.add_parameter("x", {migraphx::shape::float_type, {64, 96, 80, 80}}));
+        auto w1 = add_layout_nhwc(m2, m2.add_literal(migraphx::generate_literal({migraphx::shape::float_type, {64, 96, 1, 1}})));
+        auto w2 = add_layout_nchw(m2, m2.add_literal(migraphx::generate_literal({migraphx::shape::float_type, {64, 1, 3, 3}})));
+        auto conv1 = m2.add_instruction(migraphx::make_op("convolution"), x, w1);
+        auto relu1 = add_layout_nhwc(m2, m2.add_instruction(migraphx::make_op("relu"), conv1));
+        auto conv2 = m2.add_instruction(migraphx::make_op("convolution", {{"group", 64}}), relu1, w2);
+        auto relu2 = add_layout_nchw(m2, m2.add_instruction(migraphx::make_op("relu"), conv2));
+        m2.add_return({relu2});
+    }
 }
 
 int main(int argc, const char* argv[]) { test::run(argc, argv); }

@@ -53,7 +53,7 @@ struct parse_groupnorm : op_parser<parse_groupnorm>
                           const onnx_parser::node_info& info,
                           std::vector<instruction_ref> args) const
     {
-        bool is_contrib = (opd.op_name.compare("Contrib_GroupNorm") == 0);
+        bool is_contrib = (opd.op_name == ("Contrib_GroupNorm"));
 
         float epsilon = 1e-5f;
         if(contains(info.attributes, "epsilon"))

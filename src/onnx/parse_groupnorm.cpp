@@ -31,7 +31,7 @@ namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
 namespace onnx {
 
-static instruction_ref 
+static instruction_ref
 apply_channels_last_perm(const onnx_parser::node_info& info, instruction_ref ins, bool invert)
 {
     std::vector<int64_t> perm(ins->get_shape().ndim());
@@ -45,7 +45,7 @@ struct parse_groupnorm : op_parser<parse_groupnorm>
 {
     std::vector<op_desc> operators() const
     {
-        return {{"GroupNormalization", "GroupNormalization"}, {"GroupNorm", "Contrib_GroupNorm"}};
+        return {{"GroupNormalization", "GroupNorm"}, {"GroupNorm", "Contrib_GroupNorm"}};
     }
 
     instruction_ref parse(const op_desc& opd,
@@ -53,7 +53,7 @@ struct parse_groupnorm : op_parser<parse_groupnorm>
                           const onnx_parser::node_info& info,
                           std::vector<instruction_ref> args) const
     {
-        bool is_contrib = (not opd.op_name.compare("Contrib_GroupNorm"));
+        bool is_contrib = (opd.op_name.compare("Contrib_GroupNorm") == 0);
 
         float epsilon = 1e-5f;
         if(contains(info.attributes, "epsilon"))
@@ -63,7 +63,7 @@ struct parse_groupnorm : op_parser<parse_groupnorm>
         size_t num_groups;
         if(contains(info.attributes, "num_groups") or contains(info.attributes, "groups"))
         {
-            if (is_contrib)
+            if(is_contrib)
             {
                 num_groups =
                     std::abs(parser.parse_value(info.attributes.at("groups")).at<int64_t>());

@@ -27,12 +27,12 @@
 
 TEST_CASE(group_norm_contrib_channels_last_silu_3d_test)
 {
-    const std::vector<int64_t> input_dims{1,4,2};
+    const std::vector<int64_t> input_dims{1, 4, 2};
     const std::vector<int64_t> scale_dims{2};
     const std::vector<int64_t> bias_dims{2};
     const std::vector<int64_t> reshape_dims{1, 2, 1, 4};
     const std::vector<int64_t> reduce_axes{2, 3};
-    const float eps_value = 1e-5f;
+    const float eps_value               = 1e-5f;
     const migraphx::shape::type_t dtype = migraphx::shape::float_type;
 
     migraphx::program p;
@@ -44,7 +44,7 @@ TEST_CASE(group_norm_contrib_channels_last_silu_3d_test)
 
     auto eps = mm->add_literal(migraphx::literal{dtype, {eps_value}});
 
-    auto x_transp = 
+    auto x_transp =
         mm->add_instruction(migraphx::make_op("transpose", {{"permutation", {0, 2, 1}}}), x);
 
     auto x_reshapedd =
@@ -62,12 +62,14 @@ TEST_CASE(group_norm_contrib_channels_last_silu_3d_test)
         migraphx::make_op("broadcast", {{"axis", 1}, {"out_lens", reshape_dims}}), scale);
     auto bias_bcast = mm->add_instruction(
         migraphx::make_op("broadcast", {{"axis", 1}, {"out_lens", reshape_dims}}), bias);
-    auto scaled = mm->add_instruction(migraphx::make_op("mul"), {result, scale_bcast});
-    auto y      = mm->add_instruction(migraphx::make_op("add"), {scaled, bias_bcast});
+    auto scaled      = mm->add_instruction(migraphx::make_op("mul"), {result, scale_bcast});
+    auto y           = mm->add_instruction(migraphx::make_op("add"), {scaled, bias_bcast});
     auto reshape_out = mm->add_instruction(migraphx::make_op("reshape", {{"dims", {1, 2, 4}}}), y);
-    auto group_out   = mm->add_instruction(migraphx::make_op("transpose", {{"permutation", {0, 2, 1}}}), reshape_out);
+    auto group_out   = mm->add_instruction(
+        migraphx::make_op("transpose", {{"permutation", {0, 2, 1}}}), reshape_out);
 
-    // Order matters for this operator as we MUST have SILU after a group norm is done when the activation flag is set
+    // Order matters for this operator as we MUST have SILU after a group norm is done when the
+    // activation flag is set
     auto sigmoid_out = mm->add_instruction(migraphx::make_op("sigmoid"), group_out);
     mm->add_instruction(migraphx::make_op("mul"), group_out, sigmoid_out);
 

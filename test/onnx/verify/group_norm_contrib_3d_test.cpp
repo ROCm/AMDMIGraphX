@@ -32,7 +32,12 @@ TEST_CASE(group_norm_contrib_test)
     std::vector<float> gamma{1.2, 0.8};
     std::vector<float> beta{0.5, 0.2};
     std::vector<float> result_vector =
-        norm_test<float>({1, 4, 2}, gamma, beta, read_onnx("group_norm_contrib_3d_channel_last_test.onnx"), "gamma", "beta");
+        norm_test<float>({1, 4, 2},
+                         gamma,
+                         beta,
+                         read_onnx("group_norm_contrib_3d_channel_last_test.onnx"),
+                         "gamma",
+                         "beta");
     std::vector<float> gold = {-1.10996256,
                                -0.87330837,
                                -0.0366542,

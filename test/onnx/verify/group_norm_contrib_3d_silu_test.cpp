@@ -31,15 +31,9 @@ TEST_CASE(group_norm_contrib_silu_test)
 {
     std::vector<float> gamma{1.2, 0.8};
     std::vector<float> beta{0.5, 0.2};
-    std::vector<float> result_vector =
-        norm_test<float>({1, 4, 2}, gamma, beta, read_onnx("group_norm_contrib_silu_3d_test.onnx"), "gamma", "beta");
-    std::vector<float> gold = {-0.275135,
-                               -0.0179913,
-                               0.765262,
-                               1.88181,
-                               -0.257247,
-                               -0.0726748,
-                               0.354706,
-                               0.994847};
+    std::vector<float> result_vector = norm_test<float>(
+        {1, 4, 2}, gamma, beta, read_onnx("group_norm_contrib_silu_3d_test.onnx"), "gamma", "beta");
+    std::vector<float> gold = {
+        -0.275135, -0.0179913, 0.765262, 1.88181, -0.257247, -0.0726748, 0.354706, 0.994847};
     EXPECT(migraphx::verify::verify_rms_range(result_vector, gold));
 }

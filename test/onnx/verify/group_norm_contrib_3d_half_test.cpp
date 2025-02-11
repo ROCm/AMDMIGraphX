@@ -33,7 +33,12 @@ TEST_CASE(group_norm_contrib_half_test)
     std::vector<half> gamma{half{1.2}, half{0.8}};
     std::vector<half> beta{half{0.5}, half{0.2}};
     std::vector<half> result_vector =
-        norm_test<half>({1, 4, 2}, gamma, beta, read_onnx("group_norm_contrib_3d_channel_last_half_test.onnx"), "gamma", "beta");
+        norm_test<half>({1, 4, 2},
+                        gamma,
+                        beta,
+                        read_onnx("group_norm_contrib_3d_channel_last_half_test.onnx"),
+                        "gamma",
+                        "beta");
     std::vector<half> gold = {half{-1.10996256},
                               half{-0.87330837},
                               half{-0.0366542},

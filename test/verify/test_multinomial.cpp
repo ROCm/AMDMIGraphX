@@ -62,7 +62,8 @@ struct test_multinomial : verify_program<test_multinomial<DType>>
 
 template struct test_multinomial<migraphx::shape::float_type>;
 template struct test_multinomial<migraphx::shape::half_type>;
-// TODO bf16 accumulates more rounding errors in exp() and prefix_scan_sum, which is slightly shifting the cdf values and causing off-by-one errors.
+// TODO bf16 accumulates more rounding errors in exp() and prefix_scan_sum, which is slightly
+// shifting the cdf values and causing off-by-one errors.
 //  template struct test_multinomial<migraphx::shape::bf16_type>;
 // TODO This fails, need to figure out why
 //  template struct test_multinomial<migraphx::shape::fp8e4m3fnuz_type>;

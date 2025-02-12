@@ -4926,6 +4926,12 @@ def group_norm_contrib_channels_last_3d_test():
 
 
 @onnx_test()
+def group_norm_contrib_channels_last_4d_test():
+    return group_norm_contrib_test([1, 3, 3, 4], [2], [2], [1, 3, 3, 4], 2, 0,
+                                   1)
+
+
+@onnx_test()
 def group_norm_contrib_channels_last_and_silu_3d_test():
     return group_norm_contrib_test([1, 4, 2], [2], [2], [1, 4, 2], 2, 1, 1)
 

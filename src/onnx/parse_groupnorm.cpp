@@ -110,7 +110,7 @@ struct parse_groupnorm : op_parser<parse_groupnorm>
         auto x = args.at(0);
         if(is_channels_last and is_contrib)
         {
-            x = apply_channels_last_perm(info, x, false);
+            x = apply_channels_last_perm(info, x, true);
         }
 
         auto scale = args.at(1); // gamma in the GroupNorm contrib case

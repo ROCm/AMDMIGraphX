@@ -69,9 +69,8 @@ bool gfx_has_fp8ocp_intrinsics()
 
 bool gfx_has_fp8fnuz_support()
 {
-    bool has_support = enabled(MIGRAPHX_ENABLE_HIPBLASLT_GEMM{}) ? gfx_has_fp8fnuz_intrinsics()
-                                                                 : gpu::rocblas_fp8_available();
-    return has_support;
+    return (enabled(MIGRAPHX_ENABLE_HIPBLASLT_GEMM{}) ? gfx_has_fp8fnuz_intrinsics()
+                                                      : gpu::rocblas_fp8_available());
 }
 
 } // namespace gpu

@@ -62,10 +62,12 @@ TEST_CASE(group_norm_contrib_channels_last_4d_test)
         migraphx::make_op("broadcast", {{"axis", 1}, {"out_lens", reshape_dims}}), scale);
     auto bias_bcast = mm->add_instruction(
         migraphx::make_op("broadcast", {{"axis", 1}, {"out_lens", reshape_dims}}), bias);
-    auto scaled      = mm->add_instruction(migraphx::make_op("mul"), {result, scale_bcast});
-    auto y           = mm->add_instruction(migraphx::make_op("add"), {scaled, bias_bcast});
-    auto reshape_out = mm->add_instruction(migraphx::make_op("reshape", {{"dims", {1, 4, 3, 3}}}), y);
-    mm->add_instruction(migraphx::make_op("transpose", {{"permutation", {0, 2, 3, 1}}}), reshape_out); 
+    auto scaled = mm->add_instruction(migraphx::make_op("mul"), {result, scale_bcast});
+    auto y      = mm->add_instruction(migraphx::make_op("add"), {scaled, bias_bcast});
+    auto reshape_out =
+        mm->add_instruction(migraphx::make_op("reshape", {{"dims", {1, 4, 3, 3}}}), y);
+    mm->add_instruction(migraphx::make_op("transpose", {{"permutation", {0, 2, 3, 1}}}),
+                        reshape_out);
 
     auto prog = optimize_onnx("group_norm_contrib_channels_last_4d_test.onnx");
     EXPECT(p == prog);

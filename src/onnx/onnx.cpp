@@ -47,6 +47,7 @@ program parse_onnx_from(const onnx_options& options, Ts&&... xs)
     parser.map_dyn_input_dims = options.map_dyn_input_dims;
     parser.default_dim_value  = options.default_dim_value;
     parser.is_params_cmd      = options.is_params_cmd;
+    parser.is_cli_cmd         = options.is_cli_cmd;
 
     if(parser.default_dim_value)
     {

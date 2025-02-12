@@ -302,6 +302,7 @@ struct loader
         options.map_dyn_input_dims     = map_dyn_input_dims;
         options.dim_params             = map_dim_params;
         options.is_params_cmd          = is_params_cmd;
+        options.is_cli_cmd             = true;
         return options;
     }
 

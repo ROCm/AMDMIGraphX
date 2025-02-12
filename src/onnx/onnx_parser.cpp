@@ -645,7 +645,10 @@ shape onnx_parser::parse_type(const std::string& name, const onnx::TypeProto& t)
         }
         else
         {
-            if(idx != 0 and default_dim_value != 0 and not is_params_cmd)
+            // Note: Batch is effectively set via onnx_options::default_dim_value, via API or CLI.
+            // Batch should be default filled only for index 0 (else throw error when set via CLI)
+            // If the Driver Param option is used, we don't want to throw an error.
+            if(idx != 0 and default_dim_value != 0 and is_cli_cmd and not is_params_cmd)
                 MIGRAPHX_THROW("Batch inserted at non-zero index: " + std::to_string(idx) +
                                +", instead set \'input-dim\' option for node \'" + name +
                                "\'. Use --help for details.");

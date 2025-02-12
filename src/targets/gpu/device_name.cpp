@@ -21,7 +21,9 @@
  * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
  * THE SOFTWARE.
  */
+#include <migraphx/env.hpp>
 #include <migraphx/gpu/device_name.hpp>
+#include <migraphx/gpu/rocblas.hpp>
 #include <migraphx/errors.hpp>
 #include <migraphx/rank.hpp>
 #include <migraphx/stringutils.hpp>
@@ -30,6 +32,8 @@
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
 namespace gpu {
+
+MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_ENABLE_HIPBLASLT_GEMM)
 
 int get_device_id()
 {
@@ -61,6 +65,14 @@ bool gfx_has_fp8ocp_intrinsics()
     bool is_navi_with_fp8ocp = starts_with(device_name, "gfx12") and device_name >= "gfx1200";
     bool is_mi_with_fp8ocp   = starts_with(device_name, "gfx9") and device_name >= "gfx950";
     return (is_navi_with_fp8ocp or is_mi_with_fp8ocp);
+}
+
+bool gfx_has_fp8fnuz_support()
+{
+    bool has_support = not enabled(MIGRAPHX_ENABLE_HIPBLASLT_GEMM{})
+                           ? gpu::rocblas_fp8_available()
+                           : gfx_has_fp8fnuz_intrinsics();
+    return has_support;
 }
 
 } // namespace gpu

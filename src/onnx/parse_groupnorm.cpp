@@ -86,7 +86,7 @@ struct parse_groupnorm : op_parser<parse_groupnorm>
             if(contains(info.attributes, "channels_last"))
             {
                 is_channels_last =
-                    parser.parse_value(info.attributes.at("channels_last")).at<size_t>();
+                    (1 == parser.parse_value(info.attributes.at("channels_last")).at<size_t>());
             }
         }
 

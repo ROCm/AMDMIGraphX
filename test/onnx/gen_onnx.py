@@ -11946,7 +11946,8 @@ def rotary_embedding_dim_test():
 def rotary_embedding_packed_batching_test():
     input = helper.make_tensor_value_info('input', TensorProto.FLOAT16,
                                           [1, 3, 6])
-    pos_ids = helper.make_tensor_value_info('pos_ids', TensorProto.INT32, [1, 3])
+    pos_ids = helper.make_tensor_value_info('pos_ids', TensorProto.INT32,
+                                            [1, 3])
     cos_cache = helper.make_tensor_value_info('cos_cache', TensorProto.FLOAT16,
                                               [2, 2])
     sin_cache = helper.make_tensor_value_info('sin_cache', TensorProto.FLOAT16,
@@ -12012,6 +12013,7 @@ def rotary_embedding_scale_test():
         domain="com.microsoft")
 
     return ([node], [input, pos_ids, cos_cache, sin_cache], [output])
+
 
 #-------
 @onnx_test()
@@ -12089,8 +12091,7 @@ def rotary_embedding_pos_ids_1_test():
 def rotary_embedding_pos_ids_2_test():
     input = helper.make_tensor_value_info('input', TensorProto.FLOAT16,
                                           [1, 2, 18])
-    pos_ids = helper.make_tensor_value_info('pos_ids', TensorProto.INT32,
-                                            [2])
+    pos_ids = helper.make_tensor_value_info('pos_ids', TensorProto.INT32, [2])
     cos_cache = helper.make_tensor_value_info('cos_cache', TensorProto.FLOAT16,
                                               [4, 3])
     sin_cache = helper.make_tensor_value_info('sin_cache', TensorProto.FLOAT16,

@@ -97,9 +97,9 @@ struct parse_multi_head_attention : op_parser<parse_multi_head_attention>
                       const int64_t num_heads,
                       multi_head_attention_parameters& params) const
     {
-        if(args.empty() or args.size() > 4)
-            MIGRAPHX_THROW("MultiHeadAttention: Wrong number of inputs. Only 'query', 'key', "
-                           "'value', and 'attention_bias' inputs are supported.");
+        if(args.empty() or args.size() > 3)
+            MIGRAPHX_THROW("MultiHeadAttention: Wrong number of inputs. Only 'query', 'key' and "
+                           "'value' inputs are supported.");
 
         auto query_dim  = args[0]->get_shape().ndim();
         auto query_lens = args[0]->get_shape().lens();
@@ -277,14 +277,6 @@ struct parse_multi_head_attention : op_parser<parse_multi_head_attention>
 
         auto result = info.add_instruction(make_op("dot"), query, key_transposed);
         result      = info.add_common_op("mul", result, scale_literal);
-        if(args.size() == 4)
-        {
-            // attention_bias 
-            if(args.at(3)->get_shape().lens().size() == 4) 
-            {
-                result = info.add_common_op("add", result, args.at(3));
-            }
-        }
         result      = info.add_instruction(make_op("softmax", {{"axis", -1}}), result);
         result      = info.add_instruction(make_op("dot"), result, value);
         result      = info.add_instruction(make_op("transpose", {{"permutation", perm}}), result);

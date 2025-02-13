@@ -33,7 +33,7 @@ namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
 namespace gpu {
 
-MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_ENABLE_HIPBLASLT_GEMM)
+MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_DISABLE_HIPBLASLT_GEMM)
 
 int get_device_id()
 {
@@ -69,8 +69,8 @@ bool gfx_has_fp8ocp_intrinsics()
 
 bool gfx_has_fp8fnuz_support()
 {
-    return (enabled(MIGRAPHX_ENABLE_HIPBLASLT_GEMM{}) ? gfx_has_fp8fnuz_intrinsics()
-                                                      : gpu::rocblas_fp8_available());
+    return (enabled(MIGRAPHX_DISABLE_HIPBLASLT_GEMM{}) ? gpu::rocblas_fp8_available()
+                                                       : gfx_has_fp8fnuz_intrinsics());
 }
 
 } // namespace gpu

@@ -86,6 +86,7 @@ struct concat_compiler : compiler<concat_compiler>
         return result;
     }
 
+    // TODO: Add test with 3 inputs with size of 600 each.
     operation compile_op(context& ctx, const std::vector<shape>& inputs, const value& v) const
     {
         hip_compile_options options;
@@ -104,8 +105,8 @@ struct concat_compiler : compiler<concat_compiler>
         if(axis != concat_axis)
             vec = vectorize::elements(ctx, axis, options.virtual_inputs);
         auto nelements = options.virtual_inputs.back().elements();
-        auto nelements_per_op = nelements / op_names.size();
-        auto global = algo == "concat" ? (nelements_per_op / vec.size) : ceil_to_multiple(nelements / vec.size, 1024);
+        auto nelements_per_op = (nelements / op_names.size()) / vec.size;
+        auto global = algo == "concat" ? nelements_per_op : ceil_to_multiple(nelements_per_op, 1024) * op_names.size();
         options.set_launch_params(v, compute_global_for(ctx, global, 256));
         options.emplace_param("-Wno-float-equal");
         std::vector<std::string> concat_params;

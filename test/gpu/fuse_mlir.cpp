@@ -843,22 +843,22 @@ TEST_CASE(conv_split_reduce)
         auto x   = mm->add_parameter("x", s_x);
         auto w   = mm->add_parameter("w", s_w);
         auto b   = mm->add_literal(migraphx::generate_literal(s_b));
-        auto mb  = mm->add_instruction(
-            migraphx::make_op("broadcast", {{"axis", 1}, {"out_lens", {2, 32, 10, 64, 64}}}), b);
         auto fused =
             add_mlir(p2,
                      "mlir_main:pointwise0_main:split_reduce0",
-                     {mb, x, w},
-                     {"x2", "y0", "y1"},
+                     {x, w, b},
+                     {"x0", "x1", "x2"},
                      [=](auto* pm, const auto& inputs) {
                          auto conv = pm->add_instruction(
                              migraphx::make_op("convolution", {{"padding", {1, 1, 1, 1}}}),
-                             inputs[1],
-                             inputs[2]);
+                             inputs[0],
+                             inputs[1]);
                          auto reshape = pm->add_instruction(
                              migraphx::make_op("reshape", {{"dims", {2, 32, 10, 64, 64}}}), conv);
+                        auto mb  = pm->add_instruction(
+                            migraphx::make_op("broadcast", {{"axis", 1}, {"out_lens", {2, 32, 10, 64, 64}}}), inputs[2]);
                          auto add =
-                             pm->add_instruction(migraphx::make_op("add"), reshape, inputs[0]);
+                             pm->add_instruction(migraphx::make_op("add"), reshape, mb);
                          auto mul  = pm->add_instruction(migraphx::make_op("mul"), add, add);
                          auto mean = pm->add_instruction(
                              migraphx::make_op("reduce_sum", {{"axes", {2, 3, 4}}}), add);
@@ -935,22 +935,22 @@ TEST_CASE(conv_add_split_reduce_multi_use)
         auto x   = mm->add_parameter("x", s_x);
         auto w   = mm->add_parameter("w", s_w);
         auto b   = mm->add_literal(migraphx::generate_literal(s_b));
-        auto mb  = mm->add_instruction(
-            migraphx::make_op("broadcast", {{"axis", 1}, {"out_lens", {2, 32, 10, 64, 64}}}), b);
         auto fused =
             add_mlir(p2,
                      "mlir_main:pointwise0_main:split_reduce0",
-                     {mb, x, w},
-                     {"x2", "y0", "y1"},
+                     {x, w, b},
+                     {"x0", "x1", "x2"},
                      [=](auto* pm, const auto& inputs) {
                          auto conv = pm->add_instruction(
                              migraphx::make_op("convolution", {{"padding", {1, 1, 1, 1}}}),
-                             inputs[1],
-                             inputs[2]);
+                             inputs[0],
+                             inputs[1]);
                          auto reshape = pm->add_instruction(
                              migraphx::make_op("reshape", {{"dims", {2, 32, 10, 64, 64}}}), conv);
+                         auto mb  = pm->add_instruction(
+                                migraphx::make_op("broadcast", {{"axis", 1}, {"out_lens", {2, 32, 10, 64, 64}}}), inputs[2]);
                          auto add =
-                             pm->add_instruction(migraphx::make_op("add"), reshape, inputs[0]);
+                             pm->add_instruction(migraphx::make_op("add"), reshape, mb);
                          auto mul  = pm->add_instruction(migraphx::make_op("mul"), add, add);
                          auto mean = pm->add_instruction(
                              migraphx::make_op("reduce_sum", {{"axes", {2, 3, 4}}}), add);
@@ -1049,22 +1049,22 @@ TEST_CASE(conv_add_split_reduce_multi_use_conv)
         auto w1  = mm->add_parameter("w1", s_w1);
         auto w2  = mm->add_parameter("w2", s_w2);
         auto b   = mm->add_literal(migraphx::generate_literal(s_b));
-        auto mb  = mm->add_instruction(
-            migraphx::make_op("broadcast", {{"axis", 1}, {"out_lens", {2, 32, 10, 64, 64}}}), b);
         auto fused =
             add_mlir(p2,
                      "mlir_main:pointwise0_main:split_reduce0",
-                     {mb, x, w1},
-                     {"x2", "y0", "y1"},
+                     {x, w1, b},
+                     {"x0", "x1", "x2"},
                      [=](auto* pm, const auto& inputs) {
                          auto conv = pm->add_instruction(
                              migraphx::make_op("convolution", {{"padding", {1, 1, 1, 1}}}),
-                             inputs[1],
-                             inputs[2]);
+                             inputs[0],
+                             inputs[1]);
                          auto reshape = pm->add_instruction(
                              migraphx::make_op("reshape", {{"dims", {2, 32, 10, 64, 64}}}), conv);
+                         auto mb  = pm->add_instruction(
+                                migraphx::make_op("broadcast", {{"axis", 1}, {"out_lens", {2, 32, 10, 64, 64}}}), inputs[2]);
                          auto add =
-                             pm->add_instruction(migraphx::make_op("add"), reshape, inputs[0]);
+                             pm->add_instruction(migraphx::make_op("add"), reshape, mb);
                          auto mul  = pm->add_instruction(migraphx::make_op("mul"), add, add);
                          auto mean = pm->add_instruction(
                              migraphx::make_op("reduce_sum", {{"axes", {2, 3, 4}}}), add);

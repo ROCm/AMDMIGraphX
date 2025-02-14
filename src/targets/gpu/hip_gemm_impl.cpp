@@ -37,6 +37,9 @@ namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
 namespace gpu {
 
+MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_HIPBLASLT_WARMUP_ITERATIONS)
+MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_HIPBLASLT_TUNING_ITERATIONS)
+
 using microseconds = std::chrono::duration<double, std::micro>;
 
 hipDataType compute_to_hip_type(hipblasComputeType_t type)
@@ -551,7 +554,15 @@ struct hip_gemm_impl
     int tune(context& ctx, const std::vector<shape>& input_shapes) // const
     {
         // tuning meta parameters
-        const int hot_calls = 40;
+        const int hot_calls = value_of(MIGRAPHX_HIPBLASLT_TUNING_ITERATIONS{});
+        const int cold_calls = value_of(MIGRAPHX_HIPBLASLT_WARMUP_ITERATIONS{});
+        static bool print_iteration_values = true;
+
+        if (print_iteration_values) {
+            std::cout << "Number of iterations for warmup/cold calls: " << cold_calls << std::endl;
+            std::cout << "Number of iterations for tuning/hot calls:  " << hot_calls << std::endl;
+            print_iteration_values = false;
+        }
 
         std::vector<argument> input_args;
         std::transform(input_shapes.begin(),
@@ -603,32 +614,41 @@ struct hip_gemm_impl
         {
             auto algo = solution.get_result(ctx, *this, 0)[0].algo;
             solution_indices.push_back(hipblaslt_ext::getIndexFromAlgo(algo));
+            best_sol = hipblaslt_ext::getIndexFromAlgo(algo);
+            first_time = 1;
+            best_time = 1;
         }
-        for(auto sol : solution_indices)
+        else
         {
-            // Warmup: the first call to an op. may not be representative since there is
-            // more time taken initializing caches, etc. so we won't time it.
-            run(ctx, input_args, sol);
-            double host_time = time<milliseconds>([&] {
-                for([[maybe_unused]] int hc : range(hot_calls))
-                    run(ctx, input_args, sol);
-                ctx.finish();
-            });
-
-            host_time /= hot_calls;
-
-            // dev/evaluation only: track time for first solution.
-            if(first_time < 0)
-                first_time = host_time;
-
-            // track current best
-            if(host_time < best_time)
+            for(auto sol : solution_indices)
             {
-                best_sol  = sol;
-                best_time = host_time;
+                // Warmup: the first call to an op. may not be representative since there is
+                // more time taken initializing caches, etc. so we won't time it.
+                for([[maybe_unused]] int cc : range(cold_calls)) {
+                    run(ctx, input_args, sol);
+                }
+
+                double host_time = time<milliseconds>([&] {
+                    for([[maybe_unused]] int hc : range(hot_calls)) {
+                        run(ctx, input_args, sol);
+                    }
+                    ctx.finish();
+                });
+
+                host_time /= hot_calls;
+
+                // dev/evaluation only: track time for first solution.
+                if(first_time < 0)
+                    first_time = host_time;
+
+                // track current best
+                if(host_time < best_time)
+                {
+                    best_sol  = sol;
+                    best_time = host_time;
+                }
             }
         }
-
         std::cout << "Winning GEMM solution: " << best_sol << " in " << best_time << " ms, beats "
                   << first_time << "ms" << std::endl;
         return best_sol;

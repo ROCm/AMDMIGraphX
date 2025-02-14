@@ -42,6 +42,8 @@
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
 
+namespace {
+
 auto lit_broadcast() { return match::any_of(match::is_constant(), match::name("broadcast")); }
 auto not_lit_broadcast() { return match::none_of(match::is_constant(), match::name("broadcast")); }
 auto op_lit_broadcast(std::string op, std::string x, std::string y)
@@ -74,6 +76,23 @@ auto from_int4()
 auto not_from_int4() { return match::none_of(from_int4()); }
 
 auto reduction() { return match::name_contains("reduce"); }
+
+MIGRAPHX_PRED_MATCHER(conv_1x1, instruction_ref ins)
+{
+    if(ins->name() != "convolution")
+        return false;
+    auto v = ins->get_operator().to_value();
+    if(v.at("group").to<int>() != 1)
+        return false;
+    if(not all_of(v.at("stride"), [](const value& x) { return x.to<std::size_t>() == 1; }))
+        return false;
+    if(not all_of(v.at("padding"), [](const value& x) { return x.to<std::size_t>() == 0; }))
+        return false;
+    if(not all_of(v.at("dilation"), [](const value& x) { return x.to<std::size_t>() == 1; }))
+        return false;
+    auto w = ins->inputs().at(1)->get_shape();
+    return std::all_of(w.lens().begin() + 2, w.lens().end(), [](std::size_t i) { return i == 1; });
+}
 
 // conv(x, w) * a => conv(x, a * w)
 struct find_mul_conv
@@ -1057,35 +1076,43 @@ struct find_concat_conv
     }
 };
 
-// (x *g w1) * w2 => x *g (w1 * w2)
-struct find_conv_conv
+// (x * w1) * w2 => x * (w1 * w2)
+struct find_conv_conv_1x1
 {
     auto matcher() const
     {
-        return match::name("convolution")(match::arg(0)(match::used_once(), match::name("convolution").bind("input")));
+        return conv_1x1(match::arg(0)(match::used_once(), match::name("convolution").bind("input")));
     }
 
     void apply(module& m, const match::matcher_result& r) const
     {
         auto ins  = r.result;
-        auto input = r.instructions["input"]; // group conv
-        auto x_ins = input->inputs().front(); // x1 = @param:x1 -> float_type, {1, 128, 80, 80}, {819200, 6400, 80, 1}
-        // @1 = @literal{ ... } -> float_type, {128, 1, 3, 3}, {9, 9, 3, 1}
-        // @2 = @literal{ ... } -> float_type, {128, 128, 1, 1}, {128, 1, 1, 1}
+        auto input = r.instructions["input"];
+        auto x_ins = input->inputs().front();
         auto wnxn = input->inputs()[1];
         auto w1x1 = ins->inputs()[1];
+        
+        auto out_channels = w1x1->get_shape().lens()[0];
+        auto mid_channels = w1x1->get_shape().lens()[1];
+        auto in_channels_per_group = wnxn->get_shape().lens()[1];
+        auto groups = x_ins->get_shape().lens()[1] / in_channels_per_group;
+        auto w_size = std::accumulate(wnxn->get_shape().lens().begin()+2, wnxn->get_shape().lens().end(), std::size_t{1}, std::multiplies<>{});
+        
+        auto mw_dims = wnxn->get_shape().lens();
+        mw_dims[1] *= groups;
 
-        auto n_dim = std::accumulate(wnxn->get_shape().lens().begin()+1, wnxn->get_shape().lens().end(), std::size_t{1}, std::multiplies<>{});
-        auto k_dim = wnxn->get_shape().lens().front();
-        m.debug_print();
-        auto w1x1_reshaped = m.insert_instruction(ins, make_op("squeeze", {{"axes", {2, 3}}}), w1x1);
-        auto wnxn_reshaped = m.insert_instruction(ins, make_op("reshape", {{"dims", {k_dim, n_dim}}}), wnxn);
-        auto mw = m.insert_instruction(ins, make_op("dot"), w1x1_reshaped, wnxn_reshaped);
-        auto mw_reshaped = m.insert_instruction(ins, make_op("reshape", {{"dims", wnxn->get_shape().lens()}}), mw);
+        auto w1x1_reshaped = m.insert_instruction(ins, make_op("reshape", {{"dims", {out_channels, groups, mid_channels / groups}}}), w1x1);
+        auto w1x1_grouped = m.insert_instruction(ins, make_op("transpose", {{"permutation", {1, 0, 2}}}), w1x1_reshaped);
 
-        m.debug_print({mw, mw_reshaped});
-        auto conv = m.insert_instruction(ins, input->get_operator(), x_ins, mw_reshaped);
-        m.debug_print(conv);
+        auto wnxn_reshaped = m.insert_instruction(ins, make_op("reshape", {{"dims", {groups, mid_channels / groups, in_channels_per_group * w_size}}}), wnxn);
+
+        auto mw = m.insert_instruction(ins, make_op("dot"), w1x1_grouped, wnxn_reshaped);
+        auto mw_transposed = m.insert_instruction(ins, make_op("transpose", {{"permutation", {1, 0, 2}}}), mw);
+        auto mw_reshaped = m.insert_instruction(ins, make_op("reshape", {{"dims", mw_dims}}), mw_transposed);
+
+        auto op = input->get_operator();
+        op.from_value({{"group", 1}});
+        auto conv = m.insert_instruction(ins, op, x_ins, mw_reshaped);
         m.replace_instruction(ins, conv);
 
     }
@@ -2029,6 +2056,8 @@ struct find_split_transpose
     }
 };
 
+} // namespace
+
 void simplify_algebra::apply(module& m) const
 {
     // Run simplifications multiple times
@@ -2040,7 +2069,6 @@ void simplify_algebra::apply(module& m) const
                             find_add_lit_broadcast{},
                             find_add_convs{},
                             find_conv_dot_horiz_fusion{},
-                            find_conv_conv{},
                             find_mul_conv{},
                             find_mul_slice_conv{},
                             find_mul_dot{},
@@ -2053,6 +2081,7 @@ void simplify_algebra::apply(module& m) const
                             find_zero_ops{},
                             find_dot_add{},
                             find_conv_add{},
+                            find_conv_conv_1x1{},
                             find_div_const{},
                             find_sub_const{},
                             find_rsqrt{},

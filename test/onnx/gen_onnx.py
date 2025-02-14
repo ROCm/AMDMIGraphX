@@ -4862,6 +4862,112 @@ def group_norm_invalid_bias_shape_test():
     return group_norm_test([1, 4, 3, 3], [2], [3], [1, 4, 3, 3], 2)
 
 
+def group_norm_contrib_test(x_dims,
+                            gamma_dims,
+                            beta_dims,
+                            y_dims,
+                            num_groups,
+                            activation,
+                            channels_last,
+                            eps_value=1e-5,
+                            dtype=TensorProto.FLOAT):
+    x = helper.make_tensor_value_info('x', dtype, x_dims)
+    gamma = helper.make_tensor_value_info('gamma', dtype, gamma_dims)
+    beta = helper.make_tensor_value_info('beta', dtype, beta_dims)
+    y = helper.make_tensor_value_info('y', dtype, y_dims)
+
+    node = onnx.helper.make_node('GroupNorm',
+                                 inputs=['x', 'gamma', 'beta'],
+                                 outputs=['y'],
+                                 activation=activation,
+                                 channels_last=channels_last,
+                                 groups=num_groups,
+                                 epsilon=eps_value)
+
+    return ([node], [x, gamma, beta], [y])
+
+
+@onnx_test()
+def group_norm_contrib_3d_test():
+    return group_norm_contrib_test([1, 4, 2], [2], [2], [1, 4, 2], 2, 0, 0)
+
+
+@onnx_test()
+def group_norm_contrib_3d_channel_last_test():
+    return group_norm_contrib_test([1, 4, 2], [2], [2], [1, 4, 2], 2, 0, 1)
+
+
+@onnx_test()
+def group_norm_contrib_3d_channel_last_half_test():
+    return group_norm_contrib_test([1, 4, 2], [2], [2], [1, 4, 2],
+                                   2,
+                                   0,
+                                   1,
+                                   dtype=TensorProto.FLOAT16)
+
+
+@onnx_test()
+def group_norm_contrib_3d_channel_last_bf16_test():
+    return group_norm_contrib_test([1, 4, 2], [2], [2], [1, 4, 2],
+                                   2,
+                                   0,
+                                   1,
+                                   dtype=TensorProto.BFLOAT16)
+
+
+@onnx_test()
+def group_norm_contrib_silu_3d_test():
+    return group_norm_contrib_test([1, 4, 2], [2], [2], [1, 4, 2], 2, 1, 0)
+
+
+@onnx_test()
+def group_norm_contrib_channels_last_3d_test():
+    return group_norm_contrib_test([1, 4, 2], [2], [2], [1, 4, 2], 2, 0, 1)
+
+
+@onnx_test()
+def group_norm_contrib_channels_last_4d_test():
+    return group_norm_contrib_test([1, 3, 3, 4], [2], [2], [1, 3, 3, 4], 2, 0,
+                                   1)
+
+
+@onnx_test()
+def group_norm_contrib_channels_last_and_silu_3d_test():
+    return group_norm_contrib_test([1, 4, 2], [2], [2], [1, 4, 2], 2, 1, 1)
+
+
+@onnx_test()
+def group_norm_contrib_no_activation_attr_test():
+    x = helper.make_tensor_value_info('x', TensorProto.FLOAT, [1, 4, 2])
+    gamma = helper.make_tensor_value_info('gamma', TensorProto.FLOAT, [2])
+    beta = helper.make_tensor_value_info('beta', TensorProto.FLOAT, [2])
+    y = helper.make_tensor_value_info('y', TensorProto.FLOAT, [1, 4, 2])
+
+    node = onnx.helper.make_node('GroupNorm',
+                                 inputs=['x', 'gamma', 'Beta'],
+                                 outputs=['y'],
+                                 channels_last=0,
+                                 groups=2)
+
+    return ([node], [x, gamma, beta], [y])
+
+
+@onnx_test()
+def group_norm_contrib_no_num_groups_attr_test():
+    x = helper.make_tensor_value_info('x', TensorProto.FLOAT, [1, 4, 2])
+    gamma = helper.make_tensor_value_info('gamma', TensorProto.FLOAT, [2])
+    beta = helper.make_tensor_value_info('beta', TensorProto.FLOAT, [2])
+    y = helper.make_tensor_value_info('y', TensorProto.FLOAT, [1, 4, 2])
+
+    node = onnx.helper.make_node('GroupNorm',
+                                 inputs=['x', 'gamma', 'Beta'],
+                                 outputs=['y'],
+                                 activation=0,
+                                 channels_last=0)
+
+    return ([node], [x, gamma, beta], [y])
+
+
 @onnx_test()
 def group_query_attention_test():
     qkv = helper.make_tensor_value_info('qkv', TensorProto.FLOAT16,

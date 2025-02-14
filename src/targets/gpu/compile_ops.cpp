@@ -28,6 +28,8 @@
 #include <migraphx/par_for.hpp>
 #include <migraphx/register_op.hpp>
 #include <migraphx/algorithm.hpp>
+#include <migraphx/pass_manager.hpp>
+#include <migraphx/dead_code_elimination.hpp>
 #include <migraphx/op/identity.hpp>
 #include <migraphx/gpu/compiler.hpp>
 #include <migraphx/gpu/compile_ops.hpp>
@@ -225,8 +227,8 @@ struct compile_plan
                            auto bench_ins = bench_mm->add_instruction(
                                cr->ins->get_operator(), bench_ins_inputs, cr->ins->module_inputs());
                            cr->replace.replace(*bench_mm, bench_ins);
-                           // do dead code elimination by directly removing instruction
-                           bench_mm->remove_instruction(bench_ins);
+                           // do dead code elimination
+                           run_passes(*bench_mm, {dead_code_elimination{}});
                            auto t = time_program(*ctx, bench_prog, 20);
                            if(trace_level > 1)
                                std::cout << t << "ms" << std::endl;

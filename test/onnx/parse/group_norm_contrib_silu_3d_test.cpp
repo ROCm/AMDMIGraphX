@@ -21,25 +21,28 @@
  * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
  * THE SOFTWARE.
  */
-#ifndef MIGRAPHX_GUARD_AMDMIGRAPHX_ONNX_CONV_HPP
-#define MIGRAPHX_GUARD_AMDMIGRAPHX_ONNX_CONV_HPP
 
-#include <migraphx/config.hpp>
-#include <migraphx/value.hpp>
-#include <migraphx/onnx/onnx_parser.hpp>
-#include <migraphx/instruction_ref.hpp>
+#include <onnx_test.hpp>
+#include <onnx_test_utils.hpp>
 
-namespace migraphx {
-inline namespace MIGRAPHX_INLINE_NS {
-namespace onnx {
+TEST_CASE(group_norm_contrib_silu_3d_test)
+{
+    migraphx::program p = make_group_norm({1, 4, 2},
+                                          {2},
+                                          {2},
+                                          {1, 2, 2, 2},
+                                          {2, 3},
+                                          1e-5f,
+                                          migraphx::shape::float_type,
+                                          "gamma",
+                                          "beta");
 
-void recalc_conv_attributes(value& v, size_t kdims);
+    // Add sigmoid at the end of the program to represent the added SILU block
+    auto* mm     = p.get_main_module();
+    auto output  = std::prev(mm->end());
+    auto sigmoid = mm->add_instruction(migraphx::make_op("sigmoid"), output);
+    output       = mm->add_instruction(migraphx::make_op("mul"), output, sigmoid);
 
-instruction_ref from_nhwc(const onnx_parser::node_info& info, instruction_ref ins);
-instruction_ref to_nhwc(const onnx_parser::node_info& info, instruction_ref ins);
-
-} // namespace onnx
-} // namespace MIGRAPHX_INLINE_NS
-} // namespace migraphx
-
-#endif
+    auto prog = optimize_onnx("group_norm_contrib_silu_3d_test.onnx");
+    EXPECT(p == prog);
+}

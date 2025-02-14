@@ -120,14 +120,16 @@ make_group_norm(const std::vector<int64_t>& input_dims,
                 const std::vector<int64_t>& reshape_dims,
                 const std::vector<int64_t>& reduce_axes,
                 const float eps_value               = 1e-5f,
-                const migraphx::shape::type_t dtype = migraphx::shape::float_type)
+                const migraphx::shape::type_t dtype = migraphx::shape::float_type,
+                const std::string& param1_name      = "scale",
+                const std::string& param2_name      = "bias")
 {
     migraphx::program p;
     auto* mm = p.get_main_module();
 
     auto x     = mm->add_parameter("x", {dtype, input_dims});
-    auto scale = mm->add_parameter("scale", {dtype, scale_dims});
-    auto bias  = mm->add_parameter("bias", {dtype, bias_dims});
+    auto scale = mm->add_parameter(param1_name, {dtype, scale_dims});
+    auto bias  = mm->add_parameter(param2_name, {dtype, bias_dims});
 
     auto eps = mm->add_literal(migraphx::literal{dtype, {eps_value}});
 

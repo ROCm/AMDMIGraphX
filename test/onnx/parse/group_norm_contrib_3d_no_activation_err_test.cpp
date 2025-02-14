@@ -21,25 +21,11 @@
  * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
  * THE SOFTWARE.
  */
-#ifndef MIGRAPHX_GUARD_AMDMIGRAPHX_ONNX_CONV_HPP
-#define MIGRAPHX_GUARD_AMDMIGRAPHX_ONNX_CONV_HPP
 
-#include <migraphx/config.hpp>
-#include <migraphx/value.hpp>
-#include <migraphx/onnx/onnx_parser.hpp>
-#include <migraphx/instruction_ref.hpp>
+#include <onnx_test.hpp>
+#include <onnx_test_utils.hpp>
 
-namespace migraphx {
-inline namespace MIGRAPHX_INLINE_NS {
-namespace onnx {
-
-void recalc_conv_attributes(value& v, size_t kdims);
-
-instruction_ref from_nhwc(const onnx_parser::node_info& info, instruction_ref ins);
-instruction_ref to_nhwc(const onnx_parser::node_info& info, instruction_ref ins);
-
-} // namespace onnx
-} // namespace MIGRAPHX_INLINE_NS
-} // namespace migraphx
-
-#endif
+TEST_CASE(group_norm_contrib_no_activation_err_test)
+{
+    EXPECT(test::throws([&] { read_onnx("group_norm_contrib_no_activation_attr_test.onnx"); }));
+}

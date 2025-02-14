@@ -21,25 +21,25 @@
  * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
  * THE SOFTWARE.
  */
-#ifndef MIGRAPHX_GUARD_AMDMIGRAPHX_ONNX_CONV_HPP
-#define MIGRAPHX_GUARD_AMDMIGRAPHX_ONNX_CONV_HPP
 
-#include <migraphx/config.hpp>
-#include <migraphx/value.hpp>
-#include <migraphx/onnx/onnx_parser.hpp>
-#include <migraphx/instruction_ref.hpp>
+#include <onnx_test.hpp>
 
-namespace migraphx {
-inline namespace MIGRAPHX_INLINE_NS {
-namespace onnx {
+TEST_CASE(nhwcconv_test)
+{
+    migraphx::program p;
+    auto* mm = p.get_main_module();
 
-void recalc_conv_attributes(value& v, size_t kdims);
+    migraphx::shape x_shape{migraphx::shape::float_type, {1, 7, 7, 1}};
+    auto x = mm->add_parameter("0", x_shape);
+    x = mm->add_instruction(migraphx::make_op("transpose", {{"permutation", {0, 3, 1, 2}}}), x);
 
-instruction_ref from_nhwc(const onnx_parser::node_info& info, instruction_ref ins);
-instruction_ref to_nhwc(const onnx_parser::node_info& info, instruction_ref ins);
+    migraphx::shape w_shape{migraphx::shape::float_type, {1, 1, 1, 1}};
+    auto w = mm->add_parameter("1", w_shape);
+    w = mm->add_instruction(migraphx::make_op("transpose", {{"permutation", {0, 3, 1, 2}}}), w);
 
-} // namespace onnx
-} // namespace MIGRAPHX_INLINE_NS
-} // namespace migraphx
+    auto y = mm->add_instruction(migraphx::make_op("convolution"), x, w);
+    mm->add_instruction(migraphx::make_op("transpose", {{"permutation", {0, 2, 3, 1}}}), y);
 
-#endif
+    migraphx::program prog = optimize_onnx("nhwcconv_test.onnx");
+    EXPECT(p == prog);
+}

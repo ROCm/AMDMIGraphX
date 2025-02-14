@@ -21,25 +21,30 @@
  * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
  * THE SOFTWARE.
  */
-#ifndef MIGRAPHX_GUARD_AMDMIGRAPHX_ONNX_CONV_HPP
-#define MIGRAPHX_GUARD_AMDMIGRAPHX_ONNX_CONV_HPP
 
-#include <migraphx/config.hpp>
-#include <migraphx/value.hpp>
-#include <migraphx/onnx/onnx_parser.hpp>
-#include <migraphx/instruction_ref.hpp>
+#include <migraphx/register_target.hpp>
+#include <migraphx/verify.hpp>
+#include <onnx_test.hpp>
+#include <onnx_verify_utils.hpp>
 
-namespace migraphx {
-inline namespace MIGRAPHX_INLINE_NS {
-namespace onnx {
-
-void recalc_conv_attributes(value& v, size_t kdims);
-
-instruction_ref from_nhwc(const onnx_parser::node_info& info, instruction_ref ins);
-instruction_ref to_nhwc(const onnx_parser::node_info& info, instruction_ref ins);
-
-} // namespace onnx
-} // namespace MIGRAPHX_INLINE_NS
-} // namespace migraphx
-
-#endif
+TEST_CASE(group_norm_contrib_test)
+{
+    std::vector<float> gamma{1.2, 0.8};
+    std::vector<float> beta{0.5, 0.2};
+    std::vector<float> result_vector =
+        norm_test<float>({1, 4, 2},
+                         gamma,
+                         beta,
+                         read_onnx("group_norm_contrib_3d_channel_last_test.onnx"),
+                         "gamma",
+                         "beta");
+    std::vector<float> gold = {-1.10996256,
+                               -0.87330837,
+                               -0.0366542,
+                               -0.15776947,
+                               1.0366542,
+                               0.55776947,
+                               2.10996256,
+                               1.27330837};
+    EXPECT(migraphx::verify::verify_rms_range(result_vector, gold));
+}

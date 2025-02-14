@@ -40,7 +40,9 @@ struct parse_convolution : op_parser<parse_convolution>
 {
     std::vector<op_desc> operators() const
     {
-        return {{"Conv", "convolution"}, {"ConvInteger", "quant_convolution"}};
+        return {{"Conv", "convolution"},
+                {"ConvInteger", "quant_convolution"},
+                {"NhwcConv", "convolution"}};
     }
 
     // Convert to half prior to a shift to ensure we preserve accuracy here then
@@ -240,6 +242,13 @@ struct parse_convolution : op_parser<parse_convolution>
         auto values  = op.to_value();
         auto x       = args[0];
         auto weights = args[1];
+
+        if(opd.onnx_name == "NhwcConv")
+        {
+            x       = from_nhwc(info, x);
+            weights = from_nhwc(info, weights);
+        }
+
         auto x_shape = x->get_shape();
         auto w_shape = weights->get_shape();
         auto in_lens = x_shape.max_lens();
@@ -360,6 +369,11 @@ struct parse_convolution : op_parser<parse_convolution>
         {
             // Handle Convolution case with bias to output
             ret = info.add_bias(args, ret, 1);
+        }
+
+        if(opd.onnx_name == "NhwcConv")
+        {
+            ret = to_nhwc(info, ret);
         }
 
         return ret;

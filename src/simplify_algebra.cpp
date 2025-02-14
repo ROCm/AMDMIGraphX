@@ -1081,40 +1081,53 @@ struct find_conv_conv_1x1
 {
     auto matcher() const
     {
-        return conv_1x1(match::arg(0)(match::used_once(), match::name("convolution").bind("input")));
+        return conv_1x1(
+            match::arg(0)(match::used_once(), match::name("convolution").bind("input")));
     }
 
     void apply(module& m, const match::matcher_result& r) const
     {
-        auto ins  = r.result;
+        auto ins   = r.result;
         auto input = r.instructions["input"];
         auto x_ins = input->inputs().front();
-        auto wnxn = input->inputs()[1];
-        auto w1x1 = ins->inputs()[1];
-        
-        auto out_channels = w1x1->get_shape().lens()[0];
-        auto mid_channels = w1x1->get_shape().lens()[1];
+        auto wnxn  = input->inputs()[1];
+        auto w1x1  = ins->inputs()[1];
+
+        auto out_channels          = w1x1->get_shape().lens()[0];
+        auto mid_channels          = w1x1->get_shape().lens()[1];
         auto in_channels_per_group = wnxn->get_shape().lens()[1];
-        auto groups = x_ins->get_shape().lens()[1] / in_channels_per_group;
-        auto w_size = std::accumulate(wnxn->get_shape().lens().begin()+2, wnxn->get_shape().lens().end(), std::size_t{1}, std::multiplies<>{});
-        
+        auto groups                = x_ins->get_shape().lens()[1] / in_channels_per_group;
+        auto w_size                = std::accumulate(wnxn->get_shape().lens().begin() + 2,
+                                      wnxn->get_shape().lens().end(),
+                                      std::size_t{1},
+                                      std::multiplies<>{});
+
         auto mw_dims = wnxn->get_shape().lens();
         mw_dims[1] *= groups;
 
-        auto w1x1_reshaped = m.insert_instruction(ins, make_op("reshape", {{"dims", {out_channels, groups, mid_channels / groups}}}), w1x1);
-        auto w1x1_grouped = m.insert_instruction(ins, make_op("transpose", {{"permutation", {1, 0, 2}}}), w1x1_reshaped);
+        auto w1x1_reshaped = m.insert_instruction(
+            ins,
+            make_op("reshape", {{"dims", {out_channels, groups, mid_channels / groups}}}),
+            w1x1);
+        auto w1x1_grouped = m.insert_instruction(
+            ins, make_op("transpose", {{"permutation", {1, 0, 2}}}), w1x1_reshaped);
 
-        auto wnxn_reshaped = m.insert_instruction(ins, make_op("reshape", {{"dims", {groups, mid_channels / groups, in_channels_per_group * w_size}}}), wnxn);
+        auto wnxn_reshaped = m.insert_instruction(
+            ins,
+            make_op("reshape",
+                    {{"dims", {groups, mid_channels / groups, in_channels_per_group * w_size}}}),
+            wnxn);
 
         auto mw = m.insert_instruction(ins, make_op("dot"), w1x1_grouped, wnxn_reshaped);
-        auto mw_transposed = m.insert_instruction(ins, make_op("transpose", {{"permutation", {1, 0, 2}}}), mw);
-        auto mw_reshaped = m.insert_instruction(ins, make_op("reshape", {{"dims", mw_dims}}), mw_transposed);
+        auto mw_transposed =
+            m.insert_instruction(ins, make_op("transpose", {{"permutation", {1, 0, 2}}}), mw);
+        auto mw_reshaped =
+            m.insert_instruction(ins, make_op("reshape", {{"dims", mw_dims}}), mw_transposed);
 
         auto op = input->get_operator();
         op.from_value({{"group", 1}});
         auto conv = m.insert_instruction(ins, op, x_ins, mw_reshaped);
         m.replace_instruction(ins, conv);
-
     }
 };
 

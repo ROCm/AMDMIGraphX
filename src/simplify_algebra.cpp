@@ -1093,6 +1093,34 @@ struct find_concat_conv
     }
 };
 
+// (x *g w1) * w2 => x *g (w1 * w2)
+struct find_conv_conv
+{
+    auto matcher() const
+    {
+        return match::name("convolution")(match::arg(0)(match::used_once(), match::name("convolution").bind("input")));
+    }
+
+    void apply(module& m, const match::matcher_result& r) const
+    {
+        auto ins  = r.result;
+        auto input = r.instructions["input"];
+        auto x_ins = input->inputs().front();
+        auto wnxn = input->inputs()[1];
+        auto w1x1 = ins->inputs()[1];
+
+        auto n_dim = std::accumulate(wnxn->get_shape().lens().begin()+1, wnxn->get_shape().lens().end(), std::size_t{1}, std::multiplies<>{});
+        auto k_dim = wnxn->get_shape().lens().front();
+        auto w1x1_reshaped = m.insert_instruction(ins, make_op("squeeze", {{"axes", {2, 3}}}), w1x1);
+        auto wnxn_reshaped = m.insert_instruction(ins, make_op("reshape", {{"dims", {k_dim, n_dim}}}), wnxn);
+        auto mw = m.insert_instruction(ins, make_op("dot"), w1x1_reshaped, wnxn_reshaped);
+        auto mw_reshaped = m.insert_instruction(ins, make_op("reshape", {{"dims", wnxn->get_shape().lens()}}), mw);
+
+        auto conv = m.insert_instruction(ins, input->get_operator(), x_ins, mw_reshaped);
+        m.replace_instruction(ins, conv);
+    }
+};
+
 static void
 move_instructions_back(module& m, instruction_ref pos, std::vector<instruction_ref> inss)
 {
@@ -2383,6 +2411,7 @@ void simplify_algebra::apply(module& m) const
                             find_add_lit_broadcast{},
                             find_add_convs{},
                             find_conv_dot_horiz_fusion{},
+                            find_conv_conv{},
                             find_mul_conv{},
                             find_mul_slice_conv{},
                             find_mul_dot{},

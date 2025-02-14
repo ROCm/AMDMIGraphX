@@ -27,8 +27,8 @@
 TEST_CASE(roialign_test)
 {
     migraphx::shape sx{migraphx::shape::float_type, {10, 5, 4, 7}};
-    migraphx::shape srois{migraphx::shape::float_type, {8, 4}};
-    migraphx::shape sbi{migraphx::shape::int64_type, {8}};
+    migraphx::shape srois{migraphx::shape::float_type, {2, 4}};
+    migraphx::shape sbi{migraphx::shape::int64_type, {2}};
 
     migraphx::program p;
     auto* mm  = p.get_main_module();
@@ -41,7 +41,7 @@ TEST_CASE(roialign_test)
                           {{"coordinate_transformation_mode", "output_half_pixel"},
                            {"spatial_scale", 2.0f},
                            {"output_height", 5},
-                           {"output_width", 5},
+                           {"output_width", 3},
                            {"sampling_ratio", 3}}),
         x,
         rois,

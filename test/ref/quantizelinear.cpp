@@ -94,7 +94,8 @@ void quantizelinear_fp8e4m3()
     std::vector<float> sv = {0.25, 0.75, 0.5625, 0.4375, 0.8125, -0.6875, 0.875, -0.0625};
     std::vector<float> tmp = {0.6875, 0.75, -0.75, 0.5, -0.0625, 0.0625, -0.375, 0.25};
     std::vector<DType> zero_pts;
-    std::transform(tmp.begin(), tmp.end(), std::back_inserter(zero_pts), [](auto x){ return DType(x); });
+    std::transform(
+        tmp.begin(), tmp.end(), std::back_inserter(zero_pts), [](auto x) { return DType(x); });
     auto create_program = [&]() {
         migraphx::program p;
         auto* mm = p.get_main_module();
@@ -111,12 +112,13 @@ void quantizelinear_fp8e4m3()
     std::vector<DType> results_vector(8);
     result.visit([&](auto output) { results_vector.assign(output.begin(), output.end()); });
     std::vector<DType> gold;
-    auto min_value   = std::numeric_limits<DType>::lowest();
-    auto max_value   = std::numeric_limits<DType>::max();
-    for (int i = 0; i < xv.size(); ++i)
+    auto min_value = std::numeric_limits<DType>::lowest();
+    auto max_value = std::numeric_limits<DType>::max();
+    for(int i = 0; i < xv.size(); ++i)
     {
         double quantized = xv.at(i) / sv.at(i);
-        quantized = std::max(static_cast<double>(min_value), std::min(static_cast<double>(max_value), quantized));
+        quantized        = std::max(static_cast<double>(min_value),
+                             std::min(static_cast<double>(max_value), quantized));
         gold.push_back(DType(quantized + zero_pts.at(i)));
     }
     EXPECT(results_vector == gold);
@@ -133,7 +135,8 @@ void quantizelinear_fp8e5m2()
     std::vector<float> sv = {0.25, 0.75, 0.5, 0.4375, 0.875, -0.625, 0.875, -0.0625};
     std::vector<float> tmp = {0.6875, 0.75, -0.75, 0.5, -0.0625, 0.0625, -0.375, 0.25};
     std::vector<DType> zero_pts;
-    std::transform(tmp.begin(), tmp.end(), std::back_inserter(zero_pts), [](auto x){ return DType(x); });
+    std::transform(
+        tmp.begin(), tmp.end(), std::back_inserter(zero_pts), [](auto x) { return DType(x); });
     auto create_program = [&]() {
         migraphx::program p;
         auto* mm = p.get_main_module();
@@ -150,12 +153,13 @@ void quantizelinear_fp8e5m2()
     std::vector<DType> results_vector(8);
     result.visit([&](auto output) { results_vector.assign(output.begin(), output.end()); });
     std::vector<DType> gold;
-    auto min_value   = std::numeric_limits<DType>::lowest();
-    auto max_value   = std::numeric_limits<DType>::max();
-    for (int i = 0; i < xv.size(); ++i)
+    auto min_value = std::numeric_limits<DType>::lowest();
+    auto max_value = std::numeric_limits<DType>::max();
+    for(int i = 0; i < xv.size(); ++i)
     {
         double quantized = xv.at(i) / sv.at(i);
-        quantized = std::max(static_cast<double>(min_value), std::min(static_cast<double>(max_value), quantized));
+        quantized        = std::max(static_cast<double>(min_value),
+                             std::min(static_cast<double>(max_value), quantized));
         gold.push_back(DType(quantized + zero_pts.at(i)));
     }
     EXPECT(results_vector == gold);

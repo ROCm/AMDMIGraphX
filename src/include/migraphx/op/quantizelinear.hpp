@@ -87,23 +87,24 @@ struct quantizelinear
                 auto min_value   = std::numeric_limits<quant_type>::lowest();
                 auto max_value   = std::numeric_limits<quant_type>::max();
                 par_for(output_shape.elements(), [&](auto i) {
-                        double quantized;
-                        if constexpr(std::is_integral<quant_type>{})
-                        {
+                    double quantized;
+                    if constexpr(std::is_integral<quant_type>{})
+                    {
                         quantized = static_cast<double>(std::nearbyint(input[i] / scales[i])) +
-                        static_cast<double>(zero_pts[i]);
-                        }
-                        else
-                        {
-                        quantized = static_cast<double>(input[i] / scales[i]) + static_cast<double>(zero_pts[i]);
-                        }
-                        //quantized = static_cast<double>(std::nearbyint(input[i] / scales[i])) +
-                        static_cast<double>(zero_pts[i]);
-                        output[i] = std::max(static_cast<double>(min_value),
-                                std::min(static_cast<double>(max_value), quantized));
-                        });
+                                    static_cast<double>(zero_pts[i]);
+                    }
+                    else
+                    {
+                        quantized = static_cast<double>(input[i] / scales[i]) +
+                                    static_cast<double>(zero_pts[i]);
+                    }
+                    // quantized = static_cast<double>(std::nearbyint(input[i] / scales[i])) +
+                    static_cast<double>(zero_pts[i]);
+                    output[i] = std::max(static_cast<double>(min_value),
+                                         std::min(static_cast<double>(max_value), quantized));
                 });
             });
+        });
         fesetround(rounding_mode);
         return result;
     }

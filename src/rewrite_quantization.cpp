@@ -47,7 +47,7 @@ void apply_quantizelinear(module& m, instruction_ref ins)
             ins, make_op("convert", {{"target_type", y_scale->get_shape().type()}}), x);
     }
     auto div            = m.insert_instruction(ins, make_op("div"), x, y_scale);
-    
+
     instruction_ref add_zero_point = div;
     if(shape::is_integral(ins->get_shape().type()))
     {

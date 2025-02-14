@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2024 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2025 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -43,7 +43,8 @@ void run_lowering(migraphx::module& m, bool offload_copy = false)
 #if MIGRAPHX_USE_HIPBLASLT
 TEST_CASE(hipblaslt_op)
 {
-    if(migraphx::enabled(MIGRAPHX_ENABLE_HIPBLASLT_GEMM{}) and migraphx::gpu::hipblaslt_supported())
+    if(not migraphx::disabled(MIGRAPHX_ENABLE_HIPBLASLT_GEMM{}) and
+       migraphx::gpu::hipblaslt_supported())
     {
         migraphx::module m1;
         {

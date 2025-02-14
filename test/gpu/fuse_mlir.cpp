@@ -855,10 +855,11 @@ TEST_CASE(conv_split_reduce)
                              inputs[1]);
                          auto reshape = pm->add_instruction(
                              migraphx::make_op("reshape", {{"dims", {2, 32, 10, 64, 64}}}), conv);
-                        auto mb  = pm->add_instruction(
-                            migraphx::make_op("broadcast", {{"axis", 1}, {"out_lens", {2, 32, 10, 64, 64}}}), inputs[2]);
-                         auto add =
-                             pm->add_instruction(migraphx::make_op("add"), reshape, mb);
+                         auto mb = pm->add_instruction(
+                             migraphx::make_op("broadcast",
+                                               {{"axis", 1}, {"out_lens", {2, 32, 10, 64, 64}}}),
+                             inputs[2]);
+                         auto add  = pm->add_instruction(migraphx::make_op("add"), reshape, mb);
                          auto mul  = pm->add_instruction(migraphx::make_op("mul"), add, add);
                          auto mean = pm->add_instruction(
                              migraphx::make_op("reduce_sum", {{"axes", {2, 3, 4}}}), add);
@@ -947,10 +948,11 @@ TEST_CASE(conv_add_split_reduce_multi_use)
                              inputs[1]);
                          auto reshape = pm->add_instruction(
                              migraphx::make_op("reshape", {{"dims", {2, 32, 10, 64, 64}}}), conv);
-                         auto mb  = pm->add_instruction(
-                                migraphx::make_op("broadcast", {{"axis", 1}, {"out_lens", {2, 32, 10, 64, 64}}}), inputs[2]);
-                         auto add =
-                             pm->add_instruction(migraphx::make_op("add"), reshape, mb);
+                         auto mb = pm->add_instruction(
+                             migraphx::make_op("broadcast",
+                                               {{"axis", 1}, {"out_lens", {2, 32, 10, 64, 64}}}),
+                             inputs[2]);
+                         auto add  = pm->add_instruction(migraphx::make_op("add"), reshape, mb);
                          auto mul  = pm->add_instruction(migraphx::make_op("mul"), add, add);
                          auto mean = pm->add_instruction(
                              migraphx::make_op("reduce_sum", {{"axes", {2, 3, 4}}}), add);
@@ -1061,10 +1063,11 @@ TEST_CASE(conv_add_split_reduce_multi_use_conv)
                              inputs[1]);
                          auto reshape = pm->add_instruction(
                              migraphx::make_op("reshape", {{"dims", {2, 32, 10, 64, 64}}}), conv);
-                         auto mb  = pm->add_instruction(
-                                migraphx::make_op("broadcast", {{"axis", 1}, {"out_lens", {2, 32, 10, 64, 64}}}), inputs[2]);
-                         auto add =
-                             pm->add_instruction(migraphx::make_op("add"), reshape, mb);
+                         auto mb = pm->add_instruction(
+                             migraphx::make_op("broadcast",
+                                               {{"axis", 1}, {"out_lens", {2, 32, 10, 64, 64}}}),
+                             inputs[2]);
+                         auto add  = pm->add_instruction(migraphx::make_op("add"), reshape, mb);
                          auto mul  = pm->add_instruction(migraphx::make_op("mul"), add, add);
                          auto mean = pm->add_instruction(
                              migraphx::make_op("reduce_sum", {{"axes", {2, 3, 4}}}), add);

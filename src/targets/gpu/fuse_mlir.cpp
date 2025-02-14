@@ -927,13 +927,13 @@ struct find_mlir_gqa_attention_op
         auto inputs = {qkv, k, v, csl};
 
         module m_attn;
-        // std::unordered_map<instruction_ref, instruction_ref> map_main_to_mattn;
-        // m_attn.add_params(inputs, &map_main_to_mattn);
-        int n = 0;
-        for(auto input : inputs)
-        {
-            m_attn.add_parameter("x" + std::to_string(n++), input->get_shape());
-        }
+        std::unordered_map<instruction_ref, instruction_ref> map_main_to_mattn;
+        m_attn.add_params(inputs, &map_main_to_mattn);
+        // int n = 0;
+        // for(auto input : inputs)
+        // {
+        //     m_attn.add_parameter("x" + std::to_string(n++), input->get_shape());
+        // }
         auto mod_params = m_attn.get_parameters();
 
         auto transpose = m_attn.add_instruction(make_op("transpose", {{"permutation", {0, 1, 3, 2}}}), mod_params[2]);

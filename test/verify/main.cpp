@@ -79,7 +79,6 @@ int main(int argc, const char* argv[])
          "test_resize_dyn",
          "test_instancenorm_large_3d<migraphx::shape::float_type>",
          "test_instancenorm_large_3d<migraphx::shape::half_type>",
-         "test_multinomial<migraphx::shape::bf16_type>",
          "test_isinf<migraphx::generic_float<7, 8> >",
          "test_isinf<migraphx::bf16>",
     // these tests are disabled due issue of lossy downcast, see issue#2517

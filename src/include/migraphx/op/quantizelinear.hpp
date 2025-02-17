@@ -95,11 +95,9 @@ struct quantizelinear
                     }
                     else
                     {
-                        quantized = static_cast<double>(input[i] / scales[i]) +
+                        quantized = static_cast<double>(input[i]) / static_cast<double>(scales[i]) +
                                     static_cast<double>(zero_pts[i]);
                     }
-                    // quantized = static_cast<double>(std::nearbyint(input[i] / scales[i])) +
-                    static_cast<double>(zero_pts[i]);
                     output[i] = std::max(static_cast<double>(min_value),
                                          std::min(static_cast<double>(max_value), quantized));
                 });

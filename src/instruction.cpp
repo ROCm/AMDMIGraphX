@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2024 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2025 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -26,7 +26,8 @@
 #include <migraphx/erase.hpp>
 #include <migraphx/module.hpp>
 #include <migraphx/ranges.hpp>
-#include <deque>
+#include <migraphx/output_iterator.hpp>
+#include <queue>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
@@ -58,22 +59,43 @@ instruction::instruction(literal l)
 {
 }
 
+struct replace_shape_order
+{
+    instruction_ref start;
+
+    std::size_t location(instruction_ref x) const { return std::distance(start, x); }
+
+    bool operator()(instruction_ref x, instruction_ref y) const
+    {
+        return location(x) > location(y);
+    }
+};
+
 void instruction::replace(const shape& r)
 {
     if(r != result)
     {
         result = r;
-        std::deque<instruction_ref> q(output.begin(), output.end());
+        if(output.empty())
+        {
+            return;
+        }
+        auto start = std::find_if(output.front()->inputs().begin(),
+                                  output.front()->inputs().end(),
+                                  [&](instruction_ref x) { return this == as_address(x); });
+        assert(as_address(*start) == this);
+        std::priority_queue<instruction_ref, std::vector<instruction_ref>, replace_shape_order> q(
+            output.begin(), output.end(), replace_shape_order{*start});
         while(not q.empty())
         {
-            instruction_ref ins = q.front();
-            q.pop_front();
+            instruction_ref ins = q.top();
+            q.pop();
             assert(ins->name() == "@return" or ins->name().front() != '@');
             shape new_r = compute_shape(ins->op, ins->arguments, ins->module_args);
             if(new_r != ins->result)
             {
                 ins->result = new_r;
-                std::copy(ins->output.begin(), ins->output.end(), std::back_inserter(q));
+                std::copy(ins->output.begin(), ins->output.end(), migraphx::push_inserter(q));
             }
         }
     }
@@ -105,7 +127,7 @@ bool operator==(const instruction& i, instruction_ref ref)
 
 bool instruction::valid(instruction_ref start, bool check_order) const
 {
-    return valid() && std::all_of(arguments.begin(), arguments.end(), [&](instruction_ref i) {
+    return valid() and std::all_of(arguments.begin(), arguments.end(), [&](instruction_ref i) {
                auto self = std::find(i->outputs().begin(), i->outputs().end(), *this);
                bool ret  = self != i->outputs().end();
                if(check_order)
@@ -140,7 +162,7 @@ bool instruction::valid() const
         }
     }
 
-    return (result == computed) &&
+    return (result == computed) and
            std::all_of(output.begin(), output.end(), [&](instruction_ref i) {
                return std::find(i->inputs().begin(), i->inputs().end(), *this) != i->inputs().end();
            });

@@ -229,7 +229,15 @@ struct lhs_expression
         std::string op = Operator::as_string();
         if(not op.empty())
             s << Operator::as_string() << " ";
-        s << self.lhs;
+        if constexpr(std::is_pointer_v<decltype(self.lhs)>)
+        {
+            s << static_cast<void*>(self.lhs);
+        }
+        else
+        {
+            // NOLINTNEXTLINE
+            s << self.lhs;
+        }
         return s;
     }
 

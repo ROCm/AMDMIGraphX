@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2024 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2025 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -29,6 +29,7 @@
 #include <migraphx/op/common.hpp>
 #include <migraphx/program.hpp>
 #include <migraphx/make_op.hpp>
+#include <migraphx/param_utils.hpp>
 #include <basic_ops.hpp>
 #include <test.hpp>
 #include <pointwise.hpp>
@@ -60,7 +61,7 @@ migraphx::instruction_ref add_mlir(migraphx::program& p,
                                    std::vector<std::string> arg_names,
                                    F f)
 {
-    assert(inputs.size() == arg_names.size() && "One interior parameter name given per input.");
+    assert(inputs.size() == arg_names.size() and "One interior parameter name given per input.");
     auto* mm = p.get_main_module();
     auto* pm = p.create_module(name);
     pm->set_bypass();
@@ -75,6 +76,19 @@ migraphx::instruction_ref add_mlir(migraphx::program& p,
     auto_add_return(pm, r);
     return mm->add_instruction(
         migraphx::make_op("gpu::mlir_op", {{"op", migraphx::to_value(root)}}), inputs, {pm});
+}
+
+template <class F>
+migraphx::instruction_ref add_mlir(migraphx::program& p,
+                                   const std::string& name,
+                                   std::vector<migraphx::instruction_ref> inputs,
+                                   F f)
+{
+    std::vector<std::string> arg_names;
+    migraphx::transform(migraphx::range(inputs.size()), std::back_inserter(arg_names), [&](auto i) {
+        return migraphx::param_name(i);
+    });
+    return add_mlir(p, name, std::move(inputs), std::move(arg_names), f);
 }
 
 TEST_CASE(dot_reshapes_add)
@@ -100,17 +114,13 @@ TEST_CASE(dot_reshapes_add)
         auto a     = mm->add_parameter("a", s);
         auto b     = mm->add_parameter("b", s);
         auto x     = mm->add_parameter("x", migraphx::shape{migraphx::shape::float_type, {3, 3}});
-        auto fused = add_mlir(
-            p2,
-            "mlir_main:pointwise0",
-            {x, a, b},
-            {"x2", "y0", "y1"},
-            [=](auto* pm, const auto& inputs) {
-                auto dot = pm->add_instruction(migraphx::make_op("dot"), inputs[1], inputs[2]);
+        auto fused =
+            add_mlir(p2, "mlir_main:pointwise0", {a, b, x}, [=](auto* pm, const auto& inputs) {
+                auto dot = pm->add_instruction(migraphx::make_op("dot"), inputs[0], inputs[1]);
                 auto dot_trans = pm->add_instruction(
                     migraphx::make_op("transpose", {{"permutation", {0, 2, 1}}}), dot);
                 auto dot_rsp = pm->add_instruction(migraphx::make_op("squeeze"), dot_trans);
-                auto add     = pm->add_instruction(migraphx::make_op("add"), dot_rsp, inputs[0]);
+                auto add     = pm->add_instruction(migraphx::make_op("add"), dot_rsp, inputs[2]);
                 return std::make_tuple(dot->get_operator(), add);
             });
         mm->add_return({fused});
@@ -139,16 +149,51 @@ TEST_CASE(dot_add)
         auto b   = mm->add_parameter("b", s);
         auto x   = mm->add_parameter("x", s);
         auto fused =
-            add_mlir(p2,
-                     "mlir_main:pointwise0",
-                     {x, a, b},
-                     {"x2", "y0", "y1"},
-                     [=](auto* pm, const auto& inputs) {
-                         auto dot =
-                             pm->add_instruction(migraphx::make_op("dot"), inputs[1], inputs[2]);
-                         auto add = pm->add_instruction(migraphx::make_op("add"), dot, inputs[0]);
-                         return std::make_tuple(dot->get_operator(), add);
-                     });
+            add_mlir(p2, "mlir_main:pointwise0", {a, b, x}, [=](auto* pm, const auto& inputs) {
+                auto dot = pm->add_instruction(migraphx::make_op("dot"), inputs[0], inputs[1]);
+                auto add = pm->add_instruction(migraphx::make_op("add"), dot, inputs[2]);
+                return std::make_tuple(dot->get_operator(), add);
+            });
+        mm->add_return({fused});
+    }
+    EXPECT(p1.sort() == p2.sort());
+}
+
+TEST_CASE(dot_transpose_reshape_add)
+{
+    migraphx::shape s1{migraphx::shape::float_type, {1, 6, 6}};
+    migraphx::shape s2{migraphx::shape::float_type, {2, 3, 6}};
+    migraphx::program p1;
+    {
+        auto* mm = p1.get_main_module();
+        auto a   = mm->add_parameter("a", s1);
+        auto b   = mm->add_parameter("b", s1);
+        auto x   = mm->add_parameter("x", s1);
+        auto dot = mm->add_instruction(migraphx::make_op("dot"), a, b);
+        auto xtranspose =
+            mm->add_instruction(migraphx::make_op("transpose", {{"permutation", {1, 0, 2}}}), x);
+        auto xreshape =
+            mm->add_instruction(migraphx::make_op("reshape", {{"dims", s1.lens()}}), xtranspose);
+        auto add = add_pointwise(p1, "main:pointwise0", {dot, xreshape}, single_pointwise("add"));
+        mm->add_return({add});
+    }
+    run_pass(p1);
+    migraphx::program p2;
+    {
+        auto* mm = p2.get_main_module();
+        auto a   = mm->add_parameter("a", s1);
+        auto b   = mm->add_parameter("b", s1);
+        auto x   = mm->add_parameter("x", s1);
+        auto fused =
+            add_mlir(p2, "mlir_main:pointwise0", {a, b, x}, [=](auto* pm, const auto& inputs) {
+                auto dot = pm->add_instruction(migraphx::make_op("dot"), inputs[0], inputs[1]);
+                auto xtranspose = pm->add_instruction(
+                    migraphx::make_op("transpose", {{"permutation", {1, 0, 2}}}), inputs[2]);
+                auto xreshape = pm->add_instruction(
+                    migraphx::make_op("reshape", {{"dims", s1.lens()}}), xtranspose);
+                auto add = pm->add_instruction(migraphx::make_op("add"), dot, xreshape);
+                return std::make_tuple(dot->get_operator(), add);
+            });
         mm->add_return({fused});
     }
     EXPECT(p1.sort() == p2.sort());
@@ -186,22 +231,18 @@ TEST_CASE(multi_use_dot_trans_add_pooling_sub)
         auto a   = mm->add_parameter("a", s1);
         auto b   = mm->add_parameter("b", s2);
         auto x = mm->add_parameter("x", migraphx::shape{migraphx::shape::float_type, {1, 1, 5, 4}});
-        auto fused = add_mlir(
-            p2,
-            "mlir_main:pointwise0",
-            {x, a, b},
-            {"x2", "y0", "y1"},
-            [=](auto* pm, const auto& inputs) {
-                auto dot = pm->add_instruction(migraphx::make_op("dot"), inputs[1], inputs[2]);
+        auto fused =
+            add_mlir(p2, "mlir_main:pointwise0", {a, b, x}, [=](auto* pm, const auto& inputs) {
+                auto dot = pm->add_instruction(migraphx::make_op("dot"), inputs[0], inputs[1]);
                 auto dot_trans = pm->add_instruction(
                     migraphx::make_op("transpose", {{"permutation", {0, 1, 3, 2}}}), dot);
 
-                auto add = pm->add_instruction(migraphx::make_op("add"), dot_trans, inputs[0]);
+                auto add = pm->add_instruction(migraphx::make_op("add"), dot_trans, inputs[2]);
                 return std::make_tuple(dot->get_operator(),
-                                       std::vector<migraphx::instruction_ref>{dot, add});
+                                       std::vector<migraphx::instruction_ref>{add, dot});
             });
         auto fused_dot_add =
-            mm->add_instruction(migraphx::make_op("get_tuple_elem", {{"index", 1}}), fused);
+            mm->add_instruction(migraphx::make_op("get_tuple_elem", {{"index", 0}}), fused);
         auto pooling =
             mm->add_instruction(migraphx::make_op("pooling",
                                                   {{"mode", migraphx::op::pooling_mode::lpnorm},
@@ -210,7 +251,7 @@ TEST_CASE(multi_use_dot_trans_add_pooling_sub)
                                                    {"lengths", {2, 1}},
                                                    {"lp_order", 2}}),
                                 fused_dot_add);
-        auto dot = mm->add_instruction(migraphx::make_op("get_tuple_elem", {{"index", 0}}), fused);
+        auto dot = mm->add_instruction(migraphx::make_op("get_tuple_elem", {{"index", 1}}), fused);
         auto sub = add_pointwise(p2, "main:pointwise1", {dot, pooling}, single_pointwise("sub"));
         mm->add_return({sub});
     }
@@ -252,23 +293,19 @@ TEST_CASE(dot_multi_use_trans_add_pooling_sub)
         auto a   = mm->add_parameter("a", s1);
         auto b   = mm->add_parameter("b", s2);
         auto x = mm->add_parameter("x", migraphx::shape{migraphx::shape::float_type, {1, 1, 5, 4}});
-        auto fused = add_mlir(
-            p2,
-            "mlir_main:pointwise0",
-            {x, a, b},
-            {"x2", "y0", "y1"},
-            [=](auto* pm, const auto& inputs) {
-                auto dot = pm->add_instruction(migraphx::make_op("dot"), inputs[1], inputs[2]);
+        auto fused =
+            add_mlir(p2, "mlir_main:pointwise0", {a, b, x}, [=](auto* pm, const auto& inputs) {
+                auto dot = pm->add_instruction(migraphx::make_op("dot"), inputs[0], inputs[1]);
                 auto dot_trans = pm->add_instruction(
                     migraphx::make_op("transpose", {{"permutation", {0, 2, 1}}}), dot);
                 auto dot_unsq = pm->add_instruction(
                     migraphx::make_op("reshape", {{"dims", {1, 1, 5, 4}}}), dot_trans);
-                auto add = pm->add_instruction(migraphx::make_op("add"), dot_unsq, inputs[0]);
+                auto add = pm->add_instruction(migraphx::make_op("add"), dot_unsq, inputs[2]);
                 return std::make_tuple(dot->get_operator(),
-                                       std::vector<migraphx::instruction_ref>{dot, add});
+                                       std::vector<migraphx::instruction_ref>{add, dot});
             });
         auto fused_dot_add =
-            mm->add_instruction(migraphx::make_op("get_tuple_elem", {{"index", 1}}), fused);
+            mm->add_instruction(migraphx::make_op("get_tuple_elem", {{"index", 0}}), fused);
         auto pooling =
             mm->add_instruction(migraphx::make_op("pooling",
                                                   {{"mode", migraphx::op::pooling_mode::lpnorm},
@@ -277,7 +314,7 @@ TEST_CASE(dot_multi_use_trans_add_pooling_sub)
                                                    {"lengths", {2, 1}},
                                                    {"lp_order", 2}}),
                                 fused_dot_add);
-        auto dot = mm->add_instruction(migraphx::make_op("get_tuple_elem", {{"index", 0}}), fused);
+        auto dot = mm->add_instruction(migraphx::make_op("get_tuple_elem", {{"index", 1}}), fused);
         auto dot_trans =
             mm->add_instruction(migraphx::make_op("transpose", {{"permutation", {0, 2, 1}}}), dot);
         auto dot_reshape =
@@ -358,16 +395,11 @@ TEST_CASE(dot_dot_pointwise_pointwise)
                 return std::make_tuple(dot->get_operator(), dot);
             });
         auto fused =
-            add_mlir(p2,
-                     "mlir_main:pointwise0",
-                     {x, dot1, c},
-                     {"x2", "y0", "y1"},
-                     [=](auto* pm, const auto& inputs) {
-                         auto dot =
-                             pm->add_instruction(migraphx::make_op("dot"), inputs[1], inputs[2]);
-                         auto add = pm->add_instruction(migraphx::make_op("add"), dot, inputs[0]);
-                         return std::make_tuple(dot->get_operator(), add);
-                     });
+            add_mlir(p2, "mlir_main:pointwise0", {dot1, c, x}, [=](auto* pm, const auto& inputs) {
+                auto dot = pm->add_instruction(migraphx::make_op("dot"), inputs[0], inputs[1]);
+                auto add = pm->add_instruction(migraphx::make_op("add"), dot, inputs[2]);
+                return std::make_tuple(dot->get_operator(), add);
+            });
         auto add2 = add_pointwise(p2, "main:pointwise1", {dot1, fused}, single_pointwise("add"));
         mm->add_return({add2});
     }
@@ -445,6 +477,41 @@ TEST_CASE(relu_dot)
     EXPECT(p1.sort() == p2.sort());
 }
 
+TEST_CASE(relu_relu_dot)
+{
+    migraphx::shape s{migraphx::shape::float_type, {1, 3, 3}};
+    migraphx::program p1;
+    {
+        auto* mm   = p1.get_main_module();
+        auto x     = mm->add_parameter("x", s);
+        auto y     = mm->add_parameter("y", s);
+        auto relux = add_pointwise(p1, "main:pointwise0", {x}, single_pointwise("relu"));
+        auto reluy = add_pointwise(p1, "main:pointwise1", {y}, single_pointwise("relu"));
+        auto dot   = mm->add_instruction(migraphx::make_op("dot"), relux, reluy);
+        mm->add_return({dot});
+    }
+    run_pass(p1);
+    migraphx::program p2;
+    {
+        auto* mm = p2.get_main_module();
+        auto x   = mm->add_parameter("x", s);
+        auto y   = mm->add_parameter("y", s);
+        auto fused =
+            add_mlir(p2,
+                     "main:pointwise0:main:pointwise1:mlir_dot0",
+                     {x, y},
+                     {"x0", "x1"},
+                     [=](auto* pm, const auto& inputs) {
+                         auto relux = pm->add_instruction(migraphx::make_op("relu"), inputs[0]);
+                         auto reluy = pm->add_instruction(migraphx::make_op("relu"), inputs[1]);
+                         auto dot   = pm->add_instruction(migraphx::make_op("dot"), relux, reluy);
+                         return std::make_tuple(dot->get_operator(), dot);
+                     });
+        mm->add_return({fused});
+    }
+    EXPECT(p1.sort() == p2.sort());
+}
+
 TEST_CASE(dequantizelinear_dot)
 {
     migraphx::program p1;
@@ -491,6 +558,89 @@ TEST_CASE(dequantizelinear_dot)
             mm->add_literal(migraphx::generate_literal({migraphx::shape::float_type, {2, 2, 2}}));
         auto zplit =
             mm->add_literal(migraphx::generate_literal({migraphx::shape::int8_type, {2, 2, 2}}));
+
+        auto fused = add_mlir(
+            p2,
+            "main:pointwise0:mlir_dot0",
+            {y, scalelit, zplit, x},
+            {"x0", "x1", "x2", "x3"},
+            [=](auto* pm, const auto& inputs) {
+                auto unsqueeze1 =
+                    pm->add_instruction(migraphx::make_op("unsqueeze", {{"axes", {2}}}), inputs[1]);
+                auto broadcast1 = pm->add_instruction(
+                    migraphx::make_op("multibroadcast", {{"out_lens", {2, 2, 3, 2}}}), unsqueeze1);
+                auto reshape1 = pm->add_instruction(
+                    migraphx::make_op("reshape", {{"dims", {2, 6, 2}}}), broadcast1);
+                auto scale = pm->add_instruction(
+                    migraphx::make_op("slice", {{"axes", {1}}, {"starts", {0}}, {"ends", {5}}}),
+                    reshape1);
+
+                auto unsqueeze2 =
+                    pm->add_instruction(migraphx::make_op("unsqueeze", {{"axes", {2}}}), inputs[2]);
+                auto broadcast2 = pm->add_instruction(
+                    migraphx::make_op("multibroadcast", {{"out_lens", {2, 2, 3, 2}}}), unsqueeze2);
+                auto reshape2 = pm->add_instruction(
+                    migraphx::make_op("reshape", {{"dims", {2, 6, 2}}}), broadcast2);
+                auto zp = pm->add_instruction(
+                    migraphx::make_op("slice", {{"axes", {1}}, {"starts", {0}}, {"ends", {5}}}),
+                    reshape2);
+
+                auto dq = pm->add_instruction(
+                    migraphx::make_op("dequantizelinear"), inputs[0], scale, zp);
+                auto dot = pm->add_instruction(migraphx::make_op("dot"), inputs[3], dq);
+                return std::make_tuple(dot->get_operator(), dot);
+            });
+        mm->add_return({fused});
+    }
+    EXPECT(p1.sort() == p2.sort());
+}
+
+TEST_CASE(unsigned_dequantizelinear_dot)
+{
+    migraphx::program p1;
+    {
+        auto* mm = p1.get_main_module();
+
+        auto x = mm->add_parameter("x", migraphx::shape{migraphx::shape::float_type, {2, 3, 5}});
+        auto y = mm->add_parameter("y", migraphx::shape{migraphx::shape::uint8_type, {2, 5, 2}});
+        auto scalelit =
+            mm->add_literal(migraphx::generate_literal({migraphx::shape::float_type, {2, 2, 2}}));
+        auto zplit =
+            mm->add_literal(migraphx::generate_literal({migraphx::shape::uint8_type, {2, 2, 2}}));
+
+        auto unsqueeze1 =
+            mm->add_instruction(migraphx::make_op("unsqueeze", {{"axes", {2}}}), scalelit);
+        auto broadcast1 = mm->add_instruction(
+            migraphx::make_op("multibroadcast", {{"out_lens", {2, 2, 3, 2}}}), unsqueeze1);
+        auto reshape1 =
+            mm->add_instruction(migraphx::make_op("reshape", {{"dims", {2, 6, 2}}}), broadcast1);
+        auto scale = mm->add_instruction(
+            migraphx::make_op("slice", {{"axes", {1}}, {"starts", {0}}, {"ends", {5}}}), reshape1);
+
+        auto unsqueeze2 =
+            mm->add_instruction(migraphx::make_op("unsqueeze", {{"axes", {2}}}), zplit);
+        auto broadcast2 = mm->add_instruction(
+            migraphx::make_op("multibroadcast", {{"out_lens", {2, 2, 3, 2}}}), unsqueeze2);
+        auto reshape2 =
+            mm->add_instruction(migraphx::make_op("reshape", {{"dims", {2, 6, 2}}}), broadcast2);
+        auto zp = mm->add_instruction(
+            migraphx::make_op("slice", {{"axes", {1}}, {"starts", {0}}, {"ends", {5}}}), reshape2);
+
+        auto dq = add_pointwise(
+            p1, "main:pointwise0", {y, scale, zp}, single_pointwise("dequantizelinear"));
+        auto dot = mm->add_instruction(migraphx::make_op("dot"), x, dq);
+        mm->add_return({dot});
+    }
+    run_pass(p1);
+    migraphx::program p2;
+    {
+        auto* mm = p2.get_main_module();
+        auto x   = mm->add_parameter("x", migraphx::shape{migraphx::shape::float_type, {2, 3, 5}});
+        auto y   = mm->add_parameter("y", migraphx::shape{migraphx::shape::uint8_type, {2, 5, 2}});
+        auto scalelit =
+            mm->add_literal(migraphx::generate_literal({migraphx::shape::float_type, {2, 2, 2}}));
+        auto zplit =
+            mm->add_literal(migraphx::generate_literal({migraphx::shape::uint8_type, {2, 2, 2}}));
 
         auto fused = add_mlir(
             p2,
@@ -613,8 +763,8 @@ TEST_CASE(int_quant_dot_abs)
         auto* mm   = p2.get_main_module();
         auto a     = mm->add_parameter("a", s_a);
         auto b     = mm->add_parameter("b", s_b);
-        auto fused = add_mlir(
-            p2, "mlir_main:pointwise0", {a, b}, {"y0", "y1"}, [=](auto* pm, const auto& inputs) {
+        auto fused =
+            add_mlir(p2, "mlir_main:pointwise0", {a, b}, [=](auto* pm, const auto& inputs) {
                 auto dot =
                     pm->add_instruction(migraphx::make_op("quant_dot"), inputs[0], inputs[1]);
                 auto abs = pm->add_instruction(migraphx::make_op("abs"), dot);
@@ -693,22 +843,23 @@ TEST_CASE(conv_split_reduce)
         auto x   = mm->add_parameter("x", s_x);
         auto w   = mm->add_parameter("w", s_w);
         auto b   = mm->add_literal(migraphx::generate_literal(s_b));
-        auto mb  = mm->add_instruction(
-            migraphx::make_op("broadcast", {{"axis", 1}, {"out_lens", {2, 32, 10, 64, 64}}}), b);
         auto fused =
             add_mlir(p2,
                      "mlir_main:pointwise0_main:split_reduce0",
-                     {mb, x, w},
-                     {"x2", "y0", "y1"},
+                     {x, w, b},
+                     {"x0", "x1", "x2"},
                      [=](auto* pm, const auto& inputs) {
                          auto conv = pm->add_instruction(
                              migraphx::make_op("convolution", {{"padding", {1, 1, 1, 1}}}),
-                             inputs[1],
-                             inputs[2]);
+                             inputs[0],
+                             inputs[1]);
                          auto reshape = pm->add_instruction(
                              migraphx::make_op("reshape", {{"dims", {2, 32, 10, 64, 64}}}), conv);
-                         auto add =
-                             pm->add_instruction(migraphx::make_op("add"), reshape, inputs[0]);
+                         auto mb = pm->add_instruction(
+                             migraphx::make_op("broadcast",
+                                               {{"axis", 1}, {"out_lens", {2, 32, 10, 64, 64}}}),
+                             inputs[2]);
+                         auto add  = pm->add_instruction(migraphx::make_op("add"), reshape, mb);
                          auto mul  = pm->add_instruction(migraphx::make_op("mul"), add, add);
                          auto mean = pm->add_instruction(
                              migraphx::make_op("reduce_sum", {{"axes", {2, 3, 4}}}), add);
@@ -785,22 +936,23 @@ TEST_CASE(conv_add_split_reduce_multi_use)
         auto x   = mm->add_parameter("x", s_x);
         auto w   = mm->add_parameter("w", s_w);
         auto b   = mm->add_literal(migraphx::generate_literal(s_b));
-        auto mb  = mm->add_instruction(
-            migraphx::make_op("broadcast", {{"axis", 1}, {"out_lens", {2, 32, 10, 64, 64}}}), b);
         auto fused =
             add_mlir(p2,
                      "mlir_main:pointwise0_main:split_reduce0",
-                     {mb, x, w},
-                     {"x2", "y0", "y1"},
+                     {x, w, b},
+                     {"x0", "x1", "x2"},
                      [=](auto* pm, const auto& inputs) {
                          auto conv = pm->add_instruction(
                              migraphx::make_op("convolution", {{"padding", {1, 1, 1, 1}}}),
-                             inputs[1],
-                             inputs[2]);
+                             inputs[0],
+                             inputs[1]);
                          auto reshape = pm->add_instruction(
                              migraphx::make_op("reshape", {{"dims", {2, 32, 10, 64, 64}}}), conv);
-                         auto add =
-                             pm->add_instruction(migraphx::make_op("add"), reshape, inputs[0]);
+                         auto mb = pm->add_instruction(
+                             migraphx::make_op("broadcast",
+                                               {{"axis", 1}, {"out_lens", {2, 32, 10, 64, 64}}}),
+                             inputs[2]);
+                         auto add  = pm->add_instruction(migraphx::make_op("add"), reshape, mb);
                          auto mul  = pm->add_instruction(migraphx::make_op("mul"), add, add);
                          auto mean = pm->add_instruction(
                              migraphx::make_op("reduce_sum", {{"axes", {2, 3, 4}}}), add);
@@ -899,22 +1051,23 @@ TEST_CASE(conv_add_split_reduce_multi_use_conv)
         auto w1  = mm->add_parameter("w1", s_w1);
         auto w2  = mm->add_parameter("w2", s_w2);
         auto b   = mm->add_literal(migraphx::generate_literal(s_b));
-        auto mb  = mm->add_instruction(
-            migraphx::make_op("broadcast", {{"axis", 1}, {"out_lens", {2, 32, 10, 64, 64}}}), b);
         auto fused =
             add_mlir(p2,
                      "mlir_main:pointwise0_main:split_reduce0",
-                     {mb, x, w1},
-                     {"x2", "y0", "y1"},
+                     {x, w1, b},
+                     {"x0", "x1", "x2"},
                      [=](auto* pm, const auto& inputs) {
                          auto conv = pm->add_instruction(
                              migraphx::make_op("convolution", {{"padding", {1, 1, 1, 1}}}),
-                             inputs[1],
-                             inputs[2]);
+                             inputs[0],
+                             inputs[1]);
                          auto reshape = pm->add_instruction(
                              migraphx::make_op("reshape", {{"dims", {2, 32, 10, 64, 64}}}), conv);
-                         auto add =
-                             pm->add_instruction(migraphx::make_op("add"), reshape, inputs[0]);
+                         auto mb = pm->add_instruction(
+                             migraphx::make_op("broadcast",
+                                               {{"axis", 1}, {"out_lens", {2, 32, 10, 64, 64}}}),
+                             inputs[2]);
+                         auto add  = pm->add_instruction(migraphx::make_op("add"), reshape, mb);
                          auto mul  = pm->add_instruction(migraphx::make_op("mul"), add, add);
                          auto mean = pm->add_instruction(
                              migraphx::make_op("reduce_sum", {{"axes", {2, 3, 4}}}), add);

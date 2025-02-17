@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2024 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2025 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -55,7 +55,7 @@ namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
 namespace gpu {
 
-MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_ENABLE_HIPBLASLT_GEMM);
+MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_DISABLE_HIPBLASLT_GEMM);
 MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_DISABLE_MIOPEN_POOLING)
 
 struct miopen_apply
@@ -251,25 +251,28 @@ struct miopen_apply
         apply_map.emplace(name, [=](instruction_ref ins) {
             std::vector<instruction_ref> refs = ins->inputs();
             assert(refs.size() == 2);
-#if MIGRAPHX_USE_HIPBLASLT
-            if(enabled(MIGRAPHX_ENABLE_HIPBLASLT_GEMM{}))
-            {
-                shape workspace_shape{shape::uint8_type, {hipblaslt_workspace_size}};
-                auto workspace = insert_allocation(ins, workspace_shape);
-                refs.push_back(workspace);
-            }
-#endif
             auto output = insert_allocation(ins, ins->get_shape());
             refs.push_back(output);
 #if MIGRAPHX_USE_HIPBLASLT
-            if(not enabled(MIGRAPHX_ENABLE_HIPBLASLT_GEMM{}) or not hipblaslt_supported())
+            if(enabled(MIGRAPHX_DISABLE_HIPBLASLT_GEMM{}) or not hipblaslt_supported())
             {
 #endif
                 return mod->replace_instruction(
                     ins, rocblas_gemm<Op>{Op{}, 1, 0, compute_fp32}, refs);
 #if MIGRAPHX_USE_HIPBLASLT
             }
-            return mod->replace_instruction(ins, hip_gemm<Op>{Op{}, 1, 0}, refs);
+            std::string op_name = "gpu::hip_gemm";
+            if(contains(name, "quant_"))
+            {
+                op_name = "gpu::hip_quant_gemm";
+            }
+            operation gemm_op = make_op(op_name);
+            return mod->replace_instruction(
+                ins,
+                make_op("gpu::hipblaslt_op", {{"op", to_value(gemm_op)}}),
+                ins->inputs().at(0),
+                ins->inputs().at(1),
+                output);
 #endif
         });
     }
@@ -322,7 +325,8 @@ struct miopen_apply
 
     static bool use_miopen_pooling(instruction_ref ins)
     {
-        if(enabled(MIGRAPHX_DISABLE_MIOPEN_POOLING{}))
+        if(enabled(MIGRAPHX_DISABLE_MIOPEN_POOLING{}) or
+           not contains({shape::float_type, shape::half_type}, ins->get_shape().type()))
             return false;
         auto&& op   = ins->get_operator();
         auto op_val = op.to_value();

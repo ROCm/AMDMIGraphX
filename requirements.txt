@@ -1,7 +1,7 @@
 #####################################################################################
 # The MIT License (MIT)
 #
-# Copyright (c) 2015-2024 Advanced Micro Devices, Inc. All rights reserved.
+# Copyright (c) 2015-2025 Advanced Micro Devices, Inc. All rights reserved.
 #
 # Permission is hereby granted, free of charge, to any person obtaining a copy
 # of this software and associated documentation files (the "Software"), to deal
@@ -27,5 +27,5 @@ ROCm/half@rocm-5.6.0
 pybind/pybind11@3e9dfa2866941655c56877882565e7577de6fc7b --build
 msgpack/msgpack-c@cpp-3.3.0 -DMSGPACK_BUILD_TESTS=Off
 sqlite3@3.43.2 -DCMAKE_POSITION_INDEPENDENT_CODE=On
-mirza-halilcevic/composable_kernel@089c978451b3a5c15e146c5372e8ef8c5d4bc7d9 -DCK_BUILD_HOST_LIB=On -DCMAKE_POSITION_INDEPENDENT_CODE=On
-ROCm/rocMLIR@87a55290b7f89f9f8b97c611e0cf929399a9e0c5 -DBUILD_FAT_LIBROCKCOMPILER=On
+ROCm/composable_kernel@b7775add2d28251674d81e220cd4a857b90b997a -DCK_BUILD_JIT_LIB=On -DCMAKE_POSITION_INDEPENDENT_CODE=On
+ROCm/rocMLIR@da423a21b8aaf541af470999f34a1ff252bcdece -DBUILD_FAT_LIBROCKCOMPILER=On

@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2024 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2025 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -887,13 +887,12 @@ std::string perf_group(instruction_ref ins, bool detailed)
     return result;
 }
 
-void program::mark(const parameter_map& params, marker&& m)
+void program::mark(const parameter_map& params, marker m)
 {
     auto& ctx = this->impl->contexts;
     // Run once by itself
     eval(params);
     this->finish();
-    // Start marking
     m.mark_start(*this);
     generic_eval(*this, ctx, params, [&](auto ins, auto f) {
         argument result;
@@ -1243,12 +1242,12 @@ bool references_instruction(Map& m, const instruction& ins, const std::string& n
 void program::remove_module(const std::string& name)
 {
     // cppcheck-suppress assertWithSideEffect
-    assert(is_unused_module(impl->modules, generic_get_modules(this->get_main_module()), name) &&
+    assert(is_unused_module(impl->modules, generic_get_modules(this->get_main_module()), name) and
            "Module used in program");
     assert(std::none_of(
                impl->modules.at(name).begin(),
                impl->modules.at(name).end(),
-               [&](auto&& ins) { return references_instruction(impl->modules, ins, name); }) &&
+               [&](auto&& ins) { return references_instruction(impl->modules, ins, name); }) and
            "Instruction referenced in another module");
 
     // if an instruction has an input out side of the current module, need to remove

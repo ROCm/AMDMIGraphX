@@ -135,9 +135,9 @@ Use it in conjunction with ``MIGRAPHX_DISABLE_MLIR=1``.
 Set to "1", "enable", "enabled", "yes", or "true" to use.
 Disables use of the rocMLIR library.
 
-.. envvar:: MIGRAPHX_ENABLE_HIPBLASLT_GEMM
+.. envvar:: MIGRAPHX_DISABLE_HIPBLASLT_GEMM
 Set to "1", "enable", "enabled", "yes", or "true" to use.
-Enables use of hipBLASLt.
+Disables use of hipBLASLt.
 
 .. envvar:: MIGRAPHX_COPY_LITERALS
 
@@ -153,6 +153,7 @@ Disables layrnorm fusion.
 
 Set to "1", "enable", "enabled", "yes", or "true" to use.
 Disables use of MIOpen for pooling operations and uses JIT implementation instead.
+
 
 Compilation traces
 ----------------------
@@ -176,6 +177,11 @@ Prints the compile pass and the program after the pass.
 
 Set to "1", "enable", "enabled", "yes", or "true" to use.
 Times the compile passes.
+
+.. envvar:: MIGRAPHX_DISABLE_PASSES
+
+Set to the name of the pass you want to skip.  Comma separated list is supported
+Example "rewrite_pooling,rewrite_gelu"
 
 
 GPU kernels JIT compilation debugging 

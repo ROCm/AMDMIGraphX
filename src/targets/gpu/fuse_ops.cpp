@@ -672,9 +672,8 @@ struct find_rocblas_gemm_pointwise : gemm_pointwise
 
         if(ins->inputs().size() == 3)
         {
-            auto c_ins      = r.instructions["c"];
-            shape s         = c_ins->get_shape();
-            auto c_ins_name = c_ins->get_operator().name();
+            auto c_ins = r.instructions["c"];
+            shape s    = c_ins->get_shape();
             // const-fold input if not standard shape since rocblas can't handle it
             // Updated for a case where "standard" shape has out-of-sequence strides
             if(not s.standard())

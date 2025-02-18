@@ -338,14 +338,15 @@ auto is_mlir_conv(mlir_mode mode)
         if(mode == mlir_mode::all)
             return true;
         // No winograd for group convolution
-        if(group > 1)
-            return true;
-        auto w = ins->inputs().at(1)->get_shape();
-        if(w.lens().size() != 4)
-            return true;
-        if(w.lens()[2] != w.lens()[3])
-            return true;
-        return (w.lens()[3] % 3) != 0;
+        return group == 1;
+        // if(group > 1)
+        //     return true;
+        // auto w = ins->inputs().at(1)->get_shape();
+        // if(w.lens().size() != 4)
+        //     return true;
+        // if(w.lens()[2] != w.lens()[3])
+        //     return true;
+        // return (w.lens()[3] % 3) != 0;
     });
 }
 

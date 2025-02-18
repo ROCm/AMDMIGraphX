@@ -21,29 +21,11 @@
  * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
  * THE SOFTWARE.
  */
-#ifndef MIGRAPHX_GUARD_GPU_DEVICE_NAME_HPP
-#define MIGRAPHX_GUARD_GPU_DEVICE_NAME_HPP
 
-#include <migraphx/gpu/config.hpp>
-#include <string>
+#include <onnx_test.hpp>
+#include <onnx_test_utils.hpp>
 
-struct hipDeviceProp_t;
-
-namespace migraphx {
-inline namespace MIGRAPHX_INLINE_NS {
-namespace gpu {
-
-MIGRAPHX_GPU_EXPORT std::string get_device_name();
-
-MIGRAPHX_GPU_EXPORT int get_device_id();
-
-MIGRAPHX_GPU_EXPORT bool gfx_has_fp8fnuz_intrinsics();
-
-MIGRAPHX_GPU_EXPORT bool gfx_has_fp8ocp_intrinsics();
-
-MIGRAPHX_GPU_EXPORT bool gfx_has_fp8fnuz_support();
-
-} // namespace gpu
-} // namespace MIGRAPHX_INLINE_NS
-} // namespace migraphx
-#endif // MIGRAPHX_GUARD_GPU_DEVICE_NAME_HPP
+TEST_CASE(group_norm_contrib_no_num_groups_err_test)
+{
+    EXPECT(test::throws([&] { read_onnx("group_norm_contrib_no_num_groups_attr_test.onnx"); }));
+}

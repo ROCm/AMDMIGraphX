@@ -31,13 +31,14 @@ def test_create_shape():
     assert s.lens() == [1, 64, 3, 3]
     assert s.ndim() == 4
 
+
 def test_create_shape_transposed():
     s = migraphx.shape(lens=[1, 64, 3, 3], permutation=[0, 2, 3, 1])
     assert not s.standard()
     assert s.packed()
     assert s.transposed()
     assert s.lens() == [1, 64, 3, 3]
-    assert s.strides() == [64*3*3, 1, 64*3, 64]
+    assert s.strides() == [64 * 3 * 3, 1, 64 * 3, 64]
     assert s.ndim() == 4
 
 

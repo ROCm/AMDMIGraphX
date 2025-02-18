@@ -197,7 +197,7 @@ compile_hip_code_object(context& ctx, const std::string& content, hip_compile_op
     const auto& warnings = compiler_warnings();
     options.params.insert(options.params.end(), warnings.begin(), warnings.end());
     options.emplace_param("-ftemplate-backtrace-limit=0");
-    // options.emplace_param("-Werror");
+    options.emplace_param("-Werror");
     auto cos = compile_hip_src(srcs, options.params, get_device_name());
     if(cos.size() != 1)
         MIGRAPHX_THROW("No code object");

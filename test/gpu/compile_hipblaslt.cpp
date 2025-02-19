@@ -44,7 +44,7 @@ void run_lowering(migraphx::module& m, bool offload_copy = false)
 TEST_CASE(hipblaslt_op)
 {
     if(not migraphx::disabled(MIGRAPHX_ENABLE_HIPBLASLT_GEMM{}) and
-       migraphx::gpu::hipblaslt_supported())
+       migraphx::gpu::hipblaslt_supported() and not migraphx::gpu::gfx_default_rocblas())
     {
         migraphx::module m1;
         {

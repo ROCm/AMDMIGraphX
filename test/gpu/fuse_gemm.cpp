@@ -83,7 +83,7 @@ TEST_CASE(gemm_pointwise_add)
         auto output = mm->add_instruction(migraphx::op::allocate{s, std::nullopt});
 
         if(not migraphx::disabled(MIGRAPHX_ENABLE_HIPBLASLT_GEMM{}) and
-           migraphx::gpu::hipblaslt_supported())
+           migraphx::gpu::hipblaslt_supported() and not migraphx::gpu::gfx_default_rocblas())
         {
             migraphx::op::dot dot_instance;
             migraphx::gpu::hipblaslt_op hipblaslt_operator;

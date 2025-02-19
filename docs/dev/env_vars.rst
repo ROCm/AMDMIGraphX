@@ -136,12 +136,10 @@ Set to "1", "enable", "enabled", "yes", or "true" to use.
 Disables use of the rocMLIR library.
 
 .. envvar:: MIGRAPHX_ENABLE_HIPBLASLT_GEMM
-Set to "1", "enable", "enabled", "yes", or "true" to use.
-Enables use of hipBLASLt for all architectures.
+Set to ``1`` or ``true`` to enable use of hipBLASLt GEMM on all architectures.
 
 .. envvar:: MIGRAPHX_DISABLE_HIPBLASLT_GEMM
-Set to "1", "enable", "enabled", "yes", or "true" to use.
-Disables use of hipBLASLt.
+Set to ``1`` or ``true`` to disable use of hipBLASLt GEMM on all architectures.
 
 .. envvar:: MIGRAPHX_COPY_LITERALS
 

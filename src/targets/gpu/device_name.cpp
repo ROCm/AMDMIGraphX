@@ -75,15 +75,15 @@ bool gfx_has_fp8fnuz_support()
                                                        : gfx_has_fp8fnuz_intrinsics());
 }
 
+#if MIGRAPHX_USE_HIPBLASLT
 bool gfx_default_rocblas()
 {
     const auto device_name = trim(split_string(get_device_name(), ':').front());
     // Default to rocBLAS for gfx90a.
-#if MIGRAPHX_USE_HIPBLASLT
     return (enabled(MIGRAPHX_ENABLE_HIPBLASLT_GEMM{}) ? not gpu::hipblaslt_supported()
                                                       : (device_name == "gfx90a"));
-#endif
 }
+#endif
 
 } // namespace gpu
 } // namespace MIGRAPHX_INLINE_NS

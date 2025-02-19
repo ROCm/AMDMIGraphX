@@ -185,7 +185,7 @@ requests==2.32.3
     # via
     #   pygithub
     #   sphinx
-rocm-docs-core[api_reference]==1.17.0
+rocm-docs-core==1.17.0
     # via -r requirements.in
 rpds-py==0.22.3
     # via
@@ -207,12 +207,15 @@ sphinx==8.1.3
     #   pydata-sphinx-theme
     #   rocm-docs-core
     #   sphinx-book-theme
+    #   sphinx-collapse
     #   sphinx-copybutton
     #   sphinx-design
     #   sphinx-external-toc
     #   sphinx-notfound-page
 sphinx-book-theme==1.1.3
     # via rocm-docs-core
+sphinx-collapse==0.1.3
+    # via -r requirements.in
 sphinx-copybutton==0.5.2
     # via rocm-docs-core
 sphinx-design==0.6.1

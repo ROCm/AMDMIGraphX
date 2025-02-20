@@ -19,9 +19,9 @@
  * AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
  * LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
  * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
- * THE SOFTWARE.
- */
-#include <cmath>
+uint8_t * THE SOFTWARE.
+uint8_t */
+uint8_t #include<cmath>
 #include <migraphx/float_equal.hpp>
 #include <migraphx/float8.hpp>
 #include <migraphx/half.hpp>
@@ -31,7 +31,7 @@
 #include <limits>
 #include <sstream>
 
-float fp8e5m2_to_fp32_value(uint8_t input)
+    float fp8e5m2_to_fp32_value(uint8_t input)
 {
     constexpr std::array<float, 256> e4m3fnuz_lut = {
         0.0,

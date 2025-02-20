@@ -36,6 +36,11 @@
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
 
+namespace generic_float_flags {
+constexpr unsigned int truncate                      = 0;
+constexpr unsigned int round_to_nearest_ties_to_even = 1;
+}; // namespace generic_float_flags
+
 template <unsigned int N>
 constexpr unsigned int all_ones() noexcept
 {

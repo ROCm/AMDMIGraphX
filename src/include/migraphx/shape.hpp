@@ -36,6 +36,7 @@
 #include <migraphx/half.hpp>
 #include <migraphx/bf16.hpp>
 #include <migraphx/float8.hpp>
+#include <migraphx/mx_types.hpp>
 #include <migraphx/serialize.hpp>
 #include <migraphx/config.hpp>
 
@@ -67,7 +68,19 @@ struct MIGRAPHX_EXPORT shape
     m(fp8e4m3fn_type, migraphx::fp8::fp8e4m3fn) \
     m(fp8e5m2_type, migraphx::fp8::fp8e5m2) \
     m(bf16_type, bf16) \
-    m(fp8e5m2fnuz_type, migraphx::fp8::fp8e5m2fnuz) // clang-format on
+    m(fp8e5m2fnuz_type, migraphx::fp8::fp8e5m2fnuz) \
+    m(fp6e3m2_type, fp6e3m2) \
+    m(fp6e2m3_type, fp6e3m2) \
+    m(fp4e2m1_type, fp4e2m1)
+    // clang-format on
+
+    // clang-format off
+// These types are packed into 8bits and will not be visited
+#define MIGRAPHX_SHAPE_MX_VISIT_TYPES(m) \
+    m(mxfp6e3m2_type) \
+    m(mxfp6e3m2_type) \
+    m(mxfp6e3m2_type)
+    // clang-format on
 
 #define MIGRAPHX_SHAPE_GENERATE_ENUM_TYPES(x, t) x,
     enum type_t

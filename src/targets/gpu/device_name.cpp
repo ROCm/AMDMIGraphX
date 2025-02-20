@@ -34,8 +34,7 @@ namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
 namespace gpu {
 
-MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_ENABLE_HIPBLASLT_GEMM);
-MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_DISABLE_HIPBLASLT_GEMM)
+MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_SET_GEMM_PROVIDER)
 
 int get_device_id()
 {
@@ -71,8 +70,8 @@ bool gfx_has_fp8ocp_intrinsics()
 
 bool gfx_has_fp8fnuz_support()
 {
-    return (enabled(MIGRAPHX_DISABLE_HIPBLASLT_GEMM{}) ? gpu::rocblas_fp8_available()
-                                                       : gfx_has_fp8fnuz_intrinsics());
+    return (value_of(MIGRAPHX_SET_GEMM_PROVIDER{}) == 2 ? gpu::rocblas_fp8_available()
+                                                        : gfx_has_fp8fnuz_intrinsics());
 }
 
 #if MIGRAPHX_USE_HIPBLASLT
@@ -80,8 +79,7 @@ bool gfx_default_rocblas()
 {
     const auto device_name = trim(split_string(get_device_name(), ':').front());
     // Default to rocBLAS for gfx90a.
-    return (enabled(MIGRAPHX_ENABLE_HIPBLASLT_GEMM{}) ? not gpu::hipblaslt_supported()
-                                                      : (device_name == "gfx90a"));
+    return (not enabled(MIGRAPHX_SET_GEMM_PROVIDER{}) ? (device_name == "gfx90a") : false);
 }
 #endif
 

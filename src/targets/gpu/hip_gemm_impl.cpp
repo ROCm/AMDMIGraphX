@@ -520,7 +520,11 @@ struct hip_gemm_impl
             return hipblaslt_ext::getAlgosFromIndex(
                 ctx.get_stream().get_hipblaslt(), algo_index, heuristic_result);
         });
-        assert(heuristic_result.size() == 1);
+        // Return default workspace size when no algo is provided.
+        if(heuristic_result.size() == 0)
+        {
+            return workspace_size;
+        }
 
         auto algo                 = heuristic_result[0].algo;
         size_t ret_workspace_size = 0;

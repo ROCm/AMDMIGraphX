@@ -82,7 +82,7 @@ TEST_CASE(gemm_pointwise_add)
 
         auto output = mm->add_instruction(migraphx::op::allocate{s, std::nullopt});
 
-        if(not(migraphx::value_of(MIGRAPHX_SET_GEMM_PROVIDER{}) == 2) and
+        if(not(migraphx::string_value_of(MIGRAPHX_SET_GEMM_PROVIDER{}) == "rocblas") and
            migraphx::gpu::hipblaslt_supported() and not migraphx::gpu::gfx_default_rocblas())
         {
             migraphx::op::dot dot_instance;

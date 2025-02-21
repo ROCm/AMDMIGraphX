@@ -255,8 +255,8 @@ struct miopen_apply
             refs.push_back(output);
 
 #if MIGRAPHX_USE_HIPBLASLT
-            if((value_of(MIGRAPHX_SET_GEMM_PROVIDER{}) == 2) or not hipblaslt_supported() or
-               gpu::gfx_default_rocblas())
+            if((string_value_of(MIGRAPHX_SET_GEMM_PROVIDER{}) == "rocblas") or
+               not hipblaslt_supported() or gpu::gfx_default_rocblas())
             {
 #endif
                 return mod->replace_instruction(

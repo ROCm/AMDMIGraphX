@@ -70,8 +70,9 @@ bool gfx_has_fp8ocp_intrinsics()
 
 bool gfx_has_fp8fnuz_support()
 {
-    return (value_of(MIGRAPHX_SET_GEMM_PROVIDER{}) == 2 ? gpu::rocblas_fp8_available()
-                                                        : gfx_has_fp8fnuz_intrinsics());
+    return (string_value_of(MIGRAPHX_SET_GEMM_PROVIDER{}) == "rocblas"
+                ? gpu::rocblas_fp8_available()
+                : gfx_has_fp8fnuz_intrinsics());
 }
 
 #if MIGRAPHX_USE_HIPBLASLT

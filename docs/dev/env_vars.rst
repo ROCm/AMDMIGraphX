@@ -137,8 +137,8 @@ Disables use of the rocMLIR library.
 
 .. envvar:: MIGRAPHX_SET_GEMM_PROVIDER
 
-Set to "1" to use hipBLASLt.
-Set to "2" to use rocBLAS.
+Set to "hipblaslt" to use hipBLASLt.
+Set to "rocblas" to use rocBLAS.
 
 .. envvar:: MIGRAPHX_COPY_LITERALS
 

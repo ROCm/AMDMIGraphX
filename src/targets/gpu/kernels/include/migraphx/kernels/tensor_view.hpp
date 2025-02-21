@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2024 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2025 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -42,13 +42,16 @@ struct tensor_view_iterator_read
     }
 };
 
+template <class View>
+using tensor_view_iterator = basic_iota_iterator<tensor_view_iterator_read<View>, index_int>;
+
 template <class T, class Shape>
 struct tensor_view
 {
     using type        = T;
     using shape_type  = Shape;
     using index_array = typename Shape::index_array;
-    using iterator = basic_iota_iterator<tensor_view_iterator_read<const tensor_view>, index_int>;
+    using iterator    = tensor_view_iterator<const tensor_view>;
 
     constexpr Shape get_shape() const { return Shape{}; }
     constexpr auto size() const { return get_shape().elements(); }
@@ -107,6 +110,34 @@ template <class T, class Permutation>
 constexpr auto reorder_tensor_view(T x, Permutation perm)
 {
     return make_tensor_view(x.data(), reorder_shape(x.get_shape(), perm));
+}
+
+template <class Input, class T, class Select>
+constexpr auto tensor_slice(Input input, T start, Select select)
+{
+    auto inner_lens =
+        transform_i(get_shape_c<Input>{}.lens, [=](index_int x, index_int ii) -> index_int {
+            if(select(x, ii))
+                return x;
+            return 1;
+        });
+    auto inner_shape = make_shape(inner_lens, get_shape_c<Input>{}.strides);
+    auto outer_lens =
+        transform_i(get_shape_c<Input>{}.lens, [=](index_int x, index_int ii) -> index_int {
+            if(not select(x, ii))
+                return x;
+            return 1;
+        });
+    auto outer_shape = make_shape(outer_lens, get_shape_c<Input>{}.strides);
+    auto offset      = outer_shape.index(start);
+    MIGRAPHX_ASSERT((offset + inner_shape.element_space()) <= get_shape_c<Input>{}.element_space());
+    return make_tensor_view(input.data() + offset, inner_shape);
+}
+
+template <index_int... Axes>
+constexpr auto slice_axes()
+{
+    return [](auto, auto i) { return ((i == Axes) or ...); };
 }
 
 } // namespace migraphx

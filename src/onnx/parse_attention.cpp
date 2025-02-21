@@ -115,11 +115,20 @@ struct parse_attention : op_parser<parse_attention>
     static instruction_ref scale_dot_attention_head(const onnx_parser::node_info& info,
                                                     const instruction_ref& Q,
                                                     const instruction_ref& K,
-                                                    const instruction_ref& V)
+                                                    const instruction_ref& V,
+                                                    const instruction_ref& scale_factor,
+                                                    const instruction_ref& mask,
+                                                    bool masked=false)
     {
+        auto qk_out = info.add_instruction(make_op("dot"), Q, K);
+        auto qk_scaled = info.add_instruction(make_op("div"), qk_output, scale_fac);
+        auto qk_masked = qk_scaled;
 
+        if(masked)
+            qk_masked = info.add_instruction(make_op("dot"), qk_scaled, mask);
 
-        return scale_output;
+        auto softmax_out = info.add_instruction(make_op("softmax"), qk_masked);
+        return info.add_instruction(make_op("dot", softmax_out, V);
     }
 
     std::vector<instruction_ref> parse(const op_desc& /*opd*/,

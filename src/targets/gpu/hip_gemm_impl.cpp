@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2024 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2025 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -144,11 +144,16 @@ static int32_t get_batch_stride_hip(const shape& s)
 struct hip_gemm_impl
 {
     hip_gemm_impl(const shape& output_shape,
-                  const std::vector<shape>& input_shapes,
+                  std::vector<shape> input_shapes,
                   float alpha_param,
                   float beta_param)
         : alpha(alpha_param), beta(beta_param), is_3inputs(input_shapes.size() == 5)
     {
+        std::transform(input_shapes.begin(),
+                       input_shapes.end(),
+                       input_shapes.begin(),
+                       [&](const shape& s) { return s.normalize_standard(); });
+
         if(not is_3inputs)
         {
             beta = 0;
@@ -684,7 +689,7 @@ void hip_gemm_compute(context& ctx,
     std::transform(args.begin(),
                    args.end(),
                    std::back_inserter(input_shapes),
-                   [](const argument& x) { return x.get_shape().normalize_standard(); });
+                   [](const argument& x) { return x.get_shape(); });
     auto gemm_item = hip_gemm_impl(output_shape, input_shapes, alpha, beta);
     gemm_item.run(ctx, args, solution_idx);
 }

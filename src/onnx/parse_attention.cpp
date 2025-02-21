@@ -38,18 +38,30 @@ struct parse_attention : op_parser<parse_attention>
 
     struct attention_attr
     {
-        bool do_rotary           = false;
+        bool do_rotary                 = false;
         bool past_present_share_buffer = false;
-        bool unidirectional      = false; 
-        std::size_t num_heads    = 1;         //required by inputs 
+        bool unidirectional            = false; 
+        std::size_t num_heads          = 1;   //required by inputs 
         std::size_t rotary_embedding_dim = 0; // Gets set to head_size when not set
         std::vector<std::size_t> qkv_num_heads{0, 0, 0}; //Sets hidden sizes if not set defiend by input
         float scale              = 0.0;       // Default should be 1/sqrt(head_size)
         float mask_filter_val    = -10000.0f;
-    }
+    };
 
-    static void handle_attributes(const onnx_parser::node_info& info
-                                  struct attention_attr& attr_out)
+    // Values infered from input vectors
+    struct attention_infered
+    {
+        std::size_t batch_size;        // Pull from input
+        std::size_t input_hidden_size; // Pulled from input and/or weights
+        std::size_t hidden_size;   // Pulled from weights vector (weights.at(1) / 2)
+        std::size_t v_hidden_size; // Value weight size
+        float head_size // Used for the scale factor of attention stages by default if scale is not defined 
+    };
+
+    static void handle_attributes(const onnx_parser& parser,
+                                  const onnx_parser::node_info& info,
+                                  struct attention_attr& attr_out,
+                                  struct attention_attr& infered_out)
     {
         if(contains(info.attributes, "do_rotary"))
         {
@@ -78,7 +90,7 @@ struct parse_attention : op_parser<parse_attention>
 
         if(contains(info.attributes, "qkv_hidden_sizes"))
         {
-           attr_out.qkv_num_heads = parser.parse_value(info.attributes.at("qkv_hidden_sizes")).at<std::vector<int>(3)>();
+            auto input_val = parser.parse_value(info.attributes.at("qkv_hidden_sizes"));
         }
 
         if(contains(info.attributes, "rotary_embedding_dim"))
@@ -103,8 +115,10 @@ struct parse_attention : op_parser<parse_attention>
     }
 
 
-    static void handle_arguments(const std::vector<instruction_ref>& args,
-                                 struct attention_attr& attr_out)
+    static void handle_arguments(const onnx_parser& parser,
+                                 const std::vector<instruction_ref>& args,
+                                 struct attention_attr& attr_out,
+                                 struct attention_infered& infered_out);
     {
         if(args.size() < 2 or args.size() > 7)
         {
@@ -137,8 +151,10 @@ struct parse_attention : op_parser<parse_attention>
                                        const std::vector<instruction_ref>& args) const
     {
         struct attention_attr parsed_attributes;
-        handle_attributes(info, parsed_attributes);
-        handle_arguments(args, parsed_attributes);
+        struct attention_infered infered_attributes;
+
+        handle_attributes(parser, info, parsed_attributes);
+        handle_arguments(parser, args, parsed_attributes, infered_attributes);
 
         return {};
     }

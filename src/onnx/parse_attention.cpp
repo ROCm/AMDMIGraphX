@@ -156,7 +156,32 @@ struct parse_attention : op_parser<parse_attention>
         handle_attributes(parser, info, parsed_attributes);
         handle_arguments(parser, args, parsed_attributes, infered_attributes);
 
-        return {};
+        instruction_ref q;
+        instruction_ref k;
+        instruction_ref v;
+        instruction_ref mask;
+        bool has_mask = false;
+        instruction_ref present;
+
+        // Used to scale all key values before any masking or other inputs
+        auto scale_fac = info.add_literal(migraphx::literal{migraphx::shape{K.get_shape().type(), {std::sqrt(K.get_shape.size())}}});
+
+        //Get vector of attention heads and then concat the output results
+        std::vector<instruction_ref> vec_of_attn_outs(parsed_attributes.num_heads){};
+        std::transform(vec_of_attn_outs.begin(),
+                       vec_of_attn_outs.end(),
+                       vec_of_attn_outs.begin(),
+                       std::back_inserter(scale_dot_attention_head(info, q, k, v, scale_factor, mask, has_mask)));
+
+        auto output = info.add_instruction(make_op("concat"), vec_of_attn_outs);
+
+        std::vector<instruction_ref> output_vec{};
+        output_vec.push_bach(output);
+
+        if(parsed_attributes.past_present_share_buffer)
+            output_vec.push_back(present);
+
+        return output_vec;
     }
 };
 

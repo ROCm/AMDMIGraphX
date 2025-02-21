@@ -23,7 +23,6 @@
  */
 #include <migraphx/env.hpp>
 #include <migraphx/gpu/device_name.hpp>
-#include <migraphx/gpu/hipblaslt.hpp>
 #include <migraphx/gpu/rocblas.hpp>
 #include <migraphx/errors.hpp>
 #include <migraphx/rank.hpp>
@@ -76,6 +75,7 @@ bool gfx_has_fp8fnuz_support()
 }
 
 #if MIGRAPHX_USE_HIPBLASLT
+// Archs that support hipBLASLt but are defaulted to use rocBLAS.
 bool gfx_default_rocblas()
 {
     const auto device_name = trim(split_string(get_device_name(), ':').front());

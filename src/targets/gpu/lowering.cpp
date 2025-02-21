@@ -255,6 +255,9 @@ struct miopen_apply
             refs.push_back(output);
 
 #if MIGRAPHX_USE_HIPBLASLT
+            // Check if user explicitly sets rocBLAS as GEMM provider, or
+            // if the hardware cannot support hipblaslt, or
+            // if the hardware is defaulted to use rocBLAS (such as gfx90).
             if((string_value_of(MIGRAPHX_SET_GEMM_PROVIDER{}) == "rocblas") or
                not hipblaslt_supported() or gpu::gfx_default_rocblas())
             {

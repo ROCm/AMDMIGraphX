@@ -116,10 +116,10 @@ void quantizelinear_fp8e4m3()
     auto max_value = std::numeric_limits<DType>::max();
     for(int i = 0; i < xv.size(); ++i)
     {
-        double quantized = xv.at(i) / sv.at(i);
+        double quantized = xv.at(i) / sv.at(i) + zero_pts.at(i);
         quantized        = std::max(static_cast<double>(min_value),
                              std::min(static_cast<double>(max_value), quantized));
-        gold.push_back(DType(quantized + zero_pts.at(i)));
+        gold.push_back(DType(quantized));
     }
     EXPECT(results_vector == gold);
 }

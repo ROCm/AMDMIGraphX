@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2024 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2025 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -173,7 +173,7 @@ template <typename T>
 struct gemm_impl
 {
     gemm_impl(const shape& output_shape,
-              const std::vector<shape>& input_shapes,
+              std::vector<shape> input_shapes,
               T alpha_param,
               T beta_param,
               bool compute_fp32_flag)
@@ -182,6 +182,11 @@ struct gemm_impl
           is_3inputs(input_shapes.size() == 4),
           compute_fp32(compute_fp32_flag)
     {
+        std::transform(input_shapes.begin(),
+                       input_shapes.end(),
+                       input_shapes.begin(),
+                       [&](const shape& s) { return s.normalize_standard(); });
+
         if(not is_3inputs)
         {
             beta = 0;
@@ -592,7 +597,7 @@ void gemm_compute(context& ctx,
     std::transform(args.begin(),
                    args.end(),
                    std::back_inserter(input_shapes),
-                   [](const argument& x) { return x.get_shape().normalize_standard(); });
+                   [](const argument& x) { return x.get_shape(); });
     auto gemm_item = gemm_impl<float>(output_shape, input_shapes, alpha, beta, compute_fp32);
     gemm_item.run(ctx, args, solution_idx);
 }
@@ -609,7 +614,7 @@ void gemm_compute(context& ctx,
     std::transform(args.begin(),
                    args.end(),
                    std::back_inserter(input_shapes),
-                   [](const argument& x) { return x.get_shape().normalize_standard(); });
+                   [](const argument& x) { return x.get_shape(); });
     auto gemm_item = gemm_impl<int32_t>(output_shape, input_shapes, alpha, beta, compute_fp32);
     gemm_item.run(ctx, args, solution_idx);
 }

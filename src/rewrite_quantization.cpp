@@ -1,4 +1,4 @@
-/*rby
+/*
  * The MIT License (MIT)
  *
  * Copyright (c) 2015-2025 Advanced Micro Devices, Inc. All rights reserved.

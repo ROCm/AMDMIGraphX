@@ -31,7 +31,6 @@ inline namespace MIGRAPHX_INLINE_NS {
 namespace onnx {
 
 
-
 struct parse_attention : op_parser<parse_attention>
 {
     std::vector<op_desc> operators() const { return {{"Attention"}}; }
@@ -43,7 +42,7 @@ struct parse_attention : op_parser<parse_attention>
         bool unidirectional            = false; 
         std::size_t num_heads          = 1;   //required by inputs 
         std::size_t rotary_embedding_dim = 0; // Gets set to head_size when not set
-        std::vector<std::size_t> qkv_num_heads{0, 0, 0}; //Sets hidden sizes if not set defiend by input
+        std::vector<std::size_t> qkv_hidden_sizes{0, 0, 0}; //Sets hidden sizes if not set defiend by input
         float scale              = 0.0;       // Default should be 1/sqrt(head_size)
         float mask_filter_val    = -10000.0f;
     };
@@ -55,6 +54,7 @@ struct parse_attention : op_parser<parse_attention>
         std::size_t input_hidden_size; // Pulled from input and/or weights
         std::size_t hidden_size;   // Pulled from weights vector (weights.at(1) / 2)
         std::size_t v_hidden_size; // Value weight size
+        std::size_t sequence_length;
         float head_size; // Used for the scale factor of attention stages by default if scale is not defined 
     };
 
@@ -91,6 +91,22 @@ struct parse_attention : op_parser<parse_attention>
         if(contains(info.attributes, "qkv_hidden_sizes"))
         {
             auto input_val = parser.parse_value(info.attributes.at("qkv_hidden_sizes"));
+
+            /* auto q_size = input_val.data().at(0);
+            auto k_size = input_val.data().at(1);
+            auto v_size = input_val.data().at(2);
+
+            if(q_size != k_size)
+            {
+                MIGRAPHX_THROW("Attention: q and k hidden sizes must be identitcal!");
+            } */
+
+            //attr_out.qkv_hidden_sizes = input_val->.lens();
+            /*if(std::any_of(qkv_vec.begin(), qkv_vec.end(), [](auto i){return (i == 0) or (i < 0);}))
+            {
+                MIGRAPHX_THROW("PARSE_ATTENTION: qkv_hidden_sizes must be nonzero and valid");
+            }
+            attr_out.qkv_hidden_sizes = qkv_vec;*/
         }
 
         if(contains(info.attributes, "rotary_embedding_dim"))
@@ -103,6 +119,7 @@ struct parse_attention : op_parser<parse_attention>
             }
             attr_out.rotary_embedding_dim = rotary_embedding_dim;
         }
+
         if(contains(info.attributes, "scale"))
         {
             attr_out.scale = parser.parse_value(info.attributes.at("scale")).at<float>();
@@ -114,16 +131,95 @@ struct parse_attention : op_parser<parse_attention>
         }
     }
 
-
-    static void handle_arguments(const onnx_parser& parser,
-                                 const std::vector<instruction_ref>& args,
-                                 struct attention_attr& attr_out,
-                                 struct attention_infered& infered_out)
+    static void qkv_sizes_sum_arg_valid(const std::vector<size_t>& qkv_vec,
+                                        const instruction_ref input_arg,
+                                        const size_t dim,
+                                        const std::string name)
     {
+        if(std::accumulate(qkv_vec.begin(), qkv_vec.end(), 0) != input_arg->get_shape().lens().at(dim))
+        {
+            MIGRAPHX_THROW("Attention: q k v hidden sizes sum must match" + name + " tensor" + std::to_string(dim) + "dimension");
+        }
+    }
+
+    static void handle_projection_bias(const std::vector<instruction_ref>& args,
+                                       struct attention_attr& attr_out,
+                                       struct attention_infered& infered_out,
+                                       std::vector<instruction_ref>& output_arg_vec)
+    {
+    }
+
+    static void handle_mask_index(const std::vector<instruction_ref>& args,
+                                  struct attention_attr& attr_out,
+                                  struct attention_infered& infered_out,
+                                  std::vector<instruction_ref>& output_arg_vec)
+    {
+
+    }
+
+    static void handle_past(const std::vector<instruction_ref>& args,
+                            struct attention_attr& attr_out,
+                            struct attention_infered& infered_out,
+                            std::vector<instruction_ref>& output_arg_vec)
+    {
+
+    }
+    
+    static void handle_attention_bias(const std::vector<instruction_ref>& args,
+                                      struct attention_attr& attr_out,
+                                      struct attention_infered& infered_out,
+                                      std::vector<instruction_ref>& output_arg_vec)
+    {
+
+    }
+
+    static void handle_past_sequence_length(const std::vector<instruction_ref>& args,
+                                            struct attention_attr& attr_out,
+                                            struct attention_infered& infered_out,
+                                            std::vector<instruction_ref>& output_arg_vec)
+    {
+
+    }
+
+    static std::vector<instruction_ref> handle_arguments(const onnx_parser& parser,
+                                                         const std::vector<instruction_ref>& args,
+                                                         struct attention_attr& attr_out,
+                                                         struct attention_infered& infered_out)
+    {
+        std::vector<instruction_ref> input_arguments;
+
         if(args.size() < 2 or args.size() > 7)
         {
             MIGRAPHX_THROW("Attention: Wrong number of inputs provided");
         }
+
+        auto input_tensor  = args.at(0);
+        auto input_shape   = input_tensor->get_shape();
+        auto weight_tensor = args.at(1);
+        auto weight_shape  = weight_tensor->get_shape();
+
+        if(weight_shape.lens().at(0) != input_shape.lens().at(2))
+        {
+            MIGRAPHX_THROW("Attention: Input hidden size must be the same for input and weight tensors");
+        }
+
+        infered_out.batch_size        = input_shape.lens().at(0);
+        infered_out.sequence_length   = input_shape.lens().at(1);
+        infered_out.input_hidden_size = input_shape.lens().at(2);
+        input_arguments.push_back(input_tensor);
+
+        // Ensure qkv_hidden sizes set are valid wrt to input weights
+        qkv_sizes_sum_arg_valid(attr_out.qkv_hidden_sizes, weight_tensor, 2, "weights");
+        input_arguments.push_back(weight_tensor);
+
+        // Handle theses individually. Order matters here to check conditions
+        handle_projection_bias(args, attr_out, infered_out, input_arguments);
+        handle_mask_index(args, attr_out, infered_out, input_arguments);
+        handle_past(args, attr_out, infered_out, input_arguments);
+        handle_attention_bias(args, attr_out, infered_out, input_arguments);
+        handle_past_sequence_length(args, attr_out, infered_out, input_arguments);
+
+        return input_arguments;
     }
 
     static instruction_ref scale_dot_attention_head(const onnx_parser::node_info& info,
@@ -154,7 +250,7 @@ struct parse_attention : op_parser<parse_attention>
         struct attention_infered infered_attributes;
 
         handle_attributes(parser, info, parsed_attributes, infered_attributes);
-        handle_arguments(parser, args, parsed_attributes, infered_attributes);
+        auto inputs = handle_arguments(parser, args, parsed_attributes, infered_attributes);
 
         instruction_ref q;
         instruction_ref k;

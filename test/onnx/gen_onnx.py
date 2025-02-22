@@ -293,6 +293,44 @@ def atanh_test():
     return ([node], [x], [y])
 
 
+def attention_test(x_dims,
+                   weight_dims,
+                   bias_dims,
+                   mask_dims,
+                   num_heads,
+                   qkv_hidden_sizes,
+                   do_rotary=0,
+                   mask_filter_value=-1e5,
+                   past_present_share_buffer=0,
+                   scale=1/sqrt(head_size),
+                   unidirectional=0,
+                   dtype=TensorProto.FLOAT):
+
+    rotary_embedding_dim=num_heads
+
+    # (Batch_size, sequence_lenth, input_hidden_size)
+    x = helper.make_tensor_value_info('x', dtype, x_dims)
+
+    # 
+    weights = helper.make_tensor_value_info('scale', dtype, weight_dims)
+    bias = helper.make_tensor_value_info('bias', dtype, bias_dims)
+
+    y = helper.make_tensor_value_info('y', dtype, y_dims)
+
+    input_list  = ['x', 'weights', 'bias']
+    output_list = ['y']
+    if()
+
+    node = onnx.helper.make_node('Attention',
+                                 inputs=,
+                                 outputs=output_list,
+                                 num_groups=num_groups,
+                                 epsilon=eps_value)
+
+    return ([node], [x, scale, bias], [y])
+
+
+
 @onnx_test()
 def averagepool_1d_test():
     x = helper.make_tensor_value_info('0', TensorProto.FLOAT, [1, 3, 5])

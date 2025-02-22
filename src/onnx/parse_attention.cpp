@@ -55,13 +55,13 @@ struct parse_attention : op_parser<parse_attention>
         std::size_t input_hidden_size; // Pulled from input and/or weights
         std::size_t hidden_size;   // Pulled from weights vector (weights.at(1) / 2)
         std::size_t v_hidden_size; // Value weight size
-        float head_size // Used for the scale factor of attention stages by default if scale is not defined 
+        float head_size; // Used for the scale factor of attention stages by default if scale is not defined 
     };
 
     static void handle_attributes(const onnx_parser& parser,
                                   const onnx_parser::node_info& info,
                                   struct attention_attr& attr_out,
-                                  struct attention_attr& infered_out)
+                                  struct attention_infered& infered_out)
     {
         if(contains(info.attributes, "do_rotary"))
         {
@@ -118,7 +118,7 @@ struct parse_attention : op_parser<parse_attention>
     static void handle_arguments(const onnx_parser& parser,
                                  const std::vector<instruction_ref>& args,
                                  struct attention_attr& attr_out,
-                                 struct attention_infered& infered_out);
+                                 struct attention_infered& infered_out)
     {
         if(args.size() < 2 or args.size() > 7)
         {
@@ -135,14 +135,14 @@ struct parse_attention : op_parser<parse_attention>
                                                     bool masked=false)
     {
         auto qk_out = info.add_instruction(make_op("dot"), Q, K);
-        auto qk_scaled = info.add_instruction(make_op("div"), qk_output, scale_fac);
+        auto qk_scaled = info.add_instruction(make_op("div"), qk_out, scale_factor);
         auto qk_masked = qk_scaled;
 
         if(masked)
             qk_masked = info.add_instruction(make_op("dot"), qk_scaled, mask);
 
         auto softmax_out = info.add_instruction(make_op("softmax"), qk_masked);
-        return info.add_instruction(make_op("dot", softmax_out, V);
+        return info.add_instruction(make_op("dot"), softmax_out, V);
     }
 
     std::vector<instruction_ref> parse(const op_desc& /*opd*/,
@@ -153,7 +153,7 @@ struct parse_attention : op_parser<parse_attention>
         struct attention_attr parsed_attributes;
         struct attention_infered infered_attributes;
 
-        handle_attributes(parser, info, parsed_attributes);
+        handle_attributes(parser, info, parsed_attributes, infered_attributes);
         handle_arguments(parser, args, parsed_attributes, infered_attributes);
 
         instruction_ref q;
@@ -164,19 +164,21 @@ struct parse_attention : op_parser<parse_attention>
         instruction_ref present;
 
         // Used to scale all key values before any masking or other inputs
-        auto scale_fac = info.add_literal(migraphx::literal{migraphx::shape{K.get_shape().type(), {std::sqrt(K.get_shape.size())}}});
+        auto scale_factor = info.add_literal(migraphx::literal{migraphx::shape{k->get_shape().type()}, {std::sqrt(k->get_shape().elements()) } } );
 
         //Get vector of attention heads and then concat the output results
-        std::vector<instruction_ref> vec_of_attn_outs(parsed_attributes.num_heads){};
+        std::vector<instruction_ref> vec_of_attn_outs(parsed_attributes.num_heads);
         std::transform(vec_of_attn_outs.begin(),
                        vec_of_attn_outs.end(),
                        vec_of_attn_outs.begin(),
-                       std::back_inserter(scale_dot_attention_head(info, q, k, v, scale_factor, mask, has_mask)));
-
+                       std::back_inserter(vec_of_attn_outs),
+                       [&](auto&&, auto&& ) {
+                           return scale_dot_attention_head(info, q, k, v, scale_factor, mask, has_mask);
+                        });
         auto output = info.add_instruction(make_op("concat"), vec_of_attn_outs);
 
         std::vector<instruction_ref> output_vec{};
-        output_vec.push_bach(output);
+        output_vec.push_back(output);
 
         if(parsed_attributes.past_present_share_buffer)
             output_vec.push_back(present);

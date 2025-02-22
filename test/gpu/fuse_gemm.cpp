@@ -41,7 +41,7 @@
 #include <pointwise.hpp>
 #include <test.hpp>
 
-MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_ENABLE_HIPBLASLT_GEMM)
+MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_SET_GEMM_PROVIDER)
 
 void run_lowering(migraphx::program& p, bool offload_copy = false)
 {
@@ -82,8 +82,8 @@ TEST_CASE(gemm_pointwise_add)
 
         auto output = mm->add_instruction(migraphx::op::allocate{s, std::nullopt});
 
-        if(not migraphx::disabled(MIGRAPHX_ENABLE_HIPBLASLT_GEMM{}) and
-           migraphx::gpu::hipblaslt_supported())
+        if(not(migraphx::string_value_of(MIGRAPHX_SET_GEMM_PROVIDER{}) == "rocblas") and
+           migraphx::gpu::hipblaslt_supported() and not migraphx::gpu::gfx_default_rocblas())
         {
             migraphx::op::dot dot_instance;
             migraphx::gpu::hipblaslt_op hipblaslt_operator;

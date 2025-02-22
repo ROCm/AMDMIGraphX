@@ -55,7 +55,7 @@ namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
 namespace gpu {
 
-MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_DISABLE_HIPBLASLT_GEMM);
+MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_SET_GEMM_PROVIDER)
 MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_DISABLE_MIOPEN_POOLING)
 
 struct miopen_apply
@@ -253,8 +253,13 @@ struct miopen_apply
             assert(refs.size() == 2);
             auto output = insert_allocation(ins, ins->get_shape());
             refs.push_back(output);
+
 #if MIGRAPHX_USE_HIPBLASLT
-            if(enabled(MIGRAPHX_DISABLE_HIPBLASLT_GEMM{}) or not hipblaslt_supported())
+            // Check if user explicitly sets rocBLAS as GEMM provider, or
+            // if the hardware cannot support hipblaslt, or
+            // if the hardware is defaulted to use rocBLAS (such as gfx90).
+            if((string_value_of(MIGRAPHX_SET_GEMM_PROVIDER{}) == "rocblas") or
+               not hipblaslt_supported() or gpu::gfx_default_rocblas())
             {
 #endif
                 return mod->replace_instruction(

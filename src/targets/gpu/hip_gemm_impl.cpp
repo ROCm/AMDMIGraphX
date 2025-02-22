@@ -521,11 +521,22 @@ struct hip_gemm_impl
         std::vector<int32_t> algo_index = {solution_idx};
         std::vector<hipblasLtMatmulHeuristicResult_t> heuristic_result;
 
+        // TODO: Use hipblasLtMatmulAlgoGetHeuristic instead of getAlgosFromIndex
+        // for solution index '0'.
         hipblaslt_invoke([&]() {
             return hipblaslt_ext::getAlgosFromIndex(
                 ctx.get_stream().get_hipblaslt(), algo_index, heuristic_result);
         });
-        assert(heuristic_result.size() == 1);
+        // Return default workspace size when no algo is provided.
+        if(heuristic_result.empty())
+        {
+            if(solution_idx != 0)
+            {
+                std::cout << "No hipBLASLt algo returned for solution index: " << solution_idx
+                          << std::endl;
+            }
+            return workspace_size;
+        }
 
         auto algo                 = heuristic_result[0].algo;
         size_t ret_workspace_size = 0;

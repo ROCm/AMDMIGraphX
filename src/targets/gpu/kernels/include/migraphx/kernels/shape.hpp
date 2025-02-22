@@ -196,6 +196,49 @@ constexpr auto make_packed_shape(Shape)
     }
 }
 
+template<class Shape, class Size>
+constexpr auto slice_make_mult_lens(Shape, Size)
+{
+    return return_array_c([] {
+        auto n = Size{} - _c<1>;
+        auto i = Shape{}.multi(n);
+        using type = typename decltype(i)::value_type;
+        return i + type{1};
+    });
+}
+
+template<class Shape, class T, T... Xs>
+constexpr auto slice_make_mult_lens(Shape, integral_const_array<T, Xs...> x)
+{
+    return x;
+}
+
+template <class Shape, class Select>
+constexpr auto make_slice(Shape, Select select)
+{
+    auto inner_lens =
+        transform_i(Shape{}.lens, [=](index_int x, index_int ii) -> index_int {
+            if(select(x, ii))
+                return x;
+            return 1;
+        });
+    return make_shape(inner_lens, Shape{}.strides);
+}
+
+template <class Shape, class Select, class Size>
+constexpr auto make_slice(Shape input, Select select, Size size)
+{
+    auto as = make_slice(input, select);
+    auto lens = slice_make_mult_lens(as, size);
+    return make_shape(lens, Shape{}.strides);
+}
+
+template <index_int... Axes>
+constexpr auto slice_axes()
+{
+    return [](auto, auto i) { return ((i == Axes) or ...); };
+}
+
 } // namespace migraphx
 
 #endif

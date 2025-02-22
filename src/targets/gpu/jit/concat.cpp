@@ -51,7 +51,7 @@ extern "C" {
 MIGRAPHX_GLOBAL void ${kernel}(${params}) 
 {
     transform_args(make_tensors(), rotate_last(), ${transformers})(${args})([](auto y, ${concat_params}, auto... xs) {
-        concat<${axis}>(${concat_args})(${post}, y, xs...);
+        concat::run<${axis}>(concat::simple{}, ${concat_args})(${post}, y, xs...);
     });
 }
 

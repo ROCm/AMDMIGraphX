@@ -31,6 +31,7 @@
 
 namespace migraphx {
 
+namespace concat {
 template <index_int Axis, class Output, class Input, class Start>
 constexpr auto concat_slice(Output out, Input, Start)
 {
@@ -51,13 +52,24 @@ constexpr auto concat_slices(Input input, Start start, Ts... xs)
 {
     return [=](auto f) { return f(concat_slice<Axis>(xs, input, start)...); };
 }
-
+ 
 template <index_int Axis, class Input>
 constexpr auto concat_ends(Input)
 {
     constexpr auto lens = get_shape_c<Input>{}.lens;
     return _c<lens[Axis]>;
 }
+
+template<class T, class U>
+struct concat_pair
+{
+    T offset;
+    U depth;
+};
+
+template<class T, class U>
+__device__ concat_pair(T, U) -> concat_pair<T, U>;
+
 
 template <index_int Axis, class Start, class InputPack, class F, class... Ts>
 __device__ auto concat_each(index idx, Start start, InputPack input_pack, F f, Ts... ts)
@@ -72,16 +84,34 @@ __device__ auto concat_each(index idx, Start start, InputPack input_pack, F f, T
     });
 }
 
-template <index_int Axis, class... InputPacks>
-__device__ auto concat(InputPacks... input_packs)
+struct simple
+{
+    template<class Depth, class G, class X, class... Xs>
+    __device__ auto run(index idx, Depth, G g, X x, Xs... xs) const
+    {
+        return [=](auto z, auto f, auto... ys) {
+            idx.global_stride(x.get_shape().elements(),
+                            [&](auto i) { z[i] = f(g(x[i], xs[i]...), ys[i]...); });
+        };
+    }
+};
+
+template <index_int Axis, class Algo, class... InputPacks>
+__device__ auto run(Algo algo, InputPacks... input_packs)
 {
     return [=](auto f, auto... ts) {
         auto idx = make_index();
-        fold([&](auto start, auto input_pack) {
-            return concat_each<Axis>(idx, start, input_pack, f, ts...);
-        })(_c<0>, input_packs...);
+        fold([&](auto p, auto input_pack) {
+            return input_pack([&](auto g, auto x, auto... xs) {
+                return concat_slices<Axis>(x, p.offset, ts...)([&](auto z, auto... ys) {
+                    algo.run(idx, p.depth, g, x, xs...)(z, f, ys...);
+                    return concat_pair{p.offset + concat_ends<Axis>(x), p.depth + _c<1>};
+                });
+            });
+        })(concat_pair{_c<0>, _c<0>}, input_packs...);
     };
 }
+} // concat
 
 } // namespace migraphx
 #endif // MIGRAPHX_GUARD_KERNELS_CONCAT_HPP

@@ -25,6 +25,7 @@
 #include <migraphx/ranges.hpp>
 #include <migraphx/make_op.hpp>
 #include <migraphx/instruction.hpp>
+#include <migraphx/float_equal.hpp>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
@@ -70,6 +71,13 @@ struct parse_group_query_attention : op_parser<parse_group_query_attention>
         if(contains(info.attributes, "scale"))
         {
             scale = parser.parse_value(info.attributes.at("scale")).at<float>();
+        }
+        if(contains(info.attributes, "softcap"))
+        {
+            if(not float_equal(parser.parse_value(info.attributes.at("softcap")).at<float>(), 0.0))
+            {
+                MIGRAPHX_THROW("GroupQueryAttention: non-zero softcap is not yet supported.");
+            }
         }
 
         if(args.size() < 7 or args.size() > 9)

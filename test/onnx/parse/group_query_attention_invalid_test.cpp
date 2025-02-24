@@ -28,3 +28,8 @@ TEST_CASE(group_query_attention_invalid_test)
 {
     EXPECT(test::throws([&] { read_onnx("group_query_attention_invalid_test.onnx"); }));
 }
+
+TEST_CASE(group_query_attention_softcap_test)
+{
+    EXPECT(test::throws([&] { read_onnx("group_query_attention_softcap_test.onnx"); }));
+}

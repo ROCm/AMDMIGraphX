@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2024 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2025 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -25,6 +25,7 @@
 #include <pybind11/pybind11.h>
 #include <pybind11/stl.h>
 #include <pybind11/numpy.h>
+#include <pybind11/operators.h>
 #include <migraphx/program.hpp>
 #include <migraphx/instruction_ref.hpp>
 #include <migraphx/operation.hpp>
@@ -44,6 +45,7 @@
 #include <migraphx/float8.hpp>
 #include <migraphx/pass_manager.hpp>
 #include <migraphx/version.h>
+#include <migraphx/iterator_for.hpp>
 #ifdef HAVE_GPU
 #include <migraphx/gpu/hip.hpp>
 #endif
@@ -259,6 +261,41 @@ py::buffer_info to_buffer_info(T& x)
     return b;
 }
 
+py::object to_py_object(const migraphx::value& val)
+{
+    py::object result;
+
+    val.visit_value([&](const auto& x) {
+        if constexpr(std::is_same<std::decay_t<decltype(x)>, std::vector<migraphx::value>>{})
+        {
+            if(val.is_object())
+            {
+                py::dict py_dict;
+                for(const auto& item : x)
+                {
+                    py_dict[py::str(item.get_key())] = to_py_object(item.without_key());
+                }
+                result = py_dict;
+            }
+            else
+            {
+                py::list py_list;
+                for(const auto& item : x)
+                {
+                    py_list.append(to_py_object(item));
+                }
+                result = py_list;
+            }
+        }
+        else
+        {
+            result = py::cast(x);
+        }
+    });
+
+    return result;
+}
+
 migraphx::shape to_shape(const py::buffer_info& info)
 {
     migraphx::shape::type_t t;
@@ -323,6 +360,9 @@ MIGRAPHX_PYBIND11_MODULE(migraphx, m)
             auto lens = v.get<std::size_t>("lens", {1});
             if(v.contains("strides"))
                 return migraphx::shape(t, lens, v.at("strides").to_vector<std::size_t>());
+            else if(v.contains("permutation"))
+                return migraphx::shape::from_permutation(
+                    t, lens, v.at("permutation").to_vector<int64_t>());
             else
                 return migraphx::shape(t, lens);
         }))
@@ -380,7 +420,12 @@ MIGRAPHX_PYBIND11_MODULE(migraphx, m)
 
     py::class_<migraphx::instruction_ref>(m, "instruction_ref")
         .def("shape", [](migraphx::instruction_ref i) { return i->get_shape(); })
-        .def("op", [](migraphx::instruction_ref i) { return i->get_operator(); });
+        .def("op", [](migraphx::instruction_ref i) { return i->get_operator(); })
+        .def("inputs", [](migraphx::instruction_ref i) { return i->inputs(); })
+        .def("name", [](migraphx::instruction_ref i) { return i->name(); })
+        .def(py::hash(py::self))
+        .def(py::self == py::self)
+        .def(py::self != py::self);
 
     py::class_<migraphx::module, std::unique_ptr<migraphx::module, py::nodelete>>(m, "module")
         .def("print", [](const migraphx::module& mm) { std::cout << mm << std::endl; })
@@ -422,7 +467,14 @@ MIGRAPHX_PYBIND11_MODULE(migraphx, m)
                 return mm.add_return(args);
             },
             py::arg("args"))
-        .def("__repr__", [](const migraphx::module& mm) { return migraphx::to_string(mm); });
+        .def("__repr__", [](const migraphx::module& mm) { return migraphx::to_string(mm); })
+        .def(
+            "__iter__",
+            [](const migraphx::module& mm) {
+                auto r = migraphx::iterator_for(mm);
+                return py::make_iterator(r.begin(), r.end());
+            },
+            py::keep_alive<0, 1>());
 
     py::class_<migraphx::program>(m, "program")
         .def(py::init([]() { return migraphx::program(); }))
@@ -502,7 +554,10 @@ MIGRAPHX_PYBIND11_MODULE(migraphx, m)
           }
           return migraphx::make_op(name, v);
       }))
-        .def("name", &migraphx::operation::name);
+        .def("name", &migraphx::operation::name)
+        .def("values", [](const migraphx::operation& operation) -> py::object {
+            return to_py_object(operation.to_value());
+        });
 
     py::enum_<migraphx::op::pooling_mode>(op, "pooling_mode")
         .value("average", migraphx::op::pooling_mode::average)
@@ -657,6 +712,11 @@ MIGRAPHX_PYBIND11_MODULE(migraphx, m)
           py::arg("t"),
           py::arg("calibration") = std::vector<migraphx::parameter_map>{},
           py::arg("ins_names")   = std::unordered_set<std::string>{"dot", "convolution"});
+    m.def("quantize_fp8",
+          &migraphx::quantize_fp8,
+          py::arg("prog"),
+          py::arg("t"),
+          py::arg("calibration") = std::vector<migraphx::parameter_map>{});
     m.def(
         "autocast_fp8",
         [](migraphx::program& prog) {

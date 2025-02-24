@@ -7,8 +7,7 @@ from tabulate import tabulate
 import numpy as np
 import torch
 from models import (get_tokenizer, get_clip_model, get_t5_model,
-                    get_flux_transformer_model, get_vae_model, get_scheduler,
-                    AutoencoderKL)
+                    get_flux_transformer_model, get_vae_model, get_scheduler)
 from PIL import Image
 # import migraphx as mgx
 

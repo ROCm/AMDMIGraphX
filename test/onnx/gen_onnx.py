@@ -12328,12 +12328,11 @@ def rotary_embedding_wrong_n_inputs_test():
     output = helper.make_tensor_value_info('output', TensorProto.FLOAT16,
                                            [1, 2, 8])
 
-    node = onnx.helper.make_node(
-        'RotaryEmbedding',
-        inputs=['input', 'pos_ids'],
-        outputs=['output'],
-        interleaved=0,
-        domain="com.microsoft")
+    node = onnx.helper.make_node('RotaryEmbedding',
+                                 inputs=['input', 'pos_ids'],
+                                 outputs=['output'],
+                                 interleaved=0,
+                                 domain="com.microsoft")
 
     return ([node], [input, pos_ids], [output])
 

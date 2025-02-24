@@ -272,9 +272,9 @@ struct parse_rotary_embedding : op_parser<parse_rotary_embedding>
                     {{"axes", {-1}}, {"starts", {0}}, {"ends", {params.rotary_embedding_dim / 2}}}),
             in);
         auto neg     = info.add_instruction(make_op("slice",
-                                                {{"axes", {-1}},
-                                                 {"starts", {params.rotary_embedding_dim / 2}},
-                                                 {"ends", {params.rotary_embedding_dim}}}),
+                                                    {{"axes", {-1}},
+                                                     {"starts", {params.rotary_embedding_dim / 2}},
+                                                     {"ends", {params.rotary_embedding_dim}}}),
                                         in);
         neg          = info.add_instruction(make_op("neg"), neg);
         auto concat  = info.add_instruction(make_op("concat", {{"axis", -1}}), neg, pos);
@@ -360,9 +360,9 @@ struct parse_rotary_embedding : op_parser<parse_rotary_embedding>
         if(params.head_diff)
         {
             tail  = info.add_instruction(make_op("slice",
-                                                {{"axes", {-1}},
-                                                 {"starts", {params.rotary_embedding_dim}},
-                                                 {"ends", {params.head_size}}}),
+                                                 {{"axes", {-1}},
+                                                  {"starts", {params.rotary_embedding_dim}},
+                                                  {"ends", {params.head_size}}}),
                                         input);
             input = info.add_instruction(
                 make_op("slice",

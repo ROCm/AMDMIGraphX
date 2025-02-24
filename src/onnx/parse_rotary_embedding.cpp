@@ -289,7 +289,7 @@ struct parse_rotary_embedding : op_parser<parse_rotary_embedding>
                                            const onnx_parser::node_info& info,
                                            const rotary_parameters& params)
     {
-        instruction_ref rsps, gather;
+        instruction_ref rsps;
         if(pos_ids->get_shape().lens().size() == 1)
         {
             rsps = info.add_instruction(
@@ -306,7 +306,7 @@ struct parse_rotary_embedding : op_parser<parse_rotary_embedding>
             rsps = info.add_instruction(
                 make_op("reshape", {{"dims", {params.batch_size, params.seq_len, 1}}}), pos_ids);
         }
-        gather = info.add_instruction(make_op("gathernd", {{"batch_dims", 0}}), cache, rsps);
+        auto gather = info.add_instruction(make_op("gathernd", {{"batch_dims", 0}}), cache, rsps);
 
         if(interleaved)
         {

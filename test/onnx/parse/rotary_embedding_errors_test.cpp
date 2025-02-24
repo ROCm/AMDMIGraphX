@@ -74,7 +74,7 @@ TEST_CASE(rotary_embedding_cache_2_test)
     EXPECT(test::throws([&] { read_onnx("rotary_embedding_cache_2_test.onnx"); }));
 }
 
-TEST_CASE(rotary_embedding_cache_3_test)
+TEST_CASE(rotary_embedding_wrong_n_inputs_test)
 {
-    EXPECT(test::throws([&] { read_onnx("rotary_embedding_cache_3_test.onnx"); }));
+    EXPECT(test::throws([&] { read_onnx("rotary_embedding_wrong_n_inputs_test.onnx"); }));
 }

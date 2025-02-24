@@ -132,10 +132,11 @@ struct parse_rotary_embedding : op_parser<parse_rotary_embedding>
         }
         else
         {
-            param.num_heads = input_lens.at(1);
-            param.seq_len   = input_lens.at(2);
-            param.head_size = input_lens.at(3);
-            param.is_bnsh   = true;
+            param.num_heads   = input_lens.at(1);
+            param.seq_len     = input_lens.at(2);
+            param.head_size   = input_lens.at(3);
+            param.hidden_size = param.num_heads * param.head_size;
+            param.is_bnsh     = true;
         }
     }
 
@@ -209,20 +210,10 @@ struct parse_rotary_embedding : op_parser<parse_rotary_embedding>
 
     static void compare_sin_cos_cache_dims(const size_t dim, const rotary_parameters& param)
     {
-        if(param.rotary_embedding_dim != 0)
+        if(param.rotary_embedding_dim != 0 and param.rotary_embedding_dim / 2 != dim)
         {
-            if(param.rotary_embedding_dim / 2 != dim)
-            {
-                MIGRAPHX_THROW(
-                    "RotaryEmbedding: rotary_embedding must be the same between sin & cos caches!");
-            }
-        }
-        else
-        {
-            if(param.head_size != 0 and param.head_size / 2 != dim)
-            {
-                MIGRAPHX_THROW("RotaryEmbedding: head size for sin & cos caches must match input");
-            }
+            MIGRAPHX_THROW(
+                "RotaryEmbedding: rotary_embedding must be the same between sin & cos caches!");
         }
     }
 

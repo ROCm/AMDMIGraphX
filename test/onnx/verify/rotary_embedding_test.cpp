@@ -111,7 +111,7 @@ TEST_CASE(rotary_embedding_float_verify_test)
     p.compile(migraphx::make_target("ref"));
 
     migraphx::shape input_s{migraphx::shape::float_type,
-                            {batch_size, sequence_length, num_heads * head_size}};
+                            {batch_size, num_heads, sequence_length, head_size}};
     migraphx::shape pos_ids_s{migraphx::shape::int32_type, {batch_size, sequence_length}};
     migraphx::shape cache_s{migraphx::shape::float_type, {max_sequence_length, head_size / 2}};
 

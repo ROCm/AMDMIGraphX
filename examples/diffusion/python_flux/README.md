@@ -23,5 +23,5 @@ python3 txt2img.py -p "A cat holding a sign that says hello world"
 ## Benchmark
 Ex. 10 full executions:
 ```
-python3 txt2img.py -b 10 --fp16
+python3 txt2img.py -b 10 --bf16
 ```

@@ -106,7 +106,7 @@ else()
                 -Wno-unsafe-buffer-usage
                 # -Wno-c++2a-designator
             )
-            if(WIN32 AND CMAKE_CXX_COMPILER_VERSION VERSION_GREATER_EQUAL "6.3")
+            if(WIN32 AND CMAKE_CXX_COMPILER_VERSION VERSION_GREATER_EQUAL "19")
                 list(APPEND CMAKE_COMPILER_WARNINGS
                     -Wno-missing-include-dirs
                 )

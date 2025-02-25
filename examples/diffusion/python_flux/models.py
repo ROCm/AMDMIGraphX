@@ -1,3 +1,27 @@
+#####################################################################################
+# The MIT License (MIT)
+#
+# Copyright (c) 2015-2025 Advanced Micro Devices, Inc. All rights reserved.
+#
+# Permission is hereby granted, free of charge, to any person obtaining a copy
+# of this software and associated documentation files (the "Software"), to deal
+# in the Software without restriction, including without limitation the rights
+# to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+# copies of the Software, and to permit persons to whom the Software is
+# furnished to do so, subject to the following conditions:
+#
+# The above copyright notice and this permission notice shall be included in
+# all copies or substantial portions of the Software.
+#
+# THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+# IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+# FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT.  IN NO EVENT SHALL THE
+# AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+# LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+# OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
+# THE SOFTWARE.
+#####################################################################################
+
 import os
 import torch
 from transformers import (CLIPTokenizer, T5TokenizerFast, CLIPTextModel,
@@ -27,7 +51,7 @@ class MGXModel:
             elif model.endswith(".onnx"):
                 if not input_shapes:
                     raise ValueError(
-                        f"input_shapes need to be specified for loading a .onnx file"
+                        "input_shapes need to be specified for loading a .onnx file"
                     )
                 self.model = mgx.parse_onnx(model, map_input_dims=input_shapes)
                 if fp16:
@@ -43,7 +67,7 @@ class MGXModel:
                 )
         else:
             raise ValueError(
-                f"model should be a migraphx.program object or path to .mxr/.onnx file"
+                "model should be a migraphx.program object or path to .mxr/.onnx file"
             )
         self.config = config
 
@@ -196,7 +220,7 @@ def get_clip_model(local_dir,
         elif bf16:
             name += "_bf16"
 
-        if exhaustive_tune: name += f"_exh"
+        if exhaustive_tune: name += "_exh"
         return name + ".mxr"
 
     clip_compiled_dir = get_local_path(compiled_dir, model_dir)
@@ -211,7 +235,7 @@ def get_clip_model(local_dir,
     sample_inputs = (torch.zeros(bs, 77, dtype=torch.int32), )
     input_names = ["input_ids"]
     if not os.path.isfile(onnx_path):
-        print(f"ONNX file not found.. exporting CLIP encoder to ONNX")
+        print("ONNX file not found.. exporting CLIP encoder to ONNX")
         model = CLIPTextModel.from_pretrained(hf_model_path,
                                               subfolder=model_dir,
                                               torch_dtype=torch_dtype)
@@ -268,7 +292,7 @@ def get_t5_model(local_dir,
             name += "_fp16"
         elif bf16:
             name += "_bf16"
-        if exhaustive_tune: name += f"_exh"
+        if exhaustive_tune: name += "_exh"
         return name + ".mxr"
 
     t5_compiled_dir = get_local_path(compiled_dir, model_dir)
@@ -497,7 +521,7 @@ def get_vae_model(local_dir,
             name += "_fp16"
         elif bf16:
             name += "_bf16"
-        if exhaustive_tune: name += f"_exh"
+        if exhaustive_tune: name += "_exh"
         return name + ".mxr"
 
     vae_compiled_dir = get_local_path(compiled_dir, model_dir)

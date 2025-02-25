@@ -31,7 +31,6 @@ import migraphx as mgx
 
 
 class MGXModel:
-
     def __init__(self,
                  model,
                  input_shapes=None,
@@ -345,7 +344,6 @@ def get_t5_model(local_dir,
 ##  perform optimizations before quantizing down to fp16. This results in better
 ##  accuracy compared to exporting fp16 directly to onnx
 def transformer_block_clip_wrapper(fn):
-
     def new_forward(*args, **kwargs):
         encoder_hidden_states, hidden_states = fn(*args, **kwargs)
         return encoder_hidden_states.clip(-65504, 65504), hidden_states
@@ -354,7 +352,6 @@ def transformer_block_clip_wrapper(fn):
 
 
 def single_transformer_block_clip_wrapper(fn):
-
     def new_forward(*args, **kwargs):
         hidden_states = fn(*args, **kwargs)
         return hidden_states.clip(-65504, 65504)
@@ -396,7 +393,7 @@ def get_flux_transformer_model(local_dir,
             name += "_fp16"
         elif bf16:
             name += "_bf16"
-        if exhaustive_tune: name += f"_exh"
+        if exhaustive_tune: name += "_exh"
         return name + ".mxr"
 
     transformer_compiled_dir = get_local_path(compiled_dir, model_dir)

@@ -35,11 +35,11 @@ from PIL import Image
 
 
 def calculate_shift(
-    image_seq_len,
-    base_seq_len: int = 256,
-    max_seq_len: int = 4096,
-    base_shift: float = 0.5,
-    max_shift: float = 1.16,
+        image_seq_len,
+        base_seq_len: int = 256,
+        max_seq_len: int = 4096,
+        base_shift: float = 0.5,
+        max_shift: float = 1.16,
 ):
     m = (max_shift - base_shift) / (max_seq_len - base_seq_len)
     b = base_shift - m * base_seq_len
@@ -48,7 +48,6 @@ def calculate_shift(
 
 
 class FluxPipeline:
-
     def __init__(self,
                  hf_model_path="black-forest-labs/FLUX.1-dev",
                  local_dir=None,
@@ -189,12 +188,12 @@ class FluxPipeline:
         return latent_image_ids.to(device=device, dtype=dtype)
 
     def initialize_latents(
-        self,
-        batch_size,
-        num_channels_latents,
-        latent_height,
-        latent_width,
-        latents_dtype=torch.float32,
+            self,
+            batch_size,
+            num_channels_latents,
+            latent_height,
+            latent_width,
+            latents_dtype=torch.float32,
     ):
         latents_dtype = latents_dtype  # text_embeddings.dtype
         latents_shape = (batch_size, num_channels_latents, latent_height,
@@ -264,15 +263,15 @@ class FluxPipeline:
         return text_encoder_output
 
     def denoise_latent(
-        self,
-        latents,
-        timesteps,
-        text_embeddings,
-        pooled_embeddings,
-        text_ids,
-        latent_image_ids,
-        denoiser="transformer",
-        guidance=None,
+            self,
+            latents,
+            timesteps,
+            text_embeddings,
+            pooled_embeddings,
+            text_ids,
+            latent_image_ids,
+            denoiser="transformer",
+            guidance=None,
     ):
 
         # handle guidance

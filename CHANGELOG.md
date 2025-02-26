@@ -3,6 +3,94 @@
 Full documentation for MIGraphX is available at
 [https://rocmdocs.amd.com/projects/AMDMIGraphX/en/latest/](https://rocmdocs.amd.com/projects/AMDMIGraphX/en/latest/).
 
+## MIGraphX 2.12 for ROCm 6.4.0
+
+### Added
+
+* Support for gfx1200 and gfx1201
+* hipBlasLt support 
+  * Added contiguous transpose gemm fusion for hipBLASLt
+  * Added gemm pointwise fusion for hipBLASLt
+  * Made gfx90a use rocBLAS by default
+* Support for rdware specific FP8 datatypes
+  * Driver quantize fp8 update
+  * FP8 OCP to FP8 FNUZ on hardware with only FP8 FNUZ support
+  * Added the bit_cast operator for fp8 OCP
+  * Added the fp8e5m2fnuz data type
+  * Added support on gfx120x for the FP8 OCP format
+  * Enable GEMM/dot for FP8 using hipblasLT
+* Add support for the BF16 datatype
+* ONNX Operator Support
+  * Add onnx support for com.microsoft.MultiHeadAttention
+  * Add onnx support for com.microsoft.NhwcConv
+  * Add onnx support for com.microsoft.MatMulIntgerFloat
+* migraphx-driver improvements 
+  * can now produce output for use with Netron
+  * Added a `time` for better accuracy of very fast kernels
+  * Included percentile details to summary report
+* end-to-end Stable Diffusion 3 example with option to disable T5 encoder on VRAM-limited GPUs
+* Fusions...
+  * Fuse transposes in pointwise and reduce fusions
+  * Fuse reshapes across concat
+  * Fuse unpack_int4 across concat
+  * Horizontally fuse elementwise operators with more then 2 inputs across concat
+  * Fuse all pointwise inputs with mlir not just the first one found
+* Enable non-packed inputs for mlir
+* Track broadcast axes in the shape_transform_descriptor
+* Disable dot/mul optimizations when there is int4 weights
+* Add support for unsigned types with mlir
+* Added a script to convert mxr files to ONNX models
+* New environment variable to choose between rocBLAS and hipBLASLT; MIGRAPHX_SET_GEMM_PROVIDER=rocblas|hipblaslt for supported architectures
+
+
+### Changed
+
+* Switched to using hipBLASLt as default instead of rocBLAS for hipBLASLt supported architectures.
+* Always output a packed type for q/dq
+* Removed a warning that printed to stdout when using FP8 types
+* Set migraphx version to 2.12
+* Always use NCHW for group convolutions
+* Remove zero point parameter for dequantizelinear when its zero
+* Dont use mixed layouts with convolutions
+* Update Cmake to 3.27.x since ORT 1.21 required a newer CMake to not break pybind
+
+
+### Removed
+
+* Disable fp8e5m2fnuz with rocBLAS
+* Removed __AMDGCN_WAVEFRONT_SIZE for deprecation
+* Removed environment variable MIGRAPHX_ENABLE_HIPBLASLT_GEMM.
+
+
+### Optimized
+
+* Refactor GPU math functions for an accuracy improvement 
+* catch python buffer unsupported types
+* Prefill buffers when MLIR produces a multioutput buffer
+* Improved the performance of the resize operator
+* Enable split reduce by default
+* Added a MIGRAPHX_DISABLE_PASSES enviroment variable for debugging
+* Added a MIGRAPHX_MLIR_DUMP_TO_FILE flag to capture the final mlir module to a file
+* Move qlinear before concat to allow output fusion
+* use reshape to handle Flatten operator
+* Improved documentation by cleaning up links and adding a Table Of Contents
+* Updated cpp code guideline checks
+* Brokeout the fp8_quantization functions via our API to allow onnxruntime to use fp8 quantization
+
+
+
+### Resolved Issues
+
+* Fixed multistream execution with larger models
+* Fixed broken links in the documentation
+* Peephole LSTM Error
+* Fixed BertSquad example that could include a broken tokenizers package 
+* Fixed Attention fusion ito not error with a shape mismatch when a trailing pointwise contains a literal
+* Fixed instruction::replace() logic to handle more complex cases
+* MatMulNBits could fail with a shape error
+
+
+
 ## MIGraphX 2.11 for ROCm 6.3.0
 
 ### Added

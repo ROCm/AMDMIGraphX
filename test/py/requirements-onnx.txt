@@ -22,7 +22,7 @@
 # THE SOFTWARE.
 #####################################################################################
 #TODO: Fix test case failures with onnx==1.17.0
-onnx==1.14.1;python_version>="3.11"
+onnx==1.17.0;python_version>="3.11"
 onnx==1.14.1;python_version<"3.11"
 protobuf==3.20.2
 numpy==1.26.4;python_version>="3.11"

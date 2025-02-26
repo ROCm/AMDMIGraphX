@@ -295,41 +295,103 @@ def atanh_test():
 
 def attention_test(x_dims,
                    weight_dims,
-                   bias_dims,
-                   mask_dims,
-                   num_heads,
-                   qkv_hidden_sizes,
+                   bias_dims=[],
+                   mask_dims=[],
+                   past_dims=[],
+                   attention_bias_dims=[],
+                   past_sequence_length=0,
+                   num_heads=1,
+                   qkv_hidden_sizes=[1, 1, 1],
                    do_rotary=0,
                    mask_filter_value=-1e5,
                    past_present_share_buffer=0,
-                   scale=1/sqrt(head_size),
+                   #scale=-1,
                    unidirectional=0,
+                   rotary_embedding_dim=32,
+                   present_dims=[],
                    dtype=TensorProto.FLOAT):
-
-    rotary_embedding_dim=num_heads
 
     # (Batch_size, sequence_lenth, input_hidden_size)
     x = helper.make_tensor_value_info('x', dtype, x_dims)
+    
+    # Needed for output vector dims
+    batch = x_dims[0]
+    seq_len = x_dims[1]
+    v_hidden_size = qkv_hidden_sizes[2]
 
-    # 
-    weights = helper.make_tensor_value_info('scale', dtype, weight_dims)
-    bias = helper.make_tensor_value_info('bias', dtype, bias_dims)
+    # (input_hidden_size, hidden_size + hidden_size, v_hidden_size)
+    weights = helper.make_tensor_value_info('weights', dtype, weight_dims)
 
-    y = helper.make_tensor_value_info('y', dtype, y_dims)
+    input_list = [x, weights]
+    input_name_list = ['x', 'weights']
 
-    input_list  = ['x', 'weights', 'bias']
-    output_list = ['y']
-    if()
+    # (Batch_size, sequence_lenth, v_hidden_size)
+    y = helper.make_tensor_value_info('y', dtype, [batch, seq_len, v_hidden_size])
+    output_list = [y]
+    output_name_list = ['y']
+
+    # Additional arguments/options to adjust attention block
+
+    if len(bias_dims) > 0:
+        # Bias shape should be (hidden_size + hiddeN_size + v_hidden_size)
+        bias = helper.make_tensor_value_info('bias', dtype, bias_dims)
+        input_name_list.push('bias')
+        input_list.push(bias)
+
+    if len(mask_dims) > 0:
+        # allowable shapes
+        # (batch_size, 1, max_sequence_length, max_sequence_length)
+        # (batch_size, total_sequence_length)
+        # (batch_size, sequence_length, total_sequence_length)
+        # (batch_size) or (2*batch_size) or (3* batch_size + 2)
+        mask_index = helper.make_tensor_value_info('mask_index', INT32,
+                                                   mask_dims)
+        input_name_list.push('mask_index')
+        input_list.push(mask_index)
+
+    if len(past_dims) > 0:
+        # (2, batch_size, num_heads, past_sequence_length, head_size)
+        # (2, batch_size, num_heads, max_seq_length, head_size) when past/present share buffer
+        past = helper.make_tensor_value_info('past', dtype, past_dims)
+        input_name_list.push('past')
+        input_list.push(past)
+
+    if len(attention_bias_dims) > 0:
+        # (batch_size, or 1, num_heads or 1, sequence_length, total_sequence_length)
+        attention_bias = helper.make_tensor_value_info('attention_bias', dtype,
+                                                       attention_bias_dims)
+        input_name_list.push('attention_bias')
+        input_list.push(attention_bias)
+
+    if past_present_share_buffer > 0:
+        past_sequence_length = helper.make_tensor_value_info(
+            'past_sequence_length', INT32, past_sequence_length)
+        input_name_list.push('past_sequence_length')
+        input_list.push(past_sequence_length)
+
+    # Additional output vector
+    if present_dims:
+        output_name_list.push('present')
+        output_list.push('present')
 
     node = onnx.helper.make_node('Attention',
-                                 inputs=,
-                                 outputs=output_list,
-                                 num_groups=num_groups,
-                                 epsilon=eps_value)
+                                 inputs=input_name_list,
+                                 outputs=output_name_list,
+                                 do_rotary=do_rotary,
+                                 mask_filter_value=mask_filter_value,
+                                 num_heads=num_heads,
+                                 past_present_share_buffer=past_present_share_buffer,
+                                 qkv_hidden_sizes=qkv_hidden_sizes,
+                                 rotary_embedding_dim=rotary_embedding_dim,
+                                 #scale=-1,
+                                 unidirectional=unidirectional)
 
-    return ([node], [x, scale, bias], [y])
+    return ([node], input_list, output_list)
 
 
+@onnx_test()
+def attention_single_head_test():
+    return attention_test([1, 512, 512], [512, 32], num_heads=1, qkv_hidden_sizes=[8, 8, 16])
 
 @onnx_test()
 def averagepool_1d_test():

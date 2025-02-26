@@ -21,7 +21,6 @@
 # OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 # THE SOFTWARE.
 #####################################################################################
-#TODO: Fix test case failures with onnx==1.17.0
 onnx==1.17.0;python_version>="3.11"
 onnx==1.14.1;python_version<"3.11"
 protobuf==3.20.2

@@ -1,7 +1,7 @@
 #####################################################################################
 # The MIT License (MIT)
 #
-# Copyright (c) 2015-2024 Advanced Micro Devices, Inc. All rights reserved.
+# Copyright (c) 2015-2025 Advanced Micro Devices, Inc. All rights reserved.
 #
 # Permission is hereby granted, free of charge, to any person obtaining a copy
 # of this software and associated documentation files (the "Software"), to deal
@@ -616,6 +616,7 @@ def disabled_tests_onnx_1_16_0(backend_test):
     backend_test.exclude(r'test_maxpool_2d_ceil_output_size_reduce_by_one_cpu')
     backend_test.exclude(r'test_maxpool_3d_dilations_use_ref_impl_large_cpu')
 
+
 def disabled_tests_onnx_1_17_0(backend_test):
     # TODO: convtranspose failing with mismatched channel numbers
     backend_test.exclude(r'test_convtranspose_group_2_cpu')
@@ -624,7 +625,8 @@ def disabled_tests_onnx_1_17_0(backend_test):
     backend_test.exclude(r'test_reduce_max_empty_set_cpu')
     backend_test.exclude(r'test_reduce_sum_empty_axes_input_noop_cpu')
     # TODO: not supported
-    backend_test.exclude(r'test_resize_tf_crop_and_resize_extrapolation_value_cpu')
+    backend_test.exclude(
+        r'test_resize_tf_crop_and_resize_extrapolation_value_cpu')
     backend_test.exclude(r'test_resize_upsample_sizes_nearest_not_smaller_cpu')
 
 
@@ -1204,7 +1206,7 @@ def create_backend_test(testname=None, target_device=None):
 
         if version.parse(onnx.__version__) >= version.parse("1.16.0"):
             disabled_tests_onnx_1_16_0(backend_test)
-        
+
         if version.parse(onnx.__version__) >= version.parse("1.17.0"):
             disabled_tests_onnx_1_17_0(backend_test)
 

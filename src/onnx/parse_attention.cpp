@@ -90,23 +90,24 @@ struct parse_attention : op_parser<parse_attention>
 
         if(contains(info.attributes, "qkv_hidden_sizes"))
         {
-            auto input_val = parser.parse_value(info.attributes.at("qkv_hidden_sizes"));
+            auto input_val = parser.parse_value(info.attributes.at("qkv_hidden_sizes")).get_argument();
 
-            /* auto q_size = input_val.data().at(0);
-            auto k_size = input_val.data().at(1);
-            auto v_size = input_val.data().at(2);
+            /*auto q_size = std::const_cast<size_t>(input_val.element(0).data());
+            auto k_size = std::const_cast<size_t>(input_val.element(1).data());
+            auto v_size = std::const_cast<size_t>(input_val.element(2).data());
+            std::vector<size_t> qkv_vec{q_size, k_size, v_size};
 
             if(q_size != k_size)
             {
                 MIGRAPHX_THROW("Attention: q and k hidden sizes must be identitcal!");
-            } */
+            } 
 
-            //attr_out.qkv_hidden_sizes = input_val->.lens();
-            /*if(std::any_of(qkv_vec.begin(), qkv_vec.end(), [](auto i){return (i == 0) or (i < 0);}))
+            if(std::any_of(qkv_vec.begin(), qkv_vec.end(), [](auto i){return (i == 0) or (i < 0);}))
             {
                 MIGRAPHX_THROW("PARSE_ATTENTION: qkv_hidden_sizes must be nonzero and valid");
             }
-            attr_out.qkv_hidden_sizes = qkv_vec;*/
+
+            attr_out.qkv_hidden_sizes = */
         }
 
         if(contains(info.attributes, "rotary_embedding_dim"))
@@ -241,6 +242,30 @@ struct parse_attention : op_parser<parse_attention>
         return info.add_instruction(make_op("dot"), softmax_out, V);
     }
 
+    // Get Q, K, V matricies from stacked weight matrix
+    static void input_linear_to_qkv(const onnx_parser::node_info& info,
+                                    const instruction_ref& input,
+                                    const instruction_ref& stacked_weights,
+                                    const std::vector<size_t>& qkv_sizes,
+                                    instruction_ref& Q,
+                                    instruction_ref& K,
+                                    instruction_ref& V)
+    {
+        // Input encodes the batch, sequence_length and input_hidden_size (also known as embedding size) 
+        auto input_lens = input->get_shape().lens();
+
+        // Input stacked weights are (input_hidden_size, hidden_size + hidden_size + v_hidden_size) so slice out parts for each matrix
+        // Since we known the input_hidden size is one dimension wee need to slice out the weight tensors accordingly before we perform matmul
+        auto q_weight = info.add_instruction(make_op("slice", {{"axes",{1}}, {"starts", {0}}, {"ends", {qkv_sizes.at(0)-1}}}), stacked_weights);
+        auto k_weight = info.add_instruction(make_op("slice", {{"axes",{1}}, {"starts", {qkv_sizes.at(0)}}, {"ends", {qkv_sizes.at(1) + qkv_sizes.at(0) - 1}}}), stacked_weights);
+        auto v_weight = info.add_instruction(make_op("slice", {{"axes",{1}}, {"starts", {qkv_sizes.at(0) + qkv_sizes.at(1)}}, {"ends", {qkv_sizes.at(0) + qkv_sizes.at(1) + qkv_sizes.at(2) -1 }}}), stacked_weights);
+
+        // Broadcast by batch then multiply
+        Q = info.add_instruction(make_op("mul"), input, q_weight);
+        K = info.add_instruction(make_op("mul"), input, k_weight);
+        V = info.add_instruction(make_op("mul"), input, v_weight);
+    }
+
     std::vector<instruction_ref> parse(const op_desc& /*opd*/,
                                        const onnx_parser& parser,
                                        const onnx_parser::node_info& info,
@@ -252,9 +277,14 @@ struct parse_attention : op_parser<parse_attention>
         handle_attributes(parser, info, parsed_attributes, infered_attributes);
         auto inputs = handle_arguments(parser, args, parsed_attributes, infered_attributes);
 
+        auto input_data = inputs.at(0);
+        auto weights    = inputs.at(1);
+
         instruction_ref q;
         instruction_ref k;
         instruction_ref v;
+        input_linear_to_qkv(info, input_data, weights, parsed_attributes.qkv_hidden_sizes, q, k, v);
+
         instruction_ref mask;
         bool has_mask = false;
         instruction_ref present;

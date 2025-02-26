@@ -40,7 +40,8 @@ Full documentation for MIGraphX is available at
 * Disable dot/mul optimizations when there is int4 weights
 * Add support for unsigned types with mlir
 * Added a script to convert mxr files to ONNX models
-* New environment variable to choose between rocBLAS and hipBLASLT; MIGRAPHX_SET_GEMM_PROVIDER=rocblas|hipblaslt for supported architectures
+* New environment variable to choose between rocBLAS and hipBLASLt;
+  MIGRAPHX_SET_GEMM_PROVIDER=rocblas|hipblaslt for supported architectures
 
 
 ### Changed

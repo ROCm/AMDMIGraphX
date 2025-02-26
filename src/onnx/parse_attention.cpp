@@ -143,11 +143,37 @@ struct parse_attention : op_parser<parse_attention>
         }
     }
 
+    // simple call to check if the arg index exists
+    static bool check_and_return_arg(const std::vector<instruction_ref>& args,
+                                     const size_t index,
+                                     instruction_ref& output_arg)
+    {
+        if(args.size() > index)
+        {
+            output_arg = args.at(index);
+            return true;
+        }
+        return false;
+    }
+
     static void handle_projection_bias(const std::vector<instruction_ref>& args,
                                        struct attention_attr& attr_out,
                                        struct attention_infered& infered_out,
                                        std::vector<instruction_ref>& output_arg_vec)
     {
+        instruction_ref bias;
+        if(check_and_return_arg(args, 2, bias))
+        {   
+            auto bias_shape = bias->get_shape();
+            auto bias_lens = bias_shape.lens();
+            //ensure qkv dimension sum matches that of the bias vec
+            qkv_sizes_sum_arg_valid(attr_out.qkv_hidden_sizes, bias, 0, "bias");
+            if(args.at(0)->get_shape().type() != bias_shape.type())
+            {
+                MIGRAPHX_THROW("Attention: input bias must be the same type as input vector");
+            }
+            output_arg_vec.push_back(bias);
+        }
     }
 
     static void handle_mask_index(const std::vector<instruction_ref>& args,
@@ -155,7 +181,13 @@ struct parse_attention : op_parser<parse_attention>
                                   struct attention_infered& infered_out,
                                   std::vector<instruction_ref>& output_arg_vec)
     {
+        instruction_ref mask_index;
+        if(check_and_return_arg(args, 3, mask_index))
+        {
 
+
+            output_arg_vec.push_back(mask_index);
+        }
     }
 
     static void handle_past(const std::vector<instruction_ref>& args,
@@ -163,7 +195,12 @@ struct parse_attention : op_parser<parse_attention>
                             struct attention_infered& infered_out,
                             std::vector<instruction_ref>& output_arg_vec)
     {
+        instruction_ref past;
+        if(check_and_return_arg(args, 4, past))
+        {
 
+            output_arg_vec.push_back(past);
+        }
     }
     
     static void handle_attention_bias(const std::vector<instruction_ref>& args,
@@ -171,7 +208,12 @@ struct parse_attention : op_parser<parse_attention>
                                       struct attention_infered& infered_out,
                                       std::vector<instruction_ref>& output_arg_vec)
     {
+        instruction_ref attention_bias;
+        if(check_and_return_arg(args, 5, attention_bias))
+        {
 
+            output_arg_vec.push_back(attention_bias);
+        }
     }
 
     static void handle_past_sequence_length(const std::vector<instruction_ref>& args,
@@ -179,13 +221,17 @@ struct parse_attention : op_parser<parse_attention>
                                             struct attention_infered& infered_out,
                                             std::vector<instruction_ref>& output_arg_vec)
     {
-
+        instruction_ref past_seq_length;
+        if(check_and_return_arg(args, 6, past_seq_length))
+        {
+            output_arg_vec.push_back(past_seq_length);
+        }
     }
 
     static std::vector<instruction_ref> handle_arguments(const onnx_parser& parser,
-                                                         const std::vector<instruction_ref>& args,
-                                                         struct attention_attr& attr_out,
-                                                         struct attention_infered& infered_out)
+                                                                             const std::vector<instruction_ref>& args,
+                                                                             struct attention_attr& attr_out,
+                                                                             struct attention_infered& infered_out)
     {
         std::vector<instruction_ref> input_arguments;
 
@@ -202,6 +248,11 @@ struct parse_attention : op_parser<parse_attention>
         if(weight_shape.lens().at(0) != input_shape.lens().at(2))
         {
             MIGRAPHX_THROW("Attention: Input hidden size must be the same for input and weight tensors");
+        }
+
+        if(weight_shape.type() != input_shape.type())
+        {
+            MIGRAPHX_THROW("Attention: Input and weight datatype must be the same");
         }
 
         infered_out.batch_size        = input_shape.lens().at(0);
@@ -229,16 +280,24 @@ struct parse_attention : op_parser<parse_attention>
                                                     const instruction_ref& V,
                                                     const instruction_ref& scale_factor,
                                                     const instruction_ref& mask,
-                                                    bool masked=false)
+                                                    const instruction_ref& bias,
+                                                    bool masked=false,
+                                                    bool attn_bias=false)
     {
-        auto qk_out = info.add_instruction(make_op("dot"), Q, K);
+        auto k_trans = info.add_instruction(make_op("tranpose"), K);
+        auto qk_out = info.add_instruction(make_op("dot"), Q, k_trans);
         auto qk_scaled = info.add_instruction(make_op("div"), qk_out, scale_factor);
+
         auto qk_masked = qk_scaled;
 
         if(masked)
-            qk_masked = info.add_instruction(make_op("dot"), qk_scaled, mask);
+            qk_masked = info.add_instruction(make_op("add"), qk_scaled, mask);
 
-        auto softmax_out = info.add_instruction(make_op("softmax"), qk_masked);
+        auto qk_biased = qk_masked;
+        if(attn_bias)
+            qk_biased = info.add_instruction(make_op("add"), qk_masked, bias);
+
+        auto softmax_out = info.add_instruction(make_op("softmax"), qk_biased);
         return info.add_instruction(make_op("dot"), softmax_out, V);
     }
 
@@ -247,6 +306,8 @@ struct parse_attention : op_parser<parse_attention>
                                     const instruction_ref& input,
                                     const instruction_ref& stacked_weights,
                                     const std::vector<size_t>& qkv_sizes,
+                                    const instruction_ref& input_bias,
+                                    const bool has_input_bias,
                                     instruction_ref& Q,
                                     instruction_ref& K,
                                     instruction_ref& V)
@@ -283,10 +344,16 @@ struct parse_attention : op_parser<parse_attention>
         instruction_ref q;
         instruction_ref k;
         instruction_ref v;
-        input_linear_to_qkv(info, input_data, weights, parsed_attributes.qkv_hidden_sizes, q, k, v);
+        instruction_ref input_bias;
+        bool has_input_bias = false;
+        input_linear_to_qkv(info, input_data, weights, parsed_attributes.qkv_hidden_sizes, input_bias, has_input_bias, q, k, v);
 
         instruction_ref mask;
         bool has_mask = false;
+        instruction_ref attn_bias;
+        bool has_bias = false;
+
+
         instruction_ref present;
 
         // Used to scale all key values before any masking or other inputs
@@ -299,7 +366,7 @@ struct parse_attention : op_parser<parse_attention>
                        vec_of_attn_outs.begin(),
                        std::back_inserter(vec_of_attn_outs),
                        [&](auto&&, auto&& ) {
-                           return scale_dot_attention_head(info, q, k, v, scale_factor, mask, has_mask);
+                           return scale_dot_attention_head(info, q, k, v, scale_factor, mask, attn_bias, has_mask, has_bias);
                         });
         auto output = info.add_instruction(make_op("concat"), vec_of_attn_outs);
 

@@ -70,7 +70,7 @@ Full documentation for MIGraphX is available at
 * Prefill buffers when MLIR produces a multioutput buffer
 * Improved the performance of the resize operator
 * Enable split reduce by default
-* Added a MIGRAPHX_DISABLE_PASSES enviroment variable for debugging
+* Added MIGRAPHX_DISABLE_PASSES environment variable for debugging
 * Added a MIGRAPHX_MLIR_DUMP_TO_FILE flag to capture the final mlir module to a file
 * Move qlinear before concat to allow output fusion
 * use reshape to handle Flatten operator

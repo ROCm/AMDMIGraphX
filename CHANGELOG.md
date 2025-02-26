@@ -12,7 +12,7 @@ Full documentation for MIGraphX is available at
   * Added contiguous transpose gemm fusion for hipBLASLt
   * Added gemm pointwise fusion for hipBLASLt
   * Made gfx90a use rocBLAS by default
-* Support for rdware specific FP8 datatypes
+* Support for hardware specific FP8 datatypes
   * Driver quantize fp8 update
   * FP8 OCP to FP8 FNUZ on hardware with only FP8 FNUZ support
   * Added the bit_cast operator for fp8 OCP

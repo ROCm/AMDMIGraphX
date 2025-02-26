@@ -116,10 +116,10 @@ void remove_layout(module& m)
     {
         if(ins->name() != "layout")
             continue;
-        // if(find_permutation(ins->get_shape()) != find_permutation(ins->inputs().front()->get_shape()))
-        //     continue;
-        if(ins->get_shape() != ins->inputs().front()->get_shape())
+        if(find_permutation(ins->get_shape()) != find_permutation(ins->inputs().front()->get_shape()))
             continue;
+        // if(ins->get_shape() != ins->inputs().front()->get_shape())
+        //     continue;
         m.replace_instruction(ins, ins->inputs().front());
     }
 }

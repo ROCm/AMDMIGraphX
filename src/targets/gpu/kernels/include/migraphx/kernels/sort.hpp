@@ -11,54 +11,6 @@
 
 namespace migraphx {
 
-constexpr auto powers_of_2(index_int start, index_int last)
-{
-    return [=](auto f) {
-        for(index_int i = start; i < last; i *= 2)
-            f(i);
-    };
-}
-constexpr auto powers_of_2(index_int last) { return powers_of_2(1, last); }
-
-constexpr auto reverse_powers_of_2(index_int start, index_int last = 1)
-{
-    return [=](auto f) {
-        for(index_int i = start; i >= last; i /= 2)
-            f(i);
-    };
-}
-
-template<index_int Start, index_int Last, class F>
-constexpr void repeat_up_by_2_c(F&& f)
-{
-    if constexpr(Start < Last)
-    {
-        f(_c<Start>);
-        repeat_up_by_2_c<Start * 2, Last>(static_cast<F&&>(f));
-    }
-}
-
-template<index_int Last, class F>
-constexpr void repeat_up_by_2_c(F&& f)
-{
-    repeat_up_by_2_c<1, Last>(static_cast<F&&>(f));
-}
-
-template<index_int Start, index_int Last, class F>
-constexpr void repeat_down_by_2_c(F&& f)
-{
-    if constexpr(Start >= Last)
-    {
-        f(_c<Start>);
-        repeat_down_by_2_c<Start / 2, Last>(static_cast<F&&>(f));
-    }
-}
-template<index_int Start, class F>
-constexpr void repeat_down_by_2_c(F&& f)
-{
-    repeat_down_by_2_c<Start, 1>(static_cast<F&&>(f));
-}
-
 template <class Compare>
 struct bitonic_sort
 {
@@ -99,7 +51,7 @@ struct bitonic_sort
         if constexpr(group_size >= 2)
         {
             repeat_down_by_2_c<group_size/2>([&](auto offset) {
-                constexpr auto step = _c<2> * offset;
+                constexpr auto step = _c<2 * offset>;
                 repeat(x.size() / step, [&](auto q) {
                     auto base = q * step;
 
@@ -107,8 +59,9 @@ struct bitonic_sort
                     // and is flipped if dir is true
                     const auto local_dir = ((base & group_size) > _c<0>) != dir;
 
-                    for(index_int i = 0; i < offset; i++)
+                    repeat(offset, [&](auto i) {
                         lane_compare_swap(x[base + i], x[base + i + offset], local_dir);
+                    });
                 });
             });
         }

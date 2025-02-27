@@ -37,6 +37,8 @@ from collections import namedtuple
 
 HipEventPair = namedtuple('HipEventPair', ['start', 'end'])
 
+os.environ["MIGRAPHX_ENABLE_NHWC"]='1'
+os.environ["MIGRAPHX_MLIR_USE_SPECIFIC_OPS"]='convolution'
 
 # measurement helper
 def measure(fn):
@@ -230,9 +232,9 @@ def get_args():
     bf16_set = set(args.bf16)
     int8_set = set(args.int8)
 
-    overlap = fp16_set.intersection(bf16_set).intersection(int8_set)
+    overlap = (fp16_set & bf16_set) | (fp16_set & int8_set) | (bf16_set & int8_set)
     if overlap:
-        parser.error(f"Cannot specify the same arguments for both fp16, bf16, and int8: {', '.join(overlap)}")
+        parser.error(f"Cannot specify the same arguments for multiple quantization modes: {', '.join(overlap)}")
 
     return args
 
@@ -612,7 +614,7 @@ class StableDiffusionMGX():
                                             latents,
                                             t,
                                             scale,
-                                            time_ids,
+                                            tifme_ids,
                                             model="refiner_unetxl")
         if verbose:
             print("Scale denoised result...")
@@ -679,14 +681,13 @@ class StableDiffusionMGX():
         elif os.path.isfile(onnx_file):
             print(f"No mxr found at {mxr_file}")
             print(f"Parsing from {onnx_file}")
-            print(shapes)
             model = mgx.parse_onnx(onnx_file, map_input_dims=shapes)
             if use_fp16:
                 mgx.quantize_fp16(model)
             elif use_bf16:
                 mgx.quantize_bf16(model)
             elif use_int8:
-                mgx.quantize_int8(model)
+                mgx.quantize_int8(model, mgx.get_target("gpu"))
             model.compile(mgx.get_target("gpu"),
                           exhaustive_tune=exhaustive_tune,
                           offload_copy=offload_copy)

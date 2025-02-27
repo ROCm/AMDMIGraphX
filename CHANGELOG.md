@@ -46,7 +46,7 @@ Full documentation for MIGraphX is available at
 
 ### Changed
 
-* Switched to using hipBLASLt as default instead of rocBLAS for hipBLASLt supported architectures.
+* Switched to using hipBLASLt for hipBLASLt supported architectures, as default, instead of rocBLAS.
 * Always output a packed type for q/dq
 * Removed a warning that printed to stdout when using FP8 types
 * Set migraphx version to 2.12

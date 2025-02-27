@@ -202,8 +202,7 @@ struct bitonic_sort
     }
 };
 
-template <class Compare>
-bitonic_sort(Compare) -> bitonic_sort<Compare>;
+MIGRAPHX_AUTO_DEDUCE(bitonic_sort);
 
 // template<index_int N, class T, class Compare>
 // __device__ void bitonic_sort(index idx, T* buf, Compare compare)
@@ -307,13 +306,13 @@ struct bitonic_topk
     }
 };
 
+template <class N, class K, class Compare>
+bitonic_topk(N, K, Compare) -> bitonic_topk<N{}, K{}, Compare>;
+
 template<class T, class Type = typename T::type>
 constexpr auto get_index_type(T) -> conditional_t<(sizeof(Type) < sizeof(index_int)), Type, index_int>;
 
 constexpr auto get_index_type() -> uint16_t;
-
-template <class N, class K, class Compare>
-bitonic_topk(N, K, Compare) -> bitonic_topk<N{}, K{}, Compare>;
 
 template <index_int Axis, class Compare, class T>
 __device__ auto topk(Compare compare, T init)
@@ -369,10 +368,7 @@ __device__ auto topk(Compare compare, T init)
                 local_buf[i].val = get_index(j);
             }
 
-            // Deduction guide is broken for some reason
-            // bitonic_sort{by(select_key(), compare)}.wave_sort(idx, local_buf);
-            auto c = by(select_key(), compare);
-            bitonic_sort<decltype(c)>{c}.wave_sort(idx, local_buf);
+            bitonic_sort{by(select_key(), compare)}.wave_sort(idx, local_buf);
 
             if constexpr(nwave == 1)
             {

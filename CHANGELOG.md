@@ -9,7 +9,7 @@ Full documentation for MIGraphX is available at
 
 * Support for gfx1200 and gfx1201
 * hipBLASLt support 
-  * Added contiguous transpose gemm fusion for hipBLASLt
+  * Added support for contiguous transpose GEMM fusion and GEMM pointwise fusion with hipBLASLt.
   * Added gemm pointwise fusion for hipBLASLt
   * Made gfx90a use rocBLAS by default
 * Support for hardware specific FP8 datatypes

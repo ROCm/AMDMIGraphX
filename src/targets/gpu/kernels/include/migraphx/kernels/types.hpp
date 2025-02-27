@@ -71,6 +71,11 @@ static_assert(sizeof(uint64_t) == 8, "uint64_t must be 8 bytes");
 
 #define MIGRAPHX_DEVICE_CONSTEXPR constexpr __device__ __host__ // NOLINT
 
+// NOLINTNEXTLINE
+#define MIGRAPHX_AUTO_DEDUCE(name) \
+    template<class... Ts> \
+    __host__ __device__ name(Ts...) -> name<Ts...>;
+
 template <class T, index_int N>
 using vec = T __attribute__((ext_vector_type(N)));
 

@@ -112,33 +112,5 @@ constexpr auto reorder_tensor_view(T x, Permutation perm)
     return make_tensor_view(x.data(), reorder_shape(x.get_shape(), perm));
 }
 
-template <class Input, class T, class Select>
-constexpr auto tensor_slice(Input input, T start, Select select)
-{
-    auto inner_lens =
-        transform_i(get_shape_c<Input>{}.lens, [=](index_int x, index_int ii) -> index_int {
-            if(select(x, ii))
-                return x;
-            return 1;
-        });
-    auto inner_shape = make_shape(inner_lens, get_shape_c<Input>{}.strides);
-    auto outer_lens =
-        transform_i(get_shape_c<Input>{}.lens, [=](index_int x, index_int ii) -> index_int {
-            if(not select(x, ii))
-                return x;
-            return 1;
-        });
-    auto outer_shape = make_shape(outer_lens, get_shape_c<Input>{}.strides);
-    auto offset      = outer_shape.index(start);
-    MIGRAPHX_ASSERT((offset + inner_shape.element_space()) <= get_shape_c<Input>{}.element_space());
-    return make_tensor_view(input.data() + offset, inner_shape);
-}
-
-template <index_int... Axes>
-constexpr auto slice_axes()
-{
-    return [](auto, auto i) { return ((i == Axes) or ...); };
-}
-
 } // namespace migraphx
 #endif // MIGRAPHX_GUARD_KERNELS_TENSOR_VIEW_HPP

@@ -305,5 +305,37 @@ inline __device__ __attribute__((const)) index make_index()
         blockIdx.x * compute_max_local_size() + threadIdx.x, threadIdx.x, blockIdx.x}; // NOLINT
 }
 
+struct per_block
+{
+    index idx;
+
+    constexpr auto local() const
+    {
+        return idx.local;
+    }
+
+    constexpr auto nlocal() const
+    {
+        return idx.nlocal();
+    }
+
+    constexpr auto size() const
+    {
+        return idx.ngroup();
+    }
+
+    template<class N, class F>
+    constexpr void group_stride(N n, F f) const
+    {
+        return idx.group_stride(n, f);
+    }
+
+    template<class N, class F>
+    constexpr void local_stride(N n, F f) const
+    {
+        return idx.local_stride(n, f);
+    }
+};
+
 } // namespace migraphx
 #endif // MIGRAPHX_GUARD_KERNELS_INDEX_HPP

@@ -25,6 +25,7 @@
 #include <migraphx/kernels/index.hpp>
 #include <migraphx/kernels/functional.hpp>
 #include <migraphx/kernels/tensor_view.hpp>
+#include <migraphx/kernels/slice.hpp>
 #include <migraphx/kernels/dpp.hpp>
 
 #ifndef MIGRAPHX_GUARD_KERNELS_CONCAT_HPP
@@ -133,20 +134,6 @@ struct simple
         }};
     }
 };
-
-template<class... Ss>
-constexpr auto per_wave_slice(index idx, Ss... ss)
-{
-    return [=](auto... xs) {
-        return [=](auto f) {
-            // TODO: Assert nslices is the same for all xs
-            constexpr auto n = nslices(get_shape_c<decltype(arg_c<0>()(xs...))>{}, ss...);
-            idx.wave_stride(n, [&](auto i) {
-                f(tensor_slice(xs, i, ss...)...);
-            });
-        };
-    };
-}
 
 template<class...>
 class static_print;
@@ -317,7 +304,7 @@ struct wave_interleave
 
         constexpr auto slice() const
         {
-            return per_wave_slice(idx, slice_axes<-1>(), slice_group<Group>());
+            return slice_schedule<per_wave>(idx, slice_axes<-1>(), slice_group<Group>());
         }
 
         template<class Depth, class G, class... Xs>

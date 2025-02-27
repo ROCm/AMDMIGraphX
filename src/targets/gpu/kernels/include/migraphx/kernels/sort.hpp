@@ -28,6 +28,37 @@ constexpr auto reverse_powers_of_2(index_int start, index_int last = 1)
     };
 }
 
+template<index_int Start, index_int Last, class F>
+constexpr void repeat_up_by_2_c(F&& f)
+{
+    if constexpr(Start < Last)
+    {
+        f(_c<Start>);
+        repeat_up_by_2_c<Start * 2, Last>(static_cast<F&&>(f));
+    }
+}
+
+template<index_int Last, class F>
+constexpr void repeat_up_by_2_c(F&& f)
+{
+    repeat_up_by_2_c<1, Last>(static_cast<F&&>(f));
+}
+
+template<index_int Start, index_int Last, class F>
+constexpr void repeat_down_by_2_c(F&& f)
+{
+    if constexpr(Start >= Last)
+    {
+        f(_c<Start>);
+        repeat_down_by_2_c<Start / 2, Last>(static_cast<F&&>(f));
+    }
+}
+template<index_int Start, class F>
+constexpr void repeat_down_by_2_c(F&& f)
+{
+    repeat_down_by_2_c<Start, 1>(static_cast<F&&>(f));
+}
+
 template <class Compare>
 struct bitonic_sort
 {
@@ -109,7 +140,6 @@ struct bitonic_sort
     template <class Mask, class Dir, class Array>
     __device__ void dpp_swap(Mask mask, Dir dir, Array& x) const
     {
-        // println_once("swap: ", mask);
         MIGRAPHX_ASSERT(mask > 0);
         MIGRAPHX_ASSERT(mask < MIGRAPHX_WAVEFRONTSIZE);
         repeat(x.size(), [&](auto item) {
@@ -157,11 +187,11 @@ struct bitonic_topk
     // Constructor used to enable deduction guidelines
     constexpr bitonic_topk(index_constant<N>, index_constant<K>, Compare cmp) : compare(cmp) {}
 
-    template <class T>
-    __device__ void sort_step(index idx, T* buf, index_int len) const
+    template <class T, class Len>
+    __device__ void sort_step(index idx, T* buf, Len len) const
     {
         auto dir = len * 2;
-        reverse_powers_of_2(len)([&](auto inc) {
+        repeat_down_by_2_c<len>([&](auto inc) {
             idx.local_stride(N, [&](auto tid) {
                 auto low = tid & (inc - 1);
                 auto i   = (tid * 2) - low;
@@ -178,8 +208,8 @@ struct bitonic_topk
         });
     }
 
-    template <class T>
-    __device__ void merge_step(index idx, T* buf, index_int len) const
+    template <class T, class Len>
+    __device__ void merge_step(index idx, T* buf, Len len) const
     {
         auto dir = len * 2;
         idx.local_stride(N, [&](auto tid) {
@@ -196,11 +226,11 @@ struct bitonic_topk
         __syncthreads();
     }
 
-    template <class T>
-    __device__ void rebuild_step(index idx, T* buf, index_int len) const
+    template <class T, class Len>
+    __device__ void rebuild_step(index idx, T* buf, Len len) const
     {
         auto dir = len * 2;
-        reverse_powers_of_2(K / 2)([&](auto inc) {
+        repeat_down_by_2_c<K / 2>([&](auto inc) {
             idx.local_stride(N, [&](auto tid) {
                 auto low = tid & (inc - 1);
                 auto i   = (tid * 2) - low;
@@ -221,8 +251,8 @@ struct bitonic_topk
     template <class T>
     __device__ void block_topk(index idx, T* buf) const
     {
-        powers_of_2(K)([&](auto len) { sort_step(idx, buf, len); });
-        powers_of_2(K, N)([&](auto len) {
+        repeat_up_by_2_c<K>([&](auto len) { sort_step(idx, buf, len); });
+        repeat_up_by_2_c<K, N>([&](auto len) {
             merge_step(idx, buf, len);
             rebuild_step(idx, buf, len);
         });

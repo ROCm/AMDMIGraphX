@@ -78,7 +78,6 @@ __device__ auto topk(Compare compare, T init)
         using type = typename decltype(input)::type;
         auto idx   = make_index();
         constexpr auto n = _c<get_shape_c<decltype(input)>{}.get_shape().lens[Axis]>;
-        constexpr auto aligned_n = return_c([=] { return bit_ceil(n); });
         constexpr auto k = _c<get_shape_c<decltype(output)>{}.get_shape().lens[Axis]>;
         constexpr auto aligned_k = _c<bit_ceil(k)>;
         using pair               = topk_pair<
@@ -99,6 +98,7 @@ __device__ auto topk(Compare compare, T init)
 #if 1
             constexpr auto nlocal_wave = idx.nlocal_wave();
             constexpr auto nwave       = idx.nwave();
+            constexpr auto aligned_n = _c<bit_ceil(n)>;
             constexpr auto m = k * nwave;
             constexpr auto aligned_m = _c<bit_ceil(m)>;
             constexpr auto extra_m = aligned_m - m;

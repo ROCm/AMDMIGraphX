@@ -55,7 +55,8 @@ struct parse_attention : op_parser<parse_attention>
         std::size_t hidden_size;   // Pulled from weights vector (weights.at(1) / 2)
         std::size_t v_hidden_size; // Value weight size
         std::size_t sequence_length;
-        float head_size; // Used for the scale factor of attention stages by default if scale is not defined 
+        float head_size; // Used for the scale factor of attention. Also known as Query Size
+        bool has_past_input = false; // Set to true when we have past input. Required we add present output when this is set
     };
 
     static void handle_attributes(const onnx_parser& parser,
@@ -65,7 +66,7 @@ struct parse_attention : op_parser<parse_attention>
     {
         if(contains(info.attributes, "do_rotary"))
         {
-            attr_out.do_rotary = parser.parse_value(info.attributes.at("do_rotary")).at<bool>();
+            attr_out.do_rotary = (1 == parser.parse_value(info.attributes.at("do_rotary")).at<int>());
         }
 
         if(contains(info.attributes, "mask_filter_value"))
@@ -91,7 +92,6 @@ struct parse_attention : op_parser<parse_attention>
         if(contains(info.attributes, "qkv_hidden_sizes"))
         {
             auto input_val = parser.parse_value(info.attributes.at("qkv_hidden_sizes")).get_argument();
-
             /*auto q_size = std::const_cast<size_t>(input_val.element(0).data());
             auto k_size = std::const_cast<size_t>(input_val.element(1).data());
             auto v_size = std::const_cast<size_t>(input_val.element(2).data());
@@ -132,6 +132,12 @@ struct parse_attention : op_parser<parse_attention>
         }
     }
 
+    // qkv values must be greater than zero to be "set"
+    static bool qkv_size_not_set(std::vector<size_t> &qkv_vec)
+    {
+        return std::any_of(qkv_vec.begin(), qkv_vec.end(), [](auto i){return i <= 0;});
+    }
+
     static void qkv_sizes_sum_arg_valid(const std::vector<size_t>& qkv_vec,
                                         const instruction_ref input_arg,
                                         const size_t dim,
@@ -141,6 +147,11 @@ struct parse_attention : op_parser<parse_attention>
         {
             MIGRAPHX_THROW("Attention: q k v hidden sizes sum must match" + name + " tensor" + std::to_string(dim) + "dimension");
         }
+    }
+
+    static bool weights_not_equal(shape& weight_shape)
+    {
+        return (weight_shape.lens().at(1) % 3 != 0);
     }
 
     // simple call to check if the arg index exists
@@ -154,6 +165,61 @@ struct parse_attention : op_parser<parse_attention>
             return true;
         }
         return false;
+    }
+
+    static void handle_input(const instruction_ref& input_arg,
+                             struct attention_infered& infered_out,
+                             std::vector<instruction_ref>& output_arg_vec)
+    {
+        auto input_tensor  = input_arg;
+        auto input_shape   = input_tensor->get_shape();
+
+        infered_out.batch_size        = input_shape.lens().at(0);
+        infered_out.sequence_length   = input_shape.lens().at(1);
+        infered_out.input_hidden_size = input_shape.lens().at(2);
+        output_arg_vec.push_back(input_tensor);
+
+    }
+
+    static void handle_weight(const instruction_ref& weight_arg,
+                              const instruction_ref& input_arg,
+                              struct attention_attr& attr_out,
+                              struct attention_infered& infered_out,
+                             std::vector<instruction_ref>& output_arg_vec)
+    {
+        auto weight_tensor = weight_arg;
+        auto weight_shape  = weight_tensor->get_shape();
+        auto input_shape   = input_arg->get_shape();
+
+        if(weight_shape.lens().at(0) != input_shape.lens().at(2))
+        {
+            MIGRAPHX_THROW("Attention: Input hidden size must be the same for input and weight tensors");
+        }
+
+        if(weight_shape.type() != input_shape.type())
+        {
+            MIGRAPHX_THROW("Attention: Input and weight datatype must be the same");
+        }
+
+        if(weights_not_equal(weight_shape))
+        {
+            if(qkv_size_not_set(attr_out.qkv_hidden_sizes))
+                MIGRAPHX_THROW("Attention: QKV size attribute must be set with non even weights");
+
+            if(infered_out.has_past_input)
+                MIGRAPHX_THROW("Attention: QKV size must be equally sized when using past/present buffers");
+        }
+        else
+        {   
+            // QKV is identical when second weight dim is divisible by 3 and qkv not set
+            if(qkv_size_not_set(attr_out.qkv_hidden_sizes))
+                attr_out.qkv_hidden_sizes = std::vector(3, (weight_shape.lens().at(1) / 3));
+        }
+
+        // Ensure qkv_hidden sizes set are valid wrt to input weights
+        qkv_sizes_sum_arg_valid(attr_out.qkv_hidden_sizes, weight_tensor, 2, "weights");
+
+        output_arg_vec.push_back(weight_tensor);
     }
 
     static void handle_projection_bias(const std::vector<instruction_ref>& args,
@@ -198,7 +264,7 @@ struct parse_attention : op_parser<parse_attention>
         instruction_ref past;
         if(check_and_return_arg(args, 4, past))
         {
-
+            infered_out.has_past_input = true;
             output_arg_vec.push_back(past);
         }
     }
@@ -240,29 +306,8 @@ struct parse_attention : op_parser<parse_attention>
             MIGRAPHX_THROW("Attention: Wrong number of inputs provided");
         }
 
-        auto input_tensor  = args.at(0);
-        auto input_shape   = input_tensor->get_shape();
-        auto weight_tensor = args.at(1);
-        auto weight_shape  = weight_tensor->get_shape();
-
-        if(weight_shape.lens().at(0) != input_shape.lens().at(2))
-        {
-            MIGRAPHX_THROW("Attention: Input hidden size must be the same for input and weight tensors");
-        }
-
-        if(weight_shape.type() != input_shape.type())
-        {
-            MIGRAPHX_THROW("Attention: Input and weight datatype must be the same");
-        }
-
-        infered_out.batch_size        = input_shape.lens().at(0);
-        infered_out.sequence_length   = input_shape.lens().at(1);
-        infered_out.input_hidden_size = input_shape.lens().at(2);
-        input_arguments.push_back(input_tensor);
-
-        // Ensure qkv_hidden sizes set are valid wrt to input weights
-        qkv_sizes_sum_arg_valid(attr_out.qkv_hidden_sizes, weight_tensor, 2, "weights");
-        input_arguments.push_back(weight_tensor);
+        handle_input(args.at(0), infered_out, input_arguments);
+        handle_weight(args.at(1), args.at(0), attr_out, infered_out, input_arguments);
 
         // Handle theses individually. Order matters here to check conditions
         handle_projection_bias(args, attr_out, infered_out, input_arguments);
@@ -374,7 +419,14 @@ struct parse_attention : op_parser<parse_attention>
         output_vec.push_back(output);
 
         if(parsed_attributes.past_present_share_buffer)
+        {
+            present = output;
+        }
+
+        // Past and Present vetors must be used for the run.
+        if(infered_attributes.has_past_input)
             output_vec.push_back(present);
+
 
         return output_vec;
     }

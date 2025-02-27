@@ -348,13 +348,12 @@ __device__ auto topk(Compare compare, T init)
             constexpr auto nlocal_wave = idx.nlocal_wave();
             constexpr auto nwave       = idx.nwave();
             constexpr auto m = k * nwave;
-            constexpr auto aligned_m = return_c([=] { return bit_ceil(m); });
+            constexpr auto aligned_m = _c<bit_ceil(m)>;
             constexpr auto extra_m = aligned_m - m;
             constexpr auto over_n = where(n == aligned_n, _c<0>, n - aligned_n / _c<2>);
             constexpr auto trimmed_n = max(where(over_n < extra_m, n - over_n, n), aligned_m);
             constexpr auto per_wave    = trimmed_n / nwave;
-            constexpr auto per_lane =
-                return_c([=] { return bit_ceil(ceil_div(per_wave, nlocal_wave)); });
+            constexpr auto per_lane = _c<bit_ceil(ceil_div(per_wave, nlocal_wave))>;
             const auto local_shape = make_shape(index_ints<nwave, nlocal_wave, per_lane>{});
             MIGRAPHX_ASSERT(local_shape.elements() >= trimmed_n);
             MIGRAPHX_ASSERT(per_wave >= k);

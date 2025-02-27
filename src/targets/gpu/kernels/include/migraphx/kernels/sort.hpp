@@ -91,27 +91,26 @@ struct bitonic_sort
         return [=](const auto& x, const auto& y) { return compare(x, y, reverse); };
     }
 
-    template <class GroupSize, class Offset, class Dir, class Array>
-    constexpr void lane_shuffle(GroupSize group_size, Offset offset, Dir dir, Array& x) const
+    template <class GroupSize, class Dir, class Array>
+    constexpr void lane_shuffle(GroupSize group_size, Dir dir, Array& x) const
     {
         MIGRAPHX_ASSERT(is_power_of_2(x.size()));
         MIGRAPHX_ASSERT(is_power_of_2(group_size));
-        MIGRAPHX_ASSERT(is_power_of_2(offset));
-        if constexpr(group_size >= 2 and offset >= 1)
+        if constexpr(group_size >= 2)
         {
-            constexpr auto step = _c<2> * offset;
-            repeat(x.size() / step, [&](auto q) {
-                auto base = q * step;
+            repeat_down_by_2_c<group_size/2>([&](auto offset) {
+                constexpr auto step = _c<2> * offset;
+                repeat(x.size() / step, [&](auto q) {
+                    auto base = q * step;
 
-                // The local direction must change every group_size items
-                // and is flipped if dir is true
-                const auto local_dir = ((base & group_size) > _c<0>) != dir;
+                    // The local direction must change every group_size items
+                    // and is flipped if dir is true
+                    const auto local_dir = ((base & group_size) > _c<0>) != dir;
 
-                for(index_int i = 0; i < offset; i++)
-                    lane_compare_swap(x[base + i], x[base + i + offset], local_dir);
+                    for(index_int i = 0; i < offset; i++)
+                        lane_compare_swap(x[base + i], x[base + i + offset], local_dir);
+                });
             });
-            if constexpr(offset > 1)
-                lane_shuffle(group_size, offset / _c<2>, dir, x);
         }
     }
 
@@ -120,21 +119,15 @@ struct bitonic_sort
     {
         if constexpr(decltype(x.size()){} < 2)
             return;
-        lane_shuffle(x.size(), x.size() / _c<2>, dir, x);
-    }
-
-    template <class K, class Dir, class Array>
-    constexpr void lane_sort(K k, Dir dir, Array& x) const
-    {
-        lane_shuffle(k, k / _c<2>, dir, x);
-        if constexpr(k < decltype(x.size()){})
-            lane_sort(k * _c<2>, dir, x);
+        lane_shuffle(x.size(), dir, x);
     }
 
     template <class Dir, class Array>
     constexpr void lane_sort(Dir dir, Array& x) const
     {
-        lane_sort(_c<2>, dir, x);
+        repeat_up_by_2_c<2, decltype(x.size()){} * 2>([&](auto k) {
+            lane_shuffle(k, dir, x);
+        });
     }
 
     template <class Mask, class Dir, class Array>

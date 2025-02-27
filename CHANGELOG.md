@@ -8,87 +8,60 @@ Full documentation for MIGraphX is available at
 ### Added
 
 * Support for gfx1200 and gfx1201
-* hipBLASLt support 
-  * Added support for contiguous transpose GEMM fusion and GEMM pointwise fusion with hipBLASLt.
-  * Added gemm pointwise fusion for hipBLASLt
-  * Made gfx90a use rocBLAS by default
-* Support for hardware specific FP8 datatypes
-  * Driver quantize fp8 update
-  * FP8 OCP to FP8 FNUZ on hardware with only FP8 FNUZ support
-  * Added the bit_cast operator for fp8 OCP
-  * Added the fp8e5m2fnuz data type
-  * Added support on gfx120x for the FP8 OCP format
-  * Enable GEMM/dot for FP8 using hipblasLT
+* hipBLASLt support for contiguous transpose GEMM fusion and GEMM pointwise fusions for improved performance
+* Support for hardware specific FP8 datatypes (FP8 OCP and FP8 FNUZ)
 * Add support for the BF16 datatype
-* ONNX Operator Support
-  * Add onnx support for com.microsoft.MultiHeadAttention
-  * Add onnx support for com.microsoft.NhwcConv
-  * Add onnx support for com.microsoft.MatMulIntgerFloat
-* migraphx-driver improvements 
-  * can now produce output for use with Netron
-  * Added a `time` for better accuracy of very fast kernels
-  * Included percentile details to summary report
-* end-to-end Stable Diffusion 3 example with option to disable T5 encoder on VRAM-limited GPUs
-* Fusions...
-  * Fuse transposes in pointwise and reduce fusions
-  * Fuse reshapes across concat
-  * Fuse unpack_int4 across concat
-  * Horizontally fuse elementwise operators with more then 2 inputs across concat
-  * Fuse all pointwise inputs with mlir not just the first one found
-* Enable non-packed inputs for mlir
-* Track broadcast axes in the shape_transform_descriptor
-* Disable dot/mul optimizations when there is int4 weights
-* Add support for unsigned types with mlir
+* ONNX Operator Support for `com.microsoft.MultiHeadAttention`, `com.microsoft.NhwcConv`, and `com.microsoft.MatMulIntgerFloat`
+* migraphx-driver can now produce outfor for use with Netron
+* migraphx-driver now includes a `time` parameter (similar to `perf`) that is more accurate for very fast kernels
+* An end-to-end Stable Diffusion 3 example with option to disable T5 encoder on VRAM-limited GPUs has been added
+* Added support to track broadcast axes in `shape_transform_descriptor`
+* Added support for unsigned types with `rocMLIR`
 * Added a script to convert mxr files to ONNX models
-* New environment variable to choose between rocBLAS and hipBLASLt;
-  MIGRAPHX_SET_GEMM_PROVIDER=rocblas|hipblaslt for supported architectures
+* Added the `MIGRAPHX_SET_GEMM_PROVIDER` environment variable to choose between rocBLAS and hipBLASLt. Set `MIGRAPHX_SET_GEMM_PROVIDER` to `rocblas` to use rocBLAS, or to `hipblaslt` to use hipBLASLt.
 
 
 ### Changed
 
-* Switched to using hipBLASLt for hipBLASLt supported architectures, as default, instead of rocBLAS.
+* With the exception of gfx90a, switched to using hipBLASLt instead of rocBLAS
+* Included the min/max/median of the `perf` run as part of the summary report
+* Enable non-packed inputs for `rocMLIR`
 * Always output a packed type for q/dq
-* Removed a warning that printed to stdout when using FP8 types
-* Set migraphx version to 2.12
-* Always use NCHW for group convolutions
-* Remove zero point parameter for dequantizelinear when its zero
+* Even if using NHWC, MIGraphX will always convert group convolutions to NCHW for best performance 
 * Dont use mixed layouts with convolutions
-* Update Cmake to 3.27.x since ORT 1.21 required a newer CMake to not break pybind
+* Minimum version of Cmake is now 3.27
 
 
 ### Removed
 
-* Disable fp8e5m2fnuz with rocBLAS
-* Removed __AMDGCN_WAVEFRONT_SIZE for deprecation
-* Removed environment variable MIGRAPHX_ENABLE_HIPBLASLT_GEMM.
+* Removed `fp8e5m2fnuz` rocBLAS support
+* `__AMDGCN_WAVEFRONT_SIZE` has been deprecated.
+* Removed a warning that printed to stdout when using FP8 types
+* Remove zero point parameter for dequantizelinear when its zero
 
 
 ### Optimized
 
 * Refactor GPU math functions for an accuracy improvement 
-* catch python buffer unsupported types
 * Prefill buffers when MLIR produces a multioutput buffer
-* Improved the performance of the resize operator
+* Improved the resize operator performance which should improve overall performance of models that use it
 * Enable split reduce by default
-* Added MIGRAPHX_DISABLE_PASSES environment variable for debugging
-* Added a MIGRAPHX_MLIR_DUMP_TO_FILE flag to capture the final mlir module to a file
-* Move qlinear before concat to allow output fusion
+* Added `MIGRAPHX_DISABLE_PASSES` environment variable for debugging
+* Added `MIGRAPHX_MLIR_DUMP` environment variable to be set to a folder where individual final rocMLIR modules can be saved for investigation
 * use reshape to handle Flatten operator
-* Improved documentation by cleaning up links and adding a Table Of Contents
 * Updated cpp code guideline checks
-* Brokeout the fp8_quantization functions via our API to allow onnxruntime to use fp8 quantization
+* Improved the C++ API to allow onnxruntime access to fp8 quantization
 
 
 
 ### Resolved Issues
 
-* Fixed multistream execution with larger models
-* Fixed broken links in the documentation
-* Peephole LSTM Error
-* Fixed BertSquad example that could include a broken tokenizers package 
-* Fixed Attention fusion ito not error with a shape mismatch when a trailing pointwise contains a literal
-* Fixed instruction::replace() logic to handle more complex cases
-* MatMulNBits could fail with a shape error
+* Fixed multistream execution with larger models (#3757)
+* Peephole LSTM Error (#3768)
+* Fixed BertSquad example that could include a broken tokenizers package (#3556)
+* Fixed Attention fusion ito not error with a shape mismatch when a trailing pointwise contains a literal (#3758)
+* Fixed instruction::replace() logic to handle more complex cases (#3574)
+* MatMulNBits could fail with a shape error (#3698)
 
 
 
@@ -107,7 +80,7 @@ Full documentation for MIGraphX is available at
 * Split-K as an optional performance improvement
 * Scripts to validate ONNX models from the ONNX Model Zoo
 * GPU Pooling Kernel
-* --mlir flag to the migraphx-driver program to offload entire module to mlir
+* --mlir flag to the migraphx-driver program to offload entire module to rocMLIR
 * Fusing split-reduce with MLIR
 * Multiple outputs for the MLIR + Pointwise fusions
 * Pointwise fusions with MLIR across reshape operations

@@ -51,7 +51,7 @@ extern "C" {
 MIGRAPHX_GLOBAL void ${kernel}(${params}) 
 {
     transform_args(make_tensors(), rotate_last(), ${transformers})(${args})([](auto y, ${concat_params}, auto... xs) {
-        concat::run<${axis}>(concat::simple{}, ${concat_args})(${post}, y, xs...);
+        concat::run<concat::${algo}, ${axis}>(${concat_args})(${post}, y, xs...);
     });
 }
 
@@ -96,7 +96,16 @@ struct concat_compiler : compiler<concat_compiler>
         if(axis != concat_axis)
             vec = vectorize::elements(ctx, axis, options.virtual_inputs);
         auto nelements_per_op = options.virtual_inputs.back().elements() / op_names.size();
+#if 0
+        std::string algo = "simple";
         options.set_launch_params(v, compute_global_for(ctx, nelements_per_op / vec.size, 256));
+#else
+
+        auto group = 4;
+        auto nslices = options.virtual_inputs.back().elements() / options.virtual_inputs.back().lens()[concat_axis];
+        std::string algo = "wave_interleave<" + std::to_string(group) + ">";
+        options.set_launch_params(v, (nslices / group) * 64, 256);
+#endif
         options.emplace_param("-Wno-float-equal");
         std::vector<std::string> concat_params;
         std::vector<std::string> concat_args;
@@ -123,6 +132,7 @@ struct concat_compiler : compiler<concat_compiler>
                                        {"post", v.get("post", std::string{"op::id{}"})},
                                        {"transformers", make_transformer_args(vec)},
                                        {"preamble", v.get("preamble", std::string{})},
+                                       {"algo", algo},
                                        {"axis", std::to_string(concat_axis)}});
         return compile_hip_code_object(ctx, src, options);
     }

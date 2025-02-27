@@ -82,7 +82,7 @@ struct shape : equality_comparable<shape<Lens, Strides>>
     {
         if(this->standard())
         {
-            MIGRAPHX_ASSERT(i == compute_index(i));
+            MIGRAPHX_ASSERT(i >= elements() or i == compute_index(i));
             return i;
         }
         else
@@ -157,6 +157,7 @@ constexpr auto calculate_strides(Lens)
 template <class Lens, class Strides>
 constexpr shape<Lens, Strides> make_shape(Lens lens, Strides strides)
 {
+    MIGRAPHX_ASSERT(lens.product() != 0);
     return {lens, strides};
 }
 
@@ -197,7 +198,7 @@ constexpr auto make_packed_shape(Shape)
 }
 
 template<class Shape, class Size>
-constexpr auto slice_make_mult_lens(Shape, Size)
+constexpr auto slice_make_multi_lens(Shape, Size)
 {
     return return_array_c([] {
         auto n = Size{} - _c<1>;
@@ -208,7 +209,7 @@ constexpr auto slice_make_mult_lens(Shape, Size)
 }
 
 template<class Shape, class T, T... Xs>
-constexpr auto slice_make_mult_lens(Shape, integral_const_array<T, Xs...> x)
+constexpr auto slice_make_multi_lens(Shape, integral_const_array<T, Xs...> x)
 {
     return x;
 }
@@ -218,7 +219,7 @@ constexpr auto make_slice(Shape, Select select)
 {
     auto inner_lens =
         transform_i(Shape{}.lens, [=](index_int x, index_int ii) -> index_int {
-            if(select(x, ii))
+            if(select(x, ii, Shape{}.lens.size()))
                 return x;
             return 1;
         });
@@ -229,14 +230,64 @@ template <class Shape, class Select, class Size>
 constexpr auto make_slice(Shape input, Select select, Size size)
 {
     auto as = make_slice(input, select);
-    auto lens = slice_make_mult_lens(as, size);
+    auto lens = slice_make_multi_lens(as, size);
     return make_shape(lens, Shape{}.strides);
 }
 
-template <index_int... Axes>
+template<class F>
+struct slice_size_transform 
+{
+    F f;
+
+    template<class... Ts>
+    constexpr auto operator()(Ts... xs) const
+    {
+        return f(xs...);
+    }
+};
+MIGRAPHX_AUTO_DEDUCE(slice_size_transform);
+
+template <class Shape, class Select, class F>
+constexpr auto make_slice(Shape input, Select select, slice_size_transform<F> t)
+{
+    auto as = make_slice(input, select);
+    auto lens = slice_make_multi_lens(as, decltype(t(input, as)){});
+    return make_shape(lens, Shape{}.strides);
+}
+
+template<class Shape, class... Ss>
+constexpr auto nslices(Shape input, Ss... ss)
+{
+    auto as = make_slice(input, ss...);
+    return input.elements() / as.elements();
+}
+
+template<index_int N>
+constexpr auto slice_group()
+{
+    return slice_size_transform{[](auto input, auto s) {
+        auto r = return_array_c([] {
+            auto lens = decltype(s){}.lens.base();
+            lens.back() *= N;
+            lens -= 1;
+            return decltype(input){}.lens.carry(lens) + index_int{1};
+        });
+        return r;
+    }};
+}
+
+template<index_int N>
+constexpr auto slice_split()
+{
+    return slice_size_transform{[](auto, auto s) {
+        return s.elements() / _c<N>;
+    }};
+}
+
+template <diff_int... Axes>
 constexpr auto slice_axes()
 {
-    return [](auto, auto i) { return ((i == Axes) or ...); };
+    return [](auto, auto i, auto n) { return ((Axes < 0 ? i == (n + Axes) : i == Axes) or ...); };
 }
 
 } // namespace migraphx

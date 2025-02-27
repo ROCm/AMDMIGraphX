@@ -291,6 +291,12 @@ struct index
     {
         for_stride<true>(local_wave(), n, nlocal_wave(), f);
     }
+
+    template <class F, class N>
+    __device__ void wave_stride(N n, F f) const
+    {
+        for_stride<false>(wave(), n, nwave(), f);
+    }
 };
 
 #ifdef MIGRAPHX_NLOCAL

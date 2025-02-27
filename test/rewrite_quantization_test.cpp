@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2023 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2025 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -118,6 +118,120 @@ TEST_CASE(dequantizelinear)
     EXPECT(eval(p1) == eval(p2));
     EXPECT(any_of(*p1.get_main_module(), &is_dequantizelinear));
     EXPECT(none_of(*p2.get_main_module(), &is_dequantizelinear));
+}
+
+// has a nearbyint operation
+TEST_CASE(quantize_to_integral_type)
+{
+    migraphx::shape xs{migraphx::shape::float_type, {2, 3, 3}};
+    std::vector<float> xv = {
+        -300, 600, 129, -1000, 4, 3, -6, 600, 550, -300, 600, 129, -1000, 4, 3, -6, 600, 550};
+    migraphx::shape ss{migraphx::shape::float_type, {2, 3, 3}};
+    std::vector<float> sv = {2, 2, 2, 4, 4, 4, 6, 6, 6, 2, 2, 2, 4, 4, 4, 6, 6, 6};
+    migraphx::shape zs{migraphx::shape::int8_type, {2, 3, 3}};
+    std::vector<uint8_t> zv = {0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0};
+
+    migraphx::program p_run;
+    {
+        auto* mm = p_run.get_main_module();
+        auto x   = mm->add_literal(xs, xv);
+        auto s   = mm->add_literal(ss, sv);
+        auto z   = mm->add_literal(zs, zv);
+        mm->add_instruction(migraphx::make_op("quantizelinear"), x, s, z);
+    };
+
+    migraphx::program p_expected;
+    {
+        auto* mm        = p_expected.get_main_module();
+        auto x          = mm->add_literal(xs, xv);
+        auto s          = mm->add_literal(ss, sv);
+        auto z          = mm->add_literal(zs, zv);
+        auto div        = mm->add_instruction(migraphx::make_op("div"), x, s);
+        auto nearby_int = mm->add_instruction(migraphx::make_op("nearbyint"), div);
+        auto zero_point = mm->add_instruction(
+            migraphx::make_op("convert", {{"target_type", migraphx::shape::float_type}}), z);
+        auto add_zero_point = mm->add_instruction(migraphx::make_op("add"), nearby_int, zero_point);
+        double max_quant    = 0;
+        double min_quant    = 0;
+        auto zp_shape       = add_zero_point->get_shape();
+        zs.visit_type([&](auto qt) {
+            max_quant = qt.max();
+            min_quant = qt.min();
+        });
+        auto min_arg =
+            mm->add_literal(migraphx::literal{migraphx::shape{zp_shape.type()}, {min_quant}});
+        auto max_arg =
+            mm->add_literal(migraphx::literal{migraphx::shape{zp_shape.type()}, {max_quant}});
+        min_arg = mm->add_instruction(
+            migraphx::make_op("multibroadcast", {{"out_lens", zp_shape.lens()}}), min_arg);
+        max_arg = mm->add_instruction(
+            migraphx::make_op("multibroadcast", {{"out_lens", zp_shape.lens()}}), max_arg);
+        auto saturate =
+            mm->add_instruction(migraphx::make_op("clip"), {add_zero_point, min_arg, max_arg});
+        mm->add_instruction(
+            migraphx::make_op("convert", {{"target_type", migraphx::shape::int8_type}}), saturate);
+    };
+
+    run_pass(*p_run.get_main_module());
+    EXPECT(p_run == p_expected);
+}
+
+// should not have a nearbyint operation
+TEST_CASE(quantize_to_floating_point_type)
+{
+    migraphx::shape xs{migraphx::shape::float_type, {2, 2, 2}};
+    migraphx::shape zs{migraphx::shape::get_type<migraphx::fp8::fp8e4m3fn>{}, {2, 2, 2}};
+    std::vector<float> xv  = {0.5, 0.75, -0.4375, 0.6875, -0.9375, -0.9375, 0.625, -0.5625};
+    std::vector<float> sv  = {0.25, 0.75, 0.5625, 0.4375, 0.8125, -0.6875, 0.875, -0.0625};
+    std::vector<float> tmp = {0.6875, 0.75, -0.75, 0.5, -0.0625, 0.0625, -0.375, 0.25};
+    std::vector<migraphx::fp8::fp8e4m3fn> zero_pts;
+    std::transform(tmp.begin(), tmp.end(), std::back_inserter(zero_pts), [](auto x) {
+        return migraphx::fp8::fp8e4m3fn(x);
+    });
+
+    migraphx::program p_run;
+    {
+        auto* mm = p_run.get_main_module();
+        auto x   = mm->add_literal(xs, xv);
+        auto s   = mm->add_literal(xs, sv);
+        auto z   = mm->add_literal(zs, zero_pts);
+        mm->add_instruction(migraphx::make_op("quantizelinear"), x, s, z);
+    };
+
+    migraphx::program p_expected;
+    {
+        auto* mm        = p_expected.get_main_module();
+        auto x          = mm->add_literal(xs, xv);
+        auto s          = mm->add_literal(xs, sv);
+        auto z          = mm->add_literal(zs, zero_pts);
+        auto div        = mm->add_instruction(migraphx::make_op("div"), x, s);
+        auto zero_point = mm->add_instruction(
+            migraphx::make_op("convert", {{"target_type", migraphx::shape::float_type}}), z);
+        auto add_zero_point = mm->add_instruction(migraphx::make_op("add"), div, zero_point);
+        double max_quant    = 0;
+        double min_quant    = 0;
+        auto zp_shape       = add_zero_point->get_shape();
+        zs.visit_type([&](auto qt) {
+            max_quant = qt.max();
+            min_quant = qt.min();
+        });
+        auto min_arg =
+            mm->add_literal(migraphx::literal{migraphx::shape{zp_shape.type()}, {min_quant}});
+        auto max_arg =
+            mm->add_literal(migraphx::literal{migraphx::shape{zp_shape.type()}, {max_quant}});
+        min_arg = mm->add_instruction(
+            migraphx::make_op("multibroadcast", {{"out_lens", zp_shape.lens()}}), min_arg);
+        max_arg = mm->add_instruction(
+            migraphx::make_op("multibroadcast", {{"out_lens", zp_shape.lens()}}), max_arg);
+        auto saturate =
+            mm->add_instruction(migraphx::make_op("clip"), {add_zero_point, min_arg, max_arg});
+        mm->add_instruction(
+            migraphx::make_op("convert", {{"target_type", migraphx::shape::fp8e4m3fn_type}}),
+            saturate);
+    };
+
+    run_pass(*p_run.get_main_module());
+    EXPECT(p_run == p_expected);
 }
 
 int main(int argc, const char* argv[]) { test::run(argc, argv); }

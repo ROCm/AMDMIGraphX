@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2024 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2025 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -87,8 +87,17 @@ struct quantizelinear
                 auto min_value   = std::numeric_limits<quant_type>::lowest();
                 auto max_value   = std::numeric_limits<quant_type>::max();
                 par_for(output_shape.elements(), [&](auto i) {
-                    double quantized = static_cast<double>(std::nearbyint(input[i] / scales[i])) +
-                                       static_cast<double>(zero_pts[i]);
+                    double quantized;
+                    if constexpr(std::is_integral<quant_type>{})
+                    {
+                        quantized = static_cast<double>(std::nearbyint(input[i] / scales[i])) +
+                                    static_cast<double>(zero_pts[i]);
+                    }
+                    else
+                    {
+                        quantized = static_cast<double>(input[i]) / static_cast<double>(scales[i]) +
+                                    static_cast<double>(zero_pts[i]);
+                    }
                     output[i] = std::max(static_cast<double>(min_value),
                                          std::min(static_cast<double>(max_value), quantized));
                 });

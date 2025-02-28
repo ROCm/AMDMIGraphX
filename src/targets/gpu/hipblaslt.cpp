@@ -59,6 +59,7 @@ bool hipblaslt_supported()
     // hipblaslt is supported for MI200 and above, and Navi3x and above.
     return (device_name == "gfx90a" or
             (starts_with(device_name, "gfx94") and device_name >= "gfx940") or
+            (starts_with(device_name, "gfx95") and device_name >= "gfx950") or
             starts_with(device_name, "gfx110") or starts_with(device_name, "gfx120"));
 }
 

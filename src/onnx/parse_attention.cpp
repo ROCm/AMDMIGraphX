@@ -217,7 +217,7 @@ struct parse_attention : op_parser<parse_attention>
         }
 
         // Ensure qkv_hidden sizes set are valid wrt to input weights
-        qkv_sizes_sum_arg_valid(attr_out.qkv_hidden_sizes, weight_tensor, 2, "weights");
+        qkv_sizes_sum_arg_valid(attr_out.qkv_hidden_sizes, weight_tensor, 1, "weights");
 
         output_arg_vec.push_back(weight_tensor);
     }
@@ -329,21 +329,30 @@ struct parse_attention : op_parser<parse_attention>
                                                     bool masked=false,
                                                     bool attn_bias=false)
     {
-        auto k_trans = info.add_instruction(make_op("tranpose"), K);
+        auto k_trans = info.add_instruction(make_op("transpose", {{"permutation", {0, 2, 1}}}), K);
+        k_trans->debug_print();
         auto qk_out = info.add_instruction(make_op("dot"), Q, k_trans);
-        auto qk_scaled = info.add_instruction(make_op("div"), qk_out, scale_factor);
+        qk_out->debug_print();
+        auto qk_scaled = info.add_common_op("div", qk_out, scale_factor);
+
+        qk_scaled->debug_print();
 
         auto qk_masked = qk_scaled;
 
+        qk_masked->debug_print();
+
         if(masked)
-            qk_masked = info.add_instruction(make_op("add"), qk_scaled, mask);
+            qk_masked = info.add_common_op("add", qk_scaled, mask);
 
         auto qk_biased = qk_masked;
         if(attn_bias)
-            qk_biased = info.add_instruction(make_op("add"), qk_masked, bias);
+            qk_biased = info.add_common_op("add", qk_masked, bias);
 
         auto softmax_out = info.add_instruction(make_op("softmax"), qk_biased);
-        return info.add_instruction(make_op("dot"), softmax_out, V);
+        softmax_out->debug_print();
+        auto output = info.add_instruction(make_op("dot"), softmax_out, V);
+        output->debug_print();
+        return output;
     }
 
     // Get Q, K, V matricies from stacked weight matrix
@@ -360,16 +369,41 @@ struct parse_attention : op_parser<parse_attention>
         // Input encodes the batch, sequence_length and input_hidden_size (also known as embedding size) 
         auto input_lens = input->get_shape().lens();
 
+        auto stacked_weights_unsq = info.add_instruction(make_op("unsqueeze", {{"axes", {0}}}), stacked_weights);
+        stacked_weights_unsq->debug_print();
+
         // Input stacked weights are (input_hidden_size, hidden_size + hidden_size + v_hidden_size) so slice out parts for each matrix
         // Since we known the input_hidden size is one dimension wee need to slice out the weight tensors accordingly before we perform matmul
-        auto q_weight = info.add_instruction(make_op("slice", {{"axes",{1}}, {"starts", {0}}, {"ends", {qkv_sizes.at(0)-1}}}), stacked_weights);
-        auto k_weight = info.add_instruction(make_op("slice", {{"axes",{1}}, {"starts", {qkv_sizes.at(0)}}, {"ends", {qkv_sizes.at(1) + qkv_sizes.at(0) - 1}}}), stacked_weights);
-        auto v_weight = info.add_instruction(make_op("slice", {{"axes",{1}}, {"starts", {qkv_sizes.at(0) + qkv_sizes.at(1)}}, {"ends", {qkv_sizes.at(0) + qkv_sizes.at(1) + qkv_sizes.at(2) -1 }}}), stacked_weights);
+        auto q_weight = info.add_instruction(make_op("slice", {{"axes",{2}}, {"starts", {0}}, {"ends", {qkv_sizes.at(0)-1}}}), stacked_weights_unsq);
+        auto k_weight = info.add_instruction(make_op("slice", {{"axes",{2}}, {"starts", {qkv_sizes.at(0)}}, {"ends", {qkv_sizes.at(1) + qkv_sizes.at(0) - 1}}}), stacked_weights_unsq);
+        auto v_weight = info.add_instruction(make_op("slice", {{"axes",{2}}, {"starts", {qkv_sizes.at(0) + qkv_sizes.at(1)}}, {"ends", {qkv_sizes.at(0) + qkv_sizes.at(1) + qkv_sizes.at(2) -1 }}}), stacked_weights_unsq);
+
+        q_weight->debug_print();
+        k_weight->debug_print();
+        v_weight->debug_print();
+
+        // Add in batch dimension to weights
+        auto qk_lens = q_weight->get_shape().lens(); 
+        qk_lens.at(0) = input_lens.at(0);
+        auto v_lens = v_weight->get_shape().lens();
+        v_lens.at(0) = input_lens.at(0);
+
+        std::cout << qk_lens.at(0) << "," << qk_lens.at(1) << "," << qk_lens.at(2) << std::endl;
+
+        //Broadcast to batch size
+        auto q_weight_bcast = info.add_instruction(make_op("multibroadcast", {{"out_lens", qk_lens}}), q_weight);
+        auto k_weight_bcast = info.add_instruction(make_op("multibroadcast", {{"out_lens", qk_lens}}), k_weight);
+        auto v_weight_bcast = info.add_instruction(make_op("multibroadcast", {{"out_lens", v_lens}}), v_weight);
+
+        q_weight_bcast->debug_print();
+        k_weight_bcast->debug_print();
+        v_weight_bcast->debug_print();
+        input->debug_print();
 
         // Broadcast by batch then multiply
-        Q = info.add_instruction(make_op("mul"), input, q_weight);
-        K = info.add_instruction(make_op("mul"), input, k_weight);
-        V = info.add_instruction(make_op("mul"), input, v_weight);
+        Q = info.add_instruction(make_op("dot"), input, q_weight_bcast);
+        K = info.add_instruction(make_op("dot"), input, k_weight_bcast);
+        V = info.add_instruction(make_op("dot"), input, v_weight_bcast);
     }
 
     std::vector<instruction_ref> parse(const op_desc& /*opd*/,
@@ -404,16 +438,25 @@ struct parse_attention : op_parser<parse_attention>
         // Used to scale all key values before any masking or other inputs
         auto scale_factor = info.add_literal(migraphx::literal{migraphx::shape{k->get_shape().type()}, {std::sqrt(k->get_shape().elements()) } } );
 
+        instruction_ref output;
         //Get vector of attention heads and then concat the output results
-        std::vector<instruction_ref> vec_of_attn_outs(parsed_attributes.num_heads);
-        std::transform(vec_of_attn_outs.begin(),
-                       vec_of_attn_outs.end(),
-                       vec_of_attn_outs.begin(),
-                       std::back_inserter(vec_of_attn_outs),
-                       [&](auto&&, auto&& ) {
-                           return scale_dot_attention_head(info, q, k, v, scale_factor, mask, attn_bias, has_mask, has_bias);
-                        });
-        auto output = info.add_instruction(make_op("concat"), vec_of_attn_outs);
+        if(parsed_attributes.num_heads > 1)
+        {
+            std::vector<instruction_ref> vec_of_attn_outs(parsed_attributes.num_heads);
+            std::transform(vec_of_attn_outs.begin(),
+                        vec_of_attn_outs.end(),
+                        vec_of_attn_outs.begin(),
+                        [&](auto&&) {
+                            return scale_dot_attention_head(info, q, k, v, scale_factor, mask, attn_bias, has_mask, has_bias);
+                            });
+            output = info.add_instruction(make_op("concat"), vec_of_attn_outs);
+        }
+        else 
+        {
+            output = scale_dot_attention_head(info, q, k, v, scale_factor, mask, attn_bias, has_mask, has_bias);
+        }
+
+        output->debug_print();
 
         std::vector<instruction_ref> output_vec{};
         output_vec.push_back(output);

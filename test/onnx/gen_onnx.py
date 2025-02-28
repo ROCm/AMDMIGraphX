@@ -394,7 +394,7 @@ def attention_test(
 
 @onnx_test()
 def attention_single_head_test():
-    return attention_test([1, 512, 512], [512, 32],
+    return attention_test([2, 512, 512], [512, 12],
                           num_heads=1,
                           qkv_hidden_sizes=[8, 8, 16])
 

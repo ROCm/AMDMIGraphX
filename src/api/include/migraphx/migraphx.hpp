@@ -486,7 +486,7 @@ struct interface_base : Base
               class = std::enable_if_t<std::is_void<X>{}>>
     static void call_cast_arg(rank<1>, F f, R result, X* obj, Xs... xs)
     {
-        f(*reinterpret_cast<T*>(obj), result, no_out_arg{}, xs...);
+        f(*static_cast<T*>(obj), result, no_out_arg{}, xs...);
     }
 
     template <class T,
@@ -498,7 +498,7 @@ struct interface_base : Base
               class = std::enable_if_t<std::is_void<X>{}>>
     static void call_cast_arg(rank<2>, F f, R1 result1, R2 result2, X* obj, Xs... xs)
     {
-        f(*reinterpret_cast<T*>(obj), result1, result2, xs...);
+        f(*static_cast<T*>(obj), result1, result2, xs...);
     }
 
     template <class F, class T1, class T2, class... Ts>

@@ -26,9 +26,9 @@ Full documentation for MIGraphX is available at
 * With the exception of gfx90a, switched to using hipBLASLt instead of rocBLAS
 * Included the min/max/median of the `perf` run as part of the summary report
 * Enable non-packed inputs for `rocMLIR`
-* Always output a packed type for q/dq
+* Always output a packed type for q/dq after determining non-packed tensors were inefficient
 * Even if using NHWC, MIGraphX will always convert group convolutions to NCHW for best performance 
-* Dont use mixed layouts with convolutions
+* Renamed the `layout_nhwc` to `layout_convolution` and ensured that either the weights are the same layout as the inputs or set the input and weights to NHWC
 * Minimum version of Cmake is now 3.27
 
 
@@ -42,14 +42,11 @@ Full documentation for MIGraphX is available at
 
 ### Optimized
 
-* Refactor GPU math functions for an accuracy improvement 
 * Prefill buffers when MLIR produces a multioutput buffer
 * Improved the resize operator performance which should improve overall performance of models that use it
-* Enable split reduce by default
+* Allow the `reduce` operator to be split across an axis to improve fusion performance.  The `MIGRAPHX_SPLIT_REDUCE_SIZE` environment variable has been added to allow the minimum size of the reduction to be adjusted for a possible model specific performance improvement
 * Added `MIGRAPHX_DISABLE_PASSES` environment variable for debugging
 * Added `MIGRAPHX_MLIR_DUMP` environment variable to be set to a folder where individual final rocMLIR modules can be saved for investigation
-* use reshape to handle Flatten operator
-* Updated cpp code guideline checks
 * Improved the C++ API to allow onnxruntime access to fp8 quantization
 
 
@@ -62,6 +59,7 @@ Full documentation for MIGraphX is available at
 * Fixed Attention fusion ito not error with a shape mismatch when a trailing pointwise contains a literal (#3758)
 * Fixed instruction::replace() logic to handle more complex cases (#3574)
 * MatMulNBits could fail with a shape error (#3698)
+* Fixed a bug were some models could fail to compile with an error `flatten: Shapes are not in standard layout` (#3579)
 
 
 

@@ -113,19 +113,16 @@ __device__ auto topk(Compare compare, T init)
                 MIGRAPHX_ASSERT(nper_wave >= k);
 
                 array<pair, nper_lane> local_buf;
-                // for(index_int i:range(nper_lane))
-                // {
-                //     local_buf[i].key = init;
-                //     local_buf[i].val = -1;
-                // }
-
-                // copy to registers
-                for(index_int i : range(nper_lane))
+                for(index_int i:range(nper_lane))
                 {
-                    auto j           = local_shape.index({idx.wave(), idx.local_wave(), i});
-                    local_buf[i].key = j < n ? x[j] : init;
-                    local_buf[i].val = get_index(j);
+                    local_buf[i].key = init;
+                    local_buf[i].val = -1;
                 }
+                // copy to registers
+                idx.local_stride(trimmed_n, [&](auto j, auto i) {
+                    local_buf[i].key = x[j];
+                    local_buf[i].val = get_index(j);
+                });
 
                 bitonic_sort{by(select_key(), compare)}.wave_sort(idx, local_buf);
 

@@ -29,6 +29,7 @@ add_executable(driver
     mlir.cpp
     models.cpp
     perf.cpp
+    trim.cpp
     marker_roctx.cpp
 )
 set_target_properties(driver PROPERTIES OUTPUT_NAME migraphx-driver)

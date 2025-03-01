@@ -346,7 +346,8 @@ def attention_test(
         # (batch_size, total_sequence_length)
         # (batch_size, sequence_length, total_sequence_length)
         # (batch_size) or (2*batch_size) or (3* batch_size + 2)
-        mask_index = helper.make_tensor_value_info('mask_index', TensorProto.INT32,
+        mask_index = helper.make_tensor_value_info('mask_index',
+                                                   TensorProto.INT32,
                                                    mask_dims)
         input_name_list.append('mask_index')
         input_list.append(mask_index)

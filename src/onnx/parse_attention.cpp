@@ -35,39 +35,45 @@ struct parse_attention : op_parser<parse_attention>
 {
     std::vector<op_desc> operators() const { return {{"Attention"}}; }
 
-    enum mask_index_pad{
-        NONE,
-        RIGHT_PADDING,
-        LEFT_PADDING,
+    enum mask_index_pad{ // Used to check mask_index when input vector size == 2
+        NONE,            // Not Set - If input isn't set indicates this is an error with op
+        RIGHT_PADDING,   // second dimension is (batch_size)
+        LEFT_PADDING,    // second dimension
     };
+
+    enum attention_mode{  // Important to determine how to calculate total_sequence_length
+        NONE,             // Not Set - If Past/Present used this indicates an error with op
+        SELF,             // Implies K,V lengths equaual and equal to sequence_length 
+        CROSS_ATTENTION,  // Relevant as K/V may have different lengths in this case
+    }
 
     // For items explicitly parsed from attributes
     struct attention_attr
     {
-        bool do_rotary                 = false;
-        bool past_present_share_buffer = false;
-        bool unidirectional            = false; 
-        std::size_t num_heads          = 1;   //required by inputs 
-        std::size_t rotary_embedding_dim = 0; // Gets set to head_size when not set
+        bool do_rotary                 = false; // Rotary encode input prior to projection with weight matrices
+        bool past_present_share_buffer = false; // Related to past input shares buffer with present output
+        bool unidirectional            = false; // Related to state of inputs
+        std::size_t num_heads          = 1;     // Required by inputs 
+        std::size_t rotary_embedding_dim = 0;   // Gets set to head_size when not set
         std::vector<std::size_t> qkv_hidden_sizes{0, 0, 0}; //Sets hidden sizes if not set defiend by input
-        float scale              = 0.0;       // Default should be 1/sqrt(head_size)
-        float mask_filter_val    = -10000.0f;
+        float scale              = 0.0;         // Default 1/sqrt(query_size) (query_size also known as head_size)
+        float mask_filter_val    = -10000.0f;   // Default value used for masking our input encoding
     };
 
     // Values infered from input vectors or attributes
     struct attention_infered
     {
-        std::size_t batch_size;        // Pull from input
-        std::size_t input_hidden_size; // Pulled from input and/or weights
-        std::size_t hidden_size;   // Pulled from weights vector (weights.at(1) / 2)
-        std::size_t v_hidden_size; // Value weight size
-        std::size_t sequence_length; // Pulled from input dimension(1)
-        std::size_t max_sequence_length; // Pulled from mask_index
-        std::size_t total_sequence_length; // Pulled from mask_index
-        std::size_t query_size; // via input_hidden_size / num_heads. Used to split QKV matricies to operate on
-        float head_size; // Used for the scale factor of attention. Also known as Query Size
-        bool has_past_input = false; // Set to true when we have past input. Required we add present output when this is set
-        enum mask_index_pad index_pad = NONE;
+        std::size_t batch_size;            // From input dim(1)
+        std::size_t input_hidden_size;     // From input dim(3) - Also known as embeddng_size in literature
+        std::size_t hidden_size;           // From weights or qkv_hidden_sizes, related to q,k size which must be equal
+        std::size_t v_hidden_size;         // From weights or qkv_hiddn_sizes - differs during cross attention_mode
+        std::size_t sequence_length;       // Pulled from input dim(1), must be consistent between other parms
+        std::size_t max_sequence_length;   // Pulled from mask_index 
+        std::size_t total_sequence_length; // Pulled from past_seq_length + sequence_length
+        std::size_t query_size;            // Also known as head_size. Derived via num_heads
+        bool has_past_input = false;       // Set to true when we have past input. Present output required when set
+        enum mask_index_pad index_pad;     // Used to track state of input projection mask padding
+        enum attention_mode attn_type;     // Used to determine the attention configuration
     };
 
     static void handle_attributes(const onnx_parser& parser,

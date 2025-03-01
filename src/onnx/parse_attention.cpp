@@ -35,6 +35,13 @@ struct parse_attention : op_parser<parse_attention>
 {
     std::vector<op_desc> operators() const { return {{"Attention"}}; }
 
+    enum mask_index_pad{
+        NONE,
+        RIGHT_PADDING,
+        LEFT_PADDING,
+    };
+
+    // For items explicitly parsed from attributes
     struct attention_attr
     {
         bool do_rotary                 = false;
@@ -47,16 +54,20 @@ struct parse_attention : op_parser<parse_attention>
         float mask_filter_val    = -10000.0f;
     };
 
-    // Values infered from input vectors
+    // Values infered from input vectors or attributes
     struct attention_infered
     {
         std::size_t batch_size;        // Pull from input
         std::size_t input_hidden_size; // Pulled from input and/or weights
         std::size_t hidden_size;   // Pulled from weights vector (weights.at(1) / 2)
         std::size_t v_hidden_size; // Value weight size
-        std::size_t sequence_length;
+        std::size_t sequence_length; // Pulled from input dimension(1)
+        std::size_t max_sequence_length; // Pulled from mask_index
+        std::size_t total_sequence_length; // Pulled from mask_index
+        std::size_t query_size; // via input_hidden_size / num_heads. Used to split QKV matricies to operate on
         float head_size; // Used for the scale factor of attention. Also known as Query Size
         bool has_past_input = false; // Set to true when we have past input. Required we add present output when this is set
+        enum mask_index_pad index_pad = NONE;
     };
 
     static void handle_attributes(const onnx_parser& parser,
@@ -168,6 +179,7 @@ struct parse_attention : op_parser<parse_attention>
     }
 
     static void handle_input(const instruction_ref& input_arg,
+                             const struct attention_attr& parsed_in,
                              struct attention_infered& infered_out,
                              std::vector<instruction_ref>& output_arg_vec)
     {
@@ -177,6 +189,11 @@ struct parse_attention : op_parser<parse_attention>
         infered_out.batch_size        = input_shape.lens().at(0);
         infered_out.sequence_length   = input_shape.lens().at(1);
         infered_out.input_hidden_size = input_shape.lens().at(2);
+
+        // Determine the query_size used to generate attention heads that operate on each Q, K, V 
+        // matrix.
+        infered_out.query_size = infered_out.sequence_length / parsed_in.num_heads;
+
         output_arg_vec.push_back(input_tensor);
 
     }
@@ -242,6 +259,65 @@ struct parse_attention : op_parser<parse_attention>
         }
     }
 
+    static void check_mask_index_shapes(const std::vector<size_t>& mask_index_lens,
+                                         struct attention_infered& infered_out)
+    {
+        // Mask index is handled differently based on size of the input.
+        //
+        // raw attention mask has shape (batch, total sequence_length) 
+        //                           or (batch, seq_length, total_sequence_length) with 0/1 values
+        //                          where: total_sequence_length = sequence_length + past_sequence_length
+        //
+        // Right side padded has shape (batch) - value is sequence_length excluding padding
+        // Left side Padding has shape (2 * batch) with inclusive start and exclusive end positions
+        if(mask_index_lens.size() == 1)
+        { // check left or right padding case
+            if(mask_index_lens.at(0) == infered_out.batch_size)
+            {
+                infered_out.index_pad = RIGHT_PADDING;
+            }
+            else if(mask_index_lens.at(0) == (infered_out.batch_size * 2))
+            {
+                infered_out.index_pad = LEFT_PADDING;
+            }
+            else
+            {
+                MIGRAPHX_THROW("Attention: Invalid Mask_Index padding shape\n \
+                                Use (batch) for Right Pad \n OR (batch *2) for Left Pad modes)");
+            }
+        }
+        else if(mask_index_lens.size() == 2)
+        { // This case assumes potentially past is set which is captured in total_sequence_length
+            if(mask_index_lens.at(0) != infered_out.batch_size or 
+               mask_index_lens.at(1) != infered_out.total_sequence_length)
+            {
+                MIGRAPHX_THROW("Attention: Invalid Mask_Index shape\n \
+                                Use (batch, total_sequence_length) for shapes of size 2");
+            }
+        }
+        else if(mask_index_lens.size() == 3)
+        { // Similar to case 2 but with sequence length in dim 1
+            if(mask_index_lens.at(0) != infered_out.batch_size or 
+               mask_index_lens.at(1) != infered_out.sequence_length or
+               mask_index_lens.at(2) != infered_out.total_sequence_length)
+            {
+                MIGRAPHX_THROW("Attention: Invalid Mask_Index shape\n \
+                                Use (batch, sequence_length, total_sequence_length) for shapes of size 3");
+            }
+        }
+        else if(mask_index_lens.size() == 4)
+        { // Oddball case and can be used to infer max_sequence_length_parameter
+            if(mask_index_lens.at(0) != infered_out.batch_size or 
+               mask_index_lens.at(1) != 1 or 
+               mask_index_lens.at(2) != mask_index_lens.at(3))
+            {
+                MIGRAPHX_THROW("Attention: Invalid Mask_Index shape\n  \
+                                Use (batch, 1, max_sequence_length, max_sequence_length) for shapes of size 4");
+            }
+            infered_out.max_sequence_length = mask_index_lens.at(2);
+        }
+    }
+
     static void handle_mask_index(const std::vector<instruction_ref>& args,
                                   struct attention_attr& attr_out,
                                   struct attention_infered& infered_out,
@@ -250,7 +326,15 @@ struct parse_attention : op_parser<parse_attention>
         instruction_ref mask_index;
         if(check_and_return_arg(args, 3, mask_index))
         {
+            auto mask_index_shape = mask_index->get_shape();
+            auto mask_index_lens  = mask_index_shape.lens();
+            bool mask_index_is_trash = false;
 
+            if(mask_index_shape.type() != migraphx::shape::int32_type)
+            {
+                MIGRAPHX_THROW("Attention: Mask_Index type must be int32 type");
+            }
+            check_mask_index_shapes(mask_index_lens, infered_out);
 
             output_arg_vec.push_back(mask_index);
         }
@@ -306,7 +390,7 @@ struct parse_attention : op_parser<parse_attention>
             MIGRAPHX_THROW("Attention: Wrong number of inputs provided");
         }
 
-        handle_input(args.at(0), infered_out, input_arguments);
+        handle_input(args.at(0), attr_out, infered_out, input_arguments);
         handle_weight(args.at(1), args.at(0), attr_out, infered_out, input_arguments);
 
         // Handle theses individually. Order matters here to check conditions

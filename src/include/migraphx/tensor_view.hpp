@@ -149,9 +149,15 @@ struct tensor_view
 
     iterator begin() { return {0, {this}}; }
 
+    template<class Range>
+    iterator begin_at(const Range& r) { return {this->m_shape.single(r.begin(), r.end()), {this}}; }
+
     iterator end() { return {this->size(), {this}}; }
 
     const_iterator begin() const { return {0, {this}}; }
+    
+    template<class Range>
+    const_iterator begin_at(const Range& r) const { return {this->m_shape.single(r.begin(), r.end()), {this}}; }
 
     const_iterator end() const { return {this->size(), {this}}; }
 

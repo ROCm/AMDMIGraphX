@@ -290,6 +290,15 @@ struct MIGRAPHX_EXPORT shape
     /// Check if a multi-dimensional index is within bounds for the shape.
     bool multi_within_bounds(std::vector<std::size_t> multi) const;
 
+    /// Convert multi-dimensional index into a single element index
+    template <class Iterator>
+    std::size_t single(Iterator start, Iterator last) const
+    {
+        if(start == last)
+            return 0;
+        return inner_product(this->lens().begin() + 1, this->lens().end(), start, *std::prev(last));
+    }
+
     /// Returns true if the shape is packed (number of elements and buffer size the same) with
     /// no padding
     bool packed() const;

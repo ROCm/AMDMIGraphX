@@ -112,49 +112,42 @@ struct topk
         auto vec_ss = output_shape.sub_shapes();
         argument res_val{vec_ss.front()};
         argument res_ind{vec_ss.back()};
-        auto in_s      = args.front().get_shape();
-        auto out_s     = vec_ss.front();
-        auto comp_lens = in_s.lens();
-        auto axis_dim  = comp_lens[axis];
-
-        // compute shape
-        comp_lens[axis] = 1;
-        shape comp_s{in_s.type(), comp_lens};
-        visit_all(res_val, args.front())([&](auto out_val, auto input) {
-            auto* out_ind = res_ind.cast<int64_t>();
-            par_for(comp_s.elements(), [&](auto i) {
-                auto idx = comp_s.multi(i);
-                std::vector<std::size_t> indices(k);
-                std::iota(indices.begin(), indices.end(), 0);
-
-                auto comp = [&](auto i1, auto i2) {
-                    auto idx1  = idx;
-                    auto idx2  = idx;
-                    idx1[axis] = i1;
-                    idx2[axis] = i2;
-                    return this->largest
-                               ? std::greater<>{}(input[in_s.index(idx1)], input[in_s.index(idx2)])
-                               : std::less<>{}(input[in_s.index(idx1)], input[in_s.index(idx2)]);
-                };
-
-                auto hp = this->make_heap(indices, comp);
-                for(std::size_t ii = indices.size(); ii < axis_dim; ++ii)
-                {
-                    hp.try_push(ii);
-                }
-                auto sorted_indices = hp.sort();
-                auto out_idx        = idx;
-                auto in_idx         = idx;
-                for(auto j : range(sorted_indices.size()))
-                {
-                    out_idx[axis]                 = j;
-                    in_idx[axis]                  = sorted_indices[j];
-                    out_val[out_s.index(out_idx)] = input[in_s.index(in_idx)];
-                    out_ind[out_s.index(out_idx)] = sorted_indices[j];
-                }
+        auto in_val = args.front();
+        auto relements = in_val.get_shape().lens()[axis];
+        auto make_indices = [&](const auto& m_idx) {
+            return [&](int64_t i) {
+                if (args.size() < 2)
+                    return i;
+                auto j = m_idx;
+                j[axis] = i;
+                return args[1].at<int64_t>(j);
+            };
+        };
+        auto outer_lens = in_val.get_shape().lens();
+        outer_lens[axis] = 1;
+        shape outer_shape{in_val.get_shape().type(), outer_lens};
+        visit_all(res_val, args.front())([&](auto output, auto input) {
+            res_ind.visit([&](auto out_ind) {
+                using type = typename decltype(input)::value_type;
+                std::vector<std::pair<type, int64_t>> data(relements);
+                par_for(outer_shape.elements(), [&](auto i) {
+                    auto outer_idx = outer_shape.multi(i);
+                    auto x = input.begin_at(outer_idx);
+                    auto y = output.begin_at(outer_idx);
+                    auto y_ind = out_ind.begin_at(outer_idx);
+                    auto get_index = make_indices(outer_idx);
+                    transform(range(relements), data.begin(), [&](auto j) {
+                        return std::make_pair(x[j], get_index(j));
+                    });
+                    if(this->largest)
+                        std::partial_sort(data.begin(), data.begin()+k, data.end(), std::greater<>{});
+                    else
+                        std::partial_sort(data.begin(), data.begin()+k, data.end(), std::less<>{});
+                    std::transform(data.begin(), data.begin()+this->k, y, [](const auto& p) { return p.first; });
+                    std::transform(data.begin(), data.begin()+this->k, y_ind, [](const auto& p) { return p.second; });
+                });
             });
         });
-
         return {{res_val, res_ind}};
     }
 };

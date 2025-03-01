@@ -70,8 +70,8 @@ struct raw_data : raw_data_base
      * @param v A function which will be called with the type of data
      * @param n The index to read from
      */
-    template <class Visitor>
-    void visit_at(Visitor v, std::size_t n = 0) const
+    template <class Visitor, class Index = std::size_t>
+    void visit_at(Visitor v, Index n = 0) const
     {
         auto&& derived = static_cast<const Derived&>(*this);
         if(derived.empty())
@@ -118,8 +118,8 @@ struct raw_data : raw_data_base
      * @tparam T The type of data to be retrieved
      * @return The element as `T`
      */
-    template <class T>
-    T at(std::size_t n = 0) const
+    template <class T, class Index = std::size_t>
+    T at(Index n = 0) const
     {
         T result;
         this->visit_at([&](auto x) { result = x; }, n);

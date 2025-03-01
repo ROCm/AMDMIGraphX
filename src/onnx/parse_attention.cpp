@@ -380,6 +380,10 @@ struct parse_attention : op_parser<parse_attention>
         instruction_ref past_seq_length;
         if(check_and_return_arg(args, 6, past_seq_length))
         {
+            if(past_seq_length->get_shape().type() != shape::int32_type)
+            {
+                MIGRAPHX_THROW("past_sequence_length must be of type int32")
+            }
             output_arg_vec.push_back(past_seq_length);
         }
     }

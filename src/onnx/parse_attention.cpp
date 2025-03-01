@@ -412,12 +412,40 @@ struct parse_attention : op_parser<parse_attention>
         return input_arguments;
     }
 
+    static std::vector<instruction_ref> even_split(const onnx_parser::node_info& info, 
+                                                   const instruction_ref& input_matrix,
+                                                   const size_t axis,
+                                                   const size_t num_heads,
+                                                   const size_t query_size)
+    {
+        std::vector<instruction_ref> result;
+
+        input_matrix->debug_print();
+        for(auto i = 0; i < num_heads; i++)
+        {
+            auto starts = i * query_size;
+            auto ends   = starts + query_size;
+            auto op     = make_op("slice", {{"axes", axis}, {"starts", {starts}}, {"ends", {ends}}});
+
+            result.push_back(info.add_instruction(op, input_matrix));
+        }
+        return result;
+    }
+
     static std::vector<std::vector<instruction_ref>> qkv_split_per_head(const onnx_parser::node_info& info,
                                                            const std::vector<instruction_ref>& qkv_mats,
                                                            const attention_attr& attr_in,
                                                            const attention_infered& infered_in)
     {
-        std::vector<std::vector<instruction_ref>> qkv_split;
+        auto num_heads  = attr_in.num_heads;
+        auto query_size = infered_in.query_size;
+
+        auto split_q    = even_split(info, qkv_mats.at(0), 1, num_heads, query_size);
+        auto split_k    = even_split(info, qkv_mats.at(1), 1, num_heads, query_size);
+        auto split_v    = even_split(info, qkv_mats.at(2), 1, num_heads, query_size);
+
+        std::vector<std::vector<instruction_ref>> qkv_split = {split_q, split_k, split_v};
+
         return qkv_split;
     } 
 
@@ -470,13 +498,15 @@ struct parse_attention : op_parser<parse_attention>
         // Input encodes the batch, sequence_length and input_hidden_size (also known as embedding size) 
         auto input_lens = input->get_shape().lens();
 
+        stacked_weights->debug_print();
+
         auto stacked_weights_unsq = info.add_instruction(make_op("unsqueeze", {{"axes", {0}}}), stacked_weights);
 
         // Input stacked weights are (input_hidden_size, hidden_size + hidden_size + v_hidden_size) so slice out parts for each matrix
         // Since we known the input_hidden size is one dimension wee need to slice out the weight tensors accordingly before we perform matmul
-        auto q_weight = info.add_instruction(make_op("slice", {{"axes",{2}}, {"starts", {0}}, {"ends", {qkv_sizes.at(0)-1}}}), stacked_weights_unsq);
-        auto k_weight = info.add_instruction(make_op("slice", {{"axes",{2}}, {"starts", {qkv_sizes.at(0)}}, {"ends", {qkv_sizes.at(1) + qkv_sizes.at(0) - 1}}}), stacked_weights_unsq);
-        auto v_weight = info.add_instruction(make_op("slice", {{"axes",{2}}, {"starts", {qkv_sizes.at(0) + qkv_sizes.at(1)}}, {"ends", {qkv_sizes.at(0) + qkv_sizes.at(1) + qkv_sizes.at(2) -1 }}}), stacked_weights_unsq);
+        auto q_weight = info.add_instruction(make_op("slice", {{"axes",{2}}, {"starts", {0}}, {"ends", {qkv_sizes.at(0)}}}), stacked_weights_unsq);
+        auto k_weight = info.add_instruction(make_op("slice", {{"axes",{2}}, {"starts", {qkv_sizes.at(0)}}, {"ends", {qkv_sizes.at(1) + qkv_sizes.at(0)}}}), stacked_weights_unsq);
+        auto v_weight = info.add_instruction(make_op("slice", {{"axes",{2}}, {"starts", {qkv_sizes.at(0) + qkv_sizes.at(1)}}, {"ends", {qkv_sizes.at(0) + qkv_sizes.at(1) + qkv_sizes.at(2)}}}), stacked_weights_unsq);
 
         // Add in batch dimension to weights
         auto qk_lens = q_weight->get_shape().lens(); 
@@ -484,15 +514,20 @@ struct parse_attention : op_parser<parse_attention>
         auto v_lens = v_weight->get_shape().lens();
         v_lens.at(0) = input_lens.at(0);
 
+        q_weight->debug_print();
+
         //Broadcast to batch size
         auto q_weight_bcast = info.add_instruction(make_op("multibroadcast", {{"out_lens", qk_lens}}), q_weight);
         auto k_weight_bcast = info.add_instruction(make_op("multibroadcast", {{"out_lens", qk_lens}}), k_weight);
         auto v_weight_bcast = info.add_instruction(make_op("multibroadcast", {{"out_lens", v_lens}}), v_weight);
 
+        q_weight_bcast->debug_print();
+
         // Broadcast by batch then multiply
         auto Q = info.add_instruction(make_op("dot"), input, q_weight_bcast);
         auto K = info.add_instruction(make_op("dot"), input, k_weight_bcast);
         auto V = info.add_instruction(make_op("dot"), input, v_weight_bcast);
+        Q->debug_print();
 
         std::vector<instruction_ref>qkv_mats{Q, K, V};
         return qkv_mats;

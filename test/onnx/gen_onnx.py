@@ -337,8 +337,8 @@ def attention_test(
     if len(bias_dims) > 0:
         # Bias shape should be (hidden_size + hiddeN_size + v_hidden_size)
         bias = helper.make_tensor_value_info('bias', dtype, bias_dims)
-        input_name_list.push('bias')
-        input_list.push(bias)
+        input_name_list.append('bias')
+        input_list.append(bias)
 
     if len(mask_dims) > 0:
         # allowable shapes
@@ -346,35 +346,35 @@ def attention_test(
         # (batch_size, total_sequence_length)
         # (batch_size, sequence_length, total_sequence_length)
         # (batch_size) or (2*batch_size) or (3* batch_size + 2)
-        mask_index = helper.make_tensor_value_info('mask_index', INT32,
+        mask_index = helper.make_tensor_value_info('mask_index', TensorProto.INT32,
                                                    mask_dims)
-        input_name_list.push('mask_index')
-        input_list.push(mask_index)
+        input_name_list.append('mask_index')
+        input_list.append(mask_index)
 
     if len(past_dims) > 0:
         # (2, batch_size, num_heads, past_sequence_length, head_size)
         # (2, batch_size, num_heads, max_seq_length, head_size) when past/present share buffer
         past = helper.make_tensor_value_info('past', dtype, past_dims)
-        input_name_list.push('past')
-        input_list.push(past)
+        input_name_list.append('past')
+        input_list.append(past)
 
     if len(attention_bias_dims) > 0:
         # (batch_size, or 1, num_heads or 1, sequence_length, total_sequence_length)
         attention_bias = helper.make_tensor_value_info('attention_bias', dtype,
                                                        attention_bias_dims)
-        input_name_list.push('attention_bias')
-        input_list.push(attention_bias)
+        input_name_list.append('attention_bias')
+        input_list.append(attention_bias)
 
     if past_present_share_buffer > 0:
         past_sequence_length = helper.make_tensor_value_info(
             'past_sequence_length', INT32, past_sequence_length)
-        input_name_list.push('past_sequence_length')
-        input_list.push(past_sequence_length)
+        input_name_list.append('past_sequence_length')
+        input_list.append(past_sequence_length)
 
     # Additional output vector
     if present_dims:
-        output_name_list.push('present')
-        output_list.push('present')
+        output_name_list.append('present')
+        output_list.append('present')
 
     node = onnx.helper.make_node(
         'Attention',

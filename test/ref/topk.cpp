@@ -30,54 +30,77 @@
 
 #include <test.hpp>
 
-TEST_CASE(topk_test)
+auto run_program(int64_t k, int64_t axis, int largest, bool custom_idx=false)
 {
-    auto create_program = [](int64_t k, int64_t axis, int largest) {
-        migraphx::program p;
-        auto* mm = p.get_main_module();
-        migraphx::shape s{migraphx::shape::float_type, {3, 5}};
-        auto data = mm->add_parameter("data", s);
-        auto r    = mm->add_instruction(
-            migraphx::make_op("topk", {{"axis", axis}, {"k", k}, {"largest", largest}}), data);
-        auto r0 = mm->add_instruction(migraphx::make_op("get_tuple_elem", {{"index", 0}}), r);
-        auto r1 = mm->add_instruction(migraphx::make_op("get_tuple_elem", {{"index", 1}}), r);
-        mm->add_return({r0, r1});
-
-        return p;
-    };
-
-    auto run_program = [&](int64_t k, int64_t axis, int largest) {
-        auto p = create_program(k, axis, largest);
-        p.compile(migraphx::make_target("ref"));
-        std::vector<float> data = {
-            2.1, 2.3, 2.0, 2.5, 1.9, 3.3, 0.2, 4.5, 0.1, 0.8, 1.0, 4.5, 2.1, 0.8, 1.5};
-        migraphx::shape s{migraphx::shape::float_type, {3, 5}};
-        migraphx::parameter_map pp;
-        pp["data"] = migraphx::argument(s, data.data());
-        auto rets  = p.eval(pp);
-        std::vector<float> ret_val;
-        rets.front().visit([&](auto v) { ret_val.assign(v.begin(), v.end()); });
-        std::vector<int64_t> ret_ind;
-        rets.back().visit([&](auto v) { ret_ind.assign(v.begin(), v.end()); });
-
-        return std::make_pair(ret_val, ret_ind);
-    };
-
-    // case 1
+    migraphx::program p;
+    auto* mm = p.get_main_module();
+    migraphx::shape s{migraphx::shape::float_type, {3, 5}};
+    auto data = mm->add_parameter("data", s);
+    std::vector<migraphx::instruction_ref> topk_inputs = {data};
+    if(custom_idx)
     {
-        auto results                = run_program(4, 1, 1);
-        std::vector<float> gold_val = {2.5, 2.3, 2.1, 2, 4.5, 3.3, 0.8, 0.2, 4.5, 2.1, 1.5, 1};
-        EXPECT(results.first == gold_val);
-        std::vector<int64_t> gold_ind = {3, 1, 0, 2, 2, 0, 4, 1, 1, 2, 4, 0};
-        EXPECT(results.second == gold_ind);
-    }
+        migraphx::shape is{migraphx::shape::uint16_type, {3, 5}};
+        std::vector<int16_t> indices(is.elements());
+        std::iota(indices.rbegin(), indices.rend(), 1);
+        topk_inputs.push_back(mm->add_literal(migraphx::literal{is, indices}));
 
-    // case 2
-    {
-        auto results                = run_program(4, 1, 0);
-        std::vector<float> gold_val = {1.9, 2, 2.1, 2.3, 0.1, 0.2, 0.8, 3.3, 0.8, 1, 1.5, 2.1};
-        EXPECT(results.first == gold_val);
-        std::vector<int64_t> gold_ind = {4, 2, 0, 1, 3, 1, 4, 0, 3, 0, 4, 2};
-        EXPECT(results.second == gold_ind);
     }
+    auto r    = mm->add_instruction(
+        migraphx::make_op("topk", {{"axis", axis}, {"k", k}, {"largest", largest}}), topk_inputs);
+    auto r0 = mm->add_instruction(migraphx::make_op("get_tuple_elem", {{"index", 0}}), r);
+    auto r1 = mm->add_instruction(migraphx::make_op("get_tuple_elem", {{"index", 1}}), r);
+    mm->add_return({r0, r1});
+
+    p.compile(migraphx::make_target("ref"));
+
+    std::vector<float> input_data = {
+        2.1, 2.3, 2.0, 2.5, 1.9, 3.3, 0.2, 4.5, 0.1, 0.8, 1.0, 4.5, 2.1, 0.8, 1.5};
+    migraphx::parameter_map pp;
+    pp["data"] = migraphx::argument(s, input_data.data());
+    auto rets  = p.eval(pp);
+    std::vector<float> ret_val;
+    rets.front().visit([&](auto v) { ret_val.assign(v.begin(), v.end()); });
+    std::vector<int64_t> ret_ind;
+    rets.back().visit([&](auto v) { ret_ind.assign(v.begin(), v.end()); });
+
+    return std::make_pair(ret_val, ret_ind);
 }
+
+TEST_CASE(topk_largest)
+{
+    auto results                = run_program(4, 1, 1);
+    std::vector<float> gold_val = {2.5, 2.3, 2.1, 2, 4.5, 3.3, 0.8, 0.2, 4.5, 2.1, 1.5, 1};
+    EXPECT(results.first == gold_val);
+    std::vector<int64_t> gold_ind = {3, 1, 0, 2, 2, 0, 4, 1, 1, 2, 4, 0};
+    EXPECT(results.second == gold_ind);
+}
+
+TEST_CASE(topk_smallest)
+{
+    auto results                = run_program(4, 1, 0);
+    std::vector<float> gold_val = {1.9, 2, 2.1, 2.3, 0.1, 0.2, 0.8, 3.3, 0.8, 1, 1.5, 2.1};
+    EXPECT(results.first == gold_val);
+    std::vector<int64_t> gold_ind = {4, 2, 0, 1, 3, 1, 4, 0, 3, 0, 4, 2};
+    EXPECT(results.second == gold_ind);
+}
+
+TEST_CASE(topk_largest_custom_indices)
+{
+    auto results                = run_program(4, 1, 1, true);
+    std::vector<float> gold_val = {2.5, 2.3, 2.1, 2, 4.5, 3.3, 0.8, 0.2, 4.5, 2.1, 1.5, 1};
+    EXPECT(results.first == gold_val);
+    std::vector<int64_t> gold_ind = {12, 14, 15, 13, 8, 10, 6, 9, 4, 3, 1, 5};
+    EXPECT(results.second == gold_ind);
+}
+
+TEST_CASE(topk_smallest_custom_indices)
+{
+    auto results                = run_program(4, 1, 0, true);
+    std::vector<float> gold_val = {1.9, 2, 2.1, 2.3, 0.1, 0.2, 0.8, 3.3, 0.8, 1, 1.5, 2.1};
+    EXPECT(results.first == gold_val);
+    std::vector<int64_t> gold_ind = { 11, 13, 15, 14, 7, 9, 6, 10, 2, 5, 1, 3};
+    EXPECT(results.second == gold_ind);
+}
+
+
+

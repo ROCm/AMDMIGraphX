@@ -30,7 +30,7 @@
 
 #include <test.hpp>
 
-auto run_program(int64_t k, int64_t axis, int largest, bool custom_idx=false)
+auto run_program(migraphx::value op, bool custom_idx=false)
 {
     migraphx::program p;
     auto* mm = p.get_main_module();
@@ -46,7 +46,7 @@ auto run_program(int64_t k, int64_t axis, int largest, bool custom_idx=false)
 
     }
     auto r    = mm->add_instruction(
-        migraphx::make_op("topk", {{"axis", axis}, {"k", k}, {"largest", largest}}), topk_inputs);
+        migraphx::make_op("topk", op), topk_inputs);
     auto r0 = mm->add_instruction(migraphx::make_op("get_tuple_elem", {{"index", 0}}), r);
     auto r1 = mm->add_instruction(migraphx::make_op("get_tuple_elem", {{"index", 1}}), r);
     mm->add_return({r0, r1});
@@ -54,7 +54,10 @@ auto run_program(int64_t k, int64_t axis, int largest, bool custom_idx=false)
     p.compile(migraphx::make_target("ref"));
 
     std::vector<float> input_data = {
-        2.1, 2.3, 2.0, 2.5, 1.9, 3.3, 0.2, 4.5, 0.1, 0.8, 1.0, 4.5, 2.1, 0.8, 1.5};
+        2.1, 2.3, 2.0, 2.5, 1.9,
+        3.3, 0.2, 4.5, 0.1, 0.8,
+        1.0, 4.5, 2.1, 0.8, 1.5,
+    };
     migraphx::parameter_map pp;
     pp["data"] = migraphx::argument(s, input_data.data());
     auto rets  = p.eval(pp);
@@ -66,18 +69,27 @@ auto run_program(int64_t k, int64_t axis, int largest, bool custom_idx=false)
     return std::make_pair(ret_val, ret_ind);
 }
 
-TEST_CASE(topk_largest)
+TEST_CASE(topk_largest0)
 {
-    auto results                = run_program(4, 1, 1);
+    auto results                = run_program({{"axis", 0}, {"k", 2}, {"largest", 1}});
+    std::vector<float> gold_val = {3.3, 4.5, 4.5, 2.5, 1.9, 2.1, 2.3, 2.1, 0.8, 1.5};
+    EXPECT(results.first == gold_val);
+    std::vector<int64_t> gold_ind = {1, 2, 1, 0, 0, 0, 0, 2, 2, 2};
+    EXPECT(results.second == gold_ind);
+}
+
+TEST_CASE(topk_largest1)
+{
+    auto results                = run_program({{"axis", 1}, {"k", 4}, {"largest", 1}});
     std::vector<float> gold_val = {2.5, 2.3, 2.1, 2, 4.5, 3.3, 0.8, 0.2, 4.5, 2.1, 1.5, 1};
     EXPECT(results.first == gold_val);
     std::vector<int64_t> gold_ind = {3, 1, 0, 2, 2, 0, 4, 1, 1, 2, 4, 0};
     EXPECT(results.second == gold_ind);
 }
 
-TEST_CASE(topk_smallest)
+TEST_CASE(topk_smallest1)
 {
-    auto results                = run_program(4, 1, 0);
+    auto results                = run_program({{"axis", 1}, {"k", 4}, {"largest", 0}});
     std::vector<float> gold_val = {1.9, 2, 2.1, 2.3, 0.1, 0.2, 0.8, 3.3, 0.8, 1, 1.5, 2.1};
     EXPECT(results.first == gold_val);
     std::vector<int64_t> gold_ind = {4, 2, 0, 1, 3, 1, 4, 0, 3, 0, 4, 2};
@@ -86,7 +98,7 @@ TEST_CASE(topk_smallest)
 
 TEST_CASE(topk_largest_custom_indices)
 {
-    auto results                = run_program(4, 1, 1, true);
+    auto results                = run_program({{"axis", 1}, {"k", 4}, {"largest", 1}}, true);
     std::vector<float> gold_val = {2.5, 2.3, 2.1, 2, 4.5, 3.3, 0.8, 0.2, 4.5, 2.1, 1.5, 1};
     EXPECT(results.first == gold_val);
     std::vector<int64_t> gold_ind = {12, 14, 15, 13, 8, 10, 6, 9, 4, 3, 1, 5};
@@ -95,7 +107,7 @@ TEST_CASE(topk_largest_custom_indices)
 
 TEST_CASE(topk_smallest_custom_indices)
 {
-    auto results                = run_program(4, 1, 0, true);
+    auto results                = run_program({{"axis", 1}, {"k", 4}, {"largest", 0}}, true);
     std::vector<float> gold_val = {1.9, 2, 2.1, 2.3, 0.1, 0.2, 0.8, 3.3, 0.8, 1, 1.5, 2.1};
     EXPECT(results.first == gold_val);
     std::vector<int64_t> gold_ind = { 11, 13, 15, 14, 7, 9, 6, 10, 2, 5, 1, 3};

@@ -25,13 +25,15 @@
 #include <onnx_test.hpp>
 #include <migraphx/op/convolution.hpp>
 
-TEST_CASE(attention_single_head_test)
+TEST_CASE(attention_multi_head_bias_mask_test)
 {
     migraphx::program p;
     auto* mm = p.get_main_module();
-    auto l0  = mm->add_parameter("input", migraphx::shape{migraphx::shape::float_type, {2, 512, 512}});
-    auto l1  = mm->add_parameter("weights", migraphx::shape{migraphx::shape::float_type, {512, 12}});
-    auto prog = optimize_onnx("attention_single_head_test.onnx");
+    auto input      = mm->add_parameter("input", migraphx::shape{migraphx::shape::float_type, {32, 512, 1024}});
+    auto weights    = mm->add_parameter("weights", migraphx::shape{migraphx::shape::float_type, {1024, 3072}});
+    auto bias       = mm->add_parameter("bias", migraphx::shape{migraphx::shape::float_type, {3072}});
+    auto mask_index = mm->add_parameter("mask_index", migraphx::shape{migraphx::shape::int32_type, {32, 512}});
+    auto prog = optimize_onnx("attention_multihead_bias_mask_test.onnx");
 
     EXPECT(p == prog);
 }

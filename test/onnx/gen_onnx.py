@@ -394,9 +394,21 @@ def attention_test(
 
 @onnx_test()
 def attention_single_head_test():
-    return attention_test([2, 512, 512], [512, 12],
-                          num_heads=1,
-                          qkv_hidden_sizes=[8, 8, 16])
+    return attention_test([2, 512, 512], [512, 12], num_heads=1)
+
+
+@onnx_test()
+def attention_double_head_test():
+    return attention_test([2, 10, 10], [10, 12], num_heads=2)
+
+
+# Mirrors customer workload
+@onnx_test()
+def attention_multihead_bias_mask_test():
+    return attention_test([32, 512, 1024], [1024, 3072],
+                          bias_dims=[3072],
+                          mask_dims=[32, 512],
+                          num_heads=16)
 
 
 @onnx_test()

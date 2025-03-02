@@ -74,7 +74,7 @@ struct parse_skip_simplified_layer_normalization
         // bias (optional) : T
         // 1D bias tensor with shape (hidden_size) - not used by ORT
 
-        if(args.size() < 3 or args.size() > 4)
+        if(args.size() < 3 or args.size() > 5)
         {
             MIGRAPHX_THROW("PARSE_SKIPSIMPLIFIEDLAYERNORMALIZATION: invalid input count");
         }
@@ -82,16 +82,7 @@ struct parse_skip_simplified_layer_normalization
         auto x     = args.at(0);
         auto skip  = args.at(1);
         auto gamma = args.at(2);
-        instruction_ref beta;
-        instruction_ref bias;
-        if(args.size() >= 4)
-        {
-            beta = args.at(3);
-        }
-        if(args.size() == 5)
-        {
-            bias = args.at(4);
-        }
+
 
         auto x_shape       = x->get_shape();
         auto x_dtype       = x_shape.type();
@@ -101,37 +92,79 @@ struct parse_skip_simplified_layer_normalization
         // axis = hidden_size dim
         int64_t axis = x_rank - 1;
 
-        if(x_rank < 2 or x_rank > 3 or x_rank != skip_rank or gamma_rank != 1)
+        if(x_rank > 3 or (x_rank != skip_rank and skip_rank != 2) or gamma_rank != 1)
         {
             MIGRAPHX_THROW("PARSE_SKIPLAYERNORMALIZATION: invalid input shape");
         }
 
-        x         = info.add_common_op("add", x, skip);
+        instruction_ref beta;
+        instruction_ref bias;
+
+        // Beta always applied at the end result as an affine offset
+        if(args.size() >= 4)
+        {
+            beta = args.at(3);
+            auto beta_shape = beta->get_shape();
+            auto beta_len   = beta_shape.lens();
+            if(beta_shape.type() != x_dtype or beta_len.size() > 1)
+            {
+                MIGRAPHX_THROW("PARSE_SKIPLAYERNORMALIZATION: Invalid Beta shape");
+            }
+        }
+
+        // Bias is always applied to the input along with any skip input
+        if(args.size() == 5)
+        {
+            bias = args.at(4);
+            auto bias_shape = bias->get_shape();
+            auto bias_len   = bias_shape.lens();
+            if(bias_shape.type() != x_dtype or bias_len.size() > 1)
+            {
+                MIGRAPHX_THROW("PARSE_SKIPLAYERNORMALIZATION: Invalid Bias shape");
+            }
+        }
+
+        x = info.add_common_op("add", x, skip);
+        if(args.size() >= 4)
+        {
+            x = info.add_common_op("add", x, bias);
+        }
+
         // Convert to float before reduce_mean
         // Fp16 reduce_mean on GPU causes loss of accuracy
         auto float_x = info.add_instruction(
             make_op("convert", {{"target_type", migraphx::shape::float_type}}), x);
-        auto x_sq = info.add_common_op("mul", float_x, float_x);
-        auto rms  = info.add_instruction(make_op("reduce_mean", {{"axes", {axis}}}), x_sq);
-        rms       = info.add_instruction(make_op("convert", {{"target_type", x_dtype}}), rms);
-        auto mean = rms;
+
+        // Get the mean of input and squared of the expectation (for variance calc later)
+        // Var = E( (x - E[x])) ^2)
+        auto exp_x     = info.add_instruction(make_op("reduce_mean", {{"axes", {axis}}}), float_x);
+        auto pre_var   = info.add_common_op("sub", float_x, exp_x);
+        pre_var        = info.add_common_op("mul", pre_var, pre_var);
+        auto var       = info.add_instruction(make_op("reduce_mean", {{"axes", {axis}}}), pre_var);
+        var            = info.add_instruction(make_op("convert", {{"target_type", x_dtype}}), var);
+        auto mean      = info.add_instruction(make_op("convert", {{"target_type", x_dtype}}), exp_x);
+
         epsilon =
             (x_dtype == migraphx::shape::half_type and std::abs(epsilon) < 1e-7) ? 1e-7 : epsilon;
         auto eps    = info.add_literal(migraphx::literal{migraphx::shape{x_dtype}, {epsilon}});
-        rms         = info.add_common_op("add", rms, eps);
-        auto rrms   = info.add_instruction(make_op("rsqrt"), rms);
-        auto result = info.add_common_op("mul", x, rrms);
+        auto var_ep = info.add_common_op("add", var, eps);
+
+        // reciprical sqrt here on resulting variance + epsilon offset to avoid div by zero
+        auto r_var  = info.add_instruction(make_op("rsqrt"), var_ep);
+
+        // Output is  (x - E[x]) * gamma / (sqrt(var(x) - epsilon)) + beta
+        auto result = info.add_common_op("sub", x, exp_x);
+        result      = info.add_common_op("mul", result, r_var);
         result      = info.add_common_op("mul", result, gamma);
-        if(args.size() == 4)
+
+        if(args.size() == 5)
         {
-            result = info.add_common_op("add", result, bias);
-            x      = info.add_common_op("add", x, bias);
+            result = info.add_common_op("add", result, beta);
         }
 
         // Outputs (1 - 4)
         // output : T
-        // 3D output tensor with shape (batch_size, sequence_length, hidden_size)Or 2D output tensor
-        // with shape (token_count, hidden_size)
+        // 3D output tensor with shape (batch_size, sequence_length, hidden_size)
         // mean (optional) : U Saved mean used during training
         // to speed up gradient computation
         // inv_std_var (optional) : U Saved inverse standard
@@ -140,7 +173,7 @@ struct parse_skip_simplified_layer_normalization
         // exists)with shape (batch_size, sequence_length, hidden_size) or (token_count,
         // hidden_size).
 
-        return {result, mean, rrms, x};
+        return {result, mean, r_var, x};
     }
 };
 

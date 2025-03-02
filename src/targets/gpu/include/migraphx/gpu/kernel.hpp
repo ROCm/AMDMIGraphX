@@ -39,6 +39,37 @@ struct kernel_impl;
 
 struct MIGRAPHX_GPU_EXPORT kernel
 {
+    struct pointers
+    {
+        pointers()
+        {}
+        
+        pointers(void** pp, std::size_t pn)
+        : p(pp), n(pn)
+        {}
+
+        pointers(std::vector<void*>& v)
+        : p(v.data()), n(v.size())
+        {}
+
+        void** data() const
+        {
+            return p;
+        }
+
+        std::size_t size() const
+        {
+            return n;
+        }
+
+        std::size_t bytes() const
+        {
+            return n * sizeof(void*);
+        }
+    private:
+        void** p = nullptr;
+        std::size_t n = 0;
+    };
     kernel() = default;
     kernel(const char* image, const std::string& name);
     template <class T, MIGRAPHX_REQUIRES(sizeof(T) == 1)>
@@ -57,11 +88,11 @@ struct MIGRAPHX_GPU_EXPORT kernel
     void launch(hipStream_t stream,
                 std::size_t global,
                 std::size_t local,
-                std::vector<void*> args,
+                pointers args,
                 hipEvent_t start = nullptr,
                 hipEvent_t stop  = nullptr) const;
 
-    template <class... Ts>
+    template <class... Ts, MIGRAPHX_REQUIRES(not std::is_same<Ts, std::vector<void*>>{}...)>
     auto launch(hipStream_t stream, std::size_t global, std::size_t local, Ts... zs) const
     {
         return [=](auto&&... xs) {

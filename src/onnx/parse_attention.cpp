@@ -261,6 +261,10 @@ struct parse_attention : op_parser<parse_attention>
             {
                 MIGRAPHX_THROW("Attention: input bias must be the same type as input vector");
             }
+            if(bias_lens.size() != 1)
+            {
+                MIGRAPHX_THROW("Attention: Bias requires tensor of (hidden_size + hidden_size + v_hidden_size) ");
+            }
             output_arg_vec.push_back(bias);
         }
     }
@@ -322,6 +326,10 @@ struct parse_attention : op_parser<parse_attention>
             }
             infered_out.max_sequence_length = mask_index_lens.at(2);
         }
+        else
+        {
+            MIGRAPHX_THROW("Attention: Mask_index Require shape of size either 1, 2, 3, 4 dimensions");
+        }
     }
 
     static void handle_mask_index(const std::vector<instruction_ref>& args,
@@ -354,6 +362,37 @@ struct parse_attention : op_parser<parse_attention>
         if(check_and_return_arg(args, 4, past))
         {
             infered_out.has_past_input = true;
+            if(args.size() != 7)
+            {
+                MIGRAPHX_THROW("Attention: Past input requires past_sequence_length to be set");
+            }
+
+            auto past_shape = past->get_shape();
+            auto past_lens  = past_shape.lens();
+            if((past_lens.at(0) != infered_out.batch_size) or 
+               (past_lens.at(1) != attr_out.num_heads) or
+               (past_lens.at(3) != infered_out.query_size) or 
+               (past_lens.size() != 4))
+            {
+                MIGRAPHX_THROW("Attention: Past shape must be (batch, num_heads, max_sequence_length, head_size)\n OR when past_present_share_buffer set (batch, num_heads, total_sequence, head_size)");
+            }
+
+            if(attr_out.past_present_share_buffer)
+            {
+                infered_out.total_sequence_length = past_lens.at(2);
+            }
+            else
+            {
+                if(args.at(3)->get_shape().lens().size() == 4 and
+                   args.at(3)->get_shape().lens().at(3) != past_lens.at(2))
+                {
+                    MIGRAPHX_THROW("Attention: Past invalid max_sequence_length");
+                }
+                else
+                {
+                    infered_out.max_sequence_length = past_lens.at(2);
+                }
+            }
             output_arg_vec.push_back(past);
         }
     }
@@ -425,7 +464,7 @@ struct parse_attention : op_parser<parse_attention>
         {
             auto starts = i * query_size;
             auto ends   = starts + query_size;
-            auto op     = make_op("slice", {{"axes", axis}, {"starts", {starts}}, {"ends", {ends}}});
+            auto op     = make_op("slice", {{"axes", {axis}}, {"starts", {starts}}, {"ends", {ends}}});
 
             result.push_back(info.add_instruction(op, input_matrix));
         }
@@ -444,7 +483,11 @@ struct parse_attention : op_parser<parse_attention>
         auto split_k    = even_split(info, qkv_mats.at(1), 1, num_heads, query_size);
         auto split_v    = even_split(info, qkv_mats.at(2), 1, num_heads, query_size);
 
-        std::vector<std::vector<instruction_ref>> qkv_split = {split_q, split_k, split_v};
+        std::vector<std::vector<instruction_ref>> qkv_split;
+        for (size_t i = 0; i < num_heads; i++)
+        {
+            qkv_split.push_back({split_q.at(i), split_k.at(i), split_v.at(i)});
+        }
 
         return qkv_split;
     } 
@@ -462,16 +505,11 @@ struct parse_attention : op_parser<parse_attention>
         auto V = QKV.at(2);
 
         auto k_trans = info.add_instruction(make_op("transpose", {{"permutation", {0, 2, 1}}}), K);
-        k_trans->debug_print();
         auto qk_out = info.add_instruction(make_op("dot"), Q, k_trans);
-        qk_out->debug_print();
         auto qk_scaled = info.add_common_op("div", qk_out, scale_factor);
 
-        qk_scaled->debug_print();
 
         auto qk_masked = qk_scaled;
-
-        qk_masked->debug_print();
 
         if(masked)
             qk_masked = info.add_common_op("add", qk_scaled, mask);
@@ -481,9 +519,8 @@ struct parse_attention : op_parser<parse_attention>
             qk_biased = info.add_common_op("add", qk_masked, bias);
 
         auto softmax_out = info.add_instruction(make_op("softmax"), qk_biased);
-        softmax_out->debug_print();
         auto output = info.add_instruction(make_op("dot"), softmax_out, V);
-        output->debug_print();
+        output = info.add_instruction(make_op("transpose", {{"permutation", {1, 0, 2}}}), output);
         return output;
     }
 
@@ -577,6 +614,7 @@ struct parse_attention : op_parser<parse_attention>
                             return scale_dot_attention_head(info, split_inputs, scale_factor, attn_mask, attn_bias, has_mask, has_bias);
                            });
             output = info.add_instruction(make_op("concat"), vec_of_attn_outs);
+            output = info.add_instruction(make_op("transpose", {{"permutation", {1, 0, 2}}}), output);
         }
         else 
         {

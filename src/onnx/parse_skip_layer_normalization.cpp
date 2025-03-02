@@ -137,12 +137,12 @@ struct parse_skip_simplified_layer_normalization
 
         // Get the mean of input and squared of the expectation (for variance calc later)
         // Var = E( (x - E[x])) ^2)
-        auto exp_x     = info.add_instruction(make_op("reduce_mean", {{"axes", {axis}}}), float_x);
-        auto pre_var   = info.add_common_op("sub", float_x, exp_x);
-        pre_var        = info.add_common_op("mul", pre_var, pre_var);
-        auto var       = info.add_instruction(make_op("reduce_mean", {{"axes", {axis}}}), pre_var);
-        var            = info.add_instruction(make_op("convert", {{"target_type", x_dtype}}), var);
-        auto mean      = info.add_instruction(make_op("convert", {{"target_type", x_dtype}}), exp_x);
+        auto exp_x  = info.add_instruction(make_op("reduce_mean", {{"axes", {axis}}}), float_x);
+        auto pr_var = info.add_common_op("sub", float_x, exp_x);
+        pr_var      = info.add_common_op("mul", pr_var, pr_var);
+        auto var    = info.add_instruction(make_op("reduce_mean", {{"axes", {axis}}}), pr_var);
+        var         = info.add_instruction(make_op("convert", {{"target_type", x_dtype}}), var);
+        auto mean   = info.add_instruction(make_op("convert", {{"target_type", x_dtype}}), exp_x);
 
         epsilon =
             (x_dtype == migraphx::shape::half_type and std::abs(epsilon) < 1e-7) ? 1e-7 : epsilon;
@@ -173,6 +173,7 @@ struct parse_skip_simplified_layer_normalization
         // exists)with shape (batch_size, sequence_length, hidden_size) or (token_count,
         // hidden_size).
 
+        result->debug_print();
         return {result, mean, r_var, x};
     }
 };

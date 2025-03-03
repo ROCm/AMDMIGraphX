@@ -206,28 +206,31 @@ TEST_CASE(conv_broadcast_mul)
     migraphx::shape ws{migraphx::shape::float_type, {56, 14, 1, 1}};
     migraphx::program p1;
     {
-        auto* mm = p1.get_main_module();
-        auto x   = mm->add_parameter("x", is);
-        auto y   = mm->add_parameter("y", os);
-        auto w   = mm->add_parameter("w", ws);
-        auto conv = mm->add_instruction(migraphx::make_op("convolution"), x, w);
-        auto convb = mm->add_instruction(migraphx::make_op("multibroadcast", {{"out_lens", os.lens()}}), conv);
+        auto* mm   = p1.get_main_module();
+        auto x     = mm->add_parameter("x", is);
+        auto y     = mm->add_parameter("y", os);
+        auto w     = mm->add_parameter("w", ws);
+        auto conv  = mm->add_instruction(migraphx::make_op("convolution"), x, w);
+        auto convb = mm->add_instruction(
+            migraphx::make_op("multibroadcast", {{"out_lens", os.lens()}}), conv);
         auto mul = add_pointwise(p1, "main:pointwise0", {convb, y}, single_pointwise("mul"));
         mm->add_return({mul});
     }
     run_pass(p1);
     migraphx::program p2;
     {
-        auto* mm = p2.get_main_module();
-        auto x   = mm->add_parameter("x", is);
-        auto y   = mm->add_parameter("y", os);
-        auto w   = mm->add_parameter("w", ws);
-        auto conv =
-            add_mlir(p2, "mlir_convolution0", {x, w}, {"y0", "y1"}, [=](auto* pm, const auto& inputs) {
-                auto c = pm->add_instruction(migraphx::make_op("convolution"), inputs[0], inputs[1]);
+        auto* mm  = p2.get_main_module();
+        auto x    = mm->add_parameter("x", is);
+        auto y    = mm->add_parameter("y", os);
+        auto w    = mm->add_parameter("w", ws);
+        auto conv = add_mlir(
+            p2, "mlir_convolution0", {x, w}, {"y0", "y1"}, [=](auto* pm, const auto& inputs) {
+                auto c =
+                    pm->add_instruction(migraphx::make_op("convolution"), inputs[0], inputs[1]);
                 return std::make_tuple(c->get_operator(), c);
             });
-        auto convb = mm->add_instruction(migraphx::make_op("multibroadcast", {{"out_lens", os.lens()}}), conv);
+        auto convb = mm->add_instruction(
+            migraphx::make_op("multibroadcast", {{"out_lens", os.lens()}}), conv);
         auto mul = add_pointwise(p2, "main:pointwise0", {convb, y}, single_pointwise("mul"));
         mm->add_return({mul});
     }

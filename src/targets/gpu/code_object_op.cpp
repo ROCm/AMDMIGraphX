@@ -24,6 +24,7 @@
 #include <migraphx/gpu/code_object_op.hpp>
 #include <migraphx/gpu/context.hpp>
 #include <migraphx/register_op.hpp>
+#include <memory_resource>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
@@ -65,21 +66,19 @@ static void visit_flatten_args(const std::vector<argument>& args, F f)
 argument
 code_object_op::compute(context& ctx, const shape&, const std::vector<argument>& args) const
 {
-    constexpr const std::size_t max_arguments = 32;
-    // TODO: Fallback to dynamic memory when arguments exceed instead.
-    if(args.size() > max_arguments)
-        MIGRAPHX_THROW(std::to_string(args.size()) + " arguments for kernel " + symbol_name +
-                       " exceeds the max arguments of " + std::to_string(max_arguments));
-    std::array<void*, max_arguments> kargs;
+    std::array<char, 256> storage;
+    std::pmr::monotonic_buffer_resource resource{storage.data(), storage.size()};
+    std::pmr::vector<void*> kargs(&resource);
     visit_flatten_args(args, [&](const auto& fargs) {
+        kargs.reserve(fargs.size());
         std::transform(
-            fargs.begin(), fargs.end(), kargs.begin(), [](const argument& a) { return a.data(); });
+            fargs.begin(), fargs.end(), std::back_inserter(kargs), [](const argument& a) { return a.data(); });
     });
     auto [start, stop] = ctx.get_perf_events();
     k.launch(ctx.get_stream().get(),
              global,
              local,
-             kernel::pointers{kargs.data(), kargs.size()},
+             kargs,
              start,
              stop);
     return args[get_output_arg(args.size())];

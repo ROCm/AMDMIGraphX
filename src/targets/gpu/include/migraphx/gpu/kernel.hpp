@@ -28,6 +28,7 @@
 #include <migraphx/gpu/pack_args.hpp>
 #include <hip/hip_runtime_api.h>
 #include <memory>
+#include <memory_resource>
 #include <string>
 #include <vector>
 
@@ -46,6 +47,7 @@ struct MIGRAPHX_GPU_EXPORT kernel
         pointers(void** pp, std::size_t pn) : p(pp), n(pn) {}
 
         pointers(std::vector<void*>& v) : p(v.data()), n(v.size()) {}
+        pointers(std::pmr::vector<void*>& v) : p(v.data()), n(v.size()) {}
 
         void** data() const { return p; }
 
@@ -79,7 +81,7 @@ struct MIGRAPHX_GPU_EXPORT kernel
                 hipEvent_t start = nullptr,
                 hipEvent_t stop  = nullptr) const;
 
-    template <class... Ts, MIGRAPHX_REQUIRES(not std::is_same<Ts, std::vector<void*>>{}...)>
+    template <class... Ts, MIGRAPHX_REQUIRES(std::is_convertible<Ts, hipEvent_t>{}...)>
     auto launch(hipStream_t stream, std::size_t global, std::size_t local, Ts... zs) const
     {
         return [=](auto&&... xs) {

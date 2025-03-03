@@ -138,8 +138,7 @@ struct parse_skip_simplified_layer_normalization
         // Get the mean of input and squared of the expectation (for variance calc later)
         // Var = E( (x - E[x])) ^2)
         auto exp_x  = info.add_instruction(make_op("reduce_mean", {{"axes", {axis}}}), float_x);
-        auto pr_var = info.add_common_op("sub", float_x, exp_x);
-        pr_var      = info.add_common_op("mul", pr_var, pr_var);
+        pr_var      = info.add_common_op("sqdiff", {float_x, exp_x});
         auto var    = info.add_instruction(make_op("reduce_mean", {{"axes", {axis}}}), pr_var);
         var         = info.add_instruction(make_op("convert", {{"target_type", x_dtype}}), var);
         auto mean   = info.add_instruction(make_op("convert", {{"target_type", x_dtype}}), exp_x);

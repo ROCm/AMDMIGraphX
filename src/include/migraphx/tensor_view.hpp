@@ -167,6 +167,17 @@ struct tensor_view
         return std::vector<U>(this->begin(), this->end());
     }
 
+    template<class Range>
+    tensor_view slice_at(std::initializer_list<std::int64_t> axes, Range&& r)
+    {
+        assert(std::distance(r.begin(), r.end()) == this->get_shape().ndim());
+        std::vector<std::size_t> new_lens(this->get_shape().ndim(), 1);
+        for(auto axis:axes)
+            new_lens[axis] = this->get_shape().lens()[axis];
+        shape s{this->get_shape().type(), new_lens, this->get_shape().strides()};
+        return {s, this->data() + this->get_shape().index(r.begin(), r.end())};
+    }
+
     friend std::ostream& operator<<(std::ostream& os, const tensor_view<T>& x)
     {
         if(not x.empty())

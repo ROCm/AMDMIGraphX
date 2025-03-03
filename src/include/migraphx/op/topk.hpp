@@ -132,9 +132,9 @@ struct topk
                 std::vector<std::pair<type, int64_t>> data(relements);
                 par_for(outer_shape.elements(), [&](auto i) {
                     auto outer_idx = outer_shape.multi(i);
-                    auto x = input.begin_at(outer_idx);
-                    auto y = output.begin_at(outer_idx);
-                    auto y_ind = out_ind.begin_at(outer_idx);
+                    auto x = input.slice_at({axis}, outer_idx);
+                    auto y = output.slice_at({axis}, outer_idx);
+                    auto y_ind = out_ind.slice_at({axis}, outer_idx);
                     auto get_index = make_indices(outer_idx);
                     transform(range(relements), data.begin(), [&](auto j) {
                         return std::make_pair(x[j], get_index(j));
@@ -143,8 +143,8 @@ struct topk
                         std::partial_sort(data.begin(), data.begin()+k, data.end(), std::greater<>{});
                     else
                         std::partial_sort(data.begin(), data.begin()+k, data.end(), std::less<>{});
-                    std::transform(data.begin(), data.begin()+this->k, y, [](const auto& p) { return p.first; });
-                    std::transform(data.begin(), data.begin()+this->k, y_ind, [](const auto& p) { return p.second; });
+                    std::transform(data.begin(), data.begin()+this->k, y.begin(), [](const auto& p) { return p.first; });
+                    std::transform(data.begin(), data.begin()+this->k, y_ind.begin(), [](const auto& p) { return p.second; });
                 });
             });
         });

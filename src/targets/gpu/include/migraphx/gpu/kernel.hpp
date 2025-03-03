@@ -41,33 +41,20 @@ struct MIGRAPHX_GPU_EXPORT kernel
 {
     struct pointers
     {
-        pointers()
-        {}
-        
-        pointers(void** pp, std::size_t pn)
-        : p(pp), n(pn)
-        {}
+        pointers() {}
 
-        pointers(std::vector<void*>& v)
-        : p(v.data()), n(v.size())
-        {}
+        pointers(void** pp, std::size_t pn) : p(pp), n(pn) {}
 
-        void** data() const
-        {
-            return p;
-        }
+        pointers(std::vector<void*>& v) : p(v.data()), n(v.size()) {}
 
-        std::size_t size() const
-        {
-            return n;
-        }
+        void** data() const { return p; }
 
-        std::size_t bytes() const
-        {
-            return n * sizeof(void*);
-        }
-    private:
-        void** p = nullptr;
+        std::size_t size() const { return n; }
+
+        std::size_t bytes() const { return n * sizeof(void*); }
+
+        private:
+        void** p      = nullptr;
         std::size_t n = 0;
     };
     kernel() = default;

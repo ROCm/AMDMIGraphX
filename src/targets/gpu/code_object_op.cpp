@@ -53,10 +53,10 @@ static bool needs_flatten(const std::vector<argument>& args)
     });
 }
 
-template<class F>
+template <class F>
 static void visit_flatten_args(const std::vector<argument>& args, F f)
 {
-    if (needs_flatten(args))
+    if(needs_flatten(args))
         f(flatten(args));
     else
         f(args);
@@ -68,14 +68,20 @@ code_object_op::compute(context& ctx, const shape&, const std::vector<argument>&
     constexpr const std::size_t max_arguments = 32;
     // TODO: Fallback to dynamic memory when arguments exceed instead.
     if(args.size() > max_arguments)
-        MIGRAPHX_THROW(std::to_string(args.size()) + " arguments for kernel " + symbol_name + " exceeds the max arguments of " + std::to_string(max_arguments));
+        MIGRAPHX_THROW(std::to_string(args.size()) + " arguments for kernel " + symbol_name +
+                       " exceeds the max arguments of " + std::to_string(max_arguments));
     std::array<void*, max_arguments> kargs;
     visit_flatten_args(args, [&](const auto& fargs) {
         std::transform(
             fargs.begin(), fargs.end(), kargs.begin(), [](const argument& a) { return a.data(); });
     });
     auto [start, stop] = ctx.get_perf_events();
-    k.launch(ctx.get_stream().get(), global, local, kernel::pointers{kargs.data(), kargs.size()}, start, stop);
+    k.launch(ctx.get_stream().get(),
+             global,
+             local,
+             kernel::pointers{kargs.data(), kargs.size()},
+             start,
+             stop);
     return args[get_output_arg(args.size())];
 }
 void code_object_op::finalize(context&, const shape&, const std::vector<shape>&)

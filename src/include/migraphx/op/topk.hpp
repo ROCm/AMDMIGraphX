@@ -112,18 +112,18 @@ struct topk
         auto vec_ss = output_shape.sub_shapes();
         argument res_val{vec_ss.front()};
         argument res_ind{vec_ss.back()};
-        auto in_val = args.front();
-        auto relements = in_val.get_shape().lens()[axis];
+        auto in_val       = args.front();
+        auto relements    = in_val.get_shape().lens()[axis];
         auto make_indices = [&](const auto& m_idx) {
             return [&](int64_t i) {
-                if (args.size() < 2)
+                if(args.size() < 2)
                     return i;
-                auto j = m_idx;
+                auto j  = m_idx;
                 j[axis] = i;
                 return args[1].at<int64_t>(j);
             };
         };
-        auto outer_lens = in_val.get_shape().lens();
+        auto outer_lens  = in_val.get_shape().lens();
         outer_lens[axis] = 1;
         shape outer_shape{in_val.get_shape().type(), outer_lens};
         visit_all(res_val, args.front())([&](auto output, auto input) {
@@ -132,19 +132,27 @@ struct topk
                 std::vector<std::pair<type, int64_t>> data(relements);
                 par_for(outer_shape.elements(), [&](auto i) {
                     auto outer_idx = outer_shape.multi(i);
-                    auto x = input.slice_at({axis}, outer_idx);
-                    auto y = output.slice_at({axis}, outer_idx);
-                    auto y_ind = out_ind.slice_at({axis}, outer_idx);
+                    auto x         = input.slice_at({axis}, outer_idx);
+                    auto y         = output.slice_at({axis}, outer_idx);
+                    auto y_ind     = out_ind.slice_at({axis}, outer_idx);
                     auto get_index = make_indices(outer_idx);
                     transform(range(relements), data.begin(), [&](auto j) {
                         return std::make_pair(x[j], get_index(j));
                     });
                     if(this->largest)
-                        std::partial_sort(data.begin(), data.begin()+k, data.end(), std::greater<>{});
+                        std::partial_sort(
+                            data.begin(), data.begin() + k, data.end(), std::greater<>{});
                     else
-                        std::partial_sort(data.begin(), data.begin()+k, data.end(), std::less<>{});
-                    std::transform(data.begin(), data.begin()+this->k, y.begin(), [](const auto& p) { return p.first; });
-                    std::transform(data.begin(), data.begin()+this->k, y_ind.begin(), [](const auto& p) { return p.second; });
+                        std::partial_sort(
+                            data.begin(), data.begin() + k, data.end(), std::less<>{});
+                    std::transform(data.begin(),
+                                   data.begin() + this->k,
+                                   y.begin(),
+                                   [](const auto& p) { return p.first; });
+                    std::transform(data.begin(),
+                                   data.begin() + this->k,
+                                   y_ind.begin(),
+                                   [](const auto& p) { return p.second; });
                 });
             });
         });

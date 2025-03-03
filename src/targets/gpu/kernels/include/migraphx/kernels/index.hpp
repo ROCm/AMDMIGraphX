@@ -309,28 +309,19 @@ struct per_block
 {
     index idx;
 
-    constexpr auto local() const
-    {
-        return idx.local;
-    }
+    constexpr auto local() const { return idx.local; }
 
-    constexpr auto nlocal() const
-    {
-        return idx.nlocal();
-    }
+    constexpr auto nlocal() const { return idx.nlocal(); }
 
-    constexpr auto size() const
-    {
-        return idx.ngroup();
-    }
+    constexpr auto size() const { return idx.ngroup(); }
 
-    template<class N, class F>
+    template <class N, class F>
     constexpr void group_stride(N n, F f) const
     {
         return idx.group_stride(n, f);
     }
 
-    template<class N, class F>
+    template <class N, class F>
     constexpr void local_stride(N n, F f) const
     {
         return idx.local_stride(n, f);

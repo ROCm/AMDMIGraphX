@@ -81,31 +81,32 @@ MIGRAPHX_INTEGRAL_CONSTANT_UNARY_OP(~)
 MIGRAPHX_INTEGRAL_CONSTANT_UNARY_OP(+)
 MIGRAPHX_INTEGRAL_CONSTANT_UNARY_OP(-)
 
-template<class B, B b, class T, T x, class U, U y>
-constexpr integral_constant<decltype(b ? x : y), (b ? x : y)> where(integral_constant<B, b>, integral_constant<T, x>, integral_constant<U, y>)
+template <class B, B b, class T, T x, class U, U y>
+constexpr integral_constant<decltype(b ? x : y), (b ? x : y)>
+where(integral_constant<B, b>, integral_constant<T, x>, integral_constant<U, y>)
 {
     return {};
 }
 
-template<class T, T x, class U, U y>
+template <class T, T x, class U, U y>
 constexpr auto min(integral_constant<T, x> a, integral_constant<U, y> b)
 {
     return where(a < b, a, b);
 }
 
-template<class T, T x, class U, U y>
+template <class T, T x, class U, U y>
 constexpr auto max(integral_constant<T, x> a, integral_constant<U, y> b)
 {
     return where(a < b, b, a);
 }
 
-template<class T, T x>
+template <class T, T x>
 constexpr integral_constant<T, x> min(integral_constant<T, x>, integral_constant<T, x>)
 {
     return {};
 }
 
-template<class T, T x>
+template <class T, T x>
 constexpr integral_constant<T, x> max(integral_constant<T, x>, integral_constant<T, x>)
 {
     return {};
@@ -117,11 +118,15 @@ using bool_constant = integral_constant<bool, B>;
 using true_type  = bool_constant<true>;
 using false_type = bool_constant<false>;
 
-template<class T>
-struct is_integral_constant : false_type {};
+template <class T>
+struct is_integral_constant : false_type
+{
+};
 
-template<class T, T V>
-struct is_integral_constant<integral_constant<T, V>> : true_type {};
+template <class T, T V>
+struct is_integral_constant<integral_constant<T, V>> : true_type
+{
+};
 
 template <index_int N>
 using index_constant = integral_constant<index_int, N>;

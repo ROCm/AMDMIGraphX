@@ -50,7 +50,7 @@ struct bitonic_sort
         MIGRAPHX_ASSERT(is_power_of_2(group_size));
         if constexpr(group_size >= 2)
         {
-            repeat_down_by_2_c<group_size/2>([&](auto offset) {
+            repeat_down_by_2_c<group_size / 2>([&](auto offset) {
                 constexpr auto step = _c<2 * offset>;
                 repeat(x.size() / step, [&](auto q) {
                     auto base = q * step;
@@ -78,9 +78,7 @@ struct bitonic_sort
     template <class Dir, class Array>
     constexpr void lane_sort(Dir dir, Array& x) const
     {
-        repeat_up_by_2_c<2, decltype(x.size()){} * 2>([&](auto k) {
-            lane_shuffle(k, dir, x);
-        });
+        repeat_up_by_2_c<2, decltype(x.size()){} * 2>([&](auto k) { lane_shuffle(k, dir, x); });
     }
 
     template <class Mask, class Dir, class Array>
@@ -210,4 +208,3 @@ bitonic_topk(N, K, Compare) -> bitonic_topk<N{}, K{}, Compare>;
 
 } // namespace migraphx
 #endif // MIGRAPHX_GUARD_KERNELS_SORT_HPP
-

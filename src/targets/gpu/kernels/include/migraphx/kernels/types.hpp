@@ -73,7 +73,7 @@ static_assert(sizeof(uint64_t) == 8, "uint64_t must be 8 bytes");
 
 // NOLINTNEXTLINE
 #define MIGRAPHX_AUTO_DEDUCE(name) \
-    template<class... Ts> \
+    template <class... Ts>         \
     __host__ __device__ name(Ts...) -> name<Ts...>;
 
 template <class T, index_int N>

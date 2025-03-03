@@ -71,16 +71,13 @@ code_object_op::compute(context& ctx, const shape&, const std::vector<argument>&
     std::pmr::vector<void*> kargs(&resource);
     visit_flatten_args(args, [&](const auto& fargs) {
         kargs.reserve(fargs.size());
-        std::transform(
-            fargs.begin(), fargs.end(), std::back_inserter(kargs), [](const argument& a) { return a.data(); });
+        std::transform(fargs.begin(),
+                       fargs.end(),
+                       std::back_inserter(kargs),
+                       [](const argument& a) { return a.data(); });
     });
     auto [start, stop] = ctx.get_perf_events();
-    k.launch(ctx.get_stream().get(),
-             global,
-             local,
-             kargs,
-             start,
-             stop);
+    k.launch(ctx.get_stream().get(), global, local, kargs, start, stop);
     return args[get_output_arg(args.size())];
 }
 void code_object_op::finalize(context&, const shape&, const std::vector<shape>&)

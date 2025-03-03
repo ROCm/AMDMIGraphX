@@ -553,21 +553,23 @@ std::vector<argument> generic_eval(const program& p,
 {
     using instruction_map = std::pmr::unordered_map<instruction_ref, argument>;
     const module* mm = p.get_main_module();
-    std::size_t n = p.total_instructions();
+    std::size_t n         = p.total_instructions();
     std::vector<char> buffer(n * (sizeof(instruction_ref) + sizeof(argument)) * 4);
-    std::pmr::monotonic_buffer_resource bres(buffer.data(), buffer.size(), std::pmr::null_memory_resource());
+    std::pmr::monotonic_buffer_resource bres(
+        buffer.data(), buffer.size(), std::pmr::null_memory_resource());
     if(mm->size() == n)
         return generic_eval(mm, ctx, params, instruction_map(&bres), trace);
     std::pmr::unsynchronized_pool_resource pres(&bres);
     return generic_eval(mm, ctx, params, instruction_map(&pres), trace);
-
 }
 
 std::size_t program::total_instructions() const
 {
-    return transform_accumulate(impl->modules.begin(), impl->modules.end(), std::size_t{0}, std::plus<>{}, [](const auto& p) {
-        return p.second.size();
-    });
+    return transform_accumulate(impl->modules.begin(),
+                                impl->modules.end(),
+                                std::size_t{0},
+                                std::plus<>{},
+                                [](const auto& p) { return p.second.size(); });
 }
 
 std::vector<argument> program::eval_with_context(std::vector<context>& ctx,

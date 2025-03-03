@@ -52,6 +52,7 @@
 #include <unordered_set>
 #include <map>
 #include <cassert>
+#include <memory_resource>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
@@ -462,11 +463,11 @@ template <class F>
 std::vector<argument> generic_eval(const module* mod,
                                    std::vector<context>& ctx,
                                    std::unordered_map<std::string, argument> params,
-                                   std::unordered_map<instruction_ref, argument> results,
+                                   std::pmr::unordered_map<instruction_ref, argument> results,
                                    F trace)
 {
     assert(mod->validate() == mod->end());
-    results.reserve(mod->size() * 2);
+    results.reserve(mod->size() + results.size());
     std::vector<argument> values;
     values.reserve(16);
     for(auto ins : iterator_for(*mod))
@@ -550,15 +551,29 @@ std::vector<argument> generic_eval(const program& p,
                                    std::unordered_map<std::string, argument> params,
                                    F trace)
 {
+    using instruction_map = std::pmr::unordered_map<instruction_ref, argument>;
     const module* mm = p.get_main_module();
-    return generic_eval(mm, ctx, params, {}, trace);
+    std::size_t n = p.total_instructions();
+    std::vector<char> buffer(n * (sizeof(instruction_ref) + sizeof(argument)) * 4);
+    std::pmr::monotonic_buffer_resource bres(buffer.data(), buffer.size(), std::pmr::null_memory_resource());
+    if(mm->size() == n)
+        return generic_eval(mm, ctx, params, instruction_map(&bres), trace);
+    std::pmr::unsynchronized_pool_resource pres(&bres);
+    return generic_eval(mm, ctx, params, instruction_map(&pres), trace);
+
+}
+
+std::size_t program::total_instructions() const
+{
+    return transform_accumulate(impl->modules.begin(), impl->modules.end(), std::size_t{0}, std::plus<>{}, [](const auto& p) {
+        return p.second.size();
+    });
 }
 
 std::vector<argument> program::eval_with_context(std::vector<context>& ctx,
                                                  parameter_map params) const
 {
-    const module* mm = this->get_main_module();
-    return generic_eval(mm, ctx, std::move(params), {}, [](auto&&, auto f) { return f(); });
+    return generic_eval(*this, ctx, std::move(params), [](auto&&, auto f) { return f(); });
 }
 
 std::vector<argument> program::eval(parameter_map params, execution_environment exec_env) const

@@ -79,6 +79,8 @@ struct MIGRAPHX_EXPORT program
 
     std::unordered_map<std::string, shape> get_parameter_shapes() const;
 
+    std::size_t total_instructions() const;
+
     std::vector<argument> eval(parameter_map params,
                                execution_environment exec_env = execution_environment{}) const;
 

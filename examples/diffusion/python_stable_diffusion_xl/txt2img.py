@@ -38,6 +38,7 @@ from collections import namedtuple
 HipEventPair = namedtuple('HipEventPair', ['start', 'end'])
 
 os.environ["MIGRAPHX_ENABLE_NHWC"]='1'
+os.environ["MIGRAPHX_TRACE_EVAL"]='0'
 os.environ["MIGRAPHX_MLIR_USE_SPECIFIC_OPS"]='convolution'
 
 # measurement helper
@@ -246,12 +247,19 @@ model_shapes = {
     "clip2": {
         "input_ids": [2, 77]
     },
+    # "unetxl": {
+    #     "sample": [2, 4, 128, 128],
+    #     "encoder_hidden_states": [2, 77, 2048],
+    #     "text_embeds": [2, 1280],
+    #     "time_ids": [2, 6],
+    #     "timestep": [1],
+    # },
     "unetxl": {
-        "sample": [2, 4, 128, 128],
-        "encoder_hidden_states": [2, 77, 2048],
-        "text_embeds": [2, 1280],
-        "time_ids": [2, 6],
-        "timestep": [1],
+        "input.5": [2, 4, 128, 128], # sample again?
+        "encoder_hidden_states": [2, 77, 2048], # encoder_hidden_states
+        "onnx::Cast_3": [2, 1280], # text_embeds
+        "onnx::Shape_4": [2, 6], # time_ids
+        "onnx::Unsqueeze_1": [1], # timestep
     },
     "refiner_unetxl": {
         "sample": [2, 4, 128, 128],
@@ -353,11 +361,18 @@ def run_model_async(model, args, stream):
 
 def allocate_torch_tensors(model):
     input_shapes = model.get_parameter_shapes()
-    data_mapping = {
-        name: torch.zeros(shape.lens()).to(
-            mgx_to_torch_dtype_dict[shape.type_string()]).to(device="cuda")
-        for name, shape in input_shapes.items()
-    }
+    
+    data_mapping = {}
+    for name, shape in input_shapes.items():
+        if name == 'onnx::Unsqueeze_1':
+            tensor = torch.tensor(0).expand(1).to(
+                mgx_to_torch_dtype_dict[shape.type_string()]
+            ).to(device="cuda")
+        else:
+            tensor = torch.zeros(shape.lens()).to(
+                mgx_to_torch_dtype_dict[shape.type_string()]
+            ).to(device="cuda")
+        data_mapping[name] = tensor
     return data_mapping
 
 
@@ -614,7 +629,7 @@ class StableDiffusionMGX():
                                             latents,
                                             t,
                                             scale,
-                                            tifme_ids,
+                                            time_ids,
                                             model="refiner_unetxl")
         if verbose:
             print("Scale denoised result...")
@@ -755,12 +770,20 @@ class StableDiffusionMGX():
             latents_model_input, t).to(device="cuda")
         timestep = torch.atleast_1d(t.to(device="cuda"))  # convert 0D -> 1D
 
-        copy_tensor(self.tensors[model]["sample"], latents_model_input)
+        copy_tensor(self.tensors[model]["input.5"], latents_model_input) 
         copy_tensor(self.tensors[model]["encoder_hidden_states"],
                     hidden_states)
-        copy_tensor(self.tensors[model]["text_embeds"], text_embeddings)
-        copy_tensor(self.tensors[model]["timestep"], timestep)
-        copy_tensor(self.tensors[model]["time_ids"], time_ids)
+        copy_tensor(self.tensors[model]["onnx::Cast_3"], text_embeddings) 
+        copy_tensor(self.tensors[model]["onnx::Unsqueeze_1"], timestep)
+        copy_tensor(self.tensors[model]["onnx::Shape_4"], time_ids)
+
+        # copy_tensor(self.tensors[model]["sample"], latents_model_input)
+        # copy_tensor(self.tensors[model]["encoder_hidden_states"],
+        #             hidden_states)
+        # copy_tensor(self.tensors[model]["text_embeds"], text_embeddings)
+        # copy_tensor(self.tensors[model]["timestep"], timestep)
+        # copy_tensor(self.tensors[model]["time_ids"], time_ids)
+
         run_model_async(self.models[model], self.model_args[model],
                         self.stream)
 

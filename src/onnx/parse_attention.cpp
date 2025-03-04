@@ -76,6 +76,7 @@ struct parse_attention : op_parser<parse_attention>
         bool has_input_bias = false;       // Set to true when we have input_bias
         bool has_attn_mask = false;        // Set to true when we have an attention mask set
         bool has_attn_bias = false;        // Set to true when we have an attention bias input
+        bool scale_not_query_sz = false;   // Set when a different scale attribute from 1/sqrt(query_size)
         enum mask_index_pad index_pad;     // Used to track state of input projection mask padding
         enum attention_mode attn_type;     // Used to determine the attention configuration
     };
@@ -145,6 +146,7 @@ struct parse_attention : op_parser<parse_attention>
         if(contains(info.attributes, "scale"))
         {
             attr_out.scale = parser.parse_value(info.attributes.at("scale")).at<float>();
+            infered_out.scale_not_query_sz = true;
         }
 
         if(contains(info.attributes, "unidirectional"))
@@ -649,9 +651,13 @@ struct parse_attention : op_parser<parse_attention>
         if(infered_attributes.has_attn_bias)
             attn_bias = inputs.at(5);
 
+        auto attn_scale_factor = std::sqrt(infered_attributes.query_size);
+        if(infered_attributes.scale_not_query_sz)
+            attn_scale_factor = parsed_attributes.scale;
+
         // Used to scale all key values before any masking or other inputs
         auto scale_factor = info.add_literal(migraphx::literal{migraphx::shape{qkv_mats.at(0)->get_shape().type()},
-                                                              {std::sqrt(infered_attributes.query_size)}});
+                                                              {attn_scale_factor}});
 
         instruction_ref output;
         //Get vector of attention heads and then concat the output results

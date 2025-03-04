@@ -478,7 +478,8 @@ std::vector<argument> generic_eval(const module* mod,
         const auto& name = ins->name();
         if(name == "@literal")
         {
-            results.insert_or_assign(ins, trace(ins, [&] { return ins->get_literal().get_argument(); }));
+            results.insert_or_assign(ins,
+                                     trace(ins, [&] { return ins->get_literal().get_argument(); }));
         }
         else if(name == "@param")
         {
@@ -501,7 +502,8 @@ std::vector<argument> generic_eval(const module* mod,
         }
         else if(name == "@outline")
         {
-            results.insert_or_assign(ins, trace(ins, [&] { return argument{ins->get_shape(), nullptr}; }));
+            results.insert_or_assign(
+                ins, trace(ins, [&] { return argument{ins->get_shape(), nullptr}; }));
         }
         else if(name == "@return")
         {
@@ -554,7 +556,7 @@ std::vector<argument> generic_eval(const program& p,
                                    F trace)
 {
     const module* mm = p.get_main_module();
-    std::size_t n         = p.total_instructions();
+    std::size_t n    = p.total_instructions();
     std::vector<char> buffer(n * (sizeof(instruction_ref) + sizeof(argument)) * 4);
     std::pmr::monotonic_buffer_resource bres(
         buffer.data(), buffer.size(), std::pmr::null_memory_resource());

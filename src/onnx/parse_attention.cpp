@@ -675,7 +675,7 @@ struct parse_attention : op_parser<parse_attention>
                            [&](auto && split_inputs) {
                             static size_t i = 0;
                             auto result = scale_dot_attention_head(info, split_inputs, scale_factor, split_mask.at(i), split_bias.at(i), infered_attributes.has_attn_mask, infered_attributes.has_attn_bias);
-                            i++;
+                            i = (i + 1) % parsed_attributes.num_heads;
                             return result;
                            });
             output = info.add_instruction(make_op("concat"), vec_of_attn_outs);

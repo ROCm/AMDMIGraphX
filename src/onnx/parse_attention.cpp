@@ -37,6 +37,7 @@ struct parse_attention : op_parser<parse_attention>
 
     enum mask_index_pad{ // Used to check mask_index when input vector size == 2
         NONE,            // Not Set - If input isn't set indicates this is an error with op
+        RAW,             // Indicates input mask is raw mask where 0 masks the value and 1 does not.
         RIGHT_PADDING,   // second dimension is (batch_size)
         LEFT_PADDING,    // second dimension
     };
@@ -52,7 +53,7 @@ struct parse_attention : op_parser<parse_attention>
     {
         bool do_rotary                 = false; // Rotary encode input prior to projection with weight matrices
         bool past_present_share_buffer = false; // Related to past input shares buffer with present output
-        bool unidirectional            = false; // Related to state of inputs
+        bool unidirectional            = false; // Mask is lower triangular ie) only pay attention to prev words
         std::size_t num_heads          = 1;     // Required by inputs 
         std::size_t rotary_embedding_dim = 0;   // Gets set to head_size when not set
         std::vector<std::size_t> qkv_hidden_sizes{0, 0, 0}; //Sets hidden sizes if not set defiend by input
@@ -308,6 +309,7 @@ struct parse_attention : op_parser<parse_attention>
                 MIGRAPHX_THROW("Attention: Invalid Mask_Index shape\n \
                                 Use (batch, total_sequence_length) for shapes of size 2");
             }
+            infered_out.index_pad = RAW;
         }
         else if(mask_index_lens.size() == 3)
         { // Similar to case 2 but with sequence length in dim 1
@@ -318,6 +320,7 @@ struct parse_attention : op_parser<parse_attention>
                 MIGRAPHX_THROW("Attention: Invalid Mask_Index shape\n \
                                 Use (batch, sequence_length, total_sequence_length) for shapes of size 3");
             }
+            infered_out.index_pad = RAW;
         }
         else if(mask_index_lens.size() == 4)
         { // Oddball case and can be used to infer max_sequence_length_parameter
@@ -329,6 +332,7 @@ struct parse_attention : op_parser<parse_attention>
                                 Use (batch, 1, max_sequence_length, max_sequence_length) for shapes of size 4");
             }
             infered_out.max_sequence_length = mask_index_lens.at(2);
+            infered_out.index_pad = RAW;
         }
         else
         {
@@ -526,7 +530,6 @@ struct parse_attention : op_parser<parse_attention>
         auto qk_out = info.add_instruction(make_op("dot"), Q, k_trans);
         auto qk_scaled = info.add_common_op("div", qk_out, scale_factor);
 
-
         auto qk_masked = qk_scaled;
 
         if(masked)
@@ -581,6 +584,40 @@ struct parse_attention : op_parser<parse_attention>
         return qkv_mats;
     }
 
+    static instruction_ref create_input_mask(const onnx_parser::node_info& info,
+                                             const instruction_ref& input,
+                                             const instruction_ref& mask_input,
+                                             const attention_infered& infered_in,
+                                             const attention_attr& parsed_in)
+    {
+        instruction_ref final_mask;
+        auto mask_value_literal = info.add_literal(migraphx::literal{migraphx::shape{input->get_shape().type(), {1}, {0}}, {parsed_in.mask_filter_val}});
+
+        if(parsed_in.unidirectional)
+        {
+            // TODO Generate lower triangular mask and fill with mask_value_literal
+        }
+        else
+        {
+            if(infered_in.index_pad == RAW)
+            {   // Raw case, 0 means mask 1 means pass through thus invert the matrix then multiply by mask_value
+                auto bc_in = info.add_instruction(make_op("multibroadcast", {{"out_lens", mask_input->get_shape().lens()}}), mask_value_literal);
+                final_mask = info.add_instruction(make_op("not"), mask_input);
+                final_mask = info.add_instruction(make_op("convert", {{"target_type", input->get_shape().type()}}), final_mask);
+                final_mask = info.add_instruction(make_op("mul"), final_mask, bc_in);
+            }
+            else if(infered_in.index_pad == LEFT_PADDING)
+            {
+                // TODO add left padding input case
+            }
+            else if(infered_in.index_pad == RIGHT_PADDING)
+            {
+                // TODO add right padding input case
+            }
+        }
+        return final_mask;
+    }
+
     std::vector<instruction_ref> parse(const op_desc& /*opd*/,
                                        const onnx_parser& parser,
                                        const onnx_parser::node_info& info,
@@ -606,7 +643,7 @@ struct parse_attention : op_parser<parse_attention>
         // Set attention mask and bias when detected on input
         instruction_ref attn_mask;
         if(infered_attributes.has_attn_mask)
-            attn_mask = inputs.at(3);
+            attn_mask = create_input_mask(info, input_data, inputs.at(3), infered_attributes, parsed_attributes);
         
         instruction_ref attn_bias;
         if(infered_attributes.has_attn_bias)
@@ -636,9 +673,8 @@ struct parse_attention : op_parser<parse_attention>
                            split_qkv.cend(),
                            std::back_inserter(vec_of_attn_outs),
                            [&](auto && split_inputs) {
-                            static size_t i = 0; 
+                            static size_t i = 0;
                             auto result = scale_dot_attention_head(info, split_inputs, scale_factor, split_mask.at(i), split_bias.at(i), infered_attributes.has_attn_mask, infered_attributes.has_attn_bias);
-                            std::cout << "parse attn head: " << i << std::endl;
                             i++;
                             return result;
                            });

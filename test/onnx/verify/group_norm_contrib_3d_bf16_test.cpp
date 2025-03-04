@@ -21,31 +21,31 @@
  * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
  * THE SOFTWARE.
  */
-#ifndef MIGRAPHX_GUARD_GPU_DEVICE_NAME_HPP
-#define MIGRAPHX_GUARD_GPU_DEVICE_NAME_HPP
 
-#include <migraphx/gpu/config.hpp>
-#include <string>
+#include <migraphx/register_target.hpp>
+#include <migraphx/verify.hpp>
+#include <onnx_test.hpp>
+#include <onnx_verify_utils.hpp>
 
-struct hipDeviceProp_t;
-
-namespace migraphx {
-inline namespace MIGRAPHX_INLINE_NS {
-namespace gpu {
-
-MIGRAPHX_GPU_EXPORT std::string get_device_name();
-
-MIGRAPHX_GPU_EXPORT int get_device_id();
-
-MIGRAPHX_GPU_EXPORT bool gfx_has_fp8fnuz_intrinsics();
-
-MIGRAPHX_GPU_EXPORT bool gfx_has_fp8ocp_intrinsics();
-
-MIGRAPHX_GPU_EXPORT bool gfx_has_fp8fnuz_support();
-
-MIGRAPHX_GPU_EXPORT bool gfx_default_rocblas();
-
-} // namespace gpu
-} // namespace MIGRAPHX_INLINE_NS
-} // namespace migraphx
-#endif // MIGRAPHX_GUARD_GPU_DEVICE_NAME_HPP
+TEST_CASE(group_norm_contrib_bf16_test)
+{
+    using migraphx::bf16;
+    std::vector<bf16> gamma{bf16{1.2}, bf16{0.8}};
+    std::vector<bf16> beta{bf16{0.5}, bf16{0.2}};
+    std::vector<bf16> result_vector =
+        norm_test<bf16>({1, 4, 2},
+                        gamma,
+                        beta,
+                        read_onnx("group_norm_contrib_3d_channel_last_bf16_test.onnx"),
+                        "gamma",
+                        "beta");
+    std::vector<bf16> gold = {bf16{-1.10996256},
+                              bf16{-0.87330837},
+                              bf16{-0.0366542},
+                              bf16{-0.15776947},
+                              bf16{1.0366542},
+                              bf16{0.55776947},
+                              bf16{2.10996256},
+                              bf16{1.27330837}};
+    EXPECT(migraphx::verify::verify_rms_range(result_vector, gold));
+}

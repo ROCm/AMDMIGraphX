@@ -21,31 +21,25 @@
  * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
  * THE SOFTWARE.
  */
-#ifndef MIGRAPHX_GUARD_GPU_DEVICE_NAME_HPP
-#define MIGRAPHX_GUARD_GPU_DEVICE_NAME_HPP
 
-#include <migraphx/gpu/config.hpp>
-#include <string>
+#include <onnx_test.hpp>
 
-struct hipDeviceProp_t;
+TEST_CASE(nhwcconv_test)
+{
+    migraphx::program p;
+    auto* mm = p.get_main_module();
 
-namespace migraphx {
-inline namespace MIGRAPHX_INLINE_NS {
-namespace gpu {
+    migraphx::shape x_shape{migraphx::shape::float_type, {1, 7, 7, 1}};
+    auto x = mm->add_parameter("0", x_shape);
+    x = mm->add_instruction(migraphx::make_op("transpose", {{"permutation", {0, 3, 1, 2}}}), x);
 
-MIGRAPHX_GPU_EXPORT std::string get_device_name();
+    migraphx::shape w_shape{migraphx::shape::float_type, {1, 1, 1, 1}};
+    auto w = mm->add_parameter("1", w_shape);
+    w = mm->add_instruction(migraphx::make_op("transpose", {{"permutation", {0, 3, 1, 2}}}), w);
 
-MIGRAPHX_GPU_EXPORT int get_device_id();
+    auto y = mm->add_instruction(migraphx::make_op("convolution"), x, w);
+    mm->add_instruction(migraphx::make_op("transpose", {{"permutation", {0, 2, 3, 1}}}), y);
 
-MIGRAPHX_GPU_EXPORT bool gfx_has_fp8fnuz_intrinsics();
-
-MIGRAPHX_GPU_EXPORT bool gfx_has_fp8ocp_intrinsics();
-
-MIGRAPHX_GPU_EXPORT bool gfx_has_fp8fnuz_support();
-
-MIGRAPHX_GPU_EXPORT bool gfx_default_rocblas();
-
-} // namespace gpu
-} // namespace MIGRAPHX_INLINE_NS
-} // namespace migraphx
-#endif // MIGRAPHX_GUARD_GPU_DEVICE_NAME_HPP
+    migraphx::program prog = optimize_onnx("nhwcconv_test.onnx");
+    EXPECT(p == prog);
+}

@@ -463,24 +463,26 @@ template <class F>
 std::vector<argument> generic_eval(const module* mod,
                                    std::vector<context>& ctx,
                                    std::unordered_map<std::string, argument> params,
-                                   std::pmr::unordered_map<instruction_ref, argument> results,
+                                   std::pmr::unordered_map<instruction_ref, argument>& results,
                                    F trace)
 {
     assert(mod->validate() == mod->end());
-    results.reserve(mod->size() + results.size());
     std::vector<argument> values;
     values.reserve(16);
     for(auto ins : iterator_for(*mod))
     {
-        assert(results.find(ins) == results.end());
+        assert(mod->name() != "main" or results.find(ins) == results.end());
+#ifndef NDEBUG
+        results.emplace(ins, argument{});
+#endif
         const auto& name = ins->name();
         if(name == "@literal")
         {
-            results.emplace(ins, trace(ins, [&] { return ins->get_literal().get_argument(); }));
+            results.insert_or_assign(ins, trace(ins, [&] { return ins->get_literal().get_argument(); }));
         }
         else if(name == "@param")
         {
-            results.emplace(
+            results.insert_or_assign(
                 ins, trace(ins, [&] {
                     auto param_name = any_cast<builtin::param>(ins->get_operator()).parameter;
                     if(not contains(params, param_name))
@@ -499,7 +501,7 @@ std::vector<argument> generic_eval(const module* mod,
         }
         else if(name == "@outline")
         {
-            results.emplace(ins, trace(ins, [&] { return argument{ins->get_shape(), nullptr}; }));
+            results.insert_or_assign(ins, trace(ins, [&] { return argument{ins->get_shape(), nullptr}; }));
         }
         else if(name == "@return")
         {
@@ -528,7 +530,7 @@ std::vector<argument> generic_eval(const module* mod,
                 return generic_eval(smod, ctx, inputs, results, trace);
             };
 
-            results.emplace(
+            results.insert_or_assign(
                 ins, trace(ins, [&] {
                     auto op = ins->normalized_operator();
                     if(op.is_context_free())
@@ -551,16 +553,14 @@ std::vector<argument> generic_eval(const program& p,
                                    std::unordered_map<std::string, argument> params,
                                    F trace)
 {
-    using instruction_map = std::pmr::unordered_map<instruction_ref, argument>;
     const module* mm = p.get_main_module();
     std::size_t n         = p.total_instructions();
     std::vector<char> buffer(n * (sizeof(instruction_ref) + sizeof(argument)) * 4);
     std::pmr::monotonic_buffer_resource bres(
         buffer.data(), buffer.size(), std::pmr::null_memory_resource());
-    if(mm->size() == n)
-        return generic_eval(mm, ctx, params, instruction_map(&bres), trace);
-    std::pmr::unsynchronized_pool_resource pres(&bres);
-    return generic_eval(mm, ctx, params, instruction_map(&pres), trace);
+    std::pmr::unordered_map<instruction_ref, argument> results(&bres);
+    results.reserve(n);
+    return generic_eval(mm, ctx, params, results, trace);
 }
 
 std::size_t program::total_instructions() const

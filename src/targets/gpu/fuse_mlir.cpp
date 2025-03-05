@@ -933,11 +933,11 @@ struct find_mlir_gqa_attention_op
         csl = mpm.get_module().insert_instruction(attn, make_op("multibroadcast", {{"out_lens", {batch_size, num_heads}}}), csl);
 
         module m_attn;
-        std::vector<instruction_ref> inputs = {qkv, k, v};
-        if(seq_len == 1)
-        {
-            inputs.push_back(csl);
-        }
+        std::vector<instruction_ref> inputs = {qkv, k, v, csl};
+        // if(seq_len == 1)
+        // {
+        //     inputs.push_back(csl);
+        // }
         std::unordered_map<instruction_ref, instruction_ref> map_main_to_mattn;
         m_attn.add_params(inputs, &map_main_to_mattn);
 
@@ -1173,7 +1173,7 @@ void fuse_mlir::apply(module_pass_manager& mpm) const
         mpm.run_pass(dead_code_elimination{});
         
     }
-    
+
     match::find_matches(mpm, find_mlir_gqa_attention_op{mlir_mode::all});
     mpm.run_pass(dead_code_elimination{});
 

@@ -33,7 +33,7 @@ struct test_group_query_attention_prompt : verify_program<test_group_query_atten
     {
         migraphx::program p;
         auto* mm = p.get_main_module();
-        std::vector<size_t> query_lens{1, 10, 12288};
+        std::vector<size_t> query_lens{1, 4096, 12288};
         std::vector<size_t> kv_lens{1, 32, 4096, 128};
         std::vector<size_t> slk_lens{1, 1};
         std::vector<size_t> tsl_lens{1, 1};

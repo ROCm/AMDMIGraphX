@@ -147,6 +147,7 @@ struct ck_gemm_softmax_gemm_compiler : compiler<ck_gemm_softmax_gemm_compiler>
                                       ck::host::integer_divide_ceil(problem.O, n1_per_block);
 
         hip_compile_options options;
+        options.emplace_param("-DCK_CODE_GEN_RTC");
         options.additional_src_files = ck_headers();
         auto grid_size = can_fold_batch(inputs) ? blocks_per_batch : batch_count * blocks_per_batch;
         options.set_launch_params(v, grid_size * block_size, block_size);

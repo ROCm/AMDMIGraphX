@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2024 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2025 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -289,6 +289,15 @@ struct MIGRAPHX_EXPORT shape
 
     /// Check if a multi-dimensional index is within bounds for the shape.
     bool multi_within_bounds(std::vector<std::size_t> multi) const;
+
+    /// Convert multi-dimensional index into a single element index
+    template <class Iterator>
+    std::size_t single(Iterator start, Iterator last) const
+    {
+        if(start == last)
+            return 0;
+        return inner_product(this->lens().begin() + 1, this->lens().end(), start, *std::prev(last));
+    }
 
     /// Returns true if the shape is packed (number of elements and buffer size the same) with
     /// no padding

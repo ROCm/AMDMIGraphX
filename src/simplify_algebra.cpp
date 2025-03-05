@@ -1077,6 +1077,7 @@ void move_instructions_back(module& m, instruction_ref pos, std::vector<instruct
 
 /** Search for multiple "slice" instructions in an instruction's outputs
  *  which are contiguous slices of the same tensor.
+ *  Returns a vector of slice instructions sorted by starting index
  */
 std::vector<instruction_ref> get_splits(instruction_ref ins)
 {
@@ -1120,10 +1121,17 @@ std::vector<instruction_ref> get_splits(instruction_ref ins)
 
 struct find_splits
 {
+	/**
+	 * Matches to any -> slice -> pointwise (binary or unary)
+	 *			  | 
+	 *			  	-> slice -> reduction
+	 */
     auto matcher() const
     {
+		// match output to unary or binary pointwise instructions and reductions
         auto pointwise_reduction = match::any_of[match::outputs()](
             match::pointwise(match::any_of(match::nargs(1), match::nargs(2))), reduction());
+		// match to outputs to slice operator that go into pointwise or reduction
         return match::any(
             match::any_of[match::outputs()](match::name("slice")(pointwise_reduction)));
     }
@@ -1147,17 +1155,26 @@ struct find_splits
         })(ins1);
     }
 
+	/**
+	 * find groups of instructions where the slices lead to the same output operators
+	 * x -> slice -> add
+	 * |
+	 *  -> slice -> add
+	 */
     static std::vector<std::vector<instruction_ref>>
     get_split_groups(const module& m, const std::vector<instruction_ref>& splits)
     {
         std::vector<std::vector<instruction_ref>> groups;
+		// iterate over first slice's outputs
         for(auto out : splits.front()->outputs())
         {
             if(out->name() == "slice")
                 continue;
             std::vector<instruction_ref> group;
+			// iterate over all slice instructions
             for(auto split : splits)
             {
+				// find slice output with the same operator as the first slice's output
                 auto it =
                     std::find_if(split->outputs().begin(), split->outputs().end(), [&](auto i) {
                         return i->get_operator() == out->get_operator();

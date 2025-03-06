@@ -116,10 +116,11 @@ TEST_CASE(double_add_without_return)
         auto x   = mm->add_parameter("x", s);
         auto y   = mm->add_parameter("y", s);
         auto z   = mm->add_parameter("z", s);
-        auto fadd = add_pointwise(p2, "main:pointwise0", {x, y, z}, [=](auto* pm, const auto& inputs) {
-            auto add1 = pm->add_instruction(migraphx::make_op("add"), inputs[0], inputs[1]);
-            return pm->add_instruction(migraphx::make_op("add"), add1, inputs[2]);
-        });
+        auto fadd =
+            add_pointwise(p2, "main:pointwise0", {x, y, z}, [=](auto* pm, const auto& inputs) {
+                auto add1 = pm->add_instruction(migraphx::make_op("add"), inputs[0], inputs[1]);
+                return pm->add_instruction(migraphx::make_op("add"), add1, inputs[2]);
+            });
         mm->add_instruction(migraphx::make_op("identity"), fadd);
     }
     EXPECT(p1.sort() == p2.sort());
@@ -207,7 +208,10 @@ TEST_CASE(used_twice_mutli_out_fused)
         auto x    = mm->add_parameter("x", s);
         auto y    = mm->add_parameter("y", s);
         auto fadd = add_pointwise(
-            p2, "main:pointwise0", {x, y}, [=](auto* pm, const auto& inputs) -> std::vector<migraphx::instruction_ref> {
+            p2,
+            "main:pointwise0",
+            {x, y},
+            [=](auto* pm, const auto& inputs) -> std::vector<migraphx::instruction_ref> {
                 auto add1 = pm->add_instruction(migraphx::make_op("add"), inputs[0], inputs[1]);
                 auto add2 = pm->add_instruction(migraphx::make_op("add"), add1, inputs[0]);
                 return {add2, add1};
@@ -240,7 +244,10 @@ TEST_CASE(used_twice_mutli_out_fused_reorder)
         auto x    = mm->add_parameter("x", s);
         auto y    = mm->add_parameter("y", s);
         auto fadd = add_pointwise(
-            p2, "main:pointwise0", {x, y}, [=](auto* pm, const auto& inputs) -> std::vector<migraphx::instruction_ref> {
+            p2,
+            "main:pointwise0",
+            {x, y},
+            [=](auto* pm, const auto& inputs) -> std::vector<migraphx::instruction_ref> {
                 auto add1 = pm->add_instruction(migraphx::make_op("add"), inputs[0], inputs[1]);
                 auto add2 = pm->add_instruction(migraphx::make_op("add"), add1, inputs[1]);
                 return {add2, add1};

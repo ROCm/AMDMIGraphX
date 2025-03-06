@@ -188,6 +188,28 @@ static auto find_input_pointwise(instruction_ref ins, bool multi_out)
     return it;
 }
 
+static void move_output_instructions_after(module& m, instruction_ref src, instruction_ref dst)
+{
+    auto d = std::distance(src, dst);
+    std::vector<std::pair<std::size_t, instruction_ref>> instructions;
+    fix([&](auto self, instruction_ref ins) {
+        for(auto output:ins->outputs())
+        {
+            if(any_of(instructions, [&](const auto& p) { return p.second == output; }))
+                continue;
+            auto i = std::distance(src, output);
+            if(i >= d)
+                continue;
+            instructions.emplace_back(i, output);
+            self(output);
+        }
+    })(src);
+    std::sort(instructions.begin(), instructions.end(), by(std::less<>{}, [](auto&& p) { return p.first; }));
+    auto loc = std::next(dst);
+    for(auto [i, ins]:instructions)
+        m.move_instruction(ins, loc);
+}
+
 static bool find_pointwise_modules(module_pass_manager& mpm, bool multi_out)
 {
     bool changed = false;
@@ -212,6 +234,7 @@ static bool find_pointwise_modules(module_pass_manager& mpm, bool multi_out)
         {
             auto noutputs = std::max<std::size_t>(1, ins->get_shape().sub_shapes().size());
             auto finput = mpm.get_module().insert_instruction(ins, make_op("get_tuple_elem", {{"index", noutputs}}), fins);
+            move_output_instructions_after(mpm.get_module(), input, finput);
             mpm.get_module().replace_instruction(input, finput);
             if(noutputs == 1)
                 fins = mpm.get_module().insert_instruction(ins, make_op("get_tuple_elem", {{"index", 0}}), fins);

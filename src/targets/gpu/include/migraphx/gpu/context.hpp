@@ -142,9 +142,6 @@ struct hip_device
 
         void wait() const
         {
-            if(s == nullptr)
-                return;
-            setup();
             auto status = hipStreamSynchronize(s.get());
             if(status != hipSuccess)
                 MIGRAPHX_THROW("Failed to wait.");

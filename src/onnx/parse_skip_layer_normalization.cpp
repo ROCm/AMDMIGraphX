@@ -140,19 +140,19 @@ struct parse_skip_simplified_layer_normalization
         auto exp_x  = info.add_instruction(make_op("reduce_mean", {{"axes", {axis}}}), float_x);
         auto pr_var = info.add_common_op("sqdiff", {float_x, exp_x});
         auto var    = info.add_instruction(make_op("reduce_mean", {{"axes", {axis}}}), pr_var);
-        var         = info.add_instruction(make_op("convert", {{"target_type", x_dtype}}), var);
         auto mean   = info.add_instruction(make_op("convert", {{"target_type", x_dtype}}), exp_x);
 
         epsilon =
             (x_dtype == migraphx::shape::half_type and std::abs(epsilon) < 1e-7) ? 1e-7 : epsilon;
-        auto eps    = info.add_literal(migraphx::literal{migraphx::shape{x_dtype}, {epsilon}});
+        auto eps    = info.add_literal(migraphx::literal{migraphx::shape{migraphx::shape::float_type}, {epsilon}});
         auto var_ep = info.add_common_op("add", var, eps);
 
         // reciprical sqrt here on resulting variance + epsilon offset to avoid div by zero
-        auto r_var  = info.add_instruction(make_op("rsqrt"), var_ep);
+        auto r_var_fp32  = info.add_instruction(make_op("rsqrt"), var_ep);
+        auto r_var       = info.add_instruction(make_op("convert", {{"target_type", x_dtype}}), r_var_fp32);
 
         // Output is  (x - E[x]) * gamma / (sqrt(var(x) - epsilon)) + beta
-        auto result = info.add_common_op("sub", x, exp_x);
+        auto result = info.add_common_op("sub", x, mean);
         result      = info.add_common_op("mul", result, r_var);
         result      = info.add_common_op("mul", result, gamma);
 
@@ -172,8 +172,7 @@ struct parse_skip_simplified_layer_normalization
         // exists)with shape (batch_size, sequence_length, hidden_size) or (token_count,
         // hidden_size).
 
-        result->debug_print();
-        return {result, mean, r_var, x};
+        return {result, exp_x, r_var_fp32, x};
     }
 };
 

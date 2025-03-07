@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2024 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2025 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -63,12 +63,19 @@ int get_onnx_type(shape::type_t s_type)
 
 auto make_attribute(const migraphx::value& val)
 {
-    value attribute;
+    value attribute     = value(std::unordered_map<std::string, value>());
     attribute["name"] = val.get_key();
     auto val_string   = val.to<std::string>();
-    val_string        = val_string.substr(val_string.find(":") + 1);
-    attribute["s"]    = base64_encode(val_string);
-    attribute["type"] = "STRING";
+    std::string sub_str = val.get_key() + ":";
+    auto find_key       = val_string.find(sub_str);
+    if(find_key != std::string::npos)
+    {
+        val_string = val_string.substr(find_key + sub_str.length() + 1);
+    }
+    // TODO: doesn't work for some reason with Netron now
+    // attribute["s"]    = base64_encode(val_string);
+    // attribute["type"] = "STRING";
+    attribute["docString"] = val_string;
     return attribute;
 }
 
@@ -78,7 +85,7 @@ auto make_onnx_json_node(instruction_ref ins,
 {
     value node;
     // TODO add support for module inputs
-    value input_arr;
+    value input_arr = value({});
     for(instruction_ref input_ins : ins->inputs())
     {
         auto name = input_ins->name();
@@ -96,7 +103,7 @@ auto make_onnx_json_node(instruction_ref ins,
             input_arr.push_back(ins_uids.at(input_ins) + "->" + ins_uids.at(ins));
         }
     }
-    value output_arr;
+    value output_arr = value({});
     for(instruction_ref output_ins : ins->outputs())
     {
         if(output_ins->name() == "@return")
@@ -108,15 +115,15 @@ auto make_onnx_json_node(instruction_ref ins,
             output_arr.push_back(ins_uids.at(ins) + "->" + ins_uids.at(output_ins));
         }
     }
-    node["input"]  = input_arr;
+    node["input"]          = input_arr;
     node["output"] = output_arr;
     node["name"]   = ins_uids.at(ins);
     node["opType"] = ins->name();
-    value op_attribute_arr;
+    value op_attribute_arr = value({});
     auto op_value = ins->get_operator().to_value();
     std::for_each(op_value.begin(), op_value.end(), [&](auto v) {
         const std::string& attr_key = v.get_key();
-        if(v.is_binary())
+        if(v.is_binary() or attr_key == "code_object")
         {
             return;
         }
@@ -151,17 +158,17 @@ auto make_onnx_json_literal(instruction_ref ins,
 auto make_onnx_json_shape(const shape& s)
 {
     value ret;
-    value dim;
-    auto shape_lens = s.lens();
-    std::transform(shape_lens.begin(),
-                   shape_lens.end(),
-                   std::back_inserter(dim),
-                   [](std::size_t len) { return len; });
+    value dim = value({});
+    for(std::size_t len : s.lens())
+    {
+        // cppcheck-suppress useStlAlgorithm
+        dim.push_back({{"dimValue", len}});
+    }
     ret["dim"] = dim;
     return ret;
 }
 
-// ONNX graph edges called "valuetype"
+// ONNX graph edges called "valueType"
 auto make_onnx_json_edge(instruction_ref ins,
                          instruction_ref out_ins,
                          std::unordered_map<instruction_ref, std::string> ins_uids)
@@ -207,8 +214,11 @@ std::unordered_map<instruction_ref, std::string> make_ins_uids(const module& mod
 
 value make_graph(const module* mod)
 {
-    value graph = {
-        {"node", {}}, {"initializer", {}}, {"input", {}}, {"output", {}}, {"valueInfo", {}}};
+    value graph   = {{"node", value({})},
+                     {"initializer", value({})},
+                     {"input", value({})},
+                     {"output", value({})},
+                     {"valueInfo", value({})}};
     auto ins_uids = make_ins_uids(*mod);
     for(auto ins = mod->begin(); ins != mod->end(); ++ins)
     {
@@ -251,7 +261,9 @@ std::string make_netron_output(const program& prog)
 {
     value output;
     auto prog_value           = prog.to_value();
-    output["irVersion"]       = prog_value.at("version").to<std::string>();
+    // ONNX IR version 6
+    // TODO: investigate sure how this affects things
+    output["irVersion"]       = 6;
     output["producerName"]    = "AMDMIGraphX";
     output["producerVersion"] = prog_value.at("migraphx_version").to<std::string>();
     for(auto& mod : prog.get_modules())
@@ -259,7 +271,7 @@ std::string make_netron_output(const program& prog)
         auto graph      = make_graph(mod);
         output["graph"] = graph;
     }
-    return to_json_string(output);
+    return to_pretty_json_string(output, 4);
 }
 
 } // namespace MIGRAPHX_INLINE_NS

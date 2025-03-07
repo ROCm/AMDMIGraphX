@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2024 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2025 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -25,33 +25,80 @@
 #include <migraphx/ranges.hpp>
 #include <migraphx/make_op.hpp>
 #include <migraphx/instruction.hpp>
+#include <migraphx/permutation.hpp>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
 namespace onnx {
 
+static instruction_ref
+apply_channels_last_perm(const onnx_parser::node_info& info, instruction_ref ins, bool invert)
+{
+    std::vector<int64_t> perm(ins->get_shape().ndim());
+    std::iota(perm.begin() + 1, perm.end() - 1, 2);
+    perm.back() = 1;
+    return info.add_instruction(
+        make_op("transpose", {{"permutation", invert ? invert_permutation(perm) : perm}}), ins);
+}
+
 struct parse_groupnorm : op_parser<parse_groupnorm>
 {
-    std::vector<op_desc> operators() const { return {{"GroupNormalization"}}; }
+    std::vector<op_desc> operators() const
+    {
+        return {{"GroupNormalization", "GroupNorm"}, {"GroupNorm", "Contrib_GroupNorm"}};
+    }
 
-    instruction_ref parse(const op_desc& /*opd*/,
+    instruction_ref parse(const op_desc& opd,
                           const onnx_parser& parser,
                           const onnx_parser::node_info& info,
                           std::vector<instruction_ref> args) const
     {
+        bool is_contrib = (opd.op_name == ("Contrib_GroupNorm"));
+
         float epsilon = 1e-5f;
         if(contains(info.attributes, "epsilon"))
         {
             epsilon = parser.parse_value(info.attributes.at("epsilon")).at<float>();
         }
         size_t num_groups;
-        if(contains(info.attributes, "num_groups"))
+        if(contains(info.attributes, "num_groups") or contains(info.attributes, "groups"))
         {
-            num_groups = parser.parse_value(info.attributes.at("num_groups")).at<size_t>();
+            if(is_contrib)
+            {
+                num_groups =
+                    std::abs(parser.parse_value(info.attributes.at("groups")).at<int64_t>());
+            }
+            else
+            {
+                num_groups =
+                    std::abs(parser.parse_value(info.attributes.at("num_groups")).at<int64_t>());
+            }
         }
         else
         {
             MIGRAPHX_THROW("PARSE_GROUPNORM: num_groups must be available");
+        }
+
+        bool is_channels_last = false;
+        if(is_contrib)
+        { // default state for GroupNorm Contrib op
+            is_channels_last = true;
+            if(contains(info.attributes, "channels_last"))
+            {
+                is_channels_last =
+                    (1 == parser.parse_value(info.attributes.at("channels_last")).at<size_t>());
+            }
+        }
+
+        bool silu_activation = false;
+        if(contains(info.attributes, "activation") and is_contrib)
+        {
+            silu_activation =
+                (1 == parser.parse_value(info.attributes.at("activation")).at<size_t>());
+        }
+        else if(is_contrib)
+        {
+            MIGRAPHX_THROW("PARSE_GROUPNORM: activation must be available");
         }
 
         if(args.size() != 3)
@@ -59,9 +106,15 @@ struct parse_groupnorm : op_parser<parse_groupnorm>
             MIGRAPHX_THROW("PARSE_GROUPNORM: invalid input count");
         }
 
-        auto x     = args.at(0);
-        auto scale = args.at(1);
-        auto bias  = args.at(2);
+        // Adjust chanels from channels_last-> NCHW if last channel is set for contrib op
+        auto x = args.at(0);
+        if(is_channels_last and is_contrib)
+        {
+            x = apply_channels_last_perm(info, x, true);
+        }
+
+        auto scale = args.at(1); // gamma in the GroupNorm contrib case
+        auto bias  = args.at(2); // beta in the GroupNorm contrib case
 
         auto x_shape = x->get_shape();
         auto x_dtype = x_shape.type();
@@ -120,7 +173,20 @@ struct parse_groupnorm : op_parser<parse_groupnorm>
             info.add_instruction(make_op("broadcast", {{"axis", 1}, {"out_lens", dims}}), bias);
         auto scaled = info.add_instruction(make_op("mul"), result, scale_bcast);
         auto y      = info.add_instruction(make_op("add"), scaled, bias_bcast);
-        return info.add_instruction(make_op("reshape", {{"dims", x_dims}}), y);
+        auto output = info.add_instruction(make_op("reshape", {{"dims", x_dims}}), y);
+
+        // Convert to NCHW -> channels_last for contrib GroupNorm
+        if(is_channels_last and is_contrib)
+        {
+            output = apply_channels_last_perm(info, output, false);
+        }
+        if(silu_activation)
+        {
+            // SiLU activation is just  out = x * sigmoid(x)
+            auto sigmoid = info.add_instruction(make_op("sigmoid"), output);
+            output       = info.add_instruction(make_op("mul"), output, sigmoid);
+        }
+        return output;
     }
 };
 

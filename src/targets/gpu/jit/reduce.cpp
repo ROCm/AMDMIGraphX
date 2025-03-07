@@ -82,17 +82,17 @@ static std::vector<std::size_t> get_reduce_lens(const std::vector<std::size_t>& 
 
 static shape get_input_shape(const std::vector<shape>& inputs)
 {
-    auto it = std::max_element(inputs.begin(),
-                               inputs.end(),
-                               by(std::less<>{}, [](const shape& s) { return s.elements(); }));
+    auto it = std::max_element(inputs.begin(), inputs.end(), by(std::less<>{}, [](const shape& s) {
+                                   return s.elements();
+                               }));
     return *it;
 }
 
 static shape get_reduce_shape(const std::vector<shape>& inputs)
 {
-    auto it = std::min_element(inputs.begin(),
-                               inputs.end(),
-                               by(std::less<>{}, [](const shape& s) { return s.elements(); }));
+    auto it = std::min_element(inputs.begin(), inputs.end(), by(std::less<>{}, [](const shape& s) {
+                                   return s.elements();
+                               }));
     return *it;
 }
 
@@ -401,11 +401,12 @@ struct fused_reduce_compiler : compiler<fused_reduce_compiler>
         return compile_hip_code_object(ctx, src, options);
     }
 
-    compiler_replace compile(context& ctx, instruction_ref ins, const operation& op, const value& solution) const
+    compiler_replace
+    compile(context& ctx, instruction_ref ins, const operation& op, const value& solution) const
     {
         assert(not ins->module_inputs().empty());
         auto v        = op.to_value();
-        for(const auto& x:solution)
+        for(const auto& x : solution)
             v.insert(x);
         auto* rm      = ins->module_inputs().front();
         v["preamble"] = generate_reduce(*rm, "fused_reduce_op");
@@ -414,7 +415,7 @@ struct fused_reduce_compiler : compiler<fused_reduce_compiler>
         return compile_op(ctx, to_shapes(ins->inputs()), v);
     }
 
-     optional<tuning_config> get_tuning_config(const context& ctx,
+    optional<tuning_config> get_tuning_config(const context& ctx,
                                               instruction_ref ins,
                                               const operation& op,
                                               bool exhaustive) const
@@ -424,22 +425,22 @@ struct fused_reduce_compiler : compiler<fused_reduce_compiler>
         if(op.name() != "fused_reduce")
             return nullopt;
         tuning_config tc;
-        auto shapes    = to_shapes(ins->inputs());
-        tc.problem = to_value(shapes);
-        auto axes           = op.to_value().at("axes").to_vector<std::size_t>();
-        auto input_shape = get_input_shape(shapes);
+        auto shapes       = to_shapes(ins->inputs());
+        tc.problem        = to_value(shapes);
+        auto axes         = op.to_value().at("axes").to_vector<std::size_t>();
+        auto input_shape  = get_input_shape(shapes);
         auto reduce_shape = get_reduced_shape(input_shape, axes);
-        auto relements = reduce_shape.elements();
+        auto relements    = reduce_shape.elements();
         std::unordered_set<std::size_t> tile_sizes;
-        for(auto per_lane:{1, 2, 4, 8, 16})
+        for(auto per_lane : {1, 2, 4, 8, 16})
         {
             std::size_t x = relements / per_lane;
-            for(auto max_block:{256, 512, 1024})
+            for(auto max_block : {256, 512, 1024})
                 tile_sizes.insert(compute_block_size(ctx, x, max_block));
-            if (x < ctx.get_current_device().get_wavefront_size())
+            if(x < ctx.get_current_device().get_wavefront_size())
                 tile_sizes.insert(bit_ceil(x));
         }
-        for(auto tile_size:tile_sizes)
+        for(auto tile_size : tile_sizes)
         {
             if(tile_size > ctx.get_current_device().get_wavefront_size())
                 tc.solutions.push_back({{"algo", "block"}, {"block_size", tile_size}});
@@ -449,7 +450,6 @@ struct fused_reduce_compiler : compiler<fused_reduce_compiler>
         tc.solutions.push_back({{"algo", "lane"}});
         return tc;
     }
-
 };
 } // namespace gpu
 } // namespace MIGRAPHX_INLINE_NS

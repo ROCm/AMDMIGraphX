@@ -8,7 +8,7 @@ def getgputargets() {
 }
 
 def getnavi3xtargets() {
-    targets="gfx1100;gfx1101;gfx1102"
+    targets="gfx1100;gfx1101"
     return targets
 }
 

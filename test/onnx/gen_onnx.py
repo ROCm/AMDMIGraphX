@@ -12753,7 +12753,7 @@ def skip_layer_normalization_beta_bias_test():
         epsilon=1e-5,
         domain="com.microsoft")
 
-    return ([node], [x, skip, gamma,
+    return ([node], [x, skip, gamma, beta,
                      bias], [y, mean, inv_std_var, input_skip_bias_sum])
 
 
@@ -12779,7 +12779,7 @@ def skip_layer_normalization_bad_bias_test():
         epsilon=1e-5,
         domain="com.microsoft")
 
-    return ([node], [x, skip, gamma,
+    return ([node], [x, skip, gamma, beta,
                      bias], [y, mean, inv_std_var, input_skip_bias_sum])
 
 

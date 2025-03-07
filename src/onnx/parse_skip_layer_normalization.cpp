@@ -62,7 +62,7 @@ struct parse_skip_simplified_layer_normalization
             epsilon = parser.parse_value(info.attributes.at("epsilon")).at<float>();
         }
 
-        // Inputs (3 - 4)
+        // Inputs (3 - 5)
         // input : T
         // 3D input tensor with shape (batch_size, sequence_length, hidden_size) Or 2D input tensor
         // with shape (token_count, hidden_size)
@@ -97,10 +97,8 @@ struct parse_skip_simplified_layer_normalization
             MIGRAPHX_THROW("PARSE_SKIPLAYERNORMALIZATION: invalid input shape");
         }
 
-        instruction_ref beta;
-        instruction_ref bias;
-
         // Beta always applied at the end result as an affine offset
+        instruction_ref beta;
         if(args.size() >= 4)
         {
             beta = args.at(3);
@@ -113,6 +111,7 @@ struct parse_skip_simplified_layer_normalization
         }
 
         // Bias is always applied to the input along with any skip input
+        instruction_ref bias;
         if(args.size() == 5)
         {
             bias = args.at(4);
@@ -125,7 +124,7 @@ struct parse_skip_simplified_layer_normalization
         }
 
         x = info.add_common_op("add", x, skip);
-        if(args.size() >= 4)
+        if(args.size() >= 5)
         {
             x = info.add_common_op("add", x, bias);
         }
@@ -156,7 +155,7 @@ struct parse_skip_simplified_layer_normalization
         result      = info.add_common_op("mul", result, r_var);
         result      = info.add_common_op("mul", result, gamma);
 
-        if(args.size() == 5)
+        if(args.size() >= 4)
         {
             result = info.add_common_op("add", result, beta);
         }

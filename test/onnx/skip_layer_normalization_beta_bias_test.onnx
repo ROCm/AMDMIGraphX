@@ -1,5 +1,5 @@
 
-'skip_layer_normalization_beta_bias_test:é
+'skip_layer_normalization_beta_bias_test:¢
 Å
 x
 skip
@@ -20,6 +20,11 @@
 
 Z
 gamma
+
+
+
+Z
+beta
 
 
 

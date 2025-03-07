@@ -25,11 +25,11 @@
 #include <onnx_test.hpp>
 #include <onnx_test_utils.hpp>
 
-TEST_CASE(skip_layer_normalization_test)
+TEST_CASE(skip_layer_normalization_beta_bias_test)
 {
     migraphx::program p = make_skip_layer_norm(
-        {2, 2, 4}, {2, 2, 4}, {4}, {}, {}, 2, 1e-5f, migraphx::shape::half_type);
+        {2, 2, 4}, {2, 2, 4}, {4}, {4}, {4}, 2, 1e-5f, migraphx::shape::half_type);
 
-    auto prog = optimize_onnx("skip_layer_normalization_test.onnx");
+    auto prog = optimize_onnx("skip_layer_normalization_beta_bias_test.onnx");
     EXPECT(p == prog);
 }

@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2024 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2025 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -162,11 +162,58 @@ static module::with_inputs append_pointwise_module(instruction_ref ins, instruct
             input_map[input] = map_ins[param];
         }
     }
-    pm.replace_return(pm.insert_instructions(last, xm, &map_ins));
+    auto returns = pm.insert_instructions(last, xm, &map_ins);
+    if(ins->outputs().size() > 1)
+    {
+        auto ireturns = pm.get_returns();
+        returns.insert(returns.end(), ireturns.begin(), ireturns.end());
+    }
+    pm.replace_return(returns);
     return {std::move(pm), inputs};
 }
 
-static bool find_pointwise_modules(module_pass_manager& mpm)
+static auto find_input_pointwise(instruction_ref ins, bool multi_out)
+{
+    auto it = std::find_if(ins->inputs().begin(), ins->inputs().end(), [&](auto i) {
+        return i->name() == "pointwise" and i->outputs().size() == 1;
+    });
+    if(it == ins->inputs().end() and multi_out)
+    {
+        it = std::find_if(ins->inputs().begin(), ins->inputs().end(), [&](auto i) {
+            return i->name() == "pointwise" and
+                   std::none_of(i->outputs().begin(), i->outputs().end(), [&](auto output) {
+                       return output != ins and reaches(output, ins);
+                   });
+        });
+    }
+    return it;
+}
+
+static void move_output_instructions_after(module& m, instruction_ref src, instruction_ref dst)
+{
+    auto d = std::distance(src, dst);
+    std::vector<std::pair<std::size_t, instruction_ref>> instructions;
+    fix([&](auto self, instruction_ref ins) {
+        for(auto output : ins->outputs())
+        {
+            if(any_of(instructions, [&](const auto& p) { return p.second == output; }))
+                continue;
+            auto i = std::distance(src, output);
+            if(i >= d)
+                continue;
+            instructions.emplace_back(i, output);
+            self(output);
+        }
+    })(src);
+    std::sort(instructions.begin(), instructions.end(), by(std::less<>{}, [](auto&& p) {
+                  return p.first;
+              }));
+    auto loc = std::next(dst);
+    for(auto [i, ins] : instructions)
+        m.move_instruction(ins, loc);
+}
+
+static bool find_pointwise_modules(module_pass_manager& mpm, bool multi_out)
 {
     bool changed = false;
     auto last    = std::prev(mpm.get_module().end());
@@ -176,18 +223,29 @@ static bool find_pointwise_modules(module_pass_manager& mpm)
             continue;
         if(ins->outputs().empty() and ins != last)
             continue;
-        auto it = std::find_if(ins->inputs().begin(), ins->inputs().end(), [&](auto i) {
-            return i->name() == "pointwise" and i->outputs().size() == 1;
-        });
+        auto it = find_input_pointwise(ins, multi_out);
         if(it == ins->inputs().end())
             continue;
         auto input = *it;
-
+        const bool has_multi_out = input->outputs().size() > 1;
         auto fused = append_pointwise_module(input, ins);
         auto name  = fused.mod.name();
         mpm.rename_module(name, name + ":" + ins->module_inputs().front()->name() + "-deleted");
         auto* new_pm = mpm.create_module(name, std::move(fused.mod));
-        mpm.get_module().replace_instruction(ins, input->get_operator(), fused.inputs, {new_pm});
+        auto fins =
+            mpm.get_module().insert_instruction(ins, input->get_operator(), fused.inputs, {new_pm});
+        if(has_multi_out)
+        {
+            auto noutputs = std::max<std::size_t>(1, ins->get_shape().sub_shapes().size());
+            auto finput   = mpm.get_module().insert_instruction(
+                ins, make_op("get_tuple_elem", {{"index", noutputs}}), fins);
+            move_output_instructions_after(mpm.get_module(), input, finput);
+            mpm.get_module().replace_instruction(input, finput);
+            if(noutputs == 1)
+                fins = mpm.get_module().insert_instruction(
+                    ins, make_op("get_tuple_elem", {{"index", 0}}), fins);
+        }
+        mpm.get_module().replace_instruction(ins, fins);
 
         changed = true;
     }
@@ -252,7 +310,7 @@ void fuse_pointwise::apply(module_pass_manager& mpm) const
             mpm.run_pass(rewrite_reshapes<pointwise_reshape>{});
         if(enable_rewrite_broadcasts)
             rewrite_broadcasts(mpm);
-        if(not find_pointwise_modules(mpm))
+        if(not find_pointwise_modules(mpm, enable_multi_output))
             break;
         mpm.run_pass(dead_code_elimination{});
     }

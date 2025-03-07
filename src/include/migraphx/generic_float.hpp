@@ -27,6 +27,7 @@
 
 #include <migraphx/config.hpp>
 #include <migraphx/bit_cast.hpp>
+#include <migraphx/bit.hpp>
 #include <algorithm>
 #include <limits>
 #include <iostream>
@@ -35,35 +36,6 @@
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
-
-template <unsigned int N>
-constexpr unsigned int all_ones() noexcept
-{
-    return (1u << N) - 1u;
-}
-
-template <typename T>
-constexpr int countl_zero(T value)
-{
-    unsigned int r = 0;
-    for(; value != 0u; value >>= 1u)
-        r++;
-    return 8 * sizeof(value) - r;
-}
-
-constexpr std::size_t bit_ceil(std::size_t v)
-{
-    if(v <= 1)
-        return 1;
-    v--;
-    v |= v >> 1u;
-    v |= v >> 2u;
-    v |= v >> 4u;
-    v |= v >> 8u;
-    v |= v >> 16u;
-    v |= v >> 32u;
-    return v + 1;
-}
 
 constexpr std::size_t integer_divide_ceil(std::size_t x, std::size_t y)
 {

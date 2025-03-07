@@ -140,7 +140,7 @@ static bool hip_accept_non_uniform_wg()
 }
 
 std::function<std::size_t(std::size_t local)>
-compute_global_for(context& ctx, std::size_t n, std::size_t over)
+compute_global_for(const context& ctx, std::size_t n, std::size_t over)
 {
     assert(over > 0);
     std::size_t max_global = ctx.get_current_device().get_cu_count() *
@@ -158,7 +158,7 @@ compute_global_for(context& ctx, std::size_t n, std::size_t over)
     };
 }
 
-std::size_t compute_block_size(context& ctx, std::size_t n, std::size_t max_block_size)
+std::size_t compute_block_size(const context& ctx, std::size_t n, std::size_t max_block_size)
 {
     const std::size_t min_block_size = ctx.get_current_device().get_wavefront_size();
     auto block_size                  = (((n - 1) / min_block_size + 1)) * min_block_size;

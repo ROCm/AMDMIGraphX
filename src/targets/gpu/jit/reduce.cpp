@@ -29,6 +29,7 @@
 #include <migraphx/reduce_dims.hpp>
 #include <migraphx/algorithm.hpp>
 #include <migraphx/array.hpp>
+#include <migraphx/bit.hpp>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
@@ -368,7 +369,7 @@ struct fused_reduce_compiler : compiler<fused_reduce_compiler>
             }
             else
             {
-                auto subwave_size = compute_subwave_size(ctx, relements);
+                auto subwave_size = v.get("subwave_size", compute_subwave_size(ctx, relements));
                 algo              = "subwave<" + std::to_string(subwave_size) + ">";
                 options.set_launch_params(v,
                                           compute_global_for(ctx, nelements * subwave_size, 256),
@@ -413,7 +414,7 @@ struct fused_reduce_compiler : compiler<fused_reduce_compiler>
         return compile_op(ctx, to_shapes(ins->inputs()), v);
     }
 
-     optional<tuning_config> get_tuning_config(const context&,
+     optional<tuning_config> get_tuning_config(const context& ctx,
                                               instruction_ref ins,
                                               const operation& op,
                                               bool exhaustive) const
@@ -429,15 +430,23 @@ struct fused_reduce_compiler : compiler<fused_reduce_compiler>
         auto input_shape = get_input_shape(shapes);
         auto reduce_shape = get_reduced_shape(input_shape, axes);
         auto relements = reduce_shape.elements();
-        for(auto block_size:{64, 128, 256, 512, 1024})
+        std::unordered_set<std::size_t> tile_sizes;
+        for(auto per_lane:{1, 2, 4, 8, 16})
         {
-            if(relements < block_size)
-                continue;
-            tc.solutions.push_back({{"algo", "block"}, {"block_size", block_size}});
+            std::size_t x = relements / per_lane;
+            for(auto max_block:{256, 512, 1024})
+                tile_sizes.insert(compute_block_size(ctx, x, max_block));
+            if (x < ctx.get_current_device().get_wavefront_size())
+                tile_sizes.insert(bit_ceil(x));
+        }
+        for(auto tile_size:tile_sizes)
+        {
+            if(tile_size > ctx.get_current_device().get_wavefront_size())
+                tc.solutions.push_back({{"algo", "block"}, {"block_size", tile_size}});
+            else
+                tc.solutions.push_back({{"algo", "wave"}, {"subwave_size", tile_size}});
         }
         tc.solutions.push_back({{"algo", "lane"}});
-        if (relements < 16384)
-            tc.solutions.push_back({{"algo", "wave"}});
         return tc;
     }
 

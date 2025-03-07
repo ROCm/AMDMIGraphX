@@ -71,14 +71,14 @@ struct hip_compile_options
 
 /// Compute global for n elements, but max out on target-specific upper limit
 MIGRAPHX_GPU_EXPORT std::function<std::size_t(std::size_t local)>
-compute_global_for(context& ctx, std::size_t n, std::size_t over = 1);
+compute_global_for(const context& ctx, std::size_t n, std::size_t over = 1);
 
 MIGRAPHX_GPU_EXPORT operation compile_hip_code_object(context& ctx,
                                                       const std::string& content,
                                                       hip_compile_options options);
 
 MIGRAPHX_GPU_EXPORT std::size_t
-compute_block_size(context& ctx, std::size_t n, std::size_t max_block_size = 1024);
+compute_block_size(const context& ctx, std::size_t n, std::size_t max_block_size = 1024);
 
 template <class T>
 std::string generate_index_ints(const std::vector<T>& v)

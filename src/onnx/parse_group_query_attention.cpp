@@ -88,7 +88,8 @@ struct parse_group_query_attention : op_parser<parse_group_query_attention>
         auto new_args = args;
         if(args.at(1)->get_shape().lens().size() > 1)
         {
-            new_args[0] = info.add_instruction(make_op("concat", {{"axis", 2}}), args.at(0), args.at(1), args.at(2));
+            new_args[0] = info.add_instruction(
+                make_op("concat", {{"axis", 2}}), args.at(0), args.at(1), args.at(2));
         }
 
         auto gqa             = info.add_instruction(make_op("group_query_attention",

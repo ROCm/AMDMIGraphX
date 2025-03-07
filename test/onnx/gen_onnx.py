@@ -32,7 +32,9 @@ from onnx.numpy_helper import from_array
 
 
 def onnx_test(external_data=False):
+
     def create_onnx_test(op_test):
+
         def run_test():
             op_info = op_test()
             if len(op_info) > 3:
@@ -5031,9 +5033,11 @@ def group_query_attention_test():
 @onnx_test()
 def group_query_attention_non_packed_qkv_test():
     query = helper.make_tensor_value_info('query', TensorProto.FLOAT16,
+                                          [1, 1, 4096])
+    key = helper.make_tensor_value_info('key', TensorProto.FLOAT16,
                                         [1, 1, 4096])
-    key = helper.make_tensor_value_info('key', TensorProto.FLOAT16, [1, 1, 4096])
-    value = helper.make_tensor_value_info('value', TensorProto.FLOAT16, [1, 1, 4096])
+    value = helper.make_tensor_value_info('value', TensorProto.FLOAT16,
+                                          [1, 1, 4096])
     past_key_values_key = helper.make_tensor_value_info(
         'past_key_values_key', TensorProto.FLOAT16, [1, 32, 4096, 128])
     past_key_values_value = helper.make_tensor_value_info(
@@ -5082,9 +5086,9 @@ def group_query_attention_non_packed_qkv_test():
         scale=1.0,
         domain="com.microsoft")
 
-    return ([node
-             ], [query, key, value, past_key_values_key,
-                 past_key_values_value], [output, present_key, present_value],
+    return ([node],
+            [query, key, value, past_key_values_key,
+             past_key_values_value], [output, present_key, present_value],
             [seqlens_k, total_sequence_length, cos_cache, sin_cache])
 
 

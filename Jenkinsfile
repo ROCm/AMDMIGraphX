@@ -213,12 +213,12 @@ rocmtest clang_debug: rocmnode('mi200+') { cmake_build ->
         cmake_build(flags: "-DCMAKE_BUILD_TYPE=debug -DMIGRAPHX_ENABLE_C_API_TEST=Off -DMIGRAPHX_ENABLE_PYTHON=Off -DMIGRAPHX_ENABLE_GPU=Off -DMIGRAPHX_ENABLE_CPU=On -DCMAKE_CXX_FLAGS_DEBUG='${debug_flags}'", compiler:'/usr/bin/clang++-14')
     }
 }
-//, clang_release_navi: rocmnode('navi32') { cmake_build ->
-//    stage('HIP Clang Release Navi32') {
-//        def gpu_targets = getnavi3xtargets()
-//        cmake_build(flags: "-DCMAKE_BUILD_TYPE=release -DGPU_TARGETS='${gpu_targets}' -DMIGRAPHX_DISABLE_ONNX_TESTS=On")
-//    }
-//}
+, clang_release_navi: rocmnode('navi32') { cmake_build ->
+    stage('HIP Clang Release Navi32') {
+        def gpu_targets = getnavi3xtargets()
+        cmake_build(flags: "-DCMAKE_BUILD_TYPE=release -DGPU_TARGETS='${gpu_targets}' -DMIGRAPHX_DISABLE_ONNX_TESTS=On")
+    }
+}
 
 
 

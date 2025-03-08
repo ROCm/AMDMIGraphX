@@ -33,7 +33,7 @@ namespace migraphx {
 constexpr bool get_bit(uint32_t x, uint32_t i) noexcept
 {
     MIGRAPHX_ASSERT(i < 32);
-    return ((x >> i) & 1) != 0;
+    return ((x >> i) & 1u) != 0;
 }
 
 constexpr uint64_t bit_ceil(uint64_t x) noexcept
@@ -41,12 +41,12 @@ constexpr uint64_t bit_ceil(uint64_t x) noexcept
     if(x <= 1)
         return 1;
     --x;
-    x |= x >> 1;
-    x |= x >> 2;
-    x |= x >> 4;
-    x |= x >> 8;
-    x |= x >> 16;
-    x |= x >> 32;
+    x |= x >> 1u;
+    x |= x >> 2u;
+    x |= x >> 4u;
+    x |= x >> 8u;
+    x |= x >> 16u;
+    x |= x >> 32u;
     return x + 1;
 }
 
@@ -55,11 +55,11 @@ constexpr uint32_t bit_ceil(uint32_t x) noexcept
     if(x <= 1)
         return 1;
     --x;
-    x |= x >> 1;
-    x |= x >> 2;
-    x |= x >> 4;
-    x |= x >> 8;
-    x |= x >> 16;
+    x |= x >> 1u;
+    x |= x >> 2u;
+    x |= x >> 4u;
+    x |= x >> 8u;
+    x |= x >> 16u;
     return x + 1;
 }
 

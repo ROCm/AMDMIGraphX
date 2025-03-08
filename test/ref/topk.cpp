@@ -30,7 +30,7 @@
 
 #include <test.hpp>
 
-auto run_program(migraphx::value op, bool custom_idx = false)
+auto run_program(const migraphx::value& op, bool custom_idx = false)
 {
     migraphx::program p;
     auto* mm = p.get_main_module();

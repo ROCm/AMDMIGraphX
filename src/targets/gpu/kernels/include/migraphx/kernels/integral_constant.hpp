@@ -81,9 +81,9 @@ MIGRAPHX_INTEGRAL_CONSTANT_UNARY_OP(~)
 MIGRAPHX_INTEGRAL_CONSTANT_UNARY_OP(+)
 MIGRAPHX_INTEGRAL_CONSTANT_UNARY_OP(-)
 
-template <class B, B B, class T, T X, class U, U Y>
+template <class C, C B, class T, T X, class U, U Y>
 constexpr integral_constant<decltype(B ? X : Y), (B ? X : Y)>
-where(integral_constant<B, B>, integral_constant<T, X>, integral_constant<U, Y>)
+where(integral_constant<C, B>, integral_constant<T, X>, integral_constant<U, Y>)
 {
     return {};
 }

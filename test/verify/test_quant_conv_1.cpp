@@ -25,7 +25,7 @@
 #include "verify_program.hpp"
 #include <migraphx/program.hpp>
 #include <migraphx/generate.hpp>
-#include <migraphx/op/quant_convolution.hpp>
+#include <migraphx/make_op.hpp>
 
 template <migraphx::shape::type_t DType>
 struct test_quant_conv_1 : verify_program<test_quant_conv_1<DType>>
@@ -38,7 +38,7 @@ struct test_quant_conv_1 : verify_program<test_quant_conv_1<DType>>
         auto pa = mm->add_parameter("a", a_shape);
         migraphx::shape c_shape{DType, {2, 3, 3, 3}};
         auto pc = mm->add_parameter("c", c_shape);
-        mm->add_instruction(migraphx::op::quant_convolution{{{0, 0}}, {{1, 1}}, {{1, 1}}}, pa, pc);
+        mm->add_instruction(migraphx::make_op("quant_convolution"), pa, pc);
         return p;
     }
 };

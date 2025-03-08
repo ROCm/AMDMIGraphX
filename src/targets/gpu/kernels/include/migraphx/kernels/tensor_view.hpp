@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2024 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2025 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -42,13 +42,16 @@ struct tensor_view_iterator_read
     }
 };
 
+template <class View>
+using tensor_view_iterator = basic_iota_iterator<tensor_view_iterator_read<View>, index_int>;
+
 template <class T, class Shape>
 struct tensor_view
 {
     using type        = T;
     using shape_type  = Shape;
     using index_array = typename Shape::index_array;
-    using iterator = basic_iota_iterator<tensor_view_iterator_read<const tensor_view>, index_int>;
+    using iterator    = tensor_view_iterator<const tensor_view>;
 
     constexpr Shape get_shape() const { return Shape{}; }
     constexpr auto size() const { return get_shape().elements(); }

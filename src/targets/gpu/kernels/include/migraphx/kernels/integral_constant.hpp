@@ -81,33 +81,33 @@ MIGRAPHX_INTEGRAL_CONSTANT_UNARY_OP(~)
 MIGRAPHX_INTEGRAL_CONSTANT_UNARY_OP(+)
 MIGRAPHX_INTEGRAL_CONSTANT_UNARY_OP(-)
 
-template <class B, B b, class T, T x, class U, U y>
-constexpr integral_constant<decltype(b ? x : y), (b ? x : y)>
-where(integral_constant<B, b>, integral_constant<T, x>, integral_constant<U, y>)
+template <class B, B B, class T, T X, class U, U Y>
+constexpr integral_constant<decltype(B ? X : Y), (B ? X : Y)>
+where(integral_constant<B, B>, integral_constant<T, X>, integral_constant<U, Y>)
 {
     return {};
 }
 
-template <class T, T x, class U, U y>
-constexpr auto min(integral_constant<T, x> a, integral_constant<U, y> b)
+template <class T, T X, class U, U Y>
+constexpr auto min(integral_constant<T, X> a, integral_constant<U, Y> b)
 {
     return where(a < b, a, b);
 }
 
-template <class T, T x, class U, U y>
-constexpr auto max(integral_constant<T, x> a, integral_constant<U, y> b)
+template <class T, T X, class U, U Y>
+constexpr auto max(integral_constant<T, X> a, integral_constant<U, Y> b)
 {
     return where(a < b, b, a);
 }
 
-template <class T, T x>
-constexpr integral_constant<T, x> min(integral_constant<T, x>, integral_constant<T, x>)
+template <class T, T X>
+constexpr integral_constant<T, X> min(integral_constant<T, X>, integral_constant<T, X>)
 {
     return {};
 }
 
-template <class T, T x>
-constexpr integral_constant<T, x> max(integral_constant<T, x>, integral_constant<T, x>)
+template <class T, T X>
+constexpr integral_constant<T, X> max(integral_constant<T, X>, integral_constant<T, X>)
 {
     return {};
 }

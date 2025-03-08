@@ -26,6 +26,7 @@
 
 #include <migraphx/kernels/shape.hpp>
 #include <migraphx/kernels/tensor_view.hpp>
+#include <migraphx/kernels/index.hpp>
 
 namespace migraphx {
 

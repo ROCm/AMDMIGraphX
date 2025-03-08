@@ -73,7 +73,7 @@ constexpr auto
 
 constexpr auto get_index_type() -> uint16_t;
 
-template<class... X>
+template <class... X>
 constexpr auto make_get_index(X... x_idxs)
 {
     if constexpr(sizeof...(x_idxs) == 1)
@@ -105,7 +105,7 @@ __device__ auto topk(Compare compare, T init)
             out_indices,
             input,
             in_indices...)([&](auto y, auto y_idx, auto x, auto... x_idxs) {
-            auto get_index = make_get_index(x_idxs...);
+            auto get_index             = make_get_index(x_idxs...);
             constexpr auto nlocal_wave = idx.nlocal_wave();
             constexpr auto nwave       = idx.nwave();
             constexpr auto m           = k * nwave;

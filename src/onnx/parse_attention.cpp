@@ -479,45 +479,23 @@ struct parse_attention : op_parser<parse_attention>
         return input_arguments;
     }
 
-    static std::vector<instruction_ref> even_split(const onnx_parser::node_info& info, 
-                                                   const instruction_ref& input_matrix,
-                                                   const size_t axis,
-                                                   const size_t num_heads,
-                                                   const size_t query_size)
-    {
-        std::vector<instruction_ref> result;
-
-        for(auto i = 0; i < num_heads; i++)
-        {
-            auto starts = i * query_size;
-            auto ends   = starts + query_size;
-            auto op     = make_op("slice", {{"axes", {axis}}, {"starts", {starts}}, {"ends", {ends}}});
-
-            result.push_back(info.add_instruction(op, input_matrix));
-        }
-        return result;
-    }
-
-    static std::vector<std::vector<instruction_ref>> qkv_split_per_head(const onnx_parser::node_info& info,
+    static std::vector<instruction_ref> qkv_split_per_head(const onnx_parser::node_info& info,
                                                            const std::vector<instruction_ref>& qkv_mats,
                                                            const attention_attr& attr_in,
                                                            const attention_infered& infered_in)
     {
         auto num_heads  = attr_in.num_heads;
         auto query_size = infered_in.query_size;
+        auto q_lens = qkv_mats.at(0)->get_shape().lens();
+        auto k_lens = qkv_mats.at(1)->get_shape().lens();
+        auto v_lens = qkv_mats.at(2)->get_shape().lens();
 
-        auto split_q    = even_split(info, qkv_mats.at(0), 1, num_heads, query_size);
-        auto split_k    = even_split(info, qkv_mats.at(1), 1, num_heads, query_size);
-        auto split_v    = even_split(info, qkv_mats.at(2), 1, num_heads, query_size);
+        auto split_q = info.add_instruction(make_op("reshape", {{"dims", {q_lens.at(0), q_lens.at(1), q_lens.at(2)/num_heads, num_heads}}}), qkv_mats.at(0));
+        auto split_k = info.add_instruction(make_op("reshape", {{"dims", {k_lens.at(0), k_lens.at(1), k_lens.at(2)/num_heads, num_heads}}}), qkv_mats.at(1));
+        auto split_v = info.add_instruction(make_op("reshape", {{"dims", {v_lens.at(0), v_lens.at(1), v_lens.at(2)/num_heads, num_heads}}}), qkv_mats.at(2));
 
-        std::vector<std::vector<instruction_ref>> qkv_split;
-        for (size_t i = 0; i < num_heads; i++)
-        {
-            qkv_split.push_back({split_q.at(i), split_k.at(i), split_v.at(i)});
-        }
-
-        return qkv_split;
-    } 
+        return {split_q, split_k, split_v};
+    }
 
     static instruction_ref scale_dot_attention_head(const onnx_parser::node_info& info,
                                                     const std::vector<instruction_ref>& QKV,
@@ -531,22 +509,27 @@ struct parse_attention : op_parser<parse_attention>
         auto K = QKV.at(1);
         auto V = QKV.at(2);
 
-        auto k_trans = info.add_instruction(make_op("transpose", {{"permutation", {0, 2, 1}}}), K);
+        auto k_trans = info.add_instruction(make_op("transpose", {{"permutation", {0, 1, 3, 2}}}), K);
         auto qk_out = info.add_instruction(make_op("dot"), Q, k_trans);
         auto qk_scaled = info.add_common_op("div", qk_out, scale_factor);
 
         auto qk_masked = qk_scaled;
 
-        if(masked)
-            qk_masked = info.add_common_op("add", qk_scaled, mask);
-
+        if(masked) {
+            auto bc_mask = info.add_instruction(make_op("multibroadcast", {{"out_lens", qk_scaled->get_shape().lens()}}), mask);
+            qk_masked = info.add_common_op("add", qk_scaled, bc_mask);
+        }
         auto qk_biased = qk_masked;
         if(attn_bias)
-            qk_biased = info.add_common_op("add", qk_masked, bias);
+        {
+            auto bc_bias = info.add_instruction(make_op("multibroadcast", {{"out_lens", qk_scaled->get_shape().lens()}}), bias);
+            qk_biased = info.add_common_op("add", qk_masked, bc_bias);
+        }
 
         auto softmax_out = info.add_instruction(make_op("softmax"), qk_biased);
         auto output = info.add_instruction(make_op("dot"), softmax_out, V);
-        output = info.add_instruction(make_op("transpose", {{"permutation", {1, 0, 2}}}), output);
+        auto lens = output->get_shape().lens();
+        output = info.add_instruction(make_op("reshape", {{"dims", {lens.at(0), lens.at(1), lens.at(2) * lens.at(3)}}}), output);
         return output;
     }
 
@@ -610,6 +593,8 @@ struct parse_attention : op_parser<parse_attention>
                 final_mask = info.add_instruction(make_op("not"), mask_input);
                 final_mask = info.add_instruction(make_op("convert", {{"target_type", input->get_shape().type()}}), final_mask);
                 final_mask = info.add_instruction(make_op("mul"), final_mask, bc_in);
+                final_mask = info.add_instruction(make_op("unsqueeze", {{"axes", {-1}}}), final_mask);
+                final_mask = info.add_instruction(make_op("unsqueeze", {{"axes", {-1}}}), final_mask);
             }
             else if(infered_in.index_pad == LEFT_PADDING)
             {
@@ -664,36 +649,9 @@ struct parse_attention : op_parser<parse_attention>
 
         instruction_ref output;
         //Get vector of attention heads and then concat the output results
-        if(parsed_attributes.num_heads > 1)
-        {
-            // Apply multi head splitting of qkv matrix prior to calculation
-            auto split_qkv  = qkv_split_per_head(info, qkv_mats, parsed_attributes, infered_attributes);
-
-            std::vector<instruction_ref> split_mask(parsed_attributes.num_heads);
-            if(infered_attributes.has_attn_mask)
-                split_mask = even_split(info, attn_mask, 1, parsed_attributes.num_heads, infered_attributes.query_size);
-
-            std::vector<instruction_ref> split_bias(parsed_attributes.num_heads);
-            if(infered_attributes.has_attn_bias)
-                split_bias = even_split(info, attn_bias, 3, parsed_attributes.num_heads, infered_attributes.query_size);
-
-            std::vector<instruction_ref> vec_of_attn_outs;
-            std::transform(split_qkv.cbegin(),
-                           split_qkv.cend(),
-                           std::back_inserter(vec_of_attn_outs),
-                           [&](auto && split_inputs) {
-                            static size_t i = 0;
-                            auto result = scale_dot_attention_head(info, split_inputs, scale_factor, split_mask.at(i), split_bias.at(i), infered_attributes.has_attn_mask, infered_attributes.has_attn_bias);
-                            i = (i + 1) % parsed_attributes.num_heads;
-                            return result;
-                           });
-            output = info.add_instruction(make_op("concat"), vec_of_attn_outs);
-            output = info.add_instruction(make_op("transpose", {{"permutation", {1, 0, 2}}}), output);
-        }
-        else 
-        {
-            output = scale_dot_attention_head(info, qkv_mats, scale_factor, attn_mask, attn_bias, infered_attributes.has_attn_mask, infered_attributes.has_attn_bias);
-        }
+        auto split_qkv  = qkv_split_per_head(info, qkv_mats, parsed_attributes, infered_attributes);
+        
+        output = scale_dot_attention_head(info, split_qkv, scale_factor, attn_mask, attn_bias, infered_attributes.has_attn_mask, infered_attributes.has_attn_bias);
 
         std::vector<instruction_ref> output_vec{};
         output_vec.push_back(output);

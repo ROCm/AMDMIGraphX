@@ -381,14 +381,14 @@ def attention_test(
         'Attention',
         inputs=input_name_list,
         outputs=output_name_list,
-        do_rotary=do_rotary,
+        #do_rotary=do_rotary,
         mask_filter_value=mask_filter_value,
-        num_heads=num_heads,
-        past_present_share_buffer=past_present_share_buffer,
-        qkv_hidden_sizes=qkv_hidden_sizes,
-        rotary_embedding_dim=rotary_embedding_dim,
+        num_heads=num_heads)
+        #past_present_share_buffer=past_present_share_buffer,
+        #qkv_hidden_sizes=qkv_hidden_sizes,
+        #rotary_embedding_dim=rotary_embedding_dim,
         #scale=scale_val,
-        unidirectional=unidirectional)
+        #unidirectional=unidirectional
 
     return ([node], input_list, output_list)
 
@@ -401,6 +401,13 @@ def attention_single_head_test():
 @onnx_test()
 def attention_double_head_test():
     return attention_test([2, 10, 10], [10, 12], num_heads=2)
+
+
+# Mirrors customer workload without bias/masks
+@onnx_test()
+def attention_multihead_test():
+    return attention_test([32, 512, 1024], [1024, 3072],
+                          num_heads=16)
 
 
 # Mirrors customer workload

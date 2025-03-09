@@ -73,7 +73,7 @@ constexpr auto
 
 constexpr auto get_index_type() -> uint16_t;
 
-template<class... X>
+template <class... X>
 constexpr auto make_get_index(X... x_idxs)
 {
     if constexpr(sizeof...(x_idxs) == 1)
@@ -88,17 +88,17 @@ constexpr auto make_get_index(X... x_idxs)
 }
 
 template <index_int Axis, class Compare, class T, class Y, class YIndex, class X, class... XIndices>
-__device__ auto topk_impl(index idx, Compare compare, T init, Y y, YIndex y_idx, X x, XIndices... x_idxs)
+__device__ auto
+topk_impl(index idx, Compare compare, T init, Y y, YIndex y_idx, X x, XIndices... x_idxs)
 {
     using type               = typename X::type;
     constexpr auto n         = _c<get_shape_c<X>{}.get_shape().lens[Axis]>;
     constexpr auto k         = _c<get_shape_c<Y>{}.get_shape().lens[Axis]>;
     constexpr auto aligned_n = _c<bit_ceil(n)>;
     constexpr auto aligned_k = _c<bit_ceil(k)>;
-    using pair               = topk_pair<
-                      type,
-                      conditional_t<(n > 32768), index_int, decltype(get_index_type(x_idxs...))>>;
-    auto get_index = make_get_index(x_idxs...);
+    using pair =
+        topk_pair<type, conditional_t<(n > 32768), index_int, decltype(get_index_type(x_idxs...))>>;
+    auto get_index             = make_get_index(x_idxs...);
     constexpr auto nlocal_wave = idx.nlocal_wave();
     constexpr auto nwave       = idx.nwave();
     constexpr auto m           = k * nwave;
@@ -164,8 +164,7 @@ __device__ auto topk_impl(index idx, Compare compare, T init, Y y, YIndex y_idx,
             }
             __syncthreads();
 
-            bitonic_topk{aligned_m, aligned_k, by(select_key(), compare)}.block_topk(idx,
-                                                                                     buf);
+            bitonic_topk{aligned_m, aligned_k, by(select_key(), compare)}.block_topk(idx, buf);
 
             // save top K
             idx.local_stride(k, [&](auto i) {
@@ -194,20 +193,16 @@ __device__ auto topk_impl(index idx, Compare compare, T init, Y y, YIndex y_idx,
     }
 }
 
-
 template <index_int Axis, class Compare, class T>
 __device__ auto topk(Compare compare, T init)
 {
     return [=](auto output, auto out_indices, auto input, auto... in_indices) {
-        auto idx                 = make_index();
-        slice_schedule<per_block>(idx, slice_axes<Axis>())(
-            output,
-            out_indices,
-            input,
-            in_indices...)([&](auto y, auto y_idx, auto x, auto... x_idxs) {
+        auto idx = make_index();
+        slice_schedule<per_block>(idx,
+                                  slice_axes<Axis>())(output, out_indices, input, in_indices...)(
+            [&](auto y, auto y_idx, auto x, auto... x_idxs) {
                 topk_impl<Axis>(idx, compare, init, y, y_idx, x, x_idxs...);
             });
-        
     };
 }
 

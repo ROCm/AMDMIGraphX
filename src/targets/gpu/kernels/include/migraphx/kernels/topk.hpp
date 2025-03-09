@@ -128,7 +128,7 @@ topk_impl(index idx, Compare compare, T init, Y y, YIndex y_idx, X x, XIndices..
 
         if constexpr(nwave == 1)
         {
-            const auto local_shape   = make_shape(index_ints<nwave, nlocal_wave, nper_lane>{});
+            const auto local_shape = make_shape(index_ints<nwave, nlocal_wave, nper_lane>{});
             MIGRAPHX_ASSERT(local_shape.elements() >= trimmed_n);
             // Copy to output
             for(index_int i : range(nper_lane))

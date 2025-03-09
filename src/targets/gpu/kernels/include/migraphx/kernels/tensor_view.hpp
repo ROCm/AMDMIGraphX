@@ -80,10 +80,8 @@ struct tensor_view
     constexpr T& operator[](MIGRAPHX_CAPTURE_SOURCE_LOCATION(index_to_offset) i) const
     {
         index_to_offset ito = i;
-        MIGRAPHX_WARN(ito.idx < get_shape().elements(),
-                      i,
-                      "Out of bounds access at index: ",
-                      ito.idx);
+        MIGRAPHX_WARN(
+            ito.idx < get_shape().elements(), i, "Out of bounds access at index: ", ito.idx);
         MIGRAPHX_WARN(ito.offset < get_shape().element_space(),
                       i,
                       "Out of bounds access at offset: ",

@@ -33,7 +33,6 @@
 #include <migraphx/kernels/ranges.hpp>
 #include <migraphx/kernels/slice.hpp>
 #include <migraphx/kernels/sort.hpp>
-#include <migraphx/kernels/print.hpp>
 
 namespace migraphx {
 
@@ -107,12 +106,11 @@ topk_impl(index idx, Compare compare, T init, Y y, YIndex y_idx, X x, XIndices..
     {
         constexpr auto extra_m   = aligned_m - m;
         constexpr auto over_n    = where(n == aligned_n, _c<0>, n - aligned_n / _c<2>);
-        constexpr auto trimmed_n = max(where(over_n < extra_m, n - over_n, n), aligned_m);
+        constexpr auto trimmed_n = max(where(over_n < extra_m, n - over_n, n), min(aligned_m, n));
         constexpr auto nper_wave = trimmed_n / nwave;
         constexpr auto nper_lane = _c<bit_ceil(ceil_div(nper_wave, nlocal_wave))>;
-        const auto local_shape   = make_shape(index_ints<nwave, nlocal_wave, nper_lane>{});
-        MIGRAPHX_ASSERT(local_shape.elements() >= trimmed_n);
         MIGRAPHX_ASSERT(nper_wave >= k);
+        MIGRAPHX_ASSERT(trimmed_n <= n);
 
         array<pair, nper_lane> local_buf;
         for(index_int i : range(nper_lane))
@@ -130,6 +128,8 @@ topk_impl(index idx, Compare compare, T init, Y y, YIndex y_idx, X x, XIndices..
 
         if constexpr(nwave == 1)
         {
+            const auto local_shape   = make_shape(index_ints<nwave, nlocal_wave, nper_lane>{});
+            MIGRAPHX_ASSERT(local_shape.elements() >= trimmed_n);
             // Copy to output
             for(index_int i : range(nper_lane))
             {

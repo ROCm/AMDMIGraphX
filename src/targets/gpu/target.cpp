@@ -82,7 +82,7 @@ MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_ENABLE_NHWC)
 #ifndef _WIN32
 MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_ENABLE_CK)
 #endif
-MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_DISABLE_HIPBLASLT_GEMM)
+MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_SET_GEMM_PROVIDER)
 
 std::vector<pass> target::get_passes(migraphx::context& gctx, const compile_options& options) const
 {
@@ -134,7 +134,7 @@ std::vector<pass> target::get_passes(migraphx::context& gctx, const compile_opti
 
     std::set<std::string> unsupported_fp8e5m2fnuz_ops = unsupported_fp8e4m3fnuz_ops;
     // disable gemm for fp8e5m2fnuz if rocBLAS is being used
-    if(enabled(MIGRAPHX_DISABLE_HIPBLASLT_GEMM{}))
+    if(string_value_of(MIGRAPHX_SET_GEMM_PROVIDER{}) == "rocblas")
     {
         unsupported_fp8e5m2fnuz_ops.insert("dot");
         unsupported_fp8e5m2fnuz_ops.insert("quant_dot");

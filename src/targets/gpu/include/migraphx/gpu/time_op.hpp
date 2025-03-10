@@ -37,7 +37,7 @@ MIGRAPHX_GPU_EXPORT double time_op(const context& ictx,
                                    operation op,
                                    const std::vector<shape>& inputs,
                                    int bundle = 1,
-                                   int nruns = 100);
+                                   int nruns  = 100);
 
 MIGRAPHX_GPU_EXPORT double
 time_program(const context& ictx, program p, int bundle = 1, int nruns = 100);

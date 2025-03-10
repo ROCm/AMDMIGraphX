@@ -931,6 +931,7 @@ struct find_mlir_gqa_attention_op
         auto head_size = qkv->get_shape().lens()[3];
         auto max_seq_len = k->get_shape().lens()[2];
         csl = mpm.get_module().insert_instruction(attn, make_op("multibroadcast", {{"out_lens", {batch_size, num_heads}}}), csl);
+        // csl = mpm.get_module().insert_instruction(attn, make_op("convert", {{"target_type", shape::int64_type}}), csl);
 
         module m_attn;
         std::vector<instruction_ref> inputs = {qkv, k, v, csl};
@@ -945,7 +946,7 @@ struct find_mlir_gqa_attention_op
         auto transpose = m_attn.add_instruction(make_op("transpose", {{"permutation", {0, 1, 3, 2}}}), map_main_to_mattn.at(k));
         auto gemm1 = m_attn.add_instruction(make_op("dot"), slice, transpose);
 
-        std::vector<std::size_t> range_vec(max_seq_len);
+        std::vector<int> range_vec(max_seq_len);
         std::iota(range_vec.begin(), range_vec.end(), 0);
         shape range_s{csl->get_shape().type(), {max_seq_len}};
         auto range = m_attn.add_literal(range_s, range_vec);
@@ -963,23 +964,30 @@ struct find_mlir_gqa_attention_op
         auto scale = m_attn.add_literal(literal{scalar_s, {scale_val}});
         scale = m_attn.add_instruction(make_op("multibroadcast", {{"out_lens", bnsm}}), scale);
 
-        instruction_ref mask_comp;
-        if(seq_len == 1)
-        {
+        // instruction_ref mask_comp;
+        // if(seq_len == 1)
+        // {
             
-            auto bc_csl = m_attn.add_instruction(make_op("reshape", {{"dims", {batch_size, num_heads, 1, 1}}}), map_main_to_mattn.at(csl));
-            mask_comp = m_attn.add_instruction(make_op("multibroadcast", {{"out_lens", bnsm}}), bc_csl);
-        }
-        else
+        //     auto bc_csl = m_attn.add_instruction(make_op("reshape", {{"dims", {batch_size, num_heads, 1, 1}}}), map_main_to_mattn.at(csl));
+        //     mask_comp = m_attn.add_instruction(make_op("multibroadcast", {{"out_lens", bnsm}}), bc_csl);
+        // }
+        // else
+        if(seq_len > 1)
         {
-            std::vector<std::size_t> seq_range_vec(seq_len);
+            std::cout << "csl type: "; csl->debug_print();
+            std::vector<int> seq_range_vec(seq_len);
             std::iota(seq_range_vec.begin(), seq_range_vec.end(), 1);
             shape seq_range_s{csl->get_shape().type(), {seq_len}};
             auto seq_range = m_attn.add_literal(seq_range_s, seq_range_vec);
             seq_range = m_attn.add_instruction(make_op("reshape", {{"dims", {seq_len, 1}}}), seq_range);
-            mask_comp = m_attn.add_instruction(make_op("multibroadcast", {{"out_lens", bnsm}}), seq_range);
+            seq_range = m_attn.add_instruction(make_op("multibroadcast", {{"out_lens", bnsm}}), seq_range);
+            auto causal_mask = m_attn.add_instruction(make_op("greater_or_equal"),  bc_range, seq_range);
+            causal_mask = m_attn.add_instruction(make_op("convert", {{"target_type", shape::bool_type}}), causal_mask);
+            gemm1 = m_attn.add_instruction(make_op("where"), causal_mask, ninf, gemm1);
         }
         
+        auto bc_csl = m_attn.add_instruction(make_op("reshape", {{"dims", {batch_size, num_heads, 1, 1}}}), map_main_to_mattn.at(csl));
+        auto mask_comp = m_attn.add_instruction(make_op("multibroadcast", {{"out_lens", bnsm}}), bc_csl);
         auto mask = m_attn.add_instruction(make_op("greater_or_equal"),  bc_range, mask_comp);
         mask = m_attn.add_instruction(make_op("convert", {{"target_type", shape::bool_type}}), mask);
         auto mul = m_attn.add_instruction(make_op("mul"), gemm1, scale);
@@ -991,6 +999,7 @@ struct find_mlir_gqa_attention_op
         m_attn.add_return({out});
 
         finalize_attention_module(&m_attn);
+        m_attn.debug_print();
         module_ref mpm_attn = mpm.create_module(
             "mlir_attn", std::move(m_attn));
         mpm_attn->set_bypass();

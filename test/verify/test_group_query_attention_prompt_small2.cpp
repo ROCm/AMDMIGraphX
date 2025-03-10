@@ -27,22 +27,22 @@
 #include <migraphx/generate.hpp>
 #include <migraphx/make_op.hpp>
 
-struct test_group_query_attention_prompt_small : verify_program<test_group_query_attention_prompt_small>
+struct test_group_query_attention_prompt_small2 : verify_program<test_group_query_attention_prompt_small2>
 {
     migraphx::program create_program() const
     {
         migraphx::program p;
         auto* mm = p.get_main_module();
-        std::vector<size_t> query_lens{1, 2, 12};
-        std::vector<size_t> kv_lens{1, 2, 4, 2};
+        std::vector<size_t> query_lens{1, 2, 12288};
+        std::vector<size_t> kv_lens{1, 32, 64, 128};
         std::vector<size_t> slk_lens{1, 1};
         std::vector<size_t> tsl_lens{1, 1};
-        std::vector<size_t> cs_cache_lens{4, 1};
+        std::vector<size_t> cs_cache_lens{64, 64};
         auto dtype = migraphx::shape::half_type;
         migraphx::shape query_s{dtype, query_lens};
         migraphx::shape kv_s{dtype, kv_lens};
-        migraphx::shape slk_s{migraphx::shape::int32_type, slk_lens};
-        migraphx::shape tsl_s{migraphx::shape::int32_type, tsl_lens};
+        migraphx::shape slk_s{migraphx::shape::int64_type, slk_lens};
+        migraphx::shape tsl_s{migraphx::shape::int64_type, tsl_lens};
         migraphx::shape cs_cache_s{dtype, cs_cache_lens};
         auto query = mm->add_parameter("query", query_s);
         std::vector<int> slk_vec(slk_s.elements(), 2);
@@ -55,8 +55,12 @@ struct test_group_query_attention_prompt_small : verify_program<test_group_query
         std::vector<float> kv_max_vec(kv_s.elements(), 1.0);
         auto k_cache   = mm->add_parameter("k_cache", kv_s);
         auto v_cache   = mm->add_parameter("v_cache", kv_s);
-        auto slk       = mm->add_literal(slk_s, slk_vec);
-        auto tsl       = mm->add_literal(tsl_s, tsl_vec);
+        auto slk_lit       = mm->add_literal(slk_s, slk_vec);
+        auto tsl_lit       = mm->add_literal(tsl_s, tsl_vec);
+        auto slk       = mm->add_parameter("slk", slk_s);
+        auto tsl       = mm->add_parameter("tsl", tsl_s);
+        slk = mm->add_instruction(migraphx::make_op("clip"), slk, slk_lit, slk_lit);
+        tsl = mm->add_instruction(migraphx::make_op("clip"), tsl, tsl_lit, tsl_lit);
         auto key       = mm->add_literal(0.0f);
         auto value     = mm->add_literal(0.0f);
         auto cs_min    = mm->add_literal(cs_cache_s, cs_min_vec);
@@ -74,11 +78,11 @@ struct test_group_query_attention_prompt_small : verify_program<test_group_query
         sin_cache      = mm->add_instruction(migraphx::make_op("clip"), sin_cache, cs_min, cs_max);
         auto r         = mm->add_instruction(migraphx::make_op("group_query_attention",
                                                             {{"do_rotary", 0},
-                                                                {"kv_num_heads", 2},
+                                                                {"kv_num_heads", 32},
                                                                 {"local_window_size", -1},
-                                                                {"num_heads", 2},
+                                                                {"num_heads", 32},
                                                                 {"rotary_interleaved", 0},
-                                                                {"scale", 1.0}}),
+                                                                {"scale", 0.0}}),
                                     query,
                                     key,
                                     value,

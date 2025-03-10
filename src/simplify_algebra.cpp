@@ -1122,20 +1122,25 @@ struct find_splits
 {
     auto matcher() const
     {
+        // match instruction with outputs of pointwise op with 1 or 2 args or reduction op
         auto pointwise_reduction = match::any_of[match::outputs()](
             match::pointwise(match::any_of(match::nargs(1), match::nargs(2))), reduction());
+        // match instruction with slice output to pointwise_reduction
         return match::any(
             match::any_of[match::outputs()](match::name("slice")(pointwise_reduction)));
     }
 
+    /**
+     * Check if we can reach ins2 from ins1 by going through inputs of ins1
+     */
     static bool is_dependent(const module& m, instruction_ref ins1, instruction_ref ins2)
     {
-
         std::unordered_set<instruction_ref> traversed;
         return fix<bool>([&](auto self, auto ins) -> bool {
             if(ins == ins2)
                 return true;
 
+            // Traversed this instruction before
             if(contains(traversed, ins))
                 return false;
 
@@ -1250,14 +1255,48 @@ struct find_splits
         }
     }
 
+    /**
+     * Check if any split group depends on instructions from another split group
+     */
+    bool split_groups_are_dependent(module& m,
+                                    std::vector<std::vector<instruction_ref>> groups) const
+    {
+        for(int i = 0; i < groups.size(); ++i)
+        {
+            const auto& group_i = groups.at(i);
+            std::vector<std::vector<instruction_ref>> groups_less_i(groups.size() - 1);
+            std::copy(groups.cbegin(), groups.cbegin() + i, groups_less_i.begin());
+            std::copy(groups.cbegin() + i + 1, groups.cend(), groups_less_i.begin() + i);
+            for(const auto& group_j : groups_less_i)
+            {
+                for(auto ins_i : group_i)
+                {
+                    for(auto ins_j : group_j)
+                    {
+                        if(is_dependent(m, ins_i, ins_j))
+                        {
+                            return true;
+                        }
+                    }
+                }
+            }
+        }
+        return false;
+    }
+
     void apply(module& m, const match::matcher_result& r) const
     {
         auto ins    = r.result;
         auto splits = get_splits(ins);
         if(splits.empty())
             return;
+        auto split_groups = get_split_groups(m, splits);
+        if(split_groups_are_dependent(m, split_groups))
+        {
+            return;
+        }
 
-        for(const auto& group : get_split_groups(m, splits))
+        for(const auto& group : split_groups)
         {
             auto start       = group.front();
             auto split_front = splits.front();
@@ -1538,6 +1577,7 @@ struct find_conv_dot_horiz_fusion
         auto pred = [](auto i, auto j) {
             if(i->get_operator() != j->get_operator())
                 return false;
+            // Group any other instructions to other group
             if(not contains({"quant_dot", "dot", "convolution"}, i->name()))
                 return true;
             auto x = i->inputs()[1]->get_shape().lens();

@@ -3,7 +3,7 @@ import org.jenkinsci.plugins.pipeline.modeldefinition.Utils
 DOCKER_IMAGE = 'rocm/migraphx-ci-jenkins-ubuntu'
 
 def getgputargets() {
-    targets="gfx906;gfx908;gfx90a;gfx1030;gfx1100;gfx1101;gfx1102"
+    targets="gfx906;gfx908;gfx90a;gfx1030;gfx1100;gfx1101"
     return targets
 }
 

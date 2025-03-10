@@ -228,8 +228,10 @@ struct compile_plan
                            cr->replace.replace(*bench_mm, bench_ins);
                            // do dead code elimination by directly removing instruction
                            bench_mm->remove_instruction(bench_ins);
-                           // by default, measure runtime of 1 iteration of benchmark and repeat 20 times
-                           auto t = time_program(*ctx, bench_prog, value_of(MIGRAPHX_TIMING_ITER{}, 1), 20);
+                           // by default, measure runtime of 1 iteration of benchmark and repeat 20
+                           // times
+                           auto t = time_program(
+                               *ctx, bench_prog, value_of(MIGRAPHX_TIMING_ITER{}, 1), 20);
                            if(trace_level > 1)
                                std::cout << t << "ms" << std::endl;
                            return t;

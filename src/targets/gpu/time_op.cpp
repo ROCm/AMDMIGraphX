@@ -49,7 +49,8 @@ double time_loop(migraphx::gpu::context& gctx, int m_iter, int n_loop, F f)
 {
     std::vector<std::pair<hip_event_ptr, hip_event_ptr>> events(n_loop);
     std::generate(events.begin(), events.end(), [] {
-        return std::make_pair(context::create_event_for_timing(), context::create_event_for_timing());
+        return std::make_pair(context::create_event_for_timing(),
+                              context::create_event_for_timing());
     });
     std::vector<double> times;
     // Warmup
@@ -57,7 +58,7 @@ double time_loop(migraphx::gpu::context& gctx, int m_iter, int n_loop, F f)
     for(auto i : range(n_loop))
     {
         gctx.get_stream().record(events[i].first.get());
-        for(auto j:range(m_iter))
+        for(auto j : range(m_iter))
         {
             (void)j;
             f();
@@ -72,11 +73,12 @@ double time_loop(migraphx::gpu::context& gctx, int m_iter, int n_loop, F f)
 
     // compute common average by removing top and bottom 25% of values
     std::size_t quarters = times.size() / 4;
-    double total  = std::accumulate(times.begin() + quarters, times.end() - quarters, 0.0);
+    double total         = std::accumulate(times.begin() + quarters, times.end() - quarters, 0.0);
     return total / std::distance(times.begin() + quarters, times.end() - quarters);
 }
 
-double time_op(const context& ictx, operation op, const std::vector<shape>& inputs, int m_iter, int n_loop)
+double
+time_op(const context& ictx, operation op, const std::vector<shape>& inputs, int m_iter, int n_loop)
 {
     // TODO: Use std::ref
     migraphx::context ctx = ictx;

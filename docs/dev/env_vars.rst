@@ -272,10 +272,15 @@ Set to path to json file to load and save problem cache.
 This will load the json file into the problem cache if it exists, and when
 compilation finishes it will save the problem cache.
 
-.. envvar:: MIGRAPHX_TIMING_ITER
+.. envvar:: MIGRAPHX_BENCHMARKING_BUNDLE
 
-Set the number of iterations used when timing code objects.
+Set amount of configs to run in a bundle when timing.
 Defaults to 1.
+
+.. envvar:: MIGRAPHX_BENCHMARKING_NRUNS
+
+Set amount of timing runs for each config bundle being benchmarked.
+Defaults to 20.
 
 MLIR vars
 -------------

@@ -107,6 +107,7 @@ add_library(migraphx
     rewrite_pooling.cpp
     rewrite_quantization.cpp
     rewrite_rnn.cpp
+    rewrite_topk.cpp
     schedule.cpp
     serialize.cpp
     shape.cpp

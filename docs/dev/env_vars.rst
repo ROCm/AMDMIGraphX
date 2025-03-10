@@ -272,6 +272,11 @@ Set to path to json file to load and save problem cache.
 This will load the json file into the problem cache if it exists, and when
 compilation finishes it will save the problem cache.
 
+.. envvar:: MIGRAPHX_TIMING_ITER
+
+Set the number of iterations used when timing code objects.
+Defaults to 1.
+
 MLIR vars
 -------------
 

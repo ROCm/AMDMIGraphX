@@ -40,6 +40,7 @@ namespace gpu {
 
 MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_GPU_COMPILE_PARALLEL);
 MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_TRACE_BENCHMARKING);
+MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_TIMING_ITER);
 
 struct precompile_op
 {
@@ -227,7 +228,8 @@ struct compile_plan
                            cr->replace.replace(*bench_mm, bench_ins);
                            // do dead code elimination by directly removing instruction
                            bench_mm->remove_instruction(bench_ins);
-                           auto t = time_program(*ctx, bench_prog, 20);
+                           // by default, measure runtime of 1 iteration of benchmark and repeat 20 times
+                           auto t = time_program(*ctx, bench_prog, value_of(MIGRAPHX_TIMING_ITER{}, 1), 20);
                            if(trace_level > 1)
                                std::cout << t << "ms" << std::endl;
                            return t;

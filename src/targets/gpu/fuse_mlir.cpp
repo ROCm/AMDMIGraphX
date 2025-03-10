@@ -974,7 +974,6 @@ struct find_mlir_gqa_attention_op
         // else
         if(seq_len > 1)
         {
-            std::cout << "csl type: "; csl->debug_print();
             std::vector<int> seq_range_vec(seq_len);
             std::iota(seq_range_vec.begin(), seq_range_vec.end(), 1);
             shape seq_range_s{csl->get_shape().type(), {seq_len}};

@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2024 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2025 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -59,6 +59,7 @@
 #include <migraphx/netron_output.hpp>
 
 #include <fstream>
+#include <hip/hip_runtime.h>
 
 namespace migraphx {
 namespace driver {
@@ -489,6 +490,9 @@ struct compiler
     program_params parameters;
     compiler_target ct;
     compile_options co;
+
+    bool spin_thread = false;
+
     bool to_fp16 = false;
     bool to_bf16 = false;
     bool to_fp8  = false;
@@ -514,6 +518,9 @@ struct compiler
            {"--exhaustive-tune"},
            ap.help("Exhastively search for best tuning parameters for kernels"),
            ap.set_value(true));
+
+        ap(spin_thread, {"--spin-thread"}, ap.help("Enable CPU thread to spin while waiting for GPU commands to complete, could potentially improve performance stability on small models"), ap.set_value(true));
+
         ap(to_fp16, {"--fp16"}, ap.help("Quantize for fp16"), ap.set_value(true));
         ap(to_bf16, {"--bf16"}, ap.help("Quantize for bf16"), ap.set_value(true));
         ap(to_int8, {"--int8"}, ap.help("Quantize for int8"), ap.set_value(true));
@@ -533,9 +540,19 @@ struct compiler
 
     program compile()
     {
-        auto p = l.load();
-        // Dont compile if its already been compiled
+        if(spin_thread)
+        {
+            if(ct.target_name == "gpu")
+            {
+                auto status = hipSetDeviceFlags(hipDeviceScheduleSpin);
+                if(status != hipSuccess)
+                    MIGRAPHX_THROW("Failed to set device flags to: hipDeviceScheduleSpin");
+            } 
+        }
 
+        auto p = l.load();
+
+        // Dont compile if its already been compiled
         if(p.is_compiled())
         {
             if(ct.target_name == "gpu")

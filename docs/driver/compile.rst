@@ -30,6 +30,10 @@ Disable fast math optimization
 
 Perform an exhaustive search to find the fastest version of generated kernels for selected backend
 
+.. option:: --spin-thread
+
+Enable CPU thread to spin while waiting for GPU commands to complete, could potentially improve performance stability on small models
+
 .. option::  --fp16
 
 Quantize for fp16

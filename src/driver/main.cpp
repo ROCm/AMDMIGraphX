@@ -519,7 +519,11 @@ struct compiler
            ap.help("Exhastively search for best tuning parameters for kernels"),
            ap.set_value(true));
 
-        ap(spin_thread, {"--spin-thread"}, ap.help("Enable CPU thread to spin while waiting for GPU commands to complete, could potentially improve performance stability on small models"), ap.set_value(true));
+        ap(spin_thread,
+           {"--spin-thread"},
+           ap.help("Enable CPU thread to spin while waiting for GPU commands to complete, could "
+                   "potentially improve performance stability on small models"),
+           ap.set_value(true));
 
         ap(to_fp16, {"--fp16"}, ap.help("Quantize for fp16"), ap.set_value(true));
         ap(to_bf16, {"--bf16"}, ap.help("Quantize for bf16"), ap.set_value(true));
@@ -547,7 +551,7 @@ struct compiler
                 auto status = hipSetDeviceFlags(hipDeviceScheduleSpin);
                 if(status != hipSuccess)
                     MIGRAPHX_THROW("Failed to set device flags to: hipDeviceScheduleSpin");
-            } 
+            }
         }
 
         auto p = l.load();

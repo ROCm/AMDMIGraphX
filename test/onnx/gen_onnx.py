@@ -4862,6 +4862,112 @@ def group_norm_invalid_bias_shape_test():
     return group_norm_test([1, 4, 3, 3], [2], [3], [1, 4, 3, 3], 2)
 
 
+def group_norm_contrib_test(x_dims,
+                            gamma_dims,
+                            beta_dims,
+                            y_dims,
+                            num_groups,
+                            activation,
+                            channels_last,
+                            eps_value=1e-5,
+                            dtype=TensorProto.FLOAT):
+    x = helper.make_tensor_value_info('x', dtype, x_dims)
+    gamma = helper.make_tensor_value_info('gamma', dtype, gamma_dims)
+    beta = helper.make_tensor_value_info('beta', dtype, beta_dims)
+    y = helper.make_tensor_value_info('y', dtype, y_dims)
+
+    node = onnx.helper.make_node('GroupNorm',
+                                 inputs=['x', 'gamma', 'beta'],
+                                 outputs=['y'],
+                                 activation=activation,
+                                 channels_last=channels_last,
+                                 groups=num_groups,
+                                 epsilon=eps_value)
+
+    return ([node], [x, gamma, beta], [y])
+
+
+@onnx_test()
+def group_norm_contrib_3d_test():
+    return group_norm_contrib_test([1, 4, 2], [2], [2], [1, 4, 2], 2, 0, 0)
+
+
+@onnx_test()
+def group_norm_contrib_3d_channel_last_test():
+    return group_norm_contrib_test([1, 4, 2], [2], [2], [1, 4, 2], 2, 0, 1)
+
+
+@onnx_test()
+def group_norm_contrib_3d_channel_last_half_test():
+    return group_norm_contrib_test([1, 4, 2], [2], [2], [1, 4, 2],
+                                   2,
+                                   0,
+                                   1,
+                                   dtype=TensorProto.FLOAT16)
+
+
+@onnx_test()
+def group_norm_contrib_3d_channel_last_bf16_test():
+    return group_norm_contrib_test([1, 4, 2], [2], [2], [1, 4, 2],
+                                   2,
+                                   0,
+                                   1,
+                                   dtype=TensorProto.BFLOAT16)
+
+
+@onnx_test()
+def group_norm_contrib_silu_3d_test():
+    return group_norm_contrib_test([1, 4, 2], [2], [2], [1, 4, 2], 2, 1, 0)
+
+
+@onnx_test()
+def group_norm_contrib_channels_last_3d_test():
+    return group_norm_contrib_test([1, 4, 2], [2], [2], [1, 4, 2], 2, 0, 1)
+
+
+@onnx_test()
+def group_norm_contrib_channels_last_4d_test():
+    return group_norm_contrib_test([1, 3, 3, 4], [2], [2], [1, 3, 3, 4], 2, 0,
+                                   1)
+
+
+@onnx_test()
+def group_norm_contrib_channels_last_and_silu_3d_test():
+    return group_norm_contrib_test([1, 4, 2], [2], [2], [1, 4, 2], 2, 1, 1)
+
+
+@onnx_test()
+def group_norm_contrib_no_activation_attr_test():
+    x = helper.make_tensor_value_info('x', TensorProto.FLOAT, [1, 4, 2])
+    gamma = helper.make_tensor_value_info('gamma', TensorProto.FLOAT, [2])
+    beta = helper.make_tensor_value_info('beta', TensorProto.FLOAT, [2])
+    y = helper.make_tensor_value_info('y', TensorProto.FLOAT, [1, 4, 2])
+
+    node = onnx.helper.make_node('GroupNorm',
+                                 inputs=['x', 'gamma', 'Beta'],
+                                 outputs=['y'],
+                                 channels_last=0,
+                                 groups=2)
+
+    return ([node], [x, gamma, beta], [y])
+
+
+@onnx_test()
+def group_norm_contrib_no_num_groups_attr_test():
+    x = helper.make_tensor_value_info('x', TensorProto.FLOAT, [1, 4, 2])
+    gamma = helper.make_tensor_value_info('gamma', TensorProto.FLOAT, [2])
+    beta = helper.make_tensor_value_info('beta', TensorProto.FLOAT, [2])
+    y = helper.make_tensor_value_info('y', TensorProto.FLOAT, [1, 4, 2])
+
+    node = onnx.helper.make_node('GroupNorm',
+                                 inputs=['x', 'gamma', 'Beta'],
+                                 outputs=['y'],
+                                 activation=0,
+                                 channels_last=0)
+
+    return ([node], [x, gamma, beta], [y])
+
+
 @onnx_test()
 def group_query_attention_test():
     qkv = helper.make_tensor_value_info('qkv', TensorProto.FLOAT16,
@@ -5021,6 +5127,61 @@ def group_query_attention_invalid_test():
     return ([node], [qkv, past_key_values_key, past_key_values_value],
             [output, present_key,
              present_value], [seqlens_k, total_sequence_length])
+
+
+@onnx_test()
+def group_query_attention_softcap_test():
+    qkv = helper.make_tensor_value_info('qkv', TensorProto.FLOAT16,
+                                        [1, 1, 12288])
+    key = helper.make_tensor_value_info('key', TensorProto.FLOAT, [1])
+    value = helper.make_tensor_value_info('value', TensorProto.FLOAT, [1])
+    past_key_values_key = helper.make_tensor_value_info(
+        'past_key_values_key', TensorProto.FLOAT16, [1, 32, 4096, 128])
+    past_key_values_value = helper.make_tensor_value_info(
+        'past_key_values_value', TensorProto.FLOAT16, [1, 32, 4096, 128])
+    slk_val = np.array([1])
+    seqlens_k = helper.make_tensor(name="seqlens_k",
+                                   data_type=TensorProto.INT32,
+                                   dims=slk_val.shape,
+                                   vals=slk_val.astype(int))
+    tsl_val = np.array([2])
+    total_sequence_length = helper.make_tensor(name="total_sequence_length",
+                                               data_type=TensorProto.INT32,
+                                               dims=tsl_val.shape,
+                                               vals=tsl_val.astype(int))
+    cc_val = np.ones([4096, 64], dtype=np.float16)
+    cos_cache = helper.make_tensor(name="cos_cache",
+                                   data_type=TensorProto.FLOAT16,
+                                   dims=cc_val.shape,
+                                   vals=cc_val)
+    sin_cache = helper.make_tensor(name="sin_cache",
+                                   data_type=TensorProto.FLOAT16,
+                                   dims=cc_val.shape,
+                                   vals=cc_val)
+    output = helper.make_tensor_value_info('output', TensorProto.FLOAT16,
+                                           [1, 1, 4096])
+    present_key = helper.make_tensor_value_info('present_key',
+                                                TensorProto.FLOAT16,
+                                                [1, 32, 4096, 128])
+    present_value = helper.make_tensor_value_info('present_value',
+                                                  TensorProto.FLOAT16,
+                                                  [1, 32, 4096, 128])
+
+    node = onnx.helper.make_node(
+        'GroupQueryAttention',
+        inputs=[
+            'qkv', 'key', 'value', 'past_key_values_key',
+            'past_key_values_value', 'seqlens_k', 'total_sequence_length',
+            'cos_cache', 'sin_cache'
+        ],
+        outputs=['output', 'present_key', 'present_value'],
+        softcap=1.0,
+        domain="com.microsoft")
+
+    return ([node
+             ], [qkv, key, value, past_key_values_key,
+                 past_key_values_value], [output, present_key, present_value],
+            [seqlens_k, total_sequence_length, cos_cache, sin_cache])
 
 
 @onnx_test()
@@ -8803,6 +8964,17 @@ def neg_dynamic_test():
 
 
 @onnx_test()
+def nhwcconv_test():
+    x = helper.make_tensor_value_info('0', TensorProto.FLOAT, [1, 7, 7, 1])
+    w = helper.make_tensor_value_info('1', TensorProto.FLOAT, [1, 1, 1, 1])
+    out = helper.make_tensor_value_info('2', TensorProto.FLOAT, [1, 7, 7, 1])
+
+    node = onnx.helper.make_node('NhwcConv', inputs=['0', '1'], outputs=['2'])
+
+    return ([node], [x, w], [out])
+
+
+@onnx_test()
 def nms_test():
     b = helper.make_tensor_value_info('boxes', TensorProto.FLOAT, [1, 6, 4])
     s = helper.make_tensor_value_info('scores', TensorProto.FLOAT, [1, 1, 6])
@@ -11847,6 +12019,375 @@ def roialign_test():
         coordinate_transformation_mode="output_half_pixel")
 
     return ([node], [x, roi, bi], [y])
+
+
+@onnx_test()
+def rotary_embedding_test():
+    input = helper.make_tensor_value_info('input', TensorProto.FLOAT16,
+                                          [1, 2, 18])
+    pos_ids = helper.make_tensor_value_info('pos_ids', TensorProto.INT32,
+                                            [1, 2])
+    cos_cache = helper.make_tensor_value_info('cos_cache', TensorProto.FLOAT16,
+                                              [4, 3])
+    sin_cache = helper.make_tensor_value_info('sin_cache', TensorProto.FLOAT16,
+                                              [4, 3])
+    output = helper.make_tensor_value_info('output', TensorProto.FLOAT16,
+                                           [1, 2, 18])
+
+    node = onnx.helper.make_node(
+        'RotaryEmbedding',
+        inputs=['input', 'pos_ids', 'cos_cache', 'sin_cache'],
+        outputs=['output'],
+        interleaved=0,
+        domain="com.microsoft")
+
+    return ([node], [input, pos_ids, cos_cache, sin_cache], [output])
+
+
+@onnx_test()
+def rotary_embedding_interleaved_test():
+    input = helper.make_tensor_value_info('input', TensorProto.FLOAT16,
+                                          [1, 3, 8])
+    pos_ids = helper.make_tensor_value_info('pos_ids', TensorProto.INT32, [1])
+    cos_cache = helper.make_tensor_value_info('cos_cache', TensorProto.FLOAT16,
+                                              [8, 2])
+    sin_cache = helper.make_tensor_value_info('sin_cache', TensorProto.FLOAT16,
+                                              [8, 2])
+    output = helper.make_tensor_value_info('output', TensorProto.FLOAT16,
+                                           [1, 3, 8])
+
+    node = onnx.helper.make_node(
+        'RotaryEmbedding',
+        inputs=['input', 'pos_ids', 'cos_cache', 'sin_cache'],
+        outputs=['output'],
+        interleaved=1,
+        domain="com.microsoft")
+
+    return ([node], [input, pos_ids, cos_cache, sin_cache], [output])
+
+
+@onnx_test()
+def rotary_embedding_interleaved_large_test():
+    input = helper.make_tensor_value_info('input', TensorProto.FLOAT16,
+                                          [2, 8, 24])
+    pos_ids = helper.make_tensor_value_info('pos_ids', TensorProto.INT32, [1])
+    cos_cache = helper.make_tensor_value_info('cos_cache', TensorProto.FLOAT16,
+                                              [16, 3])
+    sin_cache = helper.make_tensor_value_info('sin_cache', TensorProto.FLOAT16,
+                                              [16, 3])
+    output = helper.make_tensor_value_info('output', TensorProto.FLOAT16,
+                                           [2, 8, 24])
+
+    node = onnx.helper.make_node(
+        'RotaryEmbedding',
+        inputs=['input', 'pos_ids', 'cos_cache', 'sin_cache'],
+        outputs=['output'],
+        interleaved=1,
+        domain="com.microsoft")
+
+    return ([node], [input, pos_ids, cos_cache, sin_cache], [output])
+
+
+@onnx_test()
+def rotary_embedding_dim_test():
+    input = helper.make_tensor_value_info('input', TensorProto.FLOAT16,
+                                          [1, 2, 6])
+    pos_ids = helper.make_tensor_value_info('pos_ids', TensorProto.INT32, [1])
+    cos_cache = helper.make_tensor_value_info('cos_cache', TensorProto.FLOAT16,
+                                              [2, 2])
+    sin_cache = helper.make_tensor_value_info('sin_cache', TensorProto.FLOAT16,
+                                              [2, 2])
+    output = helper.make_tensor_value_info('output', TensorProto.FLOAT16,
+                                           [1, 2, 6])
+
+    node = onnx.helper.make_node(
+        'RotaryEmbedding',
+        inputs=['input', 'pos_ids', 'cos_cache', 'sin_cache'],
+        outputs=['output'],
+        interleaved=0,
+        rotary_embedding_dim=4,
+        num_heads=1,
+        domain="com.microsoft")
+
+    return ([node], [input, pos_ids, cos_cache, sin_cache], [output])
+
+
+@onnx_test()
+def rotary_embedding_packed_batching_test():
+    input = helper.make_tensor_value_info('input', TensorProto.FLOAT16,
+                                          [1, 3, 6])
+    pos_ids = helper.make_tensor_value_info('pos_ids', TensorProto.INT32,
+                                            [1, 3])
+    cos_cache = helper.make_tensor_value_info('cos_cache', TensorProto.FLOAT16,
+                                              [2, 2])
+    sin_cache = helper.make_tensor_value_info('sin_cache', TensorProto.FLOAT16,
+                                              [2, 2])
+    output = helper.make_tensor_value_info('output', TensorProto.FLOAT16,
+                                           [1, 3, 6])
+
+    node = onnx.helper.make_node(
+        'RotaryEmbedding',
+        inputs=['input', 'pos_ids', 'cos_cache', 'sin_cache'],
+        outputs=['output'],
+        interleaved=0,
+        rotary_embedding_dim=4,
+        num_heads=1,
+        is_packed_batching=1,
+        domain="com.microsoft")
+
+    return ([node], [input, pos_ids, cos_cache, sin_cache], [output])
+
+
+@onnx_test()
+def rotary_embedding_float_test():
+    input = helper.make_tensor_value_info('input', TensorProto.FLOAT,
+                                          [1, 3, 2, 6])
+    pos_ids = helper.make_tensor_value_info('pos_ids', TensorProto.INT32,
+                                            [1, 2])
+    cos_cache = helper.make_tensor_value_info('cos_cache', TensorProto.FLOAT,
+                                              [4, 3])
+    sin_cache = helper.make_tensor_value_info('sin_cache', TensorProto.FLOAT,
+                                              [4, 3])
+    output = helper.make_tensor_value_info('output', TensorProto.FLOAT,
+                                           [1, 3, 2, 6])
+
+    node = onnx.helper.make_node(
+        'RotaryEmbedding',
+        inputs=['input', 'pos_ids', 'cos_cache', 'sin_cache'],
+        outputs=['output'],
+        interleaved=0,
+        domain="com.microsoft")
+
+    return ([node], [input, pos_ids, cos_cache, sin_cache], [output])
+
+
+@onnx_test()
+def rotary_embedding_scale_test():
+    input = helper.make_tensor_value_info('input', TensorProto.FLOAT16,
+                                          [1, 2, 18])
+    pos_ids = helper.make_tensor_value_info('pos_ids', TensorProto.INT32,
+                                            [1, 2])
+    cos_cache = helper.make_tensor_value_info('cos_cache', TensorProto.FLOAT16,
+                                              [4, 3])
+    sin_cache = helper.make_tensor_value_info('sin_cache', TensorProto.FLOAT16,
+                                              [4, 3])
+    output = helper.make_tensor_value_info('output', TensorProto.FLOAT16,
+                                           [1, 2, 18])
+
+    node = onnx.helper.make_node(
+        'RotaryEmbedding',
+        inputs=['input', 'pos_ids', 'cos_cache', 'sin_cache'],
+        outputs=['output'],
+        interleaved=0,
+        scale=0.0,
+        domain="com.microsoft")
+
+    return ([node], [input, pos_ids, cos_cache, sin_cache], [output])
+
+
+@onnx_test()
+def rotary_embedding_num_heads_test():
+    input = helper.make_tensor_value_info('input', TensorProto.FLOAT16,
+                                          [1, 2, 18])
+    pos_ids = helper.make_tensor_value_info('pos_ids', TensorProto.INT32,
+                                            [1, 2])
+    cos_cache = helper.make_tensor_value_info('cos_cache', TensorProto.FLOAT16,
+                                              [4, 3])
+    sin_cache = helper.make_tensor_value_info('sin_cache', TensorProto.FLOAT16,
+                                              [4, 3])
+    output = helper.make_tensor_value_info('output', TensorProto.FLOAT16,
+                                           [1, 2, 18])
+
+    node = onnx.helper.make_node(
+        'RotaryEmbedding',
+        inputs=['input', 'pos_ids', 'cos_cache', 'sin_cache'],
+        outputs=['output'],
+        interleaved=0,
+        num_heads=0,
+        rotary_embedding_dim=2,
+        domain="com.microsoft")
+
+    return ([node], [input, pos_ids, cos_cache, sin_cache], [output])
+
+
+@onnx_test()
+def rotary_embedding_input_dims_test():
+    input = helper.make_tensor_value_info('input', TensorProto.FLOAT16,
+                                          [1, 1, 1, 1, 1])
+    pos_ids = helper.make_tensor_value_info('pos_ids', TensorProto.INT32,
+                                            [1, 1])
+    cos_cache = helper.make_tensor_value_info('cos_cache', TensorProto.FLOAT16,
+                                              [1, 1])
+    sin_cache = helper.make_tensor_value_info('sin_cache', TensorProto.FLOAT16,
+                                              [1, 1])
+    output = helper.make_tensor_value_info('output', TensorProto.FLOAT16,
+                                           [1, 1, 1, 1])
+
+    node = onnx.helper.make_node(
+        'RotaryEmbedding',
+        inputs=['input', 'pos_ids', 'cos_cache', 'sin_cache'],
+        outputs=['output'],
+        interleaved=0,
+        domain="com.microsoft")
+
+    return ([node], [input, pos_ids, cos_cache, sin_cache], [output])
+
+
+@onnx_test()
+def rotary_embedding_pos_ids_1_test():
+    input = helper.make_tensor_value_info('input', TensorProto.FLOAT16,
+                                          [1, 2, 18])
+    pos_ids = helper.make_tensor_value_info('pos_ids', TensorProto.INT32,
+                                            [1, 1, 1])
+    cos_cache = helper.make_tensor_value_info('cos_cache', TensorProto.FLOAT16,
+                                              [4, 3])
+    sin_cache = helper.make_tensor_value_info('sin_cache', TensorProto.FLOAT16,
+                                              [4, 3])
+    output = helper.make_tensor_value_info('output', TensorProto.FLOAT16,
+                                           [1, 2, 18])
+
+    node = onnx.helper.make_node(
+        'RotaryEmbedding',
+        inputs=['input', 'pos_ids', 'cos_cache', 'sin_cache'],
+        outputs=['output'],
+        interleaved=0,
+        domain="com.microsoft")
+
+    return ([node], [input, pos_ids, cos_cache, sin_cache], [output])
+
+
+@onnx_test()
+def rotary_embedding_pos_ids_2_test():
+    input = helper.make_tensor_value_info('input', TensorProto.FLOAT16,
+                                          [1, 2, 18])
+    pos_ids = helper.make_tensor_value_info('pos_ids', TensorProto.INT32, [2])
+    cos_cache = helper.make_tensor_value_info('cos_cache', TensorProto.FLOAT16,
+                                              [4, 3])
+    sin_cache = helper.make_tensor_value_info('sin_cache', TensorProto.FLOAT16,
+                                              [4, 3])
+    output = helper.make_tensor_value_info('output', TensorProto.FLOAT16,
+                                           [1, 2, 18])
+
+    node = onnx.helper.make_node(
+        'RotaryEmbedding',
+        inputs=['input', 'pos_ids', 'cos_cache', 'sin_cache'],
+        outputs=['output'],
+        interleaved=0,
+        domain="com.microsoft")
+
+    return ([node], [input, pos_ids, cos_cache, sin_cache], [output])
+
+
+@onnx_test()
+def rotary_embedding_pos_ids_3_test():
+    input = helper.make_tensor_value_info('input', TensorProto.FLOAT16,
+                                          [2, 2, 18])
+    pos_ids = helper.make_tensor_value_info('pos_ids', TensorProto.INT32,
+                                            [1, 1])
+    cos_cache = helper.make_tensor_value_info('cos_cache', TensorProto.FLOAT16,
+                                              [4, 3])
+    sin_cache = helper.make_tensor_value_info('sin_cache', TensorProto.FLOAT16,
+                                              [4, 3])
+    output = helper.make_tensor_value_info('output', TensorProto.FLOAT16,
+                                           [1, 2, 18])
+
+    node = onnx.helper.make_node(
+        'RotaryEmbedding',
+        inputs=['input', 'pos_ids', 'cos_cache', 'sin_cache'],
+        outputs=['output'],
+        interleaved=0,
+        domain="com.microsoft")
+
+    return ([node], [input, pos_ids, cos_cache, sin_cache], [output])
+
+
+@onnx_test()
+def rotary_embedding_dim_size_test():
+    input = helper.make_tensor_value_info('input', TensorProto.FLOAT16,
+                                          [1, 2, 18])
+    pos_ids = helper.make_tensor_value_info('pos_ids', TensorProto.INT32,
+                                            [1, 2])
+    cos_cache = helper.make_tensor_value_info('cos_cache', TensorProto.FLOAT16,
+                                              [4, 3])
+    sin_cache = helper.make_tensor_value_info('sin_cache', TensorProto.FLOAT16,
+                                              [4, 3])
+    output = helper.make_tensor_value_info('output', TensorProto.FLOAT16,
+                                           [1, 2, 18])
+
+    node = onnx.helper.make_node(
+        'RotaryEmbedding',
+        inputs=['input', 'pos_ids', 'cos_cache', 'sin_cache'],
+        outputs=['output'],
+        interleaved=0,
+        num_heads=3,
+        rotary_embedding_dim=8,
+        domain="com.microsoft")
+
+    return ([node], [input, pos_ids, cos_cache, sin_cache], [output])
+
+
+@onnx_test()
+def rotary_embedding_cache_1_test():
+    input = helper.make_tensor_value_info('input', TensorProto.FLOAT16,
+                                          [1, 2, 18])
+    pos_ids = helper.make_tensor_value_info('pos_ids', TensorProto.INT32,
+                                            [1, 2])
+    cos_cache = helper.make_tensor_value_info('cos_cache', TensorProto.FLOAT16,
+                                              [2, 3])
+    sin_cache = helper.make_tensor_value_info('sin_cache', TensorProto.FLOAT16,
+                                              [4, 3])
+    output = helper.make_tensor_value_info('output', TensorProto.FLOAT16,
+                                           [1, 2, 18])
+
+    node = onnx.helper.make_node(
+        'RotaryEmbedding',
+        inputs=['input', 'pos_ids', 'cos_cache', 'sin_cache'],
+        outputs=['output'],
+        interleaved=0,
+        domain="com.microsoft")
+
+    return ([node], [input, pos_ids, cos_cache, sin_cache], [output])
+
+
+@onnx_test()
+def rotary_embedding_cache_2_test():
+    input = helper.make_tensor_value_info('input', TensorProto.FLOAT16,
+                                          [1, 2, 8])
+    pos_ids = helper.make_tensor_value_info('pos_ids', TensorProto.INT32,
+                                            [1, 2])
+    cos_cache = helper.make_tensor_value_info('cos_cache', TensorProto.FLOAT16,
+                                              [4, 4])
+    sin_cache = helper.make_tensor_value_info('sin_cache', TensorProto.FLOAT16,
+                                              [4, 6])
+    output = helper.make_tensor_value_info('output', TensorProto.FLOAT16,
+                                           [1, 2, 8])
+
+    node = onnx.helper.make_node(
+        'RotaryEmbedding',
+        inputs=['input', 'pos_ids', 'cos_cache', 'sin_cache'],
+        outputs=['output'],
+        interleaved=0,
+        domain="com.microsoft")
+
+    return ([node], [input, pos_ids, cos_cache, sin_cache], [output])
+
+
+@onnx_test()
+def rotary_embedding_wrong_n_inputs_test():
+    input = helper.make_tensor_value_info('input', TensorProto.FLOAT16,
+                                          [1, 2, 8])
+    pos_ids = helper.make_tensor_value_info('pos_ids', TensorProto.INT32,
+                                            [1, 2])
+    output = helper.make_tensor_value_info('output', TensorProto.FLOAT16,
+                                           [1, 2, 8])
+
+    node = onnx.helper.make_node('RotaryEmbedding',
+                                 inputs=['input', 'pos_ids'],
+                                 outputs=['output'],
+                                 interleaved=0,
+                                 domain="com.microsoft")
+
+    return ([node], [input, pos_ids], [output])
 
 
 @onnx_test()

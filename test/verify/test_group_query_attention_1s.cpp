@@ -27,30 +27,43 @@
 #include <migraphx/generate.hpp>
 #include <migraphx/make_op.hpp>
 
-struct test_group_query_attention_prompt : verify_program<test_group_query_attention_prompt>
+struct test_group_query_attention_1s : verify_program<test_group_query_attention_1s>
 {
     migraphx::program create_program() const
     {
         migraphx::program p;
         auto* mm = p.get_main_module();
-        std::vector<size_t> query_lens{1, 4096, 12288};
-        std::vector<size_t> kv_lens{1, 32, 4096, 128};
+        std::vector<size_t> query_lens{1, 1, 24};
+        std::vector<size_t> kv_lens{1, 2, 4, 4};
         std::vector<size_t> slk_lens{1, 1};
         std::vector<size_t> tsl_lens{1, 1};
-        std::vector<size_t> cs_cache_lens{4096, 64};
+        std::vector<size_t> cs_cache_lens{4, 2};
         auto dtype = migraphx::shape::half_type;
         migraphx::shape query_s{dtype, query_lens};
         migraphx::shape kv_s{dtype, kv_lens};
         migraphx::shape slk_s{migraphx::shape::int64_type, slk_lens};
         migraphx::shape tsl_s{migraphx::shape::int64_type, tsl_lens};
         migraphx::shape cs_cache_s{dtype, cs_cache_lens};
-        auto query = mm->add_parameter("query", query_s);
-        std::vector<int> slk_vec(slk_s.elements(), 10);
-        std::vector<int> tsl_vec(tsl_s.elements(), 11);
+        std::vector<int> slk_vec(slk_s.elements(), 2);
+        std::vector<int> tsl_vec(tsl_s.elements(), 3);
+        std::vector<float> k_vec(kv_s.elements());
+        std::iota(k_vec.begin(), k_vec.end(), 0);
+        std::vector<float> v_vec(kv_s.elements());
+        std::iota(v_vec.begin(), v_vec.end(), 1);
+        // std::vector<float> v_vec(kv_s.elements(), 1.0);
+        // std::vector<float> q_min_vec(query_s.elements(), 1.0);
+        // std::vector<float> q_max_vec(query_s.elements(), 1.0);
+        std::vector<float> query_vec(query_s.elements());
+        std::iota(query_vec.begin(), query_vec.end(), 0);
         std::vector<float> cs_min_vec(cs_cache_s.elements(), -1.0);
         std::vector<float> cs_max_vec(cs_cache_s.elements(), 1.0);
-        auto k_cache   = mm->add_parameter("k_cache", kv_s);
-        auto v_cache   = mm->add_parameter("v_cache", kv_s);
+        auto k_cache   = mm->add_literal(kv_s, k_vec);
+        auto v_cache   = mm->add_literal(kv_s, v_vec);
+        auto query     = mm->add_literal(query_s, query_vec);
+        // auto query     = mm->add_parameter("query", query_s);
+        // auto q_min     = mm->add_literal(query_s, q_min_vec);
+        // auto q_max     = mm->add_literal(query_s, q_max_vec);
+        // query          = mm->add_instruction(migraphx::make_op("clip"), query, q_min, q_max);
         auto slk       = mm->add_literal(slk_s, slk_vec);
         auto tsl       = mm->add_literal(tsl_s, tsl_vec);
         auto key       = mm->add_literal(0.0f);
@@ -62,18 +75,19 @@ struct test_group_query_attention_prompt : verify_program<test_group_query_atten
         cos_cache      = mm->add_instruction(migraphx::make_op("clip"), cos_cache, cs_min, cs_max);
         sin_cache      = mm->add_instruction(migraphx::make_op("clip"), sin_cache, cs_min, cs_max);
         auto r         = mm->add_instruction(migraphx::make_op("group_query_attention",
-                                                               {{"do_rotary", 1},
-                                                                {"kv_num_heads", 32},
+                                                               {{"do_rotary", 0},
+                                                                {"kv_num_heads", 2},
                                                                 {"local_window_size", -1},
-                                                                {"num_heads", 32},
+                                                                {"num_heads", 2},
                                                                 {"rotary_interleaved", 0}}),
                                      query,
                                      key,
                                      value,
                                      k_cache,
                                      v_cache,
-                                     slk,
                                      tsl,
+                                     slk,
+                                    //  tsl,
                                      cos_cache,
                                      sin_cache);
         auto r0 = mm->add_instruction(migraphx::make_op("get_tuple_elem", {{"index", 0}}), r);

@@ -33,6 +33,9 @@ namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
 namespace gpu {
 
+MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_BENCHMARKING_BUNDLE);
+MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_BENCHMARKING_NRUNS);
+
 std::vector<argument> generate_arguments(const std::vector<shape>& shapes,
                                          unsigned long seed = 0,
                                          random_mode rm     = random_mode::random)
@@ -47,6 +50,10 @@ std::vector<argument> generate_arguments(const std::vector<shape>& shapes,
 template <class F>
 double time_loop(migraphx::gpu::context& gctx, int bundle, int nruns, F f)
 {
+    // check for manual overrides
+    bundle = value_of(MIGRAPHX_BENCHMARKING_BUNDLE{}, bundle);
+    nruns = value_of(MIGRAPHX_BENCHMARKING_NRUNS{}, nruns);
+    
     std::vector<std::pair<hip_event_ptr, hip_event_ptr>> events(nruns);
     std::generate(events.begin(), events.end(), [] {
         return std::make_pair(context::create_event_for_timing(),

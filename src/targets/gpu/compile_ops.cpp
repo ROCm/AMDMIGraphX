@@ -40,8 +40,6 @@ namespace gpu {
 
 MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_GPU_COMPILE_PARALLEL);
 MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_TRACE_BENCHMARKING);
-MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_BENCHMARKING_BUNDLE);
-MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_BENCHMARKING_NRUNS);
 
 struct precompile_op
 {
@@ -233,8 +231,8 @@ struct compile_plan
                            // repeat 20 times
                            auto t = time_program(*ctx,
                                                  bench_prog,
-                                                 value_of(MIGRAPHX_BENCHMARKING_BUNDLE{}, 1),
-                                                 value_of(MIGRAPHX_BENCHMARKING_NRUNS{}, 20));
+                                                 1,
+                                                 20);
                            if(trace_level > 1)
                                std::cout << t << "ms" << std::endl;
                            return t;

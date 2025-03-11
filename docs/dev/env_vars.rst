@@ -275,12 +275,10 @@ compilation finishes it will save the problem cache.
 .. envvar:: MIGRAPHX_BENCHMARKING_BUNDLE
 
 Set amount of configs to run in a bundle when timing.
-Defaults to 1.
 
 .. envvar:: MIGRAPHX_BENCHMARKING_NRUNS
 
 Set amount of timing runs for each config bundle being benchmarked.
-Defaults to 20.
 
 MLIR vars
 -------------

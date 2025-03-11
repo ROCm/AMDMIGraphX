@@ -4,7 +4,6 @@
 #include <migraphx/make_op.hpp>
 #include <migraphx/array.hpp>
 
-
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
 
@@ -76,13 +75,7 @@ struct find_large_topk
 
 } // namespace
 
-
-void rewrite_topk::apply(module& m) const
-{
-    match::find_matches(m, find_large_topk{});
-}
+void rewrite_topk::apply(module& m) const { match::find_matches(m, find_large_topk{}); }
 
 } // namespace MIGRAPHX_INLINE_NS
 } // namespace migraphx
-
-

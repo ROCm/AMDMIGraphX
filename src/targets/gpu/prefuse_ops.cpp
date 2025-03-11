@@ -237,12 +237,12 @@ struct find_gemm_softmax_gemm
 
 struct base_group_query_attention
 {
-    bool do_rotary                = false;
-    std::size_t kv_num_heads      = 0;
-    int local_window_size         = -1;
-    std::size_t num_heads         = 1;
-    bool rotary_interleaved       = false;
-    float scale                   = 1.0;
+    bool do_rotary           = false;
+    std::size_t kv_num_heads = 0;
+    int local_window_size    = -1;
+    std::size_t num_heads    = 1;
+    bool rotary_interleaved  = false;
+    float scale              = 1.0;
 
     template <class Self, class F>
     static auto reflect(Self& self, F f)

@@ -26,11 +26,14 @@
 #include <migraphx/instruction.hpp>
 #include <migraphx/make_op.hpp>
 #include <migraphx/ranges.hpp>
+#include <migraphx/env.hpp>
 #include <string>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
 namespace onnx {
+
+MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_PARSE_MHA_AS_GQA)
 
 enum class qkv_fomat_t
 {
@@ -97,9 +100,9 @@ struct parse_multi_head_attention : op_parser<parse_multi_head_attention>
                       const int64_t num_heads,
                       multi_head_attention_parameters& params) const
     {
-        if(args.empty() or args.size() > 3)
-            MIGRAPHX_THROW("MultiHeadAttention: Wrong number of inputs. Only 'query', 'key' and "
-                           "'value' inputs are supported.");
+        // if(args.empty() or args.size() > 3)
+        //     MIGRAPHX_THROW("MultiHeadAttention: Wrong number of inputs. Only 'query', 'key' and "
+        //                    "'value' inputs are supported.");
 
         auto query_dim  = args[0]->get_shape().ndim();
         auto query_lens = args[0]->get_shape().lens();
@@ -201,11 +204,46 @@ struct parse_multi_head_attention : op_parser<parse_multi_head_attention>
         }
     }
 
-    instruction_ref parse(const op_desc& /*opd*/,
+    std::vector<instruction_ref> parse(const op_desc& /*opd*/,
                           const onnx_parser& parser,
                           const onnx_parser::node_info& info,
                           const std::vector<instruction_ref>& args) const
     {
+        if(enabled(MIGRAPHX_PARSE_MHA_AS_GQA{}))
+        {
+            auto attn_mask = parser.instructions.at("attention_mask");
+            auto total_seq_lens = info.add_instruction(make_op("reduce_sum", {{"axes", {1}}}), attn_mask);
+            auto one_lit = info.add_literal(1);
+            auto seq_lens_k = info.add_broadcastable_binary_op("sub", attn_mask, one_lit);
+
+            if(not contains(info.attributes, "num_heads"))
+                MIGRAPHX_THROW("MultiHeadAttention: num_heads attribute is required");
+
+            int64_t num_heads = parser.parse_value(info.attributes.at("num_heads")).at<int>();
+
+            auto qkv = info.add_instruction(make_op("concat", {{"axis", 2}}), args[0], args[1], args[2]);
+
+            // to-do: add attn_bias
+            // auto attn_bias = args[5];
+            std::vector<instruction_ref> gqa_args{qkv, args[1], args[2], args[6], args[7], seq_lens_k, total_seq_lens};
+
+            
+            auto gqa             = info.add_instruction(make_op("group_query_attention",
+                                        {{"do_rotary", false},
+                                        {"kv_num_heads", num_heads},
+                                        {"local_window_size", -1},
+                                        {"num_heads", num_heads},
+                                        {"rotary_interleaved", false},
+                                        {"scale", 1.0}}),
+                                    gqa_args);
+            auto gqa_output      = info.add_instruction(make_op("get_tuple_elem", {{"index", 0}}), gqa);
+            auto gqa_present_key = info.add_instruction(make_op("get_tuple_elem", {{"index", 1}}), gqa);
+            auto gqa_present_value =
+                info.add_instruction(make_op("get_tuple_elem", {{"index", 2}}), gqa);
+
+            return {gqa_output, gqa_present_key, gqa_present_value};
+        }
+
         if(not contains(info.attributes, "num_heads"))
             MIGRAPHX_THROW("MultiHeadAttention: num_heads attribute is required");
 
@@ -286,7 +324,7 @@ struct parse_multi_head_attention : op_parser<parse_multi_head_attention>
                 {{"dims", {params.batch_size, params.q_sequence_length, params.hidden_size_v}}}),
             result);
 
-        return result;
+        return {result};
     }
 };
 

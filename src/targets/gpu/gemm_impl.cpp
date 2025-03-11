@@ -126,7 +126,7 @@ auto rocblas_invoke(F f, Pack p, Ts... xs)
         {
             if(status == rocblas_status_perf_degraded)
             {
-                std::cerr << "WARNING: degraded perf. in rocBLAS call" << std::endl;
+                std::cout << "WARNING: degraded perf. in rocBLAS call" << std::endl;
             }
             else
                 MIGRAPHX_THROW("rocblas_invoke: rocBLAS call failed with status " +
@@ -366,7 +366,7 @@ struct gemm_impl
 
         if(check_valid == rocblas_status_invalid_value)
         {
-            std::cerr << "WARNING:  tuned solution is invalid; reverting to default" << std::endl;
+            std::cout << "WARNING:  tuned solution is invalid; reverting to default" << std::endl;
             return 0;
         }
         return solution_idx;

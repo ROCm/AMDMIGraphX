@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2024 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2025 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -937,7 +937,7 @@ struct mlir_program
         else
         {
             found_table = false;
-            std::cerr
+            std::cout
                 << "WARNING: MLIR tuning db not found. Please set MIGRAPHX_MLIR_TUNING_DB for "
                    "optimal performance."
                 << std::endl;
@@ -955,7 +955,7 @@ struct mlir_program
                 mlirRockTuningGetKey(mmodule.get(), prob_config.data(), prob_config.size());
             if(prob_config_bytes >= prob_config.size())
             {
-                std::cerr << "MLIR tuning key overflowed buffer, needed " << prob_config_bytes
+                std::cout << "MLIR tuning key overflowed buffer, needed " << prob_config_bytes
                           << " bytes" << std::endl;
                 return false;
             }
@@ -963,7 +963,7 @@ struct mlir_program
                                         prob_config.begin() + prob_config_bytes);
             if(tuning_table.second)
             {
-                std::cerr << "NOTE: MLIR tuning table did not include a key for " << prob_config_str
+                std::cout << "NOTE: MLIR tuning table did not include a key for " << prob_config_str
                           << std::endl;
             }
             dump_tuning_cfg(prob_config_str);

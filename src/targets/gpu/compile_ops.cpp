@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2024 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2025 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -113,7 +113,7 @@ struct compile_plan
             {
                 const auto trace_level = value_of(MIGRAPHX_TRACE_BENCHMARKING{});
                 if(trace_level > 0)
-                    std::cerr << "Exception in " + preop.name() + ": " + e.what() << std::endl;
+                    std::cout << "Exception in " + preop.name() + ": " + e.what() << std::endl;
                 results[i] = nullopt;
             }
             catch(...)

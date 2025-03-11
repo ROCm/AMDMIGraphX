@@ -52,8 +52,8 @@ double time_loop(migraphx::gpu::context& gctx, int bundle, int nruns, F f)
 {
     // check for manual overrides
     bundle = value_of(MIGRAPHX_BENCHMARKING_BUNDLE{}, bundle);
-    nruns = value_of(MIGRAPHX_BENCHMARKING_NRUNS{}, nruns);
-    
+    nruns  = value_of(MIGRAPHX_BENCHMARKING_NRUNS{}, nruns);
+
     std::vector<std::pair<hip_event_ptr, hip_event_ptr>> events(nruns);
     std::generate(events.begin(), events.end(), [] {
         return std::make_pair(context::create_event_for_timing(),

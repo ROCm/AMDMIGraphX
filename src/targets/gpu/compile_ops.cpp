@@ -229,10 +229,7 @@ struct compile_plan
                            bench_mm->remove_instruction(bench_ins);
                            // by default, measure runtime with bundle of 1 benchmark config,
                            // repeat 20 times
-                           auto t = time_program(*ctx,
-                                                 bench_prog,
-                                                 1,
-                                                 20);
+                           auto t = time_program(*ctx, bench_prog, 1, 20);
                            if(trace_level > 1)
                                std::cout << t << "ms" << std::endl;
                            return t;

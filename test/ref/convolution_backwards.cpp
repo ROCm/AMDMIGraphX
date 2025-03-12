@@ -78,6 +78,7 @@ TEST_CASE(convolution_backwards_2d)
     EXPECT(migraphx::verify::verify_rms_range(results_vector, gold));
 }
 
+// test values from pytorch
 TEST_CASE(convolution_backwards_3d)
 {
     migraphx::shape s_1{migraphx::shape::float_type, {1, 1, 1, 2, 3}};
@@ -222,6 +223,7 @@ TEST_CASE(convolution_backwards_2dilation)
     EXPECT(migraphx::verify::verify_rms_range(results_vector, gold));
 }
 
+// test values from pytorch
 TEST_CASE(convolution_backwards_2d_group)
 {
     migraphx::shape activations_shape{migraphx::shape::float_type, {1, 2, 3, 3}};

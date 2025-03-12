@@ -88,14 +88,6 @@ static shape get_input_shape(const std::vector<shape>& inputs)
     return *it;
 }
 
-static shape get_reduce_shape(const std::vector<shape>& inputs)
-{
-    auto it = std::min_element(inputs.begin(), inputs.end(), by(std::less<>{}, [](const shape& s) {
-                                   return s.elements();
-                               }));
-    return *it;
-}
-
 template <class T>
 static shape get_reduced_shape(const shape& s, const std::vector<T>& axes)
 {

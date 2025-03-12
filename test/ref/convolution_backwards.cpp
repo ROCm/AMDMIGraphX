@@ -222,6 +222,35 @@ TEST_CASE(convolution_backwards_2dilation)
     EXPECT(migraphx::verify::verify_rms_range(results_vector, gold));
 }
 
+TEST_CASE(convolution_backwards_2d_group)
+{
+    migraphx::shape activations_shape{migraphx::shape::float_type, {1, 2, 3, 3}};
+    migraphx::shape weights_shape{migraphx::shape::float_type, {2, 2, 3, 3}};
+    std::vector<float> x_data{0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17};
+    std::vector<float> w_data(36, 1.0);
+
+    std::vector<float> gold{
+        0.,  1.,  3.,   3.,  2.,  3.,  8.,  15., 12., 7.,  9.,  21.,  36., 27., 15., 9.,  20.,
+        33., 24., 13.,  6.,  13., 21., 15., 8.,  0.,  1.,  3.,  3.,   2.,  3.,  8.,  15., 12.,
+        7.,  9.,  21.,  36., 27., 15., 9.,  20., 33., 24., 13., 6.,   13., 21., 15., 8.,  9.,
+        19., 30., 21.,  11., 21., 44., 69., 48., 25., 36., 75., 117., 81., 42., 27., 56., 87.,
+        60., 31., 15.,  31., 48., 33., 17., 9.,  19., 30., 21., 11.,  21., 44., 69., 48., 25.,
+        36., 75., 117., 81., 42., 27., 56., 87., 60., 31., 15., 31.,  48., 33., 17.};
+
+    migraphx::program p;
+    auto* mm = p.get_main_module();
+    auto x   = mm->add_literal(migraphx::literal{activations_shape, x_data});
+    auto w   = mm->add_literal(migraphx::literal{weights_shape, w_data});
+
+    mm->add_instruction(migraphx::make_op("convolution_backwards", {{"group", 2}}), x, w);
+    p.compile(migraphx::make_target("ref"));
+    auto result = p.eval({}).back();
+
+    std::vector<float> results_vector;
+    result.visit([&](auto output) { results_vector.assign(output.begin(), output.end()); });
+    EXPECT(migraphx::verify::verify_rms_range(results_vector, gold));
+}
+
 TEST_CASE(convolution_backwards_dyn_batch1)
 {
     migraphx::program p;

@@ -80,7 +80,7 @@ struct convolution_backwards
         }
 
         if(not x_shape.dynamic() and not w_shape.dynamic() and
-           x_shape.lens().at(1) != (w_shape.lens().at(0) * group))
+           x_shape.lens().at(1) != (w_shape.lens().at(0)))
         {
             MIGRAPHX_THROW("CONVOLUTION_BACKWARDS: mismatched channel numbers");
         }
@@ -116,7 +116,7 @@ struct convolution_backwards
     {
         std::vector<shape::dynamic_dimension> output_dyn_dims = {};
         output_dyn_dims.push_back(x_shape.to_dynamic().dyn_dims().at(0));
-        output_dyn_dims.push_back(w_shape.to_dynamic().dyn_dims().at(1));
+        output_dyn_dims.push_back(w_shape.to_dynamic().dyn_dims().at(1) * group);
         const std::size_t num_spatial_dims = x_shape.ndim() - 2;
         // Does not compute for optimals
         auto min_spatial_dims = calc_spatial_lens(x_shape.min_lens(), w_shape.min_lens());
@@ -131,7 +131,7 @@ struct convolution_backwards
 
     shape static_compute_shape(shape x_shape, shape w_shape) const
     {
-        std::vector<size_t> output_lens{x_shape.lens()[0], w_shape.lens()[1]};
+        std::vector<size_t> output_lens{x_shape.lens()[0], w_shape.lens()[1] * group};
         auto spatial_lens = calc_spatial_lens(x_shape.lens(), w_shape.lens());
         std::for_each(spatial_lens.begin(), spatial_lens.end(), [&output_lens](auto x) {
             output_lens.push_back(x);

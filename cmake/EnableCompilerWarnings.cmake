@@ -109,7 +109,6 @@ else()
             if(WIN32 AND CMAKE_CXX_COMPILER_VERSION VERSION_GREATER_EQUAL "19")
                 list(APPEND CMAKE_COMPILER_WARNINGS
                     -Wno-missing-include-dirs
-                    -Wno-covered-switch-default
                     -Wno-switch-default
                     -Wno-deprecated-pragma
                 )

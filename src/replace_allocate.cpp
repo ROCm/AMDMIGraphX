@@ -28,6 +28,7 @@
 #include <migraphx/make_op.hpp>
 #include <migraphx/iterator_for.hpp>
 #include <migraphx/ranges.hpp>
+#include <migraphx/param_utils.hpp>
 #include <migraphx/op/allocate.hpp>
 #include <map>
 
@@ -37,28 +38,27 @@ inline namespace MIGRAPHX_INLINE_NS {
 namespace {
 std::unordered_map<instruction_ref, std::string> create_output_names(const module& mod)
 {
-    std::unordered_map<instruction_ref, std::string> mod_output_names{};
-    auto last = std::prev(mod.end());
-    if(last->name() == "@return")
+    std::unordered_map<instruction_ref, std::string> mod_output_names;
+    auto returns = mod.get_returns();
+
+    std::vector<instruction_ref> outputs_alias(returns.size());
+
+    std::transform(returns.begin(),
+                   returns.end(),
+                   outputs_alias.begin(),
+                   [](const auto& i) { return instruction::get_output_alias(i); });
+    
+    if(outputs_alias.size() == 1 and (mod.name() == "main" or mod.name().empty()))
     {
-        const auto& prog_outputs = last->inputs();
-        std::vector<instruction_ref> outputs_alias(prog_outputs.size());
-
-        std::transform(prog_outputs.begin(),
-                       prog_outputs.end(),
-                       outputs_alias.begin(),
-                       [](const auto& i) { return instruction::get_output_alias(i); });
-
-        std::size_t index = 0;
-        for(auto ins : outputs_alias)
-        {
-            mod_output_names[ins] = mod.name() + ":#output_" + std::to_string(index++);
-        }
+        mod_output_names[outputs_alias.front()] = "output";
     }
     else
     {
-        auto ins              = instruction::get_output_alias(last);
-        mod_output_names[ins] = "output";
+        std::size_t index = 0;
+        for(auto ins : outputs_alias)
+        {
+            mod_output_names[ins] = param_name(index++, mod.name() + ":#output_");
+        }
     }
     return mod_output_names;
 }
@@ -108,7 +108,8 @@ void insert_submod_allocations(instruction_ref ins, module& mod, const allocatio
 void replace_allocate::apply(module_pass_manager& mpm) const
 {
     module& m              = mpm.get_module();
-    bool root_offload_copy = (*mpm.get_root_module() == m) ? this->offload_copy : false;
+    bool is_root = *mpm.get_root_module() == m;
+    bool root_offload_copy = is_root ? this->offload_copy : false;
     // Adjust allocations before replacing
     for(auto ins : iterator_for(m))
     {

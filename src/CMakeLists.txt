@@ -262,6 +262,7 @@ register_migraphx_ops(
     sin
     slice
     softmax
+    sparse_attention
     sqdiff
     sqrt
     squeeze

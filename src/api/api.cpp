@@ -71,7 +71,7 @@ migraphx_status try_(F f, bool output = true) // NOLINT
         catch(const migraphx::exception& ex)
         {
             if(output)
-                std::cerr << "MIGraphX Error: " << ex.what() << std::endl;
+                std::cout << "MIGraphX Error: " << ex.what() << std::endl;
             if(ex.error > 0)
                 return migraphx_status(ex.error);
             else
@@ -80,7 +80,7 @@ migraphx_status try_(F f, bool output = true) // NOLINT
         catch(const std::exception& ex)
         {
             if(output)
-                std::cerr << "MIGraphX Error: " << ex.what() << std::endl;
+                std::cout << "MIGraphX Error: " << ex.what() << std::endl;
             return migraphx_status_unknown_error;
         }
         catch(...)

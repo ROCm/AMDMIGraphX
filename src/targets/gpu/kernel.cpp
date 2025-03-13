@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2024 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2025 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -129,13 +129,13 @@ void launch_kernel(hipFunction_t fun,
 void kernel::launch(hipStream_t stream,
                     std::size_t global,
                     std::size_t local,
-                    std::vector<void*> args,
+                    pointers args,
                     hipEvent_t start,
                     hipEvent_t stop) const
 {
     assert(impl != nullptr);
     void* kernargs   = reinterpret_cast<void*>(args.data());
-    std::size_t size = args.size() * sizeof(void*);
+    std::size_t size = args.bytes();
 
     launch_kernel(impl->fun, stream, global, local, kernargs, size, start, stop);
 }

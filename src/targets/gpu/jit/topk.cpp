@@ -73,9 +73,8 @@ struct topk_compiler : compiler<topk_compiler>
         auto relements      = inputs.front().lens()[axis];
         auto nelements      = inputs.front().elements() / relements;
         auto max_wavefronts = std::max<std::size_t>(1, 8192 / kelements);
-        auto max_block_size = std::min<std::size_t>(max_wavefronts * 64, 1024);
+        auto max_block_size = std::min<std::size_t>(max_wavefronts * ctx.get_current_device().get_wavefront_size(), 1024);
         auto block_size     = compute_block_size(ctx, relements / 4, max_block_size);
-        // auto block_size = 64;
         options.set_launch_params(v, compute_global_for(ctx, block_size * nelements), block_size);
 
         std::string compare = "less{}";

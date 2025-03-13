@@ -67,13 +67,15 @@ void insert_copy(module& m, const allocation_model& model)
 {
     auto returns = m.get_returns();
     std::unordered_set<instruction_ref> returns_set(returns.begin(), returns.end());
-    for(auto ins:returns_set)
+    for(auto ins : returns_set)
     {
         auto alias = instruction::get_output_alias(ins);
-        if (alias->get_shape() == ins->get_shape())
+        if(alias->get_shape() == ins->get_shape())
             continue;
         auto insert_ins = std::next(ins);
-        auto alloc = m.insert_instruction(insert_ins, make_op("allocate", migraphx::value{{"shape", to_value(ins->get_shape())}}));
+        auto alloc      = m.insert_instruction(
+            insert_ins,
+            make_op("allocate", migraphx::value{{"shape", to_value(ins->get_shape())}}));
         auto copy = m.insert_instruction(insert_ins, make_op(model.copy()), ins, alloc);
         m.replace_instruction(ins, copy);
     }
@@ -118,7 +120,7 @@ void replace_allocate::apply(module_pass_manager& mpm) const
     }
     if(not root_offload_copy and model.needs_out_params())
         insert_copy(m, model);
-    auto mod_output_names  = create_output_names(m);
+    auto mod_output_names = create_output_names(m);
     for(auto ins : iterator_for(m))
     {
         if(ins->name() != "allocate")

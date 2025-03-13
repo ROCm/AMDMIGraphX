@@ -80,6 +80,7 @@ namespace gpu {
 
 MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_DISABLE_SCHEDULE_PASS)
 MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_ENABLE_NHWC)
+MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_ENABLE_REWRITE_DOT)
 #ifndef _WIN32
 MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_ENABLE_CK)
 #endif
@@ -207,7 +208,7 @@ std::vector<pass> target::get_passes(migraphx::context& gctx, const compile_opti
         dead_code_elimination{},
         rewrite_reduce{},
         rewrite_low_precision{},
-        rewrite_dot{},
+        enable_pass(enabled(MIGRAPHX_ENABLE_REWRITE_DOT{}), rewrite_dot{}),
         dead_code_elimination{},
         optimize_module{},
         fuse_pointwise_reduce{},

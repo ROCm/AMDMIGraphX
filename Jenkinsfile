@@ -1,4 +1,5 @@
 import org.jenkinsci.plugins.pipeline.modeldefinition.Utils
+import groovy.json.JsonSlurper
 
 DOCKER_IMAGE = 'rocm/migraphx-ci-jenkins-ubuntu'
 
@@ -11,6 +12,54 @@ def getnavi3xtargets() {
     targets="gfx1100;gfx1101"
     return targets
 }
+
+def getCommitSha() {
+  return sh(returnStdout: true, script: 'git rev-parse HEAD')
+}
+def getJobStatus(String variant) {
+    //GIT_COMMIT_SHA=getCommitSha()
+    //c = """ 
+    //curl -L   -H "Accept: application/vnd.github+json"   -H "Authorization: Bearer ${env.migraphx_ci_creds}"   -H "X-GitHub-Api-Version: 2022-11-28"   https://api.github.com/repos/ROCm/AMDMIGraphX/commits/${GIT_COMMIT_SHA}/status |jq -c '[ .statuses[] | select(.context| contains("Jenkins - ${name}")) ] '|jq .[].state """
+//
+     //echo cmd
+     //status = sh(returnStdout: true, script:cmd)
+     //echo status
+
+     //return status
+  
+//}
+
+    echo "getJobStatus"
+ 
+    withCredentials([usernamePassword(credentialsId: "${env.migraphx_ci_creds}", usernameVariable: 'GITHUB_USERNAME', passwordVariable: 'GITHUB_TOKEN')]) {
+        def commit_hash = sh(script: 'git rev-parse --short HEAD', returnStdout: true).trim()
+
+        echo commit_hash
+        def response = sh(
+            script: """curl -H "Accept: application/vnd.github+json" \
+                           -H "Authorization: token ${GITHUB_TOKEN}" \
+                           https://api.github.com/repos/ROCm/AMDMIGraphX/commits/${commit_hash}/status """,
+            returnStdout: true
+        ).trim()
+        echo "Print entire response"
+        echo response
+
+        echo "Slurp"
+        def jstr = new JsonSlurper().parseText( response )
+        jstr.each { println it }
+        
+        def statuses = jstr.statuses
+        echo "Made it to statuses"
+
+        echo "Now planning to find the correct context"
+        def contextStatus = statuses.find { it.context == "Jenkins - ${variant}" }
+        println contextStatus.state
+        
+        env.COMMIT_PASSED = contextStatus != null && contextStatus.state == 'success'
+        echo env.COMMIT_PASSED
+    }
+}
+
 
 // Test
 // def rocmtestnode(variant, name, body, args, pre) {
@@ -51,12 +100,15 @@ def rocmtestnode(Map conf) {
             make -j\$(nproc) all package check VERBOSE=1
             md5sum ./*.deb
         """
-        echo cmd
-        sh cmd
-        // Only archive from master or develop
-        if (env.BRANCH_NAME == "develop" || env.BRANCH_NAME == "master") {
-            archiveArtifacts artifacts: "build/*.deb", allowEmptyArchive: true, fingerprint: true
-        }
+
+        getJobStatus(variant) 
+        echo  env.COMMIT_PASSED
+            echo cmd
+            sh cmd
+            // Only archive from master or develop
+            if (env.BRANCH_NAME == "develop" || env.BRANCH_NAME == "master") {
+                archiveArtifacts artifacts: "build/*.deb", allowEmptyArchive: true, fingerprint: true
+            }
     }
     node(name) {
         withEnv(['HSA_ENABLE_SDMA=0']) {

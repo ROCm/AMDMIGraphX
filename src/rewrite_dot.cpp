@@ -109,10 +109,7 @@ struct find_1x1_convolution
 
 } // namespace
 
-void rewrite_dot::apply(module& m) const
-{
-    match::find_matches(m, find_1x1_convolution{});
-}
+void rewrite_dot::apply(module& m) const { match::find_matches(m, find_1x1_convolution{}); }
 
 } // namespace MIGRAPHX_INLINE_NS
 } // namespace migraphx

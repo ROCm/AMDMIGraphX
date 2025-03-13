@@ -41,6 +41,7 @@
 #include <migraphx/optimize_module.hpp>
 #include <migraphx/promote_literals.hpp>
 #include <migraphx/propagate_constant.hpp>
+#include <migraphx/rewrite_dot.hpp>
 #include <migraphx/rewrite_gelu.hpp>
 #include <migraphx/rewrite_pooling.hpp>
 #include <migraphx/rewrite_quantization.hpp>
@@ -79,6 +80,7 @@ std::unordered_map<std::string, pass> create_passes_lookup()
         optimize_module{},
         promote_literals{},
         propagate_constant{},
+        rewrite_dot{},
         rewrite_gelu{},
         rewrite_pooling{},
         rewrite_quantization{},

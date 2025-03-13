@@ -39,6 +39,7 @@ struct MIGRAPHX_EXPORT fuse_pointwise
 
     bool enable_rewrite_reshapes = true;
     bool enable_rewrite_broadcasts = false;
+    bool enable_multi_output = false;
 };
 
 } // namespace MIGRAPHX_INLINE_NS

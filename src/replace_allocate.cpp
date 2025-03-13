@@ -34,6 +34,7 @@
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
 
+namespace {
 std::unordered_map<instruction_ref, std::string> create_output_names(const module& mod)
 {
     std::unordered_map<instruction_ref, std::string> mod_output_names{};
@@ -62,6 +63,22 @@ std::unordered_map<instruction_ref, std::string> create_output_names(const modul
     return mod_output_names;
 }
 
+void insert_copy(module& m, const allocation_model& model)
+{
+    auto returns = m.get_returns();
+    std::unordered_set<instruction_ref> returns_set(returns.begin(), returns.end());
+    for(auto ins:returns_set)
+    {
+        auto alias = instruction::get_output_alias(ins);
+        if (alias->get_shape() == ins->get_shape())
+            continue;
+        auto insert_ins = std::next(ins);
+        auto alloc = m.insert_instruction(insert_ins, make_op("allocate", migraphx::value{{"shape", to_value(ins->get_shape())}}));
+        auto copy = m.insert_instruction(insert_ins, make_op(model.copy()), ins, alloc);
+        m.replace_instruction(ins, copy);
+    }
+}
+
 void insert_submod_allocations(instruction_ref ins, module& mod, const allocation_model& model)
 {
     std::vector<instruction_ref> inputs = ins->inputs();
@@ -84,25 +101,27 @@ void insert_submod_allocations(instruction_ref ins, module& mod, const allocatio
 
     mod.replace_instruction(ins, ins->get_operator(), inputs, mod_args);
 }
+} // namespace
 
 void replace_allocate::apply(module_pass_manager& mpm) const
 {
     module& m              = mpm.get_module();
-    auto mod_output_names  = create_output_names(m);
     bool root_offload_copy = (*mpm.get_root_module() == m) ? this->offload_copy : false;
+    // Adjust allocations before replacing
     for(auto ins : iterator_for(m))
     {
-        auto op      = ins->get_operator();
-        auto op_name = op.name();
-
         // check if allocations from submodules need to be inserted
         // for now, only the "if" operator is affected
-        if(op_name == "if")
-        {
-            insert_submod_allocations(ins, m, model);
+        if(ins->name() != "if")
             continue;
-        }
-        if(op_name != "allocate")
+        insert_submod_allocations(ins, m, model);
+    }
+    if(not root_offload_copy and model.needs_out_params())
+        insert_copy(m, model);
+    auto mod_output_names  = create_output_names(m);
+    for(auto ins : iterator_for(m))
+    {
+        if(ins->name() != "allocate")
             continue;
 
         auto s = ins->get_shape();

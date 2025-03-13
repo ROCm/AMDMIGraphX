@@ -57,6 +57,7 @@
 #include <migraphx/match/gelu_erf.hpp>
 #include <migraphx/match/gelu_tanh.hpp>
 #include <migraphx/matcher.hpp>
+#include <migraphx/env.hpp>
 #include <unordered_map>
 #include <utility>
 #include <iostream>
@@ -64,6 +65,8 @@
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
 namespace cpu {
+
+MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_ENABLE_ZENDNN)
 
 template <typename T>
 T zero(const T&)
@@ -345,7 +348,6 @@ struct cpu_apply
         extend_op("contiguous", "dnnl::reorder");
         extend_op("convolution", "dnnl::convolution");
 #ifndef MIGRAPHX_ENABLE_ZENDNN
-        extend_op("convolution_backwards", "dnnl::convolution_backwards");
         extend_op("dot", "dnnl::dot");
 #endif
         extend_op("erf", "cpu::erf");
@@ -397,6 +399,10 @@ struct cpu_apply
             if(it->name() == "pooling")
             {
                 apply_pooling(it);
+            }
+            else if(it->name() == "convolution_backwards" and enabled(MIGRAPHX_ENABLE_ZENDNN{}))
+            {
+                apply_convolution_backwards(it);
             }
             else if(it->name() == "reshape")
             {
@@ -462,6 +468,21 @@ struct cpu_apply
         auto after_alloc = insert_allocation(new_lazy_reshape, new_lazy_reshape->get_shape());
         after_contiguous_args.push_back(after_alloc);
         return modl->replace_instruction(ins, make_op("dnnl::reorder"), after_contiguous_args);
+    }
+
+    /**
+     * Lower to dnnl:convolution_backwards if supported.
+     * OneDNN doesn't support group convolution transpose.
+     */
+    instruction_ref apply_convolution_backwards(instruction_ref ins) const
+    {
+        auto&& op = ins->get_operator();
+        auto v    = op.to_value();
+        if(has_op("dnnl::convolution_backwards") and v["group"].to<int>() == 1)
+        {
+            return replace(ins, make_op("dnnl::convolution_backwards", op.to_value()));
+        }
+        return ins;
     }
 
     template <class T>

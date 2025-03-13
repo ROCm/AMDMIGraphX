@@ -47,9 +47,7 @@ struct test_copy : migraphx::auto_register_op<test_copy>
                                const std::vector<migraphx::argument>& inputs) const
     {
         inputs.at(0).visit([&](auto x) {
-            inputs.at(1).visit([&](auto y) {
-                std::copy(x.begin(), x.end(), y.begin());
-            });
+            inputs.at(1).visit([&](auto y) { std::copy(x.begin(), x.end(), y.begin()); });
         });
         return inputs.back();
     }
@@ -243,21 +241,21 @@ TEST_CASE(allocate_copy_with_out)
     migraphx::shape s{migraphx::shape::float_type, {5}};
     migraphx::module m1;
     {
-        auto x = m1.add_parameter("x", s);
-        auto y = m1.add_parameter("y", s);
-        auto pass = m1.add_instruction(tuple_op{}, x, y);
+        auto x     = m1.add_parameter("x", s);
+        auto y     = m1.add_parameter("y", s);
+        auto pass  = m1.add_instruction(tuple_op{}, x, y);
         auto elem1 = m1.add_instruction(migraphx::make_op("get_tuple_elem", {{"index", 0}}), pass);
         m1.add_return({elem1});
     }
     run_pass(m1, allocation_with_out_model{});
     migraphx::module m2;
     {
-        auto x = m2.add_parameter("x", s);
-        auto y = m2.add_parameter("y", s);
+        auto x      = m2.add_parameter("x", s);
+        auto y      = m2.add_parameter("y", s);
         auto output = m2.add_parameter("output", s);
-        auto pass = m2.add_instruction(tuple_op{}, x, y);
-        auto elem1 = m2.add_instruction(migraphx::make_op("get_tuple_elem", {{"index", 0}}), pass);
-        auto copy = m2.add_instruction(migraphx::make_op("test_copy"), elem1, output);
+        auto pass   = m2.add_instruction(tuple_op{}, x, y);
+        auto elem1  = m2.add_instruction(migraphx::make_op("get_tuple_elem", {{"index", 0}}), pass);
+        auto copy   = m2.add_instruction(migraphx::make_op("test_copy"), elem1, output);
         m2.add_return({copy});
     }
     EXPECT(m1.sort() == m2.sort());
@@ -268,9 +266,9 @@ TEST_CASE(allocate_copy_with_no_out)
     migraphx::shape s{migraphx::shape::float_type, {5}};
     migraphx::module m1;
     {
-        auto x = m1.add_parameter("x", s);
-        auto y = m1.add_parameter("y", s);
-        auto pass = m1.add_instruction(tuple_op{}, x, y);
+        auto x     = m1.add_parameter("x", s);
+        auto y     = m1.add_parameter("y", s);
+        auto pass  = m1.add_instruction(tuple_op{}, x, y);
         auto elem1 = m1.add_instruction(migraphx::make_op("get_tuple_elem", {{"index", 0}}), pass);
         m1.add_return({elem1});
     }

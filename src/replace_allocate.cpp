@@ -43,11 +43,10 @@ std::unordered_map<instruction_ref, std::string> create_output_names(const modul
 
     std::vector<instruction_ref> outputs_alias(returns.size());
 
-    std::transform(returns.begin(),
-                   returns.end(),
-                   outputs_alias.begin(),
-                   [](const auto& i) { return instruction::get_output_alias(i); });
-    
+    std::transform(returns.begin(), returns.end(), outputs_alias.begin(), [](const auto& i) {
+        return instruction::get_output_alias(i);
+    });
+
     if(outputs_alias.size() == 1 and (mod.name() == "main" or mod.name().empty()))
     {
         mod_output_names[outputs_alias.front()] = "output";
@@ -108,7 +107,7 @@ void insert_submod_allocations(instruction_ref ins, module& mod, const allocatio
 void replace_allocate::apply(module_pass_manager& mpm) const
 {
     module& m              = mpm.get_module();
-    bool is_root = *mpm.get_root_module() == m;
+    bool is_root           = *mpm.get_root_module() == m;
     bool root_offload_copy = is_root ? this->offload_copy : false;
     // Adjust allocations before replacing
     for(auto ins : iterator_for(m))

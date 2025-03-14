@@ -32,6 +32,7 @@ struct gqa_parameters
                                               // (4096 when using shared buffer)
     bool past_present_share_buffer = false;   // Whether to use same buffer for KV-cache
                                               // inputs and outputs
+    bool has_attn_bias = false;
 };
 
 struct group_query_attention
@@ -227,6 +228,7 @@ struct group_query_attention
                                    U seqlens_k,       // past sequence lengths tensor
                                    T past_key,        // past key only
                                    T present_key,     // present key only
+                                   T attn_bias,
                                    shape::type_t dtype,
                                    gqa_parameters params) const
     {
@@ -249,6 +251,8 @@ struct group_query_attention
 
         const std::size_t loop_len = batch_size * num_heads;
         const float alpha = scale == 0.0f ? 1.0f / std::sqrt(static_cast<float>(head_size)) : scale;
+        const std::size_t probs_matrix_size = sequence_length * present_buffer_sequence_length;
+        const std::size_t probs_matrix_bytes = probs_matrix_size * dtype == migraphx::shape::half_type ? 2 : 4;
 
         par_for(loop_len, [&](const auto i) {
             const std::size_t batch_index = i / num_heads;
@@ -260,6 +264,12 @@ struct group_query_attention
 
             const std::size_t output_offset = i * sequence_length * present_buffer_sequence_length;
             auto output                     = attention_probs + output_offset;
+
+            if(params.has_attn_bias)
+            {
+                const std::size_t attn_bias_offset = batch_index * num_heads * probs_matrix_size + head_index * probs_matrix_size;
+                copy_data(output, attn_bias + attn_bias_offset, probs_matrix_bytes);
+            }
 
             auto k = key + packed_batch_stride * batch_index +
                      kv_input_chunk_length * (head_index / kv_num_heads_factor);
@@ -398,12 +408,13 @@ struct group_query_attention
                          T present_value,
                          U seqlens_k,
                          T attention_probs,
+                         T attn_bias,
                          gqa_parameters parameters,
                          shape::type_t dtype) const
     {
         const T k = qkv + num_heads * parameters.sequence_length * parameters.head_size;
         calculate_attention_probs(
-            attention_probs, qkv, k, seqlens_k, past_key, present_key, dtype, parameters);
+            attention_probs, qkv, k, seqlens_k, past_key, present_key, attn_bias, dtype, parameters);
 
         const T v =
             qkv + (num_heads + kv_num_heads) * parameters.sequence_length * parameters.head_size;
@@ -420,6 +431,10 @@ struct group_query_attention
         auto past_key_shape               = args[3].get_shape();
         auto past_key_lens                = past_key_shape.lens();
         auto past_sequence_length         = past_key_lens[2];
+        if(past_sequence_length == 0)
+        {
+            past_sequence_length = sequence_length;
+        }
         std::size_t q_hidden_size         = q_lens[2];
         std::size_t head_size             = q_hidden_size / (num_heads + 2 * kv_num_heads);
         q_hidden_size                     = head_size * num_heads;
@@ -460,7 +475,8 @@ struct group_query_attention
                   qkv_rotary,
                   present_k_out,
                   present_v_out,
-                  attention_probs)([&](auto output,
+                  attention_probs,
+                  args[9])([&](auto output,
                                        auto query,
                                        auto past_key,
                                        auto past_value,
@@ -469,7 +485,8 @@ struct group_query_attention
                                        auto rotary_qkv,
                                        auto present_k,
                                        auto present_v,
-                                       auto attn_probs) {
+                                       auto attn_probs,
+                                       auto attn_bias) {
             visit_all(args[5])([&](auto seqlens_k) {
                 par_for(kv_shape.elements(), [&](auto i) {
                     present_k[i] = past_key[i];
@@ -507,6 +524,7 @@ struct group_query_attention
                 gqa_params.position_ids_use_batch    = position_ids_use_batch;
                 gqa_params.seqlen_present_kv_cache   = past_sequence_length;
                 gqa_params.past_present_share_buffer = false;
+                gqa_params.has_attn_bias             = attn_bias.get_shape().lens().size() > 1;
 
                 if(do_rotary)
                 {
@@ -552,6 +570,7 @@ struct group_query_attention
                                 present_v.begin(),
                                 seqlens_k.begin(),
                                 attn_probs.begin(),
+                                attn_bias.begin(),
                                 gqa_params,
                                 output_shape_0.type());
             });

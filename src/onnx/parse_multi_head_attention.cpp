@@ -223,9 +223,11 @@ struct parse_multi_head_attention : op_parser<parse_multi_head_attention>
 
             auto qkv = info.add_instruction(make_op("concat", {{"axis", 2}}), args[0], args[1], args[2]);
 
-            // to-do: add attn_bias
-            // auto attn_bias = args[5];
-            std::vector<instruction_ref> gqa_args{qkv, args[1], args[2], args[6], args[7], seq_lens_k, total_seq_lens};
+            auto attn_bias = args[5];
+            attn_bias->debug_print();
+            auto trig = info.add_literal(0);
+            trig = info.add_instruction(make_op("convert", {{"target_type", shape::half_type}}), trig);
+            std::vector<instruction_ref> gqa_args{qkv, args[1], args[2], args[6], args[7], seq_lens_k, total_seq_lens, trig, trig, attn_bias};
 
             
             auto gqa             = info.add_instruction(make_op("group_query_attention",

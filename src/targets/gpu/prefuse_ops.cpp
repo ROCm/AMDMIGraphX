@@ -332,7 +332,7 @@ struct find_group_query_attention
             mpm.get_module().insert_instruction(ins, make_op("identity"), pres_k, concat);
         pres_v =
             mpm.get_module().insert_instruction(ins, make_op("identity"), pres_v, concat);
-        std::vector<instruction_ref> new_inputs{id, pres_k, pres_v, inputs.at(6)};
+        std::vector<instruction_ref> new_inputs{id, pres_k, pres_v, inputs.at(6), inputs.at(9)};
         auto get_tuple_elm_0 = std::next(ins);
         auto get_tuple_elm_1 = std::next(get_tuple_elm_0);
         auto get_tuple_elm_2 = std::next(get_tuple_elm_1);

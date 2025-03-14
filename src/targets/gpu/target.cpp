@@ -83,7 +83,7 @@ MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_ENABLE_NHWC)
 #ifndef _WIN32
 MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_ENABLE_CK)
 #endif
-MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_ENABLE_HIPBLASLT_GEMM)
+MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_SET_GEMM_PROVIDER)
 
 std::vector<pass> target::get_passes(migraphx::context& gctx, const compile_options& options) const
 {
@@ -108,7 +108,7 @@ std::vector<pass> target::get_passes(migraphx::context& gctx, const compile_opti
     // different between fp8e4m3fnuz and OCP types because rocBLAS only has
     // support for fp8e4m3fnuz
     std::set<std::string> unsupported_fp8e4m3fnuz_ops = {};
-    if(not enabled(MIGRAPHX_ENABLE_HIPBLASLT_GEMM{}) and not gpu::rocblas_fp8_available())
+    if(not gpu::gfx_has_fp8fnuz_support())
     {
         unsupported_fp8e4m3fnuz_ops.insert("dot");
         unsupported_fp8e4m3fnuz_ops.insert("quant_dot");
@@ -135,19 +135,14 @@ std::vector<pass> target::get_passes(migraphx::context& gctx, const compile_opti
 
     std::set<std::string> unsupported_fp8e5m2fnuz_ops = unsupported_fp8e4m3fnuz_ops;
     // disable gemm for fp8e5m2fnuz if rocBLAS is being used
-    if(not enabled(MIGRAPHX_ENABLE_HIPBLASLT_GEMM{}))
+    if(string_value_of(MIGRAPHX_SET_GEMM_PROVIDER{}) == "rocblas")
     {
         unsupported_fp8e5m2fnuz_ops.insert("dot");
         unsupported_fp8e5m2fnuz_ops.insert("quant_dot");
     }
 
     std::set<std::string> unsupported_fp8ocp_ops = {};
-    // TODO: remove this when the flag is removed
-    if(not enabled(MIGRAPHX_ENABLE_HIPBLASLT_GEMM{}))
-    {
-        unsupported_fp8ocp_ops.insert("dot");
-        unsupported_fp8ocp_ops.insert("quant_dot");
-    }
+
 #if MIGRAPHX_USE_MIOPEN
     // MIOpen doesn't have support for fp8 pooling yet.
     unsupported_fp8ocp_ops.insert("pooling");

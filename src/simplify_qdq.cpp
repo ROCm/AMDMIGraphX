@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2024 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2025 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -34,6 +34,7 @@
 #include <migraphx/op/quant_convolution.hpp>
 #include <migraphx/op/dot.hpp>
 #include <migraphx/op/quant_dot.hpp>
+#include <migraphx/op/concat.hpp>
 #include <migraphx/register_op.hpp>
 #include <migraphx/fp8_types.hpp>
 #include <migraphx/match/dq_helpers.hpp>
@@ -348,6 +349,54 @@ struct match_qlinear_reused
     }
 };
 
+struct match_concat_qlinear
+{
+    auto matcher() const
+    {
+        auto any_pointwise_input = match::any_of[match::inputs()](match::pointwise());
+        return match::name("quantizelinear")(match::arg(0)(
+            match::name("concat")(match::used_once(), any_pointwise_input).bind("cat")));
+    }
+    auto get_slices(instruction_ref cat_ins) const
+    {
+        std::vector<std::vector<std::pair<std::string, value>>> slices;
+        auto axis    = any_cast<op::concat>(cat_ins->get_operator()).axis;
+        size_t start = 0;
+        for(auto cat_inp : cat_ins->inputs())
+        {
+            auto end = start + cat_inp->get_shape().lens()[axis];
+            slices.push_back({{"axes", {axis}}, {"starts", {start}}, {"ends", {end}}});
+            start = end;
+        }
+        return slices;
+    }
+
+    void apply(module& m, const match::matcher_result& r) const
+    {
+        auto ins     = r.result;
+        auto cat_ins = r.instructions["cat"];
+
+        assert(ins->inputs().size() == 3);
+        auto scale = ins->inputs()[1];
+        auto zp    = ins->inputs()[2];
+
+        auto slices = get_slices(cat_ins);
+        std::vector<instruction_ref> new_cat_inputs;
+        std::transform(
+            cat_ins->inputs().begin(),
+            cat_ins->inputs().end(),
+            slices.begin(),
+            std::back_inserter(new_cat_inputs),
+            [&](auto i, auto slc) {
+                auto scale_slc = m.insert_instruction(ins, make_op("slice", slc), {scale});
+                auto zp_slc    = m.insert_instruction(ins, make_op("slice", slc), {zp});
+                return m.insert_instruction(ins, ins->get_operator(), {i, scale_slc, zp_slc});
+            });
+
+        m.replace_instruction(ins, cat_ins->get_operator(), new_cat_inputs);
+    }
+};
+
 bool is_same_value(instruction_ref a, instruction_ref b)
 {
     if(a == b)
@@ -455,6 +504,8 @@ void simplify_qdq::apply(module& m) const
     remove_qdq_pairs(m);
     migraphx::run_passes(m, {migraphx::dead_code_elimination{}});
     match::find_matches(m, match_qlinear_reused{});
+    migraphx::run_passes(m, {migraphx::dead_code_elimination{}});
+    match::find_matches(m, match_concat_qlinear{});
     migraphx::run_passes(m, {migraphx::dead_code_elimination{}});
     remove_zero_point(m);
 }

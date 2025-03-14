@@ -64,6 +64,11 @@ static literal get_scalar(instruction_ref ins)
     return r;
 }
 
+static shape to_scalar(const shape& s)
+{
+    return shape{s.type()};
+}
+
 static void create_pointwise_modules(module_pass_manager& mpm)
 {
     std::size_t n = 0;
@@ -114,61 +119,24 @@ static void create_pointwise_modules(module_pass_manager& mpm)
     }
 }
 
-static module::with_inputs append_pointwise_module(instruction_ref ins, instruction_ref output)
+static module::with_inputs append_pointwise_module(module_ref parent, instruction_ref ins, instruction_ref output)
 {
     assert(contains(output->inputs(), ins));
     module pm     = *ins->module_inputs().at(0);
     module_ref xm = output->module_inputs().at(0);
 
-    auto last = std::prev(pm.end());
-    assert(last->name() == "@return");
-    assert(last->inputs().size() == 1);
+    assert(pm.get_returns().size() == 1);
 
-    assert(pm.get_parameter_names().size() == ins->inputs().size());
-    assert(xm->get_parameter_names().size() == output->inputs().size());
-
-    std::vector<instruction_ref> inputs = ins->inputs();
-    std::unordered_map<instruction_ref, instruction_ref> map_ins;
-    std::unordered_map<instruction_ref, instruction_ref> input_map;
-    // Copy inputs to input_map
-    for(auto i : range(inputs.size()))
-    {
-        auto input = inputs[i];
-        auto param = pm.get_parameter(param_name(i));
-        assert(param != pm.end());
-        input_map[input] = param;
-    }
-    // Add the new parameter and additional inputs
-    for(auto i : range(output->inputs().size()))
-    {
-        auto input = output->inputs()[i];
-        auto param = xm->get_parameter(param_name(i));
-        assert(param != xm->end());
-        if(input == ins)
-        {
-            map_ins[param]   = last->inputs().front();
-            input_map[input] = map_ins[param];
-        }
-        // Avoid duplicate paramter inputs
-        else if(contains(input_map, input))
-        {
-            map_ins[param] = input_map[input];
-        }
-        else
-        {
-            map_ins[param] =
-                pm.add_parameter(param_name(inputs.size()), {input->get_shape().type()});
-            inputs.push_back(input);
-            input_map[input] = map_ins[param];
-        }
-    }
-    auto returns = pm.insert_instructions(last, xm, &map_ins);
+    std::unordered_map<instruction_ref, instruction_ref> map_ins = pm.get_ins_param_map(ins->inputs());
+    map_ins[ins] = pm.get_returns().front();
+    auto returns = pm.fuse(*xm, output->inputs(), &map_ins, nullptr, &to_scalar);
     if(ins->outputs().size() > 1)
     {
         auto ireturns = pm.get_returns();
         returns.insert(returns.end(), ireturns.begin(), ireturns.end());
     }
     pm.replace_return(returns);
+    auto inputs = find_inputs(map_ins, parent, &pm);
     return {std::move(pm), inputs};
 }
 
@@ -228,7 +196,7 @@ static bool find_pointwise_modules(module_pass_manager& mpm, bool multi_out)
             continue;
         auto input = *it;
         const bool has_multi_out = input->outputs().size() > 1;
-        auto fused = append_pointwise_module(input, ins);
+        auto fused = append_pointwise_module(&mpm.get_module(), input, ins);
         auto name  = fused.mod.name();
         mpm.rename_module(name, name + ":" + ins->module_inputs().front()->name() + "-deleted");
         auto* new_pm = mpm.create_module(name, std::move(fused.mod));

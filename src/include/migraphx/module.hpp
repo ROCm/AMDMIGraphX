@@ -62,6 +62,7 @@ struct MIGRAPHX_EXPORT module
                                                    const operation& op,
                                                    const std::vector<instruction_ref>& inputs,
                                                    const std::vector<module_ref>& mod_args)>;
+
     module(const std::string& name = "");
 
     // move constructor
@@ -201,6 +202,7 @@ struct MIGRAPHX_EXPORT module
     std::size_t size() const;
     instruction_ref begin() const;
     instruction_ref end() const;
+    instruction_ref insert_end() const;
 
     struct compute_shapes_options
     {
@@ -254,14 +256,14 @@ struct MIGRAPHX_EXPORT module
     // Insert params to module based on given input instructions and add
     // mappings from inputs to corresponding params in instructions map
     void add_params(const std::vector<instruction_ref>& inputs,
-                    std::unordered_map<instruction_ref, instruction_ref>* map_ins = nullptr);
+                    std::unordered_map<instruction_ref, instruction_ref>* map_ins = nullptr, std::function<shape(const shape&)> shape_transform = nullptr);
 
     // Fuse the instruction into the module by inserting the instructions and
     // parameters for any missing inputs.
     std::vector<instruction_ref>
     fuse(const std::vector<instruction_ref>& inss,
          std::unordered_map<instruction_ref, instruction_ref>* map_ins = nullptr,
-         inserter insert                                               = nullptr);
+         inserter insert                                               = nullptr, std::function<shape(const shape&)> shape_transform = nullptr);
 
     // Fuse another module into this module by inserting the instructions and
     // parameters from the module
@@ -269,7 +271,7 @@ struct MIGRAPHX_EXPORT module
     fuse(const module& m,
          const std::vector<instruction_ref>& inputs,
          std::unordered_map<instruction_ref, instruction_ref>* map_ins = nullptr,
-         inserter insert                                               = nullptr);
+         inserter insert                                               = nullptr, std::function<shape(const shape&)> shape_transform = nullptr);
     /*
     Insert instructions from module `m` to this module at position `ins`
     */

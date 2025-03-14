@@ -286,7 +286,7 @@ insert_generic_instructions(module& m,
 
 instruction_ref module::add_instruction(const operation& op, std::vector<instruction_ref> args)
 {
-    return insert_instruction(impl->instructions.end(), op, std::move(args));
+    return insert_instruction(this->insert_end(), op, std::move(args));
 }
 instruction_ref module::insert_instruction(instruction_ref ins,
                                            const operation& op,
@@ -306,7 +306,7 @@ instruction_ref module::add_instruction(const operation& op,
                                         std::vector<module_ref> module_args)
 {
     return insert_instruction(
-        impl->instructions.end(), op, std::move(args), std::move(module_args));
+        this->insert_end(), op, std::move(args), std::move(module_args));
 }
 
 instruction_ref module::insert_instruction(instruction_ref ins,
@@ -436,7 +436,7 @@ module::add_instructions(const std::vector<instruction_ref>& instructions,
                          std::unordered_map<instruction_ref, instruction_ref>* map_ins,
                          module::inserter insert)
 {
-    return this->insert_instructions(this->end(), instructions, map_ins, std::move(insert));
+    return this->insert_instructions(this->insert_end(), instructions, map_ins, std::move(insert));
 }
 
 std::vector<instruction_ref>
@@ -444,7 +444,7 @@ module::add_instructions(const_module_ref m,
                          std::unordered_map<instruction_ref, instruction_ref>* map_ins,
                          module::inserter insert)
 {
-    return this->insert_instructions(this->end(), m, map_ins, std::move(insert));
+    return this->insert_instructions(this->insert_end(), m, map_ins, std::move(insert));
 }
 
 std::vector<instruction_ref>
@@ -453,7 +453,7 @@ module::add_instructions(instruction_ref start,
                          std::unordered_map<instruction_ref, instruction_ref>* map_ins,
                          module::inserter insert)
 {
-    return this->insert_instructions(this->end(), start, last, map_ins, std::move(insert));
+    return this->insert_instructions(this->insert_end(), start, last, map_ins, std::move(insert));
 }
 
 std::vector<instruction_ref>
@@ -543,7 +543,12 @@ instruction_ref module::replace_return(std::vector<instruction_ref> args)
     auto last = std::prev(this->end());
     // If there is no return then add a return
     if(last->name() != "@return")
+    {
+        assert(std::none_of(impl->instructions.begin(), impl->instructions.end(), [](const instruction& ins) {
+            return ins.name() == "@return";
+        }));
         return this->add_return(args);
+    }
 
     shape r = compute_shape(last->get_operator(), args);
     instruction::replace(last, last->get_operator(), r, std::move(args));
@@ -651,6 +656,16 @@ bool module::has_instruction(instruction_ref ins) const { return impl->contains(
 std::size_t module::size() const { return impl->instructions.size(); }
 instruction_ref module::begin() const { return impl->instructions.begin(); }
 instruction_ref module::end() const { return impl->instructions.end(); }
+instruction_ref module::insert_end() const
+{
+    auto e = impl->instructions.end();
+    if(impl->instructions.empty())
+        return e;
+    auto last_ins = std::prev(e);
+    if(last_ins->name() == "@return")
+        return last_ins;
+    return e;
+}
 
 std::vector<shape> module::get_output_shapes() const
 {
@@ -1001,27 +1016,31 @@ std::array<module::with_inputs, 3> module::split(const std::vector<instruction_r
 // update the map_ins to map the input to the parameter.
 static void insert_params(module& m,
                           const std::vector<instruction_ref>& inputs,
-                          std::unordered_map<instruction_ref, instruction_ref>& map_ins)
+                          std::unordered_map<instruction_ref, instruction_ref>& map_ins, std::function<shape(const shape&)> shape_transform = nullptr)
 {
     auto n = m.get_parameter_shapes().size();
     for(auto input : inputs)
     {
         if(contains(map_ins, input))
             continue;
-        map_ins[input] = m.add_parameter(param_name(n++), input->get_shape().as_standard());
+        auto s = shape_transform ? shape_transform(input->get_shape()) : input->get_shape().as_standard();
+        map_ins[input] = m.add_parameter(param_name(n++), s);
     }
 }
 
 void module::add_params(const std::vector<instruction_ref>& inputs,
-                        std::unordered_map<instruction_ref, instruction_ref>* map_ins)
+                        std::unordered_map<instruction_ref, instruction_ref>* map_ins, std::function<shape(const shape&)> shape_transform)
 {
-    insert_params(*this, inputs, *map_ins);
+    std::unordered_map<instruction_ref, instruction_ref> default_map_ins;
+    if(map_ins == nullptr)
+        map_ins = &default_map_ins;
+    insert_params(*this, inputs, *map_ins, shape_transform);
 }
 
 std::vector<instruction_ref>
 module::fuse(const std::vector<instruction_ref>& inss,
              std::unordered_map<instruction_ref, instruction_ref>* map_ins,
-             module::inserter insert)
+             module::inserter insert, std::function<shape(const shape&)> shape_transform)
 {
     std::unordered_map<instruction_ref, instruction_ref> default_map_ins;
     if(map_ins == nullptr)
@@ -1038,7 +1057,7 @@ module::fuse(const std::vector<instruction_ref>& inss,
             inputs.push_back(input);
         }
     }
-    insert_params(*this, inputs, *map_ins);
+    insert_params(*this, inputs, *map_ins, shape_transform);
     return this->add_instructions(inss, map_ins, std::move(insert));
 }
 
@@ -1046,12 +1065,12 @@ std::vector<instruction_ref>
 module::fuse(const module& m,
              const std::vector<instruction_ref>& inputs,
              std::unordered_map<instruction_ref, instruction_ref>* map_ins,
-             module::inserter insert)
+             module::inserter insert, std::function<shape(const shape&)> shape_transform)
 {
     std::unordered_map<instruction_ref, instruction_ref> default_map_ins;
     if(map_ins == nullptr)
         map_ins = &default_map_ins;
-    insert_params(*this, inputs, *map_ins);
+    insert_params(*this, inputs, *map_ins, shape_transform);
     auto param_map = m.get_ins_param_map(inputs, true);
     for(auto&& [param, input] : param_map)
     {

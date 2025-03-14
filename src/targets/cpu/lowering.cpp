@@ -57,7 +57,6 @@
 #include <migraphx/match/gelu_erf.hpp>
 #include <migraphx/match/gelu_tanh.hpp>
 #include <migraphx/matcher.hpp>
-#include <migraphx/env.hpp>
 #include <unordered_map>
 #include <utility>
 #include <iostream>
@@ -65,8 +64,6 @@
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
 namespace cpu {
-
-MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_ENABLE_ZENDNN)
 
 template <typename T>
 T zero(const T&)
@@ -400,10 +397,12 @@ struct cpu_apply
             {
                 apply_pooling(it);
             }
-            else if(it->name() == "convolution_backwards" and enabled(MIGRAPHX_ENABLE_ZENDNN{}))
+#ifndef MIGRAPHX_ENABLE_ZENDNN
+            else if(it->name() == "convolution_backwards")
             {
                 apply_convolution_backwards(it);
             }
+#endif
             else if(it->name() == "reshape")
             {
                 apply_reshape(it);

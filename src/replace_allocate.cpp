@@ -68,6 +68,8 @@ void insert_copy(module& m, const allocation_model& model)
     std::unordered_set<instruction_ref> returns_set(returns.begin(), returns.end());
     for(auto ins : returns_set)
     {
+        if(ins->get_shape().any_of_dynamic())
+            continue;
         auto alias = instruction::get_output_alias(ins);
         if(alias->get_shape() == ins->get_shape())
             continue;

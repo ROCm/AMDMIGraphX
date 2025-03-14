@@ -64,10 +64,7 @@ static literal get_scalar(instruction_ref ins)
     return r;
 }
 
-static shape to_scalar(const shape& s)
-{
-    return shape{s.type()};
-}
+static shape to_scalar(const shape& s) { return shape{s.type()}; }
 
 static void create_pointwise_modules(module_pass_manager& mpm)
 {
@@ -119,7 +116,8 @@ static void create_pointwise_modules(module_pass_manager& mpm)
     }
 }
 
-static module::with_inputs append_pointwise_module(module_ref parent, instruction_ref ins, instruction_ref output)
+static module::with_inputs
+append_pointwise_module(module_ref parent, instruction_ref ins, instruction_ref output)
 {
     assert(contains(output->inputs(), ins));
     module pm     = *ins->module_inputs().at(0);
@@ -127,7 +125,8 @@ static module::with_inputs append_pointwise_module(module_ref parent, instructio
 
     assert(pm.get_returns().size() == 1);
 
-    std::unordered_map<instruction_ref, instruction_ref> map_ins = pm.get_ins_param_map(ins->inputs());
+    std::unordered_map<instruction_ref, instruction_ref> map_ins =
+        pm.get_ins_param_map(ins->inputs());
     map_ins[ins] = pm.get_returns().front();
     auto returns = pm.fuse(*xm, output->inputs(), &map_ins, nullptr, &to_scalar);
     if(ins->outputs().size() > 1)
@@ -196,7 +195,7 @@ static bool find_pointwise_modules(module_pass_manager& mpm, bool multi_out)
             continue;
         auto input = *it;
         const bool has_multi_out = input->outputs().size() > 1;
-        auto fused = append_pointwise_module(&mpm.get_module(), input, ins);
+        auto fused               = append_pointwise_module(&mpm.get_module(), input, ins);
         auto name  = fused.mod.name();
         mpm.rename_module(name, name + ":" + ins->module_inputs().front()->name() + "-deleted");
         auto* new_pm = mpm.create_module(name, std::move(fused.mod));

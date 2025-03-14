@@ -328,10 +328,6 @@ struct find_group_query_attention
             concat_inputs);
         auto id =
             mpm.get_module().insert_instruction(ins, make_op("identity"), concat, pres_k, pres_v);
-        pres_k =
-            mpm.get_module().insert_instruction(ins, make_op("identity"), pres_k, concat);
-        pres_v =
-            mpm.get_module().insert_instruction(ins, make_op("identity"), pres_v, concat);
         std::vector<instruction_ref> new_inputs{id, pres_k, pres_v, inputs.at(6)};
         auto get_tuple_elm_0 = std::next(ins);
         auto get_tuple_elm_1 = std::next(get_tuple_elm_0);

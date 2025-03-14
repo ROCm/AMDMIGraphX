@@ -998,7 +998,6 @@ struct find_mlir_gqa_attention_op
         m_attn.add_return({out});
 
         finalize_attention_module(&m_attn);
-        m_attn.debug_print();
         module_ref mpm_attn = mpm.create_module(
             "mlir_attn", std::move(m_attn));
         mpm_attn->set_bypass();

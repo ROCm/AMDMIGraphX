@@ -20,31 +20,25 @@
  * LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
  * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
  * THE SOFTWARE.
+ *
  */
+#ifndef MIGRAPHX_GUARD_MIGRAPHX_REWRITE_TOPK_HPP
+#define MIGRAPHX_GUARD_MIGRAPHX_REWRITE_TOPK_HPP
 
-#include "verify_program.hpp"
-#include <migraphx/program.hpp>
-#include <migraphx/generate.hpp>
-#include <migraphx/make_op.hpp>
+#include <migraphx/config.hpp>
+#include <string>
 
-template <migraphx::shape::type_t DType>
-struct test_quant_conv_2 : verify_program<test_quant_conv_2<DType>>
+namespace migraphx {
+inline namespace MIGRAPHX_INLINE_NS {
+
+struct module;
+
+struct MIGRAPHX_EXPORT rewrite_topk
 {
-    migraphx::program create_program() const
-    {
-        migraphx::program p;
-        auto* mm = p.get_main_module();
-        migraphx::shape a_shape{DType, {16, 16, 4, 4}};
-        auto pa = mm->add_parameter("a", a_shape);
-        migraphx::shape c_shape{DType, {16, 16, 3, 3}};
-        auto pc = mm->add_parameter("c", c_shape);
-        mm->add_instruction(migraphx::make_op("quant_convolution"), pa, pc);
-        return p;
-    }
+    std::string name() const { return "rewrite_topk"; }
+    void apply(module& m) const;
 };
 
-template struct test_quant_conv_2<migraphx::shape::int8_type>;
-template struct test_quant_conv_2<migraphx::shape::fp8e4m3fnuz_type>;
-template struct test_quant_conv_2<migraphx::shape::fp8e5m2fnuz_type>;
-template struct test_quant_conv_2<migraphx::shape::fp8e4m3fn_type>;
-template struct test_quant_conv_2<migraphx::shape::fp8e5m2_type>;
+} // namespace MIGRAPHX_INLINE_NS
+} // namespace migraphx
+#endif // MIGRAPHX_GUARD_MIGRAPHX_REWRITE_TOPK_HPP

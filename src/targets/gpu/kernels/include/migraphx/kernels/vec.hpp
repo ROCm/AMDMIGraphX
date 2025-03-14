@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2024 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2025 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -47,7 +47,7 @@ constexpr auto vec_size(T, ...) // NOLINT
 template <class T>
 constexpr auto vec_size()
 {
-    return decltype(vec_size(T{})){};
+    return decltype(vec_size(declval<T>())){};
 }
 
 template <class... Ts>

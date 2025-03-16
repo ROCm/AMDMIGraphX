@@ -180,6 +180,29 @@ static void move_output_instructions_after(module& m, instruction_ref src, instr
         m.move_instruction(ins, loc);
 }
 
+static void merge_instruction(module_pass_manager& mpm, instruction_ref input, instruction_ref output)
+{
+    const bool has_multi_out = input->outputs().size() > 1;
+    auto fused               = append_pointwise_module(&mpm.get_module(), input, output);
+    auto name  = fused.mod.name();
+    mpm.rename_module(name, name + ":" + output->module_inputs().front()->name() + "-deleted");
+    auto* new_pm = mpm.create_module(name, std::move(fused.mod));
+    auto fins =
+        mpm.get_module().insert_instruction(output, input->get_operator(), fused.inputs, {new_pm});
+    if(has_multi_out)
+    {
+        auto noutputs = std::max<std::size_t>(1, output->get_shape().sub_shapes().size());
+        auto finput   = mpm.get_module().insert_instruction(
+            output, make_op("get_tuple_elem", {{"index", noutputs}}), fins);
+        move_output_instructions_after(mpm.get_module(), input, finput);
+        mpm.get_module().replace_instruction(input, finput);
+        if(noutputs == 1)
+            fins = mpm.get_module().insert_instruction(
+                output, make_op("get_tuple_elem", {{"index", 0}}), fins);
+    }
+    mpm.get_module().replace_instruction(output, fins);
+}
+
 static bool find_pointwise_modules(module_pass_manager& mpm, bool multi_out)
 {
     bool changed = false;
@@ -194,25 +217,7 @@ static bool find_pointwise_modules(module_pass_manager& mpm, bool multi_out)
         if(it == ins->inputs().end())
             continue;
         auto input = *it;
-        const bool has_multi_out = input->outputs().size() > 1;
-        auto fused               = append_pointwise_module(&mpm.get_module(), input, ins);
-        auto name  = fused.mod.name();
-        mpm.rename_module(name, name + ":" + ins->module_inputs().front()->name() + "-deleted");
-        auto* new_pm = mpm.create_module(name, std::move(fused.mod));
-        auto fins =
-            mpm.get_module().insert_instruction(ins, input->get_operator(), fused.inputs, {new_pm});
-        if(has_multi_out)
-        {
-            auto noutputs = std::max<std::size_t>(1, ins->get_shape().sub_shapes().size());
-            auto finput   = mpm.get_module().insert_instruction(
-                ins, make_op("get_tuple_elem", {{"index", noutputs}}), fins);
-            move_output_instructions_after(mpm.get_module(), input, finput);
-            mpm.get_module().replace_instruction(input, finput);
-            if(noutputs == 1)
-                fins = mpm.get_module().insert_instruction(
-                    ins, make_op("get_tuple_elem", {{"index", 0}}), fins);
-        }
-        mpm.get_module().replace_instruction(ins, fins);
+        merge_instruction(mpm, input, ins);
 
         changed = true;
     }

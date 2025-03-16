@@ -180,11 +180,12 @@ static void move_output_instructions_after(module& m, instruction_ref src, instr
         m.move_instruction(ins, loc);
 }
 
-static void merge_instruction(module_pass_manager& mpm, instruction_ref input, instruction_ref output)
+static void
+merge_instruction(module_pass_manager& mpm, instruction_ref input, instruction_ref output)
 {
     const bool has_multi_out = input->outputs().size() > 1;
     auto fused               = append_pointwise_module(&mpm.get_module(), input, output);
-    auto name  = fused.mod.name();
+    auto name                = fused.mod.name();
     mpm.rename_module(name, name + ":" + output->module_inputs().front()->name() + "-deleted");
     auto* new_pm = mpm.create_module(name, std::move(fused.mod));
     auto fins =

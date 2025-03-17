@@ -64,7 +64,9 @@ std::vector<double> abs_dev(const std::vector<double>& v)
     double median_v = median(v);
     std::vector<double> abs_dev(v.size());
 
-    std::transform(v.begin(), v.end(), std::back_inserter(abs_dev), [&](double x) { return std::abs(x - median_v); });
+    std::transform(v.begin(), v.end(), std::back_inserter(abs_dev), [&](double x) {
+        return std::abs(x - median_v);
+    });
 
     return abs_dev;
 }
@@ -73,9 +75,9 @@ std::vector<double> modified_z_scores(const std::vector<double>& v)
 {
     assert(std::is_sorted(v.begin(), v.end()));
 
-    double median_v = median(v);
+    double median_v               = median(v);
     std::vector<double> abs_dev_v = abs_dev(v);
-    double mad_v = median(abs_dev_v);
+    double mad_v                  = median(abs_dev_v);
 
     // if MAD == 0, then unable to calculate modified z-score
     if(float_equal(mad_v, 0.0))
@@ -84,7 +86,9 @@ std::vector<double> modified_z_scores(const std::vector<double>& v)
     }
 
     std::vector<double> mod_z_scores(v.size());
-    std::transform(v.begin(), v.end(), std::back_inserter(mod_z_scores), [&](double x) { return 0.6745 * (x - median_v) / mad_v; });
+    std::transform(v.begin(), v.end(), std::back_inserter(mod_z_scores), [&](double x) {
+        return 0.6745 * (x - median_v) / mad_v;
+    });
     return mod_z_scores;
 }
 
@@ -96,7 +100,7 @@ double mod_z_average(const std::vector<double>& v, double z_threshold)
     std::vector<double> filtered_v;
 
     // if the modified z-score at the particular index is within the threshold,
-    // add the value at that index to the filtered dataset 
+    // add the value at that index to the filtered dataset
     for(size_t i = 0; i < v.size(); i++)
     {
         if(mod_z_scores[i] <= z_threshold)

@@ -331,10 +331,10 @@ TEST_CASE(horizontal_mutli_out_fused2)
     {
         auto* mm  = p1.get_main_module();
         auto x    = mm->add_parameter("x", s);
-        auto y1    = mm->add_parameter("y1", s);
-        auto y2    = mm->add_parameter("y2", s);
-        auto y3    = mm->add_parameter("y3", s);
-        auto y4    = mm->add_parameter("y4", s);
+        auto y1   = mm->add_parameter("y1", s);
+        auto y2   = mm->add_parameter("y2", s);
+        auto y3   = mm->add_parameter("y3", s);
+        auto y4   = mm->add_parameter("y4", s);
         auto add1 = mm->add_instruction(migraphx::make_op("add"), x, y1);
         auto add2 = mm->add_instruction(migraphx::make_op("add"), x, y2);
         auto add3 = mm->add_instruction(migraphx::make_op("add"), x, y3);
@@ -346,10 +346,10 @@ TEST_CASE(horizontal_mutli_out_fused2)
     {
         auto* mm  = p2.get_main_module();
         auto x    = mm->add_parameter("x", s);
-        auto y1    = mm->add_parameter("y1", s);
-        auto y2    = mm->add_parameter("y2", s);
-        auto y3    = mm->add_parameter("y3", s);
-        auto y4    = mm->add_parameter("y4", s);
+        auto y1   = mm->add_parameter("y1", s);
+        auto y2   = mm->add_parameter("y2", s);
+        auto y3   = mm->add_parameter("y3", s);
+        auto y4   = mm->add_parameter("y4", s);
         auto fadd = add_pointwise(
             p2,
             "main:pointwise0",

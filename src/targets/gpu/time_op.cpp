@@ -28,6 +28,7 @@
 #include <migraphx/generate.hpp>
 #include <migraphx/time.hpp>
 #include <migraphx/gpu/hip.hpp>
+#include <migraphx/stats.hpp>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
@@ -78,10 +79,8 @@ double time_loop(migraphx::gpu::context& gctx, int bundle, int nruns, F f)
     });
     std::sort(times.begin(), times.end());
 
-    // compute common average by removing top and bottom 25% of values
-    std::size_t quarters = times.size() / 4;
-    double total         = std::accumulate(times.begin() + quarters, times.end() - quarters, 0.0);
-    return total / std::distance(times.begin() + quarters, times.end() - quarters);
+    // compute modified z-score average to remove outliers
+    return mod_z_average(times, 1.5);
 }
 
 double

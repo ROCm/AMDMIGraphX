@@ -40,6 +40,7 @@
 #include <migraphx/make_op.hpp>
 #include <migraphx/marker.hpp>
 #include <migraphx/supported_segments.hpp>
+#include <migraphx/stats.hpp>
 
 #include <iostream>
 #include <queue>
@@ -839,38 +840,6 @@ void program::from_value(const value& v)
         this->finalize();
 }
 
-double common_average(const std::vector<double>& v)
-{
-    std::size_t n = v.size() / 4;
-    double total  = std::accumulate(v.begin() + n, v.end() - n, 0.0);
-    return total / std::distance(v.begin() + n, v.end() - n);
-}
-
-double mean(const std::vector<double>& v)
-{
-    double total = std::accumulate(v.begin(), v.end(), 0.0);
-    return total / v.size();
-}
-
-double median(const std::vector<double>& v)
-{
-    size_t mid = v.size() / 2;
-    if(v.size() % 2 == 0)
-    {
-        return (v[mid - 1] + v[mid]) / 2.0;
-    }
-    else
-    {
-        return v[mid];
-    }
-}
-
-double percentile(const std::vector<double>& v, double percentile)
-{
-    size_t index = (percentile * (v.size() - 1));
-    return v[index];
-}
-
 std::string perf_group(instruction_ref ins, bool detailed)
 {
     std::string result;
@@ -955,6 +924,7 @@ void program::perf_report(
     double max_time               = total_vec.back();
     double mean_time              = mean(total_vec);
     double median_time            = median(total_vec);
+    double z_avg_time             = mod_z_average(total_vec, 2.0);
     double percentile_90_time     = percentile(total_vec, 0.90);
     double percentile_95_time     = percentile(total_vec, 0.95);
     double percentile_99_time     = percentile(total_vec, 0.99);
@@ -1013,7 +983,8 @@ void program::perf_report(
     os << "(Min: " << min_time << "ms, ";
     os << "Max: " << max_time << "ms, ";
     os << "Mean: " << mean_time << "ms, ";
-    os << "Median: " << median_time << "ms)" << std::endl;
+    os << "Median: " << median_time << "ms, ";
+    os << "Mod Z-score Average: " << z_avg_time << "ms)" << std::endl;
     os << "Percentiles (90%, 95%, 99%): (";
     os << percentile_90_time << "ms, " << percentile_95_time << "ms, " << percentile_99_time
        << "ms)" << std::endl;

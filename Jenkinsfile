@@ -3,12 +3,12 @@ import org.jenkinsci.plugins.pipeline.modeldefinition.Utils
 DOCKER_IMAGE = 'rocm/migraphx-ci-jenkins-ubuntu'
 
 def getgputargets() {
-    targets="gfx906;gfx908;gfx90a;gfx1030;gfx1100;gfx1101"
+    targets="gfx906;gfx908;gfx90a;gfx1030;gfx1100;gfx1101;gfx1201"
     return targets
 }
 
 def getnavi3xtargets() {
-    targets="gfx1100;gfx1101"
+    targets="gfx1100;gfx1101;gfx1201"
     return targets
 }
 
@@ -109,6 +109,8 @@ def rocmnodename(name) {
         node_name = "${rocmtest_name} && (gfx908 || gfx90a || vega20) && !vm";
     } else if(name == "navi32") {
         node_name = "${rocmtest_name} && gfx1101 && !vm";
+    } else if(name == "navi4") {
+        node_name = "${rocmtest_name} && gfx1201 && !vm";
     } else if(name == "nogpu") {
         node_name = "${rocmtest_name} && nogpu";
     }
@@ -215,6 +217,11 @@ rocmtest clang_debug: rocmnode('mi200+') { cmake_build ->
 }, clang_release_navi: rocmnode('navi32') { cmake_build ->
     stage('HIP Clang Release Navi32') {
         def gpu_targets = getnavi3xtargets()
+        cmake_build(flags: "-DCMAKE_BUILD_TYPE=release -DGPU_TARGETS='${gpu_targets}' -DMIGRAPHX_DISABLE_ONNX_TESTS=On")
+    }
+}, clang_release_navi: rocmnode('navi4') { cmake_build ->
+    stage('HIP Clang Release Navi4') {
+        def gpu_targets = getnavi4xtargets()
         cmake_build(flags: "-DCMAKE_BUILD_TYPE=release -DGPU_TARGETS='${gpu_targets}' -DMIGRAPHX_DISABLE_ONNX_TESTS=On")
     }
 }

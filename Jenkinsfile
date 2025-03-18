@@ -12,6 +12,11 @@ def getnavi3xtargets() {
     return targets
 }
 
+def getnavi4xtargets() {
+    targets="gfx1201"
+    return targets
+}
+
 // Test
 // def rocmtestnode(variant, name, body, args, pre) {
 def rocmtestnode(Map conf) {

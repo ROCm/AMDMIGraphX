@@ -82,10 +82,10 @@ static bool is_dead(instruction_ref ins)
 static bool is_used_once(instruction_ref ins, instruction_ref* extra = nullptr)
 {
     return std::count_if(ins->outputs().begin(), ins->outputs().end(), [&](auto output) {
-        if(extra and *extra == output)
-            return true;
-        return not is_dead(output);
-    }) == 1;
+               if(extra and *extra == output)
+                   return true;
+               return not is_dead(output);
+           }) == 1;
 }
 
 static void create_pointwise_modules(module_pass_manager& mpm)

@@ -139,7 +139,7 @@ static void create_pointwise_modules(module_pass_manager& mpm)
 }
 
 static module::with_inputs
-append_pointwise_module(module_ref parent, instruction_ref ins, instruction_ref output)
+append_pointwise_module(const_module_ref parent, instruction_ref ins, instruction_ref output)
 {
     module pm     = *ins->module_inputs().at(0);
     module_ref xm = output->module_inputs().at(0);
@@ -217,7 +217,6 @@ static void replace_with_tuple(module& m, instruction_ref ins, instruction_ref r
         assert((i + start) < rep->get_shape().sub_shapes().size());
         m.replace_instruction(output, make_op("get_tuple_elem", {{"index", i + start}}), rep);
     }
-    return;
 }
 
 static instruction_ref

@@ -803,10 +803,7 @@ std::vector<shape> flatten(const std::vector<shape>& shapes)
     return result;
 }
 
-std::size_t shape::tuple_size() const
-{
-    return impl->m_shapes.size();
-}
+std::size_t shape::tuple_size() const { return impl->m_shapes.size(); }
 
 void migraphx_to_value(value& v, const shape& s)
 {

@@ -312,8 +312,12 @@ struct mlir_program
                 result = mlirF32TypeGet(ctx.get());
             else if(as.type_enum() == shape::half_type)
                 result = mlirF16TypeGet(ctx.get());
+            else if(as.type_enum() == shape::bf16_type)
+                result = mlirBF16TypeGet(ctx.get());
             else if(as.type_enum() == shape::fp8e4m3fnuz_type)
                 result = mlirFloat8E4M3FNUZTypeGet(ctx.get());
+            else if(as.type_enum() == shape::fp8e5m2fnuz_type)
+                result = mlirFloat8E5M2FNUZTypeGet(ctx.get());
             else if(as.type_enum() == shape::fp8e4m3fn_type)
                 result = mlirFloat8E4M3FNTypeGet(ctx.get());
             else if(as.type_enum() == shape::fp8e5m2_type)
@@ -322,14 +326,14 @@ struct mlir_program
                 result = mlirF64TypeGet(ctx.get());
             else if(as.is_integral())
             {
-                // Note: rocMLIR use signless integer type for tensors types. This
-                // will translate to signed implementation for current supported
-                // operations.
                 if(as.is_unsigned())
                 {
-                    MIGRAPHX_THROW("Unsupported type: " + std::to_string(as.type_enum()));
+                    result = mlirIntegerTypeUnsignedGet(ctx.get(), as.size() * 8);
                 }
-                result = mlirIntegerTypeGet(ctx.get(), as.size() * 8); // number of bits
+                else
+                {
+                    result = mlirIntegerTypeSignedGet(ctx.get(), as.size() * 8);
+                }
             }
             else
                 MIGRAPHX_THROW("Unsupported type: " + std::to_string(as.type_enum()));
@@ -442,15 +446,15 @@ struct mlir_program
     }
 
     using attribute_t       = std::variant<std::nullptr_t,
-                                     std::uint64_t,
-                                     unsigned char,
-                                     bool,
-                                     double,
-                                     std::string,
-                                     value,
-                                     std::vector<value>,
-                                     MlirType,
-                                     MlirAttribute>;
+                                           std::uint64_t,
+                                           unsigned char,
+                                           bool,
+                                           double,
+                                           std::string,
+                                           value,
+                                           std::vector<value>,
+                                           MlirType,
+                                           MlirAttribute>;
     using named_attribute_t = std::pair<std::string_view, attribute_t>;
 
     MlirNamedAttribute name_attribute(const named_attribute_t& na) const
@@ -718,22 +722,11 @@ struct mlir_program
                 literal r = ins->get_literal();
                 auto sh   = ins->get_shape();
 
-                // mlir works only with signed types. change uint4 to (int4 + unsigned-flag)
-                if(shape::is_unsigned(sh.type()) and ins->outputs()[0]->name() == "unpack_int4")
-                    sh = ins->get_shape().with_type(shape::int8_type);
-
                 MlirType shaped_type = make_mlir_shaped(sh);
                 MlirType tensor_type = rocmlirMIXRShapedTypeAsTensor(shaped_type);
                 MlirAttribute mlir_value_attr =
                     mlirDenseElementsAttrRawBufferGet(tensor_type, r.get_shape().bytes(), r.data());
                 ops.add_attributes({{"value", mlir_value_attr}});
-            }
-
-            if(ins->name() == "unpack_int4")
-            {
-                auto sh = get_shape(ins);
-                ops.add_attributes(
-                    {{"isUnsigned", shape::is_unsigned(sh.type())}}); // flag for uint4
             }
 
             if(ins->name() == "convolution" or ins->name() == "dot")
@@ -1165,7 +1158,7 @@ mlir_code_object compile_mlir(const context& migraphx_ctx,
         const std::lock_guard<std::mutex> lock(mutex);
         std::cout << mlir_print(&mlirOperationPrint, mod_op) << std::endl;
     }
-    auto co            = mp.compile(solution);
+    auto co = mp.compile(solution);
 
     co.expected_inputs = in_shapes;
     auto out_shapes    = m.get_output_shapes();
@@ -1258,7 +1251,7 @@ void dump_mlir_to_mxr(module m,
             sizes.insert(sizes.end(), ins->inputs().begin(), ins->inputs().end());
     }
     auto name = compute_dump_name(m, ".mxr");
-    auto f = location / name;
+    auto f    = location / name;
     std::cout << "Dumping MXR file to: " << f << std::endl;
     save(program{std::move(m)}, f.string());
 }

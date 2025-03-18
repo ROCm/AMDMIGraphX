@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2024 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2025 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -199,6 +199,21 @@ TEST_CASE(binary_dyn_static_error)
     std::vector<migraphx::shape::dynamic_dimension> b{{1, 1}, {4, 4, {4}}, {4, 4}};
     migraphx::shape b_shape{migraphx::shape::float_type, b};
     throws_shape(migraphx::make_op("add"), a_shape, b_shape);
+}
+
+TEST_CASE(bit_cast_typesize_mismatch)
+{
+    migraphx::shape a_shape{migraphx::shape::int8_type, {1, 4, 4}};
+    throws_shape(migraphx::make_op("bit_cast", {{"target_type", migraphx::shape::int32_type}}),
+                 a_shape);
+}
+
+TEST_CASE(bit_cast_dyn)
+{
+    migraphx::shape a_shape{migraphx::shape::int8_type, {{1, 1}, {4, 8}, {4, 8}}};
+    expect_shape(migraphx::shape{migraphx::shape::uint8_type, {{1, 1}, {4, 8}, {4, 8}}},
+                 migraphx::make_op("bit_cast", {{"target_type", migraphx::shape::uint8_type}}),
+                 a_shape);
 }
 
 TEST_CASE(bitwise_and_not_integral_error)
@@ -5214,6 +5229,15 @@ TEST_CASE(test_dyn_concat)
     // static and dynamic shapes together
     migraphx::shape sstat{migraphx::shape::float_type, {3, 4, 1, 6}};
     throws_shape(migraphx::make_op("concat", {{"axis", 2}}), sx, sstat);
+}
+
+TEST_CASE(test_binary_nonpacked)
+{
+    auto sx   = migraphx::shape(migraphx::shape::float_type, {4, 3}, {1, 8});
+    auto sy   = migraphx::shape(migraphx::shape::float_type, {4, 3}, {1, 16});
+    auto sout = migraphx::shape::from_permutation(migraphx::shape::float_type, {4, 3}, {1, 0});
+
+    expect_shape(sout, migraphx::make_op("mul"), sx, sy);
 }
 
 int main(int argc, const char* argv[]) { test::run(argc, argv); }

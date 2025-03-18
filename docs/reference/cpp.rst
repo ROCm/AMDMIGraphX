@@ -1,3 +1,7 @@
+.. meta::
+   :description: MIGraphX C++ API reference
+   :keywords: MIGraphX, ROCm, C++, API, reference, development, developer
+
 .. _cpp-api-reference:
 
 C++ API reference
@@ -55,6 +59,8 @@ quantize
 .. doxygenfunction:: migraphx::quantize_fp16(const program&)
 
 .. doxygenfunction:: migraphx::quantize_fp16(const program&, const quantize_op_names&)
+
+.. doxygenfunction:: migraphx::quantize_bf16(const program&)
 
 .. doxygenstruct:: migraphx::quantize_int8_options
    :members:

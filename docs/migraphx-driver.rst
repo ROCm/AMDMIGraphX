@@ -85,6 +85,8 @@ To learn which options can be used with which commands, see the :ref:`MIGraphX d
       - Prints the program in .txt format
    *  - --binary
       - Prints the program in binary format
+   *  - --netron
+      - Prints the program in Netron viewable JSON format
    *  - --output | -o
       - Writes output in a file
    *  - --fill0
@@ -111,6 +113,8 @@ To learn which options can be used with which commands, see the :ref:`MIGraphX d
       - Enables exhaustive search to find the fastest kernel
    *  - --fp16
       - Quantizes for fp16
+   *  - --bf16
+      - Quantizes for bf16
    *  - --int8
       - Quantizes for int8
    *  - --fp8

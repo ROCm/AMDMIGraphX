@@ -1,3 +1,7 @@
+.. meta::
+   :description: MIGraphX Python API reference
+   :keywords: MIGraphX, ROCm, Python, API, reference, development, developer
+
 .. py:module:: migraphx
 
 .. _python-api-reference:
@@ -301,6 +305,13 @@ program
     :param ins_names: List of instructions to quantize.
     :type ins_names: list[str]
 
+.. py:function:: quantize_bf16(prog, ins_names=["all"])
+
+    Quantizes the program to use bf16.
+
+    :param program prog: Program to quantize.
+    :param ins_names: List of instructions to quantize.
+    :type ins_names: list[str]
 
 .. py:function:: quantize_int8(prog, t, calibration=[], ins_names=["dot", "convolution"])
 

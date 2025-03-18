@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2024 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2025 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -64,6 +64,7 @@ rocblas_datatype get_type(shape::type_t type)
     case shape::int32_type: return rocblas_datatype_i32_r;
     case shape::uint32_type: return rocblas_datatype_u32_r;
     case shape::fp8e4m3fnuz_type: return rocblas_datatype_f8_r;
+    case shape::fp8e5m2fnuz_type: return rocblas_datatype_bf8_r;
     case shape::fp8e4m3fn_type:
     case shape::fp8e5m2_type:
     case shape::tuple_type:
@@ -72,15 +73,17 @@ rocblas_datatype get_type(shape::type_t type)
     case shape::int16_type:
     case shape::int64_type:
     case shape::uint64_type: MIGRAPHX_THROW("ROCBLAS_GEMM: data type not supported!");
+    case shape::bf16_type: return rocblas_datatype_bf16_r;
     }
 
     MIGRAPHX_THROW("ROCBLAS_GEMM: data type not supported!");
 }
 
-void blas_shape(const shape& s)
+void blas_shape(const shape& in_shape)
 {
-    if(s.lens().size() < 2)
+    if(in_shape.lens().size() < 2)
         return;
+    auto s = in_shape.normalize_standard();
     if(std::none_of(s.strides().end() - 2, s.strides().end(), [](auto i) { return i == 1; }))
         MIGRAPHX_THROW("GPU_GEMM: needs to have one matrix stride as 1");
     if(std::any_of(s.strides().end() - 2, s.strides().end(), [](auto i) { return i == 0; }))
@@ -170,7 +173,7 @@ template <typename T>
 struct gemm_impl
 {
     gemm_impl(const shape& output_shape,
-              const std::vector<shape>& input_shapes,
+              std::vector<shape> input_shapes,
               T alpha_param,
               T beta_param,
               bool compute_fp32_flag)
@@ -179,6 +182,11 @@ struct gemm_impl
           is_3inputs(input_shapes.size() == 4),
           compute_fp32(compute_fp32_flag)
     {
+        std::transform(input_shapes.begin(),
+                       input_shapes.end(),
+                       input_shapes.begin(),
+                       [&](const shape& s) { return s.normalize_standard(); });
+
         if(not is_3inputs)
         {
             beta = 0;
@@ -221,7 +229,7 @@ struct gemm_impl
         compute_type = rb_compute_type{output_type};
         if(compute_fp32)
         {
-            if(arg_type == rocblas_datatype_f16_r)
+            if(arg_type == rocblas_datatype_f16_r or arg_type == rocblas_datatype_bf16_r)
                 compute_type = rocblas_datatype_f32_r;
         }
         if(arg_type == rocblas_datatype_f8_r)

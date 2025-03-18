@@ -1,3 +1,7 @@
+.. meta::
+  :description: MIGraphX internal environment variables
+  :keywords: MIGraphX, code base, contribution, developing, env vars, environment variables
+
 Environment Variables
 =====================
 
@@ -112,9 +116,9 @@ Disables the ``schedule`` pass.
 Set to "1", "enable", "enabled", "yes", or "true" to use.
 Disables the ``fuse_reduce`` pass.
 
-.. envvar:: MIGRAPHX_ENABLE_SPLIT_REDUCE
-Set to "1", "enable", "enabled", "yes", or "true" to use.
-Enable split_reduce.
+.. envvar:: MIGRAPHX_SPLIT_REDUCE_SIZE
+Set to the minimum size of a reduction to do a split reduce. Overrides what
+is set in the backend. Set to -1 to disable split reduce completely.
 
 .. envvar:: MIGRAPHX_ENABLE_NHWC
 
@@ -131,9 +135,10 @@ Use it in conjunction with ``MIGRAPHX_DISABLE_MLIR=1``.
 Set to "1", "enable", "enabled", "yes", or "true" to use.
 Disables use of the rocMLIR library.
 
-.. envvar:: MIGRAPHX_ENABLE_HIPBLASLT_GEMM
-Set to "1", "enable", "enabled", "yes", or "true" to use.
-Enables use of hipBLASLt.
+.. envvar:: MIGRAPHX_SET_GEMM_PROVIDER
+
+Set to "hipblaslt" to use hipBLASLt.
+Set to "rocblas" to use rocBLAS.
 
 .. envvar:: MIGRAPHX_COPY_LITERALS
 
@@ -149,6 +154,7 @@ Disables layrnorm fusion.
 
 Set to "1", "enable", "enabled", "yes", or "true" to use.
 Disables use of MIOpen for pooling operations and uses JIT implementation instead.
+
 
 Compilation traces
 ----------------------
@@ -172,6 +178,11 @@ Prints the compile pass and the program after the pass.
 
 Set to "1", "enable", "enabled", "yes", or "true" to use.
 Times the compile passes.
+
+.. envvar:: MIGRAPHX_DISABLE_PASSES
+
+Set to the name of the pass you want to skip.  Comma separated list is supported
+Example "rewrite_pooling,rewrite_gelu"
 
 
 GPU kernels JIT compilation debugging 
@@ -260,6 +271,14 @@ Set to "3" to print compiled traces.
 Set to path to json file to load and save problem cache.
 This will load the json file into the problem cache if it exists, and when
 compilation finishes it will save the problem cache.
+
+.. envvar:: MIGRAPHX_BENCHMARKING_BUNDLE
+
+Set amount of configs to run in a bundle when timing.
+
+.. envvar:: MIGRAPHX_BENCHMARKING_NRUNS
+
+Set amount of timing runs for each config bundle being benchmarked.
 
 MLIR vars
 -------------

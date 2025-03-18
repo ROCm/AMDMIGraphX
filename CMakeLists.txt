@@ -1,7 +1,7 @@
 #####################################################################################
 # The MIT License (MIT)
 #
-# Copyright (c) 2015-2024 Advanced Micro Devices, Inc. All rights reserved.
+# Copyright (c) 2015-2025 Advanced Micro Devices, Inc. All rights reserved.
 #
 # Permission is hereby granted, free of charge, to any person obtaining a copy
 # of this software and associated documentation files (the "Software"), to deal
@@ -106,7 +106,7 @@ include(ROCMSetupVersion)
 
 option(BUILD_DEV "Build for development purpose only" OFF)
 
-rocm_setup_version(VERSION 2.11.0)
+rocm_setup_version(VERSION 2.13.0)
 math(EXPR MIGRAPHX_SO_MAJOR_VERSION "(${PROJECT_VERSION_MAJOR} * 1000 * 1000) + (${PROJECT_VERSION_MINOR} * 1000) + ${PROJECT_VERSION_PATCH}")
 set(MIGRAPHX_SO_VERSION ${MIGRAPHX_SO_MAJOR_VERSION}.0)
 
@@ -178,10 +178,8 @@ rocm_enable_clang_tidy(
         -bugprone-easily-swappable-parameters
         -bugprone-implicit-widening-of-multiplication-result
         -bugprone-macro-parentheses
-	-bugprone-multi-level-implicit-pointer-conversion
         -bugprone-signed-char-misuse
         -bugprone-unchecked-optional-access
-	-bugprone-unused-local-non-trivial-variable
         # Disable the aliased reserved identifiers
         -cert-dcl37-c
         -cert-dcl51-cpp
@@ -210,7 +208,6 @@ rocm_enable_clang_tidy(
         -clang-diagnostic-disabled-macro-expansion
         -clang-diagnostic-extern-c-compat
         -clang-diagnostic-unused-command-line-argument
-        -cppcoreguidelines-avoid-capture-default-when-capturing-this
         -cppcoreguidelines-avoid-const-or-ref-data-members
         -cppcoreguidelines-avoid-do-while
         -cppcoreguidelines-explicit-virtual-functions
@@ -224,7 +221,6 @@ rocm_enable_clang_tidy(
         -cppcoreguidelines-pro-type-reinterpret-cast
         -cppcoreguidelines-pro-type-union-access
         -cppcoreguidelines-pro-type-vararg
-        -cppcoreguidelines-rvalue-reference-param-not-moved
         -cppcoreguidelines-special-member-functions
         -cppcoreguidelines-use-default-member-init
         -cppcoreguidelines-virtual-class-destructor
@@ -327,7 +323,6 @@ rocm_enable_cppcheck(
         ${CMAKE_CURRENT_SOURCE_DIR}/test/include
     DEFINE
         MIGRAPHX_MLIR=1
-        MIGRAPHX_ENABLE_HIPBLASLT_GEMM=1
         MIGRAPHX_HAS_EXECUTORS=0
         CPPCHECK=1
         MIGRAPHX_USE_MIOPEN=1

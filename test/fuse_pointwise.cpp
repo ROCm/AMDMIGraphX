@@ -370,6 +370,46 @@ TEST_CASE(horizontal_mutli_out_fused2)
     EXPECT(p1.sort() == p2.sort());
 }
 
+TEST_CASE(horizontal_mutli_out_fused3)
+{
+    migraphx::shape s{migraphx::shape::float_type, {2, 3}};
+    migraphx::program p1;
+    {
+        auto* mm  = p1.get_main_module();
+        auto x    = mm->add_parameter("x", s);
+        auto y    = mm->add_parameter("y", s);
+        auto a    = mm->add_parameter("a", s);
+        auto b    = mm->add_parameter("b", s);
+        auto add1 = mm->add_instruction(migraphx::make_op("add"), x, y);
+        auto add2 = mm->add_instruction(migraphx::make_op("add"), add1, a);
+        auto add3 = mm->add_instruction(migraphx::make_op("add"), add1, b);
+        mm->add_return({add2, add3});
+    }
+    run_pass(p1, {.enable_multi_output = true});
+    migraphx::program p2;
+    {
+        auto* mm  = p2.get_main_module();
+        auto x    = mm->add_parameter("x", s);
+        auto y    = mm->add_parameter("y", s);
+        auto a    = mm->add_parameter("a", s);
+        auto b    = mm->add_parameter("b", s);
+        auto fadd = add_pointwise(
+            p2,
+            "main:pointwise0",
+            {x, y, a, b},
+            [=](auto* pm, const auto& inputs) -> std::vector<migraphx::instruction_ref> {
+                auto add1 = pm->add_instruction(migraphx::make_op("add"), inputs[0], inputs[1]);
+                auto add2 = pm->add_instruction(migraphx::make_op("add"), add1, inputs[2]);
+                auto add3 = pm->add_instruction(migraphx::make_op("add"), add1, inputs[3]);
+                return {add3, add2};
+            });
+        auto add2 = mm->add_instruction(migraphx::make_op("get_tuple_elem", {{"index", 1}}), fadd);
+        auto add3 = mm->add_instruction(migraphx::make_op("get_tuple_elem", {{"index", 0}}), fadd);
+        mm->add_return({add2, add3});
+    }
+    EXPECT(p1.sort() == p2.sort());
+}
+
 TEST_CASE(duplicate_inputs)
 {
     migraphx::shape s{migraphx::shape::float_type, {2, 3}};

@@ -69,11 +69,23 @@ static shape to_scalar(const shape& s) { return shape{s.type()}; }
 
 static bool is_dead(instruction_ref ins)
 {
+    if(ins->name() == "@return")
+        return false;
     if(ins->outputs().empty())
         return true;
     if(ins->name() != "pointwise")
         return false;
     return ends_with(ins->module_inputs().front()->name(), "-deleted");
+}
+
+// We dont want to consider the `extra` instruction as dead as it might be an implicit return
+static bool is_used_once(instruction_ref ins, instruction_ref* extra = nullptr)
+{
+    return std::count_if(ins->outputs().begin(), ins->outputs().end(), [&](auto output) {
+        if(extra and *extra == output)
+            return true;
+        return not is_dead(output);
+    }) == 1;
 }
 
 static void create_pointwise_modules(module_pass_manager& mpm)
@@ -140,7 +152,7 @@ append_pointwise_module(module_ref parent, instruction_ref ins, instruction_ref 
     if(dependent)
         map_ins[ins] = pm.get_returns().front();
     auto returns = pm.fuse(*xm, output->inputs(), &map_ins, nullptr, &to_scalar);
-    if(ins->outputs().size() > 1 or not dependent)
+    if(not is_used_once(ins, &output) or not dependent)
     {
         auto ireturns = pm.get_returns();
         returns.insert(returns.end(), ireturns.begin(), ireturns.end());
@@ -212,7 +224,6 @@ static void replace_with_tuple(module& m, instruction_ref ins, instruction_ref r
 static instruction_ref
 merge_instruction(module_pass_manager& mpm, instruction_ref input, instruction_ref output)
 {
-    // const bool has_multi_out = input->outputs().size() > 1;
     auto fused               = append_pointwise_module(&mpm.get_module(), input, output);
     auto name                = fused.mod.name();
     mpm.rename_module(name, name + ":" + output->module_inputs().front()->name() + "-deleted");

@@ -257,7 +257,7 @@ struct MIGRAPHX_EXPORT module
     // mappings from inputs to corresponding params in instructions map
     void add_params(const std::vector<instruction_ref>& inputs,
                     std::unordered_map<instruction_ref, instruction_ref>* map_ins = nullptr,
-                    std::function<shape(const shape&)> shape_transform            = nullptr);
+                    const std::function<shape(const shape&)>& shape_transform            = nullptr);
 
     // Fuse the instruction into the module by inserting the instructions and
     // parameters for any missing inputs.
@@ -265,7 +265,7 @@ struct MIGRAPHX_EXPORT module
     fuse(const std::vector<instruction_ref>& inss,
          std::unordered_map<instruction_ref, instruction_ref>* map_ins = nullptr,
          inserter insert                                               = nullptr,
-         std::function<shape(const shape&)> shape_transform            = nullptr);
+         const std::function<shape(const shape&)>& shape_transform            = nullptr);
 
     // Fuse another module into this module by inserting the instructions and
     // parameters from the module
@@ -274,7 +274,7 @@ struct MIGRAPHX_EXPORT module
          const std::vector<instruction_ref>& inputs,
          std::unordered_map<instruction_ref, instruction_ref>* map_ins = nullptr,
          inserter insert                                               = nullptr,
-         std::function<shape(const shape&)> shape_transform            = nullptr);
+         const std::function<shape(const shape&)>& shape_transform            = nullptr);
     /*
     Insert instructions from module `m` to this module at position `ins`
     */

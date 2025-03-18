@@ -1016,7 +1016,7 @@ std::array<module::with_inputs, 3> module::split(const std::vector<instruction_r
 static void insert_params(module& m,
                           const std::vector<instruction_ref>& inputs,
                           std::unordered_map<instruction_ref, instruction_ref>& map_ins,
-                          std::function<shape(const shape&)> shape_transform = nullptr)
+                          const std::function<shape(const shape&)>& shape_transform = nullptr)
 {
     auto n = m.get_parameter_shapes().size();
     for(auto input : inputs)
@@ -1031,7 +1031,7 @@ static void insert_params(module& m,
 
 void module::add_params(const std::vector<instruction_ref>& inputs,
                         std::unordered_map<instruction_ref, instruction_ref>* map_ins,
-                        std::function<shape(const shape&)> shape_transform)
+                        const std::function<shape(const shape&)>& shape_transform)
 {
     std::unordered_map<instruction_ref, instruction_ref> default_map_ins;
     if(map_ins == nullptr)
@@ -1043,7 +1043,7 @@ std::vector<instruction_ref>
 module::fuse(const std::vector<instruction_ref>& inss,
              std::unordered_map<instruction_ref, instruction_ref>* map_ins,
              module::inserter insert,
-             std::function<shape(const shape&)> shape_transform)
+             const std::function<shape(const shape&)>& shape_transform)
 {
     std::unordered_map<instruction_ref, instruction_ref> default_map_ins;
     if(map_ins == nullptr)
@@ -1069,7 +1069,7 @@ module::fuse(const module& m,
              const std::vector<instruction_ref>& inputs,
              std::unordered_map<instruction_ref, instruction_ref>* map_ins,
              module::inserter insert,
-             std::function<shape(const shape&)> shape_transform)
+             const std::function<shape(const shape&)>& shape_transform)
 {
     std::unordered_map<instruction_ref, instruction_ref> default_map_ins;
     if(map_ins == nullptr)

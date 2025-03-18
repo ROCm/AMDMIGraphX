@@ -507,9 +507,8 @@ struct hip_gemm_impl
      * and calls matmulIsAlgoSupported() to get the workspace size.
      */
 
-    size_t get_workspace_size(context& ctx,
-                              const std::vector<shape>& input_shapes,
-                              int32_t solution_idx) const
+    size_t
+    get_workspace_size(context& ctx, const std::vector<shape>& input_shapes, int32_t solution_idx)
     {
         size_t workspace_size = hipblaslt_workspace_size;
         std::vector<argument> input_args;
@@ -521,20 +520,23 @@ struct hip_gemm_impl
         std::vector<int32_t> algo_index = {solution_idx};
         std::vector<hipblasLtMatmulHeuristicResult_t> heuristic_result;
 
-        // TODO: Use hipblasLtMatmulAlgoGetHeuristic instead of getAlgosFromIndex
-        // for solution index '0'.
-        hipblaslt_invoke([&]() {
-            return hipblaslt_ext::getAlgosFromIndex(
-                ctx.get_stream().get_hipblaslt(), algo_index, heuristic_result);
-        });
+        if(solution_idx == 0)
+        {
+            heuristic_result = solution.get_result(ctx, *this, 0);
+        }
+        else
+        {
+            hipblaslt_invoke([&]() {
+                return hipblaslt_ext::getAlgosFromIndex(
+                    ctx.get_stream().get_hipblaslt(), algo_index, heuristic_result);
+            });
+        }
+
         // Return default workspace size when no algo is provided.
         if(heuristic_result.empty())
         {
-            if(solution_idx != 0)
-            {
-                std::cout << "No hipBLASLt algo returned for solution index: " << solution_idx
-                          << std::endl;
-            }
+            std::cout << "No hipBLASLt algo returned for solution index: " << solution_idx
+                      << std::endl;
             return workspace_size;
         }
 

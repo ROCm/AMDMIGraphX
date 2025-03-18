@@ -126,6 +126,37 @@ TEST_CASE(double_add_without_return)
     EXPECT(p1.sort() == p2.sort());
 }
 
+TEST_CASE(convert_add_convert)
+{
+    migraphx::shape s1{migraphx::shape::float_type, {2, 3}};
+    migraphx::shape s2{migraphx::shape::half_type, {2, 3}};
+    migraphx::program p1;
+    {
+        auto* mm  = p1.get_main_module();
+        auto x    = mm->add_parameter("x", s1);
+        auto y    = mm->add_parameter("y", s2);
+        auto convert1 = mm->add_instruction(migraphx::make_op("convert", {{"target_type", s2.type()}}), x);
+        auto add = mm->add_instruction(migraphx::make_op("add"), convert1, y);
+        auto convert2 = mm->add_instruction(migraphx::make_op("convert", {{"target_type", s1.type()}}), add);
+        mm->add_return({convert2});
+    }
+    run_pass(p1);
+    migraphx::program p2;
+    {
+        auto* mm = p2.get_main_module();
+        auto x    = mm->add_parameter("x", s1);
+        auto y    = mm->add_parameter("y", s2);
+        auto fadd =
+            add_pointwise(p2, "main:pointwise0", {x, y}, [=](auto* pm, const auto& inputs) {
+                auto convert1 = pm->add_instruction(migraphx::make_op("convert", {{"target_type", s2.type()}}), inputs[0]);
+                auto add = pm->add_instruction(migraphx::make_op("add"), convert1, inputs[1]);
+                return pm->add_instruction(migraphx::make_op("convert", {{"target_type", s1.type()}}), add);
+            });
+        mm->add_return({fadd});
+    }
+    EXPECT(p1.sort() == p2.sort());
+}
+
 TEST_CASE(used_twice_not_fused)
 {
     migraphx::shape s{migraphx::shape::float_type, {2, 3}};

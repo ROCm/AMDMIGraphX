@@ -144,7 +144,6 @@ append_pointwise_module(module_ref parent, instruction_ref ins, instruction_ref 
     module pm     = *ins->module_inputs().at(0);
     module_ref xm = output->module_inputs().at(0);
     const bool dependent = contains(output->inputs(), ins);
-
     assert(not dependent or pm.get_returns().size() == 1);
 
     std::unordered_map<instruction_ref, instruction_ref> map_ins =
@@ -230,11 +229,11 @@ merge_instruction(module_pass_manager& mpm, instruction_ref input, instruction_r
     auto* new_pm = mpm.create_module(name, std::move(fused.mod));
     auto fins =
         mpm.get_module().insert_instruction(output, input->get_operator(), fused.inputs, {new_pm});
-    if(fins->get_shape().type() == shape::tuple_type)
+    if(fins->get_shape().tuple_size() != output->get_shape().tuple_size())
     {
         move_output_instructions_after(mpm.get_module(), input, fins);
+        replace_with_tuple(mpm.get_module(), input, fins, false);
     }
-    replace_with_tuple(mpm.get_module(), input, fins, false);
     replace_with_tuple(mpm.get_module(), output, fins, true);
     return fins;
 }

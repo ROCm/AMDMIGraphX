@@ -131,7 +131,7 @@ struct float8
     }
 #endif // __gfx942__
 
-       // constructor from float
+    // constructor from float
 #if defined(__gfx942__)
 
     // NOTE: ON-DEVICE... always optimal bias

@@ -168,8 +168,7 @@ struct fusion
 
 const std::unordered_set<std::string>& get_supported_archs()
 {
-    static std::unordered_set<std::string> supported_archs{
-        "gfx900", "gfx906", "gfx908", "gfx1030"};
+    static std::unordered_set<std::string> supported_archs{"gfx900", "gfx906", "gfx908", "gfx1030"};
     return supported_archs;
 }
 #if MIGRAPHX_USE_MIOPEN

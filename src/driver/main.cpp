@@ -951,7 +951,7 @@ int main(int argc, const char* argv[], const char* envp[])
                 std::string key = env_var.substr(0, pos);
                 if(key.find("MIGRAPHX") != std::string::npos)
                 {
-                    mgx_env_var += env_var + "\n";
+                    mgx_env_var += env_var + " \\ \n";
                 }
             }
         }

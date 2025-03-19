@@ -114,7 +114,7 @@ def rocmnodename(name) {
         node_name = "${rocmtest_name} && (gfx908 || gfx90a || vega20) && !vm";
     } else if(name == "navi32") {
         node_name = "${rocmtest_name} && gfx1101 && !vm";
-    } else if(name == "navi4") {
+    } else if(name == "navi4x") {
         node_name = "${rocmtest_name} && gfx1201 && !vm";
     } else if(name == "nogpu") {
         node_name = "${rocmtest_name} && nogpu";
@@ -224,8 +224,8 @@ rocmtest clang_debug: rocmnode('mi200+') { cmake_build ->
         def gpu_targets = getnavi3xtargets()
         cmake_build(flags: "-DCMAKE_BUILD_TYPE=release -DGPU_TARGETS='${gpu_targets}' -DMIGRAPHX_DISABLE_ONNX_TESTS=On")
     }
-}, clang_release_navi: rocmnode('navi4') { cmake_build ->
-    stage('HIP Clang Release Navi4') {
+}, clang_release_navi: rocmnode('navi4x') { cmake_build ->
+    stage('HIP Clang Release Navi4x') {
         def gpu_targets = getnavi4xtargets()
         cmake_build(flags: "-DCMAKE_BUILD_TYPE=release -DGPU_TARGETS='${gpu_targets}' -DMIGRAPHX_DISABLE_ONNX_TESTS=On")
     }

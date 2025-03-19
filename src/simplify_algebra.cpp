@@ -2005,7 +2005,7 @@ void simplify_algebra::apply(module& m) const
                             find_double_add_lit_broadcast{},
                             find_add_lit_broadcast{},
                             find_add_convs{},
-                            find_conv_dot_horiz_fusion{},
+                            // find_conv_dot_horiz_fusion{},
                             find_mul_conv{},
                             find_mul_slice_conv{},
                             find_mul_dot{},

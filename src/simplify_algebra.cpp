@@ -1118,6 +1118,16 @@ std::vector<instruction_ref> get_splits(instruction_ref ins)
     return result;
 }
 
+/**
+ * Tree node structure used for horizontal fusion in find_splits
+ */
+struct hf_node
+{
+    std::vector<hf_node> inputs;
+    std::vector<hf_node> outputs;
+    std::vector<instruction_ref> instructions;
+};
+
 struct find_splits
 {
     auto matcher() const
@@ -1147,6 +1157,9 @@ struct find_splits
         })(ins1);
     }
 
+    /**
+     * Find groups of when the same operators are used after slice ops
+     */
     static std::vector<std::vector<instruction_ref>>
     get_split_groups(const module& m, const std::vector<instruction_ref>& splits)
     {

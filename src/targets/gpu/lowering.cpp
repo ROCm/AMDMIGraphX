@@ -535,10 +535,17 @@ struct miopen_apply
                 new_inputs);
         });
 
-        apply_map.emplace("gpu::concat_past_present", [=](instruction_ref ins) {
+        apply_map.emplace("gpu::concat_past_present_k", [=](instruction_ref ins) {
             return mod->replace_instruction(
                 ins,
-                make_op("gpu::precompile_op", {{"op", to_value(ins->get_operator())}}),
+                make_op("gpu::precompile_op", {{"op", to_value(ins->get_operator())}, {"output_shape", to_value(ins->get_shape())}}),
+                ins->inputs());
+        });
+
+        apply_map.emplace("gpu::concat_past_present_v", [=](instruction_ref ins) {
+            return mod->replace_instruction(
+                ins,
+                make_op("gpu::precompile_op", {{"op", to_value(ins->get_operator())}, {"output_shape", to_value(ins->get_shape())}}),
                 ins->inputs());
         });
 

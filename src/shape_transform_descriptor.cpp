@@ -895,6 +895,12 @@ static bool has_axes(const dimension& d)
     });
 }
 
+template<class F>
+auto compare_sub(F f)
+{
+    return by(f, [](const dimension::sub& s) -> const auto& { return s.axis; });
+}
+
 static void generate_from_subdimensions(operation_list& result,
                                         std::vector<dimension::sub> subs,
                                         const std::vector<std::size_t>& input_dims = {})
@@ -930,9 +936,6 @@ static void generate_from_subdimensions(operation_list& result,
         });
     });
 
-    auto compare_sub = [](auto f) {
-        return by(f, [](const dimension::sub& s) -> const auto& { return s.axis; });
-    };
     // Need transpose
     if(not std::is_sorted(tsubs.begin(), tsubs.end(), compare_sub(std::less<>{})))
     {
@@ -1087,6 +1090,39 @@ std::vector<operation> shape_transform_descriptor::generate_dst_from_common(
        }))
     {
         result.push_back(make_reshape_squeeze(new_dims));
+    }
+    return result;
+}
+std::vector<operation> shape_transform_descriptor::generate_src_from_common(
+    const std::vector<std::size_t>& input_dims) const
+{
+    std::vector<operation> result;
+    auto subs = get_all_subdimensions(dimensions);
+
+    // Flatten broadcasted subdimensions
+    std::for_each(subs.begin(), subs.end(), &flatten_broadcasted_dim);
+    
+    // Need transpose
+    if(not std::is_sorted(subs.begin(), subs.end(), compare_sub(std::less<>{})))
+    {
+        auto permutation = sort_permutation(subs, compare_sub(std::less<>{}));
+        result.push_back(make_op("transpose", {{"permutation",permutation}}));
+        subs = reorder_dims(subs, invert_permutation(permutation));
+    }
+    // Need squeeze reshape
+    if(std::any_of(subs.begin(), subs.end(), [](const dimension::sub& s) {
+           return s.axis.size() > 1;
+       }))
+    {
+        // std::map<std::size_t, std::size_t> axis_size;
+        std::vector<std::size_t> dims(rank, 1);
+        for(const auto& sub:subs)
+        {
+            if (sub.axis.empty())
+                continue;
+            dims[sub.axis.front()] *= sub.len;
+        }
+        result.push_back(make_op("reshape", {{"dims", dims}}));
     }
     return result;
 }

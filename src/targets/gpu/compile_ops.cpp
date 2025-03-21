@@ -113,7 +113,7 @@ struct compile_plan
             {
                 const auto trace_level = value_of(MIGRAPHX_TRACE_BENCHMARKING{});
                 if(trace_level > 0)
-                    std::cerr << "Exception in " + preop.name() + ": " + e.what() << std::endl;
+                    std::cout << "Exception in " + preop.name() + ": " + e.what() << std::endl;
                 results[i] = nullopt;
             }
             catch(...)

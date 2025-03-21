@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2024 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2025 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -816,7 +816,7 @@ void module::finalize(std::vector<context>& contexts)
     // Warn when an instruction is not normalized
     auto ins = std::find_if(begin(), end(), [](auto& i) { return i.need_normalization(); });
     if(ins != end())
-        std::cerr << "WARNING: Instruction needs normalization, performance may be affected."
+        std::cout << "WARNING: Instruction needs normalization, performance may be affected."
                   << std::endl;
 }
 

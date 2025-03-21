@@ -168,8 +168,7 @@ struct fusion
 
 const std::unordered_set<std::string>& get_supported_archs()
 {
-    static std::unordered_set<std::string> supported_archs{
-        "gfx900", "gfx906", "gfx908", "gfx1030", "gfx940"};
+    static std::unordered_set<std::string> supported_archs{"gfx900", "gfx906", "gfx908", "gfx1030"};
     return supported_archs;
 }
 #if MIGRAPHX_USE_MIOPEN
@@ -675,7 +674,6 @@ struct find_rocblas_gemm_pointwise : gemm_pointwise
             auto c_ins = r.instructions["c"];
             shape s    = c_ins->get_shape();
             // const-fold input if not standard shape since rocblas can't handle it
-            // Updated for a case where "standard" shape has out-of-sequence strides
             if(not s.standard())
             {
                 auto c = make_op("contiguous");
@@ -736,7 +734,6 @@ struct find_hipblas_gemm_pointwise : gemm_pointwise
             auto c_ins = r.instructions["c"];
             shape s    = c_ins->get_shape();
             // const-fold input if not standard shape
-            // Updated for a case where "standard" shape has out-of-sequence strides
             if(not s.standard())
             {
                 auto c = make_op("contiguous");

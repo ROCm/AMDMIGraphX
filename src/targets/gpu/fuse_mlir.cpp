@@ -646,9 +646,19 @@ struct find_mlir_fused_ops
 {
     mlir_mode conv_mode = mlir_mode::none;
     mlir_mode dot_mode  = mlir_mode::none;
+
+    static auto make_conv_dot_reshaper_names()
+    {
+        auto names = reshaper_names();
+        names.erase("broadcast");
+        names.erase("multibroadcast");
+        return names;
+    }
+
     auto matcher() const
     {
-        auto dot_or_conv = match::skip(match::name(reshaper_names()))(
+        static const auto conv_dot_reshaper_names = make_conv_dot_reshaper_names();
+        auto dot_or_conv = match::skip(match::name(conv_dot_reshaper_names))(
             match::any_of(is_mlir_dot(dot_mode), is_mlir_conv(conv_mode)).bind("gemm_based_op"));
         return mlir_pointwise()(match::any_of[match::inputs()](dot_or_conv.bind("x")));
     }

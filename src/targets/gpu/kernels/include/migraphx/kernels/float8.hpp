@@ -71,7 +71,7 @@ struct float8
 
     __device__ explicit constexpr float8(uint8_t bits, from_bits_t) : data(bits) {}
 
-#if defined(__gfx940__) || defined(__gfx941__) || defined(__gfx942__)
+#if defined(__gfx942__)
     // device specific optimized F8 down-conversion code
 
     template <bool stochastic_rounding = false>
@@ -129,10 +129,10 @@ struct float8
 
         return i8data;
     }
-#endif // __gfx940__
+#endif // __gfx942__
 
-       // constructor from float
-#if defined(__gfx940__) || defined(__gfx941__) || defined(__gfx942__)
+    // constructor from float
+#if defined(__gfx942__)
 
     // NOTE: ON-DEVICE... always optimal bias
     explicit constexpr __device__
@@ -177,7 +177,7 @@ struct float8
         }
     }
 #else
-    // DEVICE for non-gfx940 using s/w simulation
+    // DEVICE for non-gfx942 using s/w simulation
     explicit constexpr __device__
     float8(const float v,
            migraphx::fp8::rounding_mode rm = migraphx::fp8::rounding_mode::standard,
@@ -208,7 +208,7 @@ struct float8
 #endif // MIGRAPHX_FP8_DOWNCAST_CLIPPING}
         }
     }
-#endif // __gfx940___
+#endif // __gfx942___
 
     // Constructor from half
     explicit constexpr __device__
@@ -245,7 +245,7 @@ struct float8
     {
     }
     // convert to float
-#if defined(__gfx940__) || defined(__gfx941__) || defined(__gfx942__) // NOLINT
+#if defined(__gfx942__) // NOLINT
     // upcast using device specific intrinsic
     inline constexpr __device__ operator float() const
     {
@@ -277,7 +277,7 @@ struct float8
         }
     }
 
-#else // non gfx940
+#else // non gfx942
     inline constexpr __device__ operator float() const
     {
         if constexpr(T == migraphx::fp8::f8_type::fp8)

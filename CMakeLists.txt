@@ -1,7 +1,7 @@
 #####################################################################################
 # The MIT License (MIT)
 #
-# Copyright (c) 2015-2024 Advanced Micro Devices, Inc. All rights reserved.
+# Copyright (c) 2015-2025 Advanced Micro Devices, Inc. All rights reserved.
 #
 # Permission is hereby granted, free of charge, to any person obtaining a copy
 # of this software and associated documentation files (the "Software"), to deal
@@ -106,7 +106,7 @@ include(ROCMSetupVersion)
 
 option(BUILD_DEV "Build for development purpose only" OFF)
 
-rocm_setup_version(VERSION 2.12.0)
+rocm_setup_version(VERSION 2.13.0)
 math(EXPR MIGRAPHX_SO_MAJOR_VERSION "(${PROJECT_VERSION_MAJOR} * 1000 * 1000) + (${PROJECT_VERSION_MINOR} * 1000) + ${PROJECT_VERSION_PATCH}")
 set(MIGRAPHX_SO_VERSION ${MIGRAPHX_SO_MAJOR_VERSION}.0)
 
@@ -323,7 +323,6 @@ rocm_enable_cppcheck(
         ${CMAKE_CURRENT_SOURCE_DIR}/test/include
     DEFINE
         MIGRAPHX_MLIR=1
-        MIGRAPHX_ENABLE_HIPBLASLT_GEMM=1
         MIGRAPHX_HAS_EXECUTORS=0
         CPPCHECK=1
         MIGRAPHX_USE_MIOPEN=1

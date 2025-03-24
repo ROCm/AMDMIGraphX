@@ -945,6 +945,7 @@ int main(int argc, const char* argv[], const char* envp[])
             std::string(argv[0]) + " " + migraphx::to_string_range(args, " ");
         std::cout << "Running [ " << get_version() << " ]: " << driver_invocation << std::endl;
 
+        std::string mgx_env_var;
         for(const char** env = envp; *env != nullptr; ++env)
         {
             std::string env_var(*env);
@@ -954,13 +955,23 @@ int main(int argc, const char* argv[], const char* envp[])
                 std::string key = env_var.substr(0, pos);
                 if(key.find("MIGRAPHX") != std::string::npos)
                 {
-                    std::cout << env_var << std::endl;
+                    mgx_env_var += env_var + " \\ \n";
                 }
             }
         }
 
+        if(not mgx_env_var.empty())
+        {
+            std::cout << mgx_env_var;
+        }
+
         m.at(cmd)(argv[0],
                   {args.begin() + 1, args.end()}); // run driver command found in commands map
+
+        if(not mgx_env_var.empty())
+        {
+            std::cout << mgx_env_var;
+        }
 
         std::cout << "[ " << get_version() << " ] Complete: " << driver_invocation << std::endl;
     }

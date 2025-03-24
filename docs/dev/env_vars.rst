@@ -135,9 +135,10 @@ Use it in conjunction with ``MIGRAPHX_DISABLE_MLIR=1``.
 Set to "1", "enable", "enabled", "yes", or "true" to use.
 Disables use of the rocMLIR library.
 
-.. envvar:: MIGRAPHX_ENABLE_HIPBLASLT_GEMM
-Set to "1", "enable", "enabled", "yes", or "true" to use.
-Enables use of hipBLASLt.
+.. envvar:: MIGRAPHX_SET_GEMM_PROVIDER
+
+Set to "hipblaslt" to use hipBLASLt.
+Set to "rocblas" to use rocBLAS.
 
 .. envvar:: MIGRAPHX_COPY_LITERALS
 
@@ -270,6 +271,14 @@ Set to "3" to print compiled traces.
 Set to path to json file to load and save problem cache.
 This will load the json file into the problem cache if it exists, and when
 compilation finishes it will save the problem cache.
+
+.. envvar:: MIGRAPHX_BENCHMARKING_BUNDLE
+
+Set amount of configs to run in a bundle when timing.
+
+.. envvar:: MIGRAPHX_BENCHMARKING_NRUNS
+
+Set amount of timing runs for each config bundle being benchmarked.
 
 MLIR vars
 -------------

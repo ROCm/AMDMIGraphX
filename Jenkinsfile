@@ -8,7 +8,7 @@ def getgputargets() {
 }
 
 def getnavi3xtargets() {
-    targets="gfx1100;gfx1101;gfx1201"
+    targets="gfx1100;gfx1101"
     return targets
 }
 
@@ -224,7 +224,7 @@ rocmtest clang_debug: rocmnode('mi200+') { cmake_build ->
         def gpu_targets = getnavi3xtargets()
         cmake_build(flags: "-DCMAKE_BUILD_TYPE=release -DGPU_TARGETS='${gpu_targets}' -DMIGRAPHX_DISABLE_ONNX_TESTS=On")
     }
-}, clang_release_navi: rocmnode('navi4x') { cmake_build ->
+}, clang_release_navi4: rocmnode('navi4x') { cmake_build ->
     stage('HIP Clang Release Navi4x') {
         def gpu_targets = getnavi4xtargets()
         cmake_build(flags: "-DCMAKE_BUILD_TYPE=release -DGPU_TARGETS='${gpu_targets}' -DMIGRAPHX_DISABLE_ONNX_TESTS=On")

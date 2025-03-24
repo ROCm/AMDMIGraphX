@@ -32,7 +32,6 @@
 #include <migraphx/load_save.hpp>
 #include <migraphx/tmp_dir.hpp>
 #include <migraphx/verify_args.hpp>
-#include <migraphx/gpu/device_name.hpp>
 
 #include <set>
 #include <future>

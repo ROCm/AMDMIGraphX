@@ -286,14 +286,3 @@ void run_verify::disable_test_for(const std::string& name, const std::vector<std
     auto& disabled_tests = info[name].disabled_tests;
     disabled_tests.insert(disabled_tests.end(), tests.begin(), tests.end());
 }
-
-void run_verify::disable_test_for_gfx(const std::string& gfx, const std::vector<std::string>& tests)
-{
-    const auto device_name =
-        migraphx::trim(migraphx::split_string(migraphx::gpu::get_device_name(), ':').front());
-    if(migraphx::contains(gfx, device_name))
-    {
-        auto& disabled_tests = info["gpu"].disabled_tests;
-        disabled_tests.insert(disabled_tests.end(), tests.begin(), tests.end());
-    }
-}

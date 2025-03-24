@@ -60,7 +60,6 @@ struct run_verify
     void disable_parallel_for(const std::string& name);
     void add_validation_for(const std::string& name, target_info::validation_function v);
     void disable_test_for(const std::string& name, const std::vector<std::string>& tests);
-    void disable_test_for_gfx(const std::string& gfx, const std::vector<std::string>& tests);
 
     private:
     std::map<std::string, target_info> info{};

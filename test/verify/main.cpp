@@ -159,13 +159,5 @@ int main(int argc, const char* argv[])
                             "test_quant_dot_3args_4<migraphx::fp8::fp8e5m2, float>",
                             "test_quant_dot_3args_5<migraphx::fp8::fp8e5m2, float>",
                         });
-    // 20_March_2025: These tests are disabled because hipblaslt does not support
-    // fp8ocp gemm with fp8 output.
-    rv.disable_test_for_gfx("gfx950",
-                            {"test_gemm<migraphx::fp8::fp8e4m3fn>",
-                             "test_gemm<migraphx::fp8::fp8e5m2>",
-                             "test_rnn_sql_l<migraphx::fp8::fp8e4m3fn>",
-                             "test_rnn_sql_l<migraphx::fp8::fp8e4m3fn>"});
-
     rv.run(argc, argv);
 }

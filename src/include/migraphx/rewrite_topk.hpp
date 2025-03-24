@@ -33,6 +33,7 @@ inline namespace MIGRAPHX_INLINE_NS {
 
 struct module;
 
+/// Rewrite topk operators ideally to better performing operators
 struct MIGRAPHX_EXPORT rewrite_topk
 {
     std::string name() const { return "rewrite_topk"; }

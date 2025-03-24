@@ -72,41 +72,6 @@ struct topk
         return shape({s_val, s_ind});
     }
 
-    template <class T, class Compare>
-    struct heap_vector
-    {
-        std::vector<T> data;
-        Compare compare;
-
-        heap_vector(const std::vector<T>& val, Compare comp) : data(val), compare(std::move(comp))
-        {
-            std::make_heap(data.begin(), data.end(), compare);
-        }
-
-        void try_push(T val)
-        {
-            if(not compare(val, data.front()))
-                return;
-
-            std::pop_heap(data.begin(), data.end(), compare);
-            data.back() = val;
-            std::push_heap(data.begin(), data.end(), compare);
-        }
-
-        std::vector<T> sort()
-        {
-            auto sorted_data = data;
-            std::sort_heap(sorted_data.begin(), sorted_data.end(), compare);
-            return sorted_data;
-        }
-    };
-
-    template <class T, class Compare>
-    heap_vector<T, Compare> make_heap(std::vector<T> val, Compare compare) const
-    {
-        return {std::move(val), std::move(compare)};
-    }
-
     argument compute(const shape& output_shape, std::vector<argument> args) const
     {
         auto vec_ss = output_shape.sub_shapes();

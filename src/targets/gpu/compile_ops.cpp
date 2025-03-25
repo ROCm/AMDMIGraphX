@@ -229,7 +229,9 @@ struct compile_plan
                            cr->replace.replace(*bench_mm, bench_ins);
                            // do dead code elimination
                            run_passes(*bench_mm, {dead_code_elimination{}});
-                           auto t = time_program(*ctx, bench_prog, 20);
+                           // by default, measure runtime with bundle of 1 benchmark config,
+                           // repeat 20 times
+                           auto t = time_program(*ctx, bench_prog, 1, 20);
                            if(trace_level > 1)
                                std::cout << t << "ms" << std::endl;
                            return t;

@@ -49,7 +49,7 @@ migraphx::instruction_ref add_layout_nhwc(migraphx::module& m, migraphx::instruc
 
 migraphx::instruction_ref add_layout_nchw(migraphx::module& m, migraphx::instruction_ref ins)
 {
-    return m.add_instruction(layout(), ins);
+    return m.add_instruction(layout({0, 1, 2, 3}), ins);
 }
 
 TEST_CASE(auto_conv_nchw)
@@ -90,8 +90,22 @@ TEST_CASE(auto_conv_nhwc)
         auto relu = m1.add_instruction(migraphx::make_op("relu"), conv);
         m1.add_return({relu});
     }
-    migraphx::module m2 = m1;
     run_pass(m1);
+    migraphx::module m2;
+    {
+        auto x          = m2.add_parameter("x", {migraphx::shape::float_type, {1, 16, 16, 8}});
+        auto xtranspose = add_layout_nchw(m2, m2.add_instruction(transpose, x));
+        auto w          = m2.add_literal(
+            migraphx::generate_literal({migraphx::shape::float_type, {16, 3, 3, 8}}));
+        auto wtranspose = add_layout_nchw(m2, m2.add_instruction(transpose, w));
+        auto conv       = m2.add_instruction(
+            migraphx::make_op("convolution",
+                                    {{"padding", {1, 1}}, {"stride", {2, 2}}, {"dilation", {1, 1}}}),
+            xtranspose,
+            wtranspose);
+        auto relu = add_layout_nhwc(m2, m2.add_instruction(migraphx::make_op("relu"), conv));
+        m2.add_return({relu});
+    }
     EXPECT(m1.sort() == m2.sort());
 }
 

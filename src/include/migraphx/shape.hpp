@@ -296,6 +296,7 @@ struct MIGRAPHX_EXPORT shape
     {
         if(start == last)
             return 0;
+        assert(std::distance(start, last) == this->lens().size());
         return *std::prev(last) +
                inner_product(
                    this->lens().begin() + 1,

@@ -115,9 +115,17 @@ struct shape : equality_comparable<shape<Lens, Strides>>
     /// Convert multi-index into a single index
     constexpr index_int single(index_array idx) const
     {
+        MIGRAPHX_ASSERT(idx.size() == lens.size());
         if(idx.empty())
             return 0;
-        return inner_product(lens.begin() + 1, lens.end(), idx.begin(), idx.back());
+        return idx.back() +
+               inner_product(
+                   lens.begin() + 1,
+                   lens.end(),
+                   idx.begin(),
+                   index_int{0},
+                   [](const auto& a, const auto& b) { return (a + b[0]) * b[1]; },
+                   [](auto len, auto i) -> array<index_int, 2> { return {i, len}; });
     }
 
     constexpr shape get_shape() const { return *this; }

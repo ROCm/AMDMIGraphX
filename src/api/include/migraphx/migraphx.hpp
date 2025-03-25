@@ -1461,8 +1461,7 @@ inline program parse_tf(const char* filename)
 }
 
 /// Parse a buffer of memory as an tf file
-inline program
-parse_tf_buffer(const void* data, size_t size, const migraphx::tf_options& options)
+inline program parse_tf_buffer(const void* data, size_t size, const migraphx::tf_options& options)
 {
     return program(
         make<migraphx_program>(&migraphx_parse_tf_buffer, data, size, options.get_handle_ptr()),

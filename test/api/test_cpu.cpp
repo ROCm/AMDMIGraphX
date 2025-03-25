@@ -237,7 +237,7 @@ TEST_CASE(set_loop_limit_iterations2)
 {
     migraphx::onnx_options option;
     option.set_limit_loop_iterations(10);
-    auto p          = read_onnx("loop_test_implicit_tripcnt.onnx", option);
+    auto p                             = read_onnx("loop_test_implicit_tripcnt.onnx", option);
     auto out_shapes = p.get_output_shapes();
     std::vector<std::size_t> out_lens0 = {1};
     EXPECT(out_shapes[0].lengths() == out_lens0);

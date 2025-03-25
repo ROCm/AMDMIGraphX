@@ -150,7 +150,6 @@ topk_impl(index idx, Compare compare, T init, Y y, YIndex y_idx, X x, XIndices..
                 buf[im].key = in < n ? x[in] : init;
                 buf[im].val = get_index(in);
             });
-            // __syncthreads();
             auto shared_shape = make_shape(index_ints<nwave, k>{});
             const auto base   = idx.local_wave() * nper_lane;
             for(index_int i : range(nper_lane))

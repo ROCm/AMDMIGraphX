@@ -68,6 +68,7 @@ struct find_large_topk
             return;
 
         auto gdims = dims;
+        // We have to sort at least k elements, so the min size is k*4 or half the threshold
         auto group = split_dim(gdims[axis], std::max<std::size_t>(n_threshold / 2, k * 4));
         if(group < 2)
             return;

@@ -296,8 +296,15 @@ struct MIGRAPHX_EXPORT shape
     {
         if(start == last)
             return 0;
-        return inner_product(this->lens().begin() + 1, this->lens().end(), start, *std::prev(last));
+        return *std::prev(last) + inner_product(this->lens().begin() + 1, this->lens().end(), start, std::size_t{0}, [](const auto& a, const auto& b) {
+            return (a + b[0]) * b[1];
+        }, [](auto len, auto i) -> std::array<std::size_t, 2> {
+            return {i, len};
+        });
     }
+
+    /// Convert multi-dimensional index into a single element index
+    std::size_t single(const std::vector<std::size_t>& idx) const;
 
     /// Returns true if the shape is packed (number of elements and buffer size the same) with
     /// no padding

@@ -44,6 +44,7 @@ void problem_cache::load()
     if(not fs::exists(pc_path))
     {
         std::cout << "Problem cache not found. Creating new file.\n";
+        save();
         return;
     }
     from_value(from_json_string(read_string(pc_path)), cache);

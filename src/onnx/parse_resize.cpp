@@ -288,9 +288,10 @@ struct parse_resize : op_parser<parse_resize>
             MIGRAPHX_THROW("PARSE_" + opd.onnx_name + ": exclude_outside 1 is not supported!");
         }
 
-        if(contains(info.attributes, "keep_aspect_ratio_policy")) 
+        if(contains(info.attributes, "keep_aspect_ratio_policy"))
         {
-            MIGRAPHX_THROW("PARSE_" + opd.onnx_name + ": keep_aspect_ratio_policy is not supported!");
+            MIGRAPHX_THROW("PARSE_" + opd.onnx_name +
+                           ": keep_aspect_ratio_policy is not supported!");
         }
 
         // input data shape info

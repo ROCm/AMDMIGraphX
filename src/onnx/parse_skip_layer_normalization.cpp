@@ -131,26 +131,20 @@ struct parse_skip_simplified_layer_normalization
             x = info.add_common_op("add", x, bias);
         }
 
-        // Convert to float before reduce_mean
-        // Fp16 reduce_mean on GPU causes loss of accuracy
-        auto float_x = info.add_instruction(
-            make_op("convert", {{"target_type", migraphx::shape::float_type}}), x);
-
         // Get the mean of input and squared of the expectation (for variance calc later)
         // Var = E( (x - E[x])) ^2)
-        auto exp_x  = info.add_instruction(make_op("reduce_mean", {{"axes", {axis}}}), float_x);
-        auto pr_var = info.add_common_op("sqdiff", {float_x, exp_x});
+        auto mean  = info.add_instruction(make_op("reduce_mean", {{"axes", {axis}}}), x);
+        auto pr_var = info.add_common_op("sqdiff", {x, mean});
         auto var    = info.add_instruction(make_op("reduce_mean", {{"axes", {axis}}}), pr_var);
-        auto mean   = info.add_instruction(make_op("convert", {{"target_type", x_dtype}}), exp_x);
 
         epsilon =
-            (x_dtype == migraphx::shape::half_type and std::abs(epsilon) < 1e-7) ? 1e-7 : epsilon;
-        auto eps    = info.add_literal(migraphx::literal{migraphx::shape{migraphx::shape::float_type}, {epsilon}});
+        (x_dtype == migraphx::shape::half_type and std::abs(epsilon) < 1e-7) ? 1e-7 : epsilon;
+        auto eps    = info.add_literal(migraphx::literal{shape{x_dtype}, {epsilon}});
+
         auto var_ep = info.add_common_op("add", var, eps);
 
         // reciprical sqrt here on resulting variance + epsilon offset to avoid div by zero
-        auto r_var_fp32  = info.add_instruction(make_op("rsqrt"), var_ep);
-        auto r_var       = info.add_instruction(make_op("convert", {{"target_type", x_dtype}}), r_var_fp32);
+        auto r_var  = info.add_instruction(make_op("rsqrt"), var_ep);
 
         // Output is  (x - E[x]) * gamma / (sqrt(var(x) - epsilon)) + beta
         auto result = info.add_common_op("sub", x, mean);
@@ -173,7 +167,7 @@ struct parse_skip_simplified_layer_normalization
         // exists)with shape (batch_size, sequence_length, hidden_size) or (token_count,
         // hidden_size).
 
-        return {result, exp_x, r_var_fp32, x};
+        return {result, mean, r_var, x};
     }
 };
 

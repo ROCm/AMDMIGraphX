@@ -34,7 +34,7 @@ inline migraphx::program read_onnx(const std::string& name,
     static auto onnx_files{::onnx_files()};
     if(onnx_files.find(name) == onnx_files.end())
     {
-        std::cerr << "Can not find onnx file file by name: " << name << " , aborting the program\n"
+        std::cerr << "Can not find onnx file by name: " << name << " , aborting the program\n"
                   << std::endl;
         std::abort();
     }

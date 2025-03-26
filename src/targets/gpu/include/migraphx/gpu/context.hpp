@@ -59,12 +59,10 @@ struct hip_device
     {
         auto status = hipGetDeviceProperties(&device_props, device_id);
         if(status != hipSuccess)
-            MIGRAPHX_THROW("Failed to get device properties");
+            MIGRAPHX_THROW("Failed to get device properties: " + hip_error(status));
 
         // Set the device prior to Events that get created within a Context.
-        status = hipSetDevice(device_id);
-        if(status != hipSuccess)
-            MIGRAPHX_THROW("Error setting device");
+        set_device(device_id);
 
         for(std::size_t i = 0; i < n; i++)
             add_stream();
@@ -85,7 +83,7 @@ struct hip_device
             hipStream_t result = nullptr;
             auto status        = hipStreamCreateWithFlags(&result, hipStreamNonBlocking);
             if(status != hipSuccess)
-                MIGRAPHX_THROW("Failed to allocate stream");
+                MIGRAPHX_THROW("Failed to allocate stream: " + hip_error(status));
             return hip_stream_ptr{result};
         }
 
@@ -152,7 +150,7 @@ struct hip_device
             setup();
             auto status = hipStreamSynchronize(s.get());
             if(status != hipSuccess)
-                MIGRAPHX_THROW("Failed to wait.");
+                MIGRAPHX_THROW("Failed to wait: " + hip_error(status));
         }
 
         void wait(hipEvent_t event)
@@ -160,7 +158,7 @@ struct hip_device
             setup();
             auto status = hipStreamWaitEvent(get(), event, 0);
             if(status != hipSuccess)
-                MIGRAPHX_THROW("Failed to wait.");
+                MIGRAPHX_THROW("Failed to wait: " + hip_error(status));
         }
 
         void record(hipEvent_t event)
@@ -168,7 +166,7 @@ struct hip_device
             setup();
             auto status = hipEventRecord(event, get());
             if(status != hipSuccess)
-                MIGRAPHX_THROW("Failed to record.");
+                MIGRAPHX_THROW("Failed to record: " + hip_error(status));
         }
 
         private:
@@ -298,7 +296,7 @@ struct context
         hipEvent_t event;
         auto status = hipEventCreateWithFlags(&event, hipEventDisableTiming);
         if(status != hipSuccess)
-            MIGRAPHX_THROW("Failed to create event");
+            MIGRAPHX_THROW("Failed to create event: " + hip_error(status));
         return hip_event_ptr{event};
     }
 
@@ -307,7 +305,7 @@ struct context
         hipEvent_t event;
         auto status = hipEventCreate(&event);
         if(status != hipSuccess)
-            MIGRAPHX_THROW("Failed to create event");
+            MIGRAPHX_THROW("Failed to create event: " + hip_error(status));
         return hip_event_ptr{event};
     }
 
@@ -337,7 +335,7 @@ struct context
     {
         auto status = hipEventRecord(begin_event.get(), queue.get<hipStream_t>());
         if(status != hipSuccess)
-            MIGRAPHX_THROW("failed to record " + hip_error(status));
+            MIGRAPHX_THROW("Failed to record: " + hip_error(status));
 
         get_stream().wait(begin_event.get());
     }
@@ -348,7 +346,7 @@ struct context
 
         auto status = hipStreamWaitEvent(queue.get<hipStream_t>(), finish_event.get(), 0);
         if(status != hipSuccess)
-            MIGRAPHX_THROW("Failed to wait on event " + hip_error(status));
+            MIGRAPHX_THROW("Failed to wait on event: " + hip_error(status));
     }
 
     any_ptr get_queue() { return get_stream().get(); }

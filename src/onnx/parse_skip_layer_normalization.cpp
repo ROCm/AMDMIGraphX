@@ -71,6 +71,8 @@ struct parse_skip_simplified_layer_normalization
         // Or 2D input tensor with shape (token_count, hidden_size)
         // gamma : T
         // 1D input tensor with shape (hidden_size)
+        // beta (optional) : T
+        // 1D skip tensor with shape (hidden_size)
         // bias (optional) : T
         // 1D bias tensor with shape (hidden_size) - not used by ORT
 

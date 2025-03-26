@@ -283,7 +283,7 @@ TEST_CASE(skip_layer_normalization_beta_bias_test)
     std::vector<half> beta{half{1.0}, half{1.0}, half{1.0}, half{1.0}};
     std::vector<half> bias{half{1.0}, half{1.0}, half{1.0}, half{1.0}};
 
-    auto p = read_onnx("skip_layer_normalization_beta_test.onnx");
+    auto p = read_onnx("skip_layer_normalization_beta_bias_test.onnx");
     p.compile(migraphx::make_target("ref"));
 
     migraphx::shape s_x{migraphx::shape::half_type, {2, 2, 4}};

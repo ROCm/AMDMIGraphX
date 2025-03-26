@@ -59,7 +59,12 @@ struct hip_device
     {
         auto status = hipGetDeviceProperties(&device_props, device_id);
         if(status != hipSuccess)
-            MIGRAPHX_THROW("Failed to allocate stream");
+            MIGRAPHX_THROW("Failed to get device properties");
+
+        // Set the device prior to Events that get created within a Context.
+        status = hipSetDevice(device_id);
+        if(status != hipSuccess)
+            MIGRAPHX_THROW("Error setting device");
 
         for(std::size_t i = 0; i < n; i++)
             add_stream();
@@ -383,9 +388,9 @@ struct context
     // for event perf timing
     shared<hip_event_ptr> start_event = nullptr;
     shared<hip_event_ptr> stop_event  = nullptr;
-    // for stream syncronization
-    shared<hip_event_ptr> begin_event  = nullptr;
-    shared<hip_event_ptr> finish_event = nullptr;
+    // for stream synchronization
+    shared<hip_event_ptr> begin_event           = nullptr;
+    shared<hip_event_ptr> finish_event          = nullptr;
     std::shared_ptr<auto_save_problem_cache> pc = nullptr;
 };
 

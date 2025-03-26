@@ -38,6 +38,7 @@ endif()
 
 rocm_clang_tidy_check(migraphx_c)
 target_link_libraries(migraphx_c PRIVATE migraphx migraphx_tf migraphx_onnx)
+target_link_libraries(migraphx_c PUBLIC migraphx_version)
 
 rocm_install_targets(
   TARGETS migraphx_c

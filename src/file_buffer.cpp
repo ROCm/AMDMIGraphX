@@ -73,7 +73,7 @@ void write_string(const fs::path& filename, const std::string& buffer)
 void write_buffer(const fs::path& filename, const char* buffer, std::size_t size)
 {
     std::ofstream os(filename, std::ios::out | std::ios::binary);
-    if(!os)
+    if(os.fail())
         MIGRAPHX_THROW("Failure opening file: " + filename);
     os.write(buffer, size);
     if(os.bad())

@@ -166,11 +166,10 @@ std::vector<pass> target::get_passes(migraphx::context& gctx, const compile_opti
 
     // disable fp8 dot operations on gfx950
     // hipblaslt does not support fp8 gemm with fp8 output yet
-    std::set<std::string> unsupported_gfx950_ops = {};
     const auto device_name = trim(split_string(gpu::get_device_name(), ':').front());
     if(starts_with(device_name, "gfx950"))
     {
-        unsupported_gfx950_ops.insert("dot");
+        unsupported_fp8ocp_ops.insert("dot");
     }
 
     // clang-format off
@@ -212,7 +211,6 @@ std::vector<pass> target::get_passes(migraphx::context& gctx, const compile_opti
         eliminate_data_type{{migraphx::shape::fp8e4m3fnuz_type}, shape::float_type, unsupported_fp8e4m3fnuz_ops},
         eliminate_data_type{{migraphx::shape::fp8e5m2fnuz_type}, shape::float_type, unsupported_fp8e5m2fnuz_ops},
         eliminate_data_type{{migraphx::shape::fp8e4m3fn_type, migraphx::shape::fp8e5m2_type}, shape::float_type, unsupported_fp8ocp_ops},
-        eliminate_data_type{{migraphx::shape::fp8e4m3fn_type, migraphx::shape::fp8e5m2_type}, shape::float_type, unsupported_gfx950_ops},
         dead_code_elimination{},
         rewrite_reduce{},
         rewrite_low_precision{},

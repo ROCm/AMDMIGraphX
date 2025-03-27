@@ -85,7 +85,6 @@ struct parse_skip_simplified_layer_normalization
         auto skip  = args.at(1);
         auto gamma = args.at(2);
 
-
         auto x_shape       = x->get_shape();
         auto x_dtype       = x_shape.type();
         int64_t x_rank     = x_shape.ndim();
@@ -103,7 +102,7 @@ struct parse_skip_simplified_layer_normalization
         instruction_ref beta;
         if(args.size() >= 4)
         {
-            beta = args.at(3);
+            beta            = args.at(3);
             auto beta_shape = beta->get_shape();
             auto beta_len   = beta_shape.lens();
             if(beta_shape.type() != x_dtype or beta_len.size() > 1)
@@ -116,7 +115,7 @@ struct parse_skip_simplified_layer_normalization
         instruction_ref bias;
         if(args.size() == 5)
         {
-            bias = args.at(4);
+            bias            = args.at(4);
             auto bias_shape = bias->get_shape();
             auto bias_len   = bias_shape.lens();
             if(bias_shape.type() != x_dtype or bias_len.size() > 1)
@@ -133,18 +132,18 @@ struct parse_skip_simplified_layer_normalization
 
         // Get the mean of input and squared of the expectation (for variance calc later)
         // Var = E( (x - E[x])) ^2)
-        auto mean  = info.add_instruction(make_op("reduce_mean", {{"axes", {axis}}}), x);
+        auto mean   = info.add_instruction(make_op("reduce_mean", {{"axes", {axis}}}), x);
         auto pr_var = info.add_common_op("sqdiff", {x, mean});
         auto var    = info.add_instruction(make_op("reduce_mean", {{"axes", {axis}}}), pr_var);
 
         epsilon =
-        (x_dtype == migraphx::shape::half_type and std::abs(epsilon) < 1e-7) ? 1e-7 : epsilon;
-        auto eps    = info.add_literal(migraphx::literal{shape{x_dtype}, {epsilon}});
+            (x_dtype == migraphx::shape::half_type and std::abs(epsilon) < 1e-7) ? 1e-7 : epsilon;
+        auto eps = info.add_literal(migraphx::literal{shape{x_dtype}, {epsilon}});
 
         auto var_ep = info.add_common_op("add", var, eps);
 
         // reciprical sqrt here on resulting variance + epsilon offset to avoid div by zero
-        auto r_var  = info.add_instruction(make_op("rsqrt"), var_ep);
+        auto r_var = info.add_instruction(make_op("rsqrt"), var_ep);
 
         // Output is  (x - E[x]) * gamma / (sqrt(var(x) - epsilon)) + beta
         auto result = info.add_common_op("sub", x, mean);

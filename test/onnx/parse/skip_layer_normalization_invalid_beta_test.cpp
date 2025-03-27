@@ -26,7 +26,6 @@
 
 TEST_CASE(skip_layer_normalization_invalid_beta_test)
 {
-    EXPECT(test::throws([&] {
-        migraphx::parse_onnx("skip_layer_normalization_invalid_beta_test.onnx");
-    }));
+    EXPECT(test::throws(
+        [&] { migraphx::parse_onnx("skip_layer_normalization_invalid_beta_test.onnx"); }));
 }

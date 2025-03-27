@@ -215,7 +215,7 @@ make_skip_layer_norm(const std::vector<int64_t>& input_shape,
     migraphx::program p;
     auto* mm   = p.get_main_module();
     auto x     = mm->add_parameter("x", {dtype, input_shape});
-    auto skip = mm->add_parameter("skip", {dtype, skip_shape});
+    auto skip  = mm->add_parameter("skip", {dtype, skip_shape});
     auto scale = mm->add_parameter("gamma", {dtype, gamma_shape});
 
     migraphx::instruction_ref beta;
@@ -234,27 +234,22 @@ make_skip_layer_norm(const std::vector<int64_t>& input_shape,
     if(bias_shape.size() > 0)
         x = add_common_op(*mm, migraphx::make_op("add"), {x, bias});
 
-    auto float_x = mm->add_instruction(
-        migraphx::make_op("convert", {{"target_type", migraphx::shape::float_type}}), x);
-
-    auto eps  = mm->add_literal(migraphx::literal{migraphx::shape::float_type, {eps_value}});
-    auto mean = mm->add_instruction(migraphx::make_op("reduce_mean", {{"axes", {axes}}}), float_x);
-    auto x_sqdiff_mean = add_common_op(*mm, migraphx::make_op("sqdiff"), {float_x, mean});
-    auto var  = mm->add_instruction(migraphx::make_op("reduce_mean", {{"axes", {axes}}}),
-                                   x_sqdiff_mean);
-    mean = mm->add_instruction(migraphx::make_op("convert", {{"target_type", dtype}}), mean);
+    auto eps  = mm->add_literal(migraphx::literal{migraphx::shape{dtype}, {eps_value}});
+    auto mean = mm->add_instruction(migraphx::make_op("reduce_mean", {{"axes", {axes}}}), x);
+    auto x_sqdiff_mean = add_common_op(*mm, migraphx::make_op("sqdiff"), {x, mean});
+    auto var =
+        mm->add_instruction(migraphx::make_op("reduce_mean", {{"axes", {axes}}}), x_sqdiff_mean);
+    // mean = mm->add_instruction(migraphx::make_op("convert", {{"target_type", dtype}}), mean);
 
     auto var_eps = add_common_op(*mm, migraphx::make_op("add"), {var, eps});
-    auto rsqrt_fp32 = mm->add_instruction(migraphx::make_op("rsqrt"), {var_eps});
-    auto rsqrt      = mm->add_instruction(migraphx::make_op("convert", {{"target_type", dtype}}), rsqrt_fp32);
+    auto rsqrt   = mm->add_instruction(migraphx::make_op("rsqrt"), {var_eps});
 
-
-    auto x_sub_mean    = add_common_op(*mm, migraphx::make_op("sub"), {x, mean});
-    auto result  = add_common_op(*mm, migraphx::make_op("mul"), {x_sub_mean, rsqrt});
-    result = add_common_op(*mm, migraphx::make_op("mul"), {result, scale});
+    auto x_sub_mean = add_common_op(*mm, migraphx::make_op("sub"), {x, mean});
+    auto result     = add_common_op(*mm, migraphx::make_op("mul"), {x_sub_mean, rsqrt});
+    result          = add_common_op(*mm, migraphx::make_op("mul"), {result, scale});
 
     if(beta_shape.size() > 0)
-    {   
+    {
         result = add_common_op(*mm, migraphx::make_op("add"), {result, beta});
     }
 

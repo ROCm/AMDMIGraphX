@@ -25,6 +25,7 @@
 #define MIGRAPHX_GUARD_RTGLIB_DRIVER_VERIFY_OPTIONS_HPP
 
 #include "precision.hpp"
+#include <string>
 
 namespace migraphx {
 namespace driver {
@@ -39,6 +40,8 @@ struct verify_options
      * Converts floating point values to double on the ref target.
      */
     bool ref_use_double = false;
+
+    std::string compiled_model = "";
 };
 
 } // namespace MIGRAPHX_INLINE_NS

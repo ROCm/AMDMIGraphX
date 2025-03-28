@@ -26,6 +26,7 @@
 
 #include <migraphx/register_target.hpp>
 #include <migraphx/generate.hpp>
+#include <migraphx/load_save.hpp>
 #include <migraphx/verify_args.hpp>
 #include <migraphx/instruction.hpp>
 #include <migraphx/compile_options.hpp>
@@ -99,15 +100,22 @@ std::vector<argument> run_target(program p,
                                  const verify_options& vo,
                                  const parameter_map& inputs)
 {
-    if(vo.quantize == precision::fp16)
+    if(vo.compiled_model.empty())
     {
-        quantize_fp16(p);
+        if(vo.quantize == precision::fp16)
+        {
+            quantize_fp16(p);
+        }
+        if(vo.quantize == precision::bf16)
+        {
+            quantize_bf16(p);
+        }
+        p.compile(t, options);
     }
-    if(vo.quantize == precision::bf16)
+    else
     {
-        quantize_bf16(p);
+        p = load(vo.compiled_model);
     }
-    p.compile(t, options);
 
     parameter_map m;
     for(auto&& x : p.get_parameter_shapes())

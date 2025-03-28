@@ -294,6 +294,15 @@ struct MIGRAPHX_EXPORT module
                                         const std::unordered_map<instruction_ref, std::string>&)>&
                    print_func) const;
 
+    std::unordered_map<instruction_ref, std::string> no_module_name_print(
+        const std::function<void(
+            instruction_ref, const std::unordered_map<instruction_ref, std::string>&)>& print_func,
+        std::unordered_map<instruction_ref, std::string> names) const;
+    void no_module_name_print(
+        const std::function<void(instruction_ref,
+                                 const std::unordered_map<instruction_ref, std::string>&)>&
+            print_func) const;
+
     void print_graph(std::ostream& os, bool brief = false) const;
 
     void print_py(std::ostream& os) const;
@@ -325,6 +334,8 @@ struct MIGRAPHX_EXPORT module
     ins_dep_map calc_implicit_deps() const;
 
     void repeat_while_changes(std::size_t n, const std::function<void()>& f);
+
+    bool ins_eq(const module& x);
 
     MIGRAPHX_EXPORT friend std::ostream& operator<<(std::ostream& os, const module& m);
     MIGRAPHX_EXPORT friend bool operator==(const module& x, const module& y);

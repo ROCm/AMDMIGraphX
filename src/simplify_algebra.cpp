@@ -1122,9 +1122,12 @@ struct find_splits
 {
     auto matcher() const
     {
-        // match instruction with outputs of pointwise op with 1 or 2 args or reduction op
+        // match instruction with outputs of pointwise fusion, pointwise op with 1 or 2 args, or
+        // reduction op
         auto pointwise_reduction = match::any_of[match::outputs()](
-            match::pointwise(match::any_of(match::nargs(1), match::nargs(2))), reduction());
+            match::name("pointwise"),
+            match::pointwise(match::any_of(match::nargs(1), match::nargs(2))),
+            reduction());
         // match instruction with slice output to pointwise_reduction
         return match::any(
             match::any_of[match::outputs()](match::name("slice")(pointwise_reduction)));
@@ -1152,6 +1155,22 @@ struct find_splits
         })(ins1);
     }
 
+    static bool ins_eq(const module& x, const module& y)
+    {
+        std::stringstream ss_x;
+        x.no_module_name_print(
+            [&](auto ins, auto ins_names) { instruction::print(ss_x, ins, ins_names); });
+        auto sx = ss_x.str();
+        std::stringstream ss_y;
+        y.no_module_name_print(
+            [&](auto ins, auto ins_names) { instruction::print(ss_y, ins, ins_names); });
+        auto sy = ss_y.str();
+        return sx == sy;
+    }
+
+    /**
+     * Find groups of the same operator after the splits (slice instructions)
+     */
     static std::vector<std::vector<instruction_ref>>
     get_split_groups(const module& m, const std::vector<instruction_ref>& splits)
     {
@@ -1165,7 +1184,18 @@ struct find_splits
             {
                 auto it =
                     std::find_if(split->outputs().begin(), split->outputs().end(), [&](auto i) {
-                        return i->get_operator() == out->get_operator();
+                        if(i->get_operator() == out->get_operator())
+                        {
+                            if(i->name() == "pointwise")
+                            {
+                                if(not ins_eq(*(i->module_inputs().front()),
+                                              *(out->module_inputs().front())))
+                                {
+                                    return false;
+                                }
+                            }
+                            return true;
+                        }
                     });
                 if(it == split->outputs().end())
                     break;
@@ -1189,6 +1219,11 @@ struct find_splits
         return groups;
     }
 
+    /**
+     * If instruction is fusable
+     * start: instruction to check
+     * split_front: slice operator input to start instruction
+     */
     bool is_fusable(instruction_ref start, instruction_ref split_front) const
     {
         auto op = start->get_operator();
@@ -1205,13 +1240,18 @@ struct find_splits
             {
                 return false;
             }
+            return true;
         }
-        else if(not op.attributes().contains("pointwise"))
+        else if(op.name() == "pointwise")
         {
-            return false;
+            return true;
+        }
+        else if(op.attributes().contains("pointwise"))
+        {
+            return true;
         }
 
-        return true;
+        return false;
     }
 
     int get_binary_op_split_idx(std::vector<instruction_ref> group,
@@ -1306,7 +1346,7 @@ struct find_splits
                 continue;
             }
 
-            // Make sure there is no duplicates
+            // Make sure there are no duplicates
             assert(std::none_of(
                 std::next(group.begin()), group.end(), [&](auto i) { return i == start; }));
 
@@ -1314,7 +1354,7 @@ struct find_splits
             instruction_ref c = m.end();
             if(start->inputs().size() == 1)
             {
-                c = m.insert_instruction(std::next(ins), op, ins);
+                c = m.insert_instruction(std::next(ins), op, {ins}, start->module_inputs());
             }
             else if(start->inputs().size() == 2)
             {
@@ -1367,7 +1407,7 @@ struct find_splits
                 args.resize(2);
                 args[split_idx] = ins;
                 args[data_idx]  = concat;
-                c               = m.insert_instruction(std::next(ins), op, args);
+                c = m.insert_instruction(std::next(ins), op, {args}, start->module_inputs());
             }
             if(c != m.end())
             {

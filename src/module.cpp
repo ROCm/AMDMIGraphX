@@ -1183,6 +1183,40 @@ void module::print(const std::function<
     this->print(print_func, {});
 }
 
+std::unordered_map<instruction_ref, std::string> module::no_module_name_print(
+    const std::function<void(instruction_ref,
+                             const std::unordered_map<instruction_ref, std::string>&)>& print_func,
+    std::unordered_map<instruction_ref, std::string> names) const
+{
+    int count = 0;
+    for(auto ins : iterator_for(*this))
+    {
+        std::string var_name;
+        if(ins->name() == "@param")
+        {
+            var_name.append(any_cast<builtin::param>(ins->get_operator()).parameter);
+        }
+        else
+        {
+            var_name.append("@" + std::to_string(count));
+        }
+        // count every instruction so index matches loc in the printout program
+        count++;
+        names.emplace(ins, var_name);
+
+        print_func(ins, names);
+    }
+    return names;
+}
+
+void module::no_module_name_print(
+    const std::function<void(instruction_ref,
+                             const std::unordered_map<instruction_ref, std::string>&)>& print_func)
+    const
+{
+    this->no_module_name_print(print_func, {});
+}
+
 static std::string enclose_name(const std::string& name)
 {
     return '"' + replace_string(name, "\"", "\\\"") + '"';

@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2024 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2025 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -593,6 +593,19 @@ TEST_CASE(convolution_backwards_2dilation)
                  weights);
 }
 
+TEST_CASE(convolution_backwards_2group)
+{
+    migraphx::shape input{migraphx::shape::float_type, {4, 4, 4, 4}};
+    migraphx::shape weights{migraphx::shape::float_type, {4, 2, 4, 4}};
+    migraphx::shape output{migraphx::shape::float_type, {4, 4, 7, 7}};
+    expect_shape(output,
+                 migraphx::make_op(
+                     "convolution_backwards",
+                     {{"padding", {0, 0}}, {"stride", {1, 1}}, {"dilation", {1, 1}}, {"group", 2}}),
+                 input,
+                 weights);
+}
+
 TEST_CASE(convolution_backwards_3d)
 {
     migraphx::shape input_3d{migraphx::shape::float_type, {4, 4, 1, 1, 1}};
@@ -619,6 +632,15 @@ TEST_CASE(convolution_backwards_dyn_batch_2d)
     migraphx::shape weights{migraphx::shape::float_type, {4, 3, 3, 3}};
     migraphx::shape output{migraphx::shape::float_type, {{1, 4}, {3, 3}, {3, 3}, {3, 3}}};
     expect_shape(output, migraphx::make_op("convolution_backwards"), input, weights);
+}
+
+TEST_CASE(convolution_backwards_dyn_batch_2dgroup)
+{
+    migraphx::shape input{migraphx::shape::float_type, {{1, 4}, {4, 4}, {4, 4}, {4, 4}}};
+    migraphx::shape weights{migraphx::shape::float_type, {4, 2, 4, 4}};
+    migraphx::shape output{migraphx::shape::float_type, {{1, 4}, {4, 4}, {7, 7}, {7, 7}}};
+    expect_shape(
+        output, migraphx::make_op("convolution_backwards", {{"group", 2}}), input, weights);
 }
 
 TEST_CASE(convolution_backwards_dyn_img_2d)
@@ -5229,6 +5251,15 @@ TEST_CASE(test_dyn_concat)
     // static and dynamic shapes together
     migraphx::shape sstat{migraphx::shape::float_type, {3, 4, 1, 6}};
     throws_shape(migraphx::make_op("concat", {{"axis", 2}}), sx, sstat);
+}
+
+TEST_CASE(test_binary_nonpacked)
+{
+    auto sx   = migraphx::shape(migraphx::shape::float_type, {4, 3}, {1, 8});
+    auto sy   = migraphx::shape(migraphx::shape::float_type, {4, 3}, {1, 16});
+    auto sout = migraphx::shape::from_permutation(migraphx::shape::float_type, {4, 3}, {1, 0});
+
+    expect_shape(sout, migraphx::make_op("mul"), sx, sy);
 }
 
 int main(int argc, const char* argv[]) { test::run(argc, argv); }

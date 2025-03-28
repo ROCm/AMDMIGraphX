@@ -166,6 +166,14 @@ std::vector<pass> target::get_passes(migraphx::context& gctx, const compile_opti
     unsupported_fp8ocp_ops.insert("argmax");
     unsupported_fp8ocp_ops.insert("argmin");
 
+    // disable fp8 dot operations on gfx950
+    // hipblaslt does not support fp8 gemm with fp8 output yet
+    const auto device_name = trim(split_string(gpu::get_device_name(), ':').front());
+    if(starts_with(device_name, "gfx950"))
+    {
+        unsupported_fp8ocp_ops.insert("dot");
+    }
+
     // clang-format off
     return
     {

@@ -1196,6 +1196,7 @@ struct find_splits
                             }
                             return true;
                         }
+                        return false;
                     });
                 if(it == split->outputs().end())
                     break;

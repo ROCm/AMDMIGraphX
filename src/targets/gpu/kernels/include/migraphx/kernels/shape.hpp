@@ -82,7 +82,7 @@ struct shape : equality_comparable<shape<Lens, Strides>>
     {
         if(this->standard())
         {
-            MIGRAPHX_ASSERT(i == compute_index(i));
+            MIGRAPHX_ASSERT(i > elements() or i == compute_index(i));
             return i;
         }
         else

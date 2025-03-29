@@ -156,6 +156,8 @@ struct miopen_apply
             // output with copy output
             for(const auto& in : inputs)
             {
+                if(in->get_shape().elements() == 0)
+                    continue;
                 auto p_output = mod->insert_instruction(ret, make_op("hip::copy_from_gpu"), in);
                 instruction::replace_argument(ret, in, p_output);
             }

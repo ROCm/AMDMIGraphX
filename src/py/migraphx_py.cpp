@@ -424,7 +424,8 @@ MIGRAPHX_PYBIND11_MODULE(migraphx, m)
         .def("inputs", [](migraphx::instruction_ref i) { return i->inputs(); })
         .def("outputs", [](migraphx::instruction_ref i) { return i->outputs(); })
         .def("name", [](migraphx::instruction_ref i) { return i->name(); })
-        .def("get_literal", [](migraphx::instruction_ref i) { return i->get_literal().get_argument(); })
+        .def("get_literal",
+             [](migraphx::instruction_ref i) { return i->get_literal().get_argument(); })
         .def(py::hash(py::self))
         .def(py::self == py::self)
         .def(py::self != py::self);

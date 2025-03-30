@@ -353,94 +353,96 @@ struct find_group_query_attention
             gpu_concat_past_present_v{
                 do_rotary, kv_num_heads, local_window_size, num_heads, rotary_interleaved, scale},
             concat_v_inputs);
-        auto tsl = inputs.at(6);
-        std::vector<instruction_ref> new_inputs{rotary_qkv, pres_k, pres_v, tsl};
+        auto one_lit = mpm.get_module().insert_literal(ins, literal{shape{inputs.at(5)->get_shape().type(), {1}}, {1}});
+        one_lit = mpm.get_module().insert_instruction(ins, make_op("multibroadcast", {{"out_lens", inputs.at(5)->get_shape().lens()}}), one_lit);
+        auto total_sl = mpm.get_module().insert_instruction(ins, make_op("add"), inputs.at(5), one_lit);
+        std::vector<instruction_ref> new_inputs{rotary_qkv, pres_k, pres_v, total_sl};
         auto get_tuple_elm_0 = std::next(ins);
         auto get_tuple_elm_1 = std::next(get_tuple_elm_0);
         auto get_tuple_elm_2 = std::next(get_tuple_elm_1);
 
         mpm.get_module().replace_instruction(get_tuple_elm_2, pres_v);
         mpm.get_module().replace_instruction(get_tuple_elm_1, pres_k);
-        // mpm.get_module().replace_instruction(
-        //     get_tuple_elm_0,
-        //     gpu_kv_cache_attention{
-        //         do_rotary, kv_num_heads, local_window_size, num_heads, rotary_interleaved, scale},
-        //     new_inputs);
-        {
-            auto attn = ins;
+        mpm.get_module().replace_instruction(
+            get_tuple_elm_0,
+            gpu_kv_cache_attention{
+                do_rotary, kv_num_heads, local_window_size, num_heads, rotary_interleaved, scale},
+            new_inputs);
+        // {
+        //     auto attn = ins;
 
-            float scale_val   = scale;
-            // std::size_t num_heads = attn->get_operator().to_value().get("num_heads", 32);
-            auto qkv = rotary_qkv;//attn->inputs().at(0);
-            auto k   = pres_k;//attn->inputs().at(1);
-            auto vt   = pres_v;//attn->inputs().at(2);
-            auto csl = tsl;//attn->inputs().at(3);
-            // auto batch_size = k->get_shape().lens()[0];
-            auto seq_len = sequence_length;//->get_shape().lens()[2];
-            // auto head_size = qkv->get_shape().lens()[3];
-            auto max_seq_len = k->get_shape().lens()[2];
-            csl = mpm.get_module().insert_instruction(attn, make_op("multibroadcast", {{"out_lens", {batch_size, num_heads}}}), csl);
-            // csl = mpm.get_module().insert_instruction(attn, make_op("convert", {{"target_type", shape::int64_type}}), csl);
+        //     float scale_val   = scale;
+        //     // std::size_t num_heads = attn->get_operator().to_value().get("num_heads", 32);
+        //     auto qkv = rotary_qkv;//attn->inputs().at(0);
+        //     auto k   = pres_k;//attn->inputs().at(1);
+        //     auto vt   = pres_v;//attn->inputs().at(2);
+        //     auto csl = tsl;//attn->inputs().at(3);
+        //     // auto batch_size = k->get_shape().lens()[0];
+        //     auto seq_len = sequence_length;//->get_shape().lens()[2];
+        //     // auto head_size = qkv->get_shape().lens()[3];
+        //     auto max_seq_len = k->get_shape().lens()[2];
+        //     csl = mpm.get_module().insert_instruction(attn, make_op("multibroadcast", {{"out_lens", {batch_size, num_heads}}}), csl);
+        //     // csl = mpm.get_module().insert_instruction(attn, make_op("convert", {{"target_type", shape::int64_type}}), csl);
 
-            // module m_attn;
-            // std::vector<instruction_ref> inputs = {qkv, k, v, csl};
-            // // if(seq_len == 1)
-            // // {
-            // //     inputs.push_back(csl);
-            // // }
-            // std::unordered_map<instruction_ref, instruction_ref> map_main_to_mattn;
-            // m_attn.add_params(inputs, &map_main_to_mattn);
+        //     // module m_attn;
+        //     // std::vector<instruction_ref> inputs = {qkv, k, v, csl};
+        //     // // if(seq_len == 1)
+        //     // // {
+        //     // //     inputs.push_back(csl);
+        //     // // }
+        //     // std::unordered_map<instruction_ref, instruction_ref> map_main_to_mattn;
+        //     // m_attn.add_params(inputs, &map_main_to_mattn);
 
-            auto slice = mpm.get_module().insert_instruction(attn, make_op("slice", {{"axes", {1}}, {"starts", {0}}, {"ends", {num_heads}}}), qkv);
-            auto transpose = mpm.get_module().insert_instruction(attn, make_op("transpose", {{"permutation", {0, 1, 3, 2}}}), k);
-            auto gemm1 = mpm.get_module().insert_instruction(attn, make_op("dot"), slice, transpose);
+        //     auto slice = mpm.get_module().insert_instruction(attn, make_op("slice", {{"axes", {1}}, {"starts", {0}}, {"ends", {num_heads}}}), qkv);
+        //     auto transpose = mpm.get_module().insert_instruction(attn, make_op("transpose", {{"permutation", {0, 1, 3, 2}}}), k);
+        //     auto gemm1 = mpm.get_module().insert_instruction(attn, make_op("dot"), slice, transpose);
 
-            std::vector<int> range_vec(max_seq_len);
-            std::iota(range_vec.begin(), range_vec.end(), 0);
-            shape range_s{csl->get_shape().type(), {max_seq_len}};
-            auto range = mpm.get_module().add_literal(range_s, range_vec);
-            std::vector<std::size_t> bnsm{batch_size, num_heads, seq_len, max_seq_len};
-            auto bc_range = mpm.get_module().insert_instruction(attn, make_op("multibroadcast", {{"out_lens", bnsm}}), range);
+        //     std::vector<int> range_vec(max_seq_len);
+        //     std::iota(range_vec.begin(), range_vec.end(), 0);
+        //     shape range_s{csl->get_shape().type(), {max_seq_len}};
+        //     auto range = mpm.get_module().add_literal(range_s, range_vec);
+        //     std::vector<std::size_t> bnsm{batch_size, num_heads, seq_len, max_seq_len};
+        //     auto bc_range = mpm.get_module().insert_instruction(attn, make_op("multibroadcast", {{"out_lens", bnsm}}), range);
             
-            auto scalar_s = shape{qkv->get_shape().type(), {1}};
-            auto ninf = mpm.get_module().add_literal(literal{scalar_s, {-std::numeric_limits<float>::infinity()}});
-            ninf =  mpm.get_module().insert_instruction(attn, make_op("multibroadcast", {{"out_lens", bnsm}}), ninf);
+        //     auto scalar_s = shape{qkv->get_shape().type(), {1}};
+        //     auto ninf = mpm.get_module().add_literal(literal{scalar_s, {-std::numeric_limits<float>::infinity()}});
+        //     ninf =  mpm.get_module().insert_instruction(attn, make_op("multibroadcast", {{"out_lens", bnsm}}), ninf);
 
-            if(float_equal(scale_val, 0.0))
-            {
-                scale_val = 1.0f / std::sqrt(static_cast<float>(head_size));
-            }
-            auto scale_ins = mpm.get_module().add_literal(literal{scalar_s, {scale_val}});
-            scale_ins = mpm.get_module().insert_instruction(attn, make_op("multibroadcast", {{"out_lens", bnsm}}), scale_ins);
+        //     if(float_equal(scale_val, 0.0))
+        //     {
+        //         scale_val = 1.0f / std::sqrt(static_cast<float>(head_size));
+        //     }
+        //     auto scale_ins = mpm.get_module().add_literal(literal{scalar_s, {scale_val}});
+        //     scale_ins = mpm.get_module().insert_instruction(attn, make_op("multibroadcast", {{"out_lens", bnsm}}), scale_ins);
 
-            if(seq_len > 1)
-            {
-                std::vector<int> seq_range_vec(seq_len);
-                std::iota(seq_range_vec.begin(), seq_range_vec.end(), 1);
-                shape seq_range_s{csl->get_shape().type(), {seq_len}};
-                auto seq_range = mpm.get_module().add_literal(seq_range_s, seq_range_vec);
-                seq_range = mpm.get_module().insert_instruction(attn, make_op("reshape", {{"dims", {seq_len, 1}}}), seq_range);
-                seq_range = mpm.get_module().insert_instruction(attn, make_op("multibroadcast", {{"out_lens", bnsm}}), seq_range);
-                auto causal_mask = mpm.get_module().insert_instruction(attn, make_op("greater_or_equal"),  bc_range, seq_range);
-                causal_mask = mpm.get_module().insert_instruction(attn, make_op("convert", {{"target_type", shape::bool_type}}), causal_mask);
-                gemm1 = mpm.get_module().insert_instruction(attn, make_op("where"), causal_mask, ninf, gemm1);
-            }
+        //     if(seq_len > 1)
+        //     {
+        //         std::vector<int> seq_range_vec(seq_len);
+        //         std::iota(seq_range_vec.begin(), seq_range_vec.end(), 1);
+        //         shape seq_range_s{csl->get_shape().type(), {seq_len}};
+        //         auto seq_range = mpm.get_module().add_literal(seq_range_s, seq_range_vec);
+        //         seq_range = mpm.get_module().insert_instruction(attn, make_op("reshape", {{"dims", {seq_len, 1}}}), seq_range);
+        //         seq_range = mpm.get_module().insert_instruction(attn, make_op("multibroadcast", {{"out_lens", bnsm}}), seq_range);
+        //         auto causal_mask = mpm.get_module().insert_instruction(attn, make_op("greater_or_equal"),  bc_range, seq_range);
+        //         causal_mask = mpm.get_module().insert_instruction(attn, make_op("convert", {{"target_type", shape::bool_type}}), causal_mask);
+        //         gemm1 = mpm.get_module().insert_instruction(attn, make_op("where"), causal_mask, ninf, gemm1);
+        //     }
             
-            auto bc_csl = mpm.get_module().insert_instruction(attn, make_op("reshape", {{"dims", {batch_size, num_heads, 1, 1}}}), csl);
-            auto mask_comp = mpm.get_module().insert_instruction(attn, make_op("multibroadcast", {{"out_lens", bnsm}}), bc_csl);
-            auto mask = mpm.get_module().insert_instruction(attn, make_op("greater_or_equal"),  bc_range, mask_comp);
-            mask = mpm.get_module().insert_instruction(attn, make_op("convert", {{"target_type", shape::bool_type}}), mask);
-            auto mul = mpm.get_module().insert_instruction(attn, make_op("mul"), gemm1, scale_ins);
-            auto where = mpm.get_module().insert_instruction(attn, make_op("where"), mask, ninf, mul);
-            auto softmax = mpm.get_module().insert_instruction(attn, make_op("softmax", {{"axis", 3}}), where);
-            auto scores = mpm.get_module().insert_instruction(attn, make_op("dot"), softmax, vt);
-            auto out = mpm.get_module().insert_instruction(attn, make_op("transpose", {{"permutation", {0, 2, 1, 3}}}), scores);
-            out = mpm.get_module().insert_instruction(attn, make_op("reshape", {{"dims", {batch_size, seq_len, num_heads * head_size}}}), out);
+        //     auto bc_csl = mpm.get_module().insert_instruction(attn, make_op("reshape", {{"dims", {batch_size, num_heads, 1, 1}}}), csl);
+        //     auto mask_comp = mpm.get_module().insert_instruction(attn, make_op("multibroadcast", {{"out_lens", bnsm}}), bc_csl);
+        //     auto mask = mpm.get_module().insert_instruction(attn, make_op("greater_or_equal"),  bc_range, mask_comp);
+        //     mask = mpm.get_module().insert_instruction(attn, make_op("convert", {{"target_type", shape::bool_type}}), mask);
+        //     auto mul = mpm.get_module().insert_instruction(attn, make_op("mul"), gemm1, scale_ins);
+        //     auto where = mpm.get_module().insert_instruction(attn, make_op("where"), mask, ninf, mul);
+        //     auto softmax = mpm.get_module().insert_instruction(attn, make_op("softmax", {{"axis", 3}}), where);
+        //     auto scores = mpm.get_module().insert_instruction(attn, make_op("dot"), softmax, vt);
+        //     auto out = mpm.get_module().insert_instruction(attn, make_op("transpose", {{"permutation", {0, 2, 1, 3}}}), scores);
+        //     out = mpm.get_module().insert_instruction(attn, make_op("reshape", {{"dims", {batch_size, seq_len, num_heads * head_size}}}), out);
             
-            mpm.get_module().replace_instruction(
-                get_tuple_elm_0, out);
+        //     mpm.get_module().replace_instruction(
+        //         get_tuple_elm_0, out);
 
-        }
+        // }
     }
 };
 

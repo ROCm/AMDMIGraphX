@@ -106,12 +106,11 @@ struct mlir_compiler : compiler<mlir_compiler>
 
     void set_fill_map(compiler_replace& cr, const module& m) const
     {
-        std::size_t fill_val = 1;
         for(auto ins : iterator_for(m))
         {
             if(ins->name() == "greater_or_equal")
             {
-                fill_val = ins->get_shape().lens().back() - 1;
+                auto fill_val = ins->get_shape().lens().back() - 1;
                 for(auto inp : ins->inputs())
                 {
                     auto [is_param, param] = input_is_param(inp);

@@ -114,15 +114,15 @@ update_cache(const Present present, SeqLensK seqlens_k, Cache cache, Params para
     }
 }
 
-template <class PastKey, class Query, class SeqLensK, class Params>
+template <class Past, class Present, class SeqLensK, class Params>
 __device__ void concat_past_present(
-    PastKey past_key, const Query query, SeqLensK seqlens_k, Params params)
+    Past past, const Present present, SeqLensK seqlens_k, Params params)
 {
     auto ind = make_index();
     auto elements =
         params.batch_size * params.kv_num_heads * params.sequence_length * params.head_size;
     ind.global_stride(elements, [&](auto idx) {
-        update_cache(query.begin(), seqlens_k, past_key.begin(), params, idx);
+        update_cache(present.begin(), seqlens_k, past.begin(), params, idx);
     });
 }
 

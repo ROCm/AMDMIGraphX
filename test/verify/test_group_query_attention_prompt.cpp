@@ -49,6 +49,14 @@ struct test_group_query_attention_prompt : verify_program<test_group_query_atten
         std::vector<int> tsl_vec(tsl_s.elements(), 11);
         std::vector<float> cs_min_vec(cs_cache_s.elements(), -1.0);
         std::vector<float> cs_max_vec(cs_cache_s.elements(), 1.0);
+        std::vector<float> q_min_vec(query_s.elements(), -8.3);
+        std::vector<float> q_max_vec(query_s.elements(), 11.5);
+        std::vector<float> q_scale_vec(query_s.elements(), 15);
+        auto q_min     = mm->add_literal(query_s, q_min_vec);
+        auto q_max     = mm->add_literal(query_s, q_max_vec);
+        auto q_scale   = mm->add_literal(query_s, q_scale_vec);
+        query          = mm->add_instruction(migraphx::make_op("mul"), query, q_scale);
+        query          = mm->add_instruction(migraphx::make_op("clip"), query, q_min, q_max);
         auto k_cache   = mm->add_parameter("k_cache", kv_s);
         auto v_cache   = mm->add_parameter("v_cache", kv_s);
         auto slk       = mm->add_literal(slk_s, slk_vec);

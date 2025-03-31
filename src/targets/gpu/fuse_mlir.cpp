@@ -281,7 +281,6 @@ fuse_input_ops_and_gemm_based_op(module_ref mm,
     return {new_gemm_based_op, top_inputs};
 }
 
-
 enum class mlir_mode
 {
     all,
@@ -931,14 +930,9 @@ struct find_mlir_gqa_attention_op
         auto head_size = qkv->get_shape().lens()[3];
         auto max_seq_len = k->get_shape().lens()[2];
         csl = mpm.get_module().insert_instruction(attn, make_op("multibroadcast", {{"out_lens", {batch_size, num_heads}}}), csl);
-        // csl = mpm.get_module().insert_instruction(attn, make_op("convert", {{"target_type", shape::int64_type}}), csl);
 
         module m_attn;
         std::vector<instruction_ref> inputs = {qkv, k, v, csl};
-        // if(seq_len == 1)
-        // {
-        //     inputs.push_back(csl);
-        // }
         std::unordered_map<instruction_ref, instruction_ref> map_main_to_mattn;
         m_attn.add_params(inputs, &map_main_to_mattn);
 
@@ -964,14 +958,6 @@ struct find_mlir_gqa_attention_op
         auto scale = m_attn.add_literal(literal{scalar_s, {scale_val}});
         scale = m_attn.add_instruction(make_op("multibroadcast", {{"out_lens", bnsm}}), scale);
 
-        // instruction_ref mask_comp;
-        // if(seq_len == 1)
-        // {
-            
-        //     auto bc_csl = m_attn.add_instruction(make_op("reshape", {{"dims", {batch_size, num_heads, 1, 1}}}), map_main_to_mattn.at(csl));
-        //     mask_comp = m_attn.add_instruction(make_op("multibroadcast", {{"out_lens", bnsm}}), bc_csl);
-        // }
-        // else
         if(seq_len > 1)
         {
             std::vector<int> seq_range_vec(seq_len);
@@ -1002,11 +988,8 @@ struct find_mlir_gqa_attention_op
             "mlir_attn", std::move(m_attn));
         mpm_attn->set_bypass();
         
-
         mpm.get_module().replace_instruction(
             attn, mlir_op{attn->get_operator()}, mlir_contiguous(mpm, inputs), {mpm_attn});
-
-        return;
     }
 };
 
@@ -1177,8 +1160,7 @@ void fuse_mlir::apply(module_pass_manager& mpm) const
         match::find_matches(mpm, find_mlir_attention_fused_ops{mlir_mode::all});
         mpm.run_pass(dead_code_elimination{});
         match::find_matches(mpm, find_mlir_standalone_attention_op{mlir_mode::all});
-        mpm.run_pass(dead_code_elimination{});
-        
+        mpm.run_pass(dead_code_elimination{});   
     }
 
     match::find_matches(mpm, find_mlir_gqa_attention_op{mlir_mode::all});

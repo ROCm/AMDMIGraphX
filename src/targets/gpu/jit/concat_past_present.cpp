@@ -63,7 +63,6 @@ extern "C" {
 MIGRAPHX_GLOBAL void ${kernel}(${params})
 {
     transform_args(make_tensors(), rotate_last())(${args})([](auto... xs) {
-        
         concat_past_present(xs..., make_gqa_parameters(${gqa_params}));
     });
 }
@@ -79,7 +78,7 @@ struct concat_past_present_compiler : compiler<concat_past_present_compiler>
 {
     std::vector<std::string> names() const
     {
-        return {"concat_past_present", "gpu::concat_past_present", "gpu::concat_past_present_k", "gpu::concat_past_present_v"};
+        return {"concat_past_present", "gpu::concat_past_present_k", "gpu::concat_past_present_v"};
     }
 
     operation compile_op(context& ctx, const std::vector<shape>& inputs, const value& v) const
@@ -96,7 +95,6 @@ struct concat_past_present_compiler : compiler<concat_past_present_compiler>
         options.inputs      = inputs;
         options.output      = inputs.back();
         options.kernel_name = v.get("kernel", "concat_past_present_kernel");
-        // options.output_arg  = 0;
 
         auto src = interpolate_string(concat_past_present_kernel,
                                       {{"params", enum_params(inputs.size(), "void * private_p")},

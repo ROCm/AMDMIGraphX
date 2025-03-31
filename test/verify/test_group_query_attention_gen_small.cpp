@@ -73,12 +73,12 @@ struct test_group_query_attention_gen_small : verify_program<test_group_query_at
         cos_cache      = mm->add_instruction(migraphx::make_op("clip"), cos_cache, cs_min, cs_max);
         sin_cache      = mm->add_instruction(migraphx::make_op("clip"), sin_cache, cs_min, cs_max);
         auto r         = mm->add_instruction(migraphx::make_op("group_query_attention",
-                                                       {{"do_rotary", 0},
-                                                        {"kv_num_heads", 2},
-                                                        {"local_window_size", -1},
-                                                        {"num_heads", 2},
-                                                        {"rotary_interleaved", 0},
-                                                        {"scale", 1.0}}),
+                                                               {{"do_rotary", 0},
+                                                                {"kv_num_heads", 2},
+                                                                {"local_window_size", -1},
+                                                                {"num_heads", 2},
+                                                                {"rotary_interleaved", 0},
+                                                                {"scale", 1.0}}),
                                      query,
                                      key,
                                      value,

@@ -87,8 +87,10 @@ template struct test_topk<migraphx::shape::half_type, 300, 24000>;
 template struct test_topk<migraphx::shape::half_type, 1000, 1875>;
 template struct test_topk<migraphx::shape::half_type, 1000, 30000>;
 template struct test_topk<migraphx::shape::half_type, 1000, 120000>;
+template struct test_topk<migraphx::shape::half_type, 1031, 1033>;
 
 template struct test_topk<migraphx::shape::float_type, 30, 2400>;
 template struct test_topk<migraphx::shape::float_type, 100, 80000>;
 template struct test_topk<migraphx::shape::float_type, 1000, 1875>;
 template struct test_topk<migraphx::shape::float_type, 1000, 120000>;
+template struct test_topk<migraphx::shape::float_type, 1029, 80000>;

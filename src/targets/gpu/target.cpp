@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2024 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2025 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -31,6 +31,7 @@
 #include <migraphx/eliminate_data_type.hpp>
 #include <migraphx/eliminate_identity.hpp>
 #include <migraphx/eliminate_pad.hpp>
+#include <migraphx/fp8_ocp_to_fnuz.hpp>
 #include <migraphx/fuse_concat.hpp>
 #include <migraphx/fuse_pointwise_reduce.hpp>
 #include <migraphx/inline_module.hpp>
@@ -43,6 +44,7 @@
 #include <migraphx/promote_literals.hpp>
 #include <migraphx/register_target.hpp>
 #include <migraphx/replace_allocate.hpp>
+#include <migraphx/rewrite_dot.hpp>
 #include <migraphx/rewrite_gelu.hpp>
 #include <migraphx/rewrite_low_precision.hpp>
 #include <migraphx/rewrite_pooling.hpp>
@@ -78,10 +80,11 @@ namespace gpu {
 
 MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_DISABLE_SCHEDULE_PASS)
 MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_ENABLE_NHWC)
+MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_ENABLE_REWRITE_DOT)
 #ifndef _WIN32
 MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_ENABLE_CK)
 #endif
-MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_ENABLE_HIPBLASLT_GEMM)
+MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_SET_GEMM_PROVIDER)
 
 std::vector<pass> target::get_passes(migraphx::context& gctx, const compile_options& options) const
 {
@@ -106,7 +109,7 @@ std::vector<pass> target::get_passes(migraphx::context& gctx, const compile_opti
     // different between fp8e4m3fnuz and OCP types because rocBLAS only has
     // support for fp8e4m3fnuz
     std::set<std::string> unsupported_fp8e4m3fnuz_ops = {};
-    if(not enabled(MIGRAPHX_ENABLE_HIPBLASLT_GEMM{}) and not gpu::rocblas_fp8_available())
+    if(not gpu::gfx_has_fp8fnuz_support())
     {
         unsupported_fp8e4m3fnuz_ops.insert("dot");
         unsupported_fp8e4m3fnuz_ops.insert("quant_dot");
@@ -133,19 +136,14 @@ std::vector<pass> target::get_passes(migraphx::context& gctx, const compile_opti
 
     std::set<std::string> unsupported_fp8e5m2fnuz_ops = unsupported_fp8e4m3fnuz_ops;
     // disable gemm for fp8e5m2fnuz if rocBLAS is being used
-    if(not enabled(MIGRAPHX_ENABLE_HIPBLASLT_GEMM{}))
+    if(string_value_of(MIGRAPHX_SET_GEMM_PROVIDER{}) == "rocblas")
     {
         unsupported_fp8e5m2fnuz_ops.insert("dot");
         unsupported_fp8e5m2fnuz_ops.insert("quant_dot");
     }
 
     std::set<std::string> unsupported_fp8ocp_ops = {};
-    // TODO: remove this when the flag is removed
-    if(not enabled(MIGRAPHX_ENABLE_HIPBLASLT_GEMM{}))
-    {
-        unsupported_fp8ocp_ops.insert("dot");
-        unsupported_fp8ocp_ops.insert("quant_dot");
-    }
+
 #if MIGRAPHX_USE_MIOPEN
     // MIOpen doesn't have support for fp8 pooling yet.
     unsupported_fp8ocp_ops.insert("pooling");
@@ -168,6 +166,14 @@ std::vector<pass> target::get_passes(migraphx::context& gctx, const compile_opti
     unsupported_fp8ocp_ops.insert("argmax");
     unsupported_fp8ocp_ops.insert("argmin");
 
+    // disable fp8 dot operations on gfx950
+    // hipblaslt does not support fp8 gemm with fp8 output yet
+    const auto device_name = trim(split_string(gpu::get_device_name(), ':').front());
+    if(starts_with(device_name, "gfx950"))
+    {
+        unsupported_fp8ocp_ops.insert("dot");
+    }
+
     // clang-format off
     return
     {
@@ -179,6 +185,8 @@ std::vector<pass> target::get_passes(migraphx::context& gctx, const compile_opti
         dead_code_elimination{},
         eliminate_identity{},
         dead_code_elimination{},
+        enable_pass(not gpu::gfx_has_fp8ocp_intrinsics() and gpu::gfx_has_fp8fnuz_intrinsics(), fp8_ocp_to_fnuz{}),
+        enable_pass(not gpu::gfx_has_fp8ocp_intrinsics() and gpu::gfx_has_fp8fnuz_intrinsics(), dead_code_elimination{}),
         simplify_qdq{},
         enable_pass(not mlir_enabled(), rewrite_quantization{}),
         dead_code_elimination{},
@@ -208,6 +216,7 @@ std::vector<pass> target::get_passes(migraphx::context& gctx, const compile_opti
         dead_code_elimination{},
         rewrite_reduce{},
         rewrite_low_precision{},
+        enable_pass(enabled(MIGRAPHX_ENABLE_REWRITE_DOT{}), rewrite_dot{}),
         dead_code_elimination{},
         optimize_module{},
         fuse_pointwise_reduce{},

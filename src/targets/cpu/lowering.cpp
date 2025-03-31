@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2024 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2025 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -132,9 +132,10 @@ struct cpu_im2col
                          kernel_w)([&](std::size_t c, std::size_t koffset, std::size_t loffset) {
                         auto idx    = iinput + long(koffset) - kdiv2_h;
                         auto jdx    = jinput + long(loffset) - kdiv2_w;
-                        col(ldx, p) = ((idx >= 0) && (idx < height) && (jdx >= 0) && (jdx < width))
-                                          ? input(0, c, idx, jdx)
-                                          : 0;
+                        col(ldx, p) =
+                            ((idx >= 0) and (idx < height) and (jdx >= 0) and (jdx < width))
+                                ? input(0, c, idx, jdx)
+                                : 0;
                         p++;
                     });
                 }
@@ -344,7 +345,6 @@ struct cpu_apply
         extend_op("contiguous", "dnnl::reorder");
         extend_op("convolution", "dnnl::convolution");
 #ifndef MIGRAPHX_ENABLE_ZENDNN
-        extend_op("convolution_backwards", "dnnl::convolution_backwards");
         extend_op("dot", "dnnl::dot");
 #endif
         extend_op("erf", "cpu::erf");
@@ -397,6 +397,12 @@ struct cpu_apply
             {
                 apply_pooling(it);
             }
+#ifndef MIGRAPHX_ENABLE_ZENDNN
+            else if(it->name() == "convolution_backwards")
+            {
+                apply_convolution_backwards(it);
+            }
+#endif
             else if(it->name() == "reshape")
             {
                 apply_reshape(it);
@@ -461,6 +467,21 @@ struct cpu_apply
         auto after_alloc = insert_allocation(new_lazy_reshape, new_lazy_reshape->get_shape());
         after_contiguous_args.push_back(after_alloc);
         return modl->replace_instruction(ins, make_op("dnnl::reorder"), after_contiguous_args);
+    }
+
+    /**
+     * Lower to dnnl:convolution_backwards if supported.
+     * OneDNN doesn't support group convolution transpose.
+     */
+    instruction_ref apply_convolution_backwards(instruction_ref ins) const
+    {
+        auto&& op = ins->get_operator();
+        auto v    = op.to_value();
+        if(has_op("dnnl::convolution_backwards") and v["group"].to<int>() == 1)
+        {
+            return replace(ins, make_op("dnnl::convolution_backwards", op.to_value()));
+        }
+        return ins;
     }
 
     template <class T>

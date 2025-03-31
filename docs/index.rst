@@ -35,9 +35,13 @@ The MIGraphX public repository is located at `https://github.com/ROCm/AMDMIGraph
     * :ref:`migraphx-driver`
     * :doc:`Supported ONNX Operators <./dev/onnx_operators>`
    
-  .. grid-item-card:: Contributing to the MIGraphX code base
+  .. grid-item-card:: How to
 
-    * :doc:`Developing for MIGraphX <./dev/contributing-to-migraphx>` 
+    * :doc:`Develop for the MIGraphX code base <./dev/contributing-to-migraphx>` 
+
+  .. grid-item-card:: Examples  
+
+    * :doc:`MIGraphX examples <./tutorials/MIGraphX-examples>` 
 
 To contribute to the documentation refer to
 `Contributing to ROCm <https://rocm.docs.amd.com/en/latest/contribute/contributing.html>`_.

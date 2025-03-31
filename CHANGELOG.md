@@ -3,6 +3,66 @@
 Full documentation for MIGraphX is available at
 [https://rocmdocs.amd.com/projects/AMDMIGraphX/en/latest/](https://rocmdocs.amd.com/projects/AMDMIGraphX/en/latest/).
 
+## MIGraphX 2.12 for ROCm 6.4.0
+
+### Added
+
+* Support for gfx1200 and gfx1201
+* hipBLASLt support for contiguous transpose GEMM fusion and GEMM pointwise fusions for improved performance
+* Support for hardware specific FP8 datatypes (FP8 OCP and FP8 FNUZ)
+* Add support for the BF16 datatype
+* ONNX Operator Support for `com.microsoft.MultiHeadAttention`, `com.microsoft.NhwcConv`, and `com.microsoft.MatMulIntgerFloat`
+* migraphx-driver can now produce outfor for use with Netron
+* migraphx-driver now includes a `time` parameter (similar to `perf`) that is more accurate for very fast kernels
+* An end-to-end Stable Diffusion 3 example with option to disable T5 encoder on VRAM-limited GPUs has been added
+* Added support to track broadcast axes in `shape_transform_descriptor`
+* Added support for unsigned types with `rocMLIR`
+* Added a script to convert mxr files to ONNX models
+* Added the `MIGRAPHX_SET_GEMM_PROVIDER` environment variable to choose between rocBLAS and hipBLASLt. Set `MIGRAPHX_SET_GEMM_PROVIDER` to `rocblas` to use rocBLAS, or to `hipblaslt` to use hipBLASLt.
+
+
+### Changed
+
+* With the exception of gfx90a, switched to using hipBLASLt instead of rocBLAS
+* Included the min/max/median of the `perf` run as part of the summary report
+* Enable non-packed inputs for `rocMLIR`
+* Always output a packed type for q/dq after determining non-packed tensors were inefficient
+* Even if using NHWC, MIGraphX will always convert group convolutions to NCHW for best performance 
+* Renamed the `layout_nhwc` to `layout_convolution` and ensured that either the weights are the same layout as the inputs or set the input and weights to NHWC
+* Minimum version of Cmake is now 3.27
+
+
+### Removed
+
+* Removed `fp8e5m2fnuz` rocBLAS support
+* `__AMDGCN_WAVEFRONT_SIZE` has been deprecated.
+* Removed a warning that printed to stdout when using FP8 types
+* Remove zero point parameter for dequantizelinear when its zero
+
+
+### Optimized
+
+* Prefill buffers when MLIR produces a multioutput buffer
+* Improved the resize operator performance which should improve overall performance of models that use it
+* Allow the `reduce` operator to be split across an axis to improve fusion performance.  The `MIGRAPHX_SPLIT_REDUCE_SIZE` environment variable has been added to allow the minimum size of the reduction to be adjusted for a possible model specific performance improvement
+* Added `MIGRAPHX_DISABLE_PASSES` environment variable for debugging
+* Added `MIGRAPHX_MLIR_DUMP` environment variable to be set to a folder where individual final rocMLIR modules can be saved for investigation
+* Improved the C++ API to allow onnxruntime access to fp8 quantization
+
+
+
+### Resolved Issues
+
+* Fixed multistream execution with larger models (#3757)
+* Peephole LSTM Error (#3768)
+* Fixed BertSquad example that could include a broken tokenizers package (#3556)
+* Fixed Attention fusion ito not error with a shape mismatch when a trailing pointwise contains a literal (#3758)
+* Fixed instruction::replace() logic to handle more complex cases (#3574)
+* MatMulNBits could fail with a shape error (#3698)
+* Fixed a bug were some models could fail to compile with an error `flatten: Shapes are not in standard layout` (#3579)
+
+
+
 ## MIGraphX 2.11 for ROCm 6.3.0
 
 ### Added
@@ -18,7 +78,7 @@ Full documentation for MIGraphX is available at
 * Split-K as an optional performance improvement
 * Scripts to validate ONNX models from the ONNX Model Zoo
 * GPU Pooling Kernel
-* --mlir flag to the migraphx-driver program to offload entire module to mlir
+* --mlir flag to the migraphx-driver program to offload entire module to rocMLIR
 * Fusing split-reduce with MLIR
 * Multiple outputs for the MLIR + Pointwise fusions
 * Pointwise fusions with MLIR across reshape operations

@@ -33,7 +33,7 @@ struct test_group_query_attention_prompt : verify_program<test_group_query_atten
     {
         migraphx::program p;
         auto* mm = p.get_main_module();
-        std::vector<size_t> query_lens{1, 4096, 12288};
+        std::vector<size_t> query_lens{1, 15, 12288};
         std::vector<size_t> kv_lens{1, 32, 4096, 128};
         std::vector<size_t> slk_lens{1, 1};
         std::vector<size_t> tsl_lens{1, 1};
@@ -45,8 +45,8 @@ struct test_group_query_attention_prompt : verify_program<test_group_query_atten
         migraphx::shape tsl_s{migraphx::shape::int64_type, tsl_lens};
         migraphx::shape cs_cache_s{dtype, cs_cache_lens};
         auto query = mm->add_parameter("query", query_s);
-        std::vector<int> slk_vec(slk_s.elements(), 10);
-        std::vector<int> tsl_vec(tsl_s.elements(), 11);
+        std::vector<int> slk_vec(slk_s.elements(), 15);
+        std::vector<int> tsl_vec(tsl_s.elements(), 4096);
         std::vector<float> cs_min_vec(cs_cache_s.elements(), -1.0);
         std::vector<float> cs_max_vec(cs_cache_s.elements(), 1.0);
         std::vector<float> q_min_vec(query_s.elements(), -8.3);

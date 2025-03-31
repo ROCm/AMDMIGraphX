@@ -47,7 +47,7 @@ struct test_group_query_attention_prompt_small
         migraphx::shape cs_cache_s{dtype, cs_cache_lens};
         auto query = mm->add_parameter("query", query_s);
         std::vector<int> slk_vec(slk_s.elements(), 2);
-        std::vector<int> tsl_vec(tsl_s.elements(), 3);
+        std::vector<int> tsl_vec(tsl_s.elements(), 4);
         std::vector<float> cs_min_vec(cs_cache_s.elements(), -1.0);
         std::vector<float> cs_max_vec(cs_cache_s.elements(), 1.0);
         std::vector<float> q_min_vec(query_s.elements(), -1.0);

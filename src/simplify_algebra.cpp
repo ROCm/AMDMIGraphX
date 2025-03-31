@@ -1179,8 +1179,8 @@ struct find_splits
         {
             if(out->name() == "slice")
                 continue;
-            std::vector<instruction_ref> group;
-            for(auto split : splits)
+            std::vector<instruction_ref> group = {out};
+            for(auto split : range(splits.begin() + 1, splits.end()))
             {
                 auto it =
                     std::find_if(split->outputs().begin(), split->outputs().end(), [&](auto i) {
@@ -1202,13 +1202,12 @@ struct find_splits
                     break;
                 assert((*it)->name() != "slice");
 
-                // If there is a duplicate bail
-                // there are should be no dependency between instructions in the group
+                // There are should be no dependency between instructions in the group
                 if(std::any_of(group.begin(), group.end(), [&](auto i) {
                        return is_dependent(m, *it, i) or is_dependent(m, i, *it);
                    }))
                 {
-                    return {};
+                    break;
                 }
 
                 group.push_back(*it);

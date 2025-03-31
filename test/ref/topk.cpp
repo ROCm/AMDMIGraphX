@@ -30,7 +30,7 @@
 
 #include <test.hpp>
 
-auto run_program(const migraphx::value& op, bool custom_idx = false)
+auto run_program(const migraphx::value& op, bool custom_idx = false, bool fill1 = false)
 {
     migraphx::program p;
     auto* mm = p.get_main_module();
@@ -68,6 +68,8 @@ auto run_program(const migraphx::value& op, bool custom_idx = false)
         0.8,
         1.5,
     };
+    if(fill1)
+        input_data.assign(input_data.size(), 1);
     migraphx::parameter_map pp;
     pp["data"] = migraphx::argument(s, input_data.data());
     auto rets  = p.eval(pp);
@@ -97,12 +99,28 @@ TEST_CASE(topk_largest1)
     EXPECT(results.second == gold_ind);
 }
 
+TEST_CASE(topk_largest_same)
+{
+    auto results                = run_program({{"axis", 1}, {"k", 4}, {"largest", 1}}, false, true);
+    EXPECT(std::all_of(results.first.begin(), results.first.end(), [](auto i) { return i == 1; }));
+    std::vector<int64_t> gold_ind = {0, 1, 2, 3, 0, 1, 2, 3, 0, 1, 2, 3};
+    EXPECT(results.second == gold_ind);
+}
+
 TEST_CASE(topk_smallest1)
 {
     auto results                = run_program({{"axis", 1}, {"k", 4}, {"largest", 0}});
     std::vector<float> gold_val = {1.9, 2, 2.1, 2.3, 0.1, 0.2, 0.8, 3.3, 0.8, 1, 1.5, 2.1};
     EXPECT(results.first == gold_val);
     std::vector<int64_t> gold_ind = {4, 2, 0, 1, 3, 1, 4, 0, 3, 0, 4, 2};
+    EXPECT(results.second == gold_ind);
+}
+
+TEST_CASE(topk_smallest_same)
+{
+    auto results                = run_program({{"axis", 1}, {"k", 4}, {"largest", 0}}, false, true);
+    EXPECT(std::all_of(results.first.begin(), results.first.end(), [](auto i) { return i == 1; }));
+    std::vector<int64_t> gold_ind = {0, 1, 2, 3, 0, 1, 2, 3, 0, 1, 2, 3};
     EXPECT(results.second == gold_ind);
 }
 

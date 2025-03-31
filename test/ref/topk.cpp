@@ -101,7 +101,7 @@ TEST_CASE(topk_largest1)
 
 TEST_CASE(topk_largest_same)
 {
-    auto results                = run_program({{"axis", 1}, {"k", 4}, {"largest", 1}}, false, true);
+    auto results = run_program({{"axis", 1}, {"k", 4}, {"largest", 1}}, false, true);
     EXPECT(std::all_of(results.first.begin(), results.first.end(), [](auto i) { return i == 1; }));
     std::vector<int64_t> gold_ind = {0, 1, 2, 3, 0, 1, 2, 3, 0, 1, 2, 3};
     EXPECT(results.second == gold_ind);
@@ -118,7 +118,7 @@ TEST_CASE(topk_smallest1)
 
 TEST_CASE(topk_smallest_same)
 {
-    auto results                = run_program({{"axis", 1}, {"k", 4}, {"largest", 0}}, false, true);
+    auto results = run_program({{"axis", 1}, {"k", 4}, {"largest", 0}}, false, true);
     EXPECT(std::all_of(results.first.begin(), results.first.end(), [](auto i) { return i == 1; }));
     std::vector<int64_t> gold_ind = {0, 1, 2, 3, 0, 1, 2, 3, 0, 1, 2, 3};
     EXPECT(results.second == gold_ind);

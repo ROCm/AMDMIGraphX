@@ -13,6 +13,5 @@ constexpr bool float_equal(T x, U y)
     return not(x < y or x > y);
 }
 
-
 } // namespace migraphx
 #endif // MIGRAPHX_GUARD_KERNELS_FLOAT_EQUAL_HPP

@@ -325,13 +325,21 @@ struct find_group_query_attention
                                                     rotary_inputs);
         }
 
-        auto pres_k = inputs.at(3);
-        auto pres_v = inputs.at(4);
-        auto slk = inputs.at(5);
+        auto pres_k   = inputs.at(3);
+        auto pres_v   = inputs.at(4);
+        auto slk      = inputs.at(5);
         auto rotary_k = mpm.get_module().insert_instruction(
-            ins, make_op("slice", {{"axes", {1}}, {"starts", {num_heads}}, {"ends", {num_heads + kv_num_heads}}}), rotary_qkv);
+            ins,
+            make_op("slice",
+                    {{"axes", {1}}, {"starts", {num_heads}}, {"ends", {num_heads + kv_num_heads}}}),
+            rotary_qkv);
         auto rotary_v = mpm.get_module().insert_instruction(
-            ins, make_op("slice", {{"axes", {1}}, {"starts", {num_heads + kv_num_heads}}, {"ends", {num_heads + (2 * kv_num_heads)}}}), rotary_qkv);
+            ins,
+            make_op("slice",
+                    {{"axes", {1}},
+                     {"starts", {num_heads + kv_num_heads}},
+                     {"ends", {num_heads + (2 * kv_num_heads)}}}),
+            rotary_qkv);
         std::vector<instruction_ref> concat_k_inputs{rotary_k, slk, pres_k};
         std::vector<instruction_ref> concat_v_inputs{rotary_v, slk, pres_v};
 
@@ -345,9 +353,14 @@ struct find_group_query_attention
             gpu_concat_past_present_v{
                 do_rotary, kv_num_heads, local_window_size, num_heads, rotary_interleaved, scale},
             concat_v_inputs);
-        auto one_lit = mpm.get_module().insert_literal(ins, literal{shape{inputs.at(5)->get_shape().type(), {1}}, {1}});
-        one_lit = mpm.get_module().insert_instruction(ins, make_op("multibroadcast", {{"out_lens", inputs.at(5)->get_shape().lens()}}), one_lit);
-        auto total_sl = mpm.get_module().insert_instruction(ins, make_op("add"), inputs.at(5), one_lit);
+        auto one_lit = mpm.get_module().insert_literal(
+            ins, literal{shape{inputs.at(5)->get_shape().type(), {1}}, {1}});
+        one_lit = mpm.get_module().insert_instruction(
+            ins,
+            make_op("multibroadcast", {{"out_lens", inputs.at(5)->get_shape().lens()}}),
+            one_lit);
+        auto total_sl =
+            mpm.get_module().insert_instruction(ins, make_op("add"), inputs.at(5), one_lit);
         std::vector<instruction_ref> new_inputs{rotary_qkv, pres_k, pres_v, total_sl};
         auto get_tuple_elm_0 = std::next(ins);
         auto get_tuple_elm_1 = std::next(get_tuple_elm_0);

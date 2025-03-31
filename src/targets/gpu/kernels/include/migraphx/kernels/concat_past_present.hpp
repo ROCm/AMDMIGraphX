@@ -115,8 +115,8 @@ update_cache(const Present present, SeqLensK seqlens_k, Cache cache, Params para
 }
 
 template <class Past, class Present, class SeqLensK, class Params>
-__device__ void concat_past_present(
-    Past past, const Present present, SeqLensK seqlens_k, Params params)
+__device__ void
+concat_past_present(Past past, const Present present, SeqLensK seqlens_k, Params params)
 {
     auto ind = make_index();
     auto elements =

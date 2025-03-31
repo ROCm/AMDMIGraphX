@@ -79,7 +79,10 @@ double time_op(const context& ictx, operation op, int n)
     return time_op(ictx, op, inputs, n);
 }
 
-double time_program(const context& ictx, program p, const std::unordered_map<std::string, double>& fill_map, int n)
+double time_program(const context& ictx,
+                    program p,
+                    const std::unordered_map<std::string, double>& fill_map,
+                    int n)
 {
     std::vector<migraphx::context> ctx_vec = {ictx};
     auto& gctx                             = any_cast<migraphx::gpu::context>(ctx_vec.front());
@@ -93,7 +96,7 @@ double time_program(const context& ictx, program p, const std::unordered_map<std
         auto id = shape.type_string() + shape.to_sizes_string({shape.as_standard()});
         if(contains(fill_map, id))
             param_map[name] = to_gpu(fill_argument(shape, fill_map.at(id)));
-        else 
+        else
             param_map[name] = to_gpu(generate_argument(shape, seed++, random_mode::random));
     }
     auto run = [&] { p.eval_with_context(ctx_vec, param_map); };

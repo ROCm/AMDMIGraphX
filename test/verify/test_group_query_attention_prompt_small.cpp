@@ -1,33 +1,34 @@
 /*
-* The MIT License (MIT)
-*
-* Copyright (c) 2015-2024 Advanced Micro Devices, Inc. All rights reserved.
-*
-* Permission is hereby granted, free of charge, to any person obtaining a copy
-* of this software and associated documentation files (the "Software"), to deal
-* in the Software without restriction, including without limitation the rights
-* to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
-* copies of the Software, and to permit persons to whom the Software is
-* furnished to do so, subject to the following conditions:
-*
-* The above copyright notice and this permission notice shall be included in
-* all copies or substantial portions of the Software.
-*
-* THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
-* IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
-* FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT.  IN NO EVENT SHALL THE
-* AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
-* LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
-* OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
-* THE SOFTWARE.
-*/
+ * The MIT License (MIT)
+ *
+ * Copyright (c) 2015-2024 Advanced Micro Devices, Inc. All rights reserved.
+ *
+ * Permission is hereby granted, free of charge, to any person obtaining a copy
+ * of this software and associated documentation files (the "Software"), to deal
+ * in the Software without restriction, including without limitation the rights
+ * to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+ * copies of the Software, and to permit persons to whom the Software is
+ * furnished to do so, subject to the following conditions:
+ *
+ * The above copyright notice and this permission notice shall be included in
+ * all copies or substantial portions of the Software.
+ *
+ * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+ * IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+ * FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT.  IN NO EVENT SHALL THE
+ * AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+ * LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+ * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
+ * THE SOFTWARE.
+ */
 
 #include "verify_program.hpp"
 #include <migraphx/program.hpp>
 #include <migraphx/generate.hpp>
 #include <migraphx/make_op.hpp>
 
-struct test_group_query_attention_prompt_small : verify_program<test_group_query_attention_prompt_small>
+struct test_group_query_attention_prompt_small
+    : verify_program<test_group_query_attention_prompt_small>
 {
     migraphx::program create_program() const
     {
@@ -61,33 +62,33 @@ struct test_group_query_attention_prompt_small : verify_program<test_group_query
         auto value     = mm->add_literal(0.0f);
         auto cs_min    = mm->add_literal(cs_cache_s, cs_min_vec);
         auto cs_max    = mm->add_literal(cs_cache_s, cs_max_vec);
-        auto q_min    = mm->add_literal(query_s, q_min_vec);
-        auto q_max    = mm->add_literal(query_s, q_max_vec);
+        auto q_min     = mm->add_literal(query_s, q_min_vec);
+        auto q_max     = mm->add_literal(query_s, q_max_vec);
         auto kv_min    = mm->add_literal(kv_s, kv_min_vec);
         auto kv_max    = mm->add_literal(kv_s, kv_max_vec);
         auto cos_cache = mm->add_parameter("cos_cache", cs_cache_s);
         auto sin_cache = mm->add_parameter("sin_cache", cs_cache_s);
-        query      = mm->add_instruction(migraphx::make_op("clip"), query, q_min, q_max);
-        k_cache      = mm->add_instruction(migraphx::make_op("clip"), k_cache, kv_min, kv_max);
-        v_cache      = mm->add_instruction(migraphx::make_op("clip"), v_cache, kv_min, kv_max);
+        query          = mm->add_instruction(migraphx::make_op("clip"), query, q_min, q_max);
+        k_cache        = mm->add_instruction(migraphx::make_op("clip"), k_cache, kv_min, kv_max);
+        v_cache        = mm->add_instruction(migraphx::make_op("clip"), v_cache, kv_min, kv_max);
         cos_cache      = mm->add_instruction(migraphx::make_op("clip"), cos_cache, cs_min, cs_max);
         sin_cache      = mm->add_instruction(migraphx::make_op("clip"), sin_cache, cs_min, cs_max);
         auto r         = mm->add_instruction(migraphx::make_op("group_query_attention",
-                                                            {{"do_rotary", 0},
+                                                       {{"do_rotary", 0},
                                                                 {"kv_num_heads", 2},
                                                                 {"local_window_size", -1},
                                                                 {"num_heads", 2},
                                                                 {"rotary_interleaved", 0},
                                                                 {"scale", 1.0}}),
-                                    query,
-                                    key,
-                                    value,
-                                    k_cache,
-                                    v_cache,
-                                    slk,
-                                    tsl,
-                                    cos_cache,
-                                    sin_cache);
+                                     query,
+                                     key,
+                                     value,
+                                     k_cache,
+                                     v_cache,
+                                     slk,
+                                     tsl,
+                                     cos_cache,
+                                     sin_cache);
         auto r0 = mm->add_instruction(migraphx::make_op("get_tuple_elem", {{"index", 0}}), r);
         auto r1 = mm->add_instruction(migraphx::make_op("get_tuple_elem", {{"index", 1}}), r);
         auto r2 = mm->add_instruction(migraphx::make_op("get_tuple_elem", {{"index", 2}}), r);

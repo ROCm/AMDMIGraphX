@@ -53,7 +53,9 @@ struct topk_pair_u_t
 };
 
 template <class T, class U>
-struct topk_pair : conditional_t<(sizeof(T) >= sizeof(U)), topk_pair_t_u<T, U>, topk_pair_u_t<T, U>>, partially_ordered<topk_pair<T, U>>
+struct topk_pair
+    : conditional_t<(sizeof(T) >= sizeof(U)), topk_pair_t_u<T, U>, topk_pair_u_t<T, U>>,
+      partially_ordered<topk_pair<T, U>>
 {
     friend constexpr bool operator<(const topk_pair& x, const topk_pair& y)
     {

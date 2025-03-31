@@ -72,7 +72,7 @@ struct topk
         return shape({s_val, s_ind});
     }
 
-    template<class Compare>
+    template <class Compare>
     static auto compare_pair(Compare compare)
     {
         return [=](auto p1, auto p2) {
@@ -117,11 +117,15 @@ struct topk
                         return std::make_pair(x[j], get_index(j));
                     });
                     if(this->largest)
-                        std::partial_sort(
-                            data.begin(), data.begin() + k, data.end(), compare_pair(std::greater<>{}));
+                        std::partial_sort(data.begin(),
+                                          data.begin() + k,
+                                          data.end(),
+                                          compare_pair(std::greater<>{}));
                     else
-                        std::partial_sort(
-                            data.begin(), data.begin() + k, data.end(), compare_pair(std::less<>{}));
+                        std::partial_sort(data.begin(),
+                                          data.begin() + k,
+                                          data.end(),
+                                          compare_pair(std::less<>{}));
                     std::transform(data.begin(),
                                    data.begin() + this->k,
                                    y.begin(),

@@ -39,7 +39,7 @@ struct test_topk : verify_program<test_topk<DType, K, N>>
         unsigned int batch = 3;
         migraphx::shape s{DType, {batch, N}};
         auto x1 = mm->add_parameter("x1", s);
-        auto r = mm->add_instruction(
+        auto r  = mm->add_instruction(
             migraphx::make_op("topk", {{"axis", 1}, {"k", K}, {"largest", 1}}), x1);
         auto values  = mm->add_instruction(migraphx::make_op("get_tuple_elem", {{"index", 0}}), r);
         auto indices = mm->add_instruction(migraphx::make_op("get_tuple_elem", {{"index", 1}}), r);

@@ -153,7 +153,10 @@ struct bitonic_topk
     static_assert(K <= N, "K must be less than N");
 
     // Constructor used to enable deduction guidelines
-    constexpr bitonic_topk(index_constant<N>, index_constant<K>, Compare cmp) : compare_function(cmp) {}
+    constexpr bitonic_topk(index_constant<N>, index_constant<K>, Compare cmp)
+        : compare_function(cmp)
+    {
+    }
 
     template <class T, class Reverse>
     constexpr bool compare(const T& x, const T& y, Reverse reverse) const

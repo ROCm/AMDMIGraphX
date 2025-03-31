@@ -30,14 +30,34 @@
 
 namespace migraphx {
 
+#define MIGRAPHX_DEFINE_OPERATOR(op, expr) \
+    template <class U> \
+    friend constexpr auto operator op(const T& x, const U& y) MIGRAPHX_RETURNS(expr); \
+    template <class U, class V, MIGRAPHX_REQUIRES(not is_same<T, U>{} and is_same<V, T>{})> \
+    friend constexpr auto operator op(const U& x, const V& y) MIGRAPHX_RETURNS(expr)
+
 template <class T>
 struct equality_comparable
 {
-    template <class U>
-    friend constexpr auto operator!=(const T& x, const U& y) MIGRAPHX_RETURNS(not(x == y));
-    template <class U, class V, MIGRAPHX_REQUIRES(not is_same<T, U>{} and is_same<V, T>{})>
-    friend constexpr auto operator!=(const U& x, const V& y) MIGRAPHX_RETURNS(not(x == y));
+    MIGRAPHX_DEFINE_OPERATOR(!=, not(x == y));
 };
+
+template <class T>
+struct less_than_comparable
+{
+    MIGRAPHX_DEFINE_OPERATOR(>, (y < x));
+    MIGRAPHX_DEFINE_OPERATOR(<=, not(y < x));
+    MIGRAPHX_DEFINE_OPERATOR(>=, not(x < y));
+};
+
+template <class T>
+struct partially_ordered
+{
+    MIGRAPHX_DEFINE_OPERATOR(!=, not(x == y));
+    MIGRAPHX_DEFINE_OPERATOR(<=, (x < y or x == y));
+    MIGRAPHX_DEFINE_OPERATOR(>=, (x > y or x == y));
+};
+
 
 } // namespace migraphx
 #endif // MIGRAPHX_GUARD_KERNELS_OPERATORS_HPP

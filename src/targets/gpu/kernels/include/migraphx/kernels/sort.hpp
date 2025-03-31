@@ -148,12 +148,20 @@ MIGRAPHX_AUTO_DEDUCE(bitonic_sort);
 template <index_int N, index_int K, class Compare>
 struct bitonic_topk
 {
-    Compare compare;
+    Compare compare_function;
 
     static_assert(K <= N, "K must be less than N");
 
     // Constructor used to enable deduction guidelines
-    constexpr bitonic_topk(index_constant<N>, index_constant<K>, Compare cmp) : compare(cmp) {}
+    constexpr bitonic_topk(index_constant<N>, index_constant<K>, Compare cmp) : compare_function(cmp) {}
+
+    template <class T, class Reverse>
+    constexpr bool compare(const T& x, const T& y, Reverse reverse) const
+    {
+        if(reverse)
+            return compare_function(y, x);
+        return compare_function(x, y);
+    }
 
     template <class T, class Len>
     __device__ void sort_step(index idx, T* buf, Len len) const
@@ -169,7 +177,7 @@ struct bitonic_topk
                 MIGRAPHX_ASSERT(i < N);
                 MIGRAPHX_ASSERT(j < N);
                 bool reverse = (dir & i) == 0;
-                if(reverse ^ compare(buf[i], buf[j]))
+                if(compare(buf[i], buf[j], reverse))
                     swap(buf[i], buf[j]);
             });
             __syncthreads();
@@ -189,7 +197,7 @@ struct bitonic_topk
             if(i % dir >= K)
                 return;
             MIGRAPHX_ASSERT(i < N);
-            buf[i] = min(buf[i], buf[j], compare);
+            buf[i] = min(buf[i], buf[j], compare_function);
         });
         __syncthreads();
     }
@@ -209,7 +217,7 @@ struct bitonic_topk
                 if(i % dir >= K)
                     return;
                 bool reverse = (dir & i) == 0;
-                if(reverse ^ compare(buf[i], buf[j]))
+                if(compare(buf[i], buf[j], reverse))
                     swap(buf[i], buf[j]);
             });
             __syncthreads();

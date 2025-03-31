@@ -33,6 +33,8 @@
 #include <migraphx/kernels/ranges.hpp>
 #include <migraphx/kernels/slice.hpp>
 #include <migraphx/kernels/sort.hpp>
+#include <migraphx/kernels/operators.hpp>
+#include <migraphx/kernels/float_equal.hpp>
 
 namespace migraphx {
 
@@ -51,8 +53,27 @@ struct topk_pair_u_t
 };
 
 template <class T, class U>
-struct topk_pair : conditional_t<(sizeof(T) >= sizeof(U)), topk_pair_t_u<T, U>, topk_pair_u_t<T, U>>
+struct topk_pair : conditional_t<(sizeof(T) >= sizeof(U)), topk_pair_t_u<T, U>, topk_pair_u_t<T, U>>, partially_ordered<topk_pair<T, U>>
 {
+    friend constexpr bool operator<(const topk_pair& x, const topk_pair& y)
+    {
+        if(not float_equal(x.key, y.key))
+            return x.key < y.key;
+        return x.val < y.val;
+    }
+
+    friend constexpr bool operator>(const topk_pair& x, const topk_pair& y)
+    {
+        if(not float_equal(x.key, y.key))
+            return x.key > y.key;
+        return x.val < y.val;
+    }
+
+    friend constexpr bool operator==(const topk_pair& x, const topk_pair& y)
+    {
+        return float_equal(x.key, y.key) and x.val == y.val;
+    }
+
     template <class Stream>
     friend constexpr const Stream& operator<<(const Stream& ss, const topk_pair& tp)
     {
@@ -124,7 +145,7 @@ topk_impl(index idx, Compare compare, T init, Y y, YIndex y_idx, X x, XIndices..
             local_buf[i].val = get_index(j);
         });
 
-        bitonic_sort{by(select_key(), compare)}.wave_sort(idx, local_buf);
+        bitonic_sort{compare}.wave_sort(idx, local_buf);
 
         if constexpr(nwave == 1)
         {
@@ -163,7 +184,7 @@ topk_impl(index idx, Compare compare, T init, Y y, YIndex y_idx, X x, XIndices..
             }
             __syncthreads();
 
-            bitonic_topk{aligned_m, aligned_k, by(select_key(), compare)}.block_topk(idx, buf);
+            bitonic_topk{aligned_m, aligned_k, compare}.block_topk(idx, buf);
 
             // save top K
             idx.local_stride(k, [&](auto i) {
@@ -182,7 +203,7 @@ topk_impl(index idx, Compare compare, T init, Y y, YIndex y_idx, X x, XIndices..
             buf[i].val = get_index(i);
         });
         __syncthreads();
-        bitonic_topk{aligned_n, aligned_k, by(select_key(), compare)}.block_topk(idx, buf);
+        bitonic_topk{aligned_n, aligned_k, compare}.block_topk(idx, buf);
 
         // save top K
         idx.local_stride(k, [&](auto i) {

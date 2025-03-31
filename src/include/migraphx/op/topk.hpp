@@ -72,6 +72,18 @@ struct topk
         return shape({s_val, s_ind});
     }
 
+    template<class Compare>
+    static auto compare_pair(Compare compare)
+    {
+        return [=](auto p1, auto p2) {
+            auto [x, i] = p1;
+            auto [y, j] = p2;
+            if(not float_equal(x, y))
+                return compare(x, y);
+            return i < j;
+        };
+    }
+
     argument compute(const shape& output_shape, std::vector<argument> args) const
     {
         auto vec_ss = output_shape.sub_shapes();
@@ -106,10 +118,10 @@ struct topk
                     });
                     if(this->largest)
                         std::partial_sort(
-                            data.begin(), data.begin() + k, data.end(), std::greater<>{});
+                            data.begin(), data.begin() + k, data.end(), compare_pair(std::greater<>{}));
                     else
                         std::partial_sort(
-                            data.begin(), data.begin() + k, data.end(), std::less<>{});
+                            data.begin(), data.begin() + k, data.end(), compare_pair(std::less<>{}));
                     std::transform(data.begin(),
                                    data.begin() + this->k,
                                    y.begin(),

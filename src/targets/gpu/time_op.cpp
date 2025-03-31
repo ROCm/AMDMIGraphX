@@ -103,7 +103,11 @@ double time_op(const context& ictx, operation op, int bundle, int nruns)
     return time_op(ictx, op, inputs, bundle, nruns);
 }
 
-double time_program(const context& ictx, program p, const std::unordered_map<std::string, double>& fill_map, int bundle, int nruns)
+double time_program(const context& ictx,
+                    program p,
+                    const std::unordered_map<std::string, double>& fill_map,
+                    int bundle,
+                    int nruns)
 {
     std::vector<migraphx::context> ctx_vec = {ictx};
     auto& gctx                             = any_cast<migraphx::gpu::context>(ctx_vec.front());

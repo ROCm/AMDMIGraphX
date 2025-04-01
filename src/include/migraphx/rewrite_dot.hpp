@@ -20,33 +20,25 @@
  * LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
  * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
  * THE SOFTWARE.
+ *
  */
-#ifndef MIGRAPHX_GUARD_GPU_DRIVER_PERF_HPP
-#define MIGRAPHX_GUARD_GPU_DRIVER_PERF_HPP
+#ifndef MIGRAPHX_GUARD_MIGRAPHX_REWRITE_DOT_HPP
+#define MIGRAPHX_GUARD_MIGRAPHX_REWRITE_DOT_HPP
 
-#include <migraphx/program.hpp>
 #include <migraphx/config.hpp>
-#include <migraphx/gpu/context.hpp>
-#include <migraphx/operation.hpp>
+#include <string>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
-namespace gpu {
 
-MIGRAPHX_GPU_EXPORT double time_op(const context& ictx,
-                                   operation op,
-                                   const std::vector<shape>& inputs,
-                                   int bundle = 1,
-                                   int nruns  = 100);
+struct module;
 
-MIGRAPHX_GPU_EXPORT double
-time_program(const context& ictx, program p, int bundle = 1, int nruns = 100);
+struct MIGRAPHX_EXPORT rewrite_dot
+{
+    std::string name() const { return "rewrite_dot"; }
+    void apply(module& m) const;
+};
 
-/* benchmark gpu::code_object with expected input shapes over n iterations */
-MIGRAPHX_GPU_EXPORT double
-time_op(const context& ictx, operation op, int bundle = 1, int nruns = 100);
-
-} // namespace gpu
 } // namespace MIGRAPHX_INLINE_NS
 } // namespace migraphx
-#endif // MIGRAPHX_GUARD_GPU_DRIVER_PERF_HPP
+#endif // MIGRAPHX_GUARD_MIGRAPHX_REWRITE_DOT_HPP

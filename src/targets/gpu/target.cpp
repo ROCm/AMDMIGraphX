@@ -44,6 +44,7 @@
 #include <migraphx/promote_literals.hpp>
 #include <migraphx/register_target.hpp>
 #include <migraphx/replace_allocate.hpp>
+#include <migraphx/rewrite_dot.hpp>
 #include <migraphx/rewrite_gelu.hpp>
 #include <migraphx/rewrite_low_precision.hpp>
 #include <migraphx/rewrite_pooling.hpp>
@@ -79,6 +80,7 @@ namespace gpu {
 
 MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_DISABLE_SCHEDULE_PASS)
 MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_ENABLE_NHWC)
+MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_ENABLE_REWRITE_DOT)
 #ifndef _WIN32
 MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_ENABLE_CK)
 #endif
@@ -164,6 +166,14 @@ std::vector<pass> target::get_passes(migraphx::context& gctx, const compile_opti
     unsupported_fp8ocp_ops.insert("argmax");
     unsupported_fp8ocp_ops.insert("argmin");
 
+    // disable fp8 dot operations on gfx950
+    // hipblaslt does not support fp8 gemm with fp8 output yet
+    const auto device_name = trim(split_string(gpu::get_device_name(), ':').front());
+    if(starts_with(device_name, "gfx950"))
+    {
+        unsupported_fp8ocp_ops.insert("dot");
+    }
+
     // clang-format off
     return
     {
@@ -206,6 +216,7 @@ std::vector<pass> target::get_passes(migraphx::context& gctx, const compile_opti
         dead_code_elimination{},
         rewrite_reduce{},
         rewrite_low_precision{},
+        enable_pass(enabled(MIGRAPHX_ENABLE_REWRITE_DOT{}), rewrite_dot{}),
         dead_code_elimination{},
         optimize_module{},
         fuse_pointwise_reduce{},

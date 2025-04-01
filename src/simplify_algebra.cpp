@@ -1155,22 +1155,19 @@ struct find_splits
         })(ins1);
     }
 
+    /// Used to check if two module inputs have the same instructions.
     static bool ins_eq(const module& x, const module& y)
     {
-        std::stringstream ss_x;
-        x.no_module_name_print(
-            [&](auto ins, auto ins_names) { instruction::print(ss_x, ins, ins_names); });
-        auto sx = ss_x.str();
-        std::stringstream ss_y;
-        y.no_module_name_print(
-            [&](auto ins, auto ins_names) { instruction::print(ss_y, ins, ins_names); });
-        auto sy = ss_y.str();
-        return sx == sy;
+        auto get_mod_string = [](const module& m){
+            std::stringstream ss;
+            m.print(
+                [&](auto ins, auto ins_names) { instruction::print(ss, ins, ins_names); });
+            return ss.str();
+        };
+        return get_mod_string(x) == get_mod_string(y);
     }
 
-    /**
-     * Find groups of the same operator after the splits (slice instructions)
-     */
+    /// Find groups of the same operator after the splits (slice instructions)
     static std::vector<std::vector<instruction_ref>>
     get_split_groups(const module& m, const std::vector<instruction_ref>& splits)
     {
@@ -1254,6 +1251,9 @@ struct find_splits
         return false;
     }
 
+    /** Get argument index that has the split instruction for a group of instructions
+     * If instructions in a group have different split indexes, return -1.
+     */
     int get_binary_op_split_idx(std::vector<instruction_ref> group,
                                 std::vector<instruction_ref> splits) const
     {
@@ -1274,6 +1274,10 @@ struct find_splits
         return -1;
     }
 
+    /**
+     * Align the arguments of binary commutative instructions so they
+     * have the same operator on the same argument indexes.
+     */
     void align_commutative_op_args(module& m,
                                    std::vector<instruction_ref> group,
                                    std::vector<instruction_ref> splits,
@@ -1296,7 +1300,8 @@ struct find_splits
     }
 
     /**
-     * Check if any split group depends on instructions from another split group
+     * Check if any split group depends on instructions from another split group.
+     * Note: consider refactor if this function is slow
      */
     bool split_groups_are_dependent(module& m,
                                     std::vector<std::vector<instruction_ref>> groups) const
@@ -1617,7 +1622,6 @@ struct find_conv_dot_horiz_fusion
         auto pred = [](auto i, auto j) {
             if(i->get_operator() != j->get_operator())
                 return false;
-            // Group any other instructions to other group
             if(not contains({"quant_dot", "dot", "convolution"}, i->name()))
                 return true;
             auto x = i->inputs()[1]->get_shape().lens();

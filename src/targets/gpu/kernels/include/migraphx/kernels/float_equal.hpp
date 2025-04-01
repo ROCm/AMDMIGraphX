@@ -32,7 +32,7 @@ namespace migraphx {
 template <class T, class U>
 constexpr bool float_equal(T x, U y)
 {
-    if constexpr(is_integral<T>{} or is_integral<U>{})
+    if constexpr(is_integral<T>{} and is_integral<U>{})
         return x == y;
     return not(x < y or x > y);
 }

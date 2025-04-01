@@ -393,6 +393,14 @@ jobs:
         swap-storage: true
         docker-images: true
 
+    - name: Set up Python
+      uses: actions/setup-python@v4
+      with:
+        python-version: 3.8
+    - name: Setup cmake
+      uses: jwlawson/actions-setup-cmake@v1.9
+      with:
+        cmake-version: 3.20.0
     - name : Install rbuild and lld
       run: |
         sudo apt-get install -y lld
@@ -400,10 +408,6 @@ jobs:
         pip install https://github.com/RadeonOpenCompute/rbuild/archive/master.tar.gz
 
     - uses: actions/checkout@v4.2.2
-    - name: Set up Python
-      uses: actions/setup-python@v4
-      with:
-        python-version: 3.8
     - name: Cache dependencies
       # Ignore the failure of a step and avoid terminating the job.
       continue-on-error: true

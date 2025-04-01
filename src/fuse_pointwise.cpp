@@ -138,8 +138,7 @@ static void create_pointwise_modules(module_pass_manager& mpm)
     }
 }
 
-static module::with_inputs
-append_pointwise_module(instruction_ref ins, instruction_ref output)
+static module::with_inputs append_pointwise_module(instruction_ref ins, instruction_ref output)
 {
     std::unordered_set<instruction_ref> original_inputs{ins->inputs().begin(), ins->inputs().end()};
     original_inputs.insert(output->inputs().begin(), output->inputs().end());
@@ -256,17 +255,20 @@ static auto find_input_pointwise(instruction_ref ins, bool multi_out)
     return it;
 }
 
-static std::vector<instruction_ref> find_output_pointwise(const module& m, instruction_ref ins, bool multi_out)
+static std::vector<instruction_ref>
+find_output_pointwise(const module& m, instruction_ref ins, bool multi_out)
 {
     std::vector<instruction_ref> result;
     if(not multi_out)
         return result;
     std::vector<instruction_ref> outputs;
-    std::copy_if(
-        ins->outputs().begin(),
-        ins->outputs().end(),
-        std::back_inserter(outputs),
-        [&](auto output) { return output->name() == "pointwise" and m.has_instruction(output) and not is_dead(output); });
+    std::copy_if(ins->outputs().begin(),
+                 ins->outputs().end(),
+                 std::back_inserter(outputs),
+                 [&](auto output) {
+                     return output->name() == "pointwise" and m.has_instruction(output) and
+                            not is_dead(output);
+                 });
     if(outputs.size() < 2)
         return result;
     std::sort(outputs.begin(), outputs.end(), by(std::less<>{}, [&](auto x) {

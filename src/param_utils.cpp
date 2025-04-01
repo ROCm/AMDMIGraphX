@@ -52,11 +52,11 @@ void sort_params(std::vector<instruction_ref>& params)
               }));
 }
 
-template<class F>
+template <class F>
 std::vector<instruction_ref>
 find_inputs_impl(const std::unordered_map<instruction_ref, instruction_ref>& map_ins,
-            const_module_ref sub,
-            F parent_has)
+                 const_module_ref sub,
+                 F parent_has)
 {
     std::vector<instruction_ref> result;
     std::map<std::string, instruction_ref> names;
@@ -79,16 +79,15 @@ find_inputs_impl(const std::unordered_map<instruction_ref, instruction_ref>& map
     return result;
 }
 
-
 std::vector<instruction_ref>
 find_inputs(const std::unordered_map<instruction_ref, instruction_ref>& map_ins,
             const_module_ref parent,
             const_module_ref sub)
 {
-    return find_inputs_impl(map_ins, sub, [&](instruction_ref ins) { 
+    return find_inputs_impl(map_ins, sub, [&](instruction_ref ins) {
         if(parent == nullptr)
             return false;
-        return parent->has_instruction(ins); 
+        return parent->has_instruction(ins);
     });
 }
 
@@ -97,9 +96,8 @@ find_inputs(const std::unordered_map<instruction_ref, instruction_ref>& map_ins,
             const std::unordered_set<instruction_ref>& parent_instructions,
             const_module_ref sub)
 {
-    return find_inputs_impl(map_ins, sub, [&](instruction_ref ins) { 
-        return contains(parent_instructions, ins);
-    });
+    return find_inputs_impl(
+        map_ins, sub, [&](instruction_ref ins) { return contains(parent_instructions, ins); });
 }
 
 } // namespace MIGRAPHX_INLINE_NS

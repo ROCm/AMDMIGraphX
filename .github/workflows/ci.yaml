@@ -304,7 +304,7 @@ jobs:
         key: ccache-sles-${{ github.ref }}
 
   pyflakes:
-    runs-on: ubuntu-20.04
+    runs-on: ubuntu-24.04
 
     steps:
     - name: Free space
@@ -335,7 +335,7 @@ jobs:
         mypy tools/api.py
 
   licensing:
-    runs-on: ubuntu-20.04
+    runs-on: ubuntu-24.04
 
     steps:
     - name: Free space
@@ -374,7 +374,7 @@ jobs:
     strategy:
       matrix:
         os:
-          - ubuntu-20.04
+          - ubuntu-24.04
         configuration:
           - debug
           - release
@@ -493,7 +493,7 @@ jobs:
     strategy:
       matrix:
         os:
-          - ubuntu-20.04
+          - ubuntu-24.04
         configuration:
           - debug
           #- release  Uncomment when ready to test release builds
@@ -599,7 +599,7 @@ jobs:
       #    echo "Uploaded"
   misspell:
     name: misspell
-    runs-on: ubuntu-20.04
+    runs-on: ubuntu-24.04
     steps:
       - name: Check out code.
         uses: actions/checkout@v4

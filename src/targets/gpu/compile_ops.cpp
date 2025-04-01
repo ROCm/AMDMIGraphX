@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2024 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2025 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -227,7 +227,7 @@ struct compile_plan
                            cr->replace.replace(*bench_mm, bench_ins);
                            // do dead code elimination by directly removing instruction
                            bench_mm->remove_instruction(bench_ins);
-                           auto t = time_program(*ctx, bench_prog, 20);
+                           auto t = time_program(*ctx, bench_prog, cr->replace.fill_map, 20);
                            if(trace_level > 1)
                                std::cout << t << "ms" << std::endl;
                            return t;

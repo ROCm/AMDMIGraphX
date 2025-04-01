@@ -2360,7 +2360,7 @@ TEST_CASE(find_splits_for_pointwise0)
     auto s = migraphx::shape{migraphx::shape::float_type, {3, 2, 4}};
     migraphx::program p1;
     {
-        auto* mm  = p1.get_main_module();
+        auto* mm   = p1.get_main_module();
         auto input = mm->add_parameter("input", s);
         auto x     = mm->add_instruction(
             migraphx::make_op("slice", {{"axes", {1}}, {"starts", {0}}, {"ends", {1}}}), input);
@@ -2374,10 +2374,10 @@ TEST_CASE(find_splits_for_pointwise0)
 
     migraphx::program p2;
     {
-        auto* mm  = p2.get_main_module();
-        auto input = mm->add_parameter("input", s);
-        auto relu = add_pointwise(p2, "main:pointwise0", {input}, single_pointwise("relu"));
-        auto relu_x     = mm->add_instruction(
+        auto* mm    = p2.get_main_module();
+        auto input  = mm->add_parameter("input", s);
+        auto relu   = add_pointwise(p2, "main:pointwise0", {input}, single_pointwise("relu"));
+        auto relu_x = mm->add_instruction(
             migraphx::make_op("slice", {{"axes", {1}}, {"starts", {0}}, {"ends", {1}}}), relu);
         auto relu_y = mm->add_instruction(
             migraphx::make_op("slice", {{"axes", {1}}, {"starts", {1}}, {"ends", {2}}}), relu);
@@ -2391,33 +2391,36 @@ TEST_CASE(find_splits_for_pointwise1)
     auto s = migraphx::shape{migraphx::shape::float_type, {3, 2, 4}};
     migraphx::program p1;
     {
-        auto* mm  = p1.get_main_module();
+        auto* mm   = p1.get_main_module();
         auto input = mm->add_parameter("input", s);
         auto x     = mm->add_instruction(
             migraphx::make_op("slice", {{"axes", {1}}, {"starts", {0}}, {"ends", {1}}}), input);
         auto y = mm->add_instruction(
             migraphx::make_op("slice", {{"axes", {1}}, {"starts", {1}}, {"ends", {2}}}), input);
-        auto sig_add_x =add_pointwise(p1, "main:pointwise0", {x}, [=](auto* pm, const auto& inputs) {
-            auto sig = pm->add_instruction(migraphx::make_op("sigmoid"), inputs[0]);
-            return pm->add_instruction(migraphx::make_op("add"), sig, inputs[0]);
-        });
-        auto sig_add_y =add_pointwise(p1, "main:pointwise1", {y}, [=](auto* pm, const auto& inputs) {
-            auto sig = pm->add_instruction(migraphx::make_op("sigmoid"), inputs[0]);
-            return pm->add_instruction(migraphx::make_op("add"), sig, inputs[0]);
-        });
+        auto sig_add_x =
+            add_pointwise(p1, "main:pointwise0", {x}, [=](auto* pm, const auto& inputs) {
+                auto sig = pm->add_instruction(migraphx::make_op("sigmoid"), inputs[0]);
+                return pm->add_instruction(migraphx::make_op("add"), sig, inputs[0]);
+            });
+        auto sig_add_y =
+            add_pointwise(p1, "main:pointwise1", {y}, [=](auto* pm, const auto& inputs) {
+                auto sig = pm->add_instruction(migraphx::make_op("sigmoid"), inputs[0]);
+                return pm->add_instruction(migraphx::make_op("add"), sig, inputs[0]);
+            });
         mm->add_return({sig_add_x, sig_add_y});
     }
     migraphx::run_passes(p1, {migraphx::simplify_algebra{}, migraphx::dead_code_elimination{}});
 
     migraphx::program p2;
     {
-        auto* mm  = p2.get_main_module();
+        auto* mm   = p2.get_main_module();
         auto input = mm->add_parameter("input", s);
-        auto sig_add =add_pointwise(p2, "main:pointwise0", {input}, [=](auto* pm, const auto& inputs) {
-            auto sig = pm->add_instruction(migraphx::make_op("sigmoid"), inputs[0]);
-            return pm->add_instruction(migraphx::make_op("add"), sig, inputs[0]);
-        });
-        auto relu_x     = mm->add_instruction(
+        auto sig_add =
+            add_pointwise(p2, "main:pointwise0", {input}, [=](auto* pm, const auto& inputs) {
+                auto sig = pm->add_instruction(migraphx::make_op("sigmoid"), inputs[0]);
+                return pm->add_instruction(migraphx::make_op("add"), sig, inputs[0]);
+            });
+        auto relu_x = mm->add_instruction(
             migraphx::make_op("slice", {{"axes", {1}}, {"starts", {0}}, {"ends", {1}}}), sig_add);
         auto relu_y = mm->add_instruction(
             migraphx::make_op("slice", {{"axes", {1}}, {"starts", {1}}, {"ends", {2}}}), sig_add);
@@ -2428,11 +2431,12 @@ TEST_CASE(find_splits_for_pointwise1)
 
 TEST_CASE(find_splits_for_pointwise2)
 {
-    // Note: has inter-split dependency with sigmoid(x) + x so first simplify_algebra should be a noop
+    // Note: has inter-split dependency with sigmoid(x) + x so first simplify_algebra should be a
+    // noop
     auto s = migraphx::shape{migraphx::shape::float_type, {3, 2, 4}};
     migraphx::program p1;
     {
-        auto* mm  = p1.get_main_module();
+        auto* mm   = p1.get_main_module();
         auto input = mm->add_parameter("input", s);
         auto x     = mm->add_instruction(
             migraphx::make_op("slice", {{"axes", {1}}, {"starts", {0}}, {"ends", {1}}}), input);
@@ -2444,24 +2448,24 @@ TEST_CASE(find_splits_for_pointwise2)
         auto add_y = mm->add_instruction(migraphx::make_op("add"), sig_y, y);
         mm->add_return({add_x, add_y});
     }
-    migraphx::run_passes(p1, {
-            migraphx::simplify_algebra{},
-            migraphx::dead_code_elimination{},
-            migraphx::fuse_pointwise{},
-            migraphx::dead_code_elimination{},
-            migraphx::simplify_algebra{},
-            migraphx::dead_code_elimination{}
-            });
+    migraphx::run_passes(p1,
+                         {migraphx::simplify_algebra{},
+                          migraphx::dead_code_elimination{},
+                          migraphx::fuse_pointwise{},
+                          migraphx::dead_code_elimination{},
+                          migraphx::simplify_algebra{},
+                          migraphx::dead_code_elimination{}});
 
     migraphx::program p2;
     {
-        auto* mm  = p2.get_main_module();
+        auto* mm   = p2.get_main_module();
         auto input = mm->add_parameter("input", s);
-        auto sig_add =add_pointwise(p2, "main:pointwise0", {input}, [=](auto* pm, const auto& inputs) {
-            auto sig = pm->add_instruction(migraphx::make_op("sigmoid"), inputs[0]);
-            return pm->add_instruction(migraphx::make_op("add"), sig, inputs[0]);
-        });
-        auto relu_x     = mm->add_instruction(
+        auto sig_add =
+            add_pointwise(p2, "main:pointwise0", {input}, [=](auto* pm, const auto& inputs) {
+                auto sig = pm->add_instruction(migraphx::make_op("sigmoid"), inputs[0]);
+                return pm->add_instruction(migraphx::make_op("add"), sig, inputs[0]);
+            });
+        auto relu_x = mm->add_instruction(
             migraphx::make_op("slice", {{"axes", {1}}, {"starts", {0}}, {"ends", {1}}}), sig_add);
         auto relu_y = mm->add_instruction(
             migraphx::make_op("slice", {{"axes", {1}}, {"starts", {1}}, {"ends", {2}}}), sig_add);

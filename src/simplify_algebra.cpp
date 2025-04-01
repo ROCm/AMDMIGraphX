@@ -1158,10 +1158,9 @@ struct find_splits
     /// Used to check if two module inputs have the same instructions.
     static bool ins_eq(const module& x, const module& y)
     {
-        auto get_mod_string = [](const module& m){
+        auto get_mod_string = [](const module& m) {
             std::stringstream ss;
-            m.print(
-                [&](auto ins, auto ins_names) { instruction::print(ss, ins, ins_names); });
+            m.print([&](auto ins, auto ins_names) { instruction::print(ss, ins, ins_names); });
             return ss.str();
         };
         return get_mod_string(x) == get_mod_string(y);

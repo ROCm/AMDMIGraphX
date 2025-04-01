@@ -24,6 +24,7 @@
 #ifndef MIGRAPHX_GUARD_MIGRAPHLIB_SHAPE_HPP
 #define MIGRAPHX_GUARD_MIGRAPHLIB_SHAPE_HPP
 
+#include <array>
 #include <vector>
 #include <cassert>
 #include <ostream>

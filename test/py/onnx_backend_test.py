@@ -617,6 +617,17 @@ def disabled_tests_onnx_1_16_0(backend_test):
     backend_test.exclude(r'test_maxpool_3d_dilations_use_ref_impl_large_cpu')
 
 
+def disabled_tests_onnx_1_17_0(backend_test):
+    # TODO: empty set ReduceOps tests are generating dynamic shapes
+    backend_test.exclude(r'test_reduce_max_empty_set_cpu')
+    backend_test.exclude(r'test_reduce_sum_empty_axes_input_noop_cpu')
+    # tf_crop_and_resize not supported
+    backend_test.exclude(
+        r'test_resize_tf_crop_and_resize_extrapolation_value_cpu')
+    # keep_aspect_ratio_policy not supported
+    backend_test.exclude(r'test_resize_upsample_sizes_nearest_not_smaller_cpu')
+
+
 def disabled_tests_int4(backend_test):
     # quantizelinear
     backend_test.exclude(r'test_quantizelinear_int4')

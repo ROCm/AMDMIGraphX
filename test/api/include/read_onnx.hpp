@@ -29,7 +29,7 @@
 #include <migraphx/migraphx.hpp>
 
 inline migraphx::program read_onnx(const std::string& name,
-                                   migraphx::onnx_options options = migraphx::onnx_options{})
+                                   const migraphx::onnx_options& options = migraphx::onnx_options{})
 {
     static auto onnx_files{::onnx_files()};
     if(onnx_files.find(name) == onnx_files.end())

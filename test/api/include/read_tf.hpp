@@ -28,7 +28,7 @@
 #include <pb_files.hpp>
 
 inline migraphx::program read_tf(const std::string& name,
-                                 migraphx::tf_options options = migraphx::tf_options{})
+                                 const migraphx::tf_options& options = migraphx::tf_options{})
 {
     static auto pb_files{::pb_files()};
     if(pb_files.find(name) == pb_files.end())

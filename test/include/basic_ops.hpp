@@ -164,6 +164,8 @@ struct mod_pass_op
         if(not mods.empty())
         {
             auto out_shapes = mods[0]->get_output_shapes();
+            if(out_shapes.size() > 1)
+                return migraphx::shape{out_shapes};
             return out_shapes[0];
         }
         if(not inputs.empty())

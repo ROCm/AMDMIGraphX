@@ -139,8 +139,10 @@ static void create_pointwise_modules(module_pass_manager& mpm)
 }
 
 static module::with_inputs
-append_pointwise_module(const_module_ref parent, instruction_ref ins, instruction_ref output)
+append_pointwise_module(instruction_ref ins, instruction_ref output)
 {
+    std::unordered_set<instruction_ref> original_inputs{ins->inputs().begin(), ins->inputs().end()};
+    original_inputs.insert(output->inputs().begin(), output->inputs().end());
     module pm     = *ins->module_inputs().at(0);
     module_ref xm = output->module_inputs().at(0);
     const bool dependent = contains(output->inputs(), ins);
@@ -157,7 +159,7 @@ append_pointwise_module(const_module_ref parent, instruction_ref ins, instructio
         returns.insert(returns.end(), ireturns.begin(), ireturns.end());
     }
     pm.replace_return(returns);
-    auto inputs = find_inputs(map_ins, parent, &pm);
+    auto inputs = find_inputs(map_ins, original_inputs, &pm);
     return {std::move(pm), inputs};
 }
 
@@ -222,7 +224,7 @@ static void replace_with_tuple(module& m, instruction_ref ins, instruction_ref r
 static instruction_ref
 merge_instruction(module_pass_manager& mpm, instruction_ref input, instruction_ref output)
 {
-    auto fused               = append_pointwise_module(&mpm.get_module(), input, output);
+    auto fused               = append_pointwise_module(input, output);
     auto name                = fused.mod.name();
     mpm.rename_module(name, name + ":" + output->module_inputs().front()->name() + "-deleted");
     auto* new_pm = mpm.create_module(name, std::move(fused.mod));
@@ -254,7 +256,7 @@ static auto find_input_pointwise(instruction_ref ins, bool multi_out)
     return it;
 }
 
-static std::vector<instruction_ref> find_output_pointwise(instruction_ref ins, bool multi_out)
+static std::vector<instruction_ref> find_output_pointwise(const module& m, instruction_ref ins, bool multi_out)
 {
     std::vector<instruction_ref> result;
     if(not multi_out)
@@ -264,7 +266,7 @@ static std::vector<instruction_ref> find_output_pointwise(instruction_ref ins, b
         ins->outputs().begin(),
         ins->outputs().end(),
         std::back_inserter(outputs),
-        [&](auto output) { return output->name() == "pointwise" and not is_dead(output); });
+        [&](auto output) { return output->name() == "pointwise" and m.has_instruction(output) and not is_dead(output); });
     if(outputs.size() < 2)
         return result;
     std::sort(outputs.begin(), outputs.end(), by(std::less<>{}, [&](auto x) {
@@ -285,7 +287,7 @@ static bool find_pointwise_modules(module_pass_manager& mpm, bool multi_out)
     {
         if(ins != last and is_dead(ins))
             continue;
-        auto pw_outs = find_output_pointwise(ins, multi_out);
+        auto pw_outs = find_output_pointwise(mpm.get_module(), ins, multi_out);
 
         if(pw_outs.size() > 1)
         {

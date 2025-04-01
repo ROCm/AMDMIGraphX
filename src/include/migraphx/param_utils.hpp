@@ -28,6 +28,7 @@
 #include <migraphx/config.hpp>
 #include <migraphx/instruction_ref.hpp>
 #include <migraphx/module_ref.hpp>
+#include <unordered_set>
 #include <vector>
 #include <string>
 
@@ -40,10 +41,15 @@ void sort_params(std::vector<instruction_ref>& params);
 
 // Find the inputs for a module by finding instructions that are mapped to the
 // parameters in the module
-std::vector<instruction_ref>
-    MIGRAPHX_EXPORT find_inputs(const std::unordered_map<instruction_ref, instruction_ref>& map_ins,
+MIGRAPHX_EXPORT std::vector<instruction_ref>
+    find_inputs(const std::unordered_map<instruction_ref, instruction_ref>& map_ins,
                                 const_module_ref parent,
                                 const_module_ref sub);
+
+MIGRAPHX_EXPORT std::vector<instruction_ref>
+find_inputs(const std::unordered_map<instruction_ref, instruction_ref>& map_ins,
+            const std::unordered_set<instruction_ref>& parent_instructions,
+            const_module_ref sub);
 
 } // namespace MIGRAPHX_INLINE_NS
 } // namespace migraphx

@@ -117,7 +117,7 @@ struct mlir_compiler : compiler<mlir_compiler>
                     if(is_param)
                     {
                         auto id = param->get_shape().type_string() +
-                                  param->get_shape().to_sizes_string({param->get_shape()});
+                                  migraphx::shape::to_sizes_string({param->get_shape()});
                         cr.fill_map[id] = static_cast<double>(fill_val);
                     }
                 }

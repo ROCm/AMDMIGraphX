@@ -276,9 +276,7 @@ find_output_pointwise(const module& m, instruction_ref ins, bool multi_out)
               }));
     std::copy_if(outputs.begin(), outputs.end(), std::back_inserter(result), [&](auto output) {
         return std::none_of(
-            result.begin(), result.end(), [&](auto other) { 
-                return reaches(other, output, &m); 
-            });
+            result.begin(), result.end(), [&](auto other) { return reaches(other, output, &m); });
     });
     return result;
 }

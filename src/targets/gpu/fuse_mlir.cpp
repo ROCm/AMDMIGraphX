@@ -970,7 +970,6 @@ struct find_mlir_gqa_attention_op
             kv_unsqueezed_lens.at(2) = kv_num_heads_factor;
             k = m_attn.add_instruction(make_op("multibroadcast", {{"out_lens", kv_unsqueezed_lens}}), k);
             v = m_attn.add_instruction(make_op("multibroadcast", {{"out_lens", kv_unsqueezed_lens}}), v);
-            m_attn.debug_print();
             k = m_attn.add_instruction(make_op("reshape", {{"dims", kv_new_lens}}), k);
             v = m_attn.add_instruction(make_op("reshape", {{"dims", kv_new_lens}}), v);
         }

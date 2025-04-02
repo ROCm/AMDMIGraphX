@@ -197,7 +197,9 @@ def allocate_torch_tensors(model):
     input_shapes = model.get_parameter_shapes()
     data_mapping = {
         name: torch.zeros(shape.lens()).to(
-            mgx_to_torch_dtype_dict[shape.type_string()]).to(device="cuda") if not shape.scalar() else torch.tensor(0).to(mgx_to_torch_dtype_dict[shape.type_string()]).to(device="cuda")
+            mgx_to_torch_dtype_dict[shape.type_string()]).to(device="cuda")
+        if not shape.scalar() else torch.tensor(0).to(
+            mgx_to_torch_dtype_dict[shape.type_string()]).to(device="cuda")
         for name, shape in input_shapes.items()
     }
     return data_mapping
@@ -441,8 +443,7 @@ class StableDiffusionMGX():
         latents_model_input = torch.cat([latents] * 2)
         latents_model_input = self.scheduler.scale_model_input(
             latents_model_input, t).to(torch.float32).to(device="cuda")
-        timestep = t.to(torch.int64).to(
-            device="cuda")
+        timestep = t.to(torch.int64).to(device="cuda")
 
         copy_tensor_sync(self.tensors["unet"]["sample"], latents_model_input)
         copy_tensor_sync(self.tensors["unet"]["encoder_hidden_states"],

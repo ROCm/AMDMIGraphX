@@ -41,10 +41,10 @@ namespace gpu {
 
 struct context;
 void blas_shape_hip(const shape& s);
-shape transpose_batch_hip(const shape& s, unsigned trans_batch);
+MIGRAPHX_GPU_EXPORT shape transpose_batch_hip(const shape& s, unsigned trans_batch);
 
 template <class Op>
-struct hip_gemm
+struct MIGRAPHX_GPU_EXPORT hip_gemm
 {
     Op op;
     float alpha          = 1;

@@ -27,6 +27,7 @@
 #include <migraphx/module.hpp>
 #include <migraphx/ranges.hpp>
 #include <migraphx/output_iterator.hpp>
+#include <migraphx/iterator.hpp>
 #include <queue>
 
 namespace migraphx {
@@ -545,7 +546,7 @@ std::vector<shape> try_compute_shape(const operation& op, const std::vector<shap
 
 migraphx::instruction* as_address(const instruction_ref& ins) noexcept
 {
-    return std::addressof(*ins);
+    return iterator_address(ins);
 }
 
 bool reaches(instruction_ref start, instruction_ref end)

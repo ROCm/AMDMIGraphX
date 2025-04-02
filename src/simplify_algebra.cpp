@@ -1155,15 +1155,38 @@ struct find_splits
         })(ins1);
     }
 
-    /// Used to check if two module inputs have the same instructions.
-    static bool ins_eq(const module& x, const module& y)
+    static void update_group(const module& m,
+                             instruction_ref out,
+                             const std::vector<instruction_ref>& splits,
+                             std::vector<instruction_ref>& group)
     {
-        auto get_mod_string = [](const module& m) {
-            std::stringstream ss;
-            m.print([&](auto ins, auto ins_names) { instruction::print(ss, ins, ins_names); });
-            return ss.str();
-        };
-        return get_mod_string(x) == get_mod_string(y);
+        for(auto split : range(splits.begin() + 1, splits.end()))
+        {
+            auto it = std::find_if(split->outputs().begin(), split->outputs().end(), [&](auto i) {
+                if(i->get_operator() == out->get_operator())
+                {
+                    if(i->name() == "pointwise")
+                    {
+                        return (*(i->module_inputs().front()) == *(out->module_inputs().front()));
+                    }
+                    return true;
+                }
+                return false;
+            });
+            if(it == split->outputs().end())
+                break;
+            assert((*it)->name() != "slice");
+
+            // There are should be no dependency between instructions in the group
+            if(std::any_of(group.begin(), group.end(), [&](auto i) {
+                   return is_dependent(m, *it, i) or is_dependent(m, i, *it);
+               }))
+            {
+                break;
+            }
+
+            group.push_back(*it);
+        }
     }
 
     /// Find groups of the same operator after the splits (slice instructions)
@@ -1176,38 +1199,7 @@ struct find_splits
             if(out->name() == "slice")
                 continue;
             std::vector<instruction_ref> group = {out};
-            for(auto split : range(splits.begin() + 1, splits.end()))
-            {
-                auto it =
-                    std::find_if(split->outputs().begin(), split->outputs().end(), [&](auto i) {
-                        if(i->get_operator() == out->get_operator())
-                        {
-                            if(i->name() == "pointwise")
-                            {
-                                if(not ins_eq(*(i->module_inputs().front()),
-                                              *(out->module_inputs().front())))
-                                {
-                                    return false;
-                                }
-                            }
-                            return true;
-                        }
-                        return false;
-                    });
-                if(it == split->outputs().end())
-                    break;
-                assert((*it)->name() != "slice");
-
-                // There are should be no dependency between instructions in the group
-                if(std::any_of(group.begin(), group.end(), [&](auto i) {
-                       return is_dependent(m, *it, i) or is_dependent(m, i, *it);
-                   }))
-                {
-                    break;
-                }
-
-                group.push_back(*it);
-            }
+            update_group(m, out, splits, group);
             if(group.size() != splits.size())
                 continue;
             groups.push_back(group);
@@ -1229,24 +1221,15 @@ struct find_splits
             auto slc_axes    = slc.axes;
             auto reduce_axes = start->get_operator().to_value()["axes"].to_vector<int64_t>();
             // axes of slice and reduce op cannot have overlap
-            if(std::any_of(slc_axes.begin(), slc_axes.end(), [&](auto axis) {
-                   return (std::find(reduce_axes.begin(), reduce_axes.end(), axis) !=
-                           reduce_axes.end());
-               }))
-            {
-                return false;
-            }
-            return true;
+            return std::any_of(slc_axes.begin(), slc_axes.end(), [&](auto axis) {
+                return (std::find(reduce_axes.begin(), reduce_axes.end(), axis) !=
+                        reduce_axes.end());
+            });
         }
-        else if(op.name() == "pointwise")
+        else if(op.name() == "pointwise" or op.attributes().contains("pointwise"))
         {
             return true;
         }
-        else if(op.attributes().contains("pointwise"))
-        {
-            return true;
-        }
-
         return false;
     }
 
@@ -1302,7 +1285,7 @@ struct find_splits
      * Check if any split group depends on instructions from another split group.
      * Note: consider refactor if this function is slow
      */
-    bool split_groups_are_dependent(module& m,
+    bool split_groups_are_dependent(const module& m,
                                     std::vector<std::vector<instruction_ref>> groups) const
     {
         for(int i = 0; i < groups.size(); ++i)
@@ -1311,18 +1294,15 @@ struct find_splits
             std::vector<std::vector<instruction_ref>> groups_less_i(groups.size() - 1);
             std::copy(groups.cbegin(), groups.cbegin() + i, groups_less_i.begin());
             std::copy(groups.cbegin() + i + 1, groups.cend(), groups_less_i.begin() + i);
-            for(const auto& group_j : groups_less_i)
+            if(std::any_of(groups_less_i.begin(), groups_less_i.end(), [&](auto group_j) {
+                   return std::any_of(group_i.begin(), group_i.end(), [&](auto ins_i) {
+                       return std::any_of(group_j.begin(), group_j.end(), [&](auto ins_j) {
+                           return is_dependent(m, ins_i, ins_j);
+                       });
+                   });
+               }))
             {
-                for(auto ins_i : group_i)
-                {
-                    for(auto ins_j : group_j)
-                    {
-                        if(is_dependent(m, ins_i, ins_j))
-                        {
-                            return true;
-                        }
-                    }
-                }
+                return true;
             }
         }
         return false;

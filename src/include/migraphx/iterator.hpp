@@ -49,25 +49,27 @@ bool is_end(Iterator it, EndIterator last)
     return is_end(rank<2>{}, it, last);
 }
 
-template<class Iterator>
+template <class Iterator>
 auto* iterator_address(rank<0>, Iterator it)
 {
     return std::addressof(*it);
 }
 
-template<class Iterator>
-auto iterator_address(rank<1>, Iterator it) -> decltype(it._M_dereferenceable() ? std::addressof(*it) : nullptr)
+template <class Iterator>
+auto iterator_address(rank<1>, Iterator it) -> decltype(it._M_dereferenceable()
+                                                            ? std::addressof(*it)
+                                                            : nullptr)
 {
     return it._M_dereferenceable() ? std::addressof(*it) : nullptr;
 }
 
-template<class Iterator>
+template <class Iterator>
 auto iterator_address(rank<1>, Iterator it) -> decltype(it._Unwrapped()._Ptr)
 {
     return it._Unwrapped()._Ptr;
 }
 
-template<class Iterator>
+template <class Iterator>
 auto* iterator_address(Iterator it)
 {
     return iterator_address(rank<1>{}, it);

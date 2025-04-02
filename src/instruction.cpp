@@ -544,7 +544,12 @@ std::vector<shape> try_compute_shape(const operation& op, const std::vector<shap
     return {new_shape};
 }
 
-migraphx::instruction* as_address(const instruction_ref& ins) noexcept
+migraphx::instruction* as_address(const std::list<instruction>::iterator& ins) noexcept
+{
+    return iterator_address(ins);
+}
+
+const migraphx::instruction* as_address(const std::list<instruction>::const_iterator& ins) noexcept
 {
     return iterator_address(ins);
 }

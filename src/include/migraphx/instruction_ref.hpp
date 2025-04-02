@@ -33,6 +33,10 @@ namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
 
 struct instruction;
+
+MIGRAPHX_EXPORT migraphx::instruction* as_address(const std::list<instruction>::iterator& ins) noexcept;
+MIGRAPHX_EXPORT const migraphx::instruction* as_address(const std::list<instruction>::const_iterator& ins) noexcept;
+
 #if defined(CPPCHECK)
 using instruction_ref = std::list<instruction>::iterator;
 #else
@@ -64,7 +68,6 @@ struct instruction_ref : std::list<instruction>::iterator
 };
 #endif
 
-MIGRAPHX_EXPORT migraphx::instruction* as_address(const instruction_ref& ins) noexcept;
 
 } // namespace MIGRAPHX_INLINE_NS
 } // namespace migraphx

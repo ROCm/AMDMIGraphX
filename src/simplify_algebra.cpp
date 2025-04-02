@@ -1174,7 +1174,7 @@ struct find_splits
                 return false;
             });
             if(it == split->outputs().end())
-                break;
+                return;
             assert((*it)->name() != "slice");
 
             // There are should be no dependency between instructions in the group
@@ -1182,9 +1182,8 @@ struct find_splits
                    return is_dependent(m, *it, i) or is_dependent(m, i, *it);
                }))
             {
-                break;
+                return;
             }
-
             group.push_back(*it);
         }
     }
@@ -1222,7 +1221,7 @@ struct find_splits
             auto reduce_axes = start->get_operator().to_value()["axes"].to_vector<int64_t>();
             // axes of slice and reduce op cannot have overlap
             return std::any_of(slc_axes.begin(), slc_axes.end(), [&](auto axis) {
-                return (std::find(reduce_axes.begin(), reduce_axes.end(), axis) !=
+                return (std::find(reduce_axes.begin(), reduce_axes.end(), axis) ==
                         reduce_axes.end());
             });
         }

@@ -238,17 +238,17 @@ merge_instruction(module_pass_manager& mpm, instruction_ref input, instruction_r
     return fins;
 }
 
-static auto find_input_pointwise(instruction_ref ins, bool multi_out)
+static auto find_input_pointwise(const module& m, instruction_ref ins, bool multi_out)
 {
     auto it = std::find_if(ins->inputs().begin(), ins->inputs().end(), [&](auto i) {
-        return i->name() == "pointwise" and i->outputs().size() == 1;
+        return i->name() == "pointwise" and i->outputs().size() == 1 and m.has_instruction(i);
     });
     if(it == ins->inputs().end() and multi_out)
     {
         it = std::find_if(ins->inputs().begin(), ins->inputs().end(), [&](auto i) {
             return i->name() == "pointwise" and
                    std::none_of(i->outputs().begin(), i->outputs().end(), [&](auto output) {
-                       return output != ins and reaches(output, ins);
+                       return output != ins and reaches(output, ins, &m);
                    });
         });
     }
@@ -276,7 +276,9 @@ find_output_pointwise(const module& m, instruction_ref ins, bool multi_out)
               }));
     std::copy_if(outputs.begin(), outputs.end(), std::back_inserter(result), [&](auto output) {
         return std::none_of(
-            result.begin(), result.end(), [&](auto other) { return reaches(other, output); });
+            result.begin(), result.end(), [&](auto other) { 
+                return reaches(other, output, &m); 
+            });
     });
     return result;
 }
@@ -301,7 +303,7 @@ static bool find_pointwise_modules(module_pass_manager& mpm, bool multi_out)
         }
         else if(ins->name() == "pointwise")
         {
-            auto it = find_input_pointwise(ins, multi_out);
+            auto it = find_input_pointwise(mpm.get_module(), ins, multi_out);
             if(it == ins->inputs().end())
                 continue;
             auto input = *it;

@@ -548,10 +548,12 @@ migraphx::instruction* as_address(const instruction_ref& ins) noexcept
     return std::addressof(*ins);
 }
 
-bool reaches(instruction_ref start, instruction_ref end)
+bool reaches(instruction_ref start, instruction_ref end, const_module_ref m)
 {
     std::unordered_set<instruction_ref> visited;
     return fix<bool>([&](auto self, auto ins) -> bool {
+        if(m != nullptr and not m->has_instruction(ins))
+            return false;
         if(ins == start)
             return true;
         if(not visited.insert(ins).second)

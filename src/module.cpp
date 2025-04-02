@@ -66,7 +66,11 @@ struct module_impl
     {
         if(is_end(ins, instructions.end()))
             return false;
-        return instruction_set.count(std::addressof(*ins)) > 0;
+        auto r = instruction_set.count(std::addressof(*ins)) > 0;
+        assert(r == std::any_of(instructions.begin(), instructions.end(), [&](auto&& x) {
+                   return std::addressof(x) == std::addressof(*ins);
+               }));
+        return r;
     }
 
     template <class... Ts>

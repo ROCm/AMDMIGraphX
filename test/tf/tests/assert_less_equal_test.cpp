@@ -25,6 +25,8 @@
 
 #include <tf_test.hpp>
 
+// Skip this test for libstdc++ debug for now since it exposes a bug in protobuf
+#ifndef _GLIBCXX_DEBUG
 TEST_CASE(assert_less_equal_test)
 {
     migraphx::program p;
@@ -42,3 +44,4 @@ TEST_CASE(assert_less_equal_test)
 
     EXPECT(p == prog);
 }
+#endif

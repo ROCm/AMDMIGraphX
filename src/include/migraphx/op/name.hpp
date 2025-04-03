@@ -26,6 +26,7 @@
 
 #include <migraphx/config.hpp>
 #include <migraphx/type_name.hpp>
+#include <cassert>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
@@ -38,6 +39,7 @@ struct op_name
     std::string name() const
     {
         static const std::string& name = get_type_name<Derived>();
+        assert((name.rfind("::") + 2) < name.size());
         return name.substr(name.rfind("::") + 2);
     }
 };

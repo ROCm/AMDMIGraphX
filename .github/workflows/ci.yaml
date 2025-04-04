@@ -435,7 +435,7 @@ jobs:
       env:
         CMAKE_PREFIX_PATH: ${{ github.workspace }}/cget
         CCACHE_LOGFILE: /tmp/ccache.log
-        CXXFLAGS: -Werror -pthread --param ggc-min-expand=5 --param ggc-min-heapsize=8192
+        CXXFLAGS: -Werror -pthread -fdebug-prefix-map=$PWD=. -fdebug-types-section --param ggc-min-expand=5 --param ggc-min-heapsize=8192
       run: |
         echo "leak:dnnl::impl::malloc" > suppressions.txt
         export LSAN_OPTIONS="suppressions=$(pwd)/suppressions.txt"
@@ -444,8 +444,8 @@ jobs:
           -DMIGRAPHX_ENABLE_PYTHON=${{matrix.configuration == 'release' && 'On' || 'Off'}} \
           -DMIGRAPHX_DISABLE_LARGE_BUFFER_TESTS=On \
           -DBUILD_DEV=On \
-          -DCMAKE_CXX_FLAGS_DEBUG="-g1 -Os -fdebug-prefix-map=$PWD=. -fdebug-types-section -fno-omit-frame-pointer -fsanitize=undefined -fno-sanitize-recover=undefined" \
-          -DCMAKE_CXX_FLAGS_CODECOV="-g1 -Og -fdebug-prefix-map=$PWD=. -fdebug-types-section -fprofile-arcs -ftest-coverage -fno-omit-frame-pointer" \
+          -DCMAKE_CXX_FLAGS_DEBUG="-g1 -DMIGRAPHX_USE_TYPE_ERASED_MATCHERS=1 -Os -fno-omit-frame-pointer -fsanitize=undefined -fno-sanitize-recover=undefined" \
+          -DCMAKE_CXX_FLAGS_CODECOV="-g1 -DMIGRAPHX_USE_TYPE_ERASED_MATCHERS=1 -Og -fprofile-arcs -ftest-coverage -fno-omit-frame-pointer" \
           -DCMAKE_EXE_LINKER_FLAGS='-fuse-ld=lld' \
           -DCMAKE_SHARED_LINKER_FLAGS='-fuse-ld=lld'
         ${{ github.workspace }}/cget/bin/ccache -s

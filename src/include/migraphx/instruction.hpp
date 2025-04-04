@@ -72,7 +72,7 @@ struct MIGRAPHX_EXPORT instruction
 
     bool valid() const;
 
-    shape get_shape() const;
+    const shape& get_shape() const;
     const literal& get_literal() const;
 
     const operation& get_operator() const;

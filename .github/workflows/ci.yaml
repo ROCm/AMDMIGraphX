@@ -323,7 +323,7 @@ jobs:
     - name: Set up Python
       uses: actions/setup-python@v4
       with:
-        python-version: 3.8
+        python-version: 3.12
     - name: Install pyflakes
       run: pip install pyflakes==2.4.0 mypy==0.931
 
@@ -356,7 +356,7 @@ jobs:
     - name: Set up Python
       uses: actions/setup-python@v4
       with:
-        python-version: 3.8
+        python-version: 3.12
     - name: Run License Check
       run: python3 tools/check_stamped.py origin/${{ github.event_name == 'pull_request' && github.base_ref || 'develop' }}
 
@@ -396,7 +396,7 @@ jobs:
     - name: Set up Python
       uses: actions/setup-python@v4
       with:
-        python-version: 3.8
+        python-version: 3.12
     - name: Setup cmake
       uses: jwlawson/actions-setup-cmake@v1.9
       with:
@@ -520,7 +520,7 @@ jobs:
     - name: Set up Python
       uses: actions/setup-python@v4
       with:
-        python-version: 3.8
+        python-version: 3.12
 
     - name: Cache dependencies
       # Ignore the failure of a step and avoid terminating the job.

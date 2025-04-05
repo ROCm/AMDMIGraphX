@@ -64,7 +64,7 @@ auto iterator_address(rank<1>, Iterator it) -> decltype(it._M_dereferenceable()
 }
 
 template <class Iterator>
-auto iterator_address(rank<1>, Iterator it) -> decltype(std::addressof(it._Unwrapped()._Ptr->_Myval))
+auto iterator_address(rank<1>, Iterator it) -> decltype(std::addressof(it._Unwrapped()._Ptr->_Myval), std::addressof(*it))
 {
     return it._Unwrapped()._Ptr ? std::addressof(it._Unwrapped()._Ptr->_Myval) : nullptr;
 }

@@ -27,15 +27,15 @@
 TEST_CASE(gelu_quick_test)
 {
     migraphx::program p;
-    auto type       = migraphx::shape::float_type;
-    auto lens       = {3, 3};
-    auto shape      = migraphx::shape{type, lens};
-    auto* mm        = p.get_main_module();
-    auto x          = mm->add_parameter("x", shape);
-    auto alpha      = mm->add_literal(migraphx::literal{migraphx::shape{type}, {0.5f}});
-    auto mul_alpha  = add_common_op(*mm, migraphx::make_op("mul"), {alpha, x});
-    auto sigmoid = mm->add_instruction(migraphx::make_op("sigmoid"), {mul_alpha});
-    
+    auto type      = migraphx::shape::float_type;
+    auto lens      = {3, 3};
+    auto shape     = migraphx::shape{type, lens};
+    auto* mm       = p.get_main_module();
+    auto x         = mm->add_parameter("x", shape);
+    auto alpha     = mm->add_literal(migraphx::literal{migraphx::shape{type}, {0.5f}});
+    auto mul_alpha = add_common_op(*mm, migraphx::make_op("mul"), {alpha, x});
+    auto sigmoid   = mm->add_instruction(migraphx::make_op("sigmoid"), {mul_alpha});
+
     add_common_op(*mm, migraphx::make_op("mul"), {x, sigmoid});
 
     auto prog = optimize_onnx("gelu_quick_test.onnx");

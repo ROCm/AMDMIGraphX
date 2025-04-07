@@ -4007,7 +4007,7 @@ def gelu_fast_invalid_bias_test():
                                  domain="com.microsoft")
 
     return ([node], [x, y], [z])
-    
+
 
 @onnx_test()
 def gelu_quick_test():

@@ -25,16 +25,22 @@
 #include <migraphx/register_target.hpp>
 #include <migraphx/verify.hpp>
 #include <onnx_test.hpp>
- 
+
 TEST_CASE(gelu_quick_test)
 {
     migraphx::program p = read_onnx("gelu_quick_test.onnx");
     p.compile(migraphx::make_target("ref"));
 
     migraphx::shape shape{migraphx::shape::float_type, {3, 3}};
-    std::vector<float> x           = {0.0400717, 0.76666826, 0.75319463,
-                                    0.13215327, 0.37472633, 0.77117795,
-                                    0.95669776, 0.09139277, 0.37507972};
+    std::vector<float> x = {0.0400717,
+                            0.76666826,
+                            0.75319463,
+                            0.13215327,
+                            0.37472633,
+                            0.77117795,
+                            0.95669776,
+                            0.09139277,
+                            0.37507972};
 
     migraphx::parameter_map pp;
     pp["x"] = migraphx::argument(shape, x.data());
@@ -44,9 +50,15 @@ TEST_CASE(gelu_quick_test)
     result.visit([&](auto output) { result_vector.assign(output.begin(), output.end()); });
 
     // output from onnxruntime CPU EP
-    std::vector<float> gold = {0.02023656, 0.45591995, 0.4466837,
-                                        0.0682589, 0.20486447, 0.45902082,
-                                        0.5906249, 0.04674028, 0.2050741};
+    std::vector<float> gold = {0.02023656,
+                               0.45591995,
+                               0.4466837,
+                               0.0682589,
+                               0.20486447,
+                               0.45902082,
+                               0.5906249,
+                               0.04674028,
+                               0.2050741};
 
     EXPECT(migraphx::verify::verify_rms_range(result_vector, gold));
 }

@@ -115,6 +115,9 @@ std::vector<argument> run_target(program p,
         auto arg   = inputs.count(x.first) == 0 ? generate_argument(x.second) : inputs.at(x.first);
         m[x.first] = options.offload_copy ? arg : t.copy_to(arg);
     }
+
+    p.eval(m); // run once for hip graph capture
+
     auto gpu_out = p.eval(m);
     std::vector<argument> output(gpu_out.size());
     std::cout << p << std::endl;

@@ -30,6 +30,16 @@ namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
 namespace onnx {
 
+instruction_ref parse_quick_gelu(const onnx_parser::node_info& info, instruction_ref x)
+{
+    auto x_type = x->get_shape().type();
+    auto alpha_val = info.attributes.at("alpha").f();
+    auto alpha = info.add_literal(migraphx::literal{migraphx::shape{x_type}, {alpha_val}});
+    auto mul_alpha = info.add_common_op("mul", alpha, x);
+    auto sigmoid = info.add_instruction(migraphx::make_op("sigmoid"), mul_alpha);
+    return info.add_common_op("mul", x, sigmoid);
+}
+
 instruction_ref parse_gelu_erf(const onnx_parser::node_info& info, instruction_ref x)
 {
     auto x_type = x->get_shape().type();
@@ -82,7 +92,7 @@ instruction_ref parse_gelu_tanh(const onnx_parser::node_info& info, instruction_
 
 struct parse_gelu : op_parser<parse_gelu>
 {
-    std::vector<op_desc> operators() const { return {{"BiasGelu"}, {"FastGelu"}, {"Gelu"}}; }
+    std::vector<op_desc> operators() const { return {{"BiasGelu"}, {"FastGelu"}, {"QuickGelu"}, {"Gelu"}}; }
     instruction_ref parse(const op_desc& opd,
                           const onnx_parser& /*parser*/,
                           const onnx_parser::node_info& info,
@@ -100,6 +110,11 @@ struct parse_gelu : op_parser<parse_gelu>
         if(contains(info.attributes, "approximate"))
         {
             approximate = info.attributes.at("approximate").s();
+        }
+
+        if(opd.onnx_name == "QuickGelu")
+        {
+            return parse_quick_gelu(info, x);
         }
 
         if(opd.onnx_name == "FastGelu")

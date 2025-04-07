@@ -210,9 +210,9 @@ void visit_all_flatten(const shape& s, V1&& v1, V2 v2, Ts&&... xs)
 }
 
 template <class V1, class V2, class... Ts>
-auto visit_all_pack(const shape& s, V1&& v1, V2 v2)
+auto visit_all_pack(const shape& s, V1&& v1, V2&& v2)
 {
-    return [&](auto&&... xs) {
+    return [=](auto&&... xs) {
         // Workaround for https://gcc.gnu.org/bugzilla/show_bug.cgi?id=70100
         visit_all_flatten(s, v1, std::move(v2), xs...);
     };

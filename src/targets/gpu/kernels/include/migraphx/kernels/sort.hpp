@@ -43,9 +43,7 @@ struct bitonic_sort
     template <class T, class Reverse>
     constexpr bool compare(const T& x, const T& y, Reverse reverse) const
     {
-        if(reverse)
-            return compare_function(x, y);
-        return compare_function(y, x);
+        return reverse ^ compare_function(y, x);
     }
 
     template <class T>
@@ -161,9 +159,7 @@ struct bitonic_topk
     template <class T, class Reverse>
     constexpr bool compare(const T& x, const T& y, Reverse reverse) const
     {
-        if(reverse)
-            return compare_function(y, x);
-        return compare_function(x, y);
+        return reverse ^ compare_function(x, y);
     }
 
     template <class T, class Len>

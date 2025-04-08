@@ -107,7 +107,7 @@ TEST_CASE(double_add_crossmodule)
         auto y    = mm->add_parameter("y", s);
         auto z    = mm->add_parameter("z", s);
         auto add1 = mm->add_instruction(migraphx::make_op("add"), x, y);
-        auto* sm   = p1.create_module("sub");
+        auto* sm  = p1.create_module("sub");
         auto add2 = sm->add_instruction(migraphx::make_op("add"), add1, z);
         sm->add_return({add2});
         auto r = mm->add_instruction(mod_pass_op{}, {}, {sm});
@@ -139,7 +139,7 @@ TEST_CASE(double_add_crossmodule)
         auto y    = mm->add_parameter("y", s);
         auto z    = mm->add_parameter("z", s);
         auto add1 = add_pointwise(p2, mm, "main:pointwise0", {x, y}, single_pointwise("add"));
-        auto* sm   = p2.create_module("sub");
+        auto* sm  = p2.create_module("sub");
         auto add2 = add_pointwise(p2, sm, "sub:pointwise0", {add1, z}, single_pointwise("add"));
         // auto add2 = sm->add_instruction(migraphx::make_op("add"), add1, z);
         sm->add_return({add2});

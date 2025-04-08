@@ -542,7 +542,7 @@ struct compiler
             {
                 if(is_offload_copy_set(p) and not co.offload_copy)
                 {
-                    std::cout
+                    std::cerr
                         << "[WARNING]: MIGraphX program was likely compiled with offload_copy "
                            "set, Try "
                            "passing "
@@ -550,7 +550,7 @@ struct compiler
                 }
                 else if(not is_offload_copy_set(p) and co.offload_copy)
                 {
-                    std::cout << "[WARNING]: MIGraphX program was likely compiled without "
+                    std::cerr << "[WARNING]: MIGraphX program was likely compiled without "
                                  "offload_copy set, Try "
                                  "removing "
                                  "`--enable-offload-copy` if program run "

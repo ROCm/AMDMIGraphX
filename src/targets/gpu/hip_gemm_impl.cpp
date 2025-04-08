@@ -496,7 +496,7 @@ struct hip_gemm_impl
         auto check_valid = hipblaslt_invoke(&hipblasLtMatmul, common_args, false);
         if(check_valid != HIPBLAS_STATUS_SUCCESS)
         {
-            std::cerr << "WARNING:  tuned solution is invalid; reverting to default" << std::endl;
+            std::cerr << "WARNING: tuned solution is invalid; reverting to default" << std::endl;
             return 0;
         }
         return solution_idx;

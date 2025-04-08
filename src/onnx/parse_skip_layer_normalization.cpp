@@ -104,7 +104,7 @@ struct parse_skip_layer_normalization : op_parser<parse_skip_layer_normalization
             beta                   = args.at(3);
             const auto& beta_shape = beta->get_shape();
             const auto& beta_len   = beta_shape.lens();
-            if(beta_shape.type() != x_dtype or beta_len.size() > 1)
+            if(beta_shape.type() != x_dtype or beta_len.size() != 1)
             {
                 MIGRAPHX_THROW("PARSE_SKIPLAYERNORMALIZATION: Invalid Beta shape");
             }
@@ -117,14 +117,14 @@ struct parse_skip_layer_normalization : op_parser<parse_skip_layer_normalization
             bias            = args.at(4);
             auto bias_shape = bias->get_shape();
             auto bias_len   = bias_shape.lens();
-            if(bias_shape.type() != x_dtype or bias_len.size() > 1)
+            if(bias_shape.type() != x_dtype or bias_len.size() != 1)
             {
                 MIGRAPHX_THROW("PARSE_SKIPLAYERNORMALIZATION: Invalid Bias shape");
             }
         }
 
         x = info.add_common_op("add", x, skip);
-        if(args.size() >= 5)
+        if(args.size() == 5)
         {
             x = info.add_common_op("add", x, bias);
         }

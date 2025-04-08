@@ -53,8 +53,7 @@ struct topk_pair_u_t
 };
 
 template <class T, class U>
-struct topk_pair
-    : conditional_t<(sizeof(T) >= sizeof(U)), topk_pair_t_u<T, U>, topk_pair_u_t<T, U>>
+struct topk_pair : conditional_t<(sizeof(T) >= sizeof(U)), topk_pair_t_u<T, U>, topk_pair_u_t<T, U>>
 {
     template <class Stream>
     friend constexpr const Stream& operator<<(const Stream& ss, const topk_pair& tp)
@@ -69,7 +68,7 @@ constexpr auto select_key()
     return [](const auto& p) { return p.key; };
 }
 
-template<class Compare>
+template <class Compare>
 constexpr auto compare_topk_pair(Compare compare)
 {
     return [=](const auto& x, const auto& y) {
@@ -80,7 +79,6 @@ constexpr auto compare_topk_pair(Compare compare)
         return x.val < y.val;
     };
 }
-
 
 template <class T, class Type = typename T::type>
 constexpr auto

@@ -50,13 +50,5 @@ struct less_than_comparable
     MIGRAPHX_DEFINE_OPERATOR(>=, not(x < y));
 };
 
-template <class T>
-struct partially_ordered
-{
-    MIGRAPHX_DEFINE_OPERATOR(!=, not(x == y));
-    MIGRAPHX_DEFINE_OPERATOR(<=, (x < y or x == y));
-    MIGRAPHX_DEFINE_OPERATOR(>=, (x > y or x == y));
-};
-
 } // namespace migraphx
 #endif // MIGRAPHX_GUARD_KERNELS_OPERATORS_HPP

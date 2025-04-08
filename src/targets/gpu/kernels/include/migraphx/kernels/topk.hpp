@@ -54,28 +54,8 @@ struct topk_pair_u_t
 
 template <class T, class U>
 struct topk_pair
-    : conditional_t<(sizeof(T) >= sizeof(U)), topk_pair_t_u<T, U>, topk_pair_u_t<T, U>>,
-      partially_ordered<topk_pair<T, U>>
+    : conditional_t<(sizeof(T) >= sizeof(U)), topk_pair_t_u<T, U>, topk_pair_u_t<T, U>>
 {
-    friend constexpr bool operator<(const topk_pair& x, const topk_pair& y)
-    {
-        if(not float_equal(x.key, y.key))
-            return x.key < y.key;
-        return x.val < y.val;
-    }
-
-    friend constexpr bool operator>(const topk_pair& x, const topk_pair& y)
-    {
-        if(not float_equal(x.key, y.key))
-            return x.key > y.key;
-        return x.val < y.val;
-    }
-
-    friend constexpr bool operator==(const topk_pair& x, const topk_pair& y)
-    {
-        return float_equal(x.key, y.key) and x.val == y.val;
-    }
-
     template <class Stream>
     friend constexpr const Stream& operator<<(const Stream& ss, const topk_pair& tp)
     {
@@ -88,6 +68,19 @@ constexpr auto select_key()
 {
     return [](const auto& p) { return p.key; };
 }
+
+template<class Compare>
+constexpr auto compare_topk_pair(Compare compare)
+{
+    return [=](const auto& x, const auto& y) {
+        if(compare(x.key, y.key))
+            return true;
+        if(compare(y.key, x.key))
+            return false;
+        return x.val < y.val;
+    };
+}
+
 
 template <class T, class Type = typename T::type>
 constexpr auto
@@ -147,7 +140,7 @@ topk_impl(index idx, Compare compare, T init, Y y, YIndex y_idx, X x, XIndices..
             local_buf[i].val = get_index(j);
         });
 
-        bitonic_sort{compare}.wave_sort(idx, local_buf);
+        bitonic_sort{compare_topk_pair(compare)}.wave_sort(idx, local_buf);
 
         if constexpr(nwave == 1)
         {
@@ -186,7 +179,7 @@ topk_impl(index idx, Compare compare, T init, Y y, YIndex y_idx, X x, XIndices..
             }
             __syncthreads();
 
-            bitonic_topk{aligned_m, aligned_k, compare}.block_topk(idx, buf);
+            bitonic_topk{aligned_m, aligned_k, compare_topk_pair(compare)}.block_topk(idx, buf);
 
             // save top K
             idx.local_stride(k, [&](auto i) {
@@ -205,7 +198,7 @@ topk_impl(index idx, Compare compare, T init, Y y, YIndex y_idx, X x, XIndices..
             buf[i].val = get_index(i);
         });
         __syncthreads();
-        bitonic_topk{aligned_n, aligned_k, compare}.block_topk(idx, buf);
+        bitonic_topk{aligned_n, aligned_k, compare_topk_pair(compare)}.block_topk(idx, buf);
 
         // save top K
         idx.local_stride(k, [&](auto i) {

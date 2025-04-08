@@ -223,8 +223,8 @@ static void replace_with_tuple(module& m, instruction_ref ins, instruction_ref r
 static instruction_ref
 merge_instruction(module_pass_manager& mpm, instruction_ref input, instruction_ref output)
 {
-    auto fused               = append_pointwise_module(input, output);
-    auto name                = fused.mod.name();
+    auto fused = append_pointwise_module(input, output);
+    auto name  = fused.mod.name();
     mpm.rename_module(name, name + ":" + output->module_inputs().front()->name() + "-deleted");
     auto* new_pm = mpm.create_module(name, std::move(fused.mod));
     auto fins =

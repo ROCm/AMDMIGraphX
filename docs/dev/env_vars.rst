@@ -307,10 +307,13 @@ Set to the path of the MLIR tuning database to load.
 Set to the path of the tuning configuration.
 Appends to tuning cfg file that could be used with rocMLIR tuning scripts.
 
-.. envvar:: MIGRAPHX_MLIR_TUNE_EXHAUSTIVE
+.. envvar:: MIGRAPHX_MLIR_TUNE_HEURISTIC
 
 Set to "1", "enable", "enabled", "yes", or "true" to use.
-Performs exhaustive tuning for MLIR.
+Performs heuristically fast tuning for MLIR. This is not exhaustive, however it is quicker.
+Note: Exhaustive tuning for MLIR is done via "--exhaustive-tune" option for the MigraphX Driver,
+The default tuning for MLIR is the quick mode, in absence of any flags being set, which is the quickest.
+Thus, the above heuristic tuning here is somewhere in between the quick (default) and the exhaustive mode.
 
 .. envvar:: MIGRAPHX_MLIR_TUNE_LIMIT
 

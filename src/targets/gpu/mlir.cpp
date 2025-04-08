@@ -83,7 +83,7 @@ inline namespace MIGRAPHX_INLINE_NS {
 namespace gpu {
 
 MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_TRACE_MLIR);
-MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_MLIR_TUNE_EXHAUSTIVE);
+MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_MLIR_TUNE_HEURISTIC);
 MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_MLIR_TUNE_LIMIT);
 MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_MLIR_TUNING_DB);
 MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_MLIR_TUNING_CFG);
@@ -850,9 +850,9 @@ struct mlir_program
         tuning_config tc;
         run_high_level_pipeline();
         auto tuning_mode =
-            exhaustive ? RocmlirTuningParamSetKindFull : RocmlirTuningParamSetKindQuick;
-        if(enabled(MIGRAPHX_MLIR_TUNE_EXHAUSTIVE{}))
-            tuning_mode = RocmlirTuningParamSetKindExhaustive;
+            exhaustive ? RocmlirTuningParamSetKindExhaustive : RocmlirTuningParamSetKindQuick;
+        if(enabled(MIGRAPHX_MLIR_TUNE_HEURISTIC{}))
+            tuning_mode = RocmlirTuningParamSetKindFull;
         mlir_tuning_space params{mlirRockTuningSpaceCreate(mmodule.get(), tuning_mode)};
         const auto limit =
             value_of(MIGRAPHX_MLIR_TUNE_LIMIT{}, std::numeric_limits<std::size_t>::max());

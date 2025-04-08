@@ -35,7 +35,7 @@ namespace {
 
 struct find_large_topk
 {
-    std::size_t n_threshold = 16384;
+    std::size_t n_threshold = 8192;
     auto matcher() const { return match::name("topk"); }
 
     static std::size_t split_dim(std::size_t& r, std::size_t min_size)

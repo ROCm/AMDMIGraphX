@@ -32,6 +32,7 @@ namespace onnx {
 
 instruction_ref parse_quick_gelu(const onnx_parser::node_info& info, instruction_ref x)
 {
+    // computes x * sigmoid(alpha * x)
     auto x_type    = x->get_shape().type();
     auto alpha_val = info.attributes.at("alpha").f();
     auto alpha     = info.add_literal(migraphx::literal{migraphx::shape{x_type}, {alpha_val}});

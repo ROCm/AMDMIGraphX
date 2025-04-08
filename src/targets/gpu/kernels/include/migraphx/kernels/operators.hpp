@@ -30,6 +30,7 @@
 
 namespace migraphx {
 
+// NOLINTNEXTLINE
 #define MIGRAPHX_DEFINE_OPERATOR(op, expr)                                                  \
     template <class U>                                                                      \
     friend constexpr auto operator op(const T& x, const U& y) MIGRAPHX_RETURNS(expr);       \

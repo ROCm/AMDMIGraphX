@@ -475,7 +475,7 @@ jobs:
       run: |
         sudo apt-get install -y lcov
         cd build
-        lcov --directory . --capture --output-file $(pwd)/coverage.info
+        lcov --directory . --capture --output-file $(pwd)/coverage.info --ignore-errors mismatch
         lcov --remove $(pwd)/coverage.info '/usr/*' --output-file $(pwd)/coverage.info
         lcov --list $(pwd)/coverage.info
         curl -Os https://uploader.codecov.io/latest/linux/codecov

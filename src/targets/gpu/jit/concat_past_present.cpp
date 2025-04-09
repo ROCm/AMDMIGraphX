@@ -90,7 +90,7 @@ struct concat_past_present_compiler : compiler<concat_past_present_compiler>
         options.set_launch_params(
             v,
             compute_global_for(ctx,
-                               params.batch_size * params.kv_num_heads * params.sequence_length *
+                               params.batch_size * params.num_heads * params.sequence_length *
                                    params.head_size));
         options.inputs      = inputs;
         options.output      = inputs.back();

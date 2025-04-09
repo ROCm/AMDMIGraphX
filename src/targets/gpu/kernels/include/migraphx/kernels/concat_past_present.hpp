@@ -120,7 +120,7 @@ concat_past_present(Past past, const Present present, SeqLensK seqlens_k, Params
 {
     auto ind = make_index();
     auto elements =
-        params.batch_size * params.kv_num_heads * params.sequence_length * params.head_size;
+        params.batch_size * params.num_heads * params.sequence_length * params.head_size;
     ind.global_stride(elements, [&](auto idx) {
         update_cache(present.begin(), seqlens_k, past.begin(), params, idx);
     });

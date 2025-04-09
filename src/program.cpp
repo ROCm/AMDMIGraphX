@@ -892,24 +892,24 @@ void gemm_stats(instruction_ref ins, std::ostream& os)
     if(ins->name() != "gpu::gemm" and ins->name() != "gpu::hip_gemm")
         return;
 
-    auto val   = ins->get_operator().to_value();
+    auto val = ins->get_operator().to_value();
     // from the apply_alpha_beta pass, beta should always equal 0 or 1
-    int beta  = float_equal(val.at("beta").to<float>(), 1.0) ? 1 : 0;
+    int beta = float_equal(val.at("beta").to<float>(), 1.0) ? 1 : 0;
 
     std::vector<instruction_ref> ins_inputs = ins->inputs();
-    auto a_dims = ins_inputs.at(0)->get_shape().lens();
-    auto b_dims = ins_inputs.at(1)->get_shape().lens();
-    int m = 0;
-    int n = 0;
-    int k = 0;
-    int batch = 1;
-    // check for batch dimension    
+    auto a_dims                             = ins_inputs.at(0)->get_shape().lens();
+    auto b_dims                             = ins_inputs.at(1)->get_shape().lens();
+    int m                                   = 0;
+    int n                                   = 0;
+    int k                                   = 0;
+    int batch                               = 1;
+    // check for batch dimension
     if(a_dims.size() == 3)
     {
         batch = a_dims.at(0);
-        m = a_dims.at(1);
-        k = a_dims.at(2);
-        n = b_dims.at(2);
+        m     = a_dims.at(1);
+        k     = a_dims.at(2);
+        n     = b_dims.at(2);
     }
     else
     {
@@ -925,9 +925,9 @@ void gemm_stats(instruction_ref ins, std::ostream& os)
     // For GEMMs, the naive equation is:
     // (2*batch*m*n*k + beta*m*n) /
     // (batch * (m*k + k*n + (1 + beta) * m * n))
-    int64_t ops = 2 * batch * m * n * k + beta * m * n;
-    int64_t mem_transactions = batch * (m * k + k * n + ( 1 + beta ) * m * n);
-    double intensity = static_cast<double>(ops) / static_cast<double>(mem_transactions);
+    int64_t ops              = 2 * batch * m * n * k + beta * m * n;
+    int64_t mem_transactions = batch * (m * k + k * n + (1 + beta) * m * n);
+    double intensity         = static_cast<double>(ops) / static_cast<double>(mem_transactions);
     os << ", ops: " << ops;
     os << ", memory transactions: " << mem_transactions;
     os << ", arithmetic intensity: " << intensity;
@@ -1031,9 +1031,9 @@ void program::perf_report(
         double avg     = common_average(ins_vec[ins]);
         double percent = std::ceil(100.0 * avg / total_instruction_time);
         os << ": " << avg << "ms, " << percent << "%";
-        
+
         gemm_stats(ins, os);
-        
+
         os << std::endl;
     });
 

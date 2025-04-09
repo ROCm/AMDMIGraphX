@@ -889,8 +889,8 @@ std::string perf_group(instruction_ref ins, bool detailed)
 
 void gemm_stats(instruction_ref ins, std::ostream& os)
 {
-    auto op = ins->get_operator();
-    auto val = op.to_value();
+    auto op      = ins->get_operator();
+    auto val     = op.to_value();
     auto op_name = op.name();
     if(contains(val, "symbol_name"))
     {
@@ -907,7 +907,6 @@ void gemm_stats(instruction_ref ins, std::ostream& os)
         // from the fuse_ops pass, beta should always equal 0 or 1
         beta = float_equal(val.at("beta").to<float>(), 1.0) ? 1 : 0;
     }
-    
 
     std::vector<instruction_ref> ins_inputs = ins->inputs();
     auto a_dims                             = ins_inputs.at(0)->get_shape().lens();

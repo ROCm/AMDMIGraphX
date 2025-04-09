@@ -33,6 +33,7 @@ include(CheckCXXSourceCompiles)
 add_library(migraphx
     adjust_allocation.cpp
     analyze_streams.cpp
+    apply_alpha_beta.cpp
     argument.cpp
     autocast_fp8.cpp
     auto_contiguous.cpp

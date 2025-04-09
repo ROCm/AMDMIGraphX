@@ -27,9 +27,10 @@
 #include <string>
 #include <migraphx/config.hpp>
 
-namespace migraphx {
-inline namespace MIGRAPHX_INLINE_NS {
+namespace private_migraphx_detail {
 
+// Type is computed in a private namespace to avoid the compiler removing
+// namespaces if the type resides in the migraphx namespace
 template <class PrivateMigraphTypeNameProbe>
 std::string compute_type_name()
 {
@@ -46,10 +47,15 @@ std::string compute_type_name()
     return name.substr(begin, length);
 }
 
+} // namespace private_migraphx_detail
+
+namespace migraphx {
+inline namespace MIGRAPHX_INLINE_NS {
+
 template <class T>
 const std::string& get_type_name()
 {
-    static const std::string name = compute_type_name<T>();
+    static const std::string name = private_migraphx_detail::compute_type_name<T>();
     return name;
 }
 

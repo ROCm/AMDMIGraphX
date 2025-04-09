@@ -889,12 +889,25 @@ std::string perf_group(instruction_ref ins, bool detailed)
 
 void gemm_stats(instruction_ref ins, std::ostream& os)
 {
-    if(ins->name() != "gpu::gemm" and ins->name() != "gpu::hip_gemm")
+    auto op = ins->get_operator();
+    auto val = op.to_value();
+    auto op_name = op.name();
+    if(contains(val, "symbol_name"))
+    {
+        op_name = val.at("symbol_name").to<std::string>();
+    }
+
+    if(op_name != "gpu::gemm" and op_name != "gpu::hip_gemm" and op_name != "mlir_dot")
         return;
 
-    auto val = ins->get_operator().to_value();
-    // from the apply_alpha_beta pass, beta should always equal 0 or 1
-    int beta = float_equal(val.at("beta").to<float>(), 1.0) ? 1 : 0;
+    int beta = 0;
+
+    if(contains(val, "beta"))
+    {
+        // from the fuse_ops pass, beta should always equal 0 or 1
+        beta = float_equal(val.at("beta").to<float>(), 1.0) ? 1 : 0;
+    }
+    
 
     std::vector<instruction_ref> ins_inputs = ins->inputs();
     auto a_dims                             = ins_inputs.at(0)->get_shape().lens();

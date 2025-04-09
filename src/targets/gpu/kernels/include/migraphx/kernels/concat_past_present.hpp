@@ -120,7 +120,7 @@ __device__ void concat_past_present(
 {
     auto ind = make_index();
     auto elements =
-        2 * params.batch_size * params.kv_num_heads * params.sequence_length * params.head_size;
+        2 * params.batch_size * params.num_heads * params.sequence_length * params.head_size;
     ind.global_stride(elements, [&](auto idx) {
         auto q = query.begin();
         auto k = q + params.num_heads * params.sequence_length * params.head_size;

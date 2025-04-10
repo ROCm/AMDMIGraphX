@@ -169,7 +169,7 @@ bool instruction::valid() const
            });
 }
 
-shape instruction::get_shape() const { return result; }
+const shape& instruction::get_shape() const { return result; }
 
 const literal& instruction::get_literal() const
 {

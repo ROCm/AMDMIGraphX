@@ -359,3 +359,102 @@ TEST_CASE(skip_layer_normalization_beta_bias_test)
     EXPECT(
         migraphx::verify::verify_rms_range(input_skip_bias_sum_vector, gold_input_skip_bias_sum));
 }
+
+TEST_CASE(skip_layer_normalization_2d_skip_test)
+{
+    using migraphx::half;
+    std::vector<half> x{half{0.8},
+                        half{-0.5},
+                        half{0.0},
+                        half{1.0},
+                        half{0.5},
+                        half{0.2},
+                        half{0.3},
+                        half{-0.6},
+                        half{10.0},
+                        half{-1.0},
+                        half{0.0},
+                        half{1.0},
+                        half{1.2},
+                        half{3.2},
+                        half{-4.1},
+                        half{5.3}};
+    // 2D skip has only 8 elements instead of 16
+    std::vector<half> skip{
+        half{1.2}, half{-1.0}, half{2.0}, half{1.0}, half{-1.2}, half{1.6}, half{-1.1}, half{1.3}};
+    std::vector<half> scale{half{0.1}, half{0.2}, half{4.0}, half{-2.2}};
+
+    auto p = read_onnx("skip_layer_normalization_2d_skip_test.onnx");
+    p.compile(migraphx::make_target("ref"));
+
+    migraphx::shape s_x{migraphx::shape::half_type, {2, 2, 4}};
+    migraphx::shape s_skip{migraphx::shape::half_type, {2, 4}};
+    migraphx::shape s_s{migraphx::shape::half_type, {4}};
+
+    migraphx::parameter_map pp;
+    pp["x"]     = migraphx::argument(s_x, x.data());
+    pp["skip"]  = migraphx::argument(s_skip, skip.data());
+    pp["gamma"] = migraphx::argument(s_s, scale.data());
+
+    auto results             = p.eval(pp);
+    auto output              = results.at(0);
+    auto mean                = results.at(1);
+    auto inv_std_var         = results.at(2);
+    auto input_skip_bias_sum = results.at(3);
+
+    std::vector<half> result_vector;
+    std::vector<half> mean_vector;
+    std::vector<half> inv_std_var_vector;
+    std::vector<half> input_skip_bias_sum_vector;
+
+    output.visit([&](auto vals) { result_vector.assign(vals.begin(), vals.end()); });
+    mean.visit([&](auto vals) { mean_vector.assign(vals.begin(), vals.end()); });
+    inv_std_var.visit([&](auto vals) { inv_std_var_vector.assign(vals.begin(), vals.end()); });
+    input_skip_bias_sum.visit(
+        [&](auto vals) { input_skip_bias_sum_vector.assign(vals.begin(), vals.end()); });
+
+    std::vector<half> gold = {half{0.0577393},
+                              half{-0.346191},
+                              half{2.3125},
+                              half{-1.27051},
+                              half{-0.0884399},
+                              half{0.288574},
+                              half{-3.91406},
+                              half{-0.922363},
+                              half{0.162842},
+                              half{-0.218628},
+                              half{-1.07227},
+                              half{0.589355},
+                              half{-0.0338135},
+                              half{0.141846},
+                              half{-5.89062},
+                              half{-2.42188}};
+
+    std::vector<half> gold_mean = {half{1.12402}, half{0.25}, half{3.29883}, half{1.54883}};
+
+    std::vector<half> gold_inv_std_var = {
+        half{0.660156}, half{0.932129}, half{0.206543}, half{0.218506}};
+
+    std::vector<half> gold_input_skip_bias_sum = {half{1.99902},
+                                                  half{-1.5},
+                                                  half{2},
+                                                  half{2},
+                                                  half{-0.699219},
+                                                  half{1.79883},
+                                                  half{-0.799805},
+                                                  half{0.700195},
+                                                  half{11.1953},
+                                                  half{-2},
+                                                  half{2},
+                                                  half{2},
+                                                  half{0},
+                                                  half{4.79688},
+                                                  half{-5.19531},
+                                                  half{6.59375}};
+
+    EXPECT(migraphx::verify::verify_rms_range(result_vector, gold));
+    EXPECT(migraphx::verify::verify_rms_range(mean_vector, gold_mean));
+    EXPECT(migraphx::verify::verify_rms_range(inv_std_var_vector, gold_inv_std_var));
+    EXPECT(
+        migraphx::verify::verify_rms_range(input_skip_bias_sum_vector, gold_input_skip_bias_sum));
+}

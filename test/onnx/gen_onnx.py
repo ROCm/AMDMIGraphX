@@ -13185,6 +13185,28 @@ def skip_layer_normalization_test():
     return ([node], [x, skip,
                      gamma], [y, mean, inv_std_var, input_skip_bias_sum])
 
+@onnx_test()
+def skip_layer_normalization_2d_skip_test():
+    x = helper.make_tensor_value_info('x', TensorProto.FLOAT16, [2, 2, 4])
+    skip = helper.make_tensor_value_info('skip', TensorProto.FLOAT16, [2, 4])
+    gamma = helper.make_tensor_value_info('gamma', TensorProto.FLOAT16, [4])
+    y = helper.make_tensor_value_info('y', TensorProto.FLOAT16, [2, 2, 4])
+    mean = helper.make_tensor_value_info('mean', TensorProto.FLOAT, [2, 2, 1])
+    inv_std_var = helper.make_tensor_value_info('inv_std_var',
+                                                TensorProto.FLOAT, [2, 2, 1])
+    input_skip_bias_sum = helper.make_tensor_value_info(
+        'input_skip_bias_sum', TensorProto.FLOAT16, [2, 2, 4])
+
+    node = onnx.helper.make_node(
+        'SkipLayerNormalization',
+        inputs=['x', 'skip', 'gamma'],
+        outputs=['y', 'mean', 'inv_std_var', 'input_skip_bias_sum'],
+        epsilon=1e-5,
+        domain="com.microsoft")
+
+    return ([node], [x, skip,
+                     gamma], [y, mean, inv_std_var, input_skip_bias_sum])
+
 
 @onnx_test()
 def skip_layer_normalization_beta_test():

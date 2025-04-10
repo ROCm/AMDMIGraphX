@@ -114,9 +114,9 @@ struct parse_skip_layer_normalization : op_parser<parse_skip_layer_normalization
         instruction_ref bias;
         if(args.size() == 5)
         {
-            bias            = args.at(4);
-            auto bias_shape = bias->get_shape();
-            auto bias_len   = bias_shape.lens();
+            bias                 = args.at(4);
+            auto bias_shape      = bias->get_shape();
+            const auto& bias_len = bias_shape.lens();
             if(bias_shape.type() != x_dtype or bias_len.size() != 1)
             {
                 MIGRAPHX_THROW("PARSE_SKIPLAYERNORMALIZATION: Invalid Bias shape");

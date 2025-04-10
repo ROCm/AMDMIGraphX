@@ -222,7 +222,7 @@ make_skip_layer_norm(const std::vector<int64_t>& input_shape,
 
     migraphx::instruction_ref beta;
     migraphx::instruction_ref bias;
-    if(beta_shape.size() > 0)
+    if(not beta_shape.empty())
     {
         beta = mm->add_parameter("beta", {dtype, beta_shape});
     }
@@ -241,7 +241,6 @@ make_skip_layer_norm(const std::vector<int64_t>& input_shape,
     auto x_sqdiff_mean = add_common_op(*mm, migraphx::make_op("sqdiff"), {x, mean});
     auto var =
         mm->add_instruction(migraphx::make_op("reduce_mean", {{"axes", {axes}}}), x_sqdiff_mean);
-    // mean = mm->add_instruction(migraphx::make_op("convert", {{"target_type", dtype}}), mean);
 
     auto var_eps = add_common_op(*mm, migraphx::make_op("add"), {var, eps});
     auto rsqrt   = mm->add_instruction(migraphx::make_op("rsqrt"), {var_eps});

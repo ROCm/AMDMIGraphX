@@ -286,7 +286,7 @@ insert_generic_instructions(module& m,
 
 instruction_ref module::add_instruction(const operation& op, std::vector<instruction_ref> args)
 {
-    return insert_instruction(impl->instructions.end(), op, std::move(args));
+    return insert_instruction(this->insert_end(), op, std::move(args));
 }
 instruction_ref module::insert_instruction(instruction_ref ins,
                                            const operation& op,
@@ -306,7 +306,7 @@ instruction_ref module::add_instruction(const operation& op,
                                         std::vector<module_ref> module_args)
 {
     return insert_instruction(
-        impl->instructions.end(), op, std::move(args), std::move(module_args));
+        this->insert_end(), op, std::move(args), std::move(module_args));
 }
 
 instruction_ref module::insert_instruction(instruction_ref ins,
@@ -436,7 +436,7 @@ module::add_instructions(const std::vector<instruction_ref>& instructions,
                          std::unordered_map<instruction_ref, instruction_ref>* map_ins,
                          module::inserter insert)
 {
-    return this->insert_instructions(this->end(), instructions, map_ins, std::move(insert));
+    return this->insert_instructions(this->insert_end(), instructions, map_ins, std::move(insert));
 }
 
 std::vector<instruction_ref>
@@ -444,7 +444,7 @@ module::add_instructions(const_module_ref m,
                          std::unordered_map<instruction_ref, instruction_ref>* map_ins,
                          module::inserter insert)
 {
-    return this->insert_instructions(this->end(), m, map_ins, std::move(insert));
+    return this->insert_instructions(this->insert_end(), m, map_ins, std::move(insert));
 }
 
 std::vector<instruction_ref>
@@ -453,7 +453,7 @@ module::add_instructions(instruction_ref start,
                          std::unordered_map<instruction_ref, instruction_ref>* map_ins,
                          module::inserter insert)
 {
-    return this->insert_instructions(this->end(), start, last, map_ins, std::move(insert));
+    return this->insert_instructions(this->insert_end(), start, last, map_ins, std::move(insert));
 }
 
 std::vector<instruction_ref>
@@ -543,7 +543,12 @@ instruction_ref module::replace_return(std::vector<instruction_ref> args)
     auto last = std::prev(this->end());
     // If there is no return then add a return
     if(last->name() != "@return")
+    {
+        assert(std::none_of(impl->instructions.begin(), impl->instructions.end(), [](const instruction& ins) {
+            return ins.name() == "@return";
+        }));
         return this->add_return(args);
+    }
 
     shape r = compute_shape(last->get_operator(), args);
     instruction::replace(last, last->get_operator(), r, std::move(args));
@@ -651,6 +656,16 @@ bool module::has_instruction(instruction_ref ins) const { return impl->contains(
 std::size_t module::size() const { return impl->instructions.size(); }
 instruction_ref module::begin() const { return impl->instructions.begin(); }
 instruction_ref module::end() const { return impl->instructions.end(); }
+instruction_ref module::insert_end() const
+{
+    auto e = impl->instructions.end();
+    if(impl->instructions.empty())
+        return e;
+    auto last_ins = std::prev(e);
+    if(last_ins->name() == "@return")
+        return last_ins;
+    return e;
+}
 
 std::vector<shape> module::get_output_shapes() const
 {

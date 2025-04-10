@@ -13185,6 +13185,7 @@ def skip_layer_normalization_test():
     return ([node], [x, skip,
                      gamma], [y, mean, inv_std_var, input_skip_bias_sum])
 
+
 @onnx_test()
 def skip_layer_normalization_2d_skip_test():
     x = helper.make_tensor_value_info('x', TensorProto.FLOAT16, [2, 2, 4])
@@ -13206,6 +13207,7 @@ def skip_layer_normalization_2d_skip_test():
 
     return ([node], [x, skip,
                      gamma], [y, mean, inv_std_var, input_skip_bias_sum])
+
 
 @onnx_test()
 def skip_layer_normalization_skip_batch_size_1_test():
@@ -13229,6 +13231,7 @@ def skip_layer_normalization_skip_batch_size_1_test():
 
     return ([node], [x, skip,
                      gamma], [y, mean, inv_std_var, input_skip_bias_sum])
+
 
 @onnx_test()
 def skip_layer_normalization_beta_test():

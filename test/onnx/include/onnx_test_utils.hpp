@@ -205,35 +205,35 @@ make_layer_norm(const std::vector<int64_t>& input_shape,
 }
 
 inline migraphx::program
-make_skip_layer_norm(const std::vector<int64_t>& input_shape,
-                     const std::vector<int64_t>& skip_shape,
-                     const std::vector<int64_t>& gamma_shape,
-                     const std::vector<int64_t>& beta_shape,
-                     const std::vector<int64_t>& bias_shape,
+make_skip_layer_norm(const std::vector<int64_t>& input_dims,
+                     const std::vector<int64_t>& skip_dims,
+                     const std::vector<int64_t>& gamma_dims,
+                     const std::vector<int64_t>& beta_dims,
+                     const std::vector<int64_t>& bias_dims,
                      const int axes,
                      const float eps_value               = 1e-5f,
                      const migraphx::shape::type_t dtype = migraphx::shape::half_type)
 {
     migraphx::program p;
     auto* mm   = p.get_main_module();
-    auto x     = mm->add_parameter("x", {dtype, input_shape});
-    auto skip  = mm->add_parameter("skip", {dtype, skip_shape});
-    auto scale = mm->add_parameter("gamma", {dtype, gamma_shape});
+    auto x     = mm->add_parameter("x", {dtype, input_dims});
+    auto skip  = mm->add_parameter("skip", {dtype, skip_dims});
+    auto scale = mm->add_parameter("gamma", {dtype, gamma_dims});
 
     migraphx::instruction_ref beta;
     migraphx::instruction_ref bias;
-    if(not beta_shape.empty())
+    if(not beta_dims.empty())
     {
-        beta = mm->add_parameter("beta", {dtype, beta_shape});
+        beta = mm->add_parameter("beta", {dtype, beta_dims});
     }
 
-    if(not bias_shape.empty())
+    if(not bias_dims.empty())
     {
-        bias = mm->add_parameter("bias", {dtype, bias_shape});
+        bias = mm->add_parameter("bias", {dtype, bias_dims});
     }
 
     x = add_common_op(*mm, migraphx::make_op("add"), {x, skip});
-    if(not bias_shape.empty())
+    if(not bias_dims.empty())
         x = add_common_op(*mm, migraphx::make_op("add"), {x, bias});
 
     auto eps  = mm->add_literal(migraphx::literal{migraphx::shape{dtype}, {eps_value}});
@@ -249,7 +249,7 @@ make_skip_layer_norm(const std::vector<int64_t>& input_shape,
     auto result     = add_common_op(*mm, migraphx::make_op("mul"), {x_sub_mean, rsqrt});
     result          = add_common_op(*mm, migraphx::make_op("mul"), {result, scale});
 
-    if(not beta_shape.empty())
+    if(not beta_dims.empty())
     {
         result = add_common_op(*mm, migraphx::make_op("add"), {result, beta});
     }

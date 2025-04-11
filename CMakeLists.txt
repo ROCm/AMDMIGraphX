@@ -159,7 +159,7 @@ elseif(MIGRAPHX_ENABLE_GPU)
 endif()
 rocm_enable_clang_tidy(
     CHECKS
-        boost-*
+        -boost-*
         bugprone-*
         cert-*
         clang-analyzer-*

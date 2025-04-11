@@ -40,7 +40,7 @@ template <typename To,
           typename From,
           MIGRAPHX_REQUIRES(std::is_trivially_copyable<To>{} and
                             std::is_trivially_copyable<From>{})>
-inline constexpr To bit_cast(From fr) noexcept
+constexpr To bit_cast(From fr) noexcept
 {
     static_assert(sizeof(To) == sizeof(From));
 #if defined(__GNUC__) and !defined(__clang__)

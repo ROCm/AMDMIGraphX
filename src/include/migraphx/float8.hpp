@@ -109,7 +109,7 @@ struct float8
         }
     }
 
-    inline constexpr operator float() const
+    constexpr operator float() const
     {
         if constexpr(T == migraphx::fp8::f8_type::fp8)
         {
@@ -118,9 +118,9 @@ struct float8
         return migraphx::fp8::impl::cast_from_f8<2, 5, float, FNUZ /*negative_zero_nan*/>(data);
     }
 
-    inline explicit constexpr operator bool() const { return not is_zero(); }
+    explicit constexpr operator bool() const { return not is_zero(); }
 
-    inline constexpr bool is_zero() const
+    constexpr bool is_zero() const
     {
         if constexpr(FNUZ)
         {
@@ -132,7 +132,7 @@ struct float8
         }
     }
 
-    inline constexpr bool is_nan() const
+    constexpr bool is_nan() const
     {
         if constexpr(FNUZ)
         {
@@ -152,7 +152,7 @@ struct float8
         }
     }
 
-    inline constexpr bool is_inf() const
+    constexpr bool is_inf() const
     {
         if constexpr(FNUZ)
         {

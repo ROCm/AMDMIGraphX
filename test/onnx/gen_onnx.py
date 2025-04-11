@@ -13259,7 +13259,7 @@ def skip_layer_normalization_beta_test():
 
 
 @onnx_test()
-def skip_layer_normalization_bad_beta_test():
+def skip_layer_normalization_invalid_beta_test():
     x = helper.make_tensor_value_info('x', TensorProto.FLOAT16, [2, 2, 4])
     skip = helper.make_tensor_value_info('skip', TensorProto.FLOAT16,
                                          [2, 2, 4])
@@ -13310,7 +13310,7 @@ def skip_layer_normalization_beta_bias_test():
 
 
 @onnx_test()
-def skip_layer_normalization_bad_bias_test():
+def skip_layer_normalization_invalid_bias_test():
     x = helper.make_tensor_value_info('x', TensorProto.FLOAT16, [2, 2, 4])
     skip = helper.make_tensor_value_info('skip', TensorProto.FLOAT16,
                                          [2, 2, 4])

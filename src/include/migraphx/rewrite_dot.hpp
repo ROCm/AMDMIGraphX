@@ -20,52 +20,25 @@
  * LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
  * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
  * THE SOFTWARE.
+ *
  */
-#ifndef MIGRAPHX_GUARD_RTGLIB_TYPE_NAME_HPP
-#define MIGRAPHX_GUARD_RTGLIB_TYPE_NAME_HPP
+#ifndef MIGRAPHX_GUARD_MIGRAPHX_REWRITE_DOT_HPP
+#define MIGRAPHX_GUARD_MIGRAPHX_REWRITE_DOT_HPP
 
-#include <string>
 #include <migraphx/config.hpp>
-
-namespace private_migraphx_detail {
-
-// Type is computed in a private namespace to avoid the compiler removing
-// namespaces if the type resides in the migraphx namespace
-template <class PrivateMigraphTypeNameProbe>
-std::string compute_type_name()
-{
-    const char parameter_name[] = "PrivateMigraphTypeNameProbe ="; // NOLINT
-
-    std::string name = __PRETTY_FUNCTION__;
-
-    auto begin  = name.find(parameter_name) + sizeof(parameter_name);
-#if(defined(__GNUC__) && !defined(__clang__) && __GNUC__ == 4 && __GNUC_MINOR__ < 7)
-    auto length = name.find_last_of(",") - begin;
-#else
-    auto length = name.find_first_of("];", begin) - begin;
-#endif
-    return name.substr(begin, length);
-}
-
-} // namespace private_migraphx_detail
+#include <string>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
 
-template <class T>
-const std::string& get_type_name()
-{
-    static const std::string name = private_migraphx_detail::compute_type_name<T>();
-    return name;
-}
+struct module;
 
-template <class T>
-const std::string& get_type_name(const T&)
+struct MIGRAPHX_EXPORT rewrite_dot
 {
-    return migraphx::get_type_name<T>();
-}
+    std::string name() const { return "rewrite_dot"; }
+    void apply(module& m) const;
+};
 
 } // namespace MIGRAPHX_INLINE_NS
 } // namespace migraphx
-
-#endif
+#endif // MIGRAPHX_GUARD_MIGRAPHX_REWRITE_DOT_HPP

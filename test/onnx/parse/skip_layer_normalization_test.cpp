@@ -20,38 +20,16 @@
  * LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
  * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
  * THE SOFTWARE.
- *
  */
-#include <migraphx/fuse_pointwise_reduce.hpp>
-#include <migraphx/pass_manager.hpp>
-#include <migraphx/fuse_pointwise.hpp>
-#include <migraphx/fuse_reduce.hpp>
-#include <migraphx/split_reduce.hpp>
-#include <migraphx/optimize_module.hpp>
-#include <migraphx/env.hpp>
 
-namespace migraphx {
-inline namespace MIGRAPHX_INLINE_NS {
-MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_SPLIT_REDUCE_SIZE);
+#include <onnx_test.hpp>
+#include <onnx_test_utils.hpp>
 
-static std::size_t get_split_size(std::size_t default_split)
+TEST_CASE(skip_layer_normalization_test)
 {
-    std::string value = string_value_of(MIGRAPHX_SPLIT_REDUCE_SIZE{});
-    if(value.empty())
-        return default_split;
-    return std::stoul(value);
-}
+    migraphx::program p = make_skip_layer_norm(
+        {2, 2, 4}, {2, 2, 4}, {4}, {}, {}, 2, 1e-5f, migraphx::shape::half_type);
 
-void fuse_pointwise_reduce::apply(module_pass_manager& mpm) const
-{
-    mpm.run_pass(fuse_pointwise{.enable_rewrite_reshapes = false});
-    mpm.run_pass(optimize_module{});
-    mpm.run_pass(fuse_reduce{.enable_rewrite_reshapes = false});
-    mpm.run_pass(fuse_pointwise{.enable_rewrite_reshapes = true});
-    mpm.run_pass(fuse_reduce{.enable_rewrite_reshapes = true});
-    mpm.run_pass(split_reduce{.split_size = get_split_size(split_size)});
-    mpm.run_pass(fuse_pointwise{.enable_rewrite_broadcasts = true});
+    auto prog = optimize_onnx("skip_layer_normalization_test.onnx");
+    EXPECT(p == prog);
 }
-
-} // namespace MIGRAPHX_INLINE_NS
-} // namespace migraphx

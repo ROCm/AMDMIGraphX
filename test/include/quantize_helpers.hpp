@@ -1,3 +1,6 @@
+/*
+Test
+*/
 #include <migraphx/program.hpp>
 #include <migraphx/register_target.hpp>
 #include <migraphx/instruction.hpp>

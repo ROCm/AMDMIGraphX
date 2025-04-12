@@ -37,12 +37,12 @@ struct test_concat_multi_out : verify_program<test_concat_multi_out>
         migraphx::shape s0{migraphx::shape::float_type, {2, 2}};
         migraphx::shape s1{migraphx::shape::float_type, {3, 2}};
         migraphx::shape s2{migraphx::shape::float_type, {5, 2}};
-        auto x = mm->add_parameter("x", s0);
-        auto y = mm->add_parameter("y", s1);
-        auto z = mm->add_parameter("z", s2);
+        auto x      = mm->add_parameter("x", s0);
+        auto y      = mm->add_parameter("y", s1);
+        auto z      = mm->add_parameter("z", s2);
         auto concat = mm->add_instruction(migraphx::make_op("concat", {{"axis", axis}}), x, y);
-        auto relu = mm->add_instruction(migraphx::make_op("relu"), concat);
-        auto add = mm->add_instruction(migraphx::make_op("add"), relu, z);
+        auto relu   = mm->add_instruction(migraphx::make_op("relu"), concat);
+        auto add    = mm->add_instruction(migraphx::make_op("add"), relu, z);
         mm->add_return({relu, add});
         return p;
     }

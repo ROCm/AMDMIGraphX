@@ -101,16 +101,17 @@ namespace {
 
 bool is_fusable_pointwise(instruction_ref ins)
 {
-    return ins->name() == "pointwise" and ins->outputs().size() == 1 and ins->get_shape().type() != shape::tuple_type;
+    return ins->name() == "pointwise" and ins->outputs().size() == 1 and
+           ins->get_shape().type() != shape::tuple_type;
 }
 
-template<class... Ts>
+template <class... Ts>
 auto fusable_pointwise(Ts... xs)
 {
     return match::name("pointwise")(match::not_tuple(), xs...);
 }
 
-template<std::size_t N, std::size_t Max=2>
+template <std::size_t N, std::size_t Max = 2>
 struct concat_counter
 {
     static_assert(N < Max, "Factor N must be less than Max");

@@ -217,12 +217,16 @@ TEST_CASE(pointwise_concat_pointwise_multi_out)
         auto add    = add_pointwise(p1, "main:pointwise0", {x, y}, single_pointwise("add"));
         auto sub    = add_pointwise(p1, "main:pointwise1", {x, y}, single_pointwise("sub"));
         auto concat = mm->add_instruction(migraphx::make_op("concat", {{"axis", 1}}), add, sub);
-        auto r   = add_pointwise(p1, "main:pointwise2", {concat, z}, [=](auto* pm, const auto& inputs) -> std::vector<migraphx::instruction_ref> {
-                auto mul = pm->add_instruction(migraphx::make_op("mul"), inputs[0], inputs[1]);
+        auto r      = add_pointwise(
+            p1,
+            "main:pointwise2",
+            {concat, z},
+            [=](auto* pm, const auto& inputs) -> std::vector<migraphx::instruction_ref> {
+                auto mul  = pm->add_instruction(migraphx::make_op("mul"), inputs[0], inputs[1]);
                 auto relu = pm->add_instruction(migraphx::make_op("relu"), mul);
                 return {mul, relu};
             });
-        auto mul = mm->add_instruction(migraphx::make_op("get_tuple_elem", {{"index", 0}}), r);
+        auto mul  = mm->add_instruction(migraphx::make_op("get_tuple_elem", {{"index", 0}}), r);
         auto relu = mm->add_instruction(migraphx::make_op("get_tuple_elem", {{"index", 1}}), r);
         mm->add_return({mul, relu});
     }
@@ -232,19 +236,23 @@ TEST_CASE(pointwise_concat_pointwise_multi_out)
         auto* mm = p2.get_main_module();
         auto x   = mm->add_parameter("x", s1);
         auto y   = mm->add_parameter("y", s1);
-        auto z      = mm->add_parameter("z", s2);
+        auto z   = mm->add_parameter("z", s2);
         auto fused_concat =
             add_pointwise_concat(p2,
                                  1,
                                  arg("noop:concat0", {}, noop_pointwise()),
                                  arg("concat:main:pointwise0", {x, y}, single_pointwise("add")),
                                  arg("concat:main:pointwise1", {x, y}, single_pointwise("sub")));
-        auto r   = add_pointwise(p2, "main:pointwise2", {fused_concat, z}, [=](auto* pm, const auto& inputs) -> std::vector<migraphx::instruction_ref> {
-                auto mul = pm->add_instruction(migraphx::make_op("mul"), inputs[0], inputs[1]);
+        auto r = add_pointwise(
+            p2,
+            "main:pointwise2",
+            {fused_concat, z},
+            [=](auto* pm, const auto& inputs) -> std::vector<migraphx::instruction_ref> {
+                auto mul  = pm->add_instruction(migraphx::make_op("mul"), inputs[0], inputs[1]);
                 auto relu = pm->add_instruction(migraphx::make_op("relu"), mul);
                 return {mul, relu};
             });
-        auto mul = mm->add_instruction(migraphx::make_op("get_tuple_elem", {{"index", 0}}), r);
+        auto mul  = mm->add_instruction(migraphx::make_op("get_tuple_elem", {{"index", 0}}), r);
         auto relu = mm->add_instruction(migraphx::make_op("get_tuple_elem", {{"index", 1}}), r);
         mm->add_return({mul, relu});
     }

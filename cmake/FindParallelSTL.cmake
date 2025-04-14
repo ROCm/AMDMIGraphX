@@ -35,6 +35,10 @@ function(find_parallel_stl_check RESULT)
     set(_source "
 #include <execution>
 
+#ifdef _PSTL_PAR_BACKEND_SERIAL
+#error \"Using serial backend\"
+#endif
+
 int main() {
     int* i = nullptr;
     std::sort(std::execution::par, i, i);

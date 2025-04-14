@@ -25,6 +25,7 @@
 #define MIGRAPHX_GUARD_RTGLIB_PAR_FOR_HPP
 
 #include <migraphx/par.hpp>
+#include <migraphx/simple_par_for.hpp>
 #include <migraphx/ranges.hpp>
 
 namespace migraphx {

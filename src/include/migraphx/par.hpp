@@ -27,13 +27,18 @@
 #include <migraphx/config.hpp>
 #if MIGRAPHX_HAS_EXECUTORS
 #include <execution>
-#else
+// Warn if paralle stl is not parallel
+#ifdef _PSTL_PAR_BACKEND_SERIAL
+#warning "Using serial backend for parallel stl"
+#endif
+#else // MIGRAPHX_HAS_EXECUTORS
 #include <migraphx/simple_par_for.hpp>
 #endif
 #include <algorithm>
 #include <mutex>
 #include <vector>
 #include <exception>
+
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {

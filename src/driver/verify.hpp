@@ -42,24 +42,24 @@ bool verify_program(const std::string& name,
                     const program& p,
                     const target& t,
                     compile_options options     = compile_options{},
-                    const verify_options& vo           = verify_options{},
+                    const verify_options& vo    = verify_options{},
                     const parameter_map& inputs = {},
                     verify::tolerance tols      = verify::tolerance{});
 void verify_instructions(const program& prog,
                          const target& t,
-                         compile_options options = compile_options{},
-                         const verify_options& vo       = verify_options{},
-                         verify::tolerance tols  = verify::tolerance{});
+                         compile_options options  = compile_options{},
+                         const verify_options& vo = verify_options{},
+                         verify::tolerance tols   = verify::tolerance{});
 void verify_reduced_program(const program& p,
                             const target& t,
                             compile_options options     = compile_options{},
-                            const verify_options& vo           = verify_options{},
+                            const verify_options& vo    = verify_options{},
                             const parameter_map& inputs = {},
                             verify::tolerance tols      = verify::tolerance{});
 void verify_bisected_program(const program& p,
                              const target& t,
                              compile_options options     = compile_options{},
-                             const verify_options& vo           = verify_options{},
+                             const verify_options& vo    = verify_options{},
                              const parameter_map& inputs = {},
                              verify::tolerance tols      = verify::tolerance{});
 

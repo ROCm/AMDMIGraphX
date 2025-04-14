@@ -100,7 +100,10 @@ struct find_large_topk
 
 } // namespace
 
-void rewrite_topk::apply(module& m) const { match::find_matches(m, find_large_topk{split_threshold}); }
+void rewrite_topk::apply(module& m) const
+{
+    match::find_matches(m, find_large_topk{split_threshold});
+}
 
 } // namespace MIGRAPHX_INLINE_NS
 } // namespace migraphx

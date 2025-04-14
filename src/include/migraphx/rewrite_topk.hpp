@@ -36,6 +36,7 @@ struct module;
 /// Rewrite topk operators ideally to better performing operators
 struct MIGRAPHX_EXPORT rewrite_topk
 {
+    std::size_t split_threshold = 8192;
     std::string name() const { return "rewrite_topk"; }
     void apply(module& m) const;
 };

@@ -29,7 +29,7 @@
 
 #include <test.hpp>
 
-void run_pass(migraphx::module& m) { migraphx::run_passes(m, {migraphx::rewrite_topk{}}); }
+void run_pass(migraphx::module& m) { migraphx::run_passes(m, {migraphx::rewrite_topk{.split_threshold = 16384}}); }
 
 TEST_CASE(small_topk)
 {

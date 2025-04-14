@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2024 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2025 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -79,7 +79,10 @@ double time_op(const context& ictx, operation op, int n)
     return time_op(ictx, op, inputs, n);
 }
 
-double time_program(const context& ictx, program p, int n)
+double time_program(const context& ictx,
+                    program p,
+                    const std::unordered_map<std::string, double>& fill_map,
+                    int n)
 {
     std::vector<migraphx::context> ctx_vec = {ictx};
     auto& gctx                             = any_cast<migraphx::gpu::context>(ctx_vec.front());
@@ -90,7 +93,11 @@ double time_program(const context& ictx, program p, int n)
     unsigned long seed = 0;
     for(const auto& [name, shape] : in_shapes)
     {
-        param_map[name] = to_gpu(generate_argument(shape, seed++, random_mode::random));
+        auto id = shape.type_string() + migraphx::shape::to_sizes_string({shape.as_standard()});
+        if(contains(fill_map, id))
+            param_map[name] = to_gpu(fill_argument(shape, fill_map.at(id)));
+        else
+            param_map[name] = to_gpu(generate_argument(shape, seed++, random_mode::random));
     }
     auto run = [&] { p.eval_with_context(ctx_vec, param_map); };
     return time_loop(gctx, n, run);

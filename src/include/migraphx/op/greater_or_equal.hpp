@@ -21,30 +21,29 @@
  * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
  * THE SOFTWARE.
  */
-#ifndef MIGRAPHX_GUARD_GPU_DRIVER_PERF_HPP
-#define MIGRAPHX_GUARD_GPU_DRIVER_PERF_HPP
+#ifndef MIGRAPHX_GUARD_OPERATORS_GREATER_OR_EQUAL_HPP
+#define MIGRAPHX_GUARD_OPERATORS_GREATER_OR_EQUAL_HPP
 
-#include <migraphx/program.hpp>
-#include <migraphx/config.hpp>
-#include <migraphx/gpu/context.hpp>
+#include <migraphx/op/binary.hpp>
 #include <migraphx/operation.hpp>
+#include <migraphx/check_shapes.hpp>
+#include <migraphx/config.hpp>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
-namespace gpu {
+namespace op {
 
-MIGRAPHX_GPU_EXPORT double
-time_op(const context& ictx, operation op, const std::vector<shape>& inputs, int n = 100);
+struct greater_or_equal : binary<greater_or_equal>
+{
+    std::string point_function() const { return ">="; }
+    auto apply() const
+    {
+        return [](auto x, auto y) { return x >= y; };
+    }
+};
 
-MIGRAPHX_GPU_EXPORT double time_program(const context& ictx,
-                                        program p,
-                                        const std::unordered_map<std::string, double>& fill_map,
-                                        int n = 100);
-
-/* benchmark gpu::code_object with expected input shapes over n iterations */
-MIGRAPHX_GPU_EXPORT double time_op(const context& ictx, operation op, int n = 100);
-
-} // namespace gpu
+} // namespace op
 } // namespace MIGRAPHX_INLINE_NS
 } // namespace migraphx
-#endif // MIGRAPHX_GUARD_GPU_DRIVER_PERF_HPP
+
+#endif

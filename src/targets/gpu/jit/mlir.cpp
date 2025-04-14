@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2024 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2025 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -74,6 +74,57 @@ struct mlir_compiler : compiler<mlir_compiler>
 
     operation compile_op(context&, const std::vector<shape>&, const value&) const { return {}; }
 
+    const auto& reshaper_names() const
+    {
+        // clang-format off
+        static const std::unordered_set<std::string> names = {
+            "slice",
+            "transpose",
+            "multibroadcast",
+            "broadcast",
+            "contiguous",
+            "reshape",
+            "lazy_reshape",
+            "squeeze",
+            "flatten",
+            "unsqueeze"
+        };
+        // clang-format on
+        return names;
+    }
+
+    std::tuple<bool, instruction_ref> input_is_param(const instruction_ref& ins) const
+    {
+        auto cur = ins;
+        while(contains(reshaper_names(), cur->name()))
+        {
+            cur = cur->inputs().at(0);
+        }
+
+        return {cur->name() == "@param", cur};
+    }
+
+    void set_fill_map(compiler_replace& cr, const module& m) const
+    {
+        for(auto ins : iterator_for(m))
+        {
+            if(ins->name() == "greater_or_equal")
+            {
+                auto fill_val = ins->get_shape().lens().back() - 1;
+                for(auto inp : ins->inputs())
+                {
+                    auto [is_param, param] = input_is_param(inp);
+                    if(is_param)
+                    {
+                        auto id = param->get_shape().type_string() +
+                                  migraphx::shape::to_sizes_string({param->get_shape()});
+                        cr.fill_map[id] = static_cast<double>(fill_val);
+                    }
+                }
+            }
+        }
+    }
+
     compiler_replace
     compile(context& ctx, instruction_ref ins, const operation&, const value& solution) const
     {
@@ -117,7 +168,9 @@ struct mlir_compiler : compiler<mlir_compiler>
                                                   mlir_code_object{any_cast<code_object_op>(cop2)}};
             return insert(cops, mod_splits, ins, split_ins);
         }
-        return insert(compile_mlir(ctx, *smod, to_shapes(ins->inputs()), solution));
+        auto cr = insert(compile_mlir(ctx, *smod, to_shapes(ins->inputs()), solution));
+        set_fill_map(cr, *smod);
+        return cr;
     }
 
     compiler_replace insert(const mlir_code_object& mco) const

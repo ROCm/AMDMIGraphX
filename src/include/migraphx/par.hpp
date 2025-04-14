@@ -39,7 +39,6 @@
 #include <vector>
 #include <exception>
 
-
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
 

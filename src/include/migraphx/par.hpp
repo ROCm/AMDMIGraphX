@@ -27,7 +27,7 @@
 #include <migraphx/config.hpp>
 #if MIGRAPHX_HAS_EXECUTORS
 #include <execution>
-// Warn if paralle stl is not parallel
+// Warn if parallel stl is not parallel
 #ifdef _PSTL_PAR_BACKEND_SERIAL
 #warning "Using serial backend for parallel stl"
 #endif

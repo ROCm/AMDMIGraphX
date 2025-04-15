@@ -292,12 +292,11 @@ auto compute_op(rank<4>,
                 const shape& output,
                 const std::vector<argument>& inputs,
                 const std::vector<module_ref>& module_args,
-                F f)
-    -> decltype(x.compute(auto_any_cast(ctx),
-                          make_compute_output_shape(pack(x, output, inputs)),
-                          inputs,
-                          module_args,
-                          std::move(f)))
+                F f) -> decltype(x.compute(auto_any_cast(ctx),
+                                           make_compute_output_shape(pack(x, output, inputs)),
+                                           inputs,
+                                           module_args,
+                                           std::move(f)))
 {
     return x.compute(auto_any_cast(ctx),
                      make_compute_output_shape(pack(x, output, inputs)),

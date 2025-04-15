@@ -385,18 +385,18 @@ static migraphx::context get_context(const program& p) { return p.get_context();
 } // namespace migraphx
 
 template <class T, class U, class Target = std::remove_pointer_t<T>>
-static Target* object_cast(U* x)
+Target* object_cast(U* x)
 {
     return reinterpret_cast<Target*>(x);
 }
 template <class T, class U, class Target = std::remove_pointer_t<T>>
-const static Target* object_cast(const U* x)
+const Target* object_cast(const U* x)
 {
     return reinterpret_cast<const Target*>(x);
 }
 
 template <class T, class... Ts, class Target = std::remove_pointer_t<T>>
-static Target* allocate(Ts&&... xs)
+Target* allocate(Ts&&... xs)
 {
     if constexpr(std::is_aggregate<Target>{})
         return new Target{std::forward<Ts>(xs)...}; // NOLINT
@@ -405,7 +405,7 @@ static Target* allocate(Ts&&... xs)
 }
 
 template <class T>
-static void destroy(T* x)
+void destroy(T* x)
 {
     delete x; // NOLINT
 }

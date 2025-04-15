@@ -280,7 +280,7 @@ struct MIGRAPHX_EXPORT value
     template <class T, MIGRAPHX_REQUIRES(is_generic_range<T>{})>
     value& operator=(T rhs)
     {
-        return *this = from_values(rhs); // NOLINT
+        return *this = from_values(std::move(rhs)); // NOLINT
     }
 
     value& operator=(const char* c);

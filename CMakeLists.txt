@@ -246,6 +246,7 @@ rocm_enable_clang_tidy(
         -readability-else-after-return
         -readability-function-cognitive-complexity
         -readability-identifier-length
+        -readability-math-missing-parentheses
         -readability-named-parameter
         -readability-redundant-member-init
         -readability-redundant-string-init

@@ -27,7 +27,7 @@
 namespace migraphx {
 
 // Multidimensional for loop
-inline constexpr auto dfor()
+constexpr auto dfor()
 {
     return [](auto f) { f(); };
 }

@@ -346,7 +346,7 @@ constexpr auto transform_args(F f, Fs... fs)
 }
 
 // identity transform
-inline constexpr auto transform_args()
+constexpr auto transform_args()
 {
     return make_transform([](auto f, auto... xs) { return f(xs...); });
 }
@@ -363,7 +363,7 @@ constexpr auto rotate_last()
     });
 }
 
-inline constexpr auto rotate_last() { return rotate_last<1>(); }
+constexpr auto rotate_last() { return rotate_last<1>(); }
 
 // Pack the first N arguments
 template <index_int N>

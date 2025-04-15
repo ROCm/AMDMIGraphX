@@ -30,7 +30,7 @@ namespace migraphx {
 template <typename To,
           typename From,
           MIGRAPHX_REQUIRES(is_trivially_copyable<To>{} and is_trivially_copyable<From>{})>
-inline constexpr auto bit_cast(From fr) noexcept
+constexpr auto bit_cast(From fr) noexcept
 {
     return vec_transform(fr)([](auto x) -> To {
         static_assert(sizeof(To) == sizeof(decltype(x)));

@@ -256,9 +256,9 @@ auto compute_op(rank<1>,
                 F f) -> decltype(x.compute(make_compute_output_shape(pack(x, output, inputs)),
                                            inputs,
                                            module_args,
-                                           f))
+                                           std::move(f)))
 {
-    return x.compute(make_compute_output_shape(pack(x, output, inputs)), inputs, module_args, f);
+    return x.compute(make_compute_output_shape(pack(x, output, inputs)), inputs, module_args, std::move(f));
 }
 
 template <class T, class F>
@@ -267,7 +267,7 @@ argument compute_op(rank<0>,
                     const shape& output,
                     const std::vector<argument>& inputs,
                     const std::vector<module_ref>& module_args,
-                    const F&)
+                    F) // NOLINT
 {
     if(module_args.empty())
         return compute_op(x, output, inputs);
@@ -312,11 +312,11 @@ auto compute_op(rank<3>,
                 const shape& output,
                 const std::vector<argument>& inputs,
                 const std::vector<module_ref>& module_args,
-                const F& f)
+                F f)
     -> decltype(x.compute(
-        make_compute_output_shape(pack(x, output, inputs)), inputs, module_args, f))
+        make_compute_output_shape(pack(x, output, inputs)), inputs, module_args, std::move(f)))
 {
-    return x.compute(make_compute_output_shape(pack(x, output, inputs)), inputs, module_args, f);
+    return x.compute(make_compute_output_shape(pack(x, output, inputs)), inputs, module_args, std::move(f));
 }
 
 template <class T, class F>
@@ -326,7 +326,8 @@ auto compute_op(rank<2>,
                 const shape& output,
                 const std::vector<argument>& inputs,
                 const std::vector<module_ref>&,
-                const F&) -> decltype(x.compute(make_compute_output_shape(pack(x, output, inputs)),
+                F) // NOLINT
+-> decltype(x.compute(make_compute_output_shape(pack(x, output, inputs)),
                                                 inputs))
 {
     return x.compute(make_compute_output_shape(pack(x, output, inputs)), inputs);
@@ -354,7 +355,7 @@ argument compute_op(rank<0>,
                     const shape&,
                     const std::vector<argument>&,
                     const std::vector<module_ref>&,
-                    const F&)
+                    F) // NOLINT
 {
     std::string name = x.name();
     MIGRAPHX_THROW("Not computable: " + name);

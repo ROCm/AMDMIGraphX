@@ -39,7 +39,7 @@ constexpr T mul_sat(T a, T b) noexcept
     {
         return std::numeric_limits<T>::max();
     }
-    else if(a < 0 != b < 0)
+    else if((a < 0) != (b < 0))
     {
         return std::numeric_limits<T>::min();
     }

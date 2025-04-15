@@ -83,7 +83,7 @@ static void value_to_json(const std::vector<value>& x, json& j)
     }
 }
 
-static void value_to_json(std::nullptr_t&, json& j) { j = {}; }
+static void value_to_json(std::nullptr_t, json& j) { j = {}; }
 
 void value_to_json(const value& val, json& j)
 {

@@ -1215,7 +1215,8 @@ std::unordered_multimap<module_ref, module_ref> program::get_module_tree()
 }
 
 template <class Map, class T>
-MIGRAPHX_DEBUG_USED static bool is_unused_module(Map& m, const std::vector<T*>& mods, const std::string& name)
+MIGRAPHX_DEBUG_USED static bool
+is_unused_module(Map& m, const std::vector<T*>& mods, const std::string& name)
 {
     bool is_unused = false;
     generic_get_unused_modules(m, mods, make_function_output_iterator([&](auto* mod) {
@@ -1226,7 +1227,8 @@ MIGRAPHX_DEBUG_USED static bool is_unused_module(Map& m, const std::vector<T*>& 
 }
 
 template <class Map>
-MIGRAPHX_DEBUG_USED static bool references_instruction(Map& m, const instruction& ins, const std::string& name)
+MIGRAPHX_DEBUG_USED static bool
+references_instruction(Map& m, const instruction& ins, const std::string& name)
 {
     return std::any_of(m.begin(), m.end(), [&](auto&& p) {
         if(p.first == name)

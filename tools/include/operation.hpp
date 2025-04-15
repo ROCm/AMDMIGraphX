@@ -343,9 +343,9 @@ auto compute_op(rank<1>,
                 const std::vector<argument>& inputs,
                 const std::vector<module_ref>&,
                 F) // NOLINT
-                    -> decltype(x.compute(auto_any_cast(ctx),
-                                                make_compute_output_shape(pack(x, output, inputs)),
-                                                inputs))
+    -> decltype(x.compute(auto_any_cast(ctx),
+                          make_compute_output_shape(pack(x, output, inputs)),
+                          inputs))
 {
     return x.compute(
         auto_any_cast(ctx), make_compute_output_shape(pack(x, output, inputs)), inputs);

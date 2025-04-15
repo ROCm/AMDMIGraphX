@@ -926,8 +926,6 @@ struct operation
                                                       std::declval<const value&>()),
                  private_detail_te_default_attributes(char(0),
                                                       std::declval<PrivateDetailTypeErasedT>()),
-                 static_cast<void>(void()),
-                 static_cast<void>(void()),
                  void());
 
     template <class PrivateDetailTypeErasedT>

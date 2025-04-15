@@ -59,35 +59,6 @@ const auto& reshaper_names()
     // clang-format on
     return names;
 }
-} // namespace
-
-static bool is_reshaper(instruction_ref ins) { return contains(reshaper_names(), ins->name()); }
-
-static instruction_ref find_transpose_input(instruction_ref ins)
-{
-    if(ins->inputs().size() != 1)
-        return ins;
-    if(ins->inputs().front()->name() == "contiguous")
-        return find_transpose_input(ins->inputs().front());
-    if(ins->inputs().front()->name() == "transpose")
-        return ins->inputs().front();
-    return ins;
-}
-
-static auto get_transpose_dims(instruction_ref ins)
-{
-    return any_cast<const op::transpose&>(ins->get_operator()).dims;
-}
-
-static bool is_no_transpose(const std::vector<int64_t>& dims)
-{
-    if(dims.empty())
-        return true;
-    if(dims.front() != 0)
-        return false;
-    return std::adjacent_find(
-               dims.begin(), dims.end(), [](auto x, auto y) { return (y - x) != 1; }) == dims.end();
-}
 
 struct find_nested_shape_transforms
 {
@@ -1187,6 +1158,7 @@ struct find_flatten
                               flatten->inputs());
     }
 };
+} // namespace
 
 void simplify_reshapes::apply(module& m) const
 {

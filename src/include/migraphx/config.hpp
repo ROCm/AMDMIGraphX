@@ -55,4 +55,11 @@
 #else
 #define MIGRAPHX_TIDY_CONST
 #endif // tidy_const
+
+#ifdef NDEBUG
+#define MIGRAPHX_DEBUG_USED [[maybe_unused]]
+#else
+#define MIGRAPHX_DEBUG_USED
+#endif
+
 #endif // clang_tidy

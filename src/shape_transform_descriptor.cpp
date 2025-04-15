@@ -54,12 +54,12 @@ static auto compute_end_dim(Iterator start, Iterator last, std::size_t dim, Proj
     return start;
 }
 
-static void debug_print(const std::vector<dimension::sub>& subs)
+[[maybe_unused]] static void debug_print(const std::vector<dimension::sub>& subs)
 {
     std::cout << '[' << stream_range(subs) << "]\n";
 }
-static void debug_print(const dimension& dim) { debug_print(dim.subdimensions); }
-static void debug_print(const std::vector<dimension>& dims)
+[[maybe_unused]] static void debug_print(const dimension& dim) { debug_print(dim.subdimensions); }
+[[maybe_unused]] static void debug_print(const std::vector<dimension>& dims)
 {
     stream_write_value(std::cout, dims);
     std::cout << std::endl;

@@ -26,6 +26,7 @@
 
 #include <migraphx/shape.hpp>
 #include <migraphx/argument.hpp>
+#include <utility>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
@@ -67,7 +68,7 @@ struct compute_output_shape
 template <class F>
 compute_output_shape<F> make_compute_output_shape(F f)
 {
-    return {f};
+    return {std::move(f)};
 }
 
 } // namespace MIGRAPHX_INLINE_NS

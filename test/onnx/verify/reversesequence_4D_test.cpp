@@ -26,7 +26,7 @@
 #include <migraphx/verify.hpp>
 #include <onnx_test.hpp>
 
-TEST_CASE(reversesequence_4D_verify_test)
+TEST_CASE(reversesequence_4_d_verify_test)
 {
     migraphx::program p = read_onnx("reversesequence_4D_test.onnx");
     p.compile(migraphx::make_target("ref"));

@@ -50,7 +50,7 @@ inline namespace MIGRAPHX_INLINE_NS {
 
 MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_DEBUG_SAVE_TEMP_DIR)
 
-std::string random_string(std::string::size_type length)
+static std::string random_string(std::string::size_type length)
 {
     static const std::string& chars = "0123456789"
                                       "abcdefghijklmnopqrstuvwxyz"
@@ -65,7 +65,7 @@ std::string random_string(std::string::size_type length)
     return str;
 }
 
-std::string unique_string(const std::string& prefix)
+static std::string unique_string(const std::string& prefix)
 {
     auto pid = getpid();
     auto tid = std::this_thread::get_id();

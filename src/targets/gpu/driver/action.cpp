@@ -29,7 +29,7 @@ inline namespace MIGRAPHX_INLINE_NS {
 namespace gpu {
 namespace driver {
 
-auto& action_map()
+static auto& action_map()
 {
     static std::unordered_map<std::string, action_function> m;
     return m;

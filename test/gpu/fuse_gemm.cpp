@@ -43,7 +43,7 @@
 
 MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_SET_GEMM_PROVIDER)
 
-void run_lowering(migraphx::program& p, bool offload_copy = false)
+static void run_lowering(migraphx::program& p, bool offload_copy = false)
 {
     auto ctx = migraphx::gpu::context{};
     migraphx::run_passes(
@@ -51,7 +51,7 @@ void run_lowering(migraphx::program& p, bool offload_copy = false)
         {migraphx::auto_contiguous{}, migraphx::gpu::lowering{&ctx, offload_copy}});
 }
 
-void run_fuse_ops(migraphx::program& p)
+static void run_fuse_ops(migraphx::program& p)
 {
     migraphx::run_passes(p, {migraphx::gpu::fuse_ops{}, migraphx::dead_code_elimination{}});
 }

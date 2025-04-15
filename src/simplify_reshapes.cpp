@@ -61,9 +61,9 @@ const auto& reshaper_names()
 }
 } // namespace
 
-bool is_reshaper(instruction_ref ins) { return contains(reshaper_names(), ins->name()); }
+static bool is_reshaper(instruction_ref ins) { return contains(reshaper_names(), ins->name()); }
 
-instruction_ref find_transpose_input(instruction_ref ins)
+static instruction_ref find_transpose_input(instruction_ref ins)
 {
     if(ins->inputs().size() != 1)
         return ins;
@@ -74,12 +74,12 @@ instruction_ref find_transpose_input(instruction_ref ins)
     return ins;
 }
 
-auto get_transpose_dims(instruction_ref ins)
+static auto get_transpose_dims(instruction_ref ins)
 {
     return any_cast<const op::transpose&>(ins->get_operator()).dims;
 }
 
-bool is_no_transpose(const std::vector<int64_t>& dims)
+static bool is_no_transpose(const std::vector<int64_t>& dims)
 {
     if(dims.empty())
         return true;

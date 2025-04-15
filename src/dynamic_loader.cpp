@@ -41,7 +41,7 @@ inline namespace MIGRAPHX_INLINE_NS {
 
 #ifndef _WIN32
 
-void check_load_error(bool flush = false)
+static void check_load_error(bool flush = false)
 {
     char* error_msg = dlerror();
     if(not flush and error_msg != nullptr)

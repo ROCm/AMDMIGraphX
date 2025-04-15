@@ -63,7 +63,7 @@ struct MIGRAPHX_EXPORT argument : raw_data<argument>
     }
 
     template <class T>
-    argument(shape s, std::shared_ptr<T> d)
+    argument(shape s, const std::shared_ptr<T>& d)
         : m_shape(std::move(s))
     {
         assign_buffer([d] { return reinterpret_cast<char*>(d.get()); });

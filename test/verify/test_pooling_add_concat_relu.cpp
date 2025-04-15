@@ -28,7 +28,7 @@
 #include <migraphx/make_op.hpp>
 #include <migraphx/op/pooling.hpp>
 
-migraphx::program create_concat_fusion_program(bool post_pointwise)
+static migraphx::program create_concat_fusion_program(bool post_pointwise)
 {
     migraphx::program p;
     auto* mm = p.get_main_module();

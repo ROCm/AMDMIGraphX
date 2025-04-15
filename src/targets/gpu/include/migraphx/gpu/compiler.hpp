@@ -34,6 +34,7 @@
 #include <migraphx/rank.hpp>
 #include <migraphx/gpu/tuning_config.hpp>
 #include <functional>
+#include <utility>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
@@ -48,7 +49,7 @@ struct compiler_replace
     compiler_replace(const operation& op) : code_objects{{op}} {}
 
     template <class F>
-    compiler_replace(const operation& op, F f) : code_objects{{op}}, replace_fn(make_replace(f))
+    compiler_replace(const operation& op, F f) : code_objects{{op}}, replace_fn(make_replace(std::move(f)))
     {
     }
 
@@ -60,13 +61,13 @@ struct compiler_replace
 
     template <class F>
     compiler_replace(const std::vector<operation>& op, F f)
-        : code_objects{op}, replace_fn(make_replace_all(f))
+        : code_objects{op}, replace_fn(make_replace_all(std::move(f)))
     {
     }
 
     template <class F, class Trace>
     compiler_replace(const std::vector<operation>& op, F f, Trace t)
-        : code_objects{op}, replace_fn(make_replace_all(f)), trace_fn(t)
+        : code_objects{op}, replace_fn(make_replace_all(std::move(f))), trace_fn(t)
     {
     }
 
@@ -76,7 +77,7 @@ struct compiler_replace
     std::function<void(std::ostream& os, instruction_ref ins)> trace_fn = nullptr;
 
     template <class F>
-    static auto make_replace(F f)
+    static auto make_replace(const F& f)
     {
         return [=](const compiler_replace& cr, module& m, instruction_ref ins) {
             f(m, ins, cr.code_objects.front());
@@ -84,7 +85,7 @@ struct compiler_replace
     }
 
     template <class F>
-    static auto make_replace_all(F f)
+    static auto make_replace_all(const F& f)
     {
         return [=](const compiler_replace& cr, module& m, instruction_ref ins) {
             f(m, ins, cr.code_objects);

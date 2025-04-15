@@ -350,7 +350,7 @@ void program::finalize()
 }
 
 template <class T>
-std::string classify(T x)
+static std::string classify(T x)
 {
     switch(std::fpclassify(static_cast<double>(x)))
     {
@@ -363,7 +363,7 @@ std::string classify(T x)
     }
 }
 
-void print_statistics(std::ostream& os, const argument& a)
+static void print_statistics(std::ostream& os, const argument& a)
 {
     a.visit(
         [&](auto t) {
@@ -388,7 +388,7 @@ void print_statistics(std::ostream& os, const argument& a)
         });
 }
 
-std::unordered_set<std::string> classify_argument(const argument& a)
+static std::unordered_set<std::string> classify_argument(const argument& a)
 {
     std::unordered_set<std::string> result;
     a.visit(
@@ -406,7 +406,7 @@ std::unordered_set<std::string> classify_argument(const argument& a)
     return result;
 }
 
-void preview_argument(std::ostream& os, const argument& a)
+static void preview_argument(std::ostream& os, const argument& a)
 {
     a.visit(
         [&](auto t) {
@@ -459,7 +459,7 @@ static bool is_compatible_shape(const shape& actual, const shape& expected)
 #endif
 
 template <class F>
-std::vector<argument> generic_eval(const module* mod,
+static std::vector<argument> generic_eval(const module* mod,
                                    std::vector<context>& ctx,
                                    std::unordered_map<std::string, argument> params,
                                    std::unordered_map<instruction_ref, argument> results,
@@ -545,13 +545,13 @@ std::vector<argument> generic_eval(const module* mod,
 }
 
 template <class F>
-std::vector<argument> generic_eval(const program& p,
+static std::vector<argument> generic_eval(const program& p,
                                    std::vector<context>& ctx,
                                    std::unordered_map<std::string, argument> params,
                                    F trace)
 {
     const module* mm = p.get_main_module();
-    return generic_eval(mm, ctx, params, {}, trace);
+    return generic_eval(mm, ctx, std::move(params), {}, trace);
 }
 
 std::vector<argument> program::eval_with_context(std::vector<context>& ctx,
@@ -578,7 +578,7 @@ std::vector<argument> program::eval(parameter_map params, execution_environment 
     {
         std::unordered_map<instruction_ref, std::string> ins_out;
         // get instruction names
-        this->print([&](auto x, auto ins_names) {
+        this->print([&](auto x, const auto& ins_names) {
             std::stringstream ss;
             instruction::print(ss, x, ins_names);
             ins_out[x] = ss.str();
@@ -648,7 +648,7 @@ void program::finish() const
         ctx.finish();
 }
 
-std::string get_migraphx_version()
+static std::string get_migraphx_version()
 {
     std::stringstream ss;
     ss << std::to_string(MIGRAPHX_VERSION_MAJOR) << "." << std::to_string(MIGRAPHX_VERSION_MINOR)
@@ -839,20 +839,20 @@ void program::from_value(const value& v)
         this->finalize();
 }
 
-double common_average(const std::vector<double>& v)
+static double common_average(const std::vector<double>& v)
 {
     std::size_t n = v.size() / 4;
     double total  = std::accumulate(v.begin() + n, v.end() - n, 0.0);
     return total / std::distance(v.begin() + n, v.end() - n);
 }
 
-double mean(const std::vector<double>& v)
+static double mean(const std::vector<double>& v)
 {
     double total = std::accumulate(v.begin(), v.end(), 0.0);
     return total / v.size();
 }
 
-double median(const std::vector<double>& v)
+static double median(const std::vector<double>& v)
 {
     size_t mid = v.size() / 2;
     if(v.size() % 2 == 0)
@@ -865,13 +865,13 @@ double median(const std::vector<double>& v)
     }
 }
 
-double percentile(const std::vector<double>& v, double percentile)
+static double percentile(const std::vector<double>& v, double percentile)
 {
     size_t index = (percentile * (v.size() - 1));
     return v[index];
 }
 
-std::string perf_group(instruction_ref ins, bool detailed)
+static std::string perf_group(instruction_ref ins, bool detailed)
 {
     std::string result;
     auto attr = ins->get_operator().attributes();
@@ -975,7 +975,7 @@ void program::perf_report(
     double calculate_overhead_percent = calculate_overhead_time * 100.0 / total_time;
 
     std::unordered_map<instruction_ref, std::string> names;
-    this->print(names, [&](auto ins, auto ins_names) {
+    this->print(names, [&](auto ins, const auto& ins_names) {
         instruction::print(std::cout, ins, ins_names);
 
         // skip return instruction
@@ -992,7 +992,7 @@ void program::perf_report(
     os << "Summary:" << std::endl;
     std::vector<std::tuple<double, std::size_t, std::string>> op_times_sorted;
     std::transform(
-        op_times.begin(), op_times.end(), std::back_inserter(op_times_sorted), [&](auto p) {
+        op_times.begin(), op_times.end(), std::back_inserter(op_times_sorted), [&](const auto& p) {
             auto&& name = p.first;
             return std::make_tuple(p.second, op_n.at(name), name);
         });
@@ -1043,7 +1043,7 @@ void program::debug_print(instruction_ref ins) const
         return;
     }
 
-    this->print(names, [&](auto x, auto ins_names) {
+    this->print(names, [&](auto x, const auto& ins_names) {
         if(x == ins)
         {
             instruction::print(std::cout, x, ins_names);
@@ -1159,7 +1159,7 @@ module* program::get_main_module() { return get_module("main"); }
 const module* program::get_main_module() const { return get_module("main"); }
 
 template <class T>
-std::vector<T*> generic_get_modules(T* mm)
+static std::vector<T*> generic_get_modules(T* mm)
 {
     std::vector<T*> vec_modules;
     vec_modules.push_back(mm);
@@ -1169,7 +1169,7 @@ std::vector<T*> generic_get_modules(T* mm)
 }
 
 template <class Map, class T, class OutputIterator>
-void generic_get_unused_modules(Map& m, const std::vector<T*>& mods, OutputIterator out)
+static void generic_get_unused_modules(Map& m, const std::vector<T*>& mods, OutputIterator out)
 {
     std::unordered_set<std::string> used;
     std::transform(mods.begin(), mods.end(), std::inserter(used, used.end()), [](auto&& mod) {
@@ -1198,7 +1198,7 @@ std::vector<module*> program::get_modules()
 }
 
 template <class Module, class Map>
-void generic_insert_module_tree(Module* pm, Map& m)
+static void generic_insert_module_tree(Module* pm, Map& m)
 {
     for(auto* sm : pm->get_sub_modules(true))
     {
@@ -1215,7 +1215,7 @@ std::unordered_multimap<module_ref, module_ref> program::get_module_tree()
 }
 
 template <class Map, class T>
-bool is_unused_module(Map& m, const std::vector<T*>& mods, const std::string& name)
+static bool is_unused_module(Map& m, const std::vector<T*>& mods, const std::string& name)
 {
     bool is_unused = false;
     generic_get_unused_modules(m, mods, make_function_output_iterator([&](auto* mod) {
@@ -1226,7 +1226,7 @@ bool is_unused_module(Map& m, const std::vector<T*>& mods, const std::string& na
 }
 
 template <class Map>
-bool references_instruction(Map& m, const instruction& ins, const std::string& name)
+static bool references_instruction(Map& m, const instruction& ins, const std::string& name)
 {
     return std::any_of(m.begin(), m.end(), [&](auto&& p) {
         if(p.first == name)
@@ -1316,7 +1316,7 @@ std::ostream& operator<<(std::ostream& os, const program& p)
     {
         os << "module: \"" << mod->name() << "\"" << std::endl;
         names = mod->print(
-            [&](auto ins, auto ins_names) {
+            [&](auto ins, const auto& ins_names) {
                 instruction::print(os, ins, ins_names);
                 os << std::endl;
             },

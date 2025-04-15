@@ -76,10 +76,10 @@ TEST_CASE(skip_simplified_layer_normalization_test)
     pp["gamma"] = migraphx::argument(s_s, scale.data());
 
     auto results             = p.eval(pp);
-    auto output              = results.at(0);
-    auto mean                = results.at(1);
-    auto inv_std_var         = results.at(2);
-    auto input_skip_bias_sum = results.at(3);
+    const auto& output              = results.at(0);
+    const auto& mean                = results.at(1);
+    const auto& inv_std_var         = results.at(2);
+    const auto& input_skip_bias_sum = results.at(3);
 
     std::vector<half> result_vector;
     std::vector<half> mean_vector;
@@ -185,10 +185,10 @@ TEST_CASE(skip_simplified_layer_normalization_bias_test)
     pp["bias"]  = migraphx::argument(s_s, bias.data());
 
     auto results             = p.eval(pp);
-    auto output              = results.at(0);
-    auto mean                = results.at(1);
-    auto inv_std_var         = results.at(2);
-    auto input_skip_bias_sum = results.at(3);
+    const auto& output              = results.at(0);
+    const auto& mean                = results.at(1);
+    const auto& inv_std_var         = results.at(2);
+    const auto& input_skip_bias_sum = results.at(3);
 
     std::vector<half> result_vector;
     std::vector<half> mean_vector;

@@ -33,7 +33,7 @@
 
 #include <basic_ops.hpp>
 
-migraphx::program create_program()
+static migraphx::program create_program()
 {
     migraphx::program p;
     auto* mm = p.get_main_module();

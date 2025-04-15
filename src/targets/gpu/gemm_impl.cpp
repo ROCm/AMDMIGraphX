@@ -52,7 +52,7 @@ struct rb_compute_type
 };
 
 // Convert rocBLAS datatypes to equivalent Migraphx data types
-rocblas_datatype get_type(shape::type_t type)
+static rocblas_datatype get_type(shape::type_t type)
 {
     switch(type)
     {
@@ -79,7 +79,7 @@ rocblas_datatype get_type(shape::type_t type)
     MIGRAPHX_THROW("ROCBLAS_GEMM: data type not supported!");
 }
 
-void blas_shape(const shape& in_shape)
+static void blas_shape(const shape& in_shape)
 {
     if(in_shape.lens().size() < 2)
         return;
@@ -98,7 +98,7 @@ void blas_shape(const shape& in_shape)
         MIGRAPHX_THROW("GPU_GEMM: Batch dimension is not collapsible");
 }
 
-shape transpose_batch(const shape& s, unsigned trans_batch)
+static shape transpose_batch(const shape& s, unsigned trans_batch)
 {
     if(trans_batch == 0)
         return s;
@@ -118,7 +118,7 @@ shape transpose_batch(const shape& s, unsigned trans_batch)
  *
  */
 template <class F, class Pack, class... Ts>
-auto rocblas_invoke(F f, Pack p, Ts... xs)
+static auto rocblas_invoke(F f, Pack p, Ts... xs)
 {
     return p([=](auto... ws) {
         auto status = f(ws..., xs...);
@@ -267,7 +267,7 @@ struct gemm_impl
     {
 #ifdef MIGRAPHX_USE_ROCBLAS_FP8_API
         if(rocblas_fp8_available() and
-           std::any_of(input_args.begin(), input_args.end(), [](const auto i) {
+           std::any_of(input_args.begin(), input_args.end(), [](const auto& i) {
                return i.get_shape().type() == migraphx::shape::fp8e4m3fnuz_type;
            }))
         {
@@ -651,7 +651,7 @@ int32_t gemm_default_solution(context& ctx,
  * Return value is the chosen solution index, or 0 to let picker choose it.
  */
 template <class T>
-int32_t gemm_finalize_impl(context& ctx,
+static int32_t gemm_finalize_impl(context& ctx,
                            const shape& output_shape,
                            const std::vector<shape>& input_shapes,
                            T alpha,
@@ -684,7 +684,7 @@ int32_t gemm_finalize_impl(context& ctx,
     return solution_idx;
 }
 
-int32_t gemm_finalize(context& ctx,
+static int32_t gemm_finalize(context& ctx,
                       const shape& output_shape,
                       const std::vector<shape>& input_shapes,
                       float alpha,

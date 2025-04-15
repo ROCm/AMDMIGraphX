@@ -39,20 +39,20 @@
 
 namespace match = migraphx::match;
 
-bool is_convolution(const migraphx::instruction& ins) { return ins.name() == "convolution"; }
-bool is_dot(const migraphx::instruction& ins) { return ins.name() == "dot"; }
+static bool is_convolution(const migraphx::instruction& ins) { return ins.name() == "convolution"; }
+static bool is_dot(const migraphx::instruction& ins) { return ins.name() == "dot"; }
 
-void run_pass(migraphx::module& m)
+static void run_pass(migraphx::module& m)
 {
     run_passes(m, {migraphx::simplify_qdq{}, migraphx::dead_code_elimination{}});
 }
 
-void run_cse(migraphx::module& m)
+static void run_cse(migraphx::module& m)
 {
     run_passes(m, {migraphx::eliminate_common_subexpression{}, migraphx::dead_code_elimination{}});
 }
 
-migraphx::instruction_ref init_zero_point(migraphx::module& m, migraphx::instruction_ref q_ins)
+static migraphx::instruction_ref init_zero_point(migraphx::module& m, migraphx::instruction_ref q_ins)
 {
     auto zp = m.add_literal(migraphx::literal{migraphx::shape{q_ins->get_shape().type()}, {0}});
     return m.add_instruction(

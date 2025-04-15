@@ -134,7 +134,7 @@ struct pooling
 
     value attributes() const { return {{"normalize_padding", "padding"}}; }
 
-    inline std::size_t dilate_dim(std::size_t dim, std::size_t dilation) const
+    std::size_t dilate_dim(std::size_t dim, std::size_t dilation) const
     {
         return 1 + dilation * (dim - 1);
     }

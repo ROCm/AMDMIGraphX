@@ -34,6 +34,7 @@
 #include <test.hpp>
 #include <pointwise.hpp>
 #include <reduce.hpp>
+#include <utility>
 
 MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_ENABLE_MLIR_INPUT_FUSION);
 MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_ENABLE_MLIR_REDUCE_FUSION);
@@ -48,18 +49,18 @@ struct non_mlir_op
     }
 };
 
-void run_pass(migraphx::program& p)
+static void run_pass(migraphx::program& p)
 {
     migraphx::run_passes(
         p, {migraphx::gpu::fuse_mlir{.enable_extra = true}, migraphx::dead_code_elimination{}});
 }
 
 template <class F>
-migraphx::instruction_ref add_mlir(migraphx::program& p,
+static migraphx::instruction_ref add_mlir(migraphx::program& p,
                                    const std::string& name,
                                    std::vector<migraphx::instruction_ref> inputs,
                                    std::vector<std::string> arg_names,
-                                   F f)
+                                   const F& f)
 {
     assert(inputs.size() == arg_names.size() and "One interior parameter name given per input.");
     auto* mm = p.get_main_module();
@@ -79,7 +80,7 @@ migraphx::instruction_ref add_mlir(migraphx::program& p,
 }
 
 template <class F>
-migraphx::instruction_ref add_mlir(migraphx::program& p,
+static migraphx::instruction_ref add_mlir(migraphx::program& p,
                                    const std::string& name,
                                    std::vector<migraphx::instruction_ref> inputs,
                                    F f)
@@ -88,7 +89,7 @@ migraphx::instruction_ref add_mlir(migraphx::program& p,
     migraphx::transform(migraphx::range(inputs.size()), std::back_inserter(arg_names), [&](auto i) {
         return migraphx::param_name(i);
     });
-    return add_mlir(p, name, std::move(inputs), std::move(arg_names), f);
+    return add_mlir(p, name, std::move(inputs), std::move(arg_names), std::move(f));
 }
 
 TEST_CASE(dot_reshapes_add)

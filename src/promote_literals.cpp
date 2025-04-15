@@ -45,7 +45,7 @@ void promote_literals::apply(module_pass_manager& mpm) const
             auto ins_outputs = ins->outputs();
             for(auto out_ins : ins_outputs)
             {
-                out_ins->replace_argument(out_ins, ins, new_lit);
+                migraphx::instruction::replace_argument(out_ins, ins, new_lit);
             }
         }
     }

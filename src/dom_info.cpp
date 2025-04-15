@@ -55,7 +55,7 @@ struct module_visitor
 };
 
 template <class Visitor>
-dominator_info compute_dominator_generic(Visitor v)
+static dominator_info compute_dominator_generic(Visitor v)
 {
     dominator_info info;
     std::unordered_map<instruction_ref, std::unordered_set<instruction_ref>> instr2_doms;

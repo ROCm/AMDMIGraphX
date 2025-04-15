@@ -28,12 +28,13 @@
 #include <migraphx/ranges.hpp>
 #include <migraphx/stringutils.hpp>
 #include <migraphx/make_op.hpp>
+#include <utility>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
 namespace onnx {
 
-void rnn_transpose_inputs(onnx_parser::node_info& info, std::vector<instruction_ref>& args)
+static void rnn_transpose_inputs(onnx_parser::node_info& info, std::vector<instruction_ref>& args)
 {
     std::vector<int64_t> perm{1, 0, 2};
     args[0] = info.add_instruction(make_op("transpose", {{"permutation", perm}}), args[0]);
@@ -44,7 +45,7 @@ void rnn_transpose_inputs(onnx_parser::node_info& info, std::vector<instruction_
     }
 }
 
-void rnn_transpose_outputs(onnx_parser::node_info& info,
+static void rnn_transpose_outputs(onnx_parser::node_info& info,
                            instruction_ref& hidden_states,
                            instruction_ref& last_output)
 {
@@ -102,7 +103,7 @@ struct parse_rnn : op_parser<parse_rnn>
             vec_names.clear();
             vec_names.resize(names.size());
             std::transform(names.begin(), names.end(), vec_names.begin(), [](auto name) {
-                return to_lower(name);
+                return to_lower(std::move(name));
             });
         }
 

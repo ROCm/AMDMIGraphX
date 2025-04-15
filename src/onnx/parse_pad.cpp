@@ -31,7 +31,7 @@ namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
 namespace onnx {
 
-void calc_reflect_indices(std::vector<int>& indices, const int64_t num_dims)
+static void calc_reflect_indices(std::vector<int>& indices, const int64_t num_dims)
 {
     int k         = 0;
     bool reversed = false;
@@ -51,7 +51,7 @@ void calc_reflect_indices(std::vector<int>& indices, const int64_t num_dims)
     }
 }
 
-instruction_ref reflect_pad(const onnx_parser::node_info& info,
+static instruction_ref reflect_pad(const onnx_parser::node_info& info,
                             const std::vector<int64_t>& pads,
                             instruction_ref input)
 {

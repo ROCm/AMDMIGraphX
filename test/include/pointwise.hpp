@@ -28,12 +28,13 @@
 #include <migraphx/program.hpp>
 #include <migraphx/module.hpp>
 #include <migraphx/make_op.hpp>
+#include <utility>
 
 template <class F>
 migraphx::module_ref create_pointwise_module(migraphx::program& p,
                                              const std::string& name,
                                              std::vector<migraphx::instruction_ref> inputs,
-                                             F f)
+                                             const F& f)
 {
     auto* pm = p.create_module(name);
     pm->set_bypass();
@@ -51,10 +52,10 @@ template <class F>
 migraphx::instruction_ref add_pointwise(migraphx::program& p,
                                         migraphx::module_ref mm,
                                         const std::string& name,
-                                        std::vector<migraphx::instruction_ref> inputs,
+                                        const std::vector<migraphx::instruction_ref>& inputs,
                                         F f)
 {
-    auto* pm = create_pointwise_module(p, name, inputs, f);
+    auto* pm = create_pointwise_module(p, name, inputs, std::move(f));
     return mm->add_instruction(migraphx::make_op("pointwise"), inputs, {pm});
 }
 
@@ -64,7 +65,7 @@ migraphx::instruction_ref add_pointwise(migraphx::program& p,
                                         std::vector<migraphx::instruction_ref> inputs,
                                         F f)
 {
-    return add_pointwise(p, p.get_main_module(), name, inputs, f);
+    return add_pointwise(p, p.get_main_module(), name, std::move(inputs), std::move(f));
 }
 
 inline auto noop_pointwise()

@@ -33,7 +33,7 @@
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
 
-std::vector<std::string_view> json_tokenize(const std::string& s)
+static std::vector<std::string_view> json_tokenize(const std::string& s)
 {
     std::vector<lexer> lexers;
 

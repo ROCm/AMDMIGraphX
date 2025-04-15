@@ -31,7 +31,7 @@
 
 using migraphx::shape;
 
-void create_shapes(bool dynamic_allowed)
+static void create_shapes(bool dynamic_allowed)
 {
     shape a{shape::int64_type, {3}};
     shape b{shape::float_type, {{3, 6}, {4, 4}}};

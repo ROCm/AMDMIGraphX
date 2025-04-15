@@ -30,7 +30,7 @@
 
 #include <test.hpp>
 
-float elu(float a, float x) { return x > 0 ? x : a * std::expm1(x); }
+static float elu(float a, float x) { return x > 0 ? x : a * std::expm1(x); }
 
 TEST_CASE(elu_test)
 {

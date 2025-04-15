@@ -34,7 +34,7 @@
 #include "test.hpp"
 
 template <class... Ts>
-void expect_shape(const migraphx::shape& expected, const migraphx::operation& op, Ts... xs)
+static void expect_shape(const migraphx::shape& expected, const migraphx::operation& op, Ts... xs)
 {
     migraphx::program p;
     auto* mm = p.get_main_module();
@@ -53,7 +53,7 @@ void expect_shape(const migraphx::shape& expected, const migraphx::operation& op
 }
 
 template <class... Ts>
-void throws_shape(const migraphx::operation& op, Ts... xs)
+static void throws_shape(const migraphx::operation& op, Ts... xs)
 {
     migraphx::program p;
     auto* mm = p.get_main_module();
@@ -76,7 +76,7 @@ struct always_false : std::false_type
 };
 
 template <class... Ts>
-void throws_shape(const migraphx::shape&, Ts...)
+static void throws_shape(const migraphx::shape&, Ts...)
 {
     static_assert(always_false<Ts...>{},
                   "An expected shape should not be passed to throws_shape function");
@@ -371,7 +371,7 @@ TEST_CASE(conv_channel_mismatch)
     throws_shape(migraphx::make_op("convolution"), input_1d, weights_1d);
 }
 
-TEST_CASE(conv_3D)
+TEST_CASE(conv_3_d)
 {
     migraphx::shape output_3d{migraphx::shape::float_type, {4, 4, 1, 1, 1}};
     migraphx::shape input_3d{migraphx::shape::float_type, {4, 3, 3, 3, 3}};
@@ -762,7 +762,7 @@ TEST_CASE(dot_mismatch_outer_error)
     throws_shape(migraphx::make_op("dot"), s_m1, s_m2);
 }
 
-TEST_CASE(dot_2D_test0)
+TEST_CASE(dot_2_d_test0)
 {
     migraphx::shape s_m1{migraphx::shape::float_type, {4, 5}};
     migraphx::shape s_m2{migraphx::shape::float_type, {5, 8}};
@@ -770,7 +770,7 @@ TEST_CASE(dot_2D_test0)
         migraphx::shape{migraphx::shape::float_type, {4, 8}}, migraphx::make_op("dot"), s_m1, s_m2);
 }
 
-TEST_CASE(dot_2D_test1)
+TEST_CASE(dot_2_d_test1)
 {
     migraphx::shape s_m1{migraphx::shape::float_type, {1, 5}};
     migraphx::shape s_m2{migraphx::shape::float_type, {5, 4}};
@@ -778,7 +778,7 @@ TEST_CASE(dot_2D_test1)
         migraphx::shape{migraphx::shape::float_type, {1, 4}}, migraphx::make_op("dot"), s_m1, s_m2);
 }
 
-TEST_CASE(dot_2D_test2)
+TEST_CASE(dot_2_d_test2)
 {
     migraphx::shape s_m1{migraphx::shape::float_type, {4, 5}};
     migraphx::shape s_m2{migraphx::shape::float_type, {5, 8}};
@@ -786,7 +786,7 @@ TEST_CASE(dot_2D_test2)
         migraphx::shape{migraphx::shape::float_type, {4, 8}}, migraphx::make_op("dot"), s_m1, s_m2);
 }
 
-TEST_CASE(dot_2D_test3)
+TEST_CASE(dot_2_d_test3)
 {
     migraphx::shape s_m1{migraphx::shape::float_type, {1, 1}};
     migraphx::shape s_m2{migraphx::shape::float_type, {1, 1}};
@@ -794,7 +794,7 @@ TEST_CASE(dot_2D_test3)
         migraphx::shape{migraphx::shape::float_type, {1, 1}}, migraphx::make_op("dot"), s_m1, s_m2);
 }
 
-TEST_CASE(dot_3D_test0)
+TEST_CASE(dot_3_d_test0)
 {
     migraphx::shape s_m1{migraphx::shape::float_type, {1, 4, 5}};
     migraphx::shape s_m2{migraphx::shape::float_type, {1, 5, 8}};
@@ -804,7 +804,7 @@ TEST_CASE(dot_3D_test0)
                  s_m2);
 }
 
-TEST_CASE(dot_3D_test_1)
+TEST_CASE(dot_3_d_test_1)
 {
     migraphx::shape s_m1{migraphx::shape::float_type, {6, 1, 5}};
     migraphx::shape s_m2{migraphx::shape::float_type, {6, 5, 4}};
@@ -814,7 +814,7 @@ TEST_CASE(dot_3D_test_1)
                  s_m2);
 }
 
-TEST_CASE(dot_3D_test2)
+TEST_CASE(dot_3_d_test2)
 {
     migraphx::shape s_m1{migraphx::shape::float_type, {1, 4, 5}};
     migraphx::shape s_m2{migraphx::shape::float_type, {1, 5, 7}};
@@ -824,7 +824,7 @@ TEST_CASE(dot_3D_test2)
                  s_m2);
 }
 
-TEST_CASE(dot_4D_test)
+TEST_CASE(dot_4_d_test)
 {
     migraphx::shape s_m1{migraphx::shape::float_type, {1, 6, 1, 5}};
     migraphx::shape s_m2{migraphx::shape::float_type, {1, 6, 5, 4}};
@@ -1546,7 +1546,7 @@ TEST_CASE(inconsistent_attr_shape)
                  input);
 }
 
-void test_softmax_variations(const std::string& name)
+static void test_softmax_variations(const std::string& name)
 {
     {
         migraphx::shape input{migraphx::shape::float_type, {2, 3, 4, 5}};
@@ -3028,7 +3028,7 @@ TEST_CASE(dqlinear_mismatch_type)
     throws_shape(migraphx::make_op("dequantizelinear"), input, scales, zeros);
 }
 
-void test_reduce_ops(const std::string& name)
+static void test_reduce_ops(const std::string& name)
 {
     {
         migraphx::shape input{migraphx::shape::float_type, {2, 3, 4, 5}};
@@ -3061,7 +3061,7 @@ void test_reduce_ops(const std::string& name)
 }
 
 // dynamic shape
-void test_dyn_reduce_ops(const std::string& name)
+static void test_dyn_reduce_ops(const std::string& name)
 {
     {
         migraphx::shape input{migraphx::shape::float_type, {{2, 3, {3}}, {2, 4, {4}}}};
@@ -3093,7 +3093,7 @@ void test_dyn_reduce_ops(const std::string& name)
     }
 }
 
-void test_reduce_ops_variable_axes(const std::string& name)
+static void test_reduce_ops_variable_axes(const std::string& name)
 {
     {
         migraphx::shape input_shape{migraphx::shape::float_type, {2, 3, 4}};

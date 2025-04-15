@@ -174,6 +174,7 @@ rocm_enable_clang_tidy(
         modernize-*
         performance-*
         readability-*
+        -bugprone-crtp-constructor-accessibility
         -bugprone-easily-swappable-parameters
         -bugprone-implicit-widening-of-multiplication-result
         -bugprone-macro-parentheses

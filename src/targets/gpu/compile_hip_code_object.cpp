@@ -51,7 +51,7 @@ struct make_tensor<${n}>
 };
 )__migraphx__";
 
-std::string generate_make_tensor(std::size_t n, const shape& s)
+static std::string generate_make_tensor(std::size_t n, const shape& s)
 {
     return interpolate_string(make_tensor_template,
                               {{"n", std::to_string(n)},
@@ -60,7 +60,7 @@ std::string generate_make_tensor(std::size_t n, const shape& s)
                                {"strides", generate_index_ints(s.strides())}});
 }
 
-std::string generate_args_hpp(const std::vector<shape>& inputs)
+static std::string generate_args_hpp(const std::vector<shape>& inputs)
 {
     std::string inner;
     for(std::size_t i = 0; i < inputs.size(); i++)
@@ -115,7 +115,7 @@ static std::vector<std::string> get_compiler_warnings()
     return warnings;
 }
 
-const std::vector<std::string>& compiler_warnings()
+const static std::vector<std::string>& compiler_warnings()
 {
     static std::vector<std::string> warnings = get_compiler_warnings();
     return warnings;

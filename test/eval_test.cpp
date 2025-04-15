@@ -514,7 +514,7 @@ struct cout_redirect
 };
 
 template <class F>
-std::string capture_output(F f)
+static std::string capture_output(F f)
 {
     std::stringstream ss;
     cout_redirect cr{ss};

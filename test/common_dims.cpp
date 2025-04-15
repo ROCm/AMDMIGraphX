@@ -34,7 +34,7 @@ TEST_CASE(common_d1_less)
     EXPECT(cd.axes_map2 == axes_map{{0}, {1, 2}, {3}});
 }
 
-void verify_common(const migraphx::common_dims& cd)
+static void verify_common(const migraphx::common_dims& cd)
 {
     EXPECT(cd.get_dimensions_for({2, 32, 40, 8, 8}) == std::vector<std::size_t>{2, 32, 40, 8, 8});
     EXPECT(cd.get_dimensions_for({64, 2560}) == std::vector<std::size_t>{2, 32, 40, 8, 8});

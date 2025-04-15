@@ -35,7 +35,7 @@
 #include <pointwise.hpp>
 #include <reduce.hpp>
 
-void run_pass(migraphx::program& p)
+static void run_pass(migraphx::program& p)
 {
     migraphx::run_passes(p,
                          {migraphx::fuse_pointwise{},
@@ -45,7 +45,7 @@ void run_pass(migraphx::program& p)
                           migraphx::dead_code_elimination{}});
 }
 
-void run_fuse_pass(migraphx::program& p)
+static void run_fuse_pass(migraphx::program& p)
 {
     migraphx::run_passes(
         p,

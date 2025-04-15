@@ -34,7 +34,7 @@ namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
 namespace onnx {
 
-auto parse_dyn_split(const onnx_parser::node_info& info,
+static auto parse_dyn_split(const onnx_parser::node_info& info,
                      const std::vector<instruction_ref>& args,
                      int64_t tuned_axis)
 {
@@ -87,7 +87,7 @@ auto parse_dyn_split(const onnx_parser::node_info& info,
     return ret_ins;
 }
 
-auto parse_static_split(const onnx_parser::node_info& info,
+static auto parse_static_split(const onnx_parser::node_info& info,
                         const onnx_parser& parser,
                         const std::vector<instruction_ref>& args,
                         int64_t tuned_axis)

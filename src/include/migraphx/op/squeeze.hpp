@@ -78,7 +78,7 @@ struct squeeze
                 std::copy_if(input_shape.dyn_dims().cbegin(),
                              input_shape.dyn_dims().cend(),
                              std::back_inserter(dyn_dims),
-                             [&](auto dd) { return dd != 1; });
+                             [&](const auto& dd) { return dd != 1; });
             }
             else
             {
@@ -96,7 +96,7 @@ struct squeeze
         {
             auto type        = input_shape.type();
             auto old_lens    = input_shape.lens();
-            auto old_strides = input_shape.strides();
+            const auto& old_strides = input_shape.strides();
             if(std::any_of(
                    axes.begin(), axes.end(), [&](auto axis) { return old_lens[axis] != 1; }))
             {

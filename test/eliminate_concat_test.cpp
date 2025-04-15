@@ -78,7 +78,7 @@ struct concat_test_optimization
     }
 };
 
-void run_pass(migraphx::module& m)
+static void run_pass(migraphx::module& m)
 {
     migraphx::run_passes(m,
                          {migraphx::eliminate_concat{concat_test_optimization{}},
@@ -127,7 +127,7 @@ struct simple_op
 };
 
 template <class... Ts>
-migraphx::shape create_shape(Ts... xs)
+static migraphx::shape create_shape(Ts... xs)
 {
     return migraphx::shape{migraphx::shape::float_type, {std::size_t(xs)...}};
 }

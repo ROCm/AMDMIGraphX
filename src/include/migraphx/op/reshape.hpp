@@ -178,7 +178,7 @@ struct reshape
         if(n_neg_dims > 1)
             MIGRAPHX_THROW("Reshape: Dimensions for reshape can only have one -1 dim");
 
-        auto s0 = inputs.front();
+        const auto& s0 = inputs.front();
         if(inputs.size() == 1)
         {
             if(s0.dynamic())

@@ -34,7 +34,7 @@
     Adding this because HIP fmod sign changes when y = 0 resulting in nan and -nan not beign
    consistent between ref and gpu implementations.
 */
-migraphx::instruction_ref add_epsilon(migraphx::module& m,
+static migraphx::instruction_ref add_epsilon(migraphx::module& m,
                                       migraphx::instruction_ref y,
                                       migraphx::shape::type_t dtype = migraphx::shape::float_type)
 {

@@ -31,7 +31,7 @@ namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
 namespace onnx {
 
-instruction_ref parse_prefix_scan_oper(const std::string& op_name,
+static instruction_ref parse_prefix_scan_oper(const std::string& op_name,
                                        const onnx_parser& parser,
                                        onnx_parser::node_info info,
                                        std::vector<instruction_ref> args)

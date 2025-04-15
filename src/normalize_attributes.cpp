@@ -42,7 +42,7 @@ inline namespace MIGRAPHX_INLINE_NS {
  * See normalize_attribute.hpp for explaining the options.
  */
 template <class Message>
-auto tune_attribute(const std::vector<int64_t>& vec,
+static auto tune_attribute(const std::vector<int64_t>& vec,
                     const std::vector<int64_t>& axes,
                     const value& val,
                     const shape& input_shape,
@@ -170,7 +170,7 @@ auto tune_attribute(const std::vector<int64_t>& vec,
     return result;
 }
 
-auto tune_pad_attribute(const value& val)
+static auto tune_pad_attribute(const value& val)
 {
 
     std::vector<size_t> vec_attrs = val.to_vector<size_t>();

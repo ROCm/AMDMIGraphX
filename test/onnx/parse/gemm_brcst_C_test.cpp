@@ -25,7 +25,7 @@
 #include <onnx_test.hpp>
 #include <migraphx/apply_alpha_beta.hpp>
 
-TEST_CASE(gemm_brcst_C_test)
+TEST_CASE(gemm_brcst_c_test)
 {
     migraphx::program p;
     auto* mm = p.get_main_module();

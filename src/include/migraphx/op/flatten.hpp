@@ -57,7 +57,7 @@ struct flatten
     shape normalize_compute_shape(std::vector<shape> inputs) const
     {
         check_shapes{inputs, *this, true}.has(1);
-        auto s = inputs[0];
+        const auto& s = inputs[0];
         if(s.dynamic())
         {
             // Doesn't handle optimals

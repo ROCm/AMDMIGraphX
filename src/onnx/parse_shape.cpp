@@ -21,6 +21,7 @@
  * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
  * THE SOFTWARE.
  */
+#include <algorithm>
 #include <migraphx/onnx/op_parser.hpp>
 #include <migraphx/instruction.hpp>
 #include <migraphx/ranges.hpp>
@@ -53,14 +54,8 @@ struct parse_shape : op_parser<parse_shape>
         // Normalizing the start and end is handled here because of how the static shape version
         // works. Clamping to [-r, r], where r is ndim of input and then making positive.
         auto normalize_ind = [&](int64_t ind) {
-            if(ind < (-1 * input_ndim))
-            {
-                ind = -1 * input_ndim;
-            }
-            if(ind > input_ndim)
-            {
-                ind = input_ndim;
-            }
+            ind = std::max<int64_t>(ind, -1 * input_ndim);
+            ind = std::min<int64_t>(ind, input_ndim);
             return (ind >= 0) ? ind : input_ndim + ind;
         };
         if(contains(info.attributes, "end"))

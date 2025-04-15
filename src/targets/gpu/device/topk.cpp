@@ -143,14 +143,14 @@ struct hip_heap_vector
 };
 
 template <class T, class Index, class Compare>
-__device__ hip_heap_vector<T, Index, Compare>
+__device__ static hip_heap_vector<T, Index, Compare>
 make_heap(T* data, index_int n, Index idx, Compare compare)
 {
     return {data, n, idx, compare};
 }
 
 template <class Compare>
-std::vector<argument> topk(hipStream_t stream,
+static std::vector<argument> topk(hipStream_t stream,
                            const argument& val_res,
                            const argument& ind_res,
                            const argument& arg,

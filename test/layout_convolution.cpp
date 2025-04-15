@@ -32,22 +32,22 @@
 
 #include <test.hpp>
 
-void run_pass(migraphx::module& m, migraphx::layout_convolution lc = {})
+static void run_pass(migraphx::module& m, migraphx::layout_convolution lc = {})
 {
     migraphx::run_passes(m, {lc, migraphx::dead_code_elimination{}});
 }
 
-migraphx::operation layout(std::vector<int64_t> permutation = {0, 1, 2, 3})
+static migraphx::operation layout(std::vector<int64_t> permutation = {0, 1, 2, 3})
 {
     return migraphx::make_op("layout", {{"permutation", permutation}});
 }
 
-migraphx::instruction_ref add_layout_nhwc(migraphx::module& m, migraphx::instruction_ref ins)
+static migraphx::instruction_ref add_layout_nhwc(migraphx::module& m, migraphx::instruction_ref ins)
 {
     return m.add_instruction(layout({0, 2, 3, 1}), ins);
 }
 
-migraphx::instruction_ref add_layout_nchw(migraphx::module& m, migraphx::instruction_ref ins)
+static migraphx::instruction_ref add_layout_nchw(migraphx::module& m, migraphx::instruction_ref ins)
 {
     return m.add_instruction(layout({0, 1, 2, 3}), ins);
 }

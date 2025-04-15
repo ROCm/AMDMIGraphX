@@ -32,13 +32,13 @@
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
 
-void store_target_lib(const dynamic_loader& lib)
+static void store_target_lib(const dynamic_loader& lib)
 {
     static std::vector<dynamic_loader> target_loader;
     target_loader.emplace_back(lib);
 }
 
-std::unordered_map<std::string, target>& target_map()
+static std::unordered_map<std::string, target>& target_map()
 {
     static std::unordered_map<std::string, target> m; // NOLINT
     return m;

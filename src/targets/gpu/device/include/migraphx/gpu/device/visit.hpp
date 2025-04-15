@@ -150,7 +150,7 @@ struct hip_convert
 {
     F f;
     template <class RawData, class N, class As>
-    auto operator()(RawData x, N ndim, As as) const
+    auto operator()(const RawData& x, N ndim, As as) const
         -> decltype(make_hip_view<ndim>(x.get_shape(), f(as.from(x.data()))))
     {
         return make_hip_view<ndim>(x.get_shape(), f(as.from(x.data())));

@@ -33,6 +33,7 @@
 #include <numeric>
 #include <exception>
 #include <array>
+#include <utility>
 #include <vector>
 #include <cassert>
 #include <iostream>
@@ -334,7 +335,7 @@ struct handle_base : handle_lookup<Derived, std::remove_cv_t<T>>
     template <class U, class V>
     void set_handle(U* ptr, share<V> b)
     {
-        m_handle = std::shared_ptr<T>{ptr, [b](U*) {}};
+        m_handle = std::shared_ptr<T>{ptr, [std::move(b)](U*) {}};
     }
 
     share<T> share_handle() const { return {m_handle}; }
@@ -648,7 +649,7 @@ struct dynamic_dimensions : MIGRAPHX_HANDLE_BASE(dynamic_dimensions)
     MIGRAPHX_HANDLE_CONSTRUCTOR(dynamic_dimensions)
 
     template <class... Ts>
-    dynamic_dimensions(Ts... xs)
+    dynamic_dimensions(const Ts...& xs)
     {
         std::array<const_migraphx_dynamic_dimension_t, sizeof...(Ts)> a{xs.get_handle_ptr()...};
         this->make_handle(&migraphx_dynamic_dimensions_create, a.data(), a.size());
@@ -1003,7 +1004,7 @@ struct instructions : MIGRAPHX_HANDLE_BASE(instructions)
     MIGRAPHX_HANDLE_CONSTRUCTOR(instructions)
 
     template <class... Ts>
-    instructions(Ts... xs)
+    instructions(const Ts...& xs)
     {
         std::array<const_migraphx_instruction_t, sizeof...(Ts)> a{xs.get_handle_ptr()...};
         this->make_handle(&migraphx_instructions_create, a.data(), a.size());
@@ -1017,7 +1018,7 @@ struct modules : MIGRAPHX_HANDLE_BASE(modules)
     MIGRAPHX_HANDLE_CONSTRUCTOR(modules)
 
     template <class... Ts>
-    modules(Ts... xs)
+    modules(const Ts...& xs)
     {
         std::array<migraphx_module_t, sizeof...(Ts)> a = {xs.get_handle_ptr()...};
         this->make_handle(&migraphx_modules_create, a.data(), a.size());
@@ -1032,7 +1033,7 @@ struct module
     module(migraphx_module* m, borrow) :mm(std::shared_ptr<migraphx_module*>(), m) {}
 
     template <class T>
-    module(migraphx_module* m, share<T> b) : mm(b.alias(m))
+    module(migraphx_module* m, const share<T>& b) : mm(b.alias(m))
     {
     }
 
@@ -1105,7 +1106,7 @@ struct context : handle_lookup<context, migraphx_context>
     context(migraphx_context* p, borrow) : ctx(std::shared_ptr<migraphx_context*>(), p) {}
 
     template <class T>
-    context(migraphx_context* p, share<T> b) : ctx(b.alias(p))
+    context(migraphx_context* p, const share<T>& b) : ctx(b.alias(p))
     {
     }
 

@@ -73,8 +73,8 @@ struct transpose
         }
         else
         {
-            auto input_lens    = input.lens();
-            auto input_strides = input.strides();
+            const auto& input_lens    = input.lens();
+            const auto& input_strides = input.strides();
 
             std::vector<size_t> output_lens(input.ndim());
             std::vector<size_t> output_strides(input.ndim());

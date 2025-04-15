@@ -64,7 +64,7 @@ struct dot
                                           s0.dyn_dims().end() - 2,
                                           s1.dyn_dims().begin(),
                                           s1.dyn_dims().end() - 2,
-                                          [&](auto x, auto y) {
+                                          [&](const auto& x, const auto& y) {
                                               auto intersect = x.intersection(y);
                                               if(intersect.has_value())
                                               {

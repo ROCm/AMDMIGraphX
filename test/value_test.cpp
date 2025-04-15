@@ -564,7 +564,7 @@ TEST_CASE(value_construct_object_string_mixed_value)
 }
 
 template <class Expression>
-auto compare_predicate(const Expression& e)
+static auto compare_predicate(const Expression& e)
 {
     bool result = e.value();
     return test::make_predicate(test::as_string(e) + " => " + test::as_string(result),
@@ -894,12 +894,12 @@ TEST_CASE(value_binary_object_conv)
 }
 
 template <class T>
-bool is_null_type(T)
+static bool is_null_type(const T&)
 {
     return false;
 }
 
-bool is_null_type(std::nullptr_t) { return true; }
+static bool is_null_type(std::nullptr_t) { return true; }
 
 TEST_CASE(visit_null)
 {

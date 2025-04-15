@@ -30,7 +30,7 @@ namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
 
 template <class RawData>
-void raw_data_to_value(value& v, const RawData& rd)
+static void raw_data_to_value(value& v, const RawData& rd)
 {
     value result;
     result["shape"] = migraphx::to_value(rd.get_shape());

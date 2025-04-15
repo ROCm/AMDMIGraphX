@@ -26,7 +26,7 @@
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
 
-bool reduce_dim(std::vector<shape>& shapes, std::size_t n)
+static bool reduce_dim(std::vector<shape>& shapes, std::size_t n)
 {
     std::vector<std::size_t> new_lens;
     for(const auto& s : shapes)
@@ -58,7 +58,7 @@ bool reduce_dim(std::vector<shape>& shapes, std::size_t n)
     return true;
 }
 
-void reduce_dim1(std::vector<shape>& shapes)
+static void reduce_dim1(std::vector<shape>& shapes)
 {
     if(std::any_of(shapes.begin(), shapes.end(), [&](const auto& s) {
            return s.lens().size() < 2 or s.lens().back() != 1;
@@ -74,7 +74,7 @@ void reduce_dim1(std::vector<shape>& shapes)
     }
 }
 
-std::size_t reduce_dim_all(std::vector<shape>& shapes, std::size_t n)
+static std::size_t reduce_dim_all(std::vector<shape>& shapes, std::size_t n)
 {
     while(reduce_dim(shapes, n) and n < shapes.size())
     {
@@ -82,7 +82,7 @@ std::size_t reduce_dim_all(std::vector<shape>& shapes, std::size_t n)
     }
     return n + 1;
 }
-void reduce_dim_all(std::vector<shape>& shapes)
+static void reduce_dim_all(std::vector<shape>& shapes)
 {
     std::size_t n = 0;
     while(n < shapes.front().lens().size() - 1)
@@ -90,7 +90,7 @@ void reduce_dim_all(std::vector<shape>& shapes)
     reduce_dim1(shapes);
 }
 
-std::vector<std::size_t> base_lens(const std::vector<shape>& shapes)
+static std::vector<std::size_t> base_lens(const std::vector<shape>& shapes)
 {
     return std::accumulate(
         shapes.begin() + 1, shapes.end(), shapes.front().lens(), [](auto&& lens, auto&& s) {
@@ -107,7 +107,7 @@ std::vector<std::size_t> base_lens(const std::vector<shape>& shapes)
         });
 }
 
-shape mask_shape(const shape& s, const std::vector<std::size_t>& lens)
+static shape mask_shape(const shape& s, const std::vector<std::size_t>& lens)
 {
     assert(s.lens().size() == lens.size());
     std::vector<std::size_t> rstrides(lens.size());

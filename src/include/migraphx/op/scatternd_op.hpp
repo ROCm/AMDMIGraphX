@@ -55,8 +55,8 @@ struct scatternd_op : op_name<Derived>
     {
         check_shapes{inputs, *this, true}.has(3);
         auto data_shape  = inputs.front();
-        auto index_shape = inputs.at(1);
-        auto upd_shape   = inputs.back();
+        const auto& index_shape = inputs.at(1);
+        const auto& upd_shape   = inputs.back();
 
         auto r = data_shape.ndim();
         auto q = index_shape.ndim();

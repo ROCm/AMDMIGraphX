@@ -62,7 +62,7 @@ __device__ void softmax_inplace(T score, int n, int d)
 
         for(int i = 0; i < d; i++)
         {
-            y[i] = x[i] / static_cast<float>(sum);
+            y[i] = x[i] / sum;
         }
     }
 }

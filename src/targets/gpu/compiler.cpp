@@ -37,7 +37,7 @@ struct compiler_handle
 };
 } // namespace
 
-auto& compiler_map()
+static auto& compiler_map()
 {
     static std::unordered_map<std::string, compiler_handle> m; // NOLINT
     return m;

@@ -438,7 +438,7 @@ static bool use_lazy_inner(instruction_ref ins)
     return contains(output->name(), "reduce") or output->name() == "@return";
 }
 
-void preload_params(module& m)
+static void preload_params(module& m)
 {
     for(auto ins : iterator_for(m))
     {
@@ -505,7 +505,7 @@ std::string generate_reduce(module m, const std::string& name)
             auto args              = cpp_generator::to_args(tensors, names);
             auto params            = cpp_generator::to_args(tensors, inner_names);
             std::transform(
-                params.begin(), params.end(), params.begin(), [](auto s) { return "auto " + s; });
+                params.begin(), params.end(), params.begin(), [](const auto& s) { return "auto " + s; });
             return interpolate_string(inner_template,
                                       {{"inner", inner_name},
                                        {"params", join_strings(params, ", ")},

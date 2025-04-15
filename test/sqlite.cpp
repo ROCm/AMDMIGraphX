@@ -49,7 +49,7 @@ TEST_CASE(read_write)
         auto db   = migraphx::sqlite::read(db_path);
         auto rows = db.execute(select_all);
         EXPECT(rows.size() == 1);
-        auto row = rows.front();
+        const auto& row = rows.front();
         EXPECT(row.at("data") == "a");
         EXPECT(row.at("id") == "1");
     }

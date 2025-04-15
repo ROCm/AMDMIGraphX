@@ -45,7 +45,7 @@ value handle_pooling_values(const op_desc& opd,
         // if spatial dimensions are dynamic use dyn_global flag
         if(in_shape.dynamic() and std::any_of(in_shape.dyn_dims().cbegin() + 2,
                                               in_shape.dyn_dims().cend(),
-                                              [](auto dd) { return not dd.is_fixed(); }))
+                                              [](const auto& dd) { return not dd.is_fixed(); }))
         {
             values["dyn_global"] = true;
             values["lengths"]    = std::vector<size_t>();

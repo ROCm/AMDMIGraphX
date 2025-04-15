@@ -30,7 +30,7 @@ namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
 namespace onnx {
 
-auto compute_type(shape::type_t t1, shape::type_t t2)
+static auto compute_type(shape::type_t t1, shape::type_t t2)
 {
     const static std::unordered_map<int, int> op_order = {{shape::int8_type, 1},
                                                           {shape::uint8_type, 2},

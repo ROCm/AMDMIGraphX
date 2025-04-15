@@ -29,11 +29,11 @@
 #include "test.hpp"
 
 template <class T, MIGRAPHX_REQUIRES(not std::is_base_of<std::vector<std::uint8_t>, T>{})>
-void write_msgpack(std::ostream& os, const T& src)
+static void write_msgpack(std::ostream& os, const T& src)
 {
     msgpack::pack(os, src);
 }
-void write_msgpack(std::ostream& os, const std::vector<std::uint8_t>& src)
+static void write_msgpack(std::ostream& os, const std::vector<std::uint8_t>& src)
 {
     const auto limit = std::numeric_limits<uint32_t>::max() - 1;
     std::vector<std::vector<std::uint8_t>> chunks;
@@ -52,7 +52,7 @@ void write_msgpack(std::ostream& os, const std::vector<std::uint8_t>& src)
 }
 
 template <class T>
-std::vector<char> msgpack_buffer(const T& src)
+static std::vector<char> msgpack_buffer(const T& src)
 {
     std::stringstream buffer;
     write_msgpack(buffer, src);

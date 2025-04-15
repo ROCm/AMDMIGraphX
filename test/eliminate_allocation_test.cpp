@@ -29,7 +29,7 @@
 #include <basic_ops.hpp>
 #include <test.hpp>
 
-void run_pass(migraphx::module& m, std::size_t align = 32)
+static void run_pass(migraphx::module& m, std::size_t align = 32)
 {
     migraphx::run_passes(
         m, {migraphx::eliminate_allocation{"allocate", align}, migraphx::dead_code_elimination{}});

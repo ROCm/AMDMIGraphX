@@ -28,6 +28,7 @@
 #include <cassert>
 #include <numeric>
 #include <string>
+#include <utility>
 #include <vector>
 #include <migraphx/config.hpp>
 
@@ -53,7 +54,7 @@ template <class Iterator, class T, class BinaryOp, class UnaryOp>
 T transform_accumulate(Iterator first, Iterator last, T init, BinaryOp binop, UnaryOp unaryop)
 {
     return std::inner_product(
-        first, last, first, init, binop, [&](auto&& x, auto&&) { return unaryop(x); });
+        first, last, first, std::move(init), binop, [&](auto&& x, auto&&) { return unaryop(x); });
 }
 
 /// Similiar to std::partial_sum but a projection can be applied to the elements first

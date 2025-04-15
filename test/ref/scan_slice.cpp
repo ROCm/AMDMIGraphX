@@ -37,7 +37,7 @@ static migraphx::shape make_shape(const std::vector<size_t>& lens)
     return migraphx::shape{migraphx::shape::int32_type, lens};
 }
 
-migraphx::program make_scan_slice_program(int64_t axis, int64_t direction)
+static migraphx::program make_scan_slice_program(int64_t axis, int64_t direction)
 {
     migraphx::program p;
     auto* mm = p.get_main_module();

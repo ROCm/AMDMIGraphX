@@ -137,7 +137,7 @@ struct slice
         std::array<std::vector<int64_t>, 3> attrs = {this->starts, this->ends, this->axes};
         std::array<bool, 3> bool_vec;
         std::transform(
-            attrs.cbegin(), attrs.cend(), bool_vec.begin(), [](auto a) { return not a.empty(); });
+            attrs.cbegin(), attrs.cend(), bool_vec.begin(), [](const auto& a) { return not a.empty(); });
         return bool_vec;
     }
 
@@ -186,7 +186,7 @@ struct slice
                 {
                     MIGRAPHX_THROW("SLICE: 2 input and attributes mismatch");
                 }
-                std::transform(dds.begin(), dds.end(), dds.begin(), [](auto dd) {
+                std::transform(dds.begin(), dds.end(), dds.begin(), [](const auto& dd) {
                     return shape::dynamic_dimension{0, dd.max};
                 });
             }
@@ -215,7 +215,7 @@ struct slice
                 {
                     MIGRAPHX_THROW("SLICE: 3 input and attributes mismatch");
                 }
-                std::transform(dds.begin(), dds.end(), dds.begin(), [](auto dd) {
+                std::transform(dds.begin(), dds.end(), dds.begin(), [](const auto& dd) {
                     return shape::dynamic_dimension{0, dd.max};
                 });
             }
@@ -227,7 +227,7 @@ struct slice
                 {
                     MIGRAPHX_THROW("SLICE: 3 input and attributes mismatch");
                 }
-                std::transform(dds.begin(), dds.end(), dds.begin(), [](auto dd) {
+                std::transform(dds.begin(), dds.end(), dds.begin(), [](const auto& dd) {
                     return shape::dynamic_dimension{0, dd.max};
                 });
             }
@@ -239,7 +239,7 @@ struct slice
         else
         {
             // all 4 inputs (data, inputs_starts, input_ends, input_axes)
-            std::transform(dds.begin(), dds.end(), dds.begin(), [](auto dd) {
+            std::transform(dds.begin(), dds.end(), dds.begin(), [](const auto& dd) {
                 return shape::dynamic_dimension{0, dd.max};
             });
         }

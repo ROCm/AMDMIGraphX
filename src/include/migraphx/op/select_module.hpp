@@ -56,7 +56,7 @@ struct select_module
         std::copy_if(param_names.cbegin(),
                      param_names.cend(),
                      std::back_inserter(ret),
-                     [](auto pn) { return not contains(pn, "#output_"); });
+                     [](const auto& pn) { return not contains(pn, "#output_"); });
         std::sort(ret.begin(), ret.end());
         return ret;
     }
@@ -68,7 +68,7 @@ struct select_module
         std::copy_if(param_names.cbegin(),
                      param_names.cend(),
                      std::back_inserter(ret),
-                     [](auto pn) { return contains(pn, "#output_"); });
+                     [](const auto& pn) { return contains(pn, "#output_"); });
         // needs to be sorted to ensure output parameter ordering
         std::sort(ret.begin(), ret.end());
         return ret;
@@ -92,7 +92,7 @@ struct select_module
                     in_param_names.cbegin(),
                     in_param_names.cend(),
                     args.cbegin(),
-                    [&](auto p_name, auto a) { return a.get_shape() == param_shapes[p_name]; });
+                    [&](const auto& p_name, const auto& a) { return a.get_shape() == param_shapes[p_name]; });
             });
 
         if(module_iter == submodule_list.end())

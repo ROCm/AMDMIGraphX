@@ -46,13 +46,13 @@ struct float_equal_expression
 };
 
 template <class T, class U>
-auto test_float_equal(T x, U y)
+static auto test_float_equal(T x, U y)
 {
     return test::make_lhs_expression(float_equal_expression<T, U>{x, y});
 }
 
 template <class T, class U>
-void test_equality()
+static void test_equality()
 {
     auto x1 = T(0.125);
     auto x2 = U(0.0);
@@ -92,7 +92,7 @@ TEST_CASE_REGISTER(test_equality<migraphx::fp8::fp8e4m3fn, int>);
 TEST_CASE_REGISTER(test_equality<migraphx::fp8::fp8e5m2, int>);
 
 template <class T, class U>
-void test_limits()
+static void test_limits()
 {
     auto max1 = std::numeric_limits<T>::max();
     auto max2 = std::numeric_limits<U>::max();

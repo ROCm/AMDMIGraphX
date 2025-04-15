@@ -34,13 +34,13 @@
 
 #include <test.hpp>
 
-void run_pass(migraphx::module& m)
+static void run_pass(migraphx::module& m)
 {
     migraphx::run_passes(m, {migraphx::rewrite_low_precision{}, migraphx::dead_code_elimination{}});
 }
 
 template <migraphx::shape::type_t DType, typename T>
-void create_pow2_div(migraphx::module& m, const std::vector<std::size_t>& input_lens, T divisor)
+static void create_pow2_div(migraphx::module& m, const std::vector<std::size_t>& input_lens, T divisor)
 {
     migraphx::shape s_input{DType, input_lens};
     migraphx::shape s_lit{DType, {1}};

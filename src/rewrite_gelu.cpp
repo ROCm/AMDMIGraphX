@@ -41,7 +41,7 @@ inline namespace MIGRAPHX_INLINE_NS {
  * A. Choudhury, ‘A simple approximation to the area under standard normal curve’, Mathematics and
  * Statistics, vol. 2, no. 3, pp. 147–149, 2014.
  */
-void replace_with_tanh_exp_gelu(module& m, const match::matcher_result& r)
+static void replace_with_tanh_exp_gelu(module& m, const match::matcher_result& r)
 {
     auto ins      = r.result;
     auto x        = r.instructions["x"];

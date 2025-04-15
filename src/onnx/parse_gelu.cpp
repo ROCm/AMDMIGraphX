@@ -30,7 +30,7 @@ namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
 namespace onnx {
 
-instruction_ref parse_quick_gelu(const onnx_parser::node_info& info, instruction_ref x)
+static instruction_ref parse_quick_gelu(const onnx_parser::node_info& info, instruction_ref x)
 {
     // computes x * sigmoid(alpha * x)
     auto x_type    = x->get_shape().type();
@@ -41,7 +41,7 @@ instruction_ref parse_quick_gelu(const onnx_parser::node_info& info, instruction
     return info.add_common_op("mul", x, sigmoid);
 }
 
-instruction_ref parse_gelu_erf(const onnx_parser::node_info& info, instruction_ref x)
+static instruction_ref parse_gelu_erf(const onnx_parser::node_info& info, instruction_ref x)
 {
     auto x_type = x->get_shape().type();
     auto half   = info.add_literal(migraphx::literal{migraphx::shape{x_type}, {0.5f}});
@@ -55,7 +55,7 @@ instruction_ref parse_gelu_erf(const onnx_parser::node_info& info, instruction_r
     return info.add_common_op("mul", mul_half, add_one);
 }
 
-instruction_ref parse_gelu_tanh(const onnx_parser::node_info& info, instruction_ref x, bool fast)
+static instruction_ref parse_gelu_tanh(const onnx_parser::node_info& info, instruction_ref x, bool fast)
 {
     auto x_type        = x->get_shape().type();
     auto fit_const_val = fast ? 0.035677 : 0.044715;

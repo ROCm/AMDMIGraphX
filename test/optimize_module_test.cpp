@@ -34,7 +34,7 @@
 #include <migraphx/serialize.hpp>
 #include <test.hpp>
 
-void run_pass(migraphx::module& m) { migraphx::run_passes(m, {migraphx::optimize_module{}}); }
+static void run_pass(migraphx::module& m) { migraphx::run_passes(m, {migraphx::optimize_module{}}); }
 
 TEST_CASE(broadcast_transpose_inner_broadcast)
 {

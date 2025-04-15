@@ -38,7 +38,7 @@ namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
 
 template <class... Ts>
-program parse_onnx_from(const onnx_options& options, Ts&&... xs)
+static program parse_onnx_from(const onnx_options& options, Ts&&... xs)
 {
     onnx::onnx_parser parser;
     parser.external_data_path = options.external_data_path;

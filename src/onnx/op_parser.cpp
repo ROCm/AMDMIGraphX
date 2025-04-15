@@ -28,7 +28,7 @@ namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
 namespace onnx {
 
-std::unordered_map<std::string, onnx_parser::op_func>& op_parser_map()
+static std::unordered_map<std::string, onnx_parser::op_func>& op_parser_map()
 {
     static std::unordered_map<std::string, onnx_parser::op_func> m; // NOLINT
     return m;

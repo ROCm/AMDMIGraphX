@@ -30,7 +30,7 @@
 
 #include <test.hpp>
 
-void run_pass(migraphx::module& m, std::set<migraphx::shape::type_t> types)
+static void run_pass(migraphx::module& m, std::set<migraphx::shape::type_t> types)
 {
     migraphx::run_passes(
         m,

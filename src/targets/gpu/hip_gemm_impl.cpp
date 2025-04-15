@@ -39,7 +39,7 @@ namespace gpu {
 
 using microseconds = std::chrono::duration<double, std::micro>;
 
-hipDataType compute_to_hip_type(hipblasComputeType_t type)
+static hipDataType compute_to_hip_type(hipblasComputeType_t type)
 {
     switch(type)
     {
@@ -59,7 +59,7 @@ hipDataType compute_to_hip_type(hipblasComputeType_t type)
 }
 
 // Convert hipBLAS datatypes to equivalent MIGraphX data types
-hipDataType get_type_hipblas(shape::type_t type)
+static hipDataType get_type_hipblas(shape::type_t type)
 {
     switch(type)
     {
@@ -93,7 +93,7 @@ hipDataType get_type_hipblas(shape::type_t type)
     MIGRAPHX_THROW("HIPBLAS_GEMM: data type not supported!");
 }
 
-void blas_shape_hip(const shape& in_shape)
+static void blas_shape_hip(const shape& in_shape)
 {
     if(in_shape.lens().size() < 2)
         return;
@@ -112,7 +112,7 @@ void blas_shape_hip(const shape& in_shape)
         MIGRAPHX_THROW("GPU_GEMM: Batch dimension is not collapsible");
 }
 
-shape transpose_batch_hip(const shape& s, unsigned trans_batch)
+static shape transpose_batch_hip(const shape& s, unsigned trans_batch)
 {
     if(trans_batch == 0)
         return s;

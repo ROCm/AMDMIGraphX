@@ -36,7 +36,7 @@ shape miopen_pooling::compute_shape(const std::vector<shape>& inputs) const
     return op.normalize_compute_shape(pooling_input);
 }
 
-inline void reshape_if_1d(shape& input)
+inline static void reshape_if_1d(shape& input)
 {
     auto dims = input.lens();
 

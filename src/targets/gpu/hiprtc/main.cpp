@@ -36,7 +36,7 @@
 #include <io.h>
 #endif
 
-std::vector<char> read_stdin()
+static std::vector<char> read_stdin()
 {
 #ifdef _WIN32
     // Set stream translation mode to BINARY to suppress translations.

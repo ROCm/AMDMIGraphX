@@ -45,7 +45,7 @@
 // Treat some operators as compilable to enable lowering
 MIGRAPHX_GPU_TEST_PRECOMPILE("add", "mul", "convert")
 
-void run_lowering(migraphx::program& p, bool offload_copy = false)
+static void run_lowering(migraphx::program& p, bool offload_copy = false)
 {
     auto ctx = migraphx::gpu::context{};
     migraphx::run_passes(

@@ -207,7 +207,7 @@ TEST_CASE(unique_unsorted_dupes_test)
     EXPECT(ct == gold_ct);
 }
 
-TEST_CASE(unique_3D_no_axis_test)
+TEST_CASE(unique_3_d_no_axis_test)
 {
     // sorted 3D (with dup entries). no axis
     int sorted                  = 1;
@@ -223,7 +223,7 @@ TEST_CASE(unique_3D_no_axis_test)
     EXPECT(ct == gold_ct);
 }
 
-TEST_CASE(unique_3D_no_axis_unsorted_test)
+TEST_CASE(unique_3_d_no_axis_unsorted_test)
 //  unsorted 3D (with dup entries). no axis
 {
     int sorted               = 0;

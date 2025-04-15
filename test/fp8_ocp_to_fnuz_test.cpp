@@ -41,17 +41,17 @@ using migraphx::make_op;
 using migraphx::shape;
 using migraphx::fp8::fp8e4m3fnuz;
 
-void run_fp8_ocp_to_fnuz(migraphx::module& m)
+static void run_fp8_ocp_to_fnuz(migraphx::module& m)
 {
     migraphx::run_passes(m, {migraphx::fp8_ocp_to_fnuz{}, migraphx::dead_code_elimination{}});
 }
 
-void run_simplify_qdq(migraphx::module& m)
+static void run_simplify_qdq(migraphx::module& m)
 {
     run_passes(m, {migraphx::simplify_qdq{}, migraphx::dead_code_elimination{}});
 }
 
-void run_cse_pc(migraphx::module& m, const std::unordered_set<std::string>& skip_ops = {})
+static void run_cse_pc(migraphx::module& m, const std::unordered_set<std::string>& skip_ops = {})
 {
     run_passes(m,
                {migraphx::eliminate_common_subexpression{},
@@ -60,7 +60,7 @@ void run_cse_pc(migraphx::module& m, const std::unordered_set<std::string>& skip
                 migraphx::dead_code_elimination{}});
 }
 
-auto bit_cast_and_handle_specials(migraphx::module& m,
+static auto bit_cast_and_handle_specials(migraphx::module& m,
                                   const migraphx::instruction_ref x,
                                   const migraphx::instruction_ref bits_0x80_lit,
                                   const migraphx::instruction_ref bits_0x7f_lit,
@@ -94,7 +94,7 @@ auto bit_cast_and_handle_specials(migraphx::module& m,
     return ret;
 }
 
-auto cast_fp8_helper(migraphx::module& m,
+static auto cast_fp8_helper(migraphx::module& m,
                      const migraphx::instruction_ref dq_input,
                      const migraphx::instruction_ref dq_scale,
                      const migraphx::instruction_ref dq_zp)

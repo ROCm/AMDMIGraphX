@@ -31,12 +31,12 @@
 #include <migraphx/serialize.hpp>
 #include <test.hpp>
 
-void run_promote(migraphx::program& p)
+static void run_promote(migraphx::program& p)
 {
     migraphx::run_passes(p, {migraphx::promote_literals{}, migraphx::dead_code_elimination{}});
 }
 
-void run_promote_and_ecs(migraphx::program& p)
+static void run_promote_and_ecs(migraphx::program& p)
 {
     migraphx::run_passes(p,
                          {migraphx::promote_literals{},

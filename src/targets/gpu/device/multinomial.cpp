@@ -35,7 +35,7 @@ namespace gpu {
 namespace device {
 
 template <class Iterator, class T>
-constexpr Iterator upper_bound(Iterator first, Iterator last, const T& value)
+constexpr static Iterator upper_bound(Iterator first, Iterator last, const T& value)
 {
     Iterator it;
     typename std::iterator_traits<Iterator>::difference_type count;

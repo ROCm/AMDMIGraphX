@@ -38,7 +38,7 @@ TEST_CASE(base64_encoding)
     EXPECT(migraphx::base64_encode("{1, 3, 7, 9}") == "ezEsIDMsIDcsIDl9");
 }
 
-TEST_CASE(base64_RFC_test_vectors)
+TEST_CASE(base64_rfc_test_vectors)
 {
     EXPECT(migraphx::base64_encode("") == "");
 
@@ -113,7 +113,7 @@ TEST_CASE(base64_encodes_six_bytes)
     EXPECT(expected == actual);
 }
 
-TEST_CASE(base64_encodes_BrownFox)
+TEST_CASE(base64_encodes_brown_fox)
 {
     std::array<std::uint8_t, 43> const input{
         0x74, 0x68, 0x65, 0x20, 0x71, 0x75, 0x69, 0x63, 0x6b, 0x20, 0x62, 0x72, 0x6f, 0x77, 0x6e,
@@ -125,7 +125,7 @@ TEST_CASE(base64_encodes_BrownFox)
     EXPECT(expected == actual);
 }
 
-TEST_CASE(base64_encodes_EncodesBrownFastFoxNullInMiddle)
+TEST_CASE(base64_encodes_encodes_brown_fast_fox_null_in_middle)
 {
     std::array<std::uint8_t, 45> const input{
         0x74, 0x68, 0x65, 0x20, 0x71, 0x75, 0x69, 0x63, 0x6b, 0x21, 0x20, 0x62, 0x72, 0x6f, 0x77,

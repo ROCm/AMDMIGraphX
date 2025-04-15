@@ -25,13 +25,13 @@
 #include "test.hpp"
 
 template <class T>
-std::false_type has_handle(migraphx::rank<0>, T)
+static std::false_type has_handle(migraphx::rank<0>, T)
 {
     return {};
 }
 
 template <class T>
-auto has_handle(migraphx::rank<1>, T*) -> decltype(migraphx::as_handle<T>{}, std::true_type{})
+static auto has_handle(migraphx::rank<1>, T*) -> decltype(migraphx::as_handle<T>{}, std::true_type{})
 {
     return {};
 }

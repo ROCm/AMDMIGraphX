@@ -32,7 +32,7 @@
 #include <iomanip>
 
 template <class T, class U>
-bool bit_equal(const T& x, const U& y)
+static bool bit_equal(const T& x, const U& y)
 {
     static_assert(sizeof(T) == sizeof(U));
     using type = std::array<char, sizeof(T)>;
@@ -51,7 +51,7 @@ TEST_CASE(check_numeric_limits)
     CHECK(bit_equal(std::numeric_limits<migraphx::half>::signaling_NaN(), uint16_t{0x7d00}));
 }
 
-const std::map<uint16_t, float>& half_lut() // NOLINT(readability-function-size)
+const static std::map<uint16_t, float>& half_lut() // NOLINT(readability-function-size)
 {
     static const std::map<uint16_t, float> result = {
         {0x0000, 0},

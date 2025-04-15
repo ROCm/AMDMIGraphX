@@ -48,13 +48,13 @@ MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_TRACE_CMD_EXECUTE)
 
 #ifndef _WIN32
 
-std::function<void(const char*)> redirect_to(std::ostream& os)
+static std::function<void(const char*)> redirect_to(std::ostream& os)
 {
     return [&](const char* x) { os << x; };
 }
 
 template <class F>
-int exec(const std::string& cmd, const char* type, F f)
+static int exec(const std::string& cmd, const char* type, F f)
 {
     int ec = 0;
     if(enabled(MIGRAPHX_TRACE_CMD_EXECUTE{}))
@@ -73,7 +73,7 @@ int exec(const std::string& cmd, const char* type, F f)
     return ec;
 }
 
-int exec(const std::string& cmd, const std::function<void(const char*)>& std_out)
+static int exec(const std::string& cmd, const std::function<void(const char*)>& std_out)
 {
     return exec(cmd, "r", [&](FILE* f) {
         std::array<char, 128> buffer;
@@ -82,7 +82,7 @@ int exec(const std::string& cmd, const std::function<void(const char*)>& std_out
     });
 }
 
-int exec(const std::string& cmd, std::function<void(process::writer)> std_in)
+static int exec(const std::string& cmd, std::function<void(process::writer)> std_in)
 {
     return exec(cmd, "w", [&](FILE* f) {
         std_in([&](const char* buffer, std::size_t n) { std::fwrite(buffer, 1, n, f); });

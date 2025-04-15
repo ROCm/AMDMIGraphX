@@ -174,7 +174,7 @@ static auto any_input(Ms... ms)
     return match::any_of[match::inputs()](match::any(ms...).bind("input"));
 }
 
-bool is_valid_broadcast(const instruction_ref b, const std::vector<size_t>& reduce_axes)
+static bool is_valid_broadcast(const instruction_ref b, const std::vector<size_t>& reduce_axes)
 {
     std::vector<size_t> broadcast_axes;
     auto bstrides = b->get_shape().strides();

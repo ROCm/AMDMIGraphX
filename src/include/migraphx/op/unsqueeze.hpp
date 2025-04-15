@@ -66,7 +66,7 @@ struct unsqueeze
     shape normalize_compute_shape(std::vector<shape> inputs) const
     {
         check_shapes{inputs, *this, true}.has(1);
-        auto input_shape = inputs[0];
+        const auto& input_shape = inputs[0];
 
         if(input_shape.dynamic())
         {
@@ -94,7 +94,7 @@ struct unsqueeze
         {
             auto type        = input_shape.type();
             auto old_lens    = input_shape.lens();
-            auto old_strides = input_shape.strides();
+            const auto& old_strides = input_shape.strides();
             auto is_scalar   = input_shape.scalar();
 
             if(is_scalar and old_lens.size() == 1 and old_lens.front() == 1)

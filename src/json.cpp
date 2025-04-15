@@ -32,8 +32,8 @@ inline namespace MIGRAPHX_INLINE_NS {
 
 using json = nlohmann::json;
 
-void value_to_json(const value& val, json& j);
-migraphx::value value_from_json(const json& j);
+static void value_to_json(const value& val, json& j);
+static migraphx::value value_from_json(const json& j);
 
 } // namespace MIGRAPHX_INLINE_NS
 } // namespace migraphx
@@ -57,18 +57,18 @@ inline namespace MIGRAPHX_INLINE_NS {
 using json = nlohmann::json;
 
 template <class T>
-void value_to_json(const T& x, json& j)
+static void value_to_json(const T& x, json& j)
 {
     j = x;
 }
 
-void value_to_json(const value::binary& x, json& j)
+static void value_to_json(const value::binary& x, json& j)
 {
     j          = json::object();
     j["bytes"] = std::vector<int>(x.begin(), x.end());
 }
 
-void value_to_json(const std::vector<value>& x, json& j)
+static void value_to_json(const std::vector<value>& x, json& j)
 {
     for(const auto& v : x)
     {
@@ -83,7 +83,7 @@ void value_to_json(const std::vector<value>& x, json& j)
     }
 }
 
-void value_to_json(std::nullptr_t&, json& j) { j = {}; }
+static void value_to_json(std::nullptr_t&, json& j) { j = {}; }
 
 void value_to_json(const value& val, json& j)
 {
@@ -97,7 +97,7 @@ void value_to_json(const value& val, json& j)
         j = json::object();
     }
 
-    val.visit([&](auto v) { value_to_json(v, j); });
+    val.visit([&](const auto& v) { value_to_json(v, j); });
 }
 
 migraphx::value value_from_json(const json& j)

@@ -48,12 +48,12 @@ inline namespace MIGRAPHX_INLINE_NS {
 
 MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_TRACE_SCHEDULE)
 
-auto get_inputs()
+static auto get_inputs()
 {
     return [](auto i) { return i->inputs(); };
 }
 
-auto get_outputs()
+static auto get_outputs()
 {
     return [](auto i) { return i->outputs(); };
 }

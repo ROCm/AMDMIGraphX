@@ -30,7 +30,7 @@
 #include <migraphx/make_op.hpp>
 #include <test.hpp>
 
-void run_pass(migraphx::module& m)
+static void run_pass(migraphx::module& m)
 {
     migraphx::run_passes(m, {migraphx::simplify_dyn_ops{}, migraphx::dead_code_elimination{}});
 }

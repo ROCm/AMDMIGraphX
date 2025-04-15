@@ -34,7 +34,7 @@
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
 
-std::unordered_map<instruction_ref, std::string> create_output_names(const module& mod)
+static std::unordered_map<instruction_ref, std::string> create_output_names(const module& mod)
 {
     std::unordered_map<instruction_ref, std::string> mod_output_names{};
     auto last = std::prev(mod.end());
@@ -62,7 +62,7 @@ std::unordered_map<instruction_ref, std::string> create_output_names(const modul
     return mod_output_names;
 }
 
-void insert_submod_allocations(instruction_ref ins, module& mod, const allocation_model& model)
+static void insert_submod_allocations(instruction_ref ins, module& mod, const allocation_model& model)
 {
     std::vector<instruction_ref> inputs = ins->inputs();
     std::vector<module_ref> mod_args    = ins->module_inputs();

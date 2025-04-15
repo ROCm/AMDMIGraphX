@@ -50,7 +50,7 @@ struct bit_cast : unary<bit_cast>
     shape compute_shape(std::vector<shape> inputs) const
     {
         check_shapes{inputs, *this, true}.has(1);
-        auto input = inputs.at(0);
+        const auto& input = inputs.at(0);
         std::size_t target_type_size;
         shape::visit(target_type, [&](auto as) { target_type_size = as.size(); });
         if(input.type_size() != target_type_size)

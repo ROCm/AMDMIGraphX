@@ -42,22 +42,22 @@
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
 
-auto lit_broadcast() { return match::any_of(match::is_constant(), match::name("broadcast")); }
-auto not_lit_broadcast() { return match::none_of(match::is_constant(), match::name("broadcast")); }
-auto op_lit_broadcast(std::string op, std::string x, std::string y)
+static auto lit_broadcast() { return match::any_of(match::is_constant(), match::name("broadcast")); }
+static auto not_lit_broadcast() { return match::none_of(match::is_constant(), match::name("broadcast")); }
+static auto op_lit_broadcast(std::string op, std::string x, std::string y)
 {
     return match::name(std::move(op))(match::either_arg(0, 1)(
         lit_broadcast().bind(std::move(x)), not_lit_broadcast().bind(std::move(y))));
 }
 
-auto conv_const_weights()
+static auto conv_const_weights()
 {
     return match::name("convolution")(
         match::used_once(),
         match::args(match::none_of(match::is_constant()), match::is_constant().bind("w")));
 }
 
-auto from_int4()
+static auto from_int4()
 {
     return match::make_predicate_matcher([](instruction_ref start) {
         return fix<bool>([&](auto self, instruction_ref ins) {
@@ -71,9 +71,9 @@ auto from_int4()
     });
 }
 
-auto not_from_int4() { return match::none_of(from_int4()); }
+static auto not_from_int4() { return match::none_of(from_int4()); }
 
-auto reduction() { return match::name_contains("reduce"); }
+static auto reduction() { return match::name_contains("reduce"); }
 
 // conv(x, w) * a => conv(x, a * w)
 struct find_mul_conv
@@ -1057,7 +1057,7 @@ struct find_concat_conv
     }
 };
 
-void move_instructions_back(module& m, instruction_ref pos, std::vector<instruction_ref> inss)
+static void move_instructions_back(module& m, instruction_ref pos, std::vector<instruction_ref> inss)
 {
     auto start = range(m.begin(), pos);
     for(auto ins : iterator_for(start))
@@ -1078,7 +1078,7 @@ void move_instructions_back(module& m, instruction_ref pos, std::vector<instruct
 /** Search for multiple "slice" instructions in an instruction's outputs
  *  which are contiguous slices of the same tensor.
  */
-std::vector<instruction_ref> get_splits(instruction_ref ins)
+static std::vector<instruction_ref> get_splits(instruction_ref ins)
 {
     std::vector<instruction_ref> result;
     std::copy_if(ins->outputs().begin(),
@@ -1480,7 +1480,7 @@ struct find_split_concat
     }
 };
 
-bool axis_equal(const std::vector<std::size_t>& x,
+static bool axis_equal(const std::vector<std::size_t>& x,
                 const std::vector<std::size_t>& y,
                 std::size_t axis)
 {
@@ -1489,7 +1489,7 @@ bool axis_equal(const std::vector<std::size_t>& x,
            std::equal(x.begin() + axis + 1, x.end(), y.begin() + axis + 1);
 }
 
-bool axis_shape_equal(const shape& x, const shape& y, std::size_t axis)
+static bool axis_shape_equal(const shape& x, const shape& y, std::size_t axis)
 {
     // TODO: Check strides
     return axis_equal(x.lens(), y.lens(), axis);

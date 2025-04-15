@@ -26,7 +26,7 @@
 #include <migraphx/verify.hpp>
 #include <onnx_test.hpp>
 
-auto reducesum_variable_axes_test_base(const std::string& file, size_t axes_size)
+static auto reducesum_variable_axes_test_base(const std::string& file, size_t axes_size)
 {
     std::pair<std::vector<float>, migraphx::shape> ret;
 

@@ -31,7 +31,7 @@ namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
 
 template <class T>
-T as_number(T x)
+T as_number(const T& x)
 {
     return x;
 }

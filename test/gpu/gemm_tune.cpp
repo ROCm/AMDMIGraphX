@@ -39,7 +39,7 @@
 #include <migraphx/pass_manager.hpp>
 
 // Abbreviated lowering; we don't need the usual cleanup passes for this test
-void run_lowering(migraphx::program& p, bool offload_copy = false)
+static void run_lowering(migraphx::program& p, bool offload_copy = false)
 {
     auto ctx = migraphx::gpu::context{};
     migraphx::run_passes(

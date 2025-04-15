@@ -71,8 +71,8 @@ struct gemm_softmax_gemm
         auto gemm0_shape = op.compute_shape({a, b});
         if(is_mul_where)
         {
-            auto select_cond  = inputs[2];
-            auto select_const = inputs[3];
+            const auto& select_cond  = inputs[2];
+            const auto& select_const = inputs[3];
             if(select_cond.lens() != select_const.lens())
             {
                 std::stringstream err_msg;
@@ -90,7 +90,7 @@ struct gemm_softmax_gemm
         }
         if(is_bias_enabled)
         {
-            auto bias_shape = inputs[2];
+            const auto& bias_shape = inputs[2];
             if(bias_shape.lens() != gemm0_shape.lens())
             {
                 std::stringstream err_msg;

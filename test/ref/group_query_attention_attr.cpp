@@ -78,13 +78,13 @@ TEST_CASE(group_query_attention_attributes_test)
     p.compile(migraphx::make_target("ref"));
     auto outputs = p.eval({});
 
-    auto result = outputs.front();
+    const auto& result = outputs.front();
     std::vector<float> results_vector(outs.elements());
     result.visit([&](auto output) { results_vector.assign(output.begin(), output.end()); });
-    auto pres_key = outputs.at(1);
+    const auto& pres_key = outputs.at(1);
     std::vector<float> pres_key_vector(pkvs.elements());
     pres_key.visit([&](auto output) { pres_key_vector.assign(output.begin(), output.end()); });
-    auto pres_val = outputs.back();
+    const auto& pres_val = outputs.back();
     std::vector<float> pres_val_vector(pkvs.elements());
     pres_val.visit([&](auto output) { pres_val_vector.assign(output.begin(), output.end()); });
 

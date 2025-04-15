@@ -38,7 +38,7 @@ namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
 
 template <class... Ts>
-program parse_tf_from(const tf_options& options, Ts&&... xs)
+static program parse_tf_from(const tf_options& options, Ts&&... xs)
 {
     tf::tf_parser parser;
     parser.is_nhwc           = options.is_nhwc;

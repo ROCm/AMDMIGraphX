@@ -37,7 +37,7 @@
 #include <onnx_test.hpp>
 #include "test.hpp"
 
-migraphx::program read_rnn_onnx(const std::string& name, bool eliminate_deadcode = true)
+static migraphx::program read_rnn_onnx(const std::string& name, bool eliminate_deadcode = true)
 {
     auto prog = read_onnx(name);
     auto* mm  = prog.get_main_module();

@@ -78,7 +78,7 @@ verify::tolerance get_tolerances(const program& p,
     return result;
 }
 
-std::vector<argument> run_ref(program p,
+static std::vector<argument> run_ref(program p,
                               const compile_options& options,
                               const verify_options& vo,
                               const parameter_map& inputs)
@@ -93,7 +93,7 @@ std::vector<argument> run_ref(program p,
     return out;
 }
 
-std::vector<argument> run_target(program p,
+static std::vector<argument> run_target(program p,
                                  const target& t,
                                  const compile_options& options,
                                  const verify_options& vo,
@@ -201,7 +201,7 @@ void verify_instructions(const program& prog,
     }
 }
 
-bool verify_reduced(program p,
+static bool verify_reduced(program p,
                     int n,
                     const target& t,
                     compile_options options,

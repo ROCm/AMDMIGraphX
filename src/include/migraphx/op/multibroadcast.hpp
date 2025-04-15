@@ -60,7 +60,7 @@ struct multibroadcast
         check_shapes{inputs, *this, true}.has_at_least(1);
 
         auto t  = inputs.at(0).type();
-        auto s0 = inputs.at(0);
+        const auto& s0 = inputs.at(0);
 
         if(s0.ndim() < 1)
         {

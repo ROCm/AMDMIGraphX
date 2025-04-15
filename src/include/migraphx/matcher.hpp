@@ -37,6 +37,7 @@
 #include <array>
 #include <unordered_map>
 #include <unordered_set>
+#include <utility>
 
 #ifndef MIGRAPHX_USE_TYPE_ERASED_MATCHERS
 #define MIGRAPHX_USE_TYPE_ERASED_MATCHERS 0
@@ -116,7 +117,7 @@ struct predicate_matcher
 template <class P>
 predicate_matcher<P> make_predicate_matcher(P p)
 {
-    return {p};
+    return {std::move(p)};
 }
 
 /// Convert a function into a matcher
@@ -132,7 +133,7 @@ struct function_matcher
 template <class F>
 function_matcher<F> make_function_matcher(F f)
 {
-    return {f};
+    return {std::move(f)};
 }
 
 /// Converts a matcher to bind the instruction to name
@@ -272,14 +273,14 @@ typename type_erased_matcher<M>::type make_basic_matcher(M m)
 template <class F>
 auto make_basic_fun_matcher(F f)
 {
-    return make_basic_matcher(make_function_matcher(f));
+    return make_basic_matcher(make_function_matcher(std::move(f)));
 }
 
 /// Create a basic matcher from a predicate function
 template <class P>
 auto make_basic_pred_matcher(P p)
 {
-    return make_basic_matcher(make_predicate_matcher(p));
+    return make_basic_matcher(make_predicate_matcher(std::move(p)));
 }
 
 /// This macro takes care of the boilerplate for defining a matcher
@@ -525,7 +526,7 @@ struct match_fold_f
     }
 
     template <class Pack>
-    static bool fold_matchers_pack(matcher_context& ctx, instruction_ref ins, Pack p)
+    static bool fold_matchers_pack(matcher_context& ctx, instruction_ref ins, const Pack& p)
     {
         return p([&](auto... ms) { return match_fold_f::fold_matchers(ctx, ins, ms...); });
     }

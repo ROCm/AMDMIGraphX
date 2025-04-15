@@ -36,7 +36,7 @@
 #include <migraphx/verify.hpp>
 #include <test.hpp>
 
-void run_pass(migraphx::module& m)
+static void run_pass(migraphx::module& m)
 {
     migraphx::run_passes(m, {migraphx::rewrite_reduce{}, migraphx::dead_code_elimination{}});
 }

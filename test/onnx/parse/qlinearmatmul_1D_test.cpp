@@ -24,7 +24,7 @@
 
 #include <onnx_test.hpp>
 
-TEST_CASE(qlinearmatmul_1D_test)
+TEST_CASE(qlinearmatmul_1_d_test)
 {
     migraphx::program p;
     auto* mm = p.get_main_module();

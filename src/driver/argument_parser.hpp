@@ -75,7 +75,7 @@ std::false_type is_container(float, T&&);
 } // namespace detail
 
 template <class T>
-struct is_container : decltype(detail::is_container(int(0), std::declval<T>()))
+struct is_container : decltype(detail::is_container(0, std::declval<T>()))
 {
 };
 
@@ -263,7 +263,7 @@ struct argument_parser
     }
 
     template <class T, class... Fs>
-    void operator()(T& x, const std::vector<std::string>& flags, Fs... fs)
+    void operator()(T& x, const std::vector<std::string>& flags, const Fs...& fs)
     {
         arguments.push_back({flags, [&](auto&&, const std::vector<std::string>& params) {
                                  if(params.empty())
@@ -276,20 +276,20 @@ struct argument_parser
 
         argument& arg = arguments.back();
         arg.type      = type_name<T>::apply();
-        migraphx::each_args([&](auto f) { f(x, arg); }, fs...);
+        migraphx::each_args([&](const auto& f) { f(x, arg); }, fs...);
         if(not arg.default_value.empty() and arg.nargs > 0)
             arg.default_value = as_string_value(x);
     }
 
     template <class... Fs>
-    void operator()(std::nullptr_t x, std::vector<std::string> flags, Fs... fs)
+    void operator()(std::nullptr_t x, std::vector<std::string> flags, const Fs...& fs)
     {
         arguments.push_back({std::move(flags)});
 
         argument& arg = arguments.back();
         arg.type      = "";
         arg.nargs     = 0;
-        migraphx::each_args([&](auto f) { f(x, arg); }, fs...);
+        migraphx::each_args([&](const auto& f) { f(x, arg); }, fs...);
     }
 
     MIGRAPHX_DRIVER_STATIC auto nargs(unsigned n = 1)
@@ -314,7 +314,7 @@ struct argument_parser
     }
 
     template <class F>
-    MIGRAPHX_DRIVER_STATIC auto do_action(F f)
+    MIGRAPHX_DRIVER_STATIC auto do_action(const F& f)
     {
         return [=](auto&, auto& arg) {
             arg.nargs  = 0;
@@ -332,12 +332,12 @@ struct argument_parser
             std::transform(params.begin(),
                            params.end(),
                            std::inserter(x, x.end()),
-                           [](std::string y) { return value_parser<type>::apply(y); });
+                           [](const std::string& y) { return value_parser<type>::apply(y); });
         });
     }
 
     template <class F>
-    MIGRAPHX_DRIVER_STATIC auto validate(F f)
+    MIGRAPHX_DRIVER_STATIC auto validate(const F& f)
     {
         return [=](const auto& x, auto& arg) {
             arg.validations.push_back(
@@ -704,7 +704,7 @@ struct argument_parser
 
     using string_map = std::unordered_map<std::string, std::vector<std::string>>;
     template <class IsKeyword>
-    static string_map generic_parse(std::vector<std::string> as, IsKeyword is_keyword)
+    static string_map generic_parse(const std::vector<std::string>& as, IsKeyword is_keyword)
     {
         string_map result;
 

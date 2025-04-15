@@ -26,7 +26,7 @@
 #include <migraphx/verify.hpp>
 #include <onnx_test.hpp>
 
-auto reducesum_variable_dynamic_axes_test_base(migraphx::shape axes_shape,
+static auto reducesum_variable_dynamic_axes_test_base(migraphx::shape axes_shape,
                                                std::vector<int64_t> axes_data,
                                                const std::string& file)
 {

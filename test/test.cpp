@@ -23,7 +23,7 @@
  */
 #include <test.hpp>
 
-bool glob_match(const std::string& input, const std::string& pattern)
+static bool glob_match(const std::string& input, const std::string& pattern)
 {
     return test::glob_match(input.begin(), input.end(), pattern.begin(), pattern.end());
 }

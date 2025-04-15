@@ -62,12 +62,12 @@ int main() {}
 
 )__migraphx__";
 
-migraphx::src_file make_src_file(const std::string& name, const std::string& content)
+static migraphx::src_file make_src_file(const std::string& name, const std::string& content)
 {
     return {name, content};
 }
 
-hip_stream_ptr get_stream()
+static hip_stream_ptr get_stream()
 {
     hipStream_t stream;
 

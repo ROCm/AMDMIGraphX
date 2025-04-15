@@ -40,7 +40,7 @@
  * have equivalent results
  */
 
-void run_fp8_ocp_to_fnuz(migraphx::module& m)
+static void run_fp8_ocp_to_fnuz(migraphx::module& m)
 {
     migraphx::run_passes(m, {migraphx::fp8_ocp_to_fnuz{}, migraphx::dead_code_elimination{}});
 }

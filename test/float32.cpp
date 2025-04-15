@@ -33,7 +33,7 @@
 using fp32 = migraphx::generic_float<23, 8>;
 
 template <class T, class U>
-bool bit_equal(const T& x, const U& y)
+static bool bit_equal(const T& x, const U& y)
 {
     static_assert(sizeof(T) == sizeof(U));
     using type = std::array<char, sizeof(T)>;

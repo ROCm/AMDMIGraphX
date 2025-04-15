@@ -40,7 +40,7 @@ inline uint64_t encode_divisor(uint64_t divisor)
     return (p + divisor - 1) / divisor;
 }
 
-inline constexpr bool is_divisor_encodable(uint64_t i)
+constexpr bool is_divisor_encodable(uint64_t i)
 {
     return i < (uint64_t{1} << (fast_div_shift / 2));
 }

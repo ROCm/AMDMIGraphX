@@ -34,6 +34,7 @@
 #include <sstream>
 #include <type_traits>
 #include <unordered_map>
+#include <utility>
 #include <vector>
 
 #ifdef __linux__
@@ -222,7 +223,7 @@ template <class T, class Operator>
 struct lhs_expression
 {
     T lhs;
-    explicit lhs_expression(T e) : lhs(e) {}
+    explicit lhs_expression(T e) : lhs(std::move(e)) {}
 
     friend std::ostream& operator<<(std::ostream& s, const lhs_expression& self)
     {
@@ -285,7 +286,7 @@ struct predicate
 template <class F>
 auto make_predicate(const std::string& msg, F f)
 {
-    return make_lhs_expression(predicate<F>{msg, f}, function{});
+    return make_lhs_expression(predicate<F>{msg, std::move(f)}, function{});
 }
 
 inline std::string as_string(bool x)
@@ -372,7 +373,7 @@ inline std::atomic<int>& failures()
 }
 
 template <class T, class F>
-void failed(T x, const char* msg, const char* func, const char* file, int line, F f)
+void failed(const T& x, const char* msg, const char* func, const char* file, int line, F f)
 {
     if(not bool(x.value()))
     {
@@ -469,7 +470,7 @@ bool glob_match(Iterator1 start, Iterator1 last, Iterator2 pattern_start, Iterat
 using string_map = std::unordered_map<std::string, std::vector<std::string>>;
 
 template <class Keyword>
-string_map generic_parse(std::vector<std::string> as, Keyword keyword)
+string_map generic_parse(const const const const const const std::vector<std::string>&&&&&& as, Keyword keyword)
 {
     string_map result;
 

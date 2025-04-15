@@ -187,7 +187,7 @@ struct grid_sampler
             });
     }
 
-    inline bool has_border_padding() const { return m_padding == "border"; }
+    bool has_border_padding() const { return m_padding == "border"; }
 };
 
 struct nearest_sampler : grid_sampler

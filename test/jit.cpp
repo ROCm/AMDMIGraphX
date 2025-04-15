@@ -43,7 +43,7 @@ const std::string_view preamble = R"migraphx(
 )migraphx";
 
 template <class F>
-std::function<F> compile_function(std::string_view src, const std::string& symbol_name)
+static std::function<F> compile_function(std::string_view src, const std::string& symbol_name)
 {
     migraphx::src_compiler compiler;
     compiler.flags.emplace_back("-std=c++14");
@@ -61,7 +61,7 @@ std::function<F> compile_function(std::string_view src, const std::string& symbo
 }
 
 template <class F>
-std::function<F> compile_module(const migraphx::module& m)
+static std::function<F> compile_module(const migraphx::module& m)
 {
     migraphx::cpp_generator g;
     g.fmap([](auto&& name) { return "std::" + name; });

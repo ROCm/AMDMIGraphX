@@ -278,7 +278,7 @@ struct MIGRAPHX_EXPORT value
         return *this = static_cast<pick<T>>(rhs); // NOLINT
     }
     template <class T, MIGRAPHX_REQUIRES(is_generic_range<T>{})>
-    value& operator=(T rhs)
+    value& operator=(const T& rhs)
     {
         return *this = from_values(std::move(rhs)); // NOLINT
     }
@@ -403,7 +403,7 @@ struct MIGRAPHX_EXPORT value
     To to() const
     {
         To result;
-        this->visit([&](auto y) { result = try_convert_value<To>(y); });
+        this->visit([&](const auto& y) { result = try_convert_value<To>(y); });
         return result;
     }
 
@@ -421,7 +421,7 @@ struct MIGRAPHX_EXPORT value
         std::vector<To> result;
         const auto& values = is_object() ? get_object() : get_array();
         result.reserve(values.size());
-        std::transform(values.begin(), values.end(), std::back_inserter(result), [&](auto v) {
+        std::transform(values.begin(), values.end(), std::back_inserter(result), [&](const auto& v) {
             return v.template to<To>();
         });
         return result;

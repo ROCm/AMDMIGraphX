@@ -26,7 +26,7 @@
 #include <migraphx/verify.hpp>
 #include <onnx_test.hpp>
 
-TEST_CASE(qlinearmatmul_3D_test)
+TEST_CASE(qlinearmatmul_3_d_test)
 {
     // https://xadupre.github.io/draft/onnx/onnx_doc_folder/onnx__QLinearMatMul.html
 

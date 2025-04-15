@@ -32,13 +32,13 @@ inline namespace MIGRAPHX_INLINE_NS {
 constexpr std::size_t msgpack_size_limit = std::numeric_limits<uint32_t>::max() - 1;
 
 template <class Range>
-std::size_t msgpack_chunk_size(const Range& r)
+static std::size_t msgpack_chunk_size(const Range& r)
 {
     return 1 + (r.size() - 1) / msgpack_size_limit;
 }
 
 template <class Iterator, class F>
-void msgpack_chunk_for_each(Iterator start, Iterator last, F f)
+static void msgpack_chunk_for_each(Iterator start, Iterator last, F f)
 {
     while(std::distance(start, last) > msgpack_size_limit)
     {

@@ -58,13 +58,13 @@ inline namespace MIGRAPHX_INLINE_NS {
 namespace ref {
 
 template <typename T>
-T zero(const T&)
+static T zero(const T&)
 {
     return T(0);
 }
 
 template <class T>
-typename std::conditional_t<std::is_integral<T>{}, std::make_signed<T>, std::enable_if<true, T>>::
+static typename std::conditional_t<std::is_integral<T>{}, std::make_signed<T>, std::enable_if<true, T>>::
     type
     make_signed(T x)
 {
@@ -117,13 +117,13 @@ struct ref_lrn
 MIGRAPHX_REGISTER_OP(ref_lrn)
 
 template <class V, class T, class... Ts>
-void visit_quantize_impl(V&& v, T&& x, Ts&&... xs)
+static void visit_quantize_impl(V&& v, T&& x, Ts&&... xs)
 {
     x.visit([&](auto y) { visit_all(xs...)([&](auto... ys) { v(y, ys...); }); });
 }
 
 template <class T, class... Ts>
-auto visit_quantize(T&& x, Ts&&... xs)
+static auto visit_quantize(T&& x, Ts&&... xs)
 {
     return [&](auto v) {
         // Workaround for https://gcc.gnu.org/bugzilla/show_bug.cgi?id=70100

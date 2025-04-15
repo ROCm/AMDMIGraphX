@@ -30,7 +30,7 @@
 
 #include <test.hpp>
 
-void run_pass(migraphx::module& m)
+static void run_pass(migraphx::module& m)
 {
     migraphx::run_passes(m, {migraphx::eliminate_convert{}, migraphx::dead_code_elimination{}});
 }

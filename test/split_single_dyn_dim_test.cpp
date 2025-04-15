@@ -35,9 +35,9 @@
 
 // Forward declare any_cast
 template <class T>
-const T& any_cast(const T&);
+const static T& any_cast(const T&);
 
-void run_pass(migraphx::program& p)
+static void run_pass(migraphx::program& p)
 {
     migraphx::run_passes(p, {migraphx::split_single_dyn_dim{}, migraphx::dead_code_elimination{}});
 }

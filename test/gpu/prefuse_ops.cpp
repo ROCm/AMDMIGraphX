@@ -39,7 +39,7 @@ struct pre_gemm_softmax_gemm : migraphx::gpu::gemm_softmax_gemm
     std::string name() const { return "gpu::pre_gemm_softmax_gemm"; }
 };
 
-void run_pass(migraphx::module& m)
+static void run_pass(migraphx::module& m)
 {
     migraphx::run_passes(m, {migraphx::gpu::prefuse_ops{true}, migraphx::dead_code_elimination{}});
 }

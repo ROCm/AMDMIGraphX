@@ -24,6 +24,7 @@
 #ifndef MIGRAPHX_GUARD_RTGLIB_ENV_HPP
 #define MIGRAPHX_GUARD_RTGLIB_ENV_HPP
 
+#include <utility>
 #include <vector>
 #include <string>
 #include <migraphx/config.hpp>
@@ -70,7 +71,7 @@ std::size_t value_of(T, std::size_t fallback = 0)
 template <class T>
 std::string string_value_of(T, std::string fallback = "")
 {
-    static const std::string result = string_value_of(T::value(), fallback);
+    static const std::string result = string_value_of(T::value(), std::move(fallback));
     return result;
 }
 

@@ -247,7 +247,7 @@ struct unique
         auto sh_x          = args.front().get_shape();
         auto lens_x        = sh_x.lens();
         shape output_shape = dyn_out.computed_shape;
-        auto vec_ss        = output_shape.sub_shapes();
+        const auto& vec_ss        = output_shape.sub_shapes();
         auto ct_x          = sh_x.elements();
         shape sh_y         = {vec_ss[0].type(), {ct_x}};
         shape sh_idx       = {vec_ss[1].type(), {ct_x}};

@@ -39,7 +39,7 @@
     void name()
 
 template <class Container, class Iterator>
-auto erase_iterator(Container& c, Iterator pos, Iterator last) -> decltype(c.erase_after(pos, last))
+static auto erase_iterator(Container& c, Iterator pos, Iterator last) -> decltype(c.erase_after(pos, last))
 {
     auto n  = std::distance(c.begin(), pos);
     auto it = n == 0 ? c.before_begin() : std::next(c.begin(), n - 1);
@@ -47,7 +47,7 @@ auto erase_iterator(Container& c, Iterator pos, Iterator last) -> decltype(c.era
 }
 
 template <class Container, class Iterator>
-auto erase_iterator(Container& c, Iterator pos, Iterator last) -> decltype(c.erase(pos, last))
+static auto erase_iterator(Container& c, Iterator pos, Iterator last) -> decltype(c.erase(pos, last))
 {
     return c.erase(pos, last);
 }

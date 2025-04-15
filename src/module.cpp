@@ -686,7 +686,7 @@ std::vector<shape> module::compute_shapes(const std::vector<shape>& inputs,
                    inputs.end(),
                    params.begin(),
                    std::inserter(adjusted_param_shapes, adjusted_param_shapes.end()),
-                   [](auto ps, auto name) { return std::make_pair(name, ps); });
+                   [](auto ps, const auto& name) { return std::make_pair(name, ps); });
     for(auto ins : iterator_for(*this))
     {
         if(ins->name() == "@param")
@@ -759,7 +759,7 @@ instruction_ref module::validate() const
         });
 }
 
-bool is_borrowed(instruction_ref ins)
+static bool is_borrowed(instruction_ref ins)
 {
     auto alias = instruction::get_output_alias(ins, true);
     if(alias == ins)
@@ -770,13 +770,13 @@ bool is_borrowed(instruction_ref ins)
     return is_borrowed(alias);
 }
 
-bool is_global(instruction_ref ins)
+static bool is_global(instruction_ref ins)
 {
     const auto& op = instruction::get_output_alias(ins)->get_operator();
     return op.name() == "@param" or op.get_lifetime() == lifetime::global;
 }
 
-bool is_dangling(instruction_ref ins) { return not is_global(ins) and is_borrowed(ins); }
+static bool is_dangling(instruction_ref ins) { return not is_global(ins) and is_borrowed(ins); }
 
 instruction_ref module::find_dangling_reference() const
 {
@@ -1124,7 +1124,7 @@ void module::debug_print(instruction_ref ins,
     }
 
     names = this->print(
-        [&](auto x, auto ins_names) {
+        [&](auto x, const auto& ins_names) {
             if(x == ins)
             {
                 instruction::print(std::cout, x, ins_names);
@@ -1411,7 +1411,7 @@ void module::print_cpp(std::ostream& os) const { this->print_cpp(os, this->name(
 
 void module::annotate(std::ostream& os, std::function<void(instruction_ref)> a) const
 {
-    this->print([&](auto ins, auto ins_names) {
+    this->print([&](auto ins, const auto& ins_names) {
         instruction::print(os, ins, ins_names);
         a(ins);
         os << std::endl;
@@ -1532,7 +1532,7 @@ bool operator==(const module& x, const module& y) { return to_string(x) == to_st
 
 std::ostream& operator<<(std::ostream& os, const module& m)
 {
-    m.print([&](auto ins, auto ins_names) {
+    m.print([&](auto ins, const auto& ins_names) {
         instruction::print(os, ins, ins_names);
         os << std::endl;
     });

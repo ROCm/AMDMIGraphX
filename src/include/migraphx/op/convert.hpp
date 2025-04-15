@@ -45,7 +45,7 @@ struct convert : unary<convert>
     shape compute_shape(std::vector<shape> inputs) const
     {
         check_shapes{inputs, *this, true}.has(1);
-        auto input = inputs.at(0);
+        const auto& input = inputs.at(0);
         if(input.dynamic())
         {
             return {target_type, input.dyn_dims()};

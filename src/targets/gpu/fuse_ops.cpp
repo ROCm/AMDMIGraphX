@@ -166,7 +166,7 @@ struct fusion
 };
 #endif
 
-const std::unordered_set<std::string>& get_supported_archs()
+const static std::unordered_set<std::string>& get_supported_archs()
 {
     static std::unordered_set<std::string> supported_archs{"gfx900", "gfx906", "gfx908", "gfx1030"};
     return supported_archs;
@@ -214,7 +214,7 @@ MIGRAPHX_PRED_MATCHER(fusable_conv, instruction_ref ins)
 }
 #endif
 
-void move_broadcasted_back(std::vector<instruction_ref>& args)
+static void move_broadcasted_back(std::vector<instruction_ref>& args)
 {
     // Ensure the last arguments is the broadcasted one
     auto last = std::prev(args.end());
@@ -224,7 +224,7 @@ void move_broadcasted_back(std::vector<instruction_ref>& args)
         std::swap(*it, *std::prev(last));
 }
 
-void move_standard_front(std::vector<instruction_ref>& args)
+static void move_standard_front(std::vector<instruction_ref>& args)
 {
     // Ensure the first arguments is the standard one
     auto last = std::prev(args.end());
@@ -234,7 +234,7 @@ void move_standard_front(std::vector<instruction_ref>& args)
         std::swap(*it, args.front());
 }
 
-auto gpu_name(const std::string& s) { return match::name("gpu::" + s); }
+static auto gpu_name(const std::string& s) { return match::name("gpu::" + s); }
 
 namespace {
 #if MIGRAPHX_USE_MIOPEN

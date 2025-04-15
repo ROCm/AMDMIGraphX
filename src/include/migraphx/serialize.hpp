@@ -84,7 +84,7 @@ template <class T, MIGRAPHX_REQUIRES(is_reflectable<T>{})>
 value to_value_impl(rank<3>, const T& x)
 {
     value result = value::object{};
-    reflect_each(x, [&](auto&& y, std::string name) { result.emplace(name, to_value(y)); });
+    reflect_each(x, [&](auto&& y, const std::string& name) { result.emplace(name, to_value(y)); });
     return result;
 }
 

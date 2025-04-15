@@ -34,7 +34,7 @@
 #include <test.hpp>
 #include <pointwise.hpp>
 
-void run_pass(migraphx::module& m)
+static void run_pass(migraphx::module& m)
 {
     migraphx::run_passes(m, {migraphx::simplify_algebra{}, migraphx::dead_code_elimination{}});
 }
@@ -213,7 +213,7 @@ TEST_CASE(simplify_add_broadcast2)
 
 // TODO: Add test case
 // TEST_CASE(simplify_add4)
-void simplify_add4()
+static void simplify_add4()
 {
     migraphx::module m1;
     {
@@ -2774,7 +2774,7 @@ TEST_CASE(simplify_split_between_add)
     EXPECT(m1.sort() == m2.sort());
 }
 
-void test_dot_horiz(migraphx::shape::type_t type, const std::string& dot_type)
+static void test_dot_horiz(migraphx::shape::type_t type, const std::string& dot_type)
 {
     auto s = migraphx::shape{type, {3, 2, 2}};
     migraphx::module m1;
@@ -3206,7 +3206,7 @@ TEST_CASE(simplify_mul_slice_conv_horiz_fusion)
 }
 
 template <std::size_t BS, bool TransposeInput>
-void reorder_reshape_slice()
+static void reorder_reshape_slice()
 {
     std::vector<int64_t> perm0 = {0, 2, 1, 3};
     std::vector<int64_t> perm1 = {0, 2, 3, 1};
@@ -3288,7 +3288,7 @@ TEST_CASE_REGISTER(reorder_reshape_slice<4, false>);
 TEST_CASE_REGISTER(reorder_reshape_slice<8, false>);
 
 template <std::size_t BS>
-void reorder_reshape_slice_move_axis1()
+static void reorder_reshape_slice_move_axis1()
 {
     migraphx::module m1;
     {
@@ -3659,7 +3659,7 @@ TEST_CASE(reorder_reshape_slice_uneven_slice)
 }
 
 template <std::size_t BS>
-void reorder_reshape_slice_diff_dims()
+static void reorder_reshape_slice_diff_dims()
 {
     migraphx::module m1;
     {
@@ -3713,7 +3713,7 @@ TEST_CASE_REGISTER(reorder_reshape_slice_diff_dims<4>);
 TEST_CASE_REGISTER(reorder_reshape_slice_diff_dims<8>);
 
 template <std::size_t BS>
-void reorder_slice_trans()
+static void reorder_slice_trans()
 {
     std::vector<int64_t> perm = {0, 2, 1};
 
@@ -3765,7 +3765,7 @@ TEST_CASE_REGISTER(reorder_slice_trans<1>);
 TEST_CASE_REGISTER(reorder_slice_trans<8>);
 
 template <std::size_t BS>
-void reorder_slice_trans_diff_perm()
+static void reorder_slice_trans_diff_perm()
 {
     migraphx::module m1;
     {

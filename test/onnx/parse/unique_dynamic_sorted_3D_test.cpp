@@ -24,7 +24,7 @@
 
 #include <onnx_test.hpp>
 
-TEST_CASE(unique_dynamic_sorted_3D_test)
+TEST_CASE(unique_dynamic_sorted_3_d_test)
 {
     migraphx::program p;
     auto* mm = p.get_main_module();

@@ -31,7 +31,7 @@
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
 
-void insert_convert_to_supported_type(module& m,
+static void insert_convert_to_supported_type(module& m,
                                       instruction_ref ins,
                                       migraphx::shape::type_t target_type,
                                       std::set<migraphx::shape::type_t> unsupported_types)

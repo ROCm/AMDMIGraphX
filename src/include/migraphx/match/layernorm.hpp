@@ -26,6 +26,7 @@
 
 #include <migraphx/config.hpp>
 #include <migraphx/matcher.hpp>
+#include <utility>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
@@ -90,7 +91,7 @@ auto layernorm(F f)
 
 inline auto layernorm()
 {
-    return layernorm([](auto x) { return name(x); });
+    return layernorm([](auto x) { return name(std::move(x)); });
 }
 
 } // namespace match

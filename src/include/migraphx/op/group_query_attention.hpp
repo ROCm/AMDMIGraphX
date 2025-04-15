@@ -414,11 +414,11 @@ struct group_query_attention
     argument compute(const shape& output_shape, std::vector<argument> args) const
     {
         auto q_shape                      = args[0].get_shape();
-        auto q_lens                       = q_shape.lens();
+        const auto& q_lens                       = q_shape.lens();
         const std::size_t batch_size      = q_lens[0];
         const std::size_t sequence_length = q_lens[1];
         auto past_key_shape               = args[3].get_shape();
-        auto past_key_lens                = past_key_shape.lens();
+        const auto& past_key_lens                = past_key_shape.lens();
         auto past_sequence_length         = past_key_lens[2];
         std::size_t q_hidden_size         = q_lens[2];
         std::size_t head_size             = q_hidden_size / (num_heads + 2 * kv_num_heads);

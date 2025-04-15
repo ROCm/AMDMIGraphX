@@ -64,7 +64,7 @@ namespace migraphx {
 namespace driver {
 inline namespace MIGRAPHX_INLINE_NS {
 
-inline std::string get_version()
+inline static std::string get_version()
 {
     return "MIGraphX Version: " + std::to_string(MIGRAPHX_VERSION_MAJOR) + "." +
            std::to_string(MIGRAPHX_VERSION_MINOR) + "." + std::to_string(MIGRAPHX_VERSION_PATCH) +
@@ -199,7 +199,7 @@ struct loader
         // expecting a json string like "[{min:1,max:64,optimals:[1,2,4,8]},3,224,224]"
         auto v = from_json_string(convert_to_json(dd_json));
         std::vector<migraphx::shape::dynamic_dimension> dyn_dims;
-        std::transform(v.begin(), v.end(), std::back_inserter(dyn_dims), [&](auto x) {
+        std::transform(v.begin(), v.end(), std::back_inserter(dyn_dims), [&](const auto& x) {
             if(x.is_object())
                 return from_value<migraphx::shape::dynamic_dimension>(x);
             auto d = x.template to<std::size_t>();
@@ -263,7 +263,7 @@ struct loader
         std::transform(output_names_info.begin(),
                        output_names_info.end(),
                        std::back_inserter(output_node_names),
-                       [&](auto x) { return value_parser<std::string>::apply(x); });
+                       [&](const auto& x) { return value_parser<std::string>::apply(x); });
 
         return output_node_names;
     }
@@ -859,7 +859,7 @@ struct main_command
                        commands.begin(),
                        [](const auto& p) { return colorize(color::fg_green, p.first); });
         std::sort(commands.begin(), commands.end());
-        return std::accumulate(commands.begin(), commands.end(), result, [](auto r, auto&& s) {
+        return std::accumulate(commands.begin(), commands.end(), result, [](const auto& r, auto&& s) {
             return r + "    " + s + "\n";
         });
     }

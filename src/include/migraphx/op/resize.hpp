@@ -161,7 +161,7 @@ struct resize
                 // Not supported at this point--needs different validity checking
                 MIGRAPHX_THROW("RESIZE: Single dynamic input not supported");
             }
-            auto input_s = inputs.front();
+            const auto& input_s = inputs.front();
             // No size/scale input.  Size/scale must be an attribute and so output will be static.
             if((sizes.empty()) == (scales.empty()))
                 MIGRAPHX_THROW(

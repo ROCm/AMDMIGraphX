@@ -30,7 +30,7 @@
 
 #include <limits>
 
-float fp8e5m2fnuz_to_fp32_value(uint8_t input)
+static float fp8e5m2fnuz_to_fp32_value(uint8_t input)
 {
     constexpr std::array<float, 256> e4m3fnuz_lut = {
         0.0,

@@ -75,7 +75,7 @@ struct op_parser : auto_register<register_op_parser_action, Derived>
     bool transpose() const { return false; }
     std::vector<instruction_ref> base_parse(const op_desc& opd,
                                             const tf_parser& parser,
-                                            tf_parser::node_info info,
+                                            const tf_parser::node_info& info,
                                             const std::vector<instruction_ref>& args) const
     {
         std::vector<instruction_ref> result;

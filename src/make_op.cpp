@@ -30,7 +30,7 @@ inline namespace MIGRAPHX_INLINE_NS {
 operation make_op(const std::string& name) { return load_op(name); }
 
 template <class F>
-operation make_op_generic(const std::string& name, F for_each)
+static operation make_op_generic(const std::string& name, F for_each)
 {
     auto op = load_op(name);
     // Merge values

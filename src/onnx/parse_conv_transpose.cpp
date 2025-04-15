@@ -36,7 +36,7 @@ inline namespace MIGRAPHX_INLINE_NS {
 namespace onnx {
 
 template <class T>
-std::vector<int64_t> to_int64_vector(const std::vector<T>& input_vector)
+static std::vector<int64_t> to_int64_vector(const std::vector<T>& input_vector)
 {
     std::vector<int64_t> output_vector(input_vector.begin(), input_vector.end());
     return output_vector;

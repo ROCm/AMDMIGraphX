@@ -26,7 +26,7 @@
 #include <migraphx/verify.hpp>
 #include <onnx_test.hpp>
 
-TEST_CASE(qlinearmatmul_1D_test)
+TEST_CASE(qlinearmatmul_1_d_test)
 {
     migraphx::program p = read_onnx("qlinearmatmul_1D_test.onnx");
     p.compile(migraphx::make_target("ref"));

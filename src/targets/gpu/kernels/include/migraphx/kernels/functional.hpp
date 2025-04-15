@@ -80,7 +80,7 @@ struct eval_helper
     R result;
 
     template <class F, class... Ts>
-    constexpr eval_helper(const F& f, Ts&&... xs) : result(f(static_cast<Ts>(xs)...))
+    constexpr eval_helper(const F& f, Ts&&... xs) : result(f(static_cast<Ts&&>(xs)...))
     {
     }
 };
@@ -90,7 +90,7 @@ struct eval_helper<void>
 {
     int result;
     template <class F, class... Ts>
-    constexpr eval_helper(const F& f, Ts&&... xs) : result((f(static_cast<Ts>(xs)...), 0))
+    constexpr eval_helper(const F& f, Ts&&... xs) : result((f(static_cast<Ts&&>(xs)...), 0))
     {
     }
 };

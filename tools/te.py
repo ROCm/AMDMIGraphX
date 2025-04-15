@@ -307,6 +307,7 @@ def internal_name(name):
     else:
         return name
 
+
 def generate_constraint(m, friend, indirect):
     if m['name'].startswith('operator'):
         return None

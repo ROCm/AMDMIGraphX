@@ -335,7 +335,8 @@ struct handle_base : handle_lookup<Derived, std::remove_cv_t<T>>
     template <class U, class V>
     void set_handle(U* ptr, share<V> b)
     {
-        m_handle = std::shared_ptr<T>{ptr, [b](U*) {}}; // NOLINT(performance-unnecessary-value-param)
+        m_handle =
+            std::shared_ptr<T>{ptr, [b](U*) {}}; // NOLINT(performance-unnecessary-value-param)
     }
 
     share<T> share_handle() const { return {m_handle}; }
@@ -562,9 +563,9 @@ struct interface_base : Base
 };
 
 // NOLINTNEXTLINE
-#define MIGRAPHX_INTERFACE_LIFT(n_out, T, prefix, name) \
-    this->set_auto_fp<T>(                               \
-        &migraphx_##prefix##_set_##name,                \
+#define MIGRAPHX_INTERFACE_LIFT(n_out, T, prefix, name)                              \
+    this->set_auto_fp<T>(                                                            \
+        &migraphx_##prefix##_set_##name,                                             \
         [](T& x, auto&&... xs) { return x.name(static_cast<decltype(xs)>(xs)...); }, \
         out_params<n_out>{})
 

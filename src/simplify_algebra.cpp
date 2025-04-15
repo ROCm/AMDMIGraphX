@@ -38,6 +38,7 @@
 
 #include <migraphx/algorithm.hpp>
 #include <unordered_set>
+#include <queue>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
@@ -1134,71 +1135,118 @@ struct find_splits
     }
 
     /**
-     * Check if we can reach ins2 from ins1 by going through inputs of ins1
+     * Check if we can reach ins2 from ins1 by going through inputs of ins1.
+     * root is the local root instruction of ins1.
+     * Uses a BFS upwards that stops at root instruction or no inputs.
+     * Because of trying to stop early with the depth limit, there are possible cases
+     * where a dependency is not decected by this algorithm if one side of the dependency path
+     * is significantly longer than the other.
      */
-    static bool is_dependent(const module& m, instruction_ref ins1, instruction_ref ins2)
+    static bool is_dependent(const module& m, instruction_ref root, instruction_ref ins1, instruction_ref ins2)
     {
-        std::unordered_set<instruction_ref> traversed;
-        return fix<bool>([&](auto self, auto ins) -> bool {
-            if(ins == ins2)
-                return true;
-
-            // Traversed this instruction before
-            if(contains(traversed, ins))
-                return false;
-
-            traversed.insert(ins);
-            const auto& inputs = ins->inputs();
-            return std::any_of(inputs.begin(), inputs.end(), [&](auto in) {
-                return m.has_instruction(in) and self(in);
-            });
-        })(ins1);
-    }
-
-    static void update_group(const module& m,
-                             instruction_ref out,
-                             const std::vector<instruction_ref>& splits,
-                             std::vector<instruction_ref>& group)
-    {
-        for(auto split : range(splits.begin() + 1, splits.end()))
+        // checks past root instruction depth by this much
+        int uneven_depth = 3;
+        if(ins2 == root)
         {
-            auto it = std::find_if(split->outputs().begin(), split->outputs().end(), [&](auto i) {
-                if(i->get_operator() == out->get_operator())
+            return true;
+        }
+        std::unordered_set<instruction_ref> traversed;
+        std::queue<std::pair<instruction_ref, int>> inputs_queue;
+        int curr_depth = 0;
+        int depth_limit = 10; // arbitrary starting limit
+        inputs_queue.push({ins1, curr_depth});
+        while(not inputs_queue.empty())
+        {
+            ++curr_depth;
+            int level_size = inputs_queue.size();
+            while(level_size-- != 0)
+            {
+                auto ins = inputs_queue.front().first;
+                auto ins_depth = inputs_queue.front().second;
+                if(ins == ins2)
                 {
-                    if(i->name() == "pointwise")
-                    {
-                        return (*(i->module_inputs().front()) == *(out->module_inputs().front()));
-                    }
                     return true;
                 }
-                return false;
-            });
-            if(it == split->outputs().end())
-                return;
-            assert((*it)->name() != "slice");
-
-            // There are should be no dependency between instructions in the group
-            if(std::any_of(group.begin(), group.end(), [&](auto i) {
-                   return is_dependent(m, *it, i) or is_dependent(m, i, *it);
-               }))
-            {
-                return;
+                if(ins == root)
+                {
+                    depth_limit = curr_depth + uneven_depth;
+                }
+                if(not (ins == root or contains(traversed, ins)) and ins_depth < depth_limit)
+                {
+                    for(const auto& i : ins->inputs())
+                    {
+                        if(m.has_instruction(i))
+                        {
+                            inputs_queue.push({i, curr_depth + 1});
+                        }
+                    }
+                }
+                traversed.insert(ins);
+                inputs_queue.pop();
             }
-            group.push_back(*it);
         }
+        return false;
+    }
+
+    static std::vector<instruction_ref> make_group(const module& m,
+                             instruction_ref root,
+                             instruction_ref out,
+                             const std::vector<instruction_ref>& splits,
+                             instruction_ref start_split)
+    {
+        std::vector<instruction_ref> group;
+        for(auto split : range(splits.cbegin(), splits.cend()))
+        {
+            if(split == start_split)
+            {
+                group.push_back(out);
+            }
+            else
+            {
+                auto it = std::find_if(split->outputs().begin(), split->outputs().end(), [&](auto i) {
+                    if(i->get_operator() == out->get_operator())
+                    {
+                        if(i->name() == "pointwise")
+                        {
+                            return (*(i->module_inputs().front()) == *(out->module_inputs().front()));
+                        }
+                        return true;
+                    }
+                    return false;
+                });
+                if(it == split->outputs().end())
+                    return {};
+                assert((*it)->name() != "slice");
+                // There should be no dependency between instructions in the group
+                if(not std::any_of(group.begin(), group.end(), [&](auto i) {
+                            return is_dependent(m, root, *it, i) or is_dependent(m, root, i, *it);
+                            })
+                  )
+                {
+                    group.push_back(*it);
+                }
+            }
+        }
+        return group;
     }
 
     /// Find groups of the same operator after the splits (slice instructions)
     static std::vector<std::vector<instruction_ref>>
-    get_split_groups(const module& m, const std::vector<instruction_ref>& splits)
+    get_split_groups(const module& m, instruction_ref root, const std::vector<instruction_ref>& splits)
     {
         std::vector<std::vector<instruction_ref>> groups;
-        for(auto out : splits.front()->outputs())
+        auto split_with_least_outputs = *std::min_element(
+            splits.cbegin(),
+            splits.cend(),
+            [](auto x, auto y){ return x->outputs().size() < y->outputs().size(); }
+        );
+        // Operator must be repeated over all splits, so better to start with split with least outputs
+        // Preserving the order of the groups wrt. the splits
+        for(auto out : split_with_least_outputs->outputs())
         {
             if(out->name() == "slice")
                 continue;
-            std::vector<instruction_ref> group = {out};
-            update_group(m, out, splits, group);
+            std::vector<instruction_ref> group = make_group(m, root, out, splits, split_with_least_outputs);
             if(group.size() != splits.size())
                 continue;
             groups.push_back(group);
@@ -1282,9 +1330,12 @@ struct find_splits
 
     /**
      * Check if any split group depends on instructions from another split group.
-     * Note: consider refactor if this function is slow
+     * m : module containing instructions
+     * root : "root" instruction that has contiguous slice instructions as outputs
+     * groups : split groups from get_split_groups
      */
     bool split_groups_are_dependent(const module& m,
+                                    instruction_ref root,
                                     std::vector<std::vector<instruction_ref>> groups) const
     {
         for(int i = 0; i < groups.size(); ++i)
@@ -1296,7 +1347,7 @@ struct find_splits
             if(std::any_of(groups_less_i.begin(), groups_less_i.end(), [&](auto group_j) {
                    return std::any_of(group_i.begin(), group_i.end(), [&](auto ins_i) {
                        return std::any_of(group_j.begin(), group_j.end(), [&](auto ins_j) {
-                           return is_dependent(m, ins_i, ins_j);
+                           return is_dependent(m, root, ins_i, ins_j);
                        });
                    });
                }))
@@ -1313,8 +1364,8 @@ struct find_splits
         auto splits = get_splits(ins);
         if(splits.empty())
             return;
-        auto split_groups = get_split_groups(m, splits);
-        if(split_groups_are_dependent(m, split_groups))
+        auto split_groups = get_split_groups(m, ins, splits);
+        if(split_groups_are_dependent(m, ins, split_groups))
         {
             return;
         }

@@ -80,8 +80,8 @@ has_one_unique_dyn_dim(const std::unordered_map<std::string, shape>& param_shape
         return std::nullopt;
     }
     // check all the same dynamic_dimension
-    bool same_dd =
-        std::all_of(ret.begin() + 1, ret.end(), [&](const auto& ddc) { return ddc.dd == ret.at(0).dd; });
+    bool same_dd = std::all_of(
+        ret.begin() + 1, ret.end(), [&](const auto& ddc) { return ddc.dd == ret.at(0).dd; });
     if(same_dd)
     {
         return ret;

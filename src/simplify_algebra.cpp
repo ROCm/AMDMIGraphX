@@ -42,8 +42,14 @@
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
 
-static auto lit_broadcast() { return match::any_of(match::is_constant(), match::name("broadcast")); }
-static auto not_lit_broadcast() { return match::none_of(match::is_constant(), match::name("broadcast")); }
+static auto lit_broadcast()
+{
+    return match::any_of(match::is_constant(), match::name("broadcast"));
+}
+static auto not_lit_broadcast()
+{
+    return match::none_of(match::is_constant(), match::name("broadcast"));
+}
 static auto op_lit_broadcast(std::string op, std::string x, std::string y)
 {
     return match::name(std::move(op))(match::either_arg(0, 1)(
@@ -1057,7 +1063,8 @@ struct find_concat_conv
     }
 };
 
-static void move_instructions_back(module& m, instruction_ref pos, std::vector<instruction_ref> inss)
+static void
+move_instructions_back(module& m, instruction_ref pos, std::vector<instruction_ref> inss)
 {
     auto start = range(m.begin(), pos);
     for(auto ins : iterator_for(start))
@@ -1480,9 +1487,8 @@ struct find_split_concat
     }
 };
 
-static bool axis_equal(const std::vector<std::size_t>& x,
-                const std::vector<std::size_t>& y,
-                std::size_t axis)
+static bool
+axis_equal(const std::vector<std::size_t>& x, const std::vector<std::size_t>& y, std::size_t axis)
 {
     return x.size() == y.size() and x.size() > axis and
            std::equal(x.begin(), x.begin() + axis, y.begin()) and

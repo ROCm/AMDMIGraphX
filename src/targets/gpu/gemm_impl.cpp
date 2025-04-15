@@ -652,12 +652,12 @@ int32_t gemm_default_solution(context& ctx,
  */
 template <class T>
 static int32_t gemm_finalize_impl(context& ctx,
-                           const shape& output_shape,
-                           const std::vector<shape>& input_shapes,
-                           T alpha,
-                           T beta,
-                           bool compute_fp32,
-                           int32_t solution_idx)
+                                  const shape& output_shape,
+                                  const std::vector<shape>& input_shapes,
+                                  T alpha,
+                                  T beta,
+                                  bool compute_fp32,
+                                  int32_t solution_idx)
 {
 #ifdef MIGRAPHX_USE_ROCBLAS_TUNING_API
 
@@ -685,12 +685,12 @@ static int32_t gemm_finalize_impl(context& ctx,
 }
 
 static int32_t gemm_finalize(context& ctx,
-                      const shape& output_shape,
-                      const std::vector<shape>& input_shapes,
-                      float alpha,
-                      float beta,
-                      bool compute_fp32,
-                      int32_t solution_idx)
+                             const shape& output_shape,
+                             const std::vector<shape>& input_shapes,
+                             float alpha,
+                             float beta,
+                             bool compute_fp32,
+                             int32_t solution_idx)
 {
     return gemm_finalize_impl(
         ctx, output_shape, input_shapes, alpha, beta, compute_fp32, solution_idx);

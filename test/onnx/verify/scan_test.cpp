@@ -37,9 +37,8 @@ static migraphx::shape make_shape(const std::vector<size_t>& lens)
     return migraphx::shape{migraphx::shape::float_type, lens};
 }
 
-static auto scan_test(const std::string& test_file,
-               migraphx::shape scan_ins1_sh,
-               migraphx::shape scan_ins2_sh)
+static auto
+scan_test(const std::string& test_file, migraphx::shape scan_ins1_sh, migraphx::shape scan_ins2_sh)
 {
     auto prog = read_onnx(test_file);
     prog.compile(migraphx::make_target("ref"));

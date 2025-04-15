@@ -221,8 +221,9 @@ static std::vector<T> get_data_vals(const google::protobuf::RepeatedField<T>& da
 }
 
 template <class T>
-static literal
-create_literal(shape::type_t shape_type, const std::vector<size_t>& dims, const std::vector<T>& data)
+static literal create_literal(shape::type_t shape_type,
+                              const std::vector<size_t>& dims,
+                              const std::vector<T>& data)
 {
     // assume if explicit value is mentioned in protobuf and dim size <= 1, treat as scalar
     if(dims.empty() or (dims.size() == 1 and dims.front() == 1))

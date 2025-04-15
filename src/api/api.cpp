@@ -178,21 +178,21 @@ static void set_nhwc(tf_options& options, bool is_nhwc) { options.is_nhwc = is_n
 
 static void set_default_dim_value(tf_options& options, size_t value) { options.batch_size = value; }
 
-static void set_input_parameter_shape(onnx_options& options,
-                               const char* name,
-                               std::vector<std::size_t> dims)
+static void
+set_input_parameter_shape(onnx_options& options, const char* name, std::vector<std::size_t> dims)
 {
     options.map_input_dims[std::string(name)] = std::move(dims);
 }
 
 static void set_dyn_input_parameter_shape(onnx_options& options,
-                                   const char* name,
-                                   std::vector<shape::dynamic_dimension> dyn_dims)
+                                          const char* name,
+                                          std::vector<shape::dynamic_dimension> dyn_dims)
 {
     options.map_dyn_input_dims[std::string(name)] = std::move(dyn_dims);
 }
 
-static void set_input_parameter_shape(tf_options& options, const char* name, std::vector<std::size_t> dims)
+static void
+set_input_parameter_shape(tf_options& options, const char* name, std::vector<std::size_t> dims)
 {
     options.map_input_dims[std::string(name)] = std::move(dims);
 }

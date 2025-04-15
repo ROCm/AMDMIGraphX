@@ -121,14 +121,15 @@ group_axes(std::vector<dimension>& dimensions)
     return axes_map;
 }
 
-static std::vector<std::size_t> compute_dims(const operation& op, const std::vector<std::size_t>& idims)
+static std::vector<std::size_t> compute_dims(const operation& op,
+                                             const std::vector<std::size_t>& idims)
 {
     shape s{shape::float_type, idims};
     return op.compute_shape({s}).lens();
 }
 
 static std::vector<std::size_t> compute_dims(const std::vector<operation>& ops,
-                                      const std::vector<std::size_t>& idims)
+                                             const std::vector<std::size_t>& idims)
 {
     shape s{shape::float_type, idims};
     for(const auto& op : ops)

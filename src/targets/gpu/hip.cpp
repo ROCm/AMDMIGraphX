@@ -257,7 +257,8 @@ static void hip_async_memset(context& ctx, const argument& dst, int value)
         MIGRAPHX_THROW("Gpu fill failed: " + hip_error(status));
 }
 
-static void hip_async_copy(context& ctx, const argument& src, const argument& dst, hipMemcpyKind kind)
+static void
+hip_async_copy(context& ctx, const argument& src, const argument& dst, hipMemcpyKind kind)
 {
     std::size_t src_size = src.get_shape().bytes();
     std::size_t dst_size = dst.get_shape().bytes();

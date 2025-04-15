@@ -35,8 +35,8 @@ inline namespace MIGRAPHX_INLINE_NS {
 namespace onnx {
 
 static auto parse_dyn_split(const onnx_parser::node_info& info,
-                     const std::vector<instruction_ref>& args,
-                     int64_t tuned_axis)
+                            const std::vector<instruction_ref>& args,
+                            int64_t tuned_axis)
 {
     if(contains(info.attributes, "split"))
     {
@@ -88,9 +88,9 @@ static auto parse_dyn_split(const onnx_parser::node_info& info,
 }
 
 static auto parse_static_split(const onnx_parser::node_info& info,
-                        const onnx_parser& parser,
-                        const std::vector<instruction_ref>& args,
-                        int64_t tuned_axis)
+                               const onnx_parser& parser,
+                               const std::vector<instruction_ref>& args,
+                               int64_t tuned_axis)
 {
     const auto& input_shape = args[0]->get_shape();
     // either static shape or fixed dynamic_dimension for split axis

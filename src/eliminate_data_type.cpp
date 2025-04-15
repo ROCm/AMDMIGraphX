@@ -32,9 +32,9 @@ namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
 
 static void insert_convert_to_supported_type(module& m,
-                                      instruction_ref ins,
-                                      migraphx::shape::type_t target_type,
-                                      std::set<migraphx::shape::type_t> unsupported_types)
+                                             instruction_ref ins,
+                                             migraphx::shape::type_t target_type,
+                                             std::set<migraphx::shape::type_t> unsupported_types)
 {
     migraphx::shape::type_t orig_type   = ins->get_shape().type();
     std::vector<instruction_ref> inputs = ins->inputs();

@@ -30,7 +30,8 @@
 
 #include <test.hpp>
 
-static migraphx::program create_scatter_elements_program(const std::string& reduction_mode, int axis)
+static migraphx::program create_scatter_elements_program(const std::string& reduction_mode,
+                                                         int axis)
 {
     migraphx::program p;
     auto* mm = p.get_main_module();
@@ -87,7 +88,8 @@ TEST_CASE(scatter_elements_axis_1_test)
     EXPECT(migraphx::verify::verify_rms_range(results_vector, gold));
 }
 
-static migraphx::program create_scatter_elements_program2(const std::string& reduction_mode, int axis)
+static migraphx::program create_scatter_elements_program2(const std::string& reduction_mode,
+                                                          int axis)
 {
     migraphx::program p;
     auto* mm = p.get_main_module();
@@ -234,7 +236,8 @@ TEST_CASE(scatter_elements_max_axis_1_duplicate_idx_test)
     EXPECT(migraphx::verify::verify_rms_range(results, gold));
 }
 
-static migraphx::program create_scatter_elements_program_3x3(const std::string& reduction_mode, int axis)
+static migraphx::program create_scatter_elements_program_3x3(const std::string& reduction_mode,
+                                                             int axis)
 {
     migraphx::program p;
     auto* mm = p.get_main_module();

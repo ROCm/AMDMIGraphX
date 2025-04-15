@@ -64,8 +64,8 @@ static T zero(const T&)
 }
 
 template <class T>
-static typename std::conditional_t<std::is_integral<T>{}, std::make_signed<T>, std::enable_if<true, T>>::
-    type
+static typename std::
+    conditional_t<std::is_integral<T>{}, std::make_signed<T>, std::enable_if<true, T>>::type
     make_signed(T x)
 {
     return x;

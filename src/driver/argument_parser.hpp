@@ -75,9 +75,7 @@ std::false_type is_container(float, T&&);
 } // namespace detail
 
 template <class T>
-struct is_container : decltype(detail::is_container(0, std::declval<T>()))
-{
-};
+struct is_container : decltype(detail::is_container(0, std::declval<T>())){};
 
 template <class T>
 using is_multi_value =

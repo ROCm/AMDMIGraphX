@@ -32,9 +32,9 @@ inline namespace MIGRAPHX_INLINE_NS {
 namespace onnx {
 
 static instruction_ref parse_prefix_scan_oper(const std::string& op_name,
-                                       const onnx_parser& parser,
-                                       onnx_parser::node_info info,
-                                       std::vector<instruction_ref> args)
+                                              const onnx_parser& parser,
+                                              onnx_parser::node_info info,
+                                              std::vector<instruction_ref> args)
 {
     migraphx::argument in = args[1]->eval();
     check_arg_empty(in, "PARSE_PREFIX_SCAN: axis - dynamic shape not supported");

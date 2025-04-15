@@ -93,8 +93,8 @@ value& value::operator=(value rhs)
 }
 
 static void set_vector(std::shared_ptr<value_base_impl>& x,
-                const std::vector<value>& v,
-                bool array_on_empty = true)
+                       const std::vector<value>& v,
+                       bool array_on_empty = true)
 {
     if(v.empty())
     {

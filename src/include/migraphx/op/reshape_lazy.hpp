@@ -51,8 +51,8 @@ struct reshape_lazy
 
     shape dyn_compute_shape(shape s0) const
     {
-        const auto& dyn_dims      = s0.dyn_dims();
-        auto num_not_fixed = std::count_if(
+        const auto& dyn_dims = s0.dyn_dims();
+        auto num_not_fixed   = std::count_if(
             dyn_dims.cbegin(), dyn_dims.cend(), [](const auto& dd) { return not dd.is_fixed(); });
         if(num_not_fixed != 1)
         {

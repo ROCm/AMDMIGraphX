@@ -41,10 +41,10 @@
 static void run_pass(migraphx::module& m) { run_passes(m, {migraphx::simplify_algebra{}}); }
 
 static migraphx::instruction_ref add_quantize_op(migraphx::module& m,
-                                          const std::string& name,
-                                          migraphx::instruction_ref x,
-                                          migraphx::instruction_ref scale,
-                                          migraphx::instruction_ref shift)
+                                                 const std::string& name,
+                                                 migraphx::instruction_ref x,
+                                                 migraphx::instruction_ref scale,
+                                                 migraphx::instruction_ref shift)
 {
     auto lens = x->get_shape().lens();
     auto scale_mb =
@@ -74,9 +74,9 @@ add_quantize_op(migraphx::module& m,
 }
 
 static migraphx::instruction_ref add_scale_mul(migraphx::module& m,
-                                        migraphx::instruction_ref scale1,
-                                        migraphx::instruction_ref scale2,
-                                        const std::vector<std::size_t>& out_lens)
+                                               migraphx::instruction_ref scale1,
+                                               migraphx::instruction_ref scale2,
+                                               const std::vector<std::size_t>& out_lens)
 {
     auto mul_ins = m.add_instruction(migraphx::make_op("mul"), scale1, scale2);
     if(mul_ins->get_shape().lens() != out_lens)
@@ -87,7 +87,8 @@ static migraphx::instruction_ref add_scale_mul(migraphx::module& m,
     return mul_ins;
 }
 
-static migraphx::instruction_ref init_zero_point(migraphx::module& m, migraphx::instruction_ref q_ins)
+static migraphx::instruction_ref init_zero_point(migraphx::module& m,
+                                                 migraphx::instruction_ref q_ins)
 {
     auto zp = m.add_literal(migraphx::literal{migraphx::shape{q_ins->get_shape().type()}, {0}});
     return m.add_instruction(

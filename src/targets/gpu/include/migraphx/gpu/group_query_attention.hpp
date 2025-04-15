@@ -93,7 +93,7 @@ static inline gqa_parameters init_params(const std::vector<shape>& inputs, const
     auto present_kv_seqlen  = inputs[1].lens().size() == 4 ? inputs[1].lens()[2] : 0;
 
     const auto& q_shape               = inputs[0];
-    const auto& q_lens                       = q_shape.lens();
+    const auto& q_lens                = q_shape.lens();
     const std::size_t batch_size      = q_lens[0];
     const std::size_t sequence_length = q_lens[2];
     std::size_t head_size             = q_lens[3];

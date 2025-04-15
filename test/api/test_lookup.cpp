@@ -31,7 +31,8 @@ static std::false_type has_handle(migraphx::rank<0>, T)
 }
 
 template <class T>
-static auto has_handle(migraphx::rank<1>, T*) -> decltype(migraphx::as_handle<T>{}, std::true_type{})
+static auto has_handle(migraphx::rank<1>, T*) -> decltype(migraphx::as_handle<T>{},
+                                                          std::true_type{})
 {
     return {};
 }

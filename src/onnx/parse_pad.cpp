@@ -52,8 +52,8 @@ static void calc_reflect_indices(std::vector<int>& indices, const int64_t num_di
 }
 
 static instruction_ref reflect_pad(const onnx_parser::node_info& info,
-                            const std::vector<int64_t>& pads,
-                            instruction_ref input)
+                                   const std::vector<int64_t>& pads,
+                                   instruction_ref input)
 {
     size_t num_dims = pads.size() / 2;
     std::vector<int> ldims(pads.begin(), pads.begin() + num_dims);

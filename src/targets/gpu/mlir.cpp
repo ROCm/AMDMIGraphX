@@ -923,9 +923,9 @@ struct mlir_program
                 {
                     std::vector<std::string> tokens = split_string(line, '\t');
                     std::string arch                = tokens[0];
-                    const std::string& num_cu              = tokens[1];
-                    const std::string& prob                = tokens[2];
-                    const std::string& perf                = tokens[3];
+                    const std::string& num_cu       = tokens[1];
+                    const std::string& prob         = tokens[2];
+                    const std::string& perf         = tokens[3];
                     std::string key = arch.append("\t").append(num_cu).append("\t").append(prob);
                     mlirRockTuningUpdateTable(tuning_table.get(),
                                               make_mlir_string_ref(key),
@@ -995,7 +995,7 @@ static void rewrite_reduce(module& m)
             auto reduce_axes = reduce_op["axes"].to_vector<size_t>();
             auto reduce_lens = i->get_shape().lens();
             auto in_shape    = i->inputs().front()->get_shape();
-            const auto& in_lens     = in_shape.lens();
+            const auto& in_lens = in_shape.lens();
             assert(in_shape.standard());
             assert(reduce_lens.size() == in_lens.size());
             assert(std::adjacent_find(

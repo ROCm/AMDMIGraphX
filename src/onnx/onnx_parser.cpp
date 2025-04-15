@@ -50,9 +50,10 @@ static shape shape_from_dyn_dims(shape::type_t shape_type,
     if(std::all_of(dyn_dims.begin(), dyn_dims.end(), [](const auto& dd) { return dd.is_fixed(); }))
     {
         std::vector<std::size_t> dims;
-        std::transform(dyn_dims.cbegin(), dyn_dims.cend(), std::back_inserter(dims), [](const auto& d) {
-            return d.max;
-        });
+        std::transform(dyn_dims.cbegin(),
+                       dyn_dims.cend(),
+                       std::back_inserter(dims),
+                       [](const auto& d) { return d.max; });
         return {shape_type, dims};
     }
     return {shape_type, dyn_dims};
@@ -301,8 +302,8 @@ int64_t onnx_parser::get_opset_version(const onnx::ModelProto& model)
 }
 
 static void print_added_instructions(module* mod,
-                              const std::vector<instruction_ref>& args,
-                              const std::vector<instruction_ref>& result)
+                                     const std::vector<instruction_ref>& args,
+                                     const std::vector<instruction_ref>& result)
 {
     // Print instructions added by the parser not in args
     std::vector<instruction_ref> added_instructions;

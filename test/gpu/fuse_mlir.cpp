@@ -57,10 +57,10 @@ static void run_pass(migraphx::program& p)
 
 template <class F>
 static migraphx::instruction_ref add_mlir(migraphx::program& p,
-                                   const std::string& name,
-                                   std::vector<migraphx::instruction_ref> inputs,
-                                   std::vector<std::string> arg_names,
-                                   const F& f)
+                                          const std::string& name,
+                                          std::vector<migraphx::instruction_ref> inputs,
+                                          std::vector<std::string> arg_names,
+                                          const F& f)
 {
     assert(inputs.size() == arg_names.size() and "One interior parameter name given per input.");
     auto* mm = p.get_main_module();
@@ -81,9 +81,9 @@ static migraphx::instruction_ref add_mlir(migraphx::program& p,
 
 template <class F>
 static migraphx::instruction_ref add_mlir(migraphx::program& p,
-                                   const std::string& name,
-                                   std::vector<migraphx::instruction_ref> inputs,
-                                   F f)
+                                          const std::string& name,
+                                          std::vector<migraphx::instruction_ref> inputs,
+                                          F f)
 {
     std::vector<std::string> arg_names;
     migraphx::transform(migraphx::range(inputs.size()), std::back_inserter(arg_names), [&](auto i) {

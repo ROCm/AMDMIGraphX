@@ -859,9 +859,10 @@ struct main_command
                        commands.begin(),
                        [](const auto& p) { return colorize(color::fg_green, p.first); });
         std::sort(commands.begin(), commands.end());
-        return std::accumulate(commands.begin(), commands.end(), result, [](const auto& r, auto&& s) {
-            return r + "    " + s + "\n";
-        });
+        return std::accumulate(commands.begin(),
+                               commands.end(),
+                               result,
+                               [](const auto& r, auto&& s) { return r + "    " + s + "\n"; });
     }
     void parse(argument_parser& ap)
     {

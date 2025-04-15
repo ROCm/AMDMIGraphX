@@ -30,7 +30,10 @@
 
 #include <test.hpp>
 
-static void run_pass(migraphx::module& m) { migraphx::run_passes(m, {migraphx::eliminate_identity{}}); }
+static void run_pass(migraphx::module& m)
+{
+    migraphx::run_passes(m, {migraphx::eliminate_identity{}});
+}
 
 static void run_pass(migraphx::program& p) { run_pass(*p.get_main_module()); }
 

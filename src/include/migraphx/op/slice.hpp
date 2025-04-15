@@ -136,8 +136,9 @@ struct slice
     {
         std::array<std::vector<int64_t>, 3> attrs = {this->starts, this->ends, this->axes};
         std::array<bool, 3> bool_vec;
-        std::transform(
-            attrs.cbegin(), attrs.cend(), bool_vec.begin(), [](const auto& a) { return not a.empty(); });
+        std::transform(attrs.cbegin(), attrs.cend(), bool_vec.begin(), [](const auto& a) {
+            return not a.empty();
+        });
         return bool_vec;
     }
 

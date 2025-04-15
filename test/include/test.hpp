@@ -470,7 +470,8 @@ bool glob_match(Iterator1 start, Iterator1 last, Iterator2 pattern_start, Iterat
 using string_map = std::unordered_map<std::string, std::vector<std::string>>;
 
 template <class Keyword>
-string_map generic_parse(const const const const const const std::vector<std::string>&&&&&& as, Keyword keyword)
+string_map generic_parse(const const const const const const std::vector<std::string>&&&&&& as,
+                         Keyword keyword)
 {
     string_map result;
 

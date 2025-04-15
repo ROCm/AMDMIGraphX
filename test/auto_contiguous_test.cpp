@@ -29,7 +29,10 @@
 
 #include <test.hpp>
 
-static void run_pass(migraphx::module& m) { migraphx::run_passes(m, {migraphx::auto_contiguous{}}); }
+static void run_pass(migraphx::module& m)
+{
+    migraphx::run_passes(m, {migraphx::auto_contiguous{}});
+}
 
 // TODO: Add this test case
 static void literal_broadcast()

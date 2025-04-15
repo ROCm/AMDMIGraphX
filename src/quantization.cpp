@@ -85,10 +85,10 @@ void quantize_bf16(program& prog, const std::vector<std::string>& ins_names)
 }
 
 static void quantize_8bits(program& prog,
-                    const target& t,
-                    shape::type_t precision,
-                    const std::vector<parameter_map>& calibration,
-                    const std::unordered_set<std::string>& ins_names)
+                           const target& t,
+                           shape::type_t precision,
+                           const std::vector<parameter_map>& calibration,
+                           const std::unordered_set<std::string>& ins_names)
 {
     // Run optimize_module() before converting to int8/fp8 to const eval and fold in FP32 to
     // avoid loss of precision.

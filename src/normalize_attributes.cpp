@@ -43,10 +43,10 @@ inline namespace MIGRAPHX_INLINE_NS {
  */
 template <class Message>
 static auto tune_attribute(const std::vector<int64_t>& vec,
-                    const std::vector<int64_t>& axes,
-                    const value& val,
-                    const shape& input_shape,
-                    Message m)
+                           const std::vector<int64_t>& axes,
+                           const value& val,
+                           const shape& input_shape,
+                           Message m)
 {
     std::vector<int64_t> result(vec);
     if(result.empty())

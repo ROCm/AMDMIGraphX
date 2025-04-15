@@ -61,11 +61,11 @@ static void run_cse_pc(migraphx::module& m, const std::unordered_set<std::string
 }
 
 static auto bit_cast_and_handle_specials(migraphx::module& m,
-                                  const migraphx::instruction_ref x,
-                                  const migraphx::instruction_ref bits_0x80_lit,
-                                  const migraphx::instruction_ref bits_0x7f_lit,
-                                  const migraphx::instruction_ref bits_0xff_lit,
-                                  const migraphx::instruction_ref bits_0x00_lit)
+                                         const migraphx::instruction_ref x,
+                                         const migraphx::instruction_ref bits_0x80_lit,
+                                         const migraphx::instruction_ref bits_0x7f_lit,
+                                         const migraphx::instruction_ref bits_0xff_lit,
+                                         const migraphx::instruction_ref bits_0x00_lit)
 {
     auto x_lens = x->get_shape().lens();
     auto cast_input =
@@ -95,9 +95,9 @@ static auto bit_cast_and_handle_specials(migraphx::module& m,
 }
 
 static auto cast_fp8_helper(migraphx::module& m,
-                     const migraphx::instruction_ref dq_input,
-                     const migraphx::instruction_ref dq_scale,
-                     const migraphx::instruction_ref dq_zp)
+                            const migraphx::instruction_ref dq_input,
+                            const migraphx::instruction_ref dq_scale,
+                            const migraphx::instruction_ref dq_zp)
 {
     auto dq_input_lens                 = dq_input->get_shape().lens();
     std::vector<fp8e4m3fnuz> bits_0x80 = {fp8e4m3fnuz(0x80, fp8e4m3fnuz::from_bits())};

@@ -56,7 +56,7 @@ struct step
     shape normalize_compute_shape(std::vector<shape> inputs) const
     {
         check_shapes{inputs, *this}.has(1);
-        const auto& input   = inputs.at(0);
+        const auto& input = inputs.at(0);
         auto in_lens = input.lens();
         auto t       = input.type();
 

@@ -108,14 +108,16 @@ struct allocation_with_out_model
     bool needs_out_params() const { return true; }
 };
 
-static void run_pass(migraphx::module& m, migraphx::allocation_model model, bool offload_copy = false)
+static void
+run_pass(migraphx::module& m, migraphx::allocation_model model, bool offload_copy = false)
 {
     migraphx::run_passes(m,
                          {migraphx::replace_allocate{std::move(model), offload_copy},
                           migraphx::dead_code_elimination{}});
 }
 
-static void run_pass(migraphx::program& p, migraphx::allocation_model model, bool offload_copy = false)
+static void
+run_pass(migraphx::program& p, migraphx::allocation_model model, bool offload_copy = false)
 {
     migraphx::run_passes(p,
                          {migraphx::replace_allocate{std::move(model), offload_copy},

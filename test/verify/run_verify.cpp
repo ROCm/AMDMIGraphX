@@ -67,9 +67,9 @@ inline static void verify_load_save(const migraphx::program& p)
 }
 
 inline static void compile_check(migraphx::program& p,
-                          const migraphx::target& t,
-                          migraphx::compile_options c_opts,
-                          bool show_trace = false)
+                                 const migraphx::target& t,
+                                 migraphx::compile_options c_opts,
+                                 bool show_trace = false)
 {
     auto name   = t.name();
     auto shapes = p.get_output_shapes();

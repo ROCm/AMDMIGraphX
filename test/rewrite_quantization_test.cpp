@@ -39,7 +39,10 @@
 MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_ENABLE_CK_WORKAROUNDS);
 
 static bool is_quantizelinear(migraphx::instruction& ins) { return ins.name() == "quantizelinear"; }
-static bool is_dequantizelinear(migraphx::instruction& ins) { return ins.name() == "dequantizelinear"; }
+static bool is_dequantizelinear(migraphx::instruction& ins)
+{
+    return ins.name() == "dequantizelinear";
+}
 static bool is_clip_scalar(migraphx::instruction& ins)
 {
     if(ins.name() == "clip")
@@ -52,7 +55,10 @@ static bool is_clip_scalar(migraphx::instruction& ins)
     return false;
 }
 
-static void run_pass(migraphx::module& m) { migraphx::run_passes(m, {migraphx::rewrite_quantization{}}); }
+static void run_pass(migraphx::module& m)
+{
+    migraphx::run_passes(m, {migraphx::rewrite_quantization{}});
+}
 
 static migraphx::argument eval(const migraphx::program& p)
 {

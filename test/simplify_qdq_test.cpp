@@ -52,7 +52,8 @@ static void run_cse(migraphx::module& m)
     run_passes(m, {migraphx::eliminate_common_subexpression{}, migraphx::dead_code_elimination{}});
 }
 
-static migraphx::instruction_ref init_zero_point(migraphx::module& m, migraphx::instruction_ref q_ins)
+static migraphx::instruction_ref init_zero_point(migraphx::module& m,
+                                                 migraphx::instruction_ref q_ins)
 {
     auto zp = m.add_literal(migraphx::literal{migraphx::shape{q_ins->get_shape().type()}, {0}});
     return m.add_instruction(

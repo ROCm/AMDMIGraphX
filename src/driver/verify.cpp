@@ -79,9 +79,9 @@ verify::tolerance get_tolerances(const program& p,
 }
 
 static std::vector<argument> run_ref(program p,
-                              const compile_options& options,
-                              const verify_options& vo,
-                              const parameter_map& inputs)
+                                     const compile_options& options,
+                                     const verify_options& vo,
+                                     const parameter_map& inputs)
 {
     if(vo.ref_use_double)
     {
@@ -94,10 +94,10 @@ static std::vector<argument> run_ref(program p,
 }
 
 static std::vector<argument> run_target(program p,
-                                 const target& t,
-                                 const compile_options& options,
-                                 const verify_options& vo,
-                                 const parameter_map& inputs)
+                                        const target& t,
+                                        const compile_options& options,
+                                        const verify_options& vo,
+                                        const parameter_map& inputs)
 {
     if(vo.quantize == precision::fp16)
     {
@@ -202,12 +202,12 @@ void verify_instructions(const program& prog,
 }
 
 static bool verify_reduced(program p,
-                    int n,
-                    const target& t,
-                    compile_options options,
-                    verify_options vo,
-                    const parameter_map& inputs,
-                    verify::tolerance tols)
+                           int n,
+                           const target& t,
+                           compile_options options,
+                           verify_options vo,
+                           const parameter_map& inputs,
+                           verify::tolerance tols)
 {
     auto* mm  = p.get_main_module();
     auto last = std::prev(mm->end(), n);

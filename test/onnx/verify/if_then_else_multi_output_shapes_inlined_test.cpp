@@ -39,8 +39,8 @@ TEST_CASE(if_then_else_multi_output_shapes_inlined_test)
     pp["y"] = migraphx::argument(y_data, data.data());
 
     auto result_args = p.eval(pp);
-    const auto& result      = result_args.front();
-    const auto& result_b    = result_args.back();
+    const auto& result   = result_args.front();
+    const auto& result_b = result_args.back();
 
     std::vector<float> result_vector;
     result.visit([&](auto output) { result_vector.assign(output.begin(), output.end()); });

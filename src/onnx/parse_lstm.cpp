@@ -62,9 +62,9 @@ static void lstm_transpose_inputs(onnx_parser::node_info& info, std::vector<inst
 }
 
 static void lstm_transpose_outputs(onnx_parser::node_info& info,
-                            instruction_ref& hidden_states,
-                            instruction_ref& last_output,
-                            instruction_ref& last_cell_output)
+                                   instruction_ref& hidden_states,
+                                   instruction_ref& last_output,
+                                   instruction_ref& last_cell_output)
 {
     std::vector<int64_t> perm_hs{2, 0, 1, 3};
     hidden_states =

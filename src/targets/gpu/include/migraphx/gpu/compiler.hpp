@@ -49,7 +49,8 @@ struct compiler_replace
     compiler_replace(const operation& op) : code_objects{{op}} {}
 
     template <class F>
-    compiler_replace(const operation& op, F f) : code_objects{{op}}, replace_fn(make_replace(std::move(f)))
+    compiler_replace(const operation& op, F f)
+        : code_objects{{op}}, replace_fn(make_replace(std::move(f)))
     {
     }
 

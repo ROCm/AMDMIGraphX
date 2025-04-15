@@ -28,9 +28,9 @@
 #include <migraphx/make_op.hpp>
 
 static void run_prog(migraphx::program p,
-              const migraphx::target& t,
-              migraphx::parameter_map& m_in,
-              std::vector<float>& res)
+                     const migraphx::target& t,
+                     migraphx::parameter_map& m_in,
+                     std::vector<float>& res)
 {
     p.compile(t);
     migraphx::parameter_map m;

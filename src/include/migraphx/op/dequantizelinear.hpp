@@ -72,8 +72,7 @@ struct dequantizelinear
         visit_all(x, x_zero_point)([&](auto input, auto zero_pts) {
             visit_all(result, x_scale)([&](auto output, auto scales) {
                 par_for(output_shape.elements(), [&](auto i) {
-                    output[i] = (static_cast<double>(input[i]) -
-                                                    static_cast<double>(zero_pts[i])) *
+                    output[i] = (static_cast<double>(input[i]) - static_cast<double>(zero_pts[i])) *
                                 scales[i];
                 });
             });

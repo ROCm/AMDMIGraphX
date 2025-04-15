@@ -421,9 +421,10 @@ struct MIGRAPHX_EXPORT value
         std::vector<To> result;
         const auto& values = is_object() ? get_object() : get_array();
         result.reserve(values.size());
-        std::transform(values.begin(), values.end(), std::back_inserter(result), [&](const auto& v) {
-            return v.template to<To>();
-        });
+        std::transform(values.begin(),
+                       values.end(),
+                       std::back_inserter(result),
+                       [&](const auto& v) { return v.template to<To>(); });
         return result;
     }
 

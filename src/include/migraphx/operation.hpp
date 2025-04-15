@@ -292,11 +292,12 @@ auto compute_op(rank<4>,
                 const shape& output,
                 const std::vector<argument>& inputs,
                 const std::vector<module_ref>& module_args,
-                const F& f) -> decltype(x.compute(auto_any_cast(ctx),
-                                           make_compute_output_shape(pack(x, output, inputs)),
-                                           inputs,
-                                           module_args,
-                                           f))
+                const F& f)
+    -> decltype(x.compute(auto_any_cast(ctx),
+                          make_compute_output_shape(pack(x, output, inputs)),
+                          inputs,
+                          module_args,
+                          f))
 {
     return x.compute(auto_any_cast(ctx),
                      make_compute_output_shape(pack(x, output, inputs)),
@@ -312,10 +313,9 @@ auto compute_op(rank<3>,
                 const shape& output,
                 const std::vector<argument>& inputs,
                 const std::vector<module_ref>& module_args,
-                const F& f) -> decltype(x.compute(make_compute_output_shape(pack(x, output, inputs)),
-                                           inputs,
-                                           module_args,
-                                           f))
+                const F& f)
+    -> decltype(x.compute(
+        make_compute_output_shape(pack(x, output, inputs)), inputs, module_args, f))
 {
     return x.compute(make_compute_output_shape(pack(x, output, inputs)), inputs, module_args, f);
 }
@@ -328,7 +328,7 @@ auto compute_op(rank<2>,
                 const std::vector<argument>& inputs,
                 const std::vector<module_ref>&,
                 const F&) -> decltype(x.compute(make_compute_output_shape(pack(x, output, inputs)),
-                                         inputs))
+                                                inputs))
 {
     return x.compute(make_compute_output_shape(pack(x, output, inputs)), inputs);
 }
@@ -341,8 +341,8 @@ auto compute_op(rank<1>,
                 const std::vector<argument>& inputs,
                 const std::vector<module_ref>&,
                 const F&) -> decltype(x.compute(auto_any_cast(ctx),
-                                         make_compute_output_shape(pack(x, output, inputs)),
-                                         inputs))
+                                                make_compute_output_shape(pack(x, output, inputs)),
+                                                inputs))
 {
     return x.compute(
         auto_any_cast(ctx), make_compute_output_shape(pack(x, output, inputs)), inputs);
@@ -755,8 +755,8 @@ struct operation
         const shape& output,
         const std::vector<argument>& input,
         const std::vector<module_ref>& module_args,
-        const std::function<std::vector<argument>(module_ref&,
-                                            const std::unordered_map<std::string, argument>&)>& run)
+        const std::function<std::vector<argument>(
+            module_ref&, const std::unordered_map<std::string, argument>&)>& run)
         -> decltype(private_detail_te_self.compute(output, input, module_args, std::move(run)))
     {
         return private_detail_te_self.compute(output, input, module_args, std::move(run));
@@ -784,8 +784,8 @@ struct operation
         const shape& output,
         const std::vector<argument>& input,
         const std::vector<module_ref>& module_args,
-        const std::function<std::vector<argument>(module_ref&,
-                                            const std::unordered_map<std::string, argument>&)>& run)
+        const std::function<std::vector<argument>(
+            module_ref&, const std::unordered_map<std::string, argument>&)>& run)
         -> decltype(private_detail_te_self.compute(ctx, output, input, module_args, std::move(run)))
     {
         return private_detail_te_self.compute(ctx, output, input, module_args, std::move(run));

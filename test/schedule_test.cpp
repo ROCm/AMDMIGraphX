@@ -165,7 +165,8 @@ struct schedule_model_test
     }
 };
 
-static bool check_conflicts(migraphx::module& m, migraphx::instruction_ref x, migraphx::instruction_ref y)
+static bool
+check_conflicts(migraphx::module& m, migraphx::instruction_ref x, migraphx::instruction_ref y)
 {
     return migraphx::any_of(migraphx::iterator_for(m), [&](auto ins) {
         if(ins->name() != "identity")

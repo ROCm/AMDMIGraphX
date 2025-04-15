@@ -148,8 +148,8 @@ TEST_CASE(reduce_mean_test_1)
 }
 
 static migraphx::module create_slice(const std::vector<int64_t>& axes,
-                              const std::vector<int64_t>& starts,
-                              const std::vector<int64_t>& ends)
+                                     const std::vector<int64_t>& starts,
+                                     const std::vector<int64_t>& ends)
 {
     migraphx::module m;
     migraphx::shape s{migraphx::shape::float_type, {2, 3, 4, 5}};

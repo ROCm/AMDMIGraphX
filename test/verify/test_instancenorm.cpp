@@ -30,9 +30,9 @@
 #include <migraphx/make_op.hpp>
 
 static migraphx::instruction_ref add_instancenorm(migraphx::module& m,
-                                           migraphx::instruction_ref x,
-                                           const std::vector<size_t>& dims,
-                                           float eps = 1e-5f)
+                                                  migraphx::instruction_ref x,
+                                                  const std::vector<size_t>& dims,
+                                                  float eps = 1e-5f)
 {
     auto mgx_type = x->get_shape().type();
     auto x_lens   = x->get_shape().lens();

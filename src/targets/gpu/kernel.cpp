@@ -80,13 +80,13 @@ kernel::kernel(const char* image, const std::string& name) : impl(std::make_shar
 }
 
 static void launch_kernel(hipFunction_t fun,
-                   hipStream_t stream,
-                   std::size_t global,
-                   std::size_t local,
-                   void* kernargs,
-                   std::size_t size,
-                   hipEvent_t start,
-                   hipEvent_t stop)
+                          hipStream_t stream,
+                          std::size_t global,
+                          std::size_t local,
+                          void* kernargs,
+                          std::size_t size,
+                          hipEvent_t start,
+                          hipEvent_t stop)
 {
     assert(global > 0);
     assert(local > 0);

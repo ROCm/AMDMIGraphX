@@ -41,8 +41,8 @@ TEST_CASE(if_then_else_multi_output_shapes_test)
     pp["cond"] = migraphx::argument(bool_data, &b_data);
 
     auto result_args = p.eval(pp);
-    const auto& result      = result_args.front();
-    const auto& result_b    = result_args.back();
+    const auto& result   = result_args.front();
+    const auto& result_b = result_args.back();
 
     std::vector<float> result_vector;
     result.visit([&](auto output) { result_vector.assign(output.begin(), output.end()); });

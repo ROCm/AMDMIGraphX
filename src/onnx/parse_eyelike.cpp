@@ -41,7 +41,7 @@ struct parse_eyelike : op_parser<parse_eyelike>
                           std::vector<instruction_ref> args) const
     {
         auto input_shape = args[0]->get_shape();
-        const auto& input_lens  = input_shape.lens();
+        const auto& input_lens = input_shape.lens();
         if(input_lens.size() != 2)
         {
             MIGRAPHX_THROW("EYELIKE: tensor input not of rank 2");

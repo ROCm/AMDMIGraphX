@@ -460,10 +460,10 @@ static bool is_compatible_shape(const shape& actual, const shape& expected)
 
 template <class F>
 static std::vector<argument> generic_eval(const module* mod,
-                                   std::vector<context>& ctx,
-                                   std::unordered_map<std::string, argument> params,
-                                   std::unordered_map<instruction_ref, argument> results,
-                                   F trace)
+                                          std::vector<context>& ctx,
+                                          std::unordered_map<std::string, argument> params,
+                                          std::unordered_map<instruction_ref, argument> results,
+                                          F trace)
 {
     assert(mod->validate() == mod->end());
     results.reserve(mod->size() * 2);
@@ -546,9 +546,9 @@ static std::vector<argument> generic_eval(const module* mod,
 
 template <class F>
 static std::vector<argument> generic_eval(const program& p,
-                                   std::vector<context>& ctx,
-                                   std::unordered_map<std::string, argument> params,
-                                   F trace)
+                                          std::vector<context>& ctx,
+                                          std::unordered_map<std::string, argument> params,
+                                          F trace)
 {
     const module* mm = p.get_main_module();
     return generic_eval(mm, ctx, std::move(params), {}, trace);

@@ -151,12 +151,12 @@ make_heap(T* data, index_int n, Index idx, Compare compare)
 
 template <class Compare>
 static std::vector<argument> topk(hipStream_t stream,
-                           const argument& val_res,
-                           const argument& ind_res,
-                           const argument& arg,
-                           int64_t k,
-                           int64_t axis,
-                           Compare compare)
+                                  const argument& val_res,
+                                  const argument& ind_res,
+                                  const argument& arg,
+                                  int64_t k,
+                                  int64_t axis,
+                                  Compare compare)
 {
     auto in_s       = arg.get_shape();
     auto in_lens    = in_s.lens();

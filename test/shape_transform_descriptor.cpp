@@ -80,7 +80,7 @@ static all_axes get_all_axes(const shape_transform_descriptor& d)
 }
 
 static std::vector<int64_t> run_shape_transforms(const std::vector<std::size_t>& dims,
-                                          const std::vector<migraphx::operation>& ops)
+                                                 const std::vector<migraphx::operation>& ops)
 {
     migraphx::shape s{migraphx::shape::int64_type, dims};
     std::vector<int64_t> data(s.elements());
@@ -108,7 +108,8 @@ check_optimize_shape_transforms(const std::vector<std::size_t>& dims,
 }
 
 template <class... Ts>
-static shape_transform_descriptor make_descriptor(const std::vector<std::size_t>& dims, const Ts&... xs)
+static shape_transform_descriptor make_descriptor(const std::vector<std::size_t>& dims,
+                                                  const Ts&... xs)
 {
     auto desc = shape_transform_descriptor{dims};
     CHECK(desc.apply({xs...}));
@@ -117,7 +118,7 @@ static shape_transform_descriptor make_descriptor(const std::vector<std::size_t>
 
 template <class... Ts>
 static shape_transform_descriptor make_simple_descriptor(const std::vector<std::size_t>& dims,
-                                                  const Ts&... xs)
+                                                         const Ts&... xs)
 {
     auto desc = make_descriptor(dims, xs...);
     desc.simplify();

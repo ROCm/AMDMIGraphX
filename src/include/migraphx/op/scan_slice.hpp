@@ -68,7 +68,7 @@ struct scan_slice : op_name<scan_slice>
 
     argument compute(shape output_shape, std::vector<argument> args) const
     {
-        const auto& input    = args[0];
+        const auto& input = args[0];
         auto input_sh = input.get_shape();
 
         int64_t idx;

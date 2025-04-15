@@ -62,7 +62,8 @@ static std::unordered_map<instruction_ref, std::string> create_output_names(cons
     return mod_output_names;
 }
 
-static void insert_submod_allocations(instruction_ref ins, module& mod, const allocation_model& model)
+static void
+insert_submod_allocations(instruction_ref ins, module& mod, const allocation_model& model)
 {
     std::vector<instruction_ref> inputs = ins->inputs();
     std::vector<module_ref> mod_args    = ins->module_inputs();

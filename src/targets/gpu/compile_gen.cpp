@@ -504,8 +504,9 @@ std::string generate_reduce(module m, const std::string& name)
             std::string inner_name = use_lazy_inner(ins) ? "lazy_inner" : "inner";
             auto args              = cpp_generator::to_args(tensors, names);
             auto params            = cpp_generator::to_args(tensors, inner_names);
-            std::transform(
-                params.begin(), params.end(), params.begin(), [](const auto& s) { return "auto " + s; });
+            std::transform(params.begin(), params.end(), params.begin(), [](const auto& s) {
+                return "auto " + s;
+            });
             return interpolate_string(inner_template,
                                       {{"inner", inner_name},
                                        {"params", join_strings(params, ", ")},

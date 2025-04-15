@@ -172,7 +172,7 @@ struct convolution_backwards
 
                     std::vector<std::ptrdiff_t> win_start;
                     win_start.reserve(num_spatial_dims);
-for(std::size_t n = 0; n < num_spatial_dims; ++n)
+                    for(std::size_t n = 0; n < num_spatial_dims; ++n)
                     {
                         win_start.push_back(std::ptrdiff_t(*(input_dims_start + n) * stride[n]) -
                                             std::ptrdiff_t(padding[n]));

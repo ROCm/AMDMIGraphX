@@ -27,8 +27,8 @@
 #include <onnx_test.hpp>
 
 static auto reducesum_variable_dynamic_axes_test_base(migraphx::shape axes_shape,
-                                               std::vector<int64_t> axes_data,
-                                               const std::string& file)
+                                                      std::vector<int64_t> axes_data,
+                                                      const std::string& file)
 {
     std::pair<std::vector<float>, migraphx::shape> ret;
 

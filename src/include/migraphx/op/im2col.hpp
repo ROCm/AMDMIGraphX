@@ -58,8 +58,8 @@ struct im2col
 
     shape normalize_compute_shape(std::vector<shape> inputs) const
     {
-        const auto& input          = inputs[0];
-        const auto& weights        = inputs[1];
+        const auto& input   = inputs[0];
+        const auto& weights = inputs[1];
         auto batch_size     = input.lens()[0];
         auto input_channels = weights.lens()[1];
         auto kernel_height  = weights.lens()[2];

@@ -1136,7 +1136,7 @@ struct find_splits
 
     /**
      * Check if we can reach ins2 from ins1 by going through inputs of ins1.
-     * root is the local root instruction of ins1.
+     * root is the instruction before the slice instructions (what find_splits matcher matches).
      * Uses a BFS upwards that stops at root instruction or no inputs.
      */
     static bool
@@ -1161,7 +1161,6 @@ struct find_splits
                 for(const auto& i : ins->inputs())
                 {
                     if(m.has_instruction(i))
-                        auto s = migraphx::shape{migraphx::shape::float_type, {3, 2, 4}};
                     {
                         inputs_queue.push(i);
                     }

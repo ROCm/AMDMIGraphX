@@ -75,7 +75,7 @@ struct MIGRAPHX_EXPORT allocation_model
 };
 
 #else
-
+// NOLINTBEGIN(performance-unnecessary-value-param)
 struct allocation_model
 {
     private:
@@ -342,6 +342,7 @@ inline const ValueType& any_cast(const allocation_model& x)
         throw std::bad_cast();
     return *y;
 }
+// NOLINTEND(performance-unnecessary-value-param)
 #endif
 
 #endif

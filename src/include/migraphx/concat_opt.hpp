@@ -64,7 +64,7 @@ struct MIGRAPHX_EXPORT concat_optimization
 };
 
 #else
-
+// NOLINTBEGIN(performance-unnecessary-value-param)
 struct concat_optimization
 {
     private:
@@ -293,6 +293,7 @@ inline const ValueType& any_cast(const concat_optimization& x)
         throw std::bad_cast();
     return *y;
 }
+// NOLINTEND(performance-unnecessary-value-param)
 #endif
 
 #endif

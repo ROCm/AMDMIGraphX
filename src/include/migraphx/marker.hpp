@@ -59,7 +59,7 @@ struct MIGRAPHX_EXPORT marker
 };
 
 #else
-
+// NOLINTBEGIN(performance-unnecessary-value-param)
 struct marker
 {
     private:
@@ -307,6 +307,7 @@ inline const ValueType& any_cast(const marker& x)
         throw std::bad_cast();
     return *y;
 }
+// NOLINTEND(performance-unnecessary-value-param)
 #endif
 
 #endif

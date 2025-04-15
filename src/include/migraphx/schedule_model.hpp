@@ -78,7 +78,7 @@ struct MIGRAPHX_EXPORT schedule_model
 };
 
 #else
-
+// NOLINTBEGIN(performance-unnecessary-value-param)
 struct schedule_model
 {
     private:
@@ -354,6 +354,7 @@ inline const ValueType& any_cast(const schedule_model& x)
         throw std::bad_cast();
     return *y;
 }
+// NOLINTEND(performance-unnecessary-value-param)
 #endif
 
 #endif

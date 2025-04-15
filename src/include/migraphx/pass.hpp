@@ -96,7 +96,7 @@ struct MIGRAPHX_EXPORT pass
 };
 
 #else
-
+// NOLINTBEGIN(performance-unnecessary-value-param)
 struct pass
 {
     private:
@@ -366,6 +366,7 @@ inline const ValueType& any_cast(const pass& x)
         throw std::bad_cast();
     return *y;
 }
+// NOLINTEND(performance-unnecessary-value-param)
 #endif
 
 /// Used in the targets to enable/disable compiler passes

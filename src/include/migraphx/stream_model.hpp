@@ -79,7 +79,7 @@ struct MIGRAPHX_EXPORT stream_model
 };
 
 #else
-
+// NOLINTBEGIN(performance-unnecessary-value-param)
 struct stream_model
 {
     private:
@@ -367,6 +367,7 @@ inline const ValueType& any_cast(const stream_model& x)
         throw std::bad_cast();
     return *y;
 }
+// NOLINTEND(performance-unnecessary-value-param)
 #endif
 
 #endif

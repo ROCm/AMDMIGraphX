@@ -49,7 +49,7 @@ ${decl_members}
 };
 
 #else
-
+// NOLINTBEGIN(performance-unnecessary-value-param)
 struct ${struct_name}
 {
 private:
@@ -242,6 +242,7 @@ inline const ValueType & any_cast(const ${struct_name} & x)
     if (y == nullptr) throw std::bad_cast();
     return *y;
 }
+// NOLINTEND(performance-unnecessary-value-param)
 #endif
 ''')
 

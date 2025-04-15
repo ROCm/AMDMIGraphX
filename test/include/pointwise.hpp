@@ -63,7 +63,7 @@ template <class F>
 migraphx::instruction_ref add_pointwise(migraphx::program& p,
                                         const std::string& name,
                                         const std::vector<migraphx::instruction_ref>& inputs,
-                                        F f)
+                                        const F& f)
 {
     return add_pointwise(p, p.get_main_module(), name, std::move(inputs), std::move(f));
 }

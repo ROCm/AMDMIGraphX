@@ -146,7 +146,7 @@ struct MIGRAPHX_EXPORT target
 };
 
 #else
-
+// NOLINTBEGIN(performance-unnecessary-value-param)
 struct target
 {
     private:
@@ -512,6 +512,7 @@ inline const ValueType& any_cast(const target& x)
         throw std::bad_cast();
     return *y;
 }
+// NOLINTEND(performance-unnecessary-value-param)
 #endif
 
 #endif

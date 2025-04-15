@@ -560,7 +560,7 @@ struct MIGRAPHX_EXPORT operation
 };
 
 #else
-
+// NOLINTBEGIN(performance-unnecessary-value-param)
 struct operation
 {
     private:
@@ -1401,6 +1401,7 @@ inline const ValueType& any_cast(const operation& x)
         throw std::bad_cast();
     return *y;
 }
+// NOLINTEND(performance-unnecessary-value-param)
 #endif
 
 inline bool operator!=(const operation& x, const operation& y) { return not(x == y); }

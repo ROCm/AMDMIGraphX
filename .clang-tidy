@@ -14,7 +14,7 @@ CheckOptions:
   - key:             performance-unnecessary-copy-initialization.AllowedTypes
     value:           'shape'
   - key:             performance-unnecessary-value-param.AllowedTypes
-    value:           'shape'
+    value:           'shape;operation;iterator;literal;tensor_view'
   - key:             readability-function-size.BranchThreshold
     value:           '15'
   - key:             readability-function-size.LineThreshold

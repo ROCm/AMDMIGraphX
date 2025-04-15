@@ -33,10 +33,11 @@ inline namespace MIGRAPHX_INLINE_NS {
 
 // Declare a cached environment variable
 #define MIGRAPHX_DECLARE_ENV_VAR(x)               \
+    // NOLINTNEXLINE                                      \
     struct x                                      \
     {                                             \
         static const char* value() { return #x; } \
-    }; // NOLINT
+    };
 
 MIGRAPHX_EXPORT bool enabled(const char* name);
 MIGRAPHX_EXPORT bool disabled(const char* name);

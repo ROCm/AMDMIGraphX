@@ -192,16 +192,16 @@ struct float8
     MIGRAPHX_FP8_UNARY_OP(+=, +)
     MIGRAPHX_FP8_UNARY_OP(/=, /)
 
-    inline constexpr float8& operator=(const float8& rhs)     = default;
-    inline constexpr float8& operator=(float8&& rhs) noexcept = default;
+    constexpr float8& operator=(const float8& rhs)     = default;
+    constexpr float8& operator=(float8&& rhs) noexcept = default;
 
-    inline constexpr float8& operator=(float rhs)
+    constexpr float8& operator=(float rhs)
     {
         *this = static_cast<float8>(rhs);
         return *this;
     }
 
-    inline constexpr bool operator==(const float8& rhs) const
+    constexpr bool operator==(const float8& rhs) const
     {
         if(rhs.is_nan() or rhs.is_inf() or this->is_nan() or this->is_inf())
             return false;
@@ -210,14 +210,14 @@ struct float8
         return false;
     }
 
-    inline constexpr bool operator<(const float8& rhs) const
+    constexpr bool operator<(const float8& rhs) const
     {
         const auto we   = static_cast<float>(*this);
         const auto them = static_cast<float>(rhs);
         return we < them;
     }
 
-    inline constexpr bool operator>(const float8& rhs) const
+    constexpr bool operator>(const float8& rhs) const
     {
         const auto we   = static_cast<float>(*this);
         const auto them = static_cast<float>(rhs);

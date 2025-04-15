@@ -26,9 +26,9 @@
 #define MIGRAPHX_GUARD_RTGLIB_DEVICE_REDUCE_HPP
 
 #if defined(__GFX10__) || defined(__GFX11__) || defined(__GFX12__) 
-    #define __MIGRAPHX_WAVEFRONT_SIZE 32 
+#define MIGRAPHX_WAVEFRONT_SIZE 32 
 #else 
-    #define __MIGRAPHX_WAVEFRONT_SIZE 64
+#define MIGRAPHX_WAVEFRONT_SIZE 64
 #endif 
 
 #include <migraphx/gpu/device/launch.hpp>
@@ -122,7 +122,7 @@ __device__ void dpp_reduce(T& in, Op op)
     in  = op(in, out);
     out = dpp_mov<dpp_row_shr(8), 0xf, 0xc>(in);
     in  = op(in, out);
-#if __MIGRAPHX_WAVEFRONT_SIZE == 64
+#if MIGRAPHX_WAVEFRONT_SIZE == 64
     out = dpp_mov<dpp_row_bcast(15), 0xa>(in);
     in  = op(in, out);
     out = dpp_mov<dpp_row_bcast(31), 0xc>(in);
@@ -144,7 +144,7 @@ __device__ inline void dpp_reduce(float& x, sum)
                      "s_nop 1\n"
                      "v_add_f32 %0 %0 %0 row_shr:8 bank_mask:0xc\n"
                      "s_nop 1\n"
-#if __MIGRAPHX_WAVEFRONT_SIZE == 64
+#if MIGRAPHX_WAVEFRONT_SIZE == 64
                      "v_add_f32 %0 %0 %0 row_bcast:15 row_mask:0xa\n"
                      "s_nop 1\n"
                      "v_add_f32 %0 %0 %0 row_bcast:31 row_mask:0xc\n"
@@ -164,7 +164,7 @@ template <index_int N,
 __device__ auto block_reduce(index idx, Op op, T init, ForStride fs, F f)
 {
 
-#if __MIGRAPHX_WAVEFRONT_SIZE == 32
+#if MIGRAPHX_WAVEFRONT_SIZE == 32
     constexpr index_int nthreads = 16;
 #else
     constexpr index_int nthreads = 64;

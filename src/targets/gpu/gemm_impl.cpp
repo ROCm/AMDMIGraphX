@@ -685,12 +685,12 @@ static int32_t gemm_finalize_impl(context& ctx,
 }
 
 int32_t gemm_finalize(context& ctx,
-                             const shape& output_shape,
-                             const std::vector<shape>& input_shapes,
-                             float alpha,
-                             float beta,
-                             bool compute_fp32,
-                             int32_t solution_idx)
+                      const shape& output_shape,
+                      const std::vector<shape>& input_shapes,
+                      float alpha,
+                      float beta,
+                      bool compute_fp32,
+                      int32_t solution_idx)
 {
     return gemm_finalize_impl(
         ctx, output_shape, input_shapes, alpha, beta, compute_fp32, solution_idx);

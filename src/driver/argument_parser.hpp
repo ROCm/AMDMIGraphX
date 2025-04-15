@@ -651,8 +651,7 @@ struct argument_parser
             for(auto&& flag : arg.flags)
                 keywords[flag] = arg.nargs + 1;
         }
-        auto arg_map =
-            generic_parse(args, [&](const std::string& x) { return keywords[x]; });
+        auto arg_map = generic_parse(args, [&](const std::string& x) { return keywords[x]; });
         std::list<const argument*> missing_arguments;
         std::unordered_set<std::string> groups_used;
         for(auto&& arg : arguments)

@@ -25,10 +25,10 @@
 #ifndef MIGRAPHX_GUARD_RTGLIB_DEVICE_REDUCE_HPP
 #define MIGRAPHX_GUARD_RTGLIB_DEVICE_REDUCE_HPP
 
-#if defined(__GFX10__) || defined(__GFX11__) || defined(__GFX12__) 
+#if defined(__GFX10__) || defined(__GFX11__) || defined(__GFX12__)
 // NOLINENEXTLINE
 #define MIGRAPHX_WAVEFRONT_SIZE 32 
-#else 
+#else
 // NOLINENEXTLINE
 #define MIGRAPHX_WAVEFRONT_SIZE 64
 #endif 

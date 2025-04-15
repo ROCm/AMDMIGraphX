@@ -470,8 +470,7 @@ bool glob_match(Iterator1 start, Iterator1 last, Iterator2 pattern_start, Iterat
 using string_map = std::unordered_map<std::string, std::vector<std::string>>;
 
 template <class Keyword>
-string_map generic_parse(const std::vector<std::string>& as,
-                         Keyword keyword)
+string_map generic_parse(const std::vector<std::string>& as, Keyword keyword)
 {
     string_map result;
 
@@ -855,7 +854,7 @@ inline void run(int argc, const char* argv[])
 
 // NOLINTNEXTLINE
 #define TEST_CASE(...)              \
-    static void __VA_ARGS__();             \
+    static void __VA_ARGS__();      \
     TEST_CASE_REGISTER(__VA_ARGS__) \
     static void __VA_ARGS__()
 

@@ -216,7 +216,7 @@ insert_generic_instructions_impl(module& m,
                                  instruction_ref ins,
                                  Range&& instructions,
                                  std::unordered_map<instruction_ref, instruction_ref>& map_ins,
-                                 Inserter insert)
+                                 Inserter insert) // NOLINT(performance-unnecessary-value-param)
 {
     assert(m.has_instruction(ins) or is_end(ins, m.end()));
     std::vector<instruction_ref> mod_outputs;
@@ -281,7 +281,7 @@ insert_generic_instructions(module& m,
                 return mm.insert_instruction(std::forward<decltype(xs)>(xs)...);
             });
     return insert_generic_instructions_impl(
-        m, ins, static_cast<Range&&>(instructions), map_ins, insert);
+        m, ins, static_cast<Range&&>(instructions), map_ins, std::move(insert));
 }
 
 instruction_ref module::add_instruction(const operation& op, std::vector<instruction_ref> args)

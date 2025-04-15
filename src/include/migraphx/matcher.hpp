@@ -498,7 +498,7 @@ find_skip<M> make_find_skip(M m)
 struct lazy_and
 {
     template <class F, class G>
-    auto operator()(F f, G g) const
+    auto operator()(F f, G g) const // NOLINT(performance-unnecessary-value-param)
     {
         return [=] { return f() and g(); };
     }
@@ -507,7 +507,7 @@ struct lazy_and
 struct lazy_or
 {
     template <class F, class G>
-    auto operator()(F f, G g) const
+    auto operator()(F f, G g) const // NOLINT(performance-unnecessary-value-param)
     {
         return [=] { return f() or g(); };
     }

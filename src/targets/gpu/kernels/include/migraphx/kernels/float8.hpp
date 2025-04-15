@@ -390,21 +390,21 @@ using fp8e4m3fnuz = float8<migraphx::fp8::f8_type::fp8, true>;
 using fp8e5m2fnuz = float8<migraphx::fp8::f8_type::bf8, true>;
 
 // NOLINTNEXTLINE
-#define MIGRAPHX_FP8_BINARY_OP(binary_op, T, U)                                  \
-    constexpr U __device__ operator binary_op(const T& lhs, const T& rhs) \
-    {                                                                            \
-        return U(static_cast<float>(lhs) binary_op static_cast<float>(rhs));     \
+#define MIGRAPHX_FP8_BINARY_OP(binary_op, T, U)                              \
+    constexpr U __device__ operator binary_op(const T& lhs, const T& rhs)    \
+    {                                                                        \
+        return U(static_cast<float>(lhs) binary_op static_cast<float>(rhs)); \
     }
 
 // NOLINTNEXTLINE
 #define MIGRAPHX_FP8_OTHER_OPS(T)                                            \
-    constexpr __device__ T fabs(T v)                                  \
+    constexpr __device__ T fabs(T v)                                         \
     {                                                                        \
         /*NOLINTNEXTLINE*/                                                   \
         v.data = v.data & 0x7f;                                              \
         return v;                                                            \
     }                                                                        \
-    __device__ constexpr bool operator==(const T& lhs, const T& rhs)  \
+    __device__ constexpr bool operator==(const T& lhs, const T& rhs)         \
     {                                                                        \
         if(rhs.is_nan() or rhs.is_inf() or lhs.is_nan() or lhs.is_inf())     \
             return false;                                                    \

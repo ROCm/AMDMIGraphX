@@ -649,7 +649,7 @@ struct dynamic_dimensions : MIGRAPHX_HANDLE_BASE(dynamic_dimensions)
     MIGRAPHX_HANDLE_CONSTRUCTOR(dynamic_dimensions)
 
     template <class... Ts>
-    dynamic_dimensions(const Ts...& xs)
+    dynamic_dimensions(const Ts&... xs)
     {
         std::array<const_migraphx_dynamic_dimension_t, sizeof...(Ts)> a{xs.get_handle_ptr()...};
         this->make_handle(&migraphx_dynamic_dimensions_create, a.data(), a.size());
@@ -1004,7 +1004,7 @@ struct instructions : MIGRAPHX_HANDLE_BASE(instructions)
     MIGRAPHX_HANDLE_CONSTRUCTOR(instructions)
 
     template <class... Ts>
-    instructions(const Ts...& xs)
+    instructions(const Ts&... xs)
     {
         std::array<const_migraphx_instruction_t, sizeof...(Ts)> a{xs.get_handle_ptr()...};
         this->make_handle(&migraphx_instructions_create, a.data(), a.size());
@@ -1018,7 +1018,7 @@ struct modules : MIGRAPHX_HANDLE_BASE(modules)
     MIGRAPHX_HANDLE_CONSTRUCTOR(modules)
 
     template <class... Ts>
-    modules(const Ts...& xs)
+    modules(const Ts&... xs)
     {
         std::array<migraphx_module_t, sizeof...(Ts)> a = {xs.get_handle_ptr()...};
         this->make_handle(&migraphx_modules_create, a.data(), a.size());

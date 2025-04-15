@@ -35,7 +35,7 @@ static void run_pass(migraphx::module& m)
 }
 
 // TODO: Add this test case
-static void literal_broadcast()
+[[maybe_unused]] static void literal_broadcast()
 {
     migraphx::module m;
 

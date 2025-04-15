@@ -40,8 +40,6 @@ inline namespace MIGRAPHX_INLINE_NS {
 namespace gpu {
 
 struct context;
-void blas_shape_hip(const shape& s);
-shape transpose_batch_hip(const shape& s, unsigned trans_batch);
 
 template <class Op>
 struct hip_gemm

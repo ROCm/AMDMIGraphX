@@ -40,8 +40,6 @@ inline namespace MIGRAPHX_INLINE_NS {
 namespace gpu {
 
 struct context;
-shape transpose_batch(const shape& s, unsigned trans_batch);
-void blas_shape(const shape& s);
 
 template <class Op>
 struct rocblas_gemm

@@ -182,7 +182,7 @@ static void mlir_print(F f, T x, Printer printer)
 }
 
 template <class F, class T>
-static void mlir_print(F f, T x, std::ostream& os)
+[[maybe_unused]] static void mlir_print(F f, T x, std::ostream& os)
 {
     mlir_print(f, x, [&](auto s) { os << s; });
 }

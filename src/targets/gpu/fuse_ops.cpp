@@ -224,18 +224,6 @@ static void move_broadcasted_back(std::vector<instruction_ref>& args)
         std::swap(*it, *std::prev(last));
 }
 
-static void move_standard_front(std::vector<instruction_ref>& args)
-{
-    // Ensure the first arguments is the standard one
-    auto last = std::prev(args.end());
-    auto it =
-        std::find_if(args.begin(), last, [](auto arg) { return arg->get_shape().standard(); });
-    if(it != last)
-        std::swap(*it, args.front());
-}
-
-static auto gpu_name(const std::string& s) { return match::name("gpu::" + s); }
-
 namespace {
 #if MIGRAPHX_USE_MIOPEN
 struct miopen_fusion

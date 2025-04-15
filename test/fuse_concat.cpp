@@ -53,7 +53,7 @@ static concat_arg<F> arg(std::string name, std::vector<migraphx::instruction_ref
 
 template <class Arg, class... Args>
 static migraphx::instruction_ref
-add_pointwise_concat(migraphx::program& p, std::size_t axis, Arg post_arg, const Args...& args)
+add_pointwise_concat(migraphx::program& p, std::size_t axis, Arg post_arg, const Args&... args)
 {
     std::vector<migraphx::module_ref> module_inputs;
     std::vector<migraphx::instruction_ref> ins_inputs;

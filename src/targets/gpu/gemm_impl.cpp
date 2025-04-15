@@ -79,7 +79,7 @@ static rocblas_datatype get_type(shape::type_t type)
     MIGRAPHX_THROW("ROCBLAS_GEMM: data type not supported!");
 }
 
-static void blas_shape(const shape& in_shape)
+void blas_shape(const shape& in_shape)
 {
     if(in_shape.lens().size() < 2)
         return;
@@ -98,7 +98,7 @@ static void blas_shape(const shape& in_shape)
         MIGRAPHX_THROW("GPU_GEMM: Batch dimension is not collapsible");
 }
 
-static shape transpose_batch(const shape& s, unsigned trans_batch)
+shape transpose_batch(const shape& s, unsigned trans_batch)
 {
     if(trans_batch == 0)
         return s;
@@ -684,7 +684,7 @@ static int32_t gemm_finalize_impl(context& ctx,
     return solution_idx;
 }
 
-static int32_t gemm_finalize(context& ctx,
+int32_t gemm_finalize(context& ctx,
                              const shape& output_shape,
                              const std::vector<shape>& input_shapes,
                              float alpha,

@@ -172,14 +172,6 @@ static std::shared_ptr<void> write_to_gpu(const void* x, std::size_t sz, bool ho
     return result;
 }
 
-template <class T>
-static hip_ptr write_to_gpu(const T& x)
-{
-    using type = typename T::value_type;
-    auto size  = x.size() * sizeof(type);
-    return write_to_gpu(x.data(), size);
-}
-
 argument allocate_gpu(const shape& s, bool host)
 {
     auto p = allocate_gpu(s.bytes() + 1, host);

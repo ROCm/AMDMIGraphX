@@ -261,7 +261,7 @@ struct argument_parser
     }
 
     template <class T, class... Fs>
-    void operator()(T& x, const std::vector<std::string>& flags, const Fs...& fs)
+    void operator()(T& x, const std::vector<std::string>& flags, const Fs&... fs)
     {
         arguments.push_back({flags, [&](auto&&, const std::vector<std::string>& params) {
                                  if(params.empty())
@@ -280,7 +280,7 @@ struct argument_parser
     }
 
     template <class... Fs>
-    void operator()(std::nullptr_t x, std::vector<std::string> flags, const Fs...& fs)
+    void operator()(std::nullptr_t x, std::vector<std::string> flags, const Fs&... fs)
     {
         arguments.push_back({std::move(flags)});
 
@@ -643,7 +643,7 @@ struct argument_parser
         return true;
     }
 
-    bool parse(std::vector<std::string> args)
+    bool parse(const std::vector<std::string>& args)
     {
         std::unordered_map<std::string, unsigned> keywords;
         for(auto&& arg : arguments)
@@ -652,7 +652,7 @@ struct argument_parser
                 keywords[flag] = arg.nargs + 1;
         }
         auto arg_map =
-            generic_parse(std::move(args), [&](const std::string& x) { return keywords[x]; });
+            generic_parse(args, [&](const std::string& x) { return keywords[x]; });
         std::list<const argument*> missing_arguments;
         std::unordered_set<std::string> groups_used;
         for(auto&& arg : arguments)

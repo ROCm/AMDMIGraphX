@@ -30,7 +30,7 @@ namespace match = migraphx::match;
 
 MIGRAPHX_PRED_MATCHER(throws, migraphx::instruction_ref) { MIGRAPHX_THROW("Matcher throws"); }
 
-static void match1()
+[[maybe_unused]] static void match1()
 {
     migraphx::module mm;
     auto l = mm.add_literal(1);

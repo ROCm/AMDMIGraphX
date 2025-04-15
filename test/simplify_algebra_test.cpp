@@ -213,7 +213,7 @@ TEST_CASE(simplify_add_broadcast2)
 
 // TODO: Add test case
 // TEST_CASE(simplify_add4)
-static void simplify_add4()
+[[maybe_unused]] static void simplify_add4()
 {
     migraphx::module m1;
     {

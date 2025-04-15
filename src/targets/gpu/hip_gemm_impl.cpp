@@ -93,7 +93,7 @@ static hipDataType get_type_hipblas(shape::type_t type)
     MIGRAPHX_THROW("HIPBLAS_GEMM: data type not supported!");
 }
 
-static void blas_shape_hip(const shape& in_shape)
+void blas_shape_hip(const shape& in_shape)
 {
     if(in_shape.lens().size() < 2)
         return;
@@ -112,7 +112,7 @@ static void blas_shape_hip(const shape& in_shape)
         MIGRAPHX_THROW("GPU_GEMM: Batch dimension is not collapsible");
 }
 
-static shape transpose_batch_hip(const shape& s, unsigned trans_batch)
+shape transpose_batch_hip(const shape& s, unsigned trans_batch)
 {
     if(trans_batch == 0)
         return s;

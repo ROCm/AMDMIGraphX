@@ -76,7 +76,7 @@ struct always_false : std::false_type
 };
 
 template <class... Ts>
-static void throws_shape(const migraphx::shape&, Ts...)
+[[maybe_unused]] static void throws_shape(const migraphx::shape&, Ts...)
 {
     static_assert(always_false<Ts...>{},
                   "An expected shape should not be passed to throws_shape function");

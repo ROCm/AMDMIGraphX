@@ -39,6 +39,9 @@ namespace gpu {
 using milliseconds = std::chrono::duration<double, std::milli>;
 using microseconds = std::chrono::duration<double, std::micro>;
 
+void blas_shape_hip(const shape& in_shape);
+shape transpose_batch_hip(const shape& s, unsigned trans_batch);
+
 /**
  * @brief Templated implementations of the compute() and finalize() methods of the Gemm operator.
  *        For each function there are overloads using either float or int32_t for the arguments

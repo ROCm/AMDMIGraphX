@@ -76,7 +76,7 @@ migraphx::instruction_ref add_reduce(migraphx::program& p,
                                      const std::string& name,
                                      const std::vector<migraphx::instruction_ref>& inputs,
                                      const std::vector<int64_t>& axes,
-                                     F f)
+                                     const F& f)
 {
     auto* mm = p.get_main_module();
     auto rm  = add_reduce_module(p, name, inputs, axes, std::move(f));
@@ -89,7 +89,7 @@ migraphx::instruction_ref add_reduce(migraphx::program& p,
                                      const std::vector<migraphx::instruction_ref>& inputs,
                                      const std::vector<int64_t>& axes,
                                      const std::string& assign,
-                                     F f)
+                                     const F& f)
 {
     auto* mm = p.get_main_module();
     auto rm  = add_reduce_module(p, name, inputs, axes, std::move(f));

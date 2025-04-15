@@ -53,7 +53,7 @@ migraphx::instruction_ref add_pointwise(migraphx::program& p,
                                         migraphx::module_ref mm,
                                         const std::string& name,
                                         const std::vector<migraphx::instruction_ref>& inputs,
-                                        F f)
+                                        const F& f)
 {
     auto* pm = create_pointwise_module(p, name, inputs, std::move(f));
     return mm->add_instruction(migraphx::make_op("pointwise"), inputs, {pm});
@@ -62,7 +62,7 @@ migraphx::instruction_ref add_pointwise(migraphx::program& p,
 template <class F>
 migraphx::instruction_ref add_pointwise(migraphx::program& p,
                                         const std::string& name,
-                                        std::vector<migraphx::instruction_ref> inputs,
+                                        const std::vector<migraphx::instruction_ref>& inputs,
                                         F f)
 {
     return add_pointwise(p, p.get_main_module(), name, std::move(inputs), std::move(f));

@@ -78,17 +78,17 @@ struct compiler_replace
     std::function<void(std::ostream& os, instruction_ref ins)> trace_fn = nullptr;
 
     template <class F>
-    static auto make_replace(const F& f)
+    static auto make_replace(F f)
     {
-        return [=](const compiler_replace& cr, module& m, instruction_ref ins) {
+        return [f = std::move(f)](const compiler_replace& cr, module& m, instruction_ref ins) {
             f(m, ins, cr.code_objects.front());
         };
     }
 
     template <class F>
-    static auto make_replace_all(const F& f)
+    static auto make_replace_all(F f)
     {
-        return [=](const compiler_replace& cr, module& m, instruction_ref ins) {
+        return [f = std::move(f)](const compiler_replace& cr, module& m, instruction_ref ins) {
             f(m, ins, cr.code_objects);
         };
     }

@@ -83,7 +83,7 @@ template <class F>
 static migraphx::instruction_ref add_mlir(migraphx::program& p,
                                           const std::string& name,
                                           std::vector<migraphx::instruction_ref> inputs,
-                                          F f)
+                                          const F& f)
 {
     std::vector<std::string> arg_names;
     migraphx::transform(migraphx::range(inputs.size()), std::back_inserter(arg_names), [&](auto i) {

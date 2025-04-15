@@ -68,7 +68,7 @@ const std::string& command_name()
 }
 
 template <class T>
-void run_command(const std::string& exe_name, std::vector<std::string> args, bool add_help = false)
+void run_command(const std::string& exe_name, const std::vector<std::string>& args, bool add_help = false)
 {
     T x;
     argument_parser ap;
@@ -76,7 +76,7 @@ void run_command(const std::string& exe_name, std::vector<std::string> args, boo
     if(add_help)
         ap(nullptr, {"-h", "--help"}, ap.help("Show help"), ap.show_help());
     x.parse(ap);
-    if(ap.parse(std::move(args)))
+    if(ap.parse(args))
         return;
     x.run();
 }

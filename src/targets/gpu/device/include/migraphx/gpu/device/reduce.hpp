@@ -27,7 +27,7 @@
 
 #if defined(__GFX10__) || defined(__GFX11__) || defined(__GFX12__)
 // NOLINENEXTLINE
-#define MIGRAPHX_WAVEFRONT_SIZE 32 
+#define MIGRAPHX_WAVEFRONT_SIZE 32
 #else
 // NOLINENEXTLINE
 #define MIGRAPHX_WAVEFRONT_SIZE 64

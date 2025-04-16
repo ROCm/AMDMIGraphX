@@ -240,6 +240,19 @@ TEST_CASE(dynamic_dimension_add_sub_fixed)
     EXPECT((2 + e) == d);
 }
 
+TEST_CASE(dynamic_dimension_mul_fixed)
+{
+    using migraphx::shape;
+    auto a = shape::dynamic_dimension{2, 5, {2}};
+
+    a *= 3;
+    EXPECT(a == shape::dynamic_dimension{6, 15, {6}});
+
+    auto b = shape::dynamic_dimension{3, 6, {3}};
+    EXPECT((b * 1) == b);
+    EXPECT((b * 0) == shape::dynamic_dimension{0, 0, {0}});
+}
+
 TEST_CASE(dynamic_dimension_intersection)
 {
     using migraphx::shape;

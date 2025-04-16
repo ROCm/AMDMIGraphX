@@ -99,6 +99,7 @@ add_library(migraphx
     register_target.cpp
     replace_allocate.cpp
     rewrite_reduce.cpp
+    rewrite_dot.cpp
     simplify_qdq.cpp
     split_reduce.cpp
     sqlite.cpp
@@ -130,6 +131,13 @@ if(WIN32)
 endif()
 
 configure_file(version.h.in include/migraphx/version.h)
+add_library(migraphx_version INTERFACE)
+rocm_install_targets(
+  TARGETS migraphx_version
+  INCLUDE
+    ${CMAKE_CURRENT_BINARY_DIR}/include
+)
+
 rocm_set_soversion(migraphx ${MIGRAPHX_SO_VERSION})
 function(register_migraphx_ops)
     foreach(OP ${ARGN})
@@ -289,8 +297,8 @@ rocm_install_targets(
   TARGETS migraphx
   INCLUDE
     ${CMAKE_CURRENT_SOURCE_DIR}/include
-    ${CMAKE_CURRENT_BINARY_DIR}/include
 )
+target_link_libraries(migraphx PUBLIC migraphx_version)
 
 if(NOT WIN32)
     check_cxx_linker_flag(-lstdc++fs HAS_LIB_STD_FILESYSTEM)

@@ -618,15 +618,13 @@ def disabled_tests_onnx_1_16_0(backend_test):
 
 
 def disabled_tests_onnx_1_17_0(backend_test):
-    # TODO: convtranspose failing with mismatched channel numbers
-    backend_test.exclude(r'test_convtranspose_group_2_cpu')
-    backend_test.exclude(r'test_convtranspose_group_2_image_3_cpu')
     # TODO: empty set ReduceOps tests are generating dynamic shapes
     backend_test.exclude(r'test_reduce_max_empty_set_cpu')
     backend_test.exclude(r'test_reduce_sum_empty_axes_input_noop_cpu')
-    # TODO: not supported
+    # tf_crop_and_resize not supported
     backend_test.exclude(
         r'test_resize_tf_crop_and_resize_extrapolation_value_cpu')
+    # keep_aspect_ratio_policy not supported
     backend_test.exclude(r'test_resize_upsample_sizes_nearest_not_smaller_cpu')
 
 

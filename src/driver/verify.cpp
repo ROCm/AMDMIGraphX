@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2024 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2025 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -24,16 +24,18 @@
 #include "verify.hpp"
 #include "perf.hpp"
 
-#include <migraphx/register_target.hpp>
-#include <migraphx/generate.hpp>
-#include <migraphx/verify_args.hpp>
-#include <migraphx/instruction.hpp>
 #include <migraphx/compile_options.hpp>
+#include <migraphx/fp_to_double.hpp>
+#include <migraphx/generate.hpp>
+#include <migraphx/instruction.hpp>
+#include <migraphx/iterator_for.hpp>
+#include <migraphx/load_save.hpp>
 #include <migraphx/quantization.hpp>
 #include <migraphx/ranges.hpp>
-#include <migraphx/fp_to_double.hpp>
-#include <migraphx/iterator_for.hpp>
+#include <migraphx/register_target.hpp>
 #include <migraphx/stringutils.hpp>
+#include <migraphx/verify_args.hpp>
+#include <utility>
 
 namespace migraphx {
 namespace driver {
@@ -45,7 +47,7 @@ inline namespace MIGRAPHX_INLINE_NS {
  * model.
  */
 verify::tolerance get_tolerances(const program& p,
-                                 verify_options vo,
+                                 const verify_options& vo,
                                  std::optional<double> rms_tol,
                                  std::optional<double> atol,
                                  std::optional<double> rtol)
@@ -99,15 +101,22 @@ std::vector<argument> run_target(program p,
                                  const verify_options& vo,
                                  const parameter_map& inputs)
 {
-    if(vo.quantize == precision::fp16)
+    if(vo.compiled_model.empty())
     {
-        quantize_fp16(p);
+        if(vo.quantize == precision::fp16)
+        {
+            quantize_fp16(p);
+        }
+        if(vo.quantize == precision::bf16)
+        {
+            quantize_bf16(p);
+        }
+        p.compile(t, options);
     }
-    if(vo.quantize == precision::bf16)
+    else
     {
-        quantize_bf16(p);
+        p = load(vo.compiled_model);
     }
-    p.compile(t, options);
 
     parameter_map m;
     for(auto&& x : p.get_parameter_shapes())
@@ -128,7 +137,7 @@ bool verify_program(const std::string& name,
                     const program& p,
                     const target& t,
                     compile_options options,
-                    verify_options vo,
+                    const verify_options& vo,
                     const parameter_map& inputs,
                     verify::tolerance tols)
 {
@@ -159,7 +168,7 @@ bool verify_program(const std::string& name,
 void verify_instructions(const program& prog,
                          const target& t,
                          compile_options options,
-                         verify_options vo,
+                         const verify_options& vo,
                          verify::tolerance tols)
 {
     const auto* mm_prog = prog.get_main_module();
@@ -205,7 +214,7 @@ bool verify_reduced(program p,
                     int n,
                     const target& t,
                     compile_options options,
-                    verify_options vo,
+                    const verify_options& vo,
                     const parameter_map& inputs,
                     verify::tolerance tols)
 {
@@ -229,7 +238,7 @@ bool verify_reduced(program p,
 void verify_reduced_program(const program& p,
                             const target& t,
                             compile_options options,
-                            verify_options vo,
+                            const verify_options& vo,
                             const parameter_map& inputs,
                             verify::tolerance tols)
 {
@@ -302,7 +311,7 @@ static std::vector<std::size_t> find_trim_instructions(const module& m)
 void verify_bisected_program(const program& p,
                              const target& t,
                              compile_options options,
-                             verify_options vo,
+                             const verify_options& vo,
                              const parameter_map& inputs,
                              verify::tolerance tols)
 {

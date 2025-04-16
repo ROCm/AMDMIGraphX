@@ -698,6 +698,19 @@ shape::dynamic_dimension& shape::dynamic_dimension::operator-=(const std::size_t
     return *this;
 }
 
+shape::dynamic_dimension& shape::dynamic_dimension::operator*=(const std::size_t& x)
+{
+    this->min *= x;
+    this->max *= x;
+    std::set<std::size_t> new_optimals;
+    std::transform(this->optimals.begin(),
+                   this->optimals.end(),
+                   std::inserter(new_optimals, new_optimals.begin()),
+                   [&x](const auto& opt) { return (opt * x); });
+    this->optimals = new_optimals;
+    return *this;
+}
+
 bool operator==(const shape::dynamic_dimension& x, const shape::dynamic_dimension& y)
 {
     // don't check optimals if both are fixed
@@ -738,6 +751,17 @@ shape::dynamic_dimension operator-(const shape::dynamic_dimension& x, const std:
 {
     auto dd = x;
     return dd -= y;
+}
+
+shape::dynamic_dimension operator*(const shape::dynamic_dimension& x, const std::size_t& y)
+{
+    auto dd = x;
+    return dd *= y;
+}
+
+shape::dynamic_dimension operator*(const std::size_t& x, const shape::dynamic_dimension& y)
+{
+    return y * x;
 }
 
 bool operator==(const shape& x, const shape& y)

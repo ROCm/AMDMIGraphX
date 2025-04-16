@@ -236,9 +236,12 @@ struct compile_plan
                        });
         std::this_thread::sleep_for(std::chrono::milliseconds{50});
         auto i = std::distance(times.begin(), std::min_element(times.begin(), times.end()));
-        if(trace_level > 0)
-            std::cout << "Fastest solution: " << config->solutions.at(i) << std::endl;
         ctx->get_problem_cache().insert(preop.name(), config->problem, config->solutions.at(i));
+        if(trace_level > 0)
+        {
+            std::cout << "Fastest solution: " << config->solutions.at(i) << std::endl;
+            ctx->get_problem_cache().save();
+        }
         if(not results[i].has_value())
             MIGRAPHX_THROW("No valid tuned compilation for " + preop.name() + " with " +
                            problem_string());

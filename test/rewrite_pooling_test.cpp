@@ -34,7 +34,6 @@
 
 #include <migraphx/verify.hpp>
 
-static bool is_pooling(migraphx::instruction& ins) { return ins.name() == "pooling"; }
 static void opt_pooling(migraphx::module& m)
 {
     migraphx::rewrite_pooling rp;

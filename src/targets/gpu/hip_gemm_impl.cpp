@@ -624,6 +624,17 @@ struct hip_gemm_impl
         }
         for(auto sol : solution_indices)
         {
+            // The time_loop function measures execution times for a given solution index:
+            // - Performs one initial warmup run before timing
+            // - Second parameter (bundle=1) sets how many executions to include in a single timing
+            // measurement event.
+            //   * Each timing measurement runs the solution index 'bundle' times consecutively
+            //   * Can override default via environment variable MIGRAPHX_BENCHMARKING_BUNDLE
+            // - Third parameter (nruns=40, aka hot_calls) defines how many separate timing
+            // measurements to collect
+            //   * Creates statistical confidence through multiple samples
+            //   * Can override default via environment variable MIGRAPHX_BENCHMARKING_NRUNS
+            // - Returns common average (eliminates top and bottom 25% times) of execution time.
             auto run_sol_idx_fn = [&] { run(ctx, input_args, sol); };
             double host_time    = time_loop(ctx, 1, hot_calls, run_sol_idx_fn);
 

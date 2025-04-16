@@ -27,6 +27,12 @@
 #include <migraphx/file_buffer.hpp>
 #include <pybind11/embed.h>
 
+#ifdef _WIN32
+#define MIGRAPHX_PY_VERSION_EXPORT __declspec(dllexport)
+#else
+#define MIGRAPHX_PY_VERSION_EXPORT
+#endif
+
 namespace py = pybind11;
 
 namespace migraphx {
@@ -37,7 +43,7 @@ inline namespace MIGRAPHX_INLINE_NS {
 #pragma clang diagnostic ignored "-Wreturn-type-c-linkage"
 #endif
 // extern "C" is used to disable name mangling, but the function will still be called from C++
-extern "C" program migraphx_load_py(const std::string& filename);
+MIGRAPHX_PY_VERSION_EXPORT extern "C" program migraphx_load_py(const std::string& filename);
 #ifdef __clang__
 #pragma clang diagnostic pop
 #endif

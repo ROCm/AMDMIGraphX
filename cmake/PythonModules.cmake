@@ -25,6 +25,10 @@ if(COMMAND find_python)
     return()
 endif()
 
+if(CMAKE_HOSTS_SYSTEM_NAME STREQUAL "Windows")
+    cmake_minimum_required(VERSION 3.20 FATAL_ERROR)
+endif()
+
 macro(py_exec)
     execute_process(${ARGN} RESULT_VARIABLE RESULT)
     if(NOT RESULT EQUAL 0)
@@ -75,33 +79,70 @@ function(py_add_module NAME)
     cmake_parse_arguments(PARSE "${options}" "${oneValueArgs}" "${multiValueArgs}" ${ARGN})
     set(PYTHON_VERSION ${PARSE_PYTHON_VERSION})
 
-    add_library(${NAME} MODULE ${PARSE_UNPARSED_ARGUMENTS})
-    pybind11_strip(${NAME})
-    py_extension(${NAME} ${PYTHON_VERSION})
-    target_link_libraries(${NAME} PRIVATE pybind11::module pybind11::lto python${PYTHON_VERSION}::headers)
-    set_target_properties(${NAME} PROPERTIES 
-        OUTPUT_NAME ${PARSE_PYTHON_MODULE}
-        C_VISIBILITY_PRESET hidden
-        CXX_VISIBILITY_PRESET hidden
-    )
-
-endfunction()
-set(PYTHON_SEARCH_VERSIONS 3.5 3.6 3.7 3.8 3.9 3.10 3.11 3.12)
-set(PYTHON_DISABLE_VERSIONS "" CACHE STRING "")
-foreach(PYTHON_DISABLE_VERSION ${PYTHON_DISABLE_VERSIONS})
-    list(REMOVE_ITEM PYTHON_SEARCH_VERSIONS ${PYTHON_DISABLE_VERSION})
-endforeach()
-
-set(_PYTHON_VERSIONS)
-foreach(PYTHON_VERSION ${PYTHON_SEARCH_VERSIONS})
-    find_python(${PYTHON_VERSION})
-    if(TARGET python${PYTHON_VERSION}::headers)
-        message(STATUS "Python ${PYTHON_VERSION} found.")
-        list(APPEND _PYTHON_VERSIONS ${PYTHON_VERSION})
+    if(CMAKE_HOST_SYSTEM_NAME STREQUAL "Windows")
+        add_library(${NAME} SHARED ${PARSE_UNPARSED_ARGUMENTS})
     else()
-        message(STATUS "Python ${PYTHON_VERSION} not found.")
+        add_library(${NAME} MODULE ${PARSE_UNPARSED_ARGUMENTS})
     endif()
-endforeach()
+    pybind11_strip(${NAME})
+    if(NOT CMAKE_HOST_SYSTEM_NAME STREQUAL "Windows")
+        py_extension(${NAME} ${PYTHON_VERSION})
+    endif()
+    target_link_libraries(${NAME} PRIVATE pybind11::module pybind11::lto python${PYTHON_VERSION}::runtime)
+    if(CMAKE_HOST_SYSTEM_NAME STREQUAL "Windows")
+        execute_process(COMMAND "${PYTHON_${PYTHON_VERSION}_EXECUTABLE}" -c "import sysconfig; print(sysconfig.get_config_var(\"EXT_SUFFIX\"))"
+                OUTPUT_VARIABLE _python_module_extension)
+        cmake_path(GET _python_module_extension STEM LAST_ONLY _module_name)
+        set_target_properties(${NAME} PROPERTIES OUTPUT_NAME ${PARSE_PYTHON_MODULE}${_module_name} SUFFIX ".pyd")
+    else()
+        set_target_properties(${NAME} PROPERTIES
+                OUTPUT_NAME ${PARSE_PYTHON_MODULE}
+                C_VISIBILITY_PRESET hidden
+                CXX_VISIBILITY_PRESET hidden
+	)
+    endif()
+endfunction()
+
+if(CMAKE_HOST_SYSTEM_NAME STREQUAL "Windows")
+    find_program(PY_EXECUTABLE py.exe PATHS ENV windir REQUIRED)
+    py_exec(COMMAND "${PY_EXECUTABLE}" -0p OUTPUT_VARIABLE _found_pythons)
+    foreach(_found_python ${_found_pythons})
+        string(STRIP ${_found_python} _found_python)
+        string(REGEX REPLACE "[ \\t]*-V:([0-9]*\\.?[0-9]*)[ \\t]*\\*?[ \\t]*" "\\1;" _tuple ${_found_python})
+        list(GET _tuple 0 _version)
+        # Ignore if entry is an virtual environment
+        if(NOT _version STREQUAL "")
+            list(APPEND _PYTHON_VERSIONS ${_version})
+            message(STATUS "Python ${_version} found.")
+            list(GET _tuple 1 _python_executable)
+            cmake_path(GET _python_executable PARENT_PATH _python_path)
+            set(PYTHON_${_version}_EXECUTABLE ${_python_executable} CACHE INTERNAL "" FORCE)
+            string(REPLACE "." "" _python_version_stripped ${_version})
+            add_library(python${_version}::runtime INTERFACE IMPORTED GLOBAL)
+            set_target_properties(python${_version}::runtime PROPERTIES
+                INTERFACE_INCLUDE_DIRECTORIES "${_python_path}/include"
+                INTERFACE_LINK_LIBRARIES python${_python_version_stripped}.lib
+                INTERFACE_LINK_DIRECTORIES "${_python_path}/libs")
+       endif()
+    endforeach()
+else()
+    set(PYTHON_SEARCH_VERSIONS 3.5 3.6 3.7 3.8 3.9 3.10 3.11 3.12)
+    set(PYTHON_DISABLE_VERSIONS "" CACHE STRING "")
+    foreach(PYTHON_DISABLE_VERSION ${PYTHON_DISABLE_VERSIONS})
+        list(REMOVE_ITEM PYTHON_SEARCH_VERSIONS ${PYTHON_DISABLE_VERSION})
+    endforeach()
+
+    set(_PYTHON_VERSIONS)
+    foreach(PYTHON_VERSION ${PYTHON_SEARCH_VERSIONS})
+      find_python(${PYTHON_VERSION})
+        if(TARGET python${PYTHON_VERSION}::headers)
+            message(STATUS "Python ${PYTHON_VERSION} found.")
+            list(APPEND _PYTHON_VERSIONS ${PYTHON_VERSION})
+        else()
+            message(STATUS "Python ${PYTHON_VERSION} not found.")
+        endif()
+    endforeach()
+endif()
 
 # Make the variable global
 set(PYTHON_VERSIONS "${_PYTHON_VERSIONS}" CACHE INTERNAL "" FORCE)

@@ -316,7 +316,7 @@ TEST_CASE(ordered_inputs_to_select_module)
     {
         if(ins->name() == "@param")
         {
-            auto&& param = any_cast<migraphx::builtin::param>(ins->get_operator());
+            auto&& param = migraphx::any_cast<migraphx::builtin::param>(ins->get_operator());
             sm_param_names.push_back(param.parameter);
         }
     }

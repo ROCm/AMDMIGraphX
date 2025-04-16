@@ -79,7 +79,7 @@ struct sparse_attn_parameters
 // 1.  output             (batch_size, sequence_length, num_heads * head_size)
 // 2.  present_key        (batch_size, kv_num_heads, max_cache_sequence_length, head_size)
 // 3.  present_value      (batch_size, kv_num_heads, max_cache_sequence_length, head_size)
-struct sparse_attention : op_name<sparse_attention>
+struct sparse_attention
 {
     bool do_rotary          = false;
     bool rotary_interleaved = false;
@@ -98,6 +98,8 @@ struct sparse_attention : op_name<sparse_attention>
                     f(self.scale, "scale"),
                     f(self.sparse_block_size, "sparse_block_size"));
     }
+
+    std::string name() const { return "sparse_attention"; }
 
     shape compute_shape(std::vector<shape> inputs) const
     {

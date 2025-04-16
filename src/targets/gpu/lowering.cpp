@@ -551,6 +551,7 @@ struct miopen_apply
         apply_map.emplace("gpu::compute_attention_probabilities", [=](instruction_ref ins) {
             auto s          = ins->get_shape();
             auto output     = insert_allocation(ins, s);
+            output = mod->insert_instruction(ins, make_op("hip::fill"), output);
             auto new_inputs = ins->inputs();
             new_inputs.push_back(output);
             return mod->replace_instruction(

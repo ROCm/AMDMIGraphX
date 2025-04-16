@@ -214,7 +214,7 @@ static bool verify_reduced(program p,
                            int n,
                            const target& t,
                            compile_options options,
-                           verify_options vo,
+                           const verify_options& vo,
                            const parameter_map& inputs,
                            verify::tolerance tols)
 {

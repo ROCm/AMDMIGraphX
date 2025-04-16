@@ -31,7 +31,7 @@
 #else
 // NOLINTNEXTLINE
 #define MIGRAPHX_WAVEFRONT_SIZE 64
-#endif 
+#endif
 
 #include <migraphx/gpu/device/launch.hpp>
 #include <migraphx/gpu/device/visit.hpp>
@@ -44,7 +44,6 @@ namespace gpu {
 namespace device {
 
 #ifdef MIGRAPHX_NO_DPP
-
 
 template <index_int N,
           class Op,

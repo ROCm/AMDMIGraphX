@@ -33,10 +33,6 @@
 #include <migraphx/builtin.hpp>
 #include <test.hpp>
 
-// Forward declare any_cast
-template <class T>
-const static T& any_cast(const T&);
-
 static void run_pass(migraphx::program& p)
 {
     migraphx::run_passes(p, {migraphx::split_single_dyn_dim{}, migraphx::dead_code_elimination{}});

@@ -314,7 +314,8 @@ auto compute_op(rank<3>,
                 const shape& output,
                 const std::vector<argument>& inputs,
                 const std::vector<module_ref>& module_args,
-                F f) -> decltype(x.compute(make_compute_output_shape(pack(x, output, inputs)),
+                F f) // NOLINT
+    -> decltype(x.compute(make_compute_output_shape(pack(x, output, inputs)),
                                            inputs,
                                            module_args,
                                            std::move(f)))

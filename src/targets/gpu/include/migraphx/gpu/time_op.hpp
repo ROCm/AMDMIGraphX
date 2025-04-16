@@ -46,6 +46,8 @@ time_program(const context& ictx, program p, int bundle = 1, int nruns = 100);
 MIGRAPHX_GPU_EXPORT double
 time_op(const context& ictx, operation op, int bundle = 1, int nruns = 100);
 
+MIGRAPHX_GPU_EXPORT double time_loop(migraphx::gpu::context& gctx, int bundle, int nruns, std::function<void()> f);
+
 } // namespace gpu
 } // namespace MIGRAPHX_INLINE_NS
 } // namespace migraphx

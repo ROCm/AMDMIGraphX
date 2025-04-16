@@ -30,7 +30,7 @@
 #include <migraphx/gpu/hip_gemm_impl.hpp>
 #include <migraphx/reduce_dims.hpp>
 #include <migraphx/generate.hpp>
-#include <migraphx/time.hpp>
+#include <migraphx/gpu/time_op.hpp>
 #include <migraphx/permutation.hpp>
 
 namespace migraphx {
@@ -624,16 +624,8 @@ struct hip_gemm_impl
         }
         for(auto sol : solution_indices)
         {
-            // Warmup: the first call to an op. may not be representative since there is
-            // more time taken initializing caches, etc. so we won't time it.
-            run(ctx, input_args, sol);
-            double host_time = time<milliseconds>([&] {
-                for([[maybe_unused]] int hc : range(hot_calls))
-                    run(ctx, input_args, sol);
-                ctx.finish();
-            });
-
-            host_time /= hot_calls;
+            auto run_sol_idx_fn = [&] { run(ctx, input_args, sol); };
+            double host_time    = time_loop(ctx, 1, hot_calls, run_sol_idx_fn);
 
             // dev/evaluation only: track time for first solution.
             if(first_time < 0)

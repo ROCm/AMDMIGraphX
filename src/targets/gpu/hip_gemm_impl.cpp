@@ -566,10 +566,8 @@ struct hip_gemm_impl
      * Find best hipBLASLt solution:  Get list of solutions and try them all, returning the index
      * of the fastest one.
      */
-    int tune(context& ctx, const std::vector<shape>& input_shapes) // const
+    int tune(context& ctx, const std::vector<shape>& input_shapes)
     {
-        // tuning meta parameters
-        const int hot_calls = 40;
 
         std::vector<argument> input_args;
         std::transform(input_shapes.begin(),
@@ -622,10 +620,23 @@ struct hip_gemm_impl
             auto algo = solution.get_result(ctx, *this, 0)[0].algo;
             solution_indices.push_back(hipblaslt_ext::getIndexFromAlgo(algo));
         }
+
+        // Number of runs for separate time measurements.
+        const int hot_calls = 40;
+
+        // Specifies number of consecutive executions within a single time measurement event.
+        // Using a higher number improves accuracy by extending the measurement duration, which
+        // reduces the relative impact of timing overhead and system-level variations, especially
+        // important for short-running operations.
+        const int number_of_bundles = 4;
+
         for(auto sol : solution_indices)
         {
             auto run_sol_idx_fn = [&] { run(ctx, input_args, sol); };
-            double host_time    = time_loop(ctx, 4, hot_calls, run_sol_idx_fn);
+            // Measure the time taken for the current solution index by running it
+            // hot_calls x number_of_bundles times.
+            // time_loop takes care of doing 1 warmup run.
+            double host_time = time_loop(ctx, number_of_bundles, hot_calls, run_sol_idx_fn);
 
             // dev/evaluation only: track time for first solution.
             if(first_time < 0)

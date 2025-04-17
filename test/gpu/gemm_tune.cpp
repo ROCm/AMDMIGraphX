@@ -38,6 +38,8 @@
 #include <migraphx/instruction.hpp>
 #include <migraphx/pass_manager.hpp>
 
+
+#if MIGRAPHX_USE_ROCBLAS or MIGRAPHX_USE_HIPBLASLT
 // Abbreviated lowering; we don't need the usual cleanup passes for this test
 static void run_lowering(migraphx::program& p, bool offload_copy = false)
 {
@@ -46,8 +48,6 @@ static void run_lowering(migraphx::program& p, bool offload_copy = false)
         *p.get_main_module(),
         {migraphx::auto_contiguous{}, migraphx::gpu::lowering{&ctx, offload_copy}});
 }
-
-#if MIGRAPHX_USE_ROCBLAS or MIGRAPHX_USE_HIPBLASLT
 /**
  * Tests the automatic GEMM tuning feature for rocBLAS and hipBLASLt.
  * In the finalize() method of the gemm op,

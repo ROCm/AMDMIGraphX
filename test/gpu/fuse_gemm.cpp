@@ -43,6 +43,8 @@
 
 MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_SET_GEMM_PROVIDER)
 
+
+#if MIGRAPHX_USE_HIPBLASLT
 static void run_lowering(migraphx::program& p, bool offload_copy = false)
 {
     auto ctx = migraphx::gpu::context{};
@@ -56,7 +58,6 @@ static void run_fuse_ops(migraphx::program& p)
     migraphx::run_passes(p, {migraphx::gpu::fuse_ops{}, migraphx::dead_code_elimination{}});
 }
 
-#if MIGRAPHX_USE_HIPBLASLT
 TEST_CASE(gemm_pointwise_add)
 {
     migraphx::shape s{migraphx::shape::float_type, {1, 3, 3}};

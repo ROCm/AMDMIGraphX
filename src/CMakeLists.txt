@@ -1,7 +1,7 @@
 #####################################################################################
 # The MIT License (MIT)
 #
-# Copyright (c) 2015-2024 Advanced Micro Devices, Inc. All rights reserved.
+# Copyright (c) 2015-2025 Advanced Micro Devices, Inc. All rights reserved.
 #
 # Permission is hereby granted, free of charge, to any person obtaining a copy
 # of this software and associated documentation files (the "Software"), to deal
@@ -99,6 +99,7 @@ add_library(migraphx
     register_target.cpp
     replace_allocate.cpp
     rewrite_reduce.cpp
+    rewrite_dot.cpp
     simplify_qdq.cpp
     split_reduce.cpp
     sqlite.cpp
@@ -129,6 +130,13 @@ if(WIN32)
 endif()
 
 configure_file(version.h.in include/migraphx/version.h)
+add_library(migraphx_version INTERFACE)
+rocm_install_targets(
+  TARGETS migraphx_version
+  INCLUDE
+    ${CMAKE_CURRENT_BINARY_DIR}/include
+)
+
 rocm_set_soversion(migraphx ${MIGRAPHX_SO_VERSION})
 function(register_migraphx_ops)
     foreach(OP ${ARGN})
@@ -288,8 +296,8 @@ rocm_install_targets(
   TARGETS migraphx
   INCLUDE
     ${CMAKE_CURRENT_SOURCE_DIR}/include
-    ${CMAKE_CURRENT_BINARY_DIR}/include
 )
+target_link_libraries(migraphx PUBLIC migraphx_version)
 
 if(NOT WIN32)
     check_cxx_linker_flag(-lstdc++fs HAS_LIB_STD_FILESYSTEM)

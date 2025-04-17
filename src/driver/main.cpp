@@ -638,6 +638,7 @@ struct verify : command<verify>
            {"--ref-use-double"},
            ap.help("Convert floating point values to double on ref"),
            ap.set_value(true));
+        ap(vo.compiled_model, {"--compiled-model", "-c"}, ap.help("Compiled model to use"));
     }
 
     void run()
@@ -951,7 +952,7 @@ int main(int argc, const char* argv[], const char* envp[])
                 std::string key = env_var.substr(0, pos);
                 if(key.find("MIGRAPHX") != std::string::npos)
                 {
-                    mgx_env_var += env_var + "\n";
+                    mgx_env_var += env_var + " \\ \n";
                 }
             }
         }

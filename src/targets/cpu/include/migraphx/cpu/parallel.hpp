@@ -86,7 +86,9 @@ void parallel_for_impl(std::size_t n, std::size_t threadsize, F f)
 inline std::size_t max_threads() { return omp_get_max_threads(); }
 
 template <class F>
-void parallel_for_impl(std::size_t n, std::size_t threadsize, F f) // NOLINT(performance-unnecessary-value-param)
+void parallel_for_impl(std::size_t n,
+                       std::size_t threadsize,
+                       F f) // NOLINT(performance-unnecessary-value-param)
 {
     if(threadsize <= 1)
     {

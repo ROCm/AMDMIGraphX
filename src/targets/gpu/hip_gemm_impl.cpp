@@ -624,10 +624,6 @@ struct hip_gemm_impl
         // Number of runs for separate time measurements.
         const int hot_calls = 40;
 
-        // Specifies number of consecutive executions within a single time measurement event.
-        // Using a higher number improves accuracy by extending the measurement duration, which
-        // reduces the relative impact of timing overhead and system-level variations, especially
-        // important for short-running operations.
         const int number_of_bundles = 4;
 
         for(auto sol : solution_indices)

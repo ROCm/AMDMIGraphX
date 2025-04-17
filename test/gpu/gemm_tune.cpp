@@ -38,7 +38,6 @@
 #include <migraphx/instruction.hpp>
 #include <migraphx/pass_manager.hpp>
 
-
 #if MIGRAPHX_USE_ROCBLAS or MIGRAPHX_USE_HIPBLASLT
 // Abbreviated lowering; we don't need the usual cleanup passes for this test
 static void run_lowering(migraphx::program& p, bool offload_copy = false)

@@ -34,7 +34,6 @@
 
 MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_SET_GEMM_PROVIDER)
 
-
 #if MIGRAPHX_USE_HIPBLASLT
 static void run_lowering(migraphx::module& m, bool offload_copy = false)
 {

@@ -166,12 +166,12 @@ struct fusion
 };
 #endif
 
-const static std::unordered_set<std::string>& get_supported_archs()
+#if MIGRAPHX_USE_MIOPEN
+static const std::unordered_set<std::string>& get_supported_archs()
 {
     static std::unordered_set<std::string> supported_archs{"gfx900", "gfx906", "gfx908", "gfx1030"};
     return supported_archs;
 }
-#if MIGRAPHX_USE_MIOPEN
 MIGRAPHX_PRED_MATCHER(bias_shape, instruction_ref ins)
 {
     auto&& s = ins->get_shape();

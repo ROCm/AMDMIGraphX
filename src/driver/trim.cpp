@@ -65,7 +65,7 @@ static instruction_ref add_placeholder(module& m, instruction_ref ins)
 
 void trim_module(module& m, std::size_t loc, std::size_t n)
 {
-    auto last = std::prev(m.end(), loc);
+    auto last  = std::prev(m.end(), loc);
     auto start = std::prev(last, n);
     m.remove_instructions(last, m.end());
     if(n == 0)
@@ -73,14 +73,14 @@ void trim_module(module& m, std::size_t loc, std::size_t n)
     std::unordered_map<instruction_ref, instruction_ref> map_ins;
     std::unordered_set<instruction_ref> instruction_set;
     auto instructions = range(start, m.end());
-    for(instruction_ref ins:iterator_for(instructions))
+    for(instruction_ref ins : iterator_for(instructions))
     {
         instruction_set.insert(ins);
-        for(auto input:ins->inputs())
+        for(auto input : ins->inputs())
         {
             if(contains(instruction_set, input))
                 continue;
-            auto arg = capture_arg(instruction_set, input);
+            auto arg         = capture_arg(instruction_set, input);
             auto placeholder = add_placeholder(m, arg);
             assert(placeholder->get_shape() == arg->get_shape());
             if(placeholder == arg)
@@ -89,10 +89,10 @@ void trim_module(module& m, std::size_t loc, std::size_t n)
             map_ins[arg] = placeholder;
         }
     }
-    for(auto[old_ins, new_ins]:map_ins)
+    for(auto [old_ins, new_ins] : map_ins)
         m.replace_instruction(old_ins, new_ins);
     run_passes(m, {dead_code_elimination{}});
-    for(auto pins:m.get_parameters())
+    for(auto pins : m.get_parameters())
     {
         if(not pins->outputs().empty())
             continue;
@@ -103,4 +103,3 @@ void trim_module(module& m, std::size_t loc, std::size_t n)
 } // namespace MIGRAPHX_INLINE_NS
 } // namespace driver
 } // namespace migraphx
-

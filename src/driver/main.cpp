@@ -80,7 +80,7 @@ struct loader
     bool is_nhwc                = true;
     bool is_test                = false;
     unsigned trim               = 0;
-    unsigned trim_size               = 0;
+    unsigned trim_size          = 0;
     bool optimize               = false;
     bool mlir                   = false;
     bool skip_unknown_operators = false;

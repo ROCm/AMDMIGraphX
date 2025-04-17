@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2024 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2025 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -27,6 +27,7 @@
 #include <migraphx/fuse_pointwise.hpp>
 #include <migraphx/fuse_reduce.hpp>
 #include <migraphx/split_reduce.hpp>
+#include <migraphx/optimize_module.hpp>
 #include <migraphx/env.hpp>
 
 namespace migraphx {
@@ -44,6 +45,7 @@ static std::size_t get_split_size(std::size_t default_split)
 void fuse_pointwise_reduce::apply(module_pass_manager& mpm) const
 {
     mpm.run_pass(fuse_pointwise{.enable_rewrite_reshapes = false});
+    mpm.run_pass(optimize_module{});
     mpm.run_pass(fuse_reduce{.enable_rewrite_reshapes = false});
     mpm.run_pass(fuse_pointwise{.enable_rewrite_reshapes = true});
     mpm.run_pass(fuse_reduce{.enable_rewrite_reshapes = true});

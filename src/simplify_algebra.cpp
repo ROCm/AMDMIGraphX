@@ -38,6 +38,7 @@
 
 #include <migraphx/algorithm.hpp>
 #include <unordered_set>
+#include <queue>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
@@ -1123,9 +1124,9 @@ std::vector<instruction_ref> get_splits(instruction_ref ins)
  */
 struct hf_node
 {
-    std::vector<hf_node> inputs;
-    std::vector<hf_node> outputs;
     std::vector<instruction_ref> instructions;
+    std::vector<std::list<hf_node>::iterator> inputs;
+    std::vector<std::list<hf_node>::iterator> outputs;
 };
 
 struct find_splits
@@ -1138,108 +1139,118 @@ struct find_splits
             match::any_of[match::outputs()](match::name("slice")(pointwise_reduction)));
     }
 
-    static bool is_dependent(const module& m, instruction_ref ins1, instruction_ref ins2)
+    void update_split_tree(const std::vector<instruction_ref>& group,
+                           std::list<hf_node>::iterator input_iter,
+                           std::queue<instruction_ref>& fsiq,
+                           std::list<hf_node>& split_tree)
     {
-
-        std::unordered_set<instruction_ref> traversed;
-        return fix<bool>([&](auto self, auto ins) -> bool {
-            if(ins == ins2)
-                return true;
-
-            if(contains(traversed, ins))
-                return false;
-
-            traversed.insert(ins);
-            const auto& inputs = ins->inputs();
-            return std::any_of(inputs.begin(), inputs.end(), [&](auto in) {
-                return m.has_instruction(in) and self(in);
-            });
-        })(ins1);
-    }
-
-    /**
-     * Find groups of when the same operators are used after slice ops
-     */
-    static std::vector<std::vector<instruction_ref>>
-    get_split_groups(const module& m, const std::vector<instruction_ref>& splits)
-    {
-        std::vector<std::vector<instruction_ref>> groups;
-        for(auto out : splits.front()->outputs())
+        auto f_ins = group.front();
+        auto f_op  = f_ins->get_operator();
+        if(contains(f_op.name(), "reduce"))
         {
-            if(out->name() == "slice")
-                continue;
-            std::vector<instruction_ref> group;
-            for(auto split : splits)
-            {
-                auto it =
-                    std::find_if(split->outputs().begin(), split->outputs().end(), [&](auto i) {
-                        return i->get_operator() == out->get_operator();
-                    });
-                if(it == split->outputs().end())
-                    break;
-                assert((*it)->name() != "slice");
-
-                // If there is a duplicate bail
-                // there are should be no dependency between instructions in the group
-                if(std::any_of(group.begin(), group.end(), [&](auto i) {
-                       return is_dependent(m, *it, i) or is_dependent(m, i, *it);
-                   }))
-                {
-                    return {};
-                }
-
-                group.push_back(*it);
-            }
-            if(group.size() != splits.size())
-                continue;
-            groups.push_back(group);
-        }
-        return groups;
-    }
-
-    bool is_fusable(instruction_ref start, instruction_ref split_front) const
-    {
-        auto op = start->get_operator();
-        if(contains(op.name(), "reduce"))
-        {
-            auto slc         = any_cast<op::slice>(split_front->get_operator());
+            auto slc = any_cast<op::slice>(split_tree.front().instructions.front()->get_operator());
             auto slc_axes    = slc.axes;
-            auto reduce_axes = start->get_operator().to_value()["axes"].to_vector<int64_t>();
+            auto reduce_axes = split_tree.front()
+                                   .instructions.front()
+                                   ->get_operator()
+                                   .to_value()["axes"]
+                                   .to_vector<int64_t>();
             // axes of slice and reduce op cannot have overlap
             if(std::any_of(slc_axes.begin(), slc_axes.end(), [&](auto axis) {
                    return (std::find(reduce_axes.begin(), reduce_axes.end(), axis) !=
                            reduce_axes.end());
                }))
             {
-                return false;
+                return;
+            }
+            // Add reduce node to the split tree and update input node
+        }
+        else if(f_op.attributes().contains("pointwise"))
+        {
+            // only unary or binary pointwise ops fusable
+            if(f_ins->inputs().size() == 1)
+            {
+                // add unary pointwise node to tree and update input node
+                hf_node tmp{group, {input_iter}, {}};
+                split_tree.push_back(tmp);
+                input_iter->outputs.push_back(std::prev(split_tree.end()));
+            }
+            else if(f_ins->inputs().size() == 2)
+            {
+                int input_idx = 0;
+                if(contains(f_ins->inputs().at(1), input_iter->instructions))
+                {
+                    input_idx = 1;
+                }
+                // check consistency of input_idx for binary instruction between splits
+                int other_idx    = input_idx == 1 ? 0 : 1;
+                auto other_input = f_ins->inputs().at(other_idx);
+                if(other_input->can_eval())
+                {
+                    hf_node tmp{group, {input_iter}, {}};
+                    split_tree.push_back(tmp);
+                    input_iter->outputs.push_back(std::prev(split_tree.end()));
+                }
+                else if(contains(other_input, fs_instructions)) // other input in split_tree
+                {
+                }
+                else if(contains(other_input, fsiq))
+                {
+                    // add dependent instruction to the back of queue
+                    fsiq.push(other_input);
+                }
             }
         }
-        else if(not op.attributes().contains("pointwise"))
-        {
-            return false;
-        }
-
-        return true;
     }
 
-    int get_binary_op_split_idx(std::vector<instruction_ref> group,
-                                std::vector<instruction_ref> splits) const
+    /**
+     * Find fusable instructions after slice instructions sharing an input.
+     */
+    std::list<hf_node> get_split_tree(const module& m, const std::vector<instruction_ref>& splits)
     {
-        auto first_group_inputs = group.front()->inputs();
-        auto arg_it =
-            std::find_if(first_group_inputs.begin(), first_group_inputs.end(), [&](auto i) {
-                return std::find(splits.begin(), splits.end(), i) != splits.end();
-            });
-        auto split_idx = arg_it - first_group_inputs.begin();
+        std::list<hf_node> split_tree;
 
-        // All splits are at the same input index
-        if(std::all_of(group.begin() + 1, group.end(), [&](auto i) {
-               auto split_idx_input = i->inputs().at(split_idx);
-               return std::find(splits.begin(), splits.end(), split_idx_input) != splits.end();
-           }))
-            return split_idx;
+        // add slice instructions to the tree
+        hf_node splits_node{splits, {}, {}};
+        split_tree.push_back(splits_node);
 
-        return -1;
+        // BFS on first slice ins for fusable instructions
+        // only doing one graph level for now for simplicity
+        // TODO: expand to do BFS down graph
+        // first split instruction queue
+        std::queue<instruction_ref> fsiq;
+        for(const auto& ins : splits.front()->outputs())
+        {
+            fsiq.push(ins);
+        }
+        auto input_iter = split_tree.begin();
+        while(not fsiq.empty())
+        {
+            auto out = fsiq.front();
+            fsiq.pop();
+            if(out->name() == "slice")
+            {
+                continue;
+            }
+            std::vector<instruction_ref> group;
+            const auto& input_instructions = input_iter->instructions;
+            for(auto in_ins : input_instructions)
+            {
+                auto it =
+                    std::find_if(in_ins->outputs().begin(), in_ins->outputs().end(), [&](auto i) {
+                        return i->get_operator() == out->get_operator();
+                    });
+                if(it == in_ins->outputs().end())
+                    break;
+                assert((*it)->name() != "slice");
+                group.push_back(*it);
+            }
+            // Instruction should be repeated over all splits
+            if(group.size() == splits.size())
+            {
+                update_split_tree(group, input_iter, fsiq, split_tree);
+            }
+        }
     }
 
     void align_commutative_op_args(module& m,
@@ -1269,91 +1280,7 @@ struct find_splits
         auto splits = get_splits(ins);
         if(splits.empty())
             return;
-
-        for(const auto& group : get_split_groups(m, splits))
-        {
-            auto start       = group.front();
-            auto split_front = splits.front();
-            auto op          = start->get_operator();
-            if(not is_fusable(start, split_front))
-            {
-                continue;
-            }
-
-            // Make sure there is no duplicates
-            assert(std::none_of(
-                std::next(group.begin()), group.end(), [&](auto i) { return i == start; }));
-
-            auto split_idx    = 0;
-            instruction_ref c = m.end();
-            if(start->inputs().size() == 1)
-            {
-                c = m.insert_instruction(std::next(ins), op, ins);
-            }
-            else if(start->inputs().size() == 2)
-            {
-                assert(not std::none_of(start->inputs().begin(), start->inputs().end(), [](auto i) {
-                    return i->name() == "slice";
-                }) and "one argument must be a split");
-
-                split_idx = get_binary_op_split_idx(group, splits);
-                assert(split_idx < 2);
-                size_t data_idx;
-                if(split_idx < 0 and op.attributes().contains("commutative"))
-                {
-                    split_idx = 0;
-                    data_idx  = 1;
-                    align_commutative_op_args(m, group, splits, split_idx);
-                }
-                else if(split_idx < 0)
-                {
-                    return;
-                }
-                else
-                {
-                    data_idx = split_idx == 0 ? 1 : 0;
-                }
-
-                std::vector<instruction_ref> data_args;
-                std::transform(group.begin(),
-                               group.end(),
-                               std::back_inserter(data_args),
-                               [&](auto i) { return i->inputs()[data_idx]; });
-
-                // Data arguments must be a constant
-                if(std::any_of(data_args.begin(), data_args.end(), [](auto i) {
-                       return not i->can_eval();
-                   }))
-                    return;
-
-                move_instructions_back(m, ins, data_args);
-
-                auto slice_op = any_cast<op::slice>(splits.front()->get_operator());
-                assert(not slice_op.axes.empty());
-                if(slice_op.axes.size() > 1)
-                    return;
-                auto concat_axis = slice_op.axes.front();
-                // TODO: Check if axises match
-                auto concat = m.insert_instruction(
-                    ins, make_op("concat", {{"axis", concat_axis}}), data_args);
-
-                std::vector<instruction_ref> args;
-                args.resize(2);
-                args[split_idx] = ins;
-                args[data_idx]  = concat;
-                c               = m.insert_instruction(std::next(ins), op, args);
-            }
-            if(c != m.end())
-            {
-                for(auto i : group)
-                {
-                    auto split = i->inputs()[split_idx];
-                    assert(split->name() == "slice");
-
-                    m.replace_instruction(i, split->get_operator(), c);
-                }
-            }
-        }
+        auto split_tree = get_split_tree(m, splits);
     }
 };
 

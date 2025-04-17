@@ -28,6 +28,7 @@
 #include <migraphx/cpu/dnnl.hpp>
 #include <migraphx/cpu/parallel.hpp>
 #include <migraphx/par_for.hpp>
+#include <utility>
 #include <migraphx/cpu/export.h>
 
 namespace migraphx {
@@ -41,7 +42,7 @@ struct context
     template <class F>
     void bulk_execute(std::size_t n, std::size_t min_grain, F f)
     {
-        cpu::parallel_for(n, min_grain, f);
+        cpu::parallel_for(n, min_grain, std::move(f));
     }
 
     template <class F>

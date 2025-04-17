@@ -49,7 +49,7 @@ MIGRAPHX_PRED_MATCHER(without_post_ops, instruction_ref ins)
     return v.contains("post_ops") and v["post_ops"].empty();
 }
 
-bool workaround_dnnl_broken_post_ops(const operation& op, const operation& post_op)
+static bool workaround_dnnl_broken_post_ops(const operation& op, const operation& post_op)
 {
     if(contains({"dnnl::dot", "dnnl::convolution"}, op.name()))
         return true;
@@ -67,7 +67,7 @@ bool workaround_dnnl_broken_post_ops(const operation& op, const operation& post_
     return false;
 }
 
-operation merge_post_ops(const operation& op, const operation& post_op)
+static operation merge_post_ops(const operation& op, const operation& post_op)
 {
     auto pv = post_op.to_value();
     auto v  = op.to_value();

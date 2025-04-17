@@ -478,7 +478,7 @@ struct find_generic_match
 template <class M, class F>
 find_generic_match<M, F> make_match_finder(M m, F f)
 {
-    return {m, f};
+    return {m, std::move(f)};
 }
 
 template <class M>

@@ -66,13 +66,13 @@ inline namespace MIGRAPHX_INLINE_NS {
 namespace cpu {
 
 template <typename T>
-T zero(const T&)
+static T zero(const T&)
 {
     return T(0);
 }
 
 template <class T>
-typename std::conditional_t<std::is_integral<T>{}, std::make_signed<T>, std::enable_if<true, T>>::
+static typename std::conditional_t<std::is_integral<T>{}, std::make_signed<T>, std::enable_if<true, T>>::
     type
     make_signed(T x)
 {

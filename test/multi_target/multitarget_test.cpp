@@ -130,7 +130,7 @@ static bool is_compiled_ref_module(const migraphx::module& m)
 
 // NOLINT
 static bool check_compiled_program(const migraphx::program& p,
-                            const std::vector<migraphx::target>& targets)
+                                   const std::vector<migraphx::target>& targets)
 {
     auto mods           = p.get_modules();
     bool check_compiled = true;

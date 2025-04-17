@@ -68,7 +68,7 @@ struct fpga_placeholder_op
 };
 MIGRAPHX_REGISTER_OP(fpga_placeholder_op)
 
-bool is_fpga_instr(migraphx::instruction_ref it)
+static bool is_fpga_instr(migraphx::instruction_ref it)
 {
     // assuming all instructions that aren't @param, @literal, or input data are fpga instrs
     if(migraphx::starts_with(it->name(), "@"))

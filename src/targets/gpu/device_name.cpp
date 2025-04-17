@@ -86,7 +86,9 @@ bool gfx_default_rocblas()
 {
     const auto device_name = trim(split_string(get_device_name(), ':').front());
     // Default to rocBLAS for gfx90a.
-    return (not enabled(MIGRAPHX_SET_GEMM_PROVIDER{}) ? (device_name == "gfx90a") : false);
+    return ((string_value_of(MIGRAPHX_SET_GEMM_PROVIDER{}) == "hipblaslt")
+                ? false
+                : (device_name == "gfx90a"));
 }
 #endif
 

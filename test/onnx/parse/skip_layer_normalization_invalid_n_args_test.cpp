@@ -21,31 +21,11 @@
  * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
  * THE SOFTWARE.
  */
-#ifndef MIGRAPHX_GUARD_RTGLIB_DRIVER_VERIFY_OPTIONS_HPP
-#define MIGRAPHX_GUARD_RTGLIB_DRIVER_VERIFY_OPTIONS_HPP
 
-#include "precision.hpp"
-#include <string>
+#include <onnx_test.hpp>
 
-namespace migraphx {
-namespace driver {
-inline namespace MIGRAPHX_INLINE_NS {
-
-struct verify_options
+TEST_CASE(skip_layer_normalization_invalid_n_args_test)
 {
-    /// Quantization precision
-    precision quantize = precision::fp32;
-
-    /**
-     * Converts floating point values to double on the ref target.
-     */
-    bool ref_use_double = false;
-
-    std::string compiled_model = "";
-};
-
-} // namespace MIGRAPHX_INLINE_NS
-} // namespace driver
-} // namespace migraphx
-
-#endif
+    EXPECT(test::throws(
+        [&] { migraphx::parse_onnx("skip_layer_normalization_invalid_n_args_test.onnx"); }));
+}

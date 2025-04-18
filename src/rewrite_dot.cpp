@@ -111,10 +111,7 @@ struct find_1x1_convolution
 struct find_largek
 {
     std::size_t split_threshold = 4096;
-    auto matcher() const
-    {
-        return match::name("dot");
-    }
+    auto matcher() const { return match::name("dot"); }
 
     static std::size_t split_dim(std::size_t& r, std::size_t min_size)
     {
@@ -135,7 +132,7 @@ struct find_largek
 
     void apply(module& m, const match::matcher_result& r) const
     {
-        auto ins = r.result;
+        auto ins  = r.result;
         auto ains = ins->inputs().at(0);
         auto bins = ins->inputs().at(1);
 
@@ -148,20 +145,18 @@ struct find_largek
         auto alens = ains->get_shape().lens();
         alens.back() /= g;
         alens.insert(alens.end() - 1, g);
-        auto areshape = m.insert_instruction(
-            ins, make_op("reshape", {{"dims", alens}}), ains);
+        auto areshape = m.insert_instruction(ins, make_op("reshape", {{"dims", alens}}), ains);
 
         std::vector<int64_t> perm(ains->get_shape().ndim() + 1);
         std::iota(perm.begin(), perm.end(), 0);
         std::swap(perm[perm.size() - 2], perm[perm.size() - 4]);
-        auto atranspose = m.insert_instruction(
-            ins, make_op("transpose", {{"permutation", perm}}), areshape);
+        auto atranspose =
+            m.insert_instruction(ins, make_op("transpose", {{"permutation", perm}}), areshape);
 
         auto blens = bins->get_shape().lens();
         blens[blens.size() - 2] /= g;
         blens.insert(blens.end() - 2, g);
-        auto breshape = m.insert_instruction(
-            ins, make_op("reshape", {{"dims", blens}}), bins);
+        auto breshape = m.insert_instruction(ins, make_op("reshape", {{"dims", blens}}), bins);
 
         auto dot = m.insert_instruction(ins, make_op("dot"), atranspose, breshape);
 
@@ -177,10 +172,10 @@ struct find_largek
 
 } // namespace
 
-void rewrite_dot::apply(module& m) const 
-{ 
-    match::find_matches(m, find_1x1_convolution{}); 
-    match::find_matches(m, find_largek{}); 
+void rewrite_dot::apply(module& m) const
+{
+    match::find_matches(m, find_1x1_convolution{});
+    match::find_matches(m, find_largek{});
 }
 
 } // namespace MIGRAPHX_INLINE_NS

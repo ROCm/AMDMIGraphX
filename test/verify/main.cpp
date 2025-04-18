@@ -33,7 +33,7 @@
 #include <migraphx/cpu/target.hpp>
 #endif
 
-inline void check_gpu_streams(const migraphx::program& p)
+inline static void check_gpu_streams(const migraphx::program& p)
 {
 #ifdef HAVE_GPU
     const auto* mm = p.get_main_module();
@@ -51,7 +51,7 @@ inline void check_gpu_streams(const migraphx::program& p)
 #endif
 }
 
-void validate_gpu(const migraphx::program& p, const migraphx::parameter_map& m)
+static void validate_gpu(const migraphx::program& p, const migraphx::parameter_map& m)
 {
     check_gpu_streams(p);
 

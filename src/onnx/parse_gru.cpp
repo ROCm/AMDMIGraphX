@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2024 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2025 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -28,12 +28,13 @@
 #include <migraphx/ranges.hpp>
 #include <migraphx/stringutils.hpp>
 #include <migraphx/make_op.hpp>
+#include <utility>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
 namespace onnx {
 
-void gru_transpose_inputs(onnx_parser::node_info& info, std::vector<instruction_ref>& args)
+static void gru_transpose_inputs(onnx_parser::node_info& info, std::vector<instruction_ref>& args)
 {
     std::vector<int64_t> perm{1, 0, 2};
     args[0] = info.add_instruction(make_op("transpose", {{"permutation", perm}}), args[0]);
@@ -44,9 +45,9 @@ void gru_transpose_inputs(onnx_parser::node_info& info, std::vector<instruction_
     }
 }
 
-void gru_transpose_outputs(onnx_parser::node_info& info,
-                           instruction_ref& hidden_states,
-                           instruction_ref& last_output)
+static void gru_transpose_outputs(onnx_parser::node_info& info,
+                                  instruction_ref& hidden_states,
+                                  instruction_ref& last_output)
 {
     std::vector<int64_t> perm_hs{2, 0, 1, 3};
     hidden_states =
@@ -110,7 +111,7 @@ struct parse_gru : op_parser<parse_gru>
             vec_names.clear();
             vec_names.resize(names.size());
             std::transform(names.begin(), names.end(), vec_names.begin(), [](auto name) {
-                return to_lower(name);
+                return to_lower(std::move(name));
             });
         }
 

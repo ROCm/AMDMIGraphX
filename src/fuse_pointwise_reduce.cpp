@@ -34,7 +34,6 @@ inline namespace MIGRAPHX_INLINE_NS {
 MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_SPLIT_REDUCE_SIZE);
 MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_DISABLE_MULTI_OUTPUT_FUSION);
 
-
 static std::size_t get_split_size(std::size_t default_split)
 {
     std::string value = string_value_of(MIGRAPHX_SPLIT_REDUCE_SIZE{});

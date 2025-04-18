@@ -105,6 +105,12 @@ std::vector<pass> target::get_passes(migraphx::context& gctx, const compile_opti
     unsupported_types.erase(shape::type_t::tuple_type);
     unsupported_types.erase(shape::type_t::bf16_type);
 
+    std::set<std::string> unsupported_bf16_ops = {};
+    if(not gpu::gfx_has_bf16_intrinsics())
+    {
+        unsupported_bf16_ops.insert("dot");
+    }
+
     // whiltelist supported Ops for the FP8 types
     // different between fp8e4m3fnuz and OCP types because rocBLAS only has
     // support for fp8e4m3fnuz
@@ -203,6 +209,7 @@ std::vector<pass> target::get_passes(migraphx::context& gctx, const compile_opti
         dead_code_elimination{},
         prefuse_ops{},
         dead_code_elimination{},
+        eliminate_data_type{{migraphx::shape::bf16_type}, shape::float_type, unsupported_bf16_ops},
         eliminate_data_type{{migraphx::shape::fp8e4m3fnuz_type}, shape::float_type, unsupported_fp8e4m3fnuz_ops},
         eliminate_data_type{{migraphx::shape::fp8e5m2fnuz_type}, shape::float_type, unsupported_fp8e5m2fnuz_ops},
         eliminate_data_type{{migraphx::shape::fp8e4m3fn_type, migraphx::shape::fp8e5m2_type}, shape::float_type, unsupported_fp8ocp_ops},

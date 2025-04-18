@@ -70,7 +70,7 @@ bool gfx_has_fp8ocp_intrinsics()
 bool gfx_has_bf16_intrinsics()
 {
     const auto device_name = trim(split_string(get_device_name(), ':').front());
-    return not (starts_with(device_name, "gfx1030"));
+    return not(starts_with(device_name, "gfx1030"));
 }
 
 bool gfx_has_fp8fnuz_support()

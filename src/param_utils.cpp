@@ -53,8 +53,7 @@ void sort_params(std::vector<instruction_ref>& params)
 }
 
 template <class F>
-static
-std::vector<instruction_ref>
+static std::vector<instruction_ref>
 find_inputs_impl(const std::unordered_map<instruction_ref, instruction_ref>& map_ins,
                  const_module_ref sub,
                  F parent_has)

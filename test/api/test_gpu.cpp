@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2023 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2025 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -54,7 +54,7 @@ TEST_CASE(load_and_run)
 using hip_ptr    = MIGRAPHX_MANAGE_PTR(void, hipFree);
 using stream_ptr = MIGRAPHX_MANAGE_PTR(hipStream_t, hipStreamDestroy);
 
-stream_ptr get_stream()
+static stream_ptr get_stream()
 {
     hipStream_t stream;
     auto err = hipStreamCreateWithFlags(&stream, 0);
@@ -62,7 +62,7 @@ stream_ptr get_stream()
     return stream_ptr{stream};
 }
 
-hip_ptr get_hip_buffer(size_t size)
+static hip_ptr get_hip_buffer(size_t size)
 {
     void* ptr;
     auto err = hipMalloc(&ptr, size);

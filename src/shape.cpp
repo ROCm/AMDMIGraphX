@@ -616,7 +616,7 @@ shape shape::to_static(std::size_t x) const
                    static_lens.end(),
                    this->dyn_dims().cbegin(),
                    static_lens.begin(),
-                   [&](auto sl, auto dd) { return dd.is_fixed() ? sl : x; });
+                   [&](auto sl, const auto& dd) { return dd.is_fixed() ? sl : x; });
     return {type(), static_lens};
 }
 

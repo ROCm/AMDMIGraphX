@@ -32,7 +32,7 @@
 #include <test.hpp>
 #include <pointwise.hpp>
 
-void run_pass(migraphx::program& p)
+static void run_pass(migraphx::program& p)
 {
     migraphx::run_passes(p, {migraphx::fuse_concat{}, migraphx::dead_code_elimination{}});
 }
@@ -46,14 +46,14 @@ struct concat_arg
 };
 
 template <class F>
-concat_arg<F> arg(std::string name, std::vector<migraphx::instruction_ref> inputs, F f)
+static concat_arg<F> arg(std::string name, std::vector<migraphx::instruction_ref> inputs, F f)
 {
     return {std::move(name), std::move(inputs), std::move(f)};
 }
 
 template <class Arg, class... Args>
-migraphx::instruction_ref
-add_pointwise_concat(migraphx::program& p, std::size_t axis, Arg post_arg, Args... args)
+static migraphx::instruction_ref
+add_pointwise_concat(migraphx::program& p, std::size_t axis, Arg post_arg, const Args&... args)
 {
     std::vector<migraphx::module_ref> module_inputs;
     std::vector<migraphx::instruction_ref> ins_inputs;

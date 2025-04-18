@@ -33,7 +33,7 @@
 #include <test.hpp>
 #include <pointwise.hpp>
 
-void run_pass(migraphx::program& p, migraphx::fuse_pointwise pass = {})
+static void run_pass(migraphx::program& p, migraphx::fuse_pointwise pass = {})
 {
     migraphx::run_passes(p, {pass, migraphx::dead_code_elimination{}});
 }

@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2024 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2025 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -37,9 +37,8 @@ static migraphx::shape make_shape(const std::vector<size_t>& lens)
     return migraphx::shape{migraphx::shape::float_type, lens};
 }
 
-auto scan_test(const std::string& test_file,
-               migraphx::shape scan_ins1_sh,
-               migraphx::shape scan_ins2_sh)
+static auto
+scan_test(const std::string& test_file, migraphx::shape scan_ins1_sh, migraphx::shape scan_ins2_sh)
 {
     auto prog = read_onnx(test_file);
     prog.compile(migraphx::make_target("ref"));

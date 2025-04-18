@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2024 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2025 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -54,12 +54,12 @@ static auto compute_end_dim(Iterator start, Iterator last, std::size_t dim, Proj
     return start;
 }
 
-void debug_print(const std::vector<dimension::sub>& subs)
+[[maybe_unused]] static void debug_print(const std::vector<dimension::sub>& subs)
 {
     std::cout << '[' << stream_range(subs) << "]\n";
 }
-void debug_print(const dimension& dim) { debug_print(dim.subdimensions); }
-void debug_print(const std::vector<dimension>& dims)
+[[maybe_unused]] static void debug_print(const dimension& dim) { debug_print(dim.subdimensions); }
+[[maybe_unused]] static void debug_print(const std::vector<dimension>& dims)
 {
     stream_write_value(std::cout, dims);
     std::cout << std::endl;
@@ -121,14 +121,15 @@ group_axes(std::vector<dimension>& dimensions)
     return axes_map;
 }
 
-std::vector<std::size_t> compute_dims(const operation& op, const std::vector<std::size_t>& idims)
+static std::vector<std::size_t> compute_dims(const operation& op,
+                                             const std::vector<std::size_t>& idims)
 {
     shape s{shape::float_type, idims};
     return op.compute_shape({s}).lens();
 }
 
-std::vector<std::size_t> compute_dims(const std::vector<operation>& ops,
-                                      const std::vector<std::size_t>& idims)
+MIGRAPHX_DEBUG_USED static std::vector<std::size_t>
+compute_dims(const std::vector<operation>& ops, const std::vector<std::size_t>& idims)
 {
     shape s{shape::float_type, idims};
     for(const auto& op : ops)
@@ -379,7 +380,7 @@ bool shape_transform_descriptor::apply_broadcast(const std::vector<std::size_t>&
 }
 
 // Remove subdimensions of 1
-void remove_1_sub_dims(std::vector<dimension::sub>& subdimensions)
+static void remove_1_sub_dims(std::vector<dimension::sub>& subdimensions)
 {
     subdimensions.erase(std::remove_if(subdimensions.begin(),
                                        subdimensions.end(),

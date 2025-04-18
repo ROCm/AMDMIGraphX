@@ -122,7 +122,7 @@ struct raw_data : raw_data_base
     T at(Index n = 0) const
     {
         T result;
-        this->visit_at([&](auto x) { result = x; }, n);
+        this->visit_at([&](auto x) { result = x; }, std::move(n));
         return result;
     }
 

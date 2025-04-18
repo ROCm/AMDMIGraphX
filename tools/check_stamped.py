@@ -46,7 +46,11 @@ unsupported_file_types = [
 ]
 
 specificIgnores = ("digits.txt", "Dockerfile", "Jenkinsfile",
-                   'imagenet_classes.txt')
+                   'imagenet_classes.txt', '')
+
+# Check that supported and unsupported file types do not overlap
+overlap = set(supported_file_types) & set(unsupported_file_types)
+assert not overlap, f"Supported and unsupported file types overlap: {overlap}"
 
 unsupportedFiles = []
 unstampedFiles = []
@@ -119,7 +123,7 @@ def eval(cmd, **kwargs):
 
 def is_excluded(f):
     base = os.path.basename(f)
-    return base in unsupported_file_types
+    return base in specificIgnores
 
 
 def get_top():
@@ -144,8 +148,6 @@ def get_files_changed(against):
 
 
 def main(branch, debug) -> None:
-    unsupported_file_types.extend(specificIgnores)
-
     fileList = list(get_files_changed(branch))
 
     if debug:

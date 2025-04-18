@@ -387,7 +387,7 @@ struct match_concat_qlinear
             cat_ins->inputs().end(),
             slices.begin(),
             std::back_inserter(new_cat_inputs),
-            [&](auto i, auto slc) {
+            [&](auto i, const auto& slc) {
                 auto scale_slc = m.insert_instruction(ins, make_op("slice", slc), {scale});
                 auto zp_slc    = m.insert_instruction(ins, make_op("slice", slc), {zp});
                 return m.insert_instruction(ins, ins->get_operator(), {i, scale_slc, zp_slc});

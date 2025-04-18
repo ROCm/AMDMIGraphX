@@ -58,7 +58,7 @@ namespace migraphx {
 namespace driver {
 inline namespace MIGRAPHX_INLINE_NS {
 
-std::unordered_map<std::string, pass> create_passes_lookup()
+static std::unordered_map<std::string, pass> create_passes_lookup()
 {
     std::unordered_map<std::string, pass> result;
     // clang-format off

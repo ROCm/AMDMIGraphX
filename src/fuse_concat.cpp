@@ -35,7 +35,7 @@
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
 
-unsigned int get_noop_counter()
+static unsigned int get_noop_counter()
 {
     static unsigned int counter = 0;
     return counter++;

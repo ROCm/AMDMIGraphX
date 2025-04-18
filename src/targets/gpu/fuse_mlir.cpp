@@ -126,7 +126,7 @@ static bool specific_op(std::string_view option, bool fallback = false)
     return contains(options, option);
 }
 
-bool mlir_attention_enabled(context* ctx)
+static bool mlir_attention_enabled(context* ctx)
 {
 #ifdef MIGRAPHX_MLIR
     if(not mlir_enabled())

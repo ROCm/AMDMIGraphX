@@ -103,15 +103,18 @@ static std::string get_reduce_algo(context& ctx, const std::vector<shape>& input
 {
     const auto init = std::numeric_limits<std::size_t>::max();
     auto relements  = std::accumulate(rlens.begin(), rlens.end(), 1, std::multiplies<>{});
-    // The minimum stride
-    auto min_stride = std::inner_product(
-        rlens.begin(),
-        rlens.end(),
-        inputs.front().strides().begin(),
-        init,
-        [](auto x, auto y) { return std::min(x, y); },
-        [](auto len, auto stride) { return len == 1 ? init : stride; });
-    if(min_stride > 2)
+    bool is_strided_reduce = std::all_of(inputs.begin(), inputs.end(), [&](const shape& input) {
+        // The minimum stride
+        auto min_stride = std::inner_product(
+            rlens.begin(),
+            rlens.end(),
+            input.strides().begin(),
+            init,
+            [](auto x, auto y) { return std::min(x, y); },
+            [](auto len, auto stride) { return len == 1 ? init : stride; });
+        return min_stride > 2;
+    });
+    if(is_strided_reduce)
         return "lane";
     if(relements <= ctx.get_current_device().get_wavefront_size())
         return "wave";

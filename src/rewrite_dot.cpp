@@ -27,6 +27,7 @@
 #include <migraphx/matcher.hpp>
 #include <migraphx/make_op.hpp>
 #include <migraphx/permutation.hpp>
+#include <migraphx/array.hpp>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
@@ -107,9 +108,80 @@ struct find_1x1_convolution
     }
 };
 
+struct find_largek
+{
+    std::size_t split_threshold = 4096;
+    auto matcher() const
+    {
+        return match::name("dot");
+    }
+
+    static std::size_t split_dim(std::size_t& r, std::size_t min_size)
+    {
+        std::size_t n = 1;
+        auto factors  = make_array(2, 3, 5, 7, 11);
+        while(r > min_size)
+        {
+            // NOLINTNEXTLINE(readability-qualified-auto)
+            auto it =
+                std::find_if(factors.begin(), factors.end(), [&](auto d) { return r % d == 0; });
+            if(it == factors.end())
+                break;
+            r /= *it;
+            n *= *it;
+        }
+        return n;
+    }
+
+    void apply(module& m, const match::matcher_result& r) const
+    {
+        auto ins = r.result;
+        auto ains = ins->inputs().at(0);
+        auto bins = ins->inputs().at(1);
+
+        auto k = ains->get_shape().lens().back();
+        if(k < split_threshold)
+            return;
+        auto g = split_dim(k, split_threshold);
+        if(g < 2)
+            return;
+        auto alens = ains->get_shape().lens();
+        alens.back() /= g;
+        alens.insert(alens.end() - 1, g);
+        auto areshape = m.insert_instruction(
+            ins, make_op("reshape", {{"dims", alens}}), ains);
+
+        std::vector<int64_t> perm(ains->get_shape().ndim() + 1);
+        std::iota(perm.begin(), perm.end(), 0);
+        std::swap(perm[perm.size() - 2], perm[perm.size() - 4]);
+        auto atranspose = m.insert_instruction(
+            ins, make_op("transpose", {{"permutation", perm}}), areshape);
+
+        auto blens = bins->get_shape().lens();
+        blens[blens.size() - 2] /= g;
+        blens.insert(blens.end() - 2, g);
+        auto breshape = m.insert_instruction(
+            ins, make_op("reshape", {{"dims", blens}}), bins);
+
+        auto dot = m.insert_instruction(ins, make_op("dot"), atranspose, breshape);
+
+        auto reduce_sum = m.insert_instruction(
+            ins, make_op("reduce_sum", {{"axes", {dot->get_shape().ndim() - 3}}}), dot);
+
+        auto squeeze = m.insert_instruction(
+            ins, make_op("squeeze", {{"axes", {dot->get_shape().ndim() - 3}}}), reduce_sum);
+
+        m.replace_instruction(ins, squeeze);
+    }
+};
+
 } // namespace
 
-void rewrite_dot::apply(module& m) const { match::find_matches(m, find_1x1_convolution{}); }
+void rewrite_dot::apply(module& m) const 
+{ 
+    match::find_matches(m, find_1x1_convolution{}); 
+    match::find_matches(m, find_largek{}); 
+}
 
 } // namespace MIGRAPHX_INLINE_NS
 } // namespace migraphx

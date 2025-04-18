@@ -86,7 +86,7 @@ struct topk
 
     argument compute(const shape& output_shape, std::vector<argument> args) const
     {
-        auto vec_ss = output_shape.sub_shapes();
+        const auto& vec_ss = output_shape.sub_shapes();
         argument res_val{vec_ss.front()};
         argument res_ind{vec_ss.back()};
         auto in_val       = args.front();

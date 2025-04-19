@@ -925,7 +925,7 @@ struct find_concat_op
             return true;
         if(starts_with(op.name(), "reduce_"))
         {
-            auto v = op.to_value();
+            auto v    = op.to_value();
             auto axes = v.at("axes").to_vector<int64_t>();
             return not contains(axes, axis);
         }

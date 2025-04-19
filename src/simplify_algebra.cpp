@@ -896,7 +896,8 @@ struct find_concat_op
     {
         return match::name("concat")(match::any_of[match::inputs()](
             match::any_of(match::pointwise(),
-                          match::name("broadcast", "multibroadcast", "unpack_int4")),
+                          match::name("broadcast", "multibroadcast", "unpack_int4", "dot"),
+                          match::reduce()),
             match::used_once()));
     }
 
@@ -914,10 +915,21 @@ struct find_concat_op
         return lens;
     }
 
-    static bool is_valid_op(const operation& op)
+    static bool is_valid_op(const operation& op, std::size_t axis, std::size_t rank)
     {
-        return contains({"broadcast", "multibroadcast", "unpack_int4"}, op.name()) or
-               (op.attributes().contains("pointwise") and op.name() != "quantizelinear");
+        if(contains({"broadcast", "multibroadcast", "unpack_int4"}, op.name()))
+            return true;
+        if(op.name() == "dot")
+            return axis < (rank - 2);
+        if(op.attributes().contains("pointwise") and op.name() != "quantizelinear")
+            return true;
+        if(starts_with(op.name(), "reduce_"))
+        {
+            auto v = op.to_value();
+            auto axes = v.at("axes").to_vector<int64_t>();
+            return not contains(axes, axis);
+        }
+        return false;
     }
 
     static bool is_valid_concat(std::vector<instruction_ref> ins, size_t axis)
@@ -955,7 +967,7 @@ struct find_concat_op
             if(x->outputs().size() > 1 or rejected_inputs(x->inputs()))
                 return {start, last};
             auto op = x->get_operator();
-            if(not is_valid_op(op))
+            if(not is_valid_op(op, axis, x->get_shape().ndim()))
                 return {start, last};
             auto iaxis = axis;
             // Adjust broadcast lens

@@ -31,6 +31,7 @@
 #include <migraphx/module.hpp>
 #include <migraphx/optional.hpp>
 #include <migraphx/iterator_for.hpp>
+#include <migraphx/stringutils.hpp>
 #include <migraphx/type_name.hpp>
 #include <migraphx/source_location.hpp>
 #include <migraphx/config.hpp>
@@ -1001,6 +1002,11 @@ template <class... Ms>
 auto pointwise(Ms... ms)
 {
     return match::has_attribute("pointwise")(ms...);
+}
+
+MIGRAPHX_PRED_MATCHER(reduce, instruction_ref ins)
+{
+    return starts_with(ins->name(), "reduce_");
 }
 
 } // namespace match

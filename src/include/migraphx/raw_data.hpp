@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2024 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2025 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -203,18 +203,18 @@ struct raw_data : raw_data_base
 
 namespace detail {
 template <class V1, class V2, class... Ts>
-void visit_all_flatten(const shape& s, V1&& v1, V2&& v2, Ts&&... xs)
+void visit_all_flatten(const shape& s, V1&& v1, V2 v2, Ts&&... xs)
 {
     s.visit_type([&](auto as) { v1(make_view(xs.get_shape(), as.from(xs.data()))...); },
                  [&] { v2(xs.get_sub_objects()...); });
 }
 
 template <class V1, class V2, class... Ts>
-auto visit_all_pack(const shape& s, V1&& v1, V2&& v2)
+auto visit_all_pack(const shape& s, V1&& v1, V2 v2)
 {
-    return [&](auto&&... xs) {
+    return [=](auto&&... xs) {
         // Workaround for https://gcc.gnu.org/bugzilla/show_bug.cgi?id=70100
-        visit_all_flatten(s, v1, v2, xs...);
+        visit_all_flatten(s, v1, std::move(v2), xs...);
     };
 }
 
@@ -275,7 +275,7 @@ auto visit_all(const std::vector<T>& x)
 
 template <class T,
           class U,
-          MIGRAPHX_REQUIRES(std::is_base_of<raw_data_base, T>{} &&
+          MIGRAPHX_REQUIRES(std::is_base_of<raw_data_base, T>{} and
                             std::is_base_of<raw_data_base, U>{})>
 bool operator==(const T& x, const U& y)
 {
@@ -294,7 +294,7 @@ bool operator==(const T& x, const U& y)
 
 template <class T,
           class U,
-          MIGRAPHX_REQUIRES(std::is_base_of<raw_data_base, T>{} &&
+          MIGRAPHX_REQUIRES(std::is_base_of<raw_data_base, T>{} and
                             std::is_base_of<raw_data_base, U>{})>
 bool operator!=(const T& x, const U& y)
 {

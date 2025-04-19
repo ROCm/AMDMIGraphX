@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2024 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2025 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -43,7 +43,6 @@ namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
 namespace gpu {
 
-MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_ENABLE_HIPBLASLT_GEMM)
 MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_DISABLE_MIOPEN_FUSION)
 #if MIGRAPHX_USE_MIOPEN
 struct fusion
@@ -167,13 +166,12 @@ struct fusion
 };
 #endif
 
-const std::unordered_set<std::string>& get_supported_archs()
+#if MIGRAPHX_USE_MIOPEN
+static const std::unordered_set<std::string>& get_supported_archs()
 {
-    static std::unordered_set<std::string> supported_archs{
-        "gfx900", "gfx906", "gfx908", "gfx1030", "gfx940"};
+    static std::unordered_set<std::string> supported_archs{"gfx900", "gfx906", "gfx908", "gfx1030"};
     return supported_archs;
 }
-#if MIGRAPHX_USE_MIOPEN
 MIGRAPHX_PRED_MATCHER(bias_shape, instruction_ref ins)
 {
     auto&& s = ins->get_shape();
@@ -216,7 +214,7 @@ MIGRAPHX_PRED_MATCHER(fusable_conv, instruction_ref ins)
 }
 #endif
 
-void move_broadcasted_back(std::vector<instruction_ref>& args)
+static void move_broadcasted_back(std::vector<instruction_ref>& args)
 {
     // Ensure the last arguments is the broadcasted one
     auto last = std::prev(args.end());
@@ -225,18 +223,6 @@ void move_broadcasted_back(std::vector<instruction_ref>& args)
     if(it != last)
         std::swap(*it, *std::prev(last));
 }
-
-void move_standard_front(std::vector<instruction_ref>& args)
-{
-    // Ensure the first arguments is the standard one
-    auto last = std::prev(args.end());
-    auto it =
-        std::find_if(args.begin(), last, [](auto arg) { return arg->get_shape().standard(); });
-    if(it != last)
-        std::swap(*it, args.front());
-}
-
-auto gpu_name(const std::string& s) { return match::name("gpu::" + s); }
 
 namespace {
 #if MIGRAPHX_USE_MIOPEN
@@ -676,7 +662,6 @@ struct find_rocblas_gemm_pointwise : gemm_pointwise
             auto c_ins = r.instructions["c"];
             shape s    = c_ins->get_shape();
             // const-fold input if not standard shape since rocblas can't handle it
-            // Updated for a case where "standard" shape has out-of-sequence strides
             if(not s.standard())
             {
                 auto c = make_op("contiguous");
@@ -737,7 +722,6 @@ struct find_hipblas_gemm_pointwise : gemm_pointwise
             auto c_ins = r.instructions["c"];
             shape s    = c_ins->get_shape();
             // const-fold input if not standard shape
-            // Updated for a case where "standard" shape has out-of-sequence strides
             if(not s.standard())
             {
                 auto c = make_op("contiguous");

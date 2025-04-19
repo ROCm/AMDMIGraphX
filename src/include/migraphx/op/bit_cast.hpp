@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2022 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2025 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -50,7 +50,7 @@ struct bit_cast : unary<bit_cast>
     shape compute_shape(std::vector<shape> inputs) const
     {
         check_shapes{inputs, *this, true}.has(1);
-        auto input = inputs.at(0);
+        const auto& input = inputs.at(0);
         std::size_t target_type_size;
         shape::visit(target_type, [&](auto as) { target_type_size = as.size(); });
         if(input.type_size() != target_type_size)
@@ -80,6 +80,7 @@ struct bit_cast : unary<bit_cast>
             args[0].visit([&](auto input) {
                 using itype = typename decltype(input)::value_type;
                 if constexpr(sizeof(otype) == sizeof(itype))
+
                 {
                     par_transform(input.begin(), input.end(), output.begin(), [&](auto x) {
                         return migraphx::bit_cast<otype>(x);

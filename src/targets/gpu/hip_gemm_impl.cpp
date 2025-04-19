@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2024 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2025 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -39,7 +39,7 @@ namespace gpu {
 
 using microseconds = std::chrono::duration<double, std::micro>;
 
-hipDataType compute_to_hip_type(hipblasComputeType_t type)
+static hipDataType compute_to_hip_type(hipblasComputeType_t type)
 {
     switch(type)
     {
@@ -59,7 +59,7 @@ hipDataType compute_to_hip_type(hipblasComputeType_t type)
 }
 
 // Convert hipBLAS datatypes to equivalent MIGraphX data types
-hipDataType get_type_hipblas(shape::type_t type)
+static hipDataType get_type_hipblas(shape::type_t type)
 {
     switch(type)
     {
@@ -144,11 +144,16 @@ static int32_t get_batch_stride_hip(const shape& s)
 struct hip_gemm_impl
 {
     hip_gemm_impl(const shape& output_shape,
-                  const std::vector<shape>& input_shapes,
+                  std::vector<shape> input_shapes,
                   float alpha_param,
                   float beta_param)
         : alpha(alpha_param), beta(beta_param), is_3inputs(input_shapes.size() == 5)
     {
+        std::transform(input_shapes.begin(),
+                       input_shapes.end(),
+                       input_shapes.begin(),
+                       [&](const shape& s) { return s.normalize_standard(); });
+
         if(not is_3inputs)
         {
             beta = 0;
@@ -502,9 +507,8 @@ struct hip_gemm_impl
      * and calls matmulIsAlgoSupported() to get the workspace size.
      */
 
-    size_t get_workspace_size(context& ctx,
-                              const std::vector<shape>& input_shapes,
-                              int32_t solution_idx) const
+    size_t
+    get_workspace_size(context& ctx, const std::vector<shape>& input_shapes, int32_t solution_idx)
     {
         size_t workspace_size = hipblaslt_workspace_size;
         std::vector<argument> input_args;
@@ -516,11 +520,25 @@ struct hip_gemm_impl
         std::vector<int32_t> algo_index = {solution_idx};
         std::vector<hipblasLtMatmulHeuristicResult_t> heuristic_result;
 
-        hipblaslt_invoke([&]() {
-            return hipblaslt_ext::getAlgosFromIndex(
-                ctx.get_stream().get_hipblaslt(), algo_index, heuristic_result);
-        });
-        assert(heuristic_result.size() == 1);
+        if(solution_idx == 0)
+        {
+            heuristic_result = solution.get_result(ctx, *this, 0);
+        }
+        else
+        {
+            hipblaslt_invoke([&]() {
+                return hipblaslt_ext::getAlgosFromIndex(
+                    ctx.get_stream().get_hipblaslt(), algo_index, heuristic_result);
+            });
+        }
+
+        // Return default workspace size when no algo is provided.
+        if(heuristic_result.empty())
+        {
+            std::cout << "No hipBLASLt algo returned for solution index: " << solution_idx
+                      << std::endl;
+            return workspace_size;
+        }
 
         auto algo                 = heuristic_result[0].algo;
         size_t ret_workspace_size = 0;
@@ -684,7 +702,7 @@ void hip_gemm_compute(context& ctx,
     std::transform(args.begin(),
                    args.end(),
                    std::back_inserter(input_shapes),
-                   [](const argument& x) { return x.get_shape().normalize_standard(); });
+                   [](const argument& x) { return x.get_shape(); });
     auto gemm_item = hip_gemm_impl(output_shape, input_shapes, alpha, beta);
     gemm_item.run(ctx, args, solution_idx);
 }

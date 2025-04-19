@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2024 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2025 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -69,6 +69,7 @@ dnnl::memory::data_type to_dnnl_memory_data_type(shape::type_t t)
     case st::int8_type: return dt::s8;
     case st::uint8_type: return dt::u8;
     case st::fp8e4m3fnuz_type: MIGRAPHX_THROW("fp8e4m3fnuz unsupported in DNNL");
+    case st::bf16_type: return dt::bf16;
     default: MIGRAPHX_THROW("Unsupported data type");
     }
 }
@@ -166,7 +167,7 @@ dnnl::memory to_dnnl_memory(const argument& a)
         m(reduction_norm_lp_power_p_sum)
 // clang-format on
 
-const std::unordered_map<std::string, dnnl::algorithm>& dnnl_algo_map()
+static const std::unordered_map<std::string, dnnl::algorithm>& dnnl_algo_map()
 {
     static const std::unordered_map<std::string, dnnl::algorithm> m = {
 #define MIGRAPHX_DNNL_ALGO_GENERATE_VISITOR(x) {#x, dnnl::algorithm::x},
@@ -183,7 +184,7 @@ dnnl::algorithm to_dnnl_algo(const std::string& name)
     return dnnl_algo_map().at(name);
 }
 
-const std::unordered_map<dnnl::algorithm, std::string>& dnnl_algo_string_map()
+static const std::unordered_map<dnnl::algorithm, std::string>& dnnl_algo_string_map()
 {
     static const std::unordered_map<dnnl::algorithm, std::string> m = {
 #define MIGRAPHX_DNNL_ALGO_GENERATE_VISITOR(x) {dnnl::algorithm::x, #x},

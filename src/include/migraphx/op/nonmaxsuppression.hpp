@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2023 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2025 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -241,7 +241,7 @@ struct nonmaxsuppression
         return result;
     }
 
-    inline bool suppress_by_iou(box b1, box b2, double iou_threshold) const
+    bool suppress_by_iou(box b1, box b2, double iou_threshold) const
     {
         const double area1 = b1.area();
         const double area2 = b2.area();
@@ -335,7 +335,7 @@ struct nonmaxsuppression
             auto batch_boxes_start = boxes.begin() + batch_idx * num_boxes * 4;
             auto boxes_heap = filter_boxes_by_score(scores_start, num_boxes, score_threshold);
             int64_t selected_boxes_inside_class = 0;
-            while(not boxes_heap.empty() &&
+            while(not boxes_heap.empty() and
                   selected_boxes_inside_class < max_output_boxes_per_class)
             {
                 // select next top scorer box and remove any boxes from boxes_heap that exceeds IOU

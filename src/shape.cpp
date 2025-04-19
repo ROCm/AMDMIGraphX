@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2024 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2025 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -616,7 +616,7 @@ shape shape::to_static(std::size_t x) const
                    static_lens.end(),
                    this->dyn_dims().cbegin(),
                    static_lens.begin(),
-                   [&](auto sl, auto dd) { return dd.is_fixed() ? sl : x; });
+                   [&](auto sl, const auto& dd) { return dd.is_fixed() ? sl : x; });
     return {type(), static_lens};
 }
 
@@ -693,6 +693,19 @@ shape::dynamic_dimension& shape::dynamic_dimension::operator-=(const std::size_t
     return *this;
 }
 
+shape::dynamic_dimension& shape::dynamic_dimension::operator*=(const std::size_t& x)
+{
+    this->min *= x;
+    this->max *= x;
+    std::set<std::size_t> new_optimals;
+    std::transform(this->optimals.begin(),
+                   this->optimals.end(),
+                   std::inserter(new_optimals, new_optimals.begin()),
+                   [&x](const auto& opt) { return (opt * x); });
+    this->optimals = new_optimals;
+    return *this;
+}
+
 bool operator==(const shape::dynamic_dimension& x, const shape::dynamic_dimension& y)
 {
     // don't check optimals if both are fixed
@@ -733,6 +746,17 @@ shape::dynamic_dimension operator-(const shape::dynamic_dimension& x, const std:
 {
     auto dd = x;
     return dd -= y;
+}
+
+shape::dynamic_dimension operator*(const shape::dynamic_dimension& x, const std::size_t& y)
+{
+    auto dd = x;
+    return dd *= y;
+}
+
+shape::dynamic_dimension operator*(const std::size_t& x, const shape::dynamic_dimension& y)
+{
+    return y * x;
 }
 
 bool operator==(const shape& x, const shape& y)

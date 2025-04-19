@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2024 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2025 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -29,10 +29,10 @@
 #include <migraphx/common.hpp>
 #include <migraphx/make_op.hpp>
 
-migraphx::instruction_ref add_instancenorm(migraphx::module& m,
-                                           migraphx::instruction_ref x,
-                                           const std::vector<size_t>& dims,
-                                           float eps = 1e-5f)
+static migraphx::instruction_ref add_instancenorm(migraphx::module& m,
+                                                  migraphx::instruction_ref x,
+                                                  const std::vector<size_t>& dims,
+                                                  float eps = 1e-5f)
 {
     auto mgx_type = x->get_shape().type();
     auto x_lens   = x->get_shape().lens();
@@ -99,3 +99,4 @@ struct test_instancenorm_large_3d : verify_program<test_instancenorm_large_3d<TY
 
 template struct test_instancenorm_large_3d<migraphx::shape::float_type>;
 template struct test_instancenorm_large_3d<migraphx::shape::half_type>;
+template struct test_instancenorm_large_3d<migraphx::shape::bf16_type>;

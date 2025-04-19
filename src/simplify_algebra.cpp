@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2024 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2025 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -42,22 +42,28 @@
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
 
-auto lit_broadcast() { return match::any_of(match::is_constant(), match::name("broadcast")); }
-auto not_lit_broadcast() { return match::none_of(match::is_constant(), match::name("broadcast")); }
-auto op_lit_broadcast(std::string op, std::string x, std::string y)
+static auto lit_broadcast()
+{
+    return match::any_of(match::is_constant(), match::name("broadcast"));
+}
+static auto not_lit_broadcast()
+{
+    return match::none_of(match::is_constant(), match::name("broadcast"));
+}
+static auto op_lit_broadcast(std::string op, std::string x, std::string y)
 {
     return match::name(std::move(op))(match::either_arg(0, 1)(
         lit_broadcast().bind(std::move(x)), not_lit_broadcast().bind(std::move(y))));
 }
 
-auto conv_const_weights()
+static auto conv_const_weights()
 {
     return match::name("convolution")(
         match::used_once(),
         match::args(match::none_of(match::is_constant()), match::is_constant().bind("w")));
 }
 
-auto from_int4()
+static auto from_int4()
 {
     return match::make_predicate_matcher([](instruction_ref start) {
         return fix<bool>([&](auto self, instruction_ref ins) {
@@ -71,9 +77,9 @@ auto from_int4()
     });
 }
 
-auto not_from_int4() { return match::none_of(from_int4()); }
+static auto not_from_int4() { return match::none_of(from_int4()); }
 
-auto reduction() { return match::name_contains("reduce"); }
+static auto reduction() { return match::name_contains("reduce"); }
 
 // conv(x, w) * a => conv(x, a * w)
 struct find_mul_conv
@@ -761,6 +767,8 @@ struct find_inner_broadcast
     void apply(module& m, const match::matcher_result& r) const
     {
         auto ins               = r.result;
+        if(ins->get_operator().name() == "layout")
+            return;
         const auto& broadcasts = ins->inputs();
         if(broadcasts.empty())
             return;
@@ -909,7 +917,7 @@ struct find_concat_op
     static bool is_valid_op(const operation& op)
     {
         return contains({"broadcast", "multibroadcast", "unpack_int4"}, op.name()) or
-               op.attributes().contains("pointwise");
+               (op.attributes().contains("pointwise") and op.name() != "quantizelinear");
     }
 
     static bool is_valid_concat(std::vector<instruction_ref> ins, size_t axis)
@@ -1055,7 +1063,8 @@ struct find_concat_conv
     }
 };
 
-void move_instructions_back(module& m, instruction_ref pos, std::vector<instruction_ref> inss)
+static void
+move_instructions_back(module& m, instruction_ref pos, std::vector<instruction_ref> inss)
 {
     auto start = range(m.begin(), pos);
     for(auto ins : iterator_for(start))
@@ -1076,7 +1085,7 @@ void move_instructions_back(module& m, instruction_ref pos, std::vector<instruct
 /** Search for multiple "slice" instructions in an instruction's outputs
  *  which are contiguous slices of the same tensor.
  */
-std::vector<instruction_ref> get_splits(instruction_ref ins)
+static std::vector<instruction_ref> get_splits(instruction_ref ins)
 {
     std::vector<instruction_ref> result;
     std::copy_if(ins->outputs().begin(),
@@ -1120,20 +1129,28 @@ struct find_splits
 {
     auto matcher() const
     {
+        // match instruction with outputs of pointwise fusion, pointwise op with 1 or 2 args, or
+        // reduction op
         auto pointwise_reduction = match::any_of[match::outputs()](
-            match::pointwise(match::any_of(match::nargs(1), match::nargs(2))), reduction());
+            match::name("pointwise"),
+            match::pointwise(match::any_of(match::nargs(1), match::nargs(2))),
+            reduction());
+        // match instruction with slice output to pointwise_reduction
         return match::any(
             match::any_of[match::outputs()](match::name("slice")(pointwise_reduction)));
     }
 
+    /**
+     * Check if we can reach ins2 from ins1 by going through inputs of ins1
+     */
     static bool is_dependent(const module& m, instruction_ref ins1, instruction_ref ins2)
     {
-
         std::unordered_set<instruction_ref> traversed;
         return fix<bool>([&](auto self, auto ins) -> bool {
             if(ins == ins2)
                 return true;
 
+            // Traversed this instruction before
             if(contains(traversed, ins))
                 return false;
 
@@ -1145,6 +1162,40 @@ struct find_splits
         })(ins1);
     }
 
+    static void update_group(const module& m,
+                             instruction_ref out,
+                             const std::vector<instruction_ref>& splits,
+                             std::vector<instruction_ref>& group)
+    {
+        for(auto split : range(splits.begin() + 1, splits.end()))
+        {
+            auto it = std::find_if(split->outputs().begin(), split->outputs().end(), [&](auto i) {
+                if(i->get_operator() == out->get_operator())
+                {
+                    if(i->name() == "pointwise")
+                    {
+                        return (*(i->module_inputs().front()) == *(out->module_inputs().front()));
+                    }
+                    return true;
+                }
+                return false;
+            });
+            if(it == split->outputs().end())
+                return;
+            assert((*it)->name() != "slice");
+
+            // There are should be no dependency between instructions in the group
+            if(std::any_of(group.begin(), group.end(), [&](auto i) {
+                   return is_dependent(m, *it, i) or is_dependent(m, i, *it);
+               }))
+            {
+                return;
+            }
+            group.push_back(*it);
+        }
+    }
+
+    /// Find groups of the same operator after the splits (slice instructions)
     static std::vector<std::vector<instruction_ref>>
     get_split_groups(const module& m, const std::vector<instruction_ref>& splits)
     {
@@ -1153,28 +1204,8 @@ struct find_splits
         {
             if(out->name() == "slice")
                 continue;
-            std::vector<instruction_ref> group;
-            for(auto split : splits)
-            {
-                auto it =
-                    std::find_if(split->outputs().begin(), split->outputs().end(), [&](auto i) {
-                        return i->get_operator() == out->get_operator();
-                    });
-                if(it == split->outputs().end())
-                    break;
-                assert((*it)->name() != "slice");
-
-                // If there is a duplicate bail
-                // there are should be no dependency between instructions in the group
-                if(std::any_of(group.begin(), group.end(), [&](auto i) {
-                       return is_dependent(m, *it, i) or is_dependent(m, i, *it);
-                   }))
-                {
-                    return {};
-                }
-
-                group.push_back(*it);
-            }
+            std::vector<instruction_ref> group = {out};
+            update_group(m, out, splits, group);
             if(group.size() != splits.size())
                 continue;
             groups.push_back(group);
@@ -1182,6 +1213,11 @@ struct find_splits
         return groups;
     }
 
+    /**
+     * If instruction is fusable
+     * start: instruction to check
+     * split_front: slice operator input to start instruction
+     */
     bool is_fusable(instruction_ref start, instruction_ref split_front) const
     {
         auto op = start->get_operator();
@@ -1191,22 +1227,21 @@ struct find_splits
             auto slc_axes    = slc.axes;
             auto reduce_axes = start->get_operator().to_value()["axes"].to_vector<int64_t>();
             // axes of slice and reduce op cannot have overlap
-            if(std::any_of(slc_axes.begin(), slc_axes.end(), [&](auto axis) {
-                   return (std::find(reduce_axes.begin(), reduce_axes.end(), axis) !=
-                           reduce_axes.end());
-               }))
-            {
-                return false;
-            }
+            return std::any_of(slc_axes.begin(), slc_axes.end(), [&](auto axis) {
+                return (std::find(reduce_axes.begin(), reduce_axes.end(), axis) ==
+                        reduce_axes.end());
+            });
         }
-        else if(not op.attributes().contains("pointwise"))
+        else if(op.name() == "pointwise" or op.attributes().contains("pointwise"))
         {
-            return false;
+            return true;
         }
-
-        return true;
+        return false;
     }
 
+    /** Get argument index that has the split instruction for a group of instructions
+     * If instructions in a group have different split indexes, return -1.
+     */
     int get_binary_op_split_idx(std::vector<instruction_ref> group,
                                 std::vector<instruction_ref> splits) const
     {
@@ -1227,6 +1262,10 @@ struct find_splits
         return -1;
     }
 
+    /**
+     * Align the arguments of binary commutative instructions so they
+     * have the same operator on the same argument indexes.
+     */
     void align_commutative_op_args(module& m,
                                    std::vector<instruction_ref> group,
                                    std::vector<instruction_ref> splits,
@@ -1248,14 +1287,46 @@ struct find_splits
         }
     }
 
+    /**
+     * Check if any split group depends on instructions from another split group.
+     * Note: consider refactor if this function is slow
+     */
+    bool split_groups_are_dependent(const module& m,
+                                    std::vector<std::vector<instruction_ref>> groups) const
+    {
+        for(int i = 0; i < groups.size(); ++i)
+        {
+            const auto& group_i = groups.at(i);
+            std::vector<std::vector<instruction_ref>> groups_less_i(groups.size() - 1);
+            std::copy(groups.cbegin(), groups.cbegin() + i, groups_less_i.begin());
+            std::copy(groups.cbegin() + i + 1, groups.cend(), groups_less_i.begin() + i);
+            if(std::any_of(groups_less_i.begin(), groups_less_i.end(), [&](auto group_j) {
+                   return std::any_of(group_i.begin(), group_i.end(), [&](auto ins_i) {
+                       return std::any_of(group_j.begin(), group_j.end(), [&](auto ins_j) {
+                           return is_dependent(m, ins_i, ins_j);
+                       });
+                   });
+               }))
+            {
+                return true;
+            }
+        }
+        return false;
+    }
+
     void apply(module& m, const match::matcher_result& r) const
     {
         auto ins    = r.result;
         auto splits = get_splits(ins);
         if(splits.empty())
             return;
+        auto split_groups = get_split_groups(m, splits);
+        if(split_groups_are_dependent(m, split_groups))
+        {
+            return;
+        }
 
-        for(const auto& group : get_split_groups(m, splits))
+        for(const auto& group : split_groups)
         {
             auto start       = group.front();
             auto split_front = splits.front();
@@ -1265,7 +1336,7 @@ struct find_splits
                 continue;
             }
 
-            // Make sure there is no duplicates
+            // Make sure there are no duplicates
             assert(std::none_of(
                 std::next(group.begin()), group.end(), [&](auto i) { return i == start; }));
 
@@ -1273,13 +1344,13 @@ struct find_splits
             instruction_ref c = m.end();
             if(start->inputs().size() == 1)
             {
-                c = m.insert_instruction(std::next(ins), op, ins);
+                c = m.insert_instruction(std::next(ins), op, {ins}, start->module_inputs());
             }
             else if(start->inputs().size() == 2)
             {
                 assert(not std::none_of(start->inputs().begin(), start->inputs().end(), [](auto i) {
                     return i->name() == "slice";
-                }) && "one argument must be a split");
+                }) and "one argument must be a split");
 
                 split_idx = get_binary_op_split_idx(group, splits);
                 assert(split_idx < 2);
@@ -1326,7 +1397,7 @@ struct find_splits
                 args.resize(2);
                 args[split_idx] = ins;
                 args[data_idx]  = concat;
-                c               = m.insert_instruction(std::next(ins), op, args);
+                c = m.insert_instruction(std::next(ins), op, {args}, start->module_inputs());
             }
             if(c != m.end())
             {
@@ -1416,16 +1487,15 @@ struct find_split_concat
     }
 };
 
-bool axis_equal(const std::vector<std::size_t>& x,
-                const std::vector<std::size_t>& y,
-                std::size_t axis)
+static bool
+axis_equal(const std::vector<std::size_t>& x, const std::vector<std::size_t>& y, std::size_t axis)
 {
     return x.size() == y.size() and x.size() > axis and
            std::equal(x.begin(), x.begin() + axis, y.begin()) and
            std::equal(x.begin() + axis + 1, x.end(), y.begin() + axis + 1);
 }
 
-bool axis_shape_equal(const shape& x, const shape& y, std::size_t axis)
+static bool axis_shape_equal(const shape& x, const shape& y, std::size_t axis)
 {
     // TODO: Check strides
     return axis_equal(x.lens(), y.lens(), axis);

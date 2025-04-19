@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2024 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2025 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -438,7 +438,7 @@ static bool use_lazy_inner(instruction_ref ins)
     return contains(output->name(), "reduce") or output->name() == "@return";
 }
 
-void preload_params(module& m)
+static void preload_params(module& m)
 {
     for(auto ins : iterator_for(m))
     {
@@ -504,8 +504,9 @@ std::string generate_reduce(module m, const std::string& name)
             std::string inner_name = use_lazy_inner(ins) ? "lazy_inner" : "inner";
             auto args              = cpp_generator::to_args(tensors, names);
             auto params            = cpp_generator::to_args(tensors, inner_names);
-            std::transform(
-                params.begin(), params.end(), params.begin(), [](auto s) { return "auto " + s; });
+            std::transform(params.begin(), params.end(), params.begin(), [](const auto& s) {
+                return "auto " + s;
+            });
             return interpolate_string(inner_template,
                                       {{"inner", inner_name},
                                        {"params", join_strings(params, ", ")},

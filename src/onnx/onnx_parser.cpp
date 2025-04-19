@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2024 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2025 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -47,12 +47,13 @@ MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_TRACE_ONNX_PARSER)
 static shape shape_from_dyn_dims(shape::type_t shape_type,
                                  const std::vector<shape::dynamic_dimension>& dyn_dims)
 {
-    if(std::all_of(dyn_dims.begin(), dyn_dims.end(), [](auto dd) { return dd.is_fixed(); }))
+    if(std::all_of(dyn_dims.begin(), dyn_dims.end(), [](const auto& dd) { return dd.is_fixed(); }))
     {
         std::vector<std::size_t> dims;
-        std::transform(dyn_dims.cbegin(), dyn_dims.cend(), std::back_inserter(dims), [](auto d) {
-            return d.max;
-        });
+        std::transform(dyn_dims.cbegin(),
+                       dyn_dims.cend(),
+                       std::back_inserter(dims),
+                       [](const auto& d) { return d.max; });
         return {shape_type, dims};
     }
     return {shape_type, dyn_dims};
@@ -300,13 +301,13 @@ int64_t onnx_parser::get_opset_version(const onnx::ModelProto& model)
     return version;
 }
 
-void print_added_instructions(module* mod,
-                              const std::vector<instruction_ref>& args,
-                              const std::vector<instruction_ref>& result)
+static void print_added_instructions(module* mod,
+                                     const std::vector<instruction_ref>& args,
+                                     const std::vector<instruction_ref>& result)
 {
     // Print instructions added by the parser not in args
     std::vector<instruction_ref> added_instructions;
-    fix([&](auto self, auto r) {
+    fix([&](auto self, const auto& r) {
         for(auto ins : r)
         {
             if(contains(args, ins))
@@ -325,7 +326,7 @@ static bool is_type_packed_int4(const onnx::TensorProto& t)
     return t.data_type() == onnx::TensorProto::INT4 or t.data_type() == onnx::TensorProto::UINT4;
 }
 
-std::unordered_map<std::string, instruction_ref>
+static std::unordered_map<std::string, instruction_ref>
 parse_intializer(const onnx_parser& parser, module* mod, const onnx::GraphProto& graph)
 {
     std::unordered_map<std::string, instruction_ref> mod_insts;
@@ -347,7 +348,7 @@ parse_intializer(const onnx_parser& parser, module* mod, const onnx::GraphProto&
     return mod_insts;
 }
 
-std::unordered_map<std::string, instruction_ref>
+static std::unordered_map<std::string, instruction_ref>
 parse_inputs(const onnx_parser& parser,
              module* mod,
              const onnx::GraphProto& graph,
@@ -523,7 +524,7 @@ literal onnx_parser::parse_tensor(const onnx::TensorProto& t) const
     auto tensor_shape  = parse_tensor_shape(t);
     const auto& dims   = tensor_shape.lens();
     auto type          = tensor_shape.type();
-    auto external_data = t.external_data();
+    const auto& external_data = t.external_data();
 
     if(not external_data.empty())
     {
@@ -687,7 +688,7 @@ shape::type_t get_type(int dtype)
     case 22: return shape::int8_type;
     case 14:
     case 15:
-    case 16:
+    case 16: return shape::bf16_type;
     case 17:
     case 19:
     case 20:
@@ -700,7 +701,8 @@ shape::type_t get_type(int dtype)
 bool is_type_float(shape::type_t dtype)
 {
     bool r = false;
-    if(dtype == shape::float_type or dtype == shape::double_type or dtype == shape::half_type)
+    if(dtype == shape::float_type or dtype == shape::double_type or dtype == shape::half_type or
+       dtype == shape::bf16_type)
     {
         r = true;
     }

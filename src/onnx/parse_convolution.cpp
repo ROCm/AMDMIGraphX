@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2024 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2025 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -40,7 +40,9 @@ struct parse_convolution : op_parser<parse_convolution>
 {
     std::vector<op_desc> operators() const
     {
-        return {{"Conv", "convolution"}, {"ConvInteger", "quant_convolution"}};
+        return {{"Conv", "convolution"},
+                {"ConvInteger", "quant_convolution"},
+                {"NhwcConv", "convolution"}};
     }
 
     // Convert to half prior to a shift to ensure we preserve accuracy here then
@@ -141,17 +143,14 @@ struct parse_convolution : op_parser<parse_convolution>
         return all_zeros;
     }
 
-    static auto
+    static migraphx::operation
     qparam_broadcast_op(instruction_ref qparam, std::vector<std::size_t> lens, std::size_t axis)
     {
-        if(qparam->get_shape().scalar())
+        if(qparam->get_shape().elements() == 1)
         {
             return migraphx::make_op("multibroadcast", {{"out_lens", lens}});
         }
-        else
-        {
-            return migraphx::make_op("broadcast", {{"out_lens", lens}, {"axis", axis}});
-        }
+        return migraphx::make_op("broadcast", {{"out_lens", lens}, {"axis", axis}});
     }
 
     static instruction_ref handle_quant_bias(const operation& op,
@@ -162,27 +161,37 @@ struct parse_convolution : op_parser<parse_convolution>
                                              const instruction_ref& w_zp,
                                              onnx_parser::node_info& info)
     {
+        // to handle the bias, apply the following transformation:
+        // conv(x-x_zp,w-w_zp) = conv(x,w) - conv(x_zp,w) - conv(x,w_zp) + conv(x_zp,w_zp)
         instruction_ref ret = input;
+
+        // multibroadcast (or broadcast) zero points according to spec
+        // x_zp should be a scalar or literal with one element
+        // w_zp can be either a single element or a 1d tensor with size out_channels
+        migraphx::operation x_zp_bc =
+            migraphx::make_op("multibroadcast", {{"out_lens", x->get_shape().lens()}});
+        migraphx::operation w_zp_bc = qparam_broadcast_op(w_zp, weights->get_shape().lens(), 0);
+
         if(not is_symmetric_zero_point(x_zp))
         {
-            auto out_zp_1 = info.add_common_op(op.name(), x_zp, weights);
+            auto x_zp_mb  = info.add_instruction(x_zp_bc, x_zp);
+            auto out_zp_1 = info.add_instruction(op, x_zp_mb, weights);
             ret           = info.add_common_op("sub", ret, out_zp_1);
         }
 
         if(not is_symmetric_zero_point(w_zp))
         {
-            auto out_zp_2 = info.add_common_op(op.name(), x, w_zp);
+            auto w_zp_mb  = info.add_instruction(w_zp_bc, w_zp);
+            auto out_zp_2 = info.add_instruction(op, x, w_zp_mb);
             ret           = info.add_common_op("sub", ret, out_zp_2);
         }
 
         if(not(is_symmetric_zero_point(x_zp)) and not(is_symmetric_zero_point(w_zp)))
         {
-            auto x_zp_bc =
-                info.add_instruction(qparam_broadcast_op(x_zp, x->get_shape().lens(), 0), x_zp);
-            auto w_zp_bc = info.add_instruction(
-                qparam_broadcast_op(w_zp, weights->get_shape().lens(), 0), w_zp);
+            auto x_zp_mb = info.add_instruction(x_zp_bc, x_zp);
+            auto w_zp_mb = info.add_instruction(w_zp_bc, w_zp);
 
-            auto out_zp_3 = info.add_instruction(op, x_zp_bc, w_zp_bc);
+            auto out_zp_3 = info.add_instruction(op, x_zp_mb, w_zp_mb);
 
             ret = info.add_common_op("add", ret, out_zp_3);
         }
@@ -233,6 +242,13 @@ struct parse_convolution : op_parser<parse_convolution>
         auto values  = op.to_value();
         auto x       = args[0];
         auto weights = args[1];
+
+        if(opd.onnx_name == "NhwcConv")
+        {
+            x       = from_nhwc(info, x);
+            weights = from_nhwc(info, weights);
+        }
+
         auto x_shape = x->get_shape();
         auto w_shape = weights->get_shape();
         auto in_lens = x_shape.max_lens();
@@ -277,7 +293,7 @@ struct parse_convolution : op_parser<parse_convolution>
             if(x_shape.dynamic())
             {
                 auto dyn_dims = x_shape.dyn_dims();
-                std::for_each(dyn_dims.begin() + 2, dyn_dims.end(), [&](auto dyn_dim) {
+                std::for_each(dyn_dims.begin() + 2, dyn_dims.end(), [&](const auto& dyn_dim) {
                     if(not dyn_dim.is_fixed())
                     {
                         image_shape_dynamic = true;
@@ -290,7 +306,7 @@ struct parse_convolution : op_parser<parse_convolution>
             if(w_shape.dynamic())
             {
                 auto dyn_dims = w_shape.dyn_dims();
-                std::for_each(dyn_dims.begin() + 2, dyn_dims.end(), [&](auto dyn_dim) {
+                std::for_each(dyn_dims.begin() + 2, dyn_dims.end(), [&](const auto& dyn_dim) {
                     if(not dyn_dim.is_fixed())
                     {
                         kernel_shape_dynamic = true;
@@ -353,6 +369,11 @@ struct parse_convolution : op_parser<parse_convolution>
         {
             // Handle Convolution case with bias to output
             ret = info.add_bias(args, ret, 1);
+        }
+
+        if(opd.onnx_name == "NhwcConv")
+        {
+            ret = to_nhwc(info, ret);
         }
 
         return ret;

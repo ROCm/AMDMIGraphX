@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2024 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2025 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -40,8 +40,15 @@ inline namespace MIGRAPHX_INLINE_NS {
 
 MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_TRACE_PASSES);
 MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_TIME_PASSES);
+MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_DISABLE_PASSES);
 
-void validate_pass(module& mod, const pass& p, tracer trace)
+static bool is_pass_disabled(const std::string& name)
+{
+    static const auto passes = split_string(string_value_of(MIGRAPHX_DISABLE_PASSES{}, ""), ',');
+    return contains(passes, name);
+}
+
+static void validate_pass(module& mod, const pass& p, tracer trace)
 {
     (void)mod;
     (void)p;
@@ -58,7 +65,7 @@ void validate_pass(module& mod, const pass& p, tracer trace)
     trace();
 #endif
 }
-void run_pass(program& prog, const pass& p, tracer trace)
+static void run_pass(program& prog, const pass& p, tracer trace)
 {
     trace("Pass: ", p.name());
     p.apply(prog);
@@ -126,6 +133,8 @@ struct module_pm : module_pass_manager
 
     virtual void run_pass(const pass& p) override
     {
+        if(is_pass_disabled(p.name()))
+            return;
         trace("Pass: ", p.name());
         assert(mod);
         assert(mod->validate() == mod->end());

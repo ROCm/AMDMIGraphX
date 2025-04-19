@@ -2,7 +2,7 @@
 #####################################################################################
 #  The MIT License (MIT)
 #
-#  Copyright (c) 2015-2024 Advanced Micro Devices, Inc. All rights reserved.
+#  Copyright (c) 2015-2025 Advanced Micro Devices, Inc. All rights reserved.
 #
 #  Permission is hereby granted, free of charge, to any person obtaining a copy
 #  of this software and associated documentation files (the "Software"), to deal
@@ -30,9 +30,7 @@
 # in the license stamp, with the assumption being that any modifications/creations will need to be stamped to the year that the
 # modification/creation was made.
 #####################################################################################
-import subprocess, sys, datetime, argparse
-
-debug = False
+import subprocess, sys, datetime, argparse, os
 
 current_year = datetime.date.today().year
 
@@ -48,7 +46,7 @@ unsupported_file_types = [
 ]
 
 specificIgnores = ("digits.txt", "Dockerfile", "Jenkinsfile",
-                   'imagenet_classes.txt', '')
+                   'imagenet_classes.txt')
 
 unsupportedFiles = []
 unstampedFiles = []
@@ -63,7 +61,7 @@ def hasKeySequence(inputfile: str, key_message: str) -> bool:
 
 
 # Simple just open and write stuff to each file with the license stamp
-def needStampCheck(filename: str) -> bool:
+def needStampCheck(filename: str, debug: bool) -> bool:
     # open save old contents and append things here
     if debug: print("Open", filename, end=' ')
     #Empty name isn't a filename
@@ -111,29 +109,52 @@ def check_filename(filename: str, fileTuple: tuple or list) -> bool:
     return False
 
 
-def main(branch) -> None:
+def eval(cmd, **kwargs):
+    return subprocess.run(cmd,
+                          capture_output=True,
+                          shell=isinstance(cmd, str),
+                          check=True,
+                          **kwargs).stdout.decode('utf-8').strip()
+
+
+def is_excluded(f):
+    base = os.path.basename(f)
+    return base in unsupported_file_types
+
+
+def get_top():
+    return eval("git rev-parse --show-toplevel")
+
+
+def get_head():
+    return eval("git rev-parse --abbrev-ref HEAD")
+
+
+def get_merge_base(branch):
+    head = get_head()
+    return eval(f"git merge-base {branch} {head}")
+
+
+def get_files_changed(against):
+    files = eval(
+        f"git diff-index --cached --name-only --diff-filter=d {against}",
+        cwd=get_top()).splitlines()
+    return (f for f in files
+            if f.endswith(supported_file_types) and not is_excluded(f))
+
+
+def main(branch, debug) -> None:
     unsupported_file_types.extend(specificIgnores)
 
-    ## Get a list of all files (not including deleted) that have changed/added in comparison to the latest Dev branch from MI Graphx
+    fileList = list(get_files_changed(branch))
 
-    # Subprocess 1 is fetching the latest dev branch from the MIgraphX Url and naming it as 'FETCH_HEAD'
-    subprocess.run(
-        "git fetch https://github.com/ROCmSoftwarePlatform/AMDMIGraphX {0} --quiet"
-        .format(branch),
-        shell=True,
-        stdout=subprocess.PIPE)
-
-    # proc 2 is getting the list of file differences between FETCH_HEAD and the branch to be merged. (filters out deleted files from FETCH_HEAD)
-    proc = subprocess.run("git diff --name-only --diff-filter=d FETCH_HEAD",
-                          shell=True,
-                          stdout=subprocess.PIPE)
-    fileList = proc.stdout.decode().split('\n')
-
-    if debug: print(f"Target file list {len(fileList)}:\n" + str(fileList))
+    if debug:
+        print(f"Branch: {branch}, Target file list {len(fileList)}:\n" +
+              str(fileList))
 
     for file in fileList:
         if check_filename(file, supported_file_types):
-            if needStampCheck(file) and not check_filename(
+            if needStampCheck(file, debug) and not check_filename(
                     file, unsupported_file_types):
                 unstampedFiles.append(file)
             else:
@@ -172,6 +193,7 @@ if __name__ == "__main__":
 
     parser = argparse.ArgumentParser()
     parser.add_argument("branch")
+    parser.add_argument('-d', '--debug', action='store_true')
     args = parser.parse_args()
 
-    main(args.branch)
+    main(args.branch, args.debug)

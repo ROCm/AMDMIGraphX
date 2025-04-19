@@ -110,7 +110,7 @@ struct find_1x1_convolution
 
 struct find_largek
 {
-    std::size_t split_threshold = 4096;
+    std::size_t split_threshold = 2048;
     auto matcher() const { return match::name("dot"); }
 
     static std::size_t split_dim(std::size_t& r, std::size_t min_size)
@@ -149,7 +149,7 @@ struct find_largek
 
         std::vector<int64_t> perm(ains->get_shape().ndim() + 1);
         std::iota(perm.begin(), perm.end(), 0);
-        std::swap(perm[perm.size() - 2], perm[perm.size() - 4]);
+        std::swap(perm[perm.size() - 2], perm[perm.size() - 3]);
         auto atranspose =
             m.insert_instruction(ins, make_op("transpose", {{"permutation", perm}}), areshape);
 

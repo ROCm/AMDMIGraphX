@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2023 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2025 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -51,9 +51,9 @@ struct reshape_lazy
 
     shape dyn_compute_shape(shape s0) const
     {
-        auto dyn_dims      = s0.dyn_dims();
-        auto num_not_fixed = std::count_if(
-            dyn_dims.cbegin(), dyn_dims.cend(), [](auto dd) { return not dd.is_fixed(); });
+        const auto& dyn_dims = s0.dyn_dims();
+        auto num_not_fixed   = std::count_if(
+            dyn_dims.cbegin(), dyn_dims.cend(), [](const auto& dd) { return not dd.is_fixed(); });
         if(num_not_fixed != 1)
         {
             MIGRAPHX_THROW("reshape_lazy: Only supports one non-fixed dynamic_dimension");
@@ -300,7 +300,7 @@ struct reshape_lazy
         auto n_neg_dims = std::count(dims.begin(), dims.end(), -1);
         if(n_neg_dims > 1)
             MIGRAPHX_THROW("reshape_lazy: Dimensions for reshape_lazy can only have one -1 dim");
-        auto s0 = inputs[0];
+        const auto& s0 = inputs[0];
         if(s0.dynamic())
         {
             return dyn_compute_shape(s0);

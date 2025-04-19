@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2024 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2025 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -41,17 +41,17 @@ using migraphx::make_op;
 using migraphx::shape;
 using migraphx::fp8::fp8e4m3fnuz;
 
-void run_fp8_ocp_to_fnuz(migraphx::module& m)
+static void run_fp8_ocp_to_fnuz(migraphx::module& m)
 {
     migraphx::run_passes(m, {migraphx::fp8_ocp_to_fnuz{}, migraphx::dead_code_elimination{}});
 }
 
-void run_simplify_qdq(migraphx::module& m)
+static void run_simplify_qdq(migraphx::module& m)
 {
     run_passes(m, {migraphx::simplify_qdq{}, migraphx::dead_code_elimination{}});
 }
 
-void run_cse_pc(migraphx::module& m, const std::unordered_set<std::string>& skip_ops = {})
+static void run_cse_pc(migraphx::module& m, const std::unordered_set<std::string>& skip_ops = {})
 {
     run_passes(m,
                {migraphx::eliminate_common_subexpression{},
@@ -60,12 +60,12 @@ void run_cse_pc(migraphx::module& m, const std::unordered_set<std::string>& skip
                 migraphx::dead_code_elimination{}});
 }
 
-auto bit_cast_and_handle_specials(migraphx::module& m,
-                                  const migraphx::instruction_ref x,
-                                  const migraphx::instruction_ref bits_0x80_lit,
-                                  const migraphx::instruction_ref bits_0x7f_lit,
-                                  const migraphx::instruction_ref bits_0xff_lit,
-                                  const migraphx::instruction_ref bits_0x00_lit)
+static auto bit_cast_and_handle_specials(migraphx::module& m,
+                                         const migraphx::instruction_ref x,
+                                         const migraphx::instruction_ref bits_0x80_lit,
+                                         const migraphx::instruction_ref bits_0x7f_lit,
+                                         const migraphx::instruction_ref bits_0xff_lit,
+                                         const migraphx::instruction_ref bits_0x00_lit)
 {
     auto x_lens = x->get_shape().lens();
     auto cast_input =
@@ -94,10 +94,10 @@ auto bit_cast_and_handle_specials(migraphx::module& m,
     return ret;
 }
 
-auto cast_fp8_helper(migraphx::module& m,
-                     const migraphx::instruction_ref dq_input,
-                     const migraphx::instruction_ref dq_scale,
-                     const migraphx::instruction_ref dq_zp)
+static auto cast_fp8_helper(migraphx::module& m,
+                            const migraphx::instruction_ref dq_input,
+                            const migraphx::instruction_ref dq_scale,
+                            const migraphx::instruction_ref dq_zp)
 {
     auto dq_input_lens                 = dq_input->get_shape().lens();
     std::vector<fp8e4m3fnuz> bits_0x80 = {fp8e4m3fnuz(0x80, fp8e4m3fnuz::from_bits())};

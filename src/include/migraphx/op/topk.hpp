@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2024 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2025 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -102,14 +102,14 @@ struct topk
     };
 
     template <class T, class Compare>
-    heap_vector<T, Compare> make_heap(std::vector<T> val, Compare compare) const
+    heap_vector<T, Compare> make_heap(const std::vector<T>& val, Compare compare) const
     {
         return {std::move(val), std::move(compare)};
     }
 
     argument compute(const shape& output_shape, std::vector<argument> args) const
     {
-        auto vec_ss = output_shape.sub_shapes();
+        const auto& vec_ss = output_shape.sub_shapes();
         argument res_val{vec_ss.front()};
         argument res_ind{vec_ss.back()};
         auto in_s      = args.front().get_shape();

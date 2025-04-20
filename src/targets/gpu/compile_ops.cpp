@@ -131,7 +131,7 @@ struct compile_plan
             const auto& problem = config->problem;
             if(auto sol = ctx->get_problem_cache().get(preop.name(), problem))
             {
-                auto solution = sol.value();
+                const auto& solution = sol.value();
                 // No solution yet until benchmarked so skip for now
                 if(solution.is_null())
                     return;
@@ -261,7 +261,7 @@ struct compile_plan
 };
 
 template <class F>
-void par_compile(std::size_t n, F f)
+static void par_compile(std::size_t n, F f)
 {
     if(n == 0)
         return;

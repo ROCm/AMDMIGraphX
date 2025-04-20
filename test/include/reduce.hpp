@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2024 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2025 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -29,6 +29,7 @@
 #include <migraphx/program.hpp>
 #include <migraphx/module.hpp>
 #include <migraphx/make_op.hpp>
+#include <utility>
 
 inline bool all_instructions_are_local(const migraphx::module& m)
 {
@@ -54,7 +55,7 @@ migraphx::module_ref add_reduce_module(migraphx::program& p,
                                        const std::string& name,
                                        std::vector<migraphx::instruction_ref> inputs,
                                        const std::vector<int64_t>& axes,
-                                       F f)
+                                       const F& f)
 {
     auto* rm = p.create_module(name);
     rm->set_bypass();
@@ -73,25 +74,25 @@ migraphx::module_ref add_reduce_module(migraphx::program& p,
 template <class F>
 migraphx::instruction_ref add_reduce(migraphx::program& p,
                                      const std::string& name,
-                                     std::vector<migraphx::instruction_ref> inputs,
+                                     const std::vector<migraphx::instruction_ref>& inputs,
                                      const std::vector<int64_t>& axes,
-                                     F f)
+                                     const F& f)
 {
     auto* mm = p.get_main_module();
-    auto rm  = add_reduce_module(p, name, inputs, axes, f);
+    auto rm  = add_reduce_module(p, name, inputs, axes, std::move(f));
     return mm->add_instruction(migraphx::make_op("fused_reduce", {{"axes", axes}}), inputs, {rm});
 }
 
 template <class F>
 migraphx::instruction_ref add_reduce(migraphx::program& p,
                                      const std::string& name,
-                                     std::vector<migraphx::instruction_ref> inputs,
+                                     const std::vector<migraphx::instruction_ref>& inputs,
                                      const std::vector<int64_t>& axes,
                                      const std::string& assign,
-                                     F f)
+                                     const F& f)
 {
     auto* mm = p.get_main_module();
-    auto rm  = add_reduce_module(p, name, inputs, axes, f);
+    auto rm  = add_reduce_module(p, name, inputs, axes, std::move(f));
     return mm->add_instruction(
         migraphx::make_op("split_fused_reduce", {{"axes", axes}, {"assign", assign}}),
         inputs,

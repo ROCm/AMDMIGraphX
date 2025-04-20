@@ -44,7 +44,7 @@ MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_DUMP_TEST)
 
 // An improved async, that doesn't block
 template <class Function>
-std::future<std::invoke_result_t<Function>> detach_async(Function&& f, bool parallel = true)
+static std::future<std::invoke_result_t<Function>> detach_async(Function&& f, bool parallel = true)
 {
     if(parallel)
     {
@@ -57,7 +57,7 @@ std::future<std::invoke_result_t<Function>> detach_async(Function&& f, bool para
     return std::async(std::launch::deferred, std::forward<Function>(f));
 }
 
-inline void verify_load_save(const migraphx::program& p)
+inline static void verify_load_save(const migraphx::program& p)
 {
     migraphx::tmp_dir td{"migraphx_test"};
     auto path = td.path / "test.mxr";
@@ -66,10 +66,10 @@ inline void verify_load_save(const migraphx::program& p)
     EXPECT(p == loaded);
 }
 
-inline void compile_check(migraphx::program& p,
-                          const migraphx::target& t,
-                          migraphx::compile_options c_opts,
-                          bool show_trace = false)
+inline static void compile_check(migraphx::program& p,
+                                 const migraphx::target& t,
+                                 migraphx::compile_options c_opts,
+                                 bool show_trace = false)
 {
     auto name   = t.name();
     auto shapes = p.get_output_shapes();
@@ -168,7 +168,7 @@ run_verify::run_target(const migraphx::target& t,
 }
 
 template <class T>
-auto get_hash(const T& x)
+static auto get_hash(const T& x)
 {
     return std::hash<T>{}(x);
 }

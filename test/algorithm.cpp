@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2024 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2025 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -31,7 +31,7 @@
 // NOLINTNEXTLINE
 #define MIGRAPHX_FORWARD_CONTAINER_TEST_CASE(name, type) \
     template <class Container>                           \
-    void name();                                         \
+    static void name();                                  \
     TEST_CASE_REGISTER(name<std::vector<type>>);         \
     TEST_CASE_REGISTER(name<std::list<type>>);           \
     TEST_CASE_REGISTER(name<std::forward_list<type>>);   \
@@ -39,7 +39,8 @@
     void name()
 
 template <class Container, class Iterator>
-auto erase_iterator(Container& c, Iterator pos, Iterator last) -> decltype(c.erase_after(pos, last))
+static auto
+erase_iterator(Container& c, Iterator pos, Iterator last) -> decltype(c.erase_after(pos, last))
 {
     auto n  = std::distance(c.begin(), pos);
     auto it = n == 0 ? c.before_begin() : std::next(c.begin(), n - 1);
@@ -47,7 +48,8 @@ auto erase_iterator(Container& c, Iterator pos, Iterator last) -> decltype(c.era
 }
 
 template <class Container, class Iterator>
-auto erase_iterator(Container& c, Iterator pos, Iterator last) -> decltype(c.erase(pos, last))
+static auto erase_iterator(Container& c, Iterator pos, Iterator last) -> decltype(c.erase(pos,
+                                                                                          last))
 {
     return c.erase(pos, last);
 }

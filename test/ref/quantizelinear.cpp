@@ -86,7 +86,7 @@ TEST_CASE(quantizelinear_2)
 }
 
 template <class DType>
-void quantizelinear_fp8e4m3()
+static void quantizelinear_fp8e4m3()
 {
     migraphx::shape xs{migraphx::shape::float_type, {2, 2, 2}};
     migraphx::shape zs{migraphx::shape::get_type<DType>{}, {2, 2, 2}};
@@ -127,7 +127,7 @@ TEST_CASE_REGISTER(quantizelinear_fp8e4m3<migraphx::fp8::fp8e4m3fnuz>);
 TEST_CASE_REGISTER(quantizelinear_fp8e4m3<migraphx::fp8::fp8e4m3fn>);
 
 template <class DType>
-void quantizelinear_fp8e5m2()
+static void quantizelinear_fp8e5m2()
 {
     migraphx::shape xs{migraphx::shape::float_type, {2, 2, 2}};
     migraphx::shape zs{migraphx::shape::get_type<DType>{}, {2, 2, 2}};

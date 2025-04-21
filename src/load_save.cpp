@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2023 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2025 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -63,7 +63,7 @@ void save(const program& p, const std::string& filename, const file_options& opt
 }
 
 // MIOpen doesn't support serializing fusion plans with Find-2.0 APIs
-void print_miopen_warning(const program& p)
+static void print_miopen_warning(const program& p)
 {
     auto mods = p.get_modules();
     if(std::any_of(mods.begin(), mods.end(), [](const auto* m) {

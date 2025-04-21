@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2024 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2025 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -62,12 +62,12 @@ int main() {}
 
 )__migraphx__";
 
-migraphx::src_file make_src_file(const std::string& name, const std::string& content)
+static migraphx::src_file make_src_file(const std::string& name, const std::string& content)
 {
     return {name, content};
 }
 
-hip_stream_ptr get_stream()
+static hip_stream_ptr get_stream()
 {
     hipStream_t stream;
 

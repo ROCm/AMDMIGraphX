@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2024 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2025 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -39,7 +39,7 @@ namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
 namespace gpu {
 
-MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_DISABLE_LAYERNORM_FUSION);
+MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_ENABLE_LAYERNORM_FUSION);
 
 namespace {
 
@@ -310,7 +310,7 @@ struct find_group_query_attention
         auto scale              = v.at("scale").to<float>();
 
         auto q_shape                      = inputs[0]->get_shape();
-        auto q_lens                       = q_shape.lens();
+        const auto& q_lens                = q_shape.lens();
         const std::size_t batch_size      = q_lens[0];
         const std::size_t sequence_length = q_lens[1];
         std::size_t q_hidden_size         = q_lens[2];
@@ -385,7 +385,7 @@ struct find_group_query_attention
 
 void prefuse_ops::apply(module_pass_manager& mpm) const
 {
-    if(not enabled(MIGRAPHX_DISABLE_LAYERNORM_FUSION{}))
+    if(enabled(MIGRAPHX_ENABLE_LAYERNORM_FUSION{}))
     {
         match::find_matches(mpm.get_module(), find_layernorm{});
         mpm.run_pass(dead_code_elimination{});

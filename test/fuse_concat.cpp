@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2024 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2025 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -32,7 +32,7 @@
 #include <test.hpp>
 #include <pointwise.hpp>
 
-void run_pass(migraphx::program& p)
+static void run_pass(migraphx::program& p)
 {
     migraphx::run_passes(p, {migraphx::fuse_concat{}, migraphx::dead_code_elimination{}});
 }
@@ -46,14 +46,14 @@ struct concat_arg
 };
 
 template <class F>
-concat_arg<F> arg(std::string name, std::vector<migraphx::instruction_ref> inputs, F f)
+static concat_arg<F> arg(std::string name, std::vector<migraphx::instruction_ref> inputs, F f)
 {
     return {std::move(name), std::move(inputs), std::move(f)};
 }
 
 template <class Arg, class... Args>
-migraphx::instruction_ref
-add_pointwise_concat(migraphx::program& p, std::size_t axis, Arg post_arg, Args... args)
+static migraphx::instruction_ref
+add_pointwise_concat(migraphx::program& p, std::size_t axis, Arg post_arg, const Args&... args)
 {
     std::vector<migraphx::module_ref> module_inputs;
     std::vector<migraphx::instruction_ref> ins_inputs;

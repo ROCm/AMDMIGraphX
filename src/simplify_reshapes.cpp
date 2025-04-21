@@ -125,7 +125,7 @@ struct find_op_shape_transform_op
 {
     auto matcher() const
     {
-        auto reshapes          = match::name("reshape",
+        auto reshapes      = match::name("reshape",
                                     "squeeze",
                                     "unsqueeze",
                                     "flatten",
@@ -133,144 +133,137 @@ struct find_op_shape_transform_op
                                     "contiguous",
                                     "multibroadcast",
                                     "broadcast")(match::used_once());
-        auto match_op = match::any_of(match::reduce(), match::pointwise());
-        auto x_op         = match_op(match::used_once());
-        auto reshapes_x_op =
-            reshapes(match::arg(0)(match::skip(reshapes())(x_op.bind("x"))));
-        return match_op(
-            match::any_of[match::inputs()](reshapes_x_op.bind("input")));
+        auto match_op      = match::any_of(match::reduce(), match::pointwise());
+        auto x_op          = match_op(match::used_once());
+        auto reshapes_x_op = reshapes(match::arg(0)(match::skip(reshapes())(x_op.bind("x"))));
+        return match_op(match::any_of[match::inputs()](reshapes_x_op.bind("input")));
     }
 
-    static bool is_reduce(instruction_ref ins)
+    static bool is_reduce(instruction_ref ins) { return starts_with(ins->name(), "reduce_"); }
+
+    template <class F>
+    static instruction_ref find_input_if(instruction_ref start, instruction_ref last, F f)
     {
-        return starts_with(ins->name(), "reduce_");
+        while(start != last)
+        {
+            if(f(start))
+                return start;
+            if(start->inputs().size() != 1)
+                return last;
+            start = start->inputs().front();
+        }
+        return last;
     }
 
     template <class F>
-        static instruction_ref find_input_if(instruction_ref start, instruction_ref last, F f)
+    static bool any_input_of(instruction_ref start, instruction_ref last, F f)
+    {
+        return find_input_if(start, last, f) != last;
+    }
+
+    template <class AxesMap>
+    static instruction_ref insert(module& m,
+                                  instruction_ref ins,
+                                  const std::vector<instruction_ref>& inputs,
+                                  const AxesMap& am)
+    {
+        if(is_reduce(ins))
         {
-            while(start != last)
+            auto v       = ins->get_operator().to_value();
+            auto op_axes = v.at("axes").to_vector<std::size_t>();
+            std::vector<int64_t> axes;
+            for(auto axis : op_axes)
             {
-                if(f(start))
-                    return start;
-                if(start->inputs().size() != 1)
-                    return last;
-                start = start->inputs().front();
+                auto new_axes = am.at(axis);
+                axes.insert(axes.end(), new_axes.begin(), new_axes.end());
             }
-            return last;
+            std::sort(axes.begin(), axes.end());
+            v["axes"] = axes;
+            return m.insert_instruction(ins, make_op(ins->name(), v), inputs, ins->module_inputs());
         }
-
-        template <class F>
-        static bool any_input_of(instruction_ref start, instruction_ref last, F f)
+        if(ins->name() == "layout")
         {
-            return find_input_if(start, last, f) != last;
-        }
-
-        template <class AxesMap>
-        static instruction_ref insert(module& m,
-                                      instruction_ref ins,
-                                      const std::vector<instruction_ref>& inputs,
-                                      const AxesMap& am)
-        {
-            if(is_reduce(ins))
+            auto v              = ins->get_operator().to_value();
+            auto op_permutation = v.at("permutation").to_vector<std::int64_t>();
+            std::vector<int64_t> permutation;
+            for(auto axis : op_permutation)
             {
-                auto v = ins->get_operator().to_value();
-                auto op_axes = v.at("axes").to_vector<std::size_t>();
-                std::vector<int64_t> axes;
-                for(auto axis : op_axes)
+                auto new_axes = am.at(axis);
+                permutation.insert(permutation.end(), new_axes.begin(), new_axes.end());
+            }
+            v["permutation"] = permutation;
+            return m.insert_instruction(ins, make_op(ins->name(), v), inputs, ins->module_inputs());
+        }
+        return m.insert_instruction(ins, ins->get_operator(), inputs, ins->module_inputs());
+    }
+
+    void apply(module& m, const match::matcher_result& r) const
+    {
+        auto ins       = r.result;
+        auto x_ins     = r.instructions["x"];
+        auto input_ins = r.instructions["input"];
+
+        // If its just a broadcast then skip
+        if(not any_input_of(input_ins, x_ins, [](instruction_ref x) {
+               return not contains({"multibroadcast", "broadcast", "contiguous"}, x->name());
+           }))
+            return;
+
+        std::vector<operation> ops;
+        auto next_ins = input_ins;
+        while(next_ins != x_ins)
+        {
+            ops.push_back(next_ins->get_operator());
+            next_ins = next_ins->inputs().front();
+        }
+        assert(next_ins == x_ins);
+        std::reverse(ops.begin(), ops.end());
+
+        auto output_desc = shape_transform_descriptor::create(x_ins->get_shape().lens(), ops);
+        if(output_desc.empty())
+            return;
+        auto input_desc = output_desc.rebase(x_ins->inputs().front()->get_shape().lens());
+        if(input_desc.empty())
+            return;
+
+        auto cdims         = input_desc.common_dims();
+        auto reshape_input = [&](const auto& ins_to_insert, auto generate, const auto& desc) {
+            return [&, generate](auto input) {
+                auto gops  = std::invoke(generate, desc, input->get_shape().lens());
+                auto start = input;
+                for(const auto& op : gops)
                 {
-                    auto new_axes = am.at(axis);
-                    axes.insert(axes.end(), new_axes.begin(), new_axes.end());
+                    start = m.insert_instruction(ins_to_insert, op, start);
                 }
-                std::sort(axes.begin(), axes.end());
-                v["axes"] = axes;
-                return m.insert_instruction(ins, make_op(ins->name(), v), inputs, ins->module_inputs());
-            }
-            if(ins->name() == "layout")
-            {
-                auto v = ins->get_operator().to_value();
-                auto op_permutation = v.at("permutation").to_vector<std::int64_t>();
-                std::vector<int64_t> permutation;
-                for(auto axis : op_permutation)
-                {
-                    auto new_axes = am.at(axis);
-                    permutation.insert(permutation.end(), new_axes.begin(), new_axes.end());
-                }
-                v["permutation"] = permutation;
-                return m.insert_instruction(ins, make_op(ins->name(), v), inputs, ins->module_inputs());
-            }
-            return m.insert_instruction(
-                ins, ins->get_operator(), inputs, ins->module_inputs());
-        }
-
-        void apply(module& m, const match::matcher_result& r) const
-        {
-            auto ins         = r.result;
-            auto x_ins       = r.instructions["x"];
-            auto input_ins   = r.instructions["input"];
-
-
-            // If its just a broadcast then skip
-            if(not any_input_of(input_ins, x_ins, [](instruction_ref x) {
-                   return not contains({"multibroadcast", "broadcast", "contiguous"}, x->name());
-               }))
-                return;
-
-            std::vector<operation> ops;
-            auto next_ins = input_ins;
-            while(next_ins != x_ins)
-            {
-                ops.push_back(next_ins->get_operator());
-                next_ins = next_ins->inputs().front();
-            }
-            assert(next_ins == x_ins);
-            std::reverse(ops.begin(), ops.end());
-
-            auto output_desc = shape_transform_descriptor::create(x_ins->get_shape().lens(), ops);
-            if(output_desc.empty())
-                return;
-            auto input_desc = output_desc.rebase(x_ins->inputs().front()->get_shape().lens());
-            if(input_desc.empty())
-                return;
-
-            auto cdims         = input_desc.common_dims();
-            auto reshape_input = [&](const auto& ins_to_insert, auto generate, const auto& desc) {
-                return [&, generate](auto input) {
-                    auto gops  = std::invoke(generate, desc, input->get_shape().lens());
-                    auto start = input;
-                    for(const auto& op : gops)
-                    {
-                        start = m.insert_instruction(ins_to_insert, op, start);
-                    }
-                    return start;
-                };
+                return start;
             };
-            auto x_inputs = x_ins->inputs();
-            std::transform(
-                x_inputs.begin(),
-                x_inputs.end(),
-                x_inputs.begin(),
-                reshape_input(x_ins, &shape_transform_descriptor::generate_common_from_src, input_desc));
-            auto new_x_ins = insert(m, x_ins, x_inputs, input_desc.common_axes_map_from_src());
-            if(new_x_ins->get_shape().elements() != x_ins->get_shape().elements())
-            {
-                new_x_ins = m.insert_instruction(
-                    x_ins, make_op("multibroadcast", {{"out_lens", cdims}}), new_x_ins);
-            }
-
-            auto inputs = ins->inputs();
-            std::transform(inputs.begin(), inputs.end(), inputs.begin(), [&](auto input) {
-                if(input == input_ins)
-                    return new_x_ins;
-                return reshape_input(ins,
-                                     &shape_transform_descriptor::generate_common_from_dst, output_desc)(input);
-            });
-            auto pw = insert(m, ins, inputs, output_desc.common_axes_map_from_dst());
-            auto rins =
-                reshape_input(ins, &shape_transform_descriptor::generate_dst_from_common, output_desc)(pw);
-            m.replace_instruction(ins, rins);
+        };
+        auto x_inputs = x_ins->inputs();
+        std::transform(x_inputs.begin(),
+                       x_inputs.end(),
+                       x_inputs.begin(),
+                       reshape_input(x_ins,
+                                     &shape_transform_descriptor::generate_common_from_src,
+                                     input_desc));
+        auto new_x_ins = insert(m, x_ins, x_inputs, input_desc.common_axes_map_from_src());
+        if(new_x_ins->get_shape().elements() != x_ins->get_shape().elements())
+        {
+            new_x_ins = m.insert_instruction(
+                x_ins, make_op("multibroadcast", {{"out_lens", cdims}}), new_x_ins);
         }
 
+        auto inputs = ins->inputs();
+        std::transform(inputs.begin(), inputs.end(), inputs.begin(), [&](auto input) {
+            if(input == input_ins)
+                return new_x_ins;
+            return reshape_input(
+                ins, &shape_transform_descriptor::generate_common_from_dst, output_desc)(input);
+        });
+        auto pw   = insert(m, ins, inputs, output_desc.common_axes_map_from_dst());
+        auto rins = reshape_input(
+            ins, &shape_transform_descriptor::generate_dst_from_common, output_desc)(pw);
+        m.replace_instruction(ins, rins);
+    }
 };
 
 struct find_nop_reshapes

@@ -896,6 +896,29 @@ static bool has_axes(const dimension& d)
     });
 }
 
+static std::vector<int64_t> find_permutation(std::vector<dimension::sub> tsubs)
+{
+    // Inject additonal axis to compute transpose permutation better
+    auto is_empty_axis = [](const auto& s) { return s.axis.empty(); };
+    group_find(tsubs.begin(), tsubs.end(), is_empty_axis, [&](auto start, auto last) {
+        if(start == tsubs.begin())
+            return;
+        auto base = std::prev(start);
+        auto axis = base->axis;
+        axis.push_back(0);
+        std::for_each(start, last, [&](auto& s) {
+            s.axis = axis;
+            axis.back()++;
+        });
+    });
+
+    auto compare_sub = [](auto f) {
+        return by(f, [](const dimension::sub& s) -> const auto& { return s.axis; });
+    };
+    return sort_permutation(tsubs, compare_sub(std::less<>{}));
+}
+
+
 static void generate_from_subdimensions(operation_list& result,
                                         std::vector<dimension::sub> subs,
                                         const std::vector<std::size_t>& input_dims = {})
@@ -916,28 +939,10 @@ static void generate_from_subdimensions(operation_list& result,
     // Flatten broadcasted subdimensions
     std::for_each(subs.begin(), subs.end(), &flatten_broadcasted_dim);
 
-    auto tsubs = subs;
-    // Inject additonal axis to compute transpose permutation better
-    auto is_empty_axis = [](const auto& s) { return s.axis.empty(); };
-    group_find(tsubs.begin(), tsubs.end(), is_empty_axis, [&](auto start, auto last) {
-        if(start == tsubs.begin())
-            return;
-        auto base = std::prev(start);
-        auto axis = base->axis;
-        axis.push_back(0);
-        std::for_each(start, last, [&](auto& s) {
-            s.axis = axis;
-            axis.back()++;
-        });
-    });
-
-    auto compare_sub = [](auto f) {
-        return by(f, [](const dimension::sub& s) -> const auto& { return s.axis; });
-    };
+    auto permutation = find_permutation(subs);
     // Need transpose
-    if(not std::is_sorted(tsubs.begin(), tsubs.end(), compare_sub(std::less<>{})))
+    if(not std::is_sorted(permutation.begin(), permutation.end()))
     {
-        auto permutation = sort_permutation(tsubs, compare_sub(std::less<>{}));
         result.push_back(make_op("transpose", {{"permutation", invert_permutation(permutation)}}));
         subs = reorder_dims(subs, permutation);
     }
@@ -1070,16 +1075,50 @@ std::vector<operation> shape_transform_descriptor::generate_dst_from_common(
 {
     std::vector<operation> result;
     std::vector<dimension> new_dims = dimensions;
-    for_each_subdimension(new_dims, input_dims, [&](auto& s, auto dim) { s.len = dim; });
+    if(not input_dims.empty())
+        for_each_subdimension(new_dims, input_dims, [&](auto& s, auto dim) { s.len = dim; });
 
-    // Remove broadcasted dimensions
-    for(auto& d : new_dims)
+    // Need squeeze reshape
+    if(std::any_of(new_dims.begin(), new_dims.end(), [](const dimension& d) {
+           if(d.subdimensions.size() != 1)
+               return true;
+           return is_broadcast_dim(d);
+       }))
     {
-        if(d.subdimensions.size() != 1)
-            continue;
-        auto& s = d.subdimensions.front();
+        result.push_back(make_reshape_squeeze(new_dims));
+    }
+    return result;
+}
+std::vector<operation> shape_transform_descriptor::generate_src_from_common(
+    const std::vector<std::size_t>& input_dims) const
+{
+    std::vector<operation> result;
+
+    auto subs = get_all_subdimensions(dimensions);
+    for(auto i:range(subs.size()))
+    {
+        auto& s = subs[i];
+        if(i < input_dims.size())
+            s.len = input_dims[i];
+        // Remove broadcasted dimensions
         s.expose();
     }
+
+    auto permutation = find_permutation(subs);
+    // Need transpose
+    if(not std::is_sorted(permutation.begin(), permutation.end()))
+    {
+        result.push_back(make_op("transpose", {{"permutation", invert_permutation(permutation)}}));
+        subs = reorder_dims(subs, permutation);
+    }
+
+    std::vector<dimension> new_dims;
+    group_by(subs.begin(), subs.end(), [&](auto start, auto last) { new_dims.push_back({{start, last}}); }, [&](const auto& x, const auto& y) { 
+        if(x.axis.empty() or y.axis.empty())
+            return x.axis.empty() == y.axis.empty();
+        return x.axis.front() == y.axis.front();
+    });
+
     // Need squeeze reshape
     if(std::any_of(new_dims.begin(), new_dims.end(), [](const dimension& d) {
            if(d.subdimensions.size() != 1)

@@ -32,7 +32,7 @@ IGNORED_FILES = ("digits.txt", "Dockerfile", "Jenkinsfile",
                  "imagenet_classes.txt", '')
 
 
-def checkFile(file, debug=False):
+def check_file(file, debug=False):
     try:
         with open(file, 'r') as f:
             content = f.read()
@@ -54,9 +54,9 @@ def print_status(status):
     return False
 
 
-def main(branch, debug):
-    files = getChangedFiles(branch)
-    if debug: print(f"Changed files vs {branch}: {files}")
+def main(args):
+    files = getChangedFiles(args.against)
+    if args.debug: print(f"Changed files vs {args.against}: {files}")
 
     for file in files:
         filename = os.path.basename(file)
@@ -67,7 +67,7 @@ def main(branch, debug):
         elif not filename.endswith(SUPPORTED_FILE_TYPES):
             status = StampStatus.UNSUPPORTED
         else:
-            status = checkFile(file, debug)
+            status = check_file(file, args.debug)
 
         status.files.append(file)
 
@@ -86,10 +86,10 @@ def main(branch, debug):
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
-    parser.add_argument("branch", help="Branch to compare against")
+    parser.add_argument('against', default='origin/develop', nargs='?')
     parser.add_argument("-d",
                         "--debug",
                         action="store_true",
                         help="Enable debug output")
     args = parser.parse_args()
-    main(args.branch, args.debug)
+    main(args)

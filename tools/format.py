@@ -1,7 +1,7 @@
 #####################################################################################
 # The MIT License (MIT)
 #
-# Copyright (c) 2015-2024 Advanced Micro Devices, Inc. All rights reserved.
+# Copyright (c) 2015-2025 Advanced Micro Devices, Inc. All rights reserved.
 #
 # Permission is hereby granted, free of charge, to any person obtaining a copy
 # of this software and associated documentation files (the "Software"), to deal
@@ -80,9 +80,9 @@ def main():
         yapf_format(args.against, apply=args.in_place)
     except subprocess.CalledProcessError as ex:
         if ex.stdout:
-            print(ex.stdout.decode('utf-8'))
+            print(ex.stdout)
         if ex.stderr:
-            print(ex.stderr.decode('utf-8'))
+            print(ex.stderr)
         if not args.quiet:
             print(f"Command '{ex.cmd}' returned {ex.returncode}")
             raise

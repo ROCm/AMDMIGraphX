@@ -216,7 +216,7 @@ def main(args):
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
-    parser.add_argument('against', default='develop', nargs='?')
+    parser.add_argument('against', default='origin/develop', nargs='?')
     parser.add_argument('-a',
                         '--all',
                         action='store_true',

@@ -1306,9 +1306,11 @@ module::print_py(std::ostream& os,
                     //     use_abs = std::none_of(v.begin(), v.end(), [](auto x) { return x < 0; });
                     // });
                     double fill_value = ins->get_literal().template at<double>();
-                    bool is_fill = false;
+                    bool is_fill      = false;
                     ins->get_literal().visit([&](auto v) {
-                        is_fill = std::all_of(v.begin()+1, v.end(), [&](auto x) { return float_equal(x, fill_value); });
+                        is_fill = std::all_of(v.begin()+1, v.end(), [&](auto x) {
+			    return float_equal(x, fill_value);
+			});
                     });
                     if(use_abs)
                         os << "migraphx.abs_literal(";

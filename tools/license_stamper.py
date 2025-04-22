@@ -52,7 +52,7 @@ extensions = delimiters.keys()
 def getDelimiter(filename):
     delimiter = None
     for extension in extensions:
-        if extension in filename:
+        if filename.endswith(extension):
             delimiter = delimiters[extension]
             break
     return delimiter

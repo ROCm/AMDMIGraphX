@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2024 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2025 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -174,7 +174,7 @@ static auto any_input(Ms... ms)
     return match::any_of[match::inputs()](match::any(ms...).bind("input"));
 }
 
-bool is_valid_broadcast(const instruction_ref b, const std::vector<size_t>& reduce_axes)
+static bool is_valid_broadcast(const instruction_ref b, const std::vector<size_t>& reduce_axes)
 {
     std::vector<size_t> broadcast_axes;
     auto bstrides = b->get_shape().strides();

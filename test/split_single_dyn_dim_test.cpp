@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2024 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2025 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -33,11 +33,7 @@
 #include <migraphx/builtin.hpp>
 #include <test.hpp>
 
-// Forward declare any_cast
-template <class T>
-const T& any_cast(const T&);
-
-void run_pass(migraphx::program& p)
+static void run_pass(migraphx::program& p)
 {
     migraphx::run_passes(p, {migraphx::split_single_dyn_dim{}, migraphx::dead_code_elimination{}});
 }
@@ -320,7 +316,7 @@ TEST_CASE(ordered_inputs_to_select_module)
     {
         if(ins->name() == "@param")
         {
-            auto&& param = any_cast<migraphx::builtin::param>(ins->get_operator());
+            auto&& param = migraphx::any_cast<migraphx::builtin::param>(ins->get_operator());
             sm_param_names.push_back(param.parameter);
         }
     }

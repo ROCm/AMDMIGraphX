@@ -20,32 +20,59 @@
  * LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
  * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
  * THE SOFTWARE.
+ *
  */
+#ifndef MIGRAPHX_GUARD_MIGRAPHX_BIT_HPP
+#define MIGRAPHX_GUARD_MIGRAPHX_BIT_HPP
 
-#include <migraphx/register_target.hpp>
-#include <migraphx/verify.hpp>
-#include <onnx_test.hpp>
+#include <migraphx/config.hpp>
+#include <cstdint>
 
-TEST_CASE(qlinearmatmul_1_d_test)
+namespace migraphx {
+inline namespace MIGRAPHX_INLINE_NS {
+
+template <unsigned int N>
+constexpr unsigned int all_ones() noexcept
 {
-    migraphx::program p = read_onnx("qlinearmatmul_1D_test.onnx");
-    p.compile(migraphx::make_target("ref"));
-
-    migraphx::shape a{migraphx::shape::uint8_type, {8}};
-    std::vector<uint8_t> data_a = {2, 4, 6, 8, 10, 12, 14, 16};
-
-    migraphx::shape b{migraphx::shape::uint8_type, {8}};
-    std::vector<uint8_t> data_b = {126, 130, 124, 132, 122, 134, 120, 136};
-
-    migraphx::parameter_map pp;
-    pp["A"]     = migraphx::argument(a, data_a.data());
-    pp["B"]     = migraphx::argument(b, data_b.data());
-    auto result = p.eval(pp).back();
-
-    std::vector<uint8_t> result_vector;
-    result.visit([&](auto output) { result_vector.assign(output.begin(), output.end()); });
-
-    std::vector<uint8_t> gold = {66};
-
-    EXPECT(migraphx::verify::verify_rms_range(result_vector, gold));
+    return (1u << N) - 1u;
 }
+
+template <typename T>
+constexpr int countl_zero(T value)
+{
+    unsigned int r = 0;
+    for(; value != 0u; value >>= 1u)
+        r++;
+    return 8 * sizeof(value) - r;
+}
+
+constexpr std::uint64_t bit_ceil(std::uint64_t x) noexcept
+{
+    if(x <= 1)
+        return 1;
+    --x;
+    x |= x >> 1u;
+    x |= x >> 2u;
+    x |= x >> 4u;
+    x |= x >> 8u;
+    x |= x >> 16u;
+    x |= x >> 32u;
+    return x + 1;
+}
+
+constexpr std::uint32_t bit_ceil(std::uint32_t x) noexcept
+{
+    if(x <= 1)
+        return 1;
+    --x;
+    x |= x >> 1u;
+    x |= x >> 2u;
+    x |= x >> 4u;
+    x |= x >> 8u;
+    x |= x >> 16u;
+    return x + 1;
+}
+
+} // namespace MIGRAPHX_INLINE_NS
+} // namespace migraphx
+#endif // MIGRAPHX_GUARD_MIGRAPHX_BIT_HPP

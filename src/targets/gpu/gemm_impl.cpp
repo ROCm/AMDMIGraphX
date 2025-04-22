@@ -52,7 +52,7 @@ struct rb_compute_type
 };
 
 // Convert rocBLAS datatypes to equivalent Migraphx data types
-rocblas_datatype get_type(shape::type_t type)
+static rocblas_datatype get_type(shape::type_t type)
 {
     switch(type)
     {
@@ -118,7 +118,7 @@ shape transpose_batch(const shape& s, unsigned trans_batch)
  *
  */
 template <class F, class Pack, class... Ts>
-auto rocblas_invoke(F f, Pack p, Ts... xs)
+static auto rocblas_invoke(F f, Pack p, Ts... xs)
 {
     return p([=](auto... ws) {
         auto status = f(ws..., xs...);
@@ -267,7 +267,7 @@ struct gemm_impl
     {
 #ifdef MIGRAPHX_USE_ROCBLAS_FP8_API
         if(rocblas_fp8_available() and
-           std::any_of(input_args.begin(), input_args.end(), [](const auto i) {
+           std::any_of(input_args.begin(), input_args.end(), [](const auto& i) {
                return i.get_shape().type() == migraphx::shape::fp8e4m3fnuz_type;
            }))
         {
@@ -651,13 +651,13 @@ int32_t gemm_default_solution(context& ctx,
  * Return value is the chosen solution index, or 0 to let picker choose it.
  */
 template <class T>
-int32_t gemm_finalize_impl(context& ctx,
-                           const shape& output_shape,
-                           const std::vector<shape>& input_shapes,
-                           T alpha,
-                           T beta,
-                           bool compute_fp32,
-                           int32_t solution_idx)
+static int32_t gemm_finalize_impl(context& ctx,
+                                  const shape& output_shape,
+                                  const std::vector<shape>& input_shapes,
+                                  T alpha,
+                                  T beta,
+                                  bool compute_fp32,
+                                  int32_t solution_idx)
 {
 #ifdef MIGRAPHX_USE_ROCBLAS_TUNING_API
 

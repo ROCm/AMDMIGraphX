@@ -29,7 +29,7 @@
 # commit year (which is found via GIT LOG). It then updates the year if needed. If a license stamp is not found, then
 # it will add a stamp at the begenning of the file with the year set to the current year.
 #####################################################################################
-import subprocess, os, datetime, re, argparse
+import os, argparse
 from stamp_status import StampStatus, stampCheck, updateYear, currentYear
 from git_tools import getAllFiles, getChangedFiles, getYearOfLatestCommit, getTop
 

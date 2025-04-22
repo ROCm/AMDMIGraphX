@@ -23,7 +23,7 @@
 #####################################################################################
 
 from enum import Enum, auto
-import subprocess, datetime, re
+import datetime, re
 
 
 class StampStatus(Enum):

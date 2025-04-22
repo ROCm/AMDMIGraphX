@@ -21,7 +21,7 @@
 # OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 # THE SOFTWARE.
 #####################################################################################
-import os, shlex, shutil, argparse, subprocess
+import os, shutil, argparse, subprocess
 from git_tools import getChangedFiles, getMergeBase, getTop, run
 
 CLANG_FORMAT_PATH = '/opt/rocm/llvm/bin'

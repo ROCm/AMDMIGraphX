@@ -22,7 +22,7 @@
 #  THE SOFTWARE.
 #####################################################################################
 
-import subprocess, sys, datetime, argparse, os
+import sys, argparse, os
 from stamp_status import StampStatus, stampCheck, currentYear
 from git_tools import getChangedFiles
 

@@ -31,8 +31,7 @@
 # it will add a stamp at the begenning of the file with the year set to the current year.
 #####################################################################################
 import subprocess, os, datetime, re, argparse
-
-current_year = datetime.date.today().year
+from stampStatus import getAllFiles, getChangedFiles, StampStatus, stampCheck, updateYear, currentYear
 
 __repo_dir__ = os.path.normpath(
     os.path.join(os.path.realpath(__file__), '..', '..'))
@@ -50,7 +49,6 @@ delimiters = {
 }
 extensions = delimiters.keys()
 
-
 # Get the delimiter from the file type based on what we care about to tag with our licence
 # file. Otherwise return None for the delimiter and skip the file
 def getDelimiter(filename):
@@ -60,36 +58,6 @@ def getDelimiter(filename):
             delimiter = delimiters[extension]
             break
     return delimiter
-
-
-def eval(cmd, **kwargs):
-    return subprocess.run(cmd,
-                          capture_output=True,
-                          shell=True,
-                          check=True,
-                          **kwargs).stdout.decode('utf-8').strip()
-
-
-def get_head():
-    return eval("git rev-parse --abbrev-ref HEAD")
-
-
-def get_merge_base(branch):
-    head = get_head()
-    return eval(f"git merge-base {branch} {head}")
-
-
-def get_files_changed(against):
-    files = eval(f"git diff-index --cached --name-only {against}",
-                 cwd=__repo_dir__).splitlines()
-    return [f for f in files if getDelimiter(f)]
-
-
-def get_all_files():
-    files = eval("git ls-files --exclude-standard",
-                 cwd=__repo_dir__).splitlines()
-    return [f for f in files if getDelimiter(f)]
-
 
 # Markdown code blob we should use to insert into notebook files
 def getipynb_markdownBlockAsList():
@@ -119,38 +87,6 @@ def getipynb_markdownBlockAsList():
         '\t\t\t\"#  THE SOFTWARE.\\n\"\n', '\t\t]\n', '\t},'
     ]
     return markdownBlock
-
-
-def hasKeySequence(inputfile, key_message):
-    result = False
-    if key_message in inputfile:
-        result = True
-
-    return result
-
-
-def getYearOfLatestCommit(rfile: str) -> int:
-    proc2 = subprocess.run(f"git log -1 --format=%cd --date=short {rfile}",
-                           shell=True,
-                           stdout=subprocess.PIPE,
-                           cwd=__repo_dir__)
-    year = datetime.datetime.strptime(proc2.stdout.decode().strip(),
-                                      '%Y-%m-%d').year
-    return year
-
-
-def currentYear() -> int:
-    return datetime.datetime.now().date().year
-
-
-def updateYear(filename: str, lastCommitYear: int) -> None:
-    with open(filename, 'r') as f:
-        newfileContent = re.sub(
-            "2015-\d+ Advanced Micro Devices",
-            f'2015-{lastCommitYear} Advanced Micro Devices', f.read())
-
-    with open(filename, 'w') as f:
-        f.write(newfileContent)
 
 
 # Header and footer of the comment block
@@ -198,125 +134,65 @@ def openAndWriteFile(rfile,
     modify_markdown = False
 
     #open save old contents and append things here
-    if debug is True:
-        print("Open", filename, end='')
+    if debug is True: print("Open", filename, end='')
 
     try:
-        file = open(filename, 'r')
-    except OSError as e:
-        if debug is True:
-            print(str(e) + "....Open Error: Skipping file ")
-        file.close()
+        with open(filename, 'r') as contents:
+            if commentChar != "//":
+                saved_shebang = contents.readline()
+                if "#!" in saved_shebang:
+                    add_shebang = True
+                else:
+                    contents.seek(0)
+
+            if commentChar == "//":
+                save_markdown_lines.append(contents.readline())
+                save_markdown_lines.append(contents.readline())
+                modify_markdown = True
+
+            save = contents.read()
+    except (OSError, UnicodeDecodeError) as e:
+        if debug:
+            print(f"{e}....Skipping file")
         return
-    else:
-        with file as contents:
-            try:
-                if commentChar != "//":
-                    saved_shebang = contents.readline()
-                    add_shebang = hasKeySequence(saved_shebang, "#!")
 
-                    # No shebang so start at beginning line
-                    if add_shebang is False:
-                        contents.seek(0)
+    year = getYearOfLatestCommit(rfile) if useLastCommitYear else currentYear()
+    status = stampCheck(filename, year, save, debug=debug)
 
-                # Get the first tags in notebook before we insert license into a cell as a comment block
-                if commentChar == "//":
-                    save_markdown_lines.extend(contents.readline())  # { tag
-                    save_markdown_lines.extend(
-                        contents.readline())  # "cells": [ tag
-                    modify_markdown = True
+    if status in (StampStatus.OK, StampStatus.OTHER_LICENSE, StampStatus.WRONG_YEAR):
+        if status == StampStatus.WRONG_YEAR:
+            updateYear(filename, year)
+        return
 
-                #read remaining lines in the original file
-                save = contents.read()
-
-                hasAmdLic = hasKeySequence(
-                    save, "Advanced Micro Devices, Inc. All rights reserved")
-                hasOtherLic = hasKeySequence(save, "Software License")
-
-                # Check if we have a licence stamp already and the latest
-                # commit year matches license year (unless commit year is
-                # pre-2023, which case its ignored)
-                if hasAmdLic or hasOtherLic is True:
-                    contents.close()
-
-                    year = getYearOfLatestCommit(
-                        rfile) if useLastCommitYear else currentYear()
-
-                    if not hasKeySequence(
-                            save, f'2015-{year} Advanced Micro Devices'
-                    ) and year > 2022:
-                        if debug:
-                            print(
-                                f"....Already stamped but wrong year: Updating the year to {year}"
-                            )
-                        return updateYear(filename, year)
-
-                    if debug:
-                        print("....Already Stamped: Skipping file ")
-                    return
-
-            except UnicodeDecodeError as eu:
-                if debug is True:
-                    print(str(eu) + "...Skipping binary file ")
-                contents.close()
-                return
-
-    if debug is True:
-        print("...Writing header", end='')
+    if debug: print("Writing header", end='')
 
     with open(filename, 'w') as contents:
-        # append the licence to the top of the file
-
-        # Append shebang before license
-        if add_shebang is True:
+        if add_shebang:
             contents.write(saved_shebang + "\n")
-
-        #Append markdown hooks before license
-        if modify_markdown is True:
-            contents.write(''.join(str(x) for x in save_markdown_lines))
-
+        if modify_markdown:
+            contents.write(''.join(save_markdown_lines))
         delim = topHeader(commentChar)
-        if delim is not None:
+        if delim:
             contents.write(delim)
-            #print(delim)
-
-        if modify_markdown is False:
+        if not modify_markdown:
             for line in message:
-                if line != '':
-                    contents.write(commentChar + " " + line + "\n")
-                else:
-                    contents.write(commentChar + "\n")
-
+                contents.write(f"{commentChar} {line}\n" if line else f"{commentChar}\n")
         delim = bottomFooter(commentChar)
-        if delim is not None:
+        if delim:
             contents.write(delim)
-
-        # write remaining contents
         contents.write(save)
-    if debug is True:
-        print("...done")
+
+    if debug is True: print("Done")
 
 
-def main():
-    parser = argparse.ArgumentParser()
-    parser.add_argument('against', default='develop', nargs='?')
-    parser.add_argument('-a',
-                        '--all',
-                        action='store_true',
-                        help='Update all files')
-    parser.add_argument('--debug',
-                        action='store_true',
-                        help='Enable debug output')
-    args = parser.parse_args()
-
+def main(args):
     message = open(os.path.join(__repo_dir__, 'LICENSE')).read().split('\n')
 
-    # Get a list of all the files in our git repo
     fileList = None
     if args.all:
-        fileList = get_all_files()
+        fileList = getAllFiles()
     else:
-        fileList = get_files_changed(get_merge_base(args.against))
+        fileList = getChangedFiles(args.against)
 
     if args.debug is True:
         print("Target file list:\n" + '\n'.join(fileList))
@@ -327,13 +203,24 @@ def main():
         if commentDelim is not None:
             print(f"Updating file: {rfile}")
             openAndWriteFile(rfile,
-                             message,
-                             commentDelim,
-                             useLastCommitYear=args.all,
-                             debug=args.debug)
-        elif args.debug:
+                            message,
+                            commentDelim,
+                            useLastCommitYear=args.all,
+                            debug=args.debug)
+        else:
             print(f"No valid delimeter for file: {rfile}")
 
-
 if __name__ == "__main__":
-    main()
+    parser = argparse.ArgumentParser()
+    parser.add_argument('against', default='develop', nargs='?')
+    parser.add_argument('-a',
+                        '--all',
+                        action='store_true',
+                        help='Update all files')
+    parser.add_argument('--debug',
+                        action='store_true',
+                        help='Enable debug output')
+    args = parser.parse_args()
+    main(args)
+    
+

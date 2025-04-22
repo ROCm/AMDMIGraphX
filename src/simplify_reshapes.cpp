@@ -246,14 +246,14 @@ struct find_op_shape_transform_op
                                      &shape_transform_descriptor::generate_common_from_src,
                                      input_desc));
         auto new_input_ins = insert(m, x_ins, x_inputs, input_desc.common_axes_map_from_src());
-        auto new_x_ins = reshape_input(
-            x_ins, &shape_transform_descriptor::generate_src_from_common, input_desc)(new_input_ins);
+        auto new_x_ins     = reshape_input(x_ins,
+                                       &shape_transform_descriptor::generate_src_from_common,
+                                       input_desc)(new_input_ins);
         if(new_input_ins->get_shape().elements() != input_ins->get_shape().elements())
         {
             new_input_ins = m.insert_instruction(
                 x_ins, make_op("multibroadcast", {{"out_lens", cdims}}), new_input_ins);
         }
-
 
         auto inputs = ins->inputs();
         std::transform(inputs.begin(), inputs.end(), inputs.begin(), [&](auto input) {

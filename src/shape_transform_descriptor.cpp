@@ -918,7 +918,6 @@ static std::vector<int64_t> find_permutation(std::vector<dimension::sub> tsubs)
     return sort_permutation(tsubs, compare_sub(std::less<>{}));
 }
 
-
 static void generate_from_subdimensions(operation_list& result,
                                         std::vector<dimension::sub> subs,
                                         const std::vector<std::size_t>& input_dims = {})
@@ -1095,7 +1094,7 @@ std::vector<operation> shape_transform_descriptor::generate_src_from_common(
     std::vector<operation> result;
 
     auto subs = get_all_subdimensions(dimensions);
-    for(auto i:range(subs.size()))
+    for(auto i : range(subs.size()))
     {
         auto& s = subs[i];
         if(i < input_dims.size())
@@ -1113,11 +1112,15 @@ std::vector<operation> shape_transform_descriptor::generate_src_from_common(
     }
 
     std::vector<dimension> new_dims;
-    group_by(subs.begin(), subs.end(), [&](auto start, auto last) { new_dims.push_back({{start, last}}); }, [&](const auto& x, const auto& y) { 
-        if(x.axis.empty() or y.axis.empty())
-            return x.axis.empty() == y.axis.empty();
-        return x.axis.front() == y.axis.front();
-    });
+    group_by(
+        subs.begin(),
+        subs.end(),
+        [&](auto start, auto last) { new_dims.push_back({{start, last}}); },
+        [&](const auto& x, const auto& y) {
+            if(x.axis.empty() or y.axis.empty())
+                return x.axis.empty() == y.axis.empty();
+            return x.axis.front() == y.axis.front();
+        });
 
     // Need squeeze reshape
     if(std::any_of(new_dims.begin(), new_dims.end(), [](const dimension& d) {

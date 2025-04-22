@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2024 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2025 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -48,7 +48,7 @@ static bool is_pass_disabled(const std::string& name)
     return contains(passes, name);
 }
 
-void validate_pass(module& mod, const pass& p, tracer trace)
+static void validate_pass(module& mod, const pass& p, tracer trace)
 {
     (void)mod;
     (void)p;
@@ -65,7 +65,7 @@ void validate_pass(module& mod, const pass& p, tracer trace)
     trace();
 #endif
 }
-void run_pass(program& prog, const pass& p, tracer trace)
+static void run_pass(program& prog, const pass& p, tracer trace)
 {
     trace("Pass: ", p.name());
     p.apply(prog);

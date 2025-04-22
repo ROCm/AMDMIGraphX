@@ -12,9 +12,9 @@ CheckOptions:
   - key:             misc-const-correctness.AnalyzeValues
     value:           'false'
   - key:             performance-unnecessary-copy-initialization.AllowedTypes
-    value:           'shape'
+    value:           'shape;operation;iterator;literal;tensor_view;match'
   - key:             performance-unnecessary-value-param.AllowedTypes
-    value:           'shape'
+    value:           'shape;operation;iterator;literal;tensor_view;match'
   - key:             readability-function-size.BranchThreshold
     value:           '15'
   - key:             readability-function-size.LineThreshold

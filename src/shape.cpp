@@ -477,6 +477,11 @@ bool shape::multi_within_bounds(std::vector<std::size_t> multi) const
     return std::equal(multi.begin(), multi.end(), this->lens().begin(), std::less<>{});
 }
 
+std::size_t shape::single(const std::vector<std::size_t>& idx) const
+{
+    return this->single(idx.begin(), idx.end());
+}
+
 bool shape::packed() const
 {
     if(this->dynamic())

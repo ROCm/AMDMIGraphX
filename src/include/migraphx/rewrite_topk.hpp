@@ -22,34 +22,25 @@
  * THE SOFTWARE.
  *
  */
-#ifndef MIGRAPHX_GUARD_KERNELS_OPERATORS_HPP
-#define MIGRAPHX_GUARD_KERNELS_OPERATORS_HPP
+#ifndef MIGRAPHX_GUARD_MIGRAPHX_REWRITE_TOPK_HPP
+#define MIGRAPHX_GUARD_MIGRAPHX_REWRITE_TOPK_HPP
 
-#include <migraphx/kernels/functional.hpp>
-#include <migraphx/kernels/type_traits.hpp>
+#include <migraphx/config.hpp>
+#include <string>
 
 namespace migraphx {
+inline namespace MIGRAPHX_INLINE_NS {
 
-// NOLINTNEXTLINE
-#define MIGRAPHX_DEFINE_OPERATOR(op, expr)                                                  \
-    template <class U>                                                                      \
-    friend constexpr auto operator op(const T& x, const U& y) MIGRAPHX_RETURNS(expr);       \
-    template <class U, class V, MIGRAPHX_REQUIRES(not is_same<T, U>{} and is_same<V, T>{})> \
-    friend constexpr auto operator op(const U& x, const V& y) MIGRAPHX_RETURNS(expr)
+struct module;
 
-template <class T>
-struct equality_comparable
+/// Rewrite topk operators ideally to better performing operators
+struct MIGRAPHX_EXPORT rewrite_topk
 {
-    MIGRAPHX_DEFINE_OPERATOR(!=, not(x == y));
+    std::size_t split_threshold = 8192;
+    std::string name() const { return "rewrite_topk"; }
+    void apply(module& m) const;
 };
 
-template <class T>
-struct less_than_comparable
-{
-    MIGRAPHX_DEFINE_OPERATOR(>, (y < x));
-    MIGRAPHX_DEFINE_OPERATOR(<=, not(y < x));
-    MIGRAPHX_DEFINE_OPERATOR(>=, not(x < y));
-};
-
+} // namespace MIGRAPHX_INLINE_NS
 } // namespace migraphx
-#endif // MIGRAPHX_GUARD_KERNELS_OPERATORS_HPP
+#endif // MIGRAPHX_GUARD_MIGRAPHX_REWRITE_TOPK_HPP

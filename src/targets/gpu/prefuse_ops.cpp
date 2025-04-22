@@ -21,6 +21,7 @@
  * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
  * THE SOFTWARE.
  */
+#include "migraphx/literal.hpp"
 #include <migraphx/matcher.hpp>
 #include <migraphx/permutation.hpp>
 #include <migraphx/gpu/prefuse_ops.hpp>
@@ -30,6 +31,7 @@
 #include <migraphx/pass_manager.hpp>
 #include <migraphx/dead_code_elimination.hpp>
 #include <migraphx/op/group_query_attention.hpp>
+#include <migraphx/op/sparse_attention.hpp>
 #ifdef MIGRAPHX_USE_COMPOSABLEKERNEL
 #include <migraphx/gpu/ck.hpp>
 #endif
@@ -284,6 +286,14 @@ struct gpu_gqa_softmax : op::group_query_attention
 };
 MIGRAPHX_REGISTER_OP(gpu_gqa_softmax);
 
+struct gpu_sparse_attn_softmax : op::sparse_attention
+{
+    std::string name() const { return "gpu::sparse_attn_softmax"; }
+
+    shape compute_shape(std::vector<shape> inputs) const { return inputs.at(2); }
+};
+MIGRAPHX_REGISTER_OP(gpu_sparse_attn_softmax);
+
 struct gpu_concat_past_present : op::group_query_attention
 {
     std::string name() const { return "gpu::concat_past_present"; }
@@ -291,6 +301,25 @@ struct gpu_concat_past_present : op::group_query_attention
     shape compute_shape(std::vector<shape> inputs) const { return inputs[0]; }
 };
 MIGRAPHX_REGISTER_OP(gpu_concat_past_present);
+
+struct unpack_masks
+{
+    std::string name() const { return "gpu::unpack_masks"; }
+
+    template <class Self, class F>
+    static auto reflect(Self&, F)
+    {
+        return pack();
+    }
+
+    shape compute_shape(std::vector<shape> inputs) const
+    {
+        const auto block_row_ind_lens = inputs[0].lens();
+        const auto max_blocks = block_row_ind_lens[1] - 1;
+        return shape{shape::bool_type, {block_row_ind_lens[0], max_blocks, max_blocks}};
+    }
+};
+MIGRAPHX_REGISTER_OP(unpack_masks);
 
 struct find_group_query_attention
 {
@@ -381,6 +410,93 @@ struct find_group_query_attention
     }
 };
 
+struct find_sparse_attention
+{
+    auto matcher() const
+    {
+        return match::name("sparse_attention");
+    }
+
+    void apply(module& mod, const match::matcher_result& r) const
+    {
+        auto ins    = r.result;
+        auto inputs = ins->inputs();
+        auto v      = ins->get_operator().to_value();
+
+        auto do_rotary          = v.at("do_rotary").to<bool>();
+        auto rotary_interleaved = v.at("rotary_interleaved").to<bool>();
+        auto num_heads          = v.at("num_heads").to<size_t>();
+        auto kv_num_heads       = v.at("kv_num_heads").to<size_t>();
+        auto sparse_block_size  = v.at("sparse_block_size").to<size_t>();
+        auto scale              = v.at("scale").to<float>();
+
+        auto qkv                = inputs.at(0);
+        auto past_key           = inputs.at(3);
+        auto past_val           = inputs.at(4);
+        auto block_row_indices  = inputs.at(5);
+        auto block_col_indices  = inputs.at(6);
+        auto key_total_seq_lens = inputs.at(8);
+        // GroupQueryAttention expects this input to contains total_sequence_lengths - 1 values
+        // SparseAttention expects it to contains total_sequence_lengths values
+        // Decrement it to make it compatible with GQA kernels
+        auto dec_key_total_seq_lens = decrement_key_total_seq_lens(mod, ins, key_total_seq_lens);
+
+        if(do_rotary)
+        {
+            qkv = mod.insert_instruction(
+                ins,
+                gpu_gqa_rotary_embedding{
+                    do_rotary, kv_num_heads, -1, num_heads, rotary_interleaved, scale},
+                {qkv, dec_key_total_seq_lens, inputs.at(9), inputs.at(10)});
+        }
+
+        auto concat = mod.insert_instruction(
+            ins,
+            gpu_concat_past_present{
+                do_rotary, kv_num_heads, -1, num_heads, rotary_interleaved, scale},
+            {qkv, past_key, past_val, dec_key_total_seq_lens});
+        auto id = mod.insert_instruction(ins, make_op("identity"), concat, past_key, past_val);
+
+        auto attn_probs = mod.insert_instruction(
+            ins,
+            gpu_compute_attention_probabilities{
+                do_rotary, kv_num_heads, -1, num_heads, rotary_interleaved, scale},
+            {id, past_key, past_val, dec_key_total_seq_lens});
+
+        auto mask =
+            mod.insert_instruction(ins, unpack_masks{}, {block_row_indices, block_col_indices});
+
+        auto softmax = mod.insert_instruction(
+            ins,
+            gpu_sparse_attn_softmax{
+                do_rotary, rotary_interleaved, num_heads, kv_num_heads, scale, sparse_block_size},
+            {qkv, past_key, attn_probs, key_total_seq_lens, mask});
+
+        auto attn_scores = mod.insert_instruction(
+            ins,
+            gpu_compute_attention_scores{
+                do_rotary, kv_num_heads, -1, num_heads, rotary_interleaved, scale},
+            {qkv, past_key, past_val, dec_key_total_seq_lens, softmax});
+
+        auto&& outputs = ins->outputs();
+        mod.replace_instruction(outputs[0], attn_scores);
+        mod.replace_instruction(outputs[1], past_key);
+        mod.replace_instruction(outputs[2], past_val);
+    }
+
+    instruction_ref
+    decrement_key_total_seq_lens(module& mod, instruction_ref ins, instruction_ref ktsl) const
+    {
+        auto seq_len_lit =
+            mod.insert_literal(ins, migraphx::literal{shape{shape::int32_type, {1}}, {1}});
+        seq_len_lit = mod.insert_instruction(
+            ins,
+            migraphx::make_op("multibroadcast", {{"out_lens", ktsl->get_shape().lens()}}),
+            seq_len_lit);
+        return mod.insert_instruction(ins, migraphx::make_op("sub"), ktsl, seq_len_lit);
+    }
+};
+
 } // namespace
 
 void prefuse_ops::apply(module_pass_manager& mpm) const
@@ -393,6 +509,7 @@ void prefuse_ops::apply(module_pass_manager& mpm) const
     }
     match::find_matches(mpm, find_gemm_softmax_gemm{enable_attention});
     match::find_matches(mpm, find_group_query_attention{});
+    match::find_matches(mpm.get_module(), find_sparse_attention{});
 }
 
 } // namespace gpu

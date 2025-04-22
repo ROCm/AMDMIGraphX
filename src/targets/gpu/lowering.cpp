@@ -123,6 +123,7 @@ struct miopen_apply
         add_select_module_op();
         add_reshape_lazy_op();
         add_group_query_attention_op();
+        add_sparse_attention_op();
         add_scan_slice_op();
     }
 
@@ -550,6 +551,7 @@ struct miopen_apply
         apply_map.emplace("gpu::compute_attention_probabilities", [=](instruction_ref ins) {
             auto s          = ins->get_shape();
             auto output     = insert_allocation(ins, s);
+            output = mod->insert_instruction(ins, make_op("hip::fill"), output);
             auto new_inputs = ins->inputs();
             new_inputs.push_back(output);
             return mod->replace_instruction(
@@ -575,6 +577,30 @@ struct miopen_apply
             auto output     = insert_allocation(ins, s);
             auto new_inputs = ins->inputs();
             new_inputs.push_back(output);
+            return mod->replace_instruction(
+                ins,
+                make_op("gpu::precompile_op", {{"op", to_value(ins->get_operator())}}),
+                new_inputs);
+        });
+    }
+
+    void add_sparse_attention_op()
+    {
+        apply_map.emplace("gpu::unpack_masks", [=](instruction_ref ins) {
+            auto s          = ins->get_shape();
+            auto output     = insert_allocation(ins, s);
+            output = mod->insert_instruction(ins, make_op("hip::fill"), output);
+            auto new_inputs = ins->inputs();
+            new_inputs.push_back(output);
+            return mod->replace_instruction(
+                ins,
+                make_op("gpu::precompile_op", {{"op", to_value(ins->get_operator())}}),
+                new_inputs);
+        });
+
+        apply_map.emplace("gpu::sparse_attn_softmax", [=](instruction_ref ins) {
+            auto new_inputs = ins->inputs();
+            new_inputs.push_back(new_inputs.at(2));
             return mod->replace_instruction(
                 ins,
                 make_op("gpu::precompile_op", {{"op", to_value(ins->get_operator())}}),

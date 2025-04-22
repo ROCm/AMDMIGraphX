@@ -47,7 +47,7 @@ calculate_attention_score(Output output, // buffer for the result with size BxSx
     const index_int num_heads                      = params.num_heads;
     const index_int sequence_length                = params.sequence_length;
     const index_int head_size                      = params.head_size;
-    const index_int hidden_size                    = params.hidden_size;
+    const index_int hidden_size                    = params.head_size * params.num_heads;
     const index_int present_buffer_sequence_length = params.seqlen_present_kv_cache;
     const index_int kv_num_heads                   = params.kv_num_heads;
     const index_int kv_num_heads_factor            = num_heads / kv_num_heads;

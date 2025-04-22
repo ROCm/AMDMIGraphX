@@ -1,8 +1,7 @@
-#!/usr/bin/env python3
 #####################################################################################
 #  The MIT License (MIT)
 #
-#  Copyright (c) 2015-2024 Advanced Micro Devices, Inc. All rights reserved.
+#  Copyright (c) 2015-2025 Advanced Micro Devices, Inc. All rights reserved.
 #
 #  Permission is hereby granted, free of charge, to any person obtaining a copy
 #  of this software and associated documentation files (the "Software"), to deal
@@ -31,7 +30,7 @@
 # it will add a stamp at the begenning of the file with the year set to the current year.
 #####################################################################################
 import subprocess, os, datetime, re, argparse
-from stampStatus import getAllFiles, getChangedFiles, StampStatus, stampCheck, updateYear, currentYear
+from stampStatus import getAllFiles, getChangedFiles, StampStatus, stampCheck, updateYear, currentYear, getYearOfLatestCommit
 
 __repo_dir__ = os.path.normpath(
     os.path.join(os.path.realpath(__file__), '..', '..'))
@@ -59,14 +58,13 @@ def getDelimiter(filename):
             break
     return delimiter
 
-# Markdown code blob we should use to insert into notebook files
 def getipynb_markdownBlockAsList():
     markdownBlock = [
         '\t{\n'
         '\t\t"cell_type": "code",\n', '\t\t"execution_count": null,\n',
         '\t\t"metadata": {},\n', '\t\t"outputs": [],\n', '\t\t"source": [\n',
         '\t\t\t\"#  The MIT License (MIT)\\n\",\n', '\t\t\t\"#\\n\",\n',
-        f'\t\t\t\"#  Copyright (c) 2015-{current_year} Advanced Micro Devices, Inc. All rights reserved.\\n\",\n',
+        f'\t\t\t\"#  Copyright (c) 2015-{currentYear()} Advanced Micro Devices, Inc. All rights reserved.\\n\",\n',
         '\t\t\t\"#\\n\",\n',
         '\t\t\t\"#  Permission is hereby granted, free of charge, to any person obtaining a copy\\n\",\n',
         '\t\t\t\"#  of this software and associated documentation files (the \'Software\'), to deal\\n\",\n',
@@ -134,7 +132,7 @@ def openAndWriteFile(rfile,
     modify_markdown = False
 
     #open save old contents and append things here
-    if debug is True: print("Open", filename, end='')
+    if debug is True: print("Open", filename)
 
     try:
         with open(filename, 'r') as contents:
@@ -164,7 +162,7 @@ def openAndWriteFile(rfile,
             updateYear(filename, year)
         return
 
-    if debug: print("Writing header", end='')
+    if debug: print("Writing header")
 
     with open(filename, 'w') as contents:
         if add_shebang:

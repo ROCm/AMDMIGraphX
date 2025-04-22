@@ -31,10 +31,7 @@
 #####################################################################################
 import subprocess, os, datetime, re, argparse
 from stamp_status import StampStatus, stampCheck, updateYear, currentYear
-from git_tools import getAllFiles, getChangedFiles, getYearOfLatestCommit
-
-__repo_dir__ = os.path.normpath(
-    os.path.join(os.path.realpath(__file__), '..', '..'))
+from git_tools import getAllFiles, getChangedFiles, getYearOfLatestCommit, getTop
 
 delimiters = {
     ".cpp": "*",
@@ -128,7 +125,7 @@ def openAndWriteFile(rfile,
                      useLastCommitYear=False,
                      debug=False):
 
-    filename = os.path.join(__repo_dir__, rfile)
+    filename = os.path.join(getTop(), rfile)
     add_shebang = False
     #markdown file stamping for .ipynb
     save_markdown_lines = []
@@ -189,7 +186,7 @@ def openAndWriteFile(rfile,
 
 
 def main(args):
-    message = open(os.path.join(__repo_dir__, 'LICENSE')).read().split('\n')
+    message = open(os.path.join(getTop(), 'LICENSE')).read().split('\n')
 
     fileList = None
     if args.all:

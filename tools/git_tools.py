@@ -32,7 +32,7 @@ def run(cmd, cwd=None, verbose=False, text=True, **kwargs):
 
     Args:
         cmd (str | list): The command to run.
-        capture (bool): If True, capture and return the stdout as a string.
+        cwd (str): The current working directory.
         verbose (bool): If True, print the command being run.
         text (bool): If True, decode stdout as UTF-8 (default: True).
         **kwargs: Extra arguments passed to subprocess.run().

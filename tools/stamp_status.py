@@ -25,6 +25,7 @@
 from enum import Enum, auto
 import subprocess, datetime, re
 
+
 class StampStatus(Enum):
     """
     License Stamp Status
@@ -62,35 +63,8 @@ def stampCheck(file, year, content, debug=False):
     else:
         return StampStatus.NOT_STAMPED
 
-def run(cmd, cwd=None):
-    return subprocess.run(cmd, capture_output=True, shell=isinstance(cmd, str), check=True, cwd=cwd).stdout.decode().strip()
 
-def getChangedFiles(branch):
-    """
-    Return a list of files changed (staged) compared to the given Git branch.
-    Includes only files not deleted.
-    """
-    head = run("git rev-parse --abbrev-ref HEAD")
-    top = run("git rev-parse --show-toplevel")
-    base = run(f"git merge-base {branch} {head}")
-    return run(f"git diff --cached --name-only --diff-filter=d {base}", cwd=top).splitlines()
-
-def getAllFiles(against=None):
-    """
-    Return a list of all tracked files in the Git repository.
-    """
-    top = run("git rev-parse --show-toplevel")
-    return run("git ls-files", cwd=top).splitlines()
-
-def getYearOfLatestCommit(rfile: str) -> int:
-    """
-    Get year of latest commit given file 
-    """
-    top = run("git rev-parse --show-toplevel")
-    date_str = run(f"git log -1 --format=%cd --date=short {rfile}", cwd=top)
-    return datetime.datetime.strptime(date_str, '%Y-%m-%d').year
-
-def currentYear() -> int:
+def currentYear():
     """
     Get the current year based on the system clock.
 
@@ -99,7 +73,8 @@ def currentYear() -> int:
     """
     return datetime.datetime.now().date().year
 
-def updateYear(filename: str, year: int) -> None:
+
+def updateYear(filename: str, year: int):
     """
     Update the license year in the specified file to match the latest Git commit year.
 
@@ -108,9 +83,9 @@ def updateYear(filename: str, year: int) -> None:
         year (int): Year to update the license to.
     """
     with open(filename, 'r') as f:
-        newfileContent = re.sub(
-            "2015-\d+ Advanced Micro Devices",
-            f'2015-{year} Advanced Micro Devices', f.read())
+        newfileContent = re.sub("2015-\d+ Advanced Micro Devices",
+                                f'2015-{year} Advanced Micro Devices',
+                                f.read())
 
     with open(filename, 'w') as f:
         f.write(newfileContent)

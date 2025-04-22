@@ -22,26 +22,13 @@
 # THE SOFTWARE.
 #####################################################################################
 import os, shlex, shutil, argparse, subprocess
+from git_tools import getChangedFiles, getMergeBase, getTop, run
 
 CLANG_FORMAT_PATH = '/opt/rocm/llvm/bin'
 
 EXCLUDE_FILES = ['requirements.in', 'onnx.proto']
 
-
-def run(cmd, **kwargs):
-    if isinstance(cmd, str):
-        print(cmd)
-    else:
-        print(shlex.join(cmd))
-    subprocess.run(cmd, shell=isinstance(cmd, str), check=True, **kwargs)
-
-
-def eval(cmd, **kwargs):
-    return subprocess.run(cmd,
-                          capture_output=True,
-                          shell=isinstance(cmd, str),
-                          check=True,
-                          **kwargs).stdout.decode('utf-8').strip()
+CLANG_EXTENSIONS = ('.c', '.cpp', '.hpp', '.h', '.cl', '.hip', '.in')
 
 
 def is_excluded(f):
@@ -49,28 +36,8 @@ def is_excluded(f):
     return base in EXCLUDE_FILES
 
 
-def get_top():
-    return eval("git rev-parse --show-toplevel")
-
-
-def get_head():
-    return eval("git rev-parse --abbrev-ref HEAD")
-
-
-def get_merge_base(branch):
-    head = get_head()
-    return eval(f"git merge-base {branch} {head}")
-
-
-def get_files_changed(against, ext=('.py')):
-    files = eval(
-        f"git diff-index --cached --name-only --diff-filter=d {against}",
-        cwd=get_top()).splitlines()
-    return (f for f in files if f.endswith(ext) and not is_excluded(f))
-
-
 def clang_format(against, apply=False, path=CLANG_FORMAT_PATH):
-    base = get_merge_base(against)
+    base = getMergeBase(against)
     clang_format = os.path.join(path, 'clang-format')
     if not os.path.exists(clang_format):
         print(f"{clang_format} not installed. Skipping format.")
@@ -80,13 +47,14 @@ def clang_format(against, apply=False, path=CLANG_FORMAT_PATH):
         print(f"{git_clang_format} not installed. Skipping format.")
         return
     diff_flag = [] if apply else ["--diff"]
-    files = list(
-        get_files_changed(base,
-                          ext=('.c', '.cpp', '.hpp', '.h', '.cl', '.hip',
-                               '.in')))
+    files = getChangedFiles(base)
+    files = [
+        f for f in files if f.endswith(CLANG_EXTENSIONS) and not is_excluded(f)
+    ]
     run([git_clang_format, '--binary', clang_format] + diff_flag + [base] +
         files,
-        cwd=get_top())
+        cwd=getTop(),
+        verbose=True)
 
 
 def yapf_format(against, apply=False):
@@ -94,9 +62,9 @@ def yapf_format(against, apply=False):
         print("yapf not installed. Skipping format.")
         return
     diff_flag = "--in-place" if apply else "--diff"
-    files = ' '.join(get_files_changed(against))
+    files = ' '.join(getChangedFiles(against))
     if files:
-        run(f"yapf {diff_flag} -p {files}", cwd=get_top())
+        run(f"yapf {diff_flag} -p {files}", cwd=getTop())
     else:
         print("No modified python files to format")
 

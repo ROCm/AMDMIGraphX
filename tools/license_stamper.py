@@ -30,7 +30,8 @@
 # it will add a stamp at the begenning of the file with the year set to the current year.
 #####################################################################################
 import subprocess, os, datetime, re, argparse
-from stampStatus import getAllFiles, getChangedFiles, StampStatus, stampCheck, updateYear, currentYear, getYearOfLatestCommit
+from stamp_status import StampStatus, stampCheck, updateYear, currentYear
+from git_tools import getAllFiles, getChangedFiles, getYearOfLatestCommit
 
 __repo_dir__ = os.path.normpath(
     os.path.join(os.path.realpath(__file__), '..', '..'))
@@ -48,6 +49,7 @@ delimiters = {
 }
 extensions = delimiters.keys()
 
+
 # Get the delimiter from the file type based on what we care about to tag with our licence
 # file. Otherwise return None for the delimiter and skip the file
 def getDelimiter(filename):
@@ -57,6 +59,7 @@ def getDelimiter(filename):
             delimiter = delimiters[extension]
             break
     return delimiter
+
 
 def getipynb_markdownBlockAsList():
     markdownBlock = [
@@ -157,7 +160,8 @@ def openAndWriteFile(rfile,
     year = getYearOfLatestCommit(rfile) if useLastCommitYear else currentYear()
     status = stampCheck(filename, year, save, debug=debug)
 
-    if status in (StampStatus.OK, StampStatus.OTHER_LICENSE, StampStatus.WRONG_YEAR):
+    if status in (StampStatus.OK, StampStatus.OTHER_LICENSE,
+                  StampStatus.WRONG_YEAR):
         if status == StampStatus.WRONG_YEAR:
             updateYear(filename, year)
         return
@@ -174,7 +178,8 @@ def openAndWriteFile(rfile,
             contents.write(delim)
         if not modify_markdown:
             for line in message:
-                contents.write(f"{commentChar} {line}\n" if line else f"{commentChar}\n")
+                contents.write(
+                    f"{commentChar} {line}\n" if line else f"{commentChar}\n")
         delim = bottomFooter(commentChar)
         if delim:
             contents.write(delim)
@@ -201,12 +206,13 @@ def main(args):
         if commentDelim is not None:
             print(f"Updating file: {rfile}")
             openAndWriteFile(rfile,
-                            message,
-                            commentDelim,
-                            useLastCommitYear=args.all,
-                            debug=args.debug)
+                             message,
+                             commentDelim,
+                             useLastCommitYear=args.all,
+                             debug=args.debug)
         else:
             print(f"No valid delimeter for file: {rfile}")
+
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
@@ -220,5 +226,3 @@ if __name__ == "__main__":
                         help='Enable debug output')
     args = parser.parse_args()
     main(args)
-    
-

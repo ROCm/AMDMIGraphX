@@ -23,11 +23,14 @@
 #####################################################################################
 
 import subprocess, sys, datetime, argparse, os
-from stampStatus import getAllFiles, getChangedFiles, StampStatus, stampCheck, updateYear, currentYear
+from stamp_status import StampStatus, stampCheck, currentYear
+from git_tools import getChangedFiles
 
 SUPPORTED_FILE_TYPES = (".cpp", ".hpp", ".h", ".ipynb", ".py", ".txt", ".sh",
                         ".bsh", "LICENSE", ".cmake")
-IGNORED_FILES = ("digits.txt", "Dockerfile", "Jenkinsfile", "imagenet_classes.txt", '')
+IGNORED_FILES = ("digits.txt", "Dockerfile", "Jenkinsfile",
+                 "imagenet_classes.txt", '')
+
 
 def checkFile(file, debug=False):
     try:
@@ -36,16 +39,20 @@ def checkFile(file, debug=False):
     except (OSError, UnicodeDecodeError) as e:
         if debug: print(f"{file}: Skipping ({e})")
         return StampStatus.ERROR_READING
-   
+
     year = currentYear()
     return stampCheck(file, year, content, debug=debug)
+
 
 def print_status(status):
     files = status.files
     if files:
-        print(f"\n{'Error' if status.error else 'Warning'}: {len(files)} {status.label} files:\n{files}")
+        print(
+            f"\n{'Error' if status.error else 'Warning'}: {len(files)} {status.label} files:\n{files}"
+        )
         return status.error
     return False
+
 
 def main(branch, debug):
     files = getChangedFiles(branch)
@@ -55,13 +62,13 @@ def main(branch, debug):
         filename = os.path.basename(file)
 
         # Assign appropriate StampStatus based on filename or content
-        if filename in IGNORED_FILES: 
+        if filename in IGNORED_FILES:
             status = StampStatus.IGNORED
         elif not filename.endswith(SUPPORTED_FILE_TYPES):
             status = StampStatus.UNSUPPORTED
         else:
             status = checkFile(file, debug)
-            
+
         status.files.append(file)
 
     has_errors = any([
@@ -76,9 +83,13 @@ def main(branch, debug):
     else:
         print("Success: All files properly stamped.")
 
+
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument("branch", help="Branch to compare against")
-    parser.add_argument("-d", "--debug", action="store_true", help="Enable debug output")
+    parser.add_argument("-d",
+                        "--debug",
+                        action="store_true",
+                        help="Enable debug output")
     args = parser.parse_args()
     main(args.branch, args.debug)

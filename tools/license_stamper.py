@@ -150,8 +150,7 @@ def openAndWriteFile(rfile,
 
             save = contents.read()
     except (OSError, UnicodeDecodeError) as e:
-        if debug:
-            print(f"{e}....Skipping file")
+        if debug: print(f"{e} \n Skipping file")
         return
 
     year = getYearOfLatestCommit(rfile) if useLastCommitYear else currentYear()

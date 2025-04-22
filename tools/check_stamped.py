@@ -1,3 +1,4 @@
+#!/usr/bin/env python3
 #####################################################################################
 #  The MIT License (MIT)
 #
@@ -20,6 +21,14 @@
 #  LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 #  OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 #  THE SOFTWARE.
+#####################################################################################
+#################################### GUIDE ##########################################
+#####################################################################################
+# This Check_Stamped script is triggered by the Github workflows when a pull request is created.
+# It works by generating a list of files that have been modified/created between the current up-to-date Develop Branch
+# from MIGraphx and the Pull Request Branch via GIT DIFF. The script then checks that each file has the current year
+# in the license stamp, with the assumption being that any modifications/creations will need to be stamped to the year that the
+# modification/creation was made.
 #####################################################################################
 
 import sys, argparse, os

@@ -26,7 +26,7 @@ import shlex
 import datetime
 
 
-def run(cmd, cwd=None, verbose=False, text=True, **kwargs):
+def run(cmd, verbose=False, **kwargs):
     """
     Run a shell command with optional output capture and verbosity.
 
@@ -34,7 +34,6 @@ def run(cmd, cwd=None, verbose=False, text=True, **kwargs):
         cmd (str | list): The command to run.
         cwd (str): The current working directory.
         verbose (bool): If True, print the command being run.
-        text (bool): If True, decode stdout as UTF-8 (default: True).
         **kwargs: Extra arguments passed to subprocess.run().
 
     Returns:
@@ -47,8 +46,7 @@ def run(cmd, cwd=None, verbose=False, text=True, **kwargs):
                             shell=isinstance(cmd, str),
                             check=True,
                             capture_output=True,
-                            text=text,
-                            cwd=cwd,
+                            text=True,
                             **kwargs).stdout.strip()
 
     if verbose:

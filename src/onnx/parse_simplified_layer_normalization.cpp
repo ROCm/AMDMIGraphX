@@ -73,10 +73,10 @@ struct parse_simplified_layer_normalization : op_parser<parse_simplified_layer_n
         int64_t x_rank = x_shape.ndim();
         axis           = axis < 0 ? axis + x_rank : axis;
 
-        if(x_rank < 2 or x_rank > 3)
-        {
-            MIGRAPHX_THROW("PARSE_SIMPLIFIED_LAYER_NORMALIZATION: invalid input shape");
-        }
+        // if(x_rank < 2 or x_rank > 3)
+        // {
+        //     MIGRAPHX_THROW("PARSE_SIMPLIFIED_LAYER_NORMALIZATION: invalid input shape");
+        // }
 
         // Convert to float before reduce_mean
         // Fp16 reduce_mean on GPU causes loss of accuracy

@@ -112,16 +112,23 @@ struct parse_layernorm : op_parser<parse_layernorm>
         if(skipped_axes > 0)
         {
             auto x_dims = x_shape.lens();
-            scale_bcast = info.add_instruction(
-                make_op("broadcast", {{"axis", skipped_axes}, {"out_lens", x_dims}}), scale);
+            if(scale->get_shape().ndim() != x_rank)
+            {
+                scale_bcast = info.add_instruction(
+                    make_op("broadcast", {{"axis", skipped_axes}, {"out_lens", x_dims}}), scale);
+            }
+            
             if(not skip_bias)
             {
-                bias_bcast = info.add_instruction(
-                    make_op("broadcast", {{"axis", skipped_axes}, {"out_lens", x_dims}}), bias);
+                if(bias->get_shape().ndim() != x_rank)
+                {
+                    bias_bcast = info.add_instruction(
+                        make_op("broadcast", {{"axis", skipped_axes}, {"out_lens", x_dims}}), bias);
+                }
             }
         }
-        auto scaled = info.add_instruction(make_op("mul"), result, scale_bcast);
-        auto y      = skip_bias ? scaled : info.add_instruction(make_op("add"), scaled, bias_bcast);
+        auto scaled = info.add_common_op("mul", result, scale_bcast);
+        auto y      = skip_bias ? scaled : info.add_common_op("add", scaled, bias_bcast);
         return {y, mean, rsqrt};
     }
 };

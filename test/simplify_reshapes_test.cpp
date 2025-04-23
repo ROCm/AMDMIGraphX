@@ -2100,6 +2100,93 @@ TEST_CASE(pointwise_reshape_layout_convolution)
     EXPECT(m1 == m2);
 }
 
+TEST_CASE(pointwise_transpose_pointwise)
+{
+    auto s1 = migraphx::shape{migraphx::shape::float_type, {2, 64, 4, 4}};
+    auto s2 = migraphx::shape{migraphx::shape::float_type, {2, 4, 4, 64}};
+    migraphx::module m1;
+    {
+        auto x          = m1.add_parameter("x", s1);
+        auto y          = m1.add_parameter("y", s1);
+        auto z          = m1.add_parameter("z", s2);
+        auto mul = m1.add_instruction(migraphx::make_op("mul"), x, y);
+        auto transpose =
+            m1.add_instruction(migraphx::make_op("transpose", {{"permutation", {0, 2, 3, 1}}}), mul);
+        auto add  = m1.add_instruction(migraphx::make_op("add"), transpose, z);
+        auto relu = m1.add_instruction(migraphx::make_op("relu"), add);
+        m1.add_return({relu});
+    }
+    run_pass(m1);
+    migraphx::module m2;
+    {
+        auto x          = m2.add_parameter("x", s1);
+        auto y          = m2.add_parameter("y", s1);
+        auto z          = m2.add_parameter("z", s2);
+        auto transposex = m2.add_instruction(migraphx::make_op("transpose", {{"permutation", {0, 2, 3, 1}}}), x);
+        auto transposey = m2.add_instruction(migraphx::make_op("transpose", {{"permutation", {0, 2, 3, 1}}}), y);
+        auto mul = m2.add_instruction(migraphx::make_op("mul"), transposex, transposey);
+        auto add  = m2.add_instruction(migraphx::make_op("add"), mul, z);
+        auto relu = m2.add_instruction(migraphx::make_op("relu"), add);
+        m2.add_return({relu});
+    }
+    EXPECT(m1.sort() == m2.sort());
+}
+
+TEST_CASE(pointwise_transpose_pointwise_used_twice1)
+{
+    auto s1 = migraphx::shape{migraphx::shape::float_type, {2, 64, 4, 4}};
+    auto s2 = migraphx::shape{migraphx::shape::float_type, {2, 4, 4, 64}};
+    migraphx::module m1;
+    {
+        auto x          = m1.add_parameter("x", s1);
+        auto y          = m1.add_parameter("y", s1);
+        auto z          = m1.add_parameter("z", s2);
+        auto mul = m1.add_instruction(migraphx::make_op("mul"), x, y);
+        auto transpose =
+            m1.add_instruction(migraphx::make_op("transpose", {{"permutation", {0, 2, 3, 1}}}), mul);
+        auto add  = m1.add_instruction(migraphx::make_op("add"), transpose, z);
+        auto relu = m1.add_instruction(migraphx::make_op("relu"), add);
+        m1.add_return({relu, mul});
+    }
+    run_pass(m1);
+    migraphx::module m2;
+    {
+        auto x          = m2.add_parameter("x", s1);
+        auto y          = m2.add_parameter("y", s1);
+        auto z          = m2.add_parameter("z", s2);
+        auto transposex = m2.add_instruction(migraphx::make_op("transpose", {{"permutation", {0, 2, 3, 1}}}), x);
+        auto transposey = m2.add_instruction(migraphx::make_op("transpose", {{"permutation", {0, 2, 3, 1}}}), y);
+        auto mul = m2.add_instruction(migraphx::make_op("mul"), transposex, transposey);
+        auto transposemul = m2.add_instruction(migraphx::make_op("transpose", {{"permutation", {0, 3, 1, 2}}}), mul);
+        auto add  = m2.add_instruction(migraphx::make_op("add"), mul, z);
+        auto relu = m2.add_instruction(migraphx::make_op("relu"), add);
+        m2.add_return({relu, transposemul});
+    }
+    EXPECT(m1.sort() == m2.sort());
+}
+
+TEST_CASE(pointwise_transpose_pointwise_used_twice2)
+{
+    auto s1 = migraphx::shape{migraphx::shape::float_type, {2, 64, 4, 4}};
+    auto s2 = migraphx::shape{migraphx::shape::float_type, {2, 4, 4, 64}};
+    migraphx::module m1;
+    {
+        auto x          = m1.add_parameter("x", s1);
+        auto y          = m1.add_parameter("y", s1);
+        auto z          = m1.add_parameter("z", s2);
+        auto mul = m1.add_instruction(migraphx::make_op("mul"), x, y);
+        auto transpose =
+            m1.add_instruction(migraphx::make_op("transpose", {{"permutation", {0, 2, 3, 1}}}), mul);
+        auto add1  = m1.add_instruction(migraphx::make_op("add"), transpose, z);
+        auto relu = m1.add_instruction(migraphx::make_op("relu"), add1);
+        auto add2 = m1.add_instruction(migraphx::make_op("add"), relu, mul);
+        m1.add_return({add2});
+    }
+    migraphx::module m2 = m1;
+    run_pass(m1);
+    EXPECT(m1.sort() == m2.sort());
+}
+
 TEST_CASE(reduce_squeeze_pointwise1)
 {
     auto s1 = migraphx::shape{migraphx::shape::float_type, {1, 8, 1024, 1280}};

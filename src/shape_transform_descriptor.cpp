@@ -1122,7 +1122,7 @@ std::vector<operation> shape_transform_descriptor::generate_src_from_common(
     // Need transpose
     if(not std::is_sorted(permutation.begin(), permutation.end()))
     {
-        result.push_back(make_op("transpose", {{"permutation", invert_permutation(permutation)}}));
+        result.push_back(make_op("transpose", {{"permutation", permutation}}));
         subs = reorder_dims(subs, permutation);
     }
 

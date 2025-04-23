@@ -51,6 +51,7 @@
 #include <migraphx/rewrite_reduce.hpp>
 #include <migraphx/rewrite_quantization.hpp>
 #include <migraphx/rewrite_rnn.hpp>
+#include <migraphx/rewrite_topk.hpp>
 #include <migraphx/schedule.hpp>
 #include <migraphx/simplify_dyn_ops.hpp>
 #include <migraphx/simplify_qdq.hpp>
@@ -103,12 +104,11 @@ std::vector<pass> target::get_passes(migraphx::context& gctx, const compile_opti
     unsupported_types.erase(shape::type_t::uint8_type);
     unsupported_types.erase(shape::type_t::int32_type);
     unsupported_types.erase(shape::type_t::tuple_type);
-    unsupported_types.erase(shape::type_t::bf16_type);
-
-    std::set<std::string> unsupported_bf16_ops = {};
-    if(not gpu::gfx_has_bf16_intrinsics())
+     
+    // No BF-16 Support on Navi21    
+    if(gpu::gfx_has_bf16_intrinsics())
     {
-        unsupported_bf16_ops.insert("dot");
+        unsupported_types.erase(shape::type_t::bf16_type);
     }
 
     // whiltelist supported Ops for the FP8 types
@@ -185,7 +185,6 @@ std::vector<pass> target::get_passes(migraphx::context& gctx, const compile_opti
         dead_code_elimination{},
         enable_pass(not gpu::gfx_has_fp8ocp_intrinsics() and gpu::gfx_has_fp8fnuz_intrinsics(), fp8_ocp_to_fnuz{}),
         enable_pass(not gpu::gfx_has_fp8ocp_intrinsics() and gpu::gfx_has_fp8fnuz_intrinsics(), dead_code_elimination{}),
-        enable_pass(not gpu::gfx_has_bf16_intrinsics(), eliminate_data_type{{migraphx::shape::bf16_type}, shape::type_t::float_type}),
         simplify_qdq{},
         enable_pass(not mlir_enabled(), rewrite_quantization{}),
         dead_code_elimination{},
@@ -209,12 +208,12 @@ std::vector<pass> target::get_passes(migraphx::context& gctx, const compile_opti
         dead_code_elimination{},
         prefuse_ops{},
         dead_code_elimination{},
-        eliminate_data_type{{migraphx::shape::bf16_type}, shape::float_type, unsupported_bf16_ops},
         eliminate_data_type{{migraphx::shape::fp8e4m3fnuz_type}, shape::float_type, unsupported_fp8e4m3fnuz_ops},
         eliminate_data_type{{migraphx::shape::fp8e5m2fnuz_type}, shape::float_type, unsupported_fp8e5m2fnuz_ops},
         eliminate_data_type{{migraphx::shape::fp8e4m3fn_type, migraphx::shape::fp8e5m2_type}, shape::float_type, unsupported_fp8ocp_ops},
         dead_code_elimination{},
         rewrite_reduce{},
+        rewrite_topk{},
         rewrite_low_precision{},
         enable_pass(enabled(MIGRAPHX_ENABLE_REWRITE_DOT{}), rewrite_dot{}),
         dead_code_elimination{},

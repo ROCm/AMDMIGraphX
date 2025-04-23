@@ -2106,12 +2106,12 @@ TEST_CASE(pointwise_transpose_pointwise)
     auto s2 = migraphx::shape{migraphx::shape::float_type, {2, 4, 4, 64}};
     migraphx::module m1;
     {
-        auto x          = m1.add_parameter("x", s1);
-        auto y          = m1.add_parameter("y", s1);
-        auto z          = m1.add_parameter("z", s2);
-        auto mul = m1.add_instruction(migraphx::make_op("mul"), x, y);
-        auto transpose =
-            m1.add_instruction(migraphx::make_op("transpose", {{"permutation", {0, 2, 3, 1}}}), mul);
+        auto x         = m1.add_parameter("x", s1);
+        auto y         = m1.add_parameter("y", s1);
+        auto z         = m1.add_parameter("z", s2);
+        auto mul       = m1.add_instruction(migraphx::make_op("mul"), x, y);
+        auto transpose = m1.add_instruction(
+            migraphx::make_op("transpose", {{"permutation", {0, 2, 3, 1}}}), mul);
         auto add  = m1.add_instruction(migraphx::make_op("add"), transpose, z);
         auto relu = m1.add_instruction(migraphx::make_op("relu"), add);
         m1.add_return({relu});
@@ -2119,12 +2119,14 @@ TEST_CASE(pointwise_transpose_pointwise)
     run_pass(m1);
     migraphx::module m2;
     {
-        auto x          = m2.add_parameter("x", s1);
-        auto y          = m2.add_parameter("y", s1);
-        auto z          = m2.add_parameter("z", s2);
-        auto transposex = m2.add_instruction(migraphx::make_op("transpose", {{"permutation", {0, 2, 3, 1}}}), x);
-        auto transposey = m2.add_instruction(migraphx::make_op("transpose", {{"permutation", {0, 2, 3, 1}}}), y);
-        auto mul = m2.add_instruction(migraphx::make_op("mul"), transposex, transposey);
+        auto x = m2.add_parameter("x", s1);
+        auto y = m2.add_parameter("y", s1);
+        auto z = m2.add_parameter("z", s2);
+        auto transposex =
+            m2.add_instruction(migraphx::make_op("transpose", {{"permutation", {0, 2, 3, 1}}}), x);
+        auto transposey =
+            m2.add_instruction(migraphx::make_op("transpose", {{"permutation", {0, 2, 3, 1}}}), y);
+        auto mul  = m2.add_instruction(migraphx::make_op("mul"), transposex, transposey);
         auto add  = m2.add_instruction(migraphx::make_op("add"), mul, z);
         auto relu = m2.add_instruction(migraphx::make_op("relu"), add);
         m2.add_return({relu});
@@ -2138,12 +2140,12 @@ TEST_CASE(pointwise_transpose_pointwise_used_twice1)
     auto s2 = migraphx::shape{migraphx::shape::float_type, {2, 4, 4, 64}};
     migraphx::module m1;
     {
-        auto x          = m1.add_parameter("x", s1);
-        auto y          = m1.add_parameter("y", s1);
-        auto z          = m1.add_parameter("z", s2);
-        auto mul = m1.add_instruction(migraphx::make_op("mul"), x, y);
-        auto transpose =
-            m1.add_instruction(migraphx::make_op("transpose", {{"permutation", {0, 2, 3, 1}}}), mul);
+        auto x         = m1.add_parameter("x", s1);
+        auto y         = m1.add_parameter("y", s1);
+        auto z         = m1.add_parameter("z", s2);
+        auto mul       = m1.add_instruction(migraphx::make_op("mul"), x, y);
+        auto transpose = m1.add_instruction(
+            migraphx::make_op("transpose", {{"permutation", {0, 2, 3, 1}}}), mul);
         auto add  = m1.add_instruction(migraphx::make_op("add"), transpose, z);
         auto relu = m1.add_instruction(migraphx::make_op("relu"), add);
         m1.add_return({relu, mul});
@@ -2151,13 +2153,16 @@ TEST_CASE(pointwise_transpose_pointwise_used_twice1)
     run_pass(m1);
     migraphx::module m2;
     {
-        auto x          = m2.add_parameter("x", s1);
-        auto y          = m2.add_parameter("y", s1);
-        auto z          = m2.add_parameter("z", s2);
-        auto transposex = m2.add_instruction(migraphx::make_op("transpose", {{"permutation", {0, 2, 3, 1}}}), x);
-        auto transposey = m2.add_instruction(migraphx::make_op("transpose", {{"permutation", {0, 2, 3, 1}}}), y);
-        auto mul = m2.add_instruction(migraphx::make_op("mul"), transposex, transposey);
-        auto transposemul = m2.add_instruction(migraphx::make_op("transpose", {{"permutation", {0, 3, 1, 2}}}), mul);
+        auto x = m2.add_parameter("x", s1);
+        auto y = m2.add_parameter("y", s1);
+        auto z = m2.add_parameter("z", s2);
+        auto transposex =
+            m2.add_instruction(migraphx::make_op("transpose", {{"permutation", {0, 2, 3, 1}}}), x);
+        auto transposey =
+            m2.add_instruction(migraphx::make_op("transpose", {{"permutation", {0, 2, 3, 1}}}), y);
+        auto mul          = m2.add_instruction(migraphx::make_op("mul"), transposex, transposey);
+        auto transposemul = m2.add_instruction(
+            migraphx::make_op("transpose", {{"permutation", {0, 3, 1, 2}}}), mul);
         auto add  = m2.add_instruction(migraphx::make_op("add"), mul, z);
         auto relu = m2.add_instruction(migraphx::make_op("relu"), add);
         m2.add_return({relu, transposemul});
@@ -2171,13 +2176,13 @@ TEST_CASE(pointwise_transpose_pointwise_used_twice2)
     auto s2 = migraphx::shape{migraphx::shape::float_type, {2, 4, 4, 64}};
     migraphx::module m1;
     {
-        auto x          = m1.add_parameter("x", s1);
-        auto y          = m1.add_parameter("y", s1);
-        auto z          = m1.add_parameter("z", s2);
-        auto mul = m1.add_instruction(migraphx::make_op("mul"), x, y);
-        auto transpose =
-            m1.add_instruction(migraphx::make_op("transpose", {{"permutation", {0, 2, 3, 1}}}), mul);
-        auto add1  = m1.add_instruction(migraphx::make_op("add"), transpose, z);
+        auto x         = m1.add_parameter("x", s1);
+        auto y         = m1.add_parameter("y", s1);
+        auto z         = m1.add_parameter("z", s2);
+        auto mul       = m1.add_instruction(migraphx::make_op("mul"), x, y);
+        auto transpose = m1.add_instruction(
+            migraphx::make_op("transpose", {{"permutation", {0, 2, 3, 1}}}), mul);
+        auto add1 = m1.add_instruction(migraphx::make_op("add"), transpose, z);
         auto relu = m1.add_instruction(migraphx::make_op("relu"), add1);
         auto add2 = m1.add_instruction(migraphx::make_op("add"), relu, mul);
         m1.add_return({add2});

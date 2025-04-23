@@ -254,7 +254,6 @@ struct find_op_shape_transform_op
             new_input_ins = m.insert_instruction(
                 x_ins, make_op("multibroadcast", {{"out_lens", cdims}}), new_input_ins);
         }
-
         auto inputs = ins->inputs();
         std::transform(inputs.begin(), inputs.end(), inputs.begin(), [&](auto input) {
             if(input == input_ins)

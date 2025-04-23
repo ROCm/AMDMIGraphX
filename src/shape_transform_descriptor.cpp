@@ -163,11 +163,8 @@ shape_transform_descriptor::rebase(const std::vector<std::size_t>& dims) const
                                               std::multiplies<>{},
                                               [](const dimension::sub* s) { return s->len; });
         if(dim == final_dim)
-        {
-            for(auto* sub : subs)
-                sub->expose();
-        }
-        else if(dim == 1)
+            continue;
+        if(dim == 1)
         {
             for(auto* sub : subs)
             {
@@ -178,7 +175,7 @@ shape_transform_descriptor::rebase(const std::vector<std::size_t>& dims) const
         else if(subs.size() == 1)
         {
             subs.front()->len = dim;
-            subs.front()->expose();
+            subs.front()->hide();
         }
         else
             MIGRAPHX_THROW("Invalid rebase");
@@ -1056,16 +1053,34 @@ std::vector<operation> shape_transform_descriptor::generate_common_from_dst(
     for(std::size_t i : range(dimensions.size()))
     {
         const auto& d = dimensions[i];
+        const std::size_t nhidden = std::count_if(
+            d.subdimensions.begin(), d.subdimensions.end(), [](const dimension::sub& s) {
+                return s.has_hidden_axis();
+            });
+        const bool split_dimension = d.subdimensions.size() > (nhidden + 1);
         std::transform(d.subdimensions.begin(),
                        d.subdimensions.end(),
                        range(d.subdimensions.size()).begin(),
                        std::back_inserter(subs),
                        [&](dimension::sub s, auto j) {
+                        if(s.has_hidden_axis())
+                        {
+                            s.hidden_axis = {i};
+                            s.add_split_axis(j);
+                        }
+                        else
+                        {
                            s.axis = {i};
-                           if(d.subdimensions.size() > 1)
-                               s.axis.push_back(j);
+                           if(split_dimension)
+                               s.add_split_axis(j);
+                        }
                            return s;
                        });
+        if(nhidden == d.subdimensions.size())
+        {
+            for(auto& s:subs)
+                s.expose();
+        }
     }
     return {make_reshape_unsqueeze(subs, input_dims)};
 }

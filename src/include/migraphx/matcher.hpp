@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2024 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2025 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -37,6 +37,7 @@
 #include <array>
 #include <unordered_map>
 #include <unordered_set>
+#include <utility>
 
 #ifndef MIGRAPHX_USE_TYPE_ERASED_MATCHERS
 #define MIGRAPHX_USE_TYPE_ERASED_MATCHERS 0
@@ -116,7 +117,7 @@ struct predicate_matcher
 template <class P>
 predicate_matcher<P> make_predicate_matcher(P p)
 {
-    return {p};
+    return {std::move(p)};
 }
 
 /// Convert a function into a matcher
@@ -132,7 +133,7 @@ struct function_matcher
 template <class F>
 function_matcher<F> make_function_matcher(F f)
 {
-    return {f};
+    return {std::move(f)};
 }
 
 /// Converts a matcher to bind the instruction to name
@@ -272,14 +273,14 @@ typename type_erased_matcher<M>::type make_basic_matcher(M m)
 template <class F>
 auto make_basic_fun_matcher(F f)
 {
-    return make_basic_matcher(make_function_matcher(f));
+    return make_basic_matcher(make_function_matcher(std::move(f)));
 }
 
 /// Create a basic matcher from a predicate function
 template <class P>
 auto make_basic_pred_matcher(P p)
 {
-    return make_basic_matcher(make_predicate_matcher(p));
+    return make_basic_matcher(make_predicate_matcher(std::move(p)));
 }
 
 /// This macro takes care of the boilerplate for defining a matcher
@@ -477,7 +478,7 @@ struct find_generic_match
 template <class M, class F>
 find_generic_match<M, F> make_match_finder(M m, F f)
 {
-    return {m, f};
+    return {m, std::move(f)};
 }
 
 template <class M>
@@ -498,7 +499,7 @@ find_skip<M> make_find_skip(M m)
 struct lazy_and
 {
     template <class F, class G>
-    auto operator()(F f, G g) const
+    auto operator()(F f, G g) const // NOLINT(performance-unnecessary-value-param)
     {
         return [=] { return f() and g(); };
     }
@@ -507,7 +508,7 @@ struct lazy_and
 struct lazy_or
 {
     template <class F, class G>
-    auto operator()(F f, G g) const
+    auto operator()(F f, G g) const // NOLINT(performance-unnecessary-value-param)
     {
         return [=] { return f() or g(); };
     }
@@ -525,7 +526,7 @@ struct match_fold_f
     }
 
     template <class Pack>
-    static bool fold_matchers_pack(matcher_context& ctx, instruction_ref ins, Pack p)
+    static bool fold_matchers_pack(matcher_context& ctx, instruction_ref ins, const Pack& p)
     {
         return p([&](auto... ms) { return match_fold_f::fold_matchers(ctx, ins, ms...); });
     }

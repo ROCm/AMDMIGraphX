@@ -2106,24 +2106,25 @@ TEST_CASE(reduce_squeeze_pointwise1)
     auto s2 = migraphx::shape{migraphx::shape::float_type, {1, 1024, 1280}};
     migraphx::module m1;
     {
-        auto x   = m1.add_parameter("x", s1);
-        auto y   = m1.add_parameter("y", s2);
+        auto x          = m1.add_parameter("x", s1);
+        auto y          = m1.add_parameter("y", s2);
         auto reduce_sum = m1.add_instruction(migraphx::make_op("reduce_sum", {{"axes", {1}}}), x);
-        auto squeeze = m1.add_instruction(migraphx::make_op("squeeze", {{"axes", {1}}}), reduce_sum);
-        auto add = m1.add_instruction(migraphx::make_op("add"), squeeze, y);
+        auto squeeze =
+            m1.add_instruction(migraphx::make_op("squeeze", {{"axes", {1}}}), reduce_sum);
+        auto add  = m1.add_instruction(migraphx::make_op("add"), squeeze, y);
         auto relu = m1.add_instruction(migraphx::make_op("relu"), add);
         m1.add_return({relu});
     }
     run_pass(m1);
     migraphx::module m2;
     {
-        auto x   = m2.add_parameter("x", s1);
-        auto y   = m2.add_parameter("y", s2);
+        auto x          = m2.add_parameter("x", s1);
+        auto y          = m2.add_parameter("y", s2);
         auto reduce_sum = m2.add_instruction(migraphx::make_op("reduce_sum", {{"axes", {1}}}), x);
-        auto unsqueeze = m2.add_instruction(migraphx::make_op("unsqueeze", {{"axes", {1}}}), y);
-        auto add = m2.add_instruction(migraphx::make_op("add"), reduce_sum, unsqueeze);
-        auto relu = m2.add_instruction(migraphx::make_op("relu"), add);
-        auto squeeze = m2.add_instruction(migraphx::make_op("squeeze", {{"axes", {1}}}), relu);
+        auto unsqueeze  = m2.add_instruction(migraphx::make_op("unsqueeze", {{"axes", {1}}}), y);
+        auto add        = m2.add_instruction(migraphx::make_op("add"), reduce_sum, unsqueeze);
+        auto relu       = m2.add_instruction(migraphx::make_op("relu"), add);
+        auto squeeze    = m2.add_instruction(migraphx::make_op("squeeze", {{"axes", {1}}}), relu);
         m2.add_return({squeeze});
     }
     EXPECT(m1.sort() == m2.sort());
@@ -2135,24 +2136,25 @@ TEST_CASE(reduce_squeeze_pointwise2)
     auto s2 = migraphx::shape{migraphx::shape::float_type, {1, 1024, 1280}};
     migraphx::module m1;
     {
-        auto x   = m1.add_parameter("x", s1);
-        auto y   = m1.add_parameter("y", s2);
+        auto x          = m1.add_parameter("x", s1);
+        auto y          = m1.add_parameter("y", s2);
         auto reduce_sum = m1.add_instruction(migraphx::make_op("reduce_sum", {{"axes", {1}}}), x);
-        auto squeeze = m1.add_instruction(migraphx::make_op("squeeze", {{"axes", {1}}}), reduce_sum);
-        auto add = m1.add_instruction(migraphx::make_op("add"), squeeze, y);
+        auto squeeze =
+            m1.add_instruction(migraphx::make_op("squeeze", {{"axes", {1}}}), reduce_sum);
+        auto add  = m1.add_instruction(migraphx::make_op("add"), squeeze, y);
         auto relu = m1.add_instruction(migraphx::make_op("relu"), add);
         m1.add_return({relu});
     }
     run_pass(m1);
     migraphx::module m2;
     {
-        auto x   = m2.add_parameter("x", s1);
-        auto y   = m2.add_parameter("y", s2);
+        auto x          = m2.add_parameter("x", s1);
+        auto y          = m2.add_parameter("y", s2);
         auto reduce_sum = m2.add_instruction(migraphx::make_op("reduce_sum", {{"axes", {1}}}), x);
-        auto unsqueeze = m2.add_instruction(migraphx::make_op("unsqueeze", {{"axes", {1}}}), y);
-        auto add = m2.add_instruction(migraphx::make_op("add"), reduce_sum, unsqueeze);
-        auto relu = m2.add_instruction(migraphx::make_op("relu"), add);
-        auto squeeze = m2.add_instruction(migraphx::make_op("squeeze", {{"axes", {1}}}), relu);
+        auto unsqueeze  = m2.add_instruction(migraphx::make_op("unsqueeze", {{"axes", {1}}}), y);
+        auto add        = m2.add_instruction(migraphx::make_op("add"), reduce_sum, unsqueeze);
+        auto relu       = m2.add_instruction(migraphx::make_op("relu"), add);
+        auto squeeze    = m2.add_instruction(migraphx::make_op("squeeze", {{"axes", {1}}}), relu);
         m2.add_return({squeeze});
     }
     EXPECT(m1.sort() == m2.sort());
@@ -2164,26 +2166,32 @@ TEST_CASE(reduce_squeeze_broadcast_pointwise)
     auto s2 = migraphx::shape{migraphx::shape::float_type, {2, 32, 40960}};
     migraphx::module m1;
     {
-        auto x   = m1.add_parameter("x", s1);
-        auto y   = m1.add_parameter("y", s2);
-        auto reduce_sum = m1.add_instruction(migraphx::make_op("reduce_sum", {{"axes", {2, 3, 4}}}), x);
-        auto squeeze = m1.add_instruction(migraphx::make_op("squeeze", {{"axes", {3, 4}}}), reduce_sum);
-        auto broadcast = m1.add_instruction(migraphx::make_op("multibroadcast", {{"out_lens", s2.lens()}}), squeeze);
-        auto add = m1.add_instruction(migraphx::make_op("add"), broadcast, y);
+        auto x = m1.add_parameter("x", s1);
+        auto y = m1.add_parameter("y", s2);
+        auto reduce_sum =
+            m1.add_instruction(migraphx::make_op("reduce_sum", {{"axes", {2, 3, 4}}}), x);
+        auto squeeze =
+            m1.add_instruction(migraphx::make_op("squeeze", {{"axes", {3, 4}}}), reduce_sum);
+        auto broadcast = m1.add_instruction(
+            migraphx::make_op("multibroadcast", {{"out_lens", s2.lens()}}), squeeze);
+        auto add  = m1.add_instruction(migraphx::make_op("add"), broadcast, y);
         auto relu = m1.add_instruction(migraphx::make_op("relu"), add);
         m1.add_return({relu});
     }
     run_pass(m1);
     migraphx::module m2;
     {
-        auto x   = m2.add_parameter("x", s1);
-        auto y   = m2.add_parameter("y", s2);
-        auto reduce_sum = m2.add_instruction(migraphx::make_op("reduce_sum", {{"axes", {2, 3, 4}}}), x);
-        auto broadcast = m2.add_instruction(migraphx::make_op("multibroadcast", {{"out_lens", s1.lens()}}), reduce_sum);
+        auto x = m2.add_parameter("x", s1);
+        auto y = m2.add_parameter("y", s2);
+        auto reduce_sum =
+            m2.add_instruction(migraphx::make_op("reduce_sum", {{"axes", {2, 3, 4}}}), x);
+        auto broadcast = m2.add_instruction(
+            migraphx::make_op("multibroadcast", {{"out_lens", s1.lens()}}), reduce_sum);
         auto reshape1 = m2.add_instruction(migraphx::make_op("reshape", {{"dims", s1.lens()}}), y);
-        auto add = m2.add_instruction(migraphx::make_op("add"), broadcast, reshape1);
-        auto relu = m2.add_instruction(migraphx::make_op("relu"), add);
-        auto reshape2 = m2.add_instruction(migraphx::make_op("reshape", {{"dims", s2.lens()}}), relu);
+        auto add      = m2.add_instruction(migraphx::make_op("add"), broadcast, reshape1);
+        auto relu     = m2.add_instruction(migraphx::make_op("relu"), add);
+        auto reshape2 =
+            m2.add_instruction(migraphx::make_op("reshape", {{"dims", s2.lens()}}), relu);
         m2.add_return({reshape2});
     }
     EXPECT(m1.sort() == m2.sort());

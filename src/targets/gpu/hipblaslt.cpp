@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2024 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2025 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -58,7 +58,8 @@ bool hipblaslt_supported()
     const auto device_name = trim(split_string(get_device_name(), ':').front());
     // hipblaslt is supported for MI200 and above, and Navi3x and above.
     return (device_name == "gfx90a" or
-            (starts_with(device_name, "gfx94") and device_name >= "gfx940") or
+            (starts_with(device_name, "gfx94") and device_name >= "gfx942") or
+            (starts_with(device_name, "gfx95") and device_name >= "gfx950") or
             starts_with(device_name, "gfx110") or starts_with(device_name, "gfx120"));
 }
 

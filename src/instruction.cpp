@@ -33,7 +33,7 @@ namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
 
 template <class T>
-auto equal_to(const T& x)
+static auto equal_to(const T& x)
 {
     return [&](const T& y) { return std::equal_to<T>{}(x, y); };
 }
@@ -168,7 +168,7 @@ bool instruction::valid() const
            });
 }
 
-shape instruction::get_shape() const { return result; }
+const shape& instruction::get_shape() const { return result; }
 
 const literal& instruction::get_literal() const
 {

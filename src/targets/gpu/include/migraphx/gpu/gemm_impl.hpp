@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2024 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2025 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -40,6 +40,9 @@ namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
 namespace gpu {
 
+void blas_shape(const shape& in_shape);
+shape transpose_batch(const shape& s, unsigned trans_batch);
+
 /**
  * @brief Templated implementations of the compute() and finalize() methods of the Gemm operator.
  *        For each function there are overloads using either float or int32_t for the arguments
@@ -73,7 +76,8 @@ int32_t gemm_finalize(context& ctx,
                       const std::vector<shape>& input_shapes,
                       float alpha,
                       float beta,
-                      bool compute_fp32);
+                      bool compute_fp32,
+                      int32_t solution_idx);
 
 int32_t gemm_finalize(context& ctx,
                       const shape& output_shape,

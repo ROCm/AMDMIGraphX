@@ -219,6 +219,10 @@ struct find_op_shape_transform_op
         assert(next_ins == x_ins);
         std::reverse(ops.begin(), ops.end());
 
+        // std::cout << "*********************\n";
+        // std::cout << "ops: " << to_string_range(ops) << "\n";
+        // m.debug_print({x_ins, input_ins, ins});
+
         auto output_desc = shape_transform_descriptor::create(x_ins->get_shape().lens(), ops);
         if(output_desc.empty())
             return;

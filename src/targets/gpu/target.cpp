@@ -104,8 +104,8 @@ std::vector<pass> target::get_passes(migraphx::context& gctx, const compile_opti
     unsupported_types.erase(shape::type_t::uint8_type);
     unsupported_types.erase(shape::type_t::int32_type);
     unsupported_types.erase(shape::type_t::tuple_type);
-     
-    // No BF-16 Support on Navi21    
+
+    // No BF-16 Support on Navi21
     if(gpu::gfx_has_bf16_intrinsics())
     {
         unsupported_types.erase(shape::type_t::bf16_type);

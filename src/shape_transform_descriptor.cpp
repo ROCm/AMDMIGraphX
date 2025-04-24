@@ -77,7 +77,8 @@ shape_transform_descriptor::shape_transform_descriptor(const std::vector<std::si
 }
 
 template <class Dimensions, class F>
-static auto for_each_subdimension(Dimensions&& dimensions, F f) -> decltype(dimensions.begin()->subdimensions, void())
+static auto for_each_subdimension(Dimensions&& dimensions,
+                                  F f) -> decltype(dimensions.begin()->subdimensions, void())
 {
     for(auto& dim : dimensions)
     {
@@ -89,7 +90,8 @@ static auto for_each_subdimension(Dimensions&& dimensions, F f) -> decltype(dime
 }
 
 template <class SubDimensions, class F>
-static auto for_each_subdimension(SubDimensions&& subdimensions, F f) -> decltype(subdimensions.begin()->axis, void())
+static auto for_each_subdimension(SubDimensions&& subdimensions,
+                                  F f) -> decltype(subdimensions.begin()->axis, void())
 {
     for(auto& s : subdimensions)
     {
@@ -126,9 +128,8 @@ static void for_each_subdimension(Dimensions&& dimensions, Range&& r, F f)
 
 // Group all axes into a map with a key of the axis and the value is vector of
 // all subdimensions that have that axis.
-template<class Dimensions>
-static std::map<std::size_t, std::vector<dimension::sub*>>
-group_axes(Dimensions& dimensions)
+template <class Dimensions>
+static std::map<std::size_t, std::vector<dimension::sub*>> group_axes(Dimensions& dimensions)
 {
     std::map<std::size_t, std::vector<dimension::sub*>> axes_map;
     for_each_subdimension(dimensions, [&](auto& s) {
@@ -141,13 +142,11 @@ group_axes(Dimensions& dimensions)
 
 static std::size_t len(const std::vector<dimension::sub*>& subs)
 {
-    return transform_accumulate(subs.begin(),
-                                 subs.end(),
-                                 std::size_t{1},
-                                 std::multiplies<>{},
-                                 [](const dimension::sub* s) { return s->len; });
+    return transform_accumulate(
+        subs.begin(), subs.end(), std::size_t{1}, std::multiplies<>{}, [](const dimension::sub* s) {
+            return s->len;
+        });
 }
-
 
 static std::vector<std::size_t> compute_dims(const operation& op,
                                              const std::vector<std::size_t>& idims)
@@ -1077,10 +1076,9 @@ std::vector<operation> shape_transform_descriptor::generate_common_from_src(
             auto dim = len(gsubs);
             if(dim == input_dims.at(axis))
             {
-                for(auto& s:gsubs)
+                for(auto& s : gsubs)
                     s->expose();
             }
-
         }
     }
     generate_from_subdimensions(result, subs, input_dims);

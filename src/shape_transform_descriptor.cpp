@@ -175,8 +175,8 @@ shape_transform_descriptor shape_transform_descriptor::create(const std::vector<
     return result;
 }
 
-shape_transform_descriptor
-shape_transform_descriptor::rebase(const std::vector<std::size_t>& dims, bool broadcast) const
+shape_transform_descriptor shape_transform_descriptor::rebase(const std::vector<std::size_t>& dims,
+                                                              bool broadcast) const
 {
     auto result   = *this;
     for(auto& [axis, subs] : group_axes(result.dimensions))
@@ -205,7 +205,7 @@ shape_transform_descriptor::rebase(const std::vector<std::size_t>& dims, bool br
             subs.front()->len = dim;
             if(broadcast)
                 subs.front()->hide();
-            else 
+            else
                 subs.front()->expose();
         }
         else

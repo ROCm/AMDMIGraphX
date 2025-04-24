@@ -2311,16 +2311,14 @@ TEST_CASE(reduce_broadcast_reshape_pointwise)
     {
         auto x        = m2.add_parameter("x", s1);
         auto y        = m2.add_parameter("y", s2);
-        auto reshapex = m2.add_instruction(migraphx::make_op("reshape", {{"dims", s1.lens()}}), x);
+        auto reshapex = m2.add_instruction(migraphx::make_op("reshape", {{"dims", s2.lens()}}), x);
         auto reduce_sum =
-            m2.add_instruction(migraphx::make_op("reduce_sum", {{"axes", {1}}}), reshapex);
+            m2.add_instruction(migraphx::make_op("reduce_sum", {{"axes", {2, 3}}}), reshapex);
         auto broadcast = m2.add_instruction(
             migraphx::make_op("multibroadcast", {{"out_lens", s2.lens()}}), reduce_sum);
         auto add  = m2.add_instruction(migraphx::make_op("add"), broadcast, y);
         auto relu = m2.add_instruction(migraphx::make_op("relu"), add);
-        auto reshape =
-            m2.add_instruction(migraphx::make_op("reshape", {{"dims", s2.lens()}}), relu);
-        m2.add_return({reshape});
+        m2.add_return({relu});
     }
     EXPECT(m1.sort() == m2.sort());
 }

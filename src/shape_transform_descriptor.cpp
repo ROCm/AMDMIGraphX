@@ -716,6 +716,15 @@ void shape_transform_descriptor::simplify()
     collapse_1_dims(dimensions);
 }
 
+static void expose(std::vector<dimension::sub>& subs)
+{
+    for(auto& s : subs)
+    {
+        if(s.has_hidden_axis())
+            s.expose();
+    }
+}
+
 static std::size_t get_len(const dimension::sub& s, const std::vector<std::size_t>& input_dims)
 {
     if(input_dims.empty())
@@ -1037,6 +1046,7 @@ std::vector<operation> shape_transform_descriptor::generate_common_from_src(
 {
     operation_list result;
     auto subs = get_all_subdimensions(dimensions);
+    expose(subs);
     generate_from_subdimensions(result, subs, input_dims);
     return std::move(result).to_vector();
 }
@@ -1074,13 +1084,10 @@ std::vector<operation> shape_transform_descriptor::generate_common_from_dst(
                                if(split_dimension)
                                    s.add_split_axis(j);
                            }
+                            if(nhidden == d.subdimensions.size())
+                                s.expose();
                            return s;
                        });
-        if(nhidden == d.subdimensions.size())
-        {
-            for(auto& s : subs)
-                s.expose();
-        }
     }
     return {make_reshape_unsqueeze(subs, input_dims)};
 }

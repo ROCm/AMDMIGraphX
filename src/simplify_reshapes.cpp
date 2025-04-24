@@ -222,7 +222,7 @@ struct find_op_shape_transform_op
         auto output_desc = shape_transform_descriptor::create(x_ins->get_shape().lens(), ops);
         if(output_desc.empty())
             return;
-        auto input_desc = output_desc.rebase(x_ins->inputs().front()->get_shape().lens());
+        auto input_desc = output_desc.rebase(x_ins->inputs().front()->get_shape().lens(), true);
         if(input_desc.empty())
             return;
 

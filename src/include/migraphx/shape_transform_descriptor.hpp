@@ -77,7 +77,7 @@ struct MIGRAPHX_EXPORT shape_transform_descriptor
     static shape_transform_descriptor create(const std::vector<std::size_t>& dims,
                                              const std::vector<operation>& ops);
 
-    shape_transform_descriptor rebase(const std::vector<std::size_t>& dims) const;
+    shape_transform_descriptor rebase(const std::vector<std::size_t>& dims, bool broadcast = false) const;
 
     bool apply(const std::vector<operation>& ops);
     bool apply_reshape(const std::vector<std::size_t>& rdims);

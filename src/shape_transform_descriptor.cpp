@@ -176,7 +176,7 @@ shape_transform_descriptor shape_transform_descriptor::create(const std::vector<
 }
 
 shape_transform_descriptor
-shape_transform_descriptor::rebase(const std::vector<std::size_t>& dims) const
+shape_transform_descriptor::rebase(const std::vector<std::size_t>& dims, bool broadcast) const
 {
     auto result   = *this;
     for(auto& [axis, subs] : group_axes(result.dimensions))
@@ -185,8 +185,14 @@ shape_transform_descriptor::rebase(const std::vector<std::size_t>& dims) const
         auto dim       = dims[axis];
         auto final_dim = len(subs);
         if(dim == final_dim)
-            continue;
-        if(dim == 1)
+        {
+            if(not broadcast)
+            {
+                for(auto* sub : subs)
+                    sub->expose();
+            }
+        }
+        else if(dim == 1)
         {
             for(auto* sub : subs)
             {
@@ -197,7 +203,10 @@ shape_transform_descriptor::rebase(const std::vector<std::size_t>& dims) const
         else if(subs.size() == 1)
         {
             subs.front()->len = dim;
-            subs.front()->hide();
+            if(broadcast)
+                subs.front()->hide();
+            else 
+                subs.front()->expose();
         }
         else
             MIGRAPHX_THROW("Invalid rebase");

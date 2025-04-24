@@ -2352,9 +2352,10 @@ TEST_CASE(reduce_broadcast_reshape_pointwise2)
         auto broadcast = m2.add_instruction(
             migraphx::make_op("multibroadcast", {{"out_lens", s3.lens()}}), reduce_sum);
         auto reshape1 = m2.add_instruction(migraphx::make_op("reshape", {{"dims", s3.lens()}}), y);
-        auto add  = m2.add_instruction(migraphx::make_op("add"), broadcast, reshape1);
-        auto relu = m2.add_instruction(migraphx::make_op("relu"), add);
-        auto reshape2 = m2.add_instruction(migraphx::make_op("reshape", {{"dims", s2.lens()}}), relu);
+        auto add      = m2.add_instruction(migraphx::make_op("add"), broadcast, reshape1);
+        auto relu     = m2.add_instruction(migraphx::make_op("relu"), add);
+        auto reshape2 =
+            m2.add_instruction(migraphx::make_op("reshape", {{"dims", s2.lens()}}), relu);
         m2.add_return({reshape2});
     }
     EXPECT(m1.sort() == m2.sort());

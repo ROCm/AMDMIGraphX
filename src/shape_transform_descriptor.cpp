@@ -1137,11 +1137,21 @@ std::vector<operation> shape_transform_descriptor::generate_dst_from_common(
 {
     std::vector<operation> result;
     std::vector<dimension> new_dims = dimensions;
-    if(not input_dims.empty())
-        for_each_subdimension(new_dims, input_dims, [&](auto& s, auto dim) {
-            s.len = dim;
+    if(input_dims.empty())
+    {
+        for_each_subdimension(new_dims, [&](auto& s) {
             s.expose();
         });
+    }
+    else
+    {
+        for_each_subdimension(new_dims, input_dims, [&](auto& s, auto dim) {
+            if(s.len == dim)
+                s.expose();
+            else
+                s.len = dim;
+        });
+    }
 
     // Need squeeze reshape
     if(std::any_of(new_dims.begin(), new_dims.end(), [](const dimension& d) {

@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2022 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2025 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -81,11 +81,52 @@ MIGRAPHX_INTEGRAL_CONSTANT_UNARY_OP(~)
 MIGRAPHX_INTEGRAL_CONSTANT_UNARY_OP(+)
 MIGRAPHX_INTEGRAL_CONSTANT_UNARY_OP(-)
 
+template <class C, C B, class T, T X, class U, U Y>
+constexpr integral_constant<decltype(B ? X : Y), (B ? X : Y)>
+where(integral_constant<C, B>, integral_constant<T, X>, integral_constant<U, Y>)
+{
+    return {};
+}
+
+template <class T, T X, class U, U Y>
+constexpr auto min(integral_constant<T, X> a, integral_constant<U, Y> b)
+{
+    return where(a < b, a, b);
+}
+
+template <class T, T X, class U, U Y>
+constexpr auto max(integral_constant<T, X> a, integral_constant<U, Y> b)
+{
+    return where(a < b, b, a);
+}
+
+template <class T, T X>
+constexpr integral_constant<T, X> min(integral_constant<T, X>, integral_constant<T, X>)
+{
+    return {};
+}
+
+template <class T, T X>
+constexpr integral_constant<T, X> max(integral_constant<T, X>, integral_constant<T, X>)
+{
+    return {};
+}
+
 template <bool B>
 using bool_constant = integral_constant<bool, B>;
 
 using true_type  = bool_constant<true>;
 using false_type = bool_constant<false>;
+
+template <class T>
+struct is_integral_constant : false_type
+{
+};
+
+template <class T, T V>
+struct is_integral_constant<integral_constant<T, V>> : true_type
+{
+};
 
 template <index_int N>
 using index_constant = integral_constant<index_int, N>;

@@ -22,34 +22,57 @@
  * THE SOFTWARE.
  *
  */
-#ifndef MIGRAPHX_GUARD_KERNELS_OPERATORS_HPP
-#define MIGRAPHX_GUARD_KERNELS_OPERATORS_HPP
+#ifndef MIGRAPHX_GUARD_MIGRAPHX_BIT_HPP
+#define MIGRAPHX_GUARD_MIGRAPHX_BIT_HPP
 
-#include <migraphx/kernels/functional.hpp>
-#include <migraphx/kernels/type_traits.hpp>
+#include <migraphx/config.hpp>
+#include <cstdint>
 
 namespace migraphx {
+inline namespace MIGRAPHX_INLINE_NS {
 
-// NOLINTNEXTLINE
-#define MIGRAPHX_DEFINE_OPERATOR(op, expr)                                                  \
-    template <class U>                                                                      \
-    friend constexpr auto operator op(const T& x, const U& y) MIGRAPHX_RETURNS(expr);       \
-    template <class U, class V, MIGRAPHX_REQUIRES(not is_same<T, U>{} and is_same<V, T>{})> \
-    friend constexpr auto operator op(const U& x, const V& y) MIGRAPHX_RETURNS(expr)
-
-template <class T>
-struct equality_comparable
+template <unsigned int N>
+constexpr unsigned int all_ones() noexcept
 {
-    MIGRAPHX_DEFINE_OPERATOR(!=, not(x == y));
-};
+    return (1u << N) - 1u;
+}
 
-template <class T>
-struct less_than_comparable
+template <typename T>
+constexpr int countl_zero(T value)
 {
-    MIGRAPHX_DEFINE_OPERATOR(>, (y < x));
-    MIGRAPHX_DEFINE_OPERATOR(<=, not(y < x));
-    MIGRAPHX_DEFINE_OPERATOR(>=, not(x < y));
-};
+    unsigned int r = 0;
+    for(; value != 0u; value >>= 1u)
+        r++;
+    return 8 * sizeof(value) - r;
+}
 
+constexpr std::uint64_t bit_ceil(std::uint64_t x) noexcept
+{
+    if(x <= 1)
+        return 1;
+    --x;
+    x |= x >> 1u;
+    x |= x >> 2u;
+    x |= x >> 4u;
+    x |= x >> 8u;
+    x |= x >> 16u;
+    x |= x >> 32u;
+    return x + 1;
+}
+
+constexpr std::uint32_t bit_ceil(std::uint32_t x) noexcept
+{
+    if(x <= 1)
+        return 1;
+    --x;
+    x |= x >> 1u;
+    x |= x >> 2u;
+    x |= x >> 4u;
+    x |= x >> 8u;
+    x |= x >> 16u;
+    return x + 1;
+}
+
+} // namespace MIGRAPHX_INLINE_NS
 } // namespace migraphx
-#endif // MIGRAPHX_GUARD_KERNELS_OPERATORS_HPP
+#endif // MIGRAPHX_GUARD_MIGRAPHX_BIT_HPP

@@ -22,34 +22,20 @@
  * THE SOFTWARE.
  *
  */
-#ifndef MIGRAPHX_GUARD_KERNELS_OPERATORS_HPP
-#define MIGRAPHX_GUARD_KERNELS_OPERATORS_HPP
+#ifndef MIGRAPHX_GUARD_KERNELS_FLOAT_EQUAL_HPP
+#define MIGRAPHX_GUARD_KERNELS_FLOAT_EQUAL_HPP
 
-#include <migraphx/kernels/functional.hpp>
 #include <migraphx/kernels/type_traits.hpp>
 
 namespace migraphx {
 
-// NOLINTNEXTLINE
-#define MIGRAPHX_DEFINE_OPERATOR(op, expr)                                                  \
-    template <class U>                                                                      \
-    friend constexpr auto operator op(const T& x, const U& y) MIGRAPHX_RETURNS(expr);       \
-    template <class U, class V, MIGRAPHX_REQUIRES(not is_same<T, U>{} and is_same<V, T>{})> \
-    friend constexpr auto operator op(const U& x, const V& y) MIGRAPHX_RETURNS(expr)
-
-template <class T>
-struct equality_comparable
+template <class T, class U>
+constexpr bool float_equal(T x, U y)
 {
-    MIGRAPHX_DEFINE_OPERATOR(!=, not(x == y));
-};
-
-template <class T>
-struct less_than_comparable
-{
-    MIGRAPHX_DEFINE_OPERATOR(>, (y < x));
-    MIGRAPHX_DEFINE_OPERATOR(<=, not(y < x));
-    MIGRAPHX_DEFINE_OPERATOR(>=, not(x < y));
-};
+    if constexpr(is_integral<T>{} and is_integral<U>{})
+        return x == y;
+    return not(x < y or x > y);
+}
 
 } // namespace migraphx
-#endif // MIGRAPHX_GUARD_KERNELS_OPERATORS_HPP
+#endif // MIGRAPHX_GUARD_KERNELS_FLOAT_EQUAL_HPP

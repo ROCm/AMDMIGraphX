@@ -81,6 +81,51 @@ struct parse_attention : op_parser<parse_attention>
         enum attention_mode attn_type;     // Used to determine the attention configuration
     };
 
+    static void handle_qkv_hidden_size_attr(const onnx_parser& parser,
+                                  const onnx_parser::node_info& info,
+                                  struct attention_attr& attr_out)
+    {
+        auto input_val = parser.parse_value(info.attributes.at("qkv_hidden_sizes"));
+        std::vector<int64_t> qkv_values;
+
+        if(input_val.get_shape().type() == shape::int64_type)
+        {
+            qkv_values = input_val.get_argument().to_vector<int64_t>();
+        }
+        else
+        {
+            // Handle other types if needed by converting
+            auto temp_values = input_val.get_argument().to_vector<int>();
+            qkv_values.resize(temp_values.size());
+            std::transform(temp_values.begin(),
+                            temp_values.end(),
+                            qkv_values.begin(),
+                            [](int x) { return static_cast<int64_t>(x); });
+        }
+
+        if(qkv_values.size() != 3)
+        {
+            MIGRAPHX_THROW("PARSE_ATTENTION: qkv_hidden_sizes must have exactly 3 values");
+        }
+
+        auto q_size = static_cast<size_t>(qkv_values[0]);
+        auto k_size = static_cast<size_t>(qkv_values[1]);
+        auto v_size = static_cast<size_t>(qkv_values[2]);
+        std::vector<size_t> qkv_vec{q_size, k_size, v_size};
+
+        if(q_size != k_size)
+        {
+            MIGRAPHX_THROW("Attention: q and k hidden sizes must be identitical!");
+        } 
+
+        if(std::any_of(qkv_vec.begin(), qkv_vec.end(), [](auto i){return (i == 0) or (i < 0);}))
+        {
+            MIGRAPHX_THROW("PARSE_ATTENTION: qkv_hidden_sizes must be nonzero and valid");
+        }
+
+        attr_out.qkv_hidden_sizes = qkv_vec;
+    }
+
     static void handle_attributes(const onnx_parser& parser,
                                   const onnx_parser::node_info& info,
                                   struct attention_attr& attr_out,
@@ -114,23 +159,7 @@ struct parse_attention : op_parser<parse_attention>
 
         if(contains(info.attributes, "qkv_hidden_sizes"))
         {
-            auto input_val = parser.parse_value(info.attributes.at("qkv_hidden_sizes")).get_argument();
-            /*auto q_size = std::const_cast<size_t>(input_val.element(0).data());
-            auto k_size = std::const_cast<size_t>(input_val.element(1).data());
-            auto v_size = std::const_cast<size_t>(input_val.element(2).data());
-            std::vector<size_t> qkv_vec{q_size, k_size, v_size};
-
-            if(q_size != k_size)
-            {
-                MIGRAPHX_THROW("Attention: q and k hidden sizes must be identitcal!");
-            } 
-
-            if(std::any_of(qkv_vec.begin(), qkv_vec.end(), [](auto i){return (i == 0) or (i < 0);}))
-            {
-                MIGRAPHX_THROW("PARSE_ATTENTION: qkv_hidden_sizes must be nonzero and valid");
-            }
-
-            attr_out.qkv_hidden_sizes = */
+            handle_qkv_hidden_size_attr(parser,info, attr_out);
         }
 
         if(contains(info.attributes, "rotary_embedding_dim"))

@@ -113,7 +113,7 @@ struct parse_layernorm : op_parser<parse_layernorm>
         if(skipped_axes > 0)
         {
             auto x_dims = x_shape.lens();
-            if(scale->get_shape().ndim() != x_rank)
+            if(scale->get_shape().ndim() == 1)
             {
                 scale_bcast = info.add_instruction(
                     make_op("broadcast", {{"axis", skipped_axes}, {"out_lens", x_dims}}), scale);
@@ -121,7 +121,7 @@ struct parse_layernorm : op_parser<parse_layernorm>
             
             if(not skip_bias)
             {
-                if(bias->get_shape().ndim() != x_rank)
+                if(bias->get_shape().ndim() == 1)
                 {
                     bias_bcast = info.add_instruction(
                         make_op("broadcast", {{"axis", skipped_axes}, {"out_lens", x_dims}}), bias);

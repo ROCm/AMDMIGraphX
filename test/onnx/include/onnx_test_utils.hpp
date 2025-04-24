@@ -187,7 +187,7 @@ make_layer_norm(const std::vector<int64_t>& input_shape,
     if(skipped_axis > 0)
     {
         auto x_rank = input_shape.size();
-        if(scale_bias_shape.size() != x_rank)
+        if(scale_bias_shape.size() == 1)
         {
             scale_bcast = mm->add_instruction(
                 migraphx::make_op("broadcast", {{"axis", skipped_axis}, {"out_lens", input_shape}}),
@@ -196,7 +196,7 @@ make_layer_norm(const std::vector<int64_t>& input_shape,
 
         if(not skip_bias)
         {
-            if(scale_bias_shape.size() != x_rank)
+            if(scale_bias_shape.size() == 1)
             {
                 bias_bcast = mm->add_instruction(
                     migraphx::make_op("broadcast",

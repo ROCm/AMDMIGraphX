@@ -186,7 +186,6 @@ make_layer_norm(const std::vector<int64_t>& input_shape,
     migraphx::instruction_ref bias_bcast  = bias;
     if(skipped_axis > 0)
     {
-        auto x_rank = input_shape.size();
         if(scale_bias_shape.size() == 1)
         {
             scale_bcast = mm->add_instruction(

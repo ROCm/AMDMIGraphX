@@ -193,16 +193,16 @@ make_layer_norm(const std::vector<int64_t>& input_shape,
                 migraphx::make_op("broadcast", {{"axis", skipped_axis}, {"out_lens", input_shape}}),
                 scale);
         }
-        
+
         if(not skip_bias)
         {
             if(scale_bias_shape.size() != x_rank)
             {
                 bias_bcast = mm->add_instruction(
-                    migraphx::make_op("broadcast", {{"axis", skipped_axis}, {"out_lens", input_shape}}),
+                    migraphx::make_op("broadcast",
+                                      {{"axis", skipped_axis}, {"out_lens", input_shape}}),
                     bias);
             }
-            
         }
     }
     auto scaled = add_common_op(*mm, migraphx::make_op("mul"), {result, scale_bcast});

@@ -27,8 +27,8 @@
 
 TEST_CASE(simplified_layer_normalization_4d_test)
 {
-    migraphx::program p =
-    make_simplified_layer_norm({2, 3, 5, 7}, {}, {2, 1, 5, 7}, -1, 1e-5f, migraphx::shape::half_type);
+    migraphx::program p = make_simplified_layer_norm(
+        {2, 3, 5, 7}, {}, {2, 1, 5, 7}, -1, 1e-5f, migraphx::shape::half_type);
 
     auto prog = optimize_onnx("simplified_layer_normalization_4d_test.onnx");
     EXPECT(p == prog);

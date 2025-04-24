@@ -75,7 +75,8 @@ struct parse_simplified_layer_normalization : op_parser<parse_simplified_layer_n
 
         if(x_rank < 2)
         {
-            MIGRAPHX_THROW("PARSE_SIMPLIFIED_LAYER_NORMALIZATION: invalid ndims=" + std::to_string(x_rank) + ", must be at least 2");
+            MIGRAPHX_THROW("PARSE_SIMPLIFIED_LAYER_NORMALIZATION: invalid ndims=" +
+                           std::to_string(x_rank) + ", must be at least 2");
         }
 
         // Convert to float before reduce_mean

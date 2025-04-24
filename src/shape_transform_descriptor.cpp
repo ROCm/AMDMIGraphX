@@ -1139,9 +1139,7 @@ std::vector<operation> shape_transform_descriptor::generate_dst_from_common(
     std::vector<dimension> new_dims = dimensions;
     if(input_dims.empty())
     {
-        for_each_subdimension(new_dims, [&](auto& s) {
-            s.expose();
-        });
+        for_each_subdimension(new_dims, [&](auto& s) { s.expose(); });
     }
     else
     {

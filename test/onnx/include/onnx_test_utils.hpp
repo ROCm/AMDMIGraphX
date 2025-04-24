@@ -186,20 +186,29 @@ make_layer_norm(const std::vector<int64_t>& input_shape,
     migraphx::instruction_ref bias_bcast  = bias;
     if(skipped_axis > 0)
     {
-        scale_bcast = mm->add_instruction(
-            migraphx::make_op("broadcast", {{"axis", skipped_axis}, {"out_lens", input_shape}}),
-            scale);
+        auto x_rank = input_shape.size();
+        if(scale_bias_shape.size() != x_rank)
+        {
+            scale_bcast = mm->add_instruction(
+                migraphx::make_op("broadcast", {{"axis", skipped_axis}, {"out_lens", input_shape}}),
+                scale);
+        }
+        
         if(not skip_bias)
         {
-            bias_bcast = mm->add_instruction(
-                migraphx::make_op("broadcast", {{"axis", skipped_axis}, {"out_lens", input_shape}}),
-                bias);
+            if(scale_bias_shape.size() != x_rank)
+            {
+                bias_bcast = mm->add_instruction(
+                    migraphx::make_op("broadcast", {{"axis", skipped_axis}, {"out_lens", input_shape}}),
+                    bias);
+            }
+            
         }
     }
-    auto scaled = mm->add_instruction(migraphx::make_op("mul"), {result, scale_bcast});
+    auto scaled = add_common_op(*mm, migraphx::make_op("mul"), {result, scale_bcast});
     if(not skip_bias)
     {
-        mm->add_instruction(migraphx::make_op("add"), {scaled, bias_bcast});
+        add_common_op(*mm, migraphx::make_op("add"), {scaled, bias_bcast});
     }
     return p;
 }

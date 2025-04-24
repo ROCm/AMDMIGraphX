@@ -118,7 +118,7 @@ struct parse_layernorm : op_parser<parse_layernorm>
                 scale_bcast = info.add_instruction(
                     make_op("broadcast", {{"axis", skipped_axes}, {"out_lens", x_dims}}), scale);
             }
-            
+
             if(not skip_bias)
             {
                 if(bias->get_shape().ndim() == 1)

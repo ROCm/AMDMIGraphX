@@ -1,7 +1,7 @@
 #####################################################################################
 # The MIT License (MIT)
 #
-# Copyright (c) 2015-2024 Advanced Micro Devices, Inc. All rights reserved.
+# Copyright (c) 2015-2025 Advanced Micro Devices, Inc. All rights reserved.
 #
 # Permission is hereby granted, free of charge, to any person obtaining a copy
 # of this software and associated documentation files (the "Software"), to deal
@@ -38,39 +38,52 @@ endmacro()
 
 set(PYBIND11_NOPYTHON On)
 find_package(pybind11 REQUIRED)
-macro(find_python version)
-    find_program(PYTHON_CONFIG_${version} python${version}-config)
-    if(EXISTS ${PYTHON_CONFIG_${version}})
-        py_exec(COMMAND ${PYTHON_CONFIG_${version}} --includes OUTPUT_VARIABLE _python_include_args)
-        execute_process(COMMAND ${PYTHON_CONFIG_${version}} --ldflags --embed OUTPUT_VARIABLE _python_ldflags_args RESULT_VARIABLE _python_ldflags_result)
-        if(NOT _python_ldflags_result EQUAL 0)
-            py_exec(COMMAND ${PYTHON_CONFIG_${version}} --ldflags OUTPUT_VARIABLE _python_ldflags_args)
-        endif()
-        separate_arguments(_python_includes UNIX_COMMAND "${_python_include_args}")
-        separate_arguments(_python_ldflags UNIX_COMMAND "${_python_ldflags_args}")
-        string(REPLACE "-I" "" _python_includes "${_python_includes}")
-        add_library(python${version}::headers INTERFACE IMPORTED GLOBAL)
-        set_target_properties(python${version}::headers PROPERTIES
-            INTERFACE_INCLUDE_DIRECTORIES "${_python_includes}"
-        )
+if(CMAKE_HOST_SYSTEM_NAME STREQUAL "Windows")
+    function(find_python version python_executable)
+        cmake_path(GET python_executable PARENT_PATH _python_path)
+        set(PYTHON_${version}_EXECUTABLE ${python_executable} CACHE INTERNAL "" FORCE)
+        string(REPLACE "." "" _python_version_stripped ${version})
         add_library(python${version}::runtime INTERFACE IMPORTED GLOBAL)
         set_target_properties(python${version}::runtime PROPERTIES
-            INTERFACE_LINK_OPTIONS "${_python_ldflags}"
-            INTERFACE_LINK_LIBRARIES python${version}::headers
-        )
-        py_exec(COMMAND ${PYTHON_CONFIG_${version}} --prefix OUTPUT_VARIABLE _python_prefix)
-        string(STRIP "${_python_prefix}" _python_prefix)
-        set(PYTHON_${version}_EXECUTABLE "${_python_prefix}/bin/python${version}" CACHE PATH "")
-    endif()
-endmacro()
-function(py_extension name version)
-    set(_python_module_extension ".so")
-    if(version VERSION_GREATER_EQUAL 3.0)
-        py_exec(COMMAND ${PYTHON_CONFIG_${version}} --extension-suffix OUTPUT_VARIABLE _python_module_extension)
-        string(STRIP "${_python_module_extension}" _python_module_extension)
-    endif()
-    set_target_properties(${name} PROPERTIES PREFIX "" SUFFIX "${_python_module_extension}")
-endfunction()
+                INTERFACE_INCLUDE_DIRECTORIES "${_python_path}/include"
+                INTERFACE_LINK_LIBRARIES python${_python_version_stripped}.lib
+                INTERFACE_LINK_DIRECTORIES "${_python_path}/libs")
+    endfunction()
+else()
+    macro(find_python version)
+        find_program(PYTHON_CONFIG_${version} python${version}-config)
+        if(EXISTS ${PYTHON_CONFIG_${version}})
+            py_exec(COMMAND ${PYTHON_CONFIG_${version}} --includes OUTPUT_VARIABLE _python_include_args)
+            execute_process(COMMAND ${PYTHON_CONFIG_${version}} --ldflags --embed OUTPUT_VARIABLE _python_ldflags_args RESULT_VARIABLE _python_ldflags_result)
+            if(NOT _python_ldflags_result EQUAL 0)
+                py_exec(COMMAND ${PYTHON_CONFIG_${version}} --ldflags OUTPUT_VARIABLE _python_ldflags_args)
+            endif()
+            separate_arguments(_python_includes UNIX_COMMAND "${_python_include_args}")
+            separate_arguments(_python_ldflags UNIX_COMMAND "${_python_ldflags_args}")
+            string(REPLACE "-I" "" _python_includes "${_python_includes}")
+            add_library(python${version}::headers INTERFACE IMPORTED GLOBAL)
+            set_target_properties(python${version}::headers PROPERTIES
+                INTERFACE_INCLUDE_DIRECTORIES "${_python_includes}"
+            )
+            add_library(python${version}::runtime INTERFACE IMPORTED GLOBAL)
+            set_target_properties(python${version}::runtime PROPERTIES
+                INTERFACE_LINK_OPTIONS "${_python_ldflags}"
+                INTERFACE_LINK_LIBRARIES python${version}::headers
+            )
+            py_exec(COMMAND ${PYTHON_CONFIG_${version}} --prefix OUTPUT_VARIABLE _python_prefix)
+            string(STRIP "${_python_prefix}" _python_prefix)
+            set(PYTHON_${version}_EXECUTABLE "${_python_prefix}/bin/python${version}" CACHE PATH "")
+        endif()
+    endmacro()
+    function(py_extension name version)
+        set(_python_module_extension ".so")
+        if(version VERSION_GREATER_EQUAL 3.0)
+            py_exec(COMMAND ${PYTHON_CONFIG_${version}} --extension-suffix OUTPUT_VARIABLE _python_module_extension)
+            string(STRIP "${_python_module_extension}" _python_module_extension)
+        endif()
+        set_target_properties(${name} PROPERTIES PREFIX "" SUFFIX "${_python_module_extension}")
+    endfunction()
+endif()
 function(py_add_module NAME)
     set(options)
     set(oneValueArgs PYTHON_VERSION PYTHON_MODULE)
@@ -103,6 +116,8 @@ function(py_add_module NAME)
     endif()
 endfunction()
 
+set(PYTHON_DISABLE_VERSIONS "" CACHE STRING "")
+
 if(CMAKE_HOST_SYSTEM_NAME STREQUAL "Windows")
     find_program(PY_EXECUTABLE py.exe PATHS ENV windir REQUIRED)
     py_exec(COMMAND "${PY_EXECUTABLE}" -0p OUTPUT_VARIABLE _found_pythons)
@@ -110,24 +125,16 @@ if(CMAKE_HOST_SYSTEM_NAME STREQUAL "Windows")
     foreach(_found_python ${_found_pythons})
         string(REGEX REPLACE "[ \\t]*-V:([0-9]*\\.?[0-9]*t?)[ \\t]*\\*?[ \\t]*" "\\1;" _tuple ${_found_python})
         list(GET _tuple 0 _version)
-        # Ignore if the entry is a virtual environment
-        if(NOT _version STREQUAL "")
-            list(APPEND _PYTHON_VERSIONS ${_version})
-            message(STATUS "Python ${_version} found.")
+        # Ignore if the entry is a virtual environment or the Python version is disabled
+        if(NOT _version STREQUAL "" AND NOT _version IN_LIST PYTHON_DISABLE_VERSIONS)
             list(GET _tuple 1 _python_executable)
-            cmake_path(GET _python_executable PARENT_PATH _python_path)
-            set(PYTHON_${_version}_EXECUTABLE ${_python_executable} CACHE INTERNAL "" FORCE)
-            string(REPLACE "." "" _python_version_stripped ${_version})
-            add_library(python${_version}::runtime INTERFACE IMPORTED GLOBAL)
-            set_target_properties(python${_version}::runtime PROPERTIES
-                INTERFACE_INCLUDE_DIRECTORIES "${_python_path}/include"
-                INTERFACE_LINK_LIBRARIES python${_python_version_stripped}.lib
-                INTERFACE_LINK_DIRECTORIES "${_python_path}/libs")
-       endif()
+            find_python(${_version} "${_python_executable}")
+            message(STATUS "Python ${_version} found.")
+            list(APPEND _PYTHON_VERSIONS ${_version})
+        endif()
     endforeach()
 else()
     set(PYTHON_SEARCH_VERSIONS 3.5 3.6 3.7 3.8 3.9 3.10 3.11 3.12)
-    set(PYTHON_DISABLE_VERSIONS "" CACHE STRING "")
     foreach(PYTHON_DISABLE_VERSION ${PYTHON_DISABLE_VERSIONS})
         list(REMOVE_ITEM PYTHON_SEARCH_VERSIONS ${PYTHON_DISABLE_VERSION})
     endforeach()

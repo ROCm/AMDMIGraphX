@@ -20,36 +20,30 @@
  * LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
  * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
  * THE SOFTWARE.
- *
  */
-#ifndef MIGRAPHX_GUARD_KERNELS_OPERATORS_HPP
-#define MIGRAPHX_GUARD_KERNELS_OPERATORS_HPP
 
-#include <migraphx/kernels/functional.hpp>
-#include <migraphx/kernels/type_traits.hpp>
+#include "verify_program.hpp"
+#include <migraphx/program.hpp>
+#include <migraphx/generate.hpp>
+#include <migraphx/make_op.hpp>
 
-namespace migraphx {
-
-// NOLINTNEXTLINE
-#define MIGRAPHX_DEFINE_OPERATOR(op, expr)                                                  \
-    template <class U>                                                                      \
-    friend constexpr auto operator op(const T& x, const U& y) MIGRAPHX_RETURNS(expr);       \
-    template <class U, class V, MIGRAPHX_REQUIRES(not is_same<T, U>{} and is_same<V, T>{})> \
-    friend constexpr auto operator op(const U& x, const V& y) MIGRAPHX_RETURNS(expr)
-
-template <class T>
-struct equality_comparable
+struct test_concat_multi_out : verify_program<test_concat_multi_out>
 {
-    MIGRAPHX_DEFINE_OPERATOR(!=, not(x == y));
+    migraphx::program create_program() const
+    {
+        migraphx::program p;
+        auto* mm = p.get_main_module();
+        int axis = 0;
+        migraphx::shape s0{migraphx::shape::float_type, {2, 2}};
+        migraphx::shape s1{migraphx::shape::float_type, {3, 2}};
+        migraphx::shape s2{migraphx::shape::float_type, {5, 2}};
+        auto x      = mm->add_parameter("x", s0);
+        auto y      = mm->add_parameter("y", s1);
+        auto z      = mm->add_parameter("z", s2);
+        auto concat = mm->add_instruction(migraphx::make_op("concat", {{"axis", axis}}), x, y);
+        auto relu   = mm->add_instruction(migraphx::make_op("relu"), concat);
+        auto add    = mm->add_instruction(migraphx::make_op("add"), relu, z);
+        mm->add_return({relu, add});
+        return p;
+    }
 };
-
-template <class T>
-struct less_than_comparable
-{
-    MIGRAPHX_DEFINE_OPERATOR(>, (y < x));
-    MIGRAPHX_DEFINE_OPERATOR(<=, not(y < x));
-    MIGRAPHX_DEFINE_OPERATOR(>=, not(x < y));
-};
-
-} // namespace migraphx
-#endif // MIGRAPHX_GUARD_KERNELS_OPERATORS_HPP

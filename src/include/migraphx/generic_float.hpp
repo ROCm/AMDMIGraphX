@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2024 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2025 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -27,6 +27,7 @@
 
 #include <migraphx/config.hpp>
 #include <migraphx/bit_cast.hpp>
+#include <migraphx/bit.hpp>
 #include <algorithm>
 #include <limits>
 #include <iostream>
@@ -35,35 +36,6 @@
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
-
-template <unsigned int N>
-constexpr unsigned int all_ones() noexcept
-{
-    return (1u << N) - 1u;
-}
-
-template <typename T>
-constexpr int countl_zero(T value)
-{
-    unsigned int r = 0;
-    for(; value != 0u; value >>= 1u)
-        r++;
-    return 8 * sizeof(value) - r;
-}
-
-constexpr std::size_t bit_ceil(std::size_t v)
-{
-    if(v <= 1)
-        return 1;
-    v--;
-    v |= v >> 1u;
-    v |= v >> 2u;
-    v |= v >> 4u;
-    v |= v >> 8u;
-    v |= v >> 16u;
-    v |= v >> 32u;
-    return v + 1;
-}
 
 constexpr std::size_t integer_divide_ceil(std::size_t x, std::size_t y)
 {

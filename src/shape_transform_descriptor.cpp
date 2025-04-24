@@ -76,6 +76,27 @@ shape_transform_descriptor::shape_transform_descriptor(const std::vector<std::si
               });
 }
 
+template <class Dimensions, class F>
+static auto for_each_subdimension(Dimensions&& dimensions, F f) -> decltype(dimensions.begin()->subdimensions, void())
+{
+    for(auto& dim : dimensions)
+    {
+        for(auto& s : dim.subdimensions)
+        {
+            f(s);
+        }
+    }
+}
+
+template <class SubDimensions, class F>
+static auto for_each_subdimension(SubDimensions&& subdimensions, F f) -> decltype(subdimensions.begin()->axis, void())
+{
+    for(auto& s : subdimensions)
+    {
+        f(s);
+    }
+}
+
 static std::vector<dimension::sub> get_all_subdimensions(const std::vector<dimension>& dimensions)
 {
     std::vector<dimension::sub> result;
@@ -105,21 +126,28 @@ static void for_each_subdimension(Dimensions&& dimensions, Range&& r, F f)
 
 // Group all axes into a map with a key of the axis and the value is vector of
 // all subdimensions that have that axis.
+template<class Dimensions>
 static std::map<std::size_t, std::vector<dimension::sub*>>
-group_axes(std::vector<dimension>& dimensions)
+group_axes(Dimensions& dimensions)
 {
     std::map<std::size_t, std::vector<dimension::sub*>> axes_map;
-    for(auto& d : dimensions)
-    {
-        for(auto& s : d.subdimensions)
-        {
-            if(s.origin_axis().empty())
-                continue;
-            axes_map[s.origin_axis().front()].push_back(&s);
-        }
-    }
+    for_each_subdimension(dimensions, [&](auto& s) {
+        if(s.origin_axis().empty())
+            return;
+        axes_map[s.origin_axis().front()].push_back(&s);
+    });
     return axes_map;
 }
+
+static std::size_t len(const std::vector<dimension::sub*>& subs)
+{
+    return transform_accumulate(subs.begin(),
+                                 subs.end(),
+                                 std::size_t{1},
+                                 std::multiplies<>{},
+                                 [](const dimension::sub* s) { return s->len; });
+}
+
 
 static std::vector<std::size_t> compute_dims(const operation& op,
                                              const std::vector<std::size_t>& idims)
@@ -152,16 +180,11 @@ shape_transform_descriptor
 shape_transform_descriptor::rebase(const std::vector<std::size_t>& dims) const
 {
     auto result   = *this;
-    auto axes_map = group_axes(result.dimensions);
-    for(auto& [axis, subs] : axes_map)
+    for(auto& [axis, subs] : group_axes(result.dimensions))
     {
         assert(axis < dims.size());
         auto dim       = dims[axis];
-        auto final_dim = transform_accumulate(subs.begin(),
-                                              subs.end(),
-                                              std::size_t{1},
-                                              std::multiplies<>{},
-                                              [](const dimension::sub* s) { return s->len; });
+        auto final_dim = len(subs);
         if(dim == final_dim)
             continue;
         if(dim == 1)
@@ -1046,7 +1069,20 @@ std::vector<operation> shape_transform_descriptor::generate_common_from_src(
 {
     operation_list result;
     auto subs = get_all_subdimensions(dimensions);
-    expose(subs);
+    if(not input_dims.empty())
+    {
+        // Expose the axis that do match the input dims
+        for(auto& [axis, gsubs] : group_axes(subs))
+        {
+            auto dim = len(gsubs);
+            if(dim == input_dims.at(axis))
+            {
+                for(auto& s:gsubs)
+                    s->expose();
+            }
+
+        }
+    }
     generate_from_subdimensions(result, subs, input_dims);
     return std::move(result).to_vector();
 }

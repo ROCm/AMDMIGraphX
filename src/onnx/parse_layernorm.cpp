@@ -74,7 +74,8 @@ struct parse_layernorm : op_parser<parse_layernorm>
 
         if(x_rank < 2)
         {
-            MIGRAPHX_THROW("PARSE_LAYERNORM: invalid input shape");
+            MIGRAPHX_THROW("PARSE_SIMPLIFIED_LAYER_NORMALIZATION: invalid ndims=" +
+                           std::to_string(x_rank) + ", must be at least 2");
         }
 
         // If rank(X) is r, axis' allowed range is [-r, r)

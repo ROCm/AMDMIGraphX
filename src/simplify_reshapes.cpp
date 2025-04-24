@@ -225,7 +225,7 @@ struct find_op_shape_transform_op
         auto input_desc = output_desc.rebase(x_ins->inputs().front()->get_shape().lens());
         if(input_desc.empty())
             return;
-        
+
         // std::cout << "***************************************************************\n";
         // std::cout << "ops: " << to_string_range(ops) << "\n";
         // m.debug_print({x_ins, input_ins, ins});

@@ -1084,8 +1084,8 @@ std::vector<operation> shape_transform_descriptor::generate_common_from_dst(
                                if(split_dimension)
                                    s.add_split_axis(j);
                            }
-                            if(nhidden == d.subdimensions.size())
-                                s.expose();
+                           if(nhidden == d.subdimensions.size())
+                               s.expose();
                            return s;
                        });
     }

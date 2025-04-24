@@ -1063,6 +1063,9 @@ std::vector<operation> shape_transform_descriptor::generate_common_from_dst(
     for(std::size_t i : range(dimensions.size()))
     {
         const auto& d = dimensions[i];
+        // Bool if the dimensions match the input_dims. If they dont match
+        // then we want to keep the hidden axis, so there len can be replaced
+        // in make_reshape_unsqueeze.
         bool is_equal = true;
         if(i < input_dims.size())
             is_equal = (input_dims[i] == d.len());

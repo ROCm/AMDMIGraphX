@@ -2289,7 +2289,7 @@ TEST_CASE(reduce_squeeze_broadcast_pointwise)
     EXPECT(m1.sort() == m2.sort());
 }
 
-TEST_CASE(reduce_broadcast_reshape_pointwise)
+TEST_CASE(reduce_broadcast_reshape_pointwise1)
 {
     auto s1 = migraphx::shape{migraphx::shape::float_type, {64, 4}};
     auto s2 = migraphx::shape{migraphx::shape::float_type, {8, 8, 2, 2}};
@@ -2319,6 +2319,43 @@ TEST_CASE(reduce_broadcast_reshape_pointwise)
         auto add  = m2.add_instruction(migraphx::make_op("add"), broadcast, y);
         auto relu = m2.add_instruction(migraphx::make_op("relu"), add);
         m2.add_return({relu});
+    }
+    EXPECT(m1.sort() == m2.sort());
+}
+
+TEST_CASE(reduce_broadcast_reshape_pointwise2)
+{
+    auto s1 = migraphx::shape{migraphx::shape::float_type, {2, 32, 40960}};
+    auto s2 = migraphx::shape{migraphx::shape::float_type, {2, 320, 64, 64}};
+    auto s3 = migraphx::shape{migraphx::shape::float_type, {2, 32, 10, 64, 64}};
+    migraphx::module m1;
+    {
+        auto x          = m1.add_parameter("x", s1);
+        auto y          = m1.add_parameter("y", s2);
+        auto reduce_sum = m1.add_instruction(migraphx::make_op("reduce_sum", {{"axes", {2}}}), x);
+        auto broadcast  = m1.add_instruction(
+            migraphx::make_op("multibroadcast", {{"out_lens", s1.lens()}}), reduce_sum);
+        auto reshape =
+            m1.add_instruction(migraphx::make_op("reshape", {{"dims", s2.lens()}}), broadcast);
+        auto add  = m1.add_instruction(migraphx::make_op("add"), reshape, y);
+        auto relu = m1.add_instruction(migraphx::make_op("relu"), add);
+        m1.add_return({relu});
+    }
+    run_pass(m1);
+    migraphx::module m2;
+    {
+        auto x        = m2.add_parameter("x", s1);
+        auto y        = m2.add_parameter("y", s2);
+        auto reshapex = m2.add_instruction(migraphx::make_op("reshape", {{"dims", s3.lens()}}), x);
+        auto reduce_sum =
+            m2.add_instruction(migraphx::make_op("reduce_sum", {{"axes", {2, 3, 4}}}), reshapex);
+        auto broadcast = m2.add_instruction(
+            migraphx::make_op("multibroadcast", {{"out_lens", s3.lens()}}), reduce_sum);
+        auto reshape1 = m2.add_instruction(migraphx::make_op("reshape", {{"dims", s3.lens()}}), y);
+        auto add  = m2.add_instruction(migraphx::make_op("add"), broadcast, reshape1);
+        auto relu = m2.add_instruction(migraphx::make_op("relu"), add);
+        auto reshape2 = m2.add_instruction(migraphx::make_op("reshape", {{"dims", s2.lens()}}), relu);
+        m2.add_return({reshape2});
     }
     EXPECT(m1.sort() == m2.sort());
 }

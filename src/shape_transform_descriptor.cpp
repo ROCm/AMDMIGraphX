@@ -1063,20 +1063,25 @@ std::vector<operation> shape_transform_descriptor::generate_common_from_dst(
     for(std::size_t i : range(dimensions.size()))
     {
         const auto& d = dimensions[i];
-        const std::size_t nhidden =
+        bool is_equal = true;
+        if(i < input_dims.size())
+            is_equal = (input_dims[i] == d.len());
+        const std::size_t nhidden = is_equal ? 0 :
             std::count_if(d.subdimensions.begin(),
                           d.subdimensions.end(),
                           [](const dimension::sub& s) { return s.has_hidden_axis(); });
-        const bool split_dimension = d.subdimensions.size() > (nhidden + 1);
+        const bool split_dimension = (d.subdimensions.size()-nhidden) > 1;
         std::transform(d.subdimensions.begin(),
                        d.subdimensions.end(),
                        range(d.subdimensions.size()).begin(),
                        std::back_inserter(subs),
                        [&](dimension::sub s, auto j) {
+                           if(is_equal)
+                            s.expose();
                            if(s.has_hidden_axis())
                            {
                                s.hidden_axis = {i};
-                               s.add_split_axis(j);
+                                s.add_split_axis(j);
                            }
                            else
                            {
@@ -1084,8 +1089,6 @@ std::vector<operation> shape_transform_descriptor::generate_common_from_dst(
                                if(split_dimension)
                                    s.add_split_axis(j);
                            }
-                           if(nhidden == d.subdimensions.size())
-                               s.expose();
                            return s;
                        });
     }
@@ -1097,7 +1100,7 @@ std::vector<operation> shape_transform_descriptor::generate_dst_from_common(
     std::vector<operation> result;
     std::vector<dimension> new_dims = dimensions;
     if(not input_dims.empty())
-        for_each_subdimension(new_dims, input_dims, [&](auto& s, auto dim) { s.len = dim; });
+        for_each_subdimension(new_dims, input_dims, [&](auto& s, auto dim) { s.len = dim; s.expose(); });
 
     // Need squeeze reshape
     if(std::any_of(new_dims.begin(), new_dims.end(), [](const dimension& d) {
@@ -1116,13 +1119,13 @@ std::vector<operation> shape_transform_descriptor::generate_src_from_common(
     std::vector<operation> result;
 
     auto subs = get_all_subdimensions(dimensions);
+    // Remove broadcasted dimensions
+    expose(subs);
     for(auto i : range(subs.size()))
     {
         auto& s = subs[i];
         if(i < input_dims.size())
             s.len = input_dims[i];
-        // Remove broadcasted dimensions
-        s.expose();
     }
 
     auto permutation = find_permutation(subs);

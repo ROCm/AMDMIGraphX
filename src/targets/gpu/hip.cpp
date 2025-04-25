@@ -52,7 +52,7 @@ using hip_host_ptr = MIGRAPHX_MANAGE_PTR(void, hipHostUnregister);
 
 std::string hip_error(int error) { return hipGetErrorString(static_cast<hipError_t>(error)); }
 
-bool is_device_ptr(const void* ptr)
+static bool is_device_ptr(const void* ptr)
 {
     hipPointerAttribute_t attr;
     auto status = hipPointerGetAttributes(&attr, ptr);
@@ -61,7 +61,7 @@ bool is_device_ptr(const void* ptr)
     return attr.type == hipMemoryTypeDevice;
 }
 
-std::size_t get_available_gpu_memory()
+static std::size_t get_available_gpu_memory()
 {
     size_t free;
     size_t total;
@@ -71,7 +71,7 @@ std::size_t get_available_gpu_memory()
     return free;
 }
 
-void* get_device_ptr(void* hptr)
+static void* get_device_ptr(void* hptr)
 {
     void* result = nullptr;
     auto status  = hipHostGetDevicePointer(&result, hptr, 0);
@@ -106,7 +106,7 @@ static host_ptr_cache& get_host_ptr_cache()
     return cache;
 }
 
-std::shared_ptr<void> allocate_gpu(std::size_t sz, bool host = false)
+static std::shared_ptr<void> allocate_gpu(std::size_t sz, bool host = false)
 {
     if(sz > get_available_gpu_memory())
         MIGRAPHX_THROW("Memory not available to allocate buffer: " + std::to_string(sz));
@@ -128,7 +128,7 @@ std::shared_ptr<void> allocate_gpu(std::size_t sz, bool host = false)
     return result;
 }
 
-std::shared_ptr<void> register_on_gpu(void* ptr, std::size_t sz)
+static std::shared_ptr<void> register_on_gpu(void* ptr, std::size_t sz)
 {
     std::shared_ptr<void> result = get_host_ptr_cache().get(ptr);
     if(result)
@@ -144,7 +144,7 @@ std::shared_ptr<void> register_on_gpu(void* ptr, std::size_t sz)
 }
 
 template <class T>
-std::vector<T> read_from_gpu(const void* x, std::size_t sz)
+static std::vector<T> read_from_gpu(const void* x, std::size_t sz)
 {
     gpu_sync();
     std::vector<T> result(sz);
@@ -160,7 +160,7 @@ std::vector<T> read_from_gpu(const void* x, std::size_t sz)
     return result;
 }
 
-std::shared_ptr<void> write_to_gpu(const void* x, std::size_t sz, bool host = false)
+static std::shared_ptr<void> write_to_gpu(const void* x, std::size_t sz, bool host = false)
 {
     gpu_sync();
     auto result = allocate_gpu(sz, host);
@@ -170,14 +170,6 @@ std::shared_ptr<void> write_to_gpu(const void* x, std::size_t sz, bool host = fa
     if(status != hipSuccess)
         MIGRAPHX_THROW("Copy to gpu failed: " + hip_error(status));
     return result;
-}
-
-template <class T>
-hip_ptr write_to_gpu(const T& x)
-{
-    using type = typename T::value_type;
-    auto size  = x.size() * sizeof(type);
-    return write_to_gpu(x.data(), size);
 }
 
 argument allocate_gpu(const shape& s, bool host)
@@ -204,7 +196,7 @@ argument to_gpu(const argument& arg, bool host)
         },
         [&](const auto& xs) {
             std::vector<argument> args;
-            std::transform(xs.begin(), xs.end(), std::back_inserter(args), [&](auto x) {
+            std::transform(xs.begin(), xs.end(), std::back_inserter(args), [&](const auto& x) {
                 return to_gpu(x, host);
             });
             result = argument{args};
@@ -224,7 +216,7 @@ argument from_gpu(const argument& arg)
         },
         [&](const auto& xs) {
             std::vector<argument> args;
-            std::transform(xs.begin(), xs.end(), std::back_inserter(args), [&](auto x) {
+            std::transform(xs.begin(), xs.end(), std::back_inserter(args), [&](const auto& x) {
                 return from_gpu(x);
             });
             result = argument{args};
@@ -249,7 +241,7 @@ void gpu_sync()
 
 void gpu_sync(const context& ctx) { ctx.finish(); }
 
-void hip_async_memset(context& ctx, const argument& dst, int value)
+static void hip_async_memset(context& ctx, const argument& dst, int value)
 {
     std::size_t dst_size = dst.get_shape().bytes();
     auto status          = hipMemsetAsync(dst.data(), value, dst_size, ctx.get_stream().get());
@@ -257,7 +249,8 @@ void hip_async_memset(context& ctx, const argument& dst, int value)
         MIGRAPHX_THROW("Gpu fill failed: " + hip_error(status));
 }
 
-void hip_async_copy(context& ctx, const argument& src, const argument& dst, hipMemcpyKind kind)
+static void
+hip_async_copy(context& ctx, const argument& src, const argument& dst, hipMemcpyKind kind)
 {
     std::size_t src_size = src.get_shape().bytes();
     std::size_t dst_size = dst.get_shape().bytes();

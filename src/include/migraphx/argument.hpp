@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2024 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2025 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -63,7 +63,7 @@ struct MIGRAPHX_EXPORT argument : raw_data<argument>
     }
 
     template <class T>
-    argument(shape s, std::shared_ptr<T> d)
+    argument(shape s, const std::shared_ptr<T>& d)
         : m_shape(std::move(s))
     {
         assign_buffer([d] { return reinterpret_cast<char*>(d.get()); });

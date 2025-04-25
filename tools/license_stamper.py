@@ -122,10 +122,10 @@ def bottom_footer(comment_char):
 
 # Simple just open and write stuff to each file with the license stamp
 def stamp_file(rfile,
-                     message,
-                     comment_char,
-                     use_last_commit_year=False,
-                     debug=False):
+               message,
+               comment_char,
+               use_last_commit_year=False,
+               debug=False):
 
     filename = os.path.join(get_top(), rfile)
     add_shebang = False
@@ -157,7 +157,8 @@ def stamp_file(rfile,
             print(f"{e} \n Skipping file")
         return
 
-    year = get_latest_commit_year(rfile) if use_last_commit_year else current_year()
+    year = get_latest_commit_year(
+        rfile) if use_last_commit_year else current_year()
     status = stamp_check(filename, year, save, debug=debug)
 
     if status in (StampStatus.OK, StampStatus.OTHER_LICENSE,
@@ -179,8 +180,8 @@ def stamp_file(rfile,
             contents.write(delim)
         if not modify_markdown:
             for line in message:
-                contents.write(
-                    f"{comment_char} {line}\n" if line else f"{comment_char}\n")
+                contents.write(f"{comment_char} {line}\n"
+                               if line else f"{comment_char}\n")
         delim = bottom_footer(comment_char)
         if delim:
             contents.write(delim)
@@ -209,10 +210,10 @@ def main(args):
         if comment_delim is not None:
             print(f"Updating file: {rfile}")
             stamp_file(rfile,
-                             message,
-                             comment_delim,
-                             use_last_commit_year=args.all,
-                             debug=args.debug)
+                       message,
+                       comment_delim,
+                       use_last_commit_year=args.all,
+                       debug=args.debug)
         else:
             print(f"No valid delimeter for file: {rfile}")
 

@@ -49,7 +49,7 @@ def check_file(file, debug=False):
         with open(file, 'r') as f:
             content = f.read()
     except (OSError, UnicodeDecodeError) as e:
-        if debug: 
+        if debug:
             print(f"{file}: Skipping ({e})")
         return StampStatus.ERROR_READING
 
@@ -60,17 +60,15 @@ def check_file(file, debug=False):
 def print_status(status):
     files = status.files
     if files:
-        print(
-            f"\n{'Error' if status.error else 'Warning'}: "
-            f"\n{len(files)} {status.label} files:\n{files}"
-        )
+        print(f"\n{'Error' if status.error else 'Warning'}: "
+              f"\n{len(files)} {status.label} files:\n{files}")
         return status.error
     return False
 
 
 def main(args):
     files = get_changed_files(args.against)
-    if args.debug: 
+    if args.debug:
         print(f"Changed files vs {args.against}: {files}")
 
     for file in files:

@@ -23,7 +23,8 @@
 #####################################################################################
 
 from enum import Enum, auto
-import datetime, re
+import datetime
+import re
 
 
 class StampStatus(Enum):
@@ -45,7 +46,7 @@ class StampStatus(Enum):
         self.files = []
 
 
-def stampCheck(file, year, content, debug=False):
+def stamp_check(file, year, content, debug=False):
     """
     Determine license stamp status for a given file's content.
 
@@ -57,15 +58,15 @@ def stampCheck(file, year, content, debug=False):
         year_pattern = re.compile(rf"Copyright \(c\) (?:\d{{4}}\s*-\s*)?{year} Advanced Micro Devices")
         if year_pattern.search(content):
             return StampStatus.OK
-        if debug: print(f"{file}: Wrong year")
+        if debug: 
+            print(f"{file}: Wrong year")
         return StampStatus.WRONG_YEAR
-    elif "Software License" in content:
+    if "Software License" in content:
         return StampStatus.OTHER_LICENSE
-    else:
-        return StampStatus.NOT_STAMPED
 
+    return StampStatus.NOT_STAMPED
 
-def currentYear():
+def current_year():
     """
     Get the current year based on the system clock.
 
@@ -75,7 +76,7 @@ def currentYear():
     return datetime.datetime.now().date().year
 
 
-def updateYear(filename: str, year: int):
+def update_year(filename: str, year: int):
     """
     Update the license year in the specified file to match the latest Git commit year.
 
@@ -83,7 +84,7 @@ def updateYear(filename: str, year: int):
         filename (str): File whose license year needs to be updated.
         year (int): Year to update the license to.
     """
-    with open(filename, 'r') as f:
+    with open(filename, 'r', encoding='utf-8') as f:
         content = f.read()
 
     def replacer(match):
@@ -96,5 +97,5 @@ def updateYear(filename: str, year: int):
         content
     )
 
-    with open(filename, 'w') as f:
+    with open(filename, 'w', encoding='utf-8') as f:
         f.write(new_content)

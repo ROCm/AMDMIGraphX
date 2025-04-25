@@ -55,7 +55,7 @@ def run(cmd, verbose=False, **kwargs):
     return result
 
 
-def getTop():
+def get_top():
     """
     Return the absolute path to the root directory of the Git repository.
     Useful as the base path for running Git commands or locating files.
@@ -63,7 +63,7 @@ def getTop():
     return run("git rev-parse --show-toplevel")
 
 
-def getMergeBase(branch):
+def get_merge_base(branch):
     """
     Get the common ancestor (merge base) commit hash between the current branch
     and the given branch. This is the commit where they diverged, used to compare changes.
@@ -73,28 +73,28 @@ def getMergeBase(branch):
                )  # Get merge base SHA between current and target branch
 
 
-def getChangedFiles(branch):
+def get_changed_files(branch):
     """
     Return a list of files that are staged for commit and have changed
     compared to the merge base with the given branch.
     Only includes modified or added files (excludes deleted files).
     """
-    base = getMergeBase(branch)
+    base = get_merge_base(branch)
     return run(f"git diff --cached --name-only --diff-filter=d {base}",
-               cwd=getTop()).splitlines()
+               cwd=get_top()).splitlines()
 
 
-def getAllFiles():
+def get_all_files():
     """
     Return a list of all tracked files in the Git repository.
     """
-    return run("git ls-files", cwd=getTop()).splitlines()
+    return run("git ls-files", cwd=get_top()).splitlines()
 
 
-def getYearOfLatestCommit(file):
+def get_latest_commit_year(file):
     """
     Get year of latest commit given file 
     """
     date_str = run(f"git log -1 --format=%cd --date=short {file}",
-                   cwd=getTop())
+                   cwd=get_top())
     return datetime.datetime.strptime(date_str, '%Y-%m-%d').year

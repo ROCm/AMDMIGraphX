@@ -25,15 +25,18 @@
 #################################### GUIDE ##########################################
 #####################################################################################
 # This Check_Stamped script is triggered by the Github workflows when a pull request is created.
-# It works by generating a list of files that have been modified/created between the current up-to-date Develop Branch
-# from MIGraphx and the Pull Request Branch via GIT DIFF. The script then checks that each file has the current year
-# in the license stamp, with the assumption being that any modifications/creations will need to be stamped to the year that the
-# modification/creation was made.
+# It works by generating a list of files that have been modified/created between the current
+# up-to-date Develop Branch from MIGraphx and the Pull Request Branch via GIT DIFF.
+# The script then checks that each file has the current year in the license stamp,
+# with the assumption being that any modifications/creations will need to be stamped to the
+# year that the modification/creation was made.
 #####################################################################################
 
-import sys, argparse, os
-from stamp_status import StampStatus, stampCheck, currentYear
-from git_tools import getChangedFiles
+import sys
+import argparse
+import os
+from stamp_status import StampStatus, stamp_check, current_year
+from git_tools import get_changed_files
 
 SUPPORTED_FILE_TYPES = (".cpp", ".hpp", ".h", ".ipynb", ".py", ".txt", ".sh",
                         ".bsh", "LICENSE", ".cmake")
@@ -46,26 +49,29 @@ def check_file(file, debug=False):
         with open(file, 'r') as f:
             content = f.read()
     except (OSError, UnicodeDecodeError) as e:
-        if debug: print(f"{file}: Skipping ({e})")
+        if debug: 
+            print(f"{file}: Skipping ({e})")
         return StampStatus.ERROR_READING
 
-    year = currentYear()
-    return stampCheck(file, year, content, debug=debug)
+    year = current_year()
+    return stamp_check(file, year, content, debug=debug)
 
 
 def print_status(status):
     files = status.files
     if files:
         print(
-            f"\n{'Error' if status.error else 'Warning'}: {len(files)} {status.label} files:\n{files}"
+            f"\n{'Error' if status.error else 'Warning'}: "
+            f"\n{len(files)} {status.label} files:\n{files}"
         )
         return status.error
     return False
 
 
 def main(args):
-    files = getChangedFiles(args.against)
-    if args.debug: print(f"Changed files vs {args.against}: {files}")
+    files = get_changed_files(args.against)
+    if args.debug: 
+        print(f"Changed files vs {args.against}: {files}")
 
     for file in files:
         filename = os.path.basename(file)

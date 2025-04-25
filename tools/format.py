@@ -21,8 +21,11 @@
 # OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 # THE SOFTWARE.
 #####################################################################################
-import os, shutil, argparse, subprocess
-from git_tools import getChangedFiles, getMergeBase, getTop, run
+import os
+import shutil
+import argparse
+import subprocess
+from git_tools import get_changed_files, get_merge_base, get_top, run
 
 CLANG_FORMAT_PATH = '/opt/rocm/llvm/bin'
 
@@ -37,7 +40,7 @@ def is_excluded(f):
 
 
 def clang_format(against, apply=False, path=CLANG_FORMAT_PATH):
-    base = getMergeBase(against)
+    base = get_merge_base(against)
     clang_format = os.path.join(path, 'clang-format')
     if not os.path.exists(clang_format):
         print(f"{clang_format} not installed. Skipping format.")
@@ -47,13 +50,13 @@ def clang_format(against, apply=False, path=CLANG_FORMAT_PATH):
         print(f"{git_clang_format} not installed. Skipping format.")
         return
     diff_flag = [] if apply else ["--diff"]
-    files = getChangedFiles(base)
+    files = get_changed_files(base)
     files = [
         f for f in files if f.endswith(CLANG_EXTENSIONS) and not is_excluded(f)
     ]
     run([git_clang_format, '--binary', clang_format] + diff_flag + [base] +
         files,
-        cwd=getTop(),
+        cwd=get_top(),
         verbose=True)
 
 
@@ -62,9 +65,9 @@ def yapf_format(against, apply=False):
         print("yapf not installed. Skipping format.")
         return
     diff_flag = "--in-place" if apply else "--diff"
-    files = ' '.join(getChangedFiles(against))
+    files = ' '.join(get_changed_files(against))
     if files:
-        run(f"yapf {diff_flag} -p {files}", cwd=getTop(), verbose=True)
+        run(f"yapf {diff_flag} -p {files}", cwd=get_top(), verbose=True)
     else:
         print("No modified python files to format")
 

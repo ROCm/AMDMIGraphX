@@ -435,7 +435,7 @@ class Function:
         self.return_name = return_name or 'out'
         self.returns = Parameter(self.return_name, returns,
                                  returns=True) if returns else None
-        self.guard_define = kwargs.get('guard_define')
+        self.guard_define = str(kwargs.get('guard_define'))
 
         for p in self.params:
             p.virtual = virtual

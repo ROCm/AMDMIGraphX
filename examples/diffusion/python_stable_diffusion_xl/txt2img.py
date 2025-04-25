@@ -37,6 +37,9 @@ from collections import namedtuple
 
 HipEventPair = namedtuple('HipEventPair', ['start', 'end'])
 
+os.environ["MIGRAPHX_ENABLE_NHWC"]='1'
+os.environ["MIGRAPHX_TRACE_EVAL"]='1'
+os.environ["MIGRAPHX_MLIR_USE_SPECIFIC_OPS"]='convolution'
 
 # measurement helper
 def measure(fn):
@@ -202,6 +205,14 @@ def get_args():
         default=False,
         help="Log during run",
     )
+
+    parser.add_argument(
+        "--unet_int8",
+        action="store_true",
+        default=False,
+        help="Quantize UNet Int8",
+    )
+
     return parser.parse_args()
 
 
@@ -213,11 +224,11 @@ model_shapes = {
         "input_ids": [2, 77]
     },
     "unetxl": {
-        "sample": [2, 4, 128, 128],
-        "encoder_hidden_states": [2, 77, 2048],
-        "text_embeds": [2, 1280],
-        "time_ids": [2, 6],
-        "timestep": [1],
+        "input.5": [2, 4, 128, 128], 
+        "encoder_hidden_states": [2, 77, 2048], 
+        #"onnx::Cast_3": [2, 1280], 
+        #"onnx::Shape_4": [2, 6], 
+        #"onnx::Unsqueeze_1": [1],
     },
     "refiner_unetxl": {
         "sample": [2, 4, 128, 128],
@@ -411,6 +422,7 @@ class StableDiffusionMGX():
                 onnx_model_path,
                 compiled_model_path=compiled_model_path,
                 use_fp16="unetxl" in fp16,
+                use_int8=args.unet_int8,
                 force_compile=force_compile,
                 exhaustive_tune=exhaustive_tune,
                 offload_copy=False)
@@ -615,6 +627,7 @@ class StableDiffusionMGX():
                        onnx_model_path,
                        compiled_model_path=None,
                        use_fp16=False,
+                       use_int8=False,
                        force_compile=False,
                        exhaustive_tune=False,
                        offload_copy=True):
@@ -622,7 +635,15 @@ class StableDiffusionMGX():
         if compiled_model_path is None:
             compiled_model_path = onnx_model_path
         onnx_file = f"{onnx_model_path}/{name}/model.onnx"
-        mxr_file = f"{compiled_model_path}/{name}/model_{'fp16' if use_fp16 else 'fp32'}_{'gpu' if not offload_copy else 'oc'}.mxr"
+        
+        dtype = 'fp32'
+        if use_fp16:
+            dtype = 'fp16'
+        elif use_int8:
+            dtype = 'int8'
+
+        mxr_file = f"{compiled_model_path}/{name}/model_{dtype}_{'gpu' if not offload_copy else 'oc'}.mxr"
+        
         if not force_compile and os.path.isfile(mxr_file):
             print(f"Found mxr, loading it from {mxr_file}")
             model = mgx.load(mxr_file, format="msgpack")
@@ -632,6 +653,8 @@ class StableDiffusionMGX():
             model = mgx.parse_onnx(onnx_file, map_input_dims=shapes)
             if use_fp16:
                 mgx.quantize_fp16(model)
+            elif use_int8:
+                mgx.quantize_int8(model, mgx.get_target("gpu"))
             model.compile(mgx.get_target("gpu"),
                           exhaustive_tune=exhaustive_tune,
                           offload_copy=offload_copy)
@@ -699,12 +722,12 @@ class StableDiffusionMGX():
             latents_model_input, t).to(device="cuda")
         timestep = torch.atleast_1d(t.to(device="cuda"))  # convert 0D -> 1D
 
-        copy_tensor(self.tensors[model]["sample"], latents_model_input)
+        copy_tensor(self.tensors[model]["input.5"], latents_model_input) 
         copy_tensor(self.tensors[model]["encoder_hidden_states"],
                     hidden_states)
-        copy_tensor(self.tensors[model]["text_embeds"], text_embeddings)
-        copy_tensor(self.tensors[model]["timestep"], timestep)
-        copy_tensor(self.tensors[model]["time_ids"], time_ids)
+        #copy_tensor(self.tensors[model]["onnx::Cast_3"], text_embeddings) 
+        #copy_tensor(self.tensors[model]["onnx::Unsqueeze_1"], timestep)
+        #copy_tensor(self.tensors[model]["onnx::Shape_4"], time_ids)
         run_model_async(self.models[model], self.model_args[model],
                         self.stream)
 

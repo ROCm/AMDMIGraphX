@@ -54,10 +54,11 @@ def stampCheck(file, year, content, debug=False):
     """
 
     if "Advanced Micro Devices, Inc. All rights reserved" in content:
-        if f"2015-{year} Advanced Micro Devices" not in content:
-            if debug: print(f"{file}: Wrong year")
-            return StampStatus.WRONG_YEAR
-        return StampStatus.OK
+        year_pattern = re.compile(rf"Copyright \(c\) (?:\d{{4}}\s*-\s*)?{year} Advanced Micro Devices")
+        if year_pattern.search(content):
+            return StampStatus.OK
+        if debug: print(f"{file}: Wrong year")
+        return StampStatus.WRONG_YEAR
     elif "Software License" in content:
         return StampStatus.OTHER_LICENSE
     else:
@@ -83,9 +84,17 @@ def updateYear(filename: str, year: int):
         year (int): Year to update the license to.
     """
     with open(filename, 'r') as f:
-        newfileContent = re.sub("2015-\d+ Advanced Micro Devices",
-                                f'2015-{year} Advanced Micro Devices',
-                                f.read())
+        content = f.read()
+
+    def replacer(match):
+        start_year = match.group(1)
+        return f"Copyright (c) {start_year}-{year} Advanced Micro Devices"
+
+    new_content = re.sub(
+        r"Copyright \(c\) (\d{4})(?:\s*-\s*\d{4})? Advanced Micro Devices",
+        replacer,
+        content
+    )
 
     with open(filename, 'w') as f:
-        f.write(newfileContent)
+        f.write(new_content)

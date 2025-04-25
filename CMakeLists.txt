@@ -158,7 +158,6 @@ elseif(MIGRAPHX_ENABLE_GPU)
 endif()
 rocm_enable_clang_tidy(
     CHECKS
-        boost-*
         bugprone-*
         cert-*
         clang-analyzer-*
@@ -174,9 +173,11 @@ rocm_enable_clang_tidy(
         modernize-*
         performance-*
         readability-*
+        -bugprone-crtp-constructor-accessibility
         -bugprone-easily-swappable-parameters
         -bugprone-implicit-widening-of-multiplication-result
         -bugprone-macro-parentheses
+        -bugprone-return-const-ref-from-parameter
         -bugprone-signed-char-misuse
         -bugprone-unchecked-optional-access
         # Disable the aliased reserved identifiers
@@ -246,6 +247,7 @@ rocm_enable_clang_tidy(
         -readability-else-after-return
         -readability-function-cognitive-complexity
         -readability-identifier-length
+        -readability-math-missing-parentheses
         -readability-named-parameter
         -readability-redundant-member-init
         -readability-redundant-string-init

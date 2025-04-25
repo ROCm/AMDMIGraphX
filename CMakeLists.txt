@@ -60,6 +60,8 @@ option(MIGRAPHX_ENABLE_PYTHON "Enable python bindings" OFF)
 else()
 option(MIGRAPHX_ENABLE_PYTHON "Enable python bindings" ON)
 endif()
+option(MIGRAPHX_ENABLE_TENSORFLOW "Enable TensorFlow integration" ON)
+option(MIGRAPHX_ENABLE_ONNX "Enable ONNX model import" ON)
 
 if(WIN32)
 option(MIGRAPHX_USE_ROCBLAS "Enable MIGraphX to use rocBLAS" OFF)

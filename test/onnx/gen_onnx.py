@@ -6893,7 +6893,11 @@ def layernorm_test():
              bias_add], [x, scale, bias], [y], [pow_tensor, epsilon_tensor])
 
 
-def make_layer_norm(shape, axis=-1, dtype=TensorProto.FLOAT, scale_shape=None, bias_shape=None):
+def make_layer_norm(shape,
+                    axis=-1,
+                    dtype=TensorProto.FLOAT,
+                    scale_shape=None,
+                    bias_shape=None):
     norm_axis = axis + len(shape) if axis < 0 else axis
     x = helper.make_tensor_value_info('x', dtype, shape)
     if scale_shape is None:
@@ -6939,7 +6943,9 @@ def layer_norm_3d_test():
 
 @onnx_test()
 def layer_norm_3d_scale_bias_test():
-    return make_layer_norm([2, 5, 7], scale_shape=[2, 1, 7], bias_shape=[2, 1, 7])
+    return make_layer_norm([2, 5, 7],
+                           scale_shape=[2, 1, 7],
+                           bias_shape=[2, 1, 7])
 
 
 @onnx_test()
@@ -12931,7 +12937,8 @@ def simplified_layer_normalization_test():
 @onnx_test()
 def simplified_layer_normalization_4d_test():
     x = helper.make_tensor_value_info('x', TensorProto.FLOAT16, [2, 3, 5, 7])
-    scale = helper.make_tensor_value_info('scale', TensorProto.FLOAT16, [2, 1, 5, 7])
+    scale = helper.make_tensor_value_info('scale', TensorProto.FLOAT16,
+                                          [2, 1, 5, 7])
     y = helper.make_tensor_value_info('y', TensorProto.FLOAT16, [2, 3, 5, 7])
 
     node = onnx.helper.make_node(

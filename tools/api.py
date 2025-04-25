@@ -951,9 +951,12 @@ def add_handle(name: str,
                      guard_define=guard_define)
     add_handle_preamble()
     l = locals()
-    l.update({'guard_define_end': '#endif' if guard_define else '',
-              'guard_define_begin':
-                  f'#ifdef {guard_define}\n' if guard_define else ''})
+    l.update({
+        'guard_define_end':
+        '#endif' if guard_define else '',
+        'guard_define_begin':
+        f'#ifdef {guard_define}\n' if guard_define else ''
+    })
     c_header_preamble.append(handle_typedef.substitute(l))
     if not skip_def:
         c_api_body_preamble.append(handle_definition.substitute(l))
@@ -1031,7 +1034,12 @@ def string_c_wrap(p: Parameter) -> None:
 
 
 class Handle:
-    def __init__(self, name: str, ctype: str, cpptype: str, guard_define: str = None, **kwargs) -> None:
+    def __init__(self,
+                 name: str,
+                 ctype: str,
+                 cpptype: str,
+                 guard_define: str = None,
+                 **kwargs) -> None:
         self.name = name
         self.ctype = ctype
         self.cpptype = cpptype
@@ -1045,13 +1053,15 @@ class Handle:
         return self.ctype + '_' + name
 
     def substitute(self, s: str, **kwargs) -> str:
-        return Template(s).safe_substitute(name=self.name,
-                                           ctype=self.ctype,
-                                           cpptype=self.cpptype,
-                                           opaque_type=self.opaque_type,
-                                           guard_define_begin=f'#ifdef {self.guard_define}\n' if self.guard_define else '',
-                                           guard_define_end='#endif' if self.guard_define else '',
-                                           **kwargs)
+        return Template(s).safe_substitute(
+            name=self.name,
+            ctype=self.ctype,
+            cpptype=self.cpptype,
+            opaque_type=self.opaque_type,
+            guard_define_begin=f'#ifdef {self.guard_define}\n'
+            if self.guard_define else '',
+            guard_define_end='#endif' if self.guard_define else '',
+            **kwargs)
 
     def constructor(self,
                     name: str,

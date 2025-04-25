@@ -38,7 +38,7 @@ from collections import namedtuple
 HipEventPair = namedtuple('HipEventPair', ['start', 'end'])
 
 os.environ["MIGRAPHX_ENABLE_NHWC"]='1'
-os.environ["MIGRAPHX_TRACE_EVAL"]='0'
+os.environ["MIGRAPHX_TRACE_EVAL"]='1'
 os.environ["MIGRAPHX_MLIR_USE_SPECIFIC_OPS"]='convolution'
 
 # measurement helper
@@ -247,19 +247,21 @@ model_shapes = {
     "clip2": {
         "input_ids": [2, 77]
     },
-    # "unetxl": {
-    #     "sample": [2, 4, 128, 128],
-    #     "encoder_hidden_states": [2, 77, 2048],
-    #     "text_embeds": [2, 1280],
-    #     "time_ids": [2, 6],
-    #     "timestep": [1],
-    # },
     "unetxl": {
-        "input.5": [2, 4, 128, 128], # sample again?
-        "encoder_hidden_states": [2, 77, 2048], # encoder_hidden_states
-        "onnx::Cast_3": [2, 1280], # text_embeds
-        "onnx::Shape_4": [2, 6], # time_ids
-        "onnx::Unsqueeze_1": [1], # timestep
+        'hf': {
+            "sample": [2, 4, 128, 128],
+            "encoder_hidden_states": [2, 77, 2048],
+            "text_embeds": [2, 1280],
+            "time_ids": [2, 6],
+            "timestep": [1],
+        },
+        'quark': {
+            "input.5": [2, 4, 128, 128], 
+            "encoder_hidden_states": [2, 77, 2048], 
+            "onnx::Cast_3": [2, 1280], 
+            "onnx::Shape_4": [2, 6], 
+            "onnx::Unsqueeze_1": [1],
+        }
     },
     "refiner_unetxl": {
         "sample": [2, 4, 128, 128],
@@ -269,8 +271,13 @@ model_shapes = {
         "timestep": [1],
     },
     "vae": {
-        "latent_sample": [1, 4, 128, 128]
-    },
+        "hf": {
+            "latent_sample": [1, 4, 128, 128]
+        },
+        "quark": {
+            "input.1": [1, 4, 128, 128]
+        }
+    }
 }
 
 model_names = {
@@ -577,6 +584,7 @@ class StableDiffusionMGX():
         hidden_states, text_embeddings = self.get_embeddings(prompt_tokens)
         self.profile_end("clip")
         sample_size = list(self.tensors["vae"]["latent_sample"].size())
+        # sample_size = list(self.tensors["vae"]["input.1"].size())
         if verbose:
             print(
                 f"Creating random input data {sample_size} (latents) with {seed = }..."
@@ -668,6 +676,8 @@ class StableDiffusionMGX():
     def load_mgx_model(name,
                        shapes,
                        onnx_model_path,
+                       onnx_file,
+                       mxr_file, 
                        compiled_model_path=None,
                        use_fp16=False,
                        use_bf16=False,
@@ -678,7 +688,7 @@ class StableDiffusionMGX():
         print(f"Loading {name} model...")
         if compiled_model_path is None:
             compiled_model_path = onnx_model_path
-        onnx_file = f"{onnx_model_path}/{name}/model.onnx"
+        # onnx_file = path # f"{onnx_model_path}/{name}/model.onnx"
 
         dtype = 'fp32'
         if use_fp16:
@@ -688,7 +698,7 @@ class StableDiffusionMGX():
         elif use_int8:
             dtype = 'int8'
 
-        mxr_file = f"{compiled_model_path}/{name}/model_{dtype}_{'gpu' if not offload_copy else 'oc'}.mxr"
+        # mxr_file = f"{compiled_model_path}/{name}/model_{dtype}_{'gpu' if not offload_copy else 'oc'}.mxr"
 
         if not force_compile and os.path.isfile(mxr_file):
             print(f"Found mxr, loading it from {mxr_file}")
@@ -799,6 +809,7 @@ class StableDiffusionMGX():
 
     # @measure
     def decode(self, latents):
+        # copy_tensor(self.tensors["vae"]["input.1"], latents)
         copy_tensor(self.tensors["vae"]["latent_sample"], latents)
         run_model_async(self.models["vae"], self.model_args["vae"],
                         self.stream)

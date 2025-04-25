@@ -1,7 +1,7 @@
 #####################################################################################
 # The MIT License (MIT)
 #
-# Copyright (c) 2015-2024 Advanced Micro Devices, Inc. All rights reserved.
+# Copyright (c) 2015-2025 Advanced Micro Devices, Inc. All rights reserved.
 #
 # Permission is hereby granted, free of charge, to any person obtaining a copy
 # of this software and associated documentation files (the "Software"), to deal
@@ -53,6 +53,7 @@ function(add_c_api_test TEST_NAME TEST_SRC TEST_DIR)
     endif()
 endfunction()
 
+if(MIGRAPHX_ENABLE_ONNX)
 add_api_test(array_base test_array_base.cpp ${TEST_ONNX_DIR})
 add_api_test(assign test_assign.cpp ${TEST_ONNX_DIR})
 add_api_test(compile_options test_compile_options.cpp ${TEST_ONNX_DIR})
@@ -64,9 +65,12 @@ add_api_test(save_load test_save_load.cpp ${TEST_ONNX_DIR})
 add_api_test(op test_op_construct.cpp ${TEST_ONNX_DIR})
 add_c_api_test(c_op test_c_op_construct.c ${TEST_ONNX_DIR})
 add_api_test(custom_op test_custom_op.cpp ${TEST_ONNX_DIR})
+endif()
+if(MIGRAPHX_ENABLE_PYTHON)
 add_api_test(tf_parser test_tf_parser.cpp ${TEST_TF_DIR})
+endif()
 # GPU-based tests
-if(MIGRAPHX_ENABLE_GPU)
+if(MIGRAPHX_ENABLE_GPU AND MIGRAPHX_ENABLE_ONNX)
 add_api_test(gpu test_gpu.cpp ${TEST_ONNX_DIR})
 add_api_test(custom_op_gpu test_custom_op_gpu.cpp ${TEST_ONNX_DIR})
 endif()

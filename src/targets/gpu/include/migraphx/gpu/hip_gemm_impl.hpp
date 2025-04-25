@@ -53,13 +53,12 @@ shape transpose_batch_hip(const shape& s, unsigned trans_batch);
  * @param alpha .
  * @param beta .
  */
-MIGRAPHX_GPU_EXPORT void
-hip_gemm_compute(context& ctx,
-                 const shape& output_shape,
-                 const std::vector<argument>& args,
-                 float alpha,
-                 float beta,
-                 int32_t solution_idx);
+MIGRAPHX_GPU_EXPORT void hip_gemm_compute(context& ctx,
+                                          const shape& output_shape,
+                                          const std::vector<argument>& args,
+                                          float alpha,
+                                          float beta,
+                                          int32_t solution_idx);
 
 MIGRAPHX_GPU_EXPORT
 int32_t hip_gemm_finalize(context& ctx,
@@ -70,18 +69,16 @@ int32_t hip_gemm_finalize(context& ctx,
                           int32_t solution_idx);
 
 
-MIGRAPHX_GPU_EXPORT int32_t
-hip_gemm_default_solution(context& ctx,
-                          const shape& output_shape,
-                          const std::vector<shape>& input_shapes);
+MIGRAPHX_GPU_EXPORT int32_t hip_gemm_default_solution(context& ctx,
+                                                      const shape& output_shape,
+                                                      const std::vector<shape>& input_shapes);
 
-MIGRAPHX_GPU_EXPORT size_t
-hip_gemm_workspace_size(context& ctx,
-                        const shape& output_shape,
-                        const std::vector<shape>& input_shapes,
-                        float alpha,
-                        float beta,
-                        int32_t solution_idx);
+MIGRAPHX_GPU_EXPORT size_t hip_gemm_workspace_size(context& ctx,
+                                                   const shape& output_shape,
+                                                   const std::vector<shape>& input_shapes,
+                                                   float alpha,
+                                                   float beta,
+                                                   int32_t solution_idx);
 
 } // namespace gpu
 } // namespace MIGRAPHX_INLINE_NS

@@ -1985,12 +1985,14 @@ TEST_CASE(pointwise_reshape_unary_pointwise)
     run_pass(m1);
     migraphx::module m2;
     {
-        auto x   = m2.add_parameter("x", s1);
-        auto y   = m2.add_parameter("y", s1);
-        auto z   = m2.add_parameter("z", s2);
-        auto reshape_x = m2.add_instruction(migraphx::make_op("reshape", {{"dims", {2, 2, 2, 2, 5, 5}}}), x);
-        auto reshape_y = m2.add_instruction(migraphx::make_op("reshape", {{"dims", {2, 2, 2, 2, 5, 5}}}), y);
-        auto mul = m2.add_instruction(migraphx::make_op("mul"), reshape_x, reshape_y);
+        auto x = m2.add_parameter("x", s1);
+        auto y = m2.add_parameter("y", s1);
+        auto z = m2.add_parameter("z", s2);
+        auto reshape_x =
+            m2.add_instruction(migraphx::make_op("reshape", {{"dims", {2, 2, 2, 2, 5, 5}}}), x);
+        auto reshape_y =
+            m2.add_instruction(migraphx::make_op("reshape", {{"dims", {2, 2, 2, 2, 5, 5}}}), y);
+        auto mul  = m2.add_instruction(migraphx::make_op("mul"), reshape_x, reshape_y);
         auto relu = m2.add_instruction(migraphx::make_op("relu"), mul);
         auto pw   = m2.add_instruction(migraphx::make_op("add"), z, relu);
         m2.add_instruction(pass_op{}, pw);
@@ -2024,7 +2026,7 @@ TEST_CASE(literal_reshape_unary_transpose_pointwise)
         auto transpose = m2.add_instruction(
             migraphx::make_op("transpose", {{"permutation", {0, 3, 4, 1, 5, 2}}}), reshape_ins);
         auto relu = m2.add_instruction(migraphx::make_op("relu"), transpose);
-        auto pw = m2.add_instruction(migraphx::make_op("add"), x, relu);
+        auto pw   = m2.add_instruction(migraphx::make_op("add"), x, relu);
         m2.add_instruction(pass_op{}, pw);
     }
     EXPECT(m1 == m2);
@@ -2109,10 +2111,10 @@ TEST_CASE(pointwise_reshape_layout_convolution)
     run_pass(m1);
     migraphx::module m2;
     {
-        auto x   = m2.add_parameter("x", s1);
-        auto y   = m2.add_parameter("y", s1);
-        auto w   = m2.add_parameter("w", s2);
-        auto mul = m2.add_instruction(migraphx::make_op("mul"), x, y);
+        auto x      = m2.add_parameter("x", s1);
+        auto y      = m2.add_parameter("y", s1);
+        auto w      = m2.add_parameter("w", s2);
+        auto mul    = m2.add_instruction(migraphx::make_op("mul"), x, y);
         auto layout = m2.add_instruction(
             migraphx::make_op("layout", {{"permutation", {0, 3, 4, 1, 2}}}), mul);
         auto reshape_ins =

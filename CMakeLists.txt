@@ -62,18 +62,17 @@ option(MIGRAPHX_ENABLE_PYTHON "Enable python bindings" ON)
 endif()
 
 if(WIN32)
-option(MIGRAPHX_USE_ROCBLAS "Enable MIGraphX to use rocBLAS" OFF)
-else()
-option(MIGRAPHX_USE_ROCBLAS "Enable MIGraphX to use rocBLAS" ON)
-endif()
-
-if(WIN32)
 option(MIGRAPHX_USE_MIOPEN "Enable MIGraphX to use MIOpen" OFF)
 else()
 option(MIGRAPHX_USE_MIOPEN "Enable MIGraphX to use MIOpen" ON)
 endif()
 
+option(MIGRAPHX_USE_ROCBLAS "Enable MIGraphX to use rocBLAS" ON)
 option(MIGRAPHX_USE_HIPBLASLT "Enable MIGraphX to use hipBLASLt" ON)
+
+if(MIGRAPHX_USE_HIPBLASLT AND NOT MIGRAPHX_USE_ROCBLAS)
+    message(FATAL_ERROR "hipBLASLt requires rocBLAS, but MIGRAPHX_USE_ROCBLAS is OFF")
+endif()
 
 # By default build shared libraries
 option(BUILD_SHARED_LIBS "Create shared libraries" ON)

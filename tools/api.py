@@ -154,7 +154,7 @@ class CFunction:
         self.va_start: List[str] = []
         self.va_end: List[str] = []
         self.guard_define_begin: str = f'#ifdef {guard_define}\n' if guard_define else ''
-        self.guard_define_end: str = f'#endif' if guard_define else ''
+        self.guard_define_end: str = '#endif' if guard_define else ''
 
     def add_param(self, type: str, pname: str) -> None:
         self.params.append('{} {}'.format(type, pname))
@@ -951,7 +951,7 @@ def add_handle(name: str,
                      guard_define=guard_define)
     add_handle_preamble()
     l = locals()
-    l.update({'guard_define_end': f'#endif' if guard_define else '',
+    l.update({'guard_define_end': '#endif' if guard_define else '',
               'guard_define_begin':
                   f'#ifdef {guard_define}\n' if guard_define else ''})
     c_header_preamble.append(handle_typedef.substitute(l))
@@ -1050,7 +1050,7 @@ class Handle:
                                            cpptype=self.cpptype,
                                            opaque_type=self.opaque_type,
                                            guard_define_begin=f'#ifdef {self.guard_define}\n' if self.guard_define else '',
-                                           guard_define_end=f'#endif' if self.guard_define else '',
+                                           guard_define_end='#endif' if self.guard_define else '',
                                            **kwargs)
 
     def constructor(self,

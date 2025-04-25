@@ -2209,8 +2209,8 @@ TEST_CASE(pointwise_transpose_pointwise_used_twice2)
             migraphx::make_op("transpose", {{"permutation", {0, 2, 3, 1}}}), mul);
         auto add1 = m1.add_instruction(migraphx::make_op("add"), transpose, z);
         auto relu = m1.add_instruction(migraphx::make_op("relu"), add1);
-        auto add2 = m1.add_instruction(migraphx::make_op("add"), relu, mul);
-        m1.add_return({add2});
+        auto add2 = m1.add_instruction(migraphx::make_op("add"), x, mul);
+        m1.add_return({relu, add2});
     }
     migraphx::module m2 = m1;
     run_pass(m1);

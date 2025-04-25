@@ -128,16 +128,6 @@ def get_args():
     )
 
     parser.add_argument(
-        "--int8",
-        choices=[
-            "unetxl", "refiner_unetxl"
-        ],
-        nargs="+",
-        default=[],
-        help="Quantize models with int8 precision.",
-    )
-
-    parser.add_argument(
         "--force-compile",
         action="store_true",
         default=False,
@@ -231,9 +221,8 @@ def get_args():
 
     fp16_set = set(args.fp16)
     bf16_set = set(args.bf16)
-    int8_set = set(args.int8)
 
-    overlap = (fp16_set & bf16_set) | (fp16_set & int8_set) | (bf16_set & int8_set)
+    overlap = (fp16_set & bf16_set) 
     if overlap:
         parser.error(f"Cannot specify the same arguments for multiple quantization modes: {', '.join(overlap)}")
 
@@ -248,20 +237,11 @@ model_shapes = {
         "input_ids": [2, 77]
     },
     "unetxl": {
-        'hf': {
-            "sample": [2, 4, 128, 128],
-            "encoder_hidden_states": [2, 77, 2048],
-            "text_embeds": [2, 1280],
-            "time_ids": [2, 6],
-            "timestep": [1],
-        },
-        'quark': {
-            "input.5": [2, 4, 128, 128], 
-            "encoder_hidden_states": [2, 77, 2048], 
-            "onnx::Cast_3": [2, 1280], 
-            "onnx::Shape_4": [2, 6], 
-            "onnx::Unsqueeze_1": [1],
-        }
+        "sample": [2, 4, 128, 128],
+        "encoder_hidden_states": [2, 77, 2048],
+        "text_embeds": [2, 1280],
+        "time_ids": [2, 6],
+        "timestep": [1],
     },
     "refiner_unetxl": {
         "sample": [2, 4, 128, 128],
@@ -271,12 +251,7 @@ model_shapes = {
         "timestep": [1],
     },
     "vae": {
-        "hf": {
-            "latent_sample": [1, 4, 128, 128]
-        },
-        "quark": {
-            "input.1": [1, 4, 128, 128]
-        }
+        "latent_sample": [1, 4, 128, 128]
     }
 }
 
@@ -386,7 +361,7 @@ def allocate_torch_tensors(model):
 class StableDiffusionMGX():
     def __init__(self, pipeline_type, onnx_model_path, compiled_model_path,
                  use_refiner, refiner_onnx_model_path,
-                 refiner_compiled_model_path, fp16, bf16, int8, force_compile,
+                 refiner_compiled_model_path, fp16, bf16, force_compile,
                  exhaustive_tune):
         if not (onnx_model_path or compiled_model_path):
             onnx_model_path = default_model_paths[pipeline_type]
@@ -436,7 +411,6 @@ class StableDiffusionMGX():
                 compiled_model_path=compiled_model_path,
                 use_fp16="vae" in fp16,
                 use_bf16=False,
-                use_int8=False,
                 force_compile=force_compile,
                 exhaustive_tune=exhaustive_tune,
                 offload_copy=False),
@@ -448,7 +422,6 @@ class StableDiffusionMGX():
                 compiled_model_path=compiled_model_path,
                 use_fp16="clip" in fp16,
                 use_bf16="clip" in bf16,
-                use_int8=False,
                 force_compile=force_compile,
                 exhaustive_tune=exhaustive_tune,
                 offload_copy=False),
@@ -460,7 +433,6 @@ class StableDiffusionMGX():
                 compiled_model_path=compiled_model_path,
                 use_fp16="clip2" in fp16,
                 use_bf16="clip2" in bf16,
-                use_int8=False,
                 force_compile=force_compile,
                 exhaustive_tune=exhaustive_tune,
                 offload_copy=False),
@@ -472,7 +444,6 @@ class StableDiffusionMGX():
                 compiled_model_path=compiled_model_path,
                 use_fp16="unetxl" in fp16,
                 use_bf16="unetxl" in bf16,
-                use_int8="unetxl" in int8,
                 force_compile=force_compile,
                 exhaustive_tune=exhaustive_tune,
                 offload_copy=False)
@@ -676,30 +647,22 @@ class StableDiffusionMGX():
     def load_mgx_model(name,
                        shapes,
                        onnx_model_path,
-                       onnx_file,
-                       mxr_file, 
                        compiled_model_path=None,
                        use_fp16=False,
                        use_bf16=False,
-                       use_int8=False,
                        force_compile=False,
                        exhaustive_tune=False,
                        offload_copy=True):
         print(f"Loading {name} model...")
         if compiled_model_path is None:
             compiled_model_path = onnx_model_path
-        # onnx_file = path # f"{onnx_model_path}/{name}/model.onnx"
-
+        onnx_file = f"{onnx_model_path}/{name}/model.onnx"
         dtype = 'fp32'
         if use_fp16:
             dtype = 'fp16'
         elif use_bf16:
             dtype = 'bf16'
-        elif use_int8:
-            dtype = 'int8'
-
-        # mxr_file = f"{compiled_model_path}/{name}/model_{dtype}_{'gpu' if not offload_copy else 'oc'}.mxr"
-
+        mxr_file = f"{compiled_model_path}/{name}/model_{dtype}_{'gpu' if not offload_copy else 'oc'}.mxr"
         if not force_compile and os.path.isfile(mxr_file):
             print(f"Found mxr, loading it from {mxr_file}")
             model = mgx.load(mxr_file, format="msgpack")
@@ -711,8 +674,6 @@ class StableDiffusionMGX():
                 mgx.quantize_fp16(model)
             elif use_bf16:
                 mgx.quantize_bf16(model)
-            elif use_int8:
-                mgx.quantize_int8(model, mgx.get_target("gpu"))
             model.compile(mgx.get_target("gpu"),
                           exhaustive_tune=exhaustive_tune,
                           offload_copy=offload_copy)
@@ -780,19 +741,12 @@ class StableDiffusionMGX():
             latents_model_input, t).to(device="cuda")
         timestep = torch.atleast_1d(t.to(device="cuda"))  # convert 0D -> 1D
 
-        copy_tensor(self.tensors[model]["input.5"], latents_model_input) 
+        copy_tensor(self.tensors[model]["sample"], latents_model_input)
         copy_tensor(self.tensors[model]["encoder_hidden_states"],
                     hidden_states)
-        copy_tensor(self.tensors[model]["onnx::Cast_3"], text_embeddings) 
-        copy_tensor(self.tensors[model]["onnx::Unsqueeze_1"], timestep)
-        copy_tensor(self.tensors[model]["onnx::Shape_4"], time_ids)
-
-        # copy_tensor(self.tensors[model]["sample"], latents_model_input)
-        # copy_tensor(self.tensors[model]["encoder_hidden_states"],
-        #             hidden_states)
-        # copy_tensor(self.tensors[model]["text_embeds"], text_embeddings)
-        # copy_tensor(self.tensors[model]["timestep"], timestep)
-        # copy_tensor(self.tensors[model]["time_ids"], time_ids)
+        copy_tensor(self.tensors[model]["text_embeds"], text_embeddings)
+        copy_tensor(self.tensors[model]["timestep"], timestep)
+        copy_tensor(self.tensors[model]["time_ids"], time_ids)
 
         run_model_async(self.models[model], self.model_args[model],
                         self.stream)
@@ -836,7 +790,7 @@ if __name__ == "__main__":
     sd = StableDiffusionMGX(args.pipeline_type, args.onnx_model_path,
                             args.compiled_model_path, args.use_refiner,
                             args.refiner_onnx_model_path,
-                            args.refiner_compiled_model_path, args.fp16, args.bf16, args.int8,
+                            args.refiner_compiled_model_path, args.fp16, args.bf16,
                             args.force_compile, args.exhaustive_tune)
     print("Warmup")
     sd.warmup(5)

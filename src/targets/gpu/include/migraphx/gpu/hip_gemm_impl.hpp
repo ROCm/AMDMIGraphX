@@ -68,7 +68,6 @@ int32_t hip_gemm_finalize(context& ctx,
                           float beta,
                           int32_t solution_idx);
 
-
 MIGRAPHX_GPU_EXPORT int32_t hip_gemm_default_solution(context& ctx,
                                                       const shape& output_shape,
                                                       const std::vector<shape>& input_shapes);

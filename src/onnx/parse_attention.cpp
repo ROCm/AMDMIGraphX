@@ -682,8 +682,16 @@ struct parse_attention : op_parser<parse_attention>
 
         // Past and Present vetors must be used for the run.
         if(infered_attributes.has_past_input)
-            output_vec.push_back(present);
+        {
+            instruction_ref present;
 
+            if(parsed_attributes.past_present_share_buffer)
+            {
+                present = inputs.at(4);
+            }
+
+            output_vec.push_back(present);
+        }
 
         return output_vec;
     }

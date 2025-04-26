@@ -1196,7 +1196,7 @@ std::vector<operation> shape_transform_descriptor::generate_src_from_common(
         return not s.axis.empty() or s.len == 1;
     }));
 
-    auto tsubs = attach_empty_axis(subs);
+    auto tsubs       = attach_empty_axis(subs);
     auto permutation = find_permutation(tsubs);
     // Need transpose
     if(not std::is_sorted(permutation.begin(), permutation.end()))

@@ -933,7 +933,7 @@ static bool has_axes(const dimension& d)
     });
 }
 
-static std::vector<int64_t> find_permutation(std::vector<dimension::sub> tsubs)
+static std::vector<dimension::sub> attach_empty_axis(std::vector<dimension::sub> tsubs)
 {
     // Inject additonal axis to compute transpose permutation better
     auto is_empty_axis = [](const auto& s) { return s.axis.empty(); };
@@ -948,11 +948,15 @@ static std::vector<int64_t> find_permutation(std::vector<dimension::sub> tsubs)
             axis.back()++;
         });
     });
+    return tsubs;
+}
 
+static std::vector<int64_t> find_permutation(const std::vector<dimension::sub>& subs)
+{
     auto compare_sub = [](auto f) {
         return by(f, [](const dimension::sub& s) -> const auto& { return s.axis; });
     };
-    return sort_permutation(tsubs, compare_sub(std::less<>{}));
+    return sort_permutation(subs, compare_sub(std::less<>{}));
 }
 
 static void generate_from_subdimensions(operation_list& result,
@@ -975,7 +979,7 @@ static void generate_from_subdimensions(operation_list& result,
     // Flatten broadcasted subdimensions
     std::for_each(subs.begin(), subs.end(), &flatten_broadcasted_dim);
 
-    auto permutation = find_permutation(subs);
+    auto permutation = find_permutation(attach_empty_axis(subs));
     // Need transpose
     if(not std::is_sorted(permutation.begin(), permutation.end()))
     {
@@ -1184,20 +1188,27 @@ std::vector<operation> shape_transform_descriptor::generate_src_from_common(
         auto& s = subs[i];
         if(i < input_dims.size())
             s.len = input_dims[i];
+        else if(s.axis.empty())
+            s.len = 1;
     }
 
-    auto permutation = find_permutation(subs);
+    assert(std::all_of(subs.begin(), subs.end(), [&](const dimension::sub& s) {
+        return not s.axis.empty() or s.len == 1;
+    }));
+
+    auto tsubs = attach_empty_axis(subs);
+    auto permutation = find_permutation(tsubs);
     // Need transpose
     if(not std::is_sorted(permutation.begin(), permutation.end()))
     {
         result.push_back(make_op("transpose", {{"permutation", permutation}}));
-        subs = reorder_dims(subs, permutation);
+        tsubs = reorder_dims(tsubs, permutation);
     }
 
     std::vector<dimension> new_dims;
     group_by(
-        subs.begin(),
-        subs.end(),
+        tsubs.begin(),
+        tsubs.end(),
         [&](auto start, auto last) { new_dims.push_back({{start, last}}); },
         [&](const auto& x, const auto& y) {
             if(x.axis.empty() or y.axis.empty())

@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2024 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2025 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -64,7 +64,7 @@ namespace migraphx {
 namespace driver {
 inline namespace MIGRAPHX_INLINE_NS {
 
-inline std::string get_version()
+inline static std::string get_version()
 {
     return "MIGraphX Version: " + std::to_string(MIGRAPHX_VERSION_MAJOR) + "." +
            std::to_string(MIGRAPHX_VERSION_MINOR) + "." + std::to_string(MIGRAPHX_VERSION_PATCH) +
@@ -199,7 +199,7 @@ struct loader
         // expecting a json string like "[{min:1,max:64,optimals:[1,2,4,8]},3,224,224]"
         auto v = from_json_string(convert_to_json(dd_json));
         std::vector<migraphx::shape::dynamic_dimension> dyn_dims;
-        std::transform(v.begin(), v.end(), std::back_inserter(dyn_dims), [&](auto x) {
+        std::transform(v.begin(), v.end(), std::back_inserter(dyn_dims), [&](const auto& x) {
             if(x.is_object())
                 return from_value<migraphx::shape::dynamic_dimension>(x);
             auto d = x.template to<std::size_t>();
@@ -263,7 +263,7 @@ struct loader
         std::transform(output_names_info.begin(),
                        output_names_info.end(),
                        std::back_inserter(output_node_names),
-                       [&](auto x) { return value_parser<std::string>::apply(x); });
+                       [&](const auto& x) { return value_parser<std::string>::apply(x); });
 
         return output_node_names;
     }
@@ -638,6 +638,7 @@ struct verify : command<verify>
            {"--ref-use-double"},
            ap.help("Convert floating point values to double on ref"),
            ap.set_value(true));
+        ap(vo.compiled_model, {"--compiled-model", "-c"}, ap.help("Compiled model to use"));
     }
 
     void run()
@@ -859,9 +860,10 @@ struct main_command
                        commands.begin(),
                        [](const auto& p) { return colorize(color::fg_green, p.first); });
         std::sort(commands.begin(), commands.end());
-        return std::accumulate(commands.begin(), commands.end(), result, [](auto r, auto&& s) {
-            return r + "    " + s + "\n";
-        });
+        return std::accumulate(commands.begin(),
+                               commands.end(),
+                               result,
+                               [](const auto& r, auto&& s) { return r + "    " + s + "\n"; });
     }
     void parse(argument_parser& ap)
     {
@@ -941,6 +943,7 @@ int main(int argc, const char* argv[], const char* envp[])
             std::string(argv[0]) + " " + migraphx::to_string_range(args, " ");
         std::cout << "Running [ " << get_version() << " ]: " << driver_invocation << std::endl;
 
+        std::string mgx_env_var;
         for(const char** env = envp; *env != nullptr; ++env)
         {
             std::string env_var(*env);
@@ -950,13 +953,23 @@ int main(int argc, const char* argv[], const char* envp[])
                 std::string key = env_var.substr(0, pos);
                 if(key.find("MIGRAPHX") != std::string::npos)
                 {
-                    std::cout << env_var << std::endl;
+                    mgx_env_var += env_var + " \\ \n";
                 }
             }
         }
 
+        if(not mgx_env_var.empty())
+        {
+            std::cout << mgx_env_var;
+        }
+
         m.at(cmd)(argv[0],
                   {args.begin() + 1, args.end()}); // run driver command found in commands map
+
+        if(not mgx_env_var.empty())
+        {
+            std::cout << mgx_env_var;
+        }
 
         std::cout << "[ " << get_version() << " ] Complete: " << driver_invocation << std::endl;
     }

@@ -116,6 +116,16 @@ Disables the ``schedule`` pass.
 Set to "1", "enable", "enabled", "yes", or "true" to use.
 Disables the ``fuse_reduce`` pass.
 
+.. envvar:: MIGRAPHX_DISABLE_MULTI_OUTPUT_FUSION
+
+Set to "1", "enable", "enabled", "yes", or "true" to use.
+Disables multi-output fusions.
+
+.. envvar:: MIGRAPHX_ENABLE_REWRITE_DOT
+
+Set to "1", "enable", "enabled", "yes", or "true" to use.
+Enable the ``rewrite_dot`` pass.
+
 .. envvar:: MIGRAPHX_SPLIT_REDUCE_SIZE
 Set to the minimum size of a reduction to do a split reduce. Overrides what
 is set in the backend. Set to -1 to disable split reduce completely.
@@ -135,19 +145,23 @@ Use it in conjunction with ``MIGRAPHX_DISABLE_MLIR=1``.
 Set to "1", "enable", "enabled", "yes", or "true" to use.
 Disables use of the rocMLIR library.
 
-.. envvar:: MIGRAPHX_DISABLE_HIPBLASLT_GEMM
-Set to "1", "enable", "enabled", "yes", or "true" to use.
-Disables use of hipBLASLt.
+.. envvar:: MIGRAPHX_SET_GEMM_PROVIDER
+
+Set to "hipblaslt" to use hipBLASLt.
+Set to "rocblas" to use rocBLAS.
 
 .. envvar:: MIGRAPHX_COPY_LITERALS
 
 Set to "1", "enable", "enabled", "yes", or "true" to use.
 Uses ``hip_copy_to_gpu`` with a new ``literal`` instruction rather than using ``hip_copy_literal{}``.
 
-.. envvar:: MIGRAPHX_DISABLE_LAYERNORM_FUSION
+.. envvar:: MIGRAPHX_ENABLE_LAYERNORM_FUSION
 
 Set to "1", "enable", "enabled", "yes", or "true" to use.
-Disables layrnorm fusion.
+Enables former custom layernorm fusion kernel, which has been superseded by
+the reduction fusion. This is only here to check for performance issues with
+the reduction fusions, and will be removed in the future.
+
 
 .. envvar:: MIGRAPHX_DISABLE_MIOPEN_POOLING
 
@@ -270,6 +284,14 @@ Set to "3" to print compiled traces.
 Set to path to json file to load and save problem cache.
 This will load the json file into the problem cache if it exists, and when
 compilation finishes it will save the problem cache.
+
+.. envvar:: MIGRAPHX_BENCHMARKING_BUNDLE
+
+Set amount of configs to run in a bundle when timing.
+
+.. envvar:: MIGRAPHX_BENCHMARKING_NRUNS
+
+Set amount of timing runs for each config bundle being benchmarked.
 
 MLIR vars
 -------------

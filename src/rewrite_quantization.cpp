@@ -1,4 +1,4 @@
-/*rby
+/*
  * The MIT License (MIT)
  *
  * Copyright (c) 2015-2025 Advanced Micro Devices, Inc. All rights reserved.
@@ -35,7 +35,7 @@ inline namespace MIGRAPHX_INLINE_NS {
 
 MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_ENABLE_CK_WORKAROUNDS);
 
-void apply_quantizelinear(module& m, instruction_ref ins)
+static void apply_quantizelinear(module& m, instruction_ref ins)
 {
     assert(ins->name() == "quantizelinear");
     auto x       = ins->inputs()[0];
@@ -90,7 +90,7 @@ void apply_quantizelinear(module& m, instruction_ref ins)
         ins, make_op("convert", {{"target_type", ins->get_shape().type()}}), saturate);
 }
 
-void apply_dequantizelinear(module& m, instruction_ref ins)
+static void apply_dequantizelinear(module& m, instruction_ref ins)
 {
     assert(ins->name() == "dequantizelinear");
     auto x_scale = ins->inputs()[1];

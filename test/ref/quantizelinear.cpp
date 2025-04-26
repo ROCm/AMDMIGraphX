@@ -86,7 +86,7 @@ TEST_CASE(quantizelinear_2)
 }
 
 template <class DType>
-void quantizelinear_fp8e4m3()
+static void quantizelinear_fp8e4m3()
 {
     migraphx::shape xs{migraphx::shape::float_type, {2, 2, 2}};
     migraphx::shape zs{migraphx::shape::get_type<DType>{}, {2, 2, 2}};
@@ -116,10 +116,10 @@ void quantizelinear_fp8e4m3()
     auto max_value = std::numeric_limits<DType>::max();
     for(int i = 0; i < xv.size(); ++i)
     {
-        double quantized = xv.at(i) / sv.at(i);
+        double quantized = xv.at(i) / sv.at(i) + zero_pts.at(i);
         quantized        = std::max(static_cast<double>(min_value),
                              std::min(static_cast<double>(max_value), quantized));
-        gold.push_back(DType(quantized + zero_pts.at(i)));
+        gold.push_back(DType(quantized));
     }
     EXPECT(results_vector == gold);
 }
@@ -127,7 +127,7 @@ TEST_CASE_REGISTER(quantizelinear_fp8e4m3<migraphx::fp8::fp8e4m3fnuz>);
 TEST_CASE_REGISTER(quantizelinear_fp8e4m3<migraphx::fp8::fp8e4m3fn>);
 
 template <class DType>
-void quantizelinear_fp8e5m2()
+static void quantizelinear_fp8e5m2()
 {
     migraphx::shape xs{migraphx::shape::float_type, {2, 2, 2}};
     migraphx::shape zs{migraphx::shape::get_type<DType>{}, {2, 2, 2}};

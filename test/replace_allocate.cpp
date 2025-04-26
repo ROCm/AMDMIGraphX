@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2023 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2025 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -33,6 +33,27 @@
 #include <migraphx/register_op.hpp>
 #include <basic_ops.hpp>
 #include <test.hpp>
+
+struct test_copy : migraphx::auto_register_op<test_copy>
+{
+    std::string name() const { return "test_copy"; }
+    migraphx::shape compute_shape(const std::vector<migraphx::shape>& inputs) const
+    {
+        migraphx::check_shapes{inputs, *this}.has(2);
+        return inputs.back();
+    }
+    migraphx::argument compute(migraphx::context&,
+                               const migraphx::shape&,
+                               const std::vector<migraphx::argument>& inputs) const
+    {
+        inputs.at(0).visit([&](auto x) {
+            inputs.at(1).visit([&](auto y) { std::copy(x.begin(), x.end(), y.begin()); });
+        });
+        return inputs.back();
+    }
+
+    std::ptrdiff_t output_alias(const std::vector<migraphx::shape>&) const { return 1; }
+};
 
 struct allocate_no_out : migraphx::auto_register_op<allocate_no_out>
 {
@@ -91,7 +112,7 @@ struct allocation_no_out_model
         return migraphx::make_op(name(), {{"shape", to_value(s)}});
     }
     migraphx::operation preallocate(const migraphx::shape&, const std::string&) const { return {}; }
-    std::string copy() const { return {}; }
+    std::string copy() const { return "test_copy"; }
     bool needs_out_params() const { return false; }
 };
 
@@ -104,25 +125,27 @@ struct allocation_with_out_model
         return migraphx::make_op(name(), {{"shape", to_value(s)}});
     }
     migraphx::operation preallocate(const migraphx::shape&, const std::string&) const { return {}; }
-    std::string copy() const { return {}; }
+    std::string copy() const { return "test_copy"; }
     bool needs_out_params() const { return true; }
 };
 
-void run_pass(migraphx::module& m, migraphx::allocation_model model, bool offload_copy = false)
+static void
+run_pass(migraphx::module& m, migraphx::allocation_model model, bool offload_copy = false)
 {
     migraphx::run_passes(m,
                          {migraphx::replace_allocate{std::move(model), offload_copy},
                           migraphx::dead_code_elimination{}});
 }
 
-void run_pass(migraphx::program& p, migraphx::allocation_model model, bool offload_copy = false)
+static void
+run_pass(migraphx::program& p, migraphx::allocation_model model, bool offload_copy = false)
 {
     migraphx::run_passes(p,
                          {migraphx::replace_allocate{std::move(model), offload_copy},
                           migraphx::dead_code_elimination{}});
 }
 
-migraphx::module create_simple_program()
+static migraphx::module create_simple_program()
 {
     migraphx::module m;
     migraphx::shape s{migraphx::shape::float_type, {5}};
@@ -213,6 +236,47 @@ TEST_CASE(if_allocate)
     EXPECT(std::any_of(mm->begin(), mm->end(), [](const migraphx::instruction& ins) {
         return migraphx::contains(ins.name(), "allocate_with_out");
     }));
+}
+
+TEST_CASE(allocate_copy_with_out)
+{
+    migraphx::shape s{migraphx::shape::float_type, {5}};
+    migraphx::module m1;
+    {
+        auto x     = m1.add_parameter("x", s);
+        auto y     = m1.add_parameter("y", s);
+        auto pass  = m1.add_instruction(tuple_op{}, x, y);
+        auto elem1 = m1.add_instruction(migraphx::make_op("get_tuple_elem", {{"index", 0}}), pass);
+        m1.add_return({elem1});
+    }
+    run_pass(m1, allocation_with_out_model{});
+    migraphx::module m2;
+    {
+        auto x      = m2.add_parameter("x", s);
+        auto y      = m2.add_parameter("y", s);
+        auto output = m2.add_parameter("output", s);
+        auto pass   = m2.add_instruction(tuple_op{}, x, y);
+        auto elem1  = m2.add_instruction(migraphx::make_op("get_tuple_elem", {{"index", 0}}), pass);
+        auto copy   = m2.add_instruction(migraphx::make_op("test_copy"), elem1, output);
+        m2.add_return({copy});
+    }
+    EXPECT(m1.sort() == m2.sort());
+}
+
+TEST_CASE(allocate_copy_with_no_out)
+{
+    migraphx::shape s{migraphx::shape::float_type, {5}};
+    migraphx::module m1;
+    {
+        auto x     = m1.add_parameter("x", s);
+        auto y     = m1.add_parameter("y", s);
+        auto pass  = m1.add_instruction(tuple_op{}, x, y);
+        auto elem1 = m1.add_instruction(migraphx::make_op("get_tuple_elem", {{"index", 0}}), pass);
+        m1.add_return({elem1});
+    }
+    migraphx::module m2 = m1;
+    run_pass(m1, allocation_no_out_model{});
+    EXPECT(m1.sort() == m2.sort());
 }
 
 int main(int argc, const char* argv[]) { test::run(argc, argv); }

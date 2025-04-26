@@ -34,6 +34,7 @@
 #include <test.hpp>
 #include <pointwise.hpp>
 #include <reduce.hpp>
+#include <utility>
 
 MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_ENABLE_MLIR_INPUT_FUSION);
 MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_ENABLE_MLIR_REDUCE_FUSION);
@@ -48,18 +49,18 @@ struct non_mlir_op
     }
 };
 
-void run_pass(migraphx::program& p)
+static void run_pass(migraphx::program& p)
 {
     migraphx::run_passes(
         p, {migraphx::gpu::fuse_mlir{.enable_extra = true}, migraphx::dead_code_elimination{}});
 }
 
 template <class F>
-migraphx::instruction_ref add_mlir(migraphx::program& p,
-                                   const std::string& name,
-                                   std::vector<migraphx::instruction_ref> inputs,
-                                   std::vector<std::string> arg_names,
-                                   F f)
+static migraphx::instruction_ref add_mlir(migraphx::program& p,
+                                          const std::string& name,
+                                          std::vector<migraphx::instruction_ref> inputs,
+                                          std::vector<std::string> arg_names,
+                                          const F& f)
 {
     assert(inputs.size() == arg_names.size() and "One interior parameter name given per input.");
     auto* mm = p.get_main_module();
@@ -79,16 +80,16 @@ migraphx::instruction_ref add_mlir(migraphx::program& p,
 }
 
 template <class F>
-migraphx::instruction_ref add_mlir(migraphx::program& p,
-                                   const std::string& name,
-                                   std::vector<migraphx::instruction_ref> inputs,
-                                   F f)
+static migraphx::instruction_ref add_mlir(migraphx::program& p,
+                                          const std::string& name,
+                                          std::vector<migraphx::instruction_ref> inputs,
+                                          const F& f)
 {
     std::vector<std::string> arg_names;
     migraphx::transform(migraphx::range(inputs.size()), std::back_inserter(arg_names), [&](auto i) {
         return migraphx::param_name(i);
     });
-    return add_mlir(p, name, std::move(inputs), std::move(arg_names), f);
+    return add_mlir(p, name, std::move(inputs), std::move(arg_names), std::move(f));
 }
 
 TEST_CASE(dot_reshapes_add)
@@ -195,6 +196,44 @@ TEST_CASE(dot_transpose_reshape_add)
                 return std::make_tuple(dot->get_operator(), add);
             });
         mm->add_return({fused});
+    }
+    EXPECT(p1.sort() == p2.sort());
+}
+
+TEST_CASE(conv_broadcast_mul)
+{
+    migraphx::shape os{migraphx::shape::float_type, {4, 56, 122, 122}};
+    migraphx::shape is{migraphx::shape::float_type, {4, 14, 1, 1}};
+    migraphx::shape ws{migraphx::shape::float_type, {56, 14, 1, 1}};
+    migraphx::program p1;
+    {
+        auto* mm   = p1.get_main_module();
+        auto x     = mm->add_parameter("x", is);
+        auto y     = mm->add_parameter("y", os);
+        auto w     = mm->add_parameter("w", ws);
+        auto conv  = mm->add_instruction(migraphx::make_op("convolution"), x, w);
+        auto convb = mm->add_instruction(
+            migraphx::make_op("multibroadcast", {{"out_lens", os.lens()}}), conv);
+        auto mul = add_pointwise(p1, "main:pointwise0", {convb, y}, single_pointwise("mul"));
+        mm->add_return({mul});
+    }
+    run_pass(p1);
+    migraphx::program p2;
+    {
+        auto* mm  = p2.get_main_module();
+        auto x    = mm->add_parameter("x", is);
+        auto y    = mm->add_parameter("y", os);
+        auto w    = mm->add_parameter("w", ws);
+        auto conv = add_mlir(
+            p2, "mlir_convolution0", {x, w}, {"y0", "y1"}, [=](auto* pm, const auto& inputs) {
+                auto c =
+                    pm->add_instruction(migraphx::make_op("convolution"), inputs[0], inputs[1]);
+                return std::make_tuple(c->get_operator(), c);
+            });
+        auto convb = mm->add_instruction(
+            migraphx::make_op("multibroadcast", {{"out_lens", os.lens()}}), conv);
+        auto mul = add_pointwise(p2, "main:pointwise0", {convb, y}, single_pointwise("mul"));
+        mm->add_return({mul});
     }
     EXPECT(p1.sort() == p2.sort());
 }

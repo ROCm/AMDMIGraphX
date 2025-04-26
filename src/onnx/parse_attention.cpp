@@ -375,7 +375,7 @@ struct parse_attention : op_parser<parse_attention>
     }
 
     static void handle_mask_index(const std::vector<instruction_ref>& args,
-                                  struct attention_attr& attr_out,
+                                  struct attention_attr& /*attr_out*/,
                                   struct attention_infered& infered_out,
                                   std::vector<instruction_ref>& output_arg_vec)
     {
@@ -468,8 +468,8 @@ struct parse_attention : op_parser<parse_attention>
     }
 
     static void handle_past_sequence_length(const std::vector<instruction_ref>& args,
-                                            struct attention_attr& attr_out,
-                                            struct attention_infered& infered_out,
+                                            struct attention_attr& /*attr_out*/,
+                                            struct attention_infered& /*infered_out*/,
                                             std::vector<instruction_ref>& output_arg_vec)
     {
         instruction_ref past_seq_length;
@@ -483,10 +483,10 @@ struct parse_attention : op_parser<parse_attention>
         }
     }
 
-    static std::vector<instruction_ref> handle_arguments(const onnx_parser& parser,
-                                                                             const std::vector<instruction_ref>& args,
-                                                                             struct attention_attr& attr_out,
-                                                                             struct attention_infered& infered_out)
+    static std::vector<instruction_ref> handle_arguments(const onnx_parser&/*parser*/,
+                                                        const std::vector<instruction_ref>& args,
+                                                        struct attention_attr& attr_out,
+                                                        struct attention_infered& infered_out)
     {
         std::vector<instruction_ref> input_arguments;
 
@@ -511,10 +511,10 @@ struct parse_attention : op_parser<parse_attention>
     static std::vector<instruction_ref> qkv_split_per_head(const onnx_parser::node_info& info,
                                                            const std::vector<instruction_ref>& qkv_mats,
                                                            const attention_attr& attr_in,
-                                                           const attention_infered& infered_in)
+                                                           const attention_infered& /*infered_in*/)
     {
         auto num_heads  = attr_in.num_heads;
-        auto query_size = infered_in.query_size;
+        //auto query_size = infered_in.query_size;
         auto q_lens = qkv_mats.at(0)->get_shape().lens();
         auto k_lens = qkv_mats.at(1)->get_shape().lens();
         auto v_lens = qkv_mats.at(2)->get_shape().lens();
@@ -561,6 +561,7 @@ struct parse_attention : op_parser<parse_attention>
         output = info.add_instruction(make_op("reshape", {{"dims", {lens.at(0), lens.at(1), lens.at(2) * lens.at(3)}}}), output);
         return output;
     }
+
 
     // Get Q, K, V matricies from stacked weight matrix
     static std::vector<instruction_ref> input_linear_to_qkv(const onnx_parser::node_info& info,
@@ -665,20 +666,13 @@ struct parse_attention : op_parser<parse_attention>
         auto scale_factor = info.add_literal(migraphx::literal{migraphx::shape{qkv_mats.at(0)->get_shape().type()},
                                                               {attn_scale_factor}});
 
-        instruction_ref output;
         //Get vector of attention heads and then concat the output results
         auto split_qkv  = qkv_split_per_head(info, qkv_mats, parsed_attributes, infered_attributes);
         
-        output = scale_dot_attention_head(info, split_qkv, scale_factor, attn_mask, attn_bias, infered_attributes.has_attn_mask, infered_attributes.has_attn_bias);
+        instruction_ref context = scale_dot_attention_head(info, split_qkv, scale_factor, attn_mask, attn_bias, infered_attributes.has_attn_mask, infered_attributes.has_attn_bias);
 
         std::vector<instruction_ref> output_vec{};
-        output_vec.push_back(output);
-
-        instruction_ref present;
-        if(parsed_attributes.past_present_share_buffer)
-        {
-            present = output;
-        }
+        output_vec.push_back(context);
 
         // Past and Present vetors must be used for the run.
         if(infered_attributes.has_past_input)
@@ -689,6 +683,13 @@ struct parse_attention : op_parser<parse_attention>
             {
                 present = inputs.at(4);
             }
+            /*else
+            {
+                // In a non-buffer-sharing scenario, we need to create the present state
+                // by combining keys and values
+                std::vector<instruction_ref> kv_stack{key, value};
+                present = info.add_instruction(make_op("stack", {{"axis", 0}}), kv_stack);
+            }*/
 
             output_vec.push_back(present);
         }

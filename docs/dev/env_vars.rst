@@ -116,6 +116,11 @@ Disables the ``schedule`` pass.
 Set to "1", "enable", "enabled", "yes", or "true" to use.
 Disables the ``fuse_reduce`` pass.
 
+.. envvar:: MIGRAPHX_DISABLE_MULTI_OUTPUT_FUSION
+
+Set to "1", "enable", "enabled", "yes", or "true" to use.
+Disables multi-output fusions.
+
 .. envvar:: MIGRAPHX_ENABLE_REWRITE_DOT
 
 Set to "1", "enable", "enabled", "yes", or "true" to use.
@@ -150,10 +155,13 @@ Set to "rocblas" to use rocBLAS.
 Set to "1", "enable", "enabled", "yes", or "true" to use.
 Uses ``hip_copy_to_gpu`` with a new ``literal`` instruction rather than using ``hip_copy_literal{}``.
 
-.. envvar:: MIGRAPHX_DISABLE_LAYERNORM_FUSION
+.. envvar:: MIGRAPHX_ENABLE_LAYERNORM_FUSION
 
 Set to "1", "enable", "enabled", "yes", or "true" to use.
-Disables layrnorm fusion.
+Enables former custom layernorm fusion kernel, which has been superseded by
+the reduction fusion. This is only here to check for performance issues with
+the reduction fusions, and will be removed in the future.
+
 
 .. envvar:: MIGRAPHX_DISABLE_MIOPEN_POOLING
 

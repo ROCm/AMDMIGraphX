@@ -22,34 +22,58 @@
  * THE SOFTWARE.
  *
  */
-#ifndef MIGRAPHX_GUARD_KERNELS_OPERATORS_HPP
-#define MIGRAPHX_GUARD_KERNELS_OPERATORS_HPP
+#ifndef MIGRAPHX_GUARD_KERNELS_BIT_HPP
+#define MIGRAPHX_GUARD_KERNELS_BIT_HPP
 
-#include <migraphx/kernels/functional.hpp>
-#include <migraphx/kernels/type_traits.hpp>
+#include <migraphx/kernels/types.hpp>
+#include <migraphx/kernels/debug.hpp>
 
 namespace migraphx {
 
-// NOLINTNEXTLINE
-#define MIGRAPHX_DEFINE_OPERATOR(op, expr)                                                  \
-    template <class U>                                                                      \
-    friend constexpr auto operator op(const T& x, const U& y) MIGRAPHX_RETURNS(expr);       \
-    template <class U, class V, MIGRAPHX_REQUIRES(not is_same<T, U>{} and is_same<V, T>{})> \
-    friend constexpr auto operator op(const U& x, const V& y) MIGRAPHX_RETURNS(expr)
-
-template <class T>
-struct equality_comparable
+constexpr bool get_bit(uint32_t x, uint32_t i) noexcept
 {
-    MIGRAPHX_DEFINE_OPERATOR(!=, not(x == y));
-};
+    MIGRAPHX_ASSERT(i < 32);
+    return ((x >> i) & 1u) != 0;
+}
 
-template <class T>
-struct less_than_comparable
+constexpr uint64_t bit_ceil(uint64_t x) noexcept
 {
-    MIGRAPHX_DEFINE_OPERATOR(>, (y < x));
-    MIGRAPHX_DEFINE_OPERATOR(<=, not(y < x));
-    MIGRAPHX_DEFINE_OPERATOR(>=, not(x < y));
-};
+    if(x <= 1)
+        return 1;
+    --x;
+    x |= x >> 1u;
+    x |= x >> 2u;
+    x |= x >> 4u;
+    x |= x >> 8u;
+    x |= x >> 16u;
+    x |= x >> 32u;
+    return x + 1;
+}
+
+constexpr uint32_t bit_ceil(uint32_t x) noexcept
+{
+    if(x <= 1)
+        return 1;
+    --x;
+    x |= x >> 1u;
+    x |= x >> 2u;
+    x |= x >> 4u;
+    x |= x >> 8u;
+    x |= x >> 16u;
+    return x + 1;
+}
+
+constexpr uint32_t popcount(uint32_t x) noexcept { return __popc(x); }
+
+constexpr uint32_t popcount(uint64_t x) noexcept { return __popcll(x); }
+
+constexpr uint32_t countr_zero(uint32_t x) noexcept
+{
+    // popcount(~(x | −x))
+    return __builtin_ctz(x);
+}
+
+constexpr uint32_t countr_zero(uint64_t x) noexcept { return __builtin_ctzll(x); }
 
 } // namespace migraphx
-#endif // MIGRAPHX_GUARD_KERNELS_OPERATORS_HPP
+#endif // MIGRAPHX_GUARD_KERNELS_BIT_HPP

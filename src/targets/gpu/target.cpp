@@ -51,6 +51,7 @@
 #include <migraphx/rewrite_reduce.hpp>
 #include <migraphx/rewrite_quantization.hpp>
 #include <migraphx/rewrite_rnn.hpp>
+#include <migraphx/rewrite_topk.hpp>
 #include <migraphx/schedule.hpp>
 #include <migraphx/simplify_dyn_ops.hpp>
 #include <migraphx/simplify_qdq.hpp>
@@ -103,7 +104,12 @@ std::vector<pass> target::get_passes(migraphx::context& gctx, const compile_opti
     unsupported_types.erase(shape::type_t::uint8_type);
     unsupported_types.erase(shape::type_t::int32_type);
     unsupported_types.erase(shape::type_t::tuple_type);
-    unsupported_types.erase(shape::type_t::bf16_type);
+
+    // No BF-16 Support on Navi21
+    if(gpu::gfx_has_bf16_intrinsics())
+    {
+        unsupported_types.erase(shape::type_t::bf16_type);
+    }
 
     // whiltelist supported Ops for the FP8 types
     // different between fp8e4m3fnuz and OCP types because rocBLAS only has
@@ -207,6 +213,7 @@ std::vector<pass> target::get_passes(migraphx::context& gctx, const compile_opti
         eliminate_data_type{{migraphx::shape::fp8e4m3fn_type, migraphx::shape::fp8e5m2_type}, shape::float_type, unsupported_fp8ocp_ops},
         dead_code_elimination{},
         rewrite_reduce{},
+        rewrite_topk{},
         rewrite_low_precision{},
         enable_pass(enabled(MIGRAPHX_ENABLE_REWRITE_DOT{}), rewrite_dot{}),
         dead_code_elimination{},

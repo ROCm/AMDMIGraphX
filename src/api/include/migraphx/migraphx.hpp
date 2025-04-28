@@ -1295,6 +1295,8 @@ inline void save(const program& p, const char* filename)
     call(&migraphx_save, p.get_handle_ptr(), filename, migraphx::file_options{}.get_handle_ptr());
 }
 
+#ifdef MIGRAPHX_ENABLE_ONNX
+
 /// Options for parsing onnx options
 struct onnx_options : MIGRAPHX_HANDLE_BASE(onnx_options)
 {
@@ -1406,6 +1408,10 @@ inline program parse_onnx_buffer(const std::string& buffer)
         own{});
 }
 
+#endif
+
+#ifdef MIGRAPHX_ENABLE_TENSORFLOW
+
 /// Options for parsing tf options
 struct tf_options : MIGRAPHX_HANDLE_BASE(tf_options)
 {
@@ -1459,6 +1465,8 @@ inline program parse_tf(const char* filename)
     return program(make<migraphx_program>(&migraphx_parse_tf, filename, options.get_handle_ptr()),
                    own{});
 }
+
+#endif
 
 struct quantize_op_names : MIGRAPHX_HANDLE_BASE(quantize_op_names)
 {

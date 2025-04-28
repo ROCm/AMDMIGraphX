@@ -37,7 +37,13 @@ if(BUILD_TESTING)
 endif()
 
 rocm_clang_tidy_check(migraphx_c)
-target_link_libraries(migraphx_c PRIVATE migraphx migraphx_tf migraphx_onnx)
+target_link_libraries(migraphx_c PRIVATE migraphx)
+if(MIGRAPHX_ENABLE_ONNX)
+    target_link_libraries(migraphx_c PRIVATE migraphx_onnx)
+endif()
+if(MIGRAPHX_ENABLE_TENSORFLOW)
+    target_link_libraries(migraphx_c PRIVATE migraphx_tf)
+endif()
 target_link_libraries(migraphx_c PUBLIC migraphx_version)
 
 rocm_install_targets(

@@ -27,8 +27,6 @@
 #include <migraphx/ranges.hpp>
 #include <migraphx/shape.hpp>
 #include <migraphx/program.hpp>
-#include <migraphx/onnx.hpp>
-#include <migraphx/tf.hpp>
 #include <migraphx/instruction_ref.hpp>
 #include <migraphx/register_target.hpp>
 #include <migraphx/generate.hpp>
@@ -41,6 +39,13 @@
 #include <array>
 #include <algorithm>
 #include <cstdarg>
+
+#ifdef MIGRAPHX_ENABLE_ONNX
+#include <migraphx/onnx.hpp>
+#endif
+#ifdef MIGRAPHX_ENABLE_TENSORFLOW
+#include <migraphx/tf.hpp>
+#endif
 
 namespace migraphx {
 
@@ -149,6 +154,8 @@ void set_exhaustive_tune_flag(compile_options& options, bool value)
 
 void set_file_format(file_options& options, const char* format) { options.format = format; }
 
+#ifdef MIGRAPHX_ENABLE_ONNX
+
 void set_default_dim_value(onnx_options& options, size_t value)
 {
     options.default_dim_value = value;
@@ -174,9 +181,17 @@ void set_limit_loop_iterations(onnx_options& options, int64_t value)
     options.limit_max_iterations = value;
 }
 
+#endif
+
+#ifdef MIGRAPHX_ENABLE_TENSORFLOW
+
 void set_nhwc(tf_options& options, bool is_nhwc) { options.is_nhwc = is_nhwc; }
 
 void set_default_dim_value(tf_options& options, size_t value) { options.batch_size = value; }
+
+#endif
+
+#ifdef MIGRAPHX_ENABLE_ONNX
 
 void set_input_parameter_shape(onnx_options& options,
                                const char* name,
@@ -192,6 +207,10 @@ void set_dyn_input_parameter_shape(onnx_options& options,
     options.map_dyn_input_dims[std::string(name)] = std::move(dyn_dims);
 }
 
+#endif
+
+#ifdef MIGRAPHX_ENABLE_TENSORFLOW
+
 void set_input_parameter_shape(tf_options& options, const char* name, std::vector<std::size_t> dims)
 {
     options.map_input_dims[std::string(name)] = std::move(dims);
@@ -201,6 +220,8 @@ void set_output_names(tf_options& options, std::vector<const char*> names)
 {
     options.output_node_names = std::vector<std::string>(names.begin(), names.end());
 }
+
+#endif
 
 std::vector<argument>
 run_async(program& p, const parameter_map& params, void* s, std::string_view name)
@@ -640,6 +661,7 @@ struct migraphx_operation
     migraphx::operation object;
 };
 
+#ifdef MIGRAPHX_ENABLE_ONNX
 extern "C" struct migraphx_onnx_options;
 struct migraphx_onnx_options
 {
@@ -650,6 +672,7 @@ struct migraphx_onnx_options
     }
     migraphx::onnx_options object;
 };
+#endif
 
 extern "C" struct migraphx_file_options;
 struct migraphx_file_options
@@ -673,6 +696,7 @@ struct migraphx_compile_options
     migraphx::compile_options object;
 };
 
+#ifdef MIGRAPHX_ENABLE_TENSORFLOW
 extern "C" struct migraphx_tf_options;
 struct migraphx_tf_options
 {
@@ -683,6 +707,7 @@ struct migraphx_tf_options
     }
     migraphx::tf_options object;
 };
+#endif
 
 extern "C" struct migraphx_quantize_op_names;
 struct migraphx_quantize_op_names
@@ -1855,19 +1880,24 @@ migraphx_save(migraphx_program_t p, const char* name, migraphx_file_options_t op
     return api_error_result;
 }
 
+#ifdef MIGRAPHX_ENABLE_ONNX
 extern "C" migraphx_status migraphx_onnx_options_destroy(migraphx_onnx_options_t onnx_options)
 {
     auto api_error_result = migraphx::try_([&] { destroy((onnx_options)); });
     return api_error_result;
 }
+#endif
 
+#ifdef MIGRAPHX_ENABLE_ONNX
 extern "C" migraphx_status migraphx_onnx_options_assign_to(migraphx_onnx_options_t output,
                                                            const_migraphx_onnx_options_t input)
 {
     auto api_error_result = migraphx::try_([&] { *output = *input; });
     return api_error_result;
 }
+#endif
 
+#ifdef MIGRAPHX_ENABLE_ONNX
 extern "C" migraphx_status migraphx_onnx_options_create(migraphx_onnx_options_t* onnx_options)
 {
     auto api_error_result = migraphx::try_([&] {
@@ -1875,7 +1905,9 @@ extern "C" migraphx_status migraphx_onnx_options_create(migraphx_onnx_options_t*
     });
     return api_error_result;
 }
+#endif
 
+#ifdef MIGRAPHX_ENABLE_ONNX
 extern "C" migraphx_status migraphx_onnx_options_set_input_parameter_shape(
     migraphx_onnx_options_t onnx_options, const char* name, size_t* dims, size_t dims_size)
 {
@@ -1889,7 +1921,9 @@ extern "C" migraphx_status migraphx_onnx_options_set_input_parameter_shape(
     });
     return api_error_result;
 }
+#endif
 
+#ifdef MIGRAPHX_ENABLE_ONNX
 extern "C" migraphx_status migraphx_onnx_options_set_dyn_input_parameter_shape(
     migraphx_onnx_options_t onnx_options, const char* name, migraphx_dynamic_dimensions_t dims)
 {
@@ -1902,7 +1936,9 @@ extern "C" migraphx_status migraphx_onnx_options_set_dyn_input_parameter_shape(
     });
     return api_error_result;
 }
+#endif
 
+#ifdef MIGRAPHX_ENABLE_ONNX
 extern "C" migraphx_status
 migraphx_onnx_options_set_default_dim_value(migraphx_onnx_options_t onnx_options, size_t value)
 {
@@ -1913,7 +1949,9 @@ migraphx_onnx_options_set_default_dim_value(migraphx_onnx_options_t onnx_options
     });
     return api_error_result;
 }
+#endif
 
+#ifdef MIGRAPHX_ENABLE_ONNX
 extern "C" migraphx_status
 migraphx_onnx_options_set_default_dyn_dim_value(migraphx_onnx_options_t onnx_options,
                                                 const_migraphx_dynamic_dimension_t dd)
@@ -1927,7 +1965,9 @@ migraphx_onnx_options_set_default_dyn_dim_value(migraphx_onnx_options_t onnx_opt
     });
     return api_error_result;
 }
+#endif
 
+#ifdef MIGRAPHX_ENABLE_ONNX
 extern "C" migraphx_status
 migraphx_onnx_options_set_default_loop_iterations(migraphx_onnx_options_t onnx_options,
                                                   int64_t value)
@@ -1939,7 +1979,9 @@ migraphx_onnx_options_set_default_loop_iterations(migraphx_onnx_options_t onnx_o
     });
     return api_error_result;
 }
+#endif
 
+#ifdef MIGRAPHX_ENABLE_ONNX
 extern "C" migraphx_status
 migraphx_onnx_options_set_limit_loop_iterations(migraphx_onnx_options_t onnx_options, int64_t value)
 {
@@ -1950,7 +1992,9 @@ migraphx_onnx_options_set_limit_loop_iterations(migraphx_onnx_options_t onnx_opt
     });
     return api_error_result;
 }
+#endif
 
+#ifdef MIGRAPHX_ENABLE_ONNX
 extern "C" migraphx_status
 migraphx_onnx_options_set_external_data_path(migraphx_onnx_options_t onnx_options,
                                              const char* external_data_path)
@@ -1962,6 +2006,7 @@ migraphx_onnx_options_set_external_data_path(migraphx_onnx_options_t onnx_option
     });
     return api_error_result;
 }
+#endif
 
 extern "C" migraphx_status migraphx_file_options_destroy(migraphx_file_options_t file_options)
 {
@@ -2057,6 +2102,7 @@ migraphx_compile_options_set_exhaustive_tune_flag(migraphx_compile_options_t com
     return api_error_result;
 }
 
+#ifdef MIGRAPHX_ENABLE_ONNX
 extern "C" migraphx_status
 migraphx_parse_onnx(migraphx_program_t* out, const char* name, migraphx_onnx_options_t options)
 {
@@ -2067,7 +2113,9 @@ migraphx_parse_onnx(migraphx_program_t* out, const char* name, migraphx_onnx_opt
     });
     return api_error_result;
 }
+#endif
 
+#ifdef MIGRAPHX_ENABLE_ONNX
 extern "C" migraphx_status migraphx_parse_onnx_buffer(migraphx_program_t* out,
                                                       const void* data,
                                                       size_t size,
@@ -2081,20 +2129,26 @@ extern "C" migraphx_status migraphx_parse_onnx_buffer(migraphx_program_t* out,
     });
     return api_error_result;
 }
+#endif
 
+#ifdef MIGRAPHX_ENABLE_TENSORFLOW
 extern "C" migraphx_status migraphx_tf_options_destroy(migraphx_tf_options_t tf_options)
 {
     auto api_error_result = migraphx::try_([&] { destroy((tf_options)); });
     return api_error_result;
 }
+#endif
 
+#ifdef MIGRAPHX_ENABLE_TENSORFLOW
 extern "C" migraphx_status migraphx_tf_options_assign_to(migraphx_tf_options_t output,
                                                          const_migraphx_tf_options_t input)
 {
     auto api_error_result = migraphx::try_([&] { *output = *input; });
     return api_error_result;
 }
+#endif
 
+#ifdef MIGRAPHX_ENABLE_TENSORFLOW
 extern "C" migraphx_status migraphx_tf_options_create(migraphx_tf_options_t* tf_options)
 {
     auto api_error_result = migraphx::try_([&] {
@@ -2102,7 +2156,9 @@ extern "C" migraphx_status migraphx_tf_options_create(migraphx_tf_options_t* tf_
     });
     return api_error_result;
 }
+#endif
 
+#ifdef MIGRAPHX_ENABLE_TENSORFLOW
 extern "C" migraphx_status migraphx_tf_options_set_nhwc(migraphx_tf_options_t tf_options,
                                                         bool is_nhwc)
 {
@@ -2113,7 +2169,9 @@ extern "C" migraphx_status migraphx_tf_options_set_nhwc(migraphx_tf_options_t tf
     });
     return api_error_result;
 }
+#endif
 
+#ifdef MIGRAPHX_ENABLE_TENSORFLOW
 extern "C" migraphx_status migraphx_tf_options_set_input_parameter_shape(
     migraphx_tf_options_t tf_options, const char* name, size_t* dims, size_t dims_size)
 {
@@ -2127,7 +2185,9 @@ extern "C" migraphx_status migraphx_tf_options_set_input_parameter_shape(
     });
     return api_error_result;
 }
+#endif
 
+#ifdef MIGRAPHX_ENABLE_TENSORFLOW
 extern "C" migraphx_status
 migraphx_tf_options_set_default_dim_value(migraphx_tf_options_t tf_options, size_t value)
 {
@@ -2138,7 +2198,9 @@ migraphx_tf_options_set_default_dim_value(migraphx_tf_options_t tf_options, size
     });
     return api_error_result;
 }
+#endif
 
+#ifdef MIGRAPHX_ENABLE_TENSORFLOW
 extern "C" migraphx_status migraphx_tf_options_set_output_names(migraphx_tf_options_t tf_options,
                                                                 const char** names,
                                                                 size_t names_size)
@@ -2153,7 +2215,9 @@ extern "C" migraphx_status migraphx_tf_options_set_output_names(migraphx_tf_opti
     });
     return api_error_result;
 }
+#endif
 
+#ifdef MIGRAPHX_ENABLE_TENSORFLOW
 extern "C" migraphx_status
 migraphx_parse_tf(migraphx_program_t* out, const char* name, migraphx_tf_options_t options)
 {
@@ -2164,6 +2228,7 @@ migraphx_parse_tf(migraphx_program_t* out, const char* name, migraphx_tf_options
     });
     return api_error_result;
 }
+#endif
 
 extern "C" migraphx_status
 migraphx_quantize_op_names_destroy(migraphx_quantize_op_names_t quantize_op_names)

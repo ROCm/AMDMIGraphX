@@ -123,8 +123,10 @@ typedef const struct migraphx_program* const_migraphx_program_t;
 typedef struct migraphx_operation* migraphx_operation_t;
 typedef const struct migraphx_operation* const_migraphx_operation_t;
 
+#ifdef MIGRAPHX_ENABLE_ONNX
 typedef struct migraphx_onnx_options* migraphx_onnx_options_t;
 typedef const struct migraphx_onnx_options* const_migraphx_onnx_options_t;
+#endif
 
 typedef struct migraphx_file_options* migraphx_file_options_t;
 typedef const struct migraphx_file_options* const_migraphx_file_options_t;
@@ -132,8 +134,10 @@ typedef const struct migraphx_file_options* const_migraphx_file_options_t;
 typedef struct migraphx_compile_options* migraphx_compile_options_t;
 typedef const struct migraphx_compile_options* const_migraphx_compile_options_t;
 
+#ifdef MIGRAPHX_ENABLE_TENSORFLOW
 typedef struct migraphx_tf_options* migraphx_tf_options_t;
 typedef const struct migraphx_tf_options* const_migraphx_tf_options_t;
+#endif
 
 typedef struct migraphx_quantize_op_names* migraphx_quantize_op_names_t;
 typedef const struct migraphx_quantize_op_names* const_migraphx_quantize_op_names_t;
@@ -498,35 +502,55 @@ MIGRAPHX_C_EXPORT migraphx_status migraphx_save(migraphx_program_t p,
                                                 const char* name,
                                                 migraphx_file_options_t options);
 
+#ifdef MIGRAPHX_ENABLE_ONNX
 MIGRAPHX_C_EXPORT migraphx_status
 migraphx_onnx_options_destroy(migraphx_onnx_options_t onnx_options);
+#endif
 
+#ifdef MIGRAPHX_ENABLE_ONNX
 MIGRAPHX_C_EXPORT migraphx_status migraphx_onnx_options_assign_to(
     migraphx_onnx_options_t output, const_migraphx_onnx_options_t input);
+#endif
 
+#ifdef MIGRAPHX_ENABLE_ONNX
 MIGRAPHX_C_EXPORT migraphx_status
 migraphx_onnx_options_create(migraphx_onnx_options_t* onnx_options);
+#endif
 
+#ifdef MIGRAPHX_ENABLE_ONNX
 MIGRAPHX_C_EXPORT migraphx_status migraphx_onnx_options_set_input_parameter_shape(
     migraphx_onnx_options_t onnx_options, const char* name, size_t* dims, size_t dims_size);
+#endif
 
+#ifdef MIGRAPHX_ENABLE_ONNX
 MIGRAPHX_C_EXPORT migraphx_status migraphx_onnx_options_set_dyn_input_parameter_shape(
     migraphx_onnx_options_t onnx_options, const char* name, migraphx_dynamic_dimensions_t dims);
+#endif
 
+#ifdef MIGRAPHX_ENABLE_ONNX
 MIGRAPHX_C_EXPORT migraphx_status
 migraphx_onnx_options_set_default_dim_value(migraphx_onnx_options_t onnx_options, size_t value);
+#endif
 
+#ifdef MIGRAPHX_ENABLE_ONNX
 MIGRAPHX_C_EXPORT migraphx_status migraphx_onnx_options_set_default_dyn_dim_value(
     migraphx_onnx_options_t onnx_options, const_migraphx_dynamic_dimension_t dd);
+#endif
 
+#ifdef MIGRAPHX_ENABLE_ONNX
 MIGRAPHX_C_EXPORT migraphx_status migraphx_onnx_options_set_default_loop_iterations(
     migraphx_onnx_options_t onnx_options, int64_t value);
+#endif
 
+#ifdef MIGRAPHX_ENABLE_ONNX
 MIGRAPHX_C_EXPORT migraphx_status migraphx_onnx_options_set_limit_loop_iterations(
     migraphx_onnx_options_t onnx_options, int64_t value);
+#endif
 
+#ifdef MIGRAPHX_ENABLE_ONNX
 MIGRAPHX_C_EXPORT migraphx_status migraphx_onnx_options_set_external_data_path(
     migraphx_onnx_options_t onnx_options, const char* external_data_path);
+#endif
 
 MIGRAPHX_C_EXPORT migraphx_status
 migraphx_file_options_destroy(migraphx_file_options_t file_options);
@@ -558,37 +582,57 @@ migraphx_compile_options_set_fast_math(migraphx_compile_options_t compile_option
 MIGRAPHX_C_EXPORT migraphx_status migraphx_compile_options_set_exhaustive_tune_flag(
     migraphx_compile_options_t compile_options, bool value);
 
+#ifdef MIGRAPHX_ENABLE_ONNX
 MIGRAPHX_C_EXPORT migraphx_status migraphx_parse_onnx(migraphx_program_t* out,
                                                       const char* name,
                                                       migraphx_onnx_options_t options);
+#endif
 
+#ifdef MIGRAPHX_ENABLE_ONNX
 MIGRAPHX_C_EXPORT migraphx_status migraphx_parse_onnx_buffer(migraphx_program_t* out,
                                                              const void* data,
                                                              size_t size,
                                                              migraphx_onnx_options_t options);
+#endif
 
+#ifdef MIGRAPHX_ENABLE_TENSORFLOW
 MIGRAPHX_C_EXPORT migraphx_status migraphx_tf_options_destroy(migraphx_tf_options_t tf_options);
+#endif
 
+#ifdef MIGRAPHX_ENABLE_TENSORFLOW
 MIGRAPHX_C_EXPORT migraphx_status migraphx_tf_options_assign_to(migraphx_tf_options_t output,
                                                                 const_migraphx_tf_options_t input);
+#endif
 
+#ifdef MIGRAPHX_ENABLE_TENSORFLOW
 MIGRAPHX_C_EXPORT migraphx_status migraphx_tf_options_create(migraphx_tf_options_t* tf_options);
+#endif
 
+#ifdef MIGRAPHX_ENABLE_TENSORFLOW
 MIGRAPHX_C_EXPORT migraphx_status migraphx_tf_options_set_nhwc(migraphx_tf_options_t tf_options,
                                                                bool is_nhwc);
+#endif
 
+#ifdef MIGRAPHX_ENABLE_TENSORFLOW
 MIGRAPHX_C_EXPORT migraphx_status migraphx_tf_options_set_input_parameter_shape(
     migraphx_tf_options_t tf_options, const char* name, size_t* dims, size_t dims_size);
+#endif
 
+#ifdef MIGRAPHX_ENABLE_TENSORFLOW
 MIGRAPHX_C_EXPORT migraphx_status
 migraphx_tf_options_set_default_dim_value(migraphx_tf_options_t tf_options, size_t value);
+#endif
 
+#ifdef MIGRAPHX_ENABLE_TENSORFLOW
 MIGRAPHX_C_EXPORT migraphx_status migraphx_tf_options_set_output_names(
     migraphx_tf_options_t tf_options, const char** names, size_t names_size);
+#endif
 
+#ifdef MIGRAPHX_ENABLE_TENSORFLOW
 MIGRAPHX_C_EXPORT migraphx_status migraphx_parse_tf(migraphx_program_t* out,
                                                     const char* name,
                                                     migraphx_tf_options_t options);
+#endif
 
 MIGRAPHX_C_EXPORT migraphx_status
 migraphx_quantize_op_names_destroy(migraphx_quantize_op_names_t quantize_op_names);

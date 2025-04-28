@@ -101,9 +101,9 @@ struct concat_compiler : compiler<concat_compiler>
         options.set_launch_params(v, compute_global_for(ctx, nelements_per_op / vec.size, 256));
 #else
 
-        auto group = 4;
+        auto group = 16;
         auto nslices = options.virtual_inputs.back().elements() / options.virtual_inputs.back().lens()[concat_axis];
-        std::string algo = "wave_interleave<" + std::to_string(group) + ">";
+        std::string algo = "block_tile<" + std::to_string(group) + ">";
         options.set_launch_params(v, (nslices / group) * 64, 256);
 #endif
         options.emplace_param("-Wno-float-equal");

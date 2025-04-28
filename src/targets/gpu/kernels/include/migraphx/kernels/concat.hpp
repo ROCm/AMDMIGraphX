@@ -62,6 +62,17 @@ constexpr auto concat_ends(Input)
     return _c<lens[Axis]>;
 }
 
+template<index_int Axis, class... InputPacks>
+constexpr auto concat_max(InputPacks... input_packs)
+{
+    return fold([&](auto start, auto input_pack) {
+        return input_pack([&](auto, auto x, auto...) {
+            return max(start, concat_ends<Axis>(x));
+        });
+    })(_c<0>, input_packs...);
+}
+
+
 template<class InputPack, class...>
 struct get_base_type
 {
@@ -82,11 +93,12 @@ struct concat_pair
 };
 MIGRAPHX_AUTO_DEDUCE(concat_pair);
 
-template<class Axis, class Size>
+template<class Axis, class NArgs, class MaxSize>
 struct info
 {
     Axis axis;
-    Size size;
+    NArgs nargs;
+    MaxSize max_size;
 };
 MIGRAPHX_AUTO_DEDUCE(info);
 
@@ -133,6 +145,68 @@ struct simple
             };
         }};
     }
+};
+
+template<index_int NGroups>
+struct block_tile
+{
+    template<class T, class Output, index_int N, index_int MaxSize>
+    struct algo
+    {
+        constexpr auto slice() const
+        {
+            return slice_schedule<per_block>(idx, slice_axes<-1>(), slice_group<NGroups>());
+        }
+
+        static __device__ auto output_data()
+        {
+            constexpr auto s = make_shape(index_ints<N, 1 + (MaxSize / MIGRAPHX_NLOCAL), MIGRAPHX_NLOCAL>{});
+            __shared__ T storage[s.elements()];
+            return make_tensor_view(storage, s);
+        }
+
+        index idx;
+
+        template<class Depth, class G, class... Xs>
+        __device__ void run(Depth depth, G g, Xs... xs)
+        {
+            auto output = output_data();
+            slice()(xs...)([&](auto w, auto... ws) {
+                MIGRAPHX_ASSERT((w.get_shape().elements() == ws.get_shape().elements() and ...));
+                idx.local_stride(w.get_shape().elements(), [&](auto i, auto k) {
+                    output[{depth, k, idx.local}] = g(w[i], ws[i]...);
+                });
+            });
+        }
+
+        template<class F, class... Outputs>
+        __device__ void finish(F f, Outputs... outputs) const
+        {
+            __syncthreads();
+            auto output = output_data();
+            auto stride_shape = make_shape(index_ints<1 + (MaxSize / MIGRAPHX_NLOCAL), MIGRAPHX_NLOCAL>{});
+            slice()(outputs...)([&](auto z, auto... ys) {
+                idx.local_stride(z.get_shape().elements(), [&](auto i) {
+                    auto multi_idx = z.get_shape().multi(i);
+                    auto depth = multi_idx.back() / MaxSize;
+                    auto j = multi_idx.back();
+                    auto multi_j = stride_shape.multi(j);
+                    z[i] = f(output[{depth, multi_j[0], multi_j[1]}], ys[i]...);
+                });
+                // idx.local_wave_stride(z.get_shape().elements(), [&](auto i, auto k) {
+                //     z[i] = f(data[k], ys[i]...);
+                // });
+            });
+        }
+    };
+
+    template<class T, class Info, class Output>
+    static __device__ auto make(index idx, Info info, Output)
+    {
+        MIGRAPHX_ASSERT(info.axis == get_shape_c<Output>{}.lens.size() - 1);
+        return algo<typename Output::type, Output, info.nargs, info.max_size>{idx};
+    }
+
 };
 
 template<class...>
@@ -288,36 +362,47 @@ struct transpose2d
     }
 };
 
-template<index_int Group>
+template<index_int NGroups>
 struct wave_interleave
 {
     template<class T, index_int N>
     struct algo
     {
+        constexpr auto slice() const
+        {
+            return slice_schedule<per_wave>(idx, slice_axes<-1>(), slice_group<NGroups>());
+        }
+
         static constexpr auto per_lane()
         {
-            return N * Group;
+            return N * NGroups;
+        }
+
+        using data_shape = decltype(make_shape(index_ints<N, NGroups>{}));
+
+        template<class Depth, class G>
+        static constexpr auto data_index(Depth, G)
+        {
+            return return_c([] {
+                return data_shape{}.index({Depth{}, G{}});
+            });
         }
 
         index idx;
         array<T, per_lane()> data{};
 
-        constexpr auto slice() const
-        {
-            return slice_schedule<per_wave>(idx, slice_axes<-1>(), slice_group<Group>());
-        }
 
         template<class Depth, class G, class... Xs>
         __device__ void run(Depth depth, G g, Xs... xs)
         {
             slice()(xs...)([&](auto w, auto... ws) {
-                repeat_c<Group>([&](auto group) {
-                    auto i = group + idx.local_wave() * Group;
+                repeat_c<NGroups>([&](auto group) {
+                    auto i = group + idx.local_wave() * NGroups;
                     if(i < w.get_shape().elements())
-                        data[depth + group * N] = g(w[i], ws[i]...);
+                        data[data_shape{}.index({depth, group})] = g(w[i], ws[i]...);
                 });
                 // idx.local_wave_stride(w.get_shape().elements(), [&](auto i, auto k) {
-                //     data[depth + k * N] = g(w[i], ws[i]...);
+                //     data[k + depth * Group] = g(w[i], ws[i]...);
                 // });
             });
         }
@@ -325,29 +410,31 @@ struct wave_interleave
         template<class F, class... Outputs>
         __device__ void finish(F f, Outputs... outputs) const
         {
-            auto out = transpose2d::wave_shuffle<Group*N>(idx, data);
+            // auto out = transpose2d::wave_shuffle<Group*N>(idx, data);
             slice()(outputs...)([&](auto z, auto... ys) {
-                repeat_c<per_lane()>([&](auto k) {
-                    auto i = k + idx.local_wave() * per_lane();
-                    if(i < z.get_shape().elements())
-                        z[i] = f(out[k], ys[i]...);
+                constexpr auto nlocal_wave       = decltype(idx.nlocal_wave()){};
+                constexpr auto output_shape = make_shape(index_ints<N, nlocal_wave, NGroups>{});
+                repeat_c<N>([&](auto depth) {
+                    repeat_c<NGroups>([&](auto group) {
+                        auto k = data_shape{}.index({depth, group});
+                        auto i = output_shape.index({depth, idx.local_wave(), group});
+                        if(i < z.get_shape().elements())
+                            z[i] = f(data[k], ys[i]...);
+                    });
                 });
-                // repeat_c<N>([&](auto depth) {
-                //     repeat_c<Group>([&](auto group) {
-
-                //     });
-                // });
                 // idx.local_wave_stride(z.get_shape().elements(), [&](auto i, auto k) {
                 //     z[i] = f(data[k], ys[i]...);
                 // });
             });
         }
     };
+
     template<class T, class Info, class Output>
     static __device__ auto make(index idx, Info info, Output)
     {
-        return algo<typename Output::type, info.size>{idx};
+        return algo<typename Output::type, info.nargs>{idx};
     }
+
 };
 
 template <class Algo, index_int Axis, class... InputPacks>
@@ -355,7 +442,7 @@ __device__ auto run(InputPacks... input_packs)
 {
     return [=](auto f, auto t, auto... ts) {
         auto idx = make_index();
-        auto algo = Algo::template make<typename get_base_type<InputPacks...>::type>(idx, info{.axis = _c<Axis>, .size = _c<sizeof...(InputPacks)>}, t);
+        auto algo = Algo::template make<typename get_base_type<InputPacks...>::type>(idx, info{.axis = _c<Axis>, .nargs = _c<sizeof...(InputPacks)>, .max_size = concat_max<Axis>(input_packs...)}, t);
         fold([&](auto p, auto input_pack) {
             return input_pack([&](auto g, auto x, auto... xs) {
                 return concat_slices<Axis>(x, p.offset, t, ts...)([&](auto z, auto... ys) {

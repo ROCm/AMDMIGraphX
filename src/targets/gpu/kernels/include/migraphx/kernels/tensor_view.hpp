@@ -61,20 +61,25 @@ struct tensor_view
         index_int offset;
 #ifdef MIGRAPHX_DEBUG
         index_int idx = 0;
+#endif
         template <class U>
         constexpr index_to_offset(U i) : offset(Shape{}.index(i))
         {
+#ifdef MIGRAPHX_DEBUG
             if constexpr(is_convertible<U, index_int>{})
                 idx = i;
             else
                 idx = Shape{}.single(i);
-        }
-#else
-        template <class U>
-        constexpr index_to_offset(U i) : offset(Shape{}.index(i))
-        {
-        }
 #endif
+        }
+
+        template <class... Us>
+        constexpr index_to_offset(Us... is) : offset(Shape{}.index({is...}))
+        {
+#ifdef MIGRAPHX_DEBUG
+            idx = Shape{}.single({is...});
+#endif
+        }
     };
 
     constexpr T& operator[](MIGRAPHX_CAPTURE_SOURCE_LOCATION(index_to_offset) i) const

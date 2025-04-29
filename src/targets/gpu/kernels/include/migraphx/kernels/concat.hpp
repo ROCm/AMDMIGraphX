@@ -27,6 +27,7 @@
 #include <migraphx/kernels/tensor_view.hpp>
 #include <migraphx/kernels/slice.hpp>
 #include <migraphx/kernels/dpp.hpp>
+#include <migraphx/kernels/math.hpp>
 
 #ifndef MIGRAPHX_GUARD_KERNELS_CONCAT_HPP
 #define MIGRAPHX_GUARD_KERNELS_CONCAT_HPP
@@ -158,8 +159,8 @@ struct block_tile
         static __device__ auto output_data()
         {
             constexpr auto s =
-                make_shape(index_ints<N, 1 + (MaxSize / MIGRAPHX_NLOCAL), MIGRAPHX_NLOCAL>{});
-            __shared__ T storage[s.elements()];
+                make_shape(index_ints<N, MaxSize>{}, index_ints<ceil_div(MaxSize, MIGRAPHX_WAVEFRONTSIZE) * MIGRAPHX_WAVEFRONTSIZE, 1>{});
+            __shared__ T storage[s.element_space()];
             return make_tensor_view(storage, s);
         }
 
@@ -170,9 +171,11 @@ struct block_tile
         {
             auto output = output_data();
             slice()(xs...)([&](auto w, auto... ws) {
-                MIGRAPHX_ASSERT(((w.get_shape().elements() == ws.get_shape().elements()) and ...));
-                idx.local_stride(w.get_shape().elements(), [&](auto i, auto k) {
-                    output[{depth, k, idx.local}] = g(w[i], ws[i]...);
+                MIGRAPHX_ASSERT(w.get_shape().lens.back() == MaxSize);
+                idx.local_stride(w.get_shape().elements(), [&](auto i) {
+                    auto multi_idx = w.get_shape().multi(i);
+                    auto k = multi_idx.back();
+                    output[{depth, k}] = g(w[i], ws[i]...);
                 });
             });
         }
@@ -182,15 +185,12 @@ struct block_tile
         {
             __syncthreads();
             auto output = output_data();
-            auto stride_shape =
-                make_shape(index_ints<1 + (MaxSize / MIGRAPHX_NLOCAL), MIGRAPHX_NLOCAL>{});
             slice()(outputs...)([&](auto z, auto... ys) {
                 idx.local_stride(z.get_shape().elements(), [&](auto i) {
                     auto multi_idx = z.get_shape().multi(i);
                     auto depth     = multi_idx.back() / MaxSize;
-                    auto j         = multi_idx.back();
-                    auto multi_j   = stride_shape.multi(j);
-                    z[i]           = f(output[{depth, multi_j[0], multi_j[1]}], ys[i]...);
+                    auto k     = multi_idx.back() % MaxSize;
+                    z[i]           = f(output[{depth, k}], ys[i]...);
                 });
                 // idx.local_wave_stride(z.get_shape().elements(), [&](auto i, auto k) {
                 //     z[i] = f(data[k], ys[i]...);

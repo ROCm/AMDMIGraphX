@@ -39,7 +39,6 @@
 
 #include <migraphx/algorithm.hpp>
 #include <unordered_set>
-#include <queue>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {

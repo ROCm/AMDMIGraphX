@@ -35,6 +35,7 @@
 #include <migraphx/literal.hpp>
 #include <migraphx/make_op.hpp>
 #include <migraphx/serialize.hpp>
+#include <migraphx/instruction.hpp>
 
 #include <migraphx/algorithm.hpp>
 #include <unordered_set>
@@ -1142,41 +1143,21 @@ struct find_splits
     }
 
     /**
-     * Check if we can reach ins2 from ins1 by going through inputs of ins1.
+     * Check if we can reach start from end by going through inputs of end.
      * root is the instruction before the slice instructions (what find_splits matcher matches).
-     * Uses a BFS upwards that stops at root instruction or no inputs.
      */
     static bool
-    is_dependent(const module& m, instruction_ref root, instruction_ref ins1, instruction_ref ins2)
+    is_dependent(const module& m, instruction_ref root, instruction_ref start, instruction_ref end)
     {
-        if(ins2 == root)
+        if(start == root)
         {
             return true;
         }
-        std::unordered_set<instruction_ref> traversed;
-        std::queue<instruction_ref> inputs_queue;
-        inputs_queue.push(ins1);
-        while(not inputs_queue.empty())
+        if(std::distance(root, end) < std::distance(root, start))
         {
-            auto ins = inputs_queue.front();
-            if(ins == ins2)
-            {
-                return true;
-            }
-            if(ins != root and not contains(traversed, ins))
-            {
-                for(const auto& i : ins->inputs())
-                {
-                    if(m.has_instruction(i))
-                    {
-                        inputs_queue.push(i);
-                    }
-                }
-            }
-            traversed.insert(ins);
-            inputs_queue.pop();
+            return false;
         }
-        return false;
+        return reaches(start, end, &m);
     }
 
     /**

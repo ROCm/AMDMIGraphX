@@ -181,7 +181,8 @@ struct block_tile
                 idx.local_stride(w.get_shape().elements(), [&](auto i) {
                     auto multi_idx     = w.get_shape().multi(i);
                     auto k             = multi_idx.back();
-                    auto group = accumulate(multi_idx.begin(), multi_idx.end()-1, index_int{1}, op::product{});
+                    auto group         = accumulate(
+                        multi_idx.begin(), multi_idx.end() - 1, index_int{1}, op::product{});
                     output[{group, depth, k}] = g(w[i], ws[i]...);
                 });
             });
@@ -194,12 +195,13 @@ struct block_tile
             auto output = output_data();
             slice()(outputs...)([&](auto z, auto... ys) {
                 idx.local_stride(z.get_shape().elements(), [&](auto i) {
-                    MIGRAPHX_ASSERT(z.get_shape().lens.back() == N*MaxSize);
+                    MIGRAPHX_ASSERT(z.get_shape().lens.back() == N * MaxSize);
                     auto multi_idx = z.get_shape().multi(i);
                     auto depth     = multi_idx.back() / MaxSize;
                     auto k         = multi_idx.back() % MaxSize;
-                    auto group = accumulate(multi_idx.begin(), multi_idx.end()-1, index_int{1}, op::product{});
-                    z[i]           = f(output[{group, depth, k}], ys[i]...);
+                    auto group     = accumulate(
+                        multi_idx.begin(), multi_idx.end() - 1, index_int{1}, op::product{});
+                    z[i] = f(output[{group, depth, k}], ys[i]...);
                 });
                 // idx.local_wave_stride(z.get_shape().elements(), [&](auto i, auto k) {
                 //     z[i] = f(data[k], ys[i]...);

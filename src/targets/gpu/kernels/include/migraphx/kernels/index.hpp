@@ -133,7 +133,7 @@ struct index
     }
 #endif
 
-    constexpr auto ngroup() const { return nglobal() / max_nlocal(); }
+    constexpr auto ngroup() const { return (nglobal() + max_nlocal() - _c<1>) / max_nlocal(); }
 
     template <unsigned int SubWaveSize>
     constexpr index_constant<SubWaveSize> nlocal_subwave() const

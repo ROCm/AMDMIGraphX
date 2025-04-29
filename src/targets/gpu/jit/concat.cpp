@@ -81,6 +81,13 @@ struct concat_compiler : compiler<concat_compiler>
         return result;
     }
 
+    static std::size_t max_size(const std::vector<shape>& inputs, std::size_t ninputs, std::size_t axis)
+    {
+        return std::max_element(inputs.begin(), inputs.begin() + ninputs, by(std::less<>{}, [&](const shape& s) {
+            return s.lens()[axis];
+        }))->lens()[axis];
+    } 
+
     operation compile_op(context& ctx, const std::vector<shape>& inputs, const value& v) const
     {
         hip_compile_options options;
@@ -96,16 +103,6 @@ struct concat_compiler : compiler<concat_compiler>
         if(axis != concat_axis)
             vec = vectorize::elements(ctx, axis, options.virtual_inputs);
         auto nelements_per_op = options.virtual_inputs.back().elements() / op_names.size();
-#if 0
-        std::string algo = "simple";
-        options.set_launch_params(v, compute_global_for(ctx, nelements_per_op / vec.size, 256));
-#else
-
-        auto group = 16;
-        auto nslices = options.virtual_inputs.back().elements() / options.virtual_inputs.back().lens()[concat_axis];
-        std::string algo = "block_tile<" + std::to_string(group) + ">";
-        options.set_launch_params(v, (nslices / group) * 64, 256);
-#endif
         options.emplace_param("-Wno-float-equal");
         std::vector<std::string> concat_params;
         std::vector<std::string> concat_args;
@@ -123,6 +120,18 @@ struct concat_compiler : compiler<concat_compiler>
             });
             concat_args.push_back("pack(" + join_strings(pack_args, ", ") + ")");
         }
+#if 0
+        std::string algo = "simple";
+        options.set_launch_params(v, compute_global_for(ctx, nelements_per_op / vec.size, 256));
+#else
+        auto ninputs = concat_params.size();
+        auto max_elements_per_op = max_size(options.virtual_inputs, ninputs, concat_axis);
+        auto group = 4;
+        auto nslices = options.virtual_inputs.back().elements() / options.virtual_inputs.back().lens()[concat_axis];
+        auto block_size = compute_block_size(ctx, max_elements_per_op*group, 256);
+        std::string algo = "block_tile<" + std::to_string(group) + ">";
+        options.set_launch_params(v, (nslices / group) * block_size, block_size);
+#endif
         auto src = interpolate_string(concat_kernel,
                                       {{"kernel", options.kernel_name},
                                        {"params", enum_params(inputs.size(), "void * private_p")},

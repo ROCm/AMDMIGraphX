@@ -170,11 +170,10 @@ struct block_tile
             return make_tensor_view(storage, s);
         }
 
-        template<class Array>
+        template <class Array>
         static constexpr index_int compute_group(Array a)
         {
-            return accumulate(
-                        a.begin(), a.end() - 1, index_int{1}, op::product{});
+            return accumulate(a.begin(), a.end() - 1, index_int{1}, op::product{});
         }
 
         index idx;
@@ -188,7 +187,7 @@ struct block_tile
                 idx.local_stride(w.get_shape().elements(), [&](auto i) {
                     auto multi_idx     = w.get_shape().multi(i);
                     auto k             = multi_idx.back();
-                    auto group         = compute_group(multi_idx);
+                    auto group                = compute_group(multi_idx);
                     output[{group, depth, k}] = g(w[i], ws[i]...);
                 });
             });

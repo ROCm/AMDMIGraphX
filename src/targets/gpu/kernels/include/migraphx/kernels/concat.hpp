@@ -28,6 +28,7 @@
 #include <migraphx/kernels/slice.hpp>
 #include <migraphx/kernels/dpp.hpp>
 #include <migraphx/kernels/math.hpp>
+#include <migraphx/kernels/ops.hpp>
 #include <migraphx/kernels/print.hpp>
 
 #ifndef MIGRAPHX_GUARD_KERNELS_CONCAT_HPP
@@ -159,7 +160,7 @@ struct block_tile
 
         static __device__ auto output_data()
         {
-            constexpr auto s = make_shape(index_ints<N, MaxSize>{});
+            constexpr auto s = make_shape(index_ints<NGroups, N, MaxSize>{});
             // constexpr auto s = make_shape(
             //     index_ints<N, MaxSize>{},
             //     index_ints<1 + ceil_div(MaxSize, MIGRAPHX_WAVEFRONTSIZE) *
@@ -180,7 +181,8 @@ struct block_tile
                 idx.local_stride(w.get_shape().elements(), [&](auto i) {
                     auto multi_idx     = w.get_shape().multi(i);
                     auto k             = multi_idx.back();
-                    output[{depth, k}] = g(w[i], ws[i]...);
+                    auto group = accumulate(multi_idx.begin(), multi_idx.end()-1, index_int{1}, op::product{});
+                    output[{group, depth, k}] = g(w[i], ws[i]...);
                 });
             });
         }
@@ -192,10 +194,12 @@ struct block_tile
             auto output = output_data();
             slice()(outputs...)([&](auto z, auto... ys) {
                 idx.local_stride(z.get_shape().elements(), [&](auto i) {
+                    MIGRAPHX_ASSERT(z.get_shape().lens.back() == N*MaxSize);
                     auto multi_idx = z.get_shape().multi(i);
                     auto depth     = multi_idx.back() / MaxSize;
                     auto k         = multi_idx.back() % MaxSize;
-                    z[i]           = f(output[{depth, k}], ys[i]...);
+                    auto group = accumulate(multi_idx.begin(), multi_idx.end()-1, index_int{1}, op::product{});
+                    z[i]           = f(output[{group, depth, k}], ys[i]...);
                 });
                 // idx.local_wave_stride(z.get_shape().elements(), [&](auto i, auto k) {
                 //     z[i] = f(data[k], ys[i]...);

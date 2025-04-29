@@ -158,8 +158,10 @@ struct block_tile
 
         static __device__ auto output_data()
         {
-            constexpr auto s =
-                make_shape(index_ints<N, MaxSize>{}, index_ints<ceil_div(MaxSize, MIGRAPHX_WAVEFRONTSIZE) * MIGRAPHX_WAVEFRONTSIZE, 1>{});
+            constexpr auto s = make_shape(
+                index_ints<N, MaxSize>{},
+                index_ints<ceil_div(MaxSize, MIGRAPHX_WAVEFRONTSIZE) * MIGRAPHX_WAVEFRONTSIZE,
+                           1>{});
             __shared__ T storage[s.element_space()];
             return make_tensor_view(storage, s);
         }
@@ -173,8 +175,8 @@ struct block_tile
             slice()(xs...)([&](auto w, auto... ws) {
                 MIGRAPHX_ASSERT(w.get_shape().lens.back() == MaxSize);
                 idx.local_stride(w.get_shape().elements(), [&](auto i) {
-                    auto multi_idx = w.get_shape().multi(i);
-                    auto k = multi_idx.back();
+                    auto multi_idx     = w.get_shape().multi(i);
+                    auto k             = multi_idx.back();
                     output[{depth, k}] = g(w[i], ws[i]...);
                 });
             });
@@ -189,7 +191,7 @@ struct block_tile
                 idx.local_stride(z.get_shape().elements(), [&](auto i) {
                     auto multi_idx = z.get_shape().multi(i);
                     auto depth     = multi_idx.back() / MaxSize;
-                    auto k     = multi_idx.back() % MaxSize;
+                    auto k         = multi_idx.back() % MaxSize;
                     z[i]           = f(output[{depth, k}], ys[i]...);
                 });
                 // idx.local_wave_stride(z.get_shape().elements(), [&](auto i, auto k) {

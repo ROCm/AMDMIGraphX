@@ -28,6 +28,7 @@
 #include <migraphx/kernels/slice.hpp>
 #include <migraphx/kernels/dpp.hpp>
 #include <migraphx/kernels/math.hpp>
+#include <migraphx/kernels/print.hpp>
 
 #ifndef MIGRAPHX_GUARD_KERNELS_CONCAT_HPP
 #define MIGRAPHX_GUARD_KERNELS_CONCAT_HPP
@@ -158,10 +159,11 @@ struct block_tile
 
         static __device__ auto output_data()
         {
-            constexpr auto s = make_shape(
-                index_ints<N, MaxSize>{},
-                index_ints<ceil_div(MaxSize, MIGRAPHX_WAVEFRONTSIZE) * MIGRAPHX_WAVEFRONTSIZE,
-                           1>{});
+            constexpr auto s = make_shape(index_ints<N, MaxSize>{});
+            // constexpr auto s = make_shape(
+            //     index_ints<N, MaxSize>{},
+            //     index_ints<1 + ceil_div(MaxSize, MIGRAPHX_WAVEFRONTSIZE) * MIGRAPHX_WAVEFRONTSIZE,
+            //                1>{});
             __shared__ T storage[s.element_space()];
             return make_tensor_view(storage, s);
         }

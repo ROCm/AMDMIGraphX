@@ -162,7 +162,8 @@ struct block_tile
             constexpr auto s = make_shape(index_ints<N, MaxSize>{});
             // constexpr auto s = make_shape(
             //     index_ints<N, MaxSize>{},
-            //     index_ints<1 + ceil_div(MaxSize, MIGRAPHX_WAVEFRONTSIZE) * MIGRAPHX_WAVEFRONTSIZE,
+            //     index_ints<1 + ceil_div(MaxSize, MIGRAPHX_WAVEFRONTSIZE) *
+            //     MIGRAPHX_WAVEFRONTSIZE,
             //                1>{});
             __shared__ T storage[s.element_space()];
             return make_tensor_view(storage, s);

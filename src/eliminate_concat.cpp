@@ -34,10 +34,16 @@
 #include <migraphx/dfor.hpp>
 #include <migraphx/tune_axis.hpp>
 
+MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_DISABLE_ELIM_CONCAT)
+
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
 void eliminate_concat::apply(module& m) const
 {
+    if(enabled(MIGRAPHX_DISABLE_ELIM_CONCAT{}))
+    {
+        return;
+    }
     for(auto ins : iterator_for(m))
     {
         auto concat_op = concat_opt.get_concat(ins->get_operator());

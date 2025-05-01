@@ -32,6 +32,8 @@
 #include <migraphx/make_op.hpp>
 #include <migraphx/register_op.hpp>
 
+MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_DISABLE_POINTWISE_FUSION)
+
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
 
@@ -253,6 +255,10 @@ struct find_pointwise_concat_pointwise : concat_counter<1>
 
 void fuse_concat::apply(module_pass_manager& mpm) const
 {
+    if(enabled(MIGRAPHX_DISABLE_POINTWISE_FUSION{}))
+    {
+        return;
+    }
     match::find_matches(mpm, find_pointwise_concat_pointwise{});
     mpm.run_pass(migraphx::dead_code_elimination{});
     match::find_matches(mpm, find_concat_pointwise{});

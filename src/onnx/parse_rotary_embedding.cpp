@@ -258,20 +258,42 @@ struct parse_rotary_embedding : op_parser<parse_rotary_embedding>
             return info.add_broadcastable_binary_op("add", mul_sin, mul_cos);
         }
 
-        auto pos = info.add_instruction(
+        auto in_0 = info.add_instruction(
             make_op("slice",
                     {{"axes", {-1}}, {"starts", {0}}, {"ends", {params.rotary_embedding_dim / 2}}}),
             in);
-        auto neg     = info.add_instruction(make_op("slice",
+        auto in_1     = info.add_instruction(make_op("slice",
                                                     {{"axes", {-1}},
                                                      {"starts", {params.rotary_embedding_dim / 2}},
                                                      {"ends", {params.rotary_embedding_dim}}}),
                                         in);
-        neg          = info.add_instruction(make_op("neg"), neg);
-        auto concat  = info.add_instruction(make_op("concat", {{"axis", -1}}), neg, pos);
-        auto mul_sin = info.add_broadcastable_binary_op("mul", concat, sin);
-        auto mul_cos = info.add_broadcastable_binary_op("mul", in, cos);
-        return info.add_broadcastable_binary_op("add", mul_sin, mul_cos);
+        auto neg          = info.add_instruction(make_op("neg"), in_1);
+        auto mul_sin_0 = info.add_broadcastable_binary_op("mul", in_0, sin);
+        auto mul_sin_1 = info.add_broadcastable_binary_op("mul", neg, sin);
+        auto mul_cos_0 = info.add_broadcastable_binary_op("mul", in_0, cos);
+        auto mul_cos_1 = info.add_broadcastable_binary_op("mul", in_1, cos);
+        auto add_0 = info.add_broadcastable_binary_op("add", mul_sin_1, mul_cos_0);
+        auto add_1 = info.add_broadcastable_binary_op("add", mul_sin_0, mul_cos_1);
+        return info.add_instruction(make_op("concat", {{"axis", -1}}), add_0, add_1);
+        // auto concat_sin  = info.add_instruction(make_op("concat", {{"axis", -1}}), mul_sin_1, mul_sin_0);
+        // auto concat_cos  = info.add_instruction(make_op("concat", {{"axis", -1}}), mul_cos_0, mul_cos_1);
+        
+        // return info.add_broadcastable_binary_op("add", concat_sin, concat_cos);
+
+        // auto pos = info.add_instruction(
+        //     make_op("slice",
+        //             {{"axes", {-1}}, {"starts", {0}}, {"ends", {params.rotary_embedding_dim / 2}}}),
+        //     in);
+        // auto neg     = info.add_instruction(make_op("slice",
+        //                                             {{"axes", {-1}},
+        //                                              {"starts", {params.rotary_embedding_dim / 2}},
+        //                                              {"ends", {params.rotary_embedding_dim}}}),
+        //                                 in);
+        // neg          = info.add_instruction(make_op("neg"), neg);
+        // auto concat  = info.add_instruction(make_op("concat", {{"axis", -1}}), neg, pos);
+        // auto mul_sin = info.add_broadcastable_binary_op("mul", concat, sin);
+        // auto mul_cos = info.add_broadcastable_binary_op("mul", in, cos);
+        // return info.add_broadcastable_binary_op("add", mul_sin, mul_cos);
     }
 
     static instruction_ref get_cache_slice(const instruction_ref& cache,
@@ -305,16 +327,55 @@ struct parse_rotary_embedding : op_parser<parse_rotary_embedding>
                 make_op("reshape", {{"dims", {gather->get_shape().elements(), 1}}}), gather);
         }
 
-        auto output = info.add_instruction(make_op("concat", {{"axis", -1}}), gather, gather);
         std::vector<std::size_t> out_lens = {
-            params.batch_size, params.seq_len, 1, params.rotary_embedding_dim};
-        output   = info.add_instruction(make_op("reshape", {{"dims", out_lens}}), output);
+            params.batch_size, params.seq_len, 1, params.rotary_embedding_dim/2};
+        auto output   = info.add_instruction(make_op("reshape", {{"dims", out_lens}}), gather);
         out_lens = {
-            params.batch_size, params.seq_len, params.num_heads, params.rotary_embedding_dim};
+            params.batch_size, params.seq_len, params.num_heads, params.rotary_embedding_dim/2};
         output = info.add_instruction(make_op("multibroadcast", {{"out_lens", out_lens}}), output);
         out_lens = {
-            params.batch_size, params.num_heads, params.seq_len, params.rotary_embedding_dim};
+            params.batch_size, params.num_heads, params.seq_len, params.rotary_embedding_dim/2};
         return info.add_instruction(make_op("reshape", {{"dims", out_lens}}), output);
+
+        // return gather; // b,s,hs/2
+        // auto output = info.add_instruction(make_op("concat", {{"axis", -1}}), gather, gather);
+        // std::vector<std::size_t> out_lens = {
+        //     params.batch_size, params.seq_len, 1, params.rotary_embedding_dim};
+        // output   = info.add_instruction(make_op("reshape", {{"dims", out_lens}}), output);
+        // out_lens = {
+        //     params.batch_size, params.seq_len, params.num_heads, params.rotary_embedding_dim};
+        // output = info.add_instruction(make_op("multibroadcast", {{"out_lens", out_lens}}), output);
+        // out_lens = {
+        //     params.batch_size, params.num_heads, params.seq_len, params.rotary_embedding_dim};
+        // return info.add_instruction(make_op("reshape", {{"dims", out_lens}}), output);
+
+
+        // instruction_ref output;
+        // if(interleaved)
+        // {
+        //     std::vector<std::size_t> rs_lens = {
+        //         params.batch_size, params.seq_len, 1, params.rotary_embedding_dim};
+        //     auto half_rot_dim = gather->get_shape().elements();
+        //     gather = info.add_instruction(
+        //         make_op("reshape", {{"dims", {half_rot_dim, 1, 1}}}), gather);
+        //     output = info.add_instruction(make_op("multibroadcast", {{"out_lens", {half_rot_dim, 2, 1}}}), gather);
+        //     output = info.add_instruction(make_op("reshape", {{"dims", rs_lens}}), output);
+        //     rs_lens[2] = params.num_heads;
+        //     output = info.add_instruction(make_op("multibroadcast", {{"out_lens", rs_lens}}), output);
+        // }
+        // else
+        // {
+        //     std::vector<std::size_t> rs_lens = {
+        //         params.batch_size, params.seq_len, 1, 1, params.rotary_embedding_dim/2};
+        //     output   = info.add_instruction(make_op("reshape", {{"dims", rs_lens}}), gather);
+        //     rs_lens = {
+        //         params.batch_size, params.seq_len, params.num_heads, 2, params.rotary_embedding_dim/2};
+        //     output = info.add_instruction(make_op("multibroadcast", {{"out_lens", rs_lens}}), output);
+        // }
+
+        // std::vector<std::size_t> out_lens = {
+        //     params.batch_size, params.num_heads, params.seq_len, params.rotary_embedding_dim};
+        // return info.add_instruction(make_op("reshape", {{"dims", out_lens}}), output);
     }
 
     std::vector<instruction_ref> parse(const op_desc& /*opd*/,

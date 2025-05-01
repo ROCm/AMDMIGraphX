@@ -30,6 +30,8 @@
 #include <migraphx/optimize_module.hpp>
 #include <migraphx/env.hpp>
 
+MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_DISABLE_POINTWISE_FUSION)
+
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
 MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_SPLIT_REDUCE_SIZE);
@@ -45,6 +47,10 @@ static std::size_t get_split_size(std::size_t default_split)
 
 void fuse_pointwise_reduce::apply(module_pass_manager& mpm) const
 {
+    if(enabled(MIGRAPHX_DISABLE_POINTWISE_FUSION{}))
+    {
+        return;
+    }
     mpm.run_pass(fuse_pointwise{.enable_rewrite_reshapes = false});
     mpm.run_pass(optimize_module{});
     mpm.run_pass(fuse_reduce{.enable_rewrite_reshapes = false});

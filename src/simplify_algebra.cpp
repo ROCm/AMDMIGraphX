@@ -39,6 +39,8 @@
 #include <migraphx/algorithm.hpp>
 #include <unordered_set>
 
+MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_DISABLE_SIMP_ALG)
+
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
 
@@ -2065,6 +2067,10 @@ struct find_split_transpose
 
 void simplify_algebra::apply(module& m) const
 {
+    if(enabled(MIGRAPHX_DISABLE_SIMP_ALG{}))
+    {
+        return;
+    }
     // Run simplifications multiple times
     m.repeat_while_changes(8, [&] {
         match::find_matches(m,

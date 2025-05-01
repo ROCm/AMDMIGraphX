@@ -63,8 +63,8 @@ static rocblas_datatype get_type(shape::type_t type)
     case shape::uint8_type: return rocblas_datatype_u8_r;
     case shape::int32_type: return rocblas_datatype_i32_r;
     case shape::uint32_type: return rocblas_datatype_u32_r;
-    case shape::fp8e4m3fnuz_type: return rocblas_datatype_f8_r;
-    case shape::fp8e5m2fnuz_type: return rocblas_datatype_bf8_r;
+    case shape::fp8e4m3fnuz_type:
+    case shape::fp8e5m2fnuz_type:
     case shape::fp8e4m3fn_type:
     case shape::fp8e5m2_type:
     case shape::tuple_type:
@@ -115,7 +115,6 @@ shape transpose_batch(const shape& s, unsigned trans_batch)
  * Returns results of rocblas_status_success, rocblas_status_perf_degraded,
  * or rocblas_status_invalid_value.  Caller
  * is expected to check for invalid index.  Any other result causes an exception.
- *
  */
 template <class F, class Pack, class... Ts>
 static auto rocblas_invoke(F f, Pack p, Ts... xs)
@@ -265,54 +264,23 @@ struct gemm_impl
 
     void run(context& ctx, const std::vector<argument>& input_args, int32_t solution_idx = 0) const
     {
-#ifdef MIGRAPHX_USE_ROCBLAS_FP8_API
-        if(rocblas_fp8_available() and
-           std::any_of(input_args.begin(), input_args.end(), [](const auto& i) {
-               return i.get_shape().type() == migraphx::shape::fp8e4m3fnuz_type;
-           }))
+        if(strided_batched)
         {
-            if(strided_batched)
-            {
-                auto common_args =
-                    create_strided_batched_args_common(ctx, compute_type, input_args);
-                rocblas_invoke(&rocblas_gemm_strided_batched_ex3,
-                               common_args,
-                               rocblas_gemm_algo_standard,
-                               solution_idx,
-                               gemm_flags);
-            }
-            else
-            {
-                auto common_args = create_gemm_ex_args_common(ctx, compute_type, input_args);
-                rocblas_invoke(&rocblas_gemm_ex3,
-                               common_args,
-                               rocblas_gemm_algo_standard,
-                               solution_idx,
-                               gemm_flags);
-            }
+            auto common_args = create_strided_batched_args_common(ctx, compute_type, input_args);
+            rocblas_invoke(&rocblas_gemm_strided_batched_ex,
+                           common_args,
+                           rocblas_gemm_algo_solution_index,
+                           solution_idx,
+                           gemm_flags);
         }
         else
-#endif
         {
-            if(strided_batched)
-            {
-                auto common_args =
-                    create_strided_batched_args_common(ctx, compute_type, input_args);
-                rocblas_invoke(&rocblas_gemm_strided_batched_ex,
-                               common_args,
-                               rocblas_gemm_algo_solution_index,
-                               solution_idx,
-                               gemm_flags);
-            }
-            else
-            {
-                auto common_args = create_gemm_ex_args_common(ctx, compute_type, input_args);
-                rocblas_invoke(&rocblas_gemm_ex,
-                               common_args,
-                               rocblas_gemm_algo_solution_index,
-                               solution_idx,
-                               gemm_flags);
-            }
+            auto common_args = create_gemm_ex_args_common(ctx, compute_type, input_args);
+            rocblas_invoke(&rocblas_gemm_ex,
+                           common_args,
+                           rocblas_gemm_algo_solution_index,
+                           solution_idx,
+                           gemm_flags);
         }
     }
 
@@ -476,12 +444,6 @@ struct gemm_impl
         rocblas_int list_size = 0;
         std::vector<rocblas_int> solution_indices;
         rb_compute_type rbcompute_type = compute_type;
-        // rocblas_gemm_get_solutions() API requires compute_type as rocblas_datatype. Convert
-        // manually for FP8
-        if(arg_type == rocblas_datatype_f8_r)
-        {
-            rbcompute_type = rocblas_datatype_f32_r;
-        }
         if(strided_batched)
         {
             auto common_args = create_strided_batched_args_common(ctx, rbcompute_type, input_args);

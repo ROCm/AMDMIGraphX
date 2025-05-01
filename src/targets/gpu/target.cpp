@@ -112,44 +112,36 @@ std::vector<pass> target::get_passes(migraphx::context& gctx, const compile_opti
     }
 
     // whiltelist supported Ops for the FP8 types
-    // different between fp8e4m3fnuz and OCP types because rocBLAS only has
-    // support for fp8e4m3fnuz
-    std::set<std::string> unsupported_fp8e4m3fnuz_ops = {};
-    if(not gpu::gfx_has_fp8fnuz_support())
+    // rocBLAS does not support any FP8 types
+    std::set<std::string> unsupported_fp8fnuz_ops = {};
+    if(string_value_of(MIGRAPHX_SET_GEMM_PROVIDER{}) == "rocblas")
     {
-        unsupported_fp8e4m3fnuz_ops.insert("dot");
-        unsupported_fp8e4m3fnuz_ops.insert("quant_dot");
+        std::cout << "rocBLAS provider selected. rocBLAS does not support FP8 types.\n";
+        unsupported_fp8fnuz_ops.insert("dot");
+        unsupported_fp8fnuz_ops.insert("quant_dot");
     }
-#if MIGRAPHX_USE_MIOPEN
-    // MIOpen doesn't have support for fp8 pooling yet.
-    unsupported_fp8e4m3fnuz_ops.insert("pooling");
+#if MIGRAPHX_USE_MIOPEN // MIOpen doesn't have support for fp8 pooling yet.
+    unsupported_fp8fnuz_ops.insert("pooling");
 #endif
     if(not gpu::gfx_has_fp8fnuz_intrinsics())
     {
-        unsupported_fp8e4m3fnuz_ops.insert("convolution");
-        unsupported_fp8e4m3fnuz_ops.insert("quant_convolution");
+        unsupported_fp8fnuz_ops.insert("dot");
+        unsupported_fp8fnuz_ops.insert("quant_dot");
+        unsupported_fp8fnuz_ops.insert("convolution");
+        unsupported_fp8fnuz_ops.insert("quant_convolution");
     }
     // add all device kernels
-    unsupported_fp8e4m3fnuz_ops.insert("logsoftmax");
-    unsupported_fp8e4m3fnuz_ops.insert("nonzero");
-    unsupported_fp8e4m3fnuz_ops.insert("prefix_scan_sum");
-    unsupported_fp8e4m3fnuz_ops.insert("scatter_none");
-    unsupported_fp8e4m3fnuz_ops.insert("topk");
-    unsupported_fp8e4m3fnuz_ops.insert("rnn_var_sl_shift_output");
-    unsupported_fp8e4m3fnuz_ops.insert("multinomial");
-    unsupported_fp8e4m3fnuz_ops.insert("argmax");
-    unsupported_fp8e4m3fnuz_ops.insert("argmin");
-
-    std::set<std::string> unsupported_fp8e5m2fnuz_ops = unsupported_fp8e4m3fnuz_ops;
-    // disable gemm for fp8e5m2fnuz if rocBLAS is being used
-    if(string_value_of(MIGRAPHX_SET_GEMM_PROVIDER{}) == "rocblas")
-    {
-        unsupported_fp8e5m2fnuz_ops.insert("dot");
-        unsupported_fp8e5m2fnuz_ops.insert("quant_dot");
-    }
+    unsupported_fp8fnuz_ops.insert("logsoftmax");
+    unsupported_fp8fnuz_ops.insert("nonzero");
+    unsupported_fp8fnuz_ops.insert("prefix_scan_sum");
+    unsupported_fp8fnuz_ops.insert("scatter_none");
+    unsupported_fp8fnuz_ops.insert("topk");
+    unsupported_fp8fnuz_ops.insert("rnn_var_sl_shift_output");
+    unsupported_fp8fnuz_ops.insert("multinomial");
+    unsupported_fp8fnuz_ops.insert("argmax");
+    unsupported_fp8fnuz_ops.insert("argmin");
 
     std::set<std::string> unsupported_fp8ocp_ops = {};
-
 #if MIGRAPHX_USE_MIOPEN
     // MIOpen doesn't have support for fp8 pooling yet.
     unsupported_fp8ocp_ops.insert("pooling");
@@ -208,8 +200,7 @@ std::vector<pass> target::get_passes(migraphx::context& gctx, const compile_opti
         dead_code_elimination{},
         prefuse_ops{},
         dead_code_elimination{},
-        eliminate_data_type{{migraphx::shape::fp8e4m3fnuz_type}, shape::float_type, unsupported_fp8e4m3fnuz_ops},
-        eliminate_data_type{{migraphx::shape::fp8e5m2fnuz_type}, shape::float_type, unsupported_fp8e5m2fnuz_ops},
+        eliminate_data_type{{migraphx::shape::fp8e4m3fnuz_type, migraphx::shape::fp8e5m2fnuz_type}, shape::float_type, unsupported_fp8fnuz_ops},
         eliminate_data_type{{migraphx::shape::fp8e4m3fn_type, migraphx::shape::fp8e5m2_type}, shape::float_type, unsupported_fp8ocp_ops},
         dead_code_elimination{},
         rewrite_reduce{},

@@ -43,8 +43,6 @@ struct context;
 
 MIGRAPHX_GPU_EXPORT bool get_compute_fp32_flag();
 
-MIGRAPHX_GPU_EXPORT bool rocblas_fp8_available();
-
 } // namespace gpu
 } // namespace MIGRAPHX_INLINE_NS
 } // namespace migraphx

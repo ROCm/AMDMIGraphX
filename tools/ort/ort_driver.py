@@ -45,9 +45,6 @@ def parse_args():
     parser.add_argument('--fill0',
                         action='store_true',
                         help='fill all arguments with a value of 0')
-    parser.add_argument('--fp16',
-                        action='store_true',
-                        help='quantize onnx model to fp16')
     parser.add_argument(
         '--default-dim-value',
         type=int,

@@ -48,10 +48,11 @@ def parse_args():
     parser.add_argument('--fp16',
                         action='store_true',
                         help='quantize onnx model to fp16')
-    parser.add_argument('--default-dim-value',
-                        type=int,
-                        default=1,
-                        help='default dim value (if any specified in onnx file)')
+    parser.add_argument(
+        '--default-dim-value',
+        type=int,
+        default=1,
+        help='default dim value (if any specified in onnx file)')
     parser.add_argument('--verbose',
                         action='store_true',
                         help='show verbose information (for debugging)')
@@ -67,7 +68,6 @@ def parse_args():
                         action='store_true',
                         default=False,
                         help='Turn on ort VERBOSE logging via session options')
-
 
     args = parser.parse_args()
 
@@ -110,7 +110,6 @@ def main():
             dims = [int(dim) for dim in input.split(':')[-1].split(',')]
             input_dims[input_dim] = dims
 
-
     sess_op = ort.SessionOptions()
 
     if args.ort_logging:
@@ -118,30 +117,29 @@ def main():
         sess_op.log_severity_level = 0
 
     sess = ort.InferenceSession(model_name,
-                                    sess_options=sess_op,
-                                    providers=[args.provider])
+                                sess_options=sess_op,
+                                providers=[args.provider])
 
     test_inputs = {}
     for input in sess.get_inputs():
         name = input.name
         in_shape = input.shape
         in_type = input.type
-        
+
         for idx, dim in enumerate(in_shape):
             if not isinstance(dim, int):
                 if args.verbose:
-                    print(f'''Dim param found at index {idx}: {dim}. '''
-                          f'''Setting to default dim value of {args.default_dim_value}.''')
+                    print(
+                        f'''Dim param found at index {idx}: {dim}. '''
+                        f'''Setting to default dim value of {args.default_dim_value}.'''
+                    )
                 in_shape[idx] = 1
-                
-                
 
         if name in input_dims:
             in_shape = input_dims[name]
 
         if args.verbose:
             print(f'Parameter {name} -> {in_shape}, {in_type}')
-
 
         if not args.fill1 and not args.fill0:
             test_input = np.random.rand(*(in_shape)).astype(
@@ -151,7 +149,6 @@ def main():
         else:
             test_input = np.zeros(in_shape).astype(get_np_datatype(in_type))
         test_inputs[name] = test_input
-        
 
     ort_params = {}
     for input in sess.get_inputs():
@@ -168,6 +165,7 @@ def main():
             )
         raise e
     print('onnxruntime driver completed successfully.')
+
 
 if __name__ == '__main__':
     main()

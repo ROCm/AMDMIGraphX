@@ -155,16 +155,17 @@ def main():
         ort_params[input.name] = test_inputs[input.name]
 
     try:
-        pred_ort = sess.run(None, ort_params)[-1]
+        pred_ort = sess.run(None, ort_params)
         if args.verbose:
-            print(pred_ort)
+            for idx, output in enumerate(pred_ort):
+                print(f'output at index {idx}: {output}')
     except Exception as e:
         if any(input_dims):
             print(
                 'Error: custom input dim may not be compatible with onnx runtime'
             )
         raise e
-    print('onnxruntime driver completed successfully.')
+    print('onnx runtime driver completed successfully.')
 
 
 if __name__ == '__main__':

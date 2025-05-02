@@ -114,9 +114,8 @@ std::vector<pass> target::get_passes(migraphx::context& gctx, const compile_opti
     // whiltelist supported Ops for the FP8 types
     // rocBLAS does not support any FP8 types
     std::set<std::string> unsupported_fp8fnuz_ops = {};
-    if(string_value_of(MIGRAPHX_SET_GEMM_PROVIDER{}) == "rocblas")
+    if(string_value_of(MIGRAPHX_SET_GEMM_PROVIDER{}) == "rocblas" or gpu::gfx_default_rocblas())
     {
-        std::cout << "rocBLAS provider selected. rocBLAS does not support FP8 types.\n";
         unsupported_fp8fnuz_ops.insert("dot");
         unsupported_fp8fnuz_ops.insert("quant_dot");
     }

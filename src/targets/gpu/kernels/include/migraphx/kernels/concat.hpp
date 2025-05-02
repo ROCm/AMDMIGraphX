@@ -203,9 +203,8 @@ struct block_tile
                 MIGRAPHX_ASSERT(z.get_shape().lens.back() == N * MaxSize);
                 MIGRAPHX_ASSERT(z.get_shape().elements() == output.get_shape().elements());
                 MIGRAPHX_ASSERT(compute_group(z.get_shape().lens) == NGroups);
-                block_stride<per_block, 8>(idx, z.get_shape().elements())([&](auto i) {
-                    z[i] = f(output[i], ys[i]...);
-                });
+                block_stride<per_block, 8>(idx, z.get_shape().elements())(
+                    [&](auto i) { z[i] = f(output[i], ys[i]...); });
             });
         }
     };

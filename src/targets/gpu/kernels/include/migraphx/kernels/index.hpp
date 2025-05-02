@@ -381,18 +381,16 @@ struct single_group : Base
     }
 };
 
-template<class Group, index_int Block, class N>
+template <class Group, index_int Block, class N>
 constexpr auto block_stride(index idx, N n)
 {
     return [=](auto f) {
         const auto m = n / _c<Block>;
         Group{idx}.local_stride(m, [&](auto j) {
-            const auto jblock = j*Block;
-            repeat_c<Block>([&](auto k) {
-                f(jblock + k);
-            });
+            const auto jblock = j * Block;
+            repeat_c<Block>([&](auto k) { f(jblock + k); });
         });
-        const auto mblock = m*_c<Block>;
+        const auto mblock = m * _c<Block>;
         if(mblock < n)
         {
             repeat_c<Block>([&](auto k) {

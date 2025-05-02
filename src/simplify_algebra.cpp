@@ -1159,6 +1159,21 @@ struct find_splits
         return reaches(start, end, &m);
     }
 
+    static auto get_matching_ins(instruction_ref split, instruction_ref out)
+    {
+        return std::find_if(split->outputs().begin(), split->outputs().end(), [&](auto i) {
+            if(i->get_operator() == out->get_operator())
+            {
+                if(i->name() == "pointwise")
+                {
+                    return (*(i->module_inputs().front()) == *(out->module_inputs().front()));
+                }
+                return true;
+            }
+            return false;
+        });
+    }
+
     /**
      * Returns empty vector if split group not found
      */
@@ -1177,19 +1192,7 @@ struct find_splits
             }
             else
             {
-                auto it =
-                    std::find_if(split->outputs().begin(), split->outputs().end(), [&](auto i) {
-                        if(i->get_operator() == out->get_operator())
-                        {
-                            if(i->name() == "pointwise")
-                            {
-                                return (*(i->module_inputs().front()) ==
-                                        *(out->module_inputs().front()));
-                            }
-                            return true;
-                        }
-                        return false;
-                    });
+                auto it = get_matching_ins(split, out);
                 if(it == split->outputs().end())
                     return {};
                 assert((*it)->name() != "slice");

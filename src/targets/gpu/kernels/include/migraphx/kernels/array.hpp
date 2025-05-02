@@ -344,7 +344,7 @@ struct integral_const_array : array<T, sizeof...(Xs)>
             if(z >= this->d[i])
             {
                 result[i] = z % this->d[i];
-                overflow = z / this->d[i];
+                overflow  = z / this->d[i];
             }
         }
         result[0] += overflow;

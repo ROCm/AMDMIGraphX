@@ -354,7 +354,7 @@ struct per_block
     constexpr auto nlocal() const { return idx.nlocal(); }
 
     constexpr auto size() const { return idx.ngroup(); }
-    
+
     constexpr auto group() const { return idx.group; }
 
     template <class N, class F>
@@ -370,7 +370,7 @@ struct per_block
     }
 };
 
-template<class Base>
+template <class Base>
 struct single_group : Base
 {
     template <class N, class F>

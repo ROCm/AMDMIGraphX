@@ -154,14 +154,15 @@ struct block_tile
     {
         constexpr auto slice() const
         {
-            return slice_schedule<single_group<per_block>>(idx, slice_axes<-1>(), slice_group<NGroups>());
+            return slice_schedule<single_group<per_block>>(
+                idx, slice_axes<-1>(), slice_group<NGroups>());
         }
 
         static __device__ auto output_data()
         {
             constexpr auto s = make_shape(index_ints<NGroups, N, MaxSize>{});
-            // constexpr auto stride = ceil_div(MaxSize, MIGRAPHX_WAVEFRONTSIZE) * MIGRAPHX_WAVEFRONTSIZE;
-            // constexpr auto s = make_shape(
+            // constexpr auto stride = ceil_div(MaxSize, MIGRAPHX_WAVEFRONTSIZE) *
+            // MIGRAPHX_WAVEFRONTSIZE; constexpr auto s = make_shape(
             //     index_ints<NGroups, N, MaxSize>{},
             //     index_ints<N * stride,
             //                 stride,
@@ -202,9 +203,8 @@ struct block_tile
                 MIGRAPHX_ASSERT(z.get_shape().lens.back() == N * MaxSize);
                 MIGRAPHX_ASSERT(z.get_shape().elements() == output.get_shape().elements());
                 MIGRAPHX_ASSERT(compute_group(z.get_shape().lens) == NGroups);
-                idx.local_stride(z.get_shape().elements(), [&](auto i) {
-                    z[i] = f(output[i], ys[i]...);
-                });
+                idx.local_stride(z.get_shape().elements(),
+                                 [&](auto i) { z[i] = f(output[i], ys[i]...); });
             });
         }
     };

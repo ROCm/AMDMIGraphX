@@ -130,7 +130,7 @@ def main():
                         f'''Dim param found at index {idx}: {dim}. '''
                         f'''Setting to default dim value of {args.default_dim_value}.'''
                     )
-                in_shape[idx] = 1
+                in_shape[idx] = args.default_dim_value
 
         if name in input_dims:
             in_shape = input_dims[name]

@@ -128,7 +128,7 @@ struct concat_compiler : compiler<concat_compiler>
 #else
         auto ninputs             = concat_params.size();
         auto max_elements_per_op = max_size(options.virtual_inputs, ninputs, concat_axis);
-        auto group               = 2;
+        auto group               = 16;
         auto nslices             = options.virtual_inputs.back().elements() /
                        options.virtual_inputs.back().lens()[concat_axis];
         auto block_size  = compute_block_size(ctx, max_elements_per_op * group, 256);

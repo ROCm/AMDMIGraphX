@@ -29,7 +29,6 @@
 #include <migraphx/kernels/dpp.hpp>
 #include <migraphx/kernels/math.hpp>
 #include <migraphx/kernels/ops.hpp>
-#include <migraphx/kernels/print.hpp>
 
 #ifndef MIGRAPHX_GUARD_KERNELS_CONCAT_HPP
 #define MIGRAPHX_GUARD_KERNELS_CONCAT_HPP
@@ -155,16 +154,17 @@ struct block_tile
     {
         constexpr auto slice() const
         {
-            return slice_schedule<per_block>(idx, slice_axes<-1>(), slice_group<NGroups>());
+            return slice_schedule<single_group<per_block>>(idx, slice_axes<-1>(), slice_group<NGroups>());
         }
 
         static __device__ auto output_data()
         {
             constexpr auto s = make_shape(index_ints<NGroups, N, MaxSize>{});
+            // constexpr auto stride = ceil_div(MaxSize, MIGRAPHX_WAVEFRONTSIZE) * MIGRAPHX_WAVEFRONTSIZE;
             // constexpr auto s = make_shape(
-            //     index_ints<N, MaxSize>{},
-            //     index_ints<1 + ceil_div(MaxSize, MIGRAPHX_WAVEFRONTSIZE) *
-            //     MIGRAPHX_WAVEFRONTSIZE,
+            //     index_ints<NGroups, N, MaxSize>{},
+            //     index_ints<N * stride,
+            //                 stride,
             //                1>{});
             __shared__ T storage[s.element_space()];
             return make_tensor_view(storage, s);
@@ -203,15 +203,8 @@ struct block_tile
                 MIGRAPHX_ASSERT(z.get_shape().elements() == output.get_shape().elements());
                 MIGRAPHX_ASSERT(compute_group(z.get_shape().lens) == NGroups);
                 idx.local_stride(z.get_shape().elements(), [&](auto i) {
-                    auto multi_idx = z.get_shape().multi(i);
-                    auto depth     = multi_idx.back() / MaxSize;
-                    auto k         = multi_idx.back() % MaxSize;
-                    auto group     = compute_group(multi_idx);
-                    z[i] = f(output[{group, depth, k}], ys[i]...);
+                    z[i] = f(output[i], ys[i]...);
                 });
-                // idx.local_wave_stride(z.get_shape().elements(), [&](auto i, auto k) {
-                //     z[i] = f(data[k], ys[i]...);
-                // });
             });
         }
     };

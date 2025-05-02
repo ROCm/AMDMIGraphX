@@ -330,6 +330,8 @@ struct per_wave
         return idx.nwave();
     }
 
+    constexpr auto group() const { return idx.wave(); }
+
     template<class N, class F>
     constexpr void group_stride(N n, F f) const
     {
@@ -352,6 +354,8 @@ struct per_block
     constexpr auto nlocal() const { return idx.nlocal(); }
 
     constexpr auto size() const { return idx.ngroup(); }
+    
+    constexpr auto group() const { return idx.group; }
 
     template <class N, class F>
     constexpr void group_stride(N n, F f) const
@@ -363,6 +367,17 @@ struct per_block
     constexpr void local_stride(N n, F f) const
     {
         return idx.local_stride(n, f);
+    }
+};
+
+template<class Base>
+struct single_group : Base
+{
+    template <class N, class F>
+    constexpr void group_stride(N n, F f) const
+    {
+        // MIGRAPHX_ASSERT(this->size() >= n);
+        return this->idx.group_stride(n, f);
     }
 };
 

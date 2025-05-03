@@ -203,6 +203,10 @@ struct find_op_shape_transform_op
         auto x_ins     = r.instructions["x"];
         auto input_ins = r.instructions["input"];
 
+        // shape_transform_descriptor doesnt handle scalars for now
+        if(input_ins->get_shape().scalar() or x_ins->get_shape().scalar())
+            return;
+
         // If its just a broadcast then skip
         if(not any_input_of(input_ins, x_ins, [](instruction_ref x) {
                return not contains({"multibroadcast", "broadcast", "contiguous"}, x->name());

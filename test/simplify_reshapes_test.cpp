@@ -2232,19 +2232,20 @@ TEST_CASE(pointwise_squeeze_scalar_pointwise)
         auto relu    = m1.add_instruction(migraphx::make_op("relu"), add);
         m1.add_return({relu});
     }
+    migraphx::module m2 = m1;
     run_pass(m1);
-    migraphx::module m2;
-    {
-        auto x        = m2.add_parameter("x", s1);
-        auto y        = m2.add_parameter("y", s1);
-        auto z        = m2.add_parameter("z", s2);
-        auto squeezex = m2.add_instruction(migraphx::make_op("squeeze", {{"axes", {0}}}), x);
-        auto squeezey = m2.add_instruction(migraphx::make_op("squeeze", {{"axes", {0}}}), y);
-        auto mul      = m2.add_instruction(migraphx::make_op("mul"), squeezex, squeezey);
-        auto add      = m2.add_instruction(migraphx::make_op("add"), mul, z);
-        auto relu     = m2.add_instruction(migraphx::make_op("relu"), add);
-        m2.add_return({relu});
-    }
+    // TODO: Enable a rewrite for this case. For now just check that we dont crash
+    // {
+    //     auto x        = m2.add_parameter("x", s1);
+    //     auto y        = m2.add_parameter("y", s1);
+    //     auto z        = m2.add_parameter("z", s2);
+    //     auto squeezex = m2.add_instruction(migraphx::make_op("squeeze", {{"axes", {0}}}), x);
+    //     auto squeezey = m2.add_instruction(migraphx::make_op("squeeze", {{"axes", {0}}}), y);
+    //     auto mul      = m2.add_instruction(migraphx::make_op("mul"), squeezex, squeezey);
+    //     auto add      = m2.add_instruction(migraphx::make_op("add"), mul, z);
+    //     auto relu     = m2.add_instruction(migraphx::make_op("relu"), add);
+    //     m2.add_return({relu});
+    // }
     EXPECT(m1.sort() == m2.sort());
 }
 

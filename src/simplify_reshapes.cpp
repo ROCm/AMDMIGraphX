@@ -268,7 +268,7 @@ struct find_op_shape_transform_op
         assert(x_ins->get_shape().lens() == new_x_ins->get_shape().lens());
         m.replace_instruction(x_ins, new_x_ins);
         // Replace final instruction
-        auto pw = insert(m, ins, inputs, desc.common_axes_map_from_dst());
+        auto pw   = insert(m, ins, inputs, desc.common_axes_map_from_dst());
         auto rins = reshape_input(ins, &shape_transform_descriptor::generate_dst_from_common)(pw);
         assert(ins->get_shape().lens() == rins->get_shape().lens());
         m.replace_instruction(ins, rins);

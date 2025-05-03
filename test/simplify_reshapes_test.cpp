@@ -2223,29 +2223,26 @@ TEST_CASE(pointwise_squeeze_scalar_pointwise)
     auto s2 = migraphx::shape{migraphx::shape::float_type, {1}, {0}};
     migraphx::module m1;
     {
-        auto x         = m1.add_parameter("x", s1);
-        auto y         = m1.add_parameter("y", s1);
-        auto z         = m1.add_parameter("z", s2);
-        auto mul       = m1.add_instruction(migraphx::make_op("mul"), x, y);
-        auto squeeze = m1.add_instruction(
-            migraphx::make_op("squeeze", {{"axes", {0}}}), mul);
-        auto add  = m1.add_instruction(migraphx::make_op("add"), squeeze, z);
-        auto relu = m1.add_instruction(migraphx::make_op("relu"), add);
+        auto x       = m1.add_parameter("x", s1);
+        auto y       = m1.add_parameter("y", s1);
+        auto z       = m1.add_parameter("z", s2);
+        auto mul     = m1.add_instruction(migraphx::make_op("mul"), x, y);
+        auto squeeze = m1.add_instruction(migraphx::make_op("squeeze", {{"axes", {0}}}), mul);
+        auto add     = m1.add_instruction(migraphx::make_op("add"), squeeze, z);
+        auto relu    = m1.add_instruction(migraphx::make_op("relu"), add);
         m1.add_return({relu});
     }
     run_pass(m1);
     migraphx::module m2;
     {
-        auto x = m2.add_parameter("x", s1);
-        auto y = m2.add_parameter("y", s1);
-        auto z = m2.add_parameter("z", s2);
-        auto squeezex =
-            m2.add_instruction(migraphx::make_op("squeeze", {{"axes", {0}}}), x);
-        auto squeezey =
-            m2.add_instruction(migraphx::make_op("squeeze", {{"axes", {0}}}), y);
-        auto mul  = m2.add_instruction(migraphx::make_op("mul"), squeezex, squeezey);
-        auto add  = m2.add_instruction(migraphx::make_op("add"), mul, z);
-        auto relu = m2.add_instruction(migraphx::make_op("relu"), add);
+        auto x        = m2.add_parameter("x", s1);
+        auto y        = m2.add_parameter("y", s1);
+        auto z        = m2.add_parameter("z", s2);
+        auto squeezex = m2.add_instruction(migraphx::make_op("squeeze", {{"axes", {0}}}), x);
+        auto squeezey = m2.add_instruction(migraphx::make_op("squeeze", {{"axes", {0}}}), y);
+        auto mul      = m2.add_instruction(migraphx::make_op("mul"), squeezex, squeezey);
+        auto add      = m2.add_instruction(migraphx::make_op("add"), mul, z);
+        auto relu     = m2.add_instruction(migraphx::make_op("relu"), add);
         m2.add_return({relu});
     }
     EXPECT(m1.sort() == m2.sort());

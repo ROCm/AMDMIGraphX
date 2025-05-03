@@ -219,7 +219,8 @@ struct find_op_shape_transform_op
         assert(next_ins == x_ins);
         std::reverse(ops.begin(), ops.end());
 
-        auto desc = shape_transform_descriptor::create(x_ins->get_shape().lens(), ops).rebase(x_ins->inputs().front()->get_shape().lens(), true);
+        auto desc = shape_transform_descriptor::create(x_ins->get_shape().lens(), ops)
+                        .rebase(x_ins->inputs().front()->get_shape().lens(), true);
         if(desc.empty())
             return;
 
@@ -241,16 +242,14 @@ struct find_op_shape_transform_op
             };
         };
         auto x_inputs = x_ins->inputs();
-        std::transform(x_inputs.begin(),
-                       x_inputs.end(),
-                       x_inputs.begin(),
-                       reshape_input(x_ins,
-                                     &shape_transform_descriptor::generate_common_from_src,
-                                     desc));
+        std::transform(
+            x_inputs.begin(),
+            x_inputs.end(),
+            x_inputs.begin(),
+            reshape_input(x_ins, &shape_transform_descriptor::generate_common_from_src, desc));
         auto new_input_ins = insert(m, x_ins, x_inputs, desc.common_axes_map_from_src());
-        auto new_x_ins     = reshape_input(x_ins,
-                                       &shape_transform_descriptor::generate_src_from_common,
-                                       desc)(new_input_ins);
+        auto new_x_ins     = reshape_input(
+            x_ins, &shape_transform_descriptor::generate_src_from_common, desc)(new_input_ins);
         if(new_input_ins->get_shape().elements() != input_ins->get_shape().elements())
         {
             new_input_ins = m.insert_instruction(
@@ -260,16 +259,16 @@ struct find_op_shape_transform_op
         std::transform(inputs.begin(), inputs.end(), inputs.begin(), [&](auto input) {
             if(input == input_ins)
                 return new_input_ins;
-            return reshape_input(
-                ins, &shape_transform_descriptor::generate_common_from_dst, desc)(input);
+            return reshape_input(ins, &shape_transform_descriptor::generate_common_from_dst, desc)(
+                input);
         });
         // Replace old x_ins just in case it is used more than once
         assert(x_ins->get_shape().lens() == new_x_ins->get_shape().lens());
         m.replace_instruction(x_ins, new_x_ins);
         // Replace final instruction
-        auto pw   = insert(m, ins, inputs, desc.common_axes_map_from_dst());
-        auto rins = reshape_input(
-            ins, &shape_transform_descriptor::generate_dst_from_common, desc)(pw);
+        auto pw = insert(m, ins, inputs, desc.common_axes_map_from_dst());
+        auto rins =
+            reshape_input(ins, &shape_transform_descriptor::generate_dst_from_common, desc)(pw);
         assert(ins->get_shape().lens() == rins->get_shape().lens());
         m.replace_instruction(ins, rins);
     }

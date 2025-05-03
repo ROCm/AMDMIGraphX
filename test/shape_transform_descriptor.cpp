@@ -573,6 +573,48 @@ TEST_CASE(optimize_squeeze_multibroadcast_transpose)
                      });
 }
 
+TEST_CASE(optimize_squeeze_scalar)
+{
+    EXPECT(check_optimize_shape_transforms(
+               {1},
+               {
+                   make_op("squeeze", {{"axes", {0}}}),
+               }) == ops{
+                         make_op("squeeze", {{"axes", {0}}}),
+                     });
+}
+
+TEST_CASE(optimize_squeeze_scalar_squeeze)
+{
+    EXPECT(check_optimize_shape_transforms(
+               {1},
+               {
+                   make_op("squeeze", {{"axes", {0}}}),
+                   make_op("unsqueeze", {{"axes", {0}}}),
+               }) == ops{});
+}
+
+TEST_CASE(optimize_broadcast_scalar)
+{
+    EXPECT(check_optimize_shape_transforms(
+               {1},
+               {
+                   make_op("multibroadcast", {{"out_lens", {1}}}),
+               }) == ops{
+                         make_op("multibroadcast", {{"out_lens", {1}}}),
+                     });
+}
+
+TEST_CASE(optimize_unsqueeze_squeeze_single)
+{
+    EXPECT(check_optimize_shape_transforms(
+               {1},
+               {
+                   make_op("unsqueeze", {{"axes", {0}}}),
+                   make_op("squeeze", {{"axes", {0}}}),
+               }) == ops{});
+}
+
 TEST_CASE(common_dims_reshape_less)
 {
     auto desc =

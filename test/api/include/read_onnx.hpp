@@ -20,34 +20,26 @@
  * LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
  * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
  * THE SOFTWARE.
+ *
  */
-#ifndef MIGRAPHX_GUARD_GPU_DEVICE_NAME_HPP
-#define MIGRAPHX_GUARD_GPU_DEVICE_NAME_HPP
+#ifndef MIGRAPHX_GUARD_INCLUDE_READ_ONNX_HPP
+#define MIGRAPHX_GUARD_INCLUDE_READ_ONNX_HPP
 
-#include <migraphx/gpu/config.hpp>
-#include <string>
+#include <onnx_files.hpp>
+#include <migraphx/migraphx.hpp>
 
-struct hipDeviceProp_t;
+inline migraphx::program read_onnx(const std::string& name,
+                                   const migraphx::onnx_options& options = migraphx::onnx_options{})
+{
+    static auto onnx_files{::onnx_files()};
+    if(onnx_files.find(name) == onnx_files.end())
+    {
+        std::cerr << "Can not find onnx file by name: " << name << " , aborting the program\n"
+                  << std::endl;
+        std::abort();
+    }
+    auto prog = migraphx::parse_onnx_buffer(std::string{onnx_files.at(name)}, options);
+    return prog;
+}
 
-namespace migraphx {
-inline namespace MIGRAPHX_INLINE_NS {
-namespace gpu {
-
-MIGRAPHX_GPU_EXPORT std::string get_device_name();
-
-MIGRAPHX_GPU_EXPORT int get_device_id();
-
-MIGRAPHX_GPU_EXPORT bool gfx_has_fp8fnuz_intrinsics();
-
-MIGRAPHX_GPU_EXPORT bool gfx_has_fp8ocp_intrinsics();
-
-MIGRAPHX_GPU_EXPORT bool gfx_has_bf16_intrinsics();
-
-MIGRAPHX_GPU_EXPORT bool gfx_has_fp8fnuz_support();
-
-MIGRAPHX_GPU_EXPORT bool gfx_default_rocblas();
-
-} // namespace gpu
-} // namespace MIGRAPHX_INLINE_NS
-} // namespace migraphx
-#endif // MIGRAPHX_GUARD_GPU_DEVICE_NAME_HPP
+#endif // MIGRAPHX_GUARD_INCLUDE_READ_ONNX_HPP

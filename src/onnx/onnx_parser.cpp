@@ -404,7 +404,7 @@ onnx_parser::parse_graph(module* mod, const onnx::GraphProto& graph, bool inlini
     for(auto&& node : graph.node())
     {
         if(enabled(MIGRAPHX_TRACE_ONNX_PARSER{}))
-            std::cout << "operator: " << node.op_type() << std::endl;
+            std::cout << "operator: " << node.op_type() << '\t' << node.name() << std::endl;
 
         std::vector<instruction_ref> args;
         for(auto&& input : node.input())

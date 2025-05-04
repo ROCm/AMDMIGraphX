@@ -2230,6 +2230,20 @@ migraphx_parse_tf(migraphx_program_t* out, const char* name, migraphx_tf_options
 }
 #endif
 
+extern "C" migraphx_status migraphx_parse_tf_buffer(migraphx_program_t* out,
+                                                    const void* data,
+                                                    size_t size,
+                                                    migraphx_tf_options_t options)
+{
+    auto api_error_result = migraphx::try_([&] {
+        if(options == nullptr)
+            MIGRAPHX_THROW(migraphx_status_bad_param, "Bad parameter options: Null pointer");
+        *out = allocate<migraphx_program_t>(
+            migraphx::parse_tf_buffer((data), (size), (options->object)));
+    });
+    return api_error_result;
+}
+
 extern "C" migraphx_status
 migraphx_quantize_op_names_destroy(migraphx_quantize_op_names_t quantize_op_names)
 {

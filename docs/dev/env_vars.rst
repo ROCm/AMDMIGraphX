@@ -12,7 +12,7 @@ For parsing
 
 Set to "1", "enable", "enabled", "yes", or "true" to use.
 Prints debugging traces for the ONNX parser.
-Prints: Initializers (if used), ONNX node operators, added MIGraphX instructions.
+Prints: Initializers (if used), ONNX node operators, node names, and the added MIGraphX instructions.
 
 .. envvar:: MIGRAPHX_DISABLE_FP16_INSTANCENORM_CONVERT
 

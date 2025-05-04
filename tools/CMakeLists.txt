@@ -34,4 +34,12 @@ if(NOT CLANG_FORMAT)
     return()
 endif()
 
-add_custom_target(generate ${Python_EXECUTABLE} generate.py -f ${CLANG_FORMAT} WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR})
+if(MIGRAPHX_DISABLE_TENSORFLOW)
+    list(APPEND _defines -Dmigraphx_disable_tensorflow)
+endif()
+
+if(MIGRAPHX_DISABLE_ONNX)
+    list(APPEND _defines -Dmigraphx_disable_onnx)
+endif()
+
+add_custom_target(generate ${Python_EXECUTABLE} generate.py -f ${CLANG_FORMAT} ${_defines} WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR})

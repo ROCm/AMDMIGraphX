@@ -54,6 +54,7 @@ def te_generate(input_path: Path, output_path: Path):
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument('-f', '--clang-format', type=Path)
+    parser.add_argument('-D', '--define', type=str, action='append')
     args = parser.parse_args()
 
     global clang_format_path
@@ -65,11 +66,20 @@ def main():
               file=sys.stderr)
         return
 
+    defines = {}
+    if args.define is not None:
+        for d in args.define:
+            if '=' in d:
+                p = d.split('=')
+                defines[p[0]] = p[1]
+            else:
+                defines[d] = ''
+
     try:
         files = Path('include').absolute().iterdir()
         for f in [f for f in files if f.is_file()]:
             te_generate(f, src_dir / f'include/migraphx/{f.name}')
-        runpy.run_path(str(migraphx_py_path))
+        runpy.run_path(str(migraphx_py_path), init_globals=defines)
         api_generate(work_dir / 'api/migraphx.h',
                      src_dir / 'api/include/migraphx/migraphx.h')
         print('Finished generating header migraphx.h')

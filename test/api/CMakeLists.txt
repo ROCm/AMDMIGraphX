@@ -66,7 +66,7 @@ add_api_test(op test_op_construct.cpp ${TEST_ONNX_DIR})
 add_c_api_test(c_op test_c_op_construct.c ${TEST_ONNX_DIR})
 add_api_test(custom_op test_custom_op.cpp ${TEST_ONNX_DIR})
 endif()
-if(MIGRAPHX_ENABLE_PYTHON)
+if(MIGRAPHX_ENABLE_PYTHON AND NOT MIGRAPHX_DISABLE_TENSORFLOW)
 add_api_test(tf_parser test_tf_parser.cpp ${TEST_TF_DIR})
 endif()
 # GPU-based tests

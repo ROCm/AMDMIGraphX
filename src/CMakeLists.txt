@@ -130,6 +130,8 @@ if(WIN32)
     target_compile_options(migraphx PUBLIC "-mno-ms-bitfields")
 endif()
 
+configure_file(config.h.in include/migraphx/config.h)
+
 configure_file(version.h.in include/migraphx/version.h)
 add_library(migraphx_version INTERFACE)
 rocm_install_targets(

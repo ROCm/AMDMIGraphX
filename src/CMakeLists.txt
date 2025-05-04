@@ -353,7 +353,6 @@ endif()
 if(MIGRAPHX_ENABLE_PYTHON)
 add_subdirectory(py)
 endif()
-
 add_subdirectory(targets/ref)
 target_link_libraries(migraphx_all_targets INTERFACE migraphx_ref)
 if(MIGRAPHX_ENABLE_CPU)

@@ -50,11 +50,11 @@ target_compile_definitions(driver PUBLIC MIGRAPHX_ORT_SHA1="${String_output}")
 
 target_link_libraries(driver migraphx_all_targets)
 
-if(MIGRAPHX_ENABLE_TENSORFLOW)
+if(NOT MIGRAPHX_DISABLE_TENSORFLOW)
     target_link_libraries(driver migraphx_tf)
 endif()
 
-if(MIGRAPHX_ENABLE_ONNX)
+if(NOT MIGRAPHX_DISABLE_ONNX)
     target_link_libraries(driver migraphx_onnx)
 endif()
 

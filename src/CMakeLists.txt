@@ -344,10 +344,10 @@ add_library(migraphx_all_targets INTERFACE)
 
 add_subdirectory(api)
 add_subdirectory(driver)
-if(MIGRAPHX_ENABLE_ONNX)
+if(NOT MIGRAPHX_DISABLE_ONNX)
 add_subdirectory(onnx)
 endif()
-if(MIGRAPHX_ENABLE_TENSORFLOW)
+if(NOT MIGRAPHX_DISABLE_TENSORFLOW)
 add_subdirectory(tf)
 endif()
 if(MIGRAPHX_ENABLE_PYTHON)
@@ -393,14 +393,6 @@ endif()
 
 if(BUILD_DEV)
     target_compile_definitions(migraphx PUBLIC -DBUILD_DEV)
-endif()
-
-if(MIGRAPHX_ENABLE_TENSORFLOW)
-    target_compile_definitions(migraphx PUBLIC MIGRAPHX_ENABLE_TENSORFLOW)
-endif()
-
-if(MIGRAPHX_ENABLE_ONNX)
-    target_compile_definitions(migraphx PUBLIC MIGRAPHX_ENABLE_ONNX)
 endif()
 
 target_compile_definitions(migraphx PUBLIC MIGRAPHX_CXX_COMPILER="${CMAKE_CXX_COMPILER}")

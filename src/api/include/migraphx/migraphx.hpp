@@ -1297,7 +1297,7 @@ inline void save(const program& p, const char* filename)
     call(&migraphx_save, p.get_handle_ptr(), filename, migraphx::file_options{}.get_handle_ptr());
 }
 
-#ifdef MIGRAPHX_ENABLE_ONNX
+#if !MIGRAPHX_DISABLE_ONNX
 
 /// Options for parsing onnx options
 struct onnx_options : MIGRAPHX_HANDLE_BASE(onnx_options)
@@ -1412,7 +1412,7 @@ inline program parse_onnx_buffer(const std::string& buffer)
 
 #endif
 
-#ifdef MIGRAPHX_ENABLE_TENSORFLOW
+#if !MIGRAPHX_DISABLE_TENSORFLOW
 
 /// Options for parsing tf options
 struct tf_options : MIGRAPHX_HANDLE_BASE(tf_options)

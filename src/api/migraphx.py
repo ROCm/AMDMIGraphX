@@ -320,7 +320,7 @@ api.add_function('migraphx_save',
                  fname='migraphx::save')
 
 
-@auto_handle(guard_define="MIGRAPHX_ENABLE_ONNX")
+@auto_handle(guard_define="!MIGRAPHX_DISABLE_ONNX")
 def onnx_options(h):
     h.constructor('create')
     h.method(
@@ -388,7 +388,7 @@ api.add_function('migraphx_parse_onnx',
                             options='migraphx::onnx_options'),
                  fname='migraphx::parse_onnx',
                  returns='migraphx::program',
-                 guard_define="MIGRAPHX_ENABLE_ONNX")
+                 guard_define="!MIGRAPHX_DISABLE_ONNX")
 
 api.add_function('migraphx_parse_onnx_buffer',
                  api.params(data='const void*',
@@ -396,10 +396,10 @@ api.add_function('migraphx_parse_onnx_buffer',
                             options='migraphx::onnx_options'),
                  fname='migraphx::parse_onnx_buffer',
                  returns='migraphx::program',
-                 guard_define="MIGRAPHX_ENABLE_ONNX")
+                 guard_define="!MIGRAPHX_DISABLE_ONNX")
 
 
-@auto_handle(guard_define="MIGRAPHX_ENABLE_TENSORFLOW")
+@auto_handle(guard_define="!MIGRAPHX_DISABLE_TENSORFLOW")
 def tf_options(h):
     h.constructor('create')
     h.method(
@@ -429,14 +429,15 @@ api.add_function('migraphx_parse_tf',
                             options='migraphx::tf_options'),
                  fname='migraphx::parse_tf',
                  returns='migraphx::program',
-                 guard_define="MIGRAPHX_ENABLE_TENSORFLOW")
+                 guard_define="!MIGRAPHX_DISABLE_TENSORFLOW")
 
 api.add_function('migraphx_parse_tf_buffer',
                  api.params(data='const void*',
                             size='size_t',
                             options='migraphx::tf_options'),
                  fname='migraphx::parse_tf_buffer',
-                 returns='migraphx::program')
+                 returns='migraphx::program',
+                 guard_define="!MIGRAPHX_DISABLE_TENSORFLOW")
 
 
 @api.handle('migraphx_quantize_op_names', 'std::vector<std::string>')

@@ -153,8 +153,8 @@ class CFunction:
         self.body: List[str] = []
         self.va_start: List[str] = []
         self.va_end: List[str] = []
-        self.guard_define_begin: str = f'#ifdef {guard_define}\n' if guard_define else ''
-        self.guard_define_end: str = '#endif' if guard_define else ''
+        self.guard_define_begin: str = f'#if {guard_define}\n' if guard_define is not None else ''
+        self.guard_define_end: str = '#endif' if guard_define is not None else ''
 
     def add_param(self, type: str, pname: str) -> None:
         self.params.append('{} {}'.format(type, pname))
@@ -425,6 +425,7 @@ class Function:
                  fname: Optional[str] = None,
                  return_name: Optional[str] = None,
                  virtual: bool = False,
+                 guard_define: Optional[str] = None,
                  **kwargs) -> None:
         self.name = name
         self.params = params or []
@@ -435,7 +436,7 @@ class Function:
         self.return_name = return_name or 'out'
         self.returns = Parameter(self.return_name, returns,
                                  returns=True) if returns else None
-        self.guard_define = str(kwargs.get('guard_define'))
+        self.guard_define = guard_define
 
         for p in self.params:
             p.virtual = virtual
@@ -953,9 +954,9 @@ def add_handle(name: str,
     l = locals()
     l.update({
         'guard_define_end':
-        '#endif' if guard_define else '',
+        '#endif' if guard_define is not None else '',
         'guard_define_begin':
-        f'#ifdef {guard_define}\n' if guard_define else ''
+        f'#if {guard_define}\n' if guard_define is not None else ''
     })
     c_header_preamble.append(handle_typedef.substitute(l))
     if not skip_def:
@@ -1038,7 +1039,7 @@ class Handle:
                  name: str,
                  ctype: str,
                  cpptype: str,
-                 guard_define: str = None,
+                 guard_define: Optional[str] = None,
                  **kwargs) -> None:
         self.name = name
         self.ctype = ctype
@@ -1058,9 +1059,9 @@ class Handle:
             ctype=self.ctype,
             cpptype=self.cpptype,
             opaque_type=self.opaque_type,
-            guard_define_begin=f'#ifdef {self.guard_define}\n'
-            if self.guard_define else '',
-            guard_define_end='#endif' if self.guard_define else '',
+            guard_define_begin=f'#if {self.guard_define}\n'
+            if self.guard_define is not None else '',
+            guard_define_end='#endif' if self.guard_define is not None else '',
             **kwargs)
 
     def constructor(self,

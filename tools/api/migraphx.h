@@ -29,6 +29,7 @@
 #include <stdint.h>
 
 #include <migraphx/api/export.h>
+#include <migraphx/config.h>
 
 // Add new types here
 // clang-format off

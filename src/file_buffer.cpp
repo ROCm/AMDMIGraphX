@@ -31,7 +31,7 @@ namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
 
 template <class T>
-T generic_read_file(const fs::path& filename, size_t offset = 0, size_t nbytes = 0)
+static T generic_read_file(const fs::path& filename, size_t offset = 0, size_t nbytes = 0)
 {
     std::ifstream is(filename, std::ios::binary | std::ios::ate);
     if(not is.is_open())

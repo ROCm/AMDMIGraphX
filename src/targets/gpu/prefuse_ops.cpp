@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2024 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2025 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -29,7 +29,6 @@
 #include <migraphx/register_op.hpp>
 #include <migraphx/pass_manager.hpp>
 #include <migraphx/dead_code_elimination.hpp>
-#include <migraphx/op/group_query_attention.hpp>
 #ifdef MIGRAPHX_USE_COMPOSABLEKERNEL
 #include <migraphx/gpu/ck.hpp>
 #endif
@@ -39,7 +38,7 @@ namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
 namespace gpu {
 
-MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_DISABLE_LAYERNORM_FUSION);
+MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_ENABLE_LAYERNORM_FUSION);
 
 namespace {
 
@@ -236,7 +235,28 @@ struct find_gemm_softmax_gemm
     }
 };
 
-struct gpu_kv_cache_attention : op::group_query_attention
+struct base_group_query_attention
+{
+    bool do_rotary           = false;
+    std::size_t kv_num_heads = 0;
+    int local_window_size    = -1;
+    std::size_t num_heads    = 1;
+    bool rotary_interleaved  = false;
+    float scale              = 1.0;
+
+    template <class Self, class F>
+    static auto reflect(Self& self, F f)
+    {
+        return pack(f(self.do_rotary, "do_rotary"),
+                    f(self.kv_num_heads, "kv_num_heads"),
+                    f(self.local_window_size, "local_window_size"),
+                    f(self.num_heads, "num_heads"),
+                    f(self.rotary_interleaved, "rotary_interleaved"),
+                    f(self.scale, "scale"));
+    }
+};
+
+struct gpu_kv_cache_attention : base_group_query_attention
 {
     std::string name() const { return "gpu::kv_cache_attention"; }
 
@@ -252,7 +272,7 @@ struct gpu_kv_cache_attention : op::group_query_attention
 };
 MIGRAPHX_REGISTER_OP(gpu_kv_cache_attention);
 
-struct gpu_gqa_rotary_embedding : op::group_query_attention
+struct gpu_gqa_rotary_embedding : base_group_query_attention
 {
     std::string name() const { return "gpu::gqa_rotary_embedding"; }
 
@@ -260,7 +280,7 @@ struct gpu_gqa_rotary_embedding : op::group_query_attention
 };
 MIGRAPHX_REGISTER_OP(gpu_gqa_rotary_embedding);
 
-struct gpu_concat_past_present_k : op::group_query_attention
+struct gpu_concat_past_present_k : base_group_query_attention
 {
     std::string name() const { return "gpu::concat_past_present_k"; }
 
@@ -268,7 +288,7 @@ struct gpu_concat_past_present_k : op::group_query_attention
 };
 MIGRAPHX_REGISTER_OP(gpu_concat_past_present_k);
 
-struct gpu_concat_past_present_v : op::group_query_attention
+struct gpu_concat_past_present_v : base_group_query_attention
 {
     std::string name() const { return "gpu::concat_past_present_v"; }
 
@@ -294,7 +314,7 @@ struct find_group_query_attention
         auto scale              = v.at("scale").to<float>();
 
         auto q_shape                      = inputs[0]->get_shape();
-        auto q_lens                       = q_shape.lens();
+        const auto& q_lens                = q_shape.lens();
         const std::size_t batch_size      = q_lens[0];
         const std::size_t sequence_length = q_lens[1];
         std::size_t q_hidden_size         = q_lens[2];
@@ -380,7 +400,7 @@ struct find_group_query_attention
 
 void prefuse_ops::apply(module_pass_manager& mpm) const
 {
-    if(not enabled(MIGRAPHX_DISABLE_LAYERNORM_FUSION{}))
+    if(enabled(MIGRAPHX_ENABLE_LAYERNORM_FUSION{}))
     {
         match::find_matches(mpm.get_module(), find_layernorm{});
         mpm.run_pass(dead_code_elimination{});

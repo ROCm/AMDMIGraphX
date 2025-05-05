@@ -67,6 +67,12 @@ bool gfx_has_fp8ocp_intrinsics()
     return (is_navi_with_fp8ocp or is_mi_with_fp8ocp);
 }
 
+bool gfx_has_bf16_intrinsics()
+{
+    const auto device_name = trim(split_string(get_device_name(), ':').front());
+    return not(starts_with(device_name, "gfx1030"));
+}
+
 bool gfx_has_fp8fnuz_support()
 {
     return (string_value_of(MIGRAPHX_SET_GEMM_PROVIDER{}) == "rocblas"
@@ -80,7 +86,9 @@ bool gfx_default_rocblas()
 {
     const auto device_name = trim(split_string(get_device_name(), ':').front());
     // Default to rocBLAS for gfx90a.
-    return (not enabled(MIGRAPHX_SET_GEMM_PROVIDER{}) ? (device_name == "gfx90a") : false);
+    return ((string_value_of(MIGRAPHX_SET_GEMM_PROVIDER{}) == "hipblaslt")
+                ? false
+                : (device_name == "gfx90a"));
 }
 #endif
 

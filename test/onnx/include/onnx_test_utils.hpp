@@ -186,21 +186,82 @@ make_layer_norm(const std::vector<int64_t>& input_shape,
     migraphx::instruction_ref bias_bcast  = bias;
     if(skipped_axis > 0)
     {
-        scale_bcast = mm->add_instruction(
-            migraphx::make_op("broadcast", {{"axis", skipped_axis}, {"out_lens", input_shape}}),
-            scale);
+        if(scale_bias_shape.size() == 1)
+        {
+            scale_bcast = mm->add_instruction(
+                migraphx::make_op("broadcast", {{"axis", skipped_axis}, {"out_lens", input_shape}}),
+                scale);
+        }
+
         if(not skip_bias)
         {
-            bias_bcast = mm->add_instruction(
-                migraphx::make_op("broadcast", {{"axis", skipped_axis}, {"out_lens", input_shape}}),
-                bias);
+            if(scale_bias_shape.size() == 1)
+            {
+                bias_bcast = mm->add_instruction(
+                    migraphx::make_op("broadcast",
+                                      {{"axis", skipped_axis}, {"out_lens", input_shape}}),
+                    bias);
+            }
         }
     }
-    auto scaled = mm->add_instruction(migraphx::make_op("mul"), {result, scale_bcast});
+    auto scaled = add_common_op(*mm, migraphx::make_op("mul"), {result, scale_bcast});
     if(not skip_bias)
     {
-        mm->add_instruction(migraphx::make_op("add"), {scaled, bias_bcast});
+        add_common_op(*mm, migraphx::make_op("add"), {scaled, bias_bcast});
     }
+    return p;
+}
+
+inline migraphx::program
+make_skip_layer_norm(const std::vector<int64_t>& input_dims,
+                     const std::vector<int64_t>& skip_dims,
+                     const std::vector<int64_t>& gamma_dims,
+                     const std::vector<int64_t>& beta_dims,
+                     const std::vector<int64_t>& bias_dims,
+                     const int axes,
+                     const float eps_value               = 1e-5f,
+                     const migraphx::shape::type_t dtype = migraphx::shape::half_type)
+{
+    migraphx::program p;
+    auto* mm   = p.get_main_module();
+    auto x     = mm->add_parameter("x", {dtype, input_dims});
+    auto skip  = mm->add_parameter("skip", {dtype, skip_dims});
+    auto scale = mm->add_parameter("gamma", {dtype, gamma_dims});
+
+    migraphx::instruction_ref beta;
+    migraphx::instruction_ref bias;
+    if(not beta_dims.empty())
+    {
+        beta = mm->add_parameter("beta", {dtype, beta_dims});
+    }
+
+    if(not bias_dims.empty())
+    {
+        bias = mm->add_parameter("bias", {dtype, bias_dims});
+    }
+
+    x = add_common_op(*mm, migraphx::make_op("add"), {x, skip});
+    if(not bias_dims.empty())
+        x = add_common_op(*mm, migraphx::make_op("add"), {x, bias});
+
+    auto eps  = mm->add_literal(migraphx::literal{migraphx::shape{dtype}, {eps_value}});
+    auto mean = mm->add_instruction(migraphx::make_op("reduce_mean", {{"axes", {axes}}}), x);
+    auto x_sqdiff_mean = add_common_op(*mm, migraphx::make_op("sqdiff"), {x, mean});
+    auto var =
+        mm->add_instruction(migraphx::make_op("reduce_mean", {{"axes", {axes}}}), x_sqdiff_mean);
+
+    auto var_eps = add_common_op(*mm, migraphx::make_op("add"), {var, eps});
+    auto rsqrt   = mm->add_instruction(migraphx::make_op("rsqrt"), {var_eps});
+
+    auto x_sub_mean = add_common_op(*mm, migraphx::make_op("sub"), {x, mean});
+    auto result     = add_common_op(*mm, migraphx::make_op("mul"), {x_sub_mean, rsqrt});
+    result          = add_common_op(*mm, migraphx::make_op("mul"), {result, scale});
+
+    if(not beta_dims.empty())
+    {
+        result = add_common_op(*mm, migraphx::make_op("add"), {result, beta});
+    }
+
     return p;
 }
 

@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2024 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2025 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -93,7 +93,7 @@ static inline gqa_parameters init_params(const std::vector<shape>& inputs, const
     auto present_kv_seqlen  = inputs[1].lens().size() == 4 ? inputs[1].lens()[2] : 0;
 
     const auto& q_shape               = inputs[0];
-    auto q_lens                       = q_shape.lens();
+    const auto& q_lens                = q_shape.lens();
     const std::size_t batch_size      = q_lens[0];
     const std::size_t sequence_length = q_lens[2];
     std::size_t head_size             = q_lens[3];

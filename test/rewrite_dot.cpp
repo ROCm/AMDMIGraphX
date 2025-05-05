@@ -31,7 +31,7 @@
 #include <migraphx/dead_code_elimination.hpp>
 #include <test.hpp>
 
-void run_pass(migraphx::module& m)
+static void run_pass(migraphx::module& m)
 {
     migraphx::run_passes(m, {migraphx::rewrite_dot{}, migraphx::dead_code_elimination{}});
 }

@@ -38,17 +38,15 @@ inline namespace MIGRAPHX_INLINE_NS {
 namespace gpu {
 #if MIGRAPHX_USE_ROCBLAS
 /*
-Regular rocBLAS API takes compute_type as `rocblas_datatype` enum value v/s "ex3" BETA API takes it
-as `rocblas_computetype` enum value. `rb_compute_type` is faciliator to implictly cast integer enum
+Regular rocBLAS API takes compute_type as `rocblas_datatype` enum value.
+`rb_compute_type` is faciliator to implictly cast integer enum
 value to required type that can be used inside `common_args` generator.
 */
 struct rb_compute_type
 {
     int type = 0;
     rb_compute_type(rocblas_datatype t) : type(static_cast<int>(t)) {}
-    rb_compute_type(rocblas_computetype t) : type(static_cast<int>(t)) {}
     operator rocblas_datatype() const { return static_cast<rocblas_datatype>(type); }
-    operator rocblas_computetype() const { return static_cast<rocblas_computetype>(type); }
 };
 
 // Convert rocBLAS datatypes to equivalent Migraphx data types

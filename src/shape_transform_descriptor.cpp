@@ -1065,7 +1065,7 @@ std::vector<operation> shape_transform_descriptor::generate() const
 std::set<std::size_t> shape_transform_descriptor::find_broadcasted_axes() const
 {
     std::set<std::size_t> result;
-    for_each_subdimension(dimensions, [&](const dimension::sub& s) { 
+    for_each_subdimension(dimensions, [&](const dimension::sub& s) {
         if(s.has_hidden_axis())
             result.insert(s.hidden_axis.front());
     });

@@ -2255,14 +2255,15 @@ TEST_CASE(pointwise_unsqueeze_broadcast_pointwise)
     auto s2 = migraphx::shape{migraphx::shape::float_type, {64, 3, 7, 7}};
     migraphx::module m1;
     {
-        auto x       = m1.add_parameter("x", s1);
-        auto y       = m1.add_parameter("y", s1);
-        auto z       = m1.add_parameter("z", s2);
-        auto mul     = m1.add_instruction(migraphx::make_op("mul"), x, y);
+        auto x         = m1.add_parameter("x", s1);
+        auto y         = m1.add_parameter("y", s1);
+        auto z         = m1.add_parameter("z", s2);
+        auto mul       = m1.add_instruction(migraphx::make_op("mul"), x, y);
         auto unsqueeze = m1.add_instruction(migraphx::make_op("unsqueeze", {{"axes", {3}}}), mul);
-        auto broadcast = m1.add_instruction(migraphx::make_op("multibroadcast", {{"out_lens", {64, 3, 7, 7}}}), unsqueeze);
-        auto add     = m1.add_instruction(migraphx::make_op("add"), broadcast, z);
-        auto relu    = m1.add_instruction(migraphx::make_op("relu"), add);
+        auto broadcast = m1.add_instruction(
+            migraphx::make_op("multibroadcast", {{"out_lens", {64, 3, 7, 7}}}), unsqueeze);
+        auto add  = m1.add_instruction(migraphx::make_op("add"), broadcast, z);
+        auto relu = m1.add_instruction(migraphx::make_op("relu"), add);
         m1.add_return({relu});
     }
     migraphx::module m2 = m1;

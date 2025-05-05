@@ -71,9 +71,8 @@ bool gfx_has_fp8ocp_intrinsics()
 
 bool gfx_has_bf16_intrinsics()
 {
-    return (string_value_of(MIGRAPHX_SET_GEMM_PROVIDER{}) == "rocblas"
-                ? gpu::rocblas_fp8_available()
-                : gfx_has_fp8fnuz_intrinsics());
+    const auto device_name = trim(split_string(get_device_name(), ':').front());
+    return not(starts_with(device_name, "gfx1030"));
 }
 
 #if MIGRAPHX_USE_HIPBLASLT

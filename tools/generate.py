@@ -42,11 +42,13 @@ def clang_format(buffer, **kwargs):
 
 
 def api_generate(input_path: Path, output_path: Path):
+    output_path.parent.mkdir(parents=True, exist_ok=True)
     with open(output_path, 'w') as f:
         f.write(clang_format(api.run(input_path)))
 
 
 def te_generate(input_path: Path, output_path: Path):
+    output_path.parent.mkdir(parents=True, exist_ok=True)
     with open(output_path, 'w') as f:
         f.write(clang_format(te.run(input_path)))
 
@@ -54,8 +56,12 @@ def te_generate(input_path: Path, output_path: Path):
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument('-f', '--clang-format', type=Path)
-    parser.add_argument('-D', '--define', type=str, action='append')
+    parser.add_argument('-D', '--define', type=str, action='append', default=None)
+    parser.add_argument('-o', '--output-directory', type=Path)
     args = parser.parse_args()
+
+    output_dir = args.output_directory \
+        if args.output_directory is not None else src_dir
 
     global clang_format_path
     if args.clang_format:
@@ -78,12 +84,12 @@ def main():
     try:
         files = Path('include').absolute().iterdir()
         for f in [f for f in files if f.is_file()]:
-            te_generate(f, src_dir / f'include/migraphx/{f.name}')
+            te_generate(f, output_dir / f'include/migraphx/{f.name}')
         runpy.run_path(str(migraphx_py_path), init_globals=defines)
         api_generate(work_dir / 'api/migraphx.h',
-                     src_dir / 'api/include/migraphx/migraphx.h')
+                     output_dir / 'include/migraphx/migraphx.h')
         print('Finished generating header migraphx.h')
-        api_generate(work_dir / 'api/api.cpp', src_dir / 'api/api.cpp')
+        api_generate(work_dir / 'api/api.cpp', output_dir / 'api/api.cpp')
         print('Finished generating source api.cpp')
     except subprocess.CalledProcessError as ex:
         if ex.stdout:

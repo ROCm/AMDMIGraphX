@@ -431,7 +431,6 @@ class Function:
         self.return_name = return_name or 'out'
         self.returns = Parameter(self.return_name, returns,
                                  returns=True) if returns else None
-
         for p in self.params:
             p.virtual = virtual
         if self.returns:
@@ -1019,11 +1018,7 @@ def string_c_wrap(p: Parameter) -> None:
 
 
 class Handle:
-    def __init__(self,
-                 name: str,
-                 ctype: str,
-                 cpptype: str,
-                 **kwargs) -> None:
+    def __init__(self, name: str, ctype: str, cpptype: str, **kwargs) -> None:
         self.name = name
         self.ctype = ctype
         self.cpptype = cpptype
@@ -1036,12 +1031,11 @@ class Handle:
         return self.ctype + '_' + name
 
     def substitute(self, s: str, **kwargs) -> str:
-        return Template(s).safe_substitute(
-            name=self.name,
-            ctype=self.ctype,
-            cpptype=self.cpptype,
-            opaque_type=self.opaque_type,
-            **kwargs)
+        return Template(s).safe_substitute(name=self.name,
+                                           ctype=self.ctype,
+                                           cpptype=self.cpptype,
+                                           opaque_type=self.opaque_type,
+                                           **kwargs)
 
     def constructor(self,
                     name: str,

@@ -23,7 +23,7 @@
 #####################################################################################
 
 add_library(migraphx_c
-    api.cpp
+    ${CMAKE_CURRENT_BINARY_DIR}/api.cpp
 )
 set_target_properties(migraphx_c PROPERTIES EXPORT_NAME c)
 migraphx_generate_export_header(migraphx_c DIRECTORY migraphx/api)

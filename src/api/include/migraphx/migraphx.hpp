@@ -24,7 +24,6 @@
 #ifndef MIGRAPHX_GUARD_API_RTGLIB_MIGRAPHX_HPP
 #define MIGRAPHX_GUARD_API_RTGLIB_MIGRAPHX_HPP
 
-#include "migraphx.h"
 #include <algorithm>
 #include <cstring>
 #include <initializer_list>

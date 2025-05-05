@@ -29,6 +29,7 @@
 #include <migraphx/optional.hpp>
 #include <cstdint>
 #include <iosfwd>
+#include <set>
 #include <vector>
 
 namespace migraphx {
@@ -90,6 +91,7 @@ struct MIGRAPHX_EXPORT shape_transform_descriptor
     std::size_t elements() const;
     std::vector<operation> generate() const;
 
+    std::set<std::size_t> find_broadcasted_axes() const;
     bool has_broadcast() const;
     void flatten_broadcast();
 

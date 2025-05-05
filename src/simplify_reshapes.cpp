@@ -197,6 +197,19 @@ struct find_op_shape_transform_op
         return m.insert_instruction(ins, ins->get_operator(), inputs, ins->module_inputs());
     }
 
+    static bool is_valid(instruction_ref ins, const shape_transform_descriptor& desc)
+    {
+        if(is_reduce(ins))
+        {
+            auto v       = ins->get_operator().to_value();
+            auto op_axes = v.at("axes").to_vector<std::size_t>();
+            std::sort(op_axes.begin(), op_axes.end());
+            auto broadcasted_axes = desc.find_broadcasted_axes();
+            return equal(op_axes, broadcasted_axes);
+        }
+        return not desc.has_broadcast();
+    }
+
     void apply(module& m, const match::matcher_result& r) const
     {
         auto ins       = r.result;
@@ -226,6 +239,9 @@ struct find_op_shape_transform_op
         auto desc = shape_transform_descriptor::create(x_ins->get_shape().lens(), ops)
                         .rebase(x_ins->inputs().front()->get_shape().lens(), true);
         if(desc.empty())
+            return;
+
+        if(not is_valid(x_ins, desc))
             return;
 
         // std::cout << "***************************************************************\n";

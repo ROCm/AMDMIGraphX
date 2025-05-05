@@ -115,15 +115,11 @@ std::vector<pass> target::get_passes(migraphx::context& gctx, const compile_opti
     std::set<std::string> unsupported_fp8fnuz_ops = {};
 
     // disable dot & quant_dot if no hipblaslt
-#if not MIGRAPHX_USE_HIPBLASLT
     if(not hipblaslt_supported())
     {
-#endif
         unsupported_fp8fnuz_ops.insert("dot");
         unsupported_fp8fnuz_ops.insert("quant_dot");
-#if not MIGRAPHX_USE_HIPBLASLT
     }
-#endif
 
 #if MIGRAPHX_USE_MIOPEN // MIOpen doesn't have support for fp8 pooling yet.
     unsupported_fp8fnuz_ops.insert("pooling");
@@ -149,15 +145,11 @@ std::vector<pass> target::get_passes(migraphx::context& gctx, const compile_opti
     std::set<std::string> unsupported_fp8ocp_ops = {};
 
     // disable dot & quant_dot if no hipblaslt
-#if not MIGRAPHX_USE_HIPBLASLT
     if(not hipblaslt_supported())
     {
-#endif
         unsupported_fp8fnuz_ops.insert("dot");
         unsupported_fp8fnuz_ops.insert("quant_dot");
-#if not MIGRAPHX_USE_HIPBLASLT
     }
-#endif
 
 #if MIGRAPHX_USE_MIOPEN
     // MIOpen doesn't have support for fp8 pooling yet.

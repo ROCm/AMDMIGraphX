@@ -254,11 +254,6 @@ struct miopen_apply
             auto output = insert_allocation(ins, ins->get_shape());
             refs.push_back(output);
 
-#if not MIGRAPHX_USE_HIPBLASLT
-            return mod->replace_instruction(ins, rocblas_gemm<Op>{Op{}, 1, 0, compute_fp32}, refs);
-#endif
-
-#if MIGRAPHX_USE_HIPBLASLT
             bool has_fp8_inputs =
                 std::any_of(ins->inputs().begin(), ins->inputs().end(), [](auto i_input) {
                     return contains(fp8_types{}.get(), i_input->get_shape().type());
@@ -286,7 +281,6 @@ struct miopen_apply
                 ins->inputs().at(0),
                 ins->inputs().at(1),
                 output);
-#endif
         });
     }
 #endif

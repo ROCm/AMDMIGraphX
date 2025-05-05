@@ -46,9 +46,7 @@ struct rb_compute_type
 {
     int type = 0;
     rb_compute_type(rocblas_datatype t) : type(static_cast<int>(t)) {}
-    rb_compute_type(rocblas_computetype t) : type(static_cast<int>(t)) {}
     operator rocblas_datatype() const { return static_cast<rocblas_datatype>(type); }
-    operator rocblas_computetype() const { return static_cast<rocblas_computetype>(type); }
 };
 
 // Convert rocBLAS datatypes to equivalent Migraphx data types
@@ -230,11 +228,6 @@ struct gemm_impl
         {
             if(arg_type == rocblas_datatype_f16_r or arg_type == rocblas_datatype_bf16_r)
                 compute_type = rocblas_datatype_f32_r;
-        }
-        if(arg_type == rocblas_datatype_f8_r)
-        {
-            assert(get_type(input_shapes[1].type()) == rocblas_datatype_f8_r);
-            compute_type = rocblas_compute_type_f32;
         }
 
         auto a_lens = input_shapes[0].lens();

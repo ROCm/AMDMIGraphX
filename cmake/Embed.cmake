@@ -22,6 +22,10 @@
 # THE SOFTWARE.
 #####################################################################################
 
+if(DEFINED embed_wrap_string)
+    return()
+endif()
+
 if(WIN32)
     set(EMBED_USE RC CACHE STRING "Use RC or CArrays to embed data files")
     set_property(CACHE EMBED_USE PROPERTY STRINGS "RC;CArrays")
@@ -66,13 +70,23 @@ function(embed_wrap_string)
     set(${PARSE_VARIABLE} "${lines}" PARENT_SCOPE)
 endfunction()
 
+set(RESOURCE_ID 100 CACHE INTERNAL "" FORCE)
+
+function(reset_resource_id MULTIPLE)
+    if(RESOURCE_ID GREATER 0)
+        math(EXPR _remainder "${RESOURCE_ID} % ${MULTIPLE}")
+        if(_remainder GREATER 0)
+            math(EXPR RESOURCE_ID "${RESOURCE_ID} + ${MULTIPLE} - ${_remainder}")
+        endif()
+    endif()
+    set(RESOURCE_ID ${RESOURCE_ID} CACHE INTERNAL "" FORCE)
+endfunction()
+
 function(generate_embed_source EMBED_NAME EMBED_DIR BASE_DIRECTORY)
     set(options)
     set(oneValueArgs)
     set(multiValueArgs SYMBOLS FILES)
     cmake_parse_arguments(PARSE "${options}" "${oneValueArgs}" "${multiValueArgs}" ${ARGN})
-
-    set(RESOURCE_ID 100)
 
     list(LENGTH PARSE_SYMBOLS SYMBOLS_LEN)
     list(LENGTH PARSE_FILES FILES_LEN)
@@ -128,7 +142,7 @@ ${RC_FILE_MAPPING}
 #include \"resource.h\"
 
 namespace resource {
-std::string_view read(int id)
+static std::string_view read(int id)
 {
     HMODULE handle;
     if(GetModuleHandleEx(GET_MODULE_HANDLE_EX_FLAG_FROM_ADDRESS |
@@ -169,6 +183,8 @@ std::unordered_map<std::string_view, std::string_view> ${EMBED_NAME}()
     return result;
 }
 ")
+    reset_resource_id(1000)
+
     list(APPEND EMBED_FILES ${EMBED_DIR}/${EMBED_NAME}.cpp ${EMBED_DIR}/include/${EMBED_NAME}.hpp)
     set(EMBED_FILES ${EMBED_FILES} PARENT_SCOPE)
 endfunction()

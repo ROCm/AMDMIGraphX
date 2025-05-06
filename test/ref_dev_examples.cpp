@@ -29,7 +29,6 @@
 #include <migraphx/make_op.hpp>
 #include <migraphx/verify.hpp>
 #include <migraphx/register_target.hpp>
-#include <migraphx/onnx.hpp>
 #include "test.hpp"
 
 /*!

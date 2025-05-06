@@ -29,7 +29,6 @@ function(add_tf_test TEST_NAME)
     target_include_directories(${TEST_NAME} PUBLIC ../include include)
 endfunction()
 
-include(Embed)
 file(GLOB_RECURSE PB_FILES CONFIGURE_DEPENDS ${CMAKE_CURRENT_SOURCE_DIR}/models/*.pb)
 add_embed_library(pb_files ${PB_FILES} RELATIVE ${CMAKE_CURRENT_SOURCE_DIR}/models)
 

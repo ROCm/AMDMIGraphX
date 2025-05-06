@@ -319,7 +319,7 @@ api.add_function('migraphx_save',
                             options='migraphx::file_options'),
                  fname='migraphx::save')
 
-if 'migraphx_disable_onnx' not in globals():
+if 'have_onnx' in globals():
     @auto_handle()
     def onnx_options(h):
         h.constructor('create')
@@ -398,7 +398,7 @@ def compile_options(h):
              invoke='migraphx::set_exhaustive_tune_flag($@)')
 
 
-if 'migraphx_disable_tensorflow' not in globals():
+if 'have_tensorflow' in globals():
     @auto_handle()
     def tf_options(h):
         h.constructor('create')

@@ -21,6 +21,10 @@
 # OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 # THE SOFTWARE.
 #####################################################################################
+if(MIGRAPHX_DISABLE_ONNX)
+    return()
+endif()
+
 find_package(Protobuf REQUIRED)
 
 protobuf_generate_cpp(PROTO_SRCS PROTO_HDRS onnx.proto)
@@ -37,6 +41,7 @@ set_target_properties(onnx-proto PROPERTIES POSITION_INDEPENDENT_CODE On)
 file(GLOB ONNX_SRCS CONFIGURE_DEPENDS *.cpp)
 add_library(migraphx_onnx ${ONNX_SRCS})
 target_include_directories(migraphx_onnx PRIVATE include)
+target_link_libraries(migraphx_all_frontends INTERFACE migraphx_onnx)
 set_target_properties(migraphx_onnx PROPERTIES EXPORT_NAME onnx)
 migraphx_generate_export_header(migraphx_onnx)
 rocm_set_soversion(migraphx_onnx ${MIGRAPHX_SO_VERSION})

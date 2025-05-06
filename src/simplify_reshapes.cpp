@@ -244,15 +244,17 @@ struct find_op_shape_transform_op
         if(not is_valid(x_ins, desc))
             return;
 
-        // std::cout << "***************************************************************\n";
-        // std::cout << "ops: " << to_string_range(ops) << "\n";
-        // m.debug_print({x_ins, input_ins, ins});
-        // std::cout << "desc: " << desc << std::endl;
+        std::cout << "***************************************************************\n";
+        std::cout << "ops: " << to_string_range(ops) << "\n";
+        m.debug_print({x_ins, input_ins, ins});
+        std::cout << "desc: " << desc << std::endl;
 
         auto cdims         = desc.common_dims();
         auto reshape_input = [&](const auto& ins_to_insert, auto generate) {
             return [&, generate](auto input) {
                 auto gops  = std::invoke(generate, desc, input->get_shape().lens());
+                std::cout << "gops: " << to_string_range(gops) << "\n";
+                m.debug_print(input);
                 auto start = input;
                 for(const auto& op : gops)
                 {
@@ -280,6 +282,10 @@ struct find_op_shape_transform_op
                 return new_input_ins;
             return reshape_input(ins, &shape_transform_descriptor::generate_common_from_dst)(input);
         });
+        std::cout << "Inputs:\n";
+        m.debug_print(ins->inputs());
+        std::cout << "replaced Inputs:\n";
+        m.debug_print(inputs);
         // Replace old x_ins just in case it is used more than once
         assert(x_ins->get_shape().lens() == new_x_ins->get_shape().lens());
         m.replace_instruction(x_ins, new_x_ins);

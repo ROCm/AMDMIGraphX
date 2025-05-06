@@ -21,10 +21,6 @@
 # OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 # THE SOFTWARE.
 #####################################################################################
-if(MIGRAPHX_DISABLE_TENSORFLOW)
-    return()
-endif()
-
 find_package(Protobuf REQUIRED)
 
 protobuf_generate_cpp(
@@ -52,7 +48,6 @@ set_target_properties(tf-proto PROPERTIES POSITION_INDEPENDENT_CODE On)
 
 file(GLOB TF_SRCS CONFIGURE_DEPENDS *.cpp)
 add_library(migraphx_tf ${TF_SRCS})
-target_link_libraries(migraphx_all_frontends INTERFACE migraphx_tf)
 migraphx_generate_export_header(migraphx_tf)
 target_include_directories(migraphx_tf PRIVATE include)
 set_target_properties(migraphx_tf PROPERTIES EXPORT_NAME tf)
@@ -68,4 +63,3 @@ rocm_install_targets(
   PRIVATE
   TARGETS migraphx_tf
 )
-

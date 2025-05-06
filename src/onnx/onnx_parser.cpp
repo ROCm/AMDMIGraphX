@@ -391,6 +391,100 @@ parse_inputs(const onnx_parser& parser,
     return mod_insts;
 }
 
+static void create_node_maps(std::map<std::string, int>& node_index_map, 
+                            std::map<std::string, std::vector<std::string>>& input_to_node_map,
+                            std::map<std::string, std::vector<std::string>>& node_to_output_map,
+                            const onnx::GraphProto& graph)
+{
+    int idx = 0;
+
+    for(auto&& node : graph.node())
+    {
+        std::string node_name = node.name();
+        if(node_name.empty())
+        {
+            node_name = "migraphx_unnamed_" + node.op_type() + "_" + std::to_string(idx);
+            // std::cout << node_name << std::endl;
+        }
+        if(contains(node_index_map, node_name))
+        {
+            MIGRAPHX_THROW("PARSE_GRAPH: invalid onnx file. Found node name \"" + node_name +
+                "\" more than once in graph!");
+        }
+        node_index_map.emplace(node_name, idx);
+        idx++;
+
+        for(auto&& input : node.input())
+        {
+            std::string node_input = input;
+            // std::cout << "node input: " << node_input << std::endl;
+            if(input_to_node_map.count(node_input) > 0)
+            {
+                input_to_node_map.at(node_input).push_back(node_name);
+            }
+            else
+                input_to_node_map.emplace(node_input, std::vector<std::string>{node_name});
+        }
+
+        std::vector<std::string> node_outputs;
+
+        for(auto&& output : node.output())
+        {
+            // std::cout << "node output: " << output << std::endl;
+            node_outputs.push_back(output);
+        }
+        node_to_output_map.emplace(node_name, node_outputs);
+
+    }
+
+    for(auto&& output : graph.output())
+    {
+        // std::cout << "graph output: " << output.name() << std::endl;
+        input_to_node_map.emplace(output.name(), std::vector<std::string>{});
+    }
+
+}
+
+static void traverse(std::vector<std::string>& sorted_nodes,
+                    std::set<std::string>& visited_nodes,
+                    std::map<std::string, std::vector<std::string>>& input_to_node_map,
+                    std::map<std::string, std::vector<std::string>>& node_to_output_map,
+                    std::string curr_node
+                )
+{
+    if(contains(visited_nodes, curr_node))
+        return;
+
+    visited_nodes.insert(curr_node);
+    // std::cout << "traverse curr_node: " << curr_node << std::endl;
+
+    for(auto& out_node_name : node_to_output_map.at(curr_node))
+    {
+        for(auto& in_node_name : input_to_node_map.at(out_node_name))
+            traverse(sorted_nodes, visited_nodes, input_to_node_map, node_to_output_map, in_node_name);
+    }
+    sorted_nodes.insert(sorted_nodes.begin(), curr_node);
+}
+
+
+static std::vector<std::string> toposort(const std::map<std::string, int>& node_index_map,
+                                         std::map<std::string, std::vector<std::string>>& input_to_node_map,
+                                         std::map<std::string, std::vector<std::string>>& node_to_output_map
+                                        )
+{
+    std::vector<std::string> sorted_nodes;
+    std::set<std::string> visited_nodes;
+
+    for(const auto& node_index : node_index_map)
+    {
+        std::string node_name = node_index.first;
+        // std::cout << "toposort node name: " << node_name << std::endl;
+        traverse(sorted_nodes, visited_nodes, input_to_node_map, node_to_output_map, node_name);
+    }
+
+    return sorted_nodes;
+}
+
 std::vector<instruction_ref>
 onnx_parser::parse_graph(module* mod, const onnx::GraphProto& graph, bool inlining)
 {
@@ -401,8 +495,15 @@ onnx_parser::parse_graph(module* mod, const onnx::GraphProto& graph, bool inlini
 
     std::copy(mod_insts.begin(), mod_insts.end(), std::inserter(instructions, instructions.end()));
 
-    for(auto&& node : graph.node())
+    std::map<std::string, int> node_index_map;
+    std::map<std::string, std::vector<std::string>> input_to_node_map;
+    std::map<std::string, std::vector<std::string>> node_to_output_map;
+    create_node_maps(node_index_map, input_to_node_map, node_to_output_map, graph);
+    std::vector<std::string> sorted_nodes = toposort(node_index_map, input_to_node_map, node_to_output_map);
+
+    for(auto& sorted_node : sorted_nodes)
     {
+        const onnx::NodeProto& node = graph.node(node_index_map.at(sorted_node));
         if(enabled(MIGRAPHX_TRACE_ONNX_PARSER{}))
             std::cout << "operator: " << node.op_type() << '\t' << node.name() << std::endl;
 

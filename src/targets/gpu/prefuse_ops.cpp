@@ -29,7 +29,6 @@
 #include <migraphx/register_op.hpp>
 #include <migraphx/pass_manager.hpp>
 #include <migraphx/dead_code_elimination.hpp>
-#include <migraphx/op/group_query_attention.hpp>
 #ifdef MIGRAPHX_USE_COMPOSABLEKERNEL
 #include <migraphx/gpu/ck.hpp>
 #endif
@@ -39,7 +38,7 @@ namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
 namespace gpu {
 
-MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_DISABLE_LAYERNORM_FUSION);
+MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_ENABLE_LAYERNORM_FUSION);
 
 namespace {
 
@@ -236,7 +235,28 @@ struct find_gemm_softmax_gemm
     }
 };
 
-struct gpu_compute_attention_probabilities : op::group_query_attention
+struct base_group_query_attention
+{
+    bool do_rotary           = false;
+    std::size_t kv_num_heads = 0;
+    int local_window_size    = -1;
+    std::size_t num_heads    = 1;
+    bool rotary_interleaved  = false;
+    float scale              = 1.0;
+
+    template <class Self, class F>
+    static auto reflect(Self& self, F f)
+    {
+        return pack(f(self.do_rotary, "do_rotary"),
+                    f(self.kv_num_heads, "kv_num_heads"),
+                    f(self.local_window_size, "local_window_size"),
+                    f(self.num_heads, "num_heads"),
+                    f(self.rotary_interleaved, "rotary_interleaved"),
+                    f(self.scale, "scale"));
+    }
+};
+
+struct gpu_compute_attention_probabilities : base_group_query_attention
 {
     std::string name() const { return "gpu::compute_attention_probabilities"; }
 
@@ -252,7 +272,7 @@ struct gpu_compute_attention_probabilities : op::group_query_attention
 };
 MIGRAPHX_REGISTER_OP(gpu_compute_attention_probabilities);
 
-struct gpu_compute_attention_scores : op::group_query_attention
+struct gpu_compute_attention_scores : base_group_query_attention
 {
     std::string name() const { return "gpu::compute_attention_scores"; }
 
@@ -268,7 +288,7 @@ struct gpu_compute_attention_scores : op::group_query_attention
 };
 MIGRAPHX_REGISTER_OP(gpu_compute_attention_scores);
 
-struct gpu_gqa_rotary_embedding : op::group_query_attention
+struct gpu_gqa_rotary_embedding : base_group_query_attention
 {
     std::string name() const { return "gpu::gqa_rotary_embedding"; }
 
@@ -276,7 +296,7 @@ struct gpu_gqa_rotary_embedding : op::group_query_attention
 };
 MIGRAPHX_REGISTER_OP(gpu_gqa_rotary_embedding);
 
-struct gpu_gqa_softmax : op::group_query_attention
+struct gpu_gqa_softmax : base_group_query_attention
 {
     std::string name() const { return "gpu::gqa_softmax"; }
 
@@ -284,7 +304,7 @@ struct gpu_gqa_softmax : op::group_query_attention
 };
 MIGRAPHX_REGISTER_OP(gpu_gqa_softmax);
 
-struct gpu_concat_past_present : op::group_query_attention
+struct gpu_concat_past_present : base_group_query_attention
 {
     std::string name() const { return "gpu::concat_past_present"; }
 
@@ -385,7 +405,7 @@ struct find_group_query_attention
 
 void prefuse_ops::apply(module_pass_manager& mpm) const
 {
-    if(not enabled(MIGRAPHX_DISABLE_LAYERNORM_FUSION{}))
+    if(enabled(MIGRAPHX_ENABLE_LAYERNORM_FUSION{}))
     {
         match::find_matches(mpm.get_module(), find_layernorm{});
         mpm.run_pass(dead_code_elimination{});

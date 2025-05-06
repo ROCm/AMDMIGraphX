@@ -4275,17 +4275,17 @@ TEST_CASE(dot_mul_a_used_twice)
     // migraphx::shape cs{migraphx::shape::float_type, {2, 256, 128}};
     migraphx::module m1;
     {
-        auto a   = m1.add_parameter("input", as);
-        auto b   = m1.add_literal(migraphx::generate_literal(bs));
+        auto a = m1.add_parameter("input", as);
+        auto b = m1.add_literal(migraphx::generate_literal(bs));
         // auto c   = m1.add_parameter("c", cs);
         auto dot = m1.add_instruction(migraphx::make_op("dot"), a, b);
         auto lit =
             m1.add_literal(migraphx::generate_literal({migraphx::shape::float_type, {1, 1, 128}}));
         auto litb = m1.add_instruction(
             migraphx::make_op("multibroadcast", {{"out_lens", dot->get_shape().lens()}}), lit);
-        auto mul = m1.add_instruction(migraphx::make_op("mul"), dot, litb);
+        auto mul  = m1.add_instruction(migraphx::make_op("mul"), dot, litb);
         auto relu = m1.add_instruction(migraphx::make_op("relu"), mul);
-        auto add = m1.add_instruction(migraphx::make_op("add"), dot, relu);
+        auto add  = m1.add_instruction(migraphx::make_op("add"), dot, relu);
         m1.add_return({add});
     };
     migraphx::module m2 = m1;

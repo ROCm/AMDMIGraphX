@@ -50,7 +50,9 @@ list(APPEND CMAKE_PREFIX_PATH /opt/rocm /opt/rocm/llvm $ENV{ROCM_PATH} $ENV{HIP_
 list(APPEND CMAKE_MODULE_PATH ${CMAKE_CURRENT_SOURCE_DIR}/cmake)
 
 project(migraphx LANGUAGES C CXX)
+
 include(CTest)
+include(Embed)
 
 find_package(ROCM REQUIRED)
 find_package(Threads REQUIRED)

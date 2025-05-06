@@ -65,11 +65,15 @@ static instruction_ref add_placeholder(module& m, instruction_ref ins)
 
 void trim_module(module& m, std::size_t loc, std::size_t n)
 {
+    if(loc > m.size())
+        MIGRAPHX_THROW("Trim out of range.");
     auto last  = std::prev(m.end(), loc);
     auto start = std::prev(last, n);
     m.remove_instructions(last, m.end());
     if(n == 0)
         return;
+    if(n > m.size())
+        MIGRAPHX_THROW("Trim size out of range.");
     std::unordered_map<instruction_ref, instruction_ref> map_ins;
     std::unordered_set<instruction_ref> instruction_set;
     auto instructions = range(start, m.end());

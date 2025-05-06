@@ -233,6 +233,37 @@ constexpr auto repeat(IntegerConstant ic, F&& f)
     return repeat_c<ic>(f);
 }
 
+template <index_int Start, index_int Last, class F>
+constexpr void repeat_up_by_2_c(F&& f)
+{
+    if constexpr(Start < Last)
+    {
+        f(_c<Start>);
+        repeat_up_by_2_c<Start * 2, Last>(static_cast<F&&>(f));
+    }
+}
+
+template <index_int Last, class F>
+constexpr void repeat_up_by_2_c(F&& f)
+{
+    repeat_up_by_2_c<1, Last>(static_cast<F&&>(f));
+}
+
+template <index_int Start, index_int Last, class F>
+constexpr void repeat_down_by_2_c(F&& f)
+{
+    if constexpr(Start >= Last)
+    {
+        f(_c<Start>);
+        repeat_down_by_2_c<Start / 2, Last>(static_cast<F&&>(f));
+    }
+}
+template <index_int Start, class F>
+constexpr void repeat_down_by_2_c(F&& f)
+{
+    repeat_down_by_2_c<Start, 1>(static_cast<F&&>(f));
+}
+
 template <class F, class T>
 constexpr auto fold_impl(F&&, T&& x)
 {

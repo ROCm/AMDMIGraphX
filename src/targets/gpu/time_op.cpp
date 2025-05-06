@@ -47,8 +47,8 @@ static std::vector<argument> generate_arguments(const std::vector<shape>& shapes
     return args;
 }
 
-template <class F>
-static double time_loop(migraphx::gpu::context& gctx, int bundle, int nruns, F f)
+double
+time_loop(migraphx::gpu::context& gctx, int bundle, int nruns, const std::function<void()>& f)
 {
     // check for manual overrides
     bundle = value_of(MIGRAPHX_BENCHMARKING_BUNDLE{}, bundle);

@@ -590,6 +590,11 @@ MIGRAPHX_C_EXPORT migraphx_status migraphx_parse_tf(migraphx_program_t* out,
                                                     const char* name,
                                                     migraphx_tf_options_t options);
 
+MIGRAPHX_C_EXPORT migraphx_status migraphx_parse_tf_buffer(migraphx_program_t* out,
+                                                           const void* data,
+                                                           size_t size,
+                                                           migraphx_tf_options_t options);
+
 MIGRAPHX_C_EXPORT migraphx_status
 migraphx_quantize_op_names_destroy(migraphx_quantize_op_names_t quantize_op_names);
 

@@ -21,11 +21,6 @@
 # OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 # THE SOFTWARE.
 #####################################################################################
-google/protobuf@v3.19.0 -DCMAKE_POSITION_INDEPENDENT_CODE=On -X subdir -Dprotobuf_BUILD_TESTS=Off
-nlohmann/json@v3.8.0
-ROCm/half@rocm-5.6.0
-pybind/pybind11@3e9dfa2866941655c56877882565e7577de6fc7b --build
-msgpack/msgpack-c@cpp-3.3.0 -DMSGPACK_BUILD_TESTS=Off
-sqlite3@3.43.2 -DCMAKE_POSITION_INDEPENDENT_CODE=On
-ROCm/composable_kernel@b7775add2d28251674d81e220cd4a857b90b997a -DCK_BUILD_JIT_LIB=On -DCMAKE_POSITION_INDEPENDENT_CODE=On
-ROCm/rocMLIR@ab200855ab14872a08726f4cd1983d193dc6000e -DBUILD_FAT_LIBROCKCOMPILER=On
+numpy==1.26.4;python_version>="3.11"
+numpy==1.21.6;python_version<"3.11"
+onnxruntime==1.17.3

@@ -401,10 +401,10 @@ static void create_node_maps(std::map<std::string, size_t>& node_index_map,
     for(auto&& node : graph.node())
     {
         std::string node_name = node.name();
+        // onnx does not require nodes to be named, but needed to track individual nodes
         if(node_name.empty())
         {
             node_name = "migraphx_unnamed_" + node.op_type() + "_" + std::to_string(idx);
-            // std::cout << node_name << std::endl;
         }
         if(contains(node_index_map, node_name))
         {
@@ -414,10 +414,20 @@ static void create_node_maps(std::map<std::string, size_t>& node_index_map,
         node_index_map.emplace(node_name, idx);
         idx++;
 
+        // To track actual node outputs, a future node will mention the current node's output
+        // in its list of inputs. For example:
+        // node A: outputs ["a_out"]
+        // node B: inputs ["a_out"]
+        // Here the output of node A is node B because "a_out" is the output of node A and
+        // input of node B.
+        // There can be multiple outputs, so if each new node sees an input already
+        // in the map, then append to it.
+        // In the prior example, if we add the following:
+        // node C: inputs ["a_out"]
+        // then we will have something like {"a_out": [node B, node C]} in our map.
         for(auto&& input : node.input())
         {
             std::string node_input = input;
-            // std::cout << "node input: " << node_input << std::endl;
             if(input_to_node_map.count(node_input) > 0)
             {
                 input_to_node_map.at(node_input).push_back(node_name);
@@ -427,19 +437,21 @@ static void create_node_maps(std::map<std::string, size_t>& node_index_map,
         }
 
         std::vector<std::string> node_outputs;
-
-        for(auto&& output : node.output())
-        {
-            // std::cout << "node output: " << output << std::endl;
-            node_outputs.push_back(output);
-        }
+        std::transform(node.output().begin(), node.output().end(), std::back_inserter(node_outputs), 
+            [](auto& output){ 
+                return output; 
+            });
+        
+        // Use this second map to keep track of all references of the output names to be used
+        // as inputs to future nodes.
         node_to_output_map.emplace(node_name, node_outputs);
 
     }
 
+    // Graph outputs will eventually reference the last nodes in the graph,
+    // so add to the input_to_node_map.
     for(auto&& output : graph.output())
     {
-        // std::cout << "graph output: " << output.name() << std::endl;
         input_to_node_map.emplace(output.name(), std::vector<std::string>{});
     }
 
@@ -456,7 +468,6 @@ static void traverse(std::vector<std::string>& sorted_nodes,
         return;
 
     visited_nodes.insert(curr_node);
-    // std::cout << "traverse curr_node: " << curr_node << std::endl;
 
     for(auto& out_node_name : node_to_output_map.at(curr_node))
     {
@@ -478,7 +489,6 @@ static std::vector<std::string> toposort(const std::map<std::string, size_t>& no
     for(const auto& node_index : node_index_map)
     {
         std::string node_name = node_index.first;
-        // std::cout << "toposort node name: " << node_name << std::endl;
         traverse(sorted_nodes, visited_nodes, input_to_node_map, node_to_output_map, node_name);
     }
 
@@ -490,14 +500,12 @@ static bool check_sorted(const onnx::GraphProto& graph)
     std::unordered_set<std::string> visited_nodes;
     for(auto&& input : graph.input())
     {
-        // std::cout << "graph inputs: " << input.name() << std::endl;
         visited_nodes.insert(input.name());
     }
     for(auto&& node : graph.node())
     {
         for(auto&& input : node.input())
         {
-            // std::cout << "node inputs: " << input << std::endl;
             if(not input.empty())
                 if(visited_nodes.count(input) == 0)
                     return false;

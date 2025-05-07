@@ -64,6 +64,7 @@ else()
             -Wundef
             -Wuninitialized
             -Wunreachable-code
+            -Wno-deprecated-pragma
             -Wunused
 
             -Wno-sign-compare
@@ -110,7 +111,7 @@ else()
                 list(APPEND CMAKE_COMPILER_WARNINGS
                     -Wno-missing-include-dirs
                     -Wno-switch-default
-		    #-Wno-deprecated-pragma
+		    -Wno-deprecated-pragma
                 )
             endif()
         else()

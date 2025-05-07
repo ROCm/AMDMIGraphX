@@ -4275,7 +4275,7 @@ TEST_CASE(dot_mul_a_used_twice)
     migraphx::module m1;
     {
         auto a = m1.add_parameter("input", as);
-        auto b = m1.add_literal(migraphx::generate_literal(bs));
+        auto b   = m1.add_literal(migraphx::generate_literal(bs));
         auto dot = m1.add_instruction(migraphx::make_op("dot"), a, b);
         auto lit =
             m1.add_literal(migraphx::generate_literal({migraphx::shape::float_type, {1, 1, 128}}));

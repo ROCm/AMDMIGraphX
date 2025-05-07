@@ -23,7 +23,6 @@
 #####################################################################################
 
 include(ExportHeader)
-include(Embed)
 
 include(ROCMInstallTargets)
 include(ROCMPackageConfigHelpers)

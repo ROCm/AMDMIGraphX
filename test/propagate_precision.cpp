@@ -153,7 +153,8 @@ TEST_CASE(propagate_reduce)
         auto div      = migraphx::add_common_op(m1, migraphx::make_op("div"), {squared, three});
         auto convert1 = m1.add_instruction(
             migraphx::make_op("convert", {{"target_type", migraphx::shape::float_type}}), div);
-        auto reduce = m1.add_instruction(migraphx::make_op("reduce_sum", {{"axes", {1}}}), convert1);
+        auto reduce =
+            m1.add_instruction(migraphx::make_op("reduce_sum", {{"axes", {1}}}), convert1);
         auto convert2 = m1.add_instruction(
             migraphx::make_op("convert", {{"target_type", migraphx::shape::half_type}}), reduce);
         auto sqrt = m1.add_instruction(migraphx::make_op("sqrt"), convert2);

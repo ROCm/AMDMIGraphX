@@ -44,12 +44,11 @@ if(CMAKE_HOST_SYSTEM_NAME STREQUAL "Windows")
         set(PYTHON_${version}_EXECUTABLE ${python_executable} CACHE INTERNAL "" FORCE)
         string(REPLACE "." "" _python_version_stripped ${version})
         add_library(python${version}::headers INTERFACE IMPORTED GLOBAL)
-        set_target_properties(python${version}::headers PROPERTIES
-                INTERFACE_INCLUDE_DIRECTORIES "${_python_path}/include")
+        target_include_directories(python${version}::headers INTERFACE "${_python_path}/include")
+        target_link_directories(python${version}::headers INTERFACE "${_python_path}/libs")
         add_library(python${version}::runtime INTERFACE IMPORTED GLOBAL)
-        target_link_directories(python${version}::runtime INTERFACE ${_python_path}/libs/)
-        target_link_libraries(python${version}::runtime INTERFACE
-                python${_python_version_stripped}.lib python${version}::headers)
+        target_link_libraries(python${version}::runtime INTERFACE python${version}::headers
+                "${_python_path}/libs/python${_python_version_stripped}.lib")
     endfunction()
 else()
     macro(find_python version)
@@ -109,6 +108,7 @@ function(py_add_module NAME)
                 OUTPUT_VARIABLE _python_module_extension)
         cmake_path(GET _python_module_extension STEM LAST_ONLY _module_name)
         set_target_properties(${NAME} PROPERTIES OUTPUT_NAME ${PARSE_PYTHON_MODULE}${_module_name} SUFFIX ".pyd")
+        target_link_libraries(${NAME} )
     else()
         set_target_properties(${NAME} PROPERTIES
                 OUTPUT_NAME ${PARSE_PYTHON_MODULE}

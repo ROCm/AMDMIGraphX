@@ -4272,12 +4272,10 @@ TEST_CASE(dot_mul_a_used_twice)
 {
     migraphx::shape as{migraphx::shape::float_type, {2, 256, 32}};
     migraphx::shape bs{migraphx::shape::float_type, {2, 32, 128}};
-    // migraphx::shape cs{migraphx::shape::float_type, {2, 256, 128}};
     migraphx::module m1;
     {
         auto a = m1.add_parameter("input", as);
         auto b = m1.add_literal(migraphx::generate_literal(bs));
-        // auto c   = m1.add_parameter("c", cs);
         auto dot = m1.add_instruction(migraphx::make_op("dot"), a, b);
         auto lit =
             m1.add_literal(migraphx::generate_literal({migraphx::shape::float_type, {1, 1, 128}}));

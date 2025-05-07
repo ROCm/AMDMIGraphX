@@ -126,7 +126,7 @@ static bool specific_op(std::string_view option, bool fallback = false)
     return contains(options, option);
 }
 
-bool mlir_attention_enabled(context* ctx)
+static bool mlir_attention_enabled(context* ctx)
 {
 #ifdef MIGRAPHX_MLIR
     if(not mlir_enabled())
@@ -308,13 +308,18 @@ auto is_mlir_dot(mlir_mode mode)
             return true;
         auto a = ins->inputs().front()->get_shape();
         auto b = ins->inputs().back()->get_shape();
-        // auto m = a.lens()[a.lens().size() - 2];
-        // auto n = b.lens().back();
+        auto g = std::accumulate(a.lens().begin(), a.lens().end() - 2, 1, std::multiplies<>{});
+        auto m = a.lens()[a.lens().size() - 2];
+        auto n = b.lens().back();
         auto k = a.lens().back();
         // Skipping GEMMs with a K dimension greater than 2048 is a course-grained strategy
         // to avoid poor-performing GEMM kernels from MLIR
         // To-do: Investigate a more precise strategy
-        return k <= 1024;
+        if(k > 1535)
+            return false;
+        if(k < 1024)
+            return true;
+        return (g * m * n) < (384 * 384);
     });
 }
 

@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2024 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2025 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -38,16 +38,15 @@
 #include <migraphx/instruction.hpp>
 #include <migraphx/pass_manager.hpp>
 
+#if MIGRAPHX_USE_ROCBLAS or MIGRAPHX_USE_HIPBLASLT
 // Abbreviated lowering; we don't need the usual cleanup passes for this test
-void run_lowering(migraphx::program& p, bool offload_copy = false)
+static void run_lowering(migraphx::program& p, bool offload_copy = false)
 {
     auto ctx = migraphx::gpu::context{};
     migraphx::run_passes(
         *p.get_main_module(),
         {migraphx::auto_contiguous{}, migraphx::gpu::lowering{&ctx, offload_copy}});
 }
-
-#if MIGRAPHX_USE_ROCBLAS or MIGRAPHX_USE_HIPBLASLT
 /**
  * Tests the automatic GEMM tuning feature for rocBLAS and hipBLASLt.
  * In the finalize() method of the gemm op,

@@ -1,6 +1,6 @@
 # Stable Diffusion 2.1
 
-This version was tested with [rocm 6.0](https://github.com/ROCmSoftwarePlatform/AMDMIGraphX/tree/rocm-6.0.0) revision.
+This version was tested with [rocm 6.4](https://github.com/ROCm/AMDMIGraphX/tree/release/rocm-rel-6.4) revision.
 
 ## Jupyter notebook
 
@@ -40,7 +40,7 @@ optimum-cli export onnx --model stabilityai/stable-diffusion-2-1 models/sd21-onn
 Run the text-to-image script with the following example prompt and seed (optionally, you can change the batch size / number of images generated for that prompt)
 
 ```bash
-python txt2img.py --prompt "a photograph of an astronaut riding a horse" --seed 13 --output astro_horse.jpg --batch 1
+MIGRAPHX_MLIR_USE_SPECIFIC_OPS="attention,dot,fused,convolution" python txt2img.py --prompt "a photograph of an astronaut riding a horse" --seed 13 --output astro_horse.jpg --batch 1
 ```
 *Note: The first run will compile the models and cache them to make subsequent runs faster. New batch sizes will result in the models re-compiling.*
 

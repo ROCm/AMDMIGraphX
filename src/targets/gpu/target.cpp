@@ -111,14 +111,18 @@ std::vector<pass> target::get_passes(migraphx::context& gctx, const compile_opti
         unsupported_types.erase(shape::type_t::bf16_type);
     }
 
+    std::set<std::string> unsupported_fp8fnuz_ops = {};
+
+#if MIGRAPHX_USE_HIPBLASLT
     // whiltelist supported Ops for the FP8 types
     // rocBLAS does not support any FP8 types
-    std::set<std::string> unsupported_fp8fnuz_ops = {};
     if(string_value_of(MIGRAPHX_SET_GEMM_PROVIDER{}) == "rocblas" or gpu::gfx_default_rocblas())
     {
         unsupported_fp8fnuz_ops.insert("dot");
         unsupported_fp8fnuz_ops.insert("quant_dot");
     }
+#endif
+
 #if MIGRAPHX_USE_MIOPEN // MIOpen doesn't have support for fp8 pooling yet.
     unsupported_fp8fnuz_ops.insert("pooling");
 #endif

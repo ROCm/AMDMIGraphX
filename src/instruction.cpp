@@ -569,7 +569,7 @@ bool reaches(instruction_ref start, instruction_ref end, const_module_ref m)
 {
     if(start == end)
         return true;
-    std::size_t intial_distance = std::distance(start, end);
+    std::size_t initial_distance = std::distance(start, end);
     if(not m->has_instruction(start) or not m->has_instruction(end))
         return false;
     std::unordered_set<instruction_ref> visited;
@@ -580,7 +580,7 @@ bool reaches(instruction_ref start, instruction_ref end, const_module_ref m)
             return true;
         if(not visited.insert(ins).second)
             return false;
-        if(std::distance(ins, end) > intial_distance)
+        if(std::distance(ins, end) > initial_distance)
             return false;
         return std::any_of(ins->inputs().begin(), ins->inputs().end(), self);
     })(end);

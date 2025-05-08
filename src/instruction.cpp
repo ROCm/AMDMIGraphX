@@ -548,28 +548,39 @@ migraphx::instruction* as_address(const instruction_ref& ins) noexcept
     return std::addressof(*ins);
 }
 
+// DFS through inputs of `end` to find `start`
+bool reaches(instruction_ref start, instruction_ref end)
+{
+    if(start == end)
+        return true;
+    std::unordered_set<instruction_ref> visited;
+    return fix<bool>([&](auto self, auto ins) -> bool {
+        if(ins == start)
+            return true;
+        // hit a previously visited instruction
+        if(not visited.insert(ins).second)
+            return false;
+        return std::any_of(ins->inputs().begin(), ins->inputs().end(), self);
+    })(end);
+}
+
+// `reaches` version that checks if instructions are in the module `m`
 bool reaches(instruction_ref start, instruction_ref end, const_module_ref m)
 {
     if(start == end)
         return true;
-    std::size_t d = 0;
-    if(m != nullptr)
-    {
-        if(not m->has_instruction(start))
-            return false;
-        if(not m->has_instruction(end))
-            return false;
-        d = std::distance(start, end);
-    }
+    std::size_t inital_distance = std::distance(start, end);
+    if(not m->has_instruction(start) or not m->has_instruction(end))
+        return false;
     std::unordered_set<instruction_ref> visited;
     return fix<bool>([&](auto self, auto ins) -> bool {
-        if(m != nullptr and not m->has_instruction(ins))
+        if(not m->has_instruction(ins))
             return false;
         if(ins == start)
             return true;
         if(not visited.insert(ins).second)
             return false;
-        if(d > 0 and std::distance(ins, end) > d)
+        if(std::distance(ins, end) > inital_distance)
             return false;
         return std::any_of(ins->inputs().begin(), ins->inputs().end(), self);
     })(end);

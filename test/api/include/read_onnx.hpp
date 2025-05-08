@@ -20,40 +20,26 @@
  * LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
  * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
  * THE SOFTWARE.
+ *
  */
+#ifndef MIGRAPHX_GUARD_INCLUDE_READ_ONNX_HPP
+#define MIGRAPHX_GUARD_INCLUDE_READ_ONNX_HPP
 
-#include <migraphx/ranges.hpp>
-#include <migraphx/stringutils.hpp>
-#include <migraphx/gpu/device_name.hpp>
-#include <migraphx/gpu/rocblas.hpp>
-#include <migraphx/gpu/context.hpp>
+#include <onnx_files.hpp>
+#include <migraphx/migraphx.hpp>
 
-namespace migraphx {
-inline namespace MIGRAPHX_INLINE_NS {
-namespace gpu {
-
-#if MIGRAPHX_USE_ROCBLAS
-rocblas_handle_ptr create_rocblas_handle_ptr()
+inline migraphx::program read_onnx(const std::string& name,
+                                   const migraphx::onnx_options& options = migraphx::onnx_options{})
 {
-    rocblas_handle handle;
-    rocblas_create_handle(&handle);
-    return rocblas_handle_ptr{handle};
+    static auto onnx_files{::onnx_files()};
+    if(onnx_files.find(name) == onnx_files.end())
+    {
+        std::cerr << "Can not find onnx file by name: " << name << " , aborting the program\n"
+                  << std::endl;
+        std::abort();
+    }
+    auto prog = migraphx::parse_onnx_buffer(std::string{onnx_files.at(name)}, options);
+    return prog;
 }
 
-rocblas_handle_ptr create_rocblas_handle_ptr(hipStream_t s)
-{
-    rocblas_handle_ptr rb = create_rocblas_handle_ptr();
-    rocblas_set_stream(rb.get(), s);
-    return rb;
-}
-#endif
-
-bool get_compute_fp32_flag()
-{
-    const auto device_name = trim(split_string(get_device_name(), ':').front());
-    return (starts_with(device_name, "gfx9") and device_name >= "gfx908");
-}
-
-} // namespace gpu
-} // namespace MIGRAPHX_INLINE_NS
-} // namespace migraphx
+#endif // MIGRAPHX_GUARD_INCLUDE_READ_ONNX_HPP

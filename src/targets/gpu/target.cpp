@@ -147,8 +147,8 @@ std::vector<pass> target::get_passes(migraphx::context& gctx, const compile_opti
     // disable dot & quant_dot if no hipblaslt
     if(not hipblaslt_supported())
     {
-        unsupported_fp8fnuz_ops.insert("dot");
-        unsupported_fp8fnuz_ops.insert("quant_dot");
+        unsupported_fp8ocp_ops.insert("dot");
+        unsupported_fp8ocp_ops.insert("quant_dot");
     }
 
 #if MIGRAPHX_USE_MIOPEN

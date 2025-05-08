@@ -548,7 +548,8 @@ migraphx::instruction* as_address(const instruction_ref& ins) noexcept
     return std::addressof(*ins);
 }
 
-// DFS through inputs of `end` to find `start`
+// DFS through inputs of `end` to find `start`.
+// `start` must be positioned before `end`.
 bool reaches(instruction_ref start, instruction_ref end)
 {
     if(start == end)
@@ -565,6 +566,8 @@ bool reaches(instruction_ref start, instruction_ref end)
 }
 
 // `reaches` version that checks if instructions are in the module `m`
+// Additional condition that stops if DFS instruction's distance to `end`
+// is greater than the distance between `start` and `end`.
 bool reaches(instruction_ref start, instruction_ref end, const_module_ref m)
 {
     if(start == end)

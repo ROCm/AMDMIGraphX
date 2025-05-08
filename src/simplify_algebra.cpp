@@ -1146,9 +1146,6 @@ struct find_splits
      * `root` is the instruction before the slice instructions (what find_splits matcher matches).
      * This function is called by split_groups_are_dependent() many times depending on the size
      * of the split groups.
-     * Note that there might be a faster way to do this by copying instruction_refs into a vector
-     * and taking advantage of if std::distance(ins_vec_iter, root_vec_iter) < 0. If the currently
-     * being checked instruction is before the root instruction, we don't need to check any deeper.
      */
     static bool
     is_dependent(const module& m, instruction_ref root, instruction_ref start, instruction_ref end)

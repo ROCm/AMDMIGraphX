@@ -854,7 +854,7 @@ struct onnx : command<onnx>
 
 #endif
 
-#ifdef MIGRPAHX_ENABLE_TENSORFLOW
+#ifdef HAVE_TENSORFLOW
 
 struct tf : command<tf>
 {

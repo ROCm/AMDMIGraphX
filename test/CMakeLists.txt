@@ -154,7 +154,7 @@ function(test_headers PREFIX)
         string(MAKE_C_IDENTIFIER ${HEADER_REL} TEST_NAME)
         get_filename_component(BASE_NAME ${HEADER} NAME_WE)
         test_header(header_${TEST_NAME} ${PREFIX}/${BASE_NAME}.hpp)
-        target_link_libraries(header_${TEST_NAME} migraphx migraphx_all_targets migraphx_all_frontends register_targets)
+        target_link_libraries(header_${TEST_NAME} migraphx migraphx_all_frontends migraphx_all_targets register_targets)
     endforeach()
 endfunction()
 

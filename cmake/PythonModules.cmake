@@ -109,7 +109,6 @@ function(py_add_module NAME)
                 OUTPUT_VARIABLE _python_module_extension)
         cmake_path(GET _python_module_extension STEM LAST_ONLY _module_name)
         set_target_properties(${NAME} PROPERTIES OUTPUT_NAME ${PARSE_PYTHON_MODULE}${_module_name} SUFFIX ".pyd")
-        target_link_libraries(${NAME} )
     else()
         set_target_properties(${NAME} PROPERTIES
                 OUTPUT_NAME ${PARSE_PYTHON_MODULE}

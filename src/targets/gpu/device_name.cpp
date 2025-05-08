@@ -29,6 +29,8 @@
 #include <migraphx/stringutils.hpp>
 #include <hip/hip_runtime_api.h>
 
+#include <iostream>
+
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
 namespace gpu {

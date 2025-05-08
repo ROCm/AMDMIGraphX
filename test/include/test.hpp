@@ -826,16 +826,24 @@ inline void run(int argc, const char* argv[])
 // NOLINTNEXTLINE
 #define TEST_CAPTURE(...) test::capture{}->*__VA_ARGS__
 
+#ifdef _WIN32
+// NOLINTNEXTLINE
+#define TEST_PRETTY_FUNCTION __FUNCSIG__
+#else
+// NOLINTNEXTLINE
+#define TEST_PRETTY_FUNCTION __PRETTY_FUNCTION__
+#endif
+
 // NOLINTNEXTLINE
 #define CHECK(...) \
     test::failed(  \
-        TEST_CAPTURE(__VA_ARGS__), #__VA_ARGS__, __PRETTY_FUNCTION__, __FILE__, __LINE__, [] {})
+        TEST_CAPTURE(__VA_ARGS__), #__VA_ARGS__, TEST_PRETTY_FUNCTION, __FILE__, __LINE__, [] {})
 
 // NOLINTNEXTLINE
 #define EXPECT(...)                         \
     test::failed(TEST_CAPTURE(__VA_ARGS__), \
                  #__VA_ARGS__,              \
-                 __PRETTY_FUNCTION__,       \
+                 TEST_PRETTY_FUNCTION,      \
                  __FILE__,                  \
                  __LINE__,                  \
                  &test::fail)

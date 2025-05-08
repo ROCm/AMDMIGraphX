@@ -827,8 +827,10 @@ inline void run(int argc, const char* argv[])
 #define TEST_CAPTURE(...) test::capture{}->*__VA_ARGS__
 
 #ifdef _WIN32
+// NOLINTNEXTLINE
 #define TEST_PRETTY_FUNCTION __FUNCSIG__
 #else
+// NOLINTNEXTLINE
 #define TEST_PRETTY_FUNCTION __PRETTY_FUNCTION__
 #endif
 

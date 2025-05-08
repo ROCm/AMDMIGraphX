@@ -22,9 +22,7 @@
 # THE SOFTWARE.
 #####################################################################################
 
-if(DEFINED embed_wrap_string)
-    return()
-endif()
+include_guard(GLOBAL)
 
 if(WIN32)
     set(EMBED_USE RC CACHE STRING "Use RC or CArrays to embed data files")

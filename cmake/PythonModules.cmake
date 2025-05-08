@@ -44,11 +44,12 @@ if(CMAKE_HOST_SYSTEM_NAME STREQUAL "Windows")
         set(PYTHON_${version}_EXECUTABLE ${python_executable} CACHE INTERNAL "" FORCE)
         string(REPLACE "." "" _python_version_stripped ${version})
         add_library(python${version}::headers INTERFACE IMPORTED GLOBAL)
-        target_include_directories(python${version}::headers INTERFACE "${_python_path}/include")
-        target_link_directories(python${version}::headers INTERFACE "${_python_path}/libs")
+        set_target_properties(python${version}::headers PROPERTIES
+            INTERFACE_LINK_DIRECTORIES "${_python_path}\\libs"
+            INTERFACE_INCLUDE_DIRECTORIES "${_python_path}\\include")
         add_library(python${version}::runtime INTERFACE IMPORTED GLOBAL)
-        target_link_libraries(python${version}::runtime INTERFACE python${version}::headers
-                "${_python_path}/libs/python${_python_version_stripped}.lib")
+        set_target_properties(python${version}::runtime PROPERTIES
+            INTERFACE_LINK_LIBRARIES "python${_python_version_stripped}.lib;python${version}::headers")
     endfunction()
 else()
     macro(find_python version)
@@ -119,6 +120,7 @@ function(py_add_module NAME)
 endfunction()
 
 set(PYTHON_DISABLE_VERSIONS "" CACHE STRING "")
+set(_PYTHON_VERSIONS)
 
 if(CMAKE_HOST_SYSTEM_NAME STREQUAL "Windows")
     find_program(PY_EXECUTABLE py.exe PATHS ENV windir REQUIRED)
@@ -145,7 +147,6 @@ else()
         list(REMOVE_ITEM PYTHON_SEARCH_VERSIONS ${PYTHON_DISABLE_VERSION})
     endforeach()
 
-    set(_PYTHON_VERSIONS)
     foreach(PYTHON_VERSION ${PYTHON_SEARCH_VERSIONS})
       find_python(${PYTHON_VERSION})
         if(TARGET python${PYTHON_VERSION}::headers)

@@ -36,7 +36,7 @@ inline namespace MIGRAPHX_INLINE_NS {
 
 MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_TRACE_PROPAGATE_CONSTANT)
 
-bool skip_propagate(instruction_ref ins)
+static bool skip_propagate(instruction_ref ins)
 {
     if(contains({"contiguous", "dequantizelinear", "reshape"}, ins->name()))
         return skip_propagate(ins->inputs().front());
@@ -53,13 +53,13 @@ bool skip_propagate(instruction_ref ins)
     return false;
 }
 
-bool is_const_ins(instruction_ref ins, const std::unordered_set<std::string>& skip_ops)
+static bool is_const_ins(instruction_ref ins, const std::unordered_set<std::string>& skip_ops)
 {
     return ins->can_eval() and not skip_propagate(ins) and
            skip_ops.find(ins->name()) == skip_ops.end();
 }
 
-argument as_packed(const argument& c)
+static argument as_packed(const argument& c)
 {
     if(c.get_shape().packed())
         return c;

@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2023 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2025 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -26,18 +26,19 @@
 #include <migraphx/serialize.hpp>
 #include <sstream>
 #include <string>
+#include <utility>
 #include "test.hpp"
 
-migraphx::argument as_argument(migraphx::argument a) { return a; }
+static migraphx::argument as_argument(migraphx::argument a) { return a; }
 template <class T>
-migraphx::argument as_argument(T x)
+static migraphx::argument as_argument(T x)
 {
     return migraphx::literal{x}.get_argument();
 }
 template <class... Ts>
-migraphx::argument make_tuple(Ts... xs)
+static migraphx::argument make_tuple(Ts... xs)
 {
-    return migraphx::argument{{as_argument(xs)...}};
+    return migraphx::argument{{as_argument(std::move(xs))...}};
 }
 
 TEST_CASE(copy_eq)

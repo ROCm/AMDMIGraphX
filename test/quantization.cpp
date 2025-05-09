@@ -38,7 +38,6 @@
 #include <migraphx/propagate_constant.hpp>
 #include <migraphx/simplify_qdq.hpp>
 #include <migraphx/pass_manager.hpp>
-#include <migraphx/onnx.hpp>
 #include <migraphx/make_op.hpp>
 #include <migraphx/serialize.hpp>
 #include <migraphx/argument.hpp>

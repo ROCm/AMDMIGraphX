@@ -412,8 +412,7 @@ void find_matches_for(source_location location, Mod& mod, instruction_ref ins, M
     const bool validate     = enabled(MIGRAPHX_VALIDATE_MATCHES{});
     const auto trace_filter = string_value_of(MIGRAPHX_TRACE_MATCHES_FOR{});
     const bool time_matchers = enabled(MIGRAPHX_TIME_MATCHERS{});
-    bool match              = false;
-    timer match_timer{};
+    bool match               = false;
     each_args(
         [&](auto&& m) {
             const auto& matcher_name = get_type_name(m);
@@ -423,22 +422,31 @@ void find_matches_for(source_location location, Mod& mod, instruction_ref ins, M
                                     contains(matcher_name, trace_filter));
             if(match)
                 return;
+            // print running matcher even if it doesn't match anything
             if(trace > 1 and trace_for)
-                std::cout << "Match: " << matcher_name << std::endl;
+                std::cout << "Running matcher: " << matcher_name << std::endl;
 
-            auto r = match_instruction(get_module(mod), ins, m.matcher());
+            matcher_result r;
             if(time_matchers or trace_for)
             {
+                timer match_timer{};
+                r = match_instruction(get_module(mod), ins, m.matcher());
                 const auto match_time = match_timer.record<std::chrono::duration<double, std::micro>>();
-                std::cout << "Matching for " << matcher_name << " took " << match_time << "us."
+                std::cout << "Matcher time for " << matcher_name << ": " << match_time << "us."
                           << std::endl;
             }
+            else
+            {
+                r = match_instruction(get_module(mod), ins, m.matcher());
+            }
 
+            // did not match any instruction
             if(r.result == get_module(mod).end())
                 return;
+
             if(trace > 0 or trace_for)
             {
-                std::cout << "Matched by " << matcher_name << std::endl;
+                std::cout << "Matched by: " << matcher_name << std::endl;
                 get_module(mod).debug_print(ins);
             }
             // If its already invalid dont validate it again
@@ -447,7 +455,7 @@ void find_matches_for(source_location location, Mod& mod, instruction_ref ins, M
                 time<std::chrono::duration<double, std::micro>>([&] { m.apply(mod, r); });
             if(time_matchers or trace_for)
             {
-                std::cout << "Apply for " << matcher_name << " took " << apply_time << "us."
+                std::cout << "Apply time for " << matcher_name << ": " << apply_time << "us."
                           << std::endl;
             }
 

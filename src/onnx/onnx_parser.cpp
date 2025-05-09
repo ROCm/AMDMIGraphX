@@ -391,10 +391,10 @@ parse_inputs(const onnx_parser& parser,
     return mod_insts;
 }
 
-static void create_node_maps(std::map<std::string, size_t>& node_index_map, 
-                            std::map<std::string, std::vector<std::string>>& input_to_node_map,
-                            std::map<std::string, std::vector<std::string>>& node_to_output_map,
-                            const onnx::GraphProto& graph)
+static void create_node_maps(std::map<std::string, size_t>& node_index_map,
+                             std::map<std::string, std::vector<std::string>>& input_to_node_map,
+                             std::map<std::string, std::vector<std::string>>& node_to_output_map,
+                             const onnx::GraphProto& graph)
 {
     size_t idx = 0;
 
@@ -409,7 +409,7 @@ static void create_node_maps(std::map<std::string, size_t>& node_index_map,
         if(contains(node_index_map, node_name))
         {
             MIGRAPHX_THROW("PARSE_GRAPH: invalid onnx file. Found node name \"" + node_name +
-                "\" more than once in graph!");
+                           "\" more than once in graph!");
         }
         node_index_map.emplace(node_name, idx);
         idx++;
@@ -437,15 +437,14 @@ static void create_node_maps(std::map<std::string, size_t>& node_index_map,
         }
 
         std::vector<std::string> node_outputs;
-        std::transform(node.output().begin(), node.output().end(), std::back_inserter(node_outputs), 
-            [](auto& output){ 
-                return output; 
-            });
-        
+        std::transform(node.output().begin(),
+                       node.output().end(),
+                       std::back_inserter(node_outputs),
+                       [](auto& output) { return output; });
+
         // Use this second map to keep track of all references of the output names to be used
         // as inputs to future nodes.
         node_to_output_map.emplace(node_name, node_outputs);
-
     }
 
     // Graph outputs will eventually reference the last nodes in the graph,
@@ -454,15 +453,13 @@ static void create_node_maps(std::map<std::string, size_t>& node_index_map,
     {
         input_to_node_map.emplace(output.name(), std::vector<std::string>{});
     }
-
 }
 
 static void traverse(std::vector<std::string>& sorted_nodes,
-                    std::set<std::string>& visited_nodes,
-                    std::map<std::string, std::vector<std::string>>& input_to_node_map,
-                    std::map<std::string, std::vector<std::string>>& node_to_output_map,
-                    std::string curr_node
-                )
+                     std::set<std::string>& visited_nodes,
+                     std::map<std::string, std::vector<std::string>>& input_to_node_map,
+                     std::map<std::string, std::vector<std::string>>& node_to_output_map,
+                     std::string curr_node)
 {
     if(contains(visited_nodes, curr_node))
         return;
@@ -472,16 +469,16 @@ static void traverse(std::vector<std::string>& sorted_nodes,
     for(auto& out_node_name : node_to_output_map.at(curr_node))
     {
         for(auto& in_node_name : input_to_node_map.at(out_node_name))
-            traverse(sorted_nodes, visited_nodes, input_to_node_map, node_to_output_map, in_node_name);
+            traverse(
+                sorted_nodes, visited_nodes, input_to_node_map, node_to_output_map, in_node_name);
     }
     sorted_nodes.insert(sorted_nodes.begin(), curr_node);
 }
 
-
-static std::vector<std::string> toposort(const std::map<std::string, size_t>& node_index_map,
-                                         std::map<std::string, std::vector<std::string>>& input_to_node_map,
-                                         std::map<std::string, std::vector<std::string>>& node_to_output_map
-                                        )
+static std::vector<std::string>
+toposort(const std::map<std::string, size_t>& node_index_map,
+         std::map<std::string, std::vector<std::string>>& input_to_node_map,
+         std::map<std::string, std::vector<std::string>>& node_to_output_map)
 {
     std::vector<std::string> sorted_nodes;
     std::set<std::string> visited_nodes;
@@ -539,13 +536,14 @@ onnx_parser::parse_graph(module* mod, const onnx::GraphProto& graph, bool inlini
         std::map<std::string, std::vector<std::string>> input_to_node_map;
         std::map<std::string, std::vector<std::string>> node_to_output_map;
         create_node_maps(node_index_map, input_to_node_map, node_to_output_map, graph);
-        
-        std::vector<std::string> sorted_nodes = toposort(node_index_map, input_to_node_map, node_to_output_map);
-        std::transform(sorted_nodes.begin(), sorted_nodes.end(), node_indices.begin(),
-            [&](auto node_name) { 
-                return node_index_map.at(node_name); 
-            });
-    }    
+
+        std::vector<std::string> sorted_nodes =
+            toposort(node_index_map, input_to_node_map, node_to_output_map);
+        std::transform(sorted_nodes.begin(),
+                       sorted_nodes.end(),
+                       node_indices.begin(),
+                       [&](auto node_name) { return node_index_map.at(node_name); });
+    }
 
     for(auto& node_index : node_indices)
     {

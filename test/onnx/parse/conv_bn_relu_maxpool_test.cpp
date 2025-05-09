@@ -73,13 +73,13 @@ migraphx::program create_conv_bn_relu_maxpool()
 TEST_CASE(conv_bn_relu_maxpool_test)
 {
     migraphx::program p = create_conv_bn_relu_maxpool();
-    auto prog = optimize_onnx("conv_bn_relu_maxpool_test.onnx");
+    auto prog           = optimize_onnx("conv_bn_relu_maxpool_test.onnx");
     EXPECT(p == prog);
 }
 
 TEST_CASE(conv_bn_relu_maxpool_unordered_test)
 {
     migraphx::program p = create_conv_bn_relu_maxpool();
-    auto prog = optimize_onnx("conv_bn_relu_maxpool_unordered_test.onnx");
+    auto prog           = optimize_onnx("conv_bn_relu_maxpool_unordered_test.onnx");
     EXPECT(p == prog);
 }

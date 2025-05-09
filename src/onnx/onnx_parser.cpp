@@ -525,7 +525,6 @@ onnx_parser::parse_graph(module* mod, const onnx::GraphProto& graph, bool inlini
 
     std::vector<size_t> node_indices(graph.node_size());
 
-    // std::cout << "graph sorted? " << check_sorted(graph) << std::endl;
     if(check_sorted(graph))
     {
         std::iota(node_indices.begin(), node_indices.end(), 0);

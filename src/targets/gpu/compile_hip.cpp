@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2024 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2025 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -290,7 +290,7 @@ compile_hip_src_with_hiprtc(std::vector<hiprtc_src_file>,    // NOLINT
     MIGRAPHX_THROW("Not using hiprtc");
 }
 
-bool is_hip_clang_compiler()
+static bool is_hip_clang_compiler()
 {
     static const auto result = fs::path{MIGRAPHX_HIP_COMPILER}.stem() == "clang++";
     return result;
@@ -298,7 +298,7 @@ bool is_hip_clang_compiler()
 
 #ifdef MIGRAPHX_HIP_COMPILER_LAUNCHER
 
-bool has_compiler_launcher()
+static bool has_compiler_launcher()
 {
     static const auto result = fs::exists(MIGRAPHX_HIP_COMPILER_LAUNCHER);
     return result;
@@ -306,7 +306,7 @@ bool has_compiler_launcher()
 
 #endif
 
-src_compiler assemble(src_compiler compiler)
+static src_compiler assemble(src_compiler compiler)
 {
     compiler.out_ext = ".S";
     std::replace(compiler.flags.begin(), compiler.flags.end(), "-c", "-S");

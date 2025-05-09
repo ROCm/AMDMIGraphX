@@ -288,6 +288,12 @@ struct parse_resize : op_parser<parse_resize>
             MIGRAPHX_THROW("PARSE_" + opd.onnx_name + ": exclude_outside 1 is not supported!");
         }
 
+        if(contains(info.attributes, "keep_aspect_ratio_policy"))
+        {
+            MIGRAPHX_THROW("PARSE_" + opd.onnx_name +
+                           ": keep_aspect_ratio_policy is not supported!");
+        }
+
         // input data shape info
         auto in_s    = args[0]->get_shape().to_static(1);
         auto in_lens = in_s.lens();

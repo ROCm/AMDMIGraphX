@@ -435,7 +435,7 @@ void find_matches_for(source_location location, Mod& mod, instruction_ref ins, M
                 r = match_instruction(get_module(mod), ins, m.matcher());
                 const auto match_time =
                     match_timer.record<std::chrono::duration<double, std::micro>>();
-                std::cout << "Matcher time for " << matcher_name << ": " << match_time << "us."
+                std::cout << "Matcher time for " << matcher_name << ": " << match_time << "us"
                           << std::endl;
             }
             else
@@ -458,7 +458,7 @@ void find_matches_for(source_location location, Mod& mod, instruction_ref ins, M
                 time<std::chrono::duration<double, std::micro>>([&] { m.apply(mod, r); });
             if(time_matchers or trace_for)
             {
-                std::cout << "Apply time for " << matcher_name << ": " << apply_time << "us."
+                std::cout << "Apply time for " << matcher_name << ": " << apply_time << "us"
                           << std::endl;
             }
 

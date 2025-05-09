@@ -433,7 +433,8 @@ void find_matches_for(source_location location, Mod& mod, instruction_ref ins, M
             {
                 timer match_timer{};
                 r = match_instruction(get_module(mod), ins, m.matcher());
-                const auto match_time = match_timer.record<std::chrono::duration<double, std::micro>>();
+                const auto match_time =
+                    match_timer.record<std::chrono::duration<double, std::micro>>();
                 std::cout << "Matcher time for " << matcher_name << ": " << match_time << "us."
                           << std::endl;
             }

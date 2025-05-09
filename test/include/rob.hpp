@@ -64,7 +64,7 @@ struct mem_data_ptr
     };                                                 \
     template struct stow_private<name##_tag, &C::mem>; \
     template <class T>                                 \
-    static auto& name(T && x)                           \
+    static auto& name(T && x)                          \
     {                                                  \
         return x.*stowed<name##_tag>::value;           \
     }

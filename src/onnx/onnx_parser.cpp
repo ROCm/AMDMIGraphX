@@ -511,10 +511,7 @@ static bool check_sorted(const onnx::GraphProto& graph)
                     return false;
             visited_nodes.insert(input);
         }
-        for(auto&& output : node.output())
-        {
-            visited_nodes.insert(output);
-        }
+        visited_nodes.insert(node.output().begin(), node.output().end());
     }
     return true;
 }

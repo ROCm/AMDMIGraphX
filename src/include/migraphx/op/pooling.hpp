@@ -350,7 +350,7 @@ struct pooling
                 if(end < start)
                 {
                     // This error can be caused by misc. bad input combinations
-                    MIGRAPHX_THROW("POOLING:  invalid attributes");
+                    MIGRAPHX_THROW("POOLING: invalid attributes");
                 }
                 win_size.push_back(end - start);
             }

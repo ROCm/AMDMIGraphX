@@ -391,6 +391,128 @@ parse_inputs(const onnx_parser& parser,
     return mod_insts;
 }
 
+static void create_node_maps(std::map<std::string, size_t>& node_index_map,
+                             std::map<std::string, std::vector<std::string>>& input_to_node_map,
+                             std::map<std::string, std::vector<std::string>>& node_to_output_map,
+                             const onnx::GraphProto& graph)
+{
+    size_t idx = 0;
+
+    for(auto&& node : graph.node())
+    {
+        std::string node_name = node.name();
+        // onnx does not require nodes to be named, but needed to track individual nodes
+        if(node_name.empty())
+        {
+            node_name = "migraphx_unnamed_" + node.op_type() + "_" + std::to_string(idx);
+        }
+        if(contains(node_index_map, node_name))
+        {
+            MIGRAPHX_THROW("PARSE_GRAPH: invalid onnx file. Found node name \"" + node_name +
+                           "\" more than once in graph!");
+        }
+        node_index_map.emplace(node_name, idx);
+        idx++;
+
+        // To track actual node outputs, a future node will mention the current node's output
+        // in its list of inputs. For example:
+        // node A: outputs ["a_out"]
+        // node B: inputs ["a_out"]
+        // Here the output of node A is node B because "a_out" is the output of node A and
+        // input of node B.
+        // There can be multiple outputs, so if each new node sees an input already
+        // in the map, then append to it.
+        // In the prior example, if we add the following:
+        // node C: inputs ["a_out"]
+        // then we will have something like {"a_out": [node B, node C]} in our map.
+        for(auto&& input : node.input())
+        {
+            std::string node_input = input;
+            if(input_to_node_map.count(node_input) > 0)
+            {
+                input_to_node_map.at(node_input).push_back(node_name);
+            }
+            else
+                input_to_node_map.emplace(node_input, std::vector<std::string>{node_name});
+        }
+
+        std::vector<std::string> node_outputs;
+        std::transform(node.output().begin(),
+                       node.output().end(),
+                       std::back_inserter(node_outputs),
+                       [](auto& output) { return output; });
+
+        // Use this second map to keep track of all references of the output names to be used
+        // as inputs to future nodes.
+        node_to_output_map.emplace(node_name, node_outputs);
+    }
+
+    // Graph outputs will eventually reference the last nodes in the graph,
+    // so add to the input_to_node_map.
+    for(auto&& output : graph.output())
+    {
+        input_to_node_map.emplace(output.name(), std::vector<std::string>{});
+    }
+}
+
+static void traverse(std::vector<std::string>& sorted_nodes,
+                     std::set<std::string>& visited_nodes,
+                     std::map<std::string, std::vector<std::string>>& input_to_node_map,
+                     std::map<std::string, std::vector<std::string>>& node_to_output_map,
+                     std::string curr_node)
+{
+    if(contains(visited_nodes, curr_node))
+        return;
+
+    visited_nodes.insert(curr_node);
+
+    for(auto& out_node_name : node_to_output_map.at(curr_node))
+    {
+        for(auto& in_node_name : input_to_node_map.at(out_node_name))
+            traverse(
+                sorted_nodes, visited_nodes, input_to_node_map, node_to_output_map, in_node_name);
+    }
+    sorted_nodes.insert(sorted_nodes.begin(), curr_node);
+}
+
+static std::vector<std::string>
+toposort(const std::map<std::string, size_t>& node_index_map,
+         std::map<std::string, std::vector<std::string>>& input_to_node_map,
+         std::map<std::string, std::vector<std::string>>& node_to_output_map)
+{
+    std::vector<std::string> sorted_nodes;
+    std::set<std::string> visited_nodes;
+
+    for(const auto& node_index : node_index_map)
+    {
+        std::string node_name = node_index.first;
+        traverse(sorted_nodes, visited_nodes, input_to_node_map, node_to_output_map, node_name);
+    }
+
+    return sorted_nodes;
+}
+
+static bool check_sorted(const onnx::GraphProto& graph)
+{
+    std::unordered_set<std::string> visited_nodes;
+    for(auto&& input : graph.input())
+    {
+        visited_nodes.insert(input.name());
+    }
+    for(auto&& node : graph.node())
+    {
+        for(auto&& input : node.input())
+        {
+            if(not input.empty())
+                if(visited_nodes.count(input) == 0)
+                    return false;
+            visited_nodes.insert(input);
+        }
+        visited_nodes.insert(node.output().begin(), node.output().end());
+    }
+    return true;
+}
+
 std::vector<instruction_ref>
 onnx_parser::parse_graph(module* mod, const onnx::GraphProto& graph, bool inlining)
 {
@@ -401,8 +523,30 @@ onnx_parser::parse_graph(module* mod, const onnx::GraphProto& graph, bool inlini
 
     std::copy(mod_insts.begin(), mod_insts.end(), std::inserter(instructions, instructions.end()));
 
-    for(auto&& node : graph.node())
+    std::vector<size_t> node_indices(graph.node_size());
+
+    if(check_sorted(graph))
     {
+        std::iota(node_indices.begin(), node_indices.end(), 0);
+    }
+    else
+    {
+        std::map<std::string, size_t> node_index_map;
+        std::map<std::string, std::vector<std::string>> input_to_node_map;
+        std::map<std::string, std::vector<std::string>> node_to_output_map;
+        create_node_maps(node_index_map, input_to_node_map, node_to_output_map, graph);
+
+        std::vector<std::string> sorted_nodes =
+            toposort(node_index_map, input_to_node_map, node_to_output_map);
+        std::transform(sorted_nodes.begin(),
+                       sorted_nodes.end(),
+                       node_indices.begin(),
+                       [&](auto node_name) { return node_index_map.at(node_name); });
+    }
+
+    for(auto& node_index : node_indices)
+    {
+        const onnx::NodeProto& node = graph.node(node_index);
         if(enabled(MIGRAPHX_TRACE_ONNX_PARSER{}))
             std::cout << "operator: " << node.op_type() << '\t' << node.name() << std::endl;
 

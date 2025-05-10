@@ -720,12 +720,12 @@ value program::to_value() const
 }
 
 static void mod_from_val(module_ref mod,
-                         const value& v,
+                         value& v,
                          std::unordered_map<std::string, instruction_ref>& instructions,
                          const std::unordered_map<std::string, module_ref>& map_mods)
 {
-    const auto& module_val = v.at(mod->name());
-    for(const value& node : module_val.at("nodes"))
+    auto& module_val = v.at(mod->name());
+    for(value& node : module_val.at("nodes"))
     {
         instruction_ref output;
         auto name       = node.at("name").to<std::string>();
@@ -764,7 +764,7 @@ static void mod_from_val(module_ref mod,
                                std::back_inserter(module_inputs),
                                [&](const value& i) { return map_mods.at(i.to<std::string>()); });
 
-                for(const auto& smod : module_inputs)
+                for(auto& smod : module_inputs)
                 {
                     mod_from_val(smod, v, instructions, map_mods);
                 }
@@ -785,10 +785,12 @@ static void mod_from_val(module_ref mod,
         }
         output->set_normalized(normalized);
         instructions[node.at("output").to<std::string>()] = output;
+        node = nullptr;
     }
+    module_val = nullptr;
 }
 
-void program::from_value(const value& v)
+void program::from_value(value v)
 {
     auto version = v.at("version").to<int>();
     if(version != program_file_version)
@@ -816,7 +818,7 @@ void program::from_value(const value& v)
         this->impl->contexts.back().from_value(v.at("contexts")[i]);
     }
 
-    auto module_vals = v.at("modules");
+    auto& module_vals = v.at("modules");
     for(const auto& vv : module_vals)
     {
         const auto& name = vv.get_key();

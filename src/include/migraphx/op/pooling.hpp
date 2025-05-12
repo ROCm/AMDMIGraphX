@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2024 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2025 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -134,7 +134,7 @@ struct pooling
 
     value attributes() const { return {{"normalize_padding", "padding"}}; }
 
-    inline std::size_t dilate_dim(std::size_t dim, std::size_t dilation) const
+    std::size_t dilate_dim(std::size_t dim, std::size_t dilation) const
     {
         return 1 + dilation * (dim - 1);
     }

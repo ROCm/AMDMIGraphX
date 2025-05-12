@@ -1,7 +1,7 @@
 #####################################################################################
 # The MIT License (MIT)
 #
-# Copyright (c) 2015-2024 Advanced Micro Devices, Inc. All rights reserved.
+# Copyright (c) 2015-2025 Advanced Micro Devices, Inc. All rights reserved.
 #
 # Permission is hereby granted, free of charge, to any person obtaining a copy
 # of this software and associated documentation files (the "Software"), to deal
@@ -25,8 +25,8 @@ function(add_api_test TEST_NAME TEST_SRC TEST_DIR)
     set(NAME test_api_${TEST_NAME})
     add_executable(${NAME} EXCLUDE_FROM_ALL ${TEST_SRC})
     rocm_clang_tidy_check(${NAME})
-    target_link_libraries(${NAME} migraphx_c migraphx migraphx_all_targets)
-    target_include_directories(${NAME} PUBLIC ../include)
+    target_link_libraries(${NAME} migraphx_c migraphx migraphx_all_targets onnx_files pb_files)
+    target_include_directories(${NAME} PUBLIC ../include include)
     add_test(NAME ${NAME} COMMAND $<TARGET_FILE:${NAME}> WORKING_DIRECTORY ${TEST_DIR}) 
     add_dependencies(tests ${NAME})
     add_dependencies(check ${NAME})

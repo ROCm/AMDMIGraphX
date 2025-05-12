@@ -46,7 +46,7 @@ unsupported_file_types = [
 ]
 
 specificIgnores = ("digits.txt", "Dockerfile", "Jenkinsfile",
-                   'imagenet_classes.txt', '')
+                   'imagenet_classes.txt')
 
 unsupportedFiles = []
 unstampedFiles = []

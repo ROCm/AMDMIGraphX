@@ -30,7 +30,7 @@
 #include <basic_ops.hpp>
 #include <test.hpp>
 
-void run_pass(migraphx::module& m)
+static void run_pass(migraphx::module& m)
 {
     migraphx::run_passes(m, {migraphx::memory_coloring{"allocate", true}});
 }
@@ -59,22 +59,22 @@ struct allocate
     }
 };
 
-migraphx::instruction_ref add_alloc(migraphx::module& m, const migraphx::shape& s)
+static migraphx::instruction_ref add_alloc(migraphx::module& m, const migraphx::shape& s)
 {
     return m.add_instruction(allocate{s});
 }
 
-bool no_allocate(const migraphx::module& m)
+static bool no_allocate(const migraphx::module& m)
 {
     return std::none_of(m.begin(), m.end(), [](auto&& ins) { return ins.name() == "allocate"; });
 }
 
-bool is_overlap(std::pair<std::size_t, std::size_t> x, std::pair<std::size_t, std::size_t> y)
+static bool is_overlap(std::pair<std::size_t, std::size_t> x, std::pair<std::size_t, std::size_t> y)
 {
     return std::max(x.first, y.first) < std::min(x.second, y.second);
 }
 
-std::pair<std::size_t, std::size_t> get_load_interval(migraphx::instruction_ref a)
+static std::pair<std::size_t, std::size_t> get_load_interval(migraphx::instruction_ref a)
 {
     auto v      = a->get_operator().to_value();
     auto offset = v.at("offset").to<std::size_t>();
@@ -82,12 +82,12 @@ std::pair<std::size_t, std::size_t> get_load_interval(migraphx::instruction_ref 
     return {offset, offset + s.bytes()};
 }
 
-bool is_overlap_load(migraphx::instruction_ref a, migraphx::instruction_ref b)
+static bool is_overlap_load(migraphx::instruction_ref a, migraphx::instruction_ref b)
 {
     return is_overlap(get_load_interval(a), get_load_interval(b));
 }
 
-bool is_disjoint(const std::vector<migraphx::instruction_ref>& inss)
+static bool is_disjoint(const std::vector<migraphx::instruction_ref>& inss)
 {
     return std::none_of(inss.begin(), inss.end(), [&](auto ins1) {
         return std::none_of(inss.begin(), inss.end(), [&](auto ins2) {

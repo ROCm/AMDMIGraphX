@@ -220,7 +220,6 @@ rocmtest clang_debug: rocmnode('mi200+') { cmake_build ->
 }
 
 
-
 def onnxnode(name, body) {
     return { label ->
         rocmtestnode(variant: label, node: rocmnodename(name), docker_args: '-u root', body: body, pre: {
@@ -241,4 +240,5 @@ rocmtest onnx: onnxnode('mi100+') { cmake_build ->
             cd /onnxruntime && ./build_and_test_onnxrt.sh
         '''
     }
+    stash includes: '/onnxruntime/build/Linux/Release/dist/*.whl', name: 'migraphx-ep-wheel'
 }

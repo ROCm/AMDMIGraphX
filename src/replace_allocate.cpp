@@ -47,7 +47,7 @@ std::unordered_map<instruction_ref, std::string> create_output_names(const modul
         return instruction::get_output_alias(i);
     });
 
-    if(outputs_alias.size() == 1 and (mod.name() == "main" or mod.name().empty()))
+    if(outputs_alias.size() <= 1 and (mod.name() == "main" or mod.name().empty()))
     {
         mod_output_names[outputs_alias.front()] = "output";
     }

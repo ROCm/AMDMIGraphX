@@ -23,7 +23,7 @@
 #####################################################################################
 
 add_library(migraphx_c
-    api.cpp
+    ${CMAKE_CURRENT_BINARY_DIR}/api.cpp
 )
 set_target_properties(migraphx_c PROPERTIES EXPORT_NAME c)
 migraphx_generate_export_header(migraphx_c DIRECTORY migraphx/api)
@@ -37,13 +37,7 @@ if(BUILD_TESTING)
 endif()
 
 rocm_clang_tidy_check(migraphx_c)
-target_link_libraries(migraphx_c PRIVATE migraphx)
-if(MIGRAPHX_ENABLE_ONNX)
-    target_link_libraries(migraphx_c PRIVATE migraphx_onnx)
-endif()
-if(MIGRAPHX_ENABLE_TENSORFLOW)
-    target_link_libraries(migraphx_c PRIVATE migraphx_tf)
-endif()
+target_link_libraries(migraphx_c PRIVATE migraphx migraphx_all_frontends)
 target_link_libraries(migraphx_c PUBLIC migraphx_version)
 
 rocm_install_targets(

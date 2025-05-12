@@ -56,8 +56,8 @@ find_package(ROCmCMakeBuildTools REQUIRED)
 find_package(Threads REQUIRED)
 
 option(MIGRAPHX_ENABLE_PYTHON "Enable python bindings" ON)
-option(MIGRAPHX_ENABLE_TENSORFLOW "Enable TensorFlow integration" ON)
-option(MIGRAPHX_ENABLE_ONNX "Enable ONNX model import" ON)
+option(MIGRAPHX_DISABLE_TENSORFLOW "Enable TensorFlow integration" OFF)
+option(MIGRAPHX_DISABLE_ONNX "Enable ONNX model import" OFF)
 
 if(WIN32)
 option(MIGRAPHX_USE_MIOPEN "Enable MIGraphX to use MIOpen" OFF)

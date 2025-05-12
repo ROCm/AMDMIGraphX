@@ -128,33 +128,31 @@ class Type:
 
 
 header_function = Template('''
-${guard_define_begin}${export_c_macro} ${error_type} ${name}(${params});
-${guard_define_end}''')
+${export_c_macro} ${error_type} ${name}(${params});
+''')
 
 function_pointer_typedef = Template('''
-${guard_define_begin}typedef ${error_type} (*${fname})(${params});
-${guard_define_end}''')
+typedef ${error_type} (*${fname})(${params});
+''')
 
 c_api_impl = Template('''
-${guard_define_begin}extern "C" ${error_type} ${name}(${params})
+extern "C" ${error_type} ${name}(${params})
 {
     ${va_start}auto api_error_result = ${try_wrap}([&] {
         ${body};
     });
     ${va_end}return api_error_result;
 }
-${guard_define_end}''')
+''')
 
 
 class CFunction:
-    def __init__(self, name: str, guard_define: str) -> None:
+    def __init__(self, name: str) -> None:
         self.name = name
         self.params: List[str] = []
         self.body: List[str] = []
         self.va_start: List[str] = []
         self.va_end: List[str] = []
-        self.guard_define_begin: str = f'#ifdef {guard_define}\n' if guard_define else ''
-        self.guard_define_end: str = '#endif' if guard_define else ''
 
     def add_param(self, type: str, pname: str) -> None:
         self.params.append('{} {}'.format(type, pname))
@@ -179,8 +177,6 @@ class CFunction:
                                body=";\n        ".join(self.body),
                                va_start="\n    ".join(self.va_start),
                                va_end="\n    ".join(self.va_end),
-                               guard_define_begin=self.guard_define_begin,
-                               guard_define_end=self.guard_define_end,
                                **kwargs)
 
     def generate_header(self) -> str:
@@ -435,8 +431,6 @@ class Function:
         self.return_name = return_name or 'out'
         self.returns = Parameter(self.return_name, returns,
                                  returns=True) if returns else None
-        self.guard_define = str(kwargs.get('guard_define'))
-
         for p in self.params:
             p.virtual = virtual
         if self.returns:
@@ -489,7 +483,7 @@ class Function:
             "self.cfunction is None: self.update() needs to be called.")
 
     def create_cfunction(self) -> None:
-        self.cfunction = CFunction(self.name, self.guard_define)
+        self.cfunction = CFunction(self.name)
         # Add the return as a parameter
         if self.returns:
             self.returns.add_to_cfunction(self.cfunction)
@@ -746,12 +740,12 @@ def cwrap(name: str, c_type: Optional[str] = None) -> Callable:
 
 
 handle_typedef = Template('''
-${guard_define_begin}typedef struct ${ctype} * ${ctype}_t;
+typedef struct ${ctype} * ${ctype}_t;
 typedef const struct ${ctype} * const_${ctype}_t;
-${guard_define_end}''')
+''')
 
 handle_definition = Template('''
-${guard_define_begin}extern "C" struct ${ctype};
+extern "C" struct ${ctype};
 struct ${ctype} {
     template<class... Ts>
     ${ctype}(Ts&&... xs)
@@ -759,7 +753,7 @@ struct ${ctype} {
     {}
     ${cpptype} object;
 };
-${guard_define_end}''')
+''')
 
 handle_preamble = '''
 template<class T, class U, class Target=std::remove_pointer_t<T>>
@@ -903,7 +897,6 @@ def add_handle(name: str,
                ctype: str,
                cpptype: str,
                destroy: Optional[str] = None,
-               guard_define: Optional[str] = None,
                ref=False,
                skip_def=False) -> None:
     opaque_type = ctype + '_t'
@@ -943,23 +936,14 @@ def add_handle(name: str,
     if not ref:
         add_function(destroy or ctype + '_' + 'destroy',
                      params({name: opaque_type}),
-                     fname='destroy',
-                     guard_define=guard_define)
+                     fname='destroy')
         add_function(ctype + '_' + 'assign_to',
                      params(output=opaque_type, input=const_opaque_type),
-                     invoke='*output = *input',
-                     guard_define=guard_define)
+                     invoke='*output = *input')
     add_handle_preamble()
-    l = locals()
-    l.update({
-        'guard_define_end':
-        '#endif' if guard_define else '',
-        'guard_define_begin':
-        f'#ifdef {guard_define}\n' if guard_define else ''
-    })
-    c_header_preamble.append(handle_typedef.substitute(l))
+    c_header_preamble.append(handle_typedef.substitute(locals()))
     if not skip_def:
-        c_api_body_preamble.append(handle_definition.substitute(l))
+        c_api_body_preamble.append(handle_definition.substitute(locals()))
 
 
 @cwrap('std::vector')
@@ -1034,34 +1018,24 @@ def string_c_wrap(p: Parameter) -> None:
 
 
 class Handle:
-    def __init__(self,
-                 name: str,
-                 ctype: str,
-                 cpptype: str,
-                 guard_define: str = None,
-                 **kwargs) -> None:
+    def __init__(self, name: str, ctype: str, cpptype: str, **kwargs) -> None:
         self.name = name
         self.ctype = ctype
         self.cpptype = cpptype
         self.opaque_type = self.ctype + '_t'
         self.cpp_class = CPPClass(name, ctype)
-        self.guard_define = guard_define
-        add_handle(name, ctype, cpptype, guard_define=guard_define, **kwargs)
+        add_handle(name, ctype, cpptype, **kwargs)
         cpp_type_map[cpptype] = name
 
     def cname(self, name: str) -> str:
         return self.ctype + '_' + name
 
     def substitute(self, s: str, **kwargs) -> str:
-        return Template(s).safe_substitute(
-            name=self.name,
-            ctype=self.ctype,
-            cpptype=self.cpptype,
-            opaque_type=self.opaque_type,
-            guard_define_begin=f'#ifdef {self.guard_define}\n'
-            if self.guard_define else '',
-            guard_define_end='#endif' if self.guard_define else '',
-            **kwargs)
+        return Template(s).safe_substitute(name=self.name,
+                                           ctype=self.ctype,
+                                           cpptype=self.cpptype,
+                                           opaque_type=self.opaque_type,
+                                           **kwargs)
 
     def constructor(self,
                     name: str,
@@ -1079,7 +1053,6 @@ class Handle:
                          invoke=invoke or create,
                          returns=self.cpptype + '*',
                          return_name=self.name,
-                         guard_define=self.guard_define,
                          **kwargs)
         self.cpp_class.add_constructor(name, f)
         return self
@@ -1104,7 +1077,6 @@ class Handle:
                                             var=template_var(self.name),
                                             fname=fname or name,
                                             args=args),
-                         guard_define=self.guard_define,
                          **kwargs)
         self.cpp_class.add_method(cpp_name or name, f)
         return self
@@ -1264,11 +1236,10 @@ class Interface(Handle):
 def handle(ctype: str,
            cpptype: str,
            name: Optional[str] = None,
-           ref: Optional[bool] = None,
-           guard_define: Optional[str] = None) -> Callable:
+           ref: Optional[bool] = None) -> Callable:
     def with_handle(f):
         n = name or f.__name__
-        h = Handle(n, ctype, cpptype, guard_define, ref=ref)
+        h = Handle(n, ctype, cpptype, ref=ref)
         f(h)
         h.add_cpp_class()
 

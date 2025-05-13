@@ -1,7 +1,7 @@
 #####################################################################################
 # The MIT License (MIT)
 #
-# Copyright (c) 2015-2024 Advanced Micro Devices, Inc. All rights reserved.
+# Copyright (c) 2015-2025 Advanced Micro Devices, Inc. All rights reserved.
 #
 # Permission is hereby granted, free of charge, to any person obtaining a copy
 # of this software and associated documentation files (the "Software"), to deal
@@ -29,7 +29,6 @@ function(add_tf_test TEST_NAME)
     target_include_directories(${TEST_NAME} PUBLIC ../include include)
 endfunction()
 
-include(Embed)
 file(GLOB_RECURSE PB_FILES CONFIGURE_DEPENDS ${CMAKE_CURRENT_SOURCE_DIR}/models/*.pb)
 add_embed_library(pb_files ${PB_FILES} RELATIVE ${CMAKE_CURRENT_SOURCE_DIR}/models)
 

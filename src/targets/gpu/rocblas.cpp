@@ -31,6 +31,7 @@
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
 namespace gpu {
+
 #if MIGRAPHX_USE_ROCBLAS
 rocblas_handle_ptr create_rocblas_handle_ptr()
 {
@@ -46,23 +47,11 @@ rocblas_handle_ptr create_rocblas_handle_ptr(hipStream_t s)
     return rb;
 }
 #endif
+
 bool get_compute_fp32_flag()
 {
     const auto device_name = trim(split_string(get_device_name(), ':').front());
     return (starts_with(device_name, "gfx9") and device_name >= "gfx908");
-}
-
-bool rocblas_fp8_available()
-{
-#if MIGRAPHX_USE_ROCBLAS
-#ifndef MIGRAPHX_USE_ROCBLAS_FP8_API
-    return false;
-#else
-    return gfx_has_fp8fnuz_intrinsics();
-#endif
-#else
-    return false;
-#endif
 }
 
 } // namespace gpu

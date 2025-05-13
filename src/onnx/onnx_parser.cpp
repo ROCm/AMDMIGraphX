@@ -387,8 +387,7 @@ parse_inputs(const onnx_parser& parser,
     return mod_insts;
 }
 
-static void create_node_maps(
-                             std::map<std::string, std::vector<size_t>>& input_to_node_map,
+static void create_node_maps(std::map<std::string, std::vector<size_t>>& input_to_node_map,
                              std::map<size_t, std::vector<std::string>>& node_to_output_map,
                              const onnx::GraphProto& graph)
 {
@@ -527,7 +526,8 @@ onnx_parser::parse_graph(module* mod, const onnx::GraphProto& graph, bool inlini
     }
     else
     {
-        std::cerr << "Warning: onnx model is not topologically sorted. Attempting to sort..." << std::endl;
+        std::cerr << "Warning: onnx model is not topologically sorted. Attempting to sort..."
+                  << std::endl;
         node_indices = toposort(graph);
     }
 

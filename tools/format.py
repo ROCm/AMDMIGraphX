@@ -29,9 +29,10 @@ from git_tools import get_changed_files, get_merge_base, get_top, run
 
 CLANG_FORMAT_PATH = '/opt/rocm/llvm/bin'
 
-EXCLUDE_FILES = ['requirements.in', 'onnx.proto', 'LICENSE']
+EXCLUDE_FILES = ['requirements.in', 'onnx.proto']
 
 CLANG_EXTENSIONS = ('.c', '.cpp', '.hpp', '.h', '.cl', '.hip', '.in')
+YAPF_EXTENSIONS = ('.py')
 
 
 def is_excluded(f):
@@ -66,6 +67,9 @@ def yapf_format(against, apply=False):
         return
     diff_flag = "--in-place" if apply else "--diff"
     files = ' '.join(get_changed_files(against))
+    files = [
+        f for f in files if f.endswith(YAPF_EXTENSIONS) and not is_excluded(f)
+    ]
     if files:
         run(f"yapf {diff_flag} -p {files}", cwd=get_top(), verbose=True)
     else:

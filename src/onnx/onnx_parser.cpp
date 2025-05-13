@@ -436,7 +436,7 @@ static void create_node_maps(std::map<std::string, size_t>& node_index_map,
         std::transform(node.output().begin(),
                        node.output().end(),
                        std::back_inserter(node_outputs),
-                       [](auto& output) { return output; });
+                       [](const auto& output) { return output; });
 
         // Use this second map to keep track of all references of the output names to be used
         // as inputs to future nodes.
@@ -455,7 +455,7 @@ static void traverse(std::vector<std::string>& sorted_nodes,
                      std::set<std::string>& visited_nodes,
                      std::map<std::string, std::vector<std::string>>& input_to_node_map,
                      std::map<std::string, std::vector<std::string>>& node_to_output_map,
-                     std::string curr_node)
+                     const std::string& curr_node)
 {
     if(contains(visited_nodes, curr_node))
         return;
@@ -492,7 +492,7 @@ static std::vector<size_t> toposort(const onnx::GraphProto& graph)
     std::transform(sorted_nodes.begin(),
                    sorted_nodes.end(),
                    std::back_inserter(sorted_node_indices),
-                   [&](auto node_name) { return node_index_map.at(node_name); });
+                   [&](const auto& node_name) { return node_index_map.at(node_name); });
 
     return sorted_node_indices;
 }
@@ -506,7 +506,7 @@ static bool check_sorted(const onnx::GraphProto& graph,
     // keep track globally since subgraph nodes may depend on parent inputs
     for(auto&& input : graph.input())
     {
-        std::string input_name = input.name();
+        const std::string& input_name = input.name();
 
         // ONNX specification does not specify how to deal with the
         // scenario that a nested subgraph contains a parameter with the

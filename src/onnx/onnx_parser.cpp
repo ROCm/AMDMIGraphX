@@ -445,7 +445,7 @@ static void create_node_maps(std::map<std::string, size_t>& node_index_map,
 
     // Graph outputs will eventually reference the last nodes in the graph,
     // so add to the input_to_node_map.
-    for(auto&& output : graph.output())
+    for(const auto&& output : graph.output())
     {
         input_to_node_map.emplace(output.name(), std::vector<std::string>{});
     }
@@ -462,9 +462,9 @@ static void traverse(std::vector<std::string>& sorted_nodes,
 
     visited_nodes.insert(curr_node);
 
-    for(auto& out_node_name : node_to_output_map.at(curr_node))
+    for(const auto& out_node_name : node_to_output_map.at(curr_node))
     {
-        for(auto& in_node_name : input_to_node_map.at(out_node_name))
+        for(const auto& in_node_name : input_to_node_map.at(out_node_name))
             traverse(
                 sorted_nodes, visited_nodes, input_to_node_map, node_to_output_map, in_node_name);
     }

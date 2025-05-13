@@ -30,6 +30,8 @@ The MIGraphX public repository is located at `https://github.com/ROCm/AMDMIGraph
 
   .. grid-item-card:: Reference
 
+    * :doc:`Environment variables<./reference/env-variables>`
+    * :doc:`Environment variables for developlment <./reference/dev-env-variables>`
     * :ref:`cpp-api-reference`
     * :ref:`python-api-reference`
     * :ref:`migraphx-driver`

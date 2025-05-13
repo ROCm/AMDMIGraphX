@@ -10,6 +10,8 @@ subtrees:
     
   - caption: Reference
     entries:
+    - file: reference/env-variables
+    - file: reference/dev-env-variables
     - file: reference/cpp
     - file: reference/py
     - file: migraphx-driver

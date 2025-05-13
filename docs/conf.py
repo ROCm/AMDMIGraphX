@@ -64,3 +64,4 @@ doxygen_project = {
 html_title = f"{project} {version_number} documentation"
 
 external_projects_current_project = "amdmigraphx"
+external_projects_remote_repository = ""

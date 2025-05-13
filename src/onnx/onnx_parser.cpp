@@ -360,10 +360,6 @@ parse_inputs(const onnx_parser& parser,
         // input not in initializer_data, so it is a real input
         if(not contains(mod_insts, name))
         {
-            // ONNX specification does not specify how to deal with the
-            // scenario that a nested subgraph contains a parameter with the
-            // name existed in its parent graph.
-            // In the current implementation, MIGraphX throws an exception for that.
             if(contains(parser.instructions, name))
             {
                 MIGRAPHX_THROW("module \"" + mod->name() + "\" has parameter name \"" + name +
@@ -391,28 +387,13 @@ parse_inputs(const onnx_parser& parser,
     return mod_insts;
 }
 
-static void create_node_maps(std::map<std::string, size_t>& node_index_map,
-                             std::map<std::string, std::vector<std::string>>& input_to_node_map,
-                             std::map<std::string, std::vector<std::string>>& node_to_output_map,
+static void create_node_maps(std::map<std::string, std::vector<size_t>>& input_to_node_map,
+                             std::map<size_t, std::vector<std::string>>& node_to_output_map,
                              const onnx::GraphProto& graph)
 {
-    size_t idx = 0;
-
-    for(auto&& node : graph.node())
+    for(size_t node_index = 0; node_index < graph.node_size(); node_index++)
     {
-        std::string node_name = node.name();
-        // onnx does not require nodes to be named, but needed to track individual nodes
-        if(node_name.empty())
-        {
-            node_name = "migraphx_unnamed_" + node.op_type() + "_" + std::to_string(idx);
-        }
-        if(contains(node_index_map, node_name))
-        {
-            MIGRAPHX_THROW("PARSE_GRAPH: invalid onnx file. Found node name \"" + node_name +
-                           "\" more than once in graph!");
-        }
-        node_index_map.emplace(node_name, idx);
-        idx++;
+        const onnx::NodeProto& node = graph.node(node_index);
 
         // To track actual node outputs, a future node will mention the current node's output
         // in its list of inputs. For example:
@@ -427,78 +408,99 @@ static void create_node_maps(std::map<std::string, size_t>& node_index_map,
         // then we will have something like {"a_out": [node B, node C]} in our map.
         for(auto&& input : node.input())
         {
-            std::string node_input = input;
-            if(input_to_node_map.count(node_input) > 0)
+            if(input_to_node_map.count(input) > 0)
             {
-                input_to_node_map.at(node_input).push_back(node_name);
+                input_to_node_map.at(input).push_back(node_index);
             }
             else
-                input_to_node_map.emplace(node_input, std::vector<std::string>{node_name});
+                input_to_node_map.emplace(input, std::vector<size_t>{node_index});
         }
 
         std::vector<std::string> node_outputs;
         std::transform(node.output().begin(),
                        node.output().end(),
                        std::back_inserter(node_outputs),
-                       [](auto& output) { return output; });
+                       [](const auto& output) { return output; });
 
         // Use this second map to keep track of all references of the output names to be used
         // as inputs to future nodes.
-        node_to_output_map.emplace(node_name, node_outputs);
+        node_to_output_map.emplace(node_index, node_outputs);
     }
 
     // Graph outputs will eventually reference the last nodes in the graph,
     // so add to the input_to_node_map.
-    for(auto&& output : graph.output())
+    for(const auto& output : graph.output())
     {
-        input_to_node_map.emplace(output.name(), std::vector<std::string>{});
+        input_to_node_map.emplace(output.name(), std::vector<size_t>{});
     }
 }
 
-static void traverse(std::vector<std::string>& sorted_nodes,
-                     std::set<std::string>& visited_nodes,
-                     std::map<std::string, std::vector<std::string>>& input_to_node_map,
-                     std::map<std::string, std::vector<std::string>>& node_to_output_map,
-                     std::string curr_node)
+static void traverse(std::vector<size_t>& sorted_nodes,
+                     std::unordered_set<size_t>& visited_nodes,
+                     std::map<std::string, std::vector<size_t>>& input_to_node_map,
+                     std::map<size_t, std::vector<std::string>>& node_to_output_map,
+                     size_t curr_node)
 {
     if(contains(visited_nodes, curr_node))
         return;
 
     visited_nodes.insert(curr_node);
 
-    for(auto& out_node_name : node_to_output_map.at(curr_node))
+    for(const auto& out_node_name : node_to_output_map.at(curr_node))
     {
-        for(auto& in_node_name : input_to_node_map.at(out_node_name))
+        for(const auto& in_node_name : input_to_node_map.at(out_node_name))
             traverse(
                 sorted_nodes, visited_nodes, input_to_node_map, node_to_output_map, in_node_name);
     }
     sorted_nodes.insert(sorted_nodes.begin(), curr_node);
 }
 
-static std::vector<std::string>
-toposort(const std::map<std::string, size_t>& node_index_map,
-         std::map<std::string, std::vector<std::string>>& input_to_node_map,
-         std::map<std::string, std::vector<std::string>>& node_to_output_map)
+static std::vector<size_t> toposort(const onnx::GraphProto& graph)
 {
-    std::vector<std::string> sorted_nodes;
-    std::set<std::string> visited_nodes;
+    std::map<std::string, std::vector<size_t>> input_to_node_map;
+    std::map<size_t, std::vector<std::string>> node_to_output_map;
+    create_node_maps(input_to_node_map, node_to_output_map, graph);
 
-    for(const auto& node_index : node_index_map)
+    std::vector<size_t> sorted_nodes;
+    std::unordered_set<size_t> visited_nodes;
+
+    for(size_t node_index = 0; node_index < graph.node_size(); node_index++)
     {
-        std::string node_name = node_index.first;
-        traverse(sorted_nodes, visited_nodes, input_to_node_map, node_to_output_map, node_name);
+        traverse(sorted_nodes, visited_nodes, input_to_node_map, node_to_output_map, node_index);
     }
 
     return sorted_nodes;
 }
 
-static bool check_sorted(const onnx::GraphProto& graph)
+static bool check_sorted(const onnx::GraphProto& graph,
+                         std::unordered_set<std::string>& parent_input_nodes)
 {
     std::unordered_set<std::string> visited_nodes;
+
+    // first visit all graph inputs and initializers,
+    // keep track globally since subgraph nodes may depend on parent inputs
     for(auto&& input : graph.input())
     {
-        visited_nodes.insert(input.name());
+        const std::string& input_name = input.name();
+
+        // ONNX specification does not specify how to deal with the
+        // scenario that a nested subgraph contains a parameter with the
+        // name existed in its parent graph.
+        // In the current implementation, MIGraphX throws an exception for that.
+        if(contains(parent_input_nodes, input_name))
+            MIGRAPHX_THROW("subgraph \"" + graph.name() + "\" has parameter name \"" + input_name +
+                           "\" existing in parent graph!");
+        parent_input_nodes.insert(input_name);
     }
+
+    for(auto&& initializer : graph.initializer())
+    {
+        parent_input_nodes.insert(initializer.name());
+    }
+
+    // propagate parent graph input nodes into visited nodes
+    visited_nodes.insert(parent_input_nodes.begin(), parent_input_nodes.end());
+
     for(auto&& node : graph.node())
     {
         for(auto&& input : node.input())
@@ -506,8 +508,8 @@ static bool check_sorted(const onnx::GraphProto& graph)
             if(not input.empty())
                 if(visited_nodes.count(input) == 0)
                     return false;
-            visited_nodes.insert(input);
         }
+        // node outputs struct is used to keep track of currently visited nodes
         visited_nodes.insert(node.output().begin(), node.output().end());
     }
     return true;
@@ -516,33 +518,25 @@ static bool check_sorted(const onnx::GraphProto& graph)
 std::vector<instruction_ref>
 onnx_parser::parse_graph(module* mod, const onnx::GraphProto& graph, bool inlining)
 {
+    std::vector<size_t> node_indices(graph.node_size());
+
+    if(check_sorted(graph, parent_input_nodes))
+    {
+        std::iota(node_indices.begin(), node_indices.end(), 0);
+    }
+    else
+    {
+        std::cerr << "Warning: onnx model is not topologically sorted. Attempting to sort..."
+                  << std::endl;
+        node_indices = toposort(graph);
+    }
+
     std::unordered_map<std::string, instruction_ref> mod_insts =
         parse_intializer(*this, mod, graph);
 
     mod_insts = parse_inputs(*this, mod, graph, mod_insts);
 
     std::copy(mod_insts.begin(), mod_insts.end(), std::inserter(instructions, instructions.end()));
-
-    std::vector<size_t> node_indices(graph.node_size());
-
-    if(check_sorted(graph))
-    {
-        std::iota(node_indices.begin(), node_indices.end(), 0);
-    }
-    else
-    {
-        std::map<std::string, size_t> node_index_map;
-        std::map<std::string, std::vector<std::string>> input_to_node_map;
-        std::map<std::string, std::vector<std::string>> node_to_output_map;
-        create_node_maps(node_index_map, input_to_node_map, node_to_output_map, graph);
-
-        std::vector<std::string> sorted_nodes =
-            toposort(node_index_map, input_to_node_map, node_to_output_map);
-        std::transform(sorted_nodes.begin(),
-                       sorted_nodes.end(),
-                       node_indices.begin(),
-                       [&](auto node_name) { return node_index_map.at(node_name); });
-    }
 
     for(auto& node_index : node_indices)
     {

@@ -25,7 +25,7 @@
 #include <onnx_test.hpp>
 #include <migraphx/op/pooling.hpp>
 
-migraphx::program create_conv_bn_relu_maxpool()
+static migraphx::program create_conv_bn_relu_maxpool()
 {
     migraphx::program p;
     auto* mm = p.get_main_module();

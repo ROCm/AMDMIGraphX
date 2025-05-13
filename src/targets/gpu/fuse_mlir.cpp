@@ -991,7 +991,7 @@ struct find_mlir_gqa_attention_op
         auto gemm1 = m_attn.add_instruction(make_op("dot"), q, kt);
 
         std::vector<int> range_vec(max_seq_len);
-        std::iota(range_vec.begin(), range_vec.end(), 0);
+        std::iota(range_vec.begin(), range_vec.end(), -1);
         shape range_s{csl->get_shape().type(), {max_seq_len}};
         auto range = m_attn.add_literal(range_s, range_vec);
         std::vector<std::size_t> bnsm{batch_size, num_heads, seq_len, max_seq_len};
@@ -1013,7 +1013,7 @@ struct find_mlir_gqa_attention_op
         if(seq_len > 1)
         {
             std::vector<int> seq_range_vec(seq_len);
-            std::iota(seq_range_vec.begin(), seq_range_vec.end(), 1);
+            std::iota(seq_range_vec.begin(), seq_range_vec.end(), -1);
             shape seq_range_s{csl->get_shape().type(), {seq_len}};
             auto seq_range = m_attn.add_literal(seq_range_s, seq_range_vec);
             seq_range =
@@ -1021,7 +1021,7 @@ struct find_mlir_gqa_attention_op
             seq_range =
                 m_attn.add_instruction(make_op("multibroadcast", {{"out_lens", bnsm}}), seq_range);
             auto causal_mask =
-                m_attn.add_instruction(make_op("greater_or_equal"), bc_range, seq_range);
+                m_attn.add_instruction(make_op("greater"), bc_range, seq_range);
             causal_mask = m_attn.add_instruction(
                 make_op("convert", {{"target_type", shape::bool_type}}), causal_mask);
             gemm1 = m_attn.add_instruction(make_op("where"), causal_mask, ninf, gemm1);
@@ -1032,7 +1032,7 @@ struct find_mlir_gqa_attention_op
                                    map_main_to_mattn.at(csl));
         auto mask_comp =
             m_attn.add_instruction(make_op("multibroadcast", {{"out_lens", bnsm}}), bc_csl);
-        auto mask = m_attn.add_instruction(make_op("greater_or_equal"), bc_range, mask_comp);
+        auto mask = m_attn.add_instruction(make_op("greater"), bc_range, mask_comp);
         mask =
             m_attn.add_instruction(make_op("convert", {{"target_type", shape::bool_type}}), mask);
         auto mul     = m_attn.add_instruction(make_op("mul"), gemm1, scale);

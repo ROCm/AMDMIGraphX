@@ -445,7 +445,7 @@ static void create_node_maps(std::map<std::string, size_t>& node_index_map,
 
     // Graph outputs will eventually reference the last nodes in the graph,
     // so add to the input_to_node_map.
-    for(const auto&& output : graph.output())
+    for(const auto& output : graph.output())
     {
         input_to_node_map.emplace(output.name(), std::vector<std::string>{});
     }

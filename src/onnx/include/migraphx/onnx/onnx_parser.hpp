@@ -94,6 +94,7 @@ struct onnx_parser
     using op_func  = std::function<std::vector<instruction_ref>(
         onnx_parser&, const node_info&, std::vector<instruction_ref>)>;
     node_map nodes;
+    std::unordered_set<std::string> parent_input_nodes;
     std::unordered_map<std::string, instruction_ref> instructions;
     program prog                                   = program();
     shape::dynamic_dimension default_dyn_dim_value = {1, 1};

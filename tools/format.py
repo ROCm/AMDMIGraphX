@@ -29,7 +29,7 @@ from git_tools import get_changed_files, get_merge_base, get_top, run
 
 CLANG_FORMAT_PATH = '/opt/rocm/llvm/bin'
 
-EXCLUDE_FILES = ['requirements.in', 'onnx.proto']
+EXCLUDE_FILES = ['requirements.in', 'onnx.proto', 'LICENSE']
 
 CLANG_EXTENSIONS = ('.c', '.cpp', '.hpp', '.h', '.cl', '.hip', '.in')
 

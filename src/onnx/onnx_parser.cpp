@@ -360,7 +360,6 @@ parse_inputs(const onnx_parser& parser,
         // input not in initializer_data, so it is a real input
         if(not contains(mod_insts, name))
         {
-            
             if(contains(parser.instructions, name))
             {
                 MIGRAPHX_THROW("module \"" + mod->name() + "\" has parameter name \"" + name +
@@ -472,8 +471,7 @@ static void traverse(std::vector<std::string>& sorted_nodes,
     sorted_nodes.insert(sorted_nodes.begin(), curr_node);
 }
 
-static std::vector<size_t>
-toposort(const onnx::GraphProto& graph)
+static std::vector<size_t> toposort(const onnx::GraphProto& graph)
 {
     std::map<std::string, size_t> node_index_map;
     std::map<std::string, std::vector<std::string>> input_to_node_map;
@@ -492,14 +490,15 @@ toposort(const onnx::GraphProto& graph)
     std::vector<size_t> sorted_node_indices;
 
     std::transform(sorted_nodes.begin(),
-                    sorted_nodes.end(),
-                    std::back_inserter(sorted_node_indices),
-                    [&](auto node_name) { return node_index_map.at(node_name); });
+                   sorted_nodes.end(),
+                   std::back_inserter(sorted_node_indices),
+                   [&](auto node_name) { return node_index_map.at(node_name); });
 
     return sorted_node_indices;
 }
 
-static bool check_sorted(const onnx::GraphProto& graph, std::unordered_set<std::string>& parent_input_nodes)
+static bool check_sorted(const onnx::GraphProto& graph,
+                         std::unordered_set<std::string>& parent_input_nodes)
 {
     std::unordered_set<std::string> visited_nodes;
 
@@ -515,7 +514,7 @@ static bool check_sorted(const onnx::GraphProto& graph, std::unordered_set<std::
         // In the current implementation, MIGraphX throws an exception for that.
         if(contains(parent_input_nodes, input_name))
             MIGRAPHX_THROW("subgraph \"" + graph.name() + "\" has parameter name \"" + input_name +
-            "\" existing in parent graph!");
+                           "\" existing in parent graph!");
         parent_input_nodes.insert(input_name);
     }
 
@@ -526,7 +525,7 @@ static bool check_sorted(const onnx::GraphProto& graph, std::unordered_set<std::
 
     // propagate parent graph input nodes into visited nodes
     visited_nodes.insert(parent_input_nodes.begin(), parent_input_nodes.end());
-    
+
     for(auto&& node : graph.node())
     {
         for(auto&& input : node.input())

@@ -21,33 +21,14 @@
  * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
  * THE SOFTWARE.
  */
-#ifndef MIGRAPHX_GUARD_GPU_DEVICE_NAME_HPP
-#define MIGRAPHX_GUARD_GPU_DEVICE_NAME_HPP
 
-#include <migraphx/gpu/config.hpp>
-#include <string>
+#include <onnx_test.hpp>
+#include <onnx_test_utils.hpp>
 
-struct hipDeviceProp_t;
+TEST_CASE(layer_norm_3d_scale_bias_test)
+{
+    migraphx::program p = make_layer_norm({2, 5, 7}, {2, 1, 7}, {2}, 2);
 
-namespace migraphx {
-inline namespace MIGRAPHX_INLINE_NS {
-namespace gpu {
-
-MIGRAPHX_GPU_EXPORT std::string get_device_name();
-
-MIGRAPHX_GPU_EXPORT int get_device_id();
-
-MIGRAPHX_GPU_EXPORT bool gfx_has_fp8fnuz_intrinsics();
-
-MIGRAPHX_GPU_EXPORT bool gfx_has_fp8ocp_intrinsics();
-
-MIGRAPHX_GPU_EXPORT bool gfx_has_bf16_intrinsics();
-
-MIGRAPHX_GPU_EXPORT bool gfx_has_fp8fnuz_support();
-
-MIGRAPHX_GPU_EXPORT bool gfx_default_rocblas();
-
-} // namespace gpu
-} // namespace MIGRAPHX_INLINE_NS
-} // namespace migraphx
-#endif // MIGRAPHX_GUARD_GPU_DEVICE_NAME_HPP
+    auto prog = optimize_onnx("layer_norm_3d_scale_bias_test.onnx");
+    EXPECT(p == prog);
+}

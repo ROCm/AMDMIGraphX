@@ -20,34 +20,25 @@
  * LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
  * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
  * THE SOFTWARE.
+ *
  */
-#ifndef MIGRAPHX_GUARD_GPU_DEVICE_NAME_HPP
-#define MIGRAPHX_GUARD_GPU_DEVICE_NAME_HPP
+#ifndef MIGRAPHX_GUARD_INCLUDE_READ_TF_HPP
+#define MIGRAPHX_GUARD_INCLUDE_READ_TF_HPP
 
-#include <migraphx/gpu/config.hpp>
-#include <string>
+#include <pb_files.hpp>
 
-struct hipDeviceProp_t;
+inline migraphx::program read_tf(const std::string& name,
+                                 const migraphx::tf_options& options = migraphx::tf_options{})
+{
+    static auto pb_files{::pb_files()};
+    if(pb_files.find(name) == pb_files.end())
+    {
+        std::cerr << "Can not find TensorFlow Protobuf file by name: " << name
+                  << " , aborting the program\n"
+                  << std::endl;
+        std::abort();
+    }
+    return migraphx::parse_tf_buffer(std::string{pb_files.at(name)}, options);
+}
 
-namespace migraphx {
-inline namespace MIGRAPHX_INLINE_NS {
-namespace gpu {
-
-MIGRAPHX_GPU_EXPORT std::string get_device_name();
-
-MIGRAPHX_GPU_EXPORT int get_device_id();
-
-MIGRAPHX_GPU_EXPORT bool gfx_has_fp8fnuz_intrinsics();
-
-MIGRAPHX_GPU_EXPORT bool gfx_has_fp8ocp_intrinsics();
-
-MIGRAPHX_GPU_EXPORT bool gfx_has_bf16_intrinsics();
-
-MIGRAPHX_GPU_EXPORT bool gfx_has_fp8fnuz_support();
-
-MIGRAPHX_GPU_EXPORT bool gfx_default_rocblas();
-
-} // namespace gpu
-} // namespace MIGRAPHX_INLINE_NS
-} // namespace migraphx
-#endif // MIGRAPHX_GUARD_GPU_DEVICE_NAME_HPP
+#endif // MIGRAPHX_GUARD_INCLUDE_READ_TF_HPP

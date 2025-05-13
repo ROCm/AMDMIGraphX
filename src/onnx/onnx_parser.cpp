@@ -408,12 +408,7 @@ static void create_node_maps(std::map<std::string, std::vector<size_t>>& input_t
         // then we will have something like {"a_out": [node B, node C]} in our map.
         for(auto&& input : node.input())
         {
-            if(input_to_node_map.count(input) > 0)
-            {
-                input_to_node_map.at(input).push_back(node_index);
-            }
-            else
-                input_to_node_map.emplace(input, std::vector<size_t>{node_index});
+            input_to_node_map[input].push_back(node_index);
         }
 
         std::vector<std::string> node_outputs;

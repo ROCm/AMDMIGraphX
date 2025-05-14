@@ -419,14 +419,7 @@ static void create_node_maps(std::map<std::string, std::vector<size_t>>& input_t
 
         // Use this second map to keep track of all references of the output names to be used
         // as inputs to future nodes.
-        node_to_output_map.emplace(node_index, node_outputs);
-    }
-
-    // Graph outputs will eventually reference the last nodes in the graph,
-    // so add to the input_to_node_map.
-    for(const auto& output : graph.output())
-    {
-        input_to_node_map.emplace(output.name(), std::vector<size_t>{});
+        node_to_output_map.emplace(node_index, std::move(node_outputs));
     }
 }
 
@@ -443,9 +436,14 @@ static void traverse(std::vector<size_t>& sorted_nodes,
 
     for(const auto& out_node_name : node_to_output_map.at(curr_node))
     {
-        for(const auto& in_node_name : input_to_node_map.at(out_node_name))
-            traverse(
-                sorted_nodes, visited_nodes, input_to_node_map, node_to_output_map, in_node_name);
+        // check if node output is used in graph
+        if(contains(input_to_node_map, out_node_name))
+        {
+            for(const auto& in_node_name : input_to_node_map.at(out_node_name))
+                traverse(
+                    sorted_nodes, visited_nodes, input_to_node_map, node_to_output_map, in_node_name);
+        }
+        
     }
     sorted_nodes.insert(sorted_nodes.begin(), curr_node);
 }

@@ -134,11 +134,13 @@ struct parse_groupnorm : op_parser<parse_groupnorm>
         auto group_size = c / num_groups;
         if(scale->get_shape().ndim() != 1 or scale->get_shape().lens().at(0) != c)
         {
-            MIGRAPHX_THROW("PARSE_GROUPNORM: scale tensor shape should be equal to the number of channels");
+            MIGRAPHX_THROW(
+                "PARSE_GROUPNORM: scale tensor shape should be equal to the number of channels");
         }
         if(bias->get_shape().ndim() != 1 or bias->get_shape().lens().at(0) != c)
         {
-            MIGRAPHX_THROW("PARSE_GROUPNORM: bias tensor shape should be equal to the number of channels");
+            MIGRAPHX_THROW(
+                "PARSE_GROUPNORM: bias tensor shape should be equal to the number of channels");
         }
 
         // Original shape: N x C x D1 x ... x Dn

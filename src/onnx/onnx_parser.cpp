@@ -440,10 +440,12 @@ static void traverse(std::vector<size_t>& sorted_nodes,
         if(contains(input_to_node_map, out_node_name))
         {
             for(const auto& in_node_name : input_to_node_map.at(out_node_name))
-                traverse(
-                    sorted_nodes, visited_nodes, input_to_node_map, node_to_output_map, in_node_name);
+                traverse(sorted_nodes,
+                         visited_nodes,
+                         input_to_node_map,
+                         node_to_output_map,
+                         in_node_name);
         }
-        
     }
     sorted_nodes.insert(sorted_nodes.begin(), curr_node);
 }

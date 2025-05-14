@@ -591,6 +591,33 @@ struct parse_attention : op_parser<parse_attention>
         return qkv_mats;
     }
 
+    // Stolen from our TriLU parser to generate a diagonal mask to aid in masking operations
+    static instruction_ref generate_triangular_mat(const onnx_parser::node_info& info,
+                                                   const instruction_ref input_matrix,
+                                                   bool upper)
+    {
+        auto in_matrix_shape = input_matrix->get_shape();
+        auto in_shape_type   = in_matrix_shape.type();
+        auto in_shape_dims   = in_matrix_shape.lens();
+        auto num_rows        = in_shape_dims.at(0);
+        auto num_cols        = in_shape_dims.at(1);
+        std::vector<bool> mask_mat(num_rows * num_cols, upper);
+
+        // if upper == 0, kth diagonal must also be masked
+        int k = 0;
+        if(not upper)
+            k++;
+        for(size_t i = 0; i < num_rows; i++)
+        {
+            for(int j = 0; j < std::min(k, static_cast<int>(num_cols)); j++)
+            {
+                mask_mat[i * num_cols + j] = not upper;
+            }
+            k++;
+        }
+        return info.add_literal(migraphx::literal{migraphx::shape{in_shape_type, {num_rows, num_cols}}, mask_mat});
+    }
+
     static instruction_ref create_input_mask(const onnx_parser::node_info& info,
                                              const instruction_ref& input,
                                              const instruction_ref& mask_input,
@@ -600,30 +627,30 @@ struct parse_attention : op_parser<parse_attention>
         instruction_ref final_mask;
         auto mask_value_literal = info.add_literal(migraphx::literal{migraphx::shape{input->get_shape().type(), {1}, {0}}, {parsed_in.mask_filter_val}});
 
-        if(parsed_in.unidirectional)
-        {
-            // TODO Generate lower triangular mask and fill with mask_value_literal
+        if(infered_in.index_pad == RAW)
+        {   // Raw case, 0 means mask 1 means pass through thus invert the matrix then multiply by mask_value
+            auto bc_in = info.add_instruction(make_op("multibroadcast", {{"out_lens", mask_input->get_shape().lens()}}), mask_value_literal);
+            final_mask = info.add_instruction(make_op("not"), mask_input);
+            final_mask = info.add_instruction(make_op("convert", {{"target_type", input->get_shape().type()}}), final_mask);
+            final_mask = info.add_instruction(make_op("mul"), final_mask, bc_in);
+            if(parsed_in.unidirectional)
+            {   //Unidirectional means we have to mask out the upper triangular part 
+                auto triangle_mask = generate_triangular_mat(info, final_mask, false);
+                final_mask = info.add_instruction(make_op("mul"), final_mask, triangle_mask);
+            }
+            final_mask = info.add_instruction(make_op("unsqueeze", {{"axes", {-1}}}), final_mask);
+            final_mask = info.add_instruction(make_op("unsqueeze", {{"axes", {-1}}}), final_mask);
         }
-        else
+        else if(infered_in.index_pad == LEFT_PADDING)
         {
-            if(infered_in.index_pad == RAW)
-            {   // Raw case, 0 means mask 1 means pass through thus invert the matrix then multiply by mask_value
-                auto bc_in = info.add_instruction(make_op("multibroadcast", {{"out_lens", mask_input->get_shape().lens()}}), mask_value_literal);
-                final_mask = info.add_instruction(make_op("not"), mask_input);
-                final_mask = info.add_instruction(make_op("convert", {{"target_type", input->get_shape().type()}}), final_mask);
-                final_mask = info.add_instruction(make_op("mul"), final_mask, bc_in);
-                final_mask = info.add_instruction(make_op("unsqueeze", {{"axes", {-1}}}), final_mask);
-                final_mask = info.add_instruction(make_op("unsqueeze", {{"axes", {-1}}}), final_mask);
-            }
-            else if(infered_in.index_pad == LEFT_PADDING)
-            {
-                // TODO add left padding input case
-            }
-            else if(infered_in.index_pad == RIGHT_PADDING)
-            {
-                // TODO add right padding input case
-            }
+            MIGRAPHX_THROW("Attention OP: Left inpad padding mode not supported");
         }
+        else if(infered_in.index_pad == RIGHT_PADDING)
+        {
+            MIGRAPHX_THROW("Attention OP: Left inpad padding mode not supported");
+        }
+
+
         return final_mask;
     }
 

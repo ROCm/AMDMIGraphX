@@ -52,7 +52,7 @@ list(APPEND CMAKE_MODULE_PATH ${CMAKE_CURRENT_SOURCE_DIR}/cmake)
 project(migraphx LANGUAGES C CXX)
 include(CTest)
 
-find_package(ROCM REQUIRED)
+find_package(ROCmCMakeBuildTools REQUIRED)
 find_package(Threads REQUIRED)
 
 option(MIGRAPHX_ENABLE_PYTHON "Enable python bindings" ON)

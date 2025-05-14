@@ -132,13 +132,13 @@ struct parse_groupnorm : op_parser<parse_groupnorm>
                 "PARSE_GROUPNORM: num_groups should be a divisor of the number of channels");
         }
         auto group_size = c / num_groups;
-        if(scale->get_shape().ndim() != 1 or scale->get_shape().lens().at(0) != num_groups)
+        if(scale->get_shape().ndim() != 1 or scale->get_shape().lens().at(0) != c)
         {
-            MIGRAPHX_THROW("PARSE_GROUPNORM: scale tensor shape should be num_groups");
+            MIGRAPHX_THROW("PARSE_GROUPNORM: scale tensor shape should be equal to the number of channels");
         }
-        if(bias->get_shape().ndim() != 1 or bias->get_shape().lens().at(0) != num_groups)
+        if(bias->get_shape().ndim() != 1 or bias->get_shape().lens().at(0) != c)
         {
-            MIGRAPHX_THROW("PARSE_GROUPNORM: bias tensor shape should be num_groups");
+            MIGRAPHX_THROW("PARSE_GROUPNORM: bias tensor shape should be equal to the number of channels");
         }
 
         // Original shape: N x C x D1 x ... x Dn
@@ -167,13 +167,13 @@ struct parse_groupnorm : op_parser<parse_groupnorm>
         auto var_eps = info.add_common_op("add", variance, eps);
         auto rsqrt   = info.add_instruction(make_op("rsqrt"), var_eps);
         auto result  = info.add_common_op("mul", x_sub_mean, rsqrt);
+        auto result_reshaped = info.add_instruction(make_op("reshape", {{"dims", x_dims}}), result);
         auto scale_bcast =
-            info.add_instruction(make_op("broadcast", {{"axis", 1}, {"out_lens", dims}}), scale);
+            info.add_instruction(make_op("broadcast", {{"axis", 1}, {"out_lens", x_dims}}), scale);
         auto bias_bcast =
-            info.add_instruction(make_op("broadcast", {{"axis", 1}, {"out_lens", dims}}), bias);
-        auto scaled = info.add_instruction(make_op("mul"), result, scale_bcast);
-        auto y      = info.add_instruction(make_op("add"), scaled, bias_bcast);
-        auto output = info.add_instruction(make_op("reshape", {{"dims", x_dims}}), y);
+            info.add_instruction(make_op("broadcast", {{"axis", 1}, {"out_lens", x_dims}}), bias);
+        auto scaled = info.add_instruction(make_op("mul"), result_reshaped, scale_bcast);
+        auto output = info.add_instruction(make_op("add"), scaled, bias_bcast);
 
         // Convert to NCHW -> channels_last for contrib GroupNorm
         if(is_channels_last and is_contrib)

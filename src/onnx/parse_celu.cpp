@@ -36,7 +36,7 @@ struct parse_celu : op_parser<parse_celu>
     instruction_ref parse(const op_desc&,
                           const onnx_parser&,
                           const onnx_parser::node_info& info,
-                          std::vector<instruction_ref> args) const
+                          const std::vector<instruction_ref>& args) const
     {
         float alpha = 1.0;
         if(contains(info.attributes, "alpha"))

@@ -36,7 +36,7 @@ struct parse_batchnorm : op_parser<parse_batchnorm>
     instruction_ref parse(const op_desc& /*opd*/,
                           const onnx_parser& parser,
                           const onnx_parser::node_info& info,
-                          std::vector<instruction_ref> args) const
+                          const std::vector<instruction_ref>& args) const
     {
         float epsilon = 1e-5f;
         if(contains(info.attributes, "epsilon"))

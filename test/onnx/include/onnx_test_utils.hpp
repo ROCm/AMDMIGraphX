@@ -305,7 +305,7 @@ make_simplified_layer_norm(const std::vector<int64_t>& input_shape,
 }
 
 inline void
-mvn_n_rank_test(std::vector<int64_t> axes, std::vector<size_t> input_shape, migraphx::program&& prog)
+mvn_n_rank_test(std::vector<int64_t> axes, std::vector<size_t> input_shape, migraphx::program prog)
 {
     using migraphx::make_op;
 

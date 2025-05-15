@@ -53,7 +53,7 @@ std::unordered_map<instruction_ref, std::string> create_output_names(const modul
         mod_output_names[outputs_alias.front()] = "output";
     }
     // Preserve main module output buffer naming across migraphx versions
-    else if (mod.name() == "main")
+    else if(mod.name() == "main")
     {
         for(auto ins : outputs_alias)
         {

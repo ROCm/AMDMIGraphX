@@ -4775,64 +4775,64 @@ def group_norm_test(x_dims,
 
 @onnx_test()
 def group_norm_3d_test():
-    return group_norm_test([1, 4, 2], [2], [2], [1, 4, 2], 2)
+    return group_norm_test([1, 4, 2], [4], [4], [1, 4, 2], 2)
 
 
 @onnx_test()
 def group_norm_3d_half_test():
-    return group_norm_test([1, 4, 2], [2], [2], [1, 4, 2],
+    return group_norm_test([1, 4, 2], [4], [4], [1, 4, 2],
                            2,
                            dtype=TensorProto.FLOAT16)
 
 
 @onnx_test()
 def group_norm_3d_bf16_test():
-    return group_norm_test([1, 4, 2], [2], [2], [1, 4, 2],
+    return group_norm_test([1, 4, 2], [4], [4], [1, 4, 2],
                            2,
                            dtype=TensorProto.BFLOAT16)
 
 
 @onnx_test()
 def group_norm_4d_test():
-    return group_norm_test([1, 4, 3, 3], [2], [2], [1, 4, 3, 3], 2)
+    return group_norm_test([1, 4, 3, 3], [4], [4], [1, 4, 3, 3], 2)
 
 
 @onnx_test()
 def group_norm_4d_half_test():
-    return group_norm_test([1, 4, 3, 3], [2], [2], [1, 4, 3, 3],
+    return group_norm_test([1, 4, 3, 3], [4], [4], [1, 4, 3, 3],
                            2,
                            dtype=TensorProto.FLOAT16)
 
 
 @onnx_test()
 def group_norm_4d_bf16_test():
-    return group_norm_test([1, 4, 3, 3], [2], [2], [1, 4, 3, 3],
+    return group_norm_test([1, 4, 3, 3], [4], [4], [1, 4, 3, 3],
                            2,
                            dtype=TensorProto.BFLOAT16)
 
 
 @onnx_test()
 def group_norm_5d_test():
-    return group_norm_test([3, 3, 3, 3, 3], [1], [1], [3, 3, 3, 3, 3], 1)
+    return group_norm_test([3, 3, 3, 3, 3], [3], [3], [3, 3, 3, 3, 3], 1)
 
 
 @onnx_test()
 def group_norm_5d_half_test():
-    return group_norm_test([3, 3, 3, 3, 3], [1], [1], [3, 3, 3, 3, 3],
+    return group_norm_test([3, 3, 3, 3, 3], [3], [3], [3, 3, 3, 3, 3],
                            1,
                            dtype=TensorProto.FLOAT16)
 
 
 @onnx_test()
 def group_norm_5d_bf16_test():
-    return group_norm_test([3, 3, 3, 3, 3], [1], [1], [3, 3, 3, 3, 3],
+    return group_norm_test([3, 3, 3, 3, 3], [3], [3], [3, 3, 3, 3, 3],
                            1,
                            dtype=TensorProto.BFLOAT16)
 
 
 @onnx_test()
 def group_norm_small_eps_half_test():
-    return group_norm_test([1, 4, 2], [2], [2], [1, 4, 2],
+    return group_norm_test([1, 4, 2], [4], [4], [1, 4, 2],
                            2,
                            eps_value=1e-12,
                            dtype=TensorProto.FLOAT16)
@@ -4840,7 +4840,7 @@ def group_norm_small_eps_half_test():
 
 @onnx_test()
 def group_norm_small_eps_bf16_test():
-    return group_norm_test([1, 4, 2], [2], [2], [1, 4, 2],
+    return group_norm_test([1, 4, 2], [4], [4], [1, 4, 2],
                            2,
                            eps_value=1e-7,
                            dtype=TensorProto.BFLOAT16)
@@ -4921,7 +4921,7 @@ def group_norm_contrib_test(x_dims,
 
 @onnx_test()
 def group_norm_contrib_3d_test():
-    return group_norm_contrib_test([1, 4, 2], [2], [2], [1, 4, 2], 2, 0, 0)
+    return group_norm_contrib_test([1, 4, 2], [4], [4], [1, 4, 2], 2, 0, 0)
 
 
 @onnx_test()
@@ -4931,7 +4931,7 @@ def group_norm_contrib_3d_channel_last_test():
 
 @onnx_test()
 def group_norm_contrib_3d_channel_last_half_test():
-    return group_norm_contrib_test([1, 4, 2], [2], [2], [1, 4, 2],
+    return group_norm_contrib_test([1, 4, 2], [4], [4], [1, 4, 2],
                                    2,
                                    0,
                                    1,
@@ -4940,7 +4940,7 @@ def group_norm_contrib_3d_channel_last_half_test():
 
 @onnx_test()
 def group_norm_contrib_3d_channel_last_bf16_test():
-    return group_norm_contrib_test([1, 4, 2], [2], [2], [1, 4, 2],
+    return group_norm_contrib_test([1, 4, 2], [4], [4], [1, 4, 2],
                                    2,
                                    0,
                                    1,
@@ -4949,7 +4949,7 @@ def group_norm_contrib_3d_channel_last_bf16_test():
 
 @onnx_test()
 def group_norm_contrib_silu_3d_test():
-    return group_norm_contrib_test([1, 4, 2], [2], [2], [1, 4, 2], 2, 1, 0)
+    return group_norm_contrib_test([1, 4, 2], [4], [4], [1, 4, 2], 2, 1, 0)
 
 
 @onnx_test()
@@ -4959,7 +4959,7 @@ def group_norm_contrib_channels_last_3d_test():
 
 @onnx_test()
 def group_norm_contrib_channels_last_4d_test():
-    return group_norm_contrib_test([1, 3, 3, 4], [2], [2], [1, 3, 3, 4], 2, 0,
+    return group_norm_contrib_test([1, 3, 3, 4], [4], [4], [1, 3, 3, 4], 2, 0,
                                    1)
 
 

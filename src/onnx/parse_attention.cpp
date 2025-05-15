@@ -425,6 +425,7 @@ struct parse_attention : op_parser<parse_attention>
             }
             else
             {
+                // TODO: Handle case where non shared buffer in past sequence length
                 if(args.at(3)->get_shape().lens().size() == 4 and
                    args.at(3)->get_shape().lens().at(3) != past_lens.at(2))
                 {
@@ -434,6 +435,7 @@ struct parse_attention : op_parser<parse_attention>
                 {
                     infered_out.max_sequence_length = past_lens.at(2);
                 }
+                MIGRAPHX_THROW("ATTENTION: Unable to handle past input without shared buffer");
             }
             output_arg_vec.push_back(past);
         }
@@ -563,13 +565,22 @@ struct parse_attention : op_parser<parse_attention>
     }
 
 
+    static void get_kv_from_past(const onnx_parser::node_info& info,
+                                 const instruction_ref& past_input,
+                                 const attention_attr& parsed_attr,
+                                 const attention_infered& infered_attr,
+                                 std::vector<instruction_ref>& qkv_mats)
+    {
+
+    }
+
     // Get Q, K, V matricies from stacked weight matrix
     static std::vector<instruction_ref> input_linear_to_qkv(const onnx_parser::node_info& info,
                                                             const instruction_ref& input,
                                                             const instruction_ref& stacked_weights,
                                                             const std::vector<size_t>& qkv_sizes,
-                                                            const instruction_ref& /*input_bias*/,
-                                                            const bool /*has_input_bias*/)
+                                                            const instruction_ref& input_bias,
+                                                            const bool has_input_bias)
     {
         // Input encodes the batch, sequence_length and input_hidden_size (also known as embedding size) 
         auto input_lens = input->get_shape().lens();
@@ -580,6 +591,11 @@ struct parse_attention : op_parser<parse_attention>
         auto stacked_weights_unsq_bcast = info.add_instruction(make_op("multibroadcast", {{"out_lens", w_lens}}), stacked_weights_unsq);
 
         auto stacked_result = info.add_instruction(make_op("dot"), input, stacked_weights_unsq_bcast);
+
+        if (has_input_bias)
+        {
+            stacked_result = info.add_common_op("add", stacked_result, input_bias);
+        }
 
         // Input stacked weights are (input_hidden_size, hidden_size + hidden_size + v_hidden_size) so slice out parts for each matrix
         // Since we known the input_hidden size is one dimension wee need to slice out the weight tensors accordingly before we perform matmul
@@ -657,10 +673,10 @@ struct parse_attention : op_parser<parse_attention>
     }
 
     static instruction_ref handle_past_present_keys(const onnx_parser::node_info& info,
-                                             const instruction_ref& past_input, 
-                                             const instruction_ref& keys, 
-                                             const instruction_ref& values,
-                                             const attention_attr& parsed_attributes)
+                                                 const instruction_ref& past_input, 
+                                                 const instruction_ref& keys, 
+                                                 const instruction_ref& values,
+                                                 const attention_attr& parsed_attributes)
     {
         // Just reuse the past input if past_present are shared.
         if(parsed_attributes.past_present_share_buffer)
@@ -673,10 +689,14 @@ struct parse_attention : op_parser<parse_attention>
             // by combining keys and values and stacking them. key/values are given as
             // (batch, sequence_length, head_size, num_heads)  head_size = querry size in some literature for attention
             // The output is expected to be a concat of shape (2, batch, num_heads, sequence_length, head_size) 
-            auto keys_trans  = info.add_instruction(make_op("transpose", {{"permutation", {0, 3 , 1, 2}}}), keys);
+            auto num_heads = parsed_attributes.num_heads;
+
             auto value_trans = info.add_instruction(make_op("transpose", {{"permutation", {0, 3 , 1, 2}}}), values);
-            keys_trans  = info.add_instruction(make_op("unsqueeze", {{"axes", {0}}}), keys_trans);
             value_trans = info.add_instruction(make_op("unsqueeze", {{"axes", {0}}}), value_trans);
+
+            auto keys_trans  = info.add_instruction(make_op("transpose", {{"permutation", {0, 3 , 1, 2}}}), keys);
+            keys_trans  = info.add_instruction(make_op("unsqueeze", {{"axes", {0}}}), keys_trans);
+
             return info.add_instruction(make_op("concat"), keys, values);
         }
     }
@@ -699,15 +719,19 @@ struct parse_attention : op_parser<parse_attention>
         if(infered_attributes.has_input_bias)
             input_bias = inputs.at(2);
 
-        // Apply linear stage to QKV mats from weight matrix
-        auto qkv_mats = input_linear_to_qkv(info, input_data, weights, parsed_attributes.qkv_hidden_sizes, input_bias, infered_attributes.has_input_bias);
 
-        //
-        instruction_ref past_input;
+        // Apply linear stage to QKV mats from weight matrix - If past input just return q mat later split will be extracted from past vector
+        auto qkv_mats = input_linear_to_qkv(info, input_data, weights, parsed_attributes.qkv_hidden_sizes, 
+                                            input_bias, infered_attributes.has_input_bias);
+
+        // Add Past K/V matricies from past vector if present
+        auto past_input = input_data;
         if(infered_attributes.has_past_input)
         {
             past_input = inputs.at(4);
+            get_kv_from_past(info, past_input, parsed_attributes, infered_attributes, qkv_mats);
         }
+
 
         // Set attention mask and bias when detected on input
         instruction_ref attn_mask;
@@ -726,7 +750,7 @@ struct parse_attention : op_parser<parse_attention>
         auto scale_factor = info.add_literal(migraphx::literal{migraphx::shape{qkv_mats.at(0)->get_shape().type()},
                                                               {attn_scale_factor}});
 
-        //Get vector of attention heads and then concat the output results
+        // split QKV into proper batched attention head shape before we perform scale_dot_attention (saves us a concat)
         auto split_qkv  = qkv_split_per_head(info, qkv_mats, parsed_attributes, infered_attributes);
 
         instruction_ref context = scale_dot_attention_head(info, split_qkv, scale_factor, attn_mask, attn_bias, infered_attributes.has_attn_mask, infered_attributes.has_attn_bias);
@@ -734,7 +758,7 @@ struct parse_attention : op_parser<parse_attention>
         std::vector<instruction_ref> output_vec{};
         output_vec.push_back(context);
 
-        // Past and Present vetors must be used for the run.
+        // Must output present stacked KV when past input is used
         if(infered_attributes.has_past_input)
         {
             auto present_output = handle_past_present_keys(info, past_input, split_qkv.at(1), split_qkv.at(2), parsed_attributes);

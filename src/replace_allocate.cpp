@@ -47,10 +47,17 @@ std::unordered_map<instruction_ref, std::string> create_output_names(const modul
         return instruction::get_output_alias(i);
     });
 
-    std::size_t index = 0;
-    for(auto ins : outputs_alias)
+    if(outputs_alias.size() == 1 and mod.name().empty())
     {
-        mod_output_names[ins] = param_name(index++, mod.name() + ":#output_");
+        mod_output_names[outputs_alias.front()] = "output";
+    }
+    else
+    {
+        std::size_t index = 0;
+        for(auto ins : outputs_alias)
+        {
+            mod_output_names[ins] = param_name(index++, mod.name() + ":#output_");
+        }
     }
     return mod_output_names;
 }

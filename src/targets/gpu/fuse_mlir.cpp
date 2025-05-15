@@ -429,22 +429,22 @@ bool is_pointwise_op_supported_by_mlir(const instruction& i)
     }
     const std::initializer_list<std::string> any_type_ops = {"@literal", "@param", "@return"};
     const std::initializer_list<std::string> no_bool_ops  = {
-        "convolution",
-        "quant_convolution",
-        "dot",
-        "quant_dot",
-        "add",
-        "clip",
-        "relu",
-        "sub",
-        "mul",
-        "div",
-        "pow",
-        "where",
-        "quantizelinear",
-        "dequantizelinear",
-        "abs",
-        "neg",
+         "convolution",
+         "quant_convolution",
+         "dot",
+         "quant_dot",
+         "add",
+         "clip",
+         "relu",
+         "sub",
+         "mul",
+         "div",
+         "pow",
+         "where",
+         "quantizelinear",
+         "dequantizelinear",
+         "abs",
+         "neg",
     };
     const std::initializer_list<std::string> fp_only_ops = {
         "ceil",
@@ -922,6 +922,137 @@ struct find_mlir_standalone_attention_op
     }
 };
 
+struct find_mlir_gqa_attention_op
+{
+    mlir_mode dot_mode = mlir_mode::none;
+    std::size_t* counter = nullptr;
+
+    auto matcher() const { return match::name("gpu::kv_cache_attention"); }
+
+    auto finalize_attention_module(module_ref m) const
+    {
+        eliminate_common_subexpression{}.apply(*m);
+        dead_code_elimination{}.apply(*m);
+    }
+
+    std::string get_count() const
+    {
+        if(counter == nullptr)
+            MIGRAPHX_THROW("Invalid counter");
+        return std::to_string((*counter)++);
+    }
+
+    void apply(module_pass_manager& mpm, const match::matcher_result& r) const
+    {
+        auto attn = r.result;
+
+        float scale_val       = attn->get_operator().to_value().get("scale", 0.0);
+        std::size_t num_heads = attn->get_operator().to_value().get("num_heads", 32);
+        std::size_t kv_num_heads = attn->get_operator().to_value().get("kv_num_heads", 32);
+        auto kv_num_heads_factor = num_heads / kv_num_heads;
+        auto qkv              = attn->inputs().at(0);
+        auto pk                = attn->inputs().at(1);
+        auto pv                = attn->inputs().at(2);
+        auto csl              = attn->inputs().at(3);
+        auto batch_size       = pk->get_shape().lens()[0];
+        auto seq_len          = qkv->get_shape().lens()[2];
+        auto head_size        = qkv->get_shape().lens()[3];
+        auto max_seq_len      = pk->get_shape().lens()[2];
+        csl                   = mpm.get_module().insert_instruction(
+            attn, make_op("multibroadcast", {{"out_lens", {batch_size, num_heads}}}), csl);
+
+        module m_attn;
+        std::vector<instruction_ref> inputs = {qkv, pk, pv, csl};
+        std::unordered_map<instruction_ref, instruction_ref> map_main_to_mattn;
+        m_attn.add_params(inputs, &map_main_to_mattn);
+
+        auto q = m_attn.add_instruction(
+            make_op("slice", {{"axes", {1}}, {"starts", {0}}, {"ends", {num_heads}}}),
+            map_main_to_mattn.at(qkv));
+        auto k = map_main_to_mattn.at(pk);
+        auto v = map_main_to_mattn.at(pv);
+        if(kv_num_heads_factor != 1)
+        {
+            auto kv_new_lens = k->get_shape().lens();
+            kv_new_lens.at(1) = num_heads;
+            k = m_attn.add_instruction(
+                make_op("unsqueeze", {{"axes", {2}}}), k);
+            v = m_attn.add_instruction(
+                make_op("unsqueeze", {{"axes", {2}}}), v);
+            auto kv_unsqueezed_lens = k->get_shape().lens();
+            kv_unsqueezed_lens.at(2) = kv_num_heads_factor;
+            k = m_attn.add_instruction(make_op("multibroadcast", {{"out_lens", kv_unsqueezed_lens}}), k);
+            v = m_attn.add_instruction(make_op("multibroadcast", {{"out_lens", kv_unsqueezed_lens}}), v);
+            k = m_attn.add_instruction(make_op("reshape", {{"dims", kv_new_lens}}), k);
+            v = m_attn.add_instruction(make_op("reshape", {{"dims", kv_new_lens}}), v);
+        }
+        auto kt = m_attn.add_instruction(
+            make_op("transpose", {{"permutation", {0, 1, 3, 2}}}), k);
+        auto gemm1 = m_attn.add_instruction(make_op("dot"), q, kt);
+
+        std::vector<int> range_vec(max_seq_len);
+        std::iota(range_vec.begin(), range_vec.end(), 0);
+        shape range_s{csl->get_shape().type(), {max_seq_len}};
+        auto range = m_attn.add_literal(range_s, range_vec);
+        std::vector<std::size_t> bnsm{batch_size, num_heads, seq_len, max_seq_len};
+        auto bc_range =
+            m_attn.add_instruction(make_op("multibroadcast", {{"out_lens", bnsm}}), range);
+
+        auto scalar_s = shape{qkv->get_shape().type(), {1}};
+        auto ninf =
+            m_attn.add_literal(literal{scalar_s, {-std::numeric_limits<float>::infinity()}});
+        ninf = m_attn.add_instruction(make_op("multibroadcast", {{"out_lens", bnsm}}), ninf);
+
+        if(float_equal(scale_val, 0.0))
+        {
+            scale_val = 1.0f / std::sqrt(static_cast<float>(head_size));
+        }
+        auto scale = m_attn.add_literal(literal{scalar_s, {scale_val}});
+        scale      = m_attn.add_instruction(make_op("multibroadcast", {{"out_lens", bnsm}}), scale);
+
+        if(seq_len > 1)
+        {
+            std::vector<int> seq_range_vec(seq_len);
+            std::iota(seq_range_vec.begin(), seq_range_vec.end(), 1);
+            shape seq_range_s{csl->get_shape().type(), {seq_len}};
+            auto seq_range = m_attn.add_literal(seq_range_s, seq_range_vec);
+            seq_range =
+                m_attn.add_instruction(make_op("reshape", {{"dims", {seq_len, 1}}}), seq_range);
+            seq_range =
+                m_attn.add_instruction(make_op("multibroadcast", {{"out_lens", bnsm}}), seq_range);
+            auto causal_mask =
+                m_attn.add_instruction(make_op("greater_or_equal"), bc_range, seq_range);
+            causal_mask = m_attn.add_instruction(
+                make_op("convert", {{"target_type", shape::bool_type}}), causal_mask);
+            gemm1 = m_attn.add_instruction(make_op("where"), causal_mask, ninf, gemm1);
+        }
+
+        auto bc_csl =
+            m_attn.add_instruction(make_op("reshape", {{"dims", {batch_size, num_heads, 1, 1}}}),
+                                   map_main_to_mattn.at(csl));
+        auto mask_comp =
+            m_attn.add_instruction(make_op("multibroadcast", {{"out_lens", bnsm}}), bc_csl);
+        auto mask = m_attn.add_instruction(make_op("greater_or_equal"), bc_range, mask_comp);
+        mask =
+            m_attn.add_instruction(make_op("convert", {{"target_type", shape::bool_type}}), mask);
+        auto mul     = m_attn.add_instruction(make_op("mul"), gemm1, scale);
+        auto where   = m_attn.add_instruction(make_op("where"), mask, ninf, mul);
+        auto softmax = m_attn.add_instruction(make_op("softmax", {{"axis", 3}}), where);
+        auto scores  = m_attn.add_instruction(make_op("dot"), softmax, v);
+        auto out =
+            m_attn.add_instruction(make_op("transpose", {{"permutation", {0, 2, 1, 3}}}), scores);
+        out = m_attn.add_instruction(make_op("reshape", {{"dims", attn->get_shape().lens()}}), out);
+        m_attn.add_return({out});
+
+        finalize_attention_module(&m_attn);
+        module_ref mpm_attn = mpm.create_module("mlir_attn" + get_count(), std::move(m_attn));
+        mpm_attn->set_bypass();
+
+        mpm.get_module().replace_instruction(
+            attn, mlir_op{attn->get_operator()}, mlir_contiguous(mpm, inputs), {mpm_attn});
+    }
+};
+
 struct find_mlir_attention_fused_ops : public find_mlir_standalone_attention_op
 {
     auto matcher() const
@@ -1079,6 +1210,9 @@ void fuse_mlir::apply(module_pass_manager& mpm) const
         match::find_matches(mpm, find_mlir_standalone_attention_op{mlir_mode::all});
         mpm.run_pass(dead_code_elimination{});
     }
+
+    match::find_matches(mpm, find_mlir_gqa_attention_op{mlir_mode::all, .counter = &counter});
+    mpm.run_pass(dead_code_elimination{});
 
     match::find_matches(
         mpm,

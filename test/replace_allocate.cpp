@@ -254,7 +254,7 @@ TEST_CASE(allocate_copy_with_out)
     {
         auto x      = m2.add_parameter("x", s);
         auto y      = m2.add_parameter("y", s);
-        auto output = m2.add_parameter("output", s);
+        auto output = m2.add_parameter(":#output_0", s);
         auto pass   = m2.add_instruction(tuple_op{}, x, y);
         auto elem1  = m2.add_instruction(migraphx::make_op("get_tuple_elem", {{"index", 0}}), pass);
         auto copy   = m2.add_instruction(migraphx::make_op("test_copy"), elem1, output);

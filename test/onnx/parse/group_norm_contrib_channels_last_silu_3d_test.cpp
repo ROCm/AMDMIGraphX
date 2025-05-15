@@ -48,7 +48,7 @@ TEST_CASE(group_norm_contrib_channels_last_silu_3d_test)
         mm->add_instruction(migraphx::make_op("transpose", {{"permutation", {0, 2, 1}}}), x);
 
     auto x_dims = x_transp->get_shape().lens();
-    
+
     auto x_reshaped =
         mm->add_instruction(migraphx::make_op("reshape", {{"dims", reshape_dims}}), x_transp);
     auto mean =
@@ -60,15 +60,16 @@ TEST_CASE(group_norm_contrib_channels_last_silu_3d_test)
     auto var_eps = add_common_op(*mm, migraphx::make_op("add"), {var, eps});
     auto rsqrt   = mm->add_instruction(migraphx::make_op("rsqrt"), {var_eps});
     auto result  = add_common_op(*mm, migraphx::make_op("mul"), {x_sub_mean, rsqrt});
-    auto result_reshaped = mm->add_instruction(migraphx::make_op("reshape", {{"dims", x_dims}}), result);
+    auto result_reshaped =
+        mm->add_instruction(migraphx::make_op("reshape", {{"dims", x_dims}}), result);
     auto scale_bcast = mm->add_instruction(
         migraphx::make_op("broadcast", {{"axis", 1}, {"out_lens", x_dims}}), scale);
     auto bias_bcast = mm->add_instruction(
         migraphx::make_op("broadcast", {{"axis", 1}, {"out_lens", x_dims}}), bias);
-    auto scaled      = mm->add_instruction(migraphx::make_op("mul"), {result_reshaped, scale_bcast});
-    auto y           = mm->add_instruction(migraphx::make_op("add"), {scaled, bias_bcast});
-    auto group_out   = mm->add_instruction(
-        migraphx::make_op("transpose", {{"permutation", {0, 2, 1}}}), y);
+    auto scaled = mm->add_instruction(migraphx::make_op("mul"), {result_reshaped, scale_bcast});
+    auto y      = mm->add_instruction(migraphx::make_op("add"), {scaled, bias_bcast});
+    auto group_out =
+        mm->add_instruction(migraphx::make_op("transpose", {{"permutation", {0, 2, 1}}}), y);
 
     // Order matters for this operator as we MUST have SILU after a group norm is done when the
     // activation flag is set

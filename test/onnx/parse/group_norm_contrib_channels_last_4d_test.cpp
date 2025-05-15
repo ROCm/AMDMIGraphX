@@ -60,15 +60,15 @@ TEST_CASE(group_norm_contrib_channels_last_4d_test)
     auto var_eps = add_common_op(*mm, migraphx::make_op("add"), {var, eps});
     auto rsqrt   = mm->add_instruction(migraphx::make_op("rsqrt"), {var_eps});
     auto result  = add_common_op(*mm, migraphx::make_op("mul"), {x_sub_mean, rsqrt});
-    auto result_reshaped = mm->add_instruction(migraphx::make_op("reshape", {{"dims", x_dims}}), result);
+    auto result_reshaped =
+        mm->add_instruction(migraphx::make_op("reshape", {{"dims", x_dims}}), result);
     auto scale_bcast = mm->add_instruction(
         migraphx::make_op("broadcast", {{"axis", 1}, {"out_lens", x_dims}}), scale);
     auto bias_bcast = mm->add_instruction(
         migraphx::make_op("broadcast", {{"axis", 1}, {"out_lens", x_dims}}), bias);
     auto scaled = mm->add_instruction(migraphx::make_op("mul"), {result_reshaped, scale_bcast});
     auto y      = mm->add_instruction(migraphx::make_op("add"), {scaled, bias_bcast});
-    mm->add_instruction(migraphx::make_op("transpose", {{"permutation", {0, 2, 3, 1}}}),
-                        y);
+    mm->add_instruction(migraphx::make_op("transpose", {{"permutation", {0, 2, 3, 1}}}), y);
 
     auto prog = optimize_onnx("group_norm_contrib_channels_last_4d_test.onnx");
     EXPECT(p == prog);

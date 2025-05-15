@@ -633,11 +633,13 @@ struct parse_attention : op_parser<parse_attention>
             final_mask = info.add_instruction(make_op("not"), mask_input);
             final_mask = info.add_instruction(make_op("convert", {{"target_type", input->get_shape().type()}}), final_mask);
             final_mask = info.add_instruction(make_op("mul"), final_mask, bc_in);
+
             if(parsed_in.unidirectional)
-            {   //Unidirectional means we have to mask out the upper triangular part 
+            { //Unidirectional means we have to mask out the upper triangular part 
                 auto triangle_mask = generate_triangular_mat(info, final_mask, false);
                 final_mask = info.add_instruction(make_op("mul"), final_mask, triangle_mask);
             }
+
             final_mask = info.add_instruction(make_op("unsqueeze", {{"axes", {-1}}}), final_mask);
             final_mask = info.add_instruction(make_op("unsqueeze", {{"axes", {-1}}}), final_mask);
         }
@@ -654,6 +656,31 @@ struct parse_attention : op_parser<parse_attention>
         return final_mask;
     }
 
+    static instruction_ref handle_past_present_keys(const onnx_parser::node_info& info,
+                                             const instruction_ref& past_input, 
+                                             const instruction_ref& keys, 
+                                             const instruction_ref& values,
+                                             const attention_attr& parsed_attributes)
+    {
+        // Just reuse the past input if past_present are shared.
+        if(parsed_attributes.past_present_share_buffer)
+        {
+            return past_input;
+        }
+        else
+        {
+            // In a non-buffer-sharing scenario, we need to create the present state
+            // by combining keys and values and stacking them. key/values are given as
+            // (batch, sequence_length, head_size, num_heads)  head_size = querry size in some literature for attention
+            // The output is expected to be a concat of shape (2, batch, num_heads, sequence_length, head_size) 
+            auto keys_trans  = info.add_instruction(make_op("transpose", {{"permutation", {0, 3 , 1, 2}}}), keys);
+            auto value_trans = info.add_instruction(make_op("transpose", {{"permutation", {0, 3 , 1, 2}}}), values);
+            keys_trans  = info.add_instruction(make_op("unsqueeze", {{"axes", {0}}}), keys_trans);
+            value_trans = info.add_instruction(make_op("unsqueeze", {{"axes", {0}}}), value_trans);
+            return info.add_instruction(make_op("concat"), keys, values);
+        }
+    }
+
     std::vector<instruction_ref> parse(const op_desc& /*opd*/,
                                        const onnx_parser& parser,
                                        const onnx_parser::node_info& info,
@@ -667,7 +694,6 @@ struct parse_attention : op_parser<parse_attention>
 
         auto input_data = inputs.at(0);
         auto weights    = inputs.at(1);
-
         // Set projection bias when parsed in
         instruction_ref input_bias;
         if(infered_attributes.has_input_bias)
@@ -675,6 +701,13 @@ struct parse_attention : op_parser<parse_attention>
 
         // Apply linear stage to QKV mats from weight matrix
         auto qkv_mats = input_linear_to_qkv(info, input_data, weights, parsed_attributes.qkv_hidden_sizes, input_bias, infered_attributes.has_input_bias);
+
+        //
+        instruction_ref past_input;
+        if(infered_attributes.has_past_input)
+        {
+            past_input = inputs.at(4);
+        }
 
         // Set attention mask and bias when detected on input
         instruction_ref attn_mask;
@@ -695,7 +728,7 @@ struct parse_attention : op_parser<parse_attention>
 
         //Get vector of attention heads and then concat the output results
         auto split_qkv  = qkv_split_per_head(info, qkv_mats, parsed_attributes, infered_attributes);
-        
+
         instruction_ref context = scale_dot_attention_head(info, split_qkv, scale_factor, attn_mask, attn_bias, infered_attributes.has_attn_mask, infered_attributes.has_attn_bias);
 
         std::vector<instruction_ref> output_vec{};
@@ -704,21 +737,8 @@ struct parse_attention : op_parser<parse_attention>
         // Past and Present vetors must be used for the run.
         if(infered_attributes.has_past_input)
         {
-            instruction_ref present;
-
-            if(parsed_attributes.past_present_share_buffer)
-            {
-                present = inputs.at(4);
-            }
-            /*else
-            {
-                // In a non-buffer-sharing scenario, we need to create the present state
-                // by combining keys and values
-                std::vector<instruction_ref> kv_stack{key, value};
-                present = info.add_instruction(make_op("stack", {{"axis", 0}}), kv_stack);
-            }*/
-
-            output_vec.push_back(present);
+            auto present_output = handle_past_present_keys(info, past_input, split_qkv.at(1), split_qkv.at(2), parsed_attributes);
+            output_vec.push_back(present_output);
         }
 
         return output_vec;

@@ -132,7 +132,7 @@ struct parse_attention : op_parser<parse_attention>
                                   struct attention_infered& infered_out)
     {
         if(contains(info.attributes, "do_rotary"))
-        {
+        {   // TODO: Add rotary embedding support
             attr_out.do_rotary = (1 == parser.parse_value(info.attributes.at("do_rotary")).at<int>());
             MIGRAPHX_THROW("PARSE_ATTENTION: Rotary Embedding in Attention OP not supported");
         }
@@ -163,7 +163,7 @@ struct parse_attention : op_parser<parse_attention>
         }
 
         if(contains(info.attributes, "rotary_embedding_dim"))
-        {
+        {   // TODO: Add rotary embedding support
             auto rotary_embedding_dim =
                 parser.parse_value(info.attributes.at("rotary_embedding_dim")).at<size_t>();
 
@@ -677,7 +677,6 @@ struct parse_attention : op_parser<parse_attention>
         {
             MIGRAPHX_THROW("Attention OP: Left inpad padding mode not supported");
         }
-
 
         return final_mask;
     }

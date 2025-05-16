@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2024 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2025 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -154,7 +154,6 @@ __device__ void dpp_reduce(T& in, Op op)
 #else
 // NOLINTNEXTLINE
 #define MIGRAPHX_DPP_REDUCE(op, prefix, sign)                   \
-    MIGRAPHX_DPP_REDUCE_ASM_FUN(double, op, prefix##_f64);      \
     MIGRAPHX_DPP_REDUCE_ASM_FUN(float, op, prefix##_f32);       \
     MIGRAPHX_DPP_REDUCE_ASM_FUN(half, op, prefix##_f16);        \
     MIGRAPHX_DPP_REDUCE_ASM_FUN(int32_t, op, prefix##sign##32); \

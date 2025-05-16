@@ -29,17 +29,17 @@
 
 TEST_CASE(group_norm_test)
 {
-    std::vector<float> scale{1.2, 0.8};
-    std::vector<float> bias{0.5, 0.2};
+    std::vector<float> scale{1.2, 0.8, 0.4, 1.6};
+    std::vector<float> bias{0.5, 0.2, 0.9, 0.4};
     std::vector<float> result_vector =
         norm_test<float>({1, 4, 2}, scale, bias, read_onnx("group_norm_3d_test.onnx"));
-    std::vector<float> gold = {-1.10996256,
-                               -0.0366542,
-                               1.0366542,
-                               2.10996256,
-                               -0.87330837,
-                               -0.15776947,
-                               0.55776947,
-                               1.27330837};
+    std::vector<float> gold = {-1.10996258,
+                               -0.03665423,
+                               0.55776948,
+                               1.27330840,
+                               0.36334583,
+                               0.72111529,
+                               1.11553872,
+                               2.54661655};
     EXPECT(migraphx::verify::verify_rms_range(result_vector, gold));
 }

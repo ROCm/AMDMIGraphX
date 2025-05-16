@@ -4931,7 +4931,7 @@ def group_norm_contrib_3d_channel_last_test():
 
 @onnx_test()
 def group_norm_contrib_3d_channel_last_half_test():
-    return group_norm_contrib_test([1, 4, 2], [4], [4], [1, 4, 2],
+    return group_norm_contrib_test([1, 4, 2], [2], [2], [1, 4, 2],
                                    2,
                                    0,
                                    1,
@@ -4940,7 +4940,7 @@ def group_norm_contrib_3d_channel_last_half_test():
 
 @onnx_test()
 def group_norm_contrib_3d_channel_last_bf16_test():
-    return group_norm_contrib_test([1, 4, 2], [4], [4], [1, 4, 2],
+    return group_norm_contrib_test([1, 4, 2], [2], [2], [1, 4, 2],
                                    2,
                                    0,
                                    1,

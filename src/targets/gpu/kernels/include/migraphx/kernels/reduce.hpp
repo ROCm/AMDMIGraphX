@@ -147,7 +147,6 @@ __device__ void dpp_reduce(T& in, Op op)
 #if defined(__gfx1030__)
 // NOLINTNEXTLINE
 #define MIGRAPHX_DPP_REDUCE(op, prefix, sign)              \
-    MIGRAPHX_DPP_REDUCE_ASM_FUN(double, op, prefix##_f64); \
     MIGRAPHX_DPP_REDUCE_ASM_FUN(float, op, prefix##_f32);  \
     MIGRAPHX_DPP_REDUCE_ASM_FUN(half, op, prefix##_f16);   \
     MIGRAPHX_DPP_REDUCE_ASM_FUN(uint32_t, op, prefix##_u32);

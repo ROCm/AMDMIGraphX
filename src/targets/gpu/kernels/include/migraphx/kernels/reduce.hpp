@@ -146,9 +146,9 @@ __device__ void dpp_reduce(T& in, Op op)
 // Navi21 doesn't support int32 dpp
 #if defined(__gfx1030__)
 // NOLINTNEXTLINE
-#define MIGRAPHX_DPP_REDUCE(op, prefix, sign)              \
-    MIGRAPHX_DPP_REDUCE_ASM_FUN(float, op, prefix##_f32);  \
-    MIGRAPHX_DPP_REDUCE_ASM_FUN(half, op, prefix##_f16);   \
+#define MIGRAPHX_DPP_REDUCE(op, prefix, sign)             \
+    MIGRAPHX_DPP_REDUCE_ASM_FUN(float, op, prefix##_f32); \
+    MIGRAPHX_DPP_REDUCE_ASM_FUN(half, op, prefix##_f16);  \
     MIGRAPHX_DPP_REDUCE_ASM_FUN(uint32_t, op, prefix##_u32);
 #else
 // NOLINTNEXTLINE

@@ -265,6 +265,9 @@ struct parse_resize : op_parser<parse_resize>
         return info.add_instruction(make_op("gather", {{"axis", 0}}), rsp, ins_ind);
     }
 
+    // TODO: this operator is complex, consider refactoring in the future
+    // to fix 'readability-function-size' tidy check
+    // NOLINTBEGIN(readability-function-size)
     instruction_ref parse(const op_desc& opd,
                           const onnx_parser&,
                           onnx_parser::node_info info,
@@ -471,6 +474,7 @@ struct parse_resize : op_parser<parse_resize>
             return data;
         }
     }
+    // NOLINTEND(readability-function-size)
 };
 
 } // namespace onnx

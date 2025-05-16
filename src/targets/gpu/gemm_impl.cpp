@@ -328,7 +328,7 @@ struct gemm_impl
 
         if(check_valid == rocblas_status_invalid_value)
         {
-            std::cerr << "WARNING:  tuned solution is invalid; reverting to default" << std::endl;
+            std::cerr << "WARNING: tuned solution is invalid; reverting to default" << std::endl;
             return 0;
         }
         return solution_idx;

@@ -387,7 +387,8 @@ parse_inputs(const onnx_parser& parser,
     return mod_insts;
 }
 
-struct node_maps {
+struct node_maps
+{
     std::unordered_map<std::string, std::vector<size_t>> input_to_node_map;
     std::unordered_map<size_t, std::vector<std::string>> node_to_output_map;
 };
@@ -465,7 +466,11 @@ static std::vector<size_t> toposort(const onnx::GraphProto& graph)
 
     for(size_t node_index = 0; node_index < graph.node_size(); node_index++)
     {
-        traverse(sorted_nodes, visited_nodes, maps.input_to_node_map, maps.node_to_output_map, node_index);
+        traverse(sorted_nodes,
+                 visited_nodes,
+                 maps.input_to_node_map,
+                 maps.node_to_output_map,
+                 node_index);
     }
 
     return sorted_nodes;

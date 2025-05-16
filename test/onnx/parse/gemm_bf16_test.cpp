@@ -52,5 +52,7 @@ TEST_CASE(gemm_bf16_test)
     mm->add_instruction(migraphx::make_op("add"), dot, l2_b);
 
     auto prog = optimize_onnx("gemm_bf16_test.onnx");
+    p.sort();
+    prog.sort();
     EXPECT(p == prog);
 }

@@ -49,5 +49,7 @@ TEST_CASE(gelu_tanh_double_test)
 
     auto prog = optimize_onnx("gelu_tanh_double_test.onnx");
 
+    mm->sort();
+    prog.get_main_module()->sort();
     EXPECT(p == prog);
 }

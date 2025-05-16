@@ -51,5 +51,7 @@ TEST_CASE(gelu_fast_bias_test)
 
     auto prog = optimize_onnx("gelu_fast_bias_test.onnx");
 
+    mm->sort();
+    prog.get_main_module()->sort();
     EXPECT(p == prog);
 }

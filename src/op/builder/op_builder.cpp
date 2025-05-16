@@ -21,45 +21,46 @@
  * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
  * THE SOFTWARE.
  */
+
+#include <unordered_map>
 #include <migraphx/ranges.hpp>
-#include <migraphx/instruction.hpp>
+#include <migraphx/op/builder/op_builder.hpp>
 #include <migraphx/op/builder/insert.hpp>
-#include <migraphx/onnx/op_parser.hpp>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
-namespace onnx {
+namespace op {
+namespace builder {
 
-struct parse_mean_variance_normalization : op_parser<parse_mean_variance_normalization>
+std::unordered_map<std::string, builder_func>& builder_map()
 {
-    std::vector<op_desc> operators() const { return {{"MeanVarianceNormalization"}}; }
+    static std::unordered_map<std::string, builder_func> m; // NOLINT
+    return m;
+}
 
-    instruction_ref parse(const op_desc& /*opd*/,
-                          const onnx_parser& /*parser*/,
-                          onnx_parser::node_info info,
-                          std::vector<instruction_ref> args) const
-    {
-        auto&& data    = args.front();
-        auto data_rank = data->get_shape().ndim();
-        std::vector<int64_t> axes{0, 2, 3};
+void register_builder(const std::string& name, builder_func f)
+{
+    builder_map()[name] = std::move(f);
+}
 
-        if(contains(info.attributes, "axes"))
-        {
-            const auto& axes_attr = info.attributes["axes"].ints();
-            axes.assign(axes_attr.begin(), axes_attr.end());
-        }
-        else if(data_rank != 4)
-        {
-            MIGRAPHX_THROW(
-                "Input tensor needs to be rank 4 when axes is not specified. Instead it is rank " +
-                std::to_string(data_rank));
-        }
+std::vector<instruction_ref> insert(const std::string& name,
+                                    module& m,
+                                    instruction_ref ins,
+                                    const std::vector<instruction_ref>& args,
+                                    const value& options)
+{
+    return at(builder_map(), name, "Builder not found: " + name)(m, ins, args, options);
+}
 
-        return op::builder::add("mean_variance_normalization", *info.mod, args, {{"axes", axes}})
-            .at(0);
-    }
-};
+std::vector<instruction_ref> add(const std::string& name,
+                                 module& m,
+                                 const std::vector<instruction_ref>& args,
+                                 const value& options)
+{
+    return at(builder_map(), name, "Builder not found: " + name)(m, m.end(), args, options);
+}
 
-} // namespace onnx
+} // namespace builder
+} // namespace op
 } // namespace MIGRAPHX_INLINE_NS
 } // namespace migraphx

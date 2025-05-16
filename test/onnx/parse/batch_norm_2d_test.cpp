@@ -50,5 +50,7 @@ TEST_CASE(batch_norm_2d_test)
     add_common_op(*mm, migraphx::make_op("add"), {r0, usq_bias});
 
     auto prog = optimize_onnx("batch_norm_2d_test.onnx");
+    mm->sort();
+    prog.get_main_module()->sort();
     EXPECT(p == prog);
 }

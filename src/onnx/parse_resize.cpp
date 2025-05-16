@@ -294,25 +294,24 @@ struct parse_resize : op_parser<parse_resize>
         if(contains(info.attributes, "axes"))
         {
             auto&& axes_vals = info.attributes.at("axes").ints();
-            axes = std::vector<int64_t>(axes_vals.begin(), axes_vals.end());
+            axes             = std::vector<int64_t>(axes_vals.begin(), axes_vals.end());
         }
 
         if(contains(info.attributes, "keep_aspect_ratio_policy"))
         {
-            shape last_arg_shape = args.back()->get_shape();
+            shape last_arg_shape     = args.back()->get_shape();
             size_t last_arg_elements = last_arg_shape.elements();
             // Check if the last arg is 'sizes' input.
             // This attribute is only relevant if 'sizes' input is used.
             // The shape constraints for 'sizes' are below:
-            if(last_arg_shape.type() == shape::int64_type and (last_arg_elements == args.front()->get_shape().ndim() or (
-                contains(info.attributes, "axes") and last_arg_elements == axes.size()
-            )))
+            if(last_arg_shape.type() == shape::int64_type and
+               (last_arg_elements == args.front()->get_shape().ndim() or
+                (contains(info.attributes, "axes") and last_arg_elements == axes.size())))
             {
                 MIGRAPHX_THROW("PARSE_" + opd.onnx_name +
-                    ": keep_aspect_ratio_policy is not supported!");
+                               ": keep_aspect_ratio_policy is not supported!");
             }
         }
-        
 
         // input data shape info
         auto in_s    = args[0]->get_shape().to_static(1);

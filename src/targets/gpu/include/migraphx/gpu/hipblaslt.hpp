@@ -100,7 +100,6 @@ using hipblaslt_preference_ptr = MIGRAPHX_MANAGE_PTR(hipblasLtMatmulPreference_t
 
 hipblaslt_handle_ptr create_hipblaslt_handle_ptr();
 hipblaslt_preference_ptr create_hipblaslt_preference_ptr();
-MIGRAPHX_GPU_EXPORT bool hipblaslt_supported();
 const size_t hipblaslt_workspace_size = 2 * 128 * 1024 * 1024;
 } // namespace gpu
 } // namespace MIGRAPHX_INLINE_NS

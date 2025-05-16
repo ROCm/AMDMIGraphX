@@ -254,12 +254,17 @@ struct miopen_apply
             auto output = insert_allocation(ins, ins->get_shape());
             refs.push_back(output);
 
-#if MIGRAPHX_USE_HIPBLASLT
+            bool has_fp8_inputs =
+                std::any_of(ins->inputs().begin(), ins->inputs().end(), [](auto i_input) {
+                    return contains(fp8_types{}.get(), i_input->get_shape().type());
+                });
+
             // Check if user explicitly sets rocBLAS as GEMM provider, or
             // if the hardware cannot support hipblaslt, or
             // if the hardware is defaulted to use rocBLAS (such as gfx90).
-            if((string_value_of(MIGRAPHX_SET_GEMM_PROVIDER{}) == "rocblas") or
-               not hipblaslt_supported() or gpu::gfx_default_rocblas())
+            if(not has_fp8_inputs and
+               ((string_value_of(MIGRAPHX_SET_GEMM_PROVIDER{}) == "rocblas") or
+                not hipblaslt_supported() or gpu::gfx_default_rocblas()))
             {
                 return mod->replace_instruction(
                     ins, rocblas_gemm<Op>{Op{}, 1, 0, compute_fp32}, refs);

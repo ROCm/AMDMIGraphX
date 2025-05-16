@@ -86,6 +86,20 @@ bool gfx_default_rocblas()
 }
 #endif
 
+bool hipblaslt_supported()
+{
+#if !MIGRAPHX_USE_HIPBLASLT
+    return false;
+#else
+    const auto device_name = trim(split_string(get_device_name(), ':').front());
+    // hipblaslt is supported for MI200 and above, and Navi3x and above.
+    return (device_name == "gfx90a" or
+            (starts_with(device_name, "gfx94") and device_name >= "gfx942") or
+            (starts_with(device_name, "gfx95") and device_name >= "gfx950") or
+            starts_with(device_name, "gfx110") or starts_with(device_name, "gfx120"));
+#endif
+}
+
 } // namespace gpu
 } // namespace MIGRAPHX_INLINE_NS
 } // namespace migraphx

@@ -301,14 +301,14 @@ def attention_test(
         past_dims=[],
         attention_bias_dims=[],
         past_sequence_length=0,
-        num_heads=1,
+        num_heads=None,
         qkv_hidden_sizes=[1, 1, 1],
-        do_rotary=0,
-        mask_filter_value=-1e5,
-        past_present_share_buffer=0,
-        #scale=-1,
-        unidirectional=0,
-        rotary_embedding_dim=32,
+        do_rotary=None,
+        mask_filter_value=None,
+        past_present_share_buffer=None,
+        scale=None,
+        unidirectional=None,
+        rotary_embedding_dim=None,
         present_dims=[],
         dtype=TensorProto.FLOAT):
 
@@ -366,7 +366,7 @@ def attention_test(
         input_name_list.append('attention_bias')
         input_list.append(attention_bias)
 
-    if past_present_share_buffer > 0:
+    if past_present_share_buffer is not None:
         past_sequence_length = helper.make_tensor_value_info(
             'past_sequence_length', INT32, past_sequence_length)
         input_name_list.append('past_sequence_length')
@@ -380,15 +380,33 @@ def attention_test(
     node = onnx.helper.make_node(
         'Attention',
         inputs=input_name_list,
-        outputs=output_name_list,
-        #do_rotary=do_rotary,
-        mask_filter_value=mask_filter_value,
-        num_heads=num_heads)
-        #past_present_share_buffer=past_present_share_buffer,
-        #qkv_hidden_sizes=qkv_hidden_sizes,
-        #rotary_embedding_dim=rotary_embedding_dim,
-        #scale=scale_val,
-        #unidirectional=unidirectional
+        outputs=output_name_list)
+    
+    # Append attributes based on input to this function. Parser should assume defaults
+    # This is the only attribute that's required others are not
+     if num_heads is not None:
+        node.attribute.append(onnx.helper.make_attribute("num_heads", num_heads))
+
+     if scale is not None:
+        node.attribute.append(onnx.helper.make_attribute("scale_val", scale))
+
+     if qkv_hidden_sizes is not None:
+        node.attribute.append(onnx.helper.make_attribute("qkv_hidden_sizes", qkv_hidden_sizes))
+
+     if unidirectional is not None:
+        node.attribute.append(onnx.helper.make_attribute("unidirectional", unidirectional))
+
+    if mask_filter_value is not None:
+        node.attribute.append(onnx.helper.make_attribute("mask_filter_value", mask_filter_value))
+
+    if do_rotary is not None:
+        node.attribute.append(onnx.helper.make_attribute("do_rotary", do_rotary))
+
+    if rotary_embedding_dim is not None:
+        node.attribute.append(onnx.helper.make_attribute("rotary_embedding_dim", rotary_embedding_dim))
+
+    if past_present_share_buffer is not None:
+        node.attribute.append(onnx.helper.make_attribute("past_present_share_buffer", past_present_share_buffer))
 
     return ([node], input_list, output_list)
 

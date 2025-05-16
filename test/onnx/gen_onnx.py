@@ -4891,7 +4891,7 @@ def group_norm_invalid_scale_shape_test():
 
 @onnx_test()
 def group_norm_invalid_bias_shape_test():
-    return group_norm_test([1, 4, 3, 3], [2], [3], [1, 4, 3, 3], 2)
+    return group_norm_test([1, 4, 3, 3], [4], [3], [1, 4, 3, 3], 2)
 
 
 def group_norm_contrib_test(x_dims,

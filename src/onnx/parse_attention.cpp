@@ -134,7 +134,8 @@ struct parse_attention : op_parser<parse_attention>
         if(contains(info.attributes, "do_rotary"))
         {   // TODO: Add rotary embedding support
             attr_out.do_rotary = (1 == parser.parse_value(info.attributes.at("do_rotary")).at<int>());
-            MIGRAPHX_THROW("PARSE_ATTENTION: Rotary Embedding in Attention OP not supported");
+            if(attr_out.do_rotary)
+                MIGRAPHX_THROW("PARSE_ATTENTION: Rotary Embedding in Attention OP not supported");
         }
 
         if(contains(info.attributes, "mask_filter_value"))
@@ -163,7 +164,7 @@ struct parse_attention : op_parser<parse_attention>
         }
 
         if(contains(info.attributes, "rotary_embedding_dim"))
-        {   // TODO: Add rotary embedding support
+        {   // TODO: Add rotary embedding support -- parsed but not used right now
             auto rotary_embedding_dim =
                 parser.parse_value(info.attributes.at("rotary_embedding_dim")).at<size_t>();
 
@@ -172,7 +173,6 @@ struct parse_attention : op_parser<parse_attention>
                 MIGRAPHX_THROW("PARSE_ATTENTION: rotary_embedding_dim must be either 32, 64, or 128");
             }
             attr_out.rotary_embedding_dim = rotary_embedding_dim;
-            MIGRAPHX_THROW("PARSE_ATTENTION: Rotary Embedding dim not supported right now");
         }
 
         if(contains(info.attributes, "scale"))
@@ -200,7 +200,7 @@ struct parse_attention : op_parser<parse_attention>
     {
         if(std::accumulate(qkv_vec.begin(), qkv_vec.end(), 0) != input_arg->get_shape().lens().at(dim))
         {
-            MIGRAPHX_THROW("Attention: q k v hidden sizes sum must match" + name + " tensor" + std::to_string(dim) + "dimension");
+            MIGRAPHX_THROW("Attention: q k v hidden sizes sum must match " + name + " tensor " + std::to_string(dim) + " dimension");
         }
     }
 

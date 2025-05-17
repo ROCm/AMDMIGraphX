@@ -49,6 +49,8 @@ MIGRAPHX_GPU_EXPORT bool gfx_has_fp8fnuz_support();
 MIGRAPHX_GPU_EXPORT bool gfx_default_rocblas();
 #endif
 
+MIGRAPHX_GPU_EXPORT bool hipblaslt_supported();
+
 } // namespace gpu
 } // namespace MIGRAPHX_INLINE_NS
 } // namespace migraphx

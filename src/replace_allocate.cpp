@@ -48,9 +48,24 @@ std::unordered_map<instruction_ref, std::string> create_output_names(const modul
     });
 
     std::size_t index = 0;
-    for(auto ins : outputs_alias)
+    if(outputs_alias.size() == 1 and mod.name().empty())
     {
-        mod_output_names[ins] = param_name(index++, mod.name() + ":#output_");
+        mod_output_names[outputs_alias.front()] = "output";
+    }
+    // Preserve main module output buffer naming across migraphx versions
+    else if(mod.name() == "main")
+    {
+        for(auto ins : outputs_alias)
+        {
+            mod_output_names[ins] = mod.name() + ":#output_" + std::to_string(index++);
+        }
+    }
+    else
+    {
+        for(auto ins : outputs_alias)
+        {
+            mod_output_names[ins] = param_name(index++, mod.name() + ":#output_");
+        }
     }
     return mod_output_names;
 }

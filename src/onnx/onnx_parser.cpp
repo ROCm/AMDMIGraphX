@@ -393,7 +393,7 @@ struct node_maps
     std::unordered_map<size_t, std::vector<std::string>> node_to_output_map;
 };
 
-node_maps create_node_maps(const onnx::GraphProto& graph)
+static node_maps create_node_maps(const onnx::GraphProto& graph)
 {
     node_maps maps{};
 

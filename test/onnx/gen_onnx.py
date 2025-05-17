@@ -11831,6 +11831,28 @@ def resize_upsample_pc_test():
 
 
 @onnx_test()
+def resize_aspect_ratio_err_test():
+    sizes = np.array([1, 1, 3, 5], dtype=np.int64)
+    size_tensor = helper.make_tensor(name='sizes',
+                                      data_type=TensorProto.INT64,
+                                      dims=sizes.shape,
+                                      vals=sizes.flatten().astype(np.int64))
+
+    X = helper.make_tensor_value_info('X', TensorProto.FLOAT, [1, 1, 2, 4])
+    Y = helper.make_tensor_value_info('Y', TensorProto.FLOAT, [1, 1, 3, 5])
+
+    node = onnx.helper.make_node('Resize',
+                                 inputs=['X', '', '', 'sizes'],
+                                 outputs=['Y'],
+                                 coordinate_transformation_mode='asymmetric',
+                                 mode='nearest',
+                                 keep_aspect_ratio_policy='stretch',
+                                 nearest_mode='ceil')
+
+    return ([node], [X], [Y], [size_tensor])
+
+
+@onnx_test()
 def reversesequence_4D_test():
     x = helper.make_tensor_value_info('x', TensorProto.FLOAT, [2, 2, 2, 2])
     y = helper.make_tensor_value_info('y', TensorProto.FLOAT, [2, 2, 2, 2])

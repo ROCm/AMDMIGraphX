@@ -316,9 +316,13 @@ struct parse_resize : op_parser<parse_resize>
         {
             // Depending on the args, it *must* populate the `vec_scale`, and might populate
             // `out_lens`. Skip first input and `roi` input (if present)
-            size_t args_offset = args.size() > 2 ? 2 : 1;
-            is_constant_scale_input =
-                not parse_args({args.begin() + args_offset, args.end()}, in_lens, opd.onnx_name, vec_scale, out_lens, scales_sizes_arg);
+            size_t args_offset      = args.size() > 2 ? 2 : 1;
+            is_constant_scale_input = not parse_args({args.begin() + args_offset, args.end()},
+                                                     in_lens,
+                                                     opd.onnx_name,
+                                                     vec_scale,
+                                                     out_lens,
+                                                     scales_sizes_arg);
         }
 
         if(is_constant_scale_input)

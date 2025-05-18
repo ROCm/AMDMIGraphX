@@ -698,8 +698,6 @@ struct parse_attention : op_parser<parse_attention>
             // by combining keys and values and stacking them. key/values are given as
             // (batch, sequence_length, head_size, num_heads)  head_size = querry size in some literature for attention
             // The output is expected to be a concat of shape (2, batch, num_heads, sequence_length, head_size) 
-            auto num_heads = parsed_attributes.num_heads;
-
             auto value_trans = info.add_instruction(make_op("transpose", {{"permutation", {0, 3 , 1, 2}}}), values);
             value_trans = info.add_instruction(make_op("unsqueeze", {{"axes", {0}}}), value_trans);
 

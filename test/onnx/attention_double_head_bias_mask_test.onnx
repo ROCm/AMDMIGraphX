@@ -1,0 +1,32 @@
+	$attention_double_head_bias_mask_test:‚
+[
+x
+weights
+bias
+
+mask_indexy"	Attention*
+	num_heads *
+qkv_hidden_sizes@@@ $attention_double_head_bias_mask_testZ
+x
+
+
+
+Z
+weights
+
+
+Z
+bias
+
+
+Z
+
+mask_index
+
+
+b
+y
+
+
+
+B

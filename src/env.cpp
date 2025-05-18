@@ -25,30 +25,39 @@
 #include <migraphx/ranges.hpp>
 #include <cstdlib>
 
+namespace {
+#ifdef __clang__
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Wglobal-constructors"
+#endif
+// NOLINTNEXTLINE
+std::map<std::string, std::string> migx_envs;
+
+#ifdef __clang__
+#pragma clang diagnostic pop
+#endif
+} // namespace
+
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
 
 bool enabled(const char* name)
 {
     auto e = env(name);
-    if(e.empty())
+    if(e.empty() or not contains({"1", "enable", "enabled", "yes", "true"}, e.front()))
         return false;
-    return contains({"1", "enable", "enabled", "yes", "true"}, e.front());
+    migx_envs[name] = e.front();
+    return true;
 }
 
-bool disabled(const char* name)
-{
-    auto e = env(name);
-    if(e.empty())
-        return false;
-    return contains({"0", "disable", "disabled", "no", "false"}, e.front());
-}
+bool disabled(const char* name) { return not enabled(name); }
 
 std::size_t value_of(const char* name, std::size_t fallback)
 {
     auto e = env(name);
     if(e.empty())
         return fallback;
+    migx_envs[name] = e.front();
     return std::stoul(e.front());
 }
 
@@ -57,7 +66,9 @@ std::string string_value_of(const char* name, std::string fallback)
     auto e = env(name);
     if(e.empty())
         return fallback;
-    return e.front();
+    auto rv         = e.front();
+    migx_envs[name] = rv;
+    return rv;
 }
 
 std::vector<std::string> env(const char* name)
@@ -65,9 +76,10 @@ std::vector<std::string> env(const char* name)
     auto* p = std::getenv(name);
     if(p == nullptr)
         return {};
-    else
-        return {{p}};
+    return {{p}};
 }
+
+std::map<std::string, std::string> get_all_envs() { return migx_envs; }
 
 } // namespace MIGRAPHX_INLINE_NS
 } // namespace migraphx

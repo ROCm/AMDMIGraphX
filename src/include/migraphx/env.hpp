@@ -27,6 +27,7 @@
 #include <utility>
 #include <vector>
 #include <string>
+#include <map>
 #include <migraphx/config.hpp>
 
 namespace migraphx {
@@ -74,6 +75,8 @@ std::string string_value_of(T, std::string fallback = "")
     static const std::string result = string_value_of(T::value(), std::move(fallback));
     return result;
 }
+
+std::map<std::string, std::string> get_all_envs();
 
 } // namespace MIGRAPHX_INLINE_NS
 } // namespace migraphx

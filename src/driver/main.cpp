@@ -43,6 +43,7 @@
 #include <migraphx/load_save.hpp>
 #include <migraphx/json.hpp>
 #include <migraphx/version.h>
+#include <migraphx/env.hpp>
 
 #include <migraphx/dead_code_elimination.hpp>
 #include <migraphx/eliminate_identity.hpp>
@@ -914,7 +915,7 @@ struct main_command
 } // namespace migraphx
 
 using namespace migraphx::driver; // NOLINT
-int main(int argc, const char* argv[], const char* envp[])
+int main(int argc, const char* argv[])
 {
     std::vector<std::string> args(argv + 1, argv + argc);
     // no argument, print the help infomration by default
@@ -943,33 +944,13 @@ int main(int argc, const char* argv[], const char* envp[])
             std::string(argv[0]) + " " + migraphx::to_string_range(args, " ");
         std::cout << "Running [ " << get_version() << " ]: " << driver_invocation << std::endl;
 
-        std::string mgx_env_var;
-        for(const char** env = envp; *env != nullptr; ++env)
-        {
-            std::string env_var(*env);
-            size_t pos = env_var.find('=');
-            if(pos != std::string::npos)
-            {
-                std::string key = env_var.substr(0, pos);
-                if(key.find("MIGRAPHX") != std::string::npos)
-                {
-                    mgx_env_var += env_var + " \\ \n";
-                }
-            }
-        }
-
-        if(not mgx_env_var.empty())
-        {
-            std::cout << mgx_env_var;
-        }
-
         m.at(cmd)(argv[0],
                   {args.begin() + 1, args.end()}); // run driver command found in commands map
 
-        if(not mgx_env_var.empty())
-        {
-            std::cout << mgx_env_var;
-        }
+        // Dump all the MIGraphX (consumed) Environment Variables:
+        const auto mgx_env_map = migraphx::get_all_envs();
+        for(auto&& [k, v] : mgx_env_map)
+            std::cout << k << "=" << v << "\\ \n"; // backslash(s) to facilitate cut-n-paste
 
         std::cout << "[ " << get_version() << " ] Complete: " << driver_invocation << std::endl;
     }

@@ -61,6 +61,27 @@
 
 #include <fstream>
 
+namespace {
+std::vector<std::string>
+get_unrecognized_migraphx_envs(const char* envp[],
+                               const std::map<std::string, std::string>& used_env)
+{
+    std::vector<std::string> unused_migx_env;
+    for(; *envp != nullptr; ++envp)
+    {
+        std::string e(*envp);
+        if(e.find("MIGRAPHX_") != 0) // starts with
+            continue;
+        size_t pos = e.find('=');
+        if(pos == std::string::npos)
+            continue;
+        if(used_env.find(e.substr(0, pos)) == used_env.end())
+            unused_migx_env.push_back(e);
+    }
+    return unused_migx_env;
+}
+} // namespace
+
 namespace migraphx {
 namespace driver {
 inline namespace MIGRAPHX_INLINE_NS {
@@ -915,7 +936,7 @@ struct main_command
 } // namespace migraphx
 
 using namespace migraphx::driver; // NOLINT
-int main(int argc, const char* argv[])
+int main(int argc, const char* argv[], const char* envp[])
 {
     std::vector<std::string> args(argv + 1, argv + argc);
     // no argument, print the help infomration by default
@@ -951,6 +972,13 @@ int main(int argc, const char* argv[])
         const auto mgx_env_map = migraphx::get_all_envs();
         for(auto&& [k, v] : mgx_env_map)
             std::cout << k << "=" << v << "\\ \n"; // backslash(s) to facilitate cut-n-paste
+
+        auto unused_envs = get_unrecognized_migraphx_envs(envp, mgx_env_map);
+        if(not unused_envs.empty())
+        {
+            for(auto&& e : unused_envs)
+                std::cout << "Unused environment variable: " << e << "\n";
+        }
 
         std::cout << "[ " << get_version() << " ] Complete: " << driver_invocation << std::endl;
     }

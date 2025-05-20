@@ -974,11 +974,8 @@ int main(int argc, const char* argv[], const char* envp[])
             std::cout << k << "=" << v << "\\ \n"; // backslash(s) to facilitate cut-n-paste
 
         auto unused_envs = get_unrecognized_migraphx_envs(envp, mgx_env_map);
-        if(not unused_envs.empty())
-        {
-            for(auto&& e : unused_envs)
-                std::cout << "Unused environment variable: " << e << "\n";
-        }
+        for(auto&& e : unused_envs)
+            std::cout << "Unused environment variable: " << e << "\n";
 
         std::cout << "[ " << get_version() << " ] Complete: " << driver_invocation << std::endl;
     }

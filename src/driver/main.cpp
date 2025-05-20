@@ -70,7 +70,7 @@ get_unrecognized_migraphx_envs(const char* envp[],
     for(; *envp != nullptr; ++envp)
     {
         std::string e(*envp);
-        if(e.find("MIGRAPHX_") != 0) // starts with
+        if(not migraphx::starts_with(e, "MIGRAPHX"))
             continue;
         size_t pos = e.find('=');
         if(pos == std::string::npos)

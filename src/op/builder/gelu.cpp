@@ -33,6 +33,30 @@ inline namespace MIGRAPHX_INLINE_NS {
 namespace op {
 namespace builder {
 
+struct gelu_quick : op_builder<gelu_quick>
+{
+    float alpha = 1.0f;
+
+    template <class Self, class F>
+    static auto reflect(Self& self, F f)
+    {
+        return pack(f(self.alpha, "alpha"));
+    }
+
+    static std::string name() { return "gelu_quick"; }
+
+    std::vector<instruction_ref>
+    insert(module& m, instruction_ref ins, const std::vector<instruction_ref>& args) const
+    {
+       auto x      = args[0];
+       auto x_type = x->get_shape().type();
+       auto alpha_lit = m.add_literal(migraphx::literal{migraphx::shape{x_type}, {alpha}});
+       auto mul_alpha = insert_common_op(m, ins, make_op("mul"), {alpha_lit, x});
+       auto sigmoid = m.insert_instruction(ins, migraphx::make_op("sigmoid"), mul_alpha);
+       return {insert_common_op(m, ins, make_op("mul"), {x, sigmoid})};
+    }
+};
+
 struct gelu_erf : op_builder<gelu_erf>
 {
     template <class Self, class F>

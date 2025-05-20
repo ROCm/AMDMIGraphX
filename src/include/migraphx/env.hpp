@@ -75,8 +75,6 @@ std::string string_value_of(T, std::string fallback = "")
     return result;
 }
 
-std::map<std::string, std::string> get_all_envs();
-
 } // namespace MIGRAPHX_INLINE_NS
 } // namespace migraphx
 

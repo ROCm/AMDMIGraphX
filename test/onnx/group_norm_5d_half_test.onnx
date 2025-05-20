@@ -1,4 +1,4 @@
-group_norm_5d_half_test:Ó
+	group_norm_5d_half_test:Ó
 M
 x
 scale
@@ -18,12 +18,12 @@ num_groups group_norm_5d_half_testZ
 
 
 
-Z
+Z
 bias
 
 
 
-b
+b
 y
 
 
@@ -31,4 +31,4 @@ num_groups group_norm_5d_half_testZ
 
 
 
-B
+B

@@ -59,7 +59,7 @@ struct module_impl
     std::unordered_set<instruction*> instruction_set;
     std::string name;
     uint32_t nparams = 0;
-    bool bypass      = false;
+    bool bypass      = false; /// used for skipping compiler passes
     bit_signal<64> changed{};
 
     bool contains(instruction_ref ins) const

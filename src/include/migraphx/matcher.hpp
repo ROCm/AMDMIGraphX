@@ -752,6 +752,11 @@ MIGRAPHX_PRED_MATCHER(broadcast, instruction_ref ins)
     return contains({"broadcast", "multibroadcast"}, ins->name());
 }
 
+/**
+ * Makes a matcher that recursively traverses over single inputs to an instruction that
+ * match the given matchers. The matcher will then be at the instruction before the `ms`
+ * matched instructions.
+ */
 template <class... Ms>
 auto skip(Ms... ms)
 {
@@ -771,6 +776,11 @@ auto skip(Ms... ms)
     });
 }
 
+/**
+ * Makes a matcher that recursively traverses over single outputs to an instruction that
+ * match the given matchers. The matcher will then be at the instruction after the `ms`
+ * matched instructions.
+ */
 template <class... Ms>
 auto skip_output(Ms... ms)
 {

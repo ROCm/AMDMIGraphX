@@ -210,7 +210,7 @@ const auto& reshaper_names()
         "broadcast",
         "contiguous",
         "reshape",
-        "lazy_reshape",
+        "reshape_lazy",
         "squeeze",
         "flatten",
         "unsqueeze"
@@ -642,6 +642,12 @@ struct find_mlir_split_reduce
     }
 };
 
+/**
+ * Fuses rocMLIR compatible dot or conv op -> reshapes -> pointwise
+ * into a mlir_op with submodule.
+ * EDIT: looks also for conv op -> reshapes -> pointwise -> reshapes
+
+ */
 struct find_mlir_fused_ops
 {
     mlir_mode conv_mode = mlir_mode::none;
@@ -655,12 +661,21 @@ struct find_mlir_fused_ops
         return names;
     }
 
+    /**
+     * Matches:
+     * mlir_dot_or_conv <binds to "gemm_based_op"> ->
+     * skip(conv_dot_reshaper_names) <binds to "x"> ->
+     * mlir_pointwise <matcher result>
+     */
     auto matcher() const
     {
         static const auto conv_dot_reshaper_names = make_conv_dot_reshaper_names();
         auto dot_or_conv = match::skip(match::name(conv_dot_reshaper_names))(
             match::any_of(is_mlir_dot(dot_mode), is_mlir_conv(conv_mode)).bind("gemm_based_op"));
-        return mlir_pointwise()(match::any_of[match::inputs()](dot_or_conv.bind("x")));
+        auto pointwise_dot_conv =
+            mlir_pointwise()(match::any_of[match::inputs()](dot_or_conv.bind("x")));
+        return pointwise_dot_conv(
+            match::output(match::skip_output(match::name(conv_dot_reshaper_names)).bind("y")));
     }
 
     void apply(module_pass_manager& mpm, const match::matcher_result& r) const
@@ -668,6 +683,8 @@ struct find_mlir_fused_ops
         auto pw_ins        = r.result;
         auto gemm_based_op = r.instructions["gemm_based_op"];
         auto x_ins         = r.instructions["x"]; // input to pointwise after reshaper op stream
+        auto y_ins         = r.instructions["y"]; // op after reshapes after pointwise
+        std::cout << "y_ins: " << y_ins->name() << std::endl;
         auto* pm           = pw_ins->module_inputs().front();
         auto pw_inputs     = pw_ins->inputs();
         // only of one of the inputs to pointwise module should be dependent on conv/gemm that is
@@ -699,6 +716,27 @@ struct find_mlir_fused_ops
         if(gemm_has_multi_outs)
         {
             rins.push_back(map_ins.at(gemm_based_op));
+        }
+
+        /*
+        std::cout << "map_ins: ";
+        for (const auto& p : map_ins) {
+            std::cout << "{" << p.first->name() << ", " << p.second->name() << "}" << std::endl;
+        }
+        */
+
+        // looking for reshapes after pointwise ins
+        std::vector<instruction_ref> output_reshapes;
+        if(not gemm_has_multi_outs and pw_ins->outputs().size() == 1)
+        {
+            auto main_iter = pw_ins->outputs().front();
+            auto sub_iter  = rins.front();
+            for(; main_iter != y_ins; main_iter = main_iter->outputs().front())
+            {
+                mm->add_instruction(main_iter->get_operator(), sub_iter);
+                sub_iter = sub_iter->outputs().front();
+            }
+            mm->debug_print();
         }
         mm->add_return(rins);
 
@@ -933,6 +971,9 @@ struct find_mlir_attention_fused_ops : public find_mlir_standalone_attention_op
     }
 };
 
+/**
+ * Input fusion of unary pointwise operators into a mlir_op
+ */
 struct find_pointwise_mlir
 {
     auto supported_pointwise() const { return mlir_input_pointwise(match::used_once()); }

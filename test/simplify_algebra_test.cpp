@@ -1742,9 +1742,10 @@ TEST_CASE(simplify_zero_mult_const)
 
     migraphx::module m2;
     {
-        auto x = m2.add_parameter("x", {migraphx::shape::int32_type, {1}});
+        auto x            = m2.add_parameter("x", {migraphx::shape::int32_type, {1}});
         auto zero = m2.add_literal(0);
-        auto reshape_zero = m2.add_instruction(migraphx::make_op("reshape", {{"dims", x->get_shape().lens()}}),zero);
+        auto reshape_zero = m2.add_instruction(
+            migraphx::make_op("reshape", {{"dims", x->get_shape().lens()}}), zero);
         m2.add_return({reshape_zero});
     }
 
@@ -1764,9 +1765,10 @@ TEST_CASE(simplify_zero_mult_const2)
 
     migraphx::module m2;
     {
-        auto x = m2.add_parameter("x", {migraphx::shape::int32_type, {1}});
+        auto x            = m2.add_parameter("x", {migraphx::shape::int32_type, {1}});
         auto zero = m2.add_literal(0);
-        auto reshape_zero = m2.add_instruction(migraphx::make_op("reshape", {{"dims", x->get_shape().lens()}}),zero);
+        auto reshape_zero = m2.add_instruction(
+            migraphx::make_op("reshape", {{"dims", x->get_shape().lens()}}), zero);
         m2.add_return({reshape_zero});
     }
 
@@ -1841,8 +1843,9 @@ TEST_CASE(simplify_zero_div_const)
     migraphx::module m2;
     {
         auto zero = m2.add_literal(0);
-        auto x = m2.add_parameter("x", {migraphx::shape::int32_type, {1}});
-        auto reshape_ins = m2.add_instruction(migraphx::make_op("reshape", {{"dims", x->get_shape().lens()}}),zero);
+        auto x           = m2.add_parameter("x", {migraphx::shape::int32_type, {1}});
+        auto reshape_ins = m2.add_instruction(
+            migraphx::make_op("reshape", {{"dims", x->get_shape().lens()}}), zero);
         m2.add_return({reshape_ins});
     }
 

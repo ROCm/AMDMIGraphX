@@ -112,14 +112,16 @@ std::vector<pass> target::get_passes(migraphx::context& gctx, const compile_opti
     }
 
     // whiltelist supported Ops for the FP8 types
-    // rocBLAS does not support any FP8 types
     std::set<std::string> unsupported_fp8fnuz_ops = {};
-    if(string_value_of(MIGRAPHX_SET_GEMM_PROVIDER{}) == "rocblas")
+
+    // disable dot & quant_dot if no hipblaslt
+    if(not hipblaslt_supported())
     {
         std::cout << "rocBLAS provider selected. rocBLAS does not support FP8 types.\n";
         unsupported_fp8fnuz_ops.insert("dot");
         unsupported_fp8fnuz_ops.insert("quant_dot");
     }
+
 #if MIGRAPHX_USE_MIOPEN // MIOpen doesn't have support for fp8 pooling yet.
     unsupported_fp8fnuz_ops.insert("pooling");
 #endif
@@ -142,6 +144,14 @@ std::vector<pass> target::get_passes(migraphx::context& gctx, const compile_opti
     unsupported_fp8fnuz_ops.insert("argmin");
 
     std::set<std::string> unsupported_fp8ocp_ops = {};
+
+    // disable dot & quant_dot if no hipblaslt
+    if(not hipblaslt_supported())
+    {
+        unsupported_fp8ocp_ops.insert("dot");
+        unsupported_fp8ocp_ops.insert("quant_dot");
+    }
+
 #if MIGRAPHX_USE_MIOPEN
     // MIOpen doesn't have support for fp8 pooling yet.
     unsupported_fp8ocp_ops.insert("pooling");
@@ -180,6 +190,8 @@ std::vector<pass> target::get_passes(migraphx::context& gctx, const compile_opti
         simplify_qdq{},
         enable_pass(not mlir_enabled(), rewrite_quantization{}),
         dead_code_elimination{},
+        rewrite_rnn{},
+        dead_code_elimination{},
         // workaround for rocBLAS unsupported error when using uint8 in quant_dot, quant_convolution & pooling
         eliminate_data_type{{migraphx::shape::uint8_type}, shape::float_type, {"quant_convolution", "quant_dot", "pooling"}},
         eliminate_data_type{unsupported_types, shape::type_t::float_type},
@@ -188,8 +200,6 @@ std::vector<pass> target::get_passes(migraphx::context& gctx, const compile_opti
         eliminate_pad{},
         dead_code_elimination{},
         insert_pad{{"convolution"}},
-        dead_code_elimination{},
-        rewrite_rnn{},
         dead_code_elimination{},
         inline_module{},
         rewrite_pooling{},

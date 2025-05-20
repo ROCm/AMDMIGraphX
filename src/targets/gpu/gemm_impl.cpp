@@ -37,18 +37,17 @@ namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
 namespace gpu {
 #if MIGRAPHX_USE_ROCBLAS
-/*
-Regular rocBLAS API takes compute_type as `rocblas_datatype` enum value v/s "ex3" BETA API takes it
-as `rocblas_computetype` enum value. `rb_compute_type` is faciliator to implictly cast integer enum
-value to required type that can be used inside `common_args` generator.
-*/
+/**
+ * Regular rocBLAS API takes compute_type as `rocblas_datatype` enum value.
+ * `rb_compute_type` is faciliator to implictly cast integer enum value to required type that can be
+ * used inside `common_args` generator. Beta API was removed, so this struct is the same as the enum
+ * directly.
+ */
 struct rb_compute_type
 {
     int type = 0;
     rb_compute_type(rocblas_datatype t) : type(static_cast<int>(t)) {}
-    rb_compute_type(rocblas_computetype t) : type(static_cast<int>(t)) {}
     operator rocblas_datatype() const { return static_cast<rocblas_datatype>(type); }
-    operator rocblas_computetype() const { return static_cast<rocblas_computetype>(type); }
 };
 
 // Convert rocBLAS datatypes to equivalent Migraphx data types
@@ -230,11 +229,6 @@ struct gemm_impl
         {
             if(arg_type == rocblas_datatype_f16_r or arg_type == rocblas_datatype_bf16_r)
                 compute_type = rocblas_datatype_f32_r;
-        }
-        if(arg_type == rocblas_datatype_f8_r)
-        {
-            assert(get_type(input_shapes[1].type()) == rocblas_datatype_f8_r);
-            compute_type = rocblas_compute_type_f32;
         }
 
         auto a_lens = input_shapes[0].lens();

@@ -117,7 +117,6 @@ std::vector<pass> target::get_passes(migraphx::context& gctx, const compile_opti
     // disable dot & quant_dot if no hipblaslt
     if(not hipblaslt_supported())
     {
-        std::cout << "rocBLAS provider selected. rocBLAS does not support FP8 types.\n";
         unsupported_fp8fnuz_ops.insert("dot");
         unsupported_fp8fnuz_ops.insert("quant_dot");
     }

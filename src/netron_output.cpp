@@ -23,12 +23,10 @@
  */
 
 #include <migraphx/netron_output.hpp>
-#include <migraphx/json.hpp>
 #include <migraphx/iterator_for.hpp>
 #include <migraphx/module.hpp>
 #include <migraphx/instruction.hpp>
-#include <migraphx/serialize.hpp>
-#include <migraphx/base64.hpp>
+#include <onnx.pb.h>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
@@ -63,8 +61,8 @@ int get_onnx_type(shape::type_t s_type)
 
 auto make_attribute(const migraphx::value& val)
 {
-    value attribute     = value(std::unordered_map<std::string, value>());
-    attribute["name"] = val.get_key();
+    AttributeProto attribute = onnx::AttributeProto{};
+    attribute.set_name(val.get_key());
     auto val_string   = val.to<std::string>();
     std::string sub_str = val.get_key() + ":";
     auto find_key       = val_string.find(sub_str);
@@ -72,16 +70,13 @@ auto make_attribute(const migraphx::value& val)
     {
         val_string = val_string.substr(find_key + sub_str.length() + 1);
     }
-    // TODO: doesn't work for some reason with Netron now
-    // attribute["s"]    = base64_encode(val_string);
-    // attribute["type"] = "STRING";
-    attribute["docString"] = val_string;
+    attribute.s()    = val_string;
+    attribute.type() = "STRING";
     return attribute;
 }
 
-/// Returns a value with the JSON structure needed for a node
-auto make_onnx_json_node(instruction_ref ins,
-                         std::unordered_map<instruction_ref, std::string> ins_uids)
+auto make_onnx_pb_node(instruction_ref ins,
+                       std::unordered_map<instruction_ref, std::string> ins_uids)
 {
     value node;
     // TODO add support for module inputs
@@ -141,8 +136,8 @@ auto make_onnx_json_node(instruction_ref ins,
 }
 
 // ONNX graph constant data called "initializer"
-auto make_onnx_json_literal(instruction_ref ins,
-                            std::unordered_map<instruction_ref, std::string> ins_uids)
+auto make_onnx_pb_literal(instruction_ref ins,
+                          std::unordered_map<instruction_ref, std::string> ins_uids)
 {
     value lit;
     lit["dims"]     = ins->get_shape().lens();
@@ -155,7 +150,7 @@ auto make_onnx_json_literal(instruction_ref ins,
 
 // TODO handle dynamic shapes
 // TODO handle subshapes
-auto make_onnx_json_shape(const shape& s)
+auto make_onnx_pb_shape(const shape& s)
 {
     value ret;
     value dim = value({});
@@ -169,9 +164,9 @@ auto make_onnx_json_shape(const shape& s)
 }
 
 // ONNX graph edges called "valueType"
-auto make_onnx_json_edge(instruction_ref ins,
-                         instruction_ref out_ins,
-                         std::unordered_map<instruction_ref, std::string> ins_uids)
+auto make_onnx_pb_edge(instruction_ref ins,
+                       instruction_ref out_ins,
+                       std::unordered_map<instruction_ref, std::string> ins_uids)
 {
     value ret;
     shape ins_shape = ins->get_shape();
@@ -183,8 +178,8 @@ auto make_onnx_json_edge(instruction_ref ins,
     return ret;
 }
 
-auto make_onnx_json_in_out(instruction_ref ins,
-                           std::unordered_map<instruction_ref, std::string> ins_uids)
+auto make_onnx_pb_in_out(instruction_ref ins,
+                         std::unordered_map<instruction_ref, std::string> ins_uids)
 {
     value ret;
     shape ins_shape = ins->get_shape();
@@ -259,13 +254,14 @@ value make_graph(const module* mod)
 
 std::string make_netron_output(const program& prog)
 {
-    value output;
+onnx:
+    ModelProto model_proto;
     auto prog_value           = prog.to_value();
     // ONNX IR version 6
     // TODO: investigate sure how this affects things
-    output["irVersion"]       = 6;
-    output["producerName"]    = "AMDMIGraphX";
-    output["producerVersion"] = prog_value.at("migraphx_version").to<std::string>();
+    model_proto.set_ir_version(6);
+    model_proto.set_producer_name("AMDMIGraphX");
+    model_proto.set_producer_version(prog_value.at("migraphx_version").to<std::string>());
     for(auto& mod : prog.get_modules())
     {
         auto graph      = make_graph(mod);

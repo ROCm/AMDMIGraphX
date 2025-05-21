@@ -261,6 +261,7 @@ struct MIGRAPHX_EXPORT module
 
     // Fuse the instruction into the module by inserting the instructions and
     // parameters for any missing inputs.
+    // map_ins is mapping from previous instructions to new instructions
     std::vector<instruction_ref>
     fuse(const std::vector<instruction_ref>& inss,
          std::unordered_map<instruction_ref, instruction_ref>* map_ins = nullptr,
@@ -269,6 +270,7 @@ struct MIGRAPHX_EXPORT module
 
     // Fuse another module into this module by inserting the instructions and
     // parameters from the module
+    // map_ins is mapping from previous instructions to new instructions
     std::vector<instruction_ref>
     fuse(const module& m,
          const std::vector<instruction_ref>& inputs,

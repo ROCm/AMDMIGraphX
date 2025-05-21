@@ -778,8 +778,9 @@ auto skip(Ms... ms)
 
 /**
  * Makes a matcher that recursively traverses over single outputs to an instruction that
- * match the given matchers. The matcher will then be at the instruction after the `ms`
- * matched instructions.
+ * match the given matchers. The matcher will then return at the instruction after the `ms`
+ * matched instructions. If any instruction matched has more than one output the matcher
+ * returns nullopt.
  */
 template <class... Ms>
 auto skip_output(Ms... ms)
@@ -800,6 +801,33 @@ auto skip_output(Ms... ms)
                     return next;
                 }
                 return nullopt;
+            })(start);
+    });
+}
+
+/**
+ * Alternate version of `skip_output` that returns the last matched instruction instead of
+ * the instruction after.
+ */
+template <class... Ms>
+auto skip_output_penult(Ms... ms)
+{
+    auto m = any_of(ms...);
+    return make_basic_fun_matcher([=](matcher_context& ctx, instruction_ref start) {
+        return fix<optional<instruction_ref>>(
+            [&](auto self, auto ins) -> optional<instruction_ref> {
+                if(ins->outputs().size() == 1)
+                {
+                    auto next = ins->outputs().front();
+                    if(ctx.matched(m, next))
+                    {
+                        auto skipped_next = self(next);
+                        if(skipped_next)
+                            return skipped_next;
+                    }
+                    return ins;
+                }
+                return ins;
             })(start);
     });
 }

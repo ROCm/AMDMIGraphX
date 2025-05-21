@@ -645,8 +645,6 @@ struct find_mlir_split_reduce
 /**
  * Fuses rocMLIR compatible dot or conv op -> reshapes -> pointwise
  * into a mlir_op with submodule.
- * EDIT: looks also for conv op -> reshapes -> pointwise -> reshapes
-
  */
 struct find_mlir_fused_ops
 {
@@ -672,10 +670,7 @@ struct find_mlir_fused_ops
         static const auto conv_dot_reshaper_names = make_conv_dot_reshaper_names();
         auto dot_or_conv = match::skip(match::name(conv_dot_reshaper_names))(
             match::any_of(is_mlir_dot(dot_mode), is_mlir_conv(conv_mode)).bind("gemm_based_op"));
-        auto pointwise_dot_conv =
-            mlir_pointwise()(match::any_of[match::inputs()](dot_or_conv.bind("x")));
-        return pointwise_dot_conv(
-            match::output(match::skip_output(match::name(conv_dot_reshaper_names)).bind("y")));
+        return mlir_pointwise()(match::any_of[match::inputs()](dot_or_conv.bind("x")));
     }
 
     void apply(module_pass_manager& mpm, const match::matcher_result& r) const
@@ -683,8 +678,6 @@ struct find_mlir_fused_ops
         auto pw_ins        = r.result;
         auto gemm_based_op = r.instructions["gemm_based_op"];
         auto x_ins         = r.instructions["x"]; // input to pointwise after reshaper op stream
-        auto y_ins         = r.instructions["y"]; // op after reshapes after pointwise
-        std::cout << "y_ins: " << y_ins->name() << std::endl;
         auto* pm           = pw_ins->module_inputs().front();
         auto pw_inputs     = pw_ins->inputs();
         // only of one of the inputs to pointwise module should be dependent on conv/gemm that is
@@ -716,27 +709,6 @@ struct find_mlir_fused_ops
         if(gemm_has_multi_outs)
         {
             rins.push_back(map_ins.at(gemm_based_op));
-        }
-
-        /*
-        std::cout << "map_ins: ";
-        for (const auto& p : map_ins) {
-            std::cout << "{" << p.first->name() << ", " << p.second->name() << "}" << std::endl;
-        }
-        */
-
-        // looking for reshapes after pointwise ins
-        std::vector<instruction_ref> output_reshapes;
-        if(not gemm_has_multi_outs and pw_ins->outputs().size() == 1)
-        {
-            auto main_iter = pw_ins->outputs().front();
-            auto sub_iter  = rins.front();
-            for(; main_iter != y_ins; main_iter = main_iter->outputs().front())
-            {
-                mm->add_instruction(main_iter->get_operator(), sub_iter);
-                sub_iter = sub_iter->outputs().front();
-            }
-            mm->debug_print();
         }
         mm->add_return(rins);
 
@@ -972,7 +944,9 @@ struct find_mlir_attention_fused_ops : public find_mlir_standalone_attention_op
 };
 
 /**
- * Input fusion of unary pointwise operators into a mlir_op
+ * Input fusion of pointwise operators into a mlir_op.
+ * Only fuses unary pointwise operators by default.
+ * Fuses all fusable pw ops with MIGRAPHX_ENABLE_MLIR_INPUT_FUSION
  */
 struct find_pointwise_mlir
 {
@@ -1000,14 +974,14 @@ struct find_pointwise_mlir
 
     void apply(module_pass_manager& mpm, const match::matcher_result& r) const
     {
-        auto ins = r.result;
+        auto mlir_op_ins = r.result;
 
-        auto* mm = ins->module_inputs().front();
-        std::vector<instruction_ref> pws;
+        auto* mlir_op_module = mlir_op_ins->module_inputs().front();
+        std::vector<instruction_ref> pw_instructions;
         std::copy_if(
-            ins->inputs().begin(),
-            ins->inputs().end(),
-            std::back_inserter(pws),
+            mlir_op_ins->inputs().begin(),
+            mlir_op_ins->inputs().end(),
+            std::back_inserter(pw_instructions),
             [&](instruction_ref input) {
                 if(not match::instruction_matches(mpm.get_module(), input, supported_pointwise()))
                     return false;
@@ -1019,33 +993,34 @@ struct find_pointwise_mlir
                 }
                 return true;
             });
-        if(pws.empty())
+        if(pw_instructions.empty())
             return;
 
         std::string module_name;
         std::transform(
-            pws.begin(), pws.end(), join_back_inserter(module_name), [](instruction_ref pw) {
-                return pw->module_inputs().front()->name() + ":";
-            });
-        module_name += mm->name();
-        module_ref m = mpm.create_module(module_name);
-        m->set_bypass();
+            pw_instructions.begin(),
+            pw_instructions.end(),
+            join_back_inserter(module_name),
+            [](instruction_ref pw) { return pw->module_inputs().front()->name() + ":"; });
+        module_name += mlir_op_module->name();
+        module_ref fused_module = mpm.create_module(module_name);
+        fused_module->set_bypass();
 
         std::unordered_map<instruction_ref, instruction_ref> map_ins;
-        for(auto pw : pws)
+        for(auto pw : pw_instructions)
         {
             auto* pm = pw->module_inputs().front();
-            fuse_input_ops(m, pw->inputs(), &map_ins);
-            auto rins   = m->fuse(*pm, pw->inputs(), &map_ins, &insert_pointwise).front();
+            fuse_input_ops(fused_module, pw->inputs(), &map_ins);
+            auto rins = fused_module->fuse(*pm, pw->inputs(), &map_ins, &insert_pointwise).front();
             map_ins[pw] = rins;
         }
 
-        auto ret = m->fuse(*mm, ins->inputs(), &map_ins);
-        m->add_return({ret});
+        auto ret = fused_module->fuse(*mlir_op_module, mlir_op_ins->inputs(), &map_ins);
+        fused_module->add_return({ret});
 
-        auto inputs = find_inputs(map_ins, &mpm.get_module(), m);
+        auto inputs = find_inputs(map_ins, &mpm.get_module(), fused_module);
         mpm.get_module().replace_instruction(
-            ins, ins->get_operator(), mlir_contiguous(mpm, inputs), {m});
+            mlir_op_ins, mlir_op_ins->get_operator(), mlir_contiguous(mpm, inputs), {fused_module});
     }
 };
 
@@ -1088,6 +1063,74 @@ struct find_unpack_int4_mlir_op
         auto ret = nm->fuse(*mm, ins->inputs(), &map_ins);
         nm->add_return({ret});
         mpm.get_module().replace_instruction(ins, ins->get_operator(), x_in, {nm});
+    }
+};
+
+/**
+ * Find reshapes into slice after a mlir_op. The reshapes should be fused into the mlir_op.
+ */
+struct find_mlir_reshapes_slice
+{
+    auto matcher() const
+    {
+        static const auto conv_dot_reshaper_names =
+            find_mlir_fused_ops::make_conv_dot_reshaper_names();
+        auto slice_output = match::any_of[match::outputs()](match::name("slice"));
+        auto atleast_one_reshape_to_slice =
+            match::all_of(match::output(match::name(conv_dot_reshaper_names)),
+                          match::skip_output_penult(match::name(conv_dot_reshaper_names))(
+                              slice_output.bind("last_reshape")));
+        return match::name("gpu::mlir_op")(atleast_one_reshape_to_slice);
+    }
+
+    void apply(module_pass_manager& mpm, const match::matcher_result& r) const
+    {
+        auto mlir_op_ins  = r.result;
+        auto last_reshape = r.instructions["last_reshape"];
+        std::cout << "last_reshape: " << last_reshape->name() << std::endl;
+        auto* mlir_op_module = mlir_op_ins->module_inputs().front();
+        std::vector<instruction_ref> reshape_instructions;
+        instruction_ref iter_ins = mlir_op_ins;
+        while(iter_ins != last_reshape)
+        {
+            assert(iter_ins->outputs().size() ==
+                   1); // should already be covered by skip_output_penult
+            auto output_ins = iter_ins->outputs().front();
+            reshape_instructions.push_back(output_ins);
+            iter_ins = output_ins;
+        }
+
+        std::string module_name = mlir_op_module->name();
+        std::transform(reshape_instructions.begin(),
+                       reshape_instructions.end(),
+                       join_back_inserter(module_name),
+                       [](instruction_ref ins) { return "_" + ins->name(); });
+        // std::cout << "module_name: " << module_name << std::endl;
+        module_ref fused_module = mpm.create_module(module_name);
+        fused_module->set_bypass();
+
+        std::unordered_map<instruction_ref, instruction_ref> map_ins;
+        auto new_back = fused_module->fuse(*mlir_op_module, mlir_op_ins->inputs(), &map_ins).back();
+        // for(auto ins = map_ins.begin(); ins != map_ins.end(); ++ins)
+        //{
+        //     std::cout << "{" << ins->first->name() << ": " << ins->second->name() << "} ";
+        // }
+        std::cout << std::endl;
+        map_ins[mlir_op_ins] = new_back;
+        // for(auto ins = map_ins.begin(); ins != map_ins.end(); ++ins)
+        //{
+        //     std::cout << "{" << ins->first->name() << ": " << ins->second->name() << "} ";
+        // }
+        // std::cout << std::endl;
+        auto fused_instructions = fused_module->fuse(reshape_instructions, &map_ins);
+        fused_module->add_return({fused_instructions.back()});
+        // fused_module->debug_print();
+        // mlir_op_module->debug_print();
+        // mpm.get_module().debug_print();
+        auto inputs = find_inputs(map_ins, &mpm.get_module(), fused_module);
+        mpm.get_module().replace_instruction(
+            last_reshape, mlir_op{last_reshape->get_operator()}, inputs, {fused_module});
+        mpm.get_module().debug_print();
     }
 };
 
@@ -1143,6 +1186,7 @@ void fuse_mlir::apply(module_pass_manager& mpm) const
 
     match::find_matches(mpm, find_pointwise_mlir{});
     match::find_matches(mpm, find_unpack_int4_mlir_op{});
+    match::find_matches(mpm, find_mlir_reshapes_slice{});
 
 #else
     (void)mpm;

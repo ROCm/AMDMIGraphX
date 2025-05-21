@@ -210,7 +210,7 @@ const auto& reshaper_names()
         "broadcast",
         "contiguous",
         "reshape",
-        "lazy_reshape",
+        "reshape_lazy",
         "squeeze",
         "flatten",
         "unsqueeze"

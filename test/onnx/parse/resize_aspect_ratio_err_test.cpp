@@ -23,12 +23,8 @@
  */
 
 #include <onnx_test.hpp>
-#include <onnx_test_utils.hpp>
 
-TEST_CASE(group_norm_3d_bf16_test)
+TEST_CASE(resize_aspect_ratio_err_test)
 {
-    migraphx::program p = make_group_norm(
-        {1, 4, 2}, {4}, {4}, {1, 2, 2, 2}, {2, 3}, 1e-5f, migraphx::shape::bf16_type);
-    auto prog = optimize_onnx("group_norm_3d_bf16_test.onnx");
-    EXPECT(p == prog);
+    EXPECT(test::throws([&] { read_onnx("resize_aspect_ratio_err_test.onnx"); }));
 }

@@ -113,13 +113,15 @@ std::vector<pass> target::get_passes(migraphx::context& gctx, const compile_opti
     }
 
     // whiltelist supported Ops for the FP8 types
-    // rocBLAS does not support any FP8 types
     std::set<std::string> unsupported_fp8fnuz_ops = {};
-    if(string_value_of(MIGRAPHX_SET_GEMM_PROVIDER{}) == "rocblas" or gpu::gfx_default_rocblas())
+
+    // disable dot & quant_dot if no hipblaslt
+    if(not hipblaslt_supported())
     {
         unsupported_fp8fnuz_ops.insert("dot");
         unsupported_fp8fnuz_ops.insert("quant_dot");
     }
+
 #if MIGRAPHX_USE_MIOPEN // MIOpen doesn't have support for fp8 pooling yet.
     unsupported_fp8fnuz_ops.insert("pooling");
 #endif
@@ -142,6 +144,14 @@ std::vector<pass> target::get_passes(migraphx::context& gctx, const compile_opti
     unsupported_fp8fnuz_ops.insert("argmin");
 
     std::set<std::string> unsupported_fp8ocp_ops = {};
+
+    // disable dot & quant_dot if no hipblaslt
+    if(not hipblaslt_supported())
+    {
+        unsupported_fp8ocp_ops.insert("dot");
+        unsupported_fp8ocp_ops.insert("quant_dot");
+    }
+
 #if MIGRAPHX_USE_MIOPEN
     // MIOpen doesn't have support for fp8 pooling yet.
     unsupported_fp8ocp_ops.insert("pooling");

@@ -613,6 +613,11 @@ migraphx_quantize_fp16_with_op_names(migraphx_program_t prog, migraphx_quantize_
 MIGRAPHX_C_EXPORT migraphx_status migraphx_quantize_fp16(migraphx_program_t prog);
 
 MIGRAPHX_C_EXPORT migraphx_status
+migraphx_quantize_bf16_with_op_names(migraphx_program_t prog, migraphx_quantize_op_names_t name);
+
+MIGRAPHX_C_EXPORT migraphx_status migraphx_quantize_bf16(migraphx_program_t prog);
+
+MIGRAPHX_C_EXPORT migraphx_status
 migraphx_quantize_int8_options_destroy(migraphx_quantize_int8_options_t quantize_int8_options);
 
 MIGRAPHX_C_EXPORT migraphx_status migraphx_quantize_int8_options_assign_to(

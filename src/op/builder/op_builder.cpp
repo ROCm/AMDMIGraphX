@@ -49,7 +49,17 @@ std::vector<instruction_ref> insert(const std::string& name,
                                     const std::vector<instruction_ref>& args,
                                     const value& options)
 {
-    return at(builder_map(), name, "Builder not found: " + name)(m, ins, args, options);
+    return at(builder_map(), name, "Builder not found: " + name)(m, ins, args, {}, options);
+}
+
+std::vector<instruction_ref> insert(const std::string& name,
+                                    module& m,
+                                    instruction_ref ins,
+                                    const std::vector<instruction_ref>& args,
+                                    std::vector<module_ref> module_args,
+                                    const value& options)
+{
+    return at(builder_map(), name, "Builder not found: " + name)(m, ins, args, module_args, options);
 }
 
 std::vector<instruction_ref> add(const std::string& name,
@@ -57,8 +67,18 @@ std::vector<instruction_ref> add(const std::string& name,
                                  const std::vector<instruction_ref>& args,
                                  const value& options)
 {
-    return at(builder_map(), name, "Builder not found: " + name)(m, m.end(), args, options);
+    return at(builder_map(), name, "Builder not found: " + name)(m, m.end(), args, {}, options);
 }
+
+std::vector<instruction_ref> add(const std::string& name,
+                                 module& m,
+                                 const std::vector<instruction_ref>& args,
+                                 std::vector<module_ref> module_args,
+                                 const value& options)
+{
+    return at(builder_map(), name, "Builder not found: " + name)(m, m.end(), args, module_args, options);
+}
+
 
 } // namespace builder
 } // namespace op

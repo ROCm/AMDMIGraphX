@@ -40,9 +40,18 @@ using builder_func =
     std::function<std::vector<instruction_ref>(module& m,
                                                instruction_ref ins,
                                                const std::vector<instruction_ref>& args,
+                                               std::vector<module_ref> module_args,
                                                const value& options)>;
 
 MIGRAPHX_EXPORT void register_builder(const std::string& name, builder_func f);
+
+struct insert_params
+{
+    module& m;
+    instruction_ref ins;
+    std::vector<instruction_ref> args;
+    std::vector<module_ref> module_args;
+};
 
 template <class T>
 void register_builder()
@@ -50,9 +59,10 @@ void register_builder()
     builder_func f = [](module& m,
                         instruction_ref ins,
                         const std::vector<instruction_ref>& args,
+                        std::vector<module_ref> module_args,
                         const value& options) {
         auto x = from_value<T>(options);
-        return x.insert(m, ins, args);
+        return x.insert(insert_params{m, ins, args, module_args});
     };
     register_builder(T::name(), std::move(f));
 }

@@ -180,4 +180,24 @@ TEST_CASE(propagate_reduce)
     EXPECT(m1.sort() == m2.sort());
 }
 
+TEST_CASE(propagate_reduce_float_to_double)
+{
+    migraphx::shape s1{migraphx::shape::double_type, {3, 4}, {4, 1}};
+    migraphx::module m1;
+    {
+        auto x        = m1.add_parameter("x", s1);
+        auto convert1 = m1.add_instruction(
+            migraphx::make_op("convert", {{"target_type", migraphx::shape::float_type}}), x);
+        auto reduce =
+            m1.add_instruction(migraphx::make_op("reduce_sum", {{"axes", {1}}}), convert1);
+        auto convert2 = m1.add_instruction(
+            migraphx::make_op("convert", {{"target_type", migraphx::shape::double_type}}), reduce);
+        auto squeeze = m1.add_instruction(migraphx::make_op("squeeze", {{"axes", {1}}}), convert2);
+        m1.add_return({squeeze});
+    }
+    migraphx::module m2 = m1;
+    run_pass(m1);
+    EXPECT(m1.sort() == m2.sort());
+}
+
 int main(int argc, const char* argv[]) { test::run(argc, argv); }

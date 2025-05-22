@@ -33,16 +33,24 @@ namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
 namespace gpu {
 
-MIGRAPHX_GPU_EXPORT double
-time_op(const context& ictx, operation op, const std::vector<shape>& inputs, int n = 100);
+MIGRAPHX_GPU_EXPORT double time_op(const context& ictx,
+                                   operation op,
+                                   const std::vector<shape>& inputs,
+                                   int bundle = 1,
+                                   int nruns  = 100);
 
 MIGRAPHX_GPU_EXPORT double time_program(const context& ictx,
                                         program p,
                                         const std::unordered_map<std::string, double>& fill_map,
-                                        int n = 100);
+                                        int bundle = 1,
+                                        int nruns  = 100);
 
 /* benchmark gpu::code_object with expected input shapes over n iterations */
-MIGRAPHX_GPU_EXPORT double time_op(const context& ictx, operation op, int n = 100);
+MIGRAPHX_GPU_EXPORT double
+time_op(const context& ictx, operation op, int bundle = 1, int nruns = 100);
+
+MIGRAPHX_GPU_EXPORT double
+time_loop(migraphx::gpu::context& gctx, int bundle, int nruns, const std::function<void()>& f);
 
 } // namespace gpu
 } // namespace MIGRAPHX_INLINE_NS

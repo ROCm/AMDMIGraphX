@@ -21,29 +21,15 @@
  * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
  * THE SOFTWARE.
  */
-#ifndef MIGRAPHX_GUARD_OPERATORS_GREATER_OR_EQUAL_HPP
-#define MIGRAPHX_GUARD_OPERATORS_GREATER_OR_EQUAL_HPP
 
-#include <migraphx/op/binary.hpp>
-#include <migraphx/operation.hpp>
-#include <migraphx/check_shapes.hpp>
-#include <migraphx/config.hpp>
+#include <onnx_test.hpp>
+#include <onnx_test_utils.hpp>
 
-namespace migraphx {
-inline namespace MIGRAPHX_INLINE_NS {
-namespace op {
-
-struct greater_or_equal : binary<greater_or_equal>
+TEST_CASE(simplified_layer_normalization_4d_test)
 {
-    std::string point_function() const { return ">="; }
-    auto apply() const
-    {
-        return [](auto x, auto y) { return x >= y; };
-    }
-};
+    migraphx::program p = make_simplified_layer_norm(
+        {2, 3, 5, 7}, {}, {2, 1, 5, 7}, -1, 1e-5f, migraphx::shape::half_type);
 
-} // namespace op
-} // namespace MIGRAPHX_INLINE_NS
-} // namespace migraphx
-
-#endif
+    auto prog = optimize_onnx("simplified_layer_normalization_4d_test.onnx");
+    EXPECT(p == prog);
+}

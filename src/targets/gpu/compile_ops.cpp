@@ -28,6 +28,8 @@
 #include <migraphx/par_for.hpp>
 #include <migraphx/register_op.hpp>
 #include <migraphx/algorithm.hpp>
+#include <migraphx/pass_manager.hpp>
+#include <migraphx/dead_code_elimination.hpp>
 #include <migraphx/op/identity.hpp>
 #include <migraphx/gpu/compiler.hpp>
 #include <migraphx/gpu/compile_ops.hpp>
@@ -131,7 +133,7 @@ struct compile_plan
             const auto& problem = config->problem;
             if(auto sol = ctx->get_problem_cache().get(preop.name(), problem))
             {
-                auto solution = sol.value();
+                const auto& solution = sol.value();
                 // No solution yet until benchmarked so skip for now
                 if(solution.is_null())
                     return;
@@ -225,18 +227,23 @@ struct compile_plan
                            auto bench_ins = bench_mm->add_instruction(
                                cr->ins->get_operator(), bench_ins_inputs, cr->ins->module_inputs());
                            cr->replace.replace(*bench_mm, bench_ins);
-                           // do dead code elimination by directly removing instruction
-                           bench_mm->remove_instruction(bench_ins);
-                           auto t = time_program(*ctx, bench_prog, cr->replace.fill_map, 20);
+                           // do dead code elimination
+                           run_passes(*bench_mm, {dead_code_elimination{}});
+                           // by default, measure runtime with bundle of 1 benchmark config,
+                           // repeat 20 times
+                           auto t = time_program(*ctx, bench_prog, cr->replace.fill_map, 1, 20);
                            if(trace_level > 1)
                                std::cout << t << "ms" << std::endl;
                            return t;
                        });
         std::this_thread::sleep_for(std::chrono::milliseconds{50});
         auto i = std::distance(times.begin(), std::min_element(times.begin(), times.end()));
-        if(trace_level > 0)
-            std::cout << "Fastest solution: " << config->solutions.at(i) << std::endl;
         ctx->get_problem_cache().insert(preop.name(), config->problem, config->solutions.at(i));
+        if(trace_level > 0)
+        {
+            std::cout << "Fastest solution: " << config->solutions.at(i) << std::endl;
+            ctx->get_problem_cache().save();
+        }
         if(not results[i].has_value())
             MIGRAPHX_THROW("No valid tuned compilation for " + preop.name() + " with " +
                            problem_string());
@@ -256,7 +263,7 @@ struct compile_plan
 };
 
 template <class F>
-void par_compile(std::size_t n, F f)
+static void par_compile(std::size_t n, F f)
 {
     if(n == 0)
         return;

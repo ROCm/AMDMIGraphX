@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2024 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2025 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -34,6 +34,7 @@
 #include <sstream>
 #include <type_traits>
 #include <unordered_map>
+#include <utility>
 #include <vector>
 
 #ifdef __linux__
@@ -222,7 +223,7 @@ template <class T, class Operator>
 struct lhs_expression
 {
     T lhs;
-    explicit lhs_expression(T e) : lhs(e) {}
+    explicit lhs_expression(T e) : lhs(std::move(e)) {}
 
     friend std::ostream& operator<<(std::ostream& s, const lhs_expression& self)
     {
@@ -285,7 +286,7 @@ struct predicate
 template <class F>
 auto make_predicate(const std::string& msg, F f)
 {
-    return make_lhs_expression(predicate<F>{msg, f}, function{});
+    return make_lhs_expression(predicate<F>{msg, std::move(f)}, function{});
 }
 
 inline std::string as_string(bool x)
@@ -372,7 +373,7 @@ inline std::atomic<int>& failures()
 }
 
 template <class T, class F>
-void failed(T x, const char* msg, const char* func, const char* file, int line, F f)
+void failed(const T& x, const char* msg, const char* func, const char* file, int line, F f)
 {
     if(not bool(x.value()))
     {
@@ -469,7 +470,7 @@ bool glob_match(Iterator1 start, Iterator1 last, Iterator2 pattern_start, Iterat
 using string_map = std::unordered_map<std::string, std::vector<std::string>>;
 
 template <class Keyword>
-string_map generic_parse(std::vector<std::string> as, Keyword keyword)
+string_map generic_parse(const std::vector<std::string>& as, Keyword keyword)
 {
     string_map result;
 
@@ -825,16 +826,24 @@ inline void run(int argc, const char* argv[])
 // NOLINTNEXTLINE
 #define TEST_CAPTURE(...) test::capture{}->*__VA_ARGS__
 
+#ifdef _WIN32
+// NOLINTNEXTLINE
+#define TEST_PRETTY_FUNCTION __FUNCSIG__
+#else
+// NOLINTNEXTLINE
+#define TEST_PRETTY_FUNCTION __PRETTY_FUNCTION__
+#endif
+
 // NOLINTNEXTLINE
 #define CHECK(...) \
     test::failed(  \
-        TEST_CAPTURE(__VA_ARGS__), #__VA_ARGS__, __PRETTY_FUNCTION__, __FILE__, __LINE__, [] {})
+        TEST_CAPTURE(__VA_ARGS__), #__VA_ARGS__, TEST_PRETTY_FUNCTION, __FILE__, __LINE__, [] {})
 
 // NOLINTNEXTLINE
 #define EXPECT(...)                         \
     test::failed(TEST_CAPTURE(__VA_ARGS__), \
                  #__VA_ARGS__,              \
-                 __PRETTY_FUNCTION__,       \
+                 TEST_PRETTY_FUNCTION,      \
                  __FILE__,                  \
                  __LINE__,                  \
                  &test::fail)
@@ -853,9 +862,9 @@ inline void run(int argc, const char* argv[])
 
 // NOLINTNEXTLINE
 #define TEST_CASE(...)              \
-    void __VA_ARGS__();             \
+    static void __VA_ARGS__();      \
     TEST_CASE_REGISTER(__VA_ARGS__) \
-    void __VA_ARGS__()
+    static void __VA_ARGS__()
 
 #ifdef __clang__
 #pragma clang diagnostic push

@@ -33,7 +33,7 @@ struct test_group_query_attention_no_rotary : verify_program<test_group_query_at
     {
         migraphx::program p;
         auto* mm = p.get_main_module();
-        std::vector<size_t> query_lens{1, 1, 12288};
+        std::vector<size_t> query_lens{1, 5, 12288};
         std::vector<size_t> kv_lens{1, 32, 4096, 128};
         std::vector<size_t> slk_lens{1, 1};
         std::vector<size_t> tsl_lens{1, 1};
@@ -44,7 +44,7 @@ struct test_group_query_attention_no_rotary : verify_program<test_group_query_at
         migraphx::shape slk_s{migraphx::shape::int64_type, slk_lens};
         migraphx::shape tsl_s{migraphx::shape::int64_type, tsl_lens};
         migraphx::shape cs_cache_s{dtype, cs_cache_lens};
-        std::vector<int> slk_vec(slk_s.elements(), 15);
+        std::vector<int> slk_vec(slk_s.elements(), 5);
         std::vector<int> tsl_vec(tsl_s.elements(), 4096);
         std::vector<float> k_vec(kv_s.elements(), 1.0);
         std::vector<float> v_vec(kv_s.elements(), 0.0);

@@ -29,6 +29,8 @@
 #include <migraphx/stringutils.hpp>
 #include <hip/hip_runtime_api.h>
 
+#include <iostream>
+
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
 namespace gpu {
@@ -67,7 +69,7 @@ bool gfx_has_fp8ocp_intrinsics()
     return (is_navi_with_fp8ocp or is_mi_with_fp8ocp);
 }
 
-bool gfx_has_fp8fnuz_support()
+bool gfx_has_bf16_intrinsics()
 {
     return (string_value_of(MIGRAPHX_SET_GEMM_PROVIDER{}) == "rocblas"
                 ? gpu::rocblas_fp8_available()

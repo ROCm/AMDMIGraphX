@@ -673,6 +673,42 @@ struct find_mlir_fused_ops
         return mlir_pointwise()(match::any_of[match::inputs()](dot_or_conv.bind("x")));
     }
 
+    struct output_reshapes
+    {
+        std::vector<instruction_ref> output_reshapes;
+        instruction_ref last_reshape;
+    };
+
+    output_reshapes search_output_reshapes(instruction_ref start) const
+    {
+        static const auto conv_dot_reshaper_names = make_conv_dot_reshaper_names();
+        output_reshapes ret;
+        auto curr_ins = start;
+        bool flag     = true;
+        while(flag)
+        {
+            if(curr_ins->outputs().size() == 1)
+            {
+                auto next_ins = curr_ins->outputs().front();
+                if(contains(conv_dot_reshaper_names, next_ins->name()))
+                {
+                    ret.output_reshapes.push_back(next_ins);
+                    ret.last_reshape = next_ins;
+                    curr_ins         = next_ins;
+                }
+                else
+                {
+                    flag = false;
+                }
+            }
+            else
+            {
+                flag = false;
+            }
+        }
+        return ret;
+    }
+
     void apply(module_pass_manager& mpm, const match::matcher_result& r) const
     {
         auto pw_ins        = r.result;
@@ -693,6 +729,7 @@ struct find_mlir_fused_ops
         fuse_input_ops(mm, gemm_based_op->inputs(), &map_ins);
 
         bool gemm_has_multi_outs = gemm_based_op->outputs().size() > 1;
+
         std::vector<instruction_ref> inss_to_insert;
         auto reshape_ins = x_ins;
         for(; reshape_ins != gemm_based_op; reshape_ins = reshape_ins->inputs().front())
@@ -704,12 +741,36 @@ struct find_mlir_fused_ops
         std::reverse(inss_to_insert.begin(), inss_to_insert.end());
         mm->add_instructions(inss_to_insert, &map_ins);
 
-        // fuse_input_ops(mm, pw_ins->inputs(), &map_ins);
+        fuse_input_ops(mm, pw_ins->inputs(), &map_ins);
         auto rins = mm->fuse(*pm, pw_ins->inputs(), &map_ins, &insert_pointwise);
+        std::cout << "rins: " << rins.back()->name() << std::endl;
+        bool has_output_reshapes = false;
+        output_reshapes out_rs;
         if(gemm_has_multi_outs)
         {
             rins.push_back(map_ins.at(gemm_based_op));
         }
+        else if(pw_ins->outputs().size() == 1)
+        {
+            // reshapes instructions after pointwise instruction
+            out_rs = search_output_reshapes(pw_ins);
+            std::cout << "reshape_instructions: ";
+            for(auto ins = out_rs.output_reshapes.begin(); ins != out_rs.output_reshapes.end();
+                ++ins)
+            {
+                std::cout << (*ins)->name() << " ";
+            }
+            std::cout << std::endl;
+            if(not out_rs.output_reshapes.empty())
+            {
+                std::cout << "last reshape: " << out_rs.last_reshape->name() << std::endl;
+                map_ins[pw_ins]     = rins.back();
+                rins                = mm->fuse(out_rs.output_reshapes, &map_ins);
+                has_output_reshapes = true;
+            }
+            mm->debug_print();
+        }
+
         mm->add_return(rins);
 
         auto inputs    = find_inputs(map_ins, &mpm.get_module(), mm);
@@ -738,6 +799,10 @@ struct find_mlir_fused_ops
                 mpm.get_module().replace_instruction(
                     pw_ins, migraphx::make_op("get_tuple_elem", {{"index", 0}}), fused_ins);
             }
+        }
+        else if(has_output_reshapes)
+        {
+            mpm.get_module().replace_instruction(out_rs.last_reshape, fused_ins);
         }
         else
         {
@@ -1115,7 +1180,7 @@ struct find_mlir_reshapes_slice
         //{
         //     std::cout << "{" << ins->first->name() << ": " << ins->second->name() << "} ";
         // }
-        std::cout << std::endl;
+        // std::cout << std::endl;
         map_ins[mlir_op_ins] = new_back;
         // for(auto ins = map_ins.begin(); ins != map_ins.end(); ++ins)
         //{
@@ -1186,7 +1251,7 @@ void fuse_mlir::apply(module_pass_manager& mpm) const
 
     match::find_matches(mpm, find_pointwise_mlir{});
     match::find_matches(mpm, find_unpack_int4_mlir_op{});
-    match::find_matches(mpm, find_mlir_reshapes_slice{});
+    // match::find_matches(mpm, find_mlir_reshapes_slice{});
 
 #else
     (void)mpm;

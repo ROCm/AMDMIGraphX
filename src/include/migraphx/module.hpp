@@ -271,6 +271,7 @@ struct MIGRAPHX_EXPORT module
     // Fuse another module into this module by inserting the instructions and
     // parameters from the module
     // map_ins is mapping from previous instructions to new instructions
+    // Returns output instructions to the module.
     std::vector<instruction_ref>
     fuse(const module& m,
          const std::vector<instruction_ref>& inputs,

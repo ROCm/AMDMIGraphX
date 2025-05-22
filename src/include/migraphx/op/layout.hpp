@@ -38,6 +38,11 @@ namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
 namespace op {
 
+/**
+ * Rearrange the data layout of the input instruction based on the permutation attribute.
+ * permutation: list with how to rearrange data buffer of input instruction from order of slowest
+ * dimension to fastest dimension
+ */
 struct layout : unary<layout>
 {
     std::vector<int64_t> permutation;

@@ -214,6 +214,12 @@ struct MIGRAPHX_EXPORT shape
      *   therefore:
      *     "original" shape = {lens = [3, 4, 2], strides = [8, 2, 1]}
      *     output_shape = {lens = [2, 3, 4], strides = [1, 8, 2]}
+     *
+     * Another perspective:
+     * l = output dimensions
+     * perm = rearrange data buffer of l from order of slowest dimension to fastest dimension
+     * ex: l = [2, 3, 4], perm = [1, 2, 0] -> axis=1 to slowest dimension, axis=2 to second slowest,
+     * axis=0 to fastest
      */
     static shape
     from_permutation(type_t t, const std::vector<std::size_t>& l, const std::vector<int64_t>& perm);

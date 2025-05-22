@@ -742,8 +742,7 @@ struct find_mlir_fused_ops
         mm->add_instructions(inss_to_insert, &map_ins);
 
         fuse_input_ops(mm, pw_ins->inputs(), &map_ins);
-        auto rins = mm->fuse(*pm, pw_ins->inputs(), &map_ins, &insert_pointwise);
-        std::cout << "rins: " << rins.back()->name() << std::endl;
+        auto rins                = mm->fuse(*pm, pw_ins->inputs(), &map_ins, &insert_pointwise);
         bool has_output_reshapes = false;
         output_reshapes out_rs;
         if(gemm_has_multi_outs)
@@ -754,21 +753,12 @@ struct find_mlir_fused_ops
         {
             // reshapes instructions after pointwise instruction
             out_rs = search_output_reshapes(pw_ins);
-            std::cout << "reshape_instructions: ";
-            for(auto ins = out_rs.output_reshapes.begin(); ins != out_rs.output_reshapes.end();
-                ++ins)
-            {
-                std::cout << (*ins)->name() << " ";
-            }
-            std::cout << std::endl;
             if(not out_rs.output_reshapes.empty())
             {
-                std::cout << "last reshape: " << out_rs.last_reshape->name() << std::endl;
                 map_ins[pw_ins]     = rins.back();
                 rins                = mm->fuse(out_rs.output_reshapes, &map_ins);
                 has_output_reshapes = true;
             }
-            mm->debug_print();
         }
 
         mm->add_return(rins);

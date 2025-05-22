@@ -40,7 +40,7 @@ inline namespace MIGRAPHX_INLINE_NS {
 using milliseconds = std::chrono::duration<double, std::milli>;
 
 template <class T>
-auto get_hash(const T& x)
+static auto get_hash(const T& x)
 {
     return std::hash<T>{}(x);
 }

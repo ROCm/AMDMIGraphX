@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2022 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2025 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -165,7 +165,8 @@ struct schedule_model_test
     }
 };
 
-bool check_conflicts(migraphx::module& m, migraphx::instruction_ref x, migraphx::instruction_ref y)
+static bool
+check_conflicts(migraphx::module& m, migraphx::instruction_ref x, migraphx::instruction_ref y)
 {
     return migraphx::any_of(migraphx::iterator_for(m), [&](auto ins) {
         if(ins->name() != "identity")
@@ -220,32 +221,32 @@ struct scheduler
 };
 
 template <class T>
-std::vector<T> sorted(std::vector<T> x)
+static std::vector<T> sorted(std::vector<T> x)
 {
     std::sort(x.begin(), x.end());
     return x;
 }
 
 template <class T>
-std::vector<T> unique(std::vector<T> x)
+static std::vector<T> unique(std::vector<T> x)
 {
     std::sort(x.begin(), x.end());
     x.erase(std::unique(x.begin(), x.end()), x.end());
     return x;
 }
 
-std::vector<std::size_t> get_wait_for(std::vector<std::size_t> wait_for)
+static std::vector<std::size_t> get_wait_for(std::vector<std::size_t> wait_for)
 {
     return unique(std::move(wait_for));
 }
 
-std::vector<std::size_t> get_wait_for(std::size_t wait_on, std::vector<std::size_t> wait_for)
+static std::vector<std::size_t> get_wait_for(std::size_t wait_on, std::vector<std::size_t> wait_for)
 {
     wait_for.erase(std::find(wait_for.begin(), wait_for.end(), wait_on));
     return unique(wait_for);
 }
 
-std::vector<std::size_t> get_wait_for(migraphx::instruction_ref ins)
+static std::vector<std::size_t> get_wait_for(migraphx::instruction_ref ins)
 {
     auto wait_ins = std::prev(ins);
     // Skip identity operators
@@ -259,7 +260,7 @@ std::vector<std::size_t> get_wait_for(migraphx::instruction_ref ins)
 }
 
 template <class T>
-std::vector<migraphx::instruction_ref>
+static std::vector<migraphx::instruction_ref>
 chain(migraphx::module& m, std::size_t n, T x, migraphx::instruction_ref input)
 {
     std::vector<migraphx::instruction_ref> result;

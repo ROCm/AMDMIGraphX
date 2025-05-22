@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2023 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2025 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -31,7 +31,7 @@
 
 using migraphx::shape;
 
-void create_shapes(bool dynamic_allowed)
+static void create_shapes(bool dynamic_allowed)
 {
     shape a{shape::int64_type, {3}};
     shape b{shape::float_type, {{3, 6}, {4, 4}}};

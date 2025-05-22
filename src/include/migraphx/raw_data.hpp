@@ -70,8 +70,8 @@ struct raw_data : raw_data_base
      * @param v A function which will be called with the type of data
      * @param n The index to read from
      */
-    template <class Visitor>
-    void visit_at(Visitor v, std::size_t n = 0) const
+    template <class Visitor, class Index = std::size_t>
+    void visit_at(Visitor v, Index n = 0) const
     {
         auto&& derived = static_cast<const Derived&>(*this);
         if(derived.empty())
@@ -118,11 +118,11 @@ struct raw_data : raw_data_base
      * @tparam T The type of data to be retrieved
      * @return The element as `T`
      */
-    template <class T>
-    T at(std::size_t n = 0) const
+    template <class T, class Index = std::size_t>
+    T at(Index n = 0) const
     {
         T result;
-        this->visit_at([&](auto x) { result = x; }, n);
+        this->visit_at([&](auto x) { result = x; }, std::move(n));
         return result;
     }
 
@@ -203,18 +203,18 @@ struct raw_data : raw_data_base
 
 namespace detail {
 template <class V1, class V2, class... Ts>
-void visit_all_flatten(const shape& s, V1&& v1, V2&& v2, Ts&&... xs)
+void visit_all_flatten(const shape& s, V1&& v1, V2 v2, Ts&&... xs)
 {
     s.visit_type([&](auto as) { v1(make_view(xs.get_shape(), as.from(xs.data()))...); },
                  [&] { v2(xs.get_sub_objects()...); });
 }
 
 template <class V1, class V2, class... Ts>
-auto visit_all_pack(const shape& s, V1&& v1, V2&& v2)
+auto visit_all_pack(const shape& s, V1&& v1, V2 v2)
 {
-    return [&](auto&&... xs) {
+    return [=](auto&&... xs) {
         // Workaround for https://gcc.gnu.org/bugzilla/show_bug.cgi?id=70100
-        visit_all_flatten(s, v1, v2, xs...);
+        visit_all_flatten(s, v1, std::move(v2), xs...);
     };
 }
 

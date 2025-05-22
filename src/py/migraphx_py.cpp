@@ -360,6 +360,9 @@ MIGRAPHX_PYBIND11_MODULE(migraphx, m)
             auto lens = v.get<std::size_t>("lens", {1});
             if(v.contains("strides"))
                 return migraphx::shape(t, lens, v.at("strides").to_vector<std::size_t>());
+            else if(v.contains("permutation"))
+                return migraphx::shape::from_permutation(
+                    t, lens, v.at("permutation").to_vector<int64_t>());
             else
                 return migraphx::shape(t, lens);
         }))
@@ -419,7 +422,10 @@ MIGRAPHX_PYBIND11_MODULE(migraphx, m)
         .def("shape", [](migraphx::instruction_ref i) { return i->get_shape(); })
         .def("op", [](migraphx::instruction_ref i) { return i->get_operator(); })
         .def("inputs", [](migraphx::instruction_ref i) { return i->inputs(); })
+        .def("outputs", [](migraphx::instruction_ref i) { return i->outputs(); })
         .def("name", [](migraphx::instruction_ref i) { return i->name(); })
+        .def("get_literal",
+             [](migraphx::instruction_ref i) { return i->get_literal().get_argument(); })
         .def(py::hash(py::self))
         .def(py::self == py::self)
         .def(py::self != py::self);
@@ -462,6 +468,12 @@ MIGRAPHX_PYBIND11_MODULE(migraphx, m)
             "add_return",
             [](migraphx::module& mm, std::vector<migraphx::instruction_ref>& args) {
                 return mm.add_return(args);
+            },
+            py::arg("args"))
+        .def(
+            "replace_return",
+            [](migraphx::module& mm, std::vector<migraphx::instruction_ref>& args) {
+                return mm.replace_return(args);
             },
             py::arg("args"))
         .def("__repr__", [](const migraphx::module& mm) { return migraphx::to_string(mm); })

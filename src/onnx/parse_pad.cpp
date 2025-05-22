@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2024 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2025 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -31,7 +31,7 @@ namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
 namespace onnx {
 
-void calc_reflect_indices(std::vector<int>& indices, const int64_t num_dims)
+static void calc_reflect_indices(std::vector<int>& indices, const int64_t num_dims)
 {
     int k         = 0;
     bool reversed = false;
@@ -51,9 +51,9 @@ void calc_reflect_indices(std::vector<int>& indices, const int64_t num_dims)
     }
 }
 
-instruction_ref reflect_pad(const onnx_parser::node_info& info,
-                            const std::vector<int64_t>& pads,
-                            instruction_ref input)
+static instruction_ref reflect_pad(const onnx_parser::node_info& info,
+                                   const std::vector<int64_t>& pads,
+                                   instruction_ref input)
 {
     size_t num_dims = pads.size() / 2;
     std::vector<int> ldims(pads.begin(), pads.begin() + num_dims);

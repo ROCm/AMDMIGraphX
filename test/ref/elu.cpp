@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2023 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2025 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -30,7 +30,7 @@
 
 #include <test.hpp>
 
-float elu(float a, float x) { return x > 0 ? x : a * std::expm1(x); }
+static float elu(float a, float x) { return x > 0 ? x : a * std::expm1(x); }
 
 TEST_CASE(elu_test)
 {

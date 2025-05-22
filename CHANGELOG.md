@@ -12,7 +12,7 @@ Full documentation for MIGraphX is available at
 * Support for hardware specific FP8 datatypes (FP8 OCP and FP8 FNUZ)
 * Add support for the BF16 datatype
 * ONNX Operator Support for `com.microsoft.MultiHeadAttention`, `com.microsoft.NhwcConv`, and `com.microsoft.MatMulIntgerFloat`
-* migraphx-driver can now produce outfor for use with Netron
+* migraphx-driver can now produce output for use with Netron
 * migraphx-driver now includes a `time` parameter (similar to `perf`) that is more accurate for very fast kernels
 * An end-to-end Stable Diffusion 3 example with option to disable T5 encoder on VRAM-limited GPUs has been added
 * Added support to track broadcast axes in `shape_transform_descriptor`

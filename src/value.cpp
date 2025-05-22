@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2023 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2025 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -92,9 +92,9 @@ value& value::operator=(value rhs)
     return *this;
 }
 
-void set_vector(std::shared_ptr<value_base_impl>& x,
-                const std::vector<value>& v,
-                bool array_on_empty = true)
+static void set_vector(std::shared_ptr<value_base_impl>& x,
+                       const std::vector<value>& v,
+                       bool array_on_empty = true)
 {
     if(v.empty())
     {
@@ -234,21 +234,21 @@ bool value::is_null() const { return x == nullptr; }
 
 const std::string& value::get_key() const { return key; }
 
-std::vector<value>* if_array_impl(const std::shared_ptr<value_base_impl>& x)
+static std::vector<value>* if_array_impl(const std::shared_ptr<value_base_impl>& x)
 {
     if(x == nullptr)
         return nullptr;
     return x->if_array();
 }
 
-std::vector<value>& get_array_impl(const std::shared_ptr<value_base_impl>& x)
+static std::vector<value>& get_array_impl(const std::shared_ptr<value_base_impl>& x)
 {
     auto* a = if_array_impl(x);
     assert(a);
     return *a;
 }
 
-std::vector<value>& get_array_throw(const std::shared_ptr<value_base_impl>& x)
+static std::vector<value>& get_array_throw(const std::shared_ptr<value_base_impl>& x)
 {
     auto* a = if_array_impl(x);
     if(a == nullptr)
@@ -257,7 +257,7 @@ std::vector<value>& get_array_throw(const std::shared_ptr<value_base_impl>& x)
 }
 
 template <class T>
-T* find_impl(const std::shared_ptr<value_base_impl>& x, const std::string& key, T* end)
+static T* find_impl(const std::shared_ptr<value_base_impl>& x, const std::string& key, T* end)
 {
     auto* a = if_array_impl(x);
     if(a == nullptr)
@@ -443,14 +443,14 @@ value value::with_key(const std::string& pkey) const
 }
 
 template <class T>
-const T& compare_decay(const T& x)
+const static T& compare_decay(const T& x)
 {
     return x;
 }
-int compare_decay(std::nullptr_t) { return 0; }
+static int compare_decay(std::nullptr_t) { return 0; }
 
 template <class F>
-bool compare(const value& x, const value& y, F f)
+static bool compare(const value& x, const value& y, F f)
 {
     bool result = false;
     x.visit_value([&](auto&& a) {
@@ -489,30 +489,30 @@ bool operator<=(const value& x, const value& y) { return not(x > y); }
 bool operator>(const value& x, const value& y) { return y < x; }
 bool operator>=(const value& x, const value& y) { return not(x < y); }
 
-void print_value(std::ostream& os, std::nullptr_t) { os << "null"; }
+static void print_value(std::ostream& os, std::nullptr_t) { os << "null"; }
 
 template <class T>
-void print_value(std::ostream& os, const T& x)
+static void print_value(std::ostream& os, const T& x)
 {
     os << x;
 }
 
 template <class T, class U>
-void print_value(std::ostream& os, const std::pair<T, U>& x)
+static void print_value(std::ostream& os, const std::pair<T, U>& x)
 {
     os << x.first;
     os << ": ";
     print_value(os, x.second);
 }
 
-void print_value(std::ostream& os, const std::vector<value>& x)
+static void print_value(std::ostream& os, const std::vector<value>& x)
 {
     os << "{";
     os << to_string_range(x);
     os << "}";
 }
 
-void print_value(std::ostream& os, const value::binary& x) { os << x; }
+static void print_value(std::ostream& os, const value::binary& x) { os << x; }
 
 std::ostream& operator<<(std::ostream& os, const value& d)
 {
@@ -521,23 +521,23 @@ std::ostream& operator<<(std::ostream& os, const value& d)
 }
 
 template <class T>
-std::size_t value_hash(const std::string& key, const T& x)
+static std::size_t value_hash(const std::string& key, const T& x)
 {
     std::size_t h = hash_value(key);
     hash_combine(h, x);
     return h;
 }
 
-std::size_t value_hash(const std::string& key, std::nullptr_t) { return hash_value(key); }
+static std::size_t value_hash(const std::string& key, std::nullptr_t) { return hash_value(key); }
 
-std::size_t value_hash(const std::string& key, const std::vector<value>& x)
+static std::size_t value_hash(const std::string& key, const std::vector<value>& x)
 {
     std::size_t h = hash_value(key);
     for(const auto& v : x)
         hash_combine(h, v);
     return h;
 }
-std::size_t value_hash(const std::string& key, const value::binary& x)
+static std::size_t value_hash(const std::string& key, const value::binary& x)
 {
     std::size_t h = hash_value(key);
     for(const auto& v : x)

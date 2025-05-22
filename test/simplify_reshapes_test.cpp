@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2024 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2025 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -33,12 +33,13 @@
 
 #include <test.hpp>
 
-void run_pass(migraphx::module& m)
+static void run_pass(migraphx::module& m)
 {
     migraphx::run_passes(m, {migraphx::simplify_reshapes{}, migraphx::dead_code_elimination{}});
 }
 
-inline std::vector<std::vector<std::size_t>> to_lens(const std::vector<migraphx::shape>& shapes)
+inline static std::vector<std::vector<std::size_t>>
+to_lens(const std::vector<migraphx::shape>& shapes)
 {
     std::vector<std::vector<std::size_t>> result;
     std::transform(shapes.begin(), shapes.end(), std::back_inserter(result), [&](const auto& s) {
@@ -47,9 +48,9 @@ inline std::vector<std::vector<std::size_t>> to_lens(const std::vector<migraphx:
     return result;
 }
 
-migraphx::module make_concat_multibroadcast(const std::vector<size_t>& in_lens,
-                                            const std::vector<size_t>& mbcast_lens,
-                                            const int axis)
+static migraphx::module make_concat_multibroadcast(const std::vector<size_t>& in_lens,
+                                                   const std::vector<size_t>& mbcast_lens,
+                                                   const int axis)
 {
     migraphx::module m;
     auto s = migraphx::shape{migraphx::shape::float_type, in_lens};
@@ -899,11 +900,11 @@ TEST_CASE(concat_multibroadcasts1)
     EXPECT(m.get_output_shapes().back().lens() == out_shape.lens());
     EXPECT(std::distance(m.begin(), m.end()) == n - 2);
     auto new_concat =
-        std::find_if(m.begin(), m.end(), [](auto ins) { return ins.name() == "concat"; });
+        std::find_if(m.begin(), m.end(), [](const auto& ins) { return ins.name() == "concat"; });
     EXPECT(bool{new_concat != m.end()});
     auto cd = std::distance(m.begin(), new_concat);
-    auto new_mb =
-        std::find_if(m.begin(), m.end(), [](auto ins) { return ins.name() == "multibroadcast"; });
+    auto new_mb = std::find_if(
+        m.begin(), m.end(), [](const auto& ins) { return ins.name() == "multibroadcast"; });
     auto md = std::distance(m.begin(), new_mb);
     EXPECT(cd == md - 1);
     EXPECT(new_concat->get_operator().to_value()["axis"].to<int>() == 1);
@@ -922,11 +923,11 @@ TEST_CASE(concat_multibroadcasts2)
     EXPECT(m.get_output_shapes().back().lens() == out_shape.lens());
     EXPECT(std::distance(m.begin(), m.end()) == n - 2);
     auto new_concat =
-        std::find_if(m.begin(), m.end(), [](auto ins) { return ins.name() == "concat"; });
+        std::find_if(m.begin(), m.end(), [](const auto& ins) { return ins.name() == "concat"; });
     EXPECT(bool{new_concat != m.end()});
     auto cd = std::distance(m.begin(), new_concat);
-    auto new_mb =
-        std::find_if(m.begin(), m.end(), [](auto ins) { return ins.name() == "multibroadcast"; });
+    auto new_mb = std::find_if(
+        m.begin(), m.end(), [](const auto& ins) { return ins.name() == "multibroadcast"; });
     auto md = std::distance(m.begin(), new_mb);
     EXPECT(cd == md - 1);
     EXPECT(new_concat->get_operator().to_value()["axis"].to<int>() == 0);
@@ -945,11 +946,11 @@ TEST_CASE(concat_multibroadcasts3)
     EXPECT(m.get_output_shapes().back().lens() == out_shape.lens());
     EXPECT(std::distance(m.begin(), m.end()) == n - 2);
     auto new_concat =
-        std::find_if(m.begin(), m.end(), [](auto ins) { return ins.name() == "concat"; });
+        std::find_if(m.begin(), m.end(), [](const auto& ins) { return ins.name() == "concat"; });
     EXPECT(bool{new_concat != m.end()});
     auto cd = std::distance(m.begin(), new_concat);
-    auto new_mb =
-        std::find_if(m.begin(), m.end(), [](auto ins) { return ins.name() == "multibroadcast"; });
+    auto new_mb = std::find_if(
+        m.begin(), m.end(), [](const auto& ins) { return ins.name() == "multibroadcast"; });
     auto md = std::distance(m.begin(), new_mb);
     EXPECT(cd == md - 1);
     EXPECT(new_concat->get_operator().to_value()["axis"].to<int>() == 2);
@@ -1120,7 +1121,7 @@ TEST_CASE(concat_transpose1)
     EXPECT(m.get_output_shapes().back().lens() == out_shape.lens());
     EXPECT(std::distance(m.begin(), m.end()) == n - 3);
     auto new_concat =
-        std::find_if(m.begin(), m.end(), [](auto ins) { return ins.name() == "concat"; });
+        std::find_if(m.begin(), m.end(), [](const auto& ins) { return ins.name() == "concat"; });
     EXPECT(bool{new_concat != m.end()});
     EXPECT(new_concat->get_operator().to_value()["axis"].to<int>() == 3);
 }
@@ -1144,7 +1145,7 @@ TEST_CASE(concat_transpose2)
     EXPECT(m.get_output_shapes().back().lens() == out_shape.lens());
     EXPECT(std::distance(m.begin(), m.end()) == n - 2);
     auto new_concat =
-        std::find_if(m.begin(), m.end(), [](auto ins) { return ins.name() == "concat"; });
+        std::find_if(m.begin(), m.end(), [](const auto& ins) { return ins.name() == "concat"; });
     EXPECT(bool{new_concat != m.end()});
     EXPECT(new_concat->get_operator().to_value()["axis"].to<int>() == 1);
 }
@@ -1168,7 +1169,7 @@ TEST_CASE(concat_transpose3)
     EXPECT(m.get_output_shapes().back().lens() == out_shape.lens());
     EXPECT(std::distance(m.begin(), m.end()) == n - 2);
     auto new_concat =
-        std::find_if(m.begin(), m.end(), [](auto ins) { return ins.name() == "concat"; });
+        std::find_if(m.begin(), m.end(), [](const auto& ins) { return ins.name() == "concat"; });
     EXPECT(bool{new_concat != m.end()});
     EXPECT(new_concat->get_operator().to_value()["axis"].to<int>() == 1);
 }

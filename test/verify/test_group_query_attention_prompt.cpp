@@ -41,8 +41,8 @@ struct test_group_query_attention_prompt : verify_program<test_group_query_atten
         auto dtype = migraphx::shape::half_type;
         migraphx::shape query_s{dtype, query_lens};
         migraphx::shape kv_s{dtype, kv_lens};
-        migraphx::shape slk_s{migraphx::shape::int64_type, slk_lens};
-        migraphx::shape tsl_s{migraphx::shape::int64_type, tsl_lens};
+        migraphx::shape slk_s{migraphx::shape::int32_type, slk_lens};
+        migraphx::shape tsl_s{migraphx::shape::int32_type, tsl_lens};
         migraphx::shape cs_cache_s{dtype, cs_cache_lens};
         auto query = mm->add_parameter("query", query_s);
         std::vector<int> slk_vec(slk_s.elements(), 15);

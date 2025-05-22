@@ -64,6 +64,7 @@ else()
             -Wundef
             -Wuninitialized
             -Wunreachable-code
+            -Wno-deprecated-pragma
             -Wunused
 
             -Wno-sign-compare
@@ -104,12 +105,15 @@ else()
                 -Wno-weak-vtables
                 -Wno-c99-extensions
                 -Wno-unsafe-buffer-usage
+                # This is broken for now for moved values
+                -Wno-shadow-uncaptured-local
                 # -Wno-c++2a-designator
             )
             if(WIN32 AND CMAKE_CXX_COMPILER_VERSION VERSION_GREATER_EQUAL "19")
                 list(APPEND CMAKE_COMPILER_WARNINGS
                     -Wno-missing-include-dirs
                     -Wno-switch-default
+		    -Wno-deprecated-pragma
                     -Wno-deprecated-pragma
                 )
             endif()

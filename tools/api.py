@@ -1,7 +1,7 @@
 #####################################################################################
 # The MIT License (MIT)
 #
-# Copyright (c) 2015-2023 Advanced Micro Devices, Inc. All rights reserved.
+# Copyright (c) 2015-2025 Advanced Micro Devices, Inc. All rights reserved.
 #
 # Permission is hereby granted, free of charge, to any person obtaining a copy
 # of this software and associated documentation files (the "Software"), to deal
@@ -757,18 +757,18 @@ struct ${ctype} {
 
 handle_preamble = '''
 template<class T, class U, class Target=std::remove_pointer_t<T>>
-Target* object_cast(U* x)
+static Target* object_cast(U* x)
 {
     return reinterpret_cast<Target*>(x);
 }
 template<class T, class U, class Target=std::remove_pointer_t<T>>
-const Target* object_cast(const U* x)
+static const Target* object_cast(const U* x)
 {
     return reinterpret_cast<const Target*>(x);
 }
 
 template <class T, class... Ts, class Target = std::remove_pointer_t<T>>
-Target* allocate(Ts&&... xs)
+static Target* allocate(Ts&&... xs)
 {
     if constexpr(std::is_aggregate<Target>{})
         return new Target{std::forward<Ts>(xs)...}; // NOLINT
@@ -777,7 +777,7 @@ Target* allocate(Ts&&... xs)
 }
 
 template<class T>
-void destroy(T* x)
+static void destroy(T* x)
 {
     delete x; // NOLINT
 }

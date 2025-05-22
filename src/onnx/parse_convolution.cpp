@@ -293,7 +293,7 @@ struct parse_convolution : op_parser<parse_convolution>
             if(x_shape.dynamic())
             {
                 auto dyn_dims = x_shape.dyn_dims();
-                std::for_each(dyn_dims.begin() + 2, dyn_dims.end(), [&](auto dyn_dim) {
+                std::for_each(dyn_dims.begin() + 2, dyn_dims.end(), [&](const auto& dyn_dim) {
                     if(not dyn_dim.is_fixed())
                     {
                         image_shape_dynamic = true;
@@ -306,7 +306,7 @@ struct parse_convolution : op_parser<parse_convolution>
             if(w_shape.dynamic())
             {
                 auto dyn_dims = w_shape.dyn_dims();
-                std::for_each(dyn_dims.begin() + 2, dyn_dims.end(), [&](auto dyn_dim) {
+                std::for_each(dyn_dims.begin() + 2, dyn_dims.end(), [&](const auto& dyn_dim) {
                     if(not dyn_dim.is_fixed())
                     {
                         kernel_shape_dynamic = true;

@@ -241,7 +241,7 @@ struct nonmaxsuppression
         return result;
     }
 
-    inline bool suppress_by_iou(box b1, box b2, double iou_threshold) const
+    bool suppress_by_iou(box b1, box b2, double iou_threshold) const
     {
         const double area1 = b1.area();
         const double area2 = b2.area();

@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2024 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2025 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -43,12 +43,12 @@
 #include "test.hpp"
 
 // check if it is custom_op or run_on_module operator
-bool has_target_attr(const migraphx::instruction& ins)
+static bool has_target_attr(const migraphx::instruction& ins)
 {
     return ins.get_operator().attributes().contains("target");
 }
 
-auto nonprefixed_ops()
+static auto nonprefixed_ops()
 {
     // ops without prefixes
     static std::unordered_set<std::string> op_map = {
@@ -56,9 +56,9 @@ auto nonprefixed_ops()
     return op_map;
 }
 
-bool is_compiled_gpu_module(const migraphx::module& m)
+static bool is_compiled_gpu_module(const migraphx::module& m)
 {
-    return std::all_of(m.begin(), m.end(), [](auto ins) {
+    return std::all_of(m.begin(), m.end(), [](const auto& ins) {
         auto ins_name = ins.name();
         if(not migraphx::starts_with(ins_name, "@"))
         {
@@ -74,9 +74,9 @@ bool is_compiled_gpu_module(const migraphx::module& m)
     });
 }
 
-bool is_compiled_fpga_module(const migraphx::module& m)
+static bool is_compiled_fpga_module(const migraphx::module& m)
 {
-    return std::all_of(m.begin(), m.end(), [](auto ins) {
+    return std::all_of(m.begin(), m.end(), [](const auto& ins) {
         auto ins_name = ins.name();
         if(not migraphx::starts_with(ins_name, "@"))
         {
@@ -91,9 +91,9 @@ bool is_compiled_fpga_module(const migraphx::module& m)
     });
 }
 
-bool is_compiled_cpu_module(const migraphx::module& m)
+static bool is_compiled_cpu_module(const migraphx::module& m)
 {
-    return std::all_of(m.begin(), m.end(), [](auto ins) {
+    return std::all_of(m.begin(), m.end(), [](const auto& ins) {
         auto ins_name = ins.name();
         // sub is not lowered on CPU backend due to vectorization on non-aligned memory.
         if(not migraphx::starts_with(ins_name, "@") and ins_name != "sub")
@@ -110,9 +110,9 @@ bool is_compiled_cpu_module(const migraphx::module& m)
     });
 }
 
-bool is_compiled_ref_module(const migraphx::module& m)
+static bool is_compiled_ref_module(const migraphx::module& m)
 {
-    return std::all_of(m.begin(), m.end(), [](auto ins) {
+    return std::all_of(m.begin(), m.end(), [](const auto& ins) {
         auto ins_name = ins.name();
         if(not migraphx::starts_with(ins_name, "@"))
         {
@@ -129,8 +129,8 @@ bool is_compiled_ref_module(const migraphx::module& m)
 }
 
 // NOLINT
-bool check_compiled_program(const migraphx::program& p,
-                            const std::vector<migraphx::target>& targets)
+static bool check_compiled_program(const migraphx::program& p,
+                                   const std::vector<migraphx::target>& targets)
 {
     auto mods           = p.get_modules();
     bool check_compiled = true;

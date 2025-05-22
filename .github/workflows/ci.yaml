@@ -304,7 +304,7 @@ jobs:
         key: ccache-sles-${{ github.ref }}
 
   pyflakes:
-    runs-on: ubuntu-20.04
+    runs-on: ubuntu-24.04
 
     steps:
     - name: Free space
@@ -323,7 +323,7 @@ jobs:
     - name: Set up Python
       uses: actions/setup-python@v4
       with:
-        python-version: 3.8
+        python-version: 3.12
     - name: Install pyflakes
       run: pip install pyflakes==2.4.0 mypy==0.931
 
@@ -335,7 +335,7 @@ jobs:
         mypy tools/api.py
 
   licensing:
-    runs-on: ubuntu-20.04
+    runs-on: ubuntu-24.04
 
     steps:
     - name: Free space
@@ -356,7 +356,7 @@ jobs:
     - name: Set up Python
       uses: actions/setup-python@v4
       with:
-        python-version: 3.8
+        python-version: 3.12
     - name: Run License Check
       run: python3 tools/check_stamped.py origin/${{ github.event_name == 'pull_request' && github.base_ref || 'develop' }}
 
@@ -374,7 +374,7 @@ jobs:
     strategy:
       matrix:
         os:
-          - ubuntu-20.04
+          - ubuntu-24.04
         configuration:
           - debug
           - release
@@ -393,6 +393,14 @@ jobs:
         swap-storage: true
         docker-images: true
 
+    - name: Set up Python
+      uses: actions/setup-python@v4
+      with:
+        python-version: 3.12
+    - name: Setup cmake
+      uses: jwlawson/actions-setup-cmake@v1.9
+      with:
+        cmake-version: 3.20.0
     - name : Install rbuild and lld
       run: |
         sudo apt-get install -y lld
@@ -400,10 +408,6 @@ jobs:
         pip install https://github.com/RadeonOpenCompute/rbuild/archive/master.tar.gz
 
     - uses: actions/checkout@v4.2.2
-    - name: Set up Python
-      uses: actions/setup-python@v4
-      with:
-        python-version: 3.7
     - name: Cache dependencies
       # Ignore the failure of a step and avoid terminating the job.
       continue-on-error: true
@@ -431,7 +435,7 @@ jobs:
       env:
         CMAKE_PREFIX_PATH: ${{ github.workspace }}/cget
         CCACHE_LOGFILE: /tmp/ccache.log
-        CXXFLAGS: -Werror -pthread --param ggc-min-expand=5 --param ggc-min-heapsize=8192
+        CXXFLAGS: -Werror -pthread -fdebug-prefix-map=$PWD=. -fdebug-types-section -DMIGRAPHX_USE_TYPE_ERASED_MATCHERS=1 --param ggc-min-expand=5 --param ggc-min-heapsize=8192
       run: |
         echo "leak:dnnl::impl::malloc" > suppressions.txt
         export LSAN_OPTIONS="suppressions=$(pwd)/suppressions.txt"
@@ -440,8 +444,8 @@ jobs:
           -DMIGRAPHX_ENABLE_PYTHON=${{matrix.configuration == 'release' && 'On' || 'Off'}} \
           -DMIGRAPHX_DISABLE_LARGE_BUFFER_TESTS=On \
           -DBUILD_DEV=On \
-          -DCMAKE_CXX_FLAGS_DEBUG="-g1 -Os -fdebug-prefix-map=$PWD=. -fdebug-types-section -fno-omit-frame-pointer -fsanitize=undefined -fno-sanitize-recover=undefined" \
-          -DCMAKE_CXX_FLAGS_CODECOV="-g1 -Og -fdebug-prefix-map=$PWD=. -fdebug-types-section -fprofile-arcs -ftest-coverage -fno-omit-frame-pointer" \
+          -DCMAKE_CXX_FLAGS_DEBUG="-g1 -Os -fno-omit-frame-pointer -fsanitize=undefined -fno-sanitize-recover=undefined" \
+          -DCMAKE_CXX_FLAGS_CODECOV="-g1 -Og -fprofile-arcs -ftest-coverage -fno-omit-frame-pointer" \
           -DCMAKE_EXE_LINKER_FLAGS='-fuse-ld=lld' \
           -DCMAKE_SHARED_LINKER_FLAGS='-fuse-ld=lld'
         ${{ github.workspace }}/cget/bin/ccache -s
@@ -471,7 +475,7 @@ jobs:
       run: |
         sudo apt-get install -y lcov
         cd build
-        lcov --directory . --capture --output-file $(pwd)/coverage.info
+        lcov --directory . --capture --output-file $(pwd)/coverage.info --ignore-errors mismatch
         lcov --remove $(pwd)/coverage.info '/usr/*' --output-file $(pwd)/coverage.info
         lcov --list $(pwd)/coverage.info
         curl -Os https://uploader.codecov.io/latest/linux/codecov
@@ -493,7 +497,7 @@ jobs:
     strategy:
       matrix:
         os:
-          - ubuntu-20.04
+          - ubuntu-24.04
         configuration:
           - debug
           #- release  Uncomment when ready to test release builds
@@ -516,7 +520,7 @@ jobs:
     - name: Set up Python
       uses: actions/setup-python@v4
       with:
-        python-version: 3.7
+        python-version: 3.12
 
     - name: Cache dependencies
       # Ignore the failure of a step and avoid terminating the job.
@@ -549,7 +553,7 @@ jobs:
       env:
         CMAKE_PREFIX_PATH: ${{ github.workspace }}/cget
         CCACHE_LOGFILE: /tmp/ccache.log
-        CXXFLAGS: -Werror -pthread --param ggc-min-expand=5 --param ggc-min-heapsize=8192
+        CXXFLAGS: -Werror -pthread -DMIGRAPHX_USE_TYPE_ERASED_MATCHERS=1 --param ggc-min-expand=5 --param ggc-min-heapsize=8192
       run: |
         echo "leak:dnnl::impl::malloc" > suppressions.txt
         export LSAN_OPTIONS="suppressions=$(pwd)/suppressions.txt"
@@ -599,7 +603,7 @@ jobs:
       #    echo "Uploaded"
   misspell:
     name: misspell
-    runs-on: ubuntu-20.04
+    runs-on: ubuntu-24.04
     steps:
       - name: Check out code.
         uses: actions/checkout@v4

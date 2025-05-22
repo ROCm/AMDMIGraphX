@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2023 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2025 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -42,11 +42,11 @@ inline namespace MIGRAPHX_INLINE_NS {
  * See normalize_attribute.hpp for explaining the options.
  */
 template <class Message>
-auto tune_attribute(const std::vector<int64_t>& vec,
-                    const std::vector<int64_t>& axes,
-                    const value& val,
-                    const shape& input_shape,
-                    Message m)
+static auto tune_attribute(const std::vector<int64_t>& vec,
+                           const std::vector<int64_t>& axes,
+                           const value& val,
+                           const shape& input_shape,
+                           Message m)
 {
     std::vector<int64_t> result(vec);
     if(result.empty())
@@ -170,7 +170,7 @@ auto tune_attribute(const std::vector<int64_t>& vec,
     return result;
 }
 
-auto tune_pad_attribute(const value& val)
+static auto tune_pad_attribute(const value& val)
 {
 
     std::vector<size_t> vec_attrs = val.to_vector<size_t>();

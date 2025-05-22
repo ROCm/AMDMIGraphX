@@ -1,5 +1,5 @@
 /* ************************************************************************
- * Copyright (C) 2015-2023 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (C) 2015-2025 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -40,7 +40,7 @@ template <typename To,
           typename From,
           MIGRAPHX_REQUIRES(std::is_trivially_copyable<To>{} and
                             std::is_trivially_copyable<From>{})>
-inline constexpr To bit_cast(From fr) noexcept
+constexpr To bit_cast(From fr) noexcept
 {
     static_assert(sizeof(To) == sizeof(From));
 #if defined(__GNUC__) and !defined(__clang__)

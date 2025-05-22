@@ -28,8 +28,8 @@
 TEST_CASE(group_norm_contrib_silu_3d_test)
 {
     migraphx::program p = make_group_norm({1, 4, 2},
-                                          {2},
-                                          {2},
+                                          {4},
+                                          {4},
                                           {1, 2, 2, 2},
                                           {2, 3},
                                           1e-5f,

@@ -1634,7 +1634,7 @@ TEST_CASE(conv_output_reshapes)
                 return std::make_tuple(add->get_operator(), add);
             });
         auto reshape = mm->add_instruction(
-            migraphx::make_op("reshape", {{"dims", {64, 2, 32, 160, 160}}}), mlir_op);
+            migraphx::make_op("reshape_lazy", {{"dims", {64, 2, 32, 160, 160}}}), mlir_op);
         auto transpose_0 = mm->add_instruction(
             migraphx::make_op("transpose", {{"permutation", {1, 0, 3, 4, 2}}}), reshape);
         auto slice_0 = mm->add_instruction(
@@ -1655,7 +1655,7 @@ TEST_CASE(conv_output_reshapes)
         auto c       = mm->add_parameter("b", s1);
         auto mlir_op = add_mlir(
             p2,
-            "mlir_conv_add_reshape_transpose",
+            "mlir_conv_add_reshape_lazy_transpose",
             {a, b, c},
             {"x0", "x1", "x2"},
             [=](auto* pm, const auto& inputs) {
@@ -1663,7 +1663,7 @@ TEST_CASE(conv_output_reshapes)
                     pm->add_instruction(migraphx::make_op("convolution"), inputs[0], inputs[1]);
                 auto add     = pm->add_instruction(migraphx::make_op("add"), conv, inputs[2]);
                 auto reshape = pm->add_instruction(
-                    migraphx::make_op("reshape", {{"dims", {64, 2, 32, 160, 160}}}), add);
+                    migraphx::make_op("reshape_lazy", {{"dims", {64, 2, 32, 160, 160}}}), add);
                 auto transpose_0 = pm->add_instruction(
                     migraphx::make_op("transpose", {{"permutation", {1, 0, 3, 4, 2}}}), reshape);
                 return std::make_tuple(transpose_0->get_operator(), transpose_0);

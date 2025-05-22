@@ -211,8 +211,8 @@ void propagate_precision::apply(module_pass_manager& mpm) const
     auto upgrade = find_instruction_to_upgrade(mpm.get_module());
     for(const auto& p : upgrade)
     {
-        auto ins      = p.first;
-        auto t        = p.second;
+        auto ins = p.first;
+        auto t   = p.second;
 
         // Skip promoting reduce instruction from float to double
         if(contains(ins->name(), "reduce") and

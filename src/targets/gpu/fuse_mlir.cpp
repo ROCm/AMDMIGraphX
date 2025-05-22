@@ -429,22 +429,22 @@ bool is_pointwise_op_supported_by_mlir(const instruction& i)
     }
     const std::initializer_list<std::string> any_type_ops = {"@literal", "@param", "@return"};
     const std::initializer_list<std::string> no_bool_ops  = {
-         "convolution",
-         "quant_convolution",
-         "dot",
-         "quant_dot",
-         "add",
-         "clip",
-         "relu",
-         "sub",
-         "mul",
-         "div",
-         "pow",
-         "where",
-         "quantizelinear",
-         "dequantizelinear",
-         "abs",
-         "neg",
+        "convolution",
+        "quant_convolution",
+        "dot",
+        "quant_dot",
+        "add",
+        "clip",
+        "relu",
+        "sub",
+        "mul",
+        "div",
+        "pow",
+        "where",
+        "quantizelinear",
+        "dequantizelinear",
+        "abs",
+        "neg",
     };
     const std::initializer_list<std::string> fp_only_ops = {
         "ceil",
@@ -924,7 +924,7 @@ struct find_mlir_standalone_attention_op
 
 struct find_mlir_gqa_attention_op
 {
-    mlir_mode dot_mode = mlir_mode::none;
+    mlir_mode dot_mode   = mlir_mode::none;
     std::size_t* counter = nullptr;
 
     auto matcher() const { return match::name("gpu::kv_cache_attention"); }
@@ -946,19 +946,19 @@ struct find_mlir_gqa_attention_op
     {
         auto attn = r.result;
 
-        float scale_val       = attn->get_operator().to_value().get("scale", 0.0);
-        std::size_t num_heads = attn->get_operator().to_value().get("num_heads", 32);
+        float scale_val          = attn->get_operator().to_value().get("scale", 0.0);
+        std::size_t num_heads    = attn->get_operator().to_value().get("num_heads", 32);
         std::size_t kv_num_heads = attn->get_operator().to_value().get("kv_num_heads", 32);
         auto kv_num_heads_factor = num_heads / kv_num_heads;
-        auto qkv              = attn->inputs().at(0);
-        auto pk                = attn->inputs().at(1);
-        auto pv                = attn->inputs().at(2);
-        auto csl              = attn->inputs().at(3);
-        auto batch_size       = pk->get_shape().lens()[0];
-        auto seq_len          = qkv->get_shape().lens()[2];
-        auto head_size        = qkv->get_shape().lens()[3];
-        auto max_seq_len      = pk->get_shape().lens()[2];
-        csl                   = mpm.get_module().insert_instruction(
+        auto qkv                 = attn->inputs().at(0);
+        auto pk                  = attn->inputs().at(1);
+        auto pv                  = attn->inputs().at(2);
+        auto csl                 = attn->inputs().at(3);
+        auto batch_size          = pk->get_shape().lens()[0];
+        auto seq_len             = qkv->get_shape().lens()[2];
+        auto head_size           = qkv->get_shape().lens()[3];
+        auto max_seq_len         = pk->get_shape().lens()[2];
+        csl                      = mpm.get_module().insert_instruction(
             attn, make_op("multibroadcast", {{"out_lens", {batch_size, num_heads}}}), csl);
 
         module m_attn;
@@ -973,21 +973,20 @@ struct find_mlir_gqa_attention_op
         auto v = map_main_to_mattn.at(pv);
         if(kv_num_heads_factor != 1)
         {
-            auto kv_new_lens = k->get_shape().lens();
+            auto kv_new_lens  = k->get_shape().lens();
             kv_new_lens.at(1) = num_heads;
-            k = m_attn.add_instruction(
-                make_op("unsqueeze", {{"axes", {2}}}), k);
-            v = m_attn.add_instruction(
-                make_op("unsqueeze", {{"axes", {2}}}), v);
-            auto kv_unsqueezed_lens = k->get_shape().lens();
+            k                 = m_attn.add_instruction(make_op("unsqueeze", {{"axes", {2}}}), k);
+            v                 = m_attn.add_instruction(make_op("unsqueeze", {{"axes", {2}}}), v);
+            auto kv_unsqueezed_lens  = k->get_shape().lens();
             kv_unsqueezed_lens.at(2) = kv_num_heads_factor;
-            k = m_attn.add_instruction(make_op("multibroadcast", {{"out_lens", kv_unsqueezed_lens}}), k);
-            v = m_attn.add_instruction(make_op("multibroadcast", {{"out_lens", kv_unsqueezed_lens}}), v);
+            k                        = m_attn.add_instruction(
+                make_op("multibroadcast", {{"out_lens", kv_unsqueezed_lens}}), k);
+            v = m_attn.add_instruction(
+                make_op("multibroadcast", {{"out_lens", kv_unsqueezed_lens}}), v);
             k = m_attn.add_instruction(make_op("reshape", {{"dims", kv_new_lens}}), k);
             v = m_attn.add_instruction(make_op("reshape", {{"dims", kv_new_lens}}), v);
         }
-        auto kt = m_attn.add_instruction(
-            make_op("transpose", {{"permutation", {0, 1, 3, 2}}}), k);
+        auto kt = m_attn.add_instruction(make_op("transpose", {{"permutation", {0, 1, 3, 2}}}), k);
         auto gemm1 = m_attn.add_instruction(make_op("dot"), q, kt);
 
         std::vector<int> range_vec(max_seq_len);
@@ -1009,7 +1008,7 @@ struct find_mlir_gqa_attention_op
         }
         auto scale = m_attn.add_literal(literal{scalar_s, {scale_val}});
         scale      = m_attn.add_instruction(make_op("multibroadcast", {{"out_lens", bnsm}}), scale);
-        auto mul     = m_attn.add_instruction(make_op("mul"), gemm1, scale);
+        auto mul   = m_attn.add_instruction(make_op("mul"), gemm1, scale);
 
         if(seq_len > 1)
         {
@@ -1021,9 +1020,8 @@ struct find_mlir_gqa_attention_op
                 m_attn.add_instruction(make_op("reshape", {{"dims", {seq_len, 1}}}), seq_range);
             seq_range =
                 m_attn.add_instruction(make_op("multibroadcast", {{"out_lens", bnsm}}), seq_range);
-            auto causal_mask =
-                m_attn.add_instruction(make_op("greater"), bc_range, seq_range);
-            causal_mask = m_attn.add_instruction(
+            auto causal_mask = m_attn.add_instruction(make_op("greater"), bc_range, seq_range);
+            causal_mask      = m_attn.add_instruction(
                 make_op("convert", {{"target_type", shape::bool_type}}), causal_mask);
             mul = m_attn.add_instruction(make_op("where"), causal_mask, ninf, mul);
         }

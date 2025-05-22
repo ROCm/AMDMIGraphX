@@ -74,7 +74,7 @@ struct test_group_query_attention_prompt_small
         cos_cache      = mm->add_instruction(migraphx::make_op("clip"), cos_cache, cs_min, cs_max);
         sin_cache      = mm->add_instruction(migraphx::make_op("clip"), sin_cache, cs_min, cs_max);
         auto r         = mm->add_instruction(migraphx::make_op("group_query_attention",
-                                                       {{"do_rotary", 0},
+                                                               {{"do_rotary", 0},
                                                                 {"kv_num_heads", 2},
                                                                 {"local_window_size", -1},
                                                                 {"num_heads", 2},

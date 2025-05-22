@@ -1809,7 +1809,9 @@ struct find_zero_ops
     {
         auto ins      = r.result;
         auto zero_ins = r.instructions["x"];
-
+        if(zero_ins->get_shape().scalar())
+            zero_ins = m.insert_instruction(
+                ins, make_op("reshape", {{"dims", ins->get_shape().lens()}}), zero_ins);
         m.replace_instruction(ins, zero_ins);
     }
 };

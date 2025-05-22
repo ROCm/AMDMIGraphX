@@ -195,8 +195,14 @@ TEST_CASE(propagate_reduce_float_to_double)
         auto squeeze = m1.add_instruction(migraphx::make_op("squeeze", {{"axes", {1}}}), convert2);
         m1.add_return({squeeze});
     }
-    migraphx::module m2 = m1;
     run_pass(m1);
+    migraphx::module m2;
+    {
+        auto x       = m2.add_parameter("x", s1);
+        auto reduce  = m2.add_instruction(migraphx::make_op("reduce_sum", {{"axes", {1}}}), x);
+        auto squeeze = m2.add_instruction(migraphx::make_op("squeeze", {{"axes", {1}}}), reduce);
+        m2.add_return({squeeze});
+    }
     EXPECT(m1.sort() == m2.sort());
 }
 

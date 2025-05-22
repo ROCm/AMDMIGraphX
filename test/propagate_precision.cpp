@@ -32,7 +32,7 @@
 
 #include <test.hpp>
 
-void run_pass(migraphx::module& m)
+static void run_pass(migraphx::module& m)
 {
     migraphx::run_passes(m,
                          {migraphx::propagate_precision{},

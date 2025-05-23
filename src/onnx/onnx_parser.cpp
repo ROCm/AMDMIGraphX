@@ -509,8 +509,10 @@ static bool check_sorted(const onnx::GraphProto& graph,
     {
         for(auto&& input : node.input())
         {
-            if(not contains(visited_nodes, input))
-                return false;
+            // operators like resize can use empty strings to skip unused inputs
+            if(not input.empty())
+                if(not contains(visited_nodes, input))
+                    return false;
         }
         // node outputs struct is used to keep track of currently visited nodes
         visited_nodes.insert(node.output().begin(), node.output().end());

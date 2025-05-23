@@ -76,7 +76,7 @@ struct scatternd_op : op_name<Derived>
 
         // Checks on the sizes of input tensors
         if(q + r != upd_shape.ndim() + k + 1)
-            MIGRAPHX_THROW("ScatterND:  ranks of inputs don't match. " + std::to_string(q) + " + " +
+            MIGRAPHX_THROW("ScatterND: ranks of inputs don't match. " + std::to_string(q) + " + " +
                            std::to_string(r) + " - " + std::to_string(k) +
                            " - 1 != " + std::to_string(upd_shape.ndim()));
         if(k > r)

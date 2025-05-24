@@ -101,7 +101,7 @@ struct MIGRAPHX_EXPORT shape_transform_descriptor
     shape_transform_descriptor to_common_from_dst() const;
     shape_transform_descriptor to_dst_from_common() const;
     shape_transform_descriptor to_src_from_common() const;
-    
+
     std::vector<operation>
     generate_common_from_src(const std::vector<std::size_t>& input_dims = {}) const;
     std::vector<operation>

@@ -131,7 +131,8 @@ static void for_each_subdimension(Dimensions&& dimensions, Range&& r, F f)
 template <class Dimensions>
 static std::map<std::size_t, std::vector<dimension::sub*>> group_axes(Dimensions& dimensions)
 {
-    using sub = std::conditional_t<std::is_const<Dimensions>{}, const dimension::sub, dimension::sub>;
+    using sub =
+        std::conditional_t<std::is_const<Dimensions>{}, const dimension::sub, dimension::sub>;
     std::map<std::size_t, std::vector<sub*>> axes_map;
     for_each_subdimension(dimensions, [&](auto& s) {
         if(s.origin_axis().empty())
@@ -1030,12 +1031,14 @@ static void generate_from_subdimensions(operation_list& result,
 // This will generate operators backwards starting at 5 and going up. Steps 1-3
 // are generated from the subdimensions and steps 4-5 are generated with the
 // dimensions.
-std::vector<operation> shape_transform_descriptor::generate(const std::vector<std::size_t>& input_dims) const
+std::vector<operation>
+shape_transform_descriptor::generate(const std::vector<std::size_t>& input_dims) const
 {
     operation_list result;
     std::cout << "input_dims: " << to_string_range(input_dims) << std::endl;
     std::cout << "generate: " << *this << std::endl;
-    std::vector<dimension> new_dims = input_dims.empty() ? dimensions : this->rebase(input_dims).dimensions;
+    std::vector<dimension> new_dims =
+        input_dims.empty() ? dimensions : this->rebase(input_dims).dimensions;
     // Need broadcast
     if(std::any_of(new_dims.begin(), new_dims.end(), &is_broadcast_dim))
     {
@@ -1113,17 +1116,20 @@ void shape_transform_descriptor::flatten_broadcast()
 
 static std::size_t common_size(const std::vector<dimension>& dims)
 {
-    return transform_accumulate(dims.begin(), dims.end(), std::size_t{0}, std::plus<>{}, [&](const dimension& d) {
-        return d.subdimensions.size();
-    });
+    return transform_accumulate(
+        dims.begin(), dims.end(), std::size_t{0}, std::plus<>{}, [&](const dimension& d) {
+            return d.subdimensions.size();
+        });
 }
-
 
 shape_transform_descriptor shape_transform_descriptor::to_common_from_src() const
 {
     shape_transform_descriptor result;
     auto subs = get_all_subdimensions(this->dimensions);
-    std::transform(subs.begin(), subs.end(), std::back_inserter(result.dimensions), [&](const auto& x) -> dimension { return {{x}}; });
+    std::transform(subs.begin(),
+                   subs.end(),
+                   std::back_inserter(result.dimensions),
+                   [&](const auto& x) -> dimension { return {{x}}; });
     result.rank = this->rank;
     result.simplify();
     return result;
@@ -1137,24 +1143,29 @@ shape_transform_descriptor shape_transform_descriptor::to_common_from_dst() cons
     for(std::size_t i : range(dimensions.size()))
     {
         const auto& d = dimensions[i];
-        const bool mixed_visibility = std::any_of(d.subdimensions.begin(),
-                                      d.subdimensions.end(),
-                                      [](const dimension::sub& s) { return s.has_hidden_axis(); }) and std::any_of(d.subdimensions.begin(),
-                                      d.subdimensions.end(),
-                                      [](const dimension::sub& s) { return not s.has_hidden_axis(); });
+        const bool mixed_visibility =
+            std::any_of(d.subdimensions.begin(),
+                        d.subdimensions.end(),
+                        [](const dimension::sub& s) { return s.has_hidden_axis(); }) and
+            std::any_of(d.subdimensions.begin(),
+                        d.subdimensions.end(),
+                        [](const dimension::sub& s) { return not s.has_hidden_axis(); });
         std::transform(d.subdimensions.begin(),
                        d.subdimensions.end(),
                        range(d.subdimensions.size()).begin(),
                        std::back_inserter(subs),
                        [&](dimension::sub s, auto j) {
-                        set_origin_axis(s, {i});
-                            s.add_split_axis(j);
+                           set_origin_axis(s, {i});
+                           s.add_split_axis(j);
                            if(not mixed_visibility)
-                            s.expose();
+                               s.expose();
                            return s;
                        });
     }
-    std::transform(subs.begin(), subs.end(), std::back_inserter(result.dimensions), [&](const auto& x) -> dimension { return {{x}}; });
+    std::transform(subs.begin(),
+                   subs.end(),
+                   std::back_inserter(result.dimensions),
+                   [&](const auto& x) -> dimension { return {{x}}; });
     renumber_axes(result.dimensions);
     // result.simplify();
     return result;
@@ -1162,7 +1173,7 @@ shape_transform_descriptor shape_transform_descriptor::to_common_from_dst() cons
 shape_transform_descriptor shape_transform_descriptor::to_dst_from_common() const
 {
     shape_transform_descriptor result = *this;
-    result.rank = common_size(result.dimensions);
+    result.rank                       = common_size(result.dimensions);
     for_each_subdimension(result.dimensions, range(result.rank), [&](auto& s, std::size_t i) {
         set_origin_axis(s, {i});
         s.expose();
@@ -1174,14 +1185,14 @@ shape_transform_descriptor shape_transform_descriptor::to_dst_from_common() cons
 shape_transform_descriptor shape_transform_descriptor::to_src_from_common() const
 {
     shape_transform_descriptor result;
-    auto subs = get_all_subdimensions(dimensions);
+    auto subs   = get_all_subdimensions(dimensions);
     result.rank = subs.size();
     transform(group_axes(subs), std::back_inserter(result.dimensions), [&](auto&& p) -> dimension {
-        const auto&[axis, gsubs] = p;
+        const auto& [axis, gsubs] = p;
         std::vector<dimension::sub> subdimensions;
         transform(gsubs, std::back_inserter(subdimensions), [&](const dimension::sub* s) {
             dimension::sub result = *s;
-            std::size_t i = s - subs.data();
+            std::size_t i         = s - subs.data();
             set_origin_axis(result, {i});
             result.expose();
             return result;

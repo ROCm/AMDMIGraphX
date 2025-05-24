@@ -776,7 +776,7 @@ TEST_CASE(common_dims_broadcast_reshape)
            ops{make_op("unsqueeze", {{"axes", {2, 4}}}),
                make_op("multibroadcast", {{"out_lens", {2, 1, 1, 64, 64}}})});
 
-    EXPECT(desc.generate_common_from_dst() ==
+    CHECK(desc.generate_common_from_dst() ==
            ops{make_op("reshape", {{"dims", {2, 2, 16, 64, 64}}})});
     EXPECT(desc.generate_common_from_dst({4, 16, 1, 1}) ==
            ops{make_op("reshape", {{"dims", {2, 2, 16, 1, 1}}})});

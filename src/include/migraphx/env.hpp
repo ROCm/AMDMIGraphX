@@ -27,6 +27,7 @@
 #include <utility>
 #include <vector>
 #include <string>
+#include <map>
 #include <migraphx/config.hpp>
 
 namespace migraphx {
@@ -42,10 +43,9 @@ inline namespace MIGRAPHX_INLINE_NS {
 MIGRAPHX_EXPORT bool enabled(const char* name);
 MIGRAPHX_EXPORT bool disabled(const char* name);
 MIGRAPHX_EXPORT std::vector<std::string> env(const char* name);
-
 MIGRAPHX_EXPORT std::size_t value_of(const char* name, std::size_t fallback = 0);
-
 MIGRAPHX_EXPORT std::string string_value_of(const char* name, std::string fallback = "");
+MIGRAPHX_EXPORT std::map<std::string, std::string> get_all_envs();
 
 template <class T>
 bool enabled(T)

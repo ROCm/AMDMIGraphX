@@ -42,6 +42,7 @@
 #include <migraphx/optimize_module.hpp>
 #include <migraphx/preallocate_param.hpp>
 #include <migraphx/promote_literals.hpp>
+#include <migraphx/propagate_precision.hpp>
 #include <migraphx/register_target.hpp>
 #include <migraphx/replace_allocate.hpp>
 #include <migraphx/rewrite_dot.hpp>
@@ -216,6 +217,8 @@ std::vector<pass> target::get_passes(migraphx::context& gctx, const compile_opti
         rewrite_topk{},
         rewrite_low_precision{},
         enable_pass(enabled(MIGRAPHX_ENABLE_REWRITE_DOT{}), rewrite_dot{}),
+        dead_code_elimination{},
+        propagate_precision{},
         dead_code_elimination{},
         optimize_module{},
         fuse_pointwise_reduce{},

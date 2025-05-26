@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2024 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2025 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -163,15 +163,15 @@ using mlir_tuning_space      = MIGRAPHX_MANAGE_MLIR_HANDLE(MlirRockTuningSpace,
 using mlir_tuning_param      = MIGRAPHX_MANAGE_MLIR_HANDLE(MlirRockTuningParam,
                                                       mlirRockTuningParamDestroy);
 
-std::string_view to_string_view(MlirStringRef s) { return {s.data, s.length}; }
+static std::string_view to_string_view(MlirStringRef s) { return {s.data, s.length}; }
 
-MlirStringRef make_mlir_string_ref(const std::string_view& s)
+static MlirStringRef make_mlir_string_ref(const std::string_view& s)
 {
     return mlirStringRefCreate(s.data(), s.size());
 }
 
 template <class F, class T, class Printer>
-void mlir_print(F f, T x, Printer printer)
+static void mlir_print(F f, T x, Printer printer)
 {
     f(
         x,
@@ -182,13 +182,13 @@ void mlir_print(F f, T x, Printer printer)
 }
 
 template <class F, class T>
-void mlir_print(F f, T x, std::ostream& os)
+[[maybe_unused]] static void mlir_print(F f, T x, std::ostream& os)
 {
     mlir_print(f, x, [&](auto s) { os << s; });
 }
 
 template <class F, class T>
-std::string mlir_print(F f, T x)
+static std::string mlir_print(F f, T x)
 {
     std::stringstream ss;
     mlir_print(f, x, [&](auto s) { ss << s; });
@@ -628,7 +628,7 @@ struct mlir_program
 
     static bool is_reshape(const std::string& name)
     {
-        return contains({"reshape", "lazy_reshape", "squeeze", "unsqueeze", "flatten"}, name);
+        return contains({"reshape", "reshape_lazy", "squeeze", "unsqueeze", "flatten"}, name);
     }
 
     static std::string get_name(instruction_ref ins)
@@ -923,9 +923,9 @@ struct mlir_program
                 {
                     std::vector<std::string> tokens = split_string(line, '\t');
                     std::string arch                = tokens[0];
-                    std::string num_cu              = tokens[1];
-                    std::string prob                = tokens[2];
-                    std::string perf                = tokens[3];
+                    const std::string& num_cu       = tokens[1];
+                    const std::string& prob         = tokens[2];
+                    const std::string& perf         = tokens[3];
                     std::string key = arch.append("\t").append(num_cu).append("\t").append(prob);
                     mlirRockTuningUpdateTable(tuning_table.get(),
                                               make_mlir_string_ref(key),
@@ -995,7 +995,7 @@ static void rewrite_reduce(module& m)
             auto reduce_axes = reduce_op["axes"].to_vector<size_t>();
             auto reduce_lens = i->get_shape().lens();
             auto in_shape    = i->inputs().front()->get_shape();
-            auto in_lens     = in_shape.lens();
+            const auto& in_lens = in_shape.lens();
             assert(in_shape.standard());
             assert(reduce_lens.size() == in_lens.size());
             assert(std::adjacent_find(
@@ -1041,7 +1041,7 @@ bool is_module_fusible(const module& m, const context& migraphx_ctx, const value
     return mlirIsModuleFusible(mp.mmodule.get(), make_mlir_string_ref(*solution.if_string()));
 }
 
-void adjust_param_shapes(module& m, const std::vector<shape>& inputs)
+static void adjust_param_shapes(module& m, const std::vector<shape>& inputs)
 {
     auto names = m.get_parameter_names();
     std::sort(names.begin(), names.end());
@@ -1059,7 +1059,7 @@ void adjust_param_shapes(module& m, const std::vector<shape>& inputs)
     }
 }
 
-void replace_params_with_literals(module& m, const std::vector<instruction_ref>& inputs)
+static void replace_params_with_literals(module& m, const std::vector<instruction_ref>& inputs)
 {
     auto names = m.get_parameter_names();
     std::sort(names.begin(), names.end());

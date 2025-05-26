@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2024 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2025 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -43,7 +43,7 @@ const std::string_view preamble = R"migraphx(
 )migraphx";
 
 template <class F>
-std::function<F> compile_function(std::string_view src, const std::string& symbol_name)
+static std::function<F> compile_function(std::string_view src, const std::string& symbol_name)
 {
     migraphx::src_compiler compiler;
     compiler.flags.emplace_back("-std=c++14");
@@ -61,7 +61,7 @@ std::function<F> compile_function(std::string_view src, const std::string& symbo
 }
 
 template <class F>
-std::function<F> compile_module(const migraphx::module& m)
+static std::function<F> compile_module(const migraphx::module& m)
 {
     migraphx::cpp_generator g;
     g.fmap([](auto&& name) { return "std::" + name; });

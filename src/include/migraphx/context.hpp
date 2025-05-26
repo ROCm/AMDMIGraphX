@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2024 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2025 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -97,7 +97,7 @@ struct MIGRAPHX_EXPORT context
 };
 
 #else
-
+// NOLINTBEGIN(performance-unnecessary-value-param)
 struct context
 {
     private:
@@ -452,6 +452,7 @@ inline const ValueType& any_cast(const context& x)
         throw std::bad_cast();
     return *y;
 }
+// NOLINTEND(performance-unnecessary-value-param)
 #endif
 
 inline void migraphx_to_value(value& v, const context& ctx) { v = ctx.to_value(); }

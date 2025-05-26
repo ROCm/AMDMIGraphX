@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2023 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2025 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -55,8 +55,8 @@ struct scatternd_op : op_name<Derived>
     {
         check_shapes{inputs, *this, true}.has(3);
         auto data_shape  = inputs.front();
-        auto index_shape = inputs.at(1);
-        auto upd_shape   = inputs.back();
+        const auto& index_shape = inputs.at(1);
+        const auto& upd_shape   = inputs.back();
 
         auto r = data_shape.ndim();
         auto q = index_shape.ndim();
@@ -76,7 +76,7 @@ struct scatternd_op : op_name<Derived>
 
         // Checks on the sizes of input tensors
         if(q + r != upd_shape.ndim() + k + 1)
-            MIGRAPHX_THROW("ScatterND:  ranks of inputs don't match. " + std::to_string(q) + " + " +
+            MIGRAPHX_THROW("ScatterND: ranks of inputs don't match. " + std::to_string(q) + " + " +
                            std::to_string(r) + " - " + std::to_string(k) +
                            " - 1 != " + std::to_string(upd_shape.ndim()));
         if(k > r)

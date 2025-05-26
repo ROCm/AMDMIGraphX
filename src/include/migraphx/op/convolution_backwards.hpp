@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2023 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2025 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -80,7 +80,7 @@ struct convolution_backwards
         }
 
         if(not x_shape.dynamic() and not w_shape.dynamic() and
-           x_shape.lens().at(1) != (w_shape.lens().at(0) * group))
+           x_shape.lens().at(1) != (w_shape.lens().at(0)))
         {
             MIGRAPHX_THROW("CONVOLUTION_BACKWARDS: mismatched channel numbers");
         }
@@ -116,7 +116,7 @@ struct convolution_backwards
     {
         std::vector<shape::dynamic_dimension> output_dyn_dims = {};
         output_dyn_dims.push_back(x_shape.to_dynamic().dyn_dims().at(0));
-        output_dyn_dims.push_back(w_shape.to_dynamic().dyn_dims().at(1));
+        output_dyn_dims.push_back(w_shape.to_dynamic().dyn_dims().at(1) * group);
         const std::size_t num_spatial_dims = x_shape.ndim() - 2;
         // Does not compute for optimals
         auto min_spatial_dims = calc_spatial_lens(x_shape.min_lens(), w_shape.min_lens());
@@ -131,7 +131,7 @@ struct convolution_backwards
 
     shape static_compute_shape(shape x_shape, shape w_shape) const
     {
-        std::vector<size_t> output_lens{x_shape.lens()[0], w_shape.lens()[1]};
+        std::vector<size_t> output_lens{x_shape.lens()[0], w_shape.lens()[1] * group};
         auto spatial_lens = calc_spatial_lens(x_shape.lens(), w_shape.lens());
         std::for_each(spatial_lens.begin(), spatial_lens.end(), [&output_lens](auto x) {
             output_lens.push_back(x);
@@ -171,6 +171,7 @@ struct convolution_backwards
                     auto wei_dims_start   = idx_win.begin() + num_spatial_dims + 1;
 
                     std::vector<std::ptrdiff_t> win_start;
+                    win_start.reserve(num_spatial_dims);
                     for(std::size_t n = 0; n < num_spatial_dims; ++n)
                     {
                         win_start.push_back(std::ptrdiff_t(*(input_dims_start + n) * stride[n]) -

@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2024 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2025 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -84,7 +84,7 @@ template <class T, MIGRAPHX_REQUIRES(is_reflectable<T>{})>
 value to_value_impl(rank<3>, const T& x)
 {
     value result = value::object{};
-    reflect_each(x, [&](auto&& y, std::string name) { result.emplace(name, to_value(y)); });
+    reflect_each(x, [&](auto&& y, const std::string& name) { result.emplace(name, to_value(y)); });
     return result;
 }
 

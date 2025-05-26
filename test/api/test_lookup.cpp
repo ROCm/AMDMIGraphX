@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2022 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2025 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -25,13 +25,14 @@
 #include "test.hpp"
 
 template <class T>
-std::false_type has_handle(migraphx::rank<0>, T)
+static std::false_type has_handle(migraphx::rank<0>, T)
 {
     return {};
 }
 
 template <class T>
-auto has_handle(migraphx::rank<1>, T*) -> decltype(migraphx::as_handle<T>{}, std::true_type{})
+static auto has_handle(migraphx::rank<1>, T*) -> decltype(migraphx::as_handle<T>{},
+                                                          std::true_type{})
 {
     return {};
 }

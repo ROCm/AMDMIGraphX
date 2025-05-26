@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2024 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2025 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -96,11 +96,11 @@ __device__ inline void builtin_assign(half& x, half y, op::sum)
     half* address = &x;
     if(is_aligned<float>(address))
     {
-        __builtin_amdgcn_global_atomic_fadd_v2f16(address, half2{half(y), half(0)});
+        __builtin_amdgcn_global_atomic_fadd_v2f16(address, half2{y, half(0)});
     }
     else
     {
-        __builtin_amdgcn_global_atomic_fadd_v2f16(address - 1, half2{half(0), half(y)});
+        __builtin_amdgcn_global_atomic_fadd_v2f16(address - 1, half2{half(0), y});
     }
 }
 

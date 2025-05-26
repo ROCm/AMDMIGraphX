@@ -1,7 +1,7 @@
-	gelu_add_bias_test:d
-
+	gelu_add_bias_test:s
+"
 x
-yz"BiasGelugelu_add_bias_testZ
+yz"BiasGelu:com.microsoftgelu_add_bias_testZ
 x
 
 

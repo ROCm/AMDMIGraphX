@@ -23,6 +23,7 @@
 #####################################################################################
 
 include(ExportHeader)
+include(Embed)
 
 include(ROCMInstallTargets)
 include(ROCMPackageConfigHelpers)
@@ -99,6 +100,7 @@ add_library(migraphx
     register_target.cpp
     replace_allocate.cpp
     rewrite_reduce.cpp
+    rewrite_dot.cpp
     simplify_qdq.cpp
     split_reduce.cpp
     sqlite.cpp
@@ -107,6 +109,7 @@ add_library(migraphx
     rewrite_pooling.cpp
     rewrite_quantization.cpp
     rewrite_rnn.cpp
+    rewrite_topk.cpp
     schedule.cpp
     serialize.cpp
     shape.cpp
@@ -186,7 +189,6 @@ register_migraphx_ops(
     gathernd
     get_tuple_elem
     greater
-    greater_or_equal
     group_query_attention
     gru
     identity

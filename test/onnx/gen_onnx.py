@@ -1425,6 +1425,42 @@ def conv_bad_bias_test():
 
 
 @onnx_test()
+def conv_bn_relu_maxpool_unordered_test():
+    x = helper.make_tensor_value_info('0', TensorProto.FLOAT, [1, 3, 32, 32])
+    y = helper.make_tensor_value_info('1', TensorProto.FLOAT, [1, 3, 5, 5])
+    z = helper.make_tensor_value_info('2', TensorProto.FLOAT, [1])
+    m = helper.make_tensor_value_info('3', TensorProto.FLOAT, [1])
+    n = helper.make_tensor_value_info('4', TensorProto.FLOAT, [1])
+    k = helper.make_tensor_value_info('5', TensorProto.FLOAT, [1])
+    l = helper.make_tensor_value_info('6', TensorProto.FLOAT, [1])
+    out = helper.make_tensor_value_info('10', TensorProto.FLOAT,
+                                        [1, 1, 14, 14])
+
+    node0 = onnx.helper.make_node('Conv',
+                                  inputs=['0', '1', '2'],
+                                  outputs=['7'],
+                                  dilations=[1, 1],
+                                  strides=[1, 1],
+                                  pads=[0, 0, 0, 0])
+
+    node1 = onnx.helper.make_node('BatchNormalization',
+                                  inputs=['7', '3', '4', '5', '6'],
+                                  outputs=['8'],
+                                  epsilon=9.99999974737875e-06,
+                                  momentum=0.899999976158142)
+
+    node2 = onnx.helper.make_node('Relu', inputs=['8'], outputs=['9'])
+    node3 = onnx.helper.make_node('MaxPool',
+                                  inputs=['9'],
+                                  outputs=['10'],
+                                  pads=[0, 0, 0, 0],
+                                  strides=[2, 2],
+                                  kernel_shape=[2, 2])
+
+    return ([node0, node3, node1, node2], [x, y, z, m, n, k, l], [out])
+
+
+@onnx_test()
 def conv_bn_relu_maxpool_test():
     x = helper.make_tensor_value_info('0', TensorProto.FLOAT, [1, 3, 32, 32])
     y = helper.make_tensor_value_info('1', TensorProto.FLOAT, [1, 3, 5, 5])
@@ -3919,7 +3955,7 @@ def gelu_tanh_double_test():
 @onnx_test()
 def gelu_invalid_input_type_test():
     x = helper.make_tensor_value_info('x', TensorProto.INT32, [3])
-    y = helper.make_tensor_value_info("y", TensorProto.INT32, [3])
+    y = helper.make_tensor_value_info('y', TensorProto.INT32, [3])
 
     node = onnx.helper.make_node("Gelu", inputs=["x"], outputs=["y"])
 
@@ -3930,9 +3966,12 @@ def gelu_invalid_input_type_test():
 def gelu_add_bias_test():
     x = helper.make_tensor_value_info('x', TensorProto.FLOAT, [3, 3])
     y = helper.make_tensor_value_info('y', TensorProto.FLOAT, [3])
-    z = helper.make_tensor_value_info("z", TensorProto.FLOAT, [3, 3])
+    z = helper.make_tensor_value_info('z', TensorProto.FLOAT, [3, 3])
 
-    node = onnx.helper.make_node("BiasGelu", inputs=["x", "y"], outputs=["z"])
+    node = onnx.helper.make_node("BiasGelu",
+                                 inputs=["x", "y"],
+                                 outputs=["z"],
+                                 domain="com.microsoft")
 
     return ([node], [x, y], [z])
 
@@ -3941,9 +3980,12 @@ def gelu_add_bias_test():
 def gelu_bias_invalid_type_test():
     x = helper.make_tensor_value_info('x', TensorProto.FLOAT, [3, 3])
     y = helper.make_tensor_value_info('y', TensorProto.INT32, [3])
-    z = helper.make_tensor_value_info("z", TensorProto.FLOAT, [3, 3])
+    z = helper.make_tensor_value_info('z', TensorProto.FLOAT, [3, 3])
 
-    node = onnx.helper.make_node("BiasGelu", inputs=["x", "y"], outputs=["z"])
+    node = onnx.helper.make_node("BiasGelu",
+                                 inputs=["x", "y"],
+                                 outputs=["z"],
+                                 domain="com.microsoft")
 
     return ([node], [x, y], [z])
 
@@ -3951,9 +3993,12 @@ def gelu_bias_invalid_type_test():
 @onnx_test()
 def gelu_fast_test():
     x = helper.make_tensor_value_info('x', TensorProto.FLOAT, [3, 3])
-    y = helper.make_tensor_value_info("z", TensorProto.FLOAT, [3, 3])
+    y = helper.make_tensor_value_info('y', TensorProto.FLOAT, [3, 3])
 
-    node = onnx.helper.make_node("FastGelu", inputs=["x"], outputs=["y"])
+    node = onnx.helper.make_node("FastGelu",
+                                 inputs=["x"],
+                                 outputs=["y"],
+                                 domain="com.microsoft")
 
     return ([node], [x], [y])
 
@@ -3961,10 +4006,13 @@ def gelu_fast_test():
 @onnx_test()
 def gelu_fast_bias_test():
     x = helper.make_tensor_value_info('x', TensorProto.FLOAT16, [3, 3])
-    y = helper.make_tensor_value_info("y", TensorProto.FLOAT16, [3, 3])
+    y = helper.make_tensor_value_info('y', TensorProto.FLOAT16, [3, 3])
     z = helper.make_tensor_value_info('z', TensorProto.FLOAT16, [3, 3])
 
-    node = onnx.helper.make_node("FastGelu", inputs=["x", "y"], outputs=["z"])
+    node = onnx.helper.make_node("FastGelu",
+                                 inputs=["x", "y"],
+                                 outputs=["z"],
+                                 domain="com.microsoft")
 
     return ([node], [x, y], [z])
 
@@ -3972,10 +4020,13 @@ def gelu_fast_bias_test():
 @onnx_test()
 def gelu_fast_invalid_x_test():
     x = helper.make_tensor_value_info('x', TensorProto.DOUBLE, [3, 3])
-    y = helper.make_tensor_value_info("y", TensorProto.FLOAT, [3, 3])
+    y = helper.make_tensor_value_info('y', TensorProto.FLOAT, [3, 3])
     z = helper.make_tensor_value_info('z', TensorProto.FLOAT, [3, 3])
 
-    node = onnx.helper.make_node("FastGelu", inputs=["x", "y"], outputs=["z"])
+    node = onnx.helper.make_node("FastGelu",
+                                 inputs=["x", "y"],
+                                 outputs=["z"],
+                                 domain="com.microsoft")
 
     return ([node], [x, y], [z])
 
@@ -3983,12 +4034,29 @@ def gelu_fast_invalid_x_test():
 @onnx_test()
 def gelu_fast_invalid_bias_test():
     x = helper.make_tensor_value_info('x', TensorProto.FLOAT, [3, 3])
-    y = helper.make_tensor_value_info("y", TensorProto.DOUBLE, [3, 3])
+    y = helper.make_tensor_value_info('y', TensorProto.DOUBLE, [3, 3])
     z = helper.make_tensor_value_info('z', TensorProto.FLOAT, [3, 3])
 
-    node = onnx.helper.make_node("FastGelu", inputs=["x", "y"], outputs=["z"])
+    node = onnx.helper.make_node("FastGelu",
+                                 inputs=["x", "y"],
+                                 outputs=["z"],
+                                 domain="com.microsoft")
 
     return ([node], [x, y], [z])
+
+
+@onnx_test()
+def gelu_quick_test():
+    x = helper.make_tensor_value_info('x', TensorProto.FLOAT, [3, 3])
+    y = helper.make_tensor_value_info('y', TensorProto.FLOAT, [3, 3])
+
+    node = onnx.helper.make_node("QuickGelu",
+                                 inputs=["x"],
+                                 outputs=["y"],
+                                 alpha=0.5,
+                                 domain="com.microsoft")
+
+    return ([node], [x], [y])
 
 
 @onnx_test()
@@ -4743,64 +4811,64 @@ def group_norm_test(x_dims,
 
 @onnx_test()
 def group_norm_3d_test():
-    return group_norm_test([1, 4, 2], [2], [2], [1, 4, 2], 2)
+    return group_norm_test([1, 4, 2], [4], [4], [1, 4, 2], 2)
 
 
 @onnx_test()
 def group_norm_3d_half_test():
-    return group_norm_test([1, 4, 2], [2], [2], [1, 4, 2],
+    return group_norm_test([1, 4, 2], [4], [4], [1, 4, 2],
                            2,
                            dtype=TensorProto.FLOAT16)
 
 
 @onnx_test()
 def group_norm_3d_bf16_test():
-    return group_norm_test([1, 4, 2], [2], [2], [1, 4, 2],
+    return group_norm_test([1, 4, 2], [4], [4], [1, 4, 2],
                            2,
                            dtype=TensorProto.BFLOAT16)
 
 
 @onnx_test()
 def group_norm_4d_test():
-    return group_norm_test([1, 4, 3, 3], [2], [2], [1, 4, 3, 3], 2)
+    return group_norm_test([1, 4, 3, 3], [4], [4], [1, 4, 3, 3], 2)
 
 
 @onnx_test()
 def group_norm_4d_half_test():
-    return group_norm_test([1, 4, 3, 3], [2], [2], [1, 4, 3, 3],
+    return group_norm_test([1, 4, 3, 3], [4], [4], [1, 4, 3, 3],
                            2,
                            dtype=TensorProto.FLOAT16)
 
 
 @onnx_test()
 def group_norm_4d_bf16_test():
-    return group_norm_test([1, 4, 3, 3], [2], [2], [1, 4, 3, 3],
+    return group_norm_test([1, 4, 3, 3], [4], [4], [1, 4, 3, 3],
                            2,
                            dtype=TensorProto.BFLOAT16)
 
 
 @onnx_test()
 def group_norm_5d_test():
-    return group_norm_test([3, 3, 3, 3, 3], [1], [1], [3, 3, 3, 3, 3], 1)
+    return group_norm_test([3, 3, 3, 3, 3], [3], [3], [3, 3, 3, 3, 3], 1)
 
 
 @onnx_test()
 def group_norm_5d_half_test():
-    return group_norm_test([3, 3, 3, 3, 3], [1], [1], [3, 3, 3, 3, 3],
+    return group_norm_test([3, 3, 3, 3, 3], [3], [3], [3, 3, 3, 3, 3],
                            1,
                            dtype=TensorProto.FLOAT16)
 
 
 @onnx_test()
 def group_norm_5d_bf16_test():
-    return group_norm_test([3, 3, 3, 3, 3], [1], [1], [3, 3, 3, 3, 3],
+    return group_norm_test([3, 3, 3, 3, 3], [3], [3], [3, 3, 3, 3, 3],
                            1,
                            dtype=TensorProto.BFLOAT16)
 
 
 @onnx_test()
 def group_norm_small_eps_half_test():
-    return group_norm_test([1, 4, 2], [2], [2], [1, 4, 2],
+    return group_norm_test([1, 4, 2], [4], [4], [1, 4, 2],
                            2,
                            eps_value=1e-12,
                            dtype=TensorProto.FLOAT16)
@@ -4808,7 +4876,7 @@ def group_norm_small_eps_half_test():
 
 @onnx_test()
 def group_norm_small_eps_bf16_test():
-    return group_norm_test([1, 4, 2], [2], [2], [1, 4, 2],
+    return group_norm_test([1, 4, 2], [4], [4], [1, 4, 2],
                            2,
                            eps_value=1e-7,
                            dtype=TensorProto.BFLOAT16)
@@ -4859,7 +4927,7 @@ def group_norm_invalid_scale_shape_test():
 
 @onnx_test()
 def group_norm_invalid_bias_shape_test():
-    return group_norm_test([1, 4, 3, 3], [2], [3], [1, 4, 3, 3], 2)
+    return group_norm_test([1, 4, 3, 3], [4], [3], [1, 4, 3, 3], 2)
 
 
 def group_norm_contrib_test(x_dims,
@@ -4889,7 +4957,7 @@ def group_norm_contrib_test(x_dims,
 
 @onnx_test()
 def group_norm_contrib_3d_test():
-    return group_norm_contrib_test([1, 4, 2], [2], [2], [1, 4, 2], 2, 0, 0)
+    return group_norm_contrib_test([1, 4, 2], [4], [4], [1, 4, 2], 2, 0, 0)
 
 
 @onnx_test()
@@ -4917,7 +4985,7 @@ def group_norm_contrib_3d_channel_last_bf16_test():
 
 @onnx_test()
 def group_norm_contrib_silu_3d_test():
-    return group_norm_contrib_test([1, 4, 2], [2], [2], [1, 4, 2], 2, 1, 0)
+    return group_norm_contrib_test([1, 4, 2], [4], [4], [1, 4, 2], 2, 1, 0)
 
 
 @onnx_test()
@@ -4927,7 +4995,7 @@ def group_norm_contrib_channels_last_3d_test():
 
 @onnx_test()
 def group_norm_contrib_channels_last_4d_test():
-    return group_norm_contrib_test([1, 3, 3, 4], [2], [2], [1, 3, 3, 4], 2, 0,
+    return group_norm_contrib_test([1, 3, 3, 4], [4], [4], [1, 3, 3, 4], 2, 0,
                                    1)
 
 
@@ -6861,11 +6929,19 @@ def layernorm_test():
              bias_add], [x, scale, bias], [y], [pow_tensor, epsilon_tensor])
 
 
-def make_layer_norm(shape, axis, dtype=TensorProto.FLOAT):
+def make_layer_norm(shape,
+                    axis=-1,
+                    dtype=TensorProto.FLOAT,
+                    scale_shape=None,
+                    bias_shape=None):
     norm_axis = axis + len(shape) if axis < 0 else axis
     x = helper.make_tensor_value_info('x', dtype, shape)
-    scale = helper.make_tensor_value_info('scale', dtype, shape[norm_axis:])
-    bias = helper.make_tensor_value_info('bias', dtype, shape[norm_axis:])
+    if scale_shape is None:
+        scale_shape = shape[norm_axis:]
+    if bias_shape is None:
+        bias_shape = shape[norm_axis:]
+    scale = helper.make_tensor_value_info('scale', dtype, scale_shape)
+    bias = helper.make_tensor_value_info('bias', dtype, bias_shape)
     y = helper.make_tensor_value_info('y', dtype, shape)
 
     node = onnx.helper.make_node('LayerNormalization',
@@ -6899,6 +6975,13 @@ def layer_norm_2d_axis_minus_one_test():
 @onnx_test()
 def layer_norm_3d_test():
     return make_layer_norm([1, 4, 2], -1)
+
+
+@onnx_test()
+def layer_norm_3d_scale_bias_test():
+    return make_layer_norm([2, 5, 7],
+                           scale_shape=[2, 1, 7],
+                           bias_shape=[2, 1, 7])
 
 
 @onnx_test()
@@ -11748,6 +11831,28 @@ def resize_upsample_pc_test():
 
 
 @onnx_test()
+def resize_aspect_ratio_err_test():
+    sizes = np.array([1, 1, 3, 5], dtype=np.int64)
+    size_tensor = helper.make_tensor(name='sizes',
+                                      data_type=TensorProto.INT64,
+                                      dims=sizes.shape,
+                                      vals=sizes.flatten().astype(np.int64))
+
+    X = helper.make_tensor_value_info('X', TensorProto.FLOAT, [1, 1, 2, 4])
+    Y = helper.make_tensor_value_info('Y', TensorProto.FLOAT, [1, 1, 3, 5])
+
+    node = onnx.helper.make_node('Resize',
+                                 inputs=['X', '', '', 'sizes'],
+                                 outputs=['Y'],
+                                 coordinate_transformation_mode='asymmetric',
+                                 mode='nearest',
+                                 keep_aspect_ratio_policy='stretch',
+                                 nearest_mode='ceil')
+
+    return ([node], [X], [Y], [size_tensor])
+
+
+@onnx_test()
 def reversesequence_4D_test():
     x = helper.make_tensor_value_info('x', TensorProto.FLOAT, [2, 2, 2, 2])
     y = helper.make_tensor_value_info('y', TensorProto.FLOAT, [2, 2, 2, 2])
@@ -12888,6 +12993,25 @@ def simplified_layer_normalization_test():
 
 
 @onnx_test()
+def simplified_layer_normalization_4d_test():
+    x = helper.make_tensor_value_info('x', TensorProto.FLOAT16, [2, 3, 5, 7])
+    scale = helper.make_tensor_value_info('scale', TensorProto.FLOAT16,
+                                          [2, 1, 5, 7])
+    y = helper.make_tensor_value_info('y', TensorProto.FLOAT16, [2, 3, 5, 7])
+
+    node = onnx.helper.make_node(
+        'SimplifiedLayerNormalization',
+        inputs=['x', 'scale'],
+        outputs=['y'],
+        axis=-1,
+        epsilon=1e-5,
+        stash_type=1,
+    )
+
+    return ([node], [x, scale], [y])
+
+
+@onnx_test()
 def simplified_layer_normalization_invalid_input_test():
     x = helper.make_tensor_value_info('x', TensorProto.FLOAT16, [1, 2, 2, 4])
     scale = helper.make_tensor_value_info('scale', TensorProto.FLOAT16, [4])
@@ -13122,6 +13246,212 @@ def skip_simplified_layer_normalization_invalid_input_test():
     y = helper.make_tensor_value_info('y', TensorProto.FLOAT16, [2, 2, 2, 4])
 
     node = onnx.helper.make_node('SkipSimplifiedLayerNormalization',
+                                 inputs=['x', 'skip', 'gamma'],
+                                 outputs=['y'],
+                                 epsilon=1e-5,
+                                 domain="com.microsoft")
+
+    return ([node], [x, skip, gamma], [y])
+
+
+@onnx_test()
+def skip_layer_normalization_test():
+    x = helper.make_tensor_value_info('x', TensorProto.FLOAT16, [2, 2, 4])
+    skip = helper.make_tensor_value_info('skip', TensorProto.FLOAT16,
+                                         [2, 2, 4])
+    gamma = helper.make_tensor_value_info('gamma', TensorProto.FLOAT16, [4])
+    y = helper.make_tensor_value_info('y', TensorProto.FLOAT16, [2, 2, 4])
+    mean = helper.make_tensor_value_info('mean', TensorProto.FLOAT, [2, 2, 1])
+    inv_std_var = helper.make_tensor_value_info('inv_std_var',
+                                                TensorProto.FLOAT, [2, 2, 1])
+    input_skip_bias_sum = helper.make_tensor_value_info(
+        'input_skip_bias_sum', TensorProto.FLOAT16, [2, 2, 4])
+
+    node = onnx.helper.make_node(
+        'SkipLayerNormalization',
+        inputs=['x', 'skip', 'gamma'],
+        outputs=['y', 'mean', 'inv_std_var', 'input_skip_bias_sum'],
+        epsilon=1e-5,
+        domain="com.microsoft")
+
+    return ([node], [x, skip,
+                     gamma], [y, mean, inv_std_var, input_skip_bias_sum])
+
+
+@onnx_test()
+def skip_layer_normalization_2d_skip_test():
+    x = helper.make_tensor_value_info('x', TensorProto.FLOAT16, [2, 2, 4])
+    skip = helper.make_tensor_value_info('skip', TensorProto.FLOAT16, [2, 4])
+    gamma = helper.make_tensor_value_info('gamma', TensorProto.FLOAT16, [4])
+    y = helper.make_tensor_value_info('y', TensorProto.FLOAT16, [2, 2, 4])
+    mean = helper.make_tensor_value_info('mean', TensorProto.FLOAT, [2, 2, 1])
+    inv_std_var = helper.make_tensor_value_info('inv_std_var',
+                                                TensorProto.FLOAT, [2, 2, 1])
+    input_skip_bias_sum = helper.make_tensor_value_info(
+        'input_skip_bias_sum', TensorProto.FLOAT16, [2, 2, 4])
+
+    node = onnx.helper.make_node(
+        'SkipLayerNormalization',
+        inputs=['x', 'skip', 'gamma'],
+        outputs=['y', 'mean', 'inv_std_var', 'input_skip_bias_sum'],
+        epsilon=1e-5,
+        domain="com.microsoft")
+
+    return ([node], [x, skip,
+                     gamma], [y, mean, inv_std_var, input_skip_bias_sum])
+
+
+@onnx_test()
+def skip_layer_normalization_skip_batch_size_1_test():
+    x = helper.make_tensor_value_info('x', TensorProto.FLOAT16, [2, 2, 4])
+    skip = helper.make_tensor_value_info('skip', TensorProto.FLOAT16,
+                                         [1, 2, 4])
+    gamma = helper.make_tensor_value_info('gamma', TensorProto.FLOAT16, [4])
+    y = helper.make_tensor_value_info('y', TensorProto.FLOAT16, [2, 2, 4])
+    mean = helper.make_tensor_value_info('mean', TensorProto.FLOAT, [2, 2, 1])
+    inv_std_var = helper.make_tensor_value_info('inv_std_var',
+                                                TensorProto.FLOAT, [2, 2, 1])
+    input_skip_bias_sum = helper.make_tensor_value_info(
+        'input_skip_bias_sum', TensorProto.FLOAT16, [2, 2, 4])
+
+    node = onnx.helper.make_node(
+        'SkipLayerNormalization',
+        inputs=['x', 'skip', 'gamma'],
+        outputs=['y', 'mean', 'inv_std_var', 'input_skip_bias_sum'],
+        epsilon=1e-5,
+        domain="com.microsoft")
+
+    return ([node], [x, skip,
+                     gamma], [y, mean, inv_std_var, input_skip_bias_sum])
+
+
+@onnx_test()
+def skip_layer_normalization_beta_test():
+    x = helper.make_tensor_value_info('x', TensorProto.FLOAT16, [2, 2, 4])
+    skip = helper.make_tensor_value_info('skip', TensorProto.FLOAT16,
+                                         [2, 2, 4])
+    gamma = helper.make_tensor_value_info('gamma', TensorProto.FLOAT16, [4])
+    beta = helper.make_tensor_value_info('beta', TensorProto.FLOAT16, [4])
+    y = helper.make_tensor_value_info('y', TensorProto.FLOAT16, [2, 2, 4])
+    mean = helper.make_tensor_value_info('mean', TensorProto.FLOAT, [2, 2, 1])
+    inv_std_var = helper.make_tensor_value_info('inv_std_var',
+                                                TensorProto.FLOAT, [2, 2, 1])
+    input_skip_bias_sum = helper.make_tensor_value_info(
+        'input_skip_bias_sum', TensorProto.FLOAT16, [2, 2, 4])
+
+    node = onnx.helper.make_node(
+        'SkipLayerNormalization',
+        inputs=['x', 'skip', 'gamma', 'beta'],
+        outputs=['y', 'mean', 'inv_std_var', 'input_skip_bias_sum'],
+        epsilon=1e-5,
+        domain="com.microsoft")
+
+    return ([node], [x, skip, gamma,
+                     beta], [y, mean, inv_std_var, input_skip_bias_sum])
+
+
+@onnx_test()
+def skip_layer_normalization_invalid_beta_test():
+    x = helper.make_tensor_value_info('x', TensorProto.FLOAT16, [2, 2, 4])
+    skip = helper.make_tensor_value_info('skip', TensorProto.FLOAT16,
+                                         [2, 2, 4])
+    gamma = helper.make_tensor_value_info('gamma', TensorProto.FLOAT16, [4])
+    beta = helper.make_tensor_value_info('beta', TensorProto.FLOAT16, [4, 4])
+    y = helper.make_tensor_value_info('y', TensorProto.FLOAT16, [2, 2, 4])
+    mean = helper.make_tensor_value_info('mean', TensorProto.FLOAT, [2, 2, 1])
+    inv_std_var = helper.make_tensor_value_info('inv_std_var',
+                                                TensorProto.FLOAT, [2, 2, 1])
+    input_skip_bias_sum = helper.make_tensor_value_info(
+        'input_skip_bias_sum', TensorProto.FLOAT16, [2, 2, 4])
+
+    node = onnx.helper.make_node(
+        'SkipLayerNormalization',
+        inputs=['x', 'skip', 'gamma', 'beta'],
+        outputs=['y', 'mean', 'inv_std_var', 'input_skip_bias_sum'],
+        epsilon=1e-5,
+        domain="com.microsoft")
+
+    return ([node], [x, skip, gamma,
+                     beta], [y, mean, inv_std_var, input_skip_bias_sum])
+
+
+@onnx_test()
+def skip_layer_normalization_beta_bias_test():
+    x = helper.make_tensor_value_info('x', TensorProto.FLOAT16, [2, 2, 4])
+    skip = helper.make_tensor_value_info('skip', TensorProto.FLOAT16,
+                                         [2, 2, 4])
+    gamma = helper.make_tensor_value_info('gamma', TensorProto.FLOAT16, [4])
+    beta = helper.make_tensor_value_info('beta', TensorProto.FLOAT16, [4])
+    bias = helper.make_tensor_value_info('bias', TensorProto.FLOAT16, [4])
+    y = helper.make_tensor_value_info('y', TensorProto.FLOAT16, [2, 2, 4])
+    mean = helper.make_tensor_value_info('mean', TensorProto.FLOAT, [2, 2, 1])
+    inv_std_var = helper.make_tensor_value_info('inv_std_var',
+                                                TensorProto.FLOAT, [2, 2, 1])
+    input_skip_bias_sum = helper.make_tensor_value_info(
+        'input_skip_bias_sum', TensorProto.FLOAT16, [2, 2, 4])
+
+    node = onnx.helper.make_node(
+        'SkipLayerNormalization',
+        inputs=['x', 'skip', 'gamma', 'beta', 'bias'],
+        outputs=['y', 'mean', 'inv_std_var', 'input_skip_bias_sum'],
+        epsilon=1e-5,
+        domain="com.microsoft")
+
+    return ([node], [x, skip, gamma, beta,
+                     bias], [y, mean, inv_std_var, input_skip_bias_sum])
+
+
+@onnx_test()
+def skip_layer_normalization_invalid_bias_test():
+    x = helper.make_tensor_value_info('x', TensorProto.FLOAT16, [2, 2, 4])
+    skip = helper.make_tensor_value_info('skip', TensorProto.FLOAT16,
+                                         [2, 2, 4])
+    gamma = helper.make_tensor_value_info('gamma', TensorProto.FLOAT16, [4])
+    beta = helper.make_tensor_value_info('beta', TensorProto.FLOAT16, [4])
+    bias = helper.make_tensor_value_info('bias', TensorProto.FLOAT, [4])
+    y = helper.make_tensor_value_info('y', TensorProto.FLOAT16, [2, 2, 4])
+    mean = helper.make_tensor_value_info('mean', TensorProto.FLOAT, [2, 2, 1])
+    inv_std_var = helper.make_tensor_value_info('inv_std_var',
+                                                TensorProto.FLOAT, [2, 2, 1])
+    input_skip_bias_sum = helper.make_tensor_value_info(
+        'input_skip_bias_sum', TensorProto.FLOAT16, [2, 2, 4])
+
+    node = onnx.helper.make_node(
+        'SkipLayerNormalization',
+        inputs=['x', 'skip', 'gamma', 'beta', 'bias'],
+        outputs=['y', 'mean', 'inv_std_var', 'input_skip_bias_sum'],
+        epsilon=1e-5,
+        domain="com.microsoft")
+
+    return ([node], [x, skip, gamma, beta,
+                     bias], [y, mean, inv_std_var, input_skip_bias_sum])
+
+
+@onnx_test()
+def skip_layer_normalization_invalid_n_args_test():
+    x = helper.make_tensor_value_info('x', TensorProto.FLOAT16, [2, 2, 4])
+    skip = helper.make_tensor_value_info('skip', TensorProto.FLOAT16,
+                                         [2, 2, 4])
+    y = helper.make_tensor_value_info('y', TensorProto.FLOAT16, [2, 2, 4])
+
+    node = onnx.helper.make_node('SkipLayerNormalization',
+                                 inputs=['x', 'skip'],
+                                 outputs=['y'],
+                                 epsilon=1e-5,
+                                 domain="com.microsoft")
+
+    return ([node], [x, skip], [y])
+
+
+@onnx_test()
+def skip_layer_normalization_invalid_input_test():
+    x = helper.make_tensor_value_info('x', TensorProto.FLOAT16, [2, 2, 2, 4])
+    skip = helper.make_tensor_value_info('skip', TensorProto.FLOAT16,
+                                         [2, 2, 4])
+    gamma = helper.make_tensor_value_info('gamma', TensorProto.FLOAT16, [2, 4])
+    y = helper.make_tensor_value_info('y', TensorProto.FLOAT16, [2, 2, 2, 4])
+
+    node = onnx.helper.make_node('SkipLayerNormalization',
                                  inputs=['x', 'skip', 'gamma'],
                                  outputs=['y'],
                                  epsilon=1e-5,

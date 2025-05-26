@@ -95,6 +95,29 @@ __device__ T readlane(T& x)
     return dpp_op(x, [](auto i) { return __shfl(i, SrcLane, Width); });
 }
 
+template <class T>
+__device__ T readlane(T& x, unsigned int src_lane)
+{
+    return dpp_op(x, [&](auto i) { return __shfl(i, src_lane, MIGRAPHX_WAVEFRONTSIZE); });
+}
+
+template <unsigned int XorMask, class T>
+__device__ T readlane_xor(T& x)
+{
+    if constexpr(XorMask == 1)
+        return dpp_swizzle<0x041F>(x);
+    else if constexpr(XorMask == 2)
+        return dpp_swizzle<0x081F>(x);
+    else if constexpr(XorMask == 4)
+        return dpp_swizzle<0x101F>(x);
+    else if constexpr(XorMask == 8)
+        return dpp_swizzle<0x201F>(x);
+    else if constexpr(XorMask == 16)
+        return dpp_swizzle<0x401F>(x);
+    else
+        return dpp_op(x, [&](auto i) { return __shfl_xor(i, XorMask, MIGRAPHX_WAVEFRONTSIZE); });
+}
+
 #endif // MIGRAPHX_HAS_DPP
 
 } // namespace migraphx

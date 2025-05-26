@@ -121,7 +121,7 @@ auto make_onnx_json_node(instruction_ref ins,
     node["opType"] = ins->name();
     value op_attribute_arr = value({});
     auto op_value = ins->get_operator().to_value();
-    std::for_each(op_value.begin(), op_value.end(), [&](auto v) {
+    std::for_each(op_value.begin(), op_value.end(), [&](const auto& v) {
         const std::string& attr_key = v.get_key();
         if(v.is_binary() or attr_key == "code_object")
         {

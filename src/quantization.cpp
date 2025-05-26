@@ -51,7 +51,7 @@ inline namespace MIGRAPHX_INLINE_NS {
 MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_8BITS_QUANTIZATION_PARAMS)
 MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_TRACE_QUANTIZATION)
 
-tracer quant_tracer()
+static tracer quant_tracer()
 {
     if(enabled(MIGRAPHX_TRACE_QUANTIZATION{}))
         return tracer{std::cout};
@@ -84,11 +84,11 @@ void quantize_bf16(program& prog, const std::vector<std::string>& ins_names)
                quant_tracer());
 }
 
-void quantize_8bits(program& prog,
-                    const target& t,
-                    shape::type_t precision,
-                    const std::vector<parameter_map>& calibration,
-                    const std::unordered_set<std::string>& ins_names)
+static void quantize_8bits(program& prog,
+                           const target& t,
+                           shape::type_t precision,
+                           const std::vector<parameter_map>& calibration,
+                           const std::unordered_set<std::string>& ins_names)
 {
     // Run optimize_module() before converting to int8/fp8 to const eval and fold in FP32 to
     // avoid loss of precision.

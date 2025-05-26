@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2024 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2025 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -39,7 +39,7 @@ using dimension  = shape_transform_descriptor::dimension;
 using sub        = dimension::sub;
 using axes_map   = std::vector<std::vector<std::size_t>>;
 
-all_lens get_all_lens(const shape_transform_descriptor& d)
+static all_lens get_all_lens(const shape_transform_descriptor& d)
 {
     all_lens result;
     std::transform(
@@ -54,7 +54,7 @@ all_lens get_all_lens(const shape_transform_descriptor& d)
     return result;
 }
 
-final_lens get_final_lens(const shape_transform_descriptor& d)
+static final_lens get_final_lens(const shape_transform_descriptor& d)
 {
     final_lens result;
     std::transform(d.dimensions.begin(),
@@ -64,7 +64,7 @@ final_lens get_final_lens(const shape_transform_descriptor& d)
     return result;
 }
 
-all_axes get_all_axes(const shape_transform_descriptor& d)
+static all_axes get_all_axes(const shape_transform_descriptor& d)
 {
     all_axes result;
     std::transform(
@@ -79,8 +79,8 @@ all_axes get_all_axes(const shape_transform_descriptor& d)
     return result;
 }
 
-std::vector<int64_t> run_shape_transforms(const std::vector<std::size_t>& dims,
-                                          const std::vector<migraphx::operation>& ops)
+static std::vector<int64_t> run_shape_transforms(const std::vector<std::size_t>& dims,
+                                                 const std::vector<migraphx::operation>& ops)
 {
     migraphx::shape s{migraphx::shape::int64_type, dims};
     std::vector<int64_t> data(s.elements());
@@ -97,7 +97,7 @@ std::vector<int64_t> run_shape_transforms(const std::vector<std::size_t>& dims,
     return result.to_vector<int64_t>();
 }
 
-std::vector<migraphx::operation>
+static std::vector<migraphx::operation>
 check_optimize_shape_transforms(const std::vector<std::size_t>& dims,
                                 const std::vector<migraphx::operation>& ops)
 {
@@ -108,7 +108,8 @@ check_optimize_shape_transforms(const std::vector<std::size_t>& dims,
 }
 
 template <class... Ts>
-shape_transform_descriptor make_descriptor(const std::vector<std::size_t>& dims, const Ts&... xs)
+static shape_transform_descriptor make_descriptor(const std::vector<std::size_t>& dims,
+                                                  const Ts&... xs)
 {
     auto desc = shape_transform_descriptor{dims};
     CHECK(desc.apply({xs...}));
@@ -116,8 +117,8 @@ shape_transform_descriptor make_descriptor(const std::vector<std::size_t>& dims,
 }
 
 template <class... Ts>
-shape_transform_descriptor make_simple_descriptor(const std::vector<std::size_t>& dims,
-                                                  const Ts&... xs)
+static shape_transform_descriptor make_simple_descriptor(const std::vector<std::size_t>& dims,
+                                                         const Ts&... xs)
 {
     auto desc = make_descriptor(dims, xs...);
     desc.simplify();

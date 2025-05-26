@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2024 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2025 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -178,7 +178,7 @@ struct reshape
         if(n_neg_dims > 1)
             MIGRAPHX_THROW("Reshape: Dimensions for reshape can only have one -1 dim");
 
-        auto s0 = inputs.front();
+        const auto& s0 = inputs.front();
         if(inputs.size() == 1)
         {
             if(s0.dynamic())

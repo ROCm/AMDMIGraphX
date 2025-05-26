@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2024 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2025 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -30,13 +30,25 @@
 
 namespace migraphx {
 
+// NOLINTNEXTLINE
+#define MIGRAPHX_DEFINE_OPERATOR(op, expr)                                                  \
+    template <class U>                                                                      \
+    friend constexpr auto operator op(const T& x, const U& y) MIGRAPHX_RETURNS(expr);       \
+    template <class U, class V, MIGRAPHX_REQUIRES(not is_same<T, U>{} and is_same<V, T>{})> \
+    friend constexpr auto operator op(const U& x, const V& y) MIGRAPHX_RETURNS(expr)
+
 template <class T>
 struct equality_comparable
 {
-    template <class U>
-    friend constexpr auto operator!=(const T& x, const U& y) MIGRAPHX_RETURNS(not(x == y));
-    template <class U, class V, MIGRAPHX_REQUIRES(not is_same<T, U>{} and is_same<V, T>{})>
-    friend constexpr auto operator!=(const U& x, const V& y) MIGRAPHX_RETURNS(not(x == y));
+    MIGRAPHX_DEFINE_OPERATOR(!=, not(x == y));
+};
+
+template <class T>
+struct less_than_comparable
+{
+    MIGRAPHX_DEFINE_OPERATOR(>, (y < x));
+    MIGRAPHX_DEFINE_OPERATOR(<=, not(y < x));
+    MIGRAPHX_DEFINE_OPERATOR(>=, not(x < y));
 };
 
 } // namespace migraphx

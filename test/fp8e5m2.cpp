@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2024 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2025 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -31,7 +31,7 @@
 #include <limits>
 #include <sstream>
 
-float fp8e5m2_to_fp32_value(uint8_t input)
+static float fp8e5m2_to_fp32_value(uint8_t input)
 {
     constexpr std::array<float, 256> e4m3fnuz_lut = {
         0.0,

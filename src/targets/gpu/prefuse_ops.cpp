@@ -256,25 +256,9 @@ struct base_group_query_attention
     }
 };
 
-struct gpu_compute_attention_probabilities : base_group_query_attention
+struct gpu_kv_cache_attention : base_group_query_attention
 {
-    std::string name() const { return "gpu::compute_attention_probabilities"; }
-
-    shape compute_shape(std::vector<shape> inputs) const
-    {
-        auto query_lens        = inputs.front().lens();
-        auto present_kv_seqlen = inputs.at(1).lens().at(2);
-        std::vector<std::size_t> output_lens{
-            query_lens.at(0), num_heads, query_lens.at(2), present_kv_seqlen};
-        shape output_shape{inputs.front().type(), output_lens};
-        return output_shape;
-    }
-};
-MIGRAPHX_REGISTER_OP(gpu_compute_attention_probabilities);
-
-struct gpu_compute_attention_scores : base_group_query_attention
-{
-    std::string name() const { return "gpu::compute_attention_scores"; }
+    std::string name() const { return "gpu::kv_cache_attention"; }
 
     shape compute_shape(std::vector<shape> inputs) const
     {
@@ -286,7 +270,7 @@ struct gpu_compute_attention_scores : base_group_query_attention
         return output_shape;
     }
 };
-MIGRAPHX_REGISTER_OP(gpu_compute_attention_scores);
+MIGRAPHX_REGISTER_OP(gpu_kv_cache_attention);
 
 struct gpu_gqa_rotary_embedding : base_group_query_attention
 {
@@ -296,21 +280,21 @@ struct gpu_gqa_rotary_embedding : base_group_query_attention
 };
 MIGRAPHX_REGISTER_OP(gpu_gqa_rotary_embedding);
 
-struct gpu_gqa_softmax : base_group_query_attention
+struct gpu_concat_past_present_k : base_group_query_attention
 {
-    std::string name() const { return "gpu::gqa_softmax"; }
+    std::string name() const { return "gpu::concat_past_present_k"; }
 
-    shape compute_shape(std::vector<shape> inputs) const { return inputs.at(2); }
+    shape compute_shape(std::vector<shape> inputs) const { return inputs.back(); }
 };
-MIGRAPHX_REGISTER_OP(gpu_gqa_softmax);
+MIGRAPHX_REGISTER_OP(gpu_concat_past_present_k);
 
-struct gpu_concat_past_present : base_group_query_attention
+struct gpu_concat_past_present_v : base_group_query_attention
 {
-    std::string name() const { return "gpu::concat_past_present"; }
+    std::string name() const { return "gpu::concat_past_present_v"; }
 
-    shape compute_shape(std::vector<shape> inputs) const { return inputs[0]; }
+    shape compute_shape(std::vector<shape> inputs) const { return inputs.back(); }
 };
-MIGRAPHX_REGISTER_OP(gpu_concat_past_present);
+MIGRAPHX_REGISTER_OP(gpu_concat_past_present_v);
 
 struct find_group_query_attention
 {
@@ -361,41 +345,57 @@ struct find_group_query_attention
                                                     rotary_inputs);
         }
 
-        auto pres_k = inputs.at(3);
-        auto pres_v = inputs.at(4);
-        std::vector<instruction_ref> concat_inputs{rotary_qkv, pres_k, pres_v, inputs.at(5)};
-
-        auto concat = mpm.get_module().insert_instruction(
+        auto pres_k   = inputs.at(3);
+        auto pres_v   = inputs.at(4);
+        auto slk      = inputs.at(5);
+        auto rotary_k = mpm.get_module().insert_instruction(
             ins,
-            gpu_concat_past_present{
-                do_rotary, kv_num_heads, local_window_size, num_heads, rotary_interleaved, scale},
-            concat_inputs);
-        auto id =
-            mpm.get_module().insert_instruction(ins, make_op("identity"), concat, pres_k, pres_v);
-
-        std::vector<instruction_ref> attn_probs_inputs{id, pres_k, pres_v, inputs.at(5)};
-        auto attn_probs = mpm.get_module().insert_instruction(
+            make_op("slice",
+                    {{"axes", {1}}, {"starts", {num_heads}}, {"ends", {num_heads + kv_num_heads}}}),
+            rotary_qkv);
+        auto rotary_v = mpm.get_module().insert_instruction(
             ins,
-            gpu_compute_attention_probabilities{
-                do_rotary, kv_num_heads, local_window_size, num_heads, rotary_interleaved, scale},
-            attn_probs_inputs);
+            make_op("slice",
+                    {{"axes", {1}},
+                     {"starts", {num_heads + kv_num_heads}},
+                     {"ends", {num_heads + (2 * kv_num_heads)}}}),
+            rotary_qkv);
+        std::vector<instruction_ref> concat_k_inputs{rotary_k, slk, pres_k};
+        std::vector<instruction_ref> concat_v_inputs{rotary_v, slk, pres_v};
 
-        std::vector<instruction_ref> softmax_inputs{rotary_qkv, pres_k, attn_probs, inputs.at(5)};
-        auto softmax = mpm.get_module().insert_instruction(
+        pres_k = mpm.get_module().insert_instruction(
             ins,
-            gpu_gqa_softmax{
+            gpu_concat_past_present_k{
                 do_rotary, kv_num_heads, local_window_size, num_heads, rotary_interleaved, scale},
-            softmax_inputs);
-        std::vector<instruction_ref> new_inputs{rotary_qkv, pres_k, pres_v, inputs.at(5), softmax};
+            concat_k_inputs);
+        pres_v = mpm.get_module().insert_instruction(
+            ins,
+            gpu_concat_past_present_v{
+                do_rotary, kv_num_heads, local_window_size, num_heads, rotary_interleaved, scale},
+            concat_v_inputs);
+
+        // Adding 1 to seq_lens_k, aka past_seq_lens, to allow range literals to start at 0.
+        // Putting the add inside the mlir module currently causes an error on their side,
+        // so we're leaving it here until that can be solved.
+        auto one_lit = mpm.get_module().insert_literal(
+            ins, literal{shape{inputs.at(5)->get_shape().type(), {1}}, {1}});
+        one_lit = mpm.get_module().insert_instruction(
+            ins,
+            make_op("multibroadcast", {{"out_lens", inputs.at(5)->get_shape().lens()}}),
+            one_lit);
+        auto total_sl =
+            mpm.get_module().insert_instruction(ins, make_op("add"), inputs.at(5), one_lit);
+        std::vector<instruction_ref> new_inputs{rotary_qkv, pres_k, pres_v, total_sl};
 
         auto get_tuple_elm_0 = std::next(ins);
         auto get_tuple_elm_1 = std::next(get_tuple_elm_0);
         auto get_tuple_elm_2 = std::next(get_tuple_elm_1);
+
         mpm.get_module().replace_instruction(get_tuple_elm_2, pres_v);
         mpm.get_module().replace_instruction(get_tuple_elm_1, pres_k);
         mpm.get_module().replace_instruction(
             get_tuple_elm_0,
-            gpu_compute_attention_scores{
+            gpu_kv_cache_attention{
                 do_rotary, kv_num_heads, local_window_size, num_heads, rotary_interleaved, scale},
             new_inputs);
     }

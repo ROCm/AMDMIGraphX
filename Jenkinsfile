@@ -230,7 +230,7 @@ def onnxnode(name, body) {
     }
 }
 
-rocmtest onnx: onnxnode('mi100+') { cmake_build ->
+rocmtest onnx: onnxnode('onnxrt') { cmake_build ->
     stage("Onnx runtime") {
         sh '''
             apt install half

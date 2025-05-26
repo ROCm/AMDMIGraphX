@@ -53,6 +53,6 @@ TEST_CASE(batch_norm_3d_test)
     add_common_op(*mm, migraphx::make_op("add"), {r0, usq_bias});
 
     auto prog = optimize_onnx("batch_norm_3d_test.onnx");
-    
+
     EXPECT(p == prog);
 }

@@ -38,13 +38,14 @@ struct parse_celu : op_parser<parse_celu>
                           const onnx_parser::node_info& info,
                           const std::vector<instruction_ref>& args) const
     {
-        float alpha = 1.0;
+        value options = {};
         if(contains(info.attributes, "alpha"))
         {
-            alpha = info.attributes.at("alpha").f();
+            const float alpha = info.attributes.at("alpha").f();
+            options.insert({"alpha", alpha});
         }
 
-        return op::builder::add("celu", *info.mod, args, {{"alpha", alpha}}).at(0);
+        return op::builder::add("celu", *info.mod, args, options).at(0);
     }
 };
 

@@ -38,11 +38,11 @@ struct parse_batchnorm : op_parser<parse_batchnorm>
                           const onnx_parser::node_info& info,
                           const std::vector<instruction_ref>& args) const
     {
-        value options = {{}};
+        value options = {};
         if(contains(info.attributes, "epsilon"))
         {
             const float epsilon = parser.parse_value(info.attributes.at("epsilon")).at<float>();
-            options = {{"epsilon", epsilon}};
+            options.insert({"epsilon", epsilon});
         }
 
         return op::builder::add("batchnorm", *info.mod, args, options).at(0);

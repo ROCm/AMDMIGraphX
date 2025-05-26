@@ -39,32 +39,34 @@ struct parse_gemm : op_parser<parse_gemm>
                           onnx_parser::node_info info,
                           const std::vector<instruction_ref>& args) const
     {
-        float alpha  = 1.0f;
-        float beta   = 1.0f;
-        bool trans_a = false;
-        bool trans_b = false;
+        value options = {};
+
         if(contains(info.attributes, "alpha"))
         {
-            alpha = parser.parse_value(info.attributes.at("alpha")).at<float>();
+            const float alpha = parser.parse_value(info.attributes.at("alpha")).at<float>();
+            options.insert({"alpha", alpha});
         }
         if(contains(info.attributes, "beta"))
         {
-            beta = parser.parse_value(info.attributes.at("beta")).at<float>();
+            const float beta = parser.parse_value(info.attributes.at("beta")).at<float>();
+            options.insert({"beta", beta});
         }
         if(contains(info.attributes, "transA"))
         {
-            trans_a = parser.parse_value(info.attributes.at("transA")).at<bool>();
+            const bool trans_a = parser.parse_value(info.attributes.at("transA")).at<bool>();
+            options.insert({"transA", trans_a});
         }
         if(contains(info.attributes, "transB"))
         {
-            trans_b = parser.parse_value(info.attributes.at("transB")).at<bool>();
+            const bool trans_b = parser.parse_value(info.attributes.at("transB")).at<bool>();
+            options.insert({"transB", trans_b});
         }
 
         return op::builder::add(
                    "gemm",
                    *info.mod,
                    args,
-                   {{"alpha", alpha}, {"beta", beta}, {"transA", trans_a}, {"transB", trans_b}})
+                   options)
             .at(0);
     }
 };

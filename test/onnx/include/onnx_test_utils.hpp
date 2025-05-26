@@ -331,8 +331,6 @@ mvn_n_rank_test(std::vector<int64_t> axes, std::vector<size_t> input_shape, migr
     auto divisor  = add_common_op(*mm, make_op("add"), {std, epsilon});
     add_common_op(*mm, make_op("div"), {dividend, divisor});
 
-    p.get_main_module()->sort();
-    prog.get_main_module()->sort();
     EXPECT(p == prog);
 }
 

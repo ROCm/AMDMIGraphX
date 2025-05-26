@@ -66,7 +66,7 @@ struct batchnorm : op_builder<batchnorm>
         auto x_rank = x_lens.size();
         if(x_rank == 1 or x_rank == 2)
         {
-            auto eps = m.insert_literal(ins, migraphx::literal{migraphx::shape{x_type}, {epsilon}});
+            auto eps = m.add_literal(migraphx::literal{migraphx::shape{x_type}, {epsilon}});
             auto x_sub_mean = insert_common_op(m, ins, "sub", args[0], args[3]);
             auto var_eps    = insert_common_op(m, ins, "add", args[4], eps);
             auto rsqrt      = m.insert_instruction(ins, make_op("rsqrt"), var_eps);
@@ -79,7 +79,7 @@ struct batchnorm : op_builder<batchnorm>
             // unsqueeze tensors of shape (C) to broadcast correctly
             std::vector<int64_t> unsqueeze_axes(x_lens.size() - 2);
             std::iota(unsqueeze_axes.begin(), unsqueeze_axes.end(), 1);
-            auto eps = m.insert_literal(ins, migraphx::literal{migraphx::shape{x_type}, {epsilon}});
+            auto eps = m.add_literal(migraphx::literal{migraphx::shape{x_type}, {epsilon}});
             auto scale_unsqueeze = m.insert_instruction(
                 ins, migraphx::make_op("unsqueeze", {{"axes", unsqueeze_axes}}), args[1]);
             auto bias_unsqueeze = m.insert_instruction(

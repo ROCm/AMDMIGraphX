@@ -67,9 +67,7 @@ struct mean_variance_normalization : op_builder<mean_variance_normalization>
         auto std      = insert_common_op(m, ins, "sqrt", mean_sub);
 
         auto dividend = insert_common_op(m, ins, "sub", x, x_mean);
-        auto epsilon  = m.insert_literal(
-            ins,
-            {x->get_shape().type(), {x->get_shape().type() == shape::half_type ? 1e-7 : 1e-9}});
+        auto epsilon = m.add_literal({x->get_shape().type(), {x->get_shape().type() == shape::half_type ? 1e-7 : 1e-9}});
         auto divisor = insert_common_op(m, ins, "add", std, epsilon);
 
         return {insert_common_op(m, ins, "div", dividend, divisor)};

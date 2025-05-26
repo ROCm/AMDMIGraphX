@@ -65,14 +65,14 @@ struct celu : op_builder<celu>
             MIGRAPHX_THROW("CELU: input tensor not float type");
         }
 
-        auto zero_lit = m.add_literal({input_type, {0.}});
-        zero_lit      = m.add_instruction(migraphx::make_op("multibroadcast", {{"out_lens", input_lens}}), zero_lit);
+        auto zero_lit    = m.add_literal({input_type, {0.}});
+        zero_lit         = m.add_instruction(migraphx::make_op("multibroadcast", {{"out_lens", input_lens}}), zero_lit);
 
-        auto one_lit   = m.add_literal({input_type, {1.}});
-        one_lit      = m.add_instruction(migraphx::make_op("multibroadcast", {{"out_lens", input_lens}}), one_lit);
+        auto one_lit     = m.add_literal({input_type, {1.}});
+        one_lit          = m.add_instruction(migraphx::make_op("multibroadcast", {{"out_lens", input_lens}}), one_lit);
 
-        auto alpha_lit = m.add_literal({input_type, {alpha}});
-        alpha_lit      = m.add_instruction(migraphx::make_op("multibroadcast", {{"out_lens", input_lens}}), alpha_lit);
+        auto alpha_lit   = m.add_literal({input_type, {alpha}});
+        alpha_lit        = m.add_instruction(migraphx::make_op("multibroadcast", {{"out_lens", input_lens}}), alpha_lit);
 
         auto linear_part = insert_common_op(m, ins, "max", zero_lit, args[0]);
         auto divi        = insert_common_op(m, ins, "div", args[0], alpha_lit);

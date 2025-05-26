@@ -82,9 +82,9 @@ struct gelu_erf : op_builder<gelu_erf>
     {
         auto x        = args[0];
         auto x_type   = x->get_shape().type();
-        auto half     = m.insert_literal(ins, {x_type, {0.5f}});
-        auto one      = m.insert_literal(ins, {x_type, {1.0f}});
-        auto sqrt2    = m.insert_literal(ins, {x_type, {static_cast<float>(M_SQRT2)}});
+        auto half     = m.add_literal({x_type, {0.5f}});
+        auto one      = m.add_literal({x_type, {1.0f}});
+        auto sqrt2    = m.add_literal({x_type, {static_cast<float>(M_SQRT2)}});
         auto mul_half = insert_common_op(m, ins, "mul", x, half);
         auto div      = insert_common_op(m, ins, "div", x, sqrt2);
         auto erf      = m.insert_instruction(ins, migraphx::make_op("erf"), div);
@@ -117,12 +117,12 @@ struct gelu_tanh : op_builder<gelu_tanh>
         auto x_type = x->get_shape().type();
 
         auto fit_const_val  = fast ? 0.035677 : 0.044715;
-        auto fit_const      = m.insert_literal(ins, {x_type, {fit_const_val}});
+        auto fit_const      = m.add_literal({x_type, {fit_const_val}});
         auto sqrt_2_rpi_val = fast ? 0.797885 : sqrt(M_2_PI);
-        auto sqrt_2_rpi     = m.insert_literal(ins, {x_type, {sqrt_2_rpi_val}});
-        auto one            = m.insert_literal(ins, {x_type, {1.0f}});
-        auto half           = m.insert_literal(ins, {x_type, {0.5f}});
-        auto three          = m.insert_literal(ins, {x_type, {3.0f}});
+        auto sqrt_2_rpi     = m.add_literal({x_type, {sqrt_2_rpi_val}});
+        auto one            = m.add_literal({x_type, {1.0f}});
+        auto half           = m.add_literal({x_type, {0.5f}});
+        auto three          = m.add_literal({x_type, {3.0f}});
 
         // [0.044715|0.035677] * x^3
         auto pow0 = insert_common_op(m, ins, "pow", x, three);

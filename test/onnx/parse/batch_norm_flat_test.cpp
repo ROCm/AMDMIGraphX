@@ -45,7 +45,5 @@ TEST_CASE(batch_norm_flat_test)
     add_common_op(*mm, migraphx::make_op("add"), {r0, bias});
 
     auto prog = optimize_onnx("batch_norm_flat_test.onnx");
-    mm->sort();
-    prog.get_main_module()->sort();
     EXPECT(p == prog);
 }

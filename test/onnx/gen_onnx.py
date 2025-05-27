@@ -381,7 +381,8 @@ def attention_test(
     node = onnx.helper.make_node(
         'Attention',
         inputs=input_name_list,
-        outputs=output_name_list)
+        outputs=output_name_list,
+        domain="com.microsoft")
     
     # Append attributes based on input to this function. Parser should assume defaults
     # This is the only attribute that's required others are not

@@ -1,9 +1,9 @@
-	!attention_double_head_batch1_test:À
-6
+	!attention_double_head_batch1_test:Ï
+E
 input
 weights
 biasy"	Attention*
-	num_heads !attention_double_head_batch1_testZ
+	num_heads :com.microsoft!attention_double_head_batch1_testZ
 input
 
 

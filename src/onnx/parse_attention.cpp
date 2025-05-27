@@ -235,7 +235,7 @@ struct parse_attention : op_parser<parse_attention>
         infered_out.input_hidden_size = input_shape.lens().at(2);
         // Determine the query_size used to generate attention heads that operate on each Q, K, V 
         // matrix.
-        infered_out.query_size = infered_out.sequence_length / parsed_in.num_heads;
+        infered_out.query_size = infered_out.input_hidden_size / parsed_in.num_heads;
         infered_out.total_sequence_length = infered_out.sequence_length;
 
         output_arg_vec.push_back(input_tensor);

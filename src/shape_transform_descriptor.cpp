@@ -1035,11 +1035,8 @@ std::vector<operation>
 shape_transform_descriptor::generate(const std::vector<std::size_t>& input_dims) const
 {
     operation_list result;
-    std::cout << "input_dims: " << to_string_range(input_dims) << std::endl;
-    std::cout << "generate: " << *this << std::endl;
     std::vector<dimension> new_dims =
         input_dims.empty() ? dimensions : this->rebase(input_dims).dimensions;
-    debug_print(new_dims);
     // Need broadcast
     if(std::any_of(new_dims.begin(), new_dims.end(), &is_broadcast_dim))
     {
@@ -1204,174 +1201,25 @@ shape_transform_descriptor shape_transform_descriptor::to_src_from_common() cons
     return result;
 }
 
-#define USE_GENERATE 1
-
 std::vector<operation> shape_transform_descriptor::generate_common_from_src(
     const std::vector<std::size_t>& input_dims) const
 {
-#if USE_GENERATE
     return this->to_common_from_src().generate(input_dims);
-#else
-    operation_list result;
-    auto subs = get_all_subdimensions(dimensions);
-    if(not input_dims.empty())
-    {
-        // Expose the axis that do match the input dims
-        for(auto& [axis, gsubs] : group_axes(subs))
-        {
-            auto dim = len(gsubs);
-            if(dim == input_dims.at(axis))
-            {
-                for(auto& s : gsubs)
-                    s->expose();
-            }
-        }
-    }
-    generate_from_subdimensions(result, subs, input_dims);
-    return std::move(result).to_vector();
-#endif
 }
 std::vector<operation> shape_transform_descriptor::generate_common_from_dst(
     const std::vector<std::size_t>& input_dims) const
 {
-#if USE_GENERATE
     return this->to_common_from_dst().generate(input_dims);
-#else
-    // Need reshape
-    if(std::all_of(dimensions.begin(), dimensions.end(), [](const dimension& d) {
-           return d.subdimensions.size() == 1;
-       }))
-        return {};
-    std::vector<dimension::sub> subs;
-    // Update axes to point to the destination
-    for(std::size_t i : range(dimensions.size()))
-    {
-        const auto& d = dimensions[i];
-        // Bool if the dimensions match the input_dims. If they dont match
-        // then we want to keep the hidden axis, so there len can be replaced
-        // in make_reshape_unsqueeze.
-        bool is_equal = true;
-        if(i < input_dims.size())
-            is_equal = (input_dims[i] == d.len());
-        const std::size_t nhidden =
-            is_equal ? 0
-                     : std::count_if(d.subdimensions.begin(),
-                                     d.subdimensions.end(),
-                                     [](const dimension::sub& s) { return s.has_hidden_axis(); });
-        const bool split_dimension = (d.subdimensions.size() - nhidden) > 1;
-        std::transform(d.subdimensions.begin(),
-                       d.subdimensions.end(),
-                       range(d.subdimensions.size()).begin(),
-                       std::back_inserter(subs),
-                       [&](dimension::sub s, auto j) {
-                           if(is_equal)
-                               s.expose();
-                           if(s.has_hidden_axis())
-                           {
-                               s.hidden_axis = {i};
-                               s.add_split_axis(j);
-                           }
-                           else
-                           {
-                               s.axis = {i};
-                               if(split_dimension)
-                                   s.add_split_axis(j);
-                           }
-                           return s;
-                       });
-    }
-    return {make_reshape_unsqueeze(subs, input_dims)};
-#endif
 }
 std::vector<operation> shape_transform_descriptor::generate_dst_from_common(
     const std::vector<std::size_t>& input_dims) const
 {
-#if USE_GENERATE
     return this->to_dst_from_common().generate(input_dims);
-#else
-    std::vector<operation> result;
-    std::vector<dimension> new_dims = dimensions;
-    if(input_dims.empty())
-    {
-        for_each_subdimension(new_dims, [&](auto& s) { s.expose(); });
-    }
-    else
-    {
-        for_each_subdimension(new_dims, input_dims, [&](auto& s, auto dim) {
-            if(s.len == dim)
-                s.expose();
-            else
-                s.len = dim;
-        });
-    }
-
-    // Need squeeze reshape
-    if(std::any_of(new_dims.begin(), new_dims.end(), [](const dimension& d) {
-           if(d.subdimensions.size() != 1)
-               return true;
-           return is_broadcast_dim(d);
-       }))
-    {
-        result.push_back(make_reshape_squeeze(new_dims));
-    }
-    return result;
-#endif
 }
 std::vector<operation> shape_transform_descriptor::generate_src_from_common(
     const std::vector<std::size_t>& input_dims) const
 {
-#if USE_GENERATE
     return this->to_src_from_common().generate(input_dims);
-#else
-    std::vector<operation> result;
-
-    auto subs = get_all_subdimensions(dimensions);
-    // Remove broadcasted dimensions
-    expose(subs);
-    for(auto i : range(subs.size()))
-    {
-        auto& s = subs[i];
-        if(i < input_dims.size())
-            s.len = input_dims[i];
-        else if(s.axis.empty())
-            s.len = 1;
-    }
-
-    assert(std::all_of(subs.begin(), subs.end(), [&](const dimension::sub& s) {
-        return not s.axis.empty() or s.len == 1;
-    }));
-
-    auto tsubs       = attach_empty_axis(subs);
-    auto permutation = find_permutation(tsubs);
-    // Need transpose
-    if(not std::is_sorted(permutation.begin(), permutation.end()))
-    {
-        result.push_back(make_op("transpose", {{"permutation", permutation}}));
-        tsubs = reorder_dims(tsubs, permutation);
-    }
-
-    std::vector<dimension> new_dims;
-    group_by(
-        tsubs.begin(),
-        tsubs.end(),
-        [&](auto start, auto last) { new_dims.push_back({{start, last}}); },
-        [&](const auto& x, const auto& y) {
-            if(x.axis.empty() or y.axis.empty())
-                return x.axis.empty() == y.axis.empty();
-            return x.axis.front() == y.axis.front();
-        });
-
-    // Need squeeze reshape
-    if(std::any_of(new_dims.begin(), new_dims.end(), [](const dimension& d) {
-           if(d.subdimensions.size() != 1)
-               return true;
-           return is_broadcast_dim(d);
-       }))
-    {
-        result.push_back(make_reshape_squeeze(new_dims));
-    }
-    return result;
-#endif
 }
 
 std::vector<std::vector<std::size_t>> shape_transform_descriptor::common_axes_map_from_src() const

@@ -2338,13 +2338,6 @@ TEST_CASE(reduce_squeeze_pointwise2)
     EXPECT(m1.sort() == m2.sort());
 }
 
-// ops: squeeze[axes={2, 3}]
-// @35 = reduce_mean[axes={2, 3, 4}](@31) -> float_type, {2, 32, 1, 1, 1}, {32, 1, 1, 1, 1}
-// @36 = squeeze[axes={2, 3}](@35) -> float_type, {2, 32, 1}, {32, 1, 1}
-// @39 = add(@36,@38) -> float_type, {2, 32, 1}, {32, 1, 1}
-
-// desc: {[2:0], [32:1], [10:$2, 64:$3, 64:$4]}
-
 TEST_CASE(reduce_squeeze_pointwise3)
 {
     auto s1 = migraphx::shape{migraphx::shape::float_type, {2, 32, 10, 64, 64}};

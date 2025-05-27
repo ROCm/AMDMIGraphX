@@ -878,9 +878,8 @@ static operation make_reshape_unsqueeze(const std::vector<dimension::sub>& subs)
                 if(n < 2)
                     return;
                 // Number of elements that are 1
-                auto n1 = std::count_if(start, last, [&](const dimension::sub& s) {
-                    return s.len == 1;
-                });
+                auto n1 =
+                    std::count_if(start, last, [&](const dimension::sub& s) { return s.len == 1; });
                 if(n == n1 and not start->axis.empty())
                     all_1s.insert(start->axis.front());
                 use_reshape |= std::max<int64_t>(0, n - n1 - 1) > 0;

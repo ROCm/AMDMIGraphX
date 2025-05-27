@@ -1201,27 +1201,6 @@ shape_transform_descriptor shape_transform_descriptor::to_src_from_common() cons
     return result;
 }
 
-std::vector<operation> shape_transform_descriptor::generate_common_from_src(
-    const std::vector<std::size_t>& input_dims) const
-{
-    return this->to_common_from_src().generate(input_dims);
-}
-std::vector<operation> shape_transform_descriptor::generate_common_from_dst(
-    const std::vector<std::size_t>& input_dims) const
-{
-    return this->to_common_from_dst().generate(input_dims);
-}
-std::vector<operation> shape_transform_descriptor::generate_dst_from_common(
-    const std::vector<std::size_t>& input_dims) const
-{
-    return this->to_dst_from_common().generate(input_dims);
-}
-std::vector<operation> shape_transform_descriptor::generate_src_from_common(
-    const std::vector<std::size_t>& input_dims) const
-{
-    return this->to_src_from_common().generate(input_dims);
-}
-
 std::vector<std::vector<std::size_t>> shape_transform_descriptor::common_axes_map_from_src() const
 {
     std::vector<std::vector<std::size_t>> result;

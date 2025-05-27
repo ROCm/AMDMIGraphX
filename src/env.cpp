@@ -44,9 +44,7 @@ bool enabled(const char* name)
     auto e = env(name);
     if(e.empty() or not contains({"1", "enable", "enabled", "yes", "true"}, e.front()))
         return false;
-    access_envs()([&](auto& m) {
-        m[name] = e.front();
-    });
+    access_envs()([&](auto& m) { m[name] = e.front(); });
     return true;
 }
 
@@ -57,9 +55,7 @@ std::size_t value_of(const char* name, std::size_t fallback)
     auto e = env(name);
     if(e.empty())
         return fallback;
-    access_envs()([&](auto& m) {
-        m[name] = e.front();
-    });
+    access_envs()([&](auto& m) { m[name] = e.front(); });
     return std::stoul(e.front());
 }
 
@@ -69,9 +65,7 @@ std::string string_value_of(const char* name, std::string fallback)
     if(e.empty())
         return fallback;
     auto rv         = e.front();
-    access_envs()([&](auto& m) {
-        m[name] = rv;
-    });
+    access_envs()([&](auto& m) { m[name] = rv; });
     return rv;
 }
 
@@ -83,10 +77,9 @@ std::vector<std::string> env(const char* name)
     return {{p}};
 }
 
-std::map<std::string, std::string> get_all_envs() {
-    return access_envs()([&](auto& m) {
-        return m;
-    }); 
+std::map<std::string, std::string> get_all_envs()
+{
+    return access_envs()([&](auto& m) { return m; });
 }
 
 } // namespace MIGRAPHX_INLINE_NS

@@ -1039,6 +1039,7 @@ shape_transform_descriptor::generate(const std::vector<std::size_t>& input_dims)
     std::cout << "generate: " << *this << std::endl;
     std::vector<dimension> new_dims =
         input_dims.empty() ? dimensions : this->rebase(input_dims).dimensions;
+    debug_print(new_dims);
     // Need broadcast
     if(std::any_of(new_dims.begin(), new_dims.end(), &is_broadcast_dim))
     {

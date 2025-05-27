@@ -748,8 +748,8 @@ TEST_CASE(common_dims_transpose_reshape)
     // 2, 16, 1, 1, 1 => 2, 16, 1, 1
     EXPECT(desc.generate_src_from_common({2, 1, 1, 1, 16}) ==
            ops{make_op("transpose", {{"permutation", {0, 4, 1, 2, 3}}}),
-               make_op("squeeze", {{"axes", {2}}})});
-    // 2, 1, 32, 3, 64 => 2, 1, 64, 64
+               make_op("squeeze", {{"axes", {3}}})});
+    // 2, 1, 32, 2, 64 => 2, 1, 64, 64
     EXPECT(desc.generate_src_from_common({2, 32, 2, 64, 1}) ==
            ops{make_op("transpose", {{"permutation", {0, 4, 1, 2, 3}}}),
                make_op("reshape", {{"dims", {2, 1, 64, 64}}})});
@@ -842,7 +842,7 @@ TEST_CASE(common_dims_resize)
 
     EXPECT(desc.generate_src_from_common() == ops{make_op("squeeze", {{"axes", {3, 5}}})});
     EXPECT(desc.generate_src_from_common({4, 16, 1, 1, 1, 1}) ==
-           ops{make_op("squeeze", {{"axes", {2, 4}}})});
+           ops{make_op("squeeze", {{"axes", {3, 4}}})});
     EXPECT(desc.generate_src_from_common({4, 1, 32, 1, 32, 1}) ==
            ops{make_op("squeeze", {{"axes", {3, 5}}})});
     EXPECT(desc.generate_src_from_common({4, 16, 32, 1, 32, 1}) ==

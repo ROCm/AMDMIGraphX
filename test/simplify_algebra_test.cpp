@@ -1775,6 +1775,57 @@ TEST_CASE(simplify_zero_mult_const2)
     EXPECT(m1 == m2);
 }
 
+TEST_CASE(simplify_zero_mult_unsqueeze)
+{
+
+    // unsqueeze axis 0
+    migraphx::module m1;
+    {
+        auto x = m1.add_parameter("x", {migraphx::shape::int32_type, {1}});
+        auto zero = m1.add_literal(0);
+        auto mul_x_zero = m1.add_instruction(migraphx::make_op("mul"), x, zero);
+        auto unsqueeze_ins = m1.add_instruction(migraphx::make_op("unsqueeze",{{"axes", {0}}}), mul_x_zero);
+        m1.add_return({unsqueeze_ins});
+    }
+    run_pass(m1);
+
+    migraphx::module m2;
+    {
+        auto x            = m2.add_parameter("x", {migraphx::shape::int32_type, {1}});
+        auto zero = m2.add_literal(0);
+        auto reshape_zero = m2.add_instruction(
+            migraphx::make_op("reshape", {{"dims", x->get_shape().lens()}}), zero);
+        auto unsqueeze_ins = m2.add_instruction(migraphx::make_op("unsqueeze",{{"axes", {0}}}), reshape_zero);
+        m2.add_return({unsqueeze_ins});
+    }
+
+    EXPECT(m1 == m2);
+
+    // unsqueeze axis 1
+    migraphx::module m3;
+    {
+        auto x = m3.add_parameter("x", {migraphx::shape::int32_type, {1}});
+        auto zero = m3.add_literal(0);
+        auto mul_x_zero = m3.add_instruction(migraphx::make_op("mul"), x, zero);
+        auto unsqueeze_ins = m3.add_instruction(migraphx::make_op("unsqueeze",{{"axes", {1}}}), mul_x_zero);
+        m3.add_return({unsqueeze_ins});
+    }
+    run_pass(m3);
+
+    migraphx::module m4;
+    {
+        auto x            = m4.add_parameter("x", {migraphx::shape::int32_type, {1}});
+        auto zero = m4.add_literal(0);
+        auto reshape_zero = m4.add_instruction(
+            migraphx::make_op("reshape", {{"dims", x->get_shape().lens()}}), zero);
+        auto unsqueeze_ins = m4.add_instruction(migraphx::make_op("unsqueeze",{{"axes", {1}}}), reshape_zero);
+        m4.add_return({unsqueeze_ins});
+    }
+
+    EXPECT(m3 == m4);
+
+}
+
 TEST_CASE(simplify_zero_mul_const_vec)
 {
     migraphx::shape zero_shape{migraphx::shape::int32_type, {2}};

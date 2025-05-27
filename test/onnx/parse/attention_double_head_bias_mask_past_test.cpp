@@ -30,6 +30,6 @@ TEST_CASE(attention_double_head_bias_mask_past_test)
     // Likely this requires dynamic shapes
     migraphx::program p;
     EXPECT(
-        test::throws([&] { optimize_onnx("attention_double_head_bias_mask_test.onnx"); }));
+        test::throws([&] { optimize_onnx("attention_double_head_bias_mask_past_test.onnx"); }));
 
 }

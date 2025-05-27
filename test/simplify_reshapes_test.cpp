@@ -2347,7 +2347,6 @@ TEST_CASE(reduce_squeeze_pointwise2)
 
 TEST_CASE(reduce_squeeze_pointwise3)
 {
-    return;
     auto s1 = migraphx::shape{migraphx::shape::float_type, {2, 32, 10, 64, 64}};
     auto s2 = migraphx::shape{migraphx::shape::float_type, {2, 32, 1}};
     migraphx::module m1;
@@ -2369,10 +2368,10 @@ TEST_CASE(reduce_squeeze_pointwise3)
         auto y = m2.add_parameter("y", s2);
         auto reduce_sum =
             m2.add_instruction(migraphx::make_op("reduce_sum", {{"axes", {2, 3, 4}}}), x);
-        auto unsqueeze = m2.add_instruction(migraphx::make_op("unsqueeze", {{"axes", {2, 3}}}), y);
+        auto unsqueeze = m2.add_instruction(migraphx::make_op("unsqueeze", {{"axes", {3, 4}}}), y);
         auto add       = m2.add_instruction(migraphx::make_op("add"), reduce_sum, unsqueeze);
         auto relu      = m2.add_instruction(migraphx::make_op("relu"), add);
-        auto squeeze   = m2.add_instruction(migraphx::make_op("squeeze", {{"axes", {1}}}), relu);
+        auto squeeze   = m2.add_instruction(migraphx::make_op("squeeze", {{"axes", {2, 3}}}), relu);
         m2.add_return({squeeze});
     }
     EXPECT(m1.sort() == m2.sort());

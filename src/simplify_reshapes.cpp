@@ -253,6 +253,8 @@ struct find_op_shape_transform_op
         auto reshape_input = [&](const auto& ins_to_insert, auto generate) {
             return [&, generate](auto input) {
                 auto gops  = std::invoke(generate, desc, input->get_shape().lens());
+                m.debug_print(input);
+                std::cout << "gops: " << to_string_range(gops) << "\n";
                 auto start = input;
                 for(const auto& op : gops)
                 {

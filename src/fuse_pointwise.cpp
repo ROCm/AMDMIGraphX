@@ -251,12 +251,12 @@ static auto find_input_pointwise(const module& m, instruction_ref ins, bool mult
             auto base_distance = std::distance(i, ins);
             return i->name() == "pointwise" and
                    std::none_of(i->outputs().begin(), i->outputs().end(), [&](auto output) {
-                        if(not m.has_instruction(output))
-                            return false;
-                        if (output == ins)
-                            return false;
-                        if(std::distance(i, output) > base_distance)
-                            return false;
+                       if(not m.has_instruction(output))
+                           return false;
+                       if(output == ins)
+                           return false;
+                       if(std::distance(i, output) > base_distance)
+                           return false;
                        return reaches(output, ins, &m);
                    });
         });

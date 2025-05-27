@@ -181,11 +181,10 @@ struct rewrite_reshapes
                 };
             };
             auto x_inputs = x_ins->inputs();
-            std::transform(
-                x_inputs.begin(),
-                x_inputs.end(),
-                x_inputs.begin(),
-                reshape_input(x_ins, desc.to_common_from_src()));
+            std::transform(x_inputs.begin(),
+                           x_inputs.end(),
+                           x_inputs.begin(),
+                           reshape_input(x_ins, desc.to_common_from_src()));
             auto new_x_ins = insert(mpm, x_ins, x_inputs, desc.common_axes_map_from_src());
             if(new_x_ins->get_shape().lens() != cdims)
             {
@@ -197,12 +196,10 @@ struct rewrite_reshapes
             std::transform(inputs.begin(), inputs.end(), inputs.begin(), [&](auto input) {
                 if(input == input_ins)
                     return new_x_ins;
-                return reshape_input(ins,
-                                     desc.to_common_from_dst())(input);
+                return reshape_input(ins, desc.to_common_from_dst())(input);
             });
             auto pw = insert(mpm, ins, inputs, desc.common_axes_map_from_dst());
-            auto rins =
-                reshape_input(ins, desc.to_dst_from_common())(pw);
+            auto rins = reshape_input(ins, desc.to_dst_from_common())(pw);
             mpm.get_module().replace_instruction(ins, rins);
         }
 

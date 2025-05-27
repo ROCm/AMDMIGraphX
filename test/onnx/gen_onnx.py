@@ -302,7 +302,7 @@ def attention_test(
         attention_bias_dims=[],
         past_sequence_length=0,
         num_heads=None,
-        qkv_hidden_sizes=[1, 1, 1],
+        qkv_hidden_sizes=None,
         do_rotary=None,
         mask_filter_value=None,
         past_present_share_buffer=None,
@@ -313,18 +313,20 @@ def attention_test(
         dtype=TensorProto.FLOAT):
 
     # (Batch_size, sequence_lenth, input_hidden_size)
-    x = helper.make_tensor_value_info('x', dtype, x_dims)
+    x = helper.make_tensor_value_info('input', dtype, x_dims)
 
     # Needed for output vector dims
     batch = x_dims[0]
     seq_len = x_dims[1]
-    v_hidden_size = qkv_hidden_sizes[2]
+
+    # default is to assume that q, k ,v sizes are the same unless otherwise stated
+    v_hidden_size = int(weight_dims[1] / 3)
 
     # (input_hidden_size, hidden_size + hidden_size, v_hidden_size)
     weights = helper.make_tensor_value_info('weights', dtype, weight_dims)
 
     input_list = [x, weights]
-    input_name_list = ['x', 'weights']
+    input_name_list = ['input', 'weights']
 
     # (Batch_size, sequence_lenth, v_hidden_size)
     y = helper.make_tensor_value_info('y', dtype,
@@ -416,19 +418,24 @@ def attention_single_head_test():
 
 
 @onnx_test()
+def attention_double_head_batch1_test():
+    return attention_test([1, 2, 4], [4, 12], bias_dims=[12], num_heads=2)
+
+
+@onnx_test()
 def attention_double_head_test():
-    return attention_test([2, 4, 4], [4, 12], num_heads=2)
+    return attention_test([2, 2, 4], [4, 12], num_heads=2)
 
 
 @onnx_test()
 def attention_double_head_bias_test():
-    return attention_test([2, 4, 4], [4, 12], 
+    return attention_test([2, 2, 4], [4, 12], 
                            bias_dims=[12],
                            num_heads=2)
 
 @onnx_test()
 def attention_double_head_bias_mask_test():
-    return attention_test([2, 4, 4], [4, 12], 
+    return attention_test([2, 2, 4], [4, 12], 
                            bias_dims=[12],
                            mask_dims=[2, 4],
                            num_heads=2)
@@ -437,7 +444,7 @@ def attention_double_head_bias_mask_test():
 @onnx_test()
 def attention_double_head_bias_mask_past_test():
 # Should error out because we only support shared buffer modes
-    return attention_test([2, 4, 4], [4, 12], 
+    return attention_test([2, 2, 4], [4, 12], 
                            bias_dims=[12],
                            mask_dims=[2, 4],
                            past_dims=[2, 4],

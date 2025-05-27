@@ -1,13 +1,12 @@
-	$attention_double_head_bias_mask_test:‚
-[
-x
+	$attention_double_head_bias_mask_test:í
+B
+input
 weights
 bias
 
 mask_indexy"	Attention*
-	num_heads *
-qkv_hidden_sizes@@@ $attention_double_head_bias_mask_testZ
-x
+	num_heads $attention_double_head_bias_mask_testZ
+input
 
 
 
@@ -29,4 +28,4 @@ mask_index
 
 
 
-B
+B

@@ -1,13 +1,13 @@
-	attention_double_head_bias_test:¾
+	!attention_double_head_batch1_test:À
 6
 input
 weights
 biasy"	Attention*
-	num_heads attention_double_head_bias_testZ
+	num_heads !attention_double_head_batch1_testZ
 input
 
+
 
-
 Z
 weights
 
@@ -19,6 +19,6 @@
 b
 y
 
+
 
-
 B

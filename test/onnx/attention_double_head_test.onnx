@@ -1,10 +1,9 @@
-	attention_double_head_test:´
-I
-x
+	attention_double_head_test:Ÿ
+0
+input
 weightsy"	Attention*
-	num_heads *
-qkv_hidden_sizes@@@ attention_double_head_testZ
-x
+	num_heads attention_double_head_testZ
+input
 
 
 
@@ -17,4 +16,4 @@ I
 
 
 
-B
+B

@@ -111,6 +111,8 @@ def rocmnodename(name) {
         node_name = "${rocmtest_name} && gfx1101 && !vm";
     } else if(name == "nogpu") {
         node_name = "${rocmtest_name} && nogpu";
+    } else if(name == "onnxrt") {
+        node_name = "${rocmtest_name} && onnxrt";
     }
     return node_name
 }

@@ -252,12 +252,10 @@ struct find_op_shape_transform_op
         auto reshape_input = [&](const auto& ins_to_insert, const auto& gdesc) {
             return [&](auto input) {
                 auto gops = gdesc.generate(input->get_shape().lens());
-                return std::accumulate(gops.begin(),
-                                gops.end(),
-                                input,
-                                [&](auto start, const auto& op) {
-                                    return m.insert_instruction(ins_to_insert, op, start);
-                                });
+                return std::accumulate(
+                    gops.begin(), gops.end(), input, [&](auto start, const auto& op) {
+                        return m.insert_instruction(ins_to_insert, op, start);
+                    });
             };
         };
         auto x_inputs = x_ins->inputs();
@@ -269,7 +267,7 @@ struct find_op_shape_transform_op
         auto new_x_ins     = reshape_input(x_ins, desc.to_src_from_common())(new_input_ins);
         if(new_input_ins->get_shape().elements() != input_ins->get_shape().elements())
         {
-            auto cdims         = desc.common_dims();
+            auto cdims    = desc.common_dims();
             new_input_ins = m.insert_instruction(
                 x_ins, make_op("multibroadcast", {{"out_lens", cdims}}), new_input_ins);
         }

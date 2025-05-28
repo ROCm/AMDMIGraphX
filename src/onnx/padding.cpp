@@ -46,7 +46,7 @@ void cal_auto_padding_size(onnx_parser::node_info info,
 
     calc_auto_padding(
         info.attributes.at("auto_pad").s(),
-        v["stride"].to<std::vector<std::size_t>>(),
+        v["stride"].to_vector<std::size_t>(),
         k_lens,
         dilation,
         in_lens,

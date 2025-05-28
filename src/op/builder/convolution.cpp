@@ -121,26 +121,26 @@ struct convolution_base : op_builder<Derived>
     }
 
     // TODO Move this out into a util file
-    void calc_auto_padding(std::string auto_pad,
-                           const std::vector<std::size_t>& strides,
-                           const std::vector<std::size_t>& k_lens,
-                           const std::vector<std::size_t>& dilation,
-                           const std::vector<std::size_t>& in_lens,
-                           std::vector<int64_t>& paddings) const
+    void calc_auto_padding(std::string auto_pad_param,
+                           const std::vector<std::size_t>& strides_param,
+                           const std::vector<std::size_t>& k_lens_param,
+                           const std::vector<std::size_t>& dilation_param,
+                           const std::vector<std::size_t>& in_lens_param,
+                           std::vector<int64_t>& paddings_param) const
     {
-        size_t kdims = in_lens.size() - 2;
-        assert(k_lens.size() == kdims and dilation.size() == kdims);
+        size_t kdims = in_lens_param.size() - 2;
+        assert(k_lens_param.size() == kdims and dilation_param.size() == kdims);
 
-        auto_pad = to_upper(auto_pad);
-        if(contains(auto_pad, "SAME"))
+        auto_pad_param = to_upper(auto_pad_param);
+        if(contains(auto_pad_param, "SAME"))
         {
-            bool is_same_upper = contains(auto_pad, "SAME_UPPER");
-            paddings.resize(2 * kdims);
+            bool is_same_upper = contains(auto_pad_param, "SAME_UPPER");
+            paddings_param.resize(2 * kdims);
 
-            for(size_t i = 0; i < paddings.size() / 2; i++)
+            for(size_t i = 0; i < paddings_param.size() / 2; i++)
             {
                 calculate_padding(
-                    i, paddings, in_lens[i + 2], strides[i], dilation[i], k_lens[i], is_same_upper);
+                    i, paddings_param, in_lens_param[i + 2], strides_param[i], dilation_param[i], k_lens_param[i], is_same_upper);
             }
         }
     }

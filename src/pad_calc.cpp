@@ -22,9 +22,35 @@
  * THE SOFTWARE.
  */
 #include <migraphx/pad_calc.hpp>
+#include <migraphx/ranges.hpp>
+#include <migraphx/stringutils.hpp>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
+
+void calc_auto_padding(std::string auto_pad,
+                        const std::vector<std::size_t>& strides,
+                        const std::vector<std::size_t>& k_lens,
+                        const std::vector<std::size_t>& dilation,
+                        const std::vector<std::size_t>& in_lens,
+                        std::vector<int64_t>& paddings)
+{
+    size_t kdims = in_lens.size() - 2;
+    assert(k_lens.size() == kdims and dilation.size() == kdims);
+
+    auto_pad = to_upper(auto_pad);
+    if(contains(auto_pad, "SAME"))
+    {
+        bool is_same_upper = contains(auto_pad, "SAME_UPPER");
+        paddings.resize(2 * kdims);
+
+        for(size_t i = 0; i < paddings.size() / 2; i++)
+        {
+            calculate_padding(
+                i, paddings, in_lens[i + 2], strides[i], dilation[i], k_lens[i], is_same_upper);
+        }
+    }
+}
 
 void calculate_padding(int64_t idx,
                        std::vector<int64_t>& pads,

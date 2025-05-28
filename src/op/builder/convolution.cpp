@@ -29,6 +29,7 @@
 #include <migraphx/op/builder/insert.hpp>
 #include <migraphx/op/common.hpp>
 #include <migraphx/stringutils.hpp>
+#include <migraphx/pad_calc.hpp>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
@@ -118,58 +119,6 @@ struct convolution_base : op_builder<Derived>
                std::any_of(s.dyn_dims().begin() + 2, s.dyn_dims().end(), [](const auto& dyn_dim) {
                    return not dyn_dim.is_fixed();
                });
-    }
-
-    // TODO Move this out into a util file
-    void calc_auto_padding(std::string auto_pad_param,
-                           const std::vector<std::size_t>& strides_param,
-                           const std::vector<std::size_t>& k_lens_param,
-                           const std::vector<std::size_t>& dilation_param,
-                           const std::vector<std::size_t>& in_lens_param,
-                           std::vector<int64_t>& paddings_param) const
-    {
-        size_t kdims = in_lens_param.size() - 2;
-        assert(k_lens_param.size() == kdims and dilation_param.size() == kdims);
-
-        auto_pad_param = to_upper(auto_pad_param);
-        if(contains(auto_pad_param, "SAME"))
-        {
-            bool is_same_upper = contains(auto_pad_param, "SAME_UPPER");
-            paddings_param.resize(2 * kdims);
-
-            for(size_t i = 0; i < paddings_param.size() / 2; i++)
-            {
-                calculate_padding(
-                    i, paddings_param, in_lens_param[i + 2], strides_param[i], dilation_param[i], k_lens_param[i], is_same_upper);
-            }
-        }
-    }
-
-    // TODO Move this out into a util file
-    void calculate_padding(int64_t idx,
-                           std::vector<int64_t>& pads,
-                           int64_t input_dim,
-                           int64_t stride,
-                           int64_t dilation,
-                           int64_t weight_dim,
-                           bool is_same_upper) const
-    {
-        int64_t output_dim     = (input_dim + stride - 1) / stride; // round up result
-        int64_t new_weight_dim = weight_dim + (weight_dim - 1) * (dilation - 1);
-        int64_t pad            = std::max(static_cast<int64_t>(0),
-                               (output_dim - 1) * stride + new_weight_dim - input_dim);
-        auto pad_ndims         = pads.size() / 2;
-
-        if(is_same_upper)
-        {
-            pads[idx]             = pad / 2;
-            pads[idx + pad_ndims] = pad - pad / 2;
-        }
-        else
-        {
-            pads[idx + pad_ndims] = pad / 2;
-            pads[idx]             = pad - pad / 2;
-        }
     }
 
     operation make_conv_op(const std::string& name) const

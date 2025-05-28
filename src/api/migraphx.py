@@ -428,6 +428,13 @@ api.add_function('migraphx_parse_tf',
                  fname='migraphx::parse_tf',
                  returns='migraphx::program')
 
+api.add_function('migraphx_parse_tf_buffer',
+                 api.params(data='const void*',
+                            size='size_t',
+                            options='migraphx::tf_options'),
+                 fname='migraphx::parse_tf_buffer',
+                 returns='migraphx::program')
+
 
 @api.handle('migraphx_quantize_op_names', 'std::vector<std::string>')
 def quantize_op_names(h):
@@ -443,6 +450,15 @@ api.add_function('migraphx_quantize_fp16_with_op_names',
 api.add_function('migraphx_quantize_fp16',
                  api.params(prog='migraphx::program&'),
                  fname='migraphx::quantize_fp16')
+
+api.add_function('migraphx_quantize_bf16_with_op_names',
+                 api.params(prog='migraphx::program&',
+                            name='std::vector<std::string>&'),
+                 fname='migraphx::quantize_bf16_with_op_names')
+
+api.add_function('migraphx_quantize_bf16',
+                 api.params(prog='migraphx::program&'),
+                 fname='migraphx::quantize_bf16')
 
 
 @auto_handle()

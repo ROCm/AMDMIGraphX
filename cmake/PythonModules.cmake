@@ -43,11 +43,13 @@ if(CMAKE_HOST_SYSTEM_NAME STREQUAL "Windows")
         cmake_path(GET python_executable PARENT_PATH _python_path)
         set(PYTHON_${version}_EXECUTABLE ${python_executable} CACHE INTERNAL "" FORCE)
         string(REPLACE "." "" _python_version_stripped ${version})
+        add_library(python${version}::headers INTERFACE IMPORTED GLOBAL)
+        set_target_properties(python${version}::headers PROPERTIES
+            INTERFACE_LINK_DIRECTORIES "${_python_path}\\libs"
+            INTERFACE_INCLUDE_DIRECTORIES "${_python_path}\\include")
         add_library(python${version}::runtime INTERFACE IMPORTED GLOBAL)
         set_target_properties(python${version}::runtime PROPERTIES
-                INTERFACE_INCLUDE_DIRECTORIES "${_python_path}/include"
-                INTERFACE_LINK_LIBRARIES python${_python_version_stripped}.lib
-                INTERFACE_LINK_DIRECTORIES "${_python_path}/libs")
+            INTERFACE_LINK_LIBRARIES "python${_python_version_stripped}.lib;python${version}::headers")
     endfunction()
 else()
     macro(find_python version)
@@ -101,7 +103,7 @@ function(py_add_module NAME)
     if(NOT CMAKE_HOST_SYSTEM_NAME STREQUAL "Windows")
         py_extension(${NAME} ${PYTHON_VERSION})
     endif()
-    target_link_libraries(${NAME} PRIVATE pybind11::module pybind11::lto python${PYTHON_VERSION}::runtime)
+    target_link_libraries(${NAME} PRIVATE pybind11::module pybind11::lto python${PYTHON_VERSION}::headers)
     if(CMAKE_HOST_SYSTEM_NAME STREQUAL "Windows")
         execute_process(COMMAND "${PYTHON_${PYTHON_VERSION}_EXECUTABLE}" -c "import sysconfig; print(sysconfig.get_config_var(\"EXT_SUFFIX\"))"
                 OUTPUT_VARIABLE _python_module_extension)
@@ -117,6 +119,7 @@ function(py_add_module NAME)
 endfunction()
 
 set(PYTHON_DISABLE_VERSIONS "" CACHE STRING "")
+set(_PYTHON_VERSIONS)
 
 if(CMAKE_HOST_SYSTEM_NAME STREQUAL "Windows")
     find_program(PY_EXECUTABLE py.exe PATHS ENV windir REQUIRED)
@@ -126,7 +129,7 @@ if(CMAKE_HOST_SYSTEM_NAME STREQUAL "Windows")
         string(STRIP "${_found_python}" _found_python)
         # Ignore virtual environments
         if(NOT _found_python MATCHES "^\\*[ \t]*")
-            string(REGEX REPLACE "^-V:([0-9]*\\.[0-9]*t?)[ \\t]*\\*?|\\*[ \\t]*" "\\1;" _tuple ${_found_python})
+            string(REGEX REPLACE "^-V:([0-9]*\\.[0-9]*t?)[ \\t]*\\*?[ \\t]*" "\\1;" _tuple ${_found_python})
             list(GET _tuple 0 _version)
             # Ignore if the Python version is disabled
             if(NOT _version IN_LIST PYTHON_DISABLE_VERSIONS)
@@ -143,7 +146,6 @@ else()
         list(REMOVE_ITEM PYTHON_SEARCH_VERSIONS ${PYTHON_DISABLE_VERSION})
     endforeach()
 
-    set(_PYTHON_VERSIONS)
     foreach(PYTHON_VERSION ${PYTHON_SEARCH_VERSIONS})
       find_python(${PYTHON_VERSION})
         if(TARGET python${PYTHON_VERSION}::headers)

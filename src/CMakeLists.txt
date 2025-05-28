@@ -128,6 +128,20 @@ if(WIN32)
     target_compile_options(migraphx PUBLIC "-mno-ms-bitfields")
 endif()
 
+if(NOT MIGRAPHX_DISABLE_ONNX)
+    set(HAVE_ONNX ON)
+else()
+    set(HAVE_ONNX OFF)
+endif()
+
+if(NOT MIGRAPHX_DISABLE_TENSORFLOW)
+    set(HAVE_TENSORFLOW ON)
+else()
+    set(HAVE_TENSORFLOW OFF)
+endif()
+
+configure_file(config.h.in include/migraphx/config.h)
+
 configure_file(version.h.in include/migraphx/version.h)
 add_library(migraphx_version INTERFACE)
 rocm_install_targets(
@@ -338,19 +352,21 @@ target_link_libraries(migraphx PRIVATE msgpackc-cxx)
 target_link_libraries(migraphx INTERFACE $<BUILD_INTERFACE:msgpackc-cxx>)
 
 add_library(migraphx_all_targets INTERFACE)
+add_library(migraphx_all_frontends INTERFACE)
 
 add_subdirectory(api)
 add_subdirectory(driver)
-if(MIGRAPHX_ENABLE_ONNX)
+if(NOT MIGRAPHX_DISABLE_ONNX)
 add_subdirectory(onnx)
+target_link_libraries(migraphx_all_frontends INTERFACE migraphx_onnx)
 endif()
-if(MIGRAPHX_ENABLE_TENSORFLOW)
+if(NOT MIGRAPHX_DISABLE_TENSORFLOW)
 add_subdirectory(tf)
+target_link_libraries(migraphx_all_frontends INTERFACE migraphx_tf)
 endif()
 if(MIGRAPHX_ENABLE_PYTHON)
 add_subdirectory(py)
 endif()
-
 add_subdirectory(targets/ref)
 target_link_libraries(migraphx_all_targets INTERFACE migraphx_ref)
 if(MIGRAPHX_ENABLE_CPU)
@@ -390,14 +406,6 @@ endif()
 
 if(BUILD_DEV)
     target_compile_definitions(migraphx PUBLIC -DBUILD_DEV)
-endif()
-
-if(MIGRAPHX_ENABLE_TENSORFLOW)
-    target_compile_definitions(migraphx PUBLIC MIGRAPHX_ENABLE_TENSORFLOW)
-endif()
-
-if(MIGRAPHX_ENABLE_ONNX)
-    target_compile_definitions(migraphx PUBLIC MIGRAPHX_ENABLE_ONNX)
 endif()
 
 target_compile_definitions(migraphx PUBLIC MIGRAPHX_CXX_COMPILER="${CMAKE_CXX_COMPILER}")

@@ -31,6 +31,10 @@ set(PYTHON_VERSION_TO_DISABLE_ONNX 3.6)
 option(MIGRAPHX_DISABLE_VIRTUAL_ENV "Disable python virtual environments" OFF)
 option(MIGRAPHX_DISABLE_ONNX_TESTS "Disable Onnx backend tests" OFF)
 
+if(MIGRAPHX_DISABLE_ONNX AND NOT MIGRAPHX_DISABLE_ONNX_TESTS)
+    message(NOTICE "ONNX frontend disabled, hence turning off building the tests")
+    set(MIGRAPHX_DISABLE_ONNX_TESTS ON CACHE BOOL "" FORCE)
+endif()
 
 function(add_py_venv_fixture FIXTURE_NAME VIRTUAL_ENV_DIR REQUIREMENTS_FILE)
     foreach(PYTHON_VERSION ${PYTHON_VERSIONS})

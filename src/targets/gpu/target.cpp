@@ -42,6 +42,7 @@
 #include <migraphx/optimize_module.hpp>
 #include <migraphx/preallocate_param.hpp>
 #include <migraphx/promote_literals.hpp>
+#include <migraphx/propagate_precision.hpp>
 #include <migraphx/register_target.hpp>
 #include <migraphx/replace_allocate.hpp>
 #include <migraphx/rewrite_dot.hpp>
@@ -112,16 +113,14 @@ std::vector<pass> target::get_passes(migraphx::context& gctx, const compile_opti
     }
 
     // whiltelist supported Ops for the FP8 types
-    // rocBLAS does not support any FP8 types
     std::set<std::string> unsupported_fp8fnuz_ops = {};
 
-#if MIGRAPHX_USE_HIPBLASLT
-    if(string_value_of(MIGRAPHX_SET_GEMM_PROVIDER{}) == "rocblas" or gpu::gfx_default_rocblas())
+    // disable dot & quant_dot if no hipblaslt
+    if(not hipblaslt_supported())
     {
         unsupported_fp8fnuz_ops.insert("dot");
         unsupported_fp8fnuz_ops.insert("quant_dot");
     }
-#endif
 
 #if MIGRAPHX_USE_MIOPEN // MIOpen doesn't have support for fp8 pooling yet.
     unsupported_fp8fnuz_ops.insert("pooling");
@@ -145,6 +144,14 @@ std::vector<pass> target::get_passes(migraphx::context& gctx, const compile_opti
     unsupported_fp8fnuz_ops.insert("argmin");
 
     std::set<std::string> unsupported_fp8ocp_ops = {};
+
+    // disable dot & quant_dot if no hipblaslt
+    if(not hipblaslt_supported())
+    {
+        unsupported_fp8ocp_ops.insert("dot");
+        unsupported_fp8ocp_ops.insert("quant_dot");
+    }
+
 #if MIGRAPHX_USE_MIOPEN
     // MIOpen doesn't have support for fp8 pooling yet.
     unsupported_fp8ocp_ops.insert("pooling");
@@ -210,6 +217,8 @@ std::vector<pass> target::get_passes(migraphx::context& gctx, const compile_opti
         rewrite_topk{},
         rewrite_low_precision{},
         enable_pass(enabled(MIGRAPHX_ENABLE_REWRITE_DOT{}), rewrite_dot{}),
+        dead_code_elimination{},
+        propagate_precision{},
         dead_code_elimination{},
         optimize_module{},
         fuse_pointwise_reduce{},

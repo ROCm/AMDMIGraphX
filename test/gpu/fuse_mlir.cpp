@@ -200,6 +200,43 @@ TEST_CASE(dot_transpose_reshape_add)
     EXPECT(p1.sort() == p2.sort());
 }
 
+TEST_CASE(dot_reshape_lazy_add)
+{
+    migraphx::shape s1{migraphx::shape::float_type, {1, 6, 6}};
+    migraphx::shape s2{migraphx::shape::float_type, {1, 36}};
+    migraphx::program p1;
+    {
+        auto* mm = p1.get_main_module();
+        auto a   = mm->add_parameter("a", s1);
+        auto b   = mm->add_parameter("b", s1);
+        auto x   = mm->add_parameter("x", s2);
+        auto dot = mm->add_instruction(migraphx::make_op("dot"), a, b);
+        auto xreshape_lazy =
+            mm->add_instruction(migraphx::make_op("reshape_lazy", {{"dims", s1.lens()}}), x);
+        auto add =
+            add_pointwise(p1, "main:pointwise0", {dot, xreshape_lazy}, single_pointwise("add"));
+        mm->add_return({add});
+    }
+    run_pass(p1);
+    migraphx::program p2;
+    {
+        auto* mm = p2.get_main_module();
+        auto a   = mm->add_parameter("a", s1);
+        auto b   = mm->add_parameter("b", s1);
+        auto x   = mm->add_parameter("x", s2);
+        auto fused =
+            add_mlir(p2, "mlir_main:pointwise0", {a, b, x}, [=](auto* pm, const auto& inputs) {
+                auto dot = pm->add_instruction(migraphx::make_op("dot"), inputs[0], inputs[1]);
+                auto xreshape_lazy = pm->add_instruction(
+                    migraphx::make_op("reshape_lazy", {{"dims", s1.lens()}}), inputs[2]);
+                auto add = pm->add_instruction(migraphx::make_op("add"), dot, xreshape_lazy);
+                return std::make_tuple(dot->get_operator(), add);
+            });
+        mm->add_return({fused});
+    }
+    EXPECT(p1.sort() == p2.sort());
+}
+
 TEST_CASE(conv_broadcast_mul)
 {
     migraphx::shape os{migraphx::shape::float_type, {4, 56, 122, 122}};

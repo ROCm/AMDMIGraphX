@@ -1632,12 +1632,12 @@ TEST_CASE(conv_output_reshapes)
         auto conv    = mm->add_instruction(migraphx::make_op("convolution"), a, b);
         auto add     = add_pointwise(p1, "main:pointwise0", {conv, c}, single_pointwise("add"));
         auto reshape = mm->add_instruction(
-                migraphx::make_op("reshape_lazy", {{"dims", {64, 2, 32, 160, 160}}}), add);
+            migraphx::make_op("reshape_lazy", {{"dims", {64, 2, 32, 160, 160}}}), add);
         auto transpose_0 = mm->add_instruction(
-                migraphx::make_op("transpose", {{"permutation", {1, 0, 3, 4, 2}}}), reshape);
-        auto contiguous = mm->add_instruction(migraphx::make_op("contiguous"), transpose_0);
+            migraphx::make_op("transpose", {{"permutation", {1, 0, 3, 4, 2}}}), reshape);
+        auto contiguous  = mm->add_instruction(migraphx::make_op("contiguous"), transpose_0);
         auto transpose_1 = mm->add_instruction(
-                migraphx::make_op("transpose", {{"permutation", {0, 1, 4, 2, 3}}}), contiguous);
+            migraphx::make_op("transpose", {{"permutation", {0, 1, 4, 2, 3}}}), contiguous);
         auto slice_0 = mm->add_instruction(
             migraphx::make_op("slice", {{"axes", {0}}, {"starts", {0}}, {"ends", {1}}}),
             transpose_1);
@@ -1699,11 +1699,9 @@ TEST_CASE(channel_slice_convolution)
         auto conv    = mm->add_instruction(migraphx::make_op("convolution"), a, b);
         auto add     = add_pointwise(p1, "main:pointwise0", {conv, c}, single_pointwise("add"));
         auto slice_0 = mm->add_instruction(
-            migraphx::make_op("slice", {{"axes", {1}}, {"starts", {0}}, {"ends", {32}}}),
-            add);
+            migraphx::make_op("slice", {{"axes", {1}}, {"starts", {0}}, {"ends", {32}}}), add);
         auto slice_1 = mm->add_instruction(
-            migraphx::make_op("slice", {{"axes", {1}}, {"starts", {32}}, {"ends", {64}}}),
-            add);
+            migraphx::make_op("slice", {{"axes", {1}}, {"starts", {32}}, {"ends", {64}}}), add);
         auto conv_1 = mm->add_instruction(migraphx::make_op("convolution"), slice_0, d);
         auto conv_2 = mm->add_instruction(migraphx::make_op("convolution"), slice_1, d);
         mm->add_return({conv_1, conv_2});
@@ -1745,10 +1743,12 @@ TEST_CASE(channel_slice_convolution)
             {"y0", "y1"},
             [=](auto* pm, const auto& inputs) {
                 auto slice_0 = pm->add_instruction(
-                        migraphx::make_op("slice", {{"axes", {0}}, {"starts", {0}}, {"ends", {1}}}), inputs[0]);
-                auto squeeze_0 = pm->add_instruction(
-                    migraphx::make_op("squeeze", {{"axes", {0}}}), slice_0);
-                auto conv_0 = pm->add_instruction(migraphx::make_op("convolution"), squeeze_0, inputs[1]);
+                    migraphx::make_op("slice", {{"axes", {0}}, {"starts", {0}}, {"ends", {1}}}),
+                    inputs[0]);
+                auto squeeze_0 =
+                    pm->add_instruction(migraphx::make_op("squeeze", {{"axes", {0}}}), slice_0);
+                auto conv_0 =
+                    pm->add_instruction(migraphx::make_op("convolution"), squeeze_0, inputs[1]);
                 return std::make_tuple(conv_0->get_operator(), conv_0);
             });
 
@@ -1759,10 +1759,12 @@ TEST_CASE(channel_slice_convolution)
             {"y0", "y1"},
             [=](auto* pm, const auto& inputs) {
                 auto slice_1 = pm->add_instruction(
-                        migraphx::make_op("slice", {{"axes", {0}}, {"starts", {1}}, {"ends", {2}}}), inputs[0]);
-                auto squeeze_1 = pm->add_instruction(
-                    migraphx::make_op("squeeze", {{"axes", {0}}}), slice_1);
-                auto conv_1 = pm->add_instruction(migraphx::make_op("convolution"), squeeze_1, inputs[1]);
+                    migraphx::make_op("slice", {{"axes", {0}}, {"starts", {1}}, {"ends", {2}}}),
+                    inputs[0]);
+                auto squeeze_1 =
+                    pm->add_instruction(migraphx::make_op("squeeze", {{"axes", {0}}}), slice_1);
+                auto conv_1 =
+                    pm->add_instruction(migraphx::make_op("convolution"), squeeze_1, inputs[1]);
                 return std::make_tuple(conv_1->get_operator(), conv_1);
             });
 
@@ -1770,8 +1772,6 @@ TEST_CASE(channel_slice_convolution)
     }
     EXPECT(p1.sort() == p2.sort());
 }
-
-
 
 int main(int argc, const char* argv[])
 {

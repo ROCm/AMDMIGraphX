@@ -1070,7 +1070,7 @@ struct find_mlir_output_reshape_ops
     void apply(module_pass_manager& mpm, const match::matcher_result& r) const
     {
         auto mlir_op_ins  = r.result;
-        auto last_reshape = r.instructions["last_reshape"];
+        auto last_reshape    = r.instructions["last_reshape"];
         auto* mlir_op_module = mlir_op_ins->module_inputs().front();
         std::vector<instruction_ref> reshape_instructions;
         instruction_ref iter_ins = mlir_op_ins;
@@ -1180,11 +1180,14 @@ struct find_channel_slice_convolution
 
         auto outputs = input->outputs();
         auto ins_to_insert = std::next(input);
-        auto reshape1 = mpm.get_module().insert_instruction(ins_to_insert, make_op("reshape_lazy", {{"dims", dims}}), input);
-        auto t1 = mpm.get_module().insert_instruction(ins_to_insert, make_op("transpose", {{"permutation", transpose_perm0}}), reshape1);
+        auto reshape1      = mpm.get_module().insert_instruction(
+            ins_to_insert, make_op("reshape_lazy", {{"dims", dims}}), input);
+        auto t1 = mpm.get_module().insert_instruction(
+            ins_to_insert, make_op("transpose", {{"permutation", transpose_perm0}}), reshape1);
         auto c = mpm.get_module().insert_instruction(ins_to_insert, make_op("contiguous"), t1);
-        auto t2 = mpm.get_module().insert_instruction(ins_to_insert, make_op("transpose", {{"permutation",transpose_perm1}}), c);
-        // spacer identity instruction?
+        auto t2 = mpm.get_module().insert_instruction(
+            ins_to_insert, make_op("transpose", {{"permutation", transpose_perm1}}), c);
+        // spacer identity instruction
         auto id = mpm.get_module().insert_instruction(ins_to_insert, make_op("identity"), t2);
 
         // Replace slice operators to 0 axis
@@ -1192,8 +1195,9 @@ struct find_channel_slice_convolution
         {
             auto v = output->get_operator().to_value();
             auto starts = v["starts"].to_vector<std::size_t>();
-            auto i = starts.front() / output->get_shape().lens()[1]; // note integer truncation
-            auto s = mpm.get_module().insert_instruction(output, make_op("slice", {{"axes", {0}}, {"starts", {i}}, {"ends", {i+1}}}), id);
+            auto i      = starts.front() / output->get_shape().lens()[1]; // note integer truncation
+            auto s      = mpm.get_module().insert_instruction(
+                output, make_op("slice", {{"axes", {0}}, {"starts", {i}}, {"ends", {i + 1}}}), id);
             mpm.get_module().replace_instruction(output, make_op("squeeze", {{"axes", {0}}}), s);
         }
     }

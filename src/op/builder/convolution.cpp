@@ -331,27 +331,37 @@ struct convolution_integer : convolution_base<convolution_integer>
                                       const instruction_ref& x_zp,
                                       const instruction_ref& w_zp) const
     {
+        // to handle the bias, apply the following transformation:
+        // conv(x-x_zp,w-w_zp) = conv(x,w) - conv(x_zp,w) - conv(x,w_zp) + conv(x_zp,w_zp)
         instruction_ref ret = input;
+
+        // multibroadcast (or broadcast) zero points according to spec
+        // x_zp should be a scalar or literal with one element
+        // w_zp can be either a single element or a 1d tensor with size out_channels
+        migraphx::operation x_zp_bc =
+            migraphx::make_op("multibroadcast", {{"out_lens", x->get_shape().lens()}});
+        migraphx::operation w_zp_bc = qparam_broadcast_op(w_zp, weights->get_shape().lens(), 0);
+
         if(not is_symmetric_zero_point(x_zp))
         {
-            auto out_zp_1 = insert_common_op(m, ins, op.name(), x_zp, weights);
+            auto x_zp_mb  = m.add_instruction(x_zp_bc, x_zp);
+            auto out_zp_1 = m.add_instruction(op, x_zp_mb, weights);
             ret           = insert_common_op(m, ins, "sub", ret, out_zp_1);
         }
 
         if(not is_symmetric_zero_point(w_zp))
         {
-            auto out_zp_2 = insert_common_op(m, ins, op.name(), x, w_zp);
+            auto w_zp_mb  = m.add_instruction(w_zp_bc, w_zp);
+            auto out_zp_2 = m.add_instruction(op, x, w_zp_mb);
             ret           = insert_common_op(m, ins, "sub", ret, out_zp_2);
         }
 
         if(not(is_symmetric_zero_point(x_zp)) and not(is_symmetric_zero_point(w_zp)))
         {
-            auto x_zp_bc = m.insert_instruction(
-                ins, qparam_broadcast_op(x_zp, x->get_shape().lens(), 0), x_zp);
-            auto w_zp_bc = m.insert_instruction(
-                ins, qparam_broadcast_op(w_zp, weights->get_shape().lens(), 0), w_zp);
-
-            auto out_zp_3 = m.insert_instruction(ins, op, x_zp_bc, w_zp_bc);
+            auto x_zp_mb = m.add_instruction(x_zp_bc, x_zp);
+            auto w_zp_mb = m.add_instruction(w_zp_bc, w_zp);
+																				 
+            auto out_zp_3 = m.add_instruction(op, x_zp_mb, w_zp_mb);
 
             ret = insert_common_op(m, ins, "add", ret, out_zp_3);
         }

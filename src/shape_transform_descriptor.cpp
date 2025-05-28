@@ -652,8 +652,9 @@ void shape_transform_descriptor::simplify()
 {
     for(auto& d : dimensions)
         d.simplify();
-
-    remove_scalar_axis(dimensions);
+    
+    if(this->rank == 1)
+        remove_scalar_axis(dimensions);
 
     std::map<std::size_t, std::size_t> missing_axes;
     std::vector<std::size_t> last_axis;

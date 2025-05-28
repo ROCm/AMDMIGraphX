@@ -235,7 +235,7 @@ struct find_op_shape_transform_op
         }
         assert(next_ins == x_ins);
         std::reverse(ops.begin(), ops.end());
-
+        
         auto desc = shape_transform_descriptor::create(x_ins->get_shape().lens(), ops)
                         .rebase(x_ins->inputs().front()->get_shape().lens(), true);
         if(desc.empty())

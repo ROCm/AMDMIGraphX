@@ -573,6 +573,17 @@ TEST_CASE(optimize_squeeze_multibroadcast_transpose)
                      });
 }
 
+TEST_CASE(optimize_squeeze_1x1)
+{
+    EXPECT(check_optimize_shape_transforms(
+               {1, 1},
+               {
+                   make_op("squeeze", {{"axes", {0}}}),
+               }) == ops{
+                        make_op("squeeze", {{"axes", {0}}}),
+                     });
+}
+
 TEST_CASE(common_dims_reshape_less)
 {
     auto desc =

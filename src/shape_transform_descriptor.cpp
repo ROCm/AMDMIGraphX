@@ -652,7 +652,7 @@ void shape_transform_descriptor::simplify()
 {
     for(auto& d : dimensions)
         d.simplify();
-    
+
     if(this->rank == 1)
         remove_scalar_axis(dimensions);
 

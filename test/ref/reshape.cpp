@@ -27,6 +27,7 @@
 #include <migraphx/program.hpp>
 #include <migraphx/register_target.hpp>
 #include <migraphx/verify.hpp>
+#include <migraphx/permutation.hpp>
 
 #include <test.hpp>
 
@@ -151,6 +152,160 @@ TEST_CASE(reshape_test2)
     std::vector<float> results_vector{};
     result.visit([&](auto output) { results_vector.assign(output.begin(), output.end()); });
     EXPECT(migraphx::verify::verify_rms_range(results_vector, gold));
+}
+
+void print_vector(std::vector<int64_t> vec)
+{
+    std::cout << "{";
+    for(auto v : vec)
+    {
+        std::cout << v << ", ";
+    }
+    std::cout << "}" << std::endl;
+}
+
+TEST_CASE(reshape_test_NHWC_0)
+{
+    migraphx::shape a_shape =
+        migraphx::shape::from_permutation(migraphx::shape::float_type, {6, 2, 2}, {1, 2, 0});
+    std::vector<float> gold(24);
+    std::iota(gold.begin(), gold.end(), 0);
+    migraphx::program p;
+    auto* mm                       = p.get_main_module();
+    auto input_lit                 = migraphx::literal{a_shape, gold};
+    auto l                         = mm->add_literal(input_lit);
+    std::vector<int64_t> new_shape = {2, 3, 2, 2};
+    auto reshape_ins =
+        mm->add_instruction(migraphx::make_op("reshape_lazy", {{"dims", new_shape}}), l);
+    auto transpose_0 = mm->add_instruction(
+        migraphx::make_op("transpose", {{"permutation", {0, 2, 3, 1}}}), reshape_ins);
+    auto contiguous  = mm->add_instruction(migraphx::make_op("contiguous"), transpose_0);
+    auto transpose_1 = mm->add_instruction(
+        migraphx::make_op("transpose", {{"permutation", {0, 3, 1, 2}}}), contiguous);
+    auto slice_0 = mm->add_instruction(
+        migraphx::make_op("slice", {{"starts", {0}}, {"ends", {1}}, {"axes", {0}}}), transpose_1);
+
+    std::cout << "input_lit shape: " << input_lit.get_shape() << std::endl;
+    std::cout << "input_lit perm: ";
+    print_vector(find_permutation(input_lit.get_shape()));
+    std::cout << "reshape_ins shape: " << reshape_ins->get_shape() << std::endl;
+    std::cout << "reshape_ins perm: ";
+    print_vector(find_permutation(reshape_ins->get_shape()));
+    std::cout << "transpose_0 shape: " << transpose_0->get_shape() << std::endl;
+    std::cout << "transpose_0 perm: ";
+    print_vector(find_permutation(transpose_0->get_shape()));
+    std::cout << "contiguous shape: " << contiguous->get_shape() << std::endl;
+    std::cout << "contiguous perm: ";
+    print_vector(find_permutation(contiguous->get_shape()));
+    std::cout << "transpose_1 shape: " << transpose_1->get_shape() << std::endl;
+    std::cout << "transpose_1 perm: ";
+    print_vector(find_permutation(transpose_1->get_shape()));
+    mm->add_return({slice_0});
+    // note this is not compiled on purpose to keep the data layout
+    auto result = p.eval({}).back();
+    std::vector<float> literal_input_buffer{};
+    input_lit.visit([&](auto output) {
+        for(int i = 0; i != output.size(); ++i)
+        {
+            literal_input_buffer.push_back(output.data()[i]);
+        }
+    });
+    std::vector<float> results_buffer{};
+    std::vector<float> results_vector{};
+    std::cout << "result shape: " << result.get_shape() << std::endl;
+    result.visit([&](auto output) {
+        std::cout << "result_vistor shape: " << output.get_shape() << std::endl;
+        for(int i = 0; i != output.size(); ++i)
+        {
+            results_buffer.push_back(output.data()[i]);
+            results_vector.push_back(output[i]);
+        }
+    });
+    std::cout << "literal_input_buffer:\n {";
+    for(auto v : literal_input_buffer)
+    {
+        std::cout << v << ", ";
+    }
+    std::cout << "}" << std::endl;
+    std::cout << "results_buffer:\n {";
+    for(auto v : results_buffer)
+    {
+        std::cout << v << ", ";
+    }
+    std::cout << "}" << std::endl;
+    std::cout << "results_vector:\n {";
+    for(auto v : results_vector)
+    {
+        std::cout << v << ", ";
+    }
+    std::cout << "}" << std::endl;
+}
+
+TEST_CASE(reshape_test_NHWC_1)
+{
+    migraphx::shape a_shape =
+        migraphx::shape::from_permutation(migraphx::shape::float_type, {6, 2, 2}, {1, 2, 0});
+    std::vector<float> gold(24);
+    std::iota(gold.begin(), gold.end(), 0);
+    migraphx::program p;
+    auto* mm                       = p.get_main_module();
+    auto input_lit                 = migraphx::literal{a_shape, gold};
+    auto l                         = mm->add_literal(input_lit);
+    std::vector<int64_t> new_shape = {3, 2, 2, 2};
+    auto reshape_ins =
+        mm->add_instruction(migraphx::make_op("reshape_lazy", {{"dims", new_shape}}), l);
+    auto transpose_0 = mm->add_instruction(
+        migraphx::make_op("transpose", {{"permutation", {1, 2, 3, 0}}}), reshape_ins);
+    auto contiguous  = mm->add_instruction(migraphx::make_op("contiguous"), transpose_0);
+    auto transpose_1 = mm->add_instruction(
+        migraphx::make_op("transpose", {{"permutation", {0, 3, 1, 2}}}), contiguous);
+    auto slice_0 = mm->add_instruction(
+        migraphx::make_op("slice", {{"starts", {0}}, {"ends", {1}}, {"axes", {0}}}), transpose_1);
+
+    // auto reshape_ins = mm->add_instruction(migraphx::make_op("identity"), l);
+    std::cout << "reshape_ins shape: " << reshape_ins->get_shape() << std::endl;
+    std::cout << "transpose_0 shape: " << transpose_0->get_shape() << std::endl;
+    std::cout << "contiguous shape: " << contiguous->get_shape() << std::endl;
+    std::cout << "transpose_1 shape: " << transpose_1->get_shape() << std::endl;
+    mm->add_return({slice_0});
+    // note this is not compiled on purpose to keep the data layout
+    auto result = p.eval({}).back();
+    std::vector<float> literal_input_buffer{};
+    input_lit.visit([&](auto output) {
+        for(int i = 0; i != output.size(); ++i)
+        {
+            literal_input_buffer.push_back(output.data()[i]);
+        }
+    });
+    std::vector<float> results_buffer{};
+    std::vector<float> results_vector{};
+    std::cout << "result shape: " << result.get_shape() << std::endl;
+    result.visit([&](auto output) {
+        std::cout << "result_vistor shape: " << output.get_shape() << std::endl;
+        for(int i = 0; i != output.size(); ++i)
+        {
+            results_buffer.push_back(output.data()[i]);
+            results_vector.push_back(output[i]);
+        }
+    });
+    std::cout << "literal_input_buffer:\n {";
+    for(auto v : literal_input_buffer)
+    {
+        std::cout << v << ", ";
+    }
+    std::cout << "}" << std::endl;
+    std::cout << "results_buffer:\n {";
+    for(auto v : results_buffer)
+    {
+        std::cout << v << ", ";
+    }
+    std::cout << "}" << std::endl;
+    std::cout << "results_vector:\n {";
+    for(auto v : results_vector)
+    {
+        std::cout << v << ", ";
+    }
+    std::cout << "}" << std::endl;
 }
 
 TEST_CASE(reshape_dyn_1in_test)

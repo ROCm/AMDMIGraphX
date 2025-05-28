@@ -79,7 +79,7 @@ std::vector<std::string> env(const char* name)
 
 std::map<std::string, std::string> get_all_envs()
 {
-    return access_envs()([&](auto& m) { return m; });
+    return access_envs()([&](const auto& m) { return m; });
 }
 
 } // namespace MIGRAPHX_INLINE_NS

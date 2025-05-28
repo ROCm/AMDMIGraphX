@@ -187,6 +187,11 @@ struct convolution : convolution_base<convolution>
 {
     static std::string name() { return "convolution"; }
 
+    std::vector<instruction_ref> insert(insert_params params)
+    {
+        return insert(params.m, params.ins, params.args);
+    }
+
     std::vector<instruction_ref>
     insert(module& m, instruction_ref ins, const std::vector<instruction_ref>& args)
     {
@@ -235,6 +240,11 @@ struct convolution : convolution_base<convolution>
 struct convolution_integer : convolution_base<convolution_integer>
 {
     static std::string name() { return "convolution_integer"; }
+
+    std::vector<instruction_ref> insert(insert_params params)
+    {
+        return insert(params.m, params.ins, params.args);
+    }
 
     std::vector<instruction_ref>
     insert(module& m, instruction_ref ins, const std::vector<instruction_ref>& args)

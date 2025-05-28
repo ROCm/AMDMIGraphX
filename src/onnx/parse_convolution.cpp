@@ -54,53 +54,50 @@ struct parse_convolution : op_parser<parse_convolution>
         auto x       = args[0];
         auto in_lens = x->get_shape().max_lens();
         assert(in_lens.size() > 2);
-        auto kdims = in_lens.size() - 2;
 
         // ensure pads available only when auto_pad is "NOT_SET"
         check_padding_mode(info, opd.onnx_name);
 
-        std::vector<std::size_t> strides(kdims, 1);
+        value options = {};
+
         if(contains(info.attributes, "strides"))
         {
-            auto&& attr = info.attributes["strides"].ints();
-            strides.assign(attr.begin(), attr.end());
+            const auto& attr = info.attributes["strides"].ints();
+            std::vector<std::size_t> strides {attr.begin(), attr.end()};
+            options.insert({"strides", strides});
         }
 
-        std::vector<std::size_t> dilations(kdims, 1);
         if(contains(info.attributes, "dilations"))
         {
-            auto&& attr = info.attributes["dilations"].ints();
-            dilations.assign(attr.begin(), attr.end());
+            const auto& attr = info.attributes["dilations"].ints();
+            std::vector<std::size_t> dilations {attr.begin(), attr.end()};
+            options.insert({"dilations", dilations});
         }
 
-        std::vector<int64_t> paddings;
         if(contains(info.attributes, "pads"))
         {
-            auto&& attr = info.attributes["pads"].ints();
-            paddings.assign(attr.begin(), attr.end());
+            const auto& attr = info.attributes["pads"].ints();
+            std::vector<int64_t> paddings {attr.begin(), attr.end()};
+            options.insert({"paddings", paddings});
         }
 
-        int group = 1;
         if(contains(info.attributes, "group"))
         {
-            group = parser.parse_value(info.attributes.at("group")).at<int>();
+            const auto group = parser.parse_value(info.attributes.at("group")).at<int>();
+            options.insert({"group", group});
         }
 
-        std::string auto_pad = "NOTSET";
         if(contains(info.attributes, "auto_pad"))
         {
-            auto_pad = to_upper(info.attributes["auto_pad"].s());
+            const auto auto_pad = to_upper(info.attributes["auto_pad"].s());
+            options.insert({"auto_pad", auto_pad});
         }
 
         auto op_name = opd.op_name == "quant_convolution" ? "convolution_integer" : "convolution";
         return op::builder::add(op_name,
                                 *info.mod,
                                 args,
-                                {{"strides", strides},
-                                 {"auto_pad", auto_pad},
-                                 {"dilations", dilations},
-                                 {"paddings", paddings},
-                                 {"group", group}})
+                                options)
             .at(0);
     }
 };

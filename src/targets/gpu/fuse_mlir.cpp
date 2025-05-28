@@ -1050,32 +1050,64 @@ struct find_unpack_int4_mlir_op
     }
 };
 
-struct find_mlir_reshape_ops
+/**
+ * Fuse single output reshape instructions on the output of mlir_op into the
+ * mlir_op.
+ */
+struct find_mlir_output_reshape_ops
 {
     auto matcher() const
     {
         auto reshapes = reshaper_names();
         // slice is not supported
         reshapes.erase("slice");
-        return match::name(reshapes)(match::arg(0)(match::name("gpu::mlir_op")(match::used_once())));
+        auto atleast_one_reshape =
+            match::all_of(match::output(match::name(reshapes)),
+                          match::skip_output_penult(match::name(reshapes)).bind("last_reshape"));
+        return match::name("gpu::mlir_op")(atleast_one_reshape);
     }
 
     void apply(module_pass_manager& mpm, const match::matcher_result& r) const
     {
-        auto ins = r.result;
-        auto mlir_ins = ins->inputs().front();
+        auto mlir_op_ins  = r.result;
+        auto last_reshape = r.instructions["last_reshape"];
+        std::cout << "last_reshape: " << last_reshape->name() << std::endl;
+        auto* mlir_op_module = mlir_op_ins->module_inputs().front();
+        std::vector<instruction_ref> reshape_instructions;
+        instruction_ref iter_ins = mlir_op_ins;
+        while(iter_ins != last_reshape)
+        {
+            // should already be covered by skip_output_penult
+            assert(iter_ins->outputs().size() == 1);
+            auto output_ins = iter_ins->outputs().front();
+            reshape_instructions.push_back(output_ins);
+            iter_ins = output_ins;
+        }
 
-        auto* mm = mlir_ins->module_inputs().front();
-        module_ref nm = mpm.create_module(mm->name() + ":" + ins->name());
-        nm->set_bypass();
+        std::string module_name = mlir_op_module->name();
+        std::transform(reshape_instructions.begin(),
+                       reshape_instructions.end(),
+                       join_back_inserter(module_name),
+                       [](instruction_ref ins) { return "_" + ins->name(); });
+        module_ref fused_module = mpm.create_module(module_name);
+        fused_module->set_bypass();
 
-        auto y = nm->fuse(*mm, mlir_ins->inputs());
-        auto ret = nm->add_instruction(ins->get_operator(), y);
-        nm->add_return({ret});
-        mpm.get_module().replace_instruction(ins, mlir_ins->get_operator(), mlir_ins->inputs(), {nm});
+        std::unordered_map<instruction_ref, instruction_ref> map_ins;
+        auto new_back = fused_module->fuse(*mlir_op_module, mlir_op_ins->inputs(), &map_ins).back();
+        map_ins[mlir_op_ins]    = new_back;
+        auto fused_instructions = fused_module->fuse(reshape_instructions, &map_ins);
+        fused_module->add_return({fused_instructions.back()});
+        auto inputs = find_inputs(map_ins, &mpm.get_module(), fused_module);
+        mpm.get_module().replace_instruction(
+            last_reshape, mlir_op{last_reshape->get_operator()}, inputs, {fused_module});
     }
 };
 
+/**
+ * Find slices along the channels axis that go into a convolution.
+ * Reshape input instructions to the slices such that the slice occurs over
+ * the slowest dimension.
+ */
 struct find_channel_slice_convolution
 {
     auto matcher() const
@@ -1202,8 +1234,7 @@ void fuse_mlir::apply(module_pass_manager& mpm) const
     match::find_matches(mpm, find_pointwise_mlir{});
     match::find_matches(mpm, find_unpack_int4_mlir_op{});
 
-    for(int i=0;i<4;i++)
-        match::find_matches(mpm, find_mlir_reshape_ops{});
+    match::find_matches(mpm, find_mlir_output_reshape_ops{});
 
 #else
     (void)mpm;

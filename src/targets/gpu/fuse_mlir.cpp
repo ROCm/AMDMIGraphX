@@ -1063,7 +1063,7 @@ struct find_mlir_output_reshape_ops
         reshapes.erase("slice");
         auto atleast_one_reshape =
             match::all_of(match::output(match::name(reshapes)),
-                          match::skip_output_penult(match::name(reshapes)).bind("last_reshape"));
+                          match::skip_output(match::name(reshapes).bind("last_reshape")));
         return match::name("gpu::mlir_op")(atleast_one_reshape);
     }
 
@@ -1071,19 +1071,19 @@ struct find_mlir_output_reshape_ops
     {
         auto mlir_op_ins  = r.result;
         auto last_reshape = r.instructions["last_reshape"];
-        std::cout << "last_reshape: " << last_reshape->name() << std::endl;
         auto* mlir_op_module = mlir_op_ins->module_inputs().front();
         std::vector<instruction_ref> reshape_instructions;
         instruction_ref iter_ins = mlir_op_ins;
         while(iter_ins != last_reshape)
         {
-            // should already be covered by skip_output_penult
+            // should already be covered by skip_output
             assert(iter_ins->outputs().size() == 1);
             auto output_ins = iter_ins->outputs().front();
             reshape_instructions.push_back(output_ins);
             iter_ins = output_ins;
         }
 
+        assert(not reshape_instructions.empty());
         std::string module_name = mlir_op_module->name();
         std::transform(reshape_instructions.begin(),
                        reshape_instructions.end(),
@@ -1107,6 +1107,7 @@ struct find_mlir_output_reshape_ops
  * Find slices along the channels axis that go into a convolution.
  * Reshape input instructions to the slices such that the slice occurs over
  * the slowest dimension.
+ * TODO: Can this also be done for GEMM?
  */
 struct find_channel_slice_convolution
 {
@@ -1115,6 +1116,10 @@ struct find_channel_slice_convolution
         return match::name("convolution")(match::arg(0)(match::name("slice").bind("slice")));
     }
 
+    /**
+     * Number of groups the input to the slice instruction is split into.
+     * `slice` should be over the channels axis only and split evenly.
+     */
     static std::size_t get_slice_group(instruction_ref slice)
     {
         auto input = slice->inputs().front();
@@ -1139,6 +1144,8 @@ struct find_channel_slice_convolution
         auto group = get_slice_group(slice);
         if(group == 0)
             return;
+        // check that all slice instructions coming off from `input` are making
+        // the same size slice.
         if(not all_of(input->outputs(), [&](instruction_ref output) {
             if(output->name() != "slice")
                 return false;
@@ -1152,28 +1159,42 @@ struct find_channel_slice_convolution
 
         auto dims = input->get_shape().lens();
         dims[1] /= group;
+        // inserts group dimension in front of channels to split channels correctly
         dims.insert(dims.begin() + 1, group);
 
-        std::vector<int64_t> perm(dims.size());
-        std::iota(perm.begin(), perm.begin() + 2, 0);
-        std::iota(perm.begin() + 2, perm.end() - 1, 3);
-        perm.back() = 2;
+        // first transpose permutation such that channels dimension goes to
+        // last axis and group axis goes to first axis
+        std::vector<int64_t> transpose_perm0(dims.size());
+        transpose_perm0.at(0) = 1;
+        transpose_perm0.at(1) = 0;
+        std::iota(transpose_perm0.begin() + 2, transpose_perm0.end() - 1, 3);
+        transpose_perm0.back() = 2;
+
+        // second transpose permutation such that last dimension
+        // (the channels dimension below) goes to third axis
+        std::vector<int64_t> transpose_perm1(dims.size());
+        transpose_perm1.at(0) = 0;
+        transpose_perm1.at(1) = 1;
+        transpose_perm1.at(2) = dims.size() - 1;
+        std::iota(transpose_perm1.begin() + 3, transpose_perm1.end(), 2);
 
         auto outputs = input->outputs();
         auto ins_to_insert = std::next(input);
-        auto reshape1 = mpm.get_module().insert_instruction(ins_to_insert, make_op("reshape", {{"dims", dims}}), input);
-        auto t1 = mpm.get_module().insert_instruction(ins_to_insert, make_op("transpose", {{"permutation", perm}}), reshape1);
+        auto reshape1 = mpm.get_module().insert_instruction(ins_to_insert, make_op("reshape_lazy", {{"dims", dims}}), input);
+        auto t1 = mpm.get_module().insert_instruction(ins_to_insert, make_op("transpose", {{"permutation", transpose_perm0}}), reshape1);
         auto c = mpm.get_module().insert_instruction(ins_to_insert, make_op("contiguous"), t1);
-        auto t2 = mpm.get_module().insert_instruction(ins_to_insert, make_op("transpose", {{"permutation", invert_permutation(perm)}}), c);
+        auto t2 = mpm.get_module().insert_instruction(ins_to_insert, make_op("transpose", {{"permutation",transpose_perm1}}), c);
+        // spacer identity instruction?
         auto id = mpm.get_module().insert_instruction(ins_to_insert, make_op("identity"), t2);
 
-        for(auto output:outputs)
+        // Replace slice operators to 0 axis
+        for(auto output : outputs)
         {
             auto v = output->get_operator().to_value();
             auto starts = v["starts"].to_vector<std::size_t>();
-            auto i = starts.front() / output->get_shape().lens()[1];
-            auto s = mpm.get_module().insert_instruction(output, make_op("slice", {{"axes", {1}}, {"starts", {i}}, {"ends", {i+1}}}), id);
-            mpm.get_module().replace_instruction(output, make_op("squeeze", {{"axes", {1}}}), s);
+            auto i = starts.front() / output->get_shape().lens()[1]; // note integer truncation
+            auto s = mpm.get_module().insert_instruction(output, make_op("slice", {{"axes", {0}}, {"starts", {i}}, {"ends", {i+1}}}), id);
+            mpm.get_module().replace_instruction(output, make_op("squeeze", {{"axes", {0}}}), s);
         }
     }
 };

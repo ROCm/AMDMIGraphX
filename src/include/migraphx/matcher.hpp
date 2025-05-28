@@ -794,33 +794,6 @@ auto skip_output(Ms... ms)
     });
 }
 
-/**
- * Alternate version of `skip_output` that returns the last matched instruction instead of
- * the instruction after.
- */
-template <class... Ms>
-auto skip_output_penult(Ms... ms)
-{
-    auto m = any_of(ms...);
-    return make_basic_fun_matcher([=](matcher_context& ctx, instruction_ref start) {
-        return fix<optional<instruction_ref>>(
-            [&](auto self, auto ins) -> optional<instruction_ref> {
-                if(ins->outputs().size() == 1)
-                {
-                    auto next = ins->outputs().front();
-                    if(ctx.matched(m, next))
-                    {
-                        auto skipped_next = self(next);
-                        if(skipped_next)
-                            return skipped_next;
-                    }
-                    return ins;
-                }
-                return ins;
-            })(start);
-    });
-}
-
 inline auto var(std::string s)
 {
     return make_basic_fun_matcher(

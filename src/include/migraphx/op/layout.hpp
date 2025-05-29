@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2022 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2025 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -38,6 +38,11 @@ namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
 namespace op {
 
+/**
+ * Rearrange the data layout of the input instruction based on the permutation attribute.
+ * permutation: List with how to rearrange data buffer of input instruction from order of slowest
+ * dimension to fastest dimension. Integers refer to input axes.
+ */
 struct layout : unary<layout>
 {
     std::vector<int64_t> permutation;

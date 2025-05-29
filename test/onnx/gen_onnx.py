@@ -293,6 +293,190 @@ def atanh_test():
     return ([node], [x], [y])
 
 
+def attention_test(
+        x_dims,
+        weight_dims,
+        bias_dims=[],
+        mask_dims=[],
+        past_dims=[],
+        attention_bias_dims=[],
+        past_sequence_length=0,
+        num_heads=None,
+        qkv_hidden_sizes=None,
+        do_rotary=None,
+        mask_filter_value=None,
+        past_present_share_buffer=None,
+        scale=None,
+        unidirectional=None,
+        rotary_embedding_dim=None,
+        present_dims=[],
+        dtype=TensorProto.FLOAT):
+
+    # (Batch_size, sequence_lenth, input_hidden_size)
+    x = helper.make_tensor_value_info('input', dtype, x_dims)
+
+    # Needed for output vector dims
+    batch = x_dims[0]
+    seq_len = x_dims[1]
+
+    # default is to assume that q, k ,v sizes are the same unless otherwise stated
+    v_hidden_size = int(weight_dims[1] / 3)
+
+    # (input_hidden_size, hidden_size + hidden_size, v_hidden_size)
+    weights = helper.make_tensor_value_info('weights', dtype, weight_dims)
+
+    input_list = [x, weights]
+    input_name_list = ['input', 'weights']
+
+    # (Batch_size, sequence_lenth, v_hidden_size)
+    y = helper.make_tensor_value_info('y', dtype,
+                                      [batch, seq_len, v_hidden_size])
+    output_list = [y]
+    output_name_list = ['y']
+
+    # Additional arguments/options to adjust attention block
+
+    if len(bias_dims) > 0:
+        # Bias shape should be (hidden_size + hiddeN_size + v_hidden_size)
+        bias = helper.make_tensor_value_info('bias', dtype, bias_dims)
+        input_name_list.append('bias')
+        input_list.append(bias)
+
+    if len(mask_dims) > 0:
+        # allowable shapes
+        # (batch_size, 1, max_sequence_length, max_sequence_length)
+        # (batch_size, total_sequence_length)
+        # (batch_size, sequence_length, total_sequence_length)
+        # (batch_size) or (2*batch_size) or (3* batch_size + 2)
+        mask_index = helper.make_tensor_value_info('mask_index',
+                                                   TensorProto.INT32,
+                                                   mask_dims)
+        input_name_list.append('mask_index')
+        input_list.append(mask_index)
+
+    if len(past_dims) > 0:
+        # (2, batch_size, num_heads, past_sequence_length, head_size)
+        # (2, batch_size, num_heads, max_seq_length, head_size) when past/present share buffer
+        past = helper.make_tensor_value_info('past', dtype, past_dims)
+        input_name_list.append('past')
+        input_list.append(past)
+
+    if len(attention_bias_dims) > 0:
+        # (batch_size, or 1, num_heads or 1, sequence_length, total_sequence_length)
+        attention_bias = helper.make_tensor_value_info('attention_bias', dtype,
+                                                       attention_bias_dims)
+        input_name_list.append('attention_bias')
+        input_list.append(attention_bias)
+
+    if past_present_share_buffer is not None:
+        past_sequence_length = helper.make_tensor_value_info('past_sequence_length', TensorProto.INT32, [past_sequence_length])
+        input_name_list.append('past_sequence_length')
+        input_list.append(past_sequence_length)
+
+    # Additional output vector
+    if present_dims:
+        output_name_list.append('present')
+        output_list.append('present')
+
+    node = onnx.helper.make_node(
+        'Attention',
+        inputs=input_name_list,
+        outputs=output_name_list,
+        domain="com.microsoft")
+    
+    # Append attributes based on input to this function. Parser should assume defaults
+    # This is the only attribute that's required others are not
+    if num_heads is not None:
+        node.attribute.append(onnx.helper.make_attribute("num_heads", num_heads))
+
+    if scale is not None:
+        node.attribute.append(onnx.helper.make_attribute("scale_val", scale))
+
+    if qkv_hidden_sizes is not None:
+        node.attribute.append(onnx.helper.make_attribute("qkv_hidden_sizes", qkv_hidden_sizes))
+
+    if unidirectional is not None:
+        node.attribute.append(onnx.helper.make_attribute("unidirectional", unidirectional))
+
+    if mask_filter_value is not None:
+        node.attribute.append(onnx.helper.make_attribute("mask_filter_value", mask_filter_value))
+
+    if do_rotary is not None:
+        node.attribute.append(onnx.helper.make_attribute("do_rotary", do_rotary))
+
+    if rotary_embedding_dim is not None:
+        node.attribute.append(onnx.helper.make_attribute("rotary_embedding_dim", rotary_embedding_dim))
+
+    if past_present_share_buffer is not None:
+        node.attribute.append(onnx.helper.make_attribute("past_present_share_buffer", past_present_share_buffer))
+
+    return ([node], input_list, output_list)
+
+
+@onnx_test()
+def attention_single_head_test():
+    return attention_test([2, 4, 4], [4, 12], num_heads=1)
+
+
+@onnx_test()
+def attention_double_head_batch1_test():
+    return attention_test([1, 2, 4], [4, 12], bias_dims=[12], num_heads=2)
+
+
+@onnx_test()
+def attention_double_head_test():
+    return attention_test([2, 2, 4], [4, 12], num_heads=2)
+
+
+@onnx_test()
+def attention_double_head_bias_test():
+    return attention_test([2, 2, 4], [4, 12], 
+                           bias_dims=[12],
+                           num_heads=2)
+
+@onnx_test()
+def attention_double_head_bias_mask_test():
+    return attention_test([2, 2, 4], [4, 12], 
+                           bias_dims=[12],
+                           mask_dims=[2, 4],
+                           num_heads=2)
+
+
+@onnx_test()
+def attention_double_head_bias_mask_past_test():
+# Should error out because we only support shared buffer modes
+    return attention_test([2, 2, 4], [4, 12], 
+                           bias_dims=[12],
+                           mask_dims=[2, 4],
+                           past_dims=[2, 4],
+                           num_heads=2)
+
+@onnx_test()
+def attention_double_head_bias_mask_past_attn_bias_shared_test():
+    return attention_test([2, 4, 4], [4, 12], 
+                           bias_dims=[12],
+                           mask_dims=[2, 4],
+                           past_dims=[2, 4],
+                           attention_bias_dims=[2, 2, 4],
+                           past_present_share_buffer=1,
+                           num_heads=2)
+
+
+# Mirrors customer workload without bias/masks
+@onnx_test()
+def attention_multihead_test():
+    return attention_test([32, 512, 1024], [1024, 3072],
+                          num_heads=16)
+
+# Mirrors customer workload
+@onnx_test()
+def attention_multihead_bias_mask_test():
+    return attention_test([32, 512, 1024], [1024, 3072],
+                          bias_dims=[3072],
+                          mask_dims=[32, 512],
+                          num_heads=16)
+
+
 @onnx_test()
 def averagepool_1d_test():
     x = helper.make_tensor_value_info('0', TensorProto.FLOAT, [1, 3, 5])

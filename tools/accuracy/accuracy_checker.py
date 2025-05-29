@@ -238,15 +238,23 @@ def main():
             print(f'Parameter {name} -> {shape}')
         in_shape = shape.lens()
         in_type = shape.type_string()
-        if not args.fill1 and not args.fill0:
-            test_input = np.random.rand(*(in_shape)).astype(
-                get_np_datatype(in_type))
-        elif not args.fill0:
-            test_input = np.ones(in_shape).astype(get_np_datatype(in_type))
-        else:
-            test_input = np.zeros(in_shape).astype(get_np_datatype(in_type))
-        test_inputs[name] = test_input
-        migraphx_arg = migraphx.argument(test_input)
+        #if not args.fill1 and not args.fill0:
+         #   test_input = np.random.rand(*(in_shape)).astype(
+         #       get_np_datatype(in_type))
+        #elif not args.fill0:
+        #    test_input = np.ones(in_shape).astype(get_np_datatype(in_type))
+        #else:
+        #    test_input = np.zeros(in_shape).astype(get_np_datatype(in_type))
+
+        test_inputs["input"] = np.array([[[0.8, -0.5, 0, 1],[0.5, 0.2, 0.3, -0.6]]]).astype(get_np_datatype(in_type))
+        test_inputs["weights"] = np.array([[.1, -0.2, 0.3, 1.0, 1.1, 0.3, 0.5, 0.2, 0.3, -0.6, 1.5, 2.0],
+                                           [0.5, 0.1, 0.4, 1.6, 1.0, 2.0, 0.4, 0.8, 0.9, 0.1, -1.3, 0.7],
+                                           [0.3, 0.2, 4.0, 2.2, 1.6, 1.1, 0.7, 0.2, 0.4, 1.0, 1.2, 0.5],
+                                           [0.2, 0.1, 0.4, 1.6, 2.4, 3.3, 2.1, 4.2, 8.4, 0.0, 2.1, 3.2]]).astype(get_np_datatype(in_type))
+
+        test_inputs["bias"] = np.array([-0.5, 0.6, 1.2, 2.1, 0.5, 0.7, 0.2, 1.2, 0.5, 0.4, 0.3, 1.2]).astype(get_np_datatype(in_type))
+
+        migraphx_arg = migraphx.argument(test_inputs[name])
         if not args.offload_copy:
             migraphx_arg = migraphx.to_gpu(migraphx_arg)
         params[name] = migraphx_arg

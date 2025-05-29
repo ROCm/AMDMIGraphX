@@ -51,10 +51,6 @@ struct parse_convolution : op_parser<parse_convolution>
                           onnx_parser::node_info info,
                           std::vector<instruction_ref> args) const
     {
-        auto x       = args[0];
-        auto in_lens = x->get_shape().max_lens();
-        assert(in_lens.size() > 2);
-
         // ensure pads available only when auto_pad is "NOT_SET"
         check_padding_mode(info, opd.onnx_name);
 

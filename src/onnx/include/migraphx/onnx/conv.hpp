@@ -26,17 +26,12 @@
 
 #include <migraphx/config.hpp>
 #include <migraphx/value.hpp>
-#include <migraphx/onnx/onnx_parser.hpp>
-#include <migraphx/instruction_ref.hpp>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
 namespace onnx {
 
 void recalc_conv_attributes(value& v, size_t kdims);
-
-instruction_ref from_nhwc(const onnx_parser::node_info& info, instruction_ref ins);
-instruction_ref to_nhwc(const onnx_parser::node_info& info, instruction_ref ins);
 
 } // namespace onnx
 } // namespace MIGRAPHX_INLINE_NS

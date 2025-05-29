@@ -43,7 +43,7 @@ struct parse_convolution : op_parser<parse_convolution>
     {
         return {{"Conv", "convolution"},
                 {"ConvInteger", "quant_convolution"},
-                {"NhwcConv", "convolution"}};
+                {"NhwcConv", "convolution_nhwc"}};
     }
 
     instruction_ref parse(const op_desc& opd,
@@ -93,7 +93,7 @@ struct parse_convolution : op_parser<parse_convolution>
             options.insert({"auto_pad", auto_pad});
         }
 
-        auto op_name = opd.op_name == "quant_convolution" ? "convolution_integer" : "convolution";
+        auto op_name = opd.op_name == "quant_convolution" ? "convolution_integer" : opd.op_name;
         return op::builder::add(op_name,
                                 *info.mod,
                                 args,

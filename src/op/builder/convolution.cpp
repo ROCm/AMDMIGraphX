@@ -30,6 +30,7 @@
 #include <migraphx/op/common.hpp>
 #include <migraphx/stringutils.hpp>
 #include <migraphx/pad_calc.hpp>
+#include <migraphx/permutation.hpp>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
@@ -394,6 +395,49 @@ struct convolution_integer : convolution_base<convolution_integer>
             shift_input_and_bias(
                 m, ins, offset_op, (not is_symmetric_zero_point(weight_zp)), weights, weight_zp);
         }
+    }
+};
+
+struct convolution_nhwc : op_builder<convolution_nhwc>, convolution
+{
+    static std::string name() { return "convolution_nhwc"; }
+
+    std::vector<instruction_ref> insert(insert_params params)
+    {
+        return insert(params.m, params.ins, params.args);
+    }
+
+    instruction_ref apply_nhwc_perm(module& m, instruction_ref ins, bool invert)
+    {
+        std::vector<int64_t> perm(ins->get_shape().ndim());
+        std::iota(begin(perm) + 1, end(perm) - 1, 2);
+        perm.back() = 1;
+        return m.add_instruction(make_op("transpose", {{"permutation", invert ? invert_permutation(perm) : perm}}), ins);
+    }
+
+    instruction_ref from_nhwc(module& m, instruction_ref ins)
+    {
+        return apply_nhwc_perm(m, ins, true);
+    }
+
+    instruction_ref to_nhwc(module& m, instruction_ref ins)
+    {
+        return apply_nhwc_perm(m, ins, false);
+    }
+
+    std::vector<instruction_ref>
+    insert(module& m, instruction_ref ins, const std::vector<instruction_ref>& args)
+    {
+        std::vector<instruction_ref> args_copy = args;
+        auto& x       = args_copy[0];
+        auto& weights = args_copy[1];
+        
+        x       = from_nhwc(m, x);
+        weights = from_nhwc(m, weights);
+
+        auto ret = convolution::insert(m, ins, args_copy);
+
+        return {to_nhwc(m, ret.front())};
     }
 };
 

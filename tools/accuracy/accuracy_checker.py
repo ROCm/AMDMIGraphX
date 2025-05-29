@@ -88,6 +88,27 @@ def parse_args():
                         default=False,
                         help='Turn on ort VERBOSE logging via session options')
 
+    parser.add_argument('--show_test_data',
+                        dest="show_data",
+                        action='store_true',
+                        default=False,
+                        help='Display input data used for run')
+
+    parser.add_argument('--save_data',
+                        dest="save_data",
+                        type=str,
+                        action='append',
+                        default=None,
+                        help='Save input data and model parameters from this run to a file')
+
+    parser.add_argument('--load_data',
+                        dest="load_data",
+                        type=str,
+                        action='append',
+                        default=None,
+                        help='Read input data for model parameters used from a file')
+
+
     parser.add_argument(
         '--disable-offload-copy',
         dest="offload_copy",
@@ -233,31 +254,70 @@ def main():
 
     params = {}
     test_inputs = {}
+
+    if args.save_data is not None:
+        print("Writing To: " + str(args.save_data))
+        file = open(args.save_data[0], 'wb+')
+
+    if args.load_data is not None:
+        print("Loading test data from " + str(args.load_data))
+        #with open(args.load_data[0], 'rb') as f:
+        load_data = np.load(args.load_data[0], allow_pickle=False)
+            #for line in f:
+                #print(line)
+                #data = line.split("-")
+                #if len(data) > 1:
+                #    numpy_values = data[1].replace("  ", " ").split(' ')
+                #    print(numpy_values)
+                #    load_data[data[0]] = np.array(numpy_values).astype(get_np_datatype(data[2].replace('\n','')))
+        
+
     for name, shape in model.get_parameter_shapes().items():
         if args.verbose:
             print(f'Parameter {name} -> {shape}')
+
         in_shape = shape.lens()
         in_type = shape.type_string()
-        #if not args.fill1 and not args.fill0:
-         #   test_input = np.random.rand(*(in_shape)).astype(
-         #       get_np_datatype(in_type))
-        #elif not args.fill0:
-        #    test_input = np.ones(in_shape).astype(get_np_datatype(in_type))
-        #else:
-        #    test_input = np.zeros(in_shape).astype(get_np_datatype(in_type))
 
-        test_inputs["input"] = np.array([[[0.8, -0.5, 0, 1],[0.5, 0.2, 0.3, -0.6]]]).astype(get_np_datatype(in_type))
-        test_inputs["weights"] = np.array([[.1, -0.2, 0.3, 1.0, 1.1, 0.3, 0.5, 0.2, 0.3, -0.6, 1.5, 2.0],
-                                           [0.5, 0.1, 0.4, 1.6, 1.0, 2.0, 0.4, 0.8, 0.9, 0.1, -1.3, 0.7],
-                                           [0.3, 0.2, 4.0, 2.2, 1.6, 1.1, 0.7, 0.2, 0.4, 1.0, 1.2, 0.5],
-                                           [0.2, 0.1, 0.4, 1.6, 2.4, 3.3, 2.1, 4.2, 8.4, 0.0, 2.1, 3.2]]).astype(get_np_datatype(in_type))
+        if args.load_data is None:
+            if not args.fill1 and not args.fill0:
+                test_input = np.random.rand(*(in_shape)).astype(
+                get_np_datatype(in_type))
+            elif not args.fill0:
+                test_input = np.ones(in_shape).astype(get_np_datatype(in_type))
+            else:
+                test_input = np.zeros(in_shape).astype(get_np_datatype(in_type))
+        else:
+            # Just do a simpe lookup from the loaded dataset
+            test_input = load_data[name]
 
-        test_inputs["bias"] = np.array([-0.5, 0.6, 1.2, 2.1, 0.5, 0.7, 0.2, 1.2, 0.5, 0.4, 0.3, 1.2]).astype(get_np_datatype(in_type))
+        test_inputs[name] = test_input
+
+        if args.show_data:
+            print(test_input)
+
+        #if args.save_data is not None:
+            #np.savez(file, test_input, allow_pickle=False)
+            #file.write(str(name) + "-" + np.array2string(test_input).replace('\n', '') + "-" + str(in_type) + "\n")
+
+        #test_inputs["input"] = np.array([[[0.8, -0.5, 0, 1],[0.5, 0.2, 0.3, -0.6]]]).astype(get_np_datatype(in_type))
+        #test_inputs["weights"] = np.array([[.1, -0.2, 0.3, 1.0, 1.1, 0.3, 0.5, 0.2, 0.3, -0.6, 1.5, 2.0],
+        #                                   [0.5, 0.1, 0.4, 1.6, 1.0, 2.0, 0.4, 0.8, 0.9, 0.1, -1.3, 0.7],
+        #                                   [0.3, 0.2, 4.0, 2.2, 1.6, 1.1, 0.7, 0.2, 0.4, 1.0, 1.2, 0.5],
+        #                                   [0.2, 0.1, 0.4, 1.6, 2.4, 3.3, 2.1, 4.2, 8.4, 0.0, 2.1, 3.2]]).astype(get_np_datatype(in_type))
+
+        #test_inputs["bias"] = np.array([-0.5, 0.6, 1.2, 2.1, 0.5, 0.7, 0.2, 1.2, 0.5, 0.4, 0.3, 1.2]).astype(get_np_datatype(in_type))
+
 
         migraphx_arg = migraphx.argument(test_inputs[name])
         if not args.offload_copy:
             migraphx_arg = migraphx.to_gpu(migraphx_arg)
         params[name] = migraphx_arg
+
+    if args.save_data is not None:
+        #dict_to_kwd = lambda arg, val : print("**"+arg.replace('Parameter ', '') + "="+val)
+        np.savez(file, allow_pickle=False, kwd=dict_to_kwd(**test_inputs))
+        file.close()
 
     if not args.ort_run:
         if not args.offload_copy:

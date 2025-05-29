@@ -44,7 +44,7 @@ TEST_CASE(convinteger_bias_test)
     mm->add_instruction(migraphx::make_op("sub"), quant, quant2);
 
     auto prog = optimize_onnx("convinteger_bias_test.onnx");
-    mm->sort();
-    prog.get_main_module()->sort();
+    // mm->sort();
+    // prog.get_main_module()->sort();
     EXPECT(p == prog);
 }

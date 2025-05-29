@@ -31,9 +31,9 @@ TEST_CASE(convinteger_no_bias_mismatched_data_inputs_test)
     auto data   = mm->add_parameter("0", {migraphx::shape::int8_type, {1, 3, 32, 32}});
     auto weight = mm->add_parameter("1", {migraphx::shape::uint8_type, {1, 3, 5, 5}});
 
+    mm->add_literal(migraphx::literal{migraphx::shape{data->get_shape().type(), {1}, {0}}, {0}});
     mm->add_literal(
         migraphx::literal{migraphx::shape{weight->get_shape().type(), {1}, {0}}, {128}});
-    mm->add_literal(migraphx::literal{migraphx::shape{data->get_shape().type(), {1}, {0}}, {0}});
 
     // shift uint8 input
     auto int8_shift2 =
@@ -57,7 +57,7 @@ TEST_CASE(convinteger_no_bias_mismatched_data_inputs_test)
     mm->add_instruction(migraphx::make_op("quant_convolution"), data, weight);
 
     auto prog = optimize_onnx("convinteger_mismatched_input_types_test.onnx");
-    mm->sort();
-    prog.get_main_module()->sort();
+    // mm->sort();
+    // prog.get_main_module()->sort();
     EXPECT(p == prog);
 }

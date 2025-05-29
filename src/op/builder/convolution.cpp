@@ -264,7 +264,8 @@ struct convolution_integer : convolution_base<convolution_integer>
     gen_symmetric_literal(module& m, instruction_ref ins, const instruction_ref& input) const
     {
         float symmetric_value = get_symmetric_value(input);
-        return m.insert_literal(ins, {{input->get_shape().type(), {1}, {0}}, {symmetric_value}});
+        // return m.insert_literal(ins, {{input->get_shape().type(), {1}, {0}}, {symmetric_value}});
+        return m.add_literal({{input->get_shape().type(), {1}, {0}}, {symmetric_value}});
     }
 
     instruction_ref get_zero_point(module& m,
@@ -381,7 +382,8 @@ struct convolution_integer : convolution_base<convolution_integer>
         if(((input_type == migraphx::shape::uint8_type) or
             (weight_type == migraphx::shape::uint8_type)))
         {
-            offset_op = m.insert_literal(ins, {{migraphx::shape::half_type}, {-128}});
+            // offset_op = m.insert_literal(ins, {{migraphx::shape::half_type}, {-128}});
+            offset_op = m.add_literal({{migraphx::shape::half_type}, {-128}});
         }
 
         if(input_type == migraphx::shape::uint8_type)
@@ -425,8 +427,7 @@ struct convolution_nhwc : op_builder<convolution_nhwc>, convolution
         return apply_nhwc_perm(m, ins, false);
     }
 
-    std::vector<instruction_ref>
-    insert(module& m, instruction_ref ins, const std::vector<instruction_ref>& args)
+    std::vector<instruction_ref> insert(module& m, instruction_ref ins, const std::vector<instruction_ref>& args)
     {
         std::vector<instruction_ref> args_copy = args;
         auto& x       = args_copy[0];

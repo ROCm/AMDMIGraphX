@@ -312,7 +312,7 @@ struct convolution_integer : convolution_base<convolution_integer>
                              std::vector<std::size_t> lens,
                              std::size_t axis) const
     {
-        if(qparam->get_shape().scalar())
+        if (qparam->get_shape().elements() == 1)
         {
             return migraphx::make_op("multibroadcast", {{"out_lens", lens}});
         }

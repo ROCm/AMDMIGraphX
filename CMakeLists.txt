@@ -345,8 +345,6 @@ if(BUILD_TESTING)
     add_subdirectory(test)
 endif()
 
-#add_subdirectory(tools)
-
 set(DEST_DIR ${CMAKE_BINARY_DIR})
 file(GLOB backend_files ${CMAKE_SOURCE_DIR}/src/py/backend/*.py)
 file(MAKE_DIRECTORY ${DEST_DIR}/lib/onnx_migraphx)

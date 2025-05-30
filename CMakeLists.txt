@@ -344,7 +344,8 @@ if(BUILD_TESTING)
     rocm_enable_test_package(migraphx)
     add_subdirectory(test)
 endif()
-add_subdirectory(tools)
+
+#add_subdirectory(tools)
 
 set(DEST_DIR ${CMAKE_BINARY_DIR})
 file(GLOB backend_files ${CMAKE_SOURCE_DIR}/src/py/backend/*.py)

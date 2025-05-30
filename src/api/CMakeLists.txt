@@ -22,9 +22,35 @@
 # THE SOFTWARE.
 #####################################################################################
 
-add_library(migraphx_c
-    ${CMAKE_CURRENT_BINARY_DIR}/api.cpp
-)
+if(NOT Python_EXECUTABLE)
+    find_package(Python 3 REQUIRED COMPONENTS Interpreter)
+endif()
+find_program(CLANG_FORMAT clang-format REQUIRED PATHS /opt/rocm/llvm ENV HIP_PATH PATH_SUFFIXES bin)
+
+set(TOOLS_DIR "${PROJECT_SOURCE_DIR}/tools")
+set(API_DIR "${PROJECT_SOURCE_DIR}/src/api")
+
+set(GENERATE_COMMAND ${Python_EXECUTABLE} generate.py -f ${CLANG_FORMAT})
+if(NOT MIGRAPHX_DISABLE_ONNX)
+    list(APPEND GENERATE_COMMAND -Dhave_onnx)
+endif()
+if(NOT MIGRAPHX_DISABLE_TENSORFLOW)
+    list(APPEND GENERATE_COMMAND -Dhave_tensorflow)
+endif()
+list(APPEND GENERATE_COMMAND -o ${PROJECT_BINARY_DIR}/src)
+
+add_custom_command(
+    OUTPUT ${API_DIR}/api.cpp
+    COMMAND ${GENERATE_COMMAND}
+    DEPENDS ${TOOLS_DIR}/generate.py ${TOOLS_DIR}/api.py ${TOOLS_DIR}/te.py ${API_DIR}/migraphx.py
+    WORKING_DIRECTORY ${TOOLS_DIR})
+
+add_custom_target(generate
+    DEPENDS ${API_DIR}/api.cpp)
+
+add_library(migraphx_c ${API_DIR}/api.cpp)
+add_dependencies(migraphx_c generate)
+
 set_target_properties(migraphx_c PROPERTIES EXPORT_NAME c)
 migraphx_generate_export_header(migraphx_c DIRECTORY migraphx/api)
 

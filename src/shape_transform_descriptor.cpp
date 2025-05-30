@@ -648,6 +648,24 @@ static void collapse_1_dims(std::vector<dimension>& dimensions)
     renumber_axes(dimensions);
 }
 
+static void insert_empty_1s(std::vector<dimension>& dimensions, std::size_t rank)
+{
+    if(dimensions.empty())
+        return;
+    transform(dimensions, range(rank), dimensions.begin(), [](const dimension& d, std::size_t i) -> dimension {
+        auto result = dimension::sub{d.len(), {i}};
+        if(result.len > 1)
+            result.hide();
+        return {{result}};
+    });
+    if(rank > dimensions.size())
+    {
+        transform(range(dimensions.size(), rank), std::back_inserter(dimensions.back().subdimensions), [](std::size_t i) {
+            return dimension::sub{1, {i}};
+        });
+    }
+}
+
 void shape_transform_descriptor::simplify()
 {
     for(auto& d : dimensions)
@@ -662,7 +680,10 @@ void shape_transform_descriptor::simplify()
         // Group axes
         auto axes_map = group_axes(dimensions);
         if(axes_map.empty())
+        {
+            insert_empty_1s(dimensions, rank);
             return;
+        }
 
         remove_split_hidden_axes(axes_map);
         renumber_axes(axes_map);
@@ -1143,23 +1164,40 @@ shape_transform_descriptor shape_transform_descriptor::to_common_from_dst() cons
                            return s;
                        });
     }
+    if(dimensions.size() == 1 and subs.empty())
+    {
+        transform(range(rank), std::back_inserter(subs), [](std::size_t i) -> dimension::sub {
+            return {1, {0, i}};
+        });
+    }
     std::transform(subs.begin(),
                    subs.end(),
                    std::back_inserter(result.dimensions),
                    [&](const auto& x) -> dimension { return {{x}}; });
     renumber_axes(result.dimensions);
-    // result.simplify();
     return result;
 }
 shape_transform_descriptor shape_transform_descriptor::to_dst_from_common() const
 {
     shape_transform_descriptor result = *this;
     result.rank                       = common_size(result.dimensions);
-    for_each_subdimension(result.dimensions, range(result.rank), [&](auto& s, std::size_t i) {
-        set_origin_axis(s, {i});
-        s.expose();
-    });
-    result.simplify();
+    if(result.rank == 0)
+    {
+        result.rank = 1;
+        std::vector<dimension::sub> subs;
+        transform(range(rank), std::back_inserter(subs), [](std::size_t i) -> dimension::sub {
+            return {1, {i}};
+        });
+        result.dimensions.push_back({subs});
+    }
+    else
+    {
+        for_each_subdimension(result.dimensions, range(result.rank), [&](auto& s, std::size_t i) {
+            set_origin_axis(s, {i});
+            s.expose();
+        });
+        result.simplify();
+    }
     return result;
 }
 shape_transform_descriptor shape_transform_descriptor::to_src_from_common() const
@@ -1199,6 +1237,13 @@ std::vector<std::vector<std::size_t>> shape_transform_descriptor::common_axes_ma
                       return s->axis;
                   }));
     }
+    if(axes_map.empty() and dimensions.size() == 1)
+    {
+        transform(range(rank), std::back_inserter(result), [](std::size_t i) {
+            return std::vector<std::size_t>{i};
+        });
+        return result;
+    }
     assert(not axes_map.empty());
     auto max_axis = std::prev(axes_map.end())->first;
     result.resize(max_axis + 1);
@@ -1221,6 +1266,11 @@ std::vector<std::vector<std::size_t>> shape_transform_descriptor::common_axes_ma
         auto& v = result.emplace_back(d.subdimensions.size());
         std::iota(v.begin(), v.end(), start);
         start += d.subdimensions.size();
+    }
+    if(result.size() == 1 and result.front().empty())
+    {
+        result.front().resize(rank);
+        std::iota(result.front().begin(), result.front().end(), 0);
     }
     return result;
 }
@@ -1265,6 +1315,8 @@ shape_transform_descriptor::common_dims(const std::vector<std::size_t>& input_di
                        std::back_inserter(result),
                        [&](const dimension::sub& s) { return get_len(s, input_dims); });
     }
+    if(result.empty())
+        result.resize(rank, 1);
     return result;
 }
 

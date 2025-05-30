@@ -2159,6 +2159,40 @@ TEST_CASE(pointwise_transpose_pointwise)
     EXPECT(m1.sort() == m2.sort());
 }
 
+TEST_CASE(pointwise_squeeze_1x1_pointwise)
+{
+    auto s1 = migraphx::shape{migraphx::shape::float_type, {1, 1}};
+    auto s2 = migraphx::shape{migraphx::shape::float_type, {1}};
+    migraphx::module m1;
+    {
+        auto x         = m1.add_parameter("x", s1);
+        auto y         = m1.add_parameter("y", s1);
+        auto z         = m1.add_parameter("z", s2);
+        auto mul       = m1.add_instruction(migraphx::make_op("mul"), x, y);
+        auto squeeze = m1.add_instruction(
+            migraphx::make_op("squeeze", {{"axes", {0}}}), mul);
+        auto add  = m1.add_instruction(migraphx::make_op("add"), squeeze, z);
+        auto relu = m1.add_instruction(migraphx::make_op("relu"), add);
+        m1.add_return({relu});
+    }
+    run_pass(m1);
+    migraphx::module m2;
+    {
+        auto x = m2.add_parameter("x", s1);
+        auto y = m2.add_parameter("y", s1);
+        auto z = m2.add_parameter("z", s2);
+        auto unsqueezez =
+            m2.add_instruction(migraphx::make_op("unsqueeze", {{"axes", {1}}}), z);
+        auto mul  = m2.add_instruction(migraphx::make_op("mul"), x, y);
+        auto add  = m2.add_instruction(migraphx::make_op("add"), mul, unsqueezez);
+        auto relu = m2.add_instruction(migraphx::make_op("relu"), add);
+        auto squeeze = m2.add_instruction(
+            migraphx::make_op("squeeze", {{"axes", {0}}}), relu);
+        m2.add_return({squeeze});
+    }
+    EXPECT(m1.sort() == m2.sort());
+}
+
 TEST_CASE(pointwise_transpose_pointwise_used_twice1)
 {
     auto s1 = migraphx::shape{migraphx::shape::float_type, {2, 64, 4, 4}};

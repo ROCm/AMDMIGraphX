@@ -875,20 +875,15 @@ TEST_CASE(common_dims_resize)
 
 TEST_CASE(common_dims_squeeze_1x1)
 {
-    auto desc =
-        make_simple_descriptor({1, 1}, make_op("squeeze", {{"axes", {0}}}));
+    auto desc = make_simple_descriptor({1, 1}, make_op("squeeze", {{"axes", {0}}}));
     desc.simplify();
     EXPECT(desc.common_dims() == final_lens{1, 1});
     EXPECT(desc.common_axes_map_from_src() == axes_map{{0}, {1}});
     EXPECT(desc.common_axes_map_from_dst() == axes_map{{0, 1}});
-    EXPECT(desc.to_common_from_src().generate() ==
-           ops{});
-    EXPECT(desc.to_common_from_dst().generate() ==
-           ops{make_op("unsqueeze", {{"axes", {1}}})});
-    EXPECT(desc.to_dst_from_common().generate() ==
-           ops{make_op("squeeze", {{"axes", {0}}})});
-    EXPECT(desc.to_src_from_common().generate() ==
-           ops{});
+    EXPECT(desc.to_common_from_src().generate() == ops{});
+    EXPECT(desc.to_common_from_dst().generate() == ops{make_op("unsqueeze", {{"axes", {1}}})});
+    EXPECT(desc.to_dst_from_common().generate() == ops{make_op("squeeze", {{"axes", {0}}})});
+    EXPECT(desc.to_src_from_common().generate() == ops{});
 }
 
 TEST_CASE(rebase_reshape_broadcast)

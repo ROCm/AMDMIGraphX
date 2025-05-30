@@ -652,17 +652,20 @@ static void insert_empty_1s(std::vector<dimension>& dimensions, std::size_t rank
 {
     if(dimensions.empty())
         return;
-    transform(dimensions, range(rank), dimensions.begin(), [](const dimension& d, std::size_t i) -> dimension {
-        auto result = dimension::sub{d.len(), {i}};
-        if(result.len > 1)
-            result.hide();
-        return {{result}};
-    });
+    transform(dimensions,
+              range(rank),
+              dimensions.begin(),
+              [](const dimension& d, std::size_t i) -> dimension {
+                  auto result = dimension::sub{d.len(), {i}};
+                  if(result.len > 1)
+                      result.hide();
+                  return {{result}};
+              });
     if(rank > dimensions.size())
     {
-        transform(range(dimensions.size(), rank), std::back_inserter(dimensions.back().subdimensions), [](std::size_t i) {
-            return dimension::sub{1, {i}};
-        });
+        transform(range(dimensions.size(), rank),
+                  std::back_inserter(dimensions.back().subdimensions),
+                  [](std::size_t i) { return dimension::sub{1, {i}}; });
     }
 }
 

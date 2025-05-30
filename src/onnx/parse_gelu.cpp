@@ -96,7 +96,7 @@ struct parse_gelu : op_parser<parse_gelu>
 {
     std::vector<op_desc> operators() const
     {
-        return {{"BiasGelu"}, {"FastGelu"}, {"QuickGelu"}, {"Gelu"}};
+        return {{"BiasGelu"}, {"BiasSplitGelu"}, {"FastGelu"}, {"QuickGelu"}, {"Gelu"}};
     }
     instruction_ref parse(const op_desc& opd,
                           const onnx_parser& /*parser*/,
@@ -143,6 +143,14 @@ struct parse_gelu : op_parser<parse_gelu>
                 MIGRAPHX_THROW("PARSE_GELU: mismatching input tensor types");
             }
             x = info.add_common_op("add", x, y);
+        }
+
+        if(opd.onnx_name == "BiasSplitGelu")
+        {
+            auto last_dim_size = x->get_shape().lens().back();
+            auto split_left = info.add_instruction(migraphx::make_op("slice", {{"axes", {-1}}, {"starts", {0}}, {"ends", {last_dim_size/2}}}), x);
+            auto split_right = info.add_instruction(migraphx::make_op("slice", {{"axes", {-1}}, {"starts", {last_dim_size/2}}, {"ends", {last_dim_size}}}), x);
+            return info.add_common_op("mul", split_left, parse_gelu_erf(info, split_right));
         }
 
         if(approximate == "tanh")

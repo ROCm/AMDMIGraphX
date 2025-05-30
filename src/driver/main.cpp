@@ -33,8 +33,12 @@
 #include "models.hpp"
 #include "marker_roctx.hpp"
 
+#ifdef HAVE_TENSORFLOW
 #include <migraphx/tf.hpp>
+#endif
+#ifdef HAVE_ONNX
 #include <migraphx/onnx.hpp>
+#endif
 #ifdef MIGRAPHX_ENABLE_PYTHON
 #include <migraphx/py.hpp>
 #endif
@@ -122,8 +126,12 @@ struct loader
            ap.help("Run a single GEMM to test MIGraphX"),
            ap.set_value(true),
            ap.group("input"));
+#ifdef HAVE_ONNX
         ap(file_type, {"--onnx"}, ap.help("Load as onnx"), ap.set_value("onnx"));
+#endif
+#ifdef HAVE_TENSORFLOW
         ap(file_type, {"--tf"}, ap.help("Load as tensorflow"), ap.set_value("tf"));
+#endif
         ap(file_type, {"--migraphx"}, ap.help("Load as MIGraphX"), ap.set_value("migraphx"));
         ap(file_type, {"--migraphx-json"}, ap.help("Load as MIGraphX JSON"), ap.set_value("json"));
         ap(batch,
@@ -290,6 +298,7 @@ struct loader
         return output_node_names;
     }
 
+#ifdef HAVE_TENSORFLOW
     tf_options get_tf_options() const
     {
         auto map_input_dims    = parse_param_dims(param_dims);
@@ -301,7 +310,9 @@ struct loader
         options.output_node_names = output_node_names;
         return options;
     }
+#endif
 
+#ifdef HAVE_ONNX
     onnx_options get_onnx_options() const
     {
         auto map_input_dims     = parse_param_dims(param_dims);
@@ -324,17 +335,24 @@ struct loader
         options.dim_params             = map_dim_params;
         return options;
     }
+#endif
 
     static std::string get_file_type(const std::string& file)
     {
-        if(ends_with(file, ".onnx"))
+        if(ends_with(file, ".json"))
+            return "json";
+#ifdef HAVE_ONNX
+        else if(ends_with(file, ".onnx"))
             return "onnx";
+#endif
+#ifdef HAVE_TENSORFLOW
         else if(ends_with(file, ".pb"))
             return "tf";
-        else if(ends_with(file, ".json"))
-            return "json";
+#endif
+#ifdef MIGRAPHX_ENABLE_PYTHON
         else if(ends_with(file, ".py"))
             return "py";
+#endif
         else
             return "migraphx";
     }
@@ -353,20 +371,24 @@ struct loader
                 file_type = get_file_type(file);
             }
             std::cout << "Reading: " << file << std::endl;
-            if(file_type == "onnx")
-            {
-                p = parse_onnx(file, get_onnx_options());
-            }
-            else if(file_type == "tf")
-            {
-                p = parse_tf(file, get_tf_options());
-            }
-            else if(file_type == "json")
+            if(file_type == "json")
             {
                 file_options options;
                 options.format = "json";
                 p              = migraphx::load(file, options);
             }
+#ifdef HAVE_ONNX
+            else if(file_type == "onnx")
+            {
+                p = parse_onnx(file, get_onnx_options());
+            }
+#endif
+#ifdef HAVE_TENSORFLOW
+            else if(file_type == "tf")
+            {
+                p = parse_tf(file, get_tf_options());
+            }
+#endif
 #ifdef MIGRAPHX_ENABLE_PYTHON
             else if(file_type == "py")
             {
@@ -830,6 +852,8 @@ struct op : command<op>
     }
 };
 
+#ifdef HAVE_ONNX
+
 struct onnx : command<onnx>
 {
     bool show_ops = false;
@@ -850,6 +874,10 @@ struct onnx : command<onnx>
     }
 };
 
+#endif
+
+#ifdef HAVE_TENSORFLOW
+
 struct tf : command<tf>
 {
     bool show_ops = false;
@@ -869,6 +897,8 @@ struct tf : command<tf>
         }
     }
 };
+
+#endif
 
 struct main_command
 {

@@ -23,6 +23,7 @@
 #####################################################################################
 
 include(ExportHeader)
+include(Embed)
 
 include(ROCMInstallTargets)
 include(ROCMPackageConfigHelpers)
@@ -90,6 +91,7 @@ add_library(migraphx
     process.cpp
     program.cpp
     propagate_constant.cpp
+    propagate_precision.cpp
     promote_literals.cpp
     quantization.cpp
     quantize_int4.cpp
@@ -108,6 +110,7 @@ add_library(migraphx
     rewrite_pooling.cpp
     rewrite_quantization.cpp
     rewrite_rnn.cpp
+    rewrite_topk.cpp
     schedule.cpp
     serialize.cpp
     shape.cpp

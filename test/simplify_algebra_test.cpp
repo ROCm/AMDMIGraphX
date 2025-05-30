@@ -34,7 +34,7 @@
 #include <test.hpp>
 #include <pointwise.hpp>
 
-void run_pass(migraphx::module& m)
+static void run_pass(migraphx::module& m)
 {
     migraphx::run_passes(m, {migraphx::simplify_algebra{}, migraphx::dead_code_elimination{}});
 }
@@ -213,7 +213,7 @@ TEST_CASE(simplify_add_broadcast2)
 
 // TODO: Add test case
 // TEST_CASE(simplify_add4)
-void simplify_add4()
+[[maybe_unused]] static void simplify_add4()
 {
     migraphx::module m1;
     {
@@ -1742,9 +1742,11 @@ TEST_CASE(simplify_zero_mult_const)
 
     migraphx::module m2;
     {
-        m2.add_parameter("x", {migraphx::shape::int32_type, {1}});
+        auto x            = m2.add_parameter("x", {migraphx::shape::int32_type, {1}});
         auto zero = m2.add_literal(0);
-        m2.add_return({zero});
+        auto reshape_zero = m2.add_instruction(
+            migraphx::make_op("reshape", {{"dims", x->get_shape().lens()}}), zero);
+        m2.add_return({reshape_zero});
     }
 
     EXPECT(m1 == m2);
@@ -1763,12 +1765,68 @@ TEST_CASE(simplify_zero_mult_const2)
 
     migraphx::module m2;
     {
-        m2.add_parameter("x", {migraphx::shape::int32_type, {1}});
+        auto x            = m2.add_parameter("x", {migraphx::shape::int32_type, {1}});
         auto zero = m2.add_literal(0);
-        m2.add_return({zero});
+        auto reshape_zero = m2.add_instruction(
+            migraphx::make_op("reshape", {{"dims", x->get_shape().lens()}}), zero);
+        m2.add_return({reshape_zero});
     }
 
     EXPECT(m1 == m2);
+}
+
+TEST_CASE(simplify_zero_mult_unsqueeze)
+{
+
+    // unsqueeze axis 0
+    migraphx::module m1;
+    {
+        auto x          = m1.add_parameter("x", {migraphx::shape::int32_type, {1}});
+        auto zero       = m1.add_literal(0);
+        auto mul_x_zero = m1.add_instruction(migraphx::make_op("mul"), x, zero);
+        auto unsqueeze_ins =
+            m1.add_instruction(migraphx::make_op("unsqueeze", {{"axes", {0}}}), mul_x_zero);
+        m1.add_return({unsqueeze_ins});
+    }
+    run_pass(m1);
+
+    migraphx::module m2;
+    {
+        auto x            = m2.add_parameter("x", {migraphx::shape::int32_type, {1}});
+        auto zero         = m2.add_literal(0);
+        auto reshape_zero = m2.add_instruction(
+            migraphx::make_op("reshape", {{"dims", x->get_shape().lens()}}), zero);
+        auto unsqueeze_ins =
+            m2.add_instruction(migraphx::make_op("unsqueeze", {{"axes", {0}}}), reshape_zero);
+        m2.add_return({unsqueeze_ins});
+    }
+
+    EXPECT(m1 == m2);
+
+    // unsqueeze axis 1
+    migraphx::module m3;
+    {
+        auto x          = m3.add_parameter("x", {migraphx::shape::int32_type, {1}});
+        auto zero       = m3.add_literal(0);
+        auto mul_x_zero = m3.add_instruction(migraphx::make_op("mul"), x, zero);
+        auto unsqueeze_ins =
+            m3.add_instruction(migraphx::make_op("unsqueeze", {{"axes", {1}}}), mul_x_zero);
+        m3.add_return({unsqueeze_ins});
+    }
+    run_pass(m3);
+
+    migraphx::module m4;
+    {
+        auto x            = m4.add_parameter("x", {migraphx::shape::int32_type, {1}});
+        auto zero         = m4.add_literal(0);
+        auto reshape_zero = m4.add_instruction(
+            migraphx::make_op("reshape", {{"dims", x->get_shape().lens()}}), zero);
+        auto unsqueeze_ins =
+            m4.add_instruction(migraphx::make_op("unsqueeze", {{"axes", {1}}}), reshape_zero);
+        m4.add_return({unsqueeze_ins});
+    }
+
+    EXPECT(m3 == m4);
 }
 
 TEST_CASE(simplify_zero_mul_const_vec)
@@ -1839,8 +1897,10 @@ TEST_CASE(simplify_zero_div_const)
     migraphx::module m2;
     {
         auto zero = m2.add_literal(0);
-        m2.add_parameter("x", {migraphx::shape::int32_type, {1}});
-        m2.add_return({zero});
+        auto x           = m2.add_parameter("x", {migraphx::shape::int32_type, {1}});
+        auto reshape_ins = m2.add_instruction(
+            migraphx::make_op("reshape", {{"dims", x->get_shape().lens()}}), zero);
+        m2.add_return({reshape_ins});
     }
 
     EXPECT(m1 == m2);
@@ -2774,7 +2834,7 @@ TEST_CASE(simplify_split_between_add)
     EXPECT(m1.sort() == m2.sort());
 }
 
-void test_dot_horiz(migraphx::shape::type_t type, const std::string& dot_type)
+static void test_dot_horiz(migraphx::shape::type_t type, const std::string& dot_type)
 {
     auto s = migraphx::shape{type, {3, 2, 2}};
     migraphx::module m1;
@@ -3206,7 +3266,7 @@ TEST_CASE(simplify_mul_slice_conv_horiz_fusion)
 }
 
 template <std::size_t BS, bool TransposeInput>
-void reorder_reshape_slice()
+static void reorder_reshape_slice()
 {
     std::vector<int64_t> perm0 = {0, 2, 1, 3};
     std::vector<int64_t> perm1 = {0, 2, 3, 1};
@@ -3288,7 +3348,7 @@ TEST_CASE_REGISTER(reorder_reshape_slice<4, false>);
 TEST_CASE_REGISTER(reorder_reshape_slice<8, false>);
 
 template <std::size_t BS>
-void reorder_reshape_slice_move_axis1()
+static void reorder_reshape_slice_move_axis1()
 {
     migraphx::module m1;
     {
@@ -3659,7 +3719,7 @@ TEST_CASE(reorder_reshape_slice_uneven_slice)
 }
 
 template <std::size_t BS>
-void reorder_reshape_slice_diff_dims()
+static void reorder_reshape_slice_diff_dims()
 {
     migraphx::module m1;
     {
@@ -3713,7 +3773,7 @@ TEST_CASE_REGISTER(reorder_reshape_slice_diff_dims<4>);
 TEST_CASE_REGISTER(reorder_reshape_slice_diff_dims<8>);
 
 template <std::size_t BS>
-void reorder_slice_trans()
+static void reorder_slice_trans()
 {
     std::vector<int64_t> perm = {0, 2, 1};
 
@@ -3765,7 +3825,7 @@ TEST_CASE_REGISTER(reorder_slice_trans<1>);
 TEST_CASE_REGISTER(reorder_slice_trans<8>);
 
 template <std::size_t BS>
-void reorder_slice_trans_diff_perm()
+static void reorder_slice_trans_diff_perm()
 {
     migraphx::module m1;
     {
@@ -4265,6 +4325,29 @@ TEST_CASE(dot_mul_a)
         m2.add_return({dot});
     };
 
+    EXPECT(m1.sort() == m2.sort());
+}
+
+TEST_CASE(dot_mul_a_used_twice)
+{
+    migraphx::shape as{migraphx::shape::float_type, {2, 256, 32}};
+    migraphx::shape bs{migraphx::shape::float_type, {2, 32, 128}};
+    migraphx::module m1;
+    {
+        auto a   = m1.add_parameter("input", as);
+        auto b   = m1.add_literal(migraphx::generate_literal(bs));
+        auto dot = m1.add_instruction(migraphx::make_op("dot"), a, b);
+        auto lit =
+            m1.add_literal(migraphx::generate_literal({migraphx::shape::float_type, {1, 1, 128}}));
+        auto litb = m1.add_instruction(
+            migraphx::make_op("multibroadcast", {{"out_lens", dot->get_shape().lens()}}), lit);
+        auto mul  = m1.add_instruction(migraphx::make_op("mul"), dot, litb);
+        auto relu = m1.add_instruction(migraphx::make_op("relu"), mul);
+        auto add  = m1.add_instruction(migraphx::make_op("add"), dot, relu);
+        m1.add_return({add});
+    };
+    migraphx::module m2 = m1;
+    run_pass(m1);
     EXPECT(m1.sort() == m2.sort());
 }
 

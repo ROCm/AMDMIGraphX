@@ -36,9 +36,9 @@ namespace gpu {
 MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_BENCHMARKING_BUNDLE);
 MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_BENCHMARKING_NRUNS);
 
-std::vector<argument> generate_arguments(const std::vector<shape>& shapes,
-                                         unsigned long seed = 0,
-                                         random_mode rm     = random_mode::random)
+static std::vector<argument> generate_arguments(const std::vector<shape>& shapes,
+                                                unsigned long seed = 0,
+                                                random_mode rm     = random_mode::random)
 {
     std::vector<argument> args;
     std::transform(shapes.begin(), shapes.end(), std::back_inserter(args), [&](const auto& s) {
@@ -47,8 +47,8 @@ std::vector<argument> generate_arguments(const std::vector<shape>& shapes,
     return args;
 }
 
-template <class F>
-double time_loop(migraphx::gpu::context& gctx, int bundle, int nruns, F f)
+double
+time_loop(migraphx::gpu::context& gctx, int bundle, int nruns, const std::function<void()>& f)
 {
     // check for manual overrides
     bundle = value_of(MIGRAPHX_BENCHMARKING_BUNDLE{}, bundle);

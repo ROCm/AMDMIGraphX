@@ -65,20 +65,6 @@ namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
 namespace cpu {
 
-template <typename T>
-T zero(const T&)
-{
-    return T(0);
-}
-
-template <class T>
-typename std::conditional_t<std::is_integral<T>{}, std::make_signed<T>, std::enable_if<true, T>>::
-    type
-    make_signed(T x)
-{
-    return x;
-}
-
 struct cpu_im2col
 {
     op::im2col op;
@@ -458,13 +444,13 @@ struct cpu_apply
         auto before_contig =
             modl->insert_instruction(ins, make_op("dnnl::reorder"), {before_contiguous_args});
 
-        auto new_lazy_reshape = modl->insert_instruction(
+        auto new_reshape_lazy = modl->insert_instruction(
             ins,
             make_op("reshape_lazy", {{"dims", {ins->get_operator().to_value().at("dims")}}}),
             before_contig);
 
-        std::vector<instruction_ref> after_contiguous_args = {new_lazy_reshape};
-        auto after_alloc = insert_allocation(new_lazy_reshape, new_lazy_reshape->get_shape());
+        std::vector<instruction_ref> after_contiguous_args = {new_reshape_lazy};
+        auto after_alloc = insert_allocation(new_reshape_lazy, new_reshape_lazy->get_shape());
         after_contiguous_args.push_back(after_alloc);
         return modl->replace_instruction(ins, make_op("dnnl::reorder"), after_contiguous_args);
     }

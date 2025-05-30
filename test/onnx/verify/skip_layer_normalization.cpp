@@ -75,11 +75,11 @@ TEST_CASE(skip_layer_normalization_test)
     pp["skip"]  = migraphx::argument(s_x, skip.data());
     pp["gamma"] = migraphx::argument(s_s, scale.data());
 
-    auto results             = p.eval(pp);
-    auto output              = results.at(0);
-    auto mean                = results.at(1);
-    auto inv_std_var         = results.at(2);
-    auto input_skip_bias_sum = results.at(3);
+    auto results                    = p.eval(pp);
+    const auto& output              = results.at(0);
+    const auto& mean                = results.at(1);
+    const auto& inv_std_var         = results.at(2);
+    const auto& input_skip_bias_sum = results.at(3);
 
     std::vector<half> result_vector;
     std::vector<half> mean_vector;
@@ -186,11 +186,11 @@ TEST_CASE(skip_layer_normalization_beta_test)
     pp["gamma"] = migraphx::argument(s_s, scale.data());
     pp["beta"]  = migraphx::argument(s_s, beta.data());
 
-    auto results             = p.eval(pp);
-    auto output              = results.at(0);
-    auto mean                = results.at(1);
-    auto inv_std_var         = results.at(2);
-    auto input_skip_bias_sum = results.at(3);
+    auto results                    = p.eval(pp);
+    const auto& output              = results.at(0);
+    const auto& mean                = results.at(1);
+    const auto& inv_std_var         = results.at(2);
+    const auto& input_skip_bias_sum = results.at(3);
 
     std::vector<half> result_vector;
     std::vector<half> mean_vector;
@@ -299,11 +299,11 @@ TEST_CASE(skip_layer_normalization_beta_bias_test)
     pp["beta"]  = migraphx::argument(s_s, beta.data());
     pp["bias"]  = migraphx::argument(s_s, bias.data());
 
-    auto results             = p.eval(pp);
-    auto output              = results.at(0);
-    auto mean                = results.at(1);
-    auto inv_std_var         = results.at(2);
-    auto input_skip_bias_sum = results.at(3);
+    auto results                    = p.eval(pp);
+    const auto& output              = results.at(0);
+    const auto& mean                = results.at(1);
+    const auto& inv_std_var         = results.at(2);
+    const auto& input_skip_bias_sum = results.at(3);
 
     std::vector<half> result_vector;
     std::vector<half> mean_vector;
@@ -396,11 +396,11 @@ TEST_CASE(skip_layer_normalization_2d_skip_test)
     pp["skip"]  = migraphx::argument(s_skip, skip.data());
     pp["gamma"] = migraphx::argument(s_s, scale.data());
 
-    auto results             = p.eval(pp);
-    auto output              = results.at(0);
-    auto mean                = results.at(1);
-    auto inv_std_var         = results.at(2);
-    auto input_skip_bias_sum = results.at(3);
+    auto results                    = p.eval(pp);
+    const auto& output              = results.at(0);
+    const auto& mean                = results.at(1);
+    const auto& inv_std_var         = results.at(2);
+    const auto& input_skip_bias_sum = results.at(3);
 
     std::vector<half> result_vector;
     std::vector<half> mean_vector;
@@ -494,11 +494,11 @@ TEST_CASE(skip_layer_normalization_skip_batch_size_1_test)
     pp["skip"]  = migraphx::argument(s_skip, skip.data());
     pp["gamma"] = migraphx::argument(s_s, scale.data());
 
-    auto results             = p.eval(pp);
-    auto output              = results.at(0);
-    auto mean                = results.at(1);
-    auto inv_std_var         = results.at(2);
-    auto input_skip_bias_sum = results.at(3);
+    auto results                    = p.eval(pp);
+    const auto& output              = results.at(0);
+    const auto& mean                = results.at(1);
+    const auto& inv_std_var         = results.at(2);
+    const auto& input_skip_bias_sum = results.at(3);
 
     std::vector<half> result_vector;
     std::vector<half> mean_vector;

@@ -148,8 +148,15 @@ struct parse_gelu : op_parser<parse_gelu>
         if(opd.onnx_name == "BiasSplitGelu")
         {
             auto last_dim_size = x->get_shape().lens().back();
-            auto split_left = info.add_instruction(migraphx::make_op("slice", {{"axes", {-1}}, {"starts", {0}}, {"ends", {last_dim_size/2}}}), x);
-            auto split_right = info.add_instruction(migraphx::make_op("slice", {{"axes", {-1}}, {"starts", {last_dim_size/2}}, {"ends", {last_dim_size}}}), x);
+            auto split_left    = info.add_instruction(
+                migraphx::make_op("slice",
+                                     {{"axes", {-1}}, {"starts", {0}}, {"ends", {last_dim_size / 2}}}),
+                x);
+            auto split_right = info.add_instruction(
+                migraphx::make_op(
+                    "slice",
+                    {{"axes", {-1}}, {"starts", {last_dim_size / 2}}, {"ends", {last_dim_size}}}),
+                x);
             return info.add_common_op("mul", split_left, parse_gelu_erf(info, split_right));
         }
 

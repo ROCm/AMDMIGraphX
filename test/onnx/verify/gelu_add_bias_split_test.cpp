@@ -57,13 +57,9 @@ TEST_CASE(gelu_add_bias_split_test)
     // >>> np.set_printoptions(suppress=True)
     // >>> np.ndarray.flatten(sum_left * gelu_out)
     std::vector<float> gold = {
-        0        ,   0        ,   0       ,   0        ,
-         0        ,   0        ,   0        ,   0        ,
-         0.00001577,   0.03644725,   1.11058678,  -4.20672373,
-        -8.98785092,  -4.99999857,   7        ,  27        ,
-        55        ,  91        , 135        , 187        ,
-       247        , 315        , 391        , 475
-    };
+        0,          0,          0,          0,           0,           0,           0,   0,
+        0.00001577, 0.03644725, 1.11058678, -4.20672373, -8.98785092, -4.99999857, 7,   27,
+        55,         91,         135,        187,         247,         315,         391, 475};
 
     EXPECT(migraphx::verify::verify_rms_range(result_vector, gold));
 }

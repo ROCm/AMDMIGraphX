@@ -58,10 +58,6 @@ endif()
 
 if(MIGRAPHX_USE_COMPOSABLEKERNEL)
     find_package(composable_kernel_host 1.0.0 REQUIRED)
-    if(NOT TARGET composable_kernel::ck_host)
-        # Manually including targets
-        include(${composable_kernel_host_TARGET_FILE})
-    endif()
 endif()
 
 if(BUILD_DEV)

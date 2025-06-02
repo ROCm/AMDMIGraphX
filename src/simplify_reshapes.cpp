@@ -210,7 +210,8 @@ struct find_op_shape_transform_op
         return not desc.has_broadcast();
     }
 
-    static std::vector<operation> generate(const shape_transform_descriptor& desc, const shape& input_shape)
+    static std::vector<operation> generate(const shape_transform_descriptor& desc,
+                                           const shape& input_shape)
     {
         if(input_shape.scalar() and input_shape.elements() == 1 and input_shape.ndim() == 1)
         {

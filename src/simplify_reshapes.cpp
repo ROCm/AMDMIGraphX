@@ -210,6 +210,18 @@ struct find_op_shape_transform_op
         return not desc.has_broadcast();
     }
 
+    static std::vector<operation> generate(const shape_transform_descriptor& desc, const shape& input_shape)
+    {
+        if(input_shape.scalar() and input_shape.elements() == 1 and input_shape.ndim() == 1)
+        {
+            return {make_op("multibroadcast", {{"out_lens", desc.lens()}})};
+        }
+        else
+        {
+            return desc.generate(input_shape.lens());
+        }
+    }
+
     void apply(module& m, const match::matcher_result& r) const
     {
         auto ins       = r.result;
@@ -251,7 +263,7 @@ struct find_op_shape_transform_op
 
         auto reshape_input = [&](const auto& ins_to_insert, const auto& gdesc) {
             return [&](auto input) {
-                auto gops = gdesc.generate(input->get_shape().lens());
+                auto gops = generate(gdesc, input->get_shape());
                 return std::accumulate(
                     gops.begin(), gops.end(), input, [&](auto start, const auto& op) {
                         return m.insert_instruction(ins_to_insert, op, start);

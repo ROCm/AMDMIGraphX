@@ -24,21 +24,23 @@
 import api, argparse, os, runpy, subprocess, sys, te
 from pathlib import Path
 
-clang_format_path = Path('clang-format.exe' if os.name ==
-                         'nt' else '/opt/rocm/llvm/bin/clang-format')
+clang_format_path = None
+
 work_dir = Path().cwd()
 src_dir = work_dir.parent / 'src'
 migraphx_py_path = src_dir / 'api/migraphx.py'
 
 
 def clang_format(buffer, **kwargs):
-    return subprocess.run(f'{clang_format_path} -style=file',
-                          capture_output=True,
-                          shell=True,
-                          check=True,
-                          input=buffer.encode('utf-8'),
-                          cwd=work_dir,
-                          **kwargs).stdout.decode('utf-8')
+    if clang_format_path is not None:
+        return subprocess.run(f'{clang_format_path} -style=file',
+                              capture_output=True,
+                              shell=True,
+                              check=True,
+                              input=buffer.encode('utf-8'),
+                              cwd=work_dir,
+                              **kwargs).stdout.decode('utf-8')
+    return buffer
 
 
 def api_generate(input_path: Path, output_path: Path):
@@ -67,7 +69,7 @@ def main():
     if args.clang_format:
         clang_format_path = args.clang_format
 
-    if not clang_format_path.is_file():
+    if clang_format_path is not None and not clang_format_path.is_file():
         print(f"{clang_format_path}: invalid path or not installed",
               file=sys.stderr)
         return

@@ -23,13 +23,16 @@
 #####################################################################################
 
 find_package(Python 3 REQUIRED COMPONENTS Interpreter)
-find_program(CLANG_FORMAT clang-format REQUIRED PATHS /opt/rocm/llvm ENV HIP_PATH PATH_SUFFIXES bin)
+find_program(CLANG_FORMAT clang-format PATHS /opt/rocm/llvm ENV HIP_PATH PATH_SUFFIXES bin)
 
 set(TOOLS_DIR "${PROJECT_SOURCE_DIR}/tools")
 set(BIN_DIR "${PROJECT_BINARY_DIR}/src/api")
 set(SRC_DIR "${PROJECT_SOURCE_DIR}/src/api")
 
-set(GENERATE_COMMAND ${Python_EXECUTABLE} generate.py -f ${CLANG_FORMAT})
+set(GENERATE_COMMAND ${Python_EXECUTABLE} generate.py)
+if (CLANG_FORMAT)
+    list(APPEND GENERATE_COMMAND -f ${CLANG_FORMAT})
+endif()
 if(MIGRAPHX_ENABLE_ONNX)
     list(APPEND GENERATE_COMMAND -Denable_onnx)
 endif()

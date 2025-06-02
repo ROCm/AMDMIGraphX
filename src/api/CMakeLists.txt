@@ -22,9 +22,7 @@
 # THE SOFTWARE.
 #####################################################################################
 
-if(NOT Python_EXECUTABLE)
-    find_package(Python 3 REQUIRED COMPONENTS Interpreter)
-endif()
+find_package(Python 3 REQUIRED COMPONENTS Interpreter)
 find_program(CLANG_FORMAT clang-format REQUIRED PATHS /opt/rocm/llvm ENV HIP_PATH PATH_SUFFIXES bin)
 
 set(TOOLS_DIR "${PROJECT_SOURCE_DIR}/tools")
@@ -32,11 +30,11 @@ set(BIN_DIR "${PROJECT_BINARY_DIR}/src/api")
 set(SRC_DIR "${PROJECT_SOURCE_DIR}/src/api")
 
 set(GENERATE_COMMAND ${Python_EXECUTABLE} generate.py -f ${CLANG_FORMAT})
-if(NOT MIGRAPHX_DISABLE_ONNX)
-    list(APPEND GENERATE_COMMAND -Dhave_onnx)
+if(MIGRAPHX_ENABLE_ONNX)
+    list(APPEND GENERATE_COMMAND -Denable_onnx)
 endif()
-if(NOT MIGRAPHX_DISABLE_TENSORFLOW)
-    list(APPEND GENERATE_COMMAND -Dhave_tensorflow)
+if(MIGRAPHX_ENABLE_TENSORFLOW)
+    list(APPEND GENERATE_COMMAND -Denable_tensorflow)
 endif()
 list(APPEND GENERATE_COMMAND -o ${PROJECT_BINARY_DIR}/src)
 

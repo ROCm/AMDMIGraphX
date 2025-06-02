@@ -56,7 +56,7 @@ def te_generate(input_path: Path, output_path: Path):
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument('-f', '--clang-format', type=Path)
-    parser.add_argument('-D', '--define', type=str, action='append', choices=['have_onnx', 'have_tensorflow'] )
+    parser.add_argument('-D', '--define', type=str, action='append', choices=['enable_onnx', 'enable_tensorflow'] )
     parser.add_argument('-o', '--output-directory', type=Path)
     args = parser.parse_args()
 

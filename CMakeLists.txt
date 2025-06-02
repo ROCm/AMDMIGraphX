@@ -294,10 +294,10 @@ rocm_enable_cppcheck(
         arithOperationsOnVoidPointer
         definePrefix:*test/include/test.hpp
         ctuOneDefinitionRuleViolation:*test/*
-        useSmartPointer:*src/api/api.cpp
+        #useSmartPointer:*src/api/api.cpp
         useSmartPointer:*make_shared_array.hpp
-        migraphx-RedundantLocalVariable:*src/api/api.cpp
-        migraphx-UseSmartPointer:*src/api/api.cpp
+        #migraphx-RedundantLocalVariable:*src/api/api.cpp
+        #migraphx-UseSmartPointer:*src/api/api.cpp
     FORCE
     INCONCLUSIVE
     RULE_FILE
@@ -331,6 +331,8 @@ rocm_enable_cppcheck(
         TYPE_ERASED_DECLARATION
         NDEBUG
 )
+
+add_dependencies(tidy generate)
 
 include(ROCMCreatePackage)
 include(ROCMTest)

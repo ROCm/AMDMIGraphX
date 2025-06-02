@@ -2209,10 +2209,11 @@ TEST_CASE(scalar_pointwise_unsqueeze_1x1_pointwise)
     run_pass(m1);
     migraphx::module m2;
     {
-        auto x          = m2.add_parameter("x", s1);
-        auto y          = m2.add_parameter("y", s2);
-        auto z          = m2.add_parameter("z", s3);
-        auto broadcastx = m2.add_instruction(migraphx::make_op("multibroadcast", {{"out_lens", {1, 1}}}), x);
+        auto x = m2.add_parameter("x", s1);
+        auto y = m2.add_parameter("y", s2);
+        auto z = m2.add_parameter("z", s3);
+        auto broadcastx =
+            m2.add_instruction(migraphx::make_op("multibroadcast", {{"out_lens", {1, 1}}}), x);
         auto unsqueezey = m2.add_instruction(migraphx::make_op("unsqueeze", {{"axes", {1}}}), y);
         auto mul        = m2.add_instruction(migraphx::make_op("mul"), broadcastx, unsqueezey);
         auto add        = m2.add_instruction(migraphx::make_op("add"), mul, z);

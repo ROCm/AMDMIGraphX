@@ -27,7 +27,7 @@ from pathlib import Path
 clang_format_path = Path('clang-format.exe' if os.name ==
                          'nt' else '/opt/rocm/llvm/bin/clang-format')
 work_dir = Path().cwd()
-src_dir = (work_dir / '../src').absolute()
+src_dir = work_dir.parent / 'src'
 migraphx_py_path = src_dir / 'api/migraphx.py'
 
 

@@ -2190,6 +2190,38 @@ TEST_CASE(pointwise_squeeze_1x1_pointwise)
     EXPECT(m1.sort() == m2.sort());
 }
 
+TEST_CASE(scalar_pointwise_unsqueeze_1x1_pointwise)
+{
+    auto s1 = migraphx::shape{migraphx::shape::float_type};
+    auto s2 = migraphx::shape{migraphx::shape::float_type, {1}};
+    auto s3 = migraphx::shape{migraphx::shape::float_type, {1, 1}};
+    migraphx::module m1;
+    {
+        auto x       = m1.add_parameter("x", s1);
+        auto y       = m1.add_parameter("y", s2);
+        auto z       = m1.add_parameter("z", s3);
+        auto mul     = m1.add_instruction(migraphx::make_op("mul"), x, y);
+        auto squeeze = m1.add_instruction(migraphx::make_op("unsqueeze", {{"axes", {1}}}), mul);
+        auto add     = m1.add_instruction(migraphx::make_op("add"), squeeze, z);
+        auto relu    = m1.add_instruction(migraphx::make_op("relu"), add);
+        m1.add_return({relu});
+    }
+    run_pass(m1);
+    migraphx::module m2;
+    {
+        auto x          = m2.add_parameter("x", s1);
+        auto y          = m2.add_parameter("y", s2);
+        auto z          = m2.add_parameter("z", s3);
+        auto broadcastx = m2.add_instruction(migraphx::make_op("multibroadcast", {{"out_lens", {1, 1}}}), x);
+        auto unsqueezey = m2.add_instruction(migraphx::make_op("unsqueeze", {{"axes", {1}}}), y);
+        auto mul        = m2.add_instruction(migraphx::make_op("mul"), broadcastx, unsqueezey);
+        auto add        = m2.add_instruction(migraphx::make_op("add"), mul, z);
+        auto relu       = m2.add_instruction(migraphx::make_op("relu"), add);
+        m2.add_return({relu});
+    }
+    EXPECT(m1.sort() == m2.sort());
+}
+
 TEST_CASE(pointwise_transpose_pointwise_used_twice1)
 {
     auto s1 = migraphx::shape{migraphx::shape::float_type, {2, 64, 4, 4}};

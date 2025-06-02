@@ -609,7 +609,7 @@ struct find_concat_reshape
     auto matcher() const
     {
         return match::name("concat")(match::all_of[match::inputs()](
-            match::name("reshape", "unsqueeze", "squeeze", "lazy_reshape")));
+            match::name("reshape", "unsqueeze", "squeeze", "reshape_lazy")));
     }
 
     void apply(module& m, const match::matcher_result& mr) const

@@ -47,6 +47,8 @@ MIGRAPHX_EXPORT std::vector<shape> try_compute_shape(const operation& op,
 
 MIGRAPHX_EXPORT bool reaches(instruction_ref start, instruction_ref end);
 
+MIGRAPHX_EXPORT bool reaches(instruction_ref start, instruction_ref end, const_module_ref m);
+
 struct MIGRAPHX_EXPORT instruction
 {
     instruction() {}

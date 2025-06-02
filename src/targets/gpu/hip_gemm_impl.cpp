@@ -30,7 +30,7 @@
 #include <migraphx/gpu/hip_gemm_impl.hpp>
 #include <migraphx/reduce_dims.hpp>
 #include <migraphx/generate.hpp>
-#include <migraphx/time.hpp>
+#include <migraphx/gpu/time_op.hpp>
 #include <migraphx/permutation.hpp>
 
 namespace migraphx {
@@ -496,7 +496,7 @@ struct hip_gemm_impl
         auto check_valid = hipblaslt_invoke(&hipblasLtMatmul, common_args, false);
         if(check_valid != HIPBLAS_STATUS_SUCCESS)
         {
-            std::cerr << "WARNING:  tuned solution is invalid; reverting to default" << std::endl;
+            std::cerr << "WARNING: tuned solution is invalid; reverting to default" << std::endl;
             return 0;
         }
         return solution_idx;
@@ -566,10 +566,8 @@ struct hip_gemm_impl
      * Find best hipBLASLt solution:  Get list of solutions and try them all, returning the index
      * of the fastest one.
      */
-    int tune(context& ctx, const std::vector<shape>& input_shapes) // const
+    int tune(context& ctx, const std::vector<shape>& input_shapes)
     {
-        // tuning meta parameters
-        const int hot_calls = 40;
 
         std::vector<argument> input_args;
         std::transform(input_shapes.begin(),
@@ -622,18 +620,19 @@ struct hip_gemm_impl
             auto algo = solution.get_result(ctx, *this, 0)[0].algo;
             solution_indices.push_back(hipblaslt_ext::getIndexFromAlgo(algo));
         }
+
+        // Number of runs for separate time measurements.
+        const int hot_calls = 40;
+
+        const int number_of_bundles = 4;
+
         for(auto sol : solution_indices)
         {
-            // Warmup: the first call to an op. may not be representative since there is
-            // more time taken initializing caches, etc. so we won't time it.
-            run(ctx, input_args, sol);
-            double host_time = time<milliseconds>([&] {
-                for([[maybe_unused]] int hc : range(hot_calls))
-                    run(ctx, input_args, sol);
-                ctx.finish();
-            });
-
-            host_time /= hot_calls;
+            auto run_sol_idx_fn = [&] { run(ctx, input_args, sol); };
+            // Measure the time taken for the current solution index by running it
+            // hot_calls x number_of_bundles times.
+            // time_loop takes care of doing 1 warmup run.
+            double host_time = time_loop(ctx, number_of_bundles, hot_calls, run_sol_idx_fn);
 
             // dev/evaluation only: track time for first solution.
             if(first_time < 0)

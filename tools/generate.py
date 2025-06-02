@@ -21,7 +21,7 @@
 # OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 # THE SOFTWARE.
 #####################################################################################
-import api, argparse, os, runpy, subprocess, sys, te
+import api, argparse, runpy, subprocess, sys, te
 from pathlib import Path
 
 clang_format_path = None

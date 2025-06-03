@@ -57,7 +57,7 @@ else()
 endif()
 
 if(MIGRAPHX_USE_COMPOSABLEKERNEL)
-    find_package(composable_kernel 1.0.0 REQUIRED COMPONENTS jit_library)
+    find_package(composable_kernel_host 1.0.0 REQUIRED)
 endif()
 
 if(BUILD_DEV)
@@ -121,7 +121,7 @@ target_compile_definitions(kernel_file_check PRIVATE -DMIGRAPHX_WAVEFRONTSIZE=64
 target_include_directories(kernel_file_check PRIVATE $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/kernels/include/>)
 target_link_libraries(kernel_file_check compile_for_gpu)
 if(MIGRAPHX_USE_COMPOSABLEKERNEL)
-    target_link_libraries(kernel_file_check composable_kernel::jit_library)
+    target_link_libraries(kernel_file_check composable_kernel::ck_host)
 endif()
 
 rocm_clang_tidy_check(kernel_file_check)
@@ -389,7 +389,7 @@ else()
 endif()
 target_link_libraries(migraphx_gpu PRIVATE migraphx_kernels)
 if(MIGRAPHX_USE_COMPOSABLEKERNEL)
-    target_link_libraries(migraphx_gpu PRIVATE composable_kernel::jit_library)
+    target_link_libraries(migraphx_gpu PRIVATE composable_kernel::ck_host)
     target_compile_definitions(migraphx_gpu PRIVATE MIGRAPHX_USE_COMPOSABLEKERNEL=1)
 endif()
 

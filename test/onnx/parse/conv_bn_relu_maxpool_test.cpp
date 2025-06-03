@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2023 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2025 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -25,7 +25,7 @@
 #include <onnx_test.hpp>
 #include <migraphx/op/pooling.hpp>
 
-TEST_CASE(conv_bn_relu_maxpool_test)
+static migraphx::program create_conv_bn_relu_maxpool()
 {
     migraphx::program p;
     auto* mm = p.get_main_module();
@@ -67,7 +67,19 @@ TEST_CASE(conv_bn_relu_maxpool_test)
                                            {"lengths", {2, 2}},
                                            {"dilations", {1, 1}}}),
                         l7);
+    return p;
+}
 
-    auto prog = optimize_onnx("conv_bn_relu_maxpool_test.onnx");
+TEST_CASE(conv_bn_relu_maxpool_test)
+{
+    migraphx::program p = create_conv_bn_relu_maxpool();
+    auto prog           = optimize_onnx("conv_bn_relu_maxpool_test.onnx");
+    EXPECT(p == prog);
+}
+
+TEST_CASE(conv_bn_relu_maxpool_unordered_test)
+{
+    migraphx::program p = create_conv_bn_relu_maxpool();
+    auto prog           = optimize_onnx("conv_bn_relu_maxpool_unordered_test.onnx");
     EXPECT(p == prog);
 }

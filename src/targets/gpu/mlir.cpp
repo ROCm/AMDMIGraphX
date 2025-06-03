@@ -628,7 +628,7 @@ struct mlir_program
 
     static bool is_reshape(const std::string& name)
     {
-        return contains({"reshape", "lazy_reshape", "squeeze", "unsqueeze", "flatten"}, name);
+        return contains({"reshape", "reshape_lazy", "squeeze", "unsqueeze", "flatten"}, name);
     }
 
     static std::string get_name(instruction_ref ins)

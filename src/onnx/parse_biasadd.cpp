@@ -35,7 +35,7 @@ struct parse_biasadd : op_parser<parse_biasadd>
 
     instruction_ref parse(const op_desc& /*opd*/,
                           const onnx_parser& /*parser*/,
-                          onnx_parser::node_info info,
+                          const onnx_parser::node_info& info,
                           const std::vector<instruction_ref>& args) const
     {
         auto x_plus_bias = info.add_common_op("add", args[0], args[1]);

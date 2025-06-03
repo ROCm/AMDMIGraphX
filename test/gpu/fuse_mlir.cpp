@@ -1616,7 +1616,7 @@ TEST_CASE(gemm_invalid_pw_softmax_gemm)
     EXPECT(p1 == p2);
 }
 
-TEST_CASE(conv_output_reshapes)
+TEST_CASE(fuse_output_reshapes)
 {
     migraphx::shape s1 = migraphx::shape::from_permutation(
         migraphx::shape::half_type, {64, 64, 160, 160}, {0, 2, 3, 1});
@@ -1769,6 +1769,83 @@ TEST_CASE(channel_slice_convolution)
             });
 
         mm->add_return({mlir_conv0, mlir_conv1});
+    }
+    EXPECT(p1.sort() == p2.sort());
+}
+
+TEST_CASE(channel_slice_gemm)
+{
+    migraphx::shape s1 = migraphx::shape::from_permutation(
+        migraphx::shape::float_type, {1, 6, 20, 20}, {0, 2, 3, 1});
+    migraphx::shape s2 = migraphx::shape::from_permutation(
+        migraphx::shape::float_type, {1, 3, 20, 20}, {0, 2, 3, 1});
+    migraphx::program p1;
+    {
+        auto* mm     = p1.get_main_module();
+        auto a       = mm->add_parameter("a", s1);
+        auto b       = mm->add_parameter("b", s1);
+        auto c       = mm->add_parameter("c", s2);
+        auto d       = mm->add_parameter("d", s2);
+        auto dot_0   = mm->add_instruction(migraphx::make_op("dot"), a, b);
+        auto slice_0 = mm->add_instruction(
+            migraphx::make_op("slice", {{"axes", {1}}, {"starts", {0}}, {"ends", {3}}}), dot_0);
+        auto slice_1 = mm->add_instruction(
+            migraphx::make_op("slice", {{"axes", {1}}, {"starts", {3}}, {"ends", {6}}}), dot_0);
+        auto conv_1 = mm->add_instruction(migraphx::make_op("dot"), slice_0, c);
+        auto conv_2 = mm->add_instruction(migraphx::make_op("dot"), slice_1, d);
+        mm->add_return({conv_1, conv_2});
+    }
+    run_pass(p1);
+
+    migraphx::program p2;
+    {
+        auto* mm     = p2.get_main_module();
+        auto a       = mm->add_parameter("a", s1);
+        auto b       = mm->add_parameter("b", s1);
+        auto c       = mm->add_parameter("c", s2);
+        auto d       = mm->add_parameter("d", s2);
+        auto mlir_op = add_mlir(
+            p2,
+            "mlir_main:reshape_lazy_transpose_contiguous_transpose",
+            {a, b},
+            {"x0", "x1"},
+            [=](auto* pm, const auto& inputs) {
+                auto dot_0   = pm->add_instruction(migraphx::make_op("dot"), inputs[0], inputs[1]);
+                auto reshape = pm->add_instruction(
+                    migraphx::make_op("reshape_lazy", {{"dims", {1, 2, 3, 20, 20}}}), dot_0);
+                auto transpose_0 = pm->add_instruction(
+                    migraphx::make_op("transpose", {{"permutation", {1, 0, 3, 4, 2}}}), reshape);
+                auto contiguous = pm->add_instruction(migraphx::make_op("contiguous"), transpose_0);
+                auto transpose_1 = pm->add_instruction(
+                    migraphx::make_op("transpose", {{"permutation", {0, 1, 4, 2, 3}}}), contiguous);
+                return std::make_tuple(transpose_1->get_operator(), transpose_1);
+            });
+
+        auto identity = mm->add_instruction(migraphx::make_op("identity"), mlir_op);
+
+        auto mlir_dot0 = add_mlir(
+            p2, "mlir_dot1", {identity, c}, {"y0", "y1"}, [=](auto* pm, const auto& inputs) {
+                auto slice_0 = pm->add_instruction(
+                    migraphx::make_op("slice", {{"axes", {0}}, {"starts", {0}}, {"ends", {1}}}),
+                    inputs[0]);
+                auto squeeze_0 =
+                    pm->add_instruction(migraphx::make_op("squeeze", {{"axes", {0}}}), slice_0);
+                auto conv_0 = pm->add_instruction(migraphx::make_op("dot"), squeeze_0, inputs[1]);
+                return std::make_tuple(conv_0->get_operator(), conv_0);
+            });
+
+        auto mlir_dot1 = add_mlir(
+            p2, "mlir_dot2", {identity, d}, {"y0", "y1"}, [=](auto* pm, const auto& inputs) {
+                auto slice_1 = pm->add_instruction(
+                    migraphx::make_op("slice", {{"axes", {0}}, {"starts", {1}}, {"ends", {2}}}),
+                    inputs[0]);
+                auto squeeze_1 =
+                    pm->add_instruction(migraphx::make_op("squeeze", {{"axes", {0}}}), slice_1);
+                auto conv_1 = pm->add_instruction(migraphx::make_op("dot"), squeeze_1, inputs[1]);
+                return std::make_tuple(conv_1->get_operator(), conv_1);
+            });
+
+        mm->add_return({mlir_dot0, mlir_dot1});
     }
     EXPECT(p1.sort() == p2.sort());
 }

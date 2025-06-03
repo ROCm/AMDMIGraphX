@@ -1119,16 +1119,19 @@ struct find_mlir_output_reshape_ops
 };
 
 /**
- * Find slices along the channels axis that go into a convolution.
+ * Find slices along the channels axis that go into a convolution or GEMM.
  * Reshape input instructions to the slices such that the slice occurs over
- * the slowest dimension.
- * TODO: Can this also be done for GEMM?
+ * the slowest dimension. The reshapes should be fused into the previous
+ * kernel's output by `find_mlir_output_reshape_ops`. Minimal effect with
+ * NCHW memory format. Major effect with NHWC memory format.
  */
-struct find_channel_slice_convolution
+struct find_channel_slice_conv_or_gemm
 {
     auto matcher() const
     {
-        return match::name("convolution")(match::arg(0)(match::name("slice").bind("slice")));
+        auto input_is_slice = match::arg(0)(match::name("slice").bind("slice"));
+        return match::any_of(match::name("convolution")(input_is_slice),
+                             match::name("dot")(input_is_slice));
     }
 
     /**
@@ -1168,9 +1171,16 @@ struct find_channel_slice_convolution
             auto channels = output->get_shape().lens().at(1);
             return channels * group == ichannels;
         }))
+        {
             return;
+        }
+        std::cout << "here_0" << std::endl;
+        // check if NHWC
         if(find_permutation(ins->get_shape()).back() != 1)
+        {
             return;
+        }
+        std::cout << "here_1" << std::endl;
 
         auto dims = input->get_shape().lens();
         dims[1] /= group;
@@ -1215,6 +1225,7 @@ struct find_channel_slice_convolution
                 output, make_op("slice", {{"axes", {0}}, {"starts", {i}}, {"ends", {i + 1}}}), id);
             mpm.get_module().replace_instruction(output, make_op("squeeze", {{"axes", {0}}}), s);
         }
+        mpm.get_module().debug_print();
     }
 };
 
@@ -1238,8 +1249,8 @@ void fuse_mlir::apply(module_pass_manager& mpm) const
             return mlir_mode::all;
         return std::max(m1, m2);
     };
-    
-    match::find_matches(mpm, find_channel_slice_convolution{});
+
+    match::find_matches(mpm, find_channel_slice_conv_or_gemm{});
     mpm.run_pass(dead_code_elimination{});
 
     // Attention offloads; default disabled

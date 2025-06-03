@@ -48,7 +48,7 @@ const operation& get_operation(instruction_ref ins);
 struct module_impl;
 
 using parameter_map = std::unordered_map<std::string, argument>;
-using ins_dep_map   = std::unordered_map<instruction_ref, std::unordered_set<instruction_ref>>;
+using ins_dep_map   = std::unordered_map<instruction_ref, std::vector<instruction_ref>>;
 
 struct module_with_inputs;
 

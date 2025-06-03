@@ -255,6 +255,16 @@ static void quantize_fp16_with_op_names(program& prog, std::vector<std::string>&
     migraphx::quantize_fp16(prog, names);
 }
 
+static void quantize_bf16_with_op_names(program& prog, std::vector<std::string>& names)
+{
+    if(names.empty())
+    {
+        names = {"all"};
+    }
+
+    migraphx::quantize_bf16(prog, names);
+}
+
 struct quantize_int8_options
 {
     std::vector<parameter_map> calibration   = {};

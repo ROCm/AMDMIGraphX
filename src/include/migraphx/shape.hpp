@@ -197,23 +197,17 @@ struct MIGRAPHX_EXPORT shape
     explicit shape(const std::vector<shape>& subs);
 
     /**
-     * Creates an output shape with dimensions equal to the input lengths and strides determined
-     * by the permutation argument such that find_permutation() of the output shape returns the
-     * inputted permuation.
+     * Creates an output shape with dimensions `l` and strides computed to fulfill the given
+     * permutation.
      *
-     * 2D example:
-     *   parameters:
-     *     l = [2, 3], perm = [1, 0]
-     *   therefore:
-     *     "original" shape = {lens = [3, 2], strides = [2, 1]}
-     *     output_shape = {lens = [2, 3], strides = [1, 2]
+     * `t` = shape type
+     * `l` = output dimensions
+     * `perm` = order dimensions from slowest dimension to fastest dimension
      *
-     * 3D example:
-     *   parameters:
-     *     l = [2, 3, 4], perm = [1, 2, 0]
-     *   therefore:
-     *     "original" shape = {lens = [3, 4, 2], strides = [8, 2, 1]}
-     *     output_shape = {lens = [2, 3, 4], strides = [1, 8, 2]}
+     *  Example:
+     *      `t` = float_type, `l` = [2, 3, 4], `perm` = [1, 2, 0]
+     *      axis=1 to slowest dimension, axis=2 to second slowest, axis=0 to fastest
+     *      returns shape{type = float, lens = [2, 3, 4], strides = [1, 8 ,2]}
      */
     static shape
     from_permutation(type_t t, const std::vector<std::size_t>& l, const std::vector<int64_t>& perm);

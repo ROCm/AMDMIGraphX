@@ -131,7 +131,7 @@ struct rocblas_gemm
 #ifdef MIGRAPHX_USE_ROCBLAS_TUNING_API
         if(solution_idx == 0)
             solution_idx = gemm_default_solution(ctx, output_shape, input_shapes);
-        if(enabled(MIGRAPHX_ENABLE_GEMM_TUNING{}) or ctx.get_exhaustive_tune_flag())
+        if(solution_idx == 0 and (enabled(MIGRAPHX_ENABLE_GEMM_TUNING{}) or ctx.get_exhaustive_tune_flag()))
         {
             if(this->name() == "gpu::gemm")
             {

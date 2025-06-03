@@ -1122,7 +1122,7 @@ struct find_mlir_output_reshape_ops
  * Find slices along the channels axis that go into a convolution.
  * Reshape input instructions to the slices such that the slice occurs over
  * the slowest dimension.
- * TODO: Can this also be done for GEMM?
+ * TODO: This can also be done for GEMM when NCHW is supported for it.
  */
 struct find_channel_slice_convolution
 {
@@ -1158,7 +1158,9 @@ struct find_channel_slice_convolution
         auto input = slice->inputs().front();
         auto group = get_slice_group(slice);
         if(group == 0)
+        {
             return;
+        }
         // check that all slice instructions coming off from `input` are making
         // the same size slice.
         if(not all_of(input->outputs(), [&](instruction_ref output) {
@@ -1168,9 +1170,14 @@ struct find_channel_slice_convolution
             auto channels = output->get_shape().lens().at(1);
             return channels * group == ichannels;
         }))
+        {
             return;
+        }
+        // check memory layout is in NCHW
         if(find_permutation(ins->get_shape()).back() != 1)
+        {
             return;
+        }
 
         auto dims = input->get_shape().lens();
         dims[1] /= group;

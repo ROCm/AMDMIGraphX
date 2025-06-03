@@ -28,7 +28,7 @@
 TEST_CASE(group_norm_small_eps_bf16_test)
 {
     migraphx::program p = make_group_norm(
-        {1, 4, 2}, {2}, {2}, {1, 2, 2, 2}, {2, 3}, 1e-7f, migraphx::shape::bf16_type);
+        {1, 4, 2}, {4}, {4}, {1, 2, 2, 2}, {2, 3}, 1e-7f, migraphx::shape::bf16_type);
     auto prog = optimize_onnx("group_norm_small_eps_bf16_test.onnx");
     EXPECT(p == prog);
 }

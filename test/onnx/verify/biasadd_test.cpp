@@ -41,7 +41,7 @@ TEST_CASE(biasadd_test)
     std::iota(skip.begin(), skip.end(), -11); // range from -11 to 12
 
     migraphx::parameter_map pp;
-    pp["x"] = migraphx::argument(data_shape, data.data());
+    pp["x"]    = migraphx::argument(data_shape, data.data());
     pp["bias"] = migraphx::argument(bias_shape, bias.data());
     pp["skip"] = migraphx::argument(data_shape, skip.data());
 
@@ -57,11 +57,8 @@ TEST_CASE(biasadd_test)
     // >>> skip = np.reshape(skip, [2, 3, 4])
     // >>> x_plus_bias = x + bias
     // >>> np.ndarray.flatten(x_plus_bias + skip)
-    std::vector<float> gold = {
-        -25., -22., -19., -16., -17., -14., -11.,  -8.,  -9.,  -6.,  -3.,
-         0.,  -1.,   2.,   5.,   8.,   7.,  10.,  13.,  16.,  15.,  18.,
-        21.,  24.
-    };
+    std::vector<float> gold = {-25., -22., -19., -16., -17., -14., -11., -8., -9., -6., -3., 0.,
+                               -1.,  2.,   5.,   8.,   7.,   10.,  13.,  16., 15., 18., 21., 24.};
 
     EXPECT(migraphx::verify::verify_rms_range(result_vector, gold));
 }

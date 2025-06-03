@@ -27,16 +27,16 @@
 TEST_CASE(biasadd_test)
 {
     migraphx::program p;
-    auto* mm = p.get_main_module();
-    auto x  = mm->add_parameter("x", migraphx::shape{migraphx::shape::float_type, {2, 3, 4}});
-    auto bias  = mm->add_parameter("bias", migraphx::shape{migraphx::shape::float_type, {4}});
-    auto skip  = mm->add_parameter("skip", migraphx::shape{migraphx::shape::float_type, {2, 3, 4}});
+    auto* mm  = p.get_main_module();
+    auto x    = mm->add_parameter("x", migraphx::shape{migraphx::shape::float_type, {2, 3, 4}});
+    auto bias = mm->add_parameter("bias", migraphx::shape{migraphx::shape::float_type, {4}});
+    auto skip = mm->add_parameter("skip", migraphx::shape{migraphx::shape::float_type, {2, 3, 4}});
 
     auto x_plus_bias = add_common_op(*mm, migraphx::make_op("add"), {x, bias});
-    auto ret = add_common_op(*mm, migraphx::make_op("add"), {x_plus_bias, skip});
+    auto ret         = add_common_op(*mm, migraphx::make_op("add"), {x_plus_bias, skip});
     mm->add_return({ret});
 
-    auto prog  = read_onnx("biasadd_test.onnx");
+    auto prog = read_onnx("biasadd_test.onnx");
 
     EXPECT(p == prog);
 }

@@ -122,7 +122,8 @@ struct MIGRAPHX_GPU_EXPORT hip_gemm
     {
         if(solution_idx == 0)
             solution_idx = hip_gemm_default_solution(ctx, output_shape, input_shapes);
-        if(solution_idx == 0 and (enabled(MIGRAPHX_ENABLE_HIP_GEMM_TUNING{}) or ctx.get_exhaustive_tune_flag()))
+        if(solution_idx == 0 and
+           (enabled(MIGRAPHX_ENABLE_HIP_GEMM_TUNING{}) or ctx.get_exhaustive_tune_flag()))
         {
             solution_idx =
                 hip_gemm_finalize(ctx, output_shape, input_shapes, alpha, beta, solution_idx);

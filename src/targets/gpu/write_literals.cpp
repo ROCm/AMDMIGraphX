@@ -84,13 +84,17 @@ static std::size_t estimate_scratch_size(const module& m, std::size_t alignment 
     liveness(m, [&](instruction_ref ins, auto live_set) {
         if(not is_allocate(ins) or ins->get_shape().bytes() == 0)
             return;
-        std::size_t n = transform_accumulate(live_set.begin(), live_set.end(), std::size_t{0}, std::plus<>{}, [&](instruction_ref i) -> std::size_t {
-            if(not is_allocate(i))
-                return 0;
-            auto b = i->get_shape().bytes() / alignment;
-            return b * alignment;
-        });
-        scratch_size = std::max(scratch_size, n);
+        std::size_t n = transform_accumulate(live_set.begin(),
+                                             live_set.end(),
+                                             std::size_t{0},
+                                             std::plus<>{},
+                                             [&](instruction_ref i) -> std::size_t {
+                                                 if(not is_allocate(i))
+                                                     return 0;
+                                                 auto b = i->get_shape().bytes() / alignment;
+                                                 return b * alignment;
+                                             });
+        scratch_size  = std::max(scratch_size, n);
     });
     // Add 2% since memory coloring is NP-hard and we might need more space
     return scratch_size + scratch_size / 50;
@@ -98,18 +102,22 @@ static std::size_t estimate_scratch_size(const module& m, std::size_t alignment 
 
 static std::size_t get_total_memory(const module& m)
 {
-    std::size_t n = transform_accumulate(m.begin(), m.end(), std::size_t{0}, std::plus<>{}, [&](const instruction& ins) -> std::size_t {
-        if(not contains({"@literal", "@param"}, ins.name()))
-            return 0;
-        return ins.get_shape().bytes();
-    });
+    std::size_t n = transform_accumulate(m.begin(),
+                                         m.end(),
+                                         std::size_t{0},
+                                         std::plus<>{},
+                                         [&](const instruction& ins) -> std::size_t {
+                                             if(not contains({"@literal", "@param"}, ins.name()))
+                                                 return 0;
+                                             return ins.get_shape().bytes();
+                                         });
     return n + estimate_scratch_size(m);
 }
 
 static std::size_t get_available_memory()
 {
     std::size_t free_memory = 0;
-    auto status        = hipMemGetInfo(&free_memory, nullptr);
+    auto status             = hipMemGetInfo(&free_memory, nullptr);
     if(status != hipSuccess)
         MIGRAPHX_THROW("Failed to get GPU memory info: " + std::string(hipGetErrorString(status)));
     return free_memory;
@@ -143,7 +151,8 @@ static std::unordered_set<instruction_ref> find_copy_literals(const module& m, s
 void write_literals::apply(module& m) const
 {
     assert(ctx != nullptr);
-    std::unordered_set<instruction_ref> copy_literals = find_copy_literals(m, extra_needed(get_available_memory(), get_total_memory(m)));
+    std::unordered_set<instruction_ref> copy_literals =
+        find_copy_literals(m, extra_needed(get_available_memory(), get_total_memory(m)));
 
     for(auto ins : iterator_for(m))
     {
@@ -152,7 +161,8 @@ void write_literals::apply(module& m) const
         bool copy_literal = enabled(MIGRAPHX_COPY_LITERALS{}) or contains(copy_literals, ins);
         if(copy_literal)
         {
-            auto lit = m.insert_instruction(ins, gpu_literal{.data = ins->get_literal().get_argument(), .host = true});
+            auto lit = m.insert_instruction(
+                ins, gpu_literal{.data = ins->get_literal().get_argument(), .host = true});
             auto a = m.insert_instruction(ins, hip_allocate{ins->get_literal().get_shape()});
             m.replace_instruction(ins, hip_copy{}, lit, a);
         }

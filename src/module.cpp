@@ -1504,7 +1504,7 @@ void module::calc_implicit_deps(const module& smod,
             if(pmod.has_instruction(iii))
             {
                 if(not contains(ins_inputs, iii))
-                    deps[ins].insert(iii);
+                    deps[ins].push_back(iii);
             }
         }
 

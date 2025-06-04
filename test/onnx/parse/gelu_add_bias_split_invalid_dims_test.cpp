@@ -26,5 +26,5 @@
 
 TEST_CASE(gelu_add_bias_split_invalid_dims_test)
 {
-   EXPECT(test::throws([&] { read_onnx("gelu_add_bias_split_invalid_dims_test.onnx"); }));
+    EXPECT(test::throws([&] { read_onnx("gelu_add_bias_split_invalid_dims_test.onnx"); }));
 }

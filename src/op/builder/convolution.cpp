@@ -187,9 +187,9 @@ struct convolution : convolution_base<convolution>
     }
 };
 
-struct convolution_integer : convolution_base<convolution_integer>
+struct quant_convolution : convolution_base<quant_convolution>
 {
-    static std::string name() { return "convolution_integer"; }
+    static std::string name() { return "quant_convolution"; }
 
     std::vector<instruction_ref> insert(insert_params params)
     {

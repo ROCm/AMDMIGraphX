@@ -89,8 +89,7 @@ struct parse_convolution : op_parser<parse_convolution>
             options.insert({"auto_pad", auto_pad});
         }
 
-        const auto op_name = opd.op_name == "quant_convolution" ? "convolution_integer" : opd.op_name;
-        return op::builder::add(op_name, *info.mod, args, options).at(0);
+        return op::builder::add(opd.op_name, *info.mod, args, options).at(0);
     }
 };
 

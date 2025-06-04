@@ -380,7 +380,6 @@ struct quant_convolution : convolution_base<quant_convolution>
         if(((input_type == migraphx::shape::uint8_type) or
             (weight_type == migraphx::shape::uint8_type)))
         {
-            // offset_op = m.insert_literal(ins, {{migraphx::shape::half_type}, {-128}});
             offset_op = m.add_literal({{migraphx::shape::half_type}, {-128}});
         }
 

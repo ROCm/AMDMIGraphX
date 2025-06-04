@@ -1,0 +1,73 @@
+/* ************************************************************************
+ * Copyright (C) 2015-2025 Advanced Micro Devices, Inc. All rights reserved.
+ *
+ * Permission is hereby granted, free of charge, to any person obtaining a copy
+ * of this software and associated documentation files (the "Software"), to deal
+ * in the Software without restriction, including without limitation the rights
+ * to use, copy, modify, merge, publish, distribute, sublicense, and/or sell cop-
+ * ies of the Software, and to permit persons to whom the Software is furnished
+ * to do so, subject to the following conditions:
+ *
+ * The above copyright notice and this permission notice shall be included in all
+ * copies or substantial portions of the Software.
+ *
+ * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IM-
+ * PLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS
+ * FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR
+ * COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER
+ * IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNE-
+ * CTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
+ *
+ * ************************************************************************ */
+
+#ifndef MIGRAPHX_GUARD_RTGLIB_FLOAT4_HPP
+#define MIGRAPHX_GUARD_RTGLIB_FLOAT4_HPP
+
+#include <migraphx/generic_float.hpp>
+#include <migraphx/config.hpp>
+
+namespace migraphx {
+inline namespace MIGRAPHX_INLINE_NS {
+
+using float4 = migraphx::generic_float<2, 1>;
+
+} // namespace MIGRAPHX_INLINE_NS
+} // namespace migraphx
+
+namespace std {
+
+template <unsigned int F>
+class numeric_limits<migraphx::generic_float<2, 1, F>>
+{
+    public:
+    static constexpr bool has_infinity      = false;
+    static constexpr bool has_quiet_NaN     = false;
+    static constexpr bool has_signaling_NaN = false;
+    static constexpr migraphx::generic_float<2, 1, F> epsilon()
+    {
+        return migraphx::generic_float<2, 1, F>::epsilon();
+    }
+
+    static constexpr migraphx::generic_float<2, 1, F> max()
+    {
+        return migraphx::generic_float<2, 1, F>::max();
+    }
+
+    static constexpr migraphx::generic_float<2, 1, F> min()
+    {
+        return migraphx::generic_float<2, 1, F>::min();
+    }
+
+    static constexpr migraphx::generic_float<2, 1, F> lowest()
+    {
+        return migraphx::generic_float<2, 1, F>::lowest();
+    }
+
+    static constexpr migraphx::generic_float<2, 1, F> denorm_min()
+    {
+        return migraphx::generic_float<2, 1, F>::denorm_min();
+    }
+};
+} // namespace std
+
+#endif // MIGRAPHX_GUARD_RTGLIB_FLOAT8_HPP

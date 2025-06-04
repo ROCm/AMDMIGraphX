@@ -213,7 +213,47 @@ struct __attribute__((packed, may_alias)) generic_float
         exponent = std::min<type>(exponent, all_ones<ExponentSize>());
     }
 
+    constexpr bool is_normal() const noexcept
+    {
+        return exponent != all_ones<ExponentSize>() and exponent != 0;
+    }
+
+    constexpr bool is_inf() const noexcept
+    {
+        return exponent == all_ones<ExponentSize>() and mantissa == 0;
+    }
+
+    constexpr bool is_nan() const noexcept
+    {
+        return exponent == all_ones<ExponentSize>() and mantissa != 0;
+    }
+
+    constexpr bool is_finite() const noexcept { return exponent != all_ones<ExponentSize>(); }
+
     constexpr operator float() const noexcept { return this->to_float(); }
+
+    static constexpr generic_float infinity()
+    {
+        generic_float x{};
+        x.exponent = all_ones<ExponentSize>();
+        return x;
+    }
+
+    static constexpr generic_float snan()
+    {
+        generic_float x{};
+        x.exponent = all_ones<ExponentSize>();
+        x.mantissa = 1u << (MantissaSize - 2u);
+        return x;
+    }
+
+    static constexpr generic_float qnan()
+    {
+        generic_float x{};
+        x.exponent = all_ones<ExponentSize>();
+        x.mantissa = 1u << (MantissaSize - 1u);
+        return x;
+    }
 
     static constexpr generic_float min()
     {
@@ -293,7 +333,7 @@ struct __attribute__((packed, may_alias)) generic_float
 
     friend constexpr bool operator==(const generic_float& x, const generic_float& y)
     {
-        if(not is_finite(x) or not is_finite(y))
+        if(not x.is_finite() or not y.is_finite())
             return false;
 
         if((x.mantissa == 0 and x.exponent == 0) and (y.mantissa == 0 and y.exponent == 0))
@@ -323,160 +363,81 @@ struct __attribute__((packed, may_alias)) generic_float
     }
 };
 
-namespace {
-
-// fp4 and fp6 do not have infinity or NaN
-template <unsigned int M, unsigned int E, unsigned int F, MIGRAPHX_REQUIRES(((M + E) > 6))>
-constexpr generic_float<M, E, F> is_normal(generic_float<M, E, F> gf)
-{
-    return gf.exponent != all_ones<E>() and gf.exponent != 0;
-}
-
-template <unsigned int M, unsigned int E, unsigned int F, MIGRAPHX_REQUIRES(((M + E) <= 6))>
-constexpr generic_float<M, E, F> is_normal(generic_float<M, E, F> gf)
-{
-    return gf.exponent != 0;
-}
-
-template <unsigned int M, unsigned int E, unsigned int F, MIGRAPHX_REQUIRES(((M + E) > 6))>
-constexpr generic_float<M, E, F> is_inf(generic_float<M, E, F> gf)
-{
-    return gf.exponent == all_ones<E>() and gf.mantissa == 0;
-}
-
-template <unsigned int M, unsigned int E, unsigned int F, MIGRAPHX_REQUIRES(((M + E) <= 6))>
-constexpr generic_float<M, E, F> is_inf(generic_float<M, E, F>)
-{
-    return true;
-}
-
-template <unsigned int M, unsigned int E, unsigned int F, MIGRAPHX_REQUIRES(((M + E) > 6))>
-constexpr generic_float<M, E, F> is_nan(generic_float<M, E, F> gf)
-{
-    return gf.exponent == all_ones<E>() and gf.mantissa != 0;
-}
-
-template <unsigned int M, unsigned int E, unsigned int F, MIGRAPHX_REQUIRES(((M + E) <= 6))>
-constexpr generic_float<M, E, F> is_nan(generic_float<M, E, F>)
-{
-    return false;
-}
-
-template <unsigned int M, unsigned int E, unsigned int F, MIGRAPHX_REQUIRES(((M + E) > 6))>
-constexpr generic_float<M, E, F> is_finite(generic_float<M, E, F> gf)
-{
-    return gf.exponent != all_ones<E>();
-}
-
-template <unsigned int M, unsigned int E, unsigned int F, MIGRAPHX_REQUIRES(((M + E) <= 6))>
-constexpr generic_float<M, E, F> is_finite(generic_float<M, E, F>)
-{
-    return true;
-}
-
-template <unsigned int M, unsigned int E, unsigned int F, MIGRAPHX_REQUIRES(((M + E) > 6))>
-constexpr generic_float<M, E, F> infinity()
-{
-    generic_float<M, E, F> x{};
-    x.exponent = all_ones<E>();
-    return x;
-}
-
-template <unsigned int M, unsigned int E, unsigned int F, MIGRAPHX_REQUIRES(((M + E) > 6))>
-constexpr generic_float<M, E, F> snan()
-{
-    generic_float<M, E, F> x{};
-    x.exponent = all_ones<E>();
-    x.mantissa = 1u << (M - 2u);
-    return x;
-}
-
-template <unsigned int M, unsigned int E, unsigned int F, MIGRAPHX_REQUIRES(((M + E) > 6))>
-constexpr generic_float<M, E, F> qnan()
-{
-    generic_float<M, E, F> x{};
-    x.exponent = all_ones<E>();
-    x.mantissa = 1u << (M - 1u);
-    return x;
-}
-
-} // namespace
-
 } // namespace MIGRAPHX_INLINE_NS
 } // namespace migraphx
 
 // NOLINTBEGIN(cert-dcl58-cpp)
 namespace std {
 
-template <unsigned int M, unsigned int E, unsigned int F>
-class numeric_limits<migraphx::generic_float<M, E, F>>
+template <unsigned int E, unsigned int M, unsigned int F>
+class numeric_limits<migraphx::generic_float<E, M, F>>
 {
     public:
     static constexpr bool has_infinity = true;
-    static constexpr migraphx::generic_float<M, E, F> epsilon()
+    static constexpr migraphx::generic_float<E, M, F> epsilon()
     {
-        return migraphx::generic_float<M, E, F>::epsilon();
+        return migraphx::generic_float<E, M, F>::epsilon();
     }
 
-    static constexpr migraphx::generic_float<M, E, F> quiet_NaN()
+    static constexpr migraphx::generic_float<E, M, F> quiet_NaN()
     {
-        return migraphx::qnan<migraphx::generic_float<M, E, F>>();
+        return migraphx::generic_float<E, M, F>::qnan();
     }
 
-    static constexpr migraphx::generic_float<M, E, F> signaling_NaN()
+    static constexpr migraphx::generic_float<E, M, F> signaling_NaN()
     {
-        return migraphx::snan<migraphx::generic_float<M, E, F>>();
+        return migraphx::generic_float<E, M, F>::snan();
     }
 
-    static constexpr migraphx::generic_float<M, E, F> max()
+    static constexpr migraphx::generic_float<E, M, F> max()
     {
-        return migraphx::generic_float<M, E, F>::max();
+        return migraphx::generic_float<E, M, F>::max();
     }
 
-    static constexpr migraphx::generic_float<M, E, F> min()
+    static constexpr migraphx::generic_float<E, M, F> min()
     {
-        return migraphx::generic_float<M, E, F>::min();
+        return migraphx::generic_float<E, M, F>::min();
     }
 
-    static constexpr migraphx::generic_float<M, E, F> lowest()
+    static constexpr migraphx::generic_float<E, M, F> lowest()
     {
-        return migraphx::generic_float<M, E, F>::lowest();
+        return migraphx::generic_float<E, M, F>::lowest();
     }
 
-    static constexpr migraphx::generic_float<M, E, F> infinity()
+    static constexpr migraphx::generic_float<E, M, F> infinity()
     {
-        return migraphx::infinity<migraphx::generic_float<M, E, F>>();
+        return migraphx::generic_float<E, M, F>::infinity();
     }
 
-    static constexpr migraphx::generic_float<M, E, F> denorm_min()
+    static constexpr migraphx::generic_float<E, M, F> denorm_min()
     {
-        return migraphx::generic_float<M, E, F>::denorm_min();
+        return migraphx::generic_float<E, M, F>::denorm_min();
     }
 };
 
-template <unsigned int M, unsigned int E, unsigned int F, class T>
-struct common_type<migraphx::generic_float<M, E, F>, T> : std::common_type<float, T>
+template <unsigned int E, unsigned int M, unsigned int F, class T>
+struct common_type<migraphx::generic_float<E, M, F>, T> : std::common_type<float, T>
 {
 };
 
-template <unsigned int M, unsigned int E, unsigned int F, class T>
-struct common_type<T, migraphx::generic_float<M, E, F>> : std::common_type<float, T>
+template <unsigned int E, unsigned int M, unsigned int F, class T>
+struct common_type<T, migraphx::generic_float<E, M, F>> : std::common_type<float, T>
 {
 };
 
-template <unsigned int M, unsigned int E, unsigned int F>
-struct common_type<migraphx::generic_float<M, E, F>, migraphx::generic_float<M, E, F>>
+template <unsigned int E, unsigned int M, unsigned int F>
+struct common_type<migraphx::generic_float<E, M, F>, migraphx::generic_float<E, M, F>>
 {
-    using type = migraphx::generic_float<M, E, F>;
+    using type = migraphx::generic_float<E, M, F>;
 };
 
-template <unsigned int M1,
-          unsigned int E1,
+template <unsigned int E1,
+          unsigned int M1,
           unsigned int F1,
-          unsigned int M2,
           unsigned int E2,
+          unsigned int M2,
           unsigned int F2>
-struct common_type<migraphx::generic_float<M1, E1, F1>, migraphx::generic_float<M2, E2, F2>>
+struct common_type<migraphx::generic_float<E1, M1, F1>, migraphx::generic_float<E2, M2, F2>>
 {
     using type = float;
 };

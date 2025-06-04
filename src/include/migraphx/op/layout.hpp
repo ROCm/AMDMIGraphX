@@ -39,9 +39,12 @@ inline namespace MIGRAPHX_INLINE_NS {
 namespace op {
 
 /**
- * Rearrange the data layout of the input instruction based on the permutation attribute.
- * permutation: List with how to rearrange data buffer of input instruction from order of slowest
- * dimension to fastest dimension. Integers refer to input axes.
+ * Rearrange the memory layout of the input instruction based on the permutation attribute.
+ * This operator changes the order of elements in memory, *not* the order in the tensor.
+ * Therefore, regardless of how the memory layout is changed, the order of elements returned by a
+ * tensor_view will be unchanged.
+ * `permutation`: List with how to rearrange the data buffer of the input instruction. This
+ * permutation is the transpose from the order in the tensor to the order in memory.
  */
 struct layout : unary<layout>
 {

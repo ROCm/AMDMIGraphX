@@ -31,7 +31,7 @@
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
 
-using bf16 = migraphx::generic_float<8, 7>;
+using bf16 = migraphx::generic_float<7, 8>;
 
 } // namespace MIGRAPHX_INLINE_NS
 } // namespace migraphx

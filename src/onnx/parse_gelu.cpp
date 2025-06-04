@@ -164,7 +164,7 @@ struct parse_gelu : op_parser<parse_gelu>
         if(opd.onnx_name == "BiasSplitGelu")
         {
             // add should've been inserted from previous conditional statement
-            assert(args.size() == 3);
+            assert(args.size() == 2);
             return parse_split_gelu(info, x);
         }
 

@@ -208,8 +208,8 @@ struct quant_convolution : convolution_base<quant_convolution>
         validate_or_init_attributes(kdims, x, weights);
 
         auto op   = make_conv_op("quant_convolution");
-        auto x_zp = get_zero_point(m, ins, x, 2, args);
-        auto w_zp = get_zero_point(m, ins, weights, 3, args);
+        auto x_zp = get_zero_point(m, x, 2, args);
+        auto w_zp = get_zero_point(m, weights, 3, args);
         handle_quant_inputs(m, ins, x, weights, x_zp, w_zp);
         auto conv = m.insert_instruction(ins, op, x, weights);
         return {handle_quant_bias(m, ins, op, conv, x, weights, x_zp, w_zp)};
@@ -261,15 +261,13 @@ struct quant_convolution : convolution_base<quant_convolution>
     }
 
     instruction_ref
-    gen_symmetric_literal(module& m, instruction_ref ins, const instruction_ref& input) const
+    gen_symmetric_literal(module& m, const instruction_ref& input) const
     {
         float symmetric_value = get_symmetric_value(input);
-        // return m.insert_literal(ins, {{input->get_shape().type(), {1}, {0}}, {symmetric_value}});
         return m.add_literal({{input->get_shape().type(), {1}, {0}}, {symmetric_value}});
     }
 
     instruction_ref get_zero_point(module& m,
-                                   instruction_ref ins,
                                    const instruction_ref& input,
                                    int index,
                                    const std::vector<instruction_ref>& args) const
@@ -284,12 +282,12 @@ struct quant_convolution : convolution_base<quant_convolution>
             ret = args[index];
             if(is_symmetric_zero_point(ret))
             {
-                ret = gen_symmetric_literal(m, ins, ret);
+                ret = gen_symmetric_literal(m, ret);
             }
         }
         else
         {
-            ret = gen_symmetric_literal(m, ins, ret);
+            ret = gen_symmetric_literal(m, ret);
         }
 
         return ret;

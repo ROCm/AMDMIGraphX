@@ -73,8 +73,8 @@ struct unsigned_type<8>
 
 struct float32_parts
 {
-    unsigned int mantissa : 23;
     unsigned int exponent : 8;
+    unsigned int mantissa : 23;
     unsigned int sign : 1;
 
     static constexpr unsigned int exponent_width() { return 8; }
@@ -90,14 +90,14 @@ struct float32_parts
 
 constexpr float32_parts get_parts(float f) { return migraphx::bit_cast<float32_parts>(f); }
 
-template <unsigned int MantissaSize, unsigned int ExponentSize, unsigned int Flags = 0>
+template <unsigned int ExponentSize, unsigned int MantissaSize, unsigned int Flags = 0>
 struct __attribute__((packed, may_alias)) generic_float
 {
     using type = typename unsigned_type<bit_ceil(
         integer_divide_ceil(MantissaSize + ExponentSize + 1, 8))>::type;
 
-    type mantissa : MantissaSize;
     type exponent : ExponentSize;
+    type mantissa : MantissaSize;
     type sign : 1;
 
     static constexpr int exponent_bias() { return all_ones<ExponentSize - 1>(); }

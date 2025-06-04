@@ -26,13 +26,12 @@
 #define MIGRAPHX_GUARD_RTGLIB_HALF_HPP
 
 #include <migraphx/config.hpp>
-#include <migraphx/float8.hpp>
 #include <migraphx/generic_float.hpp>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
 
-using half = migraphx::generic_float<10, 5>;
+using half = migraphx::generic_float<5, 10>;
 
 namespace detail {
 template <class T>

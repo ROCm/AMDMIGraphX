@@ -3,12 +3,12 @@ import org.jenkinsci.plugins.pipeline.modeldefinition.Utils
 DOCKER_IMAGE = 'rocm/migraphx-ci-jenkins-ubuntu'
 
 def getgputargets() {
-    targets="gfx906;gfx908;gfx90a;gfx1030;gfx1100;gfx1101;gfx1102"
+    targets="gfx906;gfx908;gfx90a;gfx1030;gfx1100;gfx1101"
     return targets
 }
 
 def getnavi3xtargets() {
-    targets="gfx1100;gfx1101;gfx1102"
+    targets="gfx1100;gfx1101"
     return targets
 }
 
@@ -111,6 +111,8 @@ def rocmnodename(name) {
         node_name = "${rocmtest_name} && gfx1101 && !vm";
     } else if(name == "nogpu") {
         node_name = "${rocmtest_name} && nogpu";
+    } else if(name == "onnxrt") {
+        node_name = "${rocmtest_name} && onnxrt";
     }
     return node_name
 }
@@ -212,13 +214,12 @@ rocmtest clang_debug: rocmnode('mi200+') { cmake_build ->
         def debug_flags = "-g -O2 -fno-omit-frame-pointer -fsanitize=${sanitizers} -fno-sanitize-recover=${sanitizers}"
         cmake_build(flags: "-DCMAKE_BUILD_TYPE=debug -DMIGRAPHX_ENABLE_C_API_TEST=Off -DMIGRAPHX_ENABLE_PYTHON=Off -DMIGRAPHX_ENABLE_GPU=Off -DMIGRAPHX_ENABLE_CPU=On -DCMAKE_CXX_FLAGS_DEBUG='${debug_flags}'", compiler:'/usr/bin/clang++-14')
     }
+}, clang_release_navi: rocmnode('navi32') { cmake_build ->
+    stage('HIP Clang Release Navi32') {
+        def gpu_targets = getnavi3xtargets()
+        cmake_build(flags: "-DCMAKE_BUILD_TYPE=release -DGPU_TARGETS='${gpu_targets}' -DMIGRAPHX_DISABLE_ONNX_TESTS=On")
+    }
 }
-//, clang_release_navi: rocmnode('navi32') { cmake_build ->
-//    stage('HIP Clang Release Navi32') {
-//        def gpu_targets = getnavi3xtargets()
-//        cmake_build(flags: "-DCMAKE_BUILD_TYPE=release -DGPU_TARGETS='${gpu_targets}' -DMIGRAPHX_DISABLE_ONNX_TESTS=On")
-//    }
-//}
 
 
 
@@ -231,7 +232,7 @@ def onnxnode(name, body) {
     }
 }
 
-rocmtest onnx: onnxnode('mi100+') { cmake_build ->
+rocmtest onnx: onnxnode('onnxrt') { cmake_build ->
     stage("Onnx runtime") {
         sh '''
             apt install half

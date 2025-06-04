@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2024 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2025 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -58,6 +58,7 @@ MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_GPU_DUMP_SRC);
 
 #ifdef MIGRAPHX_USE_HIPRTC
 
+namespace {
 std::string hiprtc_error(hiprtcResult err, const std::string& msg)
 {
     return "hiprtc: " + (hiprtcGetErrorString(err) + (": " + msg));
@@ -77,6 +78,7 @@ void hiprtc_check_error(hiprtcResult err, const std::string& msg, const std::str
 
 // Workaround hiprtc's broken API
 void hiprtc_program_destroy(hiprtcProgram prog) { hiprtcDestroyProgram(&prog); }
+
 using hiprtc_program_ptr = MIGRAPHX_MANAGE_PTR(hiprtcProgram, hiprtc_program_destroy);
 
 template <class... Ts>
@@ -89,6 +91,8 @@ hiprtc_program_ptr hiprtc_program_create(Ts... xs)
         MIGRAPHX_HIPRTC_THROW(result, "Create program failed.");
     return p;
 }
+
+} // namespace
 
 struct hiprtc_program
 {
@@ -272,7 +276,7 @@ std::vector<std::vector<char>> compile_hip_src(const std::vector<src_file>& srcs
         auto out = td.path / "output";
 
         process(driver, {quote_string(out.string())}).write([&](auto writer) {
-            to_msgpack(v, writer);
+            to_msgpack(v, std::move(writer));
         });
         if(fs::exists(out))
             return {read_buffer(out)};
@@ -290,7 +294,7 @@ compile_hip_src_with_hiprtc(std::vector<hiprtc_src_file>,    // NOLINT
     MIGRAPHX_THROW("Not using hiprtc");
 }
 
-bool is_hip_clang_compiler()
+static bool is_hip_clang_compiler()
 {
     static const auto result = fs::path{MIGRAPHX_HIP_COMPILER}.stem() == "clang++";
     return result;
@@ -298,7 +302,7 @@ bool is_hip_clang_compiler()
 
 #ifdef MIGRAPHX_HIP_COMPILER_LAUNCHER
 
-bool has_compiler_launcher()
+static bool has_compiler_launcher()
 {
     static const auto result = fs::exists(MIGRAPHX_HIP_COMPILER_LAUNCHER);
     return result;
@@ -306,7 +310,7 @@ bool has_compiler_launcher()
 
 #endif
 
-src_compiler assemble(src_compiler compiler)
+static src_compiler assemble(src_compiler compiler)
 {
     compiler.out_ext = ".S";
     std::replace(compiler.flags.begin(), compiler.flags.end(), "-c", "-S");

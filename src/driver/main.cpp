@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2024 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2025 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -30,6 +30,7 @@
 #include "precision.hpp"
 #include "passes.hpp"
 #include "perf.hpp"
+#include "trim.hpp"
 #include "models.hpp"
 #include "marker_roctx.hpp"
 
@@ -43,6 +44,7 @@
 #include <migraphx/load_save.hpp>
 #include <migraphx/json.hpp>
 #include <migraphx/version.h>
+#include <migraphx/env.hpp>
 
 #include <migraphx/dead_code_elimination.hpp>
 #include <migraphx/eliminate_identity.hpp>
@@ -60,11 +62,32 @@
 
 #include <fstream>
 
+namespace {
+std::vector<std::string>
+get_unrecognized_migraphx_envs(const char* envp[],
+                               const std::map<std::string, std::string>& used_env)
+{
+    std::vector<std::string> unused_migx_env;
+    for(; *envp != nullptr; ++envp)
+    {
+        std::string e(*envp);
+        if(not migraphx::starts_with(e, "MIGRAPHX"))
+            continue;
+        size_t pos = e.find('=');
+        if(pos == std::string::npos)
+            continue;
+        if(used_env.find(e.substr(0, pos)) == used_env.end())
+            unused_migx_env.push_back(e);
+    }
+    return unused_migx_env;
+}
+} // namespace
+
 namespace migraphx {
 namespace driver {
 inline namespace MIGRAPHX_INLINE_NS {
 
-inline std::string get_version()
+inline static std::string get_version()
 {
     return "MIGraphX Version: " + std::to_string(MIGRAPHX_VERSION_MAJOR) + "." +
            std::to_string(MIGRAPHX_VERSION_MINOR) + "." + std::to_string(MIGRAPHX_VERSION_PATCH) +
@@ -79,6 +102,7 @@ struct loader
     bool is_nhwc                = true;
     bool is_test                = false;
     unsigned trim               = 0;
+    unsigned trim_size          = 0;
     bool optimize               = false;
     bool mlir                   = false;
     bool skip_unknown_operators = false;
@@ -116,6 +140,7 @@ struct loader
            ap.set_value(true));
         ap(is_nhwc, {"--nchw"}, ap.help("Treat tensorflow format as nchw"), ap.set_value(false));
         ap(trim, {"--trim", "-t"}, ap.help("Trim instructions from the end"));
+        ap(trim_size, {"--trim-size", "-s"}, ap.help("Number of instructions in the trim model"));
         ap(param_dims,
            {"--input-dim"},
            ap.help("Dim of a parameter (format: \"@name d1 d2 dn\")"),
@@ -199,7 +224,7 @@ struct loader
         // expecting a json string like "[{min:1,max:64,optimals:[1,2,4,8]},3,224,224]"
         auto v = from_json_string(convert_to_json(dd_json));
         std::vector<migraphx::shape::dynamic_dimension> dyn_dims;
-        std::transform(v.begin(), v.end(), std::back_inserter(dyn_dims), [&](auto x) {
+        std::transform(v.begin(), v.end(), std::back_inserter(dyn_dims), [&](const auto& x) {
             if(x.is_object())
                 return from_value<migraphx::shape::dynamic_dimension>(x);
             auto d = x.template to<std::size_t>();
@@ -263,7 +288,7 @@ struct loader
         std::transform(output_names_info.begin(),
                        output_names_info.end(),
                        std::back_inserter(output_node_names),
-                       [&](auto x) { return value_parser<std::string>::apply(x); });
+                       [&](const auto& x) { return value_parser<std::string>::apply(x); });
 
         return output_node_names;
     }
@@ -358,9 +383,7 @@ struct loader
         }
         if(trim > 0)
         {
-            auto* mm  = p.get_main_module();
-            auto last = std::prev(mm->end(), trim);
-            mm->remove_instructions(last, mm->end());
+            trim_module(*p.get_main_module(), trim, trim_size);
         }
         // Remove unused variable when exporting to cpp
         if(output_type == "cpp")
@@ -542,7 +565,7 @@ struct compiler
             {
                 if(is_offload_copy_set(p) and not co.offload_copy)
                 {
-                    std::cout
+                    std::cerr
                         << "[WARNING]: MIGraphX program was likely compiled with offload_copy "
                            "set, Try "
                            "passing "
@@ -550,7 +573,7 @@ struct compiler
                 }
                 else if(not is_offload_copy_set(p) and co.offload_copy)
                 {
-                    std::cout << "[WARNING]: MIGraphX program was likely compiled without "
+                    std::cerr << "[WARNING]: MIGraphX program was likely compiled without "
                                  "offload_copy set, Try "
                                  "removing "
                                  "`--enable-offload-copy` if program run "
@@ -638,6 +661,7 @@ struct verify : command<verify>
            {"--ref-use-double"},
            ap.help("Convert floating point values to double on ref"),
            ap.set_value(true));
+        ap(vo.compiled_model, {"--compiled-model", "-c"}, ap.help("Compiled model to use"));
     }
 
     void run()
@@ -859,9 +883,10 @@ struct main_command
                        commands.begin(),
                        [](const auto& p) { return colorize(color::fg_green, p.first); });
         std::sort(commands.begin(), commands.end());
-        return std::accumulate(commands.begin(), commands.end(), result, [](auto r, auto&& s) {
-            return r + "    " + s + "\n";
-        });
+        return std::accumulate(commands.begin(),
+                               commands.end(),
+                               result,
+                               [](const auto& r, auto&& s) { return r + "    " + s + "\n"; });
     }
     void parse(argument_parser& ap)
     {
@@ -941,22 +966,17 @@ int main(int argc, const char* argv[], const char* envp[])
             std::string(argv[0]) + " " + migraphx::to_string_range(args, " ");
         std::cout << "Running [ " << get_version() << " ]: " << driver_invocation << std::endl;
 
-        for(const char** env = envp; *env != nullptr; ++env)
-        {
-            std::string env_var(*env);
-            size_t pos = env_var.find('=');
-            if(pos != std::string::npos)
-            {
-                std::string key = env_var.substr(0, pos);
-                if(key.find("MIGRAPHX") != std::string::npos)
-                {
-                    std::cout << env_var << std::endl;
-                }
-            }
-        }
-
         m.at(cmd)(argv[0],
                   {args.begin() + 1, args.end()}); // run driver command found in commands map
+
+        // Dump all the MIGraphX (consumed) Environment Variables:
+        const auto mgx_env_map = migraphx::get_all_envs();
+        for(auto&& [k, v] : mgx_env_map)
+            std::cout << k << "=" << v << "\\ \n"; // backslash(s) to facilitate cut-n-paste
+
+        auto unused_envs = get_unrecognized_migraphx_envs(envp, mgx_env_map);
+        for(auto&& e : unused_envs)
+            std::cout << "Unused environment variable: " << e << "\n";
 
         std::cout << "[ " << get_version() << " ] Complete: " << driver_invocation << std::endl;
     }

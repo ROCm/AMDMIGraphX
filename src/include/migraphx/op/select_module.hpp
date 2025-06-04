@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2023 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2025 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -56,7 +56,7 @@ struct select_module
         std::copy_if(param_names.cbegin(),
                      param_names.cend(),
                      std::back_inserter(ret),
-                     [](auto pn) { return not contains(pn, "#output_"); });
+                     [](const auto& pn) { return not contains(pn, "#output_"); });
         std::sort(ret.begin(), ret.end());
         return ret;
     }
@@ -68,7 +68,7 @@ struct select_module
         std::copy_if(param_names.cbegin(),
                      param_names.cend(),
                      std::back_inserter(ret),
-                     [](auto pn) { return contains(pn, "#output_"); });
+                     [](const auto& pn) { return contains(pn, "#output_"); });
         // needs to be sorted to ensure output parameter ordering
         std::sort(ret.begin(), ret.end());
         return ret;
@@ -88,11 +88,12 @@ struct select_module
                 auto in_param_names = get_input_parameter_names(mr);
                 auto param_shapes   = mr->get_parameter_shapes();
                 assert(in_param_names.size() <= args.size());
-                return std::equal(
-                    in_param_names.cbegin(),
-                    in_param_names.cend(),
-                    args.cbegin(),
-                    [&](auto p_name, auto a) { return a.get_shape() == param_shapes[p_name]; });
+                return std::equal(in_param_names.cbegin(),
+                                  in_param_names.cend(),
+                                  args.cbegin(),
+                                  [&](const auto& p_name, const auto& a) {
+                                      return a.get_shape() == param_shapes[p_name];
+                                  });
             });
 
         if(module_iter == submodule_list.end())

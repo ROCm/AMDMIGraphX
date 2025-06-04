@@ -6,14 +6,29 @@
 MIGraphX environment variables
 ========================================================
 
-The following environment variables can be set when building MIGraphX or when building applications that use MIGraphX.
+The MIGraphX environment variables can be used to customize tuning, verification, and tracing.
 
-Application variables
-************************
+Most users will only need to use the following variables:
 
-Application variables are used when developing applications that use MIGraphX as well as when developing for the MIGraphX code base. All other environment variables in this list are intended only for the development of the MIGraphX code base.
+| ``MIGRAPHX_ENABLE_NHWC``
+| ``MIGRAPHX_DISABLE_MLIR``
+| ``MIGRAPHX_ENABLE_CK``
+| ``MIGRAPHX_SET_GEMM_PROVIDER``
+| ``MIGRAPHX_DISABLE_LAYERNORM_FUSION``
+| ``MIGRAPHX_DISABLE_MIOPEN_POOLING``   
+| ``MIGRAPHX_USE_FAST_SOFTMAX``
+| ``MIGRAPHX_MLIR_USE_SPECIFIC_OPS``
+| ``MIGRAPHX_MLIR_TUNE_EXHAUSTIVE``
+| ``MIGRAPHX_ENABLE_MLIR_INPUT_FUSION``
+| ``MIGRAPHX_ENABLE_MLIR_REDUCE_FUSION``
+| ``MIGRAPHX_MLIR_ENABLE_SPLITK``
 
-.. list-table:: 
+Model performance tunable variables
+************************************
+
+Model performance tunable variables change the compilation behavior of a model.
+ 
+ .. list-table:: 
   :widths: 20 40 40
   :header-rows: 1
 
@@ -22,39 +37,41 @@ Application variables are used when developing applications that use MIGraphX as
     - Values
   * 
     - | ``MIGRAPHX_ENABLE_NHWC``
-    - Split-k performance configurations are disabled.
-    -
+    - When set to ``1``, forces the model to use the NHWC layout.
+    - | ``0``: Does not force the use of the NHWC layout.
+      | ``1``: Forces the use of the NHWC layout.
+      | Default: ``0``
 
   * - ``MIGRAPHX_DISABLE_MLIR``
-    - Disables the use of the rocMLIR library when set to 1.
-    - | 0: Use of the rocMLIR library is enabled.
-      | 1: Use of the rocMLIR library is disabled. 
+    -  When set to 1, disables the use of the rocMLIR library.
+    - | ``0``: Use of the rocMLIR library is enabled.
+      | ``1``: Use of the rocMLIR library is disabled. 
       | Default: 0
 
   * - ``MIGRAPHX_ENABLE_CK``
     - | Enables the use of the Composable Kernels library when set to 1. 
       | Use with ``MIGRAPHX_DISABLE_MLIR``=1.
-    - | 0: Use of the Composable Kernel libraries is disabled.
-      | 1: Use of the Composable Kernel libraries is enabled.
-      | Default: 0
+    - | ``0``: Use of the Composable Kernel libraries is disabled.
+      | ``1``: Use of the Composable Kernel libraries is enabled.
+      | Default: ``0``
 
   * - ``MIGRAPHX_SET_GEMM_PROVIDER``
-    - 
+    - Sets the GEMM provider.
     - | ``hipblaslt``: hipBLASLt is set as the GEMM provider.
       | ``rocblas``: rocBLAS is set as the GEMM provider.
-      |  Default:
+      |  Default: ``rocblas`` on gfx90a; ``hipblaslt`` on all other architectures.
 
   * - ``MIGRAPHX_DISABLE_LAYERNORM_FUSION``
     - Disables layernorm fusion.
-    - | 0: Layernorm fusion is enabled.
-      | 1: Layternorm fusion is disabled.
-      | Default: 0
+    - | ``0``: Layernorm fusion is enabled.
+      | ``1``: Layernorm fusion is disabled.
+      | Default: ``0``
   
   * - ``MIGRAPHX_DISABLE_MIOPEN_POOLING``   
-    - Disables MIOpen pooling operations, using JIT implementation instead.
-    - | 0: MIOpen pooling is enabled.
-      | 1: MIOpen pooling is disabled.
-      | Default: 0
+    - When set to ``1``, MIOpen pooling is disabled and MIGraphX pooling is enabled.
+    - | ``0``: MIOpen pooling is enabled.
+      | ``1``: MIGraphX pooling is enabled.
+      | Default: ``0``
 
   * - ``MIGRAPHX_USE_FAST_SOFTMAX``
     - Enables fast softmax optimization to speed up softmax computations.

@@ -669,13 +669,50 @@ static void insert_empty_1s(std::vector<dimension>& dimensions, std::size_t rank
     }
 }
 
+// Find missing axes. This will store a mapping between the missing
+// axis and the next available axis.
+static std::map<std::size_t, std::size_t> find_missing_axes(const std::map<std::size_t, std::vector<dimension::sub*>>& axes_map, 
+                                                            std::size_t rank)
+{
+    std::map<std::size_t, std::size_t> missing_axes;
+    for(auto axis : range(rank))
+    {
+        if(contains(axes_map, axis))
+            continue;
+        auto it            = axes_map.upper_bound(axis);
+        missing_axes[axis] = it == axes_map.end() ? rank : it->first;
+    }
+    return missing_axes;
+}
+
+// Find broadcasted dimensions. This will store a map from the next axis
+// to the indices of the previous dimensions that are being broadcasted.
+static std::map<std::size_t, std::deque<std::size_t>> find_broadcasted_dims(const std::vector<dimension>& dimensions, std::size_t rank)
+{
+    std::map<std::size_t, std::deque<std::size_t>> broadcast_dims_map;
+    group_find(
+        dimensions.begin(), dimensions.end(), &missing_leading_axis, [&](auto start, auto last) {
+            auto axis = rank;
+            if(last != dimensions.end())
+            {
+                assert(not last->subdimensions.empty());
+                const auto& sub = last->subdimensions.front();
+                assert(not sub.origin_axis().empty());
+                axis = sub.origin_axis().front();
+            }
+            std::deque<std::size_t> dims(std::distance(start, last));
+            std::iota(dims.begin(), dims.end(), std::distance(dimensions.begin(), start));
+            broadcast_dims_map[axis] = dims;
+        });
+    return broadcast_dims_map;
+}
+
 void shape_transform_descriptor::simplify()
 {
     for(auto& d : dimensions)
         d.simplify();
 
-    if(this->rank == 1)
-        remove_scalar_axis(dimensions);
+    remove_scalar_axis(dimensions);
 
     std::map<std::size_t, std::size_t> missing_axes;
     std::vector<std::size_t> last_axis;
@@ -694,34 +731,10 @@ void shape_transform_descriptor::simplify()
         // Find last axis
         last_axis = std::prev(axes_map.end())->second.back()->origin_axis();
 
-        // Find missing axes. This will store a mapping between the missing
-        // axis and the next available axis.
-        for(auto axis : range(rank))
-        {
-            if(contains(axes_map, axis))
-                continue;
-            auto it            = axes_map.upper_bound(axis);
-            missing_axes[axis] = it == axes_map.end() ? rank : it->first;
-        }
+        missing_axes = find_missing_axes(axes_map, rank);
     }
-
-    // Find broadcasted dimensions. This will store a map from the next axis
-    // to the indices of the previous dimensions that are being broadcasted.
-    std::map<std::size_t, std::deque<std::size_t>> broadcast_dims_map;
-    group_find(
-        dimensions.begin(), dimensions.end(), &missing_leading_axis, [&](auto start, auto last) {
-            auto axis = rank;
-            if(last != dimensions.end())
-            {
-                assert(not last->subdimensions.empty());
-                const auto& sub = last->subdimensions.front();
-                assert(not sub.origin_axis().empty());
-                axis = sub.origin_axis().front();
-            }
-            std::deque<std::size_t> dims(std::distance(start, last));
-            std::iota(dims.begin(), dims.end(), std::distance(dimensions.begin(), start));
-            broadcast_dims_map[axis] = dims;
-        });
+    
+    std::map<std::size_t, std::deque<std::size_t>> broadcast_dims_map = find_broadcasted_dims(dimensions, rank);
 
     // Reinsert removed axis of 1. This tries to insert the missing axis next
     // to an adjacent axis or used as one of the broadcasted axes in order to

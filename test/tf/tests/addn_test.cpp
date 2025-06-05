@@ -29,10 +29,10 @@ TEST_CASE(addn_test)
 {
     migraphx::program p;
 
-    auto* mm  = p.get_main_module();
-    auto l0   = mm->add_parameter("0", migraphx::shape{migraphx::shape::float_type, {2, 3}});
-    auto l1   = mm->add_parameter("1", migraphx::shape{migraphx::shape::float_type, {2, 3}});
-    auto l2   = mm->add_parameter("2", migraphx::shape{migraphx::shape::float_type, {2, 3}});
+    auto* mm = p.get_main_module();
+    auto l0  = mm->add_parameter("0", migraphx::shape{migraphx::shape::float_type, {2, 3}});
+    auto l1  = mm->add_parameter("1", migraphx::shape{migraphx::shape::float_type, {2, 3}});
+    auto l2  = mm->add_parameter("2", migraphx::shape{migraphx::shape::float_type, {2, 3}});
     auto add1 = mm->add_instruction(migraphx::make_op("add"), l0, l1);
     mm->add_instruction(migraphx::make_op("add"), add1, l2);
     auto prog = optimize_tf("addn_test.pb", false);

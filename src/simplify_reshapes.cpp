@@ -125,7 +125,7 @@ struct find_op_shape_transform_op
 {
     auto matcher() const
     {
-        auto reshapes      = match::name("reshape",
+        auto reshapes = match::name("reshape",
                                     "reshape_lazy"
                                     "squeeze",
                                     "unsqueeze",
@@ -134,7 +134,7 @@ struct find_op_shape_transform_op
                                     "contiguous",
                                     "multibroadcast",
                                     "broadcast");
-        auto match_op      = match::any_of(match::reduce(), match::pointwise(), match::name("slice"));
+        auto match_op = match::any_of(match::reduce(), match::pointwise(), match::name("slice"));
         auto x_op          = match_op(match::none_of[match::outputs()](match_op()));
         auto reshapes_x_op = reshapes(match::arg(0)(match::skip(reshapes())(x_op.bind("x"))));
         return match_op(match::any_of[match::inputs()](reshapes_x_op.bind("input")));
@@ -165,10 +165,9 @@ struct find_op_shape_transform_op
     static shape select(const shape& s, const std::vector<std::size_t>& axes)
     {
         std::vector<std::size_t> lens;
-        std::transform(axes.begin(),
-                       axes.end(),
-                       std::back_inserter(lens),
-                       [&](std::size_t axis) { return s.lens()[axis]; });
+        std::transform(axes.begin(), axes.end(), std::back_inserter(lens), [&](std::size_t axis) {
+            return s.lens()[axis];
+        });
         return {s.type(), lens};
     }
 
@@ -207,7 +206,7 @@ struct find_op_shape_transform_op
         }
         if(ins->name() == "slice")
         {
-            auto v = ins->get_operator().to_value();
+            auto v         = ins->get_operator().to_value();
             auto op_starts = v.at("starts").to_vector<std::size_t>();
             auto op_ends   = v.at("ends").to_vector<std::size_t>();
             auto op_axes   = v.at("axes").to_vector<std::size_t>();
@@ -216,7 +215,7 @@ struct find_op_shape_transform_op
             std::vector<int64_t> ends;
             for(std::size_t i = 0; i < axes.size(); ++i)
             {
-                auto axis = op_axes[i];
+                auto axis     = op_axes[i];
                 auto new_axes = am.at(axis);
                 axes.insert(axes.end(), new_axes.begin(), new_axes.end());
                 if(new_axes.size() == 1)
@@ -226,9 +225,9 @@ struct find_op_shape_transform_op
                 }
                 else
                 {
-                    auto s = select(ins->inputs().front()->get_shape(), new_axes);
+                    auto s     = select(ins->inputs().front()->get_shape(), new_axes);
                     auto start = s.multi(op_starts[i]);
-                    auto end = s.multi(op_ends[i]);
+                    auto end   = s.multi(op_ends[i]);
                     starts.insert(starts.end(), start.begin(), start.end());
                     ends.insert(ends.end(), end.begin(), end.end());
                 }
@@ -237,7 +236,6 @@ struct find_op_shape_transform_op
             v["ends"]   = ends;
             v["axes"]   = op_axes;
             return m.insert_instruction(ins, make_op(ins->name(), v), inputs, ins->module_inputs());
-
         }
         return m.insert_instruction(ins, ins->get_operator(), inputs, ins->module_inputs());
     }
@@ -257,10 +255,10 @@ struct find_op_shape_transform_op
             if(ins->inputs().front()->get_shape().elements() % ins->get_shape().elements() != 0)
                 return 0;
             // Check if slice starts and ends are divisible by the dimension
-            auto v = ins->get_operator().to_value();
-            auto starts = v.at("starts").to_vector<std::size_t>();
-            auto ends   = v.at("ends").to_vector<std::size_t>();
-            auto axes   = v.at("axes").to_vector<std::size_t>();
+            auto v           = ins->get_operator().to_value();
+            auto starts      = v.at("starts").to_vector<std::size_t>();
+            auto ends        = v.at("ends").to_vector<std::size_t>();
+            auto axes        = v.at("axes").to_vector<std::size_t>();
             auto input_shape = ins->inputs().front()->get_shape();
             for(std::size_t i = 0; i < axes.size(); ++i)
             {

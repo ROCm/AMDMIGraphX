@@ -72,6 +72,24 @@ def add_bcast_test(g1):
 
 
 @tf_test
+def addn_test(g1):
+    with g1.as_default():
+        g1_input = tf.compat.v1.placeholder(tf.float32, shape=(2, 3), name='0')
+        g2_input = tf.compat.v1.placeholder(tf.float32, shape=(2, 3), name='1')
+        g3_input = tf.compat.v1.placeholder(tf.float32, shape=(2, 3), name='2')
+
+        tf.math.add_n([g1_input, g2_input, g3_input], name='addn1')        
+
+
+@tf_test
+def addn_single_test(g1):
+    with g1.as_default():
+        g1_input = tf.compat.v1.placeholder(tf.float32, shape=(2, 3), name='0')
+
+        tf.math.add_n([g1_input], name='addn1')
+
+
+@tf_test
 def argmax_test(g1):
     with g1.as_default():
         g1_input = tf.compat.v1.placeholder(tf.float32,

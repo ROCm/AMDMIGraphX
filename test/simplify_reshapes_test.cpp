@@ -2335,12 +2335,41 @@ TEST_CASE(pointwise_unsqueeze_broadcast_pointwise)
     EXPECT(m1.sort() == m2.sort());
 }
 
-// ops: squeeze[axes={2, 3}]
-// @35 = reduce_mean[axes={2, 3, 4}](@31) -> float_type, {2, 32, 1, 1, 1}, {32, 1, 1, 1, 1}
-// @36 = squeeze[axes={2, 3}](@35) -> float_type, {2, 32, 1}, {32, 1, 1}
-// @39 = add(@36,@38) -> float_type, {2, 32, 1}, {32, 1, 1}
+TEST_CASE(split_pointwise_reshape_transpose_pointwise)
+{
+    auto s1 = migraphx::shape{migraphx::shape::float_type, {1, 77, 1536}};
+    auto s2 = migraphx::shape{migraphx::shape::float_type, {1, 77, 768}};
+    migraphx::module m1;
+    {
+        auto x         = m1.add_parameter("x", s1);
+        auto y         = m1.add_parameter("y", s2);
+        auto z         = m1.add_parameter("z", s2);
+        auto split1 = m1.add_instruction(migraphx::make_op("slice", {{"axes", {2}}, {"starts", {0}}, {"ends", {768}}}), x);
+        auto split2 = m1.add_instruction(migraphx::make_op("slice", {{"axes", {2}}, {"starts", {768}}, {"ends", {1536}}}), x);
+        auto add1 = m1.add_instruction(migraphx::make_op("add"), split1, y);
+        auto reshape1 = m1.add_instruction(migraphx::make_op("reshape", {{"dims", {1, 77, 12, 64}}}), add1);
+        auto transpose1 = m1.add_instruction(
+            migraphx::make_op("transpose", {{"permutation", {0, 2, 1, 3}}}), reshape1);
+        auto scale1 = m1.add_literal(0.5f);
+        auto scaleb1 = m1.add_instruction(migraphx::make_op("multibroadcast", {{"out_lens", {1, 12, 77, 64}}}), scale1);
+        auto mul1 = m1.add_instruction(migraphx::make_op("mul"), transpose1, scaleb1);
 
-// desc: {[2:0], [32:1], [10:$2, 64:$3, 64:$4]}
+        auto add2 = m1.add_instruction(migraphx::make_op("add"), split2, z);
+        auto reshape2 = m1.add_instruction(migraphx::make_op("reshape", {{"dims", {1, 77, 12, 64}}}), add2);
+        auto transpose2 = m1.add_instruction(
+            migraphx::make_op("transpose", {{"permutation", {0, 2, 3, 1}}}), reshape2);
+        auto scale2 = m1.add_literal(0.6f);
+        auto scaleb2 = m1.add_instruction(migraphx::make_op("multibroadcast", {{"out_lens", {1, 12, 64, 77}}}), scale2);
+        auto mul2 = m1.add_instruction(migraphx::make_op("mul"), transpose2, scaleb2);
+
+        auto dot = m1.add_instruction(migraphx::make_op("dot"), mul1, mul2);
+        m1.add_return({dot});
+    }
+    // For now we dont rewrite since it prevents horizontal fusion
+    migraphx::module m2 = m1;
+    run_pass(m1);
+    EXPECT(m1.sort() == m2.sort());
+}
 
 TEST_CASE(reduce_squeeze_pointwise1)
 {

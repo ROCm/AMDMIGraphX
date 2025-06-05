@@ -123,6 +123,22 @@ struct find_nested_shape_transforms
 
 struct find_op_shape_transform_op
 {
+    static auto fusable_split()
+    {
+        return match::make_basic_pred_matcher([&](instruction_ref ins) {
+            return any_of(ins->inputs(), [&](instruction_ref input_slice) {
+                if(input_slice->name() != "slice")
+                    return false;
+                return all_of(input_slice->inputs().front()->outputs(), [&](instruction_ref slice) {
+                    if(slice->name() != "slice")
+                        return true;
+                    return any_of(slice->outputs(), [&](instruction_ref x) { return x->name() == ins->name(); });
+                });
+
+            });
+        });
+    }
+
     auto matcher() const
     {
         auto reshapes      = match::name("reshape",
@@ -134,7 +150,7 @@ struct find_op_shape_transform_op
                                     "multibroadcast",
                                     "broadcast");
         auto match_op      = match::any_of(match::reduce(), match::pointwise());
-        auto x_op          = match_op(match::none_of[match::outputs()](match_op()));
+        auto x_op          = match_op(match::none_of[match::outputs()](match_op()), match::none_of(fusable_split()));
         auto reshapes_x_op = reshapes(match::arg(0)(match::skip(reshapes())(x_op.bind("x"))));
         return match_op(match::any_of[match::inputs()](reshapes_x_op.bind("input")));
     }

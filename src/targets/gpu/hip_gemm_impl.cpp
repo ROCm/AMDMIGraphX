@@ -54,6 +54,10 @@ static hipDataType compute_to_hip_type(hipblasComputeType_t type)
     case HIPBLAS_COMPUTE_32F_FAST_16F:
     case HIPBLAS_COMPUTE_32F_FAST_16BF:
     case HIPBLAS_COMPUTE_32F_FAST_TF32:
+    case HIPBLAS_COMPUTE_32F_FAST_8F_FNUZ:
+    case HIPBLAS_COMPUTE_32F_FAST_8BF_FNUZ:
+    case HIPBLAS_COMPUTE_32F_FAST_8F8BF_FNUZ:
+    case HIPBLAS_COMPUTE_32F_FAST_8BF8F_FNUZ:
         MIGRAPHX_THROW("HIPBLAS_GEMM: conversion from hipComputeType_t to hipDataType failed");
     }
 }

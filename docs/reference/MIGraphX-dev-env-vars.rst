@@ -6,160 +6,151 @@
 MIGraphX environment variables
 ========================================================
 
-The MIGraphX environment variables can be used to customize tuning, verification, and tracing.
+The MIGraphX environment variables can be used by contributors to the MIGraphX code base to customize tuning, verification, and tracing.
 
-Most users will only need to use the following variables:
-
-| ``MIGRAPHX_ENABLE_NHWC``
-| ``MIGRAPHX_DISABLE_MLIR``
-| ``MIGRAPHX_ENABLE_CK``
-| ``MIGRAPHX_SET_GEMM_PROVIDER``
-| ``MIGRAPHX_DISABLE_LAYERNORM_FUSION``
-| ``MIGRAPHX_DISABLE_MIOPEN_POOLING``   
-| ``MIGRAPHX_USE_FAST_SOFTMAX``
-| ``MIGRAPHX_MLIR_USE_SPECIFIC_OPS``
-| ``MIGRAPHX_MLIR_TUNE_EXHAUSTIVE``
-| ``MIGRAPHX_ENABLE_MLIR_INPUT_FUSION``
-| ``MIGRAPHX_ENABLE_MLIR_REDUCE_FUSION``
-| ``MIGRAPHX_MLIR_ENABLE_SPLITK``
 
 Model performance tunable variables
 ************************************
 
 Model performance tunable variables change the compilation behavior of a model.
  
- .. list-table:: 
-  :widths: 20 40 40
+.. list-table:: 
+  :widths: 30 70
   :header-rows: 1
 
   * - Environment variable
     - Description
-    - Values
-  * 
-    - | ``MIGRAPHX_ENABLE_NHWC``
-    - When set to ``1``, forces the model to use the NHWC layout.
-    - | ``0``: Does not force the use of the NHWC layout.
+  
+  * - ``MIGRAPHX_ENABLE_NHWC``
+    - | When set to ``1``, forces the model to use the NHWC layout.
+      | ``0``: Does not force the use of the NHWC layout.
       | ``1``: Forces the use of the NHWC layout.
       | Default: ``0``
 
   * - ``MIGRAPHX_DISABLE_MLIR``
-    -  When set to 1, disables the use of the rocMLIR library.
-    - | ``0``: Use of the rocMLIR library is enabled.
+    - | When set to ``1``, disables the use of the rocMLIR library.
+      | ``0``: Use of the rocMLIR library is enabled.
       | ``1``: Use of the rocMLIR library is disabled. 
       | Default: 0
+    
 
   * - ``MIGRAPHX_ENABLE_CK``
     - | Enables the use of the Composable Kernels library when set to 1. 
       | Use with ``MIGRAPHX_DISABLE_MLIR``=1.
-    - | ``0``: Use of the Composable Kernel libraries is disabled.
+      | ``0``: Use of the Composable Kernel libraries is disabled.
       | ``1``: Use of the Composable Kernel libraries is enabled.
       | Default: ``0``
 
   * - ``MIGRAPHX_SET_GEMM_PROVIDER``
     - Sets the GEMM provider.
-    - | ``hipblaslt``: hipBLASLt is set as the GEMM provider.
+      | ``hipblaslt``: hipBLASLt is set as the GEMM provider.
       | ``rocblas``: rocBLAS is set as the GEMM provider.
-      |  Default: ``rocblas`` on gfx90a; ``hipblaslt`` on all other architectures.
+      | Default: ``rocblas`` on gfx90a; ``hipblaslt`` on all other architectures.
 
   * - ``MIGRAPHX_DISABLE_LAYERNORM_FUSION``
     - Disables layernorm fusion.
-    - | ``0``: Layernorm fusion is enabled.
+      | ``0``: Layernorm fusion is enabled.
       | ``1``: Layernorm fusion is disabled.
       | Default: ``0``
   
   * - ``MIGRAPHX_DISABLE_MIOPEN_POOLING``   
     - When set to ``1``, MIOpen pooling is disabled and MIGraphX pooling is enabled.
-    - | ``0``: MIOpen pooling is enabled.
+      | ``0``: MIOpen pooling is enabled.
       | ``1``: MIGraphX pooling is enabled.
       | Default: ``0``
 
   * - ``MIGRAPHX_USE_FAST_SOFTMAX``
     - Enables fast softmax optimization to speed up softmax computations.
-    - | 0: Softmax optimization isn't used.
+      | 0: Softmax optimization isn't used.
       | 1: Softmax optimization is used.
       | Default: 0
 
   * - ``MIGRAPHX_MLIR_USE_SPECIFIC_OPS``
     - Specifies the MLIR operations to use regardless of GPU architecture.  
-    - | A comma-separated list of operations must be provided.
+      | A comma-separated list of operations must be provided.
       | For example: ``MIGRAPHX_MLIR_USE_SPECIFIC_OP=fused,convolution,dot``.
       | Default: unset
 
   * - ``MIGRAPHX_MLIR_TUNE_EXHAUSTIVE``
     - Enables exhaustive tuning for MLIR to find the optimal configuration.
-    - | 0: No tuning is performed.
+      | 0: No tuning is performed.
       | 1: Exhaustive tuning is performed.
       | Default: 0
 
   * - ``MIGRAPHX_ENABLE_MLIR_INPUT_FUSION``
     - Enables input fusions in MLIR.
-    - | 0: Input fusion is disabled.
+      | 0: Input fusion is disabled.
       | 1: Input fusion is enabled.
       | Default: 0
 
   * - ``MIGRAPHX_ENABLE_MLIR_REDUCE_FUSION``
     - Enables reduction fusions in MLIR.
-    - | 0: Reduction fusions are disabled.
+      | 0: Reduction fusions are disabled.
       | 1: Reduction fusions are enabled.
       | Default: 0
 
   * - ``MIGRAPHX_MLIR_ENABLE_SPLITK``
     - Enables Split-k performance configurations during MLIR tuning.
-    - | 0: Split-k performance configurations are disabled.
+      | 0: Split-k performance configurations are disabled.
       | 1: Split-k performance configurations are enabled.
       | Default: 0
 
+  * - ``MIGRAPHX_DISABLE_FP16_INSTANCENORM_CONVERT``
+    - | Set to ``1`` to disable conversion from FP16 to FP32 in the ``InstanceNormalization`` ONNX operator. 
+      | FP16 to F32 conversion is enabled by default. 
 
-The following environment variables only need to be used when the core MIGraphX APIs are being modified.
+  * - ``MIGRAPHX_ENABLE_REWRITE_DOT``
+    - Set to 1 to enable the rewrite_dot pass.
+
+  * - ``MIGRAPHX_SPLIT_REDUCE_SIZE``
+    - Minimum size of a reduction to perform a split reduce. The minimum size must be an integer. Set to -1 to disable split reduce.
+
+  * - ``MIGRAPHX_COPY_LITERALS``
+    - When set to ``1`` literals won't be stored on the GPU but will only be copied over as needed.
+
 
 Parsing
 ******************
+
+Debug settings for parsing of ONNX and TensorFlow models.
 
 .. list-table:: 
   :widths: 30 70
   :header-rows: 0
 
   * - ``MIGRAPHX_TRACE_ONNX_PARSER``
-    - | Set to ``1`` to turn on debugging traces for the ONNX parser. Traces include initializers, ONNX node operators, and MIGraphX. 
+    - | Set to ``1`` to turn on node-by-node tracing for the ONNX parser. 
       | Off by default.                                                                  
 
-  * - ``MIGRAPHX_TRACE_ONNX_PARSER`` 
-    - | Set to ``1`` to turn on debugging traces for the ONNX parser. Traces include initializers, ONNX node operators, and MIGraphX. 
-      | Off by default.  
-
-  * - ``MIGRAPHX_DISABLE_FP16_INSTANCENORM_CONVERT``
-    - | Set to ``1`` to disable conversion from FP16 to FP32 in the ``InstanceNormalization`` ONNX operator. 
-      | FP16 to F32 conversion is enabled by default. 
 
 
 Matching
 **********
+
+Debug settings for matchers. Matchers are responsible for finding optimizations in the graph compilation stage.
 
 .. list-table:: 
   :widths: 30 70
   :header-rows: 0
 
   * - ``MIGRAPHX_TRACE_MATCHES``
-    - | Set to ``1`` to print the matcher used and the matched instruction. 
-      | Set it to ``2`` to print additional filtered results. 
-      | ``MIGRAPHX_TRACE_MATCHES_FOR`` must be set when ``MIGRAPHX_TRACE_MATCHES`` is set to ``2``. 
+    - | Set to ``1`` to print the name of the matcher that has found a valid pattern match. 
 
   * - ``MIGRAPHX_TRACE_MATCHES_FOR``
-    - | Prints traces for the specified matcher. 
-      | ``MIGRAPHX_TRACE_MATCHES`` must be set to ``2`` for ``MIGRAPHX_TRACE_MATCHES_FOR`` to have an effect.
+    - | Takes a string. When the string is found in a matcher's ``file-name``, ``function-name``, or ``matcher-name``, it will print the traces for the specified matcher. 
     
   * - ``MIGRAPHX_VALIDATE_MATCHES``
     - Set to ``1`` to run ``module.validate()`` and validate the module after finding the matches.
 
-Running
-*********
+Running models
+***************
 
 .. list-table:: 
   :widths: 30 70
   :header-rows: 0
 
   * - ``MIGRAPHX_TRACE_EVAL``
-    - | Trace evaluation verbosity. 
+    - | Traces the model evaluation. 
       | Set to ``1`` to print the run instruction and the time taken.
       | Set to ``2`` to print the run instructions, time taken, a snippet of the output, and statistics.
       | Set to ``3`` to print to print the run instructions, time taken, a snippet of the output, and statistics for all output buffers.
@@ -172,17 +163,19 @@ Verification
   :header-rows: 0
 
   * - ``MIGRAPHX_VERIFY_ENABLE_ALLCLOSE``
-    - Set to 1 to verify using allclose with specified atol and rtol for range verification with the driver or tests using migraphx/verify.hpp. 
+    - Set to 1 to verify the range tolerance using ``allclose``. 
 
-Pass debugging controls
+Pass controls
 ************************
+
+Debug settings for passes.
 
 .. list-table:: 
   :widths: 30 70
   :header-rows: 0
 
   * - ``MIGRAPHX_TRACE_ELIMINATE_CONTIGUOUS``
-    - Set to 1 to print debug statements for instructions that have contiguous input instructions removed.
+    - Set to 1 to print debug statements for eliminate contiguous instructions passes.
 
   * - ``MIGRAPHX_DISABLE_POINTWISE_FUSION``
     - Set to 1 to disable the fuse_pointwise compile pass.
@@ -196,12 +189,6 @@ Pass debugging controls
   * - ``MIGRAPHX_TRACE_PROPAGATE_CONSTANT``
     - Set to 1 to trace instructions that have been replaced with a constant.
 
-  * - ``MIGRAPHX_TRACE_QUANTIZATION``
-    - Set to 1 to print traces for any passes run during quantization.
-
-  * - ``MIGRAPHX_8BITS_QUANTIZATION_PARAMS``
-    - Set to 1 to print quantization parameters in the main module only.
-
   * - ``MIGRAPHX_DISABLE_DNNL_POST_OPS_WORKAROUND``
     - Set to 1 to disable the DNNL post-ops workaround.
 
@@ -214,21 +201,20 @@ Pass debugging controls
   * - ``MIGRAPHX_DISABLE_REDUCE_FUSION``
     - Set to 1 to disable the fuse_reduce pass.
 
-  * - ``MIGRAPHX_ENABLE_REWRITE_DOT``
-    - Set to 1 to enable the rewrite_dot pass.
-
-  * - ``MIGRAPHX_SPLIT_REDUCE_SIZE``
-    - Minimum size of a reduction to perform a split reduce. The minimum size must be an integer. Set to -1 to disable split reduce.
-
-Model performance tuning
-****************************
+Quantization
+******************
 
 .. list-table:: 
   :widths: 30 70
-  :header-rows: 0  
+  :header-rows: 0
+  
+  * - ``MIGRAPHX_TRACE_QUANTIZATION``
+    - Set to 1 to print traces for any passes run during quantization.
 
-  * - ``MIGRAPHX_COPY_LITERALS``
-    - Uses ``hip_copy_to_gpu`` with a new literal instruction instead of ``hip_copy_literal{}``.
+  * - ``MIGRAPHX_8BITS_QUANTIZATION_PARAMS``
+    - Set to 1 to print quantization parameters in the main module only.
+
+
 
 Compilation tracing
 ************************
@@ -339,7 +325,7 @@ MLIR
     - Sets the directory where the MXR files the MLIR modules are written to are saved. For example, ``MIGRAPHX_MLIR_DUMP_TO_MXR="/path/to/save_mxr_file/`` 
 
   * - ``MIGRAPHX_MLIR_DUMP``
-    - Sets the directory where the .mlir files the MLIR modules are written to are saved.
+    - Sets the directory where the MLIR files the MLIR modules are written to are saved.
 
 Composable Kernel
 **************************

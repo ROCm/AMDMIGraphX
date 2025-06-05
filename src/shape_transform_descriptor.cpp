@@ -671,8 +671,9 @@ static void insert_empty_1s(std::vector<dimension>& dimensions, std::size_t rank
 
 // Find missing axes. This will store a mapping between the missing
 // axis and the next available axis.
-static std::map<std::size_t, std::size_t> find_missing_axes(const std::map<std::size_t, std::vector<dimension::sub*>>& axes_map, 
-                                                            std::size_t rank)
+static std::map<std::size_t, std::size_t>
+find_missing_axes(const std::map<std::size_t, std::vector<dimension::sub*>>& axes_map,
+                  std::size_t rank)
 {
     std::map<std::size_t, std::size_t> missing_axes;
     for(auto axis : range(rank))
@@ -687,7 +688,8 @@ static std::map<std::size_t, std::size_t> find_missing_axes(const std::map<std::
 
 // Find broadcasted dimensions. This will store a map from the next axis
 // to the indices of the previous dimensions that are being broadcasted.
-static std::map<std::size_t, std::deque<std::size_t>> find_broadcasted_dims(const std::vector<dimension>& dimensions, std::size_t rank)
+static std::map<std::size_t, std::deque<std::size_t>>
+find_broadcasted_dims(const std::vector<dimension>& dimensions, std::size_t rank)
 {
     std::map<std::size_t, std::deque<std::size_t>> broadcast_dims_map;
     group_find(
@@ -733,8 +735,9 @@ void shape_transform_descriptor::simplify()
 
         missing_axes = find_missing_axes(axes_map, rank);
     }
-    
-    std::map<std::size_t, std::deque<std::size_t>> broadcast_dims_map = find_broadcasted_dims(dimensions, rank);
+
+    std::map<std::size_t, std::deque<std::size_t>> broadcast_dims_map =
+        find_broadcasted_dims(dimensions, rank);
 
     // Reinsert removed axis of 1. This tries to insert the missing axis next
     // to an adjacent axis or used as one of the broadcasted axes in order to

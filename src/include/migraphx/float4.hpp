@@ -29,45 +29,9 @@
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
 
-using float4 = migraphx::generic_float<2, 1>;
+using float4 = migraphx::generic_float<2, 1, 1>;
 
 } // namespace MIGRAPHX_INLINE_NS
 } // namespace migraphx
-
-namespace std {
-
-template <unsigned int F>
-class numeric_limits<migraphx::generic_float<2, 1, F>>
-{
-    public:
-    static constexpr bool has_infinity      = false;
-    static constexpr bool has_quiet_NaN     = false;
-    static constexpr bool has_signaling_NaN = false;
-    static constexpr migraphx::generic_float<2, 1, F> epsilon()
-    {
-        return migraphx::generic_float<2, 1, F>::epsilon();
-    }
-
-    static constexpr migraphx::generic_float<2, 1, F> max()
-    {
-        return migraphx::generic_float<2, 1, F>::max();
-    }
-
-    static constexpr migraphx::generic_float<2, 1, F> min()
-    {
-        return migraphx::generic_float<2, 1, F>::min();
-    }
-
-    static constexpr migraphx::generic_float<2, 1, F> lowest()
-    {
-        return migraphx::generic_float<2, 1, F>::lowest();
-    }
-
-    static constexpr migraphx::generic_float<2, 1, F> denorm_min()
-    {
-        return migraphx::generic_float<2, 1, F>::denorm_min();
-    }
-};
-} // namespace std
 
 #endif // MIGRAPHX_GUARD_RTGLIB_FLOAT8_HPP

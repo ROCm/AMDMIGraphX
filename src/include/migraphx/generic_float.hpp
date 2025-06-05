@@ -99,6 +99,7 @@ struct __attribute__((packed, may_alias)) generic_float
     type mantissa : MantissaSize;
     type exponent : ExponentSize;
     type sign : 1;
+    type : 0;
 
     static constexpr int exponent_bias() { return all_ones<ExponentSize - 1>(); }
 
@@ -215,43 +216,89 @@ struct __attribute__((packed, may_alias)) generic_float
 
     constexpr bool is_normal() const noexcept
     {
+        if constexpr(Flags == 1)
+        {
+            return exponent != 0;
+        }
         return exponent != all_ones<ExponentSize>() and exponent != 0;
     }
 
     constexpr bool is_inf() const noexcept
     {
+        if constexpr(Flags == 1)
+        {
+            return false;
+        }
         return exponent == all_ones<ExponentSize>() and mantissa == 0;
     }
 
     constexpr bool is_nan() const noexcept
     {
+        if constexpr(Flags == 1)
+        {
+            return false;
+        }
         return exponent == all_ones<ExponentSize>() and mantissa != 0;
     }
 
-    constexpr bool is_finite() const noexcept { return exponent != all_ones<ExponentSize>(); }
+    constexpr bool is_finite() const noexcept
+    {
+        if constexpr(Flags == 1)
+        {
+            return true;
+        }
+        return exponent != all_ones<ExponentSize>();
+    }
 
     constexpr operator float() const noexcept { return this->to_float(); }
 
     static constexpr generic_float infinity()
     {
         generic_float x{};
-        x.exponent = all_ones<ExponentSize>();
+        if constexpr(Flags == 1)
+        {
+            x.mantissa = 0;
+            x.exponent = 0;
+            x.sign     = 0;
+        }
+        else
+        {
+            x.exponent = all_ones<ExponentSize>();
+        }
         return x;
     }
 
     static constexpr generic_float snan()
     {
         generic_float x{};
-        x.exponent = all_ones<ExponentSize>();
-        x.mantissa = 1u << (MantissaSize - 2u);
+        if constexpr(Flags == 1)
+        {
+            x.mantissa = 0;
+            x.exponent = 0;
+            x.sign     = 0;
+        }
+        else
+        {
+            x.exponent = all_ones<ExponentSize>();
+            x.mantissa = 1u << (MantissaSize - 2u);
+        }
         return x;
     }
 
     static constexpr generic_float qnan()
     {
         generic_float x{};
-        x.exponent = all_ones<ExponentSize>();
-        x.mantissa = 1u << (MantissaSize - 1u);
+        if constexpr(Flags == 1)
+        {
+            x.mantissa = 0;
+            x.exponent = 0;
+            x.sign     = 0;
+        }
+        else
+        {
+            x.exponent = all_ones<ExponentSize>();
+            x.mantissa = 1u << (MantissaSize - 1u);
+        }
         return x;
     }
 
@@ -275,8 +322,16 @@ struct __attribute__((packed, may_alias)) generic_float
     static constexpr generic_float lowest()
     {
         generic_float x{};
-        x.exponent = all_ones<ExponentSize>() - 1;
-        x.mantissa = all_ones<MantissaSize>();
+        if constexpr(Flags == 1)
+        {
+            x.exponent = all_ones<ExponentSize>();
+            x.mantissa = all_ones<MantissaSize>();
+        }
+        else
+        {
+            x.exponent = all_ones<ExponentSize>() - 1;
+            x.mantissa = all_ones<MantissaSize>();
+        }
         x.sign     = 1;
         return x;
     }
@@ -284,8 +339,16 @@ struct __attribute__((packed, may_alias)) generic_float
     static constexpr generic_float max()
     {
         generic_float x{};
-        x.exponent = all_ones<ExponentSize>() - 1;
-        x.mantissa = all_ones<MantissaSize>();
+        if constexpr(Flags == 1)
+        {
+            x.exponent = all_ones<ExponentSize>();
+            x.mantissa = all_ones<MantissaSize>();
+        }
+        else
+        {
+            x.exponent = all_ones<ExponentSize>() - 1;
+            x.mantissa = all_ones<MantissaSize>();
+        }
         x.sign     = 0;
         return x;
     }
@@ -373,7 +436,10 @@ template <unsigned int E, unsigned int M, unsigned int F>
 class numeric_limits<migraphx::generic_float<E, M, F>>
 {
     public:
-    static constexpr bool has_infinity = true;
+    static constexpr bool has_infinity      = (F != 1);
+    static constexpr bool has_quiet_NaN     = (F != 1);
+    static constexpr bool has_signaling_NaN = (F != 1);
+
     static constexpr migraphx::generic_float<E, M, F> epsilon()
     {
         return migraphx::generic_float<E, M, F>::epsilon();

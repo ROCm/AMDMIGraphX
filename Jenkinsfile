@@ -38,6 +38,9 @@ def rocmtestnode(Map conf) {
             export MIGRAPHX_GPU_DEBUG=${gpu_debug}
             export CXX=${compiler}
             export CXXFLAGS='-Werror'
+            export MIGRAPHX_TRACE_COMPILE=1
+            export MIGRAPHX_TRACE_BENCHMARKING=3
+            export MIGRAPHX_TRACE_EVAL=2
             env
             rm -rf build
             mkdir build

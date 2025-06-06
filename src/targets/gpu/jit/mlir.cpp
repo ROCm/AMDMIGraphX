@@ -104,28 +104,6 @@ struct mlir_compiler : compiler<mlir_compiler>
         return {cur->name() == "@param", cur};
     }
 
-    void set_fill_map(compiler_replace& cr, const module& m) const
-    {
-        std::size_t fill_val = 1;
-        for(auto ins : iterator_for(m))
-        {
-            if(ins->name() == "greater_or_equal")
-            {
-                fill_val = ins->get_shape().lens().back() - 1;
-                for(auto inp : ins->inputs())
-                {
-                    auto [is_param, param] = input_is_param(inp);
-                    if(is_param)
-                    {
-                        auto id = param->get_shape().type_string() +
-                                  param->get_shape().to_sizes_string({param->get_shape()});
-                        cr.fill_map[id] = static_cast<double>(fill_val);
-                    }
-                }
-            }
-        }
-    }
-
     compiler_replace
     compile(context& ctx, instruction_ref ins, const operation&, const value& solution) const
     {
@@ -169,9 +147,7 @@ struct mlir_compiler : compiler<mlir_compiler>
                                                   mlir_code_object{any_cast<code_object_op>(cop2)}};
             return insert(cops, mod_splits, ins, split_ins);
         }
-        auto cr = insert(compile_mlir(ctx, *smod, to_shapes(ins->inputs()), solution));
-        set_fill_map(cr, *smod);
-        return cr;
+        return insert(compile_mlir(ctx, *smod, to_shapes(ins->inputs()), solution));
     }
 
     compiler_replace insert(const mlir_code_object& mco) const

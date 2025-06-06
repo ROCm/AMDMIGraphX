@@ -76,7 +76,6 @@ struct compiler_replace
     std::function<void(const compiler_replace& cr, module& m, instruction_ref ins)> replace_fn =
         nullptr;
     std::function<void(std::ostream& os, instruction_ref ins)> trace_fn = nullptr;
-    std::unordered_map<std::string, double> fill_map = {};
 
     template <class F>
     static auto make_replace(F f)

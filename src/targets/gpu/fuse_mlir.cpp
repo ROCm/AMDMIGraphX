@@ -429,22 +429,22 @@ bool is_pointwise_op_supported_by_mlir(const instruction& i)
     }
     const std::initializer_list<std::string> any_type_ops = {"@literal", "@param", "@return"};
     const std::initializer_list<std::string> no_bool_ops  = {
-         "convolution",
-         "quant_convolution",
-         "dot",
-         "quant_dot",
-         "add",
-         "clip",
-         "relu",
-         "sub",
-         "mul",
-         "div",
-         "pow",
-         "where",
-         "quantizelinear",
-         "dequantizelinear",
-         "abs",
-         "neg",
+        "convolution",
+        "quant_convolution",
+        "dot",
+        "quant_dot",
+        "add",
+        "clip",
+        "relu",
+        "sub",
+        "mul",
+        "div",
+        "pow",
+        "where",
+        "quantizelinear",
+        "dequantizelinear",
+        "abs",
+        "neg",
     };
     const std::initializer_list<std::string> fp_only_ops = {
         "ceil",
@@ -1031,7 +1031,7 @@ struct find_mlir_gqa_attention_op
             seq_range =
                 m_attn.add_instruction(make_op("multibroadcast", {{"out_lens", bnsm}}), seq_range);
             auto causal_mask =
-                m_attn.add_instruction(make_op("greater_or_equal"), bc_range, seq_range);
+                m_attn.add_instruction(make_op("greater"), bc_range, seq_range);
             causal_mask = m_attn.add_instruction(
                 make_op("convert", {{"target_type", shape::bool_type}}), causal_mask);
             gemm1 = m_attn.add_instruction(make_op("where"), causal_mask, ninf, gemm1);
@@ -1042,7 +1042,7 @@ struct find_mlir_gqa_attention_op
                                    map_main_to_mattn.at(csl));
         auto mask_comp =
             m_attn.add_instruction(make_op("multibroadcast", {{"out_lens", bnsm}}), bc_csl);
-        auto mask = m_attn.add_instruction(make_op("greater_or_equal"), bc_range, mask_comp);
+        auto mask = m_attn.add_instruction(make_op("greater"), bc_range, mask_comp);
         mask =
             m_attn.add_instruction(make_op("convert", {{"target_type", shape::bool_type}}), mask);
         auto mul     = m_attn.add_instruction(make_op("mul"), gemm1, scale);

@@ -114,15 +114,26 @@ update_cache(const Present present, SeqLensK seqlens_k, Cache cache, Params para
     }
 }
 
-template <class Past, class Present, class SeqLensK, class Params>
-__device__ void
-concat_past_present(Past past, const Present present, SeqLensK seqlens_k, Params params)
+template <class Query, class PastKey, class PastValue, class SeqLensK, class Params>
+__device__ void concat_past_present(
+    const Query query, PastKey past_key, PastValue past_value, SeqLensK seqlens_k, Params params)
 {
     auto ind = make_index();
     auto elements =
-        params.batch_size * params.kv_num_heads * params.sequence_length * params.head_size;
+        2 * params.batch_size * params.kv_num_heads * params.sequence_length * params.head_size;
     ind.global_stride(elements, [&](auto idx) {
-        update_cache(present.begin(), seqlens_k, past.begin(), params, idx);
+        auto q = query.begin();
+        auto k = q + params.num_heads * params.sequence_length * params.head_size;
+        auto v = q + (params.num_heads + params.kv_num_heads) * params.sequence_length *
+                         params.head_size;
+        if(idx < elements / 2)
+        {
+            update_cache(k, seqlens_k, past_key.begin(), params, idx);
+        }
+        else if(idx < elements)
+        {
+            update_cache(v, seqlens_k, past_value.begin(), params, idx - (elements / 2));
+        }
     });
 }
 

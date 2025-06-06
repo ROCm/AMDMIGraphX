@@ -20,31 +20,26 @@
  * LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
  * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
  * THE SOFTWARE.
+ *
  */
-
-#ifndef MIGRAPHX_GUARD_RTGLIB_HALF_HPP
-#define MIGRAPHX_GUARD_RTGLIB_HALF_HPP
+#ifndef MIGRAPHX_GUARD_MIGRAPHX_PROPAGATE_PRECISION_HPP
+#define MIGRAPHX_GUARD_MIGRAPHX_PROPAGATE_PRECISION_HPP
 
 #include <migraphx/config.hpp>
-#include <migraphx/generic_float.hpp>
+#include <string>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
 
-using half = migraphx::generic_float<10, 5>;
+struct module_pass_manager;
 
-namespace detail {
-template <class T>
-struct deduce
+/// This pass will propagate higher precision through more adjacent operators.
+struct MIGRAPHX_EXPORT propagate_precision
 {
-    using type = T;
+    std::string name() const { return "propagate_precision"; }
+    void apply(module_pass_manager& mpm) const;
 };
-} // namespace detail
-
-template <class T>
-using deduce = typename detail::deduce<T>::type;
 
 } // namespace MIGRAPHX_INLINE_NS
 } // namespace migraphx
-
-#endif
+#endif // MIGRAPHX_GUARD_MIGRAPHX_PROPAGATE_PRECISION_HPP

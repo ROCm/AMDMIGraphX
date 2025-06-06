@@ -72,7 +72,7 @@ static argument as_packed(const argument& c)
 
 void propagate_constant::apply(module& m) const
 {
-    if(enabled(MIGRAPHX_SKIP_PROPAGATE_CONSTANT))
+    if(enabled(MIGRAPHX_SKIP_PROPAGATE_CONSTANT{}))
         return;
 
     std::unordered_set<instruction_ref> const_instrs;

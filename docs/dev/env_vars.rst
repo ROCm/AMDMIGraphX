@@ -12,7 +12,7 @@ For parsing
 
 Set to "1", "enable", "enabled", "yes", or "true" to use.
 Prints debugging traces for the ONNX parser.
-Prints: Initializers (if used), ONNX node operators, added MIGraphX instructions.
+Prints: Initializers (if used), ONNX node operators, node names, and the added MIGraphX instructions.
 
 .. envvar:: MIGRAPHX_DISABLE_FP16_INSTANCENORM_CONVERT
 
@@ -116,6 +116,11 @@ Disables the ``schedule`` pass.
 Set to "1", "enable", "enabled", "yes", or "true" to use.
 Disables the ``fuse_reduce`` pass.
 
+.. envvar:: MIGRAPHX_DISABLE_MULTI_OUTPUT_FUSION
+
+Set to "1", "enable", "enabled", "yes", or "true" to use.
+Disables multi-output fusions.
+
 .. envvar:: MIGRAPHX_ENABLE_REWRITE_DOT
 
 Set to "1", "enable", "enabled", "yes", or "true" to use.
@@ -186,6 +191,11 @@ Prints the compile pass and the program after the pass.
 
 Set to "1", "enable", "enabled", "yes", or "true" to use.
 Times the compile passes.
+
+.. envvar:: MIGRAPHX_TIME_MATCHERS
+
+Set to "1", "enable", "enabled", "yes", or "true" to use.
+Times the matchers.
 
 .. envvar:: MIGRAPHX_DISABLE_PASSES
 

@@ -1462,6 +1462,42 @@ inline program parse_tf(const char* filename)
                    own{});
 }
 
+/// Parse a buffer of memory as an tf file
+inline program parse_tf_buffer(const void* data, size_t size, const migraphx::tf_options& options)
+{
+    return program(
+        make<migraphx_program>(&migraphx_parse_tf_buffer, data, size, options.get_handle_ptr()),
+        own{});
+}
+
+/// Parse a buffer of memory as an tf file
+inline program parse_tf_buffer(const void* data, size_t size)
+{
+    migraphx::tf_options options;
+    return program(
+        make<migraphx_program>(&migraphx_parse_tf_buffer, data, size, options.get_handle_ptr()),
+        own{});
+}
+
+/// Parse a buffer of memory as an tf file
+inline program parse_tf_buffer(const std::string& buffer, const migraphx::tf_options& options)
+{
+    return program(
+        make<migraphx_program>(
+            &migraphx_parse_tf_buffer, buffer.data(), buffer.size(), options.get_handle_ptr()),
+        own{});
+}
+
+/// Parse a buffer of memory as an tf file
+inline program parse_tf_buffer(const std::string& buffer)
+{
+    migraphx::tf_options options;
+    return program(
+        make<migraphx_program>(
+            &migraphx_parse_tf_buffer, buffer.data(), buffer.size(), options.get_handle_ptr()),
+        own{});
+}
+
 struct quantize_op_names : MIGRAPHX_HANDLE_BASE(quantize_op_names)
 {
     quantize_op_names() { this->make_handle(&migraphx_quantize_op_names_create); }
@@ -1484,6 +1520,18 @@ inline void quantize_fp16(const program& prog, const quantize_op_names& names)
 inline void quantize_fp16(const program& prog)
 {
     call(&migraphx_quantize_fp16, prog.get_handle_ptr());
+}
+
+/// Quantize program to use fp16
+inline void quantize_bf16(const program& prog, const quantize_op_names& names)
+{
+    call(&migraphx_quantize_bf16_with_op_names, prog.get_handle_ptr(), names.get_handle_ptr());
+}
+
+/// Quantize program to use fp16
+inline void quantize_bf16(const program& prog)
+{
+    call(&migraphx_quantize_bf16, prog.get_handle_ptr());
 }
 
 /// Options to be passed when quantizing for int8

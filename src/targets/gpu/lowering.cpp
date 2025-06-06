@@ -33,6 +33,7 @@
 #include <migraphx/pass_manager.hpp>
 #include <migraphx/iterator_for.hpp>
 #include <migraphx/program.hpp>
+#include <migraphx/fp8_types.hpp>
 
 #include <migraphx/op/common.hpp>
 #include <migraphx/op/dot.hpp>
@@ -101,7 +102,6 @@ struct miopen_apply
         add_extend_op("rnn_var_sl_last_output");
         add_extend_op("rnn_var_sl_shift_output");
         add_extend_op("rnn_var_sl_shift_sequence");
-        add_extend_op("topk");
         add_generic_op("contiguous");
         add_pooling_op();
 #if MIGRAPHX_USE_MIOPEN
@@ -254,17 +254,20 @@ struct miopen_apply
             auto output = insert_allocation(ins, ins->get_shape());
             refs.push_back(output);
 
-#if MIGRAPHX_USE_HIPBLASLT
+            bool has_fp8_inputs =
+                std::any_of(ins->inputs().begin(), ins->inputs().end(), [](auto i_input) {
+                    return contains(fp8_types{}.get(), i_input->get_shape().type());
+                });
+
             // Check if user explicitly sets rocBLAS as GEMM provider, or
             // if the hardware cannot support hipblaslt, or
             // if the hardware is defaulted to use rocBLAS (such as gfx90).
-            if((string_value_of(MIGRAPHX_SET_GEMM_PROVIDER{}) == "rocblas") or
-               not hipblaslt_supported() or gpu::gfx_default_rocblas())
+            if(not has_fp8_inputs and
+               ((string_value_of(MIGRAPHX_SET_GEMM_PROVIDER{}) == "rocblas") or
+                not hipblaslt_supported() or gpu::gfx_default_rocblas()))
             {
-#endif
                 return mod->replace_instruction(
                     ins, rocblas_gemm<Op>{Op{}, 1, 0, compute_fp32}, refs);
-#if MIGRAPHX_USE_HIPBLASLT
             }
             std::string op_name = "gpu::hip_gemm";
             if(contains(name, "quant_"))
@@ -278,7 +281,6 @@ struct miopen_apply
                 ins->inputs().at(0),
                 ins->inputs().at(1),
                 output);
-#endif
         });
     }
 #endif
@@ -515,13 +517,13 @@ struct miopen_apply
             auto before_contig =
                 mod->insert_instruction(ins, make_op("gpu::contiguous"), {before_contiguous_args});
 
-            auto new_lazy_reshape = mod->insert_instruction(
+            auto new_reshape_lazy = mod->insert_instruction(
                 ins,
                 make_op("reshape_lazy", {{"dims", {ins->get_operator().to_value().at("dims")}}}),
                 before_contig);
 
-            std::vector<instruction_ref> after_contiguous_args = {new_lazy_reshape};
-            auto after_alloc = insert_allocation(new_lazy_reshape, new_lazy_reshape->get_shape());
+            std::vector<instruction_ref> after_contiguous_args = {new_reshape_lazy};
+            auto after_alloc = insert_allocation(new_reshape_lazy, new_reshape_lazy->get_shape());
             after_contiguous_args.push_back(after_alloc);
             return mod->replace_instruction(ins, make_op("gpu::contiguous"), after_contiguous_args);
         });

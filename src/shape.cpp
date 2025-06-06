@@ -477,6 +477,11 @@ bool shape::multi_within_bounds(std::vector<std::size_t> multi) const
     return std::equal(multi.begin(), multi.end(), this->lens().begin(), std::less<>{});
 }
 
+std::size_t shape::single(const std::vector<std::size_t>& idx) const
+{
+    return this->single(idx.begin(), idx.end());
+}
+
 bool shape::packed() const
 {
     if(this->dynamic())
@@ -826,6 +831,8 @@ std::vector<shape> flatten(const std::vector<shape>& shapes)
     }
     return result;
 }
+
+std::size_t shape::tuple_size() const { return impl->m_shapes.size(); }
 
 void migraphx_to_value(value& v, const shape& s)
 {

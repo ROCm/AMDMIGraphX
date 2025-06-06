@@ -43,6 +43,15 @@ namespace gpu {
 MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_GPU_COMPILE_PARALLEL);
 MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_TRACE_BENCHMARKING);
 
+// #todo Move these to context foro potential PR if it shows benefits (then see how we can configure that for a "fast first inference mode" maybe as an onnxruntime setting)
+//       Just try to get things running super fast first
+//       Then make it a provider option
+//       Then compare runtime perf with/without fast mode
+//       Then get PR made
+//       Then try to get fast mode to produce better kernels (if there is a gap without fast mode)
+MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_BENCHMARKING_RUNS);
+MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_SKIP_DEAD_CODE_ELIMINATION);
+
 struct precompile_op
 {
     operation op                      = op::identity{};
@@ -171,6 +180,8 @@ struct compile_plan
     const compiled_result& benchmark() const
     {
         const auto trace_level = value_of(MIGRAPHX_TRACE_BENCHMARKING{});
+        const auto benchmarking_runs = value_of(MIGRAPHX_BENCHMARKING_RUNS{});
+        const auto skip_dead_code_elimination = enabled(MIGRAPHX_SKIP_DEAD_CODE_ELIMINATION{});
         if(trace_level > 0 and not results.empty())
         {
             std::cout << "Benchmarking " << preop.name() << ": " << results.size() << " configs"
@@ -228,10 +239,13 @@ struct compile_plan
                                cr->ins->get_operator(), bench_ins_inputs, cr->ins->module_inputs());
                            cr->replace.replace(*bench_mm, bench_ins);
                            // do dead code elimination
-                           run_passes(*bench_mm, {dead_code_elimination{}});
+                           // #todo How much does this dead code elimination help?
+                           if(!skip_dead_code_elimination)
+                               run_passes(*bench_mm, {dead_code_elimination{}});
                            // by default, measure runtime with bundle of 1 benchmark config,
                            // repeat 20 times
-                           auto t = time_program(*ctx, bench_prog, cr->replace.fill_map, 1, 20);
+                           // #todo This 20 times should definitely be configurable by environment variable and perhaps MIGraphX API
+                           auto t = time_program(*ctx, bench_prog, cr->replace.fill_map, 1, benchmarking_runs);
                            if(trace_level > 1)
                                std::cout << t << "ms" << std::endl;
                            return t;

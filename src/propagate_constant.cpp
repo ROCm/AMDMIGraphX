@@ -35,6 +35,7 @@ namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
 
 MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_TRACE_PROPAGATE_CONSTANT)
+MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_SKIP_PROPAGATE_CONSTANT)
 
 static bool skip_propagate(instruction_ref ins)
 {
@@ -71,6 +72,9 @@ static argument as_packed(const argument& c)
 
 void propagate_constant::apply(module& m) const
 {
+    if(enabled(MIGRAPHX_SKIP_PROPAGATE_CONSTANT))
+        return;
+
     std::unordered_set<instruction_ref> const_instrs;
     auto last = std::prev(m.end());
 

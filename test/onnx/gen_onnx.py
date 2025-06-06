@@ -4007,6 +4007,34 @@ def gelu_bias_invalid_type_test():
 
 
 @onnx_test()
+def gelu_add_bias_split_test():
+    x = helper.make_tensor_value_info('x', TensorProto.FLOAT, [2, 4, 6])
+    y = helper.make_tensor_value_info('y', TensorProto.FLOAT, [6])
+    z = helper.make_tensor_value_info('z', TensorProto.FLOAT, [2, 4, 3])
+
+    node = onnx.helper.make_node("BiasSplitGelu",
+                                 inputs=["x", "y"],
+                                 outputs=["z"],
+                                 domain="com.microsoft")
+
+    return ([node], [x, y], [z])
+
+
+@onnx_test()
+def gelu_add_bias_split_invalid_dims_test():
+    x = helper.make_tensor_value_info('x', TensorProto.FLOAT, [2, 4, 5])
+    y = helper.make_tensor_value_info('y', TensorProto.FLOAT, [5])
+    z = helper.make_tensor_value_info('z', TensorProto.FLOAT, [2, 4, 2])
+
+    node = onnx.helper.make_node("BiasSplitGelu",
+                                 inputs=["x", "y"],
+                                 outputs=["z"],
+                                 domain="com.microsoft")
+
+    return ([node], [x, y], [z])
+
+
+@onnx_test()
 def gelu_fast_test():
     x = helper.make_tensor_value_info('x', TensorProto.FLOAT, [3, 3])
     y = helper.make_tensor_value_info('y', TensorProto.FLOAT, [3, 3])

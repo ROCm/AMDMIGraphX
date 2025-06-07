@@ -37,6 +37,7 @@
 #include <migraphx/match/softmax.hpp>
 #include <migraphx/fp8_types.hpp>
 #include <optional>
+#include <migraphx/op/group.hpp>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
@@ -1065,7 +1066,22 @@ struct find_unpack_int4_mlir_op
     }
 };
 
-} // namespace
+struct find_group_attention_op {
+    auto matcher() const {
+        return match::name("group")([
+            match::arg("tag", match::value("attention"))
+        ]);
+    }
+    void apply(module_pass_manager& mpm, const match::matcher_result& r) const {
+        auto ins = r.result;
+        if(ins->module_inputs().size() != 1)
+            MIGRAPHX_THROW("group: should have one submodule.");
+        auto* mm = ins->module_inputs().front();
+        // Replace with mlir_op offloading the submodule
+        mpm.get_module().replace_instruction(
+            ins, mlir_op{}, ins->inputs(), {mm});
+    }
+};
 
 #endif // MIGRAPHX_MLIR
 
@@ -1089,6 +1105,7 @@ void fuse_mlir::apply(module_pass_manager& mpm) const
     // Attention offloads; default disabled
     if(mlir_attention_enabled(ctx) or enable_extra)
     {
+        match::find_matches(mpm, find_group_attention_op{});
         match::find_matches(mpm, find_mlir_attention_fused_ops{mlir_mode::all});
         mpm.run_pass(dead_code_elimination{});
         match::find_matches(mpm, find_mlir_standalone_attention_op{mlir_mode::all});

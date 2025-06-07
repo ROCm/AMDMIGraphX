@@ -33,6 +33,7 @@
 #include <migraphx/gpu/ck.hpp>
 #endif
 #include <migraphx/gpu/fuse_mlir.hpp>
+#include <migraphx/fuse_attention.hpp>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
@@ -405,6 +406,7 @@ struct find_group_query_attention
 
 void prefuse_ops::apply(module_pass_manager& mpm) const
 {
+    fuse_attention{}.apply(mpm);
     if(enabled(MIGRAPHX_ENABLE_LAYERNORM_FUSION{}))
     {
         match::find_matches(mpm.get_module(), find_layernorm{});

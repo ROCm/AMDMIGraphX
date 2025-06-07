@@ -570,7 +570,7 @@ struct parse_attention : op_parser<parse_attention>
         // Apply scale onl after all the masking and biasing has occured
         auto qk_scaled = info.add_common_op("mul", qk_out, recip_scale);
 
-        auto softmax_out = info.add_instruction(make_op("softmax"), qk_scaled);
+        auto softmax_out = info.add_instruction(make_op("softmax", {{"axis", 3}}), qk_scaled);
 
         // Final result to compare with respect to values matrix
         auto output = info.add_instruction(make_op("dot"), softmax_out, V);

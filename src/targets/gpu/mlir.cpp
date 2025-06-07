@@ -89,9 +89,7 @@ MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_MLIR_TUNING_DB);
 MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_MLIR_TUNING_CFG);
 MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_MLIR_ENABLE_SPLITK);
 
-#define SAFE_AT(m, k) \
-    ((m).find(k) != (m).end() ? (m).at(k) : MIGRAPHX_THROW("Map key not found"))
-
+#define SAFE_AT(m, k) ((m).find(k) != (m).end() ? (m).at(k) : MIGRAPHX_THROW("Map key not found"))
 
 #ifdef MIGRAPHX_MLIR
 template <class T, class F, F f> // NOLINT
@@ -664,7 +662,8 @@ struct mlir_program
             if(SAFE_AT(v, "padding").size() == SAFE_AT(v, "stride").size())
             {
                 auto padding = SAFE_AT(v, "padding");
-                std::copy(padding.begin(), padding.end(), std::back_inserter(SAFE_AT(v, "padding")));
+                std::copy(
+                    padding.begin(), padding.end(), std::back_inserter(SAFE_AT(v, "padding")));
             }
         }
 
@@ -740,8 +739,9 @@ struct mlir_program
             }
 
             std::vector<MlirValue> inputs;
-            transform(
-                ins->inputs(), std::back_inserter(inputs), [&](auto i) { return SAFE_AT(ins_map, i); });
+            transform(ins->inputs(), std::back_inserter(inputs), [&](auto i) {
+                return SAFE_AT(ins_map, i);
+            });
             ops.add_operands(inputs);
 
             auto outputs = insert(fbody, std::move(ops));

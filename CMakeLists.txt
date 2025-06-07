@@ -377,5 +377,5 @@ rocm_create_package(
     MAINTAINER "AMDMIGraphX Maintainer <migraphx-lib.support@amd.com>"
     LDCONFIG
     PTH
-    DEPENDS ${DEPENDS_HIP_RUNTIME} half ${PACKAGE_DEPENDS}
+    DEPENDS ${DEPENDS_HIP_RUNTIME} half ${PACKAGE_DEPENDS} op/group.hpp \
 )

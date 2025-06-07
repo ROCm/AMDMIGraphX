@@ -36,6 +36,7 @@
 #include <migraphx/param_utils.hpp>
 #include <migraphx/match/softmax.hpp>
 #include <migraphx/fp8_types.hpp>
+#include <migraphx/op/group.hpp>
 #include <optional>
 
 namespace migraphx {
@@ -1065,7 +1066,78 @@ struct find_unpack_int4_mlir_op
     }
 };
 
-} // namespace
+struct find_mlir_group_attention
+{
+    mlir_mode dot_mode = mlir_mode::none;
+
+    auto matcher() const
+    {
+        return match::name("group")(match::has_attribute("tag", "attention"));
+    }
+
+    void apply(module_pass_manager& mpm, const match::matcher_result& r) const
+    {
+        auto group_ins = r.result;
+        auto group_op = any_cast<op::group>(group_ins->get_operator());
+        
+        // Get the submodule from the group operator
+        auto submodule = group_ins->module_inputs().front();
+        
+        // Create a new MLIR module by copying the submodule contents
+        module mlir_attention_module;
+        std::unordered_map<instruction_ref, instruction_ref> param_map;
+        
+        // Add parameters to the MLIR module
+        std::vector<instruction_ref> new_inputs;
+        for (auto param : submodule->get_parameter_instructions()) {
+            auto new_param = mlir_attention_module.add_parameter(param->name(), param->get_shape());
+            param_map[param] = new_param;
+        }
+        
+        // Copy all instructions from submodule to MLIR module
+        std::unordered_map<instruction_ref, instruction_ref> ins_map = param_map;
+        
+        // Process instructions in topological order
+        for (auto ins : iterator_for(*submodule)) {
+            if (ins->name() == "@param") continue;
+            if (ins->name() == "@return") continue;
+            
+            std::vector<instruction_ref> new_ins_inputs;
+            for (auto input : ins->inputs()) {
+                new_ins_inputs.push_back(ins_map[input]);
+            }
+            
+            auto new_ins = mlir_attention_module.add_instruction(ins->get_operator(), new_ins_inputs);
+            ins_map[ins] = new_ins;
+        }
+        
+        // Add return instruction
+        auto return_ins = submodule->get_returns().front();
+        mlir_attention_module.add_return({ins_map[return_ins]});
+        
+        // Apply additional fusions on the MLIR module
+        // 1. Fuse input reshape operations
+        fuse_input_ops(&mlir_attention_module, group_ins->inputs(), nullptr);
+        
+        // 2. Apply elementwise fusion on outputs if needed
+        // (This would be done by existing MLIR fusion passes)
+        
+        // Create MLIR module reference
+        std::string module_name = "mlir_group_attention_" + std::to_string(reinterpret_cast<uintptr_t>(group_ins));
+        if(mpm.get_module().name() != "main")
+            module_name = mpm.get_module().name() + ":" + module_name;
+        
+        module_ref mpm_mlir = mpm.create_module(module_name, std::move(mlir_attention_module));
+        mpm_mlir->set_bypass();
+        
+        // Replace group instruction with mlir_op
+        mpm.get_module().replace_instruction(
+            group_ins, 
+            mlir_op{make_op("dot")}, // Use dot as base operation
+            mlir_contiguous(mpm, group_ins->inputs()), 
+            {mpm_mlir});
+    }
+};
 
 #endif // MIGRAPHX_MLIR
 
@@ -1117,6 +1189,7 @@ void fuse_mlir::apply(module_pass_manager& mpm) const
 
     match::find_matches(mpm, find_pointwise_mlir{});
     match::find_matches(mpm, find_unpack_int4_mlir_op{});
+    match::find_matches(mpm, find_mlir_group_attention{});
 
 #else
     (void)mpm;

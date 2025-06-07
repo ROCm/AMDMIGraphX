@@ -33,6 +33,7 @@
 #include <migraphx/gpu/ck.hpp>
 #endif
 #include <migraphx/gpu/fuse_mlir.hpp>
+#include <migraphx/op/group.hpp>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
@@ -401,6 +402,145 @@ struct find_group_query_attention
     }
 };
 
+struct find_group_attention
+{
+    auto matcher() const
+    {
+        // Match attention pattern: dot -> elementwise/reshapes -> softmax -> elementwise/reshapes -> dot
+        auto gemm1 = match::skip(match::name("contiguous"))(match::name("dot").bind("gemm1"));
+        
+        // Match elementwise/reshapes between first dot and softmax
+        auto elementwise_pre = match::any_of(
+            match::name("mul"),
+            match::name("add"), 
+            match::name("where"),
+            match::name("reshape"),
+            match::name("transpose"),
+            match::name("broadcast"),
+            match::name("multibroadcast")
+        );
+        auto pre_softmax_ops = match::skip(elementwise_pre)(gemm1);
+        
+        // Match softmax
+        auto softmax = match::name("softmax")(match::arg(0)(pre_softmax_ops)).bind("softmax");
+        
+        // Match elementwise/reshapes between softmax and second dot
+        auto elementwise_post = match::any_of(
+            match::name("reshape"),
+            match::name("transpose"),
+            match::name("broadcast"),
+            match::name("multibroadcast")
+        );
+        auto post_softmax_ops = match::skip(elementwise_post)(softmax);
+        
+        // Match second dot
+        return match::name("dot")(match::arg(0)(post_softmax_ops)).bind("gemm2");
+    }
+
+    void apply(module_pass_manager& mpm, const match::matcher_result& r) const
+    {
+        auto gemm2_ins = r.result;
+        auto gemm1_ins = r.instructions["gemm1"];
+        auto softmax_ins = r.instructions["softmax"];
+        
+        // Create a submodule containing the attention pattern
+        module attention_submodule;
+        std::unordered_map<instruction_ref, instruction_ref> param_map;
+        
+        // Add parameters for all inputs to the attention pattern
+        std::set<instruction_ref> all_inputs;
+        
+        // Traverse from gemm1 to gemm2 and collect all inputs
+        std::function<void(instruction_ref)> collect_inputs = [&](instruction_ref ins) {
+            if (ins == gemm1_ins) return; // Don't go beyond first gemm
+            
+            for (auto input : ins->inputs()) {
+                if (param_map.find(input) == param_map.end() && 
+                    !reaches(gemm1_ins, input)) {
+                    // This is an external input
+                    all_inputs.insert(input);
+                }
+            }
+            
+            // Recursively collect from instructions between gemm1 and current
+            for (auto input : ins->inputs()) {
+                if (reaches(gemm1_ins, input) && input != gemm1_ins) {
+                    collect_inputs(input);
+                }
+            }
+        };
+        
+        collect_inputs(gemm2_ins);
+        
+        // Also add inputs from gemm1 and gemm2
+        for (auto input : gemm1_ins->inputs()) {
+            all_inputs.insert(input);
+        }
+        for (auto input : gemm2_ins->inputs()) {
+            all_inputs.insert(input);
+        }
+        
+        // Create parameters in submodule
+        std::vector<instruction_ref> param_order;
+        for (auto input : all_inputs) {
+            auto param_name = "param_" + std::to_string(param_order.size());
+            auto param = attention_submodule.add_parameter(param_name, input->get_shape());
+            param_map[input] = param;
+            param_order.push_back(input);
+        }
+        
+        // Copy the attention pattern into the submodule
+        std::unordered_map<instruction_ref, instruction_ref> ins_map = param_map;
+        
+        // Clone all instructions from gemm1 to gemm2
+        std::vector<instruction_ref> worklist = {gemm1_ins};
+        std::set<instruction_ref> processed;
+        
+        while (!worklist.empty()) {
+            auto current = worklist.back();
+            worklist.pop_back();
+            
+            if (processed.count(current)) continue;
+            processed.insert(current);
+            
+            // Skip if already mapped (parameter)
+            if (ins_map.count(current)) continue;
+            
+            // Clone the instruction
+            std::vector<instruction_ref> new_inputs;
+            for (auto input : current->inputs()) {
+                if (!ins_map.count(input)) {
+                    worklist.push_back(input);
+                    continue;
+                }
+                new_inputs.push_back(ins_map[input]);
+            }
+            
+            if (new_inputs.size() == current->inputs().size()) {
+                auto new_ins = attention_submodule.add_instruction(current->get_operator(), new_inputs);
+                ins_map[current] = new_ins;
+                
+                // Add outputs to worklist
+                for (auto output : current->outputs()) {
+                    if (!processed.count(output) && reaches(output, gemm2_ins)) {
+                        worklist.push_back(output);
+                    }
+                }
+            }
+        }
+        
+        // Add return instruction
+        attention_submodule.add_return({ins_map[gemm2_ins]});
+        
+        // Create group operator
+        auto group_op = op::group{"attention"};
+        
+        // Replace the attention pattern with the group operator
+        auto group_ins = mpm.get_module().add_instruction(group_op, param_order, {&attention_submodule});
+        mpm.get_module().replace_instruction(gemm2_ins, group_ins);
+    }
+};
+
 } // namespace
 
 void prefuse_ops::apply(module_pass_manager& mpm) const
@@ -413,6 +553,7 @@ void prefuse_ops::apply(module_pass_manager& mpm) const
     }
     match::find_matches(mpm, find_gemm_softmax_gemm{enable_attention});
     match::find_matches(mpm, find_group_query_attention{});
+    match::find_matches(mpm, find_group_attention{});
 }
 
 } // namespace gpu

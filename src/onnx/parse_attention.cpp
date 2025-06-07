@@ -521,9 +521,16 @@ struct parse_attention : op_parser<parse_attention>
         auto k_lens = qkv_mats.at(1)->get_shape().lens();
         auto v_lens = qkv_mats.at(2)->get_shape().lens();
 
-        auto split_q = info.add_instruction(make_op("reshape", {{"dims", {q_lens.at(0), q_lens.at(1), q_lens.at(2)/num_heads, num_heads}}}), qkv_mats.at(0));
-        auto split_k = info.add_instruction(make_op("reshape", {{"dims", {k_lens.at(0), k_lens.at(1), k_lens.at(2)/num_heads, num_heads}}}), qkv_mats.at(1));
-        auto split_v = info.add_instruction(make_op("reshape", {{"dims", {v_lens.at(0), v_lens.at(1), v_lens.at(2)/num_heads, num_heads}}}), qkv_mats.at(2));
+        // Split embedding into querry size and num heads from embedding dimension
+        // Permute so we now result in (batch, sequence_length, querry_size, num_heads) prior to calculations
+        auto split_q = info.add_instruction(make_op("reshape", {{"dims", {q_lens.at(0), q_lens.at(1), num_heads, q_lens.at(2)/num_heads}}}), qkv_mats.at(0));
+        auto split_k = info.add_instruction(make_op("reshape", {{"dims", {k_lens.at(0), k_lens.at(1), num_heads, k_lens.at(2)/num_heads}}}), qkv_mats.at(1));
+        auto split_v = info.add_instruction(make_op("reshape", {{"dims", {v_lens.at(0), v_lens.at(1), num_heads, v_lens.at(2)/num_heads}}}), qkv_mats.at(2));
+
+        // Permute so we now result in (batch, num heads, sequence_length, querry_size) prior to calculations
+        split_q = info.add_instruction(make_op("transpose", {{"permutation", {0, 2, 1, 3}}}), split_q);
+        split_k = info.add_instruction(make_op("transpose", {{"permutation", {0, 2, 1, 3}}}), split_k);
+        split_v = info.add_instruction(make_op("transpose", {{"permutation", {0, 2, 1, 3}}}), split_v);
 
         return {split_q, split_k, split_v};
     }
@@ -542,24 +549,36 @@ struct parse_attention : op_parser<parse_attention>
 
         auto k_trans = info.add_instruction(make_op("transpose", {{"permutation", {0, 1, 3, 2}}}), K);
         auto qk_out = info.add_instruction(make_op("dot"), Q, k_trans);
-        auto qk_scaled = info.add_common_op("div", qk_out, scale_factor);
 
-        auto qk_masked = qk_scaled;
-
-        if(masked) {
-            auto bc_mask = info.add_instruction(make_op("multibroadcast", {{"out_lens", qk_scaled->get_shape().lens()}}), mask);
-            qk_masked = info.add_common_op("add", qk_scaled, bc_mask);
-        }
-        auto qk_biased = qk_masked;
+        // Apply bias to QK result
+        auto qk_biased = qk_out;
         if(attn_bias)
         {
-            auto bc_bias = info.add_instruction(make_op("multibroadcast", {{"out_lens", qk_scaled->get_shape().lens()}}), bias);
-            qk_biased = info.add_common_op("add", qk_masked, bc_bias);
+            auto bc_bias = info.add_instruction(make_op("multibroadcast", {{"out_lens", qk_out->get_shape().lens()}}), bias);
+            qk_biased = info.add_common_op("add", qk_out, bc_bias);
         }
 
-        auto softmax_out = info.add_instruction(make_op("softmax"), qk_biased);
+        // Mask must be done after all bias and calculations done
+        auto qk_masked = qk_biased;
+        if(masked) 
+        {
+            auto bc_mask = info.add_instruction(make_op("multibroadcast", {{"out_lens", qk_out->get_shape().lens()}}), mask);
+            qk_masked = info.add_common_op("add", qk_biased, bc_mask);
+        } 
+
+        auto recip_scale = info.add_instruction(make_op("recip"), scale_factor);
+        // Apply scale onl after all the masking and biasing has occured
+        auto qk_scaled = info.add_common_op("mul", qk_out, recip_scale);
+
+        auto softmax_out = info.add_instruction(make_op("softmax"), qk_scaled);
+
+        // Final result to compare with respect to values matrix
         auto output = info.add_instruction(make_op("dot"), softmax_out, V);
+
+        // Transpose result from (batch, num heads, sequence_length, query_size) to (batch, sequence_length, num_heads, query_size)
         auto lens = output->get_shape().lens();
+        output = info.add_instruction(make_op("transpose", {{"permutation", {0, 2, 1, 3}}}), output);
+        // Collapse back to (batch, sequence_length, query_size)
         output = info.add_instruction(make_op("reshape", {{"dims", {lens.at(0), lens.at(1), lens.at(2) * lens.at(3)}}}), output);
         return output;
     }
@@ -741,13 +760,14 @@ struct parse_attention : op_parser<parse_attention>
         if(infered_attributes.has_attn_bias)
             attn_bias = inputs.at(5);
 
-        auto attn_scale_factor = std::sqrt(infered_attributes.query_size);
+        auto attn_scale_factor = infered_attributes.query_size;
         if(infered_attributes.scale_not_query_sz)
             attn_scale_factor = parsed_attributes.scale;
 
         // Used to scale all key values before any masking or other inputs
         auto scale_factor = info.add_literal(migraphx::literal{migraphx::shape{qkv_mats.at(0)->get_shape().type()},
                                                               {attn_scale_factor}});
+        scale_factor = info.add_instruction(make_op("sqrt"), scale_factor);
 
         // split QKV into proper batched attention head shape before we perform scale_dot_attention (saves us a concat)
         auto split_qkv  = qkv_split_per_head(info, qkv_mats, parsed_attributes, infered_attributes);

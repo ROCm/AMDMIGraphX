@@ -40,7 +40,6 @@ def rocmtestnode(Map conf) {
             export CXXFLAGS='-Werror'
             export MIGRAPHX_TRACE_COMPILE=1
             export MIGRAPHX_TRACE_BENCHMARKING=3
-            export MIGRAPHX_TRACE_EVAL=1
             env
             rm -rf build
             mkdir build

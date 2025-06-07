@@ -41,6 +41,9 @@ namespace gpu {
 MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_MLIR_DUMP_TO_MXR);
 MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_MLIR_DUMP);
 
+#define SAFE_AT(m, k) \
+    ((m).find(k) != (m).end() ? (m).at(k) : MIGRAPHX_THROW("Map key not found"))
+
 static module create_pointwise_module(module_ref in_mod)
 {
     module pw_mod;
@@ -129,6 +132,7 @@ struct mlir_compiler : compiler<mlir_compiler>
     compiler_replace
     compile(context& ctx, instruction_ref ins, const operation&, const value& solution) const
     {
+        std::cout << "*******compile\n";
         auto* smod = ins->module_inputs().front();
         assert(smod->get_parameter_names().size() == ins->inputs().size() - 1);
         auto gemm_like_ins = std::find_if(smod->begin(), smod->end(), [&](const auto& i) {
@@ -178,6 +182,7 @@ struct mlir_compiler : compiler<mlir_compiler>
     {
         return {std::vector<operation>{mco.cop},
                 [=](module& m, instruction_ref ins, const std::vector<operation>& ops) {
+                    std::cout << "*******insert lamda\n";
                     std::vector<instruction_ref> inputs = ins->inputs();
 
                     // Tuple inputs not supported
@@ -240,6 +245,7 @@ struct mlir_compiler : compiler<mlir_compiler>
                             instruction_ref precompile_ins,
                             instruction_ref split_ins) const
     {
+        std::cout << "*******insert\n";
         std::vector<operation> cobjs(mcos.size());
         std::transform(
             mcos.begin(), mcos.end(), cobjs.begin(), [](const auto& mco) { return mco.cop; });
@@ -274,8 +280,8 @@ struct mlir_compiler : compiler<mlir_compiler>
                                [&](const auto& i) {
                                    if(inputs_rep_map.find(i) != inputs_rep_map.end())
                                    {
-                                       assert(inputs_rep_map.at(i)->get_shape() == i->get_shape());
-                                       return inputs_rep_map.at(i);
+                                       assert(SAFE_AT(inputs_rep_map,i)->get_shape() == i->get_shape());
+                                       return SAFE_AT(inputs_rep_map,i);
                                    }
                                    return i;
                                });
@@ -292,8 +298,8 @@ struct mlir_compiler : compiler<mlir_compiler>
                                [&](const auto& i) {
                                    if(inputs_rep_map.find(i) != inputs_rep_map.end())
                                    {
-                                       assert(inputs_rep_map.at(i)->get_shape() == i->get_shape());
-                                       return inputs_rep_map.at(i);
+                                       assert(SAFE_AT(inputs_rep_map,i)->get_shape() == i->get_shape());
+                                       return SAFE_AT(inputs_rep_map,i);
                                    }
                                    return i;
                                });
@@ -308,6 +314,7 @@ struct mlir_compiler : compiler<mlir_compiler>
                                               const operation&,
                                               bool exhaustive) const
     {
+        std::cout << "*******get_tuning_config\n";
         static const auto mxr_loc  = string_value_of(MIGRAPHX_MLIR_DUMP_TO_MXR{});
         static const auto mlir_loc = string_value_of(MIGRAPHX_MLIR_DUMP{});
 

@@ -89,7 +89,9 @@ MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_MLIR_TUNING_DB);
 MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_MLIR_TUNING_CFG);
 MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_MLIR_ENABLE_SPLITK);
 
-#define SAFE_AT(m, k) ((m).find(k) != (m).end() ? (m).at(k) : MIGRAPHX_THROW("Map key not found"))
+#define SAFE_AT(m, k) \
+    ((m).find(k) != (m).end() ? (m).at(k) : MIGRAPHX_THROW("Map key not found"))
+
 
 #ifdef MIGRAPHX_MLIR
 template <class T, class F, F f> // NOLINT
@@ -662,8 +664,7 @@ struct mlir_program
             if(SAFE_AT(v, "padding").size() == SAFE_AT(v, "stride").size())
             {
                 auto padding = SAFE_AT(v, "padding");
-                std::copy(
-                    padding.begin(), padding.end(), std::back_inserter(SAFE_AT(v, "padding")));
+                std::copy(padding.begin(), padding.end(), std::back_inserter(SAFE_AT(v, "padding")));
             }
         }
 
@@ -739,9 +740,8 @@ struct mlir_program
             }
 
             std::vector<MlirValue> inputs;
-            transform(ins->inputs(), std::back_inserter(inputs), [&](auto i) {
-                return SAFE_AT(ins_map, i);
-            });
+            transform(
+                ins->inputs(), std::back_inserter(inputs), [&](auto i) { return SAFE_AT(ins_map, i); });
             ops.add_operands(inputs);
 
             auto outputs = insert(fbody, std::move(ops));
@@ -1140,8 +1140,11 @@ mlir_code_object compile_mlir(const context& migraphx_ctx,
                               const std::vector<shape>& in_shapes,
                               const value& solution)
 {
+    std::cout << "*******Compile mlir\n";
     adjust_param_shapes(m, in_shapes);
     rewrite_reduce(m);
+    m.debug_print();
+    m.print_py(std::cout);
     const bool trace = enabled(MIGRAPHX_TRACE_MLIR{});
 
     static std::mutex mutex;
@@ -1154,6 +1157,7 @@ mlir_code_object compile_mlir(const context& migraphx_ctx,
     mlir_program mp;
 
     mp.set_gpu_properties(migraphx_ctx);
+    std::cout << "*******Parse\n";
     mp.parse(m);
     auto mod_op = mlirModuleGetOperation(mp.mmodule.get());
     if(trace)
@@ -1161,8 +1165,10 @@ mlir_code_object compile_mlir(const context& migraphx_ctx,
         const std::lock_guard<std::mutex> lock(mutex);
         std::cout << mlir_print(&mlirOperationPrint, mod_op) << std::endl;
     }
+    std::cout << "*******Compile\n";
     auto co = mp.compile(solution);
 
+    std::cout << "*******Set output\n";
     co.expected_inputs = in_shapes;
     auto out_shapes    = m.get_output_shapes();
     if(out_shapes.size() == 1)
@@ -1196,6 +1202,7 @@ mlir_code_object compile_mlir(const context& migraphx_ctx,
         mco.prefill_indices = prefill_indices;
         mco.prefill_values  = prefill_values;
     }
+    std::cout << "*******End Compile mlir\n";
     return mco;
 }
 

@@ -22,6 +22,7 @@
  * THE SOFTWARE.
  */
 #include <migraphx/gpu/compiler.hpp>
+#include <migraphx/ranges.hpp>
 #include <utility>
 
 namespace migraphx {
@@ -51,22 +52,29 @@ void register_compiler(const std::string& name,
     compiler_map()[name] = {std::move(c), std::move(cop), std::move(ctg)};
 }
 
+static compiler_handle& get_compiler(const std::string& name)
+{
+    if(not contains(compiler_map(), name))
+        MIGRAPHX_THROW("JIT op not found: " + name);
+    return compiler_map().at(name);
+}
+
 bool has_compiler_for(const std::string& name) { return compiler_map().count(name) > 0; }
 compiler_replace
 compile(context& ctx, instruction_ref ins, const operation& op, const value& solution)
 {
-    return compiler_map().at(op.name()).compile(ctx, ins, op, solution);
+    return get_compiler(op.name()).compile(ctx, ins, op, solution);
 }
 operation
 compile_op(const std::string& name, context& ctx, const std::vector<shape>& inputs, const value& v)
 {
-    return compiler_map().at(name).compile_op(ctx, inputs, v);
+    return get_compiler(name).compile_op(ctx, inputs, v);
 }
 
 optional<tuning_config>
 get_tuning_config(context& ctx, instruction_ref ins, const operation& op, bool exhaustive)
 {
-    return compiler_map().at(op.name()).get_tuning_config(ctx, ins, op, exhaustive);
+    return get_compiler(op.name()).get_tuning_config(ctx, ins, op, exhaustive);
 }
 
 } // namespace gpu

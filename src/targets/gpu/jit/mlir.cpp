@@ -41,7 +41,8 @@ namespace gpu {
 MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_MLIR_DUMP_TO_MXR);
 MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_MLIR_DUMP);
 
-#define SAFE_AT(m, k) ((m).find(k) != (m).end() ? (m).at(k) : MIGRAPHX_THROW("Map key not found"))
+#define SAFE_AT(m, k) \
+    ((m).find(k) != (m).end() ? (m).at(k) : MIGRAPHX_THROW("Map key not found"))
 
 static module create_pointwise_module(module_ref in_mod)
 {
@@ -279,9 +280,8 @@ struct mlir_compiler : compiler<mlir_compiler>
                                [&](const auto& i) {
                                    if(inputs_rep_map.find(i) != inputs_rep_map.end())
                                    {
-                                       assert(SAFE_AT(inputs_rep_map, i)->get_shape() ==
-                                              i->get_shape());
-                                       return SAFE_AT(inputs_rep_map, i);
+                                       assert(SAFE_AT(inputs_rep_map,i)->get_shape() == i->get_shape());
+                                       return SAFE_AT(inputs_rep_map,i);
                                    }
                                    return i;
                                });
@@ -298,9 +298,8 @@ struct mlir_compiler : compiler<mlir_compiler>
                                [&](const auto& i) {
                                    if(inputs_rep_map.find(i) != inputs_rep_map.end())
                                    {
-                                       assert(SAFE_AT(inputs_rep_map, i)->get_shape() ==
-                                              i->get_shape());
-                                       return SAFE_AT(inputs_rep_map, i);
+                                       assert(SAFE_AT(inputs_rep_map,i)->get_shape() == i->get_shape());
+                                       return SAFE_AT(inputs_rep_map,i);
                                    }
                                    return i;
                                });

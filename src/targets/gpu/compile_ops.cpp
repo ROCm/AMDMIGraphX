@@ -316,9 +316,11 @@ struct compile_manager
 
 void compile_ops::apply(module& m) const
 {
+    std::cout << "compile_ops\n";
     compile_manager cm;
     cm.exhaustive = exhaustive_tune;
     // Find all precompile ops
+    std::cout << "Find all precompile ops\n";
     for(auto ins : iterator_for(m))
     {
         if(ins->name() != "gpu::precompile_op")
@@ -326,9 +328,12 @@ void compile_ops::apply(module& m) const
         operation preop = any_cast<precompile_op>(ins->get_operator()).op;
         cm.add_plan(ctx, preop, ins);
     }
+    std::cout << "update_configs\n";
     cm.update_configs();
+    std::cout << "compile\n";
     cm.compile(m);
     // Compile already tuned configs
+    std::cout << "compile\n";
     cm.compile(m);
     assert(cm.cps.empty());
 }

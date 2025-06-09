@@ -303,10 +303,10 @@ struct linear_sampler : grid_sampler
         const static auto nhw_shape = migraphx::shape{migraphx::shape::int64_type, {1, 3}};
         dfor(m_batch, m_out_height, m_out_width)([&](auto n, auto h, auto w) {
             auto nhw = info.add_literal(migraphx::literal{nhw_shape, {n, h, w}});
-            weight_indices.push_back(nhw);
             for(size_t c = 0; c < m_channel; c++)
             {
                 xy_indices.push_back(nhw);
+                weight_indices.push_back(nhw);
                 nc_values.push_back(info.add_literal(migraphx::literal{m_nc_shape, {n, c}}));
             }
         });
@@ -664,7 +664,7 @@ struct parse_gridsample : op_parser<parse_gridsample>
                           std::vector<instruction_ref> args) const
     {
         bool align_corners = false;
-        // Note: defult mode can be linear or bilinear depending on the onnx version
+        // Note: default mode can be linear or bilinear depending on the onnx version
         std::string mode         = "linear";
         std::string padding_mode = "zeros";
 

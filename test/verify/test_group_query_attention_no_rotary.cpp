@@ -44,8 +44,8 @@ struct test_group_query_attention_no_rotary : verify_program<test_group_query_at
         migraphx::shape slk_s{migraphx::shape::int64_type, slk_lens};
         migraphx::shape tsl_s{migraphx::shape::int64_type, tsl_lens};
         migraphx::shape cs_cache_s{dtype, cs_cache_lens};
-        std::vector<int> slk_vec(slk_s.elements(), 15);
-        std::vector<int> tsl_vec(tsl_s.elements(), 4096);
+        std::vector<int> slk_vec(slk_s.elements(), 2);
+        std::vector<int> tsl_vec(tsl_s.elements(), 3);
         std::vector<float> k_vec(kv_s.elements(), 1.0);
         std::vector<float> v_vec(kv_s.elements(), 0.0);
         std::vector<float> q_min_vec(query_s.elements(), -100.0);
@@ -69,7 +69,7 @@ struct test_group_query_attention_no_rotary : verify_program<test_group_query_at
         cos_cache      = mm->add_instruction(migraphx::make_op("clip"), cos_cache, cs_min, cs_max);
         sin_cache      = mm->add_instruction(migraphx::make_op("clip"), sin_cache, cs_min, cs_max);
         auto r         = mm->add_instruction(migraphx::make_op("group_query_attention",
-                                                       {{"do_rotary", 0},
+                                                               {{"do_rotary", 0},
                                                                 {"kv_num_heads", 32},
                                                                 {"local_window_size", -1},
                                                                 {"num_heads", 32},

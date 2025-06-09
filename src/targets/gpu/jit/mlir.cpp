@@ -74,36 +74,6 @@ struct mlir_compiler : compiler<mlir_compiler>
 
     operation compile_op(context&, const std::vector<shape>&, const value&) const { return {}; }
 
-    const auto& reshaper_names() const
-    {
-        // clang-format off
-        static const std::unordered_set<std::string> names = {
-            "slice",
-            "transpose",
-            "multibroadcast",
-            "broadcast",
-            "contiguous",
-            "reshape",
-            "lazy_reshape",
-            "squeeze",
-            "flatten",
-            "unsqueeze"
-        };
-        // clang-format on
-        return names;
-    }
-
-    std::tuple<bool, instruction_ref> input_is_param(const instruction_ref& ins) const
-    {
-        auto cur = ins;
-        while(contains(reshaper_names(), cur->name()))
-        {
-            cur = cur->inputs().at(0);
-        }
-
-        return {cur->name() == "@param", cur};
-    }
-
     compiler_replace
     compile(context& ctx, instruction_ref ins, const operation&, const value& solution) const
     {

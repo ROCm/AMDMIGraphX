@@ -99,11 +99,7 @@ static inline gqa_parameters init_params(const std::vector<shape>& inputs, const
     std::size_t head_size             = q_lens[3];
     auto q_hidden_size                = kv_num_heads * head_size;
 
-    std::size_t rotary_dim = inputs.size() >= 4 ? inputs[3].lens()[1] * 2 : 0;
-    if(inputs.size() == 3)
-    {
-        present_kv_seqlen = inputs[2].lens()[2];
-    }
+    std::size_t rotary_dim         = inputs[3].lens()[1] * 2;
     auto seq_stride                = head_size;
     auto head_stride               = sequence_length * seq_stride;
     auto batch_stride              = (num_heads + 2 * kv_num_heads) * head_stride;

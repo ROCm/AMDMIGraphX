@@ -31,7 +31,6 @@ struct test_group_query_attention_gen_small : verify_program<test_group_query_at
 {
     migraphx::program create_program() const
     {
-        setenv("MIGRAPHX_TRACE_EVAL", "1", 1);
         migraphx::program p;
         auto* mm = p.get_main_module();
         std::vector<size_t> query_lens{1, 1, 12};

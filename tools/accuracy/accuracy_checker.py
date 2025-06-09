@@ -88,6 +88,12 @@ def parse_args():
                         default=False,
                         help='Turn on ort VERBOSE logging via session options')
 
+    parser.add_argument('--show_test_data',
+                        dest="show_data",
+                        action='store_true',
+                        default=False,
+                        help='Display input data used for run')
+
     parser.add_argument(
         '--disable-offload-copy',
         dest="offload_copy",
@@ -234,7 +240,7 @@ def main():
     params = {}
     test_inputs = {}
     for name, shape in model.get_parameter_shapes().items():
-        if args.verbose:
+        if args.verbose or args.show_data:
             print(f'Parameter {name} -> {shape}')
         in_shape = shape.lens()
         in_type = shape.type_string()
@@ -246,7 +252,12 @@ def main():
         else:
             test_input = np.zeros(in_shape).astype(get_np_datatype(in_type))
         test_inputs[name] = test_input
-        migraphx_arg = migraphx.argument(test_input)
+
+        if args.show_data:
+            print(test_input + "\n")
+
+
+        migraphx_arg = migraphx.argument(test_inputs[name])
         if not args.offload_copy:
             migraphx_arg = migraphx.to_gpu(migraphx_arg)
         params[name] = migraphx_arg
@@ -325,6 +336,11 @@ def main():
             pred_fw = y_out
 
     if not args.ort_run:
+        if args.show_data:
+            print("---------------Output Gold Data------------------------")
+            print(pred_fw)
+            print("\n")
+
         is_correct = check_correctness(pred_fw, pred_migx, args.tolerance,
                                        args.tolerance, args.argmax,
                                        args.verbose)

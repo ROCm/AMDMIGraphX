@@ -222,6 +222,7 @@ register_migraphx_ops(
     nonzero
     onehot
     outline
+    pack_fp4
     pack_int4
     pad
     pointwise
@@ -286,6 +287,7 @@ register_migraphx_ops(
     undefined
     unique
     unknown
+    unpack_fp4
     unpack_int4
     unsqueeze
     where

@@ -34,6 +34,7 @@
 #include <test.hpp>
 #include <pointwise.hpp>
 #include <reduce.hpp>
+#include <utility>
 
 MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_ENABLE_MLIR_INPUT_FUSION);
 MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_ENABLE_MLIR_REDUCE_FUSION);
@@ -48,18 +49,18 @@ struct non_mlir_op
     }
 };
 
-void run_pass(migraphx::program& p)
+static void run_pass(migraphx::program& p)
 {
     migraphx::run_passes(
         p, {migraphx::gpu::fuse_mlir{.enable_extra = true}, migraphx::dead_code_elimination{}});
 }
 
 template <class F>
-migraphx::instruction_ref add_mlir(migraphx::program& p,
-                                   const std::string& name,
-                                   std::vector<migraphx::instruction_ref> inputs,
-                                   std::vector<std::string> arg_names,
-                                   F f)
+static migraphx::instruction_ref add_mlir(migraphx::program& p,
+                                          const std::string& name,
+                                          std::vector<migraphx::instruction_ref> inputs,
+                                          std::vector<std::string> arg_names,
+                                          const F& f)
 {
     assert(inputs.size() == arg_names.size() and "One interior parameter name given per input.");
     auto* mm = p.get_main_module();
@@ -79,16 +80,16 @@ migraphx::instruction_ref add_mlir(migraphx::program& p,
 }
 
 template <class F>
-migraphx::instruction_ref add_mlir(migraphx::program& p,
-                                   const std::string& name,
-                                   std::vector<migraphx::instruction_ref> inputs,
-                                   F f)
+static migraphx::instruction_ref add_mlir(migraphx::program& p,
+                                          const std::string& name,
+                                          std::vector<migraphx::instruction_ref> inputs,
+                                          const F& f)
 {
     std::vector<std::string> arg_names;
     migraphx::transform(migraphx::range(inputs.size()), std::back_inserter(arg_names), [&](auto i) {
         return migraphx::param_name(i);
     });
-    return add_mlir(p, name, std::move(inputs), std::move(arg_names), f);
+    return add_mlir(p, name, std::move(inputs), std::move(arg_names), std::move(f));
 }
 
 TEST_CASE(dot_reshapes_add)
@@ -192,6 +193,43 @@ TEST_CASE(dot_transpose_reshape_add)
                 auto xreshape = pm->add_instruction(
                     migraphx::make_op("reshape", {{"dims", s1.lens()}}), xtranspose);
                 auto add = pm->add_instruction(migraphx::make_op("add"), dot, xreshape);
+                return std::make_tuple(dot->get_operator(), add);
+            });
+        mm->add_return({fused});
+    }
+    EXPECT(p1.sort() == p2.sort());
+}
+
+TEST_CASE(dot_reshape_lazy_add)
+{
+    migraphx::shape s1{migraphx::shape::float_type, {1, 6, 6}};
+    migraphx::shape s2{migraphx::shape::float_type, {1, 36}};
+    migraphx::program p1;
+    {
+        auto* mm = p1.get_main_module();
+        auto a   = mm->add_parameter("a", s1);
+        auto b   = mm->add_parameter("b", s1);
+        auto x   = mm->add_parameter("x", s2);
+        auto dot = mm->add_instruction(migraphx::make_op("dot"), a, b);
+        auto xreshape_lazy =
+            mm->add_instruction(migraphx::make_op("reshape_lazy", {{"dims", s1.lens()}}), x);
+        auto add =
+            add_pointwise(p1, "main:pointwise0", {dot, xreshape_lazy}, single_pointwise("add"));
+        mm->add_return({add});
+    }
+    run_pass(p1);
+    migraphx::program p2;
+    {
+        auto* mm = p2.get_main_module();
+        auto a   = mm->add_parameter("a", s1);
+        auto b   = mm->add_parameter("b", s1);
+        auto x   = mm->add_parameter("x", s2);
+        auto fused =
+            add_mlir(p2, "mlir_main:pointwise0", {a, b, x}, [=](auto* pm, const auto& inputs) {
+                auto dot = pm->add_instruction(migraphx::make_op("dot"), inputs[0], inputs[1]);
+                auto xreshape_lazy = pm->add_instruction(
+                    migraphx::make_op("reshape_lazy", {{"dims", s1.lens()}}), inputs[2]);
+                auto add = pm->add_instruction(migraphx::make_op("add"), dot, xreshape_lazy);
                 return std::make_tuple(dot->get_operator(), add);
             });
         mm->add_return({fused});

@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2024 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2025 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -30,7 +30,18 @@ namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
 namespace onnx {
 
-instruction_ref parse_gelu_erf(const onnx_parser::node_info& info, instruction_ref x)
+static instruction_ref parse_quick_gelu(const onnx_parser::node_info& info, instruction_ref x)
+{
+    // computes x * sigmoid(alpha * x)
+    auto x_type    = x->get_shape().type();
+    auto alpha_val = info.attributes.at("alpha").f();
+    auto alpha     = info.add_literal(migraphx::literal{migraphx::shape{x_type}, {alpha_val}});
+    auto mul_alpha = info.add_common_op("mul", alpha, x);
+    auto sigmoid   = info.add_instruction(migraphx::make_op("sigmoid"), mul_alpha);
+    return info.add_common_op("mul", x, sigmoid);
+}
+
+static instruction_ref parse_gelu_erf(const onnx_parser::node_info& info, instruction_ref x)
 {
     auto x_type = x->get_shape().type();
     auto half   = info.add_literal(migraphx::literal{migraphx::shape{x_type}, {0.5f}});
@@ -44,7 +55,8 @@ instruction_ref parse_gelu_erf(const onnx_parser::node_info& info, instruction_r
     return info.add_common_op("mul", mul_half, add_one);
 }
 
-instruction_ref parse_gelu_tanh(const onnx_parser::node_info& info, instruction_ref x, bool fast)
+static instruction_ref
+parse_gelu_tanh(const onnx_parser::node_info& info, instruction_ref x, bool fast)
 {
     auto x_type        = x->get_shape().type();
     auto fit_const_val = fast ? 0.035677 : 0.044715;
@@ -80,9 +92,28 @@ instruction_ref parse_gelu_tanh(const onnx_parser::node_info& info, instruction_
     return info.add_common_op("mul", add1, mul2);
 }
 
+static instruction_ref parse_split_gelu(const onnx_parser::node_info& info, instruction_ref x)
+{
+    size_t last_dim_size = x->get_shape().lens().back();
+    if(last_dim_size < 2 or last_dim_size % 2 != 0)
+        MIGRAPHX_THROW("PARSE_GELU: BiasSplitGelu must have even last dimension which is >= 2");
+    auto split_left = info.add_instruction(
+        migraphx::make_op("slice",
+                          {{"axes", {-1}}, {"starts", {0}}, {"ends", {last_dim_size / 2}}}),
+        x);
+    auto split_right = info.add_instruction(
+        migraphx::make_op(
+            "slice", {{"axes", {-1}}, {"starts", {last_dim_size / 2}}, {"ends", {last_dim_size}}}),
+        x);
+    return info.add_common_op("mul", split_left, parse_gelu_erf(info, split_right));
+}
+
 struct parse_gelu : op_parser<parse_gelu>
 {
-    std::vector<op_desc> operators() const { return {{"BiasGelu"}, {"FastGelu"}, {"Gelu"}}; }
+    std::vector<op_desc> operators() const
+    {
+        return {{"BiasGelu"}, {"BiasSplitGelu"}, {"FastGelu"}, {"QuickGelu"}, {"Gelu"}};
+    }
     instruction_ref parse(const op_desc& opd,
                           const onnx_parser& /*parser*/,
                           const onnx_parser::node_info& info,
@@ -100,6 +131,11 @@ struct parse_gelu : op_parser<parse_gelu>
         if(contains(info.attributes, "approximate"))
         {
             approximate = info.attributes.at("approximate").s();
+        }
+
+        if(opd.onnx_name == "QuickGelu")
+        {
+            return parse_quick_gelu(info, x);
         }
 
         if(opd.onnx_name == "FastGelu")
@@ -123,6 +159,13 @@ struct parse_gelu : op_parser<parse_gelu>
                 MIGRAPHX_THROW("PARSE_GELU: mismatching input tensor types");
             }
             x = info.add_common_op("add", x, y);
+        }
+
+        if(opd.onnx_name == "BiasSplitGelu")
+        {
+            // add should've been inserted from previous conditional statement
+            assert(args.size() == 2);
+            return parse_split_gelu(info, x);
         }
 
         if(approximate == "tanh")

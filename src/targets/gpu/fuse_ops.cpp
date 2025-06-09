@@ -166,13 +166,12 @@ struct fusion
 };
 #endif
 
-const std::unordered_set<std::string>& get_supported_archs()
+#if MIGRAPHX_USE_MIOPEN
+static const std::unordered_set<std::string>& get_supported_archs()
 {
-    static std::unordered_set<std::string> supported_archs{
-        "gfx900", "gfx906", "gfx908", "gfx1030", "gfx940"};
+    static std::unordered_set<std::string> supported_archs{"gfx900", "gfx906", "gfx908", "gfx1030"};
     return supported_archs;
 }
-#if MIGRAPHX_USE_MIOPEN
 MIGRAPHX_PRED_MATCHER(bias_shape, instruction_ref ins)
 {
     auto&& s = ins->get_shape();
@@ -215,7 +214,7 @@ MIGRAPHX_PRED_MATCHER(fusable_conv, instruction_ref ins)
 }
 #endif
 
-void move_broadcasted_back(std::vector<instruction_ref>& args)
+static void move_broadcasted_back(std::vector<instruction_ref>& args)
 {
     // Ensure the last arguments is the broadcasted one
     auto last = std::prev(args.end());
@@ -224,18 +223,6 @@ void move_broadcasted_back(std::vector<instruction_ref>& args)
     if(it != last)
         std::swap(*it, *std::prev(last));
 }
-
-void move_standard_front(std::vector<instruction_ref>& args)
-{
-    // Ensure the first arguments is the standard one
-    auto last = std::prev(args.end());
-    auto it =
-        std::find_if(args.begin(), last, [](auto arg) { return arg->get_shape().standard(); });
-    if(it != last)
-        std::swap(*it, args.front());
-}
-
-auto gpu_name(const std::string& s) { return match::name("gpu::" + s); }
 
 namespace {
 #if MIGRAPHX_USE_MIOPEN
@@ -967,8 +954,10 @@ struct find_layernorm_pointwise
 {
     auto matcher() const
     {
-        return precompile_name("pointwise")(match::arg(0)(
-            precompile_name("gpu::prelayernorm", "gpu::preadd_layernorm").bind("layernorm")));
+        return precompile_name("pointwise")(
+            match::not_tuple(),
+            match::arg(0)(
+                precompile_name("gpu::prelayernorm", "gpu::preadd_layernorm").bind("layernorm")));
     }
 
     void apply(module& m, const match::matcher_result& r) const

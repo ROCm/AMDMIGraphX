@@ -126,7 +126,7 @@ static bool specific_op(std::string_view option, bool fallback = false)
     return contains(options, option);
 }
 
-bool mlir_attention_enabled(context* ctx)
+static bool mlir_attention_enabled(context* ctx)
 {
 #ifdef MIGRAPHX_MLIR
     if(not mlir_enabled())
@@ -210,7 +210,7 @@ const auto& reshaper_names()
         "broadcast",
         "contiguous",
         "reshape",
-        "lazy_reshape",
+        "reshape_lazy",
         "squeeze",
         "flatten",
         "unsqueeze"
@@ -308,13 +308,18 @@ auto is_mlir_dot(mlir_mode mode)
             return true;
         auto a = ins->inputs().front()->get_shape();
         auto b = ins->inputs().back()->get_shape();
-        // auto m = a.lens()[a.lens().size() - 2];
-        // auto n = b.lens().back();
+        auto g = std::accumulate(a.lens().begin(), a.lens().end() - 2, 1, std::multiplies<>{});
+        auto m = a.lens()[a.lens().size() - 2];
+        auto n = b.lens().back();
         auto k = a.lens().back();
         // Skipping GEMMs with a K dimension greater than 2048 is a course-grained strategy
         // to avoid poor-performing GEMM kernels from MLIR
         // To-do: Investigate a more precise strategy
-        return k <= 1024;
+        if(k > 1535)
+            return false;
+        if(k < 1024)
+            return true;
+        return (g * m * n) < (384 * 384);
     });
 }
 
@@ -637,6 +642,10 @@ struct find_mlir_split_reduce
     }
 };
 
+/**
+ * Fuses rocMLIR compatible dot or conv op -> reshapes -> pointwise
+ * into a mlir_op with submodule.
+ */
 struct find_mlir_fused_ops
 {
     mlir_mode conv_mode = mlir_mode::none;
@@ -650,6 +659,12 @@ struct find_mlir_fused_ops
         return names;
     }
 
+    /**
+     * Matches:
+     * mlir_dot_or_conv <binds to "gemm_based_op"> ->
+     * skip(conv_dot_reshaper_names) <binds to "x"> ->
+     * mlir_pointwise <matcher result>
+     */
     auto matcher() const
     {
         static const auto conv_dot_reshaper_names = make_conv_dot_reshaper_names();
@@ -928,6 +943,11 @@ struct find_mlir_attention_fused_ops : public find_mlir_standalone_attention_op
     }
 };
 
+/**
+ * Input fusion of pointwise operators into a mlir_op.
+ * Only fuses unary pointwise operators by default.
+ * Fuses all fusable pw ops with MIGRAPHX_ENABLE_MLIR_INPUT_FUSION
+ */
 struct find_pointwise_mlir
 {
     auto supported_pointwise() const { return mlir_input_pointwise(match::used_once()); }

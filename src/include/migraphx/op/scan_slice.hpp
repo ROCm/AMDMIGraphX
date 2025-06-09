@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2024 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2025 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -59,7 +59,7 @@ struct scan_slice : op_name<scan_slice>
     shape normalize_compute_shape(std::vector<shape> inputs) const
     {
         check_shapes{inputs, *this}.has(2);
-        auto input_shape = inputs[0];
+        const auto& input_shape = inputs[0];
         auto new_lens    = input_shape.lens();
         new_lens[axis]   = 1;
 
@@ -68,7 +68,7 @@ struct scan_slice : op_name<scan_slice>
 
     argument compute(shape output_shape, std::vector<argument> args) const
     {
-        auto input    = args[0];
+        const auto& input = args[0];
         auto input_sh = input.get_shape();
 
         int64_t idx;

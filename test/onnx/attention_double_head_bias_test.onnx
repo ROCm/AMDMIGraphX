@@ -1,13 +1,14 @@
-	attention_double_head_bias_test:¾
-6
+
+attention_double_head_bias_test:Í
+E
 input
 weights
 biasy"	Attention*
-	num_heads attention_double_head_bias_testZ
+	num_heads :com.microsoftattention_double_head_bias_testZ
 input
 
 
-
+
 Z
 weights
 
@@ -20,5 +21,5 @@
 y
 
 
-
-B
+
+B

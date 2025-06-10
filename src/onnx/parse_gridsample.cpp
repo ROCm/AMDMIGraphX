@@ -165,26 +165,26 @@ struct grid_sampler
     static instruction_ref concat_on_first_dim(const onnx_parser::node_info& info,
                                                std::vector<instruction_ref> instructions)
     {
-        return std::accumulate(
-            std::next(instructions.begin()),
-            instructions.end(),
-            instructions.front(),
-            [&info](auto& ret, auto& ins) {
-                return info.add_instruction(make_op("concat", {{"axis", 0}}), ret, ins);
-            });
+        return std::accumulate(std::next(instructions.begin()),
+                               instructions.end(),
+                               instructions.front(),
+                               [&info](auto& ret, auto& ins) {
+                                   return info.add_instruction(
+                                       make_op("concat", {{"axis", 0}}), ret, ins);
+                               });
     }
 
     static instruction_ref concat_on_dim(const onnx_parser::node_info& info,
                                          std::array<instruction_ref, 4> instructions,
                                          int64_t dim)
     {
-        return std::accumulate(
-            std::next(instructions.begin()),
-            instructions.end(),
-            instructions.front(),
-            [&info, &dim](auto& ret, auto& ins) {
-                return info.add_instruction(make_op("concat", {{"axis", dim}}), ret, ins);
-            });
+        return std::accumulate(std::next(instructions.begin()),
+                               instructions.end(),
+                               instructions.front(),
+                               [&info, &dim](auto& ret, auto& ins) {
+                                   return info.add_instruction(
+                                       make_op("concat", {{"axis", dim}}), ret, ins);
+                               });
     }
 
     bool has_border_padding() const { return m_padding == "border"; }
@@ -310,18 +310,18 @@ struct linear_sampler : grid_sampler
             nc_values_data.push_back(n);
             nc_values_data.push_back(c);
         });
-        size_t num_indices  = m_batch * m_out_height * m_out_width * m_channel;
-        auto xy_indices_t   = info.add_literal(
+        size_t num_indices = m_batch * m_out_height * m_out_width * m_channel;
+        auto xy_indices_t  = info.add_literal(
             migraphx::literal{migraphx::shape{type, {num_indices, 3}}, xy_indices_data});
         auto weight_index_t = info.add_literal(
             migraphx::literal{migraphx::shape{type, {num_indices, 3}}, weight_indices_data});
         auto nc = info.add_literal(
             migraphx::literal{migraphx::shape{type, {num_indices, 2}}, nc_values_data});
 
-        auto y0_samples   = info.add_instruction(make_op("gathernd"), m_floor_y, xy_indices_t);
-        auto x0_samples   = info.add_instruction(make_op("gathernd"), m_floor_x, xy_indices_t);
-        auto y1_samples   = info.add_instruction(make_op("gathernd"), m_ceil_y, xy_indices_t);
-        auto x1_samples   = info.add_instruction(make_op("gathernd"), m_ceil_x, xy_indices_t);
+        auto y0_samples = info.add_instruction(make_op("gathernd"), m_floor_y, xy_indices_t);
+        auto x0_samples = info.add_instruction(make_op("gathernd"), m_floor_x, xy_indices_t);
+        auto y1_samples = info.add_instruction(make_op("gathernd"), m_ceil_y, xy_indices_t);
+        auto x1_samples = info.add_instruction(make_op("gathernd"), m_ceil_x, xy_indices_t);
 
         auto validate_samples = [&](auto& samples, auto& max) {
             auto clip       = info.add_common_op("clip", samples, m_zero_l, max);
@@ -528,13 +528,13 @@ struct bicubic_sampler : grid_sampler
                 make_op("reshape", {{"dims", {corner_weight->get_shape().elements(), 1}}}),
                 corner_weight);
         });
-        auto weights_t = std::accumulate(
-            std::next(corner_weights.begin()),
-            corner_weights.end(),
-            corner_weights.front(),
-            [&info](auto& acc, auto& ins) {
-                return info.add_instruction(make_op("concat", {{"axis", 1}}), acc, ins);
-            });
+        auto weights_t = std::accumulate(std::next(corner_weights.begin()),
+                                         corner_weights.end(),
+                                         corner_weights.front(),
+                                         [&info](auto& acc, auto& ins) {
+                                             return info.add_instruction(
+                                                 make_op("concat", {{"axis", 1}}), acc, ins);
+                                         });
         return info.add_instruction(make_op("reshape", {{"dims", out_lens}}), weights_t);
     }
 

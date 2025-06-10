@@ -296,22 +296,27 @@ struct linear_sampler : grid_sampler
 
     instruction_ref sample(const onnx_parser::node_info& info)
     {
-        std::vector<instruction_ref> weight_indices;
-        std::vector<instruction_ref> xy_indices;
-        std::vector<instruction_ref> nc_values;
-
-        const static auto nhw_shape = migraphx::shape{migraphx::shape::int64_type, {1, 3}};
-        dfor(m_batch, m_out_height, m_out_width)([&](auto n, auto h, auto w) {
-            auto nhw = info.add_literal(migraphx::literal{nhw_shape, {n, h, w}});
-            for(size_t c = 0; c < m_channel; c++)
-            {
-                xy_indices.push_back(nhw);
-                weight_indices.push_back(nhw);
-                nc_values.push_back(info.add_literal(migraphx::literal{m_nc_shape, {n, c}}));
-            }
+        std::vector<float> xy_indices_data;
+        std::vector<float> weight_indices_data;
+        std::vector<float> nc_values_data;
+        dfor(m_batch, m_out_height, m_out_width, m_channel)([&](auto n, auto h, auto w, auto c) {
+                xy_indices_data.push_back(n);
+                xy_indices_data.push_back(h);
+                xy_indices_data.push_back(w);
+                weight_indices_data.push_back(n);
+                weight_indices_data.push_back(h);
+                weight_indices_data.push_back(w);
+                nc_values_data.push_back(n);
+                nc_values_data.push_back(c);
         });
+        size_t num_indices = m_batch * m_out_height * m_out_width * m_channel;
+        auto xy_indices_t = info.add_literal(migraphx::literal{
+            migraphx::shape{migraphx::shape::float_type, {num_indices, 3}}, xy_indices_data});
+        auto weight_index_t = info.add_literal(migraphx::literal{
+            migraphx::shape{migraphx::shape::float_type, {num_indices, 3}}, weight_indices_data});
+        auto nc = info.add_literal(migraphx::literal{
+            migraphx::shape{migraphx::shape::float_type, {num_indices, 2}}, nc_values_data});
 
-        auto xy_indices_t = concat_on_first_dim(info, xy_indices);
         auto y0_samples   = info.add_instruction(make_op("gathernd"), m_floor_y, xy_indices_t);
         auto x0_samples   = info.add_instruction(make_op("gathernd"), m_floor_x, xy_indices_t);
         auto y1_samples   = info.add_instruction(make_op("gathernd"), m_ceil_y, xy_indices_t);
@@ -338,8 +343,6 @@ struct linear_sampler : grid_sampler
         x1_samples = info.add_instruction(
             make_op("reshape", {{"dims", {x1_samples->get_shape().elements(), 1}}}), x1_samples);
 
-        auto nc = concat_on_first_dim(info, nc_values);
-
         auto make_corner_indices = [&](auto& x, auto& y) {
             auto hw = info.add_instruction(make_op("concat", {{"axis", 1}}), y, x);
             return info.add_instruction(make_op("concat", {{"axis", 1}}), nc, hw);
@@ -356,10 +359,6 @@ struct linear_sampler : grid_sampler
             info.add_common_op("logical_and", x1_validation, y1_validation)};
 
         std::array<instruction_ref, 4> corner_samples;
-        auto weight_index_t = concat_on_first_dim(info, weight_indices);
-        weight_index_t      = info.add_instruction(
-            make_op("reshape", {{"dims", {weight_indices.size(), 3}}}), weight_index_t);
-
         std::transform(corner_indices.begin(),
                        corner_indices.end(),
                        corner_validations.begin(),

@@ -55,6 +55,24 @@ TEST_CASE(gridsample_channel_test)
     std::vector<float> result_vector;
     result.visit([&](auto output) { result_vector.assign(output.begin(), output.end()); });
 
+    // clang-format off
+    /*
+      Generated with the following Python script:
+        import torch
+        from torch import nn   
+        input = torch.tensor([[[[0, 1, 2, 3], [4, 5, 6, 7], [8, 9, 10, 11], [12, 13, 14, 15]],
+                            [[0, 1, 2, 3], [4, 5, 6, 7], [8, 9, 10, 11], [12, 13, 14, 15]],
+                            [[0, 1, 2, 3], [4, 5, 6, 7], [8, 9, 10, 11], [12, 13, 14, 15]]]], dtype=torch.float)
+        grid = torch.tensor([[[[-1, -1],  [-0.6, -1],  [-0.2, -1],  [0.2, -1],  [0.6, -1],  [1, -1]],
+                                [[-1., -0.6], [-0.6, -0.6], [-0.2, -0.6], [0.2, -0.6], [0.6, -0.6], [1., -0.6]],
+                                [[-1., -0.2], [-0.6, -0.2], [-0.2, -0.2], [0.2, -0.2], [0.6, -0.2], [1., -0.2]],
+                                [[-1., 0.2],  [-0.6, 0.2],  [-0.2, 0.2],  [0.2, 0.2],  [0.6, 0.2],  [1., 0.2]],
+                                [[-1., 0.6],  [-0.6, 0.6],  [-0.2, 0.6],  [0.2, 0.6],  [0.6, 0.6],  [1., 0.6]],
+                                [[-1., 1.],   [-0.6, 1.],   [-0.2, 1.],   [0.2, 1.],   [0.6, 1.],   [1., 1.]]]], dtype=torch.float)   
+        output = nn.functional.grid_sample(input, grid, mode='bilinear', padding_mode='border', align_corners=True)
+        print(output)
+    */
+    // clang-format on
     std::vector<float> gold = {0.,  0.6,  1.2,  1.8,  2.4, 3.,   2.4, 3.,   3.6,  4.2,  4.8,  5.4,
                                4.8, 5.4,  6.,   6.6,  7.2, 7.8,  7.2, 7.8,  8.4,  9.,   9.6,  10.2,
                                9.6, 10.2, 10.8, 11.4, 12., 12.6, 12., 12.6, 13.2, 13.8, 14.4, 15.,

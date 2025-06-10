@@ -319,21 +319,10 @@ api.add_function('migraphx_save',
                             options='migraphx::file_options'),
                  fname='migraphx::save')
 
-if 'have_onnx' in globals():
+if 'enable_onnx' in globals():
     @auto_handle()
     def onnx_options(h):
         h.constructor('create')
-        h.method(
-            'set_input_parameter_shape',
-            api.params(name='const char*', dims='std::vector<size_t>'),
-            invoke='migraphx::set_input_parameter_shape($@)',
-        )
-        h.method(
-            'set_dyn_input_parameter_shape',
-            api.params(name='const char*',
-                       dims='std::vector<migraphx::shape::dynamic_dimension>'),
-            invoke='migraphx::set_dyn_input_parameter_shape($@)',
-        )
         h.method(
             'set_default_dim_value',
             api.params(value='size_t'),
@@ -398,7 +387,7 @@ def compile_options(h):
              invoke='migraphx::set_exhaustive_tune_flag($@)')
 
 
-if 'have_tensorflow' in globals():
+if 'enable_tensorflow' in globals():
     @auto_handle()
     def tf_options(h):
         h.constructor('create')

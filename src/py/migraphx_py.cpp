@@ -47,10 +47,10 @@
 #ifdef HAVE_GPU
 #include <migraphx/gpu/hip.hpp>
 #endif
-#ifdef HAVE_TENSORFLOW
+#ifdef MIGRAPHX_ENABLE_TENSORFLOW
 #include <migraphx/tf.hpp>
 #endif
-#ifdef HAVE_ONNX
+#ifdef MIGRAPHX_ENABLE_ONNX
 #include <migraphx/onnx.hpp>
 #endif
 
@@ -578,7 +578,7 @@ MIGRAPHX_PYBIND11_MODULE(migraphx, m)
         py::arg("shape"),
         py::arg("address"));
 
-#ifdef HAVE_TENSORFLOW
+#ifdef MIGRAPHX_ENABLE_TENSORFLOW
     m.def(
         "parse_tf",
         [](const std::string& filename,
@@ -597,7 +597,7 @@ MIGRAPHX_PYBIND11_MODULE(migraphx, m)
         py::arg("output_names")   = std::vector<std::string>());
 #endif
 
-#ifdef HAVE_ONNX
+#ifdef MIGRAPHX_ENABLE_ONNX
     m.def(
         "parse_onnx",
         [](const std::string& filename,

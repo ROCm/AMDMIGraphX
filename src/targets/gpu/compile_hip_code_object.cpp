@@ -203,15 +203,13 @@ compile_hip_code_object(context& ctx, const std::string& content, hip_compile_op
                    : compile_hip_src(srcs, options.params, get_device_name());
     if(cos.size() != 1)
         MIGRAPHX_THROW("No code object");
-
-    code_object_op cop{value::binary{cos.front()},
-                       options.kernel_name,
-                       options.global,
-                       options.local,
-                       options.inputs,
-                       options.output,
-                       options.output_arg};
-    return cop;
+    return code_object_op{value::binary{cos.front()},
+                          options.kernel_name,
+                          options.global,
+                          options.local,
+                          options.inputs,
+                          options.output,
+                          options.output_arg};
 }
 
 } // namespace gpu

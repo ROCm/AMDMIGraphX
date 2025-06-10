@@ -28,9 +28,13 @@
 #include <migraphx/operation.hpp>
 #include <migraphx/compile_src.hpp>
 #include <migraphx/stringutils.hpp>
+#include <migraphx/env.hpp>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
+
+MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_GEN_SPIRV);
+
 namespace gpu {
 
 struct context;

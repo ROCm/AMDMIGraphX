@@ -56,7 +56,7 @@ Adding Parameters
 ----------------------------
 
 While the ``add_two_literals()`` function above demonstrates add operation on constant values ``1`` and ``2``,
-the following program demonstrates how to pass a parameter (``x``) to a module using ``add_parameter()`` function .
+the following program demonstrates how to pass a parameter (``x``) to a module using ``add_parameter()`` function::
 
     migraphx::program p;
     auto* mm = p.get_main_module();

@@ -337,9 +337,7 @@ def main():
 
     if not args.ort_run:
         if args.show_data:
-            print("---------------Output Gold Data------------------------")
-            print(pred_fw)
-            print("\n")
+            print(f'Output Gold Data:\n{pred_fw}\n')
 
         is_correct = check_correctness(pred_fw, pred_migx, args.tolerance,
                                        args.tolerance, args.argmax,

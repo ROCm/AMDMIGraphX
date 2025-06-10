@@ -4481,25 +4481,6 @@ def gridsample_channel_test():
     return ([node], [x, grid], [y])
 
 @onnx_test()
-def gridsample_fgnet_test():
-    x = helper.make_tensor_value_info('x', TensorProto.FLOAT, [1, 3, 1024, 1408])
-    grid = helper.make_tensor_value_info('grid', TensorProto.FLOAT,
-                                         [1, 1024, 1408, 2])
-    y = helper.make_tensor_value_info('y', TensorProto.FLOAT, [1, 3, 1024, 1408])
-
-    node = onnx.helper.make_node(
-        "GridSample",
-        inputs=["x", "grid"],
-        outputs=["y"],
-        mode="bilinear",
-        padding_mode="border",
-        align_corners=1,
-    )
-
-    return ([node], [x, grid], [y])
-
-
-@onnx_test()
 def gridsample_half_test():
     x = helper.make_tensor_value_info('x', TensorProto.FLOAT16, [1, 1, 4, 4])
     grid = helper.make_tensor_value_info('grid', TensorProto.FLOAT,

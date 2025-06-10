@@ -41,21 +41,11 @@ using microseconds = std::chrono::duration<double, std::micro>;
 
 static hipDataType compute_to_hip_type(hipblasComputeType_t type)
 {
-    switch(type)
-    {
-    case HIPBLAS_COMPUTE_32F: return HIP_R_32F;
-    case HIPBLAS_COMPUTE_32I: return HIP_R_32I;
-    case HIPBLAS_COMPUTE_16F:
-    case HIPBLAS_COMPUTE_64F:
-    case HIPBLAS_COMPUTE_32I_PEDANTIC:
-    case HIPBLAS_COMPUTE_16F_PEDANTIC:
-    case HIPBLAS_COMPUTE_32F_PEDANTIC:
-    case HIPBLAS_COMPUTE_64F_PEDANTIC:
-    case HIPBLAS_COMPUTE_32F_FAST_16F:
-    case HIPBLAS_COMPUTE_32F_FAST_16BF:
-    case HIPBLAS_COMPUTE_32F_FAST_TF32:
-        MIGRAPHX_THROW("HIPBLAS_GEMM: conversion from hipComputeType_t to hipDataType failed");
-    }
+    if(type == HIPBLAS_COMPUTE_32F)
+        return HIP_R_32F;
+    if(type == HIPBLAS_COMPUTE_32I)
+        return HIP_R_32I;
+    MIGRAPHX_THROW("HIPBLAS_GEMM: conversion from hipComputeType_t to hipDataType failed");
 }
 
 // Convert hipBLAS datatypes to equivalent MIGraphX data types
@@ -496,7 +486,7 @@ struct hip_gemm_impl
         auto check_valid = hipblaslt_invoke(&hipblasLtMatmul, common_args, false);
         if(check_valid != HIPBLAS_STATUS_SUCCESS)
         {
-            std::cerr << "WARNING:  tuned solution is invalid; reverting to default" << std::endl;
+            std::cerr << "WARNING: tuned solution is invalid; reverting to default" << std::endl;
             return 0;
         }
         return solution_idx;

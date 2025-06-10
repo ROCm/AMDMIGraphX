@@ -265,6 +265,9 @@ struct parse_resize : op_parser<parse_resize>
         return info.add_instruction(make_op("gather", {{"axis", 0}}), rsp, ins_ind);
     }
 
+    // TODO: this operator is complex, consider refactoring in the future
+    // to fix 'readability-function-size' tidy check
+    // NOLINTBEGIN(readability-function-size)
     instruction_ref parse(const op_desc& opd,
                           const onnx_parser&,
                           onnx_parser::node_info info,
@@ -288,10 +291,29 @@ struct parse_resize : op_parser<parse_resize>
             MIGRAPHX_THROW("PARSE_" + opd.onnx_name + ": exclude_outside 1 is not supported!");
         }
 
+        // TODO: support implementation of 'axes' attribute.
+        // For now, it's used to check the length of 'sizes' input (if present)
+        std::vector<int64_t> axes;
+        if(contains(info.attributes, "axes"))
+        {
+            auto&& axes_vals = info.attributes.at("axes").ints();
+            axes             = std::vector<int64_t>(axes_vals.begin(), axes_vals.end());
+        }
+
         if(contains(info.attributes, "keep_aspect_ratio_policy"))
         {
-            MIGRAPHX_THROW("PARSE_" + opd.onnx_name +
-                           ": keep_aspect_ratio_policy is not supported!");
+            shape last_arg_shape     = args.back()->get_shape();
+            size_t last_arg_elements = last_arg_shape.elements();
+            // Check if the last arg is 'sizes' input.
+            // This attribute is only relevant if 'sizes' input is used.
+            // The shape constraints for 'sizes' are below:
+            if(last_arg_shape.type() == shape::int64_type and
+               (last_arg_elements == args.front()->get_shape().ndim() or
+                (contains(info.attributes, "axes") and last_arg_elements == axes.size())))
+            {
+                MIGRAPHX_THROW("PARSE_" + opd.onnx_name +
+                               ": keep_aspect_ratio_policy is not supported!");
+            }
         }
 
         // input data shape info
@@ -457,6 +479,7 @@ struct parse_resize : op_parser<parse_resize>
             return data;
         }
     }
+    // NOLINTEND(readability-function-size)
 };
 
 } // namespace onnx

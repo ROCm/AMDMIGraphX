@@ -58,6 +58,7 @@ MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_GPU_DUMP_SRC);
 
 #ifdef MIGRAPHX_USE_HIPRTC
 
+namespace {
 std::string hiprtc_error(hiprtcResult err, const std::string& msg)
 {
     return "hiprtc: " + (hiprtcGetErrorString(err) + (": " + msg));
@@ -77,6 +78,7 @@ void hiprtc_check_error(hiprtcResult err, const std::string& msg, const std::str
 
 // Workaround hiprtc's broken API
 void hiprtc_program_destroy(hiprtcProgram prog) { hiprtcDestroyProgram(&prog); }
+
 using hiprtc_program_ptr = MIGRAPHX_MANAGE_PTR(hiprtcProgram, hiprtc_program_destroy);
 
 template <class... Ts>
@@ -89,6 +91,8 @@ hiprtc_program_ptr hiprtc_program_create(Ts... xs)
         MIGRAPHX_HIPRTC_THROW(result, "Create program failed.");
     return p;
 }
+
+} // namespace
 
 struct hiprtc_program
 {
@@ -272,7 +276,7 @@ std::vector<std::vector<char>> compile_hip_src(const std::vector<src_file>& srcs
         auto out = td.path / "output";
 
         process(driver, {quote_string(out.string())}).write([&](auto writer) {
-            to_msgpack(v, writer);
+            to_msgpack(v, std::move(writer));
         });
         if(fs::exists(out))
             return {read_buffer(out)};

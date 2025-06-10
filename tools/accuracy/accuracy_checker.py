@@ -254,7 +254,7 @@ def main():
         test_inputs[name] = test_input
 
         if args.show_data:
-            print(test_input + "\n")
+            print(f'{test_input}\n')
 
 
         migraphx_arg = migraphx.argument(test_inputs[name])

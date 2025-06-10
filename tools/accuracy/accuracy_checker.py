@@ -88,7 +88,7 @@ def parse_args():
                         default=False,
                         help='Turn on ort VERBOSE logging via session options')
 
-    parser.add_argument('--show_test_data',
+    parser.add_argument('--show-test-data',
                         dest="show_data",
                         action='store_true',
                         default=False,

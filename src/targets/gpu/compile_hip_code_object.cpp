@@ -147,7 +147,7 @@ compute_global_for(const context& ctx, std::size_t n, std::size_t over)
                              ctx.get_current_device().get_max_workitems_per_cu();
     return [n, over, max_global](std::size_t local) {
         std::size_t num_elements = n;
-        if(not hip_accept_non_uniform_wg())
+        if(enabled(MIGRAPHX_GEN_SPIRV{}) or not hip_accept_non_uniform_wg())
         {
             num_elements = (1 + (n - 1) / local) * local;
         }
@@ -198,18 +198,20 @@ compile_hip_code_object(context& ctx, const std::string& content, hip_compile_op
     options.params.insert(options.params.end(), warnings.begin(), warnings.end());
     options.emplace_param("-ftemplate-backtrace-limit=0");
     options.emplace_param("-Werror");
-    auto cos = enabled(MIGRAPHX_GEN_SPIRV{}) 
-                ? compile_hip_src(srcs, options.params, "amdgcnspirv") 
-                : compile_hip_src(srcs, options.params, get_device_name());
+    auto cos = enabled(MIGRAPHX_GEN_SPIRV{})
+                   ? compile_hip_src(srcs, options.params, "amdgcnspirv")
+                   : compile_hip_src(srcs, options.params, get_device_name());
     if(cos.size() != 1)
         MIGRAPHX_THROW("No code object");
-    return code_object_op{value::binary{cos.front()},
-                          options.kernel_name,
-                          options.global,
-                          options.local,
-                          options.inputs,
-                          options.output,
-                          options.output_arg};
+
+    code_object_op cop{value::binary{cos.front()},
+                       options.kernel_name,
+                       options.global,
+                       options.local,
+                       options.inputs,
+                       options.output,
+                       options.output_arg};
+    return cop;
 }
 
 } // namespace gpu

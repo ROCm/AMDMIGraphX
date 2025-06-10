@@ -89,7 +89,7 @@ def parse_args():
                         help='Turn on ort VERBOSE logging via session options')
 
     parser.add_argument('--show-test-data',
-                        dest="show_data",
+                        dest='show_data',
                         action='store_true',
                         default=False,
                         help='Display input data used for run')

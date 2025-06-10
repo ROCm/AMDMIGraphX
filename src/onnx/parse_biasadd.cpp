@@ -21,30 +21,28 @@
  * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
  * THE SOFTWARE.
  */
-
-#ifndef MIGRAPHX_GUARD_RTGLIB_HALF_HPP
-#define MIGRAPHX_GUARD_RTGLIB_HALF_HPP
-
-#include <migraphx/config.hpp>
-#include <migraphx/generic_float.hpp>
+#include <migraphx/onnx/op_parser.hpp>
+#include <migraphx/ranges.hpp>
+#include <migraphx/make_op.hpp>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
+namespace onnx {
 
-using half = migraphx::generic_float<10, 5>;
-
-namespace detail {
-template <class T>
-struct deduce
+struct parse_biasadd : op_parser<parse_biasadd>
 {
-    using type = T;
+    std::vector<op_desc> operators() const { return {{"BiasAdd"}}; }
+
+    instruction_ref parse(const op_desc& /*opd*/,
+                          const onnx_parser& /*parser*/,
+                          const onnx_parser::node_info& info,
+                          const std::vector<instruction_ref>& args) const
+    {
+        auto x_plus_bias = info.add_common_op("add", args[0], args[1]);
+        return info.add_common_op("add", x_plus_bias, args[2]);
+    }
 };
-} // namespace detail
 
-template <class T>
-using deduce = typename detail::deduce<T>::type;
-
+} // namespace onnx
 } // namespace MIGRAPHX_INLINE_NS
 } // namespace migraphx
-
-#endif

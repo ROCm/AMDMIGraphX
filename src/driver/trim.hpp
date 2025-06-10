@@ -21,30 +21,20 @@
  * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
  * THE SOFTWARE.
  */
-
-#ifndef MIGRAPHX_GUARD_RTGLIB_HALF_HPP
-#define MIGRAPHX_GUARD_RTGLIB_HALF_HPP
+#ifndef MIGRAPHX_GUARD_RTGLIB_DRIVER_TRIM_HPP
+#define MIGRAPHX_GUARD_RTGLIB_DRIVER_TRIM_HPP
 
 #include <migraphx/config.hpp>
-#include <migraphx/generic_float.hpp>
+#include <migraphx/module.hpp>
 
 namespace migraphx {
+namespace driver {
 inline namespace MIGRAPHX_INLINE_NS {
 
-using half = migraphx::generic_float<10, 5>;
-
-namespace detail {
-template <class T>
-struct deduce
-{
-    using type = T;
-};
-} // namespace detail
-
-template <class T>
-using deduce = typename detail::deduce<T>::type;
+void trim_module(module& m, std::size_t loc, std::size_t n);
 
 } // namespace MIGRAPHX_INLINE_NS
+} // namespace driver
 } // namespace migraphx
 
 #endif

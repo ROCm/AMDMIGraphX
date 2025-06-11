@@ -27,8 +27,8 @@
 #include <migraphx/generate.hpp>
 #include <migraphx/make_op.hpp>
 
-struct test_group_query_attention_prompt_small
-    : verify_program<test_group_query_attention_prompt_small>
+struct test_group_query_attention_prefill_small
+    : verify_program<test_group_query_attention_prefill_small>
 {
     migraphx::program create_program() const
     {

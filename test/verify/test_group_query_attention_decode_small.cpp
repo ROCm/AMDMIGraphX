@@ -34,7 +34,7 @@
 ::SetEnvironmentVariable(_n, _v)
 #endif
 
-struct test_group_query_attention_gen_small : verify_program<test_group_query_attention_gen_small>
+struct test_group_query_attention_decode_small : verify_program<test_group_query_attention_decode_small>
 {
     migraphx::program create_program() const
     {

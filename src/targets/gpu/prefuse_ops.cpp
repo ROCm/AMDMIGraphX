@@ -258,22 +258,6 @@ struct base_group_query_attention
     }
 };
 
-struct gpu_kv_cache_attention : base_group_query_attention
-{
-    std::string name() const { return "gpu::kv_cache_attention"; }
-
-    shape compute_shape(std::vector<shape> inputs) const
-    {
-        auto query_lens = inputs.front().lens();
-        std::size_t q_hidden_size =
-            (query_lens[1] * query_lens[3] * num_heads) / (num_heads + 2 * kv_num_heads);
-        std::vector<std::size_t> output_lens{query_lens.at(0), query_lens.at(2), q_hidden_size};
-        shape output_shape{inputs.front().type(), output_lens};
-        return output_shape;
-    }
-};
-MIGRAPHX_REGISTER_OP(gpu_kv_cache_attention);
-
 struct gpu_gqa_rotary_embedding : base_group_query_attention
 {
     std::string name() const { return "gpu::gqa_rotary_embedding"; }

@@ -1008,7 +1008,13 @@ void program::perf_report(
     os << std::endl;
 
     os << "Batch size: " << batch << std::endl;
+
     os << "Rate: " << rate * batch << " inferences/sec" << std::endl;
+
+    if(batch != 1)
+        os << "Raw rate: " << rate << " inferences/sec (without the Batch multiplier = " << batch
+           << ")" << std::endl;
+
     os << "Total time: " << total_time << "ms ";
     os << "(Min: " << min_time << "ms, ";
     os << "Max: " << max_time << "ms, ";

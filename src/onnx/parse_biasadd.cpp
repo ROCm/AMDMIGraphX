@@ -21,29 +21,28 @@
  * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
  * THE SOFTWARE.
  */
-#ifndef MIGRAPHX_GUARD_OPERATORS_GREATER_OR_EQUAL_HPP
-#define MIGRAPHX_GUARD_OPERATORS_GREATER_OR_EQUAL_HPP
-
-#include <migraphx/op/binary.hpp>
-#include <migraphx/operation.hpp>
-#include <migraphx/check_shapes.hpp>
-#include <migraphx/config.hpp>
+#include <migraphx/onnx/op_parser.hpp>
+#include <migraphx/ranges.hpp>
+#include <migraphx/make_op.hpp>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
-namespace op {
+namespace onnx {
 
-struct greater_or_equal : binary<greater_or_equal>
+struct parse_biasadd : op_parser<parse_biasadd>
 {
-    std::string point_function() const { return ">="; }
-    auto apply() const
+    std::vector<op_desc> operators() const { return {{"BiasAdd"}}; }
+
+    instruction_ref parse(const op_desc& /*opd*/,
+                          const onnx_parser& /*parser*/,
+                          const onnx_parser::node_info& info,
+                          const std::vector<instruction_ref>& args) const
     {
-        return [](auto x, auto y) { return x >= y; };
+        auto x_plus_bias = info.add_common_op("add", args[0], args[1]);
+        return info.add_common_op("add", x_plus_bias, args[2]);
     }
 };
 
-} // namespace op
+} // namespace onnx
 } // namespace MIGRAPHX_INLINE_NS
 } // namespace migraphx
-
-#endif

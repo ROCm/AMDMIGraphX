@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2024 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2025 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -74,7 +74,7 @@ struct test_group_query_attention_prompt_small
         cos_cache      = mm->add_instruction(migraphx::make_op("clip"), cos_cache, cs_min, cs_max);
         sin_cache      = mm->add_instruction(migraphx::make_op("clip"), sin_cache, cs_min, cs_max);
         auto r         = mm->add_instruction(migraphx::make_op("group_query_attention",
-                                                       {{"do_rotary", 0},
+                                                               {{"do_rotary", 0},
                                                                 {"kv_num_heads", 2},
                                                                 {"local_window_size", -1},
                                                                 {"num_heads", 2},

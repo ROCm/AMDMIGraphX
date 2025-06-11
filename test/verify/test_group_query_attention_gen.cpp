@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2024 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2025 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -27,10 +27,18 @@
 #include <migraphx/generate.hpp>
 #include <migraphx/make_op.hpp>
 
+#ifdef _WIN32
+#define WIN32_LEAN_AND_MEAN
+#include <Windows.h>
+#define setenv(_n, _v, ...) \
+    ::SetEnvironmentVariable(_n, _v)
+#endif
+
 struct test_group_query_attention_gen : verify_program<test_group_query_attention_gen>
 {
     migraphx::program create_program() const
     {
+        setenv("MIGRAPHX_TRACE_EVAL", "1", 1);
         migraphx::program p;
         auto* mm = p.get_main_module();
         std::vector<size_t> query_lens{1, 1, 12288};
@@ -69,7 +77,7 @@ struct test_group_query_attention_gen : verify_program<test_group_query_attentio
         cos_cache      = mm->add_instruction(migraphx::make_op("clip"), cos_cache, cs_min, cs_max);
         sin_cache      = mm->add_instruction(migraphx::make_op("clip"), sin_cache, cs_min, cs_max);
         auto r         = mm->add_instruction(migraphx::make_op("group_query_attention",
-                                                       {{"do_rotary", 1},
+                                                               {{"do_rotary", 1},
                                                                 {"kv_num_heads", 32},
                                                                 {"local_window_size", -1},
                                                                 {"num_heads", 32},

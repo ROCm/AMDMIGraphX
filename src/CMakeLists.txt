@@ -132,18 +132,6 @@ if(WIN32)
     target_compile_options(migraphx PUBLIC "-mno-ms-bitfields")
 endif()
 
-if(NOT MIGRAPHX_DISABLE_ONNX)
-    set(HAVE_ONNX ON)
-else()
-    set(HAVE_ONNX OFF)
-endif()
-
-if(NOT MIGRAPHX_DISABLE_TENSORFLOW)
-    set(HAVE_TENSORFLOW ON)
-else()
-    set(HAVE_TENSORFLOW OFF)
-endif()
-
 configure_file(config.h.in include/migraphx/config.h)
 
 configure_file(version.h.in include/migraphx/version.h)
@@ -204,7 +192,6 @@ register_migraphx_ops(
     gathernd
     get_tuple_elem
     greater
-    greater_or_equal
     group_query_attention
     gru
     identity
@@ -360,11 +347,11 @@ add_library(migraphx_all_frontends INTERFACE)
 
 add_subdirectory(api)
 add_subdirectory(driver)
-if(NOT MIGRAPHX_DISABLE_ONNX)
+if(MIGRAPHX_ENABLE_ONNX)
 add_subdirectory(onnx)
 target_link_libraries(migraphx_all_frontends INTERFACE migraphx_onnx)
 endif()
-if(NOT MIGRAPHX_DISABLE_TENSORFLOW)
+if(MIGRAPHX_ENABLE_TENSORFLOW)
 add_subdirectory(tf)
 target_link_libraries(migraphx_all_frontends INTERFACE migraphx_tf)
 endif()
@@ -413,6 +400,7 @@ if(BUILD_DEV)
 endif()
 
 target_compile_definitions(migraphx PUBLIC MIGRAPHX_CXX_COMPILER="${CMAKE_CXX_COMPILER}")
+add_dependencies(migraphx generate)
 
 rocm_export_targets(
   TARGETS migraphx::migraphx_c

@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2024 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2025 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -64,7 +64,6 @@
 #include <migraphx/op/gathernd.hpp>
 #include <migraphx/op/get_tuple_elem.hpp>
 #include <migraphx/op/greater.hpp>
-#include <migraphx/op/greater_or_equal.hpp>
 #include <migraphx/op/group_query_attention.hpp>
 #include <migraphx/op/gru.hpp>
 #include <migraphx/op/identity.hpp>

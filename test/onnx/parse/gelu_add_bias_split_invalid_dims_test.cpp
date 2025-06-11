@@ -21,10 +21,10 @@
  * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
  * THE SOFTWARE.
  */
-#ifndef MIGRAPHX_GUARD_CONFIG_H
-#define MIGRAPHX_GUARD_CONFIG_H
 
-#cmakedefine MIGRAPHX_ENABLE_ONNX
-#cmakedefine MIGRAPHX_ENABLE_TENSORFLOW
+#include <onnx_test.hpp>
 
-#endif // MIGRAPHX_GUARD_CONFIG_H
+TEST_CASE(gelu_add_bias_split_invalid_dims_test)
+{
+    EXPECT(test::throws([&] { read_onnx("gelu_add_bias_split_invalid_dims_test.onnx"); }));
+}

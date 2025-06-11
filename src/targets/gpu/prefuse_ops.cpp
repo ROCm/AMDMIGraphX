@@ -373,6 +373,10 @@ struct find_group_query_attention
             gpu_concat_past_present_v{
                 do_rotary, kv_num_heads, local_window_size, num_heads, rotary_interleaved, scale},
             concat_v_inputs);
+
+        // Adding 1 to seq_lens_k, aka past_seq_lens, to allow range literals to start at 0.
+        // Putting the add inside the mlir module currently causes an error on their side,
+        // so we're leaving it here until that can be solved.
         auto one_lit = mpm.get_module().insert_literal(
             ins, literal{shape{inputs.at(5)->get_shape().type(), {1}}, {1}});
         one_lit = mpm.get_module().insert_instruction(
@@ -382,6 +386,7 @@ struct find_group_query_attention
         auto total_sl =
             mpm.get_module().insert_instruction(ins, make_op("add"), inputs.at(5), one_lit);
         std::vector<instruction_ref> new_inputs{rotary_qkv, pres_k, pres_v, total_sl};
+
         auto get_tuple_elm_0 = std::next(ins);
         auto get_tuple_elm_1 = std::next(get_tuple_elm_0);
         auto get_tuple_elm_2 = std::next(get_tuple_elm_1);

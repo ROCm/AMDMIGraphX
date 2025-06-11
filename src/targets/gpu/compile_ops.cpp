@@ -50,7 +50,6 @@ MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_TRACE_BENCHMARKING);
 //       Then get PR made
 //       Then try to get fast mode to produce better kernels (if there is a gap without fast mode)
 MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_BENCHMARKING_RUNS);
-MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_SKIP_DEAD_CODE_ELIMINATION);
 
 struct precompile_op
 {
@@ -180,8 +179,7 @@ struct compile_plan
     const compiled_result& benchmark() const
     {
         const auto trace_level = value_of(MIGRAPHX_TRACE_BENCHMARKING{});
-        const auto benchmarking_runs = value_of(MIGRAPHX_BENCHMARKING_RUNS{});
-        const auto skip_dead_code_elimination = enabled(MIGRAPHX_SKIP_DEAD_CODE_ELIMINATION{});
+        const auto benchmarking_runs = value_of(MIGRAPHX_BENCHMARKING_RUNS{}, 20);
         if(trace_level > 0 and not results.empty())
         {
             std::cout << "Benchmarking " << preop.name() << ": " << results.size() << " configs"
@@ -240,8 +238,7 @@ struct compile_plan
                            cr->replace.replace(*bench_mm, bench_ins);
                            // do dead code elimination
                            // #todo How much does this dead code elimination help?
-                           if(!skip_dead_code_elimination)
-                               run_passes(*bench_mm, {dead_code_elimination{}});
+                           run_passes(*bench_mm, {dead_code_elimination{}});
                            // by default, measure runtime with bundle of 1 benchmark config,
                            // repeat 20 times
                            // #todo This 20 times should definitely be configurable by environment variable and perhaps MIGraphX API

@@ -30,6 +30,8 @@
 #include <migraphx/stringutils.hpp>
 #include <unordered_set>
 
+MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_SKIP_DEAD_CODE_ELIMINATION);
+
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
 
@@ -37,6 +39,9 @@ void dead_code_elimination::apply(program& p) const { p.remove_unused_modules();
 
 void dead_code_elimination::apply(module& m) const
 {
+    if(enabled(MIGRAPHX_SKIP_DEAD_CODE_ELIMINATION{}))
+        return;
+
     auto last = std::prev(m.end());
     for(auto ins : iterator_for(m))
     {

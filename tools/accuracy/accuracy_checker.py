@@ -337,7 +337,12 @@ def main():
 
     if not args.ort_run:
         if args.show_data:
-            print(f'Output Gold Data:\n{pred_fw}\n')
+            if hasattr(pred_fw, '__iter__') and not isinstance(pred_fw, (str, bytes)):
+                print('Output Gold Data:')
+                for idx, output in enumerate(pred_fw):
+                    print(f'Output {idx}: {output}')
+            else:
+                print(f'Output Gold Data:\n{pred_fw}\n')
 
         is_correct = check_correctness(pred_fw, pred_migx, args.tolerance,
                                        args.tolerance, args.argmax,

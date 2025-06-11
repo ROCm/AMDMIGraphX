@@ -528,31 +528,29 @@ struct compiler_target
     target get_target() const { return make_target(target_name); }
 };
 
-template <typename Duration = std::chrono::milliseconds,
-          typename Clock = std::chrono::high_resolution_clock>
 struct timer
 {
-    using time_point = typename Clock::time_point;
+    using clock = std::chrono::high_resolution_clock;
+    using time_point = typename clock::time_point;
 
     time_point e{};
-    time_point s{Clock::now()};
+    time_point s{clock::now()};
 
     void start()
     {
         e = time_point{};
-        s = Clock::now();
+        s = clock::now();
     }
 
     void stop()
     {
-        e = Clock::now();
+        e = clock::now();
     }
 
-    template <typename T = Duration>
     void report_duration() const
     {
         std::cout << "Compilation time: "
-                  << std::chrono::duration_cast<T>(e - s).count()
+                  << std::chrono::duration_cast<std::chrono::milliseconds>(e - s).count()
                   << "ms\n";
     }
 };

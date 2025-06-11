@@ -21,34 +21,41 @@
  * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
  * THE SOFTWARE.
  */
-#include <migraphx/ranges.hpp>
-#include <migraphx/op/builder/insert.hpp>
-#include <migraphx/onnx/op_parser.hpp>
+#ifndef MIGRAPHX_GUARD_AMDMIGRAPHX_OP_BUILDER_INSERT_HPP
+#define MIGRAPHX_GUARD_AMDMIGRAPHX_OP_BUILDER_INSERT_HPP
+
+#include <string>
+#include <vector>
+#include <migraphx/instruction_ref.hpp>
+#include <migraphx/module.hpp>
+#include <migraphx/make_op.hpp>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
-namespace onnx {
+namespace op {
+namespace builder {
 
-struct parse_celu : op_parser<parse_celu>
+MIGRAPHX_EXPORT std::vector<instruction_ref> insert(const std::string& name,
+                                                    module& m,
+                                                    instruction_ref ins,
+                                                    const std::vector<instruction_ref>& args,
+                                                    const value& options);
+
+MIGRAPHX_EXPORT std::vector<instruction_ref> add(const std::string& name,
+                                                 module& m,
+                                                 const std::vector<instruction_ref>& args,
+                                                 const value& options);
+
+template <class... Ins>
+MIGRAPHX_EXPORT instruction_ref
+insert_common_op(module& m, instruction_ref ins, const std::string& op_name, Ins... args)
 {
-    std::vector<op_desc> operators() const { return {{"Celu"}}; }
+    return insert_common_op(m, ins, make_op(op_name), {args...});
+}
 
-    instruction_ref parse(const op_desc&,
-                          const onnx_parser&,
-                          const onnx_parser::node_info& info,
-                          const std::vector<instruction_ref>& args) const
-    {
-        value options = {};
-        if(contains(info.attributes, "alpha"))
-        {
-            const float alpha = info.attributes.at("alpha").f();
-            options.insert({"alpha", alpha});
-        }
-
-        return op::builder::add("celu", *info.mod, args, options).at(0);
-    }
-};
-
-} // namespace onnx
+} // namespace builder
+} // namespace op
 } // namespace MIGRAPHX_INLINE_NS
 } // namespace migraphx
+
+#endif

@@ -1,15 +1,16 @@
-	$attention_double_head_bias_mask_test:í
-B
+
+$attention_double_head_bias_mask_test:ü
+Q
 input
 weights
 bias
 
 mask_indexy"	Attention*
-	num_heads $attention_double_head_bias_mask_testZ
+	num_heads :com.microsoft$attention_double_head_bias_mask_testZ
 input
 
 
-
+
 Z
 weights
 
@@ -23,9 +24,9 @@ mask_indexy"	Attention*
 mask_index
 
 
-b
+b
 y
 
 
-
-B
+
+B

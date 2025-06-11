@@ -324,10 +324,12 @@ struct parse_attention : op_parser<parse_attention>
             if(mask_index_lens.at(0) == infered_out.batch_size)
             {
                 infered_out.index_pad = RIGHT_PADDING;
+                MIGRAPHX_THROW("Attention: Right Padding not currently supported");
             }
             else if(mask_index_lens.at(0) == (infered_out.batch_size * 2))
             {
                 infered_out.index_pad = LEFT_PADDING;
+                MIGRAPHX_THROW("Attention: Left Padding not currently supported");
             }
             else
             {
@@ -540,8 +542,8 @@ struct parse_attention : op_parser<parse_attention>
                                                     const instruction_ref& scale_factor,
                                                     const instruction_ref& mask,
                                                     const instruction_ref& bias,
-                                                    bool masked=false,
-                                                    bool attn_bias=false)
+                                                    bool masked,
+                                                    bool attn_bias)
     {
         auto Q = QKV.at(0);
         auto K = QKV.at(1);
@@ -568,7 +570,7 @@ struct parse_attention : op_parser<parse_attention>
 
         auto recip_scale = info.add_instruction(make_op("recip"), scale_factor);
         // Apply scale onl after all the masking and biasing has occured
-        auto qk_scaled = info.add_common_op("mul", qk_out, recip_scale);
+        auto qk_scaled = info.add_common_op("mul", qk_masked, recip_scale);
 
         auto softmax_out = info.add_instruction(make_op("softmax", {{"axis", 3}}), qk_scaled);
 
@@ -670,23 +672,29 @@ struct parse_attention : op_parser<parse_attention>
                                              const attention_attr& parsed_in)
     {
         instruction_ref final_mask;
-        auto mask_value_literal = info.add_literal(migraphx::literal{migraphx::shape{input->get_shape().type(), {1}, {0}}, {parsed_in.mask_filter_val}});
+        auto mask_value_literal = info.add_literal(migraphx::literal{migraphx::shape{input->get_shape().type(), {1}, {1}}, {parsed_in.mask_filter_val}});
+        auto pass_value_literal = info.add_literal(migraphx::literal{migraphx::shape{input->get_shape().type(), {1}, {1}}, {0}});
 
         if(infered_in.index_pad == RAW)
         {   // Raw case, 0 means mask 1 means pass through thus invert the matrix then multiply by mask_value
-            auto bc_in = info.add_instruction(make_op("multibroadcast", {{"out_lens", mask_input->get_shape().lens()}}), mask_value_literal);
-            final_mask = info.add_instruction(make_op("not"), mask_input);
-            final_mask = info.add_instruction(make_op("convert", {{"target_type", input->get_shape().type()}}), final_mask);
-            final_mask = info.add_instruction(make_op("mul"), final_mask, bc_in);
+            auto bc_pass = info.add_instruction(make_op("multibroadcast", {{"out_lens", mask_input->get_shape().lens()}}), pass_value_literal);
+            auto bc_mask = info.add_instruction(make_op("multibroadcast", {{"out_lens", mask_input->get_shape().lens()}}), mask_value_literal);
+
+            auto raw_mask = mask_input;
 
             if(parsed_in.unidirectional)
-            { //Unidirectional means we have to mask out the upper triangular part 
-                auto triangle_mask = generate_triangular_mat(info, final_mask, false);
-                final_mask = info.add_instruction(make_op("mul"), final_mask, triangle_mask);
+            { // Unidirectional means we have to mask out the upper triangular part 
+                auto triangle_mask = generate_triangular_mat(info, mask_input, false);
+                raw_mask = info.add_instruction(make_op("mul"), raw_mask, triangle_mask);
             }
 
-            final_mask = info.add_instruction(make_op("unsqueeze", {{"axes", {-1}}}), final_mask);
-            final_mask = info.add_instruction(make_op("unsqueeze", {{"axes", {-1}}}), final_mask);
+            // Reuse "0" broadcasted converted to int32 to check if input mask is greater than 0 for where condition
+            auto in_pass = info.add_instruction(make_op("convert", {{"target_type", mask_input->get_shape().type()}}), bc_pass);
+            auto in_bool = info.add_instruction(make_op("greater"), raw_mask, in_pass);
+            final_mask   = info.add_instruction(make_op("where"), in_bool, bc_mask, bc_pass);
+
+            final_mask = info.add_instruction(make_op("unsqueeze", {{"axes", {0}}}), final_mask);
+            final_mask = info.add_instruction(make_op("unsqueeze", {{"axes", {0}}}), final_mask);
         }
         else if(infered_in.index_pad == LEFT_PADDING)
         {

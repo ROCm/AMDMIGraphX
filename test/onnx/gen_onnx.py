@@ -4462,6 +4462,41 @@ def gridsample_test():
 
     return ([node], [x, grid], [y])
 
+@onnx_test()
+def gridsample_channel_test():
+    x = helper.make_tensor_value_info('x', TensorProto.FLOAT, [1, 3, 4, 4])
+    grid = helper.make_tensor_value_info('grid', TensorProto.FLOAT,
+                                         [1, 6, 6, 2])
+    y = helper.make_tensor_value_info('y', TensorProto.FLOAT, [1, 3, 6, 6])
+
+    node = onnx.helper.make_node(
+        "GridSample",
+        inputs=["x", "grid"],
+        outputs=["y"],
+        mode="bilinear",
+        padding_mode="border",
+        align_corners=1,
+    )
+
+    return ([node], [x, grid], [y])
+
+@onnx_test()
+def gridsample_512x512_test():
+    x = helper.make_tensor_value_info('x', TensorProto.FLOAT, [1, 3, 512, 512])
+    grid = helper.make_tensor_value_info('grid', TensorProto.FLOAT,
+                                         [1, 512, 512, 2])
+    y = helper.make_tensor_value_info('y', TensorProto.FLOAT, [1, 3, 512, 512])
+
+    node = onnx.helper.make_node(
+        "GridSample",
+        inputs=["x", "grid"],
+        outputs=["y"],
+        mode="bilinear",
+        padding_mode="border",
+        align_corners=1,
+    )
+
+    return ([node], [x, grid], [y])
 
 @onnx_test()
 def gridsample_half_test():

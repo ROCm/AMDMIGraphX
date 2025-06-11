@@ -164,26 +164,6 @@ struct gelu_split : op_builder<gelu_split>
         return insert(params.m, params.ins, params.args);
     }
 
-/*
-static instruction_ref parse_split_gelu(const onnx_parser::node_info& info, instruction_ref x)
-{
-    size_t last_dim_size = x->get_shape().lens().back();
-    if(last_dim_size < 2 or last_dim_size % 2 != 0)
-        MIGRAPHX_THROW("PARSE_GELU: BiasSplitGelu must have even last dimension which is >= 2");
-    auto split_left = info.add_instruction(
-        migraphx::make_op("slice",
-                          {{"axes", {-1}}, {"starts", {0}}, {"ends", {last_dim_size / 2}}}),
-        x);
-    auto split_right = info.add_instruction(
-        migraphx::make_op(
-            "slice", {{"axes", {-1}}, {"starts", {last_dim_size / 2}}, {"ends", {last_dim_size}}}),
-        x);
-    return info.add_common_op("mul", split_left, parse_gelu_erf(info, split_right));
-}
-
-*/
-
-
     std::vector<instruction_ref>
     insert(module& m, instruction_ref ins, const std::vector<instruction_ref>& args) const
     {
@@ -202,9 +182,6 @@ static instruction_ref parse_split_gelu(const onnx_parser::node_info& info, inst
             x);
         
         auto gelu_erf = op::builder::add("gelu_erf", m, {split_right}, {}).at(0);
-
-        // return info.add_common_op("mul", split_left, parse_gelu_erf(info, split_right));
-
         return {insert_common_op(m, ins, "mul", split_left, gelu_erf)};
     }
 };

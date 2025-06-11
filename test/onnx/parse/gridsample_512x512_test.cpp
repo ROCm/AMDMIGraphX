@@ -94,9 +94,9 @@ TEST_CASE(gridsample_512x512_test)
         add_common_op(*mm, migraphx::make_op("mul"), {fract_y, one_minus_fract_x});
     m_corner_weights[3] = add_common_op(*mm, migraphx::make_op("mul"), {fract_y, fract_x});
 
-    std::vector<float> xy_indices_data;
-    std::vector<float> weight_indices_data;
-    std::vector<float> nc_values_data;
+    std::vector<float> xy_indices_data(786432 * 3);
+    std::vector<float> weight_indices_data(786432 * 3);
+    std::vector<float> nc_values_data(786432 * 2);
     auto xy_indices_t   = mm->add_literal(migraphx::literal{
         migraphx::shape{migraphx::shape::float_type, {786432, 3}}, xy_indices_data});
     auto weight_index_t = mm->add_literal(migraphx::literal{

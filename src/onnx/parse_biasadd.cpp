@@ -21,66 +21,28 @@
  * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
  * THE SOFTWARE.
  */
-#include <migraphx/env.hpp>
+#include <migraphx/onnx/op_parser.hpp>
 #include <migraphx/ranges.hpp>
-#include <cstdlib>
-#include <mutex>
+#include <migraphx/make_op.hpp>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
+namespace onnx {
 
-static auto access_envs()
+struct parse_biasadd : op_parser<parse_biasadd>
 {
-    static std::map<std::string, std::string> obj;
-    static std::mutex m;
-    return [&](auto f) {
-        std::lock_guard<std::mutex> lock(m);
-        return f(obj);
-    };
-}
+    std::vector<op_desc> operators() const { return {{"BiasAdd"}}; }
 
-bool enabled(const char* name)
-{
-    auto e = env(name);
-    if(e.empty() or not contains({"1", "enable", "enabled", "yes", "true"}, e.front()))
-        return false;
-    access_envs()([&](auto& m) { m[name] = e.front(); });
-    return true;
-}
+    instruction_ref parse(const op_desc& /*opd*/,
+                          const onnx_parser& /*parser*/,
+                          const onnx_parser::node_info& info,
+                          const std::vector<instruction_ref>& args) const
+    {
+        auto x_plus_bias = info.add_common_op("add", args[0], args[1]);
+        return info.add_common_op("add", x_plus_bias, args[2]);
+    }
+};
 
-bool disabled(const char* name) { return not enabled(name); }
-
-std::size_t value_of(const char* name, std::size_t fallback)
-{
-    auto e = env(name);
-    if(e.empty())
-        return fallback;
-    access_envs()([&](auto& m) { m[name] = e.front(); });
-    return std::stoul(e.front());
-}
-
-std::string string_value_of(const char* name, std::string fallback)
-{
-    auto e = env(name);
-    if(e.empty())
-        return fallback;
-    auto rv         = e.front();
-    access_envs()([&](auto& m) { m[name] = rv; });
-    return rv;
-}
-
-std::vector<std::string> env(const char* name)
-{
-    auto* p = std::getenv(name);
-    if(p == nullptr)
-        return {};
-    return {{p}};
-}
-
-std::map<std::string, std::string> get_all_envs()
-{
-    return access_envs()([&](const auto& m) { return m; });
-}
-
+} // namespace onnx
 } // namespace MIGRAPHX_INLINE_NS
 } // namespace migraphx

@@ -642,6 +642,10 @@ struct find_mlir_split_reduce
     }
 };
 
+/**
+ * Fuses rocMLIR compatible dot or conv op -> reshapes -> pointwise
+ * into a mlir_op with submodule.
+ */
 struct find_mlir_fused_ops
 {
     mlir_mode conv_mode = mlir_mode::none;
@@ -655,6 +659,12 @@ struct find_mlir_fused_ops
         return names;
     }
 
+    /**
+     * Matches:
+     * mlir_dot_or_conv <binds to "gemm_based_op"> ->
+     * skip(conv_dot_reshaper_names) <binds to "x"> ->
+     * mlir_pointwise <matcher result>
+     */
     auto matcher() const
     {
         static const auto conv_dot_reshaper_names = make_conv_dot_reshaper_names();
@@ -1062,6 +1072,11 @@ struct find_mlir_attention_fused_ops : public find_mlir_standalone_attention_op
     }
 };
 
+/**
+ * Input fusion of pointwise operators into a mlir_op.
+ * Only fuses unary pointwise operators by default.
+ * Fuses all fusable pw ops with MIGRAPHX_ENABLE_MLIR_INPUT_FUSION
+ */
 struct find_pointwise_mlir
 {
     auto supported_pointwise() const { return mlir_input_pointwise(match::used_once()); }

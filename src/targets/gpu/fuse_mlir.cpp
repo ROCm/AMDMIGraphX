@@ -947,7 +947,7 @@ struct find_mlir_attention_op
             return;
         }
 
-        auto m_attn = group->module_inputs()[0];
+        auto *m_attn = group->module_inputs()[0];
         mpm.get_module().replace_instruction(
             group, mlir_op{group->get_operator()}, mlir_contiguous(mpm, group->inputs()), {m_attn});
     }

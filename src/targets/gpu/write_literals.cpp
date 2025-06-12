@@ -21,6 +21,7 @@
  * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
  * THE SOFTWARE.
  */
+#include <cstddef>
 #include <migraphx/gpu/write_literals.hpp>
 #include <migraphx/iterator_for.hpp>
 #include <migraphx/gpu/hip.hpp>
@@ -78,40 +79,59 @@ static bool is_allocate(instruction_ref ins)
     return contains({"hip::allocate", "allocate"}, ins->name());
 }
 
-static std::size_t estimate_scratch_size(const module& m, std::size_t alignment = 8)
+static std::size_t estimate_scratch_size(const module& m, std::size_t alignment = 32)
 {
     std::size_t scratch_size = 0;
     liveness(m, [&](instruction_ref ins, auto live_set) {
-        if(not is_allocate(ins) or ins->get_shape().bytes() == 0)
-            return;
         std::size_t n = transform_accumulate(live_set.begin(),
                                              live_set.end(),
-                                             std::size_t{0},
+                                             ins->get_shape().bytes(),
                                              std::plus<>{},
                                              [&](instruction_ref i) -> std::size_t {
                                                  if(not is_allocate(i))
                                                      return 0;
-                                                 auto b = i->get_shape().bytes() / alignment;
+                                                 auto b = (i->get_shape().bytes() + alignment - 1) / alignment;
                                                  return b * alignment;
                                              });
         scratch_size  = std::max(scratch_size, n);
     });
-    // Add 2% since memory coloring is NP-hard and we might need more space
-    return scratch_size + scratch_size / 50;
+    // Add 50% since memory coloring is NP-hard and liveness is incomplete without the scheduler, so we might need more space
+    return scratch_size + scratch_size / 2;
 }
 
-static std::size_t get_total_memory(const module& m)
+static std::size_t get_total_literals(const module& m)
 {
-    std::size_t n = transform_accumulate(m.begin(),
+    return transform_accumulate(m.begin(),
                                          m.end(),
                                          std::size_t{0},
                                          std::plus<>{},
+                                         [&](const instruction& ins) -> std::size_t {
+                                            // each code obj takes 2mb of gpu memory
+                                            if(ins.name() == "gpu::code_object")
+                                                return 1024*1024*2;
+                                             if(not contains({"@literal", "@param"}, ins.name()))
+                                                 return 0;
+                                             return ins.get_shape().bytes();
+                                         });
+}
+
+static std::size_t get_max_literals(const module& m)
+{
+    return transform_accumulate(m.begin(),
+                                         m.end(),
+                                         std::size_t{0},
+                                         MIGRAPHX_LIFT(std::max),
                                          [&](const instruction& ins) -> std::size_t {
                                              if(not contains({"@literal", "@param"}, ins.name()))
                                                  return 0;
                                              return ins.get_shape().bytes();
                                          });
-    return n + estimate_scratch_size(m);
+}
+
+
+static std::size_t get_total_memory(const module& m)
+{
+    return get_total_literals(m) + get_max_literals(m)*2 + estimate_scratch_size(m);
 }
 
 static std::size_t get_available_memory()
@@ -151,6 +171,8 @@ static std::unordered_set<instruction_ref> find_copy_literals(const module& m, s
 void write_literals::apply(module& m) const
 {
     assert(ctx != nullptr);
+    // Sort module to get better liveness analysis
+    m.sort();
     std::unordered_set<instruction_ref> copy_literals =
         find_copy_literals(m, extra_needed(get_available_memory(), get_total_memory(m)));
 

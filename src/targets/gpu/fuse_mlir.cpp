@@ -934,14 +934,14 @@ struct find_mlir_standalone_attention_op
 
 struct find_mlir_attention_op
 {
-    mlir_mode dot_mode   = mlir_mode::none;
+    mlir_mode dot_mode = mlir_mode::none;
 
     auto matcher() const { return match::name("group"); }
 
     void apply(module_pass_manager& mpm, const match::matcher_result& r) const
     {
         auto group = r.result;
-        auto tag = group->get_operator().to_value().get("tag", "");
+        auto tag   = group->get_operator().to_value().get("tag", "");
         if(tag != "attention")
         {
             return;

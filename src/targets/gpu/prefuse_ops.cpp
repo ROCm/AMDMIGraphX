@@ -305,7 +305,7 @@ struct find_group_query_attention
     {
         auto ins    = r.result;
         auto inputs = ins->inputs();
-        auto val      = ins->get_operator().to_value();
+        auto val    = ins->get_operator().to_value();
 
         auto num_heads          = val.at("num_heads").to<std::size_t>();
         auto kv_num_heads       = val.at("kv_num_heads").to<std::size_t>();
@@ -393,13 +393,13 @@ struct find_group_query_attention
 
         mpm.get_module().replace_instruction(get_tuple_elm_2, pres_v);
         mpm.get_module().replace_instruction(get_tuple_elm_1, pres_k);
-        
+
         auto kv_num_heads_factor = num_heads / kv_num_heads;
         auto max_seq_len         = pres_k->get_shape().lens()[2];
         total_sl                 = mpm.get_module().insert_instruction(
-            ins, make_op("multibroadcast", {{"out_lens", {batch_size, num_heads}}}), total_sl); 
+            ins, make_op("multibroadcast", {{"out_lens", {batch_size, num_heads}}}), total_sl);
         std::vector<instruction_ref> new_inputs{rotary_qkv, pres_k, pres_v, total_sl};
-        
+
         module m_attn;
         std::vector<instruction_ref> attn_inputs = {rotary_qkv, pres_k, pres_v, total_sl};
         std::unordered_map<instruction_ref, instruction_ref> map_main_to_mattn;
@@ -446,8 +446,9 @@ struct find_group_query_attention
             scale = 1.0f / std::sqrt(static_cast<float>(head_size));
         }
         auto scale_ins = m_attn.add_literal(literal{scalar_s, {scale}});
-        scale_ins      = m_attn.add_instruction(make_op("multibroadcast", {{"out_lens", bnsm}}), scale_ins);
-        auto mul   = m_attn.add_instruction(make_op("mul"), gemm1, scale_ins);
+        scale_ins =
+            m_attn.add_instruction(make_op("multibroadcast", {{"out_lens", bnsm}}), scale_ins);
+        auto mul = m_attn.add_instruction(make_op("mul"), gemm1, scale_ins);
 
         if(sequence_length > 1)
         {
@@ -455,8 +456,8 @@ struct find_group_query_attention
             std::iota(seq_range_vec.begin(), seq_range_vec.end(), 0);
             shape seq_range_s{total_sl->get_shape().type(), {sequence_length}};
             auto seq_range = m_attn.add_literal(seq_range_s, seq_range_vec);
-            seq_range =
-                m_attn.add_instruction(make_op("reshape", {{"dims", {sequence_length, 1}}}), seq_range);
+            seq_range = m_attn.add_instruction(make_op("reshape", {{"dims", {sequence_length, 1}}}),
+                                               seq_range);
             seq_range =
                 m_attn.add_instruction(make_op("multibroadcast", {{"out_lens", bnsm}}), seq_range);
             auto causal_mask = m_attn.add_instruction(make_op("greater"), bc_range, seq_range);
@@ -478,7 +479,8 @@ struct find_group_query_attention
         auto scores  = m_attn.add_instruction(make_op("dot"), softmax, v);
         auto out =
             m_attn.add_instruction(make_op("transpose", {{"permutation", {0, 2, 1, 3}}}), scores);
-        out = m_attn.add_instruction(make_op("reshape", {{"dims", get_tuple_elm_0->get_shape().lens()}}), out);
+        out = m_attn.add_instruction(
+            make_op("reshape", {{"dims", get_tuple_elm_0->get_shape().lens()}}), out);
         m_attn.add_return({out});
 
         finalize_attention_module(&m_attn);
@@ -486,7 +488,7 @@ struct find_group_query_attention
         mpm_attn->set_bypass();
 
         auto group_op = mpm.get_module().insert_instruction(
-                ins, make_op("group", {{"tag", "attention"}}), new_inputs, {mpm_attn});
+            ins, make_op("group", {{"tag", "attention"}}), new_inputs, {mpm_attn});
         mpm.get_module().replace_instruction(get_tuple_elm_0, group_op);
     }
 };
@@ -500,7 +502,7 @@ void inline_group_sub_module(module_pass_manager& mpm)
             continue;
 
         const auto& mod_inputs = ins->module_inputs();
-        auto inline_mod = m.insert_inline(ins, *mod_inputs.at(0), ins->inputs());
+        auto inline_mod        = m.insert_inline(ins, *mod_inputs.at(0), ins->inputs());
         m.replace_instruction(ins, inline_mod.at(0));
     }
 }

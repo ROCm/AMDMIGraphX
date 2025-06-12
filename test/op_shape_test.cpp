@@ -1331,6 +1331,34 @@ TEST_CASE(get_tuple_elem_test)
     throws_shape(migraphx::make_op("get_tuple_elem", {{"index", 0}}), s2);
 }
 
+TEST_CASE(group_op)
+{
+    {
+        migraphx::program p;
+        auto* mm = p.get_main_module();
+        migraphx::shape s0{migraphx::shape::float_type, {1, 2}};
+        std::vector<float> l0_data{0, 1};
+        auto l0 = mm->add_literal(migraphx::literal{s0, l0_data});
+        migraphx::module m1;
+        std::unordered_map<migraphx::instruction_ref, migraphx::instruction_ref> map_mm_to_m1;
+        m1.add_params({l0}, &map_mm_to_m1);
+        auto add = m1.add_instruction(migraphx::make_op("add"), map_mm_to_m1.at(l0), map_mm_to_m1.at(l0));
+        m1.add_return({add});
+        migraphx::module_ref m1_ref = p.create_module("m_add", std::move(m1));
+        auto group = mm->add_instruction(migraphx::make_op("group", {{"tag", "add"}}), {l0}, {m1_ref});
+        EXPECT(group->get_shape() == s0);
+    }
+
+    {
+        migraphx::program p;
+        auto* mm = p.get_main_module();
+        migraphx::shape s0{migraphx::shape::float_type, {1, 2}};
+        std::vector<float> l0_data{0, 1};
+        auto l0 = mm->add_literal(migraphx::literal{s0, l0_data});
+        EXPECT(test::throws([&] { mm->add_instruction(migraphx::make_op("group", {{"tag", "add"}}), {l0}, {}); }));
+    }
+}
+
 TEST_CASE(gru)
 {
     {

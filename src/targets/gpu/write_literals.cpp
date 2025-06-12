@@ -55,11 +55,14 @@ struct gpu_literal
 
     shape compute_shape(const std::vector<shape>&) const { return data.get_shape(); }
 
-    argument compute(const shape&, const std::vector<argument>&) const { return data; }
+    argument compute(const shape&, const std::vector<argument>&) const { return gpu_data; }
 
     void finalize(context&, const shape&, const std::vector<shape>&)
     {
-        gpu_data = to_gpu(data, host);
+        if(host)
+            gpu_data = register_on_gpu(data);
+        else
+            gpu_data = to_gpu(data);
     }
 
     friend std::ostream& operator<<(std::ostream& os, const gpu_literal& x)

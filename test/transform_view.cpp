@@ -12,15 +12,33 @@ TEST_CASE(basic_transform)
     auto view            = migraphx::views::transform(vec, [](int x) { return x * x; });
 
     auto it = view.begin();
+    EXPECT(it[0] == 1);
+    EXPECT(it[1] == 4);
+    EXPECT(it[2] == 9);
+    EXPECT(it[3] == 16);
+    EXPECT(it[4] == 25);
+
     EXPECT(*it == 1);
-    ++it;
+    it += 1;
     EXPECT(*it == 4);
-    ++it;
+    it += 1;
     EXPECT(*it == 9);
-    ++it;
+    it += 1;
     EXPECT(*it == 16);
-    ++it;
+    it += 1;
     EXPECT(*it == 25);
+    
+    auto it2 = view.end();
+    it2 -= 1;
+    EXPECT(*it2 == 25);
+    it2 -= 1;
+    EXPECT(*it2 == 16);
+    it2 -= 1;
+    EXPECT(*it2 == 9);
+    it2 -= 1;
+    EXPECT(*it2 == 4);
+    it2 -= 1;
+    EXPECT(*it2 == 1);
 }
 
 TEST_CASE(transform_with_reference)
@@ -38,6 +56,18 @@ TEST_CASE(transform_with_reference)
     EXPECT(*it == 4);
     ++it;
     EXPECT(*it == 5);
+
+    auto it2 = view.end();
+    --it2;
+    EXPECT(*it2 == 5);
+    --it2;
+    EXPECT(*it2 == 4);
+    --it2;
+    EXPECT(*it2 == 3);
+    --it2;
+    EXPECT(*it2 == 2);
+    --it2;
+    EXPECT(*it2 == 1);
 
     // Modify the original vector through the view
     *view.begin() = 10;

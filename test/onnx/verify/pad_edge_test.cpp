@@ -33,22 +33,17 @@ TEST_CASE(pad_edge_test)
     p.compile(migraphx::make_target("ref"));
 
     migraphx::shape input_shape{migraphx::shape::float_type, {3, 3}};
-    std::vector<float> data = {0, 1, 2, 
-                               3, 4, 5, 
-                               6, 7, 8};
+    std::vector<float> data = {0, 1, 2, 3, 4, 5, 6, 7, 8};
 
     migraphx::parameter_map pp;
-    pp["0"]    = migraphx::argument(input_shape, data.data());
+    pp["0"] = migraphx::argument(input_shape, data.data());
 
     auto result = p.eval(pp).back();
     std::vector<float> result_vector;
     result.visit([&](auto output) { result_vector.assign(output.begin(), output.end()); });
 
-    std::vector<float> gold = {0, 0, 0, 1, 2, 2, 2,
-                               0, 0, 0, 1, 2, 2, 2,
-                               3, 3, 3, 4, 5, 5, 5,
-                               6, 6, 6, 7, 8, 8, 8,
-                               6, 6, 6, 7, 8, 8, 8};
+    std::vector<float> gold = {0, 0, 0, 1, 2, 2, 2, 0, 0, 0, 1, 2, 2, 2, 3, 3, 3, 4,
+                               5, 5, 5, 6, 6, 6, 7, 8, 8, 8, 6, 6, 6, 7, 8, 8, 8};
 
     EXPECT(migraphx::verify::verify_rms_range(result_vector, gold));
 }

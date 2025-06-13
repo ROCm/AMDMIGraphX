@@ -112,19 +112,19 @@ static instruction_ref reflect_pad(const onnx_parser::node_info& info,
 }
 
 static instruction_ref edge_pad(const onnx_parser::node_info& info,
-                                   const std::vector<int64_t>& pads,
-                                   instruction_ref input)
+                                const std::vector<int64_t>& pads,
+                                instruction_ref input)
 {
     size_t num_dims = pads.size() / 2;
     std::vector<int> ldims(pads.begin(), pads.begin() + num_dims);
     std::vector<int> rdims(pads.begin() + num_dims, pads.end());
     assert(ldims.size() == rdims.size());
-    
+
     std::vector<int64_t> axes(num_dims);
     std::iota(axes.begin(), axes.end(), int64_t{0});
 
     // iterate over dimensions, starting from lowest dimension
-    for (int64_t i = num_dims - 1; i >= 0; i--)
+    for(int64_t i = num_dims - 1; i >= 0; i--)
     {
         auto axis   = i;
         auto lcount = ldims.at(i);
@@ -142,7 +142,7 @@ static instruction_ref edge_pad(const onnx_parser::node_info& info,
         auto ends_it   = ends.begin() + i;
         auto dims_it   = dims.begin() + i;
 
-        for (int i = 0; i < lcount; i++)
+        for(int i = 0; i < lcount; i++)
         {
             *starts_it = 0;
             *ends_it   = 1;
@@ -151,7 +151,7 @@ static instruction_ref edge_pad(const onnx_parser::node_info& info,
         }
         std::reverse(slices.begin(), slices.end());
         slices.push_back(input);
-        for (int i = 0; i < rcount; i++)
+        for(int i = 0; i < rcount; i++)
         {
             *starts_it = *dims_it - 1;
             *ends_it   = *dims_it;
@@ -182,8 +182,8 @@ struct parse_pad : op_parser<parse_pad>
             }
             else if(mode != "constant" && mode != "edge")
             {
-                MIGRAPHX_THROW(
-                    "PARSE_PAD: MIGraphX currently only supports constant, reflect, and edge padding");
+                MIGRAPHX_THROW("PARSE_PAD: MIGraphX currently only supports constant, reflect, and "
+                               "edge padding");
             }
             return mode;
         }

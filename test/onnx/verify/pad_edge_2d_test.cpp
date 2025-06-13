@@ -26,14 +26,18 @@
 #include <migraphx/verify.hpp>
 #include <onnx_test.hpp>
 
-TEST_CASE(pad_edge_test)
+TEST_CASE(pad_edge_2d_test)
 {
-    migraphx::program p = read_onnx("pad_edge_test.onnx");
+    migraphx::program p = read_onnx("pad_edge_2d_test.onnx");
     migraphx::compile_options options;
     p.compile(migraphx::make_target("ref"));
 
     migraphx::shape input_shape{migraphx::shape::float_type, {3, 3}};
-    std::vector<float> data = {0, 1, 2, 3, 4, 5, 6, 7, 8};
+    // clang-format off
+    std::vector<float> data = {0, 1, 2, 
+                               3, 4, 5, 
+                               6, 7, 8};
+    // clang-format on
 
     migraphx::parameter_map pp;
     pp["0"] = migraphx::argument(input_shape, data.data());
@@ -42,8 +46,13 @@ TEST_CASE(pad_edge_test)
     std::vector<float> result_vector;
     result.visit([&](auto output) { result_vector.assign(output.begin(), output.end()); });
 
-    std::vector<float> gold = {0, 0, 0, 1, 2, 2, 2, 0, 0, 0, 1, 2, 2, 2, 3, 3, 3, 4,
-                               5, 5, 5, 6, 6, 6, 7, 8, 8, 8, 6, 6, 6, 7, 8, 8, 8};
+    // clang-format off
+    std::vector<float> gold = {0, 0, 0, 1, 2, 2, 2, 
+                               0, 0, 0, 1, 2, 2, 2, 
+                               3, 3, 3, 4, 5, 5, 5, 
+                               6, 6, 6, 7, 8, 8, 8, 
+                               6, 6, 6, 7, 8, 8, 8};
+    // clang-format on
 
     EXPECT(migraphx::verify::verify_rms_range(result_vector, gold));
 }

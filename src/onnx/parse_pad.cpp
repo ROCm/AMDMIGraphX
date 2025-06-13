@@ -142,7 +142,7 @@ static instruction_ref edge_pad(const onnx_parser::node_info& info,
         auto ends_it   = ends.begin() + i;
         auto dims_it   = dims.begin() + i;
 
-        for(int i = 0; i < lcount; i++)
+        for(int64_t j = 0; j < lcount; j++)
         {
             *starts_it = 0;
             *ends_it   = 1;
@@ -151,7 +151,7 @@ static instruction_ref edge_pad(const onnx_parser::node_info& info,
         }
         std::reverse(slices.begin(), slices.end());
         slices.push_back(input);
-        for(int i = 0; i < rcount; i++)
+        for(int64_t j = 0; j < rcount; j++)
         {
             *starts_it = *dims_it - 1;
             *ends_it   = *dims_it;

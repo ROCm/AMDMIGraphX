@@ -626,6 +626,14 @@ TEST_CASE(value_compare_ordered)
     EXPECT_TOTALLY_ORDERED(migraphx::value(1), migraphx::value());
 }
 
+TEST_CASE(value_compare_object)
+{
+    migraphx::value v1 = {{"a", 1}, {"c", 3}, {"b", 2}, {"d", 4}, {"e", 5}, {"f", 6}};
+    migraphx::value v2 = {{"e", 5}, {"f", 6}, {"a", 1}, {"b", 2}, {"c", 3}, {"d", 4}};
+    EXPECT(v1 == v2);
+    EXPECT_TOTALLY_ORDERED(v1, v2);
+}
+
 TEST_CASE(value_to_from_string)
 {
     migraphx::value v = "1";

@@ -27,7 +27,7 @@ TEST_CASE(basic_transform)
     EXPECT(*it == 16);
     it += 1;
     EXPECT(*it == 25);
-    
+
     auto it2 = view.end();
     it2 -= 1;
     EXPECT(*it2 == 25);

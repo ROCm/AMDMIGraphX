@@ -444,10 +444,7 @@ value value::with_key(const std::string& pkey) const
     return result;
 }
 
-const std::shared_ptr<value_base_impl>& value::get_impl() const
-{
-    return this->x;
-}
+const std::shared_ptr<value_base_impl>& value::get_impl() const { return this->x; }
 
 static auto object_range(const std::shared_ptr<value_base_impl>& x)
 {
@@ -455,12 +452,11 @@ static auto object_range(const std::shared_ptr<value_base_impl>& x)
     assert(a != nullptr);
     auto* lookup = x->if_object();
     assert(lookup != nullptr);
-    return views::transform(*lookup, [=](const auto& p) -> decltype(auto) {
-        return (*a)[p.second];
-    });
+    return views::transform(*lookup,
+                            [=](const auto& p) -> decltype(auto) { return (*a)[p.second]; });
 }
 
-template<class F>
+template <class F>
 static void visit_for_compare(const value& x, F f)
 {
     if(x.is_object())

@@ -9744,7 +9744,6 @@ def pad_edge_1d_test():
 
     return ([arg_pad, node], [x], [y])
 
-
 @onnx_test()
 def pad_edge_2d_test():
     x = helper.make_tensor_value_info('0', TensorProto.FLOAT, [3, 3])

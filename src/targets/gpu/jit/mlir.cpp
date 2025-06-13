@@ -108,7 +108,7 @@ struct mlir_compiler : compiler<mlir_compiler>
     {
         for(auto ins : iterator_for(m))
         {
-            if(ins->name() == "greater_or_equal")
+            if(ins->name() == "greater")
             {
                 auto fill_val = ins->get_shape().lens().back() - 1;
                 for(auto inp : ins->inputs())

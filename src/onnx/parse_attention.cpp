@@ -578,9 +578,10 @@ struct parse_attention : op_parser<parse_attention>
         auto output = info.add_instruction(make_op("dot"), softmax_out, V);
 
         // Transpose result from (batch, num heads, sequence_length, query_size) to (batch, sequence_length, num_heads, query_size)
-        auto lens = output->get_shape().lens();
         output = info.add_instruction(make_op("transpose", {{"permutation", {0, 2, 1, 3}}}), output);
+
         // Collapse back to (batch, sequence_length, query_size)
+        auto lens = output->get_shape().lens();
         output = info.add_instruction(make_op("reshape", {{"dims", {lens.at(0), lens.at(1), lens.at(2) * lens.at(3)}}}), output);
         return output;
     }

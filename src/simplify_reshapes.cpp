@@ -947,16 +947,13 @@ struct find_reshape_cont
     }
 };
 
-static bool non_const(instruction_ref ins)
-{
-    return not ins->can_eval();
-}
+static bool non_const(instruction_ref ins) { return not ins->can_eval(); }
 
 MIGRAPHX_BASIC_MATCHER(unary_arg, const match::matcher_context&, instruction_ref ins)
 {
     if(not std::all_of(ins->inputs().begin(), ins->inputs().end(), [](auto i) {
-        return not i->can_eval() or i->get_shape().scalar();
-    }))
+           return not i->can_eval() or i->get_shape().scalar();
+       }))
         return nullopt;
     auto it = std::find_if(ins->inputs().begin(), ins->inputs().end(), &non_const);
     if(it == ins->inputs().end())
@@ -1013,7 +1010,8 @@ struct find_unary_shape_transforms
         return *it;
     }
 
-    static std::vector<instruction_ref> insert_args(module& m, instruction_ref ins, instruction_ref arg)
+    static std::vector<instruction_ref>
+    insert_args(module& m, instruction_ref ins, instruction_ref arg)
     {
         // TODO: Use mov instructions back
     }

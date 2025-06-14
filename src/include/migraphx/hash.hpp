@@ -31,7 +31,7 @@ namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
 
 template <class T>
-std::size_t hash_value(const T& v)
+auto hash_value(const T& v) -> decltype(std::hash<T>{}(v))
 {
     return std::hash<T>{}(v);
 }

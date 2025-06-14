@@ -72,6 +72,11 @@ struct multibroadcast
             if(s0.dynamic())
                 MIGRAPHX_THROW(
                     "MULTIBROADCAST: Single dynamic input shape not supported.  Use two inputs.");
+            if(s0.scalar())
+            {
+                std::vector<std::size_t> strides(output_lens.size(), 0);
+                return {s0.type(), output_lens, strides};
+            }
             if(s0.ndim() > output_lens.size())
             {
                 MIGRAPHX_THROW("MULTIBROADCAST: input dimensions should <= output size");

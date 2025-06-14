@@ -947,6 +947,25 @@ struct find_reshape_cont
     }
 };
 
+static bool non_const(instruction_ref ins)
+{
+    return not ins->can_eval();
+}
+
+MIGRAPHX_BASIC_MATCHER(unary_arg, const match::matcher_context&, instruction_ref ins)
+{
+    if(not std::all_of(ins->inputs().begin(), ins->inputs().end(), [](auto i) {
+        return not i->can_eval() or i->get_shape().scalar();
+    }))
+        return nullopt;
+    auto it = std::find_if(ins->inputs().begin(), ins->inputs().end(), &non_const);
+    if(it == ins->inputs().end())
+        return nullopt;
+    if(std::count_if(it, ins->inputs().end(), &non_const) > 0)
+        return nullopt;
+    return *it;
+}
+
 struct find_unary_shape_transforms
 {
     static const auto& shape_transforms()
@@ -968,7 +987,7 @@ struct find_unary_shape_transforms
             match::none_of(match::skip_output(match::name("contiguous"))(match::pointwise()));
         auto shape_transform = match::name(shape_transforms());
         auto input_has_shape_transform =
-            match::args(match::skip(match::name("contiguous"))(shape_transform));
+            unary_arg(match::skip(match::name("contiguous"))(shape_transform));
         auto not_layout = match::none_of(match::name("layout"));
         return match::pointwise(
             match::used_once(), not_layout, input_has_shape_transform, output_not_pointwise);
@@ -987,12 +1006,24 @@ struct find_unary_shape_transforms
                contains(ins->name(), "reduce");
     }
 
+    static instruction_ref get_non_const_input(instruction_ref ins)
+    {
+        auto it = std::find_if(ins->inputs().begin(), ins->inputs().end(), &non_const);
+        assert(it != ins->inputs().end());
+        return *it;
+    }
+
+    static std::vector<instruction_ref> insert_args(module& m, instruction_ref ins, instruction_ref arg)
+    {
+        // TODO: Use mov instructions back
+    }
+
     void apply(module& m, const match::matcher_result& mr) const
     {
         auto ins = mr.result;
         if(ins->outputs().empty())
             return;
-        auto input  = ins->inputs().front();
+        auto input  = get_non_const_input(ins);
         auto output = ins->outputs().front();
 
         auto insert_ops = [&](const auto& ops, instruction_ref z) {

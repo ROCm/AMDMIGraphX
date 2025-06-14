@@ -253,7 +253,7 @@ struct find_op_shape_transform_op
         if(ins->name() == "slice")
         {
             if(ins->inputs().front()->get_shape().elements() % ins->get_shape().elements() != 0)
-                return 0;
+                return false;
             // Check if slice starts and ends are divisible by the dimension
             auto v           = ins->get_operator().to_value();
             auto starts      = v.at("starts").to_vector<std::size_t>();
@@ -320,8 +320,11 @@ struct find_op_shape_transform_op
         assert(next_ins == x_ins);
         std::reverse(ops.begin(), ops.end());
 
-        auto desc = shape_transform_descriptor::create(x_ins->get_shape().lens(), ops)
-                        .rebase(x_ins->inputs().front()->get_shape().lens(), true);
+        auto desc = shape_transform_descriptor::create(x_ins->get_shape().lens(), ops);
+        if(desc.empty())
+            return;
+        if(is_reduce(x_ins))
+            desc = desc.rebase(x_ins->inputs().front()->get_shape().lens(), true);
         if(desc.empty())
             return;
 

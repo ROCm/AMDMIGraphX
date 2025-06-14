@@ -82,7 +82,7 @@ iou_threshold (optional) : tensor(float)
 Float representing the threshold for deciding whether boxes overlap too much with respect to IOU.
 It is scalar. Value range [0, 1]. Default to 0.
 
-score_threshold (optional) : tensor(flo187Gat)
+score_threshold (optional) : tensor(float)
 Float representing the threshold for deciding when to remove boxes based on score. It is a scalar.
 ----------------------------------------------------------------------------------------------------------------------
 Outputs
@@ -305,14 +305,18 @@ struct nonmaxsuppression
                                return std::make_pair(sc, box_idx - 1);
                            });
         }
-        par_sort(boxes_heap.begin(), boxes_heap.end(), std::greater<std::pair<double, int64_t>>{});
+        // sort by the higher score, or if equal then the early (i.e. lower) index of the box
+        par_sort(boxes_heap.begin(), boxes_heap.end(), [](auto const& t1, auto const& t2) {
+            return std::get<0>(t1) > std::get<0>(t2) or
+                   (not(std::get<0>(t1) < std::get<0>(t2)) and (std::get<1>(t1) < std::get<1>(t2)));
+        });
         return boxes_heap;
     }
 
     template <class Output, class Boxes, class Scores>
     std::size_t compute_nms(Output output,
-                            Boxes boxes,
-                            Scores scores,
+                            const Boxes& boxes,
+                            const Scores& scores,
                             std::size_t max_output_boxes_per_class,
                             double iou_threshold,
                             double score_threshold) const

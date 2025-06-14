@@ -435,11 +435,27 @@ def attention_double_head_bias_test():
                            num_heads=2)
 
 @onnx_test()
+def attention_double_head_bias_mask_batch1_test():
+    return attention_test([1, 2, 4], [4, 12], 
+                           bias_dims=[12],
+                           mask_dims=[1, 2],
+                           num_heads=2)
+
+
+@onnx_test()
 def attention_double_head_bias_mask_test():
     return attention_test([2, 2, 4], [4, 12], 
                            bias_dims=[12],
                            mask_dims=[2, 2],
                            num_heads=2)
+
+@onnx_test()
+def attention_double_head_bias_asym_mask_test():
+    return attention_test([2, 3, 4], [4, 12], 
+                           bias_dims=[12],
+                           mask_dims=[2, 3],
+                           num_heads=2)
+
 
 
 @onnx_test()
@@ -447,7 +463,7 @@ def attention_double_head_bias_mask_past_test():
 # Should error out because we only support shared buffer modes
     return attention_test([2, 2, 4], [4, 12], 
                            bias_dims=[12],
-                           mask_dims=[2, 4],
+                           mask_dims=[2, 2],
                            past_dims=[2, 4],
                            num_heads=2)
 

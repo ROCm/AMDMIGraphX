@@ -555,10 +555,14 @@ static std::size_t compute_hash(rank<0>, const std::string& key, const T& x)
     return h;
 }
 
-static std::size_t compute_hash(rank<0>, const std::string& key, std::nullptr_t) { return hash_value(key); }
+static std::size_t compute_hash(rank<0>, const std::string& key, std::nullptr_t)
+{
+    return hash_value(key);
+}
 
-template<class Range>
-static auto compute_hash(rank<1>, const std::string& key, const Range& x) -> decltype(hash_value(*x.begin()))
+template <class Range>
+static auto
+compute_hash(rank<1>, const std::string& key, const Range& x) -> decltype(hash_value(*x.begin()))
 {
     std::size_t h = hash_value(key);
     for(const auto& v : x)
@@ -569,7 +573,8 @@ static auto compute_hash(rank<1>, const std::string& key, const Range& x) -> dec
 std::size_t value::hash() const
 {
     std::size_t h = 0;
-    visit_for_compare(*this, [&](const auto& a) { h = compute_hash(rank<2>{}, this->get_key(), a); });
+    visit_for_compare(*this,
+                      [&](const auto& a) { h = compute_hash(rank<2>{}, this->get_key(), a); });
     return h;
 }
 

@@ -193,7 +193,7 @@ shape_transform_descriptor shape_transform_descriptor::rebase(const std::vector<
     {
         assert(axis < dims.size());
         auto dim       = dims[axis];
-        auto xlen = len(subs);
+        auto xlen      = len(subs);
         if(dim == xlen)
         {
             if(not broadcast)
@@ -237,7 +237,7 @@ shape_transform_descriptor shape_transform_descriptor::rebase(const std::vector<
                            subs.end(),
                            std::back_inserter(slens),
                            [](const dimension::sub* s) { return s->len; });
-            auto s = shape{shape::float_type, slens};
+            auto s   = shape{shape::float_type, slens};
             auto idx = s.multi(dim - 1);
             std::transform(subs.begin(),
                            subs.end(),

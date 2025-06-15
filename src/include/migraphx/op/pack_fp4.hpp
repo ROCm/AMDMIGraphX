@@ -66,10 +66,39 @@ constexpr uint8_t cast_to_fp4(float f_x)
     }
     // postive zero
     if(x == 0)
-        return 0;
+        return 0x0;
     // negative zero
     else if(x == 0x80000000)
-        return 0x80;
+        return 0x8;
+	
+    const int f4_bias                  = 1; //TODO check this
+    const int f4_denormal_act_exponent = 0 ; // actual exponent of f8 denormal
+    int act_exponent  = 0;
+    int f4_exponent   = 0;
+    int exponent_diff = 0;
+
+    if(exponent == 0 and mantissa != 0)
+    {
+		// fp32/fp16 is in denormal.
+        act_exponent  = 1 - bias;
+        exponent_diff = f4_denormal_act_exponent -
+                        act_exponent; // actual exponent is exponent-bias+1 as it is denormal
+    }
+    else
+    {
+		// fp32/fp16 is normal with implicit 1
+        act_exponent = exponent - bias;
+        if(act_exponent <= f8_denormal_act_exponent)
+        {
+            exponent_diff = f8_denormal_act_exponent - act_exponent;
+        }
+        else
+        {
+			// both fp32/fp16 and f8 are in normal range
+            exponent_diff = 0; 
+        }
+        mantissa += (1u << mfmt); // Add the implicit 1 into mantissa
+    }
 }
 
 } // namespace
@@ -103,7 +132,7 @@ struct pact_fp4
             MIGRAPHX_THROW("PACK_FP4: Can not pack axis that has odd lengths");
         }
         new_lens[axis] /= 2;
-        return {migraphx::shape::mxfp4_type, new_lens};
+        return {migraphx::shape::packed_fp4_type, new_lens};
     }
 
     argument compute(const shape& output_shape, const std::vector<argument>& args) const
@@ -113,7 +142,7 @@ struct pact_fp4
 
         auto uint8_shape = shape{migraphx::shape::uint8_type, output_shape.lens()};
         argument uint_arg{uint8_shape};
-        uint_arg.visit([&](auto out) {
+        uint8_arg.visit([&](auto out) {
             input.visit([&](auto inp) {
                 par_for(output_shape.elements(), [&](auto i) {
                     using inp_type         = typename decltype(inp)::value_type;
@@ -130,7 +159,7 @@ struct pact_fp4
             });
         });
         migraphx::argument result =
-            uint_arg.reshape({migraphx::shape::mxfp4_type, output_shape.lens()});
+            uint8_arg.reshape({migraphx::shape::mxfp4_type, output_shape.lens()});
         return result;
     }
 };

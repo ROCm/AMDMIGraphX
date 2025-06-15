@@ -74,7 +74,8 @@ struct MIGRAPHX_EXPORT shape
     enum type_t
     {
         MIGRAPHX_SHAPE_VISIT_TYPES(MIGRAPHX_SHAPE_GENERATE_ENUM_TYPES) tuple_type,
-        mxfp4_type
+		fp4_type, // fp4 contained in fp32 
+        packed_fp4_type // packed fp4 contained in uint8
     };
 #undef MIGRAPHX_SHAPE_GENERATE_ENUM_TYPES
 
@@ -415,8 +416,11 @@ struct MIGRAPHX_EXPORT shape
             tv();
             return;
         }
-        case mxfp4_type: {
-            MIGRAPHX_THROW("mxfp4_type cannot be visited.");
+        case fp4_type: {
+            MIGRAPHX_THROW("fp4_type cannot be visited.");
+        }
+        case packed_fp4_type: {
+            MIGRAPHX_THROW("packed_fp4_type cannot be visited.");
         }
 #define MIGRAPHX_SHAPE_GENERATE_VISITOR_CASE(x, t) \
     case x: v(as<t>()); return;

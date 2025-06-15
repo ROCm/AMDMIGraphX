@@ -493,12 +493,32 @@ void add_int4_pack_unpack_pair(module& m)
     }
 }
 
+void add_fp4_pack_unpack_pair(module& m)
+{
+    for(auto ins : iterator_for(m))
+    {
+        if(ins->name() != "dequantizelinear")
+            continue;
+
+        for(auto&& inp : ins->inputs())
+        {
+            if((inp->name() == "quantizelinear") and inp->get_shape().type() == shape::fp4_type)
+            {
+                auto pk   = m.insert_instruction(ins, make_op("pack_fp4"), inp);
+                auto unpk = m.insert_instruction(ins, make_op("unpack_fp4"), pk);
+                instruction::replace_argument(ins, inp, unpk);
+            }
+        }
+    }
+}
+
 } // namespace
 
 void simplify_qdq::apply(module& m) const
 {
     // first step: add pack/unpack pair between qdq for int4 weights
     add_int4_pack_unpack_pair(m);
+    add_fp4_pack_unpack_pair(m);
     match::find_matches(m, match_find_quantizable_ops{});
     migraphx::run_passes(m, {migraphx::dead_code_elimination{}});
     remove_qdq_pairs(m);

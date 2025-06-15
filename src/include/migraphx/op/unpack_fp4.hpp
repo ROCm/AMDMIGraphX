@@ -72,7 +72,7 @@ struct unpack_fp4
         }
         auto new_lens = in_shape.lens();
         new_lens[axis] *= 2;
-        return {migraphx::shape::float_type, new_lens};
+        return {migraphx::shape::fp4_type, new_lens};
     }
 
     argument compute(const shape& output_shape, const std::vector<argument>& args) const
@@ -81,7 +81,8 @@ struct unpack_fp4
         auto in_shape = input.get_shape();
 		
 		uint8_input = input.reshape({migraphx::shape::uint8_t, in_shape.lens()});
-        argument result{output_shape};
+        auto float_shape = shape{migraphx::shape::float_type, output_shape.lens()};
+        argument float_arg{float_shape};
 		
 		result.visit([&](auto out) {
 			uint8_input.visit([&](auto inp) {
@@ -100,6 +101,8 @@ struct unpack_fp4
 				});
 			});
         });
+        migraphx::argument result =
+            float_arg.reshape({migraphx::shape::fp4_type, output_shape.lens()});
         return result;
     }
 };

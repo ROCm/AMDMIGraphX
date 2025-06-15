@@ -255,26 +255,26 @@ struct find_op_shape_transform_op
             if(ins->inputs().front()->get_shape().elements() % ins->get_shape().elements() != 0)
                 return false;
             // Check if slice starts and ends are divisible by the dimension
-            auto v           = ins->get_operator().to_value();
-            auto starts      = v.at("starts").to_vector<std::size_t>();
-            auto ends        = v.at("ends").to_vector<std::size_t>();
-            auto axes        = v.at("axes").to_vector<std::size_t>();
-            auto input_shape = ins->inputs().front()->get_shape();
-            for(std::size_t i = 0; i < axes.size(); ++i)
-            {
-                auto axis = axes[i];
-                if(axis >= input_shape.ndim())
-                    return false;
-                auto dim = input_shape.lens()[axis];
-                if(dim > starts[i])
-                    return false;
-                if(dim > ends[i])
-                    return false;
-                if(dim % starts[i] != 0)
-                    return false;
-                if(dim % ends[i] != 0)
-                    return false;
-            }
+            // auto v           = ins->get_operator().to_value();
+            // auto starts      = v.at("starts").to_vector<std::size_t>();
+            // auto ends        = v.at("ends").to_vector<std::size_t>();
+            // auto axes        = v.at("axes").to_vector<std::size_t>();
+            // auto input_shape = ins->inputs().front()->get_shape();
+            // for(std::size_t i = 0; i < axes.size(); ++i)
+            // {
+            //     auto axis = axes[i];
+            //     if(axis >= input_shape.ndim())
+            //         return false;
+            //     auto dim = input_shape.lens()[axis];
+            //     if(dim > starts[i])
+            //         return false;
+            //     if(dim > ends[i])
+            //         return false;
+            //     if(dim % starts[i] != 0)
+            //         return false;
+            //     if(dim % ends[i] != 0)
+            //         return false;
+            // }
             return not desc.has_broadcast();
         }
         return not desc.has_broadcast();

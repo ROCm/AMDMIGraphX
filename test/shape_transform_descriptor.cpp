@@ -920,4 +920,28 @@ TEST_CASE(rebase_reshape_broadcast)
     }
 }
 
+TEST_CASE(rebase_reshape_transpose_multi)
+{
+    auto base_desc =
+        make_simple_descriptor({1, 77, 768},
+                               make_op("reshape", {{"dims", {1, 77, 12, 64}}}),
+                               make_op("transpose", {{"permutation", {0, 2, 3, 1}}}));
+
+    {
+        auto desc = base_desc.rebase({1, 77, 384});
+        EXPECT(get_final_lens(desc) == final_lens{1, 6, 64, 77});
+        EXPECT(get_all_lens(desc) == all_lens{{1}, {6}, {64}, {77}});
+        EXPECT(desc.generate() == ops{make_op("reshape", {{"dims", {1, 77, 6, 64}}}),
+                                      make_op("transpose", {{"permutation", {0, 2, 3, 1}}})});
+    }
+
+    {
+        auto desc = base_desc.rebase({1, 77, 1536});
+        EXPECT(get_final_lens(desc) == final_lens{1, 24, 64, 77});
+        EXPECT(get_all_lens(desc) == all_lens{{1}, {24}, {64}, {77}});
+        EXPECT(desc.generate() == ops{make_op("reshape", {{"dims", {1, 77, 24, 64}}}),
+                                      make_op("transpose", {{"permutation", {0, 2, 3, 1}}})});
+    }
+}
+
 int main(int argc, const char* argv[]) { test::run(argc, argv); }

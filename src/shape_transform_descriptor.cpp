@@ -193,7 +193,8 @@ shape_transform_descriptor shape_transform_descriptor::rebase(const std::vector<
     {
         assert(axis < dims.size());
         auto dim       = dims[axis];
-        if(dim == len(subs))
+        auto xlen = len(subs);
+        if(dim == xlen)
         {
             if(not broadcast)
             {
@@ -227,6 +228,29 @@ shape_transform_descriptor shape_transform_descriptor::rebase(const std::vector<
                     sub->len = 1;
                 }
             }
+        }
+        else if(dim < xlen)
+        {
+            // Map as single index into multidimensional index
+            std::vector<std::size_t> slens;
+            std::transform(subs.begin(),
+                           subs.end(),
+                           std::back_inserter(slens),
+                           [](const dimension::sub* s) { return s->len; });
+            auto s = shape{shape::float_type, slens};
+            auto idx = s.multi(dim - 1);
+            std::transform(subs.begin(),
+                           subs.end(),
+                           idx.begin(),
+                           subs.begin(),
+                           [](dimension::sub* sub, std::size_t i) {
+                               sub->len = i + 1;
+                               return sub;
+                           });
+        }
+        else if(dim > xlen and dim % xlen == 0)
+        {
+            subs.front()->len *= (dim / xlen);
         }
         else
             MIGRAPHX_THROW("Invalid rebase");

@@ -27,14 +27,22 @@
 #include <migraphx/generate.hpp>
 #include <migraphx/make_op.hpp>
 
-struct test_group_query_attention_prompt_small
-    : verify_program<test_group_query_attention_prompt_small>
+#ifdef _WIN32
+// cppcheck-suppress definePrefix
+#define WIN32_LEAN_AND_MEAN
+#include <Windows.h>
+// cppcheck-suppress definePrefix
+#define setenv(_n, _v, ...) ::SetEnvironmentVariable(_n, _v)
+#endif
+
+struct test_group_query_attention_decode_small
+    : verify_program<test_group_query_attention_decode_small>
 {
     migraphx::program create_program() const
     {
         migraphx::program p;
         auto* mm = p.get_main_module();
-        std::vector<size_t> query_lens{1, 2, 12};
+        std::vector<size_t> query_lens{1, 1, 12};
         std::vector<size_t> kv_lens{1, 2, 4, 2};
         std::vector<size_t> slk_lens{1, 1};
         std::vector<size_t> tsl_lens{1, 1};
@@ -46,7 +54,7 @@ struct test_group_query_attention_prompt_small
         migraphx::shape tsl_s{migraphx::shape::int32_type, tsl_lens};
         migraphx::shape cs_cache_s{dtype, cs_cache_lens};
         auto query = mm->add_parameter("query", query_s);
-        std::vector<int> slk_vec(slk_s.elements(), 2);
+        std::vector<int> slk_vec(slk_s.elements(), 3);
         std::vector<int> tsl_vec(tsl_s.elements(), 4);
         std::vector<float> cs_min_vec(cs_cache_s.elements(), -1.0);
         std::vector<float> cs_max_vec(cs_cache_s.elements(), 1.0);

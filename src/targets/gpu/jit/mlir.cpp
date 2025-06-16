@@ -106,19 +106,18 @@ struct mlir_compiler : compiler<mlir_compiler>
 
     void set_fill_map(compiler_replace& cr, const module& m) const
     {
-        std::size_t fill_val = 1;
         for(auto ins : iterator_for(m))
         {
-            if(ins->name() == "greater_or_equal")
+            if(ins->name() == "greater")
             {
-                fill_val = ins->get_shape().lens().back() - 1;
+                auto fill_val = ins->get_shape().lens().back() - 1;
                 for(auto inp : ins->inputs())
                 {
                     auto [is_param, param] = input_is_param(inp);
                     if(is_param)
                     {
                         auto id = param->get_shape().type_string() +
-                                  param->get_shape().to_sizes_string({param->get_shape()});
+                                  migraphx::shape::to_sizes_string({param->get_shape()});
                         cr.fill_map[id] = static_cast<double>(fill_val);
                     }
                 }

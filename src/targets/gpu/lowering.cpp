@@ -557,17 +557,6 @@ struct miopen_apply
                                                      {"output_shape", to_value(ins->get_shape())}}),
                                             ins->inputs());
         });
-
-        apply_map.emplace("gpu::kv_cache_attention", [=](instruction_ref ins) {
-            auto s          = ins->get_shape();
-            auto output     = insert_allocation(ins, s);
-            auto new_inputs = ins->inputs();
-            new_inputs.push_back(output);
-            return mod->replace_instruction(
-                ins,
-                make_op("gpu::precompile_op", {{"op", to_value(ins->get_operator())}}),
-                new_inputs);
-        });
     }
 
     void add_scan_slice_op()

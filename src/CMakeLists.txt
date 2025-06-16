@@ -193,6 +193,7 @@ register_migraphx_ops(
     get_tuple_elem
     greater
     group_query_attention
+    group
     gru
     identity
     if_op

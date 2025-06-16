@@ -564,8 +564,7 @@ struct parse_attention : op_parser<parse_attention>
         auto qk_masked = qk_biased;
         if(masked) 
         {
-            auto bc_mask = info.add_instruction(make_op("multibroadcast", {{"out_lens", qk_out->get_shape().lens()}}), mask);
-            qk_masked = info.add_common_op("add", qk_biased, bc_mask);
+            qk_masked = info.add_common_op("add", qk_masked, mask);
         } 
 
         auto recip_scale = info.add_instruction(make_op("recip"), scale_factor);
@@ -666,36 +665,76 @@ struct parse_attention : op_parser<parse_attention>
         return info.add_literal(migraphx::literal{migraphx::shape{in_shape_type, {num_rows, num_cols}}, mask_mat});
     }
 
+    static instruction_ref check_and_set_unidirectional(const onnx_parser::node_info& info,
+                                               const instruction_ref& mask_input,
+                                               bool is_unidirectional_mask)
+    {
+        auto mask = mask_input;
+        // Unidirectional means we have to mask out the upper triangular part 
+        // Seen often in decoder blocks that don't want to "look ahead" and add those to the attention score.
+        if(is_unidirectional_mask)
+        {
+            auto triangle_mask = generate_triangular_mat(info, mask_input, false);
+            mask = info.add_common_op("mul", mask, triangle_mask);
+        }
+        return mask;
+    }
+
+    // Slice, mul, convert and concat until we get a mask matrix useful prior to the where
+    static instruction_ref generate_raw_mask_per_batch(const onnx_parser::node_info& info,
+                                                       const instruction_ref& input,
+                                                       const instruction_ref& mask_input,
+                                                       const attention_attr& parsed_in,
+                                                       const attention_infered& infered_in)
+    {
+        auto batch_size    = infered_in.batch_size;
+        auto total_seq_len = infered_in.total_sequence_length;
+        auto num_heads     = parsed_in.num_heads;
+
+        // Other two cases require us to generate masks from sequence or total sequence length pads.
+        auto pass_value_lit = info.add_literal(migraphx::literal{migraphx::shape{input->get_shape().type(), {1}, {1}}, {0}});
+        auto mask_value_lit = info.add_literal(migraphx::literal{migraphx::shape{input->get_shape().type(), {1}, {1}}, {parsed_in.mask_filter_val}});
+
+        // For dim = 2 or dim =3 generate the apporiate mask across batches
+        // We need to handle the batch case since raw masking involes shape [batch, seq_len] or [batch, seq_len, total_seq_len], 
+        auto bc_pass = info.add_instruction(make_op("multibroadcast", {{"out_lens", {batch_size, num_heads, total_seq_len, total_seq_len}}}), pass_value_lit);
+        auto bc_mask = info.add_instruction(make_op("multibroadcast", {{"out_lens", {batch_size, num_heads, total_seq_len, total_seq_len}}}), mask_value_lit);
+
+        auto raw_mask = mask_input;
+        // For raw masks we just need to mask out key value padding thus the 3d mask isn't needed here. 
+        raw_mask = info.add_instruction(make_op("reshape", {{"dims", {batch_size, 1, 1, total_seq_len}}}), raw_mask);
+        raw_mask = info.add_instruction(make_op("multibroadcast", {{"out_lens", {batch_size, num_heads, total_seq_len, total_seq_len}}}), raw_mask);
+        raw_mask = info.add_instruction(make_op("reshape", {{"dims", {batch_size, num_heads, total_seq_len, total_seq_len}}}), raw_mask);
+
+        // Reuse "0" broadcasted converted to int32 to check if input mask is greater than 0 for where condition
+        auto in_pass = info.add_instruction(make_op("convert", {{"target_type", mask_input->get_shape().type()}}), bc_pass);
+        auto in_bool = info.add_instruction(make_op("equal"), raw_mask, in_pass);
+        auto final_mask   = info.add_instruction(make_op("where"), in_bool, bc_mask, bc_pass);
+
+        return final_mask;
+    }
+
     static instruction_ref create_input_mask(const onnx_parser::node_info& info,
-                                             const instruction_ref& input,
+                                             const instruction_ref& input, // TODO: Convert this to type
                                              const instruction_ref& mask_input,
                                              const attention_infered& infered_in,
                                              const attention_attr& parsed_in)
     {
         instruction_ref final_mask;
-        auto mask_value_literal = info.add_literal(migraphx::literal{migraphx::shape{input->get_shape().type(), {1}, {1}}, {parsed_in.mask_filter_val}});
-        auto pass_value_literal = info.add_literal(migraphx::literal{migraphx::shape{input->get_shape().type(), {1}, {1}}, {0}});
+        // Shape Scale dot attention prior to mask will be in (batch, num_heads, query_size, query_size) thus mask needs to handle batch and query_size
+        // We should return mask of batch, 1, query_size, query_size so that this per-batch masked can be broadcasted across each attention head
 
         if(infered_in.index_pad == RAW)
-        {   // Raw case, 0 means mask 1 means pass through thus invert the matrix then multiply by mask_value
-            auto bc_pass = info.add_instruction(make_op("multibroadcast", {{"out_lens", mask_input->get_shape().lens()}}), pass_value_literal);
-            auto bc_mask = info.add_instruction(make_op("multibroadcast", {{"out_lens", mask_input->get_shape().lens()}}), mask_value_literal);
+        {   // Raw Mask - 0 means mask, 1 means pass through. Apply mask_filter_val to mask indicies and zero otherwise
+            auto mask_dims     = mask_input->get_shape().ndim();
 
-            auto raw_mask = mask_input;
-
-            if(parsed_in.unidirectional)
-            { // Unidirectional means we have to mask out the upper triangular part 
-                auto triangle_mask = generate_triangular_mat(info, mask_input, false);
-                raw_mask = info.add_instruction(make_op("mul"), raw_mask, triangle_mask);
+            // Case 1: Input is already in (batch, 1, query_size, query_size) format - Just need to handle unidirectional case
+            if (mask_dims == 4)
+            {
+                return check_and_set_unidirectional(info, mask_input, parsed_in.unidirectional);
             }
-
-            // Reuse "0" broadcasted converted to int32 to check if input mask is greater than 0 for where condition
-            auto in_pass = info.add_instruction(make_op("convert", {{"target_type", mask_input->get_shape().type()}}), bc_pass);
-            auto in_bool = info.add_instruction(make_op("greater"), raw_mask, in_pass);
-            final_mask   = info.add_instruction(make_op("where"), in_bool, bc_mask, bc_pass);
-
-            final_mask = info.add_instruction(make_op("unsqueeze", {{"axes", {0}}}), final_mask);
-            final_mask = info.add_instruction(make_op("unsqueeze", {{"axes", {0}}}), final_mask);
+            // Need to generate from 2 dims or 3 dim cases
+            final_mask = generate_raw_mask_per_batch(info, input, mask_input, parsed_in, infered_in);
         }
         else if(infered_in.index_pad == LEFT_PADDING)
         {

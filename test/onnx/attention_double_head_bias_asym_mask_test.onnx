@@ -1,5 +1,4 @@
-
-)attention_double_head_bias_asym_mask_test:
+	)attention_double_head_bias_asym_mask_test:
 Q
 input
 weights
@@ -29,4 +28,4 @@ mask_index
 
 
 
-B
+B

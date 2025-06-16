@@ -58,7 +58,6 @@ TEST_CASE(attention_double_head_batch1_test)
     pp["input"]   = input.get_argument();
     pp["weights"] = weights.get_argument();
     pp["bias"] = bias.get_argument();
-    pp["mask_index"] = bias.get_argument();
 
     auto result = p.eval(pp).back();
     std::vector<float> result_vector;

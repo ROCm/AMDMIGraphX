@@ -305,10 +305,10 @@ struct nonmaxsuppression
                                return std::make_pair(sc, box_idx - 1);
                            });
         }
-        // sort by the higher score, or if equal then the early (i.e. lower) index of the box
+        // Sort by the higher score; or if equal then the early (i.e. lower) index of the box
+        // The tie below compares in effect t2.second > t1.second
         par_sort(boxes_heap.begin(), boxes_heap.end(), [](auto const& t1, auto const& t2) {
-            return std::get<0>(t1) > std::get<0>(t2) or
-                   (not(std::get<0>(t1) < std::get<0>(t2)) and (std::get<1>(t1) < std::get<1>(t2)));
+            return std::tie(t1.first, t2.second) > std::tie(t2.first, t1.second);
         });
         return boxes_heap;
     }

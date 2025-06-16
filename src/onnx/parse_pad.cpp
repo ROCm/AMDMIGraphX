@@ -180,7 +180,7 @@ struct parse_pad : op_parser<parse_pad>
                     MIGRAPHX_THROW("PARSE_PAD: reflect padding with dynamic shape not supported");
                 }
             }
-            else if(mode != "constant" && mode != "edge")
+            else if(mode != "constant" and mode != "edge")
             {
                 MIGRAPHX_THROW("PARSE_PAD: MIGraphX currently only supports constant, reflect, and "
                                "edge padding");

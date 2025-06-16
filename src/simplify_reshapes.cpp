@@ -227,14 +227,15 @@ struct find_op_shape_transform_op
                 else
                 {
                     auto input_shape = inputs.front()->get_shape();
-                    auto diff_len = [&](std::size_t a) {
+                    auto diff_len    = [&](std::size_t a) {
                         return input_shape.lens().at(a) != common_dims.at(a);
                     };
                     assert(std::count_if(new_axes.begin(), new_axes.end(), diff_len) == 1);
-                    auto it = std::find_if(new_axes.begin(), new_axes.end(), diff_len);
-                    auto j = std::distance(new_axes.begin(), it);
+                    auto it       = std::find_if(new_axes.begin(), new_axes.end(), diff_len);
+                    auto j        = std::distance(new_axes.begin(), it);
                     auto new_axis = *it;
-                    auto dim = common_dims.at(new_axis);;
+                    auto dim      = common_dims.at(new_axis);
+                    ;
                     auto n = op_ends[i] - op_starts[i];
                     auto k = n / dim;
 
@@ -361,7 +362,8 @@ struct find_op_shape_transform_op
                        x_inputs.end(),
                        x_inputs.begin(),
                        reshape_input(x_ins, desc.to_common_from_src()));
-        auto new_input_ins = insert(m, x_ins, x_inputs, desc.common_dims(), desc.common_axes_map_from_src());
+        auto new_input_ins =
+            insert(m, x_ins, x_inputs, desc.common_dims(), desc.common_axes_map_from_src());
         auto new_x_ins     = reshape_input(x_ins, desc.to_src_from_common())(new_input_ins);
         if(new_input_ins->get_shape().elements() != input_ins->get_shape().elements())
         {

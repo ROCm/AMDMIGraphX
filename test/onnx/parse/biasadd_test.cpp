@@ -22,29 +22,21 @@
  * THE SOFTWARE.
  */
 
-#ifndef MIGRAPHX_GUARD_RTGLIB_HALF_HPP
-#define MIGRAPHX_GUARD_RTGLIB_HALF_HPP
+#include <onnx_test.hpp>
 
-#include <migraphx/config.hpp>
-#include <migraphx/generic_float.hpp>
-
-namespace migraphx {
-inline namespace MIGRAPHX_INLINE_NS {
-
-using half = migraphx::generic_float<10, 5>;
-
-namespace detail {
-template <class T>
-struct deduce
+TEST_CASE(biasadd_test)
 {
-    using type = T;
-};
-} // namespace detail
+    migraphx::program p;
+    auto* mm  = p.get_main_module();
+    auto x    = mm->add_parameter("x", migraphx::shape{migraphx::shape::float_type, {2, 3, 4}});
+    auto bias = mm->add_parameter("bias", migraphx::shape{migraphx::shape::float_type, {4}});
+    auto skip = mm->add_parameter("skip", migraphx::shape{migraphx::shape::float_type, {2, 3, 4}});
 
-template <class T>
-using deduce = typename detail::deduce<T>::type;
+    auto x_plus_bias = add_common_op(*mm, migraphx::make_op("add"), {x, bias});
+    auto ret         = add_common_op(*mm, migraphx::make_op("add"), {x_plus_bias, skip});
+    mm->add_return({ret});
 
-} // namespace MIGRAPHX_INLINE_NS
-} // namespace migraphx
+    auto prog = read_onnx("biasadd_test.onnx");
 
-#endif
+    EXPECT(p == prog);
+}

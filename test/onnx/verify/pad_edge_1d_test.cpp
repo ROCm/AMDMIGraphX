@@ -29,7 +29,6 @@
 TEST_CASE(pad_edge_1d_test)
 {
     migraphx::program p = read_onnx("pad_edge_1d_test.onnx");
-    migraphx::compile_options options;
     p.compile(migraphx::make_target("ref"));
 
     migraphx::shape input_shape{migraphx::shape::float_type, {4}};

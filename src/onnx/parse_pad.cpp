@@ -173,11 +173,11 @@ struct parse_pad : op_parser<parse_pad>
         if(contains(info.attributes, "mode"))
         {
             auto mode = info.attributes.at("mode").s();
-            if(mode == "reflect")
+            if(mode == "reflect" or mode == "edge")
             {
                 if(args.front()->get_shape().dynamic())
                 {
-                    MIGRAPHX_THROW("PARSE_PAD: reflect padding with dynamic shape not supported");
+                    MIGRAPHX_THROW("PARSE_PAD: " + mode + " padding with dynamic shape not supported");
                 }
             }
             else if(mode != "constant" and mode != "edge")

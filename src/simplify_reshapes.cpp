@@ -175,6 +175,7 @@ struct find_op_shape_transform_op
     static instruction_ref insert(module& m,
                                   instruction_ref ins,
                                   const std::vector<instruction_ref>& inputs,
+                                  const std::vector<std::size_t>& common_dims,
                                   const AxesMap& am)
     {
         if(is_reduce(ins))
@@ -213,28 +214,38 @@ struct find_op_shape_transform_op
             std::vector<int64_t> axes;
             std::vector<int64_t> starts;
             std::vector<int64_t> ends;
-            for(std::size_t i = 0; i < axes.size(); ++i)
+            for(std::size_t i = 0; i < op_axes.size(); ++i)
             {
                 auto axis     = op_axes[i];
                 auto new_axes = am.at(axis);
-                axes.insert(axes.end(), new_axes.begin(), new_axes.end());
                 if(new_axes.size() == 1)
                 {
+                    axes.push_back(new_axes.front());
                     starts.push_back(op_starts[i]);
                     ends.push_back(op_ends[i]);
                 }
                 else
                 {
-                    auto s     = select(ins->inputs().front()->get_shape(), new_axes);
-                    auto start = s.multi(op_starts[i]);
-                    auto end   = s.multi(op_ends[i]);
-                    starts.insert(starts.end(), start.begin(), start.end());
-                    ends.insert(ends.end(), end.begin(), end.end());
+                    auto input_shape = inputs.front()->get_shape();
+                    auto diff_len = [&](std::size_t a) {
+                        return input_shape.lens().at(a) != common_dims.at(a);
+                    };
+                    assert(std::count_if(new_axes.begin(), new_axes.end(), diff_len) == 1);
+                    auto it = std::find_if(new_axes.begin(), new_axes.end(), diff_len);
+                    auto j = std::distance(new_axes.begin(), it);
+                    auto new_axis = *it;
+                    auto dim = common_dims.at(new_axis);;
+                    auto n = op_ends[i] - op_starts[i];
+                    auto k = n / dim;
+
+                    axes.push_back(new_axis);
+                    starts.push_back(op_starts[j] / k);
+                    ends.push_back(op_ends[j] / k);
                 }
             }
             v["starts"] = starts;
             v["ends"]   = ends;
-            v["axes"]   = op_axes;
+            v["axes"]   = axes;
             return m.insert_instruction(ins, make_op(ins->name(), v), inputs, ins->module_inputs());
         }
         return m.insert_instruction(ins, ins->get_operator(), inputs, ins->module_inputs());
@@ -350,7 +361,7 @@ struct find_op_shape_transform_op
                        x_inputs.end(),
                        x_inputs.begin(),
                        reshape_input(x_ins, desc.to_common_from_src()));
-        auto new_input_ins = insert(m, x_ins, x_inputs, desc.common_axes_map_from_src());
+        auto new_input_ins = insert(m, x_ins, x_inputs, desc.common_dims(), desc.common_axes_map_from_src());
         auto new_x_ins     = reshape_input(x_ins, desc.to_src_from_common())(new_input_ins);
         if(new_input_ins->get_shape().elements() != input_ins->get_shape().elements())
         {
@@ -372,7 +383,7 @@ struct find_op_shape_transform_op
         assert(x_ins->get_shape().lens() == new_x_ins->get_shape().lens());
         m.replace_instruction(x_ins, new_x_ins);
         // Replace final instruction
-        auto pw   = insert(m, ins, inputs, desc.common_axes_map_from_dst());
+        auto pw   = insert(m, ins, inputs, desc.common_dims(), desc.common_axes_map_from_dst());
         auto rins = reshape_input(ins, desc.to_dst_from_common())(pw);
         assert(ins->get_shape().lens() == rins->get_shape().lens());
         m.replace_instruction(ins, rins);

@@ -86,7 +86,13 @@ def parse_args():
                         dest="ort_logging",
                         action='store_true',
                         default=False,
-                        help='Turn on ort VERBOSE logging via session options')
+                        help='turn on ort verbose logging via session options')
+
+    parser.add_argument('--show-test-data',
+                        dest="show_data",
+                        action='store_true',
+                        default=False,
+                        help='turn on ort verbose logging via session options')
 
     parser.add_argument(
         '--disable-offload-copy',
@@ -238,6 +244,7 @@ def main():
             print(f'Parameter {name} -> {shape}')
         in_shape = shape.lens()
         in_type = shape.type_string()
+
         if not args.fill1 and not args.fill0:
             test_input = np.random.rand(*(in_shape)).astype(
                 get_np_datatype(in_type))
@@ -245,8 +252,32 @@ def main():
             test_input = np.ones(in_shape).astype(get_np_datatype(in_type))
         else:
             test_input = np.zeros(in_shape).astype(get_np_datatype(in_type))
+
+        #if name == "input":
+            #test_input = np.array([[[1,   -3,   5,   7],
+            #                        [9,  11,  -13,  15]],
+            #                       [[2,   -4,   6,   8],
+            #                        [10,  12,  14,  -16]]]).astype(get_np_datatype(in_type))
+            
+        #    test_input = test_input * 0.0000000000001
+
+        #if name == "weights":
+        #    test_input = test_input * 0.0001
+
+        if name == "mask_index":
+            #test_input = np.array([[1, 1]]).astype(get_np_datatype(in_type))
+            #test_input = np.array([[0, 1], [0, 0]]).astype(get_np_datatype(in_type))
+            test_input = np.array([[1, 0, 1], [0, 1, 0]]).astype(get_np_datatype(in_type))
+
+
         test_inputs[name] = test_input
-        migraphx_arg = migraphx.argument(test_input)
+
+        if args.show_data:
+            print(test_input)
+            print("\n")
+
+
+        migraphx_arg = migraphx.argument(test_inputs[name])
         if not args.offload_copy:
             migraphx_arg = migraphx.to_gpu(migraphx_arg)
         params[name] = migraphx_arg
@@ -323,6 +354,12 @@ def main():
         with tf.compat.v1.Session(graph=graph) as sess:
             y_out = sess.run(y, feed_dict=tf_dict)
             pred_fw = y_out
+
+    if args.show_data:
+        print("Output data\n")
+        print(pred_fw)
+        print("\n")
+
 
     if not args.ort_run:
         is_correct = check_correctness(pred_fw, pred_migx, args.tolerance,

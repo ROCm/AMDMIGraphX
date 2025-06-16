@@ -27,14 +27,6 @@
 #include <migraphx/generate.hpp>
 #include <migraphx/make_op.hpp>
 
-#ifdef _WIN32
-// cppcheck-suppress definePrefix
-#define WIN32_LEAN_AND_MEAN
-#include <Windows.h>
-// cppcheck-suppress definePrefix
-#define setenv(_n, _v, ...) ::SetEnvironmentVariable(_n, _v)
-#endif
-
 struct test_group_query_attention_prefill : verify_program<test_group_query_attention_prefill>
 {
     migraphx::program create_program() const

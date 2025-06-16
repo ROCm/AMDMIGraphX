@@ -119,7 +119,7 @@ double time_program(const context& ictx,
     for(const auto& [name, shape] : in_shapes)
     {
         std::string id = "";
-        if (shape.type() != migraphx::shape::tuple_type)
+        if(shape.type() != migraphx::shape::tuple_type)
             id = shape.type_string() + migraphx::shape::to_sizes_string({shape.as_standard()});
 
         if(contains(fill_map, id))

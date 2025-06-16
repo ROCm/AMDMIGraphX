@@ -1362,7 +1362,7 @@ TEST_CASE(group_op)
         m1.add_params({l0}, &map_mm_to_m1);
         auto add =
             m1.add_instruction(migraphx::make_op("add"), map_mm_to_m1.at(l0), map_mm_to_m1.at(l0));
-        auto ret = m1.add_return({add, add});
+        auto ret                    = m1.add_return({add, add});
         migraphx::module_ref m1_ref = p.create_module("m_add", std::move(m1));
         auto group =
             mm->add_instruction(migraphx::make_op("group", {{"tag", "add"}}), {l0}, {m1_ref});

@@ -1086,7 +1086,7 @@ struct find_mlir_output_reshape_ops
 
     void apply(module_pass_manager& mpm, const match::matcher_result& r) const
     {
-        auto mlir_op_ins  = r.result;
+        auto mlir_op_ins     = r.result;
         auto last_reshape    = r.instructions["last_reshape"];
         auto* mlir_op_module = mlir_op_ins->module_inputs().front();
         std::vector<instruction_ref> reshape_instructions;
@@ -1140,14 +1140,14 @@ struct find_channel_slice_convolution
     static std::size_t get_slice_group(instruction_ref slice)
     {
         auto input = slice->inputs().front();
-        auto op = slice->get_operator().to_value();
-        auto axes = op["axes"].to_vector<std::size_t>();
+        auto op    = slice->get_operator().to_value();
+        auto axes  = op["axes"].to_vector<std::size_t>();
         if(axes.size() != 1)
             return 0;
         if(axes.front() != 1)
             return 0;
         auto ichannels = input->get_shape().lens().at(1);
-        auto channels = slice->get_shape().lens().at(1);
+        auto channels  = slice->get_shape().lens().at(1);
         if((ichannels % channels) != 0)
             return 0;
         return ichannels / channels;
@@ -1155,7 +1155,7 @@ struct find_channel_slice_convolution
 
     void apply(module_pass_manager& mpm, const match::matcher_result& r) const
     {
-        auto ins = r.result;
+        auto ins   = r.result;
         auto slice = r.instructions["slice"];
         auto input = slice->inputs().front();
         auto group = get_slice_group(slice);
@@ -1166,12 +1166,12 @@ struct find_channel_slice_convolution
         // check that all slice instructions coming off from `input` are making
         // the same size slice.
         if(not all_of(input->outputs(), [&](instruction_ref output) {
-            if(output->name() != "slice")
-                return false;
-            auto ichannels = output->inputs().front()->get_shape().lens().at(1);
-            auto channels = output->get_shape().lens().at(1);
-            return channels * group == ichannels;
-        }))
+                if(output->name() != "slice")
+                    return false;
+                auto ichannels = output->inputs().front()->get_shape().lens().at(1);
+                auto channels = output->get_shape().lens().at(1);
+                return channels * group == ichannels;
+            }))
         {
             return;
         }
@@ -1202,13 +1202,13 @@ struct find_channel_slice_convolution
         transpose_perm1.at(2) = dims.size() - 1;
         std::iota(transpose_perm1.begin() + 3, transpose_perm1.end(), 2);
 
-        auto outputs = input->outputs();
+        auto outputs       = input->outputs();
         auto ins_to_insert = std::next(input);
         auto reshape1      = mpm.get_module().insert_instruction(
             ins_to_insert, make_op("reshape_lazy", {{"dims", dims}}), input);
         auto t1 = mpm.get_module().insert_instruction(
             ins_to_insert, make_op("transpose", {{"permutation", transpose_perm0}}), reshape1);
-        auto c = mpm.get_module().insert_instruction(ins_to_insert, make_op("contiguous"), t1);
+        auto c  = mpm.get_module().insert_instruction(ins_to_insert, make_op("contiguous"), t1);
         auto t2 = mpm.get_module().insert_instruction(
             ins_to_insert, make_op("transpose", {{"permutation", transpose_perm1}}), c);
         // spacer identity instruction
@@ -1217,7 +1217,7 @@ struct find_channel_slice_convolution
         // Replace slice operators to 0 axis
         for(auto output : outputs)
         {
-            auto v = output->get_operator().to_value();
+            auto v      = output->get_operator().to_value();
             auto starts = v["starts"].to_vector<std::size_t>();
             auto i      = starts.front() / output->get_shape().lens()[1]; // note integer truncation
             auto s      = mpm.get_module().insert_instruction(
@@ -1247,7 +1247,7 @@ void fuse_mlir::apply(module_pass_manager& mpm) const
             return mlir_mode::all;
         return std::max(m1, m2);
     };
-    
+
     match::find_matches(mpm, find_channel_slice_convolution{});
     mpm.run_pass(dead_code_elimination{});
 

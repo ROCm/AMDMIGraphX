@@ -1074,8 +1074,10 @@ struct find_mlir_output_reshape_ops
     auto matcher() const
     {
         auto reshapes = reshaper_names();
-        // slice is not supported
+        // slice is not supported, remove broadcasts
         reshapes.erase("slice");
+        reshapes.erase("broadcast");
+        reshapes.erase("multibroadcast");
         auto atleast_one_reshape =
             match::all_of(match::output(match::name(reshapes)),
                           match::skip_output(match::name(reshapes).bind("last_reshape")));

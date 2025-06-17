@@ -49,7 +49,7 @@ struct parse_convolution : op_parser<parse_convolution>
     instruction_ref parse(const op_desc& opd,
                           const onnx_parser& parser,
                           onnx_parser::node_info info,
-                          std::vector<instruction_ref> args) const
+                          const std::vector<instruction_ref>& args) const
     {
         // ensure pads available only when auto_pad is "NOT_SET"
         check_padding_mode(info, opd.onnx_name);

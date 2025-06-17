@@ -3427,14 +3427,10 @@ TEST_CASE(reorder_reshape_slice_move_axis2)
         auto slc2 = m1.add_instruction(
             migraphx::make_op("slice", {{"axes", {1}}, {"starts", {64}}, {"ends", {96}}}), input);
 
-        auto c0 = m1.add_instruction(migraphx::make_op("contiguous"), slc0);
-        auto c1 = m1.add_instruction(migraphx::make_op("contiguous"), slc1);
-        auto c2 = m1.add_instruction(migraphx::make_op("contiguous"), slc2);
-
         std::vector<int64_t> lens = {1, 16, 8, 32};
-        auto r0 = m1.add_instruction(migraphx::make_op("reshape", {{"dims", lens}}), c0);
-        auto r1 = m1.add_instruction(migraphx::make_op("reshape", {{"dims", lens}}), c1);
-        auto r2 = m1.add_instruction(migraphx::make_op("reshape", {{"dims", lens}}), c2);
+        auto r0 = m1.add_instruction(migraphx::make_op("reshape", {{"dims", lens}}), slc0);
+        auto r1 = m1.add_instruction(migraphx::make_op("reshape", {{"dims", lens}}), slc1);
+        auto r2 = m1.add_instruction(migraphx::make_op("reshape", {{"dims", lens}}), slc2);
 
         auto sum = m1.add_instruction(migraphx::make_op("add"), r0, r1);
         auto ret = m1.add_instruction(migraphx::make_op("mul"), sum, r2);
@@ -3476,14 +3472,10 @@ TEST_CASE(reorder_reshape_slice_len_1)
         auto slc2 = m1.add_instruction(
             migraphx::make_op("slice", {{"axes", {2}}, {"starts", {2}}, {"ends", {3}}}), input);
 
-        auto c0 = m1.add_instruction(migraphx::make_op("contiguous"), slc0);
-        auto c1 = m1.add_instruction(migraphx::make_op("contiguous"), slc1);
-        auto c2 = m1.add_instruction(migraphx::make_op("contiguous"), slc2);
-
         std::vector<int64_t> lens = {1, 128};
-        auto r0 = m1.add_instruction(migraphx::make_op("reshape", {{"dims", lens}}), c0);
-        auto r1 = m1.add_instruction(migraphx::make_op("reshape", {{"dims", lens}}), c1);
-        auto r2 = m1.add_instruction(migraphx::make_op("reshape", {{"dims", lens}}), c2);
+        auto r0 = m1.add_instruction(migraphx::make_op("reshape", {{"dims", lens}}), slc0);
+        auto r1 = m1.add_instruction(migraphx::make_op("reshape", {{"dims", lens}}), slc1);
+        auto r2 = m1.add_instruction(migraphx::make_op("reshape", {{"dims", lens}}), slc2);
 
         auto sum = m1.add_instruction(migraphx::make_op("add"), r0, r1);
         auto ret = m1.add_instruction(migraphx::make_op("mul"), sum, r2);
@@ -3525,14 +3517,10 @@ TEST_CASE(reorder_reshape_slice_not_apply)
         auto slc2 = m.add_instruction(
             migraphx::make_op("slice", {{"axes", {1}}, {"starts", {64}}, {"ends", {96}}}), input);
 
-        auto c0 = m.add_instruction(migraphx::make_op("contiguous"), slc0);
-        auto c1 = m.add_instruction(migraphx::make_op("contiguous"), slc1);
-        auto c2 = m.add_instruction(migraphx::make_op("contiguous"), slc2);
-
         std::vector<int64_t> lens = {1, 16, 16, 16};
-        auto r0 = m.add_instruction(migraphx::make_op("reshape", {{"dims", lens}}), c0);
-        auto r1 = m.add_instruction(migraphx::make_op("reshape", {{"dims", lens}}), c1);
-        auto r2 = m.add_instruction(migraphx::make_op("reshape", {{"dims", lens}}), c2);
+        auto r0 = m.add_instruction(migraphx::make_op("reshape", {{"dims", lens}}), slc0);
+        auto r1 = m.add_instruction(migraphx::make_op("reshape", {{"dims", lens}}), slc1);
+        auto r2 = m.add_instruction(migraphx::make_op("reshape", {{"dims", lens}}), slc2);
 
         auto sum = m.add_instruction(migraphx::make_op("add"), r0, r1);
         auto ret = m.add_instruction(migraphx::make_op("mul"), sum, r2);
@@ -3643,14 +3631,11 @@ TEST_CASE(reorder_reshape_slice_partial)
         auto slc3 = m1.add_instruction(
             migraphx::make_op("slice", {{"axes", {0}}, {"starts", {24}}, {"ends", {128}}}), input);
 
-        auto c0 = m1.add_instruction(migraphx::make_op("contiguous"), slc0);
-        auto c1 = m1.add_instruction(migraphx::make_op("contiguous"), slc1);
-        auto c2 = m1.add_instruction(migraphx::make_op("contiguous"), slc2);
 
         std::vector<int64_t> lens = {2, 4, 96};
-        auto r0 = m1.add_instruction(migraphx::make_op("reshape", {{"dims", lens}}), c0);
-        auto r1 = m1.add_instruction(migraphx::make_op("reshape", {{"dims", lens}}), c1);
-        auto r2 = m1.add_instruction(migraphx::make_op("reshape", {{"dims", lens}}), c2);
+        auto r0 = m1.add_instruction(migraphx::make_op("reshape", {{"dims", lens}}), slc0);
+        auto r1 = m1.add_instruction(migraphx::make_op("reshape", {{"dims", lens}}), slc1);
+        auto r2 = m1.add_instruction(migraphx::make_op("reshape", {{"dims", lens}}), slc2);
 
         auto sum = m1.add_instruction(migraphx::make_op("add"), r0, r1);
         auto ret = m1.add_instruction(migraphx::make_op("mul"), sum, r2);
@@ -3696,14 +3681,10 @@ TEST_CASE(reorder_reshape_slice_uneven_slice)
         auto slc3 = m.add_instruction(
             migraphx::make_op("slice", {{"axes", {0}}, {"starts", {93}}, {"ends", {128}}}), input);
 
-        auto c0 = m.add_instruction(migraphx::make_op("contiguous"), slc0);
-        auto c1 = m.add_instruction(migraphx::make_op("contiguous"), slc1);
-        auto c2 = m.add_instruction(migraphx::make_op("contiguous"), slc2);
-
         std::vector<int64_t> lens = {1, 31, 96};
-        auto r0 = m.add_instruction(migraphx::make_op("reshape", {{"dims", lens}}), c0);
-        auto r1 = m.add_instruction(migraphx::make_op("reshape", {{"dims", lens}}), c1);
-        auto r2 = m.add_instruction(migraphx::make_op("reshape", {{"dims", lens}}), c2);
+        auto r0 = m.add_instruction(migraphx::make_op("reshape", {{"dims", lens}}), slc0);
+        auto r1 = m.add_instruction(migraphx::make_op("reshape", {{"dims", lens}}), slc1);
+        auto r2 = m.add_instruction(migraphx::make_op("reshape", {{"dims", lens}}), slc2);
 
         auto sum = m.add_instruction(migraphx::make_op("add"), r0, r1);
         auto ret = m.add_instruction(migraphx::make_op("mul"), sum, r2);
@@ -3732,15 +3713,11 @@ static void reorder_reshape_slice_diff_dims()
         auto slc2 = m1.add_instruction(
             migraphx::make_op("slice", {{"axes", {2}}, {"starts", {64}}, {"ends", {96}}}), input);
 
-        auto c0 = m1.add_instruction(migraphx::make_op("contiguous"), slc0);
-        auto c1 = m1.add_instruction(migraphx::make_op("contiguous"), slc1);
-        auto c2 = m1.add_instruction(migraphx::make_op("contiguous"), slc2);
-
         std::vector<int64_t> lens  = {static_cast<int64_t>(BS), 32, 3, 32};
         std::vector<int64_t> lens1 = {static_cast<int64_t>(BS), 48, 2, 32};
-        auto r0 = m1.add_instruction(migraphx::make_op("reshape", {{"dims", lens}}), c0);
-        auto r1 = m1.add_instruction(migraphx::make_op("reshape", {{"dims", lens1}}), c1);
-        auto r2 = m1.add_instruction(migraphx::make_op("reshape", {{"dims", lens}}), c2);
+        auto r0 = m1.add_instruction(migraphx::make_op("reshape", {{"dims", lens}}), slc0);
+        auto r1 = m1.add_instruction(migraphx::make_op("reshape", {{"dims", lens1}}), slc1);
+        auto r2 = m1.add_instruction(migraphx::make_op("reshape", {{"dims", lens}}), slc2);
 
         m1.add_return({r0, r1, r2});
     };

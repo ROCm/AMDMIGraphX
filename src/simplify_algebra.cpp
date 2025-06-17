@@ -36,6 +36,7 @@
 #include <migraphx/make_op.hpp>
 #include <migraphx/serialize.hpp>
 #include <migraphx/instruction.hpp>
+#include <migraphx/shape_transform_descriptor.hpp>
 
 #include <migraphx/algorithm.hpp>
 #include <unordered_set>
@@ -1862,10 +1863,22 @@ static bool same_ops(const std::vector<instruction_ref>& vec_ins)
 
 struct find_split_reshape
 {
+    static const auto& reshape_ops()
+    {
+        static const std::unordered_set<std::string> names = {
+            "flatten",
+            "reshape",
+            "reshape_lazy",
+            "squeeze",
+            "unsqueeze",
+        };
+        return names;
+    }
     auto matcher() const
     {
-        auto slice_bind_slice = match::arg(0)(match::name("slice").bind("slice"));
-        return match::name("reshape")(match::arg(0)(match::name("contiguous")(slice_bind_slice)))
+        auto slice_bind_slice = match::name("slice").bind("slice");
+        auto reshape = match::name(reshape_ops());
+        return reshape(match::arg(0)(match::skip(match::name("contiguous"))(slice_bind_slice)))
             .bind("reshape");
     }
 
@@ -1874,6 +1887,93 @@ struct find_split_reshape
         auto slc   = r.instructions["slice"];
         auto rsp   = r.instructions["reshape"];
         auto input = slc->inputs().front();
+
+#if 1
+        auto split_outputs = get_splits(input);
+        if(split_outputs.empty())
+        {
+            return;
+        }
+
+        std::vector<shape_transform_descriptor> descs;
+        std::vector<instruction_ref> terminals;
+        for(auto output:split_outputs)
+        {
+            std::vector<operation> ops;
+            auto idims = output->inputs().front()->get_shape().lens();
+            instruction_ref terminal;
+            while(contains(reshape_ops(), output->name()) or output->name() == "contiguous")
+            {
+                ops.push_back(output->get_operator());
+                terminal = output;
+                if(output->outputs().size() == 1)
+                    break;
+                output = output->outputs().front();
+            }
+            auto desc = shape_transform_descriptor::create(idims, ops);
+            if(desc.empty())
+                return;
+            descs.push_back(desc);
+        }
+
+        // Check if all the reshape descriptors are the same
+        if(not std::all_of(descs.begin() + 1, descs.end(), [&](auto i) {
+               return i == descs.front();
+           }))
+        {
+            return;
+        }
+
+        auto desc = descs.front();
+
+        auto am = desc.axes_map_from_src();
+
+        auto v         = slc->get_operator().to_value();
+        auto op_starts = v.at("starts").to_vector<std::size_t>();
+        auto op_ends   = v.at("ends").to_vector<std::size_t>();
+        auto op_axes   = v.at("axes").to_vector<std::size_t>();
+        std::vector<std::size_t> axes;
+        std::vector<std::size_t> starts;
+        std::vector<std::size_t> ends;
+        // TODO: Handle multiple axes
+        if(op_axes.size() > 1)
+        {
+            return;
+        }
+        auto op_axis = op_axes.front();
+
+        auto dims = desc.lens();
+
+        auto new_axes = am[op_axis];
+        if(new_axes.empty())
+            return;
+        auto n = op_ends[0] - op_starts[0];
+        auto idim = input->get_shape().lens().at(op_axis);
+        if(new_axes.size() > 1)
+        {
+            auto axis = *std::min_element(new_axes.begin(), new_axes.end());
+            auto k = n / idim;
+            dims[axis] *= k;
+            axes.push_back(axis);
+            starts.push_back(op_starts[0] / k);
+            ends.push_back(op_ends[0] / k);
+        }
+        else
+        {
+            auto axis = new_axes.front();
+            dims[axis] = idim;
+            axes.push_back(axis);
+            starts = op_starts;
+            ends = op_ends;
+        }
+
+        auto reshape = m.insert_instruction(std::next(input), make_op("reshape", {{"dims", dims}}), input);
+        for(auto terminal:terminals)
+        {
+            m.replace_instruction(terminal, make_op("slice", {{"axes", axes}, {"starts", starts}, {"ends", ends}}), reshape);
+        }
+
+#else
 
         // Only apply simplification when slices are on a single axis
         auto axes = any_cast<op::slice>(slc->get_operator()).axes;
@@ -2025,6 +2125,7 @@ struct find_split_reshape
                     {{"axes", {rsp_axis}}, {"starts", {new_starts[i]}}, {"ends", {new_ends[i]}}}),
                 rsp_ins);
         }
+#endif
     }
 };
 

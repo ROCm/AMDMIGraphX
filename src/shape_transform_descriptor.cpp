@@ -1134,6 +1134,35 @@ std::vector<std::vector<std::size_t>> shape_transform_descriptor::common_axes_ma
     return result;
 }
 
+std::vector<std::vector<std::size_t>> shape_transform_descriptor::axes_map_from_src() const
+{
+    std::vector<std::vector<std::size_t>> result(rank);
+    std::unordered_set<std::size_t> invalid_axes;
+    for(auto i:range(dimensions.size()))
+    {
+        const auto& dim = dimensions[i];
+        for(const auto& sub : dim.subdimensions)
+        {
+            if(sub.axis.empty())
+                continue;
+            if(sub.axis.size() > 1)
+                invalid_axes.insert(sub.axis.front());
+            else
+            {
+                assert(sub.axis.front() < result.size());
+                result[sub.axis.front()].push_back(i);
+            }
+        }
+    }
+    // split axis cannot be mapped
+    for(auto invalid_axis:invalid_axes)
+        result[invalid_axis].clear();
+    // sort the axes
+    for(auto& v:result)
+        std::sort(v.begin(), v.end());
+    return result;
+}
+
 bool shape_transform_descriptor::empty() const { return dimensions.empty(); }
 
 std::vector<std::size_t> shape_transform_descriptor::lens() const

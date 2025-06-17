@@ -1138,7 +1138,7 @@ std::vector<std::vector<std::size_t>> shape_transform_descriptor::axes_map_from_
 {
     std::vector<std::vector<std::size_t>> result(rank);
     std::unordered_set<std::size_t> invalid_axes;
-    for(auto i:range(dimensions.size()))
+    for(auto i : range(dimensions.size()))
     {
         const auto& dim = dimensions[i];
         for(const auto& sub : dim.subdimensions)
@@ -1155,10 +1155,10 @@ std::vector<std::vector<std::size_t>> shape_transform_descriptor::axes_map_from_
         }
     }
     // split axis cannot be mapped
-    for(auto invalid_axis:invalid_axes)
+    for(auto invalid_axis : invalid_axes)
         result[invalid_axis].clear();
     // sort the axes
-    for(auto& v:result)
+    for(auto& v : result)
         std::sort(v.begin(), v.end());
     return result;
 }

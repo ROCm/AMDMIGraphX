@@ -1877,7 +1877,7 @@ struct find_split_reshape
     auto matcher() const
     {
         auto slice_bind_slice = match::name("slice").bind("slice");
-        auto reshape = match::name(reshape_ops());
+        auto reshape          = match::name(reshape_ops());
         return reshape(match::arg(0)(match::skip(match::name("contiguous"))(slice_bind_slice)))
             .bind("reshape");
     }
@@ -1897,7 +1897,7 @@ struct find_split_reshape
 
         std::vector<shape_transform_descriptor> descs;
         std::vector<instruction_ref> terminals;
-        for(auto output:split_outputs)
+        for(auto output : split_outputs)
         {
             std::vector<operation> ops;
             auto idims = output->inputs().front()->get_shape().lens();
@@ -1917,9 +1917,8 @@ struct find_split_reshape
         }
 
         // Check if all the reshape descriptors are the same
-        if(not std::all_of(descs.begin() + 1, descs.end(), [&](auto i) {
-               return i == descs.front();
-           }))
+        if(not std::all_of(
+               descs.begin() + 1, descs.end(), [&](auto i) { return i == descs.front(); }))
         {
             return;
         }
@@ -1947,12 +1946,12 @@ struct find_split_reshape
         auto new_axes = am[op_axis];
         if(new_axes.empty())
             return;
-        auto n = op_ends[0] - op_starts[0];
+        auto n    = op_ends[0] - op_starts[0];
         auto idim = input->get_shape().lens().at(op_axis);
         if(new_axes.size() > 1)
         {
             auto axis = *std::min_element(new_axes.begin(), new_axes.end());
-            auto k = n / idim;
+            auto k    = n / idim;
             dims[axis] *= k;
             axes.push_back(axis);
             starts.push_back(op_starts[0] / k);
@@ -1960,17 +1959,21 @@ struct find_split_reshape
         }
         else
         {
-            auto axis = new_axes.front();
+            auto axis  = new_axes.front();
             dims[axis] = idim;
             axes.push_back(axis);
             starts = op_starts;
-            ends = op_ends;
+            ends   = op_ends;
         }
 
-        auto reshape = m.insert_instruction(std::next(input), make_op("reshape", {{"dims", dims}}), input);
-        for(auto terminal:terminals)
+        auto reshape =
+            m.insert_instruction(std::next(input), make_op("reshape", {{"dims", dims}}), input);
+        for(auto terminal : terminals)
         {
-            m.replace_instruction(terminal, make_op("slice", {{"axes", axes}, {"starts", starts}, {"ends", ends}}), reshape);
+            m.replace_instruction(
+                terminal,
+                make_op("slice", {{"axes", axes}, {"starts", starts}, {"ends", ends}}),
+                reshape);
         }
 
 #else

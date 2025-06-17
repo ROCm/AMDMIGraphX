@@ -3631,7 +3631,6 @@ TEST_CASE(reorder_reshape_slice_partial)
         auto slc3 = m1.add_instruction(
             migraphx::make_op("slice", {{"axes", {0}}, {"starts", {24}}, {"ends", {128}}}), input);
 
-
         std::vector<int64_t> lens = {2, 4, 96};
         auto r0 = m1.add_instruction(migraphx::make_op("reshape", {{"dims", lens}}), slc0);
         auto r1 = m1.add_instruction(migraphx::make_op("reshape", {{"dims", lens}}), slc1);

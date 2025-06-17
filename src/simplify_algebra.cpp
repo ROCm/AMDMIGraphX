@@ -1934,14 +1934,13 @@ struct find_split_reshape
         std::vector<std::size_t> axes;
         std::vector<std::size_t> starts;
         std::vector<std::size_t> ends;
+        auto dims = desc.lens();
         // TODO: Handle multiple axes
         if(op_axes.size() > 1)
         {
             return;
         }
         auto op_axis = op_axes.front();
-
-        auto dims = desc.lens();
 
         auto new_axes = am[op_axis];
         if(new_axes.empty())

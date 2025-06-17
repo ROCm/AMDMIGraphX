@@ -57,7 +57,7 @@ struct gemm : op_builder<gemm>
         auto b_arg = args[1];
         if(a_arg->get_shape().ndim() != 2 or b_arg->get_shape().ndim() != 2)
         {
-            MIGRAPHX_THROW("PARSE_GEMM: A and B should be rank 2, A is rank " +
+            MIGRAPHX_THROW("gemm op_builder: A and B should be rank 2, A is rank " +
                            std::to_string(a_arg->get_shape().ndim()) + ", B is rank " +
                            std::to_string(b_arg->get_shape().ndim()));
         }

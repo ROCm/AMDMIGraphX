@@ -47,7 +47,7 @@ struct mean_variance_normalization : op_builder<mean_variance_normalization>
     {
         auto x = args.front();
         if(axes.size() != x->get_shape().ndim() - 1)
-            MIGRAPHX_THROW("Length of axes attribute needs to be equal to input tensor rank - 1");
+            MIGRAPHX_THROW("mvn op_builder: Length of axes attribute needs to be equal to input tensor rank - 1");
 
         auto x_mean = m.insert_instruction(ins, make_op("reduce_mean", {{"axes", axes}}), x);
         auto x_mean_squared = insert_common_op(m, ins, "mul", x_mean, x_mean);

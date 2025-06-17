@@ -48,14 +48,14 @@ struct celu : op_builder<celu>
     {
         if(float_equal(alpha, 0.0f))
         {
-            MIGRAPHX_THROW("CELU: alpha is zero (division by zero)");
+            MIGRAPHX_THROW("celu op_builder: alpha is zero (division by zero)");
         }
 
         auto input_lens = args[0]->get_shape().lens();
         auto input_type = args[0]->get_shape().type();
         if(input_type != migraphx::shape::float_type)
         {
-            MIGRAPHX_THROW("CELU: input tensor not float type");
+            MIGRAPHX_THROW("celu op_builder: input tensor not float type");
         }
 
         auto zero_lit    = m.add_literal({input_type, {0.}});

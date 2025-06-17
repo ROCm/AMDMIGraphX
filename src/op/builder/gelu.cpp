@@ -145,7 +145,7 @@ struct gelu_split : op_builder<gelu_split>
         auto x = args[0];
         size_t last_dim_size = x->get_shape().lens().back();
         if (last_dim_size < 2 or last_dim_size % 2 != 0)
-            MIGRAPHX_THROW("PARSE_GELU: BiasSplitGelu must have even last dimension which is >= 2");
+            MIGRAPHX_THROW("gelu_split op_builder: BiasSplitGelu must have even last dimension which is >= 2");
 
         auto split_left = m.add_instruction(
             migraphx::make_op("slice",

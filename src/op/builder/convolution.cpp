@@ -137,11 +137,6 @@ struct convolution : convolution_base<convolution>
 {
     static std::string name() { return "convolution"; }
 
-    std::vector<instruction_ref> insert(insert_params params)
-    {
-        return insert(params.m, params.ins, params.args);
-    }
-
     std::vector<instruction_ref>
     insert(module& m, instruction_ref ins, const std::vector<instruction_ref>& args)
     {
@@ -190,11 +185,6 @@ struct convolution : convolution_base<convolution>
 struct quant_convolution : convolution_base<quant_convolution>
 {
     static std::string name() { return "quant_convolution"; }
-
-    std::vector<instruction_ref> insert(insert_params params)
-    {
-        return insert(params.m, params.ins, params.args);
-    }
 
     std::vector<instruction_ref>
     insert(module& m, instruction_ref ins, const std::vector<instruction_ref>& args)
@@ -400,11 +390,6 @@ struct quant_convolution : convolution_base<quant_convolution>
 struct convolution_nhwc : op_builder<convolution_nhwc>, convolution
 {
     static std::string name() { return "convolution_nhwc"; }
-
-    std::vector<instruction_ref> insert(insert_params params)
-    {
-        return insert(params.m, params.ins, params.args);
-    }
 
     instruction_ref apply_nhwc_perm(module& m, instruction_ref ins, bool invert)
     {

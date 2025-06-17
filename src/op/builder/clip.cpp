@@ -43,11 +43,6 @@ struct clip : op_builder<clip>
 
     static std::string name() { return "clip"; }
 
-    std::vector<instruction_ref> insert(insert_params params)
-    {
-        return insert(params.m, params.ins, params.args);
-    }
-
     std::vector<instruction_ref>
     insert(module& m, instruction_ref ins, const std::vector<instruction_ref>& args) const
     {

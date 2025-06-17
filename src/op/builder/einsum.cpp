@@ -49,8 +49,6 @@ struct einsum : op_builder<einsum>
         return pack(f(self.equation, "equation"));
     }
 
-    static std::string name() { return "einsum"; }
-
     using int_mat = std::vector<std::vector<int>>;
 
     struct equation_info
@@ -62,11 +60,6 @@ struct einsum : op_builder<einsum>
         std::vector<std::map<char, std::vector<int>>> duplicates;
         size_t ellipsis_ndim = 0;
     };
-
-    std::vector<instruction_ref> insert(insert_params params)
-    {
-        return insert(params.m, params.ins, params.args);
-    }
 
     std::vector<instruction_ref>
     insert(module& m, instruction_ref ins, const std::vector<instruction_ref>& args) const

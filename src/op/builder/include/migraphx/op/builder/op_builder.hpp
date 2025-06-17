@@ -40,18 +40,34 @@ using builder_func =
     std::function<std::vector<instruction_ref>(module& m,
                                                instruction_ref ins,
                                                const std::vector<instruction_ref>& args,
-                                               std::vector<module_ref> module_args,
+                                               const std::vector<module_ref>& module_args,
                                                const value& options)>;
 
 MIGRAPHX_EXPORT void register_builder(const std::string& name, builder_func f);
 
-struct insert_params
+template<class T>
+auto invoke_builder(module& m,
+                    instruction_ref ins,
+                    const std::vector<instruction_ref>& args,
+                    const std::vector<module_ref>& module_args,
+                    const value& options) -> decltype(T{}.insert(m, ins, args, module_args))
 {
-    module& m;
-    instruction_ref ins;
-    std::vector<instruction_ref> args;
-    std::vector<module_ref> module_args;
-};
+        auto x = from_value<T>(options);
+        return x.insert(m, ins, args, module_args);
+}
+
+template<class T>
+auto invoke_builder(module& m,
+                    instruction_ref ins,
+                    const std::vector<instruction_ref>& args,
+                    const std::vector<module_ref>& module_args,
+                    const value& options) -> decltype(T{}.insert(m, ins, args))
+{
+        if(not module_args.empty())
+            MIGRAPHX_THROW("Module args should be empty");
+        auto x = from_value<T>(options);
+        return x.insert(m, ins, args);
+}
 
 template <class T>
 void register_builder()
@@ -59,10 +75,9 @@ void register_builder()
     builder_func f = [](module& m,
                         instruction_ref ins,
                         const std::vector<instruction_ref>& args,
-                        std::vector<module_ref> module_args,
+                        const std::vector<module_ref>& module_args,
                         const value& options) {
-        auto x = from_value<T>(options);
-        return x.insert(insert_params{m, ins, args, module_args});
+        return invoke_builder<T>(m, ins, args, module_args, options);
     };
     register_builder(T::name(), std::move(f));
 }
@@ -77,7 +92,15 @@ struct register_builder_action
 };
 
 template <class T>
-using op_builder = auto_register<register_builder_action, T>;
+struct op_builder : auto_register<register_builder_action, T>
+{
+    static std::string name()
+    {
+        static const std::string& name = get_type_name<T>();
+        return name.substr(name.rfind("::") + 2);
+    }
+};
+
 
 } // namespace builder
 } // namespace op

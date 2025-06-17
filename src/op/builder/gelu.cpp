@@ -43,13 +43,6 @@ struct gelu_quick : op_builder<gelu_quick>
         return pack(f(self.alpha, "alpha"));
     }
 
-    static std::string name() { return "gelu_quick"; }
-
-    std::vector<instruction_ref> insert(insert_params params)
-    {
-        return insert(params.m, params.ins, params.args);
-    }
-
     std::vector<instruction_ref>
     insert(module& m, instruction_ref ins, const std::vector<instruction_ref>& args) const
     {
@@ -70,12 +63,6 @@ struct gelu_erf : op_builder<gelu_erf>
         return pack();
     }
 
-    static std::string name() { return "gelu_erf"; }
-
-    std::vector<instruction_ref> insert(insert_params params)
-    {
-        return insert(params.m, params.ins, params.args);
-    }
 
     std::vector<instruction_ref>
     insert(module& m, instruction_ref ins, const std::vector<instruction_ref>& args) const
@@ -103,12 +90,6 @@ struct gelu_tanh : op_builder<gelu_tanh>
         return pack(f(self.fast, "fast"));
     }
 
-    static std::string name() { return "gelu_tanh"; }
-
-    std::vector<instruction_ref> insert(insert_params params)
-    {
-        return insert(params.m, params.ins, params.args);
-    }
 
     std::vector<instruction_ref>
     insert(module& m, instruction_ref ins, const std::vector<instruction_ref>& args) const
@@ -157,12 +138,6 @@ struct gelu_split : op_builder<gelu_split>
         return pack();
     }
 
-    static std::string name() { return "gelu_split"; }
-
-    std::vector<instruction_ref> insert(insert_params params)
-    {
-        return insert(params.m, params.ins, params.args);
-    }
 
     std::vector<instruction_ref>
     insert(module& m, instruction_ref ins, const std::vector<instruction_ref>& args) const

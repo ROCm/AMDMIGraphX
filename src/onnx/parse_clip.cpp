@@ -49,7 +49,7 @@ struct parse_clip : op_parser<parse_clip>
             args.push_back(info.add_literal(max_val));
         }
 
-        return op::builder::add("clip", *info.mod, args, {{}}).at(0);
+        return op::builder::add("clip", *info.mod, args, {}).at(0);
     }
 };
 

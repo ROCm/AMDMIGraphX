@@ -40,7 +40,7 @@ using builder_func =
     std::function<std::vector<instruction_ref>(module& m,
                                                instruction_ref ins,
                                                const std::vector<instruction_ref>& args,
-                                               std::vector<module_ref> module_args,
+                                               const std::vector<module_ref>& module_args,
                                                const value& options)>;
 
 MIGRAPHX_EXPORT void register_builder(const std::string& name, builder_func f);
@@ -49,7 +49,7 @@ template<class T>
 auto invoke_builder(module& m,
                     instruction_ref ins,
                     const std::vector<instruction_ref>& args,
-                    std::vector<module_ref> module_args,
+                    const std::vector<module_ref>& module_args,
                     const value& options) -> decltype(T{}.insert(m, ins, args, module_args)) {
         auto x = from_value<T>(options);
         return x.insert(m, ins, args, module_args);
@@ -60,7 +60,7 @@ template<class T>
 auto invoke_builder(module& m,
                     instruction_ref ins,
                     const std::vector<instruction_ref>& args,
-                    std::vector<module_ref>  module_args,
+                    const std::vector<module_ref>& module_args,
                     const value& options) -> decltype(T{}.insert(m, ins, args)) {
         if(not module_args.empty())
             MIGRAPHX_THROW("Module args should be empty");
@@ -74,7 +74,7 @@ void register_builder()
     builder_func f = [](module& m,
                         instruction_ref ins,
                         const std::vector<instruction_ref>& args,
-                        std::vector<module_ref> module_args,
+                        const std::vector<module_ref>& module_args,
                         const value& options) {
         return invoke_builder<T>(m, ins, args, module_args, options);
     };

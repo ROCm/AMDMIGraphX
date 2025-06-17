@@ -628,7 +628,7 @@ struct mlir_program
 
     static bool is_reshape(const std::string& name)
     {
-        return contains({"reshape", "lazy_reshape", "squeeze", "unsqueeze", "flatten"}, name);
+        return contains({"reshape", "reshape_lazy", "squeeze", "unsqueeze", "flatten"}, name);
     }
 
     static std::string get_name(instruction_ref ins)
@@ -795,9 +795,10 @@ struct mlir_program
     {
         // 1st pipeline to call
         run_high_level_pipeline();
-        if(solution.is_null())
+        std::string tuning_cfg_path = string_value_of(MIGRAPHX_MLIR_TUNING_CFG{});
+        if(not tuning_cfg_path.empty())
             get_module_tuned();
-        else
+        if(not solution.is_null())
             set_tuning(solution);
         // 2nd pipeline to call
         run_backend_pipeline();

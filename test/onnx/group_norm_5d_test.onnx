@@ -1,8 +1,9 @@
-	group_norm_5d_test:»
-:
+	group_norm_5d_test:Î
+M
 x
 scale
 biasy"GroupNormalization*
+epsilon¬Å'7 *
 
 num_groups group_norm_5d_testZ
 x
@@ -15,11 +16,11 @@ num_groups group_norm_5d_testZ
 scale
 
 
-Z
+Z
 bias
 
 
-b
+b
 y
 
 

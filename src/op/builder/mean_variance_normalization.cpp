@@ -44,11 +44,6 @@ struct mean_variance_normalization : op_builder<mean_variance_normalization>
 
     static std::string name() { return "mean_variance_normalization"; }
 
-    std::vector<instruction_ref> insert(insert_params params)
-    {
-        return insert(params.m, params.ins, params.args);
-    }
-
     std::vector<instruction_ref>
     insert(module& m, instruction_ref ins, const std::vector<instruction_ref>& args) const
     {

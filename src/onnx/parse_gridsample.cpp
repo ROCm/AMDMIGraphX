@@ -309,7 +309,7 @@ struct linear_sampler : grid_sampler
             nc_values_data.push_back(n);
             nc_values_data.push_back(c);
         });
-        size_t num_indices = m_batch * m_out_height * m_out_width * m_channel;
+        size_t num_indices  = m_batch * m_out_height * m_out_width * m_channel;
         auto xy_indices_t   = info.add_literal(migraphx::literal{
             migraphx::shape{migraphx::shape::float_type, {num_indices, 3}}, xy_indices_data});
         auto weight_index_t = info.add_literal(migraphx::literal{

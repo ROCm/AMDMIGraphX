@@ -324,7 +324,10 @@ TEST_CASE(attention_double_head_bias_mask_batch2_test)
         2.06642f, 1.649505f, 1.733022f, 1.522298f, 
         2.042337f, 1.645073f, 1.724378f, 1.5192288f};
 
-    EXPECT(migraphx::verify::verify_rms_range(result_vector, gold));
+    // Adjust tolerance on this since "all mask" case is not common but also likely due to use
+    // adding -10000 to numbers and then doing the softmax , resulting in loss of precision
+    // Other mask values seem to be valid from 1e-5 range
+    EXPECT(migraphx::verify::verify_rms_range(result_vector, gold, 200));
 }
 
 

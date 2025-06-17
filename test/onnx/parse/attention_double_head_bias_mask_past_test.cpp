@@ -28,8 +28,6 @@
 TEST_CASE(attention_double_head_bias_mask_past_test)
 {   // We currently don't support just past inputs when past/present buffer not shared
     // Likely this requires dynamic shapes
-    migraphx::program p;
     EXPECT(
         test::throws([&] { optimize_onnx("attention_double_head_bias_mask_past_test.onnx"); }));
-
 }

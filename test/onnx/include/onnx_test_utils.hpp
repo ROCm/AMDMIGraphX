@@ -33,6 +33,115 @@
 
 MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_ENABLE_CK_WORKAROUNDS);
 
+inline migraphx::program
+make_attention_program(const uint64_t batch,
+                       const uint64_t sequence_length,
+                       const uint64_t num_heads,
+                       const uint64_t embedding_size,
+                       bool bias_arg = false,
+                       bool key_pad_mask = false,
+                       const int64_t mask_value=-10000, //Default based on OnnxRT spec
+                       const migraphx::shape::type_t dtype = migraphx::shape::float_type)
+{
+    // Also known as "head size" in literature
+    uint64_t query_size  = embedding_size/num_heads;
+    // Assumes K=Q=V sizes for now (some cases V can be different)
+    uint64_t weight_size = 3*embedding_size;
+
+    migraphx::program p;
+    auto* mm = p.get_main_module();
+
+    auto input  = mm->add_parameter("input", migraphx::shape{dtype, {batch, sequence_length, embedding_size}});
+    auto weights  = mm->add_parameter("weights", migraphx::shape{dtype, {embedding_size, weight_size}});
+    auto bias = input;
+    if (bias_arg)
+    {
+        bias = mm->add_parameter("bias", migraphx::shape{dtype, {3*embedding_size}});
+    }
+
+    // Masking depeends on what type of masked used. Currently have key_pad raw masking here
+    // Others down the line can be either left/right padded, or 3d masking (masking per batch)
+    auto mask = input;
+    if (key_pad_mask)
+    {
+        mask = mm->add_parameter("mask_index", migraphx::shape{migraphx::shape::int32_type, {batch, sequence_length}});
+    }
+
+
+    // Input Projection
+    auto unsq_weights = mm->add_instruction(migraphx::make_op("unsqueeze", {{"axes", {0}}}), weights);
+    auto bc_weights   = mm->add_instruction(migraphx::make_op("multibroadcast", {{"out_lens", {batch, embedding_size, weight_size}}}), unsq_weights);
+    auto pre_qkv      = mm->add_instruction(migraphx::make_op("dot"), input, bc_weights);
+
+    auto qkv_biased = pre_qkv;
+    if (bias_arg)
+    {
+        auto bc_bias = mm->add_instruction(migraphx::make_op("multibroadcast", {{"out_lens", {batch, sequence_length, weight_size}}}), bias);
+        qkv_biased   = mm->add_instruction(migraphx::make_op("add"), pre_qkv, bc_bias);
+    }
+
+    // Extract out QKV matrcies after input projection add in head dimension
+    auto q     = mm->add_instruction(migraphx::make_op("slice", {{"axes",{2}}, {"starts", {0}}, {"ends", {embedding_size}}}), qkv_biased);
+    auto k     = mm->add_instruction(migraphx::make_op("slice", {{"axes",{2}}, {"starts", {embedding_size}}, {"ends", {embedding_size*2}}}), qkv_biased);
+    auto v     = mm->add_instruction(migraphx::make_op("slice", {{"axes",{2}}, {"starts", {embedding_size*2}}, {"ends", {embedding_size*3}}}), qkv_biased);
+
+    auto attention_mask = input;
+    if (key_pad_mask)
+    {
+        auto zero = mm->add_literal(migraphx::literal(migraphx::shape{dtype, {1}}, {0}));
+        auto mask_lit = mm->add_literal(migraphx::literal(migraphx::shape{dtype, {1}}, {mask_value}));
+
+        auto bc_pass = mm->add_instruction(migraphx::make_op("multibroadcast", {{"out_lens", {batch, num_heads, sequence_length, sequence_length}}}), zero);
+        auto bc_mask = mm->add_instruction(migraphx::make_op("multibroadcast", {{"out_lens", {batch, num_heads, sequence_length, sequence_length}}}), mask_lit);
+
+        // For raw masks we just need to mask out key value padding thus the 3d mask isn't needed here. 
+        auto raw_mask = mm->add_instruction(migraphx::make_op("reshape", {{"dims", {batch, 1, 1, sequence_length}}}), mask);
+        raw_mask = mm->add_instruction(migraphx::make_op("multibroadcast", {{"out_lens", {batch, num_heads, sequence_length, sequence_length}}}), raw_mask);
+        raw_mask = mm->add_instruction(migraphx::make_op("reshape", {{"dims", {batch, num_heads, sequence_length, sequence_length}}}), raw_mask);
+
+        // Reuse "0" broadcasted converted to int32 to check if input mask is greater than 0 for where condition
+        auto in_pass = mm->add_instruction(migraphx::make_op("convert", {{"target_type", migraphx::shape::int32_type}}), bc_pass);
+        auto in_bool = mm->add_instruction(migraphx::make_op("equal"), raw_mask, in_pass);
+        attention_mask = mm->add_instruction(migraphx::make_op("where"), in_bool, bc_mask, bc_pass);
+    }
+
+    auto sl_literal = mm->add_literal(migraphx::literal(migraphx::shape{dtype, {1}, {0}}, {query_size}));
+    auto scale = mm->add_instruction(migraphx::make_op("sqrt"), sl_literal);
+
+    q = mm->add_instruction(migraphx::make_op("reshape", {{"dims", {batch, sequence_length, num_heads, query_size}}}), q);
+    k = mm->add_instruction(migraphx::make_op("reshape", {{"dims", {batch, sequence_length, num_heads, query_size}}}), k);
+    v = mm->add_instruction(migraphx::make_op("reshape", {{"dims", {batch, sequence_length, num_heads, query_size}}}), v);
+
+    // Get this into (batch, head, sequence_length, query_size)
+    auto q_rsh = mm->add_instruction(migraphx::make_op("transpose", {{"permutation", {0, 2, 1, 3}}}), q);
+    auto k_rsh = mm->add_instruction(migraphx::make_op("transpose", {{"permutation", {0, 2, 1, 3}}}), k);
+    auto v_rsh = mm->add_instruction(migraphx::make_op("transpose", {{"permutation", {0, 2, 1, 3}}}), v);
+
+    // Block for scale dot attention
+    auto k_trans = mm->add_instruction(migraphx::make_op("transpose", {{"permutation", {0, 1, 3, 2}}}), k_rsh);
+    auto qk = mm->add_instruction(migraphx::make_op("dot"), q_rsh, k_trans);
+
+    // Apply mask before scale and softmax
+    if (key_pad_mask)
+    {
+        qk = mm->add_instruction(migraphx::make_op("add"), qk, attention_mask);
+    }
+
+    // Scale before softmax
+    auto scale_recip = mm->add_instruction(migraphx::make_op("recip"), scale);
+    auto bc_scale    = mm->add_instruction(migraphx::make_op("multibroadcast", {{"out_lens", {batch, num_heads, sequence_length, sequence_length}}}), scale_recip);
+    auto qk_scaled   = mm->add_instruction(migraphx::make_op("mul"), qk, bc_scale);
+
+    auto smax_score  = mm->add_instruction(migraphx::make_op("softmax", {{"axis", 3}}), qk_scaled);
+    auto score       = mm->add_instruction(migraphx::make_op("dot"), smax_score, v_rsh);
+
+    // Get back into final shape of batch, sequence_length, embedding_size
+    score            = mm->add_instruction(migraphx::make_op("transpose", {{"permutation", {0, 2, 1, 3}}}), score);
+    mm->add_instruction(migraphx::make_op("reshape", {{"dims", {batch, sequence_length, embedding_size}}}), score); 
+
+    return p;
+}
+
 inline void add_celu_instruction(migraphx::module* mm, const migraphx::shape& s, float alpha)
 {
     auto x                 = mm->add_parameter("x", s);

@@ -24,21 +24,14 @@
 
 #include <onnx_test.hpp>
 #include <migraphx/op/convolution.hpp>
+#include <onnx_test_utils.hpp>
 
 TEST_CASE(attention_single_head_test)
 {
-    migraphx::program p;
+    //Batch 2, sequence length =2 , num_heads = 1, embedding_size =4
+    migraphx::program p = make_attention_program(2, 2, 1, 4, true);
 
-    auto* mm = p.get_main_module();
-    auto input  = mm->add_parameter("input", migraphx::shape{migraphx::shape::float_type, {2, 4, 4}});
-    auto weights  = mm->add_parameter("weights", migraphx::shape{migraphx::shape::float_type, {4, 12}});
-
-   //auto unsq_weights = mm->add_instruction(migraphx::make_op({{"axes", {{0}}}}), weights);
-
-
-
-    
-    auto prog = optimize_onnx("attention_single_head_test.onnx");
+    auto prog = optimize_onnx("attention_single_head_batch2_test.onnx");
 
     EXPECT(p == prog);
 }

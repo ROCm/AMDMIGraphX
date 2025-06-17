@@ -24,20 +24,13 @@
 
 #include <onnx_test.hpp>
 #include <migraphx/op/convolution.hpp>
+#include <onnx_test_utils.hpp>
 
 TEST_CASE(attention_double_head_batch1_test)
 {
-    migraphx::program p;
-    auto* mm = p.get_main_module();
-
-    auto inputs = mm->add_parameter("input", migraphx::shape{migraphx::shape::float_type, {1, 2, 4}});
-    auto weight = mm->add_parameter("weights", migraphx::shape{migraphx::shape::float_type, {4, 12}});
-    auto bias   = mm->add_parameter("bias", migraphx::shape{migraphx::shape::float_type, {12}});
-
-
+    //Batch 1, sequence length =2 , num_heads = 1, embedding_size =4
+    migraphx::program p = make_attention_program(1, 2, 2, 4, true);
     auto prog = optimize_onnx("attention_double_head_batch1_test.onnx");
-
-
 
     EXPECT(p == prog);
 }

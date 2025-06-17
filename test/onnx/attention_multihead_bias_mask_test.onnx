@@ -1,12 +1,12 @@
-	"attention_multihead_bias_mask_test:ê
->
-x
+	"attention_multihead_bias_mask_test:‚
+Q
+input
 weights
 bias
 
 mask_indexy"	Attention*
-	num_heads "attention_multihead_bias_mask_testZ
-x
+	num_heads :com.microsoft"attention_multihead_bias_mask_testZ
+input
 
  
 €
@@ -23,9 +23,9 @@ mask_indexy"	Attention*
 mask_index
 	
  
-€b
-y
-
+€b
+y
+
  
 €
-B
+€B

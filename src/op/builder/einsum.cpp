@@ -49,8 +49,6 @@ struct einsum : op_builder<einsum>
         return pack(f(self.equation, "equation"));
     }
 
-    static std::string name() { return "einsum"; }
-
     using int_mat = std::vector<std::vector<int>>;
 
     struct equation_info

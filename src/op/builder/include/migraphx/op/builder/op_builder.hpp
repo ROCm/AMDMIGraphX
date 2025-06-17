@@ -91,7 +91,15 @@ struct register_builder_action
 };
 
 template <class T>
-using op_builder = auto_register<register_builder_action, T>;
+struct op_builder : auto_register<register_builder_action, T>
+{
+    static std::string name()
+    {
+        static const std::string& name = get_type_name<T>();
+        return name.substr(name.rfind("::") + 2);
+    }
+};
+
 
 } // namespace builder
 } // namespace op

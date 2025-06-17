@@ -50,8 +50,6 @@ struct gemm : op_builder<gemm>
                     f(self.trans_b, "transB"));
     }
 
-    static std::string name() { return "gemm"; }
-
     std::vector<instruction_ref>
     insert(module& m, instruction_ref ins, const std::vector<instruction_ref>& args) const
     {

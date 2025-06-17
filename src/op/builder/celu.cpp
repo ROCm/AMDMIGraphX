@@ -43,8 +43,6 @@ struct celu : op_builder<celu>
         return pack(f(self.alpha, "alpha"));
     }
 
-    static std::string name() { return "celu"; }
-
     std::vector<instruction_ref>
     insert(module& m, instruction_ref ins, const std::vector<instruction_ref>& args) const
     {

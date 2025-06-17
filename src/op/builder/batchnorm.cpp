@@ -43,8 +43,6 @@ struct batchnorm : op_builder<batchnorm>
         return pack(f(self.epsilon, "epsilon"));
     }
 
-    static std::string name() { return "batchnorm"; }
-    
     std::vector<instruction_ref>
     insert(module& m, instruction_ref ins, const std::vector<instruction_ref>& args) const
     {

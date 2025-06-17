@@ -50,18 +50,19 @@ auto invoke_builder(module& m,
                     instruction_ref ins,
                     const std::vector<instruction_ref>& args,
                     const std::vector<module_ref>& module_args,
-                    const value& options) -> decltype(T{}.insert(m, ins, args, module_args)) {
+                    const value& options) -> decltype(T{}.insert(m, ins, args, module_args))
+{
         auto x = from_value<T>(options);
         return x.insert(m, ins, args, module_args);
 }
-
 
 template<class T>
 auto invoke_builder(module& m,
                     instruction_ref ins,
                     const std::vector<instruction_ref>& args,
                     const std::vector<module_ref>& module_args,
-                    const value& options) -> decltype(T{}.insert(m, ins, args)) {
+                    const value& options) -> decltype(T{}.insert(m, ins, args))
+{
         if(not module_args.empty())
             MIGRAPHX_THROW("Module args should be empty");
         auto x = from_value<T>(options);

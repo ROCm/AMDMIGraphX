@@ -3287,14 +3287,10 @@ static void reorder_reshape_slice()
             migraphx::make_op("slice", {{"axes", {2}}, {"starts", {1280}}, {"ends", {1920}}}),
             input);
 
-        auto c0 = m1.add_instruction(migraphx::make_op("contiguous"), slc0);
-        auto c1 = m1.add_instruction(migraphx::make_op("contiguous"), slc1);
-        auto c2 = m1.add_instruction(migraphx::make_op("contiguous"), slc2);
-
         std::vector<int64_t> lens = {static_cast<int64_t>(BS), 128, 10, 64};
-        auto r0 = m1.add_instruction(migraphx::make_op("reshape", {{"dims", lens}}), c0);
-        auto r1 = m1.add_instruction(migraphx::make_op("reshape", {{"dims", lens}}), c1);
-        auto r2 = m1.add_instruction(migraphx::make_op("reshape", {{"dims", lens}}), c2);
+        auto r0 = m1.add_instruction(migraphx::make_op("reshape", {{"dims", lens}}), slc0);
+        auto r1 = m1.add_instruction(migraphx::make_op("reshape", {{"dims", lens}}), slc1);
+        auto r2 = m1.add_instruction(migraphx::make_op("reshape", {{"dims", lens}}), slc2);
 
         auto t0 = m1.add_instruction(migraphx::make_op("transpose", {{"permutation", perm0}}), r0);
         auto t1 = m1.add_instruction(migraphx::make_op("transpose", {{"permutation", perm0}}), r1);
@@ -3363,14 +3359,10 @@ static void reorder_reshape_slice_move_axis1()
         auto slc2 = m1.add_instruction(
             migraphx::make_op("slice", {{"axes", {2}}, {"starts", {64}}, {"ends", {96}}}), input);
 
-        auto c0 = m1.add_instruction(migraphx::make_op("contiguous"), slc0);
-        auto c1 = m1.add_instruction(migraphx::make_op("contiguous"), slc1);
-        auto c2 = m1.add_instruction(migraphx::make_op("contiguous"), slc2);
-
         std::vector<int64_t> lens = {static_cast<int64_t>(BS), 64, 4, 32};
-        auto r0 = m1.add_instruction(migraphx::make_op("reshape", {{"dims", lens}}), c0);
-        auto r1 = m1.add_instruction(migraphx::make_op("reshape", {{"dims", lens}}), c1);
-        auto r2 = m1.add_instruction(migraphx::make_op("reshape", {{"dims", lens}}), c2);
+        auto r0 = m1.add_instruction(migraphx::make_op("reshape", {{"dims", lens}}), slc0);
+        auto r1 = m1.add_instruction(migraphx::make_op("reshape", {{"dims", lens}}), slc1);
+        auto r2 = m1.add_instruction(migraphx::make_op("reshape", {{"dims", lens}}), slc2);
 
         auto t0 = m1.add_instruction(migraphx::make_op("transpose", {{"permutation", perm0}}), r0);
         auto t1 = m1.add_instruction(migraphx::make_op("transpose", {{"permutation", perm0}}), r1);

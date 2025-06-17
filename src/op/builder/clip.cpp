@@ -41,8 +41,6 @@ struct clip : op_builder<clip>
         return pack();
     }
 
-    static std::string name() { return "clip"; }
-
     std::vector<instruction_ref>
     insert(module& m, instruction_ref ins, const std::vector<instruction_ref>& args) const
     {

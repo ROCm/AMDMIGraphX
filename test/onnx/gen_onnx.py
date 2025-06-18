@@ -462,6 +462,21 @@ def attention_double_head_bias_asym_mask_test():
                            num_heads=2)
 
 
+@onnx_test()
+def attention_double_head_bias_asym_left_pad_mask_test():
+    return attention_test([2, 3, 4], [4, 12], 
+                           bias_dims=[12],
+                           mask_dims=[2],
+                           num_heads=2)
+
+
+@onnx_test()
+def attention_double_head_bias_asym_right_pad_mask_test():
+    return attention_test([2, 3, 4], [4, 12], 
+                           bias_dims=[12],
+                           mask_dims=[4],
+                           num_heads=2)
+
 
 @onnx_test()
 def attention_double_head_bias_asym_mask_rotary_test():

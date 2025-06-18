@@ -13,7 +13,10 @@ inline namespace MIGRAPHX_INLINE_NS {
 template <class State, class F, class G>
 struct unfold_range
 {
-    unfold_range(std::optional<State> pz, F pf, G pg) : z(std::move(pz)), f(std::move(pf)), g(std::move(pg)) {}
+    unfold_range(std::optional<State> pz, F pf, G pg)
+        : z(std::move(pz)), f(std::move(pf)), g(std::move(pg))
+    {
+    }
 
     struct iterator
     {
@@ -21,21 +24,15 @@ struct unfold_range
         using value_type        = std::decay_t<reference>;
         using difference_type   = std::ptrdiff_t;
         using iterator_category = std::forward_iterator_tag;
-        using pointer         = std::add_pointer_t<std::remove_reference_t<reference>>;
+        using pointer           = std::add_pointer_t<std::remove_reference_t<reference>>;
 
         struct arrow_proxy
         {
             reference value;
-            pointer operator->() &&
-            {
-                return std::addressof(value);
-            }
+            pointer operator->() && { return std::addressof(value); }
         };
 
-        value_type operator*() const
-        {
-            return parent->f(*state);
-        }
+        value_type operator*() const { return parent->f(*state); }
 
         arrow_proxy operator->() const { return arrow_proxy{parent->f(*state)}; }
 
@@ -56,7 +53,6 @@ struct unfold_range
             return parent == other.parent and state == other.state;
         }
         bool operator!=(const iterator& other) const { return !(*this == other); }
-
 
         const unfold_range* parent = nullptr;
         std::optional<State> state = std::nullopt;

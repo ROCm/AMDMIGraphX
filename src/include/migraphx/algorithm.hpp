@@ -160,7 +160,6 @@ F for_each(Iterator1 first1, Iterator1 last1, Iterator2 first2, Iterator2 last2,
     return f;
 }
 
-
 template <class Iterator1, class Iterator2>
 std::ptrdiff_t
 levenshtein_distance(Iterator1 first1, Iterator1 last1, Iterator2 first2, Iterator2 last2)

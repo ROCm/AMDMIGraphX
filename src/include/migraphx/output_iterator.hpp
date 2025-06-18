@@ -34,8 +34,10 @@ inline namespace MIGRAPHX_INLINE_NS {
 namespace output_iterator_detail {
 struct null_output
 {
-    template<class... Ts>
-    constexpr void operator()(Ts&&...) const noexcept {}
+    template <class... Ts>
+    constexpr void operator()(Ts&&...) const noexcept
+    {
+    }
 };
 
 } // namespace output_iterator_detail

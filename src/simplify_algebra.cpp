@@ -1927,7 +1927,7 @@ struct find_split_reshape
 
         auto am = desc.axes_map_from_src();
 
-        auto op_axes   = slc->get_operator().to_value().at("axes").to_vector<std::size_t>();
+        auto op_axes = slc->get_operator().to_value().at("axes").to_vector<std::size_t>();
         std::vector<std::size_t> axes;
         auto dims = desc.lens();
         // TODO: Handle multiple axes
@@ -1959,7 +1959,7 @@ struct find_split_reshape
         std::vector<operation> new_splits;
         for(auto split : splits)
         {
-            auto v = split->get_operator().to_value();
+            auto v         = split->get_operator().to_value();
             auto op_starts = v.at("starts").to_vector<std::size_t>();
             auto op_ends   = v.at("ends").to_vector<std::size_t>();
 
@@ -1970,16 +1970,18 @@ struct find_split_reshape
                 new_starts[i] = op_starts[i] / k;
                 new_ends[i]   = op_ends[i] / k;
             }
-            new_splits.push_back(make_op("slice", {{"axes", axes}, {"starts", new_starts}, {"ends", new_ends}}));
-
+            new_splits.push_back(
+                make_op("slice", {{"axes", axes}, {"starts", new_starts}, {"ends", new_ends}}));
         }
 
         auto reshape =
             m.insert_instruction(std::next(input), make_op("reshape", {{"dims", dims}}), input);
 
-        for_each(terminals.begin(), terminals.end(), new_splits.begin(), new_splits.end(), [&](auto terminal, auto op) {
-            m.replace_instruction(terminal, op, reshape);
-        });
+        for_each(terminals.begin(),
+                 terminals.end(),
+                 new_splits.begin(),
+                 new_splits.end(),
+                 [&](auto terminal, auto op) { m.replace_instruction(terminal, op, reshape); });
 
 #else
 

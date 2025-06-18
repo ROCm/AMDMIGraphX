@@ -35,16 +35,16 @@ struct parse_attention : op_parser<parse_attention>
 {
     std::vector<op_desc> operators() const { return {{"Attention"}}; }
 
-    enum mask_index_pad{ // Used to check mask_index when input vector size == 2
+    enum class mask_pad{ // Used to check mask_index when input vector size == 2
         no_pad,          // Not Set - If input isn't set indicates this is an error with op
         raw,             // Indicates input mask is raw mask where 0 masks the value and 1 does not.
         right_padding,   // second dimension is (batch_size)
         left_padding,    // second dimension
     };
 
-    enum attention_mode{  // Important to determine how to calculate total_sequence_length
+    enum class atten_mode{  // Important to determine how to calculate total_sequence_length
         not_set,          // Not Set - If Past/Present used this indicates an error with op
-        self,             // Implies K,V lengths equaual and equal to sequence_length 
+        self_attention,   // Implies K,V lengths equaual and equal to sequence_length 
         cross_attention,  // Relevant as K/V may have different lengths in this case
     };
 
@@ -62,23 +62,23 @@ struct parse_attention : op_parser<parse_attention>
     };
 
     // Values infered from input vectors or attributes
-    struct attention_infered
+    struct attention_inferred
     {
-        std::size_t batch_size;                 // From input dim(1)
-        std::size_t input_hidden_size;          // From input dim(3) - Also known as embeddng_size in literature
-        std::size_t hidden_size;                // From weights or qkv_hidden_sizes, related to q,k size which must be equal
-        std::size_t v_hidden_size;              // From weights or qkv_hiddn_sizes - differs during cross attention_mode
-        std::size_t sequence_length;            // Pulled from input dim(1), must be consistent between other parms
-        std::size_t max_sequence_length;        // Pulled from mask_index 
-        std::size_t total_sequence_length;      // Pulled from past_seq_length + sequence_length
-        std::size_t query_size;                 // Also known as head_size. Derived via num_heads
-        bool has_past_input = false;            // Set to true when we have past input. Present output required when set
-        bool has_input_bias = false;            // Set to true when we have input_bias
-        bool has_attn_mask = false;             // Set to true when we have an attention mask set
-        bool has_attn_bias = false;             // Set to true when we have an attention bias input
-        bool scale_not_query_sz = false;        // Set when a different scale attribute from 1/sqrt(query_size)
-        enum mask_index_pad index_pad = no_pad; // Used to track state of input projection mask padding
-        enum attention_mode attn_type;          // Used to determine the attention configuration
+        std::size_t batch_size;                // From input dim(1)
+        std::size_t input_hidden_size;         // From input dim(3) - Also known as embeddng_size in literature
+        std::size_t hidden_size;               // From weights or qkv_hidden_sizes, related to q,k size which must be equal
+        std::size_t v_hidden_size;             // From weights or qkv_hiddn_sizes - differs during cross attention_mode
+        std::size_t sequence_length;           // Pulled from input dim(1), must be consistent between other parms
+        std::size_t max_sequence_length;       // Pulled from mask_index 
+        std::size_t total_sequence_length;     // Pulled from past_seq_length + sequence_length
+        std::size_t query_size;                // Also known as head_size. Derived via num_heads
+        bool has_past_input = false;           // Set to true when we have past input. Present output required when set
+        bool has_input_bias = false;           // Set to true when we have input_bias
+        bool has_attn_mask = false;            // Set to true when we have an attention mask set
+        bool has_attn_bias = false;            // Set to true when we have an attention bias input
+        bool scale_not_query_sz = false;       // Set when a different scale attribute from 1/sqrt(query_size)
+        mask_pad index_pad = mask_pad::no_pad; // Used to track state of input projection mask padding
+        atten_mode attn_type;                  // Used to determine the attention configuration
     };
 
     static void handle_qkv_hidden_size_attr(const onnx_parser& parser,
@@ -128,7 +128,7 @@ struct parse_attention : op_parser<parse_attention>
     static void handle_attributes(const onnx_parser& parser,
                                   const onnx_parser::node_info& info,
                                   struct attention_attr& attr_out,
-                                  struct attention_infered& infered_out)
+                                  struct attention_inferred& infered_out)
     {
         if(contains(info.attributes, "do_rotary"))
         {   // TODO: Add rotary embedding support
@@ -195,7 +195,7 @@ struct parse_attention : op_parser<parse_attention>
     static void qkv_sizes_sum_arg_valid(const std::vector<size_t>& qkv_vec,
                                         const instruction_ref input_arg,
                                         const size_t dim,
-                                        const std::string name)
+                                        const std::string& name)
     {
         if(std::accumulate(qkv_vec.begin(), qkv_vec.end(), 0) != input_arg->get_shape().lens().at(dim))
         {
@@ -223,7 +223,7 @@ struct parse_attention : op_parser<parse_attention>
 
     static void handle_input(const instruction_ref& input_arg,
                              const struct attention_attr& parsed_in,
-                             struct attention_infered& infered_out,
+                             struct attention_inferred& infered_out,
                              std::vector<instruction_ref>& output_arg_vec)
     {
         auto input_tensor  = input_arg;
@@ -244,7 +244,7 @@ struct parse_attention : op_parser<parse_attention>
     static void handle_weight(const instruction_ref& weight_arg,
                               const instruction_ref& input_arg,
                               struct attention_attr& attr_out,
-                              const struct attention_infered& infered_out,
+                              const struct attention_inferred& infered_out,
                               std::vector<instruction_ref>& output_arg_vec)
     {
         auto weight_tensor = weight_arg;
@@ -284,7 +284,7 @@ struct parse_attention : op_parser<parse_attention>
 
     static void handle_projection_bias(const std::vector<instruction_ref>& args,
                                        const struct attention_attr& attr_out,
-                                       struct attention_infered& infered_out,
+                                       struct attention_inferred& infered_out,
                                        std::vector<instruction_ref>& output_arg_vec)
     {
         instruction_ref bias;
@@ -308,7 +308,7 @@ struct parse_attention : op_parser<parse_attention>
     }
 
     static void check_mask_index_shapes(const std::vector<size_t>& mask_index_lens,
-                                         struct attention_infered& infered_out)
+                                         struct attention_inferred& infered_out)
     {
         // Mask index is handled differently based on size of the input.
         //
@@ -320,16 +320,16 @@ struct parse_attention : op_parser<parse_attention>
         // Left side Padding has shape (2 * batch) with inclusive start and exclusive end positions
         if(mask_index_lens.size() == 1)
         { // check left or right padding case
-            if(mask_index_lens.at(0) == infered_out.batch_size)
+            /*if(mask_index_lens.at(0) == infered_out.batch_size)
             {
-                infered_out.index_pad = right_padding;
+                infered_out.index_pad = mask_pad::right_padding;
                 MIGRAPHX_THROW("Attention: Right Padding not currently supported");
             }
-            else if(mask_index_lens.at(0) == infered_out.batch_size * 2)
+            else
             {
-                infered_out.index_pad = left_padding;
-                MIGRAPHX_THROW("Attention: Left Padding not currently supported");
-            }
+                infered_out.index_pad = mask_pad::left_padding;
+            }*/
+            MIGRAPHX_THROW("Attention: Left/Right Padding not currently supported");
         }
         else if(mask_index_lens.size() == 2)
         { // This case assumes potentially past is set which is captured in total_sequence_length
@@ -339,7 +339,7 @@ struct parse_attention : op_parser<parse_attention>
                 MIGRAPHX_THROW("Attention: Invalid Mask_Index shape\n \
                                 Use (batch, total_sequence_length) for shapes of size 2");
             }
-            infered_out.index_pad = raw;
+            infered_out.index_pad = mask_pad::raw;
         }
         else if(mask_index_lens.size() == 3)
         { // Similar to case 2 but with sequence length in dim 1
@@ -350,7 +350,7 @@ struct parse_attention : op_parser<parse_attention>
                 MIGRAPHX_THROW("Attention: Invalid Mask_Index shape\n \
                                 Use (batch, sequence_length, total_sequence_length) for shapes of size 3");
             }
-            infered_out.index_pad = raw;
+            infered_out.index_pad = mask_pad::raw;
         }
         else if(mask_index_lens.size() == 4)
         { // Oddball case and can be used to infer max_sequence_length_parameter
@@ -362,7 +362,7 @@ struct parse_attention : op_parser<parse_attention>
                                 Use (batch, 1, max_sequence_length, max_sequence_length) for shapes of size 4");
             }
             infered_out.max_sequence_length = mask_index_lens.at(2);
-            infered_out.index_pad = raw;
+            infered_out.index_pad = mask_pad::raw;
         }
         else
         {
@@ -372,7 +372,7 @@ struct parse_attention : op_parser<parse_attention>
 
     static void handle_mask_index(const std::vector<instruction_ref>& args,
                                   struct attention_attr& /*attr_out*/,
-                                  struct attention_infered& infered_out,
+                                  struct attention_inferred& infered_out,
                                   std::vector<instruction_ref>& output_arg_vec)
     {
         instruction_ref mask_index;
@@ -393,7 +393,7 @@ struct parse_attention : op_parser<parse_attention>
 
     static void handle_past(const std::vector<instruction_ref>& args,
                             const struct attention_attr& attr_out,
-                            struct attention_infered& infered_out,
+                            struct attention_inferred& infered_out,
                             std::vector<instruction_ref>& output_arg_vec)
     {
         instruction_ref past;
@@ -439,7 +439,7 @@ struct parse_attention : op_parser<parse_attention>
     
     static void handle_attention_bias(const std::vector<instruction_ref>& args,
                                       const struct attention_attr& attr_out,
-                                      struct attention_infered& infered_out,
+                                      struct attention_inferred& infered_out,
                                       std::vector<instruction_ref>& output_arg_vec)
     {
         instruction_ref attention_bias;
@@ -467,7 +467,7 @@ struct parse_attention : op_parser<parse_attention>
 
     static void handle_past_sequence_length(const std::vector<instruction_ref>& args,
                                             struct attention_attr& /*attr_out*/,
-                                            struct attention_infered& /*infered_out*/,
+                                            struct attention_inferred& /*infered_out*/,
                                             std::vector<instruction_ref>& output_arg_vec)
     {
         instruction_ref past_seq_length;
@@ -484,7 +484,7 @@ struct parse_attention : op_parser<parse_attention>
     static std::vector<instruction_ref> handle_arguments(const onnx_parser&/*parser*/,
                                                         const std::vector<instruction_ref>& args,
                                                         struct attention_attr& attr_out,
-                                                        struct attention_infered& infered_out)
+                                                        struct attention_inferred& infered_out)
     {
         std::vector<instruction_ref> input_arguments;
 
@@ -509,7 +509,7 @@ struct parse_attention : op_parser<parse_attention>
     static std::vector<instruction_ref> qkv_split_per_head(const onnx_parser::node_info& info,
                                                            const std::vector<instruction_ref>& qkv_mats,
                                                            const attention_attr& attr_in,
-                                                           const attention_infered& /*infered_in*/)
+                                                           const attention_inferred& /*infered_in*/)
     {
         auto num_heads  = attr_in.num_heads;
         //auto query_size = infered_in.query_size;
@@ -583,7 +583,7 @@ struct parse_attention : op_parser<parse_attention>
     static void get_kv_from_past(const onnx_parser::node_info& info,
                                  const instruction_ref& past_input,
                                  const attention_attr& /*parsed_attr*/,
-                                 const attention_infered& /*infered_attr*/,
+                                 const attention_inferred& /*infered_attr*/,
                                  std::vector<instruction_ref>& qkv_mats)
     {
         // Extract past value from (2, batch, num_heads, seq_len, head_size) shape)
@@ -679,7 +679,7 @@ struct parse_attention : op_parser<parse_attention>
                                                        const instruction_ref& input,
                                                        const instruction_ref& mask_input,
                                                        const attention_attr& parsed_in,
-                                                       const attention_infered& infered_in)
+                                                       const attention_inferred& infered_in)
     {
         auto batch_size    = infered_in.batch_size;
         auto total_seq_len = infered_in.total_sequence_length;
@@ -709,14 +709,14 @@ struct parse_attention : op_parser<parse_attention>
     static instruction_ref create_input_mask(const onnx_parser::node_info& info,
                                              const instruction_ref& input, // TODO: Convert this to type
                                              const instruction_ref& mask_input,
-                                             const attention_infered& infered_in,
+                                             const attention_inferred& infered_in,
                                              const attention_attr& parsed_in)
     {
         instruction_ref final_mask;
         // Shape Scale dot attention prior to mask will be in (batch, num_heads, query_size, query_size) thus mask needs to handle batch and query_size
         // We should return mask of batch, 1, query_size, query_size so that this per-batch masked can be broadcasted across each attention head
 
-        if(infered_in.index_pad == raw)
+        if(infered_in.index_pad == mask_pad::raw)
         {   // Raw Mask - 0 means mask, 1 means pass through. Apply mask_filter_val to mask indicies and zero otherwise
             auto mask_dims     = mask_input->get_shape().ndim();
 
@@ -728,14 +728,14 @@ struct parse_attention : op_parser<parse_attention>
             // Need to generate from 2 dims or 3 dim cases
             final_mask = generate_raw_mask_per_batch(info, input, mask_input, parsed_in, infered_in);
         }
-        else if(infered_in.index_pad == left_padding)
+        /*else if(infered_in.index_pad == mask_pad::left_padding)
         {
             MIGRAPHX_THROW("Attention OP: Left inpad padding mode not supported");
         }
-        else if(infered_in.index_pad == right_padding)
+        else if(infered_in.index_pad == mask_pad::right_padding)
         {
             MIGRAPHX_THROW("Attention OP: Left inpad padding mode not supported");
-        }
+        }*/
 
         return final_mask;
     }
@@ -773,7 +773,7 @@ struct parse_attention : op_parser<parse_attention>
                                        const std::vector<instruction_ref>& args) const
     {
         struct attention_attr parsed_attributes;
-        struct attention_infered infered_attributes;
+        struct attention_inferred infered_attributes;
 
         handle_attributes(parser, info, parsed_attributes, infered_attributes);
         auto inputs = handle_arguments(parser, args, parsed_attributes, infered_attributes);

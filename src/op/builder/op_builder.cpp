@@ -32,7 +32,7 @@ inline namespace MIGRAPHX_INLINE_NS {
 namespace op {
 namespace builder {
 
-std::unordered_map<std::string, builder_func>& builder_map()
+static std::unordered_map<std::string, builder_func>& builder_map()
 {
     static std::unordered_map<std::string, builder_func> m; // NOLINT
     return m;

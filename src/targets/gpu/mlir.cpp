@@ -878,6 +878,7 @@ struct mlir_program
             MIGRAPHX_THROW("Tuning table key was " + std::to_string(tuning_key_bytes) +
                            " bytes and thus too long");
         tc.problem = std::string(tuning_key.begin(), tuning_key.begin() + tuning_key_bytes);
+        tc.mlir_kernel = mlir_print(&mlirOperationPrint, mlirModuleGetOperation(mmodule.get()));
         return tc;
     }
 

@@ -35,6 +35,7 @@ struct tuning_config
 {
     value problem;
     std::vector<value> solutions;
+    std::string mlir_kernel;
 };
 
 } // namespace gpu

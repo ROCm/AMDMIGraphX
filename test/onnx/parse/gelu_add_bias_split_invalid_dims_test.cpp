@@ -22,29 +22,9 @@
  * THE SOFTWARE.
  */
 
-#ifndef MIGRAPHX_GUARD_RTGLIB_HALF_HPP
-#define MIGRAPHX_GUARD_RTGLIB_HALF_HPP
+#include <onnx_test.hpp>
 
-#include <migraphx/config.hpp>
-#include <migraphx/generic_float.hpp>
-
-namespace migraphx {
-inline namespace MIGRAPHX_INLINE_NS {
-
-using half = migraphx::generic_float<10, 5>;
-
-namespace detail {
-template <class T>
-struct deduce
+TEST_CASE(gelu_add_bias_split_invalid_dims_test)
 {
-    using type = T;
-};
-} // namespace detail
-
-template <class T>
-using deduce = typename detail::deduce<T>::type;
-
-} // namespace MIGRAPHX_INLINE_NS
-} // namespace migraphx
-
-#endif
+    EXPECT(test::throws([&] { read_onnx("gelu_add_bias_split_invalid_dims_test.onnx"); }));
+}

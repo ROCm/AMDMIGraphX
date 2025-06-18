@@ -92,11 +92,27 @@ parse_gelu_tanh(const onnx_parser::node_info& info, instruction_ref x, bool fast
     return info.add_common_op("mul", add1, mul2);
 }
 
+static instruction_ref parse_split_gelu(const onnx_parser::node_info& info, instruction_ref x)
+{
+    size_t last_dim_size = x->get_shape().lens().back();
+    if(last_dim_size < 2 or last_dim_size % 2 != 0)
+        MIGRAPHX_THROW("PARSE_GELU: BiasSplitGelu must have even last dimension which is >= 2");
+    auto split_left = info.add_instruction(
+        migraphx::make_op("slice",
+                          {{"axes", {-1}}, {"starts", {0}}, {"ends", {last_dim_size / 2}}}),
+        x);
+    auto split_right = info.add_instruction(
+        migraphx::make_op(
+            "slice", {{"axes", {-1}}, {"starts", {last_dim_size / 2}}, {"ends", {last_dim_size}}}),
+        x);
+    return info.add_common_op("mul", split_left, parse_gelu_erf(info, split_right));
+}
+
 struct parse_gelu : op_parser<parse_gelu>
 {
     std::vector<op_desc> operators() const
     {
-        return {{"BiasGelu"}, {"FastGelu"}, {"QuickGelu"}, {"Gelu"}};
+        return {{"BiasGelu"}, {"BiasSplitGelu"}, {"FastGelu"}, {"QuickGelu"}, {"Gelu"}};
     }
     instruction_ref parse(const op_desc& opd,
                           const onnx_parser& /*parser*/,
@@ -143,6 +159,13 @@ struct parse_gelu : op_parser<parse_gelu>
                 MIGRAPHX_THROW("PARSE_GELU: mismatching input tensor types");
             }
             x = info.add_common_op("add", x, y);
+        }
+
+        if(opd.onnx_name == "BiasSplitGelu")
+        {
+            // add should've been inserted from previous conditional statement
+            assert(args.size() == 2);
+            return parse_split_gelu(info, x);
         }
 
         if(approximate == "tanh")

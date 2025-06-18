@@ -581,6 +581,22 @@ def batch_norm_invalid_bias_rank_test():
 
 
 @onnx_test()
+def biasadd_test():
+    x = helper.make_tensor_value_info('x', TensorProto.FLOAT, [2, 3, 4])
+    bias = helper.make_tensor_value_info('bias', TensorProto.FLOAT, [4])
+    skip = helper.make_tensor_value_info('skip', TensorProto.FLOAT, [2, 3, 4])
+    y = helper.make_tensor_value_info('y', TensorProto.FLOAT, [2, 3, 4])
+
+    node = onnx.helper.make_node(
+        'BiasAdd',
+        inputs=['x', 'bias', 'skip'],
+        outputs=['y'],
+        domain='com.microsoft')
+
+    return ([node], [x, bias, skip], [y])
+
+
+@onnx_test()
 def binary_dyn_brcst_prelu_test():
     arg0 = helper.make_tensor_value_info('0', TensorProto.FLOAT,
                                          [None, 3, 4, 5])
@@ -3991,6 +4007,34 @@ def gelu_bias_invalid_type_test():
 
 
 @onnx_test()
+def gelu_add_bias_split_test():
+    x = helper.make_tensor_value_info('x', TensorProto.FLOAT, [2, 4, 6])
+    y = helper.make_tensor_value_info('y', TensorProto.FLOAT, [6])
+    z = helper.make_tensor_value_info('z', TensorProto.FLOAT, [2, 4, 3])
+
+    node = onnx.helper.make_node("BiasSplitGelu",
+                                 inputs=["x", "y"],
+                                 outputs=["z"],
+                                 domain="com.microsoft")
+
+    return ([node], [x, y], [z])
+
+
+@onnx_test()
+def gelu_add_bias_split_invalid_dims_test():
+    x = helper.make_tensor_value_info('x', TensorProto.FLOAT, [2, 4, 5])
+    y = helper.make_tensor_value_info('y', TensorProto.FLOAT, [5])
+    z = helper.make_tensor_value_info('z', TensorProto.FLOAT, [2, 4, 2])
+
+    node = onnx.helper.make_node("BiasSplitGelu",
+                                 inputs=["x", "y"],
+                                 outputs=["z"],
+                                 domain="com.microsoft")
+
+    return ([node], [x, y], [z])
+
+
+@onnx_test()
 def gelu_fast_test():
     x = helper.make_tensor_value_info('x', TensorProto.FLOAT, [3, 3])
     y = helper.make_tensor_value_info('y', TensorProto.FLOAT, [3, 3])
@@ -4418,6 +4462,41 @@ def gridsample_test():
 
     return ([node], [x, grid], [y])
 
+@onnx_test()
+def gridsample_channel_test():
+    x = helper.make_tensor_value_info('x', TensorProto.FLOAT, [1, 3, 4, 4])
+    grid = helper.make_tensor_value_info('grid', TensorProto.FLOAT,
+                                         [1, 6, 6, 2])
+    y = helper.make_tensor_value_info('y', TensorProto.FLOAT, [1, 3, 6, 6])
+
+    node = onnx.helper.make_node(
+        "GridSample",
+        inputs=["x", "grid"],
+        outputs=["y"],
+        mode="bilinear",
+        padding_mode="border",
+        align_corners=1,
+    )
+
+    return ([node], [x, grid], [y])
+
+@onnx_test()
+def gridsample_512x512_test():
+    x = helper.make_tensor_value_info('x', TensorProto.FLOAT, [1, 3, 512, 512])
+    grid = helper.make_tensor_value_info('grid', TensorProto.FLOAT,
+                                         [1, 512, 512, 2])
+    y = helper.make_tensor_value_info('y', TensorProto.FLOAT, [1, 3, 512, 512])
+
+    node = onnx.helper.make_node(
+        "GridSample",
+        inputs=["x", "grid"],
+        outputs=["y"],
+        mode="bilinear",
+        padding_mode="border",
+        align_corners=1,
+    )
+
+    return ([node], [x, grid], [y])
 
 @onnx_test()
 def gridsample_half_test():

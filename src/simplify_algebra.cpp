@@ -1889,26 +1889,26 @@ struct find_split_reshape
         auto input = slc->inputs().front();
 
 #if 1
-        auto split_outputs = get_splits(input);
-        if(split_outputs.empty())
+        auto splits = get_splits(input);
+        if(splits.empty())
         {
             return;
         }
 
         std::vector<shape_transform_descriptor> descs;
         std::vector<instruction_ref> terminals;
-        for(auto output : split_outputs)
+        for(auto split : splits)
         {
             std::vector<operation> ops;
-            auto idims = output->inputs().front()->get_shape().lens();
+            auto idims = split->inputs().front()->get_shape().lens();
             instruction_ref terminal;
-            while(contains(reshape_ops(), output->name()) or output->name() == "contiguous")
+            while(contains(reshape_ops(), split->name()) or split->name() == "contiguous")
             {
-                ops.push_back(output->get_operator());
-                terminal = output;
-                if(output->outputs().size() == 1)
+                ops.push_back(split->get_operator());
+                terminal = split;
+                if(split->outputs().size() == 1)
                     break;
-                output = output->outputs().front();
+                split = split->outputs().front();
             }
             auto desc = shape_transform_descriptor::create(idims, ops);
             if(desc.empty())
@@ -1927,13 +1927,8 @@ struct find_split_reshape
 
         auto am = desc.axes_map_from_src();
 
-        auto v         = slc->get_operator().to_value();
-        auto op_starts = v.at("starts").to_vector<std::size_t>();
-        auto op_ends   = v.at("ends").to_vector<std::size_t>();
-        auto op_axes   = v.at("axes").to_vector<std::size_t>();
+        auto op_axes   = slc->get_operator().to_value().at("axes").to_vector<std::size_t>();
         std::vector<std::size_t> axes;
-        std::vector<std::size_t> starts;
-        std::vector<std::size_t> ends;
         auto dims = desc.lens();
         // TODO: Handle multiple axes
         if(op_axes.size() > 1)
@@ -1945,35 +1940,46 @@ struct find_split_reshape
         auto new_axes = am[op_axis];
         if(new_axes.empty())
             return;
-        auto n    = op_ends[0] - op_starts[0];
         auto idim = input->get_shape().lens().at(op_axis);
+        auto n    = slc->get_shape().lens()[op_axis];
+        auto k    = n / idim;
         if(new_axes.size() > 1)
         {
             auto axis = *std::min_element(new_axes.begin(), new_axes.end());
-            auto k    = n / idim;
             dims[axis] *= k;
             axes.push_back(axis);
-            starts.push_back(op_starts[0] / k);
-            ends.push_back(op_ends[0] / k);
         }
         else
         {
             auto axis  = new_axes.front();
             dims[axis] = idim;
             axes.push_back(axis);
-            starts = op_starts;
-            ends   = op_ends;
+        }
+
+        std::vector<operation> new_splits;
+        for(auto split : splits)
+        {
+            auto v = split->get_operator().to_value();
+            auto op_starts = v.at("starts").to_vector<std::size_t>();
+            auto op_ends   = v.at("ends").to_vector<std::size_t>();
+
+            std::vector<std::size_t> new_starts(op_starts.size());
+            std::vector<std::size_t> new_ends(op_ends.size());
+            for(std::size_t i = 0; i < new_starts.size(); ++i)
+            {
+                new_starts[i] = op_starts[i] / k;
+                new_ends[i]   = op_ends[i] / k;
+            }
+            new_splits.push_back(make_op("slice", {{"axes", axes}, {"starts", new_starts}, {"ends", new_ends}}));
+
         }
 
         auto reshape =
             m.insert_instruction(std::next(input), make_op("reshape", {{"dims", dims}}), input);
-        for(auto terminal : terminals)
-        {
-            m.replace_instruction(
-                terminal,
-                make_op("slice", {{"axes", axes}, {"starts", starts}, {"ends", ends}}),
-                reshape);
-        }
+
+        for_each(terminals.begin(), terminals.end(), new_splits.begin(), new_splits.end(), [&](auto terminal, auto op) {
+            m.replace_instruction(terminal, op, reshape);
+        });
 
 #else
 

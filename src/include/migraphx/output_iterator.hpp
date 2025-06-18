@@ -31,6 +31,15 @@
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
 
+namespace output_iterator_detail {
+struct null_output
+{
+    template<class... Ts>
+    constexpr void operator()(Ts&&...) const noexcept {}
+};
+
+} // namespace output_iterator_detail
+
 template <class F>
 struct function_output_iterator
 {
@@ -58,6 +67,8 @@ struct function_output_iterator
     self& operator++() { return *this; }
     self& operator++(int) { return *this; } // NOLINT
 };
+
+using null_iterator = function_output_iterator<output_iterator_detail::null_output>;
 
 template <class F>
 function_output_iterator<F> make_function_output_iterator(F f)

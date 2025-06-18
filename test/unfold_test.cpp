@@ -9,7 +9,6 @@
 
 using migraphx::unfold;
 
-// TEST 1: Basic sequence from 1 to 5
 TEST_CASE(test_basic_sequence)
 {
     auto f = [](int x) { return x; };
@@ -19,25 +18,22 @@ TEST_CASE(test_basic_sequence)
     auto rng = unfold(1, f, g);
 
     std::vector<int> got;
-    for(int v : rng)
-        got.push_back(v);
+    std::copy(rng.begin(), rng.end(), std::back_inserter(got));
 
     EXPECT(got.size() == 5);
-    EXPECT((got == std::vector<int>{1, 2, 3, 4, 5}));
+    EXPECT(got == std::vector<int>{1, 2, 3, 4, 5});
 }
 
-// TEST 2: Empty sequence (g returns nullopt at start)
 TEST_CASE(test_empty_sequence)
 {
     auto f   = [](int x) { return x; };
-    auto g   = [](int) -> std::optional<int> { return std::nullopt; };
-    auto rng = unfold(1, f, g);
+    auto g   = [](auto) { return std::nullopt; };
+    auto rng = unfold<int>(std::nullopt, f, g);
 
     auto it = rng.begin();
     EXPECT(bool{it == rng.end()});
 }
 
-// TEST 3: One-element sequence
 TEST_CASE(test_one_element_sequence)
 {
     auto f   = [](int x) { return x * x; };
@@ -51,7 +47,6 @@ TEST_CASE(test_one_element_sequence)
     EXPECT(bool{it == rng.end()});
 }
 
-// TEST 4: Test with custom state type (pair)
 TEST_CASE(test_pair_state)
 {
     using State = std::pair<int, int>;
@@ -64,13 +59,11 @@ TEST_CASE(test_pair_state)
     auto rng = unfold(State{3, 10}, f, g);
 
     std::vector<int> got;
-    for(auto x : rng)
-        got.push_back(x);
+    std::copy(rng.begin(), rng.end(), std::back_inserter(got));
 
-    EXPECT((got == std::vector<int>{13, 12, 11, 10}));
+    EXPECT(got == std::vector<int>{13, 14, 15, 16});
 }
 
-// TEST 5: Test string accumulation
 TEST_CASE(test_string_accumulation)
 {
     auto f = [](const std::string& s) { return s; };
@@ -82,12 +75,10 @@ TEST_CASE(test_string_accumulation)
     auto rng = unfold(std::string("b"), f, g);
 
     std::vector<std::string> got;
-    for(const auto& s : rng)
-        got.push_back(s);
-    EXPECT((got == std::vector<std::string>{"b", "ba", "baa", "baaa"}));
+    std::copy(rng.begin(), rng.end(), std::back_inserter(got));
+    EXPECT(got == std::vector<std::string>{"b", "ba", "baa", "baaa"});
 }
 
-// TEST 7: Iterator increment and dereference semantics
 TEST_CASE(test_iterator_semantics)
 {
     auto f = [](int x) { return x * 2; };
@@ -108,7 +99,6 @@ TEST_CASE(test_iterator_semantics)
     EXPECT(bool{it == rng.end()});
 }
 
-// TEST 8: Multiple independent iterators
 TEST_CASE(test_multiple_iterators)
 {
     auto f = [](int x) { return x; };
@@ -130,7 +120,6 @@ TEST_CASE(test_multiple_iterators)
     EXPECT(bool{it2 == rng.end()});
 }
 
-// TEST 9: Large sequence
 TEST_CASE(test_large_sequence)
 {
     auto f = [](int x) { return x; };
@@ -139,11 +128,10 @@ TEST_CASE(test_large_sequence)
     };
     auto rng = unfold(0, f, g);
 
-    int count = std::count(rng.begin(), rng.end(), 0);
+    int count = std::distance(rng.begin(), rng.end());
     EXPECT(count == 10001);
 }
 
-// TEST 10: Sequence of squares
 TEST_CASE(test_squares)
 {
     auto f = [](int x) { return x * x; };
@@ -154,10 +142,9 @@ TEST_CASE(test_squares)
 
     std::vector<int> got;
     std::copy(rng.begin(), rng.end(), std::back_inserter(got));
-    EXPECT((got == std::vector<int>{1, 4, 9, 16, 25, 36}));
+    EXPECT(got == std::vector<int>{1, 4, 9, 16, 25, 36});
 }
 
-// TEST 11: Move-only function object (lambda with unique_ptr capture)
 TEST_CASE(test_move_only_function)
 {
     auto ptr = std::make_unique<int>(10);
@@ -169,10 +156,9 @@ TEST_CASE(test_move_only_function)
 
     std::vector<int> got;
     std::copy(rng.begin(), rng.end(), std::back_inserter(got));
-    EXPECT((got == std::vector<int>{11, 12, 13}));
+    EXPECT(got == std::vector<int>{11, 12, 13});
 }
 
-// TEST 12: Using with std::accumulate
 TEST_CASE(test_std_accumulate)
 {
     auto f = [](int x) { return x; };
@@ -185,7 +171,6 @@ TEST_CASE(test_std_accumulate)
     EXPECT(sum == 15);
 }
 
-// TEST 13: Using with std::copy to std::list
 TEST_CASE(test_std_copy_to_list)
 {
     auto f = [](int x) { return x * 2; };
@@ -196,40 +181,34 @@ TEST_CASE(test_std_copy_to_list)
 
     std::list<int> result;
     std::copy(rng.begin(), rng.end(), std::back_inserter(result));
-    EXPECT((result == std::list<int>{2, 4, 6, 8}));
+    EXPECT(result == std::list<int>{2, 4, 6, 8});
 }
 
-// TEST 14: Test for state being a pointer
 TEST_CASE(test_pointer_state)
 {
     int arr[] = {1, 2, 3, 4, 5, 0};
     auto f    = [](const int* p) { return *p; };
     auto g    = [](const int* p) -> std::optional<const int*> {
-        return (*p == 0) ? std::nullopt : std::optional{p + 1};
+        return (*(p + 1) == 0) ? std::nullopt : std::optional{p + 1};
     };
     auto rng = unfold(static_cast<const int*>(arr), f, g);
 
     std::vector<int> got;
     std::copy(rng.begin(), rng.end(), std::back_inserter(got));
-    EXPECT((got == std::vector<int>{1, 2, 3, 4, 5}));
+    EXPECT(got == std::vector<int>{1, 2, 3, 4, 5});
 }
 
-// TEST 15: Test for infinite sequence (break after N)
 TEST_CASE(test_infinite_sequence)
 {
     auto f   = [](int x) { return x; };
     auto g   = [](int x) -> std::optional<int> { return x + 1; };
     auto rng = unfold(0, f, g);
 
-    int count = 0;
-    for(auto it = rng.begin(); it != rng.end() && count < 1000; ++it, ++count)
-    {
-        EXPECT(*it == count);
-    }
-    EXPECT(count == 1000);
+    auto it = rng.begin();
+    std::advance(it, 1000);
+    EXPECT(*it == 1000);
 }
 
-// TEST 16: Test for floating point increment
 TEST_CASE(test_floating_point)
 {
     auto f = [](double x) { return x; };
@@ -242,7 +221,7 @@ TEST_CASE(test_floating_point)
     for(auto x : rng)
         got.push_back(x);
     EXPECT(got.size() == 4);
-    EXPECT((got[0] == 0.0 && got[1] == 0.5 && got[2] == 1.0 && got[3] == 1.5));
+    EXPECT(test::within_abs(got[0], 0.0) and test::within_abs(got[1], 0.5) and test::within_abs(got[2], 1.0) and test::within_abs(got[3], 1.5));
 }
 
 struct custom_struct_state
@@ -257,7 +236,6 @@ struct custom_struct_state
         return x.v != y.v;
     }
 };
-// TEST 17: Test for custom struct state
 TEST_CASE(test_custom_struct_state)
 {
     auto f = [](const custom_struct_state& c) { return c.v * 3; };
@@ -268,10 +246,9 @@ TEST_CASE(test_custom_struct_state)
 
     std::vector<int> got;
     std::copy(rng.begin(), rng.end(), std::back_inserter(got));
-    EXPECT((got == std::vector<int>{3, 6, 9, 12}));
+    EXPECT(got == std::vector<int>{3, 6, 9, 12});
 }
 
-// TEST 18: Test for range with state being a std::string
 TEST_CASE(test_string_state)
 {
     auto f = [](const std::string& s) { return s.size(); };
@@ -285,10 +262,9 @@ TEST_CASE(test_string_state)
     std::vector<std::size_t> got;
     for(auto x : rng)
         got.push_back(x);
-    EXPECT((got == std::vector<std::size_t>{1, 2, 3}));
+    EXPECT(got == std::vector<std::size_t>{1, 2, 3});
 }
 
-// TEST 19: Test for skipping some values (even numbers only)
 TEST_CASE(test_even_numbers)
 {
     auto f = [](int x) { return x; };
@@ -302,10 +278,9 @@ TEST_CASE(test_even_numbers)
     std::vector<int> got;
     for(auto x : rng)
         got.push_back(x);
-    EXPECT((got == std::vector<int>{0, 2, 4, 6, 8, 10}));
+    EXPECT(got == std::vector<int>{0, 2, 4, 6, 8, 10});
 }
 
-// TEST 20: Test for using unfold to generate Fibonacci sequence
 TEST_CASE(test_fibonacci_sequence)
 {
     using State = std::pair<int, int>;

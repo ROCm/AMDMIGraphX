@@ -13,7 +13,7 @@ inline namespace MIGRAPHX_INLINE_NS {
 template <class State, class F, class G>
 struct unfold_range
 {
-    unfold_range(State pz, F pf, G pg) : z(std::move(pz)), f(std::move(pf)), g(std::move(pg)) {}
+    unfold_range(std::optional<State> pz, F pf, G pg) : z(std::move(pz)), f(std::move(pf)), g(std::move(pg)) {}
 
     struct iterator
     {
@@ -55,7 +55,7 @@ struct unfold_range
     iterator end() const { return iterator{this, std::nullopt}; }
 
     private:
-    State z;
+    std::optional<State> z;
     F f;
     G g;
 };
@@ -94,6 +94,12 @@ struct unfold_range
  */
 template <class State, class F, class G>
 auto unfold(State z, F f, G g)
+{
+    return unfold_range<State, F, G>(std::move(z), std::move(f), std::move(g));
+}
+
+template <class State, class F, class G>
+auto unfold(std::nullopt_t z, F f, G g)
 {
     return unfold_range<State, F, G>(std::move(z), std::move(f), std::move(g));
 }

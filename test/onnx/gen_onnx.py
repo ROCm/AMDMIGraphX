@@ -464,6 +464,32 @@ def attention_double_head_bias_asym_mask_test():
 
 
 @onnx_test()
+def attention_double_head_bias_asym_mask_rotary_test():
+    return attention_test([2, 3, 4], [4, 12], 
+                           bias_dims=[12],
+                           mask_dims=[2, 3],
+                           num_heads=2, do_rotary=1)
+
+
+@onnx_test()
+def attention_double_head_bias_asym_mask_rotary_embedding_dim_test():
+    return attention_test([2, 3, 4], [4, 12], 
+                           bias_dims=[12],
+                           mask_dims=[2, 3],
+                           num_heads=2, rotary_embedding_dim=32)
+
+
+@onnx_test()
+def attention_double_head_bias_asym_mask_bad_rotary_embedding_dim_test():
+    return attention_test([2, 3, 4], [4, 12], 
+                           bias_dims=[12],
+                           mask_dims=[2, 3],
+                           num_heads=2, rotary_embedding_dim=48)
+
+
+
+
+@onnx_test()
 def attention_double_head_bias_mask_past_test():
 # Should error out because we only support shared buffer modes
     return attention_test([2, 2, 4], [4, 12], 

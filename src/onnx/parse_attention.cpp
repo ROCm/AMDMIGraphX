@@ -171,6 +171,11 @@ struct parse_attention : op_parser<parse_attention>
             {
                 MIGRAPHX_THROW("PARSE_ATTENTION: rotary_embedding_dim must be either 32, 64, or 128");
             }
+
+            if (not attr_out.do_rotary)
+            {
+                MIGRAPHX_THROW("PARSE_ATTENTION: rotary_embedding_dim must be used with do_rotary attribute");
+            }
             attr_out.rotary_embedding_dim = rotary_embedding_dim;
         }
 

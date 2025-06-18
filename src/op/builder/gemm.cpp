@@ -112,7 +112,7 @@ struct gemm : op_builder<gemm>
                 if(not float_equal(beta, 1.0f))
                 {
                     auto beta_literal = m.add_literal(beta);
-                    c_arg = insert_common_op(m, ins, "mul", c_arg, beta_literal);
+                    c_arg             = insert_common_op(m, ins, "mul", c_arg, beta_literal);
                     if(c_arg->get_shape().type() != dot_type)
                     {
                         c_arg = m.insert_instruction(

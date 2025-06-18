@@ -46,12 +46,12 @@ struct gelu_quick : op_builder<gelu_quick>
     std::vector<instruction_ref>
     insert(module& m, instruction_ref ins, const std::vector<instruction_ref>& args) const
     {
-       auto x      = args[0];
-       auto x_type = x->get_shape().type();
-       auto alpha_lit = m.add_literal(migraphx::literal{migraphx::shape{x_type}, {alpha}});
-       auto mul_alpha = insert_common_op(m, ins, make_op("mul"), {alpha_lit, x});
-       auto sigmoid = m.insert_instruction(ins, migraphx::make_op("sigmoid"), mul_alpha);
-       return {insert_common_op(m, ins, make_op("mul"), {x, sigmoid})};
+        auto x         = args[0];
+        auto x_type    = x->get_shape().type();
+        auto alpha_lit = m.add_literal(migraphx::literal{migraphx::shape{x_type}, {alpha}});
+        auto mul_alpha = insert_common_op(m, ins, make_op("mul"), {alpha_lit, x});
+        auto sigmoid   = m.insert_instruction(ins, migraphx::make_op("sigmoid"), mul_alpha);
+        return {insert_common_op(m, ins, make_op("mul"), {x, sigmoid})};
     }
 };
 
@@ -62,7 +62,6 @@ struct gelu_erf : op_builder<gelu_erf>
     {
         return pack();
     }
-
 
     std::vector<instruction_ref>
     insert(module& m, instruction_ref ins, const std::vector<instruction_ref>& args) const
@@ -89,7 +88,6 @@ struct gelu_tanh : op_builder<gelu_tanh>
     {
         return pack(f(self.fast, "fast"));
     }
-
 
     std::vector<instruction_ref>
     insert(module& m, instruction_ref ins, const std::vector<instruction_ref>& args) const
@@ -138,24 +136,25 @@ struct gelu_split : op_builder<gelu_split>
         return pack();
     }
 
-
     std::vector<instruction_ref>
     insert(module& m, instruction_ref ins, const std::vector<instruction_ref>& args) const
     {
-        auto x = args[0];
+        auto x               = args[0];
         size_t last_dim_size = x->get_shape().lens().back();
-        if (last_dim_size < 2 or last_dim_size % 2 != 0)
-            MIGRAPHX_THROW("gelu_split op_builder: BiasSplitGelu must have even last dimension which is >= 2");
+        if(last_dim_size < 2 or last_dim_size % 2 != 0)
+            MIGRAPHX_THROW(
+                "gelu_split op_builder: BiasSplitGelu must have even last dimension which is >= 2");
 
         auto split_left = m.add_instruction(
             migraphx::make_op("slice",
-                            {{"axes", {-1}}, {"starts", {0}}, {"ends", {last_dim_size / 2}}}),
+                              {{"axes", {-1}}, {"starts", {0}}, {"ends", {last_dim_size / 2}}}),
             x);
         auto split_right = m.add_instruction(
             migraphx::make_op(
-                "slice", {{"axes", {-1}}, {"starts", {last_dim_size / 2}}, {"ends", {last_dim_size}}}),
+                "slice",
+                {{"axes", {-1}}, {"starts", {last_dim_size / 2}}, {"ends", {last_dim_size}}}),
             x);
-        
+
         auto gelu_erf = op::builder::add("gelu_erf", m, {split_right}, {}).at(0);
         return {insert_common_op(m, ins, "mul", split_left, gelu_erf)};
     }

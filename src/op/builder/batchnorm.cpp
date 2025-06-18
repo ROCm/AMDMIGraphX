@@ -59,7 +59,7 @@ struct batchnorm : op_builder<batchnorm>
         auto x_rank = x_lens.size();
         if(x_rank == 1 or x_rank == 2)
         {
-            auto eps = m.add_literal(migraphx::literal{migraphx::shape{x_type}, {epsilon}});
+            auto eps        = m.add_literal(migraphx::literal{migraphx::shape{x_type}, {epsilon}});
             auto x_sub_mean = insert_common_op(m, ins, "sub", args[0], args[3]);
             auto var_eps    = insert_common_op(m, ins, "add", args[4], eps);
             auto rsqrt      = m.insert_instruction(ins, make_op("rsqrt"), var_eps);

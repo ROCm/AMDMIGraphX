@@ -59,7 +59,8 @@ std::vector<instruction_ref> insert(const std::string& name,
                                     const std::vector<module_ref>& module_args,
                                     const value& options)
 {
-    return at(builder_map(), name, "Builder not found: " + name)(m, ins, args, module_args, options);
+    return at(builder_map(), name, "Builder not found: " + name)(
+        m, ins, args, module_args, options);
 }
 
 std::vector<instruction_ref> add(const std::string& name,
@@ -76,9 +77,9 @@ std::vector<instruction_ref> add(const std::string& name,
                                  const std::vector<module_ref>& module_args,
                                  const value& options)
 {
-    return at(builder_map(), name, "Builder not found: " + name)(m, m.end(), args, module_args, options);
+    return at(builder_map(), name, "Builder not found: " + name)(
+        m, m.end(), args, module_args, options);
 }
-
 
 } // namespace builder
 } // namespace op

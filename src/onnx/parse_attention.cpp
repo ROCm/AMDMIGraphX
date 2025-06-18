@@ -707,6 +707,8 @@ struct parse_attention : op_parser<parse_attention>
         // Reuse "0" broadcasted converted to int32 to check if input mask is greater than 0 for where condition
         auto in_pass = info.add_instruction(make_op("convert", {{"target_type", mask_input->get_shape().type()}}), bc_pass);
         auto in_bool = info.add_instruction(make_op("equal"), raw_mask, in_pass);
+        // Need this to let MLIR to run with where
+        in_bool = info.add_instruction(make_op("convert", {{"target_type", migraphx::shape::int8_type}}), in_bool);
         return info.add_instruction(make_op("where"), in_bool, bc_mask, bc_pass);
     }
 

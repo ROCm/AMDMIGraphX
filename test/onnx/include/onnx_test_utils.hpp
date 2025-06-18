@@ -103,6 +103,8 @@ make_attention_program(const uint64_t batch,
         // Reuse "0" broadcasted converted to int32 to check if input mask is greater than 0 for where condition
         auto in_pass = mm->add_instruction(migraphx::make_op("convert", {{"target_type", migraphx::shape::int32_type}}), bc_pass);
         auto in_bool = mm->add_instruction(migraphx::make_op("equal"), raw_mask, in_pass);
+        // Need this for mlir to allow us to use "Where" 
+        in_bool = mm->add_instruction(migraphx::make_op("convert", {{"target_type", migraphx::shape::int8_type}}), in_bool);
         attention_mask = mm->add_instruction(migraphx::make_op("where"), in_bool, bc_mask, bc_pass);
     }
 

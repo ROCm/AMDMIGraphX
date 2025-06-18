@@ -62,12 +62,7 @@ struct parse_gemm : op_parser<parse_gemm>
             options.insert({"transB", trans_b});
         }
 
-        return op::builder::add(
-                   "gemm",
-                   *info.mod,
-                   args,
-                   options)
-            .at(0);
+        return op::builder::add("gemm", *info.mod, args, options).at(0);
     }
 };
 

@@ -41,12 +41,12 @@ struct parse_mean_variance_normalization : op_parser<parse_mean_variance_normali
     {
         auto&& data    = args.front();
         auto data_rank = data->get_shape().ndim();
-        value options = {};
-        
+        value options  = {};
+
         if(contains(info.attributes, "axes"))
         {
             const auto& axes_attr = info.attributes["axes"].ints();
-            std::vector<int64_t> axes {axes_attr.begin(), axes_attr.end()};
+            std::vector<int64_t> axes{axes_attr.begin(), axes_attr.end()};
             options.insert({"axes", axes});
         }
         else if(data_rank != 4)
@@ -56,8 +56,7 @@ struct parse_mean_variance_normalization : op_parser<parse_mean_variance_normali
                 std::to_string(data_rank));
         }
 
-        return op::builder::add("mean_variance_normalization", *info.mod, args, options)
-             .at(0);
+        return op::builder::add("mean_variance_normalization", *info.mod, args, options).at(0);
     }
 };
 

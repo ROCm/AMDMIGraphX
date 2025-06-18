@@ -41,11 +41,23 @@ MIGRAPHX_EXPORT std::vector<instruction_ref> insert(const std::string& name,
                                                     const std::vector<instruction_ref>& args,
                                                     const value& options);
 
+MIGRAPHX_EXPORT std::vector<instruction_ref> insert(const std::string& name,
+                                                    module& m,
+                                                    instruction_ref ins,
+                                                    const std::vector<instruction_ref>& args,
+                                                    const std::vector<module_ref>& module_args,
+                                                    const value& options);
+
 MIGRAPHX_EXPORT std::vector<instruction_ref> add(const std::string& name,
                                                  module& m,
                                                  const std::vector<instruction_ref>& args,
                                                  const value& options);
 
+MIGRAPHX_EXPORT std::vector<instruction_ref> add(const std::string& name,
+                                                 module& m,
+                                                 const std::vector<instruction_ref>& args,
+                                                 const std::vector<module_ref>& module_args,
+                                                 const value& options);
 template <class... Ins>
 MIGRAPHX_EXPORT instruction_ref
 insert_common_op(module& m, instruction_ref ins, const std::string& op_name, Ins... args)

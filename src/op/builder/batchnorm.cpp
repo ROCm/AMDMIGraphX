@@ -53,13 +53,13 @@ struct batchnorm : op_builder<batchnorm>
                return a->get_shape().lens().size() != 1;
            }))
         {
-            MIGRAPHX_THROW("PARSE_BATCHNORM: argument scale, bias, mean, or var rank != 1");
+            MIGRAPHX_THROW("batchnorm op_builder: argument scale, bias, mean, or var rank != 1");
         }
 
         auto x_rank = x_lens.size();
         if(x_rank == 1 or x_rank == 2)
         {
-            auto eps = m.add_literal(migraphx::literal{migraphx::shape{x_type}, {epsilon}});
+            auto eps        = m.add_literal(migraphx::literal{migraphx::shape{x_type}, {epsilon}});
             auto x_sub_mean = insert_common_op(m, ins, "sub", args[0], args[3]);
             auto var_eps    = insert_common_op(m, ins, "add", args[4], eps);
             auto rsqrt      = m.insert_instruction(ins, make_op("rsqrt"), var_eps);
@@ -91,7 +91,7 @@ struct batchnorm : op_builder<batchnorm>
         else
         {
             // rank == 0
-            MIGRAPHX_THROW("PARSE_BATCHNORM: rank " + std::to_string(x_lens.size()) +
+            MIGRAPHX_THROW("batchnorm op_builder: rank " + std::to_string(x_lens.size()) +
                            " input tensor, unhandled data format");
         }
     }

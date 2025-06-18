@@ -1,7 +1,7 @@
 #####################################################################################
 # The MIT License (MIT)
 #
-# Copyright (c) 2015-2025 Advanced Micro Devices, Inc. All rights reserved.
+# Copyright (c) 2015-2024 Advanced Micro Devices, Inc. All rights reserved.
 #
 # Permission is hereby granted, free of charge, to any person obtaining a copy
 # of this software and associated documentation files (the "Software"), to deal
@@ -45,7 +45,7 @@ target_link_libraries(migraphx_onnx PRIVATE onnx-proto)
 if(NOT WIN32)
     target_link_libraries(migraphx_onnx PRIVATE "-Wl,--exclude-libs,ALL")
 endif()
-target_link_libraries(migraphx_onnx PUBLIC migraphx migraphx_builders)
+target_link_libraries(migraphx_onnx PUBLIC migraphx)
 
 rocm_install_targets(
   PRIVATE

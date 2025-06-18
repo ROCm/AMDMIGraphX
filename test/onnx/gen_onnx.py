@@ -390,7 +390,7 @@ def attention_test(
         node.attribute.append(onnx.helper.make_attribute("num_heads", num_heads))
 
     if scale is not None:
-        node.attribute.append(onnx.helper.make_attribute("scale_val", scale))
+        node.attribute.append(onnx.helper.make_attribute("scale", scale))
 
     if qkv_hidden_sizes is not None:
         node.attribute.append(onnx.helper.make_attribute("qkv_hidden_sizes", qkv_hidden_sizes))
@@ -485,6 +485,15 @@ def attention_double_head_bias_asym_mask_bad_rotary_embedding_dim_test():
                            bias_dims=[12],
                            mask_dims=[2, 3],
                            num_heads=2, rotary_embedding_dim=48)
+
+
+@onnx_test()
+def attention_double_head_bias_asym_mask_scale_test():
+    return attention_test([2, 3, 4], [4, 12], 
+                           bias_dims=[12],
+                           mask_dims=[2, 3],
+                           num_heads=2, scale=float(0.1234))
+
 
 
 

@@ -41,6 +41,7 @@ make_attention_program(const uint64_t batch,
                        bool bias_arg = false,
                        bool key_pad_mask = false,
                        const int64_t mask_value=-10000, //Default based on OnnxRT spec
+                       const float scale_value = std::numeric_limits<float>::quiet_NaN(),
                        const migraphx::shape::type_t dtype = migraphx::shape::float_type)
 {
     // Also known as "head size" in literature
@@ -105,8 +106,17 @@ make_attention_program(const uint64_t batch,
         attention_mask = mm->add_instruction(migraphx::make_op("where"), in_bool, bc_mask, bc_pass);
     }
 
-    auto sl_literal = mm->add_literal(migraphx::literal(migraphx::shape{dtype, {1}, {0}}, {query_size}));
-    auto scale = mm->add_instruction(migraphx::make_op("sqrt"), sl_literal);
+    migraphx::instruction_ref scale;
+    if ( not std::isnan(scale_value))
+    {   // No Need for sqrt now
+        scale = mm->add_literal(migraphx::literal(migraphx::shape{dtype, {1}, {0}}, {scale_value}));
+    }
+    else 
+    {
+        auto sl_literal = mm->add_literal(migraphx::literal(migraphx::shape{dtype, {1}, {0}}, {query_size}));
+        scale = mm->add_instruction(migraphx::make_op("sqrt"), sl_literal);
+        scale = mm->add_instruction(migraphx::make_op("recip"), scale);
+    }
 
     q = mm->add_instruction(migraphx::make_op("reshape", {{"dims", {batch, sequence_length, num_heads, query_size}}}), q);
     k = mm->add_instruction(migraphx::make_op("reshape", {{"dims", {batch, sequence_length, num_heads, query_size}}}), k);
@@ -128,8 +138,7 @@ make_attention_program(const uint64_t batch,
     }
 
     // Scale before softmax
-    auto scale_recip = mm->add_instruction(migraphx::make_op("recip"), scale);
-    auto bc_scale    = mm->add_instruction(migraphx::make_op("multibroadcast", {{"out_lens", {batch, num_heads, sequence_length, sequence_length}}}), scale_recip);
+    auto bc_scale    = mm->add_instruction(migraphx::make_op("multibroadcast", {{"out_lens", {batch, num_heads, sequence_length, sequence_length}}}), scale);
     auto qk_scaled   = mm->add_instruction(migraphx::make_op("mul"), qk, bc_scale);
 
     auto smax_score  = mm->add_instruction(migraphx::make_op("softmax", {{"axis", 3}}), qk_scaled);

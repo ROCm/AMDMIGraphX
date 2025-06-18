@@ -566,9 +566,8 @@ struct parse_attention : op_parser<parse_attention>
             qk_masked = info.add_common_op("add", qk_masked, mask);
         } 
 
-        auto recip_scale = info.add_instruction(make_op("recip"), scale_factor);
         // Apply scale onl after all the masking and biasing has occured
-        auto qk_scaled = info.add_common_op("mul", qk_masked, recip_scale);
+        auto qk_scaled = info.add_common_op("mul", qk_masked, scale_factor);
 
         auto softmax_out = info.add_instruction(make_op("softmax", {{"axis", 3}}), qk_scaled);
 
@@ -805,14 +804,19 @@ struct parse_attention : op_parser<parse_attention>
         if(infered_attributes.has_attn_bias)
             attn_bias = inputs.at(5);
 
-        auto attn_scale_factor = infered_attributes.query_size;
+        auto attn_scale_factor = static_cast<float>(infered_attributes.query_size);
         if(infered_attributes.scale_not_query_sz)
             attn_scale_factor = parsed_attributes.scale;
 
         // Used to scale all key values before any masking or other inputs
         auto scale_factor = info.add_literal(migraphx::literal{migraphx::shape{qkv_mats.at(0)->get_shape().type()},
                                                               {attn_scale_factor}});
-        scale_factor = info.add_instruction(make_op("sqrt"), scale_factor);
+
+        if(not infered_attributes.scale_not_query_sz)
+        {
+            scale_factor = info.add_instruction(make_op("sqrt"), scale_factor);
+            scale_factor = info.add_instruction(make_op("recip"), scale_factor);
+        }
 
         // split QKV into proper batched attention head shape before we perform scale_dot_attention (saves us a concat)
         auto split_qkv  = qkv_split_per_head(info, qkv_mats, parsed_attributes, infered_attributes);

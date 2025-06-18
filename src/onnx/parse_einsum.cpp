@@ -619,7 +619,8 @@ struct parse_einsum : op_parser<parse_einsum>
                 perm.push_back(row_output[i]);
         }
 
-        op = info.add_instruction(make_op("squeeze", {{"axes", sq_axes}}), op);
+        if(not sq_axes.empty())
+            op = info.add_instruction(make_op("squeeze", {{"axes", sq_axes}}), op);
 
         if(not perm.empty())
         {

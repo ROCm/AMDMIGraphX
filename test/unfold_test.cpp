@@ -79,6 +79,20 @@ TEST_CASE(test_string_accumulation)
     EXPECT(got == std::vector<std::string>{"b", "ba", "baa", "baaa"});
 }
 
+TEST_CASE(test_string_accumulation_auto)
+{
+    auto g = [](const std::string& s) -> std::optional<std::string> {
+        if(s.size() < 4)
+            return s + "a";
+        return std::nullopt;
+    };
+    auto rng = unfold(std::string("b"), g);
+
+    std::vector<std::string> got;
+    std::copy(rng.begin(), rng.end(), std::back_inserter(got));
+    EXPECT(got == std::vector<std::string>{"b", "ba", "baa", "baaa"});
+}
+
 TEST_CASE(test_iterator_semantics)
 {
     auto f = [](int x) { return x * 2; };

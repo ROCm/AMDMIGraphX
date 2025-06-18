@@ -111,6 +111,18 @@ auto unfold(std::nullopt_t z, F f, G g)
     return unfold_range<State, F, G>(std::move(z), std::move(f), std::move(g));
 }
 
+template <class State, class G>
+auto unfold(State z, G g)
+{
+    return unfold(std::move(z), [](const auto& x) -> const auto& { return x; }, std::move(g));
+}
+
+template <class State, class G>
+auto unfold(std::nullopt_t z, G g)
+{
+    return unfold<State>(z, [](const auto& x) -> const auto& { return x; }, std::move(g));
+}
+
 } // namespace MIGRAPHX_INLINE_NS
 } // namespace migraphx
 #endif // MIGRAPHX_GUARD_MIGRAPHX_UNFOLD_HPP

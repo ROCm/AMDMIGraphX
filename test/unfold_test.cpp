@@ -221,7 +221,8 @@ TEST_CASE(test_floating_point)
     for(auto x : rng)
         got.push_back(x);
     EXPECT(got.size() == 4);
-    EXPECT(test::within_abs(got[0], 0.0) and test::within_abs(got[1], 0.5) and test::within_abs(got[2], 1.0) and test::within_abs(got[3], 1.5));
+    EXPECT(test::within_abs(got[0], 0.0) and test::within_abs(got[1], 0.5) and
+           test::within_abs(got[2], 1.0) and test::within_abs(got[3], 1.5));
 }
 
 struct custom_struct_state

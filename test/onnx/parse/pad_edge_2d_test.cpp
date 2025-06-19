@@ -33,17 +33,13 @@ TEST_CASE(pad_edge_2d_test)
     auto l1 = mm->add_instruction(
         migraphx::make_op("slice", {{"axes", {0, 1}}, {"starts", {0, 0}}, {"ends", {3, 1}}}), l0);
     auto l2 = mm->add_instruction(
-        migraphx::make_op("slice", {{"axes", {0, 1}}, {"starts", {0, 0}}, {"ends", {3, 1}}}), l0);
-    auto l3 = mm->add_instruction(
         migraphx::make_op("slice", {{"axes", {0, 1}}, {"starts", {0, 2}}, {"ends", {3, 3}}}), l0);
-    auto l4 = mm->add_instruction(
-        migraphx::make_op("slice", {{"axes", {0, 1}}, {"starts", {0, 2}}, {"ends", {3, 3}}}), l0);
-    auto l5 = mm->add_instruction(migraphx::make_op("concat", {{"axis", 1}}), l2, l1, l0, l3, l4);
+    auto l4 = mm->add_instruction(migraphx::make_op("concat", {{"axis", 1}}), l1, l1, l0, l2, l2);
+    auto l5 = mm->add_instruction(
+        migraphx::make_op("slice", {{"axes", {0, 1}}, {"starts", {0, 0}}, {"ends", {1, 7}}}), l4);
     auto l6 = mm->add_instruction(
-        migraphx::make_op("slice", {{"axes", {0, 1}}, {"starts", {0, 0}}, {"ends", {1, 7}}}), l5);
-    auto l7 = mm->add_instruction(
-        migraphx::make_op("slice", {{"axes", {0, 1}}, {"starts", {2, 0}}, {"ends", {3, 7}}}), l5);
-    auto r = mm->add_instruction(migraphx::make_op("concat", {{"axis", 0}}), l6, l5, l7);
+        migraphx::make_op("slice", {{"axes", {0, 1}}, {"starts", {2, 0}}, {"ends", {3, 7}}}), l4);
+    auto r = mm->add_instruction(migraphx::make_op("concat", {{"axis", 0}}), l5, l4, l6);
     mm->add_return({r});
 
     auto prog = read_onnx("pad_edge_2d_test.onnx");

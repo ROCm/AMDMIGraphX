@@ -138,26 +138,30 @@ static instruction_ref edge_pad(const onnx_parser::node_info& info,
         std::vector<int64_t> ends(dims.begin(), dims.end());
         std::vector<instruction_ref> slices;
 
-        auto starts_it = starts.begin() + i;
-        auto ends_it   = ends.begin() + i;
-        auto dims_it   = dims.begin() + i;
+        // left side
+        starts[i] = 0;
+        ends[i]   = 1;
+        auto ins = info.add_instruction(
+            make_op("slice", {{"axes", axes}, {"starts", starts}, {"ends", ends}}), input);
+        for (int64_t j = 0; j < lcount; j++)
+        {
+            slices.push_back(ins);
+        }
 
-        for(int64_t j = 0; j < lcount; j++)
-        {
-            *starts_it = 0;
-            *ends_it   = 1;
-            slices.push_back(info.add_instruction(
-                make_op("slice", {{"axes", axes}, {"starts", starts}, {"ends", ends}}), input));
-        }
-        std::reverse(slices.begin(), slices.end());
+        // original input
         slices.push_back(input);
-        for(int64_t j = 0; j < rcount; j++)
+        
+        // right side
+        starts[i] = dims[i] - 1;
+        ends[i]   = dims[i];
+        ins = info.add_instruction(
+            make_op("slice", {{"axes", axes}, {"starts", starts}, {"ends", ends}}), input);
+        for (size_t i = 0; i < rcount; i++)
         {
-            *starts_it = *dims_it - 1;
-            *ends_it   = *dims_it;
-            slices.push_back(info.add_instruction(
-                make_op("slice", {{"axes", axes}, {"starts", starts}, {"ends", ends}}), input));
+            slices.push_back(ins);
         }
+
+        // concat all together
         input = info.add_instruction(make_op("concat", {{"axis", axis}}), slices);
     }
     return input;

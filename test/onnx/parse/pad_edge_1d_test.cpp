@@ -33,15 +33,9 @@ TEST_CASE(pad_edge_1d_test)
     auto l1 = mm->add_instruction(
         migraphx::make_op("slice", {{"axes", {0}}, {"starts", {0}}, {"ends", {1}}}), l0);
     auto l2 = mm->add_instruction(
-        migraphx::make_op("slice", {{"axes", {0}}, {"starts", {0}}, {"ends", {1}}}), l0);
-    auto l3 = mm->add_instruction(
-        migraphx::make_op("slice", {{"axes", {0}}, {"starts", {3}}, {"ends", {4}}}), l0);
-    auto l4 = mm->add_instruction(
-        migraphx::make_op("slice", {{"axes", {0}}, {"starts", {3}}, {"ends", {4}}}), l0);
-    auto l5 = mm->add_instruction(
         migraphx::make_op("slice", {{"axes", {0}}, {"starts", {3}}, {"ends", {4}}}), l0);
     auto r =
-        mm->add_instruction(migraphx::make_op("concat", {{"axis", 0}}), l2, l1, l0, l3, l4, l5);
+        mm->add_instruction(migraphx::make_op("concat", {{"axis", 0}}), l1, l1, l0, l2, l2, l2);
     mm->add_return({r});
 
     auto prog = read_onnx("pad_edge_1d_test.onnx");

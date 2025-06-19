@@ -137,6 +137,7 @@ static instruction_ref edge_pad(const onnx_parser::node_info& info,
         std::vector<int64_t> starts(axes.size(), 0);
         std::vector<int64_t> ends(dims.begin(), dims.end());
         std::vector<instruction_ref> slices;
+        slices.reserve(lcount + rcount + 1);
 
         // left side
         starts[i] = 0;
@@ -156,7 +157,7 @@ static instruction_ref edge_pad(const onnx_parser::node_info& info,
         ends[i]   = dims[i];
         ins       = info.add_instruction(
             make_op("slice", {{"axes", axes}, {"starts", starts}, {"ends", ends}}), input);
-        for(size_t i = 0; i < rcount; i++)
+        for(size_t j = 0; j < rcount; j++)
         {
             slices.push_back(ins);
         }

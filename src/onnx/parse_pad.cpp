@@ -55,10 +55,10 @@ static instruction_ref reflect_pad(const onnx_parser::node_info& info,
                                    const std::vector<int64_t>& pads,
                                    instruction_ref input)
 {
-    size_t num_dims = pads.size() / 2;
+    size_t num_dims = input->get_shape().ndim();
+    assert(num_dims * 2 == pads.size());
     std::vector<int> ldims(pads.begin(), pads.begin() + num_dims);
     std::vector<int> rdims(pads.begin() + num_dims, pads.end());
-    assert(ldims.size() == rdims.size());
 
     std::vector<int64_t> axes(num_dims);
     std::iota(axes.begin(), axes.end(), int64_t{0});
@@ -119,7 +119,6 @@ static instruction_ref edge_pad(const onnx_parser::node_info& info,
     assert(num_dims * 2 == pads.size());
     std::vector<int> ldims(pads.begin(), pads.begin() + num_dims);
     std::vector<int> rdims(pads.begin() + num_dims, pads.end());
-    assert(ldims.size() == rdims.size());
 
     std::vector<int64_t> axes(num_dims);
     std::iota(axes.begin(), axes.end(), int64_t{0});

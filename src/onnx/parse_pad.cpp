@@ -141,22 +141,22 @@ static instruction_ref edge_pad(const onnx_parser::node_info& info,
         // left side
         starts[i] = 0;
         ends[i]   = 1;
-        auto ins = info.add_instruction(
+        auto ins  = info.add_instruction(
             make_op("slice", {{"axes", axes}, {"starts", starts}, {"ends", ends}}), input);
-        for (int64_t j = 0; j < lcount; j++)
+        for(int64_t j = 0; j < lcount; j++)
         {
             slices.push_back(ins);
         }
 
         // original input
         slices.push_back(input);
-        
+
         // right side
         starts[i] = dims[i] - 1;
         ends[i]   = dims[i];
-        ins = info.add_instruction(
+        ins       = info.add_instruction(
             make_op("slice", {{"axes", axes}, {"starts", starts}, {"ends", ends}}), input);
-        for (size_t i = 0; i < rcount; i++)
+        for(size_t i = 0; i < rcount; i++)
         {
             slices.push_back(ins);
         }

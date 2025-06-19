@@ -2614,6 +2614,20 @@ def einsum_permute_test():
     return ([node], [x], [y])
 
 
+def einsum_permute_sd3_test():
+    x = helper.make_tensor_value_info('x', TensorProto.FLOAT,
+                                      [1, 64, 64, 2, 2, 16])
+    y = helper.make_tensor_value_info('y', TensorProto.FLOAT,
+                                      [1, 16, 64, 2, 64, 2])
+
+    node = onnx.helper.make_node('Einsum',
+                                 inputs=['x'],
+                                 outputs=['y'],
+                                 equation='nhwpqc->nchpwq')
+
+    return ([node], [x], [y])
+
+
 @onnx_test()
 def einsum_summation_test():
     x = helper.make_tensor_value_info('x', TensorProto.FLOAT, [2, 3])

@@ -146,17 +146,7 @@ struct compile_plan
                 ctx->get_problem_cache().mark(preop.name(), problem);
                 const auto& solutions = config->solutions;
                 if(solutions.empty())
-                {
-                    if(config->mlir_kernel.empty())
-                        MIGRAPHX_THROW("No solutions provided for " + preop.name() + " with " +
-                                       to_string(problem) + "\nMIGraphX Module:\n" +
-                                       to_string(*mod));
-                    else
-                        MIGRAPHX_THROW("No solutions provided for " + preop.name() + " with " +
-                                       to_string(problem) + "\nMLIR Fused Kernel:\n" +
-                                       config->mlir_kernel + "\nMIGraphX Module:\n" +
-                                       to_string(*mod));
-                }
+                    MIGRAPHX_THROW("No solutions provided for " + preop.name() + " with " + problem_string() + (not config->mlir_kernel.empty() ? ("\nMLIR Fused Kernel:\n" + config->mlir_kernel) : "") +"\nMIGraphX Module:\n" + to_string(*mod));
                 results.resize(solutions.size());
                 for(auto i : range(solutions.size()))
                 {
@@ -187,27 +177,11 @@ struct compile_plan
                       << std::endl;
         }
         if(results.empty())
-        {
-            if(not config or config->mlir_kernel.empty())
-                MIGRAPHX_THROW("No valid tuned compilation for " + preop.name() + " with " +
-                               problem_string() + "\nMIGraphX Module:\n" + to_string(*mod));
-            else
-                MIGRAPHX_THROW("No valid tuned compilation for " + preop.name() + " with " +
-                               problem_string() + "\nMLIR Fused Kernel:\n" + config->mlir_kernel +
-                               "\nMIGraphX Module:\n" + to_string(*mod));
-        }
+            MIGRAPHX_THROW("No valid tuned compilation for " + preop.name() + " with " + problem_string() + (not config->mlir_kernel.empty() ? ("\nMLIR Fused Kernel:\n" + config->mlir_kernel) : "") +"\nMIGraphX Module:\n" + to_string(*mod));
         if(results.size() == 1)
         {
             if(not results.front().has_value())
-            {
-                if(not config or config->mlir_kernel.empty())
-                    MIGRAPHX_THROW("No valid tuned compilation for " + preop.name() + " with " +
-                                   problem_string() + "\nMIGraphX Module:\n" + to_string(*mod));
-                else
-                    MIGRAPHX_THROW("No valid tuned compilation for " + preop.name() + " with " +
-                                   problem_string() + "\nMLIR Fused Kernel:\n" +
-                                   config->mlir_kernel + "\nMIGraphX Module:\n" + to_string(*mod));
-            }
+                MIGRAPHX_THROW("No valid tuned compilation for " + preop.name() + " with " + problem_string() + (not config->mlir_kernel.empty() ? ("\nMLIR Fused Kernel:\n" + config->mlir_kernel) : "") +"\nMIGraphX Module:\n" + to_string(*mod));
             return *results.front();
         }
         if(not config)
@@ -269,15 +243,7 @@ struct compile_plan
             ctx->get_problem_cache().save();
         }
         if(not results[i].has_value())
-        {
-            if(config->mlir_kernel.empty())
-                MIGRAPHX_THROW("No valid tuned compilation for " + preop.name() + " with " +
-                               problem_string() + "\nMIGraphX Module:\n" + to_string(*mod));
-            else
-                MIGRAPHX_THROW("No valid tuned compilation for " + preop.name() + " with " +
-                               problem_string() + "\nMLIR Fused Kernel:\n" + config->mlir_kernel +
-                               "\nMIGraphX Module:\n" + to_string(*mod));
-        }
+            MIGRAPHX_THROW("No valid tuned compilation for " + preop.name() + " with " + problem_string() + (not config->mlir_kernel.empty() ? ("\nMLIR Fused Kernel:\n" + config->mlir_kernel) : "") +"\nMIGraphX Module:\n" + to_string(*mod));
         auto skipped = std::count_if(
             results.begin(), results.end(), [](const auto& cr) { return not cr.has_value(); });
         if(skipped > 0)

@@ -1467,7 +1467,7 @@ std::vector<module_ref> module::get_sub_modules(bool shallow) const
 
 module& module::sort()
 {
-    auto last = std::prev(this->end());
+    auto last          = std::prev(this->end());
     auto implicit_deps = calc_implicit_deps();
     fix([&](auto self, auto ins) {
         this->move_instruction(ins, this->begin());

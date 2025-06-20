@@ -210,15 +210,14 @@ argument argument::element(std::size_t i) const
 
 void save_argument(const argument& a, const std::string& filename)
 {
-    migraphx::value v;
-    migraphx_to_value(v, a);
+    migraphx::value v = to_value(a);
     write_buffer(filename, to_msgpack(v));
 }
 
 argument load_argument(const std::string& filename)
 {
     migraphx::argument a;
-    migraphx_from_value(from_msgpack(read_buffer(filename)), a);
+    from_value(from_msgpack(read_buffer(filename)), a);
     return a;
 }
 

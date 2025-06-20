@@ -587,6 +587,25 @@ MIGRAPHX_PYBIND11_MODULE(migraphx, m)
         py::arg("address"));
 
     m.def(
+        "save_argument",
+        [](const migraphx::argument& a, const std::string& filename) {
+            migraphx::save_argument(a, filename);
+        },
+        "Save argument to a file encoded in msgpack format",
+        py::arg("argument"),
+        py::arg("filename")
+    );
+
+    m.def(
+        "load_argument",
+        [](const std::string& filename) {
+            return migraphx::load_argument(filename);
+        },
+        "Load argument from a file encoded in msgpack format",
+        py::arg("filename")
+    );
+
+    m.def(
         "parse_tf",
         [](const std::string& filename,
            bool is_nhwc,

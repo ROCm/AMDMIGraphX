@@ -39,17 +39,17 @@ struct parse_mxfixneuron : op_parser<parse_mxfixneuron>
                           onnx_parser::node_info info,
                           std::vector<instruction_ref> args) const
     {
-		/**
-		 * TODO
-		 * Parse the ONNX op into a fake quantized Q/DQ pair with fp4 type as output of quantizelinear.
-		 * simplify_qdq pass will add pack and unpack. Then it will then do the real quantization by
-		 * moving the DQ and recalculating scales and zero_points.
-		 *
-		 * Currently MXFixNeuron is doing dynamic quantization. If that's the case we will have to also parse into
-		 * MIGX operators to the do the dynamic quantization. Should be similar to what is in quantization.cpp.
-		 */
-
-		
+        instruction_ref
+        /**
+         * TODO
+         * Parse the ONNX op into a fake quantized Q/DQ pair with fp4 type as output of
+         * quantizelinear. simplify_qdq pass will add pack and unpack. Then it will then do the real
+         * quantization by moving the DQ and recalculating scales and zero_points.
+         *
+         * Currently MXFixNeuron is doing dynamic quantization. If that's the case we will have to
+         * also parse into MIGX operators to the do the dynamic quantization. Should be similar to
+         * what is in quantization.cpp.
+         */
     }
 };
 

@@ -33,76 +33,6 @@ namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
 namespace op {
 
-namespace {
-// roundTiesToEven
-constexpr uint8_t cast_to_fp4(float f_x)
-{
-    uint32_t x = migraphx::bit_cast<uint32_t>(f_x);
-    uint32_t head     = 0;
-    uint32_t mantissa = 0;
-    int exponent      = 0;
-    uint32_t bias     = 0;
-    uint32_t sign     = 0;
-    head              = x & 0xFF800000;
-    mantissa          = x & 0x7FFFFF;
-    exponent          = (head >> 23) & 0xFF;
-    sign              = head >> 31;
-    bias              = 127;
-    // input is inf or NaN. No inf or NaN in fp4
-    if((x & 0x7F800000) == 0x7F800000)
-    {
-        // inf
-        if(mantissa == 0)
-        {
-            if(sign == 0)
-                return 0x7;
-            else
-                return 0xF;
-        }
-        else
-        {
-            return 0;
-        }
-    }
-    // postive zero
-    if(x == 0)
-        return 0x0;
-    // negative zero
-    else if(x == 0x80000000)
-        return 0x8;
-	
-    const int f4_bias                  = 1; //TODO check this
-    const int f4_denormal_act_exponent = 0 ; // actual exponent of f8 denormal
-    int act_exponent  = 0;
-    int f4_exponent   = 0;
-    int exponent_diff = 0;
-
-    if(exponent == 0 and mantissa != 0)
-    {
-		// fp32/fp16 is in denormal.
-        act_exponent  = 1 - bias;
-        exponent_diff = f4_denormal_act_exponent -
-                        act_exponent; // actual exponent is exponent-bias+1 as it is denormal
-    }
-    else
-    {
-		// fp32/fp16 is normal with implicit 1
-        act_exponent = exponent - bias;
-        if(act_exponent <= f8_denormal_act_exponent)
-        {
-            exponent_diff = f8_denormal_act_exponent - act_exponent;
-        }
-        else
-        {
-			// both fp32/fp16 and f8 are in normal range
-            exponent_diff = 0; 
-        }
-        mantissa += (1u << mfmt); // Add the implicit 1 into mantissa
-    }
-}
-
-} // namespace
-
 struct pact_fp4
 {
     int64_t axis = -1;
@@ -140,8 +70,8 @@ struct pact_fp4
         auto input    = args.front();
         auto in_shape = input.get_shape();
 
-        auto uint8_shape = shape{migraphx::shape::uint8_type, output_shape.lens()};
-        argument uint_arg{uint8_shape};
+        migraphx::shape uint8_shape = shape{migraphx::shape::uint8_type, output_shape.lens()};
+        argument uint8_arg{uint8_shape};
         uint8_arg.visit([&](auto out) {
             input.visit([&](auto inp) {
                 par_for(output_shape.elements(), [&](auto i) {
@@ -159,7 +89,7 @@ struct pact_fp4
             });
         });
         migraphx::argument result =
-            uint8_arg.reshape({migraphx::shape::mxfp4_type, output_shape.lens()});
+            uint8_arg.reshape({migraphx::shape::packed_fp4_type, output_shape.lens()});
         return result;
     }
 };

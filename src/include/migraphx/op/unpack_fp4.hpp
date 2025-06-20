@@ -30,17 +30,10 @@
 #include <migraphx/config.hpp>
 #include <migraphx/par_for.hpp>
 #include <migraphx/argument.hpp>
+#include <migraphx/fp4_casts.hpp>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
-
-namespace {
-constexpr float cast_from_f4(uint8_t x)
-{
-
-}
-
-} //namespace
 
 namespace op {
 struct unpack_fp4
@@ -79,27 +72,27 @@ struct unpack_fp4
     {
         auto input    = args.front();
         auto in_shape = input.get_shape();
-		
-		uint8_input = input.reshape({migraphx::shape::uint8_t, in_shape.lens()});
-        auto float_shape = shape{migraphx::shape::float_type, output_shape.lens()};
-        argument float_arg{float_shape};
-		
-		result.visit([&](auto out) {
-			uint8_input.visit([&](auto inp) {
-				par_for(in_shape.elements(), [&](auto i) {
-					using type    = typename decltype(out)::value_type;
-					auto data_idx = in_shape.multi(i);
-					data_idx[axis] *= 2;
-					// unpacking of 2 unsigned nibbles:
-					uint8_t val   = inp[i];
-					auto fp4_val = val & 0xf;
-					out[data_idx] = cast_from_f4(fp4_val);
 
-					data_idx[axis] += 1;
-					fp4_val = vall >> 4;
-					out[data_idx] = cast_from_f4(fp4_val);
-				});
-			});
+        argument uint8_input        = input.reshape({migraphx::shape::uint8_type, in_shape.lens()});
+        migraphx::shape float_shape = shape{migraphx::shape::float_type, output_shape.lens()};
+        argument float_arg{float_shape};
+
+        float_arg.visit([&](auto out) {
+            uint8_input.visit([&](auto inp) {
+                par_for(in_shape.elements(), [&](auto i) {
+                    using type    = typename decltype(out)::value_type;
+                    auto data_idx = in_shape.multi(i);
+                    data_idx[axis] *= 2;
+                    // unpacking of 2 unsigned nibbles:
+                    uint8_t val   = inp[i];
+                    auto fp4_val  = val & 0xf;
+                    out[data_idx] = cast_from_f4(fp4_val);
+
+                    data_idx[axis] += 1;
+                    fp4_val       = val >> 4;
+                    out[data_idx] = cast_from_f4(fp4_val);
+                });
+            });
         });
         migraphx::argument result =
             float_arg.reshape({migraphx::shape::fp4_type, output_shape.lens()});

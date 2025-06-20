@@ -1467,6 +1467,7 @@ std::vector<module_ref> module::get_sub_modules(bool shallow) const
 
 module& module::sort()
 {
+    auto last = std::prev(this->end());
     auto implicit_deps = calc_implicit_deps();
     fix([&](auto self, auto ins) {
         this->move_instruction(ins, this->begin());
@@ -1485,7 +1486,11 @@ module& module::sort()
             }
             self(child);
         }
-    })(std::prev(this->end()));
+    })(last);
+    // Move unused instructions to the top to preserve the last instruction
+    for_each_iterator(std::next(last), this->end(), [&](instruction_ref ins) {
+        this->move_instruction(ins, this->begin());
+    });
     assert(this->validate() == this->end());
     return *this;
 }

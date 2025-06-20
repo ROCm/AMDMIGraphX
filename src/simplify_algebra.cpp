@@ -37,6 +37,7 @@
 #include <migraphx/serialize.hpp>
 #include <migraphx/instruction.hpp>
 #include <migraphx/shape_transform_descriptor.hpp>
+#include <migraphx/unfold.hpp>
 
 #include <migraphx/algorithm.hpp>
 #include <unordered_set>
@@ -1882,6 +1883,42 @@ struct find_split_reshape
             .bind("reshape");
     }
 
+    struct linear_map
+    {
+        std::size_t x = 0;
+        std::size_t y = 0;
+
+        bool is_valid() const
+        {
+            if(x == y)
+                return true;
+            if(y > x)
+                return (y % x) == 0;
+            return (x % y) == 0;
+        }
+
+        bool is_valid_index(std::size_t i) const
+        {
+            if(x >y)
+                return i % (x / y) == 0;
+            return true;
+        }
+
+        std::size_t operator()(std::size_t i) const {
+            if(x == y)
+                return i;
+            if(y > x)
+                return i * (y / x);
+            return i / (x / y);
+        };
+
+        friend std::ostream& operator<<(std::ostream& s, const linear_map& lm)
+        {
+            s << "x: " << lm.x << ", y: " << lm.y;
+            return s;
+        }
+    };
+
     void apply(module& m, const match::matcher_result& r) const
     {
         auto slc   = r.instructions["slice"];
@@ -1899,21 +1936,26 @@ struct find_split_reshape
         std::vector<instruction_ref> terminals;
         for(auto split : splits)
         {
+            if(split->outputs().size() != 1)
+                return;
+            auto inss = unfold(split->outputs().front(), [](instruction_ref out) -> std::optional<instruction_ref> {
+                if(out->outputs().size() != 1)
+                    return std::nullopt;
+                auto next = out->outputs().front();
+                if(not contains(reshape_ops(), next->name()) or next->name() == "contiguous")
+                    return std::nullopt;
+                return next;
+            });
+            auto idims = split->get_shape().lens();
             std::vector<operation> ops;
-            auto idims = split->inputs().front()->get_shape().lens();
-            instruction_ref terminal;
-            while(contains(reshape_ops(), split->name()) or split->name() == "contiguous")
-            {
-                ops.push_back(split->get_operator());
-                terminal = split;
-                if(split->outputs().size() == 1)
-                    break;
-                split = split->outputs().front();
-            }
+            std::transform(inss.begin(), inss.end(), std::back_inserter(ops), [](auto i) {
+                return i->get_operator();
+            });
             auto desc = shape_transform_descriptor::create(idims, ops);
             if(desc.empty())
                 return;
             descs.push_back(desc);
+            terminals.push_back(*std::next(inss.begin(), ops.size() - 1));
         }
 
         // Check if all the reshape descriptors are the same
@@ -1940,21 +1982,12 @@ struct find_split_reshape
         auto new_axes = am[op_axis];
         if(new_axes.empty())
             return;
-        auto idim = input->get_shape().lens().at(op_axis);
-        auto n    = slc->get_shape().lens()[op_axis];
-        auto k    = n / idim;
-        if(new_axes.size() > 1)
-        {
-            auto axis = *std::min_element(new_axes.begin(), new_axes.end());
-            dims[axis] *= k;
-            axes.push_back(axis);
-        }
-        else
-        {
-            auto axis  = new_axes.front();
-            dims[axis] = idim;
-            axes.push_back(axis);
-        }
+        auto axis = *std::min_element(new_axes.begin(), new_axes.end());
+        dims[axis] *= splits.size();
+        linear_map linear{input->get_shape().lens().at(op_axis), dims[axis]};
+        if(not linear.is_valid())
+            return;
+        axes.push_back(axis);
 
         std::vector<operation> new_splits;
         for(auto split : splits)
@@ -1963,13 +1996,17 @@ struct find_split_reshape
             auto op_starts = v.at("starts").to_vector<std::size_t>();
             auto op_ends   = v.at("ends").to_vector<std::size_t>();
 
-            std::vector<std::size_t> new_starts(op_starts.size());
-            std::vector<std::size_t> new_ends(op_ends.size());
-            for(std::size_t i = 0; i < new_starts.size(); ++i)
-            {
-                new_starts[i] = op_starts[i] / k;
-                new_ends[i]   = op_ends[i] / k;
-            }
+            auto is_invalid_index = [&](auto i) { 
+                return not linear.is_valid_index(i);
+            };
+            if(any_of(op_starts, is_invalid_index) or
+               any_of(op_ends, is_invalid_index))
+                return;
+            std::vector<std::size_t> new_starts;
+            std::vector<std::size_t> new_ends;
+            transform(op_starts, std::back_inserter(new_starts), linear);
+            transform(op_ends, std::back_inserter(new_ends), linear);
+
             new_splits.push_back(
                 make_op("slice", {{"axes", axes}, {"starts", new_starts}, {"ends", new_ends}}));
         }

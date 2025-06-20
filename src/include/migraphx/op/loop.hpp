@@ -55,7 +55,7 @@ struct loop
 
     shape compute_shape(const std::vector<shape>& inputs, std::vector<module_ref> mods) const
     {
-        check_shapes{inputs, *this}.standard();
+        check_shapes{inputs, *this}.standard().has_at_least(2);
         if(mods.size() != 1)
         {
             MIGRAPHX_THROW("LOOP: operator should have one submodule.");
@@ -68,6 +68,10 @@ struct loop
         // first item of the mod output shapes is condition used in loop,
         // which is not needed to compute output shape
         mod_out_shapes.erase(mod_out_shapes.begin());
+        
+        if(mod_out_shapes.size() < dep_param_num)
+            MIGRAPHX_THROW("Missing output shape for dependency parameter");
+
         std::vector<shape> ins_out_shapes(mod_out_shapes.begin(),
                                           mod_out_shapes.begin() + dep_param_num);
         mod_out_shapes.erase(mod_out_shapes.begin(), mod_out_shapes.begin() + dep_param_num);

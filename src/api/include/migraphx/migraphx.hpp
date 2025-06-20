@@ -855,13 +855,13 @@ struct argument : MIGRAPHX_CONST_HANDLE_BASE(argument)
     /// Save an argument to a file
     static void save_argument(const argument& a, const std::string& filename)
     {
-        call(&migraphx_argument_save, a.get_handle_ptr(), filename);
+        call(&migraphx_argument_save, a.get_handle_ptr(), filename.c_str());
     }
 
     /// Load an argument from a file
-    static void load_argument(const std::string& filename)
+    static argument load_argument(const std::string& filename)
     {
-        return {make<migraphx_argument>(&migraphx_argument_load, filename), own{}};
+        return {make<migraphx_argument>(&migraphx_argument_load, filename.c_str()), own{}};
     }
 
     /// Generate an argument using random data

@@ -56,4 +56,14 @@ TEST_CASE(load_save_json)
     std::remove(filename.c_str());
 }
 
+TEST_CASE(load_save_argument)
+{
+    migraphx::shape s1{migraphx_shape_float_type, {2, 2}};
+    std::vector<float> data{1, 2, 3, 4};
+    migraphx::argument a1{s1, data.data()};
+    migraphx::argument::save_argument(a1, "migraphx_api_load_save_argument.msgpack");
+    migraphx::argument a2 = migraphx::argument::load_argument("migraphx_api_load_save_argument.msgpack");
+    EXPECT(bool{a1 == a2});
+}
+
 int main(int argc, const char* argv[]) { test::run(argc, argv); }

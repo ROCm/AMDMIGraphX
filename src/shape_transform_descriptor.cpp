@@ -1143,19 +1143,21 @@ std::vector<std::vector<std::size_t>> shape_transform_descriptor::axes_map_from_
         const auto& dim = dimensions[i];
         if(dim.subdimensions.empty())
             continue;
-        auto non_1_axis = [](const dimension::sub& s) { return not s.origin_axis().empty() and s.len > 1; };
+        auto non_1_axis = [](const dimension::sub& s) {
+            return not s.origin_axis().empty() and s.len > 1;
+        };
         auto n = std::count_if(dim.subdimensions.begin(), dim.subdimensions.end(), non_1_axis);
         if(n > 1)
         {
             transform_if(dim.subdimensions.begin(),
-                           dim.subdimensions.end(),
-                           std::inserter(invalid_axes, invalid_axes.begin()),
-                           non_1_axis,
-                           [&](const dimension::sub& s) { return s.origin_axis().front(); });
+                         dim.subdimensions.end(),
+                         std::inserter(invalid_axes, invalid_axes.begin()),
+                         non_1_axis,
+                         [&](const dimension::sub& s) { return s.origin_axis().front(); });
         }
         else
         {
-            for(const auto& s:dim.subdimensions)
+            for(const auto& s : dim.subdimensions)
             {
                 if(s.origin_axis().empty())
                     continue;

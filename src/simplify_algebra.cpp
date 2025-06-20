@@ -1899,12 +1899,13 @@ struct find_split_reshape
 
         bool is_valid_index(std::size_t i) const
         {
-            if(x >y)
+            if(x > y)
                 return i % (x / y) == 0;
             return true;
         }
 
-        std::size_t operator()(std::size_t i) const {
+        std::size_t operator()(std::size_t i) const
+        {
             if(x == y)
                 return i;
             if(y > x)
@@ -1938,14 +1939,16 @@ struct find_split_reshape
         {
             if(split->outputs().size() != 1)
                 return;
-            auto inss = unfold(split->outputs().front(), [](instruction_ref out) -> std::optional<instruction_ref> {
-                if(out->outputs().size() != 1)
-                    return std::nullopt;
-                auto next = out->outputs().front();
-                if(not contains(reshape_ops(), next->name()) or next->name() == "contiguous")
-                    return std::nullopt;
-                return next;
-            });
+            auto inss  = unfold(split->outputs().front(),
+                               [](instruction_ref out) -> std::optional<instruction_ref> {
+                                   if(out->outputs().size() != 1)
+                                       return std::nullopt;
+                                   auto next = out->outputs().front();
+                                   if(not contains(reshape_ops(), next->name()) or
+                                      next->name() == "contiguous")
+                                       return std::nullopt;
+                                   return next;
+                               });
             auto idims = split->get_shape().lens();
             std::vector<operation> ops;
             std::transform(inss.begin(), inss.end(), std::back_inserter(ops), [](auto i) {
@@ -1996,11 +1999,8 @@ struct find_split_reshape
             auto op_starts = v.at("starts").to_vector<std::size_t>();
             auto op_ends   = v.at("ends").to_vector<std::size_t>();
 
-            auto is_invalid_index = [&](auto i) { 
-                return not linear.is_valid_index(i);
-            };
-            if(any_of(op_starts, is_invalid_index) or
-               any_of(op_ends, is_invalid_index))
+            auto is_invalid_index = [&](auto i) { return not linear.is_valid_index(i); };
+            if(any_of(op_starts, is_invalid_index) or any_of(op_ends, is_invalid_index))
                 return;
             std::vector<std::size_t> new_starts;
             std::vector<std::size_t> new_ends;

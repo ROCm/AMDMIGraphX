@@ -20,28 +20,29 @@
  * LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
  * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
  * THE SOFTWARE.
- *
  */
+#include <migraphx/onnx/op_parser.hpp>
+#include <migraphx/ranges.hpp>
+#include <migraphx/make_op.hpp>
 
-#include <tf_test.hpp>
+namespace migraphx {
+inline namespace MIGRAPHX_INLINE_NS {
+namespace onnx {
 
-// Skip this test for libstdc++ debug for now since it exposes a bug in protobuf
-#ifndef _GLIBCXX_DEBUG
-TEST_CASE(assert_less_equal_test)
+struct parse_biasadd : op_parser<parse_biasadd>
 {
-    migraphx::program p;
+    std::vector<op_desc> operators() const { return {{"BiasAdd"}}; }
 
-    auto* mm = p.get_main_module();
-    migraphx::shape s0{migraphx::shape::float_type, {2, 3}};
-    auto l0 = mm->add_parameter("0", s0);
-    auto l1 = mm->add_parameter("1", s0);
-    migraphx::literal l{migraphx::shape{migraphx::shape::int32_type, {2}}, {0, 1}};
-    auto l2 = mm->add_literal(l);
-    mm->add_instruction(migraphx::make_op("add"), l0, l1);
-    auto l3 = mm->add_instruction(migraphx::make_op("identity"), l0, l1);
-    mm->add_instruction(migraphx::make_op("identity"), l3, l2);
-    auto prog = optimize_tf("assert_less_equal_test.pb", false);
+    instruction_ref parse(const op_desc& /*opd*/,
+                          const onnx_parser& /*parser*/,
+                          const onnx_parser::node_info& info,
+                          const std::vector<instruction_ref>& args) const
+    {
+        auto x_plus_bias = info.add_common_op("add", args[0], args[1]);
+        return info.add_common_op("add", x_plus_bias, args[2]);
+    }
+};
 
-    EXPECT(p == prog);
-}
-#endif
+} // namespace onnx
+} // namespace MIGRAPHX_INLINE_NS
+} // namespace migraphx

@@ -68,7 +68,7 @@ struct loop
         // first item of the mod output shapes is condition used in loop,
         // which is not needed to compute output shape
         mod_out_shapes.erase(mod_out_shapes.begin());
-        
+
         if(mod_out_shapes.size() < dep_param_num)
             MIGRAPHX_THROW("Missing output shape for dependency parameter");
 

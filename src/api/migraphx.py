@@ -151,12 +151,12 @@ def argument(h):
 
 
 api.add_function('migraphx_argument_save',
-                 api.params(a='const migraphx::argument&', filename='const std::string&'),
+                 api.params(a='const migraphx::argument&', filename='const char*'),
                  fname='migraphx::save_argument'
                  )
 
 api.add_function('migraphx_argument_load',
-                 api.params(filename='const std::string&'),
+                 api.params(filename='const char*'),
                  fname='migraphx::load_argument',
                  returns='migraphx::argument'
                  )

@@ -592,7 +592,7 @@ MIGRAPHX_PYBIND11_MODULE(migraphx, m)
             migraphx::save_argument(a, filename);
         },
         "Save argument to a file encoded in msgpack format",
-        py::arg("argument"),
+        py::arg("arg"),
         py::arg("filename")
     );
 

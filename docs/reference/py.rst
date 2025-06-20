@@ -175,6 +175,21 @@ argument
 
     :rtype: argument
 
+.. py:function:: save_argument(arg, filename)
+
+    Saves argument to a file encoded in msgpack format.
+
+    :param argument arg: Argument to save out to.
+    :param str filename: Path of file to save out to.
+
+.. py:function:: load_argument(filename)
+
+    Load argument from a file encoded in msgpack format.
+
+    :param str filename: Path of file to load.
+
+    :rtype: argument
+
 target
 ------
 

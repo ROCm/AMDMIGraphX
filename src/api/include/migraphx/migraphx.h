@@ -308,6 +308,11 @@ MIGRAPHX_C_EXPORT migraphx_status migraphx_argument_equal(bool* out,
                                                           const_migraphx_argument_t argument,
                                                           const_migraphx_argument_t x);
 
+MIGRAPHX_C_EXPORT migraphx_status migraphx_argument_save(const_migraphx_argument_t a,
+                                                         char* filename);
+
+MIGRAPHX_C_EXPORT migraphx_status migraphx_argument_load(migraphx_argument_t* out, char* filename);
+
 MIGRAPHX_C_EXPORT migraphx_status migraphx_argument_generate(migraphx_argument_t* out,
                                                              const_migraphx_shape_t s,
                                                              size_t seed);

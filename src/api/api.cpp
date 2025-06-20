@@ -1259,6 +1259,29 @@ migraphx_argument_equal(bool* out, const_migraphx_argument_t argument, const_mig
     return api_error_result;
 }
 
+extern "C" migraphx_status migraphx_argument_save(const_migraphx_argument_t a, char* filename)
+{
+    auto api_error_result = migraphx::try_([&] {
+        if(a == nullptr)
+            MIGRAPHX_THROW(migraphx_status_bad_param, "Bad parameter a: Null pointer");
+        if(filename == nullptr)
+            MIGRAPHX_THROW(migraphx_status_bad_param, "Bad parameter filename: Null pointer");
+        migraphx::save_argument((a->object), (const std::string&(filename)));
+    });
+    return api_error_result;
+}
+
+extern "C" migraphx_status migraphx_argument_load(migraphx_argument_t* out, char* filename)
+{
+    auto api_error_result = migraphx::try_([&] {
+        if(filename == nullptr)
+            MIGRAPHX_THROW(migraphx_status_bad_param, "Bad parameter filename: Null pointer");
+        *out =
+            allocate<migraphx_argument_t>(migraphx::load_argument((const std::string&(filename))));
+    });
+    return api_error_result;
+}
+
 extern "C" migraphx_status
 migraphx_argument_generate(migraphx_argument_t* out, const_migraphx_shape_t s, size_t seed)
 {

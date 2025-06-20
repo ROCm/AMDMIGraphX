@@ -27,6 +27,7 @@
 #include <migraphx/compile_options.hpp>
 #include <migraphx/fp_to_double.hpp>
 #include <migraphx/generate.hpp>
+#include <migraphx/argument.hpp>
 #include <migraphx/instruction.hpp>
 #include <migraphx/iterator_for.hpp>
 #include <migraphx/load_save.hpp>
@@ -119,10 +120,13 @@ static std::vector<argument> run_target(program p,
     }
 
     parameter_map m;
+    size_t i = 0;
     for(auto&& x : p.get_parameter_shapes())
     {
         auto arg   = inputs.count(x.first) == 0 ? generate_argument(x.second) : inputs.at(x.first);
-        m[x.first] = options.offload_copy ? arg : t.copy_to(arg);
+        save_argument(arg, "arg_" + to_string(i) + ".msgpack");
+        auto arg_to_load = load_argument("arg_" + to_string(i) + ".msgpack");
+        m[x.first] = options.offload_copy ? arg : t.copy_to(arg_to_load);
     }
     auto gpu_out = p.eval(m);
     std::vector<argument> output(gpu_out.size());

@@ -90,7 +90,8 @@ struct transform_view
         }
 
         template <class U, class V>
-        static auto equal(const U& x, const V& y) -> decltype(x.parent == y.parent and x.current == y.current)
+        static auto equal(const U& x,
+                          const V& y) -> decltype(x.parent == y.parent and x.current == y.current)
         {
             return x.parent == y.parent and x.current == y.current;
         }

@@ -62,25 +62,38 @@ struct transform_view
         }
 
         constexpr reference operator*() const { return parent->f(*current); }
-        
-        template<class U>
-        static auto increment(U& x) -> decltype(++x.current) { return ++x.current; }
 
-        template<class U>
-        static auto decrement(U& x) -> decltype(--x.current) { return --x.current; }
-
-        template<class U, class I>
-        static auto advance(U& x, I n) -> decltype(x.current += n) { return x.current += n; }
-
-        template<class U, class V>
-        static auto distance(const U& x, const V& y) -> decltype(x.parent == y.parent, y.current - x.current)
+        template <class U>
+        static auto increment(U& x) -> decltype(++x.current)
         {
-            assert(x.parent == y.parent); 
-            return y.current - x.current; 
+            return ++x.current;
         }
 
-        template<class U, class V>
-        static auto equal(const U& x, const V& y) -> decltype(x.current == y.current) { return x.parent == y.parent and x.current == y.current; }
+        template <class U>
+        static auto decrement(U& x) -> decltype(--x.current)
+        {
+            return --x.current;
+        }
+
+        template <class U, class I>
+        static auto advance(U& x, I n) -> decltype(x.current += n)
+        {
+            return x.current += n;
+        }
+
+        template <class U, class V>
+        static auto distance(const U& x, const V& y) -> decltype(x.parent == y.parent,
+                                                                 y.current - x.current)
+        {
+            assert(x.parent == y.parent);
+            return y.current - x.current;
+        }
+
+        template <class U, class V>
+        static auto equal(const U& x, const V& y) -> decltype(x.current == y.current)
+        {
+            return x.parent == y.parent and x.current == y.current;
+        }
 
         private:
         const transform_view* parent = nullptr;

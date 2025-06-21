@@ -414,6 +414,82 @@ def attention_test(
 
 
 @onnx_test()
+def attention_invalid_no_num_heads():
+    return attention_test([2, 2, 4], [4, 12], 
+                           bias_dims=[12])
+
+
+@onnx_test()
+def attention_invalid_weight_hidden_size():
+    return attention_test([2, 2, 5], [4, 12], 
+                           bias_dims=[12],
+                           num_heads=2)
+
+
+@onnx_test()
+def attention_invalid_bias_dims_size():
+    return attention_test([2, 2, 4], [4, 12], 
+                           bias_dims=[12, 2, 2],
+                           num_heads=2)
+
+
+@onnx_test()
+def attention_invalid_bias_value_size():
+    return attention_test([2, 2, 4], [4, 12], 
+                           bias_dims=[11],
+                           num_heads=2)
+
+
+@onnx_test()
+def attention_invalid_mask_2d_dims_test():
+    return attention_test([1, 2, 4], [4, 12], 
+                           bias_dims=[12],
+                           mask_dims=[1, 9],
+                           num_heads=2)
+
+
+@onnx_test()
+def attention_invalid_mask_3d_dims_test():
+    return attention_test([1, 2, 4], [4, 12], 
+                           bias_dims=[12],
+                           mask_dims=[2, 2, 4],
+                           num_heads=2)
+
+
+@onnx_test()
+def attention_invalid_mask_4d_dims_test():
+    return attention_test([1, 2, 4], [4, 12], 
+                           bias_dims=[12],
+                           mask_dims=[1, 9, 2, 2],
+                           num_heads=2)
+
+
+@onnx_test()
+def attention_invalid_qkv_attr_test():
+    return attention_test([1, 2, 4], [4, 12], 
+                           bias_dims=[12],
+                           num_heads=2, 
+                           qkv_hidden_sizes=[1, 3])
+
+
+@onnx_test()
+def attention_invalid_qkv_attr_test2():
+    return attention_test([1, 2, 4], [4, 12], 
+                           bias_dims=[12],
+                           num_heads=2, 
+                           qkv_hidden_sizes=[1, 2, 3])
+
+
+@onnx_test()
+def attention_invalid_qkv_attr_test3():
+    return attention_test([1, 2, 4], [4, 12], 
+                           bias_dims=[12],
+                           num_heads=2, 
+                           qkv_hidden_sizes=[2, 2, -3])
+
+
+
+@onnx_test()
 def attention_single_head_batch1_test():
     return attention_test([1, 2, 4], [4, 12], bias_dims=[12], num_heads=1)
 

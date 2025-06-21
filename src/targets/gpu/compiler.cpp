@@ -22,6 +22,7 @@
  * THE SOFTWARE.
  */
 #include <migraphx/gpu/compiler.hpp>
+#include <migraphx/ranges.hpp>
 #include <utility>
 
 namespace migraphx {
@@ -55,17 +56,20 @@ bool has_compiler_for(const std::string& name) { return compiler_map().count(nam
 compiler_replace
 compile(context& ctx, instruction_ref ins, const operation& op, const value& solution)
 {
+    assert(contains(compiler_map(), op.name()));
     return compiler_map().at(op.name()).compile(ctx, ins, op, solution);
 }
 operation
 compile_op(const std::string& name, context& ctx, const std::vector<shape>& inputs, const value& v)
 {
+    assert(contains(compiler_map(), name));
     return compiler_map().at(name).compile_op(ctx, inputs, v);
 }
 
 optional<tuning_config>
 get_tuning_config(context& ctx, instruction_ref ins, const operation& op, bool exhaustive)
 {
+    assert(contains(compiler_map(), op.name()));
     return compiler_map().at(op.name()).get_tuning_config(ctx, ins, op, exhaustive);
 }
 

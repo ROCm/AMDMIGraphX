@@ -54,8 +54,8 @@ def test_load_save_arg():
     data = [1,2,3,4]
     buffer1 = create_buffer('f', data, [2,2])
     arg1 = migraphx.argument(buffer1)
-    migraphx.save_argument(arg1, 'load_save_arg.msgpack')
-    arg2 = migraphx.load_argument('load_save_arg.msgpack')
+    migraphx.argument.save(arg1, 'load_save_arg.msgpack')
+    arg2 = migraphx.argument.load('load_save_arg.msgpack')
     assert arg1 == arg2
 
 if __name__ == "__main__":

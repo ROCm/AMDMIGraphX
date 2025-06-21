@@ -210,15 +210,12 @@ argument argument::element(std::size_t i) const
 
 void save_argument(const argument& a, const std::string& filename)
 {
-    migraphx::value v = to_value(a);
-    write_buffer(filename, to_msgpack(v));
+    return write_buffer(filename, to_msgpack(to_value(a)));
 }
 
 argument load_argument(const std::string& filename)
 {
-    migraphx::argument a;
-    from_value(from_msgpack(read_buffer(filename)), a);
-    return a;
+    return from_value<argument>(from_msgpack(read_buffer(filename)));
 }
 
 } // namespace MIGRAPHX_INLINE_NS

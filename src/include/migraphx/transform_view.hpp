@@ -108,7 +108,7 @@ struct transform_view
 
         constexpr bool operator==(const iterator& other) const { return current == other.current; }
 
-        constexpr bool operator!=(const iterator& other) const { return not (*this == other); }
+        constexpr bool operator!=(const iterator& other) const { return not(*this == other); }
 
         constexpr bool operator<(const iterator& other) const { return current < other.current; }
 

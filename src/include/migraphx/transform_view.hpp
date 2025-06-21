@@ -26,6 +26,7 @@
 #define MIGRAPHX_GUARD_MIGRAPHX_TRANSFORM_VIEW_HPP
 
 #include <migraphx/config.hpp>
+#include <migraphx/iterator.hpp>
 #include <iterator>
 #include <type_traits>
 #include <utility>
@@ -41,7 +42,7 @@ struct transform_view
 
     constexpr transform_view(Range& prng, F pf) : rng(&prng), f(std::move(pf)) {}
 
-    struct iterator
+    struct iterator : iterator_operators<iterator>
     {
         using underlying_iterator = decltype(std::begin(std::declval<Range&>()));
         using reference           = decltype(std::declval<const F>()(
@@ -53,15 +54,6 @@ struct transform_view
         using difference_type = typename std::iterator_traits<underlying_iterator>::difference_type;
         using pointer         = std::add_pointer_t<std::remove_reference_t<reference>>;
 
-        struct arrow_proxy
-        {
-            reference value;
-            constexpr std::add_pointer_t<std::remove_reference_t<reference>> operator->() &&
-            {
-                return std::addressof(value);
-            }
-        };
-
         constexpr iterator() = default;
 
         constexpr iterator(const transform_view* pparent, underlying_iterator it)
@@ -70,77 +62,25 @@ struct transform_view
         }
 
         constexpr reference operator*() const { return parent->f(*current); }
+        
+        template<class U>
+        static auto increment(U& x) -> decltype(++x.current) { return ++x.current; }
 
-        constexpr arrow_proxy operator->() const { return arrow_proxy{parent->f(*current)}; }
+        template<class U>
+        static auto decrement(U& x) -> decltype(--x.current) { return --x.current; }
 
-        constexpr iterator& operator++()
-        {
-            ++current;
-            return *this;
-        }
-        constexpr iterator operator++(int)
-        {
-            auto tmp = *this;
-            ++*this;
-            return tmp;
-        }
+        template<class U, class I>
+        static auto advance(U& x, I n) -> decltype(x.current += n) { return x.current += n; }
 
-        constexpr iterator& operator--()
+        template<class U, class V>
+        static auto distance(const U& x, const V& y) -> decltype(x.parent == y.parent, y.current - x.current)
         {
-            --current;
-            return *this;
+            assert(x.parent == y.parent); 
+            return y.current - x.current; 
         }
 
-        constexpr iterator operator--(int)
-        {
-            iterator temp = *this;
-            --(*this);
-            return temp;
-        }
-
-        constexpr iterator operator+(difference_type n) const
-        {
-            return iterator(parent, current + n);
-        }
-
-        constexpr iterator operator-(difference_type n) const
-        {
-            return iterator(parent, current - n);
-        }
-
-        constexpr difference_type operator-(const iterator& other) const
-        {
-            return current - other.current;
-        }
-
-        constexpr iterator& operator+=(difference_type n)
-        {
-            current += n;
-            return *this;
-        }
-
-        constexpr iterator& operator-=(difference_type n)
-        {
-            current -= n;
-            return *this;
-        }
-
-        constexpr reference operator[](difference_type n) const
-        {
-            return parent->f(*(current + n));
-        }
-
-        constexpr bool operator==(const iterator& other) const { return current == other.current; }
-
-        constexpr bool operator!=(const iterator& other) const { return not(*this == other); }
-
-        constexpr bool operator<(const iterator& other) const { return current < other.current; }
-
-        constexpr bool operator<=(const iterator& other) const { return current <= other.current; }
-
-        constexpr bool operator>(const iterator& other) const { return current > other.current; }
-
-        constexpr bool operator>=(const iterator& other) const { return current >= other.current; }
+        template<class U, class V>
+        static auto equal(const U& x, const V& y) -> decltype(x.current == y.current) { return x.parent == y.parent and x.current == y.current; }
 
         private:
         const transform_view* parent = nullptr;

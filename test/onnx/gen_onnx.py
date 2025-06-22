@@ -427,6 +427,13 @@ def attention_invalid_weight_hidden_size():
 
 
 @onnx_test()
+def attention_invalid_uneven_weight_no_qkv_hidden():
+    return attention_test([2, 2, 5], [4, 14], 
+                           bias_dims=[12],
+                           num_heads=2)
+
+
+@onnx_test()
 def attention_invalid_bias_dims_size():
     return attention_test([2, 2, 4], [4, 12], 
                            bias_dims=[12, 2, 2],
@@ -461,6 +468,22 @@ def attention_invalid_mask_4d_dims_test():
     return attention_test([1, 2, 4], [4, 12], 
                            bias_dims=[12],
                            mask_dims=[1, 9, 2, 2],
+                           num_heads=2)
+
+
+@onnx_test()
+def attention_invalid_mask_4d_last_dims_test():
+    return attention_test([1, 2, 4], [4, 12], 
+                           bias_dims=[12],
+                           mask_dims=[1, 9, 2, 3],
+                           num_heads=2)
+
+
+@onnx_test()
+def attention_invalid_mask_5d_dims_test():
+    return attention_test([1, 2, 4], [4, 12], 
+                           bias_dims=[12],
+                           mask_dims=[1, 9, 2, 2, 2],
                            num_heads=2)
 
 
@@ -514,6 +537,7 @@ def attention_double_head_bias_test():
     return attention_test([2, 2, 4], [4, 12], 
                            bias_dims=[12],
                            num_heads=2)
+
 
 @onnx_test()
 def attention_double_head_bias_mask_batch1_test():

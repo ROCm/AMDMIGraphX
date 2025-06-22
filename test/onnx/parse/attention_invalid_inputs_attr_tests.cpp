@@ -39,6 +39,13 @@ TEST_CASE(attention_invalid_weight_hidden_size)
         test::throws([&] { optimize_onnx("attention_invalid_weight_hidden_size.onnx"); }));
 }
 
+// Hidden sizes of weights if uneven must be defined by qkv
+TEST_CASE(attention_invalid_weight_no_qkv_hidden_attr)
+{   
+    EXPECT(
+        test::throws([&] { optimize_onnx("attention_invalid_uneven_weight_no_qkv_hidden.onnx"); }));
+}
+
 // Bias dimensions must always be of size 1
 TEST_CASE(attention_invalid_bias_dims_size)
 {   
@@ -72,6 +79,20 @@ TEST_CASE(attention_invalid_4d_raw_mask)
 {   
     EXPECT(
         test::throws([&] { optimize_onnx("attention_invalid_mask_4d_dims_test.onnx"); }));
+}
+
+// Attention 4D mask is (batch, 1, sequence_length sequence_length) thus last two dims must be equal
+TEST_CASE(attention_invalid_4d_raw_mask2)
+{   
+    EXPECT(
+        test::throws([&] { optimize_onnx("attention_invalid_mask_4d_last_dims_test.onnx"); }));
+}
+
+// Attention mask can have at most 5 dimensions
+TEST_CASE(attention_invalid_5d_raw_mask)
+{   
+    EXPECT(
+        test::throws([&] { optimize_onnx("attention_invalid_mask_5d_dims_test.onnx"); }));
 }
 
 // qkv_hidden_sizes attribute must be of dimension 3

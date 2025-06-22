@@ -88,20 +88,12 @@ struct parse_attention : op_parser<parse_attention>
         auto input_val = parser.parse_value(info.attributes.at("qkv_hidden_sizes"));
         std::vector<int64_t> qkv_values;
 
-        if(input_val.get_shape().type() == shape::int64_type)
+        if(input_val.get_shape().type() != shape::int64_type)
         {
-            qkv_values = input_val.get_argument().to_vector<int64_t>();
+            MIGRAPHX_THROW("PARSE_ATTENTION: qkv_hidden_sizes must be int64 type");
         }
-        else
-        {
-            // Handle other types if needed by converting
-            auto temp_values = input_val.get_argument().to_vector<int>();
-            qkv_values.resize(temp_values.size());
-            std::transform(temp_values.begin(),
-                            temp_values.end(),
-                            qkv_values.begin(),
-                            [](int x) { return static_cast<int64_t>(x); });
-        }
+
+        qkv_values = input_val.get_argument().to_vector<int64_t>();
 
         if(qkv_values.size() != 3)
         {

@@ -584,10 +584,10 @@ struct parse_attention : op_parser<parse_attention>
     }
 
 
-    static void get_kv_from_past(const onnx_parser::node_info& info,
+    /* static void get_kv_from_past(const onnx_parser::node_info& info,
                                  const instruction_ref& past_input,
-                                 const attention_attr& /*parsed_attr*/,
-                                 const attention_inferred& /*infered_attr*/,
+                                 const attention_attr& parsed_attr,
+                                 const attention_inferred& infered_attr,
                                  std::vector<instruction_ref>& qkv_mats)
     {
         // Extract past value from (2, batch, num_heads, seq_len, head_size) shape)
@@ -601,7 +601,7 @@ struct parse_attention : op_parser<parse_attention>
         // Transpose to (batch, sequence_length, num_heads, head_size)
         qkv_mats.at(1) = info.add_instruction(make_op("transpose", {{"permutation", {{0, 2, 1, 3}}}}), k_past);
         qkv_mats.at(2) = info.add_instruction(make_op("transpose", {{"permutation", {{0, 2, 1, 3}}}}), v_past);
-    }
+    } */
 
     // Get Q, K, V matricies from stacked weight matrix
     static std::vector<instruction_ref> input_linear_to_qkv(const onnx_parser::node_info& info,
@@ -746,7 +746,7 @@ struct parse_attention : op_parser<parse_attention>
         return final_mask;
     }
 
-    static instruction_ref handle_past_present_keys(const onnx_parser::node_info& info,
+    /* static instruction_ref handle_past_present_keys(const onnx_parser::node_info& info,
                                                  const instruction_ref& past_input, 
                                                  const instruction_ref& keys, 
                                                  const instruction_ref& values,
@@ -771,7 +771,7 @@ struct parse_attention : op_parser<parse_attention>
 
             return info.add_instruction(make_op("concat"), keys, values);
         }
-    }
+    } */
 
     std::vector<instruction_ref> parse(const op_desc& /*opd*/,
                                        const onnx_parser& parser,
@@ -806,7 +806,7 @@ struct parse_attention : op_parser<parse_attention>
         if(infered_attributes.has_attn_bias)
             attn_bias = inputs.at(5);
 
-        auto attn_scale_factor = static_cast<float>(infered_attributes.query_size);
+        float attn_scale_factor = infered_attributes.query_size;
         if(infered_attributes.scale_not_query_sz)
             attn_scale_factor = parsed_attributes.scale;
 
@@ -824,16 +824,16 @@ struct parse_attention : op_parser<parse_attention>
         auto split_qkv  = qkv_split_per_head(info, qkv_mats, parsed_attributes, infered_attributes);
 
         // Capture present state for key value of the present state
-        auto present_key   = split_qkv.at(1);
-        auto present_value = split_qkv.at(2);
+        // auto present_key   = split_qkv.at(1);
+        // auto present_value = split_qkv.at(2);
 
         // Add Past K/V matricies from past vector if present
-        auto past_input = input_data;
+        /*auto past_input = input_data;
         if(infered_attributes.has_past_input)
         {
             past_input = inputs.at(4);
             get_kv_from_past(info, past_input, parsed_attributes, infered_attributes, split_qkv);
-        }
+        } */
 
         instruction_ref context = scale_dot_attention_head(info, split_qkv, scale_factor, attn_mask, attn_bias, infered_attributes.has_attn_mask, infered_attributes.has_attn_bias);
 
@@ -841,11 +841,11 @@ struct parse_attention : op_parser<parse_attention>
         output_vec.push_back(context);
 
         // Must output present stacked KV when past input is used
-        if(infered_attributes.has_past_input)
+        /* if(infered_attributes.has_past_input)
         {
             auto present_output = handle_past_present_keys(info, past_input, present_key, present_value, parsed_attributes);
             output_vec.push_back(present_output);
-        }
+        } */
 
         return output_vec;
     }

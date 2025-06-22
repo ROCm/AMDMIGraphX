@@ -217,7 +217,7 @@ struct non_comparable
 
     friend bool operator!=(const non_comparable& lhs, const non_comparable& rhs)
     {
-        return not (lhs == rhs);
+        return not(lhs == rhs);
     }
 };
 

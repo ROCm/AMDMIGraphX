@@ -194,7 +194,7 @@ struct parse_attention : op_parser<parse_attention>
                                         const size_t dim,
                                         const std::string& name)
     {
-        if(std::accumulate(qkv_vec.begin(), qkv_vec.end(), 0) != input_arg->get_shape().lens().at(dim))
+        if(std::accumulate(qkv_vec.begin(), qkv_vec.end(), size_t(0)) != input_arg->get_shape().lens().at(dim))
         {
             MIGRAPHX_THROW("Attention: q k v hidden sizes sum must match " + name + " tensor " + std::to_string(dim) + " dimension");
         }
@@ -402,8 +402,8 @@ struct parse_attention : op_parser<parse_attention>
                 MIGRAPHX_THROW("Attention: Past input requires past_sequence_length to be set");
             }
 
-            auto past_shape = past->get_shape();
-            auto past_lens  = past_shape.lens();
+            const auto past_shape = past->get_shape();
+            const auto& past_lens  = past_shape.lens();
             if((past_lens.at(0) != infered_out.batch_size) or 
                (past_lens.at(1) != attr_out.num_heads) or
                (past_lens.at(3) != infered_out.query_size) or 
@@ -442,8 +442,8 @@ struct parse_attention : op_parser<parse_attention>
         instruction_ref attention_bias;
         if(check_and_return_arg(args, 5, attention_bias))
         {
-            auto attn_bias_shape = attention_bias->get_shape();
-            auto attn_bias_lens  = attn_bias_shape.lens();
+            const auto attn_bias_shape = attention_bias->get_shape();
+            const auto& attn_bias_lens  = attn_bias_shape.lens();
 
             if(attn_bias_shape.type() != args.at(0)->get_shape().type())
             {
@@ -633,11 +633,11 @@ struct parse_attention : op_parser<parse_attention>
                                                    const instruction_ref input_matrix,
                                                    bool upper)
     {
-        auto in_matrix_shape = input_matrix->get_shape();
-        auto in_shape_type   = in_matrix_shape.type();
-        auto in_shape_dims   = in_matrix_shape.lens();
-        auto num_rows        = in_shape_dims.at(0);
-        auto num_cols        = in_shape_dims.at(1);
+        const auto in_matrix_shape = input_matrix->get_shape();
+        const auto in_shape_type   = in_matrix_shape.type();
+        const auto& in_shape_dims   = in_matrix_shape.lens();
+        const auto num_rows        = in_shape_dims.at(0);
+        const auto num_cols        = in_shape_dims.at(1);
         std::vector<bool> mask_mat(num_rows * num_cols, upper);
 
         // if upper == 0, kth diagonal must also be masked

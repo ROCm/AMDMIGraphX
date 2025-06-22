@@ -217,7 +217,7 @@ struct non_comparable
 
     friend bool operator!=(const non_comparable& lhs, const non_comparable& rhs)
     {
-        return !(lhs == rhs);
+        return not (lhs == rhs);
     }
 };
 
@@ -237,12 +237,12 @@ TEST_CASE(transform_view_non_comparable_elements)
 
 TEST_CASE(operator_arrow_in_loop_reference)
 {
-    struct T
+    struct a
     {
         int val;
     };
-    std::vector<T> data{{1}, {2}, {3}};
-    auto view = migraphx::views::transform(data, [](T& t) -> T& { return t; });
+    std::vector<a> data{{1}, {2}, {3}};
+    auto view = migraphx::views::transform(data, [](a& t) -> a& { return t; });
     int sum   = 0;
     for(auto it = view.begin(); it != view.end(); ++it)
     {
@@ -253,12 +253,12 @@ TEST_CASE(operator_arrow_in_loop_reference)
 
 TEST_CASE(operator_arrow_in_loop_value)
 {
-    struct T
+    struct a
     {
         int val;
     };
-    std::vector<T> data{{1}, {2}, {3}};
-    auto view = migraphx::views::transform(data, [](const T& t) { return T{t.val * 2}; });
+    std::vector<a> data{{1}, {2}, {3}};
+    auto view = migraphx::views::transform(data, [](const a& t) { return a{t.val * 2}; });
     std::vector<int> out;
     for(auto it = view.begin(); it != view.end(); ++it)
     {

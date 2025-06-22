@@ -586,6 +586,14 @@ def attention_double_head_bias_asym_mask_scale_test():
                            num_heads=2, scale=float(0.1234))
 
 
+@onnx_test()
+def attention_double_head_bias_asym_mask_filter_val_test():
+    return attention_test([2, 3, 4], [4, 12], 
+                           bias_dims=[12],
+                           mask_dims=[2, 3],
+                           num_heads=2, mask_filter_value=-5000)
+
+
 
 
 

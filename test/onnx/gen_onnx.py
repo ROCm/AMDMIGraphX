@@ -615,7 +615,7 @@ def attention_double_head_bias_asym_mask_filter_val_test():
     return attention_test([2, 3, 4], [4, 12], 
                            bias_dims=[12],
                            mask_dims=[2, 3],
-                           num_heads=2, mask_filter_value=-5000)
+                           num_heads=2, mask_filter_value=float(-5000.0))
 
 
 

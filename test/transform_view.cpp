@@ -68,6 +68,7 @@ TEST_CASE(basic_transform)
 TEST_CASE(transform_with_reference)
 {
     std::vector<int> vec = {1, 2, 3, 4, 5};
+    // cppcheck-suppress constParameterReference
     auto view            = migraphx::views::transform(vec, [](int& x) -> int& { return x; });
 
     auto it = view.begin();
@@ -126,6 +127,7 @@ TEST_CASE(non_random_access_iterator)
 TEST_CASE(non_random_access_iterator_with_reference)
 {
     std::list<int> lst = {1, 2, 3, 4, 5};
+    // cppcheck-suppress constParameterReference
     auto view          = migraphx::views::transform(lst, [](int& x) -> int& { return x; });
 
     auto it = view.begin();
@@ -168,7 +170,8 @@ TEST_CASE(forward_iterator)
 TEST_CASE(forward_iterator_with_reference)
 {
     std::forward_list<int> flst = {1, 2, 3, 4, 5};
-    auto view = migraphx::views::transform(flst, [](const int& x) -> int& { return x; });
+    // cppcheck-suppress constParameterReference
+    auto view = migraphx::views::transform(flst, [](int& x) -> int& { return x; });
 
     auto it = view.begin();
     EXPECT(*it == 1);
@@ -242,7 +245,7 @@ TEST_CASE(operator_arrow_in_loop_reference)
         int val;
     };
     std::vector<a> data{{1}, {2}, {3}};
-    auto view = migraphx::views::transform(data, [](a& t) -> a& { return t; });
+    auto view = migraphx::views::transform(data, [](const a& t) -> const a& { return t; });
     int sum   = 0;
     for(auto it = view.begin(); it != view.end(); ++it)
     {

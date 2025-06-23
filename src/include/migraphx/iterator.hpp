@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2022 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2025 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -26,6 +26,7 @@
 
 #include <migraphx/config.hpp>
 #include <migraphx/rank.hpp>
+#include <memory>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
@@ -46,6 +47,34 @@ template <class Iterator, class EndIterator>
 bool is_end(Iterator it, EndIterator last)
 {
     return is_end(rank<2>{}, it, last);
+}
+
+template <class Iterator>
+auto* iterator_address(rank<0>, Iterator it)
+{
+    return std::addressof(*it);
+}
+
+template <class Iterator>
+auto iterator_address(rank<1>, Iterator it) -> decltype(it._M_dereferenceable()
+                                                            ? std::addressof(*it)
+                                                            : nullptr)
+{
+    return it._M_dereferenceable() ? std::addressof(*it) : nullptr;
+}
+
+template <class Iterator>
+auto iterator_address(rank<1>,
+                      Iterator it) -> decltype(std::addressof(it._Unwrapped()._Ptr->_Myval),
+                                               std::addressof(*it))
+{
+    return it._Unwrapped()._Ptr ? std::addressof(it._Unwrapped()._Ptr->_Myval) : nullptr;
+}
+
+template <class Iterator>
+auto* iterator_address(Iterator it)
+{
+    return iterator_address(rank<1>{}, it);
 }
 
 } // namespace MIGRAPHX_INLINE_NS

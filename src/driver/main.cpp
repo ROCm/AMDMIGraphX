@@ -1014,7 +1014,6 @@ int main(int argc, const char* argv[], const char* envp[])
                   << milliseconds << "ms" << std::endl;
 
         std::cout << "[ " << get_version() << " ] Complete: " << driver_invocation << std::endl;
-        return 0;
     }
     else
     {

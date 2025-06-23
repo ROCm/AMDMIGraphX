@@ -100,7 +100,6 @@ struct parse_attention : op_parser<parse_attention>
             MIGRAPHX_THROW("PARSE_ATTENTION: qkv_hidden_sizes must have exactly 3 values");
         }
 
-
         if(qkv_values[0] != qkv_values[1])
         {
             MIGRAPHX_THROW("Attention: q and k hidden sizes must be identitical!");
@@ -633,12 +632,11 @@ struct parse_attention : op_parser<parse_attention>
 
     // Stolen from our TriLU parser to generate a diagonal mask to aid in masking operations
     static instruction_ref generate_triangular_mat(const onnx_parser::node_info& info,
-                                                   const instruction_ref input_matrix,
+                                                   const migraphx::shape& matrix_shape,
                                                    bool upper)
     {
-        const auto in_matrix_shape = input_matrix->get_shape();
-        const auto in_shape_type   = in_matrix_shape.type();
-        const auto& in_shape_dims   = in_matrix_shape.lens();
+        const auto in_shape_type   = matrix_shape.type();
+        const auto& in_shape_dims  = matrix_shape.lens();
         const auto num_rows        = in_shape_dims.at(0);
         const auto num_cols        = in_shape_dims.at(1);
         std::vector<bool> mask_mat(num_rows * num_cols, upper);
@@ -667,11 +665,16 @@ struct parse_attention : op_parser<parse_attention>
         // Seen often in decoder blocks that don't want to "look ahead" and add those to the attention score.
         if(is_unidirectional_mask)
         {
-            auto triangle_mask = generate_triangular_mat(info, mask_input, false);
-            mask = info.add_common_op("mul", mask, triangle_mask);
+            const auto & mask_shape = mask_input->get_shape();
+            const auto&  dims  = mask_shape.lens();
+            auto triangle_mask = generate_triangular_mat(info, mask_shape, false);
+            triangle_mask = info.add_instruction(make_op("unsqueeze", {{"axes", {-1}}}), triangle_mask);
+            triangle_mask = info.add_instruction(make_op("unsqueeze", {{"axes", {-1}}}), triangle_mask);
+            triangle_mask = info.add_instruction(make_op("multibroadcast", {{"out_lens", {dims.at(0), dims.at(1), dims.at(2), dims.at(3)}}}), triangle_mask);
+            mask = info.add_common_op("dot", mask, triangle_mask);
         }
         return mask;
-    }
+    } 
 
     // Slice, mul, convert and concat until we get a mask matrix useful prior to the where
     static instruction_ref generate_raw_mask_per_batch(const onnx_parser::node_info& info,
@@ -702,6 +705,7 @@ struct parse_attention : op_parser<parse_attention>
         // Reuse "0" broadcasted converted to int32 to check if input mask is greater than 0 for where condition
         auto in_pass = info.add_instruction(make_op("convert", {{"target_type", mask_input->get_shape().type()}}), bc_pass);
         auto in_bool = info.add_instruction(make_op("equal"), raw_mask, in_pass);
+        in_bool = check_and_set_unidirectional(info, in_bool, parsed_in.unidirectional);
         // Need this to let MLIR to run with where
         in_bool = info.add_instruction(make_op("convert", {{"target_type", migraphx::shape::int8_type}}), in_bool);
         return info.add_instruction(make_op("where"), in_bool, bc_mask, bc_pass);

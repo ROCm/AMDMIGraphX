@@ -168,7 +168,7 @@ TEST_CASE(forward_iterator)
 TEST_CASE(forward_iterator_with_reference)
 {
     std::forward_list<int> flst = {1, 2, 3, 4, 5};
-    auto view = migraphx::views::transform(flst, [](int& x) -> int& { return x; });
+    auto view = migraphx::views::transform(flst, [](const int& x) -> int& { return x; });
 
     auto it = view.begin();
     EXPECT(*it == 1);

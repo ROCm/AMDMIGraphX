@@ -269,8 +269,11 @@ struct parse_attention : op_parser<parse_attention>
         else
         {   
             // QKV is identical when second weight dim is divisible by 3 and qkv not set
-            if(qkv_size_not_set(attr_out.qkv_hidden_sizes))
-                attr_out.qkv_hidden_sizes = std::vector(3, (weight_shape.lens().at(1) / 3));
+            if (qkv_size_not_set(attr_out.qkv_hidden_sizes))
+            {
+                std::vector<size_t> default_qkv_sizes(3, (weight_shape.lens().at(1) / 3));
+                attr_out.qkv_hidden_sizes = default_qkv_sizes;
+            }
         }
 
         // Ensure qkv_hidden sizes set are valid wrt to input weights

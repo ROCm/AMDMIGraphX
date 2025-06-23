@@ -462,13 +462,14 @@ struct program_params
         ap(fill0, {"--fill0"}, ap.help("Fill parameter with 0s"), ap.append(), ap.nargs(2));
         ap(fill1, {"--fill1"}, ap.help("Fill parameter with 1s"), ap.append(), ap.nargs(2));
         ap(load_args_info,
-            {"--load-arg"},
-            ap.help("Load arguments for the model (format: \"@name filename\")"),
-            ap.append(),
-            ap.nargs(2));
+           {"--load-arg"},
+           ap.help("Load arguments for the model (format: \"@name filename\")"),
+           ap.append(),
+           ap.nargs(2));
     }
 
-    static auto parse_load_args(const std::vector<std::string>& load_args_info, const target& t, bool offload)
+    static auto
+    parse_load_args(const std::vector<std::string>& load_args_info, const target& t, bool offload)
     {
         parameter_map map_load_args;
         std::string name = "";

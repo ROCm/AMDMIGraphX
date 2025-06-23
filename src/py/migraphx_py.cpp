@@ -419,16 +419,12 @@ MIGRAPHX_PYBIND11_MODULE(migraphx, m)
             },
             "Save argument to a file encoded in msgpack format",
             py::arg("arg"),
-            py::arg("filename")
-            )
+            py::arg("filename"))
         .def_static(
             "load",
-            [](const std::string& filename) {
-                return migraphx::load_argument(filename);
-            },
+            [](const std::string& filename) { return migraphx::load_argument(filename); },
             "Load argument from a file encoded in msgpack format",
-            py::arg("filename")
-            )
+            py::arg("filename"))
         .def("__eq__", std::equal_to<migraphx::argument>{})
         .def("__ne__", std::not_equal_to<migraphx::argument>{})
         .def("__repr__", [](const migraphx::argument& x) { return migraphx::to_string(x); });
@@ -602,7 +598,6 @@ MIGRAPHX_PYBIND11_MODULE(migraphx, m)
         },
         py::arg("shape"),
         py::arg("address"));
-
 
     m.def(
         "parse_tf",

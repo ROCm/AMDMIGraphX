@@ -210,7 +210,7 @@ argument argument::element(std::size_t i) const
 
 void save_argument(const argument& a, const std::string& filename)
 {
-    return write_buffer(filename, to_msgpack(to_value(a)));
+    write_buffer(filename, to_msgpack(to_value(a)));
 }
 
 argument load_argument(const std::string& filename)

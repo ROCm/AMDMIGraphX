@@ -11946,7 +11946,7 @@ def resize_aspect_ratio_err_test():
 
 @onnx_test()
 def resize_roi_skip_test():
-    # speical testcase for resize op with roi value but skip it
+    # special testcase for resize op with roi value but skip it
 
     scales = np.array([1.0, 1.0, 2.0, 2.0], dtype=np.float32)
     roi = np.array([1.1, 1.2, 1.3, 1.4, 1.5, 1.6, 1.7, 1.8], dtype=np.float32)

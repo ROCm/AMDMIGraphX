@@ -480,8 +480,8 @@ template <class F>
 static bool compare(const value& x, const value& y, F f)
 {
     bool result = false;
-    visit_for_compare(x, [&](auto&& a) {
-        visit_for_compare(y, [&](auto&& b) {
+    visit_for_compare(x, [&](const auto& a) {
+        visit_for_compare(y, [&](const auto& b) {
             if constexpr(std::is_same<decltype(a), decltype(b)>{})
                 result = f(std::forward_as_tuple(x.get_key(), compare_decay(a)),
                            std::forward_as_tuple(y.get_key(), compare_decay(b)));

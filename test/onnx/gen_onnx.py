@@ -641,13 +641,12 @@ def attention_double_head_bias_mask_past_attn_bias_shared_test():
                            num_heads=2)
 
 
-# Mirrors customer workload without bias/masks
 @onnx_test()
 def attention_multihead_test():
     return attention_test([32, 512, 1024], [1024, 3072],
                           num_heads=16)
 
-# Mirrors customer workload
+
 @onnx_test()
 def attention_multihead_bias_mask_test():
     return attention_test([32, 512, 1024], [1024, 3072],

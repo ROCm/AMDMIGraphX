@@ -1157,9 +1157,9 @@ struct find_channel_slice_convolution
 
     void apply(module_pass_manager& mpm, const match::matcher_result& r) const
     {
-        auto ins   = r.result;
-        auto slice = r.instructions["slice"];
-        auto input = slice->inputs().front();
+        auto ins              = r.result;
+        auto slice            = r.instructions["slice"];
+        auto input            = slice->inputs().front();
         auto num_slice_groups = get_num_slice_groups(slice);
         if(num_slice_groups == 0)
         {
@@ -1168,12 +1168,12 @@ struct find_channel_slice_convolution
         // check that all slice instructions coming off from `input` are making
         // the same size slice.
         if(not all_of(input->outputs(), [&](instruction_ref output) {
-                if(output->name() != "slice")
-                    return false;
-                auto ichannels = output->inputs().front()->get_shape().lens().at(1);
-                auto channels = output->get_shape().lens().at(1);
-                return channels * num_slice_groups == ichannels;
-            }))
+               if(output->name() != "slice")
+                   return false;
+               auto ichannels = output->inputs().front()->get_shape().lens().at(1);
+               auto channels  = output->get_shape().lens().at(1);
+               return channels * num_slice_groups == ichannels;
+           }))
         {
             return;
         }

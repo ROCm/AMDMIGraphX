@@ -179,6 +179,7 @@ struct parse_attention : op_parser<parse_attention>
         if(contains(info.attributes, "unidirectional"))
         {
             attr_out.unidirectional = (1 == parser.parse_value(info.attributes.at("unidirectional")).at<size_t>());
+            MIGRAPHX_THROW("PARSE_ATTENTION: unidirectional attr not supported");
         }
     }
 
@@ -350,6 +351,7 @@ struct parse_attention : op_parser<parse_attention>
                                 Use (batch, sequence_length, total_sequence_length) for shapes of size 3");
             }
             inferred_out.index_pad = mask_pad::raw;
+            MIGRAPHX_THROW("Attention: Mask_index 3D masking not supported");
         }
         else if(mask_index_lens.size() == 4)
         { // Oddball case and can be used to infer max_sequence_length_parameter
@@ -362,6 +364,7 @@ struct parse_attention : op_parser<parse_attention>
             }
             inferred_out.max_sequence_length = mask_index_lens.at(2);
             inferred_out.index_pad = mask_pad::raw;
+            MIGRAPHX_THROW("Attention: Mask_index 4D Megatron masking not supported");
         }
         else
         {
@@ -433,6 +436,7 @@ struct parse_attention : op_parser<parse_attention>
                 MIGRAPHX_THROW("ATTENTION: Unable to handle past input without shared buffer");
             }
             output_arg_vec.push_back(past);
+            MIGRAPHX_THROW("Attention: Past Not supported");
         }
     }
     
@@ -461,6 +465,7 @@ struct parse_attention : op_parser<parse_attention>
             }
             inferred_out.has_attn_bias = true;
             output_arg_vec.push_back(attention_bias);
+            MIGRAPHX_THROW("Attention: attention_bias Not supported");
         }
     }
 
@@ -477,6 +482,8 @@ struct parse_attention : op_parser<parse_attention>
                 MIGRAPHX_THROW("past_sequence_length must be of type int32");
             }
             output_arg_vec.push_back(past_seq_length);
+
+            MIGRAPHX_THROW("PARSE_ATTENTION: past_sequence_length not supported");
         }
     }
 
@@ -631,7 +638,7 @@ struct parse_attention : op_parser<parse_attention>
     }
 
     // Stolen from our TriLU parser to generate a diagonal mask to aid in masking operations
-    static instruction_ref generate_triangular_mat(const onnx_parser::node_info& info,
+    /* static instruction_ref generate_triangular_mat(const onnx_parser::node_info& info,
                                                    const migraphx::shape& matrix_shape,
                                                    bool upper)
     {
@@ -674,7 +681,7 @@ struct parse_attention : op_parser<parse_attention>
             mask = info.add_common_op("dot", mask, triangle_mask);
         }
         return mask;
-    } 
+    } */
 
     // Slice, mul, convert and concat until we get a mask matrix useful prior to the where
     static instruction_ref generate_raw_mask_per_batch(const onnx_parser::node_info& info,
@@ -705,7 +712,7 @@ struct parse_attention : op_parser<parse_attention>
         // Reuse "0" broadcasted converted to int32 to check if input mask is greater than 0 for where condition
         auto in_pass = info.add_instruction(make_op("convert", {{"target_type", mask_input->get_shape().type()}}), bc_pass);
         auto in_bool = info.add_instruction(make_op("equal"), raw_mask, in_pass);
-        in_bool = check_and_set_unidirectional(info, in_bool, parsed_in.unidirectional);
+        /* in_bool = check_and_set_unidirectional(info, in_bool, parsed_in.unidirectional); */
         // Need this to let MLIR to run with where
         in_bool = info.add_instruction(make_op("convert", {{"target_type", migraphx::shape::int8_type}}), in_bool);
         return info.add_instruction(make_op("where"), in_bool, bc_mask, bc_pass);
@@ -723,13 +730,13 @@ struct parse_attention : op_parser<parse_attention>
 
         if(inferred_in.index_pad == mask_pad::raw)
         {   // Raw Mask - 0 means mask, 1 means pass through. Apply mask_filter_val to mask indicies and zero otherwise
-            auto mask_dims     = mask_input->get_shape().ndim();
+            // auto mask_dims     = mask_input->get_shape().ndim();
 
             // Case 1: Input is already in (batch, 1, query_size, query_size) format - Just need to handle unidirectional case
-            if (mask_dims == 4)
+            /* if (mask_dims == 4)
             {
                 return check_and_set_unidirectional(info, mask_input, parsed_in.unidirectional);
-            }
+            } */
             // Need to generate from 2 dims or 3 dim cases
             final_mask = generate_raw_mask_per_batch(info, input, mask_input, parsed_in, inferred_in);
         }

@@ -61,6 +61,7 @@
 #include <migraphx/netron_output.hpp>
 
 #include <fstream>
+#include <iomanip>
 
 namespace {
 std::vector<std::string>
@@ -86,7 +87,7 @@ std::chrono::time_point<std::chrono::system_clock> print_timestamp(const std::st
 {
     auto now            = std::chrono::system_clock::now();
     auto now_in_time_t  = std::chrono::system_clock::to_time_t(now);
-    auto now_as_tm_date = std::localtime(&now_in_time_t);
+    auto *now_as_tm_date = std::localtime(&now_in_time_t);
     auto formatted_time = std::put_time(now_as_tm_date, "%Y-%m-%d %H:%M:%S");
     std::cout << header << ": " << formatted_time << std::endl;
     return now;

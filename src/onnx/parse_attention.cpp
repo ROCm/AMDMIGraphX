@@ -567,7 +567,7 @@ struct parse_attention : op_parser<parse_attention>
             qk_masked = info.add_common_op("add", qk_masked, mask);
         } 
 
-        // Apply scale onl after all the masking and biasing has occured
+        // Apply scale onl after all the masking and biasing has occurred
         auto qk_scaled = info.add_common_op("mul", qk_masked, scale_factor);
 
         auto softmax_out = info.add_instruction(make_op("softmax", {{"axis", 3}}), qk_scaled);

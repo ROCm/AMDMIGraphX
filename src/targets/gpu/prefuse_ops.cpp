@@ -440,8 +440,9 @@ struct find_group_query_attention
                                                seq_range);
             seq_range =
                 m_attn.add_instruction(make_op("multibroadcast", {{"out_lens", bnsm}}), seq_range);
-            auto causal_mask = m_attn.add_instruction(make_op("greater_or_equal"), bc_range, seq_range);
-            causal_mask      = m_attn.add_instruction(
+            auto causal_mask = 
+                m_attn.add_instruction(make_op("greater_or_equal"), bc_range, seq_range);
+            causal_mask = m_attn.add_instruction(
                 make_op("convert", {{"target_type", shape::bool_type}}), causal_mask);
             mul = m_attn.add_instruction(make_op("where"), causal_mask, ninf, mul);
         }

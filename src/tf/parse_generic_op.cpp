@@ -40,8 +40,10 @@ struct parse_generic_op : op_parser<parse_generic_op>
                 {"LessEqual", "identity"},
                 {"Relu", "relu"},
                 {"Rsqrt", "rsqrt"},
-                {"Tanh", "tanh"},
-                {"StopGradient", "identity"}};
+                {"Sigmoid", "sigmoid"},
+                {"StopGradient", "identity"},
+                {"Tanh", "tanh"}
+                };
     }
 
     instruction_ref parse(const op_desc& opd,

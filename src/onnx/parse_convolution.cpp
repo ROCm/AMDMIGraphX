@@ -43,37 +43,45 @@ struct parse_convolution : op_parser<parse_convolution>
     {
         return {{"Conv", "convolution"},
                 {"ConvInteger", "quant_convolution"},
-                {"NhwcConv", "convolution_nhwc"}};
+                {"NhwcConv", "convolution"}};
     }
 
     instruction_ref parse(const op_desc& opd,
                           const onnx_parser& parser,
                           onnx_parser::node_info info,
-                          const std::vector<instruction_ref>& args) const
+                          std::vector<instruction_ref> args) const
     {
+        if(opd.onnx_name == "NhwcConv")
+        {
+            auto x       = args[0];
+            auto weights = args[1];
+
+            args[0] = from_nhwc(info, x);
+            args[1] = from_nhwc(info, weights);
+        }
+
         // ensure pads available only when auto_pad is "NOT_SET"
         check_padding_mode(info, opd.onnx_name);
 
         value options = {};
-
         if(contains(info.attributes, "strides"))
         {
             const auto& attr = info.attributes["strides"].ints();
-            std::vector<std::size_t> strides {attr.begin(), attr.end()};
+            std::vector<std::size_t> strides{attr.begin(), attr.end()};
             options.insert({"strides", strides});
         }
 
         if(contains(info.attributes, "dilations"))
         {
             const auto& attr = info.attributes["dilations"].ints();
-            std::vector<std::size_t> dilations {attr.begin(), attr.end()};
+            std::vector<std::size_t> dilations{attr.begin(), attr.end()};
             options.insert({"dilations", dilations});
         }
 
         if(contains(info.attributes, "pads"))
         {
             const auto& attr = info.attributes["pads"].ints();
-            std::vector<int64_t> paddings {attr.begin(), attr.end()};
+            std::vector<int64_t> paddings{attr.begin(), attr.end()};
             options.insert({"paddings", paddings});
         }
 
@@ -89,7 +97,14 @@ struct parse_convolution : op_parser<parse_convolution>
             options.insert({"auto_pad", auto_pad});
         }
 
-        return op::builder::add(opd.op_name, *info.mod, args, options).at(0);
+        auto ret = op::builder::add(opd.op_name, *info.mod, args, options).at(0);
+
+        if(opd.onnx_name == "NhwcConv")
+        {
+            ret = to_nhwc(info, ret);
+        }
+
+        return ret;
     }
 };
 

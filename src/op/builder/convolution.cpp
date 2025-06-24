@@ -250,8 +250,7 @@ struct quant_convolution : convolution_base<quant_convolution>
         return symmetric_value;
     }
 
-    instruction_ref
-    gen_symmetric_literal(module& m, const instruction_ref& input) const
+    instruction_ref gen_symmetric_literal(module& m, const instruction_ref& input) const
     {
         float symmetric_value = get_symmetric_value(input);
         return m.add_literal({{input->get_shape().type(), {1}, {0}}, {symmetric_value}});
@@ -302,7 +301,7 @@ struct quant_convolution : convolution_base<quant_convolution>
                              std::vector<std::size_t> lens,
                              std::size_t axis) const
     {
-        if (qparam->get_shape().elements() == 1)
+        if(qparam->get_shape().elements() == 1)
         {
             return migraphx::make_op("multibroadcast", {{"out_lens", lens}});
         }
@@ -347,7 +346,7 @@ struct quant_convolution : convolution_base<quant_convolution>
         {
             auto x_zp_mb = m.add_instruction(x_zp_bc, x_zp);
             auto w_zp_mb = m.add_instruction(w_zp_bc, w_zp);
-																				 
+
             auto out_zp_3 = m.add_instruction(op, x_zp_mb, w_zp_mb);
 
             ret = insert_common_op(m, ins, "add", ret, out_zp_3);
@@ -384,43 +383,6 @@ struct quant_convolution : convolution_base<quant_convolution>
             shift_input_and_bias(
                 m, ins, offset_op, (not is_symmetric_zero_point(weight_zp)), weights, weight_zp);
         }
-    }
-};
-
-struct convolution_nhwc : op_builder<convolution_nhwc>, convolution
-{
-    static std::string name() { return "convolution_nhwc"; }
-
-    instruction_ref apply_nhwc_perm(module& m, instruction_ref ins, bool invert)
-    {
-        std::vector<int64_t> perm(ins->get_shape().ndim());
-        std::iota(begin(perm) + 1, end(perm) - 1, 2);
-        perm.back() = 1;
-        return m.add_instruction(make_op("transpose", {{"permutation", invert ? invert_permutation(perm) : perm}}), ins);
-    }
-
-    instruction_ref from_nhwc(module& m, instruction_ref ins)
-    {
-        return apply_nhwc_perm(m, ins, true);
-    }
-
-    instruction_ref to_nhwc(module& m, instruction_ref ins)
-    {
-        return apply_nhwc_perm(m, ins, false);
-    }
-
-    std::vector<instruction_ref> insert(module& m, instruction_ref ins, const std::vector<instruction_ref>& args)
-    {
-        std::vector<instruction_ref> args_copy = args;
-        auto& x       = args_copy[0];
-        auto& weights = args_copy[1];
-        
-        x       = from_nhwc(m, x);
-        weights = from_nhwc(m, weights);
-
-        auto ret = convolution::insert(m, ins, args_copy);
-
-        return {to_nhwc(m, ret.front())};
     }
 };
 

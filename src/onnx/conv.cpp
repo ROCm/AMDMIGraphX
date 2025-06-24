@@ -22,6 +22,10 @@
  * THE SOFTWARE.
  */
 #include <migraphx/onnx/conv.hpp>
+#include <migraphx/instruction.hpp>
+#include <migraphx/make_op.hpp>
+#include <migraphx/permutation.hpp>
+#include <algorithm>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
@@ -46,6 +50,25 @@ void recalc_conv_attributes(value& v, size_t kdims)
     }
 }
 
+static instruction_ref
+apply_nhwc_perm(const onnx_parser::node_info& info, instruction_ref ins, bool invert)
+{
+    std::vector<int64_t> perm(ins->get_shape().ndim());
+    std::iota(begin(perm) + 1, end(perm) - 1, 2);
+    perm.back() = 1;
+    return info.add_instruction(
+        make_op("transpose", {{"permutation", invert ? invert_permutation(perm) : perm}}), ins);
+}
+
+instruction_ref from_nhwc(const onnx_parser::node_info& info, instruction_ref ins)
+{
+    return apply_nhwc_perm(info, ins, true);
+}
+
+instruction_ref to_nhwc(const onnx_parser::node_info& info, instruction_ref ins)
+{
+    return apply_nhwc_perm(info, ins, false);
+}
 
 } // namespace onnx
 } // namespace MIGRAPHX_INLINE_NS

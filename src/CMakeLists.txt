@@ -64,6 +64,7 @@ add_library(migraphx
     fuse_pointwise.cpp
     fuse_pointwise_reduce.cpp
     fuse_reduce.cpp
+    fuse_special_ops.cpp
     generate.cpp
     inline_module.cpp
     insert_pad.cpp
@@ -191,6 +192,7 @@ register_migraphx_ops(
     get_tuple_elem
     greater
     group_query_attention
+    group
     gru
     identity
     if_op

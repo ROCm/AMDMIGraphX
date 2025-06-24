@@ -410,9 +410,9 @@ MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_TIME_MATCHERS)
 template <class Mod, class... Ms>
 void find_matches_for(source_location location, Mod& mod, instruction_ref ins, Ms&&... ms)
 {
-    const int trace         = value_of(MIGRAPHX_TRACE_MATCHES{});
-    const bool validate     = enabled(MIGRAPHX_VALIDATE_MATCHES{});
-    const auto trace_filter = string_value_of(MIGRAPHX_TRACE_MATCHES_FOR{});
+    const int trace          = value_of(MIGRAPHX_TRACE_MATCHES{});
+    const bool validate      = enabled(MIGRAPHX_VALIDATE_MATCHES{});
+    const auto trace_filter  = string_value_of(MIGRAPHX_TRACE_MATCHES_FOR{});
     const bool time_matchers = enabled(MIGRAPHX_TIME_MATCHERS{});
     bool match               = false;
     each_args(
@@ -1013,7 +1013,7 @@ inline auto has_value(T x, std::size_t atol_mult = 10, std::size_t rtol_mult = 1
         bool b = false;
         l.visit([&](auto v) {
             // cast to the literal's data type before comparing
-            using type = typename decltype(v)::value_type;
+            using type     = typename decltype(v)::value_type;
             auto tolerance = atol_mult + rtol_mult * std::fabs(x);
             if(migraphx::float_equal(tolerance, 0) or std::is_integral<type>{})
             {
@@ -1046,6 +1046,65 @@ auto pointwise(Ms... ms)
 {
     return match::has_attribute("pointwise")(ms...);
 }
+
+// template <class... Ms>
+// auto inputs_of(Ms... ms)
+// {
+//     auto m = any_of(ms...);
+//     return make_basic_fun_matcher([=](matcher_context& ctx, instruction_ref start) {
+//         return fix<optional<instruction_ref>>(
+//             [&](auto self, auto ins) -> optional<instruction_ref> {
+//                 std::unordered_set<instruction_ref> visited;
+//                 if(not visited.insert(ins).second)
+//                     return ins;
+//                 if(ctx.matched(m, ins))
+//                 {
+//                     for(auto input : ins->inputs())
+//                         self(input);
+//                 }
+//                 return ins;
+//             })(start);
+//     });
+// }
+
+// template<class M>
+// auto inputs_of(M m)
+// {
+//     return [](matcher_context& ctx, auto start, auto f) {
+//         std::unordered_set<instruction_ref> visited;
+//         fix([&](auto self, auto ins) {
+//             if(not visited.insert(ins).second)
+//                 return;
+//             if(not ctx.matched(m , ins))
+//             {
+//                 f(ins);
+//                 return;
+//             }
+//             for(auto input:ins->inputs())
+//                 self(input);
+//         })(start);
+//     };
+// }
+
+// inline auto pointwise_inputs()
+// {
+//     return [](auto start, auto f) {
+//         std::unordered_set<instruction_ref> visited;
+//         fix([&](auto self, auto ins) {
+//             if(ins->can_eval())
+//                 return;
+//             if(not visited.insert(ins).second)
+//                 return;
+//             if(not ins->get_operator().attributes().contains("pointwise"))
+//             {
+//                 f(ins);
+//                 return;
+//             }
+//             for(auto input:ins->inputs())
+//                 self(input);
+//         })(start);
+//     };
+// }
 
 } // namespace match
 } // namespace MIGRAPHX_INLINE_NS

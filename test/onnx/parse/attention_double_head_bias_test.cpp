@@ -31,7 +31,7 @@ TEST_CASE(attention_double_head_bias_test)
     // Batch 2, sequenec_length 2, Num Heads 2, embedding_size = 4
     // Bias generated should be 12 (4 * 3 assumes Q=K=V sizes)
     migraphx::program p = make_attention_program(2, 2, 2, 4, true);
-    auto prog = optimize_onnx("attention_double_head_bias_test.onnx");
+    auto prog           = optimize_onnx("attention_double_head_bias_test.onnx");
 
     EXPECT(p == prog);
 }

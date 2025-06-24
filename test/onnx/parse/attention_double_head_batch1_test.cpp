@@ -28,9 +28,9 @@
 
 TEST_CASE(attention_double_head_batch1_test)
 {
-    //Batch 1, sequence length =2 , num_heads = 1, embedding_size =4
+    // Batch 1, sequence length =2 , num_heads = 1, embedding_size =4
     migraphx::program p = make_attention_program(1, 2, 2, 4, true);
-    auto prog = optimize_onnx("attention_double_head_batch1_test.onnx");
+    auto prog           = optimize_onnx("attention_double_head_batch1_test.onnx");
 
     EXPECT(p == prog);
 }

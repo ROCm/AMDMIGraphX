@@ -26,7 +26,7 @@
 #include <migraphx/op/convolution.hpp>
 
 TEST_CASE(attention_double_head_bias_mask_past_rotary_test)
-{   // We currently don't support rotary embedding parameter
-    EXPECT(
-        test::throws([&] { optimize_onnx("attention_double_head_bias_asym_mask_rotary_test.onnx"); }));
+{ // We currently don't support rotary embedding parameter
+    EXPECT(test::throws(
+        [&] { optimize_onnx("attention_double_head_bias_asym_mask_rotary_test.onnx"); }));
 }

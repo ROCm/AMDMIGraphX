@@ -26,7 +26,7 @@
 #include <migraphx/op/convolution.hpp>
 
 TEST_CASE(attention_double_head_bias_right_pad_mask_test)
-{   // We currently don't support right pad mask
-    EXPECT(
-        test::throws([&] { optimize_onnx("attention_double_head_bias_asym_right_pad_mask_test.onnx"); }));
+{ // We currently don't support right pad mask
+    EXPECT(test::throws(
+        [&] { optimize_onnx("attention_double_head_bias_asym_right_pad_mask_test.onnx"); }));
 }

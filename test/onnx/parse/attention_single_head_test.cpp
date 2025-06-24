@@ -28,7 +28,7 @@
 
 TEST_CASE(attention_single_head_test)
 {
-    //Batch 2, sequence length =2 , num_heads = 1, embedding_size =4
+    // Batch 2, sequence length =2 , num_heads = 1, embedding_size =4
     migraphx::program p = make_attention_program(2, 2, 1, 4, true);
 
     auto prog = optimize_onnx("attention_single_head_batch2_test.onnx");

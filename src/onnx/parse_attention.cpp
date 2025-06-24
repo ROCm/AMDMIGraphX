@@ -30,60 +30,71 @@ namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
 namespace onnx {
 
-
 struct parse_attention : op_parser<parse_attention>
 {
     std::vector<op_desc> operators() const { return {{"Attention"}}; }
 
-    enum class mask_pad{ // Used to check mask_index when input vector size == 2
-        no_pad,          // Not Set - If input isn't set indicates this is an error with op
-        raw,             // Indicates input mask is raw mask where 0 masks the value and 1 does not.
-        right_padding,   // second dimension is (batch_size)
-        left_padding,    // second dimension
+    enum class mask_pad
+    {                  // Used to check mask_index when input vector size == 2
+        no_pad,        // Not Set - If input isn't set indicates this is an error with op
+        raw,           // Indicates input mask is raw mask where 0 masks the value and 1 does not.
+        right_padding, // second dimension is (batch_size)
+        left_padding,  // second dimension
     };
 
-    enum class atten_mode{  // Important to determine how to calculate total_sequence_length
-        not_set,          // Not Set - If Past/Present used this indicates an error with op
-        self_attention,   // Implies K,V lengths equaual and equal to sequence_length 
-        cross_attention,  // Relevant as K/V may have different lengths in this case
+    enum class atten_mode
+    {                    // Important to determine how to calculate total_sequence_length
+        not_set,         // Not Set - If Past/Present used this indicates an error with op
+        self_attention,  // Implies K,V lengths equaual and equal to sequence_length
+        cross_attention, // Relevant as K/V may have different lengths in this case
     };
 
     // For items explicitly parsed from attributes
     struct attention_attr
     {
-        bool do_rotary                 = false; // Rotary encode input prior to projection with weight matrices
-        bool past_present_share_buffer = false; // Related to past input shares buffer with present output
-        bool unidirectional            = false; // Mask is lower triangular ie) only pay attention to prev words
-        std::size_t num_heads          = 1;     // Required by inputs 
-        std::size_t rotary_embedding_dim = 0;   // Gets set to head_size when not set
-        std::vector<std::size_t> qkv_hidden_sizes{0, 0, 0}; //Sets hidden sizes if not set defiend by input
-        float scale              = 0.0;         // Default 1/sqrt(query_size) (query_size also known as head_size)
-        float mask_filter_val    = -10000.0f;   // Default value used for masking our input encoding
+        bool do_rotary = false; // Rotary encode input prior to projection with weight matrices
+        bool past_present_share_buffer =
+            false; // Related to past input shares buffer with present output
+        bool unidirectional =
+            false; // Mask is lower triangular ie) only pay attention to prev words
+        std::size_t num_heads            = 1; // Required by inputs
+        std::size_t rotary_embedding_dim = 0; // Gets set to head_size when not set
+        std::vector<std::size_t> qkv_hidden_sizes{
+            0, 0, 0};      // Sets hidden sizes if not set defiend by input
+        float scale = 0.0; // Default 1/sqrt(query_size) (query_size also known as head_size)
+        float mask_filter_val = -10000.0f; // Default value used for masking our input encoding
     };
 
     // Values inferred from input vectors or attributes
     struct attention_inferred
     {
-        std::size_t batch_size;                // From input dim(1)
-        std::size_t input_hidden_size;         // From input dim(3) - Also known as embeddng_size in literature
-        std::size_t hidden_size;               // From weights or qkv_hidden_sizes, related to q,k size which must be equal
-        std::size_t v_hidden_size;             // From weights or qkv_hiddn_sizes - differs during cross attention_mode
-        std::size_t sequence_length;           // Pulled from input dim(1), must be consistent between other parms
-        std::size_t max_sequence_length;       // Pulled from mask_index 
-        std::size_t total_sequence_length;     // Pulled from past_seq_length + sequence_length
-        std::size_t query_size;                // Also known as head_size. Derived via num_heads
-        bool has_past_input = false;           // Set to true when we have past input. Present output required when set
-        bool has_input_bias = false;           // Set to true when we have input_bias
-        bool has_attn_mask = false;            // Set to true when we have an attention mask set
-        bool has_attn_bias = false;            // Set to true when we have an attention bias input
-        bool scale_not_query_sz = false;       // Set when a different scale attribute from 1/sqrt(query_size)
-        mask_pad index_pad = mask_pad::no_pad; // Used to track state of input projection mask padding
-        atten_mode attn_type;                  // Used to determine the attention configuration
+        std::size_t batch_size; // From input dim(1)
+        std::size_t
+            input_hidden_size;   // From input dim(3) - Also known as embeddng_size in literature
+        std::size_t hidden_size; // From weights or qkv_hidden_sizes, related to q,k size which must
+                                 // be equal
+        std::size_t
+            v_hidden_size; // From weights or qkv_hiddn_sizes - differs during cross attention_mode
+        std::size_t
+            sequence_length; // Pulled from input dim(1), must be consistent between other parms
+        std::size_t max_sequence_length;   // Pulled from mask_index
+        std::size_t total_sequence_length; // Pulled from past_seq_length + sequence_length
+        std::size_t query_size;            // Also known as head_size. Derived via num_heads
+        bool has_past_input =
+            false; // Set to true when we have past input. Present output required when set
+        bool has_input_bias = false; // Set to true when we have input_bias
+        bool has_attn_mask  = false; // Set to true when we have an attention mask set
+        bool has_attn_bias  = false; // Set to true when we have an attention bias input
+        bool scale_not_query_sz =
+            false; // Set when a different scale attribute from 1/sqrt(query_size)
+        mask_pad index_pad =
+            mask_pad::no_pad; // Used to track state of input projection mask padding
+        atten_mode attn_type; // Used to determine the attention configuration
     };
 
     static void handle_qkv_hidden_size_attr(const onnx_parser& parser,
-                                  const onnx_parser::node_info& info,
-                                  struct attention_attr& attr_out)
+                                            const onnx_parser::node_info& info,
+                                            struct attention_attr& attr_out)
     {
         auto input_val = parser.parse_value(info.attributes.at("qkv_hidden_sizes"));
         std::vector<int64_t> qkv_values;
@@ -103,12 +114,12 @@ struct parse_attention : op_parser<parse_attention>
         if(qkv_values[0] != qkv_values[1])
         {
             MIGRAPHX_THROW("Attention: q and k hidden sizes must be identitical!");
-        } 
+        }
 
-        std::vector<size_t> qkv_vec{static_cast<size_t>(qkv_values[0]), 
+        std::vector<size_t> qkv_vec{static_cast<size_t>(qkv_values[0]),
                                     static_cast<size_t>(qkv_values[1]),
                                     static_cast<size_t>(qkv_values[2])};
-        if(std::any_of(qkv_vec.begin(), qkv_vec.end(), [](auto i){return (i == 0) or (i < 0);}))
+        if(std::any_of(qkv_vec.begin(), qkv_vec.end(), [](auto i) { return (i == 0) or (i < 0); }))
         {
             MIGRAPHX_THROW("PARSE_ATTENTION: qkv_hidden_sizes must be nonzero and valid");
         }
@@ -122,50 +133,57 @@ struct parse_attention : op_parser<parse_attention>
                                   struct attention_inferred& inferred_out)
     {
         if(contains(info.attributes, "do_rotary"))
-        {   // TODO: Add rotary embedding support
-            attr_out.do_rotary = (1 == parser.parse_value(info.attributes.at("do_rotary")).at<int>());
+        { // TODO: Add rotary embedding support
+            attr_out.do_rotary =
+                (1 == parser.parse_value(info.attributes.at("do_rotary")).at<int>());
             if(attr_out.do_rotary)
                 MIGRAPHX_THROW("PARSE_ATTENTION: Rotary Embedding in Attention OP not supported");
         }
 
         if(contains(info.attributes, "mask_filter_value"))
         {
-            attr_out.mask_filter_val = parser.parse_value(info.attributes.at("mask_filter_value")).at<float>();
+            attr_out.mask_filter_val =
+                parser.parse_value(info.attributes.at("mask_filter_value")).at<float>();
         }
 
         if(contains(info.attributes, "num_heads"))
         {
-            attr_out.num_heads = parser.parse_value(info.attributes.at("num_heads")).at<std::size_t>();
+            attr_out.num_heads =
+                parser.parse_value(info.attributes.at("num_heads")).at<std::size_t>();
         }
         else
         {
             MIGRAPHX_THROW("PARSE_ATTENTION: num_heads attribute required");
-        }       
+        }
 
         if(contains(info.attributes, "past_present_share_buffer"))
         {
-            attr_out.past_present_share_buffer = 
-                (1 == parser.parse_value(info.attributes.at("past_present_share_buffer")).at<size_t>());
+            attr_out.past_present_share_buffer =
+                (1 ==
+                 parser.parse_value(info.attributes.at("past_present_share_buffer")).at<size_t>());
         }
 
         if(contains(info.attributes, "qkv_hidden_sizes"))
         {
-            handle_qkv_hidden_size_attr(parser,info, attr_out);
+            handle_qkv_hidden_size_attr(parser, info, attr_out);
         }
 
         if(contains(info.attributes, "rotary_embedding_dim"))
-        {   // TODO: Add rotary embedding support -- parsed but not used right now
+        { // TODO: Add rotary embedding support -- parsed but not used right now
             auto rotary_embedding_dim =
                 parser.parse_value(info.attributes.at("rotary_embedding_dim")).at<size_t>();
 
-            if(rotary_embedding_dim != 32 and rotary_embedding_dim != 64 and rotary_embedding_dim != 128)
+            if(rotary_embedding_dim != 32 and rotary_embedding_dim != 64 and
+               rotary_embedding_dim != 128)
             {
-                MIGRAPHX_THROW("PARSE_ATTENTION: rotary_embedding_dim must be either 32, 64, or 128");
+                MIGRAPHX_THROW(
+                    "PARSE_ATTENTION: rotary_embedding_dim must be either 32, 64, or 128");
             }
 
-            if (not attr_out.do_rotary)
+            if(not attr_out.do_rotary)
             {
-                MIGRAPHX_THROW("PARSE_ATTENTION: rotary_embedding_dim must be used with do_rotary attribute");
+                MIGRAPHX_THROW(
+                    "PARSE_ATTENTION: rotary_embedding_dim must be used with do_rotary attribute");
             }
             attr_out.rotary_embedding_dim = rotary_embedding_dim;
         }
@@ -178,15 +196,16 @@ struct parse_attention : op_parser<parse_attention>
 
         if(contains(info.attributes, "unidirectional"))
         {
-            attr_out.unidirectional = (1 == parser.parse_value(info.attributes.at("unidirectional")).at<size_t>());
+            attr_out.unidirectional =
+                (1 == parser.parse_value(info.attributes.at("unidirectional")).at<size_t>());
             MIGRAPHX_THROW("PARSE_ATTENTION: unidirectional attr not supported");
         }
     }
 
     // qkv values must be greater than zero to be "set"
-    static bool qkv_size_not_set(std::vector<size_t> &qkv_vec)
+    static bool qkv_size_not_set(std::vector<size_t>& qkv_vec)
     {
-        return std::any_of(qkv_vec.begin(), qkv_vec.end(), [](auto i){return i <= 0;});
+        return std::any_of(qkv_vec.begin(), qkv_vec.end(), [](auto i) { return i <= 0; });
     }
 
     static void qkv_sizes_sum_arg_valid(const std::vector<size_t>& qkv_vec,
@@ -194,9 +213,11 @@ struct parse_attention : op_parser<parse_attention>
                                         const size_t dim,
                                         const std::string& name)
     {
-        if(std::accumulate(qkv_vec.begin(), qkv_vec.end(), size_t(0)) != input_arg->get_shape().lens().at(dim))
+        if(std::accumulate(qkv_vec.begin(), qkv_vec.end(), size_t(0)) !=
+           input_arg->get_shape().lens().at(dim))
         {
-            MIGRAPHX_THROW("Attention: q k v hidden sizes sum must match " + name + " tensor " + std::to_string(dim) + " dimension");
+            MIGRAPHX_THROW("Attention: q k v hidden sizes sum must match " + name + " tensor " +
+                           std::to_string(dim) + " dimension");
         }
     }
 
@@ -223,19 +244,18 @@ struct parse_attention : op_parser<parse_attention>
                              struct attention_inferred& inferred_out,
                              std::vector<instruction_ref>& output_arg_vec)
     {
-        auto input_tensor  = input_arg;
-        auto input_shape   = input_tensor->get_shape();
+        auto input_tensor = input_arg;
+        auto input_shape  = input_tensor->get_shape();
 
         inferred_out.batch_size        = input_shape.lens().at(0);
         inferred_out.sequence_length   = input_shape.lens().at(1);
         inferred_out.input_hidden_size = input_shape.lens().at(2);
-        // Determine the query_size used to generate attention heads that operate on each Q, K, V 
+        // Determine the query_size used to generate attention heads that operate on each Q, K, V
         // matrix.
-        inferred_out.query_size = inferred_out.input_hidden_size / parsed_in.num_heads;
+        inferred_out.query_size            = inferred_out.input_hidden_size / parsed_in.num_heads;
         inferred_out.total_sequence_length = inferred_out.sequence_length;
 
         output_arg_vec.push_back(input_tensor);
-
     }
 
     static void handle_weight(const instruction_ref& weight_arg,
@@ -250,7 +270,8 @@ struct parse_attention : op_parser<parse_attention>
 
         if(weight_shape.lens().at(0) != input_shape.lens().at(2))
         {
-            MIGRAPHX_THROW("Attention: Input hidden size must be the same for input and weight tensors");
+            MIGRAPHX_THROW(
+                "Attention: Input hidden size must be the same for input and weight tensors");
         }
 
         if(weight_shape.type() != input_shape.type())
@@ -264,12 +285,13 @@ struct parse_attention : op_parser<parse_attention>
                 MIGRAPHX_THROW("Attention: QKV size attribute must be set with non even weights");
 
             if(inferred_out.has_past_input)
-                MIGRAPHX_THROW("Attention: QKV size must be equally sized when using past/present buffers");
+                MIGRAPHX_THROW(
+                    "Attention: QKV size must be equally sized when using past/present buffers");
         }
         else
-        {   
+        {
             // QKV is identical when second weight dim is divisible by 3 and qkv not set
-            if (qkv_size_not_set(attr_out.qkv_hidden_sizes))
+            if(qkv_size_not_set(attr_out.qkv_hidden_sizes))
             {
                 std::vector<size_t> default_qkv_sizes(3, (weight_shape.lens().at(1) / 3));
                 attr_out.qkv_hidden_sizes = default_qkv_sizes;
@@ -289,10 +311,10 @@ struct parse_attention : op_parser<parse_attention>
     {
         instruction_ref bias;
         if(check_and_return_arg(args, 2, bias))
-        {   
-            auto bias_shape = bias->get_shape();
+        {
+            auto bias_shape       = bias->get_shape();
             const auto& bias_lens = bias_shape.lens();
-            //ensure qkv dimension sum matches that of the bias vec
+            // ensure qkv dimension sum matches that of the bias vec
             qkv_sizes_sum_arg_valid(attr_out.qkv_hidden_sizes, bias, 0, "bias");
             if(args.at(0)->get_shape().type() != bias_shape.type())
             {
@@ -300,7 +322,8 @@ struct parse_attention : op_parser<parse_attention>
             }
             if(bias_lens.size() != 1)
             {
-                MIGRAPHX_THROW("Attention: Bias requires tensor of (hidden_size + hidden_size + v_hidden_size) ");
+                MIGRAPHX_THROW("Attention: Bias requires tensor of (hidden_size + hidden_size + "
+                               "v_hidden_size) ");
             }
             output_arg_vec.push_back(bias);
             inferred_out.has_input_bias = true;
@@ -308,13 +331,14 @@ struct parse_attention : op_parser<parse_attention>
     }
 
     static void check_mask_index_shapes(const std::vector<size_t>& mask_index_lens,
-                                         struct attention_inferred& inferred_out)
+                                        struct attention_inferred& inferred_out)
     {
         // Mask index is handled differently based on size of the input.
         //
-        // raw attention mask has shape (batch, total sequence_length) 
+        // raw attention mask has shape (batch, total sequence_length)
         //                           or (batch, seq_length, total_sequence_length) with 0/1 values
-        //                          where: total_sequence_length = sequence_length + past_sequence_length
+        //                          where: total_sequence_length = sequence_length +
+        //                          past_sequence_length
         //
         // Right side padded has shape (batch) - value is sequence_length excluding padding
         // Left side Padding has shape (2 * batch) with inclusive start and exclusive end positions
@@ -333,7 +357,7 @@ struct parse_attention : op_parser<parse_attention>
         }
         else if(mask_index_lens.size() == 2)
         { // This case assumes potentially past is set which is captured in total_sequence_length
-            if(mask_index_lens.at(0) != inferred_out.batch_size or 
+            if(mask_index_lens.at(0) != inferred_out.batch_size or
                mask_index_lens.at(1) != inferred_out.total_sequence_length)
             {
                 MIGRAPHX_THROW("Attention: Invalid Mask_Index shape\n \
@@ -343,7 +367,7 @@ struct parse_attention : op_parser<parse_attention>
         }
         else if(mask_index_lens.size() == 3)
         { // Similar to case 2 but with sequence length in dim 1
-            if(mask_index_lens.at(0) != inferred_out.batch_size or 
+            if(mask_index_lens.at(0) != inferred_out.batch_size or
                mask_index_lens.at(1) != inferred_out.sequence_length or
                mask_index_lens.at(2) != inferred_out.total_sequence_length)
             {
@@ -355,20 +379,20 @@ struct parse_attention : op_parser<parse_attention>
         }
         else if(mask_index_lens.size() == 4)
         { // Oddball case and can be used to infer max_sequence_length_parameter
-            if(mask_index_lens.at(0) != inferred_out.batch_size or 
-               mask_index_lens.at(1) != 1 or 
+            if(mask_index_lens.at(0) != inferred_out.batch_size or mask_index_lens.at(1) != 1 or
                mask_index_lens.at(2) != mask_index_lens.at(3))
             {
                 MIGRAPHX_THROW("Attention: Invalid Mask_Index shape\n  \
                                 Use (batch, 1, max_sequence_length, max_sequence_length) for shapes of size 4");
             }
             inferred_out.max_sequence_length = mask_index_lens.at(2);
-            inferred_out.index_pad = mask_pad::raw;
+            inferred_out.index_pad           = mask_pad::raw;
             MIGRAPHX_THROW("Attention: Mask_index 4D Megatron masking not supported");
         }
         else
         {
-            MIGRAPHX_THROW("Attention: Mask_index Require shape of size either 1, 2, 3, 4 dimensions");
+            MIGRAPHX_THROW(
+                "Attention: Mask_index Require shape of size either 1, 2, 3, 4 dimensions");
         }
     }
 
@@ -380,8 +404,8 @@ struct parse_attention : op_parser<parse_attention>
         instruction_ref mask_index;
         if(check_and_return_arg(args, 3, mask_index))
         {
-            auto mask_index_shape = mask_index->get_shape();
-            const auto& mask_index_lens  = mask_index_shape.lens();
+            auto mask_index_shape       = mask_index->get_shape();
+            const auto& mask_index_lens = mask_index_shape.lens();
 
             if(mask_index_shape.type() != migraphx::shape::int32_type)
             {
@@ -408,13 +432,15 @@ struct parse_attention : op_parser<parse_attention>
             }
 
             const auto past_shape = past->get_shape();
-            const auto& past_lens  = past_shape.lens();
-            if((past_lens.at(0) != inferred_out.batch_size) or 
+            const auto& past_lens = past_shape.lens();
+            if((past_lens.at(0) != inferred_out.batch_size) or
                (past_lens.at(1) != attr_out.num_heads) or
-               (past_lens.at(3) != inferred_out.query_size) or 
-               (past_lens.size() != 4))
+               (past_lens.at(3) != inferred_out.query_size) or (past_lens.size() != 4))
             {
-                MIGRAPHX_THROW("Attention: Past shape must be (batch, num_heads, max_sequence_length, head_size)\n OR when past_present_share_buffer set (batch, num_heads, total_sequence, head_size)");
+                MIGRAPHX_THROW(
+                    "Attention: Past shape must be (batch, num_heads, max_sequence_length, "
+                    "head_size)\n OR when past_present_share_buffer set (batch, num_heads, "
+                    "total_sequence, head_size)");
             }
 
             if(attr_out.past_present_share_buffer)
@@ -439,7 +465,7 @@ struct parse_attention : op_parser<parse_attention>
             MIGRAPHX_THROW("Attention: Past Not supported");
         }
     }
-    
+
     static void handle_attention_bias(const std::vector<instruction_ref>& args,
                                       const struct attention_attr& attr_out,
                                       struct attention_inferred& inferred_out,
@@ -449,7 +475,7 @@ struct parse_attention : op_parser<parse_attention>
         if(check_and_return_arg(args, 5, attention_bias))
         {
             const auto attn_bias_shape = attention_bias->get_shape();
-            const auto& attn_bias_lens  = attn_bias_shape.lens();
+            const auto& attn_bias_lens = attn_bias_shape.lens();
 
             if(attn_bias_shape.type() != args.at(0)->get_shape().type())
             {
@@ -461,7 +487,8 @@ struct parse_attention : op_parser<parse_attention>
                (attn_bias_lens.at(2) != inferred_out.sequence_length) or
                (attn_bias_lens.at(3) != inferred_out.total_sequence_length))
             {
-                MIGRAPHX_THROW("Attention: attention_bias shape must be (1 or Batch_size, 1 or num_heads, sequence_length, total_sequence_length");
+                MIGRAPHX_THROW("Attention: attention_bias shape must be (1 or Batch_size, 1 or "
+                               "num_heads, sequence_length, total_sequence_length");
             }
             inferred_out.has_attn_bias = true;
             output_arg_vec.push_back(attention_bias);
@@ -487,10 +514,10 @@ struct parse_attention : op_parser<parse_attention>
         }
     }
 
-    static std::vector<instruction_ref> handle_arguments(const onnx_parser&/*parser*/,
-                                                        const std::vector<instruction_ref>& args,
-                                                        struct attention_attr& attr_out,
-                                                        struct attention_inferred& inferred_out)
+    static std::vector<instruction_ref> handle_arguments(const onnx_parser& /*parser*/,
+                                                         const std::vector<instruction_ref>& args,
+                                                         struct attention_attr& attr_out,
+                                                         struct attention_inferred& inferred_out)
     {
         std::vector<instruction_ref> input_arguments;
 
@@ -512,27 +539,42 @@ struct parse_attention : op_parser<parse_attention>
         return input_arguments;
     }
 
-    static std::vector<instruction_ref> qkv_split_per_head(const onnx_parser::node_info& info,
-                                                           const std::vector<instruction_ref>& qkv_mats,
-                                                           const attention_attr& attr_in,
-                                                           const attention_inferred& /*inferred_in*/)
+    static std::vector<instruction_ref>
+    qkv_split_per_head(const onnx_parser::node_info& info,
+                       const std::vector<instruction_ref>& qkv_mats,
+                       const attention_attr& attr_in,
+                       const attention_inferred& /*inferred_in*/)
     {
-        auto num_heads  = attr_in.num_heads;
-        //auto query_size = inferred_in.query_size;
+        auto num_heads = attr_in.num_heads;
+        // auto query_size = inferred_in.query_size;
         auto q_lens = qkv_mats.at(0)->get_shape().lens();
         auto k_lens = qkv_mats.at(1)->get_shape().lens();
         auto v_lens = qkv_mats.at(2)->get_shape().lens();
 
         // Split embedding into querry size and num heads from embedding dimension
-        // Permute so we now result in (batch, sequence_length, querry_size, num_heads) prior to calculations
-        auto split_q = info.add_instruction(make_op("reshape", {{"dims", {q_lens.at(0), q_lens.at(1), num_heads, q_lens.at(2)/num_heads}}}), qkv_mats.at(0));
-        auto split_k = info.add_instruction(make_op("reshape", {{"dims", {k_lens.at(0), k_lens.at(1), num_heads, k_lens.at(2)/num_heads}}}), qkv_mats.at(1));
-        auto split_v = info.add_instruction(make_op("reshape", {{"dims", {v_lens.at(0), v_lens.at(1), num_heads, v_lens.at(2)/num_heads}}}), qkv_mats.at(2));
+        // Permute so we now result in (batch, sequence_length, querry_size, num_heads) prior to
+        // calculations
+        auto split_q = info.add_instruction(
+            make_op("reshape",
+                    {{"dims", {q_lens.at(0), q_lens.at(1), num_heads, q_lens.at(2) / num_heads}}}),
+            qkv_mats.at(0));
+        auto split_k = info.add_instruction(
+            make_op("reshape",
+                    {{"dims", {k_lens.at(0), k_lens.at(1), num_heads, k_lens.at(2) / num_heads}}}),
+            qkv_mats.at(1));
+        auto split_v = info.add_instruction(
+            make_op("reshape",
+                    {{"dims", {v_lens.at(0), v_lens.at(1), num_heads, v_lens.at(2) / num_heads}}}),
+            qkv_mats.at(2));
 
-        // Permute so we now result in (batch, num heads, sequence_length, querry_size) prior to calculations
-        split_q = info.add_instruction(make_op("transpose", {{"permutation", {0, 2, 1, 3}}}), split_q);
-        split_k = info.add_instruction(make_op("transpose", {{"permutation", {0, 2, 1, 3}}}), split_k);
-        split_v = info.add_instruction(make_op("transpose", {{"permutation", {0, 2, 1, 3}}}), split_v);
+        // Permute so we now result in (batch, num heads, sequence_length, querry_size) prior to
+        // calculations
+        split_q =
+            info.add_instruction(make_op("transpose", {{"permutation", {0, 2, 1, 3}}}), split_q);
+        split_k =
+            info.add_instruction(make_op("transpose", {{"permutation", {0, 2, 1, 3}}}), split_k);
+        split_v =
+            info.add_instruction(make_op("transpose", {{"permutation", {0, 2, 1, 3}}}), split_v);
 
         return {split_q, split_k, split_v};
     }
@@ -549,23 +591,25 @@ struct parse_attention : op_parser<parse_attention>
         auto k = qkv.at(1);
         auto v = qkv.at(2);
 
-        auto k_trans = info.add_instruction(make_op("transpose", {{"permutation", {0, 1, 3, 2}}}), k);
+        auto k_trans =
+            info.add_instruction(make_op("transpose", {{"permutation", {0, 1, 3, 2}}}), k);
         auto qk_out = info.add_instruction(make_op("dot"), q, k_trans);
 
         // Apply bias to QK result
         auto qk_biased = qk_out;
         if(attn_bias)
         {
-            auto bc_bias = info.add_instruction(make_op("multibroadcast", {{"out_lens", qk_out->get_shape().lens()}}), bias);
+            auto bc_bias = info.add_instruction(
+                make_op("multibroadcast", {{"out_lens", qk_out->get_shape().lens()}}), bias);
             qk_biased = info.add_common_op("add", qk_out, bc_bias);
         }
 
         // Mask must be done after all bias and calculations done
         auto qk_masked = qk_biased;
-        if(masked) 
+        if(masked)
         {
             qk_masked = info.add_common_op("add", qk_masked, mask);
-        } 
+        }
 
         // Apply scale onl after all the masking and biasing has occurred
         auto qk_scaled = info.add_common_op("mul", qk_masked, scale_factor);
@@ -575,15 +619,18 @@ struct parse_attention : op_parser<parse_attention>
         // Final result to compare with respect to values matrix
         auto output = info.add_instruction(make_op("dot"), softmax_out, v);
 
-        // Transpose result from (batch, num heads, sequence_length, query_size) to (batch, sequence_length, num_heads, query_size)
-        output = info.add_instruction(make_op("transpose", {{"permutation", {0, 2, 1, 3}}}), output);
+        // Transpose result from (batch, num heads, sequence_length, query_size) to (batch,
+        // sequence_length, num_heads, query_size)
+        output =
+            info.add_instruction(make_op("transpose", {{"permutation", {0, 2, 1, 3}}}), output);
 
         // Collapse back to (batch, sequence_length, query_size)
         auto lens = output->get_shape().lens();
-        output = info.add_instruction(make_op("reshape", {{"dims", {lens.at(0), lens.at(1), lens.at(2) * lens.at(3)}}}), output);
+        output    = info.add_instruction(
+            make_op("reshape", {{"dims", {lens.at(0), lens.at(1), lens.at(2) * lens.at(3)}}}),
+            output);
         return output;
     }
-
 
     /* static void get_kv_from_past(const onnx_parser::node_info& info,
                                  const instruction_ref& past_input,
@@ -600,8 +647,9 @@ struct parse_attention : op_parser<parse_attention>
         v_past = info.add_instruction(make_op("unsqueeze", {{"axes", {0}}}), v_past);
 
         // Transpose to (batch, sequence_length, num_heads, head_size)
-        qkv_mats.at(1) = info.add_instruction(make_op("transpose", {{"permutation", {{0, 2, 1, 3}}}}), k_past);
-        qkv_mats.at(2) = info.add_instruction(make_op("transpose", {{"permutation", {{0, 2, 1, 3}}}}), v_past);
+        qkv_mats.at(1) = info.add_instruction(make_op("transpose", {{"permutation", {{0, 2, 1,
+    3}}}}), k_past); qkv_mats.at(2) = info.add_instruction(make_op("transpose", {{"permutation",
+    {{0, 2, 1, 3}}}}), v_past);
     } */
 
     // Get Q, K, V matricies from stacked weight matrix
@@ -612,28 +660,44 @@ struct parse_attention : op_parser<parse_attention>
                                                             const instruction_ref& input_bias,
                                                             const bool has_input_bias)
     {
-        // Input encodes the batch, sequence_length and input_hidden_size (also known as embedding size) 
+        // Input encodes the batch, sequence_length and input_hidden_size (also known as embedding
+        // size)
         auto input_lens = input->get_shape().lens();
 
-        auto stacked_weights_unsq = info.add_instruction(make_op("unsqueeze", {{"axes", {0}}}), stacked_weights);
-        auto w_lens = stacked_weights_unsq->get_shape().lens();
-        w_lens.at(0) = input_lens.at(0);
-        auto stacked_weights_unsq_bcast = info.add_instruction(make_op("multibroadcast", {{"out_lens", w_lens}}), stacked_weights_unsq);
+        auto stacked_weights_unsq =
+            info.add_instruction(make_op("unsqueeze", {{"axes", {0}}}), stacked_weights);
+        auto w_lens                     = stacked_weights_unsq->get_shape().lens();
+        w_lens.at(0)                    = input_lens.at(0);
+        auto stacked_weights_unsq_bcast = info.add_instruction(
+            make_op("multibroadcast", {{"out_lens", w_lens}}), stacked_weights_unsq);
 
-        auto stacked_result = info.add_instruction(make_op("dot"), input, stacked_weights_unsq_bcast);
+        auto stacked_result =
+            info.add_instruction(make_op("dot"), input, stacked_weights_unsq_bcast);
 
-        if (has_input_bias)
+        if(has_input_bias)
         {
             stacked_result = info.add_common_op("add", stacked_result, input_bias);
         }
 
-        // Input stacked weights are (input_hidden_size, hidden_size + hidden_size + v_hidden_size) so slice out parts for each matrix
-        // Since we known the input_hidden size is one dimension wee need to slice out the weight tensors accordingly before we perform matmul
-        auto q = info.add_instruction(make_op("slice", {{"axes",{2}}, {"starts", {0}}, {"ends", {qkv_sizes.at(0)}}}), stacked_result);
-        auto k = info.add_instruction(make_op("slice", {{"axes",{2}}, {"starts", {qkv_sizes.at(0)}}, {"ends", {qkv_sizes.at(1) + qkv_sizes.at(0)}}}), stacked_result);
-        auto v = info.add_instruction(make_op("slice", {{"axes",{2}}, {"starts", {qkv_sizes.at(0) + qkv_sizes.at(1)}}, {"ends", {qkv_sizes.at(0) + qkv_sizes.at(1) + qkv_sizes.at(2)}}}), stacked_result);
+        // Input stacked weights are (input_hidden_size, hidden_size + hidden_size + v_hidden_size)
+        // so slice out parts for each matrix Since we known the input_hidden size is one dimension
+        // wee need to slice out the weight tensors accordingly before we perform matmul
+        auto q = info.add_instruction(
+            make_op("slice", {{"axes", {2}}, {"starts", {0}}, {"ends", {qkv_sizes.at(0)}}}),
+            stacked_result);
+        auto k = info.add_instruction(make_op("slice",
+                                              {{"axes", {2}},
+                                               {"starts", {qkv_sizes.at(0)}},
+                                               {"ends", {qkv_sizes.at(1) + qkv_sizes.at(0)}}}),
+                                      stacked_result);
+        auto v = info.add_instruction(
+            make_op("slice",
+                    {{"axes", {2}},
+                     {"starts", {qkv_sizes.at(0) + qkv_sizes.at(1)}},
+                     {"ends", {qkv_sizes.at(0) + qkv_sizes.at(1) + qkv_sizes.at(2)}}}),
+            stacked_result);
 
-        std::vector<instruction_ref>qkv_mats{q, k, v};
+        std::vector<instruction_ref> qkv_mats{q, k, v};
         return qkv_mats;
     }
 
@@ -660,7 +724,8 @@ struct parse_attention : op_parser<parse_attention>
             }
             k++;
         }
-        return info.add_literal(migraphx::literal{migraphx::shape{in_shape_type, {num_rows, num_cols}}, mask_mat});
+        return info.add_literal(migraphx::literal{migraphx::shape{in_shape_type, {num_rows,
+    num_cols}}, mask_mat});
     }
 
     static instruction_ref check_and_set_unidirectional(const onnx_parser::node_info& info,
@@ -668,17 +733,18 @@ struct parse_attention : op_parser<parse_attention>
                                                bool is_unidirectional_mask)
     {
         auto mask = mask_input;
-        // Unidirectional means we have to mask out the upper triangular part 
-        // Seen often in decoder blocks that don't want to "look ahead" and add those to the attention score.
-        if(is_unidirectional_mask)
+        // Unidirectional means we have to mask out the upper triangular part
+        // Seen often in decoder blocks that don't want to "look ahead" and add those to the
+    attention score. if(is_unidirectional_mask)
         {
             const auto & mask_shape = mask_input->get_shape();
             const auto&  dims  = mask_shape.lens();
             auto triangle_mask = generate_triangular_mat(info, mask_shape, false);
-            triangle_mask = info.add_instruction(make_op("unsqueeze", {{"axes", {-1}}}), triangle_mask);
-            triangle_mask = info.add_instruction(make_op("unsqueeze", {{"axes", {-1}}}), triangle_mask);
-            triangle_mask = info.add_instruction(make_op("multibroadcast", {{"out_lens", {dims.at(0), dims.at(1), dims.at(2), dims.at(3)}}}), triangle_mask);
-            mask = info.add_common_op("dot", mask, triangle_mask);
+            triangle_mask = info.add_instruction(make_op("unsqueeze", {{"axes", {-1}}}),
+    triangle_mask); triangle_mask = info.add_instruction(make_op("unsqueeze", {{"axes", {-1}}}),
+    triangle_mask); triangle_mask = info.add_instruction(make_op("multibroadcast", {{"out_lens",
+    {dims.at(0), dims.at(1), dims.at(2), dims.at(3)}}}), triangle_mask); mask =
+    info.add_common_op("dot", mask, triangle_mask);
         }
         return mask;
     } */
@@ -695,50 +761,75 @@ struct parse_attention : op_parser<parse_attention>
         auto num_heads     = parsed_in.num_heads;
 
         // Other two cases require us to generate masks from sequence or total sequence length pads.
-        auto pass_value_lit = info.add_literal(migraphx::literal{migraphx::shape{input->get_shape().type(), {1}, {1}}, {0}});
-        auto mask_value_lit = info.add_literal(migraphx::literal{migraphx::shape{input->get_shape().type(), {1}, {1}}, {parsed_in.mask_filter_val}});
+        auto pass_value_lit = info.add_literal(
+            migraphx::literal{migraphx::shape{input->get_shape().type(), {1}, {1}}, {0}});
+        auto mask_value_lit = info.add_literal(migraphx::literal{
+            migraphx::shape{input->get_shape().type(), {1}, {1}}, {parsed_in.mask_filter_val}});
 
         // For dim = 2 or dim =3 generate the apporiate mask across batches
-        // We need to handle the batch case since raw masking involes shape [batch, seq_len] or [batch, seq_len, total_seq_len], 
-        auto bc_pass = info.add_instruction(make_op("multibroadcast", {{"out_lens", {batch_size, num_heads, total_seq_len, total_seq_len}}}), pass_value_lit);
-        auto bc_mask = info.add_instruction(make_op("multibroadcast", {{"out_lens", {batch_size, num_heads, total_seq_len, total_seq_len}}}), mask_value_lit);
+        // We need to handle the batch case since raw masking involes shape [batch, seq_len] or
+        // [batch, seq_len, total_seq_len],
+        auto bc_pass = info.add_instruction(
+            make_op("multibroadcast",
+                    {{"out_lens", {batch_size, num_heads, total_seq_len, total_seq_len}}}),
+            pass_value_lit);
+        auto bc_mask = info.add_instruction(
+            make_op("multibroadcast",
+                    {{"out_lens", {batch_size, num_heads, total_seq_len, total_seq_len}}}),
+            mask_value_lit);
 
         auto raw_mask = mask_input;
-        // For raw masks we just need to mask out key value padding thus the 3d mask isn't needed here. 
-        raw_mask = info.add_instruction(make_op("reshape", {{"dims", {batch_size, 1, 1, total_seq_len}}}), raw_mask);
-        raw_mask = info.add_instruction(make_op("multibroadcast", {{"out_lens", {batch_size, num_heads, total_seq_len, total_seq_len}}}), raw_mask);
-        raw_mask = info.add_instruction(make_op("reshape", {{"dims", {batch_size, num_heads, total_seq_len, total_seq_len}}}), raw_mask);
+        // For raw masks we just need to mask out key value padding thus the 3d mask isn't needed
+        // here.
+        raw_mask = info.add_instruction(
+            make_op("reshape", {{"dims", {batch_size, 1, 1, total_seq_len}}}), raw_mask);
+        raw_mask = info.add_instruction(
+            make_op("multibroadcast",
+                    {{"out_lens", {batch_size, num_heads, total_seq_len, total_seq_len}}}),
+            raw_mask);
+        raw_mask = info.add_instruction(
+            make_op("reshape", {{"dims", {batch_size, num_heads, total_seq_len, total_seq_len}}}),
+            raw_mask);
 
-        // Reuse "0" broadcasted converted to int32 to check if input mask is greater than 0 for where condition
-        auto in_pass = info.add_instruction(make_op("convert", {{"target_type", mask_input->get_shape().type()}}), bc_pass);
+        // Reuse "0" broadcasted converted to int32 to check if input mask is greater than 0 for
+        // where condition
+        auto in_pass = info.add_instruction(
+            make_op("convert", {{"target_type", mask_input->get_shape().type()}}), bc_pass);
         auto in_bool = info.add_instruction(make_op("equal"), raw_mask, in_pass);
         /* in_bool = check_and_set_unidirectional(info, in_bool, parsed_in.unidirectional); */
         // Need this to let MLIR to run with where
-        in_bool = info.add_instruction(make_op("convert", {{"target_type", migraphx::shape::int8_type}}), in_bool);
+        in_bool = info.add_instruction(
+            make_op("convert", {{"target_type", migraphx::shape::int8_type}}), in_bool);
         return info.add_instruction(make_op("where"), in_bool, bc_mask, bc_pass);
     }
 
-    static instruction_ref create_input_mask(const onnx_parser::node_info& info,
-                                             const instruction_ref& input, // TODO: Convert this to type
-                                             const instruction_ref& mask_input,
-                                             const attention_inferred& inferred_in,
-                                             const attention_attr& parsed_in)
+    static instruction_ref
+    create_input_mask(const onnx_parser::node_info& info,
+                      const instruction_ref& input, // TODO: Convert this to type
+                      const instruction_ref& mask_input,
+                      const attention_inferred& inferred_in,
+                      const attention_attr& parsed_in)
     {
         instruction_ref final_mask;
-        // Shape Scale dot attention prior to mask will be in (batch, num_heads, query_size, query_size) thus mask needs to handle batch and query_size
-        // We should return mask of batch, 1, query_size, query_size so that this per-batch masked can be broadcasted across each attention head
+        // Shape Scale dot attention prior to mask will be in (batch, num_heads, query_size,
+        // query_size) thus mask needs to handle batch and query_size We should return mask of
+        // batch, 1, query_size, query_size so that this per-batch masked can be broadcasted across
+        // each attention head
 
         if(inferred_in.index_pad == mask_pad::raw)
-        {   // Raw Mask - 0 means mask, 1 means pass through. Apply mask_filter_val to mask indicies and zero otherwise
+        { // Raw Mask - 0 means mask, 1 means pass through. Apply mask_filter_val to mask indicies
+          // and zero otherwise
             // auto mask_dims     = mask_input->get_shape().ndim();
 
-            // Case 1: Input is already in (batch, 1, query_size, query_size) format - Just need to handle unidirectional case
+            // Case 1: Input is already in (batch, 1, query_size, query_size) format - Just need to
+            // handle unidirectional case
             /* if (mask_dims == 4)
             {
                 return check_and_set_unidirectional(info, mask_input, parsed_in.unidirectional);
             } */
             // Need to generate from 2 dims or 3 dim cases
-            final_mask = generate_raw_mask_per_batch(info, input, mask_input, parsed_in, inferred_in);
+            final_mask =
+                generate_raw_mask_per_batch(info, input, mask_input, parsed_in, inferred_in);
         }
         /*else if(inferred_in.index_pad == mask_pad::left_padding)
         {
@@ -753,8 +844,8 @@ struct parse_attention : op_parser<parse_attention>
     }
 
     /* static instruction_ref handle_past_present_keys(const onnx_parser::node_info& info,
-                                                 const instruction_ref& past_input, 
-                                                 const instruction_ref& keys, 
+                                                 const instruction_ref& past_input,
+                                                 const instruction_ref& keys,
                                                  const instruction_ref& values,
                                                  const attention_attr& parsed_attributes)
     {
@@ -767,13 +858,16 @@ struct parse_attention : op_parser<parse_attention>
         {
             // In a non-buffer-sharing scenario, we need to create the present state
             // by combining keys and values and stacking them. key/values are given as
-            // (batch, sequence_length, head_size, num_heads)  head_size = querry size in some literature for attention
-            // The output is expected to be a concat of shape (2, batch, num_heads, sequence_length, head_size) 
-            auto value_trans = info.add_instruction(make_op("transpose", {{"permutation", {0, 3 , 1, 2}}}), values);
-            value_trans = info.add_instruction(make_op("unsqueeze", {{"axes", {0}}}), value_trans);
+            // (batch, sequence_length, head_size, num_heads)  head_size = querry size in some
+    literature for attention
+            // The output is expected to be a concat of shape (2, batch, num_heads, sequence_length,
+    head_size) auto value_trans = info.add_instruction(make_op("transpose", {{"permutation", {0, 3 ,
+    1, 2}}}), values); value_trans = info.add_instruction(make_op("unsqueeze", {{"axes", {0}}}),
+    value_trans);
 
-            auto keys_trans  = info.add_instruction(make_op("transpose", {{"permutation", {0, 3 , 1, 2}}}), keys);
-            keys_trans  = info.add_instruction(make_op("unsqueeze", {{"axes", {0}}}), keys_trans);
+            auto keys_trans  = info.add_instruction(make_op("transpose", {{"permutation", {0, 3 , 1,
+    2}}}), keys); keys_trans  = info.add_instruction(make_op("unsqueeze", {{"axes", {0}}}),
+    keys_trans);
 
             return info.add_instruction(make_op("concat"), keys, values);
         }
@@ -797,17 +891,21 @@ struct parse_attention : op_parser<parse_attention>
         if(inferred_attributes.has_input_bias)
             input_bias = inputs.at(2);
 
-
-        // Apply linear stage to QKV mats from weight matrix - If past input just return q mat later split will be extracted from past vector
-        auto qkv_mats = input_linear_to_qkv(info, input_data, weights, parsed_attributes.qkv_hidden_sizes, 
-                                            input_bias, inferred_attributes.has_input_bias);
-
+        // Apply linear stage to QKV mats from weight matrix - If past input just return q mat later
+        // split will be extracted from past vector
+        auto qkv_mats = input_linear_to_qkv(info,
+                                            input_data,
+                                            weights,
+                                            parsed_attributes.qkv_hidden_sizes,
+                                            input_bias,
+                                            inferred_attributes.has_input_bias);
 
         // Set attention mask and bias when detected on input
         instruction_ref attn_mask;
         if(inferred_attributes.has_attn_mask)
-            attn_mask = create_input_mask(info, input_data, inputs.at(3), inferred_attributes, parsed_attributes);
-        
+            attn_mask = create_input_mask(
+                info, input_data, inputs.at(3), inferred_attributes, parsed_attributes);
+
         instruction_ref attn_bias;
         if(inferred_attributes.has_attn_bias)
             attn_bias = inputs.at(5);
@@ -817,8 +915,8 @@ struct parse_attention : op_parser<parse_attention>
             attn_scale_factor = parsed_attributes.scale;
 
         // Used to scale all key values before any masking or other inputs
-        auto scale_factor = info.add_literal(migraphx::literal{migraphx::shape{qkv_mats.at(0)->get_shape().type()},
-                                                              {attn_scale_factor}});
+        auto scale_factor = info.add_literal(migraphx::literal{
+            migraphx::shape{qkv_mats.at(0)->get_shape().type()}, {attn_scale_factor}});
 
         if(not inferred_attributes.scale_not_query_sz)
         {
@@ -826,8 +924,9 @@ struct parse_attention : op_parser<parse_attention>
             scale_factor = info.add_instruction(make_op("recip"), scale_factor);
         }
 
-        // split QKV into proper batched attention head shape before we perform scale_dot_attention (saves us a concat)
-        auto split_qkv  = qkv_split_per_head(info, qkv_mats, parsed_attributes, inferred_attributes);
+        // split QKV into proper batched attention head shape before we perform scale_dot_attention
+        // (saves us a concat)
+        auto split_qkv = qkv_split_per_head(info, qkv_mats, parsed_attributes, inferred_attributes);
 
         // Capture present state for key value of the present state
         // auto present_key   = split_qkv.at(1);
@@ -841,7 +940,13 @@ struct parse_attention : op_parser<parse_attention>
             get_kv_from_past(info, past_input, parsed_attributes, inferred_attributes, split_qkv);
         } */
 
-        instruction_ref context = scale_dot_attention_head(info, split_qkv, scale_factor, attn_mask, attn_bias, inferred_attributes.has_attn_mask, inferred_attributes.has_attn_bias);
+        instruction_ref context = scale_dot_attention_head(info,
+                                                           split_qkv,
+                                                           scale_factor,
+                                                           attn_mask,
+                                                           attn_bias,
+                                                           inferred_attributes.has_attn_mask,
+                                                           inferred_attributes.has_attn_bias);
 
         std::vector<instruction_ref> output_vec{};
         output_vec.push_back(context);
@@ -849,8 +954,8 @@ struct parse_attention : op_parser<parse_attention>
         // Must output present stacked KV when past input is used
         /* if(inferred_attributes.has_past_input)
         {
-            auto present_output = handle_past_present_keys(info, past_input, present_key, present_value, parsed_attributes);
-            output_vec.push_back(present_output);
+            auto present_output = handle_past_present_keys(info, past_input, present_key,
+        present_value, parsed_attributes); output_vec.push_back(present_output);
         } */
 
         return output_vec;

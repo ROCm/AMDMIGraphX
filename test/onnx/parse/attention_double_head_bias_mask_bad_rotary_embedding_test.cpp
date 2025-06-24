@@ -26,7 +26,8 @@
 #include <migraphx/op/convolution.hpp>
 
 TEST_CASE(attention_double_head_bias_mask_bad_rotary_embedding_dim_test)
-{   // We currently don't support rotary embedding dim attribute right now
-    EXPECT(
-        test::throws([&] { optimize_onnx("attention_double_head_bias_asym_mask_bad_rotary_embedding_dim_test.onnx"); }));
+{ // We currently don't support rotary embedding dim attribute right now
+    EXPECT(test::throws([&] {
+        optimize_onnx("attention_double_head_bias_asym_mask_bad_rotary_embedding_dim_test.onnx");
+    }));
 }

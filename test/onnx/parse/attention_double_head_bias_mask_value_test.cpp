@@ -28,9 +28,9 @@
 
 TEST_CASE(attention_double_head_bias_mask_value_test)
 {
-    //Batch 2, sequence length 3 num_heads 2, embedding_size  4
-    // Key pad masking and bias true
-    auto mask_value = -5000;
+    // Batch 2, sequence length 3 num_heads 2, embedding_size  4
+    //  Key pad masking and bias true
+    auto mask_value     = -5000;
     migraphx::program p = make_attention_program(2, 3, 2, 4, true, true, mask_value);
     auto prog = optimize_onnx("attention_double_head_bias_asym_mask_filter_val_test.onnx");
 

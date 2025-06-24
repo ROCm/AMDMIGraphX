@@ -30,7 +30,7 @@ TEST_CASE(attention_multi_head_test)
 {
     // Batch 32, Sequence Len 512, Heads 16, Embedding_size 1024
     migraphx::program p = make_attention_program(32, 512, 16, 1024);
-    auto prog = optimize_onnx("attention_multihead_test.onnx");
+    auto prog           = optimize_onnx("attention_multihead_test.onnx");
 
     EXPECT(p == prog);
 }

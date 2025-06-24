@@ -629,7 +629,8 @@ struct einsum : op_builder<einsum>
                 perm.push_back(row_output[i]);
         }
 
-        op = m.insert_instruction(ins, make_op("squeeze", {{"axes", sq_axes}}), op);
+        if(not sq_axes.empty())
+            op = m.insert_instruction(ins, make_op("squeeze", {{"axes", sq_axes}}), op);
 
         if(not perm.empty())
         {

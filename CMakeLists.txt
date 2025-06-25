@@ -59,6 +59,15 @@ option(MIGRAPHX_ENABLE_PYTHON "Enable python bindings" ON)
 option(MIGRAPHX_ENABLE_TENSORFLOW "Enable TensorFlow integration" ON)
 option(MIGRAPHX_ENABLE_ONNX "Enable ONNX model import" ON)
 
+# TODO: Workaround for the CI build (until replaced with a new uaitool)
+if(MIGRAPHX_DISABLE_TENSORFLOW)
+    set(MIGRAPHX_ENABLE_TENSORFLOW OFF CACHE BOOL "" FORCE)
+endif()
+if(MIGRAPHX_DISABLE_ONNX)
+    set(MIGRAPHX_ENABLE_ONNX OFF CACHE BOOL "" FORCE)
+endif()        
+# TODO: end of CI workaround
+
 if(WIN32)
 option(MIGRAPHX_USE_MIOPEN "Enable MIGraphX to use MIOpen" OFF)
 else()

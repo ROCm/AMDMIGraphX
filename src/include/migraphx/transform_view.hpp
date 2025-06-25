@@ -27,6 +27,7 @@
 
 #include <migraphx/config.hpp>
 #include <migraphx/iterator.hpp>
+#include <migraphx/utility_operators.hpp>
 #include <iterator>
 #include <type_traits>
 #include <utility>
@@ -37,7 +38,7 @@ inline namespace MIGRAPHX_INLINE_NS {
 namespace views {
 
 template <class Range, class F>
-struct transform_view
+struct transform_view : totally_ordered<transform_view<Range, F>>
 {
 
     constexpr transform_view(Range& prng, F pf) : rng(&prng), f(std::move(pf)) {}
@@ -104,34 +105,16 @@ struct transform_view
     constexpr iterator begin() const { return {this, std::begin(*rng)}; }
     constexpr iterator end() const { return {this, std::end(*rng)}; }
 
-    friend constexpr bool operator==(const transform_view& a, const transform_view& b)
+    template<class... Ts>
+    constexpr bool operator==(const transform_view<Ts...>& b) const
     {
-        return std::equal(a.begin(), a.end(), b.begin(), b.end());
+        return std::equal(this->begin(), this->end(), b.begin(), b.end());
     }
 
-    friend constexpr bool operator!=(const transform_view& a, const transform_view& b)
+    template<class... Ts>
+    constexpr bool operator<(const transform_view<Ts...>& b) const
     {
-        return not(a == b);
-    }
-
-    friend constexpr bool operator<(const transform_view& a, const transform_view& b)
-    {
-        return std::lexicographical_compare(a.begin(), a.end(), b.begin(), b.end());
-    }
-
-    friend constexpr bool operator>(const transform_view& a, const transform_view& b)
-    {
-        return b < a;
-    }
-
-    friend constexpr bool operator<=(const transform_view& a, const transform_view& b)
-    {
-        return not(b < a);
-    }
-
-    friend constexpr bool operator>=(const transform_view& a, const transform_view& b)
-    {
-        return not(a < b);
+        return std::lexicographical_compare(this->begin(), this->end(), b.begin(), b.end());
     }
 
     private:
@@ -139,7 +122,6 @@ struct transform_view
     F f;
 };
 
-// helper for type deduction
 template <class Range, class F>
 auto transform(Range& rng, F f)
 {

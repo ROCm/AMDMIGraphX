@@ -209,6 +209,29 @@ TEST_CASE(transform_view_element_comparison)
     EXPECT(bool{view3 >= view1});
 }
 
+TEST_CASE(transform_view_element_comparison_dff_view)
+{
+    std::vector<int> vec1 = {1, 2, 3, 4, 5};
+    std::vector<int> vec2 = {2, 3, 4, 5, 6};
+
+    auto view1 = migraphx::views::transform(vec1, [](int x) { return x * x; });
+    auto view2 = migraphx::views::transform(vec2, [](int x) { return (x - 1) * (x - 1); });
+    auto view3 = migraphx::views::transform(vec2, [](int x) { return x * x; });
+
+    EXPECT(bool{view1 == view2});
+    EXPECT(bool{view1 != view3});
+    EXPECT(bool{view2 != view3});
+
+    EXPECT(bool{view1 < view3});
+    EXPECT(bool{view2 < view3});
+    EXPECT(bool{view1 <= view3});
+    EXPECT(bool{view2 <= view3});
+    EXPECT(bool{view3 > view1});
+    EXPECT(bool{view3 > view2});
+    EXPECT(bool{view3 >= view1});
+    EXPECT(bool{view3 >= view2});
+}
+
 struct non_comparable
 {
     int value;

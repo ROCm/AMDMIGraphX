@@ -934,7 +934,7 @@ struct find_mlir_standalone_attention_op_old
 
 struct find_mlir_standalone_attention_op
 {
-    auto matcher() const { return match::name("group")(match::has_value("tag", "attention")); }
+    auto matcher() const { return match::name("group")(match::has_value("tag", "attention")).bind("group"); }
 
     std::unordered_map<instruction_ref, instruction_ref>
     invert_map_ins(const std::unordered_map<instruction_ref, instruction_ref>& map_ins) const
@@ -950,10 +950,10 @@ struct find_mlir_standalone_attention_op
 
     void apply(module_pass_manager& mpm, const match::matcher_result& r) const
     {
-        auto group = r.result;
-        mpm.get_module().debug_print();
-        mpm.get_module().debug_print(group);
-        group->module_inputs().front()->debug_print();
+        auto group = r.instructions["group"];
+        // mpm.get_module().debug_print();
+        // mpm.get_module().debug_print(group);
+        // group->module_inputs().front()->debug_print();
 
         auto group_mod = group->module_inputs().front();
 
@@ -967,19 +967,29 @@ struct find_mlir_standalone_attention_op
 
         std::unordered_map<instruction_ref, instruction_ref> map_group_mod_to_mlir_attn(
             map_main_to_mlir_attn);
-        auto attn_out =
-            mlir_attn->fuse(*group_mod, group->inputs(), &map_group_mod_to_mlir_attn).front();
-        map_main_to_mlir_attn[group] = attn_out;
+        auto attn_out = mlir_attn->fuse(*group_mod, group->inputs(), &map_group_mod_to_mlir_attn);
 
-        // mlir_attn->debug_print();
-
-        // std::cout << "\n";
-        // for (const auto& pair : map_main_to_mlir_attn)
-        // {
-        //     mpm.get_module().debug_print(pair.first);
-        //     mlir_attn->debug_print(pair.second);
-        //     std::cout << "\n";
-        // }
+        // Fuse any succeeding pointwise module
+        if(contains(r.instructions, "trailing_pm"))
+        {
+            map_main_to_mlir_attn[group] = attn_out.front();
+            auto trailing_pm_ins         = r.instructions["trailing_pm"];
+            auto lit_map                 = create_param_map_with_literals(
+                mlir_attn, trailing_pm_ins->module_inputs().front(), trailing_pm_ins->get_shape());
+            mlir_attn->add_params(trailing_pm_ins->inputs(), &map_main_to_mlir_attn);
+            map_main_to_mlir_attn.insert(lit_map.begin(), lit_map.end());
+            std::unordered_map<instruction_ref, instruction_ref> map_pm_to_mlir_attn(
+                map_main_to_mlir_attn);
+            auto fused_pw_outs = mlir_attn->fuse(*trailing_pm_ins->module_inputs().front(),
+                                                 trailing_pm_ins->inputs(),
+                                                 &map_pm_to_mlir_attn);
+            map_main_to_mlir_attn[trailing_pm_ins] = fused_pw_outs.front();
+            mlir_attn->add_return(fused_pw_outs);
+        }
+        else
+        {
+            mlir_attn->add_return(attn_out);
+        }
 
         auto map_mlir_attn_to_main = invert_map_ins(map_main_to_mlir_attn);
         auto new_inputs            = mlir_attn->get_inputs(map_mlir_attn_to_main);
@@ -1145,8 +1155,8 @@ void fuse_mlir::apply(module_pass_manager& mpm) const
     // Attention offloads; default disabled
     if(mlir_attention_enabled(ctx) or enable_extra)
     {
-        // match::find_matches(mpm, find_mlir_attention_fused_ops{});
-        // mpm.run_pass(dead_code_elimination{});
+        match::find_matches(mpm, find_mlir_attention_fused_ops{});
+        mpm.run_pass(dead_code_elimination{});
         match::find_matches(mpm, find_mlir_standalone_attention_op{});
         mpm.run_pass(dead_code_elimination{});
     }

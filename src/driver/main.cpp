@@ -88,8 +88,7 @@ std::_Put_time<char> get_formatted_timestamp()
     auto now             = std::chrono::system_clock::now();
     auto now_in_time_t   = std::chrono::system_clock::to_time_t(now);
     auto* now_as_tm_date = std::localtime(&now_in_time_t);
-    auto formatted_time  = std::put_time(now_as_tm_date, "%Y-%m-%d %H:%M:%S");
-    return formatted_time;
+    return std::put_time(now_as_tm_date, "%Y-%m-%d %H:%M:%S");
 }
 
 std::tuple<int64_t, int64_t>

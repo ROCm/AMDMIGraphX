@@ -42,8 +42,7 @@ struct parse_generic_op : op_parser<parse_generic_op>
                 {"Rsqrt", "rsqrt"},
                 {"Sigmoid", "sigmoid"},
                 {"StopGradient", "identity"},
-                {"Tanh", "tanh"}
-                };
+                {"Tanh", "tanh"}};
     }
 
     instruction_ref parse(const op_desc& opd,

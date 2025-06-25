@@ -69,7 +69,7 @@ TEST_CASE(transform_with_reference)
 {
     std::vector<int> vec = {1, 2, 3, 4, 5};
     // cppcheck-suppress constParameterReference
-    auto view            = migraphx::views::transform(vec, [](int& x) -> int& { return x; });
+    auto view = migraphx::views::transform(vec, [](int& x) -> int& { return x; });
 
     auto it = view.begin();
     EXPECT(*it == 1);
@@ -128,7 +128,7 @@ TEST_CASE(non_random_access_iterator_with_reference)
 {
     std::list<int> lst = {1, 2, 3, 4, 5};
     // cppcheck-suppress constParameterReference
-    auto view          = migraphx::views::transform(lst, [](int& x) -> int& { return x; });
+    auto view = migraphx::views::transform(lst, [](int& x) -> int& { return x; });
 
     auto it = view.begin();
     EXPECT(*it == 1);

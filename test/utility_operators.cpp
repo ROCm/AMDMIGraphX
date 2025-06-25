@@ -28,20 +28,19 @@
 
 // NOLINTNEXTLINE
 #define EXPECT_TOTALLY_ORDERED_IMPL(x, y)     \
-    EXPECT((x <= y) or (x >= y));              \
+    EXPECT((x <= y) or (x >= y));             \
     EXPECT((x < y) or (x > y) or (x == y));   \
     EXPECT(((x < y) or (x > y)) == (x != y)); \
-    EXPECT((x < y) == (y > x));                \
-    EXPECT((x <= y) == (y >= x));              \
-    EXPECT((x < y) != (x >= y));               \
-    EXPECT((x > y) != (x <= y));               \
+    EXPECT((x < y) == (y > x));               \
+    EXPECT((x <= y) == (y >= x));             \
+    EXPECT((x < y) != (x >= y));              \
+    EXPECT((x > y) != (x <= y));              \
     EXPECT((x == y) != (x != y))
 
 // NOLINTNEXTLINE
-#define EXPECT_TOTALLY_ORDERED(x, y)                                \
+#define EXPECT_TOTALLY_ORDERED(x, y)   \
     EXPECT_TOTALLY_ORDERED_IMPL(x, y); \
     EXPECT_TOTALLY_ORDERED_IMPL(y, x)
-
 
 struct custom_compare_any : migraphx::totally_ordered<custom_compare_any>
 {

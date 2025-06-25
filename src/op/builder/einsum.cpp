@@ -167,7 +167,8 @@ struct einsum : op_builder<einsum>
             else if(token == "...")
             {
                 if(has_ellipsis)
-                    MIGRAPHX_THROW("einsum op_builder: Ellipsis can only appear once per einsum equation term");
+                    MIGRAPHX_THROW("einsum op_builder: Ellipsis can only appear once per einsum "
+                                   "equation term");
 
                 has_ellipsis = true;
                 term += "*";
@@ -175,7 +176,8 @@ struct einsum : op_builder<einsum>
             else if(token == ",")
             {
                 if(ret.explicit_form)
-                    MIGRAPHX_THROW("einsum op_builder: Einsum equation can't have a ',' symbol in the output");
+                    MIGRAPHX_THROW(
+                        "einsum op_builder: Einsum equation can't have a ',' symbol in the output");
 
                 if(term.empty())
                     MIGRAPHX_THROW("einsum op_builder: No term specified before ',' symbol");
@@ -218,8 +220,9 @@ struct einsum : op_builder<einsum>
                 {
                     const auto ellipsis_dims = rank - term.size() + 1;
                     if(global_ellipsis_dims > 0 and ellipsis_dims != global_ellipsis_dims)
-                        MIGRAPHX_THROW("einsum op_builder: Every occurrence of ellipsis in the equation must "
-                                       "represent the same number of dimensions");
+                        MIGRAPHX_THROW(
+                            "einsum op_builder: Every occurrence of ellipsis in the equation must "
+                            "represent the same number of dimensions");
                     global_ellipsis_dims = ellipsis_dims;
                     current_dim += ellipsis_dims;
                 }
@@ -228,9 +231,9 @@ struct einsum : op_builder<einsum>
             }
 
             if(current_dim != rank)
-                MIGRAPHX_THROW("einsum op_builder: Number of labels in " + std::to_string(i + 1) + ". input_term (" +
-                               term + ") does not match the rank (" + std::to_string(rank) +
-                               ") of corresponding input");
+                MIGRAPHX_THROW("einsum op_builder: Number of labels in " + std::to_string(i + 1) +
+                               ". input_term (" + term + ") does not match the rank (" +
+                               std::to_string(rank) + ") of corresponding input");
         }
 
         return global_ellipsis_dims;
@@ -249,8 +252,8 @@ struct einsum : op_builder<einsum>
                            ", which is not present in any of the input terms");
 
         if(ellipsis_ndim != 0 and not contains(output_term, "*"))
-            MIGRAPHX_THROW(
-                "einsum op_builder: Output term does not contain ellipsis (...) even though an input term does");
+            MIGRAPHX_THROW("einsum op_builder: Output term does not contain ellipsis (...) even "
+                           "though an input term does");
     }
 
     // Creates output term when the equation is in implicit mode.
@@ -392,9 +395,9 @@ struct einsum : op_builder<einsum>
                                     const int_mat& diag) const
     {
         if(diag.size() != 1)
-            MIGRAPHX_THROW(
-                "einsum op_builder: Parsing of equations with more than one duplicated labels per input term is not "
-                "implemented");
+            MIGRAPHX_THROW("einsum op_builder: Parsing of equations with more than one duplicated "
+                           "labels per input term is not "
+                           "implemented");
 
         const auto& op_lens = op->get_shape().lens();
 
@@ -405,9 +408,9 @@ struct einsum : op_builder<einsum>
 
         std::vector<int> batch_axes = set_difference(arange(0, op_lens.size()), axes);
         if(not all_of(batch_axes, [&](int ba) { return ba < axes.front(); }))
-            MIGRAPHX_THROW(
-                "einsum op_builder: Parsing of equations with duplicated labels and batch axes that are not "
-                "the outer-most axes, is not implemented");
+            MIGRAPHX_THROW("einsum op_builder: Parsing of equations with duplicated labels and "
+                           "batch axes that are not "
+                           "the outer-most axes, is not implemented");
 
         size_t batch_size = calc_dim(batch_axes, op_lens);
 

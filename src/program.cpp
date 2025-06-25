@@ -76,7 +76,7 @@ struct program_impl
     std::unordered_map<std::string, module> modules;
     std::vector<context> contexts;
     std::vector<target> targets;
-    std::shared_ptr<std::unordered_map<instruction_ref, double>> perf_times;
+    std::optional<std::unordered_map<instruction_ref, std::pair<double,double>>> perf_data;
 };
 
 program::program() : impl(std::make_unique<program_impl>()) { this->create_module("main"); }
@@ -976,6 +976,15 @@ void program::perf_report(
     double calculate_overhead_time    = total_time - total_instruction_time;
     double calculate_overhead_percent = calculate_overhead_time * 100.0 / total_time;
 
+    std::unordered_map<instruction_ref, std::pair<double, double>> summary_map;
+    for(const auto& [ins, times] : ins_vec)
+    {
+        double avg     = common_average(times);
+        double percent = std::ceil(100.0 * avg / total_instruction_time);
+        summary_map[ins] = {avg, percent};
+    }
+    this->impl->perf_data = std::move(summary_map);
+    
     std::unordered_map<instruction_ref, std::string> names;
     this->print(names, [&](auto ins, const auto& ins_names) {
         instruction::print(std::cout, ins, ins_names);
@@ -984,11 +993,11 @@ void program::perf_report(
         if(ins->name() == "@return")
             return;
 
-        double avg     = common_average(ins_vec[ins]);
-        double percent = std::ceil(100.0 * avg / total_instruction_time);
+        const auto& [avg, percent] = summary_map[ins];
         os << ": " << avg << "ms, " << percent << "%";
         os << std::endl;
     });
+
 
     os << std::endl;
     os << "Summary:" << std::endl;
@@ -1077,13 +1086,73 @@ void program::print_graph(std::ostream& os, bool brief) const
 {
     const auto* mm = this->get_main_module();
     mm->print_graph(os, brief);
+    //print_full_graph(os, brief);
 }
+
 
 void program::print_full_graph(std::ostream& os, bool brief) const
 {
-    using namespace migraphx::graphviz;
+    const auto& modules = this->impl->modules;
+    const auto& perf_data = this->impl->perf_data;
+    (void)perf_data;
+
+    std::unordered_map<instruction_ref, std::string> names;
+    std::unordered_map<instruction_ref, std::string> mod_of;
+
+    os << "digraph program {" << std::endl;
+    os << "  peripheries=0;" << std::endl;
+
+    for(const auto& [mod_name, mod]: modules)
+    {
+        os << "  subgraph cluster_" << mod_name << "{" << std::endl;
+
+        mod.print([&](auto ins, auto ins_names) {
+            std::string header = ins->name();
+            std::string label = to_string(ins->get_operator());
 
 
+            os << "\t" 
+                << graphviz::enclose_name(ins_names.at(ins))
+                << "[label=" << graphviz::html_table_start() 
+                << graphviz::html_cell(graphviz::html_bold(graphviz::enclose_name(header)))
+                << graphviz::html_cell(graphviz::enclose_name(label))
+                << graphviz::html_table_end() 
+                << graphviz::block_style()
+                << "]";
+
+            os << ";" << std::endl;
+
+            if(not ins->inputs().empty())
+            {
+                for(auto&& arg : ins->inputs())
+                {
+                    os << "\t" << graphviz::enclose_name(ins_names.at(arg)) << " -> "
+                       << graphviz::enclose_name(ins_names.at(ins));
+                    if(not brief)
+                        os << "[label=" << graphviz::enclose_name(to_string(ins->get_shape())) << "]";
+                    os << ";" << std::endl;
+                }
+            }
+        });
+        os << "}" << std::endl;
+    }
+
+    // inter-module edges
+    for(const auto& [_, mod] : modules)
+    {
+        for(auto ins : iterator_for(mod))
+        {
+            if(ins->module_inputs().empty()) continue;
+
+            std::string from = names.at(ins);
+            for(const auto& m : ins->module_inputs())
+            {
+                // TODO: edge logic
+                (void)m;
+            }
+        }
+    }
+    os << "}" << std::endl;
 }
 
 void program::print_py(std::ostream& os) const

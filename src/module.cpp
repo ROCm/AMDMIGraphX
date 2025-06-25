@@ -1215,17 +1215,34 @@ static std::string enclose_name(const std::string& name)
     return '"' + replace_string(name, "\"", "\\\"") + '"';
 }
 
+static std::string table_cell_name(const std::string& name)
+{
+    return "<TR><TD>" + replace_string(name, "\"", "\\\"") + "</TD></TR>";
+}
+
+static std::string bold_name(const std::string& name) 
+{
+    return "<B>" + replace_string(name, "\"", "\\\"") + "</B>";
+}
+
+
 void module::print_graph(std::ostream& os, bool brief) const
 {
     os << "digraph {" << std::endl;
     os << "\trankdir=LR;" << std::endl;
+
+
+    
     this->print([&](auto ins, auto ins_names) {
         std::string label;
         if(brief)
             label = ins->name();
         else
             label = to_string(ins->get_operator());
-        os << "\t" << enclose_name(ins_names.at(ins)) << "[label=" << enclose_name(label) << "]";
+        os << "\t" 
+           << enclose_name(ins_names.at(ins))
+           << "[label=" << enclose_name(label)
+           << "]";
         os << ";" << std::endl;
         if(not ins->inputs().empty())
         {
@@ -1241,6 +1258,50 @@ void module::print_graph(std::ostream& os, bool brief) const
     });
     os << "}" << std::endl;
 }
+
+
+static std::string block_style(std::string color="lightgray")
+{
+    return " color=black fillcolor=" + color + " fontname=Helvetica shape=none style=\"rounded,filled\"";
+}
+/*
+void module::print_graph(std::ostream& os, bool brief) const
+{
+    std::string table_start = "<<TABLE BORDER=\"0\" CELLBORDER=\"1\" CELLPADDING=\"4\" CELLSPACING=\"0\" COLOR=\"transparent\">\"";
+    std::string table_end = "</TABLE>>";
+
+    os << "digraph {" << std::endl;
+    this->print([&](auto ins, auto ins_names) {
+        std::string header = ins->name();
+        std::string label = to_string(ins->get_operator());
+
+        os << "\t" 
+           << enclose_name(ins_names.at(ins))
+           << "[label=" << table_start 
+           << table_cell_name(bold_name(header))
+           << table_cell_name(label)
+           << table_end 
+           << block_style()
+           << "]";
+
+        os << ";" << std::endl;
+
+        if(not ins->inputs().empty())
+        {
+            for(auto&& arg : ins->inputs())
+            {
+                os << "\t" << enclose_name(ins_names.at(arg)) << " -> "
+                   << enclose_name(ins_names.at(ins));
+                if(not brief)
+                    os << "[label=" << enclose_name(to_string(ins->get_shape())) << "]";
+                os << ";" << std::endl;
+            }
+        }
+    });
+    os << "}" << std::endl;
+}
+    */
+
 
 static std::string cpp_var_name(const std::string& name)
 {

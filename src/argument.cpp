@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2024 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2025 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -23,6 +23,8 @@
  */
 #include <migraphx/argument.hpp>
 #include <migraphx/functional.hpp>
+#include <migraphx/file_buffer.hpp>
+#include <migraphx/msgpack.hpp>
 #include <unordered_map>
 
 namespace migraphx {
@@ -204,6 +206,16 @@ argument argument::element(std::size_t i) const
     auto idx    = this->get_shape().index(i);
     auto offset = this->get_shape().type_size() * idx;
     return argument{shape{this->get_shape().type()}, this->data() + offset};
+}
+
+void save_argument(const argument& a, const std::string& filename)
+{
+    write_buffer(filename, to_msgpack(to_value(a)));
+}
+
+argument load_argument(const std::string& filename)
+{
+    return from_value<argument>(from_msgpack(read_buffer(filename)));
 }
 
 } // namespace MIGRAPHX_INLINE_NS

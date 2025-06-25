@@ -38,7 +38,7 @@ struct equality_comparable
 {
     struct private_ops
     {
-        template<class U, MIGRAPHX_REQUIRES(std::is_same<U, X>{})>
+        template <class U, MIGRAPHX_REQUIRES(std::is_same<U, X>{})>
         static constexpr auto equal1(const U& x, const X& y) MIGRAPHX_RETURNS(x == y);
 
         template <class T, class U, MIGRAPHX_REQUIRES(std::is_same<T, X>{})>
@@ -51,9 +51,11 @@ struct equality_comparable
     }
 
     template <class U, class T>
-    friend constexpr auto operator ==(const U& x, const T& y) MIGRAPHX_RETURNS(private_ops::equal2(y, x));
+    friend constexpr auto operator==(const U& x, const T& y)
+        MIGRAPHX_RETURNS(private_ops::equal2(y, x));
     template <class U, class T>
-    friend constexpr auto operator !=(const U& x, const T& y) MIGRAPHX_RETURNS(not (private_ops::equal2(y, x)));
+    friend constexpr auto operator!=(const U& x, const T& y)
+        MIGRAPHX_RETURNS(not(private_ops::equal2(y, x)));
 };
 
 template <class X>
@@ -83,18 +85,24 @@ struct less_than_comparable
     }
 
     template <class T, class U>
-    friend constexpr auto operator <=(const T& x, const U& y) MIGRAPHX_RETURNS(not (private_ops::greater2(x, y)));
+    friend constexpr auto operator<=(const T& x, const U& y)
+        MIGRAPHX_RETURNS(not(private_ops::greater2(x, y)));
     template <class T, class U>
-    friend constexpr auto operator >=(const T& x, const U& y) MIGRAPHX_RETURNS(not (private_ops::less2(x, y)));
+    friend constexpr auto operator>=(const T& x, const U& y)
+        MIGRAPHX_RETURNS(not(private_ops::less2(x, y)));
 
     template <class U, class T>
-    friend constexpr auto operator<(const U& x, const T& y) MIGRAPHX_RETURNS(private_ops::greater2(y, x));
+    friend constexpr auto operator<(const U& x, const T& y)
+        MIGRAPHX_RETURNS(private_ops::greater2(y, x));
     template <class U, class T>
-    friend constexpr auto operator>(const U& x, const T& y) MIGRAPHX_RETURNS(private_ops::less2(y, x));
+    friend constexpr auto operator>(const U& x, const T& y)
+        MIGRAPHX_RETURNS(private_ops::less2(y, x));
     template <class U, class T>
-    friend constexpr auto operator <=(const U& x, const T& y) MIGRAPHX_RETURNS(not (private_ops::less2(y, x)));
+    friend constexpr auto operator<=(const U& x, const T& y)
+        MIGRAPHX_RETURNS(not(private_ops::less2(y, x)));
     template <class U, class T>
-    friend constexpr auto operator >=(const U& x, const T& y) MIGRAPHX_RETURNS(not (private_ops::greater2(y, x)));
+    friend constexpr auto operator>=(const U& x, const T& y)
+        MIGRAPHX_RETURNS(not(private_ops::greater2(y, x)));
 };
 
 template <class X>
@@ -116,10 +124,10 @@ struct equivalence
         MIGRAPHX_RETURNS(not private_ops::less2(x, y) and not private_ops::greater2(x, y));
 };
 
-template<class X>
-struct totally_ordered
-: equality_comparable<X>, less_than_comparable<X>
-{};
+template <class X>
+struct totally_ordered : equality_comparable<X>, less_than_comparable<X>
+{
+};
 
 } // namespace MIGRAPHX_INLINE_NS
 } // namespace migraphx

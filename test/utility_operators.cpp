@@ -48,35 +48,29 @@ struct custom_compare_any : migraphx::totally_ordered<custom_compare_any>
 
     constexpr custom_compare_any(int px) : x(px) {}
 
-    constexpr bool operator==(const custom_compare_any& rhs) const
-    {
-        return x == rhs.x;
-    }
+    constexpr bool operator==(const custom_compare_any& rhs) const { return x == rhs.x; }
 
-    template<class T>
+    template <class T>
     constexpr auto operator==(const T& rhs) const -> decltype(std::declval<int>() == rhs)
     {
         return x == rhs;
     }
 
-    constexpr bool operator<(const custom_compare_any& rhs) const
-    {
-        return x < rhs.x;
-    }
-    
-    template<class T>
+    constexpr bool operator<(const custom_compare_any& rhs) const { return x < rhs.x; }
+
+    template <class T>
     constexpr auto operator<(const T& rhs) const -> decltype(std::declval<int>() < rhs)
     {
         return x < rhs;
     }
 
-    template<class T>
+    template <class T>
     constexpr auto operator>(const T& rhs) const -> decltype(std::declval<int>() > rhs)
     {
         return x > rhs;
     }
 
-    template<class Stream>
+    template <class Stream>
     friend Stream& operator<<(Stream& os, const custom_compare_any& self)
     {
         return os << self.x;

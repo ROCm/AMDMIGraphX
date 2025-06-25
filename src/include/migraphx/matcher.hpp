@@ -1041,6 +1041,14 @@ inline auto has_attribute(const std::string& name)
         [=](instruction_ref ins) { return ins->get_operator().attributes().contains(name); });
 }
 
+inline auto has_value(const std::string& name, const std::string& value)
+{
+    return make_basic_pred_matcher([=](instruction_ref ins) {
+        return ins->get_operator().to_value().contains(name) and
+               ins->get_operator().to_value()[name].to<std::string>() == value;
+    });
+}
+
 template <class... Ms>
 auto pointwise(Ms... ms)
 {

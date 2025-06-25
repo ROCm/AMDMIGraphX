@@ -22,7 +22,7 @@
  * THE SOFTWARE.
  *
  */
-#include <migraphx/fuse_special_ops.hpp>
+#include <migraphx/gpu/fuse_special_ops.hpp>
 #include <migraphx/pass_manager.hpp>
 #include <migraphx/matcher.hpp>
 #include <migraphx/match/softmax.hpp>
@@ -32,6 +32,8 @@
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
+
+namespace gpu {
 
 namespace {
 
@@ -116,15 +118,15 @@ struct find_attention
     void apply(module_pass_manager& mpm, const match::matcher_result& r) const
     {
         auto gemm2       = r.result;
-        auto softmax_out = r.instructions["div"];
-        auto softmax_inp = r.instructions["x"];
+        // auto softmax_out = r.instructions["div"];
+        // auto softmax_inp = r.instructions["x"];
         auto gemm1       = r.instructions["dot1"];
 
-        mpm.get_module().debug_print();
-        mpm.get_module().debug_print(gemm2);
-        mpm.get_module().debug_print(softmax_out);
-        mpm.get_module().debug_print(softmax_inp);
-        mpm.get_module().debug_print(gemm1);
+        // mpm.get_module().debug_print();
+        // mpm.get_module().debug_print(gemm2);
+        // mpm.get_module().debug_print(softmax_out);
+        // mpm.get_module().debug_print(softmax_inp);
+        // mpm.get_module().debug_print(gemm1);
 
         // Capture all instructions part of the attention op
         auto attn_inss = get_attn_instructions(gemm1, gemm2);
@@ -138,17 +140,17 @@ struct find_attention
                        std::distance(mpm.get_module().begin(), y);
             });
 
-        std::cout << "\n";
-        mpm.get_module().debug_print(attn_ins_vec);
+        // std::cout << "\n";
+        // mpm.get_module().debug_print(attn_ins_vec);
 
         // Add captured instructions to new submodule
         module m_attn;
         std::unordered_map<instruction_ref, instruction_ref> map_mm_to_mattn;
         auto attn_outs = m_attn.fuse(attn_ins_vec, &map_mm_to_mattn);
 
-        std::cout << "\n";
-        m_attn.debug_print();
-        m_attn.debug_print(attn_outs);
+        // std::cout << "\n";
+        // m_attn.debug_print();
+        // m_attn.debug_print(attn_outs);
 
         // Define outputs based on instructions that are used elsewhere in the graph
         std::vector<instruction_ref> required_outputs;
@@ -161,7 +163,7 @@ struct find_attention
                                                 [&](auto o) { return contains(attn_ins_vec, o); });
                      });
 
-        mpm.get_module().debug_print(required_outputs);
+        // mpm.get_module().debug_print(required_outputs);
 
         assert(required_outputs.size() > 0);
         // Not supporting multi-out just yet - TODO: remove for lse support
@@ -175,7 +177,7 @@ struct find_attention
                        std::back_inserter(m_attn_outputs),
                        [&](auto i) { return map_mm_to_mattn.at(i); });
 
-        m_attn.debug_print(m_attn_outputs);
+        // m_attn.debug_print(m_attn_outputs);
 
         m_attn.add_return(m_attn_outputs);
 
@@ -238,8 +240,9 @@ void fuse_special_ops::apply(module_pass_manager& mpm) const
     match::find_matches(mpm, find_attention{.counter = &counter});
     mpm.run_pass(dead_code_elimination{});
 
-    mpm.get_module().debug_print();
+    // mpm.get_module().debug_print();
 }
 
+} // namespace gpu
 } // namespace MIGRAPHX_INLINE_NS
 } // namespace migraphx

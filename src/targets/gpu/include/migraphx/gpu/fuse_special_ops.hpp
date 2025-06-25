@@ -22,10 +22,11 @@
  * THE SOFTWARE.
  *
  */
-#ifndef MIGRAPHX_GUARD_MIGRAPHX_FUSE_SPECIAL_OPS_HPP
-#define MIGRAPHX_GUARD_MIGRAPHX_FUSE_SPECIAL_OPS_HPP
+#ifndef MIGRAPHX_GUARD_GPU_FUSE_SPECIAL_OPS_HPP
+#define MIGRAPHX_GUARD_GPU_FUSE_SPECIAL_OPS_HPP
 
 #include <migraphx/config.hpp>
+#include <migraphx/gpu/context.hpp>
 #include <string>
 
 namespace migraphx {
@@ -33,12 +34,16 @@ inline namespace MIGRAPHX_INLINE_NS {
 
 struct module_pass_manager;
 
+namespace gpu {
+
 struct MIGRAPHX_EXPORT fuse_special_ops
 {
+    context* ctx = nullptr;
     std::string name() const { return "fuse_special_ops"; }
     void apply(module_pass_manager& mpm) const;
 };
+} // namespace gpu
 
 } // namespace MIGRAPHX_INLINE_NS
 } // namespace migraphx
-#endif // MIGRAPHX_GUARD_MIGRAPHX_FUSE_SPECIAL_OPS_HPP
+#endif // MIGRAPHX_GUARD_GPU_FUSE_SPECIAL_OPS_HPP

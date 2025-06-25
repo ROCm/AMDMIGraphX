@@ -34,7 +34,6 @@
 #include <migraphx/fp8_ocp_to_fnuz.hpp>
 #include <migraphx/fuse_concat.hpp>
 #include <migraphx/fuse_pointwise_reduce.hpp>
-#include <migraphx/fuse_special_ops.hpp>
 #include <migraphx/inline_module.hpp>
 #include <migraphx/insert_pad.hpp>
 #include <migraphx/layout_convolution.hpp>
@@ -70,6 +69,7 @@
 #include <migraphx/gpu/fuse_ck.hpp>
 #include <migraphx/gpu/fuse_mlir.hpp>
 #include <migraphx/gpu/fuse_ops.hpp>
+#include <migraphx/gpu/fuse_special_ops.hpp>
 #include <migraphx/gpu/prefuse_ops.hpp>
 #include <migraphx/gpu/lowering.hpp>
 #include <migraphx/gpu/schedule_model.hpp>
@@ -222,7 +222,7 @@ std::vector<pass> target::get_passes(migraphx::context& gctx, const compile_opti
         propagate_precision{},
         dead_code_elimination{},
         optimize_module{},
-        fuse_special_ops{},
+        fuse_special_ops{&ctx},
         fuse_pointwise_reduce{},
         dead_code_elimination{},
 #ifndef _WIN32

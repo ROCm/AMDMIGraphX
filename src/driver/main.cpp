@@ -83,27 +83,22 @@ get_unrecognized_migraphx_envs(const char* envp[],
     return unused_migx_env;
 }
 
-std::chrono::time_point<std::chrono::system_clock> print_timestamp(const std::string& header)
+std::_Put_time<char> get_formatted_timestamp()
 {
     auto now             = std::chrono::system_clock::now();
     auto now_in_time_t   = std::chrono::system_clock::to_time_t(now);
     auto* now_as_tm_date = std::localtime(&now_in_time_t);
     auto formatted_time  = std::put_time(now_as_tm_date, "%Y-%m-%d %H:%M:%S");
-    std::cout << header << ": " << formatted_time << std::endl;
-    return now;
+    return formatted_time;
 }
 
-std::tuple<int64_t, int64_t, int64_t, int64_t>
+std::tuple<int64_t, int64_t>
 get_clock_time_from_duration(const std::chrono::duration<int64_t, std::nano>& duration)
 {
     auto milliseconds = std::chrono::duration_cast<std::chrono::milliseconds>(duration);
     auto seconds      = std::chrono::duration_cast<std::chrono::seconds>(milliseconds);
     milliseconds -= std::chrono::duration_cast<std::chrono::milliseconds>(seconds);
-    auto minutes = std::chrono::duration_cast<std::chrono::minutes>(seconds);
-    seconds -= std::chrono::duration_cast<std::chrono::seconds>(minutes);
-    auto hours = std::chrono::duration_cast<std::chrono::hours>(minutes);
-    minutes -= std::chrono::duration_cast<std::chrono::minutes>(hours);
-    return {hours.count(), minutes.count(), seconds.count(), milliseconds.count()};
+    return {seconds.count(), milliseconds.count()};
 }
 } // namespace
 
@@ -991,7 +986,8 @@ int main(int argc, const char* argv[], const char* envp[])
         std::cout << "Running [ " << get_version() << " ]: " << driver_invocation << std::endl;
 
         // Print start timestamp
-        auto start_time = print_timestamp("Start time");
+        std::cout << "Start time: " << get_formatted_timestamp() << std::endl;
+        auto start_time = std::chrono::system_clock::now();
 
         m.at(cmd)(argv[0],
                   {args.begin() + 1, args.end()}); // run driver command found in commands map
@@ -1006,13 +1002,12 @@ int main(int argc, const char* argv[], const char* envp[])
             std::cout << "Unused environment variable: " << e << "\n";
 
         // Print end timestamp
-        auto end_time = print_timestamp("End time");
+        std::cout << "End time: " << get_formatted_timestamp() << std::endl;
+        auto end_time = std::chrono::system_clock::now();
 
         // Print total duration
-        auto [hours, minutes, seconds, milliseconds] =
-            get_clock_time_from_duration(end_time - start_time);
-        std::cout << "Driver command took " << hours << "h" << minutes << "m" << seconds << "s"
-                  << milliseconds << "ms" << std::endl;
+        auto [seconds, milliseconds] = get_clock_time_from_duration(end_time - start_time);
+        std::cout << "Time: " << seconds << "." << milliseconds << "s" << std::endl;
 
         std::cout << "[ " << get_version() << " ] Complete: " << driver_invocation << std::endl;
     }

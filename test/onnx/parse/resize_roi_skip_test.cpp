@@ -21,24 +21,35 @@
  * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
  * THE SOFTWARE.
  */
-#ifndef MIGRAPHX_GUARD_GPU_TUNING_CONFIG_HPP
-#define MIGRAPHX_GUARD_GPU_TUNING_CONFIG_HPP
 
-#include <migraphx/config.hpp>
-#include <migraphx/value.hpp>
+#include <onnx_test.hpp>
 
-namespace migraphx {
-inline namespace MIGRAPHX_INLINE_NS {
-namespace gpu {
-
-struct tuning_config
+TEST_CASE(resize_roi_skip_test)
 {
-    value problem;
-    std::vector<value> solutions;
-    std::string mlir_kernel;
-};
+    migraphx::program p;
+    auto* mm = p.get_main_module();
 
-} // namespace gpu
-} // namespace MIGRAPHX_INLINE_NS
-} // namespace migraphx
-#endif // MIGRAPHX_GUARD_GPU_TUNING_CONFIG_HPP
+    migraphx::shape sroi{migraphx::shape::float_type, {8}};
+    std::vector<float> roid = {1.1, 1.2, 1.3, 1.4, 1.5, 1.6, 1.7, 1.8};
+    mm->add_literal(migraphx::literal(sroi, roid));
+
+    migraphx::shape sscale{migraphx::shape::float_type, {4}};
+    std::vector<float> scaled = {1, 1, 2, 2};
+    mm->add_literal(migraphx::literal(sscale, scaled));
+
+    migraphx::shape sx{migraphx::shape::float_type, {1, 1, 2, 4}};
+    auto inx = mm->add_parameter("X", sx);
+
+    migraphx::shape si{migraphx::shape::int32_type, {1, 1, 4, 8}};
+    std::vector<int> ind = {0, 0, 1, 1, 1, 1, 2, 2, 3, 3, 3, 3, 2, 2, 3, 3,
+                            3, 3, 2, 2, 3, 3, 3, 3, 2, 2, 3, 3, 3, 4, 4, 4};
+    auto li              = mm->add_literal(migraphx::literal(si, ind));
+
+    auto lrsp = mm->add_instruction(migraphx::make_op("reshape", {{"dims", {8}}}), inx);
+    auto r    = mm->add_instruction(migraphx::make_op("gather", {{"axis", 0}}), lrsp, li);
+    mm->add_return({r});
+
+    auto prog = read_onnx("resize_roi_skip_test.onnx");
+
+    EXPECT(p == prog);
+}

@@ -21,24 +21,34 @@
  * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
  * THE SOFTWARE.
  */
-#ifndef MIGRAPHX_GUARD_GPU_TUNING_CONFIG_HPP
-#define MIGRAPHX_GUARD_GPU_TUNING_CONFIG_HPP
-
-#include <migraphx/config.hpp>
-#include <migraphx/value.hpp>
+#include <migraphx/tf/op_parser.hpp>
+#include <migraphx/ranges.hpp>
+#include <migraphx/instruction.hpp>
+#include <migraphx/make_op.hpp>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
-namespace gpu {
+namespace tf {
 
-struct tuning_config
+struct parse_addn : op_parser<parse_addn>
 {
-    value problem;
-    std::vector<value> solutions;
-    std::string mlir_kernel;
+    bool transpose() const { return true; }
+    std::vector<op_desc> operators() const { return {{"AddN"}}; }
+
+    instruction_ref parse(const op_desc& /*opd*/,
+                          const tf_parser& /*parser*/,
+                          const tf_parser::node_info& info,
+                          std::vector<instruction_ref> args) const
+    {
+        instruction_ref sum = args[0];
+        for(auto i = 1; i < args.size(); i++)
+        {
+            sum = info.add_instruction(make_op("add"), sum, args[i]);
+        }
+        return sum;
+    }
 };
 
-} // namespace gpu
+} // namespace tf
 } // namespace MIGRAPHX_INLINE_NS
 } // namespace migraphx
-#endif // MIGRAPHX_GUARD_GPU_TUNING_CONFIG_HPP

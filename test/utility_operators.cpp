@@ -88,30 +88,28 @@ TEST_CASE(compare_any)
     EXPECT_TOTALLY_ORDERED(x, 1);
 }
 
-struct custom_compare_equivalent : migraphx::totally_ordered<custom_compare_equivalent>, migraphx::equivalence<custom_compare_equivalent>
+struct custom_compare_equivalent : migraphx::totally_ordered<custom_compare_equivalent>,
+                                   migraphx::equivalence<custom_compare_equivalent>
 {
     int x;
 
     constexpr custom_compare_equivalent(int px) : x(px) {}
 
-    constexpr bool operator<(const custom_compare_equivalent& rhs) const
-    {
-        return x < rhs.x;
-    }
-    
-    template<class T>
+    constexpr bool operator<(const custom_compare_equivalent& rhs) const { return x < rhs.x; }
+
+    template <class T>
     constexpr auto operator<(const T& rhs) const -> decltype(std::declval<int>() < rhs)
     {
         return x < rhs;
     }
 
-    template<class T>
+    template <class T>
     constexpr auto operator>(const T& rhs) const -> decltype(std::declval<int>() > rhs)
     {
         return x > rhs;
     }
 
-    template<class Stream>
+    template <class Stream>
     friend Stream& operator<<(Stream& os, const custom_compare_equivalent& self)
     {
         return os << self.x;
@@ -145,8 +143,9 @@ struct custom_compare_adl : migraphx::totally_ordered<custom_compare_adl>
         return lhs.x == rhs.x;
     }
 
-    template<class T>
-    friend constexpr auto operator==(const custom_compare_adl& lhs, const T& rhs) -> decltype(std::declval<int>() == rhs)
+    template <class T>
+    friend constexpr auto operator==(const custom_compare_adl& lhs,
+                                     const T& rhs) -> decltype(std::declval<int>() == rhs)
     {
         return lhs.x == rhs;
     }
@@ -155,20 +154,22 @@ struct custom_compare_adl : migraphx::totally_ordered<custom_compare_adl>
     {
         return lhs.x < rhs.x;
     }
-    
-    template<class T>
-    friend constexpr auto operator<(const custom_compare_any& lhs, const T& rhs) -> decltype(std::declval<int>() < rhs)
+
+    template <class T>
+    friend constexpr auto operator<(const custom_compare_any& lhs,
+                                    const T& rhs) -> decltype(std::declval<int>() < rhs)
     {
         return lhs.x < rhs;
     }
 
-    template<class T>
-    friend constexpr auto operator>(const custom_compare_any& lhs, const T& rhs) -> decltype(std::declval<int>() > rhs)
+    template <class T>
+    friend constexpr auto operator>(const custom_compare_any& lhs,
+                                    const T& rhs) -> decltype(std::declval<int>() > rhs)
     {
         return lhs.x > rhs;
     }
 
-    template<class Stream>
+    template <class Stream>
     friend Stream& operator<<(Stream& os, const custom_compare_adl& self)
     {
         return os << self.x;
@@ -191,36 +192,30 @@ TEST_CASE(compare_adl)
     EXPECT_TOTALLY_ORDERED(x, 1);
 }
 
-template<class T>
+template <class T>
 struct custom_compare_template1 : migraphx::totally_ordered<custom_compare_template1<T>>
 {
     T x;
 
     constexpr custom_compare_template1(T px) : x(px) {}
 
-    constexpr bool operator==(const custom_compare_template1& rhs) const
-    {
-        return x == rhs.x;
-    }
+    constexpr bool operator==(const custom_compare_template1& rhs) const { return x == rhs.x; }
 
-    template<class U>
+    template <class U>
     constexpr auto operator==(const custom_compare_template1<U>& rhs) const
     {
         return x == rhs.x;
     }
 
-    constexpr bool operator<(const custom_compare_template1& rhs) const
-    {
-        return x < rhs.x;
-    }
-    
-    template<class U>
+    constexpr bool operator<(const custom_compare_template1& rhs) const { return x < rhs.x; }
+
+    template <class U>
     constexpr auto operator<(const custom_compare_template1<U>& rhs) const
     {
         return x < rhs.x;
     }
 
-    template<class Stream>
+    template <class Stream>
     friend Stream& operator<<(Stream& os, const custom_compare_template1& self)
     {
         return os << self.x;
@@ -248,27 +243,26 @@ TEST_CASE(compare_template1)
     EXPECT_TOTALLY_ORDERED(y, z);
 }
 
-template<class T>
+template <class T>
 struct custom_compare_template2 : migraphx::totally_ordered<custom_compare_template2<T>>
 {
     T x;
 
     constexpr custom_compare_template2(T px) : x(px) {}
 
-
-    template<class U>
+    template <class U>
     constexpr auto operator==(const custom_compare_template2<U>& rhs) const
     {
         return x == rhs.x;
     }
-    
-    template<class U>
+
+    template <class U>
     constexpr auto operator<(const custom_compare_template2<U>& rhs) const
     {
         return x < rhs.x;
     }
 
-    template<class Stream>
+    template <class Stream>
     friend Stream& operator<<(Stream& os, const custom_compare_template2& self)
     {
         return os << self.x;

@@ -20,25 +20,34 @@
  * LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
  * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
  * THE SOFTWARE.
+ *
  */
-#ifndef MIGRAPHX_GUARD_GPU_TUNING_CONFIG_HPP
-#define MIGRAPHX_GUARD_GPU_TUNING_CONFIG_HPP
 
-#include <migraphx/config.hpp>
-#include <migraphx/value.hpp>
+#include <tf_test.hpp>
 
-namespace migraphx {
-inline namespace MIGRAPHX_INLINE_NS {
-namespace gpu {
-
-struct tuning_config
+TEST_CASE(addn_test)
 {
-    value problem;
-    std::vector<value> solutions;
-    std::string mlir_kernel;
-};
+    migraphx::program p;
 
-} // namespace gpu
-} // namespace MIGRAPHX_INLINE_NS
-} // namespace migraphx
-#endif // MIGRAPHX_GUARD_GPU_TUNING_CONFIG_HPP
+    auto* mm  = p.get_main_module();
+    auto l0   = mm->add_parameter("0", migraphx::shape{migraphx::shape::float_type, {2, 3}});
+    auto l1   = mm->add_parameter("1", migraphx::shape{migraphx::shape::float_type, {2, 3}});
+    auto l2   = mm->add_parameter("2", migraphx::shape{migraphx::shape::float_type, {2, 3}});
+    auto add1 = mm->add_instruction(migraphx::make_op("add"), l0, l1);
+    mm->add_instruction(migraphx::make_op("add"), add1, l2);
+    auto prog = optimize_tf("addn_test.pb", false);
+
+    EXPECT(p == prog);
+}
+
+TEST_CASE(addn_single_test)
+{
+    migraphx::program p;
+
+    auto* mm = p.get_main_module();
+    auto l0  = mm->add_parameter("0", migraphx::shape{migraphx::shape::float_type, {2, 3}});
+    mm->add_instruction(migraphx::make_op("identity"), l0);
+    auto prog = optimize_tf("addn_single_test.pb", false);
+
+    EXPECT(p == prog);
+}

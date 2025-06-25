@@ -21,24 +21,24 @@
  * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
  * THE SOFTWARE.
  */
-#ifndef MIGRAPHX_GUARD_GPU_TUNING_CONFIG_HPP
-#define MIGRAPHX_GUARD_GPU_TUNING_CONFIG_HPP
 
-#include <migraphx/config.hpp>
-#include <migraphx/value.hpp>
+#include <onnx_test.hpp>
 
-namespace migraphx {
-inline namespace MIGRAPHX_INLINE_NS {
-namespace gpu {
-
-struct tuning_config
+TEST_CASE(pad_edge_1d_test)
 {
-    value problem;
-    std::vector<value> solutions;
-    std::string mlir_kernel;
-};
+    migraphx::program p;
+    auto* mm = p.get_main_module();
+    auto l0  = mm->add_parameter("0", migraphx::shape{migraphx::shape::float_type, {4}});
+    mm->add_literal({migraphx::shape{migraphx::shape::int32_type, {2}}, {2, 3}});
+    auto l1 = mm->add_instruction(
+        migraphx::make_op("slice", {{"axes", {0}}, {"starts", {0}}, {"ends", {1}}}), l0);
+    auto l2 = mm->add_instruction(
+        migraphx::make_op("slice", {{"axes", {0}}, {"starts", {3}}, {"ends", {4}}}), l0);
+    auto r =
+        mm->add_instruction(migraphx::make_op("concat", {{"axis", 0}}), l1, l1, l0, l2, l2, l2);
+    mm->add_return({r});
 
-} // namespace gpu
-} // namespace MIGRAPHX_INLINE_NS
-} // namespace migraphx
-#endif // MIGRAPHX_GUARD_GPU_TUNING_CONFIG_HPP
+    auto prog = read_onnx("pad_edge_1d_test.onnx");
+
+    EXPECT(p == prog);
+}

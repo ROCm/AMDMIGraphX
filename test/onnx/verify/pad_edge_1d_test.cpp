@@ -21,24 +21,27 @@
  * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
  * THE SOFTWARE.
  */
-#ifndef MIGRAPHX_GUARD_GPU_TUNING_CONFIG_HPP
-#define MIGRAPHX_GUARD_GPU_TUNING_CONFIG_HPP
 
-#include <migraphx/config.hpp>
-#include <migraphx/value.hpp>
+#include <migraphx/register_target.hpp>
+#include <migraphx/verify.hpp>
+#include <onnx_test.hpp>
 
-namespace migraphx {
-inline namespace MIGRAPHX_INLINE_NS {
-namespace gpu {
-
-struct tuning_config
+TEST_CASE(pad_edge_1d_test)
 {
-    value problem;
-    std::vector<value> solutions;
-    std::string mlir_kernel;
-};
+    migraphx::program p = read_onnx("pad_edge_1d_test.onnx");
+    p.compile(migraphx::make_target("ref"));
 
-} // namespace gpu
-} // namespace MIGRAPHX_INLINE_NS
-} // namespace migraphx
-#endif // MIGRAPHX_GUARD_GPU_TUNING_CONFIG_HPP
+    migraphx::shape input_shape{migraphx::shape::float_type, {4}};
+    std::vector<float> data = {1, 2, 3, 4};
+
+    migraphx::parameter_map pp;
+    pp["0"] = migraphx::argument(input_shape, data.data());
+
+    auto result = p.eval(pp).back();
+    std::vector<float> result_vector;
+    result.visit([&](auto output) { result_vector.assign(output.begin(), output.end()); });
+
+    std::vector<float> gold = {1, 1, 1, 2, 3, 4, 4, 4, 4};
+
+    EXPECT(migraphx::verify::verify_rms_range(result_vector, gold));
+}

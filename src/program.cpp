@@ -40,6 +40,7 @@
 #include <migraphx/make_op.hpp>
 #include <migraphx/marker.hpp>
 #include <migraphx/supported_segments.hpp>
+#include <migraphx/graphviz.hpp>
 
 #include <iostream>
 #include <queue>
@@ -75,6 +76,7 @@ struct program_impl
     std::unordered_map<std::string, module> modules;
     std::vector<context> contexts;
     std::vector<target> targets;
+    std::shared_ptr<std::unordered_map<instruction_ref, double>> perf_times;
 };
 
 program::program() : impl(std::make_unique<program_impl>()) { this->create_module("main"); }
@@ -1075,6 +1077,13 @@ void program::print_graph(std::ostream& os, bool brief) const
 {
     const auto* mm = this->get_main_module();
     mm->print_graph(os, brief);
+}
+
+void program::print_full_graph(std::ostream& os, bool brief) const
+{
+    using namespace migraphx::graphviz;
+
+
 }
 
 void program::print_py(std::ostream& os) const

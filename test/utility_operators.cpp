@@ -26,33 +26,21 @@
 #include <migraphx/utility_operators.hpp>
 #include <test.hpp>
 
-// template <class Expression>
-// static auto compare_predicate(const Expression& e)
-// {
-//     bool result = e.value();
-//     return test::make_predicate(test::as_string(e) + " => " + test::as_string(result),
-//                                 [=] { return result; });
-// }
-
 // NOLINTNEXTLINE
-#define MIGRAPHX_OP_TEST_COMPARE(...) (__VA_ARGS__)
-// #define MIGRAPHX_OP_TEST_COMPARE(...) compare_predicate(TEST_CAPTURE(__VA_ARGS__))
-
-// NOLINTNEXTLINE
-#define EXPECT_TOTALLY_ORDERED_IMPL(_, x, y)     \
-    EXPECT(_(x <= y) or _(x >= y));              \
-    EXPECT(_(x < y) or _(x > y) or _(x == y));   \
-    EXPECT((_(x < y) or _(x > y)) == _(x != y)); \
-    EXPECT(_(x < y) == _(y > x));                \
-    EXPECT(_(x <= y) == _(y >= x));              \
-    EXPECT(_(x < y) != _(x >= y));               \
-    EXPECT(_(x > y) != _(x <= y));               \
-    EXPECT(_(x == y) != _(x != y))
+#define EXPECT_TOTALLY_ORDERED_IMPL(x, y)     \
+    EXPECT((x <= y) or (x >= y));              \
+    EXPECT((x < y) or (x > y) or (x == y));   \
+    EXPECT(((x < y) or (x > y)) == (x != y)); \
+    EXPECT((x < y) == (y > x));                \
+    EXPECT((x <= y) == (y >= x));              \
+    EXPECT((x < y) != (x >= y));               \
+    EXPECT((x > y) != (x <= y));               \
+    EXPECT((x == y) != (x != y))
 
 // NOLINTNEXTLINE
 #define EXPECT_TOTALLY_ORDERED(x, y)                                \
-    EXPECT_TOTALLY_ORDERED_IMPL(MIGRAPHX_OP_TEST_COMPARE, x, y); \
-    EXPECT_TOTALLY_ORDERED_IMPL(MIGRAPHX_OP_TEST_COMPARE, y, x)
+    EXPECT_TOTALLY_ORDERED_IMPL(x, y); \
+    EXPECT_TOTALLY_ORDERED_IMPL(y, x)
 
 
 struct custom_compare_any : migraphx::totally_ordered<custom_compare_any>

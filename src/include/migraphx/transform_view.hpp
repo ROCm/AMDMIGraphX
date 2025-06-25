@@ -105,13 +105,13 @@ struct transform_view : totally_ordered<transform_view<Range, F>>
     constexpr iterator begin() const { return {this, std::begin(*rng)}; }
     constexpr iterator end() const { return {this, std::end(*rng)}; }
 
-    template<class... Ts>
+    template <class... Ts>
     constexpr bool operator==(const transform_view<Ts...>& b) const
     {
         return std::equal(this->begin(), this->end(), b.begin(), b.end());
     }
 
-    template<class... Ts>
+    template <class... Ts>
     constexpr bool operator<(const transform_view<Ts...>& b) const
     {
         return std::lexicographical_compare(this->begin(), this->end(), b.begin(), b.end());

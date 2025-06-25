@@ -25,23 +25,29 @@
 
 #include <tf_test.hpp>
 
-// Skip this test for libstdc++ debug for now since it exposes a bug in protobuf
-#ifndef _GLIBCXX_DEBUG
-TEST_CASE(assert_less_equal_test)
+TEST_CASE(addn_test)
+{
+    migraphx::program p;
+
+    auto* mm  = p.get_main_module();
+    auto l0   = mm->add_parameter("0", migraphx::shape{migraphx::shape::float_type, {2, 3}});
+    auto l1   = mm->add_parameter("1", migraphx::shape{migraphx::shape::float_type, {2, 3}});
+    auto l2   = mm->add_parameter("2", migraphx::shape{migraphx::shape::float_type, {2, 3}});
+    auto add1 = mm->add_instruction(migraphx::make_op("add"), l0, l1);
+    mm->add_instruction(migraphx::make_op("add"), add1, l2);
+    auto prog = optimize_tf("addn_test.pb", false);
+
+    EXPECT(p == prog);
+}
+
+TEST_CASE(addn_single_test)
 {
     migraphx::program p;
 
     auto* mm = p.get_main_module();
-    migraphx::shape s0{migraphx::shape::float_type, {2, 3}};
-    auto l0 = mm->add_parameter("0", s0);
-    auto l1 = mm->add_parameter("1", s0);
-    migraphx::literal l{migraphx::shape{migraphx::shape::int32_type, {2}}, {0, 1}};
-    auto l2 = mm->add_literal(l);
-    mm->add_instruction(migraphx::make_op("add"), l0, l1);
-    auto l3 = mm->add_instruction(migraphx::make_op("identity"), l0, l1);
-    mm->add_instruction(migraphx::make_op("identity"), l3, l2);
-    auto prog = optimize_tf("assert_less_equal_test.pb", false);
+    auto l0  = mm->add_parameter("0", migraphx::shape{migraphx::shape::float_type, {2, 3}});
+    mm->add_instruction(migraphx::make_op("identity"), l0);
+    auto prog = optimize_tf("addn_single_test.pb", false);
 
     EXPECT(p == prog);
 }
-#endif

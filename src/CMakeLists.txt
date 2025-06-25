@@ -188,6 +188,7 @@ register_migraphx_ops(
     greater
     greater_or_equal
     group_query_attention
+    group
     gru
     identity
     if_op

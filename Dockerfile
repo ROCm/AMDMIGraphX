@@ -112,8 +112,8 @@ RUN cget -p $PREFIX install doxygen@Release_1_9_8
 
 COPY ./test/onnx/.onnxrt-commit /
 
-ARG ONNXRUNTIME_REPO=https://github.com/Microsoft/onnxruntime
-ARG ONNXRUNTIME_BRANCH=main
+ARG ONNXRUNTIME_REPO=https://github.com/rocm/onnxruntime
+ARG ONNXRUNTIME_BRANCH=rocm6.4_internal_testing
 ARG ONNXRUNTIME_COMMIT
 
 RUN git clone --single-branch --branch ${ONNXRUNTIME_BRANCH} --recursive ${ONNXRUNTIME_REPO} onnxruntime && \

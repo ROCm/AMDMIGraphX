@@ -61,6 +61,7 @@
 #include <migraphx/netron_output.hpp>
 
 #include <fstream>
+#include <iomanip>
 
 namespace {
 std::vector<std::string>
@@ -80,6 +81,23 @@ get_unrecognized_migraphx_envs(const char* envp[],
             unused_migx_env.push_back(e);
     }
     return unused_migx_env;
+}
+
+std::_Put_time<char> get_formatted_timestamp()
+{
+    auto now             = std::chrono::system_clock::now();
+    auto now_in_time_t   = std::chrono::system_clock::to_time_t(now);
+    auto* now_as_tm_date = std::localtime(&now_in_time_t);
+    return std::put_time(now_as_tm_date, "%Y-%m-%d %H:%M:%S");
+}
+
+std::tuple<int64_t, int64_t>
+get_clock_time_from_duration(const std::chrono::duration<int64_t, std::nano>& duration)
+{
+    auto milliseconds = std::chrono::duration_cast<std::chrono::milliseconds>(duration);
+    auto seconds      = std::chrono::duration_cast<std::chrono::seconds>(milliseconds);
+    milliseconds -= std::chrono::duration_cast<std::chrono::milliseconds>(seconds);
+    return {seconds.count(), milliseconds.count()};
 }
 } // namespace
 
@@ -1000,6 +1018,10 @@ int main(int argc, const char* argv[], const char* envp[])
             std::string(argv[0]) + " " + migraphx::to_string_range(args, " ");
         std::cout << "Running [ " << get_version() << " ]: " << driver_invocation << std::endl;
 
+        // Print start timestamp
+        std::cout << "Start time: " << get_formatted_timestamp() << std::endl;
+        auto start_time = std::chrono::system_clock::now();
+
         m.at(cmd)(argv[0],
                   {args.begin() + 1, args.end()}); // run driver command found in commands map
 
@@ -1011,6 +1033,14 @@ int main(int argc, const char* argv[], const char* envp[])
         auto unused_envs = get_unrecognized_migraphx_envs(envp, mgx_env_map);
         for(auto&& e : unused_envs)
             std::cout << "Unused environment variable: " << e << "\n";
+
+        // Print end timestamp
+        std::cout << "End time: " << get_formatted_timestamp() << std::endl;
+        auto end_time = std::chrono::system_clock::now();
+
+        // Print total duration
+        auto [seconds, milliseconds] = get_clock_time_from_duration(end_time - start_time);
+        std::cout << "Time: " << seconds << "." << milliseconds << "s" << std::endl;
 
         std::cout << "[ " << get_version() << " ] Complete: " << driver_invocation << std::endl;
     }

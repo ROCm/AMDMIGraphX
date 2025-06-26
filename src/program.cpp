@@ -1084,74 +1084,46 @@ void program::print(
 
 void program::print_graph(std::ostream& os, bool brief) const
 {
+    //const auto* mm = this->get_main_module();
+    //mm->print_graph(os, brief);
+    //return;
     const auto* mm = this->get_main_module();
-    mm->print_graph(os, brief);
-    //print_full_graph(os, brief);
-}
-
-
-void program::print_full_graph(std::ostream& os, bool brief) const
-{
-    const auto& modules = this->impl->modules;
     const auto& perf_data = this->impl->perf_data;
     (void)perf_data;
 
-    std::unordered_map<instruction_ref, std::string> names;
-    std::unordered_map<instruction_ref, std::string> mod_of;
+    os << "digraph {" << std::endl;
+    os << "\tperipheries=0;" << std::endl;
 
-    os << "digraph program {" << std::endl;
-    os << "  peripheries=0;" << std::endl;
+    mm->print([&](auto ins, auto ins_names) {
+        std::string header = ins->name();
+        std::string label = to_string(ins->get_operator());
+            // ins->get_operator().attributes() -> value object (use [] or .at())
+            // ins->get_operator().attributes() -> value object () 
 
-    for(const auto& [mod_name, mod]: modules)
-    {
-        os << "  subgraph cluster_" << mod_name << "{" << std::endl;
+        os << "\t" 
+            << graphviz::enclose_name(ins_names.at(ins))
+            << "[label=" << graphviz::html_table_start() 
+            << graphviz::html_cell(graphviz::html_bold(header))
+            << graphviz::html_cell(label)
+            << graphviz::html_table_end() 
+            << graphviz::block_style()
+            << "]";
 
-        mod.print([&](auto ins, auto ins_names) {
-            std::string header = ins->name();
-            std::string label = to_string(ins->get_operator());
+        os << ";" << std::endl;
 
-
-            os << "\t" 
-                << graphviz::enclose_name(ins_names.at(ins))
-                << "[label=" << graphviz::html_table_start() 
-                << graphviz::html_cell(graphviz::html_bold(graphviz::enclose_name(header)))
-                << graphviz::html_cell(graphviz::enclose_name(label))
-                << graphviz::html_table_end() 
-                << graphviz::block_style()
-                << "]";
-
-            os << ";" << std::endl;
-
-            if(not ins->inputs().empty())
-            {
-                for(auto&& arg : ins->inputs())
-                {
-                    os << "\t" << graphviz::enclose_name(ins_names.at(arg)) << " -> "
-                       << graphviz::enclose_name(ins_names.at(ins));
-                    if(not brief)
-                        os << "[label=" << graphviz::enclose_name(to_string(ins->get_shape())) << "]";
-                    os << ";" << std::endl;
-                }
-            }
-        });
-        os << "}" << std::endl;
-    }
-
-    // inter-module edges
-    for(const auto& [_, mod] : modules)
-    {
-        for(auto ins : iterator_for(mod))
+        if(not ins->inputs().empty())
         {
-            if(ins->module_inputs().empty()) continue;
-
-            std::string from = names.at(ins);
-            for(const auto& m : ins->module_inputs())
+            for(auto&& arg : ins->inputs())
             {
-                // TODO: edge logic
-                (void)m;
+                os << "\t" << graphviz::enclose_name(ins_names.at(arg)) << " -> "
+                   << graphviz::enclose_name(ins_names.at(ins));
+                if(not brief)
+                    os << "[label=" << graphviz::enclose_name(graphviz::format_shape_name(ins->get_shape())) << "]";
+                os << ";" << std::endl;
             }
         }
-    }
+    });
+
     os << "}" << std::endl;
 }
 

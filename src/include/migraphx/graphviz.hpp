@@ -29,6 +29,8 @@
 #include <iomanip>
 #include <sstream>
 #include <migraphx/stringutils.hpp>
+#include <migraphx/shape.hpp>
+#include <migraphx/operation.hpp>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
@@ -67,6 +69,19 @@ inline std::string html_color_style(const std::string& fill)
 inline std::string block_style(std::string color="lightgray")
 {
     return " color=black fillcolor=" + color + " fontname=Helvetica shape=none style=\"rounded,filled\"";    
+}
+
+inline std::string format_shape_name(const migraphx::shape& s, bool labeled = false) 
+{
+    if(s.sub_shapes().empty())
+    {
+        if(s.dynamic())
+        {
+            return "dynamic\\n"  + s.type_string() + "\\n{" + to_string_range(s.dyn_dims()) + "}";
+        }
+        return s.type_string() +  "\\n{" + to_string_range(s.lens()) + "}, {" + to_string_range(s.strides()) + "}";
+    }
+    return "[" + to_string_range(s.sub_shapes()) + "]";
 }
 
 } // namespace graphviz

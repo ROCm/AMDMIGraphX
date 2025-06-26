@@ -46,7 +46,6 @@
     EXPECT_TOTALLY_ORDERED_IMPL(y, x)
 #endif
 
-
 struct custom_compare_any : migraphx::totally_ordered<custom_compare_any>
 {
     int x;

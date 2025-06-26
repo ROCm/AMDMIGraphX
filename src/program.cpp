@@ -76,7 +76,7 @@ struct program_impl
     std::unordered_map<std::string, module> modules;
     std::vector<context> contexts;
     std::vector<target> targets;
-    std::optional<std::unordered_map<instruction_ref, std::pair<double,double>>> perf_data;
+    std::optional<std::unordered_map<instruction_ref, std::pair<double,double>>> ins_perf_data;
 };
 
 program::program() : impl(std::make_unique<program_impl>()) { this->create_module("main"); }
@@ -976,14 +976,14 @@ void program::perf_report(
     double calculate_overhead_time    = total_time - total_instruction_time;
     double calculate_overhead_percent = calculate_overhead_time * 100.0 / total_time;
 
-    std::unordered_map<instruction_ref, std::pair<double, double>> summary_map;
+    std::unordered_map<instruction_ref, std::pair<double, double>> ins_perf_data;
     for(const auto& [ins, times] : ins_vec)
     {
         double avg     = common_average(times);
         double percent = std::ceil(100.0 * avg / total_instruction_time);
-        summary_map[ins] = {avg, percent};
+        ins_perf_data[ins] = {avg, percent};
     }
-    this->impl->perf_data = std::move(summary_map);
+    this->impl->ins_perf_data = std::move(ins_perf_data);
     
     std::unordered_map<instruction_ref, std::string> names;
     this->print(names, [&](auto ins, const auto& ins_names) {
@@ -993,7 +993,7 @@ void program::perf_report(
         if(ins->name() == "@return")
             return;
 
-        const auto& [avg, percent] = summary_map[ins];
+        const auto& [avg, percent] = ins_perf_data[ins];
         os << ": " << avg << "ms, " << percent << "%";
         os << std::endl;
     });
@@ -1088,23 +1088,37 @@ void program::print_graph(std::ostream& os, bool brief) const
     //mm->print_graph(os, brief);
     //return;
     const auto* mm = this->get_main_module();
-    const auto& perf_data = this->impl->perf_data;
-    (void)perf_data;
+    const auto& ins_perf_data = this->impl->ins_perf_data;
 
-    os << "digraph {" << std::endl;
-    os << "\tperipheries=0;" << std::endl;
+    os << "digraph {\n\tperipheries=0;\n";
 
     mm->print([&](auto ins, auto ins_names) {
-        std::string header = ins->name();
-        std::string label = to_string(ins->get_operator());
-            // ins->get_operator().attributes() -> value object (use [] or .at())
-            // ins->get_operator().attributes() -> value object () 
+        const auto& ins_name = graphviz::enclose_name(ins_names.at(ins));
 
-        os << "\t" 
-            << graphviz::enclose_name(ins_names.at(ins))
-            << "[label=" << graphviz::html_table_start() 
-            << graphviz::html_cell(graphviz::html_bold(header))
-            << graphviz::html_cell(label)
+        graphviz::graphviz_node_content content = graphviz::get_node_content(ins);        
+
+        os << "\t" << ins_name << "[";
+        os << "label=" << graphviz::build_html_label(content) << " ";
+        os << graphviz::build_node_style(ins);
+
+        if(ins->name() == "@param")
+        {
+            os << "label=" << graphviz::build_plain_label(title, body) << " ";
+        }
+        else 
+        {
+            os << "label=" << graphviz::build_html_label(title, body) << " ";
+        }
+
+        if(ins_perf_data) {
+            if(auto it = ins_perf_data->find(ins); it != ins_perf_data->end())
+            {
+                const auto& [avg, percent] = it->second;
+                os << graphviz::html_cell(": " + std::to_string(avg) + "ms, " + std::to_string(percent) + "%");
+            }
+        }
+
+        os  << graphviz::html_cell(label)
             << graphviz::html_table_end() 
             << graphviz::block_style()
             << "]";

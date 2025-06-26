@@ -1,5 +1,4 @@
-/*
- * The MIT License (MIT)
+/* The MIT License (MIT)
  *
  * Copyright (c) 2015-2025 Advanced Micro Devices, Inc. All rights reserved.
  *
@@ -21,34 +20,44 @@
  * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
  * THE SOFTWARE.
  */
+
+#include <migraphx/common.hpp>
+#include <migraphx/instruction.hpp>
+#include <migraphx/make_op.hpp>
 #include <migraphx/ranges.hpp>
+#include <migraphx/op/builder/op_builder.hpp>
 #include <migraphx/op/builder/insert.hpp>
-#include <migraphx/onnx/op_parser.hpp>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
-namespace onnx {
+namespace op {
+namespace builder {
 
-struct parse_celu : op_parser<parse_celu>
+struct clip : op_builder<clip>
 {
-    std::vector<op_desc> operators() const { return {{"Celu"}}; }
-
-    instruction_ref parse(const op_desc&,
-                          const onnx_parser&,
-                          const onnx_parser::node_info& info,
-                          const std::vector<instruction_ref>& args) const
+    template <class Self, class F>
+    static auto reflect(Self&, F)
     {
-        value options = {};
-        if(contains(info.attributes, "alpha"))
-        {
-            const float alpha = info.attributes.at("alpha").f();
-            options.insert({"alpha", alpha});
-        }
+        return pack();
+    }
 
-        return op::builder::add("celu", *info.mod, args, options).at(0);
+    std::vector<instruction_ref>
+    insert(module& m, instruction_ref ins, const std::vector<instruction_ref>& args) const
+    {
+        bool max_used = args.size() == 3 and not args[2]->is_undefined();
+        bool min_used = args.size() >= 2 and not args[1]->is_undefined();
+
+        if(min_used and max_used)
+            return {insert_common_op(m, ins, make_op("clip"), args)};
+        if(max_used)
+            return {insert_common_op(m, ins, "min", args[0], args[2])};
+        if(min_used)
+            return {insert_common_op(m, ins, "max", args[0], args[1])};
+        return {m.insert_instruction(ins, make_op("identity"), args[0])};
     }
 };
 
-} // namespace onnx
+} // namespace builder
+} // namespace op
 } // namespace MIGRAPHX_INLINE_NS
 } // namespace migraphx

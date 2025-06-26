@@ -26,6 +26,9 @@
 #include <migraphx/utility_operators.hpp>
 #include <test.hpp>
 
+#ifdef CPPCHECK
+#define EXPECT_TOTALLY_ORDERED(...)
+#else
 // NOLINTNEXTLINE
 #define EXPECT_TOTALLY_ORDERED_IMPL(x, y)     \
     EXPECT((x <= y) or (x >= y));             \
@@ -41,6 +44,8 @@
 #define EXPECT_TOTALLY_ORDERED(x, y)   \
     EXPECT_TOTALLY_ORDERED_IMPL(x, y); \
     EXPECT_TOTALLY_ORDERED_IMPL(y, x)
+#endif
+
 
 struct custom_compare_any : migraphx::totally_ordered<custom_compare_any>
 {

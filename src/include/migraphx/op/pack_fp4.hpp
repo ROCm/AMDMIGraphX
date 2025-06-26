@@ -28,12 +28,13 @@
 #include <migraphx/op/normalize_attribute.hpp>
 #include <migraphx/argument.hpp>
 #include <migraphx/par_for.hpp>
+#include <migraphx/fp4_casts.hpp>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
 namespace op {
 
-struct pact_fp4
+struct pack_fp4
 {
     int64_t axis = -1;
 
@@ -82,8 +83,8 @@ struct pact_fp4
                     inp_type inp_val0 = inp[in_data_multi_idx];
                     in_data_multi_idx[axis] += 1;
                     inp_type inp_val1 = inp[in_data_multi_idx];
-                    uint8_t out_val0  = cast_to_fp4(inp_val0);
-                    uint8_t out_val1  = cast_to_fp4(inp_val1);
+                    uint8_t out_val0  = float_to_fp4(inp_val0);
+                    uint8_t out_val1  = float_to_fp4(inp_val1);
                     out[i]            = (out_val0 << 4) | (out_val1 & 0xf);
                 });
             });

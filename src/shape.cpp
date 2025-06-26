@@ -252,6 +252,8 @@ std::string shape::name(shape::type_t t)
     switch(t)
     {
     case tuple_type: return "tuple_type";
+    case fp4_type: return "fp4_type";
+    case packed_fp4_type: return "packed_fp4_type";
 #define MIGRAPHX_SHAPE_GENERATE_TYPE_NAME_CASE(x, t) \
     case x: return #x;
         MIGRAPHX_SHAPE_VISIT_TYPES(MIGRAPHX_SHAPE_GENERATE_TYPE_NAME_CASE)
@@ -265,6 +267,8 @@ std::string shape::cpp_type(shape::type_t t)
     switch(t)
     {
     case tuple_type: MIGRAPHX_THROW("No C++ type for tuple");
+    case fp4_type: MIGRAPHX_THROW("No C++ type for fp4_type");
+    case packed_fp4_type: MIGRAPHX_THROW("No C++ type for packed_fp4_type");
 #define MIGRAPHX_SHAPE_GENERATE_CPP_TYPE_CASE(x, t) \
     case x: return #t;
         MIGRAPHX_SHAPE_VISIT_TYPES(MIGRAPHX_SHAPE_GENERATE_CPP_TYPE_CASE)

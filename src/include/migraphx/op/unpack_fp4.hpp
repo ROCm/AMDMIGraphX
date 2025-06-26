@@ -86,11 +86,11 @@ struct unpack_fp4
                     // unpacking of 2 unsigned nibbles:
                     uint8_t val   = inp[i];
                     auto fp4_val  = val & 0xf;
-                    out[data_idx] = cast_from_f4(fp4_val);
+                    out[data_idx] = fp4_to_float(fp4_val);
 
                     data_idx[axis] += 1;
                     fp4_val       = val >> 4;
-                    out[data_idx] = cast_from_f4(fp4_val);
+                    out[data_idx] = fp4_to_float(fp4_val);
                 });
             });
         });

@@ -25,6 +25,7 @@
 #define MIGRAPHX_GUARD_RTGLIB_FLOAT4_CASTS_HPP
 
 #include <cstdint>
+#include <algorithm>
 #include <migraphx/bit_cast.hpp>
 
 namespace migraphx {

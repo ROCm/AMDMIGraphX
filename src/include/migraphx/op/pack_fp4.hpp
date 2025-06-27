@@ -85,7 +85,7 @@ struct pack_fp4
                     inp_type inp_val1 = inp[in_data_multi_idx];
                     uint8_t out_val0  = float_to_fp4(inp_val0);
                     uint8_t out_val1  = float_to_fp4(inp_val1);
-                    out[i]            = (out_val0 << 4) | (out_val1 & 0xf);
+                    out[i]            = (out_val1 << 4) | (out_val0 & 0xf);
                 });
             });
         });

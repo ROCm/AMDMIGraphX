@@ -80,10 +80,9 @@ struct unpack_fp4
         float_arg.visit([&](auto out) {
             uint8_input.visit([&](auto inp) {
                 par_for(in_shape.elements(), [&](auto i) {
-                    using type    = typename decltype(out)::value_type;
                     auto data_idx = in_shape.multi(i);
                     data_idx[axis] *= 2;
-                    // unpacking of 2 unsigned nibbles:
+                    // unpacking 2 unsigned parts
                     uint8_t val   = inp[i];
                     auto fp4_val  = val & 0xf;
                     out[data_idx] = fp4_to_float(fp4_val);

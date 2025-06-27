@@ -28,6 +28,10 @@
 #include <algorithm>
 #include <migraphx/bit_cast.hpp>
 
+/**
+ * Based off the code in float8_impl.hpp
+ */
+
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
 constexpr float fp4_to_float(uint8_t x)
@@ -96,7 +100,7 @@ constexpr uint8_t float_to_fp4(float f_x)
         }
         else
         {
-            return 0;
+            return 0x7;
         }
     }
     // postive zero
@@ -129,14 +133,14 @@ constexpr uint8_t float_to_fp4(float f_x)
         }
         else
         {
-            // both fp32/fp16 and f8 are in normal range
+            // both fp32/fp16 and f4 are in normal range
             exponent_diff = 0;
         }
         // Add the implicit 1 into mantissa
         mantissa += (1u << mfmt);
     }
 
-    // need to know whether the number is right in the middle of two adjacent fp8 numbers. use  max
+    // need to know whether the number is right in the middle of two adjacent fp4 numbers. Use max
     // value of 31 to avoid undefined behaviour
     bool midpoint = (mantissa & ((1u << std::min(31u, mfmt - Wm + exponent_diff)) - 1)) ==
                     (1u << std::min(31u, mfmt - Wm + exponent_diff - 1));
@@ -145,18 +149,17 @@ constexpr uint8_t float_to_fp4(float f_x)
     else if(exponent_diff == -1)
         mantissa <<= -exponent_diff;
     bool implicit_one = mantissa & (1 << mfmt);
-    // if there is no implict 1, it  means the f8 is denormal and need to adjust to denorm exponent
-    f4_exponent =
-        (act_exponent + exponent_diff) /*actual f8 exponent*/ + f4_bias - (implicit_one ? 0 : 1);
+    // if there is no implict 1, it  means the f4 is denormal and need to adjust to denorm exponent
+    f4_exponent = (act_exponent + exponent_diff) + f4_bias - (implicit_one ? 0 : 1);
 
-    // Now we have the exponent and mantissa adjusted
+    // Adjust exponent and mantissa
     uint32_t drop_mask = (1u << (mfmt - Wm)) - 1;
     // if the least significant bit that is not truncated is 1
     bool odd = mantissa & (1u << (mfmt - Wm));
 
     mantissa += (midpoint ? (odd ? mantissa : mantissa - 1) : mantissa) & drop_mask;
 
-    // Now we deal with overflow
+    // Deal with overflow
     if(f4_exponent == 0 and ((1 << mfmt) & mantissa))
     {
         f4_exponent = 1; // denormal overflow to become normal, promote exponent
@@ -169,7 +172,7 @@ constexpr uint8_t float_to_fp4(float f_x)
 
     mantissa >>= (mfmt - Wm);
 
-    uint32_t signed_all_ones = (sign << 3) & 0x7;
+    uint32_t signed_all_ones = (sign << 3) + 0x7;
     // above range: quantize to maximum possible float of the same sign
     const int max_exp = 3;
     if(f4_exponent > max_exp)

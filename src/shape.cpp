@@ -398,7 +398,15 @@ std::size_t shape::bytes() const
     if(this->sub_shapes().empty())
     {
         std::size_t n = 0;
-        this->visit_type([&](auto as) { n = as.size(); });
+        std::vector<type_t> fp4_types = {fp4_type, packed_fp4_type};
+        if(contains(fp4_types, type()))
+        {
+            n = sizeof(uint8_t);
+        }
+        else
+        {
+            this->visit_type([&](auto as) { n = as.size(); });
+        }
         return n * this->element_space();
     }
     else

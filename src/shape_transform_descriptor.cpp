@@ -1134,7 +1134,7 @@ std::vector<std::vector<std::size_t>> shape_transform_descriptor::common_axes_ma
     return result;
 }
 
-std::vector<std::vector<std::size_t>> shape_transform_descriptor::axes_map_from_src() const
+std::vector<std::vector<std::size_t>> shape_transform_descriptor::axes_map_from_src(bool keep_partial_axes) const
 {
     std::vector<std::vector<std::size_t>> result(rank);
     std::unordered_set<std::size_t> invalid_axes;
@@ -1147,7 +1147,7 @@ std::vector<std::vector<std::size_t>> shape_transform_descriptor::axes_map_from_
             return not s.origin_axis().empty() and s.len > 1;
         };
         auto n = std::count_if(dim.subdimensions.begin(), dim.subdimensions.end(), non_1_axis);
-        if(n > 1)
+        if(n > 1 and not keep_partial_axes)
         {
             transform_if(dim.subdimensions.begin(),
                          dim.subdimensions.end(),
@@ -1155,14 +1155,11 @@ std::vector<std::vector<std::size_t>> shape_transform_descriptor::axes_map_from_
                          non_1_axis,
                          [&](const dimension::sub& s) { return s.origin_axis().front(); });
         }
-        else
+        for(const auto& s : dim.subdimensions)
         {
-            for(const auto& s : dim.subdimensions)
-            {
-                if(s.origin_axis().empty())
-                    continue;
-                result[s.origin_axis().front()].push_back(i);
-            }
+            if(s.origin_axis().empty())
+                continue;
+            result[s.origin_axis().front()].push_back(i);
         }
     }
     // split axis cannot be mapped

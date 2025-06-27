@@ -1879,7 +1879,8 @@ struct find_split_reshape
     {
         auto slice_bind_slice = match::name("slice").bind("slice");
         auto reshape          = match::name(reshape_ops());
-        return reshape(match::arg(0)(match::skip(match::name("contiguous"))(slice_bind_slice)))
+        auto cont_reshape = match::any_of(match::name("contiguous"), reshape);
+        return reshape(match::arg(0)(match::skip(cont_reshape)(slice_bind_slice)), match::none_of[match::outputs()](reshape()))
             .bind("reshape");
     }
 
@@ -1920,6 +1921,25 @@ struct find_split_reshape
         }
     };
 
+    static auto get_reshapes(instruction_ref ins)
+    {
+        return unfold(ins,
+                               [](instruction_ref out) -> std::optional<instruction_ref> {
+                                   if(out->outputs().size() != 1)
+                                       return std::nullopt;
+                                   auto next = out->outputs().front();
+                                   if(not contains(reshape_ops(), next->name()) or
+                                      next->name() == "contiguous")
+                                       return std::nullopt;
+                                   return next;
+                               });
+    }
+
+    static bool is_reshape(instruction_ref ins)
+    {
+        return contains(reshape_ops(), ins->name()) or ins->name() == "contiguous";
+    }
+
     void apply(module& m, const match::matcher_result& r) const
     {
         auto slc   = r.instructions["slice"];
@@ -1935,20 +1955,19 @@ struct find_split_reshape
 
         std::vector<shape_transform_descriptor> descs;
         std::vector<instruction_ref> terminals;
+        std::vector<instruction_ref> slices;
         for(auto split : splits)
         {
-            if(split->outputs().size() != 1)
-                return;
-            auto inss  = unfold(split->outputs().front(),
-                               [](instruction_ref out) -> std::optional<instruction_ref> {
-                                   if(out->outputs().size() != 1)
-                                       return std::nullopt;
-                                   auto next = out->outputs().front();
-                                   if(not contains(reshape_ops(), next->name()) or
-                                      next->name() == "contiguous")
-                                       return std::nullopt;
-                                   return next;
-                               });
+            auto it = find_if(split->outputs(), [&](instruction_ref out) {
+                if(not is_reshape(out))
+                    return false;
+                auto last = find_last(get_reshapes(out));
+                return (*last)->get_shape().lens() == rsp->get_shape().lens();
+            });
+            if(it == split->outputs().end())
+                continue;
+
+            auto inss  = get_reshapes(*it);
             auto idims = split->get_shape().lens();
             std::vector<operation> ops;
             std::transform(inss.begin(), inss.end(), std::back_inserter(ops), [](auto i) {
@@ -1958,6 +1977,7 @@ struct find_split_reshape
             if(desc.empty())
                 return;
             descs.push_back(desc);
+            slices.push_back(split);
             terminals.push_back(*std::next(inss.begin(), ops.size() - 1));
         }
 
@@ -1970,7 +1990,7 @@ struct find_split_reshape
 
         auto desc = descs.front();
 
-        auto am = desc.axes_map_from_src();
+        auto am = desc.axes_map_from_src(true);
 
         auto op_axes = slc->get_operator().to_value().at("axes").to_vector<std::size_t>();
         std::vector<std::size_t> axes;
@@ -1992,10 +2012,10 @@ struct find_split_reshape
             return;
         axes.push_back(axis);
 
-        std::vector<operation> new_splits;
-        for(auto split : splits)
+        std::vector<operation> new_slices;
+        for(auto slice : slices)
         {
-            auto v         = split->get_operator().to_value();
+            auto v         = slice->get_operator().to_value();
             auto op_starts = v.at("starts").to_vector<std::size_t>();
             auto op_ends   = v.at("ends").to_vector<std::size_t>();
 
@@ -2007,7 +2027,7 @@ struct find_split_reshape
             transform(op_starts, std::back_inserter(new_starts), linear);
             transform(op_ends, std::back_inserter(new_ends), linear);
 
-            new_splits.push_back(
+            new_slices.push_back(
                 make_op("slice", {{"axes", axes}, {"starts", new_starts}, {"ends", new_ends}}));
         }
 
@@ -2016,8 +2036,8 @@ struct find_split_reshape
 
         for_each(terminals.begin(),
                  terminals.end(),
-                 new_splits.begin(),
-                 new_splits.end(),
+                 new_slices.begin(),
+                 new_slices.end(),
                  [&](auto terminal, auto op) { m.replace_instruction(terminal, op, reshape); });
 
 #else

@@ -134,7 +134,7 @@ struct pooling
 
     value attributes() const
     {
-        return {{"normalize_padding", "padding"}, {"fillcolor", "mediumseagreen"}};
+        return {{"normalize_padding", "padding"}, {"fillcolor", "#3CB371"}};
     }
 
     std::size_t dilate_dim(std::size_t dim, std::size_t dilation) const

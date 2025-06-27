@@ -46,7 +46,8 @@ namespace graphviz {
     broadcast: #9ACD32, yellowgreen
     pointwise:  #9ACD32, yellowgreen
     slice: #FFA500, orange
-    gpu::code_object_op: #E9D66B, arylide yellow
+    gpu::code_object_op: #E9D66B, arylideyellow
+    pooling: #3CB371, mediumseagreen
 
     To add new colors for operations, add
     attributes to the value yourOp::attributes() const {...}

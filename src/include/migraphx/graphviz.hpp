@@ -38,6 +38,26 @@ namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
 namespace graphviz {
 
+/* Operation color map:
+    binary: #000000 , black (w/white font)
+    unary: #CD5C5C , indianred
+    convolution: #4682B4 , steelblue
+    load: #1E90FF, dodger blue
+    broadcast: #9ACD32, yellowgreen
+    pointwise:  #9ACD32, yellowgreen
+    slice: #FFA500, orange
+    gpu::code_object_op: #E9D66B, arylide yellow
+
+    To add new colors for operations, add
+    attributes to the value yourOp::attributes() const {...}
+    member of your selected operation. See the graphviz_node_style
+    struct for naming.
+
+    For example:
+        value rocm_op::attributes() const {{"fillcolor", "#EF0707"}}
+    will set the fillcolor for the rocm_op node to be hex #ef0707
+*/
+
 struct html_table_style
 {
     int border      = 0;
@@ -65,19 +85,9 @@ struct graphviz_node_content
     graphviz_node_style node_style{};
 };
 
-inline std::string enclose_name(const std::string& name)
-{
-    return '"' + replace_string(name, "\"", "\\\"") + '"';
-}
+static std::string html_bold(const std::string& content) { return "<B>" + content + "</B>"; }
 
-inline std::string html_cell(const std::string& content, const std::string& align = "center")
-{
-    return "<TR><TD ALIGN=\"" + align + "\">" + content + "</TD></TR>";
-}
-
-inline std::string html_bold(const std::string& content) { return "<B>" + content + "</B>"; }
-
-inline std::string html_table_start(const html_table_style& style)
+static std::string html_table_start(const html_table_style& style)
 {
     return "<<TABLE BORDER=\"" + std::to_string(style.border) + "\" CELLBORDER=\"" +
            std::to_string(style.cellborder) + "\" CELLPADDING=\"" +
@@ -85,17 +95,18 @@ inline std::string html_table_start(const html_table_style& style)
            std::to_string(style.cellspacing) + "\" COLOR=\"transparent\">";
 }
 
-inline std::string html_table_end() { return "</TABLE>>"; }
+static std::string html_table_end() { return "</TABLE>>"; }
 
-inline std::string html_color_style(const std::string& fill)
+static std::string html_cell(const std::string& content, const std::string& align = "center")
 {
-    return " style=\"rounded,filled\" fillcolor=\"" + fill + "\"";
+    return "<TR ALIGN=\"" + align + "\"><TD>" + content + "</TD></TR>";
 }
 
-inline std::string block_style(std::string color = "lightgray")
+static bool is_hex_color(std::string color) { return !color.empty() and color[0] == '#'; }
+
+inline std::string enclose_name(const std::string& name)
 {
-    return " color=black fillcolor=" + color +
-           " fontname=Helvetica shape=none style=\"rounded,filled\"";
+    return '"' + replace_string(name, "\"", "\\\"") + '"';
 }
 
 inline std::string format_shape_name(const migraphx::shape& s, std::string linebreak = "\\n")
@@ -104,8 +115,8 @@ inline std::string format_shape_name(const migraphx::shape& s, std::string lineb
     {
         if(s.dynamic())
         {
-            return "dynamic" + linebreak + s.type_string() + linebreak + "{" + to_string_range(s.dyn_dims()) +
-                   "}";
+            return "dynamic" + linebreak + s.type_string() + linebreak + "{" +
+                   to_string_range(s.dyn_dims()) + "}";
         }
         return s.type_string() + linebreak + "{" + to_string_range(s.lens()) + "}, {" +
                to_string_range(s.strides()) + "}";
@@ -133,18 +144,21 @@ inline std::string build_html_label(const graphviz_node_content& content)
     return ss.str();
 }
 
-inline std::string build_plain_label(const std::string& title, const std::string& body)
-{
-    std::ostringstream ss;
-    ss << "\"" << title << "\\n" << body << "\"";
-    return ss.str();
-}
-
 inline std::string build_node_style(const graphviz_node_style& node_style)
 {
     std::ostringstream ss;
     ss << "style=\"" << node_style.style << "\" ";
-    ss << "fillcolor=" << node_style.fillcolor << " ";
+
+    if(is_hex_color(node_style.fillcolor))
+        ss << "fillcolor=\"" << node_style.fillcolor << "\" ";
+    else
+        ss << "fillcolor=" << node_style.fillcolor << " ";
+
+    if(is_hex_color(node_style.fontcolor))
+        ss << "fontcolor=\"" << node_style.fontcolor << "\" ";
+    else
+        ss << "fontcolor=" << node_style.fontcolor << " ";
+
     ss << "shape=" << node_style.shape << " ";
     ss << "fontname=" << node_style.fontname;
     return ss.str();
@@ -157,7 +171,7 @@ inline graphviz_node_content get_node_content(const instruction_ref& ins)
 
     graphviz_node_content content;
 
-    if(name == "@param")
+    if(name == "@param") // for params, get typing information
     {
         content.title = name;
         content.body_lines.push_back(graphviz::format_shape_name(ins->get_shape(), "<BR/>"));
@@ -165,25 +179,25 @@ inline graphviz_node_content get_node_content(const instruction_ref& ins)
         content.html_style = {0, 0, 0, 0};
         content.node_style = {"khaki", "black", "filled", "rectangle", "Helvectica"};
     }
-    else if(name == "@literal")
+    else if(name == "@literal") // for literals, just put @literal for name
     {
         content.title = name;
 
-        content.html_style = {0, 0, 0, 0};
+        content.html_style       = {0, 0, 0, 0};
+        content.node_style.style = "filled";
         content.node_style.shape = "rectangle";
     }
-    else if(name == "gpu::code_object")
+    else if(name == "gpu::code_object") // use code_object_op::symbol_name for title
     {
         content.title = op.to_value()["symbol_name"].to<std::string>();
         content.body_lines.push_back(to_string(op));
-
-        content.node_style.fillcolor = "dodgerblue";
     }
-    else
+    else // all else use name and to_string(op)
     {
         content.title = name;
 
-        if(std::string op_to_string = to_string(op); name != op_to_string) // stops title == body, don't like this
+        if(std::string op_to_string = to_string(op);
+           name != op_to_string) // stops title == body, don't like doing compare
             content.body_lines.push_back(op_to_string);
 
         const auto& attr = op.attributes();

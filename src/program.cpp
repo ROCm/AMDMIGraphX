@@ -1082,8 +1082,8 @@ void program::print_graph(std::ostream& os, bool brief) const
         const auto& ins_name = graphviz::enclose_name(ins_names.at(ins));
 
         os << "\t" << ins_name << "[";
-        
-        if(brief) 
+
+        if(brief)
         {
 
             os << "\t" << ins_name << "[label=" << graphviz::enclose_name(ins->name()) << "]";

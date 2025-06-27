@@ -38,22 +38,25 @@ namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
 namespace graphviz {
 
-struct html_table_style {
-    int border = 0;
-    int cellborder = 0;
+struct html_table_style
+{
+    int border      = 0;
+    int cellborder  = 0;
     int cellpadding = 4;
     int cellspacing = 0;
 };
 
-struct graphviz_node_style {
+struct graphviz_node_style
+{
     std::string fillcolor = "lightgray";
-    std::string fontcolor = "black";        
-    std::string style = "rounded,filled";
-    std::string shape = "none";
-    std::string fontname = "Helvetica";
+    std::string fontcolor = "black";
+    std::string style     = "rounded,filled";
+    std::string shape     = "none";
+    std::string fontname  = "Helvetica";
 };
 
-struct graphviz_node_content {
+struct graphviz_node_content
+{
     std::string title;
     std::vector<std::string> body_lines;
     std::optional<std::pair<double, double>> perf_data;
@@ -72,44 +75,40 @@ inline std::string html_cell(const std::string& content, const std::string& alig
     return "<TR><TD ALIGN=\"" + align + "\">" + content + "</TD></TR>";
 }
 
-inline std::string html_bold(const std::string& content)
-{
-    return "<B>" + content + "</B>";
-}
+inline std::string html_bold(const std::string& content) { return "<B>" + content + "</B>"; }
 
 inline std::string html_table_start(const html_table_style& style)
 {
-    return "<<TABLE BORDER=\""   + std::to_string(style.border) 
-         + "\" CELLBORDER=\""    + std::to_string(style.cellborder) 
-         + "\" CELLPADDING=\""   + std::to_string(style.cellpadding) 
-         + "\" CELLSPACING=\""   + std::to_string(style.cellspacing) 
-         + "\" COLOR=\"transparent\">";
+    return "<<TABLE BORDER=\"" + std::to_string(style.border) + "\" CELLBORDER=\"" +
+           std::to_string(style.cellborder) + "\" CELLPADDING=\"" +
+           std::to_string(style.cellpadding) + "\" CELLSPACING=\"" +
+           std::to_string(style.cellspacing) + "\" COLOR=\"transparent\">";
 }
 
-inline std::string html_table_end() 
-{
-    return "</TABLE>>";
-}
+inline std::string html_table_end() { return "</TABLE>>"; }
 
 inline std::string html_color_style(const std::string& fill)
 {
     return " style=\"rounded,filled\" fillcolor=\"" + fill + "\"";
 }
 
-inline std::string block_style(std::string color="lightgray")
+inline std::string block_style(std::string color = "lightgray")
 {
-    return " color=black fillcolor=" + color + " fontname=Helvetica shape=none style=\"rounded,filled\"";    
+    return " color=black fillcolor=" + color +
+           " fontname=Helvetica shape=none style=\"rounded,filled\"";
 }
 
-inline std::string format_shape_name(const migraphx::shape& s) 
+inline std::string format_shape_name(const migraphx::shape& s, std::string linebreak = "\\n")
 {
     if(s.sub_shapes().empty())
     {
         if(s.dynamic())
         {
-            return "dynamic</BR>"  + s.type_string() + "</BR>{" + to_string_range(s.dyn_dims()) + "}";
+            return "dynamic" + linebreak + s.type_string() + linebreak + "{" + to_string_range(s.dyn_dims()) +
+                   "}";
         }
-        return s.type_string() +  "</BR>{" + to_string_range(s.lens()) + "}, {" + to_string_range(s.strides()) + "}";
+        return s.type_string() + linebreak + "{" + to_string_range(s.lens()) + "}, {" +
+               to_string_range(s.strides()) + "}";
     }
     return "[" + to_string_range(s.sub_shapes()) + "]";
 }
@@ -124,19 +123,19 @@ inline std::string build_html_label(const graphviz_node_content& content)
     if(content.perf_data)
     {
         // TODO:
-        // ss << graphviz::html_cell(": " + std::to_string(avg) + "ms, " + std::to_string(percent) + "%");
+        // ss << graphviz::html_cell(": " + std::to_string(avg) + "ms, " + std::to_string(percent) +
+        // "%");
     }
 
-    std::for_each(content.body_lines.begin(), 
+    std::for_each(content.body_lines.begin(),
                   content.body_lines.end(),
                   [&ss](const std::string line) { ss << html_cell(line); });
 
     ss << html_table_end();
     return ss.str();
-                
 }
 
-inline std::string build_plain_label(const std::string& title, const std::string& body) 
+inline std::string build_plain_label(const std::string& title, const std::string& body)
 {
     std::ostringstream ss;
     ss << "\"" << title << "\\n" << body << "\"";
@@ -155,26 +154,26 @@ inline std::string build_node_style(const graphviz_node_style& node_style)
 
 inline graphviz_node_content get_node_content(const instruction_ref& ins)
 {
-    const auto& op = ins->get_operator();
+    const auto& op         = ins->get_operator();
     const std::string name = ins->name();
 
     graphviz_node_content content;
 
-    if(name == "@param") {
+    if(name == "@param")
+    {
         // title should be param
         // body should be the shape
         content.title = name;
-        content.body_lines.push_back(graphviz::format_shape_name(ins->get_shape()));
+        content.body_lines.push_back(graphviz::format_shape_name(ins->get_shape(), "<BR/>"));
 
         content.html_style = {0, 0, 0, 0};
         content.node_style = {"khaki", "black", "filled", "rectangle", "Helvectica"};
-        
     }
     else if(name == "gpu::code_object")
     {
         // TODO: handle gpu::code_object case
         // title should be symbol_name
-        // body should be std::string label = to_string(ins->get_operator()); 
+        // body should be std::string label = to_string(ins->get_operator());
         content.title = op.to_value()["symbol_name"].to<std::string>();
         content.body_lines.push_back(to_string(op));
 
@@ -187,7 +186,7 @@ inline graphviz_node_content get_node_content(const instruction_ref& ins)
 
         const auto& attr = op.attributes();
 
-        if(attr.contains("style")) 
+        if(attr.contains("style"))
             content.node_style.style = attr.at("style").to<std::string>();
         if(attr.contains("fillcolor"))
             content.node_style.fillcolor = attr.at("fillcolor").to<std::string>();
@@ -195,10 +194,10 @@ inline graphviz_node_content get_node_content(const instruction_ref& ins)
             content.node_style.fontcolor = attr.at("fontcolor").to<std::string>();
     }
     return content;
-}                                              
+}
 
 } // namespace graphviz
 } // namespace MIGRAPHX_INLINE_NS
 } // namespace migraphx
 
-#endif 
+#endif

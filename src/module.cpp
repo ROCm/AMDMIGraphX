@@ -1219,17 +1219,14 @@ void module::print_graph(std::ostream& os, bool brief) const
 {
     os << "digraph {" << std::endl;
     os << "\trankdir=LR;" << std::endl;
-    
+
     this->print([&](auto ins, auto ins_names) {
         std::string label;
         if(brief)
             label = ins->name();
         else
             label = to_string(ins->get_operator());
-        os << "\t" 
-           << enclose_name(ins_names.at(ins))
-           << "[label=" << enclose_name(label)
-           << "]";
+        os << "\t" << enclose_name(ins_names.at(ins)) << "[label=" << enclose_name(label) << "]";
         os << ";" << std::endl;
         if(not ins->inputs().empty())
         {

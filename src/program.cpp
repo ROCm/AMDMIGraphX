@@ -76,7 +76,6 @@ struct program_impl
     std::unordered_map<std::string, module> modules;
     std::vector<context> contexts;
     std::vector<target> targets;
-    std::optional<std::unordered_map<instruction_ref, std::pair<double,double>>> ins_perf_data;
 };
 
 program::program() : impl(std::make_unique<program_impl>()) { this->create_module("main"); }
@@ -976,15 +975,6 @@ void program::perf_report(
     double calculate_overhead_time    = total_time - total_instruction_time;
     double calculate_overhead_percent = calculate_overhead_time * 100.0 / total_time;
 
-    std::unordered_map<instruction_ref, std::pair<double, double>> ins_perf_data;
-    for(const auto& [ins, times] : ins_vec)
-    {
-        double avg     = common_average(times);
-        double percent = std::ceil(100.0 * avg / total_instruction_time);
-        ins_perf_data[ins] = {avg, percent};
-    }
-    this->impl->ins_perf_data = std::move(ins_perf_data);
-    
     std::unordered_map<instruction_ref, std::string> names;
     this->print(names, [&](auto ins, const auto& ins_names) {
         instruction::print(std::cout, ins, ins_names);
@@ -993,11 +983,11 @@ void program::perf_report(
         if(ins->name() == "@return")
             return;
 
-        const auto& [avg, percent] = ins_perf_data[ins];
+        double avg     = common_average(ins_vec[ins]);
+        double percent = std::ceil(100.0 * avg / total_instruction_time);
         os << ": " << avg << "ms, " << percent << "%";
         os << std::endl;
     });
-
 
     os << std::endl;
     os << "Summary:" << std::endl;
@@ -1084,25 +1074,29 @@ void program::print(
 
 void program::print_graph(std::ostream& os, bool brief) const
 {
-    //const auto* mm = this->get_main_module();
-    //mm->print_graph(os, brief);
-    //return;
     const auto* mm = this->get_main_module();
-    const auto& ins_perf_data = this->impl->ins_perf_data;
-    (void)ins_perf_data;
-    
+
     os << "digraph {\n\tperipheries=0;\n";
 
     mm->print([&](auto ins, auto ins_names) {
         const auto& ins_name = graphviz::enclose_name(ins_names.at(ins));
 
-        graphviz::graphviz_node_content content = graphviz::get_node_content(ins);        
-
         os << "\t" << ins_name << "[";
-        os << "label=" << graphviz::build_html_label(content) << " ";
-        os << graphviz::build_node_style(content.node_style);
-        os << "];\n";
         
+        if(brief) 
+        {
+
+            os << "\t" << ins_name << "[label=" << graphviz::enclose_name(ins->name()) << "]";
+            os << ";" << std::endl;
+        }
+        else
+        {
+            graphviz::graphviz_node_content content = graphviz::get_node_content(ins);
+            os << "label=" << graphviz::build_html_label(content) << " ";
+            os << graphviz::build_node_style(content.node_style);
+            os << "];\n";
+        }
+
         if(not ins->inputs().empty())
         {
             for(auto&& arg : ins->inputs())
@@ -1110,7 +1104,9 @@ void program::print_graph(std::ostream& os, bool brief) const
                 os << "\t" << graphviz::enclose_name(ins_names.at(arg)) << " -> "
                    << graphviz::enclose_name(ins_names.at(ins));
                 if(not brief)
-                    os << "[label=" << graphviz::enclose_name(graphviz::format_shape_name(ins->get_shape())) << "]";
+                    os << "[label="
+                       << graphviz::enclose_name(graphviz::format_shape_name(ins->get_shape()))
+                       << "]";
                 os << ";\n";
             }
         }

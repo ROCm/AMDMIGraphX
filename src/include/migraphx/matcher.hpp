@@ -1041,7 +1041,7 @@ inline auto has_attribute(const std::string& name)
         [=](instruction_ref ins) { return ins->get_operator().attributes().contains(name); });
 }
 
-inline auto has_value(const std::string& name, const std::string& value)
+inline auto has_op_value(const std::string& name, const std::string& value)
 {
     return make_basic_pred_matcher([=](instruction_ref ins) {
         return ins->get_operator().to_value().contains(name) and
@@ -1054,65 +1054,6 @@ auto pointwise(Ms... ms)
 {
     return match::has_attribute("pointwise")(ms...);
 }
-
-// template <class... Ms>
-// auto inputs_of(Ms... ms)
-// {
-//     auto m = any_of(ms...);
-//     return make_basic_fun_matcher([=](matcher_context& ctx, instruction_ref start) {
-//         return fix<optional<instruction_ref>>(
-//             [&](auto self, auto ins) -> optional<instruction_ref> {
-//                 std::unordered_set<instruction_ref> visited;
-//                 if(not visited.insert(ins).second)
-//                     return ins;
-//                 if(ctx.matched(m, ins))
-//                 {
-//                     for(auto input : ins->inputs())
-//                         self(input);
-//                 }
-//                 return ins;
-//             })(start);
-//     });
-// }
-
-// template<class M>
-// auto inputs_of(M m)
-// {
-//     return [](matcher_context& ctx, auto start, auto f) {
-//         std::unordered_set<instruction_ref> visited;
-//         fix([&](auto self, auto ins) {
-//             if(not visited.insert(ins).second)
-//                 return;
-//             if(not ctx.matched(m , ins))
-//             {
-//                 f(ins);
-//                 return;
-//             }
-//             for(auto input:ins->inputs())
-//                 self(input);
-//         })(start);
-//     };
-// }
-
-// inline auto pointwise_inputs()
-// {
-//     return [](auto start, auto f) {
-//         std::unordered_set<instruction_ref> visited;
-//         fix([&](auto self, auto ins) {
-//             if(ins->can_eval())
-//                 return;
-//             if(not visited.insert(ins).second)
-//                 return;
-//             if(not ins->get_operator().attributes().contains("pointwise"))
-//             {
-//                 f(ins);
-//                 return;
-//             }
-//             for(auto input:ins->inputs())
-//                 self(input);
-//         })(start);
-//     };
-// }
 
 } // namespace match
 } // namespace MIGRAPHX_INLINE_NS

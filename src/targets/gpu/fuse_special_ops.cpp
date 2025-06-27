@@ -22,6 +22,7 @@
  * THE SOFTWARE.
  *
  */
+#include <migraphx/gpu/fuse_mlir.hpp>
 #include <migraphx/gpu/fuse_special_ops.hpp>
 #include <migraphx/pass_manager.hpp>
 #include <migraphx/matcher.hpp>
@@ -118,15 +119,7 @@ struct find_attention
     void apply(module_pass_manager& mpm, const match::matcher_result& r) const
     {
         auto gemm2       = r.result;
-        // auto softmax_out = r.instructions["div"];
-        // auto softmax_inp = r.instructions["x"];
         auto gemm1       = r.instructions["dot1"];
-
-        // mpm.get_module().debug_print();
-        // mpm.get_module().debug_print(gemm2);
-        // mpm.get_module().debug_print(softmax_out);
-        // mpm.get_module().debug_print(softmax_inp);
-        // mpm.get_module().debug_print(gemm1);
 
         // Capture all instructions part of the attention op
         auto attn_inss = get_attn_instructions(gemm1, gemm2);
@@ -140,17 +133,10 @@ struct find_attention
                        std::distance(mpm.get_module().begin(), y);
             });
 
-        // std::cout << "\n";
-        // mpm.get_module().debug_print(attn_ins_vec);
-
         // Add captured instructions to new submodule
         module m_attn;
         std::unordered_map<instruction_ref, instruction_ref> map_mm_to_mattn;
         auto attn_outs = m_attn.fuse(attn_ins_vec, &map_mm_to_mattn);
-
-        // std::cout << "\n";
-        // m_attn.debug_print();
-        // m_attn.debug_print(attn_outs);
 
         // Define outputs based on instructions that are used elsewhere in the graph
         std::vector<instruction_ref> required_outputs;
@@ -162,8 +148,6 @@ struct find_attention
                                                 i->outputs().end(),
                                                 [&](auto o) { return contains(attn_ins_vec, o); });
                      });
-
-        // mpm.get_module().debug_print(required_outputs);
 
         assert(required_outputs.size() > 0);
         // Not supporting multi-out just yet - TODO: remove for lse support
@@ -177,8 +161,6 @@ struct find_attention
                        std::back_inserter(m_attn_outputs),
                        [&](auto i) { return map_mm_to_mattn.at(i); });
 
-        // m_attn.debug_print(m_attn_outputs);
-
         m_attn.add_return(m_attn_outputs);
 
         // Define inputs to m_attn
@@ -188,59 +170,24 @@ struct find_attention
         module_ref mpm_attn = mpm.create_module("mlir_attn" + get_count(), std::move(m_attn));
         mpm_attn->set_bypass();
 
-        // TODO: add replacement of multi-outputs using get_tuple_elem instructions
-
-        // Construct group op with the attention module (for now this assumes single output)
+        // Construct group op with the attention module
         mpm.get_module().replace_instruction(required_outputs.front(),
                                              make_op("group", {{"tag", "attention"}}),
                                              new_inputs,
                                              {mpm_attn});
-
-        // std::cout << "\n";
-        // for (const auto& pair : map_mm_to_mattn)
-        // {
-        //     mpm.get_module().debug_print(pair.first);
-        //     m_attn.debug_print(pair.second);
-        //     std::cout << "\n";
-        // }
     }
 };
 
-// struct find_attention
-// {
-//     auto matcher() const { return
-//     match::name("dot")(match::arg(0)(match::softmax().bind("div"))); }
-
-//     bool is_fusable_ins(instruction_ref ins)
-//     {
-//         return ins->get_operator().attributes().get("pointwise", false) or
-//                ins->get_operator().name() == "reshape";
-//     }
-
-//     void apply(module_pass_manager& mpm, const match::matcher_result& r) const
-//     {
-//         auto gemm2       = r.result;
-//         auto softmax_out = r.instructions["div"];
-//         auto softmax_inp = r.instructions["x"];
-
-//         mpm.get_module().debug_print();
-//         mpm.get_module().debug_print(gemm2);
-//         mpm.get_module().debug_print(softmax_out);
-//         mpm.get_module().debug_print(softmax_inp);
-
-//         std::vector<instruction_ref> attn_ins;
-//         attn_ins.push_back(gemm2);
-//     }
-// };
 } // namespace
 
 void fuse_special_ops::apply(module_pass_manager& mpm) const
 {
     std::size_t counter = 0;
-    match::find_matches(mpm, find_attention{.counter = &counter});
-    mpm.run_pass(dead_code_elimination{});
-
-    // mpm.get_module().debug_print();
+    if(mlir_attention_enabled(ctx) or enable_attention)
+    {
+        match::find_matches(mpm, find_attention{.counter = &counter});
+        mpm.run_pass(dead_code_elimination{});
+    }
 }
 
 } // namespace gpu

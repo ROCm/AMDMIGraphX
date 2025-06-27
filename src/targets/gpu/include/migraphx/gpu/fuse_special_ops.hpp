@@ -39,6 +39,7 @@ namespace gpu {
 struct MIGRAPHX_EXPORT fuse_special_ops
 {
     context* ctx = nullptr;
+    bool enable_attention = false;
     std::string name() const { return "fuse_special_ops"; }
     void apply(module_pass_manager& mpm) const;
 };

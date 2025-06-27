@@ -1922,6 +1922,11 @@ struct find_split_reshape
         }
     };
 
+    static bool is_reshape(instruction_ref ins)
+    {
+        return contains(reshape_ops(), ins->name()) or ins->name() == "contiguous";
+    }
+
     static auto get_reshapes(instruction_ref ins)
     {
         return unfold(ins, [](instruction_ref out) -> std::optional<instruction_ref> {
@@ -1934,10 +1939,6 @@ struct find_split_reshape
         });
     }
 
-    static bool is_reshape(instruction_ref ins)
-    {
-        return contains(reshape_ops(), ins->name()) or ins->name() == "contiguous";
-    }
 
     void apply(module& m, const match::matcher_result& r) const
     {
@@ -1979,6 +1980,9 @@ struct find_split_reshape
             slices.push_back(split);
             terminals.push_back(*std::next(inss.begin(), ops.size() - 1));
         }
+
+        if(slices.size() <= 1)
+            return;
 
         // Check if all the reshape descriptors are the same
         if(not std::all_of(

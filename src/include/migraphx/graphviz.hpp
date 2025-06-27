@@ -31,6 +31,8 @@
 #include <migraphx/stringutils.hpp>
 #include <migraphx/shape.hpp>
 #include <migraphx/operation.hpp>
+#include <migraphx/instruction.hpp>
+#include <migraphx/instruction_ref.hpp>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
@@ -46,7 +48,7 @@ struct html_table_style {
 struct graphviz_node_style {
     std::string fillcolor = "lightgray";
     std::string fontcolor = "black";        
-    std::string style = "\"rounded,\"filled";
+    std::string style = "rounded,filled";
     std::string shape = "none";
     std::string fontname = "Helvetica";
 };
@@ -56,7 +58,7 @@ struct graphviz_node_content {
     std::vector<std::string> body_lines;
     std::optional<std::pair<double, double>> perf_data;
 
-    html_table_style table_style{};
+    html_table_style html_style{};
     graphviz_node_style node_style{};
 };
 
@@ -99,30 +101,24 @@ inline std::string block_style(std::string color="lightgray")
     return " color=black fillcolor=" + color + " fontname=Helvetica shape=none style=\"rounded,filled\"";    
 }
 
-inline std::string format_shape_name(const migraphx::shape& s, bool labeled = false) 
+inline std::string format_shape_name(const migraphx::shape& s) 
 {
     if(s.sub_shapes().empty())
     {
         if(s.dynamic())
         {
-            return "dynamic\\n"  + s.type_string() + "\\n{" + to_string_range(s.dyn_dims()) + "}";
+            return "dynamic</BR>"  + s.type_string() + "</BR>{" + to_string_range(s.dyn_dims()) + "}";
         }
-        return s.type_string() +  "\\n{" + to_string_range(s.lens()) + "}, {" + to_string_range(s.strides()) + "}";
+        return s.type_string() +  "</BR>{" + to_string_range(s.lens()) + "}, {" + to_string_range(s.strides()) + "}";
     }
     return "[" + to_string_range(s.sub_shapes()) + "]";
-}
-
-inline std::string format_title(const operation& op) {
-    // TODO: determine format for title
-    // ex: given gpu::code_object, use symbol_name with html_bold(symbol_name)
-    return "";
 }
 
 inline std::string build_html_label(const graphviz_node_content& content)
 {
     std::ostringstream ss;
 
-    ss << html_table_start(content.table_style);
+    ss << html_table_start(content.html_style);
     ss << html_cell(html_bold(content.title));
 
     if(content.perf_data)
@@ -147,37 +143,15 @@ inline std::string build_plain_label(const std::string& title, const std::string
     return ss.str();
 }
 
-inline std::string build_node_style(const instruction_ref& ins)
+inline std::string build_node_style(const graphviz_node_style& node_style)
 {
-    std::stringstream ss;
-    auto attr = ins->get_operator().attributes();
-    if(attr.contains("style")) 
-        ss <<  " style=" << attr["style"].to<std::string>() << " ";
-    else    
-        ss << " style=filled ";
-
-    if(attr.contains("fillcolor"))
-        ss << " fillcolor=" << attr["fillcolor"].to<std::string>() << " ";
-    else
-        ss << " fillcolor=lightgray ";
-
-    if(attr.contains("color"))
-        ss << " color=" << attr["color"].to<std::string>() << " ";
-    else
-        ss << " color=black ";
+    std::ostringstream ss;
+    ss << "style=\"" << node_style.style << "\" ";
+    ss << "fillcolor=" << node_style.fillcolor << " ";
+    ss << "shape=" << node_style.shape << " ";
+    ss << "fontname=" << node_style.fontname;
     return ss.str();
 }
-
-std::string get_display_title(const instruction_ref& ins) {
-    
-    auto op = ins->get_operator();
-
-    if(op.name() == "gpu::code_object") {
-        return op.to_value()["symbol_name"].to<std::string>();
-    }
-    return ins->name();
-}
-
 
 inline graphviz_node_content get_node_content(const instruction_ref& ins)
 {
@@ -185,7 +159,6 @@ inline graphviz_node_content get_node_content(const instruction_ref& ins)
     const std::string name = ins->name();
 
     graphviz_node_content content;
-    content.perf_data = perf_data;
 
     if(name == "@param") {
         // title should be param
@@ -193,33 +166,35 @@ inline graphviz_node_content get_node_content(const instruction_ref& ins)
         content.title = name;
         content.body_lines.push_back(graphviz::format_shape_name(ins->get_shape()));
 
-        content.html_table = {0, 0, 0, 0};
-
-
+        content.html_style = {0, 0, 0, 0};
+        content.node_style = {"khaki", "black", "filled", "rectangle", "Helvectica"};
+        
     }
     else if(name == "gpu::code_object")
     {
         // TODO: handle gpu::code_object case
         // title should be symbol_name
         // body should be std::string label = to_string(ins->get_operator()); 
+        content.title = op.to_value()["symbol_name"].to<std::string>();
+        content.body_lines.push_back(to_string(op));
 
+        content.node_style.fillcolor = "royalblue";
     }
     else
     {
-        // TODO: handle everyone else
-        // title should be 
         content.title = name;
         content.body_lines.push_back(to_string(op));
 
-        const auto attr = op.attributes();
+        const auto& attr = op.attributes();
 
         if(attr.contains("style")) 
-            content.node_style.style = attr["style"].to<std::string>();
+            content.node_style.style = attr.at("style").to<std::string>();
         if(attr.contains("fillcolor"))
-            content.node_style.fillcolor = attr["fillcolor"].to<std::string>();
-        if(attr.contains("color"))
-            content.node_style.color = attr["color"].to<to::string>();
+            content.node_style.fillcolor = attr.at("fillcolor").to<std::string>();
+        if(attr.contains("fontcolor"))
+            content.node_style.fontcolor = attr.at("fontcolor").to<std::string>();
     }
+    return content;
 }                                              
 
 } // namespace graphviz

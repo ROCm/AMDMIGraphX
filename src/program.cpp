@@ -1089,7 +1089,8 @@ void program::print_graph(std::ostream& os, bool brief) const
     //return;
     const auto* mm = this->get_main_module();
     const auto& ins_perf_data = this->impl->ins_perf_data;
-
+    (void)ins_perf_data;
+    
     os << "digraph {\n\tperipheries=0;\n";
 
     mm->print([&](auto ins, auto ins_names) {
@@ -1099,32 +1100,9 @@ void program::print_graph(std::ostream& os, bool brief) const
 
         os << "\t" << ins_name << "[";
         os << "label=" << graphviz::build_html_label(content) << " ";
-        os << graphviz::build_node_style(ins);
-
-        if(ins->name() == "@param")
-        {
-            os << "label=" << graphviz::build_plain_label(title, body) << " ";
-        }
-        else 
-        {
-            os << "label=" << graphviz::build_html_label(title, body) << " ";
-        }
-
-        if(ins_perf_data) {
-            if(auto it = ins_perf_data->find(ins); it != ins_perf_data->end())
-            {
-                const auto& [avg, percent] = it->second;
-                os << graphviz::html_cell(": " + std::to_string(avg) + "ms, " + std::to_string(percent) + "%");
-            }
-        }
-
-        os  << graphviz::html_cell(label)
-            << graphviz::html_table_end() 
-            << graphviz::block_style()
-            << "]";
-
-        os << ";" << std::endl;
-
+        os << graphviz::build_node_style(content.node_style);
+        os << "];\n";
+        
         if(not ins->inputs().empty())
         {
             for(auto&& arg : ins->inputs())
@@ -1133,7 +1111,7 @@ void program::print_graph(std::ostream& os, bool brief) const
                    << graphviz::enclose_name(ins_names.at(ins));
                 if(not brief)
                     os << "[label=" << graphviz::enclose_name(graphviz::format_shape_name(ins->get_shape())) << "]";
-                os << ";" << std::endl;
+                os << ";\n";
             }
         }
     });

@@ -1939,7 +1939,6 @@ struct find_split_reshape
         });
     }
 
-
     void apply(module& m, const match::matcher_result& r) const
     {
         auto slc   = r.instructions["slice"];

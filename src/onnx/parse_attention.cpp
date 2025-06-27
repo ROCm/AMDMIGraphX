@@ -344,15 +344,6 @@ struct parse_attention : op_parser<parse_attention>
         // Left side Padding has shape (2 * batch) with inclusive start and exclusive end positions
         if(mask_index_lens.size() == 1)
         { // check left or right padding case
-            /*if(mask_index_lens.at(0) == inferred_out.batch_size)
-            {
-                inferred_out.index_pad = mask_pad::right_padding;
-                MIGRAPHX_THROW("Attention: Right Padding not currently supported");
-            }
-            else
-            {
-                inferred_out.index_pad = mask_pad::left_padding;
-            }*/
             MIGRAPHX_THROW("Attention: Left/Right Padding not currently supported");
         }
         else if(mask_index_lens.size() == 2)
@@ -632,26 +623,6 @@ struct parse_attention : op_parser<parse_attention>
         return output;
     }
 
-    /* static void get_kv_from_past(const onnx_parser::node_info& info,
-                                 const instruction_ref& past_input,
-                                 const attention_attr& parsed_attr,
-                                 const attention_inferred& inferred_attr,
-                                 std::vector<instruction_ref>& qkv_mats)
-    {
-        // Extract past value from (2, batch, num_heads, seq_len, head_size) shape)
-        auto k_past = info.add_instruction(make_op("slice", {{"axes",{0}}}), past_input);
-        auto v_past = info.add_instruction(make_op("slice", {{"axes",{1}}}), past_input);
-
-        // Remove first dim so we're now (batch, num_heads, seq_len, head_size)
-        k_past = info.add_instruction(make_op("unsqueeze", {{"axes", {0}}}), k_past);
-        v_past = info.add_instruction(make_op("unsqueeze", {{"axes", {0}}}), v_past);
-
-        // Transpose to (batch, sequence_length, num_heads, head_size)
-        qkv_mats.at(1) = info.add_instruction(make_op("transpose", {{"permutation", {{0, 2, 1,
-    3}}}}), k_past); qkv_mats.at(2) = info.add_instruction(make_op("transpose", {{"permutation",
-    {{0, 2, 1, 3}}}}), v_past);
-    } */
-
     // Get Q, K, V matricies from stacked weight matrix
     static std::vector<instruction_ref> input_linear_to_qkv(const onnx_parser::node_info& info,
                                                             const instruction_ref& input,
@@ -701,54 +672,6 @@ struct parse_attention : op_parser<parse_attention>
         return qkv_mats;
     }
 
-    // Stolen from our TriLU parser to generate a diagonal mask to aid in masking operations
-    /* static instruction_ref generate_triangular_mat(const onnx_parser::node_info& info,
-                                                   const migraphx::shape& matrix_shape,
-                                                   bool upper)
-    {
-        const auto in_shape_type   = matrix_shape.type();
-        const auto& in_shape_dims  = matrix_shape.lens();
-        const auto num_rows        = in_shape_dims.at(0);
-        const auto num_cols        = in_shape_dims.at(1);
-        std::vector<bool> mask_mat(num_rows * num_cols, upper);
-
-        // if upper == 0, kth diagonal must also be masked
-        int k = 0;
-        if(not upper)
-            k++;
-        for(size_t i = 0; i < num_rows; i++)
-        {
-            for(int j = 0; j < std::min(k, static_cast<int>(num_cols)); j++)
-            {
-                mask_mat[i * num_cols + j] = not upper;
-            }
-            k++;
-        }
-        return info.add_literal(migraphx::literal{migraphx::shape{in_shape_type, {num_rows,
-    num_cols}}, mask_mat});
-    }
-
-    static instruction_ref check_and_set_unidirectional(const onnx_parser::node_info& info,
-                                               const instruction_ref& mask_input,
-                                               bool is_unidirectional_mask)
-    {
-        auto mask = mask_input;
-        // Unidirectional means we have to mask out the upper triangular part
-        // Seen often in decoder blocks that don't want to "look ahead" and add those to the
-    attention score. if(is_unidirectional_mask)
-        {
-            const auto & mask_shape = mask_input->get_shape();
-            const auto&  dims  = mask_shape.lens();
-            auto triangle_mask = generate_triangular_mat(info, mask_shape, false);
-            triangle_mask = info.add_instruction(make_op("unsqueeze", {{"axes", {-1}}}),
-    triangle_mask); triangle_mask = info.add_instruction(make_op("unsqueeze", {{"axes", {-1}}}),
-    triangle_mask); triangle_mask = info.add_instruction(make_op("multibroadcast", {{"out_lens",
-    {dims.at(0), dims.at(1), dims.at(2), dims.at(3)}}}), triangle_mask); mask =
-    info.add_common_op("dot", mask, triangle_mask);
-        }
-        return mask;
-    } */
-
     // Slice, mul, convert and concat until we get a mask matrix useful prior to the where
     static instruction_ref generate_raw_mask_per_batch(const onnx_parser::node_info& info,
                                                        const instruction_ref& input,
@@ -796,7 +719,6 @@ struct parse_attention : op_parser<parse_attention>
         auto in_pass = info.add_instruction(
             make_op("convert", {{"target_type", mask_input->get_shape().type()}}), bc_pass);
         auto in_bool = info.add_instruction(make_op("equal"), raw_mask, in_pass);
-        /* in_bool = check_and_set_unidirectional(info, in_bool, parsed_in.unidirectional); */
         // Need this to let MLIR to run with where
         in_bool = info.add_instruction(
             make_op("convert", {{"target_type", migraphx::shape::int8_type}}), in_bool);
@@ -819,59 +741,13 @@ struct parse_attention : op_parser<parse_attention>
         if(inferred_in.index_pad == mask_pad::raw)
         { // Raw Mask - 0 means mask, 1 means pass through. Apply mask_filter_val to mask indicies
           // and zero otherwise
-            // auto mask_dims     = mask_input->get_shape().ndim();
-
-            // Case 1: Input is already in (batch, 1, query_size, query_size) format - Just need to
-            // handle unidirectional case
-            /* if (mask_dims == 4)
-            {
-                return check_and_set_unidirectional(info, mask_input, parsed_in.unidirectional);
-            } */
             // Need to generate from 2 dims or 3 dim cases
             final_mask =
                 generate_raw_mask_per_batch(info, input, mask_input, parsed_in, inferred_in);
         }
-        /*else if(inferred_in.index_pad == mask_pad::left_padding)
-        {
-            MIGRAPHX_THROW("Attention OP: Left inpad padding mode not supported");
-        }
-        else if(inferred_in.index_pad == mask_pad::right_padding)
-        {
-            MIGRAPHX_THROW("Attention OP: Left inpad padding mode not supported");
-        }*/
 
         return final_mask;
     }
-
-    /* static instruction_ref handle_past_present_keys(const onnx_parser::node_info& info,
-                                                 const instruction_ref& past_input,
-                                                 const instruction_ref& keys,
-                                                 const instruction_ref& values,
-                                                 const attention_attr& parsed_attributes)
-    {
-        // Just reuse the past input if past_present are shared.
-        if(parsed_attributes.past_present_share_buffer)
-        {
-            return past_input;
-        }
-        else
-        {
-            // In a non-buffer-sharing scenario, we need to create the present state
-            // by combining keys and values and stacking them. key/values are given as
-            // (batch, sequence_length, head_size, num_heads)  head_size = querry size in some
-    literature for attention
-            // The output is expected to be a concat of shape (2, batch, num_heads, sequence_length,
-    head_size) auto value_trans = info.add_instruction(make_op("transpose", {{"permutation", {0, 3 ,
-    1, 2}}}), values); value_trans = info.add_instruction(make_op("unsqueeze", {{"axes", {0}}}),
-    value_trans);
-
-            auto keys_trans  = info.add_instruction(make_op("transpose", {{"permutation", {0, 3 , 1,
-    2}}}), keys); keys_trans  = info.add_instruction(make_op("unsqueeze", {{"axes", {0}}}),
-    keys_trans);
-
-            return info.add_instruction(make_op("concat"), keys, values);
-        }
-    } */
 
     std::vector<instruction_ref> parse(const op_desc& /*opd*/,
                                        const onnx_parser& parser,
@@ -928,18 +804,6 @@ struct parse_attention : op_parser<parse_attention>
         // (saves us a concat)
         auto split_qkv = qkv_split_per_head(info, qkv_mats, parsed_attributes, inferred_attributes);
 
-        // Capture present state for key value of the present state
-        // auto present_key   = split_qkv.at(1);
-        // auto present_value = split_qkv.at(2);
-
-        // Add Past K/V matricies from past vector if present
-        /*auto past_input = input_data;
-        if(inferred_attributes.has_past_input)
-        {
-            past_input = inputs.at(4);
-            get_kv_from_past(info, past_input, parsed_attributes, inferred_attributes, split_qkv);
-        } */
-
         instruction_ref context = scale_dot_attention_head(info,
                                                            split_qkv,
                                                            scale_factor,
@@ -950,13 +814,6 @@ struct parse_attention : op_parser<parse_attention>
 
         std::vector<instruction_ref> output_vec{};
         output_vec.push_back(context);
-
-        // Must output present stacked KV when past input is used
-        /* if(inferred_attributes.has_past_input)
-        {
-            auto present_output = handle_past_present_keys(info, past_input, present_key,
-        present_value, parsed_attributes); output_vec.push_back(present_output);
-        } */
 
         return output_vec;
     }

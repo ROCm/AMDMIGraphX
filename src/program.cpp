@@ -1086,7 +1086,7 @@ void program::print_graph(std::ostream& os, bool brief) const
         if(brief)
         {
 
-            os << "\t" << ins_name << "[label=" << graphviz::enclose_name(ins->name()) << "]";
+            os << "label=" << graphviz::enclose_name(ins->name()) << "]";
             os << ";" << std::endl;
         }
         else

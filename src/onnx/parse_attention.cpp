@@ -45,7 +45,7 @@ struct parse_attention : op_parser<parse_attention>
     enum class atten_mode
     {                    // Important to determine how to calculate total_sequence_length
         not_set,         // Not Set - If Past/Present used this indicates an error with op
-        self_attention,  // Implies K,V lengths equaual and equal to sequence_length
+        self_attention,  // Implies K,V lengths equal and equal to sequence_length
         cross_attention, // Relevant as K/V may have different lengths in this case
     };
 
@@ -602,7 +602,7 @@ struct parse_attention : op_parser<parse_attention>
             qk_masked = info.add_common_op("add", qk_masked, mask);
         }
 
-        // Apply scale onl after all the masking and biasing has occurred
+        // Apply scale only after all the masking and biasing has occurred
         auto qk_scaled = info.add_common_op("mul", qk_masked, scale_factor);
 
         auto softmax_out = info.add_instruction(make_op("softmax", {{"axis", 3}}), qk_scaled);

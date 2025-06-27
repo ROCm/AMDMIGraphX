@@ -122,9 +122,7 @@ inline std::string build_html_label(const graphviz_node_content& content)
 
     if(content.perf_data)
     {
-        // TODO:
-        // ss << graphviz::html_cell(": " + std::to_string(avg) + "ms, " + std::to_string(percent) +
-        // "%");
+        // TODO: add perf_data information
     }
 
     std::for_each(content.body_lines.begin(),
@@ -161,31 +159,34 @@ inline graphviz_node_content get_node_content(const instruction_ref& ins)
 
     if(name == "@param")
     {
-        // title should be param
-        // body should be the shape
         content.title = name;
         content.body_lines.push_back(graphviz::format_shape_name(ins->get_shape(), "<BR/>"));
 
         content.html_style = {0, 0, 0, 0};
         content.node_style = {"khaki", "black", "filled", "rectangle", "Helvectica"};
     }
+    else if(name == "@literal")
+    {
+        content.title = name;
+
+        content.html_style = {0, 0, 0, 0};
+        content.node_style.shape = "rectangle";
+    }
     else if(name == "gpu::code_object")
     {
-        // TODO: handle gpu::code_object case
-        // title should be symbol_name
-        // body should be std::string label = to_string(ins->get_operator());
         content.title = op.to_value()["symbol_name"].to<std::string>();
         content.body_lines.push_back(to_string(op));
 
-        content.node_style.fillcolor = "royalblue";
+        content.node_style.fillcolor = "dodgerblue";
     }
     else
     {
         content.title = name;
-        content.body_lines.push_back(to_string(op));
+
+        if(std::string op_to_string = to_string(op); name != op_to_string) // stops title == body, don't like this
+            content.body_lines.push_back(op_to_string);
 
         const auto& attr = op.attributes();
-
         if(attr.contains("style"))
             content.node_style.style = attr.at("style").to<std::string>();
         if(attr.contains("fillcolor"))

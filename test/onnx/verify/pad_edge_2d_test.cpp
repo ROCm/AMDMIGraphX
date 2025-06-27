@@ -20,28 +20,38 @@
  * LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
  * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
  * THE SOFTWARE.
- *
  */
 
-#include <tf_test.hpp>
+#include <migraphx/register_target.hpp>
+#include <migraphx/verify.hpp>
+#include <onnx_test.hpp>
 
-// Skip this test for libstdc++ debug for now since it exposes a bug in protobuf
-#ifndef _GLIBCXX_DEBUG
-TEST_CASE(assert_less_equal_test)
+TEST_CASE(pad_edge_2d_test)
 {
-    migraphx::program p;
+    migraphx::program p = read_onnx("pad_edge_2d_test.onnx");
+    p.compile(migraphx::make_target("ref"));
 
-    auto* mm = p.get_main_module();
-    migraphx::shape s0{migraphx::shape::float_type, {2, 3}};
-    auto l0 = mm->add_parameter("0", s0);
-    auto l1 = mm->add_parameter("1", s0);
-    migraphx::literal l{migraphx::shape{migraphx::shape::int32_type, {2}}, {0, 1}};
-    auto l2 = mm->add_literal(l);
-    mm->add_instruction(migraphx::make_op("add"), l0, l1);
-    auto l3 = mm->add_instruction(migraphx::make_op("identity"), l0, l1);
-    mm->add_instruction(migraphx::make_op("identity"), l3, l2);
-    auto prog = optimize_tf("assert_less_equal_test.pb", false);
+    migraphx::shape input_shape{migraphx::shape::float_type, {3, 3}};
+    // clang-format off
+    std::vector<float> data = {0, 1, 2, 
+                               3, 4, 5, 
+                               6, 7, 8};
+    // clang-format on
 
-    EXPECT(p == prog);
+    migraphx::parameter_map pp;
+    pp["0"] = migraphx::argument(input_shape, data.data());
+
+    auto result = p.eval(pp).back();
+    std::vector<float> result_vector;
+    result.visit([&](auto output) { result_vector.assign(output.begin(), output.end()); });
+
+    // clang-format off
+    std::vector<float> gold = {0, 0, 0, 1, 2, 2, 2, 
+                               0, 0, 0, 1, 2, 2, 2, 
+                               3, 3, 3, 4, 5, 5, 5, 
+                               6, 6, 6, 7, 8, 8, 8, 
+                               6, 6, 6, 7, 8, 8, 8};
+    // clang-format on
+
+    EXPECT(migraphx::verify::verify_rms_range(result_vector, gold));
 }
-#endif

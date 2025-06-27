@@ -795,9 +795,10 @@ struct mlir_program
     {
         // 1st pipeline to call
         run_high_level_pipeline();
-        if(solution.is_null())
+        std::string tuning_cfg_path = string_value_of(MIGRAPHX_MLIR_TUNING_CFG{});
+        if(not tuning_cfg_path.empty())
             get_module_tuned();
-        else
+        if(not solution.is_null())
             set_tuning(solution);
         // 2nd pipeline to call
         run_backend_pipeline();
@@ -848,6 +849,7 @@ struct mlir_program
     tuning_config get_tuning_config(bool exhaustive)
     {
         tuning_config tc;
+        tc.mlir_kernel = mlir_print(&mlirOperationPrint, mlirModuleGetOperation(mmodule.get()));
         run_high_level_pipeline();
         auto tuning_mode =
             exhaustive ? RocmlirTuningParamSetKindFull : RocmlirTuningParamSetKindQuick;

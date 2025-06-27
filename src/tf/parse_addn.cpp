@@ -20,28 +20,35 @@
  * LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
  * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
  * THE SOFTWARE.
- *
  */
+#include <migraphx/tf/op_parser.hpp>
+#include <migraphx/ranges.hpp>
+#include <migraphx/instruction.hpp>
+#include <migraphx/make_op.hpp>
 
-#include <tf_test.hpp>
+namespace migraphx {
+inline namespace MIGRAPHX_INLINE_NS {
+namespace tf {
 
-// Skip this test for libstdc++ debug for now since it exposes a bug in protobuf
-#ifndef _GLIBCXX_DEBUG
-TEST_CASE(assert_less_equal_test)
+struct parse_addn : op_parser<parse_addn>
 {
-    migraphx::program p;
+    bool transpose() const { return true; }
+    std::vector<op_desc> operators() const { return {{"AddN"}}; }
 
-    auto* mm = p.get_main_module();
-    migraphx::shape s0{migraphx::shape::float_type, {2, 3}};
-    auto l0 = mm->add_parameter("0", s0);
-    auto l1 = mm->add_parameter("1", s0);
-    migraphx::literal l{migraphx::shape{migraphx::shape::int32_type, {2}}, {0, 1}};
-    auto l2 = mm->add_literal(l);
-    mm->add_instruction(migraphx::make_op("add"), l0, l1);
-    auto l3 = mm->add_instruction(migraphx::make_op("identity"), l0, l1);
-    mm->add_instruction(migraphx::make_op("identity"), l3, l2);
-    auto prog = optimize_tf("assert_less_equal_test.pb", false);
+    instruction_ref parse(const op_desc& /*opd*/,
+                          const tf_parser& /*parser*/,
+                          const tf_parser::node_info& info,
+                          std::vector<instruction_ref> args) const
+    {
+        instruction_ref sum = args[0];
+        for(auto i = 1; i < args.size(); i++)
+        {
+            sum = info.add_instruction(make_op("add"), sum, args[i]);
+        }
+        return sum;
+    }
+};
 
-    EXPECT(p == prog);
-}
-#endif
+} // namespace tf
+} // namespace MIGRAPHX_INLINE_NS
+} // namespace migraphx

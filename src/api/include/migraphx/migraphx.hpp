@@ -852,6 +852,18 @@ struct argument : MIGRAPHX_CONST_HANDLE_BASE(argument)
         return res;
     }
 
+    /// Save an argument to a file
+    static void save_argument(const argument& a, const std::string& filename)
+    {
+        call(&migraphx_argument_save, a.get_handle_ptr(), filename.c_str());
+    }
+
+    /// Load an argument from a file
+    static argument load_argument(const std::string& filename)
+    {
+        return {make<migraphx_argument>(&migraphx_argument_load, filename.c_str()), own{}};
+    }
+
     /// Generate an argument using random data
     static argument generate(shape ps, size_t pseed = 0)
     {

@@ -20,40 +20,34 @@
  * LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
  * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
  * THE SOFTWARE.
+ *
  */
-#include <migraphx/tf/op_parser.hpp>
-#include <migraphx/tf/tf_parser.hpp>
-#include <migraphx/ranges.hpp>
-#include <migraphx/make_op.hpp>
 
-namespace migraphx {
-inline namespace MIGRAPHX_INLINE_NS {
-namespace tf {
+#include <tf_test.hpp>
 
-struct parse_generic_op : op_parser<parse_generic_op>
+TEST_CASE(addn_test)
 {
-    bool transpose() const { return true; }
-    std::vector<op_desc> operators() const
-    {
-        return {{"All", "identity"},
-                {"Identity", "identity"},
-                {"LessEqual", "identity"},
-                {"Relu", "relu"},
-                {"Rsqrt", "rsqrt"},
-                {"Sigmoid", "sigmoid"},
-                {"StopGradient", "identity"},
-                {"Tanh", "tanh"}};
-    }
+    migraphx::program p;
 
-    instruction_ref parse(const op_desc& opd,
-                          const tf_parser& /*parser*/,
-                          const tf_parser::node_info& info,
-                          const std::vector<instruction_ref>& args) const
-    {
-        return info.add_instruction(make_op(opd.op_name), args);
-    }
-};
+    auto* mm  = p.get_main_module();
+    auto l0   = mm->add_parameter("0", migraphx::shape{migraphx::shape::float_type, {2, 3}});
+    auto l1   = mm->add_parameter("1", migraphx::shape{migraphx::shape::float_type, {2, 3}});
+    auto l2   = mm->add_parameter("2", migraphx::shape{migraphx::shape::float_type, {2, 3}});
+    auto add1 = mm->add_instruction(migraphx::make_op("add"), l0, l1);
+    mm->add_instruction(migraphx::make_op("add"), add1, l2);
+    auto prog = optimize_tf("addn_test.pb", false);
 
-} // namespace tf
-} // namespace MIGRAPHX_INLINE_NS
-} // namespace migraphx
+    EXPECT(p == prog);
+}
+
+TEST_CASE(addn_single_test)
+{
+    migraphx::program p;
+
+    auto* mm = p.get_main_module();
+    auto l0  = mm->add_parameter("0", migraphx::shape{migraphx::shape::float_type, {2, 3}});
+    mm->add_instruction(migraphx::make_op("identity"), l0);
+    auto prog = optimize_tf("addn_single_test.pb", false);
+
+    EXPECT(p == prog);
+}

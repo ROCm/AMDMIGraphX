@@ -21,39 +21,37 @@
  * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
  * THE SOFTWARE.
  */
-#include <migraphx/tf/op_parser.hpp>
-#include <migraphx/tf/tf_parser.hpp>
-#include <migraphx/ranges.hpp>
-#include <migraphx/make_op.hpp>
 
-namespace migraphx {
-inline namespace MIGRAPHX_INLINE_NS {
-namespace tf {
+#include <migraphx/register_target.hpp>
+#include <migraphx/verify.hpp>
+#include <onnx_test.hpp>
 
-struct parse_generic_op : op_parser<parse_generic_op>
+TEST_CASE(pad_edge_2d_test)
 {
-    bool transpose() const { return true; }
-    std::vector<op_desc> operators() const
-    {
-        return {{"All", "identity"},
-                {"Identity", "identity"},
-                {"LessEqual", "identity"},
-                {"Relu", "relu"},
-                {"Rsqrt", "rsqrt"},
-                {"Sigmoid", "sigmoid"},
-                {"StopGradient", "identity"},
-                {"Tanh", "tanh"}};
-    }
+    migraphx::program p = read_onnx("pad_edge_2d_test.onnx");
+    p.compile(migraphx::make_target("ref"));
 
-    instruction_ref parse(const op_desc& opd,
-                          const tf_parser& /*parser*/,
-                          const tf_parser::node_info& info,
-                          const std::vector<instruction_ref>& args) const
-    {
-        return info.add_instruction(make_op(opd.op_name), args);
-    }
-};
+    migraphx::shape input_shape{migraphx::shape::float_type, {3, 3}};
+    // clang-format off
+    std::vector<float> data = {0, 1, 2, 
+                               3, 4, 5, 
+                               6, 7, 8};
+    // clang-format on
 
-} // namespace tf
-} // namespace MIGRAPHX_INLINE_NS
-} // namespace migraphx
+    migraphx::parameter_map pp;
+    pp["0"] = migraphx::argument(input_shape, data.data());
+
+    auto result = p.eval(pp).back();
+    std::vector<float> result_vector;
+    result.visit([&](auto output) { result_vector.assign(output.begin(), output.end()); });
+
+    // clang-format off
+    std::vector<float> gold = {0, 0, 0, 1, 2, 2, 2, 
+                               0, 0, 0, 1, 2, 2, 2, 
+                               3, 3, 3, 4, 5, 5, 5, 
+                               6, 6, 6, 7, 8, 8, 8, 
+                               6, 6, 6, 7, 8, 8, 8};
+    // clang-format on
+
+    EXPECT(migraphx::verify::verify_rms_range(result_vector, gold));
+}

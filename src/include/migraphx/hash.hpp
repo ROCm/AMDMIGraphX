@@ -42,7 +42,7 @@ void hash_combine(std::size_t& seed, const T& v)
     seed ^= hash_value(v) + 0x9e3779b9 + (seed << 6u) + (seed >> 2u);
 }
 
-template<class Range>
+template <class Range>
 std::size_t hash_range(const Range& rng)
 {
     std::size_t seed = 0;
@@ -52,8 +52,6 @@ std::size_t hash_range(const Range& rng)
     }
     return seed;
 }
-
-
 
 } // namespace MIGRAPHX_INLINE_NS
 } // namespace migraphx

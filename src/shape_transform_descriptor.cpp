@@ -1134,7 +1134,8 @@ std::vector<std::vector<std::size_t>> shape_transform_descriptor::common_axes_ma
     return result;
 }
 
-std::vector<std::vector<std::size_t>> shape_transform_descriptor::axes_map_from_src(bool keep_partial_axes) const
+std::vector<std::vector<std::size_t>>
+shape_transform_descriptor::axes_map_from_src(bool keep_partial_axes) const
 {
     std::vector<std::vector<std::size_t>> result(rank);
     std::unordered_set<std::size_t> invalid_axes;

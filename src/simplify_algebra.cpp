@@ -1879,8 +1879,9 @@ struct find_split_reshape
     {
         auto slice_bind_slice = match::name("slice").bind("slice");
         auto reshape          = match::name(reshape_ops());
-        auto cont_reshape = match::any_of(match::name("contiguous"), reshape);
-        return reshape(match::arg(0)(match::skip(cont_reshape)(slice_bind_slice)), match::none_of[match::outputs()](reshape()))
+        auto cont_reshape     = match::any_of(match::name("contiguous"), reshape);
+        return reshape(match::arg(0)(match::skip(cont_reshape)(slice_bind_slice)),
+                       match::none_of[match::outputs()](reshape()))
             .bind("reshape");
     }
 
@@ -1923,16 +1924,14 @@ struct find_split_reshape
 
     static auto get_reshapes(instruction_ref ins)
     {
-        return unfold(ins,
-                               [](instruction_ref out) -> std::optional<instruction_ref> {
-                                   if(out->outputs().size() != 1)
-                                       return std::nullopt;
-                                   auto next = out->outputs().front();
-                                   if(not contains(reshape_ops(), next->name()) or
-                                      next->name() == "contiguous")
-                                       return std::nullopt;
-                                   return next;
-                               });
+        return unfold(ins, [](instruction_ref out) -> std::optional<instruction_ref> {
+            if(out->outputs().size() != 1)
+                return std::nullopt;
+            auto next = out->outputs().front();
+            if(not contains(reshape_ops(), next->name()) or next->name() == "contiguous")
+                return std::nullopt;
+            return next;
+        });
     }
 
     static bool is_reshape(instruction_ref ins)

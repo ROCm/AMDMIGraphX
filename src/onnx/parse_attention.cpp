@@ -237,10 +237,9 @@ struct parse_attention : op_parser<parse_attention>
         return {};
     }
 
-    static void handle_input(const instruction_ref& input_arg,
+    static instruction_ref handle_input(const instruction_ref& input_arg,
                              const struct attention_attr& parsed_in,
-                             struct attention_inferred& inferred_out,
-                             std::vector<instruction_ref>& output_arg_vec)
+                             struct attention_inferred& inferred_out)
     {
         auto input_tensor = input_arg;
         auto input_shape  = input_tensor->get_shape();
@@ -253,14 +252,13 @@ struct parse_attention : op_parser<parse_attention>
         inferred_out.query_size            = inferred_out.input_hidden_size / parsed_in.num_heads;
         inferred_out.total_sequence_length = inferred_out.sequence_length;
 
-        output_arg_vec.push_back(input_tensor);
+        return input_tensor;
     }
 
-    static void handle_weight(const instruction_ref& weight_arg,
+    static instruction_ref handle_weight(const instruction_ref& weight_arg,
                               const instruction_ref& input_arg,
                               struct attention_attr& attr_out,
-                              const struct attention_inferred& inferred_out,
-                              std::vector<instruction_ref>& output_arg_vec)
+                              const struct attention_inferred& inferred_out)
     {
         auto weight_tensor = weight_arg;
         auto weight_shape  = weight_tensor->get_shape();
@@ -299,13 +297,13 @@ struct parse_attention : op_parser<parse_attention>
         // Ensure qkv_hidden sizes set are valid wrt to input weights
         qkv_sizes_sum_arg_valid(attr_out.qkv_hidden_sizes, weight_tensor, 1, "weights");
 
-        output_arg_vec.push_back(weight_tensor);
+        return weight_tensor;
     }
 
-    static void handle_projection_bias(const std::vector<instruction_ref>& args,
-                                       const struct attention_attr& attr_out,
-                                       struct attention_inferred& inferred_out,
-                                       std::vector<instruction_ref>& output_arg_vec)
+    static std::optional<instruction_ref> 
+            handle_projection_bias(const std::vector<instruction_ref>& args,
+                                   const struct attention_attr& attr_out,
+                                   struct attention_inferred& inferred_out)
     {
         if(auto bias = check_and_return_arg(args, 2))
         {
@@ -322,9 +320,10 @@ struct parse_attention : op_parser<parse_attention>
                 MIGRAPHX_THROW("Attention: Bias requires tensor of (hidden_size + hidden_size + "
                                "v_hidden_size) ");
             }
-            output_arg_vec.push_back(*bias);
             inferred_out.has_input_bias = true;
+            return bias;
         }
+        return nullopt;
     }
 
     static void check_mask_index_shapes(const std::vector<size_t>& mask_index_lens,
@@ -384,10 +383,8 @@ struct parse_attention : op_parser<parse_attention>
         }
     }
 
-    static void handle_mask_index(const std::vector<instruction_ref>& args,
-                                  struct attention_attr& /*attr_out*/,
-                                  struct attention_inferred& inferred_out,
-                                  std::vector<instruction_ref>& output_arg_vec)
+    static std::optional<instruction_ref> handle_mask_index(const std::vector<instruction_ref>& args,
+                                                            struct attention_inferred& inferred_out)
     {
         if(auto mask_index = check_and_return_arg(args, 3))
         {
@@ -400,8 +397,9 @@ struct parse_attention : op_parser<parse_attention>
             }
             check_mask_index_shapes(mask_index_lens, inferred_out);
             inferred_out.has_attn_mask = true;
-            output_arg_vec.push_back(*mask_index);
+            return mask_index;
         }
+        return nullopt;
     }
 
     static void handle_past(const std::vector<instruction_ref>& args)
@@ -433,23 +431,26 @@ struct parse_attention : op_parser<parse_attention>
                                                          struct attention_attr& attr_out,
                                                          struct attention_inferred& inferred_out)
     {
-        std::vector<instruction_ref> input_arguments;
-
         if(args.size() < 2 or args.size() > 7)
         {
             MIGRAPHX_THROW("Attention: Wrong number of inputs provided");
         }
 
-        handle_input(args.at(0), attr_out, inferred_out, input_arguments);
-        handle_weight(args.at(1), args.at(0), attr_out, inferred_out, input_arguments);
+        std::vector<instruction_ref> input_arguments{
+            handle_input(args.at(0), attr_out, inferred_out),
+            handle_weight(args.at(1), args.at(0), attr_out, inferred_out)};
 
         // Handle theses individually. Order matters here to check conditions
-        handle_projection_bias(args, attr_out, inferred_out, input_arguments);
-        handle_mask_index(args, attr_out, inferred_out, input_arguments);
-        handle_past(args);
-        handle_attention_bias(args);
-        handle_past_sequence_length(args);
+        if(auto bias = handle_projection_bias(args, attr_out, inferred_out))
+            input_arguments.push_back(bias.value());
 
+        if(auto mask = handle_mask_index(args, inferred_out))
+            input_arguments.push_back(mask.value());
+
+        // Currently not supported
+        handle_past(args),
+        handle_attention_bias(args),
+        handle_past_sequence_length(args);
         return input_arguments;
     }
 
@@ -725,13 +726,13 @@ struct parse_attention : op_parser<parse_attention>
         // (saves us a concat)
         auto split_qkv = qkv_split_per_head(info, qkv_mats, parsed_attributes);
 
-        return scale_dot_attention_head(info,
+        return {scale_dot_attention_head(info,
                                         split_qkv,
                                         scale_factor,
                                         attn_mask,
                                         attn_bias,
                                         inferred_attributes.has_attn_mask,
-                                        inferred_attributes.has_attn_bias);
+                                        inferred_attributes.has_attn_bias)};
     }
 };
 

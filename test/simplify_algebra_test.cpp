@@ -2942,7 +2942,7 @@ TEST_CASE(simplify_dot_horiz_reshape)
         auto concat = m2.add_instruction(migraphx::make_op("concat", {{"axis", 2}}), a, b);
         auto dot    = m2.add_instruction(migraphx::make_op("dot"), input, concat);
         auto rsp = m2.add_instruction(migraphx::make_op("reshape", {{"dims", {3, 4, 4, 2}}}), dot);
-        auto x   = m2.add_instruction(
+        auto x      = m2.add_instruction(
             migraphx::make_op("slice", {{"axes", {2}}, {"starts", {0}}, {"ends", {2}}}), rsp);
         auto y = m2.add_instruction(
             migraphx::make_op("slice", {{"axes", {2}}, {"starts", {2}}, {"ends", {4}}}), rsp);

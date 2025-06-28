@@ -94,7 +94,7 @@ struct parse_attention : op_parser<parse_attention>
 
     static void handle_qkv_hidden_size_attr(const onnx_parser& parser,
                                             const onnx_parser::node_info& info,
-                                            struct attention_attr& attr_out)
+                                            attention_attr& attr_out)
     {
         auto input_val = parser.parse_value(info.attributes.at("qkv_hidden_sizes"));
         std::vector<int64_t> qkv_values;
@@ -127,11 +127,11 @@ struct parse_attention : op_parser<parse_attention>
         attr_out.qkv_hidden_sizes = qkv_vec;
     }
 
-    static std::tuple<struct attention_attr, struct attention_inferred> handle_attributes(const onnx_parser& parser, 
+    static std::tuple<attention_attr, attention_inferred> handle_attributes(const onnx_parser& parser, 
                                                                                           const onnx_parser::node_info& info)
     {
-        struct attention_attr attr_out;
-        struct attention_inferred inferred_out;
+        attention_attr attr_out;
+        attention_inferred inferred_out;
         if(contains(info.attributes, "do_rotary"))
         { // TODO: Add rotary embedding support
             attr_out.do_rotary =
@@ -240,8 +240,8 @@ struct parse_attention : op_parser<parse_attention>
     }
 
     static instruction_ref handle_input(const instruction_ref& input_arg,
-                             const struct attention_attr& parsed_in,
-                             struct attention_inferred& inferred_out)
+                             const attention_attr& parsed_in,
+                             attention_inferred& inferred_out)
     {
         auto input_tensor = input_arg;
         auto input_shape  = input_tensor->get_shape();
@@ -259,8 +259,8 @@ struct parse_attention : op_parser<parse_attention>
 
     static instruction_ref handle_weight(const instruction_ref& weight_arg,
                               const instruction_ref& input_arg,
-                              struct attention_attr& attr_out,
-                              const struct attention_inferred& inferred_out)
+                              attention_attr& attr_out,
+                              const attention_inferred& inferred_out)
     {
         auto weight_tensor = weight_arg;
         auto weight_shape  = weight_tensor->get_shape();
@@ -304,8 +304,8 @@ struct parse_attention : op_parser<parse_attention>
 
     static std::optional<instruction_ref> 
             handle_projection_bias(const std::vector<instruction_ref>& args,
-                                   const struct attention_attr& attr_out,
-                                   struct attention_inferred& inferred_out)
+                                   const attention_attr& attr_out,
+                                   attention_inferred& inferred_out)
     {
         if(auto bias = check_and_return_arg(args, 2))
         {
@@ -329,7 +329,7 @@ struct parse_attention : op_parser<parse_attention>
     }
 
     static void check_mask_index_shapes(const std::vector<size_t>& mask_index_lens,
-                                        struct attention_inferred& inferred_out)
+                                        attention_inferred& inferred_out)
     {
         // Mask index is handled differently based on size of the input.
         //
@@ -386,7 +386,7 @@ struct parse_attention : op_parser<parse_attention>
     }
 
     static std::optional<instruction_ref> handle_mask_index(const std::vector<instruction_ref>& args,
-                                                            struct attention_inferred& inferred_out)
+                                                            attention_inferred& inferred_out)
     {
         if(auto mask_index = check_and_return_arg(args, 3))
         {
@@ -430,8 +430,8 @@ struct parse_attention : op_parser<parse_attention>
 
     static std::vector<instruction_ref> handle_arguments(const onnx_parser& /*parser*/,
                                                          const std::vector<instruction_ref>& args,
-                                                         struct attention_attr& attr_out,
-                                                         struct attention_inferred& inferred_out)
+                                                         attention_attr& attr_out,
+                                                         attention_inferred& inferred_out)
     {
         if(args.size() < 2 or args.size() > 7)
         {

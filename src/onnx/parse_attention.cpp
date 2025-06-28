@@ -127,8 +127,8 @@ struct parse_attention : op_parser<parse_attention>
         attr_out.qkv_hidden_sizes = qkv_vec;
     }
 
-    static std::tuple<attention_attr, attention_inferred> handle_attributes(const onnx_parser& parser, 
-                                                                                          const onnx_parser::node_info& info)
+    static std::tuple<attention_attr, attention_inferred>
+    handle_attributes(const onnx_parser& parser, const onnx_parser::node_info& info)
     {
         attention_attr attr_out;
         attention_inferred inferred_out;
@@ -240,8 +240,8 @@ struct parse_attention : op_parser<parse_attention>
     }
 
     static instruction_ref handle_input(const instruction_ref& input_arg,
-                             const attention_attr& parsed_in,
-                             attention_inferred& inferred_out)
+                                        const attention_attr& parsed_in,
+                                        attention_inferred& inferred_out)
     {
         auto input_tensor = input_arg;
         auto input_shape  = input_tensor->get_shape();
@@ -258,9 +258,9 @@ struct parse_attention : op_parser<parse_attention>
     }
 
     static instruction_ref handle_weight(const instruction_ref& weight_arg,
-                              const instruction_ref& input_arg,
-                              attention_attr& attr_out,
-                              const attention_inferred& inferred_out)
+                                         const instruction_ref& input_arg,
+                                         attention_attr& attr_out,
+                                         const attention_inferred& inferred_out)
     {
         auto weight_tensor = weight_arg;
         auto weight_shape  = weight_tensor->get_shape();
@@ -302,10 +302,10 @@ struct parse_attention : op_parser<parse_attention>
         return weight_tensor;
     }
 
-    static std::optional<instruction_ref> 
-            handle_projection_bias(const std::vector<instruction_ref>& args,
-                                   const attention_attr& attr_out,
-                                   attention_inferred& inferred_out)
+    static std::optional<instruction_ref>
+    handle_projection_bias(const std::vector<instruction_ref>& args,
+                           const attention_attr& attr_out,
+                           attention_inferred& inferred_out)
     {
         if(auto bias = check_and_return_arg(args, 2))
         {
@@ -385,8 +385,8 @@ struct parse_attention : op_parser<parse_attention>
         }
     }
 
-    static std::optional<instruction_ref> handle_mask_index(const std::vector<instruction_ref>& args,
-                                                            attention_inferred& inferred_out)
+    static std::optional<instruction_ref>
+    handle_mask_index(const std::vector<instruction_ref>& args, attention_inferred& inferred_out)
     {
         if(auto mask_index = check_and_return_arg(args, 3))
         {
@@ -450,9 +450,7 @@ struct parse_attention : op_parser<parse_attention>
             input_arguments.push_back(mask.value());
 
         // Currently not supported
-        handle_past(args),
-        handle_attention_bias(args),
-        handle_past_sequence_length(args);
+        handle_past(args), handle_attention_bias(args), handle_past_sequence_length(args);
         return input_arguments;
     }
 
@@ -462,9 +460,9 @@ struct parse_attention : op_parser<parse_attention>
                        const attention_attr& attr_in)
     {
         auto num_heads = attr_in.num_heads;
-        auto q_lens = qkv_mats.at(0)->get_shape().lens();
-        auto k_lens = qkv_mats.at(1)->get_shape().lens();
-        auto v_lens = qkv_mats.at(2)->get_shape().lens();
+        auto q_lens    = qkv_mats.at(0)->get_shape().lens();
+        auto k_lens    = qkv_mats.at(1)->get_shape().lens();
+        auto v_lens    = qkv_mats.at(2)->get_shape().lens();
 
         // Split embedding into querry size and num heads from embedding dimension
         // Permute so we now result in (batch, sequence_length, querry_size, num_heads) prior to
@@ -513,7 +511,8 @@ struct parse_attention : op_parser<parse_attention>
         if(bias.has_value())
         {
             auto bc_bias = info.add_instruction(
-                make_op("multibroadcast", {{"out_lens", qk_out->get_shape().lens()}}), bias.value());
+                make_op("multibroadcast", {{"out_lens", qk_out->get_shape().lens()}}),
+                bias.value());
             qk_biased = info.add_common_op("add", qk_out, bc_bias);
         }
 
@@ -546,11 +545,12 @@ struct parse_attention : op_parser<parse_attention>
     }
 
     // Get Q, K, V matricies from stacked weight matrix
-    static std::vector<instruction_ref> input_linear_to_qkv(const onnx_parser::node_info& info,
-                                                            const instruction_ref& input,
-                                                            const instruction_ref& stacked_weights,
-                                                            const std::vector<size_t>& qkv_sizes,
-                                                            const std::optional<instruction_ref>& input_bias)
+    static std::vector<instruction_ref>
+    input_linear_to_qkv(const onnx_parser::node_info& info,
+                        const instruction_ref& input,
+                        const instruction_ref& stacked_weights,
+                        const std::vector<size_t>& qkv_sizes,
+                        const std::optional<instruction_ref>& input_bias)
     {
         // Input encodes the batch, sequence_length and input_hidden_size (also known as embedding
         // size)
@@ -669,9 +669,9 @@ struct parse_attention : op_parser<parse_attention>
     }
 
     instruction_ref parse(const op_desc& /*opd*/,
-                                       const onnx_parser& parser,
-                                       const onnx_parser::node_info& info,
-                                       const std::vector<instruction_ref>& args) const
+                          const onnx_parser& parser,
+                          const onnx_parser::node_info& info,
+                          const std::vector<instruction_ref>& args) const
     {
         auto [parsed_attributes, inferred_attributes] = handle_attributes(parser, info);
         auto inputs = handle_arguments(parser, args, parsed_attributes, inferred_attributes);
@@ -685,11 +685,8 @@ struct parse_attention : op_parser<parse_attention>
 
         // Apply linear stage to QKV mats from weight matrix - If past input just return q mat later
         // split will be extracted from past vector
-        auto qkv_mats = input_linear_to_qkv(info,
-                                            input_data,
-                                            weights,
-                                            parsed_attributes.qkv_hidden_sizes,
-                                            input_bias);
+        auto qkv_mats = input_linear_to_qkv(
+            info, input_data, weights, parsed_attributes.qkv_hidden_sizes, input_bias);
 
         // Set attention mask and bias when detected on input
         std::optional<instruction_ref> attn_mask;
@@ -719,11 +716,7 @@ struct parse_attention : op_parser<parse_attention>
         // (saves us a concat)
         auto split_qkv = qkv_split_per_head(info, qkv_mats, parsed_attributes);
 
-        return scale_dot_attention_head(info,
-                                        split_qkv,
-                                        scale_factor,
-                                        attn_mask,
-                                        attn_bias);
+        return scale_dot_attention_head(info, split_qkv, scale_factor, attn_mask, attn_bias);
     }
 };
 

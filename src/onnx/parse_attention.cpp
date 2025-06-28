@@ -668,7 +668,7 @@ struct parse_attention : op_parser<parse_attention>
         return nullopt;
     }
 
-    std::vector<instruction_ref> parse(const op_desc& /*opd*/,
+    instruction_ref parse(const op_desc& /*opd*/,
                                        const onnx_parser& parser,
                                        const onnx_parser::node_info& info,
                                        const std::vector<instruction_ref>& args) const
@@ -719,11 +719,11 @@ struct parse_attention : op_parser<parse_attention>
         // (saves us a concat)
         auto split_qkv = qkv_split_per_head(info, qkv_mats, parsed_attributes);
 
-        return {scale_dot_attention_head(info,
+        return scale_dot_attention_head(info,
                                         split_qkv,
                                         scale_factor,
                                         attn_mask,
-                                        attn_bias)};
+                                        attn_bias);
     }
 };
 

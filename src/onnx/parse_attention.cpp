@@ -497,10 +497,8 @@ struct parse_attention : op_parser<parse_attention>
     static instruction_ref scale_dot_attention_head(const onnx_parser::node_info& info,
                                                     const std::vector<instruction_ref>& qkv,
                                                     const instruction_ref& scale_factor,
-                                                    const instruction_ref& mask,
-                                                    const instruction_ref& bias,
-                                                    bool masked,
-                                                    bool attn_bias)
+                                                    const std::optional<instruction_ref>& mask,
+                                                    const std::optional<instruction_ref>& bias)
     {
         auto q = qkv.at(0);
         auto k = qkv.at(1);
@@ -512,18 +510,18 @@ struct parse_attention : op_parser<parse_attention>
 
         // Apply bias to QK result
         auto qk_biased = qk_out;
-        if(attn_bias)
+        if(bias.has_value())
         {
             auto bc_bias = info.add_instruction(
-                make_op("multibroadcast", {{"out_lens", qk_out->get_shape().lens()}}), bias);
+                make_op("multibroadcast", {{"out_lens", qk_out->get_shape().lens()}}), bias.value());
             qk_biased = info.add_common_op("add", qk_out, bc_bias);
         }
 
         // Mask must be done after all bias and calculations done
         auto qk_masked = qk_biased;
-        if(masked)
+        if(mask.has_value())
         {
-            qk_masked = info.add_common_op("add", qk_masked, mask);
+            qk_masked = info.add_common_op("add", qk_masked, mask.value());
         }
 
         // Apply scale only after all the masking and biasing has occurred
@@ -552,8 +550,7 @@ struct parse_attention : op_parser<parse_attention>
                                                             const instruction_ref& input,
                                                             const instruction_ref& stacked_weights,
                                                             const std::vector<size_t>& qkv_sizes,
-                                                            const instruction_ref& input_bias,
-                                                            const bool has_input_bias)
+                                                            const std::optional<instruction_ref>& input_bias)
     {
         // Input encodes the batch, sequence_length and input_hidden_size (also known as embedding
         // size)
@@ -569,9 +566,9 @@ struct parse_attention : op_parser<parse_attention>
         auto stacked_result =
             info.add_instruction(make_op("dot"), input, stacked_weights_unsq_bcast);
 
-        if(has_input_bias)
+        if(input_bias.has_value())
         {
-            stacked_result = info.add_common_op("add", stacked_result, input_bias);
+            stacked_result = info.add_common_op("add", stacked_result, input_bias.value());
         }
 
         // Input stacked weights are (input_hidden_size, hidden_size + hidden_size + v_hidden_size)
@@ -649,14 +646,13 @@ struct parse_attention : op_parser<parse_attention>
         return info.add_instruction(make_op("where"), in_bool, bc_mask, bc_pass);
     }
 
-    static instruction_ref
+    static std::optional<instruction_ref>
     create_input_mask(const onnx_parser::node_info& info,
                       const instruction_ref& input, // TODO: Convert this to type
                       const instruction_ref& mask_input,
                       const attention_inferred& inferred_in,
                       const attention_attr& parsed_in)
     {
-        instruction_ref final_mask;
         // Shape Scale dot attention prior to mask will be in (batch, num_heads, query_size,
         // query_size) thus mask needs to handle batch and query_size We should return mask of
         // batch, 1, query_size, query_size so that this per-batch masked can be broadcasted across
@@ -666,11 +662,10 @@ struct parse_attention : op_parser<parse_attention>
         { // Raw Mask - 0 means mask, 1 means pass through. Apply mask_filter_val to mask indicies
           // and zero otherwise
             // Need to generate from 2 dims or 3 dim cases
-            final_mask =
-                generate_raw_mask_per_batch(info, input, mask_input, parsed_in, inferred_in);
+            return generate_raw_mask_per_batch(info, input, mask_input, parsed_in, inferred_in);
         }
 
-        return final_mask;
+        return nullopt;
     }
 
     std::vector<instruction_ref> parse(const op_desc& /*opd*/,
@@ -684,7 +679,7 @@ struct parse_attention : op_parser<parse_attention>
         auto input_data = inputs.at(0);
         auto weights    = inputs.at(1);
         // Set projection bias when parsed in
-        instruction_ref input_bias;
+        std::optional<instruction_ref> input_bias;
         if(inferred_attributes.has_input_bias)
             input_bias = inputs.at(2);
 
@@ -694,16 +689,15 @@ struct parse_attention : op_parser<parse_attention>
                                             input_data,
                                             weights,
                                             parsed_attributes.qkv_hidden_sizes,
-                                            input_bias,
-                                            inferred_attributes.has_input_bias);
+                                            input_bias);
 
         // Set attention mask and bias when detected on input
-        instruction_ref attn_mask;
+        std::optional<instruction_ref> attn_mask;
         if(inferred_attributes.has_attn_mask)
             attn_mask = create_input_mask(
                 info, input_data, inputs.at(3), inferred_attributes, parsed_attributes);
 
-        instruction_ref attn_bias;
+        std::optional<instruction_ref> attn_bias;
         if(inferred_attributes.has_attn_bias)
             attn_bias = inputs.at(5);
 
@@ -729,9 +723,7 @@ struct parse_attention : op_parser<parse_attention>
                                         split_qkv,
                                         scale_factor,
                                         attn_mask,
-                                        attn_bias,
-                                        inferred_attributes.has_attn_mask,
-                                        inferred_attributes.has_attn_bias)};
+                                        attn_bias)};
     }
 };
 

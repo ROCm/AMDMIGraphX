@@ -1946,8 +1946,11 @@ struct find_split_reshape
         auto input = slc->inputs().front();
 
 #if 1
+        if(input->get_shape().elements() % slc->get_shape().elements())
+            return;
+        auto nslices = input->get_shape().elements() / slc->get_shape().elements();
         auto splits = get_splits(input);
-        if(splits.empty())
+        if(splits.size() <= 1)
         {
             return;
         }
@@ -1957,6 +1960,8 @@ struct find_split_reshape
         std::vector<instruction_ref> slices;
         for(auto split : splits)
         {
+            if(split->get_shape().lens() != slc->get_shape().lens())
+                continue;
             auto it = find_if(split->outputs(), [&](instruction_ref out) {
                 if(not is_reshape(out))
                     return false;
@@ -2010,7 +2015,7 @@ struct find_split_reshape
         if(new_axes.empty())
             return;
         auto axis = *std::min_element(new_axes.begin(), new_axes.end());
-        dims[axis] *= splits.size();
+        dims[axis] *= nslices;
         linear_map linear{input->get_shape().lens().at(op_axis), dims[axis]};
         if(not linear.is_valid())
             return;

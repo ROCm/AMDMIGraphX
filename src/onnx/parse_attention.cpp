@@ -725,18 +725,13 @@ struct parse_attention : op_parser<parse_attention>
         // (saves us a concat)
         auto split_qkv = qkv_split_per_head(info, qkv_mats, parsed_attributes);
 
-        instruction_ref context = scale_dot_attention_head(info,
-                                                           split_qkv,
-                                                           scale_factor,
-                                                           attn_mask,
-                                                           attn_bias,
-                                                           inferred_attributes.has_attn_mask,
-                                                           inferred_attributes.has_attn_bias);
-
-        std::vector<instruction_ref> output_vec{};
-        output_vec.push_back(context);
-
-        return output_vec;
+        return scale_dot_attention_head(info,
+                                        split_qkv,
+                                        scale_factor,
+                                        attn_mask,
+                                        attn_bias,
+                                        inferred_attributes.has_attn_mask,
+                                        inferred_attributes.has_attn_bias);
     }
 };
 

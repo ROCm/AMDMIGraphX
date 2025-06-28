@@ -127,11 +127,11 @@ struct parse_attention : op_parser<parse_attention>
         attr_out.qkv_hidden_sizes = qkv_vec;
     }
 
-    static void handle_attributes(const onnx_parser& parser,
-                                  const onnx_parser::node_info& info,
-                                  struct attention_attr& attr_out,
-                                  struct attention_inferred& inferred_out)
+    static std::tuple<struct attention_attr, struct attention_inferred> handle_attributes(const onnx_parser& parser, 
+                                                                                          const onnx_parser::node_info& info)
     {
+        struct attention_attr attr_out;
+        struct attention_inferred inferred_out;
         if(contains(info.attributes, "do_rotary"))
         { // TODO: Add rotary embedding support
             attr_out.do_rotary =
@@ -200,6 +200,8 @@ struct parse_attention : op_parser<parse_attention>
                 (1 == parser.parse_value(info.attributes.at("unidirectional")).at<size_t>());
             MIGRAPHX_THROW("PARSE_ATTENTION: unidirectional attr not supported");
         }
+
+        return {attr_out, inferred_out};
     }
 
     // qkv values must be greater than zero to be "set"
@@ -676,10 +678,7 @@ struct parse_attention : op_parser<parse_attention>
                                        const onnx_parser::node_info& info,
                                        const std::vector<instruction_ref>& args) const
     {
-        struct attention_attr parsed_attributes;
-        struct attention_inferred inferred_attributes;
-
-        handle_attributes(parser, info, parsed_attributes, inferred_attributes);
+        auto [parsed_attributes, inferred_attributes] = handle_attributes(parser, info);
         auto inputs = handle_arguments(parser, args, parsed_attributes, inferred_attributes);
 
         auto input_data = inputs.at(0);

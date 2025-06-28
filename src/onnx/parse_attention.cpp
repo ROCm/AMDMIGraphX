@@ -456,11 +456,9 @@ struct parse_attention : op_parser<parse_attention>
     static std::vector<instruction_ref>
     qkv_split_per_head(const onnx_parser::node_info& info,
                        const std::vector<instruction_ref>& qkv_mats,
-                       const attention_attr& attr_in,
-                       const attention_inferred& /*inferred_in*/)
+                       const attention_attr& attr_in)
     {
         auto num_heads = attr_in.num_heads;
-        // auto query_size = inferred_in.query_size;
         auto q_lens = qkv_mats.at(0)->get_shape().lens();
         auto k_lens = qkv_mats.at(1)->get_shape().lens();
         auto v_lens = qkv_mats.at(2)->get_shape().lens();
@@ -725,7 +723,7 @@ struct parse_attention : op_parser<parse_attention>
 
         // split QKV into proper batched attention head shape before we perform scale_dot_attention
         // (saves us a concat)
-        auto split_qkv = qkv_split_per_head(info, qkv_mats, parsed_attributes, inferred_attributes);
+        auto split_qkv = qkv_split_per_head(info, qkv_mats, parsed_attributes);
 
         instruction_ref context = scale_dot_attention_head(info,
                                                            split_qkv,

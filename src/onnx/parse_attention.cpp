@@ -227,16 +227,14 @@ struct parse_attention : op_parser<parse_attention>
     }
 
     // simple call to check if the arg index exists
-    static bool check_and_return_arg(const std::vector<instruction_ref>& args,
-                                     const size_t index,
-                                     instruction_ref& output_arg)
+    static std::optional<instruction_ref>
+    check_and_return_arg(const std::vector<instruction_ref>& args, const size_t index)
     {
         if(args.size() > index)
         {
-            output_arg = args.at(index);
-            return true;
+            return args.at(index);
         }
-        return false;
+        return {};
     }
 
     static void handle_input(const instruction_ref& input_arg,
@@ -309,13 +307,12 @@ struct parse_attention : op_parser<parse_attention>
                                        struct attention_inferred& inferred_out,
                                        std::vector<instruction_ref>& output_arg_vec)
     {
-        instruction_ref bias;
-        if(check_and_return_arg(args, 2, bias))
+        if(auto bias = check_and_return_arg(args, 2))
         {
-            auto bias_shape       = bias->get_shape();
+            auto bias_shape       = (*bias)->get_shape();
             const auto& bias_lens = bias_shape.lens();
             // ensure qkv dimension sum matches that of the bias vec
-            qkv_sizes_sum_arg_valid(attr_out.qkv_hidden_sizes, bias, 0, "bias");
+            qkv_sizes_sum_arg_valid(attr_out.qkv_hidden_sizes, *bias, 0, "bias");
             if(args.at(0)->get_shape().type() != bias_shape.type())
             {
                 MIGRAPHX_THROW("Attention: input bias must be the same type as input vector");
@@ -325,7 +322,7 @@ struct parse_attention : op_parser<parse_attention>
                 MIGRAPHX_THROW("Attention: Bias requires tensor of (hidden_size + hidden_size + "
                                "v_hidden_size) ");
             }
-            output_arg_vec.push_back(bias);
+            output_arg_vec.push_back(*bias);
             inferred_out.has_input_bias = true;
         }
     }
@@ -392,10 +389,9 @@ struct parse_attention : op_parser<parse_attention>
                                   struct attention_inferred& inferred_out,
                                   std::vector<instruction_ref>& output_arg_vec)
     {
-        instruction_ref mask_index;
-        if(check_and_return_arg(args, 3, mask_index))
+        if(auto mask_index = check_and_return_arg(args, 3))
         {
-            auto mask_index_shape       = mask_index->get_shape();
+            auto mask_index_shape       = (*mask_index)->get_shape();
             const auto& mask_index_lens = mask_index_shape.lens();
 
             if(mask_index_shape.type() != migraphx::shape::int32_type)
@@ -404,103 +400,30 @@ struct parse_attention : op_parser<parse_attention>
             }
             check_mask_index_shapes(mask_index_lens, inferred_out);
             inferred_out.has_attn_mask = true;
-            output_arg_vec.push_back(mask_index);
+            output_arg_vec.push_back(*mask_index);
         }
     }
 
-    static void handle_past(const std::vector<instruction_ref>& args,
-                            const struct attention_attr& attr_out,
-                            struct attention_inferred& inferred_out,
-                            std::vector<instruction_ref>& output_arg_vec)
+    static void handle_past(const std::vector<instruction_ref>& args)
     {
-        instruction_ref past;
-        if(check_and_return_arg(args, 4, past))
+        if(auto past = check_and_return_arg(args, 4))
         {
-            inferred_out.has_past_input = true;
-            if(args.size() != 7)
-            {
-                MIGRAPHX_THROW("Attention: Past input requires past_sequence_length to be set");
-            }
-
-            const auto past_shape = past->get_shape();
-            const auto& past_lens = past_shape.lens();
-            if((past_lens.at(0) != inferred_out.batch_size) or
-               (past_lens.at(1) != attr_out.num_heads) or
-               (past_lens.at(3) != inferred_out.query_size) or (past_lens.size() != 4))
-            {
-                MIGRAPHX_THROW(
-                    "Attention: Past shape must be (batch, num_heads, max_sequence_length, "
-                    "head_size)\n OR when past_present_share_buffer set (batch, num_heads, "
-                    "total_sequence, head_size)");
-            }
-
-            if(attr_out.past_present_share_buffer)
-            {
-                inferred_out.total_sequence_length = past_lens.at(2);
-            }
-            else
-            {
-                // TODO: Handle case where non shared buffer in past sequence length
-                if(args.at(3)->get_shape().lens().size() == 4 and
-                   args.at(3)->get_shape().lens().at(3) != past_lens.at(2))
-                {
-                    MIGRAPHX_THROW("Attention: Past invalid max_sequence_length");
-                }
-                else
-                {
-                    inferred_out.max_sequence_length = past_lens.at(2);
-                }
-                MIGRAPHX_THROW("ATTENTION: Unable to handle past input without shared buffer");
-            }
-            output_arg_vec.push_back(past);
             MIGRAPHX_THROW("Attention: Past Not supported");
         }
     }
 
-    static void handle_attention_bias(const std::vector<instruction_ref>& args,
-                                      const struct attention_attr& attr_out,
-                                      struct attention_inferred& inferred_out,
-                                      std::vector<instruction_ref>& output_arg_vec)
+    static void handle_attention_bias(const std::vector<instruction_ref>& args)
     {
-        instruction_ref attention_bias;
-        if(check_and_return_arg(args, 5, attention_bias))
+        if(auto attention_bias = check_and_return_arg(args, 5))
         {
-            const auto attn_bias_shape = attention_bias->get_shape();
-            const auto& attn_bias_lens = attn_bias_shape.lens();
-
-            if(attn_bias_shape.type() != args.at(0)->get_shape().type())
-            {
-                MIGRAPHX_THROW("Attention: attention_bias must be same datatype as input tensor");
-            }
-
-            if((attn_bias_lens.at(0) != 1 and attn_bias_lens.at(0) != inferred_out.batch_size) or
-               (attn_bias_lens.at(1) != 1 and attn_bias_lens.at(1) != attr_out.num_heads) or
-               (attn_bias_lens.at(2) != inferred_out.sequence_length) or
-               (attn_bias_lens.at(3) != inferred_out.total_sequence_length))
-            {
-                MIGRAPHX_THROW("Attention: attention_bias shape must be (1 or Batch_size, 1 or "
-                               "num_heads, sequence_length, total_sequence_length");
-            }
-            inferred_out.has_attn_bias = true;
-            output_arg_vec.push_back(attention_bias);
             MIGRAPHX_THROW("Attention: attention_bias Not supported");
         }
     }
 
-    static void handle_past_sequence_length(const std::vector<instruction_ref>& args,
-                                            struct attention_attr& /*attr_out*/,
-                                            struct attention_inferred& /*inferred_out*/,
-                                            std::vector<instruction_ref>& output_arg_vec)
+    static void handle_past_sequence_length(const std::vector<instruction_ref>& args)
     {
-        instruction_ref past_seq_length;
-        if(check_and_return_arg(args, 6, past_seq_length))
+        if(auto past_seq_length = check_and_return_arg(args, 6))
         {
-            if(past_seq_length->get_shape().type() != shape::int32_type)
-            {
-                MIGRAPHX_THROW("past_sequence_length must be of type int32");
-            }
-            output_arg_vec.push_back(past_seq_length);
-
             MIGRAPHX_THROW("PARSE_ATTENTION: past_sequence_length not supported");
         }
     }
@@ -523,9 +446,9 @@ struct parse_attention : op_parser<parse_attention>
         // Handle theses individually. Order matters here to check conditions
         handle_projection_bias(args, attr_out, inferred_out, input_arguments);
         handle_mask_index(args, attr_out, inferred_out, input_arguments);
-        handle_past(args, attr_out, inferred_out, input_arguments);
-        handle_attention_bias(args, attr_out, inferred_out, input_arguments);
-        handle_past_sequence_length(args, attr_out, inferred_out, input_arguments);
+        handle_past(args);
+        handle_attention_bias(args);
+        handle_past_sequence_length(args);
 
         return input_arguments;
     }

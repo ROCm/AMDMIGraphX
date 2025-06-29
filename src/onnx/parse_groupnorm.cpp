@@ -137,10 +137,18 @@ struct parse_groupnorm : op_parser<parse_groupnorm>
             MIGRAPHX_THROW(
                 "PARSE_GROUPNORM: scale tensor shape should be equal to the number of channels");
         }
+        if(scale->get_shape().type() == migraphx::shape::float_type && x_dtype == migraphx::shape::half_type)
+        {
+            scale = info.add_instruction(migraphx::make_op("convert", {{"target_type", x_dtype}}), scale);
+        }
         if(bias->get_shape().ndim() != 1 or bias->get_shape().lens().at(0) != c)
         {
             MIGRAPHX_THROW(
                 "PARSE_GROUPNORM: bias tensor shape should be equal to the number of channels");
+        }
+        if(bias->get_shape().type() == migraphx::shape::float_type && x_dtype == migraphx::shape::half_type)
+        {
+            bias = info.add_instruction(migraphx::make_op("convert", {{"target_type", x_dtype}}), bias);
         }
 
         // Original shape: N x C x D1 x ... x Dn

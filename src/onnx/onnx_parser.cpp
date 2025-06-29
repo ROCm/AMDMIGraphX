@@ -414,7 +414,7 @@ static node_maps create_node_maps(const onnx::GraphProto& graph)
         // then we will have something like {"a_out": [node B, node C]} in our map.
         for(auto&& input : node.input())
         {
-            if (input.empty())
+            if(input.empty())
                 continue;
             maps.input_to_node_map[input].push_back(node_index);
         }
@@ -423,9 +423,7 @@ static node_maps create_node_maps(const onnx::GraphProto& graph)
         std::transform(node.output().begin(),
                        node.output().end(),
                        std::back_inserter(node_outputs),
-                       [](const auto& output) {
-                           return output.empty() ? std::string() : output;
-                       });
+                       [](const auto& output) { return output.empty() ? std::string() : output; });
 
         // Use this second map to keep track of all references of the output names to be used
         // as inputs to future nodes.

@@ -74,52 +74,52 @@ struct mlir_compiler : compiler<mlir_compiler>
 
     operation compile_op(context&, const std::vector<shape>&, const value&) const { return {}; }
 
-    const auto& reshaper_names() const
+    std::optional<instruction_ref> input_is_param(const instruction_ref& ins) const
     {
-        // clang-format off
-        static const std::unordered_set<std::string> names = {
-            "slice",
-            "transpose",
-            "multibroadcast",
-            "broadcast",
-            "contiguous",
-            "reshape",
-            "lazy_reshape",
-            "squeeze",
-            "flatten",
-            "unsqueeze"
-        };
-        // clang-format on
-        return names;
+        auto cur = instruction::get_output_alias(ins);
+        while(contains({"reshape", "contiguos"}, cur->name()))
+        {
+            cur = instruction::get_output_alias(cur->inputs().at(0));
+        }
+        if(cur->name() == "@param")
+        {
+            return cur;
+        }
+        return nullopt;
     }
 
-    std::tuple<bool, instruction_ref> input_is_param(const instruction_ref& ins) const
+    bool is_range_literal(const instruction_ref& ins) const
     {
-        auto cur = ins;
-        while(contains(reshaper_names(), cur->name()))
+        if(not ins->can_eval() or not shape::is_integral(ins->get_shape().type()) or ins->get_shape().elements() < 2)
         {
-            cur = cur->inputs().at(0);
+            return false;
         }
-
-        return {cur->name() == "@param", cur};
+        bool is_range = false;
+        auto lit_elms = ins->get_shape().element_space();
+        ins->eval().visit([&](auto l) {
+            is_range = std::adjacent_find(l.begin(), l.begin() + lit_elms, [](auto cur, auto next){ return not float_equal(next - cur, 1.0); }) == l.begin() + lit_elms;
+        });
+        return is_range;
     }
 
     void set_fill_map(compiler_replace& cr, const module& m) const
     {
         for(auto ins : iterator_for(m))
         {
-            if(ins->name() == "greater")
+            if(ins->name() != "greater")
             {
-                auto fill_val = ins->get_shape().lens().back() - 1;
-                for(auto inp : ins->inputs())
+                continue;
+            }
+            auto fill_val = ins->get_shape().lens().back() - 1;
+            bool has_range_lit = std::any_of(ins->inputs().begin(), ins->inputs().end(), [&](auto inp){ return is_range_literal(inp); });
+            for(auto inp : ins->inputs())
+            {
+                auto param = input_is_param(inp);
+                if(param.has_value() and has_range_lit)
                 {
-                    auto [is_param, param] = input_is_param(inp);
-                    if(is_param)
-                    {
-                        auto id = param->get_shape().type_string() +
-                                  migraphx::shape::to_sizes_string({param->get_shape()});
-                        cr.fill_map[id] = static_cast<double>(fill_val);
-                    }
+                    auto id = param.value()->get_shape().type_string() +
+                                migraphx::shape::to_sizes_string({param.value()->get_shape()});
+                    cr.fill_map[id] = static_cast<double>(fill_val);
                 }
             }
         }

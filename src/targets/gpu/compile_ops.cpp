@@ -182,11 +182,12 @@ struct compile_plan
                       << std::endl;
         }
         if(results.empty())
-            MIGRAPHX_THROW(
-                "No valid tuned compilation for " + preop.name() + " with " + problem_string() +
-                (not config->detailed_problem_info.empty() ? ("\n\n" + config->detailed_problem_info)
-                                                 : "") +
-                "\nMIGraphX Module:\n" + to_string(*mod));
+            MIGRAPHX_THROW("No valid tuned compilation for " + preop.name() + " with " +
+                           problem_string() +
+                           (not config->detailed_problem_info.empty()
+                                ? ("\n\n" + config->detailed_problem_info)
+                                : "") +
+                           "\nMIGraphX Module:\n" + to_string(*mod));
         if(results.size() == 1)
         {
             if(not results.front().has_value())
@@ -257,11 +258,12 @@ struct compile_plan
             ctx->get_problem_cache().save();
         }
         if(not results[i].has_value())
-            MIGRAPHX_THROW(
-                "No valid tuned compilation for " + preop.name() + " with " + problem_string() +
-                (not config->detailed_problem_info.empty() ? ("\n\n" + config->detailed_problem_info)
-                                                 : "") +
-                "\nMIGraphX Module:\n" + to_string(*mod));
+            MIGRAPHX_THROW("No valid tuned compilation for " + preop.name() + " with " +
+                           problem_string() +
+                           (not config->detailed_problem_info.empty()
+                                ? ("\n\n" + config->detailed_problem_info)
+                                : "") +
+                           "\nMIGraphX Module:\n" + to_string(*mod));
         auto skipped = std::count_if(
             results.begin(), results.end(), [](const auto& cr) { return not cr.has_value(); });
         if(skipped > 0)

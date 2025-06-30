@@ -997,8 +997,10 @@ int main(int argc, const char* argv[], const char* envp[])
         std::cout << "[" << get_formatted_timestamp(end_time) << "]" << std::endl;
 
         // Print total duration
-        auto duration = std::chrono::duration_cast<std::chrono::duration<double>>(end_time - start_time);
-        std::cout << "[ " << get_version() << " ] Complete(" << duration.count() << "s): " << driver_invocation << std::endl;
+        auto duration =
+            std::chrono::duration_cast<std::chrono::duration<double>>(end_time - start_time);
+        std::cout << "[ " << get_version() << " ] Complete(" << duration.count()
+                  << "s): " << driver_invocation << std::endl;
     }
     else
     {

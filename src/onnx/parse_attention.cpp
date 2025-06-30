@@ -450,7 +450,9 @@ struct parse_attention : op_parser<parse_attention>
             input_arguments.push_back(mask.value());
 
         // Currently not supported
-        handle_past(args), handle_attention_bias(args), handle_past_sequence_length(args);
+        handle_past(args); 
+        handle_attention_bias(args);
+        handle_past_sequence_length(args);
         return input_arguments;
     }
 

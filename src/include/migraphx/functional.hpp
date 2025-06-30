@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2025 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2024 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -26,7 +26,11 @@
 
 #include <utility>
 #include <migraphx/config.hpp>
-#include <migraphx/returns.hpp>
+
+// Similiar to decltype(auto) except it will propagate any substitution failures
+// NOLINTNEXTLINE
+#define MIGRAPHX_RETURNS(...) \
+    ->decltype(__VA_ARGS__) { return __VA_ARGS__; }
 
 // Lifts an expression into a function object so it can be passed to a higher-order function
 // NOLINTNEXTLINE

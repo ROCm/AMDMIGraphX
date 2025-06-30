@@ -68,7 +68,7 @@ TEST_CASE(basic_transform)
 TEST_CASE(transform_const)
 {
     std::vector<int> vec = {1, 2, 3, 4, 5};
-    const auto& cvec = vec;
+    const auto& cvec     = vec;
     auto view            = migraphx::views::transform(cvec, [](int x) { return x * x; });
 
     auto it = view.begin();
@@ -340,11 +340,12 @@ TEST_CASE(transform_view_mutate_member)
     };
     std::vector<a> data{{1}, {2}, {3}};
     auto view = migraphx::views::transform(data, [](auto& t) -> auto& { return t.val; });
-    for(auto& i:view)
+    for(auto& i : view)
         i++;
     std::vector<a> edata{{2}, {3}, {4}};
-    EXPECT(std::equal(data.begin(), data.end(), edata.begin(),
-                   [](const a& lhs, const a& rhs) { return lhs.val == rhs.val; }));
+    EXPECT(std::equal(data.begin(), data.end(), edata.begin(), [](const a& lhs, const a& rhs) {
+        return lhs.val == rhs.val;
+    }));
 }
 
 int main(int argc, const char* argv[]) { test::run(argc, argv); }

@@ -25,6 +25,12 @@
 #include <onnx_test.hpp>
 #include <migraphx/op/convolution.hpp>
 
+// Input must always be of dimension 3 to pull batch, sequence and hidden size information
+TEST_CASE(attention_invalid_input_dimensions)
+{
+    EXPECT(test::throws([&] { optimize_onnx("attention_invalid_input_dimension.onnx"); }));
+}
+
 // We expect failure if the num_heads attribute is not set
 TEST_CASE(attention_invalid_no_num_heads)
 {

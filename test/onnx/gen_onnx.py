@@ -425,6 +425,12 @@ def attention_invalid_input_num():
                           num_heads=1)
 
 
+@onnx_test()
+def attention_invalid_input_dimension():
+    return attention_test([2, 2, 4, 2], [4, 12], 
+                           bias_dims=[12],
+                           num_heads=1)
+
 
 @onnx_test()
 def attention_invalid_no_num_heads():

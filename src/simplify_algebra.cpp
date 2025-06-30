@@ -2093,32 +2093,32 @@ struct find_split_partial_transpose_op
 {
     auto matcher() const
     {
-        auto op = match::pointwise();
+        auto op           = match::pointwise();
         auto op_transpose = [=](auto... ms) {
-            return op(match::any_of[match::inputs()](match::name("transpose")(match::arg(0)(ms...)).bind("transpose")));
+            return op(match::any_of[match::inputs()](
+                match::name("transpose")(match::arg(0)(ms...)).bind("transpose")));
         };
         return op(match::name("slice").bind("slice"));
     }
 
     void apply(module& m, const match::matcher_result& r) const
     {
-        auto ins = r.result;
-        auto slc   = r.instructions["slice"];
+        auto ins       = r.result;
+        auto slc       = r.instructions["slice"];
         auto transpose = r.instructions["transpose"];
-        auto input         = slc->inputs().front();
-        auto splits = get_splits(input);
+        auto input     = slc->inputs().front();
+        auto splits    = get_splits(input);
         if(splits.size() <= 1)
             return;
 
         if(std::count_if(splits.begin(), splits.end(), [&](auto split) {
-            return any_of(split->outputs(), [&](auto output) {
-                return output->name() == ins->name();
-            });
-        }) < 1)
+               return any_of(split->outputs(),
+                             [&](auto output) { return output->name() == ins->name(); });
+           }) < 1)
             return;
 
-        auto perm = transpose->get_operator().to_value()["permutation"].to_vector<int64_t>();
-        auto iperm = invert_permutation(perm);
+        auto perm   = transpose->get_operator().to_value()["permutation"].to_vector<int64_t>();
+        auto iperm  = invert_permutation(perm);
         auto inputs = ins->inputs();
         std::transform(inputs.begin(), inputs.end(), inputs.begin(), [&](auto input) {
             if(input == transpose)

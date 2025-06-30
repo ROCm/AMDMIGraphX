@@ -70,3 +70,24 @@ TEST_CASE(unpack_fp4)
     EXPECT(migraphx::float_equal(results_vector.at(2), gold.at(2)));
     EXPECT(migraphx::float_equal(results_vector.at(3), gold.at(3)));
 }
+
+TEST_CASE(pack_unpack_fp4)
+{
+    migraphx::program p;
+    auto* mm = p.get_main_module();
+    migraphx::shape s{migraphx::shape::float_type, {2, 2}};
+    auto l0 = mm->add_literal(migraphx::literal{s, {-2.f, 3.4f, 3.5f, 0.f}});
+    auto pack_ins = mm->add_instruction(migraphx::make_op("pack_fp4", {{"axis", 0}}), l0);
+    mm->add_instruction(migraphx::make_op("unpack_fp4", {{"axis", 0}}), pack_ins);
+    p.compile(migraphx::make_target("ref"));
+    auto result = p.eval({}).back();
+    result =
+        result.reshape(migraphx::shape(migraphx::shape::float_type, result.get_shape().lens()));
+    std::vector<float> results_vector(4);
+    result.visit([&](auto output) { results_vector.assign(output.begin(), output.end()); });
+    std::vector<float> gold{-2.f, 3.f, 4.f, 0.f};
+    EXPECT(migraphx::float_equal(results_vector.at(0), gold.at(0)));
+    EXPECT(migraphx::float_equal(results_vector.at(1), gold.at(1)));
+    EXPECT(migraphx::float_equal(results_vector.at(2), gold.at(2)));
+    EXPECT(migraphx::float_equal(results_vector.at(3), gold.at(3)));
+}

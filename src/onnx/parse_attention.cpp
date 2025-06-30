@@ -196,8 +196,6 @@ struct parse_attention : op_parser<parse_attention>
 
         if(contains(info.attributes, "unidirectional"))
         {
-            attr_out.unidirectional =
-                (1 == parser.parse_value(info.attributes.at("unidirectional")).at<size_t>());
             MIGRAPHX_THROW("PARSE_ATTENTION: unidirectional attr not supported");
         }
 
@@ -450,7 +448,7 @@ struct parse_attention : op_parser<parse_attention>
             input_arguments.push_back(mask.value());
 
         // Currently not supported
-        handle_past(args); 
+        handle_past(args);
         handle_attention_bias(args);
         handle_past_sequence_length(args);
         return input_arguments;

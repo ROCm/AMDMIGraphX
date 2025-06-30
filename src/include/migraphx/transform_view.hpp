@@ -46,13 +46,13 @@ struct transform_view : totally_ordered<transform_view<Range, F>>
     template <class BaseIterator>
     struct iterator : iterator_operators<iterator<BaseIterator>>
     {
-        using reference           = decltype(std::declval<const F>()(
+        using reference  = decltype(std::declval<const F>()(
             std::declval<typename std::iterator_traits<BaseIterator>::reference>()));
-        using value_type          = std::decay_t<reference>;
+        using value_type = std::decay_t<reference>;
 
         using iterator_category = typename std::iterator_traits<BaseIterator>::iterator_category;
         using difference_type   = typename std::iterator_traits<BaseIterator>::difference_type;
-        using pointer         = std::add_pointer_t<std::remove_reference_t<reference>>;
+        using pointer           = std::add_pointer_t<std::remove_reference_t<reference>>;
 
         constexpr iterator() = default;
 

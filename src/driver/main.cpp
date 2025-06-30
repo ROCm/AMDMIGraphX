@@ -91,15 +91,6 @@ std::string get_formatted_timestamp(std::chrono::time_point<std::chrono::system_
     ss << std::put_time(now_as_tm_date, "%Y-%m-%d %H:%M:%S");
     return ss.str();
 }
-
-std::tuple<int64_t, int64_t>
-get_clock_time_from_duration(const std::chrono::duration<int64_t, std::nano>& duration)
-{
-    auto milliseconds = std::chrono::duration_cast<std::chrono::milliseconds>(duration);
-    auto seconds      = std::chrono::duration_cast<std::chrono::seconds>(milliseconds);
-    milliseconds -= std::chrono::duration_cast<std::chrono::milliseconds>(seconds);
-    return {seconds.count(), milliseconds.count()};
-}
 } // namespace
 
 namespace migraphx {
@@ -987,7 +978,7 @@ int main(int argc, const char* argv[], const char* envp[])
 
         // Print start timestamp
         auto start_time = std::chrono::system_clock::now();
-        std::cout << "Start time: " << get_formatted_timestamp(start_time) << std::endl;
+        std::cout << "[" << get_formatted_timestamp(start_time) << "]" << std::endl;
 
         m.at(cmd)(argv[0],
                   {args.begin() + 1, args.end()}); // run driver command found in commands map
@@ -1003,13 +994,11 @@ int main(int argc, const char* argv[], const char* envp[])
 
         // Print end timestamp
         auto end_time = std::chrono::system_clock::now();
-        std::cout << "End time: " << get_formatted_timestamp(end_time) << std::endl;
+        std::cout << "[" << get_formatted_timestamp(end_time) << "]" << std::endl;
 
         // Print total duration
-        auto [seconds, milliseconds] = get_clock_time_from_duration(end_time - start_time);
-        std::cout << "Time: " << seconds << "." << milliseconds << "s" << std::endl;
-
-        std::cout << "[ " << get_version() << " ] Complete: " << driver_invocation << std::endl;
+        auto duration = std::chrono::duration_cast<std::chrono::duration<double>>(end_time - start_time);
+        std::cout << "[ " << get_version() << " ] Complete(" << duration.count() << "s): " << driver_invocation << std::endl;
     }
     else
     {

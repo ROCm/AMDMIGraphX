@@ -81,6 +81,12 @@ if(NOT MIGRAPHX_USE_COMPOSABLEKERNEL)
         ${CMAKE_CURRENT_SOURCE_DIR}/kernels/include/migraphx/kernels/ck.hpp)
 endif()
 
+option(MIGRAPHX_DISABLE_AVAILABLE_GPU_MEMORY_CHECK "" OFF)
+if(MIGRAPHX_DISABLE_AVAILABLE_GPU_MEMORY_CHECK)
+    message(STATUS "HipMemGetInfo check is disabled")
+    target_compile_definitions(migraphx_gpu PUBLIC MIGRAPHX_DISABLE_AVAILABLE_GPU_MEMORY_CHECK)
+endif()
+
 add_embed_library(migraphx_kernels ${KERNEL_FILES} RELATIVE ${CMAKE_CURRENT_SOURCE_DIR}/kernels/include/)
 
 configure_file(device/targets.hpp.in include/migraphx/gpu/device/targets.hpp)

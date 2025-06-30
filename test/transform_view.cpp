@@ -209,7 +209,7 @@ TEST_CASE(transform_view_element_comparison)
     EXPECT(bool{view3 >= view1});
 }
 
-TEST_CASE(transform_view_element_comparison_dff_view)
+TEST_CASE(transform_view_element_comparison_diff_view)
 {
     std::vector<int> vec1 = {1, 2, 3, 4, 5};
     std::vector<int> vec2 = {2, 3, 4, 5, 6};

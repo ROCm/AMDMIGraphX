@@ -83,12 +83,13 @@ get_unrecognized_migraphx_envs(const char* envp[],
     return unused_migx_env;
 }
 
-std::_Put_time<char> get_formatted_timestamp()
+std::string get_formatted_timestamp(std::chrono::time_point<std::chrono::system_clock> time)
 {
-    auto now             = std::chrono::system_clock::now();
-    auto now_in_time_t   = std::chrono::system_clock::to_time_t(now);
+    auto now_in_time_t   = std::chrono::system_clock::to_time_t(time);
     auto* now_as_tm_date = std::localtime(&now_in_time_t);
-    return std::put_time(now_as_tm_date, "%Y-%m-%d %H:%M:%S");
+    std::stringstream ss;
+    ss << std::put_time(now_as_tm_date, "%Y-%m-%d %H:%M:%S");
+    return ss.str();
 }
 
 std::tuple<int64_t, int64_t>
@@ -985,8 +986,8 @@ int main(int argc, const char* argv[], const char* envp[])
         std::cout << "Running [ " << get_version() << " ]: " << driver_invocation << std::endl;
 
         // Print start timestamp
-        std::cout << "Start time: " << get_formatted_timestamp() << std::endl;
         auto start_time = std::chrono::system_clock::now();
+        std::cout << "Start time: " << get_formatted_timestamp(start_time) << std::endl;
 
         m.at(cmd)(argv[0],
                   {args.begin() + 1, args.end()}); // run driver command found in commands map
@@ -1001,8 +1002,8 @@ int main(int argc, const char* argv[], const char* envp[])
             std::cout << "Unused environment variable: " << e << "\n";
 
         // Print end timestamp
-        std::cout << "End time: " << get_formatted_timestamp() << std::endl;
         auto end_time = std::chrono::system_clock::now();
+        std::cout << "End time: " << get_formatted_timestamp(end_time) << std::endl;
 
         // Print total duration
         auto [seconds, milliseconds] = get_clock_time_from_duration(end_time - start_time);

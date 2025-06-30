@@ -60,7 +60,7 @@ static bool is_device_ptr(const void* ptr)
         return false;
     return attr.type == hipMemoryTypeDevice;
 }
-
+#ifndef MIGRAPHX_DISABLE_AVAILABLE_GPU_MEMORY_CHECK
 static std::size_t get_available_gpu_memory()
 {
     size_t free;
@@ -70,7 +70,7 @@ static std::size_t get_available_gpu_memory()
         MIGRAPHX_THROW("Failed getting available memory: " + hip_error(status));
     return free;
 }
-
+#endif
 static void* get_device_ptr(void* hptr)
 {
     void* result = nullptr;

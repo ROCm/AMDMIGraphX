@@ -152,7 +152,7 @@ struct custom_compare_adl : migraphx::totally_ordered<custom_compare_adl>
         return lhs.x == rhs.x;
     }
 
-    template <class T>
+    template <class T, MIGRAPHX_REQUIRES(not std::is_same<T, custom_compare_adl>{})>
     friend constexpr auto operator==(const custom_compare_adl& lhs,
                                      const T& rhs) -> decltype(std::declval<int>() == rhs)
     {
@@ -164,14 +164,14 @@ struct custom_compare_adl : migraphx::totally_ordered<custom_compare_adl>
         return lhs.x < rhs.x;
     }
 
-    template <class T>
+    template <class T, MIGRAPHX_REQUIRES(not std::is_same<T, custom_compare_adl>{})>
     friend constexpr auto operator<(const custom_compare_adl& lhs,
                                     const T& rhs) -> decltype(std::declval<int>() < rhs)
     {
         return lhs.x < rhs;
     }
 
-    template <class T>
+    template <class T, MIGRAPHX_REQUIRES(not std::is_same<T, custom_compare_adl>{})>
     friend constexpr auto operator>(const custom_compare_adl& lhs,
                                     const T& rhs) -> decltype(std::declval<int>() > rhs)
     {
@@ -187,8 +187,8 @@ struct custom_compare_adl : migraphx::totally_ordered<custom_compare_adl>
 
 TEST_CASE(compare_adl)
 {
-    custom_compare_any x{1};
-    custom_compare_any y{2};
+    custom_compare_adl x{1};
+    custom_compare_adl y{2};
     EXPECT(1 == x);
     EXPECT(x != y);
     EXPECT(x == x);

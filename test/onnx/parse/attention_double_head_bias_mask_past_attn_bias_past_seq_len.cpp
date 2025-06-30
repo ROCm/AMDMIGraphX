@@ -28,6 +28,8 @@
 
 TEST_CASE(attention_double_head_bias_mask_past_attn_bias_shared_past_seq_len_test)
 {
-    EXPECT(test::throws(
-        [&] { optimize_onnx("attention_double_head_bias_mask_past_attn_bias_shared_past_seq_len_test.onnx"); }));
+    EXPECT(test::throws([&] {
+        optimize_onnx(
+            "attention_double_head_bias_mask_past_attn_bias_shared_past_seq_len_test.onnx");
+    }));
 }

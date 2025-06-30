@@ -67,7 +67,7 @@ struct parse_attention : op_parser<parse_attention>
 
     struct attention_args
     {
-        // Parsed in attributes 
+        // Parsed in attributes
         // Used to infer other traits wtih input arguments
         attention_attr attr;
 
@@ -86,118 +86,71 @@ struct parse_attention : op_parser<parse_attention>
 
         size_t max_sequence_length = 0;
 
-        void set_max_sequence_length(size_t val)
-        {
-            max_sequence_length = val;
-        }
+        void set_max_sequence_length(size_t val) { max_sequence_length = val; }
 
         // Optional input checks leveraging std::optional
-        bool has_proj_bias() const
-        {
-            return projection_bias.has_value();
-        }
+        bool has_proj_bias() const { return projection_bias.has_value(); }
 
-        bool has_mask() const
-        {
-            return mask_index.has_value();
-        }
+        bool has_mask() const { return mask_index.has_value(); }
 
         bool has_past_input() const
-        {   // Need to be used in tandem
+        { // Need to be used in tandem
             return past_input.has_value() and past_sequence_length.has_value();
         }
 
-        bool has_attn_bias() const
-        {
-            return attention_bias.has_value();
-        }
+        bool has_attn_bias() const { return attention_bias.has_value(); }
 
         // Useful infered parameters from inputs
-        std::size_t batch_size() const 
+        std::size_t batch_size() const { return input->get_shape().lens().at(0); }
+
+        std::size_t sequence_length() const { return input->get_shape().lens().at(1); }
+
+        std::size_t past_seq_length() const { return size_t(0); }
+
+        std::size_t total_sequence_length() const { return sequence_length() + past_seq_length(); }
+
+        std::size_t hidden_size() const { return input->get_shape().lens().at(2); }
+
+        std::size_t num_heads() const { return attr.num_heads; }
+
+        std::size_t query_size() const { return hidden_size() / num_heads(); }
+
+        std::size_t sum_of_qkv_hidden() const
         {
-            return input->get_shape().lens().at(0);
+            return std::accumulate(
+                attr.qkv_hidden_sizes.begin(), attr.qkv_hidden_sizes.end(), size_t(0));
         }
 
-        std::size_t sequence_length() const 
-        {
-            return input->get_shape().lens().at(1);
-        }
+        std::size_t qk_hidden_size() const { return attr.qkv_hidden_sizes.at(0); }
 
-        std::size_t past_seq_length() const
-        {   
-            return size_t(0);
-        }
+        std::size_t v_hidden_size() const { return attr.qkv_hidden_sizes.at(2); }
 
-        std::size_t total_sequence_length() const 
-        {
-            return sequence_length() + past_seq_length();
-        }
+        bool is_kv_same() const { return v_hidden_size() == qk_hidden_size(); }
 
-        std::size_t hidden_size() const 
-        {
-            return input->get_shape().lens().at(2);
-        }
-
-        std::size_t num_heads() const   
-        {
-            return attr.num_heads;
-        }
-
-        std::size_t query_size() const  
-        {
-            return hidden_size() / num_heads();
-        }
-
-        std::size_t sum_of_qkv_hidden() const  
-        {
-            return std::accumulate(attr.qkv_hidden_sizes.begin(), attr.qkv_hidden_sizes.end(), size_t(0));           
-        }
-
-        std::size_t qk_hidden_size() const  
-        {
-            return attr.qkv_hidden_sizes.at(0);
-        }
-
-        std::size_t v_hidden_size() const  
-        {
-            return attr.qkv_hidden_sizes.at(2);
-        }
-
-        bool is_kv_same() const 
-        {
-            return v_hidden_size() == qk_hidden_size();
-        }
-
-        bool scale_is_set() const
-        {
-            return attr.scale != 0.0f;
-        }
+        bool scale_is_set() const { return attr.scale != 0.0f; }
 
         float get_scale_value() const
         {
-            if (scale_is_set())
+            if(scale_is_set())
                 return attr.scale;
-            else  
+            else
                 return query_size();
         }
 
-        float get_mask_filter_val() const
-        {
-            return attr.mask_filter_val;
-        }
+        float get_mask_filter_val() const { return attr.mask_filter_val; }
 
         mask_pad padding_mode() const
-        {   // We only support raw padding right now
+        { // We only support raw padding right now
             return mask_pad::raw;
         }
-
 
         // Input Vector
         void set_input(const instruction_ref& input_arg)
         {
-            if (input_arg->get_shape().ndim() != 3)
+            if(input_arg->get_shape().ndim() != 3)
             {
-                MIGRAPHX_THROW("Attention: Input must have shape defiend as (batch, sequence_length, hidden_size");
+                MIGRAPHX_THROW("Attention: Input must have shape defiend as (batch, "
+                               "sequence_length, hidden_size");
             }
 
             input = input_arg;
@@ -211,15 +164,15 @@ struct parse_attention : op_parser<parse_attention>
         }
 
         void qkv_sizes_sum_arg_valid(const std::vector<size_t>& qkv_vec,
-                                            const instruction_ref input_arg,
-                                            const size_t dim,
-                                            const std::string& name)
+                                     const instruction_ref input_arg,
+                                     const size_t dim,
+                                     const std::string& name)
         {
             if(std::accumulate(qkv_vec.begin(), qkv_vec.end(), size_t(0)) !=
-            input_arg->get_shape().lens().at(dim))
+               input_arg->get_shape().lens().at(dim))
             {
                 MIGRAPHX_THROW("Attention: q k v hidden sizes sum must match " + name + " tensor " +
-                            std::to_string(dim) + " dimension");
+                               std::to_string(dim) + " dimension");
             }
         }
 
@@ -248,11 +201,12 @@ struct parse_attention : op_parser<parse_attention>
             if(weights_not_equal(weight_shape))
             {
                 if(qkv_size_not_set(attr.qkv_hidden_sizes))
-                    MIGRAPHX_THROW("Attention: QKV size attribute must be set with non even weights");
+                    MIGRAPHX_THROW(
+                        "Attention: QKV size attribute must be set with non even weights");
 
                 if(past_input.has_value())
-                    MIGRAPHX_THROW(
-                        "Attention: QKV size must be equally sized when using past/present buffers");
+                    MIGRAPHX_THROW("Attention: QKV size must be equally sized when using "
+                                   "past/present buffers");
             }
             else
             {
@@ -296,8 +250,9 @@ struct parse_attention : op_parser<parse_attention>
                 }
                 if(bias_lens.size() != 1)
                 {
-                    MIGRAPHX_THROW("Attention: Bias requires tensor of (hidden_size + hidden_size + "
-                                   "v_hidden_size) ");
+                    MIGRAPHX_THROW(
+                        "Attention: Bias requires tensor of (hidden_size + hidden_size + "
+                        "v_hidden_size) ");
                 }
                 projection_bias = bias;
             }
@@ -310,20 +265,23 @@ struct parse_attention : op_parser<parse_attention>
             // Mask index is handled differently based on size of the input.
             //
             // raw attention mask has shape (batch, total sequence_length)
-            //                           or (batch, seq_length, total_sequence_length) with 0/1 values
+            //                           or (batch, seq_length, total_sequence_length) with 0/1
+            //                           values
             //                          where: total_sequence_length = sequence_length +
             //                          past_sequence_length
             //
             // Right side padded has shape (batch) - value is sequence_length excluding padding
-            // Left side Padding has shape (2 * batch) with inclusive start and exclusive end positions
+            // Left side Padding has shape (2 * batch) with inclusive start and exclusive end
+            // positions
             if(mask_index_lens.size() == 1)
             { // check left or right padding case
                 MIGRAPHX_THROW("Attention: Left/Right Padding not currently supported");
             }
             else if(mask_index_lens.size() == 2)
-            { // This case assumes potentially past is set which is captured in total_sequence_length
+            { // This case assumes potentially past is set which is captured in
+              // total_sequence_length
                 if(mask_index_lens.at(0) != batch_size() or
-                mask_index_lens.at(1) != total_sequence_length())
+                   mask_index_lens.at(1) != total_sequence_length())
                 {
                     MIGRAPHX_THROW("Attention: Invalid Mask_Index shape\n \
                                     Use (batch, total_sequence_length) for shapes of size 2");
@@ -332,8 +290,8 @@ struct parse_attention : op_parser<parse_attention>
             else if(mask_index_lens.size() == 3)
             { // Similar to case 2 but with sequence length in dim 1
                 if(mask_index_lens.at(0) != batch_size() or
-                mask_index_lens.at(1) != sequence_length() or
-                mask_index_lens.at(2) != total_sequence_length())
+                   mask_index_lens.at(1) != sequence_length() or
+                   mask_index_lens.at(2) != total_sequence_length())
                 {
                     MIGRAPHX_THROW("Attention: Invalid Mask_Index shape\n \
                                     Use (batch, sequence_length, total_sequence_length) for shapes of size 3");
@@ -343,7 +301,7 @@ struct parse_attention : op_parser<parse_attention>
             else if(mask_index_lens.size() == 4)
             { // Oddball case and can be used to infer max_sequence_length_parameter
                 if(mask_index_lens.at(0) != batch_size() or mask_index_lens.at(1) != 1 or
-                mask_index_lens.at(2) != mask_index_lens.at(3))
+                   mask_index_lens.at(2) != mask_index_lens.at(3))
                 {
                     MIGRAPHX_THROW("Attention: Invalid Mask_Index shape\n  \
                                     Use (batch, 1, max_sequence_length, max_sequence_length) for shapes of size 4");
@@ -435,8 +393,8 @@ struct parse_attention : op_parser<parse_attention>
         attr_out.qkv_hidden_sizes = qkv_vec;
     }
 
-    static attention_attr
-    handle_attributes(const onnx_parser& parser, const onnx_parser::node_info& info)
+    static attention_attr handle_attributes(const onnx_parser& parser,
+                                            const onnx_parser::node_info& info)
     {
         attention_attr attr_out;
         if(contains(info.attributes, "do_rotary"))
@@ -502,7 +460,8 @@ struct parse_attention : op_parser<parse_attention>
 
         if(contains(info.attributes, "unidirectional"))
         {
-            attr_out.unidirectional = (1 == parser.parse_value(info.attributes.at("unidirectional")).at<int>());
+            attr_out.unidirectional =
+                (1 == parser.parse_value(info.attributes.at("unidirectional")).at<int>());
             if(attr_out.unidirectional)
                 MIGRAPHX_THROW("PARSE_ATTENTION: unidirectional attr not supported");
         }
@@ -511,8 +470,8 @@ struct parse_attention : op_parser<parse_attention>
     }
 
     static attention_args handle_inputs(const onnx_parser& parser,
-                                           const onnx_parser::node_info& info,
-                                           const std::vector<instruction_ref>& args)
+                                        const onnx_parser::node_info& info,
+                                        const std::vector<instruction_ref>& args)
     {
         if(args.size() < 2 or args.size() > 7)
         {
@@ -541,9 +500,9 @@ struct parse_attention : op_parser<parse_attention>
                        const std::vector<instruction_ref>& qkv_mats,
                        const size_t num_heads)
     {
-        auto q_lens    = qkv_mats.at(0)->get_shape().lens();
-        auto k_lens    = qkv_mats.at(1)->get_shape().lens();
-        auto v_lens    = qkv_mats.at(2)->get_shape().lens();
+        auto q_lens = qkv_mats.at(0)->get_shape().lens();
+        auto k_lens = qkv_mats.at(1)->get_shape().lens();
+        auto v_lens = qkv_mats.at(2)->get_shape().lens();
 
         // Split embedding into querry size and num heads from embedding dimension
         // Permute so we now result in (batch, sequence_length, querry_size, num_heads) prior to
@@ -685,8 +644,9 @@ struct parse_attention : op_parser<parse_attention>
         // Other two cases require us to generate masks from sequence or total sequence length pads.
         auto pass_value_lit = info.add_literal(
             migraphx::literal{migraphx::shape{attention.input->get_shape().type(), {1}, {1}}, {0}});
-        auto mask_value_lit = info.add_literal(migraphx::literal{
-            migraphx::shape{attention.input->get_shape().type(), {1}, {1}}, {attention.get_mask_filter_val()}});
+        auto mask_value_lit = info.add_literal(
+            migraphx::literal{migraphx::shape{attention.input->get_shape().type(), {1}, {1}},
+                              {attention.get_mask_filter_val()}});
 
         // For dim = 2 or dim =3 generate the apporiate mask across batches
         // We need to handle the batch case since raw masking involes shape [batch, seq_len] or
@@ -716,7 +676,9 @@ struct parse_attention : op_parser<parse_attention>
         // Reuse "0" broadcasted converted to int32 to check if input mask is greater than 0 for
         // where condition
         auto in_pass = info.add_instruction(
-            make_op("convert", {{"target_type", (attention.mask_index).value()->get_shape().type()}}), bc_pass);
+            make_op("convert",
+                    {{"target_type", (attention.mask_index).value()->get_shape().type()}}),
+            bc_pass);
         auto in_bool = info.add_instruction(make_op("equal"), raw_mask, in_pass);
         // Need this to let MLIR to run with where
         in_bool = info.add_instruction(
@@ -724,9 +686,8 @@ struct parse_attention : op_parser<parse_attention>
         return info.add_instruction(make_op("where"), in_bool, bc_mask, bc_pass);
     }
 
-    static std::optional<instruction_ref>
-    create_input_mask(const onnx_parser::node_info& info,
-                      const attention_args& attention)
+    static std::optional<instruction_ref> create_input_mask(const onnx_parser::node_info& info,
+                                                            const attention_args& attention)
     {
         // Shape Scale dot attention prior to mask will be in (batch, num_heads, query_size,
         // query_size) thus mask needs to handle batch and query_size We should return mask of
@@ -753,8 +714,11 @@ struct parse_attention : op_parser<parse_attention>
 
         // Apply linear stage to QKV mats from weight matrix - If past input just return q mat later
         // split will be extracted from past vector
-        auto qkv_mats = input_linear_to_qkv(
-            info, attention.input, attention.weights, attention.attr.qkv_hidden_sizes, attention.projection_bias);
+        auto qkv_mats = input_linear_to_qkv(info,
+                                            attention.input,
+                                            attention.weights,
+                                            attention.attr.qkv_hidden_sizes,
+                                            attention.projection_bias);
 
         // Set attention mask and bias when detected on input
         std::optional<instruction_ref> attn_mask;
@@ -775,7 +739,8 @@ struct parse_attention : op_parser<parse_attention>
         // (saves us a concat)
         auto split_qkv = qkv_split_per_head(info, qkv_mats, attention.num_heads());
 
-        return scale_dot_attention_head(info, split_qkv, scale_factor, attn_mask, attention.attention_bias);
+        return scale_dot_attention_head(
+            info, split_qkv, scale_factor, attn_mask, attention.attention_bias);
     }
 };
 

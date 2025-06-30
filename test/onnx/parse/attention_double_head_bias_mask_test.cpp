@@ -36,15 +36,12 @@ TEST_CASE(attention_double_head_bias_mask_test)
     EXPECT(p == prog);
 }
 
-
 TEST_CASE(attention_double_head_3d_mask_unsupported)
 {
     EXPECT(test::throws([&] { optimize_onnx("attention_double_head_bias_3d_mask_test.onnx"); }));
 }
 
-
 TEST_CASE(attention_double_head_4d_mask_unsupported)
 {
     EXPECT(test::throws([&] { optimize_onnx("attention_double_head_bias_4d_mask_test.onnx"); }));
 }
-

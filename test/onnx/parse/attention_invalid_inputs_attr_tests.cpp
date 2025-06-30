@@ -115,5 +115,3 @@ TEST_CASE(attention_invalid_mask_type)
 {
     EXPECT(test::throws([&] { optimize_onnx("attention_invalid_mask_type_test.onnx"); }));
 }
-
-

@@ -43,21 +43,21 @@ struct transform_view : totally_ordered<transform_view<Range, F>>
 
     constexpr transform_view(Range& prng, F pf) : rng(&prng), f(std::move(pf)) {}
 
-    struct iterator : iterator_operators<iterator>
+    template<class BaseIterator>
+    struct iterator : iterator_operators<iterator<BaseIterator>>
     {
-        using underlying_iterator = decltype(std::begin(std::declval<Range&>()));
         using reference           = decltype(std::declval<const F>()(
-            std::declval<typename std::iterator_traits<underlying_iterator>::reference>()));
+            std::declval<typename std::iterator_traits<BaseIterator>::reference>()));
         using value_type          = std::decay_t<reference>;
 
         using iterator_category =
-            typename std::iterator_traits<underlying_iterator>::iterator_category;
-        using difference_type = typename std::iterator_traits<underlying_iterator>::difference_type;
+            typename std::iterator_traits<BaseIterator>::iterator_category;
+        using difference_type = typename std::iterator_traits<BaseIterator>::difference_type;
         using pointer         = std::add_pointer_t<std::remove_reference_t<reference>>;
 
         constexpr iterator() = default;
 
-        constexpr iterator(const transform_view* pparent, underlying_iterator it)
+        constexpr iterator(const transform_view* pparent, BaseIterator it)
             : parent(pparent), current(it)
         {
         }
@@ -99,11 +99,19 @@ struct transform_view : totally_ordered<transform_view<Range, F>>
 
         private:
         const transform_view* parent = nullptr;
-        underlying_iterator current{};
+        BaseIterator current{};
     };
+    template<class BaseIterator>
+    iterator(const transform_view*, BaseIterator) -> iterator<BaseIterator>;
 
-    constexpr iterator begin() const { return {this, std::begin(*rng)}; }
-    constexpr iterator end() const { return {this, std::end(*rng)}; }
+    constexpr auto begin() const { return iterator{this, std::begin(base())}; }
+    constexpr auto end() const { return iterator{this, std::end(base())}; }
+
+    constexpr auto begin() { return iterator{this, std::begin(base())}; }
+    constexpr auto end() { return iterator{this, std::end(base())}; }
+
+    constexpr Range& base() { return *rng; }
+    constexpr const Range& base() const { return *rng; }
 
     template <class... Ts>
     constexpr bool operator==(const transform_view<Ts...>& b) const

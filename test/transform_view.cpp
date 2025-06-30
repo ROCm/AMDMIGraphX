@@ -65,6 +65,42 @@ TEST_CASE(basic_transform)
     EXPECT(*it2 == 1);
 }
 
+TEST_CASE(transform_const)
+{
+    std::vector<int> vec = {1, 2, 3, 4, 5};
+    const auto& cvec = vec;
+    auto view            = migraphx::views::transform(cvec, [](int x) { return x * x; });
+
+    auto it = view.begin();
+    EXPECT(it[0] == 1);
+    EXPECT(it[1] == 4);
+    EXPECT(it[2] == 9);
+    EXPECT(it[3] == 16);
+    EXPECT(it[4] == 25);
+
+    EXPECT(*it == 1);
+    it += 1;
+    EXPECT(*it == 4);
+    it += 1;
+    EXPECT(*it == 9);
+    it += 1;
+    EXPECT(*it == 16);
+    it += 1;
+    EXPECT(*it == 25);
+
+    auto it2 = view.end();
+    it2 -= 1;
+    EXPECT(*it2 == 25);
+    it2 -= 1;
+    EXPECT(*it2 == 16);
+    it2 -= 1;
+    EXPECT(*it2 == 9);
+    it2 -= 1;
+    EXPECT(*it2 == 4);
+    it2 -= 1;
+    EXPECT(*it2 == 1);
+}
+
 TEST_CASE(transform_with_reference)
 {
     std::vector<int> vec = {1, 2, 3, 4, 5};
@@ -294,6 +330,21 @@ TEST_CASE(operator_arrow_in_loop_value)
     EXPECT(out[0] == 2);
     EXPECT(out[1] == 4);
     EXPECT(out[2] == 6);
+}
+
+TEST_CASE(transform_view_mutate_member)
+{
+    struct a
+    {
+        int val;
+    };
+    std::vector<a> data{{1}, {2}, {3}};
+    auto view = migraphx::views::transform(data, [](auto& t) -> auto& { return t.val; });
+    for(auto& i:view)
+        i++;
+    std::vector<a> edata{{2}, {3}, {4}};
+    EXPECT(std::equal(data.begin(), data.end(), edata.begin(),
+                   [](const a& lhs, const a& rhs) { return lhs.val == rhs.val; }));
 }
 
 int main(int argc, const char* argv[]) { test::run(argc, argv); }

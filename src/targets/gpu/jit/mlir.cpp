@@ -91,7 +91,7 @@ struct mlir_compiler : compiler<mlir_compiler>
     bool is_range_literal(const instruction_ref& ins) const
     {
         auto lit_elms = ins->get_shape().element_space();
-        if(not ins->can_eval() or not shape::is_integral(ins->get_shape().type()) or lit_elms < 2)
+        if(not ins->can_eval() or lit_elms < 2)
         {
             return false;
         }

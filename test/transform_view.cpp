@@ -341,9 +341,7 @@ TEST_CASE(transform_view_mutate_member)
     std::vector<a> data{{1}, {2}, {3}};
     // cppcheck-suppress constParameterReference
     auto view = migraphx::views::transform(data, [](auto& t) -> auto& { return t.val; });
-    std::for_each(view.begin(), view.end(), [](auto& i) {
-        i++;
-    });
+    std::for_each(view.begin(), view.end(), [](auto& i) { i++; });
     std::vector<a> edata{{2}, {3}, {4}};
     EXPECT(std::equal(data.begin(), data.end(), edata.begin(), [](const a& lhs, const a& rhs) {
         return lhs.val == rhs.val;

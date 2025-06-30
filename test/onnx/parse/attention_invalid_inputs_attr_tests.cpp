@@ -105,3 +105,15 @@ TEST_CASE(attention_invalid_qkv_attr_values2)
 {
     EXPECT(test::throws([&] { optimize_onnx("attention_invalid_qkv_attr_test3.onnx"); }));
 }
+
+TEST_CASE(attention_invalid_input_num)
+{
+    EXPECT(test::throws([&] { optimize_onnx("attention_invalid_input_num.onnx"); }));
+}
+
+TEST_CASE(attention_invalid_mask_type)
+{
+    EXPECT(test::throws([&] { optimize_onnx("attention_invalid_mask_type_test.onnx"); }));
+}
+
+

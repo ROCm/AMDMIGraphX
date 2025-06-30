@@ -295,12 +295,12 @@ def atanh_test():
 
 def attention_test(
         x_dims,
-        weight_dims,
+        weight_dims=[],
         bias_dims=[],
         mask_dims=[],
         past_dims=[],
         attention_bias_dims=[],
-        past_sequence_length=0,
+        past_sequence_length_dims=[],
         num_heads=None,
         qkv_hidden_sizes=None,
         do_rotary=None,
@@ -310,23 +310,28 @@ def attention_test(
         unidirectional=None,
         rotary_embedding_dim=None,
         present_dims=[],
-        dtype=TensorProto.FLOAT):
+        dtype=TensorProto.FLOAT,
+        test_type=TensorProto.INT32):
 
     # (Batch_size, sequence_lenth, input_hidden_size)
     x = helper.make_tensor_value_info('input', dtype, x_dims)
+    input_list = [x]
+    input_name_list = ['input']
+
 
     # Needed for output vector dims
     batch = x_dims[0]
     seq_len = x_dims[1]
 
-    # default is to assume that q, k ,v sizes are the same unless otherwise stated
-    v_hidden_size = int(weight_dims[1] / 3)
+    v_hidden_size = int(0)
 
-    # (input_hidden_size, hidden_size + hidden_size, v_hidden_size)
-    weights = helper.make_tensor_value_info('weights', dtype, weight_dims)
-
-    input_list = [x, weights]
-    input_name_list = ['input', 'weights']
+    if len(weight_dims) > 0:
+        # (input_hidden_size, hidden_size + hidden_size, v_hidden_size)
+        weights = helper.make_tensor_value_info('weights', dtype, weight_dims)
+        input_name_list.append('weights')
+        input_list.append(weights)
+        # default is to assume that q, k ,v sizes are the same unless otherwise stated
+        v_hidden_size = int(weight_dims[1] / 3)
 
     # (Batch_size, sequence_lenth, v_hidden_size)
     y = helper.make_tensor_value_info('y', dtype,
@@ -349,7 +354,7 @@ def attention_test(
         # (batch_size, sequence_length, total_sequence_length)
         # (batch_size) or (2*batch_size) or (3* batch_size + 2)
         mask_index = helper.make_tensor_value_info('mask_index',
-                                                   TensorProto.INT32,
+                                                   test_type,
                                                    mask_dims)
         input_name_list.append('mask_index')
         input_list.append(mask_index)
@@ -368,11 +373,12 @@ def attention_test(
         input_name_list.append('attention_bias')
         input_list.append(attention_bias)
 
-    if past_present_share_buffer is not None:
-        past_sequence_length = helper.make_tensor_value_info('past_sequence_length', TensorProto.INT32, [past_sequence_length])
+    if len(past_sequence_length_dims) > 0:
+        # (batch_size, or 1, num_heads or 1, sequence_length, total_sequence_length)
+        past_sequence_length = helper.make_tensor_value_info('past_seqence_length', test_type,
+                                                       past_sequence_length_dims)
         input_name_list.append('past_sequence_length')
-        input_list.append(past_sequence_length)
-
+ 
     # Additional output vector
     if present_dims:
         output_name_list.append('present')
@@ -414,6 +420,13 @@ def attention_test(
 
 
 @onnx_test()
+def attention_invalid_input_num():
+    return attention_test([2, 2, 4], 
+                          num_heads=1)
+
+
+
+@onnx_test()
 def attention_invalid_no_num_heads():
     return attention_test([2, 2, 4], [4, 12], 
                            bias_dims=[12])
@@ -445,6 +458,15 @@ def attention_invalid_bias_value_size():
     return attention_test([2, 2, 4], [4, 12], 
                            bias_dims=[11],
                            num_heads=2)
+
+
+@onnx_test()
+def attention_invalid_mask_type_test():
+    return attention_test([1, 2, 4], [4, 12], 
+                           bias_dims=[12],
+                           mask_dims=[1, 2],
+                           num_heads=2,
+                           test_type=TensorProto.FLOAT)
 
 
 @onnx_test()
@@ -563,6 +585,22 @@ def attention_double_head_bias_asym_mask_test():
 
 
 @onnx_test()
+def attention_double_head_bias_3d_mask_test():
+    return attention_test([2, 3, 4], [4, 12], 
+                           bias_dims=[12],
+                           mask_dims=[2, 3, 3],
+                           num_heads=2)
+
+
+@onnx_test()
+def attention_double_head_bias_4d_mask_test():
+    return attention_test([2, 3, 4], [4, 12], 
+                           bias_dims=[12],
+                           mask_dims=[2, 1, 3, 3],
+                           num_heads=2)
+
+
+@onnx_test()
 def attention_double_head_bias_asym_left_pad_mask_test():
     return attention_test([2, 3, 4], [4, 12], 
                            bias_dims=[12],
@@ -576,6 +614,15 @@ def attention_double_head_bias_asym_right_pad_mask_test():
                            bias_dims=[12],
                            mask_dims=[4],
                            num_heads=2)
+
+
+@onnx_test()
+def attention_double_head_bias_asym_mask_unidirectional_test():
+    return attention_test([2, 3, 4], [4, 12], 
+                           bias_dims=[12],
+                           mask_dims=[2, 3],
+                           num_heads=2, unidirectional=1)
+
 
 
 @onnx_test()
@@ -618,9 +665,6 @@ def attention_double_head_bias_asym_mask_filter_val_test():
                            num_heads=2, mask_filter_value=float(-5000.0))
 
 
-
-
-
 @onnx_test()
 def attention_double_head_bias_mask_past_test():
 # Should error out because we only support shared buffer modes
@@ -638,6 +682,17 @@ def attention_double_head_bias_mask_past_attn_bias_shared_test():
                            past_dims=[2, 4],
                            attention_bias_dims=[2, 2, 4],
                            past_present_share_buffer=1,
+                           num_heads=2)
+
+
+@onnx_test()
+def attention_double_head_bias_mask_past_attn_bias_shared_past_seq_len_test():
+    return attention_test([2, 4, 4], [4, 12], 
+                           bias_dims=[12],
+                           mask_dims=[2, 4],
+                           past_dims=[2, 4],
+                           attention_bias_dims=[2, 2, 4],
+                           past_sequence_length_dims=[1],
                            num_heads=2)
 
 

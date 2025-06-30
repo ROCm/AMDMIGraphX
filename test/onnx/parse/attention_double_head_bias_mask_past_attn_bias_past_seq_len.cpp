@@ -26,25 +26,8 @@
 #include <migraphx/op/convolution.hpp>
 #include <onnx_test_utils.hpp>
 
-TEST_CASE(attention_double_head_bias_mask_test)
+TEST_CASE(attention_double_head_bias_mask_past_attn_bias_shared_past_seq_len_test)
 {
-    // Batch 2, sequence length 2  num_heads 2, embedding_size  4
-    //  Key pad masking and bias true
-    migraphx::program p = make_attention_program(2, 2, 2, 4, true, true);
-    auto prog           = optimize_onnx("attention_double_head_bias_mask_test.onnx");
-
-    EXPECT(p == prog);
+    EXPECT(test::throws(
+        [&] { optimize_onnx("attention_double_head_bias_mask_past_attn_bias_shared_past_seq_len_test.onnx"); }));
 }
-
-
-TEST_CASE(attention_double_head_3d_mask_unsupported)
-{
-    EXPECT(test::throws([&] { optimize_onnx("attention_double_head_bias_3d_mask_test.onnx"); }));
-}
-
-
-TEST_CASE(attention_double_head_4d_mask_unsupported)
-{
-    EXPECT(test::throws([&] { optimize_onnx("attention_double_head_bias_4d_mask_test.onnx"); }));
-}
-

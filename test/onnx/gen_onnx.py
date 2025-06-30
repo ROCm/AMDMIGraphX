@@ -378,6 +378,7 @@ def attention_test(
         past_sequence_length = helper.make_tensor_value_info('past_seqence_length', test_type,
                                                        past_sequence_length_dims)
         input_name_list.append('past_sequence_length')
+        input_list.append(past_sequence_length)
  
     # Additional output vector
     if present_dims:

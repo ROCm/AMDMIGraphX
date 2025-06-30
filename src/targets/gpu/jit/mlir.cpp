@@ -90,14 +90,16 @@ struct mlir_compiler : compiler<mlir_compiler>
 
     bool is_range_literal(const instruction_ref& ins) const
     {
-        if(not ins->can_eval() or not shape::is_integral(ins->get_shape().type()) or ins->get_shape().elements() < 2)
+        auto lit_elms = ins->get_shape().element_space();
+        if(not ins->can_eval() or not shape::is_integral(ins->get_shape().type()) or lit_elms < 2)
         {
             return false;
         }
         bool is_range = false;
-        auto lit_elms = ins->get_shape().element_space();
         ins->eval().visit([&](auto l) {
-            is_range = std::adjacent_find(l.begin(), l.begin() + lit_elms, [](auto cur, auto next){ return not float_equal(next - cur, 1.0); }) == l.begin() + lit_elms;
+            is_range = std::adjacent_find(l.begin(), l.begin() + lit_elms, [](auto cur, auto next) {
+                           return not float_equal(next - cur, 1.0);
+                       }) == l.begin() + lit_elms;
         });
         return is_range;
     }
@@ -110,15 +112,17 @@ struct mlir_compiler : compiler<mlir_compiler>
             {
                 continue;
             }
-            auto fill_val = ins->get_shape().lens().back() - 1;
-            bool has_range_lit = std::any_of(ins->inputs().begin(), ins->inputs().end(), [&](auto inp){ return is_range_literal(inp); });
+            auto fill_val      = ins->get_shape().lens().back() - 1;
+            bool has_range_lit = std::any_of(ins->inputs().begin(),
+                                             ins->inputs().end(),
+                                             [&](auto inp) { return is_range_literal(inp); });
             for(auto inp : ins->inputs())
             {
                 auto param = input_is_param(inp);
                 if(param.has_value() and has_range_lit)
                 {
                     auto id = param.value()->get_shape().type_string() +
-                                migraphx::shape::to_sizes_string({param.value()->get_shape()});
+                              migraphx::shape::to_sizes_string({param.value()->get_shape()});
                     cr.fill_map[id] = static_cast<double>(fill_val);
                 }
             }

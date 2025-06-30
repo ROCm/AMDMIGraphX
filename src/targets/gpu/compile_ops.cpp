@@ -148,8 +148,8 @@ struct compile_plan
                 if(solutions.empty())
                     MIGRAPHX_THROW("No solutions provided for " + preop.name() + " with " +
                                    problem_string() +
-                                   (not config->mlir_kernel.empty()
-                                        ? ("\nMLIR Fused Kernel:\n" + config->mlir_kernel)
+                                   (not config->detailed_problem_info.empty()
+                                        ? ("\n\n" + config->detailed_problem_info)
                                         : "") +
                                    "\nMIGraphX Module:\n" + to_string(*mod));
                 results.resize(solutions.size());
@@ -184,7 +184,7 @@ struct compile_plan
         if(results.empty())
             MIGRAPHX_THROW(
                 "No valid tuned compilation for " + preop.name() + " with " + problem_string() +
-                (not config->mlir_kernel.empty() ? ("\nMLIR Fused Kernel:\n" + config->mlir_kernel)
+                (not config->detailed_problem_info.empty() ? ("\n\n" + config->detailed_problem_info)
                                                  : "") +
                 "\nMIGraphX Module:\n" + to_string(*mod));
         if(results.size() == 1)
@@ -192,8 +192,8 @@ struct compile_plan
             if(not results.front().has_value())
                 MIGRAPHX_THROW("No valid tuned compilation for " + preop.name() + " with " +
                                problem_string() +
-                               (not config->mlir_kernel.empty()
-                                    ? ("\nMLIR Fused Kernel:\n" + config->mlir_kernel)
+                               (not config->detailed_problem_info.empty()
+                                    ? ("\n\n" + config->detailed_problem_info)
                                     : "") +
                                "\nMIGraphX Module:\n" + to_string(*mod));
             return *results.front();
@@ -259,7 +259,7 @@ struct compile_plan
         if(not results[i].has_value())
             MIGRAPHX_THROW(
                 "No valid tuned compilation for " + preop.name() + " with " + problem_string() +
-                (not config->mlir_kernel.empty() ? ("\nMLIR Fused Kernel:\n" + config->mlir_kernel)
+                (not config->detailed_problem_info.empty() ? ("\n\n" + config->detailed_problem_info)
                                                  : "") +
                 "\nMIGraphX Module:\n" + to_string(*mod));
         auto skipped = std::count_if(

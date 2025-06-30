@@ -26,7 +26,7 @@ import numpy as np
 import migraphx
 import onnxruntime as ort
 import sys
-
+import re 
 
 def parse_args():
     parser = argparse.ArgumentParser(
@@ -93,6 +93,12 @@ def parse_args():
                         action='store_true',
                         default=False,
                         help='Display input data used for run')
+
+    parser.add_argument('--format-cpp',
+                        dest='format_cpp',
+                        action='store_true',
+                        default=False,
+                        help='cpp format input/output data')
 
     parser.add_argument(
         '--disable-offload-copy',
@@ -182,6 +188,14 @@ def get_np_datatype(in_type):
     return datatypes[in_type]
 
 
+def print_npy_fmt_to_cpp(input_string):
+    fmt  = re.sub("  \[|(\[)+| \[", "", np.array_str(input_string))
+    fmt  = re.sub('(\])+', "", fmt)
+    fmt  = re.sub('\n', " ", fmt)
+    fmt = re.sub('[\.0-9] ', "f, ", fmt)
+    fmt = re.sub('$', "f", fmt)
+    print(fmt)
+
 def main():
     args, parser = parse_args()
 
@@ -251,11 +265,22 @@ def main():
             test_input = np.ones(in_shape).astype(get_np_datatype(in_type))
         else:
             test_input = np.zeros(in_shape).astype(get_np_datatype(in_type))
+
+
+        if name == "mask_index":
+            test_input = np.array([[0, 0, 1],[1, 1, 1]]).astype(get_np_datatype(in_type))
+            # 4d masks
+            #test_input = np.array([ [[[0, 1, 0],[1, 0, 1], [1, 0, 1]]] ,[[[0, 0, 1],[1, 1, 1], [1, 0, 0]]]]).astype(get_np_datatype(in_type))
+            #test_input = np.array([[[[0, 0, 1],[1, 1, 1], [1, 0, 0]]]]).astype(get_np_datatype(in_type))
+
         test_inputs[name] = test_input
 
-        if args.show_data:
-            print(f"Input data for {name}: {test_input}\n")
 
+        if args.show_data:
+            if args.format_cpp:
+                print_npy_fmt_to_cpp(test_input)
+            else:
+                print(f"Input data for {name}: {test_input}\n")
 
         migraphx_arg = migraphx.argument(test_inputs[name])
         if not args.offload_copy:
@@ -340,9 +365,17 @@ def main():
             if hasattr(pred_fw, '__iter__') and not isinstance(pred_fw, (str, bytes)):
                 print('Output Gold Data:')
                 for idx, output in enumerate(pred_fw):
-                    print(f'Output {idx}: {output}')
+                    if args.format_cpp:
+                        print(f'Output {idx}:')
+                        print_npy_fmt_to_cpp(output)
+                    else:
+                        print(f'Output {idx}: {output}')
             else:
-                print(f'Output Gold Data:\n{pred_fw}\n')
+                if args.format_cpp:
+                    print_npy_fmt_to_cpp(pred_fw)
+                else:
+                    print(f'Output Gold Data:\n{pred_fw}\n')
+
 
         is_correct = check_correctness(pred_fw, pred_migx, args.tolerance,
                                        args.tolerance, args.argmax,

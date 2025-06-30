@@ -985,8 +985,9 @@ struct mlir_program
 };
 
 bool is_reduce(const instruction& ins) { return contains(ins.name(), "reduce"); }
+bool is_where(const instruction& ins) { return contains(ins.name(), "where"); }
 
-static void rewrite_reduce(module& m)
+static void rewrite_ops(module& m)
 {
     for(auto i : iterator_for(m))
     {
@@ -1027,6 +1028,17 @@ static void rewrite_reduce(module& m)
                 i, migraphx::make_op("reshape", {{"dims", reduce_lens}}), collapsed_reduce);
             m.replace_instruction(i, rsp_back);
         }
+        else if(is_where(*i))
+        {   /* MLIR requires that input condition for where is int8 thus add convert */
+            auto cond_input = i->inputs().at(0);
+            auto a_input    = i->inputs().at(1);
+            auto b_input    = i->inputs().at(2);
+            auto conv_cond = m.insert_instruction(
+                i, migraphx::make_op("convert", {{"target_type", migraphx::shape::int8_type}}), cond_input);
+            auto new_where = m.insert_instruction(
+                i, migraphx::make_op("where"), conv_cond, a_input, b_input);
+            m.replace_instruction(i, new_where);
+        }
     }
     migraphx::run_passes(m, {migraphx::dead_code_elimination{}});
 }
@@ -1034,7 +1046,7 @@ static void rewrite_reduce(module& m)
 bool is_module_fusible(const module& m, const context& migraphx_ctx, const value& solution)
 {
     auto mm = m;
-    rewrite_reduce(mm);
+    rewrite_ops(mm);
     mlir_program mp;
     mp.set_gpu_properties(migraphx_ctx);
     mp.parse(mm);
@@ -1084,7 +1096,7 @@ std::string dump_mlir(module m, const std::vector<shape>& inputs)
     {
         adjust_param_shapes(m, inputs);
     }
-    rewrite_reduce(m);
+    rewrite_ops(m);
     mlir_program mp;
     mp.parse(*mr);
     auto mod_op = mlirModuleGetOperation(mp.mmodule.get());
@@ -1115,7 +1127,7 @@ void dump_mlir_to_file(module m, const std::vector<shape>& inputs, const fs::pat
     {
         adjust_param_shapes(m, inputs);
     }
-    rewrite_reduce(m);
+    rewrite_ops(m);
 
     auto name = compute_dump_name(m, ".mlir");
     auto f    = location / name;
@@ -1138,7 +1150,7 @@ mlir_code_object compile_mlir(const context& migraphx_ctx,
                               const value& solution)
 {
     adjust_param_shapes(m, in_shapes);
-    rewrite_reduce(m);
+    rewrite_ops(m);
     const bool trace = enabled(MIGRAPHX_TRACE_MLIR{});
 
     static std::mutex mutex;
@@ -1218,7 +1230,7 @@ tuning_config get_tuning_config_mlir(const context& migraphx_ctx,
                                      bool exhaustive)
 {
     adjust_param_shapes(m, inputs);
-    rewrite_reduce(m);
+    rewrite_ops(m);
     mlir_program mp;
     mp.set_gpu_properties(migraphx_ctx);
     mp.parse(m);

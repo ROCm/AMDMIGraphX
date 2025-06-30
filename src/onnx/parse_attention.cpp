@@ -695,9 +695,6 @@ struct parse_attention : op_parser<parse_attention>
                     {{"target_type", (attention.mask_index).value()->get_shape().type()}}),
             bc_pass);
         auto in_bool = info.add_instruction(make_op("equal"), raw_mask, in_pass);
-        // Need this to let MLIR to run with where
-        in_bool = info.add_instruction(
-            make_op("convert", {{"target_type", migraphx::shape::int8_type}}), in_bool);
         return info.add_instruction(make_op("where"), in_bool, bc_mask, bc_pass);
     }
 

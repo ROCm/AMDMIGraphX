@@ -2088,6 +2088,49 @@ struct find_split_transpose
     }
 };
 
+// Move transpose after op to improve horizontal fusion
+struct find_split_partial_transpose_op
+{
+    auto matcher() const
+    {
+        auto op = match::pointwise();
+        auto op_transpose = [=](auto... ms) {
+            return op(match::any_of[match::inputs()](match::name("transpose")(match::arg(0)(ms...)).bind("transpose")));
+        };
+        return op(match::name("slice").bind("slice"));
+    }
+
+    void apply(module& m, const match::matcher_result& r) const
+    {
+        auto ins = r.result;
+        auto slc   = r.instructions["slice"];
+        auto transpose = r.instructions["transpose"];
+        auto input         = slc->inputs().front();
+        auto splits = get_splits(input);
+        if(splits.size() <= 1)
+            return;
+
+        if(std::count_if(splits.begin(), splits.end(), [&](auto split) {
+            return any_of(split->outputs(), [&](auto output) {
+                return output->name() == ins->name();
+            });
+        }) < 1)
+            return;
+
+        auto perm = transpose->get_operator().to_value()["permutation"].to_vector<int64_t>();
+        auto iperm = invert_permutation(perm);
+        auto inputs = ins->inputs();
+        std::transform(inputs.begin(), inputs.end(), inputs.begin(), [&](auto input) {
+            if(input == transpose)
+                return slc;
+            return m.insert_instruction(ins, make_op("transpose", {{"permutation", iperm}}), input);
+        });
+
+        auto new_ins = m.insert_instruction(ins, ins->get_operator(), inputs);
+        m.replace_instruction(ins, transpose->get_operator(), new_ins);
+    }
+};
+
 void simplify_algebra::apply(module& m) const
 {
     // Run simplifications multiple times
@@ -2119,7 +2162,8 @@ void simplify_algebra::apply(module& m) const
                             find_split_concat{},
                             find_splits{},
                             find_split_reshape{},
-                            find_split_transpose{});
+                            find_split_transpose{},
+                            find_split_partial_transpose_op{});
         dead_code_elimination{}.apply(m);
     });
 }

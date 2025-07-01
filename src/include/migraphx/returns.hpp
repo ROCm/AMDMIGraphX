@@ -30,7 +30,7 @@
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
 
-// Similiar to decltype(auto) except it will propagate any substitution failures
+// Similar to decltype(auto) except it will propagate any substitution failures
 // NOLINTNEXTLINE
 #define MIGRAPHX_RETURNS(...) \
     ->decltype(__VA_ARGS__) { return __VA_ARGS__; }

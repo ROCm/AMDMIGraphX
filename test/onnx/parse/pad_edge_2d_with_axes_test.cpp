@@ -21,27 +21,24 @@
  * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
  * THE SOFTWARE.
  */
-#ifndef MIGRAPHX_GUARD_MIGRAPHX_HASH_HPP
-#define MIGRAPHX_GUARD_MIGRAPHX_HASH_HPP
 
-#include <migraphx/config.hpp>
-#include <functional>
+#include <onnx_test.hpp>
 
-namespace migraphx {
-inline namespace MIGRAPHX_INLINE_NS {
-
-template <class T>
-auto hash_value(const T& v) -> decltype(std::hash<T>{}(v))
+TEST_CASE(pad_edge_2d_with_axes_test)
 {
-    return std::hash<T>{}(v);
-}
+    migraphx::program p;
+    auto* mm = p.get_main_module();
+    auto l0  = mm->add_parameter("0", migraphx::shape{migraphx::shape::float_type, {3, 3}});
+    mm->add_literal({migraphx::shape{migraphx::shape::int32_type, {1}}, {1}});
+    mm->add_literal({migraphx::shape{migraphx::shape::int32_type, {2}}, {1, 2}});
+    auto l1 = mm->add_instruction(
+        migraphx::make_op("slice", {{"axes", {0, 1}}, {"starts", {0, 0}}, {"ends", {3, 1}}}), l0);
+    auto l2 = mm->add_instruction(
+        migraphx::make_op("slice", {{"axes", {0, 1}}, {"starts", {0, 2}}, {"ends", {3, 3}}}), l0);
+    auto r = mm->add_instruction(migraphx::make_op("concat", {{"axis", 1}}), l1, l0, l2, l2);
+    mm->add_return({r});
 
-template <class T>
-void hash_combine(std::size_t& seed, const T& v)
-{
-    seed ^= hash_value(v) + 0x9e3779b9 + (seed << 6u) + (seed >> 2u);
-}
+    auto prog = read_onnx("pad_edge_2d_with_axes_test.onnx");
 
-} // namespace MIGRAPHX_INLINE_NS
-} // namespace migraphx
-#endif // MIGRAPHX_GUARD_MIGRAPHX_HASH_HPP
+    EXPECT(p == prog);
+}

@@ -20,28 +20,19 @@
  * LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
  * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
  * THE SOFTWARE.
+ *
  */
-#ifndef MIGRAPHX_GUARD_MIGRAPHX_HASH_HPP
-#define MIGRAPHX_GUARD_MIGRAPHX_HASH_HPP
 
-#include <migraphx/config.hpp>
-#include <functional>
+#include <tf_test.hpp>
 
-namespace migraphx {
-inline namespace MIGRAPHX_INLINE_NS {
-
-template <class T>
-auto hash_value(const T& v) -> decltype(std::hash<T>{}(v))
+TEST_CASE(sigmoid_test)
 {
-    return std::hash<T>{}(v);
-}
+    migraphx::program p;
 
-template <class T>
-void hash_combine(std::size_t& seed, const T& v)
-{
-    seed ^= hash_value(v) + 0x9e3779b9 + (seed << 6u) + (seed >> 2u);
-}
+    auto* mm = p.get_main_module();
+    auto l0  = mm->add_parameter("0", migraphx::shape{migraphx::shape::float_type, {1, 3, 16, 16}});
+    mm->add_instruction(migraphx::make_op("sigmoid"), l0);
+    auto prog = optimize_tf("sigmoid_test.pb", false);
 
-} // namespace MIGRAPHX_INLINE_NS
-} // namespace migraphx
-#endif // MIGRAPHX_GUARD_MIGRAPHX_HASH_HPP
+    EXPECT(p == prog);
+}

@@ -817,7 +817,7 @@ struct find_mlir_standalone_attention_op
     {
         auto group = r.instructions["group"];
 
-        auto group_mod = group->module_inputs().front();
+        auto* group_mod = group->module_inputs().front();
 
         std::string module_name = "mlir_" + group_mod->name();
         module_ref mlir_attn    = mpm.create_module(module_name);

@@ -40,7 +40,8 @@ struct parse_mxfixneuron : op_parser<parse_mxfixneuron>
                           onnx_parser::node_info info,
                           std::vector<instruction_ref> args) const
     {
-        instruction_ref input = args.front();
+        const instruction_ref input = args.front();
+        instruction_ref tmp_in      = input;
         const auto input_lens = input->get_shape().lens();
         if(args.size() != 1)
         {
@@ -75,8 +76,8 @@ struct parse_mxfixneuron : op_parser<parse_mxfixneuron>
         {
             std::vector<std::size_t> pads_vec(2 * tmp_lens.size(), 0);
             pads_vec.at(block_axis + tmp_lens.size()) = block_padding;
-            input    = info.add_instruction(make_op("pad", {{"pads", pads_vec}}), input);
-            tmp_lens = input->get_shape().lens();
+            tmp_in   = info.add_instruction(make_op("pad", {{"pads", pads_vec}}), tmp_in);
+            tmp_lens = tmp_in->get_shape().lens();
         }
         // reshape block dimension to {num_blocks, block_size}
         std::size_t num_blocks               = tmp_lens.at(block_axis) / std::size_t(block_size);
@@ -84,7 +85,7 @@ struct parse_mxfixneuron : op_parser<parse_mxfixneuron>
         reduct_dims.at(block_axis)           = block_size;
         reduct_dims.insert(reduct_dims.begin() + block_axis, num_blocks);
         instruction_ref reshape_ins =
-            info.add_instruction(make_op("reshape", {{"dims", reduct_dims}}), input);
+            info.add_instruction(make_op("reshape", {{"dims", reduct_dims}}), tmp_in);
 
         // dynamic quantization for MX types:
         // V_k = fp32 vector input of block size k
@@ -123,10 +124,14 @@ struct parse_mxfixneuron : op_parser<parse_mxfixneuron>
                 block_scales_ins);
         }
 
-        auto q_ins =
-            info.add_instruction(make_op("quantizelinear"), args.front(), block_scales_ins);
-        auto dq_ins = info.add_instruction(make_op("dequantizelinear"), q_ins, block_scales_ins);
-        // NOTE: scales and q-dq all still in float_type
+        auto q_ins = info.add_instruction(
+            make_op("quantizelinear"), input, block_scales_ins); // output is float_type
+        auto pack_ins =
+            info.add_instruction(make_op("pack_fp4"), q_ins); // output is packed_fp4_type
+        auto unpack_ins =
+            info.add_instruction(make_op("unpack_fp4"), pack_ins); // output is float_type
+        auto dq_ins =
+            info.add_instruction(make_op("dequantizelinear"), unpack_ins, block_scales_ins);
         return dq_ins;
     }
 };

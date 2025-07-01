@@ -60,8 +60,6 @@ TEST_CASE(unpack_fp4)
     mm->add_instruction(migraphx::make_op("unpack_fp4"), l0);
     p.compile(migraphx::make_target("ref"));
     auto result = p.eval({}).back();
-    result =
-        result.reshape(migraphx::shape(migraphx::shape::float_type, result.get_shape().lens()));
     std::vector<float> results_vector(4);
     result.visit([&](auto output) { results_vector.assign(output.begin(), output.end()); });
     std::vector<float> gold{-2.f, 3.f, 4.f, 0.f};
@@ -81,8 +79,6 @@ TEST_CASE(pack_unpack_fp4)
     mm->add_instruction(migraphx::make_op("unpack_fp4", {{"axis", 0}}), pack_ins);
     p.compile(migraphx::make_target("ref"));
     auto result = p.eval({}).back();
-    result =
-        result.reshape(migraphx::shape(migraphx::shape::float_type, result.get_shape().lens()));
     std::vector<float> results_vector(4);
     result.visit([&](auto output) { results_vector.assign(output.begin(), output.end()); });
     std::vector<float> gold{-2.f, 3.f, 4.f, 0.f};

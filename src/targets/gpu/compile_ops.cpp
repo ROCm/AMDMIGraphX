@@ -145,13 +145,29 @@ struct compile_plan
             {
                 ctx->get_problem_cache().mark(preop.name(), problem);
                 const auto& solutions = config->solutions;
+                std::stringstream current_module;
+                for (const auto m :ins->module_inputs())
+                {
+                    m->print_py(current_module);
+                    current_module << "\n";
+                    for (const auto sm : m->get_sub_modules())
+                    {
+                        sm->print_py(current_module); 
+                        current_module << "\n";
+                    } 
+                }
+                std::stringstream submodules;
+                for (const auto m :ins->module_inputs())
+                {
+                    for (const auto sm : m->get_sub_modules())
+                    {
+                        sm->print_py(submodules); 
+                        current_module << "\n";
+                    } 
+                }
                 if(solutions.empty())
                     MIGRAPHX_THROW("No solutions provided for " + preop.name() + " with " +
-                                   problem_string() +
-                                   (not config->detailed_problem_info.empty()
-                                        ? ("\n\n" + config->detailed_problem_info)
-                                        : "") +
-                                   "\nMIGraphX Module:\n" + to_string(*mod));
+                                   problem_string() + "\n\n" + print_modules());
                 results.resize(solutions.size());
                 for(auto i : range(solutions.size()))
                 {
@@ -172,6 +188,25 @@ struct compile_plan
             return to_string(config->problem);
         return "<no problem key>";
     }
+    std::string print_modules() const
+    {
+        std::stringstream current_module;
+        for (const auto m : ins->module_inputs())
+        {
+            m->print_py(current_module);
+            current_module << "\n";
+        }
+        std::stringstream submodules;
+        for (const auto m : ins->module_inputs())
+        {
+            for (const auto sm : m->get_sub_modules())
+            {
+                sm->print_py(submodules);
+                submodules << "\n";
+            }
+        }
+        return config->detailed_problem_info + "\n\nCurrent Module:\n" + current_module.str() + (not submodules.str().empty() ? "Submodules:\n" + submodules.str() : ""); 
+    }
 
     const compiled_result& benchmark() const
     {
@@ -183,20 +218,12 @@ struct compile_plan
         }
         if(results.empty())
             MIGRAPHX_THROW("No valid tuned compilation for " + preop.name() + " with " +
-                           problem_string() +
-                           (not config->detailed_problem_info.empty()
-                                ? ("\n\n" + config->detailed_problem_info)
-                                : "") +
-                           "\nMIGraphX Module:\n" + to_string(*mod));
+                           problem_string() + "\n\n" + print_modules());
         if(results.size() == 1)
         {
             if(not results.front().has_value())
                 MIGRAPHX_THROW("No valid tuned compilation for " + preop.name() + " with " +
-                               problem_string() +
-                               (not config->detailed_problem_info.empty()
-                                    ? ("\n\n" + config->detailed_problem_info)
-                                    : "") +
-                               "\nMIGraphX Module:\n" + to_string(*mod));
+                               problem_string() + "\n\n" + print_modules());
             return *results.front();
         }
         if(not config)
@@ -259,11 +286,7 @@ struct compile_plan
         }
         if(not results[i].has_value())
             MIGRAPHX_THROW("No valid tuned compilation for " + preop.name() + " with " +
-                           problem_string() +
-                           (not config->detailed_problem_info.empty()
-                                ? ("\n\n" + config->detailed_problem_info)
-                                : "") +
-                           "\nMIGraphX Module:\n" + to_string(*mod));
+                           problem_string() + "\n\n" + print_modules());
         auto skipped = std::count_if(
             results.begin(), results.end(), [](const auto& cr) { return not cr.has_value(); });
         if(skipped > 0)

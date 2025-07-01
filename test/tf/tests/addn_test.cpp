@@ -20,28 +20,34 @@
  * LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
  * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
  * THE SOFTWARE.
+ *
  */
-#ifndef MIGRAPHX_GUARD_MIGRAPHX_HASH_HPP
-#define MIGRAPHX_GUARD_MIGRAPHX_HASH_HPP
 
-#include <migraphx/config.hpp>
-#include <functional>
+#include <tf_test.hpp>
 
-namespace migraphx {
-inline namespace MIGRAPHX_INLINE_NS {
-
-template <class T>
-auto hash_value(const T& v) -> decltype(std::hash<T>{}(v))
+TEST_CASE(addn_test)
 {
-    return std::hash<T>{}(v);
+    migraphx::program p;
+
+    auto* mm  = p.get_main_module();
+    auto l0   = mm->add_parameter("0", migraphx::shape{migraphx::shape::float_type, {2, 3}});
+    auto l1   = mm->add_parameter("1", migraphx::shape{migraphx::shape::float_type, {2, 3}});
+    auto l2   = mm->add_parameter("2", migraphx::shape{migraphx::shape::float_type, {2, 3}});
+    auto add1 = mm->add_instruction(migraphx::make_op("add"), l0, l1);
+    mm->add_instruction(migraphx::make_op("add"), add1, l2);
+    auto prog = optimize_tf("addn_test.pb", false);
+
+    EXPECT(p == prog);
 }
 
-template <class T>
-void hash_combine(std::size_t& seed, const T& v)
+TEST_CASE(addn_single_test)
 {
-    seed ^= hash_value(v) + 0x9e3779b9 + (seed << 6u) + (seed >> 2u);
-}
+    migraphx::program p;
 
-} // namespace MIGRAPHX_INLINE_NS
-} // namespace migraphx
-#endif // MIGRAPHX_GUARD_MIGRAPHX_HASH_HPP
+    auto* mm = p.get_main_module();
+    auto l0  = mm->add_parameter("0", migraphx::shape{migraphx::shape::float_type, {2, 3}});
+    mm->add_instruction(migraphx::make_op("identity"), l0);
+    auto prog = optimize_tf("addn_single_test.pb", false);
+
+    EXPECT(p == prog);
+}

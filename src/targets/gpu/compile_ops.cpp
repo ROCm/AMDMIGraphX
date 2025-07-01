@@ -171,18 +171,16 @@ struct compile_plan
     std::string print_modules() const
     {
         std::stringstream current_module;
-        for(const auto m : ins->module_inputs())
+        for(auto *const m : ins->module_inputs())
         {
-            m->print_py(current_module);
-            current_module << "\n";
+            current_module << to_string(*m) << "\n";
         }
         std::stringstream submodules;
-        for(const auto m : ins->module_inputs())
+        for(auto *const m : ins->module_inputs())
         {
-            for(const auto sm : m->get_sub_modules())
+            for(auto *const sm : m->get_sub_modules())
             {
-                sm->print_py(submodules);
-                submodules << "\n";
+                submodules << to_string(*sm) << "\n";
             }
         }
         return config->detailed_problem_info + "\n\nCurrent Module:\n" + current_module.str() +

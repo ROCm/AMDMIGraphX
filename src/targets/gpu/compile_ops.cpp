@@ -206,7 +206,16 @@ struct compile_plan
             }
         }
         return config->detailed_problem_info + "\n\nCurrent Module:\n" + current_module.str() +
-               (not submodules.str().empty() ? "Submodules:\n" + submodules.str() : "");
+               (not submodules.str().empty() ? "Submodules:\n" + submodules.str() : "") + "Input Shapes:\n" + print_input_shapes();
+    }
+    std::string print_input_shapes() const
+    {
+        std::stringstream input_shapes;
+        for(const auto& i : ins->inputs())
+        {
+            input_shapes << i->get_shape() << "\n";
+        }
+        return input_shapes.str();
     }
 
     const compiled_result& benchmark() const

@@ -171,14 +171,14 @@ struct compile_plan
     std::string print_modules() const
     {
         std::stringstream current_module;
-        for(auto *const m : ins->module_inputs())
+        for(auto* const m : ins->module_inputs())
         {
             current_module << to_string(*m) << "\n";
         }
         std::stringstream submodules;
-        for(auto *const m : ins->module_inputs())
+        for(auto* const m : ins->module_inputs())
         {
-            for(auto *const sm : m->get_sub_modules())
+            for(auto* const sm : m->get_sub_modules())
             {
                 submodules << to_string(*sm) << "\n";
             }

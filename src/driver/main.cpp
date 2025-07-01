@@ -296,11 +296,13 @@ struct loader
     tf_options get_tf_options() const
     {
         auto map_input_dims    = parse_param_dims(param_dims);
+        auto map_dyn_input_dims = parse_dyn_dims_map(dyn_param_dims);
         auto output_node_names = parse_output_names(output_names);
         tf_options options;
         options.is_nhwc           = is_nhwc;
         options.batch_size        = batch;
         options.map_input_dims    = map_input_dims;
+        options.map_dyn_input_dims     = map_dyn_input_dims;
         options.output_node_names = output_node_names;
         return options;
     }

@@ -64,7 +64,17 @@ struct parse_matmul : op_parser<parse_matmul>
             transb = info.attributes.at("adj_y").b();
         }
 
-        std::vector<int64_t> perm(args[0]->get_shape().lens().size());
+        size_t ndims;
+        shape in0_shape = args[0]->get_shape();
+        if(in0_shape.dynamic())
+        {
+            ndims = in0_shape.dyn_dims().size();
+        }
+        else
+        {
+            ndims = in0_shape.lens().size();
+        }
+        std::vector<int64_t> perm(ndims);
         std::iota(perm.begin(), perm.end(), int64_t{0});
         // swap the last two elements
         std::iter_swap(perm.end() - 1, perm.end() - 2);

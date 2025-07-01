@@ -1316,7 +1316,7 @@ struct onnx_options : MIGRAPHX_HANDLE_BASE(onnx_options)
 
     MIGRAPHX_HANDLE_CONSTRUCTOR(onnx_options)
 
-    /// Make onnx parser treat an inputs with a certain dimensions
+    /// Make onnx parser treat any inputs with a certain dimension
     void set_input_parameter_shape(const std::string& name, std::vector<std::size_t> dim)
     {
         call(&migraphx_onnx_options_set_input_parameter_shape,
@@ -1326,6 +1326,7 @@ struct onnx_options : MIGRAPHX_HANDLE_BASE(onnx_options)
              dim.size());
     }
 
+    /// Make onnx parser treat any inputs with a certain dynamic dimension
     void set_dyn_input_parameter_shape(const std::string& name, const dynamic_dimensions& dyn_dims)
     {
         call(&migraphx_onnx_options_set_dyn_input_parameter_shape,
@@ -1427,7 +1428,7 @@ struct tf_options : MIGRAPHX_HANDLE_BASE(tf_options)
 
     MIGRAPHX_HANDLE_CONSTRUCTOR(tf_options)
 
-    /// Make tf parser treat an inputs with a certain dimensions
+    /// Make tf parser treat any inputs with a certain dimensions
     void set_input_parameter_shape(const std::string& name, std::vector<std::size_t> dim)
     {
         call(&migraphx_tf_options_set_input_parameter_shape,
@@ -1435,6 +1436,15 @@ struct tf_options : MIGRAPHX_HANDLE_BASE(tf_options)
              name.c_str(),
              dim.data(),
              dim.size());
+    }
+
+    /// Make onnx parser treat any inputs with a certain dynamic dimension
+    void set_dyn_input_parameter_shape(const std::string& name, const dynamic_dimensions& dyn_dims)
+    {
+        call(&migraphx_tf_options_set_dyn_input_parameter_shape,
+             this->get_handle_ptr(),
+             name.c_str(),
+             dyn_dims.get_handle_ptr());
     }
 
     /// Change data layout to NHWC (default is NCHW)

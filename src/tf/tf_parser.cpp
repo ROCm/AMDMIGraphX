@@ -50,9 +50,25 @@ namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
 namespace tf {
 
+static shape shape_from_dyn_dims(shape::type_t shape_type,
+                                 const std::vector<shape::dynamic_dimension>& dyn_dims)
+{
+    if(std::all_of(dyn_dims.begin(), dyn_dims.end(), [](const auto& dd) { return dd.is_fixed(); }))
+    {
+        std::vector<std::size_t> dims;
+        std::transform(dyn_dims.cbegin(),
+                       dyn_dims.cend(),
+                       std::back_inserter(dims),
+                       [](const auto& d) { return d.max; });
+        return {shape_type, dims};
+    }
+    return {shape_type, dyn_dims};
+}
+
 bool tf_parser::should_transpose(instruction_ref ins) const
 {
-    return is_nhwc and ins->get_shape().lens().size() == 4;
+    const auto& shape = ins->get_shape();
+    return is_nhwc and shape.dynamic() ? shape.dyn_dims().size() == 4 : shape.lens().size() == 4;
 }
 
 instruction_ref tf_parser::to_nhwc(instruction_ref ins) const
@@ -276,10 +292,15 @@ void tf_parser::parse_graph(const tensorflow::GraphDef& graph)
         attribute_map input_attrs = get_attributes(input);
         shape::type_t shape_type  = parse_type(input_attrs.at("dtype").type());
         std::vector<size_t> dims  = parse_dims(input_attrs.at("shape").shape());
+        shape s;
 
         if(contains(map_input_dims, name))
         {
             dims = map_input_dims.at(name);
+        }
+        else if(contains(map_dyn_input_dims, name))
+        {
+            s = shape_from_dyn_dims(shape_type, map_dyn_input_dims.at(name));
         }
         else
         {
@@ -292,7 +313,8 @@ void tf_parser::parse_graph(const tensorflow::GraphDef& graph)
             });
         }
 
-        shape s            = shape{shape_type, dims};
+        if(not contains(map_dyn_input_dims, name))
+            s = shape{shape_type, dims};
         instructions[name] = to_nhwc(mm->add_parameter(name, s));
     }
     for(auto&& p : nodes)

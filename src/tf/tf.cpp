@@ -44,6 +44,7 @@ static program parse_tf_from(const tf_options& options, Ts&&... xs)
     parser.is_nhwc           = options.is_nhwc;
     parser.batch_size        = options.batch_size;
     parser.map_input_dims    = options.map_input_dims;
+    parser.map_dyn_input_dims = options.map_dyn_input_dims;
     parser.output_node_names = options.output_node_names;
 
 #ifndef NDEBUG

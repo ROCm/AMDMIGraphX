@@ -145,26 +145,6 @@ struct compile_plan
             {
                 ctx->get_problem_cache().mark(preop.name(), problem);
                 const auto& solutions = config->solutions;
-                std::stringstream current_module;
-                for(const auto m : ins->module_inputs())
-                {
-                    m->print_py(current_module);
-                    current_module << "\n";
-                    for(const auto sm : m->get_sub_modules())
-                    {
-                        sm->print_py(current_module);
-                        current_module << "\n";
-                    }
-                }
-                std::stringstream submodules;
-                for(const auto m : ins->module_inputs())
-                {
-                    for(const auto sm : m->get_sub_modules())
-                    {
-                        sm->print_py(submodules);
-                        current_module << "\n";
-                    }
-                }
                 if(solutions.empty())
                     MIGRAPHX_THROW("No solutions provided for " + preop.name() + " with " +
                                    problem_string() + "\n\n" + print_modules());

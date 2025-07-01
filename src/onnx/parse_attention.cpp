@@ -140,16 +140,16 @@ struct parse_attention : op_parser<parse_attention>
         float get_mask_filter_val() const { return attr.mask_filter_val; }
 
         mask_pad padding_mode() const
-        {   
-            if (has_mask())
+        {
+            if(has_mask())
             {
                 auto mask_shape = mask_index.value()->get_shape();
-                if (mask_shape.ndim() == 1)
+                if(mask_shape.ndim() == 1)
                 {
                     if(mask_shape.lens().at(0) == batch_size())
-                       return mask_pad::right_padding;
+                        return mask_pad::right_padding;
                     else if(mask_shape.lens().at(0) == (batch_size() * 2))
-                       return mask_pad::left_padding;
+                        return mask_pad::left_padding;
                 }
                 else if(mask_shape.ndim() > 1)
                 {

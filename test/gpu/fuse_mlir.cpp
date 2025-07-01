@@ -21,7 +21,6 @@
  * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
  * THE SOFTWARE.
  */
-#include "add_group_op.hpp"
 #include <migraphx/generate.hpp>
 #include <migraphx/dead_code_elimination.hpp>
 #include <migraphx/gpu/fuse_mlir.hpp>
@@ -32,6 +31,7 @@
 #include <migraphx/make_op.hpp>
 #include <migraphx/param_utils.hpp>
 #include <basic_ops.hpp>
+#include <group.hpp>
 #include <test.hpp>
 #include <pointwise.hpp>
 #include <reduce.hpp>

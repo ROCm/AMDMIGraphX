@@ -21,10 +21,9 @@
  * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
  * THE SOFTWARE.
  */
-#include "add_group_op.hpp"
 #include <migraphx/generate.hpp>
 #include <migraphx/dead_code_elimination.hpp>
-#include <migraphx/gpu/fuse_special_ops.hpp>
+#include <migraphx/fuse_attention.hpp>
 #include <migraphx/instruction.hpp>
 #include <migraphx/pass_manager.hpp>
 #include <migraphx/op/common.hpp>
@@ -32,6 +31,7 @@
 #include <migraphx/make_op.hpp>
 #include <migraphx/param_utils.hpp>
 #include <basic_ops.hpp>
+#include <group.hpp>
 #include <test.hpp>
 #include <pointwise.hpp>
 #include <reduce.hpp>
@@ -39,7 +39,7 @@
 
 static void run_pass(migraphx::program& p)
 {
-    migraphx::run_passes(p, {migraphx::gpu::fuse_special_ops{.enable_attention = true}});
+    migraphx::run_passes(p, {migraphx::fuse_attention{}, migraphx::dead_code_elimination{}});
 }
 
 TEST_CASE(gemm_softmax_gemm)

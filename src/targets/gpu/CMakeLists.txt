@@ -156,7 +156,6 @@ add_library(migraphx_gpu
     fuse_ck.cpp
     fuse_mlir.cpp
     fuse_ops.cpp
-    fuse_special_ops.cpp
     gemm_impl.cpp
     hip.cpp
     hipblaslt.cpp

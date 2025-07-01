@@ -1044,8 +1044,8 @@ inline auto has_attribute(const std::string& name)
 inline auto has_op_value(const std::string& name, const std::string& value)
 {
     return make_basic_pred_matcher([=](instruction_ref ins) {
-        return ins->get_operator().to_value().contains(name) and
-               ins->get_operator().to_value()[name].to<std::string>() == value;
+        auto op_val = ins->get_operator().to_value();
+        return op_val.contains(name) and op_val[name].to<std::string>() == value;
     });
 }
 

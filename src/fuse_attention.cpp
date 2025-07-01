@@ -22,8 +22,7 @@
  * THE SOFTWARE.
  *
  */
-#include <migraphx/gpu/fuse_mlir.hpp>
-#include <migraphx/gpu/fuse_special_ops.hpp>
+#include <migraphx/fuse_attention.hpp>
 #include <migraphx/pass_manager.hpp>
 #include <migraphx/matcher.hpp>
 #include <migraphx/match/softmax.hpp>
@@ -33,8 +32,6 @@
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
-
-namespace gpu {
 
 namespace {
 
@@ -91,14 +88,15 @@ struct find_attention
         std::unordered_set<instruction_ref> inss;
         inputs.push(end);
 
+        static const std::unordered_set<std::string> valid_attn_ops = {
+            "reshape", "reduce_sum", "reduce_max", "broadcast", "multibroadcast", "@literal"};
+
         auto is_valid_attn_op = [&](auto i) {
-            std::unordered_set<std::string> valid_ops = {
-                "reshape", "reduce_sum", "reduce_max", "broadcast", "multibroadcast", "@literal"};
             return i->get_operator().attributes().get("pointwise", false) or
-                   contains(valid_ops, i->get_operator().name()) or i == start or i == end;
+                   contains(valid_attn_ops, i->get_operator().name()) or i == start or i == end;
         };
 
-        while(!inputs.empty())
+        while(not inputs.empty())
         {
             auto current_inp = inputs.front();
             inputs.pop();
@@ -117,8 +115,8 @@ struct find_attention
 
     void apply(module_pass_manager& mpm, const match::matcher_result& r) const
     {
-        auto gemm2       = r.result;
-        auto gemm1       = r.instructions["dot1"];
+        auto gemm2 = r.result;
+        auto gemm1 = r.instructions["dot1"];
 
         // Capture all instructions part of the attention op
         auto attn_inss = get_attn_instructions(gemm1, gemm2);
@@ -148,7 +146,7 @@ struct find_attention
                                                 [&](auto o) { return contains(attn_ins_vec, o); });
                      });
 
-        assert(required_outputs.size() > 0);
+        assert(not required_outputs.empty());
         // Not supporting multi-out just yet - TODO: remove for lse support
         if(required_outputs.size() > 1)
             return;
@@ -179,16 +177,11 @@ struct find_attention
 
 } // namespace
 
-void fuse_special_ops::apply(module_pass_manager& mpm) const
+void fuse_attention::apply(module_pass_manager& mpm) const
 {
     std::size_t counter = 0;
-    if(mlir_attention_enabled(ctx) or enable_attention)
-    {
-        match::find_matches(mpm, find_attention{.counter = &counter});
-        mpm.run_pass(dead_code_elimination{});
-    }
+    match::find_matches(mpm, find_attention{.counter = &counter});
 }
 
-} // namespace gpu
 } // namespace MIGRAPHX_INLINE_NS
 } // namespace migraphx

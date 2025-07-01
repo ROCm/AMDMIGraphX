@@ -22,11 +22,10 @@
  * THE SOFTWARE.
  *
  */
-#ifndef MIGRAPHX_GUARD_GPU_FUSE_SPECIAL_OPS_HPP
-#define MIGRAPHX_GUARD_GPU_FUSE_SPECIAL_OPS_HPP
+#ifndef MIGRAPHX_GUARD_MIGRAPHX_FUSE_ATTENTION_HPP
+#define MIGRAPHX_GUARD_MIGRAPHX_FUSE_ATTENTION_HPP
 
 #include <migraphx/config.hpp>
-#include <migraphx/gpu/context.hpp>
 #include <string>
 
 namespace migraphx {
@@ -34,17 +33,12 @@ inline namespace MIGRAPHX_INLINE_NS {
 
 struct module_pass_manager;
 
-namespace gpu {
-
-struct MIGRAPHX_EXPORT fuse_special_ops
+struct MIGRAPHX_EXPORT fuse_attention
 {
-    context* ctx = nullptr;
-    bool enable_attention = false;
-    std::string name() const { return "fuse_special_ops"; }
+    std::string name() const { return "fuse_attention"; }
     void apply(module_pass_manager& mpm) const;
 };
-} // namespace gpu
 
 } // namespace MIGRAPHX_INLINE_NS
 } // namespace migraphx
-#endif // MIGRAPHX_GUARD_GPU_FUSE_SPECIAL_OPS_HPP
+#endif // MIGRAPHX_GUARD_MIGRAPHX_FUSE_ATTENTION_HPP

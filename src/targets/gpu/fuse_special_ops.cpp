@@ -66,7 +66,6 @@ struct find_attention
 
     auto matcher() const
     {
-        // auto gemm1 = match::inputs_of(match::pointwise())(match::name("dot").bind("gemm1"));
         auto gemm1 = match::any_of[pointwise_inputs()](match::name("dot").bind("dot1"));
         return match::name("dot")(match::arg(0)(match::softmax_input(gemm1).bind("div")));
     }
@@ -167,7 +166,7 @@ struct find_attention
         auto map_mattn_to_mm = invert_map_ins(map_mm_to_mattn);
         auto new_inputs      = m_attn.get_inputs(map_mattn_to_mm);
 
-        module_ref mpm_attn = mpm.create_module("mlir_attn" + get_count(), std::move(m_attn));
+        module_ref mpm_attn = mpm.create_module("attn" + get_count(), std::move(m_attn));
         mpm_attn->set_bypass();
 
         // Construct group op with the attention module

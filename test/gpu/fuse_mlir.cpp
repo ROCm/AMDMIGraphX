@@ -21,6 +21,7 @@
  * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
  * THE SOFTWARE.
  */
+#include "add_group_op.hpp"
 #include <migraphx/generate.hpp>
 #include <migraphx/dead_code_elimination.hpp>
 #include <migraphx/gpu/fuse_mlir.hpp>
@@ -1191,14 +1192,11 @@ TEST_CASE(conv_add_split_reduce_multi_use_conv)
     EXPECT(p1.sort() == p2.sort());
 }
 
-TEST_CASE(gemm_softmax_gemm)
+TEST_CASE(standalone_attention)
 {
     migraphx::shape s1{migraphx::shape::half_type, {1, 12, 256, 256}};
     migraphx::shape s2{migraphx::shape::bool_type, {1, 12, 256, 256}};
-    // Original program graph (excluding shape ops): dot -> softmax -> dot
-    // When compile pipeline reaches fuse_mlir pass, this has been rewritten
-    // as dot -> fused_reduce -> dot, where the fused_reduce module contains
-    // the base softmax operations. p1 constructs such a graph
+
     migraphx::program p1;
     {
         auto* mm = p1.get_main_module();
@@ -1206,52 +1204,35 @@ TEST_CASE(gemm_softmax_gemm)
         auto b   = mm->add_parameter("2", s1);
         auto b1  = mm->add_parameter("3", s1);
         b = mm->add_instruction(migraphx::make_op("transpose", {{"permutation", {0, 1, 3, 2}}}), b);
-        b = mm->add_instruction(migraphx::make_op("contiguous"), b);
         b1 = mm->add_instruction(migraphx::make_op("transpose", {{"permutation", {0, 1, 3, 2}}}),
                                  b1);
-        b1 = mm->add_instruction(migraphx::make_op("contiguous"), b1);
-        auto gemm1 = mm->add_instruction(migraphx::make_op("dot"), a, b);
 
-        auto pw_reduce = add_reduce(
+        auto group = add_group(
             p1,
-            "main:fused_reduce0",
-            {gemm1},
-            {3},
-            [&](auto* rm,
-                const auto& inputs,
-                const auto& axes) -> std::vector<migraphx::instruction_ref> {
-                auto rmax = rm->add_instruction(migraphx::make_op("reduce_max", {{"axes", axes}}),
-                                                inputs[0]);
-                rmax      = rm->add_instruction(
+            "attn0",
+            "attention",
+            {a, b, b1},
+            {"x0", "x1", "x2"},
+            [=](auto* gm, const auto& inputs) {
+                auto gemm1 = gm->add_instruction(migraphx::make_op("dot"), inputs[0], inputs[1]);
+                auto rmax =
+                    gm->add_instruction(migraphx::make_op("reduce_max", {{"axes", {3}}}), gemm1);
+                rmax = gm->add_instruction(
                     migraphx::make_op("multibroadcast", {{"out_lens", s1.lens()}}), rmax);
-
-                auto pw =
-                    add_pointwise(p1,
-                                  rm,
-                                  "main:pointwise0",
-                                  {inputs[0], rmax},
-                                  [](auto* pm, const auto& pw_inputs) {
-                                      auto sub = pm->add_instruction(
-                                          migraphx::make_op("sub"), pw_inputs[0], pw_inputs[1]);
-                                      return pm->add_instruction(migraphx::make_op("exp"), sub);
-                                  });
+                auto sub = gm->add_instruction(migraphx::make_op("sub"), gemm1, rmax);
+                auto exp = gm->add_instruction(migraphx::make_op("exp"), sub);
                 auto rsum =
-                    rm->add_instruction(migraphx::make_op("reduce_sum", {{"axes", axes}}), pw);
-                rsum = rm->add_instruction(
+                    gm->add_instruction(migraphx::make_op("reduce_sum", {{"axes", {3}}}), exp);
+                rsum = gm->add_instruction(
                     migraphx::make_op("multibroadcast", {{"out_lens", s1.lens()}}), rsum);
+                auto div = gm->add_instruction(migraphx::make_op("div"), exp, rsum);
 
-                return {
-                    add_pointwise(p1, rm, "main:pointwise2", {pw, rsum}, single_pointwise("div"))};
+                return gm->add_instruction(migraphx::make_op("dot"), div, inputs[2]);
             });
-
-        auto gemm2 = mm->add_instruction(migraphx::make_op("dot"), pw_reduce, b1);
-        mm->add_return({gemm2});
+        mm->add_return({group});
     }
     run_pass(p1);
 
-    // dot -> fused_reduce -> dot should be fused into a single module by the
-    // find_mlir_standalone_attention_op matcher, with the fused_reduce module
-    // unrolled into softmax (required for mlir during compile ops)
     migraphx::program p2;
     {
         auto* mm   = p2.get_main_module();
@@ -1259,126 +1240,25 @@ TEST_CASE(gemm_softmax_gemm)
         auto b     = mm->add_parameter("2", s1);
         auto b1    = mm->add_parameter("3", s1);
         auto fused = add_mlir(
-            p2,
-            "mlir_attn_main:fused_reduce0",
-            {a, b, b1},
-            {"x0", "x1", "x2"},
-            [=](auto* pm, const auto& inputs) {
+            p2, "mlir_attn0", {a, b, b1}, {"x0", "x1", "x2"}, [=](auto* pm, const auto& inputs) {
                 auto fb = pm->add_instruction(
                     migraphx::make_op("transpose", {{"permutation", {0, 1, 3, 2}}}), inputs[1]);
-                fb         = pm->add_instruction(migraphx::make_op("contiguous"), fb);
-                auto gemm1 = pm->add_instruction(migraphx::make_op("dot"), inputs[0], fb);
-                auto smax = pm->add_instruction(migraphx::make_op("softmax", {{"axis", 3}}), gemm1);
-
                 auto fb1 = pm->add_instruction(
                     migraphx::make_op("transpose", {{"permutation", {0, 1, 3, 2}}}), inputs[2]);
-                fb1        = pm->add_instruction(migraphx::make_op("contiguous"), fb1);
-                auto gemm2 = pm->add_instruction(migraphx::make_op("dot"), smax, fb1);
-                return std::make_tuple(gemm2->get_operator(), gemm2);
-            });
-        mm->add_return({fused});
-    }
-    EXPECT(p1 == p2);
-}
-
-TEST_CASE(gemm_pw_softmax_gemm)
-{
-    migraphx::shape s1{migraphx::shape::half_type, {1, 12, 256, 256}};
-    migraphx::shape s2{migraphx::shape::bool_type, {1, 12, 256, 256}};
-    auto s1_elements = s1.elements();
-
-    // Original program graph (excluding shape ops): dot -> pointwise -> softmax -> dot
-    // Here fused_reduce contains pointwise + softmax all in one module.
-    migraphx::program p1;
-    {
-        auto* mm    = p1.get_main_module();
-        auto a      = mm->add_parameter("1", s1);
-        auto b      = mm->add_parameter("2", s1);
-        auto b1     = mm->add_parameter("3", s1);
-        auto select = mm->add_parameter("4", s2);
-        std::vector<float> eights(s1_elements, 0.125);
-        std::vector<float> tens(s1_elements, 10);
-        auto eight = mm->add_literal(migraphx::literal{s1, eights});
-        auto ten   = mm->add_literal(migraphx::literal{s1, tens});
-        b = mm->add_instruction(migraphx::make_op("transpose", {{"permutation", {0, 1, 3, 2}}}), b);
-        b = mm->add_instruction(migraphx::make_op("contiguous"), b);
-        b1 = mm->add_instruction(migraphx::make_op("transpose", {{"permutation", {0, 1, 3, 2}}}),
-                                 b1);
-        b1 = mm->add_instruction(migraphx::make_op("contiguous"), b1);
-        auto gemm1 = mm->add_instruction(migraphx::make_op("dot"), a, b);
-
-        auto pw_reduce = add_reduce(
-            p1,
-            "main:fused_reduce0",
-            {gemm1, eight, select, ten},
-            {3},
-            [&](auto* rm,
-                const auto& inputs,
-                const auto& axes) -> std::vector<migraphx::instruction_ref> {
-                auto pw = add_pointwise(
-                    p1, rm, "main:pointwise0", inputs, [](auto* pm, const auto& pw_inputs) {
-                        auto mul = pm->add_instruction(
-                            migraphx::make_op("mul"), pw_inputs[0], pw_inputs[1]);
-                        return pm->add_instruction(
-                            migraphx::make_op("where"), pw_inputs[2], mul, pw_inputs[3]);
-                    });
-                auto rmax =
-                    rm->add_instruction(migraphx::make_op("reduce_max", {{"axes", axes}}), pw);
-                rmax = rm->add_instruction(
-                    migraphx::make_op("multibroadcast", {{"out_lens", s1.lens()}}), rmax);
-
-                auto pw2 = add_pointwise(
-                    p1, rm, "main:pointwise2", {pw, rmax}, [](auto* pm, const auto& pw_inputs) {
-                        auto sub = pm->add_instruction(
-                            migraphx::make_op("sub"), pw_inputs[0], pw_inputs[1]);
-                        return pm->add_instruction(migraphx::make_op("exp"), sub);
-                    });
-                auto rsum =
-                    rm->add_instruction(migraphx::make_op("reduce_sum", {{"axes", axes}}), pw2);
-                rsum = rm->add_instruction(
-                    migraphx::make_op("multibroadcast", {{"out_lens", s1.lens()}}), rsum);
-
-                return {
-                    add_pointwise(p1, rm, "main:pointwise4", {pw2, rsum}, single_pointwise("div"))};
-            });
-
-        auto gemm2 = mm->add_instruction(migraphx::make_op("dot"), pw_reduce, b1);
-        mm->add_return({gemm2});
-    }
-    run_pass(p1);
-
-    // Same result as gemm_softmax_gemm, but here the fused_reduce is unrolled into
-    // pointwise ops + softmax
-    migraphx::program p2;
-    {
-        auto* mm    = p2.get_main_module();
-        auto a      = mm->add_parameter("1", s1);
-        auto b      = mm->add_parameter("2", s1);
-        auto b1     = mm->add_parameter("3", s1);
-        auto select = mm->add_parameter("4", s2);
-        std::vector<float> eights(s1_elements, 0.125);
-        std::vector<float> tens(s1_elements, 10);
-        auto eight = mm->add_literal(migraphx::literal{s1, eights});
-        auto ten   = mm->add_literal(migraphx::literal{s1, tens});
-        auto fused = add_mlir(
-            p2,
-            "mlir_attn_main:fused_reduce0",
-            {a, b, eight, select, ten, b1},
-            {"x0", "x1", "x2", "x3", "x4", "x5"},
-            [=](auto* pm, const auto& inputs) {
-                auto fb = pm->add_instruction(
-                    migraphx::make_op("transpose", {{"permutation", {0, 1, 3, 2}}}), inputs[1]);
-                fb         = pm->add_instruction(migraphx::make_op("contiguous"), fb);
                 auto gemm1 = pm->add_instruction(migraphx::make_op("dot"), inputs[0], fb);
-                auto mul   = pm->add_instruction(migraphx::make_op("mul"), gemm1, inputs[2]);
-                auto where =
-                    pm->add_instruction(migraphx::make_op("where"), inputs[3], mul, inputs[4]);
-                auto smax = pm->add_instruction(migraphx::make_op("softmax", {{"axis", 3}}), where);
+                auto rmax =
+                    pm->add_instruction(migraphx::make_op("reduce_max", {{"axes", {3}}}), gemm1);
+                rmax = pm->add_instruction(
+                    migraphx::make_op("multibroadcast", {{"out_lens", s1.lens()}}), rmax);
+                auto sub = pm->add_instruction(migraphx::make_op("sub"), gemm1, rmax);
+                auto exp = pm->add_instruction(migraphx::make_op("exp"), sub);
+                auto rsum =
+                    pm->add_instruction(migraphx::make_op("reduce_sum", {{"axes", {3}}}), exp);
+                rsum = pm->add_instruction(
+                    migraphx::make_op("multibroadcast", {{"out_lens", s1.lens()}}), rsum);
+                auto div = pm->add_instruction(migraphx::make_op("div"), exp, rsum);
 
-                auto fb1 = pm->add_instruction(
-                    migraphx::make_op("transpose", {{"permutation", {0, 1, 3, 2}}}), inputs[5]);
-                fb1        = pm->add_instruction(migraphx::make_op("contiguous"), fb1);
-                auto gemm2 = pm->add_instruction(migraphx::make_op("dot"), smax, fb1);
+                auto gemm2 = pm->add_instruction(migraphx::make_op("dot"), div, fb1);
                 return std::make_tuple(gemm2->get_operator(), gemm2);
             });
         mm->add_return({fused});
@@ -1386,7 +1266,7 @@ TEST_CASE(gemm_pw_softmax_gemm)
     EXPECT(p1 == p2);
 }
 
-TEST_CASE(gemm_pw_softmax_gemm_pw)
+TEST_CASE(fused_attention)
 {
     migraphx::shape s1{migraphx::shape::half_type, {1, 12, 256, 256}};
     migraphx::shape s2{migraphx::shape::bool_type, {1, 12, 256, 256}};
@@ -1401,53 +1281,33 @@ TEST_CASE(gemm_pw_softmax_gemm_pw)
         auto c      = mm->add_parameter("5", s1);
         std::vector<float> eights(s1_elements, 0.125);
         std::vector<float> tens(s1_elements, 10);
-        auto eight = mm->add_literal(migraphx::literal{s1, eights});
-        auto ten   = mm->add_literal(migraphx::literal{s1, tens});
         b = mm->add_instruction(migraphx::make_op("transpose", {{"permutation", {0, 1, 3, 2}}}), b);
-        b = mm->add_instruction(migraphx::make_op("contiguous"), b);
         b1 = mm->add_instruction(migraphx::make_op("transpose", {{"permutation", {0, 1, 3, 2}}}),
                                  b1);
-        b1 = mm->add_instruction(migraphx::make_op("contiguous"), b1);
-        auto gemm1 = mm->add_instruction(migraphx::make_op("dot"), a, b);
 
-        auto pw_reduce = add_reduce(
-            p1,
-            "main:fused_reduce0",
-            {gemm1, eight, select, ten},
-            {3},
-            [&](auto* rm,
-                const auto& inputs,
-                const auto& axes) -> std::vector<migraphx::instruction_ref> {
-                auto pw = add_pointwise(
-                    p1, rm, "main:pointwise0", inputs, [](auto* pm, const auto& pw_inputs) {
-                        auto mul = pm->add_instruction(
-                            migraphx::make_op("mul"), pw_inputs[0], pw_inputs[1]);
-                        return pm->add_instruction(
-                            migraphx::make_op("where"), pw_inputs[2], mul, pw_inputs[3]);
-                    });
+        auto group = add_group(
+            p1, "attn0", "attention", {a, b, select, b1}, [=](auto* gm, const auto& inputs) {
+                auto ten   = gm->add_literal(migraphx::literal{s1, tens});
+                auto eight = gm->add_literal(migraphx::literal{s1, eights});
+                auto gemm1 = gm->add_instruction(migraphx::make_op("dot"), inputs[0], inputs[1]);
+                auto mul   = gm->add_instruction(migraphx::make_op("mul"), gemm1, eight);
+                auto where = gm->add_instruction(migraphx::make_op("where"), inputs[2], mul, ten);
                 auto rmax =
-                    rm->add_instruction(migraphx::make_op("reduce_max", {{"axes", axes}}), pw);
-                rmax = rm->add_instruction(
+                    gm->add_instruction(migraphx::make_op("reduce_max", {{"axes", {3}}}), where);
+                rmax = gm->add_instruction(
                     migraphx::make_op("multibroadcast", {{"out_lens", s1.lens()}}), rmax);
-
-                auto pw2 = add_pointwise(
-                    p1, rm, "main:pointwise2", {pw, rmax}, [](auto* pm, const auto& pw_inputs) {
-                        auto sub = pm->add_instruction(
-                            migraphx::make_op("sub"), pw_inputs[0], pw_inputs[1]);
-                        return pm->add_instruction(migraphx::make_op("exp"), sub);
-                    });
+                auto sub = gm->add_instruction(migraphx::make_op("sub"), gemm1, rmax);
+                auto exp = gm->add_instruction(migraphx::make_op("exp"), sub);
                 auto rsum =
-                    rm->add_instruction(migraphx::make_op("reduce_sum", {{"axes", axes}}), pw2);
-                rsum = rm->add_instruction(
+                    gm->add_instruction(migraphx::make_op("reduce_sum", {{"axes", {3}}}), exp);
+                rsum = gm->add_instruction(
                     migraphx::make_op("multibroadcast", {{"out_lens", s1.lens()}}), rsum);
+                auto div = gm->add_instruction(migraphx::make_op("div"), exp, rsum);
 
-                return {
-                    add_pointwise(p1, rm, "main:pointwise4", {pw2, rsum}, single_pointwise("div"))};
+                return gm->add_instruction(migraphx::make_op("dot"), div, inputs[3]);
             });
-
-        auto gemm2 = mm->add_instruction(migraphx::make_op("dot"), pw_reduce, b1);
         auto trailing_pw =
-            add_pointwise(p1, mm, "main:pointwise5", {gemm2, c}, single_pointwise("add"));
+            add_pointwise(p1, mm, "main:pointwise0", {group, c}, single_pointwise("add"));
         mm->add_return({trailing_pw});
     }
     run_pass(p1);
@@ -1461,159 +1321,39 @@ TEST_CASE(gemm_pw_softmax_gemm_pw)
         auto c      = mm->add_parameter("5", s1);
         std::vector<float> eights(s1_elements, 0.125);
         std::vector<float> tens(s1_elements, 10);
-        auto eight = mm->add_literal(migraphx::literal{s1, eights});
-        auto ten   = mm->add_literal(migraphx::literal{s1, tens});
         auto fused = add_mlir(
             p2,
-            "mlir_attn_main:fused_reduce0",
-            {a, b, eight, select, ten, b1, c},
-            {"x0", "x1", "x2", "x3", "x4", "x5", "x6"},
+            "mlir_attn0",
+            {a, b, select, b1, c},
+            {"x0", "x1", "x2", "x3", "x4"},
             [=](auto* pm, const auto& inputs) {
-                auto fb = pm->add_instruction(
+                auto ten   = pm->add_literal(migraphx::literal{s1, tens});
+                auto eight = pm->add_literal(migraphx::literal{s1, eights});
+                auto fb    = pm->add_instruction(
                     migraphx::make_op("transpose", {{"permutation", {0, 1, 3, 2}}}), inputs[1]);
-                fb         = pm->add_instruction(migraphx::make_op("contiguous"), fb);
-                auto gemm1 = pm->add_instruction(migraphx::make_op("dot"), inputs[0], fb);
-                auto mul   = pm->add_instruction(migraphx::make_op("mul"), gemm1, inputs[2]);
-                auto where =
-                    pm->add_instruction(migraphx::make_op("where"), inputs[3], mul, inputs[4]);
-                auto smax = pm->add_instruction(migraphx::make_op("softmax", {{"axis", 3}}), where);
-
                 auto fb1 = pm->add_instruction(
-                    migraphx::make_op("transpose", {{"permutation", {0, 1, 3, 2}}}), inputs[5]);
-                fb1        = pm->add_instruction(migraphx::make_op("contiguous"), fb1);
-                auto gemm2 = pm->add_instruction(migraphx::make_op("dot"), smax, fb1);
-                auto add   = pm->add_instruction(migraphx::make_op("add"), gemm2, inputs[6]);
+                    migraphx::make_op("transpose", {{"permutation", {0, 1, 3, 2}}}), inputs[3]);
+                auto gemm1 = pm->add_instruction(migraphx::make_op("dot"), inputs[0], fb);
+                auto mul   = pm->add_instruction(migraphx::make_op("mul"), gemm1, eight);
+                auto where = pm->add_instruction(migraphx::make_op("where"), inputs[2], mul, ten);
+                auto rmax =
+                    pm->add_instruction(migraphx::make_op("reduce_max", {{"axes", {3}}}), where);
+                rmax = pm->add_instruction(
+                    migraphx::make_op("multibroadcast", {{"out_lens", s1.lens()}}), rmax);
+                auto sub = pm->add_instruction(migraphx::make_op("sub"), gemm1, rmax);
+                auto exp = pm->add_instruction(migraphx::make_op("exp"), sub);
+                auto rsum =
+                    pm->add_instruction(migraphx::make_op("reduce_sum", {{"axes", {3}}}), exp);
+                rsum = pm->add_instruction(
+                    migraphx::make_op("multibroadcast", {{"out_lens", s1.lens()}}), rsum);
+                auto div   = pm->add_instruction(migraphx::make_op("div"), exp, rsum);
+                auto gemm2 = pm->add_instruction(migraphx::make_op("dot"), div, fb1);
+                auto add   = pm->add_instruction(migraphx::make_op("add"), gemm2, inputs[4]);
                 return std::make_tuple(gemm2->get_operator(), add);
             });
         mm->add_return({fused});
     }
-    EXPECT(p1 == p2);
-}
-
-TEST_CASE(gemm_invalid_pw_softmax_gemm)
-{
-    migraphx::shape s1{migraphx::shape::half_type, {1, 12, 256, 256}};
-    auto s1_elements = s1.elements();
-
-    // Original program graph (excluding shape ops): dot -> pointwise -> softmax -> dot
-    // Here fused_reduce contains pointwise + softmax all in one module.
-    migraphx::program p1;
-    {
-        auto* mm = p1.get_main_module();
-        auto a   = mm->add_parameter("1", s1);
-        auto b   = mm->add_parameter("2", s1);
-        auto b1  = mm->add_parameter("3", s1);
-        std::vector<float> eights(s1_elements, 0.125);
-        auto eight = mm->add_literal(migraphx::literal{s1, eights});
-        b = mm->add_instruction(migraphx::make_op("transpose", {{"permutation", {0, 1, 3, 2}}}), b);
-        b = mm->add_instruction(migraphx::make_op("contiguous"), b);
-        b1 = mm->add_instruction(migraphx::make_op("transpose", {{"permutation", {0, 1, 3, 2}}}),
-                                 b1);
-        b1 = mm->add_instruction(migraphx::make_op("contiguous"), b1);
-        auto gemm1 = mm->add_instruction(migraphx::make_op("dot"), a, b);
-
-        auto pw_reduce = add_reduce(
-            p1,
-            "main:fused_reduce0",
-            {gemm1, eight},
-            {3},
-            [&](auto* rm,
-                const auto& inputs,
-                const auto& axes) -> std::vector<migraphx::instruction_ref> {
-                auto pw = add_pointwise(
-                    p1, rm, "main:pointwise0", inputs, [](auto* pm, const auto& pw_inputs) {
-                        auto mul = pm->add_instruction(
-                            migraphx::make_op("mul"), pw_inputs[0], pw_inputs[1]);
-                        return pm->add_instruction(non_mlir_op{}, mul);
-                    });
-                auto rmax =
-                    rm->add_instruction(migraphx::make_op("reduce_max", {{"axes", axes}}), pw);
-                rmax = rm->add_instruction(
-                    migraphx::make_op("multibroadcast", {{"out_lens", s1.lens()}}), rmax);
-
-                auto pw2 = add_pointwise(
-                    p1, rm, "main:pointwise2", {pw, rmax}, [](auto* pm, const auto& pw_inputs) {
-                        auto sub = pm->add_instruction(
-                            migraphx::make_op("sub"), pw_inputs[0], pw_inputs[1]);
-                        return pm->add_instruction(migraphx::make_op("exp"), sub);
-                    });
-                auto rsum =
-                    rm->add_instruction(migraphx::make_op("reduce_sum", {{"axes", axes}}), pw2);
-                rsum = rm->add_instruction(
-                    migraphx::make_op("multibroadcast", {{"out_lens", s1.lens()}}), rsum);
-
-                return {
-                    add_pointwise(p1, rm, "main:pointwise4", {pw2, rsum}, single_pointwise("div"))};
-            });
-
-        auto gemm2 = mm->add_instruction(migraphx::make_op("dot"), pw_reduce, b1);
-        mm->add_return({gemm2});
-    }
-    run_pass(p1);
-
-    migraphx::program p2;
-    {
-        auto* mm = p2.get_main_module();
-        auto a   = mm->add_parameter("1", s1);
-        auto b   = mm->add_parameter("2", s1);
-        auto b1  = mm->add_parameter("3", s1);
-        std::vector<float> eights(s1_elements, 0.125);
-        auto eight = mm->add_literal(migraphx::literal{s1, eights});
-        auto gemm1 =
-            add_mlir(p2, "mlir_dot0", {a, b}, {"y0", "y1"}, [=](auto* pm, const auto& inputs) {
-                auto tp = pm->add_instruction(
-                    migraphx::make_op("transpose", {{"permutation", {0, 1, 3, 2}}}), inputs[1]);
-                auto ct  = pm->add_instruction(migraphx::make_op("contiguous"), tp);
-                auto dot = pm->add_instruction(migraphx::make_op("dot"), inputs[0], ct);
-                return std::make_tuple(dot->get_operator(), dot);
-            });
-
-        auto pw_reduce = add_reduce(
-            p2,
-            "main:fused_reduce0",
-            {gemm1, eight},
-            {3},
-            [&](auto* rm,
-                const auto& inputs,
-                const auto& axes) -> std::vector<migraphx::instruction_ref> {
-                auto pw = add_pointwise(
-                    p2, rm, "main:pointwise0", inputs, [](auto* pm, const auto& pw_inputs) {
-                        auto mul = pm->add_instruction(
-                            migraphx::make_op("mul"), pw_inputs[0], pw_inputs[1]);
-                        return pm->add_instruction(non_mlir_op{}, mul);
-                    });
-                auto rmax =
-                    rm->add_instruction(migraphx::make_op("reduce_max", {{"axes", axes}}), pw);
-                rmax = rm->add_instruction(
-                    migraphx::make_op("multibroadcast", {{"out_lens", s1.lens()}}), rmax);
-
-                auto pw2 = add_pointwise(
-                    p2, rm, "main:pointwise2", {pw, rmax}, [](auto* pm, const auto& pw_inputs) {
-                        auto sub = pm->add_instruction(
-                            migraphx::make_op("sub"), pw_inputs[0], pw_inputs[1]);
-                        return pm->add_instruction(migraphx::make_op("exp"), sub);
-                    });
-                auto rsum =
-                    rm->add_instruction(migraphx::make_op("reduce_sum", {{"axes", axes}}), pw2);
-                rsum = rm->add_instruction(
-                    migraphx::make_op("multibroadcast", {{"out_lens", s1.lens()}}), rsum);
-
-                return {
-                    add_pointwise(p2, rm, "main:pointwise4", {pw2, rsum}, single_pointwise("div"))};
-            });
-
-        auto gemm2 = add_mlir(
-            p2, "mlir_dot1", {pw_reduce, b1}, {"y0", "y1"}, [=](auto* pm, const auto& inputs) {
-                auto tp = pm->add_instruction(
-                    migraphx::make_op("transpose", {{"permutation", {0, 1, 3, 2}}}), inputs[1]);
-                auto ct  = pm->add_instruction(migraphx::make_op("contiguous"), tp);
-                auto dot = pm->add_instruction(migraphx::make_op("dot"), inputs[0], ct);
-                return std::make_tuple(dot->get_operator(), dot);
-            });
-        mm->add_return({gemm2});
-    }
-
-    EXPECT(p1 == p2);
+    EXPECT(p1.sort() == p2.sort());
 }
 
 int main(int argc, const char* argv[])

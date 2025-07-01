@@ -125,13 +125,36 @@ struct parse_mxfixneuron : op_parser<parse_mxfixneuron>
         }
 
         auto q_ins = info.add_instruction(
-            make_op("quantizelinear"), input, block_scales_ins); // output is float_type
+            make_op("quantizelinear", {{"out_type", migraphx::shape::float_type}}),
+            input,
+            block_scales_ins); // output is float_type
+
+        // ravel tensor to 1D for handling possible odd number of elements for packing
+        auto quantized_shape     = q_ins->get_shape();
+        std::size_t num_elements = quantized_shape.elements();
+        auto ravel_ins =
+            info.add_instruction(make_op("reshape", {{"dims", {num_elements}}}), q_ins);
+        bool odd_num_elem = (num_elements % 2 == 1);
+        if(odd_num_elem)
+        {
+            // pad one element at end if odd number of elements
+            ravel_ins = info.add_instruction(make_op("pad", {{"pads", {0, 1}}}), ravel_ins);
+        }
         auto pack_ins =
-            info.add_instruction(make_op("pack_fp4"), q_ins); // output is packed_fp4_type
+            info.add_instruction(make_op("pack_fp4"), ravel_ins); // output is packed_fp4_type
         auto unpack_ins =
             info.add_instruction(make_op("unpack_fp4"), pack_ins); // output is float_type
+        if(odd_num_elem)
+        {
+            // slice off padded value
+            unpack_ins = info.add_instruction(
+                make_op("slice", {{"axes", {0}}, {"starts", {0}}, {"ends", {num_elements}}}),
+                unpack_ins);
+        }
+        auto reshape_unpack_ins = info.add_instruction(
+            make_op("reshape", {{"dims", quantized_shape.lens()}}), unpack_ins);
         auto dq_ins =
-            info.add_instruction(make_op("dequantizelinear"), unpack_ins, block_scales_ins);
+            info.add_instruction(make_op("dequantizelinear"), reshape_unpack_ins, block_scales_ins);
         return dq_ins;
     }
 };

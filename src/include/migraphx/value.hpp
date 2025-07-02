@@ -469,6 +469,8 @@ struct MIGRAPHX_EXPORT value
 
     type_t get_type() const;
 
+    const std::shared_ptr<value_base_impl>& get_impl() const;
+
     private:
     template <class T>
     std::vector<value> from_values(const T& r)

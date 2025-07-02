@@ -21,27 +21,37 @@
  * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
  * THE SOFTWARE.
  */
-#ifndef MIGRAPHX_GUARD_MIGRAPHX_HASH_HPP
-#define MIGRAPHX_GUARD_MIGRAPHX_HASH_HPP
 
-#include <migraphx/config.hpp>
-#include <functional>
+#include <migraphx/register_target.hpp>
+#include <migraphx/verify.hpp>
+#include <onnx_test.hpp>
 
-namespace migraphx {
-inline namespace MIGRAPHX_INLINE_NS {
-
-template <class T>
-auto hash_value(const T& v) -> decltype(std::hash<T>{}(v))
+TEST_CASE(pad_edge_2d_test)
 {
-    return std::hash<T>{}(v);
-}
+    migraphx::program p = read_onnx("pad_edge_2d_test.onnx");
+    p.compile(migraphx::make_target("ref"));
 
-template <class T>
-void hash_combine(std::size_t& seed, const T& v)
-{
-    seed ^= hash_value(v) + 0x9e3779b9 + (seed << 6u) + (seed >> 2u);
-}
+    migraphx::shape input_shape{migraphx::shape::float_type, {3, 3}};
+    // clang-format off
+    std::vector<float> data = {0, 1, 2, 
+                               3, 4, 5, 
+                               6, 7, 8};
+    // clang-format on
 
-} // namespace MIGRAPHX_INLINE_NS
-} // namespace migraphx
-#endif // MIGRAPHX_GUARD_MIGRAPHX_HASH_HPP
+    migraphx::parameter_map pp;
+    pp["0"] = migraphx::argument(input_shape, data.data());
+
+    auto result = p.eval(pp).back();
+    std::vector<float> result_vector;
+    result.visit([&](auto output) { result_vector.assign(output.begin(), output.end()); });
+
+    // clang-format off
+    std::vector<float> gold = {0, 0, 0, 1, 2, 2, 2, 
+                               0, 0, 0, 1, 2, 2, 2, 
+                               3, 3, 3, 4, 5, 5, 5, 
+                               6, 6, 6, 7, 8, 8, 8, 
+                               6, 6, 6, 7, 8, 8, 8};
+    // clang-format on
+
+    EXPECT(migraphx::verify::verify_rms_range(result_vector, gold));
+}

@@ -150,6 +150,17 @@ def argument(h):
              const=True)
 
 
+api.add_function('migraphx_argument_save',
+                 api.params(a='const migraphx::argument&', filename='const char*'),
+                 fname='migraphx::save_argument'
+                 )
+
+api.add_function('migraphx_argument_load',
+                 api.params(filename='const char*'),
+                 fname='migraphx::load_argument',
+                 returns='migraphx::argument'
+                 )
+
 api.add_function('migraphx_argument_generate',
                  api.params(s='const migraphx::shape&', seed='size_t'),
                  fname='migraphx::generate_argument',

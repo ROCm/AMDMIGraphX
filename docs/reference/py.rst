@@ -175,6 +175,23 @@ argument
 
     :rtype: argument
 
+.. py:method:: argument.save(arg, filename)
+    :staticmethod:
+
+    Saves argument to a file encoded in msgpack format.
+
+    :param argument arg: Argument to save out to.
+    :param str filename: Path of file to save out to.
+
+.. py:method:: argument.load(filename)
+    :staticmethod:
+
+    Load argument from a file encoded in msgpack format.
+
+    :param str filename: Path of file to load.
+
+    :rtype: argument
+
 target
 ------
 

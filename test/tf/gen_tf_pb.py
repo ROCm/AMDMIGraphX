@@ -575,6 +575,15 @@ def shape_test(g1):
 
 
 @tf_test
+def sigmoid_test(g1):
+    with g1.as_default():
+        g1_input = tf.compat.v1.placeholder(tf.float32,
+                                            shape=(1, 3, 16, 16),
+                                            name='0')
+        tf.math.sigmoid(g1_input, 'sigmoid')
+
+
+@tf_test
 def slice_test(g1):
     with g1.as_default():
         g1_input = tf.compat.v1.placeholder(tf.float32,

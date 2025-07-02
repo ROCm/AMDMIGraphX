@@ -59,7 +59,7 @@ namespace graphviz {
     will set the fillcolor for the rocm_op node to be hex #ef0707
 */
 
-/** 
+/**
  * Struct for html-style table parameters created with
  * <TABLE>...<TABLE/>
  */
@@ -104,11 +104,10 @@ static std::string html_bold(const std::string& content) { return "<B>" + conten
 
 static std::string html_table_start(const html_table_style& style)
 {
-    return R"(<<TABLE BORDER=")" + std::to_string(style.border) +
-	   R"(" CELLBORDER=")" + std::to_string(style.cellborder) +
-	   R"(" CELLPADDING=")" + std::to_string(style.cellpadding) +
-	   R"(" CELLSPACING=")" + std::to_string(style.cellspacing) +
-	   R"(" COLOR=\"transparent">)";
+    return R"(<<TABLE BORDER=")" + std::to_string(style.border) + R"(" CELLBORDER=")" +
+           std::to_string(style.cellborder) + R"(" CELLPADDING=")" +
+           std::to_string(style.cellpadding) + R"(" CELLSPACING=")" +
+           std::to_string(style.cellspacing) + R"(" COLOR=\"transparent">)";
 }
 
 static std::string html_table_end() { return "</TABLE>>"; }
@@ -164,7 +163,7 @@ inline std::string build_html_label(const graphviz_node_content& content)
 
 /**
  * Builds the node style string given a graphviz_node_style struct
- */ 
+ */
 inline std::string build_node_style(const graphviz_node_style& node_style)
 {
     std::ostringstream ss;

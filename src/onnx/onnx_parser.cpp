@@ -423,7 +423,7 @@ static node_maps create_node_maps(const onnx::GraphProto& graph)
         std::transform(node.output().begin(),
                        node.output().end(),
                        std::back_inserter(node_outputs),
-                       [](const auto& output) { return output.empty() ? std::string() : output; });
+                       [](const auto& output) { return output; });
 
         // Use this second map to keep track of all references of the output names to be used
         // as inputs to future nodes.
@@ -446,7 +446,7 @@ static void traverse(std::vector<size_t>& sorted_nodes,
     for(const auto& out_node_name : node_to_output_map.at(curr_node))
     {
         // check if node output is used in graph
-        if(contains(input_to_node_map, out_node_name) and not out_node_name.empty())
+        if(not out_node_name.empty() and contains(input_to_node_map, out_node_name))
         {
             for(const auto& in_node_name : input_to_node_map.at(out_node_name))
                 traverse(sorted_nodes,

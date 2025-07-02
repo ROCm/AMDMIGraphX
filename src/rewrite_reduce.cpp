@@ -34,24 +34,42 @@ inline namespace MIGRAPHX_INLINE_NS {
 namespace {
 struct find_softmax
 {
+    bool full_precision;
+
     auto matcher() const { return match::name("softmax"); }
 
     void apply(module& m, const match::matcher_result& r) const
     {
-        auto ins  = r.result;
-        auto op   = ins->get_operator().to_value();
-        auto axis = op["axis"].to<std::int64_t>();
+        auto ins        = r.result;
+        auto op         = ins->get_operator().to_value();
+        auto axis       = op["axis"].to<std::int64_t>();
+        auto input      = ins->inputs().front();
+        auto input_type = input->get_shape().type();
 
-        auto input = ins->inputs().front();
-        auto max   = m.insert_instruction(ins, make_op("reduce_max", {{"axes", {axis}}}), input);
-        auto maxb  = m.insert_instruction(
+        if(full_precision)
+        {
+            input = m.insert_instruction(
+                ins, make_op("convert", {{"target_type", shape::float_type}}), input);
+        }
+
+        auto max  = m.insert_instruction(ins, make_op("reduce_max", {{"axes", {axis}}}), input);
+        auto maxb = m.insert_instruction(
             ins, make_op("multibroadcast", {{"out_lens", input->get_shape().lens()}}), max);
         auto sub  = m.insert_instruction(ins, make_op("sub"), input, maxb);
         auto exp  = m.insert_instruction(ins, make_op("exp"), sub);
         auto sum  = m.insert_instruction(ins, make_op("reduce_sum", {{"axes", {axis}}}), exp);
         auto sumb = m.insert_instruction(
             ins, make_op("multibroadcast", {{"out_lens", input->get_shape().lens()}}), sum);
-        m.replace_instruction(ins, make_op("div"), exp, sumb);
+        auto div = m.insert_instruction(ins, make_op("div"), exp, sumb);
+
+        if(full_precision)
+        {
+            m.replace_instruction(ins, make_op("convert", {{"target_type", input_type}}), div);
+        }
+        else
+        {
+            m.replace_instruction(ins, div);
+        }
     }
 };
 
@@ -59,7 +77,7 @@ struct find_reduce_mean_variance
 {
     auto matcher() const
     {
-        auto reduce_mean = match::name("reduce_mean");
+        auto reduce_mean          = match::name("reduce_mean");
         auto skip_broadcasts_mean = match::skip_broadcasts(reduce_mean.bind("mean"));
         auto x_minus_mean         = match::name("sub")(match::arg(0)(match::any().bind("x")),
                                                match::arg(1)(skip_broadcasts_mean));
@@ -145,7 +163,7 @@ struct find_reduce_mean
 
 void rewrite_reduce::apply(module& m) const
 {
-    match::find_matches(m, find_softmax{}, find_reduce_mean_variance{});
+    match::find_matches(m, find_softmax{.full_precision = true}, find_reduce_mean_variance{});
     match::find_matches(m, find_reduce_mean{});
 }
 

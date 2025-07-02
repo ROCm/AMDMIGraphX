@@ -454,9 +454,10 @@ static auto object_range(const std::shared_ptr<value_base_impl>& x)
     assert(lookup != nullptr);
 #if defined(__clang_major__) && __clang_major__ > 19
     std::vector<value> result;
-    std::transform(lookup->begin(), lookup->end(),
-                            std::back_inserter(result),
-                            [=](const auto& p) -> decltype(auto) { return (*a)[p.second]; });
+    std::transform(lookup->begin(),
+                   lookup->end(),
+                   std::back_inserter(result),
+                   [=](const auto& p) -> decltype(auto) { return (*a)[p.second]; });
     return result;
 #else
     return views::transform(*lookup,

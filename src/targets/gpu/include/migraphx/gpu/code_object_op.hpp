@@ -59,7 +59,7 @@ struct code_object_op
                     f(self.output_arg, "output_arg"));
     }
 
-    value attributes() const { return {{"group", group()}, {"fillcolor", "#E9D66B"}}; }
+    value attributes() const { return {{"group", group()}}; }
 
     std::string group() const { return "gpu::code_object::" + symbol_name; }
 

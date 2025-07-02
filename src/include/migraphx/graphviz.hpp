@@ -216,6 +216,8 @@ inline graphviz_node_content get_node_content(const instruction_ref& ins)
     {
         content.title = op.to_value()["symbol_name"].to<std::string>();
         content.body_lines.push_back(to_string(op));
+
+        content.node_style.fillcolor = "#E9D66B"; // arylideyellow
     }
     else // all else use name and to_string(op)
     {

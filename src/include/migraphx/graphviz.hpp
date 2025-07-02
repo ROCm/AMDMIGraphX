@@ -107,7 +107,7 @@ static std::string html_table_start(const html_table_style& style)
     return R"(<<TABLE BORDER=")" + std::to_string(style.border) + R"(" CELLBORDER=")" +
            std::to_string(style.cellborder) + R"(" CELLPADDING=")" +
            std::to_string(style.cellpadding) + R"(" CELLSPACING=")" +
-           std::to_string(style.cellspacing) + R"(" COLOR=\"transparent">)";
+           std::to_string(style.cellspacing) + R"(" COLOR="transparent">)";
 }
 
 static std::string html_table_end() { return "</TABLE>>"; }

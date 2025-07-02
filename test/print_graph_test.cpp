@@ -51,19 +51,18 @@ TEST_CASE(basic_graph_test)
     p.print_graph(ss);
     std::string test = ss.str();
     std::cout << "test = " << test << std::endl;
-
+			      
     EXPECT(migraphx::contains(test, "digraph"));
-    EXPECT(migraphx::contains(test, "rankdir=LR"));
-    EXPECT(migraphx::contains(test, "\"@0\"[label=\"@literal\"]"));
-    EXPECT(migraphx::contains(test, "\"y\"[label=\"@param:y\"]"));
-    EXPECT(migraphx::contains(test, "\"x\"[label=\"@param:x\"]"));
-    EXPECT(migraphx::contains(test, "\"@3\"[label=\"sum\"]"));
-    EXPECT(migraphx::contains(test, "\"@4\"[label=\"sum\"]"));
-    EXPECT(migraphx::contains(test, "\"x\" -> \"@3\""));
-    EXPECT(migraphx::contains(test, "\"y\" -> \"@3\""));
-    EXPECT(migraphx::contains(test, "\"@3\" -> \"@4\""));
-    EXPECT(migraphx::contains(test, "\"@0\" -> \"@4\""));
-    EXPECT(migraphx::contains(test, "[label=\"int64_type, {1}, {0}\"]"));
+    EXPECT(migraphx::contains(test, "peripheries=0"));
+    EXPECT(migraphx::contains(test, R"("@0"[label=<<TABLE BORDER="0" CELLBORDER="0" CELLPADDING="0" CELLSPACING="0" COLOR="transparent"><TR ALIGN="center"><TD><B>@literal</B></TD></TR></TABLE>> style="filled" fillcolor=lightgray fontcolor=black shape=rectangle fontname=Helvetica];)"));
+    EXPECT(migraphx::contains(test, R"("y"[label=<<TABLE BORDER="0" CELLBORDER="0" CELLPADDING="0" CELLSPACING="0" COLOR="transparent"><TR ALIGN="center"><TD><B>@param</B></TD></TR><TR ALIGN="center"><TD>int64_type<BR/>{1}, {0}</TD></TR></TABLE>> style="filled" fillcolor=khaki fontcolor=black shape=rectangle fontname=Helvectica];)"));
+    EXPECT(migraphx::contains(test, R"("x"[label=<<TABLE BORDER="0" CELLBORDER="0" CELLPADDING="0" CELLSPACING="0" COLOR="transparent"><TR ALIGN="center"><TD><B>@param</B></TD></TR><TR ALIGN="center"><TD>int64_type<BR/>{1}, {0}</TD></TR></TABLE>> style="filled" fillcolor=khaki fontcolor=black shape=rectangle fontname=Helvectica];)"));
+    EXPECT(migraphx::contains(test, R"("@3"[label=<<TABLE BORDER="0" CELLBORDER="0" CELLPADDING="4" CELLSPACING="0" COLOR="transparent"><TR ALIGN="center"><TD><B>sum</B></TD></TR></TABLE>> style="rounded,filled" fillcolor=lightgray fontcolor=black shape=none fontname=Helvetica];)"));
+    EXPECT(migraphx::contains(test, R"("x" -> "@3"[label="int64_type\n{1}, {0}"];)"));
+    EXPECT(migraphx::contains(test, R"("y" -> "@3"[label="int64_type\n{1}, {0}"];)"));
+    EXPECT(migraphx::contains(test, R"("@4"[label=<<TABLE BORDER="0" CELLBORDER="0" CELLPADDING="4" CELLSPACING="0" COLOR="transparent"><TR ALIGN="center"><TD><B>sum</B></TD></TR></TABLE>> style="rounded,filled" fillcolor=lightgray fontcolor=black shape=none fontname=Helvetica];)"));
+    EXPECT(migraphx::contains(test, R"("@3" -> "@4"[label="int64_type\n{1}, {0}"];)"));
+    EXPECT(migraphx::contains(test, R"("@0" -> "@4"[label="int64_type\n{1}, {0}"];)"));
 }
 
 int main(int argc, const char* argv[]) { test::run(argc, argv); }

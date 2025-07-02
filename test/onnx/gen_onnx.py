@@ -5115,7 +5115,7 @@ def group_norm_contrib_no_activation_attr_test():
     y = helper.make_tensor_value_info('y', TensorProto.FLOAT, [1, 4, 2])
 
     node = onnx.helper.make_node('GroupNorm',
-                                 inputs=['x', 'gamma', 'Beta'],
+                                 inputs=['x', 'gamma', 'beta'],
                                  outputs=['y'],
                                  channels_last=0,
                                  groups=2)
@@ -5131,7 +5131,7 @@ def group_norm_contrib_no_num_groups_attr_test():
     y = helper.make_tensor_value_info('y', TensorProto.FLOAT, [1, 4, 2])
 
     node = onnx.helper.make_node('GroupNorm',
-                                 inputs=['x', 'gamma', 'Beta'],
+                                 inputs=['x', 'gamma', 'beta'],
                                  outputs=['y'],
                                  activation=0,
                                  channels_last=0)

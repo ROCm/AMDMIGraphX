@@ -64,7 +64,8 @@ struct find_attention
     auto matcher() const
     {
         auto gemm1 = match::any_of[pointwise_inputs()](match::name("dot").bind("dot1"));
-        return match::name("dot")(match::arg(0)(match::softmax_input(gemm1).bind("div")));
+        return match::name("dot")(match::arg(0)(
+            match::skip(match::name("convert"))(match::softmax_input(gemm1).bind("div"))));
     }
 
     std::string get_count() const { return std::to_string((*counter)++); }

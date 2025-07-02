@@ -94,8 +94,8 @@ void fuse_reductions(module& m)
         return;
     // Only handle the same reduction operator (and its data-type) for now
     if(std::any_of(std::next(rs.cbegin()), rs.cend(), [&](auto r) {
-           return rs.front()->name() != r->name() or
-                  rs.front()->get_shape().type() != r->get_shape().type();
+           return rs.cbegin()->name() != r->name() or
+                  rs.cbegin()->get_shape().type() != r->get_shape().type();
        }))
         return;
 

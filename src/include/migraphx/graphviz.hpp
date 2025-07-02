@@ -187,7 +187,7 @@ inline std::string build_node_style(const graphviz_node_style& node_style)
 /**
  * Given an instruction_ref ins we build a graphviz_node_content object to store
  * all of our necessary data. In this function we do formatting for specific
- * instructions: @param, @literal, and gpu::code_object
+ * instructions: param, literal, and gpu::code_object
  */
 inline graphviz_node_content get_node_content(const instruction_ref& ins)
 {

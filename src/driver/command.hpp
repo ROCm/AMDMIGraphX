@@ -88,7 +88,7 @@ int auto_register_command()
 {
     auto& m              = get_commands();
     m[command_name<T>()] = [](const std::string& exe_name, const std::vector<std::string>& args) {
-        run_command<T>(exe_name, std::move(args), true);
+        run_command<T>(exe_name, args, true);
     };
     return 0;
 }

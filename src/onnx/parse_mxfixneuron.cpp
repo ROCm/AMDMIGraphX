@@ -70,7 +70,7 @@ struct parse_mxfixneuron : op_parser<parse_mxfixneuron>
         auto tmp_lens  = input_lens;
         auto block_dim = tmp_lens.at(block_axis);
         std::size_t block_padding =
-            ceil(double(block_dim) / double(block_size)) * block_size - block_dim;
+            std::ceil(double(block_dim) / double(block_size)) * block_size - block_dim;
         // handle runt block by padding
         if(block_padding != 0)
         {
@@ -92,7 +92,7 @@ struct parse_mxfixneuron : op_parser<parse_mxfixneuron>
         // B_k = pow(2, floor(log2(reduce_max(V_k)))) # largest power of 2 less than V
         // X_k = block scale k = B_k / (largest power of 2 in fp4e2m1) = B_k / 4
         auto reduce_max_ins =
-            info.add_instruction(make_op("reduce_max", {{"axes", {block_axis}}}), reshape_ins);
+            info.add_instruction(make_op("reduce_max", {{"axes", {block_axis + 1}}}), reshape_ins);
         auto abs_ins   = info.add_instruction(make_op("abs"), reduce_max_ins);
         auto log2_ins  = info.add_instruction(make_op("log2"), abs_ins);
         auto floor_ins = info.add_instruction(make_op("floor"), log2_ins);

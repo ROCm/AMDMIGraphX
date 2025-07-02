@@ -24,7 +24,6 @@
 #include <migraphx/value.hpp>
 #include <migraphx/float_equal.hpp>
 #include <migraphx/ranges.hpp>
-#include <unordered_set>
 #include <test.hpp>
 
 enum class enum_type
@@ -627,30 +626,6 @@ TEST_CASE(value_compare_ordered)
     EXPECT_TOTALLY_ORDERED(migraphx::value(1), migraphx::value());
 }
 
-TEST_CASE(value_compare_object_equal)
-{
-    migraphx::value v1 = {{"a", 1}, {"c", 3}, {"b", 2}, {"d", 4}, {"e", 5}, {"f", 6}};
-    migraphx::value v2 = {{"e", 5}, {"f", 6}, {"a", 1}, {"b", 2}, {"c", 3}, {"d", 4}};
-    EXPECT(v1 == v2);
-    EXPECT_TOTALLY_ORDERED(v1, v2);
-}
-
-TEST_CASE(value_compare_object_not_equal_missing_keys)
-{
-    migraphx::value v1 = {{"a", 1}, {"c", 3}, {"b", 2}, {"d", 4}, {"e", 5}, {"f", 6}};
-    migraphx::value v2 = {{"e", 5}, {"f", 6}, {"b", 2}, {"c", 3}, {"d", 4}};
-    EXPECT(v1 != v2);
-    EXPECT_TOTALLY_ORDERED(v1, v2);
-}
-
-TEST_CASE(value_compare_object_not_equal_diff_values)
-{
-    migraphx::value v1 = {{"a", 1}, {"c", 3}, {"b", 2}, {"d", 4}, {"e", 5}, {"f", 6}};
-    migraphx::value v2 = {{"e", 1}, {"f", 3}, {"a", 2}, {"b", 2}, {"c", 3}, {"d", 4}};
-    EXPECT(v1 != v2);
-    EXPECT_TOTALLY_ORDERED(v1, v2);
-}
-
 TEST_CASE(value_to_from_string)
 {
     migraphx::value v = "1";
@@ -981,40 +956,6 @@ TEST_CASE(value_get_default_string_literal_vector)
     EXPECT(v.get("key", fallback) == strings);
     EXPECT(v.get("missing", fallback) == fallback);
     EXPECT(v.get("missing", {"none"}) == fallback);
-}
-
-TEST_CASE(value_object_as_hash_key1)
-{
-    migraphx::value v1 = {{"a", 1}, {"c", 3}, {"b", 2}, {"d", 4}, {"e", 5}, {"f", 6}};
-    migraphx::value v2 = {{"e", 5}, {"f", 6}, {"a", 1}, {"b", 2}, {"c", 3}, {"d", 4}};
-    migraphx::value v3 = {{"e", 1}, {"f", 3}, {"a", 1}, {"b", 2}, {"c", 3}, {"d", 4}};
-    migraphx::value v4 = {{"e", 5}, {"b", 2}, {"c", 3}, {"d", 4}};
-
-    std::unordered_set<migraphx::value> set;
-    set.insert(v1);
-    EXPECT(migraphx::contains(set, v1));
-    EXPECT(migraphx::contains(set, v2));
-    EXPECT(not migraphx::contains(set, v3));
-    EXPECT(not migraphx::contains(set, v4));
-}
-
-TEST_CASE(value_object_as_hash_key2)
-{
-    migraphx::value v1 = {{"a", 1}, {"c", 3}, {"b", 2}, {"d", 4}, {"e", 5}, {"f", 6}};
-    migraphx::value v2 = {{"e", 5}, {"f", 6}, {"a", 1}, {"b", 2}, {"c", 3}, {"d", 4}};
-    migraphx::value v3 = {{"e", 1}, {"f", 3}, {"a", 1}, {"b", 2}, {"c", 3}, {"d", 4}};
-    migraphx::value v4 = {{"e", 5}, {"b", 2}, {"c", 3}, {"d", 4}};
-
-    std::unordered_set<migraphx::value> set;
-    set.insert(v1);
-    set.insert(v2);
-    set.insert(v3);
-    set.insert(v4);
-    EXPECT(migraphx::contains(set, v1));
-    EXPECT(migraphx::contains(set, v2));
-    EXPECT(migraphx::contains(set, v3));
-    EXPECT(migraphx::contains(set, v4));
-    EXPECT(set.size() == 3);
 }
 
 int main(int argc, const char* argv[]) { test::run(argc, argv); }

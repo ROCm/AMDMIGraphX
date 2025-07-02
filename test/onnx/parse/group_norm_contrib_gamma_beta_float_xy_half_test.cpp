@@ -25,10 +25,19 @@
 #include <onnx_test.hpp>
 #include <onnx_test_utils.hpp>
 
-TEST_CASE(group_norm_small_eps_bf16_test)
+TEST_CASE(group_norm_contrib_gamma_beta_float_xy_half_test)
 {
-    migraphx::program p = make_group_norm(
-        {1, 4, 2}, {4}, {4}, {1, 2, 2, 2}, {2, 3}, 1e-7f, migraphx::shape::bf16_type, "scale", "bias", migraphx::shape::bf16_type, migraphx::shape::bf16_type);
-    auto prog = optimize_onnx("group_norm_small_eps_bf16_test.onnx");
+    migraphx::program p = make_group_norm({1, 4, 2},
+                                          {4},
+                                          {4},
+                                          {1, 2, 2, 2},
+                                          {2, 3},
+                                          1e-5f,
+                                          migraphx::shape::half_type,
+                                          "gamma",
+                                          "beta",
+                                          migraphx::shape::float_type,
+                                          migraphx::shape::float_type);
+    auto prog           = optimize_onnx("group_norm_contrib_gamma_beta_float_xy_half_test.onnx");
     EXPECT(p == prog);
 }

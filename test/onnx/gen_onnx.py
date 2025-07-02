@@ -5031,10 +5031,12 @@ def group_norm_contrib_test(x_dims,
                             activation,
                             channels_last,
                             eps_value=1e-5,
-                            dtype=TensorProto.FLOAT):
+                            dtype=TensorProto.FLOAT,
+                            gamma_dtype=TensorProto.FLOAT,
+                            beta_dtype=TensorProto.FLOAT):
     x = helper.make_tensor_value_info('x', dtype, x_dims)
-    gamma = helper.make_tensor_value_info('gamma', dtype, gamma_dims)
-    beta = helper.make_tensor_value_info('beta', dtype, beta_dims)
+    gamma = helper.make_tensor_value_info('gamma', gamma_dtype, gamma_dims)
+    beta = helper.make_tensor_value_info('beta', beta_dtype, beta_dims)
     y = helper.make_tensor_value_info('y', dtype, y_dims)
 
     node = onnx.helper.make_node('GroupNorm',
@@ -5064,7 +5066,9 @@ def group_norm_contrib_3d_channel_last_half_test():
                                    2,
                                    0,
                                    1,
-                                   dtype=TensorProto.FLOAT16)
+                                   dtype=TensorProto.FLOAT16,
+                                   gamma_dtype=TensorProto.FLOAT16,
+                                   beta_dtype=TensorProto.FLOAT16)
 
 
 @onnx_test()
@@ -5073,8 +5077,14 @@ def group_norm_contrib_3d_channel_last_bf16_test():
                                    2,
                                    0,
                                    1,
-                                   dtype=TensorProto.BFLOAT16)
+                                   dtype=TensorProto.BFLOAT16,
+                                   gamma_dtype=TensorProto.BFLOAT16,
+                                   beta_dtype=TensorProto.BFLOAT16)
 
+@onnx_test()
+def group_norm_contrib_gamma_beta_float_xy_half_test():
+    return group_norm_contrib_test([1, 4, 2], [4], [4], [1, 4, 2], 2, 0, 0,
+                                    dtype=TensorProto.FLOAT16)
 
 @onnx_test()
 def group_norm_contrib_silu_3d_test():

@@ -59,6 +59,10 @@ namespace graphviz {
     will set the fillcolor for the rocm_op node to be hex #ef0707
 */
 
+/** 
+ * Struct for html-style table parameters created with
+ * <TABLE>...<TABLE/>
+ */
 struct html_table_style
 {
     int border      = 0;
@@ -67,6 +71,10 @@ struct html_table_style
     int cellspacing = 0;
 };
 
+/**
+ * Struct for tracking graphviz node style using default
+ * values for nodes with no attributes
+ */
 struct graphviz_node_style
 {
     std::string fillcolor = "lightgray";
@@ -76,6 +84,12 @@ struct graphviz_node_style
     std::string fontname  = "Helvetica";
 };
 
+/**
+ * Struct for storing all content and style settings
+ * for a graphviz node. Stores title, lines of the body
+ * text, perf_data (to be implemented), and above style
+ * structs
+ */
 struct graphviz_node_content
 {
     std::string title;
@@ -90,10 +104,11 @@ static std::string html_bold(const std::string& content) { return "<B>" + conten
 
 static std::string html_table_start(const html_table_style& style)
 {
-    return "<<TABLE BORDER=\"" + std::to_string(style.border) + "\" CELLBORDER=\"" +
-           std::to_string(style.cellborder) + "\" CELLPADDING=\"" +
-           std::to_string(style.cellpadding) + "\" CELLSPACING=\"" +
-           std::to_string(style.cellspacing) + "\" COLOR=\"transparent\">";
+    return R"(<<TABLE BORDER=")" + std::to_string(style.border) +
+	   R"(" CELLBORDER=")" + std::to_string(style.cellborder) +
+	   R"(" CELLPADDING=")" + std::to_string(style.cellpadding) +
+	   R"(" CELLSPACING=")" + std::to_string(style.cellspacing) +
+	   R"(" COLOR=\"transparent">)";
 }
 
 static std::string html_table_end() { return "</TABLE>>"; }
@@ -103,14 +118,18 @@ static std::string html_cell(const std::string& content, const std::string& alig
     return "<TR ALIGN=\"" + align + "\"><TD>" + content + "</TD></TR>";
 }
 
-static bool is_hex_color(std::string color) { return !color.empty() and color[0] == '#'; }
+static bool is_hex_color(std::string color) { return not color.empty() and color[0] == '#'; }
 
 inline std::string enclose_name(const std::string& name)
 {
     return '"' + replace_string(name, "\"", "\\\"") + '"';
 }
 
-inline std::string format_shape_name(const migraphx::shape& s, std::string linebreak = "\\n")
+/**
+ * Formats migraphx::shape for printing so we dont have to use the
+ * migraphx::shape::operator<< which places content on one line
+ */
+inline std::string format_shape_name(const migraphx::shape& s, const std::string& linebreak = "\\n")
 {
     if(s.sub_shapes().empty())
     {
@@ -125,6 +144,9 @@ inline std::string format_shape_name(const migraphx::shape& s, std::string lineb
     return "[" + to_string_range(s.sub_shapes()) + "]";
 }
 
+/**
+ * Builds html-style table for content, given a graphviz_node_content struct
+ */
 inline std::string build_html_label(const graphviz_node_content& content)
 {
     std::ostringstream ss;
@@ -132,19 +154,17 @@ inline std::string build_html_label(const graphviz_node_content& content)
     ss << html_table_start(content.html_style);
     ss << html_cell(html_bold(content.title));
 
-    if(content.perf_data)
-    {
-        // TODO: add perf_data information
-    }
-
     std::for_each(content.body_lines.begin(),
                   content.body_lines.end(),
-                  [&ss](const std::string line) { ss << html_cell(line); });
+                  [&ss](const std::string& line) { ss << html_cell(line); });
 
     ss << html_table_end();
     return ss.str();
 }
 
+/**
+ * Builds the node style string given a graphviz_node_style struct
+ */ 
 inline std::string build_node_style(const graphviz_node_style& node_style)
 {
     std::ostringstream ss;
@@ -165,6 +185,11 @@ inline std::string build_node_style(const graphviz_node_style& node_style)
     return ss.str();
 }
 
+/**
+ * Given an instruction_ref ins we build a graphviz_node_content object to store
+ * all of our necessary data. In this function we do formatting for specific
+ * instructions: @param, @literal, and gpu::code_object
+ */
 inline graphviz_node_content get_node_content(const instruction_ref& ins)
 {
     const auto& op         = ins->get_operator();

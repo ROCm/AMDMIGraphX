@@ -249,14 +249,6 @@ endif()
 rocm_set_soversion(migraphx_gpu ${MIGRAPHX_SO_VERSION})
 rocm_clang_tidy_check(migraphx_gpu)
 
-option(MIGRAPHX_DISABLE_AVAILABLE_GPU_MEMORY_CHECK "" OFF)
-
-if(MIGRAPHX_DISABLE_AVAILABLE_GPU_MEMORY_CHECK)
-    message(STATUS "HipMemGetInfo check is disabled")
-    target_compile_definitions(migraphx_gpu PUBLIC MIGRAPHX_DISABLE_AVAILABLE_GPU_MEMORY_CHECK)
-endif()
-
-
 set(MIGRAPHX_ENABLE_MLIR ON CACHE BOOL "")
 
 if(MIGRAPHX_ENABLE_MLIR)

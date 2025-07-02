@@ -462,7 +462,8 @@ struct parse_resize : op_parser<parse_resize>
                 for(std::size_t j = 0; j < dim_lens[0] / out_lens[0]; ++j)
                     delta_data.insert(delta_data.begin(), dim_delta.begin(), dim_delta.end());
                 auto ins_delta = info.add_literal(dim_s, delta_data);
-                ins_delta = info.add_instruction(make_op("convert", {{"target_type", in_s.type()}}), ins_delta);
+                ins_delta = info.add_instruction(make_op("convert", {{"target_type", in_s.type()}}),
+                                                 ins_delta);
 
                 // slice the data
                 int64_t slc_stride = dim_lens[0];

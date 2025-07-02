@@ -139,7 +139,7 @@ make_attention_program(const uint64_t batch,
         auto in_bool = mm->add_instruction(migraphx::make_op("equal"), raw_mask, in_pass);
         // Need this for mlir to allow us to use "Where"
         in_bool = mm->add_instruction(
-            migraphx::make_op("convert", {{"target_type", migraphx::shape::int8_type}}), in_bool);
+            migraphx::make_op("convert", {{"target_type", migraphx::shape::bool_type}}), in_bool);
         attention_mask = mm->add_instruction(migraphx::make_op("where"), in_bool, bc_mask, bc_pass);
     }
 

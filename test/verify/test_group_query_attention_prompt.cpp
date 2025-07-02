@@ -50,11 +50,11 @@ struct test_group_query_attention_prompt : verify_program<test_group_query_atten
         std::vector<float> cs_min_vec(cs_cache_s.elements(), -1.0);
         std::vector<float> cs_max_vec(cs_cache_s.elements(), 1.0);
         std::vector<float> kv_scale_vec(kv_s.elements(), 10.0);
-        auto kv_scale   = mm->add_literal(kv_s, kv_scale_vec);
+        auto kv_scale  = mm->add_literal(kv_s, kv_scale_vec);
         auto k_cache   = mm->add_parameter("k_cache", kv_s);
-        k_cache = mm->add_instruction(migraphx::make_op("mul"), k_cache, kv_scale);
+        k_cache        = mm->add_instruction(migraphx::make_op("mul"), k_cache, kv_scale);
         auto v_cache   = mm->add_parameter("v_cache", kv_s);
-        v_cache = mm->add_instruction(migraphx::make_op("mul"), v_cache, kv_scale);
+        v_cache        = mm->add_instruction(migraphx::make_op("mul"), v_cache, kv_scale);
         auto slk       = mm->add_literal(slk_s, slk_vec);
         auto tsl       = mm->add_literal(tsl_s, tsl_vec);
         auto key       = mm->add_literal(0.0f);

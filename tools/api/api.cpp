@@ -194,10 +194,6 @@ void set_default_dim_value(tf_options& options, size_t value) { options.batch_si
 
 #ifdef MIGRAPHX_ENABLE_ONNX
 
-#endif
-
-#ifdef HAVE_ONNX
-
 void set_input_parameter_shape(onnx_options& options,
                                const char* name,
                                std::vector<std::size_t> dims)

@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2025 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2025 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -20,35 +20,21 @@
  * LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
  * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
  * THE SOFTWARE.
+ *
  */
-#include <migraphx/ranges.hpp>
-#include <migraphx/op/builder/insert.hpp>
-#include <migraphx/onnx/op_parser.hpp>
+#ifndef MIGRAPHX_GUARD_MIGRAPHX_RETURNS_HPP
+#define MIGRAPHX_GUARD_MIGRAPHX_RETURNS_HPP
+
+#include <migraphx/config.hpp>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
-namespace onnx {
 
-struct parse_celu : op_parser<parse_celu>
-{
-    std::vector<op_desc> operators() const { return {{"Celu"}}; }
+// Similar to decltype(auto) except it will propagate any substitution failures
+// NOLINTNEXTLINE
+#define MIGRAPHX_RETURNS(...) \
+    ->decltype(__VA_ARGS__) { return __VA_ARGS__; }
 
-    instruction_ref parse(const op_desc&,
-                          const onnx_parser&,
-                          const onnx_parser::node_info& info,
-                          const std::vector<instruction_ref>& args) const
-    {
-        value options = {};
-        if(contains(info.attributes, "alpha"))
-        {
-            const float alpha = info.attributes.at("alpha").f();
-            options.insert({"alpha", alpha});
-        }
-
-        return op::builder::add("celu", *info.mod, args, options).at(0);
-    }
-};
-
-} // namespace onnx
 } // namespace MIGRAPHX_INLINE_NS
 } // namespace migraphx
+#endif // MIGRAPHX_GUARD_MIGRAPHX_RETURNS_HPP

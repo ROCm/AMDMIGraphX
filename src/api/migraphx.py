@@ -324,6 +324,17 @@ if 'enable_onnx' in globals():
     def onnx_options(h):
         h.constructor('create')
         h.method(
+            'set_input_parameter_shape',
+            api.params(name='const char*', dims='std::vector<size_t>'),
+            invoke='migraphx::set_input_parameter_shape($@)',
+        )
+        h.method(
+            'set_dyn_input_parameter_shape',
+            api.params(name='const char*',
+                       dims='std::vector<migraphx::shape::dynamic_dimension>'),
+            invoke='migraphx::set_dyn_input_parameter_shape($@)',
+        )
+        h.method(
             'set_default_dim_value',
             api.params(value='size_t'),
             invoke='migraphx::set_default_dim_value($@)',

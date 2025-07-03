@@ -478,10 +478,39 @@ struct program_params
 {
     std::vector<std::string> fill0{};
     std::vector<std::string> fill1{};
+    std::vector<std::string> load_args_info;
     void parse(argument_parser& ap)
     {
         ap(fill0, {"--fill0"}, ap.help("Fill parameter with 0s"), ap.append(), ap.nargs(2));
         ap(fill1, {"--fill1"}, ap.help("Fill parameter with 1s"), ap.append(), ap.nargs(2));
+        ap(load_args_info,
+           {"--load-arg"},
+           ap.help("Load arguments for the model (format: \"@name filename\")"),
+           ap.append(),
+           ap.nargs(2));
+    }
+
+    static auto
+    parse_load_args(const std::vector<std::string>& load_args_info, const target& t, bool offload)
+    {
+        parameter_map map_load_args;
+        std::string name = "";
+        for(auto&& x : load_args_info)
+        {
+            if(x[0] == '@')
+            {
+                name = x.substr(1);
+            }
+            else
+            {
+                argument arg = migraphx::load_argument(x);
+                if(not offload)
+                    arg = t.copy_to(arg);
+                map_load_args[name] = arg;
+            }
+        }
+
+        return map_load_args;
     }
 
     auto generate(const program& p, const target& t, bool offload, unsigned batch)
@@ -499,6 +528,11 @@ struct program_params
         for(auto&& s : fill1)
             m[s] = fill_argument(static_param_shapes.at(s), 1);
         fill_param_map(m, static_param_shapes, t, offload);
+        auto load_arg_map = program_params::parse_load_args(load_args_info, t, offload);
+        for(auto&& arg : load_arg_map)
+        {
+            m[arg.first] = arg.second;
+        }
         return m;
     }
 };

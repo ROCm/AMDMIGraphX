@@ -2614,6 +2614,20 @@ def einsum_permute_test():
     return ([node], [x], [y])
 
 
+def einsum_permute_sd3_test():
+    x = helper.make_tensor_value_info('x', TensorProto.FLOAT,
+                                      [1, 64, 64, 2, 2, 16])
+    y = helper.make_tensor_value_info('y', TensorProto.FLOAT,
+                                      [1, 16, 64, 2, 64, 2])
+
+    node = onnx.helper.make_node('Einsum',
+                                 inputs=['x'],
+                                 outputs=['y'],
+                                 equation='nhwpqc->nchpwq')
+
+    return ([node], [x], [y])
+
+
 @onnx_test()
 def einsum_summation_test():
     x = helper.make_tensor_value_info('x', TensorProto.FLOAT, [2, 3])
@@ -4462,6 +4476,41 @@ def gridsample_test():
 
     return ([node], [x, grid], [y])
 
+@onnx_test()
+def gridsample_channel_test():
+    x = helper.make_tensor_value_info('x', TensorProto.FLOAT, [1, 3, 4, 4])
+    grid = helper.make_tensor_value_info('grid', TensorProto.FLOAT,
+                                         [1, 6, 6, 2])
+    y = helper.make_tensor_value_info('y', TensorProto.FLOAT, [1, 3, 6, 6])
+
+    node = onnx.helper.make_node(
+        "GridSample",
+        inputs=["x", "grid"],
+        outputs=["y"],
+        mode="bilinear",
+        padding_mode="border",
+        align_corners=1,
+    )
+
+    return ([node], [x, grid], [y])
+
+@onnx_test()
+def gridsample_512x512_test():
+    x = helper.make_tensor_value_info('x', TensorProto.FLOAT, [1, 3, 512, 512])
+    grid = helper.make_tensor_value_info('grid', TensorProto.FLOAT,
+                                         [1, 512, 512, 2])
+    y = helper.make_tensor_value_info('y', TensorProto.FLOAT, [1, 3, 512, 512])
+
+    node = onnx.helper.make_node(
+        "GridSample",
+        inputs=["x", "grid"],
+        outputs=["y"],
+        mode="bilinear",
+        padding_mode="border",
+        align_corners=1,
+    )
+
+    return ([node], [x, grid], [y])
 
 @onnx_test()
 def gridsample_half_test():
@@ -9722,6 +9771,81 @@ def pad_reflect_multiaxis_test():
 
     return ([arg_pad, node], [x], [y])
 
+@onnx_test()
+def pad_edge_1d_test():
+    x = helper.make_tensor_value_info('0', TensorProto.FLOAT, [4])
+    y = helper.make_tensor_value_info('1', TensorProto.FLOAT, [9])
+
+    sizes = np.array([2, 3])
+    pad_tensor = helper.make_tensor(name='pad_size',
+                                    data_type=TensorProto.INT32,
+                                    dims=sizes.shape,
+                                    vals=sizes.astype(int))
+    arg_pad = onnx.helper.make_node('Constant',
+                                    inputs=[],
+                                    outputs=['arg_pad'],
+                                    value=pad_tensor)
+
+    node = onnx.helper.make_node('Pad',
+                                 mode='edge',
+                                 inputs=['0', 'arg_pad'],
+                                 outputs=['1'])
+
+    return ([arg_pad, node], [x], [y])
+
+@onnx_test()
+def pad_edge_2d_test():
+    x = helper.make_tensor_value_info('0', TensorProto.FLOAT, [3, 3])
+    y = helper.make_tensor_value_info('1', TensorProto.FLOAT, [5, 7])
+
+    sizes = np.array([1, 2, 1, 2])
+    pad_tensor = helper.make_tensor(name='pad_size',
+                                    data_type=TensorProto.INT32,
+                                    dims=sizes.shape,
+                                    vals=sizes.astype(int))
+    arg_pad = onnx.helper.make_node('Constant',
+                                    inputs=[],
+                                    outputs=['arg_pad'],
+                                    value=pad_tensor)
+
+    node = onnx.helper.make_node('Pad',
+                                 mode='edge',
+                                 inputs=['0', 'arg_pad'],
+                                 outputs=['1'])
+
+    return ([arg_pad, node], [x], [y])
+
+@onnx_test()
+def pad_edge_2d_with_axes_test():
+    x = helper.make_tensor_value_info('0', TensorProto.FLOAT, [3, 3])
+    y = helper.make_tensor_value_info('1', TensorProto.FLOAT, [3, 6])
+
+    sizes = np.array([1, 2])
+    pad_tensor = helper.make_tensor(name='pad_size',
+                                    data_type=TensorProto.INT32,
+                                    dims=sizes.shape,
+                                    vals=sizes.astype(int))
+    arg_pad = onnx.helper.make_node('Constant',
+                                    inputs=[],
+                                    outputs=['arg_pad'],
+                                    value=pad_tensor)
+
+    axes = np.array([1])
+    axes_tensor = helper.make_tensor(name='pad_axes',
+                                     data_type=TensorProto.INT32,
+                                     dims=axes.shape,
+                                     vals=axes.astype(int))
+    arg_axes = onnx.helper.make_node('Constant',
+                                     inputs=[],
+                                     outputs=['arg_axes'],
+                                     value=axes_tensor)
+
+    node = onnx.helper.make_node('Pad',
+                                 mode='edge',
+                                 inputs=['0', 'arg_pad', 'arg_axes'],
+                                 outputs=['1'])
+
+    return ([arg_axes, arg_pad, node], [x], [y])
 
 @onnx_test()
 def pad_attr_dyn_test():
@@ -11559,7 +11683,7 @@ def resize_downsample_f_dyn2_test():
     Y = helper.make_tensor_value_info('Y', TensorProto.FLOAT, [])
 
     node = onnx.helper.make_node('Resize',
-                                 inputs=['X', 'sizes', ''],
+                                 inputs=['X', '', '', 'sizes'],
                                  outputs=['Y'],
                                  coordinate_transformation_mode='asymmetric',
                                  mode='nearest',
@@ -11621,7 +11745,7 @@ def resize_downsample_f_ref2_test():
     Y = helper.make_tensor_value_info('Y', TensorProto.FLOAT, [])
 
     node = onnx.helper.make_node('Resize',
-                                 inputs=['X', 'sizes', ''],
+                                 inputs=['X', '', '', 'sizes'],
                                  outputs=['Y'],
                                  coordinate_transformation_mode='asymmetric',
                                  mode='nearest',
@@ -11895,6 +12019,30 @@ def resize_aspect_ratio_err_test():
 
     return ([node], [X], [Y], [size_tensor])
 
+@onnx_test()
+def resize_roi_skip_test():
+    # special testcase for resize op with roi value but skip it
+
+    scales = np.array([1.0, 1.0, 2.0, 2.0], dtype=np.float32)
+    roi = np.array([1.1, 1.2, 1.3, 1.4, 1.5, 1.6, 1.7, 1.8], dtype=np.float32)
+    scale_tensor = helper.make_tensor(name='scales',
+                                      data_type=TensorProto.FLOAT,
+                                      dims=scales.shape,
+                                      vals=scales.flatten().astype(np.float32))
+    roi_tensor = helper.make_tensor(name='roi',
+                                    data_type=TensorProto.FLOAT,
+                                    dims=roi.shape,
+                                    vals=roi.flatten().astype(np.float32))
+
+    X = helper.make_tensor_value_info('X', TensorProto.FLOAT, [1, 1, 2, 4])
+    Y = helper.make_tensor_value_info('Y', TensorProto.FLOAT, [1, 1, 4, 8])
+
+    node = onnx.helper.make_node('Resize',
+                                 inputs=['X', 'roi', 'scales'],
+                                 outputs=['Y'],
+                                 mode='nearest')
+
+    return ([node], [X], [Y], [roi_tensor, scale_tensor])
 
 @onnx_test()
 def reversesequence_4D_test():

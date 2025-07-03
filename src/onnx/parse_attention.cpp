@@ -233,7 +233,7 @@ struct parse_attention : op_parser<parse_attention>
                 }
             }
 
-            // Ensure qkv_hidden sizes set are valid wrt to input weights
+            // Ensure qkv_hidden sizes set are valid wrt input weights
             qkv_sizes_sum_arg_valid(attr.qkv_hidden_sizes, weight_tensor, 1, "weights");
 
             weights = weight_tensor;

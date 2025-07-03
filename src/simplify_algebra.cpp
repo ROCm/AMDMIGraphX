@@ -946,21 +946,19 @@ struct find_concat_op
     }
 
     // Check that we wont concat across a broadcasted axis, since this leads to bad const folding
-    template<class Iterator>
+    template <class Iterator>
     static bool concat_const_foldable(Iterator start, Iterator last, std::size_t axis)
     {
         auto n = (*start)->inputs().size();
         return all_of(range(n), [&](auto i) {
-            if(not std::all_of(start, last, [&](instruction_ref x) {
-                return x->inputs().at(i)->can_eval();
-            }))
+            if(not std::all_of(
+                   start, last, [&](instruction_ref x) { return x->inputs().at(i)->can_eval(); }))
                 return true;
             // TODO: Allow concat across broadcasted axis if all them are the same size
             return std::none_of(start, last, [&](instruction_ref x) {
                 auto s = x->inputs().at(i)->get_shape();
                 return s.strides()[axis] == 0;
             });
-
         });
     }
 

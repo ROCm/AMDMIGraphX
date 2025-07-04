@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2024 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2025 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -80,43 +80,6 @@ __device__ gqa_parameters<Ts...> make_gqa_parameters(Ts... ts)
 {
     return {ts...};
 }
-
-struct naive_gemm
-{
-    index_int max_m;
-    index_int max_n;
-    index_int max_k;
-    index_int lda;
-    index_int ldb;
-    index_int ldc;
-    bool b_transpose;
-    float alpha;
-    float beta;
-
-    template <class C, class A, class B>
-    __device__ void compute(C cmat, const A amat, const B bmat, const index_int idx)
-    {
-        auto m     = idx / max_n;
-        auto n     = idx % max_n;
-        auto index = [&](auto x, auto y, auto z) { return y + (x * z); };
-
-        if(m < max_m)
-        {
-            if(n < max_n)
-            {
-                double s = 0.0;
-                for(int k = 0; k < max_k; ++k)
-                {
-                    auto a_i = index(m, k, lda);
-                    auto b_i = b_transpose ? index(n, k, ldb) : index(k, n, ldb);
-                    s += static_cast<double>(amat[a_i]) * static_cast<double>(bmat[b_i]);
-                }
-                auto c_i  = index(m, n, ldc);
-                cmat[c_i] = static_cast<double>(alpha) * s + cmat[c_i] * static_cast<double>(beta);
-            }
-        }
-    }
-};
 
 } // namespace migraphx
 #endif

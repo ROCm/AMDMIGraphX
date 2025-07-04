@@ -113,16 +113,18 @@ inline migraphx::program create_external_data_prog()
     return p;
 }
 
-inline migraphx::program
-make_group_norm(const std::vector<int64_t>& input_dims,
-                const std::vector<int64_t>& scale_dims,
-                const std::vector<int64_t>& bias_dims,
-                const std::vector<int64_t>& reshape_dims,
-                const std::vector<int64_t>& reduce_axes,
-                const float eps_value                = 1e-5f,
-                const migraphx::shape::type_t dtype  = migraphx::shape::float_type,
-                const std::pair<std::string, migraphx::shape::type_t>& param1 = {"scale", migraphx::shape::float_type},
-                const std::pair<std::string, migraphx::shape::type_t>& param2 = {"bias", migraphx::shape::float_type})
+inline migraphx::program make_group_norm(
+    const std::vector<int64_t>& input_dims,
+    const std::vector<int64_t>& scale_dims,
+    const std::vector<int64_t>& bias_dims,
+    const std::vector<int64_t>& reshape_dims,
+    const std::vector<int64_t>& reduce_axes,
+    const float eps_value                                         = 1e-5f,
+    const migraphx::shape::type_t dtype                           = migraphx::shape::float_type,
+    const std::pair<std::string, migraphx::shape::type_t>& param1 = {"scale",
+                                                                     migraphx::shape::float_type},
+    const std::pair<std::string, migraphx::shape::type_t>& param2 = {"bias",
+                                                                     migraphx::shape::float_type})
 {
     migraphx::program p;
     auto* mm = p.get_main_module();

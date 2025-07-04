@@ -32,6 +32,7 @@
 #include <migraphx/eliminate_identity.hpp>
 #include <migraphx/eliminate_pad.hpp>
 #include <migraphx/fp8_ocp_to_fnuz.hpp>
+#include <migraphx/fuse_attention.hpp>
 #include <migraphx/fuse_concat.hpp>
 #include <migraphx/fuse_pointwise_reduce.hpp>
 #include <migraphx/inline_module.hpp>
@@ -219,6 +220,8 @@ std::vector<pass> target::get_passes(migraphx::context& gctx, const compile_opti
         enable_pass(enabled(MIGRAPHX_ENABLE_REWRITE_DOT{}), rewrite_dot{}),
         dead_code_elimination{},
         propagate_precision{},
+        dead_code_elimination{},
+        enable_pass(mlir_attention_enabled(&ctx), fuse_attention{}),
         dead_code_elimination{},
         optimize_module{},
         fuse_pointwise_reduce{},

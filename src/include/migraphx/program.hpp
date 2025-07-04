@@ -115,7 +115,7 @@ struct MIGRAPHX_EXPORT program
     void mark(const parameter_map& params, marker m);
 
     value to_value() const;
-    void from_value(const value& v);
+    void from_value(value v);
 
     void debug_print() const;
     void debug_print(instruction_ref ins) const;

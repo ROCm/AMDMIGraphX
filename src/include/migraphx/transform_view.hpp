@@ -100,14 +100,18 @@ struct transform_view : totally_ordered<transform_view<Range, F>>
         const transform_view* parent = nullptr;
         BaseIterator current{};
     };
+
     template <class BaseIterator>
-    iterator(const transform_view*, BaseIterator) -> iterator<BaseIterator>;
+    static constexpr iterator<BaseIterator> make_iterator(const transform_view* v, BaseIterator it)
+    {
+        return {v, it};
+    }
 
-    constexpr auto begin() const { return iterator{this, std::begin(base())}; }
-    constexpr auto end() const { return iterator{this, std::end(base())}; }
+    constexpr auto begin() const { return make_iterator(this, std::begin(base())); }
+    constexpr auto end() const { return make_iterator(this, std::end(base())); }
 
-    constexpr auto begin() { return iterator{this, std::begin(base())}; }
-    constexpr auto end() { return iterator{this, std::end(base())}; }
+    constexpr auto begin() { return make_iterator(this, std::begin(base())); }
+    constexpr auto end() { return make_iterator(this, std::end(base())); }
 
     constexpr Range& base() { return *rng; }
     constexpr const Range& base() const { return *rng; }

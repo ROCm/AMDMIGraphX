@@ -954,6 +954,10 @@ struct find_concat_op
             if(not std::all_of(
                    start, last, [&](instruction_ref x) { return x->inputs().at(i)->can_eval(); }))
                 return true;
+            // Its ok if they are all scalars, TODO: Check if the axis is the same dim
+            if(std::all_of(
+                   start, last, [&](instruction_ref x) { return x->inputs().at(i)->get_shape().scalar(); }))
+                return true;
             // TODO: Allow concat across broadcasted axis if all them are the same size
             return std::none_of(start, last, [&](instruction_ref x) {
                 auto s = x->inputs().at(i)->get_shape();

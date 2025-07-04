@@ -34,10 +34,8 @@ TEST_CASE(group_norm_4d_half_test)
                                           {2, 3, 4},
                                           1e-5f,
                                           migraphx::shape::half_type,
-                                          "scale",
-                                          "bias",
-                                          migraphx::shape::half_type,
-                                          migraphx::shape::half_type);
+                                          {"scale", migraphx::shape::half_type},
+                                          {"bias", migraphx::shape::half_type});
     auto prog = optimize_onnx("group_norm_4d_half_test.onnx");
     EXPECT(p == prog);
 }

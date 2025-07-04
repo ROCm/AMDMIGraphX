@@ -34,10 +34,8 @@ TEST_CASE(group_norm_contrib_gamma_beta_float_xy_half_test)
                                           {2, 3},
                                           1e-5f,
                                           migraphx::shape::half_type,
-                                          "gamma",
-                                          "beta",
-                                          migraphx::shape::float_type,
-                                          migraphx::shape::float_type);
+                                          {"gamma", migraphx::shape::float_type},
+                                          {"beta", migraphx::shape::float_type});
     auto prog           = optimize_onnx("group_norm_contrib_gamma_beta_float_xy_half_test.onnx");
     EXPECT(p == prog);
 }

@@ -34,10 +34,8 @@ TEST_CASE(group_norm_small_eps_bf16_test)
                                           {2, 3},
                                           1e-7f,
                                           migraphx::shape::bf16_type,
-                                          "scale",
-                                          "bias",
-                                          migraphx::shape::bf16_type,
-                                          migraphx::shape::bf16_type);
+                                          {"scale", migraphx::shape::bf16_type},
+                                          {"bias", migraphx::shape::bf16_type});
     auto prog = optimize_onnx("group_norm_small_eps_bf16_test.onnx");
     EXPECT(p == prog);
 }

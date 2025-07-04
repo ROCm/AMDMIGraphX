@@ -1,0 +1,47 @@
+	Gattention_double_head_bias_mask_past_attn_bias_shared_past_seq_len_test:¬
+}
+input
+weights
+bias
+
+mask_index
+past
+attention_bias
+past_sequence_lengthy"	Attention*
+	num_heads :com.microsoftGattention_double_head_bias_mask_past_attn_bias_shared_past_seq_len_testZ
+input
+
+
+
+Z
+weights
+
+
+Z
+bias
+
+
+Z
+
+mask_index
+
+
+Z
+past
+
+
+Z$
+attention_bias
+
+
+
+Z!
+past_seqence_length
+
+
+b
+y
+
+
+
+B

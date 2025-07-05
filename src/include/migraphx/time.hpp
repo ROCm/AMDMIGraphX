@@ -32,7 +32,6 @@
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
 
-
 struct timer
 {
     using milliseconds = std::chrono::duration<double, std::milli>;
@@ -53,7 +52,7 @@ auto time(F f)
     return t.record<Duration>();
 }
 
-template<class Duration>
+template <class Duration>
 struct auto_timer_log
 {
     auto_timer_log(const std::string& pname = "", source_location loc = source_location::current())
@@ -62,7 +61,7 @@ struct auto_timer_log
         log("Starting timer");
     }
 
-    auto_timer_log(const auto_timer_log&) = delete;
+    auto_timer_log(const auto_timer_log&)            = delete;
     auto_timer_log& operator=(const auto_timer_log&) = delete;
 
     void checkpoint(source_location loc = source_location::current()) const
@@ -70,16 +69,14 @@ struct auto_timer_log
         log("Checkpoint: ", t.record<Duration>(), "ms", " at line ", loc.line());
     }
 
-    ~auto_timer_log()
-    {
-        log("Finished: ", t.record<Duration>(), "ms");
-    }
-private:
+    ~auto_timer_log() { log("Finished: ", t.record<Duration>(), "ms"); }
+
+    private:
     std::string name;
     source_location location;
     timer t;
 
-    template<class... Ts>
+    template <class... Ts>
     void log(const Ts&... xs) const
     {
         std::cout << "[" << location.file_name() << ":" << location.line() << ": "

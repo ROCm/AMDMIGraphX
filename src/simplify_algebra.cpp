@@ -1408,7 +1408,7 @@ struct find_splits
                 auto concat_axis = slice_op.axes.front();
                 if(not concat_const_foldable(group.begin(), group.end(), concat_axis))
                     return;
-                
+
                 split_idx = get_binary_op_split_idx(group, splits);
                 assert(split_idx < 2);
                 size_t data_idx;

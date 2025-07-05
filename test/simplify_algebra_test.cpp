@@ -2425,9 +2425,9 @@ TEST_CASE(simplify_split_mul_broadcast_diff_size)
     auto s2 = migraphx::shape{migraphx::shape::int32_type, {64}};
     migraphx::module m1;
     {
-        auto x     = m1.add_parameter("x", s1);
-        auto lit1  = m1.add_literal(migraphx::generate_literal(s2, 1));
-        auto lit2  = m1.add_literal(migraphx::generate_literal(s2, 2));
+        auto x      = m1.add_parameter("x", s1);
+        auto lit1   = m1.add_literal(migraphx::generate_literal(s2, 1));
+        auto lit2   = m1.add_literal(migraphx::generate_literal(s2, 2));
         auto split1 = m1.add_instruction(
             migraphx::make_op("slice", {{"axes", {2}}, {"starts", {0}}, {"ends", {154}}}), x);
         auto split2 = m1.add_instruction(
@@ -2436,8 +2436,8 @@ TEST_CASE(simplify_split_mul_broadcast_diff_size)
             migraphx::make_op("multibroadcast", {{"out_lens", {1, 38, 154, 64}}}), lit1);
         auto lit2b = m1.add_instruction(
             migraphx::make_op("multibroadcast", {{"out_lens", {1, 38, 4096, 64}}}), lit2);
-        auto mul1   = m1.add_instruction(migraphx::make_op("mul"), split1, lit1b);
-        auto mul2   = m1.add_instruction(migraphx::make_op("mul"), split2, lit2b);
+        auto mul1 = m1.add_instruction(migraphx::make_op("mul"), split1, lit1b);
+        auto mul2 = m1.add_instruction(migraphx::make_op("mul"), split2, lit2b);
         m1.add_return({mul1, mul2});
     }
     migraphx::module m2 = m1;

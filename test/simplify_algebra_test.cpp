@@ -1253,7 +1253,6 @@ TEST_CASE(simplify_concat_mul_broadcast_diff_size)
     auto s3 = migraphx::shape{migraphx::shape::int32_type, {64}};
     migraphx::module m1;
     {
-        auto b     = migraphx::make_op("broadcast", {{"axis", 1}, {"out_lens", {2, 1, 4, 5}}});
         auto x     = m1.add_parameter("x", s1);
         auto y     = m1.add_parameter("y", s2);
         auto lit1  = m1.add_literal(migraphx::generate_literal(s3, 1));

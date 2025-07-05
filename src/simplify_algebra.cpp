@@ -947,7 +947,7 @@ struct find_concat_op
 
     // Check that we wont concat across a broadcasted axis, since this leads to bad const folding
     template <class Iterator>
-    static bool concat_const_foldable(Iterator start, Iterator last, std::size_t axis)
+    static bool concat_const_foldable(Iterator start, Iterator last, std::size_t iaxis)
     {
         auto n = (*start)->inputs().size();
         return all_of(range(n), [&](auto i) {
@@ -962,7 +962,7 @@ struct find_concat_op
             // TODO: Allow concat across broadcasted axis if all them are the same size
             return std::none_of(start, last, [&](instruction_ref x) {
                 auto s = x->inputs().at(i)->get_shape();
-                return s.strides()[axis] == 0;
+                return s.strides()[iaxis] == 0;
             });
         });
     }
@@ -976,9 +976,7 @@ struct find_concat_op
             if(std::distance(start, last) < 2)
                 return {start, last};
             auto x = *start;
-            if(x->outputs().size() > 1 or rejected_inputs(x->inputs()))
-                return {start, last};
-            if(not concat_const_foldable(start, last, axis))
+            if(std::all_of(start, last, [](instruction_ref x) { return x->outputs().size() > 1 or rejected_inputs(x->inputs()); }))
                 return {start, last};
             auto op = x->get_operator();
             if(not is_valid_op(op))
@@ -1004,6 +1002,8 @@ struct find_concat_op
                 auto delta = bshape.lens().size() - input->get_shape().lens().size();
                 iaxis -= delta;
             }
+            if(not concat_const_foldable(start, last, iaxis))
+                return {start, last};
 
             std::vector<instruction_ref> concats;
             for(std::size_t i = 0; i < x->inputs().size(); i++)

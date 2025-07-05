@@ -1197,15 +1197,10 @@ struct find_splits
                 assert((*it)->name() != "slice");
                 group.push_back(*it);
             }
-            // There should be no dependency between instructions in the group
-            if(std::any_of(group.begin(), group.end() - 1, [&](auto i) {
-                   return is_dependent(m, root, group.back(), i) or
-                          is_dependent(m, root, i, group.back());
-               }))
-            {
-                return {};
-            }
         }
+        // There should be no dependency between instructions in the group
+        if(is_interdependent(group, &m, root))
+            return {};
         return group;
     }
 

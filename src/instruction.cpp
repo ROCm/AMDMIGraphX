@@ -574,7 +574,7 @@ bool reaches(instruction_ref start, instruction_ref end)
 // `reaches` version that checks if instructions are in the module `m`
 // Additional condition that stops if DFS instruction's distance to `end`
 // is greater than the distance between `start` and `end`.
-template<class P>
+template <class P>
 bool reaches(instruction_ref start, instruction_ref end, const_module_ref m, P predicate)
 {
     if(start == end)
@@ -602,7 +602,9 @@ bool reaches(instruction_ref start, instruction_ref end, const_module_ref m)
     return reaches(start, end, m, [](auto) { return false; });
 }
 
-bool is_interdependent(const std::vector<instruction_ref>& instructions, const_module_ref m, instruction_ref root)
+bool is_interdependent(const std::vector<instruction_ref>& instructions,
+                       const_module_ref m,
+                       instruction_ref root)
 {
     if(instructions.size() < 2)
         return true;
@@ -626,23 +628,19 @@ bool is_interdependent(const std::vector<instruction_ref>& instructions, const_m
         });
     }
     std::unordered_map<instruction_ref, std::size_t> loc;
-    std::transform(instructions.begin(),
-                   instructions.end(),
-                   std::inserter(loc, loc.end()),
-                   [&](instruction_ref ins) { return std::make_pair(ins, std::distance(root, ins)); });
-    auto min_it = std::min_element(loc.begin(),
-                                       loc.end(),
-                                       [](const auto& x, const auto& y) {
-                                           return x.second < y.second;
-                                       });
+    std::transform(
+        instructions.begin(),
+        instructions.end(),
+        std::inserter(loc, loc.end()),
+        [&](instruction_ref ins) { return std::make_pair(ins, std::distance(root, ins)); });
+    auto min_it = std::min_element(
+        loc.begin(), loc.end(), [](const auto& x, const auto& y) { return x.second < y.second; });
     auto start = min_it->first;
 
     return all_of(instructions, [&](instruction_ref ins) {
         if(ins == start)
             return true;
-        return reaches(start, ins, m, [&](instruction_ref i) {
-            return loc.count(i) > 0;
-        });
+        return reaches(start, ins, m, [&](instruction_ref i) { return loc.count(i) > 0; });
     });
 }
 

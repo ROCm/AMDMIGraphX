@@ -1246,6 +1246,31 @@ TEST_CASE(simplify_concat_add_relu_broadcast_same_axis)
     EXPECT(m1 == m2);
 }
 
+TEST_CASE(simplify_concat_mul_broadcast_diff_size)
+{
+    auto s1 = migraphx::shape{migraphx::shape::int32_type, {1, 38, 154, 64}};
+    auto s2 = migraphx::shape{migraphx::shape::int32_type, {1, 38, 4096, 64}};
+    auto s3 = migraphx::shape{migraphx::shape::int32_type, {64}};
+    migraphx::module m1;
+    {
+        auto x     = m1.add_parameter("x", s1);
+        auto y     = m1.add_parameter("y", s2);
+        auto lit1  = m1.add_literal(migraphx::generate_literal(s3, 1));
+        auto lit2  = m1.add_literal(migraphx::generate_literal(s3, 2));
+        auto lit1b = m1.add_instruction(
+            migraphx::make_op("multibroadcast", {{"out_lens", s1.lens()}}), lit1);
+        auto lit2b = m1.add_instruction(
+            migraphx::make_op("multibroadcast", {{"out_lens", s2.lens()}}), lit2);
+        auto mul1   = m1.add_instruction(migraphx::make_op("mul"), x, lit1b);
+        auto mul2   = m1.add_instruction(migraphx::make_op("mul"), y, lit2b);
+        auto concat = m1.add_instruction(migraphx::make_op("concat", {{"axis", 2}}), mul1, mul2);
+        m1.add_return({concat});
+    }
+    migraphx::module m2 = m1;
+    run_pass(m1);
+    EXPECT(m1 == m2);
+}
+
 TEST_CASE(simplify_concat_clip)
 {
     auto s = migraphx::shape{migraphx::shape::int32_type, {1}};
@@ -2391,6 +2416,32 @@ TEST_CASE(simplify_split_add_relu_reshape)
         m2.add_instruction(pass_op{}, add);
     }
     EXPECT(m1.sort() == m2.sort());
+}
+
+TEST_CASE(simplify_split_mul_broadcast_diff_size)
+{
+    auto s1 = migraphx::shape{migraphx::shape::int32_type, {1, 38, 4250, 64}};
+    auto s2 = migraphx::shape{migraphx::shape::int32_type, {64}};
+    migraphx::module m1;
+    {
+        auto x      = m1.add_parameter("x", s1);
+        auto lit1   = m1.add_literal(migraphx::generate_literal(s2, 1));
+        auto lit2   = m1.add_literal(migraphx::generate_literal(s2, 2));
+        auto split1 = m1.add_instruction(
+            migraphx::make_op("slice", {{"axes", {2}}, {"starts", {0}}, {"ends", {154}}}), x);
+        auto split2 = m1.add_instruction(
+            migraphx::make_op("slice", {{"axes", {2}}, {"starts", {154}}, {"ends", {4250}}}), x);
+        auto lit1b = m1.add_instruction(
+            migraphx::make_op("multibroadcast", {{"out_lens", {1, 38, 154, 64}}}), lit1);
+        auto lit2b = m1.add_instruction(
+            migraphx::make_op("multibroadcast", {{"out_lens", {1, 38, 4096, 64}}}), lit2);
+        auto mul1 = m1.add_instruction(migraphx::make_op("mul"), split1, lit1b);
+        auto mul2 = m1.add_instruction(migraphx::make_op("mul"), split2, lit2b);
+        m1.add_return({mul1, mul2});
+    }
+    migraphx::module m2 = m1;
+    run_pass(m1);
+    EXPECT(m1 == m2);
 }
 
 // Do not fuse with inter split group dependency

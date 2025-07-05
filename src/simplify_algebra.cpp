@@ -82,6 +82,28 @@ static auto not_from_int4() { return match::none_of(from_int4()); }
 
 static auto reduction() { return match::name_contains("reduce"); }
 
+// Check that we wont concat across a broadcasted axis, since this leads to bad const folding
+template <class Iterator>
+static bool concat_const_foldable(Iterator start, Iterator last, std::size_t iaxis)
+{
+    auto n = (*start)->inputs().size();
+    return all_of(range(n), [&](auto i) {
+        if(not std::all_of(
+               start, last, [&](instruction_ref x) { return x->inputs().at(i)->can_eval(); }))
+            return true;
+        // Its ok if they are all scalars, TODO: Check if the axis is the same dim
+        if(std::all_of(start, last, [&](instruction_ref x) {
+               return x->inputs().at(i)->get_shape().scalar();
+           }))
+            return true;
+        // TODO: Allow concat across broadcasted axis if all them are the same size
+        return std::none_of(start, last, [&](instruction_ref x) {
+            auto s = x->inputs().at(i)->get_shape();
+            return s.strides()[iaxis] == 0;
+        });
+    });
+}
+
 // conv(x, w) * a => conv(x, a * w)
 struct find_mul_conv
 {
@@ -945,28 +967,6 @@ struct find_concat_op
         return nonconst > 2;
     }
 
-    // Check that we wont concat across a broadcasted axis, since this leads to bad const folding
-    template <class Iterator>
-    static bool concat_const_foldable(Iterator start, Iterator last, std::size_t iaxis)
-    {
-        auto n = (*start)->inputs().size();
-        return all_of(range(n), [&](auto i) {
-            if(not std::all_of(
-                   start, last, [&](instruction_ref x) { return x->inputs().at(i)->can_eval(); }))
-                return true;
-            // Its ok if they are all scalars, TODO: Check if the axis is the same dim
-            if(std::all_of(start, last, [&](instruction_ref x) {
-                   return x->inputs().at(i)->get_shape().scalar();
-               }))
-                return true;
-            // TODO: Allow concat across broadcasted axis if all them are the same size
-            return std::none_of(start, last, [&](instruction_ref x) {
-                auto s = x->inputs().at(i)->get_shape();
-                return s.strides()[iaxis] == 0;
-            });
-        });
-    }
-
     void apply(module& m, const match::matcher_result& r) const
     {
         auto ins  = r.result;
@@ -1401,6 +1401,14 @@ struct find_splits
                     return i->name() == "slice";
                 }) and "one argument must be a split");
 
+                auto slice_op = any_cast<op::slice>(splits.front()->get_operator());
+                assert(not slice_op.axes.empty());
+                if(slice_op.axes.size() > 1)
+                    return;
+                auto concat_axis = slice_op.axes.front();
+                if(not concat_const_foldable(group.begin(), group.end(), concat_axis))
+                    return;
+                
                 split_idx = get_binary_op_split_idx(group, splits);
                 assert(split_idx < 2);
                 size_t data_idx;
@@ -1433,11 +1441,6 @@ struct find_splits
 
                 move_instructions_back(m, ins, data_args);
 
-                auto slice_op = any_cast<op::slice>(splits.front()->get_operator());
-                assert(not slice_op.axes.empty());
-                if(slice_op.axes.size() > 1)
-                    return;
-                auto concat_axis = slice_op.axes.front();
                 // TODO: Check if axises match
                 auto concat = m.insert_instruction(
                     ins, make_op("concat", {{"axis", concat_axis}}), data_args);

@@ -24,14 +24,18 @@
 #ifndef MIGRAPHX_GUARD_RTGLIB_TIME_HPP
 #define MIGRAPHX_GUARD_RTGLIB_TIME_HPP
 
-#include <chrono>
 #include <migraphx/config.hpp>
+#include <migraphx/source_location.hpp>
+#include <chrono>
+#include <iostream>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
 
+
 struct timer
 {
+    using milliseconds = std::chrono::duration<double, std::milli>;
     std::chrono::time_point<std::chrono::steady_clock> start = std::chrono::steady_clock::now();
     template <class Duration>
     auto record() const
@@ -48,6 +52,42 @@ auto time(F f)
     f();
     return t.record<Duration>();
 }
+
+template<class Duration>
+struct auto_timer_log
+{
+    auto_timer_log(const std::string& pname = "", source_location loc = source_location::current())
+        : name(pname), location(loc), t()
+    {
+        log("Starting timer");
+    }
+
+    auto_timer_log(const auto_timer_log&) = delete;
+    auto_timer_log& operator=(const auto_timer_log&) = delete;
+
+    void checkpoint(source_location loc = source_location::current()) const
+    {
+        log("Checkpoint: ", t.record<Duration>(), "ms", " at line ", loc.line());
+    }
+
+    ~auto_timer_log()
+    {
+        log("Finished: ", t.record<Duration>(), "ms");
+    }
+private:
+    std::string name;
+    source_location location;
+    timer t;
+
+    template<class... Ts>
+    void log(const Ts&... xs) const
+    {
+        std::cout << "[" << location.file_name() << ":" << location.line() << ": "
+                  << location.function_name() << ": " << name << "] ";
+        (std::cout << ... << xs);
+        std::cout << std::endl;
+    }
+};
 
 } // namespace MIGRAPHX_INLINE_NS
 } // namespace migraphx

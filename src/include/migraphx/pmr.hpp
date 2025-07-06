@@ -3,7 +3,6 @@
 
 #include <migraphx/config.hpp>
 
-
 #if defined(__has_include) && __has_include(<memory_resource>)
 #include <memory_resource>
 #endif

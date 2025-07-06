@@ -25,7 +25,7 @@
 #include <onnx_test.hpp>
 #include <onnx_test_utils.hpp>
 
-TEST_CASE(group_norm_contrib_silu_3d_test)
+TEST_CASE(group_norm_contrib_gamma_beta_float_xy_half_test)
 {
     migraphx::program p = make_group_norm({1, 4, 2},
                                           {4},
@@ -33,16 +33,9 @@ TEST_CASE(group_norm_contrib_silu_3d_test)
                                           {1, 2, 2, 2},
                                           {2, 3},
                                           1e-5f,
-                                          migraphx::shape::float_type,
+                                          migraphx::shape::half_type,
                                           {"gamma", migraphx::shape::float_type},
                                           {"beta", migraphx::shape::float_type});
-
-    // Add sigmoid at the end of the program to represent the added SILU block
-    auto* mm     = p.get_main_module();
-    auto output  = std::prev(mm->end());
-    auto sigmoid = mm->add_instruction(migraphx::make_op("sigmoid"), output);
-    output       = mm->add_instruction(migraphx::make_op("mul"), output, sigmoid);
-
-    auto prog = optimize_onnx("group_norm_contrib_silu_3d_test.onnx");
+    auto prog           = optimize_onnx("group_norm_contrib_gamma_beta_float_xy_half_test.onnx");
     EXPECT(p == prog);
 }

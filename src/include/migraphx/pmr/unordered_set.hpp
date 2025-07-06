@@ -10,10 +10,10 @@ namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
 namespace pmr {
 #if MIGRAPHX_HAS_PMR
-template<class Key, class Hash = std::hash<Key>, class KeyEqual = std::equal_to<Key>>
+template <class Key, class Hash = std::hash<Key>, class KeyEqual = std::equal_to<Key>>
 using unordered_set = std::pmr::unordered_set<Key, Hash, KeyEqual>;
 #else
-template<class Key, class Hash = std::hash<Key>, class KeyEqual = std::equal_to<Key>>
+template <class Key, class Hash = std::hash<Key>, class KeyEqual = std::equal_to<Key>>
 using unordered_set = std::unordered_set<Key, Hash, KeyEqual>;
 #endif
 

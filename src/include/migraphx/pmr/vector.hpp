@@ -10,10 +10,10 @@ namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
 namespace pmr {
 #if MIGRAPHX_HAS_PMR
-template<class T>
+template <class T>
 using vector = std::pmr::vector<T>;
 #else
-template<class T>
+template <class T>
 using vector = std::vector<T>;
 #endif
 

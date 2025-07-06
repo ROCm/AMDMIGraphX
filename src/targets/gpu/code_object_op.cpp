@@ -24,7 +24,7 @@
 #include <migraphx/gpu/code_object_op.hpp>
 #include <migraphx/gpu/context.hpp>
 #include <migraphx/register_op.hpp>
-#include <memory_resource>
+#include <migraphx/pmr/vector.hpp>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
@@ -68,7 +68,7 @@ code_object_op::compute(context& ctx, const shape&, const std::vector<argument>&
 {
     std::array<char, 256> storage;
     std::pmr::monotonic_buffer_resource resource{storage.data(), storage.size()};
-    std::pmr::vector<void*> kargs(&resource);
+    pmr::vector<void*> kargs(&resource);
     visit_flatten_args(args, [&](const auto& fargs) {
         kargs.reserve(fargs.size());
         std::transform(fargs.begin(),

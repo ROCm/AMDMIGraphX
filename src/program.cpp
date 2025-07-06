@@ -40,6 +40,7 @@
 #include <migraphx/make_op.hpp>
 #include <migraphx/marker.hpp>
 #include <migraphx/supported_segments.hpp>
+#include <migraphx/pmr/unordered_map.hpp>
 
 #include <iostream>
 #include <queue>
@@ -52,7 +53,6 @@
 #include <unordered_set>
 #include <map>
 #include <cassert>
-#include <memory_resource>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
@@ -464,7 +464,7 @@ static std::vector<argument>
 generic_eval(const module* mod,
              std::vector<context>& ctx,
              const std::unordered_map<std::string, argument>& params,
-             std::pmr::unordered_map<instruction_ref, argument>& results,
+             pmr::unordered_map<instruction_ref, argument>& results,
              F trace)
 {
     assert(mod->validate() == mod->end());
@@ -561,7 +561,7 @@ static std::vector<argument> generic_eval(const program& p,
     std::vector<char> buffer(n * (sizeof(instruction_ref) + sizeof(argument)) * 4);
     std::pmr::monotonic_buffer_resource bres(
         buffer.data(), buffer.size(), std::pmr::null_memory_resource());
-    std::pmr::unordered_map<instruction_ref, argument> results(&bres);
+    pmr::unordered_map<instruction_ref, argument> results(&bres);
     results.reserve(n);
     return generic_eval(mm, ctx, params, results, trace);
 }

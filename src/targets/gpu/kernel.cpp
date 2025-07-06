@@ -61,7 +61,7 @@ struct kernel_impl
     hipFunction_t fun     = nullptr;
 };
 
-hip_module_ptr load_module(const char* image)
+static hip_module_ptr load_module(const char* image)
 {
     hipModule_t raw_m;
     auto status = hipModuleLoadData(&raw_m, image);
@@ -79,14 +79,14 @@ kernel::kernel(const char* image, const std::string& name) : impl(std::make_shar
         MIGRAPHX_THROW("Failed to get function: " + name + ": " + hip_error(status));
 }
 
-void launch_kernel(hipFunction_t fun,
-                   hipStream_t stream,
-                   std::size_t global,
-                   std::size_t local,
-                   void* kernargs,
-                   std::size_t size,
-                   hipEvent_t start,
-                   hipEvent_t stop)
+static void launch_kernel(hipFunction_t fun,
+                          hipStream_t stream,
+                          std::size_t global,
+                          std::size_t local,
+                          void* kernargs,
+                          std::size_t size,
+                          hipEvent_t start,
+                          hipEvent_t stop)
 {
     assert(global > 0);
     assert(local > 0);

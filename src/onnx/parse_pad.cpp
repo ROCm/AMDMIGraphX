@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2024 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2025 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -31,7 +31,7 @@ namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
 namespace onnx {
 
-void calc_reflect_indices(std::vector<int>& indices, const int64_t num_dims)
+static void calc_reflect_indices(std::vector<int>& indices, const int64_t num_dims)
 {
     int k         = 0;
     bool reversed = false;
@@ -51,14 +51,14 @@ void calc_reflect_indices(std::vector<int>& indices, const int64_t num_dims)
     }
 }
 
-instruction_ref reflect_pad(const onnx_parser::node_info& info,
-                            const std::vector<int64_t>& pads,
-                            instruction_ref input)
+static instruction_ref reflect_pad(const onnx_parser::node_info& info,
+                                   const std::vector<int64_t>& pads,
+                                   instruction_ref input)
 {
-    size_t num_dims = pads.size() / 2;
+    size_t num_dims = input->get_shape().ndim();
+    assert(num_dims * 2 == pads.size());
     std::vector<int> ldims(pads.begin(), pads.begin() + num_dims);
     std::vector<int> rdims(pads.begin() + num_dims, pads.end());
-    assert(ldims.size() == rdims.size());
 
     std::vector<int64_t> axes(num_dims);
     std::iota(axes.begin(), axes.end(), int64_t{0});
@@ -111,6 +111,63 @@ instruction_ref reflect_pad(const onnx_parser::node_info& info,
     return input;
 }
 
+static instruction_ref edge_pad(const onnx_parser::node_info& info,
+                                const std::vector<int64_t>& pads,
+                                instruction_ref input)
+{
+    size_t num_dims = input->get_shape().ndim();
+    assert(num_dims * 2 == pads.size());
+    std::vector<int> ldims(pads.begin(), pads.begin() + num_dims);
+    std::vector<int> rdims(pads.begin() + num_dims, pads.end());
+
+    std::vector<int64_t> axes(num_dims);
+    std::iota(axes.begin(), axes.end(), int64_t{0});
+
+    // iterate over dimensions, starting from lowest dimension
+    for(int64_t i = num_dims - 1; i >= 0; i--)
+    {
+        auto axis   = i;
+        auto lcount = ldims.at(i);
+        auto rcount = rdims.at(i);
+        if(lcount == 0 and rcount == 0) // no padding for current dim
+            continue;
+
+        // calculate starts and ends for each iteration since shape may change
+        std::vector<size_t> dims = input->get_shape().lens();
+        std::vector<int64_t> starts(axes.size(), 0);
+        std::vector<int64_t> ends(dims.begin(), dims.end());
+        std::vector<instruction_ref> slices;
+        slices.reserve(lcount + rcount + 1);
+
+        // left side
+        starts[i] = 0;
+        ends[i]   = 1;
+        auto ins  = info.add_instruction(
+            make_op("slice", {{"axes", axes}, {"starts", starts}, {"ends", ends}}), input);
+        for(int64_t j = 0; j < lcount; j++)
+        {
+            slices.push_back(ins);
+        }
+
+        // original input
+        slices.push_back(input);
+
+        // right side
+        starts[i] = dims[i] - 1;
+        ends[i]   = dims[i];
+        ins       = info.add_instruction(
+            make_op("slice", {{"axes", axes}, {"starts", starts}, {"ends", ends}}), input);
+        for(size_t j = 0; j < rcount; j++)
+        {
+            slices.push_back(ins);
+        }
+
+        // concat all together
+        input = info.add_instruction(make_op("concat", {{"axis", axis}}), slices);
+    }
+    return input;
+}
+
 struct parse_pad : op_parser<parse_pad>
 {
     std::vector<op_desc> operators() const { return {{"Pad"}}; }
@@ -121,17 +178,18 @@ struct parse_pad : op_parser<parse_pad>
         if(contains(info.attributes, "mode"))
         {
             auto mode = info.attributes.at("mode").s();
-            if(mode == "reflect")
+            if(mode == "reflect" or mode == "edge")
             {
                 if(args.front()->get_shape().dynamic())
                 {
-                    MIGRAPHX_THROW("PARSE_PAD: reflect padding with dynamic shape not supported");
+                    MIGRAPHX_THROW("PARSE_PAD: " + mode +
+                                   " padding with dynamic shape not supported");
                 }
             }
-            else if(mode != "constant")
+            else if(mode != "constant" and mode != "edge")
             {
-                MIGRAPHX_THROW(
-                    "PARSE_PAD: migraphx currently only supports constant and reflect padding");
+                MIGRAPHX_THROW("PARSE_PAD: MIGraphX currently only supports constant, reflect, and "
+                               "edge padding");
             }
             return mode;
         }
@@ -261,6 +319,11 @@ struct parse_pad : op_parser<parse_pad>
         if(mode == "reflect")
         {
             return reflect_pad(info, pads, args.front());
+        }
+
+        if(mode == "edge")
+        {
+            return edge_pad(info, pads, args.front());
         }
 
         return info.add_instruction(migraphx::make_op("pad", {{"pads", pads}, {"value", value}}),

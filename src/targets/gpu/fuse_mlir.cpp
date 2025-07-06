@@ -126,7 +126,7 @@ static bool specific_op(std::string_view option, bool fallback = false)
     return contains(options, option);
 }
 
-bool mlir_attention_enabled(context* ctx)
+static bool mlir_attention_enabled(context* ctx)
 {
 #ifdef MIGRAPHX_MLIR
     if(not mlir_enabled())
@@ -210,7 +210,7 @@ const auto& reshaper_names()
         "broadcast",
         "contiguous",
         "reshape",
-        "lazy_reshape",
+        "reshape_lazy",
         "squeeze",
         "flatten",
         "unsqueeze"
@@ -308,13 +308,18 @@ auto is_mlir_dot(mlir_mode mode)
             return true;
         auto a = ins->inputs().front()->get_shape();
         auto b = ins->inputs().back()->get_shape();
-        // auto m = a.lens()[a.lens().size() - 2];
-        // auto n = b.lens().back();
+        auto g = std::accumulate(a.lens().begin(), a.lens().end() - 2, 1, std::multiplies<>{});
+        auto m = a.lens()[a.lens().size() - 2];
+        auto n = b.lens().back();
         auto k = a.lens().back();
         // Skipping GEMMs with a K dimension greater than 2048 is a course-grained strategy
         // to avoid poor-performing GEMM kernels from MLIR
         // To-do: Investigate a more precise strategy
-        return k <= 1024;
+        if(k > 1535)
+            return false;
+        if(k < 1024)
+            return true;
+        return (g * m * n) < (384 * 384);
     });
 }
 
@@ -637,13 +642,33 @@ struct find_mlir_split_reduce
     }
 };
 
+/**
+ * Fuses rocMLIR compatible dot or conv op -> reshapes -> pointwise
+ * into a mlir_op with submodule.
+ */
 struct find_mlir_fused_ops
 {
     mlir_mode conv_mode = mlir_mode::none;
     mlir_mode dot_mode  = mlir_mode::none;
+
+    static auto make_conv_dot_reshaper_names()
+    {
+        auto names = reshaper_names();
+        names.erase("broadcast");
+        names.erase("multibroadcast");
+        return names;
+    }
+
+    /**
+     * Matches:
+     * mlir_dot_or_conv <binds to "gemm_based_op"> ->
+     * skip(conv_dot_reshaper_names) <binds to "x"> ->
+     * mlir_pointwise <matcher result>
+     */
     auto matcher() const
     {
-        auto dot_or_conv = match::skip(match::name(reshaper_names()))(
+        static const auto conv_dot_reshaper_names = make_conv_dot_reshaper_names();
+        auto dot_or_conv = match::skip(match::name(conv_dot_reshaper_names))(
             match::any_of(is_mlir_dot(dot_mode), is_mlir_conv(conv_mode)).bind("gemm_based_op"));
         return mlir_pointwise()(match::any_of[match::inputs()](dot_or_conv.bind("x")));
     }
@@ -918,6 +943,11 @@ struct find_mlir_attention_fused_ops : public find_mlir_standalone_attention_op
     }
 };
 
+/**
+ * Input fusion of pointwise operators into a mlir_op.
+ * Only fuses unary pointwise operators by default.
+ * Fuses all fusable pw ops with MIGRAPHX_ENABLE_MLIR_INPUT_FUSION
+ */
 struct find_pointwise_mlir
 {
     auto supported_pointwise() const { return mlir_input_pointwise(match::used_once()); }
@@ -1035,6 +1065,176 @@ struct find_unpack_int4_mlir_op
     }
 };
 
+/**
+ * Fuse single output reshape instructions on the output of mlir_op into the
+ * mlir_op.
+ */
+struct find_mlir_output_reshape_ops
+{
+    auto matcher() const
+    {
+        static const std::unordered_set<std::string> output_reshapes = {"transpose",
+                                                                        "contiguous",
+                                                                        "reshape",
+                                                                        "reshape_lazy",
+                                                                        "squeeze",
+                                                                        "flatten",
+                                                                        "unsqueeze"};
+        auto atleast_one_reshape =
+            match::all_of(match::output(match::name(output_reshapes)),
+                          match::skip_output(match::name(output_reshapes).bind("last_reshape")));
+        return match::name("gpu::mlir_op")(atleast_one_reshape);
+    }
+
+    void apply(module_pass_manager& mpm, const match::matcher_result& r) const
+    {
+        auto mlir_op_ins     = r.result;
+        auto last_reshape    = r.instructions["last_reshape"];
+        auto* mlir_op_module = mlir_op_ins->module_inputs().front();
+        std::vector<instruction_ref> reshape_instructions;
+        instruction_ref iter_ins = mlir_op_ins;
+        while(iter_ins != last_reshape)
+        {
+            // should already be covered by skip_output
+            assert(iter_ins->outputs().size() == 1);
+            auto output_ins = iter_ins->outputs().front();
+            reshape_instructions.push_back(output_ins);
+            iter_ins = output_ins;
+        }
+
+        assert(not reshape_instructions.empty());
+        std::string module_name = mlir_op_module->name();
+        std::transform(reshape_instructions.begin(),
+                       reshape_instructions.end(),
+                       join_back_inserter(module_name),
+                       [](instruction_ref ins) { return "_" + ins->name(); });
+        module_ref fused_module = mpm.create_module(module_name);
+        fused_module->set_bypass();
+
+        std::unordered_map<instruction_ref, instruction_ref> map_ins;
+        auto new_back = fused_module->fuse(*mlir_op_module, mlir_op_ins->inputs(), &map_ins).back();
+        map_ins[mlir_op_ins]    = new_back;
+        auto fused_instructions = fused_module->fuse(reshape_instructions, &map_ins);
+        fused_module->add_return({fused_instructions.back()});
+        auto inputs = find_inputs(map_ins, &mpm.get_module(), fused_module);
+        mpm.get_module().replace_instruction(
+            last_reshape, mlir_op{last_reshape->get_operator()}, inputs, {fused_module});
+    }
+};
+
+/**
+ * Find slices along the channels axis that go into a convolution.
+ * Reshape input instructions to the slices such that the slice occurs over
+ * the slowest dimension.
+ * TODO: This can also be done for GEMM when NCHW is supported for it.
+ */
+struct find_channel_slice_convolution
+{
+    auto matcher() const
+    {
+        return match::name("convolution")(match::arg(0)(match::name("slice").bind("slice")));
+    }
+
+    /**
+     * Number of groups the input to the slice instruction is split into.
+     * `slice` should be over the channels axis only and split evenly.
+     */
+    static std::size_t get_num_slice_groups(instruction_ref slice)
+    {
+        auto input = slice->inputs().front();
+        auto op    = slice->get_operator().to_value();
+        auto axes  = op["axes"].to_vector<std::size_t>();
+        if(axes.size() != 1)
+            return 0;
+        if(axes.front() != 1)
+            return 0;
+        auto ichannels = input->get_shape().lens().at(1);
+        auto channels  = slice->get_shape().lens().at(1);
+        if((ichannels % channels) != 0)
+            return 0;
+        return ichannels / channels;
+    }
+
+    void apply(module_pass_manager& mpm, const match::matcher_result& r) const
+    {
+        auto ins              = r.result;
+        auto slice            = r.instructions["slice"];
+        auto input            = slice->inputs().front();
+        auto num_slice_groups = get_num_slice_groups(slice);
+        if(num_slice_groups == 0)
+        {
+            return;
+        }
+        // check that all slice instructions coming off from `input` are making
+        // the same size slice.
+        if(not all_of(input->outputs(), [&](instruction_ref output) {
+               if(output->name() != "slice")
+                   return false;
+               auto ichannels = output->inputs().front()->get_shape().lens().at(1);
+               auto channels  = output->get_shape().lens().at(1);
+               return channels * num_slice_groups == ichannels;
+           }))
+        {
+            return;
+        }
+        // check memory layout is in NCHW
+        if(find_permutation(ins->get_shape()).back() != 1)
+        {
+            return;
+        }
+
+        auto dims = input->get_shape().lens();
+        dims[1] /= num_slice_groups;
+        // inserts num_slice_groups dimension in front of channels to split channels correctly
+        dims.insert(dims.begin() + 1, num_slice_groups);
+
+        // first transpose permutation such that channels dimension goes to
+        // last axis and num_slice_groups axis goes to first axis
+        std::vector<int64_t> transpose_perm0(dims.size());
+        transpose_perm0.at(0) = 1;
+        transpose_perm0.at(1) = 0;
+        std::iota(transpose_perm0.begin() + 2, transpose_perm0.end() - 1, 3);
+        transpose_perm0.back() = 2;
+
+        // second transpose permutation such that last dimension
+        // (the channels dimension below) goes to third axis
+        std::vector<int64_t> transpose_perm1(dims.size());
+        transpose_perm1.at(0) = 0;
+        transpose_perm1.at(1) = 1;
+        transpose_perm1.at(2) = dims.size() - 1;
+        std::iota(transpose_perm1.begin() + 3, transpose_perm1.end(), 2);
+
+        auto outputs       = input->outputs();
+        auto ins_to_insert = std::next(input);
+        auto reshape1      = mpm.get_module().insert_instruction(
+            ins_to_insert, make_op("reshape_lazy", {{"dims", dims}}), input);
+        auto transpose_ins1 = mpm.get_module().insert_instruction(
+            ins_to_insert, make_op("transpose", {{"permutation", transpose_perm0}}), reshape1);
+        auto contiguous_ins = mpm.get_module().insert_instruction(
+            ins_to_insert, make_op("contiguous"), transpose_ins1);
+        auto transepose_ins2 = mpm.get_module().insert_instruction(
+            ins_to_insert,
+            make_op("transpose", {{"permutation", transpose_perm1}}),
+            contiguous_ins);
+        // spacer identity instruction
+        auto identity_ins = mpm.get_module().insert_instruction(
+            ins_to_insert, make_op("identity"), transepose_ins2);
+
+        // Replace slice operators to 0 axis
+        for(auto output : outputs)
+        {
+            auto v      = output->get_operator().to_value();
+            auto starts = v["starts"].to_vector<std::size_t>();
+            auto i      = starts.front() / output->get_shape().lens()[1]; // note integer truncation
+            auto s      = mpm.get_module().insert_instruction(
+                output,
+                make_op("slice", {{"axes", {0}}, {"starts", {i}}, {"ends", {i + 1}}}),
+                identity_ins);
+            mpm.get_module().replace_instruction(output, make_op("squeeze", {{"axes", {0}}}), s);
+        }
+    }
+};
+
 } // namespace
 
 #endif // MIGRAPHX_MLIR
@@ -1055,6 +1255,9 @@ void fuse_mlir::apply(module_pass_manager& mpm) const
             return mlir_mode::all;
         return std::max(m1, m2);
     };
+
+    match::find_matches(mpm, find_channel_slice_convolution{});
+    mpm.run_pass(dead_code_elimination{});
 
     // Attention offloads; default disabled
     if(mlir_attention_enabled(ctx) or enable_extra)
@@ -1087,6 +1290,8 @@ void fuse_mlir::apply(module_pass_manager& mpm) const
 
     match::find_matches(mpm, find_pointwise_mlir{});
     match::find_matches(mpm, find_unpack_int4_mlir_op{});
+
+    match::find_matches(mpm, find_mlir_output_reshape_ops{});
 
 #else
     (void)mpm;

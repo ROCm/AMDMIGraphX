@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2022 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2025 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -68,7 +68,9 @@ const std::string& command_name()
 }
 
 template <class T>
-void run_command(const std::string& exe_name, std::vector<std::string> args, bool add_help = false)
+void run_command(const std::string& exe_name,
+                 const std::vector<std::string>& args,
+                 bool add_help = false)
 {
     T x;
     argument_parser ap;
@@ -76,7 +78,7 @@ void run_command(const std::string& exe_name, std::vector<std::string> args, boo
     if(add_help)
         ap(nullptr, {"-h", "--help"}, ap.help("Show help"), ap.show_help());
     x.parse(ap);
-    if(ap.parse(std::move(args)))
+    if(ap.parse(args))
         return;
     x.run();
 }
@@ -85,7 +87,7 @@ template <class T>
 int auto_register_command()
 {
     auto& m              = get_commands();
-    m[command_name<T>()] = [](const std::string& exe_name, std::vector<std::string> args) {
+    m[command_name<T>()] = [](const std::string& exe_name, const std::vector<std::string>& args) {
         run_command<T>(exe_name, args, true);
     };
     return 0;

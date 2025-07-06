@@ -34,6 +34,7 @@
 #include <test.hpp>
 #include <pointwise.hpp>
 #include <reduce.hpp>
+#include <utility>
 
 MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_ENABLE_MLIR_INPUT_FUSION);
 MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_ENABLE_MLIR_REDUCE_FUSION);
@@ -48,18 +49,18 @@ struct non_mlir_op
     }
 };
 
-void run_pass(migraphx::program& p)
+static void run_pass(migraphx::program& p)
 {
     migraphx::run_passes(
         p, {migraphx::gpu::fuse_mlir{.enable_extra = true}, migraphx::dead_code_elimination{}});
 }
 
 template <class F>
-migraphx::instruction_ref add_mlir(migraphx::program& p,
-                                   const std::string& name,
-                                   std::vector<migraphx::instruction_ref> inputs,
-                                   std::vector<std::string> arg_names,
-                                   F f)
+static migraphx::instruction_ref add_mlir(migraphx::program& p,
+                                          const std::string& name,
+                                          std::vector<migraphx::instruction_ref> inputs,
+                                          std::vector<std::string> arg_names,
+                                          const F& f)
 {
     assert(inputs.size() == arg_names.size() and "One interior parameter name given per input.");
     auto* mm = p.get_main_module();
@@ -79,16 +80,16 @@ migraphx::instruction_ref add_mlir(migraphx::program& p,
 }
 
 template <class F>
-migraphx::instruction_ref add_mlir(migraphx::program& p,
-                                   const std::string& name,
-                                   std::vector<migraphx::instruction_ref> inputs,
-                                   F f)
+static migraphx::instruction_ref add_mlir(migraphx::program& p,
+                                          const std::string& name,
+                                          std::vector<migraphx::instruction_ref> inputs,
+                                          const F& f)
 {
     std::vector<std::string> arg_names;
     migraphx::transform(migraphx::range(inputs.size()), std::back_inserter(arg_names), [&](auto i) {
         return migraphx::param_name(i);
     });
-    return add_mlir(p, name, std::move(inputs), std::move(arg_names), f);
+    return add_mlir(p, name, std::move(inputs), std::move(arg_names), std::move(f));
 }
 
 TEST_CASE(dot_reshapes_add)
@@ -195,6 +196,81 @@ TEST_CASE(dot_transpose_reshape_add)
                 return std::make_tuple(dot->get_operator(), add);
             });
         mm->add_return({fused});
+    }
+    EXPECT(p1.sort() == p2.sort());
+}
+
+TEST_CASE(dot_reshape_lazy_add)
+{
+    migraphx::shape s1{migraphx::shape::float_type, {1, 6, 6}};
+    migraphx::shape s2{migraphx::shape::float_type, {1, 36}};
+    migraphx::program p1;
+    {
+        auto* mm = p1.get_main_module();
+        auto a   = mm->add_parameter("a", s1);
+        auto b   = mm->add_parameter("b", s1);
+        auto x   = mm->add_parameter("x", s2);
+        auto dot = mm->add_instruction(migraphx::make_op("dot"), a, b);
+        auto xreshape_lazy =
+            mm->add_instruction(migraphx::make_op("reshape_lazy", {{"dims", s1.lens()}}), x);
+        auto add =
+            add_pointwise(p1, "main:pointwise0", {dot, xreshape_lazy}, single_pointwise("add"));
+        mm->add_return({add});
+    }
+    run_pass(p1);
+    migraphx::program p2;
+    {
+        auto* mm = p2.get_main_module();
+        auto a   = mm->add_parameter("a", s1);
+        auto b   = mm->add_parameter("b", s1);
+        auto x   = mm->add_parameter("x", s2);
+        auto fused =
+            add_mlir(p2, "mlir_main:pointwise0", {a, b, x}, [=](auto* pm, const auto& inputs) {
+                auto dot = pm->add_instruction(migraphx::make_op("dot"), inputs[0], inputs[1]);
+                auto xreshape_lazy = pm->add_instruction(
+                    migraphx::make_op("reshape_lazy", {{"dims", s1.lens()}}), inputs[2]);
+                auto add = pm->add_instruction(migraphx::make_op("add"), dot, xreshape_lazy);
+                return std::make_tuple(dot->get_operator(), add);
+            });
+        mm->add_return({fused});
+    }
+    EXPECT(p1.sort() == p2.sort());
+}
+
+TEST_CASE(conv_broadcast_mul)
+{
+    migraphx::shape os{migraphx::shape::float_type, {4, 56, 122, 122}};
+    migraphx::shape is{migraphx::shape::float_type, {4, 14, 1, 1}};
+    migraphx::shape ws{migraphx::shape::float_type, {56, 14, 1, 1}};
+    migraphx::program p1;
+    {
+        auto* mm   = p1.get_main_module();
+        auto x     = mm->add_parameter("x", is);
+        auto y     = mm->add_parameter("y", os);
+        auto w     = mm->add_parameter("w", ws);
+        auto conv  = mm->add_instruction(migraphx::make_op("convolution"), x, w);
+        auto convb = mm->add_instruction(
+            migraphx::make_op("multibroadcast", {{"out_lens", os.lens()}}), conv);
+        auto mul = add_pointwise(p1, "main:pointwise0", {convb, y}, single_pointwise("mul"));
+        mm->add_return({mul});
+    }
+    run_pass(p1);
+    migraphx::program p2;
+    {
+        auto* mm  = p2.get_main_module();
+        auto x    = mm->add_parameter("x", is);
+        auto y    = mm->add_parameter("y", os);
+        auto w    = mm->add_parameter("w", ws);
+        auto conv = add_mlir(
+            p2, "mlir_convolution0", {x, w}, {"y0", "y1"}, [=](auto* pm, const auto& inputs) {
+                auto c =
+                    pm->add_instruction(migraphx::make_op("convolution"), inputs[0], inputs[1]);
+                return std::make_tuple(c->get_operator(), c);
+            });
+        auto convb = mm->add_instruction(
+            migraphx::make_op("multibroadcast", {{"out_lens", os.lens()}}), conv);
+        auto mul = add_pointwise(p2, "main:pointwise0", {convb, y}, single_pointwise("mul"));
+        mm->add_return({mul});
     }
     EXPECT(p1.sort() == p2.sort());
 }
@@ -1538,6 +1614,163 @@ TEST_CASE(gemm_invalid_pw_softmax_gemm)
     }
 
     EXPECT(p1 == p2);
+}
+
+TEST_CASE(conv_output_reshapes)
+{
+    migraphx::shape s1 = migraphx::shape::from_permutation(
+        migraphx::shape::half_type, {64, 64, 160, 160}, {0, 2, 3, 1});
+    // equivalent: migraphx::shape s1{migraphx::shape::half_type, {64, 64, 160, 160}, {1638400, 1,
+    // 10240, 64}};
+    migraphx::shape s2{migraphx::shape::half_type, {64, 64, 1, 1}, {0, 1, 0, 0}};
+    migraphx::program p1;
+    {
+        auto* mm     = p1.get_main_module();
+        auto a       = mm->add_parameter("x", s1);
+        auto b       = mm->add_parameter("w", s2);
+        auto c       = mm->add_parameter("b", s1);
+        auto conv    = mm->add_instruction(migraphx::make_op("convolution"), a, b);
+        auto add     = add_pointwise(p1, "main:pointwise0", {conv, c}, single_pointwise("add"));
+        auto reshape = mm->add_instruction(
+            migraphx::make_op("reshape_lazy", {{"dims", {64, 2, 32, 160, 160}}}), add);
+        auto transpose_0 = mm->add_instruction(
+            migraphx::make_op("transpose", {{"permutation", {1, 0, 3, 4, 2}}}), reshape);
+        auto contiguous  = mm->add_instruction(migraphx::make_op("contiguous"), transpose_0);
+        auto transpose_1 = mm->add_instruction(
+            migraphx::make_op("transpose", {{"permutation", {0, 1, 4, 2, 3}}}), contiguous);
+        auto slice_0 = mm->add_instruction(
+            migraphx::make_op("slice", {{"axes", {0}}, {"starts", {0}}, {"ends", {1}}}),
+            transpose_1);
+        auto slice_1 = mm->add_instruction(
+            migraphx::make_op("slice", {{"axes", {0}}, {"starts", {1}}, {"ends", {2}}}),
+            transpose_1);
+        mm->add_return({slice_0, slice_1});
+    }
+    run_pass(p1);
+
+    migraphx::program p2;
+    {
+        auto* mm     = p2.get_main_module();
+        auto a       = mm->add_parameter("x", s1);
+        auto b       = mm->add_parameter("w", s2);
+        auto c       = mm->add_parameter("b", s1);
+        auto mlir_op = add_mlir(
+            p2,
+            "mlir_main:pointwise0_reshape_lazy_transpose_contiguous_transpose",
+            {a, b, c},
+            {"x0", "x1", "x2"},
+            [=](auto* pm, const auto& inputs) {
+                auto conv =
+                    pm->add_instruction(migraphx::make_op("convolution"), inputs[0], inputs[1]);
+                auto add     = pm->add_instruction(migraphx::make_op("add"), conv, inputs[2]);
+                auto reshape = pm->add_instruction(
+                    migraphx::make_op("reshape_lazy", {{"dims", {64, 2, 32, 160, 160}}}), add);
+                auto transpose_0 = pm->add_instruction(
+                    migraphx::make_op("transpose", {{"permutation", {1, 0, 3, 4, 2}}}), reshape);
+                auto contiguous = pm->add_instruction(migraphx::make_op("contiguous"), transpose_0);
+                auto transpose_1 = pm->add_instruction(
+                    migraphx::make_op("transpose", {{"permutation", {0, 1, 4, 2, 3}}}), contiguous);
+                return std::make_tuple(transpose_1->get_operator(), transpose_1);
+            });
+        auto slice_0 = mm->add_instruction(
+            migraphx::make_op("slice", {{"axes", {0}}, {"starts", {0}}, {"ends", {1}}}), mlir_op);
+        auto slice_1 = mm->add_instruction(
+            migraphx::make_op("slice", {{"axes", {0}}, {"starts", {1}}, {"ends", {2}}}), mlir_op);
+        mm->add_return({slice_0, slice_1});
+    }
+    EXPECT(p1.sort() == p2.sort());
+}
+
+TEST_CASE(channel_slice_convolution)
+{
+    migraphx::shape s1 = migraphx::shape::from_permutation(
+        migraphx::shape::half_type, {64, 64, 160, 160}, {0, 2, 3, 1});
+    // equivalent: migraphx::shape s1{migraphx::shape::half_type, {64, 64, 160, 160}, {1638400, 1,
+    // 10240, 64}};
+    migraphx::shape s2{migraphx::shape::half_type, {64, 64, 1, 1}, {0, 1, 0, 0}};
+    migraphx::shape s3{migraphx::shape::half_type, {32, 32, 1, 1}, {0, 1, 0, 0}};
+    migraphx::program p1;
+    {
+        auto* mm     = p1.get_main_module();
+        auto a       = mm->add_parameter("x", s1);
+        auto b       = mm->add_parameter("w", s2);
+        auto c       = mm->add_parameter("b", s1);
+        auto d       = mm->add_parameter("g", s3);
+        auto conv    = mm->add_instruction(migraphx::make_op("convolution"), a, b);
+        auto add     = add_pointwise(p1, "main:pointwise0", {conv, c}, single_pointwise("add"));
+        auto slice_0 = mm->add_instruction(
+            migraphx::make_op("slice", {{"axes", {1}}, {"starts", {0}}, {"ends", {32}}}), add);
+        auto slice_1 = mm->add_instruction(
+            migraphx::make_op("slice", {{"axes", {1}}, {"starts", {32}}, {"ends", {64}}}), add);
+        auto conv_1 = mm->add_instruction(migraphx::make_op("convolution"), slice_0, d);
+        auto conv_2 = mm->add_instruction(migraphx::make_op("convolution"), slice_1, d);
+        mm->add_return({conv_1, conv_2});
+    }
+    run_pass(p1);
+
+    migraphx::program p2;
+    {
+        auto* mm     = p2.get_main_module();
+        auto a       = mm->add_parameter("x", s1);
+        auto b       = mm->add_parameter("w", s2);
+        auto c       = mm->add_parameter("b", s1);
+        auto d       = mm->add_parameter("g", s3);
+        auto mlir_op = add_mlir(
+            p2,
+            "mlir_main:pointwise0_reshape_lazy_transpose_contiguous_transpose",
+            {a, b, c},
+            {"x0", "x1", "x2"},
+            [=](auto* pm, const auto& inputs) {
+                auto conv =
+                    pm->add_instruction(migraphx::make_op("convolution"), inputs[0], inputs[1]);
+                auto add     = pm->add_instruction(migraphx::make_op("add"), conv, inputs[2]);
+                auto reshape = pm->add_instruction(
+                    migraphx::make_op("reshape_lazy", {{"dims", {64, 2, 32, 160, 160}}}), add);
+                auto transpose_0 = pm->add_instruction(
+                    migraphx::make_op("transpose", {{"permutation", {1, 0, 3, 4, 2}}}), reshape);
+                auto contiguous = pm->add_instruction(migraphx::make_op("contiguous"), transpose_0);
+                auto transpose_1 = pm->add_instruction(
+                    migraphx::make_op("transpose", {{"permutation", {0, 1, 4, 2, 3}}}), contiguous);
+                return std::make_tuple(transpose_1->get_operator(), transpose_1);
+            });
+
+        auto identity = mm->add_instruction(migraphx::make_op("identity"), mlir_op);
+
+        auto mlir_conv0 = add_mlir(
+            p2,
+            "mlir_convolution1",
+            {identity, d},
+            {"y0", "y1"},
+            [=](auto* pm, const auto& inputs) {
+                auto slice_0 = pm->add_instruction(
+                    migraphx::make_op("slice", {{"axes", {0}}, {"starts", {0}}, {"ends", {1}}}),
+                    inputs[0]);
+                auto squeeze_0 =
+                    pm->add_instruction(migraphx::make_op("squeeze", {{"axes", {0}}}), slice_0);
+                auto conv_0 =
+                    pm->add_instruction(migraphx::make_op("convolution"), squeeze_0, inputs[1]);
+                return std::make_tuple(conv_0->get_operator(), conv_0);
+            });
+
+        auto mlir_conv1 = add_mlir(
+            p2,
+            "mlir_convolution2",
+            {identity, d},
+            {"y0", "y1"},
+            [=](auto* pm, const auto& inputs) {
+                auto slice_1 = pm->add_instruction(
+                    migraphx::make_op("slice", {{"axes", {0}}, {"starts", {1}}, {"ends", {2}}}),
+                    inputs[0]);
+                auto squeeze_1 =
+                    pm->add_instruction(migraphx::make_op("squeeze", {{"axes", {0}}}), slice_1);
+                auto conv_1 =
+                    pm->add_instruction(migraphx::make_op("convolution"), squeeze_1, inputs[1]);
+                return std::make_tuple(conv_1->get_operator(), conv_1);
+            });
+
+        mm->add_return({mlir_conv0, mlir_conv1});
+    }
+    EXPECT(p1.sort() == p2.sort());
 }
 
 int main(int argc, const char* argv[])

@@ -26,4 +26,4 @@
 #include <migraphx/verify.hpp>
 #include <onnx_test.hpp>
 
-TEST_CASE(multinomial_dyn_test) {}
+TEST_CASE(mxfixneuron_small_test) {}

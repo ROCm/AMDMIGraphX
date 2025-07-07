@@ -43,7 +43,7 @@ static migraphx::program create_conv_bn_relu_maxpool(bool has_bias_value = true)
     uint64_t axis = 1;
 
     auto no_bias = not has_bias_value ? mm->add_instruction(migraphx::make_op("undefined"))
-                                   : migraphx::instruction_ref();
+                                      : migraphx::instruction_ref();
     auto l3 =
         mm->add_instruction(migraphx::make_op("convolution", {{"padding", {0, 0, 0, 0}}}), l0, l1);
     auto l4 = mm->add_instruction(

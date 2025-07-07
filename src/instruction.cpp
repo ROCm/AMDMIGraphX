@@ -28,6 +28,7 @@
 #include <migraphx/ranges.hpp>
 #include <migraphx/output_iterator.hpp>
 #include <migraphx/iterator.hpp>
+#include <bitset>
 #include <queue>
 
 namespace migraphx {
@@ -554,6 +555,41 @@ const migraphx::instruction* as_address(const std::list<instruction>::const_iter
     return iterator_address(ins);
 }
 
+template<class F>
+static auto track_visits(instruction_ref start, instruction_ref end, F f)
+{
+    const std::size_t small = 64;
+    std::size_t n = std::distance(start, end);
+    if(n < small)
+    {
+        std::bitset<small> visited;
+        auto stop = [&](auto ins) {
+            auto i = std::distance(ins, end);
+            if(i > n)
+                return true;
+            if(visited.test(i))
+                return true;
+            visited.set(i);
+            return false;
+        };
+        return f(stop);
+    }
+    else
+    {
+        std::unordered_set<instruction_ref> visited;
+        visited.reserve(n);
+        auto stop = [&](auto ins) {
+            if (not visited.insert(ins).second)
+                return true;
+            if(std::distance(ins, end) > n)
+                return true;
+            return false;
+        };
+        return f(stop);
+    }
+}
+
+
 // DFS through inputs of `end` to find `start`.
 // `start` must be positioned before `end`.
 bool reaches(instruction_ref start, instruction_ref end)
@@ -582,19 +618,17 @@ bool reaches(instruction_ref start, instruction_ref end, const_module_ref m, P p
     if(not m->has_instruction(start) or not m->has_instruction(end))
         return false;
     assert(std::distance(m->begin(), start) < std::distance(m->begin(), end));
-    std::size_t initial_distance = std::distance(start, end);
-    std::unordered_set<instruction_ref> visited;
-    return fix<bool>([&](auto self, auto ins) -> bool {
-        if(not m->has_instruction(ins))
-            return false;
-        if(ins == start or predicate(ins))
-            return true;
-        if(not visited.insert(ins).second)
-            return false;
-        if(std::distance(ins, end) > initial_distance)
-            return false;
-        return std::any_of(ins->inputs().begin(), ins->inputs().end(), self);
-    })(end);
+    return track_visits(start, end, [&](auto stop) {
+        return fix<bool>([&](auto self, auto ins) -> bool {
+            if(not m->has_instruction(ins))
+                return false;
+            if(ins == start or predicate(ins))
+                return true;
+            if(stop(ins))
+                return false;
+            return std::any_of(ins->inputs().begin(), ins->inputs().end(), self);
+        })(end);
+    });
 }
 
 bool reaches(instruction_ref start, instruction_ref end, const_module_ref m)

@@ -640,7 +640,8 @@ bool is_interdependent(const std::vector<instruction_ref>& instructions,
     return all_of(instructions, [&](instruction_ref ins) {
         if(ins == start)
             return true;
-        return reaches(start, ins, m, [&](instruction_ref i) { return i != ins and loc.count(i) > 0; });
+        return reaches(
+            start, ins, m, [&](instruction_ref i) { return i != ins and loc.count(i) > 0; });
     });
 }
 

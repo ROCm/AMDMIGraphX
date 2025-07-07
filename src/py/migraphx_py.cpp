@@ -609,7 +609,9 @@ MIGRAPHX_PYBIND11_MODULE(migraphx, m)
                map_dyn_input_dims,
            std::vector<std::string> output_names) {
             return migraphx::parse_tf(
-                filename, migraphx::tf_options{is_nhwc, batch_size, map_input_dims, map_dyn_input_dims, output_names});
+                filename,
+                migraphx::tf_options{
+                    is_nhwc, batch_size, map_input_dims, map_dyn_input_dims, output_names});
         },
         "Parse tf protobuf (default format is nhwc)",
         py::arg("filename"),
@@ -618,7 +620,7 @@ MIGRAPHX_PYBIND11_MODULE(migraphx, m)
         py::arg("map_input_dims") = std::unordered_map<std::string, std::vector<std::size_t>>(),
         py::arg("map_dyn_input_dims") =
             std::unordered_map<std::string, std::vector<migraphx::shape::dynamic_dimension>>(),
-        py::arg("output_names")   = std::vector<std::string>());
+        py::arg("output_names") = std::vector<std::string>());
 
     m.def(
         "parse_onnx",

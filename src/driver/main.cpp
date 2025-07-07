@@ -302,7 +302,7 @@ struct loader
         options.is_nhwc           = is_nhwc;
         options.batch_size        = batch;
         options.map_input_dims    = map_input_dims;
-        options.map_dyn_input_dims     = map_dyn_input_dims;
+        options.map_dyn_input_dims = map_dyn_input_dims;
         options.output_node_names = output_node_names;
         return options;
     }

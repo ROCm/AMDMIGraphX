@@ -51,7 +51,7 @@ struct parse_slice : op_parser<parse_slice>
             axes = s0.max_lens();
         }
         else
-        axes       = s0.lens();
+            axes = s0.lens();
         size_t num_axes = axes.size();
 
         std::vector<int64_t> axes_int64(axes.begin(), axes.end());

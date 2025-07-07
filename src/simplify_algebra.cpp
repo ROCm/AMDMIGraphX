@@ -976,7 +976,7 @@ struct find_concat_op
             if(std::distance(start, last) < 2)
                 return {start, last};
             auto x = *start;
-            if(std::all_of(start, last, [](instruction_ref x) {
+            if(std::any_of(start, last, [](instruction_ref x) {
                    return x->outputs().size() > 1 or rejected_inputs(x->inputs());
                }))
                 return {start, last};

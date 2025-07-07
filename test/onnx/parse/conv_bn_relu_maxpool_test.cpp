@@ -25,7 +25,7 @@
 #include <onnx_test.hpp>
 #include <migraphx/op/pooling.hpp>
 
-static migraphx::program create_conv_bn_relu_maxpool()
+static migraphx::program create_conv_bn_relu_maxpool(bool has_bias_value = true)
 {
     migraphx::program p;
     auto* mm = p.get_main_module();
@@ -41,10 +41,12 @@ static migraphx::program create_conv_bn_relu_maxpool()
     auto eps = mm->add_literal(migraphx::literal{migraphx::shape::float_type, {1e-5f}});
 
     uint64_t axis = 1;
+
+    auto no_bias = !has_bias_value? mm->add_instruction(migraphx::make_op("undefined")):migraphx::instruction_ref();
     auto l3 =
         mm->add_instruction(migraphx::make_op("convolution", {{"padding", {0, 0, 0, 0}}}), l0, l1);
     auto l4 = mm->add_instruction(
-        migraphx::make_op("broadcast", {{"axis", axis}, {"out_lens", l3->get_shape().lens()}}), l2);
+        migraphx::make_op("broadcast", {{"axis", axis}, {"out_lens", l3->get_shape().lens()}}), has_bias_value? l2 : no_bias);
     auto l5 = mm->add_instruction(migraphx::make_op("add"), l3, l4);
 
     auto usq_scale = mm->add_instruction(migraphx::make_op("unsqueeze", {{"axes", {1, 2}}}), p3);
@@ -81,5 +83,12 @@ TEST_CASE(conv_bn_relu_maxpool_unordered_test)
 {
     migraphx::program p = create_conv_bn_relu_maxpool();
     auto prog           = optimize_onnx("conv_bn_relu_maxpool_unordered_test.onnx");
+    EXPECT(p == prog);
+}
+
+TEST_CASE(conv_bn_relu_maxpool_unordered_nonvalue_optional_ios_test)
+{
+    migraphx::program p = create_conv_bn_relu_maxpool(false);
+    auto prog           = optimize_onnx("conv_bn_relu_maxpool_unordered_nonvalue_optional_ios_test.onnx");
     EXPECT(p == prog);
 }

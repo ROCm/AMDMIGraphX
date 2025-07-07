@@ -608,7 +608,7 @@ bool is_interdependent(const std::vector<instruction_ref>& instructions,
 {
     if(instructions.size() < 2)
         return true;
-    const std::size_t small_size = 5;
+    const std::size_t small_size = 8;
     if(instructions.size() <= small_size)
     {
         std::array<std::size_t, small_size> loc;
@@ -616,18 +616,17 @@ bool is_interdependent(const std::vector<instruction_ref>& instructions,
                        instructions.end(),
                        loc.begin(),
                        [&](instruction_ref ins) { return std::distance(root, ins); });
-        return all_of(range(instructions.size()), [&](std::size_t i) {
-            auto ins_i = instructions[i];
-            return all_of(range(instructions.size()), [&](std::size_t j) {
-                auto ins_j = instructions[j];
-                if(loc[i] < loc[j])
-                    return reaches(ins_i, ins_j, m);
-                else
-                    return reaches(ins_j, ins_i, m);
-            });
+        auto min_it = std::min_element(loc.begin(), loc.end());
+        auto start = instructions[std::distance(loc.begin(), min_it)];
+        return all_of(instructions, [&](instruction_ref ins) {
+            if(ins == start)
+                return true;
+            return reaches(
+                start, ins, m, [&](instruction_ref i) { return i != ins and contains(instructions, i); });
         });
     }
     std::unordered_map<instruction_ref, std::size_t> loc;
+    loc.reserve(instructions.size());
     std::transform(
         instructions.begin(),
         instructions.end(),
@@ -641,7 +640,7 @@ bool is_interdependent(const std::vector<instruction_ref>& instructions,
         if(ins == start)
             return true;
         return reaches(
-            start, ins, m, [&](instruction_ref i) { return i != ins and loc.count(i) > 0; });
+            start, ins, m, [&](instruction_ref i) { return i != ins and contains(loc, i); });
     });
 }
 

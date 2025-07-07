@@ -555,11 +555,11 @@ const migraphx::instruction* as_address(const std::list<instruction>::const_iter
     return iterator_address(ins);
 }
 
-template <class F>
+template<class F>
 static auto track_visits(instruction_ref start, instruction_ref end, F f)
 {
-    const std::size_t small = 64;
-    std::size_t n           = std::distance(start, end);
+    const std::size_t small = 16;
+    std::size_t n = std::distance(start, end);
     if(n < small)
     {
         std::bitset<small> visited;
@@ -579,7 +579,7 @@ static auto track_visits(instruction_ref start, instruction_ref end, F f)
         std::unordered_set<instruction_ref> visited;
         visited.reserve(n);
         auto stop = [&](auto ins) {
-            if(not visited.insert(ins).second)
+            if (not visited.insert(ins).second)
                 return true;
             if(std::distance(ins, end) > n)
                 return true;
@@ -588,6 +588,7 @@ static auto track_visits(instruction_ref start, instruction_ref end, F f)
         return f(stop);
     }
 }
+
 
 // DFS through inputs of `end` to find `start`.
 // `start` must be positioned before `end`.

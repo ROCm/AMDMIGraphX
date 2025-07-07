@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2022 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2025 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -42,7 +42,7 @@ struct parse_softmax : op_parser<parse_softmax>
                           std::vector<instruction_ref> args) const
     {
         int axis      = -1;
-        auto num_dims = args[0]->get_shape().lens().size();
+        auto num_dims = args[0]->get_shape().ndim();
         if(contains(info.attributes, "axis"))
         {
             axis = static_cast<int>(info.attributes.at("axis").i());

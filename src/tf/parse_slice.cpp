@@ -44,7 +44,14 @@ struct parse_slice : op_parser<parse_slice>
     {
         auto starts     = args[1]->eval().get<int32_t>().to_vector();
         auto size       = args[2]->eval().get<int32_t>().to_vector();
-        auto axes       = args[0]->get_shape().lens();
+        std::vector<size_t> axes;
+        shape s0 = args[0]->get_shape();
+        if(s0.dynamic())
+        {
+            axes = s0.max_lens();
+        }
+        else
+        axes       = s0.lens();
         size_t num_axes = axes.size();
 
         std::vector<int64_t> axes_int64(axes.begin(), axes.end());

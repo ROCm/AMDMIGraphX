@@ -77,7 +77,8 @@ TEST_CASE(resize_downsample_linear_half_test)
 
     auto rsp   = mm->add_instruction(migraphx::make_op("reshape", {{"dims", {8}}}), x);
     auto data  = mm->add_instruction(migraphx::make_op("gather", {{"axis", 0}}), rsp, l_ind);
-    auto cvrt2 = mm->add_instruction(migraphx::make_op("convert", {{"target_type", migraphx::shape::half_type}}), l2);
+    auto cvrt2 = mm->add_instruction(
+        migraphx::make_op("convert", {{"target_type", migraphx::shape::half_type}}), l2);
     auto slc20 = mm->add_instruction(
         migraphx::make_op("slice", {{"axes", {0}}, {"starts", {0}}, {"ends", {2}}}), data);
     auto slc21 = mm->add_instruction(
@@ -86,7 +87,8 @@ TEST_CASE(resize_downsample_linear_half_test)
     auto mul2  = mm->add_instruction(migraphx::make_op("mul"), diff2, cvrt2);
     auto add2  = mm->add_instruction(migraphx::make_op("add"), mul2, slc20);
 
-    auto cvrt1 = mm->add_instruction(migraphx::make_op("convert", {{"target_type", migraphx::shape::half_type}}), l1);
+    auto cvrt1 = mm->add_instruction(
+        migraphx::make_op("convert", {{"target_type", migraphx::shape::half_type}}), l1);
     auto slc10 = mm->add_instruction(
         migraphx::make_op("slice", {{"axes", {0}}, {"starts", {0}}, {"ends", {1}}}), add2);
     auto slc11 = mm->add_instruction(

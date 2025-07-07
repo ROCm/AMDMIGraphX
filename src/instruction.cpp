@@ -617,12 +617,13 @@ bool is_interdependent(const std::vector<instruction_ref>& instructions,
                        loc.begin(),
                        [&](instruction_ref ins) { return std::distance(root, ins); });
         auto min_it = std::min_element(loc.begin(), loc.end());
-        auto start = instructions[std::distance(loc.begin(), min_it)];
+        auto start  = instructions[std::distance(loc.begin(), min_it)];
         return all_of(instructions, [&](instruction_ref ins) {
             if(ins == start)
                 return true;
-            return reaches(
-                start, ins, m, [&](instruction_ref i) { return i != ins and contains(instructions, i); });
+            return reaches(start, ins, m, [&](instruction_ref i) {
+                return i != ins and contains(instructions, i);
+            });
         });
     }
     std::unordered_map<instruction_ref, std::size_t> loc;

@@ -36,34 +36,35 @@ namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
 constexpr float fp4_to_float(uint8_t x)
 {
-    constexpr uint32_t Wm  = 1;
-    constexpr uint32_t We  = 2;
-    constexpr int weo      = 8;
-    constexpr int wmo      = 23;
+    constexpr uint32_t mantissa_size  = 1;
+    constexpr uint32_t exponent_size  = 2;
+    constexpr int float_exponent_size = 8;
+    constexpr int float_mantissa_size = 23;
     const uint32_t if_neg0 = 0x80000000;
     const float f_neg0     = migraphx::bit_cast<float>(if_neg0);
 
     if(x == 0)
         return 0;
-    uint32_t sign     = x >> 3;
-    uint32_t mantissa = x & 0x1;
-    int exponent      = (x & 0x6) >> 1;
+    uint32_t sign     = x >> 3u;
+    uint32_t mantissa = x & 0x1u;
+    int exponent      = (x & 0x6u) >> 1u;
     // no NaN or inf in fp4
     if(x == 0x8)
         return f_neg0;
-    const int exp_low_cutoff = (1 << (weo - 1)) - (1 << (We - 1)) + 1;
+    const int exp_low_cutoff =
+        (1u << (float_exponent_size - 1u)) - (1u << (exponent_size - 1u)) + 1u;
 
     if(exponent == 0)
     {
         // mantissa != 0 from above code
-        int sh = 1 + __builtin_clz(mantissa) - (32 - Wm);
+        int sh = 1u + __builtin_clz(mantissa) - (32u - mantissa_size);
         mantissa <<= sh;
-        exponent += 1 - sh;
-        mantissa &= ((1 << Wm) - 1);
+        exponent += 1u - sh;
+        mantissa &= ((1u << mantissa_size) - 1u);
     }
     exponent += exp_low_cutoff - 1;
-    mantissa <<= wmo - Wm;                                        // NOLINT
-    uint32_t retval = (sign << 31) | (exponent << 23) | mantissa; // NOLINT
+    mantissa <<= float_mantissa_size - mantissa_size;               // NOLINT
+    uint32_t retval = (sign << 31u) | (exponent << 23u) | mantissa; // NOLINT
     return migraphx::bit_cast<float>(retval);
 }
 
@@ -73,7 +74,7 @@ constexpr uint8_t float_to_fp4(float f_x)
     // float32 mantissa_width
     const uint32_t mfmt = 23;
     // float4 mantissa_width
-    const uint32_t Wm = 1;
+    const uint32_t mantissa_size = 1;
 
     uint32_t x        = migraphx::bit_cast<uint32_t>(f_x);
     uint32_t head     = 0;
@@ -103,7 +104,7 @@ constexpr uint8_t float_to_fp4(float f_x)
             return 0x7;
         }
     }
-    // postive zero
+    // positive zero
     if(x == 0)
         return 0x0;
     // negative zero
@@ -141,21 +142,22 @@ constexpr uint8_t float_to_fp4(float f_x)
     }
 
     // need to know whether the number is right in the middle of two adjacent fp4 numbers. Use max
-    // value of 31 to avoid undefined behaviour
-    bool midpoint = (mantissa & ((1u << std::min(31u, mfmt - Wm + exponent_diff)) - 1)) ==
-                    (1u << std::min(31u, mfmt - Wm + exponent_diff - 1));
+    // value of 31 to avoid undefined behavior
+    bool midpoint =
+        (mantissa & ((1u << std::min(31u, mfmt - mantissa_size + exponent_diff)) - 1)) ==
+        (1u << std::min(31u, mfmt - mantissa_size + exponent_diff - 1));
     if(exponent_diff > 0)
         mantissa >>= std::min(31u, uint32_t(exponent_diff));
     else if(exponent_diff == -1)
         mantissa <<= -exponent_diff;
     bool implicit_one = mantissa & (1 << mfmt);
-    // if there is no implict 1, it  means the f4 is denormal and need to adjust to denorm exponent
+    // if there is no implicit 1, it  means the f4 is denormal and need to adjust to denorm exponent
     f4_exponent = (act_exponent + exponent_diff) + f4_bias - (implicit_one ? 0 : 1);
 
     // Adjust exponent and mantissa
-    uint32_t drop_mask = (1u << (mfmt - Wm)) - 1;
+    uint32_t drop_mask = (1u << (mfmt - mantissa_size)) - 1;
     // if the least significant bit that is not truncated is 1
-    bool odd = mantissa & (1u << (mfmt - Wm));
+    bool odd = mantissa & (1u << (mfmt - mantissa_size));
 
     mantissa += (midpoint ? (odd ? mantissa : mantissa - 1) : mantissa) & drop_mask;
 
@@ -170,7 +172,7 @@ constexpr uint8_t float_to_fp4(float f_x)
         f4_exponent++;
     }
 
-    mantissa >>= (mfmt - Wm);
+    mantissa >>= (mfmt - mantissa_size);
 
     uint32_t signed_all_ones = (sign << 3) + 0x7;
     // above range: quantize to maximum possible float of the same sign
@@ -180,8 +182,8 @@ constexpr uint8_t float_to_fp4(float f_x)
 
     if(f4_exponent == 0 and mantissa == 0)
         return sign << 3;
-    mantissa &= (1 << Wm) - 1;
-    return (sign << 3) | (f4_exponent << Wm) | mantissa;
+    mantissa &= (1 << mantissa_size) - 1;
+    return (sign << 3) | (f4_exponent << mantissa_size) | mantissa;
 }
 
 } // namespace MIGRAPHX_INLINE_NS

@@ -153,9 +153,8 @@ struct parse_mxfixneuron : op_parser<parse_mxfixneuron>
         }
         auto reshape_unpack_ins = info.add_instruction(
             make_op("reshape", {{"dims", quantized_shape.lens()}}), unpack_ins);
-        auto dq_ins =
-            info.add_instruction(make_op("dequantizelinear"), reshape_unpack_ins, block_scales_ins);
-        return dq_ins;
+        return info.add_instruction(
+            make_op("dequantizelinear"), reshape_unpack_ins, block_scales_ins);
     }
 };
 

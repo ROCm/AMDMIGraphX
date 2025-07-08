@@ -28,8 +28,8 @@
 #include <migraphx/make_op.hpp>
 #include <migraphx/instruction.hpp>
 
-// Test to check for reduction(s) of 'mul' operator below, of two
-// non-similar types, 'half' and 'float' -- these won't be fused.
+// Test to check for reduction(s), of an operator of two non-similar types, won't be fused in fuse_reduce pass. 
+// 'reduce_mean' here contains 'reduce_add' of types 'half' and 'float'.
 
 struct test_reduce_mixed_type : verify_program<test_reduce_mixed_type>
 {

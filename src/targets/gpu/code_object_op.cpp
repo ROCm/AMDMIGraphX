@@ -66,9 +66,13 @@ static void visit_flatten_args(const std::vector<argument>& args, F f)
 argument
 code_object_op::compute(context& ctx, const shape&, const std::vector<argument>& args) const
 {
+#if MIGRAPHX_HAS_PMR
     std::array<char, 256> storage;
     std::pmr::monotonic_buffer_resource resource{storage.data(), storage.size()};
     pmr::vector<void*> kargs(&resource);
+#else
+    pmr::vector<void*> kargs;
+#endif
     visit_flatten_args(args, [&](const auto& fargs) {
         kargs.reserve(fargs.size());
         std::transform(fargs.begin(),

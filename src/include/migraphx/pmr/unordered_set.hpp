@@ -14,7 +14,10 @@ template <class Key, class Hash = std::hash<Key>, class KeyEqual = std::equal_to
 using unordered_set = std::pmr::unordered_set<Key, Hash, KeyEqual>;
 #else
 template <class Key, class Hash = std::hash<Key>, class KeyEqual = std::equal_to<Key>>
-using unordered_set = std::unordered_set<Key, Hash, KeyEqual>;
+struct unordered_set : std::unordered_set<Key, Hash, KeyEqual>
+{
+    using std::unordered_set<Key, Hash, KeyEqual>::unordered_set;
+};
 #endif
 
 } // namespace pmr

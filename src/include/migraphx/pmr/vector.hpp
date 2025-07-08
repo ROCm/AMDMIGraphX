@@ -14,7 +14,10 @@ template <class T>
 using vector = std::pmr::vector<T>;
 #else
 template <class T>
-using vector = std::vector<T>;
+struct vector : std::vector<T>
+{
+    using std::vector<T>::vector;
+};
 #endif
 
 } // namespace pmr

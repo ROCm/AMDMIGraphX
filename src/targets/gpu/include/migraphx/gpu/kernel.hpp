@@ -47,9 +47,7 @@ struct MIGRAPHX_GPU_EXPORT kernel
         pointers(void** pp, std::size_t pn) : p(pp), n(pn) {}
 
         pointers(std::vector<void*>& v) : p(v.data()), n(v.size()) {}
-#if MIGRAPHX_HAS_PMR
         pointers(pmr::vector<void*>& v) : p(v.data()), n(v.size()) {}
-#endif
 
         void** data() const { return p; }
 

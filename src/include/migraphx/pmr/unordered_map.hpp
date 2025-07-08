@@ -14,7 +14,10 @@ template <class Key, class T, class Hash = std::hash<Key>, class KeyEqual = std:
 using unordered_map = std::pmr::unordered_map<Key, T, Hash, KeyEqual>;
 #else
 template <class Key, class T, class Hash = std::hash<Key>, class KeyEqual = std::equal_to<Key>>
-using unordered_map = std::unordered_map<Key, T, Hash, KeyEqual>;
+struct unordered_map : std::unordered_map<Key, T, Hash, KeyEqual>
+{
+    using std::unordered_map<Key, T, Hash, KeyEqual>::unordered_map;
+};
 #endif
 
 } // namespace pmr

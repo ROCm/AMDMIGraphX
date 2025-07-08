@@ -556,12 +556,16 @@ static std::vector<argument> generic_eval(const program& p,
                                           F trace)
 {
     const module* mm = p.get_main_module();
+#if MIGRAPHX_HAS_PMR
     std::size_t n    = p.total_instructions();
     std::vector<char> buffer(n * (sizeof(instruction_ref) + sizeof(argument)) * 4);
     std::pmr::monotonic_buffer_resource bres(
         buffer.data(), buffer.size(), std::pmr::null_memory_resource());
     pmr::unordered_map<instruction_ref, argument> results(&bres);
     results.reserve(n);
+#else
+    pmr::unordered_map<instruction_ref, argument> results;
+#endif
     return generic_eval(mm, ctx, params, results, trace);
 }
 

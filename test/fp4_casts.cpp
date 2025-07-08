@@ -64,6 +64,8 @@ TEST_CASE(test_float_to_fp4)
         {0.00128, 0x0},
         {-0.5, 0x9},
         {0.5, 0x1},
+        {0.25, 0x0},
+        {-5.25, 0xF},
         {std::numeric_limits<float>::infinity(), 0x7},
         {-std::numeric_limits<float>::infinity(), 0xF},
         {std::numeric_limits<float>::signaling_NaN(), 0x7},

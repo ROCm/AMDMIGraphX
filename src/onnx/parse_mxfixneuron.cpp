@@ -89,12 +89,12 @@ struct parse_mxfixneuron : op_parser<parse_mxfixneuron>
 
         // dynamic quantization for MX types:
         // V_k = fp32 vector input of block size k
-        // B_k = pow(2, floor(log2(reduce_max(V_k)))) # largest power of 2 less than V
+        // B_k = pow(2, floor(log2(reduce_max(abs(V_k))))) # largest power of 2 less than V
         // X_k = block scale k = B_k / (largest power of 2 in fp4e2m1) = B_k / 4
+        auto abs_ins = info.add_instruction(make_op("abs"), reshape_ins);
         auto reduce_max_ins =
-            info.add_instruction(make_op("reduce_max", {{"axes", {block_axis + 1}}}), reshape_ins);
-        auto abs_ins   = info.add_instruction(make_op("abs"), reduce_max_ins);
-        auto log2_ins  = info.add_instruction(make_op("log2"), abs_ins);
+            info.add_instruction(make_op("reduce_max", {{"axes", {block_axis + 1}}}), abs_ins);
+        auto log2_ins  = info.add_instruction(make_op("log2"), reduce_max_ins);
         auto floor_ins = info.add_instruction(make_op("floor"), log2_ins);
         auto lit_2_ins = info.add_literal(
             migraphx::literal{migraphx::shape{migraphx::shape::float_type}, {2.f}});

@@ -9211,8 +9211,8 @@ def mxfixneuron_odd_test():
 
 @onnx_test()
 def mxfixneuron_small_test():
-    in_tv = helper.make_tensor_value_info('input', TensorProto.FLOAT, [3, 4, 4])
-    out_tv = helper.make_tensor_value_info('output', TensorProto.FLOAT, [3, 4, 4])
+    in_tv = helper.make_tensor_value_info('input', TensorProto.FLOAT, [4, 4])
+    out_tv = helper.make_tensor_value_info('output', TensorProto.FLOAT, [4, 4])
     node = onnx.helper.make_node('MXFixNeuron',
             inputs=['input'],
             axis=1,

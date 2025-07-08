@@ -28,27 +28,30 @@ TEST_CASE(mxfixneuron_even_test)
 {
     migraphx::program p;
     auto* mm   = p.get_main_module();
-    auto input = mm->add_parameter("input", migraphx::shape{migraphx::shape::float_type, {3, 64, 4, 4}});
+    auto input =
+        mm->add_parameter("input", migraphx::shape{migraphx::shape::float_type, {3, 64, 4, 4}});
     auto reduce_reshape =
         mm->add_instruction(migraphx::make_op("reshape", {{"dims", {3, 2, 32, 4, 4}}}), input);
+    auto abs_ins = mm->add_instruction(migraphx::make_op("abs"), reduce_reshape);
     auto reduce_max_ins =
-        mm->add_instruction(migraphx::make_op("reduce_max", {{"axes", {2}}}), reduce_reshape);
-    auto abs_ins = mm->add_instruction(migraphx::make_op("abs"), reduce_max_ins);
-    auto log2_ins = mm->add_instruction(migraphx::make_op("log2"), abs_ins);
-    auto floor_ins = mm->add_instruction(migraphx::make_op("floor"), log2_ins);
-    auto lit_2_ins = mm->add_literal({migraphx::shape{migraphx::shape::float_type}, {2.f}});
-    auto broadcast_lit_2 = mm->add_instruction(migraphx::make_op("multibroadcast", {{"out_lens", reduce_max_ins->get_shape().lens()}}), lit_2_ins);
-    auto pow_ins = mm->add_instruction(migraphx::make_op("pow"), broadcast_lit_2, floor_ins);
+        mm->add_instruction(migraphx::make_op("reduce_max", {{"axes", {2}}}), abs_ins);
+    auto log2_ins        = mm->add_instruction(migraphx::make_op("log2"), reduce_max_ins);
+    auto floor_ins       = mm->add_instruction(migraphx::make_op("floor"), log2_ins);
+    auto lit_2_ins       = mm->add_literal({migraphx::shape{migraphx::shape::float_type}, {2.f}});
+    auto broadcast_lit_2 = mm->add_instruction(
+        migraphx::make_op("multibroadcast", {{"out_lens", reduce_max_ins->get_shape().lens()}}),
+        lit_2_ins);
+    auto pow_ins   = mm->add_instruction(migraphx::make_op("pow"), broadcast_lit_2, floor_ins);
     auto lit_4_ins = mm->add_literal({migraphx::shape{migraphx::shape::float_type}, {4.f}});
     auto broadcast_lit_4 = mm->add_instruction(
         migraphx::make_op("multibroadcast", {{"out_lens", reduce_max_ins->get_shape().lens()}}),
         lit_4_ins);
     auto block_scales_ins = mm->add_instruction(migraphx::make_op("div"), pow_ins, broadcast_lit_4);
-    block_scales_ins = mm->add_instruction(
+    block_scales_ins      = mm->add_instruction(
         migraphx::make_op("multibroadcast", {{"out_lens", {3, 2, 32, 4, 4}}}), block_scales_ins);
-    block_scales_ins =
-        mm->add_instruction(migraphx::make_op("reshape", {{"dims", {3, 64, 4, 4}}}), block_scales_ins);
-    auto q_ins = mm->add_instruction(
+    block_scales_ins = mm->add_instruction(migraphx::make_op("reshape", {{"dims", {3, 64, 4, 4}}}),
+                                           block_scales_ins);
+    auto q_ins       = mm->add_instruction(
         migraphx::make_op("quantizelinear", {{"out_type", migraphx::shape::float_type}}),
         input,
         block_scales_ins);
@@ -62,7 +65,8 @@ TEST_CASE(mxfixneuron_even_test)
         mm->add_instruction(migraphx::make_op("unpack_fp4"), pack_ins); // output is float_type
     auto reshape_unpack_ins = mm->add_instruction(
         migraphx::make_op("reshape", {{"dims", quantized_shape.lens()}}), unpack_ins);
-    mm->add_instruction(migraphx::make_op("dequantizelinear"), reshape_unpack_ins, block_scales_ins);
+    mm->add_instruction(
+        migraphx::make_op("dequantizelinear"), reshape_unpack_ins, block_scales_ins);
 
     auto prog = optimize_onnx("mxfixneuron_even_test.onnx");
     EXPECT(p == prog);
@@ -71,30 +75,35 @@ TEST_CASE(mxfixneuron_even_test)
 TEST_CASE(mxfixneuron_odd_test)
 {
     migraphx::program p;
-    auto* mm   = p.get_main_module();
-    auto input = mm->add_parameter(
-        "input", migraphx::shape{migraphx::shape::float_type, {71, 5, 5}});
-    auto padded_input = mm->add_instruction(migraphx::make_op("pad", {{"pads", {0, 0, 0, 25, 0, 0}}}), input);
+    auto* mm = p.get_main_module();
+    auto input =
+        mm->add_parameter("input", migraphx::shape{migraphx::shape::float_type, {71, 5, 5}});
+    auto padded_input =
+        mm->add_instruction(migraphx::make_op("pad", {{"pads", {0, 0, 0, 25, 0, 0}}}), input);
     auto reduce_reshape =
         mm->add_instruction(migraphx::make_op("reshape", {{"dims", {3, 32, 5, 5}}}), padded_input);
+    auto abs_ins = mm->add_instruction(migraphx::make_op("abs"), reduce_reshape);
     auto reduce_max_ins =
-        mm->add_instruction(migraphx::make_op("reduce_max", {{"axes", {1}}}), reduce_reshape);
-    auto abs_ins =mm->add_instruction(migraphx::make_op("abs"), reduce_max_ins);
-    auto log2_ins = mm->add_instruction(migraphx::make_op("log2"), abs_ins);
-    auto floor_ins =mm->add_instruction(migraphx::make_op("floor"), log2_ins);
-    auto lit_2_ins = mm->add_literal({migraphx::shape{migraphx::shape::float_type}, {2.f}});
-    auto broadcast_lit_2 = mm->add_instruction(migraphx::make_op("multibroadcast", {{"out_lens", reduce_max_ins->get_shape().lens()}}), lit_2_ins);
-    auto pow_ins = mm->add_instruction(migraphx::make_op("pow"), broadcast_lit_2, floor_ins);
+        mm->add_instruction(migraphx::make_op("reduce_max", {{"axes", {1}}}), abs_ins);
+    auto log2_ins        = mm->add_instruction(migraphx::make_op("log2"), reduce_max_ins);
+    auto floor_ins       = mm->add_instruction(migraphx::make_op("floor"), log2_ins);
+    auto lit_2_ins       = mm->add_literal({migraphx::shape{migraphx::shape::float_type}, {2.f}});
+    auto broadcast_lit_2 = mm->add_instruction(
+        migraphx::make_op("multibroadcast", {{"out_lens", reduce_max_ins->get_shape().lens()}}),
+        lit_2_ins);
+    auto pow_ins   = mm->add_instruction(migraphx::make_op("pow"), broadcast_lit_2, floor_ins);
     auto lit_4_ins = mm->add_literal({migraphx::shape{migraphx::shape::float_type}, {4.f}});
     auto broadcast_lit_4 = mm->add_instruction(
         migraphx::make_op("multibroadcast", {{"out_lens", reduce_max_ins->get_shape().lens()}}),
         lit_4_ins);
     auto block_scales_ins = mm->add_instruction(migraphx::make_op("div"), pow_ins, broadcast_lit_4);
-    block_scales_ins = mm->add_instruction(
+    block_scales_ins      = mm->add_instruction(
         migraphx::make_op("multibroadcast", {{"out_lens", {3, 32, 5, 5}}}), block_scales_ins);
     block_scales_ins =
         mm->add_instruction(migraphx::make_op("reshape", {{"dims", {96, 5, 5}}}), block_scales_ins);
-    block_scales_ins = mm->add_instruction(migraphx::make_op("slice", {{"axes", {0}}, {"starts", {0}}, {"ends", {71}}}), block_scales_ins);
+    block_scales_ins = mm->add_instruction(
+        migraphx::make_op("slice", {{"axes", {0}}, {"starts", {0}}, {"ends", {71}}}),
+        block_scales_ins);
     auto q_ins = mm->add_instruction(
         migraphx::make_op("quantizelinear", {{"out_type", migraphx::shape::float_type}}),
         input,
@@ -108,10 +117,13 @@ TEST_CASE(mxfixneuron_odd_test)
         mm->add_instruction(migraphx::make_op("pack_fp4"), ravel_ins); // output is packed_fp4_type
     auto unpack_ins =
         mm->add_instruction(migraphx::make_op("unpack_fp4"), pack_ins); // output is float_type
-    unpack_ins = mm->add_instruction(migraphx::make_op("slice", {{"axes", {0}}, {"starts", {0}}, {"ends", {num_elements}}}), unpack_ins);
+    unpack_ins = mm->add_instruction(
+        migraphx::make_op("slice", {{"axes", {0}}, {"starts", {0}}, {"ends", {num_elements}}}),
+        unpack_ins);
     auto reshape_unpack_ins = mm->add_instruction(
         migraphx::make_op("reshape", {{"dims", quantized_shape.lens()}}), unpack_ins);
-    mm->add_instruction(migraphx::make_op("dequantizelinear"), reshape_unpack_ins, block_scales_ins);
+    mm->add_instruction(
+        migraphx::make_op("dequantizelinear"), reshape_unpack_ins, block_scales_ins);
 
     auto prog = optimize_onnx("mxfixneuron_odd_test.onnx");
     EXPECT(p == prog);

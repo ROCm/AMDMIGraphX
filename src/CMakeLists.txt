@@ -127,6 +127,9 @@ add_library(migraphx
     verify_args.cpp
 )
 
+file(GLOB BUILDER_SRCS CONFIGURE_DEPENDS op/builder/*.cpp)
+target_sources(migraphx PRIVATE ${BUILDER_SRCS})
+
 if(WIN32)
     # Due to compilation crashing, we need to use type-erased matchers on Windows.
     target_compile_definitions(migraphx PUBLIC MIGRAPHX_USE_TYPE_ERASED_MATCHERS=1)
@@ -301,6 +304,7 @@ rocm_install_targets(
   TARGETS migraphx
   INCLUDE
     ${CMAKE_CURRENT_SOURCE_DIR}/include
+    ${CMAKE_CURRENT_SOURCE_DIR}/op/builder/include
 )
 target_link_libraries(migraphx PUBLIC migraphx_version)
 

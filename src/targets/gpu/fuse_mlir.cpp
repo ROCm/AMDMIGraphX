@@ -861,6 +861,27 @@ struct find_mlir_standalone_attention_op
     }
 };
 
+struct find_mlir_attention_op
+{
+    mlir_mode dot_mode = mlir_mode::none;
+
+    auto matcher() const { return match::name("group"); }
+
+    void apply(module_pass_manager& mpm, const match::matcher_result& r) const
+    {
+        auto group = r.result;
+        auto tag   = group->get_operator().to_value().get("tag", "");
+        if(tag != "attention")
+        {
+            return;
+        }
+
+        auto* m_attn = group->module_inputs()[0];
+        mpm.get_module().replace_instruction(
+            group, mlir_op{group->get_operator()}, mlir_contiguous(mpm, group->inputs()), {m_attn});
+    }
+};
+
 struct find_mlir_attention_fused_ops : public find_mlir_standalone_attention_op
 {
     auto matcher() const
@@ -1195,6 +1216,9 @@ void fuse_mlir::apply(module_pass_manager& mpm) const
         match::find_matches(mpm, find_mlir_standalone_attention_op{});
         mpm.run_pass(dead_code_elimination{});
     }
+
+    match::find_matches(mpm, find_mlir_attention_op{mlir_mode::all});
+    mpm.run_pass(dead_code_elimination{});
 
     match::find_matches(
         mpm,

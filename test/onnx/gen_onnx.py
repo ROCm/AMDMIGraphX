@@ -1901,6 +1901,41 @@ def conv_bn_relu_maxpool_unordered_test():
 
 
 @onnx_test()
+def conv_bn_relu_maxpool_unordered_nonvalue_optional_ios_test():
+    x = helper.make_tensor_value_info('0', TensorProto.FLOAT, [1, 3, 32, 32])
+    y = helper.make_tensor_value_info('1', TensorProto.FLOAT, [1, 3, 5, 5])
+    z = helper.make_tensor_value_info('2', TensorProto.FLOAT, [1])
+    m = helper.make_tensor_value_info('3', TensorProto.FLOAT, [1])
+    n = helper.make_tensor_value_info('4', TensorProto.FLOAT, [1])
+    k = helper.make_tensor_value_info('5', TensorProto.FLOAT, [1])
+    l = helper.make_tensor_value_info('6', TensorProto.FLOAT, [1])
+    out = helper.make_tensor_value_info('10', TensorProto.FLOAT,
+                                        [1, 1, 14, 14])
+
+    node0 = onnx.helper.make_node('Conv',
+                                  inputs=['0', '1', ''],
+                                  outputs=['7'],
+                                  dilations=[1, 1],
+                                  strides=[1, 1],
+                                  pads=[0, 0, 0, 0])
+
+    node1 = onnx.helper.make_node('BatchNormalization',
+                                  inputs=['7', '3', '4', '5', '6'],
+                                  outputs=['8', '', ''],
+                                  epsilon=9.99999974737875e-06,
+                                  momentum=0.899999976158142)
+
+    node2 = onnx.helper.make_node('Relu', inputs=['8'], outputs=['9'])
+    node3 = onnx.helper.make_node('MaxPool',
+                                  inputs=['9'],
+                                  outputs=['10', ''],
+                                  pads=[0, 0, 0, 0],
+                                  strides=[2, 2],
+                                  kernel_shape=[2, 2])
+
+    return ([node0, node3, node1, node2], [x, y, z, m, n, k, l], [out])
+
+@onnx_test()
 def conv_bn_relu_maxpool_test():
     x = helper.make_tensor_value_info('0', TensorProto.FLOAT, [1, 3, 32, 32])
     y = helper.make_tensor_value_info('1', TensorProto.FLOAT, [1, 3, 5, 5])

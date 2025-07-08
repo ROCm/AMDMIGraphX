@@ -21,38 +21,45 @@
  * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
  * THE SOFTWARE.
  */
-#ifndef MIGRAPHX_GUARD_GPU_DRIVER_PERF_HPP
-#define MIGRAPHX_GUARD_GPU_DRIVER_PERF_HPP
+#ifndef MIGRAPHX_GUARD_OPERATORS_GROUP_HPP
+#define MIGRAPHX_GUARD_OPERATORS_GROUP_HPP
 
-#include <migraphx/program.hpp>
-#include <migraphx/config.hpp>
-#include <migraphx/gpu/context.hpp>
-#include <migraphx/operation.hpp>
+#include <migraphx/argument.hpp>
+#include <migraphx/module.hpp>
+#include <migraphx/check_shapes.hpp>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
-namespace gpu {
+namespace op {
 
-MIGRAPHX_GPU_EXPORT double time_op(const context& ictx,
-                                   operation op,
-                                   const std::vector<shape>& inputs,
-                                   int bundle = 1,
-                                   int nruns  = 100);
+struct group
+{
+    std::string tag = "";
 
-MIGRAPHX_GPU_EXPORT double time_program(const context& ictx,
-                                        program p,
-                                        const std::unordered_map<std::string, double>& fill_map,
-                                        int bundle = 1,
-                                        int nruns  = 100);
+    std::string name() const { return "group"; }
+    template <class Self, class F>
+    static auto reflect(Self& self, F f)
+    {
+        return pack(f(self.tag, "tag"));
+    }
 
-/* benchmark gpu::code_object with expected input shapes over n iterations */
-MIGRAPHX_GPU_EXPORT double
-time_op(const context& ictx, operation op, int bundle = 1, int nruns = 100);
+    shape compute_shape(const std::vector<shape>& inputs, const std::vector<module_ref>& mods) const
+    {
+        if(mods.size() != 1)
+            MIGRAPHX_THROW("should have one submodule.");
+        module_ref mod = mods[0];
+        check_shapes{inputs, *this}.has_at_least(1);
 
-MIGRAPHX_GPU_EXPORT double
-time_loop(migraphx::gpu::context& gctx, int bundle, int nruns, const std::function<void()>& f);
+        auto result =
+            mod->compute_shapes(inputs, {.name = name(), .strict_type = true, .strict_lens = true});
+        if(result.size() == 1)
+            return result.front();
+        return shape{result};
+    }
+};
 
-} // namespace gpu
+} // namespace op
 } // namespace MIGRAPHX_INLINE_NS
 } // namespace migraphx
-#endif // MIGRAPHX_GUARD_GPU_DRIVER_PERF_HPP
+
+#endif

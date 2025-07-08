@@ -21,28 +21,45 @@
  * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
  * THE SOFTWARE.
  */
+#ifndef MIGRAPHX_GUARD_OPERATORS_GROUP_HPP
+#define MIGRAPHX_GUARD_OPERATORS_GROUP_HPP
 
-#include <onnx_test.hpp>
-#include <onnx_test_utils.hpp>
+#include <migraphx/argument.hpp>
+#include <migraphx/module.hpp>
+#include <migraphx/check_shapes.hpp>
 
-TEST_CASE(group_norm_contrib_silu_3d_test)
+namespace migraphx {
+inline namespace MIGRAPHX_INLINE_NS {
+namespace op {
+
+struct group
 {
-    migraphx::program p = make_group_norm({1, 4, 2},
-                                          {4},
-                                          {4},
-                                          {1, 2, 2, 2},
-                                          {2, 3},
-                                          1e-5f,
-                                          migraphx::shape::float_type,
-                                          {"gamma", migraphx::shape::float_type},
-                                          {"beta", migraphx::shape::float_type});
+    std::string tag = "";
 
-    // Add sigmoid at the end of the program to represent the added SILU block
-    auto* mm     = p.get_main_module();
-    auto output  = std::prev(mm->end());
-    auto sigmoid = mm->add_instruction(migraphx::make_op("sigmoid"), output);
-    output       = mm->add_instruction(migraphx::make_op("mul"), output, sigmoid);
+    std::string name() const { return "group"; }
+    template <class Self, class F>
+    static auto reflect(Self& self, F f)
+    {
+        return pack(f(self.tag, "tag"));
+    }
 
-    auto prog = optimize_onnx("group_norm_contrib_silu_3d_test.onnx");
-    EXPECT(p == prog);
-}
+    shape compute_shape(const std::vector<shape>& inputs, const std::vector<module_ref>& mods) const
+    {
+        if(mods.size() != 1)
+            MIGRAPHX_THROW("should have one submodule.");
+        module_ref mod = mods[0];
+        check_shapes{inputs, *this}.has_at_least(1);
+
+        auto result =
+            mod->compute_shapes(inputs, {.name = name(), .strict_type = true, .strict_lens = true});
+        if(result.size() == 1)
+            return result.front();
+        return shape{result};
+    }
+};
+
+} // namespace op
+} // namespace MIGRAPHX_INLINE_NS
+} // namespace migraphx
+
+#endif

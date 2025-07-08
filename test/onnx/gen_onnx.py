@@ -1901,6 +1901,41 @@ def conv_bn_relu_maxpool_unordered_test():
 
 
 @onnx_test()
+def conv_bn_relu_maxpool_unordered_nonvalue_optional_ios_test():
+    x = helper.make_tensor_value_info('0', TensorProto.FLOAT, [1, 3, 32, 32])
+    y = helper.make_tensor_value_info('1', TensorProto.FLOAT, [1, 3, 5, 5])
+    z = helper.make_tensor_value_info('2', TensorProto.FLOAT, [1])
+    m = helper.make_tensor_value_info('3', TensorProto.FLOAT, [1])
+    n = helper.make_tensor_value_info('4', TensorProto.FLOAT, [1])
+    k = helper.make_tensor_value_info('5', TensorProto.FLOAT, [1])
+    l = helper.make_tensor_value_info('6', TensorProto.FLOAT, [1])
+    out = helper.make_tensor_value_info('10', TensorProto.FLOAT,
+                                        [1, 1, 14, 14])
+
+    node0 = onnx.helper.make_node('Conv',
+                                  inputs=['0', '1', ''],
+                                  outputs=['7'],
+                                  dilations=[1, 1],
+                                  strides=[1, 1],
+                                  pads=[0, 0, 0, 0])
+
+    node1 = onnx.helper.make_node('BatchNormalization',
+                                  inputs=['7', '3', '4', '5', '6'],
+                                  outputs=['8', '', ''],
+                                  epsilon=9.99999974737875e-06,
+                                  momentum=0.899999976158142)
+
+    node2 = onnx.helper.make_node('Relu', inputs=['8'], outputs=['9'])
+    node3 = onnx.helper.make_node('MaxPool',
+                                  inputs=['9'],
+                                  outputs=['10', ''],
+                                  pads=[0, 0, 0, 0],
+                                  strides=[2, 2],
+                                  kernel_shape=[2, 2])
+
+    return ([node0, node3, node1, node2], [x, y, z, m, n, k, l], [out])
+
+@onnx_test()
 def conv_bn_relu_maxpool_test():
     x = helper.make_tensor_value_info('0', TensorProto.FLOAT, [1, 3, 32, 32])
     y = helper.make_tensor_value_info('1', TensorProto.FLOAT, [1, 3, 5, 5])
@@ -5455,10 +5490,12 @@ def group_norm_contrib_test(x_dims,
                             activation,
                             channels_last,
                             eps_value=1e-5,
-                            dtype=TensorProto.FLOAT):
+                            dtype=TensorProto.FLOAT,
+                            gamma_dtype=TensorProto.FLOAT,
+                            beta_dtype=TensorProto.FLOAT):
     x = helper.make_tensor_value_info('x', dtype, x_dims)
-    gamma = helper.make_tensor_value_info('gamma', dtype, gamma_dims)
-    beta = helper.make_tensor_value_info('beta', dtype, beta_dims)
+    gamma = helper.make_tensor_value_info('gamma', gamma_dtype, gamma_dims)
+    beta = helper.make_tensor_value_info('beta', beta_dtype, beta_dims)
     y = helper.make_tensor_value_info('y', dtype, y_dims)
 
     node = onnx.helper.make_node('GroupNorm',
@@ -5488,7 +5525,9 @@ def group_norm_contrib_3d_channel_last_half_test():
                                    2,
                                    0,
                                    1,
-                                   dtype=TensorProto.FLOAT16)
+                                   dtype=TensorProto.FLOAT16,
+                                   gamma_dtype=TensorProto.FLOAT16,
+                                   beta_dtype=TensorProto.FLOAT16)
 
 
 @onnx_test()
@@ -5497,8 +5536,14 @@ def group_norm_contrib_3d_channel_last_bf16_test():
                                    2,
                                    0,
                                    1,
-                                   dtype=TensorProto.BFLOAT16)
+                                   dtype=TensorProto.BFLOAT16,
+                                   gamma_dtype=TensorProto.BFLOAT16,
+                                   beta_dtype=TensorProto.BFLOAT16)
 
+@onnx_test()
+def group_norm_contrib_gamma_beta_float_xy_half_test():
+    return group_norm_contrib_test([1, 4, 2], [4], [4], [1, 4, 2], 2, 0, 0,
+                                    dtype=TensorProto.FLOAT16)
 
 @onnx_test()
 def group_norm_contrib_silu_3d_test():
@@ -5529,7 +5574,7 @@ def group_norm_contrib_no_activation_attr_test():
     y = helper.make_tensor_value_info('y', TensorProto.FLOAT, [1, 4, 2])
 
     node = onnx.helper.make_node('GroupNorm',
-                                 inputs=['x', 'gamma', 'Beta'],
+                                 inputs=['x', 'gamma', 'beta'],
                                  outputs=['y'],
                                  channels_last=0,
                                  groups=2)
@@ -5545,7 +5590,7 @@ def group_norm_contrib_no_num_groups_attr_test():
     y = helper.make_tensor_value_info('y', TensorProto.FLOAT, [1, 4, 2])
 
     node = onnx.helper.make_node('GroupNorm',
-                                 inputs=['x', 'gamma', 'Beta'],
+                                 inputs=['x', 'gamma', 'beta'],
                                  outputs=['y'],
                                  activation=0,
                                  channels_last=0)

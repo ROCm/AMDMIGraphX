@@ -76,6 +76,7 @@ struct compiler_replace
     std::function<void(const compiler_replace& cr, module& m, instruction_ref ins)> replace_fn =
         nullptr;
     std::function<void(std::ostream& os, instruction_ref ins)> trace_fn = nullptr;
+    std::unordered_map<std::string, double> fill_map                    = {};
 
     template <class F>
     static auto make_replace(F f)
@@ -178,17 +179,17 @@ struct compiler : auto_register_compiler<Derived>
     operation compile_op(context&, const std::vector<shape>&, const value&) const { return {}; }
 
     template <class D = Derived>
-    auto invoke_compile(
-        rank<1>, context& ctx, instruction_ref ins, operation op, const value& solution) const
-        -> decltype(std::declval<D>().compile(ctx, ins, std::move(op), solution))
+    auto
+    invoke_compile(rank<1>, context& ctx, instruction_ref ins, operation op, const value& solution)
+        const -> decltype(std::declval<D>().compile(ctx, ins, std::move(op), solution))
     {
         return derived().compile(ctx, ins, std::move(op), solution);
     }
 
     template <class D = Derived>
-    auto invoke_compile(
-        rank<0>, context& ctx, instruction_ref ins, operation op, const value& solution) const
-        -> decltype(std::declval<D>().compile(ctx, ins, std::move(op)))
+    auto
+    invoke_compile(rank<0>, context& ctx, instruction_ref ins, operation op, const value& solution)
+        const -> decltype(std::declval<D>().compile(ctx, ins, std::move(op)))
     {
         assert(solution.empty());
         (void)solution;

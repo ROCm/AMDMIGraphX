@@ -28,7 +28,8 @@
 #include <migraphx/make_op.hpp>
 #include <migraphx/instruction.hpp>
 
-// test to check for reduction of two non-similar types, half and float.
+// Test to check for reduction(s) of 'mul' operator below, of two
+// non-similar types, 'half' and 'float' -- these won't be fused.
 
 struct test_reduce_mixed_type : verify_program<test_reduce_mixed_type>
 {

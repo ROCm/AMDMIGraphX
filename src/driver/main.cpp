@@ -65,6 +65,7 @@
 #include <migraphx/netron_output.hpp>
 
 #include <fstream>
+#include <iomanip>
 
 namespace {
 std::vector<std::string>
@@ -84,6 +85,15 @@ get_unrecognized_migraphx_envs(const char* envp[],
             unused_migx_env.push_back(e);
     }
     return unused_migx_env;
+}
+
+std::string get_formatted_timestamp(std::chrono::time_point<std::chrono::system_clock> time)
+{
+    auto now_in_time_t   = std::chrono::system_clock::to_time_t(time);
+    auto* now_as_tm_date = std::localtime(&now_in_time_t);
+    std::stringstream ss;
+    ss << std::put_time(now_as_tm_date, "%Y-%m-%d %H:%M:%S");
+    return ss.str();
 }
 } // namespace
 
@@ -1030,6 +1040,10 @@ int main(int argc, const char* argv[], const char* envp[])
             std::string(argv[0]) + " " + migraphx::to_string_range(args, " ");
         std::cout << "Running [ " << get_version() << " ]: " << driver_invocation << std::endl;
 
+        // Print start timestamp
+        auto start_time = std::chrono::system_clock::now();
+        std::cout << "[" << get_formatted_timestamp(start_time) << "]" << std::endl;
+
         m.at(cmd)(argv[0],
                   {args.begin() + 1, args.end()}); // run driver command found in commands map
 
@@ -1042,7 +1056,15 @@ int main(int argc, const char* argv[], const char* envp[])
         for(auto&& e : unused_envs)
             std::cout << "Unused environment variable: " << e << "\n";
 
-        std::cout << "[ " << get_version() << " ] Complete: " << driver_invocation << std::endl;
+        // Print end timestamp
+        auto end_time = std::chrono::system_clock::now();
+        std::cout << "[" << get_formatted_timestamp(end_time) << "]" << std::endl;
+
+        // Print total duration
+        auto duration =
+            std::chrono::duration_cast<std::chrono::duration<double>>(end_time - start_time);
+        std::cout << "[ " << get_version() << " ] Complete(" << duration.count()
+                  << "s): " << driver_invocation << std::endl;
     }
     else
     {

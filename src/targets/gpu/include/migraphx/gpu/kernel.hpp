@@ -26,9 +26,9 @@
 
 #include <migraphx/gpu/config.hpp>
 #include <migraphx/gpu/pack_args.hpp>
+#include <migraphx/pmr/vector.hpp>
 #include <hip/hip_runtime_api.h>
 #include <memory>
-#include <memory_resource>
 #include <string>
 #include <vector>
 
@@ -47,7 +47,7 @@ struct MIGRAPHX_GPU_EXPORT kernel
         pointers(void** pp, std::size_t pn) : p(pp), n(pn) {}
 
         pointers(std::vector<void*>& v) : p(v.data()), n(v.size()) {}
-        pointers(std::pmr::vector<void*>& v) : p(v.data()), n(v.size()) {}
+        pointers(pmr::vector<void*>& v) : p(v.data()), n(v.size()) {}
 
         void** data() const { return p; }
 

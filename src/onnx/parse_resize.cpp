@@ -456,15 +456,12 @@ struct parse_resize : op_parser<parse_resize>
             for(auto idx = resized_ct; idx != 0u; --idx)
             {
                 dim_lens[0] /= 2; // halved for 2 slices of data (hi & low below)
-                shape dim_s{shape::float_type, dim_lens};
+                shape dim_s{in_s.type(), dim_lens};
                 const auto& dim_delta = delta[idx - 1];
                 std::vector<float> delta_data;
                 for(std::size_t j = 0; j < dim_lens[0] / out_lens[0]; ++j)
                     delta_data.insert(delta_data.begin(), dim_delta.begin(), dim_delta.end());
                 auto ins_delta = info.add_literal(dim_s, delta_data);
-                if(in_s.type() != shape::float_type)
-                    ins_delta = info.add_instruction(
-                        make_op("convert", {{"target_type", in_s.type()}}), ins_delta);
 
                 // slice the data
                 int64_t slc_stride = dim_lens[0];

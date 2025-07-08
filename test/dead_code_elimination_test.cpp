@@ -286,11 +286,11 @@ TEST_CASE(tuple_test)
     EXPECT(std::distance(mm->begin(), mm->end()) == (count - 1));
 }
 
-TEST_CASE(convert_test)
+TEST_CASE(empty_literal)
 {
     migraphx::program p;
     auto* mm = p.get_main_module();
-    auto x   = mm->add_literal(0);
+    auto x   = mm->add_literal();
     mm->add_instruction(migraphx::make_op("convert"), x);
     mm->add_return({x});
     auto count = std::distance(mm->begin(), mm->end());

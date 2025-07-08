@@ -177,6 +177,7 @@ struct find_attention
 
         // Define outputs based on instructions that are used elsewhere in the graph
         auto required_outputs = find_outputs(attn_ins_vec);
+
         assert(not required_outputs.empty());
 
         // LSE case requires output from reduce_max and reduce_sum instructions
@@ -206,6 +207,8 @@ struct find_attention
                        std::back_inserter(m_attn_outputs),
                        [&](auto i) { return map_mm_to_mattn.at(i); });
 
+        m_attn.add_return(m_attn_outputs);
+
         // Define inputs to m_attn
         auto map_mattn_to_mm = invert_map_ins(map_mm_to_mattn);
         auto new_inputs      = m_attn.get_inputs(map_mattn_to_mm);
@@ -214,7 +217,7 @@ struct find_attention
         mpm_attn->set_bypass();
 
         auto group_ins = mpm.get_module().insert_instruction(
-            gemm2, make_op("group", {{"tag", "attention"}}), new_inputs, {mpm_attn});
+            gemm1, make_op("group", {{"tag", "attention"}}), new_inputs, {mpm_attn});
 
         if(m_attn_outputs.size() == 1)
         {

@@ -114,6 +114,45 @@ struct find_attention
         return inss;
     }
 
+    static bool has_lse_out(std::vector<instruction_ref>& group_outs)
+    {
+        return (group_outs.size() == 3 and
+                std::all_of(group_outs.begin(), group_outs.end(), [](auto o) {
+                    return contains({"dot", "reduce_max", "reduce_sum"}, o->name());
+                }));
+    }
+
+    std::vector<instruction_ref>
+    get_lse_instructions(std::vector<instruction_ref>& group_outs) const
+    {
+        std::vector<instruction_ref> lse_inss;
+        auto rsum = *std::find_if(
+            group_outs.begin(), group_outs.end(), [](auto o) { return o->name() == "reduce_sum"; });
+        auto rsum_outs = rsum->outputs();
+        auto log       = std::find_if(
+            rsum_outs.begin(), rsum_outs.end(), [](auto o) { return o->name() == "log"; });
+        if(log == rsum_outs.end())
+            return lse_inss;
+        auto log_outs = (*log)->outputs();
+        if(log_outs.size() != 1 or log_outs.front()->name() != "add")
+            return lse_inss;
+        auto add = log_outs.front();
+        lse_inss.insert(lse_inss.end(), {*log, add});
+
+        return lse_inss;
+    }
+
+    std::vector<instruction_ref> find_outputs(std::vector<instruction_ref> inss) const
+    {
+        std::vector<instruction_ref> outputs;
+        std::copy_if(inss.begin(), inss.end(), std::back_inserter(outputs), [&](auto i) {
+            return not std::all_of(i->outputs().begin(), i->outputs().end(), [&](auto o) {
+                return contains(inss, o);
+            });
+        });
+        return outputs;
+    }
+
     void apply(module_pass_manager& mpm, const match::matcher_result& r) const
     {
         auto gemm2 = r.result;
@@ -134,23 +173,31 @@ struct find_attention
         // Add captured instructions to new submodule
         module m_attn;
         std::unordered_map<instruction_ref, instruction_ref> map_mm_to_mattn;
-        auto attn_outs = m_attn.fuse(attn_ins_vec, &map_mm_to_mattn);
+        m_attn.fuse(attn_ins_vec, &map_mm_to_mattn);
 
         // Define outputs based on instructions that are used elsewhere in the graph
-        std::vector<instruction_ref> required_outputs;
-        std::copy_if(attn_ins_vec.begin(),
-                     attn_ins_vec.end(),
-                     std::back_inserter(required_outputs),
-                     [&](auto i) {
-                         return not std::all_of(i->outputs().begin(),
-                                                i->outputs().end(),
-                                                [&](auto o) { return contains(attn_ins_vec, o); });
-                     });
-
+        auto required_outputs = find_outputs(attn_ins_vec);
         assert(not required_outputs.empty());
-        // Not supporting multi-out just yet - TODO: remove for lse support
-        if(required_outputs.size() > 1)
+
+        // LSE case requires output from reduce_max and reduce_sum instructions
+        if(has_lse_out(required_outputs))
+        {
+            auto lse_inss = get_lse_instructions(required_outputs);
+            m_attn.fuse(lse_inss, &map_mm_to_mattn);
+
+            // Recompute required outputs after adding lse instructions
+            attn_ins_vec.insert(attn_ins_vec.end(), lse_inss.begin(), lse_inss.end());
+            required_outputs = find_outputs(attn_ins_vec);
+
+            // Final outputs should be the second gemm and add instruction
+            // (shift lse to adjust for subtracting max during stable softmax computation)
+            if(required_outputs.size() != 2)
+                return;
+        }
+        else if(required_outputs.size() > 1)
+        {
             return;
+        }
 
         // Find corresponding output instructions in m_attn
         std::vector<instruction_ref> m_attn_outputs;
@@ -159,8 +206,6 @@ struct find_attention
                        std::back_inserter(m_attn_outputs),
                        [&](auto i) { return map_mm_to_mattn.at(i); });
 
-        m_attn.add_return(m_attn_outputs);
-
         // Define inputs to m_attn
         auto map_mattn_to_mm = invert_map_ins(map_mm_to_mattn);
         auto new_inputs      = m_attn.get_inputs(map_mattn_to_mm);
@@ -168,11 +213,21 @@ struct find_attention
         module_ref mpm_attn = mpm.create_module("attn" + get_count(), std::move(m_attn));
         mpm_attn->set_bypass();
 
-        // Construct group op with the attention module
-        mpm.get_module().replace_instruction(required_outputs.front(),
-                                             make_op("group", {{"tag", "attention"}}),
-                                             new_inputs,
-                                             {mpm_attn});
+        auto group_ins = mpm.get_module().insert_instruction(
+            gemm2, make_op("group", {{"tag", "attention"}}), new_inputs, {mpm_attn});
+
+        if(m_attn_outputs.size() == 1)
+        {
+            mpm.get_module().replace_instruction(required_outputs.front(), group_ins);
+        }
+        else
+        {
+            for(std::size_t i = 0; i < required_outputs.size(); ++i)
+            {
+                mpm.get_module().replace_instruction(
+                    required_outputs[i], make_op("get_tuple_elem", {{"index", i}}), group_ins);
+            }
+        }
     }
 };
 

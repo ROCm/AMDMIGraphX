@@ -132,10 +132,7 @@ struct pooling
         return stride.size();
     }
 
-    value attributes() const
-    {
-        return {{"normalize_padding", "padding"}, {"fillcolor", "#3CB371"}};
-    }
+    value attributes() const { return {{"normalize_padding", "padding"}}; }
 
     std::size_t dilate_dim(std::size_t dim, std::size_t dilation) const
     {

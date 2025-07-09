@@ -100,143 +100,33 @@ struct graphviz_node_content
     graphviz_node_style node_style{};
 };
 
-static std::string html_bold(const std::string& content) { return "<B>" + content + "</B>"; }
-
-static std::string html_table_start(const html_table_style& style)
-{
-    return R"(<<TABLE BORDER=")" + std::to_string(style.border) + R"(" CELLBORDER=")" +
-           std::to_string(style.cellborder) + R"(" CELLPADDING=")" +
-           std::to_string(style.cellpadding) + R"(" CELLSPACING=")" +
-           std::to_string(style.cellspacing) + R"(" COLOR="transparent">)";
-}
-
-static std::string html_table_end() { return "</TABLE>>"; }
-
-static std::string html_cell(const std::string& content, const std::string& align = "center")
-{
-    return "<TR ALIGN=\"" + align + "\"><TD>" + content + "</TD></TR>";
-}
-
-static bool is_hex_color(std::string color) { return not color.empty() and color[0] == '#'; }
-
-inline std::string enclose_name(const std::string& name)
-{
-    return '"' + replace_string(name, "\"", "\\\"") + '"';
-}
+/**
+ * Escape all quotes in string
+ */
+std::string enclose_name(const std::string& name);
 
 /**
  * Formats migraphx::shape for printing so we dont have to use the
  * migraphx::shape::operator<< which places content on one line
  */
-inline std::string format_shape_name(const migraphx::shape& s, const std::string& linebreak = "\\n")
-{
-    if(s.sub_shapes().empty())
-    {
-        if(s.dynamic())
-        {
-            return "dynamic" + linebreak + s.type_string() + linebreak + "{" +
-                   to_string_range(s.dyn_dims()) + "}";
-        }
-        return s.type_string() + linebreak + "{" + to_string_range(s.lens()) + "}, {" +
-               to_string_range(s.strides()) + "}";
-    }
-    return "[" + to_string_range(s.sub_shapes()) + "]";
-}
+std::string format_shape_name(const migraphx::shape& s, const std::string& linebreak = "\\n");
 
 /**
  * Builds html-style table for content, given a graphviz_node_content struct
  */
-inline std::string build_html_label(const graphviz_node_content& content)
-{
-    std::ostringstream ss;
-
-    ss << html_table_start(content.html_style);
-    ss << html_cell(html_bold(content.title));
-
-    std::for_each(content.body_lines.begin(),
-                  content.body_lines.end(),
-                  [&ss](const std::string& line) { ss << html_cell(line); });
-
-    ss << html_table_end();
-    return ss.str();
-}
+std::string build_html_label(const graphviz_node_content& content);
 
 /**
  * Builds the node style string given a graphviz_node_style struct
  */
-inline std::string build_node_style(const graphviz_node_style& node_style)
-{
-    std::ostringstream ss;
-    ss << "style=\"" << node_style.style << "\" ";
-
-    if(is_hex_color(node_style.fillcolor))
-        ss << "fillcolor=\"" << node_style.fillcolor << "\" ";
-    else
-        ss << "fillcolor=" << node_style.fillcolor << " ";
-
-    if(is_hex_color(node_style.fontcolor))
-        ss << "fontcolor=\"" << node_style.fontcolor << "\" ";
-    else
-        ss << "fontcolor=" << node_style.fontcolor << " ";
-
-    ss << "shape=" << node_style.shape << " ";
-    ss << "fontname=" << node_style.fontname;
-    return ss.str();
-}
+std::string build_node_style(const graphviz_node_style& node_style);
 
 /**
  * Given an instruction_ref ins we build a graphviz_node_content object to store
  * all of our necessary data. In this function we do formatting for specific
  * instructions: param, literal, and gpu::code_object
  */
-inline graphviz_node_content get_node_content(const instruction_ref& ins)
-{
-    const auto& op         = ins->get_operator();
-    const std::string name = ins->name();
-
-    graphviz_node_content content;
-
-    if(name == "@param") // for params, get typing information
-    {
-        content.title = name;
-        content.body_lines.push_back(graphviz::format_shape_name(ins->get_shape(), "<BR/>"));
-
-        content.html_style = {0, 0, 0, 0};
-        content.node_style = {"khaki", "black", "filled", "rectangle", "Helvectica"};
-    }
-    else if(name == "@literal") // for literals, just put @literal for name
-    {
-        content.title = name;
-
-        content.html_style       = {0, 0, 0, 0};
-        content.node_style.style = "filled";
-        content.node_style.shape = "rectangle";
-    }
-    else if(name == "gpu::code_object") // use code_object_op::symbol_name for title
-    {
-        content.title = op.to_value()["symbol_name"].to<std::string>();
-        content.body_lines.push_back(to_string(op));
-
-        content.node_style.fillcolor = "#E9D66B"; // arylideyellow
-    }
-    else // all else use name and to_string(op)
-    {
-        content.title = name;
-
-        if(std::string op_to_string = to_string(op);
-           name != op_to_string) // stops title == body, don't like doing compare
-            content.body_lines.push_back(op_to_string);
-
-        const auto& attr = op.attributes();
-        if(attr.contains("style"))
-            content.node_style.style = attr.at("style").to<std::string>();
-        if(attr.contains("fillcolor"))
-            content.node_style.fillcolor = attr.at("fillcolor").to<std::string>();
-        if(attr.contains("fontcolor"))
-            content.node_style.fontcolor = attr.at("fontcolor").to<std::string>();
-    }
-    return content;
-}
+graphviz_node_content get_node_content(const instruction_ref& ins);
 
 } // namespace graphviz
 } // namespace MIGRAPHX_INLINE_NS

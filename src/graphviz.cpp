@@ -154,4 +154,3 @@ graphviz_node_content get_node_content(const instruction_ref& ins)
 } // namespace graphviz
 } // namespace MIGRAPHX_INLINE_NS
 } // namespace migraphx
-

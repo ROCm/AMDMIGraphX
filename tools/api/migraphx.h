@@ -71,6 +71,7 @@ typedef enum
 typedef enum
 {
     migraphx_shape_tuple_type,
+    migraphx_shape_packed_fp4_type,
     MIGRAPHX_SHAPE_VISIT_TYPES(MIGRAPHX_SHAPE_GENERATE_ENUM_TYPES)
 } migraphx_shape_datatype_t;
 #undef MIGRAPHX_SHAPE_GENERATE_ENUM_TYPES

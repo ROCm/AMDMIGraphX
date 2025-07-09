@@ -100,11 +100,11 @@ static std::vector<argument> run_ref(program p,
     // parameter_map m;
     // for(auto&& x : p.get_parameter_shapes())
     // {
-    //     auto arg   = inputs.count(x.first) == 0 ? generate_argument(x.second) : inputs.at(x.first);
-    //     m[x.first] = options.offload_copy ? arg : migraphx::make_target("cpu").copy_to(arg);
+    //     auto arg   = inputs.count(x.first) == 0 ? generate_argument(x.second) :
+    //     inputs.at(x.first); m[x.first] = options.offload_copy ? arg :
+    //     migraphx::make_target("cpu").copy_to(arg);
     // }
     // auto out = p.eval(m);
-    
 
     auto out = p.eval(inputs);
     // std::cout << "ref before: " << std::endl;
@@ -114,7 +114,7 @@ static std::vector<argument> run_ref(program p,
     //         std::cout << x << " ";
     //     }
     //     std::cout << std::endl;
-            
+
     // }
     // );
     std::cout << p << std::endl;
@@ -180,7 +180,7 @@ bool verify_program(const std::string& name,
     //         std::cout << x << " ";
     //     }
     //     std::cout << std::endl;
-            
+
     // }
     // );
     // std::vector<argument> ref_outs_copy(ref_outs.size());
@@ -196,7 +196,7 @@ bool verify_program(const std::string& name,
     //         std::cout << x << " ";
     //     }
     //     std::cout << std::endl;
-            
+
     // }
     // );
 
@@ -209,11 +209,11 @@ bool verify_program(const std::string& name,
     //             std::cout << x << " ";
     //         }
     //         std::cout << std::endl;
-            
+
     //     }
 
     //     );
-        
+
     //     std::cout << "target: " << std::endl;
     //     target_outs[i].visit([&](auto v){
     //         for(auto x : v)

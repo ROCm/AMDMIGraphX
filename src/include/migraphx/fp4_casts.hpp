@@ -40,8 +40,8 @@ constexpr float fp4_to_float(uint8_t x)
     constexpr uint32_t exponent_size  = 2;
     constexpr int float_exponent_size = 8;
     constexpr int float_mantissa_size = 23;
-    const uint32_t if_neg0 = 0x80000000;
-    const float f_neg0     = migraphx::bit_cast<float>(if_neg0);
+    const uint32_t if_neg0            = 0x80000000;
+    const float f_neg0                = migraphx::bit_cast<float>(if_neg0);
 
     if(x == 0)
         return 0;

@@ -27,7 +27,7 @@
 TEST_CASE(mxfixneuron_even_test)
 {
     migraphx::program p;
-    auto* mm   = p.get_main_module();
+    auto* mm = p.get_main_module();
     auto input =
         mm->add_parameter("input", migraphx::shape{migraphx::shape::float_type, {3, 64, 4, 4}});
     auto reduce_reshape =

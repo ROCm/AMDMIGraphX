@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2022 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2025 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -42,7 +42,7 @@ struct parse_mxfixneuron : op_parser<parse_mxfixneuron>
     {
         const instruction_ref input = args.front();
         instruction_ref tmp_in      = input;
-        const auto input_lens = input->get_shape().lens();
+        const auto input_lens       = input->get_shape().lens();
         if(args.size() != 1)
         {
             MIGRAPHX_THROW("MXFixNeuron: must have only 1 input");

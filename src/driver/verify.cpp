@@ -89,10 +89,41 @@ static std::vector<argument> run_ref(program p,
     {
         run_passes(p, {fp_to_double{}});
     }
-    p.compile(migraphx::make_target("ref"), options);
+    if(vo.use_cpu_target)
+    {
+        p.compile(migraphx::make_target("cpu"), options);
+    }
+    else
+    {
+        p.compile(migraphx::make_target("ref"), options);
+    }
+    // parameter_map m;
+    // for(auto&& x : p.get_parameter_shapes())
+    // {
+    //     auto arg   = inputs.count(x.first) == 0 ? generate_argument(x.second) : inputs.at(x.first);
+    //     m[x.first] = options.offload_copy ? arg : migraphx::make_target("cpu").copy_to(arg);
+    // }
+    // auto out = p.eval(m);
+    
+
     auto out = p.eval(inputs);
+    // std::cout << "ref before: " << std::endl;
+    // out[1].visit([&](auto v){
+    //     for(auto x : v)
+    //     {
+    //         std::cout << x << " ";
+    //     }
+    //     std::cout << std::endl;
+            
+    // }
+    // );
     std::cout << p << std::endl;
     return out;
+    // std::vector<argument> output(out.size());
+    // std::transform(out.begin(), out.end(), output.begin(), [&](auto& argu) {
+    //     return migraphx::make_target("cpu").copy_from(argu);
+    // });
+    // return output;
 }
 
 static std::vector<argument> run_target(program p,
@@ -142,10 +173,63 @@ bool verify_program(const std::string& name,
                     verify::tolerance tols)
 {
     auto ref_outs    = run_ref(p, options, vo, inputs);
+    // std::cout << "HERE" << std::endl;
+    // ref_outs[1].visit([&](auto v){
+    //     for(auto x : v)
+    //     {
+    //         std::cout << x << " ";
+    //     }
+    //     std::cout << std::endl;
+            
+    // }
+    // );
+    // std::vector<argument> ref_outs_copy(ref_outs.size());
+    // for(auto i = 0; i < ref_outs_copy.size(); i++)
+    // {
+    //     ref_outs_copy[i] = ref_outs[i].copy();
+    // }
+    // ref_outs = ref_outs_copy;
     auto target_outs = run_target(p, t, options, vo, inputs);
+    // ref_outs[1].visit([&](auto v){
+    //     for(auto x : v)
+    //     {
+    //         std::cout << x << " ";
+    //     }
+    //     std::cout << std::endl;
+            
+    // }
+    // );
+
+    // for(std::size_t i = 0; i < ref_outs.size(); ++i)
+    // {
+    //     std::cout << "ref: " << std::endl;
+    //     ref_outs[i].visit([&](auto v){
+    //         for(auto x : v)
+    //         {
+    //             std::cout << x << " ";
+    //         }
+    //         std::cout << std::endl;
+            
+    //     }
+
+    //     );
+        
+    //     std::cout << "target: " << std::endl;
+    //     target_outs[i].visit([&](auto v){
+    //         for(auto x : v)
+    //         {
+    //             std::cout << x << " ";
+    //         }
+    //         std::cout << std::endl;
+
+    //     }
+
+    //     );
+    // }
 
     std::size_t output_num = ref_outs.size();
     bool passed            = true;
+
     for(std::size_t i = 0; i < output_num; ++i)
     {
         if(ref_outs[i].get_shape().type() != target_outs[i].get_shape().type() or
@@ -162,6 +246,7 @@ bool verify_program(const std::string& name,
     }
     if(passed)
         std::cout << "MIGraphX verification passed successfully." << std::endl;
+    // std::cout << "HERE2" << std::endl;
     return passed;
 }
 

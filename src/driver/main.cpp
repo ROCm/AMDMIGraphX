@@ -695,6 +695,10 @@ struct verify : command<verify>
            {"--ref-use-double"},
            ap.help("Convert floating point values to double on ref"),
            ap.set_value(true));
+        ap(vo.use_cpu_target,
+           {"--use-cpu-target"},
+           ap.help("Use CPU target for verification"),
+           ap.set_value(true));
         ap(vo.compiled_model, {"--compiled-model", "-c"}, ap.help("Compiled model to use"));
     }
 

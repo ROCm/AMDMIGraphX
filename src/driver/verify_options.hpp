@@ -40,6 +40,10 @@ struct verify_options
      * Converts floating point values to double on the ref target.
      */
     bool ref_use_double = false;
+    /**
+     * Use CPU target for verification.
+     */
+    bool use_cpu_target = false;
 
     std::string compiled_model = "";
 };

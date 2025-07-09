@@ -140,14 +140,29 @@ def check_correctness(gold_outputs,
             if not np.allclose(gold_outputs[i], outputs[i], rtol, atol):
                 ret = False
                 if verbose:
-                    with np.printoptions(threshold=np.inf):
-                        print('\nOutput {} is incorrect ...'.format(i))
-                        print('Expected value: \n{}'.format(gold_outputs[i]))
+                    print(f'\nOutput {i} is incorrect ...')
+                    gold = gold_outputs[i]
+                    output = outputs[i]
+
+                    if gold.size > 10:
+                        gold_flat = gold.flatten()
+                        output_flat = output.flatten()
+                        print('Expected value (first 5 and last 5):')
+                        print(f'  First 5: {gold_flat[:5]}')
+                        print(f'  Last 5:  {gold_flat[-5:]}')
                         print('\n......\n')
-                        print('Actual value: \n{}\n'.format(outputs[i]))
-                        diff = gold_outputs[i] - outputs[i]
-                        max_diff = np.max(np.abs(diff))
-                        print(f'Max Difference: {max_diff}')
+                        print('Actual value (first 5 and last 5):')
+                        print(f'  First 5: {output_flat[:5]}')
+                        print(f'  Last 5:  {output_flat[-5:]}\n')
+                    else:
+                        with np.printoptions(threshold=np.inf):
+                            print(f'Expected value: \n{gold}')
+                            print('\n......\n')
+                            print(f'Actual value: \n{output}\n')
+
+                    diff = gold - output
+                    max_diff = np.max(np.abs(diff))
+                    print(f'Max Difference: {max_diff}')
                 else:
                     print('Outputs do not match')
                     break

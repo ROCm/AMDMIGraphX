@@ -381,6 +381,15 @@ hipBLASLt vars
 Set to "1", "enable", "enabled", "yes", or "true" to use.
 Performs exhaustive tuning for hipBLASLt.
 
+
+SPIR-V vars
+------------
+
+.. envvar:: MIRGRAPHX_GEN_SPIRV
+
+Set to '1', 'enable', "enabled", "yes", or "true" to use.
+When used with abuild where ``-DMIGRAPHX_USE_HIPRTC=FALSE``, it will target ``SPIR-V``
+
 Testing 
 ------------
 

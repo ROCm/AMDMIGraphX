@@ -707,6 +707,20 @@ def tanh_test(g1):
 
 
 @tf_test
+def tile_test(g1):
+    with g1.as_default():
+        g1_input = tf.compat.v1.placeholder(tf.float32,
+                                            shape=(2, 2, 3),
+                                            name='0')
+        g1_weights = tf.constant(value=[2, 1, 3],
+                                 shape=[3],
+                                 name='1')
+        tf.tile(g1_input,
+                g1_weights,
+                name='tile1')
+
+
+@tf_test
 def transpose_test(g1):
     with g1.as_default():
         g1_input = tf.compat.v1.placeholder(tf.float32,

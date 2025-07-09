@@ -1219,6 +1219,7 @@ void module::print_graph(std::ostream& os, bool brief) const
 {
     os << "digraph {" << std::endl;
     os << "\trankdir=LR;" << std::endl;
+
     this->print([&](auto ins, auto ins_names) {
         std::string label;
         if(brief)

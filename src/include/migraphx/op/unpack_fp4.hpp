@@ -59,9 +59,9 @@ struct unpack_fp4
     {
         check_shapes{inputs, *this}.same_dims().has(1);
         const auto& in_shape = inputs.front();
-        if(in_shape.type() != migraphx::shape::packed_fp4_type)
+        if(in_shape.type() != migraphx::shape::fp4x2_type)
         {
-            MIGRAPHX_THROW("UNPACK_FP4: Only packed_fp4_type is supported for unpacking");
+            MIGRAPHX_THROW("UNPACK_FP4: Only fp4x2_type is supported for unpacking");
         }
         auto new_lens = in_shape.lens();
         new_lens[axis] *= 2;

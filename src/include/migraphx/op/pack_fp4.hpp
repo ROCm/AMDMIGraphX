@@ -63,7 +63,7 @@ struct pack_fp4
             MIGRAPHX_THROW("PACK_FP4: Can not pack axis that has odd lengths");
         }
         new_lens[axis] /= 2;
-        return {migraphx::shape::packed_fp4_type, new_lens};
+        return {migraphx::shape::fp4x2_type, new_lens};
     }
 
     argument compute(const shape& output_shape, const std::vector<argument>& args) const
@@ -90,7 +90,7 @@ struct pack_fp4
             });
         });
         migraphx::argument result =
-            uint8_arg.reshape({migraphx::shape::packed_fp4_type, output_shape.lens()});
+            uint8_arg.reshape({migraphx::shape::fp4x2_type, output_shape.lens()});
         return result;
     }
 };

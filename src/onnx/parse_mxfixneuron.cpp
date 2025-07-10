@@ -141,7 +141,7 @@ struct parse_mxfixneuron : op_parser<parse_mxfixneuron>
             ravel_ins = info.add_instruction(make_op("pad", {{"pads", {0, 1}}}), ravel_ins);
         }
         auto pack_ins =
-            info.add_instruction(make_op("pack_fp4"), ravel_ins); // output is packed_fp4_type
+            info.add_instruction(make_op("pack_fp4"), ravel_ins); // output is fp4x2_type
         auto unpack_ins =
             info.add_instruction(make_op("unpack_fp4"), pack_ins); // output is float_type
         if(odd_num_elem)

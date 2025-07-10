@@ -53,7 +53,7 @@ TEST_CASE(unpack_fp4)
 {
     migraphx::program p;
     auto* mm = p.get_main_module();
-    migraphx::shape s{migraphx::shape::packed_fp4_type, {2, 1}};
+    migraphx::shape s{migraphx::shape::fp4x2_type, {2, 1}};
     std::vector<uint8_t> packed_data = {0x5C, 0x06};
     auto lit                         = migraphx::literal{s, packed_data.data()};
     auto l0                          = mm->add_literal(lit);

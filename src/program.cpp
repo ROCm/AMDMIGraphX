@@ -557,7 +557,7 @@ static std::vector<argument> generic_eval(const program& p,
 {
     const module* mm = p.get_main_module();
 #if MIGRAPHX_HAS_PMR
-    std::size_t n    = p.total_instructions();
+    std::size_t n = p.total_instructions();
     std::vector<char> buffer(n * (sizeof(instruction_ref) + sizeof(argument)) * 4);
     std::pmr::monotonic_buffer_resource bres(
         buffer.data(), buffer.size(), std::pmr::null_memory_resource());

@@ -73,7 +73,8 @@ struct MIGRAPHX_EXPORT shape
 #define MIGRAPHX_SHAPE_GENERATE_ENUM_TYPES(x, t) x,
     enum type_t
     {
-        MIGRAPHX_SHAPE_VISIT_TYPES(MIGRAPHX_SHAPE_GENERATE_ENUM_TYPES) tuple_type
+        MIGRAPHX_SHAPE_VISIT_TYPES(MIGRAPHX_SHAPE_GENERATE_ENUM_TYPES) tuple_type,
+        fp4x2_type // packed fp4 contained in uint8
     };
 #undef MIGRAPHX_SHAPE_GENERATE_ENUM_TYPES
 
@@ -414,6 +415,9 @@ struct MIGRAPHX_EXPORT shape
             tv();
             return;
         }
+        case fp4x2_type: {
+            MIGRAPHX_THROW("fp4x2_type cannot be visited.");
+        }
 #define MIGRAPHX_SHAPE_GENERATE_VISITOR_CASE(x, t) \
     case x: v(as<t>()); return;
             MIGRAPHX_SHAPE_VISIT_TYPES(MIGRAPHX_SHAPE_GENERATE_VISITOR_CASE)
@@ -439,6 +443,7 @@ struct MIGRAPHX_EXPORT shape
     {
 #define MIGRAPHX_SHAPE_GENERATE_VISITOR_ALL(x, t) v(as<t>());
         MIGRAPHX_SHAPE_VISIT_TYPES(MIGRAPHX_SHAPE_GENERATE_VISITOR_ALL)
+        v(as<uint8_t>());
 #undef MIGRAPHX_SHAPE_GENERATE_VISITOR_ALL
     }
 

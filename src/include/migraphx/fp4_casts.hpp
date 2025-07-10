@@ -26,6 +26,7 @@
 
 #include <cstdint>
 #include <algorithm>
+#include <array>
 #include <migraphx/bit_cast.hpp>
 #include <migraphx/requires.hpp>
 #include <migraphx/errors.hpp>
@@ -33,29 +34,12 @@
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
 
-constexpr float fp4_to_float(uint8_t x)
-{
-    switch(x)
-    {
-    case 0x0u: return 0.0;
-    case 0x1u: return 0.5;
-    case 0x2u: return 1.0;
-    case 0x3u: return 1.5;
-    case 0x4u: return 2.0;
-    case 0x5u: return 3.0;
-    case 0x6u: return 4.0;
-    case 0x7u: return 6.0;
-    case 0x8u: return -0.0;
-    case 0x9u: return -0.5;
-    case 0xAu: return -1.0;
-    case 0xBu: return -1.5;
-    case 0xCu: return -2.0;
-    case 0xDu: return -3.0;
-    case 0xEu: return -4.0;
-    case 0xFu: return -6.0;
-    }
-    MIGRAPHX_THROW("fp4_to_float: invalid fp4 input value");
+namespace {
+static std::array<float, 16> _fp4_lut = {
+    0.0, 0.5, 1.0, 1.5, 2.0, 3.0, 4.0, 6.0, -0.0, -0.5, -1.0, -1.5, -2.0, -3.0, -4.0, -6.0};
 }
+
+constexpr float fp4_to_float(uint8_t x) { return _fp4_lut[x & 0xF]; }
 
 // roundTiesToEven
 // based on code in float8_impl

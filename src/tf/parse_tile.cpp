@@ -36,32 +36,26 @@ struct parse_tile : op_parser<parse_tile>
     std::vector<op_desc> operators() const { return {{"Tile"}}; }
 
     instruction_ref parse(const op_desc& /*opd*/,
-                          const tf_parser& /*parser*/,
+                          const tf_parser& parser,
                           tf_parser::node_info info,
                           const std::vector<instruction_ref>& args) const
     {
-        // info.mm->debug_print();
         std::vector<int64_t> repeats;
 
         migraphx::argument arg_s = args[1]->eval();
         if(not arg_s.empty())
-        // {
-        //     MIGRAPHX_THROW("PARSE_TILE: dynamic shape is not supported");
             arg_s.visit([&](auto input) { repeats.assign(input.begin(), input.end()); });
 
-        // }
         else
+        // workaround for dynamic shape, treat tile as a broadcast across the first dimension
+        // that is equal to the batch being used for other params
         {
             auto out_lens = args[0]->get_shape().lens();
-            out_lens[0] = 100;
+            out_lens[0] = parser.batch_size;
             return info.add_instruction(
-            make_op("multibroadcast", {{"out_lens", out_lens}}),
-            args[0]);
-            // repeats = std::vector<int64_t>(args[0]->get_shape().ndim(), 1);
-            // repeats[0] = 100;
+            make_op("multibroadcast", {{"out_lens", out_lens}}), args[0]);
         }
 
-        // arg_s.visit([&](auto input) { repeats.assign(input.begin(), input.end()); });
 
         auto l0 = args[0];
         for(int i = 0; i < repeats.size(); i++)

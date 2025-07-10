@@ -30,6 +30,7 @@
 
 /**
  * Based off the code in float8_impl.hpp
+ * TODO: make functions templated for different float types
  */
 
 namespace migraphx {
@@ -43,17 +44,18 @@ constexpr float fp4_to_float(uint8_t x)
     const uint32_t if_neg0            = 0x80000000;
     const float f_neg0                = migraphx::bit_cast<float>(if_neg0);
 
+    // no NaN or inf in fp4
     if(x == 0)
         return 0;
+    if(x == 0x8)
+        return f_neg0;
+
     uint32_t sign     = x >> 3u;
     uint32_t mantissa = x & 0x1u;
     int exponent      = (x & 0x6u) >> 1u;
-    // no NaN or inf in fp4
-    if(x == 0x8)
-        return f_neg0;
+
     const int exp_low_cutoff =
         (1u << (float_exponent_size - 1u)) - (1u << (exponent_size - 1u)) + 1u;
-
     if(exponent == 0)
     {
         // mantissa != 0 from above code
@@ -188,5 +190,30 @@ constexpr uint8_t float_to_fp4(float f_x)
 
 } // namespace MIGRAPHX_INLINE_NS
 } // namespace migraphx
+/*
+float fp4_to_float(uint8_t x)
+{
+    static std::array<double, 16> fp4_map =
+    {
+        {0x0u, 0.0},
+        {0x1u, 0.5},
+        {0x2u, 1.0},
+        {0x3u, 1.5},
+        {0x4u, 2.0},
+        {0x5u, 3.0},
+        {0x6u, 4.0},
+        {0x7u, 6.0},
+        {0x8u, -0.0},
+        {0x9u, -0.5},
+        {0xAu, -1.0},
+        {0xBu, -1.5},
+        {0xCu, -2.0},
+        {0xDu, -3.0},
+        {0xEu, -4.0},
+        {0xFu, -6.0}
+    };
+    return fp4_map.at(x);
+}
+*/
 
 #endif

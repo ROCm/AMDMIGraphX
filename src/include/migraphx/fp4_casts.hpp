@@ -27,50 +27,38 @@
 #include <cstdint>
 #include <algorithm>
 #include <migraphx/bit_cast.hpp>
-
-/**
- * Based off the code in float8_impl.hpp
- * TODO: make functions templated for different float types
- */
+#include <migraphx/requires.hpp>
+#include <migraphx/errors.hpp>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
+
 constexpr float fp4_to_float(uint8_t x)
 {
-    constexpr uint32_t mantissa_size  = 1;
-    constexpr uint32_t exponent_size  = 2;
-    constexpr int float_exponent_size = 8;
-    constexpr int float_mantissa_size = 23;
-    const uint32_t if_neg0            = 0x80000000;
-    const float f_neg0                = migraphx::bit_cast<float>(if_neg0);
-
-    // no NaN or inf in fp4
-    if(x == 0)
-        return 0;
-    if(x == 0x8)
-        return f_neg0;
-
-    uint32_t sign     = x >> 3u;
-    uint32_t mantissa = x & 0x1u;
-    int exponent      = (x & 0x6u) >> 1u;
-
-    const int exp_low_cutoff =
-        (1u << (float_exponent_size - 1u)) - (1u << (exponent_size - 1u)) + 1u;
-    if(exponent == 0)
+    switch(x)
     {
-        // mantissa != 0 from above code
-        int sh = 1u + __builtin_clz(mantissa) - (32u - mantissa_size);
-        mantissa <<= sh;
-        exponent += 1u - sh;
-        mantissa &= ((1u << mantissa_size) - 1u);
+    case 0x0u: return 0.0;
+    case 0x1u: return 0.5;
+    case 0x2u: return 1.0;
+    case 0x3u: return 1.5;
+    case 0x4u: return 2.0;
+    case 0x5u: return 3.0;
+    case 0x6u: return 4.0;
+    case 0x7u: return 6.0;
+    case 0x8u: return -0.0;
+    case 0x9u: return -0.5;
+    case 0xAu: return -1.0;
+    case 0xBu: return -1.5;
+    case 0xCu: return -2.0;
+    case 0xDu: return -3.0;
+    case 0xEu: return -4.0;
+    case 0xFu: return -6.0;
     }
-    exponent += exp_low_cutoff - 1;
-    mantissa <<= float_mantissa_size - mantissa_size;               // NOLINT
-    uint32_t retval = (sign << 31u) | (exponent << 23u) | mantissa; // NOLINT
-    return migraphx::bit_cast<float>(retval);
+    MIGRAPHX_THROW("fp4_to_float: invalid fp4 input value");
 }
 
 // roundTiesToEven
+// based on code in float8_impl
 constexpr uint8_t float_to_fp4(float f_x)
 {
     // float32 mantissa_width
@@ -190,30 +178,5 @@ constexpr uint8_t float_to_fp4(float f_x)
 
 } // namespace MIGRAPHX_INLINE_NS
 } // namespace migraphx
-/*
-float fp4_to_float(uint8_t x)
-{
-    static std::array<double, 16> fp4_map =
-    {
-        {0x0u, 0.0},
-        {0x1u, 0.5},
-        {0x2u, 1.0},
-        {0x3u, 1.5},
-        {0x4u, 2.0},
-        {0x5u, 3.0},
-        {0x6u, 4.0},
-        {0x7u, 6.0},
-        {0x8u, -0.0},
-        {0x9u, -0.5},
-        {0xAu, -1.0},
-        {0xBu, -1.5},
-        {0xCu, -2.0},
-        {0xDu, -3.0},
-        {0xEu, -4.0},
-        {0xFu, -6.0}
-    };
-    return fp4_map.at(x);
-}
-*/
 
 #endif

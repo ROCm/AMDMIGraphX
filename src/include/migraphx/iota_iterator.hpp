@@ -82,7 +82,6 @@ struct basic_iota_iterator : iterator_operators<basic_iota_iterator<F, Iterator>
     template <class U, class V>
     static constexpr auto distance(const U& x, const V& y) -> decltype(y.index - x.index)
     {
-        assert(x.parent == y.parent);
         return y.index - x.index;
     }
 

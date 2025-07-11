@@ -122,7 +122,7 @@ struct function
     }
 };
 
-template<class Stream, class T>
+template <class Stream, class T>
 Stream& print_stream_impl(rank<0>, Stream& s, const T&)
 {
     // TODO: Print typename
@@ -130,7 +130,7 @@ Stream& print_stream_impl(rank<0>, Stream& s, const T&)
     return s;
 }
 
-template<class Stream, class T>
+template <class Stream, class T>
 auto print_stream_impl(rank<1>, Stream& s, const T& x) -> decltype(s << x)
 {
     if constexpr(std::is_pointer<T>{})
@@ -170,24 +170,26 @@ Stream& print_stream_impl(rank<3>, Stream& s, std::nullptr_t)
 template <class Stream,
           class Range,
           class = typename std::enable_if<not std::is_convertible<Range, std::string>{}>::type>
-auto print_stream_impl(rank<4>, Stream& s, const Range& v) -> decltype(v.end(), s << stream_write(s, *v.begin()))
+auto print_stream_impl(rank<4>,
+                       Stream& s,
+                       const Range& v) -> decltype(v.end(), s << stream_write(s, *v.begin()))
 {
     auto start = v.begin();
-    auto last = v.end();
+    auto last  = v.end();
     s << "{ ";
     if(start != last)
     {
         stream_write(s, *start);
         std::for_each(std::next(start), last, [&](auto&& x) {
             s << ", ";
-            stream_write(s, x); 
+            stream_write(s, x);
         });
     }
     s << "}";
     return s;
 }
 
-template<class Stream, class T>
+template <class Stream, class T>
 auto& print_stream(Stream& s, const T& x)
 {
     return print_stream_impl(rank<5>{}, s, x);
@@ -337,8 +339,7 @@ auto make_function(const std::string& name, F f)
 {
     return [=](auto&&... xs) {
         std::vector<std::string> args = {as_string(xs)...};
-        return make_predicate(name + "(" + as_string(args) + ")",
-                              [=] { return f(xs...); });
+        return make_predicate(name + "(" + as_string(args) + ")", [=] { return f(xs...); });
     };
 }
 

@@ -49,6 +49,10 @@ MIGRAPHX_EXPORT bool reaches(instruction_ref start, instruction_ref end);
 
 MIGRAPHX_EXPORT bool reaches(instruction_ref start, instruction_ref end, const_module_ref m);
 
+MIGRAPHX_EXPORT bool is_interdependent(const std::vector<instruction_ref>& instructions,
+                                       const_module_ref m,
+                                       instruction_ref root);
+
 struct MIGRAPHX_EXPORT instruction
 {
     instruction() {}

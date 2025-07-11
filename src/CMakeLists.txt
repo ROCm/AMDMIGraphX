@@ -60,6 +60,7 @@ add_library(migraphx
     fileutils.cpp
     fp_to_double.cpp
     fp8_ocp_to_fnuz.cpp
+    fuse_attention.cpp
     fuse_concat.cpp
     fuse_pointwise.cpp
     fuse_pointwise_reduce.cpp

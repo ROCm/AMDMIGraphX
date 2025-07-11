@@ -993,10 +993,11 @@ static void rewrite_reduce(module& m)
     {
         if(is_reduce(*i))
         {
-            auto reduce_op   = i->get_operator().to_value();
-            auto reduce_axes = reduce_op["axes"].to_vector<size_t>();
-            auto reduce_lens = i->get_shape().lens();
-            auto in_shape    = i->inputs().front()->get_shape();
+            auto reduce_op      = i->get_operator().to_value();
+            auto reduce_op_name = i->get_operator().name();
+            auto reduce_axes    = reduce_op["axes"].to_vector<size_t>();
+            auto reduce_lens    = i->get_shape().lens();
+            auto in_shape       = i->inputs().front()->get_shape();
             const auto& in_lens = in_shape.lens();
             assert(in_shape.standard());
             assert(reduce_lens.size() == in_lens.size());
@@ -1023,7 +1024,7 @@ static void rewrite_reduce(module& m)
             auto rsp_ins = m.insert_instruction(
                 i, migraphx::make_op("reshape", {{"dims", new_rsp_dims}}), i->inputs().front());
             auto collapsed_reduce = m.insert_instruction(
-                i, migraphx::make_op("reduce_sum", {{"axes", new_reduce_axes}}), rsp_ins);
+                i, migraphx::make_op(reduce_op_name, {{"axes", new_reduce_axes}}), rsp_ins);
             auto rsp_back = m.insert_instruction(
                 i, migraphx::make_op("reshape", {{"dims", reduce_lens}}), collapsed_reduce);
             m.replace_instruction(i, rsp_back);

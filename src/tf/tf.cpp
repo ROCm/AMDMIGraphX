@@ -47,6 +47,12 @@ static program parse_tf_from(const tf_options& options, Ts&&... xs)
     parser.map_dyn_input_dims = options.map_dyn_input_dims;
     parser.output_node_names = options.output_node_names;
 
+    if(not options.map_input_dims.empty() and not options.map_dyn_input_dims.empty())
+    {
+        MIGRAPHX_THROW("PARSE_TF_FROM: both map_input_dims and map_dyn_input_dims non-empty, only"
+                       "one should be used");
+    }
+
 #ifndef NDEBUG
     // Log the program when it can't be parsed
     try

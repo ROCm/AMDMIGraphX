@@ -26,137 +26,80 @@
 
 #include <migraphx/config.hpp>
 #include <migraphx/functional.hpp>
+#include <migraphx/iterator.hpp>
 #include <iterator>
 #include <type_traits>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
 
+struct iota_id
+{
+    template <class T>
+    constexpr const T& operator()(const T& x) const
+    {
+        return x;
+    }
+};
+
 template <class F, class Iterator = std::ptrdiff_t>
 struct basic_iota_iterator
+: iterator_operators<basic_iota_iterator<F, Iterator>>, iterator_types<decltype(std::declval<F>()(std::declval<Iterator>())), std::random_access_iterator_tag>
 {
     Iterator index;
     F f;
 
-    using difference_type   = std::ptrdiff_t;
-    using reference         = decltype(f(std::declval<Iterator>()));
-    using value_type        = typename std::remove_reference<reference>::type;
-    using pointer           = typename std::add_pointer<value_type>::type;
-    using iterator_category = std::random_access_iterator_tag;
+    // using reference = decltype(std::declval<F>()(std::declval<Iterator>()));
 
-    basic_iota_iterator& operator+=(int n)
+    constexpr basic_iota_iterator() = default;
+
+    template<class... Ts>
+    constexpr basic_iota_iterator(Iterator i, Ts&&... xs)
+    : index(i), f{std::forward<Ts>(xs)...}
+    {}
+
+    constexpr basic_iota_iterator::reference operator*() const { return f(index); }
+
+    template <class U>
+    static constexpr auto increment(U& x) -> decltype(++x.index)
     {
-        index += n;
-        return *this;
+        return ++x.index;
     }
 
-    basic_iota_iterator& operator-=(int n)
+    template <class U>
+    static constexpr auto decrement(U& x) -> decltype(--x.index)
     {
-        index -= n;
-        return *this;
+        return --x.index;
     }
 
-    basic_iota_iterator& operator++()
+    template <class U, class I>
+    static constexpr auto advance(U& x, I n) -> decltype(x.index += n)
     {
-        index++;
-        return *this;
+        return x.index += n;
     }
 
-    basic_iota_iterator& operator--()
+    template <class U, class V>
+    static constexpr auto distance(const U& x, const V& y) -> decltype(y.index - x.index)
     {
-        index--;
-        return *this;
+        assert(x.parent == y.parent);
+        return y.index - x.index;
     }
 
-    basic_iota_iterator operator++(int) // NOLINT
+    template <class U, class V>
+    static constexpr auto equal(const U& x,
+                      const V& y) -> decltype(x.index == y.index)
     {
-        basic_iota_iterator it = *this;
-        index++;
-        return it;
+        return x.index == y.index;
     }
-
-    basic_iota_iterator operator--(int) // NOLINT
-    {
-        basic_iota_iterator it = *this;
-        index--;
-        return it;
-    }
-    reference operator*() const { return f(index); }
-    pointer operator->() const { return &f(index); }
-    reference operator[](int n) const { return f(index + n); }
 };
 
 template <class T, class F>
-inline basic_iota_iterator<F, T> make_basic_iota_iterator(T x, F f)
+basic_iota_iterator<F, T> make_basic_iota_iterator(T x, F f)
 {
-    return basic_iota_iterator<F, T>{x, f};
+    return {x, f};
 }
 
-template <class F, class Iterator>
-inline basic_iota_iterator<F, Iterator> operator+(basic_iota_iterator<F, Iterator> x,
-                                                  std::ptrdiff_t y)
-{
-    return x += y;
-}
-
-template <class F, class Iterator>
-inline basic_iota_iterator<F, Iterator> operator+(std::ptrdiff_t x,
-                                                  basic_iota_iterator<F, Iterator> y)
-{
-    return y + x;
-}
-
-template <class F, class Iterator>
-inline std::ptrdiff_t operator-(basic_iota_iterator<F, Iterator> x,
-                                basic_iota_iterator<F, Iterator> y)
-{
-    return x.index - y.index;
-}
-
-template <class F, class Iterator>
-inline basic_iota_iterator<F, Iterator> operator-(basic_iota_iterator<F, Iterator> x,
-                                                  std::ptrdiff_t y)
-{
-    return x -= y;
-}
-
-template <class F, class Iterator>
-inline bool operator==(basic_iota_iterator<F, Iterator> x, basic_iota_iterator<F, Iterator> y)
-{
-    return x.index == y.index;
-}
-
-template <class F, class Iterator>
-inline bool operator!=(basic_iota_iterator<F, Iterator> x, basic_iota_iterator<F, Iterator> y)
-{
-    return x.index != y.index;
-}
-
-template <class F, class Iterator>
-inline bool operator<(basic_iota_iterator<F, Iterator> x, basic_iota_iterator<F, Iterator> y)
-{
-    return x.index < y.index;
-}
-
-template <class F, class Iterator>
-inline bool operator>(basic_iota_iterator<F, Iterator> x, basic_iota_iterator<F, Iterator> y)
-{
-    return x.index > y.index;
-}
-
-template <class F, class Iterator>
-inline bool operator>=(basic_iota_iterator<F, Iterator> x, basic_iota_iterator<F, Iterator> y)
-{
-    return x.index >= y.index;
-}
-
-template <class F, class Iterator>
-inline bool operator<=(basic_iota_iterator<F, Iterator> x, basic_iota_iterator<F, Iterator> y)
-{
-    return x.index <= y.index;
-}
-
-using iota_iterator = basic_iota_iterator<id>;
+using iota_iterator = basic_iota_iterator<iota_id>;
 
 } // namespace MIGRAPHX_INLINE_NS
 } // namespace migraphx

@@ -95,19 +95,19 @@ struct iterator_operators
     // Core operators
 
     // Increment
-    template <class U, MIGRAPHX_REQUIRES(std::is_same<U, T>{})>
-    friend constexpr auto operator++(U& x) -> decltype(U::increment(x), std::declval<U&>())
+    template <class U, class Self = std::remove_reference_t<U>, MIGRAPHX_REQUIRES(std::is_same<Self, T>{})>
+    friend constexpr auto operator++(U&& x) -> decltype(Self::increment(x), static_cast<U&&>(x))
     {
-        U::increment(x);
-        return x;
+        Self::increment(x);
+        return static_cast<U&&>(x);
     }
 
     // Decrement
-    template <class U, MIGRAPHX_REQUIRES(std::is_same<U, T>{})>
-    friend constexpr auto operator--(U& x) -> decltype(U::decrement(x), std::declval<U&>())
+    template <class U, class Self = std::remove_reference_t<U>, MIGRAPHX_REQUIRES(std::is_same<Self, T>{})>
+    friend constexpr auto operator--(U&& x) -> decltype(Self::decrement(x), static_cast<U&&>(x))
     {
-        U::decrement(x);
-        return x;
+        Self::decrement(x);
+        return static_cast<U&&>(x);
     }
 
     // Advance
@@ -179,6 +179,18 @@ struct iterator_operators
     }
 
     template <class U>
+    friend constexpr auto operator-(T lhs, const U& rhs) -> decltype(T(lhs += -rhs))
+    {
+        return lhs += rhs;
+    }
+
+    template <class U, MIGRAPHX_REQUIRES(not std::is_convertible<U, T>{})>
+    friend constexpr auto operator-(const U& lhs, T rhs) -> decltype(T(rhs += -lhs))
+    {
+        return rhs += lhs;
+    }
+
+    template <class U>
     friend constexpr auto operator-=(T& lhs, const U& rhs) -> decltype(lhs += -rhs)
     {
         return lhs += -rhs;
@@ -212,6 +224,17 @@ struct iterator_operators
         return arrow_proxy{*static_cast<const U&>(*this)};
     }
 };
+
+template<class T, class Category>
+struct iterator_types
+{
+    using reference         = T;
+    using iterator_category = Category;
+    using difference_type   = std::ptrdiff_t;
+    using value_type        = std::decay_t<T>;
+    using pointer           = std::add_pointer_t<std::remove_reference_t<reference>>;
+};
+
 
 } // namespace MIGRAPHX_INLINE_NS
 } // namespace migraphx

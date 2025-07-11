@@ -270,7 +270,7 @@ iterator_range<Iterator> range(Iterator start, Iterator last)
 
 inline iterator_range<iota_iterator> range(std::ptrdiff_t start, std::ptrdiff_t last)
 {
-    return {{start, {}}, {last, {}}};
+    return {{start}, {last}};
 }
 inline iterator_range<iota_iterator> range(std::ptrdiff_t last) { return range(0, last); }
 

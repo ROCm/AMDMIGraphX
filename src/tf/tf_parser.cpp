@@ -67,8 +67,7 @@ static shape shape_from_dyn_dims(shape::type_t shape_type,
 
 bool tf_parser::should_transpose(instruction_ref ins) const
 {
-    const auto& shape = ins->get_shape();
-    return is_nhwc and shape.dynamic() ? shape.dyn_dims().size() == 4 : shape.lens().size() == 4;
+    return is_nhwc and ins->get_shape().ndim() == 4;
 }
 
 instruction_ref tf_parser::to_nhwc(instruction_ref ins) const

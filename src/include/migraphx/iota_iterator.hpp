@@ -90,6 +90,12 @@ struct basic_iota_iterator : iterator_operators<basic_iota_iterator<F, Iterator>
     {
         return x.index == y.index;
     }
+
+    template<class Stream>
+    friend Stream& operator<<(Stream& s, const basic_iota_iterator& x)
+    {
+        return s << x.index;
+    }
 };
 
 template <class T, class F>

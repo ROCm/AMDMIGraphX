@@ -116,7 +116,7 @@ struct iterator_operators
 
     // Advance
     template <class U, class I, MIGRAPHX_REQUIRES(std::is_same<U, T>{})>
-    friend constexpr auto operator+=(U& x, I n) -> decltype(U::increment(x), std::declval<U&>())
+    friend constexpr auto operator+=(U& x, I n) -> decltype(U::advance(x, n), std::declval<U&>())
     {
         U::advance(x, n);
         return x;
@@ -176,7 +176,7 @@ struct iterator_operators
         return lhs += rhs;
     }
 
-    template <class U, MIGRAPHX_REQUIRES(not std::is_convertible<U, T>{})>
+    template <class U, MIGRAPHX_REQUIRES(not std::is_same<U, T>{})>
     friend constexpr auto operator+(const U& lhs, T rhs) -> decltype(T(rhs += lhs))
     {
         return rhs += lhs;
@@ -185,13 +185,7 @@ struct iterator_operators
     template <class U>
     friend constexpr auto operator-(T lhs, const U& rhs) -> decltype(T(lhs += -rhs))
     {
-        return lhs += rhs;
-    }
-
-    template <class U, MIGRAPHX_REQUIRES(not std::is_convertible<U, T>{})>
-    friend constexpr auto operator-(const U& lhs, T rhs) -> decltype(T(rhs += -lhs))
-    {
-        return rhs += lhs;
+        return lhs += -rhs;
     }
 
     template <class U>

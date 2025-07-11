@@ -292,15 +292,11 @@ void tf_parser::parse_graph(const tensorflow::GraphDef& graph)
         attribute_map input_attrs = get_attributes(input);
         shape::type_t shape_type  = parse_type(input_attrs.at("dtype").type());
         std::vector<size_t> dims  = parse_dims(input_attrs.at("shape").shape());
-        shape s;
+        
 
         if(contains(map_input_dims, name))
         {
             dims = map_input_dims.at(name);
-        }
-        else if(contains(map_dyn_input_dims, name))
-        {
-            s = shape_from_dyn_dims(shape_type, map_dyn_input_dims.at(name));
         }
         else
         {
@@ -312,9 +308,13 @@ void tf_parser::parse_graph(const tensorflow::GraphDef& graph)
                 return static_cast<int>(dim) <= 0 ? batch_size : dim;
             });
         }
+        shape s{shape_type, dims};
 
-        if(not contains(map_dyn_input_dims, name))
-            s = shape{shape_type, dims};
+        if(contains(map_dyn_input_dims, name))
+        {
+            s = shape_from_dyn_dims(shape_type, map_dyn_input_dims.at(name));
+        }
+
         instructions[name] = to_nhwc(mm->add_parameter(name, s));
     }
     for(auto&& p : nodes)

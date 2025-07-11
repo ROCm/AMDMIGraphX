@@ -33,7 +33,9 @@ TEST_CASE(group_norm_5d_half_test)
                                           {3, 1, 3, 3, 3, 3},
                                           {2, 3, 4, 5},
                                           1e-5f,
-                                          migraphx::shape::half_type);
+                                          migraphx::shape::half_type,
+                                          {"scale", migraphx::shape::half_type},
+                                          {"bias", migraphx::shape::half_type});
     auto prog           = optimize_onnx("group_norm_5d_half_test.onnx");
     EXPECT(p == prog);
 }

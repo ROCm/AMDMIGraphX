@@ -41,7 +41,7 @@ struct parse_pad : op_parser<parse_pad>
                           const tf_parser::node_info& info,
                           std::vector<instruction_ref> args) const
     {
-        size_t ndims = args.front()->get_shape().lens().size();
+        size_t ndims = args.front()->get_shape().ndim();
 
         // in tf, the paddings are arranged as a 2d shape (ndims, 2),
         // the last dim contains the left padding and right padding respectively

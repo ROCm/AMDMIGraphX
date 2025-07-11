@@ -95,7 +95,9 @@ struct iterator_operators
     // Core operators
 
     // Increment
-    template <class U, class Self = std::remove_reference_t<U>, MIGRAPHX_REQUIRES(std::is_same<Self, T>{})>
+    template <class U,
+              class Self = std::remove_reference_t<U>,
+              MIGRAPHX_REQUIRES(std::is_same<Self, T>{})>
     friend constexpr auto operator++(U&& x) -> decltype(Self::increment(x), static_cast<U&&>(x))
     {
         Self::increment(x);
@@ -103,7 +105,9 @@ struct iterator_operators
     }
 
     // Decrement
-    template <class U, class Self = std::remove_reference_t<U>, MIGRAPHX_REQUIRES(std::is_same<Self, T>{})>
+    template <class U,
+              class Self = std::remove_reference_t<U>,
+              MIGRAPHX_REQUIRES(std::is_same<Self, T>{})>
     friend constexpr auto operator--(U&& x) -> decltype(Self::decrement(x), static_cast<U&&>(x))
     {
         Self::decrement(x);
@@ -225,7 +229,7 @@ struct iterator_operators
     }
 };
 
-template<class T, class Category>
+template <class T, class Category>
 struct iterator_types
 {
     using reference         = T;
@@ -234,7 +238,6 @@ struct iterator_types
     using value_type        = std::decay_t<T>;
     using pointer           = std::add_pointer_t<std::remove_reference_t<reference>>;
 };
-
 
 } // namespace MIGRAPHX_INLINE_NS
 } // namespace migraphx

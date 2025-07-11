@@ -43,8 +43,9 @@ struct iota_id
 };
 
 template <class F, class Iterator = std::ptrdiff_t>
-struct basic_iota_iterator
-: iterator_operators<basic_iota_iterator<F, Iterator>>, iterator_types<decltype(std::declval<F>()(std::declval<Iterator>())), std::random_access_iterator_tag>
+struct basic_iota_iterator : iterator_operators<basic_iota_iterator<F, Iterator>>,
+                             iterator_types<decltype(std::declval<F>()(std::declval<Iterator>())),
+                                            std::random_access_iterator_tag>
 {
     Iterator index;
     F f;
@@ -53,10 +54,10 @@ struct basic_iota_iterator
 
     constexpr basic_iota_iterator() = default;
 
-    template<class... Ts>
-    constexpr basic_iota_iterator(Iterator i, Ts&&... xs)
-    : index(i), f{std::forward<Ts>(xs)...}
-    {}
+    template <class... Ts>
+    constexpr basic_iota_iterator(Iterator i, Ts&&... xs) : index(i), f{std::forward<Ts>(xs)...}
+    {
+    }
 
     constexpr basic_iota_iterator::reference operator*() const { return f(index); }
 
@@ -86,8 +87,7 @@ struct basic_iota_iterator
     }
 
     template <class U, class V>
-    static constexpr auto equal(const U& x,
-                      const V& y) -> decltype(x.index == y.index)
+    static constexpr auto equal(const U& x, const V& y) -> decltype(x.index == y.index)
     {
         return x.index == y.index;
     }

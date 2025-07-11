@@ -2155,6 +2155,19 @@ extern "C" migraphx_status migraphx_tf_options_set_input_parameter_shape(
     return api_error_result;
 }
 
+extern "C" migraphx_status migraphx_tf_options_set_dyn_input_parameter_shape(
+    migraphx_tf_options_t tf_options, const char* name, migraphx_dynamic_dimensions_t dims)
+{
+    auto api_error_result = migraphx::try_([&] {
+        if(tf_options == nullptr)
+            MIGRAPHX_THROW(migraphx_status_bad_param, "Bad parameter tf_options: Null pointer");
+        if(dims == nullptr)
+            MIGRAPHX_THROW(migraphx_status_bad_param, "Bad parameter dims: Null pointer");
+        migraphx::set_dyn_input_parameter_shape((tf_options->object), (name), (dims->object));
+    });
+    return api_error_result;
+}
+
 extern "C" migraphx_status
 migraphx_tf_options_set_default_dim_value(migraphx_tf_options_t tf_options, size_t value)
 {

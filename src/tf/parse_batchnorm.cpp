@@ -48,7 +48,6 @@ struct parse_batchnorm : op_parser<parse_batchnorm>
             epsilon = info.attributes.at("epsilon").f();
         }
 
-        auto x_lens = args[0]->get_shape().lens();
         auto x_type = args[0]->get_shape().type();
 
         // unsqueeze tensors of shape (C) to broadcast correctly

@@ -40,20 +40,9 @@ struct parse_squeeze : op_parser<parse_squeeze>
                           tf_parser::node_info info,
                           std::vector<instruction_ref> args) const
     {
-        auto input_dims = args[0]->get_shape().lens();
         auto axes       = info.attributes.at("squeeze_dims").list().i();
         std::vector<int64_t> op_axes(axes.begin(), axes.end());
 
-        if(op_axes.empty()) // no squeeze_dims provided, remove any dim that equals 1
-        {
-            for(size_t i = 0; i < input_dims.size(); i++)
-            {
-                if(input_dims.at(i) == 1)
-                {
-                    op_axes.push_back(i);
-                }
-            }
-        }
         return info.add_instruction(make_op("squeeze", {{"axes", op_axes}}),
                                     info.make_contiguous(args[0]));
     }

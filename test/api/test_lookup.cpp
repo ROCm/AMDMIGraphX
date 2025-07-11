@@ -47,8 +47,8 @@ TEST_CASE(shape)
 TEST_CASE(non_handle)
 {
     int i = 0;
-    EXPECT(bool{has_handle(migraphx::rank<1>{}, migraphx_shape_t{})});
-    EXPECT(bool{not has_handle(migraphx::rank<1>{}, &i)});
+    EXPECT(has_handle(migraphx::rank<1>{}, migraphx_shape_t{}));
+    EXPECT(not has_handle(migraphx::rank<1>{}, &i));
 }
 
 int main(int argc, const char* argv[]) { test::run(argc, argv); }

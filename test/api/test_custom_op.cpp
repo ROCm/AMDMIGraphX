@@ -96,7 +96,7 @@ TEST_CASE(run_sigmoid_custom_op)
                    expected_result.end(),
                    expected_result.begin(),
                    [](auto y) { return 1.f / (1.f + std::exp(-y)); });
-    EXPECT(bool{result == migraphx::argument(s, expected_result.data())});
+    EXPECT(result == migraphx::argument(s, expected_result.data()));
 }
 
 extern "C" MIGRAPHX_C_EXPORT void migraphx_test_private_disable_exception_catch(bool);

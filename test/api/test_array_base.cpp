@@ -36,7 +36,7 @@ struct array2 : migraphx::array_base<array2>
 TEST_CASE(iterators)
 {
     array2 a = {1, 2, 3};
-    EXPECT(bool{std::equal(a.begin(), a.end(), a.v.begin())});
+    EXPECT(std::equal(a.begin(), a.end(), a.v.begin()));
 }
 
 TEST_CASE(front_back)

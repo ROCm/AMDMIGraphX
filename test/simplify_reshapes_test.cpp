@@ -901,7 +901,7 @@ TEST_CASE(concat_multibroadcasts1)
     EXPECT(std::distance(m.begin(), m.end()) == n - 2);
     auto new_concat =
         std::find_if(m.begin(), m.end(), [](const auto& ins) { return ins.name() == "concat"; });
-    EXPECT(bool{new_concat != m.end()});
+    EXPECT(new_concat != m.end());
     auto cd = std::distance(m.begin(), new_concat);
     auto new_mb = std::find_if(
         m.begin(), m.end(), [](const auto& ins) { return ins.name() == "multibroadcast"; });
@@ -924,7 +924,7 @@ TEST_CASE(concat_multibroadcasts2)
     EXPECT(std::distance(m.begin(), m.end()) == n - 2);
     auto new_concat =
         std::find_if(m.begin(), m.end(), [](const auto& ins) { return ins.name() == "concat"; });
-    EXPECT(bool{new_concat != m.end()});
+    EXPECT(new_concat != m.end());
     auto cd = std::distance(m.begin(), new_concat);
     auto new_mb = std::find_if(
         m.begin(), m.end(), [](const auto& ins) { return ins.name() == "multibroadcast"; });
@@ -947,7 +947,7 @@ TEST_CASE(concat_multibroadcasts3)
     EXPECT(std::distance(m.begin(), m.end()) == n - 2);
     auto new_concat =
         std::find_if(m.begin(), m.end(), [](const auto& ins) { return ins.name() == "concat"; });
-    EXPECT(bool{new_concat != m.end()});
+    EXPECT(new_concat != m.end());
     auto cd = std::distance(m.begin(), new_concat);
     auto new_mb = std::find_if(
         m.begin(), m.end(), [](const auto& ins) { return ins.name() == "multibroadcast"; });
@@ -1122,7 +1122,7 @@ TEST_CASE(concat_transpose1)
     EXPECT(std::distance(m.begin(), m.end()) == n - 3);
     auto new_concat =
         std::find_if(m.begin(), m.end(), [](const auto& ins) { return ins.name() == "concat"; });
-    EXPECT(bool{new_concat != m.end()});
+    EXPECT(new_concat != m.end());
     EXPECT(new_concat->get_operator().to_value()["axis"].to<int>() == 3);
 }
 
@@ -1146,7 +1146,7 @@ TEST_CASE(concat_transpose2)
     EXPECT(std::distance(m.begin(), m.end()) == n - 2);
     auto new_concat =
         std::find_if(m.begin(), m.end(), [](const auto& ins) { return ins.name() == "concat"; });
-    EXPECT(bool{new_concat != m.end()});
+    EXPECT(new_concat != m.end());
     EXPECT(new_concat->get_operator().to_value()["axis"].to<int>() == 1);
 }
 
@@ -1170,7 +1170,7 @@ TEST_CASE(concat_transpose3)
     EXPECT(std::distance(m.begin(), m.end()) == n - 2);
     auto new_concat =
         std::find_if(m.begin(), m.end(), [](const auto& ins) { return ins.name() == "concat"; });
-    EXPECT(bool{new_concat != m.end()});
+    EXPECT(new_concat != m.end());
     EXPECT(new_concat->get_operator().to_value()["axis"].to<int>() == 1);
 }
 

@@ -135,7 +135,7 @@ auto print_stream_impl(rank<1>, Stream& s, const T& x) -> decltype(s << x)
 {
     if constexpr(std::is_pointer<T>{})
     {
-        return s << static_cast<void*>(x);
+        return s << static_cast<const void*>(x);
     }
     else if constexpr(std::is_same<T, bool>{})
     {

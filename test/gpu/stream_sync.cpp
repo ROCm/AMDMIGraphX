@@ -44,7 +44,9 @@ constexpr uint32_t stream_sync_test_val = 1337;
 
 // NOLINTNEXTLINE
 const std::string compare_numbers = R"__migraphx__(
+#ifndef __HIPCC_RTC__
 #include <hip/hip_runtime.h>
+#endif
 
 extern "C" {
 __global__ void compare(float* data) 

@@ -64,8 +64,7 @@ struct find_attention
     auto matcher() const
     {
         auto gemm1 = match::any_of[pointwise_inputs()](match::name("dot").bind("dot1"));
-        return match::name("dot")(match::arg(0)(
-            match::skip(match::name("convert"))(match::softmax_input(gemm1).bind("div"))));
+        return match::name("dot")(match::arg(0)(match::softmax_input(gemm1)));
     }
 
     std::string get_count() const { return std::to_string((*counter)++); }
@@ -82,8 +81,8 @@ struct find_attention
         return inverse_map;
     }
 
-    std::unordered_set<instruction_ref> get_attn_instructions(instruction_ref start,
-                                                              instruction_ref end) const
+    std::vector<instruction_ref>
+    get_attn_instructions(module& m, instruction_ref start, instruction_ref end) const
     {
         std::queue<instruction_ref> inputs;
         std::unordered_set<instruction_ref> inss;
@@ -111,7 +110,12 @@ struct find_attention
                 }
             }
         }
-        return inss;
+        std::vector<instruction_ref> sorted_inss(inss.begin(), inss.end());
+        std::sort(
+            sorted_inss.begin(), sorted_inss.end(), [&](instruction_ref x, instruction_ref y) {
+                return std::distance(m.begin(), x) < std::distance(m.begin(), y);
+            });
+        return sorted_inss;
     }
 
     void apply(module_pass_manager& mpm, const match::matcher_result& r) const
@@ -120,32 +124,21 @@ struct find_attention
         auto gemm1 = r.instructions["dot1"];
 
         // Capture all instructions part of the attention op
-        auto attn_inss = get_attn_instructions(gemm1, gemm2);
-
-        // Transform unordered set to sorted vector to preserve original order
-        std::vector<instruction_ref> attn_ins_vec;
-        attn_ins_vec.assign(attn_inss.begin(), attn_inss.end());
-        std::sort(
-            attn_ins_vec.begin(), attn_ins_vec.end(), [&](instruction_ref x, instruction_ref y) {
-                return std::distance(mpm.get_module().begin(), x) <
-                       std::distance(mpm.get_module().begin(), y);
-            });
+        auto attn_inss = get_attn_instructions(mpm.get_module(), gemm1, gemm2);
 
         // Add captured instructions to new submodule
         module m_attn;
         std::unordered_map<instruction_ref, instruction_ref> map_mm_to_mattn;
-        auto attn_outs = m_attn.fuse(attn_ins_vec, &map_mm_to_mattn);
+        auto attn_outs = m_attn.fuse(attn_inss, &map_mm_to_mattn);
 
         // Define outputs based on instructions that are used elsewhere in the graph
         std::vector<instruction_ref> required_outputs;
-        std::copy_if(attn_ins_vec.begin(),
-                     attn_ins_vec.end(),
-                     std::back_inserter(required_outputs),
-                     [&](auto i) {
-                         return not std::all_of(i->outputs().begin(),
-                                                i->outputs().end(),
-                                                [&](auto o) { return contains(attn_ins_vec, o); });
-                     });
+        std::copy_if(
+            attn_inss.begin(), attn_inss.end(), std::back_inserter(required_outputs), [&](auto i) {
+                return not std::all_of(i->outputs().begin(), i->outputs().end(), [&](auto o) {
+                    return contains(attn_inss, o);
+                });
+            });
 
         assert(not required_outputs.empty());
         // Not supporting multi-out just yet - TODO: remove for lse support

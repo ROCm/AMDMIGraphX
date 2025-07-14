@@ -403,6 +403,9 @@ struct parse_resize : op_parser<parse_resize>
                 MIGRAPHX_THROW("PARSE_" + opd.onnx_name +
                                ": linear mode not supported for non-constant inputs");
 
+            if(in_lens == out_lens)
+                return args[0]; // if input and output shapes are the same, return the input
+
             shape out_s{in_s.type(), out_lens};
 
             // reshape input to one-dimension

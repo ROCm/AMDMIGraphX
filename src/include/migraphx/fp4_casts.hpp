@@ -38,7 +38,7 @@ inline namespace MIGRAPHX_INLINE_NS {
 namespace fp4_detail {
 static constexpr std::array<float, 16> fp4_lut = {
     0.0, 0.5, 1.0, 1.5, 2.0, 3.0, 4.0, 6.0, -0.0, -0.5, -1.0, -1.5, -2.0, -3.0, -4.0, -6.0};
-} // fp4_detail
+} // namespace fp4_detail
 
 constexpr float fp4_to_float(uint8_t x) { return fp4_detail::fp4_lut[x & 0xF]; }
 
@@ -47,19 +47,19 @@ constexpr float fp4_to_float(uint8_t x) { return fp4_detail::fp4_lut[x & 0xF]; }
 constexpr uint8_t float_to_fp4(float f_x)
 {
     const uint32_t f32_mantissa_width = 23;
-    const uint32_t f4_mantissa_width = 1;
+    const uint32_t f4_mantissa_width  = 1;
 
-    uint32_t x = migraphx::bit_cast<uint32_t>(f_x);
-    uint32_t head = 0;
+    uint32_t x            = migraphx::bit_cast<uint32_t>(f_x);
+    uint32_t head         = 0;
     uint32_t f32_mantissa = 0;
     uint32_t f32_exponent = 0;
-    uint32_t f32_bias = 0;
-    uint32_t sign = 0;
-    head = x & 0xFF800000;
-    f32_mantissa = x & 0x7FFFFF;
-    f32_exponent = (head >> 23) & 0xFF;
-    sign = head >> 31;
-    f32_bias = 127;
+    uint32_t f32_bias     = 0;
+    uint32_t sign         = 0;
+    head                  = x & 0xFF800000;
+    f32_mantissa          = x & 0x7FFFFF;
+    f32_exponent          = (head >> 23) & 0xFF;
+    sign                  = head >> 31;
+    f32_bias              = 127;
 
     // input is inf or NaN. No inf or NaN in fp4
     if((x & 0x7F800000) == 0x7F800000)
@@ -117,7 +117,8 @@ constexpr uint8_t float_to_fp4(float f_x)
     // need to know whether the number is right in the middle of two adjacent fp4 numbers. Use max
     // value of 31 to avoid undefined behavior
     bool midpoint =
-        (f32_mantissa & ((1u << std::min(31u, f32_mantissa_width - f4_mantissa_width + exponent_diff)) - 1)) ==
+        (f32_mantissa &
+         ((1u << std::min(31u, f32_mantissa_width - f4_mantissa_width + exponent_diff)) - 1)) ==
         (1u << std::min(31u, f32_mantissa_width - f4_mantissa_width + exponent_diff - 1));
     if(exponent_diff > 0)
         f32_mantissa >>= std::min(31u, uint32_t(exponent_diff));

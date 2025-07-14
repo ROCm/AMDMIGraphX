@@ -63,10 +63,11 @@ inline migraphx::program
 parse_tf(const std::string& name,
          bool is_nhwc,
          const std::unordered_map<std::string, std::vector<std::size_t>>& dim_params = {},
+         const std::unordered_map<std::string, std::vector<migraphx::shape::dynamic_dimension>> map_dyn_input_dims = {},
          const std::vector<std::string>& output_node_names                           = {})
 {
 
-    return read_pb_file(name, migraphx::tf_options{is_nhwc, 1, dim_params, output_node_names});
+    return read_pb_file(name, migraphx::tf_options{is_nhwc, 1, dim_params, map_dyn_input_dims, output_node_names});
 }
 
 inline migraphx::program optimize_tf(const std::string& name, bool is_nhwc)

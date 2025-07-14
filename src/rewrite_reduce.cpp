@@ -28,6 +28,8 @@
 #include <migraphx/make_op.hpp>
 #include <migraphx/common.hpp>
 
+MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_DISABLE_FP32_SOFTMAX);
+
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
 
@@ -163,7 +165,10 @@ struct find_reduce_mean
 
 void rewrite_reduce::apply(module& m) const
 {
-    match::find_matches(m, find_softmax{.full_precision = true}, find_reduce_mean_variance{});
+    match::find_matches(
+        m,
+        find_softmax{.full_precision = not enabled(MIGRAPHX_DISABLE_FP32_SOFTMAX{})},
+        find_reduce_mean_variance{});
     match::find_matches(m, find_reduce_mean{});
 }
 

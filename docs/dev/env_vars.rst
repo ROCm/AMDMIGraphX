@@ -268,6 +268,11 @@ Enables HIPRTC workarounds for bugs in HIPRTC.
 Set to "1", "enable", "enabled", "yes", or "true" to use.
 Uses fast softmax optimization.
 
+.. envvar:: MIGRAPHX_DISABLE_FP32_SOFTMAX
+
+Set to "1", "enable", "enabled", "yes", or "true" to use.
+Disables forcing softmax computation to use full precision (uses default graph precision).
+
 .. envvar:: MIGRAPHX_ENABLE_NULL_STREAM
 
 Set to "1", "enable", "enabled", "yes", or "true" to use.

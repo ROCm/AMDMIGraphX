@@ -30,16 +30,17 @@
 #include <migraphx/bit_cast.hpp>
 #include <migraphx/requires.hpp>
 #include <migraphx/errors.hpp>
+#include <migraphx/bit.hpp>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
 
-namespace {
-static std::array<float, 16> _fp4_lut = {
+namespace fp4_detail {
+static constexpr std::array<float, 16> fp4_lut = {
     0.0, 0.5, 1.0, 1.5, 2.0, 3.0, 4.0, 6.0, -0.0, -0.5, -1.0, -1.5, -2.0, -3.0, -4.0, -6.0};
 }
 
-constexpr float fp4_to_float(uint8_t x) { return _fp4_lut[x & 0xF]; }
+constexpr float fp4_to_float(uint8_t x) { return fp4_detail::fp4_lut[x & 0xF]; }
 
 // roundTiesToEven
 // based on code in float8_impl
@@ -156,7 +157,7 @@ constexpr uint8_t float_to_fp4(float f_x)
 
     if(f4_exponent == 0 and mantissa == 0)
         return sign << 3;
-    mantissa &= (1 << mantissa_size) - 1;
+    mantissa &= all_ones<mantissa_size>();
     return (sign << 3) | (f4_exponent << mantissa_size) | mantissa;
 }
 

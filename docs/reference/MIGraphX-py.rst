@@ -6,6 +6,7 @@
 
 .. _python-api-reference:
 
+
 ===============================
 MIGraphX Python API reference
 ===============================

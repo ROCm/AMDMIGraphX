@@ -4,6 +4,7 @@
 
 .. _cpp-api-reference:
 
+
 ============================
 MIGraphX C++ API reference
 ============================

@@ -27,6 +27,7 @@
 #include <cstdint>
 #include <algorithm>
 #include <array>
+#include <cmath>
 #include <migraphx/bit_cast.hpp>
 #include <migraphx/requires.hpp>
 #include <migraphx/errors.hpp>
@@ -38,126 +39,58 @@ inline namespace MIGRAPHX_INLINE_NS {
 namespace fp4_detail {
 static constexpr std::array<float, 16> fp4_lut = {
     0.0, 0.5, 1.0, 1.5, 2.0, 3.0, 4.0, 6.0, -0.0, -0.5, -1.0, -1.5, -2.0, -3.0, -4.0, -6.0};
+
+static constexpr uint8_t fp4_6_0 = 0x7;
+static constexpr uint8_t fp4_4_0 = 0x6;
+static constexpr uint8_t fp4_3_0 = 0x5;
+static constexpr uint8_t fp4_2_0 = 0x4;
+static constexpr uint8_t fp4_1_5 = 0x3;
+static constexpr uint8_t fp4_1_0 = 0x2;
+static constexpr uint8_t fp4_0_5 = 0x1;
 } // namespace fp4_detail
 
 constexpr float fp4_to_float(uint8_t x) { return fp4_detail::fp4_lut[x & 0xF]; }
 
 // roundTiesToEven
-// based on code in float8_impl
 constexpr uint8_t float_to_fp4(float f_x)
 {
-    const uint32_t f32_mantissa_width = 23;
-    const uint32_t f4_mantissa_width  = 1;
-
-    uint32_t x            = migraphx::bit_cast<uint32_t>(f_x);
-    uint32_t head         = 0;
-    uint32_t f32_mantissa = 0;
-    uint32_t f32_exponent = 0;
-    uint32_t f32_bias     = 0;
-    uint32_t sign         = 0;
-    head                  = x & 0xFF800000;
-    f32_mantissa          = x & 0x7FFFFF;
-    f32_exponent          = (head >> 23) & 0xFF;
-    sign                  = head >> 31;
-    f32_bias              = 127;
-
-    // input is inf or NaN. No inf or NaN in fp4
-    if((x & 0x7F800000) == 0x7F800000)
+    if(std::isnan(f_x))
     {
-        // inf
-        if(f32_mantissa == 0)
-        {
-            if(sign == 0)
-                return 0x7;
-            else
-                return 0xF;
-        }
-        else
-        {
-            return 0x7;
-        }
-    }
-    // positive zero
-    if(x == 0)
         return 0x0;
-    // negative zero
-    else if(x == 0x80000000)
-        return 0x8;
-
-    const int f4_bias                  = 1;
-    const int f4_denormal_act_exponent = 0; // actual exponent of f4 denormal
-    int act_exponent                   = 0;
-    int f4_exponent                    = 0;
-    int exponent_diff                  = 0;
-
-    if(f32_exponent == 0 and f32_mantissa != 0)
-    {
-        // fp32/fp16 is in denormal.
-        act_exponent = 1 - f32_bias;
-        // actual exponent is exponent - f32_bias + 1 as it is denormal
-        exponent_diff = f4_denormal_act_exponent - act_exponent;
     }
-    else
+    bool sign        = std::signbit(f_x);
+    uint8_t sign_add = 0x8 * sign;
+    float abs_f      = std::abs(f_x);
+    if(abs_f >= 1.75)
     {
-        // fp32/fp16 is normal with implicit 1
-        act_exponent = f32_exponent - f32_bias;
-        if(act_exponent <= f4_denormal_act_exponent)
+        if(abs_f >= 3.5)
         {
-            exponent_diff = f4_denormal_act_exponent - act_exponent;
+            if(abs_f > 5)
+            {
+                return fp4_detail::fp4_6_0 + sign_add;
+            }
+            return fp4_detail::fp4_4_0 + sign_add;
         }
-        else
+        if(abs_f > 2.5)
         {
-            // both fp32/fp16 and f4 are in normal range
-            exponent_diff = 0;
+            return fp4_detail::fp4_3_0 + sign_add;
         }
-        // Add the implicit 1 into mantissa
-        f32_mantissa += (1u << f32_mantissa_width);
+        return fp4_detail::fp4_2_0 + sign_add;
     }
-
-    // need to know whether the number is right in the middle of two adjacent fp4 numbers. Use max
-    // value of 31 to avoid undefined behavior
-    bool midpoint =
-        (f32_mantissa &
-         ((1u << std::min(31u, f32_mantissa_width - f4_mantissa_width + exponent_diff)) - 1)) ==
-        (1u << std::min(31u, f32_mantissa_width - f4_mantissa_width + exponent_diff - 1));
-    if(exponent_diff > 0)
-        f32_mantissa >>= std::min(31u, uint32_t(exponent_diff));
-    else if(exponent_diff == -1)
-        f32_mantissa <<= -exponent_diff;
-    bool implicit_one = f32_mantissa & (1 << f32_mantissa_width);
-    // if there is no implicit 1, it  means the f4 is denormal and need to adjust to denorm exponent
-    f4_exponent = (act_exponent + exponent_diff) + f4_bias - (implicit_one ? 0 : 1);
-
-    // Adjust exponent and mantissa
-    uint32_t drop_mask = (1u << (f32_mantissa_width - f4_mantissa_width)) - 1;
-    // if the least significant bit that is not truncated is 1
-    bool odd = f32_mantissa & (1u << (f32_mantissa_width - f4_mantissa_width));
-
-    f32_mantissa += (midpoint ? (odd ? f32_mantissa : f32_mantissa - 1) : f32_mantissa) & drop_mask;
-
-    // Deal with overflow
-    if(f4_exponent == 0 and ((1 << f32_mantissa_width) & f32_mantissa))
+    if(abs_f >= 0.75)
     {
-        f4_exponent = 1; // denormal overflow to become normal, promote exponent
+        if(abs_f > 1.25)
+        {
+            return fp4_detail::fp4_1_5 + sign_add;
+        }
+        return fp4_detail::fp4_1_0 + sign_add;
     }
-    else if((1 << (f32_mantissa_width + 1)) & f32_mantissa)
+    if(abs_f > 0.25)
     {
-        f32_mantissa >>= 1;
-        f4_exponent++;
+        return fp4_detail::fp4_0_5 + sign_add;
     }
-
-    f32_mantissa >>= (f32_mantissa_width - f4_mantissa_width);
-
-    uint32_t signed_all_ones = (sign << 3) + 0x7;
-    // above range: quantize to maximum possible float of the same sign
-    const int max_exp = 3;
-    if(f4_exponent > max_exp)
-        return signed_all_ones;
-
-    if(f4_exponent == 0 and f32_mantissa == 0)
-        return sign << 3;
-    f32_mantissa &= all_ones<f4_mantissa_width>();
-    return (sign << 3) | (f4_exponent << f4_mantissa_width) | f32_mantissa;
+    // zeros and Inf
+    return 0x0 + sign_add;
 }
 
 } // namespace MIGRAPHX_INLINE_NS

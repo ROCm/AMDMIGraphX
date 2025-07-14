@@ -63,15 +63,36 @@ TEST_CASE(test_float_to_fp4)
         {0.387, 0x1},
         {0.00128, 0x0},
         {-0.5, 0x9},
-        {0.5, 0x1},
-        {0.25, 0x0},
         {-5.25, 0xF},
+        {0.25, 0x0},
+        {0.5, 0x1},
+        {0.75, 0x2},
+        {1.25, 0x2},
+        {1.75, 0x4},
+        {2.5, 0x4},
+        {3.5, 0x6},
+        {5.0, 0x6},
+        {-0.25, 0x8},
+        {-0.5, 0x9},
+        {-0.75, 0xA},
+        {-1.25, 0xA},
+        {-1.75, 0xC},
+        {-2.5, 0xC},
+        {-3.5, 0xE},
+        {-5.0, 0xE},
         {std::numeric_limits<float>::infinity(), 0x7},
         {-std::numeric_limits<float>::infinity(), 0xF},
-        {std::numeric_limits<float>::signaling_NaN(), 0x7},
-        {std::numeric_limits<float>::quiet_NaN(), 0x7}};
+        {std::numeric_limits<float>::signaling_NaN(), 0x0},
+        {std::numeric_limits<float>::quiet_NaN(), 0x0}};
     EXPECT(bool{std::all_of(test_vals.begin(), test_vals.end(), [](const auto sample) {
-        return migraphx::float_to_fp4(sample.first) == sample.second;
+        uint8_t conv = migraphx::float_to_fp4(sample.first);
+        uint8_t gold = sample.second;
+        if(conv != gold)
+        {
+            std::cout << "mismatch: " << sample.first << ": " << int(conv) << ", " << int(gold)
+                      << std::endl;
+        }
+        return conv == gold;
     })});
 }
 

@@ -50,7 +50,7 @@ struct basic_iota_iterator : iterator_operators<basic_iota_iterator<F, Iterator>
     Iterator index;
     F f;
 
-    // using reference = decltype(std::declval<F>()(std::declval<Iterator>()));
+    using reference = decltype(std::declval<F>()(std::declval<Iterator>()));
 
     constexpr basic_iota_iterator() = default;
 

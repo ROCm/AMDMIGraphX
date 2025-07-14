@@ -12,7 +12,7 @@ The MIGraphX environment variables can be used by contributors to the MIGraphX c
 Model performance tunable variables
 ************************************
 
-Model performance tunable variables change the compilation behavior of a model.
+Model performance tunable variables change the compilation behavior of a model. These are the most commonly used variables.
  
 .. list-table:: 
   :widths: 40 60
@@ -217,12 +217,13 @@ Debug settings for matchers. Matchers are responsible for finding optimizations 
     - Values
 
   * - | ``MIGRAPHX_TRACE_MATCHES``
-      | When set, the name of the matcher that has found a valid pattern match is printed. 
+      | When set, prints the name of matchers that have found a valid pattern match. 
 
-    - | ``1``: The name of the matcher is printed.
+    - | ``1``: Prints the name of the matchers that have found a valid match.
+      | ``2``: When used with ``MIGRAPHX_TRACE_MATCHES_FOR``, prints the names of matchers that have been tried but which have not necessarily found a match.
       | ``0``: Returns to default behavior.
 
-      | Default: The name of the matcher isn't printed.
+      | Default: Nothing is printed.
 
   * - | ``MIGRAPHX_TRACE_MATCHES_FOR``
       | Turns on the printing of traces for the specified matcher if a string is found in the matcher's ``file-name``, ``function-name``, or ``matcher-name``.
@@ -237,8 +238,13 @@ Debug settings for matchers. Matchers are responsible for finding optimizations 
 
       | Default: ``module.validate()`` isn't run.
 
-  * - MIGRAPHX_TIME_MATCHERS
-    -
+  * - | ``MIGRAPHX_TIME_MATCHERS``
+      | When set, prints the time spent on a matcher. This helps identify time-consuming patterns.
+    
+    - | ``1`: Prints the time spent on the matcher.
+      | ``0``: Returns to default behavior.
+
+      | Default: The time is not printed.
 
 
 Pass controls
@@ -326,20 +332,20 @@ Debug settings for passes.
       | Default: The ``fuse_reduce`` pass is run.
 
   * - | ``MIGRAPHX_TRACE_PASSES``
-      | Turns on printing of the ``compile`` pass and the program after the pass.
+      | Turns on printing of the compile passes and the program after the passes.
 
-    - | ``1``: Printing of the ``compile`` pass trace is on.
+    - | ``1``: Prints the compile passes.
       | ``0``: Returns to the default behavior.
 
-      | Default: The trace of the ``compile`` pass isn't printed.
+      | Default: The compile pass traces aren't printed.
 
   * - | ``MIGRAPHX_TIME_PASSES``
-      | When set, the ``compile`` passes are timed.
+      | When set, the compile passes are timed.
 
-    - | ``1``: The ``compile`` passes are timed.
+    - | ``1``: Compile passes are timed.
       | ``0``: Returns to the default behavor.
 
-      | Default: ``compile`` passes aren't timed.
+      | Default: Compile passes aren't timed.
 
   * - | ``MIGRAPHX_DISABLE_PASSES``
       | Specifies passes that are to be skipped.  
@@ -481,15 +487,15 @@ Testing
       | Default: Reference and target programs aren't printed if the verify tests pass.
 
   * - | ``MIGRAPHX_DUMP_TEST``
-      | When set, the results of verify tests are written to MXR files.
+      | When set, the model that is being verified using ``test-verify`` is output to to an MXR file. 
 
-    - | ``1``: Results of verify tests are written to MXR files.
+    - | ``1``: The model that is being verified is output to an MXR file.
       | ``0``: Returns to default behavior.
 
-      | Default: The results of the verify tests aren't written out to file.
+      | Default: The model isn't output to file.
 
   * - | ``MIGRAPHX_VERIFY_DUMP_DIFF``
-      | When set, the output of the test results, as well as the reference, are written to file when they differ.
+      | When set, writes out the output of the test results, as well as the reference,when they differ.
 
     - | ``1``: Test results are written out when they differ.
       | ``0``: Returns to default behavior.
@@ -545,7 +551,7 @@ Advanced settings
       | Default: Compilation is run without the ``-g`` option.
 
   * - | ``MIGRAPHX_GPU_DUMP_SRC``
-      | The compiled HIPRTC source files is written out for inspection.
+      | The compiled HIPRTC source files is written out for further analysis.
 
     - | ``1``: HIPRTC source files are written out.
       | ``0``: Returns to default behavior.

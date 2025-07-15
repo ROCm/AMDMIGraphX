@@ -54,11 +54,7 @@ constexpr float fp4_to_float(uint8_t x) { return fp4_detail::fp4_lut[x & 0xF]; }
 // roundTiesToEven
 constexpr uint8_t float_to_fp4(float f_x)
 {
-    if(std::isnan(f_x))
-    {
-        return 0x0;
-    }
-    bool sign        = std::signbit(f_x);
+    bool sign        = migraphx::bit_cast<uint32_t>(f_x) >> 31u;
     uint8_t sign_add = 0x8 * sign;
     float abs_f      = std::abs(f_x);
     if(abs_f >= 1.75)
@@ -89,7 +85,7 @@ constexpr uint8_t float_to_fp4(float f_x)
     {
         return fp4_detail::fp4_0_5 + sign_add;
     }
-    // zeros and Inf
+    // zeros, Nan, and Inf
     return 0x0 + sign_add;
 }
 

@@ -1,351 +1,351 @@
-/*
- * The MIT License (MIT)
- *
- * Copyright (c) 2015-2025 Advanced Micro Devices, Inc. All rights reserved.
- *
- * Permission is hereby granted, free of charge, to any person obtaining a copy
- * of this software and associated documentation files (the "Software"), to deal
- * in the Software without restriction, including without limitation the rights
- * to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
- * copies of the Software, and to permit persons to whom the Software is
- * furnished to do so, subject to the following conditions:
- *
- * The above copyright notice and this permission notice shall be included in
- * all copies or substantial portions of the Software.
- *
- * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
- * IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
- * FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT.  IN NO EVENT SHALL THE
- * AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
- * LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
- * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
- * THE SOFTWARE.
- */
-#include <algorithm>
-#include <cstdint>
-#include <migraphx/shape.hpp>
-#include <migraphx/algorithm.hpp>
-#include <migraphx/make_op.hpp>
-#include <migraphx/stringutils.hpp>
-#include <migraphx/dead_code_elimination.hpp>
-#include <migraphx/pass_manager.hpp>
-#include <migraphx/gpu/mlir.hpp>
-#include <mlir-c/Dialect/RockEnums.h>
-#include <numeric>
-#include <ostream>
+ /*
+  * The MIT License (MIT)
+  *
+  * Copyright (c) 2015-2025 Advanced Micro Devices, Inc. All rights reserved.
+  *
+  * Permission is hereby granted, free of charge, to any person obtaining a copy
+  * of this software and associated documentation files (the "Software"), to deal
+  * in the Software without restriction, including without limitation the rights
+  * to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+  * copies of the Software, and to permit persons to whom the Software is
+  * furnished to do so, subject to the following conditions:
+  *
+  * The above copyright notice and this permission notice shall be included in
+  * all copies or substantial portions of the Software.
+  *
+  * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+  * IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+  * FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT.  IN NO EVENT SHALL THE
+  * AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+  * LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+  * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
+  * THE SOFTWARE.
+  */
+ #include <algorithm>
+ #include <cstdint>
+ #include <migraphx/shape.hpp>
+ #include <migraphx/algorithm.hpp>
+ #include <migraphx/make_op.hpp>
+ #include <migraphx/stringutils.hpp>
+ #include <migraphx/dead_code_elimination.hpp>
+ #include <migraphx/pass_manager.hpp>
+ #include <migraphx/gpu/mlir.hpp>
+ #include <mlir-c/Dialect/RockEnums.h>
+ #include <numeric>
+ #include <ostream>
 
-#ifdef MIGRAPHX_MLIR
-#include <mlir-c/IR.h>
-#include <mlir-c/BuiltinAttributes.h>
-#include <mlir-c/BuiltinTypes.h>
-#include <mlir-c/Diagnostics.h>
-#include <mlir-c/Dialect/MIGraphX.h>
-#include <mlir-c/Dialect/Rock.h>
-#include <mlir-c/IntegerSet.h>
-#include <mlir-c/Pass.h>
-#include <mlir-c/Support.h>
-#include <mutex>
-#if !defined(MLIR_MIGRAPHX_DIALECT_API_VERSION) || MLIR_MIGRAPHX_DIALECT_API_VERSION != 4
-#warning "Incompatible version of rocMLIR library used, disabling"
-// Only undefine when not using cppcheck
-#ifndef CPPCHECK
-#undef MIGRAPHX_MLIR
-#endif
-#else
-#include <mlir-c/RegisterRocMLIR.h>
-#endif
-#endif
+ #ifdef MIGRAPHX_MLIR
+ #include <mlir-c/IR.h>
+ #include <mlir-c/BuiltinAttributes.h>
+ #include <mlir-c/BuiltinTypes.h>
+ #include <mlir-c/Diagnostics.h>
+ #include <mlir-c/Dialect/MIGraphX.h>
+ #include <mlir-c/Dialect/Rock.h>
+ #include <mlir-c/IntegerSet.h>
+ #include <mlir-c/Pass.h>
+ #include <mlir-c/Support.h>
+ #include <mutex>
+ #if !defined(MLIR_MIGRAPHX_DIALECT_API_VERSION) || MLIR_MIGRAPHX_DIALECT_API_VERSION != 4
+ #warning "Incompatible version of rocMLIR library used, disabling"
+ // Only undefine when not using cppcheck
+ #ifndef CPPCHECK
+ #undef MIGRAPHX_MLIR
+ #endif
+ #else
+ #include <mlir-c/RegisterRocMLIR.h>
+ #endif
+ #endif
 
-#include <migraphx/env.hpp>
-#include <migraphx/manage_ptr.hpp>
-#include <migraphx/module.hpp>
-#include <migraphx/program.hpp>
-#include <migraphx/load_save.hpp>
-#include <migraphx/instruction.hpp>
-#include <migraphx/config.hpp>
-#include <migraphx/ranges.hpp>
-#include <migraphx/gpu/code_object_op.hpp>
-#include <migraphx/gpu/context.hpp>
-#include <migraphx/gpu/compile_gen.hpp>
-#include <migraphx/gpu/device_name.hpp>
-#include <migraphx/gpu/perfdb.hpp>
-#include <migraphx/gpu/tuning_config.hpp>
-#include <migraphx/iterator_for.hpp>
-#include <migraphx/permutation.hpp>
-#include <migraphx/file_buffer.hpp>
-#include <deque>
-#include <variant>
-#include <fstream>
-#include <sstream>
+ #include <migraphx/env.hpp>
+ #include <migraphx/manage_ptr.hpp>
+ #include <migraphx/module.hpp>
+ #include <migraphx/program.hpp>
+ #include <migraphx/load_save.hpp>
+ #include <migraphx/instruction.hpp>
+ #include <migraphx/config.hpp>
+ #include <migraphx/ranges.hpp>
+ #include <migraphx/gpu/code_object_op.hpp>
+ #include <migraphx/gpu/context.hpp>
+ #include <migraphx/gpu/compile_gen.hpp>
+ #include <migraphx/gpu/device_name.hpp>
+ #include <migraphx/gpu/perfdb.hpp>
+ #include <migraphx/gpu/tuning_config.hpp>
+ #include <migraphx/iterator_for.hpp>
+ #include <migraphx/permutation.hpp>
+ #include <migraphx/file_buffer.hpp>
+ #include <deque>
+ #include <variant>
+ #include <fstream>
+ #include <sstream>
 
-namespace migraphx {
-inline namespace MIGRAPHX_INLINE_NS {
-namespace gpu {
+ namespace migraphx {
+ inline namespace MIGRAPHX_INLINE_NS {
+ namespace gpu {
 
-MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_TRACE_MLIR);
-MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_MLIR_TUNE_EXHAUSTIVE);
-MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_MLIR_TUNE_LIMIT);
-MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_MLIR_TUNING_DB);
-MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_MLIR_TUNING_CFG);
-MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_MLIR_ENABLE_SPLITK);
+ MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_TRACE_MLIR);
+ MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_MLIR_TUNE_EXHAUSTIVE);
+ MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_MLIR_TUNE_LIMIT);
+ MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_MLIR_TUNING_DB);
+ MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_MLIR_TUNING_CFG);
+ MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_MLIR_ENABLE_SPLITK);
 
-#ifdef MIGRAPHX_MLIR
-template <class T, class F, F f> // NOLINT
-struct mlir_handle
-{
-    struct ptr
-    {
-        ptr() = default;
-        ptr(std::nullptr_t) {}
-        ptr(T x) : obj(x) {}
+ #ifdef MIGRAPHX_MLIR
+ template <class T, class F, F f> // NOLINT
+ struct mlir_handle
+ {
+     struct ptr
+     {
+	 ptr() = default;
+	 ptr(std::nullptr_t) {}
+	 ptr(T x) : obj(x) {}
 
-        std::intptr_t get_value() const
-        {
-            static_assert(sizeof(T) == sizeof(std::intptr_t), "MLIR Handle different size");
-            return reinterpret_cast<const std::intptr_t&>(obj);
-        }
+	 std::intptr_t get_value() const
+	 {
+	     static_assert(sizeof(T) == sizeof(std::intptr_t), "MLIR Handle different size");
+	     return reinterpret_cast<const std::intptr_t&>(obj);
+	 }
 
-        T get() const { return obj; }
+	 T get() const { return obj; }
 
-        friend bool operator==(ptr x, ptr y) { return x.get_value() == y.get_value(); }
+	 friend bool operator==(ptr x, ptr y) { return x.get_value() == y.get_value(); }
 
-        friend bool operator!=(ptr x, ptr y) { return not(x == y); }
+	 friend bool operator!=(ptr x, ptr y) { return not(x == y); }
 
-        explicit operator bool() const noexcept { return obj != ptr(); }
-        T obj{};
-    };
+	 explicit operator bool() const noexcept { return obj != ptr(); }
+	 T obj{};
+     };
 
-    struct deleter
-    {
-        using pointer = ptr;
+     struct deleter
+     {
+	 using pointer = ptr;
 
-        void operator()(pointer x) const
-        {
-            if(x != nullptr)
-            {
-                (void)f(x.obj);
-            }
-        }
-    };
+	 void operator()(pointer x) const
+	 {
+	     if(x != nullptr)
+	     {
+		 (void)f(x.obj);
+	     }
+	 }
+     };
 
-    mlir_handle() : handle(nullptr) {}
+     mlir_handle() : handle(nullptr) {}
 
-    mlir_handle(T p) : handle(ptr{p}) {}
+     mlir_handle(T p) : handle(ptr{p}) {}
 
-    T get() const
-    {
-        return handle.get().get(); // NOLINT(readability-redundant-smartptr-get)
-    }
+     T get() const
+     {
+	 return handle.get().get(); // NOLINT(readability-redundant-smartptr-get)
+     }
 
-    T release() { return handle.release().get(); }
+     T release() { return handle.release().get(); }
 
-    private:
-    std::unique_ptr<ptr, deleter> handle;
-};
+     private:
+     std::unique_ptr<ptr, deleter> handle;
+ };
 
-#define MIGRAPHX_MANAGE_MLIR_HANDLE(T, F) migraphx::gpu::mlir_handle<T, decltype(&F), &F> // NOLINT
+ #define MIGRAPHX_MANAGE_MLIR_HANDLE(T, F) migraphx::gpu::mlir_handle<T, decltype(&F), &F> // NOLINT
 
-using mlir_context     = MIGRAPHX_MANAGE_MLIR_HANDLE(MlirContext, mlirContextDestroy);
-using mlir_thread_pool = MIGRAPHX_MANAGE_MLIR_HANDLE(MlirLlvmThreadPool, mlirLlvmThreadPoolDestroy);
-using mlir_dialect_registry  = MIGRAPHX_MANAGE_MLIR_HANDLE(MlirDialectRegistry,
-                                                          mlirDialectRegistryDestroy);
-using mlir_module            = MIGRAPHX_MANAGE_MLIR_HANDLE(MlirModule, mlirModuleDestroy);
-using mlir_operation         = MIGRAPHX_MANAGE_MLIR_HANDLE(MlirOperation, mlirOperationDestroy);
-using mlir_op_printing_flags = MIGRAPHX_MANAGE_MLIR_HANDLE(MlirOpPrintingFlags,
-                                                           mlirOpPrintingFlagsDestroy);
-using mlir_region            = MIGRAPHX_MANAGE_MLIR_HANDLE(MlirRegion, mlirRegionDestroy);
-using mlir_block             = MIGRAPHX_MANAGE_MLIR_HANDLE(MlirBlock, mlirBlockDestroy);
-using mlir_pass_manager      = MIGRAPHX_MANAGE_MLIR_HANDLE(MlirPassManager, mlirPassManagerDestroy);
-using mlir_tuning_table      = MIGRAPHX_MANAGE_MLIR_HANDLE(MlirRockTuningTable,
-                                                      mlirRockTuningTableDestroy);
-using mlir_tuning_space      = MIGRAPHX_MANAGE_MLIR_HANDLE(MlirRockTuningSpace,
-                                                      mlirRockTuningSpaceDestroy);
-using mlir_tuning_param      = MIGRAPHX_MANAGE_MLIR_HANDLE(MlirRockTuningParam,
-                                                      mlirRockTuningParamDestroy);
+ using mlir_context     = MIGRAPHX_MANAGE_MLIR_HANDLE(MlirContext, mlirContextDestroy);
+ using mlir_thread_pool = MIGRAPHX_MANAGE_MLIR_HANDLE(MlirLlvmThreadPool, mlirLlvmThreadPoolDestroy);
+ using mlir_dialect_registry  = MIGRAPHX_MANAGE_MLIR_HANDLE(MlirDialectRegistry,
+							   mlirDialectRegistryDestroy);
+ using mlir_module            = MIGRAPHX_MANAGE_MLIR_HANDLE(MlirModule, mlirModuleDestroy);
+ using mlir_operation         = MIGRAPHX_MANAGE_MLIR_HANDLE(MlirOperation, mlirOperationDestroy);
+ using mlir_op_printing_flags = MIGRAPHX_MANAGE_MLIR_HANDLE(MlirOpPrintingFlags,
+							    mlirOpPrintingFlagsDestroy);
+ using mlir_region            = MIGRAPHX_MANAGE_MLIR_HANDLE(MlirRegion, mlirRegionDestroy);
+ using mlir_block             = MIGRAPHX_MANAGE_MLIR_HANDLE(MlirBlock, mlirBlockDestroy);
+ using mlir_pass_manager      = MIGRAPHX_MANAGE_MLIR_HANDLE(MlirPassManager, mlirPassManagerDestroy);
+ using mlir_tuning_table      = MIGRAPHX_MANAGE_MLIR_HANDLE(MlirRockTuningTable,
+						       mlirRockTuningTableDestroy);
+ using mlir_tuning_space      = MIGRAPHX_MANAGE_MLIR_HANDLE(MlirRockTuningSpace,
+						       mlirRockTuningSpaceDestroy);
+ using mlir_tuning_param      = MIGRAPHX_MANAGE_MLIR_HANDLE(MlirRockTuningParam,
+						       mlirRockTuningParamDestroy);
 
-static std::string_view to_string_view(MlirStringRef s) { return {s.data, s.length}; }
+ static std::string_view to_string_view(MlirStringRef s) { return {s.data, s.length}; }
 
-static MlirStringRef make_mlir_string_ref(const std::string_view& s)
-{
-    return mlirStringRefCreate(s.data(), s.size());
-}
+ static MlirStringRef make_mlir_string_ref(const std::string_view& s)
+ {
+     return mlirStringRefCreate(s.data(), s.size());
+ }
 
-template <class F, class T, class Printer>
-static void mlir_print(F f, T x, Printer printer)
-{
-    f(
-        x,
-        +[](MlirStringRef s, void* data) {
-            (*reinterpret_cast<Printer*>(data))(to_string_view(s));
-        },
-        &printer);
-}
+ template <class F, class T, class Printer>
+ static void mlir_print(F f, T x, Printer printer)
+ {
+     f(
+	 x,
+	 +[](MlirStringRef s, void* data) {
+	     (*reinterpret_cast<Printer*>(data))(to_string_view(s));
+	 },
+	 &printer);
+ }
 
-template <class F, class T>
-[[maybe_unused]] static void mlir_print(F f, T x, std::ostream& os)
-{
-    mlir_print(f, x, [&](auto s) { os << s; });
-}
+ template <class F, class T>
+ [[maybe_unused]] static void mlir_print(F f, T x, std::ostream& os)
+ {
+     mlir_print(f, x, [&](auto s) { os << s; });
+ }
 
-template <class F, class T>
-static std::string mlir_print(F f, T x)
-{
-    std::stringstream ss;
-    mlir_print(f, x, [&](auto s) { ss << s; });
-    return ss.str();
-}
+ template <class F, class T>
+ static std::string mlir_print(F f, T x)
+ {
+     std::stringstream ss;
+     mlir_print(f, x, [&](auto s) { ss << s; });
+     return ss.str();
+ }
 
-struct mlir_logger
-{
-    std::stringstream ss;
-    mlir_context* ctx;
-    std::optional<MlirDiagnosticHandlerID> id;
+ struct mlir_logger
+ {
+     std::stringstream ss;
+     mlir_context* ctx;
+     std::optional<MlirDiagnosticHandlerID> id;
 
-    mlir_logger() : ctx(nullptr), id(std::nullopt) {}
+     mlir_logger() : ctx(nullptr), id(std::nullopt) {}
 
-    mlir_logger(mlir_context* context) : ctx(context)
-    {
-        id =
-            mlirContextAttachDiagnosticHandler(ctx->get(), mlir_diagnostic_print_cb, this, nullptr);
-    }
+     mlir_logger(mlir_context* context) : ctx(context)
+     {
+	 id =
+	     mlirContextAttachDiagnosticHandler(ctx->get(), mlir_diagnostic_print_cb, this, nullptr);
+     }
 
-    ~mlir_logger()
-    {
-        if(id.has_value())
-            mlirContextDetachDiagnosticHandler(ctx->get(), *id);
-    }
+     ~mlir_logger()
+     {
+	 if(id.has_value())
+	     mlirContextDetachDiagnosticHandler(ctx->get(), *id);
+     }
 
-    mlir_logger(const mlir_logger& other)            = delete;
-    mlir_logger& operator=(const mlir_logger& other) = delete;
+     mlir_logger(const mlir_logger& other)            = delete;
+     mlir_logger& operator=(const mlir_logger& other) = delete;
 
-    mlir_logger(mlir_logger&& other) noexcept
-        : ss(std::move(other.ss)), ctx(other.ctx), id(other.id)
-    {
-        other.ctx = nullptr;
-        other.id  = std::nullopt;
-    }
+     mlir_logger(mlir_logger&& other) noexcept
+	 : ss(std::move(other.ss)), ctx(other.ctx), id(other.id)
+     {
+	 other.ctx = nullptr;
+	 other.id  = std::nullopt;
+     }
 
-    mlir_logger& operator=(mlir_logger other) noexcept
-    {
-        std::swap(ss, other.ss);
-        std::swap(ctx, other.ctx);
-        std::swap(id, other.id);
-        return *this;
-    }
+     mlir_logger& operator=(mlir_logger other) noexcept
+     {
+	 std::swap(ss, other.ss);
+	 std::swap(ctx, other.ctx);
+	 std::swap(id, other.id);
+	 return *this;
+     }
 
-    std::string str() const { return ss.str(); }
+     std::string str() const { return ss.str(); }
 
-    void clear() { ss = std::stringstream{}; }
+     void clear() { ss = std::stringstream{}; }
 
-    static MlirLogicalResult mlir_diagnostic_print_cb(MlirDiagnostic diag, void* logger);
+     static MlirLogicalResult mlir_diagnostic_print_cb(MlirDiagnostic diag, void* logger);
 
-    MlirLogicalResult handle(MlirDiagnostic diag);
-};
+     MlirLogicalResult handle(MlirDiagnostic diag);
+ };
 
-MlirLogicalResult mlir_logger::mlir_diagnostic_print_cb(MlirDiagnostic diag, void* logger)
-{
-    return reinterpret_cast<mlir_logger*>(logger)->handle(diag);
-}
+ MlirLogicalResult mlir_logger::mlir_diagnostic_print_cb(MlirDiagnostic diag, void* logger)
+ {
+     return reinterpret_cast<mlir_logger*>(logger)->handle(diag);
+ }
 
-MlirLogicalResult mlir_logger::handle(MlirDiagnostic diag)
-{
-    MlirDiagnosticSeverity sev = mlirDiagnosticGetSeverity(diag);
-    switch(sev)
-    {
-    case MlirDiagnosticSeverity::MlirDiagnosticError: ss << "Error: "; break;
-    case MlirDiagnosticSeverity::MlirDiagnosticWarning: ss << "Warning: "; break;
-    case MlirDiagnosticSeverity::MlirDiagnosticNote: ss << "Note: "; break;
-    case MlirDiagnosticSeverity::MlirDiagnosticRemark: ss << "Remark: "; break;
-    }
-    mlir_print(mlirDiagnosticPrint, diag, [&](auto s) { ss << s; });
-    ss << std::endl;
-    for(intptr_t i = 0, e = mlirDiagnosticGetNumNotes(diag); i < e; ++i)
-    {
-        (void)handle(mlirDiagnosticGetNote(diag, i));
-    }
-    return mlirLogicalResultSuccess();
-}
+ MlirLogicalResult mlir_logger::handle(MlirDiagnostic diag)
+ {
+     MlirDiagnosticSeverity sev = mlirDiagnosticGetSeverity(diag);
+     switch(sev)
+     {
+     case MlirDiagnosticSeverity::MlirDiagnosticError: ss << "Error: "; break;
+     case MlirDiagnosticSeverity::MlirDiagnosticWarning: ss << "Warning: "; break;
+     case MlirDiagnosticSeverity::MlirDiagnosticNote: ss << "Note: "; break;
+     case MlirDiagnosticSeverity::MlirDiagnosticRemark: ss << "Remark: "; break;
+     }
+     mlir_print(mlirDiagnosticPrint, diag, [&](auto s) { ss << s; });
+     ss << std::endl;
+     for(intptr_t i = 0, e = mlirDiagnosticGetNumNotes(diag); i < e; ++i)
+     {
+	 (void)handle(mlirDiagnosticGetNote(diag, i));
+     }
+     return mlirLogicalResultSuccess();
+ }
 
-struct mlir_program
-{
-    mlir_program()
-        : ctx(mlirContextCreateWithRegistry(get_dialect_registry().get(),
-                                            /*threadingEnable=*/false)),
-          location(mlirLocationUnknownGet(ctx.get())),
-          mmodule(mlirModuleCreateEmpty(location)),
-          logger(&ctx)
-    {
-        mlirContextSetThreadPool(ctx.get(), get_thread_pool().get());
-        mlirContextLoadAllAvailableDialects(ctx.get());
-    }
+ struct mlir_program
+ {
+     mlir_program()
+	 : ctx(mlirContextCreateWithRegistry(get_dialect_registry().get(),
+					     /*threadingEnable=*/false)),
+	   location(mlirLocationUnknownGet(ctx.get())),
+	   mmodule(mlirModuleCreateEmpty(location)),
+	   logger(&ctx)
+     {
+	 mlirContextSetThreadPool(ctx.get(), get_thread_pool().get());
+	 mlirContextLoadAllAvailableDialects(ctx.get());
+     }
 
-    static mlir_dialect_registry& get_dialect_registry()
-    {
-        static std::once_flag init_guard;
-        static mlir_dialect_registry the_registry;
-        // The MLIR registration functions (for dialects and passes) are not
-        // necessarily thread-safe and need to be executed exactly once
-        // (especially since they eventually call non-thread-safe LLVM
-        // initilizations).
-        std::call_once(init_guard, [&]() {
-            the_registry = mlirDialectRegistryCreate();
-            mlirRegisterRocMLIRDialects(the_registry.get());
-            mlirRegisterRocMLIRPasses();
-        });
-        return the_registry;
-    }
+     static mlir_dialect_registry& get_dialect_registry()
+     {
+	 static std::once_flag init_guard;
+	 static mlir_dialect_registry the_registry;
+	 // The MLIR registration functions (for dialects and passes) are not
+	 // necessarily thread-safe and need to be executed exactly once
+	 // (especially since they eventually call non-thread-safe LLVM
+	 // initilizations).
+	 std::call_once(init_guard, [&]() {
+	     the_registry = mlirDialectRegistryCreate();
+	     mlirRegisterRocMLIRDialects(the_registry.get());
+	     mlirRegisterRocMLIRPasses();
+	 });
+	 return the_registry;
+     }
 
-    static mlir_thread_pool& get_thread_pool()
-    {
-        // To save on overhead, we create one LLVM thread pool and reuse it
-        // across all MLIR contexts as recommended by MLIR upstream.
-        // Note that this is thread-safe as of C++11.
-        static mlir_thread_pool the_pool = mlirLlvmThreadPoolCreate();
-        return the_pool;
-    }
+     static mlir_thread_pool& get_thread_pool()
+     {
+	 // To save on overhead, we create one LLVM thread pool and reuse it
+	 // across all MLIR contexts as recommended by MLIR upstream.
+	 // Note that this is thread-safe as of C++11.
+	 static mlir_thread_pool the_pool = mlirLlvmThreadPoolCreate();
+	 return the_pool;
+     }
 
-    MlirType make_type(shape::type_t t) const
-    {
-        MlirType result;
-        shape::visit(t, [&](auto as) {
-            if(as.type_enum() == shape::float_type)
-                result = mlirF32TypeGet(ctx.get());
-            else if(as.type_enum() == shape::half_type)
-                result = mlirF16TypeGet(ctx.get());
-            else if(as.type_enum() == shape::bf16_type)
-                result = mlirBF16TypeGet(ctx.get());
-            else if(as.type_enum() == shape::fp8e4m3fnuz_type)
-                result = mlirFloat8E4M3FNUZTypeGet(ctx.get());
-            else if(as.type_enum() == shape::fp8e5m2fnuz_type)
-                result = mlirFloat8E5M2FNUZTypeGet(ctx.get());
-            else if(as.type_enum() == shape::fp8e4m3fn_type)
-                result = mlirFloat8E4M3FNTypeGet(ctx.get());
-            else if(as.type_enum() == shape::fp8e5m2_type)
-                result = mlirFloat8E5M2TypeGet(ctx.get());
-            else if(as.type_enum() == shape::double_type)
-                result = mlirF64TypeGet(ctx.get());
-            else if(as.is_integral())
-            {
-                if(as.is_unsigned())
-                {
-                    result = mlirIntegerTypeUnsignedGet(ctx.get(), as.size() * 8);
-                }
-                else
-                {
-                    result = mlirIntegerTypeSignedGet(ctx.get(), as.size() * 8);
-                }
-            }
-            else
-                MIGRAPHX_THROW("Unsupported type: " + std::to_string(as.type_enum()));
-        });
-        return result;
-    }
+     MlirType make_type(shape::type_t t) const
+     {
+	 MlirType result;
+	 shape::visit(t, [&](auto as) {
+	     if(as.type_enum() == shape::float_type)
+		 result = mlirF32TypeGet(ctx.get());
+	     else if(as.type_enum() == shape::half_type)
+		 result = mlirF16TypeGet(ctx.get());
+	     else if(as.type_enum() == shape::bf16_type)
+		 result = mlirBF16TypeGet(ctx.get());
+	     else if(as.type_enum() == shape::fp8e4m3fnuz_type)
+		 result = mlirFloat8E4M3FNUZTypeGet(ctx.get());
+	     else if(as.type_enum() == shape::fp8e5m2fnuz_type)
+		 result = mlirFloat8E5M2FNUZTypeGet(ctx.get());
+	     else if(as.type_enum() == shape::fp8e4m3fn_type)
+		 result = mlirFloat8E4M3FNTypeGet(ctx.get());
+	     else if(as.type_enum() == shape::fp8e5m2_type)
+		 result = mlirFloat8E5M2TypeGet(ctx.get());
+	     else if(as.type_enum() == shape::double_type)
+		 result = mlirF64TypeGet(ctx.get());
+	     else if(as.is_integral())
+	     {
+		 if(as.is_unsigned())
+		 {
+		     result = mlirIntegerTypeUnsignedGet(ctx.get(), as.size() * 8);
+		 }
+		 else
+		 {
+		     result = mlirIntegerTypeSignedGet(ctx.get(), as.size() * 8);
+		 }
+	     }
+	     else
+		 MIGRAPHX_THROW("Unsupported type: " + std::to_string(as.type_enum()));
+	 });
+	 return result;
+     }
 
-    MlirType make_mlir_shaped(const shape& s) const
-    {
-        if(s.dynamic())
-            MIGRAPHX_THROW("MLIR does not support dynamic shapes");
-        std::vector<int64_t> lens(s.lens().begin(), s.lens().end());
+     MlirType make_mlir_shaped(const shape& s) const
+     {
+	 if(s.dynamic())
+	     MIGRAPHX_THROW("MLIR does not support dynamic shapes");
+	        std::vector<int64_t> lens(s.lens().begin(), s.lens().end());
         std::vector<int64_t> strides(s.strides().begin(), s.strides().end());
         return rocmlirMIXRShapedTypeGet(
             lens.size(), lens.data(), strides.data(), make_type(s.type()));
@@ -794,6 +794,7 @@ struct mlir_program
     code_object_op compile(const value& solution)
     {
         // 1st pipeline to call
+	std::cout << "Calling mlir::compile()\n";
         run_high_level_pipeline();
         std::string tuning_cfg_path = string_value_of(MIGRAPHX_MLIR_TUNING_CFG{});
         if(not tuning_cfg_path.empty())
@@ -802,7 +803,17 @@ struct mlir_program
             set_tuning(solution);
         // 2nd pipeline to call
         run_backend_pipeline();
-
+	const bool trace = enabled(MIGRAPHX_TRACE_MLIR{});
+	static std::mutex mutex;
+	/*
+	if(trace)
+	{
+	    const std::lock_guard<std::mutex> lock(mutex);
+	    std::cout << "Printing module..." << std::endl;
+	    auto mod_op = mlirModuleGetOperation(mmodule.get());
+	    std::cout << mlir_print(&mlirOperationPrint, mod_op) << std::endl;
+	}
+	*/
         code_object_op op{};
         op.symbol_name                = sym_name;
         op.code_object                = get_binary();
@@ -848,6 +859,7 @@ struct mlir_program
 
     tuning_config get_tuning_config(bool exhaustive)
     {
+	std::cout << "Getting tuning config via mlir::get_tuning_config" << std::endl;
         tuning_config tc;
         tc.mlir_kernel = mlir_print(&mlirOperationPrint, mlirModuleGetOperation(mmodule.get()));
         run_high_level_pipeline();

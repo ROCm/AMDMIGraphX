@@ -126,9 +126,31 @@ void split_single_dyn_dim::apply(module_pass_manager& mpm) const
     {
         // all dynamic dimension objects should be the same for all parameters in dd_check_vec
         auto dyn_dim = dd_check_vec->at(0).dd;
+        std::vector<size_t> dim_sizes;
+
+        if(dyn_dim.has_optimal())
+        {
+            dim_sizes.push_back(dyn_dim.min);
+            for(const auto& opt : dyn_dim.optimals)
+            {
+                if(opt > dyn_dim.min and opt < dyn_dim.max)
+                {
+                    dim_sizes.push_back(opt);
+                }
+            }
+            dim_sizes.push_back(dyn_dim.max);
+        }
+        else
+        {
+            dim_sizes.resize(dyn_dim.max);
+            std::iota(dim_sizes.begin(),
+                      dim_sizes.end(),
+                      dyn_dim.min);
+        }
         // create submodules for each dimension size
+        
         std::vector<module_ref> submodules;
-        for(size_t dim_size : migraphx::range(dyn_dim.min, dyn_dim.max + 1))
+        for(size_t dim_size : dim_sizes)
         {
             auto* submod = mpm.create_module("dim_" + std::to_string(dim_size));
             // instruction map for new static shaped submodule parameters

@@ -321,22 +321,18 @@ TEST_CASE(iota_iterator_large_values)
     // Test with larger than int32_t offsets
     const std::ptrdiff_t large_offset = static_cast<std::ptrdiff_t>(3) * uint32_max;
 
-    // Only run this test if ptrdiff_t is large enough (64-bit systems)
-    if(sizeof(std::ptrdiff_t) >= 8)
-    {
-        // Test with + operator
-        migraphx::iota_iterator it_large{1};
-        auto it_large_plus = it_large + large_offset;
-        EXPECT(*it_large_plus == 1 + large_offset);
+    // Test with + operator
+    migraphx::iota_iterator it_large{1};
+    auto it_large_plus = it_large + large_offset;
+    EXPECT(*it_large_plus == 1 + large_offset);
 
-        // Test with += operator
-        migraphx::iota_iterator it_large2{1};
-        it_large2 += large_offset;
-        EXPECT(*it_large2 == 1 + large_offset);
+    // Test with += operator
+    migraphx::iota_iterator it_large2{1};
+    it_large2 += large_offset;
+    EXPECT(*it_large2 == 1 + large_offset);
 
-        // Test with [] operator
-        EXPECT(it_large[large_offset] == 1 + large_offset);
-    }
+    // Test with [] operator
+    EXPECT(it_large[large_offset] == 1 + large_offset);
 }
 
 int main(int argc, const char* argv[]) { test::run(argc, argv); }

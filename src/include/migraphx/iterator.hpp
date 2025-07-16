@@ -220,8 +220,7 @@ struct iterator_operators
         {
             // Ensure that result is not an internal reference
             assert((bit_cast<std::uintptr_t>(&*it) < bit_cast<std::uintptr_t>(&it) or
-                               bit_cast<std::uintptr_t>(&*it) >
-                                   bit_cast<std::uintptr_t>(&it) + sizeof(U)) and
+                    bit_cast<std::uintptr_t>(&*it) > bit_cast<std::uintptr_t>(&it) + sizeof(U)) and
                    "Random access iterator cannot return internal reference");
         }
         return *it;

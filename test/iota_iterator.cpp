@@ -205,9 +205,7 @@ TEST_CASE(iota_iterator_indexing_custom_function)
 {
     std::array<int, 20> data;
     std::iota(data.begin(), data.end(), 0);
-    auto it = migraphx::make_basic_iota_iterator(10, [&](auto i) -> const int& {
-        return data[i];
-    });
+    auto it = migraphx::make_basic_iota_iterator(10, [&](auto i) -> const int& { return data[i]; });
 
     // Test subscript operator
     EXPECT(it[0] == 10);

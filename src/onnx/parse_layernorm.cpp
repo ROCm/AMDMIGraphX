@@ -49,9 +49,10 @@ struct parse_layernorm : op_parser<parse_layernorm>
         {
             epsilon = parser.parse_value(info.attributes.at("epsilon")).at<float>();
         }
+        bool stash_type = true;
         if(contains(info.attributes, "stash_type"))
         {
-            std::cerr << "WARNING: LAYERNORM does not support stash_type, it will be ignored.\n";
+            stash_type = (1 == parser.parse_value(info.attributes.at("stash_type")).at<int64_t>());
         }
 
         if(args.size() < 2 or args.size() > 3)
@@ -96,18 +97,30 @@ struct parse_layernorm : op_parser<parse_layernorm>
         std::iota(axes.begin(), axes.end(), axis);
         auto skipped_axes = x_rank - kdims;
 
+        if(stash_type)
+        {
+            x = info.add_instruction(make_op("convert", {{"target_type", migraphx::shape::float_type}}), x);
+        }
+
         auto mean          = info.add_instruction(make_op("reduce_mean", {{"axes", axes}}), x);
         auto x_sub_mean    = info.add_common_op("sub", x, mean);
         auto x_sqdiff_mean = info.add_common_op("sqdiff", x, mean);
         auto variance =
             info.add_instruction(make_op("reduce_mean", {{"axes", axes}}), x_sqdiff_mean);
         epsilon =
-            (x_dtype == migraphx::shape::half_type and std::abs(epsilon) < 1e-7) ? 1e-7 : epsilon;
+            (x_dtype == migraphx::shape::half_type and std::abs(epsilon) < 1e-7 and not stash_type) ? 1e-7 : epsilon;
         auto eps     = info.add_literal(migraphx::literal{migraphx::shape{x_dtype}, {epsilon}});
         auto var_eps = info.add_common_op("add", variance, eps);
         auto rsqrt   = info.add_instruction(make_op("rsqrt"), var_eps);
         auto result  = info.add_common_op("mul", x_sub_mean, rsqrt);
 
+        if(stash_type)
+        {
+            result = info.add_instruction(make_op("convert", {{"target_type", x_dtype}}), result);
+            mean   = info.add_instruction(make_op("convert", {{"target_type", x_dtype}}), mean);
+            rsqrt  = info.add_instruction(make_op("convert", {{"target_type", x_dtype}}), rsqrt);
+        }
+        
         instruction_ref scale_bcast = scale;
         instruction_ref bias_bcast  = bias;
         if(skipped_axes > 0)
@@ -130,6 +143,7 @@ struct parse_layernorm : op_parser<parse_layernorm>
         }
         auto scaled = info.add_common_op("mul", result, scale_bcast);
         auto y      = skip_bias ? scaled : info.add_common_op("add", scaled, bias_bcast);
+
         return {y, mean, rsqrt};
     }
 };

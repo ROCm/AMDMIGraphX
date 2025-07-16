@@ -215,16 +215,16 @@ struct iterator_operators
     template <class I, class U = T>
     constexpr auto operator[](I n) const -> decltype(*(static_cast<const U&>(*this) + n))
     {
-        decltype(auto) result = *(static_cast<const U&>(*this) + n);
-        if constexpr(std::is_reference<decltype(result)>{})
+        auto it = static_cast<const U&>(*this) + n;
+        if constexpr(std::is_reference<decltype(*it)>{})
         {
             // Ensure that result is not an internal reference
-            assert(bit_cast<std::uintptr_t>(&result) < bit_cast<std::uintptr_t>(this) and
-                   bit_cast<std::uintptr_t>(&result) >
-                       bit_cast<std::uintptr_t>(this) + sizeof(U) and
+            assert((bit_cast<std::uintptr_t>(&*it) < bit_cast<std::uintptr_t>(&it) or
+                               bit_cast<std::uintptr_t>(&*it) >
+                                   bit_cast<std::uintptr_t>(&it) + sizeof(U)) and
                    "Random access iterator cannot return internal reference");
         }
-        return result;
+        return *it;
     }
 
     template <class U = T>

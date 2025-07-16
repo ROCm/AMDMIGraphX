@@ -201,6 +201,21 @@ TEST_CASE(iota_iterator_indexing)
     EXPECT(it[-2] == 8);
 }
 
+TEST_CASE(iota_iterator_indexing_custom_function)
+{
+    std::array<int, 20> data;
+    std::iota(data.begin(), data.end(), 0);
+    auto it = migraphx::make_basic_iota_iterator(10, [&](auto i) -> const int& {
+        return data[i];
+    });
+
+    // Test subscript operator
+    EXPECT(it[0] == 10);
+    EXPECT(it[1] == 11);
+    EXPECT(it[5] == 15);
+    EXPECT(it[-2] == 8);
+}
+
 TEST_CASE(iota_iterator_custom_type)
 {
     // Using a custom struct as the function result

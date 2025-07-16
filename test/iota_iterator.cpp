@@ -108,8 +108,11 @@ TEST_CASE(iota_iterator_increment_decrement)
 
 TEST_CASE(iota_iterator_increment_decrement_temp)
 {
-    EXPECT(--migraphx::iota_iterator{3} == 2); // Test pre-decrement on temporary
-    EXPECT(++migraphx::iota_iterator{3} == 2); // Test pre-increment on temporary
+    auto dec = --migraphx::iota_iterator{3};
+    EXPECT(*dec == 2); // Test pre-decrement on temporary
+
+    auto inc = ++migraphx::iota_iterator{3};
+    EXPECT(*inc == 4); // Test pre-increment on temporary
 }
 
 TEST_CASE(iota_iterator_compound_assignment)

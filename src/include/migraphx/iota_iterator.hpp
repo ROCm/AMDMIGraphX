@@ -33,15 +33,6 @@
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
 
-struct iota_id
-{
-    template <class T>
-    constexpr const T& operator()(const T& x) const
-    {
-        return x;
-    }
-};
-
 template <class F, class Iterator = std::ptrdiff_t>
 struct basic_iota_iterator : iterator_operators<basic_iota_iterator<F, Iterator>>,
                              iterator_types<decltype(std::declval<F>()(std::declval<Iterator>())),
@@ -104,7 +95,7 @@ basic_iota_iterator<F, T> make_basic_iota_iterator(T x, F f)
     return {x, f};
 }
 
-using iota_iterator = basic_iota_iterator<iota_id>;
+using iota_iterator = basic_iota_iterator<id>;
 
 } // namespace MIGRAPHX_INLINE_NS
 } // namespace migraphx

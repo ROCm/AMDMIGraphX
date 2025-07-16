@@ -27,7 +27,9 @@
 #include <migraphx/config.hpp>
 #include <migraphx/rank.hpp>
 #include <migraphx/requires.hpp>
+#include <migraphx/bit_cast.hpp>
 #include <cassert>
+#include <cstdint>
 #include <memory>
 
 namespace migraphx {
@@ -213,7 +215,16 @@ struct iterator_operators
     template <class I, class U = T>
     constexpr auto operator[](I n) const -> decltype(*(static_cast<const U&>(*this) + n))
     {
-        return *(static_cast<const U&>(*this) + n);
+        decltype(auto) result = *(static_cast<const U&>(*this) + n);
+        if constexpr(std::is_reference<decltype(result)>{})
+        {
+            // Ensure that result is not an internal reference
+            assert(bit_cast<std::uintptr_t>(&result) < bit_cast<std::uintptr_t>(this) and
+                   bit_cast<std::uintptr_t>(&result) >
+                       bit_cast<std::uintptr_t>(this) + sizeof(U) and "Random access iterator cannot return internal reference");
+        
+        }
+        return result;
     }
 
     template <class U = T>

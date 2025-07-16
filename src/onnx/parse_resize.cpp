@@ -168,7 +168,7 @@ static bool parse_args(const std::vector<instruction_ref>& args,
 {
     for(const auto& arg : args)
     {
-        if(arg->name() == "undefined" or arg == args.front())
+        if(arg->name() == "undefined")
             continue;
 
         // skip any empty input (some of the Onnx args. are optional)
@@ -337,9 +337,14 @@ struct parse_resize : op_parser<parse_resize>
         if(not is_constant_scale_input)
         {
             // Depending on the args, it *must* populate the `vec_scale`, and might populate
-            // `out_lens`
-            is_constant_scale_input =
-                not parse_args(args, in_lens, opd.onnx_name, vec_scale, out_lens, scales_sizes_arg);
+            // `out_lens`. Skip first input and `roi` input (if present)
+            size_t args_offset      = args.size() > 2 ? 2 : 1;
+            is_constant_scale_input = not parse_args({args.begin() + args_offset, args.end()},
+                                                     in_lens,
+                                                     opd.onnx_name,
+                                                     vec_scale,
+                                                     out_lens,
+                                                     scales_sizes_arg);
         }
 
         if(is_constant_scale_input)
@@ -398,6 +403,9 @@ struct parse_resize : op_parser<parse_resize>
                 MIGRAPHX_THROW("PARSE_" + opd.onnx_name +
                                ": linear mode not supported for non-constant inputs");
 
+            if(in_lens == out_lens)
+                return args[0]; // if input and output shapes are the same, return the input
+
             shape out_s{in_s.type(), out_lens};
 
             // reshape input to one-dimension
@@ -451,7 +459,7 @@ struct parse_resize : op_parser<parse_resize>
             for(auto idx = resized_ct; idx != 0u; --idx)
             {
                 dim_lens[0] /= 2; // halved for 2 slices of data (hi & low below)
-                shape dim_s{shape::float_type, dim_lens};
+                shape dim_s{in_s.type(), dim_lens};
                 const auto& dim_delta = delta[idx - 1];
                 std::vector<float> delta_data;
                 for(std::size_t j = 0; j < dim_lens[0] / out_lens[0]; ++j)

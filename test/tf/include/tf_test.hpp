@@ -63,7 +63,7 @@ inline migraphx::program
 parse_tf(const std::string& name,
          bool is_nhwc,
          const std::unordered_map<std::string, std::vector<std::size_t>>& dim_params = {},
-         const std::unordered_map<std::string, std::vector<migraphx::shape::dynamic_dimension>> map_dyn_input_dims = {},
+         const std::unordered_map<std::string, std::vector<migraphx::shape::dynamic_dimension>>& map_dyn_input_dims = {},
          const std::vector<std::string>& output_node_names                           = {})
 {
 

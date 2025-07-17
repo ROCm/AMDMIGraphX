@@ -200,7 +200,8 @@ struct hiprtc_program
 
 std::vector<std::vector<char>> compile_hip_src_with_hiprtc(std::vector<hiprtc_src_file> srcs,
                                                            const std::vector<std::string>& params,
-                                                           const std::string& arch, bool quiet)
+                                                           const std::string& arch,
+                                                           bool quiet)
 {
     hiprtc_program prog(std::move(srcs));
     auto options = params;
@@ -221,7 +222,8 @@ std::vector<std::vector<char>> compile_hip_src_with_hiprtc(std::vector<hiprtc_sr
 
 std::vector<std::vector<char>> compile_hip_src(const std::vector<src_file>& srcs,
                                                const std::vector<std::string>& params,
-                                               const std::string& arch, bool quiet)
+                                               const std::string& arch,
+                                               bool quiet)
 {
     std::vector<hiprtc_src_file> hsrcs{srcs.begin(), srcs.end()};
     if(enabled(MIGRAPHX_GPU_DUMP_SRC{}))
@@ -251,7 +253,7 @@ std::vector<std::vector<char>> compile_hip_src(const std::vector<src_file>& srcs
         v["srcs"]   = to_value(hsrcs);
         v["params"] = to_value(params);
         v["arch"]   = to_value(arch);
-        v["quiet"]   = quiet;
+        v["quiet"]  = quiet;
 
         tmp_dir td{};
         auto out = td.path / "output";
@@ -300,7 +302,8 @@ static src_compiler assemble(src_compiler compiler)
 
 std::vector<std::vector<char>> compile_hip_src(const std::vector<src_file>& srcs,
                                                const std::vector<std::string>& params,
-                                               const std::string& arch, bool)
+                                               const std::string& arch,
+                                               bool)
 {
     assert(not srcs.empty());
 

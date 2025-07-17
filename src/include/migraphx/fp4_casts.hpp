@@ -52,9 +52,11 @@ static constexpr uint8_t fp4_0_5 = 0x1;
 constexpr float fp4_to_float(uint8_t x) { return fp4_detail::fp4_lut[x & 0xF]; }
 
 // roundTiesToEven
-constexpr uint8_t float_to_fp4(float f_x)
+// NOTE: Not straightfoward to make constexpr because std::signbit is not constexpr till
+// C++23. Doing f_x < 0 does the wrong thing for negative zero since IEEE754 has +0 == -0.
+uint8_t float_to_fp4(float f_x)
 {
-    bool sign        = migraphx::bit_cast<uint32_t>(f_x) >> 31u;
+    bool sign        = std::signbit(f_x);
     uint8_t sign_add = 0x8 * sign;
     float abs_f      = std::abs(f_x);
     if(abs_f >= 1.75)

@@ -596,5 +596,30 @@ bool reaches(instruction_ref start, instruction_ref end, const_module_ref m)
     })(end);
 }
 
+// Return set of all instructions that are connected to both start and end nodes (inclusive)
+std::unordered_set<instruction_ref>
+find_instructions_between(instruction_ref start, instruction_ref end, module& m)
+{
+    std::queue<instruction_ref> inputs;
+    std::unordered_set<instruction_ref> inss;
+    inputs.push(end);
+
+    while(not inputs.empty())
+    {
+        auto current_inp = inputs.front();
+        inputs.pop();
+
+        if(reaches(start, current_inp, &m) and inss.insert(current_inp).second and
+           current_inp != start)
+        {
+            for(auto i : current_inp->inputs())
+            {
+                inputs.push(i);
+            }
+        }
+    }
+    return inss;
+}
+
 } // namespace MIGRAPHX_INLINE_NS
 } // namespace migraphx

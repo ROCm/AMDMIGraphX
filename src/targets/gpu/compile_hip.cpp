@@ -263,8 +263,9 @@ std::vector<std::vector<char>> compile_hip_src(const std::vector<src_file>& srcs
         });
         if(fs::exists(out))
             return {read_buffer(out)};
+        MIGRAPHX_THROW("hiprtc compilation failed!");
     }
-    return compile_hip_src_with_hiprtc(std::move(hsrcs), params, arch);
+    return compile_hip_src_with_hiprtc(std::move(hsrcs), params, arch, quiet);
 }
 
 #else // MIGRAPHX_USE_HIPRTC

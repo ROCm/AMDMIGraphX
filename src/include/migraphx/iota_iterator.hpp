@@ -28,7 +28,6 @@
 #include <migraphx/functional.hpp>
 #include <migraphx/iterator.hpp>
 #include <iterator>
-#include <type_traits>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
@@ -43,6 +42,7 @@ struct basic_iota_iterator : iterator_operators<basic_iota_iterator<F, Iterator>
 
     using reference = decltype(std::declval<F>()(std::declval<Iterator>()));
 
+    // cppcheck-suppress uninitMemberVar
     constexpr basic_iota_iterator() = default;
 
     template <class... Ts>

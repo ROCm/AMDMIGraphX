@@ -163,31 +163,31 @@ TEST_CASE(iota_iterator_comparisons)
 
     // Equality
     EXPECT(it1 == it2);
-    EXPECT(!(it1 == it3));
+    EXPECT(not(it1 == it3));
 
     // Inequality
-    EXPECT(it1 != it3);
-    EXPECT(!(it1 != it2));
+    EXPECT(it1 not= it3);
+    EXPECT(not(it1 not= it2));
 
     // Less than
     EXPECT(it1 < it3);
-    EXPECT(!(it3 < it1));
-    EXPECT(!(it1 < it2));
+    EXPECT(not(it3 < it1));
+    EXPECT(not(it1 < it2));
 
     // Greater than
     EXPECT(it3 > it1);
-    EXPECT(!(it1 > it3));
-    EXPECT(!(it1 > it2));
+    EXPECT(not(it1 > it3));
+    EXPECT(not(it1 > it2));
 
     // Less than or equal
     EXPECT(it1 <= it3);
     EXPECT(it1 <= it2);
-    EXPECT(!(it3 <= it1));
+    EXPECT(not(it3 <= it1));
 
     // Greater than or equal
     EXPECT(it3 >= it1);
     EXPECT(it1 >= it2);
-    EXPECT(!(it1 >= it3));
+    EXPECT(not(it1 >= it3));
 }
 
 TEST_CASE(iota_iterator_indexing)

@@ -216,6 +216,7 @@ struct iterator_operators
     constexpr auto operator[](I n) const -> decltype(*(static_cast<const U&>(*this) + n))
     {
         auto it = static_cast<const U&>(*this) + n;
+        // cppcheck-suppress migraphx-ConditionalAssert
         if constexpr(std::is_reference<decltype(*it)>{})
         {
             // Ensure that result is not an internal reference

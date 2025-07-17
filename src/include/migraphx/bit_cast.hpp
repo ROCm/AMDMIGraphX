@@ -42,6 +42,7 @@ template <typename To,
                             std::is_trivially_copyable<From>{})>
 constexpr To bit_cast(From fr) noexcept
 {
+    // NOLINTNEXTLINE(bugprone-sizeof-expression)
     static_assert(sizeof(To) == sizeof(From));
 #if defined(__GNUC__) and !defined(__clang__)
     return MIGRAPHX_CONST_FOLD(*reinterpret_cast<To*>(&fr));

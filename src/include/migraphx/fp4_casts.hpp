@@ -49,7 +49,7 @@ static constexpr uint8_t fp4_1_0 = 0x2;
 static constexpr uint8_t fp4_0_5 = 0x1;
 } // namespace fp4_detail
 
-constexpr float fp4_to_float(uint8_t x) { return fp4_detail::fp4_lut[x & 0xF]; }
+constexpr float fp4_to_float(uint8_t x) { return fp4_detail::fp4_lut[x & 0xFu]; }
 
 // roundTiesToEven
 // NOTE: Not straightfoward to make constexpr because std::signbit is not constexpr till
@@ -57,7 +57,7 @@ constexpr float fp4_to_float(uint8_t x) { return fp4_detail::fp4_lut[x & 0xF]; }
 uint8_t float_to_fp4(float f_x)
 {
     bool sign        = std::signbit(f_x);
-    uint8_t sign_add = 0x8 * sign;
+    uint8_t sign_add = 0x8 * static_cast<uint8_t>(sign);
     float abs_f      = std::abs(f_x);
     if(abs_f >= 1.75)
     {

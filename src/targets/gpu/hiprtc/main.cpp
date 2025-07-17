@@ -73,11 +73,11 @@ int main(int argc, char const* argv[])
         std::exit(0);
     }
     std::string output_name = argv[1];
-    bool quiet = false;
+    bool quiet              = false;
     try
     {
         auto v = migraphx::from_msgpack(read_stdin());
-        quiet = v.at("quiet").to<bool>();
+        quiet  = v.at("quiet").to<bool>();
         std::vector<migraphx::gpu::hiprtc_src_file> srcs;
         migraphx::from_value(v.at("srcs"), srcs);
         auto out =

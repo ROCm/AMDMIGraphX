@@ -200,7 +200,7 @@ struct hiprtc_program
 
 std::vector<std::vector<char>> compile_hip_src_with_hiprtc(std::vector<hiprtc_src_file> srcs,
                                                            const std::vector<std::string>& params,
-                                                           const std::string& arch)
+                                                           const std::string& arch, bool quiet)
 {
     hiprtc_program prog(std::move(srcs));
     auto options = params;
@@ -215,33 +215,13 @@ std::vector<std::vector<char>> compile_hip_src_with_hiprtc(std::vector<hiprtc_sr
     options.push_back("-O" + string_value_of(MIGRAPHX_GPU_OPTIMIZE{}, "3"));
     options.push_back("-Wno-cuda-compat");
     options.push_back("--offload-arch=" + arch);
-    prog.compile(options);
+    prog.compile(options, quiet);
     return {prog.get_code_obj()};
-}
-
-bool hip_has_flags(const std::vector<std::string>& flags)
-{
-    hiprtc_program prog{" "};
-
-    std::string src = " ";
-    src_file input{"main.cpp", src};
-    std::vector<src_file> srcs = {input};
-
-    try
-    {
-        std::string arch = "gfx900";
-        compile_hip_src(srcs, flags, arch);
-        return true;
-    }
-    catch(...)
-    {
-        return false;
-    }
 }
 
 std::vector<std::vector<char>> compile_hip_src(const std::vector<src_file>& srcs,
                                                const std::vector<std::string>& params,
-                                               const std::string& arch)
+                                               const std::string& arch, bool quiet)
 {
     std::vector<hiprtc_src_file> hsrcs{srcs.begin(), srcs.end()};
     if(enabled(MIGRAPHX_GPU_DUMP_SRC{}))
@@ -271,6 +251,7 @@ std::vector<std::vector<char>> compile_hip_src(const std::vector<src_file>& srcs
         v["srcs"]   = to_value(hsrcs);
         v["params"] = to_value(params);
         v["arch"]   = to_value(arch);
+        v["quiet"]   = quiet;
 
         tmp_dir td{};
         auto out = td.path / "output";
@@ -319,7 +300,7 @@ static src_compiler assemble(src_compiler compiler)
 
 std::vector<std::vector<char>> compile_hip_src(const std::vector<src_file>& srcs,
                                                const std::vector<std::string>& params,
-                                               const std::string& arch)
+                                               const std::string& arch, bool)
 {
     assert(not srcs.empty());
 
@@ -372,22 +353,42 @@ std::vector<std::vector<char>> compile_hip_src(const std::vector<src_file>& srcs
     return {compiler.compile(srcs)};
 }
 
+// bool hip_has_flags(const std::vector<std::string>& flags)
+// {
+//     src_compiler compiler;
+//     compiler.compiler = MIGRAPHX_HIP_COMPILER;
+//     compiler.flags    = flags;
+//     compiler.flags.emplace_back("-x hip");
+//     compiler.flags.emplace_back("-c");
+//     compiler.flags.emplace_back("--offload-arch=gfx900");
+//     compiler.flags.emplace_back("--cuda-device-only");
+
+//     std::string src;
+//     src_file input{"main.cpp", src};
+
+//     try
+//     {
+//         compiler.compile({input});
+//         return true;
+//     }
+//     catch(...)
+//     {
+//         return false;
+//     }
+// }
+
+#endif // MIGRAPHX_USE_HIPRTC
+
 bool hip_has_flags(const std::vector<std::string>& flags)
 {
-    src_compiler compiler;
-    compiler.compiler = MIGRAPHX_HIP_COMPILER;
-    compiler.flags    = flags;
-    compiler.flags.emplace_back("-x hip");
-    compiler.flags.emplace_back("-c");
-    compiler.flags.emplace_back("--offload-arch=gfx900");
-    compiler.flags.emplace_back("--cuda-device-only");
-
-    std::string src;
+    std::string src = " ";
     src_file input{"main.cpp", src};
+    std::vector<src_file> srcs = {input};
 
     try
     {
-        compiler.compile({input});
+        std::string arch = "gfx900";
+        compile_hip_src(srcs, flags, arch, true);
         return true;
     }
     catch(...)
@@ -395,8 +396,6 @@ bool hip_has_flags(const std::vector<std::string>& flags)
         return false;
     }
 }
-
-#endif // MIGRAPHX_USE_HIPRTC
 
 std::string enum_params(std::size_t count, std::string param)
 {

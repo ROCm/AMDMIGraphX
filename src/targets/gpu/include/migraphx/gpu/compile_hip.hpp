@@ -59,12 +59,12 @@ MIGRAPHX_GPU_EXPORT bool hip_has_flags(const std::vector<std::string>& flags);
 MIGRAPHX_GPU_EXPORT std::vector<std::vector<char>>
 compile_hip_src_with_hiprtc(std::vector<hiprtc_src_file> srcs,
                             const std::vector<std::string>& params,
-                            const std::string& arch);
+                            const std::string& arch, bool quiet = false);
 
 MIGRAPHX_GPU_EXPORT std::vector<std::vector<char>>
 compile_hip_src(const std::vector<src_file>& srcs,
                 const std::vector<std::string>& params,
-                const std::string& arch);
+                const std::string& arch, bool quiet = false);
 
 MIGRAPHX_GPU_EXPORT std::string enum_params(std::size_t count, std::string param);
 

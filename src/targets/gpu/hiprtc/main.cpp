@@ -81,7 +81,8 @@ int main(int argc, char const* argv[])
         auto out =
             migraphx::gpu::compile_hip_src_with_hiprtc(std::move(srcs),
                                                        v.at("params").to_vector<std::string>(),
-                                                       v.at("arch").to<std::string>());
+                                                       v.at("arch").to<std::string>(),
+                                                       v.at("quiet").to<bool>());
         if(not out.empty())
             migraphx::write_buffer(output_name, out.front());
     }

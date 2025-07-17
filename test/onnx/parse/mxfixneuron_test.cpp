@@ -110,10 +110,10 @@ TEST_CASE(mxfixneuron_odd_test)
     std::size_t num_elements = quantized_shape.elements();
     auto ravel_ins =
         mm->add_instruction(migraphx::make_op("reshape", {{"dims", {num_elements}}}), q_ins);
-    ravel_ins = mm->add_instruction(migraphx::make_op("pad", {{"pads", {0, 1}}}), ravel_ins);
+    ravel_ins       = mm->add_instruction(migraphx::make_op("pad", {{"pads", {0, 1}}}), ravel_ins);
     auto pack_ins   = mm->add_instruction(migraphx::make_op("pack_fp4"), ravel_ins);
     auto unpack_ins = mm->add_instruction(migraphx::make_op("unpack_fp4"), pack_ins);
-    unpack_ins = mm->add_instruction(
+    unpack_ins      = mm->add_instruction(
         migraphx::make_op("slice", {{"axes", {0}}, {"starts", {0}}, {"ends", {num_elements}}}),
         unpack_ins);
     auto reshape_unpack_ins = mm->add_instruction(

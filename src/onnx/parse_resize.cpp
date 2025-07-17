@@ -403,6 +403,9 @@ struct parse_resize : op_parser<parse_resize>
                 MIGRAPHX_THROW("PARSE_" + opd.onnx_name +
                                ": linear mode not supported for non-constant inputs");
 
+            if(in_lens == out_lens)
+                return args[0]; // if input and output shapes are the same, return the input
+
             shape out_s{in_s.type(), out_lens};
 
             // reshape input to one-dimension
@@ -456,7 +459,7 @@ struct parse_resize : op_parser<parse_resize>
             for(auto idx = resized_ct; idx != 0u; --idx)
             {
                 dim_lens[0] /= 2; // halved for 2 slices of data (hi & low below)
-                shape dim_s{shape::float_type, dim_lens};
+                shape dim_s{in_s.type(), dim_lens};
                 const auto& dim_delta = delta[idx - 1];
                 std::vector<float> delta_data;
                 for(std::size_t j = 0; j < dim_lens[0] / out_lens[0]; ++j)

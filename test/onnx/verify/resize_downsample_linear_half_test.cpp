@@ -21,31 +21,29 @@
  * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
  * THE SOFTWARE.
  */
-#ifndef MIGRAPHX_GUARD_GPU_FUSE_MLIR_HPP
-#define MIGRAPHX_GUARD_GPU_FUSE_MLIR_HPP
 
-#include <migraphx/gpu/context.hpp>
+#include <migraphx/register_target.hpp>
+#include <migraphx/verify.hpp>
+#include <onnx_test.hpp>
 
-namespace migraphx {
-inline namespace MIGRAPHX_INLINE_NS {
-
-struct module_pass_manager;
-
-namespace gpu {
-
-MIGRAPHX_GPU_EXPORT bool mlir_enabled();
-MIGRAPHX_GPU_EXPORT bool mlir_attention_enabled(context* ctx);
-
-struct MIGRAPHX_GPU_EXPORT fuse_mlir
+TEST_CASE(resize_downsample_linear_half_test)
 {
-    context* ctx      = nullptr;
-    bool enable_extra = false;
-    std::string name() const { return "gpu::fuse_mlir"; }
-    void apply(module_pass_manager& mpm) const;
-};
+    using migraphx::half;
+    migraphx::program p = read_onnx("resize_downsample_linear_half_test.onnx");
+    p.compile(migraphx::make_target("ref"));
 
-} // namespace gpu
+    migraphx::shape sx{migraphx::shape::half_type, {1, 1, 2, 4}};
+    std::vector<half> dx = {half{1}, half{2}, half{3}, half{4}, half{5}, half{6}, half{7}, half{8}};
 
-} // namespace MIGRAPHX_INLINE_NS
-} // namespace migraphx
-#endif // MIGRAPHX_GUARD_GPU_FUSE_MLIR_HPP
+    migraphx::parameter_map pp;
+    pp["X"] = migraphx::argument(sx, dx.data());
+
+    auto result = p.eval(pp).back();
+    std::vector<half> result_vector;
+    result.visit([&](auto output) { result_vector.assign(output.begin(), output.end()); });
+
+    // Expected output was calculated without any quantization
+    std::vector<half> gold = {half{2.8333333}, half{4.833333}};
+
+    EXPECT(migraphx::verify::verify_rms_range(result_vector, gold));
+}

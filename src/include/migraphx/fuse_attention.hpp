@@ -20,60 +20,25 @@
  * LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
  * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
  * THE SOFTWARE.
+ *
  */
-#ifndef MIGRAPHX_GUARD_MATCH_SOFTMAX_HPP
-#define MIGRAPHX_GUARD_MATCH_SOFTMAX_HPP
+#ifndef MIGRAPHX_GUARD_MIGRAPHX_FUSE_ATTENTION_HPP
+#define MIGRAPHX_GUARD_MIGRAPHX_FUSE_ATTENTION_HPP
 
 #include <migraphx/config.hpp>
-#include <migraphx/matcher.hpp>
+#include <string>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
-namespace match {
 
-namespace detail {
-template <class F, class M>
-struct softmax_matcher
+struct module_pass_manager;
+
+struct MIGRAPHX_EXPORT fuse_attention
 {
-    F f;
-    M input_matcher;
-
-    auto exp_x_minus_max() const
-    {
-        auto x_minus_max =
-            f("sub")(arg(0)(input_matcher.bind("x")), arg(1)(skip_broadcasts(f("reduce_max"))));
-        return f("exp")(arg(0)(x_minus_max));
-    }
-
-    auto softmax_base_ops() const
-    {
-        auto sum_exp_x_minus_max = f("reduce_sum")(arg(0)(exp_x_minus_max()));
-        return f("div")(arg(0)(exp_x_minus_max()), arg(1)(skip_broadcasts(sum_exp_x_minus_max)));
-    }
-
-    auto matcher() const { return softmax_base_ops(); }
+    std::string name() const { return "fuse_attention"; }
+    void apply(module_pass_manager& mpm) const;
 };
-} // namespace detail
 
-template <class F, class M>
-auto softmax(F f, M input_matcher)
-{
-    return detail::softmax_matcher<F, M>{f, input_matcher}.matcher();
-}
-
-inline auto softmax()
-{
-    return softmax([](auto x) { return name(x); }, any());
-}
-
-template <class M>
-inline auto softmax_input(M m)
-{
-    return softmax([](auto x) { return name(x); }, m);
-}
-
-} // namespace match
 } // namespace MIGRAPHX_INLINE_NS
 } // namespace migraphx
-
-#endif
+#endif // MIGRAPHX_GUARD_MIGRAPHX_FUSE_ATTENTION_HPP

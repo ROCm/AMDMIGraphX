@@ -213,9 +213,9 @@ lhs_expression<T, Operator> make_lhs_expression(T&& lhs, Operator);
 // NOLINTNEXTLINE
 #define TEST_EXPR_BINARY_OPERATOR(op, name)                       \
     template <class V>                                            \
-    auto operator op(const V& rhs2) const                         \
+    auto operator op(V&& rhs2) const                         \
     {                                                             \
-        return make_expression(*this, rhs2, name{}); /* NOLINT */ \
+        return make_expression(*this, std::forward<V>(rhs2), name{}); /* NOLINT */ \
     }
 
 // NOLINTNEXTLINE

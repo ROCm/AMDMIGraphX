@@ -74,6 +74,7 @@ struct MIGRAPHX_EXPORT shape
     enum type_t
     {
         MIGRAPHX_SHAPE_VISIT_TYPES(MIGRAPHX_SHAPE_GENERATE_ENUM_TYPES) tuple_type,
+        fp4_type, // unpacked fp4 contained in uint8
         fp4x2_type // packed fp4 contained in uint8
     };
 #undef MIGRAPHX_SHAPE_GENERATE_ENUM_TYPES

@@ -46,7 +46,9 @@ extern "C" {
 
 MIGRAPHX_GLOBAL void ${kernel}(${params}) 
 {
-    transform_args(make_tensors(), rotate_last())(${args})([](auto... xs) {
+    transform_args(make_tensors(), rotate_last())
+    (${args})
+    ([](auto... xs) {
         unpack_int4<${axis}>(xs...);
     });
 }

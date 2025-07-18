@@ -131,7 +131,8 @@ Stream& print_stream_impl(rank<0>, Stream& s, const T&)
 }
 
 template <class Stream, class T>
-auto print_stream_impl(rank<1>, Stream& s, const T& x) -> decltype(s << x) // NOLINT(bugprone-multi-level-implicit-pointer-conversion)
+auto print_stream_impl(rank<1>, Stream& s, const T& x)
+    -> decltype(s << x) // NOLINT(bugprone-multi-level-implicit-pointer-conversion)
 {
     if constexpr(std::is_pointer<T>{})
     {

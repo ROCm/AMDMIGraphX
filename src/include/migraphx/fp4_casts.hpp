@@ -32,6 +32,7 @@
 #include <migraphx/requires.hpp>
 #include <migraphx/errors.hpp>
 #include <migraphx/bit.hpp>
+#include <migraphx/generic_float.hpp>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
@@ -49,10 +50,49 @@ static constexpr uint8_t fp4_1_0 = 0x2;
 static constexpr uint8_t fp4_0_5 = 0x1;
 } // namespace fp4_detail
 
-constexpr float fp4_to_float(uint8_t x) { return fp4_detail::fp4_lut[x & 0xFu]; }
+// converts 4 LSB to float
+constexpr float fp4_to_float(uint8_t x)
+{
+    return fp4_detail::fp4_lut[x % fp4_detail::fp4_lut.size()];
+}
 
-// roundTiesToEven
-uint8_t float_to_fp4(float f_x);
+// rounding mode = roundToNearestRoundTiesToEven
+constexpr uint8_t float_to_fp4(float f_x)
+{
+    bool sign        = get_parts(f_x).sign;
+    uint8_t sign_add = sign ? fp4_detail::fp4_lut.size() / 2 : 0u;
+    float abs_f      = std::abs(f_x);
+    if(abs_f >= 1.75)
+    {
+        if(abs_f >= 3.5)
+        {
+            if(abs_f > 5)
+            {
+                return fp4_detail::fp4_6_0 + sign_add;
+            }
+            return fp4_detail::fp4_4_0 + sign_add;
+        }
+        if(abs_f > 2.5)
+        {
+            return fp4_detail::fp4_3_0 + sign_add;
+        }
+        return fp4_detail::fp4_2_0 + sign_add;
+    }
+    if(abs_f >= 0.75)
+    {
+        if(abs_f > 1.25)
+        {
+            return fp4_detail::fp4_1_5 + sign_add;
+        }
+        return fp4_detail::fp4_1_0 + sign_add;
+    }
+    if(abs_f > 0.25)
+    {
+        return fp4_detail::fp4_0_5 + sign_add;
+    }
+    // zeros, Nan, and Inf
+    return 0x0 + sign_add;
+}
 
 } // namespace MIGRAPHX_INLINE_NS
 } // namespace migraphx

@@ -184,8 +184,8 @@ struct compile_plan
             }
         }
         return config->detailed_problem_info + "\n\nModule:\n" + current_module.str() +
-               (not submodules.str().empty() ? "\n" + submodules.str() : "") +
-               "Input Shapes:\n" + print_input_shapes();
+               (not submodules.str().empty() ? "\n" + submodules.str() : "") + "Input Shapes:\n" +
+               print_input_shapes();
     }
     std::string print_input_shapes() const
     {

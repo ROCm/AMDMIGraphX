@@ -83,12 +83,12 @@ struct unpack_fp4
                     auto data_idx = in_shape.multi(i);
                     data_idx[axis] *= 2;
                     // unpacking 2 unsigned parts
-                    uint8_t val     = inp[i];
-                    uint8_t fp4_val = val & 0xFu;
+                    // unpacking 4 least significant bits first
+                    uint8_t fp4_val = inp[i];
                     out[data_idx]   = fp4_to_float(fp4_val);
 
                     data_idx[axis] += 1;
-                    fp4_val       = val >> 4u;
+                    fp4_val       = fp4_val >> 4u;
                     out[data_idx] = fp4_to_float(fp4_val);
                 });
             });

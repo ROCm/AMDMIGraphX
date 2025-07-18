@@ -114,4 +114,26 @@ TEST_CASE(test_float_to_fp4)
     })});
 }
 
+TEST_CASE(test_constexpr_float_to_fp4)
+{
+    constexpr std::array<uint8_t, 12> res_array = {
+        migraphx::float_to_fp4(10.f),
+        migraphx::float_to_fp4(-20.f),
+        migraphx::float_to_fp4(0.11f),
+        migraphx::float_to_fp4(-0.11f),
+        migraphx::float_to_fp4(0.25f),
+        migraphx::float_to_fp4(1.75f),
+        migraphx::float_to_fp4(-0.25f),
+        migraphx::float_to_fp4(-1.75f),
+        migraphx::float_to_fp4(3.5f),
+        migraphx::float_to_fp4(-3.5f),
+        migraphx::float_to_fp4(0.00128f),
+        migraphx::float_to_fp4(82910.0f),
+    };
+
+    std::array<uint8_t, 12> gold_array = {
+        0x7, 0xF, 0x0, 0x8, 0x0, 0x4, 0x8, 0xC, 0x6, 0xE, 0x0, 0x7};
+    EXPECT(std::equal(res_array.begin(), res_array.end(), gold_array.begin()));
+}
+
 int main(int argc, const char* argv[]) { test::run(argc, argv); }

@@ -99,7 +99,8 @@ struct parse_layernorm : op_parser<parse_layernorm>
 
         if(stash_type)
         {
-            x = info.add_instruction(make_op("convert", {{"target_type", migraphx::shape::float_type}}), x);
+            x = info.add_instruction(
+                make_op("convert", {{"target_type", migraphx::shape::float_type}}), x);
         }
 
         auto mean          = info.add_instruction(make_op("reduce_mean", {{"axes", axes}}), x);
@@ -108,7 +109,9 @@ struct parse_layernorm : op_parser<parse_layernorm>
         auto variance =
             info.add_instruction(make_op("reduce_mean", {{"axes", axes}}), x_sqdiff_mean);
         epsilon =
-            (x_dtype == migraphx::shape::half_type and std::abs(epsilon) < 1e-7 and not stash_type) ? 1e-7 : epsilon;
+            (x_dtype == migraphx::shape::half_type and std::abs(epsilon) < 1e-7 and not stash_type)
+                ? 1e-7
+                : epsilon;
         auto eps     = info.add_literal(migraphx::literal{migraphx::shape{x_dtype}, {epsilon}});
         auto var_eps = info.add_common_op("add", variance, eps);
         auto rsqrt   = info.add_instruction(make_op("rsqrt"), var_eps);
@@ -120,7 +123,7 @@ struct parse_layernorm : op_parser<parse_layernorm>
             mean   = info.add_instruction(make_op("convert", {{"target_type", x_dtype}}), mean);
             rsqrt  = info.add_instruction(make_op("convert", {{"target_type", x_dtype}}), rsqrt);
         }
-        
+
         instruction_ref scale_bcast = scale;
         instruction_ref bias_bcast  = bias;
         if(skipped_axes > 0)

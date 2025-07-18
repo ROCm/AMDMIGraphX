@@ -356,7 +356,7 @@ make_layer_norm(const std::vector<int64_t>& input_shape,
         bias = mm->add_parameter("bias", {dtype, scale_bias_shape});
     }
 
-    if(stash_type)
+    if(stash_type and dtype != migraphx::shape::float_type)
     {
         x = mm->add_instruction(
             migraphx::make_op("convert", {{"target_type", migraphx::shape::float_type}}), x);
@@ -372,7 +372,7 @@ make_layer_norm(const std::vector<int64_t>& input_shape,
     auto rsqrt   = mm->add_instruction(migraphx::make_op("rsqrt"), {var_eps});
     auto result  = add_common_op(*mm, migraphx::make_op("mul"), {x_sub_mean, rsqrt});
 
-    if(stash_type)
+    if(stash_type and dtype != migraphx::shape::float_type)
     {
         result =
             mm->add_instruction(migraphx::make_op("convert", {{"target_type", dtype}}), result);

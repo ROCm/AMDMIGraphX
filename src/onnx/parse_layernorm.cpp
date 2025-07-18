@@ -97,7 +97,7 @@ struct parse_layernorm : op_parser<parse_layernorm>
         std::iota(axes.begin(), axes.end(), axis);
         auto skipped_axes = x_rank - kdims;
 
-        if(stash_type)
+        if(stash_type and x_dtype != migraphx::shape::float_type)
         {
             x = info.add_instruction(
                 make_op("convert", {{"target_type", migraphx::shape::float_type}}), x);
@@ -115,7 +115,7 @@ struct parse_layernorm : op_parser<parse_layernorm>
         auto rsqrt   = info.add_instruction(make_op("rsqrt"), var_eps);
         auto result  = info.add_common_op("mul", x_sub_mean, rsqrt);
 
-        if(stash_type)
+        if(stash_type and x_dtype != migraphx::shape::float_type)
         {
             result = info.add_instruction(make_op("convert", {{"target_type", x_dtype}}), result);
             mean   = info.add_instruction(make_op("convert", {{"target_type", x_dtype}}), mean);

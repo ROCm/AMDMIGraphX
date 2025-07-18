@@ -32,7 +32,7 @@
 namespace test_fp4_casts {
 static constexpr std::array<float, 16> e2m1_lut = {
     0.0, 0.5, 1.0, 1.5, 2.0, 3.0, 4.0, 6.0, -0.0, -0.5, -1.0, -1.5, -2.0, -3.0, -4.0, -6.0};
-}
+} // namespace test_fp4_casts
 
 static float fp4e2m1_to_fp32_value(uint8_t input) { return test_fp4_casts::e2m1_lut[input]; }
 

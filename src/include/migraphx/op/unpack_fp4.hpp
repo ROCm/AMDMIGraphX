@@ -70,7 +70,7 @@ struct unpack_fp4
 
     argument compute(const shape& output_shape, const std::vector<argument>& args) const
     {
-        auto input    = args.front();
+        const auto& input = args.front();
         auto in_shape = input.get_shape();
 
         argument uint8_input        = input.reshape({migraphx::shape::uint8_type, in_shape.lens()});
@@ -84,11 +84,11 @@ struct unpack_fp4
                     data_idx[axis] *= 2;
                     // unpacking 2 unsigned parts
                     uint8_t val   = inp[i];
-                    auto fp4_val  = val & 0xf;
+                    uint8_t fp4_val = val & 0xFu;
                     out[data_idx] = fp4_to_float(fp4_val);
 
                     data_idx[axis] += 1;
-                    fp4_val       = val >> 4;
+                    fp4_val       = val >> 4u;
                     out[data_idx] = fp4_to_float(fp4_val);
                 });
             });

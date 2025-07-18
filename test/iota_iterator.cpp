@@ -166,8 +166,8 @@ TEST_CASE(iota_iterator_comparisons)
     EXPECT(not(it1 == it3));
 
     // Inequality
-    EXPECT(it1 not= it3);
-    EXPECT(not(it1 not= it2));
+    EXPECT(it1 != it3);
+    EXPECT(not(it1 != it2));
 
     // Less than
     EXPECT(it1 < it3);

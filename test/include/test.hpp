@@ -131,7 +131,7 @@ Stream& print_stream_impl(rank<0>, Stream& s, const T&)
 }
 
 template <class Stream, class T>
-auto print_stream_impl(rank<1>, Stream& s, const T& x) -> decltype(s << x)
+auto print_stream_impl(rank<1>, Stream& s, const T& x) -> decltype(s << x) // NOLINT(bugprone-multi-level-implicit-pointer-conversion)
 {
     if constexpr(std::is_pointer<T>{})
     {
@@ -190,9 +190,9 @@ auto print_stream_impl(rank<4>,
 }
 
 template <class Stream, class T>
-auto& print_stream(Stream& s, const T& x)
+void print_stream(Stream& s, const T& x)
 {
-    return print_stream_impl(rank<5>{}, s, x);
+    print_stream_impl(rank<5>{}, s, x);
 }
 
 template <class T>

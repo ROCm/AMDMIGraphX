@@ -183,7 +183,7 @@ struct compile_plan
                 submodules << to_string(*sm) << "\n";
             }
         }
-        return config->detailed_problem_info + "\n\nCurrent Module:\n" + current_module.str() +
+        return config->detailed_problem_info + "\n\nModule:\n" + current_module.str() +
                (not submodules.str().empty() ? "Submodules:\n" + submodules.str() : "") +
                "Input Shapes:\n" + print_input_shapes();
     }

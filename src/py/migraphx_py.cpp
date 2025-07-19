@@ -504,6 +504,7 @@ MIGRAPHX_PYBIND11_MODULE(migraphx, m)
         .def("get_parameter_shapes", &migraphx::program::get_parameter_shapes)
         .def("get_output_shapes", &migraphx::program::get_output_shapes)
         .def("is_compiled", &migraphx::program::is_compiled)
+        .def("get_modules", [](migraphx::program& p) { return p.get_modules(); })
         .def(
             "compile",
             [](migraphx::program& p,

@@ -221,7 +221,8 @@ void run_verify::verify(const program_info& pi) const
             target_info ti = get_target_info(tname);
             auto t         = migraphx::make_target(tname);
             results.emplace_back(
-                tname, detach_async([=, this] { return run_target(t, p, m, c_opts); }, ti.parallel));
+                tname,
+                detach_async([=, this] { return run_target(t, p, m, c_opts); }, ti.parallel));
         }
 
         assert(ref_f.valid());

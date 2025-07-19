@@ -107,7 +107,7 @@ struct compile_plan
     template <class Vector>
     void insert_compiles(Vector& compiles, const value& solution, std::size_t i)
     {
-        compiles.emplace_back([=] {
+        compiles.emplace_back([=, this] {
             try
             {
                 results[i] = compiled_result{compile(*ctx, ins, preop, solution), ins};

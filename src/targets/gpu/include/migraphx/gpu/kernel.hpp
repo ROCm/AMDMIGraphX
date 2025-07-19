@@ -64,7 +64,7 @@ struct MIGRAPHX_GPU_EXPORT kernel
     template <class... Ts>
     auto launch(hipStream_t stream, std::size_t global, std::size_t local, Ts... zs) const
     {
-        return [=](auto&&... xs) {
+        return [=, this](auto&&... xs) {
             launch(stream, global, local, std::vector<kernel_argument>{xs...}, zs...);
         };
     }

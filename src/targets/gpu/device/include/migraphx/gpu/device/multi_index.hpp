@@ -44,7 +44,7 @@ struct multi_index
     MIGRAPHX_DEVICE_CONSTEXPR auto for_stride(hip_index n) const
     {
         // f should return void, but this helps with type deduction
-        return [=](auto f) -> decltype(f(hip_index{})) {
+        return [=, this](auto f) -> decltype(f(hip_index{})) {
             for(hip_index i = id; i < n; i = n.carry(i + stride))
             {
                 f(i);

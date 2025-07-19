@@ -386,7 +386,7 @@ struct reducer_base
     template <class F>
     __device__ auto inner_sliced(F f) const
     {
-        return [=](auto&&... xs) { return f(get_size(xs...), make_inner_slice(xs)...); };
+        return [=, this](auto&&... xs) { return f(get_size(xs...), make_inner_slice(xs)...); };
     }
 
     template <class T>
@@ -395,7 +395,7 @@ struct reducer_base
     template <class F>
     __device__ auto inner(F f) const
     {
-        return this->inner_sliced([=](auto n, auto&&... xs) {
+        return this->inner_sliced([=, this](auto n, auto&&... xs) {
             using result_type = decltype(f(decl_inner_storage(xs)...));
             auto&& derived    = static_cast<const Derived&>(*this);
             if constexpr(is_void<result_type>{})
@@ -420,7 +420,7 @@ struct reducer_base
     template <class Op, class T, class Read>
     __device__ auto reduce(Op op, T init, Read read) const
     {
-        return this->inner_sliced([=](auto n, auto&&... xs) {
+        return this->inner_sliced([=, this](auto n, auto&&... xs) {
             auto&& derived = static_cast<const Derived&>(*this);
             return derived.reduce_impl(op, init, read, n, xs...);
         });

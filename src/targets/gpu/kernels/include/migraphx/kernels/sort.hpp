@@ -62,7 +62,7 @@ struct bitonic_sort
     template <class Reverse>
     constexpr auto compare(Reverse reverse) const
     {
-        return [=](const auto& x, const auto& y) { return compare(x, y, reverse); };
+        return [=, this](const auto& x, const auto& y) { return compare(x, y, reverse); };
     }
 
     template <class GroupSize, class Dir, class Array>

@@ -215,13 +215,13 @@ void run_verify::verify(const program_info& pi) const
             }
         }
         const migraphx::compile_options c_opts = pi.compile_options;
-        auto ref_f = detach_async([=] { return run_ref(p, m, c_opts); });
+        auto ref_f = detach_async([=, this] { return run_ref(p, m, c_opts); });
         for(const auto& tname : target_names)
         {
             target_info ti = get_target_info(tname);
             auto t         = migraphx::make_target(tname);
             results.emplace_back(
-                tname, detach_async([=] { return run_target(t, p, m, c_opts); }, ti.parallel));
+                tname, detach_async([=, this] { return run_target(t, p, m, c_opts); }, ti.parallel));
         }
 
         assert(ref_f.valid());
@@ -263,7 +263,7 @@ void run_verify::run(int argc, const char* argv[]) const
     for(auto&& p : get_programs())
     {
         labels[p.section].push_back(p.name);
-        test::add_test_case(p.name, [=] { verify(p); });
+        test::add_test_case(p.name, [=, this] { verify(p); });
     }
     test::driver d{};
     d.get_case_names = [&](const std::string& name) -> std::vector<std::string> {

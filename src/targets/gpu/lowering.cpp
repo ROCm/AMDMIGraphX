@@ -248,7 +248,7 @@ struct miopen_apply
     template <typename Op>
     void add_gemm_op(const std::string& name)
     {
-        apply_map.emplace(name, [=](instruction_ref ins) {
+        apply_map.emplace(name, [=, this](instruction_ref ins) {
             std::vector<instruction_ref> refs = ins->inputs();
             assert(refs.size() == 2);
             auto output = insert_allocation(ins, ins->get_shape());
@@ -288,7 +288,7 @@ struct miopen_apply
 #if MIGRAPHX_USE_MIOPEN
     void add_convolution_op(const std::string& name)
     {
-        apply_map.emplace(name, [=](instruction_ref ins) {
+        apply_map.emplace(name, [=, this](instruction_ref ins) {
             operation conv = make_op("gpu::" + name, {{"op", ins->get_operator().to_value()}});
             auto output    = insert_allocation(ins, ins->get_shape());
 
@@ -307,7 +307,7 @@ struct miopen_apply
 
     void add_generic_op(const std::string& op_name, const std::string& gpu_name)
     {
-        apply_map.emplace(op_name, [=](instruction_ref ins) {
+        apply_map.emplace(op_name, [=, this](instruction_ref ins) {
             auto output                       = insert_allocation(ins, ins->get_shape());
             std::vector<instruction_ref> refs = ins->inputs();
             refs.push_back(output);
@@ -320,7 +320,7 @@ struct miopen_apply
 
     void add_extend_op(const std::string& op_name, const std::string& gpu_name)
     {
-        apply_map.emplace(op_name, [=](instruction_ref ins) {
+        apply_map.emplace(op_name, [=, this](instruction_ref ins) {
             auto&& op                         = ins->get_operator();
             auto output                       = insert_allocation(ins, ins->get_shape());
             std::vector<instruction_ref> refs = ins->inputs();
@@ -352,7 +352,7 @@ struct miopen_apply
 
     void add_pooling_op()
     {
-        apply_map.emplace("pooling", [=](instruction_ref ins) {
+        apply_map.emplace("pooling", [=, this](instruction_ref ins) {
             if(not use_miopen_pooling(ins))
                 return insert_precompile_op(ins);
 #if MIGRAPHX_USE_MIOPEN
@@ -370,7 +370,7 @@ struct miopen_apply
     // use 0 - input to represent neg
     void add_neg_op()
     {
-        apply_map.emplace("neg", [=](instruction_ref ins) {
+        apply_map.emplace("neg", [=, this](instruction_ref ins) {
             auto s = ins->get_shape();
             std::vector<float> zeros(s.elements(), 0.0f);
             auto l0     = mod->add_literal(literal(s, zeros));
@@ -383,7 +383,7 @@ struct miopen_apply
     // add input and output argument for the if operator
     void add_if_op()
     {
-        apply_map.emplace("if", [=](instruction_ref ins) {
+        apply_map.emplace("if", [=, this](instruction_ref ins) {
             std::vector<instruction_ref> inputs = ins->inputs();
             auto cpu_cond =
                 mod->insert_instruction(ins, make_op("hip::copy_from_gpu"), inputs.front());
@@ -397,7 +397,7 @@ struct miopen_apply
     // replace the loop operator with gpu_loop operator
     void add_loop_op()
     {
-        apply_map.emplace("loop", [=](instruction_ref ins) {
+        apply_map.emplace("loop", [=, this](instruction_ref ins) {
             std::vector<instruction_ref> inputs = ins->inputs();
             // copy max_iter from gpu to cpu
             auto cpu_max_iter =
@@ -431,7 +431,7 @@ struct miopen_apply
 
     void add_nms_op()
     {
-        apply_map.emplace("nonmaxsuppression", [=](instruction_ref ins) {
+        apply_map.emplace("nonmaxsuppression", [=, this](instruction_ref ins) {
             auto s      = ins->get_shape();
             auto output = insert_allocation(ins, s);
             std::vector<instruction_ref> cpu_inputs;
@@ -451,7 +451,7 @@ struct miopen_apply
 
     void add_lrn_op()
     {
-        apply_map.emplace("lrn", [=](instruction_ref ins) {
+        apply_map.emplace("lrn", [=, this](instruction_ref ins) {
             auto s      = ins->get_shape();
             auto output = insert_allocation(ins, s);
             std::vector<instruction_ref> cpu_inputs;
@@ -471,7 +471,7 @@ struct miopen_apply
 
     void add_convolution_backwards_op()
     {
-        apply_map.emplace("convolution_backwards", [=](instruction_ref ins) {
+        apply_map.emplace("convolution_backwards", [=, this](instruction_ref ins) {
             auto s      = ins->get_shape();
             auto output = insert_allocation(ins, s);
             std::vector<instruction_ref> cpu_inputs;
@@ -494,7 +494,7 @@ struct miopen_apply
      */
     void add_select_module_op()
     {
-        apply_map.emplace("select_module", [=](instruction_ref ins) {
+        apply_map.emplace("select_module", [=, this](instruction_ref ins) {
             auto s                              = ins->get_shape();
             auto output                         = insert_allocation(ins, s);
             std::vector<instruction_ref> inputs = ins->inputs();
@@ -510,7 +510,7 @@ struct miopen_apply
      */
     void add_reshape_lazy_op()
     {
-        apply_map.emplace("reshape", [=](instruction_ref ins) {
+        apply_map.emplace("reshape", [=, this](instruction_ref ins) {
             std::vector<instruction_ref> before_contiguous_args = ins->inputs();
             auto before_alloc = insert_allocation(ins, std::prev(ins)->get_shape());
             before_contiguous_args.push_back(before_alloc);
@@ -531,7 +531,7 @@ struct miopen_apply
 
     void add_group_query_attention_op()
     {
-        apply_map.emplace("gpu::gqa_rotary_embedding", [=](instruction_ref ins) {
+        apply_map.emplace("gpu::gqa_rotary_embedding", [=, this](instruction_ref ins) {
             auto s          = ins->get_shape();
             auto output     = insert_allocation(ins, s);
             auto new_inputs = ins->inputs();
@@ -542,7 +542,7 @@ struct miopen_apply
                 new_inputs);
         });
 
-        apply_map.emplace("gpu::concat_past_present", [=](instruction_ref ins) {
+        apply_map.emplace("gpu::concat_past_present", [=, this](instruction_ref ins) {
             return mod->replace_instruction(ins,
                                             make_op("gpu::precompile_op",
                                                     {{"op", to_value(ins->get_operator())},
@@ -553,7 +553,7 @@ struct miopen_apply
 
     void add_scan_slice_op()
     {
-        apply_map.emplace("scan_slice", [=](instruction_ref ins) {
+        apply_map.emplace("scan_slice", [=, this](instruction_ref ins) {
             auto inputs  = ins->inputs();
             auto cpu_idx = mod->insert_instruction(ins, make_op("hip::copy_from_gpu"), inputs[1]);
             inputs[1]    = mod->insert_instruction(ins, make_op("hip::sync_stream"), cpu_idx);

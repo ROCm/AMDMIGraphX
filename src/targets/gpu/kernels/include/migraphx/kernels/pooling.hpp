@@ -170,7 +170,7 @@ struct window
             diff_int p = padding[j];
             return (dim * s) - p;
         });
-        return [=](auto j) { return f(win_start + win.multi(j)); };
+        return [=, this](auto j) { return f(win_start + win.multi(j)); };
     }
 
     template <class Index, class F>

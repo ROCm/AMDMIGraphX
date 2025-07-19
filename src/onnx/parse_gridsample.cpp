@@ -530,7 +530,7 @@ struct bicubic_sampler : grid_sampler
         auto weights_t = std::accumulate(std::next(corner_weights.begin()),
                                          corner_weights.end(),
                                          corner_weights.front(),
-                                         [&info](auto& acc, auto& ins) {
+                                         [&info](const auto& acc, const auto& ins) {
                                              return info.add_instruction(
                                                  make_op("concat", {{"axis", 1}}), acc, ins);
                                          });

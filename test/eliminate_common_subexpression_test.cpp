@@ -175,11 +175,11 @@ TEST_CASE(cse_test_literal2)
 {
     migraphx::module m1;
     {
-        auto six1  = m1.add_literal(6);
+        auto six1 = m1.add_literal(6);
         auto two1 = m1.add_literal(2);
-        auto six2  = m1.add_literal(6);
+        auto six2 = m1.add_literal(6);
         auto two2 = m1.add_literal(2);
-        auto six3  = m1.add_literal(6);
+        auto six3 = m1.add_literal(6);
         auto two3 = m1.add_literal(2);
 
         auto sum1 = m1.add_instruction(migraphx::make_op("add"), six1, two1);
@@ -193,7 +193,7 @@ TEST_CASE(cse_test_literal2)
 
     migraphx::module m2;
     {
-        auto six1  = m2.add_literal(6);
+        auto six1 = m2.add_literal(6);
         auto two1 = m2.add_literal(2);
 
         auto sum1 = m2.add_instruction(migraphx::make_op("add"), six1, two1);

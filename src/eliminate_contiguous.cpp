@@ -154,6 +154,11 @@ static void remove_contiguous(const std::string& op_name, module& m, F f)
             }
             else if(prev->can_eval())
             {
+                if(enabled(MIGRAPHX_TRACE_ELIMINATE_CONTIGUOUS{}))
+                {
+                    std::cout << "contiguous fold to literal:\n";
+                    m.debug_print({prev, arg});
+                }
                 const_instructions.push_back(arg);
             }
         }

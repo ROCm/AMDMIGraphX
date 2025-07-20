@@ -229,6 +229,7 @@ rocm_enable_clang_tidy(
         -modernize-use-designated-initializers
         -modernize-use-nodiscard
         -modernize-use-std-numbers
+        -modernize-use-std-print
         -modernize-use-override
         -modernize-use-ranges
         -modernize-use-trailing-return-type

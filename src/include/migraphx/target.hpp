@@ -290,7 +290,8 @@ struct target
     }
 
     // Cast
-    template <typename PrivateDetailTypeErasedT>
+    template <typename PrivateDetailTypeErasedT,
+              typename = private_te_constraints<PrivateDetailTypeErasedT>>
     PrivateDetailTypeErasedT* any_cast()
     {
         return this->type_id() == typeid(PrivateDetailTypeErasedT)
@@ -301,7 +302,8 @@ struct target
                    : nullptr;
     }
 
-    template <typename PrivateDetailTypeErasedT>
+    template <typename PrivateDetailTypeErasedT,
+              typename = private_te_constraints<PrivateDetailTypeErasedT>>
     const typename std::remove_cv<PrivateDetailTypeErasedT>::type* any_cast() const
     {
         return this->type_id() == typeid(PrivateDetailTypeErasedT)
@@ -484,21 +486,45 @@ struct target
 };
 
 template <typename ValueType>
-inline const ValueType* any_cast(const target* x)
+inline auto any_cast_impl(char, const target* x) -> decltype(x->any_cast<ValueType>())
 {
     return x->any_cast<ValueType>();
+}
+
+template <typename ValueType>
+inline auto any_cast_impl(char, target* x) -> decltype(x->any_cast<ValueType>())
+{
+    return x->any_cast<ValueType>();
+}
+
+template <typename ValueType>
+inline auto any_cast_impl(float, const target*)
+{
+    return nullptr;
+}
+
+template <typename ValueType>
+inline auto any_cast_impl(float, target*)
+{
+    return nullptr;
+}
+
+template <typename ValueType>
+inline const ValueType* any_cast(const target* x)
+{
+    return any_cast_impl<ValueType>(char(0), x);
 }
 
 template <typename ValueType>
 inline ValueType* any_cast(target* x)
 {
-    return x->any_cast<ValueType>();
+    return any_cast_impl<ValueType>(char(0), x);
 }
 
 template <typename ValueType>
 inline ValueType& any_cast(target& x)
 {
-    auto* y = x.any_cast<typename std::remove_reference<ValueType>::type>();
+    auto* y = any_cast<typename std::remove_reference<ValueType>::type>(&x);
     if(y == nullptr)
         throw std::bad_cast();
     return *y;
@@ -507,7 +533,7 @@ inline ValueType& any_cast(target& x)
 template <typename ValueType>
 inline const ValueType& any_cast(const target& x)
 {
-    const auto* y = x.any_cast<typename std::remove_reference<ValueType>::type>();
+    const auto* y = any_cast<typename std::remove_reference<ValueType>::type>(&x);
     if(y == nullptr)
         throw std::bad_cast();
     return *y;

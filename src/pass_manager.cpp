@@ -48,6 +48,38 @@ static bool is_pass_disabled(const std::string& name)
     return contains(passes, name);
 }
 
+static std::size_t get_mem_usage(const program& p)
+{
+    std::size_t total = 0;
+    for(const_module_ref m:p.get_modules())
+    {
+        for(auto& ins:*m)
+        {
+            if(ins.outputs().empty())
+                continue;
+            if(ins.name() != "@literal")
+                continue;
+            total += ins.get_shape().bytes();
+        }
+
+    }
+    return total;
+}
+
+static std::string human_readable_size(std::size_t size)
+{
+    if(size < 1024)
+        return std::to_string(size) + "B";
+    else if(size < 1024 * 1024)
+        return std::to_string(size / 1024.0) + "KB";
+    else if(size < 1024 * 1024 * 1024)
+        return std::to_string(size / (1024.0 * 1024.0)) + "MB";
+    else
+        return std::to_string(size / (1024.0 * 1024.0 * 1024.0)) + "GB";
+}
+
+
+
 static void validate_pass(module& mod, const pass& p, tracer trace)
 {
     (void)mod;
@@ -187,6 +219,8 @@ void run_passes(program& prog, module_ref root_mod, const std::vector<pass>& pas
             mpm.run_pass(p);
         }
         run_pass(prog, p, trace);
+        std::cout << "Memory usage after " << p.name() << ": "
+                  << human_readable_size(get_mem_usage(prog))<< std::endl;
     }
 }
 

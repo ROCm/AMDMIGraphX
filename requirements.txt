@@ -24,7 +24,7 @@
 google/protobuf@v3.19.0 -DCMAKE_POSITION_INDEPENDENT_CODE=On -X subdir -Dprotobuf_BUILD_TESTS=Off
 nlohmann/json@v3.8.0
 ROCm/half@rocm-5.6.0
-pybind/pybind11@3e9dfa2866941655c56877882565e7577de6fc7b --build
+pfultz2/pybind11@d8fb8584b6b4914adafc358aa13156a9a86a962e --build
 msgpack/msgpack-c@cpp-3.3.0 -DMSGPACK_BUILD_TESTS=Off
 sqlite3@3.43.2 -DCMAKE_POSITION_INDEPENDENT_CODE=On
 ROCm/composable_kernel@b7775add2d28251674d81e220cd4a857b90b997a -DCK_BUILD_JIT_LIB=On -DCMAKE_POSITION_INDEPENDENT_CODE=On

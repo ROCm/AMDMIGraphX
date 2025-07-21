@@ -1220,6 +1220,9 @@ struct find_splits
                 auto it = get_matching_ins(split, out);
                 if(it == split->outputs().end())
                     return {};
+                // Bail if there is a duplicate
+                if(contains(group, *it))
+                    return {};
                 assert((*it)->name() != "slice");
                 group.push_back(*it);
             }

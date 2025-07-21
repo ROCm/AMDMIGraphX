@@ -57,7 +57,45 @@ constexpr float fp4_to_float(uint8_t x)
 }
 
 // rounding mode = roundToNearestRoundTiesToEven
-uint8_t float_to_fp4(float f_x);
+// This code gets the same result as reference quantization code from Microsoft:
+// https://github.com/microsoft/microxcaling/blob/main/mx/elemwise_ops.py#L82
+// Note floating point comparisons are set up to do the round ties to even correctly.
+inline uint8_t float_to_fp4(float f_x)
+{
+    bool sign        = std::signbit(f_x);
+    uint8_t sign_add = sign ? fp4_detail::fp4_lut.size() / 2 : 0u;
+    float abs_f      = std::abs(f_x);
+    if(abs_f >= 1.75)
+    {
+        if(abs_f >= 3.5)
+        {
+            if(abs_f > 5)
+            {
+                return fp4_detail::fp4_6_0 + sign_add;
+            }
+            return fp4_detail::fp4_4_0 + sign_add;
+        }
+        if(abs_f > 2.5)
+        {
+            return fp4_detail::fp4_3_0 + sign_add;
+        }
+        return fp4_detail::fp4_2_0 + sign_add;
+    }
+    if(abs_f >= 0.75)
+    {
+        if(abs_f > 1.25)
+        {
+            return fp4_detail::fp4_1_5 + sign_add;
+        }
+        return fp4_detail::fp4_1_0 + sign_add;
+    }
+    if(abs_f > 0.25)
+    {
+        return fp4_detail::fp4_0_5 + sign_add;
+    }
+    // zeros, Nan, and Inf
+    return 0x0 + sign_add;
+}
 
 } // namespace MIGRAPHX_INLINE_NS
 } // namespace migraphx

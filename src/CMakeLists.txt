@@ -59,7 +59,6 @@ add_library(migraphx
     file_buffer.cpp
     fileutils.cpp
     fp_to_double.cpp
-    fp4_casts.cpp
     fp8_ocp_to_fnuz.cpp
     fuse_attention.cpp
     fuse_concat.cpp

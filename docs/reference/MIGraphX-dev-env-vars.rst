@@ -425,8 +425,8 @@ MLIR
   * - | ``MIGRAPHX_TRACE_MLIR``
       | Sets the MLIR trace level.
       
-    - | ``1``: MLIR and print failures are traced. 
-      | ``2``: All MLIR operations are printed, and MLIR and printing failures are traced.
+    - | ``1``: MLIR trace failures are printed. 
+      | ``2``: MLIR trace failures are printed and all MLIR operations are printed as well.
 
   * - | ``MIGRAPHX_MLIR_TUNING_DB``
       | The path of the tuning database. 

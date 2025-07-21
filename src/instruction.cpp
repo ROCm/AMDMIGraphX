@@ -610,7 +610,7 @@ bool reaches(instruction_ref start, instruction_ref end)
 // Additional condition that stops if DFS instruction's distance to `end`
 // is greater than the distance between `start` and `end`.
 template <class P>
-bool reaches(instruction_ref start, instruction_ref end, const_module_ref m, P predicate)
+static bool reaches(instruction_ref start, instruction_ref end, const_module_ref m, P predicate)
 {
     if(start == end)
         return true;
@@ -649,8 +649,7 @@ bool is_interdependent(const std::vector<instruction_ref>& instructions,
                        instructions.end(),
                        loc.begin(),
                        [&](instruction_ref ins) { return std::distance(root, ins); });
-        auto min_it = std::min_element(loc.begin(), loc.begin() + instructions.size());
-        auto start  = instructions[std::distance(loc.begin(), min_it)];
+        auto start  = instructions[std::distance(loc.begin(), std::min_element(loc.begin(), loc.begin() + instructions.size()))];
         return all_of(instructions, [&](instruction_ref ins) {
             if(ins == start)
                 return true;

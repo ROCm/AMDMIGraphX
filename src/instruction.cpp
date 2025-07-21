@@ -649,7 +649,8 @@ bool is_interdependent(const std::vector<instruction_ref>& instructions,
                        instructions.end(),
                        loc.begin(),
                        [&](instruction_ref ins) { return std::distance(root, ins); });
-        auto start  = instructions[std::distance(loc.begin(), std::min_element(loc.begin(), loc.begin() + instructions.size()))];
+        auto start = instructions[std::distance(
+            loc.begin(), std::min_element(loc.begin(), loc.begin() + instructions.size()))];
         return all_of(instructions, [&](instruction_ref ins) {
             if(ins == start)
                 return true;

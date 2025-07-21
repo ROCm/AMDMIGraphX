@@ -4,8 +4,9 @@
 
 .. _cpp-api-reference:
 
-C++ API reference
-====================
+============================
+MIGraphX C++ API reference
+============================
 
 shape
 -----

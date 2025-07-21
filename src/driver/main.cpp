@@ -626,9 +626,10 @@ struct compiler
             }
 
             std::cout << "Program is already compiled, skipping compilation ..." << std::endl;
-            if (to_fp16 or to_bf16 or to_int8 or to_fp8 or to_int4)
+            if(to_fp16 or to_bf16 or to_int8 or to_fp8 or to_int4)
             {
-                std::cerr << "[WARNING]: Quantization options are ignored as program is already compiled.\n";
+                std::cerr << "[WARNING]: Quantization options are ignored as program is already "
+                             "compiled.\n";
             }
             return p;
         }
@@ -770,10 +771,7 @@ struct compile : command<compile>
     compiler c;
     void parse(argument_parser& ap) { c.parse(ap); }
 
-    void run()
-    {
-        c.compile();
-    }
+    void run() { c.compile(); }
 };
 
 struct run_cmd : command<run_cmd>

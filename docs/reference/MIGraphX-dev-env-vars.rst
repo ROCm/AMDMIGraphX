@@ -38,14 +38,14 @@ Model performance tunable variables change the compilation behavior of a model. 
       | Default: The rocMLIR library is used.   
 
   * - | ``MIGRAPHX_ENABLE_CK``
-      | When set, the Composable Kernels library are used. 
+      | When set, the Composable Kernel library is used. 
       
     - | Use with ``MIGRAPHX_DISABLE_MLIR = 1``.
       
-      | ``1``: The Composable Kernel libraries are used.
+      | ``1``: The Composable Kernel library is used.
       | ``0``: Returns to default behavior.
 
-      | Default: Composable Kernel libraries aren't used.
+      | Default: Composable Kernel library isn't used.
 
   * - | ``MIGRAPHX_SET_GEMM_PROVIDER``
       | Sets the GEMM provider to be either rocBLAS or hipBLASlt.
@@ -390,7 +390,7 @@ Compilation tracing
       | Default: There is no node-by-node tracing of the ONNX parser.
 
   * - | ``MIGRAPHX_TRACE_EVAL``
-      | Turns on model evaluation tracing and sets the tracing level. 
+      | Turns on model evaluation tracing and sets its tracing level. 
       
     - | ``1``: Print the run instructions and the time taken to complete the evaluation.
       | ``2``: Print the run instructions, time taken, a snippet of the output, and some statistics.
@@ -487,7 +487,7 @@ Testing
       | Default: Reference and target programs aren't printed if the verify tests pass.
 
   * - | ``MIGRAPHX_DUMP_TEST``
-      | When set, the model that is being verified using ``test-verify`` is output to to an MXR file. 
+      | When set, the model that is being verified using ``test-verify`` is output to an MXR file. 
 
     - | ``1``: The model that is being verified is output to an MXR file.
       | ``0``: Returns to default behavior.
@@ -495,7 +495,7 @@ Testing
       | Default: The model isn't output to file.
 
   * - | ``MIGRAPHX_VERIFY_DUMP_DIFF``
-      | When set, writes out the output of the test results, as well as the reference,when they differ.
+      | When set, writes out the output of the test results, as well as the reference, when they differ.
 
     - | ``1``: Test results are written out when they differ.
       | ``0``: Returns to default behavior.
@@ -537,7 +537,7 @@ Advanced settings
       | Default: Temporary directories are deleted.
 
   * - | ``MIGRAPHX_GPU_DEBUG``
-      | When set, the ``-DMIGRAPHX_DEBUG`` option is used when compiling GPU kernels. ``DMIGRAPHX_DEBUG`` enables assertions and source location capture.
+      | When set, the ``-DMIGRAPHX_DEBUG`` option is used when compiling GPU kernels. ``-DMIGRAPHX_DEBUG`` enables assertions and source location capture.
   
     - | ``1``: The ``-DMIGRAPHX_DEBUG`` option is used when compiling GPU kernels.
 

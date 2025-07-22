@@ -598,7 +598,7 @@ bool reaches(instruction_ref start, instruction_ref end, const_module_ref m)
 
 // Return set of all instructions that are connected to both start and end nodes (inclusive)
 std::unordered_set<instruction_ref>
-find_instructions_between(instruction_ref start, instruction_ref end, module& m)
+find_instructions_between(instruction_ref start, instruction_ref end, const_module_ref m)
 {
     std::queue<instruction_ref> inputs;
     std::unordered_set<instruction_ref> inss;
@@ -609,7 +609,7 @@ find_instructions_between(instruction_ref start, instruction_ref end, module& m)
         auto current_inp = inputs.front();
         inputs.pop();
 
-        if(reaches(start, current_inp, &m) and inss.insert(current_inp).second and
+        if(reaches(start, current_inp, m) and inss.insert(current_inp).second and
            current_inp != start)
         {
             for(auto i : current_inp->inputs())

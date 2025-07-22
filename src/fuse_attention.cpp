@@ -85,7 +85,7 @@ struct find_attention
     std::vector<instruction_ref>
     get_attn_instructions(module& m, instruction_ref gemm1, instruction_ref gemm2) const
     {
-        auto attn_inss = find_instructions_between(gemm1, gemm2, m);
+        auto attn_inss = find_instructions_between(gemm1, gemm2, &m);
 
         std::vector<instruction_ref> sorted_inss(attn_inss.begin(), attn_inss.end());
         std::sort(

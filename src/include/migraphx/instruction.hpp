@@ -51,7 +51,7 @@ MIGRAPHX_EXPORT bool reaches(instruction_ref start, instruction_ref end);
 MIGRAPHX_EXPORT bool reaches(instruction_ref start, instruction_ref end, const_module_ref m);
 
 MIGRAPHX_EXPORT std::unordered_set<instruction_ref>
-find_instructions_between(instruction_ref start, instruction_ref end, module& m);
+find_instructions_between(instruction_ref start, instruction_ref end, const_module_ref m);
 
 struct MIGRAPHX_EXPORT instruction
 {

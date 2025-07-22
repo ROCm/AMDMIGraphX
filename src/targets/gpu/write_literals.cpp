@@ -177,7 +177,7 @@ void write_literals::apply(module& m) const
     assert(ctx != nullptr);
     // Sort module to get better liveness analysis
     m.sort();
-    std::size_t available = max_memory == 0 ? get_available_memory() : max_memory;
+    std::size_t available  = max_memory == 0 ? get_available_memory() : max_memory;
     std::size_t total_used = get_total_memory(m);
     std::unordered_set<instruction_ref> copy_literals =
         find_copy_literals(m, extra_needed(available, total_used));

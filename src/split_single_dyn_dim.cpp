@@ -128,7 +128,9 @@ void split_single_dyn_dim::apply(module_pass_manager& mpm) const
         auto dyn_dim = dd_check_vec->at(0).dd;
         // create submodules for each dimension size
         std::vector<module_ref> submodules;
-        for(size_t dim_size : migraphx::range(dyn_dim.min, dyn_dim.max + 1))
+        std::vector<size_t> dim_sizes{dyn_dim.min, dyn_dim.max};
+        size_t prev_dim_size = 0;
+        for(size_t dim_size : dim_sizes)
         {
             auto* submod = mpm.create_module("dim_" + std::to_string(dim_size));
             // instruction map for new static shaped submodule parameters
@@ -138,12 +140,26 @@ void split_single_dyn_dim::apply(module_pass_manager& mpm) const
                 // create static shape using dim_size
                 const auto& dyn_param = mm->get_parameter(dd_check.dyn_param_str);
                 auto dyn_param_shape  = mm->get_parameter_shape(dd_check.dyn_param_str);
+                auto new_dyn_dims = dyn_param_shape.dyn_dims();
+                for(auto& new_dd : new_dyn_dims)
+                {
+                    if(not new_dd.is_fixed())
+                    {
+                        new_dd.min = prev_dim_size + 1;
+                        new_dd.max = dim_size;
+                    }
+                }
+                // std::cout << dyn_param_shape << std::endl;
+                auto new_dyn_shape = shape{dyn_param_shape.type(), new_dyn_dims };
+                // std::cout << new_dyn_shape << std::endl;
                 auto static_shape     = dyn_param_shape.to_static(dim_size);
-                map_ins[dyn_param]    = submod->add_parameter(dd_check.dyn_param_str, static_shape);
+                auto new_dyn_param = submod->add_parameter(dd_check.dyn_param_str, new_dyn_shape);
+                map_ins[dyn_param]    = submod->add_instruction(make_op("fixed_pad", {{"output_lens", static_shape.lens()}}), new_dyn_param);
             }
             auto outputs = submod->add_instructions(mm, &map_ins);
             submod->add_return({outputs});
             submodules.push_back(submod);
+            prev_dim_size = dim_size;
         }
         // sort parameters by name for consistency (vs. parameter order attr)
         std::sort(param_names.begin(), param_names.end());

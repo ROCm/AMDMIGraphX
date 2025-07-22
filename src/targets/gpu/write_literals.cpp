@@ -174,7 +174,6 @@ static std::unordered_set<instruction_ref> find_copy_literals(const module& m, s
 
 void write_literals::apply(module& m) const
 {
-    assert(ctx != nullptr);
     // Sort module to get better liveness analysis
     m.sort();
     std::size_t available  = max_memory == 0 ? get_available_memory() : max_memory;

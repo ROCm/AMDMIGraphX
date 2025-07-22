@@ -60,6 +60,7 @@ add_library(migraphx
     fileutils.cpp
     fp_to_double.cpp
     fp8_ocp_to_fnuz.cpp
+    fuse_attention.cpp
     fuse_concat.cpp
     fuse_pointwise.cpp
     fuse_pointwise_reduce.cpp
@@ -133,6 +134,8 @@ if(WIN32)
     # Due to compilation crashing, we need to use type-erased matchers on Windows.
     target_compile_definitions(migraphx PUBLIC MIGRAPHX_USE_TYPE_ERASED_MATCHERS=1)
     target_compile_options(migraphx PUBLIC "-mno-ms-bitfields")
+    # Due to BinSkim errors EnableControlFlowGuard
+    target_compile_options(migraphx PUBLIC "SHELL:-Xclang -cfguard")
 endif()
 
 configure_file(version.h.in include/migraphx/version.h)
@@ -194,6 +197,7 @@ register_migraphx_ops(
     get_tuple_elem
     greater
     group_query_attention
+    group
     gru
     identity
     if_op

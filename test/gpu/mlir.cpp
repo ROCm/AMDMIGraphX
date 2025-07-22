@@ -43,10 +43,9 @@ MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_MLIR_ENABLE_SPLITK);
 struct mlir_gpu_target : migraphx::gpu::target
 {
     std::string name() const { return "mlir"; }
-    std::vector<migraphx::pass> get_passes(migraphx::context& gctx,
+    std::vector<migraphx::pass> get_passes(migraphx::context&,
                                            const migraphx::compile_options&) const
     {
-        auto& ctx = migraphx::any_cast<migraphx::gpu::context>(gctx);
         return {migraphx::gpu::write_literals{}};
     }
 };

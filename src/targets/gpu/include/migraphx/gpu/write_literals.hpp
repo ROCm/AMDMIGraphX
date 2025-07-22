@@ -35,6 +35,7 @@ namespace gpu {
 struct MIGRAPHX_GPU_EXPORT write_literals
 {
     context* ctx = nullptr;
+    std::size_t max_memory = 0;
     std::string name() const { return "gpu::write_literals"; }
 
     void apply(module& m) const;

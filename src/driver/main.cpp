@@ -625,11 +625,11 @@ struct compiler
                 }
             }
 
-            std::cout << "Program is already compiled, skipping compilation ..." << std::endl;
+            std::cout << "The program is already compiled, skipping compilation ..." << std::endl;
             if(to_fp16 or to_bf16 or to_int8 or to_fp8 or to_int4)
             {
-                std::cerr << "[WARNING]: Quantization options are ignored as program is already "
-                             "compiled.\n";
+                std::cerr << "[WARNING]: Quantization options are ignored as the program is already "
+                             "compiled." << std::endl;
             }
             return p;
         }
@@ -656,7 +656,7 @@ struct compiler
         }
         if(to_int4)
         {
-            std::cout << "Quantizing to int4 ... " << std::endl;
+            std::cout << "Quantizing weights to int4 ... " << std::endl;
             quantize_int4_weights(p);
         }
         std::cout << "Compiling ... " << std::endl;

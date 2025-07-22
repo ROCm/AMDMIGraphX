@@ -57,9 +57,12 @@ constexpr float fp4_to_float(uint8_t x)
 }
 
 // rounding mode = roundToNearestRoundTiesToEven
-constexpr uint8_t float_to_fp4(float f_x)
+// This code gets the same result as reference quantization code from Microsoft:
+// https://github.com/microsoft/microxcaling/blob/main/mx/elemwise_ops.py#L82
+// Note floating point comparisons are set up to do the round ties to even correctly.
+inline uint8_t float_to_fp4(float f_x)
 {
-    bool sign        = get_parts(f_x).sign;
+    bool sign        = std::signbit(f_x);
     uint8_t sign_add = sign ? fp4_detail::fp4_lut.size() / 2 : 0u;
     float abs_f      = std::abs(f_x);
     if(abs_f >= 1.75)

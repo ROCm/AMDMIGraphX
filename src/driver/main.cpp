@@ -628,8 +628,10 @@ struct compiler
             std::cout << "The program is already compiled, skipping compilation ..." << std::endl;
             if(to_fp16 or to_bf16 or to_int8 or to_fp8 or to_int4)
             {
-                std::cerr << "[WARNING]: Quantization options are ignored as the program is already "
-                             "compiled." << std::endl;
+                std::cerr
+                    << "[WARNING]: Quantization options are ignored as the program is already "
+                       "compiled."
+                    << std::endl;
             }
             return p;
         }

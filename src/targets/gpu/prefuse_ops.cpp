@@ -266,21 +266,15 @@ struct gpu_gqa_rotary_embedding : base_group_query_attention
 };
 MIGRAPHX_REGISTER_OP(gpu_gqa_rotary_embedding);
 
-struct gpu_concat_past_present_k : base_group_query_attention
+struct gpu_concat_past_present : base_group_query_attention
 {
-    std::string name() const { return "gpu::concat_past_present_k"; }
+    std::string name() const { return "gpu::concat_past_present"; }
 
     shape compute_shape(std::vector<shape> inputs) const { return inputs.back(); }
-};
-MIGRAPHX_REGISTER_OP(gpu_concat_past_present_k);
 
-struct gpu_concat_past_present_v : base_group_query_attention
-{
-    std::string name() const { return "gpu::concat_past_present_v"; }
-
-    shape compute_shape(std::vector<shape> inputs) const { return inputs.back(); }
+    std::ptrdiff_t output_alias(const std::vector<shape>&) const { return 0; }
 };
-MIGRAPHX_REGISTER_OP(gpu_concat_past_present_v);
+MIGRAPHX_REGISTER_OP(gpu_concat_past_present);
 
 struct find_group_query_attention
 {
@@ -366,12 +360,12 @@ struct find_group_query_attention
 
         pres_k = mpm.get_module().insert_instruction(
             ins,
-            gpu_concat_past_present_k{
+            gpu_concat_past_present{
                 do_rotary, kv_num_heads, local_window_size, num_heads, rotary_interleaved, scale},
             concat_k_inputs);
         pres_v = mpm.get_module().insert_instruction(
             ins,
-            gpu_concat_past_present_v{
+            gpu_concat_past_present{
                 do_rotary, kv_num_heads, local_window_size, num_heads, rotary_interleaved, scale},
             concat_v_inputs);
 

@@ -61,16 +61,6 @@ static bool is_device_ptr(const void* ptr)
     return attr.type == hipMemoryTypeDevice;
 }
 
-static std::size_t get_available_gpu_memory()
-{
-    size_t free;
-    size_t total;
-    auto status = hipMemGetInfo(&free, &total);
-    if(status != hipSuccess)
-        MIGRAPHX_THROW("Failed getting available memory: " + hip_error(status));
-    return free;
-}
-
 static void* get_device_ptr(void* hptr)
 {
     void* result = nullptr;
@@ -108,8 +98,6 @@ static host_ptr_cache& get_host_ptr_cache()
 
 static std::shared_ptr<void> allocate_gpu(std::size_t sz, bool host = false)
 {
-    if(sz > get_available_gpu_memory())
-        MIGRAPHX_THROW("Memory not available to allocate buffer: " + std::to_string(sz));
     void* alloc_ptr = nullptr;
     auto status     = host ? hipHostMalloc(&alloc_ptr, sz) : hipMalloc(&alloc_ptr, sz);
     if(status != hipSuccess)

@@ -29,6 +29,8 @@
 #include <migraphx/value.hpp>
 #include <migraphx/optional.hpp>
 #include <migraphx/hash.hpp>
+#include <migraphx/transform_view.hpp>
+#include <map>
 #include <unordered_map>
 #include <utility>
 
@@ -42,7 +44,7 @@ struct value_base_impl : cloneable<value_base_impl>
     virtual const cpp_type* if_##vt() const { return nullptr; }
     MIGRAPHX_VISIT_VALUE_TYPES(MIGRAPHX_VALUE_GENERATE_BASE_FUNCTIONS)
     virtual std::vector<value>* if_array() { return nullptr; }
-    virtual std::unordered_map<std::string, std::size_t>* if_object() { return nullptr; }
+    virtual std::map<std::string, std::size_t>* if_object() { return nullptr; }
     virtual value_base_impl* if_value() const { return nullptr; }
     value_base_impl()                       = default;
     value_base_impl(const value_base_impl&) = default;
@@ -72,15 +74,15 @@ struct array_value_holder : value_base_impl::derive<array_value_holder>
 struct object_value_holder : value_base_impl::derive<object_value_holder>
 {
     object_value_holder() {}
-    object_value_holder(std::vector<value> d, std::unordered_map<std::string, std::size_t> l)
+    object_value_holder(std::vector<value> d, std::map<std::string, std::size_t> l)
         : data(std::move(d)), lookup(std::move(l))
     {
     }
     virtual value::type_t get_type() override { return value::object_type; }
     virtual std::vector<value>* if_array() override { return &data; }
-    virtual std::unordered_map<std::string, std::size_t>* if_object() override { return &lookup; }
+    virtual std::map<std::string, std::size_t>* if_object() override { return &lookup; }
     std::vector<value> data;
-    std::unordered_map<std::string, std::size_t> lookup;
+    std::map<std::string, std::size_t> lookup;
 };
 
 value::value(const value& rhs) : x(rhs.x ? rhs.x->clone() : nullptr), key(rhs.key) {}
@@ -110,7 +112,7 @@ static void set_vector(std::shared_ptr<value_base_impl>& x,
     }
     else
     {
-        std::unordered_map<std::string, std::size_t> lookup;
+        std::map<std::string, std::size_t> lookup;
         std::size_t i = 0;
         for(auto&& e : v)
         {
@@ -442,6 +444,40 @@ value value::with_key(const std::string& pkey) const
     return result;
 }
 
+const std::shared_ptr<value_base_impl>& value::get_impl() const { return this->x; }
+
+static auto object_range(const std::shared_ptr<value_base_impl>& x)
+{
+    auto* a = if_array_impl(x);
+    assert(a != nullptr);
+    auto* lookup = x->if_object();
+    assert(lookup != nullptr);
+#if defined(__clang_major__) && __clang_major__ > 19
+    std::vector<value> result;
+    std::transform(lookup->begin(),
+                   lookup->end(),
+                   std::back_inserter(result),
+                   [=](const auto& p) -> decltype(auto) { return (*a)[p.second]; });
+    return result;
+#else
+    return views::transform(*lookup,
+                            [=](const auto& p) -> decltype(auto) { return (*a)[p.second]; });
+#endif
+}
+
+template <class F>
+static void visit_for_compare(const value& x, F f)
+{
+    if(x.is_object())
+    {
+        f(object_range(x.get_impl()));
+    }
+    else
+    {
+        x.visit_value(f);
+    }
+}
+
 template <class T>
 const static T& compare_decay(const T& x)
 {
@@ -453,8 +489,8 @@ template <class F>
 static bool compare(const value& x, const value& y, F f)
 {
     bool result = false;
-    x.visit_value([&](auto&& a) {
-        y.visit_value([&](auto&& b) {
+    visit_for_compare(x, [&](const auto& a) {
+        visit_for_compare(y, [&](const auto& b) {
             if constexpr(std::is_same<decltype(a), decltype(b)>{})
                 result = f(std::forward_as_tuple(x.get_key(), compare_decay(a)),
                            std::forward_as_tuple(y.get_key(), compare_decay(b)));
@@ -521,23 +557,21 @@ std::ostream& operator<<(std::ostream& os, const value& d)
 }
 
 template <class T>
-static std::size_t value_hash(const std::string& key, const T& x)
+static std::size_t compute_hash(rank<0>, const std::string& key, const T& x)
 {
     std::size_t h = hash_value(key);
     hash_combine(h, x);
     return h;
 }
 
-static std::size_t value_hash(const std::string& key, std::nullptr_t) { return hash_value(key); }
-
-static std::size_t value_hash(const std::string& key, const std::vector<value>& x)
+static std::size_t compute_hash(rank<0>, const std::string& key, std::nullptr_t)
 {
-    std::size_t h = hash_value(key);
-    for(const auto& v : x)
-        hash_combine(h, v);
-    return h;
+    return hash_value(key);
 }
-static std::size_t value_hash(const std::string& key, const value::binary& x)
+
+template <class Range>
+static auto
+compute_hash(rank<1>, const std::string& key, const Range& x) -> decltype(hash_value(*x.begin()))
 {
     std::size_t h = hash_value(key);
     for(const auto& v : x)
@@ -548,7 +582,8 @@ static std::size_t value_hash(const std::string& key, const value::binary& x)
 std::size_t value::hash() const
 {
     std::size_t h = 0;
-    this->visit_value([&](const auto& a) { h = value_hash(this->get_key(), a); });
+    visit_for_compare(*this,
+                      [&](const auto& a) { h = compute_hash(rank<2>{}, this->get_key(), a); });
     return h;
 }
 

@@ -60,6 +60,7 @@ add_library(migraphx
     fileutils.cpp
     fp_to_double.cpp
     fp8_ocp_to_fnuz.cpp
+    fuse_attention.cpp
     fuse_concat.cpp
     fuse_pointwise.cpp
     fuse_pointwise_reduce.cpp
@@ -126,10 +127,15 @@ add_library(migraphx
     verify_args.cpp
 )
 
+file(GLOB BUILDER_SRCS CONFIGURE_DEPENDS op/builder/*.cpp)
+target_sources(migraphx PRIVATE ${BUILDER_SRCS})
+
 if(WIN32)
     # Due to compilation crashing, we need to use type-erased matchers on Windows.
     target_compile_definitions(migraphx PUBLIC MIGRAPHX_USE_TYPE_ERASED_MATCHERS=1)
     target_compile_options(migraphx PUBLIC "-mno-ms-bitfields")
+    # Due to BinSkim errors EnableControlFlowGuard
+    target_compile_options(migraphx PUBLIC "SHELL:-Xclang -cfguard")
 endif()
 
 configure_file(version.h.in include/migraphx/version.h)
@@ -300,6 +306,7 @@ rocm_install_targets(
   TARGETS migraphx
   INCLUDE
     ${CMAKE_CURRENT_SOURCE_DIR}/include
+    ${CMAKE_CURRENT_SOURCE_DIR}/op/builder/include
 )
 target_link_libraries(migraphx PUBLIC migraphx_version)
 

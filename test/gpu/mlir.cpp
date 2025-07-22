@@ -47,7 +47,7 @@ struct mlir_gpu_target : migraphx::gpu::target
                                            const migraphx::compile_options&) const
     {
         auto& ctx = migraphx::any_cast<migraphx::gpu::context>(gctx);
-        return {migraphx::gpu::write_literals{&ctx}};
+        return {migraphx::gpu::write_literals{}};
     }
 };
 

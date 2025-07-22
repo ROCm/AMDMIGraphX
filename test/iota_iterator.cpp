@@ -217,13 +217,13 @@ TEST_CASE(iota_iterator_indexing_custom_function)
 TEST_CASE(iota_iterator_custom_type)
 {
     // Using a custom struct as the function result
-    struct Point
+    struct point
     {
         int x;
         int y;
     };
 
-    auto point_maker = [](std::ptrdiff_t i) -> Point {
+    auto point_maker = [](std::ptrdiff_t i) -> point {
         return {static_cast<int>(i), static_cast<int>(i * i)};
     };
 

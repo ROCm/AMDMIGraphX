@@ -185,7 +185,7 @@ struct iterator_operators
     }
 
     template <class U = T>
-    friend constexpr auto operator++(U& x, int) -> decltype(T(++std::declval<U>()))
+    friend constexpr auto operator++(U& x, int) -> decltype(T(++std::declval<U&>()))
     {
         T nrv(x);
         ++x;
@@ -193,7 +193,7 @@ struct iterator_operators
     }
 
     template <class U = T>
-    friend constexpr auto operator--(U& x, int) -> decltype(T(--std::declval<U>()))
+    friend constexpr auto operator--(U& x, int) -> decltype(T(--std::declval<U&>()))
     {
         T nrv(x);
         --x;

@@ -2,6 +2,7 @@
 #define MIGRAPHX_GUARD_MIGRAPHX_UNFOLD_HPP
 
 #include <migraphx/config.hpp>
+#include <migraphx/iterator.hpp>
 #include <optional>
 #include <iterator>
 #include <utility>
@@ -11,14 +12,14 @@ namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
 
 template <class State, class F, class G>
-struct unfold_range
+struct unfold_range : iterator_operators<unfold_range<State, F, G>>
 {
     unfold_range(std::optional<State> pz, F pf, G pg)
         : z(std::move(pz)), f(std::move(pf)), g(std::move(pg))
     {
     }
 
-    struct iterator
+    struct iterator : iterator_operators<iterator>
     {
         using reference         = decltype(std::declval<F>()(std::declval<State>()));
         using value_type        = std::decay_t<reference>;
@@ -26,33 +27,27 @@ struct unfold_range
         using iterator_category = std::forward_iterator_tag;
         using pointer           = std::add_pointer_t<std::remove_reference_t<reference>>;
 
-        struct arrow_proxy
-        {
-            reference value;
-            pointer operator->() && { return std::addressof(value); }
-        };
+        iterator() = default;
 
-        value_type operator*() const { return parent->f(*state); }
-
-        arrow_proxy operator->() const { return arrow_proxy{parent->f(*state)}; }
-
-        iterator& operator++()
+        iterator(const unfold_range* pparent, std::optional<State> pstate)
+            : parent(pparent), state(std::move(pstate))
         {
-            state = parent->g(*state);
-            return *this;
-        }
-        iterator operator++(int)
-        {
-            auto tmp = *this;
-            ++(*this);
-            return tmp;
         }
 
-        bool operator==(const iterator& other) const
+
+        reference operator*() const { return parent->f(*state); }
+
+        template <class U>
+        static void increment(U& x)
         {
-            return parent == other.parent and state == other.state;
+            x.state = x.parent->g(*x.state);
         }
-        bool operator!=(const iterator& other) const { return !(*this == other); }
+
+        template <class U, class V>
+        static auto equal(const U& x, const V& y)
+        {
+            return x.parent == y.parent and x.state == y.state;
+        }
 
         const unfold_range* parent = nullptr;
         std::optional<State> state = std::nullopt;

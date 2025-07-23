@@ -34,7 +34,6 @@ struct unfold_range : iterator_operators<unfold_range<State, F, G>>
         {
         }
 
-
         reference operator*() const { return parent->f(*state); }
 
         template <class U>

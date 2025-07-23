@@ -23,6 +23,7 @@
  *
  */
 #include <migraphx/fuse_attention.hpp>
+#include <migraphx/instruction.hpp>
 #include <migraphx/pass_manager.hpp>
 #include <migraphx/matcher.hpp>
 #include <migraphx/match/softmax.hpp>
@@ -82,39 +83,16 @@ struct find_attention
     }
 
     std::vector<instruction_ref>
-    get_attn_instructions(module& m, instruction_ref start, instruction_ref end) const
+    get_attn_instructions(module& m, instruction_ref gemm1, instruction_ref gemm2) const
     {
-        std::queue<instruction_ref> inputs;
-        std::unordered_set<instruction_ref> inss;
-        inputs.push(end);
+        auto attn_inss = find_instructions_between(gemm1, gemm2, &m);
 
-        static const std::unordered_set<std::string> valid_attn_ops = {
-            "reshape", "reduce_sum", "reduce_max", "broadcast", "multibroadcast", "@literal"};
-
-        auto is_valid_attn_op = [&](auto i) {
-            return i->get_operator().attributes().get("pointwise", false) or
-                   contains(valid_attn_ops, i->get_operator().name()) or i == start or i == end;
-        };
-
-        while(not inputs.empty())
-        {
-            auto current_inp = inputs.front();
-            inputs.pop();
-
-            if(is_valid_attn_op(current_inp) and inss.insert(current_inp).second and
-               current_inp != start)
-            {
-                for(auto i : current_inp->inputs())
-                {
-                    inputs.push(i);
-                }
-            }
-        }
-        std::vector<instruction_ref> sorted_inss(inss.begin(), inss.end());
+        std::vector<instruction_ref> sorted_inss(attn_inss.begin(), attn_inss.end());
         std::sort(
             sorted_inss.begin(), sorted_inss.end(), [&](instruction_ref x, instruction_ref y) {
                 return std::distance(m.begin(), x) < std::distance(m.begin(), y);
             });
+
         return sorted_inss;
     }
 

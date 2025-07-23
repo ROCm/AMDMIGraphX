@@ -21,28 +21,29 @@
  * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
  * THE SOFTWARE.
  */
-#include <migraphx/migraphx.h>
-#include <migraphx/migraphx.hpp>
-#include "test.hpp"
 
-TEST_CASE(shape_assign)
+#include <migraphx/register_target.hpp>
+#include <migraphx/verify.hpp>
+#include <onnx_test.hpp>
+
+TEST_CASE(resize_downsample_linear_half_test)
 {
-    auto s1_cpp = migraphx::shape{migraphx_shape_float_type, {1, 3}};
-    std::vector<size_t> lens{2, 3};
+    using migraphx::half;
+    migraphx::program p = read_onnx("resize_downsample_linear_half_test.onnx");
+    p.compile(migraphx::make_target("ref"));
 
-    // handle ptr is const, workaround to construct shape using C API
-    migraphx_shape_t s2;
-    migraphx_shape_create(&s2, migraphx_shape_float_type, lens.data(), lens.size());
-    auto s2_cpp = migraphx::shape(s2, migraphx::own{});
-    CHECK(s1_cpp != s2_cpp);
-    // use C++ API for assignment
-    s1_cpp.assign_to_handle(s2);
-    CHECK(s1_cpp == s2_cpp);
+    migraphx::shape sx{migraphx::shape::half_type, {1, 1, 2, 4}};
+    std::vector<half> dx = {half{1}, half{2}, half{3}, half{4}, half{5}, half{6}, half{7}, half{8}};
 
-    auto s3_cpp = migraphx::shape{migraphx_shape_float_type, lens};
-    // use C API for assignment
-    migraphx_shape_assign_to(s2, s3_cpp.get_handle_ptr());
-    CHECK(s2_cpp == s3_cpp);
+    migraphx::parameter_map pp;
+    pp["X"] = migraphx::argument(sx, dx.data());
+
+    auto result = p.eval(pp).back();
+    std::vector<half> result_vector;
+    result.visit([&](auto output) { result_vector.assign(output.begin(), output.end()); });
+
+    // Expected output was calculated without any quantization
+    std::vector<half> gold = {half{2.8333333}, half{4.833333}};
+
+    EXPECT(migraphx::verify::verify_rms_range(result_vector, gold));
 }
-
-int main(int argc, const char* argv[]) { test::run(argc, argv); }

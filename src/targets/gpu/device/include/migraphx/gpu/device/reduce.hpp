@@ -144,8 +144,8 @@ __device__ inline void dpp_reduce(float& x, sum)
                      "v_add_f32 %0 %0 %0 row_shr:4 bank_mask:0xe\n"
                      "s_nop 1\n"
                      "v_add_f32 %0 %0 %0 row_shr:8 bank_mask:0xc\n"
-                     "s_nop 1\n"
 #if MIGRAPHX_WAVEFRONT_SIZE == 64
+                     "s_nop 1\n"
                      "v_add_f32 %0 %0 %0 row_bcast:15 row_mask:0xa\n"
                      "s_nop 1\n"
                      "v_add_f32 %0 %0 %0 row_bcast:31 row_mask:0xc\n"

@@ -1041,11 +1041,12 @@ inline auto has_attribute(const std::string& name)
         [=](instruction_ref ins) { return ins->get_operator().attributes().contains(name); });
 }
 
-inline auto has_op_value(const std::string& name, const std::string& value)
+template <class T>
+inline auto has_op_value(const std::string& name, const T& value)
 {
     return make_basic_pred_matcher([=](instruction_ref ins) {
         auto op_val = ins->get_operator().to_value();
-        return op_val.contains(name) and op_val[name].to<std::string>() == value;
+        return op_val.contains(name) and op_val[name].to<value::literal_to_string<T>>() == value;
     });
 }
 

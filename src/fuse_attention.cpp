@@ -23,6 +23,7 @@
  *
  */
 #include <migraphx/fuse_attention.hpp>
+#include <migraphx/instruction.hpp>
 #include <migraphx/pass_manager.hpp>
 #include <migraphx/matcher.hpp>
 #include <migraphx/match/softmax.hpp>
@@ -64,8 +65,7 @@ struct find_attention
     auto matcher() const
     {
         auto gemm1 = match::any_of[pointwise_inputs()](match::name("dot").bind("dot1"));
-        return match::name("dot")(match::arg(0)(
-            match::skip(match::name("convert"))(match::softmax_input(gemm1).bind("div"))));
+        return match::name("dot")(match::arg(0)(match::softmax_input(gemm1)));
     }
 
     std::string get_count() const { return std::to_string((*counter)++); }
@@ -82,36 +82,18 @@ struct find_attention
         return inverse_map;
     }
 
-    std::unordered_set<instruction_ref> get_attn_instructions(instruction_ref start,
-                                                              instruction_ref end) const
+    std::vector<instruction_ref>
+    get_attn_instructions(module& m, instruction_ref gemm1, instruction_ref gemm2) const
     {
-        std::queue<instruction_ref> inputs;
-        std::unordered_set<instruction_ref> inss;
-        inputs.push(end);
+        auto attn_inss = find_instructions_between(gemm1, gemm2, &m);
 
-        static const std::unordered_set<std::string> valid_attn_ops = {
-            "reshape", "reduce_sum", "reduce_max", "broadcast", "multibroadcast", "@literal"};
+        std::vector<instruction_ref> sorted_inss(attn_inss.begin(), attn_inss.end());
+        std::sort(
+            sorted_inss.begin(), sorted_inss.end(), [&](instruction_ref x, instruction_ref y) {
+                return std::distance(m.begin(), x) < std::distance(m.begin(), y);
+            });
 
-        auto is_valid_attn_op = [&](auto i) {
-            return i->get_operator().attributes().get("pointwise", false) or
-                   contains(valid_attn_ops, i->get_operator().name()) or i == start or i == end;
-        };
-
-        while(not inputs.empty())
-        {
-            auto current_inp = inputs.front();
-            inputs.pop();
-
-            if(is_valid_attn_op(current_inp) and inss.insert(current_inp).second and
-               current_inp != start)
-            {
-                for(auto i : current_inp->inputs())
-                {
-                    inputs.push(i);
-                }
-            }
-        }
-        return inss;
+        return sorted_inss;
     }
 
     static bool has_lse_out(std::vector<instruction_ref>& group_outs)
@@ -159,24 +141,15 @@ struct find_attention
         auto gemm1 = r.instructions["dot1"];
 
         // Capture all instructions part of the attention op
-        auto attn_inss = get_attn_instructions(gemm1, gemm2);
-
-        // Transform unordered set to sorted vector to preserve original order
-        std::vector<instruction_ref> attn_ins_vec;
-        attn_ins_vec.assign(attn_inss.begin(), attn_inss.end());
-        std::sort(
-            attn_ins_vec.begin(), attn_ins_vec.end(), [&](instruction_ref x, instruction_ref y) {
-                return std::distance(mpm.get_module().begin(), x) <
-                       std::distance(mpm.get_module().begin(), y);
-            });
+        auto attn_inss = get_attn_instructions(mpm.get_module(), gemm1, gemm2);
 
         // Add captured instructions to new submodule
         module m_attn;
         std::unordered_map<instruction_ref, instruction_ref> map_mm_to_mattn;
-        m_attn.fuse(attn_ins_vec, &map_mm_to_mattn);
+        m_attn.fuse(attn_inss, &map_mm_to_mattn);
 
         // Define outputs based on instructions that are used elsewhere in the graph
-        auto required_outputs = find_outputs(attn_ins_vec);
+        auto required_outputs = find_outputs(attn_inss);
 
         assert(not required_outputs.empty());
 
@@ -187,8 +160,8 @@ struct find_attention
             m_attn.fuse(lse_inss, &map_mm_to_mattn);
 
             // Recompute required outputs after adding lse instructions
-            attn_ins_vec.insert(attn_ins_vec.end(), lse_inss.begin(), lse_inss.end());
-            required_outputs = find_outputs(attn_ins_vec);
+            attn_inss.insert(attn_inss.end(), lse_inss.begin(), lse_inss.end());
+            required_outputs = find_outputs(attn_inss);
 
             // Final outputs should be the second gemm and add instruction
             // (shift lse to adjust for subtracting max during stable softmax computation)

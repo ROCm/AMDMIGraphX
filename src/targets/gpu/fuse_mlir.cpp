@@ -1224,6 +1224,9 @@ void fuse_mlir::apply(module_pass_manager& mpm) const
         mpm.run_pass(dead_code_elimination{});
     }
 
+    match::find_matches(mpm, find_mlir_attention_op{mlir_mode::all});
+    mpm.run_pass(dead_code_elimination{});
+
     match::find_matches(
         mpm,
         find_mlir_fused_ops{.conv_mode = get_mode("fused_convolution", mlir_mode::fast),

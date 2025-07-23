@@ -61,6 +61,7 @@
 #include <migraphx/netron_output.hpp>
 
 #include <fstream>
+#include <iomanip>
 
 namespace {
 std::vector<std::string>
@@ -80,6 +81,15 @@ get_unrecognized_migraphx_envs(const char* envp[],
             unused_migx_env.push_back(e);
     }
     return unused_migx_env;
+}
+
+std::string get_formatted_timestamp(std::chrono::time_point<std::chrono::system_clock> time)
+{
+    auto now_in_time_t   = std::chrono::system_clock::to_time_t(time);
+    auto* now_as_tm_date = std::localtime(&now_in_time_t);
+    std::stringstream ss;
+    ss << std::put_time(now_as_tm_date, "%Y-%m-%d %H:%M:%S");
+    return ss.str();
 }
 } // namespace
 
@@ -456,10 +466,39 @@ struct program_params
 {
     std::vector<std::string> fill0{};
     std::vector<std::string> fill1{};
+    std::vector<std::string> load_args_info;
     void parse(argument_parser& ap)
     {
         ap(fill0, {"--fill0"}, ap.help("Fill parameter with 0s"), ap.append(), ap.nargs(2));
         ap(fill1, {"--fill1"}, ap.help("Fill parameter with 1s"), ap.append(), ap.nargs(2));
+        ap(load_args_info,
+           {"--load-arg"},
+           ap.help("Load arguments for the model (format: \"@name filename\")"),
+           ap.append(),
+           ap.nargs(2));
+    }
+
+    static auto
+    parse_load_args(const std::vector<std::string>& load_args_info, const target& t, bool offload)
+    {
+        parameter_map map_load_args;
+        std::string name = "";
+        for(auto&& x : load_args_info)
+        {
+            if(x[0] == '@')
+            {
+                name = x.substr(1);
+            }
+            else
+            {
+                argument arg = migraphx::load_argument(x);
+                if(not offload)
+                    arg = t.copy_to(arg);
+                map_load_args[name] = arg;
+            }
+        }
+
+        return map_load_args;
     }
 
     auto generate(const program& p, const target& t, bool offload, unsigned batch)
@@ -477,6 +516,11 @@ struct program_params
         for(auto&& s : fill1)
             m[s] = fill_argument(static_param_shapes.at(s), 1);
         fill_param_map(m, static_param_shapes, t, offload);
+        auto load_arg_map = program_params::parse_load_args(load_args_info, t, offload);
+        for(auto&& arg : load_arg_map)
+        {
+            m[arg.first] = arg.second;
+        }
         return m;
     }
 };
@@ -581,29 +625,43 @@ struct compiler
                 }
             }
 
+            std::cout << "The program is already compiled, skipping compilation ..." << std::endl;
+            if(to_fp16 or to_bf16 or to_int8 or to_fp8 or to_int4)
+            {
+                std::cerr
+                    << "[WARNING]: Quantization options are ignored as the program is already "
+                       "compiled."
+                    << std::endl;
+            }
             return p;
         }
         auto t = ct.get_target();
         if(to_fp16)
         {
+            std::cout << "Quantizing to fp16 ... " << std::endl;
             quantize_fp16(p);
         }
         if(to_bf16)
         {
+            std::cout << "Quantizing to bf16 ... " << std::endl;
             quantize_bf16(p);
         }
         if(to_int8)
         {
+            std::cout << "Quantizing to int8 ... " << std::endl;
             quantize_int8(p, t, {host_params(p)});
         }
         if(to_fp8)
         {
+            std::cout << "Quantizing to fp8 ... " << std::endl;
             quantize_fp8(p, t, {host_params(p)});
         }
         if(to_int4)
         {
+            std::cout << "Quantizing weights to int4 ... " << std::endl;
             quantize_int4_weights(p);
         }
+        std::cout << "Compiling ... " << std::endl;
         p.compile(t, co);
         l.save(p);
         return p;
@@ -715,11 +773,7 @@ struct compile : command<compile>
     compiler c;
     void parse(argument_parser& ap) { c.parse(ap); }
 
-    void run()
-    {
-        std::cout << "Compiling ... " << std::endl;
-        c.compile();
-    }
+    void run() { c.compile(); }
 };
 
 struct run_cmd : command<run_cmd>
@@ -729,7 +783,6 @@ struct run_cmd : command<run_cmd>
 
     void run()
     {
-        std::cout << "Compiling ... " << std::endl;
         auto p = c.compile();
         std::cout << "Allocating params ... " << std::endl;
         auto m = c.params(p);
@@ -750,7 +803,6 @@ struct time_cmd : command<time_cmd>
 
     void run()
     {
-        std::cout << "Compiling ... " << std::endl;
         auto p = c.compile();
         std::cout << "Allocating params ... " << std::endl;
         auto m = c.params(p);
@@ -777,7 +829,6 @@ struct perf : command<perf>
 
     void run()
     {
-        std::cout << "Compiling ... " << std::endl;
         auto p = c.compile();
         std::cout << "Allocating params ... " << std::endl;
         auto m = c.params(p);
@@ -793,7 +844,6 @@ struct roctx : command<roctx>
 
     void run()
     {
-        std::cout << "Compiling ... " << std::endl;
         auto p = c.compile();
         std::cout << "Allocating params ... " << std::endl;
         auto m = c.params(p);
@@ -966,6 +1016,10 @@ int main(int argc, const char* argv[], const char* envp[])
             std::string(argv[0]) + " " + migraphx::to_string_range(args, " ");
         std::cout << "Running [ " << get_version() << " ]: " << driver_invocation << std::endl;
 
+        // Print start timestamp
+        auto start_time = std::chrono::system_clock::now();
+        std::cout << "[" << get_formatted_timestamp(start_time) << "]" << std::endl;
+
         m.at(cmd)(argv[0],
                   {args.begin() + 1, args.end()}); // run driver command found in commands map
 
@@ -978,7 +1032,15 @@ int main(int argc, const char* argv[], const char* envp[])
         for(auto&& e : unused_envs)
             std::cout << "Unused environment variable: " << e << "\n";
 
-        std::cout << "[ " << get_version() << " ] Complete: " << driver_invocation << std::endl;
+        // Print end timestamp
+        auto end_time = std::chrono::system_clock::now();
+        std::cout << "[" << get_formatted_timestamp(end_time) << "]" << std::endl;
+
+        // Print total duration
+        auto duration =
+            std::chrono::duration_cast<std::chrono::duration<double>>(end_time - start_time);
+        std::cout << "[ " << get_version() << " ] Complete(" << duration.count()
+                  << "s): " << driver_invocation << std::endl;
     }
     else
     {

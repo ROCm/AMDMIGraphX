@@ -36,7 +36,7 @@ MIGRAPHX_PRED_MATCHER(throws, migraphx::instruction_ref) { MIGRAPHX_THROW("Match
     auto l = mm.add_literal(1);
     auto m = match::standard_shape();
     auto r = find_match(mm, m);
-    EXPECT(bool{r.result == l});
+    EXPECT(r.result == l);
 }
 
 TEST_CASE(match_name1)
@@ -48,7 +48,7 @@ TEST_CASE(match_name1)
     mm.add_instruction(pass_op{}, sum);
     auto m = match::name("sum");
     auto r = find_match(mm, m);
-    EXPECT(bool{r.result == sum});
+    EXPECT(r.result == sum);
 }
 
 TEST_CASE(match_name2)
@@ -60,7 +60,7 @@ TEST_CASE(match_name2)
     mm.add_instruction(pass_op{}, sum);
     auto m = match::name("min");
     auto r = find_match(mm, m);
-    EXPECT(bool{r.result == mm.end()});
+    EXPECT(r.result == mm.end());
 }
 
 TEST_CASE(match_name3)
@@ -72,7 +72,7 @@ TEST_CASE(match_name3)
     mm.add_instruction(pass_op{}, sum);
     auto m = match::name("sum")(match::standard_shape());
     auto r = find_match(mm, m);
-    EXPECT(bool{r.result == sum});
+    EXPECT(r.result == sum);
 }
 
 TEST_CASE(match_arg1)
@@ -84,7 +84,7 @@ TEST_CASE(match_arg1)
     mm.add_instruction(pass_op{}, sum);
     auto m = match::name("sum")(match::arg(0)(match::name("@literal")), match::standard_shape());
     auto r = find_match(mm, m);
-    EXPECT(bool{r.result == sum});
+    EXPECT(r.result == sum);
 }
 
 TEST_CASE(match_arg2)
@@ -96,7 +96,7 @@ TEST_CASE(match_arg2)
     mm.add_instruction(pass_op{}, sum);
     auto m = match::name("sum")(match::arg(0)(match::name("sum")), match::standard_shape());
     auto r = find_match(mm, m);
-    EXPECT(bool{r.result == mm.end()});
+    EXPECT(r.result == mm.end());
 }
 
 TEST_CASE(match_arg3)
@@ -108,7 +108,7 @@ TEST_CASE(match_arg3)
     mm.add_instruction(pass_op{}, sum);
     auto m = match::name("sum")(match::arg(1)(match::name("@literal")), match::standard_shape());
     auto r = find_match(mm, m);
-    EXPECT(bool{r.result == sum});
+    EXPECT(r.result == sum);
 }
 
 TEST_CASE(match_arg4)
@@ -120,7 +120,7 @@ TEST_CASE(match_arg4)
     auto pass = mm.add_instruction(pass_op{}, sum);
     auto m    = match::name("pass")(match::arg(0)(match::name("sum")), match::standard_shape());
     auto r    = find_match(mm, m);
-    EXPECT(bool{r.result == pass});
+    EXPECT(r.result == pass);
 }
 
 TEST_CASE(match_arg5)
@@ -132,7 +132,7 @@ TEST_CASE(match_arg5)
     mm.add_instruction(pass_op{}, sum);
     auto m = match::name("pass")(match::arg(1)(match::name("sum")), match::standard_shape());
     auto r = find_match(mm, m);
-    EXPECT(bool{r.result == mm.end()});
+    EXPECT(r.result == mm.end());
 }
 
 TEST_CASE(match_arg6)
@@ -144,7 +144,7 @@ TEST_CASE(match_arg6)
     mm.add_instruction(pass_op{}, sum);
     auto m = match::name("sum")(match::arg(0)(match::name("@literal")));
     auto r = find_match(mm, m);
-    EXPECT(bool{r.result == sum});
+    EXPECT(r.result == sum);
 }
 
 TEST_CASE(match_arg7)
@@ -157,7 +157,7 @@ TEST_CASE(match_arg7)
     auto m = match::name("sum")(match::arg(0)(match::name("@literal")),
                                 match::arg(1)(match::name("@literal")));
     auto r = find_match(mm, m);
-    EXPECT(bool{r.result == sum});
+    EXPECT(r.result == sum);
 }
 
 TEST_CASE(match_arg8)
@@ -171,7 +171,7 @@ TEST_CASE(match_arg8)
                                               match::arg(1)(match::name("@literal"))),
                                 match::standard_shape());
     auto r = find_match(mm, m);
-    EXPECT(bool{r.result == sum});
+    EXPECT(r.result == sum);
 }
 
 TEST_CASE(match_nargs1)
@@ -183,7 +183,7 @@ TEST_CASE(match_nargs1)
     mm.add_instruction(pass_op{}, sum);
     auto m = match::name("sum")(match::nargs(2));
     auto r = find_match(mm, m);
-    EXPECT(bool{r.result == sum});
+    EXPECT(r.result == sum);
 }
 
 TEST_CASE(match_nargs2)
@@ -195,7 +195,7 @@ TEST_CASE(match_nargs2)
     mm.add_instruction(pass_op{}, sum);
     auto m = match::name("sum")(match::nargs(2), match::standard_shape());
     auto r = find_match(mm, m);
-    EXPECT(bool{r.result == sum});
+    EXPECT(r.result == sum);
 }
 
 TEST_CASE(match_nargs3)
@@ -207,7 +207,7 @@ TEST_CASE(match_nargs3)
     mm.add_instruction(pass_op{}, sum);
     auto m = match::name("sum")(match::all_of(match::nargs(2)));
     auto r = find_match(mm, m);
-    EXPECT(bool{r.result == sum});
+    EXPECT(r.result == sum);
 }
 
 TEST_CASE(match_args1)
@@ -220,7 +220,7 @@ TEST_CASE(match_args1)
     auto m = match::name("sum")(match::args(match::name("@literal"), match::name("@literal")),
                                 match::standard_shape());
     auto r = find_match(mm, m);
-    EXPECT(bool{r.result == sum});
+    EXPECT(r.result == sum);
 }
 
 TEST_CASE(match_args2)
@@ -233,7 +233,7 @@ TEST_CASE(match_args2)
     auto m = match::name("sum")(match::args(match::name("@literal"), match::name("sum")),
                                 match::standard_shape());
     auto r = find_match(mm, m);
-    EXPECT(bool{r.result == mm.end()});
+    EXPECT(r.result == mm.end());
 }
 
 TEST_CASE(match_args3)
@@ -245,7 +245,7 @@ TEST_CASE(match_args3)
     mm.add_instruction(pass_op{}, sum);
     auto m = match::name("sum")(match::args(match::name("@literal")), match::standard_shape());
     auto r = find_match(mm, m);
-    EXPECT(bool{r.result == mm.end()});
+    EXPECT(r.result == mm.end());
 }
 
 TEST_CASE(match_args4)
@@ -259,7 +259,7 @@ TEST_CASE(match_args4)
     auto m = match::name("sum")(match::args(match::name("sum"), match::name("@literal")),
                                 match::standard_shape());
     auto r = find_match(mm, m);
-    EXPECT(bool{r.result == sum2});
+    EXPECT(r.result == sum2);
 }
 
 TEST_CASE(match_args5)
@@ -272,7 +272,7 @@ TEST_CASE(match_args5)
     auto m = match::name("sum")(match::args(match::name("sum"), match::name("@literal")),
                                 match::standard_shape());
     auto r = find_match(mm, m);
-    EXPECT(bool{r.result == mm.end()});
+    EXPECT(r.result == mm.end());
 }
 
 TEST_CASE(match_args6)
@@ -284,7 +284,7 @@ TEST_CASE(match_args6)
     auto pass = mm.add_instruction(pass_op{}, sum);
     auto m    = match::name("pass")(match::args(match::name("sum")), match::standard_shape());
     auto r    = find_match(mm, m);
-    EXPECT(bool{r.result == pass});
+    EXPECT(r.result == pass);
 }
 
 TEST_CASE(match_args7)
@@ -298,7 +298,7 @@ TEST_CASE(match_args7)
                                      match::name("@literal"), match::name("@literal")))),
                                  match::standard_shape());
     auto r    = find_match(mm, m);
-    EXPECT(bool{r.result == pass});
+    EXPECT(r.result == pass);
 }
 
 TEST_CASE(match_either_args1)
@@ -312,7 +312,7 @@ TEST_CASE(match_either_args1)
     auto m =
         match::name("sum")(match::either_arg(0, 1)(match::name("sum"), match::name("@literal")));
     auto r = find_match(mm, m);
-    EXPECT(bool{r.result == sum2});
+    EXPECT(r.result == sum2);
 }
 
 TEST_CASE(match_either_args2)
@@ -326,7 +326,7 @@ TEST_CASE(match_either_args2)
     auto m =
         match::name("sum")(match::either_arg(0, 1)(match::name("@literal"), match::name("sum")));
     auto r = find_match(mm, m);
-    EXPECT(bool{r.result == sum2});
+    EXPECT(r.result == sum2);
 }
 
 TEST_CASE(match_either_args3)
@@ -340,7 +340,7 @@ TEST_CASE(match_either_args3)
     auto m =
         match::name("sum")(match::either_arg(0, 1)(match::name("pass"), match::name("@literal")));
     auto r = find_match(mm, m);
-    EXPECT(bool{r.result == mm.end()});
+    EXPECT(r.result == mm.end());
 }
 
 TEST_CASE(match_either_args_any1)
@@ -354,8 +354,8 @@ TEST_CASE(match_either_args_any1)
     auto m =
         match::name("sum")(match::either_arg(0, 1)(match::any().bind("x"), match::any().bind("y")));
     auto r = find_match(mm, m);
-    EXPECT(bool{r.result == sum1});
-    EXPECT(bool{r.instructions["x"] != r.instructions["y"]});
+    EXPECT(r.result == sum1);
+    EXPECT(r.instructions["x"] != r.instructions["y"]);
 }
 
 TEST_CASE(match_either_args_any2)
@@ -369,8 +369,8 @@ TEST_CASE(match_either_args_any2)
     auto m = match::name("sum")(
         match::either_arg(0, 1)(match::any().bind("x"), match::name("@literal").bind("y")));
     auto r = find_match(mm, m);
-    EXPECT(bool{r.result == sum1});
-    EXPECT(bool{r.instructions["x"] != r.instructions["y"]});
+    EXPECT(r.result == sum1);
+    EXPECT(r.instructions["x"] != r.instructions["y"]);
 }
 
 TEST_CASE(match_either_args_any3)
@@ -384,8 +384,8 @@ TEST_CASE(match_either_args_any3)
     auto m = match::name("sum")(
         match::either_arg(0, 1)(match::name("@literal").bind("x"), match::any().bind("y")));
     auto r = find_match(mm, m);
-    EXPECT(bool{r.result == sum1});
-    EXPECT(bool{r.instructions["x"] != r.instructions["y"]});
+    EXPECT(r.result == sum1);
+    EXPECT(r.instructions["x"] != r.instructions["y"]);
 }
 
 TEST_CASE(match_either_args_any4)
@@ -399,8 +399,8 @@ TEST_CASE(match_either_args_any4)
     auto m = match::name("sum")(
         match::either_arg(0, 1)(match::name("sum").bind("x"), match::any().bind("y")));
     auto r = find_match(mm, m);
-    EXPECT(bool{r.result == sum2});
-    EXPECT(bool{r.instructions["x"] != r.instructions["y"]});
+    EXPECT(r.result == sum2);
+    EXPECT(r.instructions["x"] != r.instructions["y"]);
 }
 
 TEST_CASE(match_either_args_any5)
@@ -414,8 +414,8 @@ TEST_CASE(match_either_args_any5)
     auto m = match::name("sum")(
         match::either_arg(0, 1)(match::any().bind("x"), match::name("sum").bind("y")));
     auto r = find_match(mm, m);
-    EXPECT(bool{r.result == sum2});
-    EXPECT(bool{r.instructions["x"] != r.instructions["y"]});
+    EXPECT(r.result == sum2);
+    EXPECT(r.instructions["x"] != r.instructions["y"]);
 }
 
 TEST_CASE(match_all_of1)
@@ -428,7 +428,7 @@ TEST_CASE(match_all_of1)
     auto m = match::name("sum")(match::all_of(match::arg(0)(match::name("@literal")),
                                               match::arg(1)(match::name("@literal"))));
     auto r = find_match(mm, m);
-    EXPECT(bool{r.result == sum});
+    EXPECT(r.result == sum);
 }
 
 TEST_CASE(match_all_of2)
@@ -441,7 +441,7 @@ TEST_CASE(match_all_of2)
     auto m = match::name("sum")(
         match::all_of(match::arg(0)(match::name("sum")), match::arg(1)(match::name("@literal"))));
     auto r = find_match(mm, m);
-    EXPECT(bool{r.result == mm.end()});
+    EXPECT(r.result == mm.end());
 }
 
 TEST_CASE(match_all_of3)
@@ -454,7 +454,7 @@ TEST_CASE(match_all_of3)
     auto m = match::name("sum")(match::all_of(match::all_of(
         match::arg(0)(match::name("@literal")), match::arg(1)(match::name("@literal")))));
     auto r = find_match(mm, m);
-    EXPECT(bool{r.result == sum});
+    EXPECT(r.result == sum);
 }
 
 TEST_CASE(match_lazy_any_of)
@@ -464,7 +464,7 @@ TEST_CASE(match_lazy_any_of)
     mm.add_instruction(pass_op{}, one);
     auto m = match::any_of(match::any(), throws());
     auto r = find_match(mm, m);
-    EXPECT(bool{r.result == one});
+    EXPECT(r.result == one);
 }
 
 TEST_CASE(match_lazy_all_of)
@@ -474,7 +474,7 @@ TEST_CASE(match_lazy_all_of)
     mm.add_instruction(pass_op{}, one);
     auto m = match::all_of(match::none(), throws());
     auto r = find_match(mm, m);
-    EXPECT(bool{r.result == mm.end()});
+    EXPECT(r.result == mm.end());
 }
 
 TEST_CASE(match_lazy_none_of)
@@ -484,7 +484,7 @@ TEST_CASE(match_lazy_none_of)
     mm.add_instruction(pass_op{}, one);
     auto m = match::none_of(match::any(), throws());
     auto r = find_match(mm, m);
-    EXPECT(bool{r.result == mm.end()});
+    EXPECT(r.result == mm.end());
 }
 
 TEST_CASE(match_any_of1)
@@ -497,7 +497,7 @@ TEST_CASE(match_any_of1)
     auto m = match::name("sum")(
         match::any_of(match::arg(0)(match::name("sum")), match::arg(1)(match::name("@literal"))));
     auto r = find_match(mm, m);
-    EXPECT(bool{r.result == sum});
+    EXPECT(r.result == sum);
 }
 
 TEST_CASE(match_any_of2)
@@ -510,7 +510,7 @@ TEST_CASE(match_any_of2)
     auto m = match::name("sum")(
         match::any_of(match::arg(0)(match::name("sum")), match::arg(1)(match::name("sum"))));
     auto r = find_match(mm, m);
-    EXPECT(bool{r.result == mm.end()});
+    EXPECT(r.result == mm.end());
 }
 
 TEST_CASE(match_any_of_lazy1)
@@ -524,9 +524,9 @@ TEST_CASE(match_any_of_lazy1)
         match::any_of(match::args(match::any(), match::any()).bind("x"),
                       match::args(match::name("sum"), match::name("sum")).bind("y")));
     auto r = find_match(mm, m);
-    EXPECT(bool{r.result == sum});
+    EXPECT(r.result == sum);
     EXPECT(migraphx::contains(r.instructions, "x"));
-    EXPECT(bool{r.instructions["x"] == sum});
+    EXPECT(r.instructions["x"] == sum);
     EXPECT(not migraphx::contains(r.instructions, "y"));
 }
 
@@ -541,9 +541,9 @@ TEST_CASE(match_any_of_lazy2)
         match::any_of(match::args(match::name("@literal"), match::name("@literal")).bind("x"),
                       match::args(match::any(), match::any()).bind("y")));
     auto r = find_match(mm, m);
-    EXPECT(bool{r.result == sum});
+    EXPECT(r.result == sum);
     EXPECT(migraphx::contains(r.instructions, "x"));
-    EXPECT(bool{r.instructions["x"] == sum});
+    EXPECT(r.instructions["x"] == sum);
     EXPECT(not migraphx::contains(r.instructions, "y"));
 }
 
@@ -558,9 +558,9 @@ TEST_CASE(match_any_of_lazy3)
         match::any_of(match::args(match::any(), match::any()).bind("x"),
                       match::args(match::name("@literal"), match::name("@literal")).bind("y")));
     auto r = find_match(mm, m);
-    EXPECT(bool{r.result == sum});
+    EXPECT(r.result == sum);
     EXPECT(migraphx::contains(r.instructions, "x"));
-    EXPECT(bool{r.instructions["x"] == sum});
+    EXPECT(r.instructions["x"] == sum);
     EXPECT(not migraphx::contains(r.instructions, "y"));
 }
 
@@ -575,11 +575,11 @@ TEST_CASE(match_any_of_lazy4)
         match::args(match::name("@literal").bind("x1"), match::name("@literal").bind("y1")),
         match::args(match::any().bind("x2"), match::any().bind("y2"))));
     auto r = find_match(mm, m);
-    EXPECT(bool{r.result == sum});
+    EXPECT(r.result == sum);
     EXPECT(migraphx::contains(r.instructions, "x1"));
     EXPECT(migraphx::contains(r.instructions, "y1"));
-    EXPECT(bool{r.instructions["x1"] == one});
-    EXPECT(bool{r.instructions["y1"] == two});
+    EXPECT(r.instructions["x1"] == one);
+    EXPECT(r.instructions["y1"] == two);
     EXPECT(not migraphx::contains(r.instructions, "x2"));
     EXPECT(not migraphx::contains(r.instructions, "y2"));
 }
@@ -595,11 +595,11 @@ TEST_CASE(match_any_of_lazy5)
         match::args(match::any().bind("x1"), match::any().bind("y1")),
         match::args(match::name("@literal").bind("x2"), match::name("@literal").bind("y2"))));
     auto r = find_match(mm, m);
-    EXPECT(bool{r.result == sum});
+    EXPECT(r.result == sum);
     EXPECT(migraphx::contains(r.instructions, "x1"));
     EXPECT(migraphx::contains(r.instructions, "y1"));
-    EXPECT(bool{r.instructions["x1"] == one});
-    EXPECT(bool{r.instructions["y1"] == two});
+    EXPECT(r.instructions["x1"] == one);
+    EXPECT(r.instructions["y1"] == two);
     EXPECT(not migraphx::contains(r.instructions, "x2"));
     EXPECT(not migraphx::contains(r.instructions, "y2"));
 }
@@ -614,7 +614,7 @@ TEST_CASE(match_none_of1)
     auto m = match::name("sum")(
         match::none_of(match::arg(0)(match::name("sum")), match::arg(1)(match::name("sum"))));
     auto r = find_match(mm, m);
-    EXPECT(bool{r.result == sum});
+    EXPECT(r.result == sum);
 }
 
 TEST_CASE(match_none_of2)
@@ -627,7 +627,7 @@ TEST_CASE(match_none_of2)
     auto m = match::name("sum")(match::none_of(match::arg(0)(match::name("@literal")),
                                                match::arg(1)(match::name("@literal"))));
     auto r = find_match(mm, m);
-    EXPECT(bool{r.result == mm.end()});
+    EXPECT(r.result == mm.end());
 }
 
 TEST_CASE(match_output1)
@@ -640,7 +640,7 @@ TEST_CASE(match_output1)
     mm.add_instruction(pass_op{}, sum);
     auto m = match::name("minus")(match::output(match::name("sum")));
     auto r = find_match(mm, m);
-    EXPECT(bool{r.result == minus});
+    EXPECT(r.result == minus);
 }
 
 TEST_CASE(match_output2)
@@ -653,7 +653,7 @@ TEST_CASE(match_output2)
     mm.add_instruction(pass_op{}, sum);
     auto m = match::name("@literal")(match::output(match::name("sum")));
     auto r = find_match(mm, m);
-    EXPECT(bool{r.result == mm.end()});
+    EXPECT(r.result == mm.end());
 }
 
 TEST_CASE(match_skip_output1)
@@ -666,7 +666,7 @@ TEST_CASE(match_skip_output1)
     mm.add_instruction(pass_op{}, sum);
     auto m = match::name("minus")(match::skip_output(match::name("pass"))(match::name("sum")));
     auto r = find_match(mm, m);
-    EXPECT(bool{r.result == minus});
+    EXPECT(r.result == minus);
 }
 
 TEST_CASE(match_skip_output2)
@@ -680,7 +680,7 @@ TEST_CASE(match_skip_output2)
     mm.add_instruction(pass_op{}, sum);
     auto m = match::name("minus")(match::skip_output(match::name("pass"))(match::name("sum")));
     auto r = find_match(mm, m);
-    EXPECT(bool{r.result == minus});
+    EXPECT(r.result == minus);
 }
 
 TEST_CASE(match_skip_output3)
@@ -696,7 +696,7 @@ TEST_CASE(match_skip_output3)
     mm.add_instruction(pass_op{}, sum);
     auto m = match::name("minus")(match::skip_output(match::name("pass"))(match::name("sum")));
     auto r = find_match(mm, m);
-    EXPECT(bool{r.result == minus});
+    EXPECT(r.result == minus);
 }
 
 TEST_CASE(match_skip_output4)
@@ -709,7 +709,7 @@ TEST_CASE(match_skip_output4)
     mm.add_instruction(pass_op{}, sum);
     auto m = match::name("@literal")(match::skip_output(match::name("pass"))(match::name("sum")));
     auto r = find_match(mm, m);
-    EXPECT(bool{r.result == two});
+    EXPECT(r.result == two);
 }
 
 TEST_CASE(match_skip_output5)
@@ -724,7 +724,7 @@ TEST_CASE(match_skip_output5)
     mm.add_instruction(pass_op{}, sum3);
     auto m = match::name("@literal")(match::skip_output(match::name("pass"))(match::name("sum")));
     auto r = find_match(mm, m);
-    EXPECT(bool{r.result == mm.end()});
+    EXPECT(r.result == mm.end());
 }
 
 TEST_CASE(match_skip_output6)
@@ -739,7 +739,7 @@ TEST_CASE(match_skip_output6)
     mm.add_instruction(pass_op{}, sum3);
     auto m = match::name("minus")(match::skip_output(match::name("pass"))(match::name("sum")));
     auto r = find_match(mm, m);
-    EXPECT(bool{r.result == minus});
+    EXPECT(r.result == minus);
 }
 
 TEST_CASE(match_skip_output7)
@@ -753,7 +753,7 @@ TEST_CASE(match_skip_output7)
     mm.add_instruction(pass_op{}, sum);
     auto m = match::name("minus")(match::skip_output(match::name("pass"))(match::name("minus")));
     auto r = find_match(mm, m);
-    EXPECT(bool{r.result == minus1});
+    EXPECT(r.result == minus1);
 }
 
 TEST_CASE(match_bind1)
@@ -770,11 +770,11 @@ TEST_CASE(match_bind1)
                  match::standard_shape())
                  .bind("pass");
     auto r = find_match(mm, m);
-    EXPECT(bool{r.instructions["one"] == one});
-    EXPECT(bool{r.instructions["two"] == two});
-    EXPECT(bool{r.instructions["sum"] == sum});
-    EXPECT(bool{r.instructions["pass"] == pass});
-    EXPECT(bool{r.result == pass});
+    EXPECT(r.instructions["one"] == one);
+    EXPECT(r.instructions["two"] == two);
+    EXPECT(r.instructions["sum"] == sum);
+    EXPECT(r.instructions["pass"] == pass);
+    EXPECT(r.result == pass);
 }
 
 TEST_CASE(match_bind_modules1)
@@ -798,7 +798,7 @@ TEST_CASE(match_bind_modules1)
     EXPECT(not migraphx::contains(r.instructions, "two"));
     EXPECT(not migraphx::contains(r.instructions, "sum"));
     EXPECT(not migraphx::contains(r.instructions, "pass"));
-    EXPECT(bool{r.result == child->end()});
+    EXPECT(r.result == child->end());
 }
 
 TEST_CASE(match_bind_modules2)
@@ -818,10 +818,10 @@ TEST_CASE(match_bind_modules2)
                  match::standard_shape())
                  .bind("pass");
     auto r = find_match(*child, m);
-    EXPECT(bool{r.instructions["two"] == two});
-    EXPECT(bool{r.instructions["sum"] == sum});
-    EXPECT(bool{r.instructions["pass"] == pass});
-    EXPECT(bool{r.result == pass});
+    EXPECT(r.instructions["two"] == two);
+    EXPECT(r.instructions["sum"] == sum);
+    EXPECT(r.instructions["pass"] == pass);
+    EXPECT(r.result == pass);
 }
 
 // Note that mm.add_literal(1) makes a scalar int32 literal with value 1
@@ -835,7 +835,7 @@ TEST_CASE(match_has_value1)
     mm.add_instruction(pass_op{}, sum2);
     auto m = match::has_value(1);
     auto r = find_match(mm, m);
-    EXPECT(bool{r.result == one});
+    EXPECT(r.result == one);
 }
 
 TEST_CASE(match_has_value2)
@@ -848,7 +848,7 @@ TEST_CASE(match_has_value2)
     mm.add_instruction(pass_op{}, sum2);
     auto m = match::has_value(2);
     auto r = find_match(mm, m);
-    EXPECT(bool{r.result == two});
+    EXPECT(r.result == two);
 }
 
 TEST_CASE(match_has_value3)
@@ -861,7 +861,7 @@ TEST_CASE(match_has_value3)
     mm.add_instruction(pass_op{}, sum2);
     auto m = match::name("sum")(match::args(match::has_value(1), match::has_value(2)));
     auto r = find_match(mm, m);
-    EXPECT(bool{r.result == sum1});
+    EXPECT(r.result == sum1);
 }
 
 TEST_CASE(match_has_value4)
@@ -874,7 +874,7 @@ TEST_CASE(match_has_value4)
     mm.add_instruction(pass_op{}, sum2);
     auto m = match::has_value(3);
     auto r = find_match(mm, m);
-    EXPECT(bool{r.result == mm.end()});
+    EXPECT(r.result == mm.end());
 }
 
 TEST_CASE(match_has_value5)
@@ -887,7 +887,7 @@ TEST_CASE(match_has_value5)
     mm.add_instruction(pass_op{}, sum2);
     auto m = match::name("sum")(match::args(match::has_value(1), match::has_value(3)));
     auto r = find_match(mm, m);
-    EXPECT(bool{r.result == mm.end()});
+    EXPECT(r.result == mm.end());
 }
 
 TEST_CASE(match_has_value6)
@@ -900,7 +900,7 @@ TEST_CASE(match_has_value6)
     mm.add_instruction(pass_op{}, sum2);
     auto m = match::name("sum")(match::args(match::has_value(2), match::has_value(1)));
     auto r = find_match(mm, m);
-    EXPECT(bool{r.result == mm.end()});
+    EXPECT(r.result == mm.end());
 }
 
 TEST_CASE(match_has_value7)
@@ -914,11 +914,11 @@ TEST_CASE(match_has_value7)
     mm.add_instruction(pass_op{}, sum1);
     auto m1 = match::has_value(0.0f, 0, 0);
     auto r1 = find_match(mm, m1);
-    EXPECT(bool{r1.result == mm.end()});
+    EXPECT(r1.result == mm.end());
     // increase tolerance
     auto m2 = match::has_value(0.0f);
     auto r2 = find_match(mm, m2);
-    EXPECT(bool{r2.result == zero});
+    EXPECT(r2.result == zero);
 }
 
 TEST_CASE(match_has_value8)
@@ -932,11 +932,11 @@ TEST_CASE(match_has_value8)
     mm.add_instruction(pass_op{}, sum1);
     auto m1 = match::has_value(0.0f, 0, 0);
     auto r1 = find_match(mm, m1);
-    EXPECT(bool{r1.result == mm.end()});
+    EXPECT(r1.result == mm.end());
     // increase tolerance
     auto m2 = match::has_value(0.0f);
     auto r2 = find_match(mm, m2);
-    EXPECT(bool{r2.result == zero});
+    EXPECT(r2.result == zero);
 }
 
 TEST_CASE(match_has_value9)
@@ -947,19 +947,19 @@ TEST_CASE(match_has_value9)
     mm.add_instruction(pass_op{}, n_five);
     auto m1 = match::has_value(5.0f);
     auto r1 = find_match(mm, m1);
-    EXPECT(bool{r1.result == mm.end()});
+    EXPECT(r1.result == mm.end());
     // increase tolerance
     auto m2 = match::has_value(-5.0f);
     auto r2 = find_match(mm, m2);
-    EXPECT(bool{r2.result == n_five});
+    EXPECT(r2.result == n_five);
     // do exact match
     auto m3 = match::has_value(-5.0f, 0, 0);
     auto r3 = find_match(mm, m3);
-    EXPECT(bool{r3.result == n_five});
+    EXPECT(r3.result == n_five);
     // do exact match
     auto m4 = match::has_value(5.0f, 0, 0);
     auto r4 = find_match(mm, m4);
-    EXPECT(bool{r4.result == mm.end()});
+    EXPECT(r4.result == mm.end());
 }
 TEST_CASE(match_has_value_eps1)
 {
@@ -973,7 +973,7 @@ TEST_CASE(match_has_value_eps1)
     mm.add_return({sum1});
     auto m = match::has_value(7.f, 1, 0);
     auto r = find_match(mm, m);
-    EXPECT(bool{r.result == l0});
+    EXPECT(r.result == l0);
 }
 
 TEST_CASE(match_has_value_eps2)
@@ -988,7 +988,7 @@ TEST_CASE(match_has_value_eps2)
     mm.add_return({sum1});
     auto m = match::has_value(3.f, 10, 10);
     auto r = find_match(mm, m);
-    EXPECT(bool{r.result == l1});
+    EXPECT(r.result == l1);
 }
 
 TEST_CASE(match_has_value_eps3)
@@ -1004,7 +1004,7 @@ TEST_CASE(match_has_value_eps3)
     auto eps = std::numeric_limits<float>::epsilon();
     auto m   = match::has_value(7.0 + 100 * eps, 10, 10);
     auto r   = find_match(mm, m);
-    EXPECT(bool{r.result == mm.end()});
+    EXPECT(r.result == mm.end());
 }
 
 TEST_CASE(match_tree1)
@@ -1019,7 +1019,7 @@ TEST_CASE(match_tree1)
     auto m = match::tree(
         match::name("sum"), match::has_value(1), match::has_value(2), match::has_value(3));
     auto r = find_match(mm, m);
-    EXPECT(bool{r.result == sum2});
+    EXPECT(r.result == sum2);
 }
 
 TEST_CASE(match_tree2)
@@ -1034,7 +1034,7 @@ TEST_CASE(match_tree2)
     auto m = match::tree(
         match::name("sum"), match::has_value(2), match::has_value(1), match::has_value(3));
     auto r = find_match(mm, m);
-    EXPECT(bool{r.result == mm.end()});
+    EXPECT(r.result == mm.end());
 }
 
 TEST_CASE(match_tree3)
@@ -1049,7 +1049,7 @@ TEST_CASE(match_tree3)
     auto m = match::tree(
         match::name("sum"), match::has_value(3), match::has_value(1), match::has_value(2));
     auto r = find_match(mm, m);
-    EXPECT(bool{r.result == sum2});
+    EXPECT(r.result == sum2);
 }
 
 TEST_CASE(match_tree4)
@@ -1067,7 +1067,7 @@ TEST_CASE(match_tree4)
                          match::has_value(3),
                          match::has_value(4));
     auto r = find_match(mm, m);
-    EXPECT(bool{r.result == mm.end()});
+    EXPECT(r.result == mm.end());
 }
 
 TEST_CASE(match_tree5)
@@ -1081,7 +1081,7 @@ TEST_CASE(match_tree5)
     mm.add_instruction(pass_op{}, sum2);
     auto m = match::tree(match::name("sum"), match::has_value(2), match::has_value(3));
     auto r = find_match(mm, m);
-    EXPECT(bool{r.result == mm.end()});
+    EXPECT(r.result == mm.end());
 }
 
 TEST_CASE(match_tree6)
@@ -1095,7 +1095,7 @@ TEST_CASE(match_tree6)
     mm.add_instruction(pass_op{}, sum2);
     auto m = match::tree(match::name("sum"), match::has_value(1), match::has_value(3));
     auto r = find_match(mm, m);
-    EXPECT(bool{r.result == mm.end()});
+    EXPECT(r.result == mm.end());
 }
 
 TEST_CASE(match_unordered_tree1)
@@ -1110,7 +1110,7 @@ TEST_CASE(match_unordered_tree1)
     auto m = match::unordered_tree(
         match::name("sum"), match::has_value(3), match::has_value(2), match::has_value(1));
     auto r = find_match(mm, m);
-    EXPECT(bool{r.result == sum2});
+    EXPECT(r.result == sum2);
 }
 
 TEST_CASE(match_unordered_tree2)
@@ -1125,7 +1125,7 @@ TEST_CASE(match_unordered_tree2)
     auto m = match::unordered_tree(
         match::name("sum"), match::has_value(3), match::has_value(2), match::has_value(1));
     auto r = find_match(mm, m);
-    EXPECT(bool{r.result == sum2});
+    EXPECT(r.result == sum2);
 }
 
 TEST_CASE(match_unordered_tree3)
@@ -1140,7 +1140,7 @@ TEST_CASE(match_unordered_tree3)
     auto m = match::unordered_tree(
         match::name("sum"), match::has_value(3), match::has_value(2), match::has_value(1));
     auto r = find_match(mm, m);
-    EXPECT(bool{r.result == sum2});
+    EXPECT(r.result == sum2);
 }
 
 TEST_CASE(match_unordered_tree4)
@@ -1155,7 +1155,7 @@ TEST_CASE(match_unordered_tree4)
     auto m = match::unordered_tree(
         match::name("sum"), match::has_value(4), match::has_value(2), match::has_value(1));
     auto r = find_match(mm, m);
-    EXPECT(bool{r.result == mm.end()});
+    EXPECT(r.result == mm.end());
 }
 
 struct match_find_sum
@@ -1163,10 +1163,7 @@ struct match_find_sum
     migraphx::instruction_ref ins;
     auto matcher() const { return match::name("sum"); }
 
-    void apply(migraphx::module&, const match::matcher_result& r) const
-    {
-        EXPECT(bool{r.result == ins});
-    }
+    void apply(migraphx::module&, const match::matcher_result& r) const { EXPECT(r.result == ins); }
 };
 
 struct match_find_literal
@@ -1176,7 +1173,7 @@ struct match_find_literal
 
     void apply(migraphx::module&, const match::matcher_result& r) const
     {
-        EXPECT(bool{r.result != ins});
+        EXPECT(r.result != ins);
         EXPECT(r.result->name() == "@literal");
     }
 };

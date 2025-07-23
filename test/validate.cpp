@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2023 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2025 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -35,7 +35,7 @@ TEST_CASE(simple_test)
     auto one = mm->add_literal(1);
     auto two = mm->add_literal(2);
     mm->add_instruction(migraphx::make_op("add"), one, two);
-    EXPECT(bool{mm->validate() == mm->end()});
+    EXPECT(mm->validate() == mm->end());
     auto result = p.eval({});
     EXPECT(result.back() == migraphx::literal{3});
     EXPECT(result.back() != migraphx::literal{4});
@@ -49,7 +49,7 @@ TEST_CASE(out_of_order)
     auto two = mm->add_literal(2);
     auto ins = mm->add_instruction(migraphx::make_op("add"), one, two);
     mm->move_instruction(two, mm->end());
-    EXPECT(bool{p.validate() == ins});
+    EXPECT(p.validate() == ins);
 }
 
 TEST_CASE(incomplete_args)
@@ -60,7 +60,7 @@ TEST_CASE(incomplete_args)
     auto two = mm->add_literal(2);
     auto ins = mm->add_instruction(migraphx::make_op("add"), one, two);
     ins->clear_arguments();
-    EXPECT(bool{p.validate() == ins});
+    EXPECT(p.validate() == ins);
 }
 
 MIGRAPHX_ROB(access_ins_arguments,
@@ -76,7 +76,7 @@ TEST_CASE(invalid_args)
     auto two = mm->add_literal(2);
     auto ins = mm->add_instruction(migraphx::make_op("add"), one, two);
     access_ins_arguments(*ins).clear();
-    EXPECT(bool{mm->validate() == mm->begin()});
+    EXPECT(mm->validate() == mm->begin());
 }
 
 int main(int argc, const char* argv[]) { test::run(argc, argv); }

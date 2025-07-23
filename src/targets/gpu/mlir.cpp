@@ -849,7 +849,8 @@ struct mlir_program
     tuning_config get_tuning_config(bool exhaustive)
     {
         tuning_config tc;
-        tc.mlir_kernel = mlir_print(&mlirOperationPrint, mlirModuleGetOperation(mmodule.get()));
+        tc.detailed_problem_info =
+            mlir_print(&mlirOperationPrint, mlirModuleGetOperation(mmodule.get()));
         run_high_level_pipeline();
         auto tuning_mode =
             exhaustive ? RocmlirTuningParamSetKindFull : RocmlirTuningParamSetKindQuick;

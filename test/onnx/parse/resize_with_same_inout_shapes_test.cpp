@@ -29,7 +29,7 @@ TEST_CASE(resize_with_same_inout_shapes_test)
     migraphx::program p;
     auto* mm = p.get_main_module();
 
-    std::vector<float> ds = {1,3,5};
+    std::vector<float> ds = {1, 3, 5};
     migraphx::shape ss{migraphx::shape::int64_type, {3}};
     mm->add_literal(migraphx::literal{ss, ds});
 

@@ -27,6 +27,8 @@
 #include <migraphx/program.hpp>
 #include <migraphx/register_target.hpp>
 #include <migraphx/verify.hpp>
+#include <migraphx/split_single_dyn_dim.hpp>
+#include <migraphx/dead_code_elimination.hpp>
 
 #include <test.hpp>
 
@@ -210,4 +212,33 @@ TEST_CASE(select_module_not_found_error)
     migraphx::shape input_fixed_shape{migraphx::shape::float_type, {5, 2, 2}};
     params["data"] = migraphx::argument(input_fixed_shape, input_data.data());
     EXPECT(test::throws([&] { std::ignore = p.eval(params).back(); }));
+}
+
+TEST_CASE(select_module_padding_test)
+{
+    migraphx::program p;
+    {
+        auto* mm = p.get_main_module();
+        migraphx::shape s{migraphx::shape::float_type, {{1, 4}, {4, 4}}};
+        auto input1 = mm->add_parameter("data", s);
+        migraphx::shape lit_s{migraphx::shape{migraphx::shape::float_type, {1}}};
+        auto literal_ins = mm->add_literal(migraphx::literal{lit_s, {6}});
+        auto broadcast_lit =
+            mm->add_instruction(migraphx::make_op("multibroadcast"), literal_ins, input1);
+        auto add_ins = mm->add_instruction(migraphx::make_op("add"), input1, broadcast_lit);
+        mm->add_return({add_ins});
+    }
+    migraphx::run_passes(p, {migraphx::split_single_dyn_dim{}, migraphx::dead_code_elimination{}});
+
+    p.compile(migraphx::make_target("ref"));
+    std::vector<float> input_data{-4, 8, -1, 4, -1, 8, 8, -4};
+    std::vector<float> gold{2, 14, 5, 10, 5, 14, 14, 2};
+    migraphx::parameter_map params;
+    migraphx::shape input_fixed_shape{migraphx::shape::float_type, {2, 4}};
+    params["data"] = migraphx::argument(input_fixed_shape, input_data.data());
+    auto result    = p.eval(params).back();
+    std::vector<float> results_vector;
+    result.visit([&](auto output) { results_vector.assign(output.begin(), output.end()); });
+    EXPECT(migraphx::verify::verify_rms_range(results_vector, gold));
+
 }

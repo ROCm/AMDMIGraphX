@@ -34,11 +34,13 @@ namespace op {
 struct select_module
 {
     shape output_dyn_shapes;
+    size_t dynamic_idx=0;
 
     template <class Self, class F>
     static auto reflect(Self& self, F f)
     {
-        return pack(f(self.output_dyn_shapes, "output_dyn_shapes"));
+        return pack(f(self.output_dyn_shapes, "output_dyn_shapes"), 
+                    f(self.dynamic_idx, "dynamic_idx"));
     }
 
     std::string name() const { return "select_module"; }
@@ -80,6 +82,7 @@ struct select_module
                      const std::function<std::vector<argument>(
                          module_ref&, const std::unordered_map<std::string, argument>&)>& run) const
     {
+        size_t orig_batch = args.front().get_shape().lens()[dynamic_idx];
         // Find submodule with input parameter shapes exactly the same as the input instruction
         // arguments. Assuming instruction arguments are in the same order as the instruction
         // parameters.
@@ -92,7 +95,17 @@ struct select_module
                                   in_param_names.cend(),
                                   args.cbegin(),
                                   [&](const auto& p_name, const auto& a) {
-                                      return a.get_shape() == param_shapes[p_name];
+                                      auto a_dims = a.get_shape().lens();
+                                      auto param_dyn_dims = param_shapes[p_name].dyn_dims();
+                                      for(auto i = 0; i < a_dims.size(); i++)
+                                      {
+                                        size_t max_dim = param_dyn_dims[i].max;
+                                        if(a_dims[i] > max_dim)
+                                        {
+                                            return false;
+                                        }
+                                      }
+                                      return true;
                                   });
             });
 
@@ -135,7 +148,18 @@ struct select_module
                            }
                        });
         auto results = run(module_to_run, p_map);
+        // return argument{results};
+        // std::vector<argument> new_results;
+        for(auto& r : results)
+        {
+            shape r_shape = r.get_shape();
+            std::vector<size_t> r_dims = r_shape.lens();
+            r_dims[dynamic_idx] = orig_batch;
+            r = r.reshape(shape{r_shape.type(), r_dims});
+        }
+
         return argument{results};
+
     }
 
     std::ptrdiff_t output_alias(const std::vector<shape>& shapes) const

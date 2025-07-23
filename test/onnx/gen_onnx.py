@@ -12532,6 +12532,26 @@ def resize_roi_skip_test():
     return ([node], [X], [Y], [roi_tensor, scale_tensor])
 
 @onnx_test()
+def resize_with_same_inout_shapes_test():
+    sizes = np.array([1, 3, 5], dtype=np.int64)
+    sizes_tensor = helper.make_tensor(name='sizes',
+                                      data_type=TensorProto.INT64,
+                                      dims=sizes.shape,
+                                      vals=sizes.flatten().astype(np.int64))
+
+    X = helper.make_tensor_value_info('X', TensorProto.FLOAT, [1, 3, 5])
+    Y = helper.make_tensor_value_info('Y', TensorProto.FLOAT, [])
+
+    node = onnx.helper.make_node('Resize',
+                                 inputs=['X', '', '', 'sizes'],
+                                 outputs=['Y'],
+                                 coordinate_transformation_mode='half_pixel',
+                                 mode='linear',
+                                 nearest_mode='floor')
+
+    return ([node], [X], [Y], [sizes_tensor])
+
+@onnx_test()
 def reversesequence_4D_test():
     x = helper.make_tensor_value_info('x', TensorProto.FLOAT, [2, 2, 2, 2])
     y = helper.make_tensor_value_info('y', TensorProto.FLOAT, [2, 2, 2, 2])

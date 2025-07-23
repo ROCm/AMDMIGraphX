@@ -252,7 +252,7 @@ TEST_CASE(iota_iterator_algorithm_compatibility)
     migraphx::iota_iterator end{10};
 
     // Test with std::accumulate
-    int sum = std::accumulate(begin, end, 0);
+    auto sum = std::accumulate(begin, end, std::ptrdiff_t{0});
     EXPECT(sum == 45); // Sum of 0-9 is 45
 
     // Test with std::transform

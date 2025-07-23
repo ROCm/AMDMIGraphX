@@ -875,8 +875,6 @@ struct find_mlir_attention_op
         }
         mlir_attn->add_return(attn_outs);
 
-        mlir_attn->debug_print();
-
         auto map_mlir_attn_to_main = invert_map_ins(map_main_to_mlir_attn);
         auto new_inputs            = mlir_attn->get_inputs(map_mlir_attn_to_main);
 
@@ -1223,9 +1221,6 @@ void fuse_mlir::apply(module_pass_manager& mpm) const
         match::find_matches(mpm, find_mlir_attention_op{});
         mpm.run_pass(dead_code_elimination{});
     }
-
-    match::find_matches(mpm, find_mlir_attention_op{mlir_mode::all});
-    mpm.run_pass(dead_code_elimination{});
 
     match::find_matches(
         mpm,

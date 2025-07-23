@@ -54,7 +54,7 @@ struct instruction_ref : std::list<instruction>::iterator
               class U,
               MIGRAPHX_REQUIRES(std::is_same<T, instruction_ref>{} or
                                 std::is_same<U, instruction_ref>{})>
-    friend bool operator==(const T& x, const U& y)
+    friend auto operator==(const T& x, const U& y) -> decltype(bool(as_address(x) == as_address(y)))
     {
         return as_address(x) == as_address(y);
     }
@@ -63,9 +63,9 @@ struct instruction_ref : std::list<instruction>::iterator
               class U,
               MIGRAPHX_REQUIRES(std::is_same<T, instruction_ref>{} or
                                 std::is_same<U, instruction_ref>{})>
-    friend bool operator!=(const T& x, const U& y)
+    friend auto operator!=(const T& x, const U& y) -> decltype(bool(as_address(x) != as_address(y)))
     {
-        return not(x == y);
+        return as_address(x) != as_address(y);
     }
 };
 #endif

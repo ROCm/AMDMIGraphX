@@ -42,13 +42,14 @@ struct find_softmax
 
     void apply(module& m, const match::matcher_result& r) const
     {
-        auto ins        = r.result;
-        auto op         = ins->get_operator().to_value();
-        auto axis       = op["axis"].to<std::int64_t>();
-        auto input      = ins->inputs().front();
-        auto input_type = input->get_shape().type();
+        auto ins             = r.result;
+        auto op              = ins->get_operator().to_value();
+        auto axis            = op["axis"].to<std::int64_t>();
+        auto input           = ins->inputs().front();
+        auto input_type      = input->get_shape().type();
+        auto requires_upcast = not contains({shape::float_type, shape::double_type}, input_type);
 
-        if(full_precision)
+        if(full_precision and requires_upcast)
         {
             input = m.insert_instruction(
                 ins, make_op("convert", {{"target_type", shape::float_type}}), input);
@@ -64,7 +65,7 @@ struct find_softmax
             ins, make_op("multibroadcast", {{"out_lens", input->get_shape().lens()}}), sum);
         auto div = m.insert_instruction(ins, make_op("div"), exp, sumb);
 
-        if(full_precision)
+        if(full_precision and requires_upcast)
         {
             m.replace_instruction(ins, make_op("convert", {{"target_type", input_type}}), div);
         }

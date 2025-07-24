@@ -7497,15 +7497,24 @@ def make_layer_norm(shape,
                     scale_shape=None,
                     bias_shape=None,
                     stash_type=None,
-                    epsilon=None):
+                    epsilon=None,
+                    scale_type=None,
+                    bias_type=None):
+
+    if scale_type is None:
+        scale_type = dtype
+
+    if bias_type is None:
+        bias_type = dtype
+
     norm_axis = axis + len(shape) if axis < 0 else axis
     x = helper.make_tensor_value_info('x', dtype, shape)
     if scale_shape is None:
         scale_shape = shape[norm_axis:]
     if bias_shape is None:
         bias_shape = shape[norm_axis:]
-    scale = helper.make_tensor_value_info('scale', dtype, scale_shape)
-    bias = helper.make_tensor_value_info('bias', dtype, bias_shape)
+    scale = helper.make_tensor_value_info('scale', scale_type, scale_shape)
+    bias = helper.make_tensor_value_info('bias', bias_type, bias_shape)
     y = helper.make_tensor_value_info('y', dtype, shape)
 
     node = onnx.helper.make_node('LayerNormalization',
@@ -7558,6 +7567,16 @@ def layer_norm_3d_scale_bias_test():
 @onnx_test()
 def layer_norm_3d_invalid_int8_test():
     return make_layer_norm([1, 4, 2], -1, TensorProto.INT8)
+
+
+@onnx_test()
+def layer_norm_3d_invalid_scale_test():
+    return make_layer_norm([1, 4, 2], -1, scale_type=TensorProto.INT8)
+
+
+@onnx_test()
+def layer_norm_3d_invalid_bias_test():
+    return make_layer_norm([1, 4, 2], -1, bias_type=TensorProto.INT8)
 
 
 @onnx_test()

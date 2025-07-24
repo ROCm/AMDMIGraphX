@@ -60,6 +60,10 @@ struct parse_layernorm : op_parser<parse_layernorm>
             MIGRAPHX_THROW("PARSE_LAYERNORM: invalid input count");
         }
 
+        std::set<migraphx::shape::type_t> valid_types = {migraphx::shape::float_type,
+                                                         migraphx::shape::bf16_type,
+                                                         migraphx::shape::half_type};
+
         auto x         = args.at(0);
         auto scale     = args.at(1);
         bool skip_bias = args.size() == 2;
@@ -67,17 +71,21 @@ struct parse_layernorm : op_parser<parse_layernorm>
         if(not skip_bias)
         {
             bias = args.at(2);
+            if (not (contains(valid_types, bias->get_shape().type())))
+            {
+                MIGRAPHX_THROW("PARSE_LAYERNORM: Invalid type for bias");
+            }
         }
 
         auto x_shape   = x->get_shape();
         auto x_dtype   = x_shape.type();
 
+        if(not(contains(valid_types, scale->get_shape().type())))
+        {
+            MIGRAPHX_THROW("PARSE_LAYERNORM: Invalid type for scale");
+        }
 
-        std::set<migraphx::shape::type_t> supported_x_types = {migraphx::shape::float_type,
-                                                               migraphx::shape::bf16_type,
-                                                               migraphx::shape::half_type};
-
-        if(not(contains(supported_x_types, x_dtype)))
+        if(not(contains(valid_types, x_dtype)))
         {
             MIGRAPHX_THROW("PARSE_LAYERNORM: Invalid type for input");
         }

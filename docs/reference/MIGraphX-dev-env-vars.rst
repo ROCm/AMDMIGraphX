@@ -85,7 +85,7 @@ Model performance tunable variables change the compilation behavior of a model. 
     - | ``1``: Disables forcing full precision computation of softmax
       | ``0``: Returns to default behavior.
 
-      | Default: Upcasting to FP32 is turned enabled
+      | Default: Upcasting to FP32 is turned on.
 
   * - | ``MIGRAPHX_MLIR_USE_SPECIFIC_OPS``
       | Specifies the MLIR operations to use regardless of GPU architecture.  

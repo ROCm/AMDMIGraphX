@@ -66,6 +66,7 @@ add_library(migraphx
     fuse_pointwise_reduce.cpp
     fuse_reduce.cpp
     generate.cpp
+    graphviz.cpp
     inline_module.cpp
     insert_pad.cpp
     instruction.cpp

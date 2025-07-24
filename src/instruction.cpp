@@ -610,7 +610,7 @@ bool reaches(instruction_ref start, instruction_ref end)
 // Additional condition that stops if DFS instruction's distance to `end`
 // is greater than the distance between `start` and `end`.
 template <class P>
-bool reaches(instruction_ref start, instruction_ref end, const_module_ref m, P predicate)
+static bool reaches(instruction_ref start, instruction_ref end, const_module_ref m, P predicate)
 {
     if(start == end)
         return true;
@@ -649,8 +649,8 @@ bool is_interdependent(const std::vector<instruction_ref>& instructions,
                        instructions.end(),
                        loc.begin(),
                        [&](instruction_ref ins) { return std::distance(root, ins); });
-        auto min_it = std::min_element(loc.begin(), loc.end());
-        auto start  = instructions[std::distance(loc.begin(), min_it)];
+        auto start = instructions[std::distance(
+            loc.begin(), std::min_element(loc.begin(), loc.begin() + instructions.size()))];
         return all_of(instructions, [&](instruction_ref ins) {
             if(ins == start)
                 return true;
@@ -676,6 +676,31 @@ bool is_interdependent(const std::vector<instruction_ref>& instructions,
         return reaches(
             start, ins, m, [&](instruction_ref i) { return i != ins and contains(loc, i); });
     });
+}
+
+// Return set of all instructions that are connected to both start and end nodes (inclusive)
+std::unordered_set<instruction_ref>
+find_instructions_between(instruction_ref start, instruction_ref end, const_module_ref m)
+{
+    std::queue<instruction_ref> inputs;
+    std::unordered_set<instruction_ref> inss;
+    inputs.push(end);
+
+    while(not inputs.empty())
+    {
+        auto current_inp = inputs.front();
+        inputs.pop();
+
+        if(reaches(start, current_inp, m) and inss.insert(current_inp).second and
+           current_inp != start)
+        {
+            for(auto i : current_inp->inputs())
+            {
+                inputs.push(i);
+            }
+        }
+    }
+    return inss;
 }
 
 } // namespace MIGRAPHX_INLINE_NS

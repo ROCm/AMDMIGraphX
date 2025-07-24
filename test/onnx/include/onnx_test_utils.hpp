@@ -376,6 +376,10 @@ make_layer_norm(const std::vector<int64_t>& input_shape,
     {
         result =
             mm->add_instruction(migraphx::make_op("convert", {{"target_type", dtype}}), result);
+    }
+
+    if(stash_type and dtype == migraphx::shape::bf16_type)
+    {
         mean  = mm->add_instruction(migraphx::make_op("convert", {{"target_type", dtype}}), mean);
         rsqrt = mm->add_instruction(migraphx::make_op("convert", {{"target_type", dtype}}), rsqrt);
     }

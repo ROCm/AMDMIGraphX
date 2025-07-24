@@ -71,6 +71,17 @@ struct parse_layernorm : op_parser<parse_layernorm>
 
         auto x_shape   = x->get_shape();
         auto x_dtype   = x_shape.type();
+
+
+        std::set<migraphx::shape::type_t> supported_x_types = {migraphx::shape::float_type,
+                                                               migraphx::shape::bf16_type,
+                                                               migraphx::shape::half_type};
+
+        if(not(contains(supported_x_types, x_dtype)))
+        {
+            MIGRAPHX_THROW("PARSE_LAYERNORM: Invalid type for input");
+        }
+
         int64_t x_rank = x_shape.ndim();
 
         if(x_rank < 2)
@@ -118,6 +129,10 @@ struct parse_layernorm : op_parser<parse_layernorm>
         if(stash_type and x_dtype != migraphx::shape::float_type)
         {
             result = info.add_instruction(make_op("convert", {{"target_type", x_dtype}}), result);
+        }
+
+        if(stash_type and x_dtype == migraphx::shape::bf16_type)
+        {
             mean   = info.add_instruction(make_op("convert", {{"target_type", x_dtype}}), mean);
             rsqrt  = info.add_instruction(make_op("convert", {{"target_type", x_dtype}}), rsqrt);
         }

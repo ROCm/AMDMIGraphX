@@ -32,6 +32,7 @@
 #include <migraphx/erase.hpp>
 #include <migraphx/config.hpp>
 #include <string>
+#include <unordered_set>
 #include <utility>
 
 namespace migraphx {
@@ -52,6 +53,8 @@ MIGRAPHX_EXPORT bool reaches(instruction_ref start, instruction_ref end, const_m
 MIGRAPHX_EXPORT bool is_interdependent(const std::vector<instruction_ref>& instructions,
                                        const_module_ref m,
                                        instruction_ref root);
+MIGRAPHX_EXPORT std::unordered_set<instruction_ref>
+find_instructions_between(instruction_ref start, instruction_ref end, const_module_ref m);
 
 struct MIGRAPHX_EXPORT instruction
 {
@@ -189,6 +192,7 @@ struct MIGRAPHX_EXPORT instruction
     bool normalized       = false;
     std::size_t target_id = 0;
 };
+
 } // namespace MIGRAPHX_INLINE_NS
 } // namespace migraphx
 

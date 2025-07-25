@@ -378,12 +378,6 @@ make_layer_norm(const std::vector<int64_t>& input_shape,
             mm->add_instruction(migraphx::make_op("convert", {{"target_type", dtype}}), result);
     }
 
-    if(stash_type and dtype == migraphx::shape::bf16_type)
-    {
-        mean  = mm->add_instruction(migraphx::make_op("convert", {{"target_type", dtype}}), mean);
-        rsqrt = mm->add_instruction(migraphx::make_op("convert", {{"target_type", dtype}}), rsqrt);
-    }
-
     migraphx::instruction_ref scale_bcast = scale;
     migraphx::instruction_ref bias_bcast  = bias;
     if(skipped_axis > 0)

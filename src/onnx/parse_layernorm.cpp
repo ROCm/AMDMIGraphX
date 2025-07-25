@@ -138,12 +138,6 @@ struct parse_layernorm : op_parser<parse_layernorm>
             result = info.add_instruction(make_op("convert", {{"target_type", x_dtype}}), result);
         }
 
-        if(stash_type and x_dtype == migraphx::shape::bf16_type)
-        {
-            mean  = info.add_instruction(make_op("convert", {{"target_type", x_dtype}}), mean);
-            rsqrt = info.add_instruction(make_op("convert", {{"target_type", x_dtype}}), rsqrt);
-        }
-
         instruction_ref scale_bcast = scale;
         instruction_ref bias_bcast  = bias;
         if(skipped_axes > 0)

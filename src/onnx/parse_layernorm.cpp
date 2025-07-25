@@ -60,9 +60,8 @@ struct parse_layernorm : op_parser<parse_layernorm>
             MIGRAPHX_THROW("PARSE_LAYERNORM: invalid input count");
         }
 
-        std::set<migraphx::shape::type_t> valid_types = {migraphx::shape::float_type,
-                                                         migraphx::shape::bf16_type,
-                                                         migraphx::shape::half_type};
+        std::set<migraphx::shape::type_t> valid_types = {
+            migraphx::shape::float_type, migraphx::shape::bf16_type, migraphx::shape::half_type};
 
         auto x         = args.at(0);
         auto scale     = args.at(1);
@@ -71,7 +70,7 @@ struct parse_layernorm : op_parser<parse_layernorm>
         if(not skip_bias)
         {
             bias = args.at(2);
-            if (not (contains(valid_types, bias->get_shape().type())))
+            if(not(contains(valid_types, bias->get_shape().type())))
             {
                 MIGRAPHX_THROW("PARSE_LAYERNORM: Invalid type for bias");
             }
@@ -141,8 +140,8 @@ struct parse_layernorm : op_parser<parse_layernorm>
 
         if(stash_type and x_dtype == migraphx::shape::bf16_type)
         {
-            mean   = info.add_instruction(make_op("convert", {{"target_type", x_dtype}}), mean);
-            rsqrt  = info.add_instruction(make_op("convert", {{"target_type", x_dtype}}), rsqrt);
+            mean  = info.add_instruction(make_op("convert", {{"target_type", x_dtype}}), mean);
+            rsqrt = info.add_instruction(make_op("convert", {{"target_type", x_dtype}}), rsqrt);
         }
 
         instruction_ref scale_bcast = scale;

@@ -34,8 +34,7 @@ struct parse_layernorm : op_parser<parse_layernorm>
 {
     std::vector<op_desc> operators() const { return {{"LayerNormalization"}}; }
 
-    static int64_t handle_axis(const onnx_parser& parser,
-                               const onnx_parser::node_info& info)
+    static int64_t handle_axis(const onnx_parser& parser, const onnx_parser::node_info& info)
     {
         int64_t axis = -1;
         if(contains(info.attributes, "axis"))
@@ -45,19 +44,17 @@ struct parse_layernorm : op_parser<parse_layernorm>
         return axis;
     }
 
-    static float handle_epsilon(const onnx_parser& parser,
-                                const onnx_parser::node_info& info)
+    static float handle_epsilon(const onnx_parser& parser, const onnx_parser::node_info& info)
     {
-       float epsilon = 1e-5f;
-       if(contains(info.attributes, "epsilon"))
+        float epsilon = 1e-5f;
+        if(contains(info.attributes, "epsilon"))
         {
             epsilon = parser.parse_value(info.attributes.at("epsilon")).at<float>();
         }
         return epsilon;
     }
 
-    static bool handle_stash_type(const onnx_parser& parser,
-                                  const onnx_parser::node_info& info)
+    static bool handle_stash_type(const onnx_parser& parser, const onnx_parser::node_info& info)
     {
         bool stash_type = true;
         if(contains(info.attributes, "stash_type"))
@@ -67,8 +64,7 @@ struct parse_layernorm : op_parser<parse_layernorm>
         return stash_type;
     }
 
-    static void is_type_valid(const migraphx::shape::type_t& dtype,
-                              const std::string& var_name)
+    static void is_type_valid(const migraphx::shape::type_t& dtype, const std::string& var_name)
     {
         std::set<migraphx::shape::type_t> valid_types = {
             migraphx::shape::float_type, migraphx::shape::bf16_type, migraphx::shape::half_type};
@@ -79,8 +75,7 @@ struct parse_layernorm : op_parser<parse_layernorm>
         }
     }
 
-    static void check_x_input(const instruction_ref& x, 
-                              const int64_t& axis)
+    static void check_x_input(const instruction_ref& x, const int64_t& axis)
     {
         auto x_shape   = x->get_shape();
         auto x_dtype   = x_shape.type();
@@ -100,7 +95,7 @@ struct parse_layernorm : op_parser<parse_layernorm>
         }
     }
 
-    static std::tuple<instruction_ref, instruction_ref, instruction_ref> 
+    static std::tuple<instruction_ref, instruction_ref, instruction_ref>
     stage_one_calculation(const onnx_parser::node_info& info,
                           const instruction_ref& input,
                           const float& epsilon,
@@ -114,8 +109,8 @@ struct parse_layernorm : op_parser<parse_layernorm>
 
         std::vector<int64_t> axes(kdims);
         std::iota(axes.begin(), axes.end(), axis);
-        auto x_shape   = input->get_shape();
-        auto x_dtype   = x_shape.type();
+        auto x_shape = input->get_shape();
+        auto x_dtype = x_shape.type();
 
         auto x = input;
         if(stash_type and x_dtype != migraphx::shape::float_type)
@@ -152,9 +147,9 @@ struct parse_layernorm : op_parser<parse_layernorm>
                                                  const int64_t& kdims,
                                                  bool skip_bias)
     {
-        auto x_shape   = x->get_shape();
-        auto x_rank = x_shape.ndim();
-        auto skipped_axes = x_rank - kdims;
+        auto x_shape                = x->get_shape();
+        auto x_rank                 = x_shape.ndim();
+        auto skipped_axes           = x_rank - kdims;
         instruction_ref scale_bcast = scale;
         instruction_ref bias_bcast  = bias;
         if(skipped_axes > 0)
@@ -180,17 +175,16 @@ struct parse_layernorm : op_parser<parse_layernorm>
     }
 
     std::tuple<instruction_ref, instruction_ref, instruction_ref, bool>
-    handle_inputs(std::vector<instruction_ref>& args,
-                  const int64_t& axis) const
+    handle_inputs(std::vector<instruction_ref>& args, const int64_t& axis) const
     {
         if(args.size() < 2 or args.size() > 3)
         {
             MIGRAPHX_THROW("PARSE_LAYERNORM: invalid input count");
         }
-        auto x         = args.at(0);
+        auto x = args.at(0);
         check_x_input(x, axis);
 
-        auto scale     = args.at(1);
+        auto scale = args.at(1);
         is_type_valid(scale->get_shape().type(), "scale");
 
         bool skip_bias = args.size() == 2;
@@ -203,9 +197,8 @@ struct parse_layernorm : op_parser<parse_layernorm>
         return {x, scale, bias, skip_bias};
     }
 
-    std::tuple<int64_t, float, bool>
-    handle_attributes(const onnx_parser& parser,
-                      const onnx_parser::node_info& info) const
+    std::tuple<int64_t, float, bool> handle_attributes(const onnx_parser& parser,
+                                                       const onnx_parser::node_info& info) const
     {
         auto axis       = handle_axis(parser, info);
         auto epsilon    = handle_epsilon(parser, info);
@@ -225,11 +218,12 @@ struct parse_layernorm : op_parser<parse_layernorm>
 
         auto x_rank = x->get_shape().ndim();
         // axis can be negative
-        axis = axis < 0 ? axis + x_rank : axis;
+        axis       = axis < 0 ? axis + x_rank : axis;
         auto kdims = x_rank - axis;
 
-        auto [result, mean, rsqrt] = stage_one_calculation(info, x, epsilon, axis, kdims, stash_type);
-        auto y                     = stage_two_calculation(info, x, scale, bias, result, kdims, skip_bias);
+        auto [result, mean, rsqrt] =
+            stage_one_calculation(info, x, epsilon, axis, kdims, stash_type);
+        auto y = stage_two_calculation(info, x, scale, bias, result, kdims, skip_bias);
 
         return {y, mean, rsqrt};
     }

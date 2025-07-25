@@ -34,62 +34,56 @@ struct parse_layernorm : op_parser<parse_layernorm>
 {
     std::vector<op_desc> operators() const { return {{"LayerNormalization"}}; }
 
-    std::vector<instruction_ref> parse(const op_desc& /*opd*/,
-                                       const onnx_parser& parser,
-                                       const onnx_parser::node_info& info,
-                                       std::vector<instruction_ref> args) const
+    static int64_t handle_axis(const onnx_parser& parser,
+                               const onnx_parser::node_info& info)
     {
         int64_t axis = -1;
         if(contains(info.attributes, "axis"))
         {
             axis = parser.parse_value(info.attributes.at("axis")).at<int64_t>();
         }
-        float epsilon = 1e-5f;
-        if(contains(info.attributes, "epsilon"))
+        return axis;
+    }
+
+    static float handle_epsilon(const onnx_parser& parser,
+                                const onnx_parser::node_info& info)
+    {
+       float epsilon = 1e-5f;
+       if(contains(info.attributes, "epsilon"))
         {
             epsilon = parser.parse_value(info.attributes.at("epsilon")).at<float>();
         }
+        return epsilon;
+    }
+
+    static bool handle_stash_type(const onnx_parser& parser,
+                                  const onnx_parser::node_info& info)
+    {
         bool stash_type = true;
         if(contains(info.attributes, "stash_type"))
         {
             stash_type = (1 == parser.parse_value(info.attributes.at("stash_type")).at<int64_t>());
         }
+        return stash_type;
+    }
 
-        if(args.size() < 2 or args.size() > 3)
-        {
-            MIGRAPHX_THROW("PARSE_LAYERNORM: invalid input count");
-        }
-
+    static void is_type_valid(const migraphx::shape::type_t& dtype,
+                              const std::string& var_name)
+    {
         std::set<migraphx::shape::type_t> valid_types = {
             migraphx::shape::float_type, migraphx::shape::bf16_type, migraphx::shape::half_type};
 
-        auto x         = args.at(0);
-        auto scale     = args.at(1);
-        bool skip_bias = args.size() == 2;
-        instruction_ref bias;
-        if(not skip_bias)
+        if(not(contains(valid_types, dtype)))
         {
-            bias = args.at(2);
-            if(not(contains(valid_types, bias->get_shape().type())))
-            {
-                MIGRAPHX_THROW("PARSE_LAYERNORM: Invalid type for bias");
-            }
+            MIGRAPHX_THROW("PARSE_LAYERNORM: Invalid type for " + var_name);
         }
+    }
 
-        auto x_shape   = x->get_shape();
-        auto x_dtype   = x_shape.type();
-
-        if(not(contains(valid_types, scale->get_shape().type())))
-        {
-            MIGRAPHX_THROW("PARSE_LAYERNORM: Invalid type for scale");
-        }
-
-        if(not(contains(valid_types, x_dtype)))
-        {
-            MIGRAPHX_THROW("PARSE_LAYERNORM: Invalid type for input");
-        }
-
-        int64_t x_rank = x_shape.ndim();
+    static void check_x_input(const int64_t& x_rank, 
+                              const int64_t& axis,
+                              const migraphx::shape::type_t &x_dtype)
+    {
+        is_type_valid(x_dtype, "input");
 
         if(x_rank < 2)
         {
@@ -101,6 +95,38 @@ struct parse_layernorm : op_parser<parse_layernorm>
         if(axis < -x_rank or axis >= x_rank)
         {
             MIGRAPHX_THROW("PARSE_LAYERNORM: invalid axis");
+        }
+    }
+
+    std::vector<instruction_ref> parse(const op_desc& /*opd*/,
+                                       const onnx_parser& parser,
+                                       const onnx_parser::node_info& info,
+                                       std::vector<instruction_ref> args) const
+    {
+        if(args.size() < 2 or args.size() > 3)
+        {
+            MIGRAPHX_THROW("PARSE_LAYERNORM: invalid input count");
+        }
+
+        auto axis       = handle_axis(parser, info);
+        auto epsilon    = handle_epsilon(parser, info);
+        auto stash_type = handle_stash_type(parser, info);
+
+        auto x         = args.at(0);
+        auto x_shape   = x->get_shape();
+        auto x_dtype   = x_shape.type();
+        int64_t x_rank = x_shape.ndim();
+        check_x_input(x_rank, axis, x_dtype);
+
+        auto scale     = args.at(1);
+        is_type_valid(scale->get_shape().type(), "scale");
+
+        bool skip_bias = args.size() == 2;
+        instruction_ref bias;
+        if(not skip_bias)
+        {
+            bias = args.at(2);
+            is_type_valid(bias->get_shape().type(), "bias");
         }
 
         // y = (x - mean) * rsqrt(variance + epsilon) * scale + bias

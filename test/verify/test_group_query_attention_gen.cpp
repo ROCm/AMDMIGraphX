@@ -34,10 +34,10 @@ struct test_group_query_attention_gen : verify_program<test_group_query_attentio
         migraphx::program p;
         auto* mm = p.get_main_module();
         std::vector<size_t> query_lens{1, 1, 12288};
-        std::vector<size_t> kv_lens{1, 32, 2048, 128};
+        std::vector<size_t> kv_lens{1, 32, 4096, 128};
         std::vector<size_t> slk_lens{1, 1};
         std::vector<size_t> tsl_lens{1, 1};
-        std::vector<size_t> cs_cache_lens{2048, 64};
+        std::vector<size_t> cs_cache_lens{4096, 64};
         auto dtype = migraphx::shape::half_type;
         migraphx::shape query_s{dtype, query_lens};
         migraphx::shape kv_s{dtype, kv_lens};
@@ -45,7 +45,7 @@ struct test_group_query_attention_gen : verify_program<test_group_query_attentio
         migraphx::shape tsl_s{migraphx::shape::int64_type, tsl_lens};
         migraphx::shape cs_cache_s{dtype, cs_cache_lens};
         std::vector<int> slk_vec(slk_s.elements(), 15);
-        std::vector<int> tsl_vec(tsl_s.elements(), 2048);
+        std::vector<int> tsl_vec(tsl_s.elements(), 4096);
         std::vector<float> k_vec(kv_s.elements(), 1.0);
         std::vector<float> v_vec(kv_s.elements(), 0.0);
         std::vector<float> q_min_vec(query_s.elements(), -100.0);

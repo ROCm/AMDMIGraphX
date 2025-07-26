@@ -112,10 +112,10 @@ TEST_CASE(dot_reshapes_add)
     run_pass(p1);
     migraphx::program p2;
     {
-        auto* mm   = p2.get_main_module();
-        auto a     = mm->add_parameter("a", s);
-        auto b     = mm->add_parameter("b", s);
-        auto x     = mm->add_parameter("x", migraphx::shape{migraphx::shape::float_type, {3, 3}});
+        auto* mm = p2.get_main_module();
+        auto a   = mm->add_parameter("a", s);
+        auto b   = mm->add_parameter("b", s);
+        auto x   = mm->add_parameter("x", migraphx::shape{migraphx::shape::float_type, {3, 3}});
         auto fused =
             add_mlir(p2, "mlir_main:pointwise0", {a, b, x}, [=](auto* pm, const auto& inputs) {
                 auto dot = pm->add_instruction(migraphx::make_op("dot"), inputs[0], inputs[1]);
@@ -837,9 +837,9 @@ TEST_CASE(int_quant_dot_abs)
     run_pass(p1);
     migraphx::program p2;
     {
-        auto* mm   = p2.get_main_module();
-        auto a     = mm->add_parameter("a", s_a);
-        auto b     = mm->add_parameter("b", s_b);
+        auto* mm = p2.get_main_module();
+        auto a   = mm->add_parameter("a", s_a);
+        auto b   = mm->add_parameter("b", s_b);
         auto fused =
             add_mlir(p2, "mlir_main:pointwise0", {a, b}, [=](auto* pm, const auto& inputs) {
                 auto dot =
@@ -1225,9 +1225,9 @@ TEST_CASE(standalone_attention)
                     gm->add_instruction(migraphx::make_op("reduce_sum", {{"axes", {3}}}), exp);
                 rsum = gm->add_instruction(
                     migraphx::make_op("multibroadcast", {{"out_lens", s1.lens()}}), rsum);
-                auto div = gm->add_instruction(migraphx::make_op("div"), exp, rsum);
-
-                return gm->add_instruction(migraphx::make_op("dot"), div, inputs[2]);
+                auto div   = gm->add_instruction(migraphx::make_op("div"), exp, rsum);
+                auto gemm2 = gm->add_instruction(migraphx::make_op("dot"), div, inputs[2]);
+                return std::vector<migraphx::instruction_ref>{gemm2};
             });
         mm->add_return({group});
     }
@@ -1302,9 +1302,9 @@ TEST_CASE(fused_attention)
                     gm->add_instruction(migraphx::make_op("reduce_sum", {{"axes", {3}}}), exp);
                 rsum = gm->add_instruction(
                     migraphx::make_op("multibroadcast", {{"out_lens", s1.lens()}}), rsum);
-                auto div = gm->add_instruction(migraphx::make_op("div"), exp, rsum);
-
-                return gm->add_instruction(migraphx::make_op("dot"), div, inputs[3]);
+                auto div   = gm->add_instruction(migraphx::make_op("div"), exp, rsum);
+                auto gemm2 = gm->add_instruction(migraphx::make_op("dot"), div, inputs[3]);
+                return std::vector<migraphx::instruction_ref>{gemm2};
             });
         auto trailing_pw =
             add_pointwise(p1, mm, "main:pointwise0", {group, c}, single_pointwise("add"));

@@ -137,8 +137,9 @@ struct find_attention
 
     void apply(module_pass_manager& mpm, const match::matcher_result& r) const
     {
-        auto gemm2 = r.result;
-        auto gemm1 = r.instructions["dot1"];
+        auto gemm2         = r.result;
+        auto gemm1         = r.instructions["dot1"];
+        auto softmax_input = r.instructions["x"];
 
         // Capture all instructions part of the attention op
         auto attn_inss = get_attn_instructions(mpm.get_module(), gemm1, gemm2);
@@ -190,7 +191,7 @@ struct find_attention
         mpm_attn->set_bypass();
 
         auto group_ins = mpm.get_module().insert_instruction(
-            gemm1, make_op("group", {{"tag", "attention"}}), new_inputs, {mpm_attn});
+            softmax_input, make_op("group", {{"tag", "attention"}}), new_inputs, {mpm_attn});
 
         if(m_attn_outputs.size() == 1)
         {

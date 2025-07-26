@@ -206,7 +206,14 @@ void run_verify::verify(const program_info& pi) const
             if(x.second.dynamic())
             {
                 // create static shape using maximum dimensions
-                migraphx::shape static_shape{x.second.type(), x.second.max_lens()};
+                std::vector<size_t> x_lens = x.second.max_lens();
+                // if max_batch > 0, use the max batch provided by the test
+                if(pi.max_batch > 0 and x_lens.size() > 0)
+                {
+                    assert(pi.max_batch <= x_lens.front());
+                    x_lens.front() = pi.max_batch;
+                }
+                migraphx::shape static_shape{x.second.type(), x_lens};
                 m[x.first] = migraphx::generate_argument(static_shape, get_hash(x.first));
             }
             else

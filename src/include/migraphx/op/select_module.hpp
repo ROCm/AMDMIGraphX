@@ -96,15 +96,26 @@ struct select_module
                                   args.cbegin(),
                                   [&](const auto& p_name, const auto& a) {
                                       auto a_dims = a.get_shape().lens();
-                                      auto param_dyn_dims = param_shapes[p_name].dyn_dims();
-                                      for(auto i = 0; i < a_dims.size(); i++)
+                                      if(param_shapes[p_name].dynamic())
                                       {
-                                        size_t max_dim = param_dyn_dims[i].max;
-                                        if(a_dims[i] > max_dim)
+                                        auto param_dyn_dims = param_shapes[p_name].dyn_dims();
+                                        for(auto i = 0; i < a_dims.size(); i++)
+                                        {
+                                            size_t max_dim = param_dyn_dims[i].max;
+                                            if(a_dims[i] > max_dim)
+                                            {
+                                                return false;
+                                            }
+                                        }
+                                      }
+                                      else
+                                      {
+                                        if(a_dims != param_shapes[p_name].lens())
                                         {
                                             return false;
                                         }
                                       }
+                                      
                                       return true;
                                   });
             });
@@ -148,14 +159,13 @@ struct select_module
                            }
                        });
         auto results = run(module_to_run, p_map);
-        // return argument{results};
-        // std::vector<argument> new_results;
-        for(auto& r : results)
+        
+        for(auto& result : results)
         {
-            shape r_shape = r.get_shape();
-            std::vector<size_t> r_dims = r_shape.lens();
-            r_dims[dynamic_idx] = orig_batch;
-            r = r.reshape(shape{r_shape.type(), r_dims});
+            shape result_shape = result.get_shape();
+            std::vector<size_t> result_dims = result_shape.lens();
+            result_dims[dynamic_idx] = orig_batch;
+            result = result.reshape(shape{result_shape.type(), result_dims});
         }
 
         return argument{results};

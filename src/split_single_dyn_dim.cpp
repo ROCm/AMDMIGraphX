@@ -108,6 +108,22 @@ static bool any_sm_next(const_module_ref mm, const std::vector<dynamic_dimension
     }
     return false;
 }
+/*
+ * Returns a vector of all powers of 2 between min and max.
+ */
+static std::vector<size_t> powers_of_2_between(size_t min, size_t max)
+{
+    std::vector<size_t> result;
+    // TODO use std::bit_ceil when upgrading to C++20 or greater
+    for(size_t p = 1; p < max; p *= 2)
+    {
+        if(p > min)
+        {
+            result.push_back(p);
+        }
+    }
+    return result;
+}
 
 /**
  * Makes all the shapes in the dynamic_dimension range.  Probably won't work for `if`
@@ -126,9 +142,17 @@ void split_single_dyn_dim::apply(module_pass_manager& mpm) const
     {
         // all dynamic dimension objects should be the same for all parameters in dd_check_vec
         auto dyn_dim = dd_check_vec->at(0).dd;
-        // create submodules for each dimension size
+        // create submodules for the range of dimension sizes
+        // use min, max, and powers of 2 in between,
+        // and any user-supplied optimals
         std::vector<module_ref> submodules;
-        std::vector<size_t> dim_sizes{dyn_dim.min, dyn_dim.max};
+        std::set<size_t> dim_sizes{dyn_dim.min, dyn_dim.max};
+        std::vector<size_t> powers_of_2 = powers_of_2_between(dyn_dim.min, dyn_dim.max);
+        dim_sizes.insert(powers_of_2.begin(), powers_of_2.end());
+        if(dyn_dim.has_optimal())
+        {
+            dim_sizes.insert(dyn_dim.optimals.begin(), dyn_dim.optimals.end());
+        }
         size_t prev_dim_size = 0;
         for(size_t dim_size : dim_sizes)
         {
@@ -149,9 +173,7 @@ void split_single_dyn_dim::apply(module_pass_manager& mpm) const
                         new_dd.max = dim_size;
                     }
                 }
-                // std::cout << dyn_param_shape << std::endl;
                 auto new_dyn_shape = shape{dyn_param_shape.type(), new_dyn_dims };
-                // std::cout << new_dyn_shape << std::endl;
                 auto static_shape     = dyn_param_shape.to_static(dim_size);
                 auto new_dyn_param = submod->add_parameter(dd_check.dyn_param_str, new_dyn_shape);
                 map_ins[dyn_param]    = submod->add_instruction(make_op("fixed_pad", {{"output_lens", static_shape.lens()}}), new_dyn_param);

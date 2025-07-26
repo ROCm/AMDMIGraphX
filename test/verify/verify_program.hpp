@@ -36,6 +36,7 @@ struct program_info
     std::string name;
     std::string section;
     std::size_t tolerance;
+    size_t max_batch;
     std::function<migraphx::program()> get_program;
     migraphx::compile_options compile_options;
 };
@@ -64,6 +65,7 @@ struct register_verify_program_action
         pi.name            = migraphx::trim(migraphx::join_strings(name_without_version, "::"));
         pi.section         = x.section();
         pi.tolerance       = x.get_tolerance();
+        pi.max_batch       = x.max_batch();
         pi.get_program     = [x] { return x.create_program(); };
         pi.compile_options = x.get_compile_options();
         register_program_info(pi);
@@ -79,6 +81,7 @@ struct verify_program : auto_register_verify_program<T>
     std::string section() const { return "general"; };
     migraphx::compile_options get_compile_options() const { return migraphx::compile_options{}; };
     std::size_t get_tolerance() const { return 80; };
+    size_t max_batch() const { return 0; };
 };
 
 #endif

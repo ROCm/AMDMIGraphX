@@ -99,7 +99,7 @@ static bool any_sm_next(const_module_ref mm, const std::vector<dynamic_dimension
     {
         auto p_outputs  = mm->get_parameter(ddc.dyn_param_str)->outputs();
         bool is_sm_next = std::any_of(p_outputs.cbegin(), p_outputs.cend(), [](auto ins) {
-            return ins->name() == "select_module";
+            return ins->name() == "select_module" or ins->name() == "fixed_pad";
         });
         if(is_sm_next)
         {

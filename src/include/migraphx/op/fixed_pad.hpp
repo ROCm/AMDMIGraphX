@@ -30,6 +30,7 @@
 #include <migraphx/streamutils.hpp>
 #include <migraphx/literal.hpp>
 #include <migraphx/shape_for_each.hpp>
+#include <migraphx/par_for.hpp>
 #include <migraphx/config.hpp>
 #include <cmath>
 #include <utility>
@@ -66,11 +67,17 @@ struct fixed_pad
             return input_arg;
 
         argument out{output_shape};
-
-        input_arg.visit([&](auto input)
-        {
-            out.fill(input.begin(), input.end());
+        visit_all(out, input_arg)([&](auto output, auto input){
+            par_for(input.get_shape().elements(), [&](auto i) {
+                auto idx = input.get_shape().multi(i);
+                output[idx] = input[idx];
+            });
         });
+
+        // input_arg.visit([&](auto input)
+        // {
+        //     out.fill(input.begin(), input.end());
+        // });
 
         return out;
     }

@@ -1470,7 +1470,6 @@ module& module::sort()
 {
     if(this->begin() == this->end())
         return *this;
-    // this->print_graph(std::cout);
     std::unordered_set<instruction_ref> visited;
     auto implicit_deps = calc_implicit_deps();
 #if 1
@@ -1480,18 +1479,6 @@ module& module::sort()
     });
     for(auto last : lasts)
     {
-        // std::cout << "each: ";
-        // this->debug_print(last);
-        // if(last->name() == "@return")
-        // {
-        //     std::cout << "return: ";
-        //     std::cout << "outputs: ";
-        //     this->debug_print(last->outputs());
-        // }
-        // if(not last->outputs().empty())
-        //     continue;
-        // std::cout << "last: ";
-        // this->debug_print(last);
         fix([&](auto self, auto ins) {
             if(visited.insert(ins).second == false)
                 return;
@@ -1531,7 +1518,6 @@ module& module::sort()
         }
     })(std::prev(this->end()));
 #endif
-    // this->debug_print();
     assert(this->validate() == this->end());
     return *this;
 }

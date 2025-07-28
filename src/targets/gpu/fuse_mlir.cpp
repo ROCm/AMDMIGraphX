@@ -839,7 +839,6 @@ struct find_mlir_attention_op
             auto attn_output_ins = group;
             for(auto out : group->outputs())
             {
-                inss_to_replace[out] = out;
                 auto op              = out->get_operator();
                 if(op.name() == "get_tuple_elem")
                 {

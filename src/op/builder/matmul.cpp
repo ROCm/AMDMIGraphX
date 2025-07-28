@@ -33,8 +33,8 @@ inline namespace MIGRAPHX_INLINE_NS {
 namespace op {
 namespace builder {
 
-template <typename Decorator>
-struct matmul_common
+template <typename Derived>
+struct matmul_base : op_builder<Derived>
 {
     instruction_ref a0;
     instruction_ref a1;
@@ -173,11 +173,11 @@ struct matmul_common
 
         if(is_dynamic())
         {
-            static_cast<Decorator*>(this)->handle_dynamic(m);
+            static_cast<Derived*>(this)->handle_dynamic(m);
         }
         else
         {
-            static_cast<Decorator*>(this)->handle_static(m, ins, args);
+            static_cast<Derived*>(this)->handle_static(m, ins, args);
         }
 
         int64_t num_axis = dot_res->get_shape().ndim();
@@ -196,7 +196,7 @@ struct matmul_common
     }
 };
 
-struct dot : op_builder<dot>, matmul_common<dot>
+struct dot : matmul_base<dot>
 {
     static std::string name() { return "dot"; }
 
@@ -247,7 +247,7 @@ struct dot : op_builder<dot>, matmul_common<dot>
     }
 };
 
-struct quant_dot : op_builder<quant_dot>, matmul_common<quant_dot>
+struct quant_dot : matmul_base<quant_dot>
 {
     static std::string name() { return "quant_dot"; }
 
@@ -354,7 +354,7 @@ struct quant_dot : op_builder<quant_dot>, matmul_common<quant_dot>
     }
 };
 
-struct quant_dot_scaled : op_builder<quant_dot_scaled>, matmul_common<quant_dot_scaled>
+struct quant_dot_scaled : matmul_base<quant_dot_scaled>
 {
     static std::string name() { return "quant_dot_scaled"; }
 

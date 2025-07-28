@@ -40,6 +40,9 @@ struct matmul_base : op_builder<Derived>
     instruction_ref a1;
     instruction_ref dot_res;
 
+    const std::set<migraphx::shape::type_t> supported_types = {migraphx::shape::uint8_type,
+                                                               migraphx::shape::int8_type};
+
     void set_args(const std::vector<instruction_ref>& args)
     {
         a0 = args[0];
@@ -63,6 +66,15 @@ struct matmul_base : op_builder<Derived>
                 z.begin(), z.end(), [&](auto val) { return float_equal(val, check_value); });
         });
         return all_zeros;
+    }
+
+    static instruction_ref set_bias_arg(const std::string& name,
+                                        const std::vector<instruction_ref>& args,
+                                        const int index,
+                                        const instruction_ref& input)
+    {
+        bool dummy{false};
+        return set_bias_arg(name, args, index, input, dummy);
     }
 
     static instruction_ref set_bias_arg(const std::string& name,
@@ -125,34 +137,6 @@ struct matmul_base : op_builder<Derived>
         }
     }
 
-    struct static_locals
-    {
-        const std::vector<std::size_t>& s0_lens;
-        const std::vector<std::size_t>& s1_lens;
-        bool has_ba0;
-        bool has_ba1;
-        int a0_zp_index;
-        int a1_zp_index;
-
-        const std::set<migraphx::shape::type_t> supported_types = {migraphx::shape::uint8_type,
-                                                                   migraphx::shape::int8_type};
-
-        const migraphx::shape::type_t a0_type;
-        const migraphx::shape::type_t a1_type;
-
-        static_locals(const instruction_ref& a0_, const instruction_ref& a1_)
-            : s0_lens{a0_->get_shape().lens()},
-              s1_lens{a1_->get_shape().lens()},
-              has_ba0{false},
-              has_ba1{false},
-              a0_zp_index{2},
-              a1_zp_index{3},
-              a0_type{a0_->get_shape().type()},
-              a1_type{a1_->get_shape().type()}
-        {
-        }
-    };
-
     instruction_ref
     insert_impl(module& m, instruction_ref ins, const std::vector<instruction_ref>& args)
     {
@@ -199,6 +183,8 @@ struct matmul_base : op_builder<Derived>
 struct dot : matmul_base<dot>
 {
     static std::string name() { return "dot"; }
+    const int a0_zp_index = 2;
+    const int a1_zp_index = 3;
 
     template <class Self, class F>
     static auto reflect(Self&, F)
@@ -231,17 +217,15 @@ struct dot : matmul_base<dot>
 
     void handle_static(module& m, instruction_ref, const std::vector<instruction_ref>& args)
     {
-        static_locals h{a0, a1};
-
         if(args.size() > 2)
         {
             MIGRAPHX_THROW(name() + ": Bias Args not supported");
         }
 
-        instruction_ref ba0 = set_bias_arg(name(), args, h.a0_zp_index, a0, h.has_ba0);
-        instruction_ref ba1 = set_bias_arg(name(), args, h.a1_zp_index, a1, h.has_ba1);
+        instruction_ref ba0 = set_bias_arg(name(), args, a0_zp_index, a0);
+        instruction_ref ba1 = set_bias_arg(name(), args, a1_zp_index, a1);
 
-        broadcast_dimensions(m, h.s0_lens, h.s1_lens, a0, a1, ba0, ba1);
+        broadcast_dimensions(m, a0->get_shape().lens(), a1->get_shape().lens(), a0, a1, ba0, ba1);
 
         dot_res = m.add_instruction(make_op(name()), ba0, ba1);
     }
@@ -250,6 +234,8 @@ struct dot : matmul_base<dot>
 struct quant_dot : matmul_base<quant_dot>
 {
     static std::string name() { return "quant_dot"; }
+    const int a0_zp_index = 2;
+    const int a1_zp_index = 3;
 
     template <class Self, class F>
     static auto reflect(Self&, F)
@@ -328,27 +314,29 @@ struct quant_dot : matmul_base<quant_dot>
 
     void handle_static(module& m, instruction_ref ins, const std::vector<instruction_ref>& args)
     {
-        static_locals h{a0, a1};
+        bool has_ba0 = false;
+        bool has_ba1 = false;
 
-        instruction_ref ba0 = set_bias_arg(name(), args, h.a0_zp_index, a0, h.has_ba0);
-        instruction_ref ba1 = set_bias_arg(name(), args, h.a1_zp_index, a1, h.has_ba1);
+        instruction_ref ba0 = set_bias_arg(name(), args, a0_zp_index, a0, has_ba0);
+        instruction_ref ba1 = set_bias_arg(name(), args, a1_zp_index, a1, has_ba1);
 
         // Only INT8 or UINT8 type currently supported
-        if((not contains(h.supported_types, h.a0_type) or
-            not contains(h.supported_types, h.a1_type)))
+        if((not contains(supported_types, a0->get_shape().type()) or
+            not contains(supported_types, a1->get_shape().type())))
         {
             MIGRAPHX_THROW(name() + ": Unsupported type");
         }
 
-        if((h.a0_type == migraphx::shape::uint8_type) or (h.a1_type == migraphx::shape::uint8_type))
+        if((a0->get_shape().type() == migraphx::shape::uint8_type) or
+           (a1->get_shape().type() == migraphx::shape::uint8_type))
         {
             auto offset_op = m.add_literal(
                 migraphx::literal{migraphx::shape{migraphx::shape::half_type}, {-128}});
-            handle_uint8_input(m, ins, h.has_ba0, offset_op, a0, ba0);
-            handle_uint8_input(m, ins, h.has_ba1, offset_op, a1, ba1);
+            handle_uint8_input(m, ins, has_ba0, offset_op, a0, ba0);
+            handle_uint8_input(m, ins, has_ba1, offset_op, a1, ba1);
         }
 
-        broadcast_dimensions(m, h.s0_lens, h.s1_lens, a0, a1, ba0, ba1);
+        broadcast_dimensions(m, a0->get_shape().lens(), a1->get_shape().lens(), a0, a1, ba0, ba1);
 
         dot_res = m.add_instruction(make_op(name()), ba0, ba1);
     }
@@ -357,6 +345,8 @@ struct quant_dot : matmul_base<quant_dot>
 struct quant_dot_scaled : matmul_base<quant_dot_scaled>
 {
     static std::string name() { return "quant_dot_scaled"; }
+    const int a0_zp_index = 4;
+    const int a1_zp_index = 5;
 
     template <class Self, class F>
     static auto reflect(Self&, F)
@@ -526,11 +516,7 @@ struct quant_dot_scaled : matmul_base<quant_dot_scaled>
 
     void handle_static(module& m, instruction_ref ins, const std::vector<instruction_ref>& args)
     {
-        static_locals h{a0, a1};
-
         // Handles case with for when scales are present in operator
-        h.a0_zp_index            = 4;
-        h.a1_zp_index            = 5;
         instruction_ref scale_a0 = set_scale_arg(m, args, a0, 2);
         instruction_ref scale_a1 = set_scale_arg(m, args, a1, 3);
         if(scale_a0->get_shape().type() != scale_a1->get_shape().type())
@@ -538,8 +524,8 @@ struct quant_dot_scaled : matmul_base<quant_dot_scaled>
             MIGRAPHX_THROW(name() + ": Scales must be the same type");
         }
 
-        instruction_ref ba0 = set_bias_arg(name(), args, h.a0_zp_index, a0, h.has_ba0);
-        instruction_ref ba1 = set_bias_arg(name(), args, h.a1_zp_index, a1, h.has_ba1);
+        instruction_ref ba0 = set_bias_arg(name(), args, a0_zp_index, a0);
+        instruction_ref ba1 = set_bias_arg(name(), args, a1_zp_index, a1);
 
         // handle optional bias arg to the result
         bool has_scale_bias = false;
@@ -548,13 +534,13 @@ struct quant_dot_scaled : matmul_base<quant_dot_scaled>
             set_scale_bias(args, scaled_index, scale_a1->get_shape(), a1, has_scale_bias);
 
         // Only INT8 or UINT8 type currently supported
-        if((not contains(h.supported_types, h.a0_type) or
-            not contains(h.supported_types, h.a1_type)))
+        if((not contains(supported_types, a0->get_shape().type()) or
+            not contains(supported_types, a0->get_shape().type())))
         {
             MIGRAPHX_THROW(name() + ": Unsupported type");
         }
 
-        broadcast_dimensions(m, h.s0_lens, h.s1_lens, a0, a1, ba0, ba1);
+        broadcast_dimensions(m, a0->get_shape().lens(), a1->get_shape().lens(), a0, a1, ba0, ba1);
 
         dot_res = handle_scaled_output(
             m, ins, a0, a1, scale_a0, scale_a1, ba0, ba1, scaled_bias, has_scale_bias);

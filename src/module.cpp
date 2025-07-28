@@ -1478,7 +1478,7 @@ module& module::sort()
     copy_if(iterator_for(*this), std::back_inserter(lasts), [&](auto last) {
         return last->outputs().empty();
     });
-    for(auto last:lasts)
+    for(auto last : lasts)
     {
         // std::cout << "each: ";
         // this->debug_print(last);

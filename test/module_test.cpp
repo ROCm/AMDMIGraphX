@@ -39,7 +39,7 @@
 static bool is_sorted(migraphx::module& m)
 {
     std::unordered_set<migraphx::instruction_ref> visited;
-    for(auto ins:migraphx::iterator_for(m))
+    for(auto ins : migraphx::iterator_for(m))
     {
         visited.insert(ins);
         if(std::any_of(ins->inputs().begin(), ins->inputs().end(), [&](auto i) {
@@ -779,8 +779,6 @@ TEST_CASE(add_params)
     EXPECT(m1.get_parameter("x1") == map_ins[add]);
 }
 
-
-
 TEST_CASE(linear_graph_sort)
 {
     /*
@@ -797,9 +795,9 @@ TEST_CASE(linear_graph_sort)
     auto n = m.add_instruction(migraphx::make_op("neg"), a);
     auto t = m.add_instruction(migraphx::make_op("tanh"), n);
     m.add_return({t});
-    
+
     m.sort();
-    
+
     EXPECT(is_sorted(m));
 }
 
@@ -817,15 +815,15 @@ TEST_CASE(diamond_graph_sort)
      * Tests handling of branches and reconvergent paths.
      */
     migraphx::module m;
-    auto s = migraphx::shape{migraphx::shape::float_type, {1}};
-    auto x = m.add_parameter("x", s);
-    auto a = m.add_instruction(migraphx::make_op("abs"), x);
-    auto n = m.add_instruction(migraphx::make_op("neg"), x);
+    auto s   = migraphx::shape{migraphx::shape::float_type, {1}};
+    auto x   = m.add_parameter("x", s);
+    auto a   = m.add_instruction(migraphx::make_op("abs"), x);
+    auto n   = m.add_instruction(migraphx::make_op("neg"), x);
     auto add = m.add_instruction(migraphx::make_op("add"), a, n);
     m.add_return({add});
-    
+
     m.sort();
-    
+
     EXPECT(is_sorted(m));
 }
 
@@ -849,9 +847,9 @@ TEST_CASE(multiple_outputs_sort)
     auto n = m.add_instruction(migraphx::make_op("neg"), x);
     auto t = m.add_instruction(migraphx::make_op("tanh"), a);
     m.add_return({t, n});
-    
+
     m.sort();
-    
+
     EXPECT(is_sorted(m));
 }
 
@@ -863,8 +861,8 @@ TEST_CASE(dead_code_sort)
      *           ┌─→ abs → tanh ─┐
      *           │               │
      *  x ───────┤               ├─→ return
-     *           │                
-     *           └─→ neg 
+     *           │
+     *           └─→ neg
      *
      * Tests handling of dead code that is use inputs
      */
@@ -875,9 +873,9 @@ TEST_CASE(dead_code_sort)
     m.add_instruction(migraphx::make_op("neg"), x);
     auto t = m.add_instruction(migraphx::make_op("tanh"), a);
     m.add_return({t});
-    
+
     m.sort();
-    
+
     EXPECT(is_sorted(m));
 }
 
@@ -894,19 +892,19 @@ TEST_CASE(disconnected_components_sort)
      */
     migraphx::module m;
     auto s = migraphx::shape{migraphx::shape::float_type, {1}};
-    
+
     // First subgraph
     auto x1 = m.add_parameter("x1", s);
     auto a1 = m.add_instruction(migraphx::make_op("abs"), x1);
-    
+
     // Second subgraph (disconnected)
     auto x2 = m.add_parameter("x2", s);
     auto a2 = m.add_instruction(migraphx::make_op("abs"), x2);
-    
+
     m.add_return({a1, a2});
-    
+
     m.sort();
-    
+
     EXPECT(is_sorted(m));
 }
 
@@ -921,7 +919,7 @@ TEST_CASE(empty_graph_sort)
      */
     migraphx::module m;
     m.sort();
-    
+
     // No assertions should fail
     EXPECT(is_sorted(m));
 }
@@ -939,9 +937,9 @@ TEST_CASE(single_node_sort)
     auto s = migraphx::shape{migraphx::shape::float_type, {1}};
     auto x = m.add_parameter("x", s);
     m.add_return({x});
-    
+
     m.sort();
-    
+
     EXPECT(is_sorted(m));
 }
 
@@ -960,7 +958,7 @@ TEST_CASE(sort_with_non_direct_dependencies)
      */
     migraphx::module m;
     auto s = migraphx::shape{migraphx::shape::float_type, {1}};
-    
+
     auto x = m.add_parameter("x", s);
     auto a = m.add_instruction(migraphx::make_op("abs"), x);
     auto b = m.add_instruction(migraphx::make_op("neg"), a);
@@ -968,7 +966,7 @@ TEST_CASE(sort_with_non_direct_dependencies)
     m.add_return({c});
 
     m.sort();
-    
+
     EXPECT(is_sorted(m));
 }
 
@@ -999,35 +997,35 @@ TEST_CASE(dfs_without_visited_set_infinite_loop)
      *          v
      *        return
      *
-     * This creates a highly connected directed acyclic graph (DAG) where 
+     * This creates a highly connected directed acyclic graph (DAG) where
      * traversing up from the return node would encounter the same nodes
      * multiple times through different paths.
-     * 
+     *
      * Without a proper visited set, a DFS-based topological sort would
      * potentially re-process the same nodes repeatedly, leading to an
      * exponential runtime or infinite loop in pathological implementations.
      */
     migraphx::module m;
     auto s = migraphx::shape{migraphx::shape::float_type, {1}};
-    
+
     auto x0 = m.add_parameter("x0", s);
-    
+
     // First layer of operations
     auto a1 = m.add_instruction(migraphx::make_op("add"), x0, x0);
     auto b1 = m.add_instruction(migraphx::make_op("mul"), x0, x0);
     auto c1 = m.add_instruction(migraphx::make_op("tanh"), x0);
-    
+
     // Second layer with cross-connections
     auto a2 = m.add_instruction(migraphx::make_op("sqrt"), a1);
     auto a3 = m.add_instruction(migraphx::make_op("mul"), a1, b1);
     auto b2 = m.add_instruction(migraphx::make_op("where"), a1, b1, c1);
     auto b3 = m.add_instruction(migraphx::make_op("mul"), b1, c1);
     auto c2 = m.add_instruction(migraphx::make_op("exp"), c1);
-    
+
     m.add_return({a2, a3, b2, b3, c2});
-    
+
     m.sort();
-    
+
     EXPECT(is_sorted(m));
 }
 
@@ -1064,44 +1062,44 @@ TEST_CASE(recursive_dag_revisit_test)
      * This test creates a deeper recursive structure with many opportunities
      * for revisiting nodes. Each node in the middle layers (a2-a5, b2-b5, c1)
      * has multiple paths leading to it when traversing up from the return node.
-     * 
-     * A naive DFS implementation without a visited set would potentially 
-     * revisit these nodes many times, leading to an exponential number of 
+     *
+     * A naive DFS implementation without a visited set would potentially
+     * revisit these nodes many times, leading to an exponential number of
      * recursive calls, which could manifest as an infinite loop in practice.
      */
     migraphx::module m;
     auto s = migraphx::shape{migraphx::shape::float_type, {1}};
-    
+
     auto x = m.add_parameter("x", s);
-    
+
     // Create two main branches
     auto a1 = m.add_instruction(migraphx::make_op("add"), x, x);
     auto b1 = m.add_instruction(migraphx::make_op("mul"), x, x);
-    
+
     // Create deeper levels with cross-connections
     auto a2 = m.add_instruction(migraphx::make_op("sqrt"), a1);
     auto c1 = m.add_instruction(migraphx::make_op("add"), a1, b1);
-    
+
     auto b2 = m.add_instruction(migraphx::make_op("neg"), b1);
-    
+
     auto a3 = m.add_instruction(migraphx::make_op("add"), a2, c1);
-    
+
     auto b3 = m.add_instruction(migraphx::make_op("add"), b2, c1);
-    
+
     // Add more layers to increase the number of paths
     auto a4 = m.add_instruction(migraphx::make_op("log"), a3);
     auto b4 = m.add_instruction(migraphx::make_op("exp"), b3);
-    
+
     auto a5 = m.add_instruction(migraphx::make_op("cos"), a4);
     auto b5 = m.add_instruction(migraphx::make_op("sin"), b4);
-    
+
     // Final convergence
     auto d1 = m.add_instruction(migraphx::make_op("add"), a5, b5);
-    
+
     m.add_return({d1});
 
     m.sort();
-    
+
     EXPECT(is_sorted(m));
 }
 
@@ -1110,66 +1108,65 @@ TEST_CASE(fibonacci_graph_sort)
     /*
      * Fibonacci-like graph structure - graph pattern:
      *
-     * Each level i has 2^i nodes, with each node connecting to 
+     * Each level i has 2^i nodes, with each node connecting to
      * multiple nodes in the next level. This creates an exponential
      * number of paths through the graph.
      *
      * This structure is particularly problematic for naive DFS implementations
      * without visited node tracking.
      */
-    
+
     // Define a large enough graph to potentially cause problems
     // but not so large that it takes too long to create
     const int DEPTH = 8;
-    
+
     migraphx::module m;
     auto s = migraphx::shape{migraphx::shape::float_type, {1}};
-    
+
     auto x = m.add_parameter("x", s);
-    
+
     // Keep track of nodes at each level
     std::vector<std::vector<migraphx::instruction_ref>> levels(DEPTH + 1);
     levels[0].push_back(x);
-    
+
     // Create fibonacci-like structure
     for(int level = 1; level <= DEPTH; level++)
     {
         // Number of nodes at this level (exponentially increasing)
         const int nodes_at_level = 1 << level; // 2^level
-        
+
         for(int node = 0; node < nodes_at_level; node++)
         {
             // Each node connects to multiple nodes from previous level
             // in a way that maximizes path combinations
-            
+
             // For demonstration, we'll connect to the two nodes in the previous level
             // that correspond to this node's position
-            int prev_level_size = levels[level-1].size();
-            int input1_idx = node % prev_level_size;
-            int input2_idx = (node / 2) % prev_level_size;
-            
-            auto input1 = levels[level-1][input1_idx];
-            auto input2 = levels[level-1][input2_idx];
-    
-        
+            int prev_level_size = levels[level - 1].size();
+            int input1_idx      = node % prev_level_size;
+            int input2_idx      = (node / 2) % prev_level_size;
+
+            auto input1 = levels[level - 1][input1_idx];
+            auto input2 = levels[level - 1][input2_idx];
+
             auto new_node = m.add_instruction(migraphx::make_op("add"), input1, input2);
             levels[level].push_back(new_node);
         }
     }
-    
+
     // Add return node connected to multiple nodes from the last level
     std::vector<migraphx::instruction_ref> final_inputs;
-    for(int i = 0; i < std::min(16, static_cast<int>(levels[DEPTH].size())); i++) {
+    for(int i = 0; i < std::min(16, static_cast<int>(levels[DEPTH].size())); i++)
+    {
         final_inputs.push_back(levels[DEPTH][i]);
     }
-    
+
     m.add_return(final_inputs);
 
     m.sort();
-    
+
     EXPECT(is_sorted(m));
 }
-
 
 TEST_CASE(pathological_dfs_graph_sort)
 {
@@ -1183,81 +1180,89 @@ TEST_CASE(pathological_dfs_graph_sort)
      */
     migraphx::module m;
     auto s = migraphx::shape{migraphx::shape::float_type, {1}};
-    
+
     // Create parameters
     const int NUM_PARAMS = 10;
     std::vector<migraphx::instruction_ref> params;
-    
-    for(int i = 0; i < NUM_PARAMS; i++) {
+
+    for(int i = 0; i < NUM_PARAMS; i++)
+    {
         params.push_back(m.add_parameter("x" + std::to_string(i), s));
     }
-    
+
     // Build graph layer by layer with maximum path duplication
-    const int NUM_LAYERS = 20;
+    const int NUM_LAYERS      = 20;
     const int NODES_PER_LAYER = 20;
-    
+
     // Store nodes in each layer
     std::vector<std::vector<migraphx::instruction_ref>> layers(NUM_LAYERS);
-    
+
     // Create first layer with connections to parameters
-    for(int i = 0; i < NODES_PER_LAYER; i++) {
+    for(int i = 0; i < NODES_PER_LAYER; i++)
+    {
         // Each node connects to two random parameters
         int param1 = i % NUM_PARAMS;
         int param2 = (i + 3) % NUM_PARAMS;
-        
-        auto op = (i % 2 == 0) ? migraphx::make_op("add") : migraphx::make_op("mul");
+
+        auto op   = (i % 2 == 0) ? migraphx::make_op("add") : migraphx::make_op("mul");
         auto node = m.add_instruction(op, params[param1], params[param2]);
         layers[0].push_back(node);
     }
-    
+
     // Create middle layers with extensive cross-connections
-    for(int layer = 1; layer < NUM_LAYERS; layer++) {
-        for(int i = 0; i < NODES_PER_LAYER; i++) {
+    for(int layer = 1; layer < NUM_LAYERS; layer++)
+    {
+        for(int i = 0; i < NODES_PER_LAYER; i++)
+        {
             // Create connections that maximize path duplication
             // Each node takes input from multiple nodes in previous layer
             std::vector<migraphx::instruction_ref> inputs;
-            
+
             // Connect to multiple nodes from previous layer to create path explosion
             int num_inputs = std::min(4, NODES_PER_LAYER);
-            for(int j = 0; j < num_inputs; j++) {
-                int input_idx = (i + j*3) % NODES_PER_LAYER;
-                inputs.push_back(layers[layer-1][input_idx]);
+            for(int j = 0; j < num_inputs; j++)
+            {
+                int input_idx = (i + j * 3) % NODES_PER_LAYER;
+                inputs.push_back(layers[layer - 1][input_idx]);
             }
-            
+
             // Create a new node with multiple inputs
             // First combine pairs of inputs
-            auto op1 = migraphx::make_op("add");
-            auto op2 = migraphx::make_op("mul");
+            auto op1  = migraphx::make_op("add");
+            auto op2  = migraphx::make_op("mul");
             auto tmp1 = m.add_instruction(op1, inputs[0], inputs[1]);
-            auto tmp2 = m.add_instruction(op2, inputs[2 % inputs.size()], inputs[3 % inputs.size()]);
-            
+            auto tmp2 =
+                m.add_instruction(op2, inputs[2 % inputs.size()], inputs[3 % inputs.size()]);
+
             // Then combine the results
-            auto op3 = (i % 3 == 0) ? migraphx::make_op("min") : 
-                      ((i % 3 == 1) ? migraphx::make_op("max") : migraphx::make_op("div"));
+            auto op3  = (i % 3 == 0)
+                            ? migraphx::make_op("min")
+                            : ((i % 3 == 1) ? migraphx::make_op("max") : migraphx::make_op("div"));
             auto node = m.add_instruction(op3, tmp1, tmp2);
-            
+
             layers[layer].push_back(node);
         }
     }
-    
+
     // Create convergence at final layer for maximum path multiplication
     std::vector<migraphx::instruction_ref> final_layer;
-    
+
     // Create a sequence of operations that combine all nodes from the last layer
-    migraphx::instruction_ref current = layers[NUM_LAYERS-1][0];
-    for(size_t i = 1; i < layers[NUM_LAYERS-1].size(); i++) {
-        auto op = (i % 3 == 0) ? migraphx::make_op("add") :
-                 ((i % 3 == 1) ? migraphx::make_op("mul") : migraphx::make_op("max"));
-        current = m.add_instruction(op, current, layers[NUM_LAYERS-1][i]);
+    migraphx::instruction_ref current = layers[NUM_LAYERS - 1][0];
+    for(size_t i = 1; i < layers[NUM_LAYERS - 1].size(); i++)
+    {
+        auto op = (i % 3 == 0)
+                      ? migraphx::make_op("add")
+                      : ((i % 3 == 1) ? migraphx::make_op("mul") : migraphx::make_op("max"));
+        current = m.add_instruction(op, current, layers[NUM_LAYERS - 1][i]);
         final_layer.push_back(current);
     }
-    
+
     m.add_return({current});
 
     m.sort();
-        
+
     EXPECT(is_sorted(m));
 }
-
 
 int main(int argc, const char* argv[]) { test::run(argc, argv); }

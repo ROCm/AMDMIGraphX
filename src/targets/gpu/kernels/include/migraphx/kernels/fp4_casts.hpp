@@ -33,8 +33,22 @@ namespace migraphx {
 
 namespace fp4_detail {
 
-static constexpr array<float, 16> fp4_lut = {
-0.0f, 0.5f, 1.0f, 1.5f, 2.0f, 3.0f, 4.0f, 6.0f, -0.0f, -0.5f, -1.0f, -1.5f, -2.0f, -3.0f, -4.0f, -6.0f};
+static constexpr array<float, 16> fp4_lut = {0.0f,
+                                             0.5f,
+                                             1.0f,
+                                             1.5f,
+                                             2.0f,
+                                             3.0f,
+                                             4.0f,
+                                             6.0f,
+                                             -0.0f,
+                                             -0.5f,
+                                             -1.0f,
+                                             -1.5f,
+                                             -2.0f,
+                                             -3.0f,
+                                             -4.0f,
+                                             -6.0f};
 
 static constexpr uint8_t fp4_6_0 = 0x7;
 static constexpr uint8_t fp4_4_0 = 0x6;
@@ -54,8 +68,8 @@ __device__ constexpr float fp4_to_float(uint8_t x)
 
 __device__ uint8_t float_to_fp4(float f_x)
 {
-    uint32_t x = migraphx::bit_cast<uint32_t>(f_x);
-    bool sign = migraphx::get_bit(x, 31);
+    uint32_t x       = migraphx::bit_cast<uint32_t>(f_x);
+    bool sign        = migraphx::get_bit(x, 31);
     uint8_t sign_add = sign ? 0x8u : 0u;
     float abs_f      = abs(f_x);
     if(abs_f >= 1.75)

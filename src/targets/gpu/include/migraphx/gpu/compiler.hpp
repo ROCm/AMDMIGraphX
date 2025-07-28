@@ -177,7 +177,8 @@ struct compiler : auto_register_compiler<Derived>
     {
         return nullopt;
     }
-    operation compile_op(context&, const std::vector<shape>&, const value&) const {
+    operation compile_op(context&, const std::vector<shape>&, const value&) const
+    {
         MIGRAPHX_THROW("Missing override function");
         return {};
     }

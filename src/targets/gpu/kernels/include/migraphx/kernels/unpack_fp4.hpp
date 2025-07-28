@@ -43,7 +43,7 @@ __device__ void unpack_fp4(Input input, Output output)
         uint8_t fp4_val = input[i];
         output[out_idx] = fp4_to_float(fp4_val);
         out_idx[Axis] += 1;
-        fp4_val = fp4_val >> 4u;
+        fp4_val         = fp4_val >> 4u;
         output[out_idx] = fp4_to_float(fp4_val);
     });
 }

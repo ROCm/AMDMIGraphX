@@ -781,13 +781,13 @@ TEST_CASE(add_params)
 
 TEST_CASE(linear_graph_sort)
 {
-    /*
-     * Linear chain test - graph structure:
-     *
-     *  x → abs → neg → tanh → return
-     *
-     * Tests the most basic case of topological sorting.
-     */
+    //
+    // Linear chain test - graph structure:
+    //
+    //  x → abs → neg → tanh → return
+    //
+    // Tests the most basic case of topological sorting.
+    // 
     migraphx::module m;
     auto s = migraphx::shape{migraphx::shape::float_type, {1}};
     auto x = m.add_parameter("x", s);
@@ -803,17 +803,17 @@ TEST_CASE(linear_graph_sort)
 
 TEST_CASE(diamond_graph_sort)
 {
-    /*
-     * Diamond graph test - graph structure:
-     *
-     *           ┌─→ abs ─┐
-     *           │        ↓
-     *  x ───────┼───────→ add → return
-     *           │        ↑
-     *           └─→ neg ─┘
-     *
-     * Tests handling of branches and reconvergent paths.
-     */
+    //
+    // Diamond graph test - graph structure:
+    //
+    //           ┌─→ abs ─┐
+    //           │        ↓
+    //  x ───────┼───────→ add → return
+    //           │        ↑
+    //           └─→ neg ─┘
+    //
+    // Tests handling of branches and reconvergent paths.
+    // 
     migraphx::module m;
     auto s   = migraphx::shape{migraphx::shape::float_type, {1}};
     auto x   = m.add_parameter("x", s);
@@ -829,17 +829,17 @@ TEST_CASE(diamond_graph_sort)
 
 TEST_CASE(multiple_outputs_sort)
 {
-    /*
-     * Multiple outputs test - graph structure:
-     *
-     *           ┌─→ abs → tanh ─┐
-     *           │                │
-     *  x ───────┤                ├─→ return
-     *           │                │
-     *           └─→ neg ─────────┘
-     *
-     * Tests handling of multiple outputs from a single instruction.
-     */
+    //
+    // Multiple outputs test - graph structure:
+    //
+    //           ┌─→ abs → tanh ─┐
+    //           │                │
+    //  x ───────┤                ├─→ return
+    //           │                │
+    //           └─→ neg ─────────┘
+    //
+    // Tests handling of multiple outputs from a single instruction.
+    // 
     migraphx::module m;
     auto s = migraphx::shape{migraphx::shape::float_type, {1}};
     auto x = m.add_parameter("x", s);
@@ -855,17 +855,17 @@ TEST_CASE(multiple_outputs_sort)
 
 TEST_CASE(dead_code_sort)
 {
-    /*
-     * Dead code
-     *
-     *           ┌─→ abs → tanh ─┐
-     *           │               │
-     *  x ───────┤               ├─→ return
-     *           │
-     *           └─→ neg
-     *
-     * Tests handling of dead code that is use inputs
-     */
+    //
+    // Dead code
+    //
+    //           ┌─→ abs → tanh ─┐
+    //           │               │
+    //  x ───────┤               ├─→ return
+    //           │
+    //           └─→ neg
+    //
+    // Tests handling of dead code that is use inputs
+    // 
     migraphx::module m;
     auto s = migraphx::shape{migraphx::shape::float_type, {1}};
     auto x = m.add_parameter("x", s);
@@ -881,15 +881,15 @@ TEST_CASE(dead_code_sort)
 
 TEST_CASE(disconnected_components_sort)
 {
-    /*
-     * Disconnected components test - graph structure:
-     *
-     *  x1 → abs1 ─┐
-     *              ├─→ return
-     *  x2 → abs2 ─┘
-     *
-     * Tests sorting of disconnected subgraphs.
-     */
+    //
+    // Disconnected components test - graph structure:
+    //
+    //  x1 → abs1 ─┐
+    //              ├─→ return
+    //  x2 → abs2 ─┘
+    //
+    // Tests sorting of disconnected subgraphs.
+    // 
     migraphx::module m;
     auto s = migraphx::shape{migraphx::shape::float_type, {1}};
 
@@ -910,13 +910,13 @@ TEST_CASE(disconnected_components_sort)
 
 TEST_CASE(empty_graph_sort)
 {
-    /*
-     * Empty graph test - graph structure:
-     *
-     *  (empty module)
-     *
-     * Tests sorting an empty module.
-     */
+    //
+    // Empty graph test - graph structure:
+    //
+    //  (empty module)
+    //
+    // Tests sorting an empty module.
+    // 
     migraphx::module m;
     m.sort();
 
@@ -926,13 +926,13 @@ TEST_CASE(empty_graph_sort)
 
 TEST_CASE(single_node_sort)
 {
-    /*
-     * Single node test - graph structure:
-     *
-     *  x → return
-     *
-     * Tests the simplest possible non-empty case.
-     */
+    //
+    // Single node test - graph structure:
+    //
+    //  x → return
+    //
+    // Tests the simplest possible non-empty case.
+    // 
     migraphx::module m;
     auto s = migraphx::shape{migraphx::shape::float_type, {1}};
     auto x = m.add_parameter("x", s);
@@ -945,17 +945,17 @@ TEST_CASE(single_node_sort)
 
 TEST_CASE(sort_with_non_direct_dependencies)
 {
-    /*
-     * Non-direct dependencies test - graph structure:
-     *
-     *  x → abs ─────────┐
-     *        │          │
-     *        ↓          ↓
-     *       neg → add → return
-     *
-     * Tests handling of both direct and indirect dependencies.
-     * (A is a direct dependency of B and C, and an indirect dependency of C via B)
-     */
+    //
+    // Non-direct dependencies test - graph structure:
+    //
+    //  x → abs ─────────┐
+    //        │          │
+    //        ↓          ↓
+    //       neg → add → return
+    //
+    // Tests handling of both direct and indirect dependencies.
+    // (A is a direct dependency of B and C, and an indirect dependency of C via B)
+    // 
     migraphx::module m;
     auto s = migraphx::shape{migraphx::shape::float_type, {1}};
 
@@ -972,39 +972,39 @@ TEST_CASE(sort_with_non_direct_dependencies)
 
 TEST_CASE(dfs_without_visited_set_infinite_loop)
 {
-    /*
-     * Highly Connected DAG test - graph structure:
-     *
-     *           x0
-     *          /|\
-     *         / | \
-     *        /  |  \
-     *       v   v   v
-     *      a1  b1  c1
-     *     /|\ /|\ /|\
-     *    / | X | X | \  (crossing connections)
-     *   /  |/ \|/ \|  \
-     *  v   v   v   v   v
-     * a2  a3  b2  b3  c2
-     *  \   \   |   /   /
-     *   \   \  |  /   /
-     *    \   \ | /   /
-     *     \   \|/   /
-     *      \   v   /
-     *       \  d  /
-     *        \ | /
-     *         \|/
-     *          v
-     *        return
-     *
-     * This creates a highly connected directed acyclic graph (DAG) where
-     * traversing up from the return node would encounter the same nodes
-     * multiple times through different paths.
-     *
-     * Without a proper visited set, a DFS-based topological sort would
-     * potentially re-process the same nodes repeatedly, leading to an
-     * exponential runtime or infinite loop in pathological implementations.
-     */
+    //
+    // Highly Connected DAG test - graph structure:
+    //
+    //           x0
+    //          /|\
+    //         / | \
+    //        /  |  \
+    //       v   v   v
+    //      a1  b1  c1
+    //     /|\ /|\ /|\
+    //    / | X | X | \  (crossing connections)
+    //   /  |/ \|/ \|  \
+    //  v   v   v   v   v
+    // a2  a3  b2  b3  c2
+    //  \   \   |   /   /
+    //   \   \  |  /   /
+    //    \   \ | /   /
+    //     \   \|/   /
+    //      \   v   /
+    //       \  d  /
+    //        \ | /
+    //         \|/
+    //          v
+    //        return
+    //
+    // This creates a highly connected directed acyclic graph (DAG) where
+    // traversing up from the return node would encounter the same nodes
+    // multiple times through different paths.
+    //
+    // Without a proper visited set, a DFS-based topological sort would
+    // potentially re-process the same nodes repeatedly, leading to an
+    // exponential runtime or infinite loop in pathological implementations.
+    // 
     migraphx::module m;
     auto s = migraphx::shape{migraphx::shape::float_type, {1}};
 
@@ -1031,42 +1031,42 @@ TEST_CASE(dfs_without_visited_set_infinite_loop)
 
 TEST_CASE(recursive_dag_revisit_test)
 {
-    /*
-     * Recursive DAG structure - graph structure:
-     *
-     *      x
-     *     / \
-     *    v   v
-     *   a1   b1
-     *  / \  / \
-     * v   vv   v
-     * a2  c1   b2
-     * |   /\   |
-     * |  /  \  |
-     * v v    v v
-     * a3      b3
-     * |        |
-     * v        v
-     * a4      b4
-     * |        |
-     * v        v
-     * a5      b5
-     *  \      /
-     *   \    /
-     *    v  v
-     *     d1
-     *     |
-     *     v
-     *   return
-     *
-     * This test creates a deeper recursive structure with many opportunities
-     * for revisiting nodes. Each node in the middle layers (a2-a5, b2-b5, c1)
-     * has multiple paths leading to it when traversing up from the return node.
-     *
-     * A naive DFS implementation without a visited set would potentially
-     * revisit these nodes many times, leading to an exponential number of
-     * recursive calls, which could manifest as an infinite loop in practice.
-     */
+    //
+    // Recursive DAG structure - graph structure:
+    //
+    //      x
+    //     / \
+    //    v   v
+    //   a1   b1
+    //  / \  / \
+    // v   vv   v
+    // a2  c1   b2
+    // |   /\   |
+    // |  /  \  |
+    // v v    v v
+    // a3      b3
+    // |        |
+    // v        v
+    // a4      b4
+    // |        |
+    // v        v
+    // a5      b5
+    //  \      /
+    //   \    /
+    //    v  v
+    //     d1
+    //     |
+    //     v
+    //   return
+    //
+    // This test creates a deeper recursive structure with many opportunities
+    // for revisiting nodes. Each node in the middle layers (a2-a5, b2-b5, c1)
+    // has multiple paths leading to it when traversing up from the return node.
+    //
+    // A naive DFS implementation without a visited set would potentially
+    // revisit these nodes many times, leading to an exponential number of
+    // recursive calls, which could manifest as an infinite loop in practice.
+    // 
     migraphx::module m;
     auto s = migraphx::shape{migraphx::shape::float_type, {1}};
 
@@ -1105,16 +1105,16 @@ TEST_CASE(recursive_dag_revisit_test)
 
 TEST_CASE(fibonacci_graph_sort)
 {
-    /*
-     * Fibonacci-like graph structure - graph pattern:
-     *
-     * Each level i has 2^i nodes, with each node connecting to
-     * multiple nodes in the next level. This creates an exponential
-     * number of paths through the graph.
-     *
-     * This structure is particularly problematic for naive DFS implementations
-     * without visited node tracking.
-     */
+    //
+    // Fibonacci-like graph structure - graph pattern:
+    //
+    // Each level i has 2^i nodes, with each node connecting to
+    // multiple nodes in the next level. This creates an exponential
+    // number of paths through the graph.
+    //
+    // This structure is particularly problematic for naive DFS implementations
+    // without visited node tracking.
+    // 
 
     // Define a large enough graph to potentially cause problems
     // but not so large that it takes too long to create
@@ -1170,14 +1170,14 @@ TEST_CASE(fibonacci_graph_sort)
 
 TEST_CASE(pathological_dfs_graph_sort)
 {
-    /*
-     * Pathological DFS Graph - designed to create the maximum number
-     * of revisits when traversing from the return node without a visited set
-     *
-     * This creates a graph where the number of unique paths to each node
-     * increases exponentially as you traverse up from the return node,
-     * making it a worst-case scenario for DFS without visited tracking.
-     */
+    //
+    // Pathological DFS Graph - designed to create the maximum number
+    // of revisits when traversing from the return node without a visited set
+    //
+    // This creates a graph where the number of unique paths to each node
+    // increases exponentially as you traverse up from the return node,
+    // making it a worst-case scenario for DFS without visited tracking.
+    // 
     migraphx::module m;
     auto s = migraphx::shape{migraphx::shape::float_type, {1}};
 

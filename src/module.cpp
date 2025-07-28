@@ -1468,7 +1468,50 @@ std::vector<module_ref> module::get_sub_modules(bool shallow) const
 
 module& module::sort()
 {
+    if(this->begin() == this->end())
+        return *this;
+    // this->print_graph(std::cout);
+    std::unordered_set<instruction_ref> visited;
     auto implicit_deps = calc_implicit_deps();
+#if 1
+    std::vector<instruction_ref> lasts;
+    copy_if(iterator_for(*this), std::back_inserter(lasts), [&](auto last) {
+        return last->outputs().empty();
+    });
+    for(auto last:lasts)
+    {
+        // std::cout << "each: ";
+        // this->debug_print(last);
+        // if(last->name() == "@return")
+        // {
+        //     std::cout << "return: ";
+        //     std::cout << "outputs: ";
+        //     this->debug_print(last->outputs());
+        // }
+        // if(not last->outputs().empty())
+        //     continue;
+        // std::cout << "last: ";
+        // this->debug_print(last);
+        fix([&](auto self, auto ins) {
+            if(visited.insert(ins).second == false)
+                return;
+            auto ins_inputs = ins->inputs();
+            if(implicit_deps.find(ins) != implicit_deps.end())
+            {
+                auto ins_implict_inputs = implicit_deps.at(ins);
+                ins_inputs.insert(
+                    ins_inputs.end(), ins_implict_inputs.begin(), ins_implict_inputs.end());
+            }
+            for(auto child : ins_inputs)
+            {
+                if(not contains(this->impl->instructions, child))
+                    continue;
+                self(child);
+            }
+            this->move_instruction(ins, this->end());
+        })(last);
+    }
+#else
     fix([&](auto self, auto ins) {
         this->move_instruction(ins, this->begin());
         auto ins_inputs = ins->inputs();
@@ -1487,6 +1530,8 @@ module& module::sort()
             self(child);
         }
     })(std::prev(this->end()));
+#endif
+    // this->debug_print();
     assert(this->validate() == this->end());
     return *this;
 }

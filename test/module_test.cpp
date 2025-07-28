@@ -1108,7 +1108,7 @@ TEST_CASE(exponential_growth_graph_sort)
     //
     // Exponential growth graph structure - graph pattern:
     //
-    // Each level i has 2^i nodes, with each node connecting to
+    // Each level i has 2^i nodes, with each node connecting to 
     // multiple nodes in the previous level. This creates an exponential
     // number of paths through the graph.
     //
@@ -1118,57 +1118,56 @@ TEST_CASE(exponential_growth_graph_sort)
 
     // Define a large enough graph to potentially cause problems
     // but not so large that it takes too long to create
-    const int DEPTH = 10;
+    const int depth = 10;
 
     migraphx::module m;
     auto s = migraphx::shape{migraphx::shape::float_type, {1}};
 
     // Available operations
-    std::vector<migraphx::operation> operations = {migraphx::make_op("add"),
-                                                   migraphx::make_op("mul"),
-                                                   migraphx::make_op("min"),
-                                                   migraphx::make_op("max"),
-                                                   migraphx::make_op("div")};
+    std::vector<migraphx::operation> operations = {
+        migraphx::make_op("add"),
+        migraphx::make_op("mul"),
+        migraphx::make_op("min"),
+        migraphx::make_op("max"),
+        migraphx::make_op("div")
+    };
 
-    auto x                                             = m.add_parameter("x", s);
+    auto x = m.add_parameter("x", s);
     std::vector<migraphx::instruction_ref> first_level = {x};
-
+    
     // Number of nodes at each level which doubles at each level
-    std::array<std::size_t, DEPTH> num_nodes;
+    std::array<std::size_t, depth> num_nodes;
     num_nodes.fill(2);
     std::partial_sum(num_nodes.begin(), num_nodes.end(), num_nodes.begin(), std::multiplies<>{});
 
     // Build all layers, accumulating just the last level
-    auto last_level =
-        std::accumulate(num_nodes.begin(),
-                        num_nodes.end(),
-                        first_level,
-                        [&](const auto& prev_level, std::size_t nodes_at_level) {
-                            // Transform indices into nodes
-                            std::vector<migraphx::instruction_ref> current_level;
-                            current_level.reserve(nodes_at_level);
-
-                            transform(migraphx::range(nodes_at_level),
-                                      std::back_inserter(current_level),
-                                      [&](std::size_t node) {
-                                          // Select inputs from previous level
-                                          int input1_idx = node % prev_level.size();
-                                          int input2_idx = (node / 2) % prev_level.size();
-
-                                          auto input1 = prev_level[input1_idx];
-                                          auto input2 = prev_level[input2_idx];
-
-                                          // Select operation based on node index
-                                          auto op = operations[node % operations.size()];
-
-                                          // Create the new node
-                                          return m.add_instruction(op, input1, input2);
-                                      });
-
-                            // Return the current level (to become prev_level in next iteration)
-                            return current_level;
-                        });
-
+    auto last_level = std::accumulate(num_nodes.begin(), num_nodes.end(), 
+        first_level,
+        [&](const auto& prev_level, std::size_t nodes_at_level) {                        
+            // Transform indices into nodes
+            std::vector<migraphx::instruction_ref> current_level;
+            current_level.reserve(nodes_at_level);
+            
+            transform(migraphx::range(nodes_at_level), std::back_inserter(current_level),
+                [&](std::size_t node) {
+                    // Select inputs from previous level
+                    int input1_idx = node % prev_level.size();
+                    int input2_idx = (node / 2) % prev_level.size();
+                    
+                    auto input1 = prev_level[input1_idx];
+                    auto input2 = prev_level[input2_idx];
+                    
+                    // Select operation based on node index
+                    auto op = operations[node % operations.size()];
+                    
+                    // Create the new node
+                    return m.add_instruction(op, input1, input2);
+                });
+            
+            // Return the current level (to become prev_level in next iteration)
+            return current_level;
+        });
+    
     // Add return node connected to multiple nodes from the last level
     std::vector<migraphx::instruction_ref> final_inputs;
     std::copy_n(last_level.begin(), last_level.size() / 2, std::back_inserter(final_inputs));
@@ -1192,82 +1191,81 @@ TEST_CASE(pathological_dfs_graph_sort)
     migraphx::module m;
     auto s = migraphx::shape{migraphx::shape::float_type, {1}};
 
-    const int NUM_LAYERS      = 20;
-    const int NODES_PER_LAYER = 20;
-    const int NUM_PARAMS      = 10;
-
+    const int num_layers = 20;
+    const int nodes_per_layer = 20;
+    const int num_params = 10;
+    
     // Create parameters
-    std::vector<migraphx::instruction_ref> params;
-    transform(migraphx::range(NUM_PARAMS), std::back_inserter(params), [&](int i) {
-        return m.add_parameter("x" + std::to_string(i), s);
-    });
-
+    std::vector<migraphx::instruction_ref> params;    
+    transform(migraphx::range(num_params), std::back_inserter(params),
+        [&](int i) {
+            return m.add_parameter("x" + std::to_string(i), s);
+        });
+    
     // Available operations
-    std::vector<migraphx::operation> operations = {migraphx::make_op("add"),
-                                                   migraphx::make_op("mul"),
-                                                   migraphx::make_op("min"),
-                                                   migraphx::make_op("max"),
-                                                   migraphx::make_op("div")};
-
-    std::vector<migraphx::instruction_ref> first_layer;
-    transform(
-        migraphx::range(NODES_PER_LAYER), std::back_inserter(first_layer), [&](std::size_t i) {
+    std::vector<migraphx::operation> operations = {
+        migraphx::make_op("add"),
+        migraphx::make_op("mul"),
+        migraphx::make_op("min"),
+        migraphx::make_op("max"),
+        migraphx::make_op("div")
+    };
+    
+    std::vector<migraphx::instruction_ref> first_layer;    
+    transform(migraphx::range(nodes_per_layer), 
+        std::back_inserter(first_layer), [&](std::size_t i) {
             // Each node connects to two random parameters
-            std::size_t param1 = i % NUM_PARAMS;
-            std::size_t param2 = (i + 3) % NUM_PARAMS;
-
+            std::size_t param1 = i % num_params;
+            std::size_t param2 = (i + 3) % num_params;
+            
             auto op = operations[i % operations.size()];
             return m.add_instruction(op, params[param1], params[param2]);
         });
-
+        
     // Build all layers, accumulating just the last layer
-    auto last_layer = std::accumulate(
-        migraphx::iota_iterator{0, {}},
-        migraphx::iota_iterator{NUM_LAYERS, {}},
+    auto last_layer = std::accumulate(migraphx::iota_iterator{0, {}}, migraphx::iota_iterator{num_layers, {}},
         first_layer,
         [&](const auto& prev_layer, std::size_t) {
-            std::vector<std::size_t> node_indices(NODES_PER_LAYER);
+            std::vector<std::size_t> node_indices(nodes_per_layer);
             std::iota(node_indices.begin(), node_indices.end(), 0);
-
+            
             std::vector<migraphx::instruction_ref> current_layer;
-
-            transform(migraphx::range(NODES_PER_LAYER),
-                      std::back_inserter(current_layer),
-                      [&](std::size_t i) {
-                          // Connect to multiple nodes from previous layer to create path explosion
-                          const std::size_t num_inputs = std::min(4, NODES_PER_LAYER);
-                          std::vector<migraphx::instruction_ref> inputs;
-
-                          // Transform indices to actual input nodes
-                          transform(migraphx::range(num_inputs),
-                                    std::back_inserter(inputs),
-                                    [&](std::size_t j) {
-                                        std::size_t input_idx = (i + j * 3) % prev_layer.size();
-                                        return prev_layer[input_idx];
-                                    });
-
-                          // Create intermediate nodes with pairs of inputs
-                          auto op1  = migraphx::make_op("add");
-                          auto op2  = migraphx::make_op("mul");
-                          auto ins1 = m.add_instruction(op1, inputs[0], inputs[1]);
-                          auto ins2 = m.add_instruction(
-                              op2, inputs[2 % inputs.size()], inputs[3 % inputs.size()]);
-
-                          // Combine the results
-                          auto op3 = operations[(i % 3) + 2]; // Use min, max, or div
-                          return m.add_instruction(op3, ins1, ins2);
-                      });
-
+            
+            transform(migraphx::range(nodes_per_layer),
+                std::back_inserter(current_layer), [&](std::size_t i) {
+                    // Connect to multiple nodes from previous layer to create path explosion
+                    const std::size_t num_inputs = std::min(4, nodes_per_layer);
+                    std::vector<migraphx::instruction_ref> inputs;
+                    
+                    // Transform indices to actual input nodes
+                    transform(migraphx::range(num_inputs), 
+                        std::back_inserter(inputs), [&](std::size_t j) {
+                            std::size_t input_idx = (i + j*3) % prev_layer.size();
+                            return prev_layer[input_idx];
+                        });
+                    
+                    // Create intermediate nodes with pairs of inputs
+                    auto op1 = migraphx::make_op("add");
+                    auto op2 = migraphx::make_op("mul");
+                    auto ins1 = m.add_instruction(op1, inputs[0], inputs[1]);
+                    auto ins2 = m.add_instruction(op2, inputs[2 % inputs.size()], 
+                                                        inputs[3 % inputs.size()]);
+                    
+                    // Combine the results
+                    auto op3 = operations[(i % 3) + 2]; // Use min, max, or div
+                    return m.add_instruction(op3, ins1, ins2);
+                });
+            
             // Return the current layer (to become prev_layer in next iteration)
             return current_layer;
         });
-
+    
     // Create a sequence of operations that combine all nodes from the last layer
-    auto final_result = std::accumulate(
-        last_layer.begin() + 1, last_layer.end(), last_layer[0], [&](auto x, auto y) {
+    auto final_result = std::accumulate(last_layer.begin() + 1, last_layer.end(), last_layer[0],
+        [&](auto x, auto y) {
             return m.add_instruction(migraphx::make_op("add"), x, y);
         });
-
+    
     m.add_return({final_result});
 
     m.sort();

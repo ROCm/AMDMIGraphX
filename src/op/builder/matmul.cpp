@@ -193,7 +193,7 @@ struct dot : matmul_base<dot>
     }
 
     std::vector<instruction_ref>
-    insert(module& m, instruction_ref ins, const std::vector<instruction_ref>& args) /*const*/
+    insert(module& m, instruction_ref ins, const std::vector<instruction_ref>& args)
     {
         return {insert_impl(m, ins, args)};
     }
@@ -244,7 +244,7 @@ struct quant_dot : matmul_base<quant_dot>
     }
 
     std::vector<instruction_ref>
-    insert(module& m, instruction_ref ins, const std::vector<instruction_ref>& args) /*const*/
+    insert(module& m, instruction_ref ins, const std::vector<instruction_ref>& args)
     {
         return {insert_impl(m, ins, args)};
     }
@@ -504,7 +504,7 @@ struct quant_dot_scaled : matmul_base<quant_dot_scaled>
     }
 
     std::vector<instruction_ref>
-    insert(module& m, instruction_ref ins, const std::vector<instruction_ref>& args) /*const*/
+    insert(module& m, instruction_ref ins, const std::vector<instruction_ref>& args)
     {
         return {insert_impl(m, ins, args)};
     }

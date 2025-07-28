@@ -39,7 +39,7 @@ TEST_CASE(load_and_run)
     auto shapes_after = p.get_output_shapes();
     CHECK(shapes_before.size() == 1);
     CHECK(shapes_before.size() == shapes_after.size());
-    CHECK(bool{shapes_before.front() == shapes_after.front()});
+    CHECK(shapes_before.front() == shapes_after.front());
     migraphx::program_parameters pp;
     auto param_shapes = p.get_parameter_shapes();
     for(auto&& name : param_shapes.names())
@@ -49,7 +49,7 @@ TEST_CASE(load_and_run)
 
     auto outputs = p.eval(pp);
     CHECK(shapes_before.size() == outputs.size());
-    CHECK(bool{shapes_before.front() == outputs.front().get_shape()});
+    CHECK(shapes_before.front() == outputs.front().get_shape());
 }
 
 using hip_ptr    = MIGRAPHX_MANAGE_PTR(void, hipFree);
@@ -180,7 +180,7 @@ TEST_CASE(load_and_run_async)
     auto shapes_after = p.get_output_shapes();
     CHECK(shapes_before.size() == 1);
     CHECK(shapes_before.size() == shapes_after.size());
-    CHECK(bool{shapes_before.front() == shapes_after.front()});
+    CHECK(shapes_before.front() == shapes_after.front());
     migraphx::program_parameters pp;
     auto param_shapes = p.get_parameter_shapes();
 
@@ -203,7 +203,7 @@ TEST_CASE(load_and_run_async)
 
     auto outputs = p.run_async(pp, stream.get());
     CHECK(shapes_before.size() == outputs.size());
-    CHECK(bool{shapes_before.front() == outputs.front().get_shape()});
+    CHECK(shapes_before.front() == outputs.front().get_shape());
 }
 
 TEST_CASE(load_and_run_ctx)
@@ -234,7 +234,7 @@ TEST_CASE(if_pl_test)
         p.compile(migraphx::target("gpu"), options);
         auto shapes_after = p.get_output_shapes();
         CHECK(shapes_before.size() == 1);
-        CHECK(bool{shapes_before.front() == shapes_after.front()});
+        CHECK(shapes_before.front() == shapes_after.front());
 
         migraphx::program_parameters pp;
         auto param_shapes = p.get_parameter_shapes();
@@ -279,7 +279,7 @@ TEST_CASE(loop_test)
         p.compile(migraphx::target("gpu"), options);
         auto shapes_after = p.get_output_shapes();
         CHECK(shapes_before.size() == 2);
-        CHECK(bool{shapes_before.front() == shapes_after.front()});
+        CHECK(shapes_before.front() == shapes_after.front());
 
         migraphx::program_parameters pp;
         auto param_shapes     = p.get_parameter_shapes();
@@ -330,7 +330,7 @@ TEST_CASE(loop_test_limit_max_iter)
         p.compile(migraphx::target("gpu"), options);
         auto shapes_after = p.get_output_shapes();
         CHECK(shapes_before.size() == 2);
-        CHECK(bool{shapes_before.front() == shapes_after.front()});
+        CHECK(shapes_before.front() == shapes_after.front());
 
         migraphx::program_parameters pp;
         auto param_shapes     = p.get_parameter_shapes();

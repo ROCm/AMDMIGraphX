@@ -111,7 +111,7 @@ TEST_CASE(value_construct_enum1)
     migraphx::value v = enum_type::a;
     EXPECT(v.is_int64());
     EXPECT(v.get_int64() == static_cast<std::uint64_t>(enum_type::a));
-    EXPECT(bool{v.to<enum_type>() == enum_type::a});
+    EXPECT(v.to<enum_type>() == enum_type::a);
     EXPECT(v.get_key().empty());
 }
 
@@ -120,7 +120,7 @@ TEST_CASE(value_construct_enum2)
     migraphx::value v = enum_type::b;
     EXPECT(v.is_int64());
     EXPECT(v.get_int64() == static_cast<std::uint64_t>(enum_type::b));
-    EXPECT(bool{v.to<enum_type>() == enum_type::b});
+    EXPECT(v.to<enum_type>() == enum_type::b);
     EXPECT(v.get_key().empty());
 }
 
@@ -129,7 +129,7 @@ TEST_CASE(value_construct_enum3)
     migraphx::value v = enum_type::c;
     EXPECT(v.is_int64());
     EXPECT(v.get_int64() == static_cast<std::uint64_t>(enum_type::c));
-    EXPECT(bool{v.to<enum_type>() == enum_type::c});
+    EXPECT(v.to<enum_type>() == enum_type::c);
     EXPECT(v.get_key().empty());
 }
 
@@ -680,7 +680,7 @@ TEST_CASE(value_to_from_pair)
     migraphx::value v = {"one", 1};
     EXPECT(bool{v.to<std::pair<std::string, std::string>>() ==
                 std::pair<std::string, std::string>("one", "1")});
-    EXPECT(bool{v.to<std::pair<std::string, int>>() == std::pair<std::string, int>("one", 1)});
+    EXPECT(v.to<std::pair<std::string, int>>() == std::pair<std::string, int>("one", 1));
     EXPECT(
         bool{v.to<std::pair<std::string, float>>() == std::pair<std::string, float>("one", 1.0)});
 }

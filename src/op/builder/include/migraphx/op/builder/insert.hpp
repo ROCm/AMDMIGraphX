@@ -59,7 +59,7 @@ MIGRAPHX_EXPORT std::vector<instruction_ref> add(const std::string& name,
                                                  const std::vector<module_ref>& module_args,
                                                  const value& options);
 template <class... Ins>
-MIGRAPHX_EXPORT instruction_ref
+instruction_ref
 insert_common_op(module& m, instruction_ref ins, const std::string& op_name, Ins... args)
 {
     return insert_common_op(m, ins, make_op(op_name), {args...});

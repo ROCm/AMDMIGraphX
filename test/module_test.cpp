@@ -787,7 +787,7 @@ TEST_CASE(linear_graph_sort)
     //  x → abs → neg → tanh → return
     //
     // Tests the most basic case of topological sorting.
-    // 
+    //
     migraphx::module m;
     auto s = migraphx::shape{migraphx::shape::float_type, {1}};
     auto x = m.add_parameter("x", s);
@@ -813,7 +813,7 @@ TEST_CASE(diamond_graph_sort)
     //           └─→ neg ─┘
     //
     // Tests handling of branches and reconvergent paths.
-    // 
+    //
     migraphx::module m;
     auto s   = migraphx::shape{migraphx::shape::float_type, {1}};
     auto x   = m.add_parameter("x", s);
@@ -839,7 +839,7 @@ TEST_CASE(multiple_outputs_sort)
     //           └─→ neg ─────────┘
     //
     // Tests handling of multiple outputs from a single instruction.
-    // 
+    //
     migraphx::module m;
     auto s = migraphx::shape{migraphx::shape::float_type, {1}};
     auto x = m.add_parameter("x", s);
@@ -865,7 +865,7 @@ TEST_CASE(dead_code_sort)
     //           └─→ neg
     //
     // Tests handling of dead code that is use inputs
-    // 
+    //
     migraphx::module m;
     auto s = migraphx::shape{migraphx::shape::float_type, {1}};
     auto x = m.add_parameter("x", s);
@@ -889,7 +889,7 @@ TEST_CASE(disconnected_components_sort)
     //  x2 → abs2 ─┘
     //
     // Tests sorting of disconnected subgraphs.
-    // 
+    //
     migraphx::module m;
     auto s = migraphx::shape{migraphx::shape::float_type, {1}};
 
@@ -916,7 +916,7 @@ TEST_CASE(empty_graph_sort)
     //  (empty module)
     //
     // Tests sorting an empty module.
-    // 
+    //
     migraphx::module m;
     m.sort();
 
@@ -932,7 +932,7 @@ TEST_CASE(single_node_sort)
     //  x → return
     //
     // Tests the simplest possible non-empty case.
-    // 
+    //
     migraphx::module m;
     auto s = migraphx::shape{migraphx::shape::float_type, {1}};
     auto x = m.add_parameter("x", s);
@@ -955,7 +955,7 @@ TEST_CASE(sort_with_non_direct_dependencies)
     //
     // Tests handling of both direct and indirect dependencies.
     // (A is a direct dependency of B and C, and an indirect dependency of C via B)
-    // 
+    //
     migraphx::module m;
     auto s = migraphx::shape{migraphx::shape::float_type, {1}};
 
@@ -1004,7 +1004,7 @@ TEST_CASE(dfs_without_visited_set_infinite_loop)
     // Without a proper visited set, a DFS-based topological sort would
     // potentially re-process the same nodes repeatedly, leading to an
     // exponential runtime or infinite loop in pathological implementations.
-    // 
+    //
     migraphx::module m;
     auto s = migraphx::shape{migraphx::shape::float_type, {1}};
 
@@ -1066,7 +1066,7 @@ TEST_CASE(recursive_dag_revisit_test)
     // A naive DFS implementation without a visited set would potentially
     // revisit these nodes many times, leading to an exponential number of
     // recursive calls, which could manifest as an infinite loop in practice.
-    // 
+    //
     migraphx::module m;
     auto s = migraphx::shape{migraphx::shape::float_type, {1}};
 
@@ -1114,7 +1114,7 @@ TEST_CASE(fibonacci_graph_sort)
     //
     // This structure is particularly problematic for naive DFS implementations
     // without visited node tracking.
-    // 
+    //
 
     // Define a large enough graph to potentially cause problems
     // but not so large that it takes too long to create
@@ -1177,7 +1177,7 @@ TEST_CASE(pathological_dfs_graph_sort)
     // This creates a graph where the number of unique paths to each node
     // increases exponentially as you traverse up from the return node,
     // making it a worst-case scenario for DFS without visited tracking.
-    // 
+    //
     migraphx::module m;
     auto s = migraphx::shape{migraphx::shape::float_type, {1}};
 

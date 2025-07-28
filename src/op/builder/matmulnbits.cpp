@@ -61,11 +61,11 @@ struct matmulnbits : op_builder<matmulnbits>
     void validate_or_init_parameters(const std::vector<instruction_ref>& args) const
     {
         if(bits != 4)
-            MIGRAPHX_THROW("MatMulNBits: bits only supported for value of 4, actual value " +
+            MIGRAPHX_THROW(name() + " : bits only supported for value of 4, actual value " +
                            std::to_string(bits));
 
         if(block_size < 16 or (block_size & (block_size - 1)) != 0)
-            MIGRAPHX_THROW("MatMulNBits: block_size must be a power of 2 and >=16, actual value " +
+            MIGRAPHX_THROW(name() + " : block_size must be a power of 2 and >=16, actual value " +
                            std::to_string(block_size));
 
         const size_t n_blocks_per_col = (k + block_size - 1) / block_size;

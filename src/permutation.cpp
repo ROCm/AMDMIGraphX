@@ -74,6 +74,7 @@ std::vector<int64_t> find_permutation(const std::vector<shape>& shapes)
     return it->first;
 }
 
+/// Normalize shapes by reordering them by their permutation
 std::vector<shape> normalize_permutation(const std::vector<shape>& shapes)
 {
     auto result = shapes;

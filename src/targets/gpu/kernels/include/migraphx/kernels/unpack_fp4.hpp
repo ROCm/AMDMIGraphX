@@ -21,35 +21,32 @@
  * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
  * THE SOFTWARE.
  */
-#ifndef MIGRAPHX_GUARD_KERNELS_PACK_FP4_HPP
-#define MIGRAPHX_GUARD_KERNELS_PACK_FP4_HPP
+#ifndef MIGRAPHX_GUARD_KERNELS_UNPACK_FP4_HPP
+#define MIGRAPHX_GUARD_KERNELS_UNPACK_FP4_HPP
 
 #include <migraphx/kernels/types.hpp>
 #include <migraphx/kernels/index.hpp>
 #include <migraphx/kernels/tensor_view.hpp>
 #include <migraphx/kernels/fp4_casts.hpp>
-//#include <hip/hip_fp4.h>
 
 namespace migraphx {
 
 template <int Axis, class Input, class Output>
-__device__ void pack_fp4(Input input, Output output)
+__device__ void unpack_fp4(Input input, Output output)
 {
-    const auto output_shape = output.get_shape();
-    make_index().global_stride(output_shape.elements(), [&](auto i) {
-        auto out_idx = output_shape.multi(i);
-        auto in_idx = out_idx;
-        in_idx[Axis] *= 2;
-        auto inp_val0 = input[in_idx];
-        in_idx[Axis] += 1;
-        auto inp_val1 = input[in_idx];
-        uint8_t out_val0  = float_to_fp4(inp_val0);
-        uint8_t out_val1  = float_to_fp4(inp_val1);
-        output[out_idx]   = static_cast<uint8_t>(out_val1 << 4u) | out_val0;
-        //auto fp32x2_val = float2{input[idx], input[idx + 1]};
-        //output[idx] = __hip_cvt_float2_to_fp4x2(fp32x2_val, __HIP_E2M1, __HIP_SATFINITE);
+    const auto input_shape = output.get_shape();
+    make_index().global_stride(input_shape.elements(), [&](auto i) {
+        auto out_idx = input_shape.multi(i);
+        out_idx[Axis] *= 2;
+        // unpacking 2 unsigned parts
+        // unpacking 4 least significant bits first
+        uint8_t fp4_val = input[i];
+        output[out_idx] = fp4_to_float(fp4_val);
+        out_idx[Axis] += 1;
+        fp4_val = fp4_val >> 4u;
+        output[out_idx] = fp4_to_float(fp4_val);
     });
 }
 
 } // namespace migraphx
-#endif // MIGRAPHX_GUARD_KERNELS_PACK_FP4_HPP
+#endif // MIGRAPHX_GUARD_KERNELS_UNPACK_FP4_HPP

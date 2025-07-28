@@ -21,35 +21,26 @@
  * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
  * THE SOFTWARE.
  */
-#ifndef MIGRAPHX_GUARD_KERNELS_PACK_FP4_HPP
-#define MIGRAPHX_GUARD_KERNELS_PACK_FP4_HPP
 
-#include <migraphx/kernels/types.hpp>
-#include <migraphx/kernels/index.hpp>
-#include <migraphx/kernels/tensor_view.hpp>
-#include <migraphx/kernels/fp4_casts.hpp>
-//#include <hip/hip_fp4.h>
+#include "verify_program.hpp"
+#include <migraphx/program.hpp>
+#include <migraphx/generate.hpp>
+#include <migraphx/make_op.hpp>
 
-namespace migraphx {
-
-template <int Axis, class Input, class Output>
-__device__ void pack_fp4(Input input, Output output)
+template <migraphx::shape::type_t T, int Axis = -1>
+struct test_pack_fp4 : verify_program<test_pack_fp4<T, Axis>>
 {
-    const auto output_shape = output.get_shape();
-    make_index().global_stride(output_shape.elements(), [&](auto i) {
-        auto out_idx = output_shape.multi(i);
-        auto in_idx = out_idx;
-        in_idx[Axis] *= 2;
-        auto inp_val0 = input[in_idx];
-        in_idx[Axis] += 1;
-        auto inp_val1 = input[in_idx];
-        uint8_t out_val0  = float_to_fp4(inp_val0);
-        uint8_t out_val1  = float_to_fp4(inp_val1);
-        output[out_idx]   = static_cast<uint8_t>(out_val1 << 4u) | out_val0;
-        //auto fp32x2_val = float2{input[idx], input[idx + 1]};
-        //output[idx] = __hip_cvt_float2_to_fp4x2(fp32x2_val, __HIP_E2M1, __HIP_SATFINITE);
-    });
-}
+    migraphx::program create_program() const
+    {
+        migraphx::program p;
+        auto* mm = p.get_main_module();
 
-} // namespace migraphx
-#endif // MIGRAPHX_GUARD_KERNELS_PACK_FP4_HPP
+        auto x = mm->add_parameter("x", migraphx::shape{T, {64, 32}});
+        mm->add_instruction(migraphx::make_op("pack_fp4", {{"axis", Axis}}), x);
+
+        return p;
+    }
+};
+
+template struct test_pack_fp4<migraphx::shape::float_type>;
+template struct test_pack_fp4<migraphx::shape::float_type, 0>;

@@ -31,6 +31,7 @@
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
 
+/// Collapse adjacent shape dimensions that are the same between shapes. 
 MIGRAPHX_EXPORT std::vector<shape> reduce_dims(const std::vector<shape>& shapes);
 
 } // namespace MIGRAPHX_INLINE_NS

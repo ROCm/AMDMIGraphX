@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2024 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2025 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -34,10 +34,8 @@ namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
 namespace gpu {
 
-using namespace migraphx::gpu::gen; // NOLINT
-
-static const char* const unpack_int4_kernel = R"__migraphx__(
-#include <migraphx/kernels/unpack_int4.hpp>
+static const char* const pack_fp4_kernel = R"__migraphx__(
+#include <migraphx/kernels/pack_fp4.hpp>
 #include <args.hpp>
 
 namespace migraphx {
@@ -46,8 +44,8 @@ extern "C" {
 
 MIGRAPHX_GLOBAL void ${kernel}(${params}) 
 {
-    transform_args(make_tensors(), rotate_last())(${args})([](auto... xs) {
-        unpack_int4<${axis}>(xs...);
+    transform_args(make_tensors())(${args})([](auto... xs) {
+        pack_fp4<${axis}>(xs...);
     });
 }
     
@@ -57,9 +55,9 @@ MIGRAPHX_GLOBAL void ${kernel}(${params})
 
 )__migraphx__";
 
-struct unpack_int4_compiler : compiler<unpack_int4_compiler>
+struct pack_fp4_compiler : compiler<pack_fp4_compiler>
 {
-    std::vector<std::string> names() const { return {"unpack_int4"}; }
+    std::vector<std::string> names() const { return {"pack_fp4"}; }
 
     operation compile_op(context& ctx, const std::vector<shape>& inputs, const value& v) const
     {
@@ -67,11 +65,11 @@ struct unpack_int4_compiler : compiler<unpack_int4_compiler>
         options.inputs         = inputs;
         options.output         = inputs.back();
         options.virtual_inputs = reduce_dims(normalize_permutation(options.inputs));
-        options.kernel_name    = "unpack_int4_kernel";
-        options.set_launch_params(v, compute_global_for(ctx, inputs.front().elements()));
+        options.kernel_name    = "pack_fp4_kernel";
+        options.set_launch_params(v, compute_global_for(ctx, inputs.back().elements()));
 
         auto src =
-            interpolate_string(unpack_int4_kernel,
+            interpolate_string(pack_fp4_kernel,
                                {{"kernel", options.kernel_name},
                                 {"params", enum_params(options.inputs.size(), "void * private_p")},
                                 {"args", enum_params(options.inputs.size(), "private_p")},

@@ -839,9 +839,10 @@ struct find_mlir_attention_op
             auto attn_output_ins = group;
             for(auto out : group->outputs())
             {
-                auto op              = out->get_operator();
+                auto op = out->get_operator();
                 if(op.name() == "get_tuple_elem")
                 {
+                    inss_to_replace[out]  = out;
                     out_idx               = op.to_value()["index"].to<std::size_t>();
                     auto tuple_elem_users = out->outputs();
                     if(tuple_elem_users.size() > 1)

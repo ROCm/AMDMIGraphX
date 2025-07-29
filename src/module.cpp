@@ -64,7 +64,7 @@ struct module_impl
 
     bool contains(instruction_ref ins) const
     {
-        if(is_end(ins, instructions.end()))
+        if(ins == instructions.end())
             return false;
         auto r = instruction_set.count(std::addressof(*ins)) > 0;
         assert(r == std::any_of(instructions.begin(), instructions.end(), [&](auto&& x) {

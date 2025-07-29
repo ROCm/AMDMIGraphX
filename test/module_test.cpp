@@ -1159,7 +1159,7 @@ TEST_CASE(exponential_growth_graph_sort)
                                           auto input2 = prev_level[input2_idx];
 
                                           // Select operation based on node index
-                                          auto op = operations[node % operations.size()];
+                                          const auto& op = operations[node % operations.size()];
 
                                           // Create the new node
                                           return m.add_instruction(op, input1, input2);
@@ -1216,7 +1216,7 @@ TEST_CASE(pathological_dfs_graph_sort)
             std::size_t param1 = i % num_params;
             std::size_t param2 = (i + 3) % num_params;
 
-            auto op = operations[i % operations.size()];
+            const auto& op = operations[i % operations.size()];
             return m.add_instruction(op, params[param1], params[param2]);
         });
 
@@ -1254,7 +1254,7 @@ TEST_CASE(pathological_dfs_graph_sort)
                               op2, inputs[2 % inputs.size()], inputs[3 % inputs.size()]);
 
                           // Combine the results
-                          auto op3 = operations[(i % 3) + 2]; // Use min, max, or div
+                          const auto& op3 = operations[(i % 3) + 2]; // Use min, max, or div
                           return m.add_instruction(op3, ins1, ins2);
                       });
 

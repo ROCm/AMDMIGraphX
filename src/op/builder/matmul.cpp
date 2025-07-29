@@ -36,20 +36,20 @@ namespace builder {
 template <typename Derived>
 struct matmul_base : op_builder<Derived>
 {
-    instruction_ref a0;
-    instruction_ref a1;
-    instruction_ref dot_res;
+    instruction_ref m_a0;
+    instruction_ref m_a1;
+    instruction_ref m_dot_res;
 
     const std::set<migraphx::shape::type_t> supported_types = {migraphx::shape::uint8_type,
                                                                migraphx::shape::int8_type};
 
     void set_args(const std::vector<instruction_ref>& args)
     {
-        a0 = args[0];
-        a1 = args[1];
+        m_a0 = args[0];
+        m_a1 = args[1];
     }
 
-    bool is_dynamic() const { return a0->get_shape().dynamic() or a1->get_shape().dynamic(); }
+    bool is_dynamic() const { return m_a0->get_shape().dynamic() or m_a1->get_shape().dynamic(); }
 
     static bool is_symmetric_zero_point(instruction_ref zp)
     {
@@ -106,8 +106,8 @@ struct matmul_base : op_builder<Derived>
     static void broadcast_dimensions(module& m,
                                      const std::vector<size_t>& s0_lens,
                                      const std::vector<size_t>& s1_lens,
-                                     const instruction_ref& a0_,
-                                     const instruction_ref& a1_,
+                                     const instruction_ref& a0,
+                                     const instruction_ref& a1,
                                      instruction_ref& ba0,
                                      instruction_ref& ba1)
     {
@@ -127,12 +127,12 @@ struct matmul_base : op_builder<Derived>
             if(s0_lens != l0_broadcasted_lens)
             {
                 ba0 = m.add_instruction(
-                    make_op("multibroadcast", {{"out_lens", l0_broadcasted_lens}}), a0_);
+                    make_op("multibroadcast", {{"out_lens", l0_broadcasted_lens}}), a0);
             }
             if(s1_lens != l1_broadcasted_lens)
             {
                 ba1 = m.add_instruction(
-                    make_op("multibroadcast", {{"out_lens", l1_broadcasted_lens}}), a1_);
+                    make_op("multibroadcast", {{"out_lens", l1_broadcasted_lens}}), a1);
             }
         }
     }
@@ -144,15 +144,15 @@ struct matmul_base : op_builder<Derived>
         bool is_a_prepended = false;
         bool is_b_appended  = false;
 
-        if(a0->get_shape().ndim() == 1)
+        if(m_a0->get_shape().ndim() == 1)
         {
             is_a_prepended = true;
-            a0             = m.add_instruction(make_op("unsqueeze", {{"axes", {0}}}), a0);
+            m_a0             = m.add_instruction(make_op("unsqueeze", {{"axes", {0}}}), m_a0);
         }
-        if(a1->get_shape().ndim() == 1)
+        if(m_a1->get_shape().ndim() == 1)
         {
             is_b_appended = true;
-            a1            = m.add_instruction(make_op("unsqueeze", {{"axes", {1}}}), a1);
+            m_a1            = m.add_instruction(make_op("unsqueeze", {{"axes", {1}}}), m_a1);
         }
 
         if(is_dynamic())
@@ -164,19 +164,19 @@ struct matmul_base : op_builder<Derived>
             static_cast<Derived*>(this)->handle_static(m, ins, args);
         }
 
-        int64_t num_axis = dot_res->get_shape().ndim();
+        int64_t num_axis = m_dot_res->get_shape().ndim();
 
         if(is_a_prepended)
         {
-            dot_res = m.add_instruction(make_op("squeeze", {{"axes", {num_axis - 2}}}), dot_res);
+            m_dot_res = m.add_instruction(make_op("squeeze", {{"axes", {num_axis - 2}}}), m_dot_res);
             --num_axis;
         }
         if(is_b_appended)
         {
-            dot_res = m.add_instruction(make_op("squeeze", {{"axes", {num_axis - 1}}}), dot_res);
+            m_dot_res = m.add_instruction(make_op("squeeze", {{"axes", {num_axis - 1}}}), m_dot_res);
         }
 
-        return dot_res;
+        return m_dot_res;
     }
 };
 
@@ -198,18 +198,18 @@ struct dot : matmul_base<dot>
 
     void handle_dynamic(module& m)
     {
-        auto s0_dds = a0->get_shape().to_dynamic().dyn_dims();
-        auto s1_dds = a1->get_shape().to_dynamic().dyn_dims();
+        auto s0_dds = m_a0->get_shape().to_dynamic().dyn_dims();
+        auto s1_dds = m_a1->get_shape().to_dynamic().dyn_dims();
 
         if(not std::equal(s0_dds.rbegin() + 2, s0_dds.rend(), s1_dds.rbegin() + 2, s1_dds.rend()))
         {
-            auto broadcasted_a0 = m.add_instruction(make_op("broadcast_for_dot"), a0, a1);
-            auto broadcasted_a1 = m.add_instruction(make_op("broadcast_for_dot"), a1, a0);
-            dot_res = m.add_instruction(make_op(name()), broadcasted_a0, broadcasted_a1);
+            auto broadcasted_a0 = m.add_instruction(make_op("broadcast_for_dot"), m_a0, m_a1);
+            auto broadcasted_a1 = m.add_instruction(make_op("broadcast_for_dot"), m_a1, m_a0);
+            m_dot_res = m.add_instruction(make_op(name()), broadcasted_a0, broadcasted_a1);
         }
         else
         {
-            dot_res = m.add_instruction(make_op(name()), a0, a1);
+            m_dot_res = m.add_instruction(make_op(name()), m_a0, m_a1);
         }
     }
 
@@ -220,12 +220,12 @@ struct dot : matmul_base<dot>
             MIGRAPHX_THROW(name() + ": Bias Args not supported");
         }
 
-        instruction_ref ba0 = set_bias_arg(name(), args, a0_zp_index, a0);
-        instruction_ref ba1 = set_bias_arg(name(), args, a1_zp_index, a1);
+        instruction_ref ba0 = set_bias_arg(name(), args, a0_zp_index, m_a0);
+        instruction_ref ba1 = set_bias_arg(name(), args, a1_zp_index, m_a1);
 
-        broadcast_dimensions(m, a0->get_shape().lens(), a1->get_shape().lens(), a0, a1, ba0, ba1);
+        broadcast_dimensions(m, m_a0->get_shape().lens(), m_a1->get_shape().lens(), m_a0, m_a1, ba0, ba1);
 
-        dot_res = m.add_instruction(make_op(name()), ba0, ba1);
+        m_dot_res = m.add_instruction(make_op(name()), ba0, ba1);
     }
 
     private:
@@ -259,28 +259,28 @@ struct quant_dot : matmul_base<quant_dot>
         bool has_ba0 = false;
         bool has_ba1 = false;
 
-        instruction_ref ba0 = set_bias_arg(name(), args, a0_zp_index, a0, has_ba0);
-        instruction_ref ba1 = set_bias_arg(name(), args, a1_zp_index, a1, has_ba1);
+        instruction_ref ba0 = set_bias_arg(name(), args, a0_zp_index, m_a0, has_ba0);
+        instruction_ref ba1 = set_bias_arg(name(), args, a1_zp_index, m_a1, has_ba1);
 
         // Only INT8 or UINT8 type currently supported
-        if((not contains(supported_types, a0->get_shape().type()) or
-            not contains(supported_types, a1->get_shape().type())))
+        if((not contains(supported_types, m_a0->get_shape().type()) or
+            not contains(supported_types, m_a1->get_shape().type())))
         {
             MIGRAPHX_THROW(name() + ": Unsupported type");
         }
 
-        if((a0->get_shape().type() == migraphx::shape::uint8_type) or
-           (a1->get_shape().type() == migraphx::shape::uint8_type))
+        if((m_a0->get_shape().type() == migraphx::shape::uint8_type) or
+           (m_a1->get_shape().type() == migraphx::shape::uint8_type))
         {
             auto offset_op = m.add_literal(
                 migraphx::literal{migraphx::shape{migraphx::shape::half_type}, {-128}});
-            handle_uint8_input(m, ins, has_ba0, offset_op, a0, ba0);
-            handle_uint8_input(m, ins, has_ba1, offset_op, a1, ba1);
+            handle_uint8_input(m, ins, has_ba0, offset_op, m_a0, ba0);
+            handle_uint8_input(m, ins, has_ba1, offset_op, m_a1, ba1);
         }
 
-        broadcast_dimensions(m, a0->get_shape().lens(), a1->get_shape().lens(), a0, a1, ba0, ba1);
+        broadcast_dimensions(m, m_a0->get_shape().lens(), m_a1->get_shape().lens(), m_a0, m_a1, ba0, ba1);
 
-        dot_res = m.add_instruction(make_op(name()), ba0, ba1);
+        m_dot_res = m.add_instruction(make_op(name()), ba0, ba1);
     }
 
     private:
@@ -370,33 +370,33 @@ struct quant_dot_scaled : matmul_base<quant_dot_scaled>
     void handle_static(module& m, instruction_ref ins, const std::vector<instruction_ref>& args)
     {
         // Handles case with for when scales are present in operator
-        instruction_ref scale_a0 = set_scale_arg(m, args, a0, 2);
-        instruction_ref scale_a1 = set_scale_arg(m, args, a1, 3);
+        instruction_ref scale_a0 = set_scale_arg(m, args, m_a0, 2);
+        instruction_ref scale_a1 = set_scale_arg(m, args, m_a1, 3);
         if(scale_a0->get_shape().type() != scale_a1->get_shape().type())
         {
             MIGRAPHX_THROW(name() + ": Scales must be the same type");
         }
 
-        instruction_ref ba0 = set_bias_arg(name(), args, a0_zp_index, a0);
-        instruction_ref ba1 = set_bias_arg(name(), args, a1_zp_index, a1);
+        instruction_ref ba0 = set_bias_arg(name(), args, a0_zp_index, m_a0);
+        instruction_ref ba1 = set_bias_arg(name(), args, a1_zp_index, m_a1);
 
         // handle optional bias arg to the result
         bool has_scale_bias = false;
         auto scaled_index   = 6;
         instruction_ref scaled_bias =
-            set_scale_bias(args, scaled_index, scale_a1->get_shape(), a1, has_scale_bias);
+            set_scale_bias(args, scaled_index, scale_a1->get_shape(), m_a1, has_scale_bias);
 
         // Only INT8 or UINT8 type currently supported
-        if((not contains(supported_types, a0->get_shape().type()) or
-            not contains(supported_types, a0->get_shape().type())))
+        if((not contains(supported_types, m_a0->get_shape().type()) or
+            not contains(supported_types, m_a0->get_shape().type())))
         {
             MIGRAPHX_THROW(name() + ": Unsupported type");
         }
 
-        broadcast_dimensions(m, a0->get_shape().lens(), a1->get_shape().lens(), a0, a1, ba0, ba1);
+        broadcast_dimensions(m, m_a0->get_shape().lens(), m_a1->get_shape().lens(), m_a0, m_a1, ba0, ba1);
 
-        dot_res = handle_scaled_output(
-            m, ins, a0, a1, scale_a0, scale_a1, ba0, ba1, scaled_bias, has_scale_bias);
+        m_dot_res = handle_scaled_output(
+            m, ins, m_a0, m_a1, scale_a0, scale_a1, ba0, ba1, scaled_bias, has_scale_bias);
     }
 
     private:
@@ -478,7 +478,7 @@ struct quant_dot_scaled : matmul_base<quant_dot_scaled>
     }
 
     static instruction_ref handle_dequantized(module& m,
-                                              const instruction_ref& a0_,
+                                              const instruction_ref& a0,
                                               const instruction_ref& scale_a0,
                                               const instruction_ref& zp_a0,
                                               bool no_zp)
@@ -488,27 +488,27 @@ struct quant_dot_scaled : matmul_base<quant_dot_scaled>
         if(no_zp)
         {
             auto bc_scale_a0 = m.add_instruction(
-                make_op("multibroadcast", {{"out_lens", a0_->get_shape().lens()}}), scale_a0);
-            dequantized_op = m.add_instruction(make_op("dequantizelinear"), a0_, bc_scale_a0);
+                make_op("multibroadcast", {{"out_lens", a0->get_shape().lens()}}), scale_a0);
+            dequantized_op = m.add_instruction(make_op("dequantizelinear"), a0, bc_scale_a0);
         }
         else
         {
             auto bc_scale_a0 = m.add_instruction(
-                make_op("multibroadcast", {{"out_lens", a0_->get_shape().lens()}}), scale_a0);
+                make_op("multibroadcast", {{"out_lens", a0->get_shape().lens()}}), scale_a0);
 
             auto bc_zp_a0 = m.add_instruction(
-                make_op("multibroadcast", {{"out_lens", a0_->get_shape().lens()}}), zp_a0);
+                make_op("multibroadcast", {{"out_lens", a0->get_shape().lens()}}), zp_a0);
 
             dequantized_op =
-                m.add_instruction(make_op("dequantizelinear"), a0_, bc_scale_a0, bc_zp_a0);
+                m.add_instruction(make_op("dequantizelinear"), a0, bc_scale_a0, bc_zp_a0);
         }
         return dequantized_op;
     }
 
     static instruction_ref handle_scaled_output(module& m,
                                                 instruction_ref ins,
-                                                const instruction_ref& a0_,
-                                                const instruction_ref& a1_,
+                                                const instruction_ref& a0,
+                                                const instruction_ref& a1,
                                                 const instruction_ref& scale_a0,
                                                 const instruction_ref& scale_a1,
                                                 const instruction_ref& zp_a0,
@@ -520,8 +520,8 @@ struct quant_dot_scaled : matmul_base<quant_dot_scaled>
         instruction_ref unsq_zp_a0;
         instruction_ref unsq_zp_a1;
 
-        bool a0_has_no_zp = (a0_ == zp_a0);
-        bool a1_has_no_zp = (a1_ == zp_a1);
+        bool a0_has_no_zp = (a0 == zp_a0);
+        bool a1_has_no_zp = (a1 == zp_a1);
 
         if(not a0_has_no_zp)
         {
@@ -541,8 +541,8 @@ struct quant_dot_scaled : matmul_base<quant_dot_scaled>
             }
         }
 
-        auto dq_a0 = handle_dequantized(m, a0_, scale_a0, unsq_zp_a0, a0_has_no_zp);
-        auto dq_a1 = handle_dequantized(m, a1_, scale_a1, unsq_zp_a1, a1_has_no_zp);
+        auto dq_a0 = handle_dequantized(m, a0, scale_a0, unsq_zp_a0, a0_has_no_zp);
+        auto dq_a1 = handle_dequantized(m, a1, scale_a1, unsq_zp_a1, a1_has_no_zp);
         auto res   = m.add_instruction(make_op("dot"), dq_a0, dq_a1);
 
         // Handle case of the bias after scaling

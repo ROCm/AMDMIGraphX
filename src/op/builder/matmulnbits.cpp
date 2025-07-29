@@ -40,44 +40,44 @@ struct matmulnbits : op_builder<matmulnbits>
     static auto reflect(Self& self, F f)
     {
         return pack(
-            f(self.n, "n"), f(self.k, "k"), f(self.bits, "bits"), f(self.block_size, "block_size"));
+            f(self.m_n, "n"), f(self.m_k, "k"), f(self.m_bits, "bits"), f(self.m_block_size, "block_size"));
     }
 
     std::vector<instruction_ref>
     insert(module& m, instruction_ref /*ins*/, const std::vector<instruction_ref>& args) const
     {
         validate_or_init_parameters(args);
-        auto b = dequantize_b(m, n, k, block_size, args);
+        auto b = dequantize_b(m, m_n, m_k, m_block_size, args);
         b      = m.add_instruction(make_op("transpose", {{"permutation", {1, 0}}}), b);
         return {matmul(m, args[0], b)};
     }
 
     private:
-    size_t n;
-    size_t k;
-    size_t bits;
-    size_t block_size;
+    size_t m_n;
+    size_t m_k;
+    size_t m_bits;
+    size_t m_block_size;
 
     void validate_or_init_parameters(const std::vector<instruction_ref>& args) const
     {
-        if(bits != 4)
+        if(m_bits != 4)
             MIGRAPHX_THROW(name() + " : bits only supported for value of 4, actual value " +
-                           std::to_string(bits));
+                           std::to_string(m_bits));
 
-        if(block_size < 16 or (block_size & (block_size - 1)) != 0)
+        if(m_block_size < 16 or (m_block_size & (m_block_size - 1)) != 0)
             MIGRAPHX_THROW(name() + " : block_size must be a power of 2 and >=16, actual value " +
-                           std::to_string(block_size));
+                           std::to_string(m_block_size));
 
-        const size_t n_blocks_per_col = (k + block_size - 1) / block_size;
-        const size_t blob_size        = std::ceil(block_size * bits / 8.0f);
+        const size_t n_blocks_per_col = (m_k + m_block_size - 1) / m_block_size;
+        const size_t blob_size        = std::ceil(m_block_size * m_bits / 8.0f);
 
-        std::vector<size_t> expected_b_lens{n, n_blocks_per_col, blob_size};
+        std::vector<size_t> expected_b_lens{m_n, n_blocks_per_col, blob_size};
         if(args[1]->get_shape().lens() != expected_b_lens)
             MIGRAPHX_THROW(name() + " : Input B does not match expected dims: " +
                            to_string_range(expected_b_lens) +
                            ". Actual dims: " + to_string_range(args[1]->get_shape().lens()));
 
-        const size_t expected_scales_lens = n * n_blocks_per_col;
+        const size_t expected_scales_lens = m_n * n_blocks_per_col;
         if(args[2]->get_shape().elements() != expected_scales_lens)
             MIGRAPHX_THROW(name() + " : Input scales does not match expected dims: " +
                            to_string(expected_scales_lens) +
@@ -86,7 +86,7 @@ struct matmulnbits : op_builder<matmulnbits>
         if(args.size() > 3)
         {
             std::vector<size_t> expected_zp_lens{
-                static_cast<size_t>(n * std::ceil(n_blocks_per_col * bits / 8.0f))};
+                static_cast<size_t>(m_n * std::ceil(n_blocks_per_col * m_bits / 8.0f))};
             if(args[3]->get_shape().lens() != expected_zp_lens)
                 MIGRAPHX_THROW(name() + " : Input zero_points does not match expected dims: " +
                                to_string_range(expected_zp_lens) +
@@ -94,9 +94,9 @@ struct matmulnbits : op_builder<matmulnbits>
         }
     }
 
-    instruction_ref unpack(module& m, int _n, int dim1, instruction_ref x) const
+    instruction_ref unpack(module& m, int n, int dim1, instruction_ref x) const
     {
-        x = m.add_instruction(make_op("reshape", {{"dims", {_n, -1}}}), x);
+        x = m.add_instruction(make_op("reshape", {{"dims", {n, -1}}}), x);
         x = m.add_instruction(make_op("unpack_int4"), x);
         if(x->get_shape().lens()[1] > dim1)
         {
@@ -107,39 +107,39 @@ struct matmulnbits : op_builder<matmulnbits>
     }
 
     instruction_ref
-    prepare_blockwise_dq_arg(module& m, int _n, int _k, int _block_size, instruction_ref x) const
+    prepare_blockwise_dq_arg(module& m, int n, int k, int block_size, instruction_ref x) const
     {
         x = m.add_instruction(make_op("unsqueeze", {{"axes", {2}}}), x);
 
         auto bc_lens = x->get_shape().lens();
-        bc_lens[2]   = _block_size;
+        bc_lens[2]   = block_size;
         x            = m.add_instruction(make_op("multibroadcast", {{"out_lens", bc_lens}}), x);
-        x            = m.add_instruction(make_op("reshape", {{"dims", {_n, -1}}}), x);
+        x            = m.add_instruction(make_op("reshape", {{"dims", {n, -1}}}), x);
 
         // Detect runt block
-        if(x->get_shape().lens()[1] > _k)
+        if(x->get_shape().lens()[1] > k)
         {
             x = m.add_instruction(
-                make_op("slice", {{"axes", {1}}, {"starts", {0}}, {"ends", {_k}}}), x);
+                make_op("slice", {{"axes", {1}}, {"starts", {0}}, {"ends", {k}}}), x);
         }
 
         return x;
     }
 
     instruction_ref dequantize_b(
-        module& m, int _n, int _k, int _block_size, const std::vector<instruction_ref>& args) const
+        module& m, int n, int k, int block_size, const std::vector<instruction_ref>& args) const
     {
-        auto b = unpack(m, _n, _k, args[1]);
+        auto b = unpack(m, n, k, args[1]);
 
-        auto n_blocks_per_col = (_k + _block_size - 1) / _block_size;
-        auto scales = m.add_instruction(make_op("reshape", {{"dims", {_n, -1}}}), args[2]);
-        scales      = prepare_blockwise_dq_arg(m, _n, _k, _block_size, scales);
+        auto n_blocks_per_col = (k + block_size - 1) / block_size;
+        auto scales = m.add_instruction(make_op("reshape", {{"dims", {n, -1}}}), args[2]);
+        scales      = prepare_blockwise_dq_arg(m, n, k, block_size, scales);
 
         instruction_ref zp;
         if(args.size() == 4)
         {
-            zp = unpack(m, _n, n_blocks_per_col, args[3]);
-            zp = prepare_blockwise_dq_arg(m, _n, _k, _block_size, zp);
+            zp = unpack(m, n, n_blocks_per_col, args[3]);
+            zp = prepare_blockwise_dq_arg(m, n, k, block_size, zp);
         }
         else
         {

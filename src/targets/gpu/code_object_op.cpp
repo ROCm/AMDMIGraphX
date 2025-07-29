@@ -48,18 +48,24 @@ shape code_object_op::compute_shape(std::vector<shape> inputs) const
 argument
 code_object_op::compute(context& ctx, const shape&, const std::vector<argument>& args) const
 {
-    auto fargs = flatten(args);
-    std::vector<void*> kargs(fargs.size());
-    std::transform(
-        fargs.begin(), fargs.end(), kargs.begin(), [](const argument& a) { return a.data(); });
-    auto [start, stop] = ctx.get_perf_events();
-    k.launch(ctx.get_stream().get(), global, local, std::move(kargs), start, stop);
+    if(this->format == code_object_format::binary)
+    {
+        auto fargs = flatten(args);
+        std::vector<void*> kargs(fargs.size());
+        std::transform(
+            fargs.begin(), fargs.end(), kargs.begin(), [](const argument& a) { return a.data(); });
+        auto [start, stop] = ctx.get_perf_events();
+        k.launch(ctx.get_stream().get(), global, local, std::move(kargs), start, stop);
+    }
     return args[get_output_arg(args.size())];
 }
 void code_object_op::finalize(context&, const shape&, const std::vector<shape>&)
-{
+{    
     assert(not code_object.empty());
-    k = kernel(code_object, symbol_name);
+    if(this->format == code_object_format::binary)
+    {
+        k = kernel(code_object, symbol_name);
+    }
 }
 
 } // namespace gpu

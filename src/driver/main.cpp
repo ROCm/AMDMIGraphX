@@ -581,6 +581,10 @@ struct compiler
            {"--exhaustive-tune"},
            ap.help("Exhastively search for best tuning parameters for kernels"),
            ap.set_value(true));
+	ap(co.portable,
+	   {"--portable"},
+	   ap.help("PROTOTYPE: Create portable kernels that get finalized in ./driver run"),
+	   ap.set_value(true));
         ap(to_fp16, {"--fp16"}, ap.help("Quantize for fp16"), ap.set_value(true));
         ap(to_bf16, {"--bf16"}, ap.help("Quantize for bf16"), ap.set_value(true));
         ap(to_int8, {"--int8"}, ap.help("Quantize for int8"), ap.set_value(true));
@@ -605,6 +609,15 @@ struct compiler
 
         if(p.is_compiled())
         {
+	    /*
+	    if(p.has_portable_ops) // means we must finalize it
+	    {
+		migraphx::run_passes(p,
+				     {finalize_portable_ops,
+				      //+ rest of pipeline
+				     });
+	    }
+	    */	    	    
             if(ct.target_name == "gpu")
             {
                 if(is_offload_copy_set(p) and not co.offload_copy)

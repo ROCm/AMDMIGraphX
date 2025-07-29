@@ -764,12 +764,22 @@ struct mlir_program
             }
             MIGRAPHX_THROW(error);
         }
+	std::cout << "ran high_level_pipeline:\n";
+	auto mod_op = mlirModuleGetOperation(this->mmodule.get());
+        std::cout << mlir_print(&mlirOperationPrint, mod_op) << std::endl;
     }
 
-    void run_backend_pipeline()
+    void run_backend_pipeline(bool portable = true)
     {
         mlir_pass_manager pm_back{mlirPassManagerCreate(ctx.get())};
-        mlirMIGraphXAddBackendPipeline(pm_back.get(), target_arch.c_str());
+	if(portable)
+	{
+	    mlirMIGraphXAddPortableBackendPipeline(pm_back.get(), target_arch.c_str(), num_cu);
+	}
+	else
+	{
+	    mlirMIGraphXAddBackendPipeline(pm_back.get(), target_arch.c_str());
+	}	
         logger.clear();
         const size_t trace = value_of(MIGRAPHX_TRACE_MLIR{});
         static std::mutex mutex;
@@ -791,8 +801,14 @@ struct mlir_program
         }
     }
 
+    code_object_op compile(const value& solution, bool portable)
+    {	
+	    return portable ? compilePortable(solution) : compile(solution);
+    }
+
     code_object_op compile(const value& solution)
     {
+	    std::cout << "compiling non-portable...\n";
         // 1st pipeline to call
         run_high_level_pipeline();
         std::string tuning_cfg_path = string_value_of(MIGRAPHX_MLIR_TUNING_CFG{});
@@ -800,21 +816,41 @@ struct mlir_program
             get_module_tuned();
         if(not solution.is_null())
             set_tuning(solution);
+        
         // 2nd pipeline to call
         run_backend_pipeline();
-
-        code_object_op op{};
-        op.symbol_name                = sym_name;
-        op.code_object                = get_binary();
-        std::tie(op.global, op.local) = get_launch_params();
-        return op;
+	
+	    code_object_op op{};
+	    op.symbol_name                = sym_name;
+	    op.code_object                = get_binary();
+	    std::tie(op.global, op.local) = get_launch_params();
+	    return op;	    
     }
+
+    code_object_op compilePortable(const value& solution)
+    {
+	    std::cout << "compiling portable...\n";	
+        // 1st pipeline to call
+        run_high_level_pipeline();
+	    code_object_op op{};
+
+	    op.symbol_name                = sym_name;
+	    op.code_object                = get_bytecode();
+        op.format                     = code_object_format::mlir_bytocode;
+	    // std::tie(op.global, op.local) = get_launch_params(); // will be set in second pass
+	    return op;
+    }    
 
     void set_gpu_properties(const context& migraphx_ctx)
     {
-        const auto& device = migraphx_ctx.get_current_device();
-        target_arch        = device.get_device_name();
-        num_cu             = device.get_cu_count();
+	if(migraphx_ctx.get_portable_flag()) {
+	    target_arch        = "gfxMIGX";
+ 	    num_cu             = 0;
+	} else {
+	    const auto& device = migraphx_ctx.get_current_device();
+	    target_arch        = device.get_device_name();
+	    num_cu             = device.get_cu_count();
+	}
     }
 
     std::pair<std::size_t, std::size_t> get_launch_params() const
@@ -833,6 +869,17 @@ struct mlir_program
         mlirGetBinary(mmodule.get(), &size, nullptr);
         value::binary result(size);
         if(mlirGetBinary(mmodule.get(), &size, reinterpret_cast<char*>(result.data())))
+            return result;
+	std::cout << "Got binary: " << result << "\n";
+        MIGRAPHX_THROW("Failed to compile mlir program");
+    }
+
+    value::binary get_bytecode() const
+    {
+        size_t size = 0;
+        mlirGetBytecode(mmodule.get(), &size, nullptr);
+        value::binary result(size);
+        if(mlirGetBytecode(mmodule.get(), &size, reinterpret_cast<char*>(result.data())))
             return result;
         MIGRAPHX_THROW("Failed to compile mlir program");
     }
@@ -1158,11 +1205,26 @@ mlir_code_object compile_mlir(const context& migraphx_ctx,
     auto mod_op = mlirModuleGetOperation(mp.mmodule.get());
     if(trace)
     {
+	
+        const std::lock_guard<std::mutex> lock(mutex);
+	std::cout << "Printing module...\n";
+        std::cout << mlir_print(&mlirOperationPrint, mod_op) << std::endl;
+    }
+
+    auto is_portable = migraphx_ctx.get_portable_flag();
+
+    // need entirely different pipeline, since we
+    // will run (in the future) the second pipeline on the objects involved
+    // right now, we just need the top level
+    std::cout << "Portable = " << (is_portable ? "true" : "false") << "\n";
+    auto co = mp.compile(solution, is_portable);
+    
+    if(trace)
+    {
         const std::lock_guard<std::mutex> lock(mutex);
         std::cout << mlir_print(&mlirOperationPrint, mod_op) << std::endl;
     }
-    auto co = mp.compile(solution);
-
+    
     co.expected_inputs = in_shapes;
     auto out_shapes    = m.get_output_shapes();
     if(out_shapes.size() == 1)

@@ -104,6 +104,8 @@ struct MIGRAPHX_EXPORT program
 
     bool is_compiled() const;
 
+    bool has_portable_ops() const;
+
     void finalize();
 
     void perf_report(std::ostream& os,

@@ -44,9 +44,6 @@ struct parse_matmulnbits : op_parser<parse_matmulnbits>
         const size_t bits       = parse_attribute(parser, info, "bits");
         const size_t block_size = parse_attribute(parser, info, "block_size");
 
-        std::cout << "parser - n: " << n << " - k: " << k << " - bits: " << bits
-                  << " - block_size: " << block_size << "\n";
-
         value options = {{"n", n}, {"k", k}, {"bits", bits}, {"block_size", block_size}};
         return op::builder::add("matmulnbits", *info.mod, args, options).at(0);
     }

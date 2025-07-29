@@ -297,6 +297,19 @@ static std::size_t find_max_alignment(const module& m, const std::string& alloca
     return alignment;
 }
 
+// static std::vector<instruction_ref> get_mod_input_inss(const module& m)
+// {
+//     std::vector<instruction_ref> mod_input_inss;
+//     for(auto ins : iterator_for(m))
+//     {
+//         if(not ins->module_inputs().empty())
+//         {
+//             mod_input_inss.push_back(ins);
+//         }
+//     }
+//     return mod_input_inss;
+// }
+
 void memory_coloring::apply(module& m) const
 {
     const std::size_t alignment = find_max_alignment(m, allocation_op);
@@ -339,12 +352,15 @@ void memory_coloring::apply(module& m) const
     // Total memory
     std::size_t n = as.max() * alignment;
 
+    // std::vector<instruction_ref> mod_input_inss = get_mod_input_inss(m);
     std::vector<instruction_ref> submod_scratch;
     std::vector<module_ref> submod_refs;
+    // std::unordered_set<module_ref> submod_refs;
+
+
     // iterate through submodules and check if there is a scratch param
     for(auto&& sub : m.get_sub_modules())
     {
-
         for(auto&& param_name : sub->get_parameter_names())
         {
             if(param_name == "scratch")
@@ -356,6 +372,26 @@ void memory_coloring::apply(module& m) const
             }
         }
     }
+
+    // for(auto ins : mod_input_inss)
+    // {
+    //     for(auto&& sub : ins->module_inputs())
+    //     {
+    //         if(contains(submod_refs, sub))
+    //             continue;
+    //         for(auto&& param_name : sub->get_parameter_names())
+    //         {
+    //             if(param_name == "scratch")
+    //             {
+    //                 auto scratch_param = sub->get_parameter(param_name);
+    //                 n = std::max(scratch_param->get_shape().bytes(), n);
+    //                 submod_scratch.push_back(scratch_param);
+    //                 submod_refs.insert(sub);
+    //             }
+    //         }
+    //     }
+    // }
+    
 
     // Replace allocations
     auto mem = m.add_parameter("scratch", shape{shape::int8_type, {n}});
@@ -384,18 +420,17 @@ void memory_coloring::apply(module& m) const
     {
         // std::unordered_map<instruction_ref, instruction_ref> scratch_map_ins;
         // submod_refs[i]->add_params({mem}, &scratch_map_ins);
-        auto orig_load = submod_scratch[i]->outputs().front();
-        auto new_load = submod_refs[i]->insert_instruction(orig_load, orig_load->get_operator(), {mem});
-        submod_refs[i]->replace_instruction(orig_load, new_load);
-        submod_refs[i]->remove_instruction(orig_load);
+        std::vector<instruction_ref> orig_loads = submod_scratch[i]->outputs();
+        for(auto orig_load : orig_loads)
+        {
+            auto new_load = submod_refs[i]->insert_instruction(orig_load, orig_load->get_operator(), {mem});
+            submod_refs[i]->replace_instruction(orig_load, new_load);
+            submod_refs[i]->remove_instruction(orig_load);
+        }
+        // submod_refs[i]->remove_instruction(orig_load);
         submod_refs[i]->remove_instruction(submod_scratch[i]);
     }
 
-    // if(m == *mpm.get_root_module())
-    // {
-    //     std::cout << "HERE" << std::endl;
-    //     m.debug_print();
-    // }
 
     // Remove scratch parameter if its not used
     if(mem->outputs().empty())

@@ -1472,7 +1472,6 @@ module& module::sort()
         return *this;
     std::unordered_set<instruction_ref> visited;
     auto implicit_deps = calc_implicit_deps();
-#if 1
     std::vector<instruction_ref> lasts;
     copy_if(iterator_for(*this), std::back_inserter(lasts), [&](auto last) {
         return last->outputs().empty();
@@ -1498,26 +1497,6 @@ module& module::sort()
             this->move_instruction(ins, this->end());
         })(last);
     }
-#else
-    fix([&](auto self, auto ins) {
-        this->move_instruction(ins, this->begin());
-        auto ins_inputs = ins->inputs();
-        if(implicit_deps.find(ins) != implicit_deps.end())
-        {
-            auto ins_implict_inputs = implicit_deps.at(ins);
-            ins_inputs.insert(
-                ins_inputs.end(), ins_implict_inputs.begin(), ins_implict_inputs.end());
-        }
-        for(auto child : ins_inputs)
-        {
-            if(not contains(this->impl->instructions, child))
-            {
-                continue;
-            }
-            self(child);
-        }
-    })(std::prev(this->end()));
-#endif
     assert(this->validate() == this->end());
     return *this;
 }

@@ -44,8 +44,10 @@ struct matmulnbits : op_builder<matmulnbits>
     template <class Self, class F>
     static auto reflect(Self& self, F f)
     {
-        return pack(
-            f(self.m_n, "n"), f(self.m_k, "k"), f(self.m_bits, "bits"), f(self.m_block_size, "block_size"));
+        return pack(f(self.m_n, "n"),
+                    f(self.m_k, "k"),
+                    f(self.m_bits, "bits"),
+                    f(self.m_block_size, "block_size"));
     }
 
     std::vector<instruction_ref>
@@ -119,8 +121,8 @@ struct matmulnbits : op_builder<matmulnbits>
         // Detect runt block
         if(x->get_shape().lens()[1] > k)
         {
-            x = m.add_instruction(
-                make_op("slice", {{"axes", {1}}, {"starts", {0}}, {"ends", {k}}}), x);
+            x = m.add_instruction(make_op("slice", {{"axes", {1}}, {"starts", {0}}, {"ends", {k}}}),
+                                  x);
         }
 
         return x;
@@ -132,8 +134,8 @@ struct matmulnbits : op_builder<matmulnbits>
         auto b = unpack(m, n, k, args[1]);
 
         auto n_blocks_per_col = (k + block_size - 1) / block_size;
-        auto scales = m.add_instruction(make_op("reshape", {{"dims", {n, -1}}}), args[2]);
-        scales      = prepare_blockwise_dq_arg(m, n, k, block_size, scales);
+        auto scales           = m.add_instruction(make_op("reshape", {{"dims", {n, -1}}}), args[2]);
+        scales                = prepare_blockwise_dq_arg(m, n, k, block_size, scales);
 
         instruction_ref zp;
         if(args.size() == 4)

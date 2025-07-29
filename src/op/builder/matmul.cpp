@@ -147,12 +147,12 @@ struct matmul_base : op_builder<Derived>
         if(m_a0->get_shape().ndim() == 1)
         {
             is_a_prepended = true;
-            m_a0             = m.add_instruction(make_op("unsqueeze", {{"axes", {0}}}), m_a0);
+            m_a0           = m.add_instruction(make_op("unsqueeze", {{"axes", {0}}}), m_a0);
         }
         if(m_a1->get_shape().ndim() == 1)
         {
             is_b_appended = true;
-            m_a1            = m.add_instruction(make_op("unsqueeze", {{"axes", {1}}}), m_a1);
+            m_a1          = m.add_instruction(make_op("unsqueeze", {{"axes", {1}}}), m_a1);
         }
 
         if(is_dynamic())
@@ -168,12 +168,14 @@ struct matmul_base : op_builder<Derived>
 
         if(is_a_prepended)
         {
-            m_dot_res = m.add_instruction(make_op("squeeze", {{"axes", {num_axis - 2}}}), m_dot_res);
+            m_dot_res =
+                m.add_instruction(make_op("squeeze", {{"axes", {num_axis - 2}}}), m_dot_res);
             --num_axis;
         }
         if(is_b_appended)
         {
-            m_dot_res = m.add_instruction(make_op("squeeze", {{"axes", {num_axis - 1}}}), m_dot_res);
+            m_dot_res =
+                m.add_instruction(make_op("squeeze", {{"axes", {num_axis - 1}}}), m_dot_res);
         }
 
         return m_dot_res;
@@ -223,7 +225,8 @@ struct dot : matmul_base<dot>
         instruction_ref ba0 = set_bias_arg(name(), args, a0_zp_index, m_a0);
         instruction_ref ba1 = set_bias_arg(name(), args, a1_zp_index, m_a1);
 
-        broadcast_dimensions(m, m_a0->get_shape().lens(), m_a1->get_shape().lens(), m_a0, m_a1, ba0, ba1);
+        broadcast_dimensions(
+            m, m_a0->get_shape().lens(), m_a1->get_shape().lens(), m_a0, m_a1, ba0, ba1);
 
         m_dot_res = m.add_instruction(make_op(name()), ba0, ba1);
     }
@@ -278,7 +281,8 @@ struct quant_dot : matmul_base<quant_dot>
             handle_uint8_input(m, ins, has_ba1, offset_op, m_a1, ba1);
         }
 
-        broadcast_dimensions(m, m_a0->get_shape().lens(), m_a1->get_shape().lens(), m_a0, m_a1, ba0, ba1);
+        broadcast_dimensions(
+            m, m_a0->get_shape().lens(), m_a1->get_shape().lens(), m_a0, m_a1, ba0, ba1);
 
         m_dot_res = m.add_instruction(make_op(name()), ba0, ba1);
     }
@@ -393,7 +397,8 @@ struct quant_dot_scaled : matmul_base<quant_dot_scaled>
             MIGRAPHX_THROW(name() + ": Unsupported type");
         }
 
-        broadcast_dimensions(m, m_a0->get_shape().lens(), m_a1->get_shape().lens(), m_a0, m_a1, ba0, ba1);
+        broadcast_dimensions(
+            m, m_a0->get_shape().lens(), m_a1->get_shape().lens(), m_a0, m_a1, ba0, ba1);
 
         m_dot_res = handle_scaled_output(
             m, ins, m_a0, m_a1, scale_a0, scale_a1, ba0, ba1, scaled_bias, has_scale_bias);

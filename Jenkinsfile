@@ -118,6 +118,8 @@ def rocmnodename(name) {
         node_name = "${rocmtest_name} && gfx1201 && !vm";
     } else if(name == "nogpu") {
         node_name = "${rocmtest_name} && nogpu";
+    } else if(name == "onnxrt") {
+        node_name = "${rocmtest_name} && onnxrt";
     }
     return node_name
 }
@@ -213,16 +215,22 @@ rocmtest clang_debug: rocmnode('mi200+') { cmake_build ->
 //            cmake_build(flags: "-DCMAKE_BUILD_TYPE=release -DMIGRAPHX_USE_HIPRTC=On -DGPU_TARGETS='${gpu_targets}'")
 //        }
 //    }
+}, clang_release_navi: rocmnode('navi32') { cmake_build ->
+    stage('HIP Clang Release Navi32') {
+        def gpu_targets = getnavi3xtargets()
+        cmake_build(flags: "-DCMAKE_BUILD_TYPE=release -DGPU_TARGETS='${gpu_targets}' -DMIGRAPHX_DISABLE_ONNX_TESTS=On")
+    }
 }, clang_asan: rocmnode('nogpu') { cmake_build ->
     stage('Clang ASAN') {
         def sanitizers = "undefined,address"
         def debug_flags = "-g -O2 -fno-omit-frame-pointer -fsanitize=${sanitizers} -fno-sanitize-recover=${sanitizers}"
         cmake_build(flags: "-DCMAKE_BUILD_TYPE=debug -DMIGRAPHX_ENABLE_C_API_TEST=Off -DMIGRAPHX_ENABLE_PYTHON=Off -DMIGRAPHX_ENABLE_GPU=Off -DMIGRAPHX_ENABLE_CPU=On -DCMAKE_CXX_FLAGS_DEBUG='${debug_flags}'", compiler:'/usr/bin/clang++-14')
     }
-}, clang_release_navi: rocmnode('navi32') { cmake_build ->
-    stage('HIP Clang Release Navi32') {
-        def gpu_targets = getnavi3xtargets()
-        cmake_build(flags: "-DCMAKE_BUILD_TYPE=release -DGPU_TARGETS='${gpu_targets}' -DMIGRAPHX_DISABLE_ONNX_TESTS=On")
+}, debub_libstdcxx: rocmnode('nogpu') { cmake_build ->
+    stage('Debug libstdc++') {
+        def sanitizers = "undefined"
+        def debug_flags = "-g -O2 -fno-omit-frame-pointer -fsanitize=${sanitizers} -fno-sanitize-recover=${sanitizers} -D_GLIBCXX_DEBUG"
+        cmake_build(flags: "-DCMAKE_BUILD_TYPE=debug -DMIGRAPHX_ENABLE_C_API_TEST=Off -DMIGRAPHX_ENABLE_PYTHON=Off -DMIGRAPHX_ENABLE_GPU=Off -DMIGRAPHX_ENABLE_CPU=Off -DCMAKE_CXX_FLAGS_DEBUG='${debug_flags}'", compiler:'/usr/bin/clang++-14')
     }
 }, clang_release_navi4: rocmnode('navi4x') { cmake_build ->
     stage('HIP Clang Release Navi4x') {
@@ -242,7 +250,7 @@ def onnxnode(name, body) {
     }
 }
 
-rocmtest onnx: onnxnode('mi100+') { cmake_build ->
+rocmtest onnx: onnxnode('onnxrt') { cmake_build ->
     stage("Onnx runtime") {
         sh '''
             apt install half

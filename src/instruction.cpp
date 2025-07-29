@@ -27,6 +27,7 @@
 #include <migraphx/module.hpp>
 #include <migraphx/ranges.hpp>
 #include <migraphx/output_iterator.hpp>
+#include <migraphx/iterator.hpp>
 #include <queue>
 
 namespace migraphx {
@@ -329,7 +330,7 @@ void instruction::replace_mod_argument(module_ref old, module_ref new_mod)
 
 bool instruction::is_undefined() const
 {
-    if(op.name() == "undefined")
+    if(op.name() == "undefined" or (op.name() == "@literal" and this->get_literal().empty()))
     {
         return true;
     }
@@ -543,36 +544,81 @@ std::vector<shape> try_compute_shape(const operation& op, const std::vector<shap
     return {new_shape};
 }
 
-migraphx::instruction* as_address(const instruction_ref& ins) noexcept
+migraphx::instruction* as_address(const std::list<instruction>::iterator& ins) noexcept
 {
-    return std::addressof(*ins);
+    return iterator_address(ins);
 }
 
+const migraphx::instruction* as_address(const std::list<instruction>::const_iterator& ins) noexcept
+{
+    return iterator_address(ins);
+}
+
+// DFS through inputs of `end` to find `start`.
+// `start` must be positioned before `end`.
+bool reaches(instruction_ref start, instruction_ref end)
+{
+    if(start == end)
+        return true;
+    std::unordered_set<instruction_ref> visited;
+    return fix<bool>([&](auto self, auto ins) -> bool {
+        if(ins == start)
+            return true;
+        // hit a previously visited instruction
+        if(not visited.insert(ins).second)
+            return false;
+        return std::any_of(ins->inputs().begin(), ins->inputs().end(), self);
+    })(end);
+}
+
+// `reaches` version that checks if instructions are in the module `m`
+// Additional condition that stops if DFS instruction's distance to `end`
+// is greater than the distance between `start` and `end`.
 bool reaches(instruction_ref start, instruction_ref end, const_module_ref m)
 {
     if(start == end)
         return true;
-    std::size_t d = 0;
-    if(m != nullptr)
-    {
-        if(not m->has_instruction(start))
-            return false;
-        if(not m->has_instruction(end))
-            return false;
-        d = std::distance(start, end);
-    }
+    if(not m->has_instruction(start) or not m->has_instruction(end) or
+       std::distance(m->begin(), start) > std::distance(m->begin(), end))
+        return false;
+    std::size_t initial_distance = std::distance(start, end);
     std::unordered_set<instruction_ref> visited;
     return fix<bool>([&](auto self, auto ins) -> bool {
-        if(m != nullptr and not m->has_instruction(ins))
+        if(not m->has_instruction(ins))
             return false;
         if(ins == start)
             return true;
         if(not visited.insert(ins).second)
             return false;
-        if(d > 0 and std::distance(ins, end) > d)
+        if(std::distance(ins, end) > initial_distance)
             return false;
         return std::any_of(ins->inputs().begin(), ins->inputs().end(), self);
     })(end);
+}
+
+// Return set of all instructions that are connected to both start and end nodes (inclusive)
+std::unordered_set<instruction_ref>
+find_instructions_between(instruction_ref start, instruction_ref end, const_module_ref m)
+{
+    std::queue<instruction_ref> inputs;
+    std::unordered_set<instruction_ref> inss;
+    inputs.push(end);
+
+    while(not inputs.empty())
+    {
+        auto current_inp = inputs.front();
+        inputs.pop();
+
+        if(reaches(start, current_inp, m) and inss.insert(current_inp).second and
+           current_inp != start)
+        {
+            for(auto i : current_inp->inputs())
+            {
+                inputs.push(i);
+            }
+        }
+    }
+    return inss;
 }
 
 } // namespace MIGRAPHX_INLINE_NS

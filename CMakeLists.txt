@@ -52,20 +52,10 @@ list(APPEND CMAKE_MODULE_PATH ${CMAKE_CURRENT_SOURCE_DIR}/cmake)
 project(migraphx LANGUAGES C CXX)
 include(CTest)
 
-find_package(ROCM REQUIRED)
+find_package(ROCmCMakeBuildTools REQUIRED)
 find_package(Threads REQUIRED)
 
-if(WIN32)
-option(MIGRAPHX_ENABLE_PYTHON "Enable python bindings" OFF)
-else()
 option(MIGRAPHX_ENABLE_PYTHON "Enable python bindings" ON)
-endif()
-
-if(WIN32)
-option(MIGRAPHX_USE_ROCBLAS "Enable MIGraphX to use rocBLAS" OFF)
-else()
-option(MIGRAPHX_USE_ROCBLAS "Enable MIGraphX to use rocBLAS" ON)
-endif()
 
 if(WIN32)
 option(MIGRAPHX_USE_MIOPEN "Enable MIGraphX to use MIOpen" OFF)
@@ -73,10 +63,11 @@ else()
 option(MIGRAPHX_USE_MIOPEN "Enable MIGraphX to use MIOpen" ON)
 endif()
 
-if(WIN32)
-option(MIGRAPHX_USE_HIPBLASLT "Enable MIGraphX to use hipBLASLt" OFF)
-else()
+option(MIGRAPHX_USE_ROCBLAS "Enable MIGraphX to use rocBLAS" ON)
 option(MIGRAPHX_USE_HIPBLASLT "Enable MIGraphX to use hipBLASLt" ON)
+
+if(MIGRAPHX_USE_HIPBLASLT AND NOT MIGRAPHX_USE_ROCBLAS)
+    message(FATAL_ERROR "hipBLASLt requires rocBLAS, but MIGRAPHX_USE_ROCBLAS is OFF")
 endif()
 
 # By default build shared libraries
@@ -106,7 +97,7 @@ include(ROCMSetupVersion)
 
 option(BUILD_DEV "Build for development purpose only" OFF)
 
-rocm_setup_version(VERSION 2.13.0)
+rocm_setup_version(VERSION 2.14.0)
 math(EXPR MIGRAPHX_SO_MAJOR_VERSION "(${PROJECT_VERSION_MAJOR} * 1000 * 1000) + (${PROJECT_VERSION_MINOR} * 1000) + ${PROJECT_VERSION_PATCH}")
 set(MIGRAPHX_SO_VERSION ${MIGRAPHX_SO_MAJOR_VERSION}.0)
 

@@ -34,6 +34,8 @@
 #include <migraphx/type_name.hpp>
 #include <migraphx/source_location.hpp>
 #include <migraphx/config.hpp>
+#include <migraphx/time.hpp>
+
 #include <array>
 #include <unordered_map>
 #include <unordered_set>
@@ -402,15 +404,17 @@ match::matcher_result find_match(module& modl, M&& m)
 MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_TRACE_MATCHES)
 MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_TRACE_MATCHES_FOR)
 MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_VALIDATE_MATCHES)
+MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_TIME_MATCHERS)
 
 /// Find matches for an instruction in the module for per section of matchers
 template <class Mod, class... Ms>
 void find_matches_for(source_location location, Mod& mod, instruction_ref ins, Ms&&... ms)
 {
-    const int trace         = value_of(MIGRAPHX_TRACE_MATCHES{});
-    const bool validate     = enabled(MIGRAPHX_VALIDATE_MATCHES{});
-    const auto trace_filter = string_value_of(MIGRAPHX_TRACE_MATCHES_FOR{});
-    bool match              = false;
+    const int trace          = value_of(MIGRAPHX_TRACE_MATCHES{});
+    const bool validate      = enabled(MIGRAPHX_VALIDATE_MATCHES{});
+    const auto trace_filter  = string_value_of(MIGRAPHX_TRACE_MATCHES_FOR{});
+    const bool time_matchers = enabled(MIGRAPHX_TIME_MATCHERS{});
+    bool match               = false;
     each_args(
         [&](auto&& m) {
             const auto& matcher_name = get_type_name(m);
@@ -420,19 +424,44 @@ void find_matches_for(source_location location, Mod& mod, instruction_ref ins, M
                                     contains(matcher_name, trace_filter));
             if(match)
                 return;
+            // print running matcher even if it doesn't match anything
             if(trace > 1 and trace_for)
-                std::cout << "Match: " << matcher_name << std::endl;
-            auto r = match_instruction(get_module(mod), ins, m.matcher());
+                std::cout << "Running matcher: " << matcher_name << std::endl;
+
+            matcher_result r;
+            if(time_matchers or trace_for)
+            {
+                timer match_timer{};
+                r = match_instruction(get_module(mod), ins, m.matcher());
+                const auto match_time =
+                    match_timer.record<std::chrono::duration<double, std::micro>>();
+                std::cout << "Matcher time for " << matcher_name << ": " << match_time << "us"
+                          << std::endl;
+            }
+            else
+            {
+                r = match_instruction(get_module(mod), ins, m.matcher());
+            }
+
+            // did not match any instruction
             if(r.result == get_module(mod).end())
                 return;
+
             if(trace > 0 or trace_for)
             {
-                std::cout << "Matched by " << matcher_name << std::endl;
+                std::cout << "Matched by: " << matcher_name << std::endl;
                 get_module(mod).debug_print(ins);
             }
             // If its already invalid dont validate it again
             bool invalidated = validate and get_module(mod).validate() != get_module(mod).end();
-            m.apply(mod, r);
+            auto apply_time =
+                time<std::chrono::duration<double, std::micro>>([&] { m.apply(mod, r); });
+            if(time_matchers or trace_for)
+            {
+                std::cout << "Apply time for " << matcher_name << ": " << apply_time << "us"
+                          << std::endl;
+            }
+
             if(validate and not invalidated)
             {
                 auto invalid = get_module(mod).validate();
@@ -723,6 +752,11 @@ MIGRAPHX_PRED_MATCHER(broadcast, instruction_ref ins)
     return contains({"broadcast", "multibroadcast"}, ins->name());
 }
 
+/**
+ * Makes a matcher that recursively traverses over single inputs to an instruction that
+ * match the given matchers. The matcher will then be at the instruction before the `ms`
+ * matched instructions.
+ */
 template <class... Ms>
 auto skip(Ms... ms)
 {
@@ -742,6 +776,12 @@ auto skip(Ms... ms)
     });
 }
 
+/**
+ * Makes a matcher that recursively traverses over single outputs to an instruction that
+ * match the given matchers. The matcher will then return at the instruction after the `ms`
+ * matched instructions. If any instruction matched has more than one output the matcher
+ * returns nullopt.
+ */
 template <class... Ms>
 auto skip_output(Ms... ms)
 {
@@ -973,7 +1013,7 @@ inline auto has_value(T x, std::size_t atol_mult = 10, std::size_t rtol_mult = 1
         bool b = false;
         l.visit([&](auto v) {
             // cast to the literal's data type before comparing
-            using type = typename decltype(v)::value_type;
+            using type     = typename decltype(v)::value_type;
             auto tolerance = atol_mult + rtol_mult * std::fabs(x);
             if(migraphx::float_equal(tolerance, 0) or std::is_integral<type>{})
             {
@@ -999,6 +1039,15 @@ inline auto has_attribute(const std::string& name)
 {
     return make_basic_pred_matcher(
         [=](instruction_ref ins) { return ins->get_operator().attributes().contains(name); });
+}
+
+template <class T>
+inline auto has_op_value(const std::string& name, const T& value)
+{
+    return make_basic_pred_matcher([=](instruction_ref ins) {
+        auto op_val = ins->get_operator().to_value();
+        return op_val.contains(name) and op_val[name].to<value::literal_to_string<T>>() == value;
+    });
 }
 
 template <class... Ms>

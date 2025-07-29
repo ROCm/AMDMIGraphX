@@ -40,6 +40,7 @@
 #include <migraphx/make_op.hpp>
 #include <migraphx/marker.hpp>
 #include <migraphx/supported_segments.hpp>
+#include <migraphx/graphviz.hpp>
 
 #include <iostream>
 #include <queue>
@@ -803,7 +804,7 @@ void program::from_value(const value& v)
     auto migx_version = v.at("migraphx_version").to<std::string>();
     if(migx_version != get_migraphx_version())
     {
-        std::cout << "[WARNING]: MXR File was created using MIGraphX version: " << migx_version
+        std::cerr << "[WARNING]: MXR File was created using MIGraphX version: " << migx_version
                   << ", while installed MIGraphX is at version: " << get_migraphx_version()
                   << ", operators implementation could be mismatched.\n";
     }
@@ -1074,7 +1075,44 @@ void program::print(
 void program::print_graph(std::ostream& os, bool brief) const
 {
     const auto* mm = this->get_main_module();
-    mm->print_graph(os, brief);
+
+    os << "digraph {\n\tperipheries=0;\n";
+
+    mm->print([&](auto ins, auto ins_names) {
+        const auto& ins_name = graphviz::enclose_name(ins_names.at(ins));
+
+        os << "\t" << ins_name << "[";
+
+        if(brief)
+        {
+
+            os << "label=" << graphviz::enclose_name(ins->name()) << "]";
+            os << ";" << std::endl;
+        }
+        else
+        {
+            graphviz::graphviz_node_content content = graphviz::get_node_content(ins);
+            os << "label=" << graphviz::build_html_label(content) << " ";
+            os << graphviz::build_node_style(content.node_style);
+            os << "];\n";
+        }
+
+        if(not ins->inputs().empty())
+        {
+            for(auto&& arg : ins->inputs())
+            {
+                os << "\t" << graphviz::enclose_name(ins_names.at(arg)) << " -> "
+                   << graphviz::enclose_name(ins_names.at(ins));
+                if(not brief)
+                    os << "[label="
+                       << graphviz::enclose_name(graphviz::format_shape_name(ins->get_shape()))
+                       << "]";
+                os << ";\n";
+            }
+        }
+    });
+
+    os << "}" << std::endl;
 }
 
 void program::print_py(std::ostream& os) const

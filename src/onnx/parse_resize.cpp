@@ -168,7 +168,7 @@ static bool parse_args(const std::vector<instruction_ref>& args,
 {
     for(const auto& arg : args)
     {
-        if(arg->name() == "undefined" or arg == args.front())
+        if(arg->name() == "undefined")
             continue;
 
         // skip any empty input (some of the Onnx args. are optional)
@@ -265,6 +265,9 @@ struct parse_resize : op_parser<parse_resize>
         return info.add_instruction(make_op("gather", {{"axis", 0}}), rsp, ins_ind);
     }
 
+    // TODO: this operator is complex, consider refactoring in the future
+    // to fix 'readability-function-size' tidy check
+    // NOLINTBEGIN(readability-function-size)
     instruction_ref parse(const op_desc& opd,
                           const onnx_parser&,
                           onnx_parser::node_info info,
@@ -288,10 +291,29 @@ struct parse_resize : op_parser<parse_resize>
             MIGRAPHX_THROW("PARSE_" + opd.onnx_name + ": exclude_outside 1 is not supported!");
         }
 
+        // TODO: support implementation of 'axes' attribute.
+        // For now, it's used to check the length of 'sizes' input (if present)
+        std::vector<int64_t> axes;
+        if(contains(info.attributes, "axes"))
+        {
+            auto&& axes_vals = info.attributes.at("axes").ints();
+            axes             = std::vector<int64_t>(axes_vals.begin(), axes_vals.end());
+        }
+
         if(contains(info.attributes, "keep_aspect_ratio_policy"))
         {
-            MIGRAPHX_THROW("PARSE_" + opd.onnx_name +
-                           ": keep_aspect_ratio_policy is not supported!");
+            shape last_arg_shape     = args.back()->get_shape();
+            size_t last_arg_elements = last_arg_shape.elements();
+            // Check if the last arg is 'sizes' input.
+            // This attribute is only relevant if 'sizes' input is used.
+            // The shape constraints for 'sizes' are below:
+            if(last_arg_shape.type() == shape::int64_type and
+               (last_arg_elements == args.front()->get_shape().ndim() or
+                (contains(info.attributes, "axes") and last_arg_elements == axes.size())))
+            {
+                MIGRAPHX_THROW("PARSE_" + opd.onnx_name +
+                               ": keep_aspect_ratio_policy is not supported!");
+            }
         }
 
         // input data shape info
@@ -315,9 +337,14 @@ struct parse_resize : op_parser<parse_resize>
         if(not is_constant_scale_input)
         {
             // Depending on the args, it *must* populate the `vec_scale`, and might populate
-            // `out_lens`
-            is_constant_scale_input =
-                not parse_args(args, in_lens, opd.onnx_name, vec_scale, out_lens, scales_sizes_arg);
+            // `out_lens`. Skip first input and `roi` input (if present)
+            size_t args_offset      = args.size() > 2 ? 2 : 1;
+            is_constant_scale_input = not parse_args({args.begin() + args_offset, args.end()},
+                                                     in_lens,
+                                                     opd.onnx_name,
+                                                     vec_scale,
+                                                     out_lens,
+                                                     scales_sizes_arg);
         }
 
         if(is_constant_scale_input)
@@ -376,6 +403,9 @@ struct parse_resize : op_parser<parse_resize>
                 MIGRAPHX_THROW("PARSE_" + opd.onnx_name +
                                ": linear mode not supported for non-constant inputs");
 
+            if(in_lens == out_lens)
+                return args[0]; // if input and output shapes are the same, return the input
+
             shape out_s{in_s.type(), out_lens};
 
             // reshape input to one-dimension
@@ -429,7 +459,7 @@ struct parse_resize : op_parser<parse_resize>
             for(auto idx = resized_ct; idx != 0u; --idx)
             {
                 dim_lens[0] /= 2; // halved for 2 slices of data (hi & low below)
-                shape dim_s{shape::float_type, dim_lens};
+                shape dim_s{in_s.type(), dim_lens};
                 const auto& dim_delta = delta[idx - 1];
                 std::vector<float> delta_data;
                 for(std::size_t j = 0; j < dim_lens[0] / out_lens[0]; ++j)
@@ -452,6 +482,7 @@ struct parse_resize : op_parser<parse_resize>
             return data;
         }
     }
+    // NOLINTEND(readability-function-size)
 };
 
 } // namespace onnx

@@ -34,8 +34,8 @@ TEST_CASE(load_save_default)
     auto p2 = migraphx::load(filename.c_str());
     auto s2 = p2.get_output_shapes();
     EXPECT(s1.size() == s2.size());
-    EXPECT(bool{s1.front() == s2.front()});
-    EXPECT(bool{p1.sort() == p2.sort()});
+    EXPECT(s1.front() == s2.front());
+    EXPECT(p1.sort() == p2.sort());
     std::remove(filename.c_str());
 }
 
@@ -51,8 +51,8 @@ TEST_CASE(load_save_json)
     auto p2 = migraphx::load(filename.c_str(), options);
     auto s2 = p2.get_output_shapes();
     EXPECT(s1.size() == s2.size());
-    EXPECT(bool{s1.front() == s2.front()});
-    EXPECT(bool{p1.sort() == p2.sort()});
+    EXPECT(s1.front() == s2.front());
+    EXPECT(p1.sort() == p2.sort());
     std::remove(filename.c_str());
 }
 
@@ -64,7 +64,7 @@ TEST_CASE(load_save_argument)
     migraphx::argument::save_argument(a1, "migraphx_api_load_save_argument.msgpack");
     migraphx::argument a2 =
         migraphx::argument::load_argument("migraphx_api_load_save_argument.msgpack");
-    EXPECT(bool{a1 == a2});
+    EXPECT(a1 == a2);
 }
 
 int main(int argc, const char* argv[]) { test::run(argc, argv); }

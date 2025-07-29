@@ -132,7 +132,7 @@ TEST_CASE(gemm_pw_softmax_gemm)
         auto rmax  = mm->add_instruction(migraphx::make_op("reduce_max", {{"axes", {3}}}), where);
         rmax = mm->add_instruction(migraphx::make_op("multibroadcast", {{"out_lens", s1.lens()}}),
                                    rmax);
-        auto sub  = mm->add_instruction(migraphx::make_op("sub"), gemm1, rmax);
+        auto sub  = mm->add_instruction(migraphx::make_op("sub"), where, rmax);
         auto exp  = mm->add_instruction(migraphx::make_op("exp"), sub);
         auto rsum = mm->add_instruction(migraphx::make_op("reduce_sum", {{"axes", {3}}}), exp);
         rsum = mm->add_instruction(migraphx::make_op("multibroadcast", {{"out_lens", s1.lens()}}),
@@ -154,22 +154,27 @@ TEST_CASE(gemm_pw_softmax_gemm)
         auto select = mm->add_parameter("4", s2);
         std::vector<float> eights(s1_elements, 0.125);
         std::vector<float> tens(s1_elements, 10);
+        auto eight = mm->add_literal(migraphx::literal{s1, eights});
+        auto ten   = mm->add_literal(migraphx::literal{s1, tens});
         b = mm->add_instruction(migraphx::make_op("transpose", {{"permutation", {0, 1, 3, 2}}}), b);
         b1 = mm->add_instruction(migraphx::make_op("transpose", {{"permutation", {0, 1, 3, 2}}}),
                                  b1);
 
         auto group = add_group(
-            p2, "attn0", "attention", {a, b, select, b1}, [=](auto* gm, const auto& inputs) {
-                auto ten   = gm->add_literal(migraphx::literal{s1, tens});
-                auto eight = gm->add_literal(migraphx::literal{s1, eights});
+            p2,
+            "attn0",
+            "attention",
+            {a, b, eight, select, ten, b1},
+            [=](auto* gm, const auto& inputs) {
                 auto gemm1 = gm->add_instruction(migraphx::make_op("dot"), inputs[0], inputs[1]);
-                auto mul   = gm->add_instruction(migraphx::make_op("mul"), gemm1, eight);
-                auto where = gm->add_instruction(migraphx::make_op("where"), inputs[2], mul, ten);
+                auto mul   = gm->add_instruction(migraphx::make_op("mul"), gemm1, inputs[2]);
+                auto where =
+                    gm->add_instruction(migraphx::make_op("where"), inputs[3], mul, inputs[4]);
                 auto rmax =
                     gm->add_instruction(migraphx::make_op("reduce_max", {{"axes", {3}}}), where);
                 rmax = gm->add_instruction(
                     migraphx::make_op("multibroadcast", {{"out_lens", s1.lens()}}), rmax);
-                auto sub = gm->add_instruction(migraphx::make_op("sub"), gemm1, rmax);
+                auto sub = gm->add_instruction(migraphx::make_op("sub"), where, rmax);
                 auto exp = gm->add_instruction(migraphx::make_op("exp"), sub);
                 auto rsum =
                     gm->add_instruction(migraphx::make_op("reduce_sum", {{"axes", {3}}}), exp);
@@ -177,9 +182,129 @@ TEST_CASE(gemm_pw_softmax_gemm)
                     migraphx::make_op("multibroadcast", {{"out_lens", s1.lens()}}), rsum);
                 auto div = gm->add_instruction(migraphx::make_op("div"), exp, rsum);
 
-                return gm->add_instruction(migraphx::make_op("dot"), div, inputs[3]);
+                return gm->add_instruction(migraphx::make_op("dot"), div, inputs[5]);
             });
         mm->add_return({group});
+    }
+    EXPECT(p1 == p2);
+}
+
+TEST_CASE(gemm_multi_use_pw_softmax_gemm)
+{
+    migraphx::shape s1{migraphx::shape::float_type, {2, 4, 16, 8}};
+    migraphx::shape s2{migraphx::shape::float_type, {2, 4, 8, 16}};
+    migraphx::shape s3{migraphx::shape::float_type, {2, 4, 16, 16}};
+    migraphx::shape s_mask{migraphx::shape::int64_type, {2, 16}};
+    auto s1_elements = s1.elements();
+
+    migraphx::program p1;
+    {
+        auto* mm  = p1.get_main_module();
+        auto mask = mm->add_parameter("mask", s_mask);
+        auto x    = mm->add_parameter("x", s1);
+
+        std::vector<float> c1_vec(s1_elements, 0.125);
+        std::vector<float> c2_vec(s1_elements, 10);
+        auto c1       = mm->add_literal(migraphx::literal(s2, c1_vec));
+        auto c2       = mm->add_literal(migraphx::literal(s1, c2_vec));
+        auto ten      = mm->add_literal(migraphx::literal(10.0f));
+        auto zero     = mm->add_literal(migraphx::literal(0.0f));
+        auto zero_int = mm->add_literal(migraphx::literal(0));
+        auto scale    = mm->add_literal(migraphx::literal(0.25f));
+
+        mask = mm->add_instruction(
+            migraphx::make_op("convert", {{"target_type", migraphx::shape::int32_type}}), mask);
+        mask     = mm->add_instruction(migraphx::make_op("unsqueeze", {{"axes", {1, 2}}}), mask);
+        zero_int = mm->add_instruction(
+            migraphx::make_op("multibroadcast", {{"out_lens", mask->get_shape().lens()}}),
+            zero_int);
+        auto eq = mm->add_instruction(migraphx::make_op("equal"), mask, zero_int);
+        eq      = mm->add_instruction(
+            migraphx::make_op("convert", {{"target_type", migraphx::shape::bool_type}}), eq);
+
+        auto gemm1 = mm->add_instruction(migraphx::make_op("dot"), x, c1);
+
+        eq =
+            mm->add_instruction(migraphx::make_op("multibroadcast", {{"out_lens", s3.lens()}}), eq);
+        ten  = mm->add_instruction(migraphx::make_op("multibroadcast", {{"out_lens", s3.lens()}}),
+                                  ten);
+        zero = mm->add_instruction(migraphx::make_op("multibroadcast", {{"out_lens", s3.lens()}}),
+                                   zero);
+        auto where = mm->add_instruction(migraphx::make_op("where"), eq, ten, zero);
+        scale = mm->add_instruction(migraphx::make_op("multibroadcast", {{"out_lens", s3.lens()}}),
+                                    scale);
+        auto add = mm->add_instruction(migraphx::make_op("add"), gemm1, where);
+        auto mul = mm->add_instruction(migraphx::make_op("mul"), add, scale);
+
+        auto rmax = mm->add_instruction(migraphx::make_op("reduce_max", {{"axes", {3}}}), mul);
+        rmax      = mm->add_instruction(
+            migraphx::make_op("multibroadcast", {{"out_lens", mul->get_shape().lens()}}), rmax);
+        auto sub  = mm->add_instruction(migraphx::make_op("sub"), mul, rmax);
+        auto exp  = mm->add_instruction(migraphx::make_op("exp"), sub);
+        auto rsum = mm->add_instruction(migraphx::make_op("reduce_sum", {{"axes", {3}}}), exp);
+        rsum      = mm->add_instruction(
+            migraphx::make_op("multibroadcast", {{"out_lens", mul->get_shape().lens()}}), rsum);
+        auto div   = mm->add_instruction(migraphx::make_op("div"), exp, rsum);
+        auto gemm2 = mm->add_instruction(migraphx::make_op("dot"), div, c2);
+        mm->add_return({gemm2, zero, eq, scale});
+    }
+    run_pass(p1);
+
+    migraphx::program p2;
+    {
+        auto* mm  = p2.get_main_module();
+        auto mask = mm->add_parameter("mask", s_mask);
+        auto x    = mm->add_parameter("x", s1);
+
+        std::vector<float> c1_vec(s1_elements, 0.125);
+        std::vector<float> c2_vec(s1_elements, 10);
+        auto c1       = mm->add_literal(migraphx::literal(s2, c1_vec));
+        auto c2       = mm->add_literal(migraphx::literal(s1, c2_vec));
+        auto ten      = mm->add_literal(migraphx::literal(10.0f));
+        auto zero     = mm->add_literal(migraphx::literal(0.0f));
+        auto zero_int = mm->add_literal(migraphx::literal(0));
+        auto scale    = mm->add_literal(migraphx::literal(0.25f));
+
+        mask = mm->add_instruction(
+            migraphx::make_op("convert", {{"target_type", migraphx::shape::int32_type}}), mask);
+        mask     = mm->add_instruction(migraphx::make_op("unsqueeze", {{"axes", {1, 2}}}), mask);
+        zero_int = mm->add_instruction(
+            migraphx::make_op("multibroadcast", {{"out_lens", mask->get_shape().lens()}}),
+            zero_int);
+        auto eq = mm->add_instruction(migraphx::make_op("equal"), mask, zero_int);
+        eq      = mm->add_instruction(
+            migraphx::make_op("convert", {{"target_type", migraphx::shape::bool_type}}), eq);
+
+        eq =
+            mm->add_instruction(migraphx::make_op("multibroadcast", {{"out_lens", s3.lens()}}), eq);
+        ten  = mm->add_instruction(migraphx::make_op("multibroadcast", {{"out_lens", s3.lens()}}),
+                                  ten);
+        zero = mm->add_instruction(migraphx::make_op("multibroadcast", {{"out_lens", s3.lens()}}),
+                                   zero);
+        auto where = mm->add_instruction(migraphx::make_op("where"), eq, ten, zero);
+        scale = mm->add_instruction(migraphx::make_op("multibroadcast", {{"out_lens", s3.lens()}}),
+                                    scale);
+
+        auto group = add_group(
+            p2, "attn0", "attention", {x, c1, where, scale, c2}, [=](auto* gm, const auto& inputs) {
+                auto gemm1 = gm->add_instruction(migraphx::make_op("dot"), inputs[0], inputs[1]);
+                auto add   = gm->add_instruction(migraphx::make_op("add"), gemm1, inputs[2]);
+                auto mul   = gm->add_instruction(migraphx::make_op("mul"), add, inputs[3]);
+                auto rmax =
+                    gm->add_instruction(migraphx::make_op("reduce_max", {{"axes", {3}}}), mul);
+                rmax = gm->add_instruction(
+                    migraphx::make_op("multibroadcast", {{"out_lens", s3.lens()}}), rmax);
+                auto sub = gm->add_instruction(migraphx::make_op("sub"), mul, rmax);
+                auto exp = gm->add_instruction(migraphx::make_op("exp"), sub);
+                auto rsum =
+                    gm->add_instruction(migraphx::make_op("reduce_sum", {{"axes", {3}}}), exp);
+                rsum = gm->add_instruction(
+                    migraphx::make_op("multibroadcast", {{"out_lens", s3.lens()}}), rsum);
+                auto div = gm->add_instruction(migraphx::make_op("div"), exp, rsum);
+
+                return gm->add_instruction(migraphx::make_op("dot"), div, inputs[4]);
+            });
+        mm->add_return({group, zero, eq, scale});
     }
     EXPECT(p1 == p2);
 }

@@ -64,7 +64,7 @@ struct module_impl
 
     bool contains(instruction_ref ins) const
     {
-        if(is_end(ins, instructions.end()))
+        if(ins == instructions.end())
             return false;
         auto r = instruction_set.count(std::addressof(*ins)) > 0;
         assert(r == std::any_of(instructions.begin(), instructions.end(), [&](auto&& x) {
@@ -1219,6 +1219,7 @@ void module::print_graph(std::ostream& os, bool brief) const
 {
     os << "digraph {" << std::endl;
     os << "\trankdir=LR;" << std::endl;
+
     this->print([&](auto ins, auto ins_names) {
         std::string label;
         if(brief)
@@ -1467,30 +1468,35 @@ std::vector<module_ref> module::get_sub_modules(bool shallow) const
 
 module& module::sort()
 {
-    auto last          = std::prev(this->end());
+    if(this->begin() == this->end())
+        return *this;
+    std::unordered_set<instruction_ref> visited;
     auto implicit_deps = calc_implicit_deps();
-    fix([&](auto self, auto ins) {
-        this->move_instruction(ins, this->begin());
-        auto ins_inputs = ins->inputs();
-        if(implicit_deps.find(ins) != implicit_deps.end())
-        {
-            auto ins_implict_inputs = implicit_deps.at(ins);
-            ins_inputs.insert(
-                ins_inputs.end(), ins_implict_inputs.begin(), ins_implict_inputs.end());
-        }
-        for(auto child : ins_inputs)
-        {
-            if(not contains(this->impl->instructions, child))
-            {
-                continue;
-            }
-            self(child);
-        }
-    })(last);
-    // Move unused instructions to the top to preserve the last instruction
-    for_each_iterator(std::next(last), this->end(), [&](instruction_ref ins) {
-        this->move_instruction(ins, this->begin());
+    std::vector<instruction_ref> lasts;
+    copy_if(iterator_for(*this), std::back_inserter(lasts), [&](auto last) {
+        return last->outputs().empty();
     });
+    for(auto last : lasts)
+    {
+        fix([&](auto self, auto ins) {
+            if(visited.insert(ins).second == false)
+                return;
+            auto ins_inputs = ins->inputs();
+            if(implicit_deps.find(ins) != implicit_deps.end())
+            {
+                auto ins_implict_inputs = implicit_deps.at(ins);
+                ins_inputs.insert(
+                    ins_inputs.end(), ins_implict_inputs.begin(), ins_implict_inputs.end());
+            }
+            for(auto child : ins_inputs)
+            {
+                if(not contains(this->impl->instructions, child))
+                    continue;
+                self(child);
+            }
+            this->move_instruction(ins, this->end());
+        })(last);
+    }
     assert(this->validate() == this->end());
     return *this;
 }

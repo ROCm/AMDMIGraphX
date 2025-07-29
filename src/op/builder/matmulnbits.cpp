@@ -36,6 +36,11 @@ struct matmulnbits : op_builder<matmulnbits>
 {
     static std::string name() { return "matmulnbits"; }
 
+    size_t m_n;
+    size_t m_k;
+    size_t m_bits;
+    size_t m_block_size;
+
     template <class Self, class F>
     static auto reflect(Self& self, F f)
     {
@@ -53,11 +58,6 @@ struct matmulnbits : op_builder<matmulnbits>
     }
 
     private:
-    size_t m_n;
-    size_t m_k;
-    size_t m_bits;
-    size_t m_block_size;
-
     void validate_or_init_parameters(const std::vector<instruction_ref>& args) const
     {
         if(m_bits != 4)

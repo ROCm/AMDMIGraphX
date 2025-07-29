@@ -339,6 +339,24 @@ void memory_coloring::apply(module& m) const
     // Total memory
     std::size_t n = as.max() * alignment;
 
+    std::vector<instruction_ref> submod_scratch;
+    std::vector<module_ref> submod_refs;
+    // iterate through submodules and check if there is a scratch param
+    for(auto&& sub : m.get_sub_modules())
+    {
+
+        for(auto&& param_name : sub->get_parameter_names())
+        {
+            if(param_name == "scratch")
+            {
+                auto scratch_param = sub->get_parameter(param_name);
+                n = std::max(scratch_param->get_shape().bytes(), n);
+                submod_scratch.push_back(scratch_param);
+                submod_refs.push_back(sub);
+            }
+        }
+    }
+
     // Replace allocations
     auto mem = m.add_parameter("scratch", shape{shape::int8_type, {n}});
     for(auto&& [ins, seg] : as.ins2segment)
@@ -360,6 +378,24 @@ void memory_coloring::apply(module& m) const
         m.replace_instruction(
             ins, make_op("load", {{"shape", to_value(ins->get_shape())}, {"offset", 0}}), mem);
     }
+
+    
+    for(auto i = 0; i < submod_scratch.size(); i++)
+    {
+        // std::unordered_map<instruction_ref, instruction_ref> scratch_map_ins;
+        // submod_refs[i]->add_params({mem}, &scratch_map_ins);
+        auto orig_load = submod_scratch[i]->outputs().front();
+        auto new_load = submod_refs[i]->insert_instruction(orig_load, orig_load->get_operator(), {mem});
+        submod_refs[i]->replace_instruction(orig_load, new_load);
+        submod_refs[i]->remove_instruction(orig_load);
+        submod_refs[i]->remove_instruction(submod_scratch[i]);
+    }
+
+    // if(m == *mpm.get_root_module())
+    // {
+    //     std::cout << "HERE" << std::endl;
+    //     m.debug_print();
+    // }
 
     // Remove scratch parameter if its not used
     if(mem->outputs().empty())

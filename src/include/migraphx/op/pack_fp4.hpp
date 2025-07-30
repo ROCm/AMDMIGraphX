@@ -85,7 +85,7 @@ struct pack_fp4
                     inp_type inp_val1 = inp[in_data_multi_idx];
                     uint8_t out_val0  = float_to_fp4(inp_val0);
                     uint8_t out_val1  = float_to_fp4(inp_val1);
-                    // NOTE: integral promotion occurs bitshifting for uint8_t
+                    // NOTE: integral promotion occurs when bitshifting for uint8_t
                     out[i] = static_cast<uint8_t>(out_val1 << 4u) |
                              static_cast<uint8_t>(out_val0 & 0xFu);
                 });

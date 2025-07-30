@@ -28,11 +28,8 @@
 #include <algorithm>
 #include <array>
 #include <cmath>
-#include <migraphx/bit_cast.hpp>
-#include <migraphx/requires.hpp>
+#include <iterator>
 #include <migraphx/errors.hpp>
-#include <migraphx/bit.hpp>
-#include <migraphx/generic_float.hpp>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
@@ -41,13 +38,10 @@ namespace fp4_detail {
 static constexpr std::array<float, 16> fp4_lut = {
     0.0, 0.5, 1.0, 1.5, 2.0, 3.0, 4.0, 6.0, -0.0, -0.5, -1.0, -1.5, -2.0, -3.0, -4.0, -6.0};
 
-static constexpr uint8_t fp4_6_0 = 0x7;
-static constexpr uint8_t fp4_4_0 = 0x6;
-static constexpr uint8_t fp4_3_0 = 0x5;
-static constexpr uint8_t fp4_2_0 = 0x4;
-static constexpr uint8_t fp4_1_5 = 0x3;
-static constexpr uint8_t fp4_1_0 = 0x2;
-static constexpr uint8_t fp4_0_5 = 0x1;
+// pair is {fp4_tie_value, round_to_zero}
+// if round_to_zero round tie towards zero, else round tie away from zero
+static constexpr std::array<std::pair<float, uint8_t>, 7> fp4_even_round = {
+    {{0.25, 1}, {0.75, 0}, {1.25, 1}, {1.75, 0}, {2.5, 1}, {3.5, 0}, {5, 1}}};
 } // namespace fp4_detail
 
 // converts 4 LSB to float
@@ -57,44 +51,27 @@ constexpr float fp4_to_float(uint8_t x)
 }
 
 // rounding mode = roundToNearestRoundTiesToEven
-// This code gets the same result as reference quantization code from Microsoft:
+// Reference quantization code from Microsoft:
 // https://github.com/microsoft/microxcaling/blob/main/mx/elemwise_ops.py#L82
-// Note floating point comparisons are set up to do the round ties to even correctly.
+// Not constexpr because std::signbit is not constexpr until C++23
 inline uint8_t float_to_fp4(float f_x)
 {
+    using fp4_detail::fp4_even_round;
+    using fp4_detail::fp4_lut;
+    if(std::isnan(f_x))
+    {
+        return 0;
+    }
     bool sign        = std::signbit(f_x);
-    uint8_t sign_add = sign ? fp4_detail::fp4_lut.size() / 2 : 0u;
+    uint8_t sign_add = sign ? fp4_lut.size() / 2 : 0u;
     float abs_f      = std::abs(f_x);
-    if(abs_f >= 1.75)
-    {
-        if(abs_f >= 3.5)
-        {
-            if(abs_f > 5)
-            {
-                return fp4_detail::fp4_6_0 + sign_add;
-            }
-            return fp4_detail::fp4_4_0 + sign_add;
-        }
-        if(abs_f > 2.5)
-        {
-            return fp4_detail::fp4_3_0 + sign_add;
-        }
-        return fp4_detail::fp4_2_0 + sign_add;
-    }
-    if(abs_f >= 0.75)
-    {
-        if(abs_f > 1.25)
-        {
-            return fp4_detail::fp4_1_5 + sign_add;
-        }
-        return fp4_detail::fp4_1_0 + sign_add;
-    }
-    if(abs_f > 0.25)
-    {
-        return fp4_detail::fp4_0_5 + sign_add;
-    }
-    // zeros, Nan, and Inf
-    return 0x0 + sign_add;
+    // index value is the positive fp4 value
+    uint8_t i = std::upper_bound(fp4_even_round.begin(),
+                                 fp4_even_round.end(),
+                                 std::make_pair(abs_f, uint8_t{0})) -
+                fp4_even_round.begin();
+
+    return i + sign_add;
 }
 
 } // namespace MIGRAPHX_INLINE_NS

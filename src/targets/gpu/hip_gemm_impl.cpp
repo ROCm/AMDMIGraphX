@@ -577,17 +577,20 @@ struct hip_gemm_impl
         {
             auto algo                 = result[i].algo;
             size_t ret_workspace_size = 0;
-            auto supporting_args =
-                create_hipblaslt_supporting_args_common(ctx, input_args, algo, ret_workspace_size);
-            try
+
+            if(hipblaslt_ext::matmulIsAlgoSupported(ctx.get_stream().get_hipblaslt(),
+                                                    hipblaslt_desc,
+                                                    get_alpha(),
+                                                    mat_b,
+                                                    mat_a,
+                                                    get_beta(),
+                                                    mat_c,
+                                                    is_3inputs ? mat_d : mat_c,
+                                                    algo,
+                                                    ret_workspace_size) == HIPBLAS_STATUS_SUCCESS)
             {
-                hipblaslt_invoke(&hipblaslt_ext::matmulIsAlgoSupported, supporting_args);
-                solution_indices.push_back(hipblaslt_ext::getIndexFromAlgo(algo));
-            }
-            catch(...)
-            {
-                // algo is not supported, continue in that case
-                continue;
+                if(ret_workspace_size <= hipblaslt_workspace_size/2)
+                    solution_indices.push_back(hipblaslt_ext::getIndexFromAlgo(algo));
             }
         }
 

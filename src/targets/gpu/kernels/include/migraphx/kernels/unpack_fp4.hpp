@@ -36,11 +36,12 @@ __device__ void unpack_fp4(Input input, Output output)
 {
     const auto input_shape = input.get_shape();
     make_index().global_stride(input_shape.elements(), [&](auto i) {
-        auto out_idx = input_shape.multi(i);
+        auto in_idx  = input_shape.multi(i);
+        auto out_idx = in_idx;
         out_idx[Axis] *= 2;
         // unpacking 2 unsigned parts
         // unpacking 4 least significant bits first
-        uint8_t fp4_val = input[i];
+        uint8_t fp4_val = input[in_idx];
         output[out_idx] = fp4_to_float(fp4_val);
         out_idx[Axis] += 1;
         fp4_val         = fp4_val >> 4u;

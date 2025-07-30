@@ -210,7 +210,7 @@ argument from_gpu(const argument& arg)
     {
         auto v = read_from_gpu<migraphx::byte>(arg.data(), arg.get_shape().bytes());
         // cppcheck-suppress returnDanglingLifetime
-        result = {result.get_shape(), [v]() mutable { return v.data(); }};
+        result = {arg.get_shape(), [v]() mutable { return v.data(); }};
     }
     return result;
 }

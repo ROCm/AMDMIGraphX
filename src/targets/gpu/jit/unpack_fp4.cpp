@@ -66,7 +66,7 @@ struct unpack_fp4_compiler : compiler<unpack_fp4_compiler>
         options.output         = inputs.back();
         options.virtual_inputs = reduce_dims(normalize_permutation(options.inputs));
         options.kernel_name    = "unpack_fp4_kernel";
-        options.set_launch_params(v, compute_global_for(ctx, inputs.back().elements()));
+        options.set_launch_params(v, compute_global_for(ctx, inputs.front().elements()));
 
         auto src =
             interpolate_string(unpack_fp4_kernel,

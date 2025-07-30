@@ -36,9 +36,7 @@ struct test_pack_fp4 : verify_program<test_pack_fp4<T, Axis>>
         auto* mm = p.get_main_module();
 
         auto x = mm->add_parameter("x", migraphx::shape{T, {64, 32}});
-        auto pack_ins = mm->add_instruction(migraphx::make_op("pack_fp4", {{"axis", Axis}}), x);
-        // unpacking to not output in fp4x2_type
-        mm->add_instruction(migraphx::make_op("unpack_fp4", {{"axis", Axis}}), pack_ins);
+        mm->add_instruction(migraphx::make_op("pack_fp4", {{"axis", Axis}}), x);
         return p;
     }
 };

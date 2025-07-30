@@ -7495,21 +7495,40 @@ def make_layer_norm(shape,
                     axis=-1,
                     dtype=TensorProto.FLOAT,
                     scale_shape=None,
-                    bias_shape=None):
+                    bias_shape=None,
+                    stash_type=None,
+                    epsilon=None,
+                    scale_type=None,
+                    bias_type=None):
+
+    if scale_type is None:
+        scale_type = dtype
+
+    if bias_type is None:
+        bias_type = dtype
+
     norm_axis = axis + len(shape) if axis < 0 else axis
     x = helper.make_tensor_value_info('x', dtype, shape)
     if scale_shape is None:
         scale_shape = shape[norm_axis:]
     if bias_shape is None:
         bias_shape = shape[norm_axis:]
-    scale = helper.make_tensor_value_info('scale', dtype, scale_shape)
-    bias = helper.make_tensor_value_info('bias', dtype, bias_shape)
+    scale = helper.make_tensor_value_info('scale', scale_type, scale_shape)
+    bias = helper.make_tensor_value_info('bias', bias_type, bias_shape)
     y = helper.make_tensor_value_info('y', dtype, shape)
 
     node = onnx.helper.make_node('LayerNormalization',
                                  inputs=['x', 'scale', 'bias'],
-                                 outputs=['y'],
-                                 axis=axis)
+                                 outputs=['y'])
+
+    # Attributes
+    node.attribute.append(onnx.helper.make_attribute("axis", axis))
+
+    if stash_type is not None:
+        node.attribute.append(onnx.helper.make_attribute("stash_type", stash_type))
+
+    if epsilon is not None:
+        node.attribute.append(onnx.helper.make_attribute("epsilon", epsilon))
 
     return ([node], [x, scale, bias], [y])
 
@@ -7545,10 +7564,34 @@ def layer_norm_3d_scale_bias_test():
                            scale_shape=[2, 1, 7],
                            bias_shape=[2, 1, 7])
 
+@onnx_test()
+def layer_norm_3d_invalid_int8_test():
+    return make_layer_norm([1, 4, 2], -1, TensorProto.INT8)
+
+
+@onnx_test()
+def layer_norm_3d_invalid_scale_test():
+    return make_layer_norm([1, 4, 2], -1, scale_type=TensorProto.INT8)
+
+
+@onnx_test()
+def layer_norm_3d_invalid_bias_test():
+    return make_layer_norm([1, 4, 2], -1, bias_type=TensorProto.INT8)
+
 
 @onnx_test()
 def layer_norm_3d_half_test():
     return make_layer_norm([1, 4, 2], -1, TensorProto.FLOAT16)
+
+
+@onnx_test()
+def layer_norm_3d_half_stash_off_test():
+    return make_layer_norm([1, 4, 2], -1, TensorProto.FLOAT16, stash_type=int(0))
+
+
+@onnx_test()
+def layer_norm_3d_half_stash_off_epsilon_test():
+    return make_layer_norm([1, 4, 2], -1, TensorProto.FLOAT16, stash_type=int(0), epsilon=float(1e-4))
 
 
 @onnx_test()
@@ -12572,6 +12615,26 @@ def resize_roi_skip_test():
                                  mode='nearest')
 
     return ([node], [X], [Y], [roi_tensor, scale_tensor])
+
+@onnx_test()
+def resize_with_same_inout_shapes_test():
+    sizes = np.array([1, 3, 5], dtype=np.int64)
+    sizes_tensor = helper.make_tensor(name='sizes',
+                                      data_type=TensorProto.INT64,
+                                      dims=sizes.shape,
+                                      vals=sizes.flatten().astype(np.int64))
+
+    X = helper.make_tensor_value_info('X', TensorProto.FLOAT, [1, 3, 5])
+    Y = helper.make_tensor_value_info('Y', TensorProto.FLOAT, [1, 3, 5])
+
+    node = onnx.helper.make_node('Resize',
+                                 inputs=['X', '', '', 'sizes'],
+                                 outputs=['Y'],
+                                 coordinate_transformation_mode='half_pixel',
+                                 mode='linear',
+                                 nearest_mode='floor')
+
+    return ([node], [X], [Y], [sizes_tensor])
 
 @onnx_test()
 def reversesequence_4D_test():

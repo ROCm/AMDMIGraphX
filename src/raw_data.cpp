@@ -21,32 +21,18 @@
  * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
  * THE SOFTWARE.
  */
-#ifndef MIGRAPHX_GUARD_KERNELS_UNPACK_FP4_HPP
-#define MIGRAPHX_GUARD_KERNELS_UNPACK_FP4_HPP
 
-#include <migraphx/kernels/types.hpp>
-#include <migraphx/kernels/index.hpp>
-#include <migraphx/kernels/tensor_view.hpp>
-#include <migraphx/kernels/fp4_casts.hpp>
+#include <migraphx/raw_data.hpp>
 
 namespace migraphx {
+inline namespace MIGRAPHX_INLINE_NS {
 
-template <int Axis, class Input, class Output>
-__device__ void unpack_fp4(Input input, Output output)
+const std::map<shape::type_t, shape::type_t>& get_nv_map()
 {
-    const auto input_shape = input.get_shape();
-    make_index().global_stride(input_shape.elements(), [&](auto i) {
-        auto out_idx = input_shape.multi(i);
-        out_idx[Axis] *= 2;
-        // unpacking 2 unsigned parts
-        // unpacking 4 least significant bits first
-        uint8_t fp4_val = input[i];
-        output[out_idx] = fp4_to_float(fp4_val);
-        out_idx[Axis] += 1;
-        fp4_val         = fp4_val >> 4u;
-        output[out_idx] = fp4_to_float(fp4_val);
-    });
+    const static std::map<shape::type_t, shape::type_t> not_visitable_map = {
+        {shape::fp4x2_type, shape::uint8_type}};
+    return not_visitable_map;
 }
 
+} // namespace MIGRAPHX_INLINE_NS
 } // namespace migraphx
-#endif // MIGRAPHX_GUARD_KERNELS_UNPACK_FP4_HPP

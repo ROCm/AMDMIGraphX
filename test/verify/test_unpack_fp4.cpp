@@ -21,32 +21,26 @@
  * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
  * THE SOFTWARE.
  */
-#ifndef MIGRAPHX_GUARD_KERNELS_UNPACK_FP4_HPP
-#define MIGRAPHX_GUARD_KERNELS_UNPACK_FP4_HPP
 
-#include <migraphx/kernels/types.hpp>
-#include <migraphx/kernels/index.hpp>
-#include <migraphx/kernels/tensor_view.hpp>
-#include <migraphx/kernels/fp4_casts.hpp>
+#include "verify_program.hpp"
+#include <migraphx/program.hpp>
+#include <migraphx/generate.hpp>
+#include <migraphx/make_op.hpp>
 
-namespace migraphx {
-
-template <int Axis, class Input, class Output>
-__device__ void unpack_fp4(Input input, Output output)
+template <migraphx::shape::type_t T, int Axis = -1>
+struct test_unpack_fp4 : verify_program<test_unpack_fp4<T, Axis>>
 {
-    const auto input_shape = input.get_shape();
-    make_index().global_stride(input_shape.elements(), [&](auto i) {
-        auto out_idx = input_shape.multi(i);
-        out_idx[Axis] *= 2;
-        // unpacking 2 unsigned parts
-        // unpacking 4 least significant bits first
-        uint8_t fp4_val = input[i];
-        output[out_idx] = fp4_to_float(fp4_val);
-        out_idx[Axis] += 1;
-        fp4_val         = fp4_val >> 4u;
-        output[out_idx] = fp4_to_float(fp4_val);
-    });
-}
+    migraphx::program create_program() const
+    {
+        migraphx::program p;
+        auto* mm = p.get_main_module();
 
-} // namespace migraphx
-#endif // MIGRAPHX_GUARD_KERNELS_UNPACK_FP4_HPP
+        auto x = mm->add_parameter("x", migraphx::shape{T, {32, 16}});
+        mm->add_instruction(migraphx::make_op("unpack_fp4", {{"axis", Axis}}), x);
+
+        return p;
+    }
+};
+
+template struct test_unpack_fp4<migraphx::shape::fp4x2_type>;
+template struct test_unpack_fp4<migraphx::shape::fp4x2_type, 0>;

@@ -313,6 +313,12 @@ bool shape::is_unsigned(shape::type_t t)
     return result;
 }
 
+bool shape::is_computable(shape::type_t t)
+{
+    static std::unordered_set<shape::type_t> non_compute_types = {shape::fp4x2_type};
+    return not contains(non_compute_types, t);
+}
+
 shape::shape() : impl(shape_impl::default_shape()) {}
 
 shape::shape(type_t t) : impl(std::make_shared<shape_impl>(t)) {}
@@ -419,7 +425,16 @@ std::size_t shape::type_size() const
 {
     std::size_t n = 0;
     if(this->sub_shapes().empty())
-        this->visit_type([&](auto as) { n = as.size(); });
+    {
+        if(this->computable())
+        {
+            this->visit_type([&](auto as) { n = as.size(); });
+        }
+        else
+        {
+            n = sizeof(uint8_t);
+        }
+    }
     return n;
 }
 
@@ -650,6 +665,8 @@ bool shape::any_of_dynamic() const
         return s.any_of_dynamic();
     });
 }
+
+bool shape::computable() const { return is_computable(this->type()); }
 
 const std::vector<shape::dynamic_dimension>& shape::dyn_dims() const
 {

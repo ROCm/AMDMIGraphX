@@ -63,6 +63,13 @@ argument generate_argument(shape s, unsigned long seed, random_mode m)
 
         result = argument(sub_args);
     }
+    // special processing for non-computable type
+    else if(not s.computable())
+    {
+        // NOTE: these values can be wrong (ex. not valid fp4x2)
+        auto v = generate_tensor_data<uint8_t>(s, seed, m);
+        result = {s, v};
+    }
     else
     {
         s.visit_type([&](auto as) {

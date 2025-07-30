@@ -21,32 +21,28 @@
  * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
  * THE SOFTWARE.
  */
-#ifndef MIGRAPHX_GUARD_KERNELS_UNPACK_FP4_HPP
-#define MIGRAPHX_GUARD_KERNELS_UNPACK_FP4_HPP
 
-#include <migraphx/kernels/types.hpp>
-#include <migraphx/kernels/index.hpp>
-#include <migraphx/kernels/tensor_view.hpp>
-#include <migraphx/kernels/fp4_casts.hpp>
+#ifndef MIGRAPHX_GUARD_BYTE_HPP
+#define MIGRAPHX_GUARD_BYTE_HPP
+
+#include <migraphx/config.hpp>
+#include <cstdint>
 
 namespace migraphx {
+inline namespace MIGRAPHX_INLINE_NS {
 
-template <int Axis, class Input, class Output>
-__device__ void unpack_fp4(Input input, Output output)
+enum class byte : unsigned char
 {
-    const auto input_shape = input.get_shape();
-    make_index().global_stride(input_shape.elements(), [&](auto i) {
-        auto out_idx = input_shape.multi(i);
-        out_idx[Axis] *= 2;
-        // unpacking 2 unsigned parts
-        // unpacking 4 least significant bits first
-        uint8_t fp4_val = input[i];
-        output[out_idx] = fp4_to_float(fp4_val);
-        out_idx[Axis] += 1;
-        fp4_val         = fp4_val >> 4u;
-        output[out_idx] = fp4_to_float(fp4_val);
-    });
+};
+
+template <class Stream>
+Stream& operator<<(Stream& os, const byte& b)
+{
+    os << static_cast<uint8_t>(b);
+    return os;
 }
 
+} // namespace MIGRAPHX_INLINE_NS
 } // namespace migraphx
-#endif // MIGRAPHX_GUARD_KERNELS_UNPACK_FP4_HPP
+
+#endif

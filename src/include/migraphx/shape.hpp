@@ -31,6 +31,7 @@
 #include <numeric>
 #include <memory>
 #include <set>
+#include <unordered_set>
 
 #include <migraphx/functional.hpp>
 #include <migraphx/errors.hpp>
@@ -163,6 +164,7 @@ struct MIGRAPHX_EXPORT shape
     static bool is_compatible(const shape& actual, const shape& expected);
 
     static bool is_unsigned(type_t t);
+    static bool is_computable(type_t t);
 
     shape();
     shape(type_t t);
@@ -334,6 +336,9 @@ struct MIGRAPHX_EXPORT shape
 
     /// Return true if this shape or any of the sub_shapes are dynamic
     bool any_of_dynamic() const;
+
+    /// If type has a visitor function
+    bool computable() const;
 
     shape normalize_standard() const;
 

@@ -1,0 +1,21 @@
+
+einsum_permute_sd3_test:’
+-
+xy"Einsum*
+equation"nhwpqc->nchpwq einsum_permute_sd3_testZ#
+x
+
+
+@
+@
+
+
+b#
+y
+
+
+
+@
+
+@
+B

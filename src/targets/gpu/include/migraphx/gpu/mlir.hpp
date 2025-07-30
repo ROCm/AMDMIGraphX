@@ -26,6 +26,7 @@
 
 #include <string>
 #include <vector>
+#include <migraphx/module.hpp>
 #include <migraphx/value.hpp>
 #include <migraphx/filesystem.hpp>
 #include <migraphx/gpu/config.hpp>
@@ -51,6 +52,7 @@ struct MIGRAPHX_GPU_EXPORT mlir_code_object
     code_object_op cop;
     std::vector<size_t> prefill_indices = {};
     std::vector<value> prefill_values   = {};
+    module smod;
 };
 
 MIGRAPHX_GPU_EXPORT bool is_reduce(const instruction& ins);
@@ -64,6 +66,12 @@ MIGRAPHX_GPU_EXPORT instruction_ref insert_mlir(module& m,
                                                 instruction_ref ins,
                                                 code_object_op co,
                                                 const std::vector<instruction_ref>& inputs);
+
+MIGRAPHX_GPU_EXPORT instruction_ref insert_mlir(module& m,
+                                                instruction_ref ins,
+                                                code_object_op co,
+                                                const std::vector<instruction_ref>& inputs,
+                                                const std::vector<module>& mods);
 
 MIGRAPHX_GPU_EXPORT tuning_config get_tuning_config_mlir(const context& migraphx_ctx,
                                                          module m,

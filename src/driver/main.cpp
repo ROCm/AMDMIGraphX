@@ -58,6 +58,9 @@
 #include <migraphx/simplify_reshapes.hpp>
 #include <migraphx/register_target.hpp>
 
+#include <migraphx/gpu/code_object_op.hpp>
+#include <migraphx/instruction.hpp>
+
 #include <migraphx/netron_output.hpp>
 
 #include <fstream>
@@ -602,6 +605,28 @@ struct compiler
         return parameters.generate(p, ct.get_target(), true, l.batch);
     }
 
+    bool has_portable_ops(program& p) 
+    {
+        auto mods = p.get_modules();
+        for(const auto* mod: mods)
+        {
+	        for(const auto& ins : *mod)
+	        {
+                std::cout << ins.name() << "\n";
+	            if(ins.name() == "gpu::code_object") 
+                {
+                    std::cout << "Found ins: ";
+                    migraphx::gpu::code_object_op migx_co = migraphx::any_cast<migraphx::gpu::code_object_op>(ins.get_operator());
+                    std::cout << migx_co << "\n";
+                    if(migx_co.is_mlir())
+                        return true;
+                }
+            
+	        }
+        }
+        return false;
+    }
+
     program compile()
     {
         auto p = l.load();
@@ -609,15 +634,19 @@ struct compiler
 
         if(p.is_compiled())
         {
-	    /*
-	    if(p.has_portable_ops) // means we must finalize it
-	    {
-		migraphx::run_passes(p,
-				     {finalize_portable_ops,
-				      //+ rest of pipeline
-				     });
-	    }
-	    */	    	    
+            bool has_port_ops = has_portable_ops(p);
+	        if(has_port_ops) // means we must finalize it
+	        {
+                // we run compile_bytecode, which compiles the bytecode (genius!)
+                std::cout << "DETECTED portable mlir bytecode...\n";
+                exit(1);
+                std::cout << "Detected mlir bytecode, compiling and tuning...\n";
+                /*
+		        migraphx::run_passes(p,
+				     {migraphx::compile_bytecode{},
+				      migraphx::compile_ops{}
+				     });*/
+	        }  
             if(ct.target_name == "gpu")
             {
                 if(is_offload_copy_set(p) and not co.offload_copy)
@@ -638,7 +667,10 @@ struct compiler
                 }
             }
 
-            std::cout << "The program is already compiled, skipping compilation ..." << std::endl;
+            if(!has_port_ops) 
+            {
+                std::cout << "The program is already compiled, skipping compilation ..." << std::endl;
+            }
             if(to_fp16 or to_bf16 or to_int8 or to_fp8 or to_int4)
             {
                 std::cerr

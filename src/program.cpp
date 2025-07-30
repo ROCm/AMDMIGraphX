@@ -223,19 +223,6 @@ target_assignments program::get_target_assignments(const std::vector<target>& ta
 
 bool program::is_compiled() const { return not this->impl->contexts.empty(); }
 
-bool program::has_portable_ops() const {
-    auto mods = this->get_modules();
-    for(const auto* mod: mods)
-    {
-	for(const auto& ins : *mod)
-	{
-	    if(ins.name() == "gpu::portable_code_object_op")
-                return true;
-	}
-    }
-    return false;
-}
-
 void program::compile(const std::vector<target>& targets, std::vector<compile_options> compile_opts)
 {
     // Gather all the target roots

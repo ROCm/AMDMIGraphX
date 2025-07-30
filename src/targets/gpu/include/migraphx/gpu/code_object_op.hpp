@@ -37,7 +37,7 @@ namespace gpu {
 enum struct code_object_format 
 {
     binary,
-    mlir_bytocode
+    mlir_bytecode
 };
 
 struct context;
@@ -94,7 +94,7 @@ struct code_object_op
     {
         return get_output_arg(shapes.size());
     }
-    bool is_mlir() const {return format == code_object_format::mlir_bytocode; }
+    bool is_mlir() const {return format == code_object_format::mlir_bytecode; }
 
     friend std::ostream& operator<<(std::ostream& os, const code_object_op& op)
     {

@@ -23,13 +23,8 @@
  */
 
 #include <onnx_test.hpp>
-#include <onnx_test_utils.hpp>
 
-TEST_CASE(layer_norm_small_eps_bf16_test)
+TEST_CASE(layer_norm_invalid_input_type_test)
 {
-    migraphx::program p =
-        make_layer_norm({1, 2}, {2}, {1}, 1, true, true, 1e-7, migraphx::shape::bf16_type);
-
-    auto prog = optimize_onnx("layer_norm_small_eps_bf16_test.onnx");
-    EXPECT(p == prog);
+    EXPECT(test::throws([&] { read_onnx("layer_norm_3d_invalid_int8_test.onnx"); }));
 }

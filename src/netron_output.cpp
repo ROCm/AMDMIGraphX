@@ -205,11 +205,11 @@ std::unordered_map<instruction_ref, std::string> make_ins_uids(const module& mod
         std::string var_name;
         var_name = mod.name() + ":";
         var_name.append(ins->name() + ":");
-        var_name.append("@" + std::to_string(count));
         if(ins->name() == "@param")
         {
             var_name.append(any_cast<builtin::param>(ins->get_operator()).parameter);
         }
+        var_name.append(":@" + std::to_string(count));
         count++;
         ret.emplace(ins, var_name);
     }

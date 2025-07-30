@@ -312,6 +312,38 @@ static std::size_t find_max_alignment(const module& m, const std::string& alloca
 
 void memory_coloring::apply(module& m) const
 {
+    // check submodules if they have scratch params,
+    // insert allocations on current module which is size of max scratch space
+    // of submodules, replace scratch param in submodule with new alloc
+    for(auto ins : iterator_for(m))
+    {
+        if(ins->module_inputs().empty())
+            continue;
+        std::vector<instruction_ref> submod_scratch;
+        std::vector<module_ref> submod_refs;
+        size_t sub_n = 0;
+        for(auto submod : ins->module_inputs())
+        {
+            for(auto&& param_name : submod->get_parameter_names())
+            {
+                if(param_name == "scratch")
+                {
+                    sub_n = std::max(sub_n, submod->get_parameter(param_name)->get_shape().bytes());
+                    submod_scratch.push_back(submod->get_parameter(param_name));
+                    submod_refs.push_back(submod);
+                }
+            }
+        }
+        shape alloc_bytes{migraphx::shape::int8_type, {sub_n}};
+        auto alloc_ins = m.insert_instruction(ins, make_op(allocation_op, {{"shape", to_value(alloc_bytes)}}));
+        for(auto i = 0; i < submod_scratch.size(); i++)
+        {
+            submod_refs[i]->replace_instruction(submod_scratch[i], alloc_ins);
+            submod_refs[i]->remove_instruction(submod_scratch[i]);
+        }
+    }
+    
+
     const std::size_t alignment = find_max_alignment(m, allocation_op);
     auto conflict_table         = build_conflict_table(m, allocation_op);
     auto as                     = allocation_segment::build(m, conflict_table, alignment);
@@ -351,48 +383,7 @@ void memory_coloring::apply(module& m) const
 
     // Total memory
     std::size_t n = as.max() * alignment;
-
-    // std::vector<instruction_ref> mod_input_inss = get_mod_input_inss(m);
-    std::vector<instruction_ref> submod_scratch;
-    std::vector<module_ref> submod_refs;
-    // std::unordered_set<module_ref> submod_refs;
-
-
-    // iterate through submodules and check if there is a scratch param
-    for(auto&& sub : m.get_sub_modules())
-    {
-        for(auto&& param_name : sub->get_parameter_names())
-        {
-            if(param_name == "scratch")
-            {
-                auto scratch_param = sub->get_parameter(param_name);
-                n = std::max(scratch_param->get_shape().bytes(), n);
-                submod_scratch.push_back(scratch_param);
-                submod_refs.push_back(sub);
-            }
-        }
-    }
-
-    // for(auto ins : mod_input_inss)
-    // {
-    //     for(auto&& sub : ins->module_inputs())
-    //     {
-    //         if(contains(submod_refs, sub))
-    //             continue;
-    //         for(auto&& param_name : sub->get_parameter_names())
-    //         {
-    //             if(param_name == "scratch")
-    //             {
-    //                 auto scratch_param = sub->get_parameter(param_name);
-    //                 n = std::max(scratch_param->get_shape().bytes(), n);
-    //                 submod_scratch.push_back(scratch_param);
-    //                 submod_refs.insert(sub);
-    //             }
-    //         }
-    //     }
-    // }
     
-
     // Replace allocations
     auto mem = m.add_parameter("scratch", shape{shape::int8_type, {n}});
     for(auto&& [ins, seg] : as.ins2segment)
@@ -414,23 +405,6 @@ void memory_coloring::apply(module& m) const
         m.replace_instruction(
             ins, make_op("load", {{"shape", to_value(ins->get_shape())}, {"offset", 0}}), mem);
     }
-
-    
-    for(auto i = 0; i < submod_scratch.size(); i++)
-    {
-        // std::unordered_map<instruction_ref, instruction_ref> scratch_map_ins;
-        // submod_refs[i]->add_params({mem}, &scratch_map_ins);
-        std::vector<instruction_ref> orig_loads = submod_scratch[i]->outputs();
-        for(auto orig_load : orig_loads)
-        {
-            auto new_load = submod_refs[i]->insert_instruction(orig_load, orig_load->get_operator(), {mem});
-            submod_refs[i]->replace_instruction(orig_load, new_load);
-            submod_refs[i]->remove_instruction(orig_load);
-        }
-        // submod_refs[i]->remove_instruction(orig_load);
-        submod_refs[i]->remove_instruction(submod_scratch[i]);
-    }
-
 
     // Remove scratch parameter if its not used
     if(mem->outputs().empty())

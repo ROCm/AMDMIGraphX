@@ -29,6 +29,7 @@
 #include <migraphx/make_op.hpp>
 #include <migraphx/ranges.hpp>
 #include <migraphx/matcher.hpp>
+#include <migraphx/bit.hpp>
 #include <utility>
 
 namespace migraphx {
@@ -114,8 +115,7 @@ static bool any_sm_next(const_module_ref mm, const std::vector<dynamic_dimension
 static std::vector<size_t> powers_of_2_between(size_t min, size_t max)
 {
     std::vector<size_t> result;
-    // TODO use std::bit_ceil when upgrading to C++20 or greater
-    for(size_t p = 1; p < max; p *= 2)
+    for(size_t p = bit_ceil(min + 1); p < max; p *= 2)
     {
         if(p > min)
         {
@@ -171,6 +171,7 @@ void split_single_dyn_dim::apply(module_pass_manager& mpm) const
                     {
                         new_dd.min = prev_dim_size + 1;
                         new_dd.max = dim_size;
+                        new_dd.optimals = {};
                     }
                 }
                 auto new_dyn_shape = shape{dyn_param_shape.type(), new_dyn_dims };

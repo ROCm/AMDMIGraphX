@@ -589,7 +589,7 @@ struct hip_gemm_impl
                                                     algo,
                                                     ret_workspace_size) == HIPBLAS_STATUS_SUCCESS)
             {
-                if(ret_workspace_size <= hipblaslt_workspace_size/2)
+                if(ret_workspace_size <= hipblaslt_workspace_size / 2)
                     solution_indices.push_back(hipblaslt_ext::getIndexFromAlgo(algo));
             }
         }

@@ -1244,8 +1244,8 @@ TEST_CASE(pathological_dfs_graph_sort)
 
     // Build all layers, accumulating just the last layer
     auto last_layer = std::accumulate(
-        migraphx::iota_iterator{0, {}},
-        migraphx::iota_iterator{num_layers, {}},
+        migraphx::iota_iterator{0},
+        migraphx::iota_iterator{num_layers},
         first_layer,
         [&](const auto& prev_layer, std::size_t) {
             std::vector<std::size_t> node_indices(nodes_per_layer);

@@ -13,6 +13,8 @@ CheckOptions:
     value:           lower_case
   - key:             misc-const-correctness.AnalyzeValues
     value:           'false'
+  - key:             performance-for-range-copy.AllowedTypes
+    value:           'shape;operation;iterator;literal;tensor_view;match'
   - key:             performance-unnecessary-copy-initialization.AllowedTypes
     value:           'shape;operation;iterator;literal;tensor_view;match'
   - key:             performance-unnecessary-value-param.AllowedTypes

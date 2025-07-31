@@ -148,6 +148,18 @@ Iterator adjacent_for_each(Iterator first, Iterator last, F f)
     return last;
 }
 
+template <class Iterator, class F>
+F for_each_iterator(Iterator first, Iterator last, F f)
+{
+    while(first != last)
+    {
+        auto it = first;
+        first++;
+        f(it);
+    }
+    return f;
+}
+
 template <class Iterator1, class Iterator2>
 std::ptrdiff_t
 levenshtein_distance(Iterator1 first1, Iterator1 last1, Iterator2 first2, Iterator2 last2)

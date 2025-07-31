@@ -75,7 +75,6 @@ struct pointwise_compiler : compiler<pointwise_compiler>
         options.output         = inputs.back();
         options.virtual_inputs = reduce_dims(normalize_permutation(options.inputs));
         options.emplace_param("-Wno-float-equal");
-        options.emplace_param("-Wno-unused-parameter");  
         auto axis              = find_fast_axis(options.virtual_inputs);
         auto vec               = vectorize::elements(ctx, axis, options.virtual_inputs);
         options.kernel_name    = v.get("kernel", "kernel");

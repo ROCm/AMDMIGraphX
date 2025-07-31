@@ -59,7 +59,9 @@
 #include <migraphx/register_target.hpp>
 
 #include <migraphx/gpu/code_object_op.hpp>
+#include <migraphx/gpu/compile_bytecode.hpp>
 #include <migraphx/instruction.hpp>
+#include <migraphx/gpu/context.hpp>
 
 #include <migraphx/netron_output.hpp>
 
@@ -629,23 +631,26 @@ struct compiler
 
     program compile()
     {
+        std::cout << "Loading file\n";
         auto p = l.load();
         // Dont compile if its already been compiled
 
         if(p.is_compiled())
         {
+            std::cout << "Already compiled\n";
             bool has_port_ops = has_portable_ops(p);
 	        if(has_port_ops) // means we must finalize it
 	        {
                 // we run compile_bytecode, which compiles the bytecode (genius!)
                 std::cout << "DETECTED portable mlir bytecode...\n";
-                exit(1);
-                std::cout << "Detected mlir bytecode, compiling and tuning...\n";
-                /*
-		        migraphx::run_passes(p,
-				     {migraphx::compile_bytecode{},
-				      migraphx::compile_ops{}
-				     });*/
+                auto t = ct.get_target();
+                auto ctx = t.get_context();
+                auto& gtx = any_cast<migraphx::gpu::context>(ctx);
+                //auto& gpu_ctx = migraphx::any_cast<migraphx::gpu::context>(t.get_context());
+		        migraphx::run_passes(*p.get_main_module(),
+				     {migraphx::gpu::compile_bytecode{&gtx}
+				     });
+                l.save(p);
 	        }  
             if(ct.target_name == "gpu")
             {

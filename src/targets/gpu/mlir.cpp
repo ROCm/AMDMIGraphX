@@ -774,10 +774,17 @@ struct mlir_program
         std::cout << mlir_print(&mlirOperationPrint, mod_op) << std::endl;
     }
 
-    void run_backend_pipeline()
+    void run_backend_pipeline(bool portable = false)
     {
         mlir_pass_manager pm_back{mlirPassManagerCreate(ctx.get())};
-	    mlirMIGraphXAddBackendPipeline(pm_back.get(), target_arch.c_str());
+        if(portable)
+        {
+            mlirMIGraphXAddPortableBackendPipeline(pm_back.get(), target_arch.c_str(), num_cu);
+        }
+        else
+        {
+            mlirMIGraphXAddBackendPipeline(pm_back.get(), target_arch.c_str());
+        }
 	    	
         logger.clear();
         const size_t trace = value_of(MIGRAPHX_TRACE_MLIR{});
@@ -911,32 +918,29 @@ struct mlir_program
 	    return op;
     }    
     
-    code_object_op compileBytecode(const value& solution)
+    void compileBytecode(const value& solution, code_object_op& op)
     {
 	    std::cout << "compiling bytecode...\n";	
 
-        bool portable = true;
         std::string tuning_cfg_path = string_value_of(MIGRAPHX_MLIR_TUNING_CFG{});
         if(not tuning_cfg_path.empty())
             get_module_tuned();
         if(not solution.is_null())
             set_tuning(solution);
-        run_backend_pipeline();
+        bool portable = true;
+        run_backend_pipeline(portable);
 
-	    code_object_op op{};
-	    op.symbol_name                = sym_name;
 	    op.code_object                = get_binary();
         op.format                     = code_object_format::binary;
-	    std::tie(op.global, op.local) = get_launch_params();
-	    return op;	    
-    }    
+	    std::tie(op.global, op.local) = get_launch_params();    
+    }   
 
     void set_gpu_properties(const context& migraphx_ctx)
-    {
+    {        
 	    if(migraphx_ctx.get_portable_flag()) {
 	        target_arch        = "gfxMIGX";
  	        num_cu             = 0;
-	    } else {
+	    } else {            
 	        const auto& device = migraphx_ctx.get_current_device();
 	        target_arch        = device.get_device_name();
 	        num_cu             = device.get_cu_count();
@@ -981,6 +985,11 @@ struct mlir_program
             return std::move(mod);
         }
         MIGRAPHX_THROW("Failed to load mlir bytecode into module");
+    }
+
+    void load_and_set_bytecode(const value::binary& bc)
+    {
+        mmodule = std::move(load_bytecode(bc));
     }
 
     void set_tuning(const value& v) MIGRAPHX_TIDY_CONST
@@ -1028,6 +1037,43 @@ struct mlir_program
         tc.problem = std::string(tuning_key.begin(), tuning_key.begin() + tuning_key_bytes);
         return tc;
     }
+
+
+    tuning_config get_bytecode_tuning_config(bool exhaustive)
+    {
+        tuning_config tc;
+        tc.detailed_problem_info =
+            mlir_print(&mlirOperationPrint, mlirModuleGetOperation(mmodule.get()));
+        auto tuning_mode =
+            exhaustive ? RocmlirTuningParamSetKindFull : RocmlirTuningParamSetKindQuick;
+        if(enabled(MIGRAPHX_MLIR_TUNE_EXHAUSTIVE{}))
+            tuning_mode = RocmlirTuningParamSetKindExhaustive;
+        mlir_tuning_space params{mlirRockTuningSpaceCreate(mmodule.get(), tuning_mode)};
+        const auto limit =
+            value_of(MIGRAPHX_MLIR_TUNE_LIMIT{}, std::numeric_limits<std::size_t>::max());
+        for(auto i : range(std::min<std::size_t>(limit, mlirRockTuningGetNumParams(params.get()))))
+        {
+            mlir_tuning_param param{mlirRockTuningParamCreate()};
+            if(not mlirRockTuningParamGet(params.get(), i, param.get()))
+                MIGRAPHX_THROW("Incorrect mlir tuning parameter: " + std::to_string(i));
+            std::array<char, ROCMLIR_TUNING_KEY_BUFSZ> perf_key;
+            size_t perf_key_bytes =
+                mlirRockTuningParamToString(param.get(), perf_key.data(), perf_key.size());
+            if(perf_key_bytes > perf_key.size())
+                MIGRAPHX_THROW("Tuning perf key was " + std::to_string(perf_key_bytes) +
+                               " bytes and thus too long");
+            tc.solutions.emplace_back(
+                std::string(perf_key.begin(), perf_key.begin() + perf_key_bytes));
+        }
+        std::array<char, ROCMLIR_TUNING_KEY_BUFSZ> tuning_key;
+        size_t tuning_key_bytes =
+            mlirRockTuningGetKey(mmodule.get(), tuning_key.data(), tuning_key.size());
+        if(tuning_key_bytes > tuning_key.size())
+            MIGRAPHX_THROW("Tuning table key was " + std::to_string(tuning_key_bytes) +
+                           " bytes and thus too long");
+        tc.problem = std::string(tuning_key.begin(), tuning_key.begin() + tuning_key_bytes);
+        return tc;
+    }    
 
     std::string get_tune_params(bool xdlops) const { return get_mlir_perf_for_conv(pp, xdlops); }
 
@@ -1350,11 +1396,15 @@ mlir_code_object compile_mlir(const context& migraphx_ctx,
     {
         co.output = shape{out_shapes};
     }
+
+    std::cout << "MLIR SHAPE: " << co.output << "\n";
+
     mlir_code_object mco;
     mco.cop                 = co;
     // if(is_portable)
         //mco.smod                = m;
     size_t num_prefill_args = mlirGetNumPrefillArgs(mp.mmodule.get());
+    std::cout << "num_prefil_args: " << num_prefill_args << "\n";    
     if(num_prefill_args > 0)
     {
         std::vector<size_t> prefill_indices(num_prefill_args);
@@ -1376,6 +1426,64 @@ mlir_code_object compile_mlir(const context& migraphx_ctx,
         mco.prefill_values  = prefill_values;
     }
     return mco;
+}
+
+mlir_code_object compile_mlir(const context& migraphx_ctx,
+                              instruction_ref ins,
+                              code_object_op& co,
+                              const value& solution)
+{
+    const bool trace = enabled(MIGRAPHX_TRACE_MLIR{});
+    static std::mutex mutex;
+
+    mlir_program mp;
+    mp.load_and_set_bytecode(co.code_object);
+    mp.set_gpu_properties(migraphx_ctx);
+
+    auto mod_op = mlirModuleGetOperation(mp.mmodule.get());
+    if(trace)
+    {
+        const std::lock_guard<std::mutex> lock(mutex);
+	    std::cout << "Printing module...\n";
+        std::cout << mlir_print(&mlirOperationPrint, mod_op) << std::endl;
+    }
+
+    // just want the bytecode and update the format
+    mp.compileBytecode(solution, co);
+    
+    std::cout << "Printing...\n";
+    auto mod_op1 = mlirModuleGetOperation(mp.mmodule.get());
+    if(trace)
+    {
+        const std::lock_guard<std::mutex> lock(mutex);
+        std::cout << mlir_print(&mlirOperationPrint, mod_op1) << std::endl;
+    }
+
+    mlir_code_object mco;
+    mco.cop                 = co;    
+    size_t num_prefill_args = mlirGetNumPrefillArgs(mp.mmodule.get());
+    std::cout << "num_prefil_args: " << num_prefill_args << "\n";    
+    if(num_prefill_args > 0)
+    {
+        std::vector<size_t> prefill_indices(num_prefill_args);
+        std::vector<MlirAttribute> prefill_mlir_values(num_prefill_args);
+        mlirGetPrefillArgsInfo(
+            mp.mmodule.get(), prefill_indices.data(), prefill_mlir_values.data(), num_prefill_args);
+        std::vector<value> prefill_values(prefill_mlir_values.size());
+        std::transform(prefill_mlir_values.begin(),
+                       prefill_mlir_values.end(),
+                       prefill_values.begin(),
+                       [](const auto& v) {
+                           // mlir sets fill attribute as float but migx hip::fill operator only
+                           // supports integer type.
+                           // TODO: Need to add checks that it is indeed an integer.
+                           double dv = mlirFloatAttrGetValueDouble(v);
+                           return static_cast<int>(dv);
+                       });
+        mco.prefill_indices = prefill_indices;
+        mco.prefill_values  = prefill_values;
+    }
+    return mco;    
 }
 
 /*
@@ -1453,15 +1561,20 @@ tuning_config get_tuning_config_mlir(const context& migraphx_ctx,
 {
     mlir_program mp;
     code_object_op cop = any_cast<code_object_op>(ins->get_operator());
+    std::cout << "Finding tuning config for: " << cop.name() << "\n";
     mlir_module mod = mp.load_bytecode(cop.code_object);
+    std::cout << "Loaded bytecode...\n";
 
+    std::cout << "Setting gpu properties: " << std::flush;
     mp.set_gpu_properties(migraphx_ctx);
+    std::cout << "gfx: " << mp.target_arch << " num_cu: " << mp.num_cu << "\n"; 
     mp.mmodule = std::move(mod);
 
     // run populateparamspass
     mp.run_populate_params_pipeline();
 
-    auto tc          = mp.get_tuning_config(exhaustive);
+    std::cout << "getting tuning config via mp.get_bytecode_tuning_config\n";
+    auto tc          = mp.get_bytecode_tuning_config(exhaustive);
     const bool trace = enabled(MIGRAPHX_TRACE_MLIR{});
     static std::mutex mutex;
     if(trace)

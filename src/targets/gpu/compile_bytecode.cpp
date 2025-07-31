@@ -46,12 +46,12 @@ MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_TRACE_BENCHMARKING);
 
 struct bc_compiled_result
 {
-    compiler_replace replace;
+    mlir_code_object mco;
     instruction_ref ins;
 
     friend std::ostream& operator<<(std::ostream& os, const bc_compiled_result& cr)
     {
-        cr.replace.trace(os, cr.ins);
+        os << cr.mco.cop.name();
         return os;
     }
 };
@@ -66,6 +66,7 @@ struct bc_compile_plan
     std::vector<optional<bc_compiled_result>> results = {};
     void update_config(bool exhaustive)
     {
+        std::cout << "Calling get_tuning_config_mlir\n";
         config = get_tuning_config_mlir(*ctx, ins, exhaustive);
     }
     template <class Vector>
@@ -75,7 +76,7 @@ struct bc_compile_plan
             try
             {
                 /* maybe change what compiled_result is, we dont want to substitute */
-                results[i] = bc_compiled_result{compile(*ctx, ins, preop, solution), ins};
+                results[i] = bc_compiled_result{compile_mlir(*ctx, ins, any_cast<code_object_op>(preop), solution), ins};
             }
             catch(const std::exception& e)
             {
@@ -96,6 +97,7 @@ struct bc_compile_plan
     {
         if(config.has_value())
         {
+            std::cout << "Has config...\n";
             const auto& problem = config->problem;
             if(auto sol = ctx->get_problem_cache().get(preop.name(), problem))
             {
@@ -181,7 +183,7 @@ struct bc_compile_plan
             return *results.front();
         }
         if(not config)
-            MIGRAPHX_THROW("Multiple kernels without config for " + preop.name());
+            MIGRAPHX_THROW("Multiple kernels without config for " + preop.name());        
         if(trace_level > 1)
             std::cout << "Problem: " << config->problem << std::endl;
         std::vector<double> times;
@@ -201,6 +203,7 @@ struct bc_compile_plan
                            }
                            if(trace_level > 2)
                                std::cout << *cr << std::endl;
+                           
                            /*
                            create a small program with insturction being compiled and call "replace"
                            on that which would insert all the compiled code objects, prefills etc.
@@ -219,13 +222,14 @@ struct bc_compile_plan
                                                   arg->get_shape());
                                           });
                            auto bench_ins = bench_mm->add_instruction(
-                               cr->ins->get_operator(), bench_ins_inputs, cr->ins->module_inputs());
-                           cr->replace.replace(*bench_mm, bench_ins);
+                               cr->mco.cop, bench_ins_inputs, cr->ins->module_inputs());
+                           // IMPORTANT
+                           //cr->replace.replace(*bench_mm, bench_ins);
                            // do dead code elimination
                            run_passes(*bench_mm, {dead_code_elimination{}});
                            // by default, measure runtime with bundle of 1 benchmark config,
                            // repeat 20 times
-                           auto t = time_program(*ctx, bench_prog, cr->replace.fill_map, 1, 20);
+                           auto t = time_program(*ctx, bench_prog, std::unordered_map<std::string, double>{}, 1, 20);
                            if(trace_level > 1)
                                std::cout << t << "ms" << std::endl;
                            return t;
@@ -252,7 +256,8 @@ struct bc_compile_plan
     void replace(module& m) const
     {
         const auto& cr = benchmark();
-        cr.replace.replace(m, cr.ins);
+        ins->replace(cr.mco.cop);
+        //cr.replace.replace(m, cr.ins);
     }
 };
 
@@ -317,13 +322,22 @@ void compile_bytecode::apply(module& m) const
     {
         if(ins->name() != "gpu::code_object")
             continue;
-        //operation preop = any_cast<code_object_op>(ins->get_operator());
-        //cm.add_plan(ctx, preop, ins, &m);
+        operation preop = any_cast<code_object_op>(ins->get_operator());
+        std::cout << "Adding " << preop.name() << " to compile plan\n";
+        cm.add_plan(ctx, preop, ins, &m);
+    }
+    std::cout << "Updating configs\n";
+    if(ctx) {
+        std::cout << "ctx is not null\n";
+    } else {
+        std::cout << "ctx is null\n";
     }
     cm.update_configs();
-    //cm.compile(m);
+    std::cout << "Configs updated\n";
+    std::cout << "Running first round of compilation\n";
+    cm.compile(m);
     // Compile already tuned configs
-    //cm.compile(m);
+    cm.compile(m);
     assert(cm.cps.empty());
 }
 

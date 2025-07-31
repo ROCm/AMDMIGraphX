@@ -589,6 +589,9 @@ struct hip_gemm_impl
                                                     algo,
                                                     ret_workspace_size) == HIPBLAS_STATUS_SUCCESS)
             {
+                // To balance performance and memory usage, solutions for exhaustive tuning
+                // are only considered if their workspace size is less than or equal to 128MB.
+                // This avoids using excessive memory for potentially minor speed improvements.
                 if(ret_workspace_size <= hipblaslt_workspace_size / 2)
                     solution_indices.push_back(hipblaslt_ext::getIndexFromAlgo(algo));
             }

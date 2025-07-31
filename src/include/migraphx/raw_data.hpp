@@ -204,7 +204,6 @@ struct raw_data : raw_data_base
     template <class T>
     T* cast() const
     {
-        auto&& s      = static_cast<const Derived&>(*this).get_shape();
         auto&& buffer = static_cast<const Derived&>(*this).data();
         assert(s.computable() and static_cast<const Derived&>(*this).get_shape().type() ==
                                       migraphx::shape::get_type<T>{});

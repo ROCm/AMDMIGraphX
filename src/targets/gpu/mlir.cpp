@@ -774,18 +774,11 @@ struct mlir_program
         std::cout << mlir_print(&mlirOperationPrint, mod_op) << std::endl;
     }
 
-    void run_backend_pipeline(bool portable = false)
+    void run_backend_pipeline()
     {
         mlir_pass_manager pm_back{mlirPassManagerCreate(ctx.get())};
-	    if(portable)
-	    {
-            std::cout << "Running portable backend with: " << target_arch.c_str() << ", " << num_cu << "\n";
-	        mlirMIGraphXAddPortableBackendPipeline(pm_back.get(), target_arch.c_str(), num_cu);
-	    }
-	    else
-	    {
-	        mlirMIGraphXAddBackendPipeline(pm_back.get(), target_arch.c_str());
-	    }	
+	    mlirMIGraphXAddBackendPipeline(pm_back.get(), target_arch.c_str());
+	    	
         logger.clear();
         const size_t trace = value_of(MIGRAPHX_TRACE_MLIR{});
         static std::mutex mutex;
@@ -805,6 +798,26 @@ struct mlir_program
             }
             MIGRAPHX_THROW(error);
         }
+    }
+
+    void run_populate_params_pipeline()
+    {
+        mlir_pass_manager pm_front{mlirPassManagerCreate(ctx.get())};
+        mlirMIGraphXAddPopulateParamsPipeline(pm_front.get(), target_arch.c_str(), num_cu);
+        logger.clear();
+        if(mlirLogicalResultIsFailure(
+               mlirPassManagerRunOnOp(pm_front.get(), mlirModuleGetOperation(mmodule.get()))))
+        {
+            std::string error = "Invalid MLIR created: " + logger.str();
+            if(enabled(MIGRAPHX_TRACE_MLIR{}))
+            {
+                std::cout << error << std::endl;
+            }
+            MIGRAPHX_THROW(error);
+        }
+	    std::cout << "ran populate_params_pipeline:\n";
+	    auto mod_op = mlirModuleGetOperation(this->mmodule.get());
+        std::cout << mlir_print(&mlirOperationPrint, mod_op) << std::endl;
     }
 
     code_object_op compile(const value& solution, bool portable)
@@ -908,7 +921,7 @@ struct mlir_program
             get_module_tuned();
         if(not solution.is_null())
             set_tuning(solution);
-        run_backend_pipeline(portable);
+        run_backend_pipeline();
 
 	    code_object_op op{};
 	    op.symbol_name                = sym_name;
@@ -1411,23 +1424,6 @@ instruction_ref insert_mlir(module& m,
     return m.insert_instruction(ins, co, refs);
 }
 
-instruction_ref insert_mlir(module& m,
-                            instruction_ref ins,
-                            code_object_op co,
-                            const std::vector<instruction_ref>& inputs,
-                            const std::vector<module_ref>& mods)
-{
-
-    std::vector<instruction_ref> refs;
-    std::size_t last = 0;
-    refs.reserve(inputs.size());
-    std::copy(inputs.begin(), inputs.end(), std::back_inserter(refs));
-    last               = refs.size() - 1;
-    co.expected_inputs = to_shapes(refs);
-    co.output_arg      = last;
-    return m.insert_instruction(ins, co, refs, mods);
-}
-
 tuning_config get_tuning_config_mlir(const context& migraphx_ctx,
                                      module m,
                                      const std::vector<shape>& inputs,
@@ -1451,12 +1447,20 @@ tuning_config get_tuning_config_mlir(const context& migraphx_ctx,
     return tc;
 }
 
-/*
-tuning_config get_tuning_config_mlir(mlir_module mmodule) 
+tuning_config get_tuning_config_mlir(const context& migraphx_ctx,
+                                     instruction_ref ins,
+                                     bool exhaustive)
 {
     mlir_program mp;
+    code_object_op cop = any_cast<code_object_op>(ins->get_operator());
+    mlir_module mod = mp.load_bytecode(cop.code_object);
+
     mp.set_gpu_properties(migraphx_ctx);
-    mp.parse(m); // maybe we just manually set the mmodule by passing it in as an arg then cloning it
+    mp.mmodule = std::move(mod);
+
+    // run populateparamspass
+    mp.run_populate_params_pipeline();
+
     auto tc          = mp.get_tuning_config(exhaustive);
     const bool trace = enabled(MIGRAPHX_TRACE_MLIR{});
     static std::mutex mutex;
@@ -1469,7 +1473,6 @@ tuning_config get_tuning_config_mlir(mlir_module mmodule)
     }
     return tc;
 }
-*/
 
 void dump_mlir_to_mxr(module m,
                       const std::vector<instruction_ref>& inputs,
@@ -1528,6 +1531,7 @@ tuning_config get_tuning_config_mlir(const context&, module, const std::vector<s
 {
     return {};
 }
+
 // NOLINTEND(performance-unnecessary-value-param)
 
 #endif

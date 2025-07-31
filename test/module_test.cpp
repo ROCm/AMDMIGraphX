@@ -503,11 +503,11 @@ TEST_CASE(module_split2)
     EXPECT(mods[0].mod.sort() == m1.sort());
     EXPECT(mods[1].mod.sort() == m2.sort());
 
-    EXPECT(bool{mods[0].inputs[0] == inputs[0]});
-    EXPECT(bool{mods[0].inputs[1] == inputs[1]});
+    EXPECT(mods[0].inputs[0] == inputs[0]);
+    EXPECT(mods[0].inputs[1] == inputs[1]);
 
-    EXPECT(bool{mods[1].inputs[0] == splits.front()});
-    EXPECT(bool{mods[1].inputs[1] == inputs[2]});
+    EXPECT(mods[1].inputs[0] == splits.front());
+    EXPECT(mods[1].inputs[1] == inputs[2]);
 }
 
 TEST_CASE(module_split_2_dot_ins)
@@ -586,18 +586,18 @@ TEST_CASE(module_split_2_dot_ins)
         mod_1.add_return({m1_mul});
     }
     auto mods = m1.split(inputs, splits);
-    EXPECT(bool{mods[0].mod.sort() == mod_0.sort()});
+    EXPECT(mods[0].mod.sort() == mod_0.sort());
     const auto mod_0_inputs = mods[0].inputs;
-    EXPECT(bool{mod_0_inputs[0] == mod_0_expected_inputs[0]});
-    EXPECT(bool{mod_0_inputs[1] == mod_0_expected_inputs[1]});
+    EXPECT(mod_0_inputs[0] == mod_0_expected_inputs[0]);
+    EXPECT(mod_0_inputs[1] == mod_0_expected_inputs[1]);
     const auto mod_1_inputs = mods[1].inputs;
     // first input arg should be the split instruction
-    EXPECT(bool{mods[1].mod.sort() == mod_1.sort()});
-    EXPECT(bool{mod_1_inputs[0] == splits.front()});
-    EXPECT(bool{mod_1_inputs[1] == mod_1_expected_inputs[0]});
-    EXPECT(bool{mod_1_inputs[2] == mod_1_expected_inputs[1]});
-    EXPECT(bool{mod_1_inputs[3] == mod_1_expected_inputs[2]});
-    EXPECT(bool{mod_1_inputs[4] == mod_1_expected_inputs[3]});
+    EXPECT(mods[1].mod.sort() == mod_1.sort());
+    EXPECT(mod_1_inputs[0] == splits.front());
+    EXPECT(mod_1_inputs[1] == mod_1_expected_inputs[0]);
+    EXPECT(mod_1_inputs[2] == mod_1_expected_inputs[1]);
+    EXPECT(mod_1_inputs[3] == mod_1_expected_inputs[2]);
+    EXPECT(mod_1_inputs[4] == mod_1_expected_inputs[3]);
 }
 
 TEST_CASE(module_split3)
@@ -651,13 +651,13 @@ TEST_CASE(module_split3)
     EXPECT(mods[1].mod.sort() == m2.sort());
     EXPECT(mods[2].mod.sort() == m3.sort());
 
-    EXPECT(bool{mods[0].inputs[0] == inputs[0]});
-    EXPECT(bool{mods[0].inputs[1] == inputs[1]});
+    EXPECT(mods[0].inputs[0] == inputs[0]);
+    EXPECT(mods[0].inputs[1] == inputs[1]);
 
-    EXPECT(bool{mods[1].inputs[0] == splits1.front()});
+    EXPECT(mods[1].inputs[0] == splits1.front());
 
-    EXPECT(bool{mods[2].inputs[0] == splits2.front()});
-    EXPECT(bool{mods[2].inputs[1] == splits1.front()});
+    EXPECT(mods[2].inputs[0] == splits2.front());
+    EXPECT(mods[2].inputs[1] == splits1.front());
 }
 
 TEST_CASE(fuse_module)
@@ -728,9 +728,9 @@ TEST_CASE(get_inputs)
     auto inputs = m1.get_inputs(map_m1_to_mm);
 
     EXPECT(inputs.size() == 3);
-    EXPECT(bool{inputs[0] == x});
-    EXPECT(bool{inputs[1] == z});
-    EXPECT(bool{inputs[2] == y});
+    EXPECT(inputs[0] == x);
+    EXPECT(inputs[1] == z);
+    EXPECT(inputs[2] == y);
 }
 
 TEST_CASE(add_params)
@@ -756,9 +756,9 @@ TEST_CASE(add_params)
     // m1 should have parameters x0 and x1 with the shapes of mul and add outputs, respectively
     EXPECT(m1 == m2);
     // map_ins should contain a mapping: mul (in mm) -> x0 (in m1)
-    EXPECT(bool{m1.get_parameter("x0") == map_ins[mul]});
+    EXPECT(m1.get_parameter("x0") == map_ins[mul]);
     // map_ins should contain a mapping: add (in mm) -> x1 (in m1)
-    EXPECT(bool{m1.get_parameter("x1") == map_ins[add]});
+    EXPECT(m1.get_parameter("x1") == map_ins[add]);
 }
 
 int main(int argc, const char* argv[]) { test::run(argc, argv); }

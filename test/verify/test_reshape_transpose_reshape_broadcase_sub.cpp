@@ -29,18 +29,25 @@
 
 #include <cassert>
 
-struct test_reshape_transpose_reshape_broadcast_sub : verify_program<test_reshape_transpose_reshape_broadcast_sub>
+struct test_reshape_transpose_reshape_broadcast_sub
+    : verify_program<test_reshape_transpose_reshape_broadcast_sub>
 {
     migraphx::program create_program() const
     {
         migraphx::program p;
         auto* mm = p.get_main_module();
-        auto x2 = mm->add_parameter("x2",migraphx::shape{migraphx::shape::float_type, {1, 1, 32, 1}});
-        auto x1 = mm->add_parameter("x1",migraphx::shape{migraphx::shape::float_type, {1, 512, 16, 16}});
-        auto reshape1 = mm->add_instruction(migraphx::make_op("reshape", {{"dims", {1,32,16,16,16}}}), x1);
-        auto transpose = mm->add_instruction(migraphx::make_op("transpose", {{"permutation", {0,3,4,1,2}}}), reshape1);
-        auto reshape2 = mm->add_instruction(migraphx::make_op("reshape", {{"dims", {1,256,32,16}}}), transpose);
-        auto broadcast = mm->add_instruction(migraphx::make_op("multibroadcast", {{"out_lens",{1,256,32,16}}}), x2);
+        auto x2 =
+            mm->add_parameter("x2", migraphx::shape{migraphx::shape::float_type, {1, 1, 32, 1}});
+        auto x1 =
+            mm->add_parameter("x1", migraphx::shape{migraphx::shape::float_type, {1, 512, 16, 16}});
+        auto reshape1 =
+            mm->add_instruction(migraphx::make_op("reshape", {{"dims", {1, 32, 16, 16, 16}}}), x1);
+        auto transpose = mm->add_instruction(
+            migraphx::make_op("transpose", {{"permutation", {0, 3, 4, 1, 2}}}), reshape1);
+        auto reshape2 = mm->add_instruction(
+            migraphx::make_op("reshape", {{"dims", {1, 256, 32, 16}}}), transpose);
+        auto broadcast = mm->add_instruction(
+            migraphx::make_op("multibroadcast", {{"out_lens", {1, 256, 32, 16}}}), x2);
         auto sub = mm->add_instruction(migraphx::make_op("sub"), reshape2, broadcast);
         mm->add_return({sub});
         return p;

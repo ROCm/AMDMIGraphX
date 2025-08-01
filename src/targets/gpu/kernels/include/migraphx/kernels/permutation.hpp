@@ -52,7 +52,7 @@ template <class Array>
 constexpr auto invert_permutation(const Array& permutation)
 {
     Array result;
-    for(index_int i=0;i<result.size();i++)
+    for(index_int i = 0; i < result.size(); i++)
         result[permutation[i]] = i;
     return result;
 }

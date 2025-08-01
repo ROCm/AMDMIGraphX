@@ -63,7 +63,7 @@ MIGRAPHX_GPU_EXPORT mlir_code_object compile_mlir(const context& migraphx_ctx,
 
 MIGRAPHX_GPU_EXPORT mlir_code_object compile_mlir(const context& migraphx_ctx,
                                                   instruction_ref ins,
-                                                  code_object_op& co,
+                                                  code_object_op co,
                                                   const value& solution);                                                 
 
 MIGRAPHX_GPU_EXPORT instruction_ref insert_mlir(module& m,

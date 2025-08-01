@@ -810,7 +810,8 @@ struct mlir_program
     void run_populate_params_pipeline()
     {
         mlir_pass_manager pm_front{mlirPassManagerCreate(ctx.get())};
-        mlirMIGraphXAddPopulateParamsPipeline(pm_front.get(), target_arch.c_str(), num_cu);
+        bool debug = false;
+        mlirMIGraphXAddPopulateParamsPipeline(pm_front.get(), target_arch.c_str(), num_cu, debug);
         logger.clear();
         if(mlirLogicalResultIsFailure(
                mlirPassManagerRunOnOp(pm_front.get(), mlirModuleGetOperation(mmodule.get()))))
@@ -822,9 +823,9 @@ struct mlir_program
             }
             MIGRAPHX_THROW(error);
         }
-	    std::cout << "ran populate_params_pipeline:\n";
-	    auto mod_op = mlirModuleGetOperation(this->mmodule.get());
-        std::cout << mlir_print(&mlirOperationPrint, mod_op) << std::endl;
+	    //std::cout << "ran populate_params_pipeline:\n";
+	    //auto mod_op = mlirModuleGetOperation(this->mmodule.get());
+        //std::cout << mlir_print(&mlirOperationPrint, mod_op) << std::endl;
     }
 
     code_object_op compile(const value& solution, bool portable)
@@ -837,13 +838,12 @@ struct mlir_program
         const bool trace = enabled(MIGRAPHX_TRACE_MLIR{});
 
         static std::mutex mutex;
-	    std::cout << "compiling non-portable...\n";
+	    // std::cout << "compiling non-portable...\n";
         // 1st pipeline to call
         auto mod_op1 = mlirModuleGetOperation(mmodule.get());
         if(trace)
         {
             const std::lock_guard<std::mutex> lock(mutex);
-	        std::cout << "Printing module before high_level_pipeline...\n";
             std::cout << mlir_print(&mlirOperationPrint, mod_op1) << std::endl;
         }
         run_high_level_pipeline();
@@ -858,7 +858,6 @@ struct mlir_program
         if(trace)
         {
             const std::lock_guard<std::mutex> lock(mutex);
-	        std::cout << "Printing module after load_bytecode...\n";
             std::cout << mlir_print(&mlirOperationPrint, mod_op2) << std::endl;
         }
         std::string tuning_cfg_path = string_value_of(MIGRAPHX_MLIR_TUNING_CFG{});
@@ -874,30 +873,23 @@ struct mlir_program
         if(trace)
         {
             const std::lock_guard<std::mutex> lock(mutex);
-	        std::cout << "Printing module after backend_pipeline...\n";
             std::cout << mlir_print(&mlirOperationPrint, mod_op3) << std::endl;
         }
 
 	    code_object_op op{};
-        std::cout << "Setting name...\n";
 	    op.symbol_name                = sym_name;
-        std::cout << "Getting binary...\n";
         op.code_object                = get_binary();
-        std::cout << "Getting launch params\n";        
 	    std::tie(op.global, op.local) = get_launch_params();
-        std::cout << "returning op\n";
 	    return op;	    
     }
 
     code_object_op compilePortable(const value& solution)
     {
-	    std::cout << "compiling portable...\n";	
         // 1st pipeline to call
         run_high_level_pipeline();
         
         auto code_object = get_bytecode();
 
-        std::cout << "loading bytecode...\n";
         mlir_module mod = load_bytecode(code_object);
         mmodule = std::move(mod);
 
@@ -920,7 +912,11 @@ struct mlir_program
     
     void compileBytecode(const value& solution, code_object_op& op)
     {
-	    std::cout << "compiling bytecode...\n";	
+        const bool trace = enabled(MIGRAPHX_TRACE_MLIR{});
+
+        static std::mutex mutex;
+        if(trace)
+	        std::cout   << "compiling bytecode...\n";	
 
         std::string tuning_cfg_path = string_value_of(MIGRAPHX_MLIR_TUNING_CFG{});
         if(not tuning_cfg_path.empty())
@@ -980,9 +976,35 @@ struct mlir_program
 
     mlir_module load_bytecode(const value::binary& bc) const
     {
+
         mlir_module mod = mlirLoadBytecode(ctx.get(), reinterpret_cast<const char*>(bc.data()), bc.size());\
         if(mod) {
             return std::move(mod);
+        }
+        const bool trace = enabled(MIGRAPHX_TRACE_MLIR{});
+
+        static std::mutex mutex;
+        if(trace)
+        {
+
+        }
+        MIGRAPHX_THROW("Failed to load mlir bytecode into module");
+    }
+
+    mlir_module load_bytecode(const value::binary& bc, const code_object_op &cop) const
+    {
+
+        mlir_module mod = mlirLoadBytecode(ctx.get(), reinterpret_cast<const char*>(bc.data()), bc.size());\
+        if(mod) {
+            return std::move(mod);
+        }
+        const bool trace = enabled(MIGRAPHX_TRACE_MLIR{});
+
+        static std::mutex mutex;
+        if(trace)
+        {
+            const std::lock_guard<std::mutex> lock(mutex);
+            std::cerr << "Failed to compile: " << cop << std::endl;
         }
         MIGRAPHX_THROW("Failed to load mlir bytecode into module");
     }
@@ -990,6 +1012,11 @@ struct mlir_program
     void load_and_set_bytecode(const value::binary& bc)
     {
         mmodule = std::move(load_bytecode(bc));
+    }
+
+    void load_and_set_bytecode(const value::binary& bc, const code_object_op& cop)
+    {
+        mmodule = std::move(load_bytecode(bc, cop));
     }
 
     void set_tuning(const value& v) MIGRAPHX_TIDY_CONST
@@ -1366,7 +1393,6 @@ mlir_code_object compile_mlir(const context& migraphx_ctx,
     if(trace)
     {
         const std::lock_guard<std::mutex> lock(mutex);
-	    std::cout << "Printing module...\n";
         std::cout << mlir_print(&mlirOperationPrint, mod_op) << std::endl;
     }
 
@@ -1378,7 +1404,6 @@ mlir_code_object compile_mlir(const context& migraphx_ctx,
     std::cout << "Portable = " << (is_portable ? "true" : "false") << "\n";
     auto co = mp.compile(solution, is_portable);
     
-    std::cout << "Printing...\n";
     auto mod_op1 = mlirModuleGetOperation(mp.mmodule.get());
     if(trace)
     {
@@ -1397,14 +1422,11 @@ mlir_code_object compile_mlir(const context& migraphx_ctx,
         co.output = shape{out_shapes};
     }
 
-    std::cout << "MLIR SHAPE: " << co.output << "\n";
-
     mlir_code_object mco;
     mco.cop                 = co;
     // if(is_portable)
         //mco.smod                = m;
     size_t num_prefill_args = mlirGetNumPrefillArgs(mp.mmodule.get());
-    std::cout << "num_prefil_args: " << num_prefill_args << "\n";    
     if(num_prefill_args > 0)
     {
         std::vector<size_t> prefill_indices(num_prefill_args);
@@ -1430,28 +1452,26 @@ mlir_code_object compile_mlir(const context& migraphx_ctx,
 
 mlir_code_object compile_mlir(const context& migraphx_ctx,
                               instruction_ref ins,
-                              code_object_op& co,
+                              code_object_op co,
                               const value& solution)
 {
     const bool trace = enabled(MIGRAPHX_TRACE_MLIR{});
     static std::mutex mutex;
 
     mlir_program mp;
-    mp.load_and_set_bytecode(co.code_object);
+    mp.load_and_set_bytecode(co.code_object, co);
     mp.set_gpu_properties(migraphx_ctx);
 
     auto mod_op = mlirModuleGetOperation(mp.mmodule.get());
     if(trace)
     {
         const std::lock_guard<std::mutex> lock(mutex);
-	    std::cout << "Printing module...\n";
         std::cout << mlir_print(&mlirOperationPrint, mod_op) << std::endl;
     }
 
     // just want the bytecode and update the format
     mp.compileBytecode(solution, co);
     
-    std::cout << "Printing...\n";
     auto mod_op1 = mlirModuleGetOperation(mp.mmodule.get());
     if(trace)
     {
@@ -1462,7 +1482,6 @@ mlir_code_object compile_mlir(const context& migraphx_ctx,
     mlir_code_object mco;
     mco.cop                 = co;    
     size_t num_prefill_args = mlirGetNumPrefillArgs(mp.mmodule.get());
-    std::cout << "num_prefil_args: " << num_prefill_args << "\n";    
     if(num_prefill_args > 0)
     {
         std::vector<size_t> prefill_indices(num_prefill_args);
@@ -1548,7 +1567,6 @@ tuning_config get_tuning_config_mlir(const context& migraphx_ctx,
     if(trace)
     {
         const std::lock_guard<std::mutex> lock(mutex);
-        std::cout << "Problem: " << tc.problem << std::endl;
         auto mod_op = mlirModuleGetOperation(mp.mmodule.get());
         std::cout << mlir_print(&mlirOperationPrint, mod_op) << std::endl;
     }
@@ -1561,22 +1579,24 @@ tuning_config get_tuning_config_mlir(const context& migraphx_ctx,
 {
     mlir_program mp;
     code_object_op cop = any_cast<code_object_op>(ins->get_operator());
-    std::cout << "Finding tuning config for: " << cop.name() << "\n";
-    mlir_module mod = mp.load_bytecode(cop.code_object);
-    std::cout << "Loaded bytecode...\n";
 
-    std::cout << "Setting gpu properties: " << std::flush;
+    static std::mutex mutex;    
+    const bool trace = enabled(MIGRAPHX_TRACE_MLIR{});
+    if(trace) {
+        const std::lock_guard<std::mutex> lock(mutex);
+        std::cout << "Op: " << cop << std::endl;
+    } 
+    mlir_module mod = mp.load_bytecode(cop.code_object, cop);
+    
     mp.set_gpu_properties(migraphx_ctx);
-    std::cout << "gfx: " << mp.target_arch << " num_cu: " << mp.num_cu << "\n"; 
     mp.mmodule = std::move(mod);
 
     // run populateparamspass
     mp.run_populate_params_pipeline();
 
-    std::cout << "getting tuning config via mp.get_bytecode_tuning_config\n";
+    //std::cout << "getting tuning config via mp.get_bytecode_tuning_config\n";
     auto tc          = mp.get_bytecode_tuning_config(exhaustive);
-    const bool trace = enabled(MIGRAPHX_TRACE_MLIR{});
-    static std::mutex mutex;
+    
     if(trace)
     {
         const std::lock_guard<std::mutex> lock(mutex);

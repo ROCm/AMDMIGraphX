@@ -66,7 +66,7 @@ struct bc_compile_plan
     std::vector<optional<bc_compiled_result>> results = {};
     void update_config(bool exhaustive)
     {
-        std::cout << "Calling get_tuning_config_mlir\n";
+        //std::cout << "Calling get_tuning_config_mlir\n";
         config = get_tuning_config_mlir(*ctx, ins, exhaustive);
     }
     template <class Vector>
@@ -97,7 +97,6 @@ struct bc_compile_plan
     {
         if(config.has_value())
         {
-            std::cout << "Has config...\n";
             const auto& problem = config->problem;
             if(auto sol = ctx->get_problem_cache().get(preop.name(), problem))
             {
@@ -322,19 +321,15 @@ void compile_bytecode::apply(module& m) const
     {
         if(ins->name() != "gpu::code_object")
             continue;
+        
         operation preop = any_cast<code_object_op>(ins->get_operator());
-        std::cout << "Adding " << preop.name() << " to compile plan\n";
+
+        if(any_cast<code_object_op>(preop).format == code_object_format::binary)
+            continue;
+
         cm.add_plan(ctx, preop, ins, &m);
     }
-    std::cout << "Updating configs\n";
-    if(ctx) {
-        std::cout << "ctx is not null\n";
-    } else {
-        std::cout << "ctx is null\n";
-    }
     cm.update_configs();
-    std::cout << "Configs updated\n";
-    std::cout << "Running first round of compilation\n";
     cm.compile(m);
     // Compile already tuned configs
     cm.compile(m);

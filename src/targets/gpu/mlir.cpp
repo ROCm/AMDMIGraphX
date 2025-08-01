@@ -1094,6 +1094,35 @@ std::string dump_mlir(module m, const std::vector<shape>& inputs)
     return mlir_print(&mlirOperationPrint, mod_op);
 }
 
+void abbreviate_symbol_names(std::string& n)
+{
+    static const std::unordered_map<std::string, std::string> abbrs = {{"reshape", "rsp"},
+                                                                       {"transpose", "trp"},
+                                                                       {"slice", "slc"},
+                                                                       {"reduce_max", "rmax"},
+                                                                       {"reduce_sum", "rsum"},
+                                                                       {"convert", "cvt"}};
+    for(auto const& [key, val] : abbrs)
+    {
+        replace_string_inplace(n, key, val);
+    }
+}
+
+void truncate_file_name(std::string& fname, const std::string& ext, const size_t max_len)
+{
+    if(fname.length() <= max_len)
+        return;
+
+    abbreviate_symbol_names(fname);
+
+    // if file name is still too long after shortening op names, truncate
+    if(fname.length() > max_len)
+    {
+        fname = fname.substr(0, max_len - ext.length());
+        fname += ext;
+    }
+}
+
 static std::string compute_dump_name(const module& m, const std::string& ext)
 {
     std::vector<instruction_ref> sizes;
@@ -1106,6 +1135,7 @@ static std::string compute_dump_name(const module& m, const std::string& ext)
         mlir_program::get_symbol_name(m) + "_" + shape::to_sizes_string(to_shapes(sizes)) + ext;
     replace_string_inplace(name, ", ", "_");
     replace_string_inplace(name, ":", "s");
+    truncate_file_name(name, ext, 255);
     return name;
 }
 

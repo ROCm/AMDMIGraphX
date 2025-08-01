@@ -38,27 +38,27 @@ struct rank<0>
 // clang-format on
 
 // NOLINTNEXTLINE
-#define TEST_EACH_BINARY_OPERATOR_OBJECT(op, name)     \
-    struct name                                        \
-    {                                                  \
+#define TEST_EACH_BINARY_OPERATOR_OBJECT(op, name)               \
+    struct name                                                  \
+    {                                                            \
         static constexpr const char* as_string() { return #op; } \
-        template <class T, class U>                    \
-        static constexpr decltype(auto) call(T&& x, U&& y)       \
-        {                                              \
-            return x op y;                             \
-        }                                              \
+        template <class T, class U>                              \
+        static constexpr decltype(auto) call(T && x, U&& y)      \
+        {                                                        \
+            return x op y;                                       \
+        }                                                        \
     };
 
 // NOLINTNEXTLINE
-#define TEST_EACH_UNARY_OPERATOR_OBJECT(op, name)      \
-    struct name                                        \
-    {                                                  \
+#define TEST_EACH_UNARY_OPERATOR_OBJECT(op, name)                \
+    struct name                                                  \
+    {                                                            \
         static constexpr const char* as_string() { return #op; } \
-        template <class T>                             \
-        static constexpr decltype(auto) call(T&& x)              \
-        {                                              \
-            return op x;                               \
-        }                                              \
+        template <class T>                                       \
+        static constexpr decltype(auto) call(T && x)             \
+        {                                                        \
+            return op x;                                         \
+        }                                                        \
     };
 
 TEST_FOREACH_BINARY_OPERATORS(TEST_EACH_BINARY_OPERATOR_OBJECT)
@@ -93,8 +93,7 @@ constexpr Stream& print_stream_impl(rank<0>, Stream& s, const T&)
 }
 
 template <class Stream, class T>
-constexpr auto print_stream_impl(rank<1>, Stream& s, const T& x)
-    -> decltype(s << x)
+constexpr auto print_stream_impl(rank<1>, Stream& s, const T& x) -> decltype(s << x)
 {
     return s << x;
 }
@@ -121,10 +120,10 @@ template <class T, class Operator>
 constexpr lhs_expression<T, Operator> make_lhs_expression(T&& lhs, Operator);
 
 // NOLINTNEXTLINE
-#define TEST_EXPR_BINARY_OPERATOR(op, name)                                        \
-    template <class V>                                                             \
-    constexpr auto operator op(V&& rhs2) const                                               \
-    {                                                                              \
+#define TEST_EXPR_BINARY_OPERATOR(op, name)                                         \
+    template <class V>                                                              \
+    constexpr auto operator op(V&& rhs2) const                                      \
+    {                                                                               \
         return make_expression(*this, static_cast<V&&>(rhs2), name{}); /* NOLINT */ \
     }
 
@@ -138,7 +137,7 @@ struct expression
     T lhs;
     U rhs;
 
-    template<class Stream>
+    template <class Stream>
     friend constexpr Stream& operator<<(Stream& s, const expression& self)
     {
         print_stream(s, self.lhs);
@@ -149,7 +148,10 @@ struct expression
 
     friend constexpr decltype(auto) get_value(const expression& e) { return e.value(); }
 
-    constexpr decltype(auto) value() const { return Operator::call(get_value(lhs), get_value(rhs)); };
+    constexpr decltype(auto) value() const
+    {
+        return Operator::call(get_value(lhs), get_value(rhs));
+    };
 
     TEST_FOREACH_UNARY_OPERATORS(TEST_EXPR_UNARY_OPERATOR)
     TEST_FOREACH_BINARY_OPERATORS(TEST_EXPR_BINARY_OPERATOR)
@@ -181,7 +183,7 @@ struct lhs_expression
     T lhs;
     constexpr explicit lhs_expression(T e) : lhs(static_cast<T&&>(e)) {}
 
-    template<class Stream>
+    template <class Stream>
     friend constexpr Stream& operator<<(Stream& s, const lhs_expression& self)
     {
         const char* op = Operator::as_string();
@@ -199,11 +201,11 @@ struct lhs_expression
     TEST_FOREACH_UNARY_OPERATORS(TEST_EXPR_UNARY_OPERATOR)
 
 // NOLINTNEXTLINE
-#define TEST_LHS_REOPERATOR(op)                 \
-    template <class U>                          \
-    constexpr auto operator op(const U& rhs) const        \
-    {                                           \
-        return make_lhs_expression(lhs op rhs); \
+#define TEST_LHS_REOPERATOR(op)                    \
+    template <class U>                             \
+    constexpr auto operator op(const U& rhs) const \
+    {                                              \
+        return make_lhs_expression(lhs op rhs);    \
     }
     TEST_LHS_REOPERATOR(+)
     TEST_LHS_REOPERATOR(-)
@@ -233,7 +235,8 @@ struct capture
 MIGRAPHX_HIP_NORETURN __device__ inline void fail() { abort(); }
 
 template <class T, class F>
-__device__ void failed(const T& x, const char* msg, const char* func, const char* file, int line, F f)
+__device__ void
+failed(const T& x, const char* msg, const char* func, const char* file, int line, F f)
 {
     // TODO: Check failures across multiple lanes
     if(not bool(x.value()) and threadIdx.x == 0)
@@ -257,22 +260,21 @@ __device__ void failed(const T& x, const char* msg, const char* func, const char
 #endif
 
 // NOLINTNEXTLINE
-#define CHECK(...) \
-    migraphx::test::failed(  \
+#define CHECK(...)          \
+    migraphx::test::failed( \
         TEST_CAPTURE(__VA_ARGS__), #__VA_ARGS__, TEST_PRETTY_FUNCTION, __FILE__, __LINE__, [] {})
 
 // NOLINTNEXTLINE
-#define EXPECT(...)                         \
+#define EXPECT(...)                                   \
     migraphx::test::failed(TEST_CAPTURE(__VA_ARGS__), \
-                 #__VA_ARGS__,              \
-                 TEST_PRETTY_FUNCTION,      \
-                 __FILE__,                  \
-                 __LINE__,                  \
-                 &migraphx::test::fail)
+                           #__VA_ARGS__,              \
+                           TEST_PRETTY_FUNCTION,      \
+                           __FILE__,                  \
+                           __LINE__,                  \
+                           &migraphx::test::fail)
 
 // NOLINTNEXTLINE
-#define TEST_CASE(...)              \
-    __device__ void __VA_ARGS__()      \
+#define TEST_CASE(...) __device__ void __VA_ARGS__()
 
 } // namespace test
 } // namespace migraphx

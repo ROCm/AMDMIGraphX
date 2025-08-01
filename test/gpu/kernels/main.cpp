@@ -22,7 +22,8 @@ std::vector<std::string> parse_cases(const std::string_view& content)
     std::vector<std::string> test_names;
 
     auto it = content.cbegin();
-    while (std::regex_search(it, content.cend(), m, case_re)) {
+    while(std::regex_search(it, content.cend(), m, case_re))
+    {
         test_names.push_back(m[1].str());
         it = m.suffix().first;
     }
@@ -41,14 +42,14 @@ struct test_suite : std::enable_shared_from_this<test_suite>
         : name(src_name.substr(0, src_name.size() - 4)), content(src_content)
     {
         auto cases = parse_cases(src_content);
-        for(std::size_t i = 0 ; i < cases.size(); ++i)
+        for(std::size_t i = 0; i < cases.size(); ++i)
         {
             test_cases[name + "." + cases[i]] = i;
         }
 
         migraphx::gpu::context ctx;
-        options.global = 1;
-        options.local  = ctx.get_current_device().get_wavefront_size();
+        options.global      = 1;
+        options.local       = ctx.get_current_device().get_wavefront_size();
         options.kernel_name = "gpu_test_kernel";
     }
 
@@ -58,7 +59,7 @@ struct test_suite : std::enable_shared_from_this<test_suite>
         out << content << '\n';
         out << "extern \"C\" __global__ void " << options.kernel_name << "(int id) {\n";
         out << "    switch(id) {\n";
-        for(const auto&[case_name, i] : test_cases)
+        for(const auto& [case_name, i] : test_cases)
         {
             auto fname = case_name.substr(name.size() + 1);
             out << "        case " << i << ": " << fname << "(); break;\n";
@@ -90,14 +91,13 @@ struct test_suite : std::enable_shared_from_this<test_suite>
 int main(int argc, const char* argv[])
 {
     test::driver d{};
-    for(auto[name, content]: ::kernel_tests())
+    for(auto [name, content] : ::kernel_tests())
     {
         auto ts = std::make_shared<test_suite>(name, content);
-        for(auto&& p:ts->test_cases) {
+        for(auto&& p : ts->test_cases)
+        {
             auto case_name = p.first;
-            test::add_test_case(case_name, [ts, case_name] {
-                ts->run(case_name);
-            });
+            test::add_test_case(case_name, [ts, case_name] { ts->run(case_name); });
         }
     }
     d.run(argc, argv);

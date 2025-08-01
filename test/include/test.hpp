@@ -762,7 +762,7 @@ struct driver
         out() << std::endl;
     }
 
-    template<class Range>
+    template <class Range>
     void run_test_cases(Range&& cases, const string_map& args)
     {
         if(on_selected_cases and args.count("--continue") == 0)

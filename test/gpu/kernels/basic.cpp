@@ -1,9 +1,6 @@
 #include <migraphx/kernels/test.hpp>
 
-TEST_CASE(always_true)
-{
-    EXPECT(true);
-}
+TEST_CASE(always_true) { EXPECT(true); }
 
 TEST_CASE(compare)
 {

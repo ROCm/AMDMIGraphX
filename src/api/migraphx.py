@@ -132,6 +132,8 @@ def shape(h):
 def argument(h):
     h.constructor('create',
                   api.params(shape='const migraphx::shape&', buffer='void*'))
+    h.constructor('create_tuple',
+                  api.params(args='const std::vector<migraphx::argument>&'))
     h.constructor('create_empty', api.params(shape='const migraphx::shape&'))
     h.method('shape',
              fname='get_shape',
@@ -200,6 +202,11 @@ def program_parameters(h):
 
 @api.handle('migraphx_arguments', 'std::vector<migraphx::argument>')
 def arguments(h):
+    h.constructor(
+        'create',
+        api.params(ptr='const const_migraphx_argument_t*',
+                   size='size_t'),
+        fname='migraphx::to_obj_vector<const_migraphx_argument_t>')
     h.method('size', returns='size_t')
     h.method('get',
              api.params(idx='size_t'),

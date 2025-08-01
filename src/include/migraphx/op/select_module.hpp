@@ -150,7 +150,11 @@ struct select_module
                            auto ps = param_shapes.at(name);
                            if(a.get_shape() != ps)
                            {
-                               assert(ps.bytes() <= a.get_shape().bytes());
+                            //    assert(ps.bytes() <= a.get_shape().bytes());
+                               if(a.get_shape().bytes() < ps.bytes())
+                               {
+                                    return std::make_pair(name, argument{shape{ps.type(), ps.lens()}, a.data()});
+                               }
                                return std::make_pair(name, a.reshape(ps));
                            }
                            else

@@ -1221,6 +1221,17 @@ migraphx_argument_create(migraphx_argument_t* argument, const_migraphx_shape_t s
     return api_error_result;
 }
 
+extern "C" migraphx_status migraphx_argument_create_tuple(migraphx_argument_t* argument,
+                                                          const_migraphx_arguments_t args)
+{
+    auto api_error_result = migraphx::try_([&] {
+        if(args == nullptr)
+            MIGRAPHX_THROW(migraphx_status_bad_param, "Bad parameter args: Null pointer");
+        *argument = object_cast<migraphx_argument_t>(allocate<migraphx::argument>((args->object)));
+    });
+    return api_error_result;
+}
+
 extern "C" migraphx_status migraphx_argument_create_empty(migraphx_argument_t* argument,
                                                           const_migraphx_shape_t shape)
 {
@@ -1425,6 +1436,17 @@ extern "C" migraphx_status migraphx_arguments_assign_to(migraphx_arguments_t out
                                                         const_migraphx_arguments_t input)
 {
     auto api_error_result = migraphx::try_([&] { *output = *input; });
+    return api_error_result;
+}
+
+extern "C" migraphx_status migraphx_arguments_create(migraphx_arguments_t* arguments,
+                                                     const const_migraphx_argument_t* ptr,
+                                                     size_t size)
+{
+    auto api_error_result = migraphx::try_([&] {
+        *arguments = object_cast<migraphx_arguments_t>(allocate<std::vector<migraphx::argument>>(
+            migraphx::to_obj_vector<const_migraphx_argument_t>((ptr), (size))));
+    });
     return api_error_result;
 }
 

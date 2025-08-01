@@ -295,6 +295,9 @@ MIGRAPHX_C_EXPORT migraphx_status migraphx_argument_create(migraphx_argument_t* 
                                                            const_migraphx_shape_t shape,
                                                            void* buffer);
 
+MIGRAPHX_C_EXPORT migraphx_status migraphx_argument_create_tuple(migraphx_argument_t* argument,
+                                                                 const_migraphx_arguments_t args);
+
 MIGRAPHX_C_EXPORT migraphx_status migraphx_argument_create_empty(migraphx_argument_t* argument,
                                                                  const_migraphx_shape_t shape);
 
@@ -361,6 +364,10 @@ MIGRAPHX_C_EXPORT migraphx_status migraphx_arguments_destroy(migraphx_arguments_
 
 MIGRAPHX_C_EXPORT migraphx_status migraphx_arguments_assign_to(migraphx_arguments_t output,
                                                                const_migraphx_arguments_t input);
+
+MIGRAPHX_C_EXPORT migraphx_status migraphx_arguments_create(migraphx_arguments_t* arguments,
+                                                            const const_migraphx_argument_t* ptr,
+                                                            size_t size);
 
 MIGRAPHX_C_EXPORT migraphx_status migraphx_arguments_size(size_t* out,
                                                           migraphx_arguments_t arguments);

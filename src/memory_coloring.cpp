@@ -313,8 +313,8 @@ static std::size_t find_max_alignment(const module& m, const std::string& alloca
 void memory_coloring::apply(module& m) const
 {
     // check submodules if they have scratch params,
-    // insert allocations on current module which is size of max scratch space
-    // of submodules, replace scratch param in submodule with new alloc
+    // insert allocations on current module which is size of max scratch space of submodules,
+    // replace scratch param in submodule with new alloc
     for(auto ins : iterator_for(m))
     {
         if(ins->module_inputs().empty())

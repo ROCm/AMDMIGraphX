@@ -799,6 +799,8 @@ struct shape : MIGRAPHX_CONST_HANDLE_BASE(shape)
     friend bool operator!=(const shape& px, const shape& py) { return not(px == py); }
 };
 
+struct arguments;
+
 /**
  * @brief Arguments to be passed to an migraphx arguments
  *
@@ -823,6 +825,10 @@ struct argument : MIGRAPHX_CONST_HANDLE_BASE(argument)
     {
         this->make_handle(&migraphx_argument_create, pshape.get_handle_ptr(), pbuffer);
     }
+
+    argument(const arguments& args);
+
+    
 
     shape get_shape() const
     {
@@ -955,6 +961,13 @@ struct arguments : MIGRAPHX_HANDLE_BASE(arguments), array_base<arguments>
 {
     MIGRAPHX_HANDLE_CONSTRUCTOR(arguments)
 
+    template <class... Ts>
+    arguments(const Ts&... xs)
+    {
+        std::array<const_migraphx_argument_t, sizeof...(Ts)> a{xs.get_handle_ptr()...};
+        this->make_handle(&migraphx_arguments_create, a.data(), a.size());
+    }
+
     size_t size() const
     {
         size_t pout;
@@ -969,6 +982,11 @@ struct arguments : MIGRAPHX_HANDLE_BASE(arguments), array_base<arguments>
         return {pout, this->share_handle()};
     }
 };
+
+inline argument::argument(const arguments& args)
+{
+    this->make_handle(&migraphx_argument_create_tuple, args.get_handle_ptr());
+}
 
 struct shapes : MIGRAPHX_HANDLE_BASE(shapes), array_base<shapes>
 {

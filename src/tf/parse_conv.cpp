@@ -79,7 +79,17 @@ struct parse_conv : op_parser<parse_conv>
                 size_t weight_h                 = weight_dims[2];
                 size_t weight_w                 = weight_dims[3];
 
-                auto input_dims = l0->get_shape().lens();
+                std::vector<size_t> input_dims;
+                auto s0 = l0->get_shape();
+                if(s0.dynamic())
+                {
+                    input_dims = s0.max_lens();
+                }
+                else
+                {
+                    input_dims = s0.lens();
+                }
+                
                 std::vector<int64_t> pads(input_dims.size());
                 calculate_padding(0, pads, input_dims[2], op.stride[0], op.dilation[0], weight_h);
                 calculate_padding(1, pads, input_dims[3], op.stride[1], op.dilation[1], weight_w);

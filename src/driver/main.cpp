@@ -650,6 +650,7 @@ struct compiler
 		        migraphx::run_passes(*p.get_main_module(),
 				     {migraphx::gpu::compile_bytecode{&gtx}
 				     });
+                p.finalize();
                 l.save(p);
 	        }  
             if(ct.target_name == "gpu")

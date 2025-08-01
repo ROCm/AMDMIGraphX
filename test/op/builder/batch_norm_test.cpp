@@ -62,7 +62,7 @@ TEST_CASE(batch_norm_1d_op_builder_test)
     std::vector<migraphx::instruction_ref> args{from.rbegin(), from.rend()};
     
     // call the SUT
-    migraphx::op::builder::add("batchnorm", *mm_op, args, {}).at(0);
+    migraphx::op::builder::add("batchnorm", *mm_op, args, {});
 
     EXPECT(prog_op_builded == prog_manually_built);
 }
@@ -102,7 +102,7 @@ TEST_CASE(batch_norm_2d_op_builder_test)
     std::vector<migraphx::instruction_ref> args{from.rbegin(), from.rend()};
     
     // call the SUT
-    migraphx::op::builder::add("batchnorm", *mm_op, args, {}).at(0);
+    migraphx::op::builder::add("batchnorm", *mm_op, args, {});
 
     EXPECT(prog_op_builded == prog_manually_built);
 }

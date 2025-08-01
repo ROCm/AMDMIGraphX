@@ -29,7 +29,13 @@
 #include <cassert>
 #include <ostream>
 #include <numeric>
+
+// `get_temporary_buffer` is deprecated C++17, removed in C++20
+// Until gcc libs is upgraded past 12, turn off the deprecation warning
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wdeprecated-declarations"
 #include <memory>
+#pragma GCC diagnostic pop
 #include <set>
 
 #include <migraphx/functional.hpp>

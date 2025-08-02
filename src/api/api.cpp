@@ -330,6 +330,8 @@ static void print_program(const program& p) { std::cout << p << std::endl; }
 
 static void print_module(const module& m) { std::cout << m << std::endl; }
 
+static void print_shape(const shape& s) { std::cout << s << std::endl; }
+
 static migraphx::instruction_ref add_allocation(module& m, const migraphx::shape& s)
 {
     return m.add_instruction(migraphx::make_op("allocate", {{"shape", migraphx::to_value(s)}}), {});
@@ -490,6 +492,17 @@ struct migraphx_optimals
     {
     }
     std::set<size_t> object;
+};
+
+extern "C" struct migraphx_opt_lens;
+struct migraphx_opt_lens
+{
+    template <class... Ts>
+    migraphx_opt_lens(Ts&&... xs)
+        : object(std::forward<Ts>(xs)...) // NOLINT(readability-redundant-member-init)
+    {
+    }
+    std::vector<std::set<size_t>> object;
 };
 
 extern "C" struct migraphx_dynamic_dimension;
@@ -875,6 +888,40 @@ migraphx_optimals_create(migraphx_optimals_t* optimals, const size_t* ptr, size_
     return api_error_result;
 }
 
+// extern "C" migraphx_status migraphx_opt_lens_destroy(migraphx_opt_lens_t opt_lens)
+// {
+//     auto api_error_result = migraphx::try_([&] { destroy((opt_lens)); });
+//     return api_error_result;
+// }
+
+// extern "C" migraphx_status migraphx_opt_lens_assign_to(migraphx_opt_lens_t output,
+//                                                        const_migraphx_opt_lens_t input)
+// {
+//     auto api_error_result = migraphx::try_([&] { *output = *input; });
+//     return api_error_result;
+// }
+
+// extern "C" migraphx_status migraphx_opt_lens_size(size_t* out, migraphx_opt_lens_t opt_lens)
+// {
+//     auto api_error_result = migraphx::try_([&] {
+//         if(opt_lens == nullptr)
+//             MIGRAPHX_THROW(migraphx_status_bad_param, "Bad parameter opt_lens: Null pointer");
+//         *out = (opt_lens->object).size();
+//     });
+//     return api_error_result;
+// }
+
+// extern "C" migraphx_status
+// migraphx_opt_lens_get(const_migraphx_optimals_t* out, migraphx_opt_lens_t opt_lens, size_t idx)
+// {
+//     auto api_error_result = migraphx::try_([&] {
+//         if(opt_lens == nullptr)
+//             MIGRAPHX_THROW(migraphx_status_bad_param, "Bad parameter opt_lens: Null pointer");
+//         *out = object_cast<const_migraphx_optimals_t>(&((opt_lens->object).at((idx))));
+//     });
+//     return api_error_result;
+// }
+
 extern "C" migraphx_status
 migraphx_dynamic_dimension_destroy(migraphx_dynamic_dimension_t dynamic_dimension)
 {
@@ -1069,6 +1116,16 @@ extern "C" migraphx_status migraphx_shape_create_dynamic(migraphx_shape_t* shape
     return api_error_result;
 }
 
+extern "C" migraphx_status migraphx_shape_print(const_migraphx_shape_t shape)
+{
+    auto api_error_result = migraphx::try_([&] {
+        if(shape == nullptr)
+            MIGRAPHX_THROW(migraphx_status_bad_param, "Bad parameter shape: Null pointer");
+        migraphx::print_shape((shape->object));
+    });
+    return api_error_result;
+}
+
 extern "C" migraphx_status
 migraphx_shape_lengths(const size_t** out, size_t* out_size, const_migraphx_shape_t shape)
 {
@@ -1106,6 +1163,47 @@ extern "C" migraphx_status migraphx_shape_dyn_dims(migraphx_dynamic_dimensions_t
         if(shape == nullptr)
             MIGRAPHX_THROW(migraphx_status_bad_param, "Bad parameter shape: Null pointer");
         *out = allocate<migraphx_dynamic_dimensions_t>((shape->object).dyn_dims());
+    });
+    return api_error_result;
+}
+
+extern "C" migraphx_status
+migraphx_shape_min_lens(const size_t** out, size_t* out_size, const_migraphx_shape_t shape)
+{
+    auto api_error_result = migraphx::try_([&] {
+        if(out == nullptr or out_size == nullptr)
+            MIGRAPHX_THROW(migraphx_status_bad_param, "Bad parameter out: Null pointer");
+        if(shape == nullptr)
+            MIGRAPHX_THROW(migraphx_status_bad_param, "Bad parameter shape: Null pointer");
+        auto&& api_result = (shape->object).min_lens();
+        *out              = api_result.data();
+        *out_size         = api_result.size();
+    });
+    return api_error_result;
+}
+
+extern "C" migraphx_status
+migraphx_shape_max_lens(const size_t** out, size_t* out_size, const_migraphx_shape_t shape)
+{
+    auto api_error_result = migraphx::try_([&] {
+        if(out == nullptr or out_size == nullptr)
+            MIGRAPHX_THROW(migraphx_status_bad_param, "Bad parameter out: Null pointer");
+        if(shape == nullptr)
+            MIGRAPHX_THROW(migraphx_status_bad_param, "Bad parameter shape: Null pointer");
+        auto&& api_result = (shape->object).max_lens();
+        *out              = api_result.data();
+        *out_size         = api_result.size();
+    });
+    return api_error_result;
+}
+
+extern "C" migraphx_status migraphx_shape_opt_lens(migraphx_opt_lens_t* out,
+                                                   const_migraphx_shape_t shape)
+{
+    auto api_error_result = migraphx::try_([&] {
+        if(shape == nullptr)
+            MIGRAPHX_THROW(migraphx_status_bad_param, "Bad parameter shape: Null pointer");
+        *out = allocate<migraphx_opt_lens_t>((shape->object).opt_lens());
     });
     return api_error_result;
 }

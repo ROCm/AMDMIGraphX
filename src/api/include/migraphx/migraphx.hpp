@@ -603,6 +603,28 @@ struct optimals : MIGRAPHX_HANDLE_BASE(optimals)
     }
 };
 
+/*
+ * Container to hold optimal lens values which are optimals.
+ */
+// struct opt_lens : MIGRAPHX_HANDLE_BASE(opt_lens)
+// {
+//     MIGRAPHX_HANDLE_CONSTRUCTOR(opt_lens)
+
+//     size_t size() const
+//     {
+//         size_t pout;
+//         call(&migraphx_opt_lens_size, &pout, this->get_handle_ptr());
+//         return pout;
+//     }
+
+//     optimals operator[](size_t pidx) const
+//     {
+//         const_migraphx_optimals_t pout;
+//         call(&migraphx_opt_lens_get, &pout, this->get_handle_ptr(), pidx);
+//         return {pout, this->share_handle()};
+//     }
+// };
+
 /**
  * @brief Dynamic dimension object.
  * @details minimum, maximum, and optimal dimensions
@@ -745,6 +767,30 @@ struct shape : MIGRAPHX_CONST_HANDLE_BASE(shape)
         return {pout, own{}};
     }
 
+    std::vector<size_t> min_lens() const
+    {
+        const size_t* pout;
+        size_t pout_size;
+        call(&migraphx_shape_min_lens, &pout, &pout_size, this->get_handle_ptr());
+        return {pout, pout + pout_size};
+    }
+
+    std::vector<size_t> max_lens() const
+    {
+        const size_t* pout;
+        size_t pout_size;
+        call(&migraphx_shape_max_lens, &pout, &pout_size, this->get_handle_ptr());
+        return {pout, pout + pout_size};
+    }
+
+    // opt_lens opt_lens() const
+    // {
+    //     migraphx_opt_lens_t pout;
+    //     call(&migraphx_shape_opt_lens, &pout, this->get_handle_ptr());
+    //     return {pout, own{}};
+    // }
+
+
     migraphx_shape_datatype_t type() const
     {
         migraphx_shape_datatype_t pout;
@@ -788,6 +834,8 @@ struct shape : MIGRAPHX_CONST_HANDLE_BASE(shape)
         call(&migraphx_shape_index, &result, this->get_handle_ptr(), i);
         return result;
     }
+
+    void print() const { call(&migraphx_shape_print, this->get_handle_ptr()); }
 
     friend bool operator==(const shape& px, const shape& py)
     {

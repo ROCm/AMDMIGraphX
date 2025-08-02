@@ -78,6 +78,9 @@ typedef enum
 typedef struct migraphx_optimals* migraphx_optimals_t;
 typedef const struct migraphx_optimals* const_migraphx_optimals_t;
 
+typedef struct migraphx_opt_lens* migraphx_opt_lens_t;
+typedef const struct migraphx_opt_lens* const_migraphx_opt_lens_t;
+
 typedef struct migraphx_dynamic_dimension* migraphx_dynamic_dimension_t;
 typedef const struct migraphx_dynamic_dimension* const_migraphx_dynamic_dimension_t;
 
@@ -187,6 +190,17 @@ MIGRAPHX_C_EXPORT migraphx_status migraphx_optimals_create(migraphx_optimals_t* 
                                                            const size_t* ptr,
                                                            size_t size);
 
+MIGRAPHX_C_EXPORT migraphx_status migraphx_opt_lens_destroy(migraphx_opt_lens_t opt_lens);
+
+MIGRAPHX_C_EXPORT migraphx_status migraphx_opt_lens_assign_to(migraphx_opt_lens_t output,
+                                                              const_migraphx_opt_lens_t input);
+
+MIGRAPHX_C_EXPORT migraphx_status migraphx_opt_lens_size(size_t* out, migraphx_opt_lens_t opt_lens);
+
+MIGRAPHX_C_EXPORT migraphx_status migraphx_opt_lens_get(const_migraphx_optimals_t* out,
+                                                        migraphx_opt_lens_t opt_lens,
+                                                        size_t idx);
+
 MIGRAPHX_C_EXPORT migraphx_status
 migraphx_dynamic_dimension_destroy(migraphx_dynamic_dimension_t dynamic_dimension);
 
@@ -253,6 +267,8 @@ MIGRAPHX_C_EXPORT migraphx_status migraphx_shape_create_dynamic(migraphx_shape_t
                                                                 migraphx_shape_datatype_t type,
                                                                 migraphx_dynamic_dimensions_t dims);
 
+MIGRAPHX_C_EXPORT migraphx_status migraphx_shape_print(const_migraphx_shape_t shape);
+
 MIGRAPHX_C_EXPORT migraphx_status migraphx_shape_lengths(const size_t** out,
                                                          size_t* out_size,
                                                          const_migraphx_shape_t shape);
@@ -262,6 +278,17 @@ MIGRAPHX_C_EXPORT migraphx_status migraphx_shape_strides(const size_t** out,
                                                          const_migraphx_shape_t shape);
 
 MIGRAPHX_C_EXPORT migraphx_status migraphx_shape_dyn_dims(migraphx_dynamic_dimensions_t* out,
+                                                          const_migraphx_shape_t shape);
+
+MIGRAPHX_C_EXPORT migraphx_status migraphx_shape_min_lens(const size_t** out,
+                                                          size_t* out_size,
+                                                          const_migraphx_shape_t shape);
+
+MIGRAPHX_C_EXPORT migraphx_status migraphx_shape_max_lens(const size_t** out,
+                                                          size_t* out_size,
+                                                          const_migraphx_shape_t shape);
+
+MIGRAPHX_C_EXPORT migraphx_status migraphx_shape_opt_lens(migraphx_opt_lens_t* out,
                                                           const_migraphx_shape_t shape);
 
 MIGRAPHX_C_EXPORT migraphx_status migraphx_shape_type(migraphx_shape_datatype_t* out,

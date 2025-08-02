@@ -1,0 +1,16 @@
+	mxfixneuron_small_test:½
+p
+inputoutput"MXFixNeuron*
+axis *
+
+block_size  *
+element_dtype"fp4_e2m1 *
+rounding_mode mxfixneuron_small_testZ
+input
+
+
+b
+output
+
+
+B

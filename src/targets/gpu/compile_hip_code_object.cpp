@@ -149,9 +149,10 @@ compute_global_for(const context& ctx, std::size_t n, std::size_t over)
     assert(over > 0);
     std::size_t max_global = ctx.get_current_device().get_cu_count() *
                              ctx.get_current_device().get_max_workitems_per_cu();
-    return [n, over, max_global](std::size_t local) {
+    bool portable = ctx.get_portable_flag();
+    return [n, over, max_global, portable](std::size_t local) {
         std::size_t num_elements = n;
-        if(not hip_accept_non_uniform_wg())
+        if(portable or not hip_accept_non_uniform_wg())
         {
             num_elements = (1 + (n - 1) / local) * local;
         }
@@ -202,7 +203,9 @@ compile_hip_code_object(context& ctx, const std::string& content, hip_compile_op
     options.params.insert(options.params.end(), warnings.begin(), warnings.end());
     options.emplace_param("-ftemplate-backtrace-limit=0");
     options.emplace_param("-Werror");
-    auto cos = compile_hip_src(srcs, options.params, get_device_name());
+    auto cos = ctx.get_portable_flag()
+                   ? compile_hip_src(srcs, options.params, "amdgcnspirv")
+                   : compile_hip_src(srcs, options.params, get_device_name());
     if(cos.size() != 1)
         MIGRAPHX_THROW("No code object");
     return code_object_op{value::binary{cos.front()},

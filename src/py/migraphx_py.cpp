@@ -46,7 +46,6 @@
 #include <migraphx/pass_manager.hpp>
 #include <migraphx/version.h>
 #include <migraphx/iterator_for.hpp>
-#include <migraphx/msgpack.hpp>
 #ifdef HAVE_GPU
 #include <migraphx/gpu/hip.hpp>
 #endif

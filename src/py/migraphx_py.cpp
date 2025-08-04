@@ -46,6 +46,7 @@
 #include <migraphx/pass_manager.hpp>
 #include <migraphx/version.h>
 #include <migraphx/iterator_for.hpp>
+#include <migraphx/msgpack.hpp>
 #ifdef HAVE_GPU
 #include <migraphx/gpu/hip.hpp>
 #endif
@@ -561,6 +562,8 @@ MIGRAPHX_PYBIND11_MODULE(migraphx, m)
                  p.print_py(ss);
                  return ss.str();
              })
+        .def("to_value", &migraphx::program::to_value)
+        .def("from_value", &migraphx::program::from_value)
         .def("sort", &migraphx::program::sort)
         .def("print", [](const migraphx::program& p) { std::cout << p << std::endl; })
         .def("__eq__", std::equal_to<migraphx::program>{})
@@ -580,6 +583,8 @@ MIGRAPHX_PYBIND11_MODULE(migraphx, m)
         .def("values", [](const migraphx::operation& operation) -> py::object {
             return to_py_object(operation.to_value());
         });
+    
+    py::class_<migraphx::value>(m, "value");
 
     py::enum_<migraphx::op::pooling_mode>(op, "pooling_mode")
         .value("average", migraphx::op::pooling_mode::average)
@@ -706,6 +711,8 @@ MIGRAPHX_PYBIND11_MODULE(migraphx, m)
         py::arg("filename"),
         py::arg("format") = "msgpack");
 
+    m.def("to_msgpack", py::overload_cast<const migraphx::value&>(&migraphx::to_msgpack));
+    m.def("from_msgpack", py::overload_cast<const std::vector<char>&>(&migraphx::from_msgpack));
     m.def("get_target", &migraphx::make_target);
     m.def("create_argument", [](const migraphx::shape& s, const std::vector<double>& values) {
         if(values.size() != s.elements())

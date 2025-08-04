@@ -32,41 +32,7 @@ rocm_add_test_executable(test_gpu_kernels main.cpp)
 
 target_link_libraries(test_gpu_kernels migraphx migraphx_gpu kernel_tests)
 
+add_library(migraphx_gpu_test_kernel_file_check EXCLUDE_FROM_ALL ${KERNELS_TESTS})
+target_link_libraries(migraphx_gpu_test_kernel_file_check compile_migraphx_gpu_kernels)
+rocm_clang_tidy_check(migraphx_gpu_test_kernel_file_check)
 
-
-# foreach(TEST ${KERNELS_TESTS})
-#     get_filename_component(BASE_NAME ${TEST} NAME_WE)
-#     rocm_add_test_executable(test_gpu_kernels_${BASE_NAME} main.cpp)
-#     rocm_clang_tidy_check(test_gpu_kernels_${BASE_NAME})
-# endforeach()
-
-
-
-
-
-# function(add_gpu_kernels_test ${TEST_NAME})
-#     add_executable(${TEST_NAME} ${ARGN})
-#     rocm_clang_tidy_check(${TEST_NAME})
-#     target_link_libraries(${TEST_NAME} migraphx migraphx_all_targets)
-#     target_include_directories(${TEST_NAME} PUBLIC ../include)
-# endfunction(add_kernels_test)
-
-
-# add_executable(test_kernels ${VERIFY_TESTS})
-# rocm_mark_as_test(test_kernels)
-# rocm_install_test(TARGETS test_kernels)
-# target_link_libraries(test_kernels migraphx migraphx_all_targets)
-# target_include_directories(test_kernels PUBLIC ../include)
-# rocm_clang_tidy_check(test_kernels)
-
-# foreach(SECTION general reduce rnn conv gemm)
-#     rocm_add_test(NAME test_kernels_${SECTION} COMMAND test_kernels ${SECTION})
-#     set_tests_properties(test_kernels_${SECTION} PROPERTIES 
-#         COST 100 
-#     )
-#     if(MIGRAPHX_ENABLE_GPU)
-#         set_tests_properties(test_kernels_${SECTION} PROPERTIES 
-#             RESOURCE_LOCK gpu
-#         )
-#     endif()
-# endforeach()

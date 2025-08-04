@@ -239,6 +239,7 @@ __device__ void
 failed(const T& x, const char* msg, const char* func, const char* file, int line, F f)
 {
     // TODO: Check failures across multiple lanes
+    // NOLINTNEXTLINE(readability-static-accessed-through-instance)
     if(not bool(x.value()) and threadIdx.x == 0)
     {
         println_once(func);

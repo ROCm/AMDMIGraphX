@@ -12,22 +12,24 @@ struct empty_range
 
 TEST_CASE(swap_basic)
 {
-    int a = 5, b = 10;
+    int a = 5;
+    int b = 10;
     migraphx::swap(a, b);
-    EXPECT(a == 10 && b == 5);
+    EXPECT(a == 10 and b == 5);
 }
 TEST_CASE(swap_same_value)
 {
-    int a = 7, b = 7;
+    int a = 7;
+    int b = 7;
     migraphx::swap(a, b);
-    EXPECT(a == 7 && b == 7);
+    EXPECT(a == 7 and b == 7);
 }
 TEST_CASE(swap_different_types)
 {
     double a = 3.14;
     double b = 2.71;
     migraphx::swap(a, b);
-    EXPECT(migraphx::float_equal(a, 2.71) && migraphx::float_equal(b, 3.14));
+    EXPECT(migraphx::float_equal(a, 2.71) and migraphx::float_equal(b, 3.14));
 }
 TEST_CASE(iter_swap_basic)
 {
@@ -55,15 +57,15 @@ TEST_CASE(less_functor)
 {
     migraphx::less comp;
     EXPECT(comp(1, 2));
-    EXPECT(!comp(2, 1));
-    EXPECT(!comp(5, 5));
+    EXPECT( not comp(2, 1));
+    EXPECT( not comp(5, 5));
 }
 TEST_CASE(greater_functor)
 {
     migraphx::greater comp;
     EXPECT(comp(2, 1));
-    EXPECT(!comp(1, 2));
-    EXPECT(!comp(5, 5));
+    EXPECT( not comp(1, 2));
+    EXPECT( not comp(5, 5));
 }
 
 TEST_CASE(accumulate_basic)
@@ -104,7 +106,7 @@ TEST_CASE(copy_empty_range)
 {
     migraphx::array<int, 3> src = {1, 2, 3};
     migraphx::array<int, 3> dst = {0, 0, 0};
-    auto result                 = migraphx::copy(src.begin(), src.begin(), dst.begin());
+    auto *result                 = migraphx::copy(src.begin(), src.begin(), dst.begin());
     EXPECT(result == dst.begin());
     migraphx::array<int, 3> expected = {0, 0, 0};
     EXPECT(dst == expected);
@@ -121,7 +123,7 @@ TEST_CASE(copy_if_basic)
 {
     migraphx::array<int, 6> src = {1, 2, 3, 4, 5, 6};
     migraphx::array<int, 6> dst = {0, 0, 0, 0, 0, 0};
-    auto end_it =
+    auto *end_it =
         migraphx::copy_if(src.begin(), src.end(), dst.begin(), [](int x) { return x % 2 == 0; });
     EXPECT(dst[0] == 2);
     EXPECT(dst[1] == 4);
@@ -132,7 +134,7 @@ TEST_CASE(copy_if_none_match)
 {
     migraphx::array<int, 3> src = {1, 3, 5};
     migraphx::array<int, 3> dst = {0, 0, 0};
-    auto end_it =
+    auto *end_it =
         migraphx::copy_if(src.begin(), src.end(), dst.begin(), [](int x) { return x % 2 == 0; });
     EXPECT(end_it == dst.begin());
     migraphx::array<int, 3> expected = {0, 0, 0};
@@ -142,7 +144,7 @@ TEST_CASE(copy_if_all_match)
 {
     migraphx::array<int, 3> src = {2, 4, 6};
     migraphx::array<int, 3> dst = {0, 0, 0};
-    auto end_it =
+    auto *end_it =
         migraphx::copy_if(src.begin(), src.end(), dst.begin(), [](int x) { return x % 2 == 0; });
     EXPECT(end_it == dst.end());
     EXPECT(src == dst);
@@ -151,31 +153,31 @@ TEST_CASE(copy_if_all_match)
 TEST_CASE(is_sorted_until_sorted)
 {
     migraphx::array<int, 4> arr = {1, 2, 3, 4};
-    auto result = migraphx::is_sorted_until(arr.begin(), arr.end(), migraphx::less{});
+    auto *result = migraphx::is_sorted_until(arr.begin(), arr.end(), migraphx::less{});
     EXPECT(result == arr.end());
 }
 TEST_CASE(is_sorted_until_unsorted)
 {
     migraphx::array<int, 5> arr = {1, 2, 4, 3, 5};
-    auto result = migraphx::is_sorted_until(arr.begin(), arr.end(), migraphx::less{});
+    auto *result = migraphx::is_sorted_until(arr.begin(), arr.end(), migraphx::less{});
     EXPECT(result == arr.begin() + 3);
 }
 TEST_CASE(is_sorted_until_empty)
 {
     empty_range arr = {};
-    auto result     = migraphx::is_sorted_until(arr.begin(), arr.end(), migraphx::less{});
+    auto *result     = migraphx::is_sorted_until(arr.begin(), arr.end(), migraphx::less{});
     EXPECT(result == arr.end());
 }
 TEST_CASE(is_sorted_until_single)
 {
     migraphx::array<int, 1> arr = {42};
-    auto result = migraphx::is_sorted_until(arr.begin(), arr.end(), migraphx::less{});
+    auto *result = migraphx::is_sorted_until(arr.begin(), arr.end(), migraphx::less{});
     EXPECT(result == arr.end());
 }
 TEST_CASE(is_sorted_until_descending)
 {
     migraphx::array<int, 4> arr = {4, 3, 2, 1};
-    auto result = migraphx::is_sorted_until(arr.begin(), arr.end(), migraphx::greater{});
+    auto *result = migraphx::is_sorted_until(arr.begin(), arr.end(), migraphx::greater{});
     EXPECT(result == arr.end());
 }
 TEST_CASE(is_sorted_true)
@@ -186,7 +188,7 @@ TEST_CASE(is_sorted_true)
 TEST_CASE(is_sorted_false)
 {
     migraphx::array<int, 4> arr = {1, 3, 2, 4};
-    EXPECT(!migraphx::is_sorted(arr.begin(), arr.end(), migraphx::less{}));
+    EXPECT( not migraphx::is_sorted(arr.begin(), arr.end(), migraphx::less{}));
 }
 TEST_CASE(is_sorted_empty)
 {
@@ -224,49 +226,49 @@ TEST_CASE(for_each_empty)
 TEST_CASE(find_if_found)
 {
     migraphx::array<int, 5> arr = {1, 3, 5, 7, 9};
-    auto result = migraphx::find_if(arr.begin(), arr.end(), [](int x) { return x > 5; });
+    auto *result = migraphx::find_if(arr.begin(), arr.end(), [](int x) { return x > 5; });
     EXPECT(result == arr.begin() + 3);
 }
 TEST_CASE(find_if_not_found)
 {
     migraphx::array<int, 4> arr = {1, 3, 5, 7};
-    auto result = migraphx::find_if(arr.begin(), arr.end(), [](int x) { return x > 10; });
+    auto *result = migraphx::find_if(arr.begin(), arr.end(), [](int x) { return x > 10; });
     EXPECT(result == arr.end());
 }
 TEST_CASE(find_if_first_element)
 {
     migraphx::array<int, 4> arr = {10, 3, 5, 7};
-    auto result = migraphx::find_if(arr.begin(), arr.end(), [](int x) { return x > 5; });
+    auto *result = migraphx::find_if(arr.begin(), arr.end(), [](int x) { return x > 5; });
     EXPECT(result == arr.begin());
 }
 TEST_CASE(find_if_empty)
 {
     empty_range arr = {};
-    auto result     = migraphx::find_if(arr.begin(), arr.end(), [](int x) { return x > 0; });
+    auto *result     = migraphx::find_if(arr.begin(), arr.end(), [](int x) { return x > 0; });
     EXPECT(result == arr.end());
 }
 TEST_CASE(find_basic)
 {
     migraphx::array<int, 4> arr = {10, 20, 30, 40};
-    auto result                 = migraphx::find(arr.begin(), arr.end(), 30);
+    auto *result                 = migraphx::find(arr.begin(), arr.end(), 30);
     EXPECT(result == arr.begin() + 2);
 }
 TEST_CASE(find_not_found)
 {
     migraphx::array<int, 4> arr = {10, 20, 30, 40};
-    auto result                 = migraphx::find(arr.begin(), arr.end(), 50);
+    auto *result                 = migraphx::find(arr.begin(), arr.end(), 50);
     EXPECT(result == arr.end());
 }
 TEST_CASE(find_first_element)
 {
     migraphx::array<int, 4> arr = {10, 20, 30, 40};
-    auto result                 = migraphx::find(arr.begin(), arr.end(), 10);
+    auto *result                 = migraphx::find(arr.begin(), arr.end(), 10);
     EXPECT(result == arr.begin());
 }
 TEST_CASE(find_duplicates)
 {
     migraphx::array<int, 5> arr = {10, 20, 30, 20, 40};
-    auto result                 = migraphx::find(arr.begin(), arr.end(), 20);
+    auto *result                 = migraphx::find(arr.begin(), arr.end(), 20);
     EXPECT(result == arr.begin() + 1);
 }
 
@@ -278,12 +280,12 @@ TEST_CASE(any_of_true)
 TEST_CASE(any_of_false)
 {
     migraphx::array<int, 4> arr = {1, 3, 5, 7};
-    EXPECT(!migraphx::any_of(arr.begin(), arr.end(), [](int x) { return x > 10; }));
+    EXPECT( not migraphx::any_of(arr.begin(), arr.end(), [](int x) { return x > 10; }));
 }
 TEST_CASE(any_of_empty)
 {
     empty_range arr = {};
-    EXPECT(!migraphx::any_of(arr.begin(), arr.end(), [](int x) { return x > 0; }));
+    EXPECT( not migraphx::any_of(arr.begin(), arr.end(), [](int x) { return x > 0; }));
 }
 TEST_CASE(any_of_first_element)
 {
@@ -298,7 +300,7 @@ TEST_CASE(none_of_true)
 TEST_CASE(none_of_false)
 {
     migraphx::array<int, 4> arr = {1, 3, 5, 7};
-    EXPECT(!migraphx::none_of(arr.begin(), arr.end(), [](int x) { return x > 5; }));
+    EXPECT( not migraphx::none_of(arr.begin(), arr.end(), [](int x) { return x > 5; }));
 }
 TEST_CASE(none_of_empty)
 {
@@ -313,7 +315,7 @@ TEST_CASE(all_of_true)
 TEST_CASE(all_of_false)
 {
     migraphx::array<int, 4> arr = {2, 4, 5, 8};
-    EXPECT(!migraphx::all_of(arr.begin(), arr.end(), [](int x) { return x % 2 == 0; }));
+    EXPECT( not migraphx::all_of(arr.begin(), arr.end(), [](int x) { return x % 2 == 0; }));
 }
 TEST_CASE(all_of_empty)
 {
@@ -328,49 +330,49 @@ TEST_CASE(all_of_single_true)
 TEST_CASE(all_of_single_false)
 {
     migraphx::array<int, 1> arr = {5};
-    EXPECT(!migraphx::all_of(arr.begin(), arr.end(), [](int x) { return x % 2 == 0; }));
+    EXPECT( not migraphx::all_of(arr.begin(), arr.end(), [](int x) { return x % 2 == 0; }));
 }
 
 TEST_CASE(search_found)
 {
     migraphx::array<int, 6> haystack = {1, 2, 3, 4, 3, 4};
     migraphx::array<int, 2> needle   = {3, 4};
-    auto result = migraphx::search(haystack.begin(), haystack.end(), needle.begin(), needle.end());
+    auto *result = migraphx::search(haystack.begin(), haystack.end(), needle.begin(), needle.end());
     EXPECT(result == haystack.begin() + 2);
 }
 TEST_CASE(search_not_found)
 {
     migraphx::array<int, 5> haystack = {1, 2, 3, 4, 5};
     migraphx::array<int, 2> needle   = {6, 7};
-    auto result = migraphx::search(haystack.begin(), haystack.end(), needle.begin(), needle.end());
+    auto *result = migraphx::search(haystack.begin(), haystack.end(), needle.begin(), needle.end());
     EXPECT(result == haystack.end());
 }
 TEST_CASE(search_empty_needle)
 {
     migraphx::array<int, 3> haystack = {1, 2, 3};
     empty_range needle               = {};
-    auto result = migraphx::search(haystack.begin(), haystack.end(), needle.begin(), needle.end());
+    auto *result = migraphx::search(haystack.begin(), haystack.end(), needle.begin(), needle.end());
     EXPECT(result == haystack.begin());
 }
 TEST_CASE(search_empty_haystack)
 {
     empty_range haystack           = {};
     migraphx::array<int, 1> needle = {1};
-    auto result = migraphx::search(haystack.begin(), haystack.end(), needle.begin(), needle.end());
+    auto *result = migraphx::search(haystack.begin(), haystack.end(), needle.begin(), needle.end());
     EXPECT(result == haystack.end());
 }
 TEST_CASE(search_exact_match)
 {
     migraphx::array<int, 3> haystack = {1, 2, 3};
     migraphx::array<int, 3> needle   = {1, 2, 3};
-    auto result = migraphx::search(haystack.begin(), haystack.end(), needle.begin(), needle.end());
+    auto *result = migraphx::search(haystack.begin(), haystack.end(), needle.begin(), needle.end());
     EXPECT(result == haystack.begin());
 }
 TEST_CASE(search_partial_match)
 {
     migraphx::array<int, 5> haystack = {1, 2, 1, 2, 3};
     migraphx::array<int, 3> needle   = {1, 2, 3};
-    auto result = migraphx::search(haystack.begin(), haystack.end(), needle.begin(), needle.end());
+    auto *result = migraphx::search(haystack.begin(), haystack.end(), needle.begin(), needle.end());
     EXPECT(result == haystack.begin() + 2);
 }
 // Additional search tests (extensive)
@@ -378,91 +380,91 @@ TEST_CASE(search_overlapping_pattern)
 {
     migraphx::array<int, 8> haystack = {1, 2, 1, 2, 1, 2, 3, 4};
     migraphx::array<int, 3> needle   = {1, 2, 3};
-    auto result = migraphx::search(haystack.begin(), haystack.end(), needle.begin(), needle.end());
+    auto *result = migraphx::search(haystack.begin(), haystack.end(), needle.begin(), needle.end());
     EXPECT(result == haystack.begin() + 4);
 }
 TEST_CASE(search_pattern_at_end)
 {
     migraphx::array<int, 6> haystack = {1, 2, 3, 4, 5, 6};
     migraphx::array<int, 2> needle   = {5, 6};
-    auto result = migraphx::search(haystack.begin(), haystack.end(), needle.begin(), needle.end());
+    auto *result = migraphx::search(haystack.begin(), haystack.end(), needle.begin(), needle.end());
     EXPECT(result == haystack.begin() + 4);
 }
 TEST_CASE(search_pattern_at_beginning)
 {
     migraphx::array<int, 6> haystack = {1, 2, 3, 4, 5, 6};
     migraphx::array<int, 2> needle   = {1, 2};
-    auto result = migraphx::search(haystack.begin(), haystack.end(), needle.begin(), needle.end());
+    auto *result = migraphx::search(haystack.begin(), haystack.end(), needle.begin(), needle.end());
     EXPECT(result == haystack.begin());
 }
 TEST_CASE(search_single_element_pattern)
 {
     migraphx::array<int, 5> haystack = {1, 3, 5, 7, 9};
     migraphx::array<int, 1> needle   = {5};
-    auto result = migraphx::search(haystack.begin(), haystack.end(), needle.begin(), needle.end());
+    auto *result = migraphx::search(haystack.begin(), haystack.end(), needle.begin(), needle.end());
     EXPECT(result == haystack.begin() + 2);
 }
 TEST_CASE(search_single_element_pattern_not_found)
 {
     migraphx::array<int, 5> haystack = {1, 3, 5, 7, 9};
     migraphx::array<int, 1> needle   = {4};
-    auto result = migraphx::search(haystack.begin(), haystack.end(), needle.begin(), needle.end());
+    auto *result = migraphx::search(haystack.begin(), haystack.end(), needle.begin(), needle.end());
     EXPECT(result == haystack.end());
 }
 TEST_CASE(search_repeated_elements)
 {
     migraphx::array<int, 8> haystack = {2, 2, 2, 2, 1, 2, 2, 3};
     migraphx::array<int, 3> needle   = {2, 2, 3};
-    auto result = migraphx::search(haystack.begin(), haystack.end(), needle.begin(), needle.end());
+    auto *result = migraphx::search(haystack.begin(), haystack.end(), needle.begin(), needle.end());
     EXPECT(result == haystack.begin() + 5);
 }
 TEST_CASE(search_partial_match_backtrack)
 {
     migraphx::array<int, 10> haystack = {1, 2, 3, 1, 2, 4, 1, 2, 3, 4};
     migraphx::array<int, 4> needle    = {1, 2, 3, 4};
-    auto result = migraphx::search(haystack.begin(), haystack.end(), needle.begin(), needle.end());
+    auto *result = migraphx::search(haystack.begin(), haystack.end(), needle.begin(), needle.end());
     EXPECT(result == haystack.begin() + 6);
 }
 TEST_CASE(search_multiple_false_starts)
 {
     migraphx::array<int, 12> haystack = {1, 2, 1, 2, 1, 2, 1, 2, 3, 4, 5, 6};
     migraphx::array<int, 4> needle    = {1, 2, 3, 4};
-    auto result = migraphx::search(haystack.begin(), haystack.end(), needle.begin(), needle.end());
+    auto *result = migraphx::search(haystack.begin(), haystack.end(), needle.begin(), needle.end());
     EXPECT(result == haystack.begin() + 6);
 }
 TEST_CASE(search_needle_longer_than_haystack)
 {
     migraphx::array<int, 3> haystack = {1, 2, 3};
     migraphx::array<int, 5> needle   = {1, 2, 3, 4, 5};
-    auto result = migraphx::search(haystack.begin(), haystack.end(), needle.begin(), needle.end());
+    auto *result = migraphx::search(haystack.begin(), haystack.end(), needle.begin(), needle.end());
     EXPECT(result == haystack.end());
 }
 TEST_CASE(search_identical_arrays)
 {
     migraphx::array<int, 4> haystack = {5, 10, 15, 20};
     migraphx::array<int, 4> needle   = {5, 10, 15, 20};
-    auto result = migraphx::search(haystack.begin(), haystack.end(), needle.begin(), needle.end());
+    auto *result = migraphx::search(haystack.begin(), haystack.end(), needle.begin(), needle.end());
     EXPECT(result == haystack.begin());
 }
 TEST_CASE(search_all_same_elements)
 {
     migraphx::array<int, 6> haystack = {3, 3, 3, 3, 3, 3};
     migraphx::array<int, 3> needle   = {3, 3, 3};
-    auto result = migraphx::search(haystack.begin(), haystack.end(), needle.begin(), needle.end());
+    auto *result = migraphx::search(haystack.begin(), haystack.end(), needle.begin(), needle.end());
     EXPECT(result == haystack.begin());
 }
 TEST_CASE(search_pattern_appears_multiple_times)
 {
     migraphx::array<int, 9> haystack = {1, 2, 3, 1, 2, 3, 1, 2, 3};
     migraphx::array<int, 2> needle   = {2, 3};
-    auto result = migraphx::search(haystack.begin(), haystack.end(), needle.begin(), needle.end());
+    auto *result = migraphx::search(haystack.begin(), haystack.end(), needle.begin(), needle.end());
     EXPECT(result == haystack.begin() + 1);
 }
 TEST_CASE(search_partial_range)
 {
     migraphx::array<int, 10> haystack = {0, 1, 2, 3, 4, 5, 6, 7, 8, 9};
     migraphx::array<int, 2> needle    = {4, 5};
-    auto result =
+    auto *result =
         migraphx::search(haystack.begin() + 2, haystack.begin() + 7, needle.begin(), needle.end());
     EXPECT(result == haystack.begin() + 4);
 }
@@ -470,14 +472,14 @@ TEST_CASE(search_stress_long_pattern)
 {
     migraphx::array<int, 15> haystack = {1, 1, 1, 1, 1, 2, 3, 4, 5, 6, 7, 8, 1, 1, 1};
     migraphx::array<int, 6> needle    = {2, 3, 4, 5, 6, 7};
-    auto result = migraphx::search(haystack.begin(), haystack.end(), needle.begin(), needle.end());
+    auto *result = migraphx::search(haystack.begin(), haystack.end(), needle.begin(), needle.end());
     EXPECT(result == haystack.begin() + 5);
 }
 TEST_CASE(search_stress_worst_case_complexity)
 {
     migraphx::array<int, 8> haystack = {1, 1, 1, 1, 1, 1, 1, 2};
     migraphx::array<int, 7> needle   = {1, 1, 1, 1, 1, 1, 2};
-    auto result = migraphx::search(haystack.begin(), haystack.end(), needle.begin(), needle.end());
+    auto *result = migraphx::search(haystack.begin(), haystack.end(), needle.begin(), needle.end());
     EXPECT(result == haystack.begin() + 1);
 }
 
@@ -526,7 +528,7 @@ TEST_CASE(equal_false)
 {
     migraphx::array<int, 4> a = {1, 2, 3, 4};
     migraphx::array<int, 4> b = {1, 2, 3, 5};
-    EXPECT(!migraphx::equal(a.begin(), a.end(), b.begin(), [](int x, int y) { return x == y; }));
+    EXPECT( not migraphx::equal(a.begin(), a.end(), b.begin(), [](int x, int y) { return x == y; }));
 }
 TEST_CASE(equal_empty)
 {
@@ -570,38 +572,38 @@ TEST_CASE(iota_negative)
 TEST_CASE(min_element_basic)
 {
     migraphx::array<int, 5> arr = {3, 1, 4, 1, 5};
-    auto result                 = migraphx::min_element(arr.begin(), arr.end(), migraphx::less{});
+    auto *result                 = migraphx::min_element(arr.begin(), arr.end(), migraphx::less{});
     EXPECT(result == arr.begin() + 1);
 }
 TEST_CASE(min_element_empty)
 {
     empty_range arr = {};
-    auto result     = migraphx::min_element(arr.begin(), arr.end(), migraphx::less{});
+    auto *result     = migraphx::min_element(arr.begin(), arr.end(), migraphx::less{});
     EXPECT(result == arr.end());
 }
 TEST_CASE(min_element_single)
 {
     migraphx::array<int, 1> arr = {42};
-    auto result                 = migraphx::min_element(arr.begin(), arr.end(), migraphx::less{});
+    auto *result                 = migraphx::min_element(arr.begin(), arr.end(), migraphx::less{});
     EXPECT(result == arr.begin());
 }
 TEST_CASE(min_element_all_equal)
 {
     migraphx::array<int, 4> arr = {5, 5, 5, 5};
-    auto result                 = migraphx::min_element(arr.begin(), arr.end(), migraphx::less{});
+    auto *result                 = migraphx::min_element(arr.begin(), arr.end(), migraphx::less{});
     EXPECT(result == arr.begin());
 }
 TEST_CASE(min_element_custom_compare)
 {
     migraphx::array<int, 4> arr = {1, 2, 3, 4};
-    auto result = migraphx::min_element(arr.begin(), arr.end(), migraphx::greater{});
+    auto *result = migraphx::min_element(arr.begin(), arr.end(), migraphx::greater{});
     EXPECT(result == arr.begin() + 3);
 }
 
 TEST_CASE(rotate_left_by_two)
 {
     migraphx::array<int, 6> arr      = {1, 2, 3, 4, 5, 6};
-    auto result                      = migraphx::rotate(arr.begin(), arr.begin() + 2, arr.end());
+    auto *result                      = migraphx::rotate(arr.begin(), arr.begin() + 2, arr.end());
     migraphx::array<int, 6> expected = {3, 4, 5, 6, 1, 2};
     EXPECT(arr == expected);
     EXPECT(result == arr.begin() + 4);
@@ -609,7 +611,7 @@ TEST_CASE(rotate_left_by_two)
 TEST_CASE(rotate_right_by_one)
 {
     migraphx::array<int, 5> arr      = {1, 2, 3, 4, 5};
-    auto result                      = migraphx::rotate(arr.begin(), arr.end() - 1, arr.end());
+    auto *result                      = migraphx::rotate(arr.begin(), arr.end() - 1, arr.end());
     migraphx::array<int, 5> expected = {5, 1, 2, 3, 4};
     EXPECT(arr == expected);
     EXPECT(result == arr.begin() + 1);
@@ -617,7 +619,7 @@ TEST_CASE(rotate_right_by_one)
 TEST_CASE(rotate_half_array)
 {
     migraphx::array<int, 8> arr      = {1, 2, 3, 4, 5, 6, 7, 8};
-    auto result                      = migraphx::rotate(arr.begin(), arr.begin() + 4, arr.end());
+    auto *result                      = migraphx::rotate(arr.begin(), arr.begin() + 4, arr.end());
     migraphx::array<int, 8> expected = {5, 6, 7, 8, 1, 2, 3, 4};
     EXPECT(arr == expected);
     EXPECT(result == arr.begin() + 4);
@@ -625,7 +627,7 @@ TEST_CASE(rotate_half_array)
 TEST_CASE(rotate_almost_full)
 {
     migraphx::array<int, 5> arr      = {1, 2, 3, 4, 5};
-    auto result                      = migraphx::rotate(arr.begin(), arr.begin() + 4, arr.end());
+    auto *result                      = migraphx::rotate(arr.begin(), arr.begin() + 4, arr.end());
     migraphx::array<int, 5> expected = {5, 1, 2, 3, 4};
     EXPECT(arr == expected);
     EXPECT(result == arr.begin() + 1);
@@ -633,7 +635,7 @@ TEST_CASE(rotate_almost_full)
 TEST_CASE(rotate_two_elements)
 {
     migraphx::array<int, 2> arr      = {1, 2};
-    auto result                      = migraphx::rotate(arr.begin(), arr.begin() + 1, arr.end());
+    auto *result                      = migraphx::rotate(arr.begin(), arr.begin() + 1, arr.end());
     migraphx::array<int, 2> expected = {2, 1};
     EXPECT(arr == expected);
     EXPECT(result == arr.begin() + 1);
@@ -641,7 +643,7 @@ TEST_CASE(rotate_two_elements)
 TEST_CASE(rotate_partial_range)
 {
     migraphx::array<int, 7> arr = {1, 2, 3, 4, 5, 6, 7};
-    auto result = migraphx::rotate(arr.begin() + 1, arr.begin() + 3, arr.begin() + 5);
+    auto *result = migraphx::rotate(arr.begin() + 1, arr.begin() + 3, arr.begin() + 5);
     migraphx::array<int, 7> expected = {1, 4, 5, 2, 3, 6, 7};
     EXPECT(arr == expected);
     EXPECT(result == arr.begin() + 3);
@@ -649,7 +651,7 @@ TEST_CASE(rotate_partial_range)
 TEST_CASE(rotate_with_duplicates)
 {
     migraphx::array<int, 6> arr      = {1, 1, 2, 2, 3, 3};
-    auto result                      = migraphx::rotate(arr.begin(), arr.begin() + 2, arr.end());
+    auto *result                      = migraphx::rotate(arr.begin(), arr.begin() + 2, arr.end());
     migraphx::array<int, 6> expected = {2, 2, 3, 3, 1, 1};
     EXPECT(arr == expected);
     EXPECT(result == arr.begin() + 4);
@@ -657,7 +659,7 @@ TEST_CASE(rotate_with_duplicates)
 TEST_CASE(rotate_stress_test_large_shift)
 {
     migraphx::array<int, 10> arr      = {0, 1, 2, 3, 4, 5, 6, 7, 8, 9};
-    auto result                       = migraphx::rotate(arr.begin(), arr.begin() + 7, arr.end());
+    auto *result                       = migraphx::rotate(arr.begin(), arr.begin() + 7, arr.end());
     migraphx::array<int, 10> expected = {7, 8, 9, 0, 1, 2, 3, 4, 5, 6};
     EXPECT(arr == expected);
     EXPECT(result == arr.begin() + 3);
@@ -666,7 +668,7 @@ TEST_CASE(rotate_edge_case_middle_equals_first)
 {
     migraphx::array<int, 4> arr      = {1, 2, 3, 4};
     migraphx::array<int, 4> original = arr;
-    auto result                      = migraphx::rotate(arr.begin(), arr.begin(), arr.end());
+    auto *result                      = migraphx::rotate(arr.begin(), arr.begin(), arr.end());
     EXPECT(arr == original);
     EXPECT(result == arr.end());
 }
@@ -674,7 +676,7 @@ TEST_CASE(rotate_edge_case_middle_equals_last)
 {
     migraphx::array<int, 4> arr      = {1, 2, 3, 4};
     migraphx::array<int, 4> original = arr;
-    auto result                      = migraphx::rotate(arr.begin(), arr.end(), arr.end());
+    auto *result                      = migraphx::rotate(arr.begin(), arr.end(), arr.end());
     EXPECT(arr == original);
     EXPECT(result == arr.begin());
 }
@@ -682,109 +684,109 @@ TEST_CASE(rotate_edge_case_middle_equals_last)
 TEST_CASE(upper_bound_basic)
 {
     migraphx::array<int, 5> arr = {1, 2, 2, 3, 4};
-    auto result = migraphx::upper_bound(arr.begin(), arr.end(), 2, migraphx::less{});
+    auto *result = migraphx::upper_bound(arr.begin(), arr.end(), 2, migraphx::less{});
     EXPECT(result == arr.begin() + 3);
 }
 TEST_CASE(upper_bound_not_found)
 {
     migraphx::array<int, 4> arr = {1, 2, 3, 4};
-    auto result = migraphx::upper_bound(arr.begin(), arr.end(), 5, migraphx::less{});
+    auto *result = migraphx::upper_bound(arr.begin(), arr.end(), 5, migraphx::less{});
     EXPECT(result == arr.end());
 }
 TEST_CASE(upper_bound_first_element)
 {
     migraphx::array<int, 4> arr = {1, 2, 3, 4};
-    auto result = migraphx::upper_bound(arr.begin(), arr.end(), 0, migraphx::less{});
+    auto *result = migraphx::upper_bound(arr.begin(), arr.end(), 0, migraphx::less{});
     EXPECT(result == arr.begin());
 }
 TEST_CASE(upper_bound_empty)
 {
     empty_range arr = {};
-    auto result     = migraphx::upper_bound(arr.begin(), arr.end(), 5, migraphx::less{});
+    auto *result     = migraphx::upper_bound(arr.begin(), arr.end(), 5, migraphx::less{});
     EXPECT(result == arr.end());
 }
 TEST_CASE(upper_bound_all_equal)
 {
     migraphx::array<int, 3> arr = {2, 2, 2};
-    auto result = migraphx::upper_bound(arr.begin(), arr.end(), 2, migraphx::less{});
+    auto *result = migraphx::upper_bound(arr.begin(), arr.end(), 2, migraphx::less{});
     EXPECT(result == arr.end());
 }
 TEST_CASE(upper_bound_multiple_duplicates)
 {
     migraphx::array<int, 8> arr = {1, 2, 2, 2, 2, 3, 4, 5};
-    auto result = migraphx::upper_bound(arr.begin(), arr.end(), 2, migraphx::less{});
+    auto *result = migraphx::upper_bound(arr.begin(), arr.end(), 2, migraphx::less{});
     EXPECT(result == arr.begin() + 5);
 }
 TEST_CASE(upper_bound_all_smaller)
 {
     migraphx::array<int, 5> arr = {1, 2, 3, 4, 5};
-    auto result = migraphx::upper_bound(arr.begin(), arr.end(), 0, migraphx::less{});
+    auto *result = migraphx::upper_bound(arr.begin(), arr.end(), 0, migraphx::less{});
     EXPECT(result == arr.begin());
 }
 TEST_CASE(upper_bound_all_larger)
 {
     migraphx::array<int, 5> arr = {1, 2, 3, 4, 5};
-    auto result = migraphx::upper_bound(arr.begin(), arr.end(), 10, migraphx::less{});
+    auto *result = migraphx::upper_bound(arr.begin(), arr.end(), 10, migraphx::less{});
     EXPECT(result == arr.end());
 }
 TEST_CASE(upper_bound_single_element_match)
 {
     migraphx::array<int, 1> arr = {5};
-    auto result = migraphx::upper_bound(arr.begin(), arr.end(), 5, migraphx::less{});
+    auto *result = migraphx::upper_bound(arr.begin(), arr.end(), 5, migraphx::less{});
     EXPECT(result == arr.end());
 }
 TEST_CASE(upper_bound_single_element_smaller)
 {
     migraphx::array<int, 1> arr = {5};
-    auto result = migraphx::upper_bound(arr.begin(), arr.end(), 3, migraphx::less{});
+    auto *result = migraphx::upper_bound(arr.begin(), arr.end(), 3, migraphx::less{});
     EXPECT(result == arr.begin());
 }
 TEST_CASE(upper_bound_single_element_larger)
 {
     migraphx::array<int, 1> arr = {5};
-    auto result = migraphx::upper_bound(arr.begin(), arr.end(), 7, migraphx::less{});
+    auto *result = migraphx::upper_bound(arr.begin(), arr.end(), 7, migraphx::less{});
     EXPECT(result == arr.end());
 }
 TEST_CASE(upper_bound_beginning_duplicates)
 {
     migraphx::array<int, 6> arr = {1, 1, 1, 4, 5, 6};
-    auto result = migraphx::upper_bound(arr.begin(), arr.end(), 1, migraphx::less{});
+    auto *result = migraphx::upper_bound(arr.begin(), arr.end(), 1, migraphx::less{});
     EXPECT(result == arr.begin() + 3);
 }
 TEST_CASE(upper_bound_end_duplicates)
 {
     migraphx::array<int, 6> arr = {1, 2, 3, 5, 5, 5};
-    auto result = migraphx::upper_bound(arr.begin(), arr.end(), 5, migraphx::less{});
+    auto *result = migraphx::upper_bound(arr.begin(), arr.end(), 5, migraphx::less{});
     EXPECT(result == arr.end());
 }
 TEST_CASE(upper_bound_middle_value)
 {
     migraphx::array<int, 7> arr = {1, 3, 5, 7, 9, 11, 13};
-    auto result = migraphx::upper_bound(arr.begin(), arr.end(), 7, migraphx::less{});
+    auto *result = migraphx::upper_bound(arr.begin(), arr.end(), 7, migraphx::less{});
     EXPECT(result == arr.begin() + 4);
 }
 TEST_CASE(upper_bound_partial_range)
 {
     migraphx::array<int, 8> arr = {1, 2, 3, 4, 5, 6, 7, 8};
-    auto result = migraphx::upper_bound(arr.begin() + 2, arr.begin() + 6, 4, migraphx::less{});
+    auto *result = migraphx::upper_bound(arr.begin() + 2, arr.begin() + 6, 4, migraphx::less{});
     EXPECT(result == arr.begin() + 4);
 }
 TEST_CASE(upper_bound_reverse_comparator)
 {
     migraphx::array<int, 5> arr = {5, 4, 3, 2, 1};
-    auto result = migraphx::upper_bound(arr.begin(), arr.end(), 3, migraphx::greater{});
+    auto *result = migraphx::upper_bound(arr.begin(), arr.end(), 3, migraphx::greater{});
     EXPECT(result == arr.begin() + 3);
 }
 TEST_CASE(upper_bound_large_array_power_of_two)
 {
     migraphx::array<int, 16> arr = {1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16};
-    auto result = migraphx::upper_bound(arr.begin(), arr.end(), 8, migraphx::less{});
+    auto *result = migraphx::upper_bound(arr.begin(), arr.end(), 8, migraphx::less{});
     EXPECT(result == arr.begin() + 8);
 }
 TEST_CASE(upper_bound_stress_binary_search)
 {
     migraphx::array<int, 15> arr = {2, 4, 6, 8, 10, 12, 14, 16, 18, 20, 22, 24, 26, 28, 30};
-    auto result = migraphx::upper_bound(arr.begin(), arr.end(), 16, migraphx::less{});
+    auto *result = migraphx::upper_bound(arr.begin(), arr.end(), 16, migraphx::less{});
     EXPECT(result == arr.begin() + 8);
 }
 TEST_CASE(upper_bound_stress_test_boundary)
@@ -792,7 +794,7 @@ TEST_CASE(upper_bound_stress_test_boundary)
     migraphx::array<int, 7> arr = {1, 2, 3, 4, 5, 6, 7};
     for(int i = 1; i <= 7; ++i)
     {
-        auto result = migraphx::upper_bound(arr.begin(), arr.end(), i, migraphx::less{});
+        auto *result = migraphx::upper_bound(arr.begin(), arr.end(), i, migraphx::less{});
         EXPECT(result == arr.begin() + i);
     }
 }
@@ -912,7 +914,7 @@ TEST_CASE(merge_both_empty)
     empty_range arr1   = {};
     empty_range arr2   = {};
     empty_range result = {};
-    auto end_it        = migraphx::merge(
+    auto *end_it        = migraphx::merge(
         arr1.begin(), arr1.end(), arr2.begin(), arr2.end(), result.begin(), migraphx::less{});
     EXPECT(end_it == result.end());
 }
@@ -1072,31 +1074,13 @@ TEST_CASE(merge_stability_test)
     EXPECT(result == expected);
 }
 
-TEST_CASE(common_mistakes_off_by_one)
-{
-    migraphx::array<int, 1> arr = {5};
-    auto result                 = migraphx::find(arr.begin(), arr.end(), 5);
-    EXPECT(result == arr.begin());
-    result = migraphx::find(arr.begin(), arr.end(), 10);
-    EXPECT(result == arr.end());
-}
-TEST_CASE(common_mistakes_empty_ranges)
-{
-    empty_range empty = {};
-    EXPECT(migraphx::is_sorted(empty.begin(), empty.end(), migraphx::less{}));
-    EXPECT(migraphx::all_of(empty.begin(), empty.end(), [](int) { return false; }));
-    EXPECT(!migraphx::any_of(empty.begin(), empty.end(), [](int) { return true; }));
-    EXPECT(migraphx::none_of(empty.begin(), empty.end(), [](int) { return true; }));
-    auto min_it = migraphx::min_element(empty.begin(), empty.end(), migraphx::less{});
-    EXPECT(min_it == empty.end());
-}
-TEST_CASE(common_mistakes_self_assignment)
+TEST_CASE(swap_self_assignment)
 {
     int x = 42;
     migraphx::swap(x, x);
     EXPECT(x == 42);
 }
-TEST_CASE(common_mistakes_predicate_consistency)
+TEST_CASE(find_if_predicate_consistency)
 {
     migraphx::array<int, 4> arr = {1, 2, 3, 4};
     int call_count              = 0;
@@ -1104,7 +1088,7 @@ TEST_CASE(common_mistakes_predicate_consistency)
         call_count++;
         return x > 2;
     };
-    auto result = migraphx::find_if(arr.begin(), arr.end(), predicate);
+    auto *result = migraphx::find_if(arr.begin(), arr.end(), predicate);
     EXPECT(result == arr.begin() + 2);
     EXPECT(call_count == 3);
 }

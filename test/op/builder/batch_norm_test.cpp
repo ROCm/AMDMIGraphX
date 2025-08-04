@@ -74,6 +74,7 @@ TEST_CASE(batch_norm_2d_op_builder_test)
     auto* mm_op = prog_op_builded.get_main_module();
     auto* mm    = prog_manually_built.get_main_module();
 
+    // adding input parameters
     auto x     = mm->add_parameter("x", {migraphx::shape::float_type, {2, 3, 4, 4}});
     auto scale = mm->add_parameter("scale", {migraphx::shape::float_type, {3}});
     auto bias  = mm->add_parameter("bias", {migraphx::shape::float_type, {3}});

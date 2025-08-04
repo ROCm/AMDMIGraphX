@@ -819,7 +819,7 @@ TEST_CASE(linear_graph_sort)
     auto n = m.add_instruction(migraphx::make_op("neg"), a);
     auto t = m.add_instruction(migraphx::make_op("tanh"), n);
     m.add_return({t});
-    
+
     m.sort();
     EXPECT(is_sorted(m));
 

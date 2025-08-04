@@ -60,14 +60,14 @@ template <class IntType,
           MIGRAPHX_REQUIRES(std::is_integral<IntType>::value and std::is_unsigned<IntType>::value)>
 constexpr byte operator>>=(byte b, IntType shift) noexcept
 {
-    return b = b >> shift;
+    return b >> shift;
 };
 
 template <class IntType,
           MIGRAPHX_REQUIRES(std::is_integral<IntType>::value and std::is_unsigned<IntType>::value)>
 constexpr byte operator<<=(byte b, IntType shift) noexcept
 {
-    return b = b << shift;
+    return b << shift;
 };
 
 constexpr byte operator|(byte l, byte r) noexcept
@@ -103,7 +103,7 @@ constexpr IntType to_integer(byte b) noexcept
 template <class Stream>
 Stream& operator<<(Stream& os, const byte& b)
 {
-    os << static_cast<uint8_t>(b);
+    os << static_cast<unsigned>(b);
     return os;
 }
 

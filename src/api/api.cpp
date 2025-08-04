@@ -204,6 +204,11 @@ static void set_dyn_input_parameter_shape(tf_options& options,
     options.map_dyn_input_dims[std::string(name)] = std::move(dyn_dims);
 }
 
+static void set_default_dyn_dim_value(tf_options& options, const shape::dynamic_dimension& dd)
+{
+    options.default_dyn_dim_value = dd;
+}
+
 static void set_output_names(tf_options& options, std::vector<const char*> names)
 {
     options.output_node_names = std::vector<std::string>(names.begin(), names.end());
@@ -2351,6 +2356,20 @@ migraphx_tf_options_set_default_dim_value(migraphx_tf_options_t tf_options, size
         if(tf_options == nullptr)
             MIGRAPHX_THROW(migraphx_status_bad_param, "Bad parameter tf_options: Null pointer");
         migraphx::set_default_dim_value((tf_options->object), (value));
+    });
+    return api_error_result;
+}
+
+extern "C" migraphx_status
+migraphx_tf_options_set_default_dyn_dim_value(migraphx_tf_options_t tf_options,
+                                              const_migraphx_dynamic_dimension_t dd)
+{
+    auto api_error_result = migraphx::try_([&] {
+        if(tf_options == nullptr)
+            MIGRAPHX_THROW(migraphx_status_bad_param, "Bad parameter tf_options: Null pointer");
+        if(dd == nullptr)
+            MIGRAPHX_THROW(migraphx_status_bad_param, "Bad parameter dd: Null pointer");
+        migraphx::set_default_dyn_dim_value((tf_options->object), (dd->object));
     });
     return api_error_result;
 }

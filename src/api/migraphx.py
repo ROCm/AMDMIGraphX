@@ -465,6 +465,11 @@ def tf_options(h):
         invoke='migraphx::set_default_dim_value($@)',
     )
     h.method(
+        'set_default_dyn_dim_value',
+        api.params(dd='const migraphx::shape::dynamic_dimension&'),
+        invoke='migraphx::set_default_dyn_dim_value($@)',
+    )
+    h.method(
         'set_output_names',
         api.params(names='std::vector<const char*>'),
         invoke='migraphx::set_output_names($@)',

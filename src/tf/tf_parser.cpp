@@ -291,8 +291,7 @@ void tf_parser::parse_graph(const tensorflow::GraphDef& graph)
         attribute_map input_attrs = get_attributes(input);
         shape::type_t shape_type  = parse_type(input_attrs.at("dtype").type());
         std::vector<size_t> dims  = parse_dims(input_attrs.at("shape").shape());
-        
-
+        std::vector<shape::dynamic_dimension> dyn_dims;
         if(contains(map_input_dims, name))
         {
             dims = map_input_dims.at(name);
@@ -303,15 +302,24 @@ void tf_parser::parse_graph(const tensorflow::GraphDef& graph)
             {
                 this->reorder_data(dims);
             }
-            std::transform(dims.begin(), dims.end(), dims.begin(), [&](auto dim) {
-                return static_cast<int>(dim) <= 0 ? batch_size : dim;
+
+            std::transform(dims.begin(), dims.end(), std::back_inserter(dyn_dims), [&](auto dim) -> shape::dynamic_dimension {
+                return static_cast<int>(dim) <= 0 ? default_dyn_dim_value : shape::dynamic_dimension{dim, dim};
             });
         }
-        shape s{shape_type, dims};
+        
+        shape s{shape_type, dyn_dims};
+
 
         if(contains(map_dyn_input_dims, name))
         {
             s = shape_from_dyn_dims(shape_type, map_dyn_input_dims.at(name));
+        }
+        if(std::all_of(s.dyn_dims().begin(), s.dyn_dims().end(), [&](auto dd) {
+               return dd.min == dd.max;
+           }))
+        {
+            s = {shape_type, s.max_lens()};
         }
 
         instructions[name] = to_nhwc(mm->add_parameter(name, s));

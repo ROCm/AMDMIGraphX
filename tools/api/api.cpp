@@ -204,6 +204,11 @@ static void set_dyn_input_parameter_shape(tf_options& options,
     options.map_dyn_input_dims[std::string(name)] = std::move(dyn_dims);
 }
 
+static void set_default_dyn_dim_value(tf_options& options, const shape::dynamic_dimension& dd)
+{
+    options.default_dyn_dim_value = dd;
+}
+
 static void set_output_names(tf_options& options, std::vector<const char*> names)
 {
     options.output_node_names = std::vector<std::string>(names.begin(), names.end());

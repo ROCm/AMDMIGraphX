@@ -42,6 +42,8 @@ struct tf_options
     /// set parser throws)
     std::unordered_map<std::string, std::vector<shape::dynamic_dimension>> map_dyn_input_dims = {};
     std::vector<std::string> output_node_names                               = {};
+    /// set default dyn_dim if particular dimension is <= 0
+    shape::dynamic_dimension default_dyn_dim_value = {1, 1};
 };
 
 /// Create a program from a tf pb file (default is nhwc format)

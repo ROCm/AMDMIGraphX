@@ -45,7 +45,14 @@ static program parse_tf_from(const tf_options& options, Ts&&... xs)
     parser.batch_size        = options.batch_size;
     parser.map_input_dims    = options.map_input_dims;
     parser.map_dyn_input_dims = options.map_dyn_input_dims;
+    parser.default_dyn_dim_value = options.default_dyn_dim_value;
     parser.output_node_names = options.output_node_names;
+
+    // TODO: deprecate batch_size, set dyn_dim instead
+    if(parser.batch_size > 1 and parser.default_dyn_dim_value == shape::dynamic_dimension{1, 1})
+    {
+        parser.default_dyn_dim_value = shape::dynamic_dimension{parser.batch_size, parser.batch_size};
+    }
 
     if(not options.map_input_dims.empty() and not options.map_dyn_input_dims.empty())
     {

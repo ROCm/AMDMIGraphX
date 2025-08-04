@@ -637,6 +637,9 @@ MIGRAPHX_C_EXPORT migraphx_status migraphx_tf_options_set_dyn_input_parameter_sh
 MIGRAPHX_C_EXPORT migraphx_status
 migraphx_tf_options_set_default_dim_value(migraphx_tf_options_t tf_options, size_t value);
 
+MIGRAPHX_C_EXPORT migraphx_status migraphx_tf_options_set_default_dyn_dim_value(
+    migraphx_tf_options_t tf_options, const_migraphx_dynamic_dimension_t dd);
+
 MIGRAPHX_C_EXPORT migraphx_status migraphx_tf_options_set_output_names(
     migraphx_tf_options_t tf_options, const char** names, size_t names_size);
 

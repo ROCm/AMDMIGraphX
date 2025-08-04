@@ -1570,10 +1570,18 @@ struct tf_options : MIGRAPHX_HANDLE_BASE(tf_options)
         call(&migraphx_tf_options_set_nhwc, this->get_handle_ptr(), is_nhwc);
     }
 
-    /// When there is a dimension parameter, then use this default value
+    /// When the dimension is <= 0, then use this default value
     void set_default_dim_value(unsigned int value)
     {
         call(&migraphx_tf_options_set_default_dim_value, this->get_handle_ptr(), value);
+    }
+
+    /// When the dimesion is <= 0, set default value to be dynamic
+    void set_default_dyn_dim_value(const dynamic_dimension& dd)
+    {
+        call(&migraphx_tf_options_set_default_dyn_dim_value,
+             this->get_handle_ptr(),
+             dd.get_handle_ptr());
     }
 
     /// Set output node names to return specific outputs from graph

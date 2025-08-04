@@ -256,6 +256,7 @@ std::string shape::name(shape::type_t t)
     switch(t)
     {
     case tuple_type: return "tuple_type";
+    case fp4x2_type: return "fp4x2_type";
 #define MIGRAPHX_SHAPE_GENERATE_TYPE_NAME_CASE(x, t) \
     case x: return #x;
         MIGRAPHX_SHAPE_VISIT_TYPES(MIGRAPHX_SHAPE_GENERATE_TYPE_NAME_CASE)
@@ -269,6 +270,7 @@ std::string shape::cpp_type(shape::type_t t)
     switch(t)
     {
     case tuple_type: MIGRAPHX_THROW("No C++ type for tuple");
+    case fp4x2_type: MIGRAPHX_THROW("No C++ type for fp4x2_type");
 #define MIGRAPHX_SHAPE_GENERATE_CPP_TYPE_CASE(x, t) \
     case x: return #t;
         MIGRAPHX_SHAPE_VISIT_TYPES(MIGRAPHX_SHAPE_GENERATE_CPP_TYPE_CASE)
@@ -404,7 +406,14 @@ std::size_t shape::bytes() const
     if(this->sub_shapes().empty())
     {
         std::size_t n = 0;
-        this->visit_type([&](auto as) { n = as.size(); });
+        if(type() == fp4x2_type)
+        {
+            n = sizeof(uint8_t);
+        }
+        else
+        {
+            this->visit_type([&](auto as) { n = as.size(); });
+        }
         return n * this->element_space();
     }
     else

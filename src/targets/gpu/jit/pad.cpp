@@ -63,7 +63,7 @@ struct pad_compiler : compiler<pad_compiler>
 {
     std::vector<std::string> names() const { return {"pad"}; }
 
-    operation compile_op(context& ctx, const std::vector<shape>& inputs, const value& v) const
+    operation compiler_op(context& ctx, const std::vector<shape>& inputs, const value& v) const
     {
         auto padding    = v.at("pads").to_vector<int64_t>();
         auto input_lens = inputs.front().lens();

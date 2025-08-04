@@ -73,7 +73,8 @@ struct MIGRAPHX_EXPORT shape
 #define MIGRAPHX_SHAPE_GENERATE_ENUM_TYPES(x, t) x,
     enum type_t
     {
-        MIGRAPHX_SHAPE_VISIT_TYPES(MIGRAPHX_SHAPE_GENERATE_ENUM_TYPES) tuple_type
+        MIGRAPHX_SHAPE_VISIT_TYPES(MIGRAPHX_SHAPE_GENERATE_ENUM_TYPES) tuple_type,
+        fp4x2_type
     };
 #undef MIGRAPHX_SHAPE_GENERATE_ENUM_TYPES
 
@@ -162,6 +163,7 @@ struct MIGRAPHX_EXPORT shape
     static bool is_compatible(const shape& actual, const shape& expected);
 
     static bool is_unsigned(type_t t);
+    static bool is_computable(type_t t);
 
     shape();
     shape(type_t t);
@@ -333,6 +335,9 @@ struct MIGRAPHX_EXPORT shape
 
     /// Return true if this shape or any of the sub_shapes are dynamic
     bool any_of_dynamic() const;
+
+    /// If type has a visitor function
+    bool computable() const;
 
     shape normalize_standard() const;
 

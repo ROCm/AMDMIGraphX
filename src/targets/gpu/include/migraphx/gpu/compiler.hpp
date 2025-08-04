@@ -176,7 +176,12 @@ struct compiler : auto_register_compiler<Derived>
     {
         return nullopt;
     }
-    operation compile_op(context&, const std::vector<shape>&, const value&) const { return {}; }
+    operation compile_op(context&, const std::vector<shape>&, const value&) const
+    {
+        static_assert(std::is_function_v<decltype(Derived::compile_op)>,
+                      "Derived must implement compile_op()");
+        return {};
+    }
 
     template <class D = Derived>
     auto

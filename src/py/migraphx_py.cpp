@@ -583,7 +583,7 @@ MIGRAPHX_PYBIND11_MODULE(migraphx, m)
         .def("values", [](const migraphx::operation& operation) -> py::object {
             return to_py_object(operation.to_value());
         });
-    
+
     py::class_<migraphx::value>(m, "value");
 
     py::enum_<migraphx::op::pooling_mode>(op, "pooling_mode")

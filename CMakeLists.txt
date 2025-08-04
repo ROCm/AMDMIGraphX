@@ -291,6 +291,7 @@ rocm_enable_cppcheck(
         # Disable because of too many FPs
         arithOperationsOnVoidPointer
         definePrefix:*test/include/test.hpp
+        definePrefix:*src/targets/gpu/kernels/include/migraphx/kernels/test.hpp
         ctuOneDefinitionRuleViolation:*test/*
         useSmartPointer:*src/api/api.cpp
         useSmartPointer:*make_shared_array.hpp

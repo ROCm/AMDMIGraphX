@@ -864,7 +864,7 @@ TEST_CASE(dead_code_sort)
     //           │
     //           └─→ neg
     //
-    // Tests handling of dead code that is use inputs
+    // Tests handling of dead code
     //
     migraphx::module m;
     auto s = migraphx::shape{migraphx::shape::float_type, {1}};

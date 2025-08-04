@@ -881,9 +881,7 @@ struct perf : command<perf>
     void run()
     {
         auto p = c.compile();
-        std::cout << "Allocating params ... " << std::endl;
         auto m = c.params(p);
-        std::cout << "Running performance report ... " << std::endl;
         p.perf_report(std::cout, n, m, c.l.batch, detailed);
     }
 };
@@ -896,9 +894,7 @@ struct roctx : command<roctx>
     void run()
     {
         auto p = c.compile();
-        std::cout << "Allocating params ... " << std::endl;
         auto m = c.params(p);
-        std::cout << "rocTX:\tLoading rocTX library..." << std::endl;
         auto rtx = create_marker_roctx();
         p.mark(m, std::move(rtx));
     }

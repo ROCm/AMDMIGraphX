@@ -173,7 +173,6 @@ struct mlir_compiler : compiler<mlir_compiler>
                                                   mlir_code_object{any_cast<code_object_op>(cop2)}};
             return insert(cops, mod_splits, ins, split_ins);
         }
-	std::cout << "NOT compiling fused gemm w/perfConf\n";
         auto cr = insert(compile_mlir(ctx, *smod, to_shapes(ins->inputs()), solution));
         set_fill_map(cr, *smod);
         return cr;

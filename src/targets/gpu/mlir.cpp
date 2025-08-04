@@ -769,9 +769,6 @@ struct mlir_program
             }
             MIGRAPHX_THROW(error);
         }
-	std::cout << "ran high_level_pipeline:\n";
-	auto mod_op = mlirModuleGetOperation(this->mmodule.get());
-        std::cout << mlir_print(&mlirOperationPrint, mod_op) << std::endl;
     }
 
     void run_backend_pipeline(bool portable = false)
@@ -850,7 +847,6 @@ struct mlir_program
 
         auto code_object = get_bytecode();
 
-        std::cout << "loading bytecode...\n";
         mlir_module mod = load_bytecode(code_object);
         mmodule = std::move(mod);
 
@@ -893,20 +889,11 @@ struct mlir_program
         mlir_module mod = load_bytecode(code_object);
         mmodule = std::move(mod);
 
-        static std::mutex mutex;
-        if(true) {
-            const std::lock_guard<std::mutex> lock(mutex);
-	        std::cout << "Printing module...\n";
-            auto mod_op = mlirModuleGetOperation(mmodule.get());
-            std::cout << mlir_print(&mlirOperationPrint, mod_op) << std::endl;
-        }
-
 	    code_object_op op{};
 
 	    op.symbol_name                = sym_name;
 	    op.code_object                = get_bytecode();
         op.format                     = code_object_format::mlir_bytecode;
-	    // std::tie(op.global, op.local) = get_launch_params(); // will be set in second pass
 	    return op;
     }    
     
@@ -1401,7 +1388,6 @@ mlir_code_object compile_mlir(const context& migraphx_ctx,
     // need entirely different pipeline, since we
     // will run (in the future) the second pipeline on the objects involved
     // right now, we just need the top level
-    std::cout << "Portable = " << (is_portable ? "true" : "false") << "\n";
     auto co = mp.compile(solution, is_portable);
     
     auto mod_op1 = mlirModuleGetOperation(mp.mmodule.get());

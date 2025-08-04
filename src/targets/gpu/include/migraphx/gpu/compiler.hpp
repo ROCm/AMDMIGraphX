@@ -176,10 +176,13 @@ struct compiler : auto_register_compiler<Derived>
     {
         return nullopt;
     }
+
+    // TODO: make it a compile error if this is not overriden by Derived rather than runtime error.
+    // Could rename Derived function to something like compile_op_impl.
+    // Or refactor to type-erased interface.
     operation compile_op(context&, const std::vector<shape>&, const value&) const
     {
-        static_assert(std::is_function_v<decltype(Derived::compile_op)>,
-                      "Derived must implement compile_op()");
+        MIGRAPHX_THROW("Missing override function");
         return {};
     }
 

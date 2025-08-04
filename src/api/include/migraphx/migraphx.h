@@ -190,10 +190,20 @@ MIGRAPHX_C_EXPORT migraphx_status migraphx_optimals_create(migraphx_optimals_t* 
                                                            const size_t* ptr,
                                                            size_t size);
 
+MIGRAPHX_C_EXPORT migraphx_status migraphx_optimals_size(size_t* out,
+                                                         const_migraphx_optimals_t optimals);
+
+MIGRAPHX_C_EXPORT migraphx_status migraphx_optimals_as_vector(size_t* out,
+                                                              const_migraphx_optimals_t optimals);
+
 MIGRAPHX_C_EXPORT migraphx_status migraphx_opt_lens_destroy(migraphx_opt_lens_t opt_lens);
 
 MIGRAPHX_C_EXPORT migraphx_status migraphx_opt_lens_assign_to(migraphx_opt_lens_t output,
                                                               const_migraphx_opt_lens_t input);
+
+MIGRAPHX_C_EXPORT migraphx_status migraphx_opt_lens_create(migraphx_opt_lens_t* opt_lens,
+                                                           const const_migraphx_optimals_t* ptr,
+                                                           size_t size);
 
 MIGRAPHX_C_EXPORT migraphx_status migraphx_opt_lens_size(size_t* out, migraphx_opt_lens_t opt_lens);
 
@@ -214,7 +224,7 @@ MIGRAPHX_C_EXPORT migraphx_status
 migraphx_dynamic_dimension_create_min_max_optimals(migraphx_dynamic_dimension_t* dynamic_dimension,
                                                    size_t min,
                                                    size_t max,
-                                                   migraphx_optimals_t optimals);
+                                                   const_migraphx_optimals_t optimals);
 
 MIGRAPHX_C_EXPORT migraphx_status migraphx_dynamic_dimension_is_fixed(
     bool* out, const_migraphx_dynamic_dimension_t dynamic_dimension);
@@ -280,16 +290,14 @@ MIGRAPHX_C_EXPORT migraphx_status migraphx_shape_strides(const size_t** out,
 MIGRAPHX_C_EXPORT migraphx_status migraphx_shape_dyn_dims(migraphx_dynamic_dimensions_t* out,
                                                           const_migraphx_shape_t shape);
 
-MIGRAPHX_C_EXPORT migraphx_status migraphx_shape_min_lens(const size_t** out,
-                                                          size_t* out_size,
+MIGRAPHX_C_EXPORT migraphx_status migraphx_shape_min_lens(size_t* out,
                                                           const_migraphx_shape_t shape);
 
-MIGRAPHX_C_EXPORT migraphx_status migraphx_shape_max_lens(const size_t** out,
-                                                          size_t* out_size,
+MIGRAPHX_C_EXPORT migraphx_status migraphx_shape_max_lens(size_t* out,
                                                           const_migraphx_shape_t shape);
 
-MIGRAPHX_C_EXPORT migraphx_status migraphx_shape_opt_lens(migraphx_opt_lens_t* out,
-                                                          const_migraphx_shape_t shape);
+MIGRAPHX_C_EXPORT migraphx_status migraphx_shape_optimal_lens(migraphx_opt_lens_t* out,
+                                                              const_migraphx_shape_t shape);
 
 MIGRAPHX_C_EXPORT migraphx_status migraphx_shape_type(migraphx_shape_datatype_t* out,
                                                       const_migraphx_shape_t shape);
@@ -312,6 +320,9 @@ MIGRAPHX_C_EXPORT migraphx_status migraphx_shape_dynamic(bool* out, const_migrap
 MIGRAPHX_C_EXPORT migraphx_status migraphx_shape_index(size_t* out,
                                                        const_migraphx_shape_t shape,
                                                        size_t i);
+
+MIGRAPHX_C_EXPORT migraphx_status migraphx_shape_sub_shapes(migraphx_shapes_t* out,
+                                                            const_migraphx_shape_t shape);
 
 MIGRAPHX_C_EXPORT migraphx_status migraphx_argument_destroy(migraphx_argument_t argument);
 

@@ -58,16 +58,26 @@ def optimals(h):
     h.constructor('create',
                   api.params(ptr='const size_t*', size='size_t'),
                   fname='migraphx::make_set<size_t>')
+    h.method('size', returns='size_t', const=True)
+    h.method('as_vector',
+             returns='std::vector<size_t>',
+             const=True,
+             invoke='migraphx::as_vector($@)')    
 
 
-# @api.handle('migraphx_opt_lens', 'std::vector<std::set<size_t>>')
-# def opt_lens(h):
-#     h.method('size', returns='size_t')
-#     h.method('get',
-#              api.params(idx='size_t'),
-#              fname='at',
-#              cpp_name='operator[]',
-#              returns='const std::set<size_t>&')
+@api.handle('migraphx_opt_lens', 'std::vector<std::set<size_t>>')
+def opt_lens(h):
+    h.constructor(
+        'create',
+        api.params(ptr='const const_migraphx_optimals_t*',
+                   size='size_t'),
+        fname='migraphx::to_obj_vector<const_migraphx_optimals_t>')
+    h.method('size', returns='size_t')
+    h.method('get',
+             api.params(idx='size_t'),
+             fname='at',
+             cpp_name='operator[]',
+             returns='const std::set<size_t>&')
 
 
 @api.handle('migraphx_dynamic_dimension', 'migraphx::shape::dynamic_dimension')
@@ -75,7 +85,7 @@ def dynamic_dimension(h):
     h.constructor('create_min_max', api.params(min='size_t', max='size_t'))
     h.constructor(
         'create_min_max_optimals',
-        api.params(min='size_t', max='size_t', optimals='std::set<size_t>'))
+        api.params(min='size_t', max='size_t', optimals='const std::set<size_t>&'))
     h.method('is_fixed', returns='bool', const=True)
     h.method('equal',
              api.params(x='const migraphx::shape::dynamic_dimension&'),
@@ -125,9 +135,9 @@ def shape(h):
     h.method('dyn_dims',
              returns='std::vector<migraphx::shape::dynamic_dimension>',
              const=True)
-    h.method('min_lens', returns='const std::vector<size_t>&', const=True)
-    h.method('max_lens', returns='const std::vector<size_t>&', const=True)
-    # h.method('opt_lens', returns='std::vector<std::set<size_t>>', const=True)
+    h.method('min_lens', returns='std::vector<size_t>', const=True)
+    h.method('max_lens', returns='std::vector<size_t>', const=True)
+    h.method('optimal_lens', fname='opt_lens', returns='std::vector<std::set<size_t>>', const=True)
     h.method('type', returns='migraphx::shape::type_t', const=True)
     h.method('elements', returns='size_t', const=True)
     h.method('bytes', returns='size_t', const=True)
@@ -140,6 +150,7 @@ def shape(h):
     h.method('standard', returns='bool', const=True)
     h.method('dynamic', returns='bool', const=True)
     h.method('index', api.params(i='size_t'), returns='size_t', const=True)
+    h.method('sub_shapes', returns='std::vector<migraphx::shape>', const=True)
 
 
 @auto_handle()

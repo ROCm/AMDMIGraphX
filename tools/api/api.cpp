@@ -231,6 +231,13 @@ static std::set<T> make_set(const T* x, std::size_t n)
     return {x, x + n};
 }
 
+template <class T>
+static std::vector<T> as_vector(const std::set<T>& obj)
+{
+    std::vector<T> vec(obj.begin(), obj.end());
+    return vec;
+}
+
 static void quantize_fp16_with_op_names(program& prog, std::vector<std::string>& names)
 {
     if(names.empty())

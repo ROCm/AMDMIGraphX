@@ -593,7 +593,7 @@ using require_interface =
 /**
  * Container to hold optimal dynamic dimension values.
  */
-struct optimals : MIGRAPHX_HANDLE_BASE(optimals)
+struct optimals : MIGRAPHX_CONST_HANDLE_BASE(optimals)
 {
     MIGRAPHX_HANDLE_CONSTRUCTOR(optimals)
 
@@ -601,29 +601,53 @@ struct optimals : MIGRAPHX_HANDLE_BASE(optimals)
     {
         this->make_handle(&migraphx_optimals_create, init_list.begin(), init_list.size());
     }
+
+    size_t size() const
+    {
+        size_t pout;
+        call(&migraphx_optimals_size, &pout, this->get_handle_ptr());
+        return pout;
+    }
+
+    std::vector<size_t> as_vector() const
+    {
+        std::vector<size_t> result(this->size());
+        if(not result.empty())
+        {
+            call(&migraphx_optimals_as_vector, result.data(), this->get_handle_ptr());
+        }
+        return result;
+    }
 };
 
 /*
  * Container to hold optimal lens values which are optimals.
  */
-// struct opt_lens : MIGRAPHX_HANDLE_BASE(opt_lens)
-// {
-//     MIGRAPHX_HANDLE_CONSTRUCTOR(opt_lens)
+struct opt_lens : MIGRAPHX_HANDLE_BASE(opt_lens), array_base<opt_lens>
+{
+    MIGRAPHX_HANDLE_CONSTRUCTOR(opt_lens)
 
-//     size_t size() const
-//     {
-//         size_t pout;
-//         call(&migraphx_opt_lens_size, &pout, this->get_handle_ptr());
-//         return pout;
-//     }
+    template <class... Ts>
+    opt_lens(const Ts&... xs)
+    {
+        std::array<const_migraphx_optimals_t, sizeof...(Ts)> a{xs.get_handle_ptr()...};
+        this->make_handle(&migraphx_opt_lens_create, a.data(), a.size());
+    }
 
-//     optimals operator[](size_t pidx) const
-//     {
-//         const_migraphx_optimals_t pout;
-//         call(&migraphx_opt_lens_get, &pout, this->get_handle_ptr(), pidx);
-//         return {pout, this->share_handle()};
-//     }
-// };
+    size_t size() const
+    {
+        size_t pout;
+        call(&migraphx_opt_lens_size, &pout, this->get_handle_ptr());
+        return pout;
+    }
+
+    optimals operator[](size_t pidx) const
+    {
+        const_migraphx_optimals_t pout;
+        call(&migraphx_opt_lens_get, &pout, this->get_handle_ptr(), pidx);
+        return {pout, this->share_handle()};
+    }
+};
 
 /**
  * @brief Dynamic dimension object.
@@ -692,6 +716,8 @@ struct dynamic_dimensions : MIGRAPHX_HANDLE_BASE(dynamic_dimensions)
         return {pout, this->share_handle()};
     }
 };
+
+struct shapes;
 
 /**
  * @brief Describe shape of tensor
@@ -769,26 +795,42 @@ struct shape : MIGRAPHX_CONST_HANDLE_BASE(shape)
 
     std::vector<size_t> min_lens() const
     {
-        const size_t* pout;
-        size_t pout_size;
-        call(&migraphx_shape_min_lens, &pout, &pout_size, this->get_handle_ptr());
-        return {pout, pout + pout_size};
+        size_t ndims;
+        if(this->dynamic())
+        {
+            ndims = this->dyn_dims().size();
+        }
+        else
+        {
+            ndims = this->lengths().size();
+        }
+        std::vector<size_t> results(ndims);
+        call(&migraphx_shape_min_lens, results.data(), this->get_handle_ptr());
+        return results;
     }
 
     std::vector<size_t> max_lens() const
     {
-        const size_t* pout;
-        size_t pout_size;
-        call(&migraphx_shape_max_lens, &pout, &pout_size, this->get_handle_ptr());
-        return {pout, pout + pout_size};
+        size_t ndims;
+        if(this->dynamic())
+        {
+            ndims = this->dyn_dims().size();
+        }
+        else
+        {
+            ndims = this->lengths().size();
+        }
+        std::vector<size_t> results(ndims);
+        call(&migraphx_shape_max_lens, results.data(), this->get_handle_ptr());
+        return results;
     }
 
-    // opt_lens opt_lens() const
-    // {
-    //     migraphx_opt_lens_t pout;
-    //     call(&migraphx_shape_opt_lens, &pout, this->get_handle_ptr());
-    //     return {pout, own{}};
-    // }
+    opt_lens optimal_lens() const
+    {
+        migraphx_opt_lens_t pout;
+        call(&migraphx_shape_optimal_lens, &pout, this->get_handle_ptr());
+        return opt_lens{pout, own{}};
+    }
 
 
     migraphx_shape_datatype_t type() const
@@ -845,6 +887,8 @@ struct shape : MIGRAPHX_CONST_HANDLE_BASE(shape)
     }
 
     friend bool operator!=(const shape& px, const shape& py) { return not(px == py); }
+
+    shapes sub_shapes() const;
 };
 
 struct arguments;
@@ -1054,6 +1098,13 @@ struct shapes : MIGRAPHX_HANDLE_BASE(shapes), array_base<shapes>
         return {pout, this->share_handle()};
     }
 };
+
+inline shapes shape::sub_shapes() const
+{
+    migraphx_shapes_t pout;
+    call(&migraphx_shape_sub_shapes, &pout, this->get_handle_ptr());
+    return shapes(pout, own{});
+}
 
 struct operation : MIGRAPHX_HANDLE_BASE(operation)
 {

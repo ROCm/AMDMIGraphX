@@ -27,9 +27,26 @@
 #include <migraphx/program.hpp>
 #include <migraphx/op/builder/insert.hpp>
 
-inline void add_celu_instruction(migraphx::module* mm, const migraphx::shape& s, float alpha, migraphx::instruction_ref x)
+TEST_CASE(celu_happy_path_op_builder_test)
 {
-    // auto x                 = mm->add_parameter("x", s);
+    migraphx::program prog_op_builded     = migraphx::program();
+    migraphx::program prog_manually_built = migraphx::program();
+    auto* mm_op                           = prog_op_builded.get_main_module();
+    auto* mm                              = prog_manually_built.get_main_module();
+
+    // adding input parameters
+    const float alpha       = 0.8;
+    const migraphx::shape s = {migraphx::shape::float_type, {3}};
+
+    migraphx::value options;
+    options.insert({"alpha", alpha});
+
+    auto x = mm->add_parameter("x", s);
+
+    // copy input parameters to the module that'll be built by op-builder
+    *mm_op = *mm;
+
+    // adding instructions manually
     const auto& input_lens = s.lens();
     const auto& input_type = s.type();
     auto zero_lit =
@@ -48,36 +65,59 @@ inline void add_celu_instruction(migraphx::module* mm, const migraphx::shape& s,
     auto mul         = mm->add_instruction(migraphx::make_op("mul"), alpha_lit, sub);
     auto exp_part    = mm->add_instruction(migraphx::make_op("min"), zero_lit, mul);
     mm->add_instruction(migraphx::make_op("add"), linear_part, exp_part);
-}
-
-TEST_CASE(celu_alpha_op_builder_test)
-{
-    migraphx::program prog_op_builded = migraphx::program();
-    migraphx::program prog_manually_built = migraphx::program();
-    auto* mm_op = prog_op_builded.get_main_module();  
-    auto* mm    = prog_manually_built.get_main_module();
-
-    // adding input parameters
-    const float alpha = 0.8;
-    const migraphx::shape s = {migraphx::shape::float_type, {3}};
-
-    migraphx::value options;
-    options.insert({"alpha", alpha});
-    
-    auto x                 = mm->add_parameter("x", s);
-
-    // copy input parameters to the module that'll be built by op-builder
-    *mm_op = *mm;
-
-    // adding instructions manually
-    add_celu_instruction(mm, s, alpha, x);
 
     // obtain arguments
     const auto& from = mm_op->get_parameters();
     std::vector<migraphx::instruction_ref> args{from.rbegin(), from.rend()};
-    
+
     // call the SUT
     migraphx::op::builder::add("celu", *mm_op, args, options);
 
     EXPECT(prog_op_builded == prog_manually_built);
+}
+
+TEST_CASE(celu_zero_alpha_op_builder_test)
+{
+    migraphx::program prog_op_builded = migraphx::program();
+    auto* mm_op                       = prog_op_builded.get_main_module();
+
+    // adding instructions manually
+    const float alpha = 0.0f;
+
+    migraphx::value options;
+    options.insert({"alpha", alpha});
+
+    // obtain arguments
+    const auto& from = mm_op->get_parameters();
+    std::vector<migraphx::instruction_ref> args{from.rbegin(), from.rend()};
+
+    // call the SUT
+    test::throws([&] { migraphx::op::builder::add("celu", *mm_op, args, options); });
+}
+
+TEST_CASE(celu_wrong_shape_type_op_builder_test)
+{
+    migraphx::program prog_op_builded     = migraphx::program();
+    migraphx::program prog_manually_built = migraphx::program();
+    auto* mm_op                           = prog_op_builded.get_main_module();
+    auto* mm                              = prog_manually_built.get_main_module();
+
+    // adding input parameters
+    const float alpha       = 0.8;
+    const migraphx::shape s = {migraphx::shape::int8_type, {3}};
+
+    migraphx::value options;
+    options.insert({"alpha", alpha});
+
+    mm->add_parameter("x", s);
+
+    // copy input parameters to the module that'll be built by op-builder
+    *mm_op = *mm;
+
+    // obtain arguments
+    const auto& from = mm_op->get_parameters();
+    std::vector<migraphx::instruction_ref> args{from.rbegin(), from.rend()};
+
+    // call the SUT
+    test::throws([&] { migraphx::op::builder::add("celu", *mm_op, args, options); });
 }

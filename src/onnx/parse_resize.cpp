@@ -265,6 +265,43 @@ struct parse_resize : op_parser<parse_resize>
         return info.add_instruction(make_op("gather", {{"axis", 0}}), rsp, ins_ind);
     }
 
+
+    instruction_ref handle_nearest_neighboor(const onnx_parser::node_info& info,
+                                             const std::string coord_trans_mode,
+                                             const std::string nearest_mode,
+                                             const shape& in_s,
+                                             const std::vector<size_t>& in_lens,
+                                             const std::vector<size_t>& out_lens,
+                                             const std::vector<double>& vec_scale,
+                                             instruction_ref scales_sizes_arg,
+                                             instruction_ref args_0) const
+    {
+        bool is_constant_scale_input(not vec_scale.empty());
+        if(args_0->get_shape().dynamic() or not is_constant_scale_input)
+        {
+            // Resize's compute_shape() will read scales_sizes_arg as "scales" or "sizes"
+            // depending on its data type
+            return info.add_instruction(
+                make_op("resize",
+                        {{"nearest_mode", nearest_mode},
+                            {"coordinate_transformation_mode", coord_trans_mode}}),
+                args_0,
+                scales_sizes_arg);
+        }
+        else
+        {
+            // If there are no dynamic shapes and size/scale attributes are literals, then
+            // all the indexes can be calculated now at compile time and
+            // the Resize can be accomplished with Gather operation.  Preferred for
+            // better performance.
+
+            shape out_s{in_s.type(), out_lens};
+            std::size_t out_elements = out_s.elements();
+
+            return make_gather_instruction(
+                info, out_elements, in_s, out_s, in_lens, out_lens, vec_scale, args_0);
+        }
+    }
     // TODO: this operator is complex, consider refactoring in the future
     // to fix 'readability-function-size' tidy check
     // NOLINTBEGIN(readability-function-size)
@@ -369,30 +406,7 @@ struct parse_resize : op_parser<parse_resize>
 
         if(mode == "nearest")
         {
-            if(args[0]->get_shape().dynamic() or not is_constant_scale_input)
-            {
-                // Resize's compute_shape() will read scales_sizes_arg as "scales" or "sizes"
-                // depending on its data type
-                return info.add_instruction(
-                    make_op("resize",
-                            {{"nearest_mode", nearest_mode},
-                             {"coordinate_transformation_mode", coord_trans_mode}}),
-                    args[0],
-                    scales_sizes_arg);
-            }
-            else
-            {
-                // If there are no dynamic shapes and size/scale attributes are literals, then
-                // all the indexes can be calculated now at compile time and
-                // the Resize can be accomplished with Gather operation.  Preferred for
-                // better performance.
-
-                shape out_s{in_s.type(), out_lens};
-                std::size_t out_elements = out_s.elements();
-
-                return make_gather_instruction(
-                    info, out_elements, in_s, out_s, in_lens, out_lens, vec_scale, args[0]);
-            }
+            return handle_nearest_neighboor(info, coord_trans_mode, nearest_mode, in_s, in_lens, out_lens, vec_scale, scales_sizes_arg, args[0]);
         }
         // linear mode
         else

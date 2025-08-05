@@ -177,13 +177,12 @@ struct compiler : auto_register_compiler<Derived>
         return nullopt;
     }
 
-    // TODO: make it a compile error if this is not overriden by Derived rather than runtime error.
+    // TODO: make it a compile error if this is not overridden by Derived rather than runtime error.
     // Could rename Derived function to something like compile_op_impl.
     // Or refactor to type-erased interface.
     operation compile_op(context&, const std::vector<shape>&, const value&) const
     {
         MIGRAPHX_THROW("Missing override function");
-        return {};
     }
 
     template <class D = Derived>

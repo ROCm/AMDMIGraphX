@@ -35,7 +35,7 @@ inline namespace MIGRAPHX_INLINE_NS {
 
 /**
  * Implementation of std::byte for MIGraphX.
- * Created to have a custom stream operator so that it prints as an uint8.
+ * Created to have a custom stream operator so that it prints as an unsigned int.
  * This type is essentially a limited unsigned_char to prevent things like trying to add two bytes.
  */
 enum class byte : unsigned char
@@ -43,21 +43,21 @@ enum class byte : unsigned char
 };
 
 template <class IntType,
-          MIGRAPHX_REQUIRES(std::is_integral<IntType>::value and std::is_unsigned<IntType>::value)>
+          MIGRAPHX_REQUIRES(std::is_integral<IntType>{} and std::is_unsigned<IntType>{})>
 constexpr byte operator<<(byte b, IntType shift) noexcept
 {
     return static_cast<byte>(static_cast<uint8_t>(b) << shift);
 };
 
 template <class IntType,
-          MIGRAPHX_REQUIRES(std::is_integral<IntType>::value and std::is_unsigned<IntType>::value)>
+          MIGRAPHX_REQUIRES(std::is_integral<IntType>{} and std::is_unsigned<IntType>{})>
 constexpr byte operator>>(byte b, IntType shift) noexcept
 {
     return static_cast<byte>(static_cast<uint8_t>(b) >> shift);
 };
 
 template <class IntType,
-          MIGRAPHX_REQUIRES(std::is_integral<IntType>::value and std::is_unsigned<IntType>::value)>
+          MIGRAPHX_REQUIRES(std::is_integral<IntType>{} and std::is_unsigned<IntType>{})>
 constexpr byte& operator>>=(byte& b, IntType shift) noexcept
 {
     b = b >> shift;
@@ -65,7 +65,7 @@ constexpr byte& operator>>=(byte& b, IntType shift) noexcept
 };
 
 template <class IntType,
-          MIGRAPHX_REQUIRES(std::is_integral<IntType>::value and std::is_unsigned<IntType>::value)>
+          MIGRAPHX_REQUIRES(std::is_integral<IntType>{} and std::is_unsigned<IntType>{})>
 constexpr byte& operator<<=(byte& b, IntType shift) noexcept
 {
     b = b << shift;
@@ -108,7 +108,7 @@ constexpr byte& operator^=(byte& l, byte r) noexcept
 constexpr byte operator~(byte b) noexcept { return static_cast<byte>(~static_cast<uint8_t>(b)); }
 
 template <class IntType,
-          MIGRAPHX_REQUIRES(std::is_integral<IntType>::value and std::is_unsigned<IntType>::value)>
+          MIGRAPHX_REQUIRES(std::is_integral<IntType>{} and std::is_unsigned<IntType>{})>
 constexpr IntType to_integer(byte b) noexcept
 {
     return static_cast<IntType>(b);

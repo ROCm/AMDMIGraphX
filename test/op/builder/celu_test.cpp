@@ -92,7 +92,12 @@ TEST_CASE(celu_zero_alpha_op_builder_test)
     std::vector<migraphx::instruction_ref> args{from.rbegin(), from.rend()};
 
     // call the SUT
-    test::throws([&] { migraphx::op::builder::add("celu", *mm_op, args, options); });
+    EXPECT(
+        test::throws<migraphx::exception>(
+            [&] { migraphx::op::builder::add("celu", *mm_op, args, options); },
+            "alpha is zero (division by zero)"
+        )
+    );
 }
 
 TEST_CASE(celu_wrong_shape_type_op_builder_test)
@@ -119,5 +124,10 @@ TEST_CASE(celu_wrong_shape_type_op_builder_test)
     std::vector<migraphx::instruction_ref> args{from.rbegin(), from.rend()};
 
     // call the SUT
-    test::throws([&] { migraphx::op::builder::add("celu", *mm_op, args, options); });
+    EXPECT(
+        test::throws<migraphx::exception>(
+            [&] { migraphx::op::builder::add("celu", *mm_op, args, options); },
+            "input tensor not float type"
+        )
+    );
 }

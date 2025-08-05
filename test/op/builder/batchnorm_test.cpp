@@ -49,7 +49,12 @@ TEST_CASE(batchnorm_rank_0_op_builder_test)
     std::vector<migraphx::instruction_ref> args{from.rbegin(), from.rend()};
     
     // call the SUT
-    test::throws([&] { migraphx::op::builder::add("batchnorm", *mm_op, args, {}); });
+    EXPECT(
+        test::throws<migraphx::exception>(
+            [&] { migraphx::op::builder::add("batchnorm", *mm_op, args, {}); },
+            "rank 0 input tensor, unhandled data format"
+        )
+    );
 }
 
 TEST_CASE(batchnorm_rank_1_op_builder_test)
@@ -152,5 +157,10 @@ TEST_CASE(batchnorm_invalid_arguments_op_builder_test)
     std::vector<migraphx::instruction_ref> args{from.rbegin(), from.rend()};
     
     // call the SUT
-    test::throws([&] { migraphx::op::builder::add("batchnorm", *mm_op, args, {}); });
+    EXPECT(
+        test::throws<migraphx::exception>(
+            [&] { migraphx::op::builder::add("batchnorm", *mm_op, args, {}); },
+            "argument scale, bias, mean, or var rank != 1"
+        )
+    );
 }

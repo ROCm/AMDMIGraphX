@@ -228,14 +228,14 @@ struct parse_resize : op_parser<parse_resize>
 
     // Helper to add a "reshape" and "gather" instruction.  These can implement
     // Nearest mode resizing if all sizes are known at compile time.
-    instruction_ref make_gather_instruction(const onnx_parser::node_info& info,
-                                            const std::size_t out_elements,
-                                            const shape& in_s,
-                                            shape& out_s,
-                                            const std::vector<size_t>& in_lens,
-                                            const std::vector<size_t>& out_lens,
-                                            const std::vector<double>& vec_scale,
-                                            instruction_ref args_0) const
+    static instruction_ref make_gather_instruction(const onnx_parser::node_info& info,
+                                                   const std::size_t out_elements,
+                                                   const shape& in_s,
+                                                   shape& out_s,
+                                                   const std::vector<size_t>& in_lens,
+                                                   const std::vector<size_t>& out_lens,
+                                                   const std::vector<double>& vec_scale,
+                                                   instruction_ref args_0)
     {
         std::string nearest_mode = get_nearest_mode(info.attributes);
         std::vector<int> ind(out_elements);
@@ -265,16 +265,15 @@ struct parse_resize : op_parser<parse_resize>
         return info.add_instruction(make_op("gather", {{"axis", 0}}), rsp, ins_ind);
     }
 
-
-    instruction_ref handle_nearest_neighboor(const onnx_parser::node_info& info,
-                                             const std::string coord_trans_mode,
-                                             const std::string nearest_mode,
-                                             const shape& in_s,
-                                             const std::vector<size_t>& in_lens,
-                                             const std::vector<size_t>& out_lens,
-                                             const std::vector<double>& vec_scale,
-                                             instruction_ref scales_sizes_arg,
-                                             instruction_ref args_0) const
+    static instruction_ref handle_nearest_neighboor(const onnx_parser::node_info& info,
+                                                    const std::string& coord_trans_mode,
+                                                    const std::string& nearest_mode,
+                                                    const shape& in_s,
+                                                    const std::vector<size_t>& in_lens,
+                                                    const std::vector<size_t>& out_lens,
+                                                    const std::vector<double>& vec_scale,
+                                                    instruction_ref& scales_sizes_arg,
+                                                    instruction_ref& args_0)
     {
         bool is_constant_scale_input(not vec_scale.empty());
         if(args_0->get_shape().dynamic() or not is_constant_scale_input)
@@ -284,7 +283,7 @@ struct parse_resize : op_parser<parse_resize>
             return info.add_instruction(
                 make_op("resize",
                         {{"nearest_mode", nearest_mode},
-                            {"coordinate_transformation_mode", coord_trans_mode}}),
+                         {"coordinate_transformation_mode", coord_trans_mode}}),
                 args_0,
                 scales_sizes_arg);
         }
@@ -303,14 +302,14 @@ struct parse_resize : op_parser<parse_resize>
         }
     }
 
-    instruction_ref handle_linear_mode(const op_desc& opd,
-                                       const onnx_parser::node_info& info,
-                                       const std::string coord_trans_mode,
-                                       const shape& in_s,
-                                       const std::vector<size_t>& in_lens,
-                                       const std::vector<size_t>& out_lens,
-                                       const std::vector<double>& vec_scale,
-                                       instruction_ref args_0) const
+    static instruction_ref handle_linear_mode(const op_desc& opd,
+                                              const onnx_parser::node_info& info,
+                                              const std::string& coord_trans_mode,
+                                              const shape& in_s,
+                                              const std::vector<size_t>& in_lens,
+                                              const std::vector<size_t>& out_lens,
+                                              const std::vector<double>& vec_scale,
+                                              instruction_ref& args_0)
 
     {
         bool is_constant_scale_input(not vec_scale.empty());
@@ -318,7 +317,7 @@ struct parse_resize : op_parser<parse_resize>
         // inputs.
         if(not is_constant_scale_input)
             MIGRAPHX_THROW("PARSE_" + opd.onnx_name +
-                            ": linear mode not supported for non-constant inputs");
+                           ": linear mode not supported for non-constant inputs");
 
         if(in_lens == out_lens)
             return args_0; // if input and output shapes are the same, return the input
@@ -356,9 +355,8 @@ struct parse_resize : op_parser<parse_resize>
         shape_for_each(out_s, [&](const auto& out_idx_v, std::size_t out_idx) {
             for(size_t ii = 0; ii != resized_ct; ++ii)
             {
-                auto idx = resized_axes[ii];
-                auto idx_val =
-                    idx_op(in_lens[idx], out_lens[idx], out_idx_v[idx], vec_scale[idx]);
+                auto idx     = resized_axes[ii];
+                auto idx_val = idx_op(in_lens[idx], out_lens[idx], out_idx_v[idx], vec_scale[idx]);
                 vvv_ind[ii][0][out_idx] = nearest_floor(in_lens[idx], idx_val);
                 vvv_ind[ii][1][out_idx] = nearest_ceil(in_lens[idx], idx_val);
                 delta[ii][out_idx]      = idx_val - vvv_ind[ii][0][out_idx];
@@ -387,8 +385,7 @@ struct parse_resize : op_parser<parse_resize>
             // slice the data
             int64_t slc_stride = dim_lens[0];
             auto low           = info.add_instruction(
-                make_op("slice", {{"axes", {0}}, {"starts", {0}}, {"ends", {slc_stride}}}),
-                data);
+                make_op("slice", {{"axes", {0}}, {"starts", {0}}, {"ends", {slc_stride}}}), data);
             auto hi = info.add_instruction(
                 make_op("slice",
                         {{"axes", {0}}, {"starts", {slc_stride}}, {"ends", {2 * slc_stride}}}),
@@ -502,12 +499,21 @@ struct parse_resize : op_parser<parse_resize>
 
         if(mode == "nearest")
         {
-            return handle_nearest_neighboor(info, coord_trans_mode, nearest_mode, in_s, in_lens, out_lens, vec_scale, scales_sizes_arg, args[0]);
+            return handle_nearest_neighboor(info,
+                                            coord_trans_mode,
+                                            nearest_mode,
+                                            in_s,
+                                            in_lens,
+                                            out_lens,
+                                            vec_scale,
+                                            scales_sizes_arg,
+                                            args[0]);
         }
         // linear mode
         else
         {
-            return handle_linear_mode(opd, info, coord_trans_mode, in_s, in_lens, out_lens, vec_scale, args[0]);
+            return handle_linear_mode(
+                opd, info, coord_trans_mode, in_s, in_lens, out_lens, vec_scale, args[0]);
         }
     }
 };

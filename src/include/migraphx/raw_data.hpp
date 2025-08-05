@@ -129,6 +129,12 @@ struct raw_data : raw_data_base
         }
     }
 
+    template <class Visitor>
+    void raw_visit(Visitor v) const
+    {
+        raw_visit(v, [&](const auto&) { MIGRAPHX_THROW("Invalid tuple type"); });
+    }
+
     /// Returns true if the raw data is only one element
     bool single() const
     {

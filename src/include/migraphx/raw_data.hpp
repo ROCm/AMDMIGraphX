@@ -126,6 +126,12 @@ struct raw_data : raw_data_base
         }
     }
 
+    template <class Visitor>
+    void raw_visit(Visitor v) const
+    {
+        raw_visit(v, [&](const auto&) { MIGRAPHX_THROW("Invalid tuple type"); });
+    }
+
     /// Returns true if the raw data is only one element
     bool single() const
     {
@@ -201,9 +207,6 @@ struct raw_data : raw_data_base
     T* cast() const
     {
         auto&& buffer = static_cast<const Derived&>(*this).data();
-        assert(static_cast<const Derived&>(*this).get_shape().computable() and
-               static_cast<const Derived&>(*this).get_shape().type() ==
-                   migraphx::shape::get_type<T>{});
         return reinterpret_cast<T*>(buffer);
     }
 

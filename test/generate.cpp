@@ -44,6 +44,13 @@ TEST_CASE(fill_tuple)
     EXPECT(args.at(2) == migraphx::fill_argument(s2, 1));
 }
 
+TEST_CASE(generate_non_computable)
+{
+    migraphx::shape s{migraphx::shape::fp4x2_type, {4, 4, 1, 1}};
+    auto arg = migraphx::generate_argument(s, 1);
+    EXPECT(migraphx::generate_literal(s, 1) == migraphx::generate_argument(s, 1));
+}
+
 TEST_CASE(generate_tuple)
 {
     migraphx::shape s0{migraphx::shape::float_type, {4, 4, 1, 1}};

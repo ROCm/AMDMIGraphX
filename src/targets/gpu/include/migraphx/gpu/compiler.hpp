@@ -100,7 +100,6 @@ struct compiler_replace
             replace_fn(*this, m, ins);
         else
         {
-            // BUG: code_objects.front() not valid
             if(code_objects.size() != 1)
             {
                 MIGRAPHX_THROW("Provide custom replace function to insert multiple code objects\n");

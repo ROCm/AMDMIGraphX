@@ -31,7 +31,6 @@
 #include <numeric>
 #include <memory>
 #include <set>
-#include <unordered_set>
 
 #include <migraphx/functional.hpp>
 #include <migraphx/errors.hpp>

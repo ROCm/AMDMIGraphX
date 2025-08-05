@@ -24,13 +24,7 @@
 #ifndef MIGRAPHX_GUARD_RTGLIB_ALGORITHM_HPP
 #define MIGRAPHX_GUARD_RTGLIB_ALGORITHM_HPP
 
-// `get_temporary_buffer` is deprecated in C++17, removed in C++20
-// Until gcc libs are upgraded past 12, turn off the deprecation warning
-#pragma GCC diagnostic push
-#pragma GCC diagnostic ignored "-Wdeprecated-declarations"
 #include <algorithm>
-#pragma GCC diagnostic pop
-
 #include <cassert>
 #include <numeric>
 #include <string>

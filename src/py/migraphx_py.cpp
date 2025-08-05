@@ -707,7 +707,7 @@ MIGRAPHX_PYBIND11_MODULE(migraphx, m)
         py::arg("format") = "msgpack");
 
     m.def(
-        "serialize",
+        "save_buffer",
         [](const migraphx::program& p) {
             auto buffer = migraphx::save_buffer(p);
             return py::bytes(buffer.data(), buffer.size());
@@ -716,9 +716,9 @@ MIGRAPHX_PYBIND11_MODULE(migraphx, m)
         py::arg("p"));
 
     m.def(
-        "deserialize",
+        "load_buffer",
         [](const py::bytes& b) {
-            std::string byte_str = static_cast<std::string>(b);
+            std::string_view byte_str{b};
             std::vector<char> char_arr(byte_str.begin(), byte_str.end());
             return migraphx::load_buffer(char_arr);
         },

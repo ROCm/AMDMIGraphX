@@ -31,6 +31,7 @@
 #include <algorithm>
 #include <functional>
 #include <unordered_map>
+#include <unordered_set>
 #include <iostream>
 
 namespace migraphx {
@@ -242,8 +243,11 @@ std::string shape::to_sizes_string(const std::vector<shape>& shapes)
 const std::vector<shape::type_t>& shape::types()
 {
     static const std::vector<shape::type_t> result = {
+    // clang-format off
 #define MIGRAPHX_GENERATE_TYPE_VECTOR(x, t) x,
-        MIGRAPHX_SHAPE_VISIT_TYPES(MIGRAPHX_GENERATE_TYPE_VECTOR) tuple_type};
+        MIGRAPHX_SHAPE_VISIT_TYPES(MIGRAPHX_GENERATE_TYPE_VECTOR)
+        tuple_type};
+    // clang-format on
     return result;
 }
 
@@ -831,11 +835,13 @@ std::ostream& operator<<(std::ostream& os, const shape& x)
 shape::type_t shape::parse_type(const std::string& s)
 {
     static const std::unordered_map<std::string, shape::type_t> m = {
+    // clang-format off
 #define MIGRAPHX_SHAPE_GENERATE_TYPE_STRING_MAP(x, t) {#x, x}, {#t, x},
-        MIGRAPHX_SHAPE_VISIT_TYPES(MIGRAPHX_SHAPE_GENERATE_TYPE_STRING_MAP){"fp4x2_type",
-                                                                            fp4x2_type},
+        MIGRAPHX_SHAPE_VISIT_TYPES(MIGRAPHX_SHAPE_GENERATE_TYPE_STRING_MAP)
+        {"fp4x2_type", fp4x2_type},
         {"tuple_type", tuple_type},
         {"tuple", tuple_type}};
+    // clang-format on
     return m.at(s);
 }
 

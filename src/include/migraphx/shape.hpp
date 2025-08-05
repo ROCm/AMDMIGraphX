@@ -337,7 +337,7 @@ struct MIGRAPHX_EXPORT shape
     /// Return true if this shape or any of the sub_shapes are dynamic
     bool any_of_dynamic() const;
 
-    /// If type has a visitor function
+    /// If type is computable (can do math ops like add or divide) and has a visitor function
     bool computable() const;
 
     shape normalize_standard() const;

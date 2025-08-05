@@ -26,19 +26,98 @@
 #define MIGRAPHX_GUARD_BYTE_HPP
 
 #include <migraphx/config.hpp>
+#include <migraphx/requires.hpp>
 #include <cstdint>
+#include <type_traits>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
 
+/**
+ * Implementation of std::byte for MIGraphX.
+ * Created to have a custom stream operator so that it prints as an unsigned int.
+ * This type is essentially a limited unsigned_char to prevent things like trying to add two bytes.
+ */
 enum class byte : unsigned char
 {
 };
 
+template <class IntType,
+          MIGRAPHX_REQUIRES(std::is_integral<IntType>{} and std::is_unsigned<IntType>{})>
+constexpr byte operator<<(byte b, IntType shift) noexcept
+{
+    return static_cast<byte>(static_cast<uint8_t>(b) << shift);
+};
+
+template <class IntType,
+          MIGRAPHX_REQUIRES(std::is_integral<IntType>{} and std::is_unsigned<IntType>{})>
+constexpr byte operator>>(byte b, IntType shift) noexcept
+{
+    return static_cast<byte>(static_cast<uint8_t>(b) >> shift);
+};
+
+template <class IntType,
+          MIGRAPHX_REQUIRES(std::is_integral<IntType>{} and std::is_unsigned<IntType>{})>
+constexpr byte& operator>>=(byte& b, IntType shift) noexcept
+{
+    b = b >> shift;
+    return b;
+};
+
+template <class IntType,
+          MIGRAPHX_REQUIRES(std::is_integral<IntType>{} and std::is_unsigned<IntType>{})>
+constexpr byte& operator<<=(byte& b, IntType shift) noexcept
+{
+    b = b << shift;
+    return b;
+};
+
+constexpr byte operator|(byte l, byte r) noexcept
+{
+    return static_cast<byte>(static_cast<uint8_t>(l) | static_cast<uint8_t>(r));
+}
+
+constexpr byte& operator|=(byte& l, byte r) noexcept
+{
+    l = l | r;
+    return l;
+}
+
+constexpr byte operator&(byte l, byte r) noexcept
+{
+    return static_cast<byte>(static_cast<uint8_t>(l) & static_cast<uint8_t>(r));
+}
+
+constexpr byte& operator&=(byte& l, byte r) noexcept
+{
+    l = l & r;
+    return l;
+}
+
+constexpr byte operator^(byte l, byte r) noexcept
+{
+    return static_cast<byte>(static_cast<uint8_t>(l) ^ static_cast<uint8_t>(r));
+}
+
+constexpr byte& operator^=(byte& l, byte r) noexcept
+{
+    l = l ^ r;
+    return l;
+}
+
+constexpr byte operator~(byte b) noexcept { return static_cast<byte>(~static_cast<uint8_t>(b)); }
+
+template <class IntType,
+          MIGRAPHX_REQUIRES(std::is_integral<IntType>{} and std::is_unsigned<IntType>{})>
+constexpr IntType to_integer(byte b) noexcept
+{
+    return static_cast<IntType>(b);
+}
+
 template <class Stream>
 Stream& operator<<(Stream& os, const byte& b)
 {
-    os << static_cast<uint8_t>(b);
+    os << static_cast<unsigned>(b);
     return os;
 }
 

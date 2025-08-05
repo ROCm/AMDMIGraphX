@@ -295,6 +295,9 @@ void tf_parser::parse_graph(const tensorflow::GraphDef& graph)
         if(contains(map_input_dims, name))
         {
             dims = map_input_dims.at(name);
+            std::transform(dims.begin(), dims.end(), std::back_inserter(dyn_dims), [&](auto dim) -> shape::dynamic_dimension {
+                return shape::dynamic_dimension{dim, dim};
+            });
         }
         else
         {
@@ -307,7 +310,7 @@ void tf_parser::parse_graph(const tensorflow::GraphDef& graph)
                 return static_cast<int>(dim) <= 0 ? default_dyn_dim_value : shape::dynamic_dimension{dim, dim};
             });
         }
-        
+
         shape s{shape_type, dyn_dims};
 
 

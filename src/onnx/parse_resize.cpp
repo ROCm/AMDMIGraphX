@@ -302,6 +302,104 @@ struct parse_resize : op_parser<parse_resize>
                 info, out_elements, in_s, out_s, in_lens, out_lens, vec_scale, args_0);
         }
     }
+
+    instruction_ref handle_linear_mode(const op_desc& opd,
+                                       const onnx_parser::node_info& info,
+                                       const std::string coord_trans_mode,
+                                       const shape& in_s,
+                                       const std::vector<size_t>& in_lens,
+                                       const std::vector<size_t>& out_lens,
+                                       const std::vector<double>& vec_scale,
+                                       instruction_ref args_0) const
+
+    {
+        bool is_constant_scale_input(not vec_scale.empty());
+        // out_lens and other variables can't be populated if non-constant (runtime) size
+        // inputs.
+        if(not is_constant_scale_input)
+            MIGRAPHX_THROW("PARSE_" + opd.onnx_name +
+                            ": linear mode not supported for non-constant inputs");
+
+        if(in_lens == out_lens)
+            return args_0; // if input and output shapes are the same, return the input
+
+        shape out_s{in_s.type(), out_lens};
+
+        // reshape input to one-dimension
+        std::vector<int64_t> rsp_lens = {static_cast<int64_t>(in_s.elements())};
+        auto rsp = info.add_instruction(make_op("reshape", {{"dims", rsp_lens}}), args_0);
+
+        auto nearest_floor = op::resize::get_nearest_op("floor");
+        auto nearest_ceil  = op::resize::get_nearest_op("ceil");
+
+        std::vector<size_t> resized_axes; // vector of dimensions to be resized
+        std::size_t out_elements = 1;     // total number of elements to be resized
+        size_t resized_ct        = 0;
+        std::map<size_t, size_t> resized_m; // modified indices --> vvv_ind index below
+        for(std::size_t axis = 0; axis != out_lens.size(); ++axis)
+        {
+            out_elements *= out_lens[axis];
+            if(in_lens[axis] == out_lens[axis])
+                continue;
+            resized_axes.push_back(axis);
+            resized_m[axis] = resized_ct++;
+        }
+
+        // Neighbor indices. For an axis. Two sets of max/min per element:
+        std::vector<std::vector<std::size_t>> vv_ind(2, std::vector<std::size_t>(out_elements));
+        // Neighbor indices. For all resized axes:
+        std::vector<std::vector<std::vector<std::size_t>>> vvv_ind(resized_ct, vv_ind);
+        // Delta list. For each resized axes - per element.
+        std::vector<std::vector<float>> delta(resized_ct, std::vector<float>(out_elements));
+
+        auto idx_op = op::resize::get_original_idx_op(coord_trans_mode);
+        shape_for_each(out_s, [&](const auto& out_idx_v, std::size_t out_idx) {
+            for(size_t ii = 0; ii != resized_ct; ++ii)
+            {
+                auto idx = resized_axes[ii];
+                auto idx_val =
+                    idx_op(in_lens[idx], out_lens[idx], out_idx_v[idx], vec_scale[idx]);
+                vvv_ind[ii][0][out_idx] = nearest_floor(in_lens[idx], idx_val);
+                vvv_ind[ii][1][out_idx] = nearest_ceil(in_lens[idx], idx_val);
+                delta[ii][out_idx]      = idx_val - vvv_ind[ii][0][out_idx];
+            }
+        });
+
+        auto ind = calc_neighbor_points(vvv_ind, in_s, out_s, resized_m);
+
+        auto dim_lens = out_lens;
+        // indices matrix size grows 2x per resized-axis:
+        dim_lens[0] *= (1u << resized_ct);
+        shape ind_s{shape::int32_type, dim_lens};
+        auto ins_ind = info.add_literal(literal(ind_s, ind));
+        auto data    = info.add_instruction(make_op("gather", {{"axis", 0}}), rsp, ins_ind);
+
+        for(auto idx = resized_ct; idx != 0u; --idx)
+        {
+            dim_lens[0] /= 2; // halved for 2 slices of data (hi & low below)
+            shape dim_s{in_s.type(), dim_lens};
+            const auto& dim_delta = delta[idx - 1];
+            std::vector<float> delta_data;
+            for(std::size_t j = 0; j < dim_lens[0] / out_lens[0]; ++j)
+                delta_data.insert(delta_data.begin(), dim_delta.begin(), dim_delta.end());
+            auto ins_delta = info.add_literal(dim_s, delta_data);
+
+            // slice the data
+            int64_t slc_stride = dim_lens[0];
+            auto low           = info.add_instruction(
+                make_op("slice", {{"axes", {0}}, {"starts", {0}}, {"ends", {slc_stride}}}),
+                data);
+            auto hi = info.add_instruction(
+                make_op("slice",
+                        {{"axes", {0}}, {"starts", {slc_stride}}, {"ends", {2 * slc_stride}}}),
+                data);
+            auto diff = info.add_instruction(make_op("sub"), hi, low);
+            auto ddf  = info.add_instruction(make_op("mul"), diff, ins_delta);
+            data      = info.add_instruction(make_op("add"), ddf, low);
+        }
+        return data;
+    }
+
     // TODO: this operator is complex, consider refactoring in the future
     // to fix 'readability-function-size' tidy check
     // NOLINTBEGIN(readability-function-size)
@@ -318,8 +416,6 @@ struct parse_resize : op_parser<parse_resize>
 
         // nearest mode
         std::string nearest_mode = get_nearest_mode(info.attributes);
-
-        auto idx_op = op::resize::get_original_idx_op(coord_trans_mode);
 
         // check exclude_outside, only support 0
         if(contains(info.attributes, "exclude_outside") and
@@ -411,92 +507,9 @@ struct parse_resize : op_parser<parse_resize>
         // linear mode
         else
         {
-            // out_lens and other variables can't be populated if non-constant (runtime) size
-            // inputs.
-            if(not is_constant_scale_input)
-                MIGRAPHX_THROW("PARSE_" + opd.onnx_name +
-                               ": linear mode not supported for non-constant inputs");
-
-            if(in_lens == out_lens)
-                return args[0]; // if input and output shapes are the same, return the input
-
-            shape out_s{in_s.type(), out_lens};
-
-            // reshape input to one-dimension
-            std::vector<int64_t> rsp_lens = {static_cast<int64_t>(in_s.elements())};
-            auto rsp = info.add_instruction(make_op("reshape", {{"dims", rsp_lens}}), args[0]);
-
-            auto nearest_floor = op::resize::get_nearest_op("floor");
-            auto nearest_ceil  = op::resize::get_nearest_op("ceil");
-
-            std::vector<size_t> resized_axes; // vector of dimensions to be resized
-            std::size_t out_elements = 1;     // total number of elements to be resized
-            size_t resized_ct        = 0;
-            std::map<size_t, size_t> resized_m; // modified indices --> vvv_ind index below
-            for(std::size_t axis = 0; axis != out_lens.size(); ++axis)
-            {
-                out_elements *= out_lens[axis];
-                if(in_lens[axis] == out_lens[axis])
-                    continue;
-                resized_axes.push_back(axis);
-                resized_m[axis] = resized_ct++;
-            }
-
-            // Neighbor indices. For an axis. Two sets of max/min per element:
-            std::vector<std::vector<std::size_t>> vv_ind(2, std::vector<std::size_t>(out_elements));
-            // Neighbor indices. For all resized axes:
-            std::vector<std::vector<std::vector<std::size_t>>> vvv_ind(resized_ct, vv_ind);
-            // Delta list. For each resized axes - per element.
-            std::vector<std::vector<float>> delta(resized_ct, std::vector<float>(out_elements));
-
-            shape_for_each(out_s, [&](const auto& out_idx_v, std::size_t out_idx) {
-                for(size_t ii = 0; ii != resized_ct; ++ii)
-                {
-                    auto idx = resized_axes[ii];
-                    auto idx_val =
-                        idx_op(in_lens[idx], out_lens[idx], out_idx_v[idx], vec_scale[idx]);
-                    vvv_ind[ii][0][out_idx] = nearest_floor(in_lens[idx], idx_val);
-                    vvv_ind[ii][1][out_idx] = nearest_ceil(in_lens[idx], idx_val);
-                    delta[ii][out_idx]      = idx_val - vvv_ind[ii][0][out_idx];
-                }
-            });
-
-            auto ind = calc_neighbor_points(vvv_ind, in_s, out_s, resized_m);
-
-            auto dim_lens = out_lens;
-            // indices matrix size grows 2x per resized-axis:
-            dim_lens[0] *= (1u << resized_ct);
-            shape ind_s{shape::int32_type, dim_lens};
-            auto ins_ind = info.add_literal(literal(ind_s, ind));
-            auto data    = info.add_instruction(make_op("gather", {{"axis", 0}}), rsp, ins_ind);
-
-            for(auto idx = resized_ct; idx != 0u; --idx)
-            {
-                dim_lens[0] /= 2; // halved for 2 slices of data (hi & low below)
-                shape dim_s{in_s.type(), dim_lens};
-                const auto& dim_delta = delta[idx - 1];
-                std::vector<float> delta_data;
-                for(std::size_t j = 0; j < dim_lens[0] / out_lens[0]; ++j)
-                    delta_data.insert(delta_data.begin(), dim_delta.begin(), dim_delta.end());
-                auto ins_delta = info.add_literal(dim_s, delta_data);
-
-                // slice the data
-                int64_t slc_stride = dim_lens[0];
-                auto low           = info.add_instruction(
-                    make_op("slice", {{"axes", {0}}, {"starts", {0}}, {"ends", {slc_stride}}}),
-                    data);
-                auto hi = info.add_instruction(
-                    make_op("slice",
-                            {{"axes", {0}}, {"starts", {slc_stride}}, {"ends", {2 * slc_stride}}}),
-                    data);
-                auto diff = info.add_instruction(make_op("sub"), hi, low);
-                auto ddf  = info.add_instruction(make_op("mul"), diff, ins_delta);
-                data      = info.add_instruction(make_op("add"), ddf, low);
-            }
-            return data;
+            return handle_linear_mode(opd, info, coord_trans_mode, in_s, in_lens, out_lens, vec_scale, args[0]);
         }
     }
-    // NOLINTEND(readability-function-size)
 };
 
 } // namespace onnx

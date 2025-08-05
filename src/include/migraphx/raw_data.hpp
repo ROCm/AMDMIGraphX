@@ -29,8 +29,6 @@
 #include <migraphx/requires.hpp>
 #include <migraphx/byte.hpp>
 #include <migraphx/config.hpp>
-#include <migraphx/ranges.hpp>
-#include <migraphx/byte.hpp>
 #include <sstream>
 
 namespace migraphx {

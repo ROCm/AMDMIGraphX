@@ -46,6 +46,8 @@ struct parse_matmul : op_parser<parse_matmul>
         bool transa = false;
         bool transb = false;
 
+        // info.mm->debug_print();
+
         if(contains(info.attributes, "transpose_a"))
         {
             transa = info.attributes.at("transpose_a").b();

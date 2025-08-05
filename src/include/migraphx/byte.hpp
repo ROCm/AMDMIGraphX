@@ -58,16 +58,18 @@ constexpr byte operator>>(byte b, IntType shift) noexcept
 
 template <class IntType,
           MIGRAPHX_REQUIRES(std::is_integral<IntType>::value and std::is_unsigned<IntType>::value)>
-constexpr byte operator>>=(byte b, IntType shift) noexcept
+constexpr byte& operator>>=(byte& b, IntType shift) noexcept
 {
-    return b >> shift;
+    b = b >> shift;
+    return b;
 };
 
 template <class IntType,
           MIGRAPHX_REQUIRES(std::is_integral<IntType>::value and std::is_unsigned<IntType>::value)>
-constexpr byte operator<<=(byte b, IntType shift) noexcept
+constexpr byte& operator<<=(byte& b, IntType shift) noexcept
 {
-    return b << shift;
+    b = b << shift;
+    return b;
 };
 
 constexpr byte operator|(byte l, byte r) noexcept
@@ -75,21 +77,33 @@ constexpr byte operator|(byte l, byte r) noexcept
     return static_cast<byte>(static_cast<uint8_t>(l) | static_cast<uint8_t>(r));
 }
 
-constexpr byte& operator|=(byte& l, byte r) noexcept { return l = l | r; }
+constexpr byte& operator|=(byte& l, byte r) noexcept
+{
+    l = l | r;
+    return l;
+}
 
 constexpr byte operator&(byte l, byte r) noexcept
 {
     return static_cast<byte>(static_cast<uint8_t>(l) & static_cast<uint8_t>(r));
 }
 
-constexpr byte& operator&=(byte& l, byte r) noexcept { return l = l & r; }
+constexpr byte& operator&=(byte& l, byte r) noexcept
+{
+    l = l & r;
+    return l;
+}
 
 constexpr byte operator^(byte l, byte r) noexcept
 {
     return static_cast<byte>(static_cast<uint8_t>(l) ^ static_cast<uint8_t>(r));
 }
 
-constexpr byte& operator^=(byte& l, byte r) noexcept { return l = l ^ r; }
+constexpr byte& operator^=(byte& l, byte r) noexcept
+{
+    l = l ^ r;
+    return l;
+}
 
 constexpr byte operator~(byte b) noexcept { return static_cast<byte>(~static_cast<uint8_t>(b)); }
 

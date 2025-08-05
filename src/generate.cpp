@@ -95,11 +95,19 @@ argument generate_argument(shape s, unsigned long seed, random_mode m)
 literal generate_literal(shape s, unsigned long seed)
 {
     literal result;
-    s.visit_type([&](auto as) {
-        using type = typename decltype(as)::type;
-        auto v     = generate_tensor_data<type>(s, seed);
-        result     = {s, reinterpret_cast<char*>(v.get())};
-    });
+    if(not s.computable())
+    {
+        auto v = generate_tensor_data<uint8_t>(s, seed);
+        result = {s, reinterpret_cast<char*>(v.get())};
+    }
+    else
+    {
+        s.visit_type([&](auto as) {
+            using type = typename decltype(as)::type;
+            auto v     = generate_tensor_data<type>(s, seed);
+            result     = {s, reinterpret_cast<char*>(v.get())};
+        });
+    }
     return result;
 }
 

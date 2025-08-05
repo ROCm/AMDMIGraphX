@@ -121,8 +121,9 @@ struct raw_data : raw_data_base
         }
         else
         {
+            auto&& buffer     = static_cast<const Derived&>(*this).data();
             shape visit_shape = {shape::uint8_type, {s.bytes()}};
-            v(make_view(visit_shape, cast<migraphx::byte>()));
+            v(make_view(visit_shape, reinterpret_cast<const migraphx::byte*>(buffer)));
         }
     }
 
@@ -207,6 +208,8 @@ struct raw_data : raw_data_base
     T* cast() const
     {
         auto&& buffer = static_cast<const Derived&>(*this).data();
+        assert(static_cast<const Derived&>(*this).get_shape().type() ==
+               migraphx::shape::get_type<T>{});
         return reinterpret_cast<T*>(buffer);
     }
 
@@ -310,10 +313,19 @@ bool operator==(const T& x, const U& y)
     bool result   = x.empty() and y.empty();
     if(not result and xshape == yshape)
     {
-        visit_all(x, y)([&](auto xview, auto yview) { result = xview == yview; },
-                        [&](auto&& xs, auto&& ys) {
-                            result = std::equal(xs.begin(), xs.end(), ys.begin(), ys.end());
-                        });
+        if(xshape.computable())
+        {
+            visit_all(x, y)([&](auto xview, auto yview) { result = xview == yview; },
+                            [&](auto&& xs, auto&& ys) {
+                                result = std::equal(xs.begin(), xs.end(), ys.begin(), ys.end());
+                            });
+        }
+        else
+        {
+            // not tuple type so do not need tuple visitor
+            x.raw_visit(
+                [&](auto xview) { y.raw_visit([&](auto yview) { result = xview == yview; }); });
+        }
     }
     return result;
 }

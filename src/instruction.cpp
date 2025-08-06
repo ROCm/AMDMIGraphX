@@ -697,9 +697,9 @@ find_instructions_between(instruction_ref start, instruction_ref end, const_modu
             return;
         if(not contains(inss, ins))
             return;
-        if (not result.insert(ins).second)
+        if(not result.insert(ins).second)
             return;
-        for(auto output:ins->outputs())
+        for(auto output : ins->outputs())
             self(output);
     })(start);
     return result;

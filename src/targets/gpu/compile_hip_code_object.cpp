@@ -203,9 +203,8 @@ compile_hip_code_object(context& ctx, const std::string& content, hip_compile_op
     options.params.insert(options.params.end(), warnings.begin(), warnings.end());
     options.emplace_param("-ftemplate-backtrace-limit=0");
     options.emplace_param("-Werror");
-    auto cos = ctx.get_portable_flag()
-                   ? compile_hip_src(srcs, options.params, "amdgcnspirv")
-                   : compile_hip_src(srcs, options.params, get_device_name());
+    auto cos = ctx.get_portable_flag() ? compile_hip_src(srcs, options.params, "amdgcnspirv")
+                                       : compile_hip_src(srcs, options.params, get_device_name());
     if(cos.size() != 1)
         MIGRAPHX_THROW("No code object");
     return code_object_op{value::binary{cos.front()},

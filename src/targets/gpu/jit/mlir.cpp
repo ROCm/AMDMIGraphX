@@ -146,7 +146,7 @@ struct mlir_compiler : compiler<mlir_compiler>
         if(gemm_like_ins != smod->end() and pointwise_ins != smod->end() and
            not is_module_fusible(*smod, ctx, solution))
         {
-	    std::cout << "Compiling fused gemm w/perfConf\n";
+            std::cout << "Compiling fused gemm w/perfConf\n";
             auto input_args = ins->inputs();
             // remove alloc buffer
             input_args.pop_back();

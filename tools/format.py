@@ -27,7 +27,7 @@ import argparse
 import subprocess
 from git_tools import get_changed_files, get_merge_base, get_top, run
 
-CLANG_FORMAT_PATH = '/opt/rocm/llvm/bin'
+CLANG_FORMAT_PATH = '/opt/rocm-6.4.0/lib/llvm/bin'
 
 EXCLUDE_FILES = ['requirements.in', 'onnx.proto']
 

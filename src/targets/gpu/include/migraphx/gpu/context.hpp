@@ -270,7 +270,7 @@ struct context
     void set_exhaustive_tune_flag(bool t) { exhaustive_tune = t; }
 
     bool get_portable_flag() const { return portable; }
-    
+
     void set_portable_flag(bool p) { portable = p; }
 
     hip_device::stream& get_stream() { return get_current_device().get_stream(); }
@@ -386,7 +386,7 @@ struct context
     std::shared_ptr<hip_device> current_device;
     std::vector<shared<hip_event_ptr>> events;
     bool exhaustive_tune = false;
-    bool portable = false;
+    bool portable        = false;
     bool measure_perf    = false;
     // for event perf timing
     shared<hip_event_ptr> start_event = nullptr;

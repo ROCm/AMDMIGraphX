@@ -34,7 +34,7 @@ namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
 namespace gpu {
 
-enum struct code_object_format 
+enum struct code_object_format
 {
     binary,
     mlir_bytecode
@@ -54,14 +54,16 @@ struct code_object_op
     kernel k{};
     code_object_format format = code_object_format::binary;
     // maybe add instruction_ref ins;
-    /* this allows us to simply convert the mlirbc back to mlir, then run the remaining passes 
+    /* this allows us to simply convert the mlirbc back to mlir, then run the remaining passes
        after we can just compile it using compile_ops, might need some small adjustments
        mainly: how are we to start at the "end" of the pipeline at the kernel_pass?
 
        try:
-       MIGRAPHX_TRACE_COMPILE=1 MIGRAPHX_TRACE_MLIR=1 MIGRAPHX_MLIR_TUNE_LIMIT=1 ./bin/driver compile ../spirv/MXRs/gemm.mxr
+       MIGRAPHX_TRACE_COMPILE=1 MIGRAPHX_TRACE_MLIR=1 MIGRAPHX_MLIR_TUNE_LIMIT=1 ./bin/driver
+       compile ../spirv/MXRs/gemm.mxr
 
-       MIGRAPHX_TRACE_CMD_EXECUTE=1 MIGRAPHX_TRACE_COMPILE=1 MIGRAPHX_TRACE_MLIR=1 MIGRAPHX_MLIR_TUNE_LIMIT=1 ./bin/driver compile --portable ../spirv/MXRs/pointwise.mxr
+       MIGRAPHX_TRACE_CMD_EXECUTE=1 MIGRAPHX_TRACE_COMPILE=1 MIGRAPHX_TRACE_MLIR=1
+       MIGRAPHX_MLIR_TUNE_LIMIT=1 ./bin/driver compile --portable ../spirv/MXRs/pointwise.mxr
      */
 
     template <class Self, class F>
@@ -94,7 +96,7 @@ struct code_object_op
     {
         return get_output_arg(shapes.size());
     }
-    bool is_mlir() const {return format == code_object_format::mlir_bytecode; }
+    bool is_mlir() const { return format == code_object_format::mlir_bytecode; }
 
     friend std::ostream& operator<<(std::ostream& os, const code_object_op& op)
     {
@@ -105,7 +107,7 @@ struct code_object_op
         os << "local=" << op.local << ",";
         if(op.output_arg != -1)
             os << "output_arg=" << op.output_arg << ",";
-        os << "format=" << (op.format == code_object_format::binary ? "binary" : "mlir_bytecode");          
+        os << "format=" << (op.format == code_object_format::binary ? "binary" : "mlir_bytecode");
         os << "]";
         return os;
     }

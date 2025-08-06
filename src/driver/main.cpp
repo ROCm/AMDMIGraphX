@@ -586,10 +586,10 @@ struct compiler
            {"--exhaustive-tune"},
            ap.help("Exhastively search for best tuning parameters for kernels"),
            ap.set_value(true));
-	ap(co.portable,
-	   {"--portable"},
-	   ap.help("PROTOTYPE: Create portable kernels that get finalized in ./driver run"),
-	   ap.set_value(true));
+        ap(co.portable,
+           {"--portable"},
+           ap.help("PROTOTYPE: Create portable kernels that get finalized in ./driver run"),
+           ap.set_value(true));
         ap(to_fp16, {"--fp16"}, ap.help("Quantize for fp16"), ap.set_value(true));
         ap(to_bf16, {"--bf16"}, ap.help("Quantize for bf16"), ap.set_value(true));
         ap(to_int8, {"--int8"}, ap.help("Quantize for int8"), ap.set_value(true));
@@ -607,21 +607,21 @@ struct compiler
         return parameters.generate(p, ct.get_target(), true, l.batch);
     }
 
-    bool has_portable_ops(program& p) 
+    bool has_portable_ops(program& p)
     {
         auto mods = p.get_modules();
-        for(const auto* mod: mods)
+        for(const auto* mod : mods)
         {
-	        for(const auto& ins : *mod)
-	        {                
-	            if(ins.name() == "gpu::code_object") 
+            for(const auto& ins : *mod)
+            {
+                if(ins.name() == "gpu::code_object")
                 {
-                    migraphx::gpu::code_object_op migx_co = migraphx::any_cast<migraphx::gpu::code_object_op>(ins.get_operator());
+                    migraphx::gpu::code_object_op migx_co =
+                        migraphx::any_cast<migraphx::gpu::code_object_op>(ins.get_operator());
                     if(migx_co.is_mlir())
                         return true;
                 }
-            
-	        }
+            }
         }
         return false;
     }
@@ -637,15 +637,16 @@ struct compiler
             std::cout << "Already compiled\n";
 
             bool has_port_ops = has_portable_ops(p);
-	        if(has_port_ops) // means we must finalize it
-	        {
-                auto ctx = ct.get_target().get_context();
+            if(has_port_ops) // means we must finalize it
+            {
+                auto ctx      = ct.get_target().get_context();
                 auto& gpu_ctx = any_cast<migraphx::gpu::context>(ctx);
-		        migraphx::run_passes(*p.get_main_module(), {migraphx::gpu::compile_bytecode{&gpu_ctx}});
+                migraphx::run_passes(*p.get_main_module(),
+                                     {migraphx::gpu::compile_bytecode{&gpu_ctx}});
                 p.finalize();
                 l.save(p);
-	        }  
-            
+            }
+
             if(ct.target_name == "gpu")
             {
                 if(is_offload_copy_set(p) and not co.offload_copy)
@@ -666,9 +667,10 @@ struct compiler
                 }
             }
 
-            if(!has_port_ops) 
+            if(!has_port_ops)
             {
-                std::cout << "The program is already compiled, skipping compilation ..." << std::endl;
+                std::cout << "The program is already compiled, skipping compilation ..."
+                          << std::endl;
             }
             if(to_fp16 or to_bf16 or to_int8 or to_fp8 or to_int4)
             {
@@ -886,8 +888,8 @@ struct roctx : command<roctx>
 
     void run()
     {
-        auto p = c.compile();
-        auto m = c.params(p);
+        auto p   = c.compile();
+        auto m   = c.params(p);
         auto rtx = create_marker_roctx();
         p.mark(m, std::move(rtx));
     }

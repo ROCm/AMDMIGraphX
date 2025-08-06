@@ -64,7 +64,7 @@ MIGRAPHX_GPU_EXPORT mlir_code_object compile_mlir(const context& migraphx_ctx,
 MIGRAPHX_GPU_EXPORT mlir_code_object compile_mlir(const context& migraphx_ctx,
                                                   instruction_ref ins,
                                                   code_object_op co,
-                                                  const value& solution);                                                 
+                                                  const value& solution);
 
 MIGRAPHX_GPU_EXPORT instruction_ref insert_mlir(module& m,
                                                 instruction_ref ins,
@@ -74,11 +74,11 @@ MIGRAPHX_GPU_EXPORT instruction_ref insert_mlir(module& m,
 MIGRAPHX_GPU_EXPORT tuning_config get_tuning_config_mlir(const context& migraphx_ctx,
                                                          module m,
                                                          const std::vector<shape>& inputs,
-                                                         bool exhaustive);    
-                                                         
+                                                         bool exhaustive);
+
 MIGRAPHX_GPU_EXPORT tuning_config get_tuning_config_mlir(const context& migraphx_ctx,
-                                                        instruction_ref ins,
-                                                        bool exhaustive);                                                     
+                                                         instruction_ref ins,
+                                                         bool exhaustive);
 
 MIGRAPHX_GPU_EXPORT void
 dump_mlir_to_mxr(module m, const std::vector<instruction_ref>& inputs, const fs::path& location);

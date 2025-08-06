@@ -139,10 +139,7 @@ struct mlir_handle
 
     T release() { return handle.release().get(); }
 
-    explicit operator bool() const noexcept
-    {
-        return static_cast<bool>(handle);
-    }
+    explicit operator bool() const noexcept { return static_cast<bool>(handle); }
 
     private:
     std::unique_ptr<ptr, deleter> handle;
@@ -782,7 +779,7 @@ struct mlir_program
         {
             mlirMIGraphXAddBackendPipeline(pm_back.get(), target_arch.c_str());
         }
-	    	
+
         logger.clear();
         const size_t trace = value_of(MIGRAPHX_TRACE_MLIR{});
         static std::mutex mutex;
@@ -820,14 +817,14 @@ struct mlir_program
             }
             MIGRAPHX_THROW(error);
         }
-	    //std::cout << "ran populate_params_pipeline:\n";
-	    //auto mod_op = mlirModuleGetOperation(this->mmodule.get());
-        //std::cout << mlir_print(&mlirOperationPrint, mod_op) << std::endl;
+        // std::cout << "ran populate_params_pipeline:\n";
+        // auto mod_op = mlirModuleGetOperation(this->mmodule.get());
+        // std::cout << mlir_print(&mlirOperationPrint, mod_op) << std::endl;
     }
 
     code_object_op compile(const value& solution, bool portable)
-    {	
-	    return portable ? compilePortable(solution) : compile(solution);
+    {
+        return portable ? compilePortable(solution) : compile(solution);
     }
 
     code_object_op compile(const value& solution)
@@ -835,7 +832,7 @@ struct mlir_program
         const bool trace = enabled(MIGRAPHX_TRACE_MLIR{});
 
         static std::mutex mutex;
-	    // std::cout << "compiling non-portable...\n";
+        // std::cout << "compiling non-portable...\n";
         // 1st pipeline to call
         auto mod_op1 = mlirModuleGetOperation(mmodule.get());
         if(trace)
@@ -848,7 +845,7 @@ struct mlir_program
         auto code_object = get_bytecode();
 
         mlir_module mod = load_bytecode(code_object);
-        mmodule = std::move(mod);
+        mmodule         = std::move(mod);
 
         auto mod_op2 = mlirModuleGetOperation(mmodule.get());
         if(trace)
@@ -861,10 +858,10 @@ struct mlir_program
             get_module_tuned();
         if(not solution.is_null())
             set_tuning(solution);
-        
+
         // 2nd pipeline to call
         run_backend_pipeline();
-	
+
         auto mod_op3 = mlirModuleGetOperation(mmodule.get());
         if(trace)
         {
@@ -872,38 +869,38 @@ struct mlir_program
             std::cout << mlir_print(&mlirOperationPrint, mod_op3) << std::endl;
         }
 
-	    code_object_op op{};
-	    op.symbol_name                = sym_name;
+        code_object_op op{};
+        op.symbol_name                = sym_name;
         op.code_object                = get_binary();
-	    std::tie(op.global, op.local) = get_launch_params();
-	    return op;	    
+        std::tie(op.global, op.local) = get_launch_params();
+        return op;
     }
 
     code_object_op compilePortable(const value& solution)
     {
         // 1st pipeline to call
         run_high_level_pipeline();
-        
+
         auto code_object = get_bytecode();
 
         mlir_module mod = load_bytecode(code_object);
-        mmodule = std::move(mod);
+        mmodule         = std::move(mod);
 
-	    code_object_op op{};
+        code_object_op op{};
 
-	    op.symbol_name                = sym_name;
-	    op.code_object                = get_bytecode();
-        op.format                     = code_object_format::mlir_bytecode;
-	    return op;
-    }    
-    
+        op.symbol_name = sym_name;
+        op.code_object = get_bytecode();
+        op.format      = code_object_format::mlir_bytecode;
+        return op;
+    }
+
     void compileBytecode(const value& solution, code_object_op& op)
     {
         const bool trace = enabled(MIGRAPHX_TRACE_MLIR{});
 
         static std::mutex mutex;
         if(trace)
-	        std::cout   << "compiling bytecode...\n";	
+            std::cout << "compiling bytecode...\n";
 
         std::string tuning_cfg_path = string_value_of(MIGRAPHX_MLIR_TUNING_CFG{});
         if(not tuning_cfg_path.empty())
@@ -913,21 +910,24 @@ struct mlir_program
         bool portable = true;
         run_backend_pipeline(portable);
 
-	    op.code_object                = get_binary();
+        op.code_object                = get_binary();
         op.format                     = code_object_format::binary;
-	    std::tie(op.global, op.local) = get_launch_params();    
-    }   
+        std::tie(op.global, op.local) = get_launch_params();
+    }
 
     void set_gpu_properties(const context& migraphx_ctx)
-    {        
-	    if(migraphx_ctx.get_portable_flag()) {
-	        target_arch        = "gfxMIGX";
- 	        num_cu             = 0;
-	    } else {            
-	        const auto& device = migraphx_ctx.get_current_device();
-	        target_arch        = device.get_device_name();
-	        num_cu             = device.get_cu_count();
-	    }
+    {
+        if(migraphx_ctx.get_portable_flag())
+        {
+            target_arch = "gfxMIGX";
+            num_cu      = 0;
+        }
+        else
+        {
+            const auto& device = migraphx_ctx.get_current_device();
+            target_arch        = device.get_device_name();
+            num_cu             = device.get_cu_count();
+        }
     }
 
     std::pair<std::size_t, std::size_t> get_launch_params() const
@@ -947,7 +947,7 @@ struct mlir_program
         value::binary result(size);
         if(mlirGetBinary(mmodule.get(), &size, reinterpret_cast<char*>(result.data())))
             return result;
-	std::cout << "Got binary: " << result << "\n";
+        std::cout << "Got binary: " << result << "\n";
         MIGRAPHX_THROW("Failed to compile mlir program");
     }
 
@@ -964,25 +964,26 @@ struct mlir_program
     mlir_module load_bytecode(const value::binary& bc) const
     {
 
-        mlir_module mod = mlirLoadBytecode(ctx.get(), reinterpret_cast<const char*>(bc.data()), bc.size());\
-        if(mod) {
+        mlir_module mod =
+            mlirLoadBytecode(ctx.get(), reinterpret_cast<const char*>(bc.data()), bc.size());
+        if(mod)
+        {
             return std::move(mod);
         }
         const bool trace = enabled(MIGRAPHX_TRACE_MLIR{});
 
         static std::mutex mutex;
-        if(trace)
-        {
-
-        }
+        if(trace) {}
         MIGRAPHX_THROW("Failed to load mlir bytecode into module");
     }
 
-    mlir_module load_bytecode(const value::binary& bc, const code_object_op &cop) const
+    mlir_module load_bytecode(const value::binary& bc, const code_object_op& cop) const
     {
 
-        mlir_module mod = mlirLoadBytecode(ctx.get(), reinterpret_cast<const char*>(bc.data()), bc.size());\
-        if(mod) {
+        mlir_module mod =
+            mlirLoadBytecode(ctx.get(), reinterpret_cast<const char*>(bc.data()), bc.size());
+        if(mod)
+        {
             return std::move(mod);
         }
         const bool trace = enabled(MIGRAPHX_TRACE_MLIR{});
@@ -996,10 +997,7 @@ struct mlir_program
         MIGRAPHX_THROW("Failed to load mlir bytecode into module");
     }
 
-    void load_and_set_bytecode(const value::binary& bc)
-    {
-        mmodule = std::move(load_bytecode(bc));
-    }
+    void load_and_set_bytecode(const value::binary& bc) { mmodule = std::move(load_bytecode(bc)); }
 
     void load_and_set_bytecode(const value::binary& bc, const code_object_op& cop)
     {
@@ -1052,7 +1050,6 @@ struct mlir_program
         return tc;
     }
 
-
     tuning_config get_bytecode_tuning_config(bool exhaustive)
     {
         tuning_config tc;
@@ -1087,7 +1084,7 @@ struct mlir_program
                            " bytes and thus too long");
         tc.problem = std::string(tuning_key.begin(), tuning_key.begin() + tuning_key_bytes);
         return tc;
-    }    
+    }
 
     std::string get_tune_params(bool xdlops) const { return get_mlir_perf_for_conv(pp, xdlops); }
 
@@ -1361,7 +1358,7 @@ mlir_code_object compile_mlir(const context& migraphx_ctx,
     /*
     if(m.contains_mlir()) {
         trace
-        
+
         mlir_program mp
         mp.set_gpu_properties(migraphx_ctx);
         mp.load_bytecode(m);
@@ -1389,14 +1386,14 @@ mlir_code_object compile_mlir(const context& migraphx_ctx,
     // will run (in the future) the second pipeline on the objects involved
     // right now, we just need the top level
     auto co = mp.compile(solution, is_portable);
-    
+
     auto mod_op1 = mlirModuleGetOperation(mp.mmodule.get());
     if(trace)
     {
         const std::lock_guard<std::mutex> lock(mutex);
         std::cout << mlir_print(&mlirOperationPrint, mod_op1) << std::endl;
     }
-    
+
     co.expected_inputs = in_shapes;
     auto out_shapes    = m.get_output_shapes();
     if(out_shapes.size() == 1)
@@ -1411,7 +1408,7 @@ mlir_code_object compile_mlir(const context& migraphx_ctx,
     mlir_code_object mco;
     mco.cop                 = co;
     // if(is_portable)
-        //mco.smod                = m;
+    // mco.smod                = m;
     size_t num_prefill_args = mlirGetNumPrefillArgs(mp.mmodule.get());
     if(num_prefill_args > 0)
     {
@@ -1457,7 +1454,7 @@ mlir_code_object compile_mlir(const context& migraphx_ctx,
 
     // just want the bytecode and update the format
     mp.compileBytecode(solution, co);
-    
+
     auto mod_op1 = mlirModuleGetOperation(mp.mmodule.get());
     if(trace)
     {
@@ -1466,7 +1463,7 @@ mlir_code_object compile_mlir(const context& migraphx_ctx,
     }
 
     mlir_code_object mco;
-    mco.cop                 = co;    
+    mco.cop                 = co;
     size_t num_prefill_args = mlirGetNumPrefillArgs(mp.mmodule.get());
     if(num_prefill_args > 0)
     {
@@ -1488,7 +1485,7 @@ mlir_code_object compile_mlir(const context& migraphx_ctx,
         mco.prefill_indices = prefill_indices;
         mco.prefill_values  = prefill_values;
     }
-    return mco;    
+    return mco;
 }
 
 /*
@@ -1497,7 +1494,7 @@ mlir_code_object compile_mlir(const context& migraphx_ctx,
                               const std::vector<shape>& in_shapes,
                               const value& solution)
 {
-    const bool trace = enabled(MIGRAPHX_TRACE_MLIR{});    
+    const bool trace = enabled(MIGRAPHX_TRACE_MLIR{});
 
     mlir_program mp;
     mp.set_gpu_properties(migraphx_ctx);
@@ -1519,7 +1516,6 @@ mlir_code_object compile_mlir(const context& migraphx_ctx,
     return mco;
 }
     */
-
 
 instruction_ref insert_mlir(module& m,
                             instruction_ref ins,
@@ -1559,30 +1555,30 @@ tuning_config get_tuning_config_mlir(const context& migraphx_ctx,
     return tc;
 }
 
-tuning_config get_tuning_config_mlir(const context& migraphx_ctx,
-                                     instruction_ref ins,
-                                     bool exhaustive)
+tuning_config
+get_tuning_config_mlir(const context& migraphx_ctx, instruction_ref ins, bool exhaustive)
 {
     mlir_program mp;
     code_object_op cop = any_cast<code_object_op>(ins->get_operator());
 
-    static std::mutex mutex;    
+    static std::mutex mutex;
     const bool trace = enabled(MIGRAPHX_TRACE_MLIR{});
-    if(trace) {
+    if(trace)
+    {
         const std::lock_guard<std::mutex> lock(mutex);
         std::cout << "Op: " << cop << std::endl;
-    } 
+    }
     mlir_module mod = mp.load_bytecode(cop.code_object, cop);
-    
+
     mp.set_gpu_properties(migraphx_ctx);
     mp.mmodule = std::move(mod);
 
     // run populateparamspass
     mp.run_populate_params_pipeline();
 
-    //std::cout << "getting tuning config via mp.get_bytecode_tuning_config\n";
-    auto tc          = mp.get_bytecode_tuning_config(exhaustive);
-    
+    // std::cout << "getting tuning config via mp.get_bytecode_tuning_config\n";
+    auto tc = mp.get_bytecode_tuning_config(exhaustive);
+
     if(trace)
     {
         const std::lock_guard<std::mutex> lock(mutex);
@@ -1632,7 +1628,8 @@ std::string dump_mlir(module m, const std::vector<shape>& inputs)
 
 // Disabling clang-tidy warning on non-real useage.
 // NOLINTBEGIN(performance-unnecessary-value-param)
-mlir_code_object compile_mlir(const context&, module, const std::vector<shape>&, const value&, const operation&)
+mlir_code_object
+compile_mlir(const context&, module, const std::vector<shape>&, const value&, const operation&)
 {
     return {};
 }

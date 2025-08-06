@@ -22,6 +22,7 @@
  * THE SOFTWARE.
  */
 #include <algorithm>
+#include <atomic>
 #include <cstdint>
 #include <migraphx/shape.hpp>
 #include <migraphx/algorithm.hpp>
@@ -162,6 +163,7 @@ using mlir_tuning_space      = MIGRAPHX_MANAGE_MLIR_HANDLE(MlirRockTuningSpace,
                                                       mlirRockTuningSpaceDestroy);
 using mlir_tuning_param      = MIGRAPHX_MANAGE_MLIR_HANDLE(MlirRockTuningParam,
                                                       mlirRockTuningParamDestroy);
+static std::atomic<int> dump_counter = 0;
 
 static std::string_view to_string_view(MlirStringRef s) { return {s.data, s.length}; }
 
@@ -1096,30 +1098,15 @@ std::string dump_mlir(module m, const std::vector<shape>& inputs)
 
 void abbreviate_symbol_names(std::string& n)
 {
-    static const std::unordered_map<std::string, std::string> abbrs = {{"reshape", "rsp"},
-                                                                       {"transpose", "trp"},
-                                                                       {"slice", "slc"},
-                                                                       {"reduce_max", "rmax"},
-                                                                       {"reduce_sum", "rsum"},
-                                                                       {"convert", "cvt"}};
+    static const std::map<std::string, std::string> abbrs = {
+        {"reduce_max_reshape_sub_exp_reshape_reduce_sum_reshape_div", "softmax"},
+        {"reshape", "rsp"},
+        {"transpose", "trp"},
+        {"slice", "slc"}};
+
     for(auto const& [key, val] : abbrs)
     {
         replace_string_inplace(n, key, val);
-    }
-}
-
-void truncate_file_name(std::string& fname, const std::string& ext, const size_t max_len)
-{
-    if(fname.length() <= max_len)
-        return;
-
-    abbreviate_symbol_names(fname);
-
-    // if file name is still too long after shortening op names, truncate
-    if(fname.length() > max_len)
-    {
-        fname = fname.substr(0, max_len - ext.length());
-        fname += ext;
     }
 }
 
@@ -1131,12 +1118,30 @@ static std::string compute_dump_name(const module& m, const std::string& ext)
         if(contains({"quant_convolution", "quant_dot", "convolution", "dot"}, ins->name()))
             sizes.insert(sizes.end(), ins->inputs().begin(), ins->inputs().end());
     }
-    auto name =
-        mlir_program::get_symbol_name(m) + "_" + shape::to_sizes_string(to_shapes(sizes)) + ext;
-    replace_string_inplace(name, ", ", "_");
-    replace_string_inplace(name, ":", "s");
-    truncate_file_name(name, ext, 255);
-    return name;
+    auto shape_str = "_" + shape::to_sizes_string(to_shapes(sizes));
+    auto sym_names = mlir_program::get_symbol_name(m);
+    abbreviate_symbol_names(sym_names);
+
+    static int max_file_length = 255;
+    std::string fname;
+    if(sym_names.length() + shape_str.length() + ext.length() > max_file_length)
+    {
+        auto cnt    = "_" + std::to_string(dump_counter++);
+        auto cutoff = max_file_length - shape_str.length() - ext.length() - cnt.length();
+
+        // If the shapes are too big, the filename will be unparsable anyways so simply name it
+        // mlir_x to avoid erroring out
+        fname =
+            cutoff > 0 ? sym_names.substr(0, cutoff) + shape_str + cnt + ext : "mlir" + cnt + ext;
+    }
+    else
+    {
+        fname = sym_names + shape_str + ext;
+    }
+
+    replace_string_inplace(fname, ", ", "_");
+    replace_string_inplace(fname, ":", "s");
+    return fname;
 }
 
 void dump_mlir_to_file(module m, const std::vector<shape>& inputs, const fs::path& location)

@@ -58,7 +58,7 @@ struct any_ptr
     T get() const
     {
         static_assert(std::is_pointer<T>{}, "Must be a pointer");
-        assert(ptr != nullptr);
+        assert(not ti or ptr != nullptr);
         if(ti and std::type_index{typeid(T)} != *ti)
             MIGRAPHX_THROW("any_ptr: type mismatch: " + std::string{name} + " != " + get_name<T>());
         else if(name != get_name<T>())

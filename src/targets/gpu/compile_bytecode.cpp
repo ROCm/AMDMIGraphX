@@ -44,6 +44,16 @@ namespace gpu {
 MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_GPU_COMPILE_PARALLEL);
 MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_TRACE_BENCHMARKING);
 
+
+// For the most part this is just a modified compile_ops file, changed to deal with MLIR bytecode
+// important thing here to note is that we do not save the mlir module anywhere, causing us to have to reread
+// each bytecode sequence over and over again, this is extremely inefficient. We would need to export mlir.cpp 
+// structs/APIs to expose the mlir objects, then we would need to read each bytecode sequence once and when we
+// need to compile, affix tuning params, then run, we can just clone the module via: 
+//      mlir_module new_module = original_module.clone()
+// this might be useful for the general pipeline as well since we won't have to rerun the pipeline from
+// start to finish, instead we can start from right before affixing parameters and arch info.
+
 struct bc_compiled_result
 {
     mlir_code_object mco;
@@ -66,7 +76,6 @@ struct bc_compile_plan
     std::vector<optional<bc_compiled_result>> results = {};
     void update_config(bool exhaustive)
     {
-        //std::cout << "Calling get_tuning_config_mlir\n";
         config = get_tuning_config_mlir(*ctx, ins, exhaustive);
     }
     template <class Vector>
@@ -185,6 +194,7 @@ struct bc_compile_plan
             MIGRAPHX_THROW("Multiple kernels without config for " + preop.name());        
         if(trace_level > 1)
             std::cout << "Problem: " << config->problem << std::endl;
+
         std::vector<double> times;
         times.reserve(results.size());
         std::transform(results.begin(),
@@ -222,9 +232,6 @@ struct bc_compile_plan
                                           });
                            auto bench_ins = bench_mm->add_instruction(
                                cr->mco.cop, bench_ins_inputs, cr->ins->module_inputs());
-                           // IMPORTANT
-                           //cr->replace.replace(*bench_mm, bench_ins);
-                           // do dead code elimination
                            run_passes(*bench_mm, {dead_code_elimination{}});
                            // by default, measure runtime with bundle of 1 benchmark config,
                            // repeat 20 times
@@ -256,7 +263,6 @@ struct bc_compile_plan
     {
         const auto& cr = benchmark();
         ins->replace(cr.mco.cop);
-        //cr.replace.replace(m, cr.ins);
     }
 };
 
@@ -296,7 +302,6 @@ struct bc_compile_manager
         }
         par_compile(compiles.size(), [&](auto i) { compiles[i](); });
 
-        // Replace and/or benchmark
         for(const auto& cp : cps)
         {
             if(cp.results.empty())
@@ -304,7 +309,6 @@ struct bc_compile_manager
             cp.replace(m);
         }
 
-        // Remove compile_plan already executed
         cps.erase(std::remove_if(cps.begin(),
                                  cps.end(),
                                  [](const auto& cp) { return not cp.results.empty(); }),
@@ -337,7 +341,5 @@ void compile_bytecode::apply(module& m) const
 }
 
 } // namespace gpu
-
 } // namespace migraphx
-
 } // namespace MIGRAPHX_INLINE_NS

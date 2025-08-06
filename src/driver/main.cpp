@@ -613,13 +613,10 @@ struct compiler
         for(const auto* mod: mods)
         {
 	        for(const auto& ins : *mod)
-	        {
-                std::cout << ins.name() << "\n";
+	        {                
 	            if(ins.name() == "gpu::code_object") 
                 {
-                    std::cout << "Found ins: ";
                     migraphx::gpu::code_object_op migx_co = migraphx::any_cast<migraphx::gpu::code_object_op>(ins.get_operator());
-                    std::cout << migx_co << "\n";
                     if(migx_co.is_mlir())
                         return true;
                 }
@@ -638,21 +635,17 @@ struct compiler
         if(p.is_compiled())
         {
             std::cout << "Already compiled\n";
+
             bool has_port_ops = has_portable_ops(p);
 	        if(has_port_ops) // means we must finalize it
 	        {
-                // we run compile_bytecode, which compiles the bytecode (genius!)
-                std::cout << "DETECTED portable mlir bytecode...\n";
-                auto t = ct.get_target();
-                auto ctx = t.get_context();
-                auto& gtx = any_cast<migraphx::gpu::context>(ctx);
-                //auto& gpu_ctx = migraphx::any_cast<migraphx::gpu::context>(t.get_context());
-		        migraphx::run_passes(*p.get_main_module(),
-				     {migraphx::gpu::compile_bytecode{&gtx}
-				     });
+                auto ctx = ct.get_target().get_context();
+                auto& gpu_ctx = any_cast<migraphx::gpu::context>(ctx);
+		        migraphx::run_passes(*p.get_main_module(), {migraphx::gpu::compile_bytecode{&gpu_ctx}});
                 p.finalize();
                 l.save(p);
 	        }  
+            
             if(ct.target_name == "gpu")
             {
                 if(is_offload_copy_set(p) and not co.offload_copy)

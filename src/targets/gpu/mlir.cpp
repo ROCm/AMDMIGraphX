@@ -1022,12 +1022,13 @@ static void rewrite_reduce(module& m)
                     new_reduce_axes.push_back(axis);
                 }
             }
-            // If the reshape dimensions are the same as the original, use the original reduce axes to avoid issues with empty axes
-            if (std::vector<int64_t>(in_lens.begin(), in_lens.end()) == new_rsp_dims)
+            // If the reshape dimensions are the same as the original, use the original reduce axes
+            // to avoid issues with empty axes
+            if(std::vector<int64_t>(in_lens.begin(), in_lens.end()) == new_rsp_dims)
                 std::transform(reduce_axes.begin(),
-                                reduce_axes.end(),
-                                std::back_inserter(new_reduce_axes),
-                                [](auto axis) { return static_cast<int64_t>(axis); });
+                               reduce_axes.end(),
+                               std::back_inserter(new_reduce_axes),
+                               [](auto axis) { return static_cast<int64_t>(axis); });
             auto rsp_ins = m.insert_instruction(
                 i, migraphx::make_op("reshape", {{"dims", new_rsp_dims}}), i->inputs().front());
             auto collapsed_reduce = m.insert_instruction(

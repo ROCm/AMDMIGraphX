@@ -333,17 +333,17 @@ TEST_CASE(byte_constexpr_evaluation)
     constexpr auto shift_left_result  = b1 << 2u;
     constexpr auto shift_right_result = b2 >> 1u;
 
-    static_assert(migraphx::to_integer<uint8_t>(or_result) == (42 | 128),
+    static_assert(migraphx::to_integer<uint8_t>(or_result) == (42u | 128u),
                   "Constexpr OR evaluation failed");
-    static_assert(migraphx::to_integer<uint8_t>(and_result) == (42 & 128),
+    static_assert(migraphx::to_integer<uint8_t>(and_result) == (42u & 128u),
                   "Constexpr AND evaluation failed");
-    static_assert(migraphx::to_integer<uint8_t>(xor_result) == (42 ^ 128),
+    static_assert(migraphx::to_integer<uint8_t>(xor_result) == (42u ^ 128u),
                   "Constexpr XOR evaluation failed");
-    static_assert(migraphx::to_integer<uint8_t>(not_result) == (~42u & 0xFF),
+    static_assert(migraphx::to_integer<uint8_t>(not_result) == (~42u & 0xFFu),
                   "Constexpr NOT evaluation failed");
-    static_assert(migraphx::to_integer<uint8_t>(shift_left_result) == ((42 << 2) & 0xFF),
+    static_assert(migraphx::to_integer<uint8_t>(shift_left_result) == ((42u << 2u) & 0xFFu),
                   "Constexpr left shift evaluation failed");
-    static_assert(migraphx::to_integer<uint8_t>(shift_right_result) == (128 >> 1),
+    static_assert(migraphx::to_integer<uint8_t>(shift_right_result) == (128u >> 1u),
                   "Constexpr right shift evaluation failed");
 }
 

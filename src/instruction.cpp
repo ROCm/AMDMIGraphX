@@ -682,26 +682,34 @@ bool is_interdependent(const std::vector<instruction_ref>& instructions,
 std::unordered_set<instruction_ref>
 find_instructions_between(instruction_ref start, instruction_ref end, const_module_ref m)
 {
+    assert(reaches(start, end, m));
     std::unordered_set<instruction_ref> result;
     std::unordered_set<instruction_ref> inss;
 
-    reaches(start, end, m, [&](auto ins) {
+    fix<void>([&](auto self, auto ins) {
+        if(not m->has_instruction(ins))
+            return;
         if(ins->inputs().empty())
             return;
-        inss.insert(ins);
-        return false;
-    });
+        if (not inss.insert(ins).second)
+            return;
+        if(ins == start)
+            return;
+        for(auto input:ins->inputs())
+            self(input);
+    })(end);
 
     fix<void>([&](auto self, auto ins) {
         if(ins == end)
             return;
-        if(not contains(inss, ins))
+        if(ins != start and not contains(inss, ins))
             return;
-        if(not result.insert(ins).second)
+        if (not result.insert(ins).second)
             return;
-        for(auto output : ins->outputs())
+        for(auto output:ins->outputs())
             self(output);
     })(start);
+    result.insert(end);
     return result;
 }
 

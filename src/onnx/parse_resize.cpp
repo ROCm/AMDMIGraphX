@@ -115,6 +115,16 @@ static std::string get_coord_trans_mode(const onnx_parser::attribute_map& attr)
     return coord_trans_mode;
 }
 
+static float get_cubic_coeff(const onnx_parser::attribute_map& attr)
+{
+    float coeff = -0.75f;
+    if(contains(attr, "cubic_coeff_a"))
+    {
+        cubic = attr.at("cubic_coeff_a").f();
+    }
+    return coeff;
+}
+
 static std::string get_mode(const onnx_parser::attribute_map& attr)
 {
     std::string mode = "nearest";

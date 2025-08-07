@@ -578,9 +578,9 @@ bool reaches(instruction_ref start, instruction_ref end, const_module_ref m)
 {
     if(start == end)
         return true;
-    if(not m->has_instruction(start) or not m->has_instruction(end))
+    if(not m->has_instruction(start) or not m->has_instruction(end) or
+       std::distance(m->begin(), start) > std::distance(m->begin(), end))
         return false;
-    assert(std::distance(m->begin(), start) < std::distance(m->begin(), end));
     std::size_t initial_distance = std::distance(start, end);
     std::unordered_set<instruction_ref> visited;
     return fix<bool>([&](auto self, auto ins) -> bool {
@@ -594,6 +594,31 @@ bool reaches(instruction_ref start, instruction_ref end, const_module_ref m)
             return false;
         return std::any_of(ins->inputs().begin(), ins->inputs().end(), self);
     })(end);
+}
+
+// Return set of all instructions that are connected to both start and end nodes (inclusive)
+std::unordered_set<instruction_ref>
+find_instructions_between(instruction_ref start, instruction_ref end, const_module_ref m)
+{
+    std::queue<instruction_ref> inputs;
+    std::unordered_set<instruction_ref> inss;
+    inputs.push(end);
+
+    while(not inputs.empty())
+    {
+        auto current_inp = inputs.front();
+        inputs.pop();
+
+        if(reaches(start, current_inp, m) and inss.insert(current_inp).second and
+           current_inp != start)
+        {
+            for(auto i : current_inp->inputs())
+            {
+                inputs.push(i);
+            }
+        }
+    }
+    return inss;
 }
 
 } // namespace MIGRAPHX_INLINE_NS

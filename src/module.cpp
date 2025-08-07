@@ -64,7 +64,7 @@ struct module_impl
 
     bool contains(instruction_ref ins) const
     {
-        if(is_end(ins, instructions.end()))
+        if(ins == instructions.end())
             return false;
         auto r = instruction_set.count(std::addressof(*ins)) > 0;
         assert(r == std::any_of(instructions.begin(), instructions.end(), [&](auto&& x) {
@@ -1468,26 +1468,70 @@ std::vector<module_ref> module::get_sub_modules(bool shallow) const
 
 module& module::sort()
 {
+    if(this->begin() == this->end())
+        return *this;
+    std::unordered_set<instruction_ref> visited;
     auto implicit_deps = calc_implicit_deps();
-    fix([&](auto self, auto ins) {
-        this->move_instruction(ins, this->begin());
-        auto ins_inputs = ins->inputs();
-        if(implicit_deps.find(ins) != implicit_deps.end())
-        {
-            auto ins_implict_inputs = implicit_deps.at(ins);
-            ins_inputs.insert(
-                ins_inputs.end(), ins_implict_inputs.begin(), ins_implict_inputs.end());
-        }
-        for(auto child : ins_inputs)
-        {
-            if(not contains(this->impl->instructions, child))
+    std::vector<instruction_ref> lasts;
+    copy_if(iterator_for(*this), std::back_inserter(lasts), [&](auto last) {
+        return last->outputs().empty();
+    });
+    for(auto last : lasts)
+    {
+        fix([&](auto self, auto ins) {
+            if(visited.insert(ins).second == false)
+                return;
+            auto ins_inputs = ins->inputs();
+            if(implicit_deps.find(ins) != implicit_deps.end())
             {
-                continue;
+                auto ins_implict_inputs = implicit_deps.at(ins);
+                ins_inputs.insert(
+                    ins_inputs.end(), ins_implict_inputs.begin(), ins_implict_inputs.end());
             }
-            self(child);
-        }
-    })(std::prev(this->end()));
+            for(auto child : ins_inputs)
+            {
+                if(not contains(this->impl->instructions, child))
+                    continue;
+                self(child);
+            }
+            this->move_instruction(ins, this->end());
+        })(last);
+    }
     assert(this->validate() == this->end());
+    return *this;
+}
+
+module& module::shuffle(std::vector<std::size_t> permutation)
+{
+    if(permutation.empty())
+        return *this;
+    const std::size_t n = this->impl->instructions.size();
+    assert(permutation.size() == n and "permutation size must match list size");
+
+    auto it_dest = this->impl->instructions.begin();
+
+    for(std::size_t i = 0; i < n; ++i)
+    {
+        // find j >= i such that permutation[j] == i
+        auto itp = std::find(permutation.begin() + i, permutation.end(), i);
+        assert(itp != permutation.end());
+        std::size_t j = std::distance(permutation.begin(), itp);
+
+        std::size_t dist = j - i;
+        auto it_src      = it_dest;
+        std::advance(it_src, dist);
+
+        if(dist > 0)
+            this->impl->instructions.splice(it_dest, this->impl->instructions, it_src);
+
+        // Rotate permutation[i..j] right by 1 so that permutation[i] == i
+        std::rotate(permutation.begin() + i, permutation.begin() + j, permutation.begin() + j + 1);
+
+        // if nothing moved (dist==0), advance it_dest manually;
+        //    otherwise, splice has already pushed the old it_dest forward
+        if(dist == 0)
+            ++it_dest;
+    }
     return *this;
 }
 

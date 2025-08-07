@@ -77,12 +77,13 @@ struct html_table_style
  */
 struct graphviz_node_style
 {
-    std::string fillcolor = "lightgray";
+    std::string fillcolor   = "lightgray";
     std::string bordercolor = "";
-    std::string fontcolor = "black";
-    std::string style     = "rounded,filled";
-    std::string shape     = "none";
-    std::string fontname  = "Helvetica";
+    std::string fontcolor   = "black";
+    std::string style       = "rounded,filled";
+    std::string shape       = "box";
+    std::string fontname    = "Helvetica";
+    int penwidth            = 3;
 };
 
 /**

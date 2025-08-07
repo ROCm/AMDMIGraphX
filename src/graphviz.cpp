@@ -103,6 +103,7 @@ std::string build_node_style(const graphviz_node_style& node_style)
         ss << "color=" << node_style.bordercolor << " ";
 
     ss << "shape=" << node_style.shape << " ";
+    ss << "penwidth=" << node_style.penwidth << " ";
     ss << "fontname=" << node_style.fontname;
     return ss.str();
 }
@@ -114,23 +115,23 @@ std::string get_graph_color(const instruction_ref& ins)
     bool context_free = is_context_free(op);
     bool alias        = op.output_alias(to_shapes(ins->inputs())) >= 0;
 
-    if(ins->can_eval())
+    if(ins->can_eval()) // const foldable
     {
         return "cyan";
     }
-    else if(context_free and alias)
+    else if(context_free and alias) // lazy reshape
     {
         return "lime";
     }
-    else if(context_free and not alias)
+    else if(context_free and not alias) // ref color
     {
-        return "magenta";
+        return "orange";
     }
-    else if(not context_free and alias)
+    else if(not context_free and alias) // backend color
     {
         return "yellow";
     }
-    else
+    else // default: no border
     {
         return "";
     }

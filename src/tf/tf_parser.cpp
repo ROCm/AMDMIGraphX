@@ -313,17 +313,19 @@ void tf_parser::parse_graph(const tensorflow::GraphDef& graph)
 
         shape s{shape_type, dyn_dims};
 
-
-        if(contains(map_dyn_input_dims, name))
-        {
-            s = shape_from_dyn_dims(shape_type, map_dyn_input_dims.at(name));
-        }
+        // convert to static shape if no dynamic shapes by default
         if(std::all_of(s.dyn_dims().begin(), s.dyn_dims().end(), [&](auto dd) {
                return dd.min == dd.max;
            }))
         {
             s = {shape_type, s.max_lens()};
         }
+
+        if(contains(map_dyn_input_dims, name))
+        {
+            s = shape_from_dyn_dims(shape_type, map_dyn_input_dims.at(name));
+        }
+        
 
         instructions[name] = to_nhwc(mm->add_parameter(name, s));
     }

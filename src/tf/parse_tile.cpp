@@ -50,10 +50,22 @@ struct parse_tile : op_parser<parse_tile>
         // workaround for dynamic shape, treat tile as a broadcast across the first dimension
         // that is equal to the batch being used for other params
         {
-            auto out_lens = args[0]->get_shape().lens();
-            out_lens[0] = parser.batch_size;
-            return info.add_instruction(
-            make_op("multibroadcast", {{"out_lens", out_lens}}), args[0]);
+            auto s0 = args[0]->get_shape();
+            // if(s0.dynamic())
+            // {
+            //     auto out_dyn_dims = s0.dyn_dims();
+            //     out_dyn_dims[0] = parser.default_dyn_dim_value;
+            //     return info.add_instruction(
+            //         make_op("multibroadcast", {{"out_dyn_dims", out_dyn_dims}}), args[0]);
+            // }
+            // else
+            // {
+                auto out_lens = args[0]->get_shape().lens();
+                out_lens[0] = parser.batch_size;
+                return info.add_instruction(
+                make_op("multibroadcast", {{"out_lens", out_lens}}), args[0]);
+            // }
+            
         }
 
 

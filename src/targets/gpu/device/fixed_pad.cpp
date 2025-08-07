@@ -23,12 +23,12 @@
  */
 #include <migraphx/shape.hpp>
 #include <migraphx/argument.hpp>
-// #include <migraphx/clamp.hpp>
 #include <migraphx/gpu/device/nary.hpp>
 #include <migraphx/gpu/device/fixed_pad.hpp>
 #include <migraphx/gpu/device/tensor.hpp>
 #include <migraphx/gpu/device/launch.hpp>
 #include <migraphx/float_equal.hpp>
+#include <migraphx/functional.hpp>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
@@ -39,9 +39,16 @@ argument
 fixed_pad(hipStream_t stream, const argument& result, const argument& arg)
 {
     hip_visit_all(result, arg)([&](auto output, auto input) {
-        gs_launch(stream, arg.get_shape().elements())([=](auto i) __device__ {
-            auto idx = input.get_shape().multi(i);
-            output[idx] = input[idx];
+
+        gs_launch(stream, result.get_shape().elements())([=](auto i) __device__ {
+            auto input_bounds = input.get_shape().lens;
+            auto idx = output.get_shape().multi(i);
+
+            bool in_bounds = sequence(idx.size(), [&](auto... js) {
+                return ((idx[js] < input_bounds[js]) and ...);
+            });
+
+            output[idx] = in_bounds ? input[idx] : 0;
         });
     });
     return result;

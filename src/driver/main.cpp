@@ -314,6 +314,11 @@ struct loader
         options.map_input_dims    = map_input_dims;
         options.map_dyn_input_dims = map_dyn_input_dims;
         options.output_node_names = output_node_names;
+        if(not default_dyn_dim.empty())
+        {
+            auto v                        = from_json_string(convert_to_json(default_dyn_dim));
+            options.default_dyn_dim_value = from_value<migraphx::shape::dynamic_dimension>(v);
+        }
         return options;
     }
 

@@ -177,6 +177,8 @@ graphviz_node_content get_node_content(const instruction_ref& ins)
         const auto& attr = op.attributes();
         if(attr.contains("style"))
             content.node_style.style = attr.at("style").to<std::string>();
+        if(attr.contains("fillcolor"))
+            content.node_style.fillcolor = attr.at("fillcolor").to<std::string>();
         if(attr.contains("fontcolor"))
             content.node_style.fontcolor = attr.at("fontcolor").to<std::string>();
     }

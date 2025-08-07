@@ -60,6 +60,27 @@ namespace graphviz {
 */
 
 /**
+ * Struct for RGB value
+ */
+struct RGB
+{
+    uint8_t r;
+    uint8_t g;
+    uint8_t b;
+};
+
+/**
+ * Struct for RGBU helper functions
+ */
+struct RGBUtils
+{
+    static void rgb_darken(RGB& color);
+    static uint32_t rgb_to_hex_int(const RGB& color);
+    static std::string rgb_to_hex_str(const RGB& color);
+    static bool hex_to_rgb(const std::string& hex, RGB& color);
+};
+
+/**
  * Struct for html-style table parameters created with
  * <TABLE>...<TABLE/>
  */
@@ -77,8 +98,7 @@ struct html_table_style
  */
 struct graphviz_node_style
 {
-    std::string fillcolor = "lightgray";
-    std::string bordercolor = "";
+    std::string fillcolor = ""; // "lightgray";
     std::string fontcolor = "black";
     std::string style     = "rounded,filled";
     std::string shape     = "none";
@@ -131,7 +151,7 @@ graphviz_node_content get_node_content(const instruction_ref& ins);
 
 /**
  * Given an instruction_ref ins, determine the coloring based on alias and
- * context-free qualities
+ * context-free qualities, we use these qualities to darken for context free
  */
 std::string get_graph_color(const instruction_ref& ins);
 

@@ -28,6 +28,41 @@ namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
 namespace graphviz {
 
+void RGBUtils::rgb_darken(RGB& color)
+{
+    color.r = static_cast<uint8_t>(color.r * 0.8f);
+    color.g = static_cast<uint8_t>(color.g * 0.8f);
+    color.b = static_cast<uint8_t>(color.b * 0.8f);
+}
+
+uint32_t RGBUtils::rgb_to_hex_int(const RGB& color)
+{
+    return ((color.r << 16) | (color.g << 8) | (color.b));
+}
+
+std::string RGBUtils::rgb_to_hex_str(const RGB& color)
+{
+    std::ostringstream oss;
+    oss << '#' << std::uppercase << std::hex << std::setfill('0') << std::setw(2)
+        << static_cast<int>(color.r) << std::setw(2) << static_cast<int>(color.g) << std::setw(2)
+        << static_cast<int>(color.b);
+    return oss.str();
+}
+
+bool RGBUtils::hex_to_rgb(const std::string& hex, RGB& color)
+{
+    if(hex.empty() || hex[0] != '#' || hex.length() != 7)
+        return false;
+
+    unsigned int rgb_int = 0;
+    std::istringstream(hex.substr(1)) >> std::hex >> rgb_int;
+
+    color.r = (rgb_int >> 16) & 0xFF;
+    color.g = (rgb_int >> 8) & 0xFF;
+    color.b = rgb_int & 0xFF;
+    return true;
+}
+
 static std::string html_bold(const std::string& content) { return "<B>" + content + "</B>"; }
 
 static std::string html_table_start(const html_table_style& style)
@@ -97,11 +132,6 @@ std::string build_node_style(const graphviz_node_style& node_style)
     else
         ss << "fontcolor=" << node_style.fontcolor << " ";
 
-    if(is_hex_color(node_style.bordercolor) or node_style.bordercolor.empty())
-        ss << "color=\"" << node_style.bordercolor << "\" ";
-    else
-        ss << "color=" << node_style.bordercolor << " ";
-
     ss << "shape=" << node_style.shape << " ";
     ss << "fontname=" << node_style.fontname;
     return ss.str();
@@ -109,30 +139,49 @@ std::string build_node_style(const graphviz_node_style& node_style)
 
 std::string get_graph_color(const instruction_ref& ins)
 {
-    const auto& op = ins->get_operator();
+    const auto& op   = ins->get_operator();
+    const auto& attr = op.attributes();
 
     bool context_free = is_context_free(op);
     bool alias        = op.output_alias(to_shapes(ins->inputs())) >= 0;
 
-    if(ins->can_eval())
+    if(ins->can_eval()) // const foldable
     {
-        return "cyan";
+        std::string const_fold_color = "lightblue";
+
+        if(attr.contains("fillcolor"))
+        {
+            RGB rgb_color;
+            std::string fillcolor = attr.at("fillcolor").to<std::string>();
+
+            if(RGBUtils::hex_to_rgb(fillcolor, rgb_color))
+            {
+                RGBUtils::rgb_darken(rgb_color);
+                const_fold_color = RGBUtils::rgb_to_hex_str(rgb_color);
+            }
+        }
+
+        return const_fold_color;
     }
     else if(context_free and alias)
     {
-        return "lime";
+        return "palegreen"; // lazy reshape
     }
     else if(context_free and not alias)
     {
-        return "magenta";
+        return "orange"; // ref coolor
     }
     else if(not context_free and alias)
     {
-        return "yellow";
+        return "gold"; // backend color
+    }
+    else if(attr.contains("color"))
+    {
+        return attr.at("color").to<std::string>();
     }
     else
     {
-        return "";
+        return "lightgray"; // default
     }
 }
 
@@ -149,7 +198,7 @@ graphviz_node_content get_node_content(const instruction_ref& ins)
         content.body_lines.push_back(graphviz::format_shape_name(ins->get_shape(), "<BR/>"));
 
         content.html_style = {0, 0, 0, 0};
-        content.node_style = {"khaki", "", "black", "filled", "rectangle", "Helvectica"};
+        content.node_style = {"khaki", "black", "filled", "rectangle", "Helvectica"};
     }
     else if(name == "@literal") // for literals, just put @literal for name
     {
@@ -184,8 +233,8 @@ graphviz_node_content get_node_content(const instruction_ref& ins)
             content.node_style.fontcolor = attr.at("fontcolor").to<std::string>();
     }
 
-    if(content.node_style.bordercolor.empty())
-        content.node_style.bordercolor = get_graph_color(ins);
+    if(content.node_style.fillcolor.empty())
+        content.node_style.fillcolor = get_graph_color(ins);
 
     return content;
 }

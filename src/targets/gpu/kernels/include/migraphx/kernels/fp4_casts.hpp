@@ -66,10 +66,9 @@ __device__ constexpr float fp4_to_float(uint8_t x)
     return fp4_detail::fp4_lut[x % fp4_detail::fp4_lut.size()];
 }
 
-__device__ uint8_t float_to_fp4(float f_x)
+__device__ inline uint8_t float_to_fp4(float f_x)
 {
-    uint32_t x       = migraphx::bit_cast<uint32_t>(f_x);
-    bool sign        = migraphx::get_bit(x, 31);
+    bool sign        = signbit(f_x);
     uint8_t sign_add = sign ? 0x8u : 0u;
     float abs_f      = abs(f_x);
     if(abs_f >= 1.75)

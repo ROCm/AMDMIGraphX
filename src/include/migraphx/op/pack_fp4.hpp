@@ -72,7 +72,7 @@ struct pack_fp4
 
     argument compute(const shape& output_shape, const std::vector<argument>& args) const
     {
-        auto input    = args.front();
+        const auto& input = args.front();
         auto in_shape = input.get_shape();
 
         argument result{output_shape};
@@ -88,7 +88,7 @@ struct pack_fp4
                 inp_type inp_val1 = inp[in_data_multi_idx];
                 uint8_t out_val0  = float_to_fp4(inp_val0);
                 uint8_t out_val1  = float_to_fp4(inp_val1);
-                // NOTE: integral promotion occurs bitshifting for uint8_t
+                // NOTE: integral promotion occurs when bitshifting for uint8_t
                 out[i] =
                     static_cast<uint8_t>(out_val1 << 4u) | static_cast<uint8_t>(out_val0 & 0xFu);
             });

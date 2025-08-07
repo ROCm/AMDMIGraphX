@@ -106,7 +106,7 @@ struct raw_data : raw_data_base
     }
 
     /**
-     * Visit the data with a tensor_view<uint8_t> with lens = {num bytes};
+     * Visit the data with a tensor_view<byte> with shape = {type = uint8_type, lens = {num bytes}};
      */
     template <class Visitor, class TupleVisitor>
     void raw_visit(Visitor v, TupleVisitor tv) const

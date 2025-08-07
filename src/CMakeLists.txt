@@ -66,6 +66,7 @@ add_library(migraphx
     fuse_pointwise_reduce.cpp
     fuse_reduce.cpp
     generate.cpp
+    graphviz.cpp
     inline_module.cpp
     insert_pad.cpp
     instruction.cpp
@@ -229,6 +230,7 @@ register_migraphx_ops(
     nonzero
     onehot
     outline
+    pack_fp4
     pack_int4
     pad
     pointwise
@@ -293,6 +295,7 @@ register_migraphx_ops(
     undefined
     unique
     unknown
+    unpack_fp4
     unpack_int4
     unsqueeze
     where

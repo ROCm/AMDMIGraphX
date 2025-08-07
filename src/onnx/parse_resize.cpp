@@ -151,6 +151,16 @@ static std::string get_nearest_mode(const onnx_parser::attribute_map& attr)
     return nearest_mode;
 }
 
+static int get_exclude_outside(const onnx_parser::atrribute_map& attr)
+{
+    // TODO: Add support for exclude outside = 1
+    if(contains(attr, "exclude_outside") and
+        attr.at("exclude_outside").i() == 1)
+    {
+        MIGRAPHX_THROW("PARSE_RESIZE exclude_outside 1 is not supported!");
+    }
+}
+
 // "scales" is an attribute of the deprecated Upsample op. ver7 only
 static std::vector<double> get_scales(const onnx_parser::attribute_map& attr)
 {

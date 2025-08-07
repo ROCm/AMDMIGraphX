@@ -110,7 +110,7 @@ std::string build_node_style(const graphviz_node_style& node_style)
 
 std::string get_graph_color(const instruction_ref& ins)
 {
-    const auto& op = ins->get_operator();\
+    const auto& op   = ins->get_operator();
     const auto& attr = op.attributes();
 
     bool context_free = is_context_free(op);
@@ -120,11 +120,11 @@ std::string get_graph_color(const instruction_ref& ins)
     {
         return "#ADD8E6"; // lightblue
     }
-    else if(attr.contains("pointwise")) 
+    else if(attr.contains("pointwise"))
     {
         return "#9ACD32"; // yellowgreen
     }
-    else if(starts_with(op.name(), "reduce")) 
+    else if(starts_with(op.name(), "reduce"))
     {
         return "#90EE90"; // light green
     }
@@ -163,7 +163,8 @@ graphviz_node_content get_node_content(const instruction_ref& ins)
         content.body_lines.push_back(graphviz::format_shape_name(ins->get_shape(), "<BR/>"));
 
         content.html_style = {0, 0, 0, 0};
-        content.node_style = {"#F0E68C" /* khaki */, "#000000" /* black */, "filled", "rectangle", "Helvectica"};
+        content.node_style = {
+            "#F0E68C" /* khaki */, "#000000" /* black */, "filled", "rectangle", "Helvectica"};
     }
     else if(name == "@literal") // for literals, just put @literal for name
     {

@@ -78,8 +78,8 @@ struct html_table_style
  */
 struct graphviz_node_style
 {
-    std::string fillcolor = ""; // defaults to white
-    std::string fontcolor = "#000000"; // black
+    std::string fillcolor   = "";        // defaults to white
+    std::string fontcolor   = "#000000"; // black
     std::string style     = "rounded,filled";
     std::string shape     = "none";
     std::string fontname  = "Helvetica";

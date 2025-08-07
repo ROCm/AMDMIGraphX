@@ -91,28 +91,28 @@ TEST_CASE(check_replace_dag)
 // Tests for the reaches function
 /*
  * Linear graph:
- * 
+ *
  * x --> relu --> tanh --> abs
  */
 TEST_CASE(reaches_direct_connection)
 {
     migraphx::module m;
     migraphx::shape s{migraphx::shape::float_type, {3, 3}};
-    auto x      = m.add_parameter("x", s);
-    auto relu   = m.add_instruction(migraphx::make_op("relu"), x);
-    auto tanh   = m.add_instruction(migraphx::make_op("tanh"), relu);
-    auto abs    = m.add_instruction(migraphx::make_op("abs"), tanh);
-    
+    auto x    = m.add_parameter("x", s);
+    auto relu = m.add_instruction(migraphx::make_op("relu"), x);
+    auto tanh = m.add_instruction(migraphx::make_op("tanh"), relu);
+    auto abs  = m.add_instruction(migraphx::make_op("abs"), tanh);
+
     // Direct connections
     EXPECT(migraphx::reaches(x, relu, &m));
     EXPECT(migraphx::reaches(relu, tanh, &m));
     EXPECT(migraphx::reaches(tanh, abs, &m));
-    
+
     // Transitive connections
     EXPECT(migraphx::reaches(x, tanh, &m));
     EXPECT(migraphx::reaches(x, abs, &m));
     EXPECT(migraphx::reaches(relu, abs, &m));
-    
+
     // Same instruction
     EXPECT(migraphx::reaches(x, x, &m));
     EXPECT(migraphx::reaches(abs, abs, &m));
@@ -120,7 +120,7 @@ TEST_CASE(reaches_direct_connection)
 
 /*
  * Branched graph:
- * 
+ *
  *     x       y
  *      \     /
  *       \   /
@@ -138,13 +138,13 @@ TEST_CASE(reaches_branched_connections)
 {
     migraphx::module m;
     migraphx::shape s{migraphx::shape::float_type, {3, 3}};
-    auto x       = m.add_parameter("x", s);
-    auto y       = m.add_parameter("y", s);
-    auto add     = m.add_instruction(migraphx::make_op("add"), x, y);
-    auto relu1   = m.add_instruction(migraphx::make_op("relu"), add);
-    auto relu2   = m.add_instruction(migraphx::make_op("relu"), add);
-    auto concat  = m.add_instruction(migraphx::make_op("concat", {{"axis", 0}}), relu1, relu2);
-    
+    auto x      = m.add_parameter("x", s);
+    auto y      = m.add_parameter("y", s);
+    auto add    = m.add_instruction(migraphx::make_op("add"), x, y);
+    auto relu1  = m.add_instruction(migraphx::make_op("relu"), add);
+    auto relu2  = m.add_instruction(migraphx::make_op("relu"), add);
+    auto concat = m.add_instruction(migraphx::make_op("concat", {{"axis", 0}}), relu1, relu2);
+
     // Branch connections
     EXPECT(migraphx::reaches(x, add, &m));
     EXPECT(migraphx::reaches(y, add, &m));
@@ -152,7 +152,7 @@ TEST_CASE(reaches_branched_connections)
     EXPECT(migraphx::reaches(add, relu2, &m));
     EXPECT(migraphx::reaches(relu1, concat, &m));
     EXPECT(migraphx::reaches(relu2, concat, &m));
-    
+
     // Transitive connections
     EXPECT(migraphx::reaches(x, relu1, &m));
     EXPECT(migraphx::reaches(x, relu2, &m));
@@ -160,14 +160,14 @@ TEST_CASE(reaches_branched_connections)
     EXPECT(migraphx::reaches(y, relu2, &m));
     EXPECT(migraphx::reaches(x, concat, &m));
     EXPECT(migraphx::reaches(y, concat, &m));
-    
+
     // No connections
     EXPECT(not migraphx::reaches(relu1, relu2, &m));
 }
 
 /*
  * Complex diamond graph:
- * 
+ *
  *     x       y
  *      \     /
  *       \   /
@@ -188,15 +188,15 @@ TEST_CASE(reaches_complex_graph1)
 {
     migraphx::module m;
     migraphx::shape s{migraphx::shape::float_type, {3, 3}};
-    auto x       = m.add_parameter("x", s);
-    auto y       = m.add_parameter("y", s);
-    auto add     = m.add_instruction(migraphx::make_op("add"), x, y);
-    auto relu    = m.add_instruction(migraphx::make_op("relu"), add);
-    auto tanh    = m.add_instruction(migraphx::make_op("tanh"), add);
-    auto abs     = m.add_instruction(migraphx::make_op("abs"), relu);
-    auto sin     = m.add_instruction(migraphx::make_op("sin"), tanh);
-    auto concat  = m.add_instruction(migraphx::make_op("concat", {{"axis", 0}}), abs, sin);
-    
+    auto x      = m.add_parameter("x", s);
+    auto y      = m.add_parameter("y", s);
+    auto add    = m.add_instruction(migraphx::make_op("add"), x, y);
+    auto relu   = m.add_instruction(migraphx::make_op("relu"), add);
+    auto tanh   = m.add_instruction(migraphx::make_op("tanh"), add);
+    auto abs    = m.add_instruction(migraphx::make_op("abs"), relu);
+    auto sin    = m.add_instruction(migraphx::make_op("sin"), tanh);
+    auto concat = m.add_instruction(migraphx::make_op("concat", {{"axis", 0}}), abs, sin);
+
     // Test complex paths
     EXPECT(migraphx::reaches(x, concat, &m));
     EXPECT(migraphx::reaches(y, concat, &m));
@@ -205,13 +205,13 @@ TEST_CASE(reaches_complex_graph1)
     EXPECT(migraphx::reaches(tanh, concat, &m));
     EXPECT(migraphx::reaches(abs, concat, &m));
     EXPECT(migraphx::reaches(sin, concat, &m));
-    
+
     // Test paths through different branches
     EXPECT(migraphx::reaches(x, abs, &m));
     EXPECT(migraphx::reaches(y, sin, &m));
     EXPECT(migraphx::reaches(add, abs, &m));
     EXPECT(migraphx::reaches(add, sin, &m));
-    
+
     // Test non-existing paths
     EXPECT(not migraphx::reaches(relu, sin, &m));
     EXPECT(not migraphx::reaches(relu, tanh, &m));
@@ -223,15 +223,15 @@ TEST_CASE(reaches_complex_graph2)
 {
     migraphx::module m;
     migraphx::shape s{migraphx::shape::float_type, {3, 3}};
-    auto x       = m.add_parameter("x", s);
-    auto y       = m.add_parameter("y", s);
-    auto add     = m.add_instruction(migraphx::make_op("add"), x, y);
-    auto relu    = m.add_instruction(migraphx::make_op("relu"), add);
-    auto tanh    = m.add_instruction(migraphx::make_op("tanh"), add);
-    auto abs     = m.add_instruction(migraphx::make_op("abs"), relu);
-    auto sin     = m.add_instruction(migraphx::make_op("sin"), tanh);
-    auto concat  = m.add_instruction(migraphx::make_op("concat", {{"axis", 0}}), abs, sin);
-    
+    auto x      = m.add_parameter("x", s);
+    auto y      = m.add_parameter("y", s);
+    auto add    = m.add_instruction(migraphx::make_op("add"), x, y);
+    auto relu   = m.add_instruction(migraphx::make_op("relu"), add);
+    auto tanh   = m.add_instruction(migraphx::make_op("tanh"), add);
+    auto abs    = m.add_instruction(migraphx::make_op("abs"), relu);
+    auto sin    = m.add_instruction(migraphx::make_op("sin"), tanh);
+    auto concat = m.add_instruction(migraphx::make_op("concat", {{"axis", 0}}), abs, sin);
+
     // Test complex paths
     EXPECT(migraphx::reaches(x, concat));
     EXPECT(migraphx::reaches(y, concat));
@@ -240,13 +240,13 @@ TEST_CASE(reaches_complex_graph2)
     EXPECT(migraphx::reaches(tanh, concat));
     EXPECT(migraphx::reaches(abs, concat));
     EXPECT(migraphx::reaches(sin, concat));
-    
+
     // Test paths through different branches
     EXPECT(migraphx::reaches(x, abs));
     EXPECT(migraphx::reaches(y, sin));
     EXPECT(migraphx::reaches(add, abs));
     EXPECT(migraphx::reaches(add, sin));
-    
+
     // Test non-existing paths
     EXPECT(not migraphx::reaches(relu, sin));
     EXPECT(not migraphx::reaches(relu, tanh));
@@ -257,30 +257,30 @@ TEST_CASE(reaches_complex_graph2)
 // Tests for the is_interdependent function
 /*
  * Linear chain:
- * 
+ *
  * x --> relu --> tanh --> abs
  */
 TEST_CASE(is_interdependent_simple)
 {
     migraphx::module m;
     migraphx::shape s{migraphx::shape::float_type, {3, 3}};
-    auto x     = m.add_parameter("x", s);
-    auto relu  = m.add_instruction(migraphx::make_op("relu"), x);
-    auto tanh  = m.add_instruction(migraphx::make_op("tanh"), relu);
-    auto abs   = m.add_instruction(migraphx::make_op("abs"), tanh);
-    
+    auto x    = m.add_parameter("x", s);
+    auto relu = m.add_instruction(migraphx::make_op("relu"), x);
+    auto tanh = m.add_instruction(migraphx::make_op("tanh"), relu);
+    auto abs  = m.add_instruction(migraphx::make_op("abs"), tanh);
+
     // Sequential chain - these should be interdependent
     std::vector<migraphx::instruction_ref> seq_chain = {x, relu, tanh, abs};
     EXPECT(migraphx::is_interdependent(seq_chain, &m, m.begin()));
-    
+
     // Subset of chain - also interdependent
     std::vector<migraphx::instruction_ref> sub_chain = {x, relu, abs};
     EXPECT(migraphx::is_interdependent(sub_chain, &m, m.begin()));
-    
+
     // Single instruction is always interdependent
     std::vector<migraphx::instruction_ref> single = {x};
     EXPECT(migraphx::is_interdependent(single, &m, m.begin()));
-    
+
     // Empty vector is also interdependent (vacuously true)
     std::vector<migraphx::instruction_ref> empty = {};
     EXPECT(migraphx::is_interdependent(empty, &m, m.begin()));
@@ -288,7 +288,7 @@ TEST_CASE(is_interdependent_simple)
 
 /*
  * Branched Y graph:
- * 
+ *
  *     x       y
  *      \     /
  *       \   /
@@ -302,20 +302,20 @@ TEST_CASE(is_interdependent_branched)
 {
     migraphx::module m;
     migraphx::shape s{migraphx::shape::float_type, {3, 3}};
-    auto x       = m.add_parameter("x", s);
-    auto y       = m.add_parameter("y", s);
-    auto add     = m.add_instruction(migraphx::make_op("add"), x, y);
-    auto relu    = m.add_instruction(migraphx::make_op("relu"), add);
-    auto tanh    = m.add_instruction(migraphx::make_op("tanh"), add);
-    
+    auto x    = m.add_parameter("x", s);
+    auto y    = m.add_parameter("y", s);
+    auto add  = m.add_instruction(migraphx::make_op("add"), x, y);
+    auto relu = m.add_instruction(migraphx::make_op("relu"), add);
+    auto tanh = m.add_instruction(migraphx::make_op("tanh"), add);
+
     // Interdependent branches
     std::vector<migraphx::instruction_ref> interdep = {add, relu, tanh};
     EXPECT(migraphx::is_interdependent(interdep, &m, m.begin()));
-    
+
     // Independent parameters
     std::vector<migraphx::instruction_ref> indep = {x, y};
     EXPECT(not migraphx::is_interdependent(indep, &m, m.begin()));
-    
+
     // Mixed dependent and independent
     std::vector<migraphx::instruction_ref> mixed = {x, relu, tanh};
     EXPECT(migraphx::is_interdependent(mixed, &m, m.begin()));
@@ -323,7 +323,7 @@ TEST_CASE(is_interdependent_branched)
 
 /*
  * Complex graph with multiple paths:
- * 
+ *
  *     x       y       z
  *      \     / \     /
  *       \   /   \   /
@@ -341,23 +341,23 @@ TEST_CASE(is_interdependent_complex)
 {
     migraphx::module m;
     migraphx::shape s{migraphx::shape::float_type, {3, 3}};
-    auto x       = m.add_parameter("x", s);
-    auto y       = m.add_parameter("y", s);
-    auto z       = m.add_parameter("z", s);
-    auto add1    = m.add_instruction(migraphx::make_op("add"), x, y);
-    auto add2    = m.add_instruction(migraphx::make_op("add"), y, z);
-    auto relu1   = m.add_instruction(migraphx::make_op("relu"), add1);
-    auto relu2   = m.add_instruction(migraphx::make_op("relu"), add2);
-    auto concat  = m.add_instruction(migraphx::make_op("concat", {{"axis", 0}}), relu1, relu2);
-    
+    auto x      = m.add_parameter("x", s);
+    auto y      = m.add_parameter("y", s);
+    auto z      = m.add_parameter("z", s);
+    auto add1   = m.add_instruction(migraphx::make_op("add"), x, y);
+    auto add2   = m.add_instruction(migraphx::make_op("add"), y, z);
+    auto relu1  = m.add_instruction(migraphx::make_op("relu"), add1);
+    auto relu2  = m.add_instruction(migraphx::make_op("relu"), add2);
+    auto concat = m.add_instruction(migraphx::make_op("concat", {{"axis", 0}}), relu1, relu2);
+
     // Complex interdependent set
     std::vector<migraphx::instruction_ref> complex_dep = {y, add1, add2, relu1, relu2, concat};
     EXPECT(migraphx::is_interdependent(complex_dep, &m, m.begin()));
-    
+
     // Independent branches
     std::vector<migraphx::instruction_ref> indep_branches = {add1, add2};
     EXPECT(not migraphx::is_interdependent(indep_branches, &m, m.begin()));
-    
+
     // Independent outputs
     std::vector<migraphx::instruction_ref> indep_outputs = {relu1, relu2};
     EXPECT(not migraphx::is_interdependent(indep_outputs, &m, m.begin()));
@@ -365,7 +365,7 @@ TEST_CASE(is_interdependent_complex)
 
 /*
  * Long chain:
- * 
+ *
  *   x     y
  *    \   /
  *     \ /
@@ -376,56 +376,56 @@ TEST_CASE(is_interdependent_large_set)
 {
     migraphx::module m;
     migraphx::shape s{migraphx::shape::float_type, {3, 3}};
-    auto x       = m.add_parameter("x", s);
-    auto y       = m.add_parameter("y", s);
-    
+    auto x = m.add_parameter("x", s);
+    auto y = m.add_parameter("y", s);
+
     // Create a chain of 10 instructions
     auto curr = m.add_instruction(migraphx::make_op("add"), x, y);
     std::vector<migraphx::instruction_ref> chain = {curr};
-    
-    for(int i = 0; i < 9; i++) {
+
+    for(int i = 0; i < 9; i++)
+    {
         curr = m.add_instruction(migraphx::make_op("relu"), curr);
         chain.push_back(curr);
     }
-    
+
     // Test with large chain
     EXPECT(migraphx::is_interdependent(chain, &m, m.begin()));
-    
+
     // Take a subset that skips some elements
     std::vector<migraphx::instruction_ref> subset = {
-        chain[0], chain[2], chain[4], chain[6], chain[8]
-    };
+        chain[0], chain[2], chain[4], chain[6], chain[8]};
     EXPECT(migraphx::is_interdependent(subset, &m, m.begin()));
 }
 
 // Tests for the find_instructions_between function
 /*
  * Linear chain:
- * 
+ *
  * x --> relu --> tanh --> abs
  */
 TEST_CASE(find_instructions_between_simple)
 {
     migraphx::module m;
     migraphx::shape s{migraphx::shape::float_type, {3, 3}};
-    auto x     = m.add_parameter("x", s);
-    auto relu  = m.add_instruction(migraphx::make_op("relu"), x);
-    auto tanh  = m.add_instruction(migraphx::make_op("tanh"), relu);
-    auto abs   = m.add_instruction(migraphx::make_op("abs"), tanh);
-    
+    auto x    = m.add_parameter("x", s);
+    auto relu = m.add_instruction(migraphx::make_op("relu"), x);
+    auto tanh = m.add_instruction(migraphx::make_op("tanh"), relu);
+    auto abs  = m.add_instruction(migraphx::make_op("abs"), tanh);
+
     // Find instructions between x and abs
     auto result = migraphx::find_instructions_between(x, abs, &m);
-    
+
     // Should include x, relu, tanh, abs
     EXPECT(result.count(x) == 1);
     EXPECT(result.count(relu) == 1);
     EXPECT(result.count(tanh) == 1);
     EXPECT(result.count(abs) == 1);
     EXPECT(result.size() == 4);
-    
+
     // Find instructions between relu and abs
     auto result2 = migraphx::find_instructions_between(relu, abs, &m);
-    
+
     // Should include relu, tanh, abs
     EXPECT(result2.count(x) == 0);
     EXPECT(result2.count(relu) == 1);
@@ -436,7 +436,7 @@ TEST_CASE(find_instructions_between_simple)
 
 /*
  * Branched Y graph:
- * 
+ *
  *     x       y
  *      \     /
  *       \   /
@@ -454,26 +454,26 @@ TEST_CASE(find_instructions_between_branched)
 {
     migraphx::module m;
     migraphx::shape s{migraphx::shape::float_type, {3, 3}};
-    auto x       = m.add_parameter("x", s);
-    auto y       = m.add_parameter("y", s);
-    auto add     = m.add_instruction(migraphx::make_op("add"), x, y);
-    auto relu    = m.add_instruction(migraphx::make_op("relu"), add);
-    auto tanh    = m.add_instruction(migraphx::make_op("tanh"), add);
-    auto concat  = m.add_instruction(migraphx::make_op("concat", {{"axis", 0}}), relu, tanh);
-    
+    auto x      = m.add_parameter("x", s);
+    auto y      = m.add_parameter("y", s);
+    auto add    = m.add_instruction(migraphx::make_op("add"), x, y);
+    auto relu   = m.add_instruction(migraphx::make_op("relu"), add);
+    auto tanh   = m.add_instruction(migraphx::make_op("tanh"), add);
+    auto concat = m.add_instruction(migraphx::make_op("concat", {{"axis", 0}}), relu, tanh);
+
     // Find instructions between add and concat
     auto result = migraphx::find_instructions_between(add, concat, &m);
-    
+
     // Should include add, relu, tanh, concat
     EXPECT(result.count(add) == 1);
     EXPECT(result.count(relu) == 1);
     EXPECT(result.count(tanh) == 1);
     EXPECT(result.count(concat) == 1);
     EXPECT(result.size() == 4);
-    
+
     // Find instructions between x and concat
     auto result2 = migraphx::find_instructions_between(x, concat, &m);
-    
+
     // Should include x, add, relu, tanh, concat but not y
     EXPECT(result2.count(x) == 1);
     EXPECT(result2.count(y) == 0);
@@ -486,7 +486,7 @@ TEST_CASE(find_instructions_between_branched)
 
 /*
  * Complex diamond graph with multiple inputs:
- * 
+ *
  *    w     x     y     z
  *     \   /      \   /
  *      \ /        \ /
@@ -510,21 +510,21 @@ TEST_CASE(find_instructions_between_complex)
 {
     migraphx::module m;
     migraphx::shape s{migraphx::shape::float_type, {3, 3}};
-    auto w       = m.add_parameter("w", s);
-    auto x       = m.add_parameter("x", s);
-    auto y       = m.add_parameter("y", s);
-    auto z       = m.add_parameter("z", s);
-    
-    auto add1    = m.add_instruction(migraphx::make_op("add"), w, x);
-    auto add2    = m.add_instruction(migraphx::make_op("add"), y, z);
-    auto mul     = m.add_instruction(migraphx::make_op("mul"), add1, add2);
-    auto relu    = m.add_instruction(migraphx::make_op("relu"), mul);
-    auto tanh    = m.add_instruction(migraphx::make_op("tanh"), mul);
-    auto concat  = m.add_instruction(migraphx::make_op("concat", {{"axis", 0}}), relu, tanh);
-    
+    auto w = m.add_parameter("w", s);
+    auto x = m.add_parameter("x", s);
+    auto y = m.add_parameter("y", s);
+    auto z = m.add_parameter("z", s);
+
+    auto add1   = m.add_instruction(migraphx::make_op("add"), w, x);
+    auto add2   = m.add_instruction(migraphx::make_op("add"), y, z);
+    auto mul    = m.add_instruction(migraphx::make_op("mul"), add1, add2);
+    auto relu   = m.add_instruction(migraphx::make_op("relu"), mul);
+    auto tanh   = m.add_instruction(migraphx::make_op("tanh"), mul);
+    auto concat = m.add_instruction(migraphx::make_op("concat", {{"axis", 0}}), relu, tanh);
+
     // Find instructions between w and concat
     auto result = migraphx::find_instructions_between(w, concat, &m);
-    
+
     // Should include w, add1, mul, relu, tanh, concat but not x, y, z, add2
     EXPECT(result.count(w) == 1);
     EXPECT(result.count(add1) == 1);
@@ -533,7 +533,7 @@ TEST_CASE(find_instructions_between_complex)
     EXPECT(result.count(tanh) == 1);
     EXPECT(result.count(concat) == 1);
     EXPECT(result.size() == 6);
-    
+
     EXPECT(result.count(x) == 0);
     EXPECT(result.count(y) == 0);
     EXPECT(result.count(z) == 0);

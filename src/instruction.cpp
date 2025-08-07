@@ -691,11 +691,11 @@ find_instructions_between(instruction_ref start, instruction_ref end, const_modu
             return;
         if(ins->inputs().empty())
             return;
-        if (not inss.insert(ins).second)
+        if(not inss.insert(ins).second)
             return;
         if(ins == start)
             return;
-        for(auto input:ins->inputs())
+        for(auto input : ins->inputs())
             self(input);
     })(end);
 
@@ -704,9 +704,9 @@ find_instructions_between(instruction_ref start, instruction_ref end, const_modu
             return;
         if(ins != start and not contains(inss, ins))
             return;
-        if (not result.insert(ins).second)
+        if(not result.insert(ins).second)
             return;
-        for(auto output:ins->outputs())
+        for(auto output : ins->outputs())
             self(output);
     })(start);
     result.insert(end);

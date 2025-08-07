@@ -163,6 +163,8 @@ using mlir_tuning_space      = MIGRAPHX_MANAGE_MLIR_HANDLE(MlirRockTuningSpace,
                                                       mlirRockTuningSpaceDestroy);
 using mlir_tuning_param      = MIGRAPHX_MANAGE_MLIR_HANDLE(MlirRockTuningParam,
                                                       mlirRockTuningParamDestroy);
+
+// NOLINTNEXTLINE                                                      
 static std::atomic<int> dump_counter = 0;
 
 static std::string_view to_string_view(MlirStringRef s) { return {s.data, s.length}; }
@@ -1096,7 +1098,7 @@ std::string dump_mlir(module m, const std::vector<shape>& inputs)
     return mlir_print(&mlirOperationPrint, mod_op);
 }
 
-void abbreviate_symbol_names(std::string& n)
+static void abbreviate_symbol_names(std::string& n)
 {
     static const std::map<std::string, std::string> abbrs = {
         {"reduce_max_reshape_sub_exp_reshape_reduce_sum_reshape_div", "softmax"},

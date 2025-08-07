@@ -291,6 +291,25 @@ struct parse_resize : op_parser<parse_resize>
         std::optional<instruction_ref> sizes;
     };
 
+    struct resize_parser
+    {
+        resize_attr attr;
+        resize_args args;
+
+        std::string coord_trans_mode;
+        shape in_s;
+        std::vector<size_t> in_lens;
+        std::vector<size_t> out_lens;
+        std::vector<double> vec_scale;
+
+        bool is_resize = true;
+        void set_upsaple_op(){is_resize = false;}
+        bool is_resize_op() const {return is_resize;}
+
+        bool is_scale_attr(){return not args.scales.has_value();}
+
+        bool is_axes_used(){return not attr.axes.empty();}
+    };
 
     // Helper to add a "reshape" and "gather" instruction.  These can implement
     // Nearest mode resizing if all sizes are known at compile time.

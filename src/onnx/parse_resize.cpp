@@ -161,6 +161,20 @@ static int get_exclude_outside(const onnx_parser::atrribute_map& attr)
     }
 }
 
+static std::vector<int64_t> get_axes(const onnx_parser::attribute_map& attr)
+{
+    // TODO: support implementation of 'axes' attribute.
+    // For now, it's used to check the length of 'sizes' input (if present)
+    std::vector<int64_t> axes{};
+    if(contains(attr, "axes"))
+    {
+        auto&& axes_vals = attr.at("axes").ints();
+        axes             = std::vector<int64_t>(axes_vals.begin(), axes_vals.end());
+    }
+    return axes;
+}
+
+
 // "scales" is an attribute of the deprecated Upsample op. ver7 only
 static std::vector<double> get_scales(const onnx_parser::attribute_map& attr)
 {

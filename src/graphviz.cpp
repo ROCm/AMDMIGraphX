@@ -97,6 +97,11 @@ std::string build_node_style(const graphviz_node_style& node_style)
     else
         ss << "fontcolor=" << node_style.fontcolor << " ";
 
+    if(is_hex_color(node_style.bordercolor) or node_style.bordercolor.empty())
+        ss << "color=\"" << node_style.bordercolor << "\" ";
+    else
+        ss << "color=" << node_style.bordercolor << " ";
+
     ss << "shape=" << node_style.shape << " ";
     ss << "fontname=" << node_style.fontname;
     return ss.str();
@@ -111,27 +116,23 @@ std::string get_graph_color(const instruction_ref& ins)
 
     if(ins->can_eval())
     {
-        return "lightblue";
+        return "cyan";
     }
     else if(context_free and alias)
     {
-        return "palegreen";
+        return "lime";
     }
     else if(context_free and not alias)
     {
-        return "orange";
+        return "magenta";
     }
     else if(not context_free and alias)
     {
-        return "gold";
-    }
-    else if(const auto& attr = op.attributes(); attr.contains("color"))
-    {
-        return attr.at("color").to<std::string>();
+        return "yellow";
     }
     else
     {
-        return "lightgray";
+        return "";
     }
 }
 
@@ -148,7 +149,7 @@ graphviz_node_content get_node_content(const instruction_ref& ins)
         content.body_lines.push_back(graphviz::format_shape_name(ins->get_shape(), "<BR/>"));
 
         content.html_style = {0, 0, 0, 0};
-        content.node_style = {"khaki", "black", "filled", "rectangle", "Helvectica"};
+        content.node_style = {"khaki", "", "black", "filled", "rectangle", "Helvectica"};
     }
     else if(name == "@literal") // for literals, just put @literal for name
     {
@@ -177,12 +178,14 @@ graphviz_node_content get_node_content(const instruction_ref& ins)
         const auto& attr = op.attributes();
         if(attr.contains("style"))
             content.node_style.style = attr.at("style").to<std::string>();
+        if(attr.contains("fillcolor"))
+            content.node_style.fillcolor = attr.at("fillcolor").to<std::string>();
         if(attr.contains("fontcolor"))
             content.node_style.fontcolor = attr.at("fontcolor").to<std::string>();
     }
 
-    if(content.node_style.fillcolor.empty())
-        content.node_style.fillcolor = get_graph_color(ins);
+    if(content.node_style.bordercolor.empty())
+        content.node_style.bordercolor = get_graph_color(ins);
 
     return content;
 }

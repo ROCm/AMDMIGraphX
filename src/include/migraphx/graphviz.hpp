@@ -77,7 +77,8 @@ struct html_table_style
  */
 struct graphviz_node_style
 {
-    std::string fillcolor = "";
+    std::string fillcolor = "lightgray";
+    std::string bordercolor = "";
     std::string fontcolor = "black";
     std::string style     = "rounded,filled";
     std::string shape     = "none";

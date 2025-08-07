@@ -56,7 +56,7 @@ TEST_CASE(basic_graph_test)
     EXPECT(migraphx::contains(test, "peripheries=0"));
     EXPECT(migraphx::contains(
         test,
-        R"("@0"[label=<<TABLE BORDER="0" CELLBORDER="0" CELLPADDING="0" CELLSPACING="0" COLOR="transparent"><TR ALIGN="center"><TD><B>@literal</B></TD></TR></TABLE>> style="filled" fillcolor=lightgray fontcolor=black shape=rectangle fontname=Helvetica];)"));
+        R"("@0"[label=<<TABLE BORDER="0" CELLBORDER="0" CELLPADDING="0" CELLSPACING="0" COLOR="transparent"><TR ALIGN="center"><TD><B>@literal</B></TD></TR></TABLE>> style="filled" fillcolor=lightblue fontcolor=black shape=rectangle fontname=Helvetica];)"));
     EXPECT(migraphx::contains(
         test,
         R"("y"[label=<<TABLE BORDER="0" CELLBORDER="0" CELLPADDING="0" CELLSPACING="0" COLOR="transparent"><TR ALIGN="center"><TD><B>@param</B></TD></TR><TR ALIGN="center"><TD>int64_type<BR/>{1}, {0}</TD></TR></TABLE>> style="filled" fillcolor=khaki fontcolor=black shape=rectangle fontname=Helvectica];)"));

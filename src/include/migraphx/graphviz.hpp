@@ -77,7 +77,7 @@ struct html_table_style
  */
 struct graphviz_node_style
 {
-    std::string fillcolor = "lightgray";
+    std::string fillcolor = "";
     std::string fontcolor = "black";
     std::string style     = "rounded,filled";
     std::string shape     = "none";
@@ -127,6 +127,12 @@ std::string build_node_style(const graphviz_node_style& node_style);
  * instructions: param, literal, and gpu::code_object
  */
 graphviz_node_content get_node_content(const instruction_ref& ins);
+
+/**
+ * Given an instruction_ref ins, determine the coloring based on alias and
+ * context-free qualities
+ */
+std::string get_graph_color(const instruction_ref& ins);
 
 } // namespace graphviz
 } // namespace MIGRAPHX_INLINE_NS

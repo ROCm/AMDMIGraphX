@@ -102,6 +102,39 @@ std::string build_node_style(const graphviz_node_style& node_style)
     return ss.str();
 }
 
+std::string get_graph_color(const instruction_ref& ins)
+{
+    const auto& op = ins->get_operator();
+
+    bool context_free = is_context_free(op);
+    bool alias        = op.output_alias(to_shapes(ins->inputs())) >= 0;
+
+    if(ins->can_eval())
+    {
+        return "lightblue";
+    }
+    else if(context_free and alias)
+    {
+        return "palegreen";
+    }
+    else if(context_free and not alias)
+    {
+        return "orange";
+    }
+    else if(not context_free and alias)
+    {
+        return "gold";
+    }
+    else if(const auto& attr = op.attributes(); attr.contains("color"))
+    {
+        return attr.at("color").to<std::string>();
+    }
+    else
+    {
+        return "lightgray";
+    }
+}
+
 graphviz_node_content get_node_content(const instruction_ref& ins)
 {
     const auto& op         = ins->get_operator();
@@ -132,8 +165,9 @@ graphviz_node_content get_node_content(const instruction_ref& ins)
 
         content.node_style.fillcolor = "#E9D66B"; // arylideyellow
     }
-    else // all else use name and to_string(op)
+    else
     {
+        // default case
         content.title = name;
 
         if(std::string op_to_string = to_string(op);
@@ -143,11 +177,13 @@ graphviz_node_content get_node_content(const instruction_ref& ins)
         const auto& attr = op.attributes();
         if(attr.contains("style"))
             content.node_style.style = attr.at("style").to<std::string>();
-        if(attr.contains("fillcolor"))
-            content.node_style.fillcolor = attr.at("fillcolor").to<std::string>();
         if(attr.contains("fontcolor"))
             content.node_style.fontcolor = attr.at("fontcolor").to<std::string>();
     }
+
+    if(content.node_style.fillcolor.empty())
+        content.node_style.fillcolor = get_graph_color(ins);
+
     return content;
 }
 

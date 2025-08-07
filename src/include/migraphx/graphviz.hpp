@@ -48,6 +48,7 @@ namespace graphviz {
     slice: #FFA500, orange
     gpu::code_object_op: #E9D66B, arylideyellow
     pooling: #3CB371, mediumseagreen
+    reduce: #8470FF, lightslateblue
 
     To add new colors for operations, add
     attributes to the value yourOp::attributes() const {...}
@@ -77,11 +78,12 @@ struct html_table_style
  */
 struct graphviz_node_style
 {
-    std::string fillcolor = "";
-    std::string fontcolor = "black";
+    std::string fillcolor = ""; // defaults to white
+    std::string fontcolor = "#000000"; // black
     std::string style     = "rounded,filled";
     std::string shape     = "none";
     std::string fontname  = "Helvetica";
+    std::string bordercolor = ""; // defaults to none when shape is none
 };
 
 /**

@@ -23,6 +23,7 @@
  */
 
 #include <migraphx/graphviz.hpp>
+#include <migraphx/stringutils.hpp>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
@@ -97,6 +98,11 @@ std::string build_node_style(const graphviz_node_style& node_style)
     else
         ss << "fontcolor=" << node_style.fontcolor << " ";
 
+    if(node_style.bordercolor.empty() or is_hex_color(node_style.bordercolor))
+        ss << "color=\"" << node_style.bordercolor << "\" ";
+    else
+        ss << "color=" << node_style.bordercolor << " ";
+
     ss << "shape=" << node_style.shape << " ";
     ss << "fontname=" << node_style.fontname;
     return ss.str();
@@ -104,34 +110,43 @@ std::string build_node_style(const graphviz_node_style& node_style)
 
 std::string get_graph_color(const instruction_ref& ins)
 {
-    const auto& op = ins->get_operator();
+    const auto& op = ins->get_operator();\
+    const auto& attr = op.attributes();
 
     bool context_free = is_context_free(op);
     bool alias        = op.output_alias(to_shapes(ins->inputs())) >= 0;
 
     if(ins->can_eval())
     {
-        return "lightblue";
+        return "#ADD8E6"; // lightblue
+    }
+    else if(attr.contains("pointwise")) 
+    {
+        return "#9ACD32"; // yellowgreen
+    }
+    else if(starts_with(op.name(), "reduce")) 
+    {
+        return "#90EE90"; // light green
     }
     else if(context_free and alias)
     {
-        return "palegreen";
+        return "#98FB98"; // palegreen
     }
     else if(context_free and not alias)
     {
-        return "orange";
+        return "#FFA500"; // orange
     }
     else if(not context_free and alias)
     {
-        return "gold";
+        return "#EFBF04"; // gold
     }
-    else if(const auto& attr = op.attributes(); attr.contains("color"))
+    else if(attr.contains("fillcolor"))
     {
-        return attr.at("color").to<std::string>();
+        return attr.at("fillcolor").to<std::string>();
     }
     else
     {
-        return "lightgray";
+        return "#D3D3D3"; // lightgray
     }
 }
 
@@ -148,7 +163,7 @@ graphviz_node_content get_node_content(const instruction_ref& ins)
         content.body_lines.push_back(graphviz::format_shape_name(ins->get_shape(), "<BR/>"));
 
         content.html_style = {0, 0, 0, 0};
-        content.node_style = {"khaki", "black", "filled", "rectangle", "Helvectica"};
+        content.node_style = {"#F0E68C" /* khaki */, "#000000" /* black */, "filled", "rectangle", "Helvectica"};
     }
     else if(name == "@literal") // for literals, just put @literal for name
     {

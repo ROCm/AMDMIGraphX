@@ -91,7 +91,7 @@ struct reduce_op : op_name<Derived>
     {
         value normalize;
         normalize["axes"] = value::array{normalize_attribute::include_min};
-        return {{"normalize_axes", normalize}, {"reduce", true}};
+        return {{"normalize_axes", normalize}, {"reduce", true}, {"fillcolor", "#8470FF" /* lightslateblue */}};
     }
 
     shape collapse_reduced_axes(const shape& original_shape,

@@ -117,6 +117,7 @@ struct loader
     bool mlir                   = false;
     bool skip_unknown_operators = false;
     bool brief                  = false;
+    bool verbose                = false;
     std::string output_type;
     std::string output;
     std::string default_dyn_dim;

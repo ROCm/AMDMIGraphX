@@ -260,6 +260,38 @@ struct parse_resize : op_parser<parse_resize>
         return {{"Resize", "resize"}, {"Upsample", "upsample"}};
     }
 
+    struct resize_attr
+    {   
+        std::vector<int64_t> axes;                // resize - 18
+        int antialias             = 0;            // resize - 18
+        int exclude_outside       = 0;            // resize - 11
+        float scales              = 1;            // Upsample 7
+        float cubic_coeff_a       = -0.75f;       // resize - 11
+        float extrapolation_value = 0.0f;         // resize - 11
+        std::string coord_t_mode  = 'half_pixel'; // resize - 11
+        std::string nearest_mode  = 'round_prefer_floor';
+        std::string keep_aspect   = 'stretch';    // resize - 18
+
+        // Overlaps with upsample operator
+        std::string mode          = 'nearest'; 
+
+    };
+
+    struct resize_args
+    {
+        // Since inception opset(10)
+        instruction_ref input; // known as X
+
+        // For Upscale this may be an attr
+        // but also used for resize as well
+        std::optional<instruction_ref> scales; 
+
+        // Added in resize - 11
+        std::optional<instruction_ref> roi;
+        std::optional<instruction_ref> sizes;
+    };
+
+
     // Helper to add a "reshape" and "gather" instruction.  These can implement
     // Nearest mode resizing if all sizes are known at compile time.
     static instruction_ref make_gather_instruction(const onnx_parser::node_info& info,

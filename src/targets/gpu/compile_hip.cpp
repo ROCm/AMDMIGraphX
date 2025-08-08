@@ -273,7 +273,8 @@ std::vector<std::vector<char>> compile_hip_src(const std::vector<src_file>& srcs
 std::vector<std::vector<char>>
 compile_hip_src_with_hiprtc(std::vector<hiprtc_src_file>,    // NOLINT
                             const std::vector<std::string>&, // NOLINT
-                            const std::string&, bool)
+                            const std::string&,
+                            bool)
 {
     MIGRAPHX_THROW("Not using hiprtc");
 }

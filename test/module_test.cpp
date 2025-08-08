@@ -27,8 +27,9 @@
 #include <migraphx/pass_manager.hpp>
 #include <migraphx/register_target.hpp>
 #include <migraphx/ranges.hpp>
-#include <sstream>
 #include <migraphx/make_op.hpp>
+#include <random>
+#include <sstream>
 
 #include <basic_ops.hpp>
 #include <pointwise.hpp>
@@ -50,6 +51,29 @@ static bool is_sorted(migraphx::module& m)
         }
     }
     return true;
+}
+
+static void shuffle_module(migraphx::module& m)
+{
+    if(m.size() < 2)
+        return;
+    std::vector<std::size_t> permutation(m.size() - 1);
+    std::iota(permutation.begin(), permutation.end(), 0);
+    std::mt19937 g(permutation.size());
+    std::shuffle(permutation.begin(), permutation.end(), g);
+    permutation.push_back(permutation.size());
+    m.shuffle(permutation);
+}
+
+static void reverse_module(migraphx::module& m)
+{
+    if(m.size() < 2)
+        return;
+    std::vector<std::size_t> permutation(m.size() - 1);
+    std::iota(permutation.begin(), permutation.end(), 0);
+    std::reverse(permutation.begin(), permutation.end());
+    permutation.push_back(permutation.size());
+    m.shuffle(permutation);
 }
 
 static migraphx::program create_program()
@@ -819,7 +843,14 @@ TEST_CASE(linear_graph_sort)
     m.add_return({t});
 
     m.sort();
+    EXPECT(is_sorted(m));
 
+    reverse_module(m);
+    m.sort();
+    EXPECT(is_sorted(m));
+
+    shuffle_module(m);
+    m.sort();
     EXPECT(is_sorted(m));
 }
 
@@ -845,7 +876,14 @@ TEST_CASE(diamond_graph_sort)
     m.add_return({add});
 
     m.sort();
+    EXPECT(is_sorted(m));
 
+    reverse_module(m);
+    m.sort();
+    EXPECT(is_sorted(m));
+
+    shuffle_module(m);
+    m.sort();
     EXPECT(is_sorted(m));
 }
 
@@ -871,7 +909,14 @@ TEST_CASE(multiple_outputs_sort)
     m.add_return({t, n});
 
     m.sort();
+    EXPECT(is_sorted(m));
 
+    reverse_module(m);
+    m.sort();
+    EXPECT(is_sorted(m));
+
+    shuffle_module(m);
+    m.sort();
     EXPECT(is_sorted(m));
 }
 
@@ -886,7 +931,7 @@ TEST_CASE(dead_code_sort)
     //           │
     //           └─→ neg
     //
-    // Tests handling of dead code that is use inputs
+    // Tests handling of dead code
     //
     migraphx::module m;
     auto s = migraphx::shape{migraphx::shape::float_type, {1}};
@@ -897,7 +942,14 @@ TEST_CASE(dead_code_sort)
     m.add_return({t});
 
     m.sort();
+    EXPECT(is_sorted(m));
 
+    reverse_module(m);
+    m.sort();
+    EXPECT(is_sorted(m));
+
+    shuffle_module(m);
+    m.sort();
     EXPECT(is_sorted(m));
 }
 
@@ -926,7 +978,14 @@ TEST_CASE(disconnected_components_sort)
     m.add_return({a1, a2});
 
     m.sort();
+    EXPECT(is_sorted(m));
 
+    reverse_module(m);
+    m.sort();
+    EXPECT(is_sorted(m));
+
+    shuffle_module(m);
+    m.sort();
     EXPECT(is_sorted(m));
 }
 
@@ -988,7 +1047,14 @@ TEST_CASE(sort_with_non_direct_dependencies)
     m.add_return({c});
 
     m.sort();
+    EXPECT(is_sorted(m));
 
+    reverse_module(m);
+    m.sort();
+    EXPECT(is_sorted(m));
+
+    shuffle_module(m);
+    m.sort();
     EXPECT(is_sorted(m));
 }
 
@@ -1047,7 +1113,14 @@ TEST_CASE(dfs_without_visited_set_infinite_loop)
     m.add_return({a2, a3, b2, b3, c2});
 
     m.sort();
+    EXPECT(is_sorted(m));
 
+    reverse_module(m);
+    m.sort();
+    EXPECT(is_sorted(m));
+
+    shuffle_module(m);
+    m.sort();
     EXPECT(is_sorted(m));
 }
 
@@ -1121,7 +1194,14 @@ TEST_CASE(recursive_dag_revisit_test)
     m.add_return({d1});
 
     m.sort();
+    EXPECT(is_sorted(m));
 
+    reverse_module(m);
+    m.sort();
+    EXPECT(is_sorted(m));
+
+    shuffle_module(m);
+    m.sort();
     EXPECT(is_sorted(m));
 }
 
@@ -1197,7 +1277,14 @@ TEST_CASE(exponential_growth_graph_sort)
     m.add_return(final_inputs);
 
     m.sort();
+    EXPECT(is_sorted(m));
 
+    reverse_module(m);
+    m.sort();
+    EXPECT(is_sorted(m));
+
+    shuffle_module(m);
+    m.sort();
     EXPECT(is_sorted(m));
 }
 
@@ -1293,7 +1380,14 @@ TEST_CASE(pathological_dfs_graph_sort)
     m.add_return({final_result});
 
     m.sort();
+    EXPECT(is_sorted(m));
 
+    reverse_module(m);
+    m.sort();
+    EXPECT(is_sorted(m));
+
+    shuffle_module(m);
+    m.sort();
     EXPECT(is_sorted(m));
 }
 

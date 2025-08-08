@@ -43,7 +43,7 @@ static const char* const topk_kernel = R"__migraphx__(
 namespace migraphx {
 
 extern "C" {
-
+__attribute__((amdgpu_waves_per_eu(1,32)))
 MIGRAPHX_GLOBAL void topk_kernel(${params}) 
 {
     transform_args(make_tensors(), rotate_last<2>())(${args})([](auto... xs) {

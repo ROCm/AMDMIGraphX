@@ -575,7 +575,7 @@ Advanced settings
       | Default: The hip-clang assembly output isn't written out.
 
   * - | ``MIGRAPHX_GPU_HIP_FLAGS``
-      | When set, the hip-clang complier appends these extra flags for compilation.
+      | When set, the hip-clang compiler appends these extra flags for compilation.
 
     - | Takes a valid string, a valid hip compile option, e.g. "-Wno-error".
 

@@ -663,9 +663,9 @@ module {
 }
 )__migraphx__";
     migraphx::module m;
-    auto x0   = m.add_parameter("x0", migraphx::shape{migraphx::shape::float_type, {1, 12, 1, 64}});
-    auto x1   = m.add_parameter("x1", migraphx::shape{migraphx::shape::float_type, {1, 12, 64, 1}});
-    auto dot        = m.add_instruction(migraphx::make_op("dot"), x0, x1);
+    auto x0  = m.add_parameter("x0", migraphx::shape{migraphx::shape::float_type, {1, 12, 1, 64}});
+    auto x1  = m.add_parameter("x1", migraphx::shape{migraphx::shape::float_type, {1, 12, 64, 1}});
+    auto dot = m.add_instruction(migraphx::make_op("dot"), x0, x1);
     auto reduce_max = m.add_instruction(migraphx::make_op("reduce_max", {{"axes", {3}}}), dot);
     m.add_return({reduce_max});
     auto s = migraphx::gpu::dump_mlir(m);

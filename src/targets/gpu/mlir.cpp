@@ -997,6 +997,7 @@ static void rewrite_reduce(module& m)
             auto reduce_op      = i->get_operator().to_value();
             auto reduce_op_name = i->get_operator().name();
             auto reduce_axes    = reduce_op["axes"].to_vector<size_t>();
+            auto reduce_axes_set = std::set<size_t>(reduce_axes.begin(), reduce_axes.end()); // Use a set so that find() is faster
             auto reduce_lens    = i->get_shape().lens();
             auto in_shape       = i->inputs().front()->get_shape();
             const auto& in_lens = in_shape.lens();
@@ -1011,7 +1012,7 @@ static void rewrite_reduce(module& m)
             std::vector<int64_t> new_reduce_axes;
             for(const auto axis : range(in_shape.ndim()))
             {
-                if(reduce_lens[axis] == in_lens[axis])
+                if(reduce_lens[axis] == in_lens[axis] and not (reduce_axes_set.find(axis) != reduce_axes_set.end()))
                 {
                     new_rsp_dims.push_back(in_lens[axis]);
                 }
@@ -1022,13 +1023,6 @@ static void rewrite_reduce(module& m)
                     new_reduce_axes.push_back(axis);
                 }
             }
-            // If the reshape dimensions are the same as the original, use the original reduce axes
-            // to avoid issues with empty axes
-            if(std::vector<int64_t>(in_lens.begin(), in_lens.end()) == new_rsp_dims)
-                std::transform(reduce_axes.begin(),
-                               reduce_axes.end(),
-                               std::back_inserter(new_reduce_axes),
-                               [](auto axis) { return static_cast<int64_t>(axis); });
             auto rsp_ins = m.insert_instruction(
                 i, migraphx::make_op("reshape", {{"dims", new_rsp_dims}}), i->inputs().front());
             auto collapsed_reduce = m.insert_instruction(

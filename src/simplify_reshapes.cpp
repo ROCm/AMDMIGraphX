@@ -123,6 +123,7 @@ struct find_nested_shape_transforms
 
 struct find_op_shape_transform_op
 {
+    bool enable = true;
     static auto fusable_split()
     {
         return match::make_basic_pred_matcher([&](instruction_ref ins) {
@@ -242,6 +243,8 @@ struct find_op_shape_transform_op
 
     void apply(module& m, const match::matcher_result& r) const
     {
+        if(not enable)
+            return;
         auto ins       = r.result;
         auto x_ins     = r.instructions["x"];
         auto input_ins = r.instructions["input"];
@@ -1382,7 +1385,7 @@ void simplify_reshapes::apply(module& m) const
                             find_unary_shape_transforms{},
                             find_reshape_dot{},
                             find_mul_add_shape_op_dot{},
-                            find_op_shape_transform_op{});
+                            find_op_shape_transform_op{.enable = enable_op_shape_transform_op});
         dead_code_elimination{}.apply(m);
     });
 }

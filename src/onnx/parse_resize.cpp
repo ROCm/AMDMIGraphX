@@ -593,7 +593,7 @@ struct parse_resize : op_parser<parse_resize>
 
         // scale is input it must be a required input
         if(not resize.is_scale_attr())
-            resize.scales = args.at(1);
+            resize.vec_scale = resize.get_scales(args);
     }
 
     // Split of what we handle since this parser is used for both resize/upscale operators

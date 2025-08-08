@@ -610,7 +610,7 @@ struct parse_resize : op_parser<parse_resize>
         // output shape is explicitly specified
         resize.out_lens = std::vector<size_t>(resize.in_lens.size());
 
-        if(opd.op_name == "Upsample")
+        if(opd.op_name == "upsample")
         {
             resize.set_upsample_op();
         }

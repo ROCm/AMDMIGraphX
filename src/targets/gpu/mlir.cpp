@@ -1014,7 +1014,7 @@ static void rewrite_reduce(module& m)
             for(const auto axis : range(in_shape.ndim()))
             {
                 if(reduce_lens[axis] == in_lens[axis] and
-                   not(reduce_axes_set.find(axis) != reduce_axes_set.end()))
+                   reduce_axes_set.find(axis) == reduce_axes_set.end())
                 {
                     new_rsp_dims.push_back(in_lens[axis]);
                 }

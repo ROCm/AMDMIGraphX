@@ -81,19 +81,22 @@ struct find_softmax_base_ops
         for(auto i : softmax_inss)
         {
             auto outs = i->outputs();
-            if(std::all_of(
-                   outs.begin(), outs.end(), [&](auto o) { return contains(softmax_inss, o); }))
+
+            std::unordered_set<instruction_ref> downcast_outputs;
+            std::copy_if(outs.begin(),
+                         outs.end(),
+                         std::inserter(downcast_outputs, downcast_outputs.begin()),
+                         [&](auto o) { return not contains(softmax_inss, o); });
+
+            if(downcast_outputs.empty())
                 continue;
 
             auto i_down = m.insert_instruction(
                 std::next(i), make_op("convert", {{"target_type", inp_type}}), i);
 
-            for(auto o : i->outputs())
+            for(auto o : downcast_outputs)
             {
-                if(not contains(softmax_inss, o) and o != i_down)
-                {
-                    instruction::replace_argument(o, i, i_down);
-                }
+                instruction::replace_argument(o, i, i_down);
             }
         }
 

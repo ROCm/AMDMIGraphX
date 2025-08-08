@@ -117,7 +117,7 @@ struct MIGRAPHX_EXPORT instruction
     static void backreference(instruction_ref ref);
 
     static void replace_argument(instruction_ref ins, instruction_ref old, instruction_ref new_ins);
-    static void replace_argument(std::vector<instruction_ref> inss,
+    static void replace_argument(std::vector<instruction_ref>& inss,
                                  instruction_ref old,
                                  instruction_ref new_ins);
 

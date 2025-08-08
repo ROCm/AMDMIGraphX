@@ -231,7 +231,7 @@ void instruction::replace_argument(instruction_ref ins,
     ins->recompute_shape();
 }
 
-void instruction::replace_argument(std::vector<instruction_ref> inss,
+void instruction::replace_argument(std::vector<instruction_ref>& inss,
                                    instruction_ref old,
                                    instruction_ref new_ins)
 {

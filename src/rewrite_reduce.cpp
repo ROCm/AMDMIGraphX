@@ -87,7 +87,7 @@ struct find_softmax_base_ops
 
             auto i_down = m.insert_instruction(
                 std::next(i), make_op("convert", {{"target_type", inp_type}}), i);
-            
+
             for(auto o : i->outputs())
             {
                 if(not contains(softmax_inss, o) and o != i_down)
@@ -104,7 +104,7 @@ struct find_softmax_base_ops
                       return std::distance(m.begin(), x) < std::distance(m.begin(), y);
                   });
 
-        auto inp_up   = m.insert_instruction(
+        auto inp_up = m.insert_instruction(
             std::next(inp), make_op("convert", {{"target_type", shape::float_type}}), inp);
 
         instruction::replace_argument(sorted_softmax_inss, inp, inp_up);

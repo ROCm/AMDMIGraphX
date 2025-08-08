@@ -99,159 +99,7 @@ calc_neighbor_points(const std::vector<std::vector<std::vector<std::size_t>>>& v
     return out_idx_vec;
 }
 
-static std::string get_coord_trans_mode(const onnx_parser::attribute_map& attr)
-{
-    std::string coord_trans_mode = "half_pixel";
-    if(contains(attr, "coordinate_transformation_mode"))
-    {
-        coord_trans_mode = attr.at("coordinate_transformation_mode").s();
-        // does not support transformation mode "tf_crop_and_resize"
-        if(coord_trans_mode == "tf_crop_and_resize")
-        {
-            MIGRAPHX_THROW("PARSE_RESIZE: \"tf_crop_and_resize\" mode is not supported!");
-        }
-    }
 
-    return coord_trans_mode;
-}
-
-static float get_cubic_coeff(const onnx_parser::attribute_map& attr)
-{
-    float coeff = -0.75f;
-    if(contains(attr, "cubic_coeff_a"))
-    {
-        cubic = attr.at("cubic_coeff_a").f();
-    }
-    return coeff;
-}
-
-static std::string get_mode(const onnx_parser::attribute_map& attr)
-{
-    std::string mode = "nearest";
-    if(contains(attr, "mode"))
-    {
-        mode = attr.at("mode").s();
-        if(mode != "nearest" and mode != "linear")
-        {
-            MIGRAPHX_THROW("PARSE_RESIZE: only nearest and linear modes are supported!");
-        }
-    }
-
-    return mode;
-}
-
-static std::string get_nearest_mode(const onnx_parser::attribute_map& attr)
-{
-    std::string nearest_mode = "round_prefer_floor";
-    if(contains(attr, "nearest_mode"))
-    {
-        nearest_mode = attr.at("nearest_mode").s();
-    }
-
-    return nearest_mode;
-}
-
-static int get_exclude_outside(const onnx_parser::atrribute_map& attr)
-{
-    // TODO: Add support for exclude outside = 1
-    if(contains(attr, "exclude_outside") and
-        attr.at("exclude_outside").i() == 1)
-    {
-        MIGRAPHX_THROW("PARSE_RESIZE exclude_outside 1 is not supported!");
-    }
-}
-
-static std::vector<int64_t> get_axes(const onnx_parser::attribute_map& attr)
-{
-    // TODO: support implementation of 'axes' attribute.
-    // For now, it's used to check the length of 'sizes' input (if present)
-    std::vector<int64_t> axes{};
-    if(contains(attr, "axes"))
-    {
-        auto&& axes_vals = attr.at("axes").ints();
-        axes             = std::vector<int64_t>(axes_vals.begin(), axes_vals.end());
-    }
-    return axes;
-}
-
-
-// "scales" is an attribute of the deprecated Upsample op. ver7 only
-static std::vector<double> get_scales(const onnx_parser::attribute_map& attr)
-{
-    std::vector<double> scales;
-    if(contains(attr, "scales"))
-    {
-        copy(attr.at("scales").floats(), std::back_inserter(scales));
-    }
-
-    return scales;
-}
-
-// Hunts through the argument list to find either scales or sizes, and
-// populates both scales and sizes vectors from it.
-// r_arg: a reference to the argument that was found.
-//
-// return: true if argument is non-static (i.e. if eval() couldn't read it
-// at compile time).  If true, we'll need to use Resize op.
-static bool parse_args(const std::vector<instruction_ref>& args,
-                       const std::vector<size_t>& in_lens,
-                       const std::string& onnx_name,
-                       std::vector<double>& vec_scale,
-                       std::vector<std::size_t>& out_lens,
-                       instruction_ref& r_arg)
-{
-    for(const auto& arg : args)
-    {
-        if(arg->name() == "undefined")
-            continue;
-
-        // skip any empty input (some of the Onnx args. are optional)
-        auto lens = arg->get_shape().lens();
-        if(lens.empty())
-            continue;
-
-        r_arg = arg;
-
-        auto type = arg->get_shape().type();
-        if(type == shape::int64_type)
-        {
-            // this argument is output sizes
-            auto arg_out_s = arg->eval();
-            if(arg_out_s.empty())
-                return true;
-            arg_out_s.visit([&](const auto& ol) { out_lens.assign(ol.begin(), ol.end()); });
-
-            if(out_lens.size() != in_lens.size())
-            {
-                MIGRAPHX_THROW("PARSE_" + onnx_name +
-                               ": specified output size's rank does not match input size");
-            }
-
-            // compute the scales
-            vec_scale.resize(in_lens.size());
-            std::transform(in_lens.begin(),
-                           in_lens.end(),
-                           out_lens.begin(),
-                           vec_scale.begin(),
-                           [](auto iss, auto oss) { return 1.0 * oss / iss; });
-            return false;
-        }
-        else
-        {
-            // this argument is scale input
-            if(lens[0] == in_lens.size())
-            {
-                auto arg_scale = arg->eval();
-                if(arg_scale.empty())
-                    return true;
-
-                arg_scale.visit([&](const auto& v) { vec_scale.assign(v.begin(), v.end()); });
-            }
-            return false;
-        }
-    }
-    MIGRAPHX_THROW("PARSE_" + onnx_name + ": no shapes or scales input provided");
-}
 
 struct parse_resize : op_parser<parse_resize>
 {
@@ -265,69 +113,231 @@ struct parse_resize : op_parser<parse_resize>
         std::vector<int64_t> axes;                // resize - 18
         int antialias             = 0;            // resize - 18
         int exclude_outside       = 0;            // resize - 11
-        float scales              = 1;            // Upsample 7
         float cubic_coeff_a       = -0.75f;       // resize - 11
         float extrapolation_value = 0.0f;         // resize - 11
-        std::string coord_t_mode  = 'half_pixel'; // resize - 11
-        std::string nearest_mode  = 'round_prefer_floor';
-        std::string keep_aspect   = 'stretch';    // resize - 18
+        std::string coord_t_mode  = "half_pixel"; // resize - 11
+        std::string nearest_mode  = "round_prefer_floor";
+        std::string keep_aspect   = "stretch";    // resize - 18
 
         // Overlaps with upsample operator
-        std::string mode          = 'nearest'; 
+        std::string mode          = "nearest"; 
 
+        // Upsample related
+        std::vector<float> scales = {};     // Upsample 7
     };
 
     struct resize_args
     {
         // Since inception opset(10)
-        instruction_ref input; // known as X
+        instruction_ref x;
 
         // For Upscale this may be an attr
-        // but also used for resize as well
-        std::optional<instruction_ref> scales; 
+        std::optional<instruction_ref> scales; // resize/upsample-10
 
         // Added in resize - 11
+        // resize 13 makes roi optional
         std::optional<instruction_ref> roi;
         std::optional<instruction_ref> sizes;
-    };
 
-    struct resize_parser
-    {
-        resize_attr attr;
-        resize_args args;
+        resize_attr r_attr;
 
-        std::string coord_trans_mode;
         shape in_s;
         std::vector<size_t> in_lens;
         std::vector<size_t> out_lens;
-        std::vector<double> vec_scale;
+        std::vector<float> vec_scale;
+        instruction_ref scales_sizes_arg;
+
+        int opset_version = -1;
 
         bool is_resize = true;
-        void set_upsaple_op(){is_resize = false;}
+
+        void set_upsample_op(){is_resize = false;}
         bool is_resize_op() const {return is_resize;}
 
-        bool is_scale_attr(){return not args.scales.has_value();}
+        // if scale an attr must be greater or equal to 1 
+        bool is_scale_attr(){return not r_attr.scales.empty();}
 
-        bool is_axes_used(){return not attr.axes.empty();}
+        bool is_axes_used(){return not r_attr.axes.empty();}
+
+        std::string get_nearest_mode(){return r_attr.nearest_mode;}
+        std::string get_coord_trans_mode(){return r_attr.coord_t_mode;}
+        std::string get_mode(){return r_attr.mode;}
+
+        void set_scales_sizes_arg(instruction_ref ref)
+        {
+            scales_sizes_arg = ref;
+        }
+
+        instruction_ref get_scales_sizes_arg()
+        {
+            return scales_sizes_arg;
+        }
+
+        std::vector<float> get_scales(const std::vector<instruction_ref>& args)
+        {
+            scales_sizes_arg = args[0];
+
+            // boolean indicates whether the size of the output can be determined
+            // at compile time, i.e. its values come from literal input(s) and have
+            // no dependencies anywhere in the graph on runtime inputs.
+            bool is_constant_scale_input(not vec_scale.empty());
+            if(not is_constant_scale_input)
+            {
+                // Depending on the args, it *must* populate the `vec_scale`, and might populate
+                // `out_lens`. Skip first input and `roi` input (if present)
+                size_t args_offset      = args.size() > 2 ? 2 : 1;
+                is_constant_scale_input = not parse_args({args.begin() + args_offset, args.end()},
+                                                        in_lens,
+                                                        vec_scale,
+                                                        out_lens,
+                                                        scales_sizes_arg);
+            }
+
+            if(is_constant_scale_input)
+            {
+                if(in_lens.size() != vec_scale.size())
+                {
+                    MIGRAPHX_THROW("PARSE_RESIZE: ranks of input and scale are different!");
+                }
+
+                // if the output was not calculated yet, we update it based on the scales
+                if(all_of(out_lens.cbegin(), out_lens.cend(), [](auto o) { return o == 0; }))
+                {
+                    std::transform(
+                        in_lens.begin(),
+                        in_lens.end(),
+                        vec_scale.begin(),
+                        out_lens.begin(),
+                        [&](auto idx, auto scale) { return static_cast<std::size_t>(idx * scale); });
+                }
+            }
+
+            return vec_scale;
+        }
+
+        void set_coord_trans_mode(const onnx_parser::attribute_map& attr)
+        {
+            if(contains(attr, "coordinate_transformation_mode"))
+            {
+                auto coord_trans_mode = attr.at("coordinate_transformation_mode").s();
+                // does not support transformation mode "tf_crop_and_resize"
+                if(coord_trans_mode == "tf_crop_and_resize")
+                {
+                    MIGRAPHX_THROW("PARSE_RESIZE: \"tf_crop_and_resize\" mode is not supported!");
+                }
+                r_attr.coord_t_mode = coord_trans_mode;
+            }
+        }
+
+        void set_cubic_coeff(const onnx_parser::attribute_map& attr)
+        {
+            if(contains(attr, "cubic_coeff_a"))
+            {
+                auto coeff = attr.at("cubic_coeff_a").f();
+                r_attr.cubic_coeff_a = coeff;
+            }
+        }
+
+        void set_mode(const onnx_parser::attribute_map& attr)
+        {
+            if(contains(attr, "mode"))
+            {   // TODO: Add support for cubic mode
+                auto mode = attr.at("mode").s();
+                if(mode != "nearest" and mode != "linear")
+                {
+                    MIGRAPHX_THROW("PARSE_RESIZE: only nearest and linear modes are supported!");
+                }
+                r_attr.mode = mode;
+            }
+        }
+
+        void set_nearest_mode(const onnx_parser::attribute_map& attr)
+        {
+            if(contains(attr, "nearest_mode"))
+            {
+                r_attr.nearest_mode = attr.at("nearest_mode").s();
+            }
+        }
+
+        void set_exclude_outside(const onnx_parser::attribute_map& attr)
+        {
+            // TODO: Add support for exclude outside = 1
+            if(contains(attr, "exclude_outside") and
+                attr.at("exclude_outside").i() == 1)
+            {
+                MIGRAPHX_THROW("PARSE_RESIZE exclude_outside 1 is not supported!");
+            }
+        }
+
+        void set_extrapolation_val(const onnx_parser::attribute_map& attr)
+        {
+            if(contains(attr, "extrapolation_value"))
+            {
+                r_attr.extrapolation_value = attr.at("extrapolation_value").f();
+            }
+        }
+
+        void set_axes(const onnx_parser::attribute_map& attr)
+        {
+            // TODO: support implementation of 'axes' attribute.
+            // For now, it's used to check the length of 'sizes' input (if present)
+            if(contains(attr, "axes"))
+            {
+                auto&& axes_vals = attr.at("axes").ints();
+                r_attr.axes      = std::vector<int64_t>(axes_vals.begin(), axes_vals.end());
+            }
+        }
+
+        void set_aspect_ratio_policy(const onnx_parser::attribute_map& attr, 
+                                     const std::vector<instruction_ref>& args)
+        {
+            // TODO: Add support for this instead of keeping it as a check
+            if(contains(attr, "keep_aspect_ratio_policy"))
+            {
+                shape last_arg_shape     = args.back()->get_shape();
+                size_t last_arg_elements = last_arg_shape.elements();
+                // Check if the last arg is 'sizes' input.
+                // This attribute is only relevant if 'sizes' input is used.
+                // The shape constraints for 'sizes' are below:
+                if(last_arg_shape.type() == shape::int64_type and
+                    (last_arg_elements == args.front()->get_shape().ndim() or
+                    (is_axes_used() and last_arg_elements == r_attr.axes.size())))
+                {
+                    MIGRAPHX_THROW("PARSE_RESIZE: keep_aspect_ratio_policy is not supported!");
+                }
+            }
+        }
+
+        // "scales" is an attribute of the deprecated Upsample op. ver7 only
+        void set_scales(const onnx_parser::attribute_map& attr)
+        {
+            if(contains(attr, "scales"))
+            {
+                copy(attr.at("scales").floats(), std::back_inserter(r_attr.scales));
+            }
+        }
+
     };
 
     // Helper to add a "reshape" and "gather" instruction.  These can implement
     // Nearest mode resizing if all sizes are known at compile time.
     static instruction_ref make_gather_instruction(const onnx_parser::node_info& info,
-                                                   const std::size_t out_elements,
-                                                   const shape& in_s,
-                                                   shape& out_s,
-                                                   const std::vector<size_t>& in_lens,
-                                                   const std::vector<size_t>& out_lens,
-                                                   const std::vector<double>& vec_scale,
+                                                   resize_args& resize,
                                                    instruction_ref args_0)
     {
-        std::string nearest_mode = get_nearest_mode(info.attributes);
+        auto in_s      = resize.in_s;
+        auto in_lens   = resize.in_lens;
+        auto out_lens  = resize.out_lens;
+        auto vec_scale = resize.vec_scale;
+
+        shape out_s{in_s.type(), out_lens};
+        std::size_t out_elements = out_s.elements();
+        std::string nearest_mode = resize.get_nearest_mode();
         std::vector<int> ind(out_elements);
 
         // map out_idx to in_idx
         auto nearest_op              = op::resize::get_nearest_op(nearest_mode);
-        std::string coord_trans_mode = get_coord_trans_mode(info.attributes);
+        std::string coord_trans_mode = resize.get_coord_trans_mode();
         auto idx_op                  = op::resize::get_original_idx_op(coord_trans_mode);
 
         shape_for_each(out_s, [&](const auto& out_idx_v, size_t out_idx) {
@@ -351,15 +361,15 @@ struct parse_resize : op_parser<parse_resize>
     }
 
     static instruction_ref handle_nearest_neighboor(const onnx_parser::node_info& info,
-                                                    const std::string& coord_trans_mode,
-                                                    const std::string& nearest_mode,
-                                                    const shape& in_s,
-                                                    const std::vector<size_t>& in_lens,
-                                                    const std::vector<size_t>& out_lens,
-                                                    const std::vector<double>& vec_scale,
-                                                    instruction_ref& scales_sizes_arg,
-                                                    instruction_ref& args_0)
+                                                    resize_args& resize,
+                                                    instruction_ref args_0)
     {
+        auto in_s      = resize.in_s;
+        auto in_lens   = resize.in_lens;
+        auto out_lens  = resize.out_lens;
+        auto vec_scale = resize.vec_scale;
+        auto scales_sizes_arg = resize.scales_sizes_arg;
+
         bool is_constant_scale_input(not vec_scale.empty());
         if(args_0->get_shape().dynamic() or not is_constant_scale_input)
         {
@@ -367,8 +377,8 @@ struct parse_resize : op_parser<parse_resize>
             // depending on its data type
             return info.add_instruction(
                 make_op("resize",
-                        {{"nearest_mode", nearest_mode},
-                         {"coordinate_transformation_mode", coord_trans_mode}}),
+                        {{"nearest_mode", resize.get_nearest_mode()},
+                         {"coordinate_transformation_mode", resize.get_coord_trans_mode()}}),
                 args_0,
                 scales_sizes_arg);
         }
@@ -379,24 +389,23 @@ struct parse_resize : op_parser<parse_resize>
             // the Resize can be accomplished with Gather operation.  Preferred for
             // better performance.
 
-            shape out_s{in_s.type(), out_lens};
-            std::size_t out_elements = out_s.elements();
 
             return make_gather_instruction(
-                info, out_elements, in_s, out_s, in_lens, out_lens, vec_scale, args_0);
+                info, resize, args_0);
         }
     }
 
     static instruction_ref handle_linear_mode(const op_desc& opd,
                                               const onnx_parser::node_info& info,
-                                              const std::string& coord_trans_mode,
-                                              const shape& in_s,
-                                              const std::vector<size_t>& in_lens,
-                                              const std::vector<size_t>& out_lens,
-                                              const std::vector<double>& vec_scale,
+                                              resize_args& resize,
                                               instruction_ref& args_0)
 
     {
+        auto in_s      = resize.in_s;
+        auto in_lens   = resize.in_lens;
+        auto out_lens  = resize.out_lens;
+        auto vec_scale = resize.vec_scale;
+
         bool is_constant_scale_input(not vec_scale.empty());
         // out_lens and other variables can't be populated if non-constant (runtime) size
         // inputs.
@@ -436,7 +445,7 @@ struct parse_resize : op_parser<parse_resize>
         // Delta list. For each resized axes - per element.
         std::vector<std::vector<float>> delta(resized_ct, std::vector<float>(out_elements));
 
-        auto idx_op = op::resize::get_original_idx_op(coord_trans_mode);
+        auto idx_op = op::resize::get_original_idx_op(resize.get_coord_trans_mode());
         shape_for_each(out_s, [&](const auto& out_idx_v, std::size_t out_idx) {
             for(size_t ii = 0; ii != resized_ct; ++ii)
             {
@@ -482,128 +491,164 @@ struct parse_resize : op_parser<parse_resize>
         return data;
     }
 
-    // TODO: this operator is complex, consider refactoring in the future
-    // to fix 'readability-function-size' tidy check
-    // NOLINTBEGIN(readability-function-size)
+
+    // Hunts through the argument list to find either scales or sizes, and
+    // populates both scales and sizes vectors from it.
+    // r_arg: a reference to the argument that was found.
+    //
+    // return: true if argument is non-static (i.e. if eval() couldn't read it
+    // at compile time).  If true, we'll need to use Resize op.
+    static bool parse_args(const std::vector<instruction_ref>& args,
+                        const std::vector<size_t>& in_lens,
+                        std::vector<float>& vec_scale,
+                        std::vector<std::size_t>& out_lens,
+                        instruction_ref& r_arg)
+    {
+        for(const auto& arg : args)
+        {
+            if(arg->name() == "undefined")
+                continue;
+
+            // skip any empty input (some of the Onnx args. are optional)
+            auto lens = arg->get_shape().lens();
+            if(lens.empty())
+                continue;
+
+            r_arg = arg;
+
+            auto type = arg->get_shape().type();
+            if(type == shape::int64_type)
+            {
+                // this argument is output sizes
+                auto arg_out_s = arg->eval();
+                if(arg_out_s.empty())
+                    return true;
+                arg_out_s.visit([&](const auto& ol) { out_lens.assign(ol.begin(), ol.end()); });
+
+                if(out_lens.size() != in_lens.size())
+                {
+                    MIGRAPHX_THROW("PARSE_RESIZE: specified output size's rank does not match input size");
+                }
+
+                // compute the scales
+                vec_scale.resize(in_lens.size());
+                std::transform(in_lens.begin(),
+                            in_lens.end(),
+                            out_lens.begin(),
+                            vec_scale.begin(),
+                            [](auto iss, auto oss) { return 1.0 * oss / iss; });
+                return false;
+            }
+            else
+            {
+                // this argument is scale input
+                if(lens[0] == in_lens.size())
+                {
+                    auto arg_scale = arg->eval();
+                    if(arg_scale.empty())
+                        return true;
+
+                    arg_scale.visit([&](const auto& v) { vec_scale.assign(v.begin(), v.end()); });
+                }
+                return false;
+            }
+        }
+        MIGRAPHX_THROW("PARSE_RESIZE: no shapes or scales input provided");
+    }
+
+    static void set_resize_attributes(const onnx_parser::node_info& info,
+                                      const std::vector<instruction_ref>& args,
+                                      resize_args& resize)
+    {     
+        resize.set_coord_trans_mode(info.attributes);
+        resize.set_cubic_coeff(info.attributes);
+        resize.set_axes(info.attributes);
+        resize.set_exclude_outside(info.attributes);
+        resize.set_extrapolation_val(info.attributes);
+        resize.set_aspect_ratio_policy(info.attributes, args);
+        resize.set_nearest_mode(info.attributes);
+        resize.set_mode(info.attributes);
+    }
+
+
+    static void set_resize_args(const std::vector<instruction_ref>& args,
+                                resize_args& resize)
+    {
+        resize.x      = args.at(0);
+        resize.set_scales_sizes_arg(args[0]);
+        resize.vec_scale = resize.get_scales(args);
+    }
+
+    static void set_upsample_attributes(const onnx_parser::node_info& info,
+                                        resize_args& resize)
+    {
+        resize.set_mode(info.attributes);
+        resize.set_scales(info.attributes);
+    }
+
+    static void set_upsample_args(const std::vector<instruction_ref>& args,
+                           resize_args& resize)
+    {
+        resize.x = args.at(0);
+
+        // scale is input it must be a required input
+        if(not resize.is_scale_attr())
+            resize.scales = args.at(1);
+    }
+
+    // Split of what we handle since this parser is used for both resize/upscale operators
+    static resize_args handle_inputs(const  op_desc& opd,
+                                     const onnx_parser::node_info& info,
+                                     const std::vector<instruction_ref>& args)
+    {
+        resize_args resize;
+
+        // input data shape info
+        resize.in_s    = args[0]->get_shape().to_static(1);
+        resize.in_lens = resize.in_s.lens();
+
+        // output shape is explicitly specified
+        resize.out_lens = std::vector<size_t>(resize.in_lens.size());
+
+        if(opd.op_name == "Upsample")
+        {
+            resize.set_upsample_op();
+        }
+
+        // We do this since upsample/resize overlap in functionality 
+        if(resize.is_resize_op())
+        {
+            set_resize_attributes(info, args, resize);
+            set_resize_args(args, resize);
+        }
+        else
+        {
+            set_upsample_attributes(info, resize);
+            set_upsample_args(args, resize);
+        }
+        return resize;
+    }
+
     instruction_ref parse(const op_desc& opd,
                           const onnx_parser&,
                           onnx_parser::node_info info,
                           std::vector<instruction_ref> args) const
     {
-        // coord transform mode
-        std::string coord_trans_mode = get_coord_trans_mode(info.attributes);
+        auto resize = handle_inputs(opd, info, args);
 
-        // mode: only nearest and linear modes are supported for now
-        std::string mode = get_mode(info.attributes);
 
-        // nearest mode
-        std::string nearest_mode = get_nearest_mode(info.attributes);
-
-        // check exclude_outside, only support 0
-        if(contains(info.attributes, "exclude_outside") and
-           info.attributes.at("exclude_outside").i() == 1)
+        if(resize.get_mode() == "nearest")
         {
-            MIGRAPHX_THROW("PARSE_" + opd.onnx_name + ": exclude_outside 1 is not supported!");
-        }
-
-        // TODO: support implementation of 'axes' attribute.
-        // For now, it's used to check the length of 'sizes' input (if present)
-        std::vector<int64_t> axes;
-        if(contains(info.attributes, "axes"))
-        {
-            auto&& axes_vals = info.attributes.at("axes").ints();
-            axes             = std::vector<int64_t>(axes_vals.begin(), axes_vals.end());
-        }
-
-        if(contains(info.attributes, "keep_aspect_ratio_policy"))
-        {
-            shape last_arg_shape     = args.back()->get_shape();
-            size_t last_arg_elements = last_arg_shape.elements();
-            // Check if the last arg is 'sizes' input.
-            // This attribute is only relevant if 'sizes' input is used.
-            // The shape constraints for 'sizes' are below:
-            if(last_arg_shape.type() == shape::int64_type and
-               (last_arg_elements == args.front()->get_shape().ndim() or
-                (contains(info.attributes, "axes") and last_arg_elements == axes.size())))
-            {
-                MIGRAPHX_THROW("PARSE_" + opd.onnx_name +
-                               ": keep_aspect_ratio_policy is not supported!");
-            }
-        }
-
-        // input data shape info
-        auto in_s    = args[0]->get_shape().to_static(1);
-        auto in_lens = in_s.lens();
-
-        // output shape is explicitly specified
-        std::vector<std::size_t> out_lens(in_lens.size());
-
-        // scale
-        std::vector<double> vec_scale = get_scales(info.attributes);
-
-        // If `scales` was not an attribute, it must be an input
-        // bool is_scale_input{true};
-        instruction_ref scales_sizes_arg(args[0]);
-
-        // boolean indicates whether the size of the output can be determined
-        // at compile time, i.e. its values come from literal input(s) and have
-        // no dependencies anywhere in the graph on runtime inputs.
-        bool is_constant_scale_input(not vec_scale.empty());
-        if(not is_constant_scale_input)
-        {
-            // Depending on the args, it *must* populate the `vec_scale`, and might populate
-            // `out_lens`. Skip first input and `roi` input (if present)
-            size_t args_offset      = args.size() > 2 ? 2 : 1;
-            is_constant_scale_input = not parse_args({args.begin() + args_offset, args.end()},
-                                                     in_lens,
-                                                     opd.onnx_name,
-                                                     vec_scale,
-                                                     out_lens,
-                                                     scales_sizes_arg);
-        }
-
-        if(is_constant_scale_input)
-        {
-            if(in_lens.size() != vec_scale.size())
-            {
-                MIGRAPHX_THROW("PARSE_" + opd.onnx_name +
-                               ": ranks of input and scale are different!");
-            }
-
-            // if the output was not calculated yet, we update it based on the scales
-            if(all_of(out_lens.cbegin(), out_lens.cend(), [](auto o) { return o == 0; }))
-            {
-                std::transform(
-                    in_lens.begin(),
-                    in_lens.end(),
-                    vec_scale.begin(),
-                    out_lens.begin(),
-                    [&](auto idx, auto scale) { return static_cast<std::size_t>(idx * scale); });
-            }
-        }
-
-        if(mode == "nearest")
-        {
-            return handle_nearest_neighboor(info,
-                                            coord_trans_mode,
-                                            nearest_mode,
-                                            in_s,
-                                            in_lens,
-                                            out_lens,
-                                            vec_scale,
-                                            scales_sizes_arg,
-                                            args[0]);
+            return handle_nearest_neighboor(info, resize, args[0]);
         }
         // linear mode
         else
         {
-            return handle_linear_mode(
-                opd, info, coord_trans_mode, in_s, in_lens, out_lens, vec_scale, args[0]);
+            return handle_linear_mode(opd, info, resize, args[0]);
         }
     }
 };
 
 } // namespace onnx
-
 } // namespace MIGRAPHX_INLINE_NS
 } // namespace migraphx

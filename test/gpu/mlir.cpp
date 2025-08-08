@@ -673,26 +673,29 @@ module {
 }
 )__migraphx__";
     migraphx::module m;
-    auto x0 = m.add_parameter("x0", migraphx::shape{migraphx::shape::float_type, {1, 12, 1, 64}});
-    auto x1 = m.add_parameter("x1", migraphx::shape{migraphx::shape::float_type, {1, 12, 64, 1}});
-    auto x2 = m.add_parameter("x2", migraphx::shape{migraphx::shape::float_type, {1, 12, 1, 1}});
-    auto x3 = m.add_parameter("x3", migraphx::shape{migraphx::shape::float_type, {1, 12, 1, 64}});
+    auto x0   = m.add_parameter("x0", migraphx::shape{migraphx::shape::float_type, {1, 12, 1, 64}});
+    auto x1   = m.add_parameter("x1", migraphx::shape{migraphx::shape::float_type, {1, 12, 64, 1}});
+    auto x2   = m.add_parameter("x2", migraphx::shape{migraphx::shape::float_type, {1, 12, 1, 1}});
+    auto x3   = m.add_parameter("x3", migraphx::shape{migraphx::shape::float_type, {1, 12, 1, 64}});
     auto dot0 = m.add_instruction(migraphx::make_op("dot"), x0, x1);
-    auto mul = m.add_instruction(migraphx::make_op("mul"), dot0, x2);
+    auto mul  = m.add_instruction(migraphx::make_op("mul"), dot0, x2);
     auto reduce_max = m.add_instruction(migraphx::make_op("reduce_max", {{"axes", {3}}}), mul);
-    auto broadcast0 = m.add_instruction(migraphx::make_op("multibroadcast", {{"out_lens", {1, 12, 1, 1}}}), reduce_max);
-    auto sub = m.add_instruction(migraphx::make_op("sub"), mul, broadcast0);
-    auto exp = m.add_instruction(migraphx::make_op("exp"), sub);
+    auto broadcast0 = m.add_instruction(
+        migraphx::make_op("multibroadcast", {{"out_lens", {1, 12, 1, 1}}}), reduce_max);
+    auto sub        = m.add_instruction(migraphx::make_op("sub"), mul, broadcast0);
+    auto exp        = m.add_instruction(migraphx::make_op("exp"), sub);
     auto reduce_sum = m.add_instruction(migraphx::make_op("reduce_sum", {{"axes", {3}}}), exp);
-    auto broadcast1 = m.add_instruction(migraphx::make_op("multibroadcast", {{"out_lens", {1, 12, 1, 1}}}), reduce_sum);
-    auto div = m.add_instruction(migraphx::make_op("div"), exp, broadcast1);
+    auto broadcast1 = m.add_instruction(
+        migraphx::make_op("multibroadcast", {{"out_lens", {1, 12, 1, 1}}}), reduce_sum);
+    auto div  = m.add_instruction(migraphx::make_op("div"), exp, broadcast1);
     auto dot1 = m.add_instruction(migraphx::make_op("dot"), div, x3);
     m.add_return({dot1});
     auto s = migraphx::gpu::dump_mlir(m);
     // Skip test if MLIR is not enabled
     if(s.empty())
         return;
-    auto mlir_output_with_attrs = migraphx::interpolate_string(mlir_output, {{"attrs", get_attrs()}});
+    auto mlir_output_with_attrs =
+        migraphx::interpolate_string(mlir_output, {{"attrs", get_attrs()}});
     CHECK(encode(s) == encode(mlir_output_with_attrs));
     EXPECT(verify_mlir(m));
 }

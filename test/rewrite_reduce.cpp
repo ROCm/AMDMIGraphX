@@ -59,6 +59,44 @@ TEST_CASE(softmax)
     }));
 }
 
+TEST_CASE(softmax_upcast)
+{
+    migraphx::shape s{migraphx::shape::half_type, {10, 1000}};
+    migraphx::module m;
+    auto x       = m.add_parameter("x", s);
+    auto softmax = m.add_instruction(migraphx::make_op("softmax", {{"axis", 1}}), x);
+    m.add_return({softmax});
+    run_pass(m);
+    EXPECT(none_of(migraphx::iterator_for(m), [](auto ins) { return ins->name() == "softmax"; }));
+
+    auto reduces = find_all(migraphx::iterator_for(m),
+                            [&](auto ins) { return migraphx::contains(ins->name(), "reduce"); });
+    EXPECT(all_of(reduces, [](auto ins) {
+        auto axes = ins->get_operator().to_value()["axes"].template to_vector<int64_t>();
+        auto dtype = ins->get_shape().type();
+        return axes.size() == 1 and axes[0] == 1 and dtype == migraphx::shape::float_type;
+    }));
+}
+
+// TEST_CASE(softmax_lse_upcast)
+// {
+//     migraphx::shape s{migraphx::shape::half_type, {10, 1000}};
+//     migraphx::module m;
+//     auto x       = m.add_parameter("x", s);
+//     auto softmax = m.add_instruction(migraphx::make_op("softmax", {{"axis", 1}}), x);
+//     m.add_return({softmax});
+//     run_pass(m);
+//     EXPECT(none_of(migraphx::iterator_for(m), [](auto ins) { return ins->name() == "softmax"; }));
+
+//     auto reduces = find_all(migraphx::iterator_for(m),
+//                             [&](auto ins) { return migraphx::contains(ins->name(), "reduce"); });
+//     EXPECT(all_of(reduces, [](auto ins) {
+//         auto axes = ins->get_operator().to_value()["axes"].template to_vector<int64_t>();
+//         auto dtype = ins->get_shape().type();
+//         return axes.size() == 1 and axes[0] == 1 and dtype == migraphx::shape::float_type;
+//     }));
+// }
+
 TEST_CASE(reduce_mean)
 {
     migraphx::shape s{migraphx::shape::float_type, {1, 3, 9}};

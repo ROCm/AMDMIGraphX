@@ -24,9 +24,11 @@
  */
 #include <migraphx/rewrite_reduce.hpp>
 #include <migraphx/module.hpp>
+#include <migraphx/match/softmax.hpp>
 #include <migraphx/matcher.hpp>
 #include <migraphx/make_op.hpp>
 #include <migraphx/common.hpp>
+#include <migraphx/instruction.hpp>
 
 MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_DISABLE_FP32_SOFTMAX);
 
@@ -36,43 +38,76 @@ inline namespace MIGRAPHX_INLINE_NS {
 namespace {
 struct find_softmax
 {
-    bool full_precision;
-
     auto matcher() const { return match::name("softmax"); }
 
     void apply(module& m, const match::matcher_result& r) const
     {
-        auto ins             = r.result;
-        auto op              = ins->get_operator().to_value();
-        auto axis            = op["axis"].to<std::int64_t>();
-        auto input           = ins->inputs().front();
-        auto input_type      = input->get_shape().type();
-        auto requires_upcast = not contains({shape::float_type, shape::double_type}, input_type);
+        auto ins  = r.result;
+        auto op   = ins->get_operator().to_value();
+        auto axis = op["axis"].to<std::int64_t>();
 
-        if(full_precision and requires_upcast)
-        {
-            input = m.insert_instruction(
-                ins, make_op("convert", {{"target_type", shape::float_type}}), input);
-        }
-
-        auto max  = m.insert_instruction(ins, make_op("reduce_max", {{"axes", {axis}}}), input);
-        auto maxb = m.insert_instruction(
+        auto input = ins->inputs().front();
+        auto max   = m.insert_instruction(ins, make_op("reduce_max", {{"axes", {axis}}}), input);
+        auto maxb  = m.insert_instruction(
             ins, make_op("multibroadcast", {{"out_lens", input->get_shape().lens()}}), max);
         auto sub  = m.insert_instruction(ins, make_op("sub"), input, maxb);
         auto exp  = m.insert_instruction(ins, make_op("exp"), sub);
         auto sum  = m.insert_instruction(ins, make_op("reduce_sum", {{"axes", {axis}}}), exp);
         auto sumb = m.insert_instruction(
             ins, make_op("multibroadcast", {{"out_lens", input->get_shape().lens()}}), sum);
-        auto div = m.insert_instruction(ins, make_op("div"), exp, sumb);
+        m.replace_instruction(ins, make_op("div"), exp, sumb);
+    }
+};
 
-        if(full_precision and requires_upcast)
+struct find_softmax_base_ops
+{
+    bool full_precision;
+
+    auto matcher() const { return match::softmax(); }
+
+    void apply(module& m, const match::matcher_result& r) const
+    {
+        auto div             = r.result;
+        auto inp             = r.instructions["x"];
+        auto inp_type        = inp->get_shape().type();
+        auto requires_upcast = not contains({shape::float_type, shape::double_type}, inp_type);
+
+        if(not requires_upcast)
+            return;
+
+        auto softmax_inss = find_instructions_between(inp, div, &m);
+
+        // add converts back to original type for all intermediate and final outputs
+        for(auto i : softmax_inss)
         {
-            m.replace_instruction(ins, make_op("convert", {{"target_type", input_type}}), div);
+            auto outs = i->outputs();
+            if(std::all_of(
+                   outs.begin(), outs.end(), [&](auto o) { return contains(softmax_inss, o); }))
+                continue;
+
+            auto i_down = m.insert_instruction(
+                std::next(i), make_op("convert", {{"target_type", inp_type}}), i);
+            
+            for(auto o : i->outputs())
+            {
+                if(not contains(softmax_inss, o) and o != i_down)
+                {
+                    instruction::replace_argument(o, i, i_down);
+                }
+            }
         }
-        else
-        {
-            m.replace_instruction(ins, div);
-        }
+
+        std::vector<instruction_ref> sorted_softmax_inss(softmax_inss.begin(), softmax_inss.end());
+        std::sort(sorted_softmax_inss.begin(),
+                  sorted_softmax_inss.end(),
+                  [&](instruction_ref x, instruction_ref y) {
+                      return std::distance(m.begin(), x) < std::distance(m.begin(), y);
+                  });
+
+        auto inp_up   = m.insert_instruction(
+            std::next(inp), make_op("convert", {{"target_type", shape::float_type}}), inp);
+
+        instruction::replace_argument(sorted_softmax_inss, inp, inp_up);
     }
 };
 
@@ -166,10 +201,13 @@ struct find_reduce_mean
 
 void rewrite_reduce::apply(module& m) const
 {
-    match::find_matches(
-        m,
-        find_softmax{.full_precision = not enabled(MIGRAPHX_DISABLE_FP32_SOFTMAX{})},
-        find_reduce_mean_variance{});
+    match::find_matches(m, find_softmax{}, find_reduce_mean_variance{});
+
+    if(not enabled(MIGRAPHX_DISABLE_FP32_SOFTMAX{}))
+    {
+        match::find_matches(m, find_softmax_base_ops{});
+    }
+
     match::find_matches(m, find_reduce_mean{});
 }
 

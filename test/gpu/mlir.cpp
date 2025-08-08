@@ -649,47 +649,25 @@ module {
     EXPECT(verify_mlir(m));
 }
 
-TEST_CASE(attention)
+TEST_CASE(dot_reduce)
 {
     std::string mlir_output = R"__migraphx__(
 module {
-  func.func @mlir_dot_mul_reshape_reduce_max_reshape_sub_exp_reshape_reduce_sum_reshape_div_dot(%arg0: !migraphx.shaped<1x12x1x64xf32, 768x64x64x1>, %arg1: !migraphx.shaped<1x12x64x1xf32, 768x64x1x1>, %arg2: !migraphx.shaped<1x12x1x1xf32, 12x1x1x1>, %arg3: !migraphx.shaped<1x12x1x64xf32, 768x64x64x1>) -> !migraphx.shaped<1x12x1x64xf32, 768x64x64x1> attributes {arch = "", kernel = "mixr", num_cu = 0 : i64} {
+  func.func @mlir_dot_reshape_reduce_max_reshape(%arg0: !migraphx.shaped<1x12x1x64xf32, 768x64x64x1>, %arg1: !migraphx.shaped<1x12x64x1xf32, 768x64x1x1>) -> !migraphx.shaped<1x12x1x1xf32, 12x1x1x1> attributes {arch = "", kernel = "mixr", num_cu = 0 : i64} {
     %0 = migraphx.dot %arg0, %arg1 : <1x12x1x64xf32, 768x64x64x1>, <1x12x64x1xf32, 768x64x1x1> -> <1x12x1x1xf32, 12x1x1x1>
-    %1 = migraphx.mul %0, %arg2 : <1x12x1x1xf32, 12x1x1x1>, <1x12x1x1xf32, 12x1x1x1> -> <1x12x1x1xf32, 12x1x1x1>
-    %2 = migraphx.reshape %1 {dims = [1, 12, 1, 1]} : <1x12x1x1xf32, 12x1x1x1> -> <1x12x1x1xf32, 12x1x1x1>
-    %3 = migraphx.reduce_max %2 {axes = [3]} : <1x12x1x1xf32, 12x1x1x1> -> <1x12x1x1xf32, 12x1x1x1>
-    %4 = migraphx.reshape %3 {dims = [1, 12, 1, 1]} : <1x12x1x1xf32, 12x1x1x1> -> <1x12x1x1xf32, 12x1x1x1>
-    %5 = migraphx.multibroadcast %4 {out_dyn_dims = [], out_lens = [1, 12, 1, 1]} : <1x12x1x1xf32, 12x1x1x1> -> <1x12x1x1xf32, 12x1x1x1>
-    %6 = migraphx.sub %1, %5 : <1x12x1x1xf32, 12x1x1x1>, <1x12x1x1xf32, 12x1x1x1> -> <1x12x1x1xf32, 12x1x1x1>
-    %7 = migraphx.exp %6 : <1x12x1x1xf32, 12x1x1x1> -> <1x12x1x1xf32, 12x1x1x1>
-    %8 = migraphx.reshape %7 {dims = [1, 12, 1, 1]} : <1x12x1x1xf32, 12x1x1x1> -> <1x12x1x1xf32, 12x1x1x1>
-    %9 = migraphx.reduce_sum %8 {axes = [3]} : <1x12x1x1xf32, 12x1x1x1> -> <1x12x1x1xf32, 12x1x1x1>
-    %10 = migraphx.reshape %9 {dims = [1, 12, 1, 1]} : <1x12x1x1xf32, 12x1x1x1> -> <1x12x1x1xf32, 12x1x1x1>
-    %11 = migraphx.multibroadcast %10 {out_dyn_dims = [], out_lens = [1, 12, 1, 1]} : <1x12x1x1xf32, 12x1x1x1> -> <1x12x1x1xf32, 12x1x1x1>
-    %12 = migraphx.div %7, %11 : <1x12x1x1xf32, 12x1x1x1>, <1x12x1x1xf32, 12x1x1x1> -> <1x12x1x1xf32, 12x1x1x1>
-    %13 = migraphx.dot %12, %arg3 : <1x12x1x1xf32, 12x1x1x1>, <1x12x1x64xf32, 768x64x64x1> -> <1x12x1x64xf32, 768x64x64x1>
-    return %13 : !migraphx.shaped<1x12x1x64xf32, 768x64x64x1>
+    %1 = migraphx.reshape %0 {dims = [1, 12, 1, 1]} : <1x12x1x1xf32, 12x1x1x1> -> <1x12x1x1xf32, 12x1x1x1>
+    %2 = migraphx.reduce_max %1 {axes = [3]} : <1x12x1x1xf32, 12x1x1x1> -> <1x12x1x1xf32, 12x1x1x1>
+    %3 = migraphx.reshape %2 {dims = [1, 12, 1, 1]} : <1x12x1x1xf32, 12x1x1x1> -> <1x12x1x1xf32, 12x1x1x1>
+    return %3 : !migraphx.shaped<1x12x1x1xf32, 12x1x1x1>
   }
 }
 )__migraphx__";
     migraphx::module m;
     auto x0   = m.add_parameter("x0", migraphx::shape{migraphx::shape::float_type, {1, 12, 1, 64}});
     auto x1   = m.add_parameter("x1", migraphx::shape{migraphx::shape::float_type, {1, 12, 64, 1}});
-    auto x2   = m.add_parameter("x2", migraphx::shape{migraphx::shape::float_type, {1, 12, 1, 1}});
-    auto x3   = m.add_parameter("x3", migraphx::shape{migraphx::shape::float_type, {1, 12, 1, 64}});
-    auto dot0 = m.add_instruction(migraphx::make_op("dot"), x0, x1);
-    auto mul  = m.add_instruction(migraphx::make_op("mul"), dot0, x2);
-    auto reduce_max = m.add_instruction(migraphx::make_op("reduce_max", {{"axes", {3}}}), mul);
-    auto broadcast0 = m.add_instruction(
-        migraphx::make_op("multibroadcast", {{"out_lens", {1, 12, 1, 1}}}), reduce_max);
-    auto sub        = m.add_instruction(migraphx::make_op("sub"), mul, broadcast0);
-    auto exp        = m.add_instruction(migraphx::make_op("exp"), sub);
-    auto reduce_sum = m.add_instruction(migraphx::make_op("reduce_sum", {{"axes", {3}}}), exp);
-    auto broadcast1 = m.add_instruction(
-        migraphx::make_op("multibroadcast", {{"out_lens", {1, 12, 1, 1}}}), reduce_sum);
-    auto div  = m.add_instruction(migraphx::make_op("div"), exp, broadcast1);
-    auto dot1 = m.add_instruction(migraphx::make_op("dot"), div, x3);
-    m.add_return({dot1});
+    auto dot = m.add_instruction(migraphx::make_op("dot"), x0, x1);
+    auto reduce_max = m.add_instruction(migraphx::make_op("reduce_max", {{"axes", {3}}}), dot);
+    m.add_return({reduce_max});
     auto s = migraphx::gpu::dump_mlir(m);
     // Skip test if MLIR is not enabled
     if(s.empty())

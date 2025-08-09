@@ -292,6 +292,14 @@ void tf_parser::parse_graph(const tensorflow::GraphDef& graph)
         shape::type_t shape_type  = parse_type(input_attrs.at("dtype").type());
         std::vector<size_t> dims  = parse_dims(input_attrs.at("shape").shape());
         std::vector<shape::dynamic_dimension> dyn_dims;
+
+        if(contains(map_dyn_input_dims, name))
+        {
+            shape s = shape_from_dyn_dims(shape_type, map_dyn_input_dims.at(name));
+            instructions[name] = to_nhwc(mm->add_parameter(name, s));
+            continue;
+        }
+        
         if(contains(map_input_dims, name))
         {
             dims = map_input_dims.at(name);
@@ -321,10 +329,10 @@ void tf_parser::parse_graph(const tensorflow::GraphDef& graph)
             s = {shape_type, s.max_lens()};
         }
 
-        if(contains(map_dyn_input_dims, name))
-        {
-            s = shape_from_dyn_dims(shape_type, map_dyn_input_dims.at(name));
-        }
+        // if(contains(map_dyn_input_dims, name))
+        // {
+        //     s = shape_from_dyn_dims(shape_type, map_dyn_input_dims.at(name));
+        // }
         
 
         instructions[name] = to_nhwc(mm->add_parameter(name, s));

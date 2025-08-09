@@ -682,25 +682,35 @@ bool is_interdependent(const std::vector<instruction_ref>& instructions,
 std::unordered_set<instruction_ref>
 find_instructions_between(instruction_ref start, instruction_ref end, const_module_ref m)
 {
-    std::queue<instruction_ref> inputs;
+    assert(reaches(start, end, m));
+    std::unordered_set<instruction_ref> result;
     std::unordered_set<instruction_ref> inss;
-    inputs.push(end);
 
-    while(not inputs.empty())
-    {
-        auto current_inp = inputs.front();
-        inputs.pop();
+    fix<void>([&](auto self, auto ins) {
+        if(not m->has_instruction(ins))
+            return;
+        if(ins->inputs().empty())
+            return;
+        if(not inss.insert(ins).second)
+            return;
+        if(ins == start)
+            return;
+        for(auto input : ins->inputs())
+            self(input);
+    })(end);
 
-        if(reaches(start, current_inp, m) and inss.insert(current_inp).second and
-           current_inp != start)
-        {
-            for(auto i : current_inp->inputs())
-            {
-                inputs.push(i);
-            }
-        }
-    }
-    return inss;
+    fix<void>([&](auto self, auto ins) {
+        if(ins == end)
+            return;
+        if(ins != start and not contains(inss, ins))
+            return;
+        if(not result.insert(ins).second)
+            return;
+        for(auto output : ins->outputs())
+            self(output);
+    })(start);
+    result.insert(end);
+    return result;
 }
 
 } // namespace MIGRAPHX_INLINE_NS

@@ -150,7 +150,7 @@ struct broadcast
     }
     std::ptrdiff_t output_alias(const std::vector<shape>&) const { return 0; }
 
-    value attributes() const { return {{"fillcolor", "#9ACD32"}}; }
+    value attributes() const { return {{"fillcolor", "#9ACD32" /* yellowgreen */}}; }
 };
 
 } // namespace op

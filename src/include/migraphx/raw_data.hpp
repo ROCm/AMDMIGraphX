@@ -27,6 +27,7 @@
 
 #include <migraphx/tensor_view.hpp>
 #include <migraphx/requires.hpp>
+#include <migraphx/byte.hpp>
 #include <migraphx/config.hpp>
 #include <sstream>
 
@@ -104,6 +105,34 @@ struct raw_data : raw_data_base
         visit(v, [&](const auto&) { MIGRAPHX_THROW("Invalid tuple type"); });
     }
 
+    /**
+     * Visit the data with a tensor_view<uint8_t> with lens = {num bytes};
+     */
+    template <class Visitor, class TupleVisitor>
+    void raw_visit(Visitor v, TupleVisitor tv) const
+    {
+        auto&& derived = static_cast<const Derived&>(*this);
+        if(derived.empty())
+            MIGRAPHX_THROW("Visiting empty data!");
+        auto&& s = derived.get_shape();
+        if(s.type() == shape::tuple_type)
+        {
+            tv(derived.get_sub_objects());
+        }
+        else
+        {
+            auto&& buffer     = static_cast<const Derived&>(*this).data();
+            shape visit_shape = {shape::uint8_type, {s.bytes()}};
+            v(make_view(visit_shape, reinterpret_cast<const migraphx::byte*>(buffer)));
+        }
+    }
+
+    template <class Visitor>
+    void raw_visit(Visitor v) const
+    {
+        raw_visit(v, [&](const auto&) { MIGRAPHX_THROW("Invalid tuple type"); });
+    }
+
     /// Returns true if the raw data is only one element
     bool single() const
     {
@@ -169,7 +198,7 @@ struct raw_data : raw_data_base
     {
         auto&& s      = static_cast<const Derived&>(*this).get_shape();
         auto&& buffer = static_cast<const Derived&>(*this).data();
-        if(s.type() != migraphx::shape::get_type<T>{})
+        if(s.computable() and s.type() != migraphx::shape::get_type<T>{})
             MIGRAPHX_THROW("Incorrect data type for raw data");
         return make_view(s, reinterpret_cast<T*>(buffer));
     }
@@ -284,10 +313,19 @@ bool operator==(const T& x, const U& y)
     bool result   = x.empty() and y.empty();
     if(not result and xshape == yshape)
     {
-        visit_all(x, y)([&](auto xview, auto yview) { result = xview == yview; },
-                        [&](auto&& xs, auto&& ys) {
-                            result = std::equal(xs.begin(), xs.end(), ys.begin(), ys.end());
-                        });
+        if(xshape.computable())
+        {
+            visit_all(x, y)([&](auto xview, auto yview) { result = xview == yview; },
+                            [&](auto&& xs, auto&& ys) {
+                                result = std::equal(xs.begin(), xs.end(), ys.begin(), ys.end());
+                            });
+        }
+        else
+        {
+            // not tuple type so do not need tuple visitor
+            x.raw_visit(
+                [&](auto xview) { y.raw_visit([&](auto yview) { result = xview == yview; }); });
+        }
     }
     return result;
 }

@@ -153,13 +153,10 @@ argument argument::reshape(const shape& s) const
     return {s, this->m_data};
 }
 
-
 argument argument::convert(shape::type_t t) const
 {
     argument result{this->get_shape().with_type(t)};
-    this->visit([&](auto x) {
-        result.fill(x.begin(), x.end());
-    });
+    this->visit([&](auto x) { result.fill(x.begin(), x.end()); });
     return result;
 }
 

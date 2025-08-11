@@ -128,7 +128,7 @@ struct quant_convolution
     {
         argument result{output_shape};
         result.visit([&](auto output) {
-            visit_all(args[0], args[1])([&](auto input, auto weights) {
+            get_all<double>(args[0], args[1])([&](auto input, auto weights) {
                 migraphx::convolution(output, input, weights, padding, stride, dilation, group);
             });
         });

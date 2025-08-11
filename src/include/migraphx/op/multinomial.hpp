@@ -118,7 +118,7 @@ struct multinomial
         size_t class_size  = args[0].get_shape().lens().back();
         size_t sample_size = dyn_out.computed_shape.lens().back();
 
-        visit_all(args[0], args[1])([&](auto cdf, auto dist) {
+        get_all<double>(args[0], args[1])([&](auto cdf, auto dist) {
             result.visit([&](auto output) {
                 par_for(batch_size * sample_size, [&](auto i) {
                     auto idx       = args[1].get_shape().multi(i);

@@ -146,7 +146,7 @@ struct gathernd
     {
         argument result{dyn_out.computed_shape};
         visit_all(result, args[0])([&](auto output, auto data) {
-            args[1].visit([&](auto indices) {
+            get_all<int64_t>(args[1])([&](auto indices) {
                 auto indices_shape        = indices.get_shape();
                 auto indices_shape_lens   = indices_shape.lens();
                 auto data_shape           = data.get_shape();

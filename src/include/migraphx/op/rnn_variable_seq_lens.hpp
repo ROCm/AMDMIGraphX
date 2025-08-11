@@ -63,7 +63,7 @@ struct rnn_var_sl_shift_output
         int64_t max_len = output_shape.lens()[0];
         visit_all(result, args[0])([&](auto output, auto input) {
             using value_type = typename decltype(output)::value_type;
-            args[1].visit([&](auto seq_lens) {
+            get_all<int64_t>(args[1])([&](auto seq_lens) {
                 par_for(output_shape.elements(), [&](auto i) {
                     auto idx       = output_shape.multi(i);
                     auto batch_id  = idx[2];

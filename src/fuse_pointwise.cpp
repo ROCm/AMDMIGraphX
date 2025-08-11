@@ -158,7 +158,11 @@ static module::with_inputs append_pointwise_module(instruction_ref ins, instruct
         returns.insert(returns.end(), ireturns.begin(), ireturns.end());
     }
     pm.replace_return(returns);
+    std::cout << "before findinputs" << std::endl;
+    ins->debug_print();
+    ins->debug_print();
     auto inputs = find_inputs(map_ins, original_inputs, &pm);
+    std::cout << "after findinputs" << std::endl;
     return {std::move(pm), inputs};
 }
 

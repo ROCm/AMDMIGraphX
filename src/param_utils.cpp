@@ -62,19 +62,42 @@ find_inputs_impl(const std::unordered_map<instruction_ref, instruction_ref>& map
     std::map<std::string, instruction_ref> names;
     for(auto&& [input, param] : map_ins)
     {
+        std::cout << "try: " << std::endl;
+        input->debug_print();
         if(sub != nullptr and not sub->has_instruction(param))
+        {
+            std::cout << "sub != null & has_istr" << std::endl;
             continue;
+        }
         if(param->name() != "@param")
+        {
+            std::cout << "no param" << std::endl;
             continue;
+        }
         if(not parent_has(input))
+        {
+            std::cout << "no input" << std::endl;
             continue;
+        }
         auto v      = param->get_operator().to_value();
         auto name   = v.at("parameter").template to<std::string>();
         names[name] = input;
+        std::cout << "a: " << std::endl;
+        input->debug_print();
+
     }
     std::transform(names.begin(), names.end(), std::back_inserter(result), [](const auto& p) {
         return p.second;
     });
+
+    if(sub and result.size() != sub->get_parameter_shapes().size())
+    {
+        std::cout << "BAD BAD BAD" << std::endl;
+    }
+
+    std::cout << "Rsz= " + std::to_string(result.size())  << std::endl;
+    std::cout << "psZ= " + std::to_string(sub->get_parameter_shapes().size()) << std::endl;
+
     assert(not sub or result.size() == sub->get_parameter_shapes().size());
     return result;
 }

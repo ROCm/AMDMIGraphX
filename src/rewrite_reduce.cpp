@@ -104,7 +104,7 @@ struct find_softmax_base_ops
         std::sort(sorted_softmax_inss.begin(),
                   sorted_softmax_inss.end(),
                   [&](instruction_ref x, instruction_ref y) {
-                      return std::distance(m.begin(), x) < std::distance(m.begin(), y);
+                      return std::distance(inp, x) < std::distance(inp, y);
                   });
 
         auto inp_up = m.insert_instruction(

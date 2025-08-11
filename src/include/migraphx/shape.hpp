@@ -448,7 +448,7 @@ struct MIGRAPHX_EXPORT shape
     }
 
     std::string type_string() const;
-    static type_t parse_type(const std::string& s);
+    static type_t parse_type(std::string_view s);
 
     const std::vector<shape>& sub_shapes() const;
 

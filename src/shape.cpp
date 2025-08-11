@@ -811,9 +811,9 @@ std::ostream& operator<<(std::ostream& os, const shape& x)
     return os;
 }
 
-shape::type_t shape::parse_type(const std::string& s)
+shape::type_t shape::parse_type(std::string_view s)
 {
-    static const std::unordered_map<std::string, shape::type_t> m = {
+    static const std::unordered_map<std::string_view, shape::type_t> m = {
 #define MIGRAPHX_SHAPE_GENERATE_TYPE_STRING_MAP(x, t) {#x, x}, {#t, x},
         MIGRAPHX_SHAPE_VISIT_TYPES(MIGRAPHX_SHAPE_GENERATE_TYPE_STRING_MAP){"tuple_type",
                                                                             tuple_type},

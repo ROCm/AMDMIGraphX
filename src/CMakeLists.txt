@@ -70,6 +70,7 @@ add_library(migraphx
     inline_module.cpp
     insert_pad.cpp
     instruction.cpp
+    ir_parser.cpp
     json.cpp
     layout_convolution.cpp
     lexing.cpp

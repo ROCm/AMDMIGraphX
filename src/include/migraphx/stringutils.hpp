@@ -119,7 +119,7 @@ inline std::string to_upper(std::string s) { return transform_string(std::move(s
 
 inline std::string to_lower(std::string s) { return transform_string(std::move(s), ::tolower); }
 
-inline bool starts_with(const std::string& value, const std::string& prefix)
+inline bool starts_with(std::string_view value, std::string_view prefix)
 {
     if(prefix.size() > value.size())
         return false;

@@ -148,6 +148,42 @@ Iterator adjacent_for_each(Iterator first, Iterator last, F f)
     return last;
 }
 
+///
+/// Algorithm: find_matching_delimiter
+/// ----------------------------------
+/// Finds the iterator to the delimiter matching the opener,
+/// skipping over properly nested pairs.
+///
+/// Requirements:
+///   - Iterator models ForwardIterator.
+///   - *first is dereferenceable and equals open_ch.
+///   - Value type is EqualityComparable with T.
+///
+/// Parameters:
+///   [first, last)  : the searched range
+///   open_ch        : opening delimiter (e.g., '(')
+///   close_ch       : closing delimiter (e.g., ')')
+///
+/// Returns:
+///   Iterator to the matching closing delimiter if found; otherwise returns last.
+///
+/// Complexity:
+///   Linear in the number of elements examined: O(n) with O(1) extra space.
+///
+template <class Iterator, class T>
+Iterator find_matching_delimiter(Iterator first, Iterator last,
+                                  const T& open_ch, const T& close_ch)
+{
+    assert(first != last and *first == open_ch and "first element must point to an opener");
+
+    std::size_t depth = 1; // we start just after the opener
+    return std::find_if(std::next(first), last, [&](const auto& x) {
+        if (x == open_ch) { ++depth; return false; }
+        if (x == close_ch) { return --depth == 0; }
+        return false;
+    });
+}
+
 template <class Iterator1, class Iterator2>
 std::ptrdiff_t
 levenshtein_distance(Iterator1 first1, Iterator1 last1, Iterator2 first2, Iterator2 last2)

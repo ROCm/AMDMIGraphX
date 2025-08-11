@@ -649,16 +649,13 @@ module {
     EXPECT(verify_mlir(m));
 }
 
-TEST_CASE(dot_reduce)
+TEST_CASE(dot_reduce_nop)
 {
     std::string mlir_output = R"__migraphx__(
 module {
-  func.func @mlir_dot_reshape_reduce_max_reshape(%arg0: !migraphx.shaped<1x12x1x64xf32, 768x64x64x1>, %arg1: !migraphx.shaped<1x12x64x1xf32, 768x64x1x1>) -> !migraphx.shaped<1x12x1x1xf32, 12x1x1x1> attributes ${attrs} {
+  func.func @mlir_dot(%arg0: !migraphx.shaped<1x12x1x64xf32, 768x64x64x1>, %arg1: !migraphx.shaped<1x12x64x1xf32, 768x64x1x1>) -> !migraphx.shaped<1x12x1x1xf32, 12x1x1x1> attributes ${attrs} {
     %0 = migraphx.dot %arg0, %arg1 : <1x12x1x64xf32, 768x64x64x1>, <1x12x64x1xf32, 768x64x1x1> -> <1x12x1x1xf32, 12x1x1x1>
-    %1 = migraphx.reshape %0 {dims = [1, 12, 1, 1]} : <1x12x1x1xf32, 12x1x1x1> -> <1x12x1x1xf32, 12x1x1x1>
-    %2 = migraphx.reduce_max %1 {axes = [3]} : <1x12x1x1xf32, 12x1x1x1> -> <1x12x1x1xf32, 12x1x1x1>
-    %3 = migraphx.reshape %2 {dims = [1, 12, 1, 1]} : <1x12x1x1xf32, 12x1x1x1> -> <1x12x1x1xf32, 12x1x1x1>
-    return %3 : !migraphx.shaped<1x12x1x1xf32, 12x1x1x1>
+    return %0 : !migraphx.shaped<1x12x1x1xf32, 12x1x1x1>
   }
 }
 )__migraphx__";

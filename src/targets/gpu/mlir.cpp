@@ -28,6 +28,7 @@
 #include <migraphx/make_op.hpp>
 #include <migraphx/stringutils.hpp>
 #include <migraphx/dead_code_elimination.hpp>
+#include <migraphx/simplify_reshapes.hpp>
 #include <migraphx/pass_manager.hpp>
 #include <migraphx/gpu/mlir.hpp>
 #include <mlir-c/Dialect/RockEnums.h>
@@ -990,6 +991,7 @@ bool is_reduce(const instruction& ins) { return contains(ins.name(), "reduce"); 
 
 static void rewrite_reduce(module& m)
 {
+    migraphx::run_passes(m, {migraphx::simplify_reshapes{}});
     for(auto i : iterator_for(m))
     {
         if(is_reduce(*i))
@@ -997,8 +999,6 @@ static void rewrite_reduce(module& m)
             auto reduce_op      = i->get_operator().to_value();
             auto reduce_op_name = i->get_operator().name();
             auto reduce_axes    = reduce_op["axes"].to_vector<size_t>();
-            auto reduce_axes_set = std::set<size_t>(
-                reduce_axes.begin(), reduce_axes.end()); // Use a set so that find() is faster
             auto reduce_lens    = i->get_shape().lens();
             auto in_shape       = i->inputs().front()->get_shape();
             const auto& in_lens = in_shape.lens();
@@ -1013,8 +1013,7 @@ static void rewrite_reduce(module& m)
             std::vector<int64_t> new_reduce_axes;
             for(const auto axis : range(in_shape.ndim()))
             {
-                if(reduce_lens[axis] == in_lens[axis] and
-                   reduce_axes_set.find(axis) == reduce_axes_set.end())
+                if(reduce_lens[axis] == in_lens[axis])
                 {
                     new_rsp_dims.push_back(in_lens[axis]);
                 }

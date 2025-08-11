@@ -171,15 +171,21 @@ Iterator adjacent_for_each(Iterator first, Iterator last, F f)
 ///   Linear in the number of elements examined: O(n) with O(1) extra space.
 ///
 template <class Iterator, class T>
-Iterator find_matching_delimiter(Iterator first, Iterator last,
-                                  const T& open_ch, const T& close_ch)
+Iterator find_matching_delimiter(Iterator first, Iterator last, const T& open_ch, const T& close_ch)
 {
     assert(first != last and *first == open_ch and "first element must point to an opener");
 
     std::size_t depth = 1; // we start just after the opener
     return std::find_if(std::next(first), last, [&](const auto& x) {
-        if (x == open_ch) { ++depth; return false; }
-        if (x == close_ch) { return --depth == 0; }
+        if(x == open_ch)
+        {
+            ++depth;
+            return false;
+        }
+        if(x == close_ch)
+        {
+            return --depth == 0;
+        }
         return false;
     });
 }

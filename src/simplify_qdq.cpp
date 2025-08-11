@@ -121,7 +121,6 @@ struct match_find_quantizable_ops
         return match::name(get_quantizable_op_names())(dq1, dq2);
     }
 
-    // TODO: make a helper function to recognize unpack_fp4 -> (slice) -> reshape -> dq
     void apply(module& m, const match::matcher_result& r) const
     {
         auto qop    = r.result;

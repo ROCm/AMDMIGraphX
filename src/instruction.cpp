@@ -232,29 +232,6 @@ void instruction::replace_argument(instruction_ref ins,
     ins->recompute_shape();
 }
 
-void instruction::replace_argument(const std::vector<instruction_ref>& inss,
-                                   instruction_ref old,
-                                   instruction_ref new_ins)
-{
-    for(auto ins : inss)
-    {
-        if(contains(ins->inputs(), old))
-        {
-            ins->replace_argument(old, new_ins);
-            backreference(ins);
-        }
-    }
-
-    static std::unordered_set<std::string> no_recompute_ops{"@param", "@literal"};
-    for(auto ins : inss)
-    {
-        if(not contains(no_recompute_ops, ins->get_operator().name()))
-        {
-            ins->recompute_shape();
-        }
-    }
-}
-
 void instruction::replace_mod_argument(instruction_ref ins, module_ref old, module_ref new_mod)
 {
     ins->replace_mod_argument(old, new_mod);

@@ -28,7 +28,10 @@
 #include <migraphx/matcher.hpp>
 #include <migraphx/make_op.hpp>
 #include <migraphx/common.hpp>
-#include <migraphx/instruction.hpp>
+#include <migraphx/pass_manager.hpp>
+#include <migraphx/eliminate_common_subexpression.hpp>
+#include <migraphx/eliminate_convert.hpp>
+#include <migraphx/dead_code_elimination.hpp>
 
 MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_DISABLE_FP32_SOFTMAX);
 
@@ -77,40 +80,29 @@ struct find_softmax_base_ops
 
         auto softmax_inss = find_instructions_between(inp, div, &m);
 
-        // add converts back to original type for all intermediate and final outputs
-        for(auto i : softmax_inss)
+        for(const auto& ins : softmax_inss)
         {
-            auto outs = i->outputs();
-
-            std::unordered_set<instruction_ref> downcast_outputs;
-            std::copy_if(outs.begin(),
-                         outs.end(),
-                         std::inserter(downcast_outputs, downcast_outputs.begin()),
-                         [&](auto o) { return not contains(softmax_inss, o); });
-
-            if(downcast_outputs.empty())
+            if(ins == inp)
                 continue;
 
-            auto i_down = m.insert_instruction(
-                std::next(i), make_op("convert", {{"target_type", inp_type}}), i);
+            // Upcast inputs
+            std::vector<instruction_ref> ins_inputs_up;
+            std::transform(
+                ins->inputs().begin(),
+                ins->inputs().end(),
+                std::back_inserter(ins_inputs_up),
+                [&](auto i) {
+                    return m.insert_instruction(
+                        ins, make_op("convert", {{"target_type", shape::float_type}}), i);
+                });
 
-            for(auto o : downcast_outputs)
-            {
-                instruction::replace_argument(o, i, i_down);
-            }
+            // Duplicate instruction to perform op in higher precision
+            auto ins_up = m.insert_instruction(ins, ins->get_operator(), ins_inputs_up);
+
+            // replace original ins with downcast to preserve graph validity
+            m.replace_instruction(
+                ins, make_op("convert", {{"target_type", ins->get_shape().type()}}), ins_up);
         }
-
-        std::vector<instruction_ref> sorted_softmax_inss(softmax_inss.begin(), softmax_inss.end());
-        std::sort(sorted_softmax_inss.begin(),
-                  sorted_softmax_inss.end(),
-                  [&](instruction_ref x, instruction_ref y) {
-                      return std::distance(inp, x) < std::distance(inp, y);
-                  });
-
-        auto inp_up = m.insert_instruction(
-            std::next(inp), make_op("convert", {{"target_type", shape::float_type}}), inp);
-
-        instruction::replace_argument(sorted_softmax_inss, inp, inp_up);
     }
 };
 
@@ -209,6 +201,10 @@ void rewrite_reduce::apply(module& m) const
     if(not enabled(MIGRAPHX_DISABLE_FP32_SOFTMAX{}))
     {
         match::find_matches(m, find_softmax_base_ops{});
+        migraphx::run_passes(m,
+                             {migraphx::eliminate_convert{},
+                              migraphx::dead_code_elimination{},
+                              migraphx::eliminate_common_subexpression{}});
     }
 
     match::find_matches(m, find_reduce_mean{});

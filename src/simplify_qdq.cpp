@@ -121,6 +121,8 @@ struct match_find_quantizable_ops
         return match::name(get_quantizable_op_names())(dq1, dq2);
     }
 
+
+    // TODO: make a helper function to recognize unpack_fp4 -> (slice) -> reshape -> dq
     void apply(module& m, const match::matcher_result& r) const
     {
         auto qop    = r.result;
@@ -433,8 +435,45 @@ bool is_any_input_int4(instruction_ref a)
     });
 }
 
+
+/** Used to remove fake quantization pairs quantizelinear -> dequantizelinear.
+ *
+ * Extended to remove the fake quantization pattern for MXFP4:
+ *      quantizelinear   
+ *              ▼          
+ *      reshape (to 1D)    
+ *              ▼          
+ *       pad (optional)    
+ *              ▼          
+ *          pack_fp4       
+ *              ▼          
+ *           unpack_fp4    
+ *              ▼          
+ *        slice (optional) 
+ *              ▼          
+ *  reshape (back to N-dim)
+ *              ▼          
+ *      dequantizelinear
+ *
+ *  Doesn't match the pack/unpack and reshapes explicitly, instead skips instructions
+ *  that match the name with one input recursively.
+ *  Use this after selected quantizations have been made into real quantizatized instructions.
+ *
+ */
 void remove_qdq_pairs(module& m)
 {
+    // clang-format off
+    static const std::unordered_set<std::string> skip_set = {
+        "pack_fp4",
+        "unpack_fp4",
+        "broadcast",
+        "slice",
+        "reshape",
+        "reshape_lazy",
+        "pad",
+    };
+    // clang-format on
+
     for(auto ins : iterator_for(m))
     {
         auto args = ins->inputs();
@@ -442,10 +481,20 @@ void remove_qdq_pairs(module& m)
         {
             if(arg->name() == "dequantizelinear")
             {
-                auto q = arg->inputs().front();
-                if((q->name() == "quantizelinear") and is_same_scale_zero(arg, q))
+                auto curr = arg->inputs().front();
+                curr = fix<instruction_ref>(
+                    [&](auto self, auto ins_i) -> instruction_ref {
+                        if(ins_i->inputs().size() == 1 and contains(skip_set, ins_i->name()))
+                        {
+                            auto next = ins_i->inputs().front();
+                            return self(next);
+                        }
+                        return ins_i;
+                    })(curr);
+
+                if((curr->name() == "quantizelinear") and is_same_scale_zero(arg, curr))
                 {
-                    instruction::replace_argument(ins, arg, q->inputs().front());
+                    instruction::replace_argument(ins, arg, curr->inputs().front());
                 }
             }
         }

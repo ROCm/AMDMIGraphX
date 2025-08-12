@@ -69,11 +69,10 @@ struct multibroadcast
 
         if(inputs.size() == 1)
         {
-            if(s0.dynamic() or (not s0.dynamic() and not output_dyn_dims.empty()))
+            if(s0.dynamic())
             {
-                return {t, output_dyn_dims};
-                // MIGRAPHX_THROW(
-                //     "MULTIBROADCAST: Single dynamic input shape not supported.  Use two inputs.");
+                MIGRAPHX_THROW(
+                    "MULTIBROADCAST: Single dynamic input shape not supported.  Use two inputs.");
             }
             if(s0.ndim() > output_lens.size())
             {

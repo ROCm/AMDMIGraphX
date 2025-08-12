@@ -77,6 +77,9 @@ struct concat
 
     shape normalize_compute_shape(std::vector<shape> inputs) const
     {
+        // for(auto&& s : inputs){
+        //     std::cout << s << std::endl;
+        // }
         // inputs can contain 1 or more shapes (variadic).  compute_shape_op ensures there must
         // be at least 1.
         check_shapes{inputs, *this, true}.same_ndims().same_type();
@@ -139,7 +142,53 @@ struct concat
         }
         else
         {
-            MIGRAPHX_THROW("CONCAT: Cannot mix static and dynamic input shapes.");
+            // find first shape which is static
+            auto it = std::find_if(inputs.begin(), inputs.end(), [&](const shape& s) {
+                return not s.dynamic();
+            });
+            std::vector<size_t> new_lens = it->lens();
+            size_t new_dim_axis = 0;
+            for(auto&& input : inputs)
+            {
+                for(auto i = 0; i < new_lens.size(); i++)
+                {
+                    if(i != axis)
+                    {
+                        if(input.dynamic())
+                        {
+                            if(new_lens[i] < input.dyn_dims()[i].min or new_lens[i] > input.dyn_dims()[i].max)
+                            {
+                                MIGRAPHX_THROW("CONCAT: non axis dynamic dimension out of range.");
+                            }
+                        }
+                        else
+                        {
+                            if(new_lens[i] != input.lens()[i])
+                            {
+                                MIGRAPHX_THROW("CONCAT: non axis static dimensions must match.");
+                            }
+                        }
+                    }
+                    else
+                    {
+                        if(input.dynamic())
+                        {
+                            if(not input.dyn_dims()[i].is_fixed())
+                            {
+                                MIGRAPHX_THROW("CONCAT: axis to concat on must have fixed dyn dim (min == max).");
+                            }
+                            new_dim_axis += input.dyn_dims()[i].max;
+                        }
+                        else
+                        {
+                            new_dim_axis += input.lens()[i];
+                        }
+                    }
+                }
+            }
+            new_lens[axis] = new_dim_axis;
+            return {inputs.front().type(), new_lens};
+            // MIGRAPHX_THROW("CONCAT: Cannot mix static and dynamic input shapes.");
         }
     }
 

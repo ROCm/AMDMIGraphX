@@ -148,44 +148,43 @@ struct concat
             });
             std::vector<size_t> new_lens = it->lens();
             size_t new_dim_axis = 0;
-            for(auto&& input : inputs)
+
+            // Check non-axis dimensions
+            for(std::size_t i = 0; i < new_lens.size(); ++i)
             {
-                for(auto i = 0; i < new_lens.size(); i++)
-                {
-                    if(i != axis)
+                if(i == axis) continue;
+                bool valid = std::all_of(inputs.begin(), inputs.end(), [&](const shape& input) {
+                    if(input.dynamic())
                     {
-                        if(input.dynamic())
-                        {
-                            if(new_lens[i] < input.dyn_dims()[i].min or new_lens[i] > input.dyn_dims()[i].max)
-                            {
-                                MIGRAPHX_THROW("CONCAT: non axis dynamic dimension out of range.");
-                            }
-                        }
-                        else
-                        {
-                            if(new_lens[i] != input.lens()[i])
-                            {
-                                MIGRAPHX_THROW("CONCAT: non axis static dimensions must match.");
-                            }
-                        }
+                        return new_lens[i] >= input.dyn_dims()[i].min and new_lens[i] <= input.dyn_dims()[i].max;
                     }
                     else
                     {
-                        if(input.dynamic())
-                        {
-                            if(not input.dyn_dims()[i].is_fixed())
-                            {
-                                MIGRAPHX_THROW("CONCAT: axis to concat on must have fixed dyn dim (min == max).");
-                            }
-                            new_dim_axis += input.dyn_dims()[i].max;
-                        }
-                        else
-                        {
-                            new_dim_axis += input.lens()[i];
-                        }
+                        return new_lens[i] == input.lens()[i];
                     }
+                });
+                if(not valid)
+                {
+                    MIGRAPHX_THROW("CONCAT: non axis static/dynamic dimensions must match.");
                 }
             }
+
+            // Sum axis dimension
+            new_dim_axis = std::accumulate(inputs.begin(), inputs.end(), size_t{0}, [&](size_t acc, const shape& input) {
+                if(input.dynamic())
+                {
+                    if(!input.dyn_dims()[axis].is_fixed())
+                    {
+                        MIGRAPHX_THROW("CONCAT: axis to concat on must have fixed dyn dim (min == max).");
+                    }
+                    return acc + input.dyn_dims()[axis].max;
+                }
+                else
+                {
+                    return acc + input.lens()[axis];
+                }
+            });
+
             new_lens[axis] = new_dim_axis;
             return {inputs.front().type(), new_lens};
             // MIGRAPHX_THROW("CONCAT: Cannot mix static and dynamic input shapes.");

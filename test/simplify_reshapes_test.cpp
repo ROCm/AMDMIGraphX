@@ -2379,6 +2379,37 @@ TEST_CASE(split_pointwise_reshape_transpose_pointwise)
     EXPECT(m1.sort() == m2.sort());
 }
 
+TEST_CASE(reduce_unsqueeze_pointwise)
+{
+    auto s1 = migraphx::shape{migraphx::shape::float_type, {2, 32, 40960}};
+    auto s2 = migraphx::shape{migraphx::shape::float_type, {2, 32, 1, 1, 1}};
+    migraphx::module m1;
+    {
+        auto x          = m1.add_parameter("x", s1);
+        auto y          = m1.add_parameter("y", s2);
+        auto reduce_sum = m1.add_instruction(migraphx::make_op("reduce_sum", {{"axes", {2}}}), x);
+        auto unsqueeze =
+            m1.add_instruction(migraphx::make_op("unsqueeze", {{"axes", {3, 4}}}), reduce_sum);
+        auto add  = m1.add_instruction(migraphx::make_op("add"), unsqueeze, y);
+        auto relu = m1.add_instruction(migraphx::make_op("relu"), add);
+        m1.add_return({relu});
+    }
+    // TODO:  Enable a rewrite for this case. For now just check that we dont crash
+    migraphx::module m2 = m1;
+    // {
+    //     auto x          = m2.add_parameter("x", s1);
+    //     auto y          = m2.add_parameter("y", s2);
+    //     auto unsqueeze =
+    //         m2.add_instruction(migraphx::make_op("unsqueeze", {{"axes", {3, 4}}}), x);
+    //     auto reduce_sum = m2.add_instruction(migraphx::make_op("reduce_sum", {{"axes", {2, 3, 4}}}), unsqueeze);
+    //     auto add  = m2.add_instruction(migraphx::make_op("add"), reduce_sum, y);
+    //     auto relu = m2.add_instruction(migraphx::make_op("relu"), add);
+    //     m2.add_return({relu});
+    // }
+    run_pass(m1);
+    EXPECT(m1.sort() == m2.sort());
+}
+
 TEST_CASE(reduce_squeeze_pointwise1)
 {
     auto s1 = migraphx::shape{migraphx::shape::float_type, {1, 8, 1024, 1280}};

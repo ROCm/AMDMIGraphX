@@ -229,7 +229,7 @@ shape_transform_descriptor shape_transform_descriptor::rebase(const std::vector<
             }
         }
         else
-            MIGRAPHX_THROW("Invalid rebase");
+            return {};
     }
     // TODO: Only simplify if the subs was changed
     result.simplify();

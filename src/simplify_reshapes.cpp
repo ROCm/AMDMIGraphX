@@ -273,14 +273,10 @@ struct find_op_shape_transform_op
                         .rebase(x_ins->inputs().front()->get_shape().lens(), true);
         if(desc.empty())
             return;
-
+        
         if(not is_valid(x_ins, desc))
             return;
 
-        // std::cout << "***************************************************************\n";
-        // std::cout << "ops: " << to_string_range(ops) << "\n";
-        // m.debug_print({x_ins, input_ins, ins});
-        // std::cout << "desc: " << desc << std::endl;
 
         auto reshape_input = [&](const auto& ins_to_insert, const auto& gdesc) {
             return [&](auto input) {
@@ -310,10 +306,6 @@ struct find_op_shape_transform_op
                 return new_input_ins;
             return reshape_input(ins, desc.to_common_from_dst())(input);
         });
-        // std::cout << "Inputs:\n";
-        // m.debug_print(ins->inputs());
-        // std::cout << "replaced Inputs:\n";
-        // m.debug_print(inputs);
         // Replace old x_ins just in case it is used more than once
         assert(x_ins->get_shape().lens() == new_x_ins->get_shape().lens());
         m.replace_instruction(x_ins, new_x_ins);

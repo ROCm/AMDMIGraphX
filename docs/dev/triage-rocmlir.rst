@@ -2,6 +2,9 @@
   :description: Issue Triaging Guide for suspected issues
   :keywords: MIGraphX, rocMLIR, issues, pipeline, compilation, bug, code base, kernel, contribution, developing
 
+Issue Triaging Guide for suspected rocMLIR issue
+================================================
+
 This document serves as a guide to narrow down whether a bug is due to rocMLIR backend of MIGraphX.
 
 There are broadly 3 categories of bugs that can be due to rocMLIR.

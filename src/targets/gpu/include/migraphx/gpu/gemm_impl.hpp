@@ -24,6 +24,7 @@
 #ifndef MIGRAPHX_GUARD_RTGLIB_GEMM_IMPL_HPP
 #define MIGRAPHX_GUARD_RTGLIB_GEMM_IMPL_HPP
 
+#include <chrono>
 #include <iterator>
 #include <migraphx/shape.hpp>
 #include <migraphx/argument.hpp>

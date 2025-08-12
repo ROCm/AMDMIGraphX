@@ -218,7 +218,12 @@ std::vector<std::vector<char>> compile_hip_src_with_hiprtc(std::vector<hiprtc_sr
     options.push_back("--offload-arch=" + arch);
     std::string extra_flags = string_value_of(MIGRAPHX_GPU_HIP_FLAGS{});
     if(not extra_flags.empty())
-        options.push_back(extra_flags);
+    {
+        std::stringstream ss(extra_flags);
+        std::string opt;
+        while(std::getline(ss, opt, ' '))
+            options.push_back(opt);
+    }
     prog.compile(options);
     return {prog.get_code_obj()};
 }
@@ -358,7 +363,12 @@ std::vector<std::vector<char>> compile_hip_src(const std::vector<src_file>& srcs
     compiler.flags.emplace_back(MIGRAPHX_HIP_COMPILER_FLAGS);
     std::string extra_flags = string_value_of(MIGRAPHX_GPU_HIP_FLAGS{});
     if(not extra_flags.empty())
-        compiler.flags.push_back(extra_flags);
+    {
+        std::stringstream ss(extra_flags);
+        std::string opt;
+        while(std::getline(ss, opt, ' '))
+            compiler.flags.push_back(opt);
+    }
 
     if(enabled(MIGRAPHX_GPU_DUMP_SRC{}))
     {

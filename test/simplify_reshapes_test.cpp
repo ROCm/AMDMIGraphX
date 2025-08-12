@@ -2401,9 +2401,9 @@ TEST_CASE(reduce_unsqueeze_pointwise)
     //     auto y          = m2.add_parameter("y", s2);
     //     auto unsqueeze =
     //         m2.add_instruction(migraphx::make_op("unsqueeze", {{"axes", {3, 4}}}), x);
-    //     auto reduce_sum = m2.add_instruction(migraphx::make_op("reduce_sum", {{"axes", {2, 3, 4}}}), unsqueeze);
-    //     auto add  = m2.add_instruction(migraphx::make_op("add"), reduce_sum, y);
-    //     auto relu = m2.add_instruction(migraphx::make_op("relu"), add);
+    //     auto reduce_sum = m2.add_instruction(migraphx::make_op("reduce_sum", {{"axes", {2, 3,
+    //     4}}}), unsqueeze); auto add  = m2.add_instruction(migraphx::make_op("add"), reduce_sum,
+    //     y); auto relu = m2.add_instruction(migraphx::make_op("relu"), add);
     //     m2.add_return({relu});
     // }
     run_pass(m1);

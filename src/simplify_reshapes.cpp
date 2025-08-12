@@ -273,10 +273,9 @@ struct find_op_shape_transform_op
                         .rebase(x_ins->inputs().front()->get_shape().lens(), true);
         if(desc.empty())
             return;
-        
+
         if(not is_valid(x_ins, desc))
             return;
-
 
         auto reshape_input = [&](const auto& ins_to_insert, const auto& gdesc) {
             return [&](auto input) {

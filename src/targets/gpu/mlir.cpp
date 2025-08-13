@@ -991,7 +991,6 @@ bool is_reduce(const instruction& ins) { return contains(ins.name(), "reduce"); 
 
 static void rewrite_reduce(module& m)
 {
-    migraphx::run_passes(m, {migraphx::simplify_reshapes{}});
     for(auto i : iterator_for(m))
     {
         if(is_reduce(*i))

@@ -649,30 +649,4 @@ module {
     EXPECT(verify_mlir(m));
 }
 
-TEST_CASE(dot_reduce_nop)
-{
-    std::string mlir_output = R"__migraphx__(
-module {
-  func.func @mlir_dot(%arg0: !migraphx.shaped<1x12x1x64xf32, 768x64x64x1>, %arg1: !migraphx.shaped<1x12x64x1xf32, 768x64x1x1>) -> !migraphx.shaped<1x12x1x1xf32, 12x1x1x1> attributes ${attrs} {
-    %0 = migraphx.dot %arg0, %arg1 : <1x12x1x64xf32, 768x64x64x1>, <1x12x64x1xf32, 768x64x1x1> -> <1x12x1x1xf32, 12x1x1x1>
-    return %0 : !migraphx.shaped<1x12x1x1xf32, 12x1x1x1>
-  }
-}
-)__migraphx__";
-    migraphx::module m;
-    auto x0  = m.add_parameter("x0", migraphx::shape{migraphx::shape::float_type, {1, 12, 1, 64}});
-    auto x1  = m.add_parameter("x1", migraphx::shape{migraphx::shape::float_type, {1, 12, 64, 1}});
-    auto dot = m.add_instruction(migraphx::make_op("dot"), x0, x1);
-    auto reduce_max = m.add_instruction(migraphx::make_op("reduce_max", {{"axes", {3}}}), dot);
-    m.add_return({reduce_max});
-    auto s = migraphx::gpu::dump_mlir(m);
-    // Skip test if MLIR is not enabled
-    if(s.empty())
-        return;
-    auto mlir_output_with_attrs =
-        migraphx::interpolate_string(mlir_output, {{"attrs", get_attrs()}});
-    CHECK(encode(s) == encode(mlir_output_with_attrs));
-    EXPECT(verify_mlir(m));
-}
-
 int main(int argc, const char* argv[]) { test::run(argc, argv); }

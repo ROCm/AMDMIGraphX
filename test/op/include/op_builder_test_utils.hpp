@@ -29,7 +29,9 @@
 #include <test.hpp>
 #include <migraphx/op/builder/insert.hpp>
 
-inline migraphx::module make_op_module(const std::string& op_builder_name, migraphx::value options, const std::vector<migraphx::instruction_ref>& params)
+inline migraphx::module make_op_module(const std::string& op_builder_name,
+                                       migraphx::value options,
+                                       const std::vector<migraphx::instruction_ref>& params)
 {
     migraphx::module mm_op_built;
 
@@ -38,7 +40,7 @@ inline migraphx::module make_op_module(const std::string& op_builder_name, migra
 
     const auto& params2 = mm_op_built.get_parameters();
     const std::vector<migraphx::instruction_ref>& args2{params2.rbegin(), params2.rend()};
-    
+
     migraphx::op::builder::add(op_builder_name, mm_op_built, args2, options);
 
     return mm_op_built;

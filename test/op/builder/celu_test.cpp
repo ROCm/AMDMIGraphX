@@ -39,13 +39,13 @@ TEST_CASE(celu_happy_path_op_builder_test)
     const auto& input_type = s.type();
     auto zero_lit =
         mm.add_instruction(migraphx::make_op("multibroadcast", {{"out_lens", input_lens}}),
-                            mm.add_literal(migraphx::literal{migraphx::shape{input_type}, {0.}}));
+                           mm.add_literal(migraphx::literal{migraphx::shape{input_type}, {0.}}));
     auto one_lit =
         mm.add_instruction(migraphx::make_op("multibroadcast", {{"out_lens", input_lens}}),
-                            mm.add_literal(migraphx::literal{migraphx::shape{input_type}, {1.}}));
-    auto alpha_lit = mm.add_instruction(
-        migraphx::make_op("multibroadcast", {{"out_lens", input_lens}}),
-        mm.add_literal(migraphx::literal{migraphx::shape{input_type}, {alpha}}));
+                           mm.add_literal(migraphx::literal{migraphx::shape{input_type}, {1.}}));
+    auto alpha_lit =
+        mm.add_instruction(migraphx::make_op("multibroadcast", {{"out_lens", input_lens}}),
+                           mm.add_literal(migraphx::literal{migraphx::shape{input_type}, {alpha}}));
     auto linear_part = mm.add_instruction(migraphx::make_op("max"), zero_lit, x);
     auto divi        = mm.add_instruction(migraphx::make_op("div"), x, alpha_lit);
     auto expo        = mm.add_instruction(migraphx::make_op("exp"), divi);
@@ -63,12 +63,11 @@ TEST_CASE(celu_zero_alpha_op_builder_test)
 
     const float alpha = 0.0f;
 
-    EXPECT(
-        test::throws<migraphx::exception>(
-            [&] { make_op_module("celu", {{"alpha", alpha}}, {}); },
-            "alpha is zero (division by zero)"
-        )
-    );
+    EXPECT(test::throws<migraphx::exception>(
+        [&] {
+            make_op_module("celu", {{"alpha", alpha}}, {});
+        },
+        "alpha is zero (division by zero)"));
 }
 
 TEST_CASE(celu_wrong_shape_type_op_builder_test)
@@ -79,10 +78,9 @@ TEST_CASE(celu_wrong_shape_type_op_builder_test)
 
     mm.add_parameter("x", s);
 
-    EXPECT(
-        test::throws<migraphx::exception>(
-            [&] { make_op_module("celu", {{"alpha", alpha}}, mm.get_parameters()); },
-            "input tensor not float type"
-        )
-    );
+    EXPECT(test::throws<migraphx::exception>(
+        [&] {
+            make_op_module("celu", {{"alpha", alpha}}, mm.get_parameters());
+        },
+        "input tensor not float type"));
 }

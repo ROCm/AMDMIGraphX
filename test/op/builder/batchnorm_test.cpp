@@ -36,26 +36,23 @@ TEST_CASE(batchnorm_rank_0_op_builder_test)
     mm.add_parameter("mean", {migraphx::shape::float_type, {3}});
     mm.add_parameter("variance", {migraphx::shape::float_type, {3}});
 
-    EXPECT(
-        test::throws<migraphx::exception>(
-            [&] { make_op_module("batchnorm", {}, mm.get_parameters()); },
-            "rank 0 input tensor, unhandled data format"
-        )
-    );
+    EXPECT(test::throws<migraphx::exception>(
+        [&] { make_op_module("batchnorm", {}, mm.get_parameters()); },
+        "rank 0 input tensor, unhandled data format"));
 }
 
 TEST_CASE(batchnorm_rank_1_op_builder_test)
 {
     migraphx::module mm;
 
-    const float epsilon       = 1e-6f;
+    const float epsilon = 1e-6f;
 
     auto x     = mm.add_parameter("x", {migraphx::shape::float_type, {10}});
     auto scale = mm.add_parameter("scale", {migraphx::shape::float_type, {1}});
     auto bias  = mm.add_parameter("bias", {migraphx::shape::float_type, {1}});
     auto mean  = mm.add_parameter("mean", {migraphx::shape::float_type, {1}});
     auto var   = mm.add_parameter("variance", {migraphx::shape::float_type, {1}});
-  
+
     auto eps = mm.add_literal(migraphx::literal{migraphx::shape::float_type, {epsilon}});
 
     auto x_sub_mean = add_common_op(mm, migraphx::make_op("sub"), {x, mean});
@@ -71,13 +68,13 @@ TEST_CASE(batchnorm_rank_1_op_builder_test)
 TEST_CASE(batchnorm_rank_larger_than_2_op_builder_test)
 {
     migraphx::module mm;
-    
+
     auto x     = mm.add_parameter("x", {migraphx::shape::half_type, {2, 3, 4}});
     auto scale = mm.add_parameter("scale", {migraphx::shape::float_type, {3}});
     auto bias  = mm.add_parameter("bias", {migraphx::shape::float_type, {3}});
     auto mean  = mm.add_parameter("mean", {migraphx::shape::float_type, {3}});
     auto var   = mm.add_parameter("variance", {migraphx::shape::float_type, {3}});
-  
+
     auto eps = mm.add_literal(migraphx::literal{migraphx::shape::half_type, {1e-5f}});
 
     auto usq_scale = mm.add_instruction(migraphx::make_op("unsqueeze", {{"axes", {1}}}), scale);
@@ -102,10 +99,7 @@ TEST_CASE(batchnorm_invalid_arguments_op_builder_test)
     mm.add_parameter("x", {migraphx::shape::half_type, {2}});
     mm.add_parameter("scale", {migraphx::shape::float_type, {3, 2}});
 
-    EXPECT(
-        test::throws<migraphx::exception>(
-            [&] { make_op_module("batchnorm", {}, mm.get_parameters()); },
-            "argument scale, bias, mean, or var rank != 1"
-        )
-    );
+    EXPECT(test::throws<migraphx::exception>(
+        [&] { make_op_module("batchnorm", {}, mm.get_parameters()); },
+        "argument scale, bias, mean, or var rank != 1"));
 }

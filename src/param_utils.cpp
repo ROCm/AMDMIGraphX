@@ -62,28 +62,33 @@ find_inputs_impl(const std::unordered_map<instruction_ref, instruction_ref>& map
     std::map<std::string, instruction_ref> names;
     for(auto&& [input, param] : map_ins)
     {
-        std::cout << "try: " << std::endl;
+        std::cout << "try: ";
         input->debug_print();
+        auto in_names = input->inputs();
+        std::cout << "input_names" << std::endl;
+        for(auto& i : in_names)
+        {
+            i->debug_print();
+        }
         if(sub != nullptr and not sub->has_instruction(param))
         {
-            std::cout << "sub != null & has_istr" << std::endl;
+            std::cout << "sub != null & has_istr!" << std::endl;
             continue;
         }
         if(param->name() != "@param")
         {
-            std::cout << "no param" << std::endl;
+            std::cout << "no param! " + param->name() << std::endl;
             continue;
         }
         if(not parent_has(input))
         {
-            std::cout << "no input" << std::endl;
+            std::cout << "no input!" << std::endl;
             continue;
         }
         auto v      = param->get_operator().to_value();
         auto name   = v.at("parameter").template to<std::string>();
         names[name] = input;
-        std::cout << "a: " << std::endl;
-        input->debug_print();
+        std::cout << "assigned! at:" +  name << std::endl;
 
     }
     std::transform(names.begin(), names.end(), std::back_inserter(result), [](const auto& p) {

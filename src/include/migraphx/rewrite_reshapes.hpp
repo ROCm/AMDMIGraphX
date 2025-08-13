@@ -163,11 +163,6 @@ struct rewrite_reshapes
             if(desc.empty())
                 return;
 
-            // std::cout << "***************************************************************\n";
-            // std::cout << "ops: " << to_string_range(ops) << "\n";
-            // mpm.get_module().debug_print({x_ins, input_ins, ins});
-            // std::cout << "desc: " << desc << std::endl;
-
             auto cdims         = desc.common_dims();
             auto reshape_input = [&](const auto& ins_to_insert, const auto& gdesc) {
                 return [&](auto input) {

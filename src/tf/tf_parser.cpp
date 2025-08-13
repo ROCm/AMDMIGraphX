@@ -180,10 +180,10 @@ tf_parser::tf_parser()
 static std::string get_name(const tensorflow::NodeDef& node) { return node.name(); }
 
 static tf_parser::node_map get_nodes(const tensorflow::GraphDef& graph,
-                                     std::vector<tensorflow::NodeDef>& input_nodes)
+                                     std::vector<std::string>& input_nodes)
 {
     tf_parser::node_map result;
-    for(auto&& node : graph.node())
+    for(tensorflow::NodeDef node : graph.node())
     {
         auto node_name = get_name(node);
         // assume each node in graph has an associated name
@@ -192,7 +192,7 @@ static tf_parser::node_map get_nodes(const tensorflow::GraphDef& graph,
         result[node_name] = node;
         if(node.op() == "Placeholder")
         {
-            input_nodes.push_back(node);
+            input_nodes.push_back(node_name);
         }
     }
     return result;
@@ -285,9 +285,10 @@ std::vector<std::string> tf_parser::find_outputs() const
 void tf_parser::parse_graph(const tensorflow::GraphDef& graph)
 {
     nodes = get_nodes(graph, input_nodes);
-    for(auto&& input : input_nodes)
+    for(auto&& name : input_nodes)
     {
-        const std::string& name   = input.name();
+        auto&& input = nodes[name];
+        // const std::string& name   = input.name();
         attribute_map input_attrs = get_attributes(input);
         shape::type_t shape_type  = parse_type(input_attrs.at("dtype").type());
         std::vector<size_t> dims  = parse_dims(input_attrs.at("shape").shape());

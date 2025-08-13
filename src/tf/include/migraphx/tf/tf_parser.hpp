@@ -86,7 +86,7 @@ struct tf_parser
     using op_func  = std::function<std::vector<instruction_ref>(
         const tf_parser&, const node_info&, std::vector<instruction_ref>)>;
     node_map nodes;
-    std::vector<tensorflow::NodeDef> input_nodes;
+    std::vector<std::string> input_nodes;
     std::vector<std::string> output_node_names;
     std::unordered_map<std::string, instruction_ref> instructions;
     program prog                  = program();

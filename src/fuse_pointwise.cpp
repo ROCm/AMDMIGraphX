@@ -95,6 +95,8 @@ static void create_pointwise_modules(module_pass_manager& mpm)
     {
         if(not ins->get_operator().attributes().get("pointwise", false))
             continue;
+        if(ins->get_operator().name() == "convert" and ins->get_shape().dynamic())
+            continue;
         if(ins->get_operator().name() == "layout")
             continue;
         auto* pm = mpm.create_module(mpm.get_module().name() + ":pointwise" + std::to_string(n++));

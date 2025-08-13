@@ -51,20 +51,21 @@ struct parse_tile : op_parser<parse_tile>
         // that is equal to the batch being used for other params
         {
             auto s0 = args[0]->get_shape();
-            // if(s0.dynamic())
-            // {
-            //     auto out_dyn_dims = s0.dyn_dims();
-            //     out_dyn_dims[0] = parser.default_dyn_dim_value;
-            //     return info.add_instruction(
-            //         make_op("multibroadcast", {{"out_dyn_dims", out_dyn_dims}}), args[0]);
-            // }
-            // else
-            // {
+            if(s0.dynamic())
+            {
+                auto out_dyn_dims = s0.dyn_dims();
+                out_dyn_dims[0] = parser.default_dyn_dim_value;
+                auto tile_param = info.mm->add_parameter("tile"+std::to_string(info.mm->size()), {s0.type(), out_dyn_dims});
+                return info.add_instruction(
+                    make_op("multibroadcast"), args[0], tile_param);
+            }
+            else
+            {
                 auto out_lens = args[0]->get_shape().lens();
                 out_lens[0] = parser.batch_size;
                 return info.add_instruction(
                 make_op("multibroadcast", {{"out_lens", out_lens}}), args[0]);
-            // }
+            }
             
         }
 

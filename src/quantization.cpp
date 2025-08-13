@@ -30,6 +30,7 @@
 #include <migraphx/simplify_reshapes.hpp>
 #include <migraphx/simplify_qdq.hpp>
 #include <migraphx/eliminate_common_subexpression.hpp>
+#include <migraphx/split_single_dyn_dim.hpp>
 #include <migraphx/optimize_module.hpp>
 #include <migraphx/dead_code_elimination.hpp>
 #include <migraphx/program.hpp>
@@ -67,11 +68,14 @@ static tracer quant_tracer()
 void quantize_fp16(program& prog, const std::vector<std::string>& ins_names)
 {
     run_passes(prog,
-               {normalize_ops{},
+               {split_single_dyn_dim{},
+                dead_code_elimination{},
+                normalize_ops{},
                 optimize_module{{"quantizelinear", "dequantizelinear"}},
                 truncate_float_pass{ins_names, shape::half_type},
                 optimize_module{{"quantizelinear", "dequantizelinear"}}},
                quant_tracer());
+    prog.is_quantized = true;
 }
 
 void quantize_bf16(program& prog, const std::vector<std::string>& ins_names)

@@ -320,7 +320,13 @@ void program::compile(const target& t, compile_options options)
 
     options.trace(*this);
     options.trace();
-    auto&& passes = t.get_passes(this->impl->contexts.front(), options);
+    auto passes = t.get_passes(this->impl->contexts.front(), options);
+    if(this->is_quantized)
+    {
+        std::remove_if(passes.begin(), passes.end(), [](auto pass){
+            return pass.name() == "split_single_dyn_dim";
+        });
+    }
     run_passes(*this, passes, options.trace);
     auto mods = this->get_modules();
     // Validate and finalize

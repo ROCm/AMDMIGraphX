@@ -24,77 +24,48 @@
 
 #include <migraphx/common.hpp>
 #include <test.hpp>
-#include <migraphx/program.hpp>
-#include <migraphx/op/builder/insert.hpp>
+#include <op_builder_test_utils.hpp>
 
 TEST_CASE(celu_happy_path_op_builder_test)
 {
-    migraphx::program prog_op_builded     = migraphx::program();
-    migraphx::program prog_manually_built = migraphx::program();
-    auto* mm_op                           = prog_op_builded.get_main_module();
-    auto* mm                              = prog_manually_built.get_main_module();
+    migraphx::module mm;
 
-    // adding input parameters
     const float alpha       = 0.8;
     const migraphx::shape s = {migraphx::shape::float_type, {3}};
 
-    migraphx::value options;
-    options.insert({"alpha", alpha});
+    auto x = mm.add_parameter("x", s);
 
-    auto x = mm->add_parameter("x", s);
-
-    // copy input parameters to the module that'll be built by op-builder
-    *mm_op = *mm;
-
-    // adding instructions manually
     const auto& input_lens = s.lens();
     const auto& input_type = s.type();
     auto zero_lit =
-        mm->add_instruction(migraphx::make_op("multibroadcast", {{"out_lens", input_lens}}),
-                            mm->add_literal(migraphx::literal{migraphx::shape{input_type}, {0.}}));
+        mm.add_instruction(migraphx::make_op("multibroadcast", {{"out_lens", input_lens}}),
+                            mm.add_literal(migraphx::literal{migraphx::shape{input_type}, {0.}}));
     auto one_lit =
-        mm->add_instruction(migraphx::make_op("multibroadcast", {{"out_lens", input_lens}}),
-                            mm->add_literal(migraphx::literal{migraphx::shape{input_type}, {1.}}));
-    auto alpha_lit = mm->add_instruction(
+        mm.add_instruction(migraphx::make_op("multibroadcast", {{"out_lens", input_lens}}),
+                            mm.add_literal(migraphx::literal{migraphx::shape{input_type}, {1.}}));
+    auto alpha_lit = mm.add_instruction(
         migraphx::make_op("multibroadcast", {{"out_lens", input_lens}}),
-        mm->add_literal(migraphx::literal{migraphx::shape{input_type}, {alpha}}));
-    auto linear_part = mm->add_instruction(migraphx::make_op("max"), zero_lit, x);
-    auto divi        = mm->add_instruction(migraphx::make_op("div"), x, alpha_lit);
-    auto expo        = mm->add_instruction(migraphx::make_op("exp"), divi);
-    auto sub         = mm->add_instruction(migraphx::make_op("sub"), expo, one_lit);
-    auto mul         = mm->add_instruction(migraphx::make_op("mul"), alpha_lit, sub);
-    auto exp_part    = mm->add_instruction(migraphx::make_op("min"), zero_lit, mul);
-    mm->add_instruction(migraphx::make_op("add"), linear_part, exp_part);
+        mm.add_literal(migraphx::literal{migraphx::shape{input_type}, {alpha}}));
+    auto linear_part = mm.add_instruction(migraphx::make_op("max"), zero_lit, x);
+    auto divi        = mm.add_instruction(migraphx::make_op("div"), x, alpha_lit);
+    auto expo        = mm.add_instruction(migraphx::make_op("exp"), divi);
+    auto sub         = mm.add_instruction(migraphx::make_op("sub"), expo, one_lit);
+    auto mul         = mm.add_instruction(migraphx::make_op("mul"), alpha_lit, sub);
+    auto exp_part    = mm.add_instruction(migraphx::make_op("min"), zero_lit, mul);
+    mm.add_instruction(migraphx::make_op("add"), linear_part, exp_part);
 
-    // obtain arguments
-    const auto& from = mm_op->get_parameters();
-    std::vector<migraphx::instruction_ref> args{from.rbegin(), from.rend()};
-
-    // call the SUT
-    migraphx::op::builder::add("celu", *mm_op, args, options);
-
-    EXPECT(prog_op_builded == prog_manually_built);
+    EXPECT(mm == make_op_module("celu", {{"alpha", alpha}}, mm.get_parameters()));
 }
 
 TEST_CASE(celu_zero_alpha_op_builder_test)
 {
-    migraphx::program prog_op_builded = migraphx::program();
-    auto* mm_op                       = prog_op_builded.get_main_module();
+    migraphx::module mm;
 
-    // adding instructions manually
     const float alpha = 0.0f;
 
-    migraphx::value options;
-    options.insert({"alpha", alpha});
-
-    // obtain arguments
-    const auto& from = mm_op->get_parameters();
-    std::vector<migraphx::instruction_ref> args{from.rbegin(), from.rend()};
-
-    // call the SUT
     EXPECT(
         test::throws<migraphx::exception>(
-            [&] { migraphx::op::builder::add("celu", *mm_op, args, options); },
+            [&] { make_op_module("celu", {{"alpha", alpha}}, {}); },
             "alpha is zero (division by zero)"
         )
     );
@@ -102,31 +73,15 @@ TEST_CASE(celu_zero_alpha_op_builder_test)
 
 TEST_CASE(celu_wrong_shape_type_op_builder_test)
 {
-    migraphx::program prog_op_builded     = migraphx::program();
-    migraphx::program prog_manually_built = migraphx::program();
-    auto* mm_op                           = prog_op_builded.get_main_module();
-    auto* mm                              = prog_manually_built.get_main_module();
-
-    // adding input parameters
+    migraphx::module mm;
     const float alpha       = 0.8;
     const migraphx::shape s = {migraphx::shape::int8_type, {3}};
 
-    migraphx::value options;
-    options.insert({"alpha", alpha});
+    mm.add_parameter("x", s);
 
-    mm->add_parameter("x", s);
-
-    // copy input parameters to the module that'll be built by op-builder
-    *mm_op = *mm;
-
-    // obtain arguments
-    const auto& from = mm_op->get_parameters();
-    std::vector<migraphx::instruction_ref> args{from.rbegin(), from.rend()};
-
-    // call the SUT
     EXPECT(
         test::throws<migraphx::exception>(
-            [&] { migraphx::op::builder::add("celu", *mm_op, args, options); },
+            [&] { make_op_module("celu", {{"alpha", alpha}}, mm.get_parameters()); },
             "input tensor not float type"
         )
     );

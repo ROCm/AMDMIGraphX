@@ -173,7 +173,7 @@ void rewrite_reduce::apply(module& m) const
         find_softmax{.full_precision = not enabled(MIGRAPHX_DISABLE_FP32_SOFTMAX{})},
         find_reduce_mean_variance{});
     match::find_matches(m, find_reduce_mean{});
-    migraphx::run_passes(m, {simplify_reshapes{}}); 
+    migraphx::run_passes(m, {simplify_reshapes{}});
 }
 
 } // namespace MIGRAPHX_INLINE_NS

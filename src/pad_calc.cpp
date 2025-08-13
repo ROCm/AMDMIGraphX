@@ -29,11 +29,11 @@ namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
 
 void calc_auto_padding(std::string auto_pad,
-                        const std::vector<std::size_t>& strides,
-                        const std::vector<std::size_t>& k_lens,
-                        const std::vector<std::size_t>& dilation,
-                        const std::vector<std::size_t>& in_lens,
-                        std::vector<int64_t>& paddings)
+                       const std::vector<std::size_t>& strides,
+                       const std::vector<std::size_t>& k_lens,
+                       const std::vector<std::size_t>& dilation,
+                       const std::vector<std::size_t>& in_lens,
+                       std::vector<int64_t>& paddings)
 {
     size_t kdims = in_lens.size() - 2;
     assert(k_lens.size() == kdims and dilation.size() == kdims);

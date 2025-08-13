@@ -9694,6 +9694,48 @@ def multinomial_int64_test():
 
 
 @onnx_test()
+def mxfixneuron_even_test():
+    in_tv = helper.make_tensor_value_info('input', TensorProto.FLOAT, [3, 64, 4, 4])
+    out_tv = helper.make_tensor_value_info('output', TensorProto.FLOAT, [3, 64, 4, 4])
+    node = onnx.helper.make_node('MXFixNeuron',
+            inputs=['input'],
+            axis=1,
+            block_size=32,
+            element_dtype='fp4_e2m1',
+            rounding_mode=2,
+            outputs=['output'])
+    return ([node], [in_tv], [out_tv])
+
+
+@onnx_test()
+def mxfixneuron_odd_test():
+    in_tv = helper.make_tensor_value_info('input', TensorProto.FLOAT, [71, 5, 5])
+    out_tv = helper.make_tensor_value_info('output', TensorProto.FLOAT, [71, 5, 5])
+    node = onnx.helper.make_node('MXFixNeuron',
+            inputs=['input'],
+            axis=0,
+            block_size=32,
+            element_dtype='fp4_e2m1',
+            rounding_mode=2,
+            outputs=['output'])
+    return ([node], [in_tv], [out_tv])
+
+
+@onnx_test()
+def mxfixneuron_small_test():
+    in_tv = helper.make_tensor_value_info('input', TensorProto.FLOAT, [4, 4])
+    out_tv = helper.make_tensor_value_info('output', TensorProto.FLOAT, [4, 4])
+    node = onnx.helper.make_node('MXFixNeuron',
+            inputs=['input'],
+            axis=1,
+            block_size=32,
+            element_dtype='fp4_e2m1',
+            rounding_mode=2,
+            outputs=['output'])
+    return ([node], [in_tv], [out_tv])
+
+
+@onnx_test()
 def neg_test():
     x = helper.make_tensor_value_info('0', TensorProto.INT64, [2, 3])
     y = helper.make_tensor_value_info('1', TensorProto.INT64, [2, 3])

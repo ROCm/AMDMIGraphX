@@ -154,24 +154,21 @@ struct parse_resize : op_parser<parse_resize>
         void set_upsample_op(){is_resize = false;}
         bool is_resize_op() const {return is_resize;}
 
-        // if scale an attr must be greater or equal to 1 
-        bool is_scale_attr(){return not r_attr.scales.empty();}
+        // if scale an attr must be greater or equal to 1
+        bool is_scale_attr() const { return not r_attr.scales.empty(); }
 
-        bool is_axes_used(){return not r_attr.axes.empty();}
+        bool is_axes_used() const { return not r_attr.axes.empty(); }
 
-        std::string get_nearest_mode(){return r_attr.nearest_mode;}
-        std::string get_coord_trans_mode(){return r_attr.coord_t_mode;}
-        std::string get_mode(){return r_attr.mode;}
+        std::string get_nearest_mode() const { return r_attr.nearest_mode; }
+        std::string get_coord_trans_mode() const { return r_attr.coord_t_mode; }
+        std::string get_mode() const { return r_attr.mode; }
 
         void set_scales_sizes_arg(instruction_ref ref)
         {
             scales_sizes_arg = ref;
         }
 
-        instruction_ref get_scales_sizes_arg()
-        {
-            return scales_sizes_arg;
-        }
+        instruction_ref get_scales_sizes_arg() const { return scales_sizes_arg; }
 
         void compute_outputs()
         {
@@ -206,11 +203,8 @@ struct parse_resize : op_parser<parse_resize>
                 // Depending on the args, it *must* populate the `vec_scale`, and might populate
                 // `out_lens`. Skip first input and `roi` input (if present)
                 size_t args_offset      = args.size() > 2 ? 2 : 1;
-                is_constant_scale_input = not parse_args({args.begin() + args_offset, args.end()},
-                                                        in_lens,
-                                                        vec_scale,
-                                                        out_lens,
-                                                        scales_sizes_arg);
+                is_constant_scale_input =
+                    not parse_args({args.begin() + args_offset, args.end()}, scales_sizes_arg);
             }
 
             if(is_constant_scale_input)
@@ -303,8 +297,8 @@ struct parse_resize : op_parser<parse_resize>
             }
         }
 
-        void set_aspect_ratio_policy(const onnx_parser::attribute_map& attr, 
-                                     const std::vector<instruction_ref>& args)
+        void set_aspect_ratio_policy(const onnx_parser::attribute_map& attr,
+                                     const std::vector<instruction_ref>& args) const
         {
             // TODO: Add support for this instead of keeping it as a check
             if(contains(attr, "keep_aspect_ratio_policy"))
@@ -334,6 +328,61 @@ struct parse_resize : op_parser<parse_resize>
             }
         }
 
+        // Hunts through the argument list to find either scales or sizes, and
+        // populates both scales and sizes vectors from it.
+        // r_arg: a reference to the argument that was found.
+        //
+        // return: true if argument is non-static (i.e. if eval() couldn't read it
+        // at compile time).  If true, we'll need to use Resize op.
+        bool parse_args(const std::vector<instruction_ref>& args, instruction_ref& r_arg)
+        {
+            for(const auto& arg : args)
+            {
+                if(arg->name() == "undefined")
+                    continue;
+
+                // skip any empty input (some of the Onnx args. are optional)
+                auto lens = arg->get_shape().lens();
+                if(lens.empty())
+                    continue;
+
+                r_arg = arg;
+
+                auto type = arg->get_shape().type();
+                if(type == shape::int64_type)
+                {
+                    // this argument is output sizes
+                    auto arg_out_s = arg->eval();
+                    if(arg_out_s.empty())
+                        return true;
+                    arg_out_s.visit([&](const auto& ol) { out_lens.assign(ol.begin(), ol.end()); });
+
+                    if(out_lens.size() != in_lens.size())
+                    {
+                        MIGRAPHX_THROW(
+                            "PARSE_RESIZE: specified output size's rank does not match input size");
+                    }
+
+                    compute_scales();
+                    return false;
+                }
+                else
+                {
+                    // this argument is scale input
+                    if(lens[0] == in_lens.size())
+                    {
+                        auto arg_scale = arg->eval();
+                        if(arg_scale.empty())
+                            return true;
+
+                        arg_scale.visit(
+                            [&](const auto& v) { vec_scale.assign(v.begin(), v.end()); });
+                    }
+                    return false;
+                }
+            }
+            MIGRAPHX_THROW("PARSE_RESIZE: no shapes or scales input provided");
+        }
     };
 
     // Helper to add a "reshape" and "gather" instruction.  These can implement
@@ -381,9 +430,6 @@ struct parse_resize : op_parser<parse_resize>
                                                     resize_args& resize,
                                                     instruction_ref args_0)
     {
-        auto in_s      = resize.in_s;
-        auto in_lens   = resize.in_lens;
-        auto out_lens  = resize.out_lens;
         auto vec_scale = resize.vec_scale;
         auto scales_sizes_arg = resize.scales_sizes_arg;
 
@@ -508,65 +554,6 @@ struct parse_resize : op_parser<parse_resize>
         return data;
     }
 
-
-    // Hunts through the argument list to find either scales or sizes, and
-    // populates both scales and sizes vectors from it.
-    // r_arg: a reference to the argument that was found.
-    //
-    // return: true if argument is non-static (i.e. if eval() couldn't read it
-    // at compile time).  If true, we'll need to use Resize op.
-    static bool parse_args(const std::vector<instruction_ref>& args,
-                        const std::vector<size_t>& in_lens,
-                        std::vector<float>& vec_scale,
-                        std::vector<std::size_t>& out_lens,
-                        instruction_ref& r_arg)
-    {
-        for(const auto& arg : args)
-        {
-            if(arg->name() == "undefined")
-                continue;
-
-            // skip any empty input (some of the Onnx args. are optional)
-            auto lens = arg->get_shape().lens();
-            if(lens.empty())
-                continue;
-
-            r_arg = arg;
-
-            auto type = arg->get_shape().type();
-            if(type == shape::int64_type)
-            {
-                // this argument is output sizes
-                auto arg_out_s = arg->eval();
-                if(arg_out_s.empty())
-                    return true;
-                arg_out_s.visit([&](const auto& ol) { out_lens.assign(ol.begin(), ol.end()); });
-
-                if(out_lens.size() != in_lens.size())
-                {
-                    MIGRAPHX_THROW("PARSE_RESIZE: specified output size's rank does not match input size");
-                }
-
-                compute_scales();
-                return false;
-            }
-            else
-            {
-                // this argument is scale input
-                if(lens[0] == in_lens.size())
-                {
-                    auto arg_scale = arg->eval();
-                    if(arg_scale.empty())
-                        return true;
-
-                    arg_scale.visit([&](const auto& v) { vec_scale.assign(v.begin(), v.end()); });
-                }
-                return false;
-            }
-        }
-        MIGRAPHX_THROW("PARSE_RESIZE: no shapes or scales input provided");
-    }
-
     static void set_resize_attributes(const onnx_parser::node_info& info,
                                       const std::vector<instruction_ref>& args,
                                       resize_args& resize)
@@ -642,7 +629,7 @@ struct parse_resize : op_parser<parse_resize>
 
     instruction_ref parse(const op_desc& opd,
                           const onnx_parser&,
-                          onnx_parser::node_info info,
+                          const onnx_parser::node_info& info,
                           std::vector<instruction_ref> args) const
     {
         auto resize = handle_inputs(opd, info, args);

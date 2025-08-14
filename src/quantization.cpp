@@ -68,14 +68,14 @@ static tracer quant_tracer()
 void quantize_fp16(program& prog, const std::vector<std::string>& ins_names)
 {
     run_passes(prog,
-               {split_single_dyn_dim{},
+               {
                 dead_code_elimination{},
                 normalize_ops{},
                 optimize_module{{"quantizelinear", "dequantizelinear"}},
                 truncate_float_pass{ins_names, shape::half_type},
                 optimize_module{{"quantizelinear", "dequantizelinear"}}},
                quant_tracer());
-    prog.is_quantized = true;
+    // prog.is_quantized = true;
 }
 
 void quantize_bf16(program& prog, const std::vector<std::string>& ins_names)

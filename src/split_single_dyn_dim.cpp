@@ -147,8 +147,8 @@ void split_single_dyn_dim::apply(module_pass_manager& mpm) const
         // and any user-supplied optimals
         std::vector<module_ref> submodules;
         std::set<size_t> dim_sizes{dyn_dim.min, dyn_dim.max};
-        std::vector<size_t> powers_of_2 = powers_of_2_between(dyn_dim.min, dyn_dim.max);
-        dim_sizes.insert(powers_of_2.begin(), powers_of_2.end());
+        // std::vector<size_t> powers_of_2 = powers_of_2_between(dyn_dim.min, dyn_dim.max);
+        // dim_sizes.insert(powers_of_2.begin(), powers_of_2.end());
         if(dyn_dim.has_optimal())
         {
             dim_sizes.insert(dyn_dim.optimals.begin(), dyn_dim.optimals.end());

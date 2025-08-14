@@ -159,8 +159,6 @@ struct MIGRAPHX_EXPORT program
     void rename_module(const std::string& old_name, const std::string& new_name);
     void remove_unused_modules();
 
-    bool is_quantized = false;
-
     private:
     void assign(const program& p);
     std::unique_ptr<program_impl> impl;

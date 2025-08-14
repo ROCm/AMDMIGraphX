@@ -173,6 +173,26 @@ struct parse_resize : op_parser<parse_resize>
             return scales_sizes_arg;
         }
 
+        void compute_outputs()
+        {
+            std::transform(
+                in_lens.begin(),
+                in_lens.end(),
+                vec_scale.begin(),
+                out_lens.begin(),
+                [&](auto idx, auto scale) { return static_cast<std::size_t>(idx * scale); });
+        }
+
+        void compute_scales()
+        {
+            vec_scale.resize(in_lens.size());
+            std::transform(in_lens.begin(),
+                           in_lens.end(),
+                           out_lens.begin(),
+                           vec_scale.begin(),
+                           [](auto iss, auto oss) { return 1.0 * oss / iss; });
+        }
+
         std::vector<float> get_scales(const std::vector<instruction_ref>& args)
         {
             scales_sizes_arg = args[0];
@@ -203,12 +223,7 @@ struct parse_resize : op_parser<parse_resize>
                 // if the output was not calculated yet, we update it based on the scales
                 if(all_of(out_lens.cbegin(), out_lens.cend(), [](auto o) { return o == 0; }))
                 {
-                    std::transform(
-                        in_lens.begin(),
-                        in_lens.end(),
-                        vec_scale.begin(),
-                        out_lens.begin(),
-                        [&](auto idx, auto scale) { return static_cast<std::size_t>(idx * scale); });
+                    compute_outputs();
                 }
             }
 
@@ -314,6 +329,8 @@ struct parse_resize : op_parser<parse_resize>
             if(contains(attr, "scales"))
             {
                 copy(attr.at("scales").floats(), std::back_inserter(r_attr.scales));
+                vec_scale = r_attr.scales;
+                compute_outputs();
             }
         }
 
@@ -530,13 +547,7 @@ struct parse_resize : op_parser<parse_resize>
                     MIGRAPHX_THROW("PARSE_RESIZE: specified output size's rank does not match input size");
                 }
 
-                // compute the scales
-                vec_scale.resize(in_lens.size());
-                std::transform(in_lens.begin(),
-                            in_lens.end(),
-                            out_lens.begin(),
-                            vec_scale.begin(),
-                            [](auto iss, auto oss) { return 1.0 * oss / iss; });
+                compute_scales();
                 return false;
             }
             else

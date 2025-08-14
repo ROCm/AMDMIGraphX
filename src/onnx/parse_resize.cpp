@@ -99,8 +99,6 @@ calc_neighbor_points(const std::vector<std::vector<std::vector<std::size_t>>>& v
     return out_idx_vec;
 }
 
-
-
 struct parse_resize : op_parser<parse_resize>
 {
     std::vector<op_desc> operators() const
@@ -109,7 +107,7 @@ struct parse_resize : op_parser<parse_resize>
     }
 
     struct resize_attr
-    {   
+    {
         std::vector<int64_t> axes;                // resize - 18
         int antialias             = 0;            // resize - 18
         int exclude_outside       = 0;            // resize - 11
@@ -117,13 +115,13 @@ struct parse_resize : op_parser<parse_resize>
         float extrapolation_value = 0.0f;         // resize - 11
         std::string coord_t_mode  = "half_pixel"; // resize - 11
         std::string nearest_mode  = "round_prefer_floor";
-        std::string keep_aspect   = "stretch";    // resize - 18
+        std::string keep_aspect   = "stretch"; // resize - 18
 
         // Overlaps with upsample operator
-        std::string mode          = "nearest"; 
+        std::string mode = "nearest";
 
         // Upsample related
-        std::vector<float> scales = {};     // Upsample 7
+        std::vector<float> scales = {}; // Upsample 7
     };
 
     struct resize_args
@@ -151,8 +149,8 @@ struct parse_resize : op_parser<parse_resize>
 
         bool is_resize = true;
 
-        void set_upsample_op(){is_resize = false;}
-        bool is_resize_op() const {return is_resize;}
+        void set_upsample_op() { is_resize = false; }
+        bool is_resize_op() const { return is_resize; }
 
         // if scale an attr must be greater or equal to 1
         bool is_scale_attr() const { return not r_attr.scales.empty(); }
@@ -163,10 +161,7 @@ struct parse_resize : op_parser<parse_resize>
         std::string get_coord_trans_mode() const { return r_attr.coord_t_mode; }
         std::string get_mode() const { return r_attr.mode; }
 
-        void set_scales_sizes_arg(instruction_ref ref)
-        {
-            scales_sizes_arg = ref;
-        }
+        void set_scales_sizes_arg(instruction_ref ref) { scales_sizes_arg = ref; }
 
         instruction_ref get_scales_sizes_arg() const { return scales_sizes_arg; }
 
@@ -202,7 +197,7 @@ struct parse_resize : op_parser<parse_resize>
             {
                 // Depending on the args, it *must* populate the `vec_scale`, and might populate
                 // `out_lens`. Skip first input and `roi` input (if present)
-                size_t args_offset      = args.size() > 2 ? 2 : 1;
+                size_t args_offset = args.size() > 2 ? 2 : 1;
                 is_constant_scale_input =
                     not parse_args({args.begin() + args_offset, args.end()}, scales_sizes_arg);
             }
@@ -242,7 +237,7 @@ struct parse_resize : op_parser<parse_resize>
         {
             if(contains(attr, "cubic_coeff_a"))
             {
-                auto coeff = attr.at("cubic_coeff_a").f();
+                auto coeff           = attr.at("cubic_coeff_a").f();
                 r_attr.cubic_coeff_a = coeff;
             }
         }
@@ -250,7 +245,7 @@ struct parse_resize : op_parser<parse_resize>
         void set_mode(const onnx_parser::attribute_map& attr)
         {
             if(contains(attr, "mode"))
-            {   // TODO: Add support for cubic mode
+            { // TODO: Add support for cubic mode
                 auto mode = attr.at("mode").s();
                 if(mode != "nearest" and mode != "linear")
                 {
@@ -271,8 +266,7 @@ struct parse_resize : op_parser<parse_resize>
         void set_exclude_outside(const onnx_parser::attribute_map& attr)
         {
             // TODO: Add support for exclude outside = 1
-            if(contains(attr, "exclude_outside") and
-                attr.at("exclude_outside").i() == 1)
+            if(contains(attr, "exclude_outside") and attr.at("exclude_outside").i() == 1)
             {
                 MIGRAPHX_THROW("PARSE_RESIZE exclude_outside 1 is not supported!");
             }
@@ -309,7 +303,7 @@ struct parse_resize : op_parser<parse_resize>
                 // This attribute is only relevant if 'sizes' input is used.
                 // The shape constraints for 'sizes' are below:
                 if(last_arg_shape.type() == shape::int64_type and
-                    (last_arg_elements == args.front()->get_shape().ndim() or
+                   (last_arg_elements == args.front()->get_shape().ndim() or
                     (is_axes_used() and last_arg_elements == r_attr.axes.size())))
                 {
                     MIGRAPHX_THROW("PARSE_RESIZE: keep_aspect_ratio_policy is not supported!");
@@ -430,7 +424,7 @@ struct parse_resize : op_parser<parse_resize>
                                                     resize_args& resize,
                                                     instruction_ref args_0)
     {
-        auto vec_scale = resize.vec_scale;
+        auto vec_scale        = resize.vec_scale;
         auto scales_sizes_arg = resize.scales_sizes_arg;
 
         bool is_constant_scale_input(not vec_scale.empty());
@@ -452,9 +446,7 @@ struct parse_resize : op_parser<parse_resize>
             // the Resize can be accomplished with Gather operation.  Preferred for
             // better performance.
 
-
-            return make_gather_instruction(
-                info, resize, args_0);
+            return make_gather_instruction(info, resize, args_0);
         }
     }
 
@@ -557,7 +549,7 @@ struct parse_resize : op_parser<parse_resize>
     static void set_resize_attributes(const onnx_parser::node_info& info,
                                       const std::vector<instruction_ref>& args,
                                       resize_args& resize)
-    {     
+    {
         resize.set_coord_trans_mode(info.attributes);
         resize.set_cubic_coeff(info.attributes);
         resize.set_axes(info.attributes);
@@ -568,24 +560,20 @@ struct parse_resize : op_parser<parse_resize>
         resize.set_mode(info.attributes);
     }
 
-
-    static void set_resize_args(const std::vector<instruction_ref>& args,
-                                resize_args& resize)
+    static void set_resize_args(const std::vector<instruction_ref>& args, resize_args& resize)
     {
-        resize.x      = args.at(0);
+        resize.x = args.at(0);
         resize.set_scales_sizes_arg(args[0]);
         resize.vec_scale = resize.get_scales(args);
     }
 
-    static void set_upsample_attributes(const onnx_parser::node_info& info,
-                                        resize_args& resize)
+    static void set_upsample_attributes(const onnx_parser::node_info& info, resize_args& resize)
     {
         resize.set_mode(info.attributes);
         resize.set_scales(info.attributes);
     }
 
-    static void set_upsample_args(const std::vector<instruction_ref>& args,
-                           resize_args& resize)
+    static void set_upsample_args(const std::vector<instruction_ref>& args, resize_args& resize)
     {
         resize.x = args.at(0);
 
@@ -595,7 +583,7 @@ struct parse_resize : op_parser<parse_resize>
     }
 
     // Split of what we handle since this parser is used for both resize/upscale operators
-    static resize_args handle_inputs(const  op_desc& opd,
+    static resize_args handle_inputs(const op_desc& opd,
                                      const onnx_parser::node_info& info,
                                      const std::vector<instruction_ref>& args)
     {
@@ -613,7 +601,7 @@ struct parse_resize : op_parser<parse_resize>
             resize.set_upsample_op();
         }
 
-        // We do this since upsample/resize overlap in functionality 
+        // We do this since upsample/resize overlap in functionality
         if(resize.is_resize_op())
         {
             set_resize_attributes(info, args, resize);
@@ -633,7 +621,6 @@ struct parse_resize : op_parser<parse_resize>
                           std::vector<instruction_ref> args) const
     {
         auto resize = handle_inputs(opd, info, args);
-
 
         if(resize.get_mode() == "nearest")
         {

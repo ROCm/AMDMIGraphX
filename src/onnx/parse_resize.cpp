@@ -221,7 +221,6 @@ struct parse_resize : op_parser<parse_resize>
                     if(is_arg_skipped(arg_out))
                         break;
 
-
                     if(type == shape::int64_type)
                     {
                         assign_output_sizes(arg_out);
@@ -229,13 +228,17 @@ struct parse_resize : op_parser<parse_resize>
                         compute_scales();
                         break;
                     }
-                    else if(type == shape::float_type or type == shape::half_type)
+                    else if(type == shape::float_type)
                     {
                         if(is_scale_rank_valid(arg))
                         {
                             assign_scales(arg_out);
                         }
                         break;
+                    }
+                    else
+                    {
+                        MIGRAPHX_THROW("PARSE_RESIZE: invalid shape type " + type);
                     }
                 }
 

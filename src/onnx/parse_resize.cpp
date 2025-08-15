@@ -208,7 +208,39 @@ struct parse_resize : op_parser<parse_resize>
                 // Depending on the args, it *must* populate the `vec_scale`, and might populate
                 // `out_lens`. Skip first input and `roi` input (if present)
                 size_t args_offset = args.size() > 2 ? 2 : 1;
-                parse_args({args.begin() + args_offset, args.end()}, scales_sizes_arg);
+                std::vector<instruction_ref> inputs{args.begin() + args_offset, args.end()};
+                for(const auto& arg : inputs)
+                {
+                    if(is_arg_invalid(arg))
+                        continue;
+
+                    scales_sizes_arg = arg;
+                    auto arg_out = arg->eval();
+
+                    auto type = arg->get_shape().type();
+                    if(is_arg_skipped(arg_out))
+                        break;
+
+
+                    if(type == shape::int64_type)
+                    {
+                        assign_output_sizes(arg_out);
+                        check_output_size();
+                        compute_scales();
+                        break;
+                    }
+                    else if(type == shape::float_type or type == shape::half_type)
+                    {
+                        if(is_scale_rank_valid(arg))
+                        {
+                            assign_scales(arg_out);
+                        }
+                        break;
+                    }
+                }
+
+                if(vec_scale.empty() and out_lens.empty())
+                    MIGRAPHX_THROW("PARSE_RESIZE: no shapes for scales/size input provided");
             }
 
             if(is_constant_scale_input())
@@ -372,44 +404,6 @@ struct parse_resize : op_parser<parse_resize>
         bool is_scale_rank_valid(const instruction_ref arg) const
         {
             return arg->get_shape().lens().at(0) == in_lens.size();
-        }
-        // Hunts through the argument list to find either scales or sizes, and
-        // populates both scales and sizes vectors from it.
-        // r_arg: a reference to the argument that was found.
-        //
-        // return: true if argument is non-static (i.e. if eval() couldn't read it
-        // at compile time).  If true, we'll need to use Resize op.
-        void parse_args(const std::vector<instruction_ref>& args, instruction_ref& r_arg)
-        {
-            for(const auto& arg : args)
-            {
-                if(is_arg_invalid(arg))
-                    continue;
-
-                r_arg = arg;
-                auto arg_out = arg->eval();
-
-                auto type = arg->get_shape().type();
-                if(is_arg_skipped(arg_out))
-                    return;
-
-                if(type == shape::int64_type)
-                {
-                    assign_output_sizes(arg_out);
-                    check_output_size();
-                    compute_scales();
-                    return;
-                }
-                else
-                {
-                    if(is_scale_rank_valid(arg))
-                    {
-                        assign_scales(arg_out);
-                    }
-                    return;
-                }
-            }
-            MIGRAPHX_THROW("PARSE_RESIZE: no shapes or scales input provided");
         }
     };
 

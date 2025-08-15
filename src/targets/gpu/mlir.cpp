@@ -164,8 +164,12 @@ using mlir_tuning_space      = MIGRAPHX_MANAGE_MLIR_HANDLE(MlirRockTuningSpace,
 using mlir_tuning_param      = MIGRAPHX_MANAGE_MLIR_HANDLE(MlirRockTuningParam,
                                                       mlirRockTuningParamDestroy);
 
-// NOLINTNEXTLINE                                                      
-static std::atomic<int> dump_counter = 0;
+static std::atomic<int>& dump_counter()
+{
+    // NOLINTNEXTLINE
+    static std::atomic<int> c = 0;
+    return c;
+}
 
 static std::string_view to_string_view(MlirStringRef s) { return {s.data, s.length}; }
 
@@ -1124,11 +1128,11 @@ static std::string compute_dump_name(const module& m, const std::string& ext)
     auto sym_names = mlir_program::get_symbol_name(m);
     abbreviate_symbol_names(sym_names);
 
-    static int max_file_length = 255;
+    const int max_file_length = 255;
     std::string fname;
     if(sym_names.length() + shape_str.length() + ext.length() > max_file_length)
     {
-        auto cnt    = "_" + std::to_string(dump_counter++);
+        auto cnt    = "_" + std::to_string(dump_counter()++);
         auto cutoff = max_file_length - shape_str.length() - ext.length() - cnt.length();
 
         // If the shapes are too big, the filename will be unparsable anyways so simply name it

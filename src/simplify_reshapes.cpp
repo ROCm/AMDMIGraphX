@@ -1382,6 +1382,8 @@ struct find_flatten
 
 void simplify_reshapes::apply(module& m) const
 {
+    if(enable_op_shape_transform_op)
+        m.print_py(std::cout);
     m.repeat_while_changes(depth, [&] {
         match::find_matches(m,
                             find_where_op{},

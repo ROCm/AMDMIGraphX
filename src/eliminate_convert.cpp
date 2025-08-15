@@ -72,9 +72,30 @@ struct find_nop_converts
     }
 };
 
+struct find_select_module_converts
+{
+    auto matcher() const { return match::name("select_module"); }
+
+    void apply(module& m, const match::matcher_result& mr) const
+    {
+        // TODO: find any converts being propagated,
+        // for now it's assumed params are the original inputs
+        // to select_module
+        auto ins = mr.result;
+        auto inputs = ins->inputs();
+        for(auto input : inputs)
+        {
+            if(input->name() == "convert")
+            {
+                m.replace_instruction(input, input->inputs().front());
+            }
+        }
+    }
+};
+
 void eliminate_convert::apply(module& m) const
 {
-    match::find_matches(m, find_nested_convert{}, find_nop_converts{});
+    match::find_matches(m, find_nested_convert{}, find_nop_converts{}, find_select_module_converts{});
 }
 
 } // namespace MIGRAPHX_INLINE_NS

@@ -1654,10 +1654,6 @@ struct find_conv_dot_horiz_fusion
     void apply(module& m, const match::matcher_result& r) const
     {
         auto ins = r.result;
-        if(any_of(ins->inputs().begin(), ins->inputs().end(), [](auto input){
-            return input->get_shape().dynamic();
-        }))
-            return;
 
         auto pred = [](auto i, auto j) {
             if(i->get_operator() != j->get_operator())

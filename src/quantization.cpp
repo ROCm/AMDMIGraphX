@@ -69,6 +69,7 @@ void quantize_fp16(program& prog, const std::vector<std::string>& ins_names)
 {
     run_passes(prog,
                {
+                split_single_dyn_dim{},
                 dead_code_elimination{},
                 normalize_ops{},
                 optimize_module{{"quantizelinear", "dequantizelinear"}},

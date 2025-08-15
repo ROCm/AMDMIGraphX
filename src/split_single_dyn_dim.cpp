@@ -96,11 +96,13 @@ has_one_unique_dyn_dim(const std::unordered_map<std::string, shape>& param_shape
  */
 static bool any_sm_next(const_module_ref mm, const std::vector<dynamic_dimensions_check>& ddcs)
 {
+    if(any_of(mm->begin(), mm->end(), [](auto ins) { return ins.name() == "select_module";} ))
+        return true;
     for(const auto& ddc : ddcs)
     {
         auto p_outputs  = mm->get_parameter(ddc.dyn_param_str)->outputs();
-        bool is_sm_next = std::any_of(p_outputs.cbegin(), p_outputs.cend(), [](auto ins) {
-            return ins->name() == "select_module" or ins->name() == "fixed_pad";
+        bool is_sm_next = std::any_of(p_outputs.cbegin(), p_outputs.cend(), [](auto ins) { 
+            return ins->name() == "fixed_pad";
         });
         if(is_sm_next)
         {

@@ -152,7 +152,7 @@ Iterator adjacent_for_each(Iterator first, Iterator last, F f)
 template <class Iterator1, class Iterator2, class F>
 F for_each(Iterator1 first1, Iterator1 last1, Iterator2 first2, F f)
 {
-    for (; first1 != last1; ++first1, ++first2)
+    for(; first1 != last1; ++first1, ++first2)
         f(*first1, *first2);
     return f;
 }

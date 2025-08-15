@@ -78,7 +78,7 @@ auto push_inserter(Container& c)
     return make_function_output_iterator([&](const auto& x) { c.push(x); });
 }
 
-inline auto null_output_iterator() 
+inline auto null_output_iterator()
 {
     return make_function_output_iterator([](const auto&) {});
 }

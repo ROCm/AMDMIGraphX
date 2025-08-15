@@ -591,8 +591,8 @@ TEST_CASE(optimize_broadcast_squeeze_reshape)
                    make_op("multibroadcast", {{"out_lens", {2, 32, 40960, 1, 1}}}),
                    make_op("squeeze", {{"axes", {3, 4}}}),
                    make_op("reshape", {{"dims", {2, 32, 10, 64, 64}}}),
-                }) == ops{
-                    make_op("multibroadcast", {{"out_lens", {2, 32, 10, 64, 64}}}),
+               }) == ops{
+                         make_op("multibroadcast", {{"out_lens", {2, 32, 10, 64, 64}}}),
                      });
 }
 

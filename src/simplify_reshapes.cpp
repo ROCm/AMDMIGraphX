@@ -242,10 +242,11 @@ struct find_op_shape_transform_op
         }
     }
 
-    static shape_transform_descriptor make_descriptor(instruction_ref x_ins, std::vector<operation> ops, instruction_ref input_ins)
+    static shape_transform_descriptor
+    make_descriptor(instruction_ref x_ins, std::vector<operation> ops, instruction_ref input_ins)
     {
         auto desc1 = shape_transform_descriptor::create(x_ins->get_shape().lens(), ops);
-        auto desc = desc1.rebase(x_ins->inputs().front()->get_shape().lens(), true);
+        auto desc  = desc1.rebase(x_ins->inputs().front()->get_shape().lens(), true);
         if(not desc.empty())
             return desc;
         if(not is_reduce(x_ins))
@@ -253,7 +254,7 @@ struct find_op_shape_transform_op
         // Find a broadcast to append to improve the reduction analysis
         auto output_path = get_output_path(input_ins);
         auto it = std::find_if(output_path.begin(), output_path.end(), [&](instruction_ref ins) {
-            if (ins->get_shape().lens() != input_ins->get_shape().lens())
+            if(ins->get_shape().lens() != input_ins->get_shape().lens())
                 return true;
             return contains({"multibroadcast", "broadcast"}, ins->name());
         });
@@ -262,8 +263,8 @@ struct find_op_shape_transform_op
         if(not contains({"multibroadcast", "broadcast"}, (*it)->name()))
             return {};
         ops.push_back((*it)->get_operator());
-        return shape_transform_descriptor::create(x_ins->get_shape().lens(), ops).rebase(
-            x_ins->inputs().front()->get_shape().lens(), true);
+        return shape_transform_descriptor::create(x_ins->get_shape().lens(), ops)
+            .rebase(x_ins->inputs().front()->get_shape().lens(), true);
     }
 
     void apply(module& m, const match::matcher_result& r) const

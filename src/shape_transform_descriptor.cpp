@@ -546,8 +546,8 @@ static void remove_split_hidden_axes(std::map<std::size_t, std::vector<dimension
     {
         auto& subs = p.second;
         if(std::all_of(subs.begin(), subs.end(), [](const dimension::sub* s) {
-            return s->has_hidden_axis();
-        }))
+               return s->has_hidden_axis();
+           }))
             continue;
         for(auto* sub : subs)
         {
@@ -557,25 +557,26 @@ static void remove_split_hidden_axes(std::map<std::size_t, std::vector<dimension
         }
         // Remove the subdimesions that no longer have an axis
         subs.erase(std::remove_if(subs.begin(),
-        subs.end(),
-        [](const dimension::sub* s) {
-            return s->axis.empty() and s->hidden_axis.empty();
-        }),
-        subs.end());
+                                  subs.end(),
+                                  [](const dimension::sub* s) {
+                                      return s->axis.empty() and s->hidden_axis.empty();
+                                  }),
+                   subs.end());
     }
     // Remove axis from group if empty
     erase_if(axes_map, [](auto&& p) { return p.second.empty(); });
 }
 
 // Replace the hidden axis that is split with an axis that is missing
-static void fill_split_hidden_axes(std::map<std::size_t, std::vector<dimension::sub*>>& axes_map, const std::vector<dimension>& dimensions, std::size_t rank)
+static void fill_split_hidden_axes(std::map<std::size_t, std::vector<dimension::sub*>>& axes_map,
+                                   const std::vector<dimension>& dimensions,
+                                   std::size_t rank)
 {
     // Create a reverse map of the subdimensions to the position
     std::unordered_map<const dimension::sub*, std::size_t> sub_pos_map;
-    for_each_subdimension(dimensions, range(std::numeric_limits<std::size_t>::max()),
-                          [&](const dimension::sub& sub, std::size_t i) {
-                              sub_pos_map[&sub] = i;
-                          });
+    for_each_subdimension(dimensions,
+                          range(std::numeric_limits<std::size_t>::max()),
+                          [&](const dimension::sub& sub, std::size_t i) { sub_pos_map[&sub] = i; });
     for(auto&& p : axes_map)
     {
         auto axis = p.first;
@@ -583,37 +584,39 @@ static void fill_split_hidden_axes(std::map<std::size_t, std::vector<dimension::
         if(subs.size() < 2)
             continue;
         std::sort(subs.begin(), subs.end(), by(std::less<>{}, [](const dimension::sub* s) {
-            return s->origin_axis();
-        }));
+                      return s->origin_axis();
+                  }));
         if(not std::all_of(subs.begin(), subs.end(), [](const dimension::sub* s) {
-                return s->has_hidden_axis();
-            }))
+               return s->has_hidden_axis();
+           }))
             continue;
 
-        auto it = std::adjacent_find(subs.begin(), subs.end(), [&](const dimension::sub* s1,
-                                                     const dimension::sub* s2) {
-            return sub_pos_map.at(s1) + 1 != sub_pos_map.at(s2);
-        });
+        auto it = std::adjacent_find(
+            subs.begin(), subs.end(), [&](const dimension::sub* s1, const dimension::sub* s2) {
+                return sub_pos_map.at(s1) + 1 != sub_pos_map.at(s2);
+            });
         if(it != subs.end())
             continue;
-        auto needed_axes = range(axis + 1, axis + subs.size());
+        auto needed_axes  = range(axis + 1, axis + subs.size());
         auto missing_axes = reverse(range(needed_axes.begin(), find_if(needed_axes, [&](auto a) {
-            if(a >= rank)
-                return true;
-            return contains(axes_map, a);
-        })));
-        for_each(missing_axes.begin(), missing_axes.end(), subs.rbegin(), [&](std::size_t axis, dimension::sub* sub
-                                                     ) {
-            sub->hidden_axis = {axis};
-            axes_map[axis].push_back(sub);
-        });
+                                              if(a >= rank)
+                                                  return true;
+                                              return contains(axes_map, a);
+                                          })));
+        for_each(missing_axes.begin(),
+                 missing_axes.end(),
+                 subs.rbegin(),
+                 [&](std::size_t axis, dimension::sub* sub) {
+                     sub->hidden_axis = {axis};
+                     axes_map[axis].push_back(sub);
+                 });
         // Remove the subdimansions that have a different axis
         auto& orig_subs = p.second;
         orig_subs.erase(std::remove_if(orig_subs.begin(),
-                                            orig_subs.end(),
-                                            [&](const dimension::sub* s) {
-                                                return s->origin_axis().front() != axis;
-                                            }),
+                                       orig_subs.end(),
+                                       [&](const dimension::sub* s) {
+                                           return s->origin_axis().front() != axis;
+                                       }),
                         orig_subs.end());
     }
 }
@@ -764,9 +767,9 @@ void shape_transform_descriptor::simplify()
 {
     for(auto& d : dimensions)
         d.simplify();
-    
+
     remove_scalar_axis(dimensions);
-    
+
     std::map<std::size_t, std::size_t> missing_axes;
     std::vector<std::size_t> last_axis;
     {
@@ -777,14 +780,14 @@ void shape_transform_descriptor::simplify()
             insert_empty_1s(dimensions, rank);
             return;
         }
-        
+
         remove_split_hidden_axes(axes_map);
         fill_split_hidden_axes(axes_map, dimensions, rank);
         renumber_axes(axes_map);
-        
+
         // Find last axis
         last_axis = std::prev(axes_map.end())->second.back()->origin_axis();
-        
+
         missing_axes = find_missing_axes(axes_map, rank);
     }
 

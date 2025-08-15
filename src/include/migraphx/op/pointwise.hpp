@@ -94,7 +94,7 @@ struct pointwise
         return output;
     }
 
-    value attributes() const { return {"fillcolor", "#9ACD32"}; }
+    value attributes() const { return {"fillcolor", "#9ACD32" /* yellow green */}; }
 };
 
 } // namespace op

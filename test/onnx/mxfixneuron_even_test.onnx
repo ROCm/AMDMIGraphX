@@ -1,0 +1,20 @@
+	mxfixneuron_even_test:Ì
+p
+inputoutput"MXFixNeuron*
+axis *
+
+block_size  *
+element_dtype"fp4_e2m1 *
+rounding_mode mxfixneuron_even_testZ
+input
+
+
+@
+
+b 
+output
+
+
+@
+
+B

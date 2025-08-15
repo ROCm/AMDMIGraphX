@@ -306,7 +306,15 @@ void tf_parser::parse_graph(const tensorflow::GraphDef& graph)
             {
                 this->reorder_data(dims);
             }
-
+            // purely dynamic input, need to set min and max to largest possible values
+            if(dims.size() > 1 and std::all_of(dims.begin(), dims.end(), [](auto dim) { return static_cast<int>(dim) <= 0; }))
+            {
+                // std::cout << name << std::endl;
+                std::transform(dims.begin(), dims.end(), std::back_inserter(dyn_dims), [&](auto) -> shape::dynamic_dimension {
+                    return shape::dynamic_dimension{1, std::numeric_limits<std::size_t>::max()};
+            });    
+            }
+            else
             std::transform(dims.begin(), dims.end(), std::back_inserter(dyn_dims), [&](auto dim) -> shape::dynamic_dimension {
                 return static_cast<int>(dim) <= 0 ? default_dyn_dim_value : shape::dynamic_dimension{dim, dim};
             });

@@ -35,6 +35,36 @@
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
 
+
+void rewrite_pure_dyn_params(module& m)
+{
+    std::vector<instruction_ref> remove_parameters;
+    auto params                           = m.get_parameters();
+    for(auto param : params){
+        auto shape = param->get_shape();
+        if(not shape.dynamic())
+            continue;
+        if(not std::all_of(shape.dyn_dims().begin(), shape.dyn_dims().end(), [](auto dd) {
+            return dd.min == 1 and dd.max == std::numeric_limits<std::size_t>::max();
+        }))
+            continue;
+        if(not std::all_of(param->outputs().begin(), param->outputs().end(), [&](auto output){
+            return output->get_shape() == param->outputs().front()->get_shape();
+        }))
+            MIGRAPHX_THROW("unsupported multi output shapes for purely dynamic shapes");
+        auto out_shape = param->outputs().front()->get_shape();
+        std::string param_name = param->get_operator().to_value()["parameter"].to<std::string>();
+        m.rename_parameter(param, param_name + "_old");
+        auto new_param = m.add_parameter(param_name, out_shape);
+        m.replace_instruction(param, new_param);
+        remove_parameters.push_back(param);
+    }
+
+    for(const auto& i : remove_parameters)
+        m.remove_instruction(i);
+
+}
+
 struct dynamic_dimensions_check
 {
     std::string dyn_param_str;
@@ -136,6 +166,7 @@ static std::vector<size_t> powers_of_2_between(size_t min, size_t max)
 void split_single_dyn_dim::apply(module_pass_manager& mpm) const
 {
     module_ref mm                               = &mpm.get_module();
+    rewrite_pure_dyn_params(*mm);
     auto param_names                            = mm->get_parameter_names();
     auto param_shapes                           = mm->get_parameter_shapes();
     optional<std::vector<dynamic_dimensions_check>> dd_check_vec =

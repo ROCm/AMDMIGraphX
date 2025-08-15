@@ -28,5 +28,6 @@ TEST_CASE(resize_downsample_linear_half_invalid_scale_test)
 {
     // runtime (non-constant) input is only supported in "nearest" mode
     migraphx::onnx_options options;
-    EXPECT(test::throws([&] { read_onnx("resize_downsample_linear_half_invalid_scale_test.onnx", options); }));
+    EXPECT(test::throws(
+        [&] { read_onnx("resize_downsample_linear_half_invalid_scale_test.onnx", options); }));
 }

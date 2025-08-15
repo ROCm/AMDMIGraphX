@@ -157,7 +157,7 @@ struct parse_resize : op_parser<parse_resize>
 
         bool is_axes_used() const { return not r_attr.axes.empty(); }
 
-        bool is_constant_scale_input() const { return not vec_scale.empty();}
+        bool is_constant_scale_input() const { return not vec_scale.empty(); }
 
         std::string get_nearest_mode() const { return r_attr.nearest_mode; }
         std::string get_coord_trans_mode() const { return r_attr.coord_t_mode; }
@@ -167,15 +167,15 @@ struct parse_resize : op_parser<parse_resize>
 
         instruction_ref get_scales_sizes_arg() const { return scales_sizes_arg; }
 
-        void check_scales_and_inputs() const 
-        {                
+        void check_scales_and_inputs() const
+        {
             if(in_lens.size() != vec_scale.size())
             {
                 MIGRAPHX_THROW("PARSE_RESIZE: ranks of input and scale are different!");
             }
         }
 
-        bool is_output_not_set() const 
+        bool is_output_not_set() const
         {
             return all_of(out_lens.cbegin(), out_lens.cend(), [](auto o) { return o == 0; });
         }
@@ -215,7 +215,7 @@ struct parse_resize : op_parser<parse_resize>
                         continue;
 
                     scales_sizes_arg = arg;
-                    auto arg_out = arg->eval();
+                    auto arg_out     = arg->eval();
 
                     auto type = arg->get_shape().type();
                     if(is_arg_skipped(arg_out))
@@ -238,7 +238,7 @@ struct parse_resize : op_parser<parse_resize>
                     }
                     else
                     {
-                        MIGRAPHX_THROW("PARSE_RESIZE: invalid shape type " + type);
+                        MIGRAPHX_THROW("PARSE_RESIZE: invalid shape type ");
                     }
                 }
 
@@ -362,27 +362,16 @@ struct parse_resize : op_parser<parse_resize>
             }
         }
 
+        bool is_arg_skipped(const argument& arg) const { return arg.empty(); }
 
-        bool is_arg_skipped(const argument& arg) const
+        bool is_arg_invalid(const instruction_ref arg) const
         {
-            if(arg.empty())
-            {
-                return true;
-            }
-            return false;
-        }
-
-        bool is_arg_invalid(const instruction_ref arg) const 
-        {                
             if(arg->name() == "undefined")
                 return true;
 
             // skip any empty input (some of the Onnx args. are optional)
             auto lens = arg->get_shape().lens();
-            if(lens.empty())
-                return true;
-
-            return false;
+            return lens.empty();
         }
 
         void check_output_size() const
@@ -399,7 +388,7 @@ struct parse_resize : op_parser<parse_resize>
             arg_out.visit([&](const auto& ol) { out_lens.assign(ol.begin(), ol.end()); });
         }
 
-        void assign_scales(const argument& arg_out) 
+        void assign_scales(const argument& arg_out)
         {
             arg_out.visit([&](const auto& v) { vec_scale.assign(v.begin(), v.end()); });
         }
@@ -455,7 +444,6 @@ struct parse_resize : op_parser<parse_resize>
                                                     resize_args& resize,
                                                     instruction_ref args_0)
     {
-        auto vec_scale        = resize.vec_scale;
         auto scales_sizes_arg = resize.scales_sizes_arg;
 
         if(args_0->get_shape().dynamic() or not resize.is_constant_scale_input())

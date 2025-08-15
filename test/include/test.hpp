@@ -123,6 +123,9 @@ struct function
 };
 
 template <class Stream, class T>
+void print_stream(Stream& s, const T& x);
+
+template <class Stream, class T>
 Stream& print_stream_impl(rank<0>, Stream& s, const T&)
 {
     // TODO: Print typename
@@ -173,21 +176,20 @@ template <class Stream,
           class = typename std::enable_if<not std::is_convertible<Range, std::string>{}>::type>
 auto print_stream_impl(rank<4>,
                        Stream& s,
-                       const Range& v) -> decltype(v.end(), s << stream_write(s, *v.begin()))
+                       const Range& v) -> decltype(v.end(), print_stream(s, *v.begin()))
 {
     auto start = v.begin();
     auto last  = v.end();
     s << "{ ";
     if(start != last)
     {
-        stream_write(s, *start);
+        print_stream(s, *start);
         std::for_each(std::next(start), last, [&](auto&& x) {
             s << ", ";
-            stream_write(s, x);
+            print_stream(s, x);
         });
     }
     s << "}";
-    return s;
 }
 
 template <class Stream, class T>

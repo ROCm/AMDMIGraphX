@@ -583,6 +583,19 @@ TEST_CASE(optimize_squeeze_1x1)
                                                  });
 }
 
+TEST_CASE(optimize_broadcast_squeeze_reshape)
+{
+    EXPECT(check_optimize_shape_transforms(
+               {2, 32, 1, 1, 1},
+               {
+                   make_op("multibroadcast", {{"out_lens", {2, 32, 40960, 1, 1}}}),
+                   make_op("squeeze", {{"axes", {3, 4}}}),
+                   make_op("reshape", {{"dims", {2, 32, 10, 64, 64}}}),
+                }) == ops{
+                    make_op("multibroadcast", {{"out_lens", {2, 32, 10, 64, 64}}}),
+                     });
+}
+
 TEST_CASE(common_dims_reshape_less)
 {
     auto desc =

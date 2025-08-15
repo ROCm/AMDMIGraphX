@@ -39,6 +39,7 @@
 #include <migraphx/make_op.hpp>
 #include <migraphx/tune_axis.hpp>
 #include <migraphx/shape_transform_descriptor.hpp>
+#include <migraphx/instruction_traversal.hpp>
 
 #include <map>
 
@@ -241,6 +242,30 @@ struct find_op_shape_transform_op
         }
     }
 
+    static shape_transform_descriptor make_descriptor(instruction_ref x_ins, std::vector<operation> ops, instruction_ref input_ins)
+    {
+        auto desc1 = shape_transform_descriptor::create(x_ins->get_shape().lens(), ops);
+        auto desc = desc1.rebase(x_ins->inputs().front()->get_shape().lens(), true);
+        if(not desc.empty())
+            return desc;
+        if(not is_reduce(x_ins))
+            return desc1;
+        // Find a broadcast to append to improve the reduction analysis
+        auto output_path = get_output_path(input_ins);
+        auto it = std::find_if(output_path.begin(), output_path.end(), [&](instruction_ref ins) {
+            if (ins->get_shape().lens() != input_ins->get_shape().lens())
+                return true;
+            return contains({"multibroadcast", "broadcast"}, ins->name());
+        });
+        if(it == output_path.end())
+            return {};
+        if(not contains({"multibroadcast", "broadcast"}, (*it)->name()))
+            return {};
+        ops.push_back((*it)->get_operator());
+        return shape_transform_descriptor::create(x_ins->get_shape().lens(), ops).rebase(
+            x_ins->inputs().front()->get_shape().lens(), true);
+    }
+
     void apply(module& m, const match::matcher_result& r) const
     {
         if(not enable)
@@ -269,8 +294,7 @@ struct find_op_shape_transform_op
         assert(next_ins == x_ins);
         std::reverse(ops.begin(), ops.end());
 
-        auto desc = shape_transform_descriptor::create(x_ins->get_shape().lens(), ops)
-                        .rebase(x_ins->inputs().front()->get_shape().lens(), true);
+        auto desc = make_descriptor(x_ins, ops, input_ins);
         if(desc.empty())
             return;
 

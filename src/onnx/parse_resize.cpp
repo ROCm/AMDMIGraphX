@@ -157,6 +157,8 @@ struct parse_resize : op_parser<parse_resize>
 
         bool is_axes_used() const { return not r_attr.axes.empty(); }
 
+        bool is_constant_scale_input() const { return not vec_scale.empty();}
+
         std::string get_nearest_mode() const { return r_attr.nearest_mode; }
         std::string get_coord_trans_mode() const { return r_attr.coord_t_mode; }
         std::string get_mode() const { return r_attr.mode; }
@@ -164,6 +166,19 @@ struct parse_resize : op_parser<parse_resize>
         void set_scales_sizes_arg(instruction_ref ref) { scales_sizes_arg = ref; }
 
         instruction_ref get_scales_sizes_arg() const { return scales_sizes_arg; }
+
+        void check_scales_and_inputs() const 
+        {                
+            if(in_lens.size() != vec_scale.size())
+            {
+                MIGRAPHX_THROW("PARSE_RESIZE: ranks of input and scale are different!");
+            }
+        }
+
+        bool is_output_not_set() const 
+        {
+            return all_of(out_lens.cbegin(), out_lens.cend(), [](auto o) { return o == 0; });
+        }
 
         void compute_outputs()
         {
@@ -188,29 +203,19 @@ struct parse_resize : op_parser<parse_resize>
         std::vector<float> get_scales(const std::vector<instruction_ref>& args)
         {
             scales_sizes_arg = args[0];
-
-            // boolean indicates whether the size of the output can be determined
-            // at compile time, i.e. its values come from literal input(s) and have
-            // no dependencies anywhere in the graph on runtime inputs.
-            bool is_constant_scale_input(not vec_scale.empty());
-            if(not is_constant_scale_input)
+            if(not is_constant_scale_input())
             {
                 // Depending on the args, it *must* populate the `vec_scale`, and might populate
                 // `out_lens`. Skip first input and `roi` input (if present)
                 size_t args_offset = args.size() > 2 ? 2 : 1;
-                is_constant_scale_input =
-                    not parse_args({args.begin() + args_offset, args.end()}, scales_sizes_arg);
+                parse_args({args.begin() + args_offset, args.end()}, scales_sizes_arg);
             }
 
-            if(is_constant_scale_input)
+            if(is_constant_scale_input())
             {
-                if(in_lens.size() != vec_scale.size())
-                {
-                    MIGRAPHX_THROW("PARSE_RESIZE: ranks of input and scale are different!");
-                }
+                check_scales_and_inputs();
 
-                // if the output was not calculated yet, we update it based on the scales
-                if(all_of(out_lens.cbegin(), out_lens.cend(), [](auto o) { return o == 0; }))
+                if(is_output_not_set())
                 {
                     compute_outputs();
                 }
@@ -322,57 +327,86 @@ struct parse_resize : op_parser<parse_resize>
             }
         }
 
+
+        bool is_arg_skipped(const argument& arg) const
+        {
+            if(arg.empty())
+            {
+                return true;
+            }
+            return false;
+        }
+
+        bool is_arg_invalid(const instruction_ref arg) const 
+        {                
+            if(arg->name() == "undefined")
+                return true;
+
+            // skip any empty input (some of the Onnx args. are optional)
+            auto lens = arg->get_shape().lens();
+            if(lens.empty())
+                return true;
+
+            return false;
+        }
+
+        void check_output_size() const
+        {
+            if(out_lens.size() != in_lens.size())
+            {
+                MIGRAPHX_THROW(
+                    "PARSE_RESIZE: specified output size's rank does not match input size");
+            }
+        }
+
+        void assign_output_sizes(const argument& arg_out)
+        {
+            arg_out.visit([&](const auto& ol) { out_lens.assign(ol.begin(), ol.end()); });
+        }
+
+        void assign_scales(const argument& arg_out) 
+        {
+            arg_out.visit([&](const auto& v) { vec_scale.assign(v.begin(), v.end()); });
+        }
+
+        bool is_scale_rank_valid(const instruction_ref arg) const
+        {
+            return arg->get_shape().lens().at(0) == in_lens.size();
+        }
         // Hunts through the argument list to find either scales or sizes, and
         // populates both scales and sizes vectors from it.
         // r_arg: a reference to the argument that was found.
         //
         // return: true if argument is non-static (i.e. if eval() couldn't read it
         // at compile time).  If true, we'll need to use Resize op.
-        bool parse_args(const std::vector<instruction_ref>& args, instruction_ref& r_arg)
+        void parse_args(const std::vector<instruction_ref>& args, instruction_ref& r_arg)
         {
             for(const auto& arg : args)
             {
-                if(arg->name() == "undefined")
-                    continue;
-
-                // skip any empty input (some of the Onnx args. are optional)
-                auto lens = arg->get_shape().lens();
-                if(lens.empty())
+                if(is_arg_invalid(arg))
                     continue;
 
                 r_arg = arg;
+                auto arg_out = arg->eval();
 
                 auto type = arg->get_shape().type();
+                if(is_arg_skipped(arg_out))
+                    return;
+
                 if(type == shape::int64_type)
                 {
-                    // this argument is output sizes
-                    auto arg_out_s = arg->eval();
-                    if(arg_out_s.empty())
-                        return true;
-                    arg_out_s.visit([&](const auto& ol) { out_lens.assign(ol.begin(), ol.end()); });
-
-                    if(out_lens.size() != in_lens.size())
-                    {
-                        MIGRAPHX_THROW(
-                            "PARSE_RESIZE: specified output size's rank does not match input size");
-                    }
-
+                    assign_output_sizes(arg_out);
+                    check_output_size();
                     compute_scales();
-                    return false;
+                    return;
                 }
                 else
                 {
-                    // this argument is scale input
-                    if(lens[0] == in_lens.size())
+                    if(is_scale_rank_valid(arg))
                     {
-                        auto arg_scale = arg->eval();
-                        if(arg_scale.empty())
-                            return true;
-
-                        arg_scale.visit(
-                            [&](const auto& v) { vec_scale.assign(v.begin(), v.end()); });
+                        assign_scales(arg_out);
                     }
-                    return false;
+                    return;
                 }
             }
             MIGRAPHX_THROW("PARSE_RESIZE: no shapes or scales input provided");
@@ -427,8 +461,7 @@ struct parse_resize : op_parser<parse_resize>
         auto vec_scale        = resize.vec_scale;
         auto scales_sizes_arg = resize.scales_sizes_arg;
 
-        bool is_constant_scale_input(not vec_scale.empty());
-        if(args_0->get_shape().dynamic() or not is_constant_scale_input)
+        if(args_0->get_shape().dynamic() or not resize.is_constant_scale_input())
         {
             // Resize's compute_shape() will read scales_sizes_arg as "scales" or "sizes"
             // depending on its data type
@@ -461,10 +494,9 @@ struct parse_resize : op_parser<parse_resize>
         auto out_lens  = resize.out_lens;
         auto vec_scale = resize.vec_scale;
 
-        bool is_constant_scale_input(not vec_scale.empty());
         // out_lens and other variables can't be populated if non-constant (runtime) size
         // inputs.
-        if(not is_constant_scale_input)
+        if(not resize.is_constant_scale_input())
             MIGRAPHX_THROW("PARSE_" + opd.onnx_name +
                            ": linear mode not supported for non-constant inputs");
 

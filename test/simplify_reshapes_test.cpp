@@ -3353,7 +3353,6 @@ TEST_CASE(conv_add_layernorm_conv)
         m1.add_return({conv2});
     };
     run_pass(m1);
-    // m1.print_cpp(std::cout);
     migraphx::module m2;
     {
         auto p_y3 = m2.add_parameter("y3", migraphx::shape{migraphx::shape::float_type, {1}});

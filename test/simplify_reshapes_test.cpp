@@ -3313,20 +3313,20 @@ TEST_CASE(conv_add_layernorm_conv)
             m1.add_instruction(migraphx::make_op("reshape", {{"dims", {0, 32, -1}}}), add1);
         auto p_y2b = m1.add_instruction(
             migraphx::make_op("multibroadcast",
-                              {{"out_dyn_dims", {}}, {"out_lens", {2, 32, 40960}}}),
+                              {{"out_lens", {2, 32, 40960}}}),
             p_y2);
         auto div1 = m1.add_instruction(migraphx::make_op("div"), reshape1, p_y2b);
         auto reduce_sum1 =
             m1.add_instruction(migraphx::make_op("reduce_sum", {{"axes", {2}}}), div1);
         auto reduce_sum1b = m1.add_instruction(
             migraphx::make_op("multibroadcast",
-                              {{"out_dyn_dims", {}}, {"out_lens", {2, 32, 40960}}}),
+                              {{"out_lens", {2, 32, 40960}}}),
             reduce_sum1);
         auto sub1  = m1.add_instruction(migraphx::make_op("sub"), reshape1, reduce_sum1b);
         auto mul1  = m1.add_instruction(migraphx::make_op("mul"), reshape1, reshape1);
         auto p_y3b = m1.add_instruction(
             migraphx::make_op("multibroadcast",
-                              {{"out_dyn_dims", {}}, {"out_lens", {2, 32, 40960}}}),
+                              {{"out_lens", {2, 32, 40960}}}),
             p_y3);
         auto div2 = m1.add_instruction(migraphx::make_op("div"), mul1, p_y3b);
         auto reduce_sum2 =
@@ -3334,23 +3334,23 @@ TEST_CASE(conv_add_layernorm_conv)
         auto mul2  = m1.add_instruction(migraphx::make_op("mul"), reduce_sum1, reduce_sum1);
         auto sub2  = m1.add_instruction(migraphx::make_op("sub"), reduce_sum2, mul2);
         auto p_y1b = m1.add_instruction(
-            migraphx::make_op("multibroadcast", {{"out_dyn_dims", {}}, {"out_lens", {2, 32, 1}}}),
+            migraphx::make_op("multibroadcast", {{"out_lens", {2, 32, 1}}}),
             p_y1);
         auto add2  = m1.add_instruction(migraphx::make_op("add"), sub2, p_y1b);
         auto sqrt  = m1.add_instruction(migraphx::make_op("sqrt"), add2);
         auto sqrtb = m1.add_instruction(
             migraphx::make_op("multibroadcast",
-                              {{"out_dyn_dims", {}}, {"out_lens", {2, 32, 40960}}}),
+                              {{"out_lens", {2, 32, 40960}}}),
             sqrt);
         auto div3     = m1.add_instruction(migraphx::make_op("div"), sub1, sqrtb);
         auto p_scaleb = m1.add_instruction(
             migraphx::make_op("multibroadcast",
-                              {{"out_dyn_dims", {}}, {"out_lens", {2, 32, 40960}}}),
+                              {{"out_lens", {2, 32, 40960}}}),
             p_scale);
         auto mul3    = m1.add_instruction(migraphx::make_op("mul"), div3, p_scaleb);
         auto p_biasb = m1.add_instruction(
             migraphx::make_op("multibroadcast",
-                              {{"out_dyn_dims", {}}, {"out_lens", {2, 32, 40960}}}),
+                              {{"out_lens", {2, 32, 40960}}}),
             p_bias);
         auto add3 = m1.add_instruction(migraphx::make_op("add"), mul3, p_biasb);
         auto reshape2 =
@@ -3405,20 +3405,20 @@ TEST_CASE(conv_add_layernorm_conv)
             migraphx::make_op("unsqueeze", {{"axes", {1, 2, 3, 4}}, {"steps", {}}}), p_y2);
         auto unsqueeze_p_y2b = m2.add_instruction(
             migraphx::make_op("multibroadcast",
-                              {{"out_dyn_dims", {}}, {"out_lens", {2, 32, 10, 64, 64}}}),
+                              {{"out_lens", {2, 32, 10, 64, 64}}}),
             unsqueeze_p_y2);
         auto div1 = m2.add_instruction(migraphx::make_op("div"), add1, unsqueeze_p_y2b);
         auto reduce_sum1 =
             m2.add_instruction(migraphx::make_op("reduce_sum", {{"axes", {2, 3, 4}}}), div1);
         auto reduce_sum1b = m2.add_instruction(
             migraphx::make_op("multibroadcast",
-                              {{"out_dyn_dims", {}}, {"out_lens", {2, 32, 10, 64, 64}}}),
+                              {{"out_lens", {2, 32, 10, 64, 64}}}),
             reduce_sum1);
         auto sub1  = m2.add_instruction(migraphx::make_op("sub"), add1, reduce_sum1b);
         auto mul1  = m2.add_instruction(migraphx::make_op("mul"), reshape3, reshape3);
         auto p_y3b = m2.add_instruction(
             migraphx::make_op("multibroadcast",
-                              {{"out_dyn_dims", {}}, {"out_lens", {2, 32, 40960}}}),
+                              {{"out_lens", {2, 32, 40960}}}),
             p_y3);
         auto reshape4 =
             m2.add_instruction(migraphx::make_op("reshape", {{"dims", {2, 32, 10, 64, 64}}}), mul1);
@@ -3438,7 +3438,7 @@ TEST_CASE(conv_add_layernorm_conv)
         auto sqrt  = m2.add_instruction(migraphx::make_op("sqrt"), add2);
         auto sqrtb = m2.add_instruction(
             migraphx::make_op("multibroadcast",
-                              {{"out_dyn_dims", {}}, {"out_lens", {2, 32, 10, 64, 64}}}),
+                              {{"out_lens", {2, 32, 10, 64, 64}}}),
             sqrt);
         auto div3 = m2.add_instruction(migraphx::make_op("div"), sub1, sqrtb);
         auto reshape6 =

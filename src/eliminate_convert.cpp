@@ -93,9 +93,33 @@ struct find_select_module_converts
     }
 };
 
+struct find_fixed_pad_converts
+{
+    auto matcher() const { return match::name("fixed_pad"); }
+
+    void apply(module& m, const match::matcher_result& mr) const
+    {
+        // TODO: find any converts being propagated,
+        // for now it's assumed params are the original inputs
+        // to select_module
+        auto ins = mr.result;
+        auto inputs = ins->inputs();
+        for(auto input : inputs)
+        {
+            if(input->name() == "convert")
+            {
+                auto op          = input->get_operator();
+                m.insert_instruction(std::next(ins), op, {ins});
+                m.replace_instruction(input, input->inputs().front());
+            }
+        }
+    }
+};
+
 void eliminate_convert::apply(module& m) const
 {
-    match::find_matches(m, find_nested_convert{}, find_nop_converts{}, find_select_module_converts{});
+    match::find_matches(m, find_select_module_converts{});
+    match::find_matches(m, find_nested_convert{}, find_nop_converts{}, find_fixed_pad_converts{});
 }
 
 } // namespace MIGRAPHX_INLINE_NS

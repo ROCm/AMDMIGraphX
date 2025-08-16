@@ -127,11 +127,29 @@ has_one_unique_dyn_dim(const std::unordered_map<std::string, shape>& param_shape
 static bool any_sm_next(const_module_ref mm, const std::vector<dynamic_dimensions_check>& ddcs)
 {
     if(any_of(mm->begin(), mm->end(), [](auto ins) { return ins.name() == "select_module";} ))
+    {
+        // std::cout << "select_module found. skipping." << std::endl;
         return true;
+    }
+    // else
+    // {
+    //     // mm->debug_print();
+    //     std::cout << "select_module not found. continuing." << std::endl;
+    // }
     for(const auto& ddc : ddcs)
     {
         auto p_outputs  = mm->get_parameter(ddc.dyn_param_str)->outputs();
-        bool is_sm_next = std::any_of(p_outputs.cbegin(), p_outputs.cend(), [](auto ins) { 
+        auto has_fixed_pad = [&](const std::vector<instruction_ref>& outputs){
+            return std::any_of(outputs.cbegin(), outputs.cend(), [](auto ins) {
+            // TODO: need to traverse parameter outputs properly and look for
+            //  any possible signs of this run already being done...
+            // or better if there was a module attribute that says it's already done or not
+            return ins->name() == "fixed_pad";
+            });
+        };
+        bool is_sm_next = std::any_of(p_outputs.cbegin(), p_outputs.cend(), [&](auto ins) {
+            if(ins->name() == "convert")
+                return has_fixed_pad(ins->outputs());
             return ins->name() == "fixed_pad";
         });
         if(is_sm_next)

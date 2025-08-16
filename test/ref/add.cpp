@@ -31,6 +31,34 @@
 
 #include <test.hpp>
 
+TEST_CASE(addn_with_reducesum_test)
+{
+    migraphx::program p;
+    auto* mm = p.get_main_module();
+    migraphx::shape a_shape{migraphx::shape::float_type, {2, 3}};
+    std::vector<float> a_data{0, 1, 2, 3, 4, 5};
+    migraphx::shape b_shape{migraphx::shape::float_type, {2, 3}};
+    std::vector<float> b_data{0, 1, 2, 3, 4, 5};
+    migraphx::shape c_shape{migraphx::shape::float_type, {2, 3}};
+    std::vector<float> c_data{0, 1, 2, 3, 4, 5};
+    auto l1       = mm->add_literal(migraphx::literal{a_shape, a_data});
+    auto l2       = mm->add_literal(migraphx::literal{b_shape, b_data});
+    auto l3       = mm->add_literal(migraphx::literal{c_shape, c_data});
+    auto unsqueezedl1 = mm->add_instruction(migraphx::make_op("unsqueeze", {{"axes", {0}}}), l1);
+    auto unsqueezedl2 = mm->add_instruction(migraphx::make_op("unsqueeze", {{"axes", {0}}}), l2);
+    auto unsqueezedl3 = mm->add_instruction(migraphx::make_op("unsqueeze", {{"axes", {0}}}), l3);
+    auto concated = mm->add_instruction(migraphx::make_op("concat", {{"axis", 0}}), unsqueezedl1, unsqueezedl2, unsqueezedl3);
+    auto reduced = mm->add_instruction(migraphx::make_op("reduce_sum", {{"axes", {0}}}), concated);
+    mm->add_instruction(migraphx::make_op("squeeze", {{"axes", {0}}}), reduced);
+    p.compile(migraphx::make_target("ref"));
+    auto result = p.eval({}).back();
+    EXPECT(result.get_shape().packed());
+    std::vector<float> results_vector(6);
+    result.visit([&](auto output) { results_vector.assign(output.begin(), output.end()); });
+    std::vector<float> gold = {0,3,6,9,12,15};
+    EXPECT(migraphx::verify::verify_rms_range(results_vector, gold));
+}
+
 TEST_CASE(add_broadcast_test)
 {
     migraphx::program p;

@@ -3280,4 +3280,98 @@ TEST_CASE(flatten)
     EXPECT(m1.sort() == m2.sort());
 }
 
+TEST_CASE(conv_add_layernorm_conv)
+{
+     migraphx::module m1;
+    {
+        auto p_x = m1.add_parameter("x",migraphx::shape{migraphx::shape::float_type, {2, 4, 64, 64}});
+        auto p_w1 = m1.add_parameter("w1",migraphx::shape{migraphx::shape::float_type, {320, 4, 3, 3}});
+        auto p_w2 = m1.add_parameter("w2",migraphx::shape{migraphx::shape::float_type, {4, 320, 3, 3}});
+        auto p_y0 = m1.add_parameter("y0", migraphx::shape{migraphx::shape::float_type, {320}});
+        auto p_scale = m1.add_parameter("scale",migraphx::shape{migraphx::shape::float_type, {40960}});
+        auto p_bias = m1.add_parameter("bias",migraphx::shape{migraphx::shape::float_type, {40960}});
+        auto p_y1 = m1.add_parameter("y1", migraphx::shape{migraphx::shape::float_type, {1}});
+        auto p_y2 = m1.add_parameter("y2", migraphx::shape{migraphx::shape::float_type, {1}});
+        auto p_y3 = m1.add_parameter("y3", migraphx::shape{migraphx::shape::float_type, {1}});
+        auto conv1 = m1.add_instruction(migraphx::make_op("convolution", {{"dilation", {1,1}}, {"group", 1}, {"padding", {1,1,1,1}}, {"padding_mode", 0}, {"stride", {1,1}}}), p_x, p_w1);
+        auto p_y0b = m1.add_instruction(migraphx::make_op("broadcast", {{"axis", 1}, {"out_lens", {2,320,64,64}}}), p_y0);
+        auto add1 = m1.add_instruction(migraphx::make_op("add"), conv1, p_y0b);
+        auto reshape1 = m1.add_instruction(migraphx::make_op("reshape", {{"dims", {0,32,-1}}}), add1);
+        auto p_y2b = m1.add_instruction(migraphx::make_op("multibroadcast", {{"out_dyn_dims", {}}, {"out_lens", {2,32,40960}}}), p_y2);
+        auto div1 = m1.add_instruction(migraphx::make_op("div"), reshape1, p_y2b);
+        auto reduce_sum1 = m1.add_instruction(migraphx::make_op("reduce_sum", {{"axes", {2}}}), div1);
+        auto reduce_sum1b = m1.add_instruction(migraphx::make_op("multibroadcast", {{"out_dyn_dims", {}}, {"out_lens", {2,32,40960}}}), reduce_sum1);
+        auto sub1 = m1.add_instruction(migraphx::make_op("sub"), reshape1, reduce_sum1b);
+        auto mul1 = m1.add_instruction(migraphx::make_op("mul"), reshape1, reshape1);
+        auto p_y3b = m1.add_instruction(migraphx::make_op("multibroadcast", {{"out_dyn_dims", {}}, {"out_lens", {2,32,40960}}}), p_y3);
+        auto div2 = m1.add_instruction(migraphx::make_op("div"), mul1, p_y3b);
+        auto reduce_sum2 = m1.add_instruction(migraphx::make_op("reduce_sum", {{"axes", {2}}}), div2);
+        auto mul2 = m1.add_instruction(migraphx::make_op("mul"), reduce_sum1, reduce_sum1);
+        auto sub2 = m1.add_instruction(migraphx::make_op("sub"), reduce_sum2, mul2);
+        auto p_y1b = m1.add_instruction(migraphx::make_op("multibroadcast", {{"out_dyn_dims", {}}, {"out_lens", {2,32,1}}}), p_y1);
+        auto add2 = m1.add_instruction(migraphx::make_op("add"), sub2, p_y1b);
+        auto sqrt = m1.add_instruction(migraphx::make_op("sqrt"), add2);
+        auto sqrtb = m1.add_instruction(migraphx::make_op("multibroadcast", {{"out_dyn_dims", {}}, {"out_lens", {2,32,40960}}}), sqrt);
+        auto div3 = m1.add_instruction(migraphx::make_op("div"), sub1, sqrtb);
+        auto p_scaleb = m1.add_instruction(migraphx::make_op("multibroadcast", {{"out_dyn_dims", {}}, {"out_lens", {2,32,40960}}}), p_scale);
+        auto mul3 = m1.add_instruction(migraphx::make_op("mul"), div3, p_scaleb);
+        auto p_biasb = m1.add_instruction(migraphx::make_op("multibroadcast", {{"out_dyn_dims", {}}, {"out_lens", {2,32,40960}}}), p_bias);
+        auto add3 = m1.add_instruction(migraphx::make_op("add"), mul3, p_biasb);
+        auto reshape2 = m1.add_instruction(migraphx::make_op("reshape", {{"dims", {0,320,64,64}}}), add3);
+        auto conv2 = m1.add_instruction(migraphx::make_op("convolution", {{"dilation", {1,1}}, {"group", 1}, {"padding", {1,1,1,1}}, {"padding_mode", 0}, {"stride", {1,1}}}), reshape2, p_w2);
+        m1.add_return({conv2});
+    };
+    run_pass(m1);
+    // m1.print_cpp(std::cout);
+    migraphx::module m2;
+    {
+        auto p_y3 = m2.add_parameter("y3",migraphx::shape{migraphx::shape::float_type, {1}});
+        auto p_y2 = m2.add_parameter("y2",migraphx::shape{migraphx::shape::float_type, {1}});
+        auto p_y1 = m2.add_parameter("y1",migraphx::shape{migraphx::shape::float_type, {1}});
+        auto p_bias = m2.add_parameter("bias",migraphx::shape{migraphx::shape::float_type, {40960}});
+        auto p_scale = m2.add_parameter("scale",migraphx::shape{migraphx::shape::float_type, {40960}});
+        auto p_y0 = m2.add_parameter("y0",migraphx::shape{migraphx::shape::float_type, {320}});
+        auto p_w2 = m2.add_parameter("w2",migraphx::shape{migraphx::shape::float_type, {4, 320, 3, 3}});
+        auto p_w1 = m2.add_parameter("w1",migraphx::shape{migraphx::shape::float_type, {320, 4, 3, 3}});
+        auto p_x = m2.add_parameter("x",migraphx::shape{migraphx::shape::float_type, {2, 4, 64, 64}});
+        auto conv1 = m2.add_instruction(migraphx::make_op("convolution", {{"dilation", {1,1}}, {"group", 1}, {"padding", {1,1,1,1}}, {"padding_mode", 0}, {"stride", {1,1}}}), p_x, p_w1);
+        auto reshape1 = m2.add_instruction(migraphx::make_op("reshape", {{"dims", {2,32,10,64,64}}}), conv1);
+        auto reshape2 = m2.add_instruction(migraphx::make_op("reshape", {{"dims", {32,10}}}), p_y0);
+        auto reshape2b = m2.add_instruction(migraphx::make_op("broadcast", {{"axis", 1}, {"out_lens", {2,32,10,64,64}}}), reshape2);
+        auto add1 = m2.add_instruction(migraphx::make_op("add"), reshape1, reshape2b);
+        auto reshape3 = m2.add_instruction(migraphx::make_op("reshape", {{"dims", {2,32,40960}}}), add1);
+        auto unsqueeze_p_y2 = m2.add_instruction(migraphx::make_op("unsqueeze", {{"axes", {1,2,3,4}}, {"steps", {}}}), p_y2);
+        auto unsqueeze_p_y2b = m2.add_instruction(migraphx::make_op("multibroadcast", {{"out_dyn_dims", {}}, {"out_lens", {2,32,10,64,64}}}), unsqueeze_p_y2);
+        auto div1 = m2.add_instruction(migraphx::make_op("div"), add1, unsqueeze_p_y2b);
+        auto reduce_sum1 = m2.add_instruction(migraphx::make_op("reduce_sum", {{"axes", {2,3,4}}}), div1);
+        auto reduce_sum1b = m2.add_instruction(migraphx::make_op("multibroadcast", {{"out_dyn_dims", {}}, {"out_lens", {2,32,10,64,64}}}), reduce_sum1);
+        auto sub1 = m2.add_instruction(migraphx::make_op("sub"), add1, reduce_sum1b);
+        auto mul1 = m2.add_instruction(migraphx::make_op("mul"), reshape3, reshape3);
+        auto p_y3b = m2.add_instruction(migraphx::make_op("multibroadcast", {{"out_dyn_dims", {}}, {"out_lens", {2,32,40960}}}), p_y3);
+        auto reshape4 = m2.add_instruction(migraphx::make_op("reshape", {{"dims", {2,32,10,64,64}}}), mul1);
+        auto reshape5 = m2.add_instruction(migraphx::make_op("reshape", {{"dims", {2,32,10,64,64}}}), p_y3b);
+        auto div2 = m2.add_instruction(migraphx::make_op("div"), reshape4, reshape5);
+        auto reduce_sum2 = m2.add_instruction(migraphx::make_op("reduce_sum", {{"axes", {2,3,4}}}), div2);
+        auto mul2 = m2.add_instruction(migraphx::make_op("mul"), reduce_sum1, reduce_sum1);
+        auto sub2 = m2.add_instruction(migraphx::make_op("sub"), reduce_sum2, mul2);
+        auto unsqueeze_p_y1 = m2.add_instruction(migraphx::make_op("unsqueeze", {{"axes", {1,2}}, {"steps", {}}}), p_y1);
+        auto unsqueeze_p_y1b = m2.add_instruction(migraphx::make_op("broadcast", {{"axis", 2}, {"out_lens", {2,32,1,1,1}}}), unsqueeze_p_y1);
+        auto add2 = m2.add_instruction(migraphx::make_op("add"), sub2, unsqueeze_p_y1b);
+        auto sqrt = m2.add_instruction(migraphx::make_op("sqrt"), add2);
+        auto sqrtb = m2.add_instruction(migraphx::make_op("multibroadcast", {{"out_dyn_dims", {}}, {"out_lens", {2,32,10,64,64}}}), sqrt);
+        auto div3 = m2.add_instruction(migraphx::make_op("div"), sub1, sqrtb);
+        auto reshape6 = m2.add_instruction(migraphx::make_op("reshape", {{"dims", {10,64,64}}}), p_scale);
+        auto reshape6b = m2.add_instruction(migraphx::make_op("broadcast", {{"axis", 2}, {"out_lens", {2,32,10,64,64}}}), reshape6);
+        auto mul3 = m2.add_instruction(migraphx::make_op("mul"), div3, reshape6b);
+        auto reshape7 = m2.add_instruction(migraphx::make_op("reshape", {{"dims", {10,64,64}}}), p_bias);
+        auto reshape7b = m2.add_instruction(migraphx::make_op("broadcast", {{"axis", 2}, {"out_lens", {2,32,10,64,64}}}), reshape7);
+        auto add3 = m2.add_instruction(migraphx::make_op("add"), mul3, reshape7b);
+        auto reshape8 = m2.add_instruction(migraphx::make_op("reshape", {{"dims", {2,320,64,64}}}), add3);
+        auto conv2 = m2.add_instruction(migraphx::make_op("convolution", {{"dilation", {1,1}}, {"group", 1}, {"padding", {1,1,1,1}}, {"padding_mode", 0}, {"stride", {1,1}}}), reshape8, p_w2);
+        m2.add_return({conv2});
+    };
+
+    EXPECT(m1.sort() == m2.sort());
+}
+
 int main(int argc, const char* argv[]) { test::run(argc, argv); }

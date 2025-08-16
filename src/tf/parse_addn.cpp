@@ -40,12 +40,26 @@ struct parse_addn : op_parser<parse_addn>
                           const tf_parser::node_info& info,
                           std::vector<instruction_ref> args) const
     {
-        instruction_ref sum = args[0];
-        for(auto i = 1; i < args.size(); i++)
+        // instruction_ref sum = args[0];
+        // for(auto i = 1; i < args.size(); i++)
+        // {
+        //     sum = info.add_instruction(make_op("add"), sum, args[i]);
+        // }
+        // return sum;
+        if(args.size() == 1) return args[0];
+
+        std::vector<instruction_ref> unsqueezed_args;
+        for(auto& arg : args)
         {
-            sum = info.add_instruction(make_op("add"), sum, args[i]);
+            auto unsqueezed = info.add_instruction(make_op("unsqueeze", {{"axes", {0}}}), arg);
+            unsqueezed_args.push_back(unsqueezed);
         }
-        return sum;
+        
+        auto concatenated = info.add_instruction(make_op("concat", {{"axis", 0}}), unsqueezed_args);
+        
+        auto reduced = info.add_instruction(make_op("reduce_sum", {{"axes", {0}}}), concatenated);
+        
+        return info.add_instruction(make_op("squeeze", {{"axes", {0}}}), reduced);
     }
 };
 

@@ -59,9 +59,7 @@ struct parse_addn : op_parser<parse_addn>
             }
             
             auto concatenated = info.add_instruction(make_op("concat", {{"axis", 0}}), unsqueezed_args);
-            
             auto reduced = info.add_instruction(make_op("reduce_sum", {{"axes", {0}}}), concatenated);
-            
             return info.add_instruction(make_op("squeeze", {{"axes", {0}}}), reduced);
         }
 

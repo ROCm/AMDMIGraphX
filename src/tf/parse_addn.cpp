@@ -40,7 +40,11 @@ struct parse_addn : op_parser<parse_addn>
                           const tf_parser::node_info& info,
                           std::vector<instruction_ref> args) const
     {
+<<<<<<< HEAD
         // instruction_ref sum = args[0];
+=======
+        instruction_ref sum = args[0];
+>>>>>>> 567338ff6447ffdf9fbbb7b946184d38e99a089b
         // for(auto i = 1; i < args.size(); i++)
         // {
         //     sum = info.add_instruction(make_op("add"), sum, args[i]);

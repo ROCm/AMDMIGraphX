@@ -131,6 +131,30 @@ void replace_allocate::apply(module_pass_manager& mpm) const
     if(not root_offload_copy and model.needs_out_params())
         insert_copy(m, model);
     auto mod_output_names = create_output_names(m);
+    size_t min_batch_size = 1;
+    bool has_dyn_inputs = false;
+    auto params = m.get_parameter_shapes();
+    for(auto&& param : params)
+    {
+        shape s = param.second; 
+        // TODO verify all the dynamic inputs have the same min dim 
+        if(s.dynamic())
+        {
+            has_dyn_inputs = true;
+            // TODO account for different dim being dynamic 
+            // (should always be first dim for now)
+            for(auto&& dd : s.dyn_dims())
+            {
+                if(not dd.is_fixed())
+                {
+                    min_batch_size = dd.min;
+                    break;
+                }
+            }
+            break;
+        }
+    }
+
     for(auto ins : iterator_for(m))
     {
         if(ins->name() != "allocate")
@@ -139,6 +163,13 @@ void replace_allocate::apply(module_pass_manager& mpm) const
         auto s = ins->get_shape();
         if(not root_offload_copy and model.needs_out_params() and contains(mod_output_names, ins))
         {
+            if(has_dyn_inputs and not s.any_of_dynamic())
+            {
+                s = s.to_dynamic();
+                auto new_dyn_dims = s.dyn_dims();
+                new_dyn_dims.front().min = min_batch_size;
+                s = {s.type(), new_dyn_dims};
+            }
             auto out_param = m.add_parameter(mod_output_names[ins], s);
             m.replace_instruction(ins, out_param);
         }

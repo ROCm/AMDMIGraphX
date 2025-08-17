@@ -158,9 +158,16 @@ struct select_module
         for(auto& result : results)
         {
             shape result_shape = result.get_shape();
-            std::vector<size_t> result_dims = result_shape.lens();
-            result_dims[dynamic_idx] = orig_batch;
-            result = result.reshape(shape{result_shape.type(), result_dims});
+            if(result_shape.dynamic())
+            {
+                result = result.reshape(result_shape.to_static(orig_batch));
+            }
+            else
+            {
+                std::vector<size_t> result_dims = result_shape.lens();
+                result_dims[dynamic_idx] = orig_batch;
+                result = result.reshape(shape{result_shape.type(), result_dims});
+            } 
         }
 
         return argument{results};

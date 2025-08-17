@@ -112,7 +112,8 @@ has_one_unique_dyn_dim(const std::unordered_map<std::string, shape>& param_shape
     }
     // check all the same dynamic_dimension
     bool same_dd = std::all_of(
-        ret.begin() + 1, ret.end(), [&](const auto& ddc) { return ddc.dd == ret.at(0).dd; });
+        ret.begin() + 1, ret.end(), [&](const auto& ddc) { return ddc.dd.min == ret.at(0).dd.min and 
+                                                            ddc.dd.max == ret.at(0).dd.max; });    
     if(same_dd)
     {
         return ret;

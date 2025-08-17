@@ -31,6 +31,7 @@
 #include <migraphx/simplify_qdq.hpp>
 #include <migraphx/eliminate_common_subexpression.hpp>
 #include <migraphx/split_single_dyn_dim.hpp>
+#include <migraphx/simplify_dyn_ops.hpp>
 #include <migraphx/optimize_module.hpp>
 #include <migraphx/dead_code_elimination.hpp>
 #include <migraphx/program.hpp>
@@ -71,6 +72,7 @@ void quantize_fp16(program& prog, const std::vector<std::string>& ins_names)
                {
                 split_single_dyn_dim{},
                 dead_code_elimination{},
+                simplify_dyn_ops{},
                 normalize_ops{},
                 optimize_module{{"quantizelinear", "dequantizelinear"}},
                 truncate_float_pass{ins_names, shape::half_type},

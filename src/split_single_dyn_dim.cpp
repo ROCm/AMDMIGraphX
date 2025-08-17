@@ -228,7 +228,20 @@ void split_single_dyn_dim::apply(module_pass_manager& mpm) const
                 auto new_dyn_shape = shape{dyn_param_shape.type(), new_dyn_dims };
                 auto static_shape     = dyn_param_shape.to_static(dim_size);
                 auto new_dyn_param = submod->add_parameter(dd_check.dyn_param_str, new_dyn_shape);
-                map_ins[dyn_param]    = submod->add_instruction(make_op("fixed_pad", {{"output_lens", static_shape.lens()}}), new_dyn_param);
+                map_ins[dyn_param]    = submod->add_instruction(
+                        make_op("fixed_pad", {{"output_lens", static_shape.lens()}}), new_dyn_param);
+                
+            }
+            // insert static parameters
+
+            for(auto&& param_name : param_names)
+            {
+                // TODO would there ever be a tuple input param?
+                if(not mm->get_parameter_shape(param_name).any_of_dynamic())
+                {
+                    auto static_param = mm->get_parameter(param_name);
+                    map_ins[static_param] = submod->add_parameter(param_name, static_param->get_shape());
+                }
             }
             auto outputs = submod->add_instructions(mm, &map_ins);
             submod->add_return({outputs});

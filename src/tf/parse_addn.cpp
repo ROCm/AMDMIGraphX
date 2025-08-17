@@ -43,7 +43,7 @@ struct parse_addn : op_parser<parse_addn>
         instruction_ref sum = args[0];
         for(auto i = 1; i < args.size(); i++)
         {
-            sum = info.add_instruction(make_op("add"), sum, args[i]);
+            sum = info.add_common_op("add", sum, args[i]);
         }
         return sum;
     }

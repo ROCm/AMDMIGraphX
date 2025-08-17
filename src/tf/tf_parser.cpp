@@ -369,6 +369,8 @@ void tf_parser::parse_node(const std::string& name)
 {
     if(instructions.count(name) == 0)
     {
+        // std::cout << name << std::endl;
+
         auto&& node = nodes.at(name);
         if(not is_valid_op(node))
             return;

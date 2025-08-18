@@ -49,6 +49,90 @@ std::unordered_set<std::string> get_quantizable_op_names()
     return s;
 }
 
+/// Recursively skip input instructions with one input that have a name in the skip_set.
+instruction_ref skip_unary_ins_from(instruction_ref ins, std::unordered_set<std::string> skip_set)
+{
+    return fix<instruction_ref>([&](auto self, auto ins_i) -> instruction_ref {
+        if(ins_i->inputs().size() == 1 and contains(skip_set, ins_i->name()))
+        {
+            instruction_ref next = ins_i->inputs().front();
+            return self(next);
+        }
+        return ins_i;
+    })(ins);
+}
+
+/**
+ * Skips unary input instructions to the given instruction.
+ * Mainly used for skipping input instructions to dequantizelinear.
+ * Handles the packed data formats case where there will be pack and unpack instructions.
+ * Returns the earliest instructions not in the list or with multiple inputs.
+ * Likely returns the quantizelinear instruction paired to the dequantizelinear.
+ */
+instruction_ref skip_dq_inputs_to_q(instruction_ref dq_ins)
+{
+    // clang-format off
+    static const std::unordered_set<std::string> skip_set = {
+        "pack_fp4",
+        "unpack_fp4",
+        "broadcast",
+        "slice",
+        "reshape",
+        "reshape_lazy",
+        "pad",
+    };
+    // clang-format on
+    return skip_unary_ins_from(dq_ins, skip_set);
+}
+
+/**
+ * Skips unary input instructions to the given instruction.
+ * Likely returns the pack instruction paired for packed datatypes or the
+ * quantizelinear instruction.
+ */
+instruction_ref skip_dq_inputs_to_pack(instruction_ref dq_ins)
+{
+    // clang-format off
+    static const std::unordered_set<std::string> skip_set = {
+        "unpack_fp4",
+        "broadcast",
+        "slice",
+        "reshape",
+        "reshape_lazy",
+        "pad",
+    };
+    // clang-format on
+    return skip_unary_ins_from(dq_ins, skip_set);
+}
+
+// Helper function to insert quantized versions of any broadcasts and transpose ops that
+// occur between dequantizelinear and the quantized op
+auto propagate_quantized_ins(module& m,
+                             const instruction_ref dqins,
+                             const instruction_ref qop_arg,
+                             bool is_fp16_model = false)
+{
+    auto prev_ins = qop_arg;
+    std::vector<instruction_ref> ins_inbetween;
+    // matcher skips continguous, multi/broadcasts and transposes, collect all those
+    // instructions
+    while(prev_ins != dqins)
+    {
+        ins_inbetween.push_back(prev_ins);
+        prev_ins = prev_ins->inputs().front();
+    }
+    auto qinp = dqins->inputs().front();
+    for(auto ins : reverse_iterator_for(ins_inbetween))
+    {
+        if((*ins)->name() == "convert" and is_fp16_model)
+        {
+            continue;
+        }
+        qinp = m.insert_instruction(dqins, (*ins)->get_operator(), {qinp});
+    }
+    return qinp;
+}
+
 struct match_find_quantizable_ops
 {
     static bool
@@ -84,34 +168,6 @@ struct match_find_quantizable_ops
         }
     }
 
-    // Helper function to insert quantized versions of any broadcasts and transpose ops that
-    // occur between dequantizelinear and the quantized op
-    static auto propagate_quantized_ins(module& m,
-                                        const instruction_ref dqins,
-                                        const instruction_ref qop_arg,
-                                        bool is_fp16_model = false)
-    {
-        auto prev_ins = qop_arg;
-        std::vector<instruction_ref> ins_inbetween;
-        // matcher skips continguous, multi/broadcasts and transposes, collect all those
-        // instructions
-        while(prev_ins != dqins)
-        {
-            ins_inbetween.push_back(prev_ins);
-            prev_ins = prev_ins->inputs().front();
-        }
-        auto qinp = dqins->inputs().front();
-        for(auto ins : reverse_iterator_for(ins_inbetween))
-        {
-            if((*ins)->name() == "convert" and is_fp16_model)
-            {
-                continue;
-            }
-            qinp = m.insert_instruction(dqins, (*ins)->get_operator(), {qinp});
-        }
-        return qinp;
-    }
-
     auto matcher() const
     {
         auto dq1 = match::arg(0)(
@@ -130,12 +186,6 @@ struct match_find_quantizable_ops
         auto scale2 = r.instructions["scale2"];
         auto zp1    = r.instructions["zp1"];
         auto zp2    = r.instructions["zp2"];
-        // Only INT8 or FP8 type currently supported
-        std::set<migraphx::shape::type_t> supported_types = fp8_types{}.get();
-        supported_types.insert(migraphx::shape::int8_type);
-        if(not contains(supported_types, dq1->inputs().front()->get_shape().type()) or
-           not contains(supported_types, dq2->inputs().front()->get_shape().type()))
-            return;
 
         // Propagate q1 and q2 through any broadcasts and transposes before qop
         auto qop_args      = qop->inputs();
@@ -150,9 +200,26 @@ struct match_find_quantizable_ops
         qop_args.at(1) = propagate_quantized_ins(m, dq2, qop_args[1], is_fp16_model);
         auto arg1_lens = qop_args[0]->get_shape().lens();
         auto arg2_lens = qop_args[1]->get_shape().lens();
+
+        const std::set<migraphx::shape::type_t> supported_types = {
+            migraphx::shape::fp8e4m3fnuz_type,
+            migraphx::shape::fp8e5m2fnuz_type,
+            migraphx::shape::fp8e4m3fn_type,
+            migraphx::shape::fp8e5m2_type,
+            migraphx::shape::int8_type,
+        };
+        auto in1 = dq1->inputs().front();
+        auto in2 = dq2->inputs().front();
+        if(not contains(supported_types, in1->get_shape().type()) or
+           not contains(supported_types, in2->get_shape().type()))
+        {
+            return;
+        }
+
         instruction_ref dq;
         instruction_ref out_scale;
         instruction_ref out_zp;
+
         if(qop->name() == "convolution")
         {
             auto conv_val = qop->get_operator().to_value();
@@ -271,6 +338,78 @@ struct match_find_quantizable_ops
                 qop, make_op("convert", {{"target_type", migraphx::shape::half_type}}), dq);
         }
         m.replace_instruction(qop, dq);
+    }
+};
+
+// Note: scales are not constant b/c of dynamic quantization
+inline auto two_arg_dq(const std::string& scale)
+{
+    return match::name("dequantizelinear")(
+        match::nargs(2), match::arg(1)(match::skip_broadcasts(match::any().bind(scale))));
+}
+
+/**
+ * Handles block quantization for MX types.
+ * Matcher is slightly different because dequantizelinear will not
+ * have zero points.
+ */
+struct match_find_mx_quantizable_ops
+{
+    auto matcher() const
+    {
+        auto dq1 = match::arg(0)(skip_post_dq_ops(two_arg_dq("scale1").bind("dq1")));
+        auto dq2 = match::arg(1)(skip_post_dq_ops(two_arg_dq("scale2").bind("dq2")));
+        return match::name(get_quantizable_op_names())(dq1, dq2);
+    }
+
+    /// Check that quantized input is a supported type
+    bool is_block_supported_type(instruction_ref dq1, instruction_ref dq2) const
+    {
+        // only fp4x2 type currently supported for block quantization
+        const std::set<migraphx::shape::type_t> supported_types = {migraphx::shape::fp4x2_type};
+        auto in1 = skip_dq_inputs_to_pack(dq1->inputs().front());
+        auto in2 = skip_dq_inputs_to_pack(dq2->inputs().front());
+        return (contains(supported_types, in1->get_shape().type()) and
+                contains(supported_types, in2->get_shape().type()));
+    }
+
+    void apply(module& m, const match::matcher_result& r) const
+    {
+        auto qop    = r.result;
+        auto dq1    = r.instructions["dq1"];
+        auto dq2    = r.instructions["dq2"];
+        auto scale1 = r.instructions["scale1"];
+        auto scale2 = r.instructions["scale2"];
+
+        if(not is_block_supported_type(dq1, dq2))
+        {
+            return;
+        }
+
+        // Propagate q1 and q2 through any broadcasts and transposes before qop
+        // Construct 4 arguments for block quantized op
+        auto qop_args      = qop->inputs();
+        bool is_fp16_model = false;
+        if(dq1->get_shape().type() != qop->get_shape().type() and
+           qop->get_shape().type() == migraphx::shape::half_type)
+        {
+            assert(dq1->get_shape().type() == migraphx::shape::float_type);
+            is_fp16_model = true;
+        }
+        qop_args.at(0) = propagate_quantized_ins(m, dq1, qop_args[0], is_fp16_model);
+        qop_args.at(1) = propagate_quantized_ins(m, dq2, qop_args[1], is_fp16_model);
+        qop_args.push_back(scale1);
+        qop_args.push_back(scale2);
+
+        if(qop->name() == "convolution")
+        {
+            auto conv_val = qop->get_operator().to_value();
+            m.replace_instruction(qop, migraphx::make_op("quant_convolution", conv_val), qop_args);
+        }
+        else if(qop->name() == "dot")
+        {
+            m.replace_instruction(qop, migraphx::make_op("quant_dot"), qop_args);
+        }
     }
 };
 
@@ -455,22 +594,9 @@ bool is_any_input_int4(instruction_ref a)
  *  Doesn't match the pack/unpack and reshapes explicitly, instead skips instructions
  *  that match the name with one input recursively.
  *  Use this after selected quantizations have been made into real quantizatized instructions.
- *
  */
 void remove_qdq_pairs(module& m)
 {
-    // clang-format off
-    static const std::unordered_set<std::string> skip_set = {
-        "pack_fp4",
-        "unpack_fp4",
-        "broadcast",
-        "slice",
-        "reshape",
-        "reshape_lazy",
-        "pad",
-    };
-    // clang-format on
-
     for(auto ins : iterator_for(m))
     {
         auto args = ins->inputs();
@@ -478,16 +604,7 @@ void remove_qdq_pairs(module& m)
         {
             if(arg->name() == "dequantizelinear")
             {
-                auto curr = arg->inputs().front();
-                curr      = fix<instruction_ref>([&](auto self, auto ins_i) -> instruction_ref {
-                    if(ins_i->inputs().size() == 1 and contains(skip_set, ins_i->name()))
-                    {
-                        auto next = ins_i->inputs().front();
-                        return self(next);
-                    }
-                    return ins_i;
-                })(curr);
-
+                auto curr = skip_dq_inputs_to_q(arg->inputs().front());
                 if((curr->name() == "quantizelinear") and is_same_scale_zero(arg, curr))
                 {
                     instruction::replace_argument(ins, arg, curr->inputs().front());
@@ -545,6 +662,8 @@ void simplify_qdq::apply(module& m) const
     // first step: add pack/unpack pair between qdq for int4 weights
     add_int4_pack_unpack_pair(m);
     match::find_matches(m, match_find_quantizable_ops{});
+    migraphx::run_passes(m, {migraphx::dead_code_elimination{}});
+    match::find_matches(m, match_find_mx_quantizable_ops{});
     migraphx::run_passes(m, {migraphx::dead_code_elimination{}});
     remove_qdq_pairs(m);
     migraphx::run_passes(m, {migraphx::dead_code_elimination{}});

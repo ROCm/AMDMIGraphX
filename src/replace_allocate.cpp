@@ -72,6 +72,8 @@ std::unordered_map<instruction_ref, std::string> create_output_names(const modul
 
 void insert_copy(module& m, const allocation_model& model)
 {
+    if(any_of(m.begin(), m.end(), [](auto ins) { return ins.name() == "select_module";}))
+        return;
     auto returns = m.get_returns();
     std::unordered_set<instruction_ref> returns_set(returns.begin(), returns.end());
     for(auto ins : returns_set)
@@ -79,7 +81,8 @@ void insert_copy(module& m, const allocation_model& model)
         if(ins->get_shape().any_of_dynamic())
             continue;
         auto alias = instruction::get_output_alias(ins);
-        if(alias->get_shape() == ins->get_shape())
+        // dynamic submodules must always insert copies
+        if(alias->get_shape() == ins->get_shape() and not contains(m.name(), "dim_"))
             continue;
         auto insert_ins = std::next(ins);
         auto alloc      = m.insert_instruction(
@@ -131,6 +134,19 @@ void replace_allocate::apply(module_pass_manager& mpm) const
     if(not root_offload_copy and model.needs_out_params())
         insert_copy(m, model);
     auto mod_output_names = create_output_names(m);
+    bool has_dyn_inputs = false;
+    auto params = m.get_parameter_shapes();
+    for(auto&& param : params)
+    {
+        shape s = param.second; 
+        // TODO verify all the dynamic inputs have the same min dim 
+        if(s.dynamic())
+        {
+            has_dyn_inputs = true;
+            break;
+        }
+    }
+
     for(auto ins : iterator_for(m))
     {
         if(ins->name() != "allocate")
@@ -139,6 +155,13 @@ void replace_allocate::apply(module_pass_manager& mpm) const
         auto s = ins->get_shape();
         if(not root_offload_copy and model.needs_out_params() and contains(mod_output_names, ins))
         {
+            // if(has_dyn_inputs and not s.any_of_dynamic() and s.lens().front() > 1)
+            // {
+            //     s = s.to_dynamic();
+            //     auto new_dyn_dims = s.dyn_dims();
+            //     new_dyn_dims.front().min = 1;
+            //     s = {s.type(), new_dyn_dims};
+            // }
             auto out_param = m.add_parameter(mod_output_names[ins], s);
             m.replace_instruction(ins, out_param);
         }

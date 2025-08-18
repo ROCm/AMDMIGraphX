@@ -311,7 +311,7 @@ void tf_parser::parse_graph(const tensorflow::GraphDef& graph)
             {
                 // std::cout << name << std::endl;
                 std::transform(dims.begin(), dims.end(), std::back_inserter(dyn_dims), [&](auto) -> shape::dynamic_dimension {
-                    return shape::dynamic_dimension{1, std::numeric_limits<std::size_t>::max()};
+                    return shape::dynamic_dimension{1, std::numeric_limits<std::size_t>::max(), {default_dyn_dim_value.optimals}};
             });    
             }
             else
@@ -369,6 +369,8 @@ void tf_parser::parse_node(const std::string& name)
 {
     if(instructions.count(name) == 0)
     {
+        // std::cout << name << std::endl;
+
         auto&& node = nodes.at(name);
         if(not is_valid_op(node))
             return;

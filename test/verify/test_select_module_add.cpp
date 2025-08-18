@@ -88,34 +88,42 @@ struct test_select_module_add_pad : verify_program<test_select_module_add_pad>
         // create batch submodules
         auto create_submodule = [&](size_t min_batch_size, size_t batch_size, const std::string& module_name) {
             auto* submod = p.create_module(module_name);
-            migraphx::shape sm_shape{migraphx::shape::float_type, {{min_batch_size, batch_size}, {4, 4}}};
+            migraphx::shape sm_shape{migraphx::shape::float_type, {{min_batch_size, batch_size}, {1648, 1648}}};
             auto sm_input = submod->add_parameter("data", sm_shape);
-            auto sm_pad = submod->add_instruction(migraphx::make_op("fixed_pad", {{"output_lens", {batch_size, 4}}}), sm_input);
+            auto sm_input2 = submod->add_parameter("data2", sm_shape);
+            auto sm_pad = submod->add_instruction(migraphx::make_op("fixed_pad", {{"output_lens", {batch_size, 1648}}}), sm_input);
+            auto sm_pad2 = submod->add_instruction(migraphx::make_op("fixed_pad", {{"output_lens", {batch_size, 1648}}}), sm_input2);
             auto broadcast_lit =
                 submod->add_instruction(migraphx::make_op("multibroadcast"), literal_ins, sm_pad);
             auto add_ins0 =
                 submod->add_instruction(migraphx::make_op("add"), sm_pad, broadcast_lit);
-            submod->add_return({add_ins0});
+            auto add_ins1 =
+                submod->add_instruction(migraphx::make_op("add"), add_ins0, sm_pad2);
+            submod->add_return({add_ins0, add_ins1});
             return submod;
         };
         auto* batch1 = create_submodule(1, 1, "batch_1");
-        auto* batch2 = create_submodule(2, 2, "batch_2");
-        auto* batch4 = create_submodule(3, 4, "batch_4");
+        // auto* batch2 = create_submodule(2, 64, "batch_64");
+        auto* batch128 = create_submodule(2, 128, "batch_128");
 
-        migraphx::shape s{migraphx::shape::float_type, {{1, 4}, {4, 4}}};
+        migraphx::shape s{migraphx::shape::float_type, {{1, 128}, {1648, 1648}}};
         auto input                              = mm->add_parameter("data", s);
-        std::vector<migraphx::shape> sub_shapes = {{migraphx::shape::float_type, {{1, 4}, {4, 4}}}};
+        auto input2                              = mm->add_parameter("data2", s);
+        std::vector<migraphx::shape> sub_shapes = {{migraphx::shape::float_type, {{1, 128}, {1648, 1648}}},
+                                                   {migraphx::shape::float_type, {{1, 128}, {1648, 1648}}}};
         migraphx::shape out_attr = migraphx::shape{sub_shapes};
         auto sm_ins              = mm->add_instruction(
             migraphx::make_op("select_module",
                               {{"output_dyn_shapes", migraphx::to_value(out_attr)}}),
-            {input},
-            {batch1, batch2, batch4});
+            {input, input2},
+            {batch1, batch128});
         auto ret0 =
             mm->add_instruction(migraphx::make_op("get_tuple_elem", {{"index", 0}}), sm_ins);
-        mm->add_return({ret0});
+        auto ret1 =
+            mm->add_instruction(migraphx::make_op("get_tuple_elem", {{"index", 1}}), sm_ins);
+        mm->add_return({ret0, ret1});
 
         return p;
     }
-    size_t max_batch() const { return 3; }
+    size_t max_batch() const { return 5; }
 };

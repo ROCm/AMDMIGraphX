@@ -147,29 +147,27 @@ struct select_module
                        output_sub_objects.begin(),
                        std::inserter(p_map, p_map.end()),
                        [&](auto&& name, auto&& a) {
-                           auto ps = param_shapes.at(name);
-                           if(a.get_shape() != ps)
-                           {
-                            //    assert(ps.bytes() <= a.get_shape().bytes());
-                               if(a.get_shape().bytes() < ps.bytes())
-                               {
-                                    return std::make_pair(name, argument{shape{ps.type(), ps.lens()}, a.data()});
-                               }
-                               return std::make_pair(name, a.reshape(ps));
-                           }
-                           else
-                           {
-                               return std::make_pair(name, a);
-                           }
+                        //    auto ps = param_shapes.at(name);
+                        //    std::cout << "name: " << name << " , param shape: " << ps << std::endl;
+                        //    std::cout << "a shape: " << a.get_shape() << std::endl;
+                        
+                            return std::make_pair(name, a);
                        });
         auto results = run(module_to_run, p_map);
-        
+
         for(auto& result : results)
         {
             shape result_shape = result.get_shape();
-            std::vector<size_t> result_dims = result_shape.lens();
-            result_dims[dynamic_idx] = orig_batch;
-            result = result.reshape(shape{result_shape.type(), result_dims});
+            if(result_shape.dynamic())
+            {
+                result = result.reshape(result_shape.to_static(orig_batch));
+            }
+            else
+            {
+                std::vector<size_t> result_dims = result_shape.lens();
+                result_dims[dynamic_idx] = orig_batch;
+                result = result.reshape(shape{result_shape.type(), result_dims});
+            } 
         }
 
         return argument{results};

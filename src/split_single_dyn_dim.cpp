@@ -112,7 +112,8 @@ has_one_unique_dyn_dim(const std::unordered_map<std::string, shape>& param_shape
     }
     // check all the same dynamic_dimension
     bool same_dd = std::all_of(
-        ret.begin() + 1, ret.end(), [&](const auto& ddc) { return ddc.dd == ret.at(0).dd; });
+        ret.begin() + 1, ret.end(), [&](const auto& ddc) { return ddc.dd.min == ret.at(0).dd.min and 
+                                                            ddc.dd.max == ret.at(0).dd.max; });    
     if(same_dd)
     {
         return ret;
@@ -127,11 +128,29 @@ has_one_unique_dyn_dim(const std::unordered_map<std::string, shape>& param_shape
 static bool any_sm_next(const_module_ref mm, const std::vector<dynamic_dimensions_check>& ddcs)
 {
     if(any_of(mm->begin(), mm->end(), [](auto ins) { return ins.name() == "select_module";} ))
+    {
+        // std::cout << "select_module found. skipping." << std::endl;
         return true;
+    }
+    // else
+    // {
+    //     // mm->debug_print();
+    //     std::cout << "select_module not found. continuing." << std::endl;
+    // }
     for(const auto& ddc : ddcs)
     {
         auto p_outputs  = mm->get_parameter(ddc.dyn_param_str)->outputs();
-        bool is_sm_next = std::any_of(p_outputs.cbegin(), p_outputs.cend(), [](auto ins) { 
+        auto has_fixed_pad = [&](const std::vector<instruction_ref>& outputs){
+            return std::any_of(outputs.cbegin(), outputs.cend(), [](auto ins) {
+            // TODO: need to traverse parameter outputs properly and look for
+            //  any possible signs of this run already being done...
+            // or better if there was a module attribute that says it's already done or not
+            return ins->name() == "fixed_pad";
+            });
+        };
+        bool is_sm_next = std::any_of(p_outputs.cbegin(), p_outputs.cend(), [&](auto ins) {
+            if(ins->name() == "convert")
+                return has_fixed_pad(ins->outputs());
             return ins->name() == "fixed_pad";
         });
         if(is_sm_next)
@@ -210,7 +229,20 @@ void split_single_dyn_dim::apply(module_pass_manager& mpm) const
                 auto new_dyn_shape = shape{dyn_param_shape.type(), new_dyn_dims };
                 auto static_shape     = dyn_param_shape.to_static(dim_size);
                 auto new_dyn_param = submod->add_parameter(dd_check.dyn_param_str, new_dyn_shape);
-                map_ins[dyn_param]    = submod->add_instruction(make_op("fixed_pad", {{"output_lens", static_shape.lens()}}), new_dyn_param);
+                map_ins[dyn_param]    = submod->add_instruction(
+                        make_op("fixed_pad", {{"output_lens", static_shape.lens()}}), new_dyn_param);
+                
+            }
+            // insert static parameters
+
+            for(auto&& param_name : param_names)
+            {
+                // TODO would there ever be a tuple input param?
+                if(not mm->get_parameter_shape(param_name).any_of_dynamic())
+                {
+                    auto static_param = mm->get_parameter(param_name);
+                    map_ins[static_param] = submod->add_parameter(param_name, static_param->get_shape());
+                }
             }
             auto outputs = submod->add_instructions(mm, &map_ins);
             submod->add_return({outputs});

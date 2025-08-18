@@ -23,6 +23,8 @@
  *
  */
 #include <migraphx/rewrite_reduce.hpp>
+#include <migraphx/simplify_reshapes.hpp>
+#include <migraphx/pass_manager.hpp>
 #include <migraphx/module.hpp>
 #include <migraphx/match/softmax.hpp>
 #include <migraphx/matcher.hpp>
@@ -208,6 +210,7 @@ void rewrite_reduce::apply(module& m) const
     }
 
     match::find_matches(m, find_reduce_mean{});
+    migraphx::run_passes(m, {simplify_reshapes{}});
 }
 
 } // namespace MIGRAPHX_INLINE_NS

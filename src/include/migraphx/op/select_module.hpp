@@ -83,11 +83,6 @@ struct select_module
                          module_ref&, const std::unordered_map<std::string, argument>&)>& run) const
     {
         size_t orig_batch = args.front().get_shape().lens()[dynamic_idx];
-        // auto max_it = std::max_element(args.begin(), args.end() - 1,
-        // [&](auto arg1, auto arg2) { 
-        //     return arg1.get_shape().lens()[dynamic_idx] < arg2.get_shape().lens()[dynamic_idx]; } 
-        // );
-        // orig_batch = max_it->get_shape().lens()[dynamic_idx];
         // Find submodule with input parameter shapes exactly the same as the input instruction
         // arguments. Assuming instruction arguments are in the same order as the instruction
         // parameters.

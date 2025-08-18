@@ -113,16 +113,16 @@ auto propagate_quantized_ins(module& m,
                              bool is_fp16_model = false)
 {
     auto prev_ins = qop_arg;
-    std::vector<instruction_ref> ins_inbetween;
+    std::vector<instruction_ref> ins_between;
     // matcher skips continguous, multi/broadcasts and transposes, collect all those
     // instructions
     while(prev_ins != dqins)
     {
-        ins_inbetween.push_back(prev_ins);
+        ins_between.push_back(prev_ins);
         prev_ins = prev_ins->inputs().front();
     }
     auto qinp = dqins->inputs().front();
-    for(auto ins : reverse_iterator_for(ins_inbetween))
+    for(auto ins : reverse_iterator_for(ins_between))
     {
         if((*ins)->name() == "convert" and is_fp16_model)
         {

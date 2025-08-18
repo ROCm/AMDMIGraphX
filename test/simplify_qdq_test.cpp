@@ -1639,4 +1639,225 @@ TEST_CASE(pointwise_concat_quant_per_channel)
     EXPECT(m1 == m2);
 }
 
+TEST_CASE(fp4x2_quant_conv_even)
+{
+    migraphx::shape shape_packed_input{migraphx::shape::fp4x2_type, {864}};
+    migraphx::shape shape_packed_weights{migraphx::shape::fp4x2_type, {24}};
+    migraphx::shape shape_scale_input{migraphx::shape::float_type, {1, 3, 24, 24}};
+    migraphx::shape shape_scale_weights{migraphx::shape::float_type, {1, 3, 4, 4}};
+
+    migraphx::module m1;
+    {
+        auto packed_input   = m1.add_parameter("input", shape_packed_input);
+        auto packed_weights = m1.add_parameter("weights", shape_packed_weights);
+        auto scale_input    = m1.add_parameter("scale_input", shape_scale_input);
+        auto scale_weights  = m1.add_parameter("scale_weights", shape_scale_weights);
+
+        auto unpack_input   = m1.add_instruction(migraphx::make_op("unpack_fp4"), packed_input);
+        auto unpack_weights = m1.add_instruction(migraphx::make_op("unpack_fp4"), packed_weights);
+        auto reshaped_input = m1.add_instruction(
+            migraphx::make_op("reshape", {{"dims", shape_scale_input.lens()}}), unpack_input);
+        auto reshaped_weights = m1.add_instruction(
+            migraphx::make_op("reshape", {{"dims", shape_scale_weights.lens()}}), unpack_weights);
+        auto dq_input =
+            m1.add_instruction(migraphx::make_op("dequantizelinear"), reshaped_input, scale_input);
+        auto dq_weights = m1.add_instruction(
+            migraphx::make_op("dequantizelinear"), reshaped_weights, scale_weights);
+        auto conv = m1.add_instruction(migraphx::make_op("convolution",
+                                                         {{"padding", {0, 0, 0, 0}},
+                                                          {"stride", {1, 1}},
+                                                          {"dilation", {1, 1}},
+                                                          {"group", 1},
+                                                          {"padding_mode", 0}}),
+                                       dq_input,
+                                       dq_weights);
+        m1.add_return({conv});
+    }
+
+    migraphx::module m2;
+    {
+        auto packed_input   = m2.add_parameter("input", shape_packed_input);
+        auto packed_weights = m2.add_parameter("weights", shape_packed_weights);
+        auto scale_input    = m2.add_parameter("scale_input", shape_scale_input);
+        auto scale_weights  = m2.add_parameter("scale_weights", shape_scale_weights);
+
+        auto unpack_input   = m2.add_instruction(migraphx::make_op("unpack_fp4"), packed_input);
+        auto unpack_weights = m2.add_instruction(migraphx::make_op("unpack_fp4"), packed_weights);
+        auto reshaped_input = m2.add_instruction(
+            migraphx::make_op("reshape", {{"dims", shape_scale_input.lens()}}), unpack_input);
+        auto reshaped_weights = m2.add_instruction(
+            migraphx::make_op("reshape", {{"dims", shape_scale_weights.lens()}}), unpack_weights);
+        auto quant_conv = m2.add_instruction(migraphx::make_op("quant_convolution",
+                                                               {{"padding", {0, 0, 0, 0}},
+                                                                {"stride", {1, 1}},
+                                                                {"dilation", {1, 1}},
+                                                                {"group", 1},
+                                                                {"padding_mode", 0}}),
+                                             reshaped_input,
+                                             reshaped_weights,
+                                             scale_input,
+                                             scale_weights);
+        m2.add_return({quant_conv});
+    }
+
+    run_pass(m1);
+    EXPECT(m1 == m2);
+}
+
+// odd number of elements in input (shape = [1, 3, 21, 21]) that was padded by 1
+TEST_CASE(fp4x2_quant_conv_odd)
+{
+    migraphx::shape shape_packed_input{migraphx::shape::fp4x2_type, {1324}};
+    migraphx::shape shape_packed_weights{migraphx::shape::fp4x2_type, {24}};
+    migraphx::shape shape_scale_input{migraphx::shape::float_type, {1, 3, 21, 21}};
+    migraphx::shape shape_scale_weights{migraphx::shape::float_type, {1, 3, 4, 4}};
+
+    migraphx::module m1;
+    {
+        auto packed_input   = m1.add_parameter("input", shape_packed_input);
+        auto packed_weights = m1.add_parameter("weights", shape_packed_weights);
+        auto scale_input    = m1.add_parameter("scale_input", shape_scale_input);
+        auto scale_weights  = m1.add_parameter("scale_weights", shape_scale_weights);
+
+        auto unpack_input   = m1.add_instruction(migraphx::make_op("unpack_fp4"), packed_input);
+        auto unpack_weights = m1.add_instruction(migraphx::make_op("unpack_fp4"), packed_weights);
+        auto slice_input    = m1.add_instruction(
+            migraphx::make_op("slice", {{"axes", {0}}, {"starts", {0}}, {"ends", {1323}}}),
+            unpack_input);
+        auto reshaped_input = m1.add_instruction(
+            migraphx::make_op("reshape", {{"dims", shape_scale_input.lens()}}), slice_input);
+        auto reshaped_weights = m1.add_instruction(
+            migraphx::make_op("reshape", {{"dims", shape_scale_weights.lens()}}), unpack_weights);
+        auto dq_input =
+            m1.add_instruction(migraphx::make_op("dequantizelinear"), reshaped_input, scale_input);
+        auto dq_weights = m1.add_instruction(
+            migraphx::make_op("dequantizelinear"), reshaped_weights, scale_weights);
+        auto conv = m1.add_instruction(migraphx::make_op("convolution",
+                                                         {{"padding", {0, 0, 0, 0}},
+                                                          {"stride", {1, 1}},
+                                                          {"dilation", {1, 1}},
+                                                          {"group", 1},
+                                                          {"padding_mode", 0}}),
+                                       dq_input,
+                                       dq_weights);
+        m1.add_return({conv});
+    }
+
+    migraphx::module m2;
+    {
+        auto packed_input   = m2.add_parameter("input", shape_packed_input);
+        auto packed_weights = m2.add_parameter("weights", shape_packed_weights);
+        auto scale_input    = m2.add_parameter("scale_input", shape_scale_input);
+        auto scale_weights  = m2.add_parameter("scale_weights", shape_scale_weights);
+
+        auto unpack_input   = m2.add_instruction(migraphx::make_op("unpack_fp4"), packed_input);
+        auto unpack_weights = m2.add_instruction(migraphx::make_op("unpack_fp4"), packed_weights);
+        auto slice_input    = m2.add_instruction(
+            migraphx::make_op("slice", {{"axes", {0}}, {"starts", {0}}, {"ends", {1323}}}),
+            unpack_input);
+        auto reshaped_input = m2.add_instruction(
+            migraphx::make_op("reshape", {{"dims", shape_scale_input.lens()}}), slice_input);
+        auto reshaped_weights = m2.add_instruction(
+            migraphx::make_op("reshape", {{"dims", shape_scale_weights.lens()}}), unpack_weights);
+        auto quant_conv = m2.add_instruction(migraphx::make_op("quant_convolution",
+                                                               {{"padding", {0, 0, 0, 0}},
+                                                                {"stride", {1, 1}},
+                                                                {"dilation", {1, 1}},
+                                                                {"group", 1},
+                                                                {"padding_mode", 0}}),
+                                             reshaped_input,
+                                             reshaped_weights,
+                                             scale_input,
+                                             scale_weights);
+        m2.add_return({quant_conv});
+    }
+
+    run_pass(m1);
+    EXPECT(m1 == m2);
+}
+
+TEST_CASE(fp4x2_quant_dot_even)
+{
+    migraphx::shape shape_packed_A{migraphx::shape::fp4x2_type, {216}};
+    migraphx::shape shape_packed_B{migraphx::shape::fp4x2_type, {288}};
+    migraphx::shape shape_scales_A{migraphx::shape::float_type, {1, 3, 6, 24}};
+    migraphx::shape shape_scales_B{migraphx::shape::float_type, {1, 3, 24, 8}};
+
+    migraphx::module m1;
+    {
+        auto packed_A = m1.add_parameter("input", shape_packed_A);
+        auto packed_B = m1.add_parameter("weights", shape_packed_B);
+        auto scale_A  = m1.add_parameter("scale_A", shape_scales_A);
+        auto scale_B  = m1.add_parameter("scale_B", shape_scales_B);
+
+        auto unpack_A   = m1.add_instruction(migraphx::make_op("unpack_fp4"), packed_A);
+        auto unpack_B   = m1.add_instruction(migraphx::make_op("unpack_fp4"), packed_B);
+        auto reshaped_A = m1.add_instruction(
+            migraphx::make_op("reshape", {{"dims", shape_scales_A.lens()}}), unpack_A);
+        auto reshaped_B = m1.add_instruction(
+            migraphx::make_op("reshape", {{"dims", shape_scales_B.lens()}}), unpack_B);
+        auto dq_A = m1.add_instruction(migraphx::make_op("dequantizelinear"), reshaped_A, scale_A);
+        auto dq_B = m1.add_instruction(migraphx::make_op("dequantizelinear"), reshaped_B, scale_B);
+        auto dot  = m1.add_instruction(migraphx::make_op("dot"), dq_A, dq_B);
+        m1.add_return({dot});
+    }
+
+    migraphx::module m2;
+    {
+        auto packed_A = m2.add_parameter("input", shape_packed_A);
+        auto packed_B = m2.add_parameter("weights", shape_packed_B);
+        auto scale_A  = m2.add_parameter("scale_A", shape_scales_A);
+        auto scale_B  = m2.add_parameter("scale_B", shape_scales_B);
+
+        auto unpack_A   = m2.add_instruction(migraphx::make_op("unpack_fp4"), packed_A);
+        auto unpack_B   = m2.add_instruction(migraphx::make_op("unpack_fp4"), packed_B);
+        auto reshaped_A = m2.add_instruction(
+            migraphx::make_op("reshape", {{"dims", shape_scales_A.lens()}}), unpack_A);
+        auto reshaped_B = m2.add_instruction(
+            migraphx::make_op("reshape", {{"dims", shape_scales_B.lens()}}), unpack_B);
+        auto quant_dot = m2.add_instruction(
+            migraphx::make_op("quant_dot"), reshaped_A, reshaped_B, scale_A, scale_B);
+        m2.add_return({quant_dot});
+    }
+
+    run_pass(m1);
+    EXPECT(m1 == m2);
+}
+
+// Test that unused qdq with pack_fp4, unpack_fp4, and reshapes are removed
+TEST_CASE(fp4x2_remove_qdq)
+{
+
+    migraphx::shape shape_input{migraphx::shape::float_type, {8, 8}};
+    migraphx::module m1;
+    {
+        auto a = m1.add_parameter("a", shape_input);
+        auto b = m1.add_parameter("b", shape_input);
+        // simulate scales calc with just abs()
+        auto scale_a = m1.add_instruction(migraphx::make_op("abs"), a);
+        auto quant   = m1.add_instruction(migraphx::make_op("quantizelinear"), a, scale_a);
+        auto reshape_to_1d =
+            m1.add_instruction(migraphx::make_op("reshape", {{"dims", {64}}}), quant);
+        auto pack_fp4   = m1.add_instruction(migraphx::make_op("pack_fp4"), reshape_to_1d);
+        auto unpack_fp4 = m1.add_instruction(migraphx::make_op("unpack_fp4"), pack_fp4);
+        auto reshape_back =
+            m1.add_instruction(migraphx::make_op("reshape", {{"dims", {8, 8}}}), unpack_fp4);
+        auto dequant =
+            m1.add_instruction(migraphx::make_op("dequantizelinear"), reshape_back, scale_a);
+        auto add = m1.add_instruction(migraphx::make_op("add"), dequant, b);
+        m1.add_return({add});
+    }
+
+    migraphx::module m2;
+    {
+        auto a   = m2.add_parameter("a", shape_input);
+        auto b   = m2.add_parameter("b", shape_input);
+        auto add = m2.add_instruction(migraphx::make_op("add"), a, b);
+        m2.add_return({add});
+    }
+
+    run_pass(m1);
+    EXPECT(m1 == m2);
+}
+
 int main(int argc, const char* argv[]) { test::run(argc, argv); }

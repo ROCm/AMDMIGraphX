@@ -3,6 +3,96 @@
 Full documentation for MIGraphX is available at
 [https://rocmdocs.amd.com/projects/AMDMIGraphX/en/latest/](https://rocmdocs.amd.com/projects/AMDMIGraphX/en/latest/).
 
+
+
+## MIGraphX 2.13 for ROCm 7.0.0
+
+### Added
+
+* Contrib Operators for Microsoft ONNX: Attention, RotaryEmbedding, QuickGelu, BiasAdd, BiasSplitGelu, skipLayerNorm
+* TensorFlow Operator: Sigmoid, AddN
+* GroupQuery Attention for LLM support 
+* Added support for edge mode in the ONNX Pad operator
+* Support additional types for linear Resize operator
+* Added bitonic topk ONNX operator
+* Added onnx runtime python driver
+* Added FLUX e2e example
+* Added API to save and load arguments
+* Added quantize_bf16 to C api output
+* Added rocMLIR fusion for kv-cache attention
+
+
+### Changed
+
+* Print Kernel/Module in Compile Failure
+* Use hipblaslt instead of rocBLAS for newer GPU asics
+* Normalize standard input shapes for rocBLAS
+* Updated Stable Diffusion example to use torch 6.3
+* Rewrite 1x1 convolutions to gemm
+* Make version header public
+* represent BF16::max by its encoding,  rather than the expected value
+* Direct warnings to cout, instead into cerr
+* Use vector instead of `set` for implicit deps
+* Disable layernorm by default
+* Update timing in compile_ops() to use common average
+
+
+### Removed
+
+* Remove DPP for v_add_f64 as it is unsupported
+* Remove rocBLAS bug workaround for solution index
+* Remove ROCM_USE_FLOAT8 macro
+* Remove rocBLAS fp8, always use hipBlasLt
+* Remove call to hipGetMemoryInfo when checking free memory based on feedback from HIP team
+
+### Optimized
+
+* Layout convolution as NHWC or NCHW only
+* einsum: conditionally do squeeze before transpose
+* Update problem cache as configs are benchmarked
+* Enable debug assertions in libstdc++
+* Topologically sort onnx models if nodes are unordered
+* Use time_loop function to measure time for exhaustive tune runs
+* Slice Channels Conv Optimization (slice output fusion)
+* Horiz fuse after pointwise
+* GridSample Linear Sampler Refactor
+* find_splits::is_dependent refactor
+* Visually improved the output from Graphviz
+* Print MigraphX consumed Env Variables when using the migraphx-driver
+* Add timestamps and duration when printing the summary of migraphx-driver
+* Add a trim size flag to the verify option for migraphx-driver
+* Print node names, to track parsing within the onnx graph when using the MIGRAPHX_TRACE_ONNX_PARSER flag
+* Embed onnx/tf files for api tests
+* Fuse multiple outputs for pointwise ops
+* Fuse reshapes on pointwise inputs for mlir output fusion
+* Print MIGRAPHX ENV Variables at end of summary
+* Update accuracy checker to spit out test data with --show-test-data flag
+* Dont fold mul with gemm when the gemm is used more than once
+* Detect when parallel stl is not parallel and enable when it is in parallel
+* Dont fuse broadcast after conv/gemm in mlir
+* Avoid the fusion (in reduction) when operator data-types mismatch
+
+
+
+### Resolved Issues
+
+* Workaround ICE in clang 20 when using views::transform (#4120)
+* Fix bug with reshape_lazy in MLIR (#4020)
+* Quantizelinear nearbyint fix (#3819)
+* add case for empty strings in node inputs for ops like resize (#4022)
+* Parse resize fix: only check "keep_aspect_ratio_policy" attribute for sizes input (#4010)
+* Fix Layernorm and SimplifiedLayernorm onnx parsers (#3971)
+* nonmaxsuppression: identical boxes/scores not ordered correctly (#4073)
+* Gcc/G++ compilation fix (#4000)
+* Bug fix: events would get created on the wrong device in a multi-gpu scenario. (#3910)
+* Check for file-write errors (#3909)
+* Fix out of order keys in value for comparisons and hashes when caching best kernels (#4108)
+* Make checking env variables thread-safe again (#4034)
+* [controlnet] Fixed mul: Types do not match (#4103)
+* Fix check for scales if presenting roi in Resize op (#4089)
+
+
+
 ## MIGraphX 2.12 for ROCm 6.4.0
 
 ### Added

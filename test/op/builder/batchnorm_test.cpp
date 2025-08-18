@@ -22,7 +22,6 @@
  * THE SOFTWARE.
  */
 
-#include <migraphx/common.hpp>
 #include <test.hpp>
 #include <op_builder_test_utils.hpp>
 

@@ -22,7 +22,6 @@
  * THE SOFTWARE.
  */
 
-#include <migraphx/common.hpp>
 #include <op_builder_test_utils.hpp>
 
 bool test_invalid_input(const std::string& equation             = "",

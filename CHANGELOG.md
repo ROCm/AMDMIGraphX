@@ -9,7 +9,7 @@ Full documentation for MIGraphX is available at
 ### Added
 
 * Support for OCP FP8 and MX FP4 data types on MI350X and MI355X accelerators
-* Support for BF16 on all hardware.
+* Support for BF16 on all hardware
 * Support for PyTorch 2.7 via Torch-MIGraphX
 * Contrib Operators for Microsoft ONNX: Attention, RotaryEmbedding, QuickGelu, BiasAdd, BiasSplitGelu, skipLayerNorm
 * TensorFlow Operator: Sigmoid, AddN

@@ -29,8 +29,8 @@ TEST_CASE(gemm_invalid_input_dim_op_builder_test)
 {
     migraphx::module mm;
     mm.add_parameter("a", {migraphx::shape::float_type, {3}});
-    mm.add_parameter("b", {migraphx::shape::float_type, {3,3,3}});
-    
+    mm.add_parameter("b", {migraphx::shape::float_type, {3, 3, 3}});
+
     EXPECT(test::throws<migraphx::exception>(
         [&] { make_op_module("gemm", {}, mm.get_parameters()); },
         "gemm op_builder: A and B should be rank 2, A is rank 1, B is rank 3"));
@@ -56,11 +56,11 @@ TEST_CASE(gemm_alpha_not_one_op_builder_test)
     migraphx::module mm;
     auto a_arg = mm.add_parameter("a", {migraphx::shape::float_type, {3, 3}});
     auto b_arg = mm.add_parameter("b", {migraphx::shape::float_type, {3, 3}});
-    
+
     const float alpha = 1.1f;
 
     auto alpha_literal = mm.add_literal(alpha);
-    a_arg = add_common_op(mm, migraphx::make_op("mul"), {alpha_literal, a_arg});
+    a_arg              = add_common_op(mm, migraphx::make_op("mul"), {alpha_literal, a_arg});
 
     mm.add_instruction(migraphx::make_op("dot"), a_arg, b_arg);
 
@@ -93,9 +93,9 @@ TEST_CASE(gemm_3_params_not_dynamic_op_builder_test)
 {
     migraphx::module mm;
 
-    auto a_arg   = mm.add_parameter("a", {migraphx::shape::float_type, {1, 3}});
-    auto b_arg   = mm.add_parameter("b", {migraphx::shape::float_type, {3, 4}});
-    auto c_arg   = mm.add_parameter("c", {migraphx::shape::float_type, {1, 1}});
+    auto a_arg = mm.add_parameter("a", {migraphx::shape::float_type, {1, 3}});
+    auto b_arg = mm.add_parameter("b", {migraphx::shape::float_type, {3, 4}});
+    auto c_arg = mm.add_parameter("c", {migraphx::shape::float_type, {1, 1}});
 
     auto dot_ins = mm.add_instruction(migraphx::make_op("dot"), a_arg, b_arg);
 
@@ -115,9 +115,9 @@ TEST_CASE(gemm_3_params_dynamic_op_builder_test)
     migraphx::shape::dynamic_dimension dd{1, 4};
     std::vector<migraphx::shape::dynamic_dimension> dyn_dims{dd, dd};
 
-    auto a_arg   = mm.add_parameter("a", {migraphx::shape::float_type, dyn_dims});
-    auto b_arg   = mm.add_parameter("b", {migraphx::shape::float_type, dyn_dims});
-    auto c_arg   = mm.add_parameter("c", {migraphx::shape::float_type, {1, 1}});
+    auto a_arg = mm.add_parameter("a", {migraphx::shape::float_type, dyn_dims});
+    auto b_arg = mm.add_parameter("b", {migraphx::shape::float_type, dyn_dims});
+    auto c_arg = mm.add_parameter("c", {migraphx::shape::float_type, {1, 1}});
 
     auto dot_ins = mm.add_instruction(migraphx::make_op("dot"), a_arg, b_arg);
 

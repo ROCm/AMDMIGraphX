@@ -332,8 +332,6 @@ TEST_CASE(gemm_pw_softmax_lse_gemm)
         auto ten   = mm->add_literal(migraphx::literal{s1, tens});
         auto log2  = mm->add_literal(migraphx::literal{s3, log2s});
         b = mm->add_instruction(migraphx::make_op("transpose", {{"permutation", {0, 1, 3, 2}}}), b);
-        b1 = mm->add_instruction(migraphx::make_op("transpose", {{"permutation", {0, 1, 3, 2}}}),
-                                 b1);
         auto gemm1   = mm->add_instruction(migraphx::make_op("dot"), a, b);
         auto mul     = mm->add_instruction(migraphx::make_op("mul"), gemm1, eight);
         auto where   = mm->add_instruction(migraphx::make_op("where"), select, mul, ten);
@@ -353,6 +351,8 @@ TEST_CASE(gemm_pw_softmax_lse_gemm)
         auto convert = mm->add_instruction(
             migraphx::make_op("convert", {{"target_type", migraphx::shape::float_type}}), log2se);
         auto lse   = mm->add_instruction(migraphx::make_op("squeeze", {{"axes", {3}}}), convert);
+        b1 = mm->add_instruction(migraphx::make_op("transpose", {{"permutation", {0, 1, 3, 2}}}),
+                                 b1);
         auto gemm2 = mm->add_instruction(migraphx::make_op("dot"), div, b1);
         mm->add_return({gemm2, lse});
     }

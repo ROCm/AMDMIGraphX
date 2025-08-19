@@ -34,11 +34,11 @@ inline namespace MIGRAPHX_INLINE_NS {
 
 MIGRAPHX_EXPORT
 void calc_auto_padding(std::string auto_pad,
-                           const std::vector<std::size_t>& strides,
-                           const std::vector<std::size_t>& k_lens,
-                           const std::vector<std::size_t>& dilation,
-                           const std::vector<std::size_t>& in_lens,
-                           std::vector<int64_t>& paddings);
+                       const std::vector<std::size_t>& strides,
+                       const std::vector<std::size_t>& k_lens,
+                       const std::vector<std::size_t>& dilation,
+                       const std::vector<std::size_t>& in_lens,
+                       std::vector<int64_t>& paddings);
 
 MIGRAPHX_EXPORT
 void calculate_padding(int64_t idx,

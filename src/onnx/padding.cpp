@@ -44,13 +44,12 @@ void cal_auto_padding_size(onnx_parser::node_info info,
         return;
     }
 
-    calc_auto_padding(
-        info.attributes.at("auto_pad").s(),
-        v["stride"].to_vector<std::size_t>(),
-        k_lens,
-        dilation,
-        in_lens,
-        paddings);
+    calc_auto_padding(info.attributes.at("auto_pad").s(),
+                      v["stride"].to_vector<std::size_t>(),
+                      k_lens,
+                      dilation,
+                      in_lens,
+                      paddings);
 }
 
 bool is_asym_padding(const std::vector<int64_t>& padding)

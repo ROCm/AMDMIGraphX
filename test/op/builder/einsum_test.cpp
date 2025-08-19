@@ -24,10 +24,10 @@
 
 #include <op_builder_test_utils.hpp>
 
-bool test_invalid_input(const std::string& equation             = "",
-                        const std::string& expected_msg         = "",
-                        const std::vector<std::size_t>& x1_dims = {3, 3},
-                        const std::vector<std::size_t>& x2_dims = {3, 3})
+static bool test_invalid_input(const std::string& equation             = "",
+                               const std::string& expected_msg         = "",
+                               const std::vector<std::size_t>& x1_dims = {3, 3},
+                               const std::vector<std::size_t>& x2_dims = {3, 3})
 {
     migraphx::module mm;
 

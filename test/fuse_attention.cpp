@@ -104,7 +104,7 @@ TEST_CASE(gemm_softmax_gemm)
             });
         mm->add_return({group});
     }
-    EXPECT(p1 == p2);
+    EXPECT(p1.sort() == p2.sort());
 }
 
 TEST_CASE(gemm_pw_softmax_gemm)
@@ -187,7 +187,7 @@ TEST_CASE(gemm_pw_softmax_gemm)
             });
         mm->add_return({group});
     }
-    EXPECT(p1 == p2);
+    EXPECT(p1.sort() == p2.sort());
 }
 
 TEST_CASE(gemm_multi_use_pw_softmax_gemm)
@@ -307,7 +307,7 @@ TEST_CASE(gemm_multi_use_pw_softmax_gemm)
             });
         mm->add_return({group, zero, eq, scale});
     }
-    EXPECT(p1 == p2);
+    EXPECT(p1.sort() == p2.sort());
 }
 
 TEST_CASE(gemm_pw_softmax_lse_gemm)
@@ -414,7 +414,7 @@ TEST_CASE(gemm_pw_softmax_lse_gemm)
 
         mm->add_return({gemm2, lse});
     }
-    EXPECT(p1 == p2);
+    EXPECT(p1.sort() == p2.sort());
 }
 
 int main(int argc, const char* argv[])

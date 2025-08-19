@@ -215,6 +215,8 @@ void fuse_attention::apply(module_pass_manager& mpm) const
 {
     std::size_t counter = 0;
     match::find_matches(mpm, find_attention{.counter = &counter});
+    mpm.get_module().sort();
+    mpm.run_pass(dead_code_elimination{});
 }
 
 } // namespace MIGRAPHX_INLINE_NS

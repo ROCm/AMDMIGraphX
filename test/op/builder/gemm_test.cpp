@@ -22,8 +22,8 @@
  * THE SOFTWARE.
  */
 
-#include <migraphx/common.hpp>
 #include <op_builder_test_utils.hpp>
+#include <migraphx/instruction.hpp>
 
 TEST_CASE(gemm_invalid_input_dim_op_builder_test)
 {
@@ -51,34 +51,127 @@ TEST_CASE(gemm_normal_path_op_builder_test)
                                 mm.get_parameters()));
 }
 
-TEST_CASE(gemm_alpha_one_op_builder_test)
+TEST_CASE(gemm_alpha_not_one_op_builder_test)
 {
+    migraphx::module mm;
+    auto a_arg = mm.add_parameter("a", {migraphx::shape::float_type, {3, 3}});
+    auto b_arg = mm.add_parameter("b", {migraphx::shape::float_type, {3, 3}});
     
+    const float alpha = 1.1f;
+
+    auto alpha_literal = mm.add_literal(alpha);
+    a_arg = add_common_op(mm, migraphx::make_op("mul"), {alpha_literal, a_arg});
+
+    mm.add_instruction(migraphx::make_op("dot"), a_arg, b_arg);
+
+    EXPECT(mm == make_op_module("gemm",
+                                {{"alpha", alpha}, {"transA", false}, {"transB", false}},
+                                mm.get_parameters()));
 }
 
-TEST_CASE(gemm_alpha_one_not_dot_type_op_builder_test)
+TEST_CASE(gemm_alpha_not_one_type_mismatch_op_builder_test)
 {
-    
+    migraphx::module mm;
+    auto a_arg = mm.add_parameter("a", {migraphx::shape::fp8e4m3fnuz_type, {3, 3}});
+    auto b_arg = mm.add_parameter("b", {migraphx::shape::fp8e4m3fnuz_type, {3, 3}});
+
+    const float alpha   = 1.1f;
+    const auto dot_type = a_arg->get_shape().type();
+
+    auto alpha_literal = mm.add_literal(alpha);
+    a_arg              = add_common_op(mm, migraphx::make_op("mul"), {alpha_literal, a_arg});
+    a_arg = mm.add_instruction(migraphx::make_op("convert", {{"target_type", dot_type}}), a_arg);
+
+    mm.add_instruction(migraphx::make_op("dot"), a_arg, b_arg);
+
+    EXPECT(mm == make_op_module("gemm",
+                                {{"alpha", alpha}, {"transA", false}, {"transB", false}},
+                                mm.get_parameters()));
 }
 
-/*
-TEST_CASE(gemm__op_builder_test)
+TEST_CASE(gemm_3_params_not_dynamic_op_builder_test)
 {
-    
+    migraphx::module mm;
+
+    auto a_arg   = mm.add_parameter("a", {migraphx::shape::float_type, {1, 3}});
+    auto b_arg   = mm.add_parameter("b", {migraphx::shape::float_type, {3, 4}});
+    auto c_arg   = mm.add_parameter("c", {migraphx::shape::float_type, {1, 1}});
+
+    auto dot_ins = mm.add_instruction(migraphx::make_op("dot"), a_arg, b_arg);
+
+    c_arg = mm.add_instruction(migraphx::make_op("multibroadcast", {{"out_lens", {1, 4}}}), c_arg);
+    mm.add_instruction(migraphx::make_op("add"), dot_ins, c_arg);
+
+    EXPECT(mm ==
+           make_op_module("gemm",
+                          {{"alpha", 1.0f}, {"transA", false}, {"transB", false}, {"beta", 1.0f}},
+                          mm.get_parameters()));
 }
 
-TEST_CASE(gemm__op_builder_test)
+TEST_CASE(gemm_3_params_dynamic_op_builder_test)
 {
-    
+    migraphx::module mm;
+
+    migraphx::shape::dynamic_dimension dd{1, 4};
+    std::vector<migraphx::shape::dynamic_dimension> dyn_dims{dd, dd};
+
+    auto a_arg   = mm.add_parameter("a", {migraphx::shape::float_type, dyn_dims});
+    auto b_arg   = mm.add_parameter("b", {migraphx::shape::float_type, dyn_dims});
+    auto c_arg   = mm.add_parameter("c", {migraphx::shape::float_type, {1, 1}});
+
+    auto dot_ins = mm.add_instruction(migraphx::make_op("dot"), a_arg, b_arg);
+
+    c_arg = mm.add_instruction(migraphx::make_op("multibroadcast"), c_arg, dot_ins);
+    mm.add_instruction(migraphx::make_op("add"), dot_ins, c_arg);
+
+    EXPECT(mm ==
+           make_op_module("gemm",
+                          {{"alpha", 1.0f}, {"transA", false}, {"transB", false}, {"beta", 1.0f}},
+                          mm.get_parameters()));
 }
 
-TEST_CASE(gemm__op_builder_test)
+TEST_CASE(gemm_3_params_beta_not_one_op_builder_test)
 {
-    
+    migraphx::module mm;
+
+    const float beta = 1.1f;
+
+    auto a_arg = mm.add_parameter("a", {migraphx::shape::float_type, {1, 3}});
+    auto b_arg = mm.add_parameter("b", {migraphx::shape::float_type, {3, 4}});
+    auto c_arg = mm.add_parameter("c", {migraphx::shape::float_type, {1, 4}});
+
+    auto dot_ins = mm.add_instruction(migraphx::make_op("dot"), a_arg, b_arg);
+
+    auto beta_literal = mm.add_literal(beta);
+    c_arg             = add_common_op(mm, migraphx::make_op("mul"), {c_arg, beta_literal});
+    mm.add_instruction(migraphx::make_op("add"), dot_ins, c_arg);
+
+    EXPECT(mm ==
+           make_op_module("gemm",
+                          {{"alpha", 1.0f}, {"transA", false}, {"transB", false}, {"beta", beta}},
+                          mm.get_parameters()));
 }
 
-TEST_CASE(gemm__op_builder_test)
+TEST_CASE(gemm_3_params_beta_not_one_type_mismatch_op_builder_test)
 {
-    
+    migraphx::module mm;
+
+    const float beta = 0.8f;
+
+    auto a_arg = mm.add_parameter("a", {migraphx::shape::bf16_type, {1, 3}});
+    auto b_arg = mm.add_parameter("b", {migraphx::shape::bf16_type, {3, 4}});
+    auto c_arg = mm.add_parameter("c", {migraphx::shape::bf16_type, {1, 4}});
+
+    auto dot_ins = mm.add_instruction(migraphx::make_op("dot"), a_arg, b_arg);
+
+    auto beta_literal = mm.add_literal(beta);
+    c_arg             = add_common_op(mm, migraphx::make_op("mul"), {c_arg, beta_literal});
+    c_arg             = mm.add_instruction(
+        migraphx::make_op("convert", {{"target_type", migraphx::shape::bf16_type}}), c_arg);
+    mm.add_instruction(migraphx::make_op("add"), dot_ins, c_arg);
+
+    EXPECT(mm ==
+           make_op_module("gemm",
+                          {{"alpha", 1.0f}, {"transA", false}, {"transB", false}, {"beta", beta}},
+                          mm.get_parameters()));
 }
-*/

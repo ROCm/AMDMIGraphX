@@ -272,8 +272,7 @@ add_reduce_mean(migraphx::module& m, std::vector<std::size_t> axes, migraphx::in
     auto t      = input->get_shape().type();
     auto rl     = m.add_literal(migraphx::literal{{t, {1}}, {reduce_size}});
     auto div    = migraphx::add_common_op(m, migraphx::make_op("div"), {input, rl});
-    auto reduce = m.add_instruction(migraphx::make_op("reduce_sum", {{"axes", axes}}), div);
-    return m.add_instruction(migraphx::make_op("convert", {{"target_type", t}}), reduce);
+    return m.add_instruction(migraphx::make_op("reduce_sum", {{"axes", axes}}), div);
 }
 
 TEST_CASE(reduce_mean_variance_sqdiff)

@@ -62,7 +62,7 @@ struct parse_tile : op_parser<parse_tile>
             else
             {
                 auto out_lens = args[0]->get_shape().lens();
-                out_lens[0] = parser.batch_size;
+                out_lens[0] = parser.default_dyn_dim_value.max;
                 return info.add_instruction(
                 make_op("multibroadcast", {{"out_lens", out_lens}}), args[0]);
             }

@@ -82,43 +82,62 @@ struct select_module
                      const std::function<std::vector<argument>(
                          module_ref&, const std::unordered_map<std::string, argument>&)>& run) const
     {
-        size_t orig_batch = args.front().get_shape().lens()[dynamic_idx];
+        size_t orig_batch = 1;
+        for(auto&& arg : args)
+        {
+            if(not arg.get_shape().any_of_dynamic() and arg.get_shape().type() != shape::tuple_type)
+            {
+                auto arg_lens = arg.get_shape().lens();
+                auto curr_batch = arg.get_shape().lens()[dynamic_idx];
+                if(curr_batch > orig_batch)
+                    orig_batch = curr_batch;
+            }
+        }
+
+        // use name of module to find nearest dim
+        auto module_iter = 
+            std::find_if(submodule_list.cbegin(), submodule_list.cend(), [&](module_ref mr) {
+                auto dim_val = std::stoi(remove_prefix(mr->name(), "dim_"));
+                if(dim_val >= orig_batch)
+                    return true;
+                return false;
+        });
         // Find submodule with input parameter shapes exactly the same as the input instruction
         // arguments. Assuming instruction arguments are in the same order as the instruction
         // parameters.
-        auto module_iter =
-            std::find_if(submodule_list.cbegin(), submodule_list.cend(), [&](module_ref mr) {
-                auto in_param_names = get_input_parameter_names(mr);
-                auto param_shapes   = mr->get_parameter_shapes();
-                assert(in_param_names.size() <= args.size());
-                return std::equal(in_param_names.cbegin(),
-                                  in_param_names.cend(),
-                                  args.cbegin(),
-                                  [&](const auto& p_name, const auto& a) {
-                                      auto a_dims = a.get_shape().lens();
-                                      if(param_shapes[p_name].dynamic())
-                                      {
-                                        auto param_dyn_dims = param_shapes[p_name].dyn_dims();
-                                        for(auto i = 0; i < a_dims.size(); i++)
-                                        {
-                                            size_t max_dim = param_dyn_dims[i].max;
-                                            if(a_dims[i] > max_dim)
-                                            {
-                                                return false;
-                                            }
-                                        }
-                                      }
-                                      else
-                                      {
-                                        if(a_dims != param_shapes[p_name].lens())
-                                        {
-                                            return false;
-                                        }
-                                      }
+        // auto module_iter =
+        //     std::find_if(submodule_list.cbegin(), submodule_list.cend(), [&](module_ref mr) {
+        //         auto in_param_names = get_input_parameter_names(mr);
+        //         auto param_shapes   = mr->get_parameter_shapes();
+        //         assert(in_param_names.size() <= args.size());
+        //         return std::equal(in_param_names.cbegin(),
+        //                           in_param_names.cend(),
+        //                           args.cbegin(),
+        //                           [&](const auto& p_name, const auto& a) {
+        //                               auto a_dims = a.get_shape().lens();
+        //                               if(param_shapes[p_name].dynamic())
+        //                               {
+        //                                 auto param_dyn_dims = param_shapes[p_name].dyn_dims();
+        //                                 for(auto i = 0; i < a_dims.size(); i++)
+        //                                 {
+        //                                     size_t max_dim = param_dyn_dims[i].max;
+        //                                     if(a_dims[i] > max_dim)
+        //                                     {
+        //                                         return false;
+        //                                     }
+        //                                 }
+        //                               }
+        //                               else
+        //                               {
+        //                                 if(a_dims != param_shapes[p_name].lens())
+        //                                 {
+        //                                     return false;
+        //                                 }
+        //                               }
                                       
-                                      return true;
-                                  });
-            });
+        //                               return true;
+        //                           });
+        //     });
 
         if(module_iter == submodule_list.end())
         {

@@ -84,12 +84,23 @@ void insert_copy(module& m, const allocation_model& model)
         // dynamic submodules must always insert copies
         if(alias->get_shape() == ins->get_shape() and not contains(m.name(), "dim_"))
             continue;
+        auto outputs = ins->outputs(); // TODO make this copy's outputs
         auto insert_ins = std::next(ins);
         auto alloc      = m.insert_instruction(
             insert_ins,
             make_op("allocate", migraphx::value{{"shape", to_value(ins->get_shape())}}));
         auto copy = m.insert_instruction(insert_ins, make_op(model.copy()), ins, alloc);
-        m.replace_instruction(ins, copy);
+        copy = m.replace_instruction(ins, copy);
+        if(contains(m.name(), "dim_")) // dynamic submodule copies should only be used by return ins
+        {
+            for(auto output : outputs)
+            {
+                if(output->name() == "@return")
+                    continue;
+                instruction::replace_argument(output, copy, ins);
+            }
+        }
+        
     }
 }
 
@@ -155,13 +166,13 @@ void replace_allocate::apply(module_pass_manager& mpm) const
         auto s = ins->get_shape();
         if(not root_offload_copy and model.needs_out_params() and contains(mod_output_names, ins))
         {
-            // if(has_dyn_inputs and not s.any_of_dynamic() and s.lens().front() > 1)
-            // {
-            //     s = s.to_dynamic();
-            //     auto new_dyn_dims = s.dyn_dims();
-            //     new_dyn_dims.front().min = 1;
-            //     s = {s.type(), new_dyn_dims};
-            // }
+            if(has_dyn_inputs and not s.any_of_dynamic() and s.lens().front() > 1)
+            {
+                s = s.to_dynamic();
+                auto new_dyn_dims = s.dyn_dims();
+                new_dyn_dims.front().min = 1;
+                s = {s.type(), new_dyn_dims};
+            }
             auto out_param = m.add_parameter(mod_output_names[ins], s);
             m.replace_instruction(ins, out_param);
         }

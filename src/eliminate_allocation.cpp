@@ -60,34 +60,34 @@ void eliminate_allocation::apply(module& m) const
                 ins, make_op("load", {{"shape", to_value(s)}, {"offset", offset}}), mem);
         }
     }
-    if(m.name() == "main")
-        return;
-    std::vector<instruction_ref> remove_parameters;
-    auto param_names = m.get_parameter_shapes();
-    for(auto param_name : param_names)
-    {
-        // TODO only do this for dynamic submods
-        // (check other dyn params, fixed_pad?)
-        if(not(contains(param_name.first, "#output")))
-            continue;
-        auto param = m.get_parameter(param_name.first);
-        shape s = param_name.second;
-        if(s.dynamic())
-            continue;
-        if(s.lens().front() == 1)
-            continue;
-        s = s.to_dynamic();
-        auto new_dyn_dims = s.dyn_dims();
-        new_dyn_dims.front().min = 1;
-        s = {s.type(), new_dyn_dims};
-        m.rename_parameter(param, param_name.first + "_old");
-        auto new_param = m.add_parameter(param_name.first, s);
-        m.replace_instruction(param, new_param);
-        remove_parameters.push_back(param);
-    }
+    // if(m.name() == "main")
+    //     return;
+    // std::vector<instruction_ref> remove_parameters;
+    // auto param_names = m.get_parameter_shapes();
+    // for(auto param_name : param_names)
+    // {
+    //     // TODO only do this for dynamic submods
+    //     // (check other dyn params, fixed_pad?)
+    //     if(not(contains(param_name.first, "#output")))
+    //         continue;
+    //     auto param = m.get_parameter(param_name.first);
+    //     shape s = param_name.second;
+    //     if(s.dynamic())
+    //         continue;
+    //     if(s.lens().front() == 1)
+    //         continue;
+    //     s = s.to_dynamic();
+    //     auto new_dyn_dims = s.dyn_dims();
+    //     new_dyn_dims.front().min = 1;
+    //     s = {s.type(), new_dyn_dims};
+    //     m.rename_parameter(param, param_name.first + "_old");
+    //     auto new_param = m.add_parameter(param_name.first, s);
+    //     m.replace_instruction(param, new_param);
+    //     remove_parameters.push_back(param);
+    // }
 
-    for(const auto& i : remove_parameters)
-        m.remove_instruction(i);
+    // for(const auto& i : remove_parameters)
+    //     m.remove_instruction(i);
     
 }
 

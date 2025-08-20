@@ -53,7 +53,7 @@ void fuse_pointwise_reduce::apply(module_pass_manager& mpm) const
     mpm.run_pass(split_reduce{.split_size = get_split_size(split_size)});
     mpm.run_pass(
         fuse_pointwise{.enable_rewrite_broadcasts = true,
-                        .enable_multi_output = not enabled(MIGRAPHX_DISABLE_MULTI_OUTPUT_FUSION)});
+                        .enable_multi_output = not enabled(MIGRAPHX_DISABLE_MULTI_OUTPUT_FUSION{})});
 }
 
 } // namespace MIGRAPHX_INLINE_NS

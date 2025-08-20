@@ -1129,21 +1129,15 @@ static std::string compute_dump_name(const module& m, const std::string& ext)
     abbreviate_symbol_names(sym_names);
 
     const int max_file_length = 255;
-    std::string fname;
-    if(sym_names.length() + shape_str.length() + ext.length() > max_file_length)
-    {
-        auto cnt    = "_" + std::to_string(dump_counter()++);
-        auto cutoff = max_file_length - shape_str.length() - ext.length() - cnt.length();
+    auto cnt                  = "_" + std::to_string(dump_counter()++);
+    std::string fname         = sym_names + shape_str;
 
-        // If the shapes are too big, the filename will be unparsable anyways so simply name it
-        // mlir_x to avoid erroring out
-        fname =
-            cutoff > 0 ? sym_names.substr(0, cutoff) + shape_str + cnt + ext : "mlir" + cnt + ext;
-    }
-    else
+    if(fname.length() + cnt.length() + ext.length() > max_file_length)
     {
-        fname = sym_names + shape_str + ext;
+        auto cutoff = max_file_length - ext.length() - cnt.length();
+        fname       = fname.substr(0, cutoff);
     }
+    fname += cnt + ext;
 
     replace_string_inplace(fname, ", ", "_");
     replace_string_inplace(fname, ":", "s");

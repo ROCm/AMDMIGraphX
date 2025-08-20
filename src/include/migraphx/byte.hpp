@@ -46,7 +46,7 @@ template <class IntType,
           MIGRAPHX_REQUIRES(std::is_integral<IntType>{} and std::is_unsigned<IntType>{})>
 constexpr byte operator<<(byte b, IntType shift) noexcept
 {
-    return static_cast<byte>(static_cast<uint8_t>(b) << shift);
+    return static_cast<byte>(static_cast<unsigned char>(b) << shift);
 };
 
 template <class IntType,

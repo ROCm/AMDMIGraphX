@@ -106,31 +106,33 @@ struct raw_data : raw_data_base
     }
 
     /**
-     * Visit the data with a tensor_view<byte> with shape = {type = uint8_type, lens = {num bytes}};
+     * Visit the data using the normal visit function for computable types.
+     * For non-computable types, use a tensor_view<byte> with shape = {type = uint8_type, lens =
+     * {num bytes}};
      */
     template <class Visitor, class TupleVisitor>
-    void raw_visit(Visitor v, TupleVisitor tv) const
+    void fallback_visit(Visitor v, TupleVisitor tv) const
     {
         auto&& derived = static_cast<const Derived&>(*this);
         if(derived.empty())
             MIGRAPHX_THROW("Visiting empty data!");
         auto&& s = derived.get_shape();
-        if(s.type() == shape::tuple_type)
+        if(s.computable())
         {
-            tv(derived.get_sub_objects());
+            visit(v, tv);
         }
         else
         {
             auto&& buffer     = static_cast<const Derived&>(*this).data();
-            shape visit_shape = {shape::uint8_type, {s.bytes()}};
-            v(make_view(visit_shape, reinterpret_cast<const migraphx::byte*>(buffer)));
+            shape view_shape  = {shape::uint8_type, {s.bytes()}};
+            v(make_view(view_shape, reinterpret_cast<byte*>(buffer)));
         }
     }
 
     template <class Visitor>
-    void raw_visit(Visitor v) const
+    void fallback_visit(Visitor v) const
     {
-        raw_visit(v, [&](const auto&) { MIGRAPHX_THROW("Invalid tuple type"); });
+        fallback_visit(v, [&](const auto&) { MIGRAPHX_THROW("Invalid tuple type"); });
     }
 
     /// Returns true if the raw data is only one element
@@ -203,7 +205,16 @@ struct raw_data : raw_data_base
         return make_view(s, reinterpret_cast<T*>(buffer));
     }
 
-    /// Cast the data pointer
+    /// Specialization for migraphx::byte type
+    template <>
+    tensor_view<const migraphx::byte> get<const byte>() const
+    {
+        auto&& s         = static_cast<const Derived&>(*this).get_shape();
+        auto&& buffer    = static_cast<const Derived&>(*this).data();
+        shape view_shape = {shape::uint8_type, {s.bytes()}};
+        return make_view(view_shape, reinterpret_cast<const migraphx::byte*>(buffer));
+    }
+
     template <class T>
     T* cast() const
     {
@@ -322,9 +333,7 @@ bool operator==(const T& x, const U& y)
         }
         else
         {
-            // not tuple type so do not need tuple visitor
-            x.raw_visit(
-                [&](auto xview) { y.raw_visit([&](auto yview) { result = xview == yview; }); });
+            result = x.template get<const byte>() == y.template get<const byte>();
         }
     }
     return result;

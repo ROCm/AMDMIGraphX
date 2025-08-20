@@ -317,11 +317,7 @@ bool shape::is_unsigned(shape::type_t t)
     return result;
 }
 
-bool shape::is_computable(shape::type_t t)
-{
-    static std::unordered_set<shape::type_t> non_compute_types = {shape::fp4x2_type};
-    return not contains(non_compute_types, t);
-}
+bool shape::is_computable(shape::type_t t) { return t != shape::fp4x2_type; }
 
 shape::shape() : impl(shape_impl::default_shape()) {}
 

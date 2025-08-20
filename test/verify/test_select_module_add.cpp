@@ -102,9 +102,9 @@ struct test_select_module_add_pad : verify_program<test_select_module_add_pad>
             submod->add_return({add_ins0, add_ins1});
             return submod;
         };
-        auto* batch1 = create_submodule(1, 1, "batch_1");
-        // auto* batch2 = create_submodule(2, 64, "batch_64");
-        auto* batch128 = create_submodule(2, 128, "batch_128");
+        auto* batch1 = create_submodule(1, 1, "dim_1");
+        auto* batch64 = create_submodule(2, 64, "dim_64");
+        auto* batch128 = create_submodule(65, 128, "dim_128");
 
         migraphx::shape s{migraphx::shape::float_type, {{1, 128}, {1648, 1648}}};
         auto input                              = mm->add_parameter("data", s);
@@ -116,7 +116,7 @@ struct test_select_module_add_pad : verify_program<test_select_module_add_pad>
             migraphx::make_op("select_module",
                               {{"output_dyn_shapes", migraphx::to_value(out_attr)}}),
             {input, input2},
-            {batch1, batch128});
+            {batch1, batch64, batch128});
         auto ret0 =
             mm->add_instruction(migraphx::make_op("get_tuple_elem", {{"index", 0}}), sm_ins);
         auto ret1 =
@@ -125,5 +125,5 @@ struct test_select_module_add_pad : verify_program<test_select_module_add_pad>
 
         return p;
     }
-    size_t max_batch() const { return 5; }
+    size_t max_batch() const { return 70; }
 };

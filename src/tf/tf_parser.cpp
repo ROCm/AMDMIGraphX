@@ -50,6 +50,8 @@ namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
 namespace tf {
 
+MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_TRACE_TF_INPUTS)
+
 static shape shape_from_dyn_dims(shape::type_t shape_type,
                                  const std::vector<shape::dynamic_dimension>& dyn_dims)
 {
@@ -285,6 +287,21 @@ std::vector<std::string> tf_parser::find_outputs() const
 void tf_parser::parse_graph(const tensorflow::GraphDef& graph)
 {
     nodes = get_nodes(graph, input_nodes);
+    if(enabled(MIGRAPHX_TRACE_TF_INPUTS{}) and not map_input_dims.empty())
+    {
+        std::cout << "--input-dim ";
+        for(auto&& name : input_nodes)
+        {
+            std::vector<size_t> dims = map_input_dims.at(name);
+            std::cout << "@" << name << " ";
+            for(auto&& dim : dims)
+            {
+                std::cout << dim << " ";
+            }
+        }
+        std::cout << std::endl;
+    }
+        
     for(auto&& name : input_nodes)
     {
         auto&& input = nodes[name];
@@ -297,7 +314,7 @@ void tf_parser::parse_graph(const tensorflow::GraphDef& graph)
         {
             dims = map_input_dims.at(name);
             std::transform(dims.begin(), dims.end(), std::back_inserter(dyn_dims), [&](auto dim) -> shape::dynamic_dimension {
-                return shape::dynamic_dimension{dim, dim};
+                return dim == 0 ? default_dyn_dim_value : shape::dynamic_dimension{dim, dim};
             });
         }
         else

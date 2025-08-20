@@ -36,7 +36,7 @@ namespace gpu {
 namespace device {
 
 argument
-fixed_pad(hipStream_t stream, const argument& result, const argument& arg)
+fixed_pad_base_impl(hipStream_t stream, const argument& result, const argument& arg)
 {
     hip_visit_all(result, arg)([&](auto output, auto input) {
 
@@ -53,6 +53,54 @@ fixed_pad(hipStream_t stream, const argument& result, const argument& arg)
     });
     return result;
 }
+
+argument
+fixed_pad_standard_impl(hipStream_t stream, const argument& result, const argument& arg)
+{
+    index_int nelements = result.get_shape().elements();
+    index_int ielements = arg.get_shape().elements();
+    hip_pointer_visit_all(result, arg)([&](auto output, auto input) {
+        gs_launch(stream, nelements)([=](auto i) __device__ {
+            output[i] = (i < ielements) ? input[i] : 0;
+        });
+    });
+    return result;
+}
+
+
+argument
+fixed_pad(hipStream_t stream, const argument& result, const argument& arg)
+{
+    if(result.get_shape().standard() and arg.get_shape().standard())
+    {
+        auto ilens = arg.get_shape().lens();
+        auto olens = result.get_shape().lens();
+        auto [istart, ostart] = std::mismatch(ilens.begin(), ilens.end(), olens.begin());
+        if(std::equal(istart, ilens.end(), ostart, olens.end()))
+            return fixed_pad_standard_impl(stream, result, arg);
+
+    }
+    return fixed_pad_base_impl(stream, result, arg);
+}
+
+// argument
+// fixed_pad(hipStream_t stream, const argument& result, const argument& arg)
+// {
+//     hip_visit_all(result, arg)([&](auto output, auto input) {
+
+//         gs_launch(stream, result.get_shape().elements())([=](auto i) __device__ {
+//             auto input_bounds = input.get_shape().lens;
+//             auto idx = output.get_shape().multi(i);
+
+//             bool in_bounds = sequence(idx.size(), [&](auto... js) {
+//                 return ((idx[js] < input_bounds[js]) and ...);
+//             });
+
+//             output[idx] = in_bounds ? input[idx] : 0;
+//         });
+//     });
+//     return result;
+// }
 
 } // namespace device
 } // namespace gpu

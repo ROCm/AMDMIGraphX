@@ -37,6 +37,7 @@ struct parse_generic_op : op_parser<parse_generic_op>
     {
         return {{"All", "identity"},
                 {"DeepCopy", "identity"},
+                {"NoOp", "identity"},
                 {"Identity", "identity"},
                 {"LessEqual", "identity"},
                 {"Relu", "relu"},

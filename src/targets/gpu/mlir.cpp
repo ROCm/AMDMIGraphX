@@ -1128,6 +1128,7 @@ static std::string compute_dump_name(const module& m, const std::string& ext)
     auto sym_names = mlir_program::get_symbol_name(m);
     abbreviate_symbol_names(sym_names);
 
+    // On most commonly used file systems, the max file name size is 255 characters
     const int max_file_length = 255;
     auto cnt                  = "_" + std::to_string(dump_counter()++);
     std::string fname         = sym_names + shape_str;

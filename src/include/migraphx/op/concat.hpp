@@ -35,6 +35,7 @@
 #include <migraphx/value.hpp>
 #include <migraphx/permutation.hpp>
 #include <migraphx/op/normalize_attribute.hpp>
+#include <migraphx/common.hpp>
 #include <cmath>
 #include <utility>
 
@@ -75,11 +76,109 @@ struct concat
         return offsets;
     }
 
+    void handle_mixed_shapes(std::vector<shape>& inputs) const
+    {
+        std::vector<shape::dynamic_dimension> referenced_dims;
+        bool referenced_dims_founded = false;
+
+        for(const auto& input : inputs)
+        {
+            if(input.dynamic() && !referenced_dims_founded)
+            {
+                referenced_dims = input.dyn_dims();
+                referenced_dims_founded = true;
+                break;
+            }
+        }
+
+        for(const auto& input : inputs)
+        {
+            if(input.dynamic())
+            {
+                auto dyn_dims = input.dyn_dims();
+                for(std::size_t i = 0; i < dyn_dims.size(); i++)
+                {
+                    if(i != axis)
+                    {
+                        // Verify compatibility
+                        if(referenced_dims[i] != dyn_dims[i])
+                        {
+                            MIGRAPHX_THROW("CONCAT: Dynamic shapes have incompatible ranges on axis " + 
+                                        std::to_string(i));
+                        }
+                    }
+                }
+            }
+            else
+            {
+                auto lens = input.lens();
+                for(std::size_t i = 0; i < lens.size(); i++)
+                {
+                    if(i != axis && referenced_dims_founded)
+                    {
+                        // Check if static size fits in dynamic range
+                        if(lens[i] < referenced_dims[i].min || lens[i] > referenced_dims[i].max)
+                        {
+                            MIGRAPHX_THROW("CONCAT: Static shape size " + std::to_string(lens[i]) + 
+                                        " is outside dynamic range [" + 
+                                        std::to_string(referenced_dims[i].min) + ", " +
+                                        std::to_string(referenced_dims[i].max) + "] on axis " + 
+                                        std::to_string(i));
+                        }
+                    }
+                }
+            }
+        }
+
+        // Convert all static shapes to dynamic with referenced dimensions
+        std::vector<shape> converted_inputs;
+        for(const auto& input : inputs)
+        {
+            if(!input.dynamic())
+            {
+                std::vector<shape::dynamic_dimension> dyn_dims;
+                auto lens = input.lens();
+                for(std::size_t i = 0; i < lens.size(); i++)
+                {
+                    if(i == axis)
+                    {
+                        dyn_dims.push_back({lens[i], lens[i]});
+                    }
+                    else if(referenced_dims_founded)
+                    {
+                        dyn_dims.push_back(referenced_dims[i]);
+                    }
+                    else
+                    {
+                        dyn_dims.push_back({lens[i], lens[i]});
+                    }
+                }
+                converted_inputs.push_back({input.type(), dyn_dims});
+            }
+            else
+            {
+                converted_inputs.push_back(input);
+            }
+        }
+        inputs = std::move(converted_inputs);
+    }
+
     shape normalize_compute_shape(std::vector<shape> inputs) const
     {
         // inputs can contain 1 or more shapes (variadic).  compute_shape_op ensures there must
         // be at least 1.
         check_shapes{inputs, *this, true}.same_ndims().same_type();
+
+        // Check if we have mixed static and dynamic shapes
+        bool has_static = std::any_of(inputs.begin(), inputs.end(), 
+                                    [](const shape& s) { return !s.dynamic(); });
+        bool has_dynamic = std::any_of(inputs.begin(), inputs.end(), 
+                                    [](const shape& s) { return s.dynamic(); });
+        
+        if(has_static && has_dynamic)
+        {
+            handle_mixed_shapes(inputs);
+        }
 
         if(std::none_of(inputs.begin(), inputs.end(), [&](const shape& s) { return s.dynamic(); }))
         {
@@ -112,18 +211,10 @@ struct concat
         else if(std::all_of(
                     inputs.begin(), inputs.end(), [&](const shape& s) { return s.dynamic(); }))
         {
-            // Dynamic input shapes
-            for(std::size_t index = 0; index < inputs[0].ndim(); index++)
-            {
-                if(index != axis)
-                {
-                    if(not std::all_of(inputs.begin(), inputs.end(), [&](const shape& s) {
-                           return s.dyn_dims()[index] == inputs[0].dyn_dims()[index];
-                       }))
-                        MIGRAPHX_THROW("CONCAT: all input dimensions should match in axis " +
-                                       std::to_string(index));
-                }
-            }
+            // Calculate the dynamic input shapes for the non-concat axes
+            auto common_dyn_dims = compute_common_dyn_dims(inputs);
+            
+            // Update the dynamic dimensions for the concat axis
             std::size_t new_min = 0;
             std::size_t new_max = 0;
             for(const auto& input : inputs)
@@ -133,9 +224,8 @@ struct concat
                 new_max += ddim.max;
             }
 
-            auto new_dims  = inputs[0].dyn_dims();
-            new_dims[axis] = migraphx::shape::dynamic_dimension{new_min, new_max};
-            return {inputs[0].type(), new_dims};
+            common_dyn_dims[axis] = migraphx::shape::dynamic_dimension{new_min, new_max};
+            return {inputs[0].type(), common_dyn_dims};
         }
         else
         {

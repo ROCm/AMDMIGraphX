@@ -194,25 +194,24 @@ struct raw_data : raw_data_base
     /// Implicit conversion of raw data pointer
     auto_cast implicit() const { return {static_cast<const Derived*>(this)}; }
 
-    /// Get a tensor_view to the data
+    /// Get a tensor_view to the data.
+    /// For get<byte>() returns a 1D tensor_view<const byte*>.
     template <class T>
     tensor_view<T> get() const
     {
         auto&& s      = static_cast<const Derived&>(*this).get_shape();
         auto&& buffer = static_cast<const Derived&>(*this).data();
-        if(s.computable() and s.type() != migraphx::shape::get_type<T>{})
-            MIGRAPHX_THROW("Incorrect data type for raw data");
-        return make_view(s, reinterpret_cast<T*>(buffer));
-    }
-
-    /// Specialization for migraphx::byte type
-    template <>
-    tensor_view<const migraphx::byte> get<const byte>() const
-    {
-        auto&& s         = static_cast<const Derived&>(*this).get_shape();
-        auto&& buffer    = static_cast<const Derived&>(*this).data();
-        shape view_shape = {shape::uint8_type, {s.bytes()}};
-        return make_view(view_shape, reinterpret_cast<const migraphx::byte*>(buffer));
+        if constexpr(std::is_same<std::remove_cv_t<T>, migraphx::byte>{})
+        {
+            shape view_shape = {shape::uint8_type, {s.bytes()}};
+            return make_view(view_shape, reinterpret_cast<const migraphx::byte*>(buffer));
+        }
+        else
+        {
+            if(s.computable() and s.type() != migraphx::shape::get_type<T>{})
+                MIGRAPHX_THROW("Incorrect data type for raw data");
+            return make_view(s, reinterpret_cast<T*>(buffer));
+        }
     }
 
     template <class T>

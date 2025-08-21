@@ -40,7 +40,8 @@ struct parse_addn : op_parser<parse_addn>
                           const tf_parser::node_info& info,
                           std::vector<instruction_ref> args) const
     {
-        if(args.size() == 1) return args[0];
+        if(args.size() == 1)
+            return args[0];
 
         if(args.size() < 5) // using heuristic when args exceed over 5 elements
         {
@@ -50,15 +51,21 @@ struct parse_addn : op_parser<parse_addn>
                 sum = info.add_common_op("add", sum, args[i]);
             }
             return sum;
-        } else {
+        }
+        else
+        {
             std::vector<instruction_ref> unsqueezed_args;
-            std::transform(args.begin(), args.end(), 
-                            std::back_inserter(unsqueezed_args),
-                            [&info](instruction_ref arg) {
-                                return info.add_instruction(make_op("unsqueeze", {{"axes", {0}}}), arg);
-                            });
-            auto concatenated = info.add_instruction(make_op("concat", {{"axis", 0}}), unsqueezed_args);
-            auto reduced = info.add_instruction(make_op("reduce_sum", {{"axes", {0}}}), concatenated);
+            std::transform(args.begin(),
+                           args.end(),
+                           std::back_inserter(unsqueezed_args),
+                           [&info](instruction_ref arg) {
+                               return info.add_instruction(make_op("unsqueeze", {{"axes", {0}}}),
+                                                           arg);
+                           });
+            auto concatenated =
+                info.add_instruction(make_op("concat", {{"axis", 0}}), unsqueezed_args);
+            auto reduced =
+                info.add_instruction(make_op("reduce_sum", {{"axes", {0}}}), concatenated);
             return info.add_instruction(make_op("squeeze", {{"axes", {0}}}), reduced);
         }
     }

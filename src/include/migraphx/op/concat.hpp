@@ -86,7 +86,7 @@ struct concat
         {
             if(input.dynamic() && !referenced_dims_founded)
             {
-                referenced_dims = input.dyn_dims();
+                referenced_dims         = input.dyn_dims();
                 referenced_dims_founded = true;
                 break;
             }
@@ -105,8 +105,9 @@ struct concat
                         // Verify compatibility for non-concatenated axes
                         if(referenced_dims[i] != dyn_dims[i])
                         {
-                            MIGRAPHX_THROW("CONCAT: Existed dynamic shapes have incompatible ranges on axis " + 
-                            std::to_string(i));
+                            MIGRAPHX_THROW(
+                                "CONCAT: Existed dynamic shapes have incompatible ranges on axis " +
+                                std::to_string(i));
                         }
                     }
                 }
@@ -127,11 +128,11 @@ struct concat
                         // Check if static size fits in dynamic range
                         if(lens[i] < referenced_dims[i].min || lens[i] > referenced_dims[i].max)
                         {
-                            MIGRAPHX_THROW("CONCAT: Static shape size " + std::to_string(lens[i]) + 
-                                " is outside dynamic range [" + 
-                                std::to_string(referenced_dims[i].min) + ", " +
-                                std::to_string(referenced_dims[i].max) + "] on axis " + 
-                                std::to_string(i));
+                            MIGRAPHX_THROW("CONCAT: Static shape size " + std::to_string(lens[i]) +
+                                           " is outside dynamic range [" +
+                                           std::to_string(referenced_dims[i].min) + ", " +
+                                           std::to_string(referenced_dims[i].max) + "] on axis " +
+                                           std::to_string(i));
                         }
                         dyn_dims.push_back(referenced_dims[i]);
                     }
@@ -153,11 +154,11 @@ struct concat
         check_shapes{inputs, *this, true}.same_ndims().same_type();
 
         // Check if we have mixed static and dynamic shapes
-        bool has_static = std::any_of(inputs.begin(), inputs.end(), 
-                                    [](const shape& s) { return !s.dynamic(); });
-        bool has_dynamic = std::any_of(inputs.begin(), inputs.end(), 
-                                    [](const shape& s) { return s.dynamic(); });
-        
+        bool has_static =
+            std::any_of(inputs.begin(), inputs.end(), [](const shape& s) { return !s.dynamic(); });
+        bool has_dynamic =
+            std::any_of(inputs.begin(), inputs.end(), [](const shape& s) { return s.dynamic(); });
+
         if(has_static && has_dynamic)
         {
             handle_mixed_shapes(inputs);
@@ -196,7 +197,7 @@ struct concat
         {
             // Calculate the dynamic input shapes for the non-concat axes
             auto common_dyn_dims = compute_common_dyn_dims(inputs);
-            
+
             // Update the dynamic dimensions for the concat axis
             std::size_t new_min = 0;
             std::size_t new_max = 0;

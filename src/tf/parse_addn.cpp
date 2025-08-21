@@ -52,11 +52,11 @@ struct parse_addn : op_parser<parse_addn>
             return sum;
         } else {
             std::vector<instruction_ref> unsqueezed_args;
-            for(auto& arg : args)
-            {
-                auto unsqueezed = info.add_instruction(make_op("unsqueeze", {{"axes", {0}}}), arg);
-                unsqueezed_args.push_back(unsqueezed);
-            }
+            std::transform(args.begin(), args.end(), 
+                            std::back_inserter(unsqueezed_args),
+                            [&info](instruction_ref arg) {
+                                return info.add_instruction(make_op("unsqueeze", {{"axes", {0}}}), arg);
+                            });
             auto concatenated = info.add_instruction(make_op("concat", {{"axis", 0}}), unsqueezed_args);
             auto reduced = info.add_instruction(make_op("reduce_sum", {{"axes", {0}}}), concatenated);
             return info.add_instruction(make_op("squeeze", {{"axes", {0}}}), reduced);

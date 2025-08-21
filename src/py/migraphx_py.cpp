@@ -143,6 +143,11 @@ namespace pybind11 {
 namespace detail {
 
 template <>
+struct type_caster<migraphx::value::binary> : list_caster<migraphx::value::binary, std::uint8_t>
+{
+};
+
+template <>
 struct npy_format_descriptor<half>
 {
     static std::string format()

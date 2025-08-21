@@ -148,3 +148,145 @@ TEST_CASE(einsum_right_batch_diagonal_negative_op_builder_test)
                               {3, 3, 3},
                               {}));
 }
+
+TEST_CASE(einsum_trace_of_a_matrix_op_builder_test)
+{
+    const std::vector<size_t> input_shape  = {3, 3};
+    const std::vector<size_t> indices_lens = {3, 2};
+    const std::vector<size_t> indices      = {0, 0, 1, 1, 2, 2};
+    const size_t batch_dims                = 0;
+    const std::vector<int64_t> perm        = {0};
+    const std::vector<int> unsq_axes       = {};
+    const std::vector<int> red             = {0};
+    const std::vector<int> sq_axes         = {0};
+
+    migraphx::module mm;
+
+    auto indices_arg = mm.add_literal(
+        migraphx::literal{migraphx::shape{migraphx::shape::int64_type, indices_lens}, indices});
+    auto a  = mm.add_parameter("a", {migraphx::shape::float_type, input_shape});
+    auto op = mm.add_instruction(
+        migraphx::make_op("gathernd", {{"batch_dims", batch_dims}}), a, indices_arg);
+    op = mm.add_instruction(migraphx::make_op("transpose", {{"permutation", perm}}), op);
+    op = mm.add_instruction(migraphx::make_op("unsqueeze", {{"axes", unsq_axes}}), op);
+    op = mm.add_instruction(migraphx::make_op("reduce_sum", {{"axes", red}}), op);
+    mm.add_instruction(migraphx::make_op("squeeze", {{"axes", sq_axes}}), op);
+
+    EXPECT(mm == make_op_module("einsum", {{"equation", "ii"}}, mm.get_parameters()));
+}
+
+TEST_CASE(einsum_extract_diagonal_op_builder_test)
+{
+    const std::vector<size_t> input_shape  = {3, 3};
+    const std::vector<size_t> indices_lens = {3, 2};
+    const std::vector<size_t> indices      = {0, 0, 1, 1, 2, 2};
+    const size_t batch_dims                = 0;
+    const std::vector<int64_t> perm        = {0};
+    const std::vector<int> unsq_axes       = {};
+
+    migraphx::module mm;
+
+    auto indices_arg = mm.add_literal(
+        migraphx::literal{migraphx::shape{migraphx::shape::int64_type, indices_lens}, indices});
+    auto a  = mm.add_parameter("a", {migraphx::shape::float_type, input_shape});
+    auto op = mm.add_instruction(
+        migraphx::make_op("gathernd", {{"batch_dims", batch_dims}}), a, indices_arg);
+    op = mm.add_instruction(migraphx::make_op("transpose", {{"permutation", perm}}), op);
+    op = mm.add_instruction(migraphx::make_op("unsqueeze", {{"axes", unsq_axes}}), op);
+    op = mm.add_instruction(migraphx::make_op("transpose", {{"permutation", perm}}), op);
+
+    EXPECT(mm == make_op_module("einsum", {{"equation", "ii->i"}}, mm.get_parameters()));
+}
+
+TEST_CASE(einsum_matmul_op_builder_test)
+{
+    const std::vector<size_t> input_shape_a  = {3, 5};
+    const std::vector<size_t> input_shape_b  = {5, 2};
+    const std::vector<int64_t> perm_1        = {0, 1};
+    const std::vector<int> unsq_axes_1       = {2};
+    const std::vector<int> unsq_axes_2       = {0};
+    const std::vector<int64_t> perm_2        = {0, 2, 1};
+    const std::vector<int64_t> reshape_dims1 = {1, -1, 5};
+    const std::vector<int64_t> reshape_dims2 = {3, 2, 1};
+    const std::vector<int> sq_axes           = {1};
+
+    migraphx::module mm;
+
+    auto a = mm.add_parameter("a", {migraphx::shape::float_type, input_shape_a});
+    auto b = mm.add_parameter("b", {migraphx::shape::float_type, input_shape_b});
+
+    auto tr1   = mm.add_instruction(migraphx::make_op("transpose", {{"permutation", perm_1}}), a);
+    auto unsq1 = mm.add_instruction(migraphx::make_op("unsqueeze", {{"axes", unsq_axes_1}}), tr1);
+
+    auto tr2   = mm.add_instruction(migraphx::make_op("transpose", {{"permutation", perm_1}}), b);
+    auto unsq2 = mm.add_instruction(migraphx::make_op("unsqueeze", {{"axes", unsq_axes_2}}), tr2);
+
+    auto tr3 = mm.add_instruction(migraphx::make_op("transpose", {{"permutation", perm_2}}), unsq1);
+    auto tr4 = mm.add_instruction(migraphx::make_op("transpose", {{"permutation", perm_2}}), unsq2);
+
+    auto resh1 = mm.add_instruction(migraphx::make_op("reshape", {{"dims", reshape_dims1}}), tr3);
+    auto resh2 = mm.add_instruction(migraphx::make_op("reshape", {{"dims", reshape_dims1}}), tr4);
+    auto tr5 = mm.add_instruction(migraphx::make_op("transpose", {{"permutation", perm_2}}), resh2);
+    auto dot = mm.add_instruction(migraphx::make_op("dot"), resh1, tr5);
+    auto resh3 = mm.add_instruction(migraphx::make_op("reshape", {{"dims", reshape_dims2}}), dot);
+
+    auto tr6 = mm.add_instruction(migraphx::make_op("transpose", {{"permutation", perm_2}}), resh3);
+    auto sq  = mm.add_instruction(migraphx::make_op("squeeze", {{"axes", sq_axes}}), tr6);
+    mm.add_instruction(migraphx::make_op("transpose", {{"permutation", perm_1}}), sq);
+
+    EXPECT(mm == make_op_module("einsum", {{"equation", "ij,jk"}}, mm.get_parameters()));
+}
+
+TEST_CASE(einsum_matrix_transpose_op_builder_test)
+{
+    const std::vector<size_t> input_shape_a = {3, 5};
+    const std::vector<int64_t> perm_1       = {1, 0};
+    const std::vector<int64_t> perm_2       = {0, 1};
+    const std::vector<int> unsq_axes        = {};
+
+    migraphx::module mm;
+
+    auto a  = mm.add_parameter("a", {migraphx::shape::float_type, input_shape_a});
+    auto op = mm.add_instruction(migraphx::make_op("transpose", {{"permutation", perm_1}}), a);
+    op      = mm.add_instruction(migraphx::make_op("unsqueeze", {{"axes", unsq_axes}}), op);
+    op      = mm.add_instruction(migraphx::make_op("transpose", {{"permutation", perm_2}}), op);
+
+    EXPECT(mm == make_op_module("einsum", {{"equation", "ji"}}, mm.get_parameters()));
+}
+
+TEST_CASE(einsum_element_wise_mul_op_builder_test)
+{
+    const std::vector<size_t> input_shape    = {5};
+    const std::vector<int64_t> perm_1        = {0};
+    const std::vector<int> unsq_axes_1       = {};
+    const std::vector<int> unsq_axes_2       = {};
+    const std::vector<int64_t> perm_2        = {0, 2, 1};
+    const std::vector<int64_t> reshape_dims1 = {5, -1, 1};
+    const std::vector<int64_t> reshape_dims2 = {5};
+    const std::vector<int> sq_axes           = {1};
+
+    migraphx::module mm;
+
+    auto a = mm.add_parameter("a", {migraphx::shape::float_type, input_shape});
+    auto b = mm.add_parameter("b", {migraphx::shape::float_type, input_shape});
+
+    auto tr1   = mm.add_instruction(migraphx::make_op("transpose", {{"permutation", perm_1}}), a);
+    auto unsq1 = mm.add_instruction(migraphx::make_op("unsqueeze", {{"axes", unsq_axes_1}}), tr1);
+
+    auto tr2   = mm.add_instruction(migraphx::make_op("transpose", {{"permutation", perm_1}}), b);
+    auto unsq2 = mm.add_instruction(migraphx::make_op("unsqueeze", {{"axes", unsq_axes_2}}), tr2);
+
+    auto tr3 = mm.add_instruction(migraphx::make_op("transpose", {{"permutation", perm_1}}), unsq1);
+    auto tr4 = mm.add_instruction(migraphx::make_op("transpose", {{"permutation", perm_1}}), unsq2);
+
+    auto resh1 = mm.add_instruction(migraphx::make_op("reshape", {{"dims", reshape_dims1}}), tr3);
+    auto resh2 = mm.add_instruction(migraphx::make_op("reshape", {{"dims", reshape_dims1}}), tr4);
+    auto tr5 = mm.add_instruction(migraphx::make_op("transpose", {{"permutation", perm_2}}), resh2);
+    auto dot = mm.add_instruction(migraphx::make_op("dot"), resh1, tr5);
+    auto resh3 = mm.add_instruction(migraphx::make_op("reshape", {{"dims", reshape_dims2}}), dot);
+
+    auto tr6 = mm.add_instruction(migraphx::make_op("transpose", {{"permutation", perm_1}}), resh3);
+    mm.add_instruction(migraphx::make_op("transpose", {{"permutation", perm_1}}), tr6);
+
+    EXPECT(mm == make_op_module("einsum", {{"equation", "i,i->i"}}, mm.get_parameters()));
+}

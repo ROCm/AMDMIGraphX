@@ -43,8 +43,8 @@ __device__ void pack_fp4(Input input, Output output)
         auto inp_val0 = input[in_idx];
         in_idx[Axis] += 1;
         auto inp_val1    = input[in_idx];
-        uint8_t out_val0 = float_to_fp4(inp_val0);
-        uint8_t out_val1 = float_to_fp4(inp_val1);
+        uint8_t out_val0 = cast_to_fp4(inp_val0);
+        uint8_t out_val1 = cast_to_fp4(inp_val1);
         output[out_idx]  = static_cast<uint8_t>(out_val1 << 4u) | out_val0;
         // auto fp32x2_val = float2{input[idx], input[idx + 1]};
         // output[idx] = __hip_cvt_float2_to_fp4x2(fp32x2_val, __HIP_E2M1, __HIP_SATFINITE);

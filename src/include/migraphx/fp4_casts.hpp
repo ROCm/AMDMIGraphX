@@ -37,6 +37,7 @@ namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
 
 namespace fp4_detail {
+
 template <class T>
 constexpr std::array<T, 16> make_from_fp4_lut(std::array<float, 16> float_lut)
 {
@@ -68,33 +69,11 @@ static constexpr std::array<float, 16> fp4_to_float_lut = {0.0f,
 static constexpr std::array<fp8::fp8e4m3fn, 16> fp4_to_fp8_lut =
     make_from_fp4_lut<fp8::fp8e4m3fn>(fp4_to_float_lut);
 
-// Made this struct for constexpr operator=. Can use std::pair with >= C++20
-template <class T, class U>
-struct to_fp4_pair
-{
-    T first;
-    U second;
-};
-
-template <class T>
-constexpr std::array<to_fp4_pair<T, uint8_t>, 7>
-make_to_fp4_lut(std::array<to_fp4_pair<float, uint8_t>, 7> float_lut)
-{
-    std::array<to_fp4_pair<T, uint8_t>, float_lut.size()> ret{};
-    for(int i = 0; i < float_lut.size(); ++i)
-    {
-        ret[i] = to_fp4_pair<T, uint8_t>{T(float_lut[i].first), float_lut[i].second};
-    }
-    return ret;
-}
-
 // pair is {fp4_tie_value, round_to_zero}, index is the positive fp4 value
 // if round_to_zero round tie towards zero, else round tie away from zero
-static constexpr std::array<to_fp4_pair<float, uint8_t>, 7> float_to_fp4_lut = {
+static constexpr std::array<std::pair<float, uint8_t>, 7> float_to_fp4_lut = {
     {{0.25f, 1}, {0.75f, 0}, {1.25f, 1}, {1.75f, 0}, {2.5f, 1}, {3.5f, 0}, {5.0f, 1}}};
 
-static constexpr std::array<to_fp4_pair<fp8::fp8e4m3fn, uint8_t>, 7> fp8_to_fp4_lut =
-    make_to_fp4_lut<fp8::fp8e4m3fn>(float_to_fp4_lut);
 } // namespace fp4_detail
 
 // converts 4 LSB to float
@@ -112,9 +91,11 @@ constexpr float fp4_to_fp8(uint8_t x)
 // rounding mode = roundToNearestRoundTiesToEven
 // Reference quantization code from Microsoft:
 // https://github.com/microsoft/microxcaling/blob/main/mx/elemwise_ops.py#L82
-// Not constexpr because std::signbit is not constexpr until C++23
-inline uint8_t float_to_fp4(float f_x)
+// Not constexpr because of std::signbit and std::upper_bound not constexpr in C++17
+template <class T>
+inline uint8_t cast_to_fp4(T x)
 {
+    float f_x(x);
     using fp4_detail::float_to_fp4_lut;
     using fp4_detail::fp4_to_float_lut;
     if(std::isnan(f_x))
@@ -129,28 +110,6 @@ inline uint8_t float_to_fp4(float f_x)
                                  float_to_fp4_lut.end(),
                                  std::make_pair(abs_f, uint8_t{0})) -
                 float_to_fp4_lut.begin();
-
-    return i + sign_add;
-}
-
-// see float_to_fp4()
-// fp8e4m3fn to fp4e2m1
-inline uint8_t fp8_to_fp4(float f_x)
-{
-    using fp4_detail::fp4_to_fp8_lut;
-    using fp4_detail::fp8_to_fp4_lut;
-    if(std::isnan(f_x))
-    {
-        return 0;
-    }
-    bool sign        = std::signbit(f_x);
-    uint8_t sign_add = sign ? fp4_to_fp8_lut.size() / 2 : 0u;
-    float abs_f      = std::abs(f_x);
-    // index value is the positive fp4 value
-    uint8_t i = std::upper_bound(fp8_to_fp4_lut.begin(),
-                                 fp8_to_fp4_lut.end(),
-                                 std::make_pair(abs_f, uint8_t{0})) -
-                fp8_to_fp4_lut.begin();
 
     return i + sign_add;
 }

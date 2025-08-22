@@ -60,14 +60,18 @@ static constexpr uint8_t fp4_0_5 = 0x1;
 
 } // namespace fp4_detail
 
+// NOTE: possible to remove float/T casts by making LUTs for each type
 // converts 4 LSB to float
-__device__ constexpr float fp4_to_float(uint8_t x)
+template <class T>
+__device__ constexpr T cast_from_fp4(uint8_t x)
 {
-    return fp4_detail::fp4_lut[x % fp4_detail::fp4_lut.size()];
+    return T(fp4_detail::fp4_lut[x % fp4_detail::fp4_lut.size()]);
 }
 
-__device__ inline uint8_t float_to_fp4(float f_x)
+template <class T>
+__device__ inline uint8_t cast_to_fp4(T x)
 {
+    float f_x        = float(x);
     bool sign        = signbit(f_x);
     uint8_t sign_add = sign ? 0x8u : 0u;
     float abs_f      = abs(f_x);

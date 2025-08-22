@@ -1286,8 +1286,7 @@ struct find_splits
     /** Get argument index that has the split instruction for a group of instructions
      * If instructions in a group have different split indexes, return -1.
      */
-    int get_split_idx(std::vector<instruction_ref> group,
-                      std::vector<instruction_ref> splits) const
+    int get_split_idx(std::vector<instruction_ref> group, std::vector<instruction_ref> splits) const
     {
         auto first_group_inputs = group.front()->inputs();
         auto arg_it =
@@ -1429,7 +1428,7 @@ struct find_splits
                 {
                     if(arg_idx == split_idx)
                         continue;
-                    
+
                     std::vector<instruction_ref> data_args;
                     std::transform(group.begin(),
                                    group.end(),
@@ -1441,7 +1440,7 @@ struct find_splits
                            return not i->can_eval();
                        }))
                         return;
-                    
+
                     all_data_args.push_back(std::move(data_args));
                 }
 
@@ -1465,7 +1464,7 @@ struct find_splits
                 std::vector<instruction_ref> args;
                 args.resize(start->inputs().size());
                 args[split_idx] = ins;
-                
+
                 size_t concat_idx = 0;
                 for(size_t arg_idx = 0; arg_idx < start->inputs().size(); ++arg_idx)
                 {
@@ -1474,7 +1473,7 @@ struct find_splits
                         args[arg_idx] = concat_args[concat_idx++];
                     }
                 }
-                
+
                 c = m.insert_instruction(std::next(ins), op, args, start->module_inputs());
             }
             if(c != m.end())

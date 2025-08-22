@@ -56,21 +56,21 @@ TEST_CASE(basic_graph_test)
     EXPECT(migraphx::contains(test, "peripheries=0"));
     EXPECT(migraphx::contains(
         test,
-        R"("@0"[label=<<TABLE BORDER="0" CELLBORDER="0" CELLPADDING="0" CELLSPACING="0" COLOR="transparent"><TR ALIGN="center"><TD><B>@literal</B></TD></TR></TABLE>> style="filled" fillcolor=lightgray fontcolor=black shape=rectangle fontname=Helvetica];)"));
+        R"("@0"[label=<<TABLE BORDER="0" CELLBORDER="0" CELLPADDING="0" CELLSPACING="0" COLOR="transparent"><TR ALIGN="center"><TD><B>@literal</B></TD></TR></TABLE>> style="filled" fillcolor="#ADD8E6" fontcolor="#000000" color="" shape=rectangle fontname=Helvetica];)"));
     EXPECT(migraphx::contains(
         test,
-        R"("y"[label=<<TABLE BORDER="0" CELLBORDER="0" CELLPADDING="0" CELLSPACING="0" COLOR="transparent"><TR ALIGN="center"><TD><B>@param</B></TD></TR><TR ALIGN="center"><TD>int64_type<BR/>{1}, {0}</TD></TR></TABLE>> style="filled" fillcolor=khaki fontcolor=black shape=rectangle fontname=Helvectica];)"));
+        R"("y"[label=<<TABLE BORDER="0" CELLBORDER="0" CELLPADDING="0" CELLSPACING="0" COLOR="transparent"><TR ALIGN="center"><TD><B>@param</B></TD></TR><TR ALIGN="center"><TD>int64_type<BR/>{1}, {0}</TD></TR></TABLE>> style="filled" fillcolor="#F0E68C" fontcolor="#000000" color="" shape=rectangle fontname=Helvectica];)"));
     EXPECT(migraphx::contains(
         test,
-        R"("x"[label=<<TABLE BORDER="0" CELLBORDER="0" CELLPADDING="0" CELLSPACING="0" COLOR="transparent"><TR ALIGN="center"><TD><B>@param</B></TD></TR><TR ALIGN="center"><TD>int64_type<BR/>{1}, {0}</TD></TR></TABLE>> style="filled" fillcolor=khaki fontcolor=black shape=rectangle fontname=Helvectica];)"));
+        R"("x"[label=<<TABLE BORDER="0" CELLBORDER="0" CELLPADDING="0" CELLSPACING="0" COLOR="transparent"><TR ALIGN="center"><TD><B>@param</B></TD></TR><TR ALIGN="center"><TD>int64_type<BR/>{1}, {0}</TD></TR></TABLE>> style="filled" fillcolor="#F0E68C" fontcolor="#000000" color="" shape=rectangle fontname=Helvectica];)"));
     EXPECT(migraphx::contains(
         test,
-        R"("@3"[label=<<TABLE BORDER="0" CELLBORDER="0" CELLPADDING="4" CELLSPACING="0" COLOR="transparent"><TR ALIGN="center"><TD><B>sum</B></TD></TR></TABLE>> style="rounded,filled" fillcolor=lightgray fontcolor=black shape=none fontname=Helvetica];)"));
+        R"("@3"[label=<<TABLE BORDER="0" CELLBORDER="0" CELLPADDING="4" CELLSPACING="0" COLOR="transparent"><TR ALIGN="center"><TD><B>sum</B></TD></TR></TABLE>> style="rounded,filled" fillcolor="#D3D3D3" fontcolor="#000000" color="" shape=none fontname=Helvetica];)"));
     EXPECT(migraphx::contains(test, R"("x" -> "@3"[label="int64_type\n{1}, {0}"];)"));
     EXPECT(migraphx::contains(test, R"("y" -> "@3"[label="int64_type\n{1}, {0}"];)"));
     EXPECT(migraphx::contains(
         test,
-        R"("@4"[label=<<TABLE BORDER="0" CELLBORDER="0" CELLPADDING="4" CELLSPACING="0" COLOR="transparent"><TR ALIGN="center"><TD><B>sum</B></TD></TR></TABLE>> style="rounded,filled" fillcolor=lightgray fontcolor=black shape=none fontname=Helvetica];)"));
+        R"("@4"[label=<<TABLE BORDER="0" CELLBORDER="0" CELLPADDING="4" CELLSPACING="0" COLOR="transparent"><TR ALIGN="center"><TD><B>sum</B></TD></TR></TABLE>> style="rounded,filled" fillcolor="#D3D3D3" fontcolor="#000000" color="" shape=none fontname=Helvetica];)"));
     EXPECT(migraphx::contains(test, R"("@3" -> "@4"[label="int64_type\n{1}, {0}"];)"));
     EXPECT(migraphx::contains(test, R"("@0" -> "@4"[label="int64_type\n{1}, {0}"];)"));
 }

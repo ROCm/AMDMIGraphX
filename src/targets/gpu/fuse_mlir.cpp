@@ -1215,12 +1215,8 @@ void fuse_mlir::apply(module_pass_manager& mpm) const
     match::find_matches(mpm, find_channel_slice_convolution{});
     mpm.run_pass(dead_code_elimination{});
 
-    // Attention offloads; default disabled
-    if(mlir_attention_enabled(ctx) or enable_extra)
-    {
-        match::find_matches(mpm, find_mlir_attention_op{});
-        mpm.run_pass(dead_code_elimination{});
-    }
+    match::find_matches(mpm, find_mlir_attention_op{});
+    mpm.run_pass(dead_code_elimination{});
 
     match::find_matches(
         mpm,

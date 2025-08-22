@@ -43,7 +43,6 @@ if [[ ("${ID}" == "sles") ]]; then
     python3-pip \
     rocblas-devel \
     rocm-cmake \
-    perl-File-BaseDir \
     libgfortran5 \
     hipblas-devel \
     hipblaslt-devel

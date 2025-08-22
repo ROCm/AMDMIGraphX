@@ -78,6 +78,7 @@ else()
                 -Wodr
                 -Wshift-negative-value
                 -Wshift-overflow=2
+                -Wno-comment
             )
             endif()
         endif()

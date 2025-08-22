@@ -3439,7 +3439,7 @@ TEST_CASE(conv_add_layernorm_conv)
         auto reshape2b = m2.add_instruction(
             migraphx::make_op("broadcast", {{"axis", 1}, {"out_lens", {2, 32, 10, 64, 64}}}),
             reshape2);
-        auto add1 = m2.add_instruction(migraphx::make_op("add"), reshape1, reshape2b);
+        auto add1           = m2.add_instruction(migraphx::make_op("add"), reshape1, reshape2b);
         auto unsqueeze_p_y2 = m2.add_instruction(
             migraphx::make_op("unsqueeze", {{"axes", {1, 2, 3, 4}}, {"steps", {}}}), p_y2);
         auto unsqueeze_p_y2b = m2.add_instruction(
@@ -3451,11 +3451,12 @@ TEST_CASE(conv_add_layernorm_conv)
         auto reduce_sum1b = m2.add_instruction(
             migraphx::make_op("multibroadcast", {{"out_lens", {2, 32, 10, 64, 64}}}), reduce_sum1);
         auto sub1  = m2.add_instruction(migraphx::make_op("sub"), add1, reduce_sum1b);
-        auto mul1  = m2.add_instruction(migraphx::make_op("mul"), add1, add1);
+        auto mul1           = m2.add_instruction(migraphx::make_op("mul"), add1, add1);
         auto unsqueeze_p_y3 = m2.add_instruction(
             migraphx::make_op("unsqueeze", {{"axes", {1, 2, 3, 4}}, {"steps", {}}}), p_y3);
         auto p_y3b = m2.add_instruction(
-            migraphx::make_op("multibroadcast", {{"out_lens", {2,32,10,64,64}}}), unsqueeze_p_y3);
+            migraphx::make_op("multibroadcast", {{"out_lens", {2, 32, 10, 64, 64}}}),
+            unsqueeze_p_y3);
         auto div2 = m2.add_instruction(migraphx::make_op("div"), mul1, p_y3b);
         auto reduce_sum2 =
             m2.add_instruction(migraphx::make_op("reduce_sum", {{"axes", {2, 3, 4}}}), div2);

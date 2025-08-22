@@ -1388,10 +1388,11 @@ shape_transform_descriptor::common_dims(const std::vector<std::size_t>& input_di
 
 std::size_t shape_transform_descriptor::common_rank() const
 {
-    return transform_accumulate(
-        dimensions.begin(), dimensions.end(), std::size_t{0}, std::plus<>{}, [&](const dimension& d) {
-            return d.subdimensions.size();
-        });
+    return transform_accumulate(dimensions.begin(),
+                                dimensions.end(),
+                                std::size_t{0},
+                                std::plus<>{},
+                                [&](const dimension& d) { return d.subdimensions.size(); });
 }
 
 const std::vector<std::size_t>& shape_transform_descriptor::dimension::sub::origin_axis() const

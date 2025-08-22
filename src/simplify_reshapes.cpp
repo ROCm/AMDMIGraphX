@@ -162,7 +162,8 @@ struct find_op_shape_transform_op
         auto reshapes = match::name(shape_transform_ops());
         auto match_op = match::any_of(match::reduce(), match::pointwise());
         auto x_op =
-            // match_op(match::none_of[match::outputs()](match_op()), match::none_of(fusable_split()));
+            // match_op(match::none_of[match::outputs()](match_op()),
+            // match::none_of(fusable_split()));
             match_op(match::none_of(fusable_split()));
         auto reshapes_x_op = reshapes(match::arg(0)(match::skip(reshapes())(x_op.bind("x"))));
         return match_op(match::any_of[match::inputs()](reshapes_x_op.bind("input")));
@@ -317,8 +318,10 @@ struct find_op_shape_transform_op
         if(not is_valid(x_ins, desc))
             return;
 
-        // If we already in the common dimension space then skip if there are other outputs to avoid infinite loop
-        if(ins->get_shape().ndim() == desc.common_rank() and std::any_of(x_ins->outputs().begin(), x_ins->outputs().end(), [&](instruction_ref out) {
+        // If we already in the common dimension space then skip if there are other outputs to avoid
+        // infinite loop
+        if(ins->get_shape().ndim() == desc.common_rank() and
+           std::any_of(x_ins->outputs().begin(), x_ins->outputs().end(), [&](instruction_ref out) {
                return matches_op(out);
            }))
         {

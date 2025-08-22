@@ -22,7 +22,6 @@
  * THE SOFTWARE.
  */
 
-#include <test.hpp>
 #include <op_builder_test_utils.hpp>
 
 TEST_CASE(celu_happy_path_op_builder_test)

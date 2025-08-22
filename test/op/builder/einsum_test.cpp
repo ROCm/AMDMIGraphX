@@ -263,7 +263,6 @@ TEST_CASE(einsum_element_wise_mul_op_builder_test)
     const std::vector<int64_t> perm_2        = {0, 2, 1};
     const std::vector<int64_t> reshape_dims1 = {5, -1, 1};
     const std::vector<int64_t> reshape_dims2 = {5};
-    const std::vector<int> sq_axes           = {1};
 
     migraphx::module mm;
 

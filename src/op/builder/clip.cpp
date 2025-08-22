@@ -1,5 +1,4 @@
-/*
- * The MIT License (MIT)
+/* The MIT License (MIT)
  *
  * Copyright (c) 2015-2025 Advanced Micro Devices, Inc. All rights reserved.
  *
@@ -21,38 +20,44 @@
  * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
  * THE SOFTWARE.
  */
-#include <migraphx/ranges.hpp>
+
+#include <migraphx/common.hpp>
 #include <migraphx/instruction.hpp>
-#include <migraphx/onnx/op_parser.hpp>
+#include <migraphx/make_op.hpp>
+#include <migraphx/ranges.hpp>
+#include <migraphx/op/builder/op_builder.hpp>
 #include <migraphx/op/builder/insert.hpp>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
-namespace onnx {
+namespace op {
+namespace builder {
 
-struct parse_clip : op_parser<parse_clip>
+struct clip : op_builder<clip>
 {
-    std::vector<op_desc> operators() const { return {{"Clip"}}; }
-
-    instruction_ref parse(const op_desc& /*opd*/,
-                          const onnx_parser& parser,
-                          onnx_parser::node_info info,
-                          std::vector<instruction_ref> args) const
+    template <class Self, class F>
+    static auto reflect(Self&, F)
     {
-        if(args.size() == 1 and contains(info.attributes, "min") and
-           contains(info.attributes, "max"))
-        {
+        return pack();
+    }
 
-            float min_val = parser.parse_value(info.attributes.at("min")).at<float>();
-            float max_val = parser.parse_value(info.attributes.at("max")).at<float>();
-            args.push_back(info.add_literal(min_val));
-            args.push_back(info.add_literal(max_val));
-        }
+    std::vector<instruction_ref>
+    insert(module& m, instruction_ref ins, const std::vector<instruction_ref>& args) const
+    {
+        bool max_used = args.size() == 3 and not args[2]->is_undefined();
+        bool min_used = args.size() >= 2 and not args[1]->is_undefined();
 
-        return op::builder::add("clip", *info.mod, args, {}).at(0);
+        if(min_used and max_used)
+            return {insert_common_op(m, ins, make_op("clip"), args)};
+        if(max_used)
+            return {insert_common_op(m, ins, "min", args[0], args[2])};
+        if(min_used)
+            return {insert_common_op(m, ins, "max", args[0], args[1])};
+        return {m.insert_instruction(ins, make_op("identity"), args[0])};
     }
 };
 
-} // namespace onnx
+} // namespace builder
+} // namespace op
 } // namespace MIGRAPHX_INLINE_NS
 } // namespace migraphx

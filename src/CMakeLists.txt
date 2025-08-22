@@ -416,8 +416,6 @@ endif()
 if(BUILD_DEV)
     target_compile_definitions(migraphx PUBLIC -DBUILD_DEV)
 endif()
-find_package(protobuf REQUIRED CONFIG)
-target_link_libraries(migraphx INTERFACE protobuf::libprotobuf)
 target_compile_definitions(migraphx PUBLIC MIGRAPHX_CXX_COMPILER="${CMAKE_CXX_COMPILER}")
 
 rocm_export_targets(

@@ -21,29 +21,32 @@
 # OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 # THE SOFTWARE.
 #####################################################################################
-find_package(Protobuf REQUIRED)
+find_package(protobuf REQUIRED CONFIG)
+add_library(tf-proto STATIC)
 
-protobuf_generate_cpp(
-    PROTO_SRCS PROTO_HDRS 
-    graph.proto
-    node_def.proto
-    attr_value.proto
-    tensor.proto
-    tensor_shape.proto
-    resource_handle.proto
-    types.proto
-    function.proto
-    op_def.proto
-    versions.proto
+protobuf_generate(
+    TARGET tf-proto
+    PROTOS 
+        graph.proto
+        node_def.proto
+        attr_value.proto
+        tensor.proto
+        tensor_shape.proto
+        resource_handle.proto
+        types.proto
+        function.proto
+        op_def.proto
+        versions.proto
 )
-add_library(tf-proto STATIC ${PROTO_SRCS})
-target_include_directories(tf-proto SYSTEM PUBLIC ${CMAKE_CURRENT_BINARY_DIR} ${PROTOBUF_INCLUDE_DIR})
+
+target_include_directories(tf-proto SYSTEM PUBLIC ${CMAKE_CURRENT_BINARY_DIR})
+target_link_libraries(tf-proto PUBLIC protobuf::libprotobuf)
+
 if(MSVC)
     target_compile_options(tf-proto PRIVATE /w)
 else()
     target_compile_options(tf-proto PRIVATE -w)
 endif()
-target_link_libraries(tf-proto PRIVATE ${PROTOBUF_LIBRARY})
 set_target_properties(tf-proto PROPERTIES POSITION_INDEPENDENT_CODE On)
 
 file(GLOB TF_SRCS CONFIGURE_DEPENDS *.cpp)

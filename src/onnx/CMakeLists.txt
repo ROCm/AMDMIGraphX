@@ -21,17 +21,22 @@
 # OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 # THE SOFTWARE.
 #####################################################################################
-find_package(Protobuf REQUIRED)
+find_package(protobuf REQUIRED CONFIG)
+add_library(onnx-proto STATIC)
 
-protobuf_generate_cpp(PROTO_SRCS PROTO_HDRS onnx.proto)
-add_library(onnx-proto STATIC ${PROTO_SRCS})
-target_include_directories(onnx-proto SYSTEM PUBLIC ${CMAKE_CURRENT_BINARY_DIR} ${PROTOBUF_INCLUDE_DIR})
+protobuf_generate(
+    TARGET onnx-proto
+    PROTOS onnx.proto
+)
+
+target_include_directories(onnx-proto SYSTEM PUBLIC ${CMAKE_CURRENT_BINARY_DIR})
+target_link_libraries(onnx-proto PUBLIC protobuf::libprotobuf)
+
 if(MSVC)
     target_compile_options(onnx-proto PRIVATE /w)
 else()
     target_compile_options(onnx-proto PRIVATE -w)
 endif()
-target_link_libraries(onnx-proto PRIVATE ${PROTOBUF_LIBRARY})
 set_target_properties(onnx-proto PROPERTIES POSITION_INDEPENDENT_CODE On)
 
 file(GLOB ONNX_SRCS CONFIGURE_DEPENDS *.cpp)

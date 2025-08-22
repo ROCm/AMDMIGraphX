@@ -54,7 +54,6 @@ include(CTest)
 
 find_package(ROCmCMakeBuildTools REQUIRED)
 find_package(Threads REQUIRED)
-find_package(absl REQUIRED)
 
 option(MIGRAPHX_ENABLE_PYTHON "Enable python bindings" ON)
 

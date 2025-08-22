@@ -61,11 +61,9 @@ TEST_CASE(celu_zero_alpha_op_builder_test)
 
     const float alpha = 0.0f;
 
-    EXPECT(test::throws<migraphx::exception>(
-        [&] {
-            make_op_module("celu", {{"alpha", alpha}}, {});
-        },
-        "alpha is zero (division by zero)"));
+    EXPECT(
+        test::throws<migraphx::exception>([&] { make_op_module("celu", {{"alpha", alpha}}, {}); },
+                                        "alpha is zero (division by zero)"));
 }
 
 TEST_CASE(celu_wrong_shape_type_op_builder_test)
@@ -77,8 +75,6 @@ TEST_CASE(celu_wrong_shape_type_op_builder_test)
     mm.add_parameter("x", s);
 
     EXPECT(test::throws<migraphx::exception>(
-        [&] {
-            make_op_module("celu", {{"alpha", alpha}}, mm.get_parameters());
-        },
+        [&] { make_op_module("celu", {{"alpha", alpha}}, mm.get_parameters()); },
         "input tensor not float type"));
 }

@@ -125,6 +125,22 @@ struct find_nested_shape_transforms
 struct find_op_shape_transform_op
 {
     bool enable = true;
+
+    static const auto& shape_transform_ops()
+    {
+        static const std::unordered_set<std::string> names = {
+            "reshape",
+            "squeeze",
+            "unsqueeze",
+            "flatten",
+            "transpose",
+            "contiguous",
+            "multibroadcast",
+            "broadcast",
+        };
+        return names;
+    }
+
     static auto fusable_split()
     {
         return match::make_basic_pred_matcher([&](instruction_ref ins) {
@@ -143,19 +159,18 @@ struct find_op_shape_transform_op
 
     auto matcher() const
     {
-        auto reshapes = match::name("reshape",
-                                    "squeeze",
-                                    "unsqueeze",
-                                    "flatten",
-                                    "transpose",
-                                    "contiguous",
-                                    "multibroadcast",
-                                    "broadcast");
+        auto reshapes = match::name(shape_transform_ops());
         auto match_op = match::any_of(match::reduce(), match::pointwise());
         auto x_op =
-            match_op(match::none_of[match::outputs()](match_op()), match::none_of(fusable_split()));
+            // match_op(match::none_of[match::outputs()](match_op()), match::none_of(fusable_split()));
+            match_op(match::none_of(fusable_split()));
         auto reshapes_x_op = reshapes(match::arg(0)(match::skip(reshapes())(x_op.bind("x"))));
         return match_op(match::any_of[match::inputs()](reshapes_x_op.bind("input")));
+    }
+
+    static bool matches_op(instruction_ref ins)
+    {
+        return is_reduce(ins) or ins->get_operator().attributes().contains("pointwise");
     }
 
     static bool is_reduce(instruction_ref ins) { return starts_with(ins->name(), "reduce_"); }
@@ -301,6 +316,14 @@ struct find_op_shape_transform_op
 
         if(not is_valid(x_ins, desc))
             return;
+
+        // If we already in the common dimension space then skip if there are other outputs to avoid infinite loop
+        if(ins->get_shape().ndim() == desc.common_rank() and std::any_of(x_ins->outputs().begin(), x_ins->outputs().end(), [&](instruction_ref out) {
+               return matches_op(out);
+           }))
+        {
+            return;
+        }
 
         auto reshape_input = [&](const auto& ins_to_insert, const auto& gdesc) {
             return [&](auto input) {

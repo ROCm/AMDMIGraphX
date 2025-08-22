@@ -1190,14 +1190,6 @@ void shape_transform_descriptor::flatten_broadcast()
         std::for_each(d.subdimensions.begin(), d.subdimensions.end(), &flatten_broadcasted_dim);
 }
 
-static std::size_t common_size(const std::vector<dimension>& dims)
-{
-    return transform_accumulate(
-        dims.begin(), dims.end(), std::size_t{0}, std::plus<>{}, [&](const dimension& d) {
-            return d.subdimensions.size();
-        });
-}
-
 shape_transform_descriptor shape_transform_descriptor::to_common_from_src() const
 {
     shape_transform_descriptor result;
@@ -1254,7 +1246,7 @@ shape_transform_descriptor shape_transform_descriptor::to_common_from_dst() cons
 shape_transform_descriptor shape_transform_descriptor::to_dst_from_common() const
 {
     shape_transform_descriptor result = *this;
-    result.rank                       = common_size(result.dimensions);
+    result.rank                       = result.common_rank();
     if(result.rank == 0)
     {
         result.rank = 1;
@@ -1392,6 +1384,14 @@ shape_transform_descriptor::common_dims(const std::vector<std::size_t>& input_di
     if(result.empty())
         result.resize(rank, 1);
     return result;
+}
+
+std::size_t shape_transform_descriptor::common_rank() const
+{
+    return transform_accumulate(
+        dimensions.begin(), dimensions.end(), std::size_t{0}, std::plus<>{}, [&](const dimension& d) {
+            return d.subdimensions.size();
+        });
 }
 
 const std::vector<std::size_t>& shape_transform_descriptor::dimension::sub::origin_axis() const

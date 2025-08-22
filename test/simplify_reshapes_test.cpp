@@ -3440,8 +3440,6 @@ TEST_CASE(conv_add_layernorm_conv)
             migraphx::make_op("broadcast", {{"axis", 1}, {"out_lens", {2, 32, 10, 64, 64}}}),
             reshape2);
         auto add1 = m2.add_instruction(migraphx::make_op("add"), reshape1, reshape2b);
-        auto reshape3 =
-            m2.add_instruction(migraphx::make_op("reshape", {{"dims", {2, 32, 40960}}}), add1);
         auto unsqueeze_p_y2 = m2.add_instruction(
             migraphx::make_op("unsqueeze", {{"axes", {1, 2, 3, 4}}, {"steps", {}}}), p_y2);
         auto unsqueeze_p_y2b = m2.add_instruction(
@@ -3453,14 +3451,12 @@ TEST_CASE(conv_add_layernorm_conv)
         auto reduce_sum1b = m2.add_instruction(
             migraphx::make_op("multibroadcast", {{"out_lens", {2, 32, 10, 64, 64}}}), reduce_sum1);
         auto sub1  = m2.add_instruction(migraphx::make_op("sub"), add1, reduce_sum1b);
-        auto mul1  = m2.add_instruction(migraphx::make_op("mul"), reshape3, reshape3);
+        auto mul1  = m2.add_instruction(migraphx::make_op("mul"), add1, add1);
+        auto unsqueeze_p_y3 = m2.add_instruction(
+            migraphx::make_op("unsqueeze", {{"axes", {1, 2, 3, 4}}, {"steps", {}}}), p_y3);
         auto p_y3b = m2.add_instruction(
-            migraphx::make_op("multibroadcast", {{"out_lens", {2, 32, 40960}}}), p_y3);
-        auto reshape4 =
-            m2.add_instruction(migraphx::make_op("reshape", {{"dims", {2, 32, 10, 64, 64}}}), mul1);
-        auto reshape5 = m2.add_instruction(
-            migraphx::make_op("reshape", {{"dims", {2, 32, 10, 64, 64}}}), p_y3b);
-        auto div2 = m2.add_instruction(migraphx::make_op("div"), reshape4, reshape5);
+            migraphx::make_op("multibroadcast", {{"out_lens", {2,32,10,64,64}}}), unsqueeze_p_y3);
+        auto div2 = m2.add_instruction(migraphx::make_op("div"), mul1, p_y3b);
         auto reduce_sum2 =
             m2.add_instruction(migraphx::make_op("reduce_sum", {{"axes", {2, 3, 4}}}), div2);
         auto mul2 = m2.add_instruction(migraphx::make_op("mul"), reduce_sum1, reduce_sum1);

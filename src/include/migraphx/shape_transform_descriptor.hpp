@@ -96,6 +96,7 @@ struct MIGRAPHX_EXPORT shape_transform_descriptor
     void flatten_broadcast();
 
     std::vector<std::size_t> common_dims(const std::vector<std::size_t>& input_dims = {}) const;
+    std::size_t common_rank() const;
 
     shape_transform_descriptor to_common_from_src() const;
     shape_transform_descriptor to_common_from_dst() const;

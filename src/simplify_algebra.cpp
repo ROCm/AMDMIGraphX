@@ -1387,75 +1387,72 @@ struct find_splits
             assert(std::none_of(
                 std::next(group.begin()), group.end(), [&](auto i) { return i == start; }));
 
-            auto split_idx    = 0;
-            instruction_ref c = m.end();
-            if(start->inputs().size() == 1)
+            // Find the split input index (should be the same for all in group)
+            int split_idx = -1;
+            for(size_t idx = 0; idx < start->inputs().size(); ++idx)
             {
-                c = m.insert_instruction(std::next(ins), op, {ins}, start->module_inputs());
+                if(std::find(splits.begin(), splits.end(), start->inputs()[idx]) != splits.end())
+                {
+                    split_idx = static_cast<int>(idx);
+                    break;
+                }
             }
-            else if(start->inputs().size() == 2)
+            if(split_idx < 0) continue;
+
+            // For all other argument indices, check if all are constants
+            std::vector<size_t> data_indices;
+            for(size_t idx = 0; idx < start->inputs().size(); ++idx)
             {
-                assert(not std::none_of(start->inputs().begin(), start->inputs().end(), [](auto i) {
-                    return i->name() == "slice";
-                }) and "one argument must be a split");
+                if(static_cast<int>(idx) != split_idx)
+                    data_indices.push_back(idx);
+            }
 
-                auto slice_op = any_cast<op::slice>(splits.front()->get_operator());
-                assert(not slice_op.axes.empty());
-                if(slice_op.axes.size() > 1)
-                    return;
-                auto concat_axis = slice_op.axes.front();
-                if(not concat_const_foldable(group.begin(), group.end(), concat_axis))
-                    return;
-
-                split_idx = get_binary_op_split_idx(group, splits);
-                assert(split_idx < 2);
-                size_t data_idx;
-                if(split_idx < 0 and op.attributes().contains("commutative"))
+            // For each data index, collect the args and check if all are constants
+            std::vector<std::vector<instruction_ref>> all_data_args(data_indices.size());
+            bool all_constants = true;
+            for(size_t di = 0; di < data_indices.size(); ++di)
+            {
+                for(auto i : group)
                 {
-                    split_idx = 0;
-                    data_idx  = 1;
-                    align_commutative_op_args(m, group, splits, split_idx);
+                    auto arg = i->inputs()[data_indices[di]];
+                    all_data_args[di].push_back(arg);
+                    if(!arg->can_eval())
+                        all_constants = false;
                 }
-                else if(split_idx < 0)
-                {
-                    return;
-                }
-                else
-                {
-                    data_idx = split_idx == 0 ? 1 : 0;
-                }
+            }
+            if(!all_constants) continue;
 
-                std::vector<instruction_ref> data_args;
-                std::transform(group.begin(),
-                               group.end(),
-                               std::back_inserter(data_args),
-                               [&](auto i) { return i->inputs()[data_idx]; });
+            // Get concat axis from the split
+            auto slice_op = any_cast<op::slice>(splits.front()->get_operator());
+            assert(!slice_op.axes.empty());
+            if(slice_op.axes.size() > 1) return;
+            auto concat_axis = slice_op.axes.front();
 
-                // Data arguments must be a constant
-                if(std::any_of(data_args.begin(), data_args.end(), [](auto i) {
-                       return not i->can_eval();
-                   }))
-                    return;
-
+            // Concat each set of data args
+            std::vector<instruction_ref> concats;
+            for(const auto& data_args : all_data_args)
+            {
                 move_instructions_back(m, ins, data_args);
-
-                // TODO: Check if axises match
                 auto concat = m.insert_instruction(
                     ins, make_op("concat", {{"axis", concat_axis}}), data_args);
-
-                std::vector<instruction_ref> args;
-                args.resize(2);
-                args[split_idx] = ins;
-                args[data_idx]  = concat;
-                c = m.insert_instruction(std::next(ins), op, {args}, start->module_inputs());
+                concats.push_back(concat);
             }
+
+            // Build argument list for fused op
+            std::vector<instruction_ref> args(start->inputs().size());
+            args[split_idx] = ins;
+            for(size_t di = 0; di < data_indices.size(); ++di)
+            {
+                args[data_indices[di]] = concats[di];
+            }
+            instruction_ref c = m.insert_instruction(std::next(ins), op, args, start->module_inputs());
+
             if(c != m.end())
             {
                 for(auto i : group)
                 {
                     auto split = i->inputs()[split_idx];
                     assert(split->name() == "slice");
-
                     m.replace_instruction(i, split->get_operator(), c);
                 }
             }

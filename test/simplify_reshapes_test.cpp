@@ -2002,6 +2002,53 @@ TEST_CASE(pointwise_reshape_unary_pointwise)
     EXPECT(m1 == m2);
 }
 
+TEST_CASE(pointwise_reshape_unary_pointwise_multi_use)
+{
+    migraphx::shape s1{migraphx::shape::half_type, {2, 32, 10, 64, 64}};
+    migraphx::shape s2{migraphx::shape::float_type, {2, 32, 40960}};
+    migraphx::module m1;
+    {
+        auto x = m1.add_parameter("x", s1);
+        auto y = m1.add_parameter("y", s1);
+        auto z = m1.add_parameter("z", s2);
+        
+        auto add = m1.add_instruction(migraphx::make_op("add"), x, y);
+        auto reshape1 = m1.add_instruction(migraphx::make_op("reshape", {{"dims", {2, 32, 40960}}}), add);
+        auto convert2 = m1.add_instruction(migraphx::make_op("convert", {{"target_type", migraphx::shape::float_type}}), reshape1);
+        auto div = m1.add_instruction(migraphx::make_op("div"), convert2, z);
+        auto sqrt = m1.add_instruction(migraphx::make_op("sqrt"), add);
+        auto reshape2 = m1.add_instruction(migraphx::make_op("reshape", {{"dims", {2, 32, 40960}}}), sqrt);
+        auto relu = m1.add_instruction(migraphx::make_op("relu"), add);
+        auto reshape3 = m1.add_instruction(migraphx::make_op("reshape", {{"dims", {2, 32, 40960}}}), relu);
+        auto mul = m1.add_instruction(migraphx::make_op("mul"), reshape2, reshape3);
+        m1.add_return({div, mul});
+    }
+    
+    auto output_shapes = m1.get_output_shapes();
+    run_pass(m1);
+    
+    migraphx::module m2;
+    {
+        auto x = m2.add_parameter("x", s1);
+        auto y = m2.add_parameter("y", s1);
+        auto z = m2.add_parameter("z", s2);
+        
+        auto add = m2.add_instruction(migraphx::make_op("add"), x, y);
+        auto convert2 = m2.add_instruction(migraphx::make_op("convert", {{"target_type", migraphx::shape::float_type}}), add);
+        auto zreshape = m2.add_instruction(migraphx::make_op("reshape", {{"dims", {2, 32, 10, 64, 64}}}), z);
+        auto div = m2.add_instruction(migraphx::make_op("div"), convert2, zreshape);
+        auto reshape2 = m2.add_instruction(migraphx::make_op("reshape", {{"dims", {2, 32, 40960}}}), div);
+        auto sqrt = m2.add_instruction(migraphx::make_op("sqrt"), add);
+        auto relu = m2.add_instruction(migraphx::make_op("relu"), add);
+        auto mul = m2.add_instruction(migraphx::make_op("mul"), sqrt, relu);
+        auto reshape3 = m2.add_instruction(migraphx::make_op("reshape", {{"dims", {2, 32, 40960}}}), mul);
+        m2.add_return({reshape2, reshape3});
+    }
+    
+    EXPECT(m1.get_output_shapes() == output_shapes);
+    EXPECT(m1.sort() == m2.sort());
+}
+
 TEST_CASE(literal_reshape_unary_transpose_pointwise)
 {
     auto s1 = migraphx::shape{migraphx::shape::float_type, {2, 8, 5, 5}};

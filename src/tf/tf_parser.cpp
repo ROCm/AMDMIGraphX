@@ -290,7 +290,9 @@ void tf_parser::parse_graph(const tensorflow::GraphDef& graph)
     if(enabled(MIGRAPHX_TRACE_TF_INPUTS{}) and not map_input_dims.empty())
     {
         std::cout << "--input-dim ";
-        for(auto&& name : input_nodes)
+        std::vector<std::string> sorted_nodes(input_nodes.begin(), input_nodes.end());
+        std::sort(sorted_nodes.begin(), sorted_nodes.end());
+        for(auto&& name : sorted_nodes)
         {
             std::vector<size_t> dims = map_input_dims.at(name);
             std::cout << "@" << name << " ";

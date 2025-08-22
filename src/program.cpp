@@ -571,7 +571,8 @@ std::vector<argument> program::eval(parameter_map params, execution_environment 
     if(exec_env.async)
     {
         assert(contexts.size() == 1);
-        contexts.front().wait_for(exec_env.queue);
+        // contexts.front().wait_for(exec_env.queue);
+        contexts.front().set_external(exec_env.queue);
     }
 
     if(trace_level > 0)
@@ -633,11 +634,11 @@ std::vector<argument> program::eval(parameter_map params, execution_environment 
         ret = generic_eval(*this, contexts, std::move(params), [&](auto&&, auto f) { return f(); });
     }
 
-    if(exec_env.async)
-    {
-        assert(contexts.size() == 1);
-        contexts.front().finish_on(exec_env.queue);
-    }
+    // if(exec_env.async)
+    // {
+    //     assert(contexts.size() == 1);
+    //     contexts.front().finish_on(exec_env.queue);
+    // }
 
     return ret;
 }

@@ -77,6 +77,11 @@ void finish_on_context(T&, any_ptr)
 {
 }
 
+template <class T>
+void set_external_context(T&, any_ptr)
+{
+}
+
 #ifdef TYPE_ERASED_DECLARATION
 
 // Type-erased interface for:
@@ -92,6 +97,8 @@ struct MIGRAPHX_EXPORT context
     void wait_for(any_ptr queue);
     // (optional)
     void finish_on(any_ptr queue);
+    // (optional)
+    void set_external(any_ptr queue);
     //
     void finish() const;
 };
@@ -168,6 +175,22 @@ struct context
     {
         finish_on_context(private_detail_te_self, queue);
     }
+
+    template <class T>
+    static auto private_detail_te_default_set_external(char, T&& private_detail_te_self, any_ptr queue)
+        -> decltype(private_detail_te_self.set_external(queue))
+    {
+        private_detail_te_self.set_external(queue);
+    }
+
+    template <class T>
+    static void
+    private_detail_te_default_set_external(float, T&& private_detail_te_self, any_ptr queue)
+    {
+        set_external_context(private_detail_te_self, queue);
+    }
+
+
 
     template <class PrivateDetailTypeErasedT>
     struct private_te_unwrap_reference
@@ -301,6 +324,12 @@ struct context
         (*this).private_detail_te_get_handle().finish_on(queue);
     }
 
+    void set_external(any_ptr queue)
+    {
+        assert((*this).private_detail_te_handle_mem_var);
+        (*this).private_detail_te_get_handle().set_external(queue);
+    }
+
     void finish() const
     {
         assert((*this).private_detail_te_handle_mem_var);
@@ -325,6 +354,7 @@ struct context
         virtual any_ptr get_queue()             = 0;
         virtual void wait_for(any_ptr queue)    = 0;
         virtual void finish_on(any_ptr queue)   = 0;
+        virtual void set_external(any_ptr queue) = 0;
         virtual void finish() const             = 0;
     };
 
@@ -384,6 +414,12 @@ struct context
         {
 
             private_detail_te_default_finish_on(char(0), private_detail_te_value, queue);
+        }
+
+        void set_external(any_ptr queue) override
+        {
+
+            private_detail_te_default_set_external(char(0), private_detail_te_value, queue);
         }
 
         void finish() const override { private_detail_te_value.finish(); }

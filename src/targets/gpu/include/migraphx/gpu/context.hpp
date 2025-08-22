@@ -89,6 +89,11 @@ struct hip_device
 
         hipStream_t get()
         {
+            if(external_s.unsafe_get() != nullptr)
+            {
+                setup();
+                return external_s.get<hipStream_t>();
+            }
             if(not enabled(MIGRAPHX_ENABLE_NULL_STREAM{}))
             {
                 setup();
@@ -169,9 +174,15 @@ struct hip_device
                 MIGRAPHX_THROW("Failed to record: " + hip_error(status));
         }
 
+        void set_external_stream(any_ptr es_ptr)
+        {
+            external_s = es_ptr;
+        }
+
         private:
         std::size_t id           = 0;
         shared<hip_stream_ptr> s = nullptr;
+        any_ptr external_s = any_ptr{};
 #if MIGRAPHX_USE_MIOPEN
         shared<miopen_handle> mihandle = nullptr;
 #endif
@@ -195,6 +206,8 @@ struct hip_device
     const stream& get_stream(std::size_t n) const { return streams.at(n); }
 
     void set_stream(std::size_t n) { current_stream = n; }
+
+    void set_external_stream(any_ptr es_ptr) { streams.at(current_stream).set_external_stream(es_ptr); }
 
     std::size_t nstreams() const { return streams.size(); }
 
@@ -279,6 +292,7 @@ struct context
     }
 
     void set_stream(std::size_t n) { get_current_device().set_stream(n); }
+    void set_external(any_ptr es_ptr) { get_current_device().set_external_stream(es_ptr); }
 
     void create_events(std::size_t num_of_events)
     {

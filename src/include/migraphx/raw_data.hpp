@@ -123,8 +123,8 @@ struct raw_data : raw_data_base
         }
         else
         {
-            auto&& buffer     = static_cast<const Derived&>(*this).data();
-            shape view_shape  = {shape::uint8_type, {s.bytes()}};
+            auto&& buffer    = static_cast<const Derived&>(*this).data();
+            shape view_shape = {shape::uint8_type, {s.bytes()}};
             v(make_view(view_shape, reinterpret_cast<byte*>(buffer)));
         }
     }

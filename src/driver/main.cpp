@@ -117,6 +117,7 @@ struct loader
     bool mlir                   = false;
     bool skip_unknown_operators = false;
     bool brief                  = false;
+    bool verbose                = false;
     std::string output_type;
     std::string output;
     std::string default_dyn_dim;
@@ -632,29 +633,43 @@ struct compiler
                 }
             }
 
+            std::cout << "The program is already compiled, skipping compilation ..." << std::endl;
+            if(to_fp16 or to_bf16 or to_int8 or to_fp8 or to_int4)
+            {
+                std::cerr
+                    << "[WARNING]: Quantization options are ignored as the program is already "
+                       "compiled."
+                    << std::endl;
+            }
             return p;
         }
         auto t = ct.get_target();
         if(to_fp16)
         {
+            std::cout << "Quantizing to fp16 ... " << std::endl;
             quantize_fp16(p);
         }
         if(to_bf16)
         {
+            std::cout << "Quantizing to bf16 ... " << std::endl;
             quantize_bf16(p);
         }
         if(to_int8)
         {
+            std::cout << "Quantizing to int8 ... " << std::endl;
             quantize_int8(p, t, {host_params(p)});
         }
         if(to_fp8)
         {
+            std::cout << "Quantizing to fp8 ... " << std::endl;
             quantize_fp8(p, t, {host_params(p)});
         }
         if(to_int4)
         {
+            std::cout << "Quantizing weights to int4 ... " << std::endl;
             quantize_int4_weights(p);
         }
+        std::cout << "Compiling ... " << std::endl;
         p.compile(t, co);
         l.save(p);
         return p;
@@ -766,11 +781,7 @@ struct compile : command<compile>
     compiler c;
     void parse(argument_parser& ap) { c.parse(ap); }
 
-    void run()
-    {
-        std::cout << "Compiling ... " << std::endl;
-        c.compile();
-    }
+    void run() { c.compile(); }
 };
 
 struct run_cmd : command<run_cmd>
@@ -780,7 +791,6 @@ struct run_cmd : command<run_cmd>
 
     void run()
     {
-        std::cout << "Compiling ... " << std::endl;
         auto p = c.compile();
         std::cout << "Allocating params ... " << std::endl;
         auto m = c.params(p);
@@ -801,7 +811,6 @@ struct time_cmd : command<time_cmd>
 
     void run()
     {
-        std::cout << "Compiling ... " << std::endl;
         auto p = c.compile();
         std::cout << "Allocating params ... " << std::endl;
         auto m = c.params(p);
@@ -828,7 +837,6 @@ struct perf : command<perf>
 
     void run()
     {
-        std::cout << "Compiling ... " << std::endl;
         auto p = c.compile();
         std::cout << "Allocating params ... " << std::endl;
         auto m = c.params(p);
@@ -844,7 +852,6 @@ struct roctx : command<roctx>
 
     void run()
     {
-        std::cout << "Compiling ... " << std::endl;
         auto p = c.compile();
         std::cout << "Allocating params ... " << std::endl;
         auto m = c.params(p);

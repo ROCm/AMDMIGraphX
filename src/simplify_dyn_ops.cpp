@@ -57,9 +57,29 @@ struct find_broadcast_with_dims_static
         std::vector<size_t> sizes_vec;
         inputs.at(1)->eval().visit(
             [&](auto output) { sizes_vec.assign(output.begin(), output.end()); });
-
-        m.replace_instruction(
-            ins, make_op("multibroadcast", {{"out_lens", sizes_vec}}), inputs.at(0));
+        // inserted by tile op, for now just set to current batch size
+        if(std::all_of(sizes_vec.begin(), sizes_vec.end(), [](auto val) { return val == 0;}))
+        {
+            if(not contains(m.name(), "dim_"))
+            {
+                MIGRAPHX_THROW("unsupported submodule for tile replacement");
+            }
+            size_t batch_size = std::stoi(remove_prefix(m.name(), "dim_"));
+            auto dyn_dims = ins->get_shape().dyn_dims();
+            std::vector<size_t> new_dims;
+            std::transform(dyn_dims.begin(), dyn_dims.end(), std::back_inserter(new_dims),
+                [&](auto ddim) {
+                    if(ddim.is_fixed())
+                        return ddim.max;
+                    return batch_size;
+                }
+            );
+            m.replace_instruction(
+                ins, make_op("multibroadcast", {{"out_lens", new_dims}}), inputs.at(0));
+        }
+        else
+            m.replace_instruction(
+                ins, make_op("multibroadcast", {{"out_lens", sizes_vec}}), inputs.at(0));
     }
 };
 

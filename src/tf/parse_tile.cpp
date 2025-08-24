@@ -51,13 +51,19 @@ struct parse_tile : op_parser<parse_tile>
         // that is equal to the batch being used for other params
         {
             auto s0 = args[0]->get_shape();
-            if(s0.dynamic())
+            if(s0.dynamic() or parser.default_dyn_dim_value.max > parser.default_dyn_dim_value.min)
             {
+                if(not s0.dynamic())
+                    s0 = s0.to_dynamic();
                 auto out_dyn_dims = s0.dyn_dims();
-                out_dyn_dims[0] = parser.default_dyn_dim_value;
-                auto tile_param = info.mm->add_parameter("tile"+std::to_string(info.mm->size()), {s0.type(), out_dyn_dims});
-                return info.add_instruction(
-                    make_op("multibroadcast"), args[0], tile_param);
+                // out_dyn_dims[0] = parser.default_dyn_dim_value;
+                std::vector<size_t> dims_mask(s0.ndim(), 0);
+                dims_mask[0] = 1; // TODO find what to set the mask
+                auto dims_lit = info.add_literal({{migraphx::shape::int8_type, {s0.ndim()}}, {0*s0.ndim()}});
+                return info.add_instruction(make_op("broadcast_with_dims", {{"dims_mask", dims_mask}}), args[0], dims_lit);
+                // auto tile_param = info.mm->add_parameter("tile"+std::to_string(info.mm->size()), {s0.type(), out_dyn_dims});
+                // return info.add_instruction(
+                //     make_op("multibroadcast"), args[0], tile_param);
             }
             else
             {

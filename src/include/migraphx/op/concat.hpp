@@ -35,6 +35,7 @@
 #include <migraphx/value.hpp>
 #include <migraphx/permutation.hpp>
 #include <migraphx/op/normalize_attribute.hpp>
+#include <migraphx/common.hpp>
 #include <cmath>
 #include <utility>
 
@@ -81,6 +82,22 @@ struct concat
         // be at least 1.
         check_shapes{inputs, *this, true}.same_ndims().same_type();
 
+        // Check if we have mixed static and dynamic shapes
+        bool has_static = std::any_of(inputs.begin(), inputs.end(), 
+                                    [](const shape& s) { return !s.dynamic(); });
+        bool has_dynamic = std::any_of(inputs.begin(), inputs.end(), 
+                                    [](const shape& s) { return s.dynamic(); });
+        
+        if(has_static && has_dynamic)
+        {
+            for(auto& input : inputs)
+            {
+                if(input.dynamic())
+                    continue;
+                input = input.to_dynamic();
+            }
+        }
+
         if(std::none_of(inputs.begin(), inputs.end(), [&](const shape& s) { return s.dynamic(); }))
         {
             // Static input shapes
@@ -109,37 +126,62 @@ struct concat
             new_lens[axis]                    = new_dim_axis;
             return shape::from_permutation(type, new_lens, find_permutation(inputs));
         }
-        else if(std::all_of(
-                    inputs.begin(), inputs.end(), [&](const shape& s) { return s.dynamic(); }))
+        else 
+        // if(std::all_of(
+        //             inputs.begin(), inputs.end(), [&](const shape& s) { return s.dynamic(); }))
         {
-            // Dynamic input shapes
-            for(std::size_t index = 0; index < inputs[0].ndim(); index++)
+            // Compute concatenated dynamic shape with range intersection on non-axis dims
+
+            // Start from the first input's dynamic dims
+            auto new_dims = inputs.at(0).dyn_dims();
+
+            // Compute non-axis dimensions as the intersection (max of mins, min of maxes)
+            for(std::size_t index = 0; index < new_dims.size(); ++index)
             {
-                if(index != axis)
+                if(index == axis) continue;
+
+                std::size_t common_min = inputs.at(0).dyn_dims().at(index).min;
+                std::size_t common_max = inputs.at(0).dyn_dims().at(index).max;
+
+                for(const auto& s : inputs)
                 {
-                    if(not std::all_of(inputs.begin(), inputs.end(), [&](const shape& s) {
-                           return s.dyn_dims()[index] == inputs[0].dyn_dims()[index];
-                       }))
-                        MIGRAPHX_THROW("CONCAT: all input dimensions should match in axis " +
-                                       std::to_string(index));
+                    const auto& ddim = s.dyn_dims().at(index);
+                    common_min        = std::max(common_min, ddim.min);
+                    common_max        = std::min(common_max, ddim.max);
                 }
+
+                if(common_min > common_max)
+                {
+                    MIGRAPHX_THROW("CONCAT: incompatible dynamic dimension range at axis " +
+                                std::to_string(index) + " (intersection is empty)");
+                }
+
+                new_dims[index] = migraphx::shape::dynamic_dimension{common_min, common_max};
             }
+
+            // Compute axis dimension as the sum of ranges
             std::size_t new_min = 0;
             std::size_t new_max = 0;
             for(const auto& input : inputs)
             {
-                auto ddim = input.dyn_dims()[axis];
+                const auto& ddim = input.dyn_dims().at(axis);
                 new_min += ddim.min;
                 new_max += ddim.max;
             }
 
-            auto new_dims  = inputs[0].dyn_dims();
             new_dims[axis] = migraphx::shape::dynamic_dimension{new_min, new_max};
-            return {inputs[0].type(), new_dims};
-        }
-        else
-        {
-            MIGRAPHX_THROW("CONCAT: Cannot mix static and dynamic input shapes.");
+            if(std::all_of(new_dims.begin(), new_dims.end(), [&](auto ddim) {
+                return ddim.is_fixed();
+            }))
+            {
+                std::vector<size_t> new_static_dims;
+                std::transform(new_dims.begin(), new_dims.end(), std::back_inserter(new_static_dims),
+                [&](auto ddim) {
+                    return ddim.max;
+                });
+                return {inputs.at(0).type(), new_static_dims};
+            }
+            return {inputs.at(0).type(), new_dims};
         }
     }
 

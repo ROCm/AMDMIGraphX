@@ -48,6 +48,14 @@ namespace op {
  */
 struct broadcast_with_dims
 {
+    std::vector<size_t> dims_mask;
+
+    template <class Self, class F>
+    static auto reflect(Self& self, F f)
+    {
+        return pack(f(self.dims_mask, "dims_mask"));
+    }
+
     std::string name() const { return "broadcast_with_dims"; }
 
     shape compute_shape(const std::vector<shape>& inputs) const
@@ -61,7 +69,25 @@ struct broadcast_with_dims
         size_t out_ndim     = std::max(input_tensor_shape.ndim(), dims_shape.lens().at(0));
         std::size_t max_int = std::numeric_limits<std::size_t>::max();
         std::vector<shape::dynamic_dimension> dyn_dims(out_ndim,
-                                                       shape::dynamic_dimension{0, max_int});
+                                                       shape::dynamic_dimension{1, max_int});
+        if(not dims_mask.empty())
+        {
+            for(size_t i = 0; i < dims_mask.size(); i++)
+            {
+                if(dims_mask[i] == 0)
+                {
+                    if(input_tensor_shape.dynamic())
+                    {
+                        dyn_dims[i] = input_tensor_shape.dyn_dims()[i];
+                    }
+                    else
+                    {
+                        size_t static_lens = input_tensor_shape.lens()[i];
+                        dyn_dims[i] = {static_lens, static_lens};
+                    }
+                }
+            }
+        }                                               
         return {input_tensor_shape.type(), dyn_dims};
     }
 

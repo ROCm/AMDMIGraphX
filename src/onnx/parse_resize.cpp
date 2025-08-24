@@ -180,7 +180,7 @@ struct parse_resize : op_parser<parse_resize>
             return all_of(out_lens.cbegin(), out_lens.cend(), [](auto o) { return o == 0; });
         }
 
-        void compute_outputs()
+        void compute_output_sizes()
         {
             std::transform(
                 in_lens.begin(),
@@ -200,9 +200,9 @@ struct parse_resize : op_parser<parse_resize>
                            [](auto iss, auto oss) { return 1.0 * oss / iss; });
         }
 
-        std::vector<float> get_scales(const std::vector<instruction_ref>& args)
+        void assign_scale_or_size(const std::vector<instruction_ref>& args)
         {
-            scales_sizes_arg = args[0];
+            set_scales_sizes_arg(args[0]);
             if(not is_constant_scale_input())
             {
                 // Depending on the args, it *must* populate the `vec_scale`, and might populate
@@ -222,14 +222,14 @@ struct parse_resize : op_parser<parse_resize>
                         break;
 
                     if(type == shape::int64_type)
-                    {
+                    {   // When input is using sizes 
                         assign_output_sizes(arg_out);
                         check_output_size();
                         compute_scales();
                         break;
-                    }
+                    } 
                     else if(type == shape::float_type)
-                    {
+                    {    // When input is using scales
                         if(is_scale_rank_valid(arg))
                         {
                             assign_scales(arg_out);
@@ -252,11 +252,9 @@ struct parse_resize : op_parser<parse_resize>
 
                 if(is_output_not_set())
                 {
-                    compute_outputs();
+                    compute_output_sizes();
                 }
             }
-
-            return vec_scale;
         }
 
         void set_coord_trans_mode(const onnx_parser::attribute_map& attr)
@@ -358,7 +356,7 @@ struct parse_resize : op_parser<parse_resize>
             {
                 copy(attr.at("scales").floats(), std::back_inserter(r_attr.scales));
                 vec_scale = r_attr.scales;
-                compute_outputs();
+                compute_output_sizes();
             }
         }
 
@@ -440,12 +438,10 @@ struct parse_resize : op_parser<parse_resize>
         return info.add_instruction(make_op("gather", {{"axis", 0}}), rsp, ins_ind);
     }
 
-    static instruction_ref handle_nearest_neighboor(const onnx_parser::node_info& info,
+    static instruction_ref handle_nearest_neighbor(const onnx_parser::node_info& info,
                                                     resize_args& resize,
                                                     instruction_ref args_0)
     {
-        auto scales_sizes_arg = resize.scales_sizes_arg;
-
         if(args_0->get_shape().dynamic() or not resize.is_constant_scale_input())
         {
             // Resize's compute_shape() will read scales_sizes_arg as "scales" or "sizes"
@@ -455,7 +451,7 @@ struct parse_resize : op_parser<parse_resize>
                         {{"nearest_mode", resize.get_nearest_mode()},
                          {"coordinate_transformation_mode", resize.get_coord_trans_mode()}}),
                 args_0,
-                scales_sizes_arg);
+                resize.get_scales_sizes_arg());
         }
         else
         {
@@ -580,8 +576,7 @@ struct parse_resize : op_parser<parse_resize>
     static void set_resize_args(const std::vector<instruction_ref>& args, resize_args& resize)
     {
         resize.x = args.at(0);
-        resize.set_scales_sizes_arg(args[0]);
-        resize.vec_scale = resize.get_scales(args);
+        resize.assign_scale_or_size(args);
     }
 
     static void set_upsample_attributes(const onnx_parser::node_info& info, resize_args& resize)
@@ -596,7 +591,7 @@ struct parse_resize : op_parser<parse_resize>
 
         // scale is input it must be a required input
         if(not resize.is_scale_attr())
-            resize.vec_scale = resize.get_scales(args);
+            resize.assign_scale_or_size(args);
     }
 
     // Split of what we handle since this parser is used for both resize/upscale operators
@@ -641,7 +636,7 @@ struct parse_resize : op_parser<parse_resize>
 
         if(resize.get_mode() == "nearest")
         {
-            return handle_nearest_neighboor(info, resize, args[0]);
+            return handle_nearest_neighbor(info, resize, args[0]);
         }
         // linear mode
         else

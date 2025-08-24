@@ -147,11 +147,6 @@ struct parse_resize : op_parser<parse_resize>
 
         int opset_version = -1;
 
-        bool is_resize = true;
-
-        void set_upsample_op() { is_resize = false; }
-        bool is_resize_op() const { return is_resize; }
-
         // if scale an attr must be greater or equal to 1
         bool is_scale_attr() const { return not r_attr.scales.empty(); }
 
@@ -610,20 +605,15 @@ struct parse_resize : op_parser<parse_resize>
 
         if(opd.op_name == "upsample")
         {
-            resize.set_upsample_op();
+            set_upsample_attributes(info, resize);
+            set_upsample_args(args, resize);
         }
-
-        // We do this since upsample/resize overlap in functionality
-        if(resize.is_resize_op())
+        else  
         {
             set_resize_attributes(info, args, resize);
             set_resize_args(args, resize);
         }
-        else
-        {
-            set_upsample_attributes(info, resize);
-            set_upsample_args(args, resize);
-        }
+
         return resize;
     }
 

@@ -394,12 +394,17 @@ inline std::atomic<int>& failures()
     return f;
 }
 
+void report_failure(int n=1)
+{
+    failures() += n;
+}
+
 template <class T, class F>
 void failed(const T& x, const char* msg, const char* func, const char* file, int line, F f)
 {
     if(not bool(x.value()))
     {
-        failures()++;
+        report_failure();
         std::cout << func << std::endl;
         std::cout << file << ":" << line << ":" << std::endl;
         std::cout << color::bold << color::fg_red << "    FAILED: " << color::reset << msg << " "

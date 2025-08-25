@@ -232,20 +232,50 @@ struct capture
     }
 };
 
-MIGRAPHX_HIP_NORETURN __device__ inline void fail() { abort(); }
-
-template <class T, class F>
-__device__ void
-failed(const T& x, const char* msg, const char* func, const char* file, int line, F f)
+struct test_manager
 {
-    // TODO: Check failures across multiple lanes
-    // NOLINTNEXTLINE(readability-static-accessed-through-instance)
-    if(not bool(x.value()) and threadIdx.x == 0)
+    int32_t* failures = nullptr;
+
+    __device__ void report_failure()
     {
-        println_once(func);
-        println_once(file, ":", line, ":");
-        println_once("    FAILED: ", msg, " [ ", x, " ]");
-        f();
+        (*failures)++;
+    }
+    
+    template <class T, class F>
+    __device__ void
+    failed(const T& x, const char* msg, const char* func, const char* file, int line, F f)
+    {
+        // TODO: Check failures across multiple lanes
+        // NOLINTNEXTLINE(readability-static-accessed-through-instance)
+        if(not bool(x.value()))
+        {
+            if(threadIdx.x == 0)
+            {
+                println_once(func);
+                println_once(file, ":", line, ":");
+                println_once("    FAILED: ", msg, " [ ", x, " ]");
+                report_failure();
+            }
+            f();
+        }
+    }
+};
+
+[[noreturn]] __device__ inline void fail() 
+{
+    // There is no way to easily exit with no error. We can terminate the
+    // current wavefront without an error, but if there is more wavefronts
+    // than we need to fallback to a trap which throws an error in HSA
+    // runtime unfortunately.
+    auto nb = gridDim.x * gridDim.y * gridDim.z;
+    auto bs = blockDim.x * blockDim.y * blockDim.z;
+    if(nb == 1 and bs <= __builtin_amdgcn_wavefrontsize())
+    {
+        __builtin_amdgcn_endpgm();
+    }
+    else
+    {
+        __builtin_trap();
     }
 }
 
@@ -262,20 +292,21 @@ failed(const T& x, const char* msg, const char* func, const char* file, int line
 
 // NOLINTNEXTLINE
 #define CHECK(...)          \
-    migraphx::test::failed( \
+    migraphx_private_test_manager.failed( \
         TEST_CAPTURE(__VA_ARGS__), #__VA_ARGS__, TEST_PRETTY_FUNCTION, __FILE__, __LINE__, [] {})
 
 // NOLINTNEXTLINE
 #define EXPECT(...)                                   \
-    migraphx::test::failed(TEST_CAPTURE(__VA_ARGS__), \
+    migraphx_private_test_manager.failed(TEST_CAPTURE(__VA_ARGS__), \
                            #__VA_ARGS__,              \
                            TEST_PRETTY_FUNCTION,      \
                            __FILE__,                  \
                            __LINE__,                  \
                            &migraphx::test::fail)
 
+
 // NOLINTNEXTLINE
-#define TEST_CASE(...) __device__ void __VA_ARGS__()
+#define TEST_CASE(...) __device__ void __VA_ARGS__([[maybe_unused]] migraphx::test::test_manager& migraphx_private_test_manager)
 
 } // namespace test
 } // namespace migraphx

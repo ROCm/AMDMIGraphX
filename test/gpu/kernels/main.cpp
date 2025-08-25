@@ -57,12 +57,13 @@ struct test_suite : std::enable_shared_from_this<test_suite>
     {
         std::ostringstream out;
         out << content << '\n';
-        out << "extern \"C\" __global__ void " << options.kernel_name << "(int id) {\n";
+        out << "extern \"C\" __global__ void " << options.kernel_name << "(int id, int32_t* failures) {\n";
+        out << "    migraphx::test::test_manager tm{failures};\n";
         out << "    switch(id) {\n";
         for(const auto& [case_name, i] : test_cases)
         {
             auto fname = case_name.substr(name.size() + 1);
-            out << "        case " << i << ": " << fname << "(); break;\n";
+            out << "        case " << i << ": " << fname << "(tm); break;\n";
         }
         out << "        default: abort();\n";
         out << "    }\n";
@@ -82,9 +83,11 @@ struct test_suite : std::enable_shared_from_this<test_suite>
 
     void run(const std::string& case_name)
     {
+        auto failures = migraphx::gpu::write_to_gpu(int32_t{0}, true);
         compile();
-        k.launch(nullptr, options.global, options.local)(test_cases.at(case_name));
+        k.launch(nullptr, options.global, options.local)(test_cases.at(case_name), failures.get());
         CHECK(hipDeviceSynchronize() == hipSuccess);
+        test::report_failure(*failures);
     }
 };
 

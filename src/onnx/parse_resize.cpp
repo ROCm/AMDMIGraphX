@@ -390,7 +390,28 @@ struct parse_resize : op_parser<parse_resize>
         {
             return arg->get_shape().lens().at(0) == in_lens.size();
         }
+
+        size_t get_input_rank() const
+        {
+            return in_lens.size();
+        }
+
+        // Get Dimension of the data - relevant to how we'll scale and dimensions
+        // if dims are 2 or 3 they're treated as input with channel and batch set to 1
+
+        // 2D - (batch, channel, height, width) or (height, width)
+        bool is_2d_image() const
+        {
+            return (get_input_rank() == 2 or get_input_rank() == 4);
+        }
+
+        // 3D - (batch, channel, height, width, depth) or (height, width, depth)
+        bool is_3d_image() const
+        {
+            return (get_input_rank() == 3 or get_input_rank() == 5);
+        }
     };
+
 
     // Helper to add a "reshape" and "gather" instruction.  These can implement
     // Nearest mode resizing if all sizes are known at compile time.

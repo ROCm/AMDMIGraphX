@@ -217,14 +217,14 @@ struct parse_resize : op_parser<parse_resize>
                         break;
 
                     if(type == shape::int64_type)
-                    {   // When input is using sizes 
+                    { // When input is using sizes
                         assign_output_sizes(arg_out);
                         check_output_size();
                         compute_scales();
                         break;
-                    } 
+                    }
                     else if(type == shape::float_type)
-                    {    // When input is using scales
+                    { // When input is using scales
                         if(is_scale_rank_valid(arg))
                         {
                             assign_scales(arg_out);
@@ -434,8 +434,8 @@ struct parse_resize : op_parser<parse_resize>
     }
 
     static instruction_ref handle_nearest_neighbor(const onnx_parser::node_info& info,
-                                                    resize_args& resize,
-                                                    instruction_ref args_0)
+                                                   resize_args& resize,
+                                                   instruction_ref args_0)
     {
         if(args_0->get_shape().dynamic() or not resize.is_constant_scale_input())
         {
@@ -608,7 +608,7 @@ struct parse_resize : op_parser<parse_resize>
             set_upsample_attributes(info, resize);
             set_upsample_args(args, resize);
         }
-        else  
+        else
         {
             set_resize_attributes(info, args, resize);
             set_resize_args(args, resize);

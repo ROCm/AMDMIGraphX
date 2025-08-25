@@ -236,11 +236,8 @@ struct test_manager
 {
     int32_t* failures = nullptr;
 
-    __device__ void report_failure()
-    {
-        (*failures)++;
-    }
-    
+    __device__ void report_failure() { (*failures)++; }
+
     template <class T, class F>
     __device__ void
     failed(const T& x, const char* msg, const char* func, const char* file, int line, F f)
@@ -261,7 +258,7 @@ struct test_manager
     }
 };
 
-[[noreturn]] __device__ inline void fail() 
+[[noreturn]] __device__ inline void fail()
 {
     // There is no way to easily exit with no error. We can terminate the
     // current wavefront without an error, but if there is more wavefronts
@@ -291,22 +288,23 @@ struct test_manager
 #endif
 
 // NOLINTNEXTLINE
-#define CHECK(...)          \
+#define CHECK(...)                        \
     migraphx_private_test_manager.failed( \
         TEST_CAPTURE(__VA_ARGS__), #__VA_ARGS__, TEST_PRETTY_FUNCTION, __FILE__, __LINE__, [] {})
 
 // NOLINTNEXTLINE
-#define EXPECT(...)                                   \
+#define EXPECT(...)                                                 \
     migraphx_private_test_manager.failed(TEST_CAPTURE(__VA_ARGS__), \
-                           #__VA_ARGS__,              \
-                           TEST_PRETTY_FUNCTION,      \
-                           __FILE__,                  \
-                           __LINE__,                  \
-                           &migraphx::test::fail)
-
+                                         #__VA_ARGS__,              \
+                                         TEST_PRETTY_FUNCTION,      \
+                                         __FILE__,                  \
+                                         __LINE__,                  \
+                                         &migraphx::test::fail)
 
 // NOLINTNEXTLINE
-#define TEST_CASE(...) __device__ void __VA_ARGS__([[maybe_unused]] migraphx::test::test_manager& migraphx_private_test_manager)
+#define TEST_CASE(...)           \
+    __device__ void __VA_ARGS__( \
+        [[maybe_unused]] migraphx::test::test_manager& migraphx_private_test_manager)
 
 } // namespace test
 } // namespace migraphx

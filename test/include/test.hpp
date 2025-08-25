@@ -394,10 +394,7 @@ inline std::atomic<int>& failures()
     return f;
 }
 
-void report_failure(int n=1)
-{
-    failures() += n;
-}
+void report_failure(int n = 1) { failures() += n; }
 
 template <class T, class F>
 void failed(const T& x, const char* msg, const char* func, const char* file, int line, F f)

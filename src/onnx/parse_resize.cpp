@@ -278,11 +278,11 @@ struct parse_resize : op_parser<parse_resize>
         void set_mode(const onnx_parser::attribute_map& attr)
         {
             if(contains(attr, "mode"))
-            { // TODO: Add support for cubic mode
+            { 
                 auto mode = attr.at("mode").s();
-                if(mode != "nearest" and mode != "linear")
+                if(mode != "nearest" and mode != "linear" and mode != "cubic")
                 {
-                    MIGRAPHX_THROW("PARSE_RESIZE: only nearest and linear modes are supported!");
+                    MIGRAPHX_THROW("PARSE_RESIZE: only cubic, linear, and nearest modes are supported!");
                 }
                 r_attr.mode = mode;
             }
@@ -554,6 +554,14 @@ struct parse_resize : op_parser<parse_resize>
         return data;
     }
 
+    static instruction_ref handle_cubic_mode(const op_desc& opd,
+                                             const onnx_parser::node_info& info,
+                                             resize_args& resize,
+                                             instruction_ref& args_0)
+    {
+
+    }
+
     static void set_resize_attributes(const onnx_parser::node_info& info,
                                       const std::vector<instruction_ref>& args,
                                       resize_args& resize)
@@ -628,10 +636,13 @@ struct parse_resize : op_parser<parse_resize>
         {
             return handle_nearest_neighbor(info, resize, args[0]);
         }
-        // linear mode
-        else
+        else if(resize.get_mode() == "linear")
         {
             return handle_linear_mode(opd, info, resize, args[0]);
+        }
+        else
+        {
+            return handle_cubic_mode(opd, info, resize, args[0]);
         }
     }
 };

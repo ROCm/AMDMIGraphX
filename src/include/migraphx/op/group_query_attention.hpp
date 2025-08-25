@@ -494,7 +494,7 @@ struct group_query_attention
                                        auto present_k,
                                        auto present_v,
                                        auto attn_probs) {
-            visit_all(args[5])([&](auto seqlens_k) {
+            get_all<double>(args[5])([&](auto seqlens_k) {
                 par_for(kv_shape.elements(), [&](auto i) {
                     present_k[i] = past_key[i];
                     present_v[i] = past_value[i];

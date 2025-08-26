@@ -130,6 +130,11 @@ struct raw_data : raw_data_base
     }
 
     template <class Visitor>
+    void fallback_visit(Visitor v) const
+    {
+        fallback_visit(v, [&](const auto&) { MIGRAPHX_THROW("Invalid tuple type"); });
+    }
+
     /// Returns true if the raw data is only one element
     bool single() const
     {
@@ -196,9 +201,6 @@ struct raw_data : raw_data_base
     {
         auto&& s      = static_cast<const Derived&>(*this).get_shape();
         auto&& buffer = static_cast<const Derived&>(*this).data();
-        if(s.computable() and s.type() != migraphx::shape::get_type<T>{})
-            MIGRAPHX_THROW("Incorrect data type for raw data");
-        return make_view(s, reinterpret_cast<T*>(buffer));
         if constexpr(std::is_same<std::remove_cv_t<T>, migraphx::byte>{})
         {
             shape view_shape = {shape::uint8_type, {s.bytes()}};

@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2023 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2025 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -146,7 +146,7 @@ struct gathernd
     {
         argument result{dyn_out.computed_shape};
         visit_all(result, args[0])([&](auto output, auto data) {
-            args[1].visit([&](auto indices) {
+            get_all<int64_t>(args[1])([&](auto indices) {
                 auto indices_shape        = indices.get_shape();
                 auto indices_shape_lens   = indices_shape.lens();
                 auto data_shape           = data.get_shape();

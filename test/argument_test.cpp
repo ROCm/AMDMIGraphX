@@ -75,27 +75,26 @@ TEST_CASE(default_construct)
     EXPECT(a2.get_sub_objects().empty());
 }
 
-TEST_CASE(raw_visit)
+TEST_CASE(fallback_visit_computable)
+{
+    migraphx::shape s{migraphx::shape::float_type, {3, 4}};
+    migraphx::argument a1(s);
+    a1.fallback_visit([&](auto&& view) {
+        EXPECT(view.get_shape().type() == migraphx::shape::float_type);
+        EXPECT(view.get_shape().lens().size() == 2);
+        EXPECT(view.get_shape().lens() == s.lens());
+    });
+}
+
+TEST_CASE(fallback_visit_non_computable)
 {
     migraphx::shape s{migraphx::shape::fp4x2_type, {3, 4}};
     migraphx::argument a1(s);
-    a1.raw_visit([&](auto&& view) {
+    a1.fallback_visit([&](auto&& view) {
         EXPECT(view.get_shape().type() == migraphx::shape::uint8_type);
         EXPECT(view.get_shape().lens().size() == 1);
         EXPECT(view.get_shape().lens().at(0) == 12);
     });
-}
-
-TEST_CASE(raw_visit_tuple)
-{
-    auto a1 = make_tuple(1, 2, 3);
-    a1.raw_visit([&](auto&&) { EXPECT(false); },
-                 [&](auto&& view) {
-                     EXPECT(view.size() == 3);
-                     EXPECT(view[0] == as_argument(1));
-                     EXPECT(view[1] == as_argument(2));
-                     EXPECT(view[2] == as_argument(3));
-                 });
 }
 
 TEST_CASE(string_elems)

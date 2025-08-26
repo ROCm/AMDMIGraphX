@@ -279,49 +279,7 @@ std::string shape::cpp_type(shape::type_t t)
     MIGRAPHX_THROW("Invalid type");
 }
 
-bool shape::is_integral(shape::type_t t)
-{
-    bool result = false;
-    visit(t, [&](auto as) { result = as.is_integral(); });
-    return result;
-}
-
-bool shape::is_compatible(const shape& actual, const shape& expected)
-{
-    // Check subshapes
-    if(expected.type() == shape::tuple_type)
-        return migraphx::equal(actual.sub_shapes(), expected.sub_shapes(), &is_compatible);
-    if(actual == expected)
-        return true;
-    if(actual.type() != expected.type())
-        return false;
-    // Only the expected can be dynamic
-    if(expected.dynamic())
-        return actual.ndim() == expected.ndim();
-    if(actual.dynamic())
-        return false;
-    if(actual.lens() != expected.lens())
-        return false;
-    // Check strides from dimensions that are not 1
-    return all_of(range(actual.lens().size()), [&](auto i) {
-        if(actual.lens()[i] == 1)
-            return true;
-        return actual.strides()[i] == expected.strides()[i];
-    });
-}
-
-bool shape::is_unsigned(shape::type_t t)
-{
-    bool result = false;
-    visit(t, [&](auto as) { result = as.is_unsigned(); });
-    return result;
-}
-
-bool shape::is_computable(shape::type_t t)
-{
-    static std::unordered_set<shape::type_t> non_compute_types = {shape::fp4x2_type};
-    return not contains(non_compute_types, t);
-}
+bool shape::
 
 shape::shape() : impl(shape_impl::default_shape()) {}
 

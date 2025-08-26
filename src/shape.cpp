@@ -281,7 +281,10 @@ std::string shape::cpp_type(shape::type_t t)
 
 bool shape::
 
-shape::shape() : impl(shape_impl::default_shape()) {}
+    shape::shape()
+    : impl(shape_impl::default_shape())
+{
+}
 
 shape::shape(type_t t) : impl(std::make_shared<shape_impl>(t)) {}
 

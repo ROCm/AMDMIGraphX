@@ -201,13 +201,8 @@ struct match_find_quantizable_ops
         auto arg1_lens = qop_args[0]->get_shape().lens();
         auto arg2_lens = qop_args[1]->get_shape().lens();
 
-        const std::set<migraphx::shape::type_t> supported_types = {
-            migraphx::shape::fp8e4m3fnuz_type,
-            migraphx::shape::fp8e5m2fnuz_type,
-            migraphx::shape::fp8e4m3fn_type,
-            migraphx::shape::fp8e5m2_type,
-            migraphx::shape::int8_type,
-        };
+        std::set<migraphx::shape::type_t> supported_types = fp8_types{}.get();
+        supported_types.insert(migraphx::shape::int8_type);
         auto in1 = dq1->inputs().front();
         auto in2 = dq2->inputs().front();
         if(not contains(supported_types, in1->get_shape().type()) or
@@ -342,10 +337,11 @@ struct match_find_quantizable_ops
 };
 
 // Note: scales are not constant b/c of dynamic quantization
-inline auto two_arg_dq(const std::string& scale)
+inline auto dynamic_dq_without_bias(const std::string& scale)
 {
     return match::name("dequantizelinear")(
-        match::nargs(2), match::arg(1)(match::skip_broadcasts(match::any().bind(scale))));
+        match::nargs(2),
+        match::arg(1)(match::skip_broadcasts(match::none_of(match::is_constant()).bind(scale))));
 }
 
 /**
@@ -357,8 +353,8 @@ struct match_find_mx_quantizable_ops
 {
     auto matcher() const
     {
-        auto dq1 = match::arg(0)(skip_post_dq_ops(two_arg_dq("scale1").bind("dq1")));
-        auto dq2 = match::arg(1)(skip_post_dq_ops(two_arg_dq("scale2").bind("dq2")));
+        auto dq1 = match::arg(0)(skip_post_dq_ops(dynamic_dq_without_bias("scale1").bind("dq1")));
+        auto dq2 = match::arg(1)(skip_post_dq_ops(dynamic_dq_without_bias("scale2").bind("dq2")));
         return match::name(get_quantizable_op_names())(dq1, dq2);
     }
 

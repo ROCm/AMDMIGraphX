@@ -5,11 +5,11 @@
 <!-- Explain the changes along with any relevant GitHub links. -->
 
 ## Changelog Category
-**Also add the appropriate "Changelog:<...>" PR label.**
+<!-- Also add the appropriate "Changelog:<...>" PR label. -->
+
 - [ ] Added: New functionality.
 - [ ] Changed: Changes to existing functionality.
 - [ ] Removed: Functionality or support that has been removed. (Compared to a previous release)
 - [ ] Optimized: Component performance that has been optimized or improved.
 - [ ] Resolved Issues: Known issues from a previous version that have been resolved.
 - [ ] Not Applicable: This PR is not to be included in the changelog.
-

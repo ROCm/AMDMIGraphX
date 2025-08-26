@@ -1375,17 +1375,18 @@ void fuse_mlir::apply(module_pass_manager& mpm) const
         find_mlir_fused_geg_ops{.conv_mode = get_mode("fused_convolution", mlir_mode::fast),
                                 .dot_mode  = get_mode("fused_dot", mlir_mode::fast)});
 
-//    match::find_matches(
-//        mpm,
-//        find_mlir_fused_ops{.conv_mode = get_mode("fused_convolution", mlir_mode::fast),
-//                            .dot_mode  = get_mode("fused_dot", mlir_mode::fast)});
-//
-//    match::find_matches(
-//        mpm,
-//        find_mlir_standalone_convolution_op{.mode    = get_mode("convolution", mlir_mode::fast),
-//                                            .counter = &counter},
-//        find_mlir_standalone_dot_op{.mode = get_mode("dot", mlir_mode::fast), .counter = &counter});
-//
+    mpm.run_pass(dead_code_elimination{});
+    match::find_matches(
+        mpm,
+        find_mlir_fused_ops{.conv_mode = get_mode("fused_convolution", mlir_mode::fast),
+                            .dot_mode  = get_mode("fused_dot", mlir_mode::fast)});
+
+    match::find_matches(
+        mpm,
+        find_mlir_standalone_convolution_op{.mode    = get_mode("convolution", mlir_mode::fast),
+                                            .counter = &counter},
+        find_mlir_standalone_dot_op{.mode = get_mode("dot", mlir_mode::fast), .counter = &counter});
+
     mpm.run_pass(dead_code_elimination{});
     if(enabled(MIGRAPHX_ENABLE_MLIR_REDUCE_FUSION{}))
     {

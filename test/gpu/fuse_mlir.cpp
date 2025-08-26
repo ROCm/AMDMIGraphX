@@ -1642,6 +1642,118 @@ TEST_CASE(channel_slice_convolution)
     EXPECT(p1.sort() == p2.sort());
 }
 
+TEST_CASE(dot_add_dot)
+{
+    migraphx::shape s{migraphx::shape::float_type, {1, 3, 3}};
+    migraphx::program p1;
+    {
+        auto* mm = p1.get_main_module();
+        auto a   = mm->add_parameter("a", s);
+        auto b   = mm->add_parameter("b", s);
+        auto x   = mm->add_parameter("x", s);
+        auto y   = mm->add_parameter("y", s);
+        auto dot1 = mm->add_instruction(migraphx::make_op("dot"), a, b);
+        auto add  = add_pointwise(p1, "main:pointwise0", {dot1, x}, single_pointwise("add"));
+        auto dot2 = mm->add_instruction(migraphx::make_op("dot"), add, y);
+        mm->add_return({dot2});
+    }
+    run_pass(p1);
+    migraphx::program p2;
+    {
+        auto* mm = p2.get_main_module();
+        auto a   = mm->add_parameter("a", s);
+        auto b   = mm->add_parameter("b", s);
+        auto x   = mm->add_parameter("x", s);
+        auto y   = mm->add_parameter("y", s);
+        auto fused =
+            add_mlir(p2, "mlir_main:pointwise0", {a, b, x, y}, [=](auto* pm, const auto& inputs) {
+                auto dot1 = pm->add_instruction(migraphx::make_op("dot"), inputs[0], inputs[1]);
+                auto add  = pm->add_instruction(migraphx::make_op("add"), dot1, inputs[2]);
+                auto dot2 = pm->add_instruction(migraphx::make_op("dot"), add, inputs[3]);
+                return std::make_tuple(dot2->get_operator(), dot2);
+            });
+        mm->add_return({fused});
+    }
+    EXPECT(p1.sort() == p2.sort());
+}
+
+TEST_CASE(dot_mul_dot)
+{
+    migraphx::shape s{migraphx::shape::float_type, {1, 3, 3}};
+    migraphx::program p1;
+    {
+        auto* mm = p1.get_main_module();
+        auto a   = mm->add_parameter("a", s);
+        auto b   = mm->add_parameter("b", s);
+        auto x   = mm->add_parameter("x", s);
+        auto y   = mm->add_parameter("y", s);
+        auto dot1 = mm->add_instruction(migraphx::make_op("dot"), a, b);
+        auto mul  = add_pointwise(p1, "main:pointwise0", {dot1, x}, single_pointwise("mul"));
+        auto dot2 = mm->add_instruction(migraphx::make_op("dot"), mul, y);
+        mm->add_return({dot2});
+    }
+    run_pass(p1);
+    migraphx::program p2;
+    {
+        auto* mm = p2.get_main_module();
+        auto a   = mm->add_parameter("a", s);
+        auto b   = mm->add_parameter("b", s);
+        auto x   = mm->add_parameter("x", s);
+        auto y   = mm->add_parameter("y", s);
+        auto fused =
+            add_mlir(p2, "mlir_main:pointwise0", {a, b, x, y}, [=](auto* pm, const auto& inputs) {
+                auto dot1 = pm->add_instruction(migraphx::make_op("dot"), inputs[0], inputs[1]);
+                auto mul  = pm->add_instruction(migraphx::make_op("mul"), dot1, inputs[2]);
+                auto dot2 = pm->add_instruction(migraphx::make_op("dot"), mul, inputs[3]);
+                return std::make_tuple(dot2->get_operator(), dot2);
+            });
+        mm->add_return({fused});
+    }
+    EXPECT(p1.sort() == p2.sort());
+}
+
+TEST_CASE(conv_add_dot)
+{
+    migraphx::shape input_shape{migraphx::shape::float_type, {1, 3, 4, 4}};
+    migraphx::shape weight_shape{migraphx::shape::float_type, {2, 3, 3, 3}};
+    migraphx::shape conv_output_shape{migraphx::shape::float_type, {1, 2, 2, 2}};
+    migraphx::shape dot_weight_shape{migraphx::shape::float_type, {1, 2, 2, 2}};
+    
+    migraphx::program p1;
+    {
+        auto* mm = p1.get_main_module();
+        auto input   = mm->add_parameter("input", input_shape);
+        auto weights = mm->add_parameter("weights", weight_shape);
+        auto bias    = mm->add_parameter("bias", conv_output_shape);
+        auto dot_w   = mm->add_parameter("dot_w", dot_weight_shape);
+        
+        auto conv = mm->add_instruction(migraphx::make_op("convolution"), input, weights);
+        auto add  = add_pointwise(p1, "main:pointwise0", {conv, bias}, single_pointwise("add"));
+        auto dot  = mm->add_instruction(migraphx::make_op("dot"), add, dot_w);
+        mm->add_return({dot});
+    }
+    run_pass(p1);
+    migraphx::program p2;
+    {
+        auto* mm = p2.get_main_module();
+        auto input   = mm->add_parameter("input", input_shape);
+        auto weights = mm->add_parameter("weights", weight_shape);
+        auto bias    = mm->add_parameter("bias", conv_output_shape);
+        auto dot_w   = mm->add_parameter("dot_w", dot_weight_shape);
+        
+        auto fused =
+            add_mlir(p2, "mlir_main:pointwise0", {input, weights, bias, dot_w}, 
+                    [=](auto* pm, const auto& inputs) {
+                auto conv = pm->add_instruction(migraphx::make_op("convolution"), inputs[0], inputs[1]);
+                auto add  = pm->add_instruction(migraphx::make_op("add"), conv, inputs[2]);
+                auto dot  = pm->add_instruction(migraphx::make_op("dot"), add, inputs[3]);
+                return std::make_tuple(dot->get_operator(), dot);
+            });
+        mm->add_return({fused});
+    }
+    EXPECT(p1.sort() == p2.sort());
+}
+
 int main(int argc, const char* argv[])
 {
     if(migraphx::gpu::mlir_enabled())

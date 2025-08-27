@@ -590,10 +590,17 @@ struct parse_resize : op_parser<parse_resize>
     static instruction_ref generate_cubic_conv_kernel(const onnx_parser::node_info& info, 
                                                       const float& cubic_coeff) const
     {
-        std::vector<float> conv_data(5, 0)
-        migraphx::shape conv_shape{migraphx::float_type, 5, 1};
+        migraphx::shape kernel_shape{migraphx::float_type, {5, 5}};
 
+        // Needs to be 5x4 matrix which is then multiplied by the powers of \
+        // input data before convolution is done
 
+        std::vector<float> kernel_data{
+        cubic_coeef + 2.0f, -(cubic_coeef + 2.0f), 0.0f, 1.0f,
+        cubic_coeef , -(5.0f * cubic_coeef ), 8.0f*cubic_coeef, -4.0f * cubic_coeef,
+        0.0f, 0.0f, 0.0f, 1.0f
+        cubic_coeef , -(5.0f * cubic_coeef ), 8.0f*cubic_coeef, -4.0f * cubic_coeef,
+        cubic_coeef + 2.0f, -(cubic_coeef + 2.0f), 0.0f, 1.0f};
         return info.add_literal(kernel_shape, kernel_data);
     }
 

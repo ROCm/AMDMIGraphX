@@ -115,7 +115,7 @@ static void quantize_8bits(program& prog,
         // if all values are 0, no need to do scaling
         if(float_equal(max_abs_vals->at(ins_index), 0.0f))
         {
-            param_pair.first = 1e-8f;
+            param_pair.first = 1.0f;
         }
         else
         {

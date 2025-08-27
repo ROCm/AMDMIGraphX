@@ -397,6 +397,11 @@ struct parse_resize : op_parser<parse_resize>
             return in_lens.size();
         }
 
+        size_t get_scale_or_size_rank() const
+        {
+            return vec_scale.size();
+        }
+
         // Get Dimension of the data - relevant to how we'll scale and dimensions
         // if dims are 2 or 3 they're treated as input with channel and batch set to 1
 
@@ -410,6 +415,12 @@ struct parse_resize : op_parser<parse_resize>
         bool is_3d_image() const
         {
             return (get_input_rank() == 3 or get_input_rank() == 5);
+        }
+
+        // ND - (batch, channel, n1, n2, n3...nD) or (n1, n2, n3....nD)
+        bool is_nd_image() const
+        {
+            return (> 5);
         }
     };
 
@@ -576,11 +587,39 @@ struct parse_resize : op_parser<parse_resize>
         return data;
     }
 
+    static instruction_ref generate_cubic_conv_kernel(const onnx_parser::node_info& info, 
+                                                      const float& cubic_coeff) const
+    {
+        std::vector<float> conv_data(5, 0)
+        migraphx::shape conv_shape{migraphx::float_type, 5, 1};
+
+
+        return info.add_literal(kernel_shape, kernel_data);
+    }
+
     static instruction_ref handle_cubic_mode(const op_desc& opd,
                                              const onnx_parser::node_info& info,
                                              resize_args& resize,
                                              instruction_ref& args_0)
     {
+        auto in_s      = resize.in_s;
+        auto in_lens   = resize.in_lens;
+        auto out_lens  = resize.out_lens;
+        auto vec_scale = resize.vec_scale;
+
+        // out_lens and other variables can't be populated if non-constant (runtime) size
+        // inputs.
+        if(not resize.is_constant_scale_input())
+            MIGRAPHX_THROW("PARSE_" + opd.onnx_name +
+                           ": cubic mode not supported for non-constant inputs");
+
+        shape out_s{in_s.type(), out_lens};
+
+        // reshape input to one-dimension
+        std::vector<int64_t> rsp_lens = {static_cast<int64_t>(in_s.elements())};
+        auto rsp = info.add_instruction(make_op("reshape", {{"dims", rsp_lens}}), args_0);
+        
+        auto conv_kernel = generate_cubic_conv_kernel(info, resize.get_cubic_coeff())
 
     }
 

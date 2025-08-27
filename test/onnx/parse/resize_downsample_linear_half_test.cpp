@@ -52,8 +52,8 @@ TEST_CASE(resize_downsample_linear_half_test)
     using migraphx::half;
     migraphx::program p;
     auto* mm = p.get_main_module();
-    migraphx::shape ss{migraphx::shape::half_type, {4}};
-    std::vector<half> ds = {half{1}, half{1}, half{0.60009765625}, half{0.5}};
+    migraphx::shape ss{migraphx::shape::float_type, {4}};
+    std::vector<float> ds = {1.0f, 1.0f, 0.6f, 0.5f};
     mm->add_literal(migraphx::literal(ss, ds));
 
     migraphx::shape sx{migraphx::shape::half_type, {1, 1, 2, 4}};
@@ -68,7 +68,7 @@ TEST_CASE(resize_downsample_linear_half_test)
     auto l2 = mm->add_literal(migraphx::literal(s2, d2));
 
     migraphx::shape s1{migraphx::shape::half_type, {1, 1, 1, 2}};
-    std::vector<float> d1(2, 0.5 / 0.60009765625 - 0.5);
+    std::vector<float> d1(2, 0.5 / 0.6 - 0.5);
     auto l1 = mm->add_literal(migraphx::literal(s1, d1));
 
     mm->add_instruction(migraphx::make_op("undefined"));

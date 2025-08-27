@@ -76,7 +76,7 @@ struct broadcast_with_dims
         return args[0].reshape(out_shape);
     }
 
-    value attributes() const { return {{"fillcolor", "#9ACD32"}}; }
+    value attributes() const { return {{"fillcolor", "#9ACD32" /* yellowgreen*/}}; }
 };
 
 } // namespace op

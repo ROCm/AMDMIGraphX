@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2024 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2025 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -25,7 +25,6 @@
 #ifndef MIGRAPHX_GUARD_KERNELS_COPY_HPP
 #define MIGRAPHX_GUARD_KERNELS_COPY_HPP
 
-#include <migraphx/kernels/print.hpp>
 #include <migraphx/kernels/vectorize.hpp>
 
 namespace migraphx {
@@ -45,6 +44,7 @@ __device__ void local_tensor_copy(Index idx, T src, U dst)
 {
     constexpr auto src_shape = get_shape_c<T>{};
     constexpr auto dst_shape = get_shape_c<U>{};
+    static_assert(src_shape.lens == dst_shape.lens);
     if constexpr(src_shape == dst_shape and (src_shape.packed() or src_shape.broadcasted()))
     {
         local_vector_copy(idx, src.data(), dst.data(), src_shape.element_space());

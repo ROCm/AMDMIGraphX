@@ -55,6 +55,7 @@ MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_GPU_DEBUG_SYM);
 MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_GPU_OPTIMIZE);
 MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_GPU_DUMP_ASM);
 MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_GPU_DUMP_SRC);
+MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_GPU_HIP_FLAGS);
 
 #ifdef MIGRAPHX_USE_HIPRTC
 
@@ -216,7 +217,16 @@ std::vector<std::vector<char>> compile_hip_src_with_hiprtc(std::vector<hiprtc_sr
     options.push_back("-O" + string_value_of(MIGRAPHX_GPU_OPTIMIZE{}, "3"));
     options.push_back("-Wno-cuda-compat");
     options.push_back("--offload-arch=" + arch);
+    std::string extra_flags = string_value_of(MIGRAPHX_GPU_HIP_FLAGS{});
+    if(not extra_flags.empty())
+    {
+        std::stringstream ss(extra_flags);
+        std::string opt;
+        while(std::getline(ss, opt, ' '))
+            options.push_back(opt);
+    }
     prog.compile(options, quiet);
+
     return {prog.get_code_obj()};
 }
 
@@ -338,6 +348,14 @@ std::vector<std::vector<char>> compile_hip_src(const std::vector<src_file>& srcs
     compiler.flags.emplace_back("-Wno-unused-command-line-argument");
     compiler.flags.emplace_back("-Wno-cuda-compat");
     compiler.flags.emplace_back(MIGRAPHX_HIP_COMPILER_FLAGS);
+    std::string extra_flags = string_value_of(MIGRAPHX_GPU_HIP_FLAGS{});
+    if(not extra_flags.empty())
+    {
+        std::stringstream ss(extra_flags);
+        std::string opt;
+        while(std::getline(ss, opt, ' '))
+            compiler.flags.push_back(opt);
+    }
 
     if(enabled(MIGRAPHX_GPU_DUMP_SRC{}))
     {

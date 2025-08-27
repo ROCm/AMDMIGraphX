@@ -21,38 +21,13 @@
  * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
  * THE SOFTWARE.
  */
-#include <migraphx/ranges.hpp>
-#include <migraphx/instruction.hpp>
-#include <migraphx/onnx/op_parser.hpp>
-#include <migraphx/op/builder/insert.hpp>
 
-namespace migraphx {
-inline namespace MIGRAPHX_INLINE_NS {
-namespace onnx {
+#include <onnx_test.hpp>
 
-struct parse_clip : op_parser<parse_clip>
+TEST_CASE(resize_downsample_linear_half_invalid_scale_test)
 {
-    std::vector<op_desc> operators() const { return {{"Clip"}}; }
-
-    instruction_ref parse(const op_desc& /*opd*/,
-                          const onnx_parser& parser,
-                          onnx_parser::node_info info,
-                          std::vector<instruction_ref> args) const
-    {
-        if(args.size() == 1 and contains(info.attributes, "min") and
-           contains(info.attributes, "max"))
-        {
-
-            float min_val = parser.parse_value(info.attributes.at("min")).at<float>();
-            float max_val = parser.parse_value(info.attributes.at("max")).at<float>();
-            args.push_back(info.add_literal(min_val));
-            args.push_back(info.add_literal(max_val));
-        }
-
-        return op::builder::add("clip", *info.mod, args, {}).at(0);
-    }
-};
-
-} // namespace onnx
-} // namespace MIGRAPHX_INLINE_NS
-} // namespace migraphx
+    // runtime (non-constant) input is only supported in "nearest" mode
+    migraphx::onnx_options options;
+    EXPECT(test::throws(
+        [&] { read_onnx("resize_downsample_linear_half_invalid_scale_test.onnx", options); }));
+}

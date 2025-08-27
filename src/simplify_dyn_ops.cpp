@@ -60,11 +60,39 @@ struct find_broadcast_with_dims_static
         // inserted by tile op, for now just set to current batch size
         if(std::all_of(sizes_vec.begin(), sizes_vec.end(), [](auto val) { return val == 0;}))
         {
+            size_t batch_size = std::numeric_limits<size_t>::max();
             if(not contains(m.name(), "dim_"))
             {
-                MIGRAPHX_THROW("unsupported submodule for tile replacement");
+                bool found_batch = false;
+
+                for(auto&& param : m.get_parameter_shapes())
+                {
+                    if(not param.second.dynamic())
+                        continue;
+                    batch_size = param.second.dyn_dims().front().max;
+                    found_batch = true;
+                }
+                // TODO try to use output to infer (ideally this should be encoded elsewhere)
+                // unsqueeze ops can affect this, would have to keep track of new dim to check
+                // auto curr_ins = ins;
+                // while(batch_size == std::numeric_limits<size_t>::max())
+                // {
+                //     auto outputs = curr_ins->outputs();
+                //     if(outputs.empty())
+                //         break;
+                //     auto out_shape = outputs.front()->get_shape().to_dynamic();
+                //     if(out_shape.dyn_dims().front().max < batch_size)
+                //     {
+                //         batch_size = out_shape.dyn_dims().front().max;
+                //         found_batch = true;
+                //     }
+                //     curr_ins = outputs.front();
+                // }
+                if(not found_batch)
+                    MIGRAPHX_THROW("unsupported module for tile replacement");
             }
-            size_t batch_size = std::stoi(remove_prefix(m.name(), "dim_"));
+            else
+                batch_size = std::stoi(remove_prefix(m.name(), "dim_"));
             auto dyn_dims = ins->get_shape().dyn_dims();
             std::vector<size_t> new_dims;
             std::transform(dyn_dims.begin(), dyn_dims.end(), std::back_inserter(new_dims),

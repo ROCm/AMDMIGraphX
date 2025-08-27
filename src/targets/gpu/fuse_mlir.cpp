@@ -142,6 +142,19 @@ static bool mlir_attention_enabled(context* ctx)
 #endif
 }
 
+static bool mlir_geg_enabled()
+{
+#ifdef MIGRAPHX_MLIR
+    if(not mlir_enabled())
+        return false;
+    if(specific_op<rejected>("geg"))
+        return false;    
+    return specific_op<requested>("geg");
+#else
+    return false;
+#endif
+}
+
 #ifdef MIGRAPHX_MLIR
 
 struct mlir_op
@@ -1444,10 +1457,14 @@ void fuse_mlir::apply(module_pass_manager& mpm) const
     match::find_matches(mpm, find_mlir_attention_op{mlir_mode::all});
     mpm.run_pass(dead_code_elimination{});
 
-    match::find_matches(
+    if(mlir_geg_enabled())
+    {
+        match::find_matches(
         mpm,
         find_mlir_fused_geg_ops{.conv_mode = get_mode("fused_convolution", mlir_mode::fast),
                                 .dot_mode  = get_mode("fused_dot", mlir_mode::fast)});
+    }
+    
 
     mpm.run_pass(dead_code_elimination{});
     match::find_matches(

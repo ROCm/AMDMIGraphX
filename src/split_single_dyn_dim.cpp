@@ -35,6 +35,8 @@
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
 
+MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_USE_FIXED_PAD);
+
 
 void rewrite_pure_dyn_params(module& m)
 {
@@ -129,14 +131,8 @@ static bool any_sm_next(const_module_ref mm, const std::vector<dynamic_dimension
 {
     if(any_of(mm->begin(), mm->end(), [](auto ins) { return ins.name() == "select_module";} ))
     {
-        // std::cout << "select_module found. skipping." << std::endl;
         return true;
     }
-    // else
-    // {
-    //     // mm->debug_print();
-    //     std::cout << "select_module not found. continuing." << std::endl;
-    // }
     for(const auto& ddc : ddcs)
     {
         auto p_outputs  = mm->get_parameter(ddc.dyn_param_str)->outputs();
@@ -176,6 +172,21 @@ static std::vector<size_t> powers_of_2_between(size_t min, size_t max)
     return result;
 }
 
+static void insert_fixed_pad(module& m, const migraphx::shape::dynamic_dimension& dyn_dim)
+{
+    size_t max_pad_val = dyn_dim.max;
+    for(auto&& param : m.get_parameters())
+    {
+        auto param_shape = param->get_shape();
+        if(not param_shape.dynamic())
+            continue;
+        auto static_shape = param_shape.to_static(max_pad_val);
+        auto fixed_pad = m.insert_instruction(std::next(param),
+            make_op("fixed_pad", {{"output_lens", static_shape.lens()}}), param);
+        m.replace_instruction(param, fixed_pad);
+    }
+}
+
 /**
  * Makes all the shapes in the dynamic_dimension range.  Probably won't work for `if`
  * and `loop` instructions, depending on how the submodules for those
@@ -194,6 +205,12 @@ void split_single_dyn_dim::apply(module_pass_manager& mpm) const
     {
         // all dynamic dimension objects should be the same for all parameters in dd_check_vec
         auto dyn_dim = dd_check_vec->at(0).dd;
+
+        if(enabled(MIGRAPHX_USE_FIXED_PAD{}))
+        {
+            insert_fixed_pad(*mm, dyn_dim);
+            return;
+        }
         // create submodules for the range of dimension sizes
         // use min, max, and powers of 2 in between,
         // and any user-supplied optimals

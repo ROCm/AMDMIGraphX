@@ -74,6 +74,7 @@ void insert_copy(module& m, const allocation_model& model)
 {
     if(any_of(m.begin(), m.end(), [](auto ins) { return ins.name() == "select_module";}))
         return;
+    bool has_fixed_pad = any_of(m.begin(), m.end(), [](auto ins) { return contains(ins.name(), "fixed_pad");});
     auto returns = m.get_returns();
     std::unordered_set<instruction_ref> returns_set(returns.begin(), returns.end());
     for(auto ins : returns_set)
@@ -82,7 +83,7 @@ void insert_copy(module& m, const allocation_model& model)
             continue;
         auto alias = instruction::get_output_alias(ins);
         // dynamic submodules must always insert copies
-        if(alias->get_shape() == ins->get_shape() and not contains(m.name(), "dim_"))
+        if(alias->get_shape() == ins->get_shape() and not has_fixed_pad)
             continue;
         auto outputs = ins->outputs(); // TODO make this copy's outputs
         auto insert_ins = std::next(ins);
@@ -91,7 +92,7 @@ void insert_copy(module& m, const allocation_model& model)
             make_op("allocate", migraphx::value{{"shape", to_value(ins->get_shape())}}));
         auto copy = m.insert_instruction(insert_ins, make_op(model.copy()), ins, alloc);
         copy = m.replace_instruction(ins, copy);
-        if(contains(m.name(), "dim_")) // dynamic submodule copies should only be used by return ins
+        if(has_fixed_pad) // dynamic submodule copies should only be used by return ins
         {
             for(auto output : outputs)
             {

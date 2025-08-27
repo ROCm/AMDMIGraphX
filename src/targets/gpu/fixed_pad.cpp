@@ -38,6 +38,8 @@ shape hip_fixed_pad::compute_shape(std::vector<shape> inputs) const
 
 argument hip_fixed_pad::compute(context& ctx, const shape&, const std::vector<argument>& args) const
 {
+    if(args.front().get_shape() == args.back().get_shape())
+        return args.front();
     return device::fixed_pad(ctx.get_stream().get(), args.back(), args.front());
 }
 

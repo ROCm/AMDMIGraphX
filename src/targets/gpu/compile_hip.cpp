@@ -367,30 +367,6 @@ std::vector<std::vector<char>> compile_hip_src(const std::vector<src_file>& srcs
     return {compiler.compile(srcs)};
 }
 
-// bool hip_has_flags(const std::vector<std::string>& flags)
-// {
-//     src_compiler compiler;
-//     compiler.compiler = MIGRAPHX_HIP_COMPILER;
-//     compiler.flags    = flags;
-//     compiler.flags.emplace_back("-x hip");
-//     compiler.flags.emplace_back("-c");
-//     compiler.flags.emplace_back("--offload-arch=gfx900");
-//     compiler.flags.emplace_back("--cuda-device-only");
-
-//     std::string src;
-//     src_file input{"main.cpp", src};
-
-//     try
-//     {
-//         compiler.compile({input});
-//         return true;
-//     }
-//     catch(...)
-//     {
-//         return false;
-//     }
-// }
-
 #endif // MIGRAPHX_USE_HIPRTC
 
 bool hip_has_flags(const std::vector<std::string>& flags)

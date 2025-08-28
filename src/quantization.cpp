@@ -84,7 +84,10 @@ void quantize_fp16(program& prog, const std::vector<std::string>& ins_names)
 void quantize_bf16(program& prog, const std::vector<std::string>& ins_names)
 {
     run_passes(prog,
-               {normalize_ops{},
+               {split_single_dyn_dim{},
+                dead_code_elimination{},
+                simplify_dyn_ops{},
+                normalize_ops{},
                 optimize_module{{"quantizelinear", "dequantizelinear"}},
                 truncate_float_pass{ins_names, shape::bf16_type},
                 optimize_module{{"quantizelinear", "dequantizelinear"}}},

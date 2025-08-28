@@ -140,7 +140,7 @@ TEST_CASE(empty_range)
     std::vector<int> vec;
     auto view = migraphx::views::transform(vec, [](int x) { return x * x; });
 
-    EXPECT(bool{view.begin() == view.end()});
+    EXPECT(view.begin() == view.end());
 }
 
 TEST_CASE(non_random_access_iterator)
@@ -237,12 +237,12 @@ TEST_CASE(transform_view_element_comparison)
     auto view2 = migraphx::views::transform(vec2, squared);
     auto view3 = migraphx::views::transform(vec3, squared);
 
-    EXPECT(bool{view1 == view2}); // Same elements
-    EXPECT(bool{view1 != view3}); // Different elements
-    EXPECT(bool{view1 < view3});  // Lexicographical comparison
-    EXPECT(bool{view1 <= view3});
-    EXPECT(bool{view3 > view1});
-    EXPECT(bool{view3 >= view1});
+    EXPECT(view1 == view2); // Same elements
+    EXPECT(view1 != view3); // Different elements
+    EXPECT(view1 < view3);  // Lexicographical comparison
+    EXPECT(view1 <= view3);
+    EXPECT(view3 > view1);
+    EXPECT(view3 >= view1);
 }
 
 TEST_CASE(transform_view_element_comparison_diff_view)
@@ -254,18 +254,18 @@ TEST_CASE(transform_view_element_comparison_diff_view)
     auto view2 = migraphx::views::transform(vec2, [](int x) { return (x - 1) * (x - 1); });
     auto view3 = migraphx::views::transform(vec2, [](int x) { return x * x; });
 
-    EXPECT(bool{view1 == view2});
-    EXPECT(bool{view1 != view3});
-    EXPECT(bool{view2 != view3});
+    EXPECT(view1 == view2);
+    EXPECT(view1 != view3);
+    EXPECT(view2 != view3);
 
-    EXPECT(bool{view1 < view3});
-    EXPECT(bool{view2 < view3});
-    EXPECT(bool{view1 <= view3});
-    EXPECT(bool{view2 <= view3});
-    EXPECT(bool{view3 > view1});
-    EXPECT(bool{view3 > view2});
-    EXPECT(bool{view3 >= view1});
-    EXPECT(bool{view3 >= view2});
+    EXPECT(view1 < view3);
+    EXPECT(view2 < view3);
+    EXPECT(view1 <= view3);
+    EXPECT(view2 <= view3);
+    EXPECT(view3 > view1);
+    EXPECT(view3 > view2);
+    EXPECT(view3 >= view1);
+    EXPECT(view3 >= view2);
 }
 
 struct non_comparable
@@ -293,8 +293,8 @@ TEST_CASE(transform_view_non_comparable_elements)
     auto view2             = migraphx::views::transform(vec1, as_non_comparable);
     auto view3             = migraphx::views::transform(vec2, as_non_comparable);
 
-    EXPECT(bool{view == view2});
-    EXPECT(bool{view != view3});
+    EXPECT(view == view2);
+    EXPECT(view != view3);
 }
 
 TEST_CASE(operator_arrow_in_loop_reference)

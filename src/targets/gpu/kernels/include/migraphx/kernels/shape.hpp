@@ -186,7 +186,9 @@ template <class Lens, class Permutation>
 constexpr auto make_shape_from_permutation(Lens, Permutation)
 {
     constexpr auto new_lens = reorder_dims(Lens{}, Permutation{});
-    return reorder_shape(make_shape(new_lens), invert_permutation(Permutation{}));
+    constexpr auto result = reorder_shape(make_shape(new_lens), invert_permutation(Permutation{}));
+    static_assert(result.lens == Lens{});
+    return result;
 }
 
 template <class Shape>

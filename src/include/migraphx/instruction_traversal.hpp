@@ -38,8 +38,7 @@ inline auto get_output_path(instruction_ref ins)
     return unfold(ins, [](instruction_ref out) -> std::optional<instruction_ref> {
         if(out->outputs().size() != 1)
             return std::nullopt;
-        auto next = out->outputs().front();
-        return next;
+        return out->outputs().front();
     });
 }
 

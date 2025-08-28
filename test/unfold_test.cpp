@@ -73,14 +73,14 @@ TEST_CASE(test_one_element_sequence)
 
 TEST_CASE(test_pair_state)
 {
-    using State = std::pair<int, int>;
-    auto f      = [](const State& s) { return s.first + s.second; };
-    auto g      = [](const State& s) -> std::optional<State> {
+    using state = std::pair<int, int>;
+    auto f      = [](const state& s) { return s.first + s.second; };
+    auto g      = [](const state& s) -> std::optional<state> {
         if(s.first > 0)
-            return State{s.first - 1, s.second + 2};
+            return state{s.first - 1, s.second + 2};
         return std::nullopt;
     };
-    auto rng = unfold(State{3, 10}, f, g);
+    auto rng = unfold(state{3, 10}, f, g);
 
     std::vector<int> got;
     std::copy(rng.begin(), rng.end(), std::back_inserter(got));
@@ -256,8 +256,7 @@ TEST_CASE(test_floating_point)
     auto rng = unfold(0.0, f, g);
 
     std::vector<double> got;
-    for(auto x : rng)
-        got.push_back(x);
+    std::copy(rng.begin(), rng.end(), std::back_inserter(got));
     EXPECT(got.size() == 4);
     EXPECT(test::within_abs(got[0], 0.0) and test::within_abs(got[1], 0.5) and
            test::within_abs(got[2], 1.0) and test::within_abs(got[3], 1.5));
@@ -299,8 +298,7 @@ TEST_CASE(test_string_state)
     auto rng = unfold(std::string("A"), f, g);
 
     std::vector<std::size_t> got;
-    for(auto x : rng)
-        got.push_back(x);
+    std::copy(rng.begin(), rng.end(), std::back_inserter(got));
     EXPECT(got == std::vector<std::size_t>{1, 2, 3});
 }
 
@@ -315,25 +313,23 @@ TEST_CASE(test_even_numbers)
     auto rng = unfold(0, f, g);
 
     std::vector<int> got;
-    for(auto x : rng)
-        got.push_back(x);
+    std::copy(rng.begin(), rng.end(), std::back_inserter(got));
     EXPECT(got == std::vector<int>{0, 2, 4, 6, 8, 10});
 }
 
 TEST_CASE(test_fibonacci_sequence)
 {
-    using State = std::pair<int, int>;
-    auto f      = [](const State& s) { return s.first; };
-    auto g      = [](const State& s) -> std::optional<State> {
+    using state = std::pair<int, int>;
+    auto f      = [](const state& s) { return s.first; };
+    auto g      = [](const state& s) -> std::optional<state> {
         if(s.first > 100)
             return std::nullopt;
-        return State{s.second, s.first + s.second};
+        return state{s.second, s.first + s.second};
     };
-    auto rng = unfold(State{0, 1}, f, g);
+    auto rng = unfold(state{0, 1}, f, g);
 
     std::vector<int> got;
-    for(auto x : rng)
-        got.push_back(x);
+    std::copy(rng.begin(), rng.end(), std::back_inserter(got));
     std::vector<int> expected{0, 1, 1, 2, 3, 5, 8, 13, 21, 34, 55, 89, 144};
     got.resize(expected.size());
     EXPECT(got == expected);

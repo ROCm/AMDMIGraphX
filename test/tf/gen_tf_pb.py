@@ -94,7 +94,7 @@ def addn_with_many_elements_test(g1):
         input_list = []
         for i in range(10):
             input_list.append(tf.compat.v1.placeholder(tf.float32, shape=(1, 1648), name=str(i)))
-        tf.math.add_n([input_list], name='addn1')
+        tf.math.add_n(input_list, name='addn1')
 
 
 @tf_test

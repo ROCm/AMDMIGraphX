@@ -112,8 +112,8 @@ struct concat
         }
 
         // Check if we have mixed static and dynamic shapes
-        bool has_static =
-            std::any_of(inputs.begin(), inputs.end(), [](const shape& s) { return not s.dynamic(); });
+        bool has_static = std::any_of(
+            inputs.begin(), inputs.end(), [](const shape& s) { return not s.dynamic(); });
         bool has_dynamic =
             std::any_of(inputs.begin(), inputs.end(), [](const shape& s) { return s.dynamic(); });
 

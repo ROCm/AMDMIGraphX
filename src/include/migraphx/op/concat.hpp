@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2023 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2025 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -113,12 +113,12 @@ struct concat
 
         // Check if we have mixed static and dynamic shapes
         bool has_static =
-            std::any_of(inputs.begin(), inputs.end(), [](const shape& s) { return !s.dynamic(); });
+            std::any_of(inputs.begin(), inputs.end(), [](const shape& s) { return not s.dynamic(); });
         bool has_dynamic =
             std::any_of(inputs.begin(), inputs.end(), [](const shape& s) { return s.dynamic(); });
 
         // Convert all static shapes to dynamic shapes
-        if(has_static && has_dynamic)
+        if(has_static and has_dynamic)
         {
             for(auto& input : inputs)
             {
@@ -144,7 +144,7 @@ struct concat
         common_dyn_dims[axis] = migraphx::shape::dynamic_dimension{new_min, new_max};
 
         // Check if all dimensions can be made static
-        if(std::all_of(common_dyn_dims.begin(), common_dyn_dims.end(), [&](auto ddim) {
+        if(std::all_of(common_dyn_dims.begin(), common_dyn_dims.end(), [&](auto const& ddim) {
                return ddim.is_fixed();
            }))
         {
@@ -153,7 +153,7 @@ struct concat
             std::transform(common_dyn_dims.begin(),
                            common_dyn_dims.end(),
                            std::back_inserter(new_static_dims),
-                           [&](auto ddim) { return ddim.max; });
+                           [&](auto const& ddim) { return ddim.max; });
             return {inputs.at(0).type(), new_static_dims};
         }
         return {inputs[0].type(), common_dyn_dims};

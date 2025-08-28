@@ -144,14 +144,16 @@ struct concat
         common_dyn_dims[axis] = migraphx::shape::dynamic_dimension{new_min, new_max};
 
         // Check if all dimensions can be made static
-        if(std::all_of(common_dyn_dims.begin(), common_dyn_dims.end(), [&](auto ddim) {return ddim.is_fixed();}))
+        if(std::all_of(common_dyn_dims.begin(), common_dyn_dims.end(), [&](auto ddim) {
+               return ddim.is_fixed();
+           }))
         {
             // Return as static
             std::vector<size_t> new_static_dims;
-            std::transform(common_dyn_dims.begin(), common_dyn_dims.end(), std::back_inserter(new_static_dims),
-            [&](auto ddim) {
-                return ddim.max;
-            });
+            std::transform(common_dyn_dims.begin(),
+                           common_dyn_dims.end(),
+                           std::back_inserter(new_static_dims),
+                           [&](auto ddim) { return ddim.max; });
             return {inputs.at(0).type(), new_static_dims};
         }
         return {inputs[0].type(), common_dyn_dims};

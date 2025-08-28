@@ -443,8 +443,9 @@ TEST_CASE(einsum_matrix_diagonal_op_builder_test)
 TEST_CASE(einsum_batch_matrix_diagonal_op_builder_test)
 {
     migraphx::module mm;
-    auto indices_arg = mm.add_literal(
-        migraphx::literal{migraphx::shape{migraphx::shape::int64_type, {3, 3, 2}}, {0}});
+    auto indices_arg =
+        mm.add_literal(migraphx::literal{migraphx::shape{migraphx::shape::int64_type, {3, 3, 2}},
+                                         {0, 0, 1, 1, 2, 2, 0, 0, 1, 1, 2, 2, 0, 0, 1, 1, 2, 2}});
     auto a = mm.add_parameter("a", {migraphx::shape::float_type, {3, 3, 3}});
     auto op =
         mm.add_instruction(migraphx::make_op("gathernd", {{"batch_dims", 1}}), a, indices_arg);

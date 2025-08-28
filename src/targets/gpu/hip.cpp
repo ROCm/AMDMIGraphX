@@ -177,39 +177,41 @@ argument register_on_gpu(const argument& arg)
 argument to_gpu(const argument& arg, bool host)
 {
     argument result;
-    arg.visit(
-        [&](auto x) {
-            auto p = write_to_gpu(arg.data(), arg.get_shape().bytes(), host);
-            result = {x.get_shape(), p};
-        },
-        [&](const auto& xs) {
-            std::vector<argument> args;
-            std::transform(xs.begin(), xs.end(), std::back_inserter(args), [&](const auto& x) {
-                return to_gpu(x, host);
-            });
-            result = argument{args};
-        });
+    shape arg_shape = arg.get_shape();
+    if(arg_shape.type() == shape::tuple_type)
+    {
+        std::vector<argument> sub_obj = arg.get_sub_objects();
+        std::vector<argument> res_args;
+        migraphx::transform(
+            sub_obj, std::back_inserter(res_args), [&](const auto& x) { return to_gpu(x, host); });
+        result = argument{res_args};
+    }
+    else
+    {
+        auto p = write_to_gpu(arg.data(), arg.get_shape().bytes(), host);
+        result = {arg.get_shape(), p};
+    }
     return result;
 }
 
 argument from_gpu(const argument& arg)
 {
     argument result;
-    arg.visit(
-        [&](auto x) {
-            using type = typename decltype(x)::value_type;
-            auto v     = read_from_gpu<type>(arg.data(), x.get_shape().bytes() / sizeof(type));
-            // cppcheck-suppress returnDanglingLifetime
-            result = {x.get_shape(), [v]() mutable { return v.data(); }};
-        },
-        [&](const auto& xs) {
-            std::vector<argument> args;
-            std::transform(xs.begin(), xs.end(), std::back_inserter(args), [&](const auto& x) {
-                return from_gpu(x);
-            });
-            result = argument{args};
-        });
-
+    shape arg_shape = arg.get_shape();
+    if(arg_shape.type() == shape::tuple_type)
+    {
+        std::vector<argument> sub_obj = arg.get_sub_objects();
+        std::vector<argument> res_args;
+        migraphx::transform(
+            sub_obj, std::back_inserter(res_args), [&](const auto& x) { return from_gpu(x); });
+        result = argument{res_args};
+    }
+    else
+    {
+        auto v = read_from_gpu<migraphx::byte>(arg.data(), arg.get_shape().bytes());
+        // cppcheck-suppress returnDanglingLifetime
+        result = {arg.get_shape(), [v]() mutable { return v.data(); }};
+    }
     return result;
 }
 

@@ -219,7 +219,7 @@ std::vector<std::vector<char>> compile_hip_src_with_hiprtc(std::vector<hiprtc_sr
     options.push_back("--offload-arch=" + arch);
     std::vector<std::string> extra_flags =
         split_string(string_value_of(MIGRAPHX_GPU_HIP_FLAGS{}, ""), ' ');
-    compiler.flags.insert(compiler.flags.end(), extra_flags.begin(), extra_flags.end());
+    options.insert(options.end(), extra_flags.begin(), extra_flags.end());
 
     prog.compile(options, quiet);
 

@@ -162,8 +162,8 @@ TEST_CASE(module_sort)
     }
     migraphx::module m2;
     {
-        auto y = m2.add_parameter("y", s);
         auto x = m2.add_parameter("x", s);
+        auto y = m2.add_parameter("y", s);
         m2.add_parameter("z", s);
         auto add = m2.add_instruction(migraphx::make_op("add"), y, x);
         m2.add_return({add});

@@ -76,93 +76,11 @@ struct concat
         return offsets;
     }
 
-    void handle_mixed_shapes(std::vector<shape>& inputs) const
-    {
-        std::vector<shape::dynamic_dimension> referenced_dims;
-        bool referenced_dims_founded = false;
-
-        // Find referenced dimensions
-        for(const auto& input : inputs)
-        {
-            if(input.dynamic() && !referenced_dims_founded)
-            {
-                referenced_dims         = input.dyn_dims();
-                referenced_dims_founded = true;
-                break;
-            }
-        }
-
-        std::vector<shape> converted_inputs;
-        for(const auto& input : inputs)
-        {
-            if(input.dynamic())
-            {
-                auto dyn_dims = input.dyn_dims();
-                for(std::size_t i = 0; i < dyn_dims.size(); i++)
-                {
-                    if(i != axis)
-                    {
-                        // Verify compatibility for non-concatenated axes
-                        if(referenced_dims[i] != dyn_dims[i])
-                        {
-                            MIGRAPHX_THROW(
-                                "CONCAT: Existed dynamic shapes have incompatible ranges on axis " +
-                                std::to_string(i));
-                        }
-                    }
-                }
-                converted_inputs.push_back(input);
-            }
-            else
-            {
-                auto lens = input.lens();
-                std::vector<shape::dynamic_dimension> dyn_dims;
-                for(std::size_t i = 0; i < lens.size(); i++)
-                {
-                    if(i == axis)
-                    {
-                        dyn_dims.push_back({lens[i], lens[i]});
-                    }
-                    else if(referenced_dims_founded)
-                    {
-                        // Check if static size fits in dynamic range
-                        if(lens[i] < referenced_dims[i].min || lens[i] > referenced_dims[i].max)
-                        {
-                            MIGRAPHX_THROW("CONCAT: Static shape size " + std::to_string(lens[i]) +
-                                           " is outside dynamic range [" +
-                                           std::to_string(referenced_dims[i].min) + ", " +
-                                           std::to_string(referenced_dims[i].max) + "] on axis " +
-                                           std::to_string(i));
-                        }
-                        dyn_dims.push_back(referenced_dims[i]);
-                    }
-                    else
-                    {
-                        dyn_dims.push_back({lens[i], lens[i]});
-                    }
-                }
-                converted_inputs.push_back({input.type(), dyn_dims});
-            }
-        }
-        inputs = std::move(converted_inputs);
-    }
-
     shape normalize_compute_shape(std::vector<shape> inputs) const
     {
         // inputs can contain 1 or more shapes (variadic).  compute_shape_op ensures there must
         // be at least 1.
         check_shapes{inputs, *this, true}.same_ndims().same_type();
-
-        // Check if we have mixed static and dynamic shapes
-        bool has_static =
-            std::any_of(inputs.begin(), inputs.end(), [](const shape& s) { return !s.dynamic(); });
-        bool has_dynamic =
-            std::any_of(inputs.begin(), inputs.end(), [](const shape& s) { return s.dynamic(); });
-
-        if(has_static && has_dynamic)
-        {
-            handle_mixed_shapes(inputs);
-        }
 
         if(std::none_of(inputs.begin(), inputs.end(), [&](const shape& s) { return s.dynamic(); }))
         {
@@ -192,29 +110,51 @@ struct concat
             new_lens[axis]                    = new_dim_axis;
             return shape::from_permutation(type, new_lens, find_permutation(inputs));
         }
-        else if(std::all_of(
-                    inputs.begin(), inputs.end(), [&](const shape& s) { return s.dynamic(); }))
-        {
-            // Calculate the dynamic input shapes for the non-concat axes
-            auto common_dyn_dims = compute_common_dyn_dims(inputs);
 
-            // Update the dynamic dimensions for the concat axis
-            std::size_t new_min = 0;
-            std::size_t new_max = 0;
-            for(const auto& input : inputs)
+        // Check if we have mixed static and dynamic shapes
+        bool has_static =
+            std::any_of(inputs.begin(), inputs.end(), [](const shape& s) { return !s.dynamic(); });
+        bool has_dynamic =
+            std::any_of(inputs.begin(), inputs.end(), [](const shape& s) { return s.dynamic(); });
+
+        // Convert all static shapes to dynamic shapes
+        if(has_static && has_dynamic)
+        {
+            for(auto& input : inputs)
             {
-                auto ddim = input.dyn_dims()[axis];
-                new_min += ddim.min;
-                new_max += ddim.max;
+                if(input.dynamic())
+                    continue;
+                input = input.to_dynamic();
             }
+        }
 
-            common_dyn_dims[axis] = migraphx::shape::dynamic_dimension{new_min, new_max};
-            return {inputs[0].type(), common_dyn_dims};
-        }
-        else
+        // Calculate the dynamic input shapes for all axes
+        auto common_dyn_dims = compute_common_dyn_dims(inputs);
+
+        // Update the dynamic dimensions for the concat axis
+        std::size_t new_min = 0;
+        std::size_t new_max = 0;
+        for(const auto& input : inputs)
         {
-            MIGRAPHX_THROW("CONCAT: Cannot mix static and dynamic input shapes.");
+            auto ddim = input.dyn_dims()[axis];
+            new_min += ddim.min;
+            new_max += ddim.max;
         }
+
+        common_dyn_dims[axis] = migraphx::shape::dynamic_dimension{new_min, new_max};
+
+        // Check if all dimensions can be made static
+        if(std::all_of(common_dyn_dims.begin(), common_dyn_dims.end(), [&](auto ddim) {return ddim.is_fixed();}))
+        {
+            // Return as static
+            std::vector<size_t> new_static_dims;
+            std::transform(common_dyn_dims.begin(), common_dyn_dims.end(), std::back_inserter(new_static_dims),
+            [&](auto ddim) {
+                return ddim.max;
+            });
+            return {inputs.at(0).type(), new_static_dims};
+        }
+        return {inputs[0].type(), common_dyn_dims};
     }
 
     argument compute(const dyn_output& dyn_out, std::vector<argument> args) const

@@ -157,7 +157,7 @@ struct parse_resize : op_parser<parse_resize>
         std::string get_nearest_mode() const { return r_attr.nearest_mode; }
         std::string get_coord_trans_mode() const { return r_attr.coord_t_mode; }
         std::string get_mode() const { return r_attr.mode; }
-        std::float get_cubic_coeff() const {return r_attr.cubic_coeff_a; }
+        float get_cubic_coeff() const {return r_attr.cubic_coeff_a; }
 
         void set_scales_sizes_arg(instruction_ref ref) { scales_sizes_arg = ref; }
 
@@ -417,11 +417,34 @@ struct parse_resize : op_parser<parse_resize>
             return (get_input_rank() == 3 or get_input_rank() == 5);
         }
 
-        // ND - (batch, channel, n1, n2, n3...nD) or (n1, n2, n3....nD)
-        bool is_nd_image() const
+        instruction_ref generate_cubic_conv_kernel(const onnx_parser::node_info& info) const
         {
-            return (> 5);
+
+            auto cubic_coeef = get_cubic_coeff();
+            // Needs to be 5x4 matrix which is then multiplied by the powers of \
+            // input data before convolution is done
+            migraphx::shape kernel_shape{migraphx::shape::float_type, {5, 4}};
+
+            std::vector<float> kernel_data{ (cubic_coeef + 2.0f), -(cubic_coeef + 2.0f), 0.0f, 1.0f,
+                                           cubic_coeef , -(5.0f * cubic_coeef ), (8.0f*cubic_coeef), (-4.0f * cubic_coeef),
+                                           0.0f, 0.0f, 0.0f, 1.0f,
+                                           cubic_coeef , -(5.0f * cubic_coeef), (8.0f*cubic_coeef), (-4.0f * cubic_coeef),
+                                           (cubic_coeef + 2.0f), -(cubic_coeef + 2.0f), 0.0f, 1.0f};
+            return info.add_literal(kernel_shape, kernel_data);
         }
+
+        // s parameters in filter are scaled based on the sample values and new image locations
+        instruction_ref gen_cubic_dim_sampling(const onnx_parser::node_info& info, const float& h, 
+                                            const float& a, const float& b) const
+        {
+            auto s = std::abs(b - a) / h;
+
+            migraphx::shape kernel_shape{migraphx::shape::float_type, {4, 1}};
+            std::vector<float> kernel_data{ (s*s*s), (s*s) , s , 1.0f};
+
+            return info.add_literal(kernel_shape, kernel_data);
+        }
+
     };
 
 
@@ -587,27 +610,20 @@ struct parse_resize : op_parser<parse_resize>
         return data;
     }
 
-    static instruction_ref generate_cubic_conv_kernel(const onnx_parser::node_info& info, 
-                                                      const float& cubic_coeff) const
-    {
-        migraphx::shape kernel_shape{migraphx::float_type, {5, 5}};
 
-        // Needs to be 5x4 matrix which is then multiplied by the powers of \
-        // input data before convolution is done
-
-        std::vector<float> kernel_data{
-        cubic_coeef + 2.0f, -(cubic_coeef + 2.0f), 0.0f, 1.0f,
-        cubic_coeef , -(5.0f * cubic_coeef ), 8.0f*cubic_coeef, -4.0f * cubic_coeef,
-        0.0f, 0.0f, 0.0f, 1.0f
-        cubic_coeef , -(5.0f * cubic_coeef ), 8.0f*cubic_coeef, -4.0f * cubic_coeef,
-        cubic_coeef + 2.0f, -(cubic_coeef + 2.0f), 0.0f, 1.0f};
-        return info.add_literal(kernel_shape, kernel_data);
-    }
-
+    // Cubic interpolation can be done by convolution of a fixed coefficients that are scaled based
+    // on the sampleing (up/down) of the axis using the original image 
+    // 
+    // We generate the standard symmetric kernel used for cubic interpolation which acts as a filter and results in 5 
+    // values that can be used for a 1d convolution across each dimenion we wish to scale.
+    // we First reshape the original input into a 1D layer, and then run a convolution across it using the input kernel
+    // thats been generatd by generate_cubic_conv_kernel and scaled by items via gen_dim_sample_scaling
+    // Since the kernel and sample coefficients can be found at compile time (as vec_scales is constant), the 
+    // mul operand for each will const folded before used in the 1d convolution against the input.
+    // Each convolution happens serially until all dimensions are handled correctly. 
     static instruction_ref handle_cubic_mode(const op_desc& opd,
                                              const onnx_parser::node_info& info,
-                                             resize_args& resize,
-                                             instruction_ref& args_0)
+                                             resize_args& resize)
     {
         auto in_s      = resize.in_s;
         auto in_lens   = resize.in_lens;
@@ -624,10 +640,31 @@ struct parse_resize : op_parser<parse_resize>
 
         // reshape input to one-dimension
         std::vector<int64_t> rsp_lens = {static_cast<int64_t>(in_s.elements())};
-        auto rsp = info.add_instruction(make_op("reshape", {{"dims", rsp_lens}}), args_0);
-        
-        auto conv_kernel = generate_cubic_conv_kernel(info, resize.get_cubic_coeff())
+        auto rsp = info.add_instruction(make_op("reshape", {{"dims", rsp_lens}}), resize.x);
 
+        size_t i = 0;
+        instruction_ref conv_chain_out = rsp;
+
+        auto conv_kernel = resize.generate_cubic_conv_kernel(info);
+        // Scale each dimension thats not a scale value of 1;
+        for (auto& scale: vec_scale)
+        {
+            ++i;
+            // Avoid any bad (nonsensical) scales or 1 no scale for the dimension
+            if (0.0f < scale or scale == 1.0f)
+                continue;
+
+            auto sample_scale = resize.gen_cubic_dim_sampling(info, 0, scale * in_lens.at(i), 
+                                                              static_cast<float>(in_lens.at(i))/scale);
+
+            // Scale the convolution coefficients by the sample incriment used for the image to
+            // give us a proper kernel before performing a 1d convolution on the image with this kernel
+            auto filter_matrix  = info.add_instruction(make_op("mul"), conv_kernel, sample_scale);
+            conv_chain_out = info.add_instruction(make_op("convolution", {{"stride", 2}}), conv_chain_out, filter_matrix);
+        }
+
+        // return output image to the proper output shape based on the output lengs
+        return info.add_instruction(make_op("reshape", {{"dims", out_lens}}), conv_chain_out);
     }
 
     static void set_resize_attributes(const onnx_parser::node_info& info,
@@ -710,7 +747,7 @@ struct parse_resize : op_parser<parse_resize>
         }
         else
         {
-            return handle_cubic_mode(opd, info, resize, args[0]);
+            return handle_cubic_mode(opd, info, resize);
         }
     }
 };

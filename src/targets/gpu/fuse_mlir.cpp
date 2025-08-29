@@ -148,11 +148,12 @@ struct mlir_op
 {
     std::string name() const { return "gpu::mlir_op"; }
     operation op = make_op("convolution");
+    std::string tag = "";
 
     template <class Self, class F>
     static auto reflect(Self& self, F f)
     {
-        return pack(f(self.op, "op"));
+        return pack(f(self.op, "op"), f(self.tag, "tag"));
     }
 
     // Check if the shape can be created from a transpose/broadcast/slice
@@ -675,6 +676,7 @@ struct find_mlir_fused_ops
 
     void apply(module_pass_manager& mpm, const match::matcher_result& r) const
     {
+        std::cout << "fuse gemm->reshape->elemwise is being applied\n";
         auto pw_ins        = r.result;
         auto gemm_based_op = r.instructions["gemm_based_op"];
         auto x_ins         = r.instructions["x"]; // input to pointwise after reshaper op stream
@@ -687,6 +689,8 @@ struct find_mlir_fused_ops
            }))
             return;
 
+        std::string tag = (x_ins == gemm_based_op) ? "geg_fusable" : "";
+        
         std::unordered_map<instruction_ref, instruction_ref> map_ins;
         module_ref mm = mpm.create_module("mlir_" + pm->name());
         mm->set_bypass();
@@ -700,11 +704,12 @@ struct find_mlir_fused_ops
             inss_to_insert.push_back(reshape_ins);
             gemm_has_multi_outs |= reshape_ins->outputs().size() > 1;
         }
+
         inss_to_insert.push_back(gemm_based_op);
         std::reverse(inss_to_insert.begin(), inss_to_insert.end());
         mm->add_instructions(inss_to_insert, &map_ins);
-
         fuse_input_ops(mm, pw_ins->inputs(), &map_ins);
+
         auto rins = mm->fuse(*pm, pw_ins->inputs(), &map_ins, &insert_pointwise);
         if(gemm_has_multi_outs)
         {
@@ -714,7 +719,7 @@ struct find_mlir_fused_ops
 
         auto inputs    = find_inputs(map_ins, &mpm.get_module(), mm);
         auto fused_ins = mpm.get_module().insert_instruction(
-            pw_ins, mlir_op{gemm_based_op->get_operator()}, mlir_contiguous(mpm, inputs), {mm});
+            pw_ins, mlir_op{gemm_based_op->get_operator(), tag}, mlir_contiguous(mpm, inputs), {mm});
         if(gemm_has_multi_outs)
         {
             auto dot_ins = mpm.get_module().insert_instruction(
@@ -750,6 +755,8 @@ struct find_mlir_fused_ops
 /**
  * Fuses rocMLIR gemm or conv op -> elementwise -> gemm
  * into a mlir_op with submodule.
+ * Note: gemm/conv -> elementwise has already been fused into an mlir_op
+ * by this point
  */
 struct find_mlir_fused_geg_ops
 {
@@ -757,49 +764,36 @@ struct find_mlir_fused_geg_ops
     mlir_mode dot_mode  = mlir_mode::none;
     /*
      * Matches:
-     * mlir_dot_or_conv <binds to "input_gemm_based_op"> ->
-     * mlir_elemwise <binds to "elemwise_op"> ->
+     * mlir_dot_or_conv <binds to "gemm_pw_op"> ->
      * mlir_gemm <matcher result>
      */
     auto matcher() const
     {
-        auto mlir_dot_or_conv = match::any_of(is_mlir_dot(dot_mode), is_mlir_conv(conv_mode)).bind("input_gemm_based_op");
-        auto mlir_elemwise = mlir_pointwise()(match::any_of[match::inputs()](mlir_dot_or_conv)).bind("mlir_elemwise");
-        return is_mlir_dot(dot_mode)(match::any_of[match::inputs()](mlir_elemwise));
+        auto gemm_pw = match::name("gpu::mlir_op")(match::has_op_value("tag", "geg_fusable")).bind("mlir_gemm_pw");
+        return is_mlir_dot(dot_mode)(match::any_of[match::inputs()](gemm_pw));
     }
 
     void apply(module_pass_manager& mpm, const match::matcher_result& r) const
     {
         auto final_gemm_ins = r.result;
-        auto input_gemm_based_ins = r.instructions["input_gemm_based_op"];
-        auto pw_ins = r.instructions["mlir_elemwise"];
-        auto* pm = pw_ins->module_inputs().front();
-        auto pw_inputs = pw_ins->inputs();
-
-        // only of one of the inputs to pointwise module should be dependent on the first conv/gemm 
-        // in the fusion, otherwise it can create invalid graph transformation
-        if(std::any_of(pw_inputs.begin(), pw_inputs.end(), [&](const auto& i) { 
-            // does it reach the input gemm but is *not* the input gemm?
-            return i != input_gemm_based_ins and reaches(input_gemm_based_ins, i);
-        }))
-        return;
+        auto mlir_gemm_pw_ins = r.instructions["mlir_gemm_pw"];
+        auto* fused_mm = mlir_gemm_pw_ins->module_inputs().front();
 
         std::unordered_map<instruction_ref, instruction_ref> map_ins;
-        // TODO: named differently?
-        module_ref mm = mpm.create_module("mlir_" + pm->name());
+        // new module for the full gemm->elementwise->gemm fusion
+        module_ref mm = mpm.create_module(fused_mm->name() + "_geg", *fused_mm);
+        // remove the existing return instruction to add more operations
+        if(std::prev(mm->end())->name() == "@return")
+        {
+            mm->remove_instruction(std::prev(mm->end()));
+        }
         mm->set_bypass();
+        map_ins[mlir_gemm_pw_ins] = std::prev(mm->end());
 
-        // add all ops and their inputs to the fused module
-        fuse_input_ops(mm, input_gemm_based_ins->inputs(), &map_ins);
-        mm->add_instructions({input_gemm_based_ins}, &map_ins);
-
-        fuse_input_ops(mm, pw_ins->inputs(), &map_ins);
-        auto pw_outputs = mm->fuse(*pm, pw_ins->inputs(), &map_ins, &insert_pointwise);
-
-	// for final gemm, only fuse external inputs
-	std::vector<instruction_ref> external_inputs;
+        // for final gemm, only fuse external inputs; other inputs already fused
+        std::vector<instruction_ref> external_inputs;
         for(auto input : final_gemm_ins->inputs()) {
-            if(input != pw_ins) {
+            if(input != mlir_gemm_pw_ins) {
                 external_inputs.push_back(input);
             }
         }
@@ -808,8 +802,8 @@ struct find_mlir_fused_geg_ops
         auto final_gemm_inputs = final_gemm_ins->inputs();
         std::vector<instruction_ref> mapped_inputs;
         for(auto input : final_gemm_inputs) {
-            if(input == pw_ins) {
-                mapped_inputs.push_back(pw_outputs[0]);
+            if(input == mlir_gemm_pw_ins) {
+                mapped_inputs.push_back(map_ins[mlir_gemm_pw_ins]);
             } else {
                 mapped_inputs.push_back(map_ins.at(input));
             }
@@ -818,11 +812,17 @@ struct find_mlir_fused_geg_ops
         auto final_gemm_in_module = mm->add_instruction(
             final_gemm_ins->get_operator(), mapped_inputs);
 
-	// return val; TODO handle mult outputs
+	    // return val; TODO handle mult outputs
         mm->add_return({final_gemm_in_module});
 
-	// make fused mlir submodule
-        auto inputs = find_inputs(map_ins, &mpm.get_module(), mm);
+        // inputs for the new fused operation, previously-fused first and external inputs last
+        std::vector<instruction_ref> inputs;
+        inputs.insert(inputs.end(), mlir_gemm_pw_ins->inputs().begin(), mlir_gemm_pw_ins->inputs().end());
+        std::copy_if(final_gemm_ins->inputs().begin(),
+                    final_gemm_ins->inputs().end(),
+                    std::back_inserter(inputs),
+                    [&](auto input) { return input != mlir_gemm_pw_ins; });
+
         auto fused_ins = mpm.get_module().insert_instruction(
             final_gemm_ins,
             mlir_op{final_gemm_ins->get_operator()},
@@ -830,71 +830,6 @@ struct find_mlir_fused_geg_ops
             {mm});
 
         mpm.get_module().replace_instruction(final_gemm_ins, fused_ins);
-//	auto final_gemm_in_module = mm->add_instruction(
-//            final_gemm_ins->get_operator(), mapped_inputs);
-//        
-//        bool has_multi_outs = input_gemm_based_ins->outputs().size() > 1;
-//        has_multi_outs |= pw_ins->outputs().size() > 1;
-//        has_multi_outs |= final_gemm_ins->outputs().size() > 1;
-//        
-//        std::vector<instruction_ref> module_returns = {final_gemm_in_module};
-//        if(has_multi_outs) {
-//            // Add intermediate outputs if they have multiple uses
-//            if(input_gemm_based_ins->outputs().size() > 1) {
-//                module_returns.push_back(map_ins.at(input_gemm_based_ins));
-//            }
-//            if(pw_ins->outputs().size() > 1) {
-//                // Add pointwise outputs (they're already computed in pw_outputs)
-//                module_returns.insert(module_returns.end(), pw_outputs.begin(), pw_outputs.end());
-//            }
-//        }
-//        mm->add_return(module_returns);
-//        
-//        // make fused mlir submodule
-//        auto inputs = find_inputs(map_ins, &mpm.get_module(), mm);
-//        auto fused_ins = mpm.get_module().insert_instruction(
-//            final_gemm_ins,
-//            mlir_op{final_gemm_ins->get_operator()},
-//            mlir_contiguous(mpm, inputs),
-//            {mm});
-//        
-//        if(has_multi_outs) {
-//            // Extract the main result (final gemm output)
-//            auto main_result = mpm.get_module().insert_instruction(
-//                final_gemm_ins,
-//                migraphx::make_op("get_tuple_elem", {{"index", 0}}),
-//                fused_ins);
-//            
-//            int tuple_index = 1;
-//            
-//            if(input_gemm_based_ins->outputs().size() > 1) {
-//                auto input_gemm_result = mpm.get_module().insert_instruction(
-//                    final_gemm_ins,
-//                    migraphx::make_op("get_tuple_elem", {{"index", tuple_index}}),
-//                    fused_ins);
-//                mpm.get_module().replace_instruction(input_gemm_based_ins, input_gemm_result);
-//                tuple_index++;
-//            }
-//            
-//            if(pw_ins->outputs().size() > 1) {
-//                for(size_t i = 0; i < pw_outputs.size(); ++i) {
-//                    auto pw_result = mpm.get_module().insert_instruction(
-//                        final_gemm_ins,
-//                        migraphx::make_op("get_tuple_elem", {{"index", tuple_index + i}}),
-//                        fused_ins);
-//                    if(i == 0) {
-//                        // Replace the main pointwise instruction with the first output
-//                        mpm.get_module().replace_instruction(pw_ins, pw_result);
-//                    }
-//                    // Note: Additional pw outputs would need separate handling
-//                    // depending on how they're used in the original graph
-//                }
-//            }
-//            
-//            mpm.get_module().replace_instruction(final_gemm_ins, main_result);
-//        } else {
-//            mpm.get_module().replace_instruction(final_gemm_ins, fused_ins);
-//        }
     }
 };
 
@@ -1372,14 +1307,13 @@ void fuse_mlir::apply(module_pass_manager& mpm) const
 
     match::find_matches(
         mpm,
-        find_mlir_fused_geg_ops{.conv_mode = get_mode("fused_convolution", mlir_mode::fast),
-                                .dot_mode  = get_mode("fused_dot", mlir_mode::fast)});
-
-    mpm.run_pass(dead_code_elimination{});
-    match::find_matches(
-        mpm,
         find_mlir_fused_ops{.conv_mode = get_mode("fused_convolution", mlir_mode::fast),
                             .dot_mode  = get_mode("fused_dot", mlir_mode::fast)});
+
+    match::find_matches(
+        mpm,
+        find_mlir_fused_geg_ops{.conv_mode = get_mode("fused_convolution", mlir_mode::fast),
+                                .dot_mode  = get_mode("fused_dot", mlir_mode::fast)});
 
     match::find_matches(
         mpm,

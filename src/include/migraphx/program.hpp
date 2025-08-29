@@ -81,10 +81,10 @@ struct MIGRAPHX_EXPORT program
 
     std::size_t total_instructions() const;
 
-    std::vector<argument> eval(parameter_map params,
+    std::vector<argument> eval(const parameter_map& params,
                                execution_environment exec_env = execution_environment{}) const;
 
-    std::vector<argument> eval_with_context(std::vector<context>& ctx, parameter_map params) const;
+    std::vector<argument> eval_with_context(std::vector<context>& ctx, const parameter_map& params) const;
 
     void finish() const;
 
@@ -133,7 +133,7 @@ struct MIGRAPHX_EXPORT program
     void print_py(std::ostream& os) const;
     void print_cpp(std::ostream& os) const;
 
-    void dry_run(parameter_map params) const;
+    void dry_run(const parameter_map& params) const;
 
     void annotate(std::ostream& os, const std::function<void(instruction_ref)>& a) const;
 

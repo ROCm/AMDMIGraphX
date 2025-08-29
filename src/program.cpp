@@ -580,12 +580,12 @@ std::size_t program::total_instructions() const
 }
 
 std::vector<argument> program::eval_with_context(std::vector<context>& ctx,
-                                                 parameter_map params) const
+                                                 const parameter_map& params) const
 {
-    return generic_eval(*this, ctx, std::move(params), [](auto&&, auto f) { return f(); });
+    return generic_eval(*this, ctx, params, [](auto&&, auto f) { return f(); });
 }
 
-std::vector<argument> program::eval(parameter_map params, execution_environment exec_env) const
+std::vector<argument> program::eval(const parameter_map& params, execution_environment exec_env) const
 {
     auto& contexts = this->impl->contexts;
 
@@ -607,7 +607,7 @@ std::vector<argument> program::eval(parameter_map params, execution_environment 
             instruction::print(ss, x, ins_names);
             ins_out[x] = ss.str();
         });
-        ret = generic_eval(*this, contexts, std::move(params), [&](instruction_ref ins, auto f) {
+        ret = generic_eval(*this, contexts, params, [&](instruction_ref ins, auto f) {
             const auto& ctx = contexts[ins->get_target_id()];
             ctx.finish();
             std::cout << "Run instruction: " << ins_out.at(ins) << std::endl;
@@ -654,7 +654,7 @@ std::vector<argument> program::eval(parameter_map params, execution_environment 
     }
     else
     {
-        ret = generic_eval(*this, contexts, std::move(params), [&](auto&&, auto f) { return f(); });
+        ret = generic_eval(*this, contexts, params, [&](auto&&, auto f) { return f(); });
     }
 
     if(exec_env.async)
@@ -1178,10 +1178,10 @@ void program::print_cpp(std::ostream& os) const
     }
 }
 
-void program::dry_run(std::unordered_map<std::string, argument> params) const
+void program::dry_run(const parameter_map& params) const
 {
     auto& ctx = this->impl->contexts;
-    generic_eval(*this, ctx, std::move(params), [](auto ins, auto&&...) {
+    generic_eval(*this, ctx, params, [](auto ins, auto&&...) {
         return argument{ins->get_shape(), nullptr};
     });
 }

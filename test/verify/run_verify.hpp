@@ -42,7 +42,7 @@ struct run_verify
 {
     std::pair<migraphx::program, std::vector<migraphx::argument>>
     run_ref(migraphx::program p,
-            migraphx::parameter_map inputs,
+            const migraphx::parameter_map& inputs,
             const migraphx::compile_options& c_opts) const;
 
     std::pair<migraphx::program, std::vector<migraphx::argument>>

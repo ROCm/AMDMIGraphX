@@ -8,17 +8,28 @@
 #include <unordered_map>
 #include <map>
 #include <vector>
+#include <tuple>
 #include <string>
 #include <iostream>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
 
-
 static bool is_dot_like(const instruction_ref& ins)
 {
     const std::string& n = ins->name();
     return (n == "dot" or n == "quant_dot");
+}
+
+// Extract (M,K) from lhs shape using the last two dims.
+// Returns false if lhs has rank < 2.
+static bool get_mk(const shape& lhs, std::size_t& M, std::size_t& K)
+{
+    if(lhs.lens().size() < 2) return false;
+    const auto& l = lhs.lens();
+    M = l[l.size() - 2];
+    K = l[l.size() - 1];
+    return true;
 }
 
 void fuse_dots::apply(module& m) const
@@ -87,16 +98,56 @@ void fuse_dots::apply(module& m) const
         }
     }
 
-    // Example: print summary (replace with your preferred reporting)
+    // For each layer, group dots by (dtype, output shape, M, K) from lhs
     std::cout << "Dot layers: " << dot_layers.size() << std::endl;
     for(const auto& kv : dot_layers)
     {
-        std::cout << "  Level " << kv.first << ": " << kv.second.size() << " dot op(s)" << std::endl;
-        for(auto ins : kv.second)
+        int lvl = kv.first;
+        const auto& nodes = kv.second;
+        std::cout << "  Level " << lvl << ": " << nodes.size() << " dot op(s)" << std::endl;
+
+        // Key: (dtype, out_lens, M, K)
+        using key_t = std::tuple<shape::type_t, std::vector<std::size_t>, std::size_t, std::size_t>;
+        std::map<key_t, std::vector<instruction_ref>> groups;
+
+        for(auto ins : nodes)
         {
-            m.debug_print(ins->inputs().front());
-            m.debug_print(ins);
-            std::cout << std::endl;
+            const auto& out_s = ins->get_shape();
+            const auto& lhs_s = ins->inputs().at(0)->get_shape();
+
+            std::size_t M = 0, K = 0;
+            if(!get_mk(lhs_s, M, K))
+                continue; // skip degenerate cases
+
+            key_t k = std::make_tuple(out_s.type(), out_s.lens(), M, K);
+            groups[k].push_back(ins);
+        }
+
+        // Print the groups
+        for(const auto& gkv : groups)
+        {
+            const auto& k = gkv.first;
+            const auto& vec = gkv.second;
+            const auto dtype = std::get<0>(k);
+            const auto& out_lens = std::get<1>(k);
+            const auto M = std::get<2>(k);
+            const auto K = std::get<3>(k);
+
+            // Pretty-print output lens
+            std::cout << "    Group [dtype=" << dtype << ", out=[";
+            for(std::size_t i = 0; i < out_lens.size(); ++i)
+            {
+                std::cout << out_lens[i] << (i + 1 < out_lens.size() ? "," : "");
+            }
+            std::cout << "], M=" << M << ", K=" << K << "]: size=" << vec.size() << std::endl;
+
+            for(auto ins : vec)
+            {
+                // Print producer lhs and the dot itself for context
+                m.debug_print(ins->inputs().front());
+                m.debug_print(ins);
+                std::cout << std::endl;
+            }
         }
     }
 }

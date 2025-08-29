@@ -48,6 +48,7 @@ namespace graphviz {
     slice: #FFA500, orange
     gpu::code_object_op: #E9D66B, arylideyellow
     pooling: #3CB371, mediumseagreen
+    reduce: #8470FF, lightslateblue
 
     To add new colors for operations, add
     attributes to the value yourOp::attributes() const {...}
@@ -77,11 +78,12 @@ struct html_table_style
  */
 struct graphviz_node_style
 {
-    std::string fillcolor = "lightgray";
-    std::string fontcolor = "black";
+    std::string fillcolor   = "";        // defaults to white
+    std::string fontcolor   = "#000000"; // black
     std::string style     = "rounded,filled";
     std::string shape     = "none";
     std::string fontname  = "Helvetica";
+    std::string bordercolor = ""; // defaults to none when shape is none
 };
 
 /**
@@ -127,6 +129,12 @@ std::string build_node_style(const graphviz_node_style& node_style);
  * instructions: param, literal, and gpu::code_object
  */
 graphviz_node_content get_node_content(const instruction_ref& ins);
+
+/**
+ * Given an instruction_ref ins, determine the coloring based on alias and
+ * context-free qualities
+ */
+std::string get_graph_color(const instruction_ref& ins);
 
 } // namespace graphviz
 } // namespace MIGRAPHX_INLINE_NS

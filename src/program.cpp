@@ -585,7 +585,8 @@ std::vector<argument> program::eval_with_context(std::vector<context>& ctx,
     return generic_eval(*this, ctx, params, [](auto&&, auto f) { return f(); });
 }
 
-std::vector<argument> program::eval(const parameter_map& params, execution_environment exec_env) const
+std::vector<argument> program::eval(const parameter_map& params,
+                                    execution_environment exec_env) const
 {
     auto& contexts = this->impl->contexts;
 

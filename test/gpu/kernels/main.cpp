@@ -3,17 +3,15 @@
 #include <migraphx/gpu/context.hpp>
 #include <migraphx/gpu/kernel.hpp>
 #include <migraphx/gpu/device_name.hpp>
+#include <migraphx/par_for.hpp>
 #include <kernel_tests.hpp>
 #include <test.hpp>
 
 #include <map>
+#include <unordered_map>
+#include <unordered_set>
 #include <regex>
 #include <string_view>
-
-static migraphx::src_file make_src_file(const std::string& name, const std::string& content)
-{
-    return {name, content};
-}
 
 std::vector<std::string> parse_cases(const std::string_view& content)
 {
@@ -95,14 +93,30 @@ struct test_suite : std::enable_shared_from_this<test_suite>
 int main(int argc, const char* argv[])
 {
     test::driver d{};
+    std::unordered_map<std::string, std::shared_ptr<test_suite>> suites;
     for(auto [name, content] : ::kernel_tests())
     {
         auto ts = std::make_shared<test_suite>(name, content);
         for(auto&& p : ts->test_cases)
         {
             auto case_name = p.first;
+            suites[case_name] = ts;
             test::add_test_case(case_name, [ts, case_name] { ts->run(case_name); });
         }
     }
+    d.on_selected_cases = [&](const std::vector<std::string>& cases) {
+        std::unordered_set<std::shared_ptr<test_suite>> run_suites;
+        for(auto&& name : cases)
+        {
+            if(suites.count(name) == 0)
+                continue;
+            run_suites.insert(suites.at(name));
+        }
+        migraphx::par_for(run_suites.size(), 1, [&](auto i) {
+            auto it = run_suites.begin();
+            std::advance(it, i);
+            (*it)->compile();
+        });
+    };
     d.run(argc, argv);
 }

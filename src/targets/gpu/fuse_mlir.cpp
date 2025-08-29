@@ -676,7 +676,6 @@ struct find_mlir_fused_ops
 
     void apply(module_pass_manager& mpm, const match::matcher_result& r) const
     {
-        std::cout << "fuse gemm->reshape->elemwise is being applied\n";
         auto pw_ins        = r.result;
         auto gemm_based_op = r.instructions["gemm_based_op"];
         auto x_ins         = r.instructions["x"]; // input to pointwise after reshaper op stream
@@ -775,32 +774,25 @@ struct find_mlir_fused_geg_ops
 
     void apply(module_pass_manager& mpm, const match::matcher_result& r) const
     {
-        std::cout << "debug: made it in matcher apply\n";
         auto final_gemm_ins = r.result;
         auto mlir_gemm_pw_ins = r.instructions["mlir_gemm_pw"];
         auto* fused_mm = mlir_gemm_pw_ins->module_inputs().front();
 
+        bool gemm_pw_has_multi_users = mlir_gemm_pw_ins->outputs().size() > 1;
+
         std::unordered_map<instruction_ref, instruction_ref> map_ins;
         // new module for the full gemm->elementwise->gemm fusion
         module_ref mm = mpm.create_module(fused_mm->name() + "_geg", *fused_mm);
+
         // remove the existing return instruction to add more operations
         if(std::prev(mm->end())->name() == "@return")
         {
             mm->remove_instruction(std::prev(mm->end()));
         }
+
         mm->set_bypass();
         map_ins[mlir_gemm_pw_ins] = std::prev(mm->end());
 
-        // handle the case where previous fusion is multi-out
-        bool prev_mlir_has_multi_outs = mlir_gemm_pw_ins->get_shape().sub_shapes().size() > 1;
-        if(prev_mlir_has_multi_outs)
-        {
-            auto prev_module_returns = std::prev(mm->end())->inputs();
-            map_ins[mlir_gemm_pw_ins] = prev_module_returns.back();
-        }
-        else {
-            map_ins[mlir_gemm_pw_ins] = std::prev(mm->end());
-        }
 
         // for final gemm, only fuse external inputs; other inputs already fused
         std::vector<instruction_ref> external_inputs;
@@ -813,29 +805,28 @@ struct find_mlir_fused_geg_ops
         
         auto final_gemm_inputs = final_gemm_ins->inputs();
         std::vector<instruction_ref> mapped_inputs;
-        for(auto input : final_gemm_inputs)
-        {
-            if(input == mlir_gemm_pw_ins)
-            {
+        for(auto input : final_gemm_inputs) {
+            if(input == mlir_gemm_pw_ins) {
                 mapped_inputs.push_back(map_ins[mlir_gemm_pw_ins]);
-            } else
-            {
+            } else {
                 mapped_inputs.push_back(map_ins.at(input));
             }
         }
-        auto final_gemm_in_module = mm->add_instruction(
+
+        auto final_gemm_ins_module = mm->add_instruction(
             final_gemm_ins->get_operator(), mapped_inputs);
 
+	    // return val; TODO handle mult outputs
+        // mm->add_return({final_gemm_in_module});
         std::vector<instruction_ref> return_vals;
-        if(prev_mlir_has_multi_outs)
+        return_vals.insert(return_vals.end(), final_gemm_ins_module);
+
+        // first, return output of final gemm, then return outputs of gemm_pw mlir_op module
+        if(gemm_pw_has_multi_users)
         {
-            auto prev_returns = std::prev(mm->end())->inputs();
-            for(size_t i = 0; i < prev_returns.size() - 1; ++i)
-            {
-                return_vals.push_back(prev_returns[i]);
-            }
+            return_vals.insert(return_vals.end(), map_ins[mlir_gemm_pw_ins]);
         }
-        return_vals.push_back(final_gemm_in_module);
+
         mm->add_return(return_vals);
 
         // inputs for the new fused operation, previously-fused first and external inputs last
@@ -852,30 +843,28 @@ struct find_mlir_fused_geg_ops
             mlir_contiguous(mpm, inputs),
             {mm});
 
-        bool final_has_multi_outs = return_vals.size() > 1;
-        if(final_has_multi_outs)
+        if (gemm_pw_has_multi_users) 
         {
-            auto main_result = mpm.get_module().insert_instruction(
-                final_gemm_ins,
+            auto gemm_pw_result = mpm.get_module().insert_instruction(
+                std::next(fused_ins),
                 migraphx::make_op("get_tuple_elem", {{"index", return_vals.size() - 1}}),
                 fused_ins);
             
-            mpm.get_module().replace_instruction(final_gemm_ins, main_result);
-            if(prev_mlir_has_multi_outs)
-            {
-                for(const auto& output : mlir_gemm_pw_ins->outputs())
-                {
-                    if(output->name() == "get_tuple_elem")
-                    {
-                        mpm.get_module().replace_instruction(output, output->get_operator(), fused_ins);
-                    }
-                }
-            }
-        }
-        else
+            // original mlir_gemm_pw_ins gets replaced with extracted result
+            mpm.get_module().replace_instruction(mlir_gemm_pw_ins, gemm_pw_result);
+            
+            // final gemm result should be at index 0
+            auto final_gemm_result = mpm.get_module().insert_instruction(
+                std::next(fused_ins),
+                migraphx::make_op("get_tuple_elem", {{"index", 0}}),
+                fused_ins);
+            mpm.get_module().replace_instruction(final_gemm_ins, final_gemm_result);
+        } 
+        else 
         {
             mpm.get_module().replace_instruction(final_gemm_ins, fused_ins);
         }
+
     }
 };
 

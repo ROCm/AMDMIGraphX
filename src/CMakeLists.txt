@@ -61,6 +61,7 @@ add_library(migraphx
     fp_to_double.cpp
     fp8_ocp_to_fnuz.cpp
     fuse_concat.cpp
+    fuse_dots.cpp
     fuse_pointwise.cpp
     fuse_pointwise_reduce.cpp
     fuse_reduce.cpp

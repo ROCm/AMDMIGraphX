@@ -33,6 +33,7 @@
 #include <migraphx/eliminate_pad.hpp>
 #include <migraphx/fp8_ocp_to_fnuz.hpp>
 #include <migraphx/fuse_concat.hpp>
+#include <migraphx/fuse_dots.hpp>
 #include <migraphx/fuse_pointwise_reduce.hpp>
 #include <migraphx/inline_module.hpp>
 #include <migraphx/insert_pad.hpp>
@@ -206,6 +207,8 @@ std::vector<pass> target::get_passes(migraphx::context& gctx, const compile_opti
         dead_code_elimination{},
         rewrite_gelu{options.fast_math},
         optimize_module{},
+        fuse_dots{},
+        dead_code_elimination{},
         layout_convolution{.channels_last = enabled(MIGRAPHX_ENABLE_NHWC{})},
         dead_code_elimination{},
         prefuse_ops{},

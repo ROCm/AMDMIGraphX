@@ -128,7 +128,7 @@ struct array
 
     template <class... Ts,
               MIGRAPHX_REQUIRES(sizeof...(Ts) == N and (is_convertible<Ts, T>{} and ...))>
-    constexpr array(Ts... xs) : d{xs...}
+    constexpr array(Ts... xs) : d{static_cast<value_type>(xs)...}
     {
     }
 

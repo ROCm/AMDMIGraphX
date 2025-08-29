@@ -29,10 +29,14 @@
 #include <migraphx/shape.hpp>
 #include <migraphx/argument.hpp>
 #include <migraphx/common.hpp>
+#include <migraphx/env.hpp>
+
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
+
 namespace op {
+MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_BROADCAST_DIM)
 
 /**
  * Broadcast the input tensor to the shape defined by the values of the second input.
@@ -91,12 +95,27 @@ struct broadcast_with_dims
         return {input_tensor_shape.type(), dyn_dims};
     }
 
-    argument compute(const shape& output_shape, const std::vector<argument>& args) const
+    argument compute(const dyn_output& dyn_out, const std::vector<argument>& args) const
     {
         auto s0             = args.at(0).get_shape();
         const auto& in_lens = s0.lens();
-        std::vector<std::size_t> dims_input(output_shape.ndim());
+        std::vector<std::size_t> dims_input(dyn_out.computed_shape.ndim());
         args.at(1).visit([&](auto a) { dims_input.assign(a.begin(), a.end()); });
+        if(std::all_of(dims_input.begin(), dims_input.end(), [](auto dim) { return dim == 0;}))
+        {
+            size_t dim_val = value_of(MIGRAPHX_BROADCAST_DIM{});
+            if(dim_val == 0)
+            {
+                dim_val = 1;
+                std::cerr << "[WARNING] MIGRAPHX_BROADCAST_DIM was unset or set to 0. Cannot infer value of broadcast dims. Set to correct size for model." << std::endl;
+            }
+            auto out_shape = dyn_out.computed_shape;
+            if(out_shape.dynamic())
+            {
+                out_shape = out_shape.to_static(dim_val);
+            }
+            return args[0].reshape(out_shape);
+        }
         auto out_lens  = compute_broadcasted_lens(in_lens, dims_input);
         auto out_shape = make_bcast_shape(s0, out_lens);
         return args[0].reshape(out_shape);

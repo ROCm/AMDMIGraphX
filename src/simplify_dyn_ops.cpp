@@ -71,6 +71,7 @@ struct find_broadcast_with_dims_static
                         continue;
                     batch_size = param.second.dyn_dims().front().max;
                     found_batch = true;
+                    break;
                 }
                 // TODO try to use output to infer (ideally this should be encoded elsewhere)
                 // unsqueeze ops can affect this, would have to keep track of new dim to check

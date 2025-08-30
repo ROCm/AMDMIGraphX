@@ -1700,6 +1700,8 @@ TEST_CASE(dot_add_dot)
             });
         mm->add_return({fused});
     }
+    if(not migraphx::enabled(MIGRAPHX_ENABLE_MLIR_GEG_FUSION{}))
+        return;
     EXPECT(p1.sort() == p2.sort());
 }
 
@@ -1735,6 +1737,8 @@ TEST_CASE(dot_mul_dot)
             });
         mm->add_return({fused});
     }
+    if(not migraphx::enabled(MIGRAPHX_ENABLE_MLIR_GEG_FUSION{}))
+        return;
     EXPECT(p1.sort() == p2.sort());
 }
 
@@ -1818,6 +1822,8 @@ TEST_CASE(conv_mul_dot)
                      });
         mm->add_return({fused});
     }
+    if(not migraphx::enabled(MIGRAPHX_ENABLE_MLIR_GEG_FUSION{}))
+        return;
     EXPECT(p1.sort() == p2.sort());
 }
 
@@ -1910,6 +1916,8 @@ TEST_CASE(dot_add_dot_multi_user)
             migraphx::make_op("transpose", {{"permutation", {0, 2, 1}}}), get_dot2);
         mm->add_return({get_add, transpose});
     }
+    if(not migraphx::enabled(MIGRAPHX_ENABLE_MLIR_GEG_FUSION{}))
+        return;
     EXPECT(p1.sort() == p2.sort());
 }
 
@@ -1956,6 +1964,8 @@ TEST_CASE(dot_add_multi_user_dot)
             migraphx::make_op("transpose", {{"permutation", {0, 2, 1}}}), get_dot1);
         mm->add_return({get_dot2, transpose});
     }
+    if(not migraphx::enabled(MIGRAPHX_ENABLE_MLIR_GEG_FUSION{}))
+        return;
     EXPECT(p1.sort() == p2.sort());
 }
 

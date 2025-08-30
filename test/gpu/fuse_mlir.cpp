@@ -1897,10 +1897,10 @@ TEST_CASE(dot_add_multi_user_dot)
                 auto dot1 = pm->add_instruction(migraphx::make_op("dot"), inputs[0], inputs[1]);
                 auto add = pm->add_instruction(migraphx::make_op("add"), dot1, inputs[2]);
                 auto dot2 = pm->add_instruction(migraphx::make_op("dot"), add, inputs[3]);
-                return std::make_tuple(dot1->get_operator(), std::vector<migraphx::instruction_ref>{dot1, dot2});
+                return std::make_tuple(dot1->get_operator(), std::vector<migraphx::instruction_ref>{dot2, dot1});
             });
-        auto get_dot1 = mm->add_instruction(migraphx::make_op("get_tuple_elem", {{"index", 0}}), fused);
-        auto get_dot2 = mm->add_instruction(migraphx::make_op("get_tuple_elem", {{"index", 1}}), fused);
+        auto get_dot1 = mm->add_instruction(migraphx::make_op("get_tuple_elem", {{"index", 1}}), fused);
+        auto get_dot2 = mm->add_instruction(migraphx::make_op("get_tuple_elem", {{"index", 0}}), fused);
         auto transpose = mm->add_instruction(migraphx::make_op("transpose", {{"permutation", {0, 2, 1}}}), get_dot1);
         mm->add_return({get_dot2, transpose});
     }

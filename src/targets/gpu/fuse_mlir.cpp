@@ -48,6 +48,7 @@ namespace gpu {
 MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_ENABLE_EXTRA_MLIR);
 MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_ENABLE_MLIR_INPUT_FUSION);
 MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_ENABLE_MLIR_REDUCE_FUSION);
+MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_ENABLE_MLIR_GEG_FUSION);
 MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_DISABLE_MLIR);
 /**
  * @brief Declares a new MIGraphX environment variable which forces to generate
@@ -840,6 +841,7 @@ struct find_mlir_fused_geg_ops
             // Store each input with its index
             for(size_t i = 0; i < return_inputs.size(); ++i)
             {
+                // TODO simplify logic
                 return_ins[i]   = return_inputs[i];
                 auto output     = mlir_gemm_pw_ins->outputs()[i];
                 map_ins[output] = return_inputs[i];
@@ -866,9 +868,7 @@ struct find_mlir_fused_geg_ops
         for(auto input : final_gemm_inputs)
         {
             if(input == mlir_gemm_pw_ins)
-            { //} ||
-                // std::find(get_tuple_elem_inss.begin(), get_tuple_elem_inss.end(), input) !=
-                // get_tuple_elem_inss.end()) {
+            {
                 mapped_inputs.push_back(map_ins[mlir_gemm_pw_ins]);
             }
             else if(input->name() == "get_tuple_elem" && input->inputs().size() == 1 &&
@@ -877,7 +877,6 @@ struct find_mlir_fused_geg_ops
                 int index = input->get_operator().to_value()["index"].to<int>();
                 if(return_ins.find(index) != return_ins.end())
                 {
-                    // TODO change this to use get_tuple_elem -> instruction mapping
                     mapped_inputs.push_back(return_ins[index]);
                 }
                 else
@@ -1532,10 +1531,13 @@ void fuse_mlir::apply(module_pass_manager& mpm) const
         find_mlir_fused_ops{.conv_mode = get_mode("fused_convolution", mlir_mode::fast),
                             .dot_mode  = get_mode("fused_dot", mlir_mode::fast)});
 
-    match::find_matches(
-        mpm,
-        find_mlir_fused_geg_ops{.conv_mode = get_mode("fused_convolution", mlir_mode::fast),
-                                .dot_mode  = get_mode("fused_dot", mlir_mode::fast)});
+    if(enabled(MIGRAPHX_ENABLE_MLIR_GEG_FUSION{}))
+    {
+        match::find_matches(
+            mpm,
+            find_mlir_fused_geg_ops{.conv_mode = get_mode("fused_convolution", mlir_mode::fast),
+                                    .dot_mode  = get_mode("fused_dot", mlir_mode::fast)});
+    }
 
     match::find_matches(
         mpm,

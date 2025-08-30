@@ -68,10 +68,12 @@ struct shape : equality_comparable<shape<Lens, Strides>>
     }
     constexpr auto skips() const
     {
-        if constexpr(decltype(this->elements()){} == 1) {
+        if constexpr(decltype(this->elements()){} == 1)
+        {
             return false_type{};
         }
-        else {
+        else
+        {
             return return_c([] {
                 auto lstrides = Strides{};
                 return none_of(lstrides.begin(), lstrides.end(), [](auto x) { return x == 1; });
@@ -81,14 +83,17 @@ struct shape : equality_comparable<shape<Lens, Strides>>
 
     constexpr auto standard() const
     {
-        if constexpr(decltype(this->elements()){} == 1) {
+        if constexpr(decltype(this->elements()){} == 1)
+        {
             return true_type{};
         }
-        else {
+        else
+        {
             return return_c([] {
                 constexpr auto n = decltype(this->elements()){};
-                struct state {
-                    bool ok = true;
+                struct state
+                {
+                    bool ok            = true;
                     index_int expected = decltype(n){};
                 };
                 auto reduce = [](state acc, array<index_int, 2> x) -> state {
@@ -98,26 +103,24 @@ struct shape : equality_comparable<shape<Lens, Strides>>
                         return acc;
                     if(len == 1)
                         return acc;
-                    if (acc.expected % len != 0)
+                    if(acc.expected % len != 0)
                         return {false};
                     acc.expected /= len;
                     if(stride != acc.expected)
                         return {false};
                     return acc;
                 };
-                auto ldims = Lens{};
+                auto ldims    = Lens{};
                 auto lstrides = Strides{};
-                return inner_product(
-                    ldims.begin(),
-                    ldims.end(),
-                    lstrides.begin(),
-                    state{},
-                    reduce,
-                    MIGRAPHX_LIFT(make_array))
+                return inner_product(ldims.begin(),
+                                     ldims.end(),
+                                     lstrides.begin(),
+                                     state{},
+                                     reduce,
+                                     MIGRAPHX_LIFT(make_array))
                     .ok;
-                });
+            });
         }
-         
     }
 
     constexpr index_int index(index_array x) const { return x.dot(strides); }

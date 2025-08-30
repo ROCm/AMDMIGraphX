@@ -248,9 +248,9 @@ struct test_manager
         {
             if(threadIdx.x == 0)
             {
-                println_once(func);
-                println_once(file, ":", line, ":");
-                println_once("    FAILED: ", msg, " [ ", x, " ]");
+                migraphx::cout() << func << '\n';
+                migraphx::cout() << file << ':' << line << ':' << '\n';
+                migraphx::cout() << "    FAILED: " << msg << " [ " << x << " ]" << '\n';
                 report_failure();
             }
             f();

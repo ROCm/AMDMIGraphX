@@ -192,7 +192,7 @@ static tf_parser::node_map get_nodes(const tensorflow::GraphDef& graph,
         if(node_name.empty())
             MIGRAPHX_THROW("tf node with no name found");
         result[node_name] = node;
-        if(node.op() == "Placeholder")
+        if(node.op() == "Placeholder" or node.op() == "_Arg" or node.op() == "_DeviceArg")
         {
             input_nodes.push_back(node_name);
         }
@@ -309,8 +309,19 @@ void tf_parser::parse_graph(const tensorflow::GraphDef& graph)
         auto&& input = nodes[name];
         // const std::string& name   = input.name();
         attribute_map input_attrs = get_attributes(input);
-        shape::type_t shape_type  = parse_type(input_attrs.at("dtype").type());
-        std::vector<size_t> dims  = parse_dims(input_attrs.at("shape").shape());
+        shape::type_t shape_type;
+        std::vector<size_t> dims{};
+        if(input.op() == "_Arg" or input.op() == "_DeviceArg")
+        {
+            shape_type  = parse_type(input_attrs.at("T").type());
+            assert(contains(map_input_dims, name)); // TODO throw if not set
+        }
+        else
+        {
+            shape_type  = parse_type(input_attrs.at("dtype").type());
+            dims  = parse_dims(input_attrs.at("shape").shape());
+        }
+        
         std::vector<shape::dynamic_dimension> dyn_dims;
         if(contains(map_input_dims, name))
         {

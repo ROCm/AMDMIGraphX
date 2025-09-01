@@ -4,6 +4,7 @@
 #include <migraphx/instruction.hpp>
 #include <migraphx/algorithm.hpp>
 #include <migraphx/iterator_for.hpp>
+#include <migraphx/make_op.hpp>
 #include <queue>
 #include <unordered_map>
 #include <map>
@@ -22,7 +23,6 @@ static bool is_dot_like(const instruction_ref& ins)
 }
 
 // Extract (M,K) from lhs shape using the last two dims.
-// Returns false if lhs has rank < 2.
 static bool get_mk(const shape& lhs, std::size_t& M, std::size_t& K)
 {
     if(lhs.lens().size() < 2) return false;
@@ -34,7 +34,9 @@ static bool get_mk(const shape& lhs, std::size_t& M, std::size_t& K)
 
 void fuse_dots::apply(module& m) const
 {
-    // Build indegree map and initialize levels
+    // configurable threshold
+    size_t fuse_threshold = 40;
+    // 1) Build indegree map and initialize levels
     std::unordered_map<instruction_ref, std::size_t> indeg;
     indeg.reserve(std::distance(m.begin(), m.end()));
     std::unordered_map<instruction_ref, int> level;
@@ -45,7 +47,7 @@ void fuse_dots::apply(module& m) const
         indeg[ins] = ins->inputs().size();
     }
 
-    // Kahn’s algorithm queue initialization
+    // 2) Kahn’s algorithm queue initialization
     std::queue<instruction_ref> q;
     for(auto ins : iterator_for(m))
     {
@@ -56,7 +58,7 @@ void fuse_dots::apply(module& m) const
         }
     }
 
-    // Forward BFS/toposort computing levels
+    // 3) Forward BFS/toposort computing levels
     while(!q.empty())
     {
         auto u = q.front();
@@ -84,7 +86,7 @@ void fuse_dots::apply(module& m) const
         }
     }
 
-    // Group dot-like ops by layer
+    // 4) Collect dot-like ops by layer
     std::map<int, std::vector<instruction_ref>> dot_layers;
     for(auto ins : iterator_for(m))
     {
@@ -98,55 +100,96 @@ void fuse_dots::apply(module& m) const
         }
     }
 
-    // For each layer, group dots by (dtype, output shape, M, K) from lhs
-    std::cout << "Dot layers: " << dot_layers.size() << std::endl;
+    // 5) For each layer, group by (dtype, output lens, M, K) and fuse if group size >= threshold
+    using key_t = std::tuple<shape::type_t, std::vector<std::size_t>, std::size_t, std::size_t>;
+
     for(const auto& kv : dot_layers)
     {
-        int lvl = kv.first;
         const auto& nodes = kv.second;
-        std::cout << "  Level " << lvl << ": " << nodes.size() << " dot op(s)" << std::endl;
 
-        // Key: (dtype, out_lens, M, K)
-        using key_t = std::tuple<shape::type_t, std::vector<std::size_t>, std::size_t, std::size_t>;
         std::map<key_t, std::vector<instruction_ref>> groups;
-
         for(auto ins : nodes)
         {
             const auto& out_s = ins->get_shape();
             const auto& lhs_s = ins->inputs().at(0)->get_shape();
-
             std::size_t M = 0, K = 0;
             if(!get_mk(lhs_s, M, K))
-                continue; // skip degenerate cases
+                continue;
 
             key_t k = std::make_tuple(out_s.type(), out_s.lens(), M, K);
             groups[k].push_back(ins);
         }
 
-        // Print the groups
-        for(const auto& gkv : groups)
+        for(auto& gkv : groups)
         {
-            const auto& k = gkv.first;
-            const auto& vec = gkv.second;
-            const auto dtype = std::get<0>(k);
-            const auto& out_lens = std::get<1>(k);
-            const auto M = std::get<2>(k);
-            const auto K = std::get<3>(k);
+            auto& group = gkv.second;
+            if(group.size() < fuse_threshold)
+                continue; // below threshold, skip
 
-            // Pretty-print output lens
-            std::cout << "    Group [dtype=" << dtype << ", out=[";
-            for(std::size_t i = 0; i < out_lens.size(); ++i)
+            // 5a) Determine insertion point: use the last instruction in program order
+            instruction_ref insert_pos = group.front();
+            for(auto ins : group)
             {
-                std::cout << out_lens[i] << (i + 1 < out_lens.size() ? "," : "");
+                if(std::distance(m.begin(), ins) > std::distance(m.begin(), insert_pos))
+                    insert_pos = ins;
             }
-            std::cout << "], M=" << M << ", K=" << K << "]: size=" << vec.size() << std::endl;
 
-            for(auto ins : vec)
+            // 5b) Prepare unsqueezed inputs
+            std::vector<instruction_ref> lhs_unsqueezed;
+            std::vector<instruction_ref> rhs_unsqueezed;
+            lhs_unsqueezed.reserve(group.size());
+            rhs_unsqueezed.reserve(group.size());
+
+            for(auto ins : group)
             {
-                // Print producer lhs and the dot itself for context
-                m.debug_print(ins->inputs().front());
-                m.debug_print(ins);
-                std::cout << std::endl;
+                auto lhs = ins->inputs().at(0);
+                auto rhs = ins->inputs().at(1);
+
+                auto lhs_u = m.insert_instruction(
+                    insert_pos, make_op("unsqueeze", {{"axes", {0}}}), lhs);
+                auto rhs_u = m.insert_instruction(
+                    insert_pos, make_op("unsqueeze", {{"axes", {0}}}), rhs);
+
+                lhs_unsqueezed.push_back(lhs_u);
+                rhs_unsqueezed.push_back(rhs_u);
+            }
+
+            // 5c) Concat along new batch axis (axis=0)
+            auto lhs_cat = m.insert_instruction(
+                insert_pos, make_op("concat", {{"axis", 0}}), lhs_unsqueezed);
+            auto rhs_cat = m.insert_instruction(
+                insert_pos, make_op("concat", {{"axis", 0}}), rhs_unsqueezed);
+
+            // Optional: ensure contiguous layout if needed by dot
+            lhs_cat = m.insert_instruction(insert_pos, make_op("contiguous"), lhs_cat);
+            rhs_cat = m.insert_instruction(insert_pos, make_op("contiguous"), rhs_cat);
+
+            // 5d) Single batched dot
+            auto fused = m.insert_instruction(insert_pos, make_op("dot"), lhs_cat, rhs_cat);
+
+            // 5e) Slice per batch and squeeze axis 0, then replace originals
+            // To keep outputs ordered deterministically, use the order in 'group'
+            for(std::size_t i = 0; i < group.size(); ++i)
+            {
+                auto slice_i = m.insert_instruction(
+                    insert_pos,
+                    make_op("slice",
+                            {{"axes", {0}},
+                                {"starts", {static_cast<int64_t>(i)}},
+                                {"ends", {static_cast<int64_t>(i + 1)}}}),
+                    fused);
+
+                std::vector<size_t> slice_lens = slice_i->get_shape().lens();
+                slice_lens.erase(slice_lens.begin());
+
+                auto out_i = m.insert_instruction(
+                    insert_pos, make_op("reshape", {{"dims", slice_lens}}), slice_i);
+                // auto out_i = m.insert_instruction(
+                //     insert_pos, make_op("squeeze", {{"axes", {0}}}), slice_i);
+                
+
+                // Replace original dot with its fused output
+                m.replace_instruction(group[i], out_i);
             }
         }
     }

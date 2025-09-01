@@ -36,6 +36,7 @@ struct parse_generic_op : op_parser<parse_generic_op>
     std::vector<op_desc> operators() const
     {
         return {{"All", "identity"},
+                {"_Retval", "identity"},
                 {"DeepCopy", "identity"},
                 {"NoOp", "identity"},
                 {"Identity", "identity"},

@@ -197,6 +197,10 @@ static tf_parser::node_map get_nodes(const tensorflow::GraphDef& graph,
             input_nodes.push_back(node_name);
         }
     }
+    if(input_nodes.empty())
+    {
+        MIGRAPHX_THROW("No element in the input_nodes list!!!!");
+    }
     return result;
 }
 
@@ -314,7 +318,10 @@ void tf_parser::parse_graph(const tensorflow::GraphDef& graph)
         if(input.op() == "_Arg" or input.op() == "_DeviceArg")
         {
             shape_type  = parse_type(input_attrs.at("T").type());
-            assert(contains(map_input_dims, name)); // TODO throw if not set
+            if (not contains(map_input_dims, name))
+            {
+                MIGRAPHX_THROW("parse_graph: this op doesn't contain in map_input_dims");
+            }
         }
         else
         {

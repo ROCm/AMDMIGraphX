@@ -60,20 +60,20 @@ static program parse_tf_from(const tf_options& options, Ts&&... xs)
                        "one should be used");
     }
 
-#ifndef NDEBUG
+// #ifndef NDEBUG
     // Log the program when it can't be parsed
     try
     {
         parser.parse_from(std::forward<Ts>(xs)...);
     }
-    catch(...)
+    catch(const std::exception& ex)
     {
-        std::cerr << parser.prog << std::endl;
-        throw;
+        MIGRAPHX_THROW("parse_from: Failure for parsing tf: " + std::string(ex.what()));
     }
-#else
-    parser.parse_from(std::forward<Ts>(xs)...);
-#endif
+// #else
+
+    // parser.parse_from(std::forward<Ts>(xs)...);
+// #endif
     return std::move(parser.prog);
 }
 

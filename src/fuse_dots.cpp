@@ -35,7 +35,7 @@ static bool get_mk(const shape& lhs, std::size_t& M, std::size_t& K)
 void fuse_dots::apply(module& m) const
 {
     // configurable threshold
-    size_t fuse_threshold = 40;
+    size_t fuse_threshold = 10;
     // 1) Build indegree map and initialize levels
     std::unordered_map<instruction_ref, std::size_t> indeg;
     indeg.reserve(std::distance(m.begin(), m.end()));
@@ -126,11 +126,13 @@ void fuse_dots::apply(module& m) const
             if(group.size() < fuse_threshold)
                 continue; // below threshold, skip
 
-            // 5a) Determine insertion point: use the last instruction in program order
+            // 5a) Determine insertion point: use the first instruction in program order
             instruction_ref insert_pos = group.front();
             for(auto ins : group)
             {
-                if(std::distance(m.begin(), ins) > std::distance(m.begin(), insert_pos))
+                // std::cout << "dot_ins: " << std::endl;
+                // m.debug_print(ins);
+                if(std::distance(m.begin(), ins) < std::distance(m.begin(), insert_pos))
                     insert_pos = ins;
             }
 
@@ -190,7 +192,11 @@ void fuse_dots::apply(module& m) const
 
                 // Replace original dot with its fused output
                 m.replace_instruction(group[i], out_i);
+                // std::cout << "replaced ins: " << std::endl;
+                // m.debug_print(out_i);
             }
+            // std::cout << "new program" << std::endl;
+            // m.debug_print();
         }
     }
 }

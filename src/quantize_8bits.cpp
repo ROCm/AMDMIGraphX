@@ -68,7 +68,16 @@ void quantize_8bits_pass::apply(module& m) const // NOLINT
         {
             auto zero_point =
                 m.add_literal(migraphx::literal{migraphx::shape{precision}, {param.second}});
-            auto scale       = m.add_literal(literal({s.type()}, {1.0f / param.first}));
+                
+            float inverted_scale = 1.0f / param.first;  
+               
+            auto epsilon = std::numeric_limits<float>::epsilon() * 1000;
+            auto max_val = std::sqrt(std::numeric_limits<float>::max());
+              
+            inverted_scale = std::max(epsilon, std::min(max_val, inverted_scale));  
+            auto scale = m.add_literal(literal({s.type()}, {inverted_scale}));
+
+            //auto scale       = m.add_literal(literal({s.type()}, {1.0f / param.first}));
             const auto& lens = s.lens();
             scale =
                 m.insert_instruction(ins, make_op("multibroadcast", {{"out_lens", lens}}), scale);

@@ -28,6 +28,7 @@
 #include <migraphx/kernels/index.hpp>
 #include <migraphx/kernels/tensor_view.hpp>
 #include <migraphx/kernels/fp4_casts.hpp>
+// TODO: use hip_fp4 header
 // #include <hip/hip_fp4.h>
 
 namespace migraphx {
@@ -46,6 +47,7 @@ __device__ void pack_fp4(Input input, Output output)
         uint8_t out_val0 = float_to_fp4(inp_val0);
         uint8_t out_val1 = float_to_fp4(inp_val1);
         output[out_idx]  = static_cast<uint8_t>(out_val1 << 4u) | out_val0;
+        // TODO: from hip_fp4 header
         // auto fp32x2_val = float2{input[idx], input[idx + 1]};
         // output[idx] = __hip_cvt_float2_to_fp4x2(fp32x2_val, __HIP_E2M1, __HIP_SATFINITE);
     });

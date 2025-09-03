@@ -42,6 +42,7 @@
 #include <migraphx/make_op.hpp>
 #include <migraphx/pass_manager.hpp>
 #include <migraphx/normalize_ops.hpp>
+#include <migraphx/rewrite_rnn.hpp>
 #include <set>
 #include <map>
 
@@ -192,15 +193,22 @@ void quantize_int4_weights(program& prog)
 
 void quantize_fp8(program& prog, const target& t, const std::vector<parameter_map>& calibration)
 {
+    run_passes(prog, {rewrite_rnn{}}, quant_tracer());
     std::unordered_set<std::string> supported_ins_names;
     auto* mm = prog.get_main_module();
-    for(const auto ins : iterator_for(*mm))
+    for(auto ins : iterator_for(*mm))
     {
-        if(ins->name() == "convolution" or ins->name() == "dot")
+        if(ins->name() == "convert")
+        {
+            continue;
+        }
+        if(not starts_with(ins->name(), "@"))
+        {
             supported_ins_names.insert(ins->name());
+        }
     }
-    if(not supported_ins_names.empty())
-        quantize_8bits(prog, t, shape::fp8e4m3fn_type, calibration, supported_ins_names);
+    quantize_8bits(prog, t, shape::fp8e4m3fn_type, calibration, supported_ins_names);
 }
+
 } // namespace MIGRAPHX_INLINE_NS
 } // namespace migraphx

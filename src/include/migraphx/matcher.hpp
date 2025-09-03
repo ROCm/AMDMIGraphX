@@ -422,15 +422,15 @@ void find_matches_for(source_location location, Mod& mod, instruction_ref ins, M
         std::function<matcher_result()> match_fn;
         std::function<void(const matcher_result&)> apply_fn;
         std::string name;
-        size_t index;
         bool should_trace;
+        matcher_result result;
+        double match_time;
     };
     
     // Convert parameter pack to vector of wrappers
     std::vector<MatcherWrapper> matchers;
     matchers.reserve(sizeof...(Ms));
     
-    size_t idx = 0;
     each_args([&](auto&& m) {
         const auto& matcher_name = get_type_name(m);
         const bool trace_for = not trace_filter.empty() and
@@ -442,55 +442,37 @@ void find_matches_for(source_location location, Mod& mod, instruction_ref ins, M
             [&m, &mod, ins]() { return match_instruction(get_module(mod), ins, m.matcher()); },
             [&m, &mod](const matcher_result& r) { m.apply(mod, r); },
             matcher_name,
-            idx++,
-            trace_for
+            trace_for,
+            matcher_result{},
+            0.0
         });
     }, ms...);
-    
-    // Structure to hold match results
-    struct MatchResult {
-        matcher_result result;
-        size_t index = std::numeric_limits<size_t>::max();
-        double match_time = 0.0;
-        bool found = false;
-    };
-    
-    std::vector<MatchResult> results(matchers.size());
-    
+            
     // Parallel matching phase
-    std::transform(std::execution::par_unseq,
+    auto first_match = std::find_if(std::execution::par,
                    matchers.begin(), matchers.end(),
-                   results.begin(),
-                   [&](const MatcherWrapper& wrapper) -> MatchResult {
-        MatchResult res;
-        res.index = wrapper.index;
-        
+                   [&](MatcherWrapper& wrapper) {
+
         if (trace > 1 && wrapper.should_trace)
             std::cout << "Running matcher: " << wrapper.name << std::endl;
         
         if (time_matchers || wrapper.should_trace) {
             timer match_timer{};
-            res.result = wrapper.match_fn();
-            res.match_time = match_timer.record<std::chrono::duration<double, std::micro>>();
-            std::cout << "Matcher time for " << wrapper.name << ": " << res.match_time << "us" << std::endl;
+            wrapper.result = wrapper.match_fn();
+            wrapper.match_time = match_timer.record<std::chrono::duration<double, std::micro>>();
+            std::cout << "Matcher time for " << wrapper.name << ": " << wrapper.match_time << "us" << std::endl;
         } else {
-            res.result = wrapper.match_fn();
+            wrapper.result = wrapper.match_fn();
         }
-        
-        res.found = (res.result.result != get_module(mod).end());
-        return res;
+
+        return (wrapper.result.result != get_module(mod).end());
     });
     
-    // Find first match (sequential to preserve order)
-    auto first_match = std::find_if(results.begin(), results.end(),
-                                    [](const MatchResult& r) { return r.found; });
-    
-    if (first_match == results.end())
+    if (first_match == matchers.end())
         return;
     
     // Apply the first matching result
-    const auto& winner = *first_match;
-    const auto& winner_wrapper = matchers[winner.index];
+    const auto& winner_wrapper = *first_match;
     
     if (trace > 0 || winner_wrapper.should_trace) {
         std::cout << "Matched by: " << winner_wrapper.name << std::endl;
@@ -502,7 +484,7 @@ void find_matches_for(source_location location, Mod& mod, instruction_ref ins, M
     
     // Apply the matcher
     auto apply_time = time<std::chrono::duration<double, std::micro>>([&] {
-        winner_wrapper.apply_fn(winner.result);
+        winner_wrapper.apply_fn(winner_wrapper.result);
     });
     
     if (time_matchers || winner_wrapper.should_trace) {

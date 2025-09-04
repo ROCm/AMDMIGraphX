@@ -151,4 +151,7 @@
 #include <migraphx/op/unsqueeze.hpp>
 #include <migraphx/op/where.hpp>
 
+// Optional high-performance math library integrations
+#include <migraphx/blaze_utils.hpp>
+
 #endif

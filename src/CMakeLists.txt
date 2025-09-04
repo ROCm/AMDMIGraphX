@@ -353,6 +353,21 @@ target_link_libraries(migraphx PRIVATE msgpackc-cxx)
 # Make this available to the tests
 target_link_libraries(migraphx INTERFACE $<BUILD_INTERFACE:msgpackc-cxx>)
 
+# Blaze support
+if(MIGRAPHX_USE_BLAZE)
+    find_package(blaze QUIET)
+    if(blaze_FOUND)
+        message(STATUS "Blaze found: ${blaze_VERSION}")
+        target_link_libraries(migraphx PUBLIC blaze::blaze)
+        target_compile_definitions(migraphx PUBLIC MIGRAPHX_USE_BLAZE=1)
+        list(APPEND MIGRAPHX_CONFIG_DEPENDS PACKAGE blaze)
+    else()
+        message(WARNING "Blaze library not found despite MIGRAPHX_USE_BLAZE=ON. Make sure Blaze is installed and CMAKE_PREFIX_PATH includes the Blaze installation directory.")
+    endif()
+else()
+    target_compile_definitions(migraphx PUBLIC MIGRAPHX_USE_BLAZE=0)
+endif()
+
 add_library(migraphx_all_targets INTERFACE)
 add_library(migraphx_all_frontends INTERFACE)
 

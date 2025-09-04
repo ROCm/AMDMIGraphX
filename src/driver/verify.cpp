@@ -149,7 +149,7 @@ bool verify_program(const std::string& name,
     for(std::size_t i = 0; i < output_num; ++i)
     {
         if(ref_outs[i].get_shape().type() != target_outs[i].get_shape().type() or
-           ref_outs[i].get_shape().lens() != target_outs[i].get_shape().lens())
+           ref_outs[i].get_shape().ndim() != target_outs[i].get_shape().ndim())
         {
             std::cout << "FAILED: " << name << std::endl;
             std::cout << "Shape mismatch {" << ref_outs[i].get_shape() << "} != {"

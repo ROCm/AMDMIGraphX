@@ -35,7 +35,7 @@ static bool get_mk(const shape& lhs, std::size_t& M, std::size_t& K)
 void fuse_dots::apply(module& m) const
 {
     // configurable threshold
-    size_t fuse_threshold = 10;
+    size_t fuse_threshold = 40;
     // 1) Build indegree map and initialize levels
     std::unordered_map<instruction_ref, std::size_t> indeg;
     indeg.reserve(std::distance(m.begin(), m.end()));

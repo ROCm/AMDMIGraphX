@@ -40,7 +40,7 @@ if(protobuf_FOUND)
             versions.proto
     )
 else()
-    find_package(protobuf)
+	find_package(Protobuf REQUIRED)
     protobuf_generate_cpp(
         PROTO_SRCS PROTO_HDRS
         graph.proto

@@ -30,7 +30,7 @@ if(protobuf_FOUND)
         PROTOS onnx.proto
     )
 else()
-    find_package(protobuf)
+    find_package(Protobuf REQUIRED)
     protobuf_generate_cpp(PROTO_SRCS PROTO_HDRS onnx.proto)
 endif()
 

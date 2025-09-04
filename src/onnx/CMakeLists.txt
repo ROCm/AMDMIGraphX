@@ -24,7 +24,7 @@
 find_package(protobuf QUIET CONFIG)
 add_library(onnx-proto STATIC)
 
-if(Protobuf_FOUND)
+if(protobuf_FOUND)
     protobuf_generate(
         TARGET onnx-proto
         PROTOS onnx.proto

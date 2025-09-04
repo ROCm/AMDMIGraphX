@@ -93,7 +93,7 @@ static void quantize_8bits(program& prog,
 {
     // Run optimize_module() before converting to int8/fp8 to const eval and fold in FP32 to
     // avoid loss of precision.
-    run_passes(prog, {normalize_ops{}, optimize_module{}}, quant_tracer());
+    run_passes(prog, {rewrite_rnn{}, normalize_ops{}, optimize_module{}}, quant_tracer());
 
     std::shared_ptr<std::vector<std::pair<float, float>>> quant_8bit_params =
         std::make_shared<std::vector<std::pair<float, float>>>();
@@ -193,7 +193,6 @@ void quantize_int4_weights(program& prog)
 
 void quantize_fp8(program& prog, const target& t, const std::vector<parameter_map>& calibration)
 {
-    run_passes(prog, {rewrite_rnn{}}, quant_tracer());
     std::unordered_set<std::string> supported_ins_names;
     auto* mm = prog.get_main_module();
     for(auto ins : iterator_for(*mm))

@@ -488,7 +488,7 @@ void remove_zero_scales(module& m)
         auto a = scale->eval();    
         bool has_zero = false;    
         a.visit([&](auto t) {    
-            has_zero = std::any_of(t.begin(), t.end(), [](auto x) { return float_equal(x, 0); });    
+            has_zero = std::all_of(t.begin(), t.end(), [](auto x) { return float_equal(x, 0); });    
         });    
         if(not has_zero)    
             continue;    

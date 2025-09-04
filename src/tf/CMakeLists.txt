@@ -21,12 +21,28 @@
 # OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 # THE SOFTWARE.
 #####################################################################################
-find_package(protobuf REQUIRED CONFIG)
+find_package(protobuf QUIET CONFIG)
 add_library(tf-proto STATIC)
 
-protobuf_generate(
-    TARGET tf-proto
-    PROTOS 
+if(Protobuf_FOUND)
+    protobuf_generate(
+        TARGET tf-proto
+        PROTOS 
+            graph.proto
+            node_def.proto
+            attr_value.proto
+            tensor.proto
+            tensor_shape.proto
+            resource_handle.proto
+            types.proto
+            function.proto
+            op_def.proto
+            versions.proto
+    )
+else()
+    find_package(protobuf)
+    protobuf_generate_cpp(
+        PROTO_SRCS PROTO_HDRS
         graph.proto
         node_def.proto
         attr_value.proto
@@ -37,7 +53,8 @@ protobuf_generate(
         function.proto
         op_def.proto
         versions.proto
-)
+    )
+endif()
 
 target_include_directories(tf-proto SYSTEM PUBLIC ${CMAKE_CURRENT_BINARY_DIR})
 target_link_libraries(tf-proto PUBLIC protobuf::libprotobuf)

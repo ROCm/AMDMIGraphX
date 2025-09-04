@@ -21,13 +21,18 @@
 # OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 # THE SOFTWARE.
 #####################################################################################
-find_package(protobuf REQUIRED CONFIG)
+find_package(protobuf QUIET CONFIG)
 add_library(onnx-proto STATIC)
 
-protobuf_generate(
-    TARGET onnx-proto
-    PROTOS onnx.proto
-)
+if(Protobuf_FOUND)
+    protobuf_generate(
+        TARGET onnx-proto
+        PROTOS onnx.proto
+    )
+else()
+    find_package(protobuf)
+    protobuf_generate_cpp(PROTO_SRCS PROTO_HDRS onnx.proto)
+endif()
 
 target_include_directories(onnx-proto SYSTEM PUBLIC ${CMAKE_CURRENT_BINARY_DIR})
 target_link_libraries(onnx-proto PUBLIC protobuf::libprotobuf)

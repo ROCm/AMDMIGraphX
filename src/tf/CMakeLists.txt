@@ -22,9 +22,9 @@
 # THE SOFTWARE.
 #####################################################################################
 find_package(protobuf QUIET CONFIG)
-add_library(tf-proto STATIC)
 
 if(protobuf_FOUND)
+    add_library(tf-proto STATIC)
     protobuf_generate(
         TARGET tf-proto
         PROTOS 
@@ -39,8 +39,10 @@ if(protobuf_FOUND)
             op_def.proto
             versions.proto
     )
+    target_include_directories(tf-proto SYSTEM PUBLIC ${CMAKE_CURRENT_BINARY_DIR})
+    target_link_libraries(tf-proto PUBLIC protobuf::libprotobuf)
 else()
-	find_package(Protobuf REQUIRED)
+    find_package(Protobuf REQUIRED)
     protobuf_generate_cpp(
         PROTO_SRCS PROTO_HDRS
         graph.proto
@@ -54,10 +56,10 @@ else()
         op_def.proto
         versions.proto
     )
+    add_library(tf-proto STATIC ${PROTO_SRCS})
+    target_include_directories(tf-proto SYSTEM PUBLIC ${CMAKE_CURRENT_BINARY_DIR} ${PROTOBUF_INCLUDE_DIR})
+    target_link_libraries(tf-proto PRIVATE ${PROTOBUF_LIBRARY})
 endif()
-
-target_include_directories(tf-proto SYSTEM PUBLIC ${CMAKE_CURRENT_BINARY_DIR})
-target_link_libraries(tf-proto PUBLIC protobuf::libprotobuf)
 
 if(MSVC)
     target_compile_options(tf-proto PRIVATE /w)

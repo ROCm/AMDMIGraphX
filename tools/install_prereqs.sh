@@ -85,6 +85,13 @@ fi
 
 echo "Dependencies are installed at $PREFIX"
 
+export PROTOBUF_OPTS="-DCMAKE_CXX_FLAGS='-fsanitize=undefined,address'"
+if [[ -v CI && -v ASAN_OPTIONS ]] ; then
+  # Compile with ASAN for Clang ASAN test due to known issue with ASAN and collections
+  # see https://github.com/google/sanitizers/wiki/AddressSanitizerContainerOverflow for reference
+  sed 's/\(protobuf@[^ ]*\)/\1 -DCMAKE_C_FLAGS="-fsanitize=address -fno-omit-frame-pointer" -DCMAKE_CXX_FLAGS="-fsanitize=address -fno-omit-frame-pointer" -DCMAKE_EXE_LINKER_FLAGS="-fsanitize=address" -DCMAKE_SHARED_LINKER_FLAGS="-fsanitize=address"/' -i ../requirements.txt
+fi
+
 # Install deps with rbuild
 rbuild prepare -d $PREFIX -s develop
 

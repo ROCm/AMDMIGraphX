@@ -30,7 +30,6 @@
 #include <iterator>
 #include <chrono>
 
-
 // Set this environment variable to "true" to perform GEMM tuning even when the
 // --exhaustive-tune option isn't set.  Can be used to skip slow convolution tuning.
 MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_ENABLE_GEMM_TUNING);

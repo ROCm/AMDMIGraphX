@@ -1190,6 +1190,338 @@ struct find_channel_slice_convolution
         }
     }
 };
+/// Finds a dot operator and tiles it for mfma. From the M,N,K sizes we will look up the mfma the `mPerBlock` or `nPerBlock`(dependending on which parameter is passed), `kpackPerBlock`, and `kpack` values. Then it will resize the matrix inputs to:
+/// 
+/// A: [Bs..., M, K] => [Bs..., mBlock, kIter, kpackPerBlock, mPerBlock, kpack]
+/// B: [Bs..., K, N] => [Bs..., N, K] => [Bs..., nBlock, kIter, kpackPerBlock, nPerBlock, kpack]
+///
+/// Where:
+/// - mBlock = M / mPerBlock
+/// - nBlock = N / nPerBlock
+/// - kIter = K / (kpackPerBlock * kpack)
+/// 
+/// A contiguous is inserted after the reshape to ensure the data is laid out in memory correctly. Then after the contiguous a transpose and reshape to convert it back to the size that the dot operator needs.
+struct find_dot_tile
+{
+    auto matcher() const
+    {
+        return match::name("dot");
+    }
+
+    struct mfma_params
+    {
+        std::size_t m_per_block;
+        std::size_t n_per_block;
+        std::size_t kpack_per_block;
+        std::size_t kpack;
+    };
+
+    std::optional<mfma_params> get_mfma_params(shape::type_t t, std::size_t m, std::size_t n, std::size_t k) const
+    {
+        static const std::map<std::tuple<shape::type_t, std::size_t, std::size_t, std::size_t>, mfma_params> mfma_table = {
+    { { shape::half_type, 32, 32, 64 }, mfma_params{ 32, 16, 4, 4 } },
+    { { shape::half_type, 32, 64, 32 }, mfma_params{ 32, 64, 4, 4 } },
+    { { shape::half_type, 32, 768, 768 }, mfma_params{ 16, 32, 8, 8 } },
+    { { shape::half_type, 32, 768, 3072 }, mfma_params{ 16, 16, 8, 8 } },
+    { { shape::half_type, 32, 1024, 1024 }, mfma_params{ 16, 16, 8, 8 } },
+    { { shape::half_type, 32, 1024, 2048 }, mfma_params{ 16, 32, 8, 8 } },
+    { { shape::half_type, 32, 1024, 4096 }, mfma_params{ 16, 16, 8, 8 } },
+    { { shape::half_type, 32, 1280, 320 }, mfma_params{ 16, 16, 8, 8 } },
+    { { shape::half_type, 32, 1280, 1280 }, mfma_params{ 16, 16, 8, 8 } },
+    { { shape::half_type, 32, 2304, 768 }, mfma_params{ 32, 16, 8, 8 } },
+    { { shape::half_type, 32, 3072, 768 }, mfma_params{ 16, 32, 8, 8 } },
+    { { shape::half_type, 32, 3072, 1024 }, mfma_params{ 16, 32, 8, 8 } },
+    { { shape::half_type, 32, 4096, 1024 }, mfma_params{ 32, 32, 8, 8 } },
+    { { shape::half_type, 32, 4096, 4096 }, mfma_params{ 32, 16, 8, 8 } },
+    { { shape::half_type, 32, 4096, 11008 }, mfma_params{ 32, 16, 8, 8 } },
+    { { shape::half_type, 32, 12288, 4096 }, mfma_params{ 32, 32, 8, 8 } },
+    { { shape::half_type, 32, 20160, 1280 }, mfma_params{ 32, 64, 8, 8 } },
+    { { shape::half_type, 32, 22016, 4096 }, mfma_params{ 32, 128, 8, 8 } },
+    { { shape::half_type, 32, 32000, 4096 }, mfma_params{ 32, 32, 8, 8 } },
+    { { shape::half_type, 32, 81920, 1280 }, mfma_params{ 32, 128, 4, 8 } },
+    { { shape::half_type, 48, 256, 32 }, mfma_params{ 16, 128, 4, 8 } },
+    { { shape::half_type, 64, 256, 32 }, mfma_params{ 64, 16, 4, 4 } },
+    { { shape::half_type, 64, 512, 512 }, mfma_params{ 16, 16, 8, 8 } },
+    { { shape::half_type, 128, 64, 128 }, mfma_params{ 32, 16, 8, 8 } },
+    { { shape::half_type, 128, 128, 64 }, mfma_params{ 32, 32, 8, 8 } },
+    { { shape::half_type, 128, 768, 768 }, mfma_params{ 16, 32, 8, 8 } },
+    { { shape::half_type, 128, 768, 3072 }, mfma_params{ 16, 16, 8, 8 } },
+    { { shape::half_type, 128, 1280, 1280 }, mfma_params{ 32, 32, 8, 8 } },
+    { { shape::half_type, 128, 1280, 5120 }, mfma_params{ 32, 32, 8, 8 } },
+    { { shape::half_type, 128, 2304, 768 }, mfma_params{ 16, 32, 8, 8 } },
+    { { shape::half_type, 128, 3072, 768 }, mfma_params{ 16, 16, 8, 8 } },
+    { { shape::half_type, 128, 3840, 1280 }, mfma_params{ 32, 32, 8, 8 } },
+    { { shape::half_type, 128, 4096, 4096 }, mfma_params{ 32, 32, 8, 8 } },
+    { { shape::half_type, 128, 4096, 10240 }, mfma_params{ 32, 32, 8, 8 } },
+    { { shape::half_type, 128, 5120, 1280 }, mfma_params{ 32, 32, 8, 8 } },
+    { { shape::half_type, 128, 10240, 1280 }, mfma_params{ 128, 64, 8, 8 } },
+    { { shape::half_type, 128, 12288, 4096 }, mfma_params{ 128, 64, 8, 8 } },
+    { { shape::half_type, 128, 20480, 4096 }, mfma_params{ 128, 128, 8, 8 } },
+    { { shape::half_type, 128, 24960, 1024 }, mfma_params{ 128, 128, 8, 8 } },
+    { { shape::half_type, 256, 32, 64 }, mfma_params{ 16, 16, 8, 4 } },
+    { { shape::half_type, 256, 64, 32 }, mfma_params{ 32, 64, 2, 8 } },
+    { { shape::half_type, 256, 64, 256 }, mfma_params{ 32, 16, 8, 8 } },
+    { { shape::half_type, 256, 256, 64 }, mfma_params{ 32, 64, 4, 8 } },
+    { { shape::half_type, 256, 1280, 1280 }, mfma_params{ 16, 16, 8, 8 } },
+    { { shape::half_type, 256, 1280, 5120 }, mfma_params{ 32, 32, 8, 8 } },
+    { { shape::half_type, 256, 3072, 3072 }, mfma_params{ 64, 32, 8, 8 } },
+    { { shape::half_type, 256, 3072, 8192 }, mfma_params{ 64, 32, 8, 8 } },
+    { { shape::half_type, 256, 3840, 1280 }, mfma_params{ 32, 64, 8, 8 } },
+    { { shape::half_type, 256, 4096, 4096 }, mfma_params{ 64, 64, 8, 8 } },
+    { { shape::half_type, 256, 4096, 11008 }, mfma_params{ 64, 64, 8, 8 } },
+    { { shape::half_type, 256, 4096, 14336 }, mfma_params{ 64, 32, 8, 8 } },
+    { { shape::half_type, 256, 5120, 1280 }, mfma_params{ 64, 32, 8, 8 } },
+    { { shape::half_type, 256, 6144, 4096 }, mfma_params{ 64, 64, 8, 8 } },
+    { { shape::half_type, 256, 9216, 3072 }, mfma_params{ 64, 128, 8, 8 } },
+    { { shape::half_type, 256, 12288, 4096 }, mfma_params{ 128, 128, 8, 8 } },
+    { { shape::half_type, 256, 16384, 3072 }, mfma_params{ 128, 128, 4, 8 } },
+    { { shape::half_type, 256, 22016, 4096 }, mfma_params{ 256, 128, 4, 8 } },
+    { { shape::half_type, 256, 28672, 4096 }, mfma_params{ 256, 128, 4, 8 } },
+    { { shape::half_type, 256, 32000, 4096 }, mfma_params{ 256, 128, 4, 8 } },
+    { { shape::half_type, 256, 32064, 3072 }, mfma_params{ 256, 64, 4, 8 } },
+    { { shape::half_type, 256, 51968, 1280 }, mfma_params{ 256, 256, 4, 4 } },
+    { { shape::half_type, 256, 128256, 4096 }, mfma_params{ 256, 256, 4, 8 } },
+    { { shape::half_type, 256, 151936, 4096 }, mfma_params{ 256, 128, 4, 8 } },
+    { { shape::half_type, 384, 32, 1024 }, mfma_params{ 32, 16, 8, 8 } },
+    { { shape::half_type, 384, 768, 768 }, mfma_params{ 32, 32, 8, 8 } },
+    { { shape::half_type, 384, 768, 3072 }, mfma_params{ 16, 32, 8, 8 } },
+    { { shape::half_type, 384, 1024, 1024 }, mfma_params{ 16, 32, 8, 8 } },
+    { { shape::half_type, 384, 1024, 4096 }, mfma_params{ 32, 16, 8, 8 } },
+    { { shape::half_type, 384, 2304, 768 }, mfma_params{ 32, 32, 8, 8 } },
+    { { shape::half_type, 384, 3072, 768 }, mfma_params{ 32, 64, 8, 8 } },
+    { { shape::half_type, 384, 3072, 1024 }, mfma_params{ 32, 64, 8, 8 } },
+    { { shape::half_type, 384, 4096, 1024 }, mfma_params{ 64, 64, 8, 8 } },
+    { { shape::half_type, 512, 512, 32 }, mfma_params{ 32, 64, 2, 8 } },
+    { { shape::half_type, 512, 1280, 1280 }, mfma_params{ 16, 32, 8, 8 } },
+    { { shape::half_type, 512, 1280, 5120 }, mfma_params{ 32, 64, 8, 8 } },
+    { { shape::half_type, 512, 3840, 1280 }, mfma_params{ 64, 128, 8, 8 } },
+    { { shape::half_type, 512, 10240, 1280 }, mfma_params{ 256, 128, 4, 8 } },
+    { { shape::half_type, 1024, 512, 1024 }, mfma_params{ 32, 32, 8, 8 } },
+    { { shape::half_type, 1024, 1024, 1024 }, mfma_params{ 32, 64, 8, 8 } },
+    { { shape::half_type, 1024, 1024, 12544 }, mfma_params{ 64, 64, 8, 8 } },
+    { { shape::half_type, 2048, 640, 640 }, mfma_params{ 32, 32, 4, 8 } },
+    { { shape::half_type, 2048, 640, 2560 }, mfma_params{ 64, 64, 8, 8 } },
+    { { shape::half_type, 2048, 1920, 640 }, mfma_params{ 128, 128, 8, 8 } },
+    { { shape::half_type, 2048, 5120, 640 }, mfma_params{ 64, 128, 4, 8 } },
+    { { shape::half_type, 4096, 512, 512 }, mfma_params{ 32, 128, 8, 8 } },
+    { { shape::half_type, 4096, 1536, 512 }, mfma_params{ 64, 128, 4, 8 } },
+    { { shape::half_type, 4096, 4096, 4096 }, mfma_params{ 256, 256, 4, 8 } },
+    { { shape::half_type, 4096, 4096, 11008 }, mfma_params{ 256, 256, 4, 8 } },
+    { { shape::half_type, 4096, 12288, 4096 }, mfma_params{ 128, 256, 2, 8 } },
+    { { shape::half_type, 4096, 22016, 4096 }, mfma_params{ 128, 256, 2, 8 } },
+    { { shape::half_type, 4096, 32000, 4096 }, mfma_params{ 128, 256, 2, 8 } },
+    { { shape::half_type, 8192, 320, 320 }, mfma_params{ 32, 64, 4, 8 } },
+    { { shape::half_type, 8192, 320, 1280 }, mfma_params{ 64, 64, 4, 8 } },
+    { { shape::half_type, 8192, 960, 320 }, mfma_params{ 64, 64, 4, 8 } },
+    { { shape::half_type, 8192, 2560, 320 }, mfma_params{ 128, 128, 4, 8 } },
+    { { shape::float_type, 32, 32, 64 }, mfma_params{ 32, 16, 8, 8 } },
+    { { shape::float_type, 32, 32, 128 }, mfma_params{ 16, 32, 8, 4 } },
+    { { shape::float_type, 32, 64, 32 }, mfma_params{ 16, 16, 4, 4 } },
+    { { shape::float_type, 32, 128, 32 }, mfma_params{ 16, 32, 4, 4 } },
+    { { shape::float_type, 32, 768, 768 }, mfma_params{ 16, 16, 8, 8 } },
+    { { shape::float_type, 32, 768, 3072 }, mfma_params{ 16, 16, 8, 8 } },
+    { { shape::float_type, 32, 1024, 2048 }, mfma_params{ 16, 16, 8, 8 } },
+    { { shape::float_type, 32, 2304, 768 }, mfma_params{ 16, 16, 8, 8 } },
+    { { shape::float_type, 32, 3072, 768 }, mfma_params{ 32, 16, 8, 8 } },
+    { { shape::float_type, 32, 4096, 4096 }, mfma_params{ 32, 16, 8, 8 } },
+    { { shape::float_type, 32, 4096, 14336 }, mfma_params{ 16, 16, 8, 8 } },
+    { { shape::float_type, 32, 6144, 4096 }, mfma_params{ 32, 32, 8, 8 } },
+    { { shape::float_type, 32, 28672, 4096 }, mfma_params{ 32, 128, 8, 4 } },
+    { { shape::float_type, 32, 32000, 4096 }, mfma_params{ 32, 128, 8, 4 } },
+    { { shape::float_type, 32, 128256, 4096 }, mfma_params{ 32, 256, 2, 8 } },
+    { { shape::float_type, 64, 32, 32 }, mfma_params{ 16, 32, 4, 4 } },
+    { { shape::float_type, 64, 512, 512 }, mfma_params{ 16, 16, 8, 8 } },
+    { { shape::float_type, 64, 1536, 512 }, mfma_params{ 32, 32, 8, 8 } },
+    { { shape::float_type, 128, 4096, 10240 }, mfma_params{ 32, 64, 8, 4 } },
+    { { shape::float_type, 256, 128, 256 }, mfma_params{ 32, 64, 8, 4 } },
+    { { shape::float_type, 256, 256, 128 }, mfma_params{ 32, 32, 4, 4 } },
+    { { shape::float_type, 256, 4096, 4096 }, mfma_params{ 32, 64, 8, 4 } },
+    { { shape::float_type, 256, 4096, 11008 }, mfma_params{ 64, 32, 8, 4 } },
+    { { shape::float_type, 256, 12288, 4096 }, mfma_params{ 64, 64, 4, 4 } },
+    { { shape::float_type, 256, 22016, 4096 }, mfma_params{ 64, 64, 4, 4 } },
+    { { shape::float_type, 256, 32000, 4096 }, mfma_params{ 128, 128, 4, 4 } },
+    { { shape::float_type, 256, 151936, 4096 }, mfma_params{ 256, 128, 4, 4 } },
+    { { shape::float_type, 384, 64, 384 }, mfma_params{ 16, 64, 8, 8 } },
+    { { shape::float_type, 384, 384, 64 }, mfma_params{ 32, 64, 8, 4 } },
+    { { shape::float_type, 384, 768, 768 }, mfma_params{ 16, 16, 8, 8 } },
+    { { shape::float_type, 384, 768, 3072 }, mfma_params{ 32, 32, 8, 8 } },
+    { { shape::float_type, 384, 2304, 768 }, mfma_params{ 32, 32, 8, 4 } },
+    { { shape::float_type, 384, 3072, 768 }, mfma_params{ 64, 32, 8, 4 } },
+    { { shape::float_type, 512, 512, 32 }, mfma_params{ 16, 64, 4, 8 } },
+    { { shape::float_type, 1024, 512, 1024 }, mfma_params{ 16, 64, 8, 4 } },
+    { { shape::float_type, 1024, 1024, 1024 }, mfma_params{ 32, 64, 8, 4 } },
+    { { shape::float_type, 1024, 1024, 12544 }, mfma_params{ 32, 64, 8, 4 } },
+    { { shape::float_type, 1536, 1280, 1280 }, mfma_params{ 64, 64, 4, 8 } },
+    { { shape::float_type, 1536, 1280, 5120 }, mfma_params{ 64, 64, 4, 8 } },
+    { { shape::float_type, 1536, 3840, 1280 }, mfma_params{ 64, 64, 8, 4 } },
+    { { shape::float_type, 1536, 5120, 1280 }, mfma_params{ 128, 128, 4, 4 } },
+    { { shape::float_type, 4096, 4096, 4096 }, mfma_params{ 128, 64, 4, 4 } },
+    { { shape::float_type, 4096, 4096, 14336 }, mfma_params{ 256, 256, 4, 4 } },
+    { { shape::float_type, 4096, 6144, 4096 }, mfma_params{ 64, 128, 4, 4 } },
+    { { shape::float_type, 4096, 28672, 4096 }, mfma_params{ 256, 256, 4, 4 } },
+    { { shape::float_type, 4096, 128256, 4096 }, mfma_params{ 128, 128, 4, 4 } },
+    { { shape::int8_type, 32, 32, 64 }, mfma_params{ 16, 16, 4, 8 } },
+    { { shape::int8_type, 32, 64, 32 }, mfma_params{ 16, 64, 4, 8 } },
+    { { shape::int8_type, 32, 768, 768 }, mfma_params{ 16, 16, 16, 16 } },
+    { { shape::int8_type, 32, 768, 3072 }, mfma_params{ 32, 16, 32, 16 } },
+    { { shape::int8_type, 32, 1024, 2048 }, mfma_params{ 32, 16, 32, 16 } },
+    { { shape::int8_type, 32, 1280, 1280 }, mfma_params{ 16, 16, 16, 16 } },
+    { { shape::int8_type, 32, 2304, 768 }, mfma_params{ 16, 16, 16, 16 } },
+    { { shape::int8_type, 32, 3072, 768 }, mfma_params{ 32, 32, 16, 16 } },
+    { { shape::int8_type, 64, 512, 512 }, mfma_params{ 16, 32, 16, 16 } },
+    { { shape::int8_type, 128, 64, 128 }, mfma_params{ 32, 16, 8, 8 } },
+    { { shape::int8_type, 128, 128, 64 }, mfma_params{ 32, 16, 4, 8 } },
+    { { shape::int8_type, 128, 768, 768 }, mfma_params{ 32, 16, 8, 16 } },
+    { { shape::int8_type, 128, 768, 3072 }, mfma_params{ 32, 16, 32, 16 } },
+    { { shape::int8_type, 128, 1280, 1280 }, mfma_params{ 16, 16, 16, 16 } },
+    { { shape::int8_type, 128, 1280, 5120 }, mfma_params{ 32, 32, 32, 16 } },
+    { { shape::int8_type, 128, 2304, 768 }, mfma_params{ 16, 64, 16, 16 } },
+    { { shape::int8_type, 128, 3072, 768 }, mfma_params{ 16, 32, 16, 16 } },
+    { { shape::int8_type, 128, 3840, 1280 }, mfma_params{ 32, 64, 16, 16 } },
+    { { shape::int8_type, 128, 5120, 1280 }, mfma_params{ 32, 64, 8, 16 } },
+    { { shape::int8_type, 256, 128, 256 }, mfma_params{ 32, 32, 16, 8 } },
+    { { shape::int8_type, 256, 256, 128 }, mfma_params{ 32, 64, 4, 16 } },
+    { { shape::int8_type, 256, 4096, 4096 }, mfma_params{ 64, 64, 16, 16 } },
+    { { shape::int8_type, 256, 4096, 11008 }, mfma_params{ 64, 64, 16, 16 } },
+    { { shape::int8_type, 256, 12288, 4096 }, mfma_params{ 256, 64, 4, 16 } },
+    { { shape::int8_type, 256, 22016, 4096 }, mfma_params{ 256, 128, 4, 16 } },
+    { { shape::int8_type, 256, 32000, 4096 }, mfma_params{ 256, 128, 4, 16 } },
+    { { shape::int8_type, 256, 151936, 4096 }, mfma_params{ 256, 128, 4, 16 } },
+    { { shape::int8_type, 384, 64, 384 }, mfma_params{ 16, 32, 16, 8 } },
+    { { shape::int8_type, 384, 384, 64 }, mfma_params{ 32, 64, 4, 16 } },
+    { { shape::int8_type, 384, 768, 768 }, mfma_params{ 16, 16, 16, 16 } },
+    { { shape::int8_type, 384, 768, 3072 }, mfma_params{ 32, 32, 32, 16 } },
+    { { shape::int8_type, 384, 2304, 768 }, mfma_params{ 32, 32, 8, 16 } },
+    { { shape::int8_type, 384, 3072, 768 }, mfma_params{ 64, 64, 16, 16 } },
+    { { shape::int8_type, 512, 512, 32 }, mfma_params{ 16, 128, 4, 8 } },
+    { { shape::int8_type, 1024, 512, 1024 }, mfma_params{ 16, 32, 8, 16 } },
+    { { shape::int8_type, 1024, 1024, 1024 }, mfma_params{ 64, 32, 8, 16 } },
+    { { shape::int8_type, 1024, 1024, 12544 }, mfma_params{ 64, 64, 16, 16 } }
+};
+        if(contains(mfma_table, std::make_tuple(t, m, n, k)))
+            return mfma_table.at(std::make_tuple(t, m, n, k));
+        return nullopt;
+    }
+        
+    std::vector<operation> get_tile_ops(const mfma_params& params,
+                                        const shape& d_shape,
+                                        bool is_b) const
+    {
+        std::vector<std::size_t> batch_dims(d_shape.lens().begin(), d_shape.lens().end() - 2);
+        auto m = d_shape.lens()[d_shape.ndim() - 2];
+        auto k = d_shape.lens()[d_shape.ndim() - 1];
+        auto n = is_b ? d_shape.lens()[d_shape.ndim() - 2] : d_shape.lens()[d_shape.ndim() - 1];
+
+        std::vector<operation> ops;
+
+        if(is_b) {
+            // For B matrix: [Bs..., K, N] => [Bs..., N, K]
+            std::vector<int64_t> perm(d_shape.ndim());
+            std::iota(perm.begin(), perm.end() - 2, 0);
+            perm[perm.size() - 2] = d_shape.ndim() - 1;
+            perm[perm.size() - 1] = d_shape.ndim() - 2;
+            ops.push_back(make_op("transpose", {{"permutation", perm}}));
+            std::swap(k, n);
+        }
+
+        // Calculate tiling dimensions
+        auto m_block = m / params.m_per_block;
+        auto n_block = n / params.n_per_block;
+        auto k_iter = k / (params.kpack_per_block * params.kpack);
+
+        // Build new shape for tiling
+        std::vector<std::size_t> new_dims = batch_dims;
+        if(is_b) {
+            new_dims.insert(new_dims.end(), {n_block, k_iter, params.kpack_per_block, params.n_per_block, params.kpack});
+        } else {
+            new_dims.insert(new_dims.end(), {m_block, k_iter, params.kpack_per_block, params.m_per_block, params.kpack});
+        }
+
+        // Reshape to tiled dimensions
+        ops.push_back(make_op("reshape", {{"dims", new_dims}}));
+
+        // Add contiguous operation
+        ops.push_back(make_op("contiguous"));
+
+        // Transpose to group dimensions correctly
+        std::vector<int64_t> tile_perm(new_dims.size());
+        std::iota(tile_perm.begin(), tile_perm.begin() + batch_dims.size(), 0);
+        auto offset = batch_dims.size();
+        if(is_b) {
+            // [Bs..., nBlock, kIter, kpackPerBlock, nPerBlock, kpack] 
+            // => [Bs..., kIter, nBlock, kpackPerBlock, nPerBlock, kpack]
+            tile_perm[offset] = offset + 1;     // kIter
+            tile_perm[offset + 1] = offset;     // nBlock
+            tile_perm[offset + 2] = offset + 2; // kpackPerBlock
+            tile_perm[offset + 3] = offset + 3; // nPerBlock
+            tile_perm[offset + 4] = offset + 4; // kpack
+        } else {
+            // [Bs..., mBlock, kIter, kpackPerBlock, mPerBlock, kpack]
+            // => [Bs..., kIter, mBlock, kpackPerBlock, mPerBlock, kpack]
+            tile_perm[offset] = offset + 1;     // kIter
+            tile_perm[offset + 1] = offset;     // mBlock
+            tile_perm[offset + 2] = offset + 2; // kpackPerBlock
+            tile_perm[offset + 3] = offset + 3; // mPerBlock
+            tile_perm[offset + 4] = offset + 4; // kpack
+        }
+        ops.push_back(make_op("transpose", {{"permutation", tile_perm}}));
+
+        // Reshape back to original matrix dimensions for dot operation
+        std::vector<std::size_t> final_dims = batch_dims;
+        final_dims.push_back(is_b ? n : m);
+        final_dims.push_back(k);
+        ops.push_back(make_op("reshape", {{"dims", final_dims}}));
+
+        return ops;
+    }
+
+    void apply(module_pass_manager& mpm, const match::matcher_result& r) const
+    {
+        auto dot_ins = r.result;
+        auto a       = dot_ins->inputs().at(0);
+        auto b       = dot_ins->inputs().at(1);
+        
+        // Get matrix dimensions
+        auto a_shape = a->get_shape();
+        auto b_shape = b->get_shape();
+        if(a_shape.ndim() < 2 or b_shape.ndim() < 2)
+            return;
+
+        auto m = a_shape.lens()[a_shape.ndim() - 2];
+        auto k = a_shape.lens()[a_shape.ndim() - 1];
+        auto n = b_shape.lens()[b_shape.ndim() - 1];
+
+        // Get mfma parameters based on data type and dimensions
+        auto params = get_mfma_params(a_shape.type(), m, n, k);
+        if(not params.has_value())
+            return;
+
+        // Check if dimensions are divisible by required block sizes
+        if((m % params->m_per_block) != 0 or (n % params->n_per_block) != 0)
+            return;
+        if((k % (params->kpack_per_block * params->kpack)) != 0)
+            return;
+
+        // Generate tiling operations for A matrix
+        auto a_tile_ops = get_tile_ops(*params, a_shape, false);
+        instruction_ref current_a = a;
+        for(const auto& op : a_tile_ops)
+        {
+            current_a = mpm.get_module().insert_instruction(dot_ins, op, current_a);
+        }
+
+        // Generate tiling operations for B matrix  
+        auto b_tile_ops = get_tile_ops(*params, b_shape, true);
+        instruction_ref current_b = b;
+        for(const auto& op : b_tile_ops)
+        {
+            current_b = mpm.get_module().insert_instruction(dot_ins, op, current_b);
+        }
+
+        // Replace the dot instruction with the tiled inputs
+        mpm.get_module().replace_instruction(dot_ins, dot_ins->get_operator(), {current_a, current_b});
+    }
+};
 
 } // namespace
 
@@ -1212,7 +1544,7 @@ void fuse_mlir::apply(module_pass_manager& mpm) const
         return std::max(m1, m2);
     };
 
-    match::find_matches(mpm, find_channel_slice_convolution{});
+    match::find_matches(mpm, find_channel_slice_convolution{}, find_dot_tile{});
     mpm.run_pass(dead_code_elimination{});
 
     match::find_matches(mpm, find_mlir_attention_op{});

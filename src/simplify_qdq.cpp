@@ -50,6 +50,7 @@ std::unordered_set<std::string> get_quantizable_op_names()
 }
 
 /// Recursively skip input instructions with one input that have a name in the skip_set.
+/// Same algo as match::skip.
 instruction_ref skip_unary_ins_from(instruction_ref ins, std::unordered_set<std::string> skip_set)
 {
     return fix<instruction_ref>([&](auto self, auto ins_i) -> instruction_ref {
@@ -74,26 +75,6 @@ instruction_ref skip_dq_inputs_to_q(instruction_ref dq_ins)
     // clang-format off
     static const std::unordered_set<std::string> skip_set = {
         "pack_fp4",
-        "unpack_fp4",
-        "broadcast",
-        "slice",
-        "reshape",
-        "reshape_lazy",
-        "pad",
-    };
-    // clang-format on
-    return skip_unary_ins_from(dq_ins, skip_set);
-}
-
-/**
- * Skips unary input instructions to the given instruction.
- * Likely returns the pack instruction paired for packed datatypes or the
- * quantizelinear instruction.
- */
-instruction_ref skip_dq_inputs_to_pack(instruction_ref dq_ins)
-{
-    // clang-format off
-    static const std::unordered_set<std::string> skip_set = {
         "unpack_fp4",
         "broadcast",
         "slice",
@@ -336,37 +317,33 @@ struct match_find_quantizable_ops
     }
 };
 
-// Note: scales are not constant b/c of dynamic quantization
-inline auto dynamic_dq_without_bias(const std::string& scale)
+// Note: scales are not constant b/c of dynamic quantization.
+// Checks for block quantized scales by checking scales are not scalar or 1D.
+inline auto dynamic_block_dq(const std::string& scale)
 {
+    // clang-format off
     return match::name("dequantizelinear")(
         match::nargs(2),
-        match::arg(1)(match::skip_broadcasts(match::none_of(match::is_constant()).bind(scale))));
+        match::arg(1)(match::skip_broadcasts(match::none_of(
+            match::is_constant(),
+            match::scalar_shape,
+            match::ndim(1)
+        ).bind(scale))));
+    // clang-format on
 }
 
 /**
  * Handles block quantization for MX types.
- * Matcher is slightly different because dequantizelinear will not
- * have zero points.
+ * Matcher checks that dequantizelinear has no zero point and that
+ * the scales are block quantized.
  */
 struct match_find_mx_quantizable_ops
 {
     auto matcher() const
     {
-        auto dq1 = match::arg(0)(skip_post_dq_ops(dynamic_dq_without_bias("scale1").bind("dq1")));
-        auto dq2 = match::arg(1)(skip_post_dq_ops(dynamic_dq_without_bias("scale2").bind("dq2")));
+        auto dq1 = match::arg(0)(skip_post_dq_ops(dynamic_block_dq("scale1").bind("dq1")));
+        auto dq2 = match::arg(1)(skip_post_dq_ops(dynamic_block_dq("scale2").bind("dq2")));
         return match::name(get_quantizable_op_names())(dq1, dq2);
-    }
-
-    /// Check that quantized input is a supported type
-    bool is_block_supported_type(instruction_ref dq1, instruction_ref dq2) const
-    {
-        // only fp4x2 type currently supported for block quantization
-        const std::set<migraphx::shape::type_t> supported_types = {migraphx::shape::fp4x2_type};
-        auto in1 = skip_dq_inputs_to_pack(dq1->inputs().front());
-        auto in2 = skip_dq_inputs_to_pack(dq2->inputs().front());
-        return (contains(supported_types, in1->get_shape().type()) and
-                contains(supported_types, in2->get_shape().type()));
     }
 
     void apply(module& m, const match::matcher_result& r) const
@@ -376,11 +353,6 @@ struct match_find_mx_quantizable_ops
         auto dq2    = r.instructions["dq2"];
         auto scale1 = r.instructions["scale1"];
         auto scale2 = r.instructions["scale2"];
-
-        if(not is_block_supported_type(dq1, dq2))
-        {
-            return;
-        }
 
         // Propagate q1 and q2 through any broadcasts and transposes before qop
         // Construct 4 arguments for block quantized op
@@ -589,7 +561,7 @@ bool is_any_input_int4(instruction_ref a)
  *
  *  Doesn't match the pack/unpack and reshapes explicitly, instead skips instructions
  *  that match the name with one input recursively.
- *  Use this after selected quantizations have been made into real quantizatized instructions.
+ *  Use this after selected quantizations have been made into real quantized instructions.
  */
 void remove_qdq_pairs(module& m)
 {

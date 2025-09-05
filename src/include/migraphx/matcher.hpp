@@ -689,7 +689,8 @@ MIGRAPHX_PRED_MATCHER(transpose_shape, instruction_ref ins)
 
 inline auto ndim(std::size_t n)
 {
-    return make_basic_pred_matcher([=](instruction_ref ins) { return ins->get_shape().ndim() == n; });
+    return make_basic_pred_matcher(
+        [=](instruction_ref ins) { return ins->get_shape().ndim() == n; });
 }
 
 MIGRAPHX_PRED_MATCHER(not_tuple, instruction_ref ins)

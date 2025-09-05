@@ -22,7 +22,7 @@
 # THE SOFTWARE.
 #####################################################################################
 abseil/abseil-cpp@20250512.0 -DABSL_ENABLE_INSTALL=ON -DCMAKE_POSITION_INDEPENDENT_CODE=ON
-google/protobuf@v30.0 -DCMAKE_POSITION_INDEPENDENT_CODE=On -Dprotobuf_BUILD_TESTS=Off -DCMAKE_POLICY_VERSION_MINIMUM=3.5 -Dprotobuf_ABSL_PROVIDER=package
+google/protobuf@v30.0 -DCMAKE_POSITION_INDEPENDENT_CODE=On -Dprotobuf_BUILD_TESTS=Off -DCMAKE_POLICY_VERSION_MINIMUM=3.5 -Dprotobuf_ABSL_PROVIDER=package -DCMAKE_CXX_FLAGS_DEBUG="-fno-omit-frame-pointer -fsanitize=address" -DCMAKE_LINKER_FLAGS_DEBUG="fno-omit-frame-pointer -fsanitize=address"
 nlohmann/json@v3.8.0 -DCMAKE_POLICY_VERSION_MINIMUM=3.5
 ROCm/half@rocm-5.6.0
 pybind/pybind11@3e9dfa2866941655c56877882565e7577de6fc7b --build

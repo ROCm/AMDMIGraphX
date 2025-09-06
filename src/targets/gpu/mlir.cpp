@@ -647,6 +647,8 @@ struct mlir_program
             return "migraphx.literal";
         if(ins->name() == "unpack_int4")
             return "migraphx.unpack";
+        if(ins->name() == "convolution_backwards")
+            return "migraphx.backwards_data_convolution";
         if(is_reshape(ins->name()))
             return "migraphx.reshape";
         return "migraphx." + ins->name();

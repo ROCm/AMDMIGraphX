@@ -108,6 +108,8 @@ else()
                 # This is broken for now for moved values
                 -Wno-shadow-uncaptured-local
                 # -Wno-c++2a-designator
+                # -Weverything gives contradictory warnings, so disable the one that requires default in switch
+                -Wno-switch-default
             )
             if(WIN32 AND CMAKE_CXX_COMPILER_VERSION VERSION_GREATER_EQUAL "19")
                 list(APPEND CMAKE_COMPILER_WARNINGS

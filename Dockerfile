@@ -36,6 +36,7 @@ RUN apt-get update && DEBIAN_FRONTEND=noninteractive apt-get install -y --allow-
     python3 \
     python3-dev \
     python3-pip \
+    python3-full \
     libpython3.8 \
     wget \
     rocm-device-libs \
@@ -106,7 +107,7 @@ RUN cget -p $PREFIX install facebook/zstd@v1.4.5 -X subdir -DCMAKE_DIR=build/cma
 RUN cget -p $PREFIX install ccache@v4.1 -DENABLE_TESTING=OFF
 RUN cget -p /opt/cmake install kitware/cmake@v3.28.0
 # Install a newer version of doxygen because the one that comes with ubuntu is broken
-RUN cget -p $PREFIX install doxygen@Release_1_9_8
+RUN cget -p $PREFIX install doxygen@Release_1_14_0
 
 COPY ./test/onnx/.onnxrt-commit /
 

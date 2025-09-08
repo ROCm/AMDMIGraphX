@@ -32,6 +32,7 @@
 #include <migraphx/tensor_view.hpp>
 #include <migraphx/shape.hpp>
 #include <migraphx/errors.hpp>
+#include <migraphx/float_equal.hpp>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
@@ -42,13 +43,13 @@ inline namespace MIGRAPHX_INLINE_NS {
 namespace blaze_utils {
 
 /**
- * @brief Convert a MIGraphX tensor_view to a Blaze DynamicMatrix
+ * @brief Convert a MIGraphX tensor_view to a Blaze DynamicMatrix (mutable version)
  * @tparam T Element type
  * @param tv MIGraphX tensor_view (must be 2D)
  * @return Blaze DynamicMatrix view of the tensor data
  */
 template<typename T>
-auto to_blaze_matrix(const tensor_view<T>& tv) 
+auto to_blaze_matrix(tensor_view<T>& tv) 
 {
     const auto& s = tv.get_shape();
     if(s.ndim() != 2)
@@ -61,7 +62,45 @@ auto to_blaze_matrix(const tensor_view<T>& tv)
 }
 
 /**
- * @brief Convert a MIGraphX tensor_view to a Blaze DynamicVector
+ * @brief Convert a const MIGraphX tensor_view to a Blaze DynamicMatrix (const version)
+ * @tparam T Element type
+ * @param tv MIGraphX tensor_view (must be 2D)
+ * @return Blaze DynamicMatrix view of the tensor data
+ */
+template<typename T>
+auto to_blaze_matrix(const tensor_view<T>& tv) 
+{
+    const auto& s = tv.get_shape();
+    if(s.ndim() != 2)
+        MIGRAPHX_THROW("Blaze matrix conversion requires 2D tensor");
+    
+    // Create a Blaze CustomMatrix that wraps the MIGraphX tensor data
+    // For const tensor_view, we need to cast away const for Blaze compatibility
+    // This is safe as long as we don't modify the data through Blaze operations
+    return blaze::CustomMatrix<const T, blaze::unaligned, blaze::unpadded, blaze::rowMajor>(
+        tv.data(), s.lens()[0], s.lens()[1], s.strides()[1]);
+}
+
+/**
+ * @brief Convert a MIGraphX tensor_view to a Blaze DynamicVector (mutable version)
+ * @tparam T Element type
+ * @param tv MIGraphX tensor_view (must be 1D)
+ * @return Blaze DynamicVector view of the tensor data
+ */
+template<typename T>
+auto to_blaze_vector(tensor_view<T>& tv)
+{
+    const auto& s = tv.get_shape();
+    if(s.ndim() != 1)
+        MIGRAPHX_THROW("Blaze vector conversion requires 1D tensor");
+    
+    // Create a Blaze CustomVector that wraps the MIGraphX tensor data
+    return blaze::CustomVector<T, blaze::unaligned, blaze::unpadded>(
+        tv.data(), s.lens()[0], s.strides()[0]);
+}
+
+/**
+ * @brief Convert a const MIGraphX tensor_view to a Blaze DynamicVector (const version)
  * @tparam T Element type
  * @param tv MIGraphX tensor_view (must be 1D)
  * @return Blaze DynamicVector view of the tensor data
@@ -74,7 +113,7 @@ auto to_blaze_vector(const tensor_view<T>& tv)
         MIGRAPHX_THROW("Blaze vector conversion requires 1D tensor");
     
     // Create a Blaze CustomVector that wraps the MIGraphX tensor data
-    return blaze::CustomVector<T, blaze::unaligned, blaze::unpadded>(
+    return blaze::CustomVector<const T, blaze::unaligned, blaze::unpadded>(
         tv.data(), s.lens()[0], s.strides()[0]);
 }
 
@@ -98,7 +137,7 @@ void blaze_gemm(tensor_view<T> c,
     auto blaze_a = to_blaze_matrix(a);
     auto blaze_b = to_blaze_matrix(b);
     
-    if(beta == T{0})
+    if(float_equal(beta, T{0}))
     {
         // C = alpha * A * B
         blaze_c = alpha * (blaze_a * blaze_b);

@@ -23,13 +23,21 @@
  */
 #include <migraphx/propagate_constant.hpp>
 #include <migraphx/program.hpp>
+#include <migraphx/module.hpp>
+#include <migraphx/iterator_for.hpp>
 #include <migraphx/matcher.hpp>
 #include <migraphx/literal.hpp>
 #include <migraphx/functional.hpp>
+#include <migraphx/argument.hpp>
 #include <migraphx/simple_par_for.hpp>
 #include <migraphx/env.hpp>
+#include <migraphx/config.h>
+#include <migraphx/blaze_utils.hpp>
+#include <migraphx/algorithm.hpp>
+#include <migraphx/instruction.hpp>
 #include <thread>
 #include <unordered_set>
+#include <iostream>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
@@ -69,6 +77,59 @@ static argument as_packed(const argument& c)
     return result;
 }
 
+#if MIGRAPHX_USE_BLAZE
+static argument eval_with_blaze(instruction_ref ins)
+{
+    // Check if this is a dot (GEMM) operation suitable for Blaze optimization
+    if(ins->name() == "dot" && blaze_utils::is_blaze_available())
+    {
+        auto inputs = ins->inputs();
+        if(inputs.size() == 2)
+        {
+            // Get input arguments
+            auto arg_a = inputs[0]->eval();
+            auto arg_b = inputs[1]->eval();
+            
+            // Check if inputs are suitable for Blaze (2D matrices, supported types)
+            auto shape_a = arg_a.get_shape();
+            auto shape_b = arg_b.get_shape();
+            
+            // Only optimize for 2D matrices with float/double types
+            if(shape_a.ndim() == 2 && shape_b.ndim() == 2 &&
+               (shape_a.type() == shape::float_type || shape_a.type() == shape::double_type) &&
+               shape_a.type() == shape_b.type() &&
+               shape_a.packed() && shape_b.packed())
+            {
+                // Create output shape
+                auto output_shape = ins->get_shape();
+                argument result{output_shape};
+                
+                // Use Blaze for optimized GEMM
+                if(shape_a.type() == shape::float_type)
+                {
+                    auto view_a = arg_a.get<float>();
+                    auto view_b = arg_b.get<float>();
+                    auto view_c = result.get<float>();
+                    blaze_utils::blaze_gemm(view_c, view_a, view_b, 1.0f, 0.0f);
+                }
+                else if(shape_a.type() == shape::double_type)
+                {
+                    auto view_a = arg_a.get<double>();
+                    auto view_b = arg_b.get<double>();
+                    auto view_c = result.get<double>();
+                    blaze_utils::blaze_gemm(view_c, view_a, view_b, 1.0, 0.0);
+                }
+                
+                return as_packed(result);
+            }
+        }
+    }
+    
+    // Fall back to standard evaluation for non-GEMM operations or unsuitable inputs
+    return as_packed(ins->eval());
+}
+#endif
+
 void propagate_constant::apply(module& m) const
 {
     std::unordered_set<instruction_ref> const_instrs;
@@ -105,7 +166,18 @@ void propagate_constant::apply(module& m) const
     grainsize     = const_instrs_vec.size() / n;
 #endif
     simple_par_for(const_instrs_vec.size(), grainsize, [&](const auto i) {
+#if MIGRAPHX_USE_BLAZE
+        if(blaze_utils::is_blaze_available())
+        {
+            literals[i] = eval_with_blaze(const_instrs_vec[i]);
+        }
+        else
+        {
+            literals[i] = as_packed(const_instrs_vec[i]->eval());
+        }
+#else
         literals[i] = as_packed(const_instrs_vec[i]->eval());
+#endif
     });
 
     // Replace instructions in m

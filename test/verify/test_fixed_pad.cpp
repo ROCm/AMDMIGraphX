@@ -38,5 +38,4 @@ struct test_fixed_pad : verify_program<test_fixed_pad>
         mm->add_instruction(migraphx::make_op("fixed_pad", {{"output_lens", {3, 3}}}), x);
         return p;
     }
-    size_t max_batch() const { return 2; }
 };

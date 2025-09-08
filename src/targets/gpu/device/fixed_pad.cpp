@@ -51,7 +51,8 @@ static argument fixed_pad_base_impl(hipStream_t stream, const argument& result, 
     return result;
 }
 
-static argument fixed_pad_standard_impl(hipStream_t stream, const argument& result, const argument& arg)
+static argument
+fixed_pad_standard_impl(hipStream_t stream, const argument& result, const argument& arg)
 {
     index_int nelements = result.get_shape().elements();
     index_int ielements = arg.get_shape().elements();

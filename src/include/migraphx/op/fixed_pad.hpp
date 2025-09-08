@@ -40,10 +40,10 @@ inline namespace MIGRAPHX_INLINE_NS {
 namespace op {
 
 /**
-  * Pads the given input to the dimensions given in the `output_lens` attribute.
-  * The main use for this op versus the standard pad op is that it can
-  * accept a dynamic input shape and convert it to a padded static shape. 
-  */
+ * Pads the given input to the dimensions given in the `output_lens` attribute.
+ * The main use for this op versus the standard pad op is that it can
+ * accept a dynamic input shape and convert it to a padded static shape.
+ */
 struct fixed_pad
 {
     std::vector<size_t> output_lens = {};

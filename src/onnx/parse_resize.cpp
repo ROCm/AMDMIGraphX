@@ -416,35 +416,6 @@ struct parse_resize : op_parser<parse_resize>
         {
             return (get_input_rank() == 3 or get_input_rank() == 5);
         }
-
-        instruction_ref generate_cubic_conv_kernel(const onnx_parser::node_info& info) const
-        {
-
-            auto cubic_coeef = get_cubic_coeff();
-            // Needs to be 5x4 matrix which is then multiplied by the powers of \
-            // input data before convolution is done
-            migraphx::shape kernel_shape{migraphx::shape::float_type, {5, 4}};
-
-            std::vector<float> kernel_data{ (cubic_coeef + 2.0f), -(cubic_coeef + 2.0f), 0.0f, 1.0f,
-                                           cubic_coeef , -(5.0f * cubic_coeef ), (8.0f*cubic_coeef), (-4.0f * cubic_coeef),
-                                           0.0f, 0.0f, 0.0f, 1.0f,
-                                           cubic_coeef , -(5.0f * cubic_coeef), (8.0f*cubic_coeef), (-4.0f * cubic_coeef),
-                                           (cubic_coeef + 2.0f), -(cubic_coeef + 2.0f), 0.0f, 1.0f};
-            return info.add_literal(kernel_shape, kernel_data);
-        }
-
-        // s parameters in filter are scaled based on the sample values and new image locations
-        instruction_ref gen_cubic_dim_sampling(const onnx_parser::node_info& info, const float& h, 
-                                            const float& a, const float& b) const
-        {
-            auto s = std::abs(b - a) / h;
-
-            migraphx::shape kernel_shape{migraphx::shape::float_type, {4, 1}};
-            std::vector<float> kernel_data{ (s*s*s), (s*s) , s , 1.0f};
-
-            return info.add_literal(kernel_shape, kernel_data);
-        }
-
     };
 
 
@@ -611,6 +582,20 @@ struct parse_resize : op_parser<parse_resize>
     }
 
 
+    // Generate cubic sample value based on the following piecewise function for cubic interpolation
+    static float get_cubic_key_value(const float& s, const float& a)
+    {
+        auto abs_s = std::abs(s);
+
+        if (abs_s < 1.0)
+            return  (a + 2.0f) * std::pow(abs_s, 3) - (a + 3.0f) * std::pow(abs_s, 2) + 1.0;
+
+        if (abs_s < 2.0)
+            return a * std::pow(abs_s, 3) - 5.0f * a * std::pow(abs_s, 2) + 8.0f * a * abs_s - 4.0f * a;
+
+        return 0.0f;
+    }
+
     // Cubic interpolation can be done by convolution of a fixed coefficients that are scaled based
     // on the sampleing (up/down) of the axis using the original image 
     // 
@@ -645,7 +630,6 @@ struct parse_resize : op_parser<parse_resize>
         size_t i = 0;
         instruction_ref conv_chain_out = rsp;
 
-        auto conv_kernel = resize.generate_cubic_conv_kernel(info);
         // Scale each dimension thats not a scale value of 1;
         for (auto& scale: vec_scale)
         {
@@ -653,15 +637,7 @@ struct parse_resize : op_parser<parse_resize>
             // Avoid any bad (nonsensical) scales or 1 no scale for the dimension
             if (0.0f < scale or scale == 1.0f)
                 continue;
-
-            auto sample_scale = resize.gen_cubic_dim_sampling(info, 0, scale * in_lens.at(i), 
-                                                              static_cast<float>(in_lens.at(i))/scale);
-
-            // Scale the convolution coefficients by the sample incriment used for the image to
-            // give us a proper kernel before performing a 1d convolution on the image with this kernel
-            auto filter_matrix  = info.add_instruction(make_op("mul"), conv_kernel, sample_scale);
-            conv_chain_out = info.add_instruction(make_op("convolution", {{"stride", 2}}), conv_chain_out, filter_matrix);
-        }
+         }
 
         // return output image to the proper output shape based on the output lengs
         return info.add_instruction(make_op("reshape", {{"dims", out_lens}}), conv_chain_out);

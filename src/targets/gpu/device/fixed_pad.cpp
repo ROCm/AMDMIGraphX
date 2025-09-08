@@ -35,7 +35,7 @@ inline namespace MIGRAPHX_INLINE_NS {
 namespace gpu {
 namespace device {
 
-argument fixed_pad_base_impl(hipStream_t stream, const argument& result, const argument& arg)
+static argument fixed_pad_base_impl(hipStream_t stream, const argument& result, const argument& arg)
 {
     hip_visit_all(result, arg)([&](auto output, auto input) {
         gs_launch(stream, result.get_shape().elements())([=](auto i) __device__ {
@@ -51,7 +51,7 @@ argument fixed_pad_base_impl(hipStream_t stream, const argument& result, const a
     return result;
 }
 
-argument fixed_pad_standard_impl(hipStream_t stream, const argument& result, const argument& arg)
+static argument fixed_pad_standard_impl(hipStream_t stream, const argument& result, const argument& arg)
 {
     index_int nelements = result.get_shape().elements();
     index_int ielements = arg.get_shape().elements();

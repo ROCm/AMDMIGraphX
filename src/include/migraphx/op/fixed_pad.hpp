@@ -39,6 +39,11 @@ namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
 namespace op {
 
+/**
+  * Pads the given input to the dimensions given in the `output_lens` attribute.
+  * The main use for this op versus the standard pad op is that it can
+  * accept a dynamic input shape and convert it to a padded static shape. 
+  */
 struct fixed_pad
 {
     std::vector<size_t> output_lens = {};
@@ -56,7 +61,7 @@ struct fixed_pad
         const auto& s0 = inputs.front();
         if(s0.ndim() != output_lens.size())
         {
-            MIGRAPHX_THROW("FIXED_PAD: input dimensions should match output_lens size");
+            MIGRAPHX_THROW("FIXED_PAD: input number of dimensions should match output_lens size");
         }
         return {s0.type(), output_lens};
     }

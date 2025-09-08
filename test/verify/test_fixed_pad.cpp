@@ -27,7 +27,6 @@
 #include <migraphx/generate.hpp>
 #include <migraphx/make_op.hpp>
 
-
 struct test_fixed_pad : verify_program<test_fixed_pad>
 {
     migraphx::program create_program() const
@@ -41,4 +40,3 @@ struct test_fixed_pad : verify_program<test_fixed_pad>
     }
     size_t max_batch() const { return 2; }
 };
-

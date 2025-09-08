@@ -67,9 +67,9 @@ struct fixed_pad
             return input_arg;
 
         argument out{output_shape};
-        visit_all(out, input_arg)([&](auto output, auto input){
+        visit_all(out, input_arg)([&](auto output, auto input) {
             par_for(input.get_shape().elements(), [&](auto i) {
-                auto idx = input.get_shape().multi(i);
+                auto idx    = input.get_shape().multi(i);
                 output[idx] = input[idx];
             });
         });

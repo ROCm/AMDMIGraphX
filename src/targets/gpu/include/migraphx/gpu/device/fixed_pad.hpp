@@ -33,7 +33,9 @@ inline namespace MIGRAPHX_INLINE_NS {
 namespace gpu {
 namespace device {
 
-argument MIGRAPHX_DEVICE_EXPORT fixed_pad(hipStream_t stream, const argument& result, const argument& arg);
+argument MIGRAPHX_DEVICE_EXPORT fixed_pad(hipStream_t stream,
+                                          const argument& result,
+                                          const argument& arg);
 
 } // namespace device
 } // namespace gpu

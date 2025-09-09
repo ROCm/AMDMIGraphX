@@ -67,10 +67,8 @@ struct fixed_pad
         {
             for(auto i = 0; i < s0.ndim(); i++)
             {
-                if(output_lens[i] < s0.dyn_dims()[i].min)
-                    MIGRAPHX_THROW("FIXED_PAD: padding to size smaller than min dyn dim");
-                if(output_lens[i] > s0.dyn_dims()[i].max)
-                    MIGRAPHX_THROW("FIXED_PAD: padding to size larger than max dyn dim");
+                if(output_lens[i] != s0.dyn_dims()[i].max)
+                    MIGRAPHX_THROW("FIXED_PAD: padding to size smaller than max dyn dim is not allowed");
             }
         }
         else
@@ -93,15 +91,6 @@ struct fixed_pad
         auto input_shape      = input_arg.get_shape();
         if(input_shape == output_shape)
             return input_arg;
-
-        if(std::mismatch(input_shape.lens().begin(),
-                         input_shape.lens().end(),
-                         output_shape.lens().begin(),
-                         [&](auto in_dim, auto out_dim) { return in_dim <= out_dim; })
-               .first != input_shape.lens().end())
-        {
-            MIGRAPHX_THROW("COMPUTE_FIXED_PAD: output lens are smaller than input lens");
-        }
 
         argument out{output_shape};
         visit_all(out, input_arg)([&](auto output, auto input) {

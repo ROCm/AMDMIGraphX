@@ -281,7 +281,7 @@ constexpr Iterator upper_bound(Iterator first, Iterator last, const T& value, Co
 
     while(count > 0)
     {
-        auto it   = first;
+        const auto* it = first;
         auto step = count / 2;
         it += step;
 

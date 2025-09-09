@@ -36,6 +36,7 @@ RUN apt-get update && DEBIAN_FRONTEND=noninteractive apt-get install -y --allow-
     python3 \
     python3-dev \
     python3-pip \
+    python3-full \
     libpython3.8 \
     wget \
     rocm-device-libs \
@@ -61,6 +62,10 @@ RUN apt-get update && DEBIAN_FRONTEND=noninteractive apt-get install -y --allow-
     apt-get clean && \
     rm -rf /var/lib/apt/lists/*
 
+# Install pytorch
+RUN pip3 install https://repo.radeon.com/rocm/manylinux/rocm-rel-6.4.2/torch-2.6.0%2Brocm6.4.2.git76481f7c-cp310-cp310-linux_x86_64.whl \
+                 https://repo.radeon.com/rocm/manylinux/rocm-rel-6.4.2/torchvision-0.21.0%2Brocm6.4.2.git4040d51f-cp310-cp310-linux_x86_64.whl \
+                 https://repo.radeon.com/rocm/manylinux/rocm-rel-6.4.2/pytorch_triton_rocm-3.2.0%2Brocm6.4.2.git7e948ebf-cp310-cp310-linux_x86_64.whl
 
 # add this for roctracer dependancies
 RUN pip3 install CppHeaderParser

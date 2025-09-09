@@ -63,18 +63,35 @@ struct fixed_pad
         {
             MIGRAPHX_THROW("FIXED_PAD: input number of dimensions should match output_lens size");
         }
+        if(s0.dynamic())
+        {
+            for(auto i = 0; i < s0.ndim(); i++)
+            {
+                if(output_lens[i] > s0.dyn_dims()[i].max)
+                    MIGRAPHX_THROW("FIXED_PAD: padding to size larger than max dyn dim");
+            }
+        }
+            
         return {s0.type(), output_lens};
     }
     argument compute(const shape& output_shape, std::vector<argument> args) const
     {
         const auto& input_arg = args.front();
-        if(input_arg.get_shape() == output_shape)
+        auto input_shape = input_arg.get_shape();
+        if(input_shape == output_shape)
             return input_arg;
+
+        if(std::mismatch(input_shape.lens().begin(), input_shape.lens().end(), output_shape.lens().begin(), [&](auto in_dim, auto out_dim) {
+            return in_dim <= out_dim;
+        }).first != input_shape.lens().end())
+        {
+            MIGRAPHX_THROW("COMPUTE_FIXED_PAD: output lens are smaller than input lens");
+        }
 
         argument out{output_shape};
         visit_all(out, input_arg)([&](auto output, auto input) {
-            par_for(input.get_shape().elements(), [&](auto i) {
-                auto idx    = input.get_shape().multi(i);
+            par_for(input_shape.elements(), [&](auto i) {
+                auto idx    = input_shape.multi(i);
                 output[idx] = input[idx];
             });
         });

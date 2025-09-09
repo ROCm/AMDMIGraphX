@@ -1033,6 +1033,19 @@ TEST_CASE(broadcast_with_dims2)
                  s1);
 }
 
+TEST_CASE(fixed_pad)
+{
+    using migraphx::shape;
+    shape input{migraphx::shape::float_type, {{1, 4, {3}}, {3, 3}}};
+    shape output_mid{migraphx::shape::float_type, {2, 3}};
+    shape output_opt{migraphx::shape::float_type, {3, 3}};
+    shape output_max{migraphx::shape::float_type, {4, 3}};
+    expect_shape(output_mid, migraphx::make_op("fixed_pad", {{"output_lens", {2, 3}}}), input);
+    expect_shape(output_opt, migraphx::make_op("fixed_pad", {{"output_lens", {3, 3}}}), input);
+    expect_shape(output_max, migraphx::make_op("fixed_pad", {{"output_lens", {4, 3}}}), input);
+    throws_shape(migraphx::make_op("fixed_pad", {{"output_lens", {5, 3}}}), input);   
+}
+
 TEST_CASE(flatten_shape)
 {
     migraphx::shape input{migraphx::shape::float_type, {2, 4, 6, 8}};

@@ -48,6 +48,24 @@ TEST_CASE(fixed_pad_test)
     EXPECT(migraphx::verify::verify_rms_range(results_vector, gold));
 }
 
+TEST_CASE(fixed_pad_max_test)
+{
+    migraphx::program p;
+    auto* mm = p.get_main_module();
+    migraphx::shape s{migraphx::shape::float_type, {{1, 4, {3}}, {3, 3}}};
+    auto x = mm->add_parameter("x", s);
+    mm->add_instruction(migraphx::make_op("fixed_pad", {{"output_lens", {4, 3}}}), x);
+    p.compile(migraphx::make_target("ref"));
+    std::vector<float> data = {-3, -2, -1, 0, 1, 2};
+    migraphx::shape s2{migraphx::shape::float_type, {2, 3}};
+    migraphx::argument arg(s2, data.data());
+    auto result = p.eval({{"x", arg}}).back();
+    std::vector<float> results_vector(9);
+    result.visit([&](auto output) { results_vector.assign(output.begin(), output.end()); });
+    std::vector<float> gold = {-3, -2, -1, 0, 1, 2, 0, 0, 0, 0, 0, 0};
+    EXPECT(migraphx::verify::verify_rms_range(results_vector, gold));
+}
+
 TEST_CASE(fixed_pad_same_shape_test)
 {
     migraphx::program p;

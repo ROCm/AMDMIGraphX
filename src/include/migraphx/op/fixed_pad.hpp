@@ -68,7 +68,8 @@ struct fixed_pad
             for(auto i = 0; i < s0.ndim(); i++)
             {
                 if(output_lens[i] != s0.dyn_dims()[i].max)
-                    MIGRAPHX_THROW("FIXED_PAD: padding to size smaller than max dyn dim is not allowed");
+                    MIGRAPHX_THROW(
+                        "FIXED_PAD: padding to size smaller than max dyn dim is not allowed");
             }
         }
         else

@@ -27,6 +27,7 @@
 #include <migraphx/kernels/types.hpp>
 #include <migraphx/kernels/type_traits.hpp>
 #include <migraphx/kernels/integral_constant.hpp>
+#include <migraphx/kernels/algorithm.hpp>
 #include <migraphx/kernels/functional.hpp>
 #include <migraphx/kernels/debug.hpp>
 
@@ -122,7 +123,7 @@ template <class T, index_int N>
 struct array
 {
     using value_type = T;
-    T d[N];
+    T d[N] = {{0}};
 
     constexpr array() = default;
 
@@ -135,8 +136,7 @@ struct array
     template <class U, MIGRAPHX_REQUIRES(is_convertible<U, T>{} and (N > 1))>
     constexpr explicit array(U x)
     {
-        for(index_int i = 0; i < N; i++)
-            d[i] = x;
+        fill(this->begin(), this->end(), x);
     }
 
     constexpr T& operator[](index_int i)
@@ -195,8 +195,7 @@ struct array
     constexpr auto apply(F f) const
     {
         array<decltype(f(d[0])), N> result;
-        for(index_int i = 0; i < N; i++)
-            result[i] = f(d[i]);
+        transform(this->begin(), this->end(), result.begin(), f);
         return result;
     }
 

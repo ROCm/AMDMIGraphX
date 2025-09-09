@@ -132,10 +132,7 @@ struct shape : equality_comparable<shape<Lens, Strides>>
             MIGRAPHX_ASSERT(i >= elements() or i == compute_index(i));
             return i;
         }
-        else
-        {
-            return compute_index(i);
-        }
+        return compute_index(i);
     }
 
     constexpr index_int compute_index(index_int i) const

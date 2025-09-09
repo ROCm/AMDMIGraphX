@@ -236,7 +236,7 @@ struct test_manager
 {
     int32_t* failures = nullptr;
 
-    __device__ void report_failure() { (*failures)++; }
+    __device__ void report_failure() const { (*failures)++; }
 
     template <class T, class F>
     __device__ void
@@ -276,8 +276,13 @@ struct test_manager
     }
 }
 
+#ifdef CPPCHECK
+// NOLINTNEXTLINE
+#define TEST_CAPTURE(...) __VA_ARGS__
+#else
 // NOLINTNEXTLINE
 #define TEST_CAPTURE(...) migraphx::test::capture{}->*__VA_ARGS__
+#endif
 
 #ifdef _WIN32
 // NOLINTNEXTLINE
@@ -303,7 +308,7 @@ struct test_manager
 
 // NOLINTNEXTLINE
 #define TEST_CASE(...)           \
-    __device__ void __VA_ARGS__( \
+    __device__ [[maybe_unused]] static void __VA_ARGS__( \
         [[maybe_unused]] migraphx::test::test_manager& migraphx_private_test_manager)
 
 } // namespace test

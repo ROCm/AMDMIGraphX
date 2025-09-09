@@ -187,7 +187,7 @@ struct lhs_expression
     friend constexpr Stream& operator<<(Stream& s, const lhs_expression& self)
     {
         const char* op = Operator::as_string();
-        if(op != nullptr or *op != '\0')
+        if(op != nullptr and *op != '\0')
             s << Operator::as_string() << " ";
         print_stream(s, self.lhs);
         return s;

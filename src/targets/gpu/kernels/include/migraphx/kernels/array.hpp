@@ -123,7 +123,7 @@ template <class T, index_int N>
 struct array
 {
     using value_type = T;
-    T d[N] = {{0}};
+    T d[N]           = {{0}};
 
     constexpr array() = default;
 

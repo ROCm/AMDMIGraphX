@@ -307,7 +307,7 @@ struct test_manager
                                          &migraphx::test::fail)
 
 // NOLINTNEXTLINE
-#define TEST_CASE(...)           \
+#define TEST_CASE(...)                                   \
     __device__ [[maybe_unused]] static void __VA_ARGS__( \
         [[maybe_unused]] migraphx::test::test_manager& migraphx_private_test_manager)
 

@@ -1038,8 +1038,13 @@ TEST_CASE(fixed_pad)
     using migraphx::shape;
     shape input{migraphx::shape::float_type, {{2, 4, {}}, {3, 3}}};
     shape input_static{migraphx::shape::float_type, {2, 3}};
+    shape input_mismatched{migraphx::shape::float_type, {2}};
+
     shape output{migraphx::shape::float_type, {4, 3}};
     expect_shape(output, migraphx::make_op("fixed_pad", {{"output_lens", {4, 3}}}), input);
+    expect_shape(output, migraphx::make_op("fixed_pad", {{"output_lens", {4, 3}}}), input_static);
+    
+    throws_shape(migraphx::make_op("fixed_pad", {{"output_lens", {1, 3}}}), input_mismatched);
     throws_shape(migraphx::make_op("fixed_pad", {{"output_lens", {1, 3}}}), input);
     throws_shape(migraphx::make_op("fixed_pad", {{"output_lens", {5, 3}}}), input);
     throws_shape(migraphx::make_op("fixed_pad", {{"output_lens", {1, 3}}}), input_static);

@@ -31,6 +31,8 @@
 #include <migraphx/make_op.hpp>
 #include <vector>
 #include <map>
+#include <algorithm>
+#include <math.h>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
@@ -594,6 +596,50 @@ struct parse_resize : op_parser<parse_resize>
             return a * std::pow(abs_s, 3) - 5.0f * a * std::pow(abs_s, 2) + 8.0f * a * abs_s - 4.0f * a;
 
         return 0.0f;
+    }
+
+    // Generate the coefficent vector used for the desired scaling for a given dimension
+    static std::vector<float> build_cubic_matrix(const size_t& input_size,
+                                                 const size_t& output_size,
+                                                 const float& scale, 
+                                                 const float& cubic_coefficient, 
+                                                 const std::string& mode)
+    {
+        std::vector<float> matrix(input_size * output_size, 0.0f);
+
+        // Used to get the indexing mode use to generate interpolation "center"
+        // center changes based on mode but always takes input, output, index and scale 
+        // to calculate based on the pixel coorednate transform mode
+        auto idx_op = op::resize::get_original_idx_op(mode);
+
+        for (size_t o_idx = 0; o_idx < output_size; ++o_idx)
+        {
+            auto input_coord = idx_op(input_size, output_size, o_idx, scale);
+
+            auto base = static_cast<size_t>(std::floor(input_coord));
+
+            for(size_t i = 0; i < 4; ++i)
+            {
+                auto pos = base + i;
+                auto t = input_coord - pos;
+                auto weight =  get_cubic_key_value(t, cubic_coefficient);
+
+                // clamp position to valid input range with proper boundary handling
+                auto clamped_pos = std::max(0UL, std::min(pos, input_size -1));
+
+                // Skip near zero weights
+                if (std::abs(weight) > 1e-8)
+                {
+                    // Matrix is stored in row-major order: matrix[row * cols+col]
+                    // want matrix[ input_pos, output_pos] = weight
+                    auto matrix_idx = clamped_pos * output_size + o_idx;
+                    matrix[matrix_idx] += weight;
+
+                }
+            }
+        }
+
+        return matrix;
     }
 
     // Cubic interpolation can be done by convolution of a fixed coefficients that are scaled based

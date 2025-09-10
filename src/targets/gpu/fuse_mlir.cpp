@@ -354,6 +354,37 @@ auto is_mlir_conv(mlir_mode mode)
     });
 }
 
+auto is_mlir_conv_backwards(mlir_mode mode)
+{
+    return match::make_basic_pred_matcher([=](instruction_ref ins) {
+        if(mode == mlir_mode::none)
+            return false;
+        if(ins->name() != "convolution_backwards" and ins->name() != "quant_convolution_backwards")
+            return false;
+        auto input = ins->inputs().front()->get_shape();
+        value v    = ins->get_operator().to_value();
+        auto group = v.at("group").to<int>();
+        // Avoid MLIR assertion: Index < Length && "Invalid index!"
+        if(ins->get_shape().lens().size() != 4 and group > 1)
+            return false;
+        std::set<shape::type_t> supported_types = fp8_types{}.get();
+        supported_types.insert(shape::int8_type);
+        if(contains(supported_types, input.type()))
+            return true;
+        if(mode == mlir_mode::all)
+            return true;
+        // No winograd for group convolution
+        if(group > 1)
+            return true;
+        auto w = ins->inputs().at(1)->get_shape();
+        if(w.lens().size() != 4)
+            return true;
+        if(w.lens()[2] != w.lens()[3])
+            return true;
+        return (w.lens()[3] % 3) != 0;
+    });
+}
+
 std::unordered_map<instruction_ref, instruction_ref>
 create_param_map_with_literals(module_ref mm, const module* pm, const shape& shape)
 {
@@ -791,8 +822,9 @@ struct find_mlir_standalone_op
     }
 };
 
-using find_mlir_standalone_convolution_op = find_mlir_standalone_op<&is_mlir_conv>;
-using find_mlir_standalone_dot_op         = find_mlir_standalone_op<&is_mlir_dot>;
+using find_mlir_standalone_conv_backwards_op = find_mlir_standalone_op<&is_mlir_conv_backwards>;
+using find_mlir_standalone_conv_op           = find_mlir_standalone_op<&is_mlir_conv>;
+using find_mlir_standalone_dot_op            = find_mlir_standalone_op<&is_mlir_dot>;
 
 struct find_mlir_attention_op
 {
@@ -1225,8 +1257,10 @@ void fuse_mlir::apply(module_pass_manager& mpm) const
 
     match::find_matches(
         mpm,
-        find_mlir_standalone_convolution_op{.mode    = get_mode("convolution", mlir_mode::fast),
-                                            .counter = &counter},
+        find_mlir_standalone_conv_op{.mode    = get_mode("convolution", mlir_mode::fast),
+                                     .counter = &counter},
+        find_mlir_standalone_conv_backwards_op{
+            .mode = get_mode("convolution_backwards", mlir_mode::fast), .counter = &counter},
         find_mlir_standalone_dot_op{.mode = get_mode("dot", mlir_mode::fast), .counter = &counter});
 
     mpm.run_pass(dead_code_elimination{});

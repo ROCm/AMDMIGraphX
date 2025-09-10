@@ -392,7 +392,7 @@ struct quant_dot_scaled : matmul_base<quant_dot_scaled>
 
         // Only INT8 or UINT8 type currently supported
         if((not contains(supported_types, m_a0->get_shape().type()) or
-            not contains(supported_types, m_a0->get_shape().type())))
+            not contains(supported_types, m_a1->get_shape().type())))
         {
             MIGRAPHX_THROW(name() + ": Unsupported type");
         }

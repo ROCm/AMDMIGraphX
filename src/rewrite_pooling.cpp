@@ -30,7 +30,7 @@
 #include <migraphx/op/reduce_max.hpp>
 #include <migraphx/make_op.hpp>
 #include <migraphx/op/lrn.hpp>
-
+#include <migraphx/permutation.hpp>
 #include <migraphx/program.hpp>
 
 namespace migraphx {

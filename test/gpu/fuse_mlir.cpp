@@ -79,10 +79,7 @@ static migraphx::instruction_ref add_mlir(migraphx::program& p,
     auto r      = std::get<1>(values);
     auto_add_return(pm, r);
     return mm->add_instruction(
-        migraphx::make_op("gpu::mlir_op",
-                          {{"op", migraphx::to_value(root)}}),
-        inputs,
-        {pm});
+        migraphx::make_op("gpu::mlir_op", {{"op", migraphx::to_value(root)}}), inputs, {pm});
 }
 
 template <class F>
@@ -151,15 +148,12 @@ TEST_CASE(dot_add)
     run_pass(p1);
     migraphx::program p2;
     {
-        auto* mm   = p2.get_main_module();
-        auto a     = mm->add_parameter("a", s);
-        auto b     = mm->add_parameter("b", s);
-        auto x     = mm->add_parameter("x", s);
-        auto fused = add_mlir(
-            p2,
-            "mlir_main:pointwise0",
-            {a, b, x},
-            [=](auto* pm, const auto& inputs) {
+        auto* mm = p2.get_main_module();
+        auto a   = mm->add_parameter("a", s);
+        auto b   = mm->add_parameter("b", s);
+        auto x   = mm->add_parameter("x", s);
+        auto fused =
+            add_mlir(p2, "mlir_main:pointwise0", {a, b, x}, [=](auto* pm, const auto& inputs) {
                 auto dot = pm->add_instruction(migraphx::make_op("dot"), inputs[0], inputs[1]);
                 auto add = pm->add_instruction(migraphx::make_op("add"), dot, inputs[2]);
                 return std::make_tuple(dot->get_operator(), add);
@@ -190,15 +184,12 @@ TEST_CASE(dot_transpose_reshape_add)
     run_pass(p1);
     migraphx::program p2;
     {
-        auto* mm   = p2.get_main_module();
-        auto a     = mm->add_parameter("a", s1);
-        auto b     = mm->add_parameter("b", s1);
-        auto x     = mm->add_parameter("x", s1);
-        auto fused = add_mlir(
-            p2,
-            "mlir_main:pointwise0",
-            {a, b, x},
-            [=](auto* pm, const auto& inputs) {
+        auto* mm = p2.get_main_module();
+        auto a   = mm->add_parameter("a", s1);
+        auto b   = mm->add_parameter("b", s1);
+        auto x   = mm->add_parameter("x", s1);
+        auto fused =
+            add_mlir(p2, "mlir_main:pointwise0", {a, b, x}, [=](auto* pm, const auto& inputs) {
                 auto dot = pm->add_instruction(migraphx::make_op("dot"), inputs[0], inputs[1]);
                 auto xtranspose = pm->add_instruction(
                     migraphx::make_op("transpose", {{"permutation", {1, 0, 2}}}), inputs[2]);
@@ -232,15 +223,12 @@ TEST_CASE(dot_reshape_lazy_add)
     run_pass(p1);
     migraphx::program p2;
     {
-        auto* mm   = p2.get_main_module();
-        auto a     = mm->add_parameter("a", s1);
-        auto b     = mm->add_parameter("b", s1);
-        auto x     = mm->add_parameter("x", s2);
-        auto fused = add_mlir(
-            p2,
-            "mlir_main:pointwise0",
-            {a, b, x},
-            [=](auto* pm, const auto& inputs) {
+        auto* mm = p2.get_main_module();
+        auto a   = mm->add_parameter("a", s1);
+        auto b   = mm->add_parameter("b", s1);
+        auto x   = mm->add_parameter("x", s2);
+        auto fused =
+            add_mlir(p2, "mlir_main:pointwise0", {a, b, x}, [=](auto* pm, const auto& inputs) {
                 auto dot = pm->add_instruction(migraphx::make_op("dot"), inputs[0], inputs[1]);
                 auto xreshape_lazy = pm->add_instruction(
                     migraphx::make_op("reshape_lazy", {{"dims", s1.lens()}}), inputs[2]);
@@ -523,11 +511,8 @@ TEST_CASE(dot_dot_pointwise_pointwise)
                 auto dot = pm->add_instruction(migraphx::make_op("dot"), inputs[0], inputs[1]);
                 return std::make_tuple(dot->get_operator(), dot);
             });
-        auto fused = add_mlir(
-            p2,
-            "mlir_main:pointwise0",
-            {dot1, c, x},
-            [=](auto* pm, const auto& inputs) {
+        auto fused =
+            add_mlir(p2, "mlir_main:pointwise0", {dot1, c, x}, [=](auto* pm, const auto& inputs) {
                 auto dot = pm->add_instruction(migraphx::make_op("dot"), inputs[0], inputs[1]);
                 auto add = pm->add_instruction(migraphx::make_op("add"), dot, inputs[2]);
                 return std::make_tuple(dot->get_operator(), add);
@@ -892,14 +877,11 @@ TEST_CASE(int_quant_dot_abs)
     run_pass(p1);
     migraphx::program p2;
     {
-        auto* mm   = p2.get_main_module();
-        auto a     = mm->add_parameter("a", s_a);
-        auto b     = mm->add_parameter("b", s_b);
-        auto fused = add_mlir(
-            p2,
-            "mlir_main:pointwise0",
-            {a, b},
-            [=](auto* pm, const auto& inputs) {
+        auto* mm = p2.get_main_module();
+        auto a   = mm->add_parameter("a", s_a);
+        auto b   = mm->add_parameter("b", s_b);
+        auto fused =
+            add_mlir(p2, "mlir_main:pointwise0", {a, b}, [=](auto* pm, const auto& inputs) {
                 auto dot =
                     pm->add_instruction(migraphx::make_op("quant_dot"), inputs[0], inputs[1]);
                 auto abs = pm->add_instruction(migraphx::make_op("abs"), dot);
@@ -1888,17 +1870,17 @@ TEST_CASE(conv_mul)
         auto x     = mm->add_parameter("x", is);
         auto y     = mm->add_parameter("y", ys);
         auto w     = mm->add_parameter("w", ws);
-        auto fused = add_mlir(
-            p2,
-            "mlir_main:pointwise0",
-            {x, w, y},
-            {"x0", "x1", "x2"},
-            [=](auto* pm, const auto& inputs) {
-                auto c =
-                    pm->add_instruction(migraphx::make_op("convolution"), inputs[0], inputs[1]);
-                auto mul = pm->add_instruction(migraphx::make_op("mul"), c, inputs[2]);
-                return std::make_tuple(c->get_operator(), mul);
-            });
+        auto fused = add_mlir(p2,
+                              "mlir_main:pointwise0",
+                              {x, w, y},
+                              {"x0", "x1", "x2"},
+                              [=](auto* pm, const auto& inputs) {
+                                  auto c = pm->add_instruction(
+                                      migraphx::make_op("convolution"), inputs[0], inputs[1]);
+                                  auto mul =
+                                      pm->add_instruction(migraphx::make_op("mul"), c, inputs[2]);
+                                  return std::make_tuple(c->get_operator(), mul);
+                              });
         mm->add_return({fused});
     }
     EXPECT(p1.sort() == p2.sort());
@@ -1970,15 +1952,12 @@ TEST_CASE(dot_multi_user_add)
     run_pass(p1);
     migraphx::program p2;
     {
-        auto* mm   = p2.get_main_module();
-        auto a     = mm->add_parameter("a", s);
-        auto b     = mm->add_parameter("b", s);
-        auto c     = mm->add_parameter("c", s);
-        auto fused = add_mlir(
-            p2,
-            "mlir_main:pointwise0",
-            {a, b, c},
-            [=](auto* pm, const auto& inputs) {
+        auto* mm = p2.get_main_module();
+        auto a   = mm->add_parameter("a", s);
+        auto b   = mm->add_parameter("b", s);
+        auto c   = mm->add_parameter("c", s);
+        auto fused =
+            add_mlir(p2, "mlir_main:pointwise0", {a, b, c}, [=](auto* pm, const auto& inputs) {
                 auto dot1 = pm->add_instruction(migraphx::make_op("dot"), inputs[0], inputs[1]);
                 auto add  = pm->add_instruction(migraphx::make_op("add"), dot1, inputs[2]);
                 return std::make_tuple(dot1->get_operator(),

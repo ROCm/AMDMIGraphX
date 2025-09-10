@@ -125,14 +125,14 @@ void run_verify::validate(const migraphx::target& t,
 
 std::pair<migraphx::program, std::vector<migraphx::argument>>
 run_verify::run_ref(migraphx::program p,
-                    migraphx::parameter_map inputs,
+                    const migraphx::parameter_map& inputs,
                     const migraphx::compile_options& c_opts) const
 {
     migraphx::target t = migraphx::make_target("ref");
     auto_print pp{p, t.name()};
     auto trace_target = migraphx::string_value_of(MIGRAPHX_TRACE_TEST_COMPILE{});
     compile_check(p, t, c_opts, (trace_target == "ref"));
-    return std::make_pair(std::move(p), p.eval(std::move(inputs)));
+    return std::make_pair(std::move(p), p.eval(inputs));
 }
 
 std::pair<migraphx::program, std::vector<migraphx::argument>>

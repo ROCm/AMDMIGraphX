@@ -873,7 +873,7 @@ struct find_mlir_fused_geg_ops
 
         if(first_gemm_has_multi_outs or elemwise_has_multi_outs)
         {
-            std::size_t output_idx = 0;
+            std::size_t output_idx  = 0;
             auto second_gemm_result = mpm.get_module().insert_instruction(
                 std::next(fused_ins),
                 migraphx::make_op("get_tuple_elem", {{"index", output_idx++}}),

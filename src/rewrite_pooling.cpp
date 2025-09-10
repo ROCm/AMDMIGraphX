@@ -29,6 +29,7 @@
 #include <migraphx/op/reduce_mean.hpp>
 #include <migraphx/op/reduce_max.hpp>
 #include <migraphx/make_op.hpp>
+#include <migraphx/op/lrn.hpp>
 
 #include <migraphx/program.hpp>
 
@@ -53,6 +54,86 @@ static void replace_with_reduce(module& m, instruction_ref ins)
     {
         m.replace_instruction(ins, make_op("reduce_max", {{"axes", axes}}), ins->inputs());
     }
+}
+
+static void lower_lrn_to_pooling(module& m, instruction_ref ins)
+{
+    // Extract params from lrn operator
+    auto v = ins->get_operator().to_value();
+    // ONNX-style names: alpha, beta, bias(k), size; optional axis (default 1)
+    float alpha = v.at("alpha").to<float>();
+    float beta  = v.at("beta").to<float>();
+    float k     = v.at("bias").to<float>();
+    int   size  = v.at("size").to<int>();
+    int   axis  = 1; // LRN default axis
+
+    auto x = ins->inputs().at(0);
+    const auto& xshape = x->get_shape();
+    auto lens = xshape.lens();                 // e.g., NCHW
+    const int64_t rank = static_cast<int64_t>(lens.size());
+    int64_t caxis = axis < 0 ? axis + rank : axis;
+    if(rank < 2 || caxis < 0 || caxis >= rank) return; // conservative guard
+    if(size <= 0 || (size % 2) == 0) return;           // LRN requires odd > 0
+
+    const int half = size / 2;
+
+    // 1) x^2
+    auto x2 = m.insert_instruction(ins, make_op("mul"), x, x);
+
+    // 2) Move channel axis to the last dim
+    std::vector<int64_t> perm(rank);
+    std::iota(perm.begin(), perm.end(), 0);
+    std::swap(perm[static_cast<std::size_t>(caxis)], perm.back());
+    auto moved = m.insert_instruction(ins, make_op("transpose", {{"permutation", perm}}), x2);
+    auto moved_lens = moved->get_shape().lens();   // [D0, D1, ..., C]
+
+    // 3) Reshape to (B,1,1,C) so we can pool over "width"=C
+    std::size_t B = 1;
+    for(std::size_t i = 0; i + 1 < moved_lens.size(); ++i) B *= moved_lens[i];
+    const int64_t C = static_cast<int64_t>(moved_lens.back());
+    auto pooled_in = m.insert_instruction(
+        ins, 
+        make_op("reshape", {{"dims", std::vector<int64_t>{static_cast<int64_t>(B), 1, 1, C}}}),
+        moved);
+
+    // 4) Average pool with symmetric padding on width (include-pad semantics)
+    //    kernel: (1, size), stride: (1,1), padding: (0, half)
+    auto avg = m.insert_instruction(
+        ins,
+        make_op("pooling",
+                {{"mode", op::pooling_mode::average},
+                 {"lengths", std::vector<int64_t>{1, size}},
+                 {"stride",  std::vector<int64_t>{1, 1}},
+                 {"padding", std::vector<int64_t>{0, half}},
+                 {"count_include_pad", true}}),
+        pooled_in);
+
+    // 5) Reshape back to original "moved" shape
+    auto moved_shape_back =
+        std::vector<int64_t>(moved_lens.begin(), moved_lens.end()); // [D0,...,C]
+    auto avg_moved = m.insert_instruction(
+        ins, make_op("reshape", {{"dims", moved_shape_back}}), avg);
+
+    // 6) Transpose back to original layout (inverse perm)
+    auto invp = invert_permutation(perm);
+    auto avg_ch = m.insert_instruction(ins, make_op("transpose", {{"permutation", invp}}), avg_moved);
+
+    // 7) Build denominator: den = k + alpha * avg_ch
+    auto k_lit   = m.add_literal(k);
+    auto a_lit   = m.add_literal(alpha);
+    auto k_mb    = m.insert_instruction(ins, make_op("multibroadcast", {{"out_lens", lens}}), k_lit);
+    auto a_mb    = m.insert_instruction(ins, make_op("multibroadcast", {{"out_lens", lens}}), a_lit);
+    auto alpha_avg = m.insert_instruction(ins, make_op("mul"), a_mb, avg_ch);
+    auto den       = m.insert_instruction(ins, make_op("add"), k_mb, alpha_avg);
+
+    // 8) y = x / den^beta
+    auto b_lit  = m.add_literal(beta);
+    auto b_mb   = m.insert_instruction(ins, make_op("multibroadcast", {{"out_lens", lens}}), b_lit);
+    auto denpow = m.insert_instruction(ins, make_op("pow"), den, b_mb);
+    auto y      = m.insert_instruction(ins, make_op("div"), ins->inputs().front(), denpow);
+
+    // Replace lrn with the new subgraph
+    m.replace_instruction(ins, y);
 }
 
 static void replace_dilations_with_gather_pooling(module& m, instruction_ref ins)
@@ -147,6 +228,12 @@ void rewrite_pooling::apply(module& m) const
             continue;
         if(ins->inputs().empty())
             continue;
+        if(ins->name() == "lrn")  
+        {  
+            lower_lrn_to_pooling(m, ins);  
+            continue;  
+        }
+        
         auto&& s                  = ins->inputs().front()->get_shape();
         auto&& op                 = any_cast<op::pooling>(ins->get_operator());
         bool same_kernel_as_shape = std::equal(

@@ -654,6 +654,54 @@ struct parse_resize : op_parser<parse_resize>
             migraphx::literal{migraphx::shape{migraphx::shape::float_type, {num_rows, num_cols}}, identity_mat});
     }
 
+
+    static instruction_ref kronker_product_optimized()
+    {
+        instruction_ref result;
+
+        return result;
+    }
+
+    static instruction_ref build_n_cubic_interpolation_matrix(const onnx_parser::node_info& info,
+                                                              const resize_args& resize)
+    {
+        auto in_s      = resize.in_s;
+        auto in_lens   = resize.in_lens;
+        auto out_lens  = resize.out_lens;
+        auto vec_scale = resize.vec_scale;
+
+        float tolerance = 1e-8;
+        std::vector<std::vector<float>> matricies;
+        instruction_ref n_cubic_interpolation_matrix;
+        // Scale each dimension thats not a scale value of 1;
+        for (auto& scale: vec_scale)
+        {
+            // Avoid any bad (nonsensical) scales or 1 no scale for the dimension
+            if (std::abs(scale - 1.0f) < tolerance)
+            {
+            }
+            else
+            {
+
+            }
+
+            /*instruction_ref resampled_input;
+
+            if (scale > 1.0f)
+            {
+                resampled_input = upsample_output(info, scale);
+            }
+            else
+            {
+                resampled_input = downsample_output(info, scale);
+            } */
+
+            
+        }
+
+        return kronker_product_optimized();
+    }
+
     // Cubic interpolation can be done by convolution of a fixed coefficients that are scaled based
     // on the sampleing (up/down) of the axis using the original image 
     // 
@@ -669,9 +717,7 @@ struct parse_resize : op_parser<parse_resize>
                                              resize_args& resize)
     {
         auto in_s      = resize.in_s;
-        auto in_lens   = resize.in_lens;
         auto out_lens  = resize.out_lens;
-        auto vec_scale = resize.vec_scale;
 
         // out_lens and other variables can't be populated if non-constant (runtime) size
         // inputs.
@@ -685,20 +731,12 @@ struct parse_resize : op_parser<parse_resize>
         std::vector<int64_t> rsp_lens = {static_cast<int64_t>(in_s.elements())};
         auto rsp = info.add_instruction(make_op("reshape", {{"dims", rsp_lens}}), resize.x);
 
-        size_t i = 0;
-        instruction_ref conv_chain_out = rsp;
+        auto interpolation_mat = build_n_cubic_interpolation_matrix(info, resize);
 
-        // Scale each dimension thats not a scale value of 1;
-        for (auto& scale: vec_scale)
-        {
-            ++i;
-            // Avoid any bad (nonsensical) scales or 1 no scale for the dimension
-            if (0.0f < scale or scale == 1.0f)
-                continue;
-         }
+        auto interpolated_output = info.add_instruction(make_op("dot"), rsp, interpolation_mat);
 
         // return output image to the proper output shape based on the output lengs
-        return info.add_instruction(make_op("reshape", {{"dims", out_lens}}), conv_chain_out);
+        return info.add_instruction(make_op("reshape", {{"dims", out_lens}}), interpolated_output);
     }
 
     static void set_resize_attributes(const onnx_parser::node_info& info,

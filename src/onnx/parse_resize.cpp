@@ -603,6 +603,7 @@ struct parse_resize : op_parser<parse_resize>
                                                  const size_t& output_size,
                                                  const float& scale, 
                                                  const float& cubic_coefficient, 
+                                                 const float& tolerance, 
                                                  const std::string& mode)
     {
         std::vector<float> matrix(input_size * output_size, 0.0f);
@@ -628,7 +629,7 @@ struct parse_resize : op_parser<parse_resize>
                 auto clamped_pos = std::max(0UL, std::min(pos, input_size -1));
 
                 // Skip near zero weights
-                if (std::abs(weight) > 1e-8)
+                if (std::abs(weight) > tolerance)
                 {
                     // Matrix is stored in row-major order: matrix[row * cols+col]
                     // want matrix[ input_pos, output_pos] = weight
@@ -655,51 +656,72 @@ struct parse_resize : op_parser<parse_resize>
     }
 
 
-    static instruction_ref kronker_product_optimized()
+    // Optimized kroneker product of  A ⊗ B with sparsity exploitation
+    // Take in two matricies A and B and return the flattented result of 
+    // as (A rows * B rows) x (A cols * B cols)
+    //  Optimizations:
+    // - Skip computation for near-zero elements in A
+    // - Pre-compute non-zero indices in B for efficiency
+    // - Use vectorized operations where possible
+    static instruction_ref kronker_product_optimized(const onnx_parser::node_info& info,
+                                                     instruction_ref a_mat, 
+                                                     instruction_ref b_mat)
     {
         instruction_ref result;
 
         return result;
     }
 
+    // Builds the final in Dimension matrix as as series of literal matricies that are multiplied together using the kronker product
+    // This means these can later be const folded to a final matrix product 
     static instruction_ref build_n_cubic_interpolation_matrix(const onnx_parser::node_info& info,
                                                               const resize_args& resize)
     {
+    
         auto in_s      = resize.in_s;
         auto in_lens   = resize.in_lens;
         auto out_lens  = resize.out_lens;
         auto vec_scale = resize.vec_scale;
 
-        float tolerance = 1e-8;
-        std::vector<std::vector<float>> matricies;
-        instruction_ref n_cubic_interpolation_matrix;
-        // Scale each dimension thats not a scale value of 1;
+        float tolerance        = 1e-8;
+        auto  pixel_mode       = resize.get_coord_trans_mode();
+        auto cubic_coefficient = resize.get_cubic_coeff();
+
+        std::vector<instruction_ref> matrix_list;
+
+        // Generate matrix per dimension thats used for the scaling
+        size_t dim_index = 0;
         for (auto& scale: vec_scale)
         {
-            // Avoid any bad (nonsensical) scales or 1 no scale for the dimension
+            // Perform identity of scale up based on value of input. 
             if (std::abs(scale - 1.0f) < tolerance)
             {
+                auto size = in_lens.at(dim_index);
+                matrix_list.push_back(gen_identity_matrix(info, size, size));
             }
             else
             {
-
+                auto matrix_data = build_cubic_matrix(in_lens.at(dim_index),
+                                                      out_lens.at(dim_index),
+                                                      scale,
+                                                      cubic_coefficient, 
+                                                      tolerance, 
+                                                      pixel_mode);
+                auto size = in_lens.at(dim_index);
+                migraphx::shape matrix_shape{shape::float_type, {size, size}};
+                auto matrix_lit = info.add_literal(migraphx::literal{matrix_shape, matrix_data});
+                matrix_list.push_back(matrix_lit);
             }
-
-            /*instruction_ref resampled_input;
-
-            if (scale > 1.0f)
-            {
-                resampled_input = upsample_output(info, scale);
-            }
-            else
-            {
-                resampled_input = downsample_output(info, scale);
-            } */
-
-            
+            ++dim_index;
         }
 
-        return kronker_product_optimized();
+        auto result_matrix = resize.x;
+
+        for(auto& matrix_per_dim: matrix_list)
+        {
+            result_matrix = kronker_product_optimized(info, result_matrix, matrix_per_dim);
+        }
+        return result_matrix;
     }
 
     // Cubic interpolation can be done by convolution of a fixed coefficients that are scaled based

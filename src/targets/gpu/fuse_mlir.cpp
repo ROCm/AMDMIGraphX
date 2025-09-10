@@ -1477,12 +1477,7 @@ struct find_dot_tile
             tile_perm[offset + 4] = offset + 4; // kpack
         }
         ops.push_back(make_op("transpose", {{"permutation", tile_perm}}));
-
-        // Reshape back to original matrix dimensions for dot operation
-        std::vector<std::size_t> final_dims = batch_dims;
-        final_dims.push_back(is_b ? n : m);
-        final_dims.push_back(k);
-        ops.push_back(make_op("reshape", {{"dims", final_dims}}));
+        ops.push_back(make_op("reshape", {{"dims", d_shape.lens()}}));
 
         return ops;
     }
@@ -1514,12 +1509,15 @@ struct find_dot_tile
         if((k % (params->kpack_per_block * params->kpack)) != 0)
             return;
 
+        std::vector<instruction_ref> debug_ins = {a, b};
+
         // Generate tiling operations for A matrix
         auto a_tile_ops           = get_tile_ops(*params, a_shape, false);
         instruction_ref current_a = a;
         for(const auto& op : a_tile_ops)
         {
             current_a = mpm.get_module().insert_instruction(dot_ins, op, current_a);
+            debug_ins.push_back(current_a);
         }
 
         // Generate tiling operations for B matrix
@@ -1528,7 +1526,11 @@ struct find_dot_tile
         for(const auto& op : b_tile_ops)
         {
             current_b = mpm.get_module().insert_instruction(dot_ins, op, current_b);
+            debug_ins.push_back(current_b);
         }
+
+        mpm.get_module().debug_print(debug_ins);
+        mpm.get_module().debug_print({current_a, current_b});
 
         // Replace the dot instruction with the tiled inputs
         mpm.get_module().replace_instruction(

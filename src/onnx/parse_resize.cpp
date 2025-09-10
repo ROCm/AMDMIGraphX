@@ -642,6 +642,18 @@ struct parse_resize : op_parser<parse_resize>
         return matrix;
     }
 
+    static instruction_ref gen_identity_matrix(const onnx_parser::node_info& info, const size_t& num_rows, const size_t& num_cols)
+    {
+        std::vector<char> identity_mat(num_rows * num_cols, 0);
+        for(std::ptrdiff_t i = 0; i < num_rows; ++i)
+        {
+            if(i < num_cols and i >= 0)
+                identity_mat[(num_cols + 1) * i ] = char{1};
+        }
+        return info.add_literal(
+            migraphx::literal{migraphx::shape{migraphx::shape::float_type, {num_rows, num_cols}}, identity_mat});
+    }
+
     // Cubic interpolation can be done by convolution of a fixed coefficients that are scaled based
     // on the sampleing (up/down) of the axis using the original image 
     // 

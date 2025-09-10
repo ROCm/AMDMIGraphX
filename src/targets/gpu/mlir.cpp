@@ -22,6 +22,7 @@
  * THE SOFTWARE.
  */
 #include <algorithm>
+#include <atomic>
 #include <cstdint>
 #include <migraphx/shape.hpp>
 #include <migraphx/algorithm.hpp>
@@ -162,6 +163,13 @@ using mlir_tuning_space      = MIGRAPHX_MANAGE_MLIR_HANDLE(MlirRockTuningSpace,
                                                       mlirRockTuningSpaceDestroy);
 using mlir_tuning_param      = MIGRAPHX_MANAGE_MLIR_HANDLE(MlirRockTuningParam,
                                                       mlirRockTuningParamDestroy);
+
+static std::atomic<int>& dump_counter()
+{
+    // NOLINTNEXTLINE
+    static std::atomic<int> c = 0;
+    return c;
+}
 
 static std::string_view to_string_view(MlirStringRef s) { return {s.data, s.length}; }
 
@@ -849,7 +857,8 @@ struct mlir_program
     tuning_config get_tuning_config(bool exhaustive)
     {
         tuning_config tc;
-        tc.mlir_kernel = mlir_print(&mlirOperationPrint, mlirModuleGetOperation(mmodule.get()));
+        tc.detailed_problem_info =
+            mlir_print(&mlirOperationPrint, mlirModuleGetOperation(mmodule.get()));
         run_high_level_pipeline();
         auto tuning_mode =
             exhaustive ? RocmlirTuningParamSetKindFull : RocmlirTuningParamSetKindQuick;
@@ -1093,6 +1102,20 @@ std::string dump_mlir(module m, const std::vector<shape>& inputs)
     return mlir_print(&mlirOperationPrint, mod_op);
 }
 
+static void abbreviate_symbol_names(std::string& n)
+{
+    static const std::map<std::string, std::string> abbrs = {
+        {"reduce_max_reshape_sub_exp_reshape_reduce_sum_reshape_div", "softmax"},
+        {"reshape", "rsp"},
+        {"transpose", "trp"},
+        {"slice", "slc"}};
+
+    for(auto const& [key, val] : abbrs)
+    {
+        replace_string_inplace(n, key, val);
+    }
+}
+
 static std::string compute_dump_name(const module& m, const std::string& ext)
 {
     std::vector<instruction_ref> sizes;
@@ -1101,11 +1124,25 @@ static std::string compute_dump_name(const module& m, const std::string& ext)
         if(contains({"quant_convolution", "quant_dot", "convolution", "dot"}, ins->name()))
             sizes.insert(sizes.end(), ins->inputs().begin(), ins->inputs().end());
     }
-    auto name =
-        mlir_program::get_symbol_name(m) + "_" + shape::to_sizes_string(to_shapes(sizes)) + ext;
-    replace_string_inplace(name, ", ", "_");
-    replace_string_inplace(name, ":", "s");
-    return name;
+    auto shape_str = "_" + shape::to_sizes_string(to_shapes(sizes));
+    auto sym_names = mlir_program::get_symbol_name(m);
+    abbreviate_symbol_names(sym_names);
+
+    // On most commonly used file systems, the max file name size is 255 characters
+    const int max_file_length = 255;
+    auto cnt                  = "_" + std::to_string(dump_counter()++);
+    std::string fname         = sym_names + shape_str;
+    replace_string_inplace(fname, ", ", "_");
+    replace_string_inplace(fname, ":", "s");
+
+    if(fname.length() + cnt.length() + ext.length() > max_file_length)
+    {
+        auto cutoff = max_file_length - ext.length() - cnt.length();
+        fname.resize(cutoff);
+    }
+    fname += cnt + ext;
+
+    return fname;
 }
 
 void dump_mlir_to_file(module m, const std::vector<shape>& inputs, const fs::path& location)

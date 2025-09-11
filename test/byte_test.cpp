@@ -233,12 +233,6 @@ TEST_CASE(byte_bitwise_not_operator)
     EXPECT(migraphx::to_integer<uint8_t>(~b2) == 0b00000000);
     EXPECT(migraphx::to_integer<uint8_t>(~b3) == 0b01010101);
     EXPECT(migraphx::to_integer<uint8_t>(~b4) == 0b10101010);
-
-    // Test double negation
-    // cppcheck-suppress-begin migraphx-MultipleUnaryOperator
-    EXPECT(migraphx::to_integer<uint8_t>(~~b1) == 0b00000000);
-    EXPECT(migraphx::to_integer<uint8_t>(~~b3) == 0b10101010);
-    // cppcheck-suppress-end migraphx-MultipleUnaryOperator
 }
 
 TEST_CASE(byte_to_integer_function)

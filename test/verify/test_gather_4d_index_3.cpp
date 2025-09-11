@@ -21,38 +21,24 @@
  * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
  * THE SOFTWARE.
  */
-#include <migraphx/ranges.hpp>
-#include <migraphx/instruction.hpp>
-#include <migraphx/onnx/op_parser.hpp>
-#include <migraphx/op/builder/insert.hpp>
 
-namespace migraphx {
-inline namespace MIGRAPHX_INLINE_NS {
-namespace onnx {
+#include "verify_program.hpp"
+#include <migraphx/program.hpp>
+#include <migraphx/generate.hpp>
+#include <migraphx/make_op.hpp>
 
-struct parse_clip : op_parser<parse_clip>
+struct test_gather_4d_index_3 : verify_program<test_gather_4d_index_3>
 {
-    std::vector<op_desc> operators() const { return {{"Clip"}}; }
-
-    instruction_ref parse(const op_desc& /*opd*/,
-                          const onnx_parser& parser,
-                          onnx_parser::node_info info,
-                          std::vector<instruction_ref> args) const
+    migraphx::program create_program() const
     {
-        if(args.size() == 1 and contains(info.attributes, "min") and
-           contains(info.attributes, "max"))
-        {
-
-            float min_val = parser.parse_value(info.attributes.at("min")).at<float>();
-            float max_val = parser.parse_value(info.attributes.at("max")).at<float>();
-            args.push_back(info.add_literal(min_val));
-            args.push_back(info.add_literal(max_val));
-        }
-
-        return op::builder::add("clip", *info.mod, args, {}).at(0);
+        migraphx::program p;
+        auto* mm = p.get_main_module();
+        migraphx::shape s{migraphx::shape::int8_type, {4, 2, 2, 1}};
+        migraphx::shape s_indices{migraphx::shape::int32_type, {2, 2}};
+        std::vector<int> indices{0, 0, 0, 0};
+        auto a0 = mm->add_parameter("data", s);
+        auto a1 = mm->add_literal(migraphx::literal{s_indices, indices});
+        mm->add_instruction(migraphx::make_op("gather", {{"axis", -1}}), a0, a1);
+        return p;
     }
 };
-
-} // namespace onnx
-} // namespace MIGRAPHX_INLINE_NS
-} // namespace migraphx

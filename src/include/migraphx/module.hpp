@@ -328,6 +328,8 @@ struct MIGRAPHX_EXPORT module
        of the each instruction such that it appears before the instruction itself.
     */
     module& sort();
+
+    module& shuffle(std::vector<std::size_t> permutation);
     /* Any instruction "X" can have module arguments and those modules inside them can use any other
      * instruction "Y" from predecessor modules of the instruction "X". Such instruction "Y" inside
      * module args are not listed as input instructions to "X". But those instructions "Y" must be

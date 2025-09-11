@@ -359,29 +359,41 @@ auto is_mlir_conv_backwards(mlir_mode mode)
     return match::make_basic_pred_matcher([=](instruction_ref ins) {
         if(mode == mlir_mode::none)
             return false;
-        if(ins->name() != "convolution_backwards" and ins->name() != "quant_convolution_backwards")
+
+        const std::string op_name = "convolution_backwards";
+        if(ins->name() != op_name or specific_op<rejected>(op_name))
             return false;
+
+#if MIGRAPHX_USE_MIOPEN
+        // by default the MIOpen is the choice, except when mlir support is
+        // explicitly desired for this op.
+        if(not specific_op<requested>(op_name))
+            return false;
+#endif
+
         auto input = ins->inputs().front()->get_shape();
+        if(not contains({shape::type_t::float_type,
+                         shape::type_t::half_type,
+                         shape::type_t::bf16_type,
+                         shape::type_t::fp8e4m3fnuz_type,
+                         shape::type_t::fp8e5m2fnuz_type,
+                         shape::type_t::fp8e4m3fn_type,
+                         shape::type_t::fp8e5m2_type},
+                        input.type()))
+            return false;
+
+        auto w = ins->inputs().at(1)->get_shape();
+        // currently handle on 2D conv_backwards in MLIR
+        if(w.lens().size() != 4)
+            return false;
+
         value v    = ins->get_operator().to_value();
         auto group = v.at("group").to<int>();
-        // Avoid MLIR assertion: Index < Length && "Invalid index!"
-        if(ins->get_shape().lens().size() != 4 and group > 1)
-            return false;
-        std::set<shape::type_t> supported_types = fp8_types{}.get();
-        supported_types.insert(shape::int8_type);
-        if(contains(supported_types, input.type()))
-            return true;
-        if(mode == mlir_mode::all)
-            return true;
-        // No winograd for group convolution
+        // currently handle only group == 1
         if(group > 1)
-            return true;
-        auto w = ins->inputs().at(1)->get_shape();
-        if(w.lens().size() != 4)
-            return true;
-        if(w.lens()[2] != w.lens()[3])
-            return true;
-        return (w.lens()[3] % 3) != 0;
+            return false;
+
+        return true;
     });
 }
 

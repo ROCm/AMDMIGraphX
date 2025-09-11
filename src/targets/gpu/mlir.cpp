@@ -664,7 +664,8 @@ struct mlir_program
         if(is_reshape(op.name()))
             v = {{"dims", ins->get_shape().lens()}};
 
-        if(op.name() == "convolution" or op.name() == "quant_convolution")
+        if(op.name() == "convolution" or op.name() == "quant_convolution" or
+           op.name() == "convolution_backwards")
         {
             // Adjust symetrical padding
             if(v.at("padding").size() == v.at("stride").size())

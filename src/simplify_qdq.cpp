@@ -49,62 +49,6 @@ std::unordered_set<std::string> get_quantizable_op_names()
     return s;
 }
 
-/// Recursively skip input instructions with one input that have a name in the skip_set.
-instruction_ref skip_unary_ins_from(instruction_ref ins, std::unordered_set<std::string> skip_set)
-{
-    return fix<instruction_ref>([&](auto self, auto ins_i) -> instruction_ref {
-        if(ins_i->inputs().size() == 1 and contains(skip_set, ins_i->name()))
-        {
-            instruction_ref next = ins_i->inputs().front();
-            return self(next);
-        }
-        return ins_i;
-    })(ins);
-}
-
-/**
- * Skips unary input instructions to the given instruction.
- * Mainly used for skipping input instructions to dequantizelinear.
- * Handles the packed data formats case where there will be pack and unpack instructions.
- * Returns the earliest instructions not in the list or with multiple inputs.
- * Likely returns the quantizelinear instruction paired to the dequantizelinear.
- */
-instruction_ref skip_dq_inputs_to_q(instruction_ref dq_ins)
-{
-    // clang-format off
-    static const std::unordered_set<std::string> skip_set = {
-        "pack_fp4",
-        "unpack_fp4",
-        "broadcast",
-        "slice",
-        "reshape",
-        "reshape_lazy",
-        "pad",
-    };
-    // clang-format on
-    return skip_unary_ins_from(dq_ins, skip_set);
-}
-
-/**
- * Skips unary input instructions to the given instruction.
- * Likely returns the pack instruction paired for packed datatypes or the
- * quantizelinear instruction.
- */
-instruction_ref skip_dq_inputs_to_pack(instruction_ref dq_ins)
-{
-    // clang-format off
-    static const std::unordered_set<std::string> skip_set = {
-        "unpack_fp4",
-        "broadcast",
-        "slice",
-        "reshape",
-        "reshape_lazy",
-        "pad",
-    };
-    // clang-format on
-    return skip_unary_ins_from(dq_ins, skip_set);
-}
-
 // Helper function to insert quantized versions of any broadcasts and transpose ops that
 // occur between dequantizelinear and the quantized op
 auto propagate_quantized_ins(module& m,
@@ -201,13 +145,8 @@ struct match_find_quantizable_ops
         auto arg1_lens = qop_args[0]->get_shape().lens();
         auto arg2_lens = qop_args[1]->get_shape().lens();
 
-        const std::set<migraphx::shape::type_t> supported_types = {
-            migraphx::shape::fp8e4m3fnuz_type,
-            migraphx::shape::fp8e5m2fnuz_type,
-            migraphx::shape::fp8e4m3fn_type,
-            migraphx::shape::fp8e5m2_type,
-            migraphx::shape::int8_type,
-        };
+        std::set<migraphx::shape::type_t> supported_types = fp8_types{}.get();
+        supported_types.insert(migraphx::shape::int8_type);
         auto in1 = dq1->inputs().front();
         auto in2 = dq2->inputs().front();
         if(not contains(supported_types, in1->get_shape().type()) or
@@ -341,36 +280,33 @@ struct match_find_quantizable_ops
     }
 };
 
-// Note: scales are not constant b/c of dynamic quantization
-inline auto two_arg_dq(const std::string& scale)
+// Note: scales are not constant b/c of dynamic quantization.
+// Checks for block quantized scales by checking scales are not scalar or 1D.
+inline auto dynamic_block_dq(const std::string& scale)
 {
+    // clang-format off
     return match::name("dequantizelinear")(
-        match::nargs(2), match::arg(1)(match::skip_broadcasts(match::any().bind(scale))));
+        match::nargs(2),
+        match::arg(1)(match::skip_broadcasts(match::none_of(
+            match::is_constant(),
+            match::scalar_shape,
+            match::ndim(1)
+        ).bind(scale))));
+    // clang-format on
 }
 
 /**
  * Handles block quantization for MX types.
- * Matcher is slightly different because dequantizelinear will not
- * have zero points.
+ * Matcher checks that dequantizelinear has no zero point and that
+ * the scales are block quantized.
  */
 struct match_find_mx_quantizable_ops
 {
     auto matcher() const
     {
-        auto dq1 = match::arg(0)(skip_post_dq_ops(two_arg_dq("scale1").bind("dq1")));
-        auto dq2 = match::arg(1)(skip_post_dq_ops(two_arg_dq("scale2").bind("dq2")));
+        auto dq1 = match::arg(0)(skip_post_dq_ops(dynamic_block_dq("scale1").bind("dq1")));
+        auto dq2 = match::arg(1)(skip_post_dq_ops(dynamic_block_dq("scale2").bind("dq2")));
         return match::name(get_quantizable_op_names())(dq1, dq2);
-    }
-
-    /// Check that quantized input is a supported type
-    bool is_block_supported_type(instruction_ref dq1, instruction_ref dq2) const
-    {
-        // only fp4x2 type currently supported for block quantization
-        const std::set<migraphx::shape::type_t> supported_types = {migraphx::shape::fp4x2_type};
-        auto in1 = skip_dq_inputs_to_pack(dq1->inputs().front());
-        auto in2 = skip_dq_inputs_to_pack(dq2->inputs().front());
-        return (contains(supported_types, in1->get_shape().type()) and
-                contains(supported_types, in2->get_shape().type()));
     }
 
     void apply(module& m, const match::matcher_result& r) const
@@ -380,11 +316,6 @@ struct match_find_mx_quantizable_ops
         auto dq2    = r.instructions["dq2"];
         auto scale1 = r.instructions["scale1"];
         auto scale2 = r.instructions["scale2"];
-
-        if(not is_block_supported_type(dq1, dq2))
-        {
-            return;
-        }
 
         // Propagate q1 and q2 through any broadcasts and transposes before qop
         // Construct 4 arguments for block quantized op
@@ -577,8 +508,6 @@ bool is_any_input_int4(instruction_ref a)
  * Extended to remove the fake quantization pattern for MXFP4:
  *      quantizelinear
  *              ▼
- *      reshape (to 1D)
- *              ▼
  *       pad (optional)
  *              ▼
  *          pack_fp4
@@ -587,32 +516,46 @@ bool is_any_input_int4(instruction_ref a)
  *              ▼
  *        slice (optional)
  *              ▼
- *  reshape (back to N-dim)
- *              ▼
  *      dequantizelinear
  *
  *  Doesn't match the pack/unpack and reshapes explicitly, instead skips instructions
  *  that match the name with one input recursively.
- *  Use this after selected quantizations have been made into real quantizatized instructions.
+ *  Use this after selected quantizations have been made into real quantized instructions.
  */
-void remove_qdq_pairs(module& m)
+struct remove_qdq_pairs
 {
-    for(auto ins : iterator_for(m))
+    auto matcher() const
     {
-        auto args = ins->inputs();
-        for(auto&& arg : args)
+        // clang-format off
+        static const std::unordered_set<std::string> skip_set = {
+            "pack_fp4",
+            "unpack_fp4",
+            "broadcast",
+            "slice",
+            "reshape",
+            "reshape_lazy",
+            "pad",
+        };
+        // clang-format on
+        auto q_ins =
+            match::skip(match::name(skip_set))(match::name("quantizelinear").bind("q_ins"));
+        return match::name("dequantizelinear")(match::arg(0)(q_ins));
+    }
+
+    auto apply(module&, const match::matcher_result& r) const
+    {
+        auto dq_ins = r.result;
+        auto q_ins  = r.instructions["q_ins"];
+        if(not is_same_scale_zero(dq_ins, q_ins))
         {
-            if(arg->name() == "dequantizelinear")
-            {
-                auto curr = skip_dq_inputs_to_q(arg->inputs().front());
-                if((curr->name() == "quantizelinear") and is_same_scale_zero(arg, curr))
-                {
-                    instruction::replace_argument(ins, arg, curr->inputs().front());
-                }
-            }
+            return;
+        }
+        for(auto out : dq_ins->outputs())
+        {
+            instruction::replace_argument(out, dq_ins, q_ins->inputs().front());
         }
     }
-}
+};
 
 void remove_zero_point(module& m)
 {
@@ -665,7 +608,7 @@ void simplify_qdq::apply(module& m) const
     migraphx::run_passes(m, {migraphx::dead_code_elimination{}});
     match::find_matches(m, match_find_mx_quantizable_ops{});
     migraphx::run_passes(m, {migraphx::dead_code_elimination{}});
-    remove_qdq_pairs(m);
+    match::find_matches(m, remove_qdq_pairs{});
     migraphx::run_passes(m, {migraphx::dead_code_elimination{}});
     match::find_matches(m, match_qlinear_reused{});
     migraphx::run_passes(m, {migraphx::dead_code_elimination{}});

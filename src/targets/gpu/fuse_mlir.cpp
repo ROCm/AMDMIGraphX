@@ -390,10 +390,7 @@ auto is_mlir_conv_backwards(mlir_mode mode)
         value v    = ins->get_operator().to_value();
         auto group = v.at("group").to<int>();
         // currently handle only group == 1
-        if(group > 1)
-            return false;
-
-        return true;
+        return (group == 1);
     });
 }
 

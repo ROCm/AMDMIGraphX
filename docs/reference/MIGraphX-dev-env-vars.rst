@@ -95,6 +95,8 @@ Model performance tunable variables change the compilation behavior of a model. 
       | ``attention``: Use attention fusion. This is used by default on MI300, but must be specified on other architectures.
 
       | ``convolution``: Use MLIR generated kernels for all convolutions. MIOpen is used by default otherwise.
+
+      | ``convolution_backwards``: Use MLIR generated kernels for backward-convolution(s). MIOpen is used by default otherwise.
       
       | ``dot``: Use MLIR generated kernels for all GEMMs. hipBLASlt is used otherwise.
       

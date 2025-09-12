@@ -1880,7 +1880,7 @@ TEST_CASE(fp4x2_odd_remove_qdq)
             migraphx::make_op("slice", {{"axes", {1}}, {"starts", {0}}, {"ends", {7}}}),
             unpack_fp4);
         auto dequant = m1.add_instruction(migraphx::make_op("dequantizelinear"), slice, scale_a);
-        auto add = m1.add_instruction(migraphx::make_op("add"), dequant, b);
+        auto add     = m1.add_instruction(migraphx::make_op("add"), dequant, b);
         m1.add_return({add});
     }
 

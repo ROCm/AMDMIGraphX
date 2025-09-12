@@ -116,8 +116,8 @@ struct module_pm : module_pass_manager
     {
         assert(prog);
         assert(mod);
-        assert(
-            any_of(mod->get_sub_modules(), [&](const module_ref sm) { return sm->name() == old_name; }));
+        assert(any_of(mod->get_sub_modules(),
+                      [&](const module_ref sm) { return sm->name() == old_name; }));
         prog->rename_module(old_name, new_name);
     }
 

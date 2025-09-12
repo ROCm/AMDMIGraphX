@@ -137,7 +137,7 @@ struct parse_matmul : op_parser<parse_matmul>
 
         if(scale_shape.scalar())
         {
-            scale_arg   = info.add_instruction(make_op("unsqueeze", {{"axes", {0}}}), scale_arg);
+            scale_arg = info.add_instruction(make_op("unsqueeze", {{"axes", {0}}}), scale_arg);
         }
 
         scale_arg = info.add_instruction(make_op("unsqueeze", {{"axes", {0}}}), scale_arg);

@@ -143,7 +143,7 @@ static module::with_inputs append_pointwise_module(instruction_ref ins, instruct
     std::unordered_set<instruction_ref> original_inputs{ins->inputs().begin(), ins->inputs().end()};
     original_inputs.insert(output->inputs().begin(), output->inputs().end());
     module pm     = *ins->module_inputs().at(0);
-    const module_ref xm = output->module_inputs().at(0);
+    const module_ref xm  = output->module_inputs().at(0);
     const bool dependent = contains(output->inputs(), ins);
     assert(not dependent or pm.get_returns().size() == 1);
 

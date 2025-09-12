@@ -1510,7 +1510,7 @@ TEST_CASE(optimize_resize)
 
     auto create_optimized_module = [&] {
         migraphx::module m;
-        auto inx                  = m.add_parameter("X", sx);
+        auto inx  = m.add_parameter("X", sx);
         auto rspx = m.add_instruction(migraphx::make_op("unsqueeze", {{"axes", {3, 5}}}), inx);
         auto mbx  = m.add_instruction(
             migraphx::make_op("multibroadcast", {{"out_lens", {1, 1, 2, 2, 2, 3}}}), rspx);

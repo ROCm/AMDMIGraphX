@@ -169,6 +169,7 @@ struct rewrite_reshapes
                     auto start = input;
                     for(const auto& op : gops)
                     {
+                        // cppcheck-suppress useStlAlgorithm
                         start = mpm.get_module().insert_instruction(ins_to_insert, op, start);
                     }
                     return start;
@@ -222,6 +223,7 @@ struct rewrite_reshapes
 
     void apply(module_pass_manager& mpm) const
     {
+        // cppcheck-suppress knownConditionTrueFalse
         if(T::name() == "pointwise")
         {
             match::find_matches(mpm, find_op_reshape_op{"pointwise", T::name()});

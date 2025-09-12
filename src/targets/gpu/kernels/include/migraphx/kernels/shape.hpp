@@ -80,6 +80,7 @@ struct shape : equality_comparable<shape<Lens, Strides>>
 
     constexpr index_int index(index_int i) const
     {
+        // cppcheck-suppress UnnecessaryElseStatement
         if(this->standard())
         {
             MIGRAPHX_ASSERT(i >= elements() or i == compute_index(i));

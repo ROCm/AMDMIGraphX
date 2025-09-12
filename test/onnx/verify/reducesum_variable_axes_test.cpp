@@ -45,7 +45,7 @@ static auto reducesum_variable_axes_test_base(const std::string& file, size_t ax
                                     axes_data.data());
 
     auto result = p.eval(pm).back();
-    std::vector<float> result_vector;
+
     result.visit([&](auto output) { ret.first.assign(output.begin(), output.end()); });
     ret.second = result.get_shape();
 

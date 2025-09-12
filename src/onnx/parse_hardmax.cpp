@@ -26,6 +26,8 @@
 #include <migraphx/make_op.hpp>
 #include <migraphx/onnx/checks.hpp>
 #include <migraphx/instruction.hpp>
+#include <numeric>
+#include <functional>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
@@ -61,11 +63,8 @@ struct parse_hardmax : op_parser<parse_hardmax>
         {
             // input is coerced into a 2D matrix of size NxD
             axis     = axis < 0 ? axis + input_lens.size() : axis;
-            size_t n = 1;
-            for(int i = 0; i < axis; i++)
-            {
-                n *= input_lens[i];
-            }
+            size_t n = std::accumulate(input_lens.begin(), input_lens.begin() + axis, 
+                                       size_t{1}, std::multiplies<size_t>{});
             size_t d = input->get_shape().elements() / n;
 
             input = info.add_instruction(make_op("reshape", {{"dims", {n, d}}}), input);

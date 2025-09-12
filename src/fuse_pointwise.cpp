@@ -79,7 +79,7 @@ static bool is_dead(instruction_ref ins)
 }
 
 // We dont want to consider the `extra` instruction as dead as it might be an implicit return
-static bool is_used_once(instruction_ref ins, instruction_ref* extra = nullptr)
+static bool is_used_once(instruction_ref ins, const instruction_ref* extra = nullptr)
 {
     return std::count_if(ins->outputs().begin(), ins->outputs().end(), [&](auto output) {
                if(extra and *extra == output)
@@ -143,7 +143,7 @@ static module::with_inputs append_pointwise_module(instruction_ref ins, instruct
     std::unordered_set<instruction_ref> original_inputs{ins->inputs().begin(), ins->inputs().end()};
     original_inputs.insert(output->inputs().begin(), output->inputs().end());
     module pm     = *ins->module_inputs().at(0);
-    module_ref xm = output->module_inputs().at(0);
+    const module_ref xm = output->module_inputs().at(0);
     const bool dependent = contains(output->inputs(), ins);
     assert(not dependent or pm.get_returns().size() == 1);
 

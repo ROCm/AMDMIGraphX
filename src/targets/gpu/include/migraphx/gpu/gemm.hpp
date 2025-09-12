@@ -126,6 +126,7 @@ struct rocblas_gemm
         return shapes.size() - 1;
     }
 
+    // cppcheck-suppress constParameterReference
     void finalize(context& ctx, const shape& output_shape, const std::vector<shape>& input_shapes)
     {
 #ifdef MIGRAPHX_USE_ROCBLAS_TUNING_API

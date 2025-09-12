@@ -276,6 +276,9 @@ rocm_enable_cppcheck(
         portability
     SUPPRESS
         ConfigurationNotChecked
+        duplInheritedMember
+        assertWithSideEffect
+        returnByReference
         unmatchedSuppression
         unusedFunction
         ctuPointerArith
@@ -297,6 +300,7 @@ rocm_enable_cppcheck(
         migraphx-RedundantLocalVariable:*src/api/api.cpp
         migraphx-UseSmartPointer:*src/api/api.cpp
     FORCE
+    EXHAUSTIVE
     INCONCLUSIVE
     RULE_FILE
         ${CMAKE_CURRENT_SOURCE_DIR}/tools/cppcheck/rules.xml

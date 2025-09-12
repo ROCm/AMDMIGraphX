@@ -57,6 +57,7 @@ struct test_gemm_softmax_gemm_relu : verify_program<test_gemm_softmax_gemm_relu<
         if constexpr(Config == bias::with or Config == bias::with_standard_shape)
         {
             auto bias_shape = m1_shape;
+            // cppcheck-suppress knownConditionTrueFalse
             if(Config != bias::with_standard_shape)
             {
                 bias_shape = migraphx::shape::from_permutation(
@@ -66,6 +67,7 @@ struct test_gemm_softmax_gemm_relu : verify_program<test_gemm_softmax_gemm_relu<
             add_bias       = mm->add_instruction(migraphx::make_op("add"), scale, bias_term);
         }
 
+        // cppcheck-suppress knownConditionTrueFalse
         auto softmax = mm->add_instruction(migraphx::make_op("softmax", {{"axis", 3}}),
                                            Config == bias::without ? scale : add_bias.value());
         auto gemm2   = mm->add_instruction(migraphx::make_op("dot"), softmax, b1);

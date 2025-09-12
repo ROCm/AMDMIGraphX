@@ -613,7 +613,7 @@ struct find_resize
 
         std::vector<int64_t> in_dims;
         std::vector<int64_t> out_dims;
-        for(auto& isp : dim_scales)
+        for(const auto& isp : dim_scales)
         {
             in_dims.push_back(isp.first);
             out_dims.push_back(isp.first * isp.second);

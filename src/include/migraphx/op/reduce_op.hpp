@@ -119,10 +119,8 @@ struct reduce_op : op_name<Derived>
         auto dims              = data_shape.dyn_dims();
         if(axes.empty())
         {
-            for(auto& dim : dims)
-            {
-                dim = {1, dim.max};
-            }
+            std::transform(dims.begin(), dims.end(), dims.begin(), 
+                           [](const auto& dim) { return decltype(dim){1, dim.max}; });
         }
         else
         {

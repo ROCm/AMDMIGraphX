@@ -107,6 +107,7 @@ struct parse_matmulnbits : op_parser<parse_matmulnbits>
     {
         auto b = unpack(info, n, k, args[1]);
 
+        // cppcheck-suppress variableScope
         auto n_blocks_per_col = (k + block_size - 1) / block_size;
         auto scales = info.add_instruction(make_op("reshape", {{"dims", {n, -1}}}), args[2]);
         scales      = prepare_blockwise_dq_arg(info, n, k, block_size, scales);

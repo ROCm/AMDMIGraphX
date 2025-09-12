@@ -78,7 +78,7 @@ static std::vector<src_file> create_ck_headers()
     std::transform(header_strings.begin(),
                    header_strings.end(),
                    std::back_inserter(srcs),
-                   [&](auto& p) { return src_file{p}; });
+                   [&](const auto& p) { return src_file{p}; });
     return srcs;
 }
 

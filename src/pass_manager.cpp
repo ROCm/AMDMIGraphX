@@ -48,7 +48,7 @@ static bool is_pass_disabled(const std::string& name)
     return contains(passes, name);
 }
 
-static void validate_pass(module& mod, const pass& p, tracer trace)
+static void validate_pass(const module& mod, const pass& p, tracer trace)
 {
     (void)mod;
     (void)p;
@@ -117,7 +117,7 @@ struct module_pm : module_pass_manager
         assert(prog);
         assert(mod);
         assert(
-            any_of(mod->get_sub_modules(), [&](module_ref sm) { return sm->name() == old_name; }));
+            any_of(mod->get_sub_modules(), [&](const module_ref sm) { return sm->name() == old_name; }));
         prog->rename_module(old_name, new_name);
     }
 

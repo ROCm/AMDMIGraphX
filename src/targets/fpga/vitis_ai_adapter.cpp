@@ -43,7 +43,7 @@ x_model create_xmodel(migraphx::const_module_ref mod)
 
 migraphx::argument execute(const x_model& xmodel,
                            const migraphx::shape& output_shape,
-                           std::vector<migraphx::argument>& args)
+                           const std::vector<migraphx::argument>& args)
 {
     (void)xmodel;
 

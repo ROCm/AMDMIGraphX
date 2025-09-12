@@ -175,7 +175,7 @@ struct parse_layernorm : op_parser<parse_layernorm>
     }
 
     std::tuple<instruction_ref, instruction_ref, instruction_ref, bool>
-    handle_inputs(std::vector<instruction_ref>& args, const int64_t& axis) const
+    handle_inputs(const std::vector<instruction_ref>& args, const int64_t& axis) const
     {
         if(args.size() < 2 or args.size() > 3)
         {
@@ -188,7 +188,7 @@ struct parse_layernorm : op_parser<parse_layernorm>
         is_type_valid(scale->get_shape().type(), "scale");
 
         bool skip_bias = args.size() == 2;
-        instruction_ref bias;
+        instruction_ref bias{};
         if(not skip_bias)
         {
             bias = args.at(2);

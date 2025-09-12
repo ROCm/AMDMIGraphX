@@ -1511,11 +1511,9 @@ TEST_CASE(optimize_resize)
     auto create_optimized_module = [&] {
         migraphx::module m;
         auto inx                  = m.add_parameter("X", sx);
-        std::vector<int64_t> dims = {1, 1, 2, 1, 2, 1};
         auto rspx = m.add_instruction(migraphx::make_op("unsqueeze", {{"axes", {3, 5}}}), inx);
         auto mbx  = m.add_instruction(
             migraphx::make_op("multibroadcast", {{"out_lens", {1, 1, 2, 2, 2, 3}}}), rspx);
-        std::vector<int64_t> orig_dims = {1, 2, 4, 6};
         auto rmb  = m.add_instruction(migraphx::make_op("reshape", {{"dims", {1, 1, 4, 6}}}), mbx);
         auto rmbb = m.add_instruction(
             migraphx::make_op("multibroadcast", {{"out_lens", {1, 2, 4, 6}}}), rmb);

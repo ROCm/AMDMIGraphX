@@ -138,7 +138,6 @@ struct parse_matmul : op_parser<parse_matmul>
         if(scale_shape.scalar())
         {
             scale_arg   = info.add_instruction(make_op("unsqueeze", {{"axes", {0}}}), scale_arg);
-            scale_shape = scale_arg->get_shape();
         }
 
         scale_arg = info.add_instruction(make_op("unsqueeze", {{"axes", {0}}}), scale_arg);
@@ -280,8 +279,8 @@ struct parse_matmul : op_parser<parse_matmul>
                                                 const bool has_scale_bias)
     {
 
-        instruction_ref unsq_zp_a0;
-        instruction_ref unsq_zp_a1;
+        instruction_ref unsq_zp_a0{};
+        instruction_ref unsq_zp_a1{};
 
         bool a0_has_no_zp = (a0 == zp_a0);
         bool a1_has_no_zp = (a1 == zp_a1);

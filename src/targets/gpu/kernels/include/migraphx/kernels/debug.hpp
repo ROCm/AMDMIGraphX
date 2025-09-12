@@ -147,6 +147,7 @@ struct source_location_capture
     T x;
     source_location loc;
     // declval is a workaround since default constructor for "U" is not working with rocm-5.6
+    // cppcheck-suppress UseNamedLogicOperator
     template <class U>
     static U&& declval();
     template <class U, class = decltype(T(declval<U>()))>

@@ -560,7 +560,6 @@ TEST_CASE(resize_fail_test_8)
     auto a0 = mm->add_literal(migraphx::literal{s, data});
     migraphx::shape::dynamic_dimension dd{4, 4};
     migraphx::shape size_input{migraphx::shape::int32_type, {dd}};
-    std::vector<int> size_values = {1, 1, 5, 8};
     auto a1                      = mm->add_parameter("Y", size_input);
 
     // a0 = input data

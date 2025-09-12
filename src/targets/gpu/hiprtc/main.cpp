@@ -72,6 +72,7 @@ int main(int argc, char const* argv[])
                   << std::endl;
         std::exit(0);
     }
+    // cppcheck-suppress variableScope
     std::string output_name = argv[1];
     bool quiet              = false;
     try

@@ -38,6 +38,7 @@ TEST_CASE(multinomial_dyn_test)
 
     // Distribution function (2 distributions of 5 categories each)
     std::vector<int> dist{15, 25, 15, 25, 20, 20, 20, 10, 25, 25};
+    // cppcheck-suppress knownConditionTrueFalse
     EXPECT(dist.size() == categories * batch_size);
     std::vector<float> data(categories * batch_size);
 

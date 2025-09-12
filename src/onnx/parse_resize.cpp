@@ -395,7 +395,7 @@ struct parse_resize : op_parser<parse_resize>
     // Helper to add a "reshape" and "gather" instruction.  These can implement
     // Nearest mode resizing if all sizes are known at compile time.
     static instruction_ref make_gather_instruction(const onnx_parser::node_info& info,
-                                                   resize_args& resize,
+                                                   const resize_args& resize,
                                                    instruction_ref args_0)
     {
         auto in_s      = resize.in_s;
@@ -434,7 +434,7 @@ struct parse_resize : op_parser<parse_resize>
     }
 
     static instruction_ref handle_nearest_neighbor(const onnx_parser::node_info& info,
-                                                   resize_args& resize,
+                                                   const resize_args& resize,
                                                    instruction_ref args_0)
     {
         if(args_0->get_shape().dynamic() or not resize.is_constant_scale_input())
@@ -461,7 +461,7 @@ struct parse_resize : op_parser<parse_resize>
 
     static instruction_ref handle_linear_mode(const op_desc& opd,
                                               const onnx_parser::node_info& info,
-                                              resize_args& resize,
+                                              const resize_args& resize,
                                               instruction_ref& args_0)
 
     {

@@ -542,7 +542,6 @@ struct bicubic_sampler : grid_sampler
         std::vector<instruction_ref> x_weight_indices;
         std::vector<instruction_ref> y_weight_indices;
 
-        std::vector<instruction_ref> inner_x_indices;
         std::vector<instruction_ref> nc_values;
         std::vector<instruction_ref> inner_indices;
         const static auto nhw_shape = migraphx::shape{migraphx::shape::int64_type, {3}};

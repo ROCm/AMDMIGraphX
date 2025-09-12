@@ -142,7 +142,7 @@ struct parse_layernorm : op_parser<parse_layernorm>
     static instruction_ref stage_two_calculation(const onnx_parser::node_info& info,
                                                  const instruction_ref& x,
                                                  const instruction_ref& scale,
-                                                 const instruction_ref& bias,
+                                                 const std::optional<instruction_ref>& bias,
                                                  const instruction_ref& result,
                                                  const int64_t& kdims,
                                                  bool skip_bias)
@@ -151,7 +151,7 @@ struct parse_layernorm : op_parser<parse_layernorm>
         auto x_rank                 = x_shape.ndim();
         auto skipped_axes           = x_rank - kdims;
         instruction_ref scale_bcast = scale;
-        instruction_ref bias_bcast  = bias;
+        std::optional<instruction_ref> bias_bcast  = bias;
         if(skipped_axes > 0)
         {
             auto x_dims = x_shape.lens();
@@ -163,18 +163,18 @@ struct parse_layernorm : op_parser<parse_layernorm>
 
             if(not skip_bias)
             {
-                if(bias->get_shape().ndim() == 1)
+                if((*bias)->get_shape().ndim() == 1)
                 {
                     bias_bcast = info.add_instruction(
-                        make_op("broadcast", {{"axis", skipped_axes}, {"out_lens", x_dims}}), bias);
+                        make_op("broadcast", {{"axis", skipped_axes}, {"out_lens", x_dims}}), *bias);
                 }
             }
         }
         auto scaled = info.add_common_op("mul", result, scale_bcast);
-        return skip_bias ? scaled : info.add_common_op("add", scaled, bias_bcast);
+        return skip_bias ? scaled : info.add_common_op("add", scaled, *bias_bcast);
     }
 
-    std::tuple<instruction_ref, instruction_ref, instruction_ref, bool>
+    std::tuple<instruction_ref, instruction_ref, std::optional<instruction_ref>, bool>
     handle_inputs(const std::vector<instruction_ref>& args, const int64_t& axis) const
     {
         if(args.size() < 2 or args.size() > 3)
@@ -188,11 +188,11 @@ struct parse_layernorm : op_parser<parse_layernorm>
         is_type_valid(scale->get_shape().type(), "scale");
 
         bool skip_bias = args.size() == 2;
-        instruction_ref bias{};
+        std::optional<instruction_ref> bias;
         if(not skip_bias)
         {
             bias = args.at(2);
-            is_type_valid(bias->get_shape().type(), "bias");
+            is_type_valid((*bias)->get_shape().type(), "bias");
         }
         return {x, scale, bias, skip_bias};
     }

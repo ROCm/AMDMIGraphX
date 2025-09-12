@@ -151,7 +151,7 @@ struct parse_layernorm : op_parser<parse_layernorm>
         auto x_rank                 = x_shape.ndim();
         auto skipped_axes           = x_rank - kdims;
         instruction_ref scale_bcast = scale;
-        std::optional<instruction_ref> bias_bcast  = bias;
+        std::optional<instruction_ref> bias_bcast = bias;
         if(skipped_axes > 0)
         {
             auto x_dims = x_shape.lens();
@@ -166,7 +166,8 @@ struct parse_layernorm : op_parser<parse_layernorm>
                 if((*bias)->get_shape().ndim() == 1)
                 {
                     bias_bcast = info.add_instruction(
-                        make_op("broadcast", {{"axis", skipped_axes}, {"out_lens", x_dims}}), *bias);
+                        make_op("broadcast", {{"axis", skipped_axes}, {"out_lens", x_dims}}),
+                        *bias);
                 }
             }
         }

@@ -1264,7 +1264,9 @@ void fuse_mlir::apply(module_pass_manager& mpm) const
         find_mlir_standalone_conv_op{.mode    = get_mode("convolution", mlir_mode::fast),
                                      .counter = &counter},
         find_mlir_standalone_conv_backwards_op{
-            .mode = get_mode("convolution_backwards", mlir_mode::fast), .counter = &counter},
+            .mode    = get_mode("convolution_backwards",
+                             MIGRAPHX_USE_MIOPEN ? mlir_mode::all : mlir_mode::none),
+            .counter = &counter},
         find_mlir_standalone_dot_op{.mode = get_mode("dot", mlir_mode::fast), .counter = &counter});
 
     mpm.run_pass(dead_code_elimination{});

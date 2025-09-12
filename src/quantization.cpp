@@ -42,6 +42,7 @@
 #include <migraphx/make_op.hpp>
 #include <migraphx/pass_manager.hpp>
 #include <migraphx/normalize_ops.hpp>
+#include <migraphx/rewrite_rnn.hpp>
 #include <set>
 #include <map>
 
@@ -92,7 +93,7 @@ static void quantize_8bits(program& prog,
 {
     // Run optimize_module() before converting to int8/fp8 to const eval and fold in FP32 to
     // avoid loss of precision.
-    run_passes(prog, {normalize_ops{}, optimize_module{}}, quant_tracer());
+    run_passes(prog, {rewrite_rnn{}, normalize_ops{}, optimize_module{}}, quant_tracer());
 
     std::shared_ptr<std::vector<std::pair<float, float>>> quant_8bit_params =
         std::make_shared<std::vector<std::pair<float, float>>>();
@@ -207,5 +208,6 @@ void quantize_fp8(program& prog, const target& t, const std::vector<parameter_ma
     }
     quantize_8bits(prog, t, shape::fp8e4m3fn_type, calibration, supported_ins_names);
 }
+
 } // namespace MIGRAPHX_INLINE_NS
 } // namespace migraphx

@@ -1778,45 +1778,45 @@ TEST_CASE(fp4x2_quant_conv_odd)
 
 TEST_CASE(fp4x2_quant_dot_even)
 {
-    migraphx::shape shape_packed_A{migraphx::shape::fp4x2_type, {216}};
-    migraphx::shape shape_packed_B{migraphx::shape::fp4x2_type, {288}};
-    migraphx::shape shape_scales_A{migraphx::shape::float_type, {1, 3, 6, 24}};
-    migraphx::shape shape_scales_B{migraphx::shape::float_type, {1, 3, 24, 8}};
+    migraphx::shape shape_packed_a{migraphx::shape::fp4x2_type, {216}};
+    migraphx::shape shape_packed_b{migraphx::shape::fp4x2_type, {288}};
+    migraphx::shape shape_scales_a{migraphx::shape::float_type, {1, 3, 6, 24}};
+    migraphx::shape shape_scales_b{migraphx::shape::float_type, {1, 3, 24, 8}};
 
     migraphx::module m1;
     {
-        auto packed_A = m1.add_parameter("input", shape_packed_A);
-        auto packed_B = m1.add_parameter("weights", shape_packed_B);
-        auto scale_A  = m1.add_parameter("scale_A", shape_scales_A);
-        auto scale_B  = m1.add_parameter("scale_B", shape_scales_B);
+        auto packed_a = m1.add_parameter("input", shape_packed_a);
+        auto packed_b = m1.add_parameter("weights", shape_packed_b);
+        auto scale_a  = m1.add_parameter("scale_a", shape_scales_a);
+        auto scale_b  = m1.add_parameter("scale_b", shape_scales_b);
 
-        auto unpack_A   = m1.add_instruction(migraphx::make_op("unpack_fp4"), packed_A);
-        auto unpack_B   = m1.add_instruction(migraphx::make_op("unpack_fp4"), packed_B);
-        auto reshaped_A = m1.add_instruction(
-            migraphx::make_op("reshape", {{"dims", shape_scales_A.lens()}}), unpack_A);
-        auto reshaped_B = m1.add_instruction(
-            migraphx::make_op("reshape", {{"dims", shape_scales_B.lens()}}), unpack_B);
-        auto dq_A = m1.add_instruction(migraphx::make_op("dequantizelinear"), reshaped_A, scale_A);
-        auto dq_B = m1.add_instruction(migraphx::make_op("dequantizelinear"), reshaped_B, scale_B);
-        auto dot  = m1.add_instruction(migraphx::make_op("dot"), dq_A, dq_B);
+        auto unpack_a   = m1.add_instruction(migraphx::make_op("unpack_fp4"), packed_a);
+        auto unpack_b   = m1.add_instruction(migraphx::make_op("unpack_fp4"), packed_b);
+        auto reshaped_a = m1.add_instruction(
+            migraphx::make_op("reshape", {{"dims", shape_scales_a.lens()}}), unpack_a);
+        auto reshaped_b = m1.add_instruction(
+            migraphx::make_op("reshape", {{"dims", shape_scales_b.lens()}}), unpack_b);
+        auto dq_a = m1.add_instruction(migraphx::make_op("dequantizelinear"), reshaped_a, scale_a);
+        auto dq_b = m1.add_instruction(migraphx::make_op("dequantizelinear"), reshaped_b, scale_b);
+        auto dot  = m1.add_instruction(migraphx::make_op("dot"), dq_a, dq_b);
         m1.add_return({dot});
     }
 
     migraphx::module m2;
     {
-        auto packed_A = m2.add_parameter("input", shape_packed_A);
-        auto packed_B = m2.add_parameter("weights", shape_packed_B);
-        auto scale_A  = m2.add_parameter("scale_A", shape_scales_A);
-        auto scale_B  = m2.add_parameter("scale_B", shape_scales_B);
+        auto packed_a = m2.add_parameter("input", shape_packed_a);
+        auto packed_b = m2.add_parameter("weights", shape_packed_b);
+        auto scale_a  = m2.add_parameter("scale_a", shape_scales_a);
+        auto scale_b  = m2.add_parameter("scale_b", shape_scales_b);
 
-        auto unpack_A   = m2.add_instruction(migraphx::make_op("unpack_fp4"), packed_A);
-        auto unpack_B   = m2.add_instruction(migraphx::make_op("unpack_fp4"), packed_B);
-        auto reshaped_A = m2.add_instruction(
-            migraphx::make_op("reshape", {{"dims", shape_scales_A.lens()}}), unpack_A);
-        auto reshaped_B = m2.add_instruction(
-            migraphx::make_op("reshape", {{"dims", shape_scales_B.lens()}}), unpack_B);
+        auto unpack_a   = m2.add_instruction(migraphx::make_op("unpack_fp4"), packed_a);
+        auto unpack_b   = m2.add_instruction(migraphx::make_op("unpack_fp4"), packed_b);
+        auto reshaped_a = m2.add_instruction(
+            migraphx::make_op("reshape", {{"dims", shape_scales_a.lens()}}), unpack_a);
+        auto reshaped_b = m2.add_instruction(
+            migraphx::make_op("reshape", {{"dims", shape_scales_b.lens()}}), unpack_b);
         auto quant_dot = m2.add_instruction(
-            migraphx::make_op("quant_dot"), reshaped_A, reshaped_B, scale_A, scale_B);
+            migraphx::make_op("quant_dot"), reshaped_a, reshaped_b, scale_a, scale_b);
         m2.add_return({quant_dot});
     }
 

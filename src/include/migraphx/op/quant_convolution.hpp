@@ -87,6 +87,10 @@ struct quant_convolution
     {
         check_shapes{inputs, *this}.has(2, 4);
         check_shapes{{inputs.at(0), inputs.at(1)}, *this}.same_type().same_ndims().min_ndims(3);
+        if(inputs.size() == 4)
+        {
+            check_shapes{{inputs.at(2), inputs.at(3)}, *this}.same_type();
+        }
         check_attribute_size();
 
         const shape& input   = inputs.at(0);

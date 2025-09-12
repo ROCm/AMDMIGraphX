@@ -243,7 +243,7 @@ struct parse_matmul : op_parser<parse_matmul>
     static instruction_ref handle_dequantized(const onnx_parser::node_info& info,
                                               const instruction_ref& a0,
                                               const instruction_ref& scale_a0,
-                                              const instruction_ref& zp_a0,
+                                              const std::optional<instruction_ref>& zp_a0,
                                               bool no_zp)
     {
         instruction_ref dequantized_op;
@@ -260,7 +260,7 @@ struct parse_matmul : op_parser<parse_matmul>
                 make_op("multibroadcast", {{"out_lens", a0->get_shape().lens()}}), scale_a0);
 
             auto bc_zp_a0 = info.add_instruction(
-                make_op("multibroadcast", {{"out_lens", a0->get_shape().lens()}}), zp_a0);
+                make_op("multibroadcast", {{"out_lens", a0->get_shape().lens()}}), *zp_a0);
 
             dequantized_op =
                 info.add_instruction(make_op("dequantizelinear"), a0, bc_scale_a0, bc_zp_a0);
@@ -279,8 +279,8 @@ struct parse_matmul : op_parser<parse_matmul>
                                                 const bool has_scale_bias)
     {
 
-        instruction_ref unsq_zp_a0{};
-        instruction_ref unsq_zp_a1{};
+        std::optional<instruction_ref> unsq_zp_a0;
+        std::optional<instruction_ref> unsq_zp_a1;
 
         bool a0_has_no_zp = (a0 == zp_a0);
         bool a1_has_no_zp = (a1 == zp_a1);
@@ -291,7 +291,7 @@ struct parse_matmul : op_parser<parse_matmul>
             if(zp_a0->get_shape().scalar())
             {
                 unsq_zp_a0 =
-                    info.add_instruction(make_op("unsqueeze", {{"axes", {0}}}), unsq_zp_a0);
+                    info.add_instruction(make_op("unsqueeze", {{"axes", {0}}}), *unsq_zp_a0);
             }
         }
 
@@ -301,7 +301,7 @@ struct parse_matmul : op_parser<parse_matmul>
             if(zp_a1->get_shape().scalar())
             {
                 unsq_zp_a1 =
-                    info.add_instruction(make_op("unsqueeze", {{"axes", {0}}}), unsq_zp_a1);
+                    info.add_instruction(make_op("unsqueeze", {{"axes", {0}}}), *unsq_zp_a1);
             }
         }
 

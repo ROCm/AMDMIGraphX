@@ -305,7 +305,8 @@ def main():
     print("\t Failed: {}".format(case_num - correct_num))
     if case_num > correct_num:
         error_num = case_num - correct_num
-        raise ValueError(str(error_num) + " cases failed!")
+        print(str(error_num) + " cases failed!")
+        sys.exit(1)
 
 
 if __name__ == "__main__":

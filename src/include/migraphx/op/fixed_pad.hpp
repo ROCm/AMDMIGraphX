@@ -46,45 +46,18 @@ namespace op {
  */
 struct fixed_pad
 {
-    std::vector<size_t> output_lens = {};
-
-    template <class Self, class F>
-    static auto reflect(Self& self, F f)
-    {
-        return pack(f(self.output_lens, "output_lens"));
-    }
 
     std::string name() const { return "fixed_pad"; }
+    
     shape compute_shape(std::vector<shape> inputs) const
     {
         check_shapes{inputs, *this, true}.has(1);
         const auto& s0 = inputs.front();
-        if(s0.ndim() != output_lens.size())
-        {
-            MIGRAPHX_THROW("FIXED_PAD: input number of dimensions should match output_lens size");
-        }
         if(s0.dynamic())
         {
-            for(auto i = 0; i < s0.ndim(); i++)
-            {
-                if(output_lens[i] != s0.dyn_dims()[i].max)
-                    MIGRAPHX_THROW(
-                        "FIXED_PAD: padding to size smaller than max dyn dim is not allowed");
-            }
+            return {s0.type(), s0.max_lens()};
         }
-        else
-        {
-            if(std::mismatch(s0.lens().begin(),
-                             s0.lens().end(),
-                             output_lens.begin(),
-                             [&](auto in_dim, auto out_dim) { return in_dim <= out_dim; })
-                   .first != s0.lens().end())
-            {
-                MIGRAPHX_THROW("FIXED_PAD: output lens are smaller than input lens");
-            }
-        }
-
-        return {s0.type(), output_lens};
+        return s0;
     }
     argument compute(const shape& output_shape, std::vector<argument> args) const
     {

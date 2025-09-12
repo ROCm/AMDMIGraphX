@@ -36,7 +36,7 @@ TEST_CASE(fixed_pad_test)
     auto* mm = p.get_main_module();
     migraphx::shape s{migraphx::shape::float_type, {{1, 3}, {3, 3}}};
     auto x = mm->add_parameter("x", s);
-    mm->add_instruction(migraphx::make_op("fixed_pad", {{"output_lens", {3, 3}}}), x);
+    mm->add_instruction(migraphx::make_op("fixed_pad"), x);
     p.compile(migraphx::make_target("ref"));
     std::vector<float> data = {-3, -2, -1, 0, 1, 2};
     migraphx::shape s2{migraphx::shape::float_type, {2, 3}};
@@ -54,7 +54,7 @@ TEST_CASE(fixed_pad_same_shape_test)
     auto* mm = p.get_main_module();
     migraphx::shape s{migraphx::shape::float_type, {{1, 2}, {3, 3}}};
     auto x = mm->add_parameter("x", s);
-    mm->add_instruction(migraphx::make_op("fixed_pad", {{"output_lens", {2, 3}}}), x);
+    mm->add_instruction(migraphx::make_op("fixed_pad"), x);
     p.compile(migraphx::make_target("ref"));
     std::vector<float> data = {-3, -2, -1, 0, 1, 2};
     migraphx::shape s2{migraphx::shape::float_type, {2, 3}};

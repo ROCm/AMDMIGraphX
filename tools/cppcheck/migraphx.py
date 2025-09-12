@@ -399,6 +399,33 @@ def UseManagePointer(cfg, data):
         cppcheck.reportError(token, "style",
                              "Use manage pointer for resource management.")
 
+@cppcheck.checker
+def UseNamedLogicOperator(cfg, data):
+    for token in cfg.tokenlist:
+        if token.str == '&&':
+            if token.originalName and token.originalName == 'and':
+                continue
+            if not token.astParent:
+                continue
+            if not token.astOperand1:
+                continue
+            if not token.astOperand2:
+                continue
+            cppcheck.reportError(
+                token, "style",
+                "Use named logic operator 'and' for '&&'")
+        elif token.str == '||':
+            if token.originalName and token.originalName == 'or':
+                continue
+            cppcheck.reportError(
+                token, "style",
+                "Use named logic operator 'or' for '||'")
+        elif token.str == '!':
+            if token.originalName and token.originalName == 'not':
+                continue
+            cppcheck.reportError(
+                token, "style",
+                "Use named logic operator 'not' for '!'")
 
 @cppcheck.checker
 def UseSmartPointer(cfg, data):

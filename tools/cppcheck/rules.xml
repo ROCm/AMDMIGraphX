@@ -44,7 +44,7 @@
         <summary>Macros must be prefixed with MIGRAPHX_</summary>
     </message>
 </rule>
-<rule>
+<!-- <rule>
     <tokenlist>raw</tokenlist>
     <pattern><![CDATA[ [^\(,;{}:]+ \w+ && (\w+|\(|\+|\-|\*)]]></pattern>
     <message>
@@ -79,7 +79,7 @@
         <severity>style</severity>
         <summary>Use 'not' instead of !</summary>
     </message>
-</rule>
+</rule> -->
 <rule>
     <tokenlist>normal</tokenlist>
     <pattern><![CDATA[if (\([^()]*(?-1)*[^()]*\)) { [^{}]* (return|throw|break|continue) [^;]* ; } else {]]></pattern>

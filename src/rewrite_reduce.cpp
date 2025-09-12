@@ -30,7 +30,6 @@
 #include <migraphx/matcher.hpp>
 #include <migraphx/make_op.hpp>
 #include <migraphx/common.hpp>
-#include <migraphx/pass_manager.hpp>
 #include <migraphx/eliminate_common_subexpression.hpp>
 #include <migraphx/eliminate_convert.hpp>
 #include <migraphx/dead_code_elimination.hpp>

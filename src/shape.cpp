@@ -31,6 +31,7 @@
 #include <algorithm>
 #include <functional>
 #include <unordered_map>
+#include <unordered_set>
 #include <iostream>
 
 namespace migraphx {
@@ -242,8 +243,11 @@ std::string shape::to_sizes_string(const std::vector<shape>& shapes)
 const std::vector<shape::type_t>& shape::types()
 {
     static const std::vector<shape::type_t> result = {
+    // clang-format off
 #define MIGRAPHX_GENERATE_TYPE_VECTOR(x, t) x,
-        MIGRAPHX_SHAPE_VISIT_TYPES(MIGRAPHX_GENERATE_TYPE_VECTOR) tuple_type};
+        MIGRAPHX_SHAPE_VISIT_TYPES(MIGRAPHX_GENERATE_TYPE_VECTOR)
+        tuple_type};
+    // clang-format on
     return result;
 }
 
@@ -266,7 +270,7 @@ std::string shape::cpp_type(shape::type_t t)
     switch(t)
     {
     case tuple_type: MIGRAPHX_THROW("No C++ type for tuple");
-    case fp4x2_type: MIGRAPHX_THROW("No C++ type for fp4x2_type");
+    case fp4x2_type: return "uint8_t";
 #define MIGRAPHX_SHAPE_GENERATE_CPP_TYPE_CASE(x, t) \
     case x: return #t;
         MIGRAPHX_SHAPE_VISIT_TYPES(MIGRAPHX_SHAPE_GENERATE_CPP_TYPE_CASE)
@@ -312,6 +316,8 @@ bool shape::is_unsigned(shape::type_t t)
     visit(t, [&](auto as) { result = as.is_unsigned(); });
     return result;
 }
+
+bool shape::is_computable(shape::type_t t) { return t != shape::fp4x2_type; }
 
 shape::shape() : impl(shape_impl::default_shape()) {}
 
@@ -419,7 +425,16 @@ std::size_t shape::type_size() const
 {
     std::size_t n = 0;
     if(this->sub_shapes().empty())
-        this->visit_type([&](auto as) { n = as.size(); });
+    {
+        if(this->computable())
+        {
+            this->visit_type([&](auto as) { n = as.size(); });
+        }
+        else
+        {
+            n = sizeof(uint8_t);
+        }
+    }
     return n;
 }
 
@@ -651,6 +666,8 @@ bool shape::any_of_dynamic() const
     });
 }
 
+bool shape::computable() const { return is_computable(this->type()); }
+
 const std::vector<shape::dynamic_dimension>& shape::dyn_dims() const
 {
     if(not this->dynamic())
@@ -814,10 +831,13 @@ std::ostream& operator<<(std::ostream& os, const shape& x)
 shape::type_t shape::parse_type(const std::string& s)
 {
     static const std::unordered_map<std::string, shape::type_t> m = {
+    // clang-format off
 #define MIGRAPHX_SHAPE_GENERATE_TYPE_STRING_MAP(x, t) {#x, x}, {#t, x},
-        MIGRAPHX_SHAPE_VISIT_TYPES(MIGRAPHX_SHAPE_GENERATE_TYPE_STRING_MAP){"tuple_type",
-                                                                            tuple_type},
+        MIGRAPHX_SHAPE_VISIT_TYPES(MIGRAPHX_SHAPE_GENERATE_TYPE_STRING_MAP)
+        {"fp4x2_type", fp4x2_type},
+        {"tuple_type", tuple_type},
         {"tuple", tuple_type}};
+    // clang-format on
     return m.at(s);
 }
 

@@ -12391,12 +12391,30 @@ def resize_downsample_linear_test():
     return ([node], [X], [Y], [scale_tensor])
 
 @onnx_test()
-def resize_downsample_linear_half_test():
+def resize_downsample_linear_half_invalid_scale_test():
     scales = np.array([1.0, 1.0, 0.6, 0.5], dtype=np.float16)
     scale_tensor = helper.make_tensor(name='scales',
                                       data_type=TensorProto.FLOAT16,
                                       dims=scales.shape,
                                       vals=scales.flatten().astype(np.float16))
+
+    X = helper.make_tensor_value_info('X', TensorProto.FLOAT16, [1, 1, 2, 4])
+    Y = helper.make_tensor_value_info('Y', TensorProto.FLOAT16, [])
+
+    node = onnx.helper.make_node('Resize',
+                                 inputs=['X', '', 'scales'],
+                                 outputs=['Y'],
+                                 mode='linear')
+
+    return ([node], [X], [Y], [scale_tensor])
+
+@onnx_test()
+def resize_downsample_linear_half_test():
+    scales = np.array([1.0, 1.0, 0.6, 0.5], dtype=np.float32)
+    scale_tensor = helper.make_tensor(name='scales',
+                                      data_type=TensorProto.FLOAT,
+                                      dims=scales.shape,
+                                      vals=scales.flatten().astype(np.float32))
 
     X = helper.make_tensor_value_info('X', TensorProto.FLOAT16, [1, 1, 2, 4])
     Y = helper.make_tensor_value_info('Y', TensorProto.FLOAT16, [])

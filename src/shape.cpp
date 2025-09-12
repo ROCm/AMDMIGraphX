@@ -270,7 +270,7 @@ std::string shape::cpp_type(shape::type_t t)
     switch(t)
     {
     case tuple_type: MIGRAPHX_THROW("No C++ type for tuple");
-    case fp4x2_type: MIGRAPHX_THROW("No C++ type for fp4x2_type");
+    case fp4x2_type: return "uint8_t";
 #define MIGRAPHX_SHAPE_GENERATE_CPP_TYPE_CASE(x, t) \
     case x: return #t;
         MIGRAPHX_SHAPE_VISIT_TYPES(MIGRAPHX_SHAPE_GENERATE_CPP_TYPE_CASE)

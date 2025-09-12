@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2025 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2025 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -20,21 +20,31 @@
  * LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
  * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
  * THE SOFTWARE.
+ *
  */
-#ifndef MIGRAPHX_GUARD_RTGLIB_REDUCE_DIMS_HPP
-#define MIGRAPHX_GUARD_RTGLIB_REDUCE_DIMS_HPP
+#ifndef MIGRAPHX_GUARD_PMR_UNORDERED_SET_HPP
+#define MIGRAPHX_GUARD_PMR_UNORDERED_SET_HPP
 
 #include <migraphx/config.hpp>
-#include <migraphx/shape.hpp>
-#include <vector>
+#include <migraphx/pmr.hpp>
+
+#include <unordered_set>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
+namespace pmr {
+#if MIGRAPHX_HAS_PMR
+template <class Key, class Hash = std::hash<Key>, class KeyEqual = std::equal_to<Key>>
+using unordered_set = std::pmr::unordered_set<Key, Hash, KeyEqual>;
+#else
+template <class Key, class Hash = std::hash<Key>, class KeyEqual = std::equal_to<Key>>
+struct unordered_set : std::unordered_set<Key, Hash, KeyEqual>
+{
+    using std::unordered_set<Key, Hash, KeyEqual>::unordered_set;
+};
+#endif
 
-/// Collapse adjacent shape dimensions that are the same between shapes.
-MIGRAPHX_EXPORT std::vector<shape> reduce_dims(const std::vector<shape>& shapes);
-
+} // namespace pmr
 } // namespace MIGRAPHX_INLINE_NS
 } // namespace migraphx
-
-#endif
+#endif // MIGRAPHX_GUARD_PMR_UNORDERED_SET_HPP

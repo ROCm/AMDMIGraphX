@@ -137,8 +137,6 @@ struct module_pm : module_pass_manager
             return;
         trace("Pass: ", p.name());
         assert(mod);
-	std::cout << "DEBUGGING: here is the mod before the assertion\n\n\n\n\n\n";
-	mod->debug_print();
         assert(mod->validate() == mod->end());
         if(enabled(MIGRAPHX_TIME_PASSES{}))
         {

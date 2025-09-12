@@ -807,8 +807,6 @@ struct find_mlir_fused_geg_ops
 
     void apply(module_pass_manager& mpm, const match::matcher_result& r) const
     {
-	    std::cout << "DEBUGGING: here is the mod before geg fusion\n\n\n\n\n";
-	mpm.get_module().debug_print();
         auto second_gemm_ins = r.result;
         auto elemwise_ins    = r.instructions["elemwise"];
         auto first_gemm_ins  = r.instructions["first_gemm_based_op"];
@@ -904,41 +902,40 @@ struct find_mlir_fused_geg_ops
                                                 mlir_op{second_gemm_ins->get_operator()},
                                                 mlir_contiguous(mpm, inputs),
                                                 {mm});
-
         if(first_gemm_has_multi_outs or elemwise_has_multi_outs)
         {
             std::size_t output_idx  = 0;
-            auto second_gemm_result = mpm.get_module().insert_instruction(
-                std::next(fused_ins),
-                migraphx::make_op("get_tuple_elem", {{"index", output_idx++}}),
-                fused_ins);
-            mpm.get_module().replace_instruction(second_gemm_ins, second_gemm_result);
 
             if(elemwise_has_multi_outs)
             {
                 auto elemwise_result = mpm.get_module().insert_instruction(
-                    std::next(fused_ins),
-                    migraphx::make_op("get_tuple_elem", {{"index", output_idx++}}),
+                    second_gemm_ins,
+                    migraphx::make_op("get_tuple_elem", {{"index", ++output_idx}}),
                     fused_ins);
                 mpm.get_module().replace_instruction(elemwise_ins, elemwise_result);
+
             }
 
             if(first_gemm_has_multi_outs)
             {
+                // TODO might need to put this in an else up above? what happens when both intermediates are used?
+                mpm.get_module().move_instruction(elemwise_ins, second_gemm_ins);
                 auto first_gemm_result = mpm.get_module().insert_instruction(
                     std::next(fused_ins),
-                    migraphx::make_op("get_tuple_elem", {{"index", output_idx++}}),
+                    migraphx::make_op("get_tuple_elem", {{"index", ++output_idx}}),
                     fused_ins);
-                mpm.get_module().replace_instruction(first_gemm_ins, first_gemm_result);
+                    mpm.get_module().replace_instruction(first_gemm_ins, first_gemm_result);
             }
+            mpm.get_module().replace_instruction(
+                second_gemm_ins,
+                migraphx::make_op("get_tuple_elem", {{"index", 0}}),
+                fused_ins);
         }
         else
         {
             // simple single output case
             mpm.get_module().replace_instruction(second_gemm_ins, fused_ins);
         }
-	std::cout << "DEBUGGING: here is the mod AFTER geg fusion\n\n\n\n\n";
-	mpm.get_module().debug_print();
     }
 };
 
@@ -1469,6 +1466,7 @@ void fuse_mlir::apply(module_pass_manager& mpm) const
             mpm,
             find_mlir_fused_geg_ops{.conv_mode = get_mode("fused_convolution", mlir_mode::fast),
                                     .dot_mode  = get_mode("fused_dot", mlir_mode::fast)});
+        mpm.run_pass(dead_code_elimination{});
     }
 
     match::find_matches(

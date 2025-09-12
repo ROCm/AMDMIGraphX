@@ -48,7 +48,7 @@ struct fixed_pad
 {
 
     std::string name() const { return "fixed_pad"; }
-    
+
     shape compute_shape(std::vector<shape> inputs) const
     {
         check_shapes{inputs, *this, true}.has(1);

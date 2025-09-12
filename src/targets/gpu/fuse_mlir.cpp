@@ -701,12 +701,11 @@ struct find_mlir_fused_ops
             inss_to_insert.push_back(reshape_ins);
             gemm_has_multi_outs |= reshape_ins->outputs().size() > 1;
         }
-
         inss_to_insert.push_back(gemm_based_op);
         std::reverse(inss_to_insert.begin(), inss_to_insert.end());
         mm->add_instructions(inss_to_insert, &map_ins);
-        fuse_input_ops(mm, pw_ins->inputs(), &map_ins);
 
+        fuse_input_ops(mm, pw_ins->inputs(), &map_ins);
         auto rins = mm->fuse(*pm, pw_ins->inputs(), &map_ins, &insert_pointwise);
         if(gemm_has_multi_outs)
         {

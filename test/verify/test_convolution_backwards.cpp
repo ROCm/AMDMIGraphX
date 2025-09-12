@@ -27,17 +27,20 @@
 #include <migraphx/generate.hpp>
 #include <migraphx/make_op.hpp>
 
-struct test_convolution_backwards : verify_program<test_convolution_backwards>
+template <migraphx::shape::type_t DType>
+struct test_convolution_backwards : verify_program<test_convolution_backwards<DType>>
 {
     migraphx::program create_program() const
     {
         migraphx::program p;
-        auto* mm = p.get_main_module();
-        auto input =
-            mm->add_parameter("x", migraphx::shape{migraphx::shape::float_type, {1, 1, 3, 3}});
-        auto weights =
-            mm->add_parameter("w", migraphx::shape{migraphx::shape::float_type, {1, 1, 3, 3}});
+        auto* mm     = p.get_main_module();
+        auto input   = mm->add_parameter("x", migraphx::shape{DType, {1, 1, 3, 3}});
+        auto weights = mm->add_parameter("w", migraphx::shape{DType, {1, 1, 3, 3}});
         mm->add_instruction(migraphx::make_op("convolution_backwards"), input, weights);
         return p;
     }
 };
+
+template struct test_convolution_backwards<migraphx::shape::float_type>;
+template struct test_convolution_backwards<migraphx::shape::half_type>;
+template struct test_convolution_backwards<migraphx::shape::bf16_type>;

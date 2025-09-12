@@ -372,14 +372,9 @@ auto is_mlir_conv_backwards(mlir_mode mode)
 #endif
 
         auto input = ins->inputs().front()->get_shape();
-        if(not contains({shape::type_t::float_type,
-                         shape::type_t::half_type,
-                         shape::type_t::bf16_type,
-                         shape::type_t::fp8e4m3fnuz_type,
-                         shape::type_t::fp8e5m2fnuz_type,
-                         shape::type_t::fp8e4m3fn_type,
-                         shape::type_t::fp8e5m2_type},
-                        input.type()))
+        if(not contains(
+               {shape::type_t::float_type, shape::type_t::half_type, shape::type_t::bf16_type},
+               input.type()))
             return false;
 
         auto w = ins->inputs().at(1)->get_shape();

@@ -1384,7 +1384,6 @@ void fuse_mlir::apply(module_pass_manager& mpm) const
             mpm,
             find_mlir_fused_geg_ops{.conv_mode = get_mode("fused_convolution", mlir_mode::fast),
                                     .dot_mode  = get_mode("fused_dot", mlir_mode::fast)});
-        mpm.run_pass(dead_code_elimination{});
     }
 
     match::find_matches(

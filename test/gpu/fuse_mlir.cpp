@@ -1903,8 +1903,8 @@ TEST_CASE(dot_pw_multi_user_dot)
         auto d    = mm->add_parameter("d", s);
         auto e    = mm->add_parameter("e", s);
         auto dot1 = mm->add_instruction(migraphx::make_op("dot"), a, b);
-        auto elemwise = add_pointwise(
-            p1, "main:pointwise0", {dot1, c, d}, [=](auto* pm, const auto& inputs) {
+        auto elemwise =
+            add_pointwise(p1, "main:pointwise0", {dot1, c, d}, [=](auto* pm, const auto& inputs) {
                 auto add =
                     pm->add_instruction(migraphx::make_op("add"), inputs.at(0), inputs.at(1));
                 return pm->add_instruction(migraphx::make_op("mul"), add, inputs.at(2));
@@ -1922,7 +1922,7 @@ TEST_CASE(dot_pw_multi_user_dot)
         auto b     = mm->add_parameter("b", s);
         auto c     = mm->add_parameter("c", s);
         auto d     = mm->add_parameter("d", s);
-        auto e    = mm->add_parameter("e", s);
+        auto e     = mm->add_parameter("e", s);
         auto fused = add_mlir(
             p2, "mlir_main:pointwise0_geg", {a, b, c, d, e}, [=](auto* pm, const auto& inputs) {
                 auto dot1 = pm->add_instruction(migraphx::make_op("dot"), inputs[0], inputs[1]);
@@ -2040,7 +2040,6 @@ TEST_CASE(dot_add_dot_both_multi_user)
         return;
     EXPECT(p1.sort() == p2.sort());
 }
-
 
 int main(int argc, const char* argv[])
 {

@@ -430,22 +430,22 @@ bool is_pointwise_op_supported_by_mlir(const instruction& i)
     }
     const std::initializer_list<std::string> any_type_ops = {"@literal", "@param", "@return"};
     const std::initializer_list<std::string> no_bool_ops  = {
-         "convolution",
-         "quant_convolution",
-         "dot",
-         "quant_dot",
-         "add",
-         "clip",
-         "relu",
-         "sub",
-         "mul",
-         "div",
-         "pow",
-         "where",
-         "quantizelinear",
-         "dequantizelinear",
-         "abs",
-         "neg",
+        "convolution",
+        "quant_convolution",
+        "dot",
+        "quant_dot",
+        "add",
+        "clip",
+        "relu",
+        "sub",
+        "mul",
+        "div",
+        "pow",
+        "where",
+        "quantizelinear",
+        "dequantizelinear",
+        "abs",
+        "neg",
     };
     const std::initializer_list<std::string> fp_only_ops = {
         "ceil",
@@ -866,8 +866,9 @@ struct find_mlir_fused_geg_ops
         auto inputs = find_inputs(map_ins, &mpm.get_module(), mm);
 
         // place fused mod at first instruction to avoid any rogue ops being placed between the g+g
-        // ops, even though they aren't used in the fused mod, bc they might rely on one of the intermediates.
-        // Otherwise, when replacing intermediates' usages, we can run into unresolved dependencies
+        // ops, even though they aren't used in the fused mod, bc they might rely on one of the
+        // intermediates. Otherwise, when replacing intermediates' usages, we can run into
+        // unresolved dependencies
         auto fused_ins =
             mpm.get_module().insert_instruction(first_gemm_ins,
                                                 mlir_op{second_gemm_ins->get_operator()},
@@ -875,7 +876,7 @@ struct find_mlir_fused_geg_ops
                                                 {mm});
         if(first_gemm_has_multi_outs or elemwise_has_multi_outs)
         {
-            std::size_t output_idx  = 0;
+            std::size_t output_idx = 0;
             if(elemwise_has_multi_outs)
             {
                 auto elemwise_result = mpm.get_module().insert_instruction(
@@ -886,15 +887,13 @@ struct find_mlir_fused_geg_ops
             }
             if(first_gemm_has_multi_outs)
             {
-                 mpm.get_module().replace_instruction(
+                mpm.get_module().replace_instruction(
                     first_gemm_ins,
                     migraphx::make_op("get_tuple_elem", {{"index", ++output_idx}}),
                     fused_ins);
             }
             mpm.get_module().replace_instruction(
-                second_gemm_ins,
-                migraphx::make_op("get_tuple_elem", {{"index", 0}}),
-                fused_ins);
+                second_gemm_ins, migraphx::make_op("get_tuple_elem", {{"index", 0}}), fused_ins);
         }
         else
         {

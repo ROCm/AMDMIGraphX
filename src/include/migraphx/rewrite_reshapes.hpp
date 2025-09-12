@@ -166,13 +166,9 @@ struct rewrite_reshapes
             auto reshape_input = [&](const auto& ins_to_insert, auto generate) {
                 return [&, generate](auto input) {
                     auto gops  = std::invoke(generate, desc, input->get_shape().lens());
-                    auto start = input;
-                    for(const auto& op : gops)
-                    {
-                        // cppcheck-suppress useStlAlgorithm
-                        start = mpm.get_module().insert_instruction(ins_to_insert, op, start);
-                    }
-                    return start;
+                    return std::accumulate(gops.begin(), gops.end(), input, [&](auto start, const auto& op) {
+                        return mpm.get_module().insert_instruction(ins_to_insert, op, start);
+                    });
                 };
             };
             auto x_inputs = x_ins->inputs();

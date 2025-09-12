@@ -864,34 +864,32 @@ struct find_mlir_fused_geg_ops
         mm->add_return(return_vals);
 
         auto inputs = find_inputs(map_ins, &mpm.get_module(), mm);
+
+        // place fused mod at first instruction to avoid any rogue ops being placed between the g+g
+        // ops, even though they aren't used in the fused mod, bc they might rely on one of the intermediates.
+        // Otherwise, when replacing intermediates' usages, we can run into unresolved dependencies
         auto fused_ins =
-            mpm.get_module().insert_instruction(second_gemm_ins,
+            mpm.get_module().insert_instruction(first_gemm_ins,
                                                 mlir_op{second_gemm_ins->get_operator()},
                                                 mlir_contiguous(mpm, inputs),
                                                 {mm});
         if(first_gemm_has_multi_outs or elemwise_has_multi_outs)
         {
             std::size_t output_idx  = 0;
-
             if(elemwise_has_multi_outs)
             {
                 auto elemwise_result = mpm.get_module().insert_instruction(
-                    second_gemm_ins,
+                    first_gemm_ins,
                     migraphx::make_op("get_tuple_elem", {{"index", ++output_idx}}),
                     fused_ins);
                 mpm.get_module().replace_instruction(elemwise_ins, elemwise_result);
-
             }
-
             if(first_gemm_has_multi_outs)
             {
-                // TODO might need to put this in an else up above? what happens when both intermediates are used?
-                mpm.get_module().move_instruction(elemwise_ins, second_gemm_ins);
-                auto first_gemm_result = mpm.get_module().insert_instruction(
-                    std::next(fused_ins),
+                 mpm.get_module().replace_instruction(
+                    first_gemm_ins,
                     migraphx::make_op("get_tuple_elem", {{"index", ++output_idx}}),
                     fused_ins);
-                    mpm.get_module().replace_instruction(first_gemm_ins, first_gemm_result);
             }
             mpm.get_module().replace_instruction(
                 second_gemm_ins,

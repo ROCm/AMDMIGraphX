@@ -60,7 +60,7 @@ struct fpga_placeholder_op
         {
             MIGRAPHX_THROW("should have one submodule.");
         }
-        const module_ref sm = mods.front();
+        const_module_ref sm = mods.front();
         if(sm->get_output_shapes().size() != 1)
             MIGRAPHX_THROW("Only one return");
         return sm->get_output_shapes().front();

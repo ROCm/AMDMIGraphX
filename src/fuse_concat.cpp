@@ -58,12 +58,12 @@ struct fused_concat
             MIGRAPHX_THROW("FUSED_CONCAT: Missing fused modules inputs parameters");
         auto input_iter = inputs.begin();
         std::vector<shape> concat_inputs;
-        for(const module_ref mod : range(mods.begin(), mods.end() - 1))
+        for(const_module_ref mod : range(mods.begin(), mods.end() - 1))
         {
             concat_inputs.push_back(*input_iter);
             input_iter += mod->get_parameter_names().size();
         }
-        const module_ref post_mod = mods.back();
+        const_module_ref post_mod = mods.back();
         // post_mod has one input argument that is result of concat and will get generated from
         // pre-mods internally. Therefore deduct 1 from post_mod params while asserting.
         assert(input_iter + (post_mod->get_parameter_names().size() - 1) == inputs.end());

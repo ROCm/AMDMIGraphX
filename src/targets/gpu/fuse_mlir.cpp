@@ -774,6 +774,8 @@ struct find_mlir_fused_geg_ops
 
     void apply(module_pass_manager& mpm, const match::matcher_result& r) const
     {
+	    std::cout << "DEBUGGING: here is the mod before geg fusion\n\n\n\n\n";
+	mpm.get_module().debug_print();
         auto second_gemm_ins = r.result;
         auto elemwise_ins    = r.instructions["elemwise"];
         auto first_gemm_ins  = r.instructions["first_gemm_based_op"];
@@ -902,6 +904,8 @@ struct find_mlir_fused_geg_ops
             // simple single output case
             mpm.get_module().replace_instruction(second_gemm_ins, fused_ins);
         }
+	std::cout << "DEBUGGING: here is the mod AFTER geg fusion\n\n\n\n\n";
+	mpm.get_module().debug_print();
     }
 };
 

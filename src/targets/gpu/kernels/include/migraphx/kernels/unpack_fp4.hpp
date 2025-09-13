@@ -21,20 +21,33 @@
  * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
  * THE SOFTWARE.
  */
-#ifndef MIGRAPHX_GUARD_RTGLIB_REDUCE_DIMS_HPP
-#define MIGRAPHX_GUARD_RTGLIB_REDUCE_DIMS_HPP
+#ifndef MIGRAPHX_GUARD_KERNELS_UNPACK_FP4_HPP
+#define MIGRAPHX_GUARD_KERNELS_UNPACK_FP4_HPP
 
-#include <migraphx/config.hpp>
-#include <migraphx/shape.hpp>
-#include <vector>
+#include <migraphx/kernels/types.hpp>
+#include <migraphx/kernels/index.hpp>
+#include <migraphx/kernels/tensor_view.hpp>
+#include <migraphx/kernels/fp4_casts.hpp>
 
 namespace migraphx {
-inline namespace MIGRAPHX_INLINE_NS {
 
-/// Collapse adjacent shape dimensions that are the same between shapes.
-MIGRAPHX_EXPORT std::vector<shape> reduce_dims(const std::vector<shape>& shapes);
+template <int Axis, class Input, class Output>
+__device__ void unpack_fp4(Input input, Output output)
+{
+    const auto input_shape = input.get_shape();
+    make_index().global_stride(input_shape.elements(), [&](auto i) {
+        auto in_idx  = input_shape.multi(i);
+        auto out_idx = in_idx;
+        out_idx[Axis] *= 2;
+        // unpacking 2 unsigned parts
+        // unpacking 4 least significant bits first
+        uint8_t fp4_val = input[in_idx];
+        output[out_idx] = fp4_to_float(fp4_val);
+        out_idx[Axis] += 1;
+        fp4_val         = fp4_val >> 4u;
+        output[out_idx] = fp4_to_float(fp4_val);
+    });
+}
 
-} // namespace MIGRAPHX_INLINE_NS
 } // namespace migraphx
-
-#endif
+#endif // MIGRAPHX_GUARD_KERNELS_UNPACK_FP4_HPP

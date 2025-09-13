@@ -766,43 +766,41 @@ struct find_mlir_fused_geg_ops
     {
         auto first_dot_or_conv = match::any_of(is_mlir_dot(dot_mode), is_mlir_conv(conv_mode))
                                      .bind("first_gemm_based_op");
-        auto elemwise =
-            mlir_pointwise()(match::any_of[match::inputs()](first_dot_or_conv)).bind("elemwise");
-        return is_mlir_dot(dot_mode)(match::any_of[match::inputs()](elemwise))
+        return is_mlir_dot(dot_mode)(match::any_of[match::inputs()](first_dot_or_conv))
             .bind("second_gemm_op");
     }
 
     void apply(module_pass_manager& mpm, const match::matcher_result& r) const
     {
         auto second_gemm_ins = r.result;
-        auto elemwise_ins    = r.instructions["elemwise"];
+        // auto elemwise_ins    = r.instructions["elemwise"];
         auto first_gemm_ins  = r.instructions["first_gemm_based_op"];
 
-        auto* elemwise_module = elemwise_ins->module_inputs().front();
-        auto elemwise_inputs  = elemwise_ins->inputs();
+        // auto* elemwise_module = elemwise_ins->module_inputs().front();
+        // auto elemwise_inputs  = elemwise_ins->inputs();
 
-        // only one input to elemwise should depend on first_gemm
-        if(std::any_of(elemwise_inputs.begin(), elemwise_inputs.end(), [&](const auto& i) {
-               return i != first_gemm_ins and reaches(first_gemm_ins, i);
-           }))
-            return;
+        // // only one input to elemwise should depend on first_gemm
+        // if(std::any_of(elemwise_inputs.begin(), elemwise_inputs.end(), [&](const auto& i) {
+        //        return i != first_gemm_ins and reaches(first_gemm_ins, i);
+        //    }))
+        //     return;
 
-        // only one input to second_gemm should depend on elemwise
+        // // only one input to second_gemm should depend on elemwise
         auto second_gemm_inputs = second_gemm_ins->inputs();
-        if(std::any_of(second_gemm_inputs.begin(), second_gemm_inputs.end(), [&](const auto& i) {
-               return i != elemwise_ins and reaches(elemwise_ins, i);
-           }))
-            return;
+        // if(std::any_of(second_gemm_inputs.begin(), second_gemm_inputs.end(), [&](const auto& i) {
+        //        return i != elemwise_ins and reaches(elemwise_ins, i);
+        //    }))
+        //     return;
 
         std::unordered_map<instruction_ref, instruction_ref> map_ins;
         module_ref mm =
-            mpm.create_module("mlir_" + elemwise_ins->module_inputs().front()->name() + "_geg");
+            mpm.create_module("mlir_test_geg");
         mm->set_bypass();
         fuse_input_ops(mm, first_gemm_ins->inputs(), &map_ins);
 
         // need to track multi-user scenarios for both intermediates
         bool first_gemm_has_multi_outs = first_gemm_ins->outputs().size() > 1;
-        bool elemwise_has_multi_outs   = elemwise_ins->outputs().size() > 1;
+        // bool elemwise_has_multi_outs   = elemwise_ins->outputs().size() > 1;
 
         // add the first gemm to the module
         std::vector<instruction_ref> first_gemm_mapped_inputs;
@@ -815,20 +813,20 @@ struct find_mlir_fused_geg_ops
             mm->add_instruction(first_gemm_ins->get_operator(), first_gemm_mapped_inputs);
         map_ins[first_gemm_ins] = first_gemm_in_module;
 
-        // fuse external inputs for the elemwise operation
-        std::vector<instruction_ref> elemwise_external_inputs;
-        elemwise_external_inputs.reserve(elemwise_inputs.size());
-        std::copy_if(elemwise_inputs.begin(),
-                     elemwise_inputs.end(),
-                     std::back_inserter(elemwise_external_inputs),
-                     [&](auto input) { return input != first_gemm_ins; });
-        fuse_input_ops(mm, elemwise_external_inputs, &map_ins);
+        // // fuse external inputs for the elemwise operation
+        // std::vector<instruction_ref> elemwise_external_inputs;
+        // elemwise_external_inputs.reserve(elemwise_inputs.size());
+        // std::copy_if(elemwise_inputs.begin(),
+        //              elemwise_inputs.end(),
+        //              std::back_inserter(elemwise_external_inputs),
+        //              [&](auto input) { return input != first_gemm_ins; });
+        // fuse_input_ops(mm, elemwise_external_inputs, &map_ins);
 
-        // fuse elemwise submodule
-        auto elemwise_rins =
-            mm->fuse(*elemwise_module, elemwise_inputs, &map_ins, &insert_pointwise);
-        assert(elemwise_rins.size() == 1);
-        map_ins[elemwise_ins] = elemwise_rins.front();
+        // // fuse elemwise submodule
+        // auto elemwise_rins =
+        //     mm->fuse(*elemwise_module, elemwise_inputs, &map_ins, &insert_pointwise);
+        // assert(elemwise_rins.size() == 1);
+        // map_ins[elemwise_ins] = elemwise_rins.front();
 
         // fuse external inputs for the second gemm
         std::vector<instruction_ref> second_gemm_external_inputs;
@@ -836,7 +834,7 @@ struct find_mlir_fused_geg_ops
         std::copy_if(second_gemm_inputs.begin(),
                      second_gemm_inputs.end(),
                      std::back_inserter(second_gemm_external_inputs),
-                     [&](auto input) { return input != elemwise_ins; });
+                     [&](auto input) { return input != first_gemm_ins; });
         fuse_input_ops(mm, second_gemm_external_inputs, &map_ins);
 
         // add the second gemm to the new module
@@ -853,10 +851,10 @@ struct find_mlir_fused_geg_ops
         std::vector<instruction_ref> return_vals;
         return_vals.push_back(second_gemm_in_module);
 
-        if(elemwise_has_multi_outs)
-        {
-            return_vals.push_back(map_ins[elemwise_ins]);
-        }
+        // if(elemwise_has_multi_outs)
+        // {
+        //     return_vals.push_back(map_ins[elemwise_ins]);
+        // }
         if(first_gemm_has_multi_outs)
         {
             return_vals.push_back(map_ins[first_gemm_ins]);
@@ -874,17 +872,17 @@ struct find_mlir_fused_geg_ops
                                                 mlir_op{second_gemm_ins->get_operator()},
                                                 mlir_contiguous(mpm, inputs),
                                                 {mm});
-        if(first_gemm_has_multi_outs or elemwise_has_multi_outs)
+        if(first_gemm_has_multi_outs)// or elemwise_has_multi_outs)
         {
             std::size_t output_idx = 0;
-            if(elemwise_has_multi_outs)
-            {
-                auto elemwise_result = mpm.get_module().insert_instruction(
-                    first_gemm_ins,
-                    migraphx::make_op("get_tuple_elem", {{"index", ++output_idx}}),
-                    fused_ins);
-                mpm.get_module().replace_instruction(elemwise_ins, elemwise_result);
-            }
+            // if(elemwise_has_multi_outs)
+            // {
+            //     auto elemwise_result = mpm.get_module().insert_instruction(
+            //         first_gemm_ins,
+            //         migraphx::make_op("get_tuple_elem", {{"index", ++output_idx}}),
+            //         fused_ins);
+            //     mpm.get_module().replace_instruction(elemwise_ins, elemwise_result);
+            // }
             if(first_gemm_has_multi_outs)
             {
                 mpm.get_module().replace_instruction(

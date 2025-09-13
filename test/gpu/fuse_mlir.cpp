@@ -1680,6 +1680,39 @@ TEST_CASE(dot_add_dot)
     EXPECT(p1.sort() == p2.sort());
 }
 
+TEST_CASE(dot_dot)
+{
+    migraphx::shape s{migraphx::shape::float_type, {1, 3, 3}};
+    migraphx::program p1;
+    {
+        auto* mm  = p1.get_main_module();
+        auto a    = mm->add_parameter("a", s);
+        auto b    = mm->add_parameter("b", s);
+        auto c    = mm->add_parameter("c", s);
+        auto dot1 = mm->add_instruction(migraphx::make_op("dot"), a, b);
+        auto dot2 = mm->add_instruction(migraphx::make_op("dot"), dot1, c);
+        mm->add_return({dot2});
+    }
+    run_pass(p1);
+    migraphx::program p2;
+    {
+        auto* mm   = p2.get_main_module();
+        auto a     = mm->add_parameter("a", s);
+        auto b     = mm->add_parameter("b", s);
+        auto c     = mm->add_parameter("c", s);
+        auto fused = add_mlir(
+            p2, "mlir_test_geg", {a, b, c}, [=](auto* pm, const auto& inputs) {
+                auto dot1 = pm->add_instruction(migraphx::make_op("dot"), inputs[0], inputs[1]);
+                auto dot2 = pm->add_instruction(migraphx::make_op("dot"), dot1, inputs[2]);
+                return std::make_tuple(dot2->get_operator(), dot2);
+            });
+        mm->add_return({fused});
+    }
+    if(not migraphx::enabled(MIGRAPHX_ENABLE_MLIR_GEG_FUSION{}))
+        return;
+    EXPECT(p1.sort() == p2.sort());
+}
+
 TEST_CASE(dot_mul_dot)
 {
     migraphx::shape s{migraphx::shape::float_type, {1, 3, 3}};

@@ -33,6 +33,7 @@
 #include <map>
 #include <algorithm>
 #include <math.h>
+#include <tuple>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
@@ -643,16 +644,15 @@ struct parse_resize : op_parser<parse_resize>
         return matrix;
     }
 
-    static instruction_ref gen_identity_matrix(const onnx_parser::node_info& info, const size_t& num_rows, const size_t& num_cols)
+    static std::vector<float> gen_identity_matrix(const size_t& num_rows, const size_t& num_cols)
     {
-        std::vector<char> identity_mat(num_rows * num_cols, 0);
+        std::vector<float> identity_mat(num_rows * num_cols, 0.0f);
         for(std::ptrdiff_t i = 0; i < num_rows; ++i)
         {
             if(i < num_cols and i >= 0)
                 identity_mat[(num_cols + 1) * i ] = char{1};
         }
-        return info.add_literal(
-            migraphx::literal{migraphx::shape{migraphx::shape::float_type, {num_rows, num_cols}}, identity_mat});
+        return identity_mat;
     }
 
 
@@ -663,11 +663,51 @@ struct parse_resize : op_parser<parse_resize>
     // - Skip computation for near-zero elements in A
     // - Pre-compute non-zero indices in B for efficiency
     // - Use vectorized operations where possible
-    static instruction_ref kronker_product_optimized(const onnx_parser::node_info& info,
-                                                     instruction_ref a_mat, 
-                                                     instruction_ref b_mat)
+    static std::vector<float> kronker_product_optimized(const std::vector<float>& a_mat, const size_t& a_rows, const size_t& a_cols,
+                                                        const std::vector<float>& b_mat, const size_t& b_rows, const size_t& b_cols,
+                                                        const float& tolerance)
     {
-        instruction_ref result;
+        auto result_rows = a_rows * b_rows;
+        auto result_cols = a_cols * b_rows;
+        std::vector<float> result(result_rows * result_cols, 0.0f);
+
+        std::vector<std::tuple<size_t, size_t, float>> b_nonzero{};
+
+        // Find nonzero b value
+        for (size_t bi = 0; bi < b_rows; ++bi)
+        {
+            for (size_t bj = 0; bj < b_cols; ++bj)
+            {
+                auto b_val = b_mat.at(bi * b_cols + bj);
+                if (std::abs(b_val) > tolerance)
+                    b_nonzero.push_back({bi, bj, b_val});
+            }
+        }
+
+        // Find nonzero A value
+        for (size_t ai = 0; ai < a_rows; ++ai)
+        {
+            for (size_t aj = 0; aj < a_cols; ++aj)
+            {
+                auto a_val = a_mat.at(ai * a_cols + aj);
+                if (std::abs(a_val) > tolerance)
+                {
+                    auto block_start_row = ai * b_rows;
+                    auto block_start_col = aj * b_cols;
+
+                    for(auto& b_tuple: b_nonzero)
+                    {
+                        auto bi    = std::get<0>(b_tuple);
+                        auto bj    = std::get<1>(b_tuple);
+                        auto b_val = std::get<2>(b_tuple);
+                        auto result_row = block_start_row + bi;
+                        auto result_col = block_start_col + bj;
+
+                        result.at(result_row * result_col + result_col) = a_val * b_val;
+                    }
+                }
+            }
+        }
 
         return result;
     }
@@ -687,7 +727,8 @@ struct parse_resize : op_parser<parse_resize>
         auto  pixel_mode       = resize.get_coord_trans_mode();
         auto cubic_coefficient = resize.get_cubic_coeff();
 
-        std::vector<instruction_ref> matrix_list;
+        // Store data as {rows, cols, data} for each input as we generate the final matrix
+        std::vector<std::tuple<size_t, size_t, std::vector<float>>> matrix_list;
 
         // Generate matrix per dimension thats used for the scaling
         size_t dim_index = 0;
@@ -697,7 +738,7 @@ struct parse_resize : op_parser<parse_resize>
             if (std::abs(scale - 1.0f) < tolerance)
             {
                 auto size = in_lens.at(dim_index);
-                matrix_list.push_back(gen_identity_matrix(info, size, size));
+                matrix_list.push_back({size, size, gen_identity_matrix(size, size)});
             }
             else
             {
@@ -708,20 +749,32 @@ struct parse_resize : op_parser<parse_resize>
                                                       tolerance, 
                                                       pixel_mode);
                 auto size = in_lens.at(dim_index);
-                migraphx::shape matrix_shape{shape::float_type, {size, size}};
-                auto matrix_lit = info.add_literal(migraphx::literal{matrix_shape, matrix_data});
-                matrix_list.push_back(matrix_lit);
+                matrix_list.push_back({size, size, matrix_data});
             }
             ++dim_index;
         }
 
-        auto result_matrix = resize.x;
+        // Work off the precomunted data and optimize out sparsity
+        auto result_rows = std::get<0>(matrix_list.at(0));
+        auto result_cols = std::get<1>(matrix_list.at(0));
+        auto result_mat  = std::get<2>(matrix_list.at(0));
 
-        for(auto& matrix_per_dim: matrix_list)
+        float zero_tolerance = 1e-12; // determines our baseline for "zero" or near zero
+
+        for(auto index = 1; index < matrix_list.size(); ++index)
         {
-            result_matrix = kronker_product_optimized(info, result_matrix, matrix_per_dim);
+            auto rows   = std::get<0>(matrix_list.at(index));
+            auto cols   = std::get<1>(matrix_list.at(index));
+            auto matrix = std::get<2>(matrix_list.at(index));
+
+            result_mat  = kronker_product_optimized(result_mat, result_rows, result_cols,
+                                                      matrix, rows, cols, zero_tolerance);
+            result_rows *= rows;
+            result_cols *= cols;
         }
-        return result_matrix;
+        
+        // Generate a final literal based on the optimized output to return
+        return info.add_literal(migraphx::literal(migraphx::shape{migraphx::shape::float_type, {result_rows, result_cols}}, result_mat));
     }
 
     // Cubic interpolation can be done by convolution of a fixed coefficients that are scaled based

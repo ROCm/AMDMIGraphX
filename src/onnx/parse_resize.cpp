@@ -734,6 +734,7 @@ struct parse_resize : op_parser<parse_resize>
         size_t dim_index = 0;
         for (auto& scale: vec_scale)
         {
+            std::cout << scale << std::endl;
             // Perform identity of scale up based on value of input. 
             if (std::abs(scale - 1.0f) < tolerance)
             {
@@ -742,6 +743,7 @@ struct parse_resize : op_parser<parse_resize>
             }
             else
             {
+                std::cout << "Build scale for matrix:" << scale << std::endl;
                 auto matrix_data = build_cubic_matrix(in_lens.at(dim_index),
                                                       out_lens.at(dim_index),
                                                       scale,
@@ -773,6 +775,8 @@ struct parse_resize : op_parser<parse_resize>
             result_cols *= cols;
         }
         
+        std::cout << result_cols << std::endl;
+        std::cout << result_rows << std::endl;
         // Generate a final literal based on the optimized output to return
         return info.add_literal(migraphx::literal(migraphx::shape{migraphx::shape::float_type, {result_rows, result_cols}}, result_mat));
     }
@@ -808,6 +812,7 @@ struct parse_resize : op_parser<parse_resize>
 
         auto interpolation_mat = build_n_cubic_interpolation_matrix(info, resize);
 
+        interpolation_mat->debug_print();
         auto interpolated_output = info.add_instruction(make_op("dot"), rsp, interpolation_mat);
 
         // return output image to the proper output shape based on the output lengs

@@ -21,20 +21,26 @@
  * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
  * THE SOFTWARE.
  */
-#ifndef MIGRAPHX_GUARD_RTGLIB_REDUCE_DIMS_HPP
-#define MIGRAPHX_GUARD_RTGLIB_REDUCE_DIMS_HPP
 
-#include <migraphx/config.hpp>
-#include <migraphx/shape.hpp>
-#include <vector>
+#include "verify_program.hpp"
+#include <migraphx/program.hpp>
+#include <migraphx/generate.hpp>
+#include <migraphx/make_op.hpp>
 
-namespace migraphx {
-inline namespace MIGRAPHX_INLINE_NS {
+template <int Axis = -1>
+struct test_unpack_fp4 : verify_program<test_unpack_fp4<Axis>>
+{
+    migraphx::program create_program() const
+    {
+        migraphx::program p;
+        auto* mm = p.get_main_module();
 
-/// Collapse adjacent shape dimensions that are the same between shapes.
-MIGRAPHX_EXPORT std::vector<shape> reduce_dims(const std::vector<shape>& shapes);
+        auto x = mm->add_parameter("x", migraphx::shape{migraphx::shape::fp4x2_type, {32, 16}});
+        mm->add_instruction(migraphx::make_op("unpack_fp4", {{"axis", Axis}}), x);
 
-} // namespace MIGRAPHX_INLINE_NS
-} // namespace migraphx
+        return p;
+    }
+};
 
-#endif
+template struct test_unpack_fp4<>;
+template struct test_unpack_fp4<0>;

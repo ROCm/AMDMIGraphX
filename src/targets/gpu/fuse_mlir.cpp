@@ -364,13 +364,6 @@ auto is_mlir_conv_backwards(mlir_mode mode)
         if(ins->name() != op_name or specific_op<rejected>(op_name))
             return false;
 
-#if MIGRAPHX_USE_MIOPEN
-        // by default the MIOpen is the choice, except when mlir support is
-        // explicitly desired for this op.
-        if(not specific_op<requested>(op_name))
-            return false;
-#endif
-
         auto input = ins->inputs().front()->get_shape();
         if(not contains(
                {shape::type_t::float_type, shape::type_t::half_type, shape::type_t::bf16_type},
@@ -1265,7 +1258,7 @@ void fuse_mlir::apply(module_pass_manager& mpm) const
                                      .counter = &counter},
         find_mlir_standalone_conv_backwards_op{
             .mode    = get_mode("convolution_backwards",
-                             MIGRAPHX_USE_MIOPEN ? mlir_mode::all : mlir_mode::none),
+                             MIGRAPHX_USE_MIOPEN ? mlir_mode::none : mlir_mode::all),
             .counter = &counter},
         find_mlir_standalone_dot_op{.mode = get_mode("dot", mlir_mode::fast), .counter = &counter});
 

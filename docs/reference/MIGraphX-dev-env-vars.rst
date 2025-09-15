@@ -96,7 +96,7 @@ Model performance tunable variables change the compilation behavior of a model. 
 
       | ``convolution``: Use MLIR generated kernels for all convolutions. MIOpen is used by default otherwise.
 
-      | ``convolution_backwards``: Use MLIR generated kernels for backward-convolution(s). MIOpen is used by default otherwise.
+      | ``convolution_backwards``: Use MLIR generated kernels for backward-convolution. MIOpen is used by default otherwise.
       
       | ``dot``: Use MLIR generated kernels for all GEMMs. hipBLASlt is used otherwise.
       

@@ -550,7 +550,9 @@ struct remove_qdq_pairs
         {
             return;
         }
-        for(auto out : dq_ins->outputs())
+        // Need to copy outputs since will be modifying dq_ins outputs
+        std::vector<instruction_ref> dq_outputs = dq_ins->outputs();
+        for(auto out : dq_outputs)
         {
             instruction::replace_argument(out, dq_ins, q_ins->inputs().front());
         }

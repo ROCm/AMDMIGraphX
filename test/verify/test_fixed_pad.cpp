@@ -21,34 +21,21 @@
  * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
  * THE SOFTWARE.
  */
-#ifndef MIGRAPHX_GUARD_KERNELS_UNPACK_FP4_HPP
-#define MIGRAPHX_GUARD_KERNELS_UNPACK_FP4_HPP
 
-#include <migraphx/kernels/types.hpp>
-#include <migraphx/kernels/index.hpp>
-#include <migraphx/kernels/tensor_view.hpp>
-#include <migraphx/kernels/fp4_casts.hpp>
-#include <migraphx/kernels/float8.hpp>
+#include "verify_program.hpp"
+#include <migraphx/program.hpp>
+#include <migraphx/generate.hpp>
+#include <migraphx/make_op.hpp>
 
-namespace migraphx {
-
-template <int Axis, class Input, class Output>
-__device__ void unpack_fp4(Input input, Output output)
+struct test_fixed_pad : verify_program<test_fixed_pad>
 {
-    const auto input_shape = input.get_shape();
-    make_index().global_stride(input_shape.elements(), [&](auto i) {
-        auto in_idx  = input_shape.multi(i);
-        auto out_idx = in_idx;
-        out_idx[Axis] *= 2;
-        // unpacking 2 unsigned parts
-        // unpacking 4 least significant bits first
-        uint8_t fp4_val = input[in_idx];
-        output[out_idx] = fp4_to_float(fp4_val);
-        out_idx[Axis] += 1;
-        fp4_val         = fp4_val >> 4u;
-        output[out_idx] = fp4_to_float(fp4_val);
-    });
-}
-
-} // namespace migraphx
-#endif // MIGRAPHX_GUARD_KERNELS_UNPACK_FP4_HPP
+    migraphx::program create_program() const
+    {
+        migraphx::program p;
+        auto* mm = p.get_main_module();
+        migraphx::shape s{migraphx::shape::float_type, {1, 3}};
+        auto x = mm->add_parameter("x", s);
+        mm->add_instruction(migraphx::make_op("fixed_pad"), x);
+        return p;
+    }
+};

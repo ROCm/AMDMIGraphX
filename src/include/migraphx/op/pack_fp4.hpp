@@ -57,6 +57,11 @@ struct pack_fp4
     {
         check_shapes{inputs, *this}.same_dims().has(1);
         const auto& in_shape = inputs.front();
+        if(in_shape.type() != migraphx::shape::float_type)
+        {
+            std::cout << in_shape.type_string() << std::endl;
+            MIGRAPHX_THROW("PACK_FP4: Only float32 type input is supported");
+        }
         auto new_lens        = in_shape.lens();
         if(new_lens[axis] % 2 != 0)
         {

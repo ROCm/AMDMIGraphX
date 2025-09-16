@@ -25,9 +25,10 @@
 #define MIGRAPHX_GUARD_KERNELS_FP4_CASTS_HPP
 
 #include <migraphx/kernels/types.hpp>
-#include <migraphx/kernels/bit_cast.hpp>
-#include <migraphx/kernels/bit.hpp>
 #include <migraphx/kernels/array.hpp>
+#include <migraphx/kernels/tuple.hpp>
+#include <migraphx/kernels/hip.hpp>
+#include <migraphx/kernels/algorithm.hpp>
 
 namespace migraphx {
 
@@ -50,63 +51,44 @@ static constexpr array<float, 16> fp4_lut = {0.0f,
                                              -4.0f,
                                              -6.0f};
 
-static constexpr uint8_t fp4_6_0 = 0x7;
-static constexpr uint8_t fp4_4_0 = 0x6;
-static constexpr uint8_t fp4_3_0 = 0x5;
-static constexpr uint8_t fp4_2_0 = 0x4;
-static constexpr uint8_t fp4_1_5 = 0x3;
-static constexpr uint8_t fp4_1_0 = 0x2;
-static constexpr uint8_t fp4_0_5 = 0x1;
-
+// pair is {fp4_tie_value, round_to_zero}
+// if round_to_zero round tie towards zero, else round tie away from zero
+static constexpr array<migraphx::tuple<float, uint8_t>, 7> fp4_even_round = {make_tuple(0.25, 1),
+                                                                             make_tuple(0.75, 0),
+                                                                             make_tuple(1.25, 1),
+                                                                             make_tuple(1.75, 0),
+                                                                             make_tuple(2.5, 1),
+                                                                             make_tuple(3.5, 0),
+                                                                             make_tuple(5, 1)};
 } // namespace fp4_detail
 
-// NOTE: possible to remove float/T casts by making LUTs for each type
 // converts 4 LSB to float
-template <class T>
-__device__ constexpr T cast_from_fp4(uint8_t x)
+__device__ constexpr float fp4_to_float(uint8_t x)
 {
-    return T(fp4_detail::fp4_lut[x % fp4_detail::fp4_lut.size()]);
+    return fp4_detail::fp4_lut[x % fp4_detail::fp4_lut.size()];
 }
 
-template <class T>
-__device__ inline uint8_t cast_to_fp4(T x)
+// rounding mode = roundToNearestRoundTiesToEven
+__device__ inline uint8_t float_to_fp4(float f_x)
 {
-    float f_x        = float(x);
+    using fp4_detail::fp4_even_round;
+    using fp4_detail::fp4_lut;
+    if(isnan(f_x))
+    {
+        return 0;
+    }
     bool sign        = signbit(f_x);
-    uint8_t sign_add = sign ? 0x8u : 0u;
+    uint8_t sign_add = sign ? fp4_lut.size() / 2 : 0u;
     float abs_f      = abs(f_x);
-    if(abs_f >= 1.75)
-    {
-        if(abs_f >= 3.5)
-        {
-            if(abs_f > 5)
-            {
-                return fp4_detail::fp4_6_0 + sign_add;
-            }
-            return fp4_detail::fp4_4_0 + sign_add;
-        }
-        if(abs_f > 2.5)
-        {
-            return fp4_detail::fp4_3_0 + sign_add;
-        }
-        return fp4_detail::fp4_2_0 + sign_add;
-    }
-    if(abs_f >= 0.75)
-    {
-        if(abs_f > 1.25)
-        {
-            return fp4_detail::fp4_1_5 + sign_add;
-        }
-        return fp4_detail::fp4_1_0 + sign_add;
-    }
-    if(abs_f > 0.25)
-    {
-        return fp4_detail::fp4_0_5 + sign_add;
-    }
-    // zeros, Nan, and Inf
-    return 0x0 + sign_add;
-}
+    // index value is the positive fp4 value
+    uint8_t i = migraphx::upper_bound(fp4_even_round.begin(),
+                                      fp4_even_round.end(),
+                                      migraphx::make_tuple(abs_f, uint8_t{0}),
+                                      [&](const auto& a, const auto& b) { return a < b; }) -
+                fp4_even_round.begin();
 
+    return i + sign_add;
+}
 } // namespace migraphx
 
 #endif // MIGRAPHX_GUARD_KERNELS_FP4_CASTS_HPP

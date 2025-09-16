@@ -35,6 +35,7 @@ def rocmtestnode(Map conf) {
             echo "leak:libtbb.so" >> suppressions.txt
             cat suppressions.txt
             export LSAN_OPTIONS="suppressions=\$(pwd)/suppressions.txt"
+            export ASAN_OPTIONS="detect_container_overflow=0"
             export MIGRAPHX_GPU_DEBUG=${gpu_debug}
             export CXX=${compiler}
             export CXXFLAGS='-Werror'

@@ -205,6 +205,7 @@ register_migraphx_ops(
     erf
     exp
     fill
+    fixed_pad
     flatten
     floor
     fmod

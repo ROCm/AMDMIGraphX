@@ -1814,8 +1814,8 @@ TEST_CASE(fp4x2_quant_dot_even)
     EXPECT(m1 == m2);
 }
 
-// Test that unused qdq with pack_fp4, unpack_fp4, and reshapes are removed
-TEST_CASE(fp4x2_remove_qdq)
+// Test that unused qdq with pack_fp4, unpack_fp4 are removed
+TEST_CASE(fp4x2_even_remove_qdq)
 {
 
     migraphx::shape shape_input{migraphx::shape::float_type, {8, 8}};
@@ -1825,13 +1825,52 @@ TEST_CASE(fp4x2_remove_qdq)
         auto b = m1.add_parameter("b", shape_input);
         // simulate scales calc with just abs()
         auto scale_a = m1.add_instruction(migraphx::make_op("abs"), a);
-        auto quant   = m1.add_instruction(migraphx::make_op("quantizelinear"), a, scale_a);
-        auto pack_fp4 = m1.add_instruction(migraphx::make_op("pack_fp4", {{"axis", 1}}), quant);
-        auto unpack_fp4 =
-            m1.add_instruction(migraphx::make_op("unpack_fp4", {{"axis", 1}}), pack_fp4);
+        auto quant   = m1.add_instruction(
+            migraphx::make_op("quantizelinear", {{"out_type", migraphx::shape::float_type}}),
+            a,
+            scale_a);
+        auto pack_fp4   = m1.add_instruction(migraphx::make_op("pack_fp4"), quant);
+        auto unpack_fp4 = m1.add_instruction(migraphx::make_op("unpack_fp4"), pack_fp4);
         auto dequant =
             m1.add_instruction(migraphx::make_op("dequantizelinear"), unpack_fp4, scale_a);
         auto add = m1.add_instruction(migraphx::make_op("add"), dequant, b);
+        m1.add_return({add});
+    }
+
+    migraphx::module m2;
+    {
+        auto a   = m2.add_parameter("a", shape_input);
+        auto b   = m2.add_parameter("b", shape_input);
+        auto add = m2.add_instruction(migraphx::make_op("add"), a, b);
+        m2.add_return({add});
+    }
+
+    run_pass(m1);
+    EXPECT(m1 == m2);
+}
+
+TEST_CASE(fp4x2_odd_remove_qdq)
+{
+
+    migraphx::shape shape_input{migraphx::shape::float_type, {7, 7}};
+    migraphx::module m1;
+    {
+        auto a = m1.add_parameter("a", shape_input);
+        auto b = m1.add_parameter("b", shape_input);
+        // simulate scales calc with just abs()
+        auto scale_a = m1.add_instruction(migraphx::make_op("abs"), a);
+        auto quant   = m1.add_instruction(
+            migraphx::make_op("quantizelinear", {{"out_type", migraphx::shape::float_type}}),
+            a,
+            scale_a);
+        auto pad = m1.add_instruction(migraphx::make_op("pad", {{"pads", {0, 0, 0, 1}}}), quant);
+        auto pack_fp4   = m1.add_instruction(migraphx::make_op("pack_fp4"), pad);
+        auto unpack_fp4 = m1.add_instruction(migraphx::make_op("unpack_fp4"), pack_fp4);
+        auto slice      = m1.add_instruction(
+            migraphx::make_op("slice", {{"axes", {1}}, {"starts", {0}}, {"ends", {7}}}),
+            unpack_fp4);
+        auto dequant = m1.add_instruction(migraphx::make_op("dequantizelinear"), slice, scale_a);
+        auto add     = m1.add_instruction(migraphx::make_op("add"), dequant, b);
         m1.add_return({add});
     }
 

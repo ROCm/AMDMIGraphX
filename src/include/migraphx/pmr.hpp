@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2025 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2025 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -20,35 +20,23 @@
  * LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
  * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
  * THE SOFTWARE.
+ *
  */
-#ifndef MIGRAPHX_GUARD_KERNELS_UNPACK_FP4_HPP
-#define MIGRAPHX_GUARD_KERNELS_UNPACK_FP4_HPP
+#ifndef MIGRAPHX_GUARD_MIGRAPHX_PMR_HPP
+#define MIGRAPHX_GUARD_MIGRAPHX_PMR_HPP
 
-#include <migraphx/kernels/types.hpp>
-#include <migraphx/kernels/index.hpp>
-#include <migraphx/kernels/tensor_view.hpp>
-#include <migraphx/kernels/fp4_casts.hpp>
-#include <migraphx/kernels/float8.hpp>
+#include <migraphx/config.hpp>
 
-namespace migraphx {
+#if defined(__has_include) && __has_include(<memory_resource>)
+#include <memory_resource>
+#endif
 
-template <int Axis, class Input, class Output>
-__device__ void unpack_fp4(Input input, Output output)
-{
-    const auto input_shape = input.get_shape();
-    make_index().global_stride(input_shape.elements(), [&](auto i) {
-        auto in_idx  = input_shape.multi(i);
-        auto out_idx = in_idx;
-        out_idx[Axis] *= 2;
-        // unpacking 2 unsigned parts
-        // unpacking 4 least significant bits first
-        uint8_t fp4_val = input[in_idx];
-        output[out_idx] = fp4_to_float(fp4_val);
-        out_idx[Axis] += 1;
-        fp4_val         = fp4_val >> 4u;
-        output[out_idx] = fp4_to_float(fp4_val);
-    });
-}
+#if defined(__cpp_lib_memory_resource) && __cpp_lib_memory_resource >= 201603L
+#define MIGRAPHX_HAS_PMR 1
+#endif
 
-} // namespace migraphx
-#endif // MIGRAPHX_GUARD_KERNELS_UNPACK_FP4_HPP
+#ifndef MIGRAPHX_HAS_PMR
+#define MIGRAPHX_HAS_PMR 0
+#endif
+
+#endif // MIGRAPHX_GUARD_MIGRAPHX_PMR_HPP

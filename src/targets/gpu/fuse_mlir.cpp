@@ -800,7 +800,7 @@ struct find_mlir_standalone_op
 using find_mlir_standalone_convolution_op = find_mlir_standalone_op<&is_mlir_conv>;
 using find_mlir_standalone_dot_op         = find_mlir_standalone_op<&is_mlir_dot>;
 
-struct find_mlir_standalone_attention_op
+struct find_mlir_attention_op
 {
     auto matcher() const
     {
@@ -835,66 +835,73 @@ struct find_mlir_standalone_attention_op
 
         std::unordered_map<instruction_ref, instruction_ref> map_group_mod_to_mlir_attn(
             map_main_to_mlir_attn);
-        auto attn_out = mlir_attn->fuse(*group_mod, group->inputs(), &map_group_mod_to_mlir_attn);
+        auto attn_outs = mlir_attn->fuse(*group_mod, group->inputs(), &map_group_mod_to_mlir_attn);
 
-        // Fuse any succeeding pointwise module
-        if(contains(r.instructions, "trailing_pm"))
+        std::unordered_map<instruction_ref, instruction_ref> inss_to_replace;
+        // Only fuse attention outputs that are used once by pointwise ops
+        if(group->outputs().size() == 1 or attn_outs.size() > 1)
         {
-            map_main_to_mlir_attn[group] = attn_out.front();
-            auto trailing_pm_ins         = r.instructions["trailing_pm"];
-            auto lit_map                 = create_param_map_with_literals(
-                mlir_attn, trailing_pm_ins->module_inputs().front(), trailing_pm_ins->get_shape());
-            mlir_attn->add_params(trailing_pm_ins->inputs(), &map_main_to_mlir_attn);
-            map_main_to_mlir_attn.insert(lit_map.begin(), lit_map.end());
-            std::unordered_map<instruction_ref, instruction_ref> map_pm_to_mlir_attn(
-                map_main_to_mlir_attn);
-            auto fused_pw_outs = mlir_attn->fuse(*trailing_pm_ins->module_inputs().front(),
-                                                 trailing_pm_ins->inputs(),
-                                                 &map_pm_to_mlir_attn);
-            map_main_to_mlir_attn[trailing_pm_ins] = fused_pw_outs.front();
-            mlir_attn->add_return(fused_pw_outs);
+            std::size_t out_idx  = 0;
+            auto attn_output_ins = group;
+            for(auto out : group->outputs())
+            {
+                auto op = out->get_operator();
+                if(op.name() == "get_tuple_elem")
+                {
+                    inss_to_replace[out]  = out;
+                    out_idx               = op.to_value()["index"].to<std::size_t>();
+                    auto tuple_elem_users = out->outputs();
+                    if(tuple_elem_users.size() > 1)
+                        continue;
+
+                    attn_output_ins = out;
+                    out             = tuple_elem_users.front();
+                }
+
+                auto match_pw = match::match_instruction(mpm.get_module(), out, mlir_pointwise());
+                if(match_pw.result != out)
+                    continue;
+
+                map_main_to_mlir_attn[attn_output_ins] = attn_outs[out_idx];
+                inss_to_replace[attn_output_ins]       = out;
+
+                auto lit_map = create_param_map_with_literals(
+                    mlir_attn, out->module_inputs().front(), out->get_shape());
+                mlir_attn->add_params(out->inputs(), &map_main_to_mlir_attn);
+                map_main_to_mlir_attn.insert(lit_map.begin(), lit_map.end());
+                std::unordered_map<instruction_ref, instruction_ref> map_pm_to_mlir_attn(
+                    map_main_to_mlir_attn);
+                auto fused_pw_outs = mlir_attn->fuse(
+                    *out->module_inputs().front(), out->inputs(), &map_pm_to_mlir_attn);
+                assert(fused_pw_outs.size() == 1);
+
+                map_main_to_mlir_attn[out] = fused_pw_outs.front();
+                attn_outs[out_idx]         = fused_pw_outs.front();
+            }
         }
-        else
-        {
-            mlir_attn->add_return(attn_out);
-        }
+        mlir_attn->add_return(attn_outs);
 
         auto map_mlir_attn_to_main = invert_map_ins(map_main_to_mlir_attn);
         auto new_inputs            = mlir_attn->get_inputs(map_mlir_attn_to_main);
 
-        mpm.get_module().replace_instruction(
-            r.result, mlir_op{make_op("dot")}, mlir_contiguous(mpm, new_inputs), {mlir_attn});
-    }
-};
+        auto mlir_ins = mpm.get_module().insert_instruction(
+            group, mlir_op{make_op("dot")}, mlir_contiguous(mpm, new_inputs), {mlir_attn});
 
-struct find_mlir_attention_op
-{
-    mlir_mode dot_mode = mlir_mode::none;
-
-    auto matcher() const { return match::name("group"); }
-
-    void apply(module_pass_manager& mpm, const match::matcher_result& r) const
-    {
-        auto group = r.result;
-        auto tag   = group->get_operator().to_value().get("tag", "");
-        if(tag != "attention")
+        if(inss_to_replace.empty())
         {
-            return;
+            mpm.get_module().replace_instruction(group, mlir_ins);
         }
-
-        auto* m_attn = group->module_inputs()[0];
-        mpm.get_module().replace_instruction(
-            group, mlir_op{group->get_operator()}, mlir_contiguous(mpm, group->inputs()), {m_attn});
-    }
-};
-
-struct find_mlir_attention_fused_ops : public find_mlir_standalone_attention_op
-{
-    auto matcher() const
-    {
-        auto standalone_matcher = find_mlir_standalone_attention_op::matcher();
-        return mlir_pointwise()(
-            match::any_of[match::inputs()](standalone_matcher).bind("trailing_pm"));
+        else
+        {
+            for(auto const& [attn_out, fused_user] : inss_to_replace)
+            {
+                auto replace_ins = mlir_ins;
+                auto output_op   = attn_out->get_operator();
+                if(output_op.name() == "get_tuple_elem")
+                    replace_ins = mpm.get_module().insert_instruction(group, output_op, {mlir_ins});
+                mpm.get_module().replace_instruction(fused_user, replace_ins);
+            }
+        }
     }
 };
 
@@ -1303,16 +1310,7 @@ void fuse_mlir::apply(module_pass_manager& mpm) const
     match::find_matches(mpm, find_channel_slice_convolution{});
     mpm.run_pass(dead_code_elimination{});
 
-    // Attention offloads; default disabled
-    if(mlir_attention_enabled(ctx) or enable_extra)
-    {
-        match::find_matches(mpm, find_mlir_attention_fused_ops{});
-        mpm.run_pass(dead_code_elimination{});
-        match::find_matches(mpm, find_mlir_standalone_attention_op{});
-        mpm.run_pass(dead_code_elimination{});
-    }
-
-    match::find_matches(mpm, find_mlir_attention_op{mlir_mode::all});
+    match::find_matches(mpm, find_mlir_attention_op{});
     mpm.run_pass(dead_code_elimination{});
 
     match::find_matches(

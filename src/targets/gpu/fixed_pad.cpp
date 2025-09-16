@@ -21,37 +21,29 @@
  * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
  * THE SOFTWARE.
  */
-#ifndef MIGRAPHX_GUARD_KERNELS_PACK_FP4_HPP
-#define MIGRAPHX_GUARD_KERNELS_PACK_FP4_HPP
-
-#include <migraphx/kernels/types.hpp>
-#include <migraphx/kernels/index.hpp>
-#include <migraphx/kernels/tensor_view.hpp>
-#include <migraphx/kernels/fp4_casts.hpp>
-// TODO: use hip_fp4 header
-// #include <hip/hip_fp4.h>
+#include <migraphx/gpu/fixed_pad.hpp>
+#include <migraphx/gpu/context.hpp>
+#include <migraphx/gpu/device/fixed_pad.hpp>
 
 namespace migraphx {
+inline namespace MIGRAPHX_INLINE_NS {
+namespace gpu {
 
-template <int Axis, class Input, class Output>
-__device__ void pack_fp4(Input input, Output output)
+shape hip_fixed_pad::compute_shape(std::vector<shape> inputs) const
 {
-    const auto output_shape = output.get_shape();
-    make_index().global_stride(output_shape.elements(), [&](auto i) {
-        auto out_idx = output_shape.multi(i);
-        auto in_idx  = out_idx;
-        in_idx[Axis] *= 2;
-        auto inp_val0 = input[in_idx];
-        in_idx[Axis] += 1;
-        auto inp_val1    = input[in_idx];
-        uint8_t out_val0 = cast_to_fp4(inp_val0);
-        uint8_t out_val1 = cast_to_fp4(inp_val1);
-        output[out_idx]  = static_cast<uint8_t>(out_val1 << 4u) | out_val0;
-        // TODO: from hip_fp4 header
-        // auto fp32x2_val = float2{input[idx], input[idx + 1]};
-        // output[idx] = __hip_cvt_float2_to_fp4x2(fp32x2_val, __HIP_E2M1, __HIP_SATFINITE);
-    });
+    inputs.pop_back();
+    check_shapes{inputs, *this, true}.has(1);
+    return op.compute_shape(inputs);
 }
 
+argument hip_fixed_pad::compute(context& ctx, const shape&, const std::vector<argument>& args) const
+{
+    if(args.front().get_shape() == args.back().get_shape())
+        return args.front();
+
+    return device::fixed_pad(ctx.get_stream().get(), args.back(), args.front());
+}
+
+} // namespace gpu
+} // namespace MIGRAPHX_INLINE_NS
 } // namespace migraphx
-#endif // MIGRAPHX_GUARD_KERNELS_PACK_FP4_HPP

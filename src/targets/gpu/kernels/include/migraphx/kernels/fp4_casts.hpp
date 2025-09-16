@@ -70,31 +70,29 @@ __device__ constexpr T cast_from_fp4(uint8_t x)
     return T(fp4_detail::fp4_lut[x % fp4_detail::fp4_lut.size()]);
 }
 
+// rounding mode = roundToNearestRoundTiesToEven
 template <class T>
 __device__ inline uint8_t cast_to_fp4(T x)
 {
     float f_x        = float(x);
-    // rounding mode = roundToNearestRoundTiesToEven
-    __device__ inline uint8_t float_to_fp4(float f_x)
+    using fp4_detail::fp4_even_round;
+    using fp4_detail::fp4_lut;
+    if(isnan(f_x))
     {
-        using fp4_detail::fp4_even_round;
-        using fp4_detail::fp4_lut;
-        if(isnan(f_x))
-        {
-            return 0;
-        }
-        bool sign        = signbit(f_x);
-        uint8_t sign_add = sign ? fp4_lut.size() / 2 : 0u;
-        float abs_f      = abs(f_x);
-        // index value is the positive fp4 value
-        uint8_t i = migraphx::upper_bound(fp4_even_round.begin(),
-                                          fp4_even_round.end(),
-                                          migraphx::make_tuple(abs_f, uint8_t{0}),
-                                          [&](const auto& a, const auto& b) { return a < b; }) -
-                    fp4_even_round.begin();
-
-        return i + sign_add;
+        return 0;
     }
+    bool sign        = signbit(f_x);
+    uint8_t sign_add = sign ? fp4_lut.size() / 2 : 0u;
+    float abs_f      = abs(f_x);
+    // index value is the positive fp4 value
+    uint8_t i = migraphx::upper_bound(fp4_even_round.begin(),
+                                      fp4_even_round.end(),
+                                      migraphx::make_tuple(abs_f, uint8_t{0}),
+                                      [&](const auto& a, const auto& b) { return a < b; }) -
+                fp4_even_round.begin();
+
+    return i + sign_add;
+}
 
 } // namespace migraphx
 

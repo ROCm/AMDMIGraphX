@@ -70,6 +70,35 @@ void trim_module(module& m, std::size_t loc, std::size_t n)
     auto last  = std::prev(m.end(), loc);
     auto start = std::prev(last, n);
     m.remove_instructions(last, m.end());
+
+    // Add returns for instructions that have no outputs
+    std::vector<instruction_ref> returns_to_add;
+    for(instruction_ref ins : iterator_for(m))
+    {
+        // Skip parameters, literals, and return instructions
+        if(ins->name() == "@param" || ins->name() == "@literal" || ins->name() == "@return")
+            continue;
+        
+        // If this instruction has no outputs, mark it for return
+        if(ins->outputs().empty())
+        {
+            returns_to_add.push_back(ins);
+        }
+    }
+    if (not returns_to_add.empty())
+    {
+        last = std::prev(m.end());
+        if (last->name() == "@return")
+        {
+            // If there are existing return instructions, we need to merge them
+            auto existing_returns = last->inputs();
+            returns_to_add.insert(returns_to_add.end(), existing_returns.begin(), existing_returns.end());
+            // Remove existing return instructions to avoid duplication
+            m.remove_instruction(last);
+        }
+        m.add_return(returns_to_add);
+    }
+
     if(n == 0)
         return;
     if(n > m.size())

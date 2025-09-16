@@ -48,6 +48,9 @@ quantize_module(module& m, const std::vector<std::string>& ins_names, shape::typ
         if(contains({"@return", "convert"}, ins->name()))
             continue;
 
+        if(contains({"reduce", "sigmoid", "add", "mul", "sub"}, ins->name()))
+            continue;
+
         if(ins->inputs().empty())
             continue;
 

@@ -23,6 +23,7 @@
  */
 
 #include <migraphx/verify_args.hpp>
+#include <iomanip>
 
 MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_VERIFY_DUMP_DIFF);
 
@@ -39,11 +40,17 @@ bool verify_args(const std::string& name,
         double rms_error;
         passed =
             verify::verify_range_with_tolerance(target, verify::expected{ref}, tols, &rms_error);
+        std::cout << std::setprecision(4) << std::scientific;
+        std::cout << "RMS Error: " << rms_error << std::endl;
+        auto mxdiff = verify::max_diff(ref, target);
+        std::cout << "Max diff: " << mxdiff << std::endl;
+        // std::cout << "ref:" << ref << std::endl;
+        // std::cout << "target:" << target << std::endl;
         if(not passed)
         {
             // TODO: Check for nans
             std::cout << "FAILED: " << name << std::endl;
-            std::cout << "RMS Error: " << rms_error << std::endl;
+            // std::cout << "RMS Error: " << rms_error << std::endl;
             if(ref.size() < 32 or enabled(MIGRAPHX_VERIFY_DUMP_DIFF{}))
                 std::cout << "ref:" << ref << std::endl;
             if(target.size() < 32 or enabled(MIGRAPHX_VERIFY_DUMP_DIFF{}))
@@ -53,8 +60,8 @@ bool verify_args(const std::string& name,
             if(verify::range_zero(target))
                 std::cout << "Target data is all zeros" << std::endl;
 
-            auto mxdiff = verify::max_diff(ref, target);
-            std::cout << "Max diff: " << mxdiff << std::endl;
+            // auto mxdiff = verify::max_diff(ref, target);
+            // std::cout << "Max diff: " << mxdiff << std::endl;
 
             auto idx = verify::mismatch_idx(ref, target, float_equal);
             if(idx < verify::range_distance(ref))

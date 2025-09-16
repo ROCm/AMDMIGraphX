@@ -52,6 +52,7 @@
 #include <unordered_set>
 #include <map>
 #include <cassert>
+#include <iomanip>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
@@ -367,6 +368,7 @@ static void print_statistics(std::ostream& os, const argument& a)
 {
     a.visit(
         [&](auto t) {
+            os << std::setprecision(8);
             os << "Min value: " << *std::min_element(t.begin(), t.end()) << ", ";
             os << "Max value: " << *std::max_element(t.begin(), t.end()) << ", ";
             double num_elements = t.size();

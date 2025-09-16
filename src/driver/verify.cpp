@@ -23,6 +23,7 @@
  */
 #include "verify.hpp"
 #include "perf.hpp"
+#include "trim.hpp"
 
 #include <migraphx/compile_options.hpp>
 #include <migraphx/fp_to_double.hpp>
@@ -218,9 +219,10 @@ static bool verify_reduced(program p,
                            const parameter_map& inputs,
                            verify::tolerance tols)
 {
-    auto* mm  = p.get_main_module();
-    auto last = std::prev(mm->end(), n);
-    mm->remove_instructions(last, mm->end());
+    // auto* mm  = p.get_main_module();
+    // auto last = std::prev(mm->end(), n);
+    // mm->remove_instructions(last, mm->end());
+    trim_module(*p.get_main_module(), n, 0);
     std::cout << "Verify: " << n << std::endl;
     std::cout << p << std::endl;
     try
@@ -245,15 +247,19 @@ void verify_reduced_program(const program& p,
     const auto* mm = p.get_main_module();
     auto n         = std::distance(mm->begin(), mm->end());
     std::cout << "Verify steps: " << n << std::endl;
-    for(std::size_t i = 1; i < n; i++)
+    for(std::size_t i = n; i > 1; i--)
     {
-        auto last = std::prev(mm->end(), i + 1);
+        auto last = std::prev(mm->end(), i - 1);
         if(contains({"@literal", "@param"}, last->name()))
         {
             std::cout << "Skip: " << i << std::endl;
             continue;
         }
-        verify_reduced(p, i, t, options, vo, inputs, tols);
+        if (not verify_reduced(p, i, t, options, vo, inputs, tols))
+        {
+            std::cout << "First failure at: " << i << std::endl;
+            return;
+        }
     }
 }
 
@@ -317,24 +323,27 @@ void verify_bisected_program(const program& p,
 {
     const auto* mm = p.get_main_module();
 
-    std::vector<std::size_t> trims = find_trim_instructions(*mm);
-    std::int64_t right             = trims.size();
+    // std::vector<std::size_t> trims = find_trim_instructions(*mm);
+    // std::int64_t right             = trims.size();
+    std::int64_t right             = mm->size(); 
     std::int64_t left              = 0;
     std::int64_t failed            = -1;
 
     while(left <= right)
     {
         std::int64_t mid = left + (right - left) / 2;
-        assert(mid < trims.size() and mid >= 0);
-        std::int64_t trim = trims.rbegin()[mid];
-        bool passed       = verify_reduced(p, trim, t, options, vo, inputs, tols);
+        // assert(mid < trims.size() and mid >= 0);
+        // std::int64_t trim = trims.rbegin()[mid];
+        // bool passed       = verify_reduced(p, trim, t, options, vo, inputs, tols);
+        assert(mid <= mm->size() and mid >= 0);
+        bool passed       = verify_reduced(p, mid, t, options, vo, inputs, tols);
         if(passed)
         {
             left = mid + 1;
         }
         else
         {
-            failed = trim;
+            failed = mid;
             right  = mid - 1;
         }
     }

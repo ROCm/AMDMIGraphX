@@ -174,6 +174,7 @@ register_migraphx_ops(
     ceil
     clip
     concat
+    concat_past_present
     contiguous
     convert
     convolution
@@ -195,6 +196,7 @@ register_migraphx_ops(
     gather
     gathernd
     get_tuple_elem
+    gqa_rotary_embedding
     greater
     group_query_attention
     group

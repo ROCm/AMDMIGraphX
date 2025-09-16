@@ -78,7 +78,7 @@ struct concat_past_present_compiler : compiler<concat_past_present_compiler>
 {
     std::vector<std::string> names() const
     {
-        return {"concat_past_present", "gpu::concat_past_present_k", "gpu::concat_past_present_v"};
+        return {"concat_past_present", "gpu::concat_past_present"};
     }
 
     operation compile_op(context& ctx, const std::vector<shape>& inputs, const value& v) const

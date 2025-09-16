@@ -360,8 +360,7 @@ auto is_mlir_conv_backwards(mlir_mode mode)
         if(mode == mlir_mode::none)
             return false;
 
-        const std::string op_name = "convolution_backwards";
-        if(ins->name() != op_name or specific_op<rejected>(op_name))
+        if(ins->name() != "convolution_backwards")
             return false;
 
         auto input = ins->inputs().front()->get_shape();

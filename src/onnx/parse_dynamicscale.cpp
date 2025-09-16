@@ -126,20 +126,10 @@ struct parse_dynamicscale : op_parser<parse_dynamicscale>
             lit_4_ins);
         auto block_scales_ins = info.add_instruction(make_op("div"), pow_ins, broadcast_lit_4_ins);
 
-        // broadcast scales for use in quantizelinear
-        block_scales_ins = info.add_instruction(
-            make_op("multibroadcast", {{"out_lens", reduct_dims}}), block_scales_ins);
-        block_scales_ins =
-            info.add_instruction(make_op("reshape", {{"dims", tmp_lens}}), block_scales_ins);
+        // squeeze reduction axis for use in block quantized quantizelinear
+        block_scales_ins = info.add_instruction(make_op("squeeze", {{"axes", {block_axis + 1}}}),
+                                                block_scales_ins);
 
-        // if padded runt block do slicing
-        if(tmp_lens != input_lens)
-        {
-            std::size_t slice_size = input_lens.at(block_axis);
-            block_scales_ins       = info.add_instruction(
-                make_op("slice", {{"axes", {block_axis}}, {"starts", {0}}, {"ends", {slice_size}}}),
-                block_scales_ins);
-        }
         return block_scales_ins;
     }
 };

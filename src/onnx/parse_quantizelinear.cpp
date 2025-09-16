@@ -91,6 +91,46 @@ struct parse_quantizelinear : op_parser<parse_quantizelinear>
         args = transform_quantize_dequantize_linear_inputs(
             info, opd.onnx_name, block_size, axis, args);
 
+        if(output_type == migraphx::shape::fp4x2_type)
+        {
+            // Parsing in pack_fp4 and unpack_fp4 for the FP4 case
+            auto q_ins = info.add_instruction(
+                make_op("quantizelinear", {{"out_type", migraphx::shape::float_type}}), args);
+
+            // packing axis set to fastest dimension
+            auto quantized_shape   = q_ins->get_shape();
+            const auto& qs_strides = quantized_shape.strides();
+            if(qs_strides.empty())
+            {
+                MIGRAPHX_THROW("QuantizeLinear: MX type quantized_shape has no strides");
+            }
+            int fast_axis =
+                std::min_element(qs_strides.cbegin(), qs_strides.cend()) - qs_strides.cbegin();
+            bool odd_fast_axis = (quantized_shape.lens().at(fast_axis) % 2 == 1);
+            if(odd_fast_axis)
+            {
+                // pad fastest dimension by 1 if it is odd
+                std::vector<int64_t> padding(2 * quantized_shape.ndim(), 0);
+                padding.at(fast_axis * 2 + 1) = 1;
+                q_ins = info.add_instruction(make_op("pad", {{"pads", padding}}), q_ins);
+            }
+            auto pack_ins   = info.add_instruction(make_op("pack_fp4", {{"axis", fast_axis}}),
+                                                 q_ins); // output is fp4x2_type
+            auto unpack_ins = info.add_instruction(make_op("unpack_fp4", {{"axis", fast_axis}}),
+                                                   pack_ins); // output is fp8e4m3fn_type
+            if(odd_fast_axis)
+            {
+                // slice off padded values
+                unpack_ins = info.add_instruction(
+                    make_op("slice",
+                            {{"axes", {fast_axis}},
+                             {"starts", {0}},
+                             {"ends", {quantized_shape.lens().at(fast_axis)}}}),
+                    unpack_ins);
+            }
+            return unpack_ins;
+        }
+
         if(parser.opset_version < 19)
         {
             auto common_type = common_shape({args[0]->get_shape(), args[1]->get_shape()}).type();

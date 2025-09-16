@@ -40,16 +40,16 @@ namespace op {
 
 struct cache_parameters
 {
-    std::size_t batch_size           = 0;     // Batch size used by input
-    std::size_t sequence_length      = 0;     // Sequence length used by input
-    std::size_t head_size            = 0;     // Head size
-    std::size_t num_heads            = 0;     // num_heads = hidden_size / head_size
-    bool position_ids_use_batch      = false; // Format of position ids - false is (1), true is
-                                              // (batch_size, sequence_length)
-    std::size_t seqlen_present_kv_cache = 0;  // Sequence length of present kv-cache
-                                              // (4096 when using shared buffer)
-    bool past_present_share_buffer = false;   // Whether to use same buffer for KV-cache
-                                              // inputs and outputs
+    std::size_t batch_size      = 0;         // Batch size used by input
+    std::size_t sequence_length = 0;         // Sequence length used by input
+    std::size_t head_size       = 0;         // Head size
+    std::size_t num_heads       = 0;         // num_heads = hidden_size / head_size
+    bool position_ids_use_batch = false;     // Format of position ids - false is (1), true is
+                                             // (batch_size, sequence_length)
+    std::size_t seqlen_present_kv_cache = 0; // Sequence length of present kv-cache
+                                             // (4096 when using shared buffer)
+    bool past_present_share_buffer = false;  // Whether to use same buffer for KV-cache
+                                             // inputs and outputs
 };
 
 struct concat_past_present
@@ -63,12 +63,12 @@ struct concat_past_present
     //     return pack(f(self.kv_num_heads, "kv_num_heads"),
     //                 f(self.num_heads, "num_heads"));
     // }
-    bool do_rotary                = false;
-    std::size_t kv_num_heads      = 0;
-    int local_window_size         = -1;
-    std::size_t num_heads         = 1;
-    bool rotary_interleaved       = false;
-    float scale                   = 1.0;
+    bool do_rotary           = false;
+    std::size_t kv_num_heads = 0;
+    int local_window_size    = -1;
+    std::size_t num_heads    = 1;
+    bool rotary_interleaved  = false;
+    float scale              = 1.0;
 
     template <class Self, class F>
     static auto reflect(Self& self, F f)
@@ -124,10 +124,7 @@ struct concat_past_present
     }
 
     template <class T, class U>
-    void update_cache(T past_key,  
-                        U seqlens_k,     
-                        T present_key,
-                        cache_parameters params) const
+    void update_cache(T past_key, U seqlens_k, T present_key, cache_parameters params) const
     {
         const std::size_t batch_size                     = params.batch_size;
         const std::size_t sequence_length                = params.sequence_length;
@@ -156,35 +153,35 @@ struct concat_past_present
             const std::size_t past_chunk_length = past_seqlen * head_size;
 
             auto current = present_key + packed_batch_stride * batch_index +
-                     kv_input_chunk_length * (head_index / kv_num_heads_factor);
+                           kv_input_chunk_length * (head_index / kv_num_heads_factor);
             concat_state_chunk(past_key,
-                                   current,
-                                   present_key,
-                                   present_buff_chunk_length,
-                                   past_buff_chunk_length,
-                                   past_chunk_length,
-                                   kv_input_chunk_length,
-                                   is_prompt,
-                                   past_present_share_buffer,
-                                   i / kv_num_heads_factor);
+                               current,
+                               present_key,
+                               present_buff_chunk_length,
+                               past_buff_chunk_length,
+                               past_chunk_length,
+                               kv_input_chunk_length,
+                               is_prompt,
+                               past_present_share_buffer,
+                               i / kv_num_heads_factor);
         });
     }
 
     argument compute(const shape& /* output_shape */, std::vector<argument> args) const
     {
-        auto present = args[0];
-        auto seqlens = args[1];
-        auto past = args[2];
-        auto present_shape                   = present.get_shape();
-        const auto& present_lens             = present_shape.lens();
+        auto present                      = args[0];
+        auto seqlens                      = args[1];
+        auto past                         = args[2];
+        auto present_shape                = present.get_shape();
+        const auto& present_lens          = present_shape.lens();
         const std::size_t batch_size      = present_lens[0];
         const std::size_t sequence_length = present_lens[1];
-        auto past_kv_shape               = past.get_shape();
-        const auto& past_kv_lens         = past_kv_shape.lens();
+        auto past_kv_shape                = past.get_shape();
+        const auto& past_kv_lens          = past_kv_shape.lens();
         auto past_sequence_length         = past_kv_lens[2];
         std::size_t head_size             = present_lens[2] / (num_heads + 2 * kv_num_heads);
 
-        cache_parameters cache_params            = {};
+        cache_parameters cache_params          = {};
         cache_params.batch_size                = batch_size;
         cache_params.sequence_length           = sequence_length;
         cache_params.head_size                 = head_size;
@@ -192,12 +189,11 @@ struct concat_past_present
         cache_params.seqlen_present_kv_cache   = past_sequence_length;
         cache_params.past_present_share_buffer = false;
 
-        visit_all(past, present)([&](auto past_kv, auto present_kv){
+        visit_all(past, present)([&](auto past_kv, auto present_kv) {
             visit_all(seqlens)([&](auto seqlens_kv) {
                 update_cache(past_kv.begin(), seqlens_kv.begin(), present_kv.begin(), cache_params);
             });
         });
-        
 
         return past;
     }

@@ -66,12 +66,12 @@ struct gqa_rotary_embedding
     //                 f(self.num_heads, "num_heads"),
     //                 f(self.rotary_interleaved, "rotary_interleaved"));
     // }
-    bool do_rotary                = false;
-    std::size_t kv_num_heads      = 0;
-    int local_window_size         = -1;
-    std::size_t num_heads         = 1;
-    bool rotary_interleaved       = false;
-    float scale                   = 1.0;
+    bool do_rotary           = false;
+    std::size_t kv_num_heads = 0;
+    int local_window_size    = -1;
+    std::size_t num_heads    = 1;
+    bool rotary_interleaved  = false;
+    float scale              = 1.0;
 
     template <class Self, class F>
     static auto reflect(Self& self, F f)
@@ -86,10 +86,7 @@ struct gqa_rotary_embedding
 
     std::string name() const { return "gqa_rotary_embedding"; }
 
-    shape compute_shape(std::vector<shape> inputs) const
-    {
-        return inputs.front();
-    }
+    shape compute_shape(std::vector<shape> inputs) const { return inputs.front(); }
 
     template <class T>
     void run_rotary_embedding(T input,
@@ -188,10 +185,7 @@ struct gqa_rotary_embedding
         visit_all(result,
                   args[0],
                   args[2],
-                  args[3])([&](auto output,
-                                       auto query,
-                                       auto cos_cache,
-                                       auto sin_cache) {
+                  args[3])([&](auto output, auto query, auto cos_cache, auto sin_cache) {
             visit_all(args[1])([&](auto seqlens_k) {
                 auto seq_stride             = head_size;
                 auto head_stride            = sequence_length * seq_stride;
@@ -211,42 +205,41 @@ struct gqa_rotary_embedding
                 auto q_rotary = output.begin();
                 auto k_rotary = q_rotary + num_heads * sequence_length * head_size;
 
-                rotary_parameters rotary_params            = {};
-                rotary_params.batch_size                = batch_size;
-                rotary_params.sequence_length           = sequence_length;
-                rotary_params.hidden_size               = q_hidden_size;
-                rotary_params.head_size                 = head_size;
-                rotary_params.rotary_embedding_dim      = rotary_dim;
-                rotary_params.num_heads                 = num_heads;
-                rotary_params.max_sequence_length       = sequence_length;
-                rotary_params.seq_stride                = head_size;
-                rotary_params.head_stride               = head_stride;
-                rotary_params.batch_stride              = batch_stride;
-                rotary_params.position_ids_use_batch    = position_ids_use_batch;
+                rotary_parameters rotary_params      = {};
+                rotary_params.batch_size             = batch_size;
+                rotary_params.sequence_length        = sequence_length;
+                rotary_params.hidden_size            = q_hidden_size;
+                rotary_params.head_size              = head_size;
+                rotary_params.rotary_embedding_dim   = rotary_dim;
+                rotary_params.num_heads              = num_heads;
+                rotary_params.max_sequence_length    = sequence_length;
+                rotary_params.seq_stride             = head_size;
+                rotary_params.head_stride            = head_stride;
+                rotary_params.batch_stride           = batch_stride;
+                rotary_params.position_ids_use_batch = position_ids_use_batch;
 
-                
                 run_rotary_embedding(q_input,
-                                        cos_cache.begin(),
-                                        sin_cache.begin(),
-                                        q_rotary,
-                                        rotary_interleaved,
-                                        pos_ids.data(),
-                                        rotary_params);
+                                     cos_cache.begin(),
+                                     sin_cache.begin(),
+                                     q_rotary,
+                                     rotary_interleaved,
+                                     pos_ids.data(),
+                                     rotary_params);
 
                 std::size_t kv_hidden_size = head_size * kv_num_heads;
-                rotary_params.num_heads       = kv_num_heads;
-                rotary_params.hidden_size     = kv_hidden_size;
+                rotary_params.num_heads    = kv_num_heads;
+                rotary_params.hidden_size  = kv_hidden_size;
 
                 run_rotary_embedding(k_input,
-                                        cos_cache.begin(),
-                                        sin_cache.begin(),
-                                        k_rotary,
-                                        rotary_interleaved,
-                                        pos_ids.data(),
-                                        rotary_params);
+                                     cos_cache.begin(),
+                                     sin_cache.begin(),
+                                     k_rotary,
+                                     rotary_interleaved,
+                                     pos_ids.data(),
+                                     rotary_params);
 
-                auto v_input         = k_input + kv_num_heads * sequence_length * head_size;
-                auto v_rotary        = k_rotary + kv_num_heads * sequence_length * head_size;
+                auto v_input            = k_input + kv_num_heads * sequence_length * head_size;
+                auto v_rotary           = k_rotary + kv_num_heads * sequence_length * head_size;
                 rotary_params.num_heads = num_heads;
 
                 pack_v_into_rotary_qkv(rotary_params, v_input, v_rotary);

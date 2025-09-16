@@ -169,23 +169,30 @@ struct find_attention
     }
 };
 
-
 struct find_kv_cache_attention
 {
     std::size_t* counter;
 
     auto matcher() const
     {
-        auto slice = match::name("slice")(match::arg(0)(match::name("gqa_rotary_embedding").bind("query")));
-        auto transpose1 = match::name("transpose")(match::arg(0)(match::name("concat_past_present").bind("pres_k")));
-        auto gemm1 = match::name("dot")(match::arg(0)(slice), match::arg(1)(transpose1));
-        auto scale = match::name("mul")(match::any_arg(0, 1)(gemm1));
-        auto causal_mask = match::name("where")(match::arg(0)(match::name("multibroadcast")(match::arg(0)(match::is_constant()))), match::arg(2)(scale));
-        auto greater = match::name("multibroadcast")(match::arg(0)(match::name("convert")(match::arg(0)(match::name("greater")(match::arg(1)(match::any().bind("total_sl")))))));
-        auto where = match::name("where")(match::arg(0)(greater), match::arg(2)(match::any_of(causal_mask, scale)));
-        auto gemm2 = match::name("dot")(match::arg(0)(match::softmax_input(where)), match::arg(1)(match::name("concat_past_present").bind("pres_v")));
+        auto slice =
+            match::name("slice")(match::arg(0)(match::name("gqa_rotary_embedding").bind("query")));
+        auto transpose1 = match::name("transpose")(
+            match::arg(0)(match::name("concat_past_present").bind("pres_k")));
+        auto gemm1       = match::name("dot")(match::arg(0)(slice), match::arg(1)(transpose1));
+        auto scale       = match::name("mul")(match::any_arg(0, 1)(gemm1));
+        auto causal_mask = match::name("where")(
+            match::arg(0)(match::name("multibroadcast")(match::arg(0)(match::is_constant()))),
+            match::arg(2)(scale));
+        auto greater = match::name("multibroadcast")(match::arg(0)(match::name("convert")(
+            match::arg(0)(match::name("greater")(match::arg(1)(match::any().bind("total_sl")))))));
+        auto where   = match::name("where")(match::arg(0)(greater),
+                                          match::arg(2)(match::any_of(causal_mask, scale)));
+        auto gemm2 =
+            match::name("dot")(match::arg(0)(match::softmax_input(where)),
+                               match::arg(1)(match::name("concat_past_present").bind("pres_v")));
         auto transpose2 = match::name("transpose")(match::arg(0)(gemm2));
-        auto reshape = match::name("reshape")(match::arg(0)(transpose2));
+        auto reshape    = match::name("reshape")(match::arg(0)(transpose2));
         return reshape;
     }
 
@@ -210,8 +217,19 @@ struct find_kv_cache_attention
         std::unordered_set<instruction_ref> inss;
         inputs.push(end);
 
-        static const std::unordered_set<std::string> valid_attn_ops = {
-            "softmax", "broadcast", "dot", "slice", "transpose", "greater", "where", "reshape", "reduce_sum", "reduce_max", "broadcast", "multibroadcast", "@literal"};
+        static const std::unordered_set<std::string> valid_attn_ops = {"softmax",
+                                                                       "broadcast",
+                                                                       "dot",
+                                                                       "slice",
+                                                                       "transpose",
+                                                                       "greater",
+                                                                       "where",
+                                                                       "reshape",
+                                                                       "reduce_sum",
+                                                                       "reduce_max",
+                                                                       "broadcast",
+                                                                       "multibroadcast",
+                                                                       "@literal"};
 
         auto is_valid_attn_op = [&](auto i) {
             return i->get_operator().attributes().get("pointwise", false) or
@@ -243,15 +261,15 @@ struct find_kv_cache_attention
     void apply(module_pass_manager& mpm, const match::matcher_result& r) const
     {
         std::cout << "matched kvca" << std::endl;
-        auto query = r.instructions["query"];
-        auto pres_k = r.instructions["pres_k"];
-        auto pres_v = r.instructions["pres_v"];
+        auto query    = r.instructions["query"];
+        auto pres_k   = r.instructions["pres_k"];
+        auto pres_v   = r.instructions["pres_v"];
         auto total_sl = r.instructions["total_sl"];
-        auto reshape = r.result;
+        auto reshape  = r.result;
 
         // Capture all instructions part of the attention op
         auto attn_inss = get_attn_instructions(mpm.get_module(), total_sl, reshape);
-        for(auto& ins: attn_inss)
+        for(auto& ins : attn_inss)
         {
             ins->debug_print();
         }
@@ -261,18 +279,23 @@ struct find_kv_cache_attention
         std::unordered_map<instruction_ref, instruction_ref> map_mm_to_mattn;
         auto attn_outs = m_attn.fuse(attn_inss, &map_mm_to_mattn);
 
-        for(auto ins: iterator_for(m_attn))
+        for(auto ins : iterator_for(m_attn))
         {
             if(ins->can_eval())
             {
-                auto lit_s = ins->get_shape();
+                auto lit_s   = ins->get_shape();
                 auto strides = lit_s.strides();
-                if(strides.size() == 4 and std::all_of(strides.begin(), strides.end() - 1, [](auto s){ return s == 0; }) and strides.back() == 1)
+                if(strides.size() == 4 and
+                   std::all_of(
+                       strides.begin(), strides.end() - 1, [](auto s) { return s == 0; }) and
+                   strides.back() == 1)
                 {
                     std::cout << "non splat broadcasted: " << std::endl;
                     ins->debug_print();
-                    auto new_lit = m_attn.add_literal(literal{shape{lit_s.type(), {lit_s.lens().back()}}, ins->eval().data()});
-                    m_attn.replace_instruction(ins, make_op("multibroadcast", {{"out_lens", lit_s.lens()}}), {new_lit});
+                    auto new_lit = m_attn.add_literal(
+                        literal{shape{lit_s.type(), {lit_s.lens().back()}}, ins->eval().data()});
+                    m_attn.replace_instruction(
+                        ins, make_op("multibroadcast", {{"out_lens", lit_s.lens()}}), {new_lit});
                 }
             }
         }
@@ -286,9 +309,9 @@ struct find_kv_cache_attention
                     return contains(attn_inss, o);
                 });
             });
-        
+
         std::cout << "Required outputs" << std::endl;
-        for(auto& ins: required_outputs)
+        for(auto& ins : required_outputs)
         {
             ins->debug_print();
         }
@@ -310,7 +333,7 @@ struct find_kv_cache_attention
                        [&](auto i) { return map_mm_to_mattn.at(i); });
 
         std::cout << "Attn outputs" << std::endl;
-        for(auto& ins: m_attn_outputs)
+        for(auto& ins : m_attn_outputs)
         {
             ins->debug_print();
         }
@@ -321,7 +344,7 @@ struct find_kv_cache_attention
         auto new_inputs      = m_attn.get_inputs(map_mattn_to_mm);
 
         std::cout << "New inputs" << std::endl;
-        for(auto& ins: new_inputs)
+        for(auto& ins : new_inputs)
         {
             ins->debug_print();
         }
@@ -331,13 +354,14 @@ struct find_kv_cache_attention
 
         // Construct group op with the attention module
         mpm_attn->debug_print();
-        auto group_ins = mpm.get_module().insert_instruction(required_outputs.back(),
-                                             make_op("group", {{"tag", "attention"}}),
-                                             new_inputs,
-                                             {mpm_attn});
+        auto group_ins =
+            mpm.get_module().insert_instruction(required_outputs.back(),
+                                                make_op("group", {{"tag", "attention"}}),
+                                                new_inputs,
+                                                {mpm_attn});
         // if(m_attn_outputs.size() == 1)
         // {
-            mpm.get_module().replace_instruction(required_outputs.back(), group_ins);
+        mpm.get_module().replace_instruction(required_outputs.back(), group_ins);
         // }
         // else
         // {

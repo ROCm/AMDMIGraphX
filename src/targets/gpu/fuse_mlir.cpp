@@ -1028,55 +1028,16 @@ struct find_unpack_int4_mlir_op
 };
 
 /**
- * Move unpack_fp4 and reshape/slice instructions into the mlir_op submodule.
+ * Move unpack_fp4 instructions into the mlir_op submodule.
+ * Slice and reshape instructions should already be fused into the mlir_op.
  * rocMLIR will do the unpacking and dequantization.
  */
 struct find_unpack_fp4_mlir_op
 {
-    const std::unordered_set<std::string> skip_set = {"reshape", "slice"};
-
     auto matcher() const
     {
-        auto skip_reshapes_to_unpack =
-            match::skip(match::name(skip_set))(match::name("unpack_fp4"));
-        return match::name("gpu::mlir_op")(match::any_of[match::inputs()](skip_reshapes_to_unpack));
-    }
-
-    std::optional<instruction_ref> find_unpack_fp4(const instruction_ref ins) const
-    {
-        instruction_ref ret = fix<instruction_ref>([&](auto self, auto ins_i) -> instruction_ref {
-            if(ins_i->inputs().size() == 1 and contains(skip_set, ins_i->name()))
-            {
-                instruction_ref next = ins_i->inputs().front();
-                return self(next);
-            }
-            return ins_i;
-        })(ins);
-        if(ret->name() != "unpack_fp4")
-        {
-            return nullopt;
-        }
-        return ret;
-    }
-
-    // Add the reshape instructions between the unpack_fp4 and original mlir_op to the new module
-    void add_reshapes_for_unpack(module_ref nm,
-                                 const instruction_ref main_start_ins,
-                                 const instruction_ref main_unpack_ins,
-                                 const instruction_ref sub_unpack_ins) const
-    {
-        auto tmp_ins = main_start_ins;
-        std::vector<instruction_ref> ins_between;
-        while(tmp_ins != main_unpack_ins)
-        {
-            ins_between.push_back(tmp_ins);
-            tmp_ins = tmp_ins->inputs().front();
-        }
-        auto ins_iter = sub_unpack_ins;
-        for(auto ins : reverse_iterator_for(ins_between))
-        {
-            ins_iter = nm->add_instruction((*ins)->get_operator(), {ins_iter});
-        }
+        return match::name("gpu::mlir_op")(
+            match::any_of[match::inputs()](match::name("unpack_fp4")));
     }
 
     void apply(module_pass_manager& mpm, const match::matcher_result& mr) const
@@ -1090,16 +1051,14 @@ struct find_unpack_fp4_mlir_op
         int ct = 0;
         for(auto curr_ins : mlir_op->inputs())
         {
-            auto unpack_opt = find_unpack_fp4(curr_ins);
-            if(unpack_opt.has_value())
+            if(curr_ins->name() == "unpack_fp4")
             {
-                auto unpack_ins   = unpack_opt.value();
+                auto unpack_ins   = curr_ins;
                 auto unpack_input = unpack_ins->inputs().at(0);
                 auto param =
                     nm->add_parameter(param_name(++ct), unpack_input->get_shape().as_standard());
                 auto new_unpack_ins      = nm->add_instruction(unpack_ins->get_operator(), param);
                 fuse_ins_map[unpack_ins] = new_unpack_ins;
-                add_reshapes_for_unpack(nm, curr_ins, unpack_ins, new_unpack_ins);
                 new_mlir_op_args.push_back(unpack_input);
             }
             else

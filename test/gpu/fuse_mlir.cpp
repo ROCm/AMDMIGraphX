@@ -1647,18 +1647,14 @@ TEST_CASE(unpack_fp4_dot_even)
     migraphx::program p1;
     {
         auto* m       = p1.get_main_module();
-        auto packed_a = m->add_parameter("a", {migraphx::shape::fp4x2_type, {96}});
-        auto packed_b = m->add_parameter("b", {migraphx::shape::fp4x2_type, {96}});
+        auto packed_a = m->add_parameter("a", {migraphx::shape::fp4x2_type, {1, 3, 8, 4}});
+        auto packed_b = m->add_parameter("b", {migraphx::shape::fp4x2_type, {1, 3, 8, 4}});
         auto scale_a  = m->add_parameter("scale_a", {migraphx::shape::float_type, {1, 3, 8, 8}});
         auto scale_b  = m->add_parameter("scale_b", {migraphx::shape::float_type, {1, 3, 8, 8}});
         auto unpack_a = m->add_instruction(migraphx::make_op("unpack_fp4"), packed_a);
         auto unpack_b = m->add_instruction(migraphx::make_op("unpack_fp4"), packed_b);
-        auto reshape_a =
-            m->add_instruction(migraphx::make_op("reshape", {{"dims", {1, 3, 8, 8}}}), unpack_a);
-        auto reshape_b =
-            m->add_instruction(migraphx::make_op("reshape", {{"dims", {1, 3, 8, 8}}}), unpack_b);
-        auto dot = m->add_instruction(
-            migraphx::make_op("quant_dot"), reshape_a, reshape_b, scale_a, scale_b);
+        auto dot      = m->add_instruction(
+            migraphx::make_op("quant_dot"), unpack_a, unpack_b, scale_a, scale_b);
         m->add_return({dot});
     }
     run_pass(p1);
@@ -1666,8 +1662,8 @@ TEST_CASE(unpack_fp4_dot_even)
     migraphx::program p2;
     {
         auto* m       = p2.get_main_module();
-        auto packed_a = m->add_parameter("a", {migraphx::shape::fp4x2_type, {96}});
-        auto packed_b = m->add_parameter("b", {migraphx::shape::fp4x2_type, {96}});
+        auto packed_a = m->add_parameter("a", {migraphx::shape::fp4x2_type, {1, 3, 8, 4}});
+        auto packed_b = m->add_parameter("b", {migraphx::shape::fp4x2_type, {1, 3, 8, 4}});
         auto scale_a  = m->add_parameter("scale_a", {migraphx::shape::float_type, {1, 3, 8, 8}});
         auto scale_b  = m->add_parameter("scale_b", {migraphx::shape::float_type, {1, 3, 8, 8}});
         auto fused    = add_mlir(
@@ -1676,14 +1672,10 @@ TEST_CASE(unpack_fp4_dot_even)
             {packed_a, packed_b, scale_a, scale_b},
             {"x1", "x2", "x3", "x4"},
             [=](auto* pm, const auto& inputs) {
-                auto unpack_a  = pm->add_instruction(migraphx::make_op("unpack_fp4"), inputs[0]);
-                auto reshape_a = pm->add_instruction(
-                    migraphx::make_op("reshape", {{"dims", {1, 3, 8, 8}}}), unpack_a);
-                auto unpack_b  = pm->add_instruction(migraphx::make_op("unpack_fp4"), inputs[1]);
-                auto reshape_b = pm->add_instruction(
-                    migraphx::make_op("reshape", {{"dims", {1, 3, 8, 8}}}), unpack_b);
-                auto dot = pm->add_instruction(
-                    migraphx::make_op("quant_dot"), reshape_a, reshape_b, inputs[2], inputs[3]);
+                auto unpack_a = pm->add_instruction(migraphx::make_op("unpack_fp4"), inputs[0]);
+                auto unpack_b = pm->add_instruction(migraphx::make_op("unpack_fp4"), inputs[1]);
+                auto dot      = pm->add_instruction(
+                    migraphx::make_op("quant_dot"), unpack_a, unpack_b, inputs[2], inputs[3]);
                 return std::make_tuple(dot->get_operator(), dot);
             });
         m->add_return({fused});
@@ -1696,24 +1688,18 @@ TEST_CASE(unpack_fp4_dot_odd)
     migraphx::program p1;
     {
         auto* m       = p1.get_main_module();
-        auto packed_a = m->add_parameter("a", {migraphx::shape::fp4x2_type, {74}});
-        auto packed_b = m->add_parameter("b", {migraphx::shape::fp4x2_type, {74}});
+        auto packed_a = m->add_parameter("a", {migraphx::shape::fp4x2_type, {1, 3, 7, 4}});
+        auto packed_b = m->add_parameter("b", {migraphx::shape::fp4x2_type, {1, 3, 7, 4}});
         auto scale_a  = m->add_parameter("scale_a", {migraphx::shape::float_type, {1, 3, 7, 7}});
         auto scale_b  = m->add_parameter("scale_b", {migraphx::shape::float_type, {1, 3, 7, 7}});
         auto unpack_a = m->add_instruction(migraphx::make_op("unpack_fp4"), packed_a);
         auto unpack_b = m->add_instruction(migraphx::make_op("unpack_fp4"), packed_b);
         auto slice_a  = m->add_instruction(
-            migraphx::make_op("slice", {{"axes", {0}}, {"starts", {0}}, {"ends", {147}}}),
-            unpack_a);
+            migraphx::make_op("slice", {{"axes", {3}}, {"starts", {0}}, {"ends", {7}}}), unpack_a);
         auto slice_b = m->add_instruction(
-            migraphx::make_op("slice", {{"axes", {0}}, {"starts", {0}}, {"ends", {147}}}),
-            unpack_b);
-        auto reshape_a =
-            m->add_instruction(migraphx::make_op("reshape", {{"dims", {1, 3, 7, 7}}}), slice_a);
-        auto reshape_b =
-            m->add_instruction(migraphx::make_op("reshape", {{"dims", {1, 3, 7, 7}}}), slice_b);
-        auto dot = m->add_instruction(
-            migraphx::make_op("quant_dot"), reshape_a, reshape_b, scale_a, scale_b);
+            migraphx::make_op("slice", {{"axes", {3}}, {"starts", {0}}, {"ends", {7}}}), unpack_b);
+        auto dot =
+            m->add_instruction(migraphx::make_op("quant_dot"), slice_a, slice_b, scale_a, scale_b);
         m->add_return({dot});
     }
     run_pass(p1);
@@ -1721,8 +1707,8 @@ TEST_CASE(unpack_fp4_dot_odd)
     migraphx::program p2;
     {
         auto* m       = p2.get_main_module();
-        auto packed_a = m->add_parameter("a", {migraphx::shape::fp4x2_type, {74}});
-        auto packed_b = m->add_parameter("b", {migraphx::shape::fp4x2_type, {74}});
+        auto packed_a = m->add_parameter("a", {migraphx::shape::fp4x2_type, {1, 3, 7, 4}});
+        auto packed_b = m->add_parameter("b", {migraphx::shape::fp4x2_type, {1, 3, 7, 4}});
         auto scale_a  = m->add_parameter("scale_a", {migraphx::shape::float_type, {1, 3, 7, 7}});
         auto scale_b  = m->add_parameter("scale_b", {migraphx::shape::float_type, {1, 3, 7, 7}});
         auto fused    = add_mlir(
@@ -1733,18 +1719,14 @@ TEST_CASE(unpack_fp4_dot_odd)
             [=](auto* pm, const auto& inputs) {
                 auto unpack_a = pm->add_instruction(migraphx::make_op("unpack_fp4"), inputs[0]);
                 auto slice_a  = pm->add_instruction(
-                    migraphx::make_op("slice", {{"axes", {0}}, {"starts", {0}}, {"ends", {147}}}),
+                    migraphx::make_op("slice", {{"axes", {3}}, {"starts", {0}}, {"ends", {7}}}),
                     unpack_a);
-                auto reshape_a = pm->add_instruction(
-                    migraphx::make_op("reshape", {{"dims", {1, 3, 7, 7}}}), slice_a);
                 auto unpack_b = pm->add_instruction(migraphx::make_op("unpack_fp4"), inputs[1]);
                 auto slice_b  = pm->add_instruction(
-                    migraphx::make_op("slice", {{"axes", {0}}, {"starts", {0}}, {"ends", {147}}}),
+                    migraphx::make_op("slice", {{"axes", {3}}, {"starts", {0}}, {"ends", {7}}}),
                     unpack_b);
-                auto reshape_b = pm->add_instruction(
-                    migraphx::make_op("reshape", {{"dims", {1, 3, 7, 7}}}), slice_b);
                 auto dot = pm->add_instruction(
-                    migraphx::make_op("quant_dot"), reshape_a, reshape_b, inputs[2], inputs[3]);
+                    migraphx::make_op("quant_dot"), slice_a, slice_b, inputs[2], inputs[3]);
                 return std::make_tuple(dot->get_operator(), dot);
             });
         m->add_return({fused});

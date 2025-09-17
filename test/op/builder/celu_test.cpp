@@ -63,7 +63,7 @@ TEST_CASE(celu_zero_alpha_op_builder_test)
 
     EXPECT(
         test::throws<migraphx::exception>([&] { make_op_module("celu", {{"alpha", alpha}}, {}); },
-                                        "alpha is zero (division by zero)"));
+                                          "alpha is zero (division by zero)"));
 }
 
 TEST_CASE(celu_wrong_shape_type_op_builder_test)

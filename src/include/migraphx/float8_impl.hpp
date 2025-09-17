@@ -43,7 +43,7 @@ constexpr uint8_t cast_to_f8(T f_x, bool stoch = false, uint32_t rng = 0)
     static_assert(is_float or is_half, "Only float can be cast to f8");
 
     const uint32_t mfmt = (sizeof(T) == 4) ? 23 : 10;
-    typename std::conditional<sizeof(T) == 2, uint16_t, uint32_t>::type x;
+    typename std::conditional<sizeof(T) == 2, uint16_t, uint32_t>::type x = 0;
 
     if constexpr(sizeof(T) == 4)
         x = migraphx::bit_cast<uint32_t>(f_x);

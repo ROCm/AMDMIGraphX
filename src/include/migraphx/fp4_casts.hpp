@@ -83,8 +83,7 @@ constexpr float fp4_to_float(uint8_t x)
 }
 
 // converts 4 LSB to fp8e4m3fn_type
-// Not constexpr because of float8's cast_to_fp8()
-inline migraphx::fp8::fp8e4m3fn fp4_to_fp8(uint8_t x)
+constexpr migraphx::fp8::fp8e4m3fn fp4_to_fp8(uint8_t x)
 {
     return fp4_detail::fp4_to_fp8_lut[x % fp4_detail::fp4_to_fp8_lut.size()];
 }

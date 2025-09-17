@@ -35,6 +35,7 @@ def rocmtestnode(Map conf) {
             echo "leak:libtbb.so" >> suppressions.txt
             cat suppressions.txt
             export LSAN_OPTIONS="suppressions=\$(pwd)/suppressions.txt"
+            export ASAN_OPTIONS="detect_container_overflow=0"
             export MIGRAPHX_GPU_DEBUG=${gpu_debug}
             export CXX=${compiler}
             export CXXFLAGS='-Werror'
@@ -138,7 +139,7 @@ node("(rocmtest || migraphx)") {
             checkout scm
             def calculateImageTagScript = """
                 shopt -s globstar
-                sha256sum **/Dockerfile **/*requirements.txt **/install_prereqs.sh **/rbuild.ini | sha256sum | cut -d " " -f 1
+                sha256sum **/Dockerfile **/*requirements.txt **/install_prereqs.sh **/rbuild.ini **/test/onnx/.onnxrt-commit | sha256sum | cut -d " " -f 1
             """
             env.IMAGE_TAG = sh(script: "bash -c '${calculateImageTagScript}'", returnStdout: true).trim()
             imageExists = sh(script: "docker manifest inspect ${DOCKER_IMAGE}:${IMAGE_TAG}", returnStatus: true) == 0

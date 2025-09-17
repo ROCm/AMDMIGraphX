@@ -5,38 +5,41 @@
 Issue Triaging Guide for suspected rocMLIR issue
 ================================================
 
-This document serves as a guide to narrow down whether a bug is due to
-rocMLIR backend of MIGraphX.
+This document serves as a guide to narrow down whether a bug is due to rocMLIR backend of MIGraphX.
 
 There are broadly 3 categories of bugs that can be due to rocMLIR.
 
-1. [B1]rocMLIR compilation bug
-2. [B2]rocMLIR runtime failure
-3. [B3]accuracy issue from rocMLIR
+1. ``[B1]`` rocMLIR compilation bug
+2. ``[B2]`` rocMLIR runtime failure
+3. ``[B3]`` accuracy issue from rocMLIR
 
-Step 1 - Use MIGRAPHX_DISABLE_MLIR=1
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+Step 1 - Use ``MIGRAPHX_DISABLE_MLIR=1``
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 First see if the bug persists after disabling MLIR. If so, it is highly likely
 it is not a MLIR bug but rather a MIGraphX bug.
 
 If you dont see a failure, please proceed.
 
-Step 2 - See if its a B1 - rocMLIR compilation bug
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+Step 2 - See if its a ``B1`` - rocMLIR compilation bug
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-MLIR has two pipelines that are used to generate a kernel: highlevel
+MLIR has two pipelines that are used to generate a kernel: highlevel 
 pipeline and backend pipeline
 
-Step 2.1 If the highlevel pipeline fails, you should see error that starts with
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+Step 2.1 
+~~~~~~~~
+If the highlevel pipeline fails, you should see error that starts with
 
 ``Invalid MLIR created:``
 
-If the above is present, please disable threading first using
-``MIGRAPHX_GPU_COMPILE_PARALLEL=1``. Then use ``MIGRAPHX_TRACE_MLIR=1``
-and provide latest MLIR module that gets printed. An example would look
-like as follows :
+If error message like above is present then proceed with following steps. 
+
+1. Please disable threading first by setting environment variable MIGRAPHX_GPU_COMPILE_PARALLEL=1. 
+2. Set environment variable ``MIGRAPHX_TRACE_MLIR=1`` . 
+3. Create a temporary directory to store MXR files. Set environment variable ``MIGRAPHX_MLIR_DUMP_TO_MXR=/path/to/temp/dir/created/``
+4. Run the model and pipe the logs to a file. You should see MLIR module printed just before the failure. 
+   For example, it would look like as follows.
 
 ::
 
@@ -47,11 +50,13 @@ like as follows :
      }
    }
 
-Please provide only the *SINGLE* module that fails and not a dump of
-them for rocMLIR team figure out which is failing.
+5. Provide MLIR module printed just before the failure from previous step to rocMLIR team to debug. Please provide only the **SINGLE** module that fails and not the entire log for rocMLIR team figure out which is failing.
+6. Set ``MIGRAPHX_TRACE_MLIR=1`` . Run each individual MXR file from MXR dump directory with ``migraphx-driver``. Find out which MXR file is failing to compile. Failing MXR file must have exacty **the same MLIR** module as the one from the original model identified in previous step. Provide this MXR file to rocMLIR team. 
 
-Step 2.2 If the backend pipeline fails for *all solutions*, you should see error that starts with
+Step 2.2 
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+If the backend pipeline fails for *all solutions*, you should see error that starts with
 
 ``No solutions provided for mlir_*`` or
 ``No valid tuned compilation for mlir_*``
@@ -63,10 +68,12 @@ well.
 NOTE 2 : Ignore ``MLIR backend compilation failed: "`` if you don't see
 ``No solutions provided for mlir_*``
 
-If the above is present, please disable threading first using
-``MIGRAPHX_GPU_COMPILE_PARALLEL=1``. Then use ``MIGRAPHX_TRACE_MLIR=2``
-and provide latest MLIR module that gets printed. An example would look
-like as follows :
+If the above error message is present then proceed with following steps.
+
+1. Please disable threading first using ``MIGRAPHX_GPU_COMPILE_PARALLEL=1``. 
+2. Set environment variable ``MIGRAPHX_TRACE_MLIR=2``
+3. Create a temporary directory to store MXR files. Set environment variable ``MIGRAPHX_MLIR_DUMP_TO_MXR=/path/to/temp/dir/created/``
+4. Run the model and pipe the logs to a file. You should see MLIR module printed just before the failure. For example, it would look like as follows. 
 
 ::
 
@@ -84,16 +91,15 @@ like as follows :
      }
    }
 
-Please provide only the *SINGLE* module that fails and not a dump of
-them for rocMLIR team figure out which is failing.
+5. Provide MLIR module printed just before the failure from previous step to rocMLIR team to debug. Please provide only the SINGLE module that fails and not the entire log for rocMLIR team figure out which is failing.
+6. Set ``MIGRAPHX_TRACE_MLIR=2`` and ``MIGRAPHX_GPU_COMPILE_PARALLEL=1`` . Run each individual MXR file from MXR dump directory with migraphx-driver. Find out which MXR file is failing to compile. Failing MXR file must have exacty the same MLIR module as the one from the original model identified in previous step. Provide this MXR file to rocMLIR team. 
 
-Step 3 See if its a B2 - runtime failure of MLIR-generated kernel
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+Step 3 See if its a ``B2`` - runtime failure of MLIR-generated kernel
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-So kernels are first run in the benchmarking process of MIGraphX.
-Therefore, set ``MIGRAPHX_TRACE_BENCHMARKING=3``
+Each individual kernels are run in the benchmarking process of MIGraphX. Therefore, set ``MIGRAPHX_TRACE_BENCHMARKING=3``
 
-You should see
+You should see messages like following when compiling model. 
 
 ::
 
@@ -101,41 +107,31 @@ You should see
    Problem: <problem key>
    Benchmarking solution: <perf config>
 
-So you might want to report that to rocMLIR team. However, if its a
-fusion specific runtime issue, further triaging is needed.
+In this case there are two things to indentify. (1) MLIR module that is causing the runtime failure (2) PerfConfig which that used when compiling MLIR module.
 
-You would need to manually go through the traces with
-``MIGRAPHX_TRACE_MLIR=2`` and figure out which problem has the
-``<problem key>`` that fails.
+Follow these steps indentify those two things. 
 
-Then report the failing module as in Step 2.2 to rocMLIR team. This can
-be very intensive unless some action is taken for
-https://github.com/ROCm/AMDMIGraphX/issues/2332
+1. Set ``MIGRAPHX_TRACE_BENCHMARKING=3``
+2. Set ``MIGRAPHX_MLIR_DUMP_TO_MXR=/path/to/temp/dir/created``
+3. Run model. You should see MLIR module just before MIGraphX starts benchmarking.  Please provide that to rocMLIR team. 
+4. Just before the failure you should also see ``Benchmarking solution : <perf_config>``. Take note of that and pass that to rocMLIR team.
+5. Set ``MIGRAPHX_TRACE_BENCHMARKING=3`` and Run each individual MXR file from temporary dump directory to see which one is failing. 
+    a. For the failing MXR, just before the start of the benchmarking process it should print MLIR module. It must be the same as the one identified earlier in step (3). 
+    b. Before the failure it would print ``Benchmarking Solution: <perf_config>``. It must be the same as the one identified from step (4). 
+    c. Provide the failing MXR file to rocMLIR team to investigate. 
+6. Note down whether model was compiled using ``--exhaustive-tune`` or not. Mention that in ticket to rocMLIR.
 
-Step 4 See if its a B3 - accuracy issue of MLIR-generated kernel
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-This is the hardest type of triages for rocMLIR.
+Step 4 See if its a ``B3`` - accuracy issue of MLIR-generated kernel
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+1. Create a temporary directory to store MXR files. Set environment variable ``MIGRAPHX_MLIR_DUMP_TO_MXR=/path/to/temp/dir/created/``
+2. Set ``MIGRAPHX_TRACE_MLIR=1`` and ``MIGRAPHX_GPU_COMPILE_PARALLEL=1``. Run each individual MXR file from MXR dump directory with ``migraphx-driver verify`` to find out which one is failing the accuracy. 
 
-Here you would need to get MIGraphX modules (not MLIR) that gets printed
-in with ``MIGRAPHX_TRACE_MLIR=2``
-
-For e.g. :
+3. Provide MLIR module from failing MXR to rocMLIR team. For example, it would look something like following
 
 ::
 
-   # This is MIGRAPHX module
-
-   arg2 = @param:arg2 -> float_type, {1, 5, 3}, {15, 3, 1}
-   arg1 = @param:arg1 -> float_type, {1, 4, 3}, {12, 3, 1}
-   arg0 = @param:arg0 -> float_type, {1, 5, 4}, {20, 4, 1}
-   @3 = dot(arg0,arg1) -> float_type, {1, 5, 3}, {15, 3, 1}
-   @4 = add(@3,arg2) -> float_type, {1, 5, 3}, {15, 3, 1}
-   @5 = @return(@4)
-
-   # This is the MLIR module
-
-   module {
+ module {
      func.func @mlir_dot_add(%arg0: !migraphx.shaped<1x5x4xf32, 20x4x1>, %arg1: !migraphx.shaped<1x4x3xf32, 12x3x1>, %arg2: !migraphx.shaped<1x5x3xf32, 15x3x1>) -> !migraphx.shaped<1x5x3xf32, 15x3x1> attributes {arch = "gfx90a:sramecc+:xnack-", enable_splitk_for_tuning = true, kernel = "mixr", num_cu = 110 : i64} {
        %0 = migraphx.dot %arg0, %arg1 : <1x5x4xf32, 20x4x1>, <1x4x3xf32, 12x3x1> -> <1x5x3xf32, 15x3x1>
        %1 = migraphx.add %0, %arg2 : <1x5x3xf32, 15x3x1>, <1x5x3xf32, 15x3x1> -> <1x5x3xf32, 15x3x1>
@@ -143,6 +139,4 @@ For e.g. :
      }
    }
 
-Then individually create MIGraphX program that only has the MIGRAPHX
-module Then indiviually ``driver verify`` them to see which is the
-failing module.
+4. Provide failing MXR file to rocMLIR team. 

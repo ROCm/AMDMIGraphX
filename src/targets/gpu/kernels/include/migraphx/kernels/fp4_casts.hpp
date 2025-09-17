@@ -74,7 +74,7 @@ __device__ constexpr T cast_from_fp4(uint8_t x)
 template <class T>
 __device__ inline uint8_t cast_to_fp4(T x)
 {
-    float f_x        = float(x);
+    float f_x = float(x);
     using fp4_detail::fp4_even_round;
     using fp4_detail::fp4_lut;
     if(isnan(f_x))

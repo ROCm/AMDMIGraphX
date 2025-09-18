@@ -75,7 +75,7 @@ struct parse_dynamicscale : op_parser<parse_dynamicscale>
 
         std::string zero_point_selection_method = "None";
         if(contains(info.attributes, "zero_point_selection_method"))
-            zero_point_selection_method = info.attributes.at("zero_point_selection_method").i();
+            zero_point_selection_method = info.attributes.at("zero_point_selection_method").s();
 
         if(zero_point_selection_method != "None")
         {

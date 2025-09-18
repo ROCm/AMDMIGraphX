@@ -189,6 +189,7 @@ add_library(migraphx_gpu
     time_op.cpp
     topk.cpp
     write_literals.cpp
+    fuse_mlss.cpp
     ${JIT_GPU_SRCS}
     ${MIOPEN_SRCS}
 )
@@ -404,6 +405,20 @@ endif()
 
 add_subdirectory(driver)
 add_subdirectory(hiprtc)
+
+find_path(AMDMLSS_INCLUDE_DIR NAMES amdmlss/amdmlss_api.h PATH_SUFFIXES include)
+
+if(NOT AMDMLSS_INCLUDE_DIR) 
+    message(FATAL_ERROR "Could not find MyLib headers. Set CMAKE_PREFIX_PATH or MyLib_ROOT, or provide MYLIB_INCLUDE_DIR.") 
+else()
+    message(STATUS "amdmlss_api.h is at ${AMDMLSS_INCLUDE_DIR}")
+    target_include_directories(migraphx_gpu SYSTEM PUBLIC ${AMDMLSS_INCLUDE_DIR})
+endif()
+
+find_library(AMD_MLSS_LIB amdmlss)
+
+message(STATUS "amdmlss is at ${AMD_MLSS_LIB}")
+target_link_libraries(migraphx_gpu PRIVATE ${AMD_MLSS_LIB})
 
 rocm_install_targets(
     PRIVATE

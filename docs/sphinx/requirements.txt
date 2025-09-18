@@ -31,15 +31,15 @@ cffi==2.0.0
     #   pynacl
 charset-normalizer==3.4.3
     # via requests
-click==8.2.1
+click==8.3.0
     # via
     #   jupyter-cache
     #   sphinx-external-toc
 comm==0.2.3
     # via ipykernel
-cryptography==45.0.7
+cryptography==46.0.1
     # via pyjwt
-debugpy==1.8.16
+debugpy==1.8.17
     # via ipykernel
 decorator==5.2.1
     # via ipython
@@ -139,7 +139,7 @@ platformdirs==4.4.0
     # via jupyter-core
 prompt-toolkit==3.0.52
     # via ipython
-psutil==7.0.0
+psutil==7.1.0
     # via ipykernel
 ptyprocess==0.7.0
     # via pexpect
@@ -184,7 +184,7 @@ requests==2.32.5
     # via
     #   pygithub
     #   sphinx
-rocm-docs-core==1.21.1
+rocm-docs-core==1.23.0
     # via -r /mnt/github_scripts/nonstandard/AMDMIGraphX/requirements.in
 rpds-py==0.27.1
     # via
@@ -259,6 +259,7 @@ traitlets==5.14.3
 typing-extensions==4.15.0
     # via
     #   beautifulsoup4
+    #   cryptography
     #   exceptiongroup
     #   ipython
     #   myst-nb

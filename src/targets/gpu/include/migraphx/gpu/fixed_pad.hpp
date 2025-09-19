@@ -21,19 +21,40 @@
  * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
  * THE SOFTWARE.
  */
-#ifndef MIGRAPHX_GUARD_RTGLIB_REDUCE_DIMS_HPP
-#define MIGRAPHX_GUARD_RTGLIB_REDUCE_DIMS_HPP
+#ifndef MIGRAPHX_GUARD_RTGLIB_FIXED_PAD_HPP
+#define MIGRAPHX_GUARD_RTGLIB_FIXED_PAD_HPP
 
-#include <migraphx/config.hpp>
-#include <migraphx/shape.hpp>
-#include <vector>
+#include <migraphx/argument.hpp>
+#include <migraphx/reflect.hpp>
+#include <migraphx/op/fixed_pad.hpp>
+#include <migraphx/gpu/device/fixed_pad.hpp>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
+namespace gpu {
 
-/// Collapse adjacent shape dimensions that are the same between shapes.
-MIGRAPHX_EXPORT std::vector<shape> reduce_dims(const std::vector<shape>& shapes);
+struct context;
 
+struct hip_fixed_pad
+{
+    op::fixed_pad op;
+
+    template <class Self, class F>
+    static auto reflect(Self& self, F f)
+    {
+        return migraphx::reflect(self.op, f);
+    }
+
+    std::string name() const { return "gpu::fixed_pad"; }
+    shape compute_shape(std::vector<shape> inputs) const;
+    argument compute(context& ctx, const shape&, const std::vector<argument>& args) const;
+    std::ptrdiff_t output_alias(const std::vector<shape>& shapes) const
+    {
+        return shapes.size() - 1;
+    }
+};
+
+} // namespace gpu
 } // namespace MIGRAPHX_INLINE_NS
 } // namespace migraphx
 

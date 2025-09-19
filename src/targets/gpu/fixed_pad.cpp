@@ -21,20 +21,29 @@
  * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
  * THE SOFTWARE.
  */
-#ifndef MIGRAPHX_GUARD_RTGLIB_REDUCE_DIMS_HPP
-#define MIGRAPHX_GUARD_RTGLIB_REDUCE_DIMS_HPP
-
-#include <migraphx/config.hpp>
-#include <migraphx/shape.hpp>
-#include <vector>
+#include <migraphx/gpu/fixed_pad.hpp>
+#include <migraphx/gpu/context.hpp>
+#include <migraphx/gpu/device/fixed_pad.hpp>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
+namespace gpu {
 
-/// Collapse adjacent shape dimensions that are the same between shapes.
-MIGRAPHX_EXPORT std::vector<shape> reduce_dims(const std::vector<shape>& shapes);
+shape hip_fixed_pad::compute_shape(std::vector<shape> inputs) const
+{
+    inputs.pop_back();
+    check_shapes{inputs, *this, true}.has(1);
+    return op.compute_shape(inputs);
+}
 
+argument hip_fixed_pad::compute(context& ctx, const shape&, const std::vector<argument>& args) const
+{
+    if(args.front().get_shape() == args.back().get_shape())
+        return args.front();
+
+    return device::fixed_pad(ctx.get_stream().get(), args.back(), args.front());
+}
+
+} // namespace gpu
 } // namespace MIGRAPHX_INLINE_NS
 } // namespace migraphx
-
-#endif

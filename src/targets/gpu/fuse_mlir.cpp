@@ -304,6 +304,12 @@ auto is_mlir_dot(mlir_mode mode)
         // have the support for it.
         if(contains(fp8_types{}.get(), ins->get_shape().type()))
             return false;
+        // MX types quantization has 4 inputs
+        // having all MX GEMM go to MLIR
+        if(ins->inputs().size() == 4)
+        {
+            return true;
+        }
         if(mode != mlir_mode::fast)
             return true;
         auto a = ins->inputs().front()->get_shape();
@@ -314,7 +320,7 @@ auto is_mlir_dot(mlir_mode mode)
         auto k = a.lens().back();
         // Skipping GEMMs with a K dimension greater than 2048 is a course-grained strategy
         // to avoid poor-performing GEMM kernels from MLIR
-        // To-do: Investigate a more precise strategy
+        // TODO: Investigate a more precise strategy
         if(k > 1535)
             return false;
         if(k < 1024)
@@ -1022,6 +1028,54 @@ struct find_unpack_int4_mlir_op
 };
 
 /**
+ * Move unpack_fp4 instructions into the mlir_op submodule.
+ * Slice and reshape instructions should already be fused into the mlir_op.
+ * rocMLIR will do the unpacking and dequantization.
+ */
+struct find_unpack_fp4_mlir_op
+{
+    auto matcher() const
+    {
+        return match::name("gpu::mlir_op")(
+            match::any_of[match::inputs()](match::name("unpack_fp4")));
+    }
+
+    void apply(module_pass_manager& mpm, const match::matcher_result& mr) const
+    {
+        auto mlir_op  = mr.result;
+        auto* mm      = mlir_op->module_inputs().front();
+        module_ref nm = mpm.create_module("fp4:" + mm->name());
+        nm->set_bypass();
+        std::vector<instruction_ref> new_mlir_op_args;
+        std::unordered_map<instruction_ref, instruction_ref> fuse_ins_map;
+        int ct = 0;
+        for(auto curr_ins : mlir_op->inputs())
+        {
+            if(curr_ins->name() == "unpack_fp4")
+            {
+                auto unpack_ins   = curr_ins;
+                auto unpack_input = unpack_ins->inputs().at(0);
+                auto param =
+                    nm->add_parameter(param_name(++ct), unpack_input->get_shape().as_standard());
+                auto new_unpack_ins      = nm->add_instruction(unpack_ins->get_operator(), param);
+                fuse_ins_map[unpack_ins] = new_unpack_ins;
+                new_mlir_op_args.push_back(unpack_input);
+            }
+            else
+            {
+                fuse_ins_map[curr_ins] =
+                    nm->add_parameter(param_name(++ct), curr_ins->get_shape().as_standard());
+                new_mlir_op_args.push_back(curr_ins);
+            }
+        }
+        auto ret = nm->fuse(*mm, mlir_op->inputs(), &fuse_ins_map);
+        nm->add_return({ret});
+        mpm.get_module().replace_instruction(
+            mlir_op, mlir_op->get_operator(), new_mlir_op_args, {nm});
+    }
+};
+
+/**
  * Fuse single output reshape instructions on the output of mlir_op into the
  * mlir_op.
  */
@@ -1240,6 +1294,7 @@ void fuse_mlir::apply(module_pass_manager& mpm) const
 
     match::find_matches(mpm, find_pointwise_mlir{});
     match::find_matches(mpm, find_unpack_int4_mlir_op{});
+    match::find_matches(mpm, find_unpack_fp4_mlir_op{});
 
     match::find_matches(mpm, find_mlir_output_reshape_ops{});
 

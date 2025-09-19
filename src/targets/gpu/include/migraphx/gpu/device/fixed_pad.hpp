@@ -21,19 +21,24 @@
  * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
  * THE SOFTWARE.
  */
-#ifndef MIGRAPHX_GUARD_RTGLIB_REDUCE_DIMS_HPP
-#define MIGRAPHX_GUARD_RTGLIB_REDUCE_DIMS_HPP
+#ifndef MIGRAPHX_GUARD_RTGLIB_DEVICE_FIXED_PAD_HPP
+#define MIGRAPHX_GUARD_RTGLIB_DEVICE_FIXED_PAD_HPP
 
-#include <migraphx/config.hpp>
-#include <migraphx/shape.hpp>
-#include <vector>
+#include <migraphx/argument.hpp>
+#include <migraphx/gpu/device/config.hpp>
+#include <hip/hip_runtime_api.h>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
+namespace gpu {
+namespace device {
 
-/// Collapse adjacent shape dimensions that are the same between shapes.
-MIGRAPHX_EXPORT std::vector<shape> reduce_dims(const std::vector<shape>& shapes);
+argument MIGRAPHX_DEVICE_EXPORT fixed_pad(hipStream_t stream,
+                                          const argument& result,
+                                          const argument& arg);
 
+} // namespace device
+} // namespace gpu
 } // namespace MIGRAPHX_INLINE_NS
 } // namespace migraphx
 

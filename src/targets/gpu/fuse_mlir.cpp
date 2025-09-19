@@ -1,4 +1,304 @@
-name() != "quant_dot")
+/*
+ * The MIT License (MIT)
+ *
+ * Copyright (c) 2015-2025 Advanced Micro Devices, Inc. All rights reserved.
+ *
+ * Permission is hereby granted, free of charge, to any person obtaining a copy
+ * of this software and associated documentation files (the "Software"), to deal
+ * in the Software without restriction, including without limitation the rights
+ * to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+ * copies of the Software, and to permit persons to whom the Software is
+ * furnished to do so, subject to the following conditions:
+ *
+ * The above copyright notice and this permission notice shall be included in
+ * all copies or substantial portions of the Software.
+ *
+ * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+ * IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+ * FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT.  IN NO EVENT SHALL THE
+ * AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+ * LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+ * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
+ * THE SOFTWARE.
+ */
+#include <migraphx/gpu/fuse_mlir.hpp>
+#include <migraphx/gpu/mlir.hpp>
+#include <migraphx/matcher.hpp>
+#include <migraphx/pass_manager.hpp>
+#include <migraphx/make_op.hpp>
+#include <migraphx/register_op.hpp>
+#include <migraphx/env.hpp>
+#include <migraphx/dead_code_elimination.hpp>
+#include <migraphx/eliminate_common_subexpression.hpp>
+#include <migraphx/common.hpp>
+#include <migraphx/algorithm.hpp>
+#include <migraphx/output_iterator.hpp>
+#include <migraphx/param_utils.hpp>
+#include <migraphx/match/softmax.hpp>
+#include <migraphx/fp8_types.hpp>
+#include <optional>
+
+namespace migraphx {
+inline namespace MIGRAPHX_INLINE_NS {
+
+struct module;
+
+namespace gpu {
+
+MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_ENABLE_EXTRA_MLIR);
+MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_ENABLE_MLIR_INPUT_FUSION);
+MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_ENABLE_MLIR_REDUCE_FUSION);
+MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_DISABLE_MLIR);
+/**
+ * @brief Declares a new MIGraphX environment variable which forces to generate
+ * only specific MLIR operations.
+ *
+ * The variable, if defined, forces MIGraphX to use only specific operations
+ * with MLIR regardless of the underlying GPU architecture. The variable accepts
+ * a list of operations separated by comma. The variable recognizes the following
+ * operations: "fused", "convolution", "dot". If the variable is not defined MIGraphX
+ * will decide by itself which operations to delegate to MLIR. The variable is
+ * intended to be primarily used by rocMLIR developers.
+ */
+MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_MLIR_USE_SPECIFIC_OPS);
+
+bool mlir_enabled()
+{
+#ifdef MIGRAPHX_MLIR
+    const bool mlir_disabled = enabled(MIGRAPHX_DISABLE_MLIR{});
+    return not mlir_disabled;
+#else
+    return false;
+#endif
+}
+
+namespace {
+struct requested
+{
+};
+struct rejected
+{
+};
+} // namespace
+
+static bool is_negated_op(const std::string& s)
+{
+    if(s.empty())
+        return false;
+    return contains({'!', '~'}, s[0]);
+}
+
+template <class Action>
+static std::vector<std::string> get_usage()
+{
+    static const auto options =
+        split_string(string_value_of(MIGRAPHX_MLIR_USE_SPECIFIC_OPS{}, ""), ',');
+    static const bool enabled = std::is_same<Action, requested>{};
+    std::vector<std::string> result;
+    auto remove_not_symbol = [&](const std::string& s) {
+        if(is_negated_op(s))
+            return s.substr(1);
+        return s;
+    };
+    transform_if(
+        options.begin(),
+        options.end(),
+        std::back_inserter(result),
+        [&](const std::string& option) {
+            if(option.empty())
+                return false;
+            if(is_negated_op(option))
+                return not enabled;
+            return enabled;
+        },
+        remove_not_symbol);
+    return result;
+}
+
+template <class Action>
+static bool specific_op(std::string_view option, bool fallback = false)
+{
+    static const auto options = get_usage<Action>();
+    if(options.empty())
+        return fallback;
+    if(contains(option, "fused") and contains(options, "fused"))
+        return true;
+    return contains(options, option);
+}
+
+bool mlir_attention_enabled(context* ctx)
+{
+#ifdef MIGRAPHX_MLIR
+    if(not mlir_enabled())
+        return false;
+    if(specific_op<rejected>("attention"))
+        return false;
+    // Enable attention by default for mi300
+    if(ctx != nullptr and starts_with(ctx->get_current_device().get_gfx_name(), "gfx94"))
+        return true;
+    return specific_op<requested>("attention");
+#else
+    return false;
+#endif
+}
+
+#ifdef MIGRAPHX_MLIR
+
+struct mlir_op
+{
+    std::string name() const { return "gpu::mlir_op"; }
+    operation op = make_op("convolution");
+
+    template <class Self, class F>
+    static auto reflect(Self& self, F f)
+    {
+        return pack(f(self.op, "op"));
+    }
+
+    // Check if the shape can be created from a transpose/broadcast/slice
+    static bool is_mlir_compatible(const shape& s)
+    {
+        if(s.standard() or s.packed() or s.scalar() or s.ndim() == 1)
+            return true;
+        auto ns = reorder_shape(s, find_permutation(s));
+        std::vector<std::size_t> stride_ratios;
+        auto last = std::find(ns.strides().begin(), ns.strides().end(), 0);
+        if(*std::prev(last) != 1)
+            return false;
+        std::adjacent_difference(ns.strides().begin(),
+                                 last,
+                                 std::back_inserter(stride_ratios),
+                                 [](auto y, auto x) -> std::size_t {
+                                     assert(y != 0);
+                                     if((x % y) != 0)
+                                         return 0;
+                                     return x / y;
+                                 });
+        return std::equal(stride_ratios.begin() + 1,
+                          stride_ratios.end(),
+                          ns.lens().begin() + 1,
+                          [](auto ratio, auto len) { return ratio >= len; });
+    }
+
+    shape compute_shape(const std::vector<shape>& inputs, const std::vector<module_ref>& mods) const
+    {
+        module_ref mod = mods[0];
+        check_shapes{inputs, *this}.has_at_least(1);
+        if(mods.size() != 1)
+            MIGRAPHX_THROW("should have one submodule.");
+
+        if(not std::all_of(inputs.begin(), inputs.end(), &is_mlir_compatible))
+            MIGRAPHX_THROW("Shape is not mlir compatible.");
+
+        auto result =
+            mod->compute_shapes(inputs, {.name = name(), .strict_type = true, .strict_lens = true});
+        if(result.size() == 1)
+            return result.front();
+        return shape{result};
+    }
+};
+MIGRAPHX_REGISTER_OP(mlir_op);
+
+namespace {
+
+const auto& reshaper_names()
+{
+    // clang-format off
+    static const std::unordered_set<std::string> names = {
+        "transpose",
+        "multibroadcast",
+        "broadcast",
+        "contiguous",
+        "reshape",
+        "reshape_lazy",
+        "squeeze",
+        "flatten",
+        "unsqueeze"
+    };
+    // clang-format on
+    return names;
+}
+
+bool is_fusable_input_op(const std::string& name)
+{
+    return contains(reshaper_names(), name) or contains({"slice"}, name);
+}
+
+std::tuple<instruction_ref, std::vector<operation>>
+get_fusable_input_op_stream(instruction_ref lower_input)
+{
+    instruction_ref upper_input = lower_input;
+    std::vector<operation> op_stream;
+    while(is_fusable_input_op(upper_input->name()))
+    {
+        operation op = upper_input->get_operator();
+        op_stream.push_back(op);
+        upper_input = upper_input->inputs().at(0);
+    }
+    return {upper_input, op_stream};
+}
+
+void fuse_input_ops(module_ref mm,
+                    const std::vector<instruction_ref>& inputs,
+                    std::unordered_map<instruction_ref, instruction_ref>* map_ins)
+{
+    assert(map_ins != nullptr);
+    size_t input_cnt = mm->get_parameters().size();
+    for(instruction_ref input : inputs)
+    {
+        if(contains(*map_ins, input))
+            continue;
+        auto [upper_input, op_stream] = get_fusable_input_op_stream(input);
+        if(not contains(*map_ins, upper_input))
+            (*map_ins)[upper_input] =
+                mm->add_parameter(param_name(input_cnt++), upper_input->get_shape().as_standard());
+        instruction_ref prev_input = (*map_ins)[upper_input];
+        for(const auto& op : reverse(op_stream))
+        {
+            prev_input = mm->add_instruction(op, {prev_input});
+        }
+        (*map_ins)[input] = prev_input;
+    }
+}
+
+std::tuple<instruction_ref, std::vector<instruction_ref>>
+fuse_input_ops_and_gemm_based_op(module_ref mm,
+                                 const std::vector<instruction_ref>& gemm_based_op_inputs,
+                                 const operation& gemm_based_op)
+{
+    std::vector<instruction_ref> top_inputs;
+    std::vector<instruction_ref> imm_inputs;
+    size_t input_cnt = 0;
+    for(instruction_ref input : gemm_based_op_inputs)
+    {
+        auto [upper_input, op_stream] = get_fusable_input_op_stream(input);
+        top_inputs.push_back(upper_input);
+        instruction_ref prev_input =
+            mm->add_parameter(param_name(input_cnt++, "y"), upper_input->get_shape().as_standard());
+        for(const auto& op : reverse(op_stream))
+        {
+            prev_input = mm->add_instruction(op, {prev_input});
+        }
+        imm_inputs.push_back(prev_input);
+    }
+    instruction_ref new_gemm_based_op = mm->add_instruction(gemm_based_op, imm_inputs);
+    return {new_gemm_based_op, top_inputs};
+}
+
+enum class mlir_mode
+{
+    all,
+    fast,
+    int8,
+    none
+};
+
+auto is_mlir_dot(mlir_mode mode)
+{
+    return match::make_basic_pred_matcher([=](instruction_ref ins) {
+        if(mode == mlir_mode::none)
+            return false;
+        if(ins->name() != "dot" and ins->name() != "quant_dot")
             return false;
         // dot operation where (FP8 * FP8 = FP8) is not available in MLIR. rocBLAS/hipBLASLt should
         // have the support for it.
@@ -776,6 +1076,218 @@ struct find_unpack_fp4_mlir_op
 };
 
 /**
+ * Fuse single output reshape instructions on the output of mlir_op into the
+ * mlir_op.
+ */
+struct find_mlir_output_reshape_ops
+{
+    auto matcher() const
+    {
+        static const std::unordered_set<std::string> output_reshapes = {"transpose",
+                                                                        "contiguous",
+                                                                        "reshape",
+                                                                        "reshape_lazy",
+                                                                        "squeeze",
+                                                                        "flatten",
+                                                                        "unsqueeze"};
+        auto atleast_one_reshape =
+            match::all_of(match::output(match::name(output_reshapes)),
+                          match::skip_output(match::name(output_reshapes).bind("last_reshape")));
+        return match::name("gpu::mlir_op")(atleast_one_reshape);
+    }
+
+    void apply(module_pass_manager& mpm, const match::matcher_result& r) const
+    {
+        auto mlir_op_ins     = r.result;
+        auto last_reshape    = r.instructions["last_reshape"];
+        auto* mlir_op_module = mlir_op_ins->module_inputs().front();
+        std::vector<instruction_ref> reshape_instructions;
+        instruction_ref iter_ins = mlir_op_ins;
+        while(iter_ins != last_reshape)
+        {
+            // should already be covered by skip_output
+            assert(iter_ins->outputs().size() == 1);
+            auto output_ins = iter_ins->outputs().front();
+            reshape_instructions.push_back(output_ins);
+            iter_ins = output_ins;
+        }
+
+        assert(not reshape_instructions.empty());
+        std::string module_name = mlir_op_module->name();
+        std::transform(reshape_instructions.begin(),
+                       reshape_instructions.end(),
+                       join_back_inserter(module_name),
+                       [](instruction_ref ins) { return "_" + ins->name(); });
+        module_ref fused_module = mpm.create_module(module_name);
+        fused_module->set_bypass();
+
+        std::unordered_map<instruction_ref, instruction_ref> map_ins;
+        auto new_back = fused_module->fuse(*mlir_op_module, mlir_op_ins->inputs(), &map_ins).back();
+        map_ins[mlir_op_ins]    = new_back;
+        auto fused_instructions = fused_module->fuse(reshape_instructions, &map_ins);
+        fused_module->add_return({fused_instructions.back()});
+        auto inputs = find_inputs(map_ins, &mpm.get_module(), fused_module);
+        mpm.get_module().replace_instruction(
+            last_reshape, mlir_op{last_reshape->get_operator()}, inputs, {fused_module});
+    }
+};
+
+/**
+ * Find slices along the channels axis that go into a convolution.
+ * Reshape input instructions to the slices such that the slice occurs over
+ * the slowest dimension.
+ * TODO: This can also be done for GEMM when NCHW is supported for it.
+ */
+struct find_channel_slice_convolution
+{
+    auto matcher() const
+    {
+        return match::name("convolution")(match::arg(0)(match::name("slice").bind("slice")));
+    }
+
+    /**
+     * Number of groups the input to the slice instruction is split into.
+     * `slice` should be over the channels axis only and split evenly.
+     */
+    static std::size_t get_num_slice_groups(instruction_ref slice)
+    {
+        auto input = slice->inputs().front();
+        auto op    = slice->get_operator().to_value();
+        auto axes  = op["axes"].to_vector<std::size_t>();
+        if(axes.size() != 1)
+            return 0;
+        if(axes.front() != 1)
+            return 0;
+        auto ichannels = input->get_shape().lens().at(1);
+        auto channels  = slice->get_shape().lens().at(1);
+        if((ichannels % channels) != 0)
+            return 0;
+        return ichannels / channels;
+    }
+
+    void apply(module_pass_manager& mpm, const match::matcher_result& r) const
+    {
+        auto ins              = r.result;
+        auto slice            = r.instructions["slice"];
+        auto input            = slice->inputs().front();
+        auto num_slice_groups = get_num_slice_groups(slice);
+        if(num_slice_groups == 0)
+        {
+            return;
+        }
+        // check that all slice instructions coming off from `input` are making
+        // the same size slice.
+        if(not all_of(input->outputs(), [&](instruction_ref output) {
+               if(output->name() != "slice")
+                   return false;
+               auto ichannels = output->inputs().front()->get_shape().lens().at(1);
+               auto channels  = output->get_shape().lens().at(1);
+               return channels * num_slice_groups == ichannels;
+           }))
+        {
+            return;
+        }
+        // check memory layout is in NCHW
+        if(find_permutation(ins->get_shape()).back() != 1)
+        {
+            return;
+        }
+
+        auto dims = input->get_shape().lens();
+        dims[1] /= num_slice_groups;
+        // inserts num_slice_groups dimension in front of channels to split channels correctly
+        dims.insert(dims.begin() + 1, num_slice_groups);
+
+        // first transpose permutation such that channels dimension goes to
+        // last axis and num_slice_groups axis goes to first axis
+        std::vector<int64_t> transpose_perm0(dims.size());
+        transpose_perm0.at(0) = 1;
+        transpose_perm0.at(1) = 0;
+        std::iota(transpose_perm0.begin() + 2, transpose_perm0.end() - 1, 3);
+        transpose_perm0.back() = 2;
+
+        // second transpose permutation such that last dimension
+        // (the channels dimension below) goes to third axis
+        std::vector<int64_t> transpose_perm1(dims.size());
+        transpose_perm1.at(0) = 0;
+        transpose_perm1.at(1) = 1;
+        transpose_perm1.at(2) = dims.size() - 1;
+        std::iota(transpose_perm1.begin() + 3, transpose_perm1.end(), 2);
+
+        auto outputs       = input->outputs();
+        auto ins_to_insert = std::next(input);
+        auto reshape1      = mpm.get_module().insert_instruction(
+            ins_to_insert, make_op("reshape_lazy", {{"dims", dims}}), input);
+        auto transpose_ins1 = mpm.get_module().insert_instruction(
+            ins_to_insert, make_op("transpose", {{"permutation", transpose_perm0}}), reshape1);
+        auto contiguous_ins = mpm.get_module().insert_instruction(
+            ins_to_insert, make_op("contiguous"), transpose_ins1);
+        auto transepose_ins2 = mpm.get_module().insert_instruction(
+            ins_to_insert,
+            make_op("transpose", {{"permutation", transpose_perm1}}),
+            contiguous_ins);
+        // spacer identity instruction
+        auto identity_ins = mpm.get_module().insert_instruction(
+            ins_to_insert, make_op("identity"), transepose_ins2);
+
+        // Replace slice operators to 0 axis
+        for(auto output : outputs)
+        {
+            auto v      = output->get_operator().to_value();
+            auto starts = v["starts"].to_vector<std::size_t>();
+            auto i      = starts.front() / output->get_shape().lens()[1]; // note integer truncation
+            auto s      = mpm.get_module().insert_instruction(
+                output,
+                make_op("slice", {{"axes", {0}}, {"starts", {i}}, {"ends", {i + 1}}}),
+                identity_ins);
+            mpm.get_module().replace_instruction(output, make_op("squeeze", {{"axes", {0}}}), s);
+        }
+    }
+};
+
+} // namespace
+
+#endif // MIGRAPHX_MLIR
+
+void fuse_mlir::apply(module_pass_manager& mpm) const
+{
+#ifdef MIGRAPHX_MLIR
+    std::size_t counter     = 0;
+    const auto& device_name = ctx == nullptr ? "" : ctx->get_current_device().get_gfx_name();
+    const bool is_navi = starts_with(device_name, "gfx11") or starts_with(device_name, "gfx12");
+
+    auto get_mode = [&](std::string_view option, mlir_mode m1, mlir_mode m2 = mlir_mode::fast) {
+        if(specific_op<rejected>(option))
+            return mlir_mode::none;
+        if(specific_op<requested>(option))
+            return mlir_mode::all;
+        if(is_navi)
+            return mlir_mode::all;
+        return std::max(m1, m2);
+    };
+
+    match::find_matches(mpm, find_channel_slice_convolution{});
+    mpm.run_pass(dead_code_elimination{});
+
+    match::find_matches(mpm, find_mlir_attention_op{});
+    mpm.run_pass(dead_code_elimination{});
+
+    match::find_matches(
+        mpm,
+        find_mlir_fused_ops{.conv_mode = get_mode("fused_convolution", mlir_mode::fast),
+                            .dot_mode  = get_mode("fused_dot", mlir_mode::fast)});
+
+    match::find_matches(
+        mpm,
+        find_mlir_standalone_convolution_op{.mode    = get_mode("convolution", mlir_mode::fast),
+                                            .counter = &counter},
+        find_mlir_standalone_dot_op{.mode = get_mode("dot", mlir_mode::fast), .counter = &counter});
+
+    mpm.run_pass(dead_code_elimination{});
+    if(enabled(MIGRAPHX_ENABLE_MLIR_REDUCE_FUSION{}))
+    {
+        match::find_matches(
+            mpm,
             find_mlir_split_reduce{.conv_mode = get_mode("fused_convolution", mlir_mode::fast),
                                    .dot_mode  = get_mode("fused_dot", mlir_mode::fast)});
     }

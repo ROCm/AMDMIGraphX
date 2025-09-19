@@ -65,7 +65,7 @@ struct unpack_fp4
         }
         auto new_lens = in_shape.lens();
         new_lens[axis] *= 2;
-        return {migraphx::shape::float_type, new_lens};
+        return {migraphx::shape::fp8e4m3fn_type, new_lens};
     }
 
     argument compute(const shape& output_shape, const std::vector<argument>& args) const
@@ -73,24 +73,24 @@ struct unpack_fp4
         const auto& input = args.front();
         auto in_shape     = input.get_shape();
 
-        migraphx::shape float_shape = shape{migraphx::shape::float_type, output_shape.lens()};
-        argument float_arg{float_shape};
+        migraphx::shape fp8_shape = shape{migraphx::shape::fp8e4m3fn_type, output_shape.lens()};
+        argument fp8_arg{fp8_shape};
         auto inp = input.get<uint8_t>();
-        float_arg.visit([&](auto out) {
+        fp8_arg.visit([&](auto out) {
             par_for(in_shape.elements(), [&](auto i) {
                 auto data_idx = in_shape.multi(i);
                 data_idx[axis] *= 2;
                 // unpacking 2 unsigned parts
                 // unpacking 4 least significant bits first
                 uint8_t fp4_val = inp[i];
-                out[data_idx]   = fp4_to_float(fp4_val);
+                out[data_idx]   = fp4_to_fp8(fp4_val);
 
                 data_idx[axis] += 1;
                 fp4_val       = fp4_val >> 4u;
-                out[data_idx] = fp4_to_float(fp4_val);
+                out[data_idx] = fp4_to_fp8(fp4_val);
             });
         });
-        return float_arg;
+        return fp8_arg;
     }
 };
 } // namespace op

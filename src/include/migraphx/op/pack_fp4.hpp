@@ -57,11 +57,6 @@ struct pack_fp4
     {
         check_shapes{inputs, *this}.same_dims().has(1);
         const auto& in_shape = inputs.front();
-        if(in_shape.type() != migraphx::shape::float_type)
-        {
-            std::cout << in_shape.type_string() << std::endl;
-            MIGRAPHX_THROW("PACK_FP4: Only float32 type input is supported");
-        }
         auto new_lens        = in_shape.lens();
         if(new_lens[axis] % 2 != 0)
         {
@@ -87,8 +82,8 @@ struct pack_fp4
                 inp_type inp_val0 = inp[in_data_multi_idx];
                 in_data_multi_idx[axis] += 1;
                 inp_type inp_val1 = inp[in_data_multi_idx];
-                uint8_t out_val0  = float_to_fp4(inp_val0);
-                uint8_t out_val1  = float_to_fp4(inp_val1);
+                uint8_t out_val0  = cast_to_fp4(inp_val0);
+                uint8_t out_val1  = cast_to_fp4(inp_val1);
                 // NOTE: integral promotion occurs when bitshifting for uint8_t
                 out[i] =
                     static_cast<uint8_t>(out_val1 << 4u) | static_cast<uint8_t>(out_val0 & 0xFu);

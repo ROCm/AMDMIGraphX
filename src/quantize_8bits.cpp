@@ -69,11 +69,21 @@ void quantize_8bits_pass::apply(module& m) const // NOLINT
             auto zero_point =
                 m.add_literal(migraphx::literal{migraphx::shape{precision}, {param.second}});
                 
-            float inverted_scale = 1.0f / param.first;  
-               
-            auto epsilon = std::numeric_limits<float>::epsilon() * 1000;
-            auto max_val = std::sqrt(std::numeric_limits<float>::max());
-              
+            float inverted_scale = 1.0f / param.first;
+
+            // Clipping based on data type  
+            float epsilon, max_val;  
+            if(s.type() == shape::half_type) {  
+                epsilon = 1e-4f;  
+                max_val = 1e4f;
+            } else if(s.type() == shape::float_type) {  
+                epsilon = 1e-8f;  
+                max_val = 1e8f;  
+            } else {  
+                epsilon = 1e-6f;  
+                max_val = 1e6f;  
+            }
+
             inverted_scale = std::max(epsilon, std::min(max_val, inverted_scale));  
             auto scale = m.add_literal(literal({s.type()}, {inverted_scale}));
 

@@ -38,17 +38,6 @@ inline namespace MIGRAPHX_INLINE_NS {
 
 namespace fp4_detail {
 
-template <class T>
-constexpr std::array<T, 16> make_from_fp4_lut(std::array<float, 16> float_lut)
-{
-    std::array<T, float_lut.size()> ret{};
-    for(int i = 0; i < float_lut.size(); ++i)
-    {
-        ret[i] = T(float_lut[i]);
-    }
-    return ret;
-}
-
 static constexpr std::array<float, 16> fp4_to_float_lut = {0.0f,
                                                            0.5f,
                                                            1.0f,
@@ -66,9 +55,6 @@ static constexpr std::array<float, 16> fp4_to_float_lut = {0.0f,
                                                            -4.0f,
                                                            -6.0f};
 
-static constexpr std::array<fp8::fp8e4m3fn, 16> fp4_to_fp8_lut =
-    make_from_fp4_lut<fp8::fp8e4m3fn>(fp4_to_float_lut);
-
 // pair is {fp4_tie_value, round_to_zero}, index is the positive fp4 value
 // if round_to_zero round tie towards zero, else round tie away from zero
 static constexpr std::array<std::pair<float, uint8_t>, 7> float_to_fp4_lut = {
@@ -83,9 +69,10 @@ constexpr float fp4_to_float(uint8_t x)
 }
 
 // converts 4 LSB to fp8e4m3fn_type
-constexpr migraphx::fp8::fp8e4m3fn fp4_to_fp8(uint8_t x)
+constexpr auto fp4_to_fp8(uint8_t x)
 {
-    return fp4_detail::fp4_to_fp8_lut[x % fp4_detail::fp4_to_fp8_lut.size()];
+    return migraphx::fp8::fp8e4m3fn(
+        fp4_detail::fp4_to_float_lut[x % fp4_detail::fp4_to_float_lut.size()]);
 }
 
 // rounding mode = roundToNearestRoundTiesToEven

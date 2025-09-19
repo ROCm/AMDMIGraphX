@@ -81,8 +81,8 @@ struct einsum : op_builder<einsum>
 
         assert(not args.empty())
 
-        // Perform a left fold on the inputs
-        for(auto arg_idx = 0; arg_idx < args.size(); ++arg_idx)
+            // Perform a left fold on the inputs
+            for(auto arg_idx = 0; arg_idx < args.size(); ++arg_idx)
         {
             cur_op      = args[arg_idx];
             cur_pair[1] = map_mat[arg_idx];

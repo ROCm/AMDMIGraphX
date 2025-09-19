@@ -135,7 +135,7 @@ struct array
     template <class U, MIGRAPHX_REQUIRES(is_convertible<U, T>{} and (N > 1))>
     constexpr explicit array(U x)
     {
-        fill(d, d+N, x);
+        fill(d, d + N, x);
     }
 
     constexpr T& operator[](index_int i)
@@ -194,7 +194,7 @@ struct array
     constexpr auto apply(F f) const
     {
         array<decltype(f(d[0])), N> result;
-        transform(d, d+N, result, f);
+        transform(d, d + N, result, f);
         return result;
     }
 

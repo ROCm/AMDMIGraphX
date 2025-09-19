@@ -1639,134 +1639,135 @@ TEST_CASE(pointwise_concat_quant_per_channel)
     EXPECT(m1 == m2);
 }
 
-TEST_CASE(fp4x2_quant_conv_even)
-{
-    migraphx::shape shape_packed_input{migraphx::shape::fp4x2_type, {1, 3, 24, 12}};
-    migraphx::shape shape_packed_weights{migraphx::shape::fp4x2_type, {1, 3, 4, 2}};
-    migraphx::shape shape_scale_input{migraphx::shape::float_type, {1, 3, 24, 24}};
-    migraphx::shape shape_scale_weights{migraphx::shape::float_type, {1, 3, 4, 4}};
-
-    migraphx::module m1;
-    {
-        auto packed_input   = m1.add_parameter("input", shape_packed_input);
-        auto packed_weights = m1.add_parameter("weights", shape_packed_weights);
-        auto scale_input    = m1.add_parameter("scale_input", shape_scale_input);
-        auto scale_weights  = m1.add_parameter("scale_weights", shape_scale_weights);
-
-        auto unpack_input =
-            m1.add_instruction(migraphx::make_op("unpack_fp4", {{"axis", 3}}), packed_input);
-        auto unpack_weights =
-            m1.add_instruction(migraphx::make_op("unpack_fp4", {{"axis", 3}}), packed_weights);
-        auto dq_input =
-            m1.add_instruction(migraphx::make_op("dequantizelinear"), unpack_input, scale_input);
-        auto dq_weights = m1.add_instruction(
-            migraphx::make_op("dequantizelinear"), unpack_weights, scale_weights);
-        auto conv = m1.add_instruction(migraphx::make_op("convolution",
-                                                         {{"padding", {0, 0, 0, 0}},
-                                                          {"stride", {1, 1}},
-                                                          {"dilation", {1, 1}},
-                                                          {"group", 1},
-                                                          {"padding_mode", 0}}),
-                                       dq_input,
-                                       dq_weights);
-        m1.add_return({conv});
-    }
-
-    migraphx::module m2;
-    {
-        auto packed_input   = m2.add_parameter("input", shape_packed_input);
-        auto packed_weights = m2.add_parameter("weights", shape_packed_weights);
-        auto scale_input    = m2.add_parameter("scale_input", shape_scale_input);
-        auto scale_weights  = m2.add_parameter("scale_weights", shape_scale_weights);
-
-        auto unpack_input =
-            m2.add_instruction(migraphx::make_op("unpack_fp4", {{"axis", 3}}), packed_input);
-        auto unpack_weights =
-            m2.add_instruction(migraphx::make_op("unpack_fp4", {{"axis", 3}}), packed_weights);
-        auto quant_conv = m2.add_instruction(migraphx::make_op("quant_convolution",
-                                                               {{"padding", {0, 0, 0, 0}},
-                                                                {"stride", {1, 1}},
-                                                                {"dilation", {1, 1}},
-                                                                {"group", 1},
-                                                                {"padding_mode", 0}}),
-                                             unpack_input,
-                                             unpack_weights,
-                                             scale_input,
-                                             scale_weights);
-        m2.add_return({quant_conv});
-    }
-
-    run_pass(m1);
-    EXPECT(m1 == m2);
-}
-
-// odd number of elements in input (shape = [1, 3, 21, 21]) that was padded by 1
-TEST_CASE(fp4x2_quant_conv_odd)
-{
-    migraphx::shape shape_packed_input{migraphx::shape::fp4x2_type, {1, 3, 21, 11}};
-    migraphx::shape shape_packed_weights{migraphx::shape::fp4x2_type, {1, 3, 4, 2}};
-    migraphx::shape shape_scale_input{migraphx::shape::float_type, {1, 3, 21, 21}};
-    migraphx::shape shape_scale_weights{migraphx::shape::float_type, {1, 3, 4, 4}};
-
-    migraphx::module m1;
-    {
-        auto packed_input   = m1.add_parameter("input", shape_packed_input);
-        auto packed_weights = m1.add_parameter("weights", shape_packed_weights);
-        auto scale_input    = m1.add_parameter("scale_input", shape_scale_input);
-        auto scale_weights  = m1.add_parameter("scale_weights", shape_scale_weights);
-
-        auto unpack_input =
-            m1.add_instruction(migraphx::make_op("unpack_fp4", {{"axis", 3}}), packed_input);
-        auto unpack_weights =
-            m1.add_instruction(migraphx::make_op("unpack_fp4", {{"axis", 3}}), packed_weights);
-        auto slice_input = m1.add_instruction(
-            migraphx::make_op("slice", {{"axes", {3}}, {"starts", {0}}, {"ends", {21}}}),
-            unpack_input);
-        auto dq_input =
-            m1.add_instruction(migraphx::make_op("dequantizelinear"), slice_input, scale_input);
-        auto dq_weights = m1.add_instruction(
-            migraphx::make_op("dequantizelinear"), unpack_weights, scale_weights);
-        auto conv = m1.add_instruction(migraphx::make_op("convolution",
-                                                         {{"padding", {0, 0, 0, 0}},
-                                                          {"stride", {1, 1}},
-                                                          {"dilation", {1, 1}},
-                                                          {"group", 1},
-                                                          {"padding_mode", 0}}),
-                                       dq_input,
-                                       dq_weights);
-        m1.add_return({conv});
-    }
-
-    migraphx::module m2;
-    {
-        auto packed_input   = m2.add_parameter("input", shape_packed_input);
-        auto packed_weights = m2.add_parameter("weights", shape_packed_weights);
-        auto scale_input    = m2.add_parameter("scale_input", shape_scale_input);
-        auto scale_weights  = m2.add_parameter("scale_weights", shape_scale_weights);
-
-        auto unpack_input =
-            m2.add_instruction(migraphx::make_op("unpack_fp4", {{"axis", 3}}), packed_input);
-        auto unpack_weights =
-            m2.add_instruction(migraphx::make_op("unpack_fp4", {{"axis", 3}}), packed_weights);
-        auto slice_input = m2.add_instruction(
-            migraphx::make_op("slice", {{"axes", {3}}, {"starts", {0}}, {"ends", {21}}}),
-            unpack_input);
-        auto quant_conv = m2.add_instruction(migraphx::make_op("quant_convolution",
-                                                               {{"padding", {0, 0, 0, 0}},
-                                                                {"stride", {1, 1}},
-                                                                {"dilation", {1, 1}},
-                                                                {"group", 1},
-                                                                {"padding_mode", 0}}),
-                                             slice_input,
-                                             unpack_weights,
-                                             scale_input,
-                                             scale_weights);
-        m2.add_return({quant_conv});
-    }
-
-    run_pass(m1);
-    EXPECT(m1 == m2);
-}
+// TODO Disabled till rocMLIR support added
+// TEST_CASE(fp4x2_quant_conv_even)
+//{
+//    migraphx::shape shape_packed_input{migraphx::shape::fp4x2_type, {1, 3, 24, 12}};
+//    migraphx::shape shape_packed_weights{migraphx::shape::fp4x2_type, {1, 3, 4, 2}};
+//    migraphx::shape shape_scale_input{migraphx::shape::float_type, {1, 3, 24, 24}};
+//    migraphx::shape shape_scale_weights{migraphx::shape::float_type, {1, 3, 4, 4}};
+//
+//    migraphx::module m1;
+//    {
+//        auto packed_input   = m1.add_parameter("input", shape_packed_input);
+//        auto packed_weights = m1.add_parameter("weights", shape_packed_weights);
+//        auto scale_input    = m1.add_parameter("scale_input", shape_scale_input);
+//        auto scale_weights  = m1.add_parameter("scale_weights", shape_scale_weights);
+//
+//        auto unpack_input =
+//            m1.add_instruction(migraphx::make_op("unpack_fp4", {{"axis", 3}}), packed_input);
+//        auto unpack_weights =
+//            m1.add_instruction(migraphx::make_op("unpack_fp4", {{"axis", 3}}), packed_weights);
+//        auto dq_input =
+//            m1.add_instruction(migraphx::make_op("dequantizelinear"), unpack_input, scale_input);
+//        auto dq_weights = m1.add_instruction(
+//            migraphx::make_op("dequantizelinear"), unpack_weights, scale_weights);
+//        auto conv = m1.add_instruction(migraphx::make_op("convolution",
+//                                                         {{"padding", {0, 0, 0, 0}},
+//                                                          {"stride", {1, 1}},
+//                                                          {"dilation", {1, 1}},
+//                                                          {"group", 1},
+//                                                          {"padding_mode", 0}}),
+//                                       dq_input,
+//                                       dq_weights);
+//        m1.add_return({conv});
+//    }
+//
+//    migraphx::module m2;
+//    {
+//        auto packed_input   = m2.add_parameter("input", shape_packed_input);
+//        auto packed_weights = m2.add_parameter("weights", shape_packed_weights);
+//        auto scale_input    = m2.add_parameter("scale_input", shape_scale_input);
+//        auto scale_weights  = m2.add_parameter("scale_weights", shape_scale_weights);
+//
+//        auto unpack_input =
+//            m2.add_instruction(migraphx::make_op("unpack_fp4", {{"axis", 3}}), packed_input);
+//        auto unpack_weights =
+//            m2.add_instruction(migraphx::make_op("unpack_fp4", {{"axis", 3}}), packed_weights);
+//        auto quant_conv = m2.add_instruction(migraphx::make_op("quant_convolution",
+//                                                               {{"padding", {0, 0, 0, 0}},
+//                                                                {"stride", {1, 1}},
+//                                                                {"dilation", {1, 1}},
+//                                                                {"group", 1},
+//                                                                {"padding_mode", 0}}),
+//                                             unpack_input,
+//                                             unpack_weights,
+//                                             scale_input,
+//                                             scale_weights);
+//        m2.add_return({quant_conv});
+//    }
+//
+//    run_pass(m1);
+//    EXPECT(m1 == m2);
+//}
+//
+//// odd number of elements in input (shape = [1, 3, 21, 21]) that was padded by 1
+// TEST_CASE(fp4x2_quant_conv_odd)
+//{
+//     migraphx::shape shape_packed_input{migraphx::shape::fp4x2_type, {1, 3, 21, 11}};
+//     migraphx::shape shape_packed_weights{migraphx::shape::fp4x2_type, {1, 3, 4, 2}};
+//     migraphx::shape shape_scale_input{migraphx::shape::float_type, {1, 3, 21, 21}};
+//     migraphx::shape shape_scale_weights{migraphx::shape::float_type, {1, 3, 4, 4}};
+//
+//     migraphx::module m1;
+//     {
+//         auto packed_input   = m1.add_parameter("input", shape_packed_input);
+//         auto packed_weights = m1.add_parameter("weights", shape_packed_weights);
+//         auto scale_input    = m1.add_parameter("scale_input", shape_scale_input);
+//         auto scale_weights  = m1.add_parameter("scale_weights", shape_scale_weights);
+//
+//         auto unpack_input =
+//             m1.add_instruction(migraphx::make_op("unpack_fp4", {{"axis", 3}}), packed_input);
+//         auto unpack_weights =
+//             m1.add_instruction(migraphx::make_op("unpack_fp4", {{"axis", 3}}), packed_weights);
+//         auto slice_input = m1.add_instruction(
+//             migraphx::make_op("slice", {{"axes", {3}}, {"starts", {0}}, {"ends", {21}}}),
+//             unpack_input);
+//         auto dq_input =
+//             m1.add_instruction(migraphx::make_op("dequantizelinear"), slice_input, scale_input);
+//         auto dq_weights = m1.add_instruction(
+//             migraphx::make_op("dequantizelinear"), unpack_weights, scale_weights);
+//         auto conv = m1.add_instruction(migraphx::make_op("convolution",
+//                                                          {{"padding", {0, 0, 0, 0}},
+//                                                           {"stride", {1, 1}},
+//                                                           {"dilation", {1, 1}},
+//                                                           {"group", 1},
+//                                                           {"padding_mode", 0}}),
+//                                        dq_input,
+//                                        dq_weights);
+//         m1.add_return({conv});
+//     }
+//
+//     migraphx::module m2;
+//     {
+//         auto packed_input   = m2.add_parameter("input", shape_packed_input);
+//         auto packed_weights = m2.add_parameter("weights", shape_packed_weights);
+//         auto scale_input    = m2.add_parameter("scale_input", shape_scale_input);
+//         auto scale_weights  = m2.add_parameter("scale_weights", shape_scale_weights);
+//
+//         auto unpack_input =
+//             m2.add_instruction(migraphx::make_op("unpack_fp4", {{"axis", 3}}), packed_input);
+//         auto unpack_weights =
+//             m2.add_instruction(migraphx::make_op("unpack_fp4", {{"axis", 3}}), packed_weights);
+//         auto slice_input = m2.add_instruction(
+//             migraphx::make_op("slice", {{"axes", {3}}, {"starts", {0}}, {"ends", {21}}}),
+//             unpack_input);
+//         auto quant_conv = m2.add_instruction(migraphx::make_op("quant_convolution",
+//                                                                {{"padding", {0, 0, 0, 0}},
+//                                                                 {"stride", {1, 1}},
+//                                                                 {"dilation", {1, 1}},
+//                                                                 {"group", 1},
+//                                                                 {"padding_mode", 0}}),
+//                                              slice_input,
+//                                              unpack_weights,
+//                                              scale_input,
+//                                              scale_weights);
+//         m2.add_return({quant_conv});
+//     }
+//
+//     run_pass(m1);
+//     EXPECT(m1 == m2);
+// }
 
 // TODO add with NHWC format
 

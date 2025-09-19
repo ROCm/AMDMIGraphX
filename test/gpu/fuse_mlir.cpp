@@ -1681,7 +1681,6 @@ TEST_CASE(unpack_fp4_dot_even)
         m->add_return({fused});
     }
     EXPECT(p1.sort() == p2.sort());
-    p1.debug_print();
 }
 
 TEST_CASE(unpack_fp4_dot_odd)
@@ -1733,7 +1732,6 @@ TEST_CASE(unpack_fp4_dot_odd)
         m->add_return({fused});
     }
     EXPECT(p1.sort() == p2.sort());
-    p1.debug_print();
 }
 
 int main(int argc, const char* argv[])

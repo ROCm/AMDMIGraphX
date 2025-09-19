@@ -55,7 +55,8 @@ extern "C" MIGRAPHX_C_EXPORT void migraphx_test_private_disable_exception_catch(
 #endif
 
 template <class F>
-migraphx_status try_(F f, bool output = true, source_location llc=source_location::current()) // NOLINT
+migraphx_status
+try_(F f, bool output = true, source_location llc = source_location::current()) // NOLINT
 {
 #ifdef MIGRAPHX_BUILD_TESTING
     if(disable_exception_catch)
@@ -72,7 +73,8 @@ migraphx_status try_(F f, bool output = true, source_location llc=source_locatio
         catch(const migraphx::exception& ex)
         {
             if(output)
-                std::cerr << "MIGraphX Error: Caller:" << llc.function_name() << " what:" << ex.what() << std::endl;
+                std::cerr << "MIGraphX Error: Caller:" << llc.function_name()
+                          << " what:" << ex.what() << std::endl;
             if(ex.error > 0)
                 return migraphx_status(ex.error);
             else
@@ -81,7 +83,8 @@ migraphx_status try_(F f, bool output = true, source_location llc=source_locatio
         catch(const std::exception& ex)
         {
             if(output)
-                std::cerr << "MIGraphX Error: Caller:" << llc.function_name()  << " what:" << ex.what() << std::endl;
+                std::cerr << "MIGraphX Error: Caller:" << llc.function_name()
+                          << " what:" << ex.what() << std::endl;
             return migraphx_status_unknown_error;
         }
         catch(...)

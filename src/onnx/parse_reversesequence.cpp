@@ -101,7 +101,7 @@ struct parse_reversesequence : op_parser<parse_reversesequence>
             MIGRAPHX_THROW("REVERSESEQUENCE: sequence_lens has incorrect shape");
         }
 
-        instruction_ref ret{};
+        instruction_ref ret;
 
         auto add_slice = [&info, &input, batch_axis, time_axis](int b, int t_start, int t_end) {
             return info.add_instruction(make_op("slice",
@@ -110,6 +110,8 @@ struct parse_reversesequence : op_parser<parse_reversesequence>
                                                  {"ends", {b + 1, t_end}}}),
                                         input);
         };
+
+        assert(batch_size > 0);
 
         for(int b = 0; b < batch_size; ++b)
         {
@@ -139,6 +141,7 @@ struct parse_reversesequence : op_parser<parse_reversesequence>
                 ret = info.add_instruction(make_op("concat", {{"axis", batch_axis}}), ret, s0);
             }
         }
+        // cppcheck-suppress uninitvar
         return ret;
     }
 };

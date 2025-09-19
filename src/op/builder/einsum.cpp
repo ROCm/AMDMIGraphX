@@ -76,8 +76,11 @@ struct einsum : op_builder<einsum>
         // As operations are added to the einsum graph, cur_pair gets manipulated
         int_mat cur_pair = make_matrix(2, map_mat[0].size(), -1);
 
-        instruction_ref cur_op{};
+        instruction_ref cur_op;
         std::optional<instruction_ref> last_op;
+
+        assert(not args.empty())
+
         // Perform a left fold on the inputs
         for(auto arg_idx = 0; arg_idx < args.size(); ++arg_idx)
         {
@@ -94,6 +97,7 @@ struct einsum : op_builder<einsum>
             cur_pair[0] = cur_pair[1];
         }
 
+        // cppcheck-suppress uninitvar
         return {finalize_output(m, ins, cur_op, map_mat, cur_pair)};
     }
 

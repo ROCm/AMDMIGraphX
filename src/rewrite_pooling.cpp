@@ -29,6 +29,7 @@
 #include <migraphx/op/reduce_mean.hpp>
 #include <migraphx/op/reduce_max.hpp>
 #include <migraphx/make_op.hpp>
+
 #include <migraphx/op/lrn.hpp>
 #include <migraphx/permutation.hpp>
 #include <migraphx/program.hpp>
@@ -126,6 +127,8 @@ static void lower_lrn_to_pooling(module& m, instruction_ref ins)
     m.replace_instruction(ins, y);
 }
 
+
+
 static void replace_dilations_with_gather_pooling(module& m, instruction_ref ins)
 {
     // TODO remove this when MIOpen supports dilated pooling
@@ -214,7 +217,7 @@ void rewrite_pooling::apply(module& m) const
 {
     for(auto ins : iterator_for(m))
     {
-        if(ins->name() != "pooling")
+        /*if(ins->name() != "pooling")
             continue;
         if(ins->inputs().empty())
             continue;
@@ -223,6 +226,20 @@ void rewrite_pooling::apply(module& m) const
             lower_lrn_to_pooling(m, ins);  
             continue;  
         }
+            */
+
+        if(ins->inputs().empty())  
+            continue;  
+              
+        if(ins->name() == "lrn")    
+        {    
+            lower_lrn_to_pooling(m, ins);    
+            continue;    
+        }  
+          
+        if(ins->name() != "pooling")  
+            continue;  
+
 
         auto&& s                  = ins->inputs().front()->get_shape();
         auto&& op                 = any_cast<op::pooling>(ins->get_operator());

@@ -71,7 +71,8 @@ constexpr float fp4_to_float(uint8_t x)
 // converts 4 LSB to fp8e4m3fn_type
 constexpr auto fp4_to_fp8(uint8_t x)
 {
-    return migraphx::fp8::fp8e4m3fn(fp4_detail::fp4_to_float_lut[x % fp4_detail::fp4_to_float_lut.size()]);
+    return migraphx::fp8::fp8e4m3fn(
+        fp4_detail::fp4_to_float_lut[x % fp4_detail::fp4_to_float_lut.size()]);
 }
 
 // rounding mode = roundToNearestRoundTiesToEven

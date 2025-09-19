@@ -1681,6 +1681,98 @@ TEST_CASE(channel_slice_convolution)
     EXPECT(p1.sort() == p2.sort());
 }
 
+TEST_CASE(unpack_fp4_dot_even)
+{
+    migraphx::program p1;
+    {
+        auto* m       = p1.get_main_module();
+        auto packed_a = m->add_parameter("a", {migraphx::shape::fp4x2_type, {1, 3, 8, 4}});
+        auto packed_b = m->add_parameter("b", {migraphx::shape::fp4x2_type, {1, 3, 8, 4}});
+        auto scale_a  = m->add_parameter("scale_a", {migraphx::shape::float_type, {1, 3, 8, 8}});
+        auto scale_b  = m->add_parameter("scale_b", {migraphx::shape::float_type, {1, 3, 8, 8}});
+        auto unpack_a = m->add_instruction(migraphx::make_op("unpack_fp4"), packed_a);
+        auto unpack_b = m->add_instruction(migraphx::make_op("unpack_fp4"), packed_b);
+        auto dot      = m->add_instruction(
+            migraphx::make_op("quant_dot"), unpack_a, unpack_b, scale_a, scale_b);
+        m->add_return({dot});
+    }
+    run_pass(p1);
+
+    migraphx::program p2;
+    {
+        auto* m       = p2.get_main_module();
+        auto packed_a = m->add_parameter("a", {migraphx::shape::fp4x2_type, {1, 3, 8, 4}});
+        auto packed_b = m->add_parameter("b", {migraphx::shape::fp4x2_type, {1, 3, 8, 4}});
+        auto scale_a  = m->add_parameter("scale_a", {migraphx::shape::float_type, {1, 3, 8, 8}});
+        auto scale_b  = m->add_parameter("scale_b", {migraphx::shape::float_type, {1, 3, 8, 8}});
+        auto fused    = add_mlir(
+            p2,
+            "fp4:mlir_quant_dot0",
+            {packed_a, packed_b, scale_a, scale_b},
+            {"x1", "x2", "x3", "x4"},
+            [=](auto* pm, const auto& inputs) {
+                auto unpack_a = pm->add_instruction(migraphx::make_op("unpack_fp4"), inputs[0]);
+                auto unpack_b = pm->add_instruction(migraphx::make_op("unpack_fp4"), inputs[1]);
+                auto dot      = pm->add_instruction(
+                    migraphx::make_op("quant_dot"), unpack_a, unpack_b, inputs[2], inputs[3]);
+                return std::make_tuple(dot->get_operator(), dot);
+            });
+        m->add_return({fused});
+    }
+    EXPECT(p1.sort() == p2.sort());
+}
+
+TEST_CASE(unpack_fp4_dot_odd)
+{
+    migraphx::program p1;
+    {
+        auto* m       = p1.get_main_module();
+        auto packed_a = m->add_parameter("a", {migraphx::shape::fp4x2_type, {1, 3, 7, 4}});
+        auto packed_b = m->add_parameter("b", {migraphx::shape::fp4x2_type, {1, 3, 7, 4}});
+        auto scale_a  = m->add_parameter("scale_a", {migraphx::shape::float_type, {1, 3, 7, 7}});
+        auto scale_b  = m->add_parameter("scale_b", {migraphx::shape::float_type, {1, 3, 7, 7}});
+        auto unpack_a = m->add_instruction(migraphx::make_op("unpack_fp4"), packed_a);
+        auto unpack_b = m->add_instruction(migraphx::make_op("unpack_fp4"), packed_b);
+        auto slice_a  = m->add_instruction(
+            migraphx::make_op("slice", {{"axes", {3}}, {"starts", {0}}, {"ends", {7}}}), unpack_a);
+        auto slice_b = m->add_instruction(
+            migraphx::make_op("slice", {{"axes", {3}}, {"starts", {0}}, {"ends", {7}}}), unpack_b);
+        auto dot =
+            m->add_instruction(migraphx::make_op("quant_dot"), slice_a, slice_b, scale_a, scale_b);
+        m->add_return({dot});
+    }
+    run_pass(p1);
+
+    migraphx::program p2;
+    {
+        auto* m       = p2.get_main_module();
+        auto packed_a = m->add_parameter("a", {migraphx::shape::fp4x2_type, {1, 3, 7, 4}});
+        auto packed_b = m->add_parameter("b", {migraphx::shape::fp4x2_type, {1, 3, 7, 4}});
+        auto scale_a  = m->add_parameter("scale_a", {migraphx::shape::float_type, {1, 3, 7, 7}});
+        auto scale_b  = m->add_parameter("scale_b", {migraphx::shape::float_type, {1, 3, 7, 7}});
+        auto fused    = add_mlir(
+            p2,
+            "fp4:mlir_quant_dot0",
+            {packed_a, packed_b, scale_a, scale_b},
+            {"x1", "x2", "x3", "x4"},
+            [=](auto* pm, const auto& inputs) {
+                auto unpack_a = pm->add_instruction(migraphx::make_op("unpack_fp4"), inputs[0]);
+                auto slice_a  = pm->add_instruction(
+                    migraphx::make_op("slice", {{"axes", {3}}, {"starts", {0}}, {"ends", {7}}}),
+                    unpack_a);
+                auto unpack_b = pm->add_instruction(migraphx::make_op("unpack_fp4"), inputs[1]);
+                auto slice_b  = pm->add_instruction(
+                    migraphx::make_op("slice", {{"axes", {3}}, {"starts", {0}}, {"ends", {7}}}),
+                    unpack_b);
+                auto dot = pm->add_instruction(
+                    migraphx::make_op("quant_dot"), slice_a, slice_b, inputs[2], inputs[3]);
+                return std::make_tuple(dot->get_operator(), dot);
+            });
+        m->add_return({fused});
+    }
+    EXPECT(p1.sort() == p2.sort());
+}
+
 int main(int argc, const char* argv[])
 {
     if(migraphx::gpu::mlir_enabled())

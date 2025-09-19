@@ -89,6 +89,7 @@ __device__ inline uint8_t float_to_fp4(float f_x)
 
     return i + sign_add;
 }
+
 } // namespace migraphx
 
 #endif // MIGRAPHX_GUARD_KERNELS_FP4_CASTS_HPP

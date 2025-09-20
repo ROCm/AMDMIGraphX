@@ -39,6 +39,7 @@
 
 MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_ENABLE_MLIR_INPUT_FUSION);
 MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_ENABLE_MLIR_REDUCE_FUSION);
+MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_MLIR_USE_SPECIFIC_OPS);
 
 struct non_mlir_op
 {
@@ -236,6 +237,44 @@ TEST_CASE(dot_reshape_lazy_add)
         mm->add_return({fused});
     }
     EXPECT(p1.sort() == p2.sort());
+}
+
+TEST_CASE(conv_backwards)
+{
+    migraphx::shape os{migraphx::shape::float_type, {{1, 1, 5, 5}}};
+    migraphx::shape is{migraphx::shape::float_type, {1, 1, 3, 3}};
+    migraphx::shape ws{migraphx::shape::float_type, {1, 1, 3, 3}};
+    migraphx::program p1;
+    {
+        auto* mm     = p1.get_main_module();
+        auto x       = mm->add_parameter("x", is);
+        auto w       = mm->add_parameter("w", ws);
+        auto conv_bk = mm->add_instruction(migraphx::make_op("convolution_backwards"), x, w);
+        mm->add_return({conv_bk});
+    }
+    run_pass(p1);
+
+    migraphx::program p2;
+    {
+        auto* mm = p2.get_main_module();
+        auto x   = mm->add_parameter("x", is);
+        auto w   = mm->add_parameter("w", ws);
+        auto conv_bk =
+            add_mlir(p2,
+                     "mlir_convolution_backwards0",
+                     {x, w},
+                     {"y0", "y1"},
+                     [=](auto* pm, const auto& inputs) {
+                         auto c = pm->add_instruction(
+                             migraphx::make_op("convolution_backwards"), inputs[0], inputs[1]);
+                         return std::make_tuple(c->get_operator(), c);
+                     });
+        mm->add_return({conv_bk});
+    }
+
+    std::string opt = migraphx::string_value_of(MIGRAPHX_MLIR_USE_SPECIFIC_OPS{}, "");
+    if(opt.find("convolution_backwards") != std::string::npos)
+        EXPECT(p1.sort() == p2.sort());
 }
 
 TEST_CASE(conv_broadcast_mul)

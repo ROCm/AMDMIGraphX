@@ -1134,6 +1134,44 @@ std::vector<std::vector<std::size_t>> shape_transform_descriptor::common_axes_ma
     return result;
 }
 
+std::vector<std::vector<std::size_t>>
+shape_transform_descriptor::axes_map_from_src(bool keep_partial_axes) const
+{
+    std::vector<std::vector<std::size_t>> result(rank);
+    std::unordered_set<std::size_t> invalid_axes;
+    for(auto i : range(dimensions.size()))
+    {
+        const auto& dim = dimensions[i];
+        if(dim.subdimensions.empty())
+            continue;
+        auto non_1_axis = [](const dimension::sub& s) {
+            return not s.origin_axis().empty() and s.len > 1;
+        };
+        auto n = std::count_if(dim.subdimensions.begin(), dim.subdimensions.end(), non_1_axis);
+        if(n > 1 and not keep_partial_axes)
+        {
+            transform_if(dim.subdimensions.begin(),
+                         dim.subdimensions.end(),
+                         std::inserter(invalid_axes, invalid_axes.begin()),
+                         non_1_axis,
+                         [&](const dimension::sub& s) { return s.origin_axis().front(); });
+        }
+        for(const auto& s : dim.subdimensions)
+        {
+            if(s.origin_axis().empty())
+                continue;
+            result[s.origin_axis().front()].push_back(i);
+        }
+    }
+    // split axis cannot be mapped
+    for(auto invalid_axis : invalid_axes)
+        result[invalid_axis].clear();
+    // sort the axes
+    for(auto& v : result)
+        std::sort(v.begin(), v.end());
+    return result;
+}
+
 bool shape_transform_descriptor::empty() const { return dimensions.empty(); }
 
 std::vector<std::size_t> shape_transform_descriptor::lens() const

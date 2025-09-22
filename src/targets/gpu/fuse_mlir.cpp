@@ -1473,8 +1473,12 @@ void fuse_mlir::apply(module_pass_manager& mpm) const
 
     match::find_matches(
         mpm,
-        find_mlir_standalone_convolution_op{.mode    = get_mode("convolution", mlir_mode::fast),
-                                            .counter = &counter},
+        find_mlir_standalone_conv_op{.mode    = get_mode("convolution", mlir_mode::fast),
+                                     .counter = &counter},
+        find_mlir_standalone_conv_backwards_op{
+            .mode    = get_mode("convolution_backwards",
+                             MIGRAPHX_USE_MIOPEN ? mlir_mode::none : mlir_mode::all),
+            .counter = &counter},
         find_mlir_standalone_dot_op{.mode = get_mode("dot", mlir_mode::fast), .counter = &counter});
 
     mpm.run_pass(dead_code_elimination{});

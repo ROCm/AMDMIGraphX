@@ -28,7 +28,7 @@
 #include <migraphx/make_op.hpp>
 
 template <migraphx::shape::type_t DType>
-struct test_dot_mul_dot : verify_program<test_dot_mul_dot<DType>>
+struct test_conv_add_dot : verify_program<test_conv_add_dot<DType>>
 {
     migraphx::program create_program() const
     {
@@ -39,17 +39,17 @@ struct test_dot_mul_dot : verify_program<test_dot_mul_dot<DType>>
         migraphx::shape cs{DType, {56, 14, 1, 1}};
         migraphx::shape ds{DType, {4, 56, 122, 56}};
 
-        auto a   = mm->add_parameter("a", as);
-        auto b   = mm->add_parameter("b", bs);
-        auto c   = mm->add_parameter("c", cs);
-        auto d   = mm->add_parameter("d", ds);
+        auto a    = mm->add_parameter("a", as);
+        auto b    = mm->add_parameter("b", bs);
+        auto c    = mm->add_parameter("c", cs);
+        auto d    = mm->add_parameter("d", ds);
         auto conv = mm->add_instruction(migraphx::make_op("convolution"), a, b);
-        auto mul = mm->add_instruction(migraphx::make_op("mul"), conv, c);
-        auto dot = mm->add_instruction(migraphx::make_op("dot"), mul, d);
+        auto add  = mm->add_instruction(migraphx::make_op("add"), conv, c);
+        auto dot  = mm->add_instruction(migraphx::make_op("dot"), add, d);
         mm->add_return({dot});
         return p;
     }
 };
 
-template struct test_dot_mul_dot<migraphx::shape::half_type>;
-template struct test_dot_mul_dot<migraphx::shape::bf16_type>;
+template struct test_conv_add_dot<migraphx::shape::half_type>;
+template struct test_conv_add_dot<migraphx::shape::bf16_type>;

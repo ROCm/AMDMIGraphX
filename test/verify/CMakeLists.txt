@@ -42,3 +42,5 @@ foreach(SECTION general reduce rnn conv gemm)
         )
     endif()
 endforeach()
+
+set_tests_properties(test_verify_rnn PROPERTIES ENVIRONMENT "MIGRAPHX_ENABLE_MLIR_GEG_FUSION=0")

@@ -309,6 +309,44 @@ TEST_CASE(rewrite_pooling_dialtions_test5)
     test_rewrite(migraphx::op::pooling_mode::max);
 }
 
+TEST_CASE(lower_lrn_to_pooling_test)  
+{  
+    migraphx::shape s{migraphx::shape::float_type, {1, 64, 55, 55}};  
+      
+    migraphx::module m;  
+    auto x = m.add_parameter("x", s);  
+    auto lrn = m.add_instruction(  
+        migraphx::make_op("lrn", {{"alpha", 0.0001}, {"beta", 0.75}, {"bias", 1.0}, {"size", 5}}),   
+        x);  
+    m.add_return({lrn});  
+      
+    int lrn_count_before = 0;  
+    int pooling_count_before = 0;  
+    for(auto ins : migraphx::iterator_for(m)) {  
+        if(ins->name() == "lrn") lrn_count_before++;  
+        if(ins->name() == "pooling") pooling_count_before++;  
+    }  
+      
+    opt_pooling(m);  
+       
+    int lrn_count_after = 0;  
+    int pooling_count_after = 0;  
+    int mul_count = 0;  
+    int div_count = 0;  
+    for(auto ins : migraphx::iterator_for(m)) {  
+        if(ins->name() == "lrn") lrn_count_after++;  
+        if(ins->name() == "pooling") pooling_count_after++;  
+        if(ins->name() == "mul") mul_count++;  
+        if(ins->name() == "div") div_count++;  
+    }
+
+    EXPECT(lrn_count_before == 1);  
+    EXPECT(lrn_count_after == 0);  
+    EXPECT(pooling_count_after > pooling_count_before);  
+    EXPECT(mul_count > 0);  
+    EXPECT(div_count > 0);
+}
+
 TEST_CASE(rewrite_avgpool_rank3_dil_test)
 {
     // 1D case 1, input is 3D

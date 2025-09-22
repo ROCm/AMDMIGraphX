@@ -21,30 +21,29 @@
  * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
  * THE SOFTWARE.
  */
+#include <migraphx/gpu/fixed_pad.hpp>
+#include <migraphx/gpu/context.hpp>
+#include <migraphx/gpu/device/fixed_pad.hpp>
 
-#include "verify_program.hpp"
-#include <migraphx/program.hpp>
-#include <migraphx/generate.hpp>
-#include <migraphx/make_op.hpp>
+namespace migraphx {
+inline namespace MIGRAPHX_INLINE_NS {
+namespace gpu {
 
-template <migraphx::shape::type_t DType>
-struct test_convolution_backwards_2x3 : verify_program<test_convolution_backwards_2x3<DType>>
+shape hip_fixed_pad::compute_shape(std::vector<shape> inputs) const
 {
-    migraphx::program create_program() const
-    {
-        migraphx::program p;
-        auto* mm     = p.get_main_module();
-        auto input   = mm->add_parameter("x", migraphx::shape{DType, {1, 3, 6, 7}});
-        auto weights = mm->add_parameter("w", migraphx::shape{DType, {3, 4, 3, 3}});
-        mm->add_instruction(
-            migraphx::make_op("convolution_backwards",
-                              {{"padding", {1, 1}}, {"stride", {2, 3}}, {"dilation", {1, 1}}}),
-            input,
-            weights);
-        return p;
-    }
-};
+    inputs.pop_back();
+    check_shapes{inputs, *this, true}.has(1);
+    return op.compute_shape(inputs);
+}
 
-template struct test_convolution_backwards_2x3<migraphx::shape::float_type>;
-template struct test_convolution_backwards_2x3<migraphx::shape::half_type>;
-template struct test_convolution_backwards_2x3<migraphx::shape::bf16_type>;
+argument hip_fixed_pad::compute(context& ctx, const shape&, const std::vector<argument>& args) const
+{
+    if(args.front().get_shape() == args.back().get_shape())
+        return args.front();
+
+    return device::fixed_pad(ctx.get_stream().get(), args.back(), args.front());
+}
+
+} // namespace gpu
+} // namespace MIGRAPHX_INLINE_NS
+} // namespace migraphx

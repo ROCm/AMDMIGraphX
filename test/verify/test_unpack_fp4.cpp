@@ -27,24 +27,20 @@
 #include <migraphx/generate.hpp>
 #include <migraphx/make_op.hpp>
 
-template <migraphx::shape::type_t DType>
-struct test_convolution_backwards_2x3 : verify_program<test_convolution_backwards_2x3<DType>>
+template <int Axis = -1>
+struct test_unpack_fp4 : verify_program<test_unpack_fp4<Axis>>
 {
     migraphx::program create_program() const
     {
         migraphx::program p;
-        auto* mm     = p.get_main_module();
-        auto input   = mm->add_parameter("x", migraphx::shape{DType, {1, 3, 6, 7}});
-        auto weights = mm->add_parameter("w", migraphx::shape{DType, {3, 4, 3, 3}});
-        mm->add_instruction(
-            migraphx::make_op("convolution_backwards",
-                              {{"padding", {1, 1}}, {"stride", {2, 3}}, {"dilation", {1, 1}}}),
-            input,
-            weights);
+        auto* mm = p.get_main_module();
+
+        auto x = mm->add_parameter("x", migraphx::shape{migraphx::shape::fp4x2_type, {32, 16}});
+        mm->add_instruction(migraphx::make_op("unpack_fp4", {{"axis", Axis}}), x);
+
         return p;
     }
 };
 
-template struct test_convolution_backwards_2x3<migraphx::shape::float_type>;
-template struct test_convolution_backwards_2x3<migraphx::shape::half_type>;
-template struct test_convolution_backwards_2x3<migraphx::shape::bf16_type>;
+template struct test_unpack_fp4<>;
+template struct test_unpack_fp4<0>;

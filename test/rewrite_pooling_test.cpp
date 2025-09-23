@@ -311,21 +311,20 @@ TEST_CASE(rewrite_pooling_dialtions_test5)
     test_rewrite(migraphx::op::pooling_mode::max);
 }
 
-TEST_CASE(lower_lrn_to_pooling_test1)  
-{  
-    migraphx::shape s{migraphx::shape::float_type, {1, 64, 55, 55}};  
-      
-    migraphx::module m1;  
-    {  
-        auto x = m1.add_parameter("x", s);  
-        auto lrn = m1.add_instruction(  
-            migraphx::make_op("lrn", {{"alpha", 0.0001}, {"beta", 0.75}, {"bias", 1.0}, {"size", 5}}),   
-            x);  
-        m1.add_return({lrn});  
-    }  
-        
-    migraphx::module m2 = m1;  
-      
+TEST_CASE(lower_lrn_to_pooling_test1)
+{
+    migraphx::shape s{migraphx::shape::float_type, {1, 64, 55, 55}};
+
+    migraphx::module m1;
+    {
+        auto x = m1.add_parameter("x", s);
+        auto lrn = m1.add_instruction(
+            migraphx::make_op("lrn", {{"alpha", 0.0001}, {"beta", 0.75}, {"bias", 1.0}, {"size", 5}}), 
+            x);
+        m1.add_return({lrn});
+    }
+
+    migraphx::module m2 = m1;
     opt_pooling(m2);
 }
 

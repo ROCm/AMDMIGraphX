@@ -26,6 +26,7 @@
 #include <migraphx/program.hpp>
 #include <migraphx/generate.hpp>
 #include <migraphx/make_op.hpp>
+#include <migraphx/instruction.hpp>
 
 template <migraphx::shape::type_t DType>
 struct test_conv_add_dot : verify_program<test_conv_add_dot<DType>>
@@ -33,22 +34,31 @@ struct test_conv_add_dot : verify_program<test_conv_add_dot<DType>>
     migraphx::program create_program() const
     {
         migraphx::program p;
-        auto* mm = p.get_main_module();
-        migraphx::shape as{DType, {4, 14, 122, 122}};
-        migraphx::shape bs{DType, {4, 56, 122, 122}};
-        migraphx::shape cs{DType, {56, 14, 1, 1}};
-        migraphx::shape ds{DType, {4, 56, 122, 56}};
+        auto* mm     = p.get_main_module();
+        auto input   = mm->add_parameter("x", migraphx::shape{DType, {4, 3, 3, 3}});
+        auto weights = mm->add_parameter("w", migraphx::shape{DType, {4, 3, 3, 3}});
+        auto bias_literal =
+            migraphx::literal{migraphx::shape{DType, {4}}, {2.0f, 2.0f, 2.0f, 2.0f}};
+        auto bias       = mm->add_literal(bias_literal);
+        auto conv       = mm->add_instruction(migraphx::make_op("convolution"), input, weights);
+        auto bcast_bias = mm->add_instruction(
+            migraphx::make_op("broadcast", {{"axis", 1}, {"out_lens", conv->get_shape().lens()}}),
+            bias);
+        auto bias_add = mm->add_instruction(migraphx::make_op("add"), conv, bcast_bias);
 
-        auto a    = mm->add_parameter("a", as);
-        auto b    = mm->add_parameter("b", bs);
-        auto c    = mm->add_parameter("c", cs);
-        auto d    = mm->add_parameter("d", ds);
-        auto conv = mm->add_instruction(migraphx::make_op("convolution"), a, b);
-        auto add  = mm->add_instruction(migraphx::make_op("add"), conv, c);
-        auto dot  = mm->add_instruction(migraphx::make_op("dot"), add, d);
+        // Create a literal for dot (matmul) with shape {4, 3, 3, 3}
+        std::vector<std::size_t> bias_add_lens = bias_add->get_shape().lens();
+        // The shape is {4, 3, 3, 3}, so we want a rhs shape {4, 3, 3, 3}
+        migraphx::shape dot_rhs_shape{DType, bias_add_lens};
+        std::vector<float> dot_rhs_data(dot_rhs_shape.elements(), 1.0f);
+        auto dot_rhs = mm->add_literal(migraphx::literal{dot_rhs_shape, dot_rhs_data});
+
+        // Matmul (dot) with same shape, so this is elementwise matmul
+        auto dot = mm->add_instruction(migraphx::make_op("dot"), bias_add, dot_rhs);
         mm->add_return({dot});
         return p;
     }
+    // std::string section() const { return "conv"; }
 };
 
 template struct test_conv_add_dot<migraphx::shape::half_type>;

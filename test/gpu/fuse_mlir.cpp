@@ -1772,7 +1772,7 @@ TEST_CASE(unpack_fp4_dot_odd)
         m->add_return({fused});
     }
     EXPECT(p1.sort() == p2.sort());
-}        
+}
 
 TEST_CASE(dot_add_dot)
 {
@@ -1848,7 +1848,7 @@ TEST_CASE(dot_mul_dot)
     EXPECT(p1.sort() == p2.sort());
 }
 
-TEST_CASE(conv_mul)
+TEST_CASE(conv_add)
 {
     migraphx::shape is{migraphx::shape::float_type, {4, 14, 122, 122}};
     migraphx::shape ys{migraphx::shape::float_type, {4, 56, 122, 122}};
@@ -1860,8 +1860,8 @@ TEST_CASE(conv_mul)
         auto y    = mm->add_parameter("y", ys);
         auto w    = mm->add_parameter("w", ws);
         auto conv = mm->add_instruction(migraphx::make_op("convolution"), x, w);
-        auto mul  = add_pointwise(p1, "main:pointwise0", {conv, y}, single_pointwise("mul"));
-        mm->add_return({mul});
+        auto add  = add_pointwise(p1, "main:pointwise0", {conv, y}, single_pointwise("add"));
+        mm->add_return({add});
     }
     run_pass(p1);
     migraphx::program p2;
@@ -1877,21 +1877,21 @@ TEST_CASE(conv_mul)
                               [=](auto* pm, const auto& inputs) {
                                   auto c = pm->add_instruction(
                                       migraphx::make_op("convolution"), inputs[0], inputs[1]);
-                                  auto mul =
-                                      pm->add_instruction(migraphx::make_op("mul"), c, inputs[2]);
-                                  return std::make_tuple(c->get_operator(), mul);
+                                  auto add =
+                                      pm->add_instruction(migraphx::make_op("add"), c, inputs[2]);
+                                  return std::make_tuple(c->get_operator(), add);
                               });
         mm->add_return({fused});
     }
     EXPECT(p1.sort() == p2.sort());
 }
 
-TEST_CASE(conv_mul_dot)
+TEST_CASE(conv_add_dot)
 {
-    migraphx::shape is{migraphx::shape::float_type, {4, 14, 122, 122}};
-    migraphx::shape ys{migraphx::shape::float_type, {4, 56, 122, 122}};
-    migraphx::shape ws{migraphx::shape::float_type, {56, 14, 1, 1}};
-    migraphx::shape zs{migraphx::shape::float_type, {4, 56, 122, 56}};
+    migraphx::shape is{migraphx::shape::float_type, {2, 4, 8, 8}};
+    migraphx::shape ys{migraphx::shape::float_type, {2, 8, 8, 8}};
+    migraphx::shape ws{migraphx::shape::float_type, {8, 4, 1, 1}};
+    migraphx::shape zs{migraphx::shape::float_type, {2, 8, 8, 4}};
     migraphx::program p1;
     {
         auto* mm  = p1.get_main_module();
@@ -1900,8 +1900,8 @@ TEST_CASE(conv_mul_dot)
         auto w    = mm->add_parameter("w", ws);
         auto z    = mm->add_parameter("z", zs);
         auto conv = mm->add_instruction(migraphx::make_op("convolution"), x, w);
-        auto mul  = add_pointwise(p1, "main:pointwise0", {conv, y}, single_pointwise("mul"));
-        auto dot  = mm->add_instruction(migraphx::make_op("dot"), mul, z);
+        auto add  = add_pointwise(p1, "main:pointwise0", {conv, y}, single_pointwise("add"));
+        auto dot  = mm->add_instruction(migraphx::make_op("dot"), add, z);
 
         mm->add_return({dot});
     }
@@ -1921,8 +1921,8 @@ TEST_CASE(conv_mul_dot)
                      [=](auto* pm, const auto& inputs) {
                          auto c = pm->add_instruction(
                              migraphx::make_op("convolution"), inputs[0], inputs[1]);
-                         auto mul = pm->add_instruction(migraphx::make_op("mul"), c, inputs[2]);
-                         auto dot = pm->add_instruction(migraphx::make_op("dot"), mul, inputs[3]);
+                         auto add = pm->add_instruction(migraphx::make_op("add"), c, inputs[2]);
+                         auto dot = pm->add_instruction(migraphx::make_op("dot"), add, inputs[3]);
                          return std::make_tuple(dot->get_operator(), dot);
                      });
         mm->add_return({fused});

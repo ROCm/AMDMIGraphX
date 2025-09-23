@@ -1,7 +1,7 @@
 #####################################################################################
 # The MIT License (MIT)
 #
-# Copyright (c) 2015-2024 Advanced Micro Devices, Inc. All rights reserved.
+# Copyright (c) 2015-2025 Advanced Micro Devices, Inc. All rights reserved.
 #
 # Permission is hereby granted, free of charge, to any person obtaining a copy
 # of this software and associated documentation files (the "Software"), to deal
@@ -21,29 +21,52 @@
 # OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 # THE SOFTWARE.
 #####################################################################################
-find_package(Protobuf REQUIRED)
+find_package(protobuf QUIET CONFIG)
 
-protobuf_generate_cpp(
-    PROTO_SRCS PROTO_HDRS 
-    graph.proto
-    node_def.proto
-    attr_value.proto
-    tensor.proto
-    tensor_shape.proto
-    resource_handle.proto
-    types.proto
-    function.proto
-    op_def.proto
-    versions.proto
-)
-add_library(tf-proto STATIC ${PROTO_SRCS})
-target_include_directories(tf-proto SYSTEM PUBLIC ${CMAKE_CURRENT_BINARY_DIR} ${PROTOBUF_INCLUDE_DIR})
+if(protobuf_FOUND)
+    add_library(tf-proto STATIC ${PROTO_SRCS})
+    protobuf_generate(
+        TARGET tf-proto
+        PROTOS 
+            graph.proto
+            node_def.proto
+            attr_value.proto
+            tensor.proto
+            tensor_shape.proto
+            resource_handle.proto
+            types.proto
+            function.proto
+            op_def.proto
+            versions.proto
+    )
+    target_include_directories(tf-proto SYSTEM PUBLIC ${CMAKE_CURRENT_BINARY_DIR} ${PROTOBUF_INCLUDE_DIR})
+    target_link_libraries(tf-proto PRIVATE ${PROTOBUF_LIBRARY})
+    target_link_libraries(tf-proto PRIVATE protobuf::libprotobuf)
+else()
+    find_package(Protobuf REQUIRED)
+    protobuf_generate_cpp(
+        PROTO_SRCS PROTO_HDRS
+        graph.proto
+        node_def.proto
+        attr_value.proto
+        tensor.proto
+        tensor_shape.proto
+        resource_handle.proto
+        types.proto
+        function.proto
+        op_def.proto
+        versions.proto
+    )
+    add_library(tf-proto STATIC ${PROTO_SRCS})
+    target_include_directories(tf-proto SYSTEM PUBLIC ${CMAKE_CURRENT_BINARY_DIR} ${PROTOBUF_INCLUDE_DIR})
+    target_link_libraries(tf-proto PRIVATE ${PROTOBUF_LIBRARY})
+endif()
+
 if(MSVC)
     target_compile_options(tf-proto PRIVATE /w)
 else()
     target_compile_options(tf-proto PRIVATE -w)
 endif()
-target_link_libraries(tf-proto PRIVATE ${PROTOBUF_LIBRARY})
 set_target_properties(tf-proto PROPERTIES POSITION_INDEPENDENT_CODE On)
 
 file(GLOB TF_SRCS CONFIGURE_DEPENDS *.cpp)

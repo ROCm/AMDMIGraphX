@@ -24,6 +24,7 @@
 #include <migraphx/float_equal.hpp>
 #include <migraphx/ranges.hpp>
 #include <migraphx/fp4_casts.hpp>
+#include <migraphx/float8.hpp>
 #include "test.hpp"
 
 #include <cmath>
@@ -46,6 +47,16 @@ TEST_CASE(test_fp4_to_float)
     }));
 }
 
+TEST_CASE(test_fp4_to_fp8)
+{
+    std::vector<uint8_t> bit_vals(16);
+    std::iota(bit_vals.begin(), bit_vals.end(), 0);
+    EXPECT(std::all_of(bit_vals.begin(), bit_vals.end(), [](uint8_t bit_val) {
+        auto float_val = migraphx::fp4_to_fp8(bit_val);
+        return migraphx::float_equal(float_val, fp4e2m1_to_fp32_value(bit_val));
+    }));
+}
+
 TEST_CASE(test_constexpr_fp4_to_float)
 {
     constexpr std::array<float, 16> res_array = {migraphx::fp4_to_float(0x0),
@@ -64,6 +75,27 @@ TEST_CASE(test_constexpr_fp4_to_float)
                                                  migraphx::fp4_to_float(0xD),
                                                  migraphx::fp4_to_float(0xE),
                                                  migraphx::fp4_to_float(0xF)};
+    EXPECT(std::equal(res_array.begin(), res_array.end(), test_fp4_casts::e2m1_lut.begin()));
+}
+
+TEST_CASE(test_constexpr_fp4_to_fp8)
+{
+    constexpr std::array<migraphx::fp8::fp8e4m3fn, 16> res_array = {migraphx::fp4_to_fp8(0x0),
+                                                                    migraphx::fp4_to_fp8(0x1),
+                                                                    migraphx::fp4_to_fp8(0x2),
+                                                                    migraphx::fp4_to_fp8(0x3),
+                                                                    migraphx::fp4_to_fp8(0x4),
+                                                                    migraphx::fp4_to_fp8(0x5),
+                                                                    migraphx::fp4_to_fp8(0x6),
+                                                                    migraphx::fp4_to_fp8(0x7),
+                                                                    migraphx::fp4_to_fp8(0x8),
+                                                                    migraphx::fp4_to_fp8(0x9),
+                                                                    migraphx::fp4_to_fp8(0xA),
+                                                                    migraphx::fp4_to_fp8(0xB),
+                                                                    migraphx::fp4_to_fp8(0xC),
+                                                                    migraphx::fp4_to_fp8(0xD),
+                                                                    migraphx::fp4_to_fp8(0xE),
+                                                                    migraphx::fp4_to_fp8(0xF)};
     EXPECT(std::equal(res_array.begin(), res_array.end(), test_fp4_casts::e2m1_lut.begin()));
 }
 
@@ -106,7 +138,7 @@ TEST_CASE(test_float_to_fp4)
         {std::numeric_limits<float>::signaling_NaN(), 0x0},
         {std::numeric_limits<float>::quiet_NaN(), 0x0}};
     EXPECT(bool{std::all_of(test_vals.begin(), test_vals.end(), [](const auto sample) {
-        uint8_t conv = migraphx::float_to_fp4(sample.first);
+        uint8_t conv = migraphx::cast_to_fp4(sample.first);
         uint8_t gold = sample.second;
         if(conv != gold)
             std::cout << "conv: " << int(conv) << ", gold: " << int(gold) << "\n";
@@ -118,18 +150,18 @@ TEST_CASE(test_float_to_fp4)
 // TEST_CASE(test_constexpr_float_to_fp4)
 //{
 //    constexpr std::array<uint8_t, 12> res_array = {
-//        migraphx::float_to_fp4(10.f),
-//        migraphx::float_to_fp4(-20.f),
-//        migraphx::float_to_fp4(0.11f),
-//        migraphx::float_to_fp4(-0.11f),
-//        migraphx::float_to_fp4(0.25f),
-//        migraphx::float_to_fp4(1.75f),
-//        migraphx::float_to_fp4(-0.25f),
-//        migraphx::float_to_fp4(-1.75f),
-//        migraphx::float_to_fp4(3.5f),
-//        migraphx::float_to_fp4(-3.5f),
-//        migraphx::float_to_fp4(0.00128f),
-//        migraphx::float_to_fp4(82910.0f),
+//        migraphx::cast_to_fp4(10.f),
+//        migraphx::cast_to_fp4(-20.f),
+//        migraphx::cast_to_fp4(0.11f),
+//        migraphx::cast_to_fp4(-0.11f),
+//        migraphx::cast_to_fp4(0.25f),
+//        migraphx::cast_to_fp4(1.75f),
+//        migraphx::cast_to_fp4(-0.25f),
+//        migraphx::cast_to_fp4(-1.75f),
+//        migraphx::cast_to_fp4(3.5f),
+//        migraphx::cast_to_fp4(-3.5f),
+//        migraphx::cast_to_fp4(0.00128f),
+//        migraphx::cast_to_fp4(82910.0f),
 //    };
 //
 //    std::array<uint8_t, 12> gold_array = {

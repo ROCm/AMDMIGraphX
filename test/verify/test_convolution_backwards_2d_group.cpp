@@ -27,18 +27,22 @@
 #include <migraphx/generate.hpp>
 #include <migraphx/make_op.hpp>
 
-struct test_convolution_backwards_2d_group : verify_program<test_convolution_backwards_2d_group>
+template <migraphx::shape::type_t DType>
+struct test_convolution_backwards_2d_group
+    : verify_program<test_convolution_backwards_2d_group<DType>>
 {
     migraphx::program create_program() const
     {
         migraphx::program p;
-        auto* mm = p.get_main_module();
-        auto input =
-            mm->add_parameter("x", migraphx::shape{migraphx::shape::float_type, {1, 2, 10, 10}});
-        auto weights =
-            mm->add_parameter("w", migraphx::shape{migraphx::shape::float_type, {2, 4, 3, 3}});
+        auto* mm     = p.get_main_module();
+        auto input   = mm->add_parameter("x", migraphx::shape{DType, {1, 2, 10, 10}});
+        auto weights = mm->add_parameter("w", migraphx::shape{DType, {2, 4, 3, 3}});
         mm->add_instruction(
             migraphx::make_op("convolution_backwards", {{"group", 2}}), input, weights);
         return p;
     }
 };
+
+template struct test_convolution_backwards_2d_group<migraphx::shape::float_type>;
+template struct test_convolution_backwards_2d_group<migraphx::shape::half_type>;
+template struct test_convolution_backwards_2d_group<migraphx::shape::bf16_type>;

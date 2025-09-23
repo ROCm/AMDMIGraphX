@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2023 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2025 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -35,7 +35,17 @@ bool verify_args(const std::string& name,
                  verify::tolerance tols)
 {
     bool passed = true;
-    visit_all(ref_arg.data(), target_arg)([&](auto ref, auto target) {
+    argument t_arg = target_arg;
+    argument r_arg = ref_arg.data();
+    if(not t_arg.get_shape().computable())
+    {
+        shape o_t_shape = t_arg.get_shape();
+        shape o_r_shape = r_arg.get_shape();
+        assert(o_t_shape.type() == o_r_shape.type());
+        t_arg = t_arg.reshape(shape{shape::uint8_type, o_t_shape.lens(), o_t_shape.strides()});
+        r_arg = r_arg.reshape(shape{shape::uint8_type, o_r_shape.lens(), o_r_shape.strides()});
+    }
+    visit_all(r_arg, t_arg)([&](auto ref, auto target) {
         double rms_error;
         passed =
             verify::verify_range_with_tolerance(target, verify::expected{ref}, tols, &rms_error);
@@ -101,7 +111,13 @@ bool verify_args_with_tolerance(const std::string& name,
                                 std::size_t tolerance)
 {
     double rms_tol = 0.001;
-    target_arg.visit([&](auto ta) { rms_tol = verify::get_rms_tol(ta, tolerance); });
+    argument t_arg = target_arg;
+    if(not t_arg.get_shape().computable())
+    {
+        shape o_t_shape = t_arg.get_shape();
+        t_arg = t_arg.reshape(shape{shape::uint8_type, o_t_shape.lens(), o_t_shape.strides()});
+    }
+    t_arg.visit([&](auto ta) { rms_tol = verify::get_rms_tol(ta, tolerance); });
     verify::tolerance tols{rms_tol};
     return verify_args(name, target_arg, ref_arg, tols);
 }

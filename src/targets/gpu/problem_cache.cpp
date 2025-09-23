@@ -68,7 +68,7 @@ void problem_cache::save() const
         write_string(p, ""); // Write to TEMP an empty file to reserve the name
         pc_path /= p.filename().string() + ".json";
     }
-    std::cout << "[==] MIGRAPHX_PROBLEM_CACHE_FILE: " << pc_path.string() << "\n";
+    //std::cout << "[==] MIGRAPHX_PROBLEM_CACHE_FILE: " << pc_path.string() << "\n";
     write_string(pc_path, to_pretty_json_string(to_value(cache)));
 }
 

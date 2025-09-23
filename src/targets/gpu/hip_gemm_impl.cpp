@@ -32,6 +32,7 @@
 #include <migraphx/generate.hpp>
 #include <migraphx/gpu/time_op.hpp>
 #include <migraphx/permutation.hpp>
+#include <chrono>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {

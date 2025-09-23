@@ -1486,7 +1486,9 @@ struct find_dot_tile
         ops.push_back(make_op("reshape", {{"dims", new_dims}}));
 
         // Add contiguous operation
-        ops.push_back(make_op("contiguous"));
+        std::vector<int64_t> layout_perm(new_dims.size());
+        std::iota(layout_perm.begin(), layout_perm.end(), 0);
+        ops.push_back(make_op("layout", {{"permutation", layout_perm}}));
 
         // Transpose to group dimensions correctly
         std::vector<int64_t> tile_perm(new_dims.size());
@@ -1565,14 +1567,28 @@ struct find_dot_tile
             debug_ins.push_back(current_b);
         }
 
-        mpm.get_module().debug_print(debug_ins);
-        mpm.get_module().debug_print({current_a, current_b});
+        // mpm.get_module().debug_print(debug_ins);
+        // mpm.get_module().debug_print({current_a, current_b});
 
         // Replace the dot instruction with the tiled inputs
         mpm.get_module().replace_instruction(
             dot_ins, dot_ins->get_operator(), {current_a, current_b});
     }
 };
+
+void remove_layout(module& m)
+{
+    for(auto ins : iterator_for(m))
+    {
+        if(ins->name() != "layout")
+            continue;
+        auto perm  = ins->get_operator().to_value()["permutation"].to_vector<std::int64_t>();
+        auto iperm = find_permutation(ins->inputs().front()->get_shape());
+        if(perm != iperm)
+            continue;
+        m.replace_instruction(ins, ins->inputs().front());
+    }
+}
 
 } // namespace
 
@@ -1630,6 +1646,8 @@ void fuse_mlir::apply(module_pass_manager& mpm) const
     match::find_matches(mpm, find_unpack_fp4_mlir_op{});
 
     match::find_matches(mpm, find_mlir_output_reshape_ops{});
+
+    remove_layout(mpm.get_module());
 
 #else
     (void)mpm;

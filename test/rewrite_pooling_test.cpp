@@ -34,6 +34,8 @@
 
 #include <migraphx/verify.hpp>
 
+#include <migraphx/iterator.hpp>
+
 static void opt_pooling(migraphx::module& m)
 {
     migraphx::rewrite_pooling rp;
@@ -313,38 +315,42 @@ TEST_CASE(lower_lrn_to_pooling_test)
 {  
     migraphx::shape s{migraphx::shape::float_type, {1, 64, 55, 55}};  
       
-    migraphx::module m;  
-    auto x = m.add_parameter("x", s);  
-    auto lrn = m.add_instruction(  
-        migraphx::make_op("lrn", {{"alpha", 0.0001}, {"beta", 0.75}, {"bias", 1.0}, {"size", 5}}),   
-        x);  
-    m.add_return({lrn});  
-      
-    int lrn_count_before = 0;  
-    int pooling_count_before = 0;  
-    for(auto ins : migraphx::iterator_for(m)) {  
-        if(ins->name() == "lrn") lrn_count_before++;  
-        if(ins->name() == "pooling") pooling_count_before++;  
+    std::vector<float> data(s.elements());  
+    std::iota(data.begin(), data.end(), 1.0f);  
+       
+    migraphx::program p1;  
+    {  
+        auto* mm = p1.get_main_module();  
+        auto input = mm->add_parameter("x", s);  
+        auto lrn = mm->add_instruction(  
+            migraphx::make_op("lrn", {{"alpha", 0.0001}, {"beta", 0.75}, {"bias", 1.0}, {"size", 5}}),   
+            input);  
+        mm->add_return({lrn});  
+        p1.compile(migraphx::make_target("ref"));
     }  
       
-    opt_pooling(m);  
+    migraphx::program p2;  
+    {  
+        auto* mm = p2.get_main_module();  
+        auto input = mm->add_parameter("x", s);  
+        auto lrn = mm->add_instruction(  
+            migraphx::make_op("lrn", {{"alpha", 0.0001}, {"beta", 0.75}, {"bias", 1.0}, {"size", 5}}),   
+            input);  
+        mm->add_return({lrn});  
+            
+        opt_pooling(*mm);  
+        p2.compile(migraphx::make_target("ref"));  
+    }  
+      
+    migraphx::parameter_map params;  
+    params["x"] = migraphx::argument(s, data.data());  
+      
+    auto result1 = p1.eval(params).back();  
+    auto result2 = p2.eval(params).back();  
        
-    int lrn_count_after = 0;  
-    int pooling_count_after = 0;  
-    int mul_count = 0;  
-    int div_count = 0;  
-    for(auto ins : migraphx::iterator_for(m)) {  
-        if(ins->name() == "lrn") lrn_count_after++;  
-        if(ins->name() == "pooling") pooling_count_after++;  
-        if(ins->name() == "mul") mul_count++;  
-        if(ins->name() == "div") div_count++;  
-    }
-
-    EXPECT(lrn_count_before == 1);  
-    EXPECT(lrn_count_after == 0);  
-    EXPECT(pooling_count_after > pooling_count_before);  
-    EXPECT(mul_count > 0);  
-    EXPECT(div_count > 0);
+    visit_all(result1, result2)([&](auto r1, auto r2) {  
+        EXPECT(migraphx::verify::verify_rms_range(r1, r2));  
+    });  
 }
 
 TEST_CASE(rewrite_avgpool_rank3_dil_test)

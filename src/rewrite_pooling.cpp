@@ -217,17 +217,6 @@ void rewrite_pooling::apply(module& m) const
 {
     for(auto ins : iterator_for(m))
     {
-        /*if(ins->name() != "pooling")
-            continue;
-        if(ins->inputs().empty())
-            continue;
-        if(ins->name() == "lrn")
-        {
-            lower_lrn_to_pooling(m, ins);
-            continue;
-        }
-            */
-
         if(ins->inputs().empty())  
             continue;  
               

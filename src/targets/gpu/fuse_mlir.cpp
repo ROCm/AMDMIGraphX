@@ -1445,45 +1445,58 @@ struct find_dot_tile
     get_tile_ops(const mfma_params& params, const shape& d_shape, bool is_b) const
     {
         std::vector<std::size_t> batch_dims(d_shape.lens().begin(), d_shape.lens().end() - 2);
-        auto m = d_shape.lens()[d_shape.ndim() - 2];
-        auto k = d_shape.lens()[d_shape.ndim() - 1];
-        auto n = is_b ? d_shape.lens()[d_shape.ndim() - 2] : d_shape.lens()[d_shape.ndim() - 1];
-
+        // auto m = d_shape.lens()[d_shape.ndim() - 2];
+        // auto n = is_b ? d_shape.lens()[d_shape.ndim() - 2] : d_shape.lens()[d_shape.ndim() - 1];
+        
         std::vector<operation> ops;
-
+        
         if(is_b)
         {
             // For B matrix: [Bs..., K, N] => [Bs..., N, K]
             std::vector<int64_t> perm(d_shape.ndim());
-            std::iota(perm.begin(), perm.end() - 2, 0);
-            perm[perm.size() - 2] = d_shape.ndim() - 1;
-            perm[perm.size() - 1] = d_shape.ndim() - 2;
+            std::iota(perm.begin(), perm.end(), 0);
+            std::swap(perm[perm.size() - 1], perm[perm.size() - 2]);
             ops.push_back(make_op("transpose", {{"permutation", perm}}));
-            std::swap(k, n);
+            // std::swap(k, n);
         }
-
+        
         // Calculate tiling dimensions
-        auto m_block = m / params.m_per_block;
-        auto n_block = n / params.n_per_block;
+        auto d = is_b ? d_shape.lens()[d_shape.ndim() - 1] : d_shape.lens()[d_shape.ndim() - 2];
+        auto d_per_block = is_b ? params.n_per_block : params.m_per_block;
+        auto d_block     = d / d_per_block;
+        // auto m_block = m / params.m_per_block;
+        // auto n_block = n / params.n_per_block;
+        auto k = d_shape.lens()[d_shape.ndim() - 1];
         auto k_iter  = k / (params.kpack_per_block * params.kpack);
 
         // Build new shape for tiling
         std::vector<std::size_t> new_dims = batch_dims;
-        if(is_b)
-        {
-            new_dims.insert(
+        new_dims.insert(
                 new_dims.end(),
-                {n_block, k_iter, params.kpack_per_block, params.n_per_block, params.kpack});
-        }
-        else
-        {
-            new_dims.insert(
-                new_dims.end(),
-                {m_block, k_iter, params.kpack_per_block, params.m_per_block, params.kpack});
-        }
+                {d_block, d_per_block, k_iter, params.kpack_per_block, params.kpack});
+        // if(is_b)
+        // {
+        //     new_dims.insert(
+        //         new_dims.end(),
+        //         {n_block, k_iter, params.kpack_per_block, params.n_per_block, params.kpack});
+        // }
+        // else
+        // {
+        //     new_dims.insert(
+        //         new_dims.end(),
+        //         {m_block, k_iter, params.kpack_per_block, params.m_per_block, params.kpack});
+        // }
 
         // Reshape to tiled dimensions
         ops.push_back(make_op("reshape", {{"dims", new_dims}}));
+
+        // [Bs..., mBlock, kIter, kpackPerBlock, mPerBlock, kpack]
+
+        std::vector<int64_t> tile_perm1(new_dims.size());
+        std::iota(tile_perm1.begin(), tile_perm1.end(), 0);
+        std::swap(tile_perm1[tile_perm1.size() - 3], tile_perm1[tile_perm1.size() - 4]);
+        std::swap(tile_perm1[tile_perm1.size() - 2], tile_perm1[tile_perm1.size() - 3]);
+        ops.push_back(make_op("transpose", {{"permutation", tile_perm1}}));
 
         // Add contiguous operation
         std::vector<int64_t> layout_perm(new_dims.size());
@@ -1497,21 +1510,21 @@ struct find_dot_tile
         if(is_b)
         {
             // [Bs..., nBlock, kIter, kpackPerBlock, nPerBlock, kpack]
-            // => [Bs..., kIter, nBlock, kpackPerBlock, nPerBlock, kpack]
+            // => [Bs..., kIter, kpackPerBlock, kpack, nBlock, nPerBlock]
             tile_perm[offset]     = offset + 1; // kIter
-            tile_perm[offset + 1] = offset;     // nBlock
-            tile_perm[offset + 2] = offset + 2; // kpackPerBlock
-            tile_perm[offset + 3] = offset + 3; // nPerBlock
-            tile_perm[offset + 4] = offset + 4; // kpack
+            tile_perm[offset + 1] = offset + 2; // kpackPerBlock
+            tile_perm[offset + 2] = offset + 4; // kpack
+            tile_perm[offset + 3] = offset;     // nBlock
+            tile_perm[offset + 4] = offset + 3; // nPerBlock
         }
         else
         {
             // [Bs..., mBlock, kIter, kpackPerBlock, mPerBlock, kpack]
-            // => [Bs..., kIter, mBlock, kpackPerBlock, mPerBlock, kpack]
-            tile_perm[offset]     = offset + 1; // kIter
-            tile_perm[offset + 1] = offset;     // mBlock
-            tile_perm[offset + 2] = offset + 2; // kpackPerBlock
-            tile_perm[offset + 3] = offset + 3; // mPerBlock
+            // => [Bs..., mBlock, mPerBlock, kIter, kpackPerBlock, kpack]
+            tile_perm[offset] = offset;     // mBlock
+            tile_perm[offset + 1] = offset + 3; // mPerBlock
+            tile_perm[offset + 2]     = offset + 1; // kIter
+            tile_perm[offset + 3] = offset + 2; // kpackPerBlock
             tile_perm[offset + 4] = offset + 4; // kpack
         }
         ops.push_back(make_op("transpose", {{"permutation", tile_perm}}));
@@ -1567,8 +1580,13 @@ struct find_dot_tile
             debug_ins.push_back(current_b);
         }
 
-        // mpm.get_module().debug_print(debug_ins);
-        // mpm.get_module().debug_print({current_a, current_b});
+        std::cout << "m_per_block: " << params->m_per_block << "\n";
+        std::cout << "n_per_block: " << params->n_per_block << "\n";
+        std::cout << "kpack_per_block: " << params->kpack_per_block << "\n";
+        std::cout << "kpack: " << params->kpack << "\n";
+
+        mpm.get_module().debug_print(debug_ins);
+        mpm.get_module().debug_print({current_a, current_b});
 
         // Replace the dot instruction with the tiled inputs
         mpm.get_module().replace_instruction(

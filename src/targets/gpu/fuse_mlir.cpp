@@ -1447,9 +1447,9 @@ struct find_dot_tile
         std::vector<std::size_t> batch_dims(d_shape.lens().begin(), d_shape.lens().end() - 2);
         // auto m = d_shape.lens()[d_shape.ndim() - 2];
         // auto n = is_b ? d_shape.lens()[d_shape.ndim() - 2] : d_shape.lens()[d_shape.ndim() - 1];
-        
+
         std::vector<operation> ops;
-        
+
         if(is_b)
         {
             // For B matrix: [Bs..., K, N] => [Bs..., N, K]
@@ -1459,21 +1459,20 @@ struct find_dot_tile
             ops.push_back(make_op("transpose", {{"permutation", perm}}));
             // std::swap(k, n);
         }
-        
+
         // Calculate tiling dimensions
         auto d = is_b ? d_shape.lens()[d_shape.ndim() - 1] : d_shape.lens()[d_shape.ndim() - 2];
         auto d_per_block = is_b ? params.n_per_block : params.m_per_block;
         auto d_block     = d / d_per_block;
         // auto m_block = m / params.m_per_block;
         // auto n_block = n / params.n_per_block;
-        auto k = d_shape.lens()[d_shape.ndim() - 1];
+        auto k       = d_shape.lens()[d_shape.ndim() - 1];
         auto k_iter  = k / (params.kpack_per_block * params.kpack);
 
         // Build new shape for tiling
         std::vector<std::size_t> new_dims = batch_dims;
-        new_dims.insert(
-                new_dims.end(),
-                {d_block, d_per_block, k_iter, params.kpack_per_block, params.kpack});
+        new_dims.insert(new_dims.end(),
+                        {d_block, d_per_block, k_iter, params.kpack_per_block, params.kpack});
         // if(is_b)
         // {
         //     new_dims.insert(
@@ -1521,9 +1520,9 @@ struct find_dot_tile
         {
             // [Bs..., mBlock, kIter, kpackPerBlock, mPerBlock, kpack]
             // => [Bs..., mBlock, mPerBlock, kIter, kpackPerBlock, kpack]
-            tile_perm[offset] = offset;     // mBlock
+            tile_perm[offset]     = offset;     // mBlock
             tile_perm[offset + 1] = offset + 3; // mPerBlock
-            tile_perm[offset + 2]     = offset + 1; // kIter
+            tile_perm[offset + 2] = offset + 1; // kIter
             tile_perm[offset + 3] = offset + 2; // kpackPerBlock
             tile_perm[offset + 4] = offset + 4; // kpack
         }

@@ -1106,8 +1106,9 @@ std::string dump_mlir(module m, const std::vector<shape>& inputs)
 
 static void abbreviate_symbol_names(std::string& n)
 {
-    static const std::map<std::string, std::string> abbrs = {
+    static const std::vector<std::pair<std::string, std::string>> abbrs = {
         {"reduce_max_reshape_sub_exp_reshape_reduce_sum_reshape_div", "softmax"},
+        {"reduce_max_sub_exp_reduce_sum_div", "softmax"},
         {"reshape", "rsp"},
         {"transpose", "trp"},
         {"slice", "slc"}};
@@ -1132,17 +1133,18 @@ static std::string compute_dump_name(const module& m, const std::string& ext)
 
     // On most commonly used file systems, the max file name size is 255 characters
     const int max_file_length = 255;
-    auto cnt                  = "_" + std::to_string(dump_counter()++);
     std::string fname         = sym_names + shape_str;
     replace_string_inplace(fname, ", ", "_");
     replace_string_inplace(fname, ":", "s");
-
-    if(fname.length() + cnt.length() + ext.length() > max_file_length)
+    
+    if(fname.length() + ext.length() > max_file_length)
     {
+        auto cnt                  = "_" + std::to_string(dump_counter()++);
         auto cutoff = max_file_length - ext.length() - cnt.length();
         fname.resize(cutoff);
+        fname += cnt;
     }
-    fname += cnt + ext;
+    fname += ext;
 
     return fname;
 }

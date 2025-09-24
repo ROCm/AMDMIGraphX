@@ -69,10 +69,9 @@ static void lower_lrn_to_pooling(module& m, instruction_ref ins)
 
     auto x = ins->inputs().at(0);
     const auto& xshape = x->get_shape();
-    auto lens = xshape.lens();                 // e.g., NCHW
+    auto lens = xshape.lens();
     const int64_t rank = static_cast<int64_t>(lens.size());
-    int64_t caxis = axis < 0 ? axis + rank : axis;  
-    if(rank < 2 or caxis >= rank) return;
+    if(rank < 2 or axis >= rank) return;
     if(size <= 0) return;
 
     auto x2 = m.insert_instruction(ins, make_op("mul"), x, x);

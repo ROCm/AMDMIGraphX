@@ -73,7 +73,7 @@ static void lower_lrn_to_pooling(module& m, instruction_ref ins)
     const int64_t rank = static_cast<int64_t>(lens.size());
     if(rank < 2)
         return;
-    if(size <= 0)
+    if(size <= 0 or (size % 2) != 0)
         return;
 
     auto x2 = m.insert_instruction(ins, make_op("mul"), x, x);
@@ -88,8 +88,8 @@ static void lower_lrn_to_pooling(module& m, instruction_ref ins)
     const int64_t c = static_cast<int64_t>(moved_lens.back());
     auto pooled_in  = m.insert_instruction(
         ins,
-         make_op("reshape", {{"dims", std::vector<int64_t>{static_cast<int64_t>(b), 1, 1, c}}}),
-         moved);
+        make_op("reshape", {{"dims", std::vector<int64_t>{static_cast<int64_t>(b), 1, 1, c}}}),
+        moved);
 
     auto avg = m.insert_instruction(ins,
                                     make_op("pooling",
@@ -103,8 +103,6 @@ static void lower_lrn_to_pooling(module& m, instruction_ref ins)
     auto moved_shape_back = std::vector<int64_t>(moved_lens.begin(), moved_lens.end());
     auto avg_moved =
         m.insert_instruction(ins, make_op("reshape", {{"dims", moved_shape_back}}), avg);
-
-
     auto invp = invert_permutation(perm);
     auto avg_ch =
         m.insert_instruction(ins, make_op("transpose", {{"permutation", invp}}), avg_moved);

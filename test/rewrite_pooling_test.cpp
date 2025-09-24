@@ -361,7 +361,7 @@ TEST_CASE(lower_lrn_to_pooling)
         auto alpha_avg   = m2.add_instruction(migraphx::make_op("mul"), alpha_mb, transpose2);
         auto denominator = m2.add_instruction(migraphx::make_op("add"), bias_mb, alpha_avg);
         auto powered     = m2.add_instruction(migraphx::make_op("pow"), denominator, beta_mb);
-        auto result      = m2.add_instruction(migraphx::make_op("div"), x, powered); 
+        auto result      = m2.add_instruction(migraphx::make_op("div"), x, powered);
 
         m2.add_return({result});
     }

@@ -24,15 +24,12 @@
 #include <unordered_set>
 #include <migraphx/module.hpp>
 #include <migraphx/iterator_for.hpp>
-// #include <migraphx/ranges.hpp>
-// #include <migraphx/auto_any_cast.hpp>
-// #include <migraphx/value.hpp>
 #include <migraphx/make_op.hpp>
 #include <migraphx/instruction.hpp>
 #include <migraphx/instruction_ref.hpp>
 #include <migraphx/register_op.hpp>
 #include <migraphx/gpu/fuse_mlss.hpp>
-
+#include <amdmlss/amdmlss_api.h>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
@@ -52,34 +49,61 @@ MIGRAPHX_REGISTER_OP(mlss_mha);
 
 void fuse_mlss::apply(module& m) const
 {
+    
     for(auto ins : iterator_for(m))
     {
-        
-        auto inputs = ins->inputs();
-        auto outputs = ins->outputs();
-        if(inputs.empty())
-            continue;
-        auto name = ins->name();        
+        auto name = ins->name();
 
-        if (name == "mlss_mha")
+        if (name == "group")
         {
-            std::cout << "fuse_mlss ins name: " << name << std::endl;
-            auto names    = m.get_parameter_names();
-            for(std::size_t i = 0; i < inputs.size(); i++)
+            auto op_val = ins->get_operator().to_value();
+            
+            if ( !op_val.contains("tag") || op_val["tag"].to<value::literal_to_string<std::string>>() != "attention")
             {
-                auto input_name = inputs[i]->name();
-                auto input_shape = inputs[i]->get_shape();
+                continue;
             }
 
-            instruction_ref output = m.insert_instruction(ins, make_op("allocate", {{"shape", to_value(ins->get_shape())}}));
+            auto inputs = ins->inputs();
+            if (inputs.size() != 4)
+            {
+                continue;
+            }
             
-            std::vector<instruction_ref> refs = ins->inputs();
+
+            auto input_query = inputs[0];
+            auto input_key = inputs[1];
+            auto input_scale = inputs[2];
+            auto input_value = inputs[3];
+
+            shape::type_t type = ins->get_shape().type();
+
+            auto input_scale_inputs = input_scale->inputs();
+            auto scale_literal = input_scale_inputs[0];
+            
+            // Scale andd device name here in case we want to call mlss get caps in this function
+            const float* scale_f = nullptr;
+            if(scale_literal->name() == "@literal")
+            {
+                const char* scale = scale_literal->get_literal().data();
+                scale_f = reinterpret_cast<const float*>(scale);
+            }
+            const auto& device_name = ctx == nullptr ? "" : ctx->get_current_device().get_gfx_name();
+
+            instruction_ref output = m.insert_instruction(ins, make_op("allocate", {{"shape", to_value(ins->get_shape())}}));
+
+            std::vector<instruction_ref> refs;
+            refs.push_back(input_query);
+            refs.push_back(input_key);
+            refs.push_back(input_value);
+            refs.push_back(scale_literal);
             refs.push_back(output);
 
             m.replace_instruction(
                 ins,
-                make_op("gpu::precompile_op", {{"op", to_value(ins->get_operator())}}),
-                refs);            
+                make_op("gpu::precompile_op", 
+                        {{"op", to_value(make_op("mlss_mha"))},
+                         {"output_shape", to_value(ins->get_shape())}}),
+                        refs);            
         }        
     }
 }

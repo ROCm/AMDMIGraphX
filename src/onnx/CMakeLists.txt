@@ -57,21 +57,6 @@ if(NOT WIN32)
 endif()
 target_link_libraries(migraphx_onnx PUBLIC migraphx)
 
-find_library(AMD_MLSS_LIB amdmlss)
-
-message(STATUS "amdmlss is at ${AMD_MLSS_LIB}")
-target_link_libraries(migraphx_onnx PRIVATE ${AMD_MLSS_LIB})
-
-find_path(AMDMLSS_INCLUDE_DIR NAMES amdmlss/amdmlss_api.h PATH_SUFFIXES include)
-
-if(NOT AMDMLSS_INCLUDE_DIR) 
-    message(FATAL_ERROR "Could not find MyLib headers. Set CMAKE_PREFIX_PATH or MyLib_ROOT, or provide MYLIB_INCLUDE_DIR.") 
-else()
-    message(STATUS "amdmlss_api.h is at ${AMDMLSS_INCLUDE_DIR}")
-    target_include_directories(migraphx_onnx SYSTEM PUBLIC ${AMDMLSS_INCLUDE_DIR})
-endif()
-
-
 rocm_install_targets(
   PRIVATE
   TARGETS migraphx_onnx

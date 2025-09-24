@@ -36,6 +36,7 @@ namespace gpu {
 
 struct MIGRAPHX_GPU_EXPORT fuse_mlss
 {
+    context* ctx = nullptr;
     std::string name() const { return "fuse_mlss"; }
     void apply(module& m) const;
 };

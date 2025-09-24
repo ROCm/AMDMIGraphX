@@ -60,12 +60,20 @@ struct mlss_compiler : compiler<mlss_compiler>
 
         const auto& device = ctx.get_current_device();
         std::string target_arch = device.get_device_name();
-        std::size_t num_cu = device.get_cu_count();
 
-        auto query_dim  = inputs[0].ndim();
+        // auto query_dim  = inputs[0].ndim();
         auto query_lens = inputs[0].lens();
+        auto query_strides = inputs[0].strides();
 
-        auto head_size_v = query_lens[4];
+        // auto key_dim = inputs[1].ndim();
+        auto key_lens = inputs[1].lens();
+        auto key_strides = inputs[1].strides();
+
+        // auto value_dim = inputs[2].ndim();
+        auto value_lens = inputs[2].lens();
+        auto value_strides = inputs[2].strides();
+
+        auto output_strides = inputs.back().strides();
 
         MLSScontext context = 0;
 
@@ -74,19 +82,17 @@ struct mlss_compiler : compiler<mlss_compiler>
         }
         target_arch = "MLSS_" + target_arch;
 
+        float scale = v.at("scale").to<float>();
+
         MLSSstring asic = target_arch.data();
         MLSSstring opName = MLSS_MHA;
 
-        
-
-
         MLSSuint32 batch_size = query_lens[0];
-        MLSSuint32 head_num = 8;
-        MLSSuint32 q_sequence_length = query_lens[1];
-        MLSSuint32 kv_sequence_length = query_lens[1];;
-        MLSSuint32 head_dim = query_lens[4];
-        MLSSuint32 packing = 0;
-        float scale = 1 / std::sqrt(head_dim);
+        MLSSuint32 head_num = query_lens[1];
+        MLSSuint32 q_sequence_length = query_lens[2];
+        MLSSuint32 kv_sequence_length = value_lens[2];;
+        MLSSuint32 head_dim = query_lens[3];
+        MLSSuint32 packing = 3;
         MLSSenum data_type = MLSS_FLOAT16;
         MLSSuint32 kvDim = 0;
 
@@ -102,8 +108,30 @@ struct mlss_compiler : compiler<mlss_compiler>
         CHECK_STATUS(mlssSetParameterByEnum(&context, opName, MLSS_ATTR_MHA_HEADCOUNT, &head_num));
         CHECK_STATUS(mlssSetParameterByEnum(&context, opName, MLSS_ATTR_MHA_SCALE, &scale));
         CHECK_STATUS(mlssSetParameterByEnum(&context, opName, MLSS_ATTR_MHA_DATATYPE, &data_type));
+
+        MLSSuint32 qStrides[4] = { static_cast<MLSSuint32>(query_strides[0]), 
+                                   static_cast<MLSSuint32>(query_strides[1]), 
+                                   static_cast<MLSSuint32>(query_strides[2]), 
+                                   static_cast<MLSSuint32>(query_strides[3]) };
+        MLSSuint32 kStrides[4] = { static_cast<MLSSuint32>(key_strides[0]), 
+                                   static_cast<MLSSuint32>(key_strides[1]), 
+                                   static_cast<MLSSuint32>(key_strides[2]), 
+                                   static_cast<MLSSuint32>(key_strides[3]) };
+        MLSSuint32 vStrides[4] = { static_cast<MLSSuint32>(value_strides[0]), 
+                                   static_cast<MLSSuint32>(value_strides[1]), 
+                                   static_cast<MLSSuint32>(value_strides[2]), 
+                                   static_cast<MLSSuint32>(value_strides[3]) };
+        MLSSuint32 outputStrides[4] = { static_cast<MLSSuint32>(output_strides[0]), 
+                                        static_cast<MLSSuint32>(output_strides[1]), 
+                                        static_cast<MLSSuint32>(output_strides[2]), 
+                                        static_cast<MLSSuint32>(output_strides[3]) };
+
+        CHECK_STATUS(mlssSetParameterByName(&context, opName, "qStrides", qStrides));
+        CHECK_STATUS(mlssSetParameterByName(&context, opName, "kStrides", kStrides));
+        CHECK_STATUS(mlssSetParameterByName(&context, opName, "vStrides", vStrides));
+        CHECK_STATUS(mlssSetParameterByName(&context, opName, "outputStrides", outputStrides));
         
-        MLSSstatus* pStatuses = NULL;
+        MLSSstatus* pStatuses = nullptr;
         MLSSsize nStatuses = 0;
 
         if (mlssGetCaps(context, &pStatuses, &nStatuses) != MLSS_SUCCESS)
@@ -115,7 +143,7 @@ struct mlss_compiler : compiler<mlss_compiler>
             std::cout << "Got caps\n" << std::endl;
         }
         
-        MLSSbinary* binaries = NULL;
+        MLSSbinary* binaries = nullptr;
         MLSSsize n = 0;
         CHECK_STATUS(mlssGetBinaries(context, &binaries, &n));
         CHECK_STATUS(mlssPrintBinaries(binaries, n));
@@ -135,6 +163,7 @@ struct mlss_compiler : compiler<mlss_compiler>
         options.output      = inputs.back();
         options.inputs      = inputs;
         options.kernel_name = kernel_name;
+        options.output_arg  = inputs.size() - 1;
 
         return code_object_op{value_binary,
                           kernel_name,
@@ -147,7 +176,22 @@ struct mlss_compiler : compiler<mlss_compiler>
 
     compiler_replace compile(context& ctx, instruction_ref ins, const operation& op) const
     {
-        return compile_op(ctx, to_shapes(ins->inputs()), op.to_value());
+
+        auto v = op.to_value();
+        auto inputs = ins->inputs();
+        auto scale_literal = inputs[3];
+
+        const float* scale_f = nullptr;
+        if(scale_literal->name() == "@literal")
+        {
+            // float scale;
+            const char* scale = scale_literal->get_literal().data();
+            scale_f = reinterpret_cast<const float*>(scale);
+            
+        }
+
+        v["scale"] = *scale_f;
+        return compile_op(ctx, to_shapes(ins->inputs()), v);
     }
 };
 

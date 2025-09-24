@@ -27,25 +27,11 @@
 #include <migraphx/make_op.hpp>
 #include <migraphx/ranges.hpp>
 #include <string>
-#include <amdmlss/amdmlss_api.h>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
 namespace onnx {
 
-void checkStatus(MLSSstatus status, int line)
-{
-    if (status != MLSS_SUCCESS)
-    {
-        MLSSstring err = mlssGetErrorString(status);
-
-        printf("Failed at line: %d, :%s\n", line, err);
-        free(err);
-        exit(EXIT_FAILURE);
-    }
-}
-
-#define CHECK_STATUS(status) checkStatus((status), __LINE__)
 enum class qkv_fomat_t
 {
     q_k_v       = 0,
@@ -224,59 +210,9 @@ struct parse_multi_head_attention : op_parser<parse_multi_head_attention>
             MIGRAPHX_THROW("MultiHeadAttention: num_heads attribute is required");
 
         int64_t num_heads = parser.parse_value(info.attributes.at("num_heads")).at<int>();
-        uint32_t verboseLevel = 4;
-
-        CHECK_STATUS(mlssSetVerboseLevel(verboseLevel));
-
-        MLSScontext context = 0;
-        MLSSstring asic = MLSS_GFX1100;
-        MLSSstring opName = MLSS_MHA;
-
-        CHECK_STATUS(mlssCreateContext(&context, asic, opName));
-
-        //CHECK_STATUS(mlssPrintParameters(context, opName));
 
         multi_head_attention_parameters params;
         check_inputs(args, num_heads, params);
-
-        MLSSuint32 batch_size = params.batch_size;
-        MLSSuint32 head_num = num_heads;
-        MLSSuint32 q_sequence_length = params.q_sequence_length;
-        MLSSuint32 kv_sequence_length = params.kv_sequence_length;
-        MLSSuint32 head_dim = params.head_size;
-        MLSSuint32 packing = 0;
-        float scale = 1 / std::sqrt(params.head_size);
-        MLSSenum data_type = MLSS_FLOAT16;
-        MLSSuint32 kvDim = 0;
-
-        CHECK_STATUS(mlssSetParameterByEnum(&context, opName, MLSS_ATTR_MHA_BATCH, &batch_size));
-        CHECK_STATUS(mlssSetParameterByEnum(&context, opName, MLSS_ATTR_MHA_QSEQ, &q_sequence_length));
-        CHECK_STATUS(mlssSetParameterByEnum(&context, opName, MLSS_ATTR_MHA_KVSEQ, &kv_sequence_length));
-        CHECK_STATUS(mlssSetParameterByEnum(&context, opName, MLSS_ATTR_MHA_KDIM, &kvDim));
-        CHECK_STATUS(mlssSetParameterByEnum(&context, opName, MLSS_ATTR_MHA_VDIM, &kvDim));
-        CHECK_STATUS(mlssSetParameterByEnum(&context, opName, MLSS_ATTR_MHA_SIZEHEADS, &head_dim));
-        CHECK_STATUS(mlssSetParameterByEnum(&context, opName, MLSS_ATTR_MHA_PACKING, &packing));
-        CHECK_STATUS(mlssSetParameterByEnum(&context, opName, MLSS_ATTR_MHA_HEADCOUNT, &head_num));
-        CHECK_STATUS(mlssSetParameterByEnum(&context, opName, MLSS_ATTR_MHA_SCALE, &scale));
-        CHECK_STATUS(mlssSetParameterByEnum(&context, opName, MLSS_ATTR_MHA_DATATYPE, &data_type));
-        
-        MLSSstatus* pStatuses = NULL;
-        MLSSsize nStatuses = 0;
-
-        if (mlssGetCaps(context, &pStatuses, &nStatuses) != MLSS_SUCCESS)
-        {
-            std::cout << "Failed to get caps\n" << std::endl;
-        }
-        else
-        {
-            std::cout << "Got caps\n" << std::endl;
-            MLSSbinary* binaries = NULL;
-            MLSSsize n = 0;
-            CHECK_STATUS(mlssGetBinaries(context, &binaries, &n));
-            CHECK_STATUS(mlssPrintBinaries(binaries, n));
-            auto result = info.add_instruction(make_op("mlss_mha"), args);
-            return result;
-        }
 
         auto query = args[0];
         instruction_ref key;
@@ -329,7 +265,7 @@ struct parse_multi_head_attention : op_parser<parse_multi_head_attention>
             value = info.add_instruction(make_op("transpose", {{"permutation", perm}}), value);
         }
 
-        
+        float scale = 1 / std::sqrt(params.head_size);
         if(contains(info.attributes, "scale"))
             scale = parser.parse_value(info.attributes.at("scale")).at<float>();
 

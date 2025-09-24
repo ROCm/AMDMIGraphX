@@ -446,7 +446,7 @@ auto make_match_runner_with_trace(source_location location, Finder& f)
         if(r.result == get_module(mod).end())
             return false;
 
-        if(trace > 0 or trace_enabled)
+        if(trace_enabled)
         {
             std::cout << "Matched by: " << finder_name << std::endl;
             get_module(mod).debug_print(ins);

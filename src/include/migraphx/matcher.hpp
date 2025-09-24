@@ -406,31 +406,30 @@ MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_TRACE_MATCHES_FOR)
 MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_VALIDATE_MATCHES)
 MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_TIME_MATCHERS)
 
-template<class Finder>
+template <class Finder>
 auto make_match_runner_with_trace(source_location location, Finder& f)
 {
-    auto m = f.matcher();
-    const int trace          = value_of(MIGRAPHX_TRACE_MATCHES{});
-    const bool validate      = enabled(MIGRAPHX_VALIDATE_MATCHES{});
-    const auto trace_filter  = string_value_of(MIGRAPHX_TRACE_MATCHES_FOR{});
+    auto m                  = f.matcher();
+    const int trace         = value_of(MIGRAPHX_TRACE_MATCHES{});
+    const bool validate     = enabled(MIGRAPHX_VALIDATE_MATCHES{});
+    const auto trace_filter = string_value_of(MIGRAPHX_TRACE_MATCHES_FOR{});
     const auto& finder_name = get_type_name(f);
-    const bool trace_enabled     = trace > 0 and (trace_filter.empty() or
-                            contains(std::string{location.file_name()}, trace_filter) or
-                            contains(std::string{location.function_name()}, trace_filter) or
-                            contains(finder_name, trace_filter));
+    const bool trace_enabled =
+        trace > 0 and
+        (trace_filter.empty() or contains(std::string{location.file_name()}, trace_filter) or
+         contains(std::string{location.function_name()}, trace_filter) or
+         contains(finder_name, trace_filter));
     return [=, &f](auto& mod, instruction_ref ins) -> bool {
         using microseconds = std::chrono::duration<double, std::micro>;
         if(trace > 1 and trace_enabled)
             std::cout << "Running matcher: " << finder_name << std::endl;
-        
 
         match::matcher_result r;
         double match_time = 0.0;
         if(trace_enabled)
         {
-            match_time = time<microseconds>([&] {
-                r = match::match_instruction(get_module(mod), ins, m);
-            });
+            match_time =
+                time<microseconds>([&] { r = match::match_instruction(get_module(mod), ins, m); });
         }
         else
         {
@@ -460,7 +459,7 @@ auto make_match_runner_with_trace(source_location location, Finder& f)
                 std::cout << "Applying matcher: " << finder_name << std::endl;
             auto apply_time = time<microseconds>([&] { f.apply(mod, r); });
             std::cout << "Apply time for " << finder_name << ": " << apply_time << "us"
-                        << std::endl;
+                      << std::endl;
         }
         else
         {
@@ -482,7 +481,7 @@ auto make_match_runner_with_trace(source_location location, Finder& f)
     };
 }
 
-template<class Finder>
+template <class Finder>
 auto make_match_runner(Finder& f)
 {
     auto m = f.matcher();
@@ -498,7 +497,7 @@ auto make_match_runner(Finder& f)
 template <class Mod, class RunnerPack>
 void find_matches_for(Mod& mod, instruction_ref ins, RunnerPack rp)
 {
-    rp([&](auto&&... rs) { 
+    rp([&](auto&&... rs) {
         bool matched = false;
         each_args(
             [&](auto&& r) {
@@ -588,8 +587,8 @@ struct find_matches
 {
     find_matches(Mod& mod, Ms&&... ms, source_location location = source_location::current())
     {
-        const int trace          = value_of(MIGRAPHX_TRACE_MATCHES{});
-        const bool validate      = enabled(MIGRAPHX_VALIDATE_MATCHES{});
+        const int trace       = value_of(MIGRAPHX_TRACE_MATCHES{});
+        const bool validate   = enabled(MIGRAPHX_VALIDATE_MATCHES{});
         const bool need_trace = trace > 0 or validate;
 
         if(need_trace)

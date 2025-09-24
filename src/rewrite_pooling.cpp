@@ -61,57 +61,58 @@ static void lower_lrn_to_pooling(module& m, instruction_ref ins)
 {
     auto v = ins->get_operator().to_value();
 
-    float alpha = v.at("alpha").to<float>();
-    float beta  = v.at("beta").to<float>();
-    float k     = v.at("bias").to<float>();
-    int   size  = v.at("size").to<int>();
+    float alpha             = v.at("alpha").to<float>();
+    float beta              = v.at("beta").to<float>();
+    float k                 = v.at("bias").to<float>();
+    int size                = v.at("size").to<int>();
     const unsigned int axis = 1;
 
-    auto x = ins->inputs().at(0);
+    auto x             = ins->inputs().at(0);
     const auto& xshape = x->get_shape();
-    auto lens = xshape.lens();
+    auto lens          = xshape.lens();
     const int64_t rank = static_cast<int64_t>(lens.size());
-    if(rank < 2) return;
-    if(size <= 0) return;
+    if(rank < 2)
+        return;
+    if(size <= 0)
+        return;
 
     auto x2 = m.insert_instruction(ins, make_op("mul"), x, x);
 
     std::vector<int64_t> perm(rank);
     std::iota(perm.begin(), perm.end(), 0);
     std::swap(perm[static_cast<std::size_t>(axis)], perm.back());
-    auto moved = m.insert_instruction(ins, make_op("transpose", {{"permutation", perm}}), x2);
+    auto moved      = m.insert_instruction(ins, make_op("transpose", {{"permutation", perm}}), x2);
     auto moved_lens = moved->get_shape().lens();
-
-    auto b = std::accumulate(moved_lens.begin(), moved_lens.end() - 1, 1, std::multiplies<size_t>());
+    auto b =
+        std::accumulate(moved_lens.begin(), moved_lens.end() - 1, 1, std::multiplies<size_t>());
     const int64_t c = static_cast<int64_t>(moved_lens.back());
-    auto pooled_in = m.insert_instruction(
-        ins, 
-        make_op("reshape", {{"dims", std::vector<int64_t>{static_cast<int64_t>(b), 1, 1, c}}}),
-        moved);
-
-    auto avg = m.insert_instruction(
+    auto pooled_in  = m.insert_instruction(
         ins,
-        make_op("pooling",
-                {{"mode", op::pooling_mode::average},
-                 {"lengths", std::vector<int64_t>{1, size}},
-                 {"stride",  std::vector<int64_t>{1, 1}},
-                 {"padding", std::vector<int64_t>{0, size/2}},
-                 {"count_include_pad", true}}),
-        pooled_in);
+         make_op("reshape", {{"dims", std::vector<int64_t>{static_cast<int64_t>(b), 1, 1, c}}}),
+         moved);
 
-    auto moved_shape_back =
-        std::vector<int64_t>(moved_lens.begin(), moved_lens.end());
-    auto avg_moved = m.insert_instruction(
-        ins, make_op("reshape", {{"dims", moved_shape_back}}), avg);
+    auto avg = m.insert_instruction(ins,
+                                    make_op("pooling",
+                                            {{"mode", op::pooling_mode::average},
+                                             {"lengths", std::vector<int64_t>{1, size}},
+                                             {"stride", std::vector<int64_t>{1, 1}},
+                                             {"padding", std::vector<int64_t>{0, size / 2}},
+                                             {"count_include_pad", true}}),
+                                    pooled_in);
+
+    auto moved_shape_back = std::vector<int64_t>(moved_lens.begin(), moved_lens.end());
+    auto avg_moved =
+        m.insert_instruction(ins, make_op("reshape", {{"dims", moved_shape_back}}), avg);
 
 
     auto invp = invert_permutation(perm);
-    auto avg_ch = m.insert_instruction(ins, make_op("transpose", {{"permutation", invp}}), avg_moved);
+    auto avg_ch =
+        m.insert_instruction(ins, make_op("transpose", {{"permutation", invp}}), avg_moved);
 
-    auto k_lit   = m.add_literal(k);
-    auto a_lit   = m.add_literal(alpha);
-    auto k_mb    = m.insert_instruction(ins, make_op("multibroadcast", {{"out_lens", lens}}), k_lit);
-    auto a_mb    = m.insert_instruction(ins, make_op("multibroadcast", {{"out_lens", lens}}), a_lit);
+    auto k_lit = m.add_literal(k);
+    auto a_lit = m.add_literal(alpha);
+    auto k_mb  = m.insert_instruction(ins, make_op("multibroadcast", {{"out_lens", lens}}), k_lit);
+    auto a_mb  = m.insert_instruction(ins, make_op("multibroadcast", {{"out_lens", lens}}), a_lit);
     auto alpha_avg = m.insert_instruction(ins, make_op("mul"), a_mb, avg_ch);
     auto den       = m.insert_instruction(ins, make_op("add"), k_mb, alpha_avg);
 

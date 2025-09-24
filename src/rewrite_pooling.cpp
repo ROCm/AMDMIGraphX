@@ -83,8 +83,7 @@ static void lower_lrn_to_pooling(module& m, instruction_ref ins)
     auto moved = m.insert_instruction(ins, make_op("transpose", {{"permutation", perm}}), x2);
     auto moved_lens = moved->get_shape().lens();
 
-    std::size_t b = 1;
-    for(std::size_t i = 0; i + 1 < moved_lens.size(); ++i) b *= moved_lens[i];
+    auto b = std::accumulate(moved_lens.begin(), moved_lens.end() - 1, 1, std::multiplies<size_t>());
     const int64_t c = static_cast<int64_t>(moved_lens.back());
     auto pooled_in = m.insert_instruction(
         ins, 

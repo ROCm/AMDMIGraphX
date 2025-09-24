@@ -78,7 +78,7 @@ static void lower_lrn_to_pooling(module& m, instruction_ref ins)
 
     std::vector<int64_t> perm(rank);
     std::iota(perm.begin(), perm.end(), 0);
-    std::swap(perm[static_cast<std::size_t>(caxis)], perm.back());
+    std::swap(perm[static_cast<std::size_t>(axis)], perm.back());
     auto moved = m.insert_instruction(ins, make_op("transpose", {{"permutation", perm}}), x2);
     auto moved_lens = moved->get_shape().lens();
 

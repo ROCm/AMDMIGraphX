@@ -133,7 +133,8 @@ static std::unordered_map<std::string, std::size_t> create_weight_map()
             {"gpu::convolution", 8},
             {"gpu::conv_bias_relu", 8},
             {"gpu::pooling", 4},
-            {"gpu::gemm", 4}};
+            {"gpu::gemm", 4},
+            {"dot", 4}};
 }
 
 static const std::unordered_map<std::string, std::size_t>& weight_map()
@@ -144,6 +145,13 @@ static const std::unordered_map<std::string, std::size_t>& weight_map()
 
 std::size_t schedule_model::weight(const operation& op) const
 {
+    std::string op_name = op.name();
+    if(op_name == "gpu::code_object")
+    {
+        op_name = op.to_value()["symbol_name"].to<std::string>();
+        if(contains(op_name, "dot"))
+            op_name = "dot";
+    }
     if(weight_map().count(op.name()) == 0)
     {
         return 2;

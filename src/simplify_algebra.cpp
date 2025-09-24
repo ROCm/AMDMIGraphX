@@ -1163,59 +1163,35 @@ struct find_splits
             match::name("pointwise"),
             match::pointwise(match::any_of(match::nargs(1), match::nargs(2))),
             reduction());
-
-        
-        // trivial shape-only hop we want to tolerate between slice and the consumer
-        auto trivial_shape = match::name("reshape", "reshape_lazy", "contiguous", "squeeze");
-
-        // either the slice directly feeds the pointwise/reduction,
-        // or the slice feeds a trivial shape op that feeds the pointwise/reduction
-        auto slice_to_pwr = match::name("slice")(
-            match::any_of[match::outputs()](
-                pointwise_reduction,
-                trivial_shape(pointwise_reduction)));
-
-        // match an instruction whose outputs include such a slice
-        return match::any(match::any_of[match::outputs()](slice_to_pwr));
+        // match instruction with slice output to pointwise_reduction
+        return match::any(
+            match::any_of[match::outputs()](match::name("slice")(pointwise_reduction)));
     }
 
-    static bool is_trivial(const instruction_ref& ins)
-    {
-        std::string name = ins->name();
-        return (name == "reshape" or name == "reshape_lazy" or name == "squeeze" or name == "contiguous");
-    }
-
+    /**
+     * Check if we can reach start from end by going through inputs of end.
+     * `root` is the instruction before the slice instructions (what find_splits matcher matches).
+     * This function is called by split_groups_are_dependent() many times depending on the size
+     * of the split groups.
+     */
     static bool
     is_dependent(const module& m, instruction_ref root, instruction_ref start, instruction_ref end)
     {
         if(std::distance(root, end) < std::distance(root, start))
-            return false;
-        return reaches(start, end, &m);
-    }
-
-    // Skip through trivial shape-only ops between slice and the consumer
-    static instruction_ref skip_trivial_shape_chain(instruction_ref ins)
-    {
-        instruction_ref cur = ins;
-        // Walk through a chain of trivial ops as long as each has a single user
-        while(is_trivial(cur) and not cur->outputs().empty() and cur->outputs().size() == 1)
         {
-            cur = cur->outputs().front();
+            return false;
         }
-        return cur;
+        return reaches(start, end, &m);
     }
 
     static auto get_matching_ins(instruction_ref split, instruction_ref out)
     {
-        // Allow trivial shape ops after slice, then the target op
         return std::find_if(split->outputs().begin(), split->outputs().end(), [&](auto i) {
-            auto cand = skip_trivial_shape_chain(i);
-
-            if(cand->get_operator() == out->get_operator())
+            if(i->get_operator() == out->get_operator())
             {
-                if(cand->name() == "pointwise")
+                if(i->name() == "pointwise")
                 {
-                    return (*(cand->module_inputs().front()) == *(out->module_inputs().front()));
+                    return (*(i->module_inputs().front()) == *(out->module_inputs().front()));
                 }
                 return true;
             }
@@ -1223,6 +1199,9 @@ struct find_splits
         });
     }
 
+    /**
+     * Returns empty vector if split group not found
+     */
     static std::vector<instruction_ref> make_group(const module& m,
                                                    instruction_ref root,
                                                    instruction_ref out,
@@ -1242,8 +1221,7 @@ struct find_splits
                 if(it == split->outputs().end())
                     return {};
                 assert((*it)->name() != "slice");
-                // Normalize each push to the same instruction (after skipping trivial shape ops)
-                group.push_back(skip_trivial_shape_chain(*it));
+                group.push_back(*it);
             }
             // There should be no dependency between instructions in the group
             if(std::any_of(group.begin(), group.end() - 1, [&](auto i) {
@@ -1257,6 +1235,7 @@ struct find_splits
         return group;
     }
 
+    /// Find groups of the same operator after the splits (slice instructions)
     static std::vector<std::vector<instruction_ref>> get_split_groups(
         const module& m, instruction_ref root, const std::vector<instruction_ref>& splits)
     {
@@ -1265,12 +1244,14 @@ struct find_splits
             *std::min_element(splits.cbegin(), splits.cend(), [](auto x, auto y) {
                 return x->outputs().size() < y->outputs().size();
             });
+        // Operator must be repeated over all splits, so better to start with split with least
+        // outputs Preserving the order of the groups wrt. the splits
         for(auto out : split_with_least_outputs->outputs())
         {
             if(out->name() == "slice")
                 continue;
             std::vector<instruction_ref> group =
-                make_group(m, root, skip_trivial_shape_chain(out), splits, split_with_least_outputs);
+                make_group(m, root, out, splits, split_with_least_outputs);
             if(group.size() != splits.size())
                 continue;
             groups.push_back(group);
@@ -1278,6 +1259,11 @@ struct find_splits
         return groups;
     }
 
+    /**
+     * If instruction is fusable
+     * start: instruction to check
+     * split_front: slice operator input to start instruction
+     */
     bool is_fusable(instruction_ref start, instruction_ref split_front) const
     {
         auto op = start->get_operator();
@@ -1299,47 +1285,33 @@ struct find_splits
         return false;
     }
 
+    /** Get argument index that has the split instruction for a group of instructions
+     * If instructions in a group have different split indexes, return -1.
+     */
     int get_binary_op_split_idx(std::vector<instruction_ref> group,
-                            std::vector<instruction_ref> splits) const
+                                std::vector<instruction_ref> splits) const
     {
-        if(group.empty())
-            return -1;
+        auto first_group_inputs = group.front()->inputs();
+        auto arg_it =
+            std::find_if(first_group_inputs.begin(), first_group_inputs.end(), [&](auto i) {
+                return std::find(splits.begin(), splits.end(), i) != splits.end();
+            });
+        auto split_idx = arg_it - first_group_inputs.begin();
 
+        // All splits are at the same input index
+        if(std::all_of(group.begin() + 1, group.end(), [&](auto i) {
+               auto split_idx_input = i->inputs().at(split_idx);
+               return std::find(splits.begin(), splits.end(), split_idx_input) != splits.end();
+           }))
+            return split_idx;
 
-        auto unwrap_to_base = [&](instruction_ref ins) -> instruction_ref {
-            // Walk back through a chain of trivial shape-only ops
-            instruction_ref cur = ins;
-            while(is_trivial(cur) and not cur->inputs().empty())
-            {
-                cur = cur->inputs().front();
-            }
-            return cur;
-        };
-
-        // Find which input index of the first op comes from a split (possibly via a trivial op)
-        auto first_inputs = group.front()->inputs();
-        auto arg_it       = std::find_if(first_inputs.begin(), first_inputs.end(), [&](auto i) {
-            auto base = unwrap_to_base(i);
-            return std::find(splits.begin(), splits.end(), base) != splits.end();
-        });
-
-        if(arg_it == first_inputs.end())
-            return -1;
-
-        auto split_idx = static_cast<int>(std::distance(first_inputs.begin(), arg_it));
-
-        // Verify all ops in the group have the split at the same input index (again, unwrapping)
-        bool all_same_index = std::all_of(group.begin() + 1, group.end(), [&](auto ins) {
-            const auto& ins_inputs = ins->inputs();
-            if(split_idx < 0 or static_cast<std::size_t>(split_idx) >= ins_inputs.size())
-                return false;
-            auto base = unwrap_to_base(ins_inputs.at(split_idx));
-            return std::find(splits.begin(), splits.end(), base) != splits.end();
-        });
-
-        return all_same_index ? split_idx : -1;
+        return -1;
     }
 
+    /**
+     * Align the arguments of binary commutative instructions so they
+     * have the same operator on the same argument indexes.
+     */
     void align_commutative_op_args(module& m,
                                    std::vector<instruction_ref> group,
                                    std::vector<instruction_ref> splits,
@@ -1361,6 +1333,12 @@ struct find_splits
         }
     }
 
+    /**
+     * Check if any split group depends on instructions from another split group.
+     * m : module containing instructions
+     * root : "root" instruction that has contiguous slice instructions as outputs
+     * groups : split groups from get_split_groups
+     */
     bool split_groups_are_dependent(const module& m,
                                     instruction_ref root,
                                     std::vector<std::vector<instruction_ref>> groups) const
@@ -1393,21 +1371,23 @@ struct find_splits
             return;
         auto split_groups = get_split_groups(m, ins, splits);
         if(split_groups_are_dependent(m, ins, split_groups))
+        {
             return;
+        }
 
         for(const auto& group : split_groups)
         {
-            // m.debug_print();
-            // m.debug_print(group);
-            // m.debug_print(splits);
             auto start       = group.front();
             auto split_front = splits.front();
             auto op          = start->get_operator();
             if(not is_fusable(start, split_front))
+            {
                 continue;
+            }
 
             // Make sure there are no duplicates
-            assert(std::none_of(std::next(group.begin()), group.end(), [&](auto i) { return i == start; }));
+            assert(std::none_of(
+                std::next(group.begin()), group.end(), [&](auto i) { return i == start; }));
 
             auto split_idx    = 0;
             instruction_ref c = m.end();
@@ -1426,6 +1406,8 @@ struct find_splits
                 if(slice_op.axes.size() > 1)
                     return;
                 auto concat_axis = slice_op.axes.front();
+                if(not concat_const_foldable(group.begin(), group.end(), concat_axis))
+                    return;
 
                 split_idx = get_binary_op_split_idx(group, splits);
                 assert(split_idx < 2);
@@ -1445,94 +1427,40 @@ struct find_splits
                     data_idx = split_idx == 0 ? 1 : 0;
                 }
 
-                // Collect the per-branch "other" operands (e.g., bias constants for add)
                 std::vector<instruction_ref> data_args;
                 std::transform(group.begin(),
                                group.end(),
                                std::back_inserter(data_args),
                                [&](auto i) { return i->inputs()[data_idx]; });
 
-                // All data args must be constants (foldable)
-                if(std::any_of(data_args.begin(), data_args.end(), [](auto i) { return not i->can_eval(); }))
+                // Data arguments must be a constant
+                if(std::any_of(data_args.begin(), data_args.end(), [](auto i) {
+                       return not i->can_eval();
+                   }))
                     return;
 
-                // Normalize constants to the per-branch output shape so concat is safe
-                // const auto& per_branch_lens = start->get_shape().lens();
-                // const auto  per_branch_type = start->get_shape().type();
+                move_instructions_back(m, ins, data_args);
 
-                // auto expand_constant = [&](instruction_ref pos, instruction_ref cst) -> instruction_ref {
-                    // const auto& s = cst->get_shape();
-                    // m.debug_print(cst);
-                    // if(s.type() == per_branch_type and s.lens() == per_branch_lens)
-                    //     return cst;
-                    // // Use multibroadcast as a general tool to reach the target lens
-                    // return m.insert_instruction(pos,
-                    //                             make_op("multibroadcast", {{"out_lens", per_branch_lens}}),
-                    //                             cst);
-                // };
+                // TODO: Check if axises match
+                auto concat = m.insert_instruction(
+                    ins, make_op("concat", {{"axis", concat_axis}}), data_args);
 
-                std::vector<instruction_ref> expanded;
-                expanded.reserve(data_args.size());
-                for(auto cst : data_args)
-                {
-                    auto expand_cst = cst;
-                    // auto expand_cst = expand_constant(ins, cst);
-                    if(expand_cst->get_shape().ndim() != ins->get_shape().ndim())
-                        expand_cst = m.insert_instruction(ins, make_op("unsqueeze", {{"axes", {0}}}), expand_cst);
-                    expanded.push_back(expand_cst);
-
-                }
-
-                // Ensure constants dominate insertion point
-                move_instructions_back(m, ins, expanded);
-
-                // Concat along the split axis to build a batched constant
-    
-                auto concat = m.insert_instruction(ins, make_op("concat", {{"axis", concat_axis}}), expanded);
-                // m.debug_print();
-                // m.debug_print(concat);
-                // m.debug_print(ins);
-                
-                // Build a single hoisted op with the unsliced producer and batched constant
-                std::vector<instruction_ref> args(2);
-                args[split_idx] = ins;     // the unsliced root producer
-                args[data_idx]  = concat;  // batched "other" operand
+                std::vector<instruction_ref> args;
+                args.resize(2);
+                args[split_idx] = ins;
+                args[data_idx]  = concat;
                 c = m.insert_instruction(std::next(ins), op, {args}, start->module_inputs());
-                // m.debug_print(c);
             }
-
             if(c != m.end())
             {
                 for(auto i : group)
                 {
-                    // Follow the split operand through trivial shape-only ops until we reach the slice
-                    instruction_ref arg = i->inputs()[split_idx];
-                    std::vector<instruction_ref> trivial_chain;
-                    while(is_trivial(arg) and not arg->inputs().empty())
-                    {
-                        trivial_chain.push_back(arg);           // record op to rebuild later
-                        arg = arg->inputs().front();            // step towards the slice
-                    }
+                    auto split = i->inputs()[split_idx];
+                    assert(split->name() == "slice");
 
-                    // arg should now be the slice coming from the root producer
-                    assert(arg->name() == "slice");
-                    auto slice_op = arg->get_operator();        // capture slice parameters
-
-                    // Apply the slice op to the hoisted computation 'c'
-                    auto sliced = m.insert_instruction(i, slice_op, c);
-
-                    // Rebuild the trivial shape chain forward so the shape matches the original input
-                    instruction_ref rebuilt = sliced;
-                    for(auto it = trivial_chain.rbegin(); it != trivial_chain.rend(); ++it)
-                    {
-                        rebuilt = m.insert_instruction(i, (*it)->get_operator(), rebuilt);
-                    }
-
-                    // Replace the original consumer op with the rebuilt tensor (slice + shape-only ops)
-                    m.replace_instruction(i, rebuilt);
+                    m.replace_instruction(i, split->get_operator(), c);
                 }
             }
-
         }
     }
 };

@@ -30,7 +30,7 @@
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
 
-struct module;
+struct module_pass_manager;
 
 /**
  * Simplify many algebraic instructions to more efficient versions.
@@ -38,7 +38,7 @@ struct module;
 struct MIGRAPHX_EXPORT fuse_dots
 {
     std::string name() const { return "fuse_dots"; }
-    void apply(module& m) const;
+    void apply(module_pass_manager& mpm) const;
 };
 
 } // namespace MIGRAPHX_INLINE_NS

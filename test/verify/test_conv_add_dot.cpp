@@ -58,7 +58,7 @@ struct test_conv_add_dot : verify_program<test_conv_add_dot<DType>>
         mm->add_return({dot});
         return p;
     }
-    // std::string section() const { return "conv"; }
+    std::string section() const { return "conv"; }
 };
 
 template struct test_conv_add_dot<migraphx::shape::half_type>;

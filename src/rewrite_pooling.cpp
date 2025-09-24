@@ -65,7 +65,7 @@ static void lower_lrn_to_pooling(module& m, instruction_ref ins)
     float beta  = v.at("beta").to<float>();
     float k     = v.at("bias").to<float>();
     int   size  = v.at("size").to<int>();
-    int   axis  = 1;
+    const unsigned int axis = 1;
 
     auto x = ins->inputs().at(0);
     const auto& xshape = x->get_shape();
@@ -74,8 +74,6 @@ static void lower_lrn_to_pooling(module& m, instruction_ref ins)
     int64_t caxis = axis < 0 ? axis + rank : axis;  
     if(rank < 2 or caxis >= rank) return;
     if(size <= 0 or (size % 2) == 0) return;
-
-    const int half = size / 2;
 
     auto x2 = m.insert_instruction(ins, make_op("mul"), x, x);
 
@@ -99,7 +97,7 @@ static void lower_lrn_to_pooling(module& m, instruction_ref ins)
                 {{"mode", op::pooling_mode::average},
                  {"lengths", std::vector<int64_t>{1, size}},
                  {"stride",  std::vector<int64_t>{1, 1}},
-                 {"padding", std::vector<int64_t>{0, half}},
+                 {"padding", std::vector<int64_t>{0, size/2}},
                  {"count_include_pad", true}}),
         pooled_in);
 

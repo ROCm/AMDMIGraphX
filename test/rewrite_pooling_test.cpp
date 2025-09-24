@@ -368,66 +368,8 @@ TEST_CASE(lower_lrn_to_pooling)
   
     EXPECT(m1.sort() == m2.sort());
 }
-/*
-TEST_CASE(lower_lrn_to_pooling_test1)
-{
-    migraphx::shape s{migraphx::shape::float_type, {1, 64, 55, 55}};
 
-    migraphx::module m1;
-    {
-        auto x = m1.add_parameter("x", s);
-        auto lrn = m1.add_instruction(
-            migraphx::make_op("lrn", {{"alpha", 0.0001}, {"beta", 0.75}, {"bias", 1.0}, {"size", 5}}), 
-            x);
-        m1.add_return({lrn});
-    }
 
-    migraphx::module m2 = m1;
-    opt_pooling(m2);
-}
-
-TEST_CASE(lower_lrn_to_pooling_test2)
-{
-    migraphx::shape s{migraphx::shape::float_type, {1, 64, 55, 55}};
-
-    std::vector<float> data(s.elements());
-    std::iota(data.begin(), data.end(), 1.0f);
-
-    migraphx::module p1;
-    {
-        auto* mm = p1.get_main_module();
-        auto input = mm->add_parameter("x", s);
-        auto lrn = mm->add_instruction(
-            migraphx::make_op("lrn", {{"alpha", 0.0001}, {"beta", 0.75}, {"bias", 1.0}, {"size", 5}}),
-            input);
-        mm->add_return({lrn});
-        p1.compile(migraphx::make_target("ref"));
-    }
-
-    migraphx::module p2;
-    {
-        auto* mm = p2.get_main_module();
-        auto input = mm->add_parameter("x", s);
-        auto lrn = mm->add_instruction(
-            migraphx::make_op("lrn", {{"alpha", 0.0001}, {"beta", 0.75}, {"bias", 1.0}, {"size", 5}}),
-            input);
-        mm->add_return({lrn});
-
-        opt_pooling(*mm);
-        p2.compile(migraphx::make_target("ref"));
-    }
-
-    migraphx::parameter_map params;
-    params["x"] = migraphx::argument(s, data.data());
-
-    auto result1 = p1.eval(params).back();
-    auto result2 = p2.eval(params).back();
-
-    visit_all(result1, result2)([&](auto r1, auto r2) {
-        EXPECT(migraphx::verify::verify_rms_range(r1, r2));
-    });
-}
-*/
 TEST_CASE(rewrite_avgpool_rank3_dil_test)
 {
     // 1D case 1, input is 3D

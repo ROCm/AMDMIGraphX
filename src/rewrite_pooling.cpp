@@ -71,8 +71,8 @@ static void lower_lrn_to_pooling(module& m, instruction_ref ins)
     const auto& xshape = x->get_shape();
     auto lens = xshape.lens();                 // e.g., NCHW
     const int64_t rank = static_cast<int64_t>(lens.size());
-    int64_t caxis = axis < 0 ? axis + rank : axis;
-    if(rank < 2 or caxis < 0 or caxis >= rank) return;
+    int64_t caxis = axis < 0 ? axis + rank : axis;  
+    if(rank < 2 or caxis >= rank) return;
     if(size <= 0 or (size % 2) == 0) return;
 
     const int half = size / 2;

@@ -1136,10 +1136,10 @@ static std::string compute_dump_name(const module& m, const std::string& ext)
     std::string fname         = sym_names + shape_str;
     replace_string_inplace(fname, ", ", "_");
     replace_string_inplace(fname, ":", "s");
-    
+
     if(fname.length() + ext.length() > max_file_length)
     {
-        auto cnt                  = "_" + std::to_string(dump_counter()++);
+        auto cnt    = "_" + std::to_string(dump_counter()++);
         auto cutoff = max_file_length - ext.length() - cnt.length();
         fname.resize(cutoff);
         fname += cnt;

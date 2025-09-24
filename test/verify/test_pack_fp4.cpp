@@ -27,24 +27,19 @@
 #include <migraphx/generate.hpp>
 #include <migraphx/make_op.hpp>
 
-template <migraphx::shape::type_t DType>
-struct test_convolution_backwards_2x3 : verify_program<test_convolution_backwards_2x3<DType>>
+template <migraphx::shape::type_t T, int Axis = -1>
+struct test_pack_fp4 : verify_program<test_pack_fp4<T, Axis>>
 {
     migraphx::program create_program() const
     {
         migraphx::program p;
-        auto* mm     = p.get_main_module();
-        auto input   = mm->add_parameter("x", migraphx::shape{DType, {1, 3, 6, 7}});
-        auto weights = mm->add_parameter("w", migraphx::shape{DType, {3, 4, 3, 3}});
-        mm->add_instruction(
-            migraphx::make_op("convolution_backwards",
-                              {{"padding", {1, 1}}, {"stride", {2, 3}}, {"dilation", {1, 1}}}),
-            input,
-            weights);
+        auto* mm = p.get_main_module();
+
+        auto x = mm->add_parameter("x", migraphx::shape{T, {64, 32}});
+        mm->add_instruction(migraphx::make_op("pack_fp4", {{"axis", Axis}}), x);
         return p;
     }
 };
 
-template struct test_convolution_backwards_2x3<migraphx::shape::float_type>;
-template struct test_convolution_backwards_2x3<migraphx::shape::half_type>;
-template struct test_convolution_backwards_2x3<migraphx::shape::bf16_type>;
+template struct test_pack_fp4<migraphx::shape::float_type>;
+template struct test_pack_fp4<migraphx::shape::float_type, 0>;

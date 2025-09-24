@@ -143,7 +143,7 @@ struct parse_mxfixneuron : op_parser<parse_mxfixneuron>
         auto pack_ins =
             info.add_instruction(make_op("pack_fp4"), ravel_ins); // output is fp4x2_type
         auto unpack_ins =
-            info.add_instruction(make_op("unpack_fp4"), pack_ins); // output is float_type
+            info.add_instruction(make_op("unpack_fp4"), pack_ins); // output is fp8e4m3fn_type
         if(odd_num_elem)
         {
             // slice off padded value

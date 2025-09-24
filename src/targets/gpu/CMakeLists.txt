@@ -153,6 +153,7 @@ add_library(migraphx_gpu
     compile_pointwise.cpp
     compiler.cpp
     device_name.cpp
+    fixed_pad.cpp
     fuse_ck.cpp
     fuse_mlir.cpp
     fuse_ops.cpp
@@ -200,6 +201,7 @@ endfunction()
 register_migraphx_gpu_ops(hip_
     argmax
     argmin
+    fixed_pad
     logsoftmax
     loop
     multinomial

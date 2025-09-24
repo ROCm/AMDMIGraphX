@@ -21,30 +21,41 @@
  * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
  * THE SOFTWARE.
  */
+#ifndef MIGRAPHX_GUARD_RTGLIB_FIXED_PAD_HPP
+#define MIGRAPHX_GUARD_RTGLIB_FIXED_PAD_HPP
 
-#include "verify_program.hpp"
-#include <migraphx/program.hpp>
-#include <migraphx/generate.hpp>
-#include <migraphx/make_op.hpp>
+#include <migraphx/argument.hpp>
+#include <migraphx/reflect.hpp>
+#include <migraphx/op/fixed_pad.hpp>
+#include <migraphx/gpu/device/fixed_pad.hpp>
 
-template <migraphx::shape::type_t DType>
-struct test_convolution_backwards_2x3 : verify_program<test_convolution_backwards_2x3<DType>>
+namespace migraphx {
+inline namespace MIGRAPHX_INLINE_NS {
+namespace gpu {
+
+struct context;
+
+struct hip_fixed_pad
 {
-    migraphx::program create_program() const
+    op::fixed_pad op;
+
+    template <class Self, class F>
+    static auto reflect(Self& self, F f)
     {
-        migraphx::program p;
-        auto* mm     = p.get_main_module();
-        auto input   = mm->add_parameter("x", migraphx::shape{DType, {1, 3, 6, 7}});
-        auto weights = mm->add_parameter("w", migraphx::shape{DType, {3, 4, 3, 3}});
-        mm->add_instruction(
-            migraphx::make_op("convolution_backwards",
-                              {{"padding", {1, 1}}, {"stride", {2, 3}}, {"dilation", {1, 1}}}),
-            input,
-            weights);
-        return p;
+        return migraphx::reflect(self.op, f);
+    }
+
+    std::string name() const { return "gpu::fixed_pad"; }
+    shape compute_shape(std::vector<shape> inputs) const;
+    argument compute(context& ctx, const shape&, const std::vector<argument>& args) const;
+    std::ptrdiff_t output_alias(const std::vector<shape>& shapes) const
+    {
+        return shapes.size() - 1;
     }
 };
 
-template struct test_convolution_backwards_2x3<migraphx::shape::float_type>;
-template struct test_convolution_backwards_2x3<migraphx::shape::half_type>;
-template struct test_convolution_backwards_2x3<migraphx::shape::bf16_type>;
+} // namespace gpu
+} // namespace MIGRAPHX_INLINE_NS
+} // namespace migraphx
+
+#endif

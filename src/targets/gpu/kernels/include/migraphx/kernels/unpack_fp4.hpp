@@ -21,30 +21,34 @@
  * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
  * THE SOFTWARE.
  */
+#ifndef MIGRAPHX_GUARD_KERNELS_UNPACK_FP4_HPP
+#define MIGRAPHX_GUARD_KERNELS_UNPACK_FP4_HPP
 
-#include "verify_program.hpp"
-#include <migraphx/program.hpp>
-#include <migraphx/generate.hpp>
-#include <migraphx/make_op.hpp>
+#include <migraphx/kernels/types.hpp>
+#include <migraphx/kernels/index.hpp>
+#include <migraphx/kernels/tensor_view.hpp>
+#include <migraphx/kernels/fp4_casts.hpp>
+#include <migraphx/kernels/float8.hpp>
 
-template <migraphx::shape::type_t DType>
-struct test_convolution_backwards_2x3 : verify_program<test_convolution_backwards_2x3<DType>>
+namespace migraphx {
+
+template <int Axis, class Input, class Output>
+__device__ void unpack_fp4(Input input, Output output)
 {
-    migraphx::program create_program() const
-    {
-        migraphx::program p;
-        auto* mm     = p.get_main_module();
-        auto input   = mm->add_parameter("x", migraphx::shape{DType, {1, 3, 6, 7}});
-        auto weights = mm->add_parameter("w", migraphx::shape{DType, {3, 4, 3, 3}});
-        mm->add_instruction(
-            migraphx::make_op("convolution_backwards",
-                              {{"padding", {1, 1}}, {"stride", {2, 3}}, {"dilation", {1, 1}}}),
-            input,
-            weights);
-        return p;
-    }
-};
+    const auto input_shape = input.get_shape();
+    make_index().global_stride(input_shape.elements(), [&](auto i) {
+        auto in_idx  = input_shape.multi(i);
+        auto out_idx = in_idx;
+        out_idx[Axis] *= 2;
+        // unpacking 2 unsigned parts
+        // unpacking 4 least significant bits first
+        uint8_t fp4_val = input[in_idx];
+        output[out_idx] = cast_from_fp4<fp8::fp8e4m3fn>(fp4_val);
+        out_idx[Axis] += 1;
+        fp4_val         = fp4_val >> 4u;
+        output[out_idx] = cast_from_fp4<fp8::fp8e4m3fn>(fp4_val);
+    });
+}
 
-template struct test_convolution_backwards_2x3<migraphx::shape::float_type>;
-template struct test_convolution_backwards_2x3<migraphx::shape::half_type>;
-template struct test_convolution_backwards_2x3<migraphx::shape::bf16_type>;
+} // namespace migraphx
+#endif // MIGRAPHX_GUARD_KERNELS_UNPACK_FP4_HPP

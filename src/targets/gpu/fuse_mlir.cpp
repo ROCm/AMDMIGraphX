@@ -895,20 +895,23 @@ struct find_mlir_fused_geg_ops
             return_vals.push_back(map_ins[first_gemm_ins]);
         }
         mm->add_return(return_vals);
-
         auto inputs = find_inputs(map_ins, &mpm.get_module(), mm);
 
-        // place fused mod at first instruction to avoid any rogue ops being placed between the g+g
-        // ops, even though they aren't used in the fused mod, bc they might rely on one of the
-        // intermediates. Otherwise, when replacing intermediates' usages, we can run into
-        // unresolved dependencies
-        auto fused_ins =
-            mpm.get_module().insert_instruction(first_gemm_ins,
-                                                mlir_op{second_gemm_ins->get_operator()},
-                                                mlir_contiguous(mpm, inputs),
-                                                {mm});
+        // In the multi-out case, we place the fused mod at the first instruction to avoid any
+        // rogue ops being placed between the g+g ops, even though they aren't used in the
+        // fused mod, because they might rely on one of the intermediates. Otherwise, when
+        // replacing intermediates' usages, we can run into unresolved dependencies.
+        // However, for the single-out case, it is possible for there to be unresolved dependencies
+        // if we place the fused mod at the first instruction, because in some archs, the inputs
+        // of the intermediates may be located in the IR in between the fused ops. As a result, for
+        // the single-out case, we insert the fused op at the last instruction.
         if(first_gemm_has_multi_outs or elemwise_has_multi_outs)
         {
+            auto fused_ins =
+                mpm.get_module().insert_instruction(first_gemm_ins,
+                                                    mlir_op{second_gemm_ins->get_operator()},
+                                                    mlir_contiguous(mpm, inputs),
+                                                    {mm});
             std::size_t output_idx = 0;
             if(elemwise_has_multi_outs)
             {
@@ -931,6 +934,11 @@ struct find_mlir_fused_geg_ops
         else
         {
             // simple single output case
+            auto fused_ins =
+                mpm.get_module().insert_instruction(second_gemm_ins,
+                                                    mlir_op{second_gemm_ins->get_operator()},
+                                                    mlir_contiguous(mpm, inputs),
+                                                    {mm});
             mpm.get_module().replace_instruction(second_gemm_ins, fused_ins);
         }
     }

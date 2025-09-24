@@ -72,8 +72,8 @@ static void lower_lrn_to_pooling(module& m, instruction_ref ins)
     auto lens = xshape.lens();                 // e.g., NCHW
     const int64_t rank = static_cast<int64_t>(lens.size());
     int64_t caxis = axis < 0 ? axis + rank : axis;
-    if(rank < 2 || caxis < 0 || caxis >= rank) return;
-    if(size <= 0 || (size % 2) == 0) return;
+    if(rank < 2 or caxis < 0 or caxis >= rank) return;
+    if(size <= 0 or (size % 2) == 0) return;
 
     const int half = size / 2;
 
@@ -85,12 +85,12 @@ static void lower_lrn_to_pooling(module& m, instruction_ref ins)
     auto moved = m.insert_instruction(ins, make_op("transpose", {{"permutation", perm}}), x2);
     auto moved_lens = moved->get_shape().lens();
 
-    std::size_t B = 1;
-    for(std::size_t i = 0; i + 1 < moved_lens.size(); ++i) B *= moved_lens[i];
-    const int64_t C = static_cast<int64_t>(moved_lens.back());
+    std::size_t b = 1;
+    for(std::size_t i = 0; i + 1 < moved_lens.size(); ++i) b *= moved_lens[i];
+    const int64_t c = static_cast<int64_t>(moved_lens.back());
     auto pooled_in = m.insert_instruction(
         ins, 
-        make_op("reshape", {{"dims", std::vector<int64_t>{static_cast<int64_t>(B), 1, 1, C}}}),
+        make_op("reshape", {{"dims", std::vector<int64_t>{static_cast<int64_t>(b), 1, 1, c}}}),
         moved);
 
     auto avg = m.insert_instruction(

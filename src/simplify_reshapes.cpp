@@ -219,23 +219,6 @@ struct find_nested_slice
     }
 };
 
-// struct find_static_multibroadcasts
-// {
-//     auto matcher() const
-//     {
-//         return match::name("multibroadcast")(match::nargs(2));
-//     }
-
-//     void apply(module& m, const match::matcher_result& mr) const
-//     {
-//         auto ins = mr.result;
-//         auto mbcast_shape = ins->inputs().back()->get_shape();
-//         if(mbcast_shape.dynamic())
-//             return;
-//         m.replace_instruction(ins, make_op("multibroadcast", {{"output_lens", mbcast_shape.lens()}}), ins->inputs().front());
-//     }
-// };
-
 /**
  *  Example case
  *  From:
@@ -402,6 +385,115 @@ struct find_concat_slice
                 }
             }
         }
+    }
+};
+
+struct find_merge_slice_concat
+{
+    auto matcher() const { return match::name("concat"); }
+
+    void apply(module& m, const match::matcher_result& mr) const
+    {
+        auto concat_ins = mr.result;
+
+        // Get concat axis
+        const auto concat_op = migraphx::any_cast<migraphx::op::concat>(concat_ins->get_operator());
+        const std::size_t axis = concat_op.axis;
+
+        auto concat_inputs = concat_ins->inputs();
+        std::vector<instruction_ref> new_inputs;
+        new_inputs.reserve(concat_inputs.size());
+
+        std::size_t i = 0;
+        while(i < concat_inputs.size())
+        {
+            instruction_ref ins = concat_inputs[i];
+
+            // Only consider runs of slices that slice exactly concat axis
+            if(ins->name() == "slice")
+            {
+                const auto s = migraphx::any_cast<migraphx::op::slice>(ins->get_operator());
+                bool single_axis = (s.axes.size() == 1);
+                bool axis_match  = single_axis and (s.axes.front() == axis);
+
+                if(single_axis and axis_match)
+                {
+                    // Root tensor being sliced
+                    instruction_ref root = ins->inputs().front();
+
+                    // Initialize running [start, end)
+                    std::int64_t start = s.starts.front();
+                    std::int64_t end   = s.ends.front();
+
+                    // Try to extend the run with following inputs
+                    std::size_t j = i + 1;
+                    while(j < concat_inputs.size())
+                    {
+                        instruction_ref next = concat_inputs[j];
+                        if(next->name() != "slice")
+                            break;
+
+                        const auto s2 = migraphx::any_cast<migraphx::op::slice>(next->get_operator());
+                        bool s2_single_axis = (s2.axes.size() == 1);
+                        bool s2_axis_match  = s2_single_axis and (s2.axes.front() == axis);
+                        if(not s2_single_axis or !s2_axis_match)
+                            break;
+
+                        // Must slice the same root tensor
+                        if(next->inputs().front() != root)
+                            break;
+
+                        const std::int64_t s2_start = s2.starts.front();
+                        const std::int64_t s2_end   = s2.ends.front();
+
+                        // Require abutting ranges: end_i == start_{i+1}
+                        if(s2_start != end)
+                            break;
+
+                        // Extend the merged range
+                        end = s2_end;
+                        ++j;
+                    }
+
+                    if(j == i + 1)
+                    {
+                        // No merge opportunity; keep the original slice
+                        new_inputs.push_back(ins);
+                    }
+                    else
+                    {
+                        // Synthesize a single wider slice for the run
+
+                        instruction_ref merged =
+                            m.insert_instruction(concat_ins, make_op("slice", {{"axes", {axis}}, {"starts", {start}}, {"ends", {end}}}), root);
+
+                        new_inputs.push_back(merged);
+                    }
+
+                    // Advance past the run (whether merged or not)
+                    i = j;
+                    continue;
+                }
+            }
+
+            // Not a slice (or slice on a different axis): just copy through
+            new_inputs.push_back(ins);
+            ++i;
+        }
+
+        // If nothing changed, skip replacement
+        if(new_inputs == concat_inputs)
+            return;
+
+        // If concat ends up with a single input, remove it
+        if(new_inputs.size() == 1)
+        {
+            m.replace_instruction(concat_ins, new_inputs.front());
+            return;
+        }
+
+        // Otherwise, rebuild the concat with the new (merged) inputs
+        m.replace_instruction(concat_ins, concat_ins->get_operator(), new_inputs);
     }
 };
 
@@ -1180,10 +1272,11 @@ struct find_flatten
 void simplify_reshapes::apply(module& m) const
 {
     m.repeat_while_changes(depth, [&] {
+        match::find_matches(m, find_merge_slice_concat{});
+        dead_code_elimination{}.apply(m);
         match::find_matches(m,
                             find_where_op{},
                             find_resize{},
-                            // find_static_multibroadcasts{},
                             find_nop_reshapes{},
                             find_flatten{},
                             find_reshape_cont{},

@@ -53,15 +53,15 @@ struct raw_data : raw_data_base
     friend Stream& operator<<(Stream& os, const Derived& d)
     {
         if(not d.empty())
-            d.visit([&](auto x) { os << x; },
-                    [&](auto&& xs) {
-                        for(auto&& x : xs)
-                        {
-                            os << "{ ";
-                            os << x;
-                            os << " }, ";
-                        }
-                    });
+            d.fallback_visit([&](auto x) { os << x; },
+                             [&](auto&& xs) {
+                                 for(auto&& x : xs)
+                                 {
+                                     os << "{ ";
+                                     os << x;
+                                     os << " }, ";
+                                 }
+                             });
         return os;
     }
 
@@ -125,7 +125,7 @@ struct raw_data : raw_data_base
         {
             auto&& buffer    = static_cast<const Derived&>(*this).data();
             shape view_shape = {shape::uint8_type, {s.bytes()}};
-            v(make_view(view_shape, reinterpret_cast<byte*>(buffer)));
+            v(make_view(view_shape, const_cast<byte*>(reinterpret_cast<const byte*>(buffer))));
         }
     }
 

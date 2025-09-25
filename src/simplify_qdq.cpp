@@ -289,9 +289,8 @@ struct match_find_quantizable_ops
     }
 };
 
-// Note: scales are not constant b/c of dynamic quantization.
 // Checks for block quantized scales by checking scales are not scalar or 1D.
-inline auto dynamic_block_dq(const std::string& scale)
+inline auto block_dq(const std::string& scale)
 {
     // clang-format off
     return match::name("dequantizelinear")(
@@ -313,8 +312,8 @@ struct match_find_mx_quantizable_ops
 {
     auto matcher() const
     {
-        auto dq1 = match::arg(0)(skip_post_dq_ops(dynamic_block_dq("scale1").bind("dq1")));
-        auto dq2 = match::arg(1)(skip_post_dq_ops(dynamic_block_dq("scale2").bind("dq2")));
+        auto dq1 = match::arg(0)(skip_post_dq_ops(block_dq("scale1").bind("dq1")));
+        auto dq2 = match::arg(1)(skip_post_dq_ops(block_dq("scale2").bind("dq2")));
         return match::name(get_quantizable_op_names())(dq1, dq2);
     }
 

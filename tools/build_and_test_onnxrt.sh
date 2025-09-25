@@ -26,6 +26,7 @@ set -e
 
 ulimit -c unlimited
 
+cp tools/pai_test_launcher.sh /onnxruntime/tools/ci_build/github/pai/pai_test_launcher.sh
 cd /onnxruntime
 pip3 install -r requirements-dev.txt
 # Add newer cmake to the path

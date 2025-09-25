@@ -49,32 +49,36 @@ std::unordered_set<std::string> get_quantizable_op_names()
     return s;
 }
 
-// Helper function to insert quantized versions of any broadcasts and transpose ops that
-// occur between dequantizelinear and the quantized op
-auto propagate_quantized_ins(module& m,
-                             const instruction_ref dqins,
-                             const instruction_ref qop_arg,
-                             bool is_fp16_model = false)
+std::vector<instruction_ref> get_inbetween_ins(const instruction_ref dqins,
+                                               const instruction_ref qop_arg)
 {
     auto prev_ins = qop_arg;
     std::vector<instruction_ref> ins_between;
-    // matcher skips continguous, multi/broadcasts and transposes, collect all those
-    // instructions
     while(prev_ins != dqins)
     {
         ins_between.push_back(prev_ins);
         prev_ins = prev_ins->inputs().front();
     }
-    auto qinp = dqins->inputs().front();
+    return ins_between;
+}
+
+// Helper function to insert quantized versions of any broadcasts and transpose ops that
+// occur between dequantizelinear and the quantized op
+auto propagate_quantized_ins(module& m,
+                             const instruction_ref dqins,
+                             instruction_ref input_ins,
+                             std::vector<instruction_ref> ins_between,
+                             bool is_fp16_model = false)
+{
     for(auto ins : reverse_iterator_for(ins_between))
     {
         if((*ins)->name() == "convert" and is_fp16_model)
         {
             continue;
         }
-        qinp = m.insert_instruction(dqins, (*ins)->get_operator(), {qinp});
+        input_ins = m.insert_instruction(dqins, (*ins)->get_operator(), {input_ins});
     }
-    return qinp;
+    return input_ins;
 }
 
 struct match_find_quantizable_ops
@@ -140,8 +144,13 @@ struct match_find_quantizable_ops
             assert(dq1->get_shape().type() == migraphx::shape::float_type);
             is_fp16_model = true;
         }
-        qop_args.at(0) = propagate_quantized_ins(m, dq1, qop_args[0], is_fp16_model);
-        qop_args.at(1) = propagate_quantized_ins(m, dq2, qop_args[1], is_fp16_model);
+
+        auto qop_between_arg0 = get_inbetween_ins(dq1, qop_args[0]);
+        auto qop_between_arg1 = get_inbetween_ins(dq2, qop_args[1]);
+        qop_args.at(0) =
+            propagate_quantized_ins(m, dq1, qop_args[0], qop_between_arg0, is_fp16_model);
+        qop_args.at(1) =
+            propagate_quantized_ins(m, dq2, qop_args[1], qop_between_arg1, is_fp16_model);
         auto arg1_lens = qop_args[0]->get_shape().lens();
         auto arg2_lens = qop_args[1]->get_shape().lens();
 
@@ -288,7 +297,6 @@ inline auto dynamic_block_dq(const std::string& scale)
     return match::name("dequantizelinear")(
         match::nargs(2),
         match::arg(1)(match::skip_broadcasts(match::none_of(
-            match::is_constant(),
             match::scalar_shape,
             match::ndim(1)
         ).bind(scale))));
@@ -307,7 +315,7 @@ struct match_find_mx_quantizable_ops
     {
         auto dq1 = match::arg(0)(skip_post_dq_ops(dynamic_block_dq("scale1").bind("dq1")));
         auto dq2 = match::arg(1)(skip_post_dq_ops(dynamic_block_dq("scale2").bind("dq2")));
-        return match::name("dot")(dq1, dq2);
+        return match::name(get_quantizable_op_names())(dq1, dq2);
     }
 
     void apply(module& m, const match::matcher_result& r) const
@@ -328,10 +336,16 @@ struct match_find_mx_quantizable_ops
             assert(dq1->get_shape().type() == migraphx::shape::float_type);
             is_fp16_model = true;
         }
-        qop_args.at(0) = propagate_quantized_ins(m, dq1, qop_args[0], is_fp16_model);
-        qop_args.at(1) = propagate_quantized_ins(m, dq2, qop_args[1], is_fp16_model);
-        qop_args.push_back(scale1);
-        qop_args.push_back(scale2);
+        auto qop_between_arg0 = get_inbetween_ins(dq1, qop_args[0]);
+        qop_args.at(0) =
+            propagate_quantized_ins(m, dq1, dq1->inputs().front(), qop_between_arg0, is_fp16_model);
+        auto qop_between_arg1 = get_inbetween_ins(dq2, qop_args[1]);
+        qop_args.at(1) =
+            propagate_quantized_ins(m, dq2, dq2->inputs().front(), qop_between_arg1, is_fp16_model);
+        qop_args.push_back(
+            propagate_quantized_ins(m, dq1, scale1, qop_between_arg0, is_fp16_model));
+        qop_args.push_back(
+            propagate_quantized_ins(m, dq2, scale2, qop_between_arg1, is_fp16_model));
 
         if(qop->name() == "convolution")
         {

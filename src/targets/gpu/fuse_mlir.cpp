@@ -1464,7 +1464,7 @@ struct find_dot_tile
         auto d = is_b ? d_shape.lens()[d_shape.ndim() - 1] : d_shape.lens()[d_shape.ndim() - 2];
         auto d_per_block = is_b ? params.n_per_block : params.m_per_block;
         auto d_block     = d / d_per_block;
-        auto k       = is_b ? d_shape.lens()[d_shape.ndim() - 2] : d_shape.lens()[d_shape.ndim() - 1];
+        auto k = is_b ? d_shape.lens()[d_shape.ndim() - 2] : d_shape.lens()[d_shape.ndim() - 1];
         auto k_iter  = k / (params.kpack_per_block * params.kpack);
 
         // Build new shape for tiling
@@ -1573,7 +1573,6 @@ struct find_dot_tile
             current_b = mpm.get_module().insert_instruction(dot_ins, op, current_b);
             debug_ins.push_back(current_b);
         }
-
 
         // mpm.get_module().debug_print(debug_ins);
 

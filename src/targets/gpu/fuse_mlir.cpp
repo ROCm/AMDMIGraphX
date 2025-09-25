@@ -1464,32 +1464,18 @@ struct find_dot_tile
         auto d = is_b ? d_shape.lens()[d_shape.ndim() - 1] : d_shape.lens()[d_shape.ndim() - 2];
         auto d_per_block = is_b ? params.n_per_block : params.m_per_block;
         auto d_block     = d / d_per_block;
-        // auto m_block = m / params.m_per_block;
-        // auto n_block = n / params.n_per_block;
-        auto k       = d_shape.lens()[d_shape.ndim() - 1];
+        auto k       = is_b ? d_shape.lens()[d_shape.ndim() - 2] : d_shape.lens()[d_shape.ndim() - 1];
         auto k_iter  = k / (params.kpack_per_block * params.kpack);
 
         // Build new shape for tiling
         std::vector<std::size_t> new_dims = batch_dims;
         new_dims.insert(new_dims.end(),
                         {d_block, d_per_block, k_iter, params.kpack_per_block, params.kpack});
-        // if(is_b)
-        // {
-        //     new_dims.insert(
-        //         new_dims.end(),
-        //         {n_block, k_iter, params.kpack_per_block, params.n_per_block, params.kpack});
-        // }
-        // else
-        // {
-        //     new_dims.insert(
-        //         new_dims.end(),
-        //         {m_block, k_iter, params.kpack_per_block, params.m_per_block, params.kpack});
-        // }
 
         // Reshape to tiled dimensions
         ops.push_back(make_op("reshape", {{"dims", new_dims}}));
 
-        // [Bs..., mBlock, kIter, kpackPerBlock, mPerBlock, kpack]
+        // [Bs..., dBlock, kIter, kpackPerBlock, dPerBlock, kpack]
 
         std::vector<int64_t> tile_perm1(new_dims.size());
         std::iota(tile_perm1.begin(), tile_perm1.end(), 0);
@@ -1561,8 +1547,16 @@ struct find_dot_tile
 
         std::vector<instruction_ref> debug_ins = {a, b};
 
+        // std::cout << "m_per_block: " << params->m_per_block << "\n";
+        // std::cout << "n_per_block: " << params->n_per_block << "\n";
+        // std::cout << "kpack_per_block: " << params->kpack_per_block << "\n";
+        // std::cout << "kpack: " << params->kpack << "\n";
+
+        // mpm.get_module().debug_print({a, b});
+
         // Generate tiling operations for A matrix
         auto a_tile_ops           = get_tile_ops(*params, a_shape, false);
+        // std::cout << "A tile ops: " << to_string_range(a_tile_ops) << "\n";
         instruction_ref current_a = a;
         for(const auto& op : a_tile_ops)
         {
@@ -1572,6 +1566,7 @@ struct find_dot_tile
 
         // Generate tiling operations for B matrix
         auto b_tile_ops           = get_tile_ops(*params, b_shape, true);
+        // std::cout << "B tile ops: " << to_string_range(b_tile_ops) << "\n";
         instruction_ref current_b = b;
         for(const auto& op : b_tile_ops)
         {
@@ -1579,13 +1574,8 @@ struct find_dot_tile
             debug_ins.push_back(current_b);
         }
 
-        std::cout << "m_per_block: " << params->m_per_block << "\n";
-        std::cout << "n_per_block: " << params->n_per_block << "\n";
-        std::cout << "kpack_per_block: " << params->kpack_per_block << "\n";
-        std::cout << "kpack: " << params->kpack << "\n";
 
-        mpm.get_module().debug_print(debug_ins);
-        mpm.get_module().debug_print({current_a, current_b});
+        // mpm.get_module().debug_print(debug_ins);
 
         // Replace the dot instruction with the tiled inputs
         mpm.get_module().replace_instruction(

@@ -49,8 +49,8 @@ std::unordered_set<std::string> get_quantizable_op_names()
     return s;
 }
 
-std::vector<instruction_ref> get_inbetween_ins(const instruction_ref dqins,
-                                               const instruction_ref qop_arg)
+std::vector<instruction_ref> get_between_ins(const instruction_ref dqins,
+                                             const instruction_ref qop_arg)
 {
     auto prev_ins = qop_arg;
     std::vector<instruction_ref> ins_between;
@@ -145,12 +145,12 @@ struct match_find_quantizable_ops
             is_fp16_model = true;
         }
 
-        auto qop_between_arg0 = get_inbetween_ins(dq1, qop_args[0]);
-        auto qop_between_arg1 = get_inbetween_ins(dq2, qop_args[1]);
+        auto qop_between_arg0 = get_between_ins(dq1, qop_args[0]);
+        auto qop_between_arg1 = get_between_ins(dq2, qop_args[1]);
         qop_args.at(0) =
-            propagate_quantized_ins(m, dq1, qop_args[0], qop_between_arg0, is_fp16_model);
+            propagate_quantized_ins(m, dq1, dq1->inputs().front(), qop_between_arg0, is_fp16_model);
         qop_args.at(1) =
-            propagate_quantized_ins(m, dq2, qop_args[1], qop_between_arg1, is_fp16_model);
+            propagate_quantized_ins(m, dq2, dq2->inputs().front(), qop_between_arg1, is_fp16_model);
         auto arg1_lens = qop_args[0]->get_shape().lens();
         auto arg2_lens = qop_args[1]->get_shape().lens();
 
@@ -335,10 +335,10 @@ struct match_find_mx_quantizable_ops
             assert(dq1->get_shape().type() == migraphx::shape::float_type);
             is_fp16_model = true;
         }
-        auto qop_between_arg0 = get_inbetween_ins(dq1, qop_args[0]);
+        auto qop_between_arg0 = get_between_ins(dq1, qop_args[0]);
         qop_args.at(0) =
             propagate_quantized_ins(m, dq1, dq1->inputs().front(), qop_between_arg0, is_fp16_model);
-        auto qop_between_arg1 = get_inbetween_ins(dq2, qop_args[1]);
+        auto qop_between_arg1 = get_between_ins(dq2, qop_args[1]);
         qop_args.at(1) =
             propagate_quantized_ins(m, dq2, dq2->inputs().front(), qop_between_arg1, is_fp16_model);
         qop_args.push_back(

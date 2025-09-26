@@ -21,7 +21,7 @@ def rocmtestnode(Map conf) {
     def docker_args = conf.get("docker_args", "")
     def docker_build_args = conf.get("docker_build_args", "")
     def pre = conf.get("pre", {})
-    def ccache = "/ccache/"
+    def ccache = "/ccache"
     def image = 'migraphxlib'
     env.CCACHE_COMPRESSLEVEL = 7
     env.CCACHE_DIR = ccache

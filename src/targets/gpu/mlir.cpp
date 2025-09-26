@@ -332,6 +332,8 @@ struct mlir_program
                 result = mlirFloat8E5M2TypeGet(ctx.get());
             else if(as.type_enum() == shape::double_type)
                 result = mlirF64TypeGet(ctx.get());
+            else if(as.type_enum() == shape::fp4x2_type)
+                result = mlirFloat8E4M3FNTypeGet(ctx.get());
             else if(as.is_integral())
             {
                 if(as.is_unsigned())
@@ -646,6 +648,8 @@ struct mlir_program
         if(ins->name() == "@literal")
             return "migraphx.literal";
         if(ins->name() == "unpack_int4")
+            return "migraphx.unpack";
+        if(ins->name() == "unpack_fp4")
             return "migraphx.unpack";
         if(ins->name() == "convolution_backwards")
             return "migraphx.backwards_data_convolution";

@@ -73,8 +73,7 @@ try_(F f, bool output = true, source_location llc = source_location::current()) 
         catch(const migraphx::exception& ex)
         {
             if(output)
-                std::cerr << "MIGraphX Error: Caller:" << llc.function_name()
-                          << " what:" << ex.what() << std::endl;
+                std::cerr << llc.function_name() << ": Error: " << ex.what() << std::endl;
             if(ex.error > 0)
                 return migraphx_status(ex.error);
             else
@@ -83,8 +82,7 @@ try_(F f, bool output = true, source_location llc = source_location::current()) 
         catch(const std::exception& ex)
         {
             if(output)
-                std::cerr << "MIGraphX Error: Caller:" << llc.function_name()
-                          << " what:" << ex.what() << std::endl;
+                std::cerr << llc.function_name() << ": Error: " << ex.what() << std::endl;
             return migraphx_status_unknown_error;
         }
         catch(...)

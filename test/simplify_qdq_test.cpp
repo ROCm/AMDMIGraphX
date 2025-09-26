@@ -1815,7 +1815,7 @@ TEST_CASE(fp4x2_quant_dot_even)
     EXPECT(m1 == m2);
 }
 
-TEST_CASE(fp4x2_quant_dot_transB)
+TEST_CASE(fp4x2_quant_dot_trans_b)
 {
     migraphx::shape shape_packed_a{migraphx::shape::fp4x2_type, {1, 3, 6, 12}};
     migraphx::shape shape_packed_b{migraphx::shape::fp4x2_type, {1, 3, 8, 12}};
@@ -1865,7 +1865,7 @@ TEST_CASE(fp4x2_quant_dot_transB)
     EXPECT(m1 == m2);
 }
 
-TEST_CASE(fp4x2_quant_dot_const_B)
+TEST_CASE(fp4x2_quant_dot_const_b)
 {
     migraphx::shape shape_packed_a{migraphx::shape::fp4x2_type, {1, 3, 6, 12}};
     migraphx::shape shape_packed_b{migraphx::shape::fp4x2_type, {1, 3, 24, 4}};

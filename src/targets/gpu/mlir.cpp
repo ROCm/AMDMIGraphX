@@ -707,7 +707,7 @@ struct mlir_program
     static std::vector<instruction_ref> get_returns(const module& m)
     {
         std::vector<instruction_ref> result = m.get_returns();
-        for(auto& ins: result)
+        for(auto& ins : result)
         {
             if(ins->name() == "contiguous")
                 ins = ins->inputs().at(0);
@@ -715,20 +715,22 @@ struct mlir_program
         return result;
     }
 
-    static std::unordered_map<instruction_ref, shape> get_return_shapes(const module& m, const shape& s)
+    static std::unordered_map<instruction_ref, shape> get_return_shapes(const module& m,
+                                                                        const shape& s)
     {
         std::unordered_map<instruction_ref, shape> result;
-        std::vector<shape> out_shapes = s.type() == shape::tuple_type ? s.sub_shapes() : std::vector<shape>{s};
+        std::vector<shape> out_shapes =
+            s.type() == shape::tuple_type ? s.sub_shapes() : std::vector<shape>{s};
         std::vector<instruction_ref> returns = m.get_returns();
         std::transform(returns.begin(),
                        returns.end(),
                        out_shapes.begin(),
                        std::inserter(result, result.end()),
-                       [](instruction_ref r, const shape& rs) { 
-                        if(r->name() == "contiguous")
-                            r = r->inputs().at(0);
-                        return std::make_pair(r, rs); 
-                    });
+                       [](instruction_ref r, const shape& rs) {
+                           if(r->name() == "contiguous")
+                               r = r->inputs().at(0);
+                           return std::make_pair(r, rs);
+                       });
         return result;
     }
 
@@ -1238,7 +1240,7 @@ mlir_code_object compile_mlir(const context& migraphx_ctx,
     auto co = mp.compile(solution);
 
     co.expected_inputs = in_shapes;
-    co.output = in_shapes.back();
+    co.output          = in_shapes.back();
     mlir_code_object mco;
     mco.cop                 = co;
     size_t num_prefill_args = mlirGetNumPrefillArgs(mp.mmodule.get());

@@ -31,6 +31,7 @@
 #include <migraphx/module.hpp>
 #include <migraphx/optional.hpp>
 #include <migraphx/iterator_for.hpp>
+#include <migraphx/stringutils.hpp>
 #include <migraphx/type_name.hpp>
 #include <migraphx/source_location.hpp>
 #include <migraphx/config.hpp>
@@ -563,7 +564,7 @@ struct match_fold_f
     template <class... Ts>
     auto operator()(Ts... ms) const
     {
-        return make_bf_matcher(
+        return make_basic_fun_matcher(
             [=](matcher_context& ctx, instruction_ref ins) -> optional<instruction_ref> {
                 bool matches = match_fold_f::fold_matchers(ctx, ins, ms...);
                 if(matches == Matches)
@@ -578,7 +579,7 @@ struct match_fold_f
         return [=](auto... ms) {
             // Workaround ICE on gcc by packing matchers into an object
             auto mpack = pack(ms...);
-            return make_bf_matcher(
+            return make_basic_fun_matcher(
                 [=](matcher_context& ctx, instruction_ref start) -> optional<instruction_ref> {
                     Op op;
                     bool matches = Start;
@@ -686,11 +687,17 @@ MIGRAPHX_PRED_MATCHER(transpose_shape, instruction_ref ins)
 {
     return ins->get_shape().transposed();
 }
+
+inline auto ndim(std::size_t n)
+{
+    return make_basic_pred_matcher(
+        [=](instruction_ref ins) { return ins->get_shape().ndim() == n; });
+}
+
 MIGRAPHX_PRED_MATCHER(not_tuple, instruction_ref ins)
 {
     return ins->get_shape().type() != shape::tuple_type;
 }
-
 MIGRAPHX_PRED_MATCHER(same_input_shapes, instruction_ref ins)
 {
     if(ins->inputs().empty())
@@ -1055,6 +1062,8 @@ auto pointwise(Ms... ms)
 {
     return match::has_attribute("pointwise")(ms...);
 }
+
+MIGRAPHX_PRED_MATCHER(reduce, instruction_ref ins) { return starts_with(ins->name(), "reduce_"); }
 
 } // namespace match
 } // namespace MIGRAPHX_INLINE_NS

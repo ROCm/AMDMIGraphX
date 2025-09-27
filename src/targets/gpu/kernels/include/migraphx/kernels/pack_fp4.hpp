@@ -44,8 +44,8 @@ __device__ void pack_fp4(Input input, Output output)
         auto inp_val0 = input[in_idx];
         in_idx[Axis] += 1;
         auto inp_val1    = input[in_idx];
-        uint8_t out_val0 = float_to_fp4(inp_val0);
-        uint8_t out_val1 = float_to_fp4(inp_val1);
+        uint8_t out_val0 = cast_to_fp4(inp_val0);
+        uint8_t out_val1 = cast_to_fp4(inp_val1);
         output[out_idx]  = static_cast<uint8_t>(out_val1 << 4u) | out_val0;
         // TODO: from hip_fp4 header
         // auto fp32x2_val = float2{input[idx], input[idx + 1]};

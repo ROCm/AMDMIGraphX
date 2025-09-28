@@ -21,10 +21,7 @@ def rocmtestnode(Map conf) {
     def docker_args = conf.get("docker_args", "")
     def docker_build_args = conf.get("docker_build_args", "")
     def pre = conf.get("pre", {})
-    def ccache = "/workspaces/.cache/ccache"
     def image = 'migraphxlib'
-    env.CCACHE_COMPRESSLEVEL = 7
-    env.CCACHE_DIR = ccache
     def cmake_build = { bconf ->
         def compiler = bconf.get("compiler", "/opt/rocm/llvm/bin/clang++")
         def flags = bconf.get("flags", "")
@@ -43,12 +40,13 @@ def rocmtestnode(Map conf) {
             rm -rf build
             mkdir build
             cd build
-            cmake -DCMAKE_C_COMPILER_LAUNCHER=ccache -DCMAKE_CXX_COMPILER_LAUNCHER=ccache -DBUILD_DEV=On -DCMAKE_EXECUTE_PROCESS_COMMAND_ECHO=STDOUT -DMIGRAPHX_DISABLE_VIRTUAL_ENV=ON ${flags} ..
+            cmake -DBUILD_DEV=On -DCMAKE_EXECUTE_PROCESS_COMMAND_ECHO=STDOUT -DMIGRAPHX_DISABLE_VIRTUAL_ENV=ON ${flags} ..
             git diff
             git diff-index --quiet HEAD || (echo "Git repo is not clean after running cmake." && exit 1)
             make -j\$(nproc) generate VERBOSE=1
             git diff
             git diff-index --quiet HEAD || (echo "Generated files are different. Please run make generate and commit the changes." && exit 1)
+            
             make -j\$(nproc) all package check VERBOSE=1
             md5sum ./*.deb
         """
@@ -71,7 +69,7 @@ def rocmtestnode(Map conf) {
                     sh "echo $DOCKERHUB_PASS | docker login --username $DOCKERHUB_USER --password-stdin"
                     pre()
                     sh "docker pull ${DOCKER_IMAGE}:${env.IMAGE_TAG}"
-                    withDockerContainer(image: "${DOCKER_IMAGE}:${env.IMAGE_TAG}", args: "--device=/dev/kfd --device=/dev/dri --group-add video --cap-add SYS_PTRACE -v=${env.WORKSPACE}/../:/workspaces:rw,z ${docker_args}") {
+                    withDockerContainer(image: "${DOCKER_IMAGE}:${env.IMAGE_TAG}", args: "--device=/dev/kfd --device=/dev/dri --group-add video --cap-add SYS_PTRACE ${docker_args}") {
                         timeout(time: 4, unit: 'HOURS') {
                             body(cmake_build)
                         }
@@ -94,7 +92,7 @@ def rocmtest(m) {
 }
 
 def rocmnodename(name) {
-    def rocmtest_name = "(rocmtest || migraphx)"
+    def rocmtest_name = "(christest)"
     def node_name = "${rocmtest_name}"
     if(name == "fiji") {
         node_name = "${rocmtest_name} && fiji";
@@ -209,11 +207,11 @@ rocmtest clang_debug: rocmnode('mi200+') { cmake_build ->
 //            cmake_build(flags: "-DCMAKE_BUILD_TYPE=release -DMIGRAPHX_USE_HIPRTC=On -DGPU_TARGETS='${gpu_targets}'")
 //        }
 //    }
-}, clang_release_navi: rocmnode('navi32') { cmake_build ->
-    stage('HIP Clang Release Navi32') {
-        def gpu_targets = getnavi3xtargets()
-        cmake_build(flags: "-DCMAKE_BUILD_TYPE=release -DGPU_TARGETS='${gpu_targets}' -DMIGRAPHX_DISABLE_ONNX_TESTS=On")
-    }
+//}, clang_release_navi: rocmnode('navi32') { cmake_build ->
+    //stage('HIP Clang Release Navi32') {
+        //def gpu_targets = getnavi3xtargets()
+        //cmake_build(flags: "-DCMAKE_BUILD_TYPE=release -DGPU_TARGETS='${gpu_targets}' -DMIGRAPHX_DISABLE_ONNX_TESTS=On")
+    //}
 }, clang_asan: rocmnode('nogpu') { cmake_build ->
     stage('Clang ASAN') {
         def sanitizers = "undefined,address"

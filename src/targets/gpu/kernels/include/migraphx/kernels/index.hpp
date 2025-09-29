@@ -235,38 +235,35 @@ struct index
         {
             return;
         }
-        else
+        else if constexpr(not is_integral<N>{} and not is_integral<Stride>{})
         {
-            if constexpr(not is_integral<N>{} and not is_integral<Stride>{})
+            if constexpr(max_stride_iterations(n, stride) == 1)
             {
-                if constexpr(max_stride_iterations(n, stride) == 1)
+                if constexpr(stride > n)
                 {
-                    if constexpr(stride > n)
-                    {
-                        if(start < n)
-                            invoke_loop(f, start, _c<0>);
-                    }
-                    else
-                    {
+                    if(start < n)
                         invoke_loop(f, start, _c<0>);
-                    }
-                }
-                else if constexpr(Unroll)
-                {
-                    MIGRAPHX_STATIC_ASSERT_FOR(max_stride_iterations(n, stride) < 256)
-                    {
-                        for_stride_loop_unroll(start, n, stride, f);
-                    }
                 }
                 else
                 {
-                    for_stride_loop(start, n, stride, f);
+                    invoke_loop(f, start, _c<0>);
+                }
+            }
+            else if constexpr(Unroll)
+            {
+                MIGRAPHX_STATIC_ASSERT_FOR(max_stride_iterations(n, stride) < 256)
+                {
+                    for_stride_loop_unroll(start, n, stride, f);
                 }
             }
             else
             {
                 for_stride_loop(start, n, stride, f);
             }
+        }
+        else
+        {
+            for_stride_loop(start, n, stride, f);
         }
     }
 

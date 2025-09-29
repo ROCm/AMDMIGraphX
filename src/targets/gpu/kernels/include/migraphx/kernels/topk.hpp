@@ -157,16 +157,13 @@ topk_impl(index idx, Compare compare, T init, Y y, YIndex y_idx, X x, XIndices..
         else
         {
             __shared__ pair buf[aligned_m];
-            if constexpr(extra_m > 0)
-            {
-                idx.local_stride(extra_m, [&](auto i) {
-                    auto in = i + trimmed_n;
-                    auto im = i + m;
-                    MIGRAPHX_ASSERT(im < aligned_m);
-                    buf[im].key = in < n ? x[in] : init;
-                    buf[im].val = get_index(in);
-                });
-            }
+            idx.local_stride(extra_m, [&](auto i) {
+                auto in = i + trimmed_n;
+                auto im = i + m;
+                MIGRAPHX_ASSERT(im < aligned_m);
+                buf[im].key = in < n ? x[in] : init;
+                buf[im].val = get_index(in);
+            });
             auto shared_shape = make_shape(index_ints<nwave, k>{});
             const auto base   = idx.local_wave() * nper_lane;
             for(index_int i : range(nper_lane))

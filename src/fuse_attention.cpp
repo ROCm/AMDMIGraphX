@@ -210,8 +210,6 @@ struct find_attention
 };
 
 // Helper functions for flash decoding
-namespace {
-
 // Determine a good group size G for flash decoding
 // We want to split N into G groups where each group has N/G elements
 std::size_t choose_group_size(std::size_t N) {
@@ -257,12 +255,10 @@ bool should_use_flash_decoding(const std::vector<shape>& input_shapes) {
     }
     
     // For shapes [..., M, k] x [..., k, N] x [..., N, D]
-    std::size_t M = q_shape.lens()[ndim - 2];
     std::size_t k_q = q_shape.lens()[ndim - 1];
     std::size_t k_k = k_shape.lens()[ndim - 2];
     std::size_t N = k_shape.lens()[ndim - 1];
     std::size_t N_v = v_shape.lens()[ndim - 2];
-    std::size_t D = v_shape.lens()[ndim - 1];
     
     // Check dimension consistency
     if (k_q != k_k || N != N_v) return false;
@@ -303,15 +299,13 @@ std::vector<shape> transform_shapes_for_flash_decoding(const std::vector<shape>&
     return {new_q_shape, new_k_shape, new_v_shape};
 }
 
-} // namespace
-
 struct find_flash_decoding
 {
     std::size_t* counter;
     
     auto matcher() const
     {
-        return match::name("group")(match::attribute("tag", "attention"));
+        return match::name("group")(match::has_op_value("tag", "attention"));
     }
     
     std::string get_count() const { return std::to_string((*counter)++); }
@@ -361,7 +355,7 @@ struct find_flash_decoding
         
         // Compute LSE: L = log(sum(exp(S), axis=-1))
         auto exp_s = m_flash.add_instruction(make_op("exp"), s);
-        auto sum_exp = m_flash.add_instruction(make_op("reduce_sum", {{"axes", std::vector<int64_t>{-1}}}), exp_s);
+        auto sum_exp = m_flash.add_instruction(make_op("reduce_sum", {{"axes", {-1}}}), exp_s);
         auto l = m_flash.add_instruction(make_op("log"), sum_exp);
         
         auto o_prime = m_flash.add_instruction(make_op("dot"), p, v_param);
@@ -371,10 +365,10 @@ struct find_flash_decoding
         auto scale_bc = m_flash.add_instruction(
             make_op("multibroadcast", {{"out_lens", o_prime->get_shape().lens()}}), scale);
         auto r = m_flash.add_instruction(make_op("mul"), o_prime, scale_bc);
-        auto o = m_flash.add_instruction(make_op("reduce_sum", {{"axes", std::vector<int64_t>{static_cast<int64_t>(transformed_shapes[0].ndim() - 3)}}}), r);
+        auto o = m_flash.add_instruction(make_op("reduce_sum", {{"axes", {static_cast<int64_t>(transformed_shapes[0].ndim() - 3)}}}), r);
         
         // Squeeze out the group dimension
-        auto final_o = m_flash.add_instruction(make_op("squeeze", {{"axes", std::vector<int64_t>{static_cast<int64_t>(transformed_shapes[0].ndim() - 3)}}}), o);
+        auto final_o = m_flash.add_instruction(make_op("squeeze", {{"axes", {static_cast<int64_t>(transformed_shapes[0].ndim() - 3)}}}), o);
         
         m_flash.add_return({final_o});
         
@@ -385,7 +379,7 @@ struct find_flash_decoding
         auto q_input = regular_inputs[0];
         auto q_unsqueeze = mpm.get_module().insert_instruction(
             group_ins, 
-            make_op("unsqueeze", {{"axes", std::vector<int64_t>{static_cast<int64_t>(input_shapes[0].ndim() - 2)}}}), 
+            make_op("unsqueeze", {{"axes", {static_cast<int64_t>(input_shapes[0].ndim() - 2)}}}), 
             q_input);
         new_inputs.push_back(mpm.get_module().insert_instruction(
             group_ins,

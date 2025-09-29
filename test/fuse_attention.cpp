@@ -473,7 +473,7 @@ TEST_CASE(flash_decoding_conversion_3d)
                 
                 // Compute LSE: L = log(sum(exp(S), axis=-1))
                 auto exp_s = gm->add_instruction(migraphx::make_op("exp"), s);
-                auto sum_exp = gm->add_instruction(migraphx::make_op("reduce_sum", {{"axes", std::vector<int64_t>{-1}}}), exp_s);
+                auto sum_exp = gm->add_instruction(migraphx::make_op("reduce_sum", {{"axes", {-1}}}), exp_s);
                 auto l = gm->add_instruction(migraphx::make_op("log"), sum_exp);
                 
                 auto o_prime = gm->add_instruction(migraphx::make_op("dot"), p, inputs[2]);
@@ -483,10 +483,10 @@ TEST_CASE(flash_decoding_conversion_3d)
                 auto scale_bc = gm->add_instruction(
                     migraphx::make_op("multibroadcast", {{"out_lens", o_prime->get_shape().lens()}}), scale);
                 auto r = gm->add_instruction(migraphx::make_op("mul"), o_prime, scale_bc);
-                auto o = gm->add_instruction(migraphx::make_op("reduce_sum", {{"axes", std::vector<int64_t>{1}}}), r);
+                auto o = gm->add_instruction(migraphx::make_op("reduce_sum", {{"axes", {1}}}), r);
                 
                 // Squeeze out the group dimension
-                auto final_o = gm->add_instruction(migraphx::make_op("squeeze", {{"axes", std::vector<int64_t>{1}}}), o);
+                auto final_o = gm->add_instruction(migraphx::make_op("squeeze", {{"axes", {1}}}), o);
                 return std::vector<migraphx::instruction_ref>{final_o};
             });
         mm->add_return({group});
@@ -550,7 +550,7 @@ TEST_CASE(flash_decoding_conversion_4d)
                 
                 // Compute LSE: L = log(sum(exp(S), axis=-1))
                 auto exp_s = gm->add_instruction(migraphx::make_op("exp"), s);
-                auto sum_exp = gm->add_instruction(migraphx::make_op("reduce_sum", {{"axes", std::vector<int64_t>{-1}}}), exp_s);
+                auto sum_exp = gm->add_instruction(migraphx::make_op("reduce_sum", {{"axes", {-1}}}), exp_s);
                 auto l = gm->add_instruction(migraphx::make_op("log"), sum_exp);
                 
                 auto o_prime = gm->add_instruction(migraphx::make_op("dot"), p, inputs[2]);
@@ -560,10 +560,10 @@ TEST_CASE(flash_decoding_conversion_4d)
                 auto scale_bc = gm->add_instruction(
                     migraphx::make_op("multibroadcast", {{"out_lens", o_prime->get_shape().lens()}}), scale);
                 auto r = gm->add_instruction(migraphx::make_op("mul"), o_prime, scale_bc);
-                auto o = gm->add_instruction(migraphx::make_op("reduce_sum", {{"axes", std::vector<int64_t>{2}}}), r);
+                auto o = gm->add_instruction(migraphx::make_op("reduce_sum", {{"axes", {2}}}), r);
                 
                 // Squeeze out the group dimension
-                auto final_o = gm->add_instruction(migraphx::make_op("squeeze", {{"axes", std::vector<int64_t>{2}}}), o);
+                auto final_o = gm->add_instruction(migraphx::make_op("squeeze", {{"axes", {2}}}), o);
                 return std::vector<migraphx::instruction_ref>{final_o};
             });
         mm->add_return({group});

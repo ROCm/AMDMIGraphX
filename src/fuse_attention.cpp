@@ -62,6 +62,7 @@ inline auto pointwise_inputs()
 inline bool is_flash_decoding_pattern(const shape& q_shape, const shape& k_shape, const shape& v_shape)
 {
     // Flash decoding pattern: Q -> [B, G, M, k], K -> [B, G, k, N/G], V -> [B, G, N/G, D]
+    // We detect this when we have 4D tensors with the right dimensional relationships
     if(q_shape.ndim() != 4 or k_shape.ndim() != 4 or v_shape.ndim() != 4)
         return false;
     
@@ -75,8 +76,12 @@ inline bool is_flash_decoding_pattern(const shape& q_shape, const shape& k_shape
     if(q_shape.lens()[3] != k_shape.lens()[2])
         return false;
     
-    // Check that N/G dimension matches between K and V
+    // Check that N/G dimension matches between K and V  
     if(k_shape.lens()[3] != v_shape.lens()[2])
+        return false;
+    
+    // Additional validation: group dimension should be > 1 for flash decoding to be worthwhile
+    if(q_shape.lens()[1] <= 1)
         return false;
     
     return true;
@@ -208,9 +213,12 @@ struct find_attention
             auto scale_bc = m_attn.add_instruction(
                 make_op("multibroadcast", {{"out_lens", o_prime->get_shape().lens()}}), scale);
             auto r = m_attn.add_instruction(make_op("mul"), o_prime, scale_bc);
-            auto o = m_attn.add_instruction(make_op("sum", {{"axes", std::vector<int64_t>{1}}}), r);
+            auto o = m_attn.add_instruction(make_op("reduce_sum", {{"axes", std::vector<int64_t>{1}}}), r);
             
-            m_attn.add_return({o});
+            // Squeeze out the group dimension to get final shape [B, M, D]
+            auto final_o = m_attn.add_instruction(make_op("squeeze", {{"axes", std::vector<int64_t>{1}}}), o);
+            
+            m_attn.add_return({final_o});
             
             module_ref mpm_attn = mpm.create_module("flash_decode" + get_count(), std::move(m_attn));
             mpm_attn->set_bypass();

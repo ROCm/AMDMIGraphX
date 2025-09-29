@@ -532,8 +532,11 @@ TEST_CASE(flash_decoding_4d_pattern)
                 auto scale_bc = gm->add_instruction(
                     migraphx::make_op("multibroadcast", {{"out_lens", o_prime->get_shape().lens()}}), scale);
                 auto r = gm->add_instruction(migraphx::make_op("mul"), o_prime, scale_bc);
-                auto o = gm->add_instruction(migraphx::make_op("sum", {{"axes", std::vector<int64_t>{1}}}), r);
-                return std::vector<migraphx::instruction_ref>{o};
+                auto o = gm->add_instruction(migraphx::make_op("reduce_sum", {{"axes", std::vector<int64_t>{1}}}), r);
+                
+                // Squeeze out the group dimension to get final shape [B, M, D] 
+                auto final_o = gm->add_instruction(migraphx::make_op("squeeze", {{"axes", std::vector<int64_t>{1}}}), o);
+                return std::vector<migraphx::instruction_ref>{final_o};
             });
         mm->add_return({group});
     }

@@ -431,23 +431,19 @@ TEST_CASE(flash_decoding_pattern)
         auto k   = mm->add_parameter("k", k_shape);
         auto v   = mm->add_parameter("v", v_shape);
 
-        // First kernel: per-group attention computation
-        auto s = mm->add_instruction(migraphx::make_op("dot"), q, k);  // [B, G, M, N/G]
-        auto p = mm->add_instruction(migraphx::make_op("softmax", {{"axis", -1}}), s);
-        
-        // Compute LSE for scaling (simplified version)
-        auto lse = mm->add_instruction(migraphx::make_op("reduce_sum", {{"axes", {3}}}), p);
-        
-        auto o_prime = mm->add_instruction(migraphx::make_op("dot"), p, v);  // [B, G, M, D]
-
-        // Second kernel: scale and sum across groups
-        auto scale = mm->add_instruction(migraphx::make_op("softmax", {{"axis", 1}}), lse);
-        scale = mm->add_instruction(
-            migraphx::make_op("multibroadcast", {{"out_lens", o_prime->get_shape().lens()}}), scale);
-        auto r = mm->add_instruction(migraphx::make_op("mul"), o_prime, scale);
-        auto o = mm->add_instruction(migraphx::make_op("sum", {{"axes", {1}}}), r);  // [B, 1, M, D]
-        
-        mm->add_return({o});
+        // Standard attention pattern that should be detected for flash decoding conversion
+        auto gemm1 = mm->add_instruction(migraphx::make_op("dot"), q, k);
+        auto rmax  = mm->add_instruction(migraphx::make_op("reduce_max", {{"axes", {3}}}), gemm1);
+        rmax = mm->add_instruction(migraphx::make_op("multibroadcast", {{"out_lens", gemm1->get_shape().lens()}}),
+                                   rmax);
+        auto sub  = mm->add_instruction(migraphx::make_op("sub"), gemm1, rmax);
+        auto exp  = mm->add_instruction(migraphx::make_op("exp"), sub);
+        auto rsum = mm->add_instruction(migraphx::make_op("reduce_sum", {{"axes", {3}}}), exp);
+        rsum = mm->add_instruction(migraphx::make_op("multibroadcast", {{"out_lens", gemm1->get_shape().lens()}}),
+                                   rsum);
+        auto div   = mm->add_instruction(migraphx::make_op("div"), exp, rsum);
+        auto gemm2 = mm->add_instruction(migraphx::make_op("dot"), div, v);
+        mm->add_return({gemm2});
     }
     run_pass(p1);
 
@@ -460,19 +456,17 @@ TEST_CASE(flash_decoding_pattern)
 
         auto group = add_group(
             p2, "flash_decode0", "flash_decoding", {q, k, v}, [=](auto* gm, const auto& inputs) {
-                // First kernel: per-group attention computation
+                // Flash decoding computation
                 auto s = gm->add_instruction(migraphx::make_op("dot"), inputs[0], inputs[1]);
                 auto p = gm->add_instruction(migraphx::make_op("softmax", {{"axis", -1}}), s);
-                auto lse = gm->add_instruction(migraphx::make_op("reduce_sum", {{"axes", {3}}}), p);
+                auto l = gm->add_instruction(migraphx::make_op("reduce_sum", {{"axes", std::vector<int64_t>{-1}}}), p);
                 auto o_prime = gm->add_instruction(migraphx::make_op("dot"), p, inputs[2]);
-
-                // Second kernel: scale and sum across groups
-                auto scale = gm->add_instruction(migraphx::make_op("softmax", {{"axis", 1}}), lse);
-                scale = gm->add_instruction(
-                    migraphx::make_op("multibroadcast", {{"out_lens", o_prime->get_shape().lens()}}),
-                    scale);
-                auto r = gm->add_instruction(migraphx::make_op("mul"), o_prime, scale);
-                auto o = gm->add_instruction(migraphx::make_op("sum", {{"axes", {1}}}), r);
+                
+                auto scale = gm->add_instruction(migraphx::make_op("softmax", {{"axis", 1}}), l);
+                auto scale_bc = gm->add_instruction(
+                    migraphx::make_op("multibroadcast", {{"out_lens", o_prime->get_shape().lens()}}), scale);
+                auto r = gm->add_instruction(migraphx::make_op("mul"), o_prime, scale_bc);
+                auto o = gm->add_instruction(migraphx::make_op("sum", {{"axes", std::vector<int64_t>{1}}}), r);
                 return std::vector<migraphx::instruction_ref>{o};
             });
         mm->add_return({group});

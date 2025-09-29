@@ -333,12 +333,15 @@ struct find_flash_decoding
         }
         
         // Check if this attention group should use flash decoding
-        if (!should_use_flash_decoding(input_shapes)) {
+        if (input_shapes.size() < 3 || !should_use_flash_decoding(input_shapes)) {
             return; // Keep as regular attention
         }
         
         // Transform to flash decoding
         auto transformed_shapes = transform_shapes_for_flash_decoding(input_shapes);
+        if (transformed_shapes.size() != 3) {
+            return; // Invalid transformation
+        }
         std::size_t G = choose_group_size(input_shapes[1].lens().back());
         
         // Create new flash decoding module
@@ -361,14 +364,17 @@ struct find_flash_decoding
         auto o_prime = m_flash.add_instruction(make_op("dot"), p, v_param);
         
         // Second kernel: scale and combine across groups
-        auto scale = m_flash.add_instruction(make_op("softmax", {{"axis", static_cast<int64_t>(transformed_shapes[0].ndim() - 3)}}), l);
+        // The group dimension is inserted at position ndim-2 in the original shape
+        // After transformation, the group axis is at that same position
+        int64_t group_axis = static_cast<int64_t>(input_shapes[0].ndim()) - 2;
+        auto scale = m_flash.add_instruction(make_op("softmax", {{"axis", group_axis}}), l);
         auto scale_bc = m_flash.add_instruction(
             make_op("multibroadcast", {{"out_lens", o_prime->get_shape().lens()}}), scale);
         auto r = m_flash.add_instruction(make_op("mul"), o_prime, scale_bc);
-        auto o = m_flash.add_instruction(make_op("reduce_sum", {{"axes", {static_cast<int64_t>(transformed_shapes[0].ndim() - 3)}}}), r);
+        auto o = m_flash.add_instruction(make_op("reduce_sum", {{"axes", {group_axis}}}), r);
         
         // Squeeze out the group dimension
-        auto final_o = m_flash.add_instruction(make_op("squeeze", {{"axes", {static_cast<int64_t>(transformed_shapes[0].ndim() - 3)}}}), o);
+        auto final_o = m_flash.add_instruction(make_op("squeeze", {{"axes", {group_axis}}}), o);
         
         m_flash.add_return({final_o});
         
@@ -377,9 +383,10 @@ struct find_flash_decoding
         
         // Transform Q: add broadcast dimension for G
         auto q_input = regular_inputs[0];
+        int64_t unsqueeze_axis = static_cast<int64_t>(input_shapes[0].ndim()) - 2;
         auto q_unsqueeze = mpm.get_module().insert_instruction(
             group_ins, 
-            make_op("unsqueeze", {{"axes", {static_cast<int64_t>(input_shapes[0].ndim() - 2)}}}), 
+            make_op("unsqueeze", {{"axes", {unsqueeze_axis}}}), 
             q_input);
         new_inputs.push_back(mpm.get_module().insert_instruction(
             group_ins,

@@ -419,7 +419,68 @@ TEST_CASE(gemm_pw_softmax_lse_gemm)
 
 TEST_CASE(flash_decoding_pattern)
 {
-    // Test flash decoding: Q -> [B, G, M, k], K -> [B, G, k, N/G], V -> [B, G, N/G, D]
+    // Test flash decoding transformation
+    // Start with standard 3D shapes, should detect when G dimension can be added for flash decoding
+    migraphx::shape q_shape{migraphx::shape::half_type, {2, 128, 64}};   // [B, M, k]
+    migraphx::shape k_shape{migraphx::shape::half_type, {2, 64, 256}};   // [B, k, N]  
+    migraphx::shape v_shape{migraphx::shape::half_type, {2, 256, 96}};   // [B, N, D]
+
+    migraphx::program p1;
+    {
+        auto* mm = p1.get_main_module();
+        auto q   = mm->add_parameter("q", q_shape);
+        auto k   = mm->add_parameter("k", k_shape);  
+        auto v   = mm->add_parameter("v", v_shape);
+
+        // Standard attention pattern 
+        auto gemm1 = mm->add_instruction(migraphx::make_op("dot"), q, k);
+        auto rmax  = mm->add_instruction(migraphx::make_op("reduce_max", {{"axes", {2}}}), gemm1);
+        rmax = mm->add_instruction(migraphx::make_op("multibroadcast", {{"out_lens", gemm1->get_shape().lens()}}),
+                                   rmax);
+        auto sub  = mm->add_instruction(migraphx::make_op("sub"), gemm1, rmax);
+        auto exp  = mm->add_instruction(migraphx::make_op("exp"), sub);
+        auto rsum = mm->add_instruction(migraphx::make_op("reduce_sum", {{"axes", {2}}}), exp);
+        rsum = mm->add_instruction(migraphx::make_op("multibroadcast", {{"out_lens", gemm1->get_shape().lens()}}),
+                                   rsum);
+        auto div   = mm->add_instruction(migraphx::make_op("div"), exp, rsum);
+        auto gemm2 = mm->add_instruction(migraphx::make_op("dot"), div, v);
+        mm->add_return({gemm2});
+    }
+    run_pass(p1);
+
+    migraphx::program p2;
+    {
+        auto* mm = p2.get_main_module();
+        auto q   = mm->add_parameter("q", q_shape);
+        auto k   = mm->add_parameter("k", k_shape);
+        auto v   = mm->add_parameter("v", v_shape);
+
+        auto group = add_group(
+            p2, "attn0", "attention", {q, k, v}, [=](auto* gm, const auto& inputs) {
+                auto gemm1 = gm->add_instruction(migraphx::make_op("dot"), inputs[0], inputs[1]);
+                auto rmax =
+                    gm->add_instruction(migraphx::make_op("reduce_max", {{"axes", {2}}}), gemm1);
+                rmax = gm->add_instruction(
+                    migraphx::make_op("multibroadcast", {{"out_lens", gemm1->get_shape().lens()}}), rmax);
+                auto sub = gm->add_instruction(migraphx::make_op("sub"), gemm1, rmax);
+                auto exp = gm->add_instruction(migraphx::make_op("exp"), sub);
+                auto rsum =
+                    gm->add_instruction(migraphx::make_op("reduce_sum", {{"axes", {2}}}), exp);
+                rsum = gm->add_instruction(
+                    migraphx::make_op("multibroadcast", {{"out_lens", gemm1->get_shape().lens()}}), rsum);
+                auto div   = gm->add_instruction(migraphx::make_op("div"), exp, rsum);
+                auto gemm2 = gm->add_instruction(migraphx::make_op("dot"), div, inputs[2]);
+                return std::vector<migraphx::instruction_ref>{gemm2};
+            });
+        mm->add_return({group});
+    }
+    EXPECT(p1.sort() == p2.sort());
+}
+
+TEST_CASE(flash_decoding_4d_pattern)
+{
+    // Test flash decoding with actual 4D tensors (already grouped)
+    // Q -> [B, G, M, k], K -> [B, G, k, N/G], V -> [B, G, N/G, D] 
     migraphx::shape q_shape{migraphx::shape::half_type, {2, 4, 128, 64}};  // [B, G, M, k]
     migraphx::shape k_shape{migraphx::shape::half_type, {2, 4, 64, 32}};   // [B, G, k, N/G]  
     migraphx::shape v_shape{migraphx::shape::half_type, {2, 4, 32, 96}};   // [B, G, N/G, D]
@@ -431,7 +492,7 @@ TEST_CASE(flash_decoding_pattern)
         auto k   = mm->add_parameter("k", k_shape);
         auto v   = mm->add_parameter("v", v_shape);
 
-        // Standard attention pattern that should be detected for flash decoding conversion
+        // Standard attention pattern with 4D tensors - should be detected for flash decoding
         auto gemm1 = mm->add_instruction(migraphx::make_op("dot"), q, k);
         auto rmax  = mm->add_instruction(migraphx::make_op("reduce_max", {{"axes", {3}}}), gemm1);
         rmax = mm->add_instruction(migraphx::make_op("multibroadcast", {{"out_lens", gemm1->get_shape().lens()}}),
@@ -459,7 +520,12 @@ TEST_CASE(flash_decoding_pattern)
                 // Flash decoding computation
                 auto s = gm->add_instruction(migraphx::make_op("dot"), inputs[0], inputs[1]);
                 auto p = gm->add_instruction(migraphx::make_op("softmax", {{"axis", -1}}), s);
-                auto l = gm->add_instruction(migraphx::make_op("reduce_sum", {{"axes", std::vector<int64_t>{-1}}}), p);
+                
+                // Compute LSE properly: L = log(sum(exp(S), axis=-1))
+                auto exp_s = gm->add_instruction(migraphx::make_op("exp"), s);
+                auto sum_exp = gm->add_instruction(migraphx::make_op("reduce_sum", {{"axes", std::vector<int64_t>{-1}}}), exp_s);
+                auto l = gm->add_instruction(migraphx::make_op("log"), sum_exp);
+                
                 auto o_prime = gm->add_instruction(migraphx::make_op("dot"), p, inputs[2]);
                 
                 auto scale = gm->add_instruction(migraphx::make_op("softmax", {{"axis", 1}}), l);

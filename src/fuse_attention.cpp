@@ -196,7 +196,12 @@ struct find_attention
             // Flash decoding computation
             auto s = m_attn.add_instruction(make_op("dot"), q_param, k_param);
             auto p = m_attn.add_instruction(make_op("softmax", {{"axis", -1}}), s);
-            auto l = m_attn.add_instruction(make_op("reduce_sum", {{"axes", std::vector<int64_t>{-1}}}), p);
+            
+            // Compute LSE properly: L = log(sum(exp(S), axis=-1))
+            auto exp_s = m_attn.add_instruction(make_op("exp"), s);
+            auto sum_exp = m_attn.add_instruction(make_op("reduce_sum", {{"axes", std::vector<int64_t>{-1}}}), exp_s);
+            auto l = m_attn.add_instruction(make_op("log"), sum_exp);
+            
             auto o_prime = m_attn.add_instruction(make_op("dot"), p, v_param);
             
             auto scale = m_attn.add_instruction(make_op("softmax", {{"axis", 1}}), l);

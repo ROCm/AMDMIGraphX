@@ -597,8 +597,10 @@ struct mlir_program
         return result;
     }
 
-    MlirBlock
-    insert(MlirBlock body, const module& m, std::unordered_map<instruction_ref, MlirValue>& ins_map, const std::vector<shape>& out_shapes = {})
+    MlirBlock insert(MlirBlock body,
+                     const module& m,
+                     std::unordered_map<instruction_ref, MlirValue>& ins_map,
+                     const std::vector<shape>& out_shapes = {})
     {
         auto names = m.get_parameter_names();
         std::sort(names.begin(), names.end());
@@ -715,8 +717,8 @@ struct mlir_program
         return result;
     }
 
-    static std::unordered_map<instruction_ref, shape> get_return_shapes(const module& m,
-                                                                        const std::vector<shape>& out_shapes)
+    static std::unordered_map<instruction_ref, shape>
+    get_return_shapes(const module& m, const std::vector<shape>& out_shapes)
     {
         std::unordered_map<instruction_ref, shape> result;
         std::vector<instruction_ref> returns = m.get_returns();
@@ -1230,7 +1232,8 @@ mlir_code_object compile_mlir(const context& migraphx_ctx,
 
     mlir_program mp;
     mp.set_gpu_properties(migraphx_ctx);
-    mp.parse(m, output.type() == shape::tuple_type ? output.sub_shapes() : std::vector<shape>{output});
+    mp.parse(m,
+             output.type() == shape::tuple_type ? output.sub_shapes() : std::vector<shape>{output});
     auto mod_op = mlirModuleGetOperation(mp.mmodule.get());
     if(trace)
     {

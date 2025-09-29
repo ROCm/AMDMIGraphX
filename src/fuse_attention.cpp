@@ -58,35 +58,6 @@ inline auto pointwise_inputs()
     };
 }
 
-// Helper to check if shapes match the flash decoding pattern
-inline bool is_flash_decoding_pattern(const shape& q_shape, const shape& k_shape, const shape& v_shape)
-{
-    // Flash decoding pattern: Q -> [B, G, M, k], K -> [B, G, k, N/G], V -> [B, G, N/G, D]
-    // We detect this when we have 4D tensors with the right dimensional relationships
-    if(q_shape.ndim() != 4 or k_shape.ndim() != 4 or v_shape.ndim() != 4)
-        return false;
-    
-    // Check batch and group dimensions match
-    if(q_shape.lens()[0] != k_shape.lens()[0] or q_shape.lens()[0] != v_shape.lens()[0])
-        return false;
-    if(q_shape.lens()[1] != k_shape.lens()[1] or q_shape.lens()[1] != v_shape.lens()[1])
-        return false;
-    
-    // Check that k dimension matches between Q and K
-    if(q_shape.lens()[3] != k_shape.lens()[2])
-        return false;
-    
-    // Check that N/G dimension matches between K and V  
-    if(k_shape.lens()[3] != v_shape.lens()[2])
-        return false;
-    
-    // Additional validation: group dimension should be > 1 for flash decoding to be worthwhile
-    if(q_shape.lens()[1] <= 1)
-        return false;
-    
-    return true;
-}
-
 struct find_attention
 {
     std::size_t* counter;
@@ -174,62 +145,9 @@ struct find_attention
         // Capture all instructions part of the attention op
         auto attn_inss = get_attn_instructions(mpm.get_module(), gemm1, gemm2);
 
-        // Check if this should use flash decoding
-        bool use_flash_decoding = false;
-        if(attn_inss.size() >= 3) {
-            auto q_input = gemm1->inputs()[0];
-            auto k_input = gemm1->inputs()[1];
-            auto v_input = gemm2->inputs()[1];
-            use_flash_decoding = is_flash_decoding_pattern(q_input->get_shape(), k_input->get_shape(), v_input->get_shape());
-        }
-
         // Add captured instructions to new submodule
         module m_attn;
         std::unordered_map<instruction_ref, instruction_ref> map_mm_to_mattn;
-        
-        if(use_flash_decoding) {
-            // Create flash decoding module instead of regular attention
-            auto q_input = gemm1->inputs()[0];
-            auto k_input = gemm1->inputs()[1];
-            auto v_input = gemm2->inputs()[1];
-            
-            // Add parameters
-            auto q_param = m_attn.add_parameter("q", q_input->get_shape().as_standard());
-            auto k_param = m_attn.add_parameter("k", k_input->get_shape().as_standard());
-            auto v_param = m_attn.add_parameter("v", v_input->get_shape().as_standard());
-            
-            // Flash decoding computation
-            auto s = m_attn.add_instruction(make_op("dot"), q_param, k_param);
-            auto p = m_attn.add_instruction(make_op("softmax", {{"axis", -1}}), s);
-            
-            // Compute LSE properly: L = log(sum(exp(S), axis=-1))
-            auto exp_s = m_attn.add_instruction(make_op("exp"), s);
-            auto sum_exp = m_attn.add_instruction(make_op("reduce_sum", {{"axes", std::vector<int64_t>{-1}}}), exp_s);
-            auto l = m_attn.add_instruction(make_op("log"), sum_exp);
-            
-            auto o_prime = m_attn.add_instruction(make_op("dot"), p, v_param);
-            
-            auto scale = m_attn.add_instruction(make_op("softmax", {{"axis", 1}}), l);
-            auto scale_bc = m_attn.add_instruction(
-                make_op("multibroadcast", {{"out_lens", o_prime->get_shape().lens()}}), scale);
-            auto r = m_attn.add_instruction(make_op("mul"), o_prime, scale_bc);
-            auto o = m_attn.add_instruction(make_op("reduce_sum", {{"axes", std::vector<int64_t>{1}}}), r);
-            
-            // Squeeze out the group dimension to get final shape [B, M, D]
-            auto final_o = m_attn.add_instruction(make_op("squeeze", {{"axes", std::vector<int64_t>{1}}}), o);
-            
-            m_attn.add_return({final_o});
-            
-            module_ref mpm_attn = mpm.create_module("flash_decode" + get_count(), std::move(m_attn));
-            mpm_attn->set_bypass();
-
-            auto group_ins = mpm.get_module().insert_instruction(
-                softmax_input, make_op("group", {{"tag", "flash_decoding"}}), {q_input, k_input, v_input}, {mpm_attn});
-
-            mpm.get_module().replace_instruction(gemm2, group_ins);
-            return;
-        }
-
         m_attn.fuse(attn_inss, &map_mm_to_mattn);
 
         // Define outputs based on instructions that are used elsewhere in the graph
@@ -291,13 +209,232 @@ struct find_attention
     }
 };
 
+// Helper functions for flash decoding
+namespace {
+
+// Determine a good group size G for flash decoding
+// We want to split N into G groups where each group has N/G elements
+std::size_t choose_group_size(std::size_t N) {
+    // Prefer powers of 2 for better memory alignment
+    // Aim for group sizes between 16 and 128 for good performance
+    std::vector<std::size_t> preferred_sizes = {128, 64, 32, 16, 8, 4, 2}; // Check largest first
+    
+    for (auto G : preferred_sizes) {
+        if (N % G == 0 && N / G >= 16) {  // Each group should have at least 16 elements
+            return G;
+        }
+    }
+    
+    // Fallback: find largest divisor that creates reasonable group sizes
+    for (std::size_t G = std::min(N / 16, static_cast<std::size_t>(128)); G >= 2; --G) {
+        if (N % G == 0) {
+            return G;
+        }
+    }
+    
+    return 1; // No grouping beneficial
+}
+
+// Check if flash decoding would be beneficial for given shapes
+bool should_use_flash_decoding(const std::vector<shape>& input_shapes) {
+    // Need exactly 3 inputs: Q, K, V
+    if (input_shapes.size() != 3) return false;
+    
+    const auto& q_shape = input_shapes[0];
+    const auto& k_shape = input_shapes[1]; 
+    const auto& v_shape = input_shapes[2];
+    
+    // All should have same number of dimensions (at least 3)
+    if (q_shape.ndim() < 3 || k_shape.ndim() != q_shape.ndim() || v_shape.ndim() != q_shape.ndim())
+        return false;
+    
+    std::size_t ndim = q_shape.ndim();
+    
+    // Check batch dimensions match
+    for (std::size_t i = 0; i < ndim - 2; ++i) {
+        if (q_shape.lens()[i] != k_shape.lens()[i] || q_shape.lens()[i] != v_shape.lens()[i])
+            return false;
+    }
+    
+    // For shapes [..., M, k] x [..., k, N] x [..., N, D]
+    std::size_t M = q_shape.lens()[ndim - 2];
+    std::size_t k_q = q_shape.lens()[ndim - 1];
+    std::size_t k_k = k_shape.lens()[ndim - 2];
+    std::size_t N = k_shape.lens()[ndim - 1];
+    std::size_t N_v = v_shape.lens()[ndim - 2];
+    std::size_t D = v_shape.lens()[ndim - 1];
+    
+    // Check dimension consistency
+    if (k_q != k_k || N != N_v) return false;
+    
+    // Check if grouping would be beneficial
+    std::size_t G = choose_group_size(N);
+    return G > 1; // Only worthwhile if we can actually group
+}
+
+// Transform shapes for flash decoding by adding group dimension
+std::vector<shape> transform_shapes_for_flash_decoding(const std::vector<shape>& input_shapes) {
+    const auto& q_shape = input_shapes[0];
+    const auto& k_shape = input_shapes[1];
+    const auto& v_shape = input_shapes[2];
+    
+    std::size_t ndim = q_shape.ndim();
+    std::size_t N = k_shape.lens()[ndim - 1];
+    std::size_t G = choose_group_size(N);
+    std::size_t N_per_group = N / G;
+    
+    // Transform Q: [..., M, k] -> [..., G, M, k] (G is broadcasted)
+    auto q_lens = q_shape.lens();
+    q_lens.insert(q_lens.end() - 2, G);
+    shape new_q_shape{q_shape.type(), q_lens};
+    
+    // Transform K: [..., k, N] -> [..., G, k, N/G] 
+    auto k_lens = k_shape.lens();
+    k_lens[ndim - 1] = N_per_group;  // Change N to N/G
+    k_lens.insert(k_lens.end() - 2, G);
+    shape new_k_shape{k_shape.type(), k_lens};
+    
+    // Transform V: [..., N, D] -> [..., G, N/G, D]
+    auto v_lens = v_shape.lens();
+    v_lens[ndim - 2] = N_per_group;  // Change N to N/G  
+    v_lens.insert(v_lens.end() - 2, G);
+    shape new_v_shape{v_shape.type(), v_lens};
+    
+    return {new_q_shape, new_k_shape, new_v_shape};
+}
+
+} // namespace
+
+struct find_flash_decoding
+{
+    std::size_t* counter;
+    
+    auto matcher() const
+    {
+        return match::name("group")(match::attribute("tag", "attention"));
+    }
+    
+    std::string get_count() const { return std::to_string((*counter)++); }
+    
+    void apply(module_pass_manager& mpm, const match::matcher_result& r) const
+    {
+        auto group_ins = r.result;
+        auto inputs = group_ins->inputs();
+        
+        // Group instructions have regular inputs followed by module refs
+        // We need to find where the module refs start
+        std::vector<instruction_ref> regular_inputs;
+        for (auto input : inputs) {
+            if (input->get_operator().name() != "@module_ref") {
+                regular_inputs.push_back(input);
+            } else {
+                break; // Module refs come at the end
+            }
+        }
+        
+        // Get input shapes
+        std::vector<shape> input_shapes;
+        for (auto input : regular_inputs) {
+            input_shapes.push_back(input->get_shape());
+        }
+        
+        // Check if this attention group should use flash decoding
+        if (!should_use_flash_decoding(input_shapes)) {
+            return; // Keep as regular attention
+        }
+        
+        // Transform to flash decoding
+        auto transformed_shapes = transform_shapes_for_flash_decoding(input_shapes);
+        std::size_t G = choose_group_size(input_shapes[1].lens().back());
+        
+        // Create new flash decoding module
+        module m_flash;
+        
+        // Add parameters with transformed shapes
+        auto q_param = m_flash.add_parameter("q", transformed_shapes[0].as_standard());
+        auto k_param = m_flash.add_parameter("k", transformed_shapes[1].as_standard()); 
+        auto v_param = m_flash.add_parameter("v", transformed_shapes[2].as_standard());
+        
+        // First kernel: compute per-group attention with LSE
+        auto s = m_flash.add_instruction(make_op("dot"), q_param, k_param);
+        auto p = m_flash.add_instruction(make_op("softmax", {{"axis", -1}}), s);
+        
+        // Compute LSE: L = log(sum(exp(S), axis=-1))
+        auto exp_s = m_flash.add_instruction(make_op("exp"), s);
+        auto sum_exp = m_flash.add_instruction(make_op("reduce_sum", {{"axes", std::vector<int64_t>{-1}}}), exp_s);
+        auto l = m_flash.add_instruction(make_op("log"), sum_exp);
+        
+        auto o_prime = m_flash.add_instruction(make_op("dot"), p, v_param);
+        
+        // Second kernel: scale and combine across groups
+        auto scale = m_flash.add_instruction(make_op("softmax", {{"axis", static_cast<int64_t>(transformed_shapes[0].ndim() - 3)}}), l);
+        auto scale_bc = m_flash.add_instruction(
+            make_op("multibroadcast", {{"out_lens", o_prime->get_shape().lens()}}), scale);
+        auto r = m_flash.add_instruction(make_op("mul"), o_prime, scale_bc);
+        auto o = m_flash.add_instruction(make_op("reduce_sum", {{"axes", std::vector<int64_t>{static_cast<int64_t>(transformed_shapes[0].ndim() - 3)}}}), r);
+        
+        // Squeeze out the group dimension
+        auto final_o = m_flash.add_instruction(make_op("squeeze", {{"axes", std::vector<int64_t>{static_cast<int64_t>(transformed_shapes[0].ndim() - 3)}}}), o);
+        
+        m_flash.add_return({final_o});
+        
+        // Create transformed input instructions
+        std::vector<instruction_ref> new_inputs;
+        
+        // Transform Q: add broadcast dimension for G
+        auto q_input = regular_inputs[0];
+        auto q_unsqueeze = mpm.get_module().insert_instruction(
+            group_ins, 
+            make_op("unsqueeze", {{"axes", std::vector<int64_t>{static_cast<int64_t>(input_shapes[0].ndim() - 2)}}}), 
+            q_input);
+        new_inputs.push_back(mpm.get_module().insert_instruction(
+            group_ins,
+            make_op("multibroadcast", {{"out_lens", transformed_shapes[0].lens()}}),
+            q_unsqueeze));
+        
+        // Transform K: reshape to add group dimension
+        auto k_input = regular_inputs[1];
+        new_inputs.push_back(mpm.get_module().insert_instruction(
+            group_ins,
+            make_op("reshape", {{"dims", transformed_shapes[1].lens()}}),
+            k_input));
+        
+        // Transform V: reshape to add group dimension  
+        auto v_input = regular_inputs[2];
+        new_inputs.push_back(mpm.get_module().insert_instruction(
+            group_ins,
+            make_op("reshape", {{"dims", transformed_shapes[2].lens()}}),
+            v_input));
+        
+        // Create flash decoding module reference
+        module_ref mpm_flash = mpm.create_module("flash_decode" + get_count(), std::move(m_flash));
+        mpm_flash->set_bypass();
+        
+        // Replace group with flash decoding group
+        auto flash_group = mpm.get_module().insert_instruction(
+            group_ins, 
+            make_op("group", {{"tag", "flash_decoding"}}), 
+            new_inputs, 
+            {mpm_flash});
+        
+        mpm.get_module().replace_instruction(group_ins, flash_group);
+    }
+};
+
 } // namespace
 
 void fuse_attention::apply(module_pass_manager& mpm) const
 {
     std::size_t counter = 0;
+    // First, run regular attention fusion
     match::find_matches(mpm, find_attention{.counter = &counter});
     mpm.get_module().sort();
+    
+    // Then, look for attention groups that can be converted to flash decoding
+    std::size_t flash_counter = 0;
+    match::find_matches(mpm, find_flash_decoding{.counter = &flash_counter});
+    mpm.get_module().sort();
+    
     mpm.run_pass(dead_code_elimination{});
 }
 

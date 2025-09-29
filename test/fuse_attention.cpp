@@ -417,37 +417,190 @@ TEST_CASE(gemm_pw_softmax_lse_gemm)
     EXPECT(p1.sort() == p2.sort());
 }
 
-TEST_CASE(flash_decoding_pattern)
+TEST_CASE(flash_decoding_conversion_3d)
 {
-    // Test flash decoding transformation
-    // Start with standard 3D shapes, should detect when G dimension can be added for flash decoding
+    // Test that regular 3D attention gets converted to flash decoding when beneficial
+    // Q: [2, 128, 64], K: [2, 64, 128], V: [2, 128, 96] 
+    // N=128 can be split into G=8 groups of 16 each
     migraphx::shape q_shape{migraphx::shape::half_type, {2, 128, 64}};   // [B, M, k]
-    migraphx::shape k_shape{migraphx::shape::half_type, {2, 64, 256}};   // [B, k, N]  
-    migraphx::shape v_shape{migraphx::shape::half_type, {2, 256, 96}};   // [B, N, D]
+    migraphx::shape k_shape{migraphx::shape::half_type, {2, 64, 128}};   // [B, k, N]
+    migraphx::shape v_shape{migraphx::shape::half_type, {2, 128, 96}};   // [B, N, D]
 
     migraphx::program p1;
     {
         auto* mm = p1.get_main_module();
         auto q   = mm->add_parameter("q", q_shape);
-        auto k   = mm->add_parameter("k", k_shape);  
+        auto k   = mm->add_parameter("k", k_shape);
         auto v   = mm->add_parameter("v", v_shape);
 
-        // Standard attention pattern 
+        // Standard attention pattern
         auto gemm1 = mm->add_instruction(migraphx::make_op("dot"), q, k);
         auto rmax  = mm->add_instruction(migraphx::make_op("reduce_max", {{"axes", {2}}}), gemm1);
-        rmax = mm->add_instruction(migraphx::make_op("multibroadcast", {{"out_lens", gemm1->get_shape().lens()}}),
-                                   rmax);
+        rmax = mm->add_instruction(migraphx::make_op("multibroadcast", {{"out_lens", gemm1->get_shape().lens()}}), rmax);
         auto sub  = mm->add_instruction(migraphx::make_op("sub"), gemm1, rmax);
         auto exp  = mm->add_instruction(migraphx::make_op("exp"), sub);
         auto rsum = mm->add_instruction(migraphx::make_op("reduce_sum", {{"axes", {2}}}), exp);
-        rsum = mm->add_instruction(migraphx::make_op("multibroadcast", {{"out_lens", gemm1->get_shape().lens()}}),
-                                   rsum);
+        rsum = mm->add_instruction(migraphx::make_op("multibroadcast", {{"out_lens", gemm1->get_shape().lens()}}), rsum);
         auto div   = mm->add_instruction(migraphx::make_op("div"), exp, rsum);
         auto gemm2 = mm->add_instruction(migraphx::make_op("dot"), div, v);
         mm->add_return({gemm2});
     }
     run_pass(p1);
 
+    migraphx::program p2;
+    {
+        auto* mm = p2.get_main_module();
+        auto q   = mm->add_parameter("q", q_shape);
+        auto k   = mm->add_parameter("k", k_shape);
+        auto v   = mm->add_parameter("v", v_shape);
+
+        // Transform inputs for flash decoding
+        // Q: [2, 128, 64] -> [2, 8, 128, 64] (broadcasted)
+        auto q_unsqueeze = mm->add_instruction(migraphx::make_op("unsqueeze", {{"axes", {1}}}), q);
+        auto q_bc = mm->add_instruction(migraphx::make_op("multibroadcast", {{"out_lens", {2, 8, 128, 64}}}), q_unsqueeze);
+        
+        // K: [2, 64, 128] -> [2, 8, 64, 16]
+        auto k_reshape = mm->add_instruction(migraphx::make_op("reshape", {{"dims", {2, 8, 64, 16}}}), k);
+        
+        // V: [2, 128, 96] -> [2, 8, 16, 96] 
+        auto v_reshape = mm->add_instruction(migraphx::make_op("reshape", {{"dims", {2, 8, 16, 96}}}), v);
+
+        auto group = add_group(
+            p2, "flash_decode0", "flash_decoding", {q_bc, k_reshape, v_reshape}, [=](auto* gm, const auto& inputs) {
+                // Flash decoding computation
+                auto s = gm->add_instruction(migraphx::make_op("dot"), inputs[0], inputs[1]);
+                auto p = gm->add_instruction(migraphx::make_op("softmax", {{"axis", -1}}), s);
+                
+                // Compute LSE: L = log(sum(exp(S), axis=-1))
+                auto exp_s = gm->add_instruction(migraphx::make_op("exp"), s);
+                auto sum_exp = gm->add_instruction(migraphx::make_op("reduce_sum", {{"axes", std::vector<int64_t>{-1}}}), exp_s);
+                auto l = gm->add_instruction(migraphx::make_op("log"), sum_exp);
+                
+                auto o_prime = gm->add_instruction(migraphx::make_op("dot"), p, inputs[2]);
+                
+                // Second kernel: scale and combine across groups
+                auto scale = gm->add_instruction(migraphx::make_op("softmax", {{"axis", 1}}), l);
+                auto scale_bc = gm->add_instruction(
+                    migraphx::make_op("multibroadcast", {{"out_lens", o_prime->get_shape().lens()}}), scale);
+                auto r = gm->add_instruction(migraphx::make_op("mul"), o_prime, scale_bc);
+                auto o = gm->add_instruction(migraphx::make_op("reduce_sum", {{"axes", std::vector<int64_t>{1}}}), r);
+                
+                // Squeeze out the group dimension
+                auto final_o = gm->add_instruction(migraphx::make_op("squeeze", {{"axes", std::vector<int64_t>{1}}}), o);
+                return std::vector<migraphx::instruction_ref>{final_o};
+            });
+        mm->add_return({group});
+    }
+    EXPECT(p1.sort() == p2.sort());
+}
+
+TEST_CASE(flash_decoding_conversion_4d)
+{
+    // Test flash decoding with 4D tensors (multiple batch dimensions)
+    // Q: [1, 12, 256, 64], K: [1, 12, 64, 64], V: [1, 12, 64, 96]
+    // N=64 can be split into G=4 groups of 16 each
+    migraphx::shape q_shape{migraphx::shape::half_type, {1, 12, 256, 64}};  // [B1, B2, M, k]
+    migraphx::shape k_shape{migraphx::shape::half_type, {1, 12, 64, 64}};   // [B1, B2, k, N]
+    migraphx::shape v_shape{migraphx::shape::half_type, {1, 12, 64, 96}};   // [B1, B2, N, D]
+
+    migraphx::program p1;
+    {
+        auto* mm = p1.get_main_module();
+        auto q   = mm->add_parameter("q", q_shape);
+        auto k   = mm->add_parameter("k", k_shape);
+        auto v   = mm->add_parameter("v", v_shape);
+
+        // Standard attention pattern
+        auto gemm1 = mm->add_instruction(migraphx::make_op("dot"), q, k);
+        auto rmax  = mm->add_instruction(migraphx::make_op("reduce_max", {{"axes", {3}}}), gemm1);
+        rmax = mm->add_instruction(migraphx::make_op("multibroadcast", {{"out_lens", gemm1->get_shape().lens()}}), rmax);
+        auto sub  = mm->add_instruction(migraphx::make_op("sub"), gemm1, rmax);
+        auto exp  = mm->add_instruction(migraphx::make_op("exp"), sub);
+        auto rsum = mm->add_instruction(migraphx::make_op("reduce_sum", {{"axes", {3}}}), exp);
+        rsum = mm->add_instruction(migraphx::make_op("multibroadcast", {{"out_lens", gemm1->get_shape().lens()}}), rsum);
+        auto div   = mm->add_instruction(migraphx::make_op("div"), exp, rsum);
+        auto gemm2 = mm->add_instruction(migraphx::make_op("dot"), div, v);
+        mm->add_return({gemm2});
+    }
+    run_pass(p1);
+
+    migraphx::program p2;
+    {
+        auto* mm = p2.get_main_module();
+        auto q   = mm->add_parameter("q", q_shape);
+        auto k   = mm->add_parameter("k", k_shape);
+        auto v   = mm->add_parameter("v", v_shape);
+
+        // Transform inputs for flash decoding
+        // Q: [1, 12, 256, 64] -> [1, 12, 4, 256, 64] (broadcasted)
+        auto q_unsqueeze = mm->add_instruction(migraphx::make_op("unsqueeze", {{"axes", {2}}}), q);
+        auto q_bc = mm->add_instruction(migraphx::make_op("multibroadcast", {{"out_lens", {1, 12, 4, 256, 64}}}), q_unsqueeze);
+        
+        // K: [1, 12, 64, 64] -> [1, 12, 4, 64, 16]  
+        auto k_reshape = mm->add_instruction(migraphx::make_op("reshape", {{"dims", {1, 12, 4, 64, 16}}}), k);
+        
+        // V: [1, 12, 64, 96] -> [1, 12, 4, 16, 96]
+        auto v_reshape = mm->add_instruction(migraphx::make_op("reshape", {{"dims", {1, 12, 4, 16, 96}}}), v);
+
+        auto group = add_group(
+            p2, "flash_decode0", "flash_decoding", {q_bc, k_reshape, v_reshape}, [=](auto* gm, const auto& inputs) {
+                // Flash decoding computation
+                auto s = gm->add_instruction(migraphx::make_op("dot"), inputs[0], inputs[1]);
+                auto p = gm->add_instruction(migraphx::make_op("softmax", {{"axis", -1}}), s);
+                
+                // Compute LSE: L = log(sum(exp(S), axis=-1))
+                auto exp_s = gm->add_instruction(migraphx::make_op("exp"), s);
+                auto sum_exp = gm->add_instruction(migraphx::make_op("reduce_sum", {{"axes", std::vector<int64_t>{-1}}}), exp_s);
+                auto l = gm->add_instruction(migraphx::make_op("log"), sum_exp);
+                
+                auto o_prime = gm->add_instruction(migraphx::make_op("dot"), p, inputs[2]);
+                
+                // Second kernel: scale and combine across groups
+                auto scale = gm->add_instruction(migraphx::make_op("softmax", {{"axis", 2}}), l);
+                auto scale_bc = gm->add_instruction(
+                    migraphx::make_op("multibroadcast", {{"out_lens", o_prime->get_shape().lens()}}), scale);
+                auto r = gm->add_instruction(migraphx::make_op("mul"), o_prime, scale_bc);
+                auto o = gm->add_instruction(migraphx::make_op("reduce_sum", {{"axes", std::vector<int64_t>{2}}}), r);
+                
+                // Squeeze out the group dimension
+                auto final_o = gm->add_instruction(migraphx::make_op("squeeze", {{"axes", std::vector<int64_t>{2}}}), o);
+                return std::vector<migraphx::instruction_ref>{final_o};
+            });
+        mm->add_return({group});
+    }
+    EXPECT(p1.sort() == p2.sort());
+}
+
+TEST_CASE(no_flash_decoding_when_not_beneficial)
+{
+    // Test that flash decoding is NOT applied when N is not divisible by good group sizes
+    // N=13 (prime number) should not get flash decoding
+    migraphx::shape q_shape{migraphx::shape::half_type, {2, 128, 64}};   // [B, M, k]
+    migraphx::shape k_shape{migraphx::shape::half_type, {2, 64, 13}};    // [B, k, N] - N=13
+    migraphx::shape v_shape{migraphx::shape::half_type, {2, 13, 96}};    // [B, N, D]
+
+    migraphx::program p1;
+    {
+        auto* mm = p1.get_main_module();
+        auto q   = mm->add_parameter("q", q_shape);
+        auto k   = mm->add_parameter("k", k_shape);
+        auto v   = mm->add_parameter("v", v_shape);
+
+        // Standard attention pattern
+        auto gemm1 = mm->add_instruction(migraphx::make_op("dot"), q, k);
+        auto rmax  = mm->add_instruction(migraphx::make_op("reduce_max", {{"axes", {2}}}), gemm1);
+        rmax = mm->add_instruction(migraphx::make_op("multibroadcast", {{"out_lens", gemm1->get_shape().lens()}}), rmax);
+        auto sub  = mm->add_instruction(migraphx::make_op("sub"), gemm1, rmax);
+        auto exp  = mm->add_instruction(migraphx::make_op("exp"), sub);
+        auto rsum = mm->add_instruction(migraphx::make_op("reduce_sum", {{"axes", {2}}}), exp);
+        rsum = mm->add_instruction(migraphx::make_op("multibroadcast", {{"out_lens", gemm1->get_shape().lens()}}), rsum);
+        auto div   = mm->add_instruction(migraphx::make_op("div"), exp, rsum);
+        auto gemm2 = mm->add_instruction(migraphx::make_op("dot"), div, v);
+        mm->add_return({gemm2});
+    }
+    run_pass(p1);
+
+    // Should result in regular attention group, NOT flash decoding
     migraphx::program p2;
     {
         auto* mm = p2.get_main_module();
@@ -458,85 +611,17 @@ TEST_CASE(flash_decoding_pattern)
         auto group = add_group(
             p2, "attn0", "attention", {q, k, v}, [=](auto* gm, const auto& inputs) {
                 auto gemm1 = gm->add_instruction(migraphx::make_op("dot"), inputs[0], inputs[1]);
-                auto rmax =
-                    gm->add_instruction(migraphx::make_op("reduce_max", {{"axes", {2}}}), gemm1);
+                auto rmax = gm->add_instruction(migraphx::make_op("reduce_max", {{"axes", {2}}}), gemm1);
                 rmax = gm->add_instruction(
                     migraphx::make_op("multibroadcast", {{"out_lens", gemm1->get_shape().lens()}}), rmax);
                 auto sub = gm->add_instruction(migraphx::make_op("sub"), gemm1, rmax);
                 auto exp = gm->add_instruction(migraphx::make_op("exp"), sub);
-                auto rsum =
-                    gm->add_instruction(migraphx::make_op("reduce_sum", {{"axes", {2}}}), exp);
+                auto rsum = gm->add_instruction(migraphx::make_op("reduce_sum", {{"axes", {2}}}), exp);
                 rsum = gm->add_instruction(
                     migraphx::make_op("multibroadcast", {{"out_lens", gemm1->get_shape().lens()}}), rsum);
                 auto div   = gm->add_instruction(migraphx::make_op("div"), exp, rsum);
                 auto gemm2 = gm->add_instruction(migraphx::make_op("dot"), div, inputs[2]);
                 return std::vector<migraphx::instruction_ref>{gemm2};
-            });
-        mm->add_return({group});
-    }
-    EXPECT(p1.sort() == p2.sort());
-}
-
-TEST_CASE(flash_decoding_4d_pattern)
-{
-    // Test flash decoding with actual 4D tensors (already grouped)
-    // Q -> [B, G, M, k], K -> [B, G, k, N/G], V -> [B, G, N/G, D] 
-    migraphx::shape q_shape{migraphx::shape::half_type, {2, 4, 128, 64}};  // [B, G, M, k]
-    migraphx::shape k_shape{migraphx::shape::half_type, {2, 4, 64, 32}};   // [B, G, k, N/G]  
-    migraphx::shape v_shape{migraphx::shape::half_type, {2, 4, 32, 96}};   // [B, G, N/G, D]
-
-    migraphx::program p1;
-    {
-        auto* mm = p1.get_main_module();
-        auto q   = mm->add_parameter("q", q_shape);
-        auto k   = mm->add_parameter("k", k_shape);
-        auto v   = mm->add_parameter("v", v_shape);
-
-        // Standard attention pattern with 4D tensors - should be detected for flash decoding
-        auto gemm1 = mm->add_instruction(migraphx::make_op("dot"), q, k);
-        auto rmax  = mm->add_instruction(migraphx::make_op("reduce_max", {{"axes", {3}}}), gemm1);
-        rmax = mm->add_instruction(migraphx::make_op("multibroadcast", {{"out_lens", gemm1->get_shape().lens()}}),
-                                   rmax);
-        auto sub  = mm->add_instruction(migraphx::make_op("sub"), gemm1, rmax);
-        auto exp  = mm->add_instruction(migraphx::make_op("exp"), sub);
-        auto rsum = mm->add_instruction(migraphx::make_op("reduce_sum", {{"axes", {3}}}), exp);
-        rsum = mm->add_instruction(migraphx::make_op("multibroadcast", {{"out_lens", gemm1->get_shape().lens()}}),
-                                   rsum);
-        auto div   = mm->add_instruction(migraphx::make_op("div"), exp, rsum);
-        auto gemm2 = mm->add_instruction(migraphx::make_op("dot"), div, v);
-        mm->add_return({gemm2});
-    }
-    run_pass(p1);
-
-    migraphx::program p2;
-    {
-        auto* mm = p2.get_main_module();
-        auto q   = mm->add_parameter("q", q_shape);
-        auto k   = mm->add_parameter("k", k_shape);
-        auto v   = mm->add_parameter("v", v_shape);
-
-        auto group = add_group(
-            p2, "flash_decode0", "flash_decoding", {q, k, v}, [=](auto* gm, const auto& inputs) {
-                // Flash decoding computation
-                auto s = gm->add_instruction(migraphx::make_op("dot"), inputs[0], inputs[1]);
-                auto p = gm->add_instruction(migraphx::make_op("softmax", {{"axis", -1}}), s);
-                
-                // Compute LSE properly: L = log(sum(exp(S), axis=-1))
-                auto exp_s = gm->add_instruction(migraphx::make_op("exp"), s);
-                auto sum_exp = gm->add_instruction(migraphx::make_op("reduce_sum", {{"axes", std::vector<int64_t>{-1}}}), exp_s);
-                auto l = gm->add_instruction(migraphx::make_op("log"), sum_exp);
-                
-                auto o_prime = gm->add_instruction(migraphx::make_op("dot"), p, inputs[2]);
-                
-                auto scale = gm->add_instruction(migraphx::make_op("softmax", {{"axis", 1}}), l);
-                auto scale_bc = gm->add_instruction(
-                    migraphx::make_op("multibroadcast", {{"out_lens", o_prime->get_shape().lens()}}), scale);
-                auto r = gm->add_instruction(migraphx::make_op("mul"), o_prime, scale_bc);
-                auto o = gm->add_instruction(migraphx::make_op("reduce_sum", {{"axes", std::vector<int64_t>{1}}}), r);
-                
-                // Squeeze out the group dimension to get final shape [B, M, D] 
-                auto final_o = gm->add_instruction(migraphx::make_op("squeeze", {{"axes", std::vector<int64_t>{1}}}), o);
-                return std::vector<migraphx::instruction_ref>{final_o};
             });
         mm->add_return({group});
     }

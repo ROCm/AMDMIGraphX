@@ -123,12 +123,12 @@ struct raw_data : raw_data_base
         }
         else
         {
-            auto&& buffer    = static_cast<const Derived&>(*this).data();
+            auto* buffer     = static_cast<const Derived&>(*this).data();
             shape view_shape = {shape::uint8_type, {s.bytes()}};
-            using byte_type  = std::conditional_t<
-                 std::is_const_v<std::remove_pointer_t<std::remove_reference_t<decltype(buffer)>>>,
-                 const byte*,
-                 byte*>;
+            using byte_type =
+                std::conditional_t<std::is_const<std::remove_pointer_t<decltype(buffer)>>{},
+                                   const byte*,
+                                   byte*>;
             v(make_view(view_shape, reinterpret_cast<byte_type>(buffer)));
         }
     }

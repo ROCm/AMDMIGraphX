@@ -55,7 +55,8 @@ extern "C" MIGRAPHX_C_EXPORT void migraphx_test_private_disable_exception_catch(
 #endif
 
 template <class F>
-migraphx_status try_(F f, bool output = true, source_location llc = source_location::current()) // NOLINT
+migraphx_status
+try_(F f, bool output = true, source_location llc = source_location::current()) // NOLINT
 {
 #ifdef MIGRAPHX_BUILD_TESTING
     if(disable_exception_catch)

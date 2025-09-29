@@ -47,6 +47,9 @@ def rocmtestnode(Map conf) {
             git diff
             git diff-index --quiet HEAD || (echo "Generated files are different. Please run make generate and commit the changes." && exit 1)
             make -j\$(nproc) all package VERBOSE=1
+            ls -la /dev
+            whoami
+            groups
             rocminfo
             rocm-smi
             AMD_LOG_LEVEL=6 make -j\$(nproc) check VERBOSE=1 

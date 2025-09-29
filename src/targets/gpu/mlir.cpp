@@ -315,6 +315,11 @@ struct mlir_program
     MlirType make_type(shape::type_t t) const
     {
         MlirType result;
+        // non-computable type is not visit-able
+        if(t == shape::fp4x2_type)
+        {
+            result = mlirFloat8E4M3FNTypeGet(ctx.get());
+        }
         shape::visit(t, [&](auto as) {
             if(as.type_enum() == shape::float_type)
                 result = mlirF32TypeGet(ctx.get());
@@ -332,8 +337,6 @@ struct mlir_program
                 result = mlirFloat8E5M2TypeGet(ctx.get());
             else if(as.type_enum() == shape::double_type)
                 result = mlirF64TypeGet(ctx.get());
-            else if(as.type_enum() == shape::fp4x2_type)
-                result = mlirFloat8E4M3FNTypeGet(ctx.get());
             else if(as.is_integral())
             {
                 if(as.is_unsigned())

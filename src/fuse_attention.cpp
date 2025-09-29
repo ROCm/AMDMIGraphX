@@ -58,6 +58,30 @@ inline auto pointwise_inputs()
     };
 }
 
+// Helper to check if shapes match the flash decoding pattern
+inline bool is_flash_decoding_pattern(const shape& q_shape, const shape& k_shape, const shape& v_shape)
+{
+    // Flash decoding pattern: Q -> [B, G, M, k], K -> [B, G, k, N/G], V -> [B, G, N/G, D]
+    if(q_shape.ndim() != 4 or k_shape.ndim() != 4 or v_shape.ndim() != 4)
+        return false;
+    
+    // Check batch and group dimensions match
+    if(q_shape.lens()[0] != k_shape.lens()[0] or q_shape.lens()[0] != v_shape.lens()[0])
+        return false;
+    if(q_shape.lens()[1] != k_shape.lens()[1] or q_shape.lens()[1] != v_shape.lens()[1])
+        return false;
+    
+    // Check that k dimension matches between Q and K
+    if(q_shape.lens()[3] != k_shape.lens()[2])
+        return false;
+    
+    // Check that N/G dimension matches between K and V
+    if(k_shape.lens()[3] != v_shape.lens()[2])
+        return false;
+    
+    return true;
+}
+
 struct find_attention
 {
     std::size_t* counter;
@@ -209,12 +233,99 @@ struct find_attention
     }
 };
 
+struct find_flash_decoding_attention
+{
+    std::size_t* counter;
+
+    auto matcher() const
+    {
+        // Match the flash decoding pattern: sum(mul(attention_result, scale))
+        // where attention_result comes from dot(softmax(dot(...)), ...)
+        auto gemm1   = match::any_of[pointwise_inputs()](match::name("dot").bind("dot1"));
+        auto softmax = match::skip(match::name("convert"))(match::softmax_input(gemm1));
+        auto gemm2   = match::name("dot")(match::arg(0)(softmax)).bind("dot2");
+        
+        // Look for the scaling and summing pattern
+        return match::name("sum")(
+            match::arg(0)(
+                match::name("mul")(
+                    match::arg(0)(gemm2),
+                    match::arg(1)(match::any())  // Scale factor
+                )
+            ),
+            match::has_attribute("axes")  // sum across group dimension
+        ).bind("final_sum");
+    }
+
+    std::string get_count() const { return std::to_string((*counter)++); }
+
+    bool is_flash_decoding_candidate(instruction_ref gemm1, instruction_ref gemm2) const
+    {
+        // Check if the shapes match flash decoding pattern
+        auto q_input = gemm1->inputs()[0];
+        auto k_input = gemm1->inputs()[1]; 
+        auto v_input = gemm2->inputs()[1];
+        
+        return is_flash_decoding_pattern(q_input->get_shape(), k_input->get_shape(), v_input->get_shape());
+    }
+
+    void apply(module_pass_manager& mpm, const match::matcher_result& r) const
+    {
+        auto final_sum = r.result;
+        auto gemm1     = r.instructions["dot1"];
+        auto gemm2     = r.instructions["dot2"];
+
+        if(not is_flash_decoding_candidate(gemm1, gemm2))
+            return;
+
+        // Get all inputs for flash decoding
+        auto q_input = gemm1->inputs()[0];
+        auto k_input = gemm1->inputs()[1];
+        auto v_input = gemm2->inputs()[1];
+        
+        // Create flash decoding submodule
+        module m_flash_decode;
+        std::unordered_map<instruction_ref, instruction_ref> map_mm_to_flash;
+
+        // Find all instructions involved in flash decoding
+        auto flash_inss = find_instructions_between(gemm1, final_sum, &mpm.get_module());
+        std::vector<instruction_ref> sorted_inss(flash_inss.begin(), flash_inss.end());
+        std::sort(sorted_inss.begin(), sorted_inss.end(), 
+                  [&](instruction_ref x, instruction_ref y) {
+                      return std::distance(mpm.get_module().begin(), x) < 
+                             std::distance(mpm.get_module().begin(), y);
+                  });
+
+        m_flash_decode.fuse(sorted_inss, &map_mm_to_flash);
+
+        // Add return instruction for the final output  
+        auto flash_output = map_mm_to_flash.at(final_sum);
+        m_flash_decode.add_return({flash_output});
+
+        // Create inputs for the flash decoding module
+        std::unordered_map<instruction_ref, instruction_ref> map_flash_to_mm;
+        for(auto const& [key, value] : map_mm_to_flash)
+            map_flash_to_mm[value] = key;
+        
+        auto new_inputs = m_flash_decode.get_inputs(map_flash_to_mm);
+
+        module_ref mpm_flash = mpm.create_module("flash_decode" + get_count(), std::move(m_flash_decode));
+        mpm_flash->set_bypass();
+
+        auto group_ins = mpm.get_module().insert_instruction(
+            final_sum, make_op("group", {{"tag", "flash_decoding"}}), new_inputs, {mpm_flash});
+
+        mpm.get_module().replace_instruction(final_sum, group_ins);
+    }
+};
+
 } // namespace
 
 void fuse_attention::apply(module_pass_manager& mpm) const
 {
     std::size_t counter = 0;
     match::find_matches(mpm, find_attention{.counter = &counter});
+    match::find_matches(mpm, find_flash_decoding_attention{.counter = &counter});
     mpm.get_module().sort();
     mpm.run_pass(dead_code_elimination{});
 }

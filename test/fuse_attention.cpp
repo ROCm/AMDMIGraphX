@@ -417,6 +417,69 @@ TEST_CASE(gemm_pw_softmax_lse_gemm)
     EXPECT(p1.sort() == p2.sort());
 }
 
+TEST_CASE(flash_decoding_pattern)
+{
+    // Test flash decoding: Q -> [B, G, M, k], K -> [B, G, k, N/G], V -> [B, G, N/G, D]
+    migraphx::shape q_shape{migraphx::shape::half_type, {2, 4, 128, 64}};  // [B, G, M, k]
+    migraphx::shape k_shape{migraphx::shape::half_type, {2, 4, 64, 32}};   // [B, G, k, N/G]  
+    migraphx::shape v_shape{migraphx::shape::half_type, {2, 4, 32, 96}};   // [B, G, N/G, D]
+
+    migraphx::program p1;
+    {
+        auto* mm = p1.get_main_module();
+        auto q   = mm->add_parameter("q", q_shape);
+        auto k   = mm->add_parameter("k", k_shape);
+        auto v   = mm->add_parameter("v", v_shape);
+
+        // First kernel: per-group attention computation
+        auto s = mm->add_instruction(migraphx::make_op("dot"), q, k);  // [B, G, M, N/G]
+        auto p = mm->add_instruction(migraphx::make_op("softmax", {{"axis", -1}}), s);
+        
+        // Compute LSE for scaling (simplified version)
+        auto lse = mm->add_instruction(migraphx::make_op("reduce_sum", {{"axes", {3}}}), p);
+        
+        auto o_prime = mm->add_instruction(migraphx::make_op("dot"), p, v);  // [B, G, M, D]
+
+        // Second kernel: scale and sum across groups
+        auto scale = mm->add_instruction(migraphx::make_op("softmax", {{"axis", 1}}), lse);
+        scale = mm->add_instruction(
+            migraphx::make_op("multibroadcast", {{"out_lens", o_prime->get_shape().lens()}}), scale);
+        auto r = mm->add_instruction(migraphx::make_op("mul"), o_prime, scale);
+        auto o = mm->add_instruction(migraphx::make_op("sum", {{"axes", {1}}}), r);  // [B, 1, M, D]
+        
+        mm->add_return({o});
+    }
+    run_pass(p1);
+
+    migraphx::program p2;
+    {
+        auto* mm = p2.get_main_module();
+        auto q   = mm->add_parameter("q", q_shape);
+        auto k   = mm->add_parameter("k", k_shape);
+        auto v   = mm->add_parameter("v", v_shape);
+
+        auto group = add_group(
+            p2, "flash_decode0", "flash_decoding", {q, k, v}, [=](auto* gm, const auto& inputs) {
+                // First kernel: per-group attention computation
+                auto s = gm->add_instruction(migraphx::make_op("dot"), inputs[0], inputs[1]);
+                auto p = gm->add_instruction(migraphx::make_op("softmax", {{"axis", -1}}), s);
+                auto lse = gm->add_instruction(migraphx::make_op("reduce_sum", {{"axes", {3}}}), p);
+                auto o_prime = gm->add_instruction(migraphx::make_op("dot"), p, inputs[2]);
+
+                // Second kernel: scale and sum across groups
+                auto scale = gm->add_instruction(migraphx::make_op("softmax", {{"axis", 1}}), lse);
+                scale = gm->add_instruction(
+                    migraphx::make_op("multibroadcast", {{"out_lens", o_prime->get_shape().lens()}}),
+                    scale);
+                auto r = gm->add_instruction(migraphx::make_op("mul"), o_prime, scale);
+                auto o = gm->add_instruction(migraphx::make_op("sum", {{"axes", {1}}}), r);
+                return std::vector<migraphx::instruction_ref>{o};
+            });
+        mm->add_return({group});
+    }
+    EXPECT(p1.sort() == p2.sort());
+}
+
 int main(int argc, const char* argv[])
 {
     test::run(argc, argv);

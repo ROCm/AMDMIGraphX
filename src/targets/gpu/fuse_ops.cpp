@@ -927,11 +927,9 @@ struct find_pointwise_layout_contiguous
 {
     auto matcher() const
     {
-        auto is_layout = precompile_name("layout")(
-            match::arg(0)(match::used_once(), precompile_name("pointwise")));
-        auto is_contiguous = match::name("gpu::contiguous")(
-            match::arg(0)(match::used_once(), precompile_name("pointwise")));
-        return match::any_of(is_layout, is_contiguous);
+        auto is_layout_or_contiguous = match::any_of(precompile_name("layout"), match::name("gpu::contiguous"));
+        return is_layout_or_contiguous(
+            match::arg(0)(match::used_once(), precompile_name("pointwise", "gpu::mlir_op")));
     }
 
     void apply(module& m, const match::matcher_result& r) const

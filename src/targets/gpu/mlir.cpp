@@ -598,7 +598,7 @@ struct mlir_program
     }
 
     MlirBlock
-    insert(MlirBlock body, const module& m, std::unordered_map<instruction_ref, MlirValue>& ins_map)
+    insert(MlirBlock body, const module& m, std::unordered_map<instruction_ref, MlirValue>& ins_map, const std::vector<shape>& out_shapes = {})
     {
         auto names = m.get_parameter_names();
         std::sort(names.begin(), names.end());
@@ -607,7 +607,7 @@ struct mlir_program
                        names.end(),
                        std::back_inserter(inputs),
                        [&](const std::string& name) { return m.get_parameter_shape(name); });
-        std::vector<shape> outputs = m.get_output_shapes();
+        std::vector<shape> outputs = out_shapes.empty() ? m.get_output_shapes() : out_shapes;
 
         std::vector<MlirLocation> arg_locs(inputs.size(), location);
         auto body_inputs   = make_mlir_shapeds(inputs);
@@ -716,12 +716,11 @@ struct mlir_program
     }
 
     static std::unordered_map<instruction_ref, shape> get_return_shapes(const module& m,
-                                                                        const shape& s)
+                                                                        const std::vector<shape>& out_shapes)
     {
         std::unordered_map<instruction_ref, shape> result;
-        std::vector<shape> out_shapes =
-            s.type() == shape::tuple_type ? s.sub_shapes() : std::vector<shape>{s};
         std::vector<instruction_ref> returns = m.get_returns();
+        assert(returns.size() == out_shapes.size());
         std::transform(returns.begin(),
                        returns.end(),
                        out_shapes.begin(),
@@ -734,16 +733,16 @@ struct mlir_program
         return result;
     }
 
-    void parse(const module& m, std::optional<shape> out_shape = std::nullopt)
+    void parse(const module& m, const std::vector<shape>& out_shapes = {})
     {
         validate(m);
         sym_name   = get_symbol_name(m);
         auto mbody = mlirModuleGetBody(mmodule.get());
         std::unordered_map<instruction_ref, MlirValue> ins_map;
-        auto fbody = insert(mbody, m, ins_map);
+        auto fbody = insert(mbody, m, ins_map, out_shapes);
         std::unordered_map<instruction_ref, shape> returns;
-        if(out_shape)
-            returns = get_return_shapes(m, *out_shape);
+        if(not out_shapes.empty())
+            returns = get_return_shapes(m, out_shapes);
 
         for(auto ins : iterator_for(m))
         {
@@ -1227,10 +1226,11 @@ mlir_code_object compile_mlir(const context& migraphx_ctx,
         std::cout << m << std::endl;
     }
 
-    mlir_program mp;
+    auto output = in_shapes.back();
 
+    mlir_program mp;
     mp.set_gpu_properties(migraphx_ctx);
-    mp.parse(m, in_shapes.back());
+    mp.parse(m, output.type() == shape::tuple_type ? output.sub_shapes() : std::vector<shape>{output});
     auto mod_op = mlirModuleGetOperation(mp.mmodule.get());
     if(trace)
     {
@@ -1240,7 +1240,7 @@ mlir_code_object compile_mlir(const context& migraphx_ctx,
     auto co = mp.compile(solution);
 
     co.expected_inputs = in_shapes;
-    co.output          = in_shapes.back();
+    co.output          = output;
     mlir_code_object mco;
     mco.cop                 = co;
     size_t num_prefill_args = mlirGetNumPrefillArgs(mp.mmodule.get());

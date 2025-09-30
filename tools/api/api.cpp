@@ -36,6 +36,7 @@
 #include <migraphx/register_op.hpp>
 #include <migraphx/json.hpp>
 #include <migraphx/convert_to_json.hpp>
+#include <migraphx/source_location.hpp>
 #include <array>
 #include <algorithm>
 #include <cstdarg>
@@ -59,7 +60,8 @@ extern "C" MIGRAPHX_C_EXPORT void migraphx_test_private_disable_exception_catch(
 #endif
 
 template <class F>
-migraphx_status try_(F f, bool output = true) // NOLINT
+migraphx_status
+try_(F f, bool output = true, source_location llc = source_location::current()) // NOLINT
 {
 #ifdef MIGRAPHX_BUILD_TESTING
     if(disable_exception_catch)
@@ -76,7 +78,7 @@ migraphx_status try_(F f, bool output = true) // NOLINT
         catch(const migraphx::exception& ex)
         {
             if(output)
-                std::cerr << "MIGraphX Error: " << ex.what() << std::endl;
+                std::cerr << llc.function_name() << ": Error: " << ex.what() << std::endl;
             if(ex.error > 0)
                 return migraphx_status(ex.error);
             else
@@ -85,7 +87,7 @@ migraphx_status try_(F f, bool output = true) // NOLINT
         catch(const std::exception& ex)
         {
             if(output)
-                std::cerr << "MIGraphX Error: " << ex.what() << std::endl;
+                std::cerr << llc.function_name() << ": Error: " << ex.what() << std::endl;
             return migraphx_status_unknown_error;
         }
         catch(...)

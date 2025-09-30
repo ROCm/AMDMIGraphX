@@ -27,6 +27,11 @@ def rocmtestnode(Map conf) {
         def flags = bconf.get("flags", "")
         def gpu_debug = bconf.get("gpu_debug", "0")
         def cmd = """
+            ls -la /dev
+            whoami || true
+            groups || true
+            rocminfo
+            rocm-smi
             ulimit -c unlimited
             echo "leak:dnnl::impl::malloc" > suppressions.txt
             echo "leak:libtbb.so" >> suppressions.txt
@@ -47,15 +52,7 @@ def rocmtestnode(Map conf) {
             git diff
             git diff-index --quiet HEAD || (echo "Generated files are different. Please run make generate and commit the changes." && exit 1)
             make -j\$(nproc) all package VERBOSE=1
-            ls -la /dev
-            whoami || true
-            groups
-            rocminfo
-            rocm-smi
             AMD_LOG_LEVEL=6 make -j\$(nproc) check VERBOSE=1 
-            rocminfo
-            rocm-smi
-            sudo dmesg
             md5sum ./*.deb
         """
         echo cmd

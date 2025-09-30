@@ -100,7 +100,7 @@ def rocmtest(m) {
 }
 
 def rocmnodename(name) {
-    def rocmtest_name = "(christest)"
+    def rocmtest_name = "(rocmtest || migraphx)"
     def node_name = "${rocmtest_name}"
     if(name == "fiji") {
         node_name = "${rocmtest_name} && fiji";

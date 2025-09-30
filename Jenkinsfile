@@ -67,8 +67,8 @@ def rocmtestnode(Map conf) {
                 checkout scm
             }
 
-            def video_id = sh(returnStdout: true, script: 'getent group video | cut -d: -f3')
-            def render_id = sh(returnStdout: true, script: 'getent group render | cut -d: -f3')
+            def video_id = sh(returnStdout: true, script: 'getent group video | cut -d: -f3').trim()
+            def render_id = sh(returnStdout: true, script: 'getent group render | cut -d: -f3').trim()
             def docker_opts = "--device=/dev/kfd --device=/dev/dri --cap-add SYS_PTRACE -v=${env.WORKSPACE}/../:/workspaces:rw,z"
             docker_opts = docker_opts + " --group-add=${video_id} --group-add=${render_id} "
             echo "Docker flags: ${docker_opts}"

@@ -330,12 +330,16 @@ TEST_CASE(test_lower_lrn_to_pooling)
     auto transpose1 = m2.add_instruction(  
         migraphx::make_op("transpose", {{"permutation", std::vector<int64_t>{0, 2, 3, 1}}}), x2);  
       
-    std::vector<int64_t> expected_pads = {1, 2};
+    // Calculate padding based on LRN size parameter (size = 4)
+    int64_t lrn_size = 4;
+    int64_t pad_left = (lrn_size - 1) / 2; // 1
+    int64_t pad_right = lrn_size - 1 - pad_left; // 2
+    std::vector<int64_t> expected_pads = {pad_left, pad_right};
       
     auto avg = m2.add_instruction(  
         migraphx::make_op("pooling", {  
             {"mode", migraphx::op::pooling_mode::average},  
-            {"lengths", std::vector<int64_t>{1, 4}},  
+            {"lengths", std::vector<int64_t>{1, lrn_size}},  
             {"stride", std::vector<int64_t>{1, 1}},  
             {"padding", std::vector<int64_t>{0, expected_pads[0], 0, expected_pads[1]}},  
             {"dilations", std::vector<int64_t>{1, 1}},  

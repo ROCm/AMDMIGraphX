@@ -1776,6 +1776,47 @@ TEST_CASE(unpack_fp4_dot_odd)
 
 TEST_CASE(dot_add_dot)
 {
+    migraphx::shape s1{migraphx::shape::float_type, {2, 3}};
+    migraphx::shape s2{migraphx::shape::float_type, {3, 4}};
+    migraphx::shape s3{migraphx::shape::float_type, {2, 4}};
+    migraphx::shape s4{migraphx::shape::float_type, {4, 2}};
+    migraphx::program p1;
+    {
+        auto* mm  = p1.get_main_module();
+        auto a    = mm->add_parameter("a", s1);
+        auto b    = mm->add_parameter("b", s2);
+        auto x    = mm->add_parameter("x", s3);
+        auto y    = mm->add_parameter("y", s4);
+        auto dot1 = mm->add_instruction(migraphx::make_op("dot"), a, b); // {2,4}
+        auto add =
+            add_pointwise(p1, "main:pointwise0", {dot1, x}, single_pointwise("add")); // {2,4}
+        auto dot2 = mm->add_instruction(migraphx::make_op("dot"), add, y);            // {4,2}
+        mm->add_return({dot2});
+    }
+    run_pass(p1);
+    migraphx::program p2;
+    {
+        auto* mm   = p2.get_main_module();
+        auto a     = mm->add_parameter("a", s1);
+        auto b     = mm->add_parameter("b", s2);
+        auto x     = mm->add_parameter("x", s3);
+        auto y     = mm->add_parameter("y", s4);
+        auto fused = add_mlir(
+            p2, "mlir_main:pointwise0_geg", {a, b, x, y}, [=](auto* pm, const auto& inputs) {
+                auto dot1 = pm->add_instruction(migraphx::make_op("dot"), inputs[0], inputs[1]);
+                auto add  = pm->add_instruction(migraphx::make_op("add"), dot1, inputs[2]);
+                auto dot2 = pm->add_instruction(migraphx::make_op("dot"), add, inputs[3]);
+                return std::make_tuple(dot2->get_operator(), dot2);
+            });
+        mm->add_return({fused});
+    }
+    if(not migraphx::enabled(MIGRAPHX_ENABLE_MLIR_GEG_FUSION{}))
+        return;
+    EXPECT(p1.sort() == p2.sort());
+}
+
+TEST_CASE(dot_add_dot_square)
+{
     migraphx::shape s{migraphx::shape::float_type, {1, 3, 3}};
     migraphx::program p1;
     {
@@ -1813,14 +1854,16 @@ TEST_CASE(dot_add_dot)
 
 TEST_CASE(dot_mul_dot)
 {
-    migraphx::shape s{migraphx::shape::float_type, {1, 3, 3}};
+    migraphx::shape s1{migraphx::shape::float_type, {3, 3}};
+    migraphx::shape s2{migraphx::shape::float_type, {3, 4}};
+    migraphx::shape s3{migraphx::shape::float_type, {4, 5}};
     migraphx::program p1;
     {
         auto* mm  = p1.get_main_module();
-        auto a    = mm->add_parameter("a", s);
-        auto b    = mm->add_parameter("b", s);
-        auto x    = mm->add_parameter("x", s);
-        auto y    = mm->add_parameter("y", s);
+        auto a    = mm->add_parameter("a", s1);
+        auto b    = mm->add_parameter("b", s2);
+        auto x    = mm->add_parameter("x", s2);
+        auto y    = mm->add_parameter("y", s3);
         auto dot1 = mm->add_instruction(migraphx::make_op("dot"), a, b);
         auto mul  = add_pointwise(p1, "main:pointwise0", {dot1, x}, single_pointwise("mul"));
         auto dot2 = mm->add_instruction(migraphx::make_op("dot"), mul, y);
@@ -1830,10 +1873,10 @@ TEST_CASE(dot_mul_dot)
     migraphx::program p2;
     {
         auto* mm   = p2.get_main_module();
-        auto a     = mm->add_parameter("a", s);
-        auto b     = mm->add_parameter("b", s);
-        auto x     = mm->add_parameter("x", s);
-        auto y     = mm->add_parameter("y", s);
+        auto a     = mm->add_parameter("a", s1);
+        auto b     = mm->add_parameter("b", s2);
+        auto x     = mm->add_parameter("x", s2);
+        auto y     = mm->add_parameter("y", s3);
         auto fused = add_mlir(
             p2, "mlir_main:pointwise0_geg", {a, b, x, y}, [=](auto* pm, const auto& inputs) {
                 auto dot1 = pm->add_instruction(migraphx::make_op("dot"), inputs[0], inputs[1]);
@@ -1977,29 +2020,31 @@ TEST_CASE(dot_multi_user_add)
 TEST_CASE(dot_add_multi_user_dot)
 // GEG fusion has two outputs, E has external user
 {
-    migraphx::shape s{migraphx::shape::float_type, {1, 3, 3}};
+    migraphx::shape s1{migraphx::shape::float_type, {3, 3}};
+    migraphx::shape s2{migraphx::shape::float_type, {3, 5}};
+    migraphx::shape s3{migraphx::shape::float_type, {5, 2}};
     migraphx::program p1;
     {
         auto* mm  = p1.get_main_module();
-        auto a    = mm->add_parameter("a", s);
-        auto b    = mm->add_parameter("b", s);
-        auto c    = mm->add_parameter("c", s);
-        auto d    = mm->add_parameter("d", s);
+        auto a    = mm->add_parameter("a", s1);
+        auto b    = mm->add_parameter("b", s2);
+        auto c    = mm->add_parameter("c", s2);
+        auto d    = mm->add_parameter("d", s3);
         auto dot1 = mm->add_instruction(migraphx::make_op("dot"), a, b);
         auto add  = add_pointwise(p1, "main:pointwise0", {dot1, c}, single_pointwise("add"));
         auto dot2 = mm->add_instruction(migraphx::make_op("dot"), add, d);
         auto transpose =
-            mm->add_instruction(migraphx::make_op("transpose", {{"permutation", {0, 2, 1}}}), dot2);
+            mm->add_instruction(migraphx::make_op("transpose", {{"permutation", {1, 0}}}), dot2);
         mm->add_return({add, transpose});
     }
     run_pass(p1);
     migraphx::program p2;
     {
         auto* mm   = p2.get_main_module();
-        auto a     = mm->add_parameter("a", s);
-        auto b     = mm->add_parameter("b", s);
-        auto c     = mm->add_parameter("c", s);
-        auto d     = mm->add_parameter("d", s);
+        auto a     = mm->add_parameter("a", s1);
+        auto b     = mm->add_parameter("b", s2);
+        auto c     = mm->add_parameter("c", s2);
+        auto d     = mm->add_parameter("d", s3);
         auto fused = add_mlir(
             p2, "mlir_main:pointwise0_geg", {a, b, c, d}, [=](auto* pm, const auto& inputs) {
                 auto dot1 = pm->add_instruction(migraphx::make_op("dot"), inputs[0], inputs[1]);
@@ -2013,7 +2058,7 @@ TEST_CASE(dot_add_multi_user_dot)
         auto get_add =
             mm->add_instruction(migraphx::make_op("get_tuple_elem", {{"index", 1}}), fused);
         auto transpose = mm->add_instruction(
-            migraphx::make_op("transpose", {{"permutation", {0, 2, 1}}}), get_dot2);
+            migraphx::make_op("transpose", {{"permutation", {1, 0}}}), get_dot2);
         mm->add_return({get_add, transpose});
     }
     if(not migraphx::enabled(MIGRAPHX_ENABLE_MLIR_GEG_FUSION{}))

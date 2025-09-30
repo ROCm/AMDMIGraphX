@@ -69,10 +69,10 @@ def rocmtestnode(Map conf) {
                 checkout scm
             }
 
-            def dockerOpts = "--device=/dev/kfd --device=/dev/dri --cap-add SYS_PTRACE"
+            def dockerOpts = "--device=/dev/kfd --device=/dev/dri --group-add video --group-add render --cap-add SYS_PTRACE"
             def video_id = sh(returnStdout: true, script: 'getent group video | cut -d: -f3')
             def render_id = sh(returnStdout: true, script: 'getent group render | cut -d: -f3')
-            def dockerOpts = "--device=/dev/kfd --device=/dev/dri "
+            dockerOpts = dockerOpts + " --group-add=${video_id} --group-add=${render_id} "
             echo "Docker flags: ${dockerOpts}"
 
             gitStatusWrapper(credentialsId: "${env.migraphx_ci_creds}", gitHubContext: "Jenkins - ${variant}", account: 'ROCmSoftwarePlatform', repo: 'AMDMIGraphX') {

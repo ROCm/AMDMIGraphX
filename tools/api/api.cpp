@@ -396,6 +396,8 @@ static void register_custom_op(const CustomOp& op)
 
 static migraphx::context get_context(const program& p) { return p.get_context(); }
 
+static std::vector<std::string> get_supported_onnx_operators() { return get_onnx_operators(); }
+
 } // namespace migraphx
 
 <% generate_c_api_body() %>

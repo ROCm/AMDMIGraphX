@@ -139,7 +139,7 @@ properties([
     ])
 ])
 
-node("christest") {
+node("(rocmtest || migraphx)") {
     Boolean imageExists = false
     withCredentials([usernamePassword(credentialsId: 'docker_test_cred', passwordVariable: 'DOCKERHUB_PASS', usernameVariable: 'DOCKERHUB_USER')]) {
         sh "echo $DOCKERHUB_PASS | docker login --username $DOCKERHUB_USER --password-stdin"
@@ -149,7 +149,7 @@ node("christest") {
             def calculateImageTagScript = """
                 shopt -s globstar
                 
-                sha256sum **/Jenkinsfile **/Dockerfile **/*requirements.txt **/install_prereqs.sh **/rbuild.ini **/test/onnx/.onnxrt-commit | sha256sum | cut -d " " -f 1
+                sha256sum **/Dockerfile **/*requirements.txt **/install_prereqs.sh **/rbuild.ini **/test/onnx/.onnxrt-commit | sha256sum | cut -d " " -f 1
             """
             env.IMAGE_TAG = sh(script: "bash -c '${calculateImageTagScript}'", returnStdout: true).trim()
             imageExists = sh(script: "docker manifest inspect ${DOCKER_IMAGE}:${IMAGE_TAG}", returnStatus: true) == 0

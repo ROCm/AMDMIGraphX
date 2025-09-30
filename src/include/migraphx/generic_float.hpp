@@ -71,6 +71,53 @@ struct unsigned_type<8>
     using type = std::uint64_t;
 };
 
+// CRTP base for operators
+template <class Derived>
+struct generic_float_operators
+{
+
+// NOLINTNEXTLINE
+#define MIGRAPHX_GENERIC_FLOAT_ASSIGN_OP(op)                                  \
+    friend constexpr Derived& operator op(Derived & lhs, const Derived & rhs) \
+    {                                                                         \
+        float self = lhs;                                                     \
+        float frhs = rhs;                                                     \
+        self op frhs;                                                         \
+        lhs = self;                                                           \
+        return lhs;                                                           \
+    }
+    MIGRAPHX_GENERIC_FLOAT_ASSIGN_OP(*=)
+    MIGRAPHX_GENERIC_FLOAT_ASSIGN_OP(-=)
+    MIGRAPHX_GENERIC_FLOAT_ASSIGN_OP(+=)
+    MIGRAPHX_GENERIC_FLOAT_ASSIGN_OP(/=)
+
+// NOLINTNEXTLINE
+#define MIGRAPHX_GENERIC_FLOAT_BINARY_OP(op)                                 \
+    friend constexpr Derived operator op(const Derived& x, const Derived& y) \
+    {                                                                        \
+        return Derived(float(x) op float(y));                                \
+    }
+    MIGRAPHX_GENERIC_FLOAT_BINARY_OP(*)
+    MIGRAPHX_GENERIC_FLOAT_BINARY_OP(-)
+    MIGRAPHX_GENERIC_FLOAT_BINARY_OP(+)
+    MIGRAPHX_GENERIC_FLOAT_BINARY_OP(/)
+
+// NOLINTNEXTLINE
+#define MIGRAPHX_GENERIC_FLOAT_COMPARE_OP(op)                             \
+    friend constexpr bool operator op(const Derived& x, const Derived& y) \
+    {                                                                     \
+        return float(x) op float(y);                                      \
+    }
+    MIGRAPHX_GENERIC_FLOAT_COMPARE_OP(<)
+    MIGRAPHX_GENERIC_FLOAT_COMPARE_OP(<=)
+    MIGRAPHX_GENERIC_FLOAT_COMPARE_OP(>)
+    MIGRAPHX_GENERIC_FLOAT_COMPARE_OP(>=)
+
+    protected:
+    // prohibit creation of this base object
+    generic_float_operators() = default;
+};
+
 struct float32_parts
 {
     unsigned int mantissa : 23;
@@ -92,6 +139,7 @@ constexpr float32_parts get_parts(float f) { return migraphx::bit_cast<float32_p
 
 template <unsigned int MantissaSize, unsigned int ExponentSize, unsigned int Flags = 0>
 struct __attribute__((packed, may_alias)) generic_float
+    : generic_float_operators<generic_float<MantissaSize, ExponentSize, Flags>>
 {
     using type = typename unsigned_type<bit_ceil(
         integer_divide_ceil(MantissaSize + ExponentSize + 1, 8))>::type;
@@ -296,40 +344,6 @@ struct __attribute__((packed, may_alias)) generic_float
         x.mantissa++;
         return generic_float{x.to_float() - 1.0f};
     }
-// NOLINTNEXTLINE
-#define MIGRAPHX_GENERIC_FLOAT_ASSIGN_OP(op)                        \
-    constexpr generic_float& operator op(const generic_float & rhs) \
-    {                                                               \
-        float self = *this;                                         \
-        float frhs = rhs;                                           \
-        self op frhs;                                               \
-        *this = generic_float(self);                                \
-        return *this;                                               \
-    }
-    MIGRAPHX_GENERIC_FLOAT_ASSIGN_OP(*=)
-    MIGRAPHX_GENERIC_FLOAT_ASSIGN_OP(-=)
-    MIGRAPHX_GENERIC_FLOAT_ASSIGN_OP(+=)
-    MIGRAPHX_GENERIC_FLOAT_ASSIGN_OP(/=)
-// NOLINTNEXTLINE
-#define MIGRAPHX_GENERIC_FLOAT_BINARY_OP(op)                                                   \
-    friend constexpr generic_float operator op(const generic_float& x, const generic_float& y) \
-    {                                                                                          \
-        return generic_float(float(x) op float(y));                                            \
-    }
-    MIGRAPHX_GENERIC_FLOAT_BINARY_OP(*)
-    MIGRAPHX_GENERIC_FLOAT_BINARY_OP(-)
-    MIGRAPHX_GENERIC_FLOAT_BINARY_OP(+)
-    MIGRAPHX_GENERIC_FLOAT_BINARY_OP(/)
-// NOLINTNEXTLINE
-#define MIGRAPHX_GENERIC_FLOAT_COMPARE_OP(op)                                         \
-    friend constexpr bool operator op(const generic_float& x, const generic_float& y) \
-    {                                                                                 \
-        return float(x) op float(y);                                                  \
-    }
-    MIGRAPHX_GENERIC_FLOAT_COMPARE_OP(<)
-    MIGRAPHX_GENERIC_FLOAT_COMPARE_OP(<=)
-    MIGRAPHX_GENERIC_FLOAT_COMPARE_OP(>)
-    MIGRAPHX_GENERIC_FLOAT_COMPARE_OP(>=)
 
     friend constexpr bool operator==(const generic_float& x, const generic_float& y)
     {
@@ -359,6 +373,123 @@ struct __attribute__((packed, may_alias)) generic_float
     {
         generic_float temp = *this;
         *this += generic_float(1.0f);
+        return temp;
+    }
+};
+
+template <unsigned int Flags>
+struct __attribute__((packed, may_alias)) generic_float<0, 8, Flags>
+    : generic_float_operators<generic_float<0, 8, Flags>>
+{
+    uint8_t exponent;
+
+    static constexpr int exponent_bias() { return all_ones<7>(); }
+
+    explicit constexpr generic_float(float f = 1.0) noexcept { from_float(get_parts(f)); }
+
+    constexpr generic_float& operator=(float f) noexcept
+    {
+        from_float(get_parts(f));
+        return *this;
+    }
+
+    // No sign for this type
+    constexpr generic_float operator-() const noexcept { return snan(); }
+
+    constexpr generic_float operator+() const noexcept { return *this; }
+
+    constexpr float to_float() const noexcept
+    {
+        float32_parts f{};
+        f.sign     = 0;
+        f.mantissa = 0;
+        f.exponent = exponent;
+        return f.to_float();
+    }
+
+    // Extracts only exponent bits from float
+    constexpr void from_float(float32_parts f) noexcept { exponent = f.exponent; }
+
+    // No subnormal numbers
+    constexpr bool is_normal() const noexcept { return not is_nan(); }
+
+    constexpr bool is_inf() const noexcept { return false; }
+
+    constexpr bool is_nan() const noexcept { return exponent == all_ones<8>(); }
+
+    constexpr bool is_finite() const noexcept { return not is_nan(); }
+
+    constexpr operator float() const noexcept { return this->to_float(); }
+
+    // doesn't have infinity, returning 2**0
+    static constexpr generic_float infinity()
+    {
+        generic_float x{};
+        x.exponent = all_ones<8>() >> 1u;
+        return x;
+    }
+
+    // only one NaN value
+    static constexpr generic_float snan()
+    {
+        generic_float x{};
+        x.exponent = all_ones<8>();
+        return x;
+    }
+
+    // only one NaN value
+    static constexpr generic_float qnan() { return snan(); }
+
+    // min value = 2**(-127)
+    static constexpr generic_float min()
+    {
+        generic_float x{};
+        x.exponent = 0;
+        return x;
+    }
+
+    // No subnormal numbers
+    static constexpr generic_float denorm_min() { return min(); }
+
+    static constexpr generic_float lowest() { return min(); }
+
+    // max value = 2**(127)
+    static constexpr generic_float max()
+    {
+        generic_float x{};
+        x.exponent = all_ones<8>() - 1;
+        return x;
+    }
+
+    // next number from 2**0 is 2**1 so epsilon is 2**0
+    static constexpr generic_float epsilon()
+    {
+        generic_float x{};
+        x.exponent = all_ones<8>() >> 1u;
+        return x;
+    }
+
+    friend constexpr bool operator==(const generic_float& x, const generic_float& y)
+    {
+
+        return x.exponent == y.exponent;
+    }
+
+    friend constexpr bool operator!=(const generic_float& x, const generic_float& y)
+    {
+        return not(x == y);
+    }
+
+    constexpr generic_float& operator++() noexcept
+    {
+        ++exponent;
+        return *this;
+    }
+
+    const generic_float operator++(int) noexcept // NOLINT(readability-const-return-type)
+    {
+        generic_float temp = *this;
+        operator++(this->exponent);
         return temp;
     }
 };

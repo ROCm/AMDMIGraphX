@@ -124,111 +124,119 @@ static void replace_with_reduce(module& m, instruction_ref ins)
 
 */
 
-static void lower_lrn_to_pooling(module& m, instruction_ref ins)
-{
-    auto v = ins->get_operator().to_value();
 
-    float alpha = v.at("alpha").to<float>();
-    float beta  = v.at("beta").to<float>();
-    float k     = v.at("bias").to<float>();
-    int size    = v.at("size").to<int>();
-    const unsigned int axis = 1;
-
-    auto x = ins->inputs().at(0);
-    const auto& xshape = x->get_shape();
-    auto lens = xshape.lens();
-    const int64_t rank = static_cast<int64_t>(lens.size());
-
-    // Early validation
-    if(rank < 2) return;
-    if(size <= 0) return;
-
-    auto x2 = m.insert_instruction(ins, make_op("mul"), x, x);
-
-    instruction_ref avg;
-
-    if(size % 2 == 0) {
-        // Even size: use direct channel-wise averaging with slice/reduce
-        std::vector<instruction_ref> channel_windows;
-
-        for(int c = 0; c < static_cast<int>(lens[1]); ++c) {
-            int start = std::max(0, c - size/2);
-            int end = std::min(static_cast<int>(lens[1]), c + size/2 + 1);
-
-            // Slice the channel range [start, end)
-            auto slice_start = m.insert_instruction(ins,
-                make_op("slice", {{"axes", {1}}, {"starts", {start}}, {"ends", {end}}}), x2);
-
-            // Reduce mean along channel axis to get single value per spatial location
-            auto local_mean = m.insert_instruction(ins,
-                make_op("reduce_mean", {{"axes", {1}}}), slice_start);
-
-            channel_windows.push_back(local_mean);
-        }
-
-        // Concatenate all channel results back together
-        avg = m.insert_instruction(ins, make_op("concat", {{"axis", 1}}), channel_windows);
-    } else {
-        // Odd size: use transpose/reshape/pooling approach with explicit padding
-
-        // Create permutation for transpose: move channel dimension to last
-        std::vector<int64_t> perm(rank);
-        std::iota(perm.begin(), perm.end(), 0);
-        std::swap(perm[axis], perm.back());
-
-        auto transpose1 = m.insert_instruction(ins, make_op("transpose", {{"permutation", perm}}), x2);
-
-        // Calculate moved lens for reshape
-        auto moved_lens = lens;
-        std::swap(moved_lens[axis], moved_lens.back());
-
-        // Flatten spatial dimensions for 1D pooling
-        auto batch_size = std::accumulate(moved_lens.begin(), moved_lens.end() - 1, 1, std::multiplies<size_t>());
-        std::vector<int64_t> reshape_dims = {static_cast<int64_t>(batch_size), 1, 1, static_cast<int64_t>(moved_lens.back())};
-        auto reshape1 = m.insert_instruction(ins, make_op("reshape", {{"dims", reshape_dims}}), transpose1);
-
-        // Use explicit pad operation for asymmetric padding
-        int64_t left_pad = (size - 1) / 2;   // For size=5: left_pad = 2
-        int64_t right_pad = size / 2;        // For size=5: right_pad = 2
-
-        // Create padding vector: {batch, spatial1, spatial2, channel, batch, spatial1, spatial2, channel}
-        std::vector<int64_t> pad_values = {0, 0, 0, left_pad, 0, 0, 0, right_pad};
-
-        auto padded = m.insert_instruction(ins,
-            make_op("pad", {{"pads", pad_values}, {"value", 0.0f}}), reshape1);
-
-        // Now use pooling with zero padding since we've already padded
-        auto pooled = m.insert_instruction(ins,
-            make_op("pooling", {
-                {"mode", op::pooling_mode::average},
-                {"lengths", std::vector<int64_t>{1, size}},
-                {"stride", std::vector<int64_t>{1, 1}},
-                {"padding", std::vector<int64_t>{0, 0}},
-                {"count_include_pad", true}
-            }), padded);
-
-        // Reshape back to moved dimensions
-        auto reshape2 = m.insert_instruction(ins, make_op("reshape", {{"dims", moved_lens}}), pooled);
-
-        // Transpose back to original layout
-        avg = m.insert_instruction(ins, make_op("transpose", {{"permutation", perm}}), reshape2);
-    }
-
-    // Complete LRN formula: output = input / (bias + alpha * avg)^beta
-    auto k_lit = m.add_literal(k);
-	auto a_lit = m.add_literal(alpha);
-    auto b_lit = m.add_literal(beta);
-
-    auto k_mb = m.insert_instruction(ins, make_op("multibroadcast", {{"out_lens", lens}}), k_lit);
-    auto a_mb = m.insert_instruction(ins, make_op("multibroadcast", {{"out_lens", lens}}), a_lit);
-    auto b_mb = m.insert_instruction(ins, make_op("multibroadcast", {{"out_lens", lens}}), b_lit);
-
-    auto alpha_avg = m.insert_instruction(ins, make_op("mul"), a_mb, avg);
-    auto den = m.insert_instruction(ins, make_op("add"), k_mb, alpha_avg);
-    auto denpow = m.insert_instruction(ins, make_op("pow"), den, b_mb);
-    auto y = m.insert_instruction(ins, make_op("div"), x, denpow);
-
-    m.replace_instruction(ins, y);
+//#include <migraphx/pad_calc.hpp>  // For calculate_padding function  
+  
+static void lower_lrn_to_pooling(module& m, instruction_ref ins)  
+{  
+    auto v = ins->get_operator().to_value();  
+  
+    float alpha = v.at("alpha").to<float>();  
+    float beta  = v.at("beta").to<float>();  
+    float k     = v.at("bias").to<float>();  
+    int size    = v.at("size").to<int>();  
+  
+    auto x = ins->inputs().at(0);  
+    const auto& xshape = x->get_shape();  
+    auto lens = xshape.lens();  
+  
+    // Early validation  
+    if(lens.size() < 2) {  
+        return;  
+    }  
+    if(size <= 0) {  
+        return;  
+    }  
+  
+    // Support both even and odd sizes now  
+    // Previously only even sizes were supported  
+  
+    // Step 1: Square the input  
+    auto x2 = m.insert_instruction(ins, make_op("mul"), x, x);  
+  
+    // Step 2: Transpose NCHW -> NHWC for channel-wise pooling  
+    std::vector<int64_t> perm = {0, 2, 3, 1}; // NCHW -> NHWC  
+    auto transpose1 = m.insert_instruction(ins, make_op("transpose", {{"permutation", perm}}), x2);  
+  
+    auto transposed_shape = transpose1->get_shape();  
+    auto transposed_lens = transposed_shape.lens();  
+  
+    // Step 3: Calculate padding using calculate_padding function  
+    int64_t channel_dim = transposed_lens[3]; // Channel dimension in NHWC  
+    std::vector<int64_t> calculated_pads;  
+    calculated_pads.resize(2, 0); // Pre-size for 1D padding  
+  
+    calculate_padding(0, calculated_pads, channel_dim, 1, 1, size, true);  
+  
+    // Step 4: Apply direct pooling with calculated padding  
+    instruction_ref avg;  
+    try {  
+        avg = m.insert_instruction(ins,  
+            make_op("pooling", {  
+                {"mode", op::pooling_mode::average},  
+                {"lengths", std::vector<int64_t>{1, size}},     // 2D: [height, width]  
+                {"stride", std::vector<int64_t>{1, 1}},         // 2D: [height, width]  
+                {"padding", std::vector<int64_t>{0, calculated_pads[0], 0, calculated_pads[1]}}, // 4 elements  
+                {"dilations", std::vector<int64_t>{1, 1}},      // 2D: [height, width]  
+                {"count_include_pad", true}  
+            }), transpose1);  
+  
+        auto avg_shape = avg->get_shape();  
+        auto avg_lens = avg_shape.lens();  
+  
+        // Validate dimensions are preserved  
+        if(avg_lens[3] != transposed_lens[3]) {  
+            return;  
+        }  
+  
+    } catch(const std::exception& e) {  
+        return;  
+    }  
+  
+    // Step 5: Transpose back NHWC -> NCHW  
+    std::vector<int64_t> inv_perm = {0, 3, 1, 2}; // NHWC -> NCHW  
+    auto transpose2 = m.insert_instruction(ins, make_op("transpose", {{"permutation", inv_perm}}), avg);  
+  
+    auto final_shape = transpose2->get_shape();  
+    auto final_lens = final_shape.lens();  
+  
+    // Check if final shape matches input shape  
+    bool shape_matches = true;  
+    if(final_lens.size() != lens.size()) {  
+        shape_matches = false;  
+    } else {  
+        for(size_t i = 0; i < lens.size(); ++i) {  
+            if(final_lens[i] != lens[i]) {  
+                shape_matches = false;  
+                break;  
+            }  
+        }  
+    }  
+  
+    if(!shape_matches) {  
+        return;  
+    }  
+  
+    // Step 6: Complete LRN formula  
+    auto k_lit = m.add_literal(k);  
+    auto a_lit = m.add_literal(alpha);  
+    auto b_lit = m.add_literal(beta);  
+  
+    auto k_mb = m.insert_instruction(ins, make_op("multibroadcast", {{"out_lens", lens}}), k_lit);  
+    auto a_mb = m.insert_instruction(ins, make_op("multibroadcast", {{"out_lens", lens}}), a_lit);  
+    auto b_mb = m.insert_instruction(ins, make_op("multibroadcast", {{"out_lens", lens}}), b_lit);  
+  
+    try {  
+        auto alpha_avg = m.insert_instruction(ins, make_op("mul"), a_mb, transpose2);  
+        auto den = m.insert_instruction(ins, make_op("add"), k_mb, alpha_avg);  
+        auto denpow = m.insert_instruction(ins, make_op("pow"), den, b_mb);  
+        auto y = m.insert_instruction(ins, make_op("div"), x, denpow);  
+  
+        m.replace_instruction(ins, y);  
+  
+    } catch(const std::exception& e) {  
+        return;  
+    }  
 }
 
 

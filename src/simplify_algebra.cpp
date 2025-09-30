@@ -2115,10 +2115,13 @@ struct find_split_transpose
     }
 };
 
+MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_SIMPLIFY_ALGEBRA_PASSES)
+
 void simplify_algebra::apply(module& m) const
 {
+    static const auto num_passes = value_of(MIGRAPHX_SIMPLIFY_ALGEBRA_PASSES{}, simplify_algebra::NUM_PASSES);
     // Run simplifications multiple times
-    m.repeat_while_changes(8, [&] {
+    m.repeat_while_changes(num_passes, [&] {
         match::find_matches(m,
                             find_inner_broadcast{},
                             find_dot_broadcast{},

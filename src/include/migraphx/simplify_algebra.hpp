@@ -39,6 +39,8 @@ struct MIGRAPHX_EXPORT simplify_algebra
 {
     std::string name() const { return "simplify_algebra"; }
     void apply(module& m) const;
+
+    const size_t NUM_PASSES = 8;
 };
 
 } // namespace MIGRAPHX_INLINE_NS

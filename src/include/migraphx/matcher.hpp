@@ -406,6 +406,7 @@ MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_TRACE_MATCHES)
 MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_TRACE_MATCHES_FOR)
 MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_VALIDATE_MATCHES)
 MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_TIME_MATCHERS)
+MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_DISABLE_MATCHERS)
 
 /// Find matches for an instruction in the module for per section of matchers
 template <class Mod, class... Ms>
@@ -415,15 +416,18 @@ void find_matches_for(source_location location, Mod& mod, instruction_ref ins, M
     const bool validate      = enabled(MIGRAPHX_VALIDATE_MATCHES{});
     const auto trace_filter  = string_value_of(MIGRAPHX_TRACE_MATCHES_FOR{});
     const bool time_matchers = enabled(MIGRAPHX_TIME_MATCHERS{});
+
+    static const auto disabled_matchers_list = split_string(string_value_of(MIGRAPHX_DISABLE_MATCHERS{}), ',');
+    static const std::set<std::string> disabled_matchers(disabled_matchers_list.begin(), disabled_matchers_list.end());
     bool match               = false;
     each_args(
         [&](auto&& m) {
-            const auto& matcher_name = get_type_name(m);
+            const auto& matcher_name = get_type_name_base(m);
             const bool trace_for     = not trace_filter.empty() and
                                    (contains(std::string{location.file_name()}, trace_filter) or
                                     contains(std::string{location.function_name()}, trace_filter) or
                                     contains(matcher_name, trace_filter));
-            if(match)
+            if(match || disabled_matchers.find(matcher_name) != disabled_matchers.end())
                 return;
             // print running matcher even if it doesn't match anything
             if(trace > 1 and trace_for)

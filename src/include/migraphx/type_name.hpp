@@ -65,6 +65,20 @@ const std::string& get_type_name(const T&)
     return migraphx::get_type_name<T>();
 }
 
+template <class T>
+const std::string& get_type_name_base(const T&)
+{ 
+    static const std::string name = migraphx::get_type_name<T>();
+    
+    auto pos = name.find_last_of("::");
+    if (pos != std::string::npos) {
+        static const std::string name_base = name.substr(pos + 1);
+        return name_base;
+    }
+
+    return name;
+}
+
 } // namespace MIGRAPHX_INLINE_NS
 } // namespace migraphx
 

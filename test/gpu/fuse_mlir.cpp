@@ -2034,7 +2034,8 @@ TEST_CASE(dot_add_multi_user_dot_with_transpose)
         auto d    = mm->add_parameter("d", s);
         auto dot1 = mm->add_instruction(migraphx::make_op("dot"), a, b);
         auto add  = add_pointwise(p1, "main:pointwise0", {dot1, c}, single_pointwise("add"));
-        auto d_t  = mm->add_instruction(migraphx::make_op("transpose", {{"permutation", {0, 2, 1}}}), d);
+        auto d_t =
+            mm->add_instruction(migraphx::make_op("transpose", {{"permutation", {0, 2, 1}}}), d);
         auto dot2 = mm->add_instruction(migraphx::make_op("dot"), add, d_t);
         auto transpose =
             mm->add_instruction(migraphx::make_op("transpose", {{"permutation", {0, 2, 1}}}), dot2);
@@ -2052,7 +2053,8 @@ TEST_CASE(dot_add_multi_user_dot_with_transpose)
             p2, "mlir_main:pointwise0_geg", {a, b, c, d}, [=](auto* pm, const auto& inputs) {
                 auto dot1 = pm->add_instruction(migraphx::make_op("dot"), inputs[0], inputs[1]);
                 auto add  = pm->add_instruction(migraphx::make_op("add"), dot1, inputs[2]);
-                auto d_t  = pm->add_instruction(migraphx::make_op("transpose", {{"permutation", {0, 2, 1}}}), inputs[3]);
+                auto d_t  = pm->add_instruction(
+                    migraphx::make_op("transpose", {{"permutation", {0, 2, 1}}}), inputs[3]);
                 auto dot2 = pm->add_instruction(migraphx::make_op("dot"), add, d_t);
                 return std::make_tuple(dot1->get_operator(),
                                        std::vector<migraphx::instruction_ref>{dot2, add});
@@ -2083,7 +2085,8 @@ TEST_CASE(dot_add_multi_user_dot_two_externals)
         auto d    = mm->add_parameter("d", s);
         auto dot1 = mm->add_instruction(migraphx::make_op("dot"), a, b);
         auto add  = add_pointwise(p1, "main:pointwise0", {dot1, c}, single_pointwise("add"));
-        auto external_t1  = mm->add_instruction(migraphx::make_op("transpose", {{"permutation", {0, 2, 1}}}), d);
+        auto external_t1 =
+            mm->add_instruction(migraphx::make_op("transpose", {{"permutation", {0, 2, 1}}}), d);
         auto dot2 = mm->add_instruction(migraphx::make_op("dot"), add, d);
         auto external_t2 =
             mm->add_instruction(migraphx::make_op("transpose", {{"permutation", {0, 2, 1}}}), dot2);
@@ -2109,8 +2112,8 @@ TEST_CASE(dot_add_multi_user_dot_two_externals)
             mm->add_instruction(migraphx::make_op("get_tuple_elem", {{"index", 0}}), fused);
         auto get_add =
             mm->add_instruction(migraphx::make_op("get_tuple_elem", {{"index", 1}}), fused);
-        auto external_t1 = mm->add_instruction(
-            migraphx::make_op("transpose", {{"permutation", {0, 2, 1}}}), d);
+        auto external_t1 =
+            mm->add_instruction(migraphx::make_op("transpose", {{"permutation", {0, 2, 1}}}), d);
         auto external_t2 = mm->add_instruction(
             migraphx::make_op("transpose", {{"permutation", {0, 2, 1}}}), get_dot2);
         mm->add_return({get_add, external_t1, external_t2});
@@ -2129,13 +2132,13 @@ TEST_CASE(dot_add_multi_user_dot_input_used_before)
     migraphx::shape s{migraphx::shape::float_type, {1, 3, 3}};
     migraphx::program p1;
     {
-        auto* mm  = p1.get_main_module();
-        auto a    = mm->add_parameter("a", s);
-        auto b    = mm->add_parameter("b", s);
-        auto c    = mm->add_parameter("c", s);
-        auto d    = mm->add_parameter("d", s);
+        auto* mm = p1.get_main_module();
+        auto a   = mm->add_parameter("a", s);
+        auto b   = mm->add_parameter("b", s);
+        auto c   = mm->add_parameter("c", s);
+        auto d   = mm->add_parameter("d", s);
 
-        auto external_relu  = add_pointwise(p1, "main:pointwise1", {d}, single_pointwise("relu"));
+        auto external_relu = add_pointwise(p1, "main:pointwise1", {d}, single_pointwise("relu"));
 
         auto dot1 = mm->add_instruction(migraphx::make_op("dot"), a, b);
         auto add  = add_pointwise(p1, "main:pointwise0", {dot1, c}, single_pointwise("add"));
@@ -2153,8 +2156,11 @@ TEST_CASE(dot_add_multi_user_dot_input_used_before)
         auto c     = mm->add_parameter("c", s);
         auto d     = mm->add_parameter("d", s);
         auto fused = add_mlir(
-            p2, "main:pointwise1:mlir_main:pointwise0_geg", {d, a, b, c}, [=](auto* pm, const auto& inputs) {
-                auto external_relu  = pm->add_instruction(migraphx::make_op("relu"), inputs[0]);
+            p2,
+            "main:pointwise1:mlir_main:pointwise0_geg",
+            {d, a, b, c},
+            [=](auto* pm, const auto& inputs) {
+                auto external_relu = pm->add_instruction(migraphx::make_op("relu"), inputs[0]);
                 auto dot1 = pm->add_instruction(migraphx::make_op("dot"), inputs[1], inputs[2]);
                 auto add  = pm->add_instruction(migraphx::make_op("add"), dot1, inputs[3]);
                 auto dot2 = pm->add_instruction(migraphx::make_op("dot"), add, external_relu);
@@ -2190,8 +2196,8 @@ TEST_CASE(dot_add_multi_user_dot_input_used_after)
         auto d    = mm->add_parameter("d", s);
         auto dot1 = mm->add_instruction(migraphx::make_op("dot"), a, b);
         auto add  = add_pointwise(p1, "main:pointwise0", {dot1, c}, single_pointwise("add"));
-        auto external_relu  = add_pointwise(p1, "main:pointwise1", {d}, single_pointwise("relu"));
-        auto dot2 = mm->add_instruction(migraphx::make_op("dot"), add, external_relu);
+        auto external_relu = add_pointwise(p1, "main:pointwise1", {d}, single_pointwise("relu"));
+        auto dot2          = mm->add_instruction(migraphx::make_op("dot"), add, external_relu);
         auto transpose =
             mm->add_instruction(migraphx::make_op("transpose", {{"permutation", {0, 2, 1}}}), dot2);
         mm->add_return({add, transpose});
@@ -2205,8 +2211,11 @@ TEST_CASE(dot_add_multi_user_dot_input_used_after)
         auto c     = mm->add_parameter("c", s);
         auto d     = mm->add_parameter("d", s);
         auto fused = add_mlir(
-            p2, "main:pointwise1:mlir_main:pointwise0_geg", {d, a, b, c}, [=](auto* pm, const auto& inputs) {
-                auto external_relu  = pm->add_instruction(migraphx::make_op("relu"), inputs[0]);
+            p2,
+            "main:pointwise1:mlir_main:pointwise0_geg",
+            {d, a, b, c},
+            [=](auto* pm, const auto& inputs) {
+                auto external_relu = pm->add_instruction(migraphx::make_op("relu"), inputs[0]);
                 auto dot1 = pm->add_instruction(migraphx::make_op("dot"), inputs[1], inputs[2]);
                 auto add  = pm->add_instruction(migraphx::make_op("add"), dot1, inputs[3]);
                 auto dot2 = pm->add_instruction(migraphx::make_op("dot"), add, external_relu);
@@ -2234,15 +2243,16 @@ TEST_CASE(dot_add_multi_user_dot_input_used_before_in_chain)
     migraphx::shape s{migraphx::shape::float_type, {1, 3, 3}};
     migraphx::program p1;
     {
-        auto* mm  = p1.get_main_module();
-        auto a    = mm->add_parameter("a", s);
-        auto b    = mm->add_parameter("b", s);
-        auto c    = mm->add_parameter("c", s);
-        auto d    = mm->add_parameter("d", s);
+        auto* mm = p1.get_main_module();
+        auto a   = mm->add_parameter("a", s);
+        auto b   = mm->add_parameter("b", s);
+        auto c   = mm->add_parameter("c", s);
+        auto d   = mm->add_parameter("d", s);
 
-        auto external_relu  = add_pointwise(p1, "main:pointwise1", {d}, single_pointwise("relu"));
-        auto external_mul = add_pointwise(p1, "main:pointwise2", {external_relu, d}, single_pointwise("mul"));
-        
+        auto external_relu = add_pointwise(p1, "main:pointwise1", {d}, single_pointwise("relu"));
+        auto external_mul =
+            add_pointwise(p1, "main:pointwise2", {external_relu, d}, single_pointwise("mul"));
+
         auto dot1 = mm->add_instruction(migraphx::make_op("dot"), a, b);
         auto add  = add_pointwise(p1, "main:pointwise0", {dot1, c}, single_pointwise("add"));
         auto dot2 = mm->add_instruction(migraphx::make_op("dot"), add, external_mul);
@@ -2253,21 +2263,26 @@ TEST_CASE(dot_add_multi_user_dot_input_used_before_in_chain)
     run_pass(p1);
     migraphx::program p2;
     {
-        auto* mm   = p2.get_main_module();
-        auto a     = mm->add_parameter("a", s);
-        auto b     = mm->add_parameter("b", s);
-        auto c     = mm->add_parameter("c", s);
-        auto d     = mm->add_parameter("d", s);
-        auto external_relu  = add_pointwise(p2, "main:pointwise1", {d}, single_pointwise("relu"));
-        auto external_mul = add_pointwise(p2, "main:pointwise2", {external_relu, d}, single_pointwise("mul"));
-        auto fused = add_mlir(
-            p2, "mlir_main:pointwise0_geg", {a, b, c, external_mul}, [=](auto* pm, const auto& inputs) {
-                auto dot1 = pm->add_instruction(migraphx::make_op("dot"), inputs[0], inputs[1]);
-                auto add  = pm->add_instruction(migraphx::make_op("add"), dot1, inputs[2]);
-                auto dot2 = pm->add_instruction(migraphx::make_op("dot"), add, inputs[3]);
-                return std::make_tuple(dot1->get_operator(),
-                                       std::vector<migraphx::instruction_ref>{dot2, add});
-            });
+        auto* mm           = p2.get_main_module();
+        auto a             = mm->add_parameter("a", s);
+        auto b             = mm->add_parameter("b", s);
+        auto c             = mm->add_parameter("c", s);
+        auto d             = mm->add_parameter("d", s);
+        auto external_relu = add_pointwise(p2, "main:pointwise1", {d}, single_pointwise("relu"));
+        auto external_mul =
+            add_pointwise(p2, "main:pointwise2", {external_relu, d}, single_pointwise("mul"));
+        auto fused =
+            add_mlir(p2,
+                     "mlir_main:pointwise0_geg",
+                     {a, b, c, external_mul},
+                     [=](auto* pm, const auto& inputs) {
+                         auto dot1 =
+                             pm->add_instruction(migraphx::make_op("dot"), inputs[0], inputs[1]);
+                         auto add  = pm->add_instruction(migraphx::make_op("add"), dot1, inputs[2]);
+                         auto dot2 = pm->add_instruction(migraphx::make_op("dot"), add, inputs[3]);
+                         return std::make_tuple(dot1->get_operator(),
+                                                std::vector<migraphx::instruction_ref>{dot2, add});
+                     });
         auto get_dot2 =
             mm->add_instruction(migraphx::make_op("get_tuple_elem", {{"index", 0}}), fused);
         auto get_add =
@@ -2289,16 +2304,17 @@ TEST_CASE(dot_add_multi_user_dot_input_used_after_in_chain)
     migraphx::shape s{migraphx::shape::float_type, {1, 3, 3}};
     migraphx::program p1;
     {
-        auto* mm  = p1.get_main_module();
-        auto a    = mm->add_parameter("a", s);
-        auto b    = mm->add_parameter("b", s);
-        auto c    = mm->add_parameter("c", s);
-        auto d    = mm->add_parameter("d", s);
-        
+        auto* mm = p1.get_main_module();
+        auto a   = mm->add_parameter("a", s);
+        auto b   = mm->add_parameter("b", s);
+        auto c   = mm->add_parameter("c", s);
+        auto d   = mm->add_parameter("d", s);
+
         auto dot1 = mm->add_instruction(migraphx::make_op("dot"), a, b);
         auto add  = add_pointwise(p1, "main:pointwise0", {dot1, c}, single_pointwise("add"));
-        auto external_relu  = add_pointwise(p1, "main:pointwise1", {d}, single_pointwise("relu"));
-        auto external_mul = add_pointwise(p1, "main:pointwise2", {external_relu, d}, single_pointwise("mul"));
+        auto external_relu = add_pointwise(p1, "main:pointwise1", {d}, single_pointwise("relu"));
+        auto external_mul =
+            add_pointwise(p1, "main:pointwise2", {external_relu, d}, single_pointwise("mul"));
         auto dot2 = mm->add_instruction(migraphx::make_op("dot"), add, external_mul);
         auto transpose =
             mm->add_instruction(migraphx::make_op("transpose", {{"permutation", {0, 2, 1}}}), dot2);
@@ -2307,21 +2323,26 @@ TEST_CASE(dot_add_multi_user_dot_input_used_after_in_chain)
     run_pass(p1);
     migraphx::program p2;
     {
-        auto* mm   = p2.get_main_module();
-        auto a     = mm->add_parameter("a", s);
-        auto b     = mm->add_parameter("b", s);
-        auto c     = mm->add_parameter("c", s);
-        auto d     = mm->add_parameter("d", s);
-        auto external_relu  = add_pointwise(p2, "main:pointwise1", {d}, single_pointwise("relu"));
-        auto external_mul = add_pointwise(p2, "main:pointwise2", {external_relu, d}, single_pointwise("mul"));
-        auto fused = add_mlir(
-            p2, "mlir_main:pointwise0_geg", {a, b, c, external_mul}, [=](auto* pm, const auto& inputs) {
-                auto dot1 = pm->add_instruction(migraphx::make_op("dot"), inputs[0], inputs[1]);
-                auto add  = pm->add_instruction(migraphx::make_op("add"), dot1, inputs[2]);
-                auto dot2 = pm->add_instruction(migraphx::make_op("dot"), add, inputs[3]);
-                return std::make_tuple(dot1->get_operator(),
-                                       std::vector<migraphx::instruction_ref>{dot2, add});
-            });
+        auto* mm           = p2.get_main_module();
+        auto a             = mm->add_parameter("a", s);
+        auto b             = mm->add_parameter("b", s);
+        auto c             = mm->add_parameter("c", s);
+        auto d             = mm->add_parameter("d", s);
+        auto external_relu = add_pointwise(p2, "main:pointwise1", {d}, single_pointwise("relu"));
+        auto external_mul =
+            add_pointwise(p2, "main:pointwise2", {external_relu, d}, single_pointwise("mul"));
+        auto fused =
+            add_mlir(p2,
+                     "mlir_main:pointwise0_geg",
+                     {a, b, c, external_mul},
+                     [=](auto* pm, const auto& inputs) {
+                         auto dot1 =
+                             pm->add_instruction(migraphx::make_op("dot"), inputs[0], inputs[1]);
+                         auto add  = pm->add_instruction(migraphx::make_op("add"), dot1, inputs[2]);
+                         auto dot2 = pm->add_instruction(migraphx::make_op("dot"), add, inputs[3]);
+                         return std::make_tuple(dot1->get_operator(),
+                                                std::vector<migraphx::instruction_ref>{dot2, add});
+                     });
         auto get_dot2 =
             mm->add_instruction(migraphx::make_op("get_tuple_elem", {{"index", 0}}), fused);
         auto get_add =

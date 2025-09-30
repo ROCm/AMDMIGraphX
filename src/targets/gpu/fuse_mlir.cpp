@@ -887,14 +887,15 @@ struct find_mlir_fused_geg_ops
         auto inputs = find_inputs(map_ins, &mpm.get_module(), mm);
 
         // sort fusion section of module such that any external inputs are moved before the fusion
-        // so that we can safely place the fused mod in the multi-out case at the beginning of the chain
+        // so that we can safely place the fused mod in the multi-out case at the beginning of the
+        // chain
         mpm.get_module().localized_sort(first_gemm_ins, second_gemm_ins);
 
         auto fused_ins =
-                mpm.get_module().insert_instruction(first_gemm_ins,
-                                                    mlir_op{second_gemm_ins->get_operator()},
-                                                    mlir_contiguous(mpm, inputs),
-                                                    {mm});
+            mpm.get_module().insert_instruction(first_gemm_ins,
+                                                mlir_op{second_gemm_ins->get_operator()},
+                                                mlir_contiguous(mpm, inputs),
+                                                {mm});
 
         if(first_gemm_has_multi_outs or elemwise_has_multi_outs)
         {

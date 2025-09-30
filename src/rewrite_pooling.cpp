@@ -57,76 +57,6 @@ static void replace_with_reduce(module& m, instruction_ref ins)
     }
 }
 
-/*static void lower_lrn_to_pooling(module& m, instruction_ref ins)
-{
-    auto v = ins->get_operator().to_value();
-
-    float alpha             = v.at("alpha").to<float>();
-    float beta              = v.at("beta").to<float>();
-    float k                 = v.at("bias").to<float>();
-    int size                = v.at("size").to<int>();
-    const unsigned int axis = 1;
-
-    auto x             = ins->inputs().at(0);
-    const auto& xshape = x->get_shape();
-    auto lens          = xshape.lens();
-    const int64_t rank = static_cast<int64_t>(lens.size());
-    if(rank < 2)
-        return;
-    if(size <= 0 or (size % 2) != 0)
-        return;
-
-    auto x2 = m.insert_instruction(ins, make_op("mul"), x, x);
-
-    std::vector<int64_t> perm(rank);
-    std::iota(perm.begin(), perm.end(), 0);
-    std::swap(perm[static_cast<std::size_t>(axis)], perm.back());
-    auto moved      = m.insert_instruction(ins, make_op("transpose", {{"permutation", perm}}), x2);
-    auto moved_lens = moved->get_shape().lens();
-    auto b =
-        std::accumulate(moved_lens.begin(), moved_lens.end() - 1, 1, std::multiplies<size_t>());
-    const int64_t c = static_cast<int64_t>(moved_lens.back());
-    auto pooled_in  = m.insert_instruction(
-        ins,
-        make_op("reshape", {{"dims", std::vector<int64_t>{static_cast<int64_t>(b), 1, 1, c}}}),
-        moved);
-
-    auto avg = m.insert_instruction(ins,
-                                    make_op("pooling",
-                                            {{"mode", op::pooling_mode::average},
-                                             {"lengths", std::vector<int64_t>{1, size}},
-                                             {"stride", std::vector<int64_t>{1, 1}},
-                                             {"padding", std::vector<int64_t>{0, size / 2}},
-                                             {"count_include_pad", true}}),
-                                    pooled_in);
-
-    auto moved_shape_back = std::vector<int64_t>(moved_lens.begin(), moved_lens.end());
-    auto avg_moved =
-        m.insert_instruction(ins, make_op("reshape", {{"dims", moved_shape_back}}), avg);
-    auto invp = invert_permutation(perm);
-    auto avg_ch =
-        m.insert_instruction(ins, make_op("transpose", {{"permutation", invp}}), avg_moved);
-
-    auto k_lit = m.add_literal(k);
-    auto a_lit = m.add_literal(alpha);
-    auto k_mb  = m.insert_instruction(ins, make_op("multibroadcast", {{"out_lens", lens}}), k_lit);
-    auto a_mb  = m.insert_instruction(ins, make_op("multibroadcast", {{"out_lens", lens}}), a_lit);
-    auto alpha_avg = m.insert_instruction(ins, make_op("mul"), a_mb, avg_ch);
-    auto den       = m.insert_instruction(ins, make_op("add"), k_mb, alpha_avg);
-
-    auto b_lit  = m.add_literal(beta);
-    auto b_mb   = m.insert_instruction(ins, make_op("multibroadcast", {{"out_lens", lens}}), b_lit);
-    auto denpow = m.insert_instruction(ins, make_op("pow"), den, b_mb);
-    auto y      = m.insert_instruction(ins, make_op("div"), ins->inputs().front(), denpow);
-
-    m.replace_instruction(ins, y);
-}
-
-*/
-
-
-//#include <migraphx/pad_calc.hpp>  // For calculate_padding function  
-  
 static void lower_lrn_to_pooling(module& m, instruction_ref ins)  
 {  
     auto v = ins->get_operator().to_value();  
@@ -140,7 +70,6 @@ static void lower_lrn_to_pooling(module& m, instruction_ref ins)
     const auto& xshape = x->get_shape();  
     auto lens = xshape.lens();  
   
-    // Early validation  
     if(lens.size() < 2) {  
         return;  
     }  
@@ -148,43 +77,35 @@ static void lower_lrn_to_pooling(module& m, instruction_ref ins)
         return;  
     }  
   
-    // Support both even and odd sizes now  
-    // Previously only even sizes were supported  
-  
-    // Step 1: Square the input  
     auto x2 = m.insert_instruction(ins, make_op("mul"), x, x);  
   
-    // Step 2: Transpose NCHW -> NHWC for channel-wise pooling  
-    std::vector<int64_t> perm = {0, 2, 3, 1}; // NCHW -> NHWC  
+    std::vector<int64_t> perm = {0, 2, 3, 1}; 
     auto transpose1 = m.insert_instruction(ins, make_op("transpose", {{"permutation", perm}}), x2);  
   
     auto transposed_shape = transpose1->get_shape();  
     auto transposed_lens = transposed_shape.lens();  
   
-    // Step 3: Calculate padding using calculate_padding function  
-    int64_t channel_dim = transposed_lens[3]; // Channel dimension in NHWC  
+    int64_t channel_dim = transposed_lens[3];
     std::vector<int64_t> calculated_pads;  
-    calculated_pads.resize(2, 0); // Pre-size for 1D padding  
+    calculated_pads.resize(2, 0);
   
     calculate_padding(0, calculated_pads, channel_dim, 1, 1, size, true);  
   
-    // Step 4: Apply direct pooling with calculated padding  
     instruction_ref avg;  
     try {  
         avg = m.insert_instruction(ins,  
             make_op("pooling", {  
                 {"mode", op::pooling_mode::average},  
-                {"lengths", std::vector<int64_t>{1, size}},     // 2D: [height, width]  
-                {"stride", std::vector<int64_t>{1, 1}},         // 2D: [height, width]  
-                {"padding", std::vector<int64_t>{0, calculated_pads[0], 0, calculated_pads[1]}}, // 4 elements  
-                {"dilations", std::vector<int64_t>{1, 1}},      // 2D: [height, width]  
-                {"count_include_pad", true}  
-            }), transpose1);  
+                {"lengths", std::vector<int64_t>{1, size}},
+                {"stride", std::vector<int64_t>{1, 1}},
+                {"padding", std::vector<int64_t>{0, calculated_pads[0], 0, calculated_pads[1]}},
+                {"dilations", std::vector<int64_t>{1, 1}},
+                {"count_include_pad", true}
+            }), transpose1);
   
         auto avg_shape = avg->get_shape();  
         auto avg_lens = avg_shape.lens();  
   
-        // Validate dimensions are preserved  
         if(avg_lens[3] != transposed_lens[3]) {  
             return;  
         }  
@@ -193,14 +114,12 @@ static void lower_lrn_to_pooling(module& m, instruction_ref ins)
         return;  
     }  
   
-    // Step 5: Transpose back NHWC -> NCHW  
     std::vector<int64_t> inv_perm = {0, 3, 1, 2}; // NHWC -> NCHW  
     auto transpose2 = m.insert_instruction(ins, make_op("transpose", {{"permutation", inv_perm}}), avg);  
   
     auto final_shape = transpose2->get_shape();  
     auto final_lens = final_shape.lens();  
   
-    // Check if final shape matches input shape  
     bool shape_matches = true;  
     if(final_lens.size() != lens.size()) {  
         shape_matches = false;  
@@ -217,7 +136,6 @@ static void lower_lrn_to_pooling(module& m, instruction_ref ins)
         return;  
     }  
   
-    // Step 6: Complete LRN formula  
     auto k_lit = m.add_literal(k);  
     auto a_lit = m.add_literal(alpha);  
     auto b_lit = m.add_literal(beta);  

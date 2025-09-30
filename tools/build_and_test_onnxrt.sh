@@ -28,7 +28,7 @@ ulimit -c unlimited
 
 # Copy these over in local runs but silence them in CI
 cp tools/pai_test_launcher.sh /onnxruntime/tools/ci_build/github/pai/pai_test_launcher.sh 2>/dev/null || :
-cp tools/pai_provider_test_launcher.sh /onnxruntime/tools/ci_build/github/pai/pai_provider_test_launcher.sh 2>/dev/null || :
+[ -f tools/pai_provider_test_launcher.sh ] && cp tools/pai_provider_test_launcher.sh /onnxruntime/tools/ci_build/github/pai/pai_provider_test_launcher.sh
 
 cd /onnxruntime
 pip3 install -r requirements-dev.txt

@@ -2021,6 +2021,320 @@ TEST_CASE(dot_add_multi_user_dot)
     EXPECT(p1.sort() == p2.sort());
 }
 
+TEST_CASE(dot_add_multi_user_dot_with_transpose)
+// GEG fusion has two outputs, E has external user
+{
+    migraphx::shape s{migraphx::shape::float_type, {1, 3, 3}};
+    migraphx::program p1;
+    {
+        auto* mm  = p1.get_main_module();
+        auto a    = mm->add_parameter("a", s);
+        auto b    = mm->add_parameter("b", s);
+        auto c    = mm->add_parameter("c", s);
+        auto d    = mm->add_parameter("d", s);
+        auto dot1 = mm->add_instruction(migraphx::make_op("dot"), a, b);
+        auto add  = add_pointwise(p1, "main:pointwise0", {dot1, c}, single_pointwise("add"));
+        auto d_t  = mm->add_instruction(migraphx::make_op("transpose", {{"permutation", {0, 2, 1}}}), d);
+        auto dot2 = mm->add_instruction(migraphx::make_op("dot"), add, d_t);
+        auto transpose =
+            mm->add_instruction(migraphx::make_op("transpose", {{"permutation", {0, 2, 1}}}), dot2);
+        mm->add_return({add, transpose});
+    }
+    run_pass(p1);
+    migraphx::program p2;
+    {
+        auto* mm   = p2.get_main_module();
+        auto a     = mm->add_parameter("a", s);
+        auto b     = mm->add_parameter("b", s);
+        auto c     = mm->add_parameter("c", s);
+        auto d     = mm->add_parameter("d", s);
+        auto fused = add_mlir(
+            p2, "mlir_main:pointwise0_geg", {a, b, c, d}, [=](auto* pm, const auto& inputs) {
+                auto dot1 = pm->add_instruction(migraphx::make_op("dot"), inputs[0], inputs[1]);
+                auto add  = pm->add_instruction(migraphx::make_op("add"), dot1, inputs[2]);
+                auto d_t  = pm->add_instruction(migraphx::make_op("transpose", {{"permutation", {0, 2, 1}}}), inputs[3]);
+                auto dot2 = pm->add_instruction(migraphx::make_op("dot"), add, d_t);
+                return std::make_tuple(dot1->get_operator(),
+                                       std::vector<migraphx::instruction_ref>{dot2, add});
+            });
+        auto get_dot2 =
+            mm->add_instruction(migraphx::make_op("get_tuple_elem", {{"index", 0}}), fused);
+        auto get_add =
+            mm->add_instruction(migraphx::make_op("get_tuple_elem", {{"index", 1}}), fused);
+        auto transpose = mm->add_instruction(
+            migraphx::make_op("transpose", {{"permutation", {0, 2, 1}}}), get_dot2);
+        mm->add_return({get_add, transpose});
+    }
+    if(not migraphx::enabled(MIGRAPHX_ENABLE_MLIR_GEG_FUSION{}))
+        return;
+    EXPECT(p1.sort() == p2.sort());
+}
+
+TEST_CASE(dot_add_multi_user_dot_two_externals)
+// GEG fusion has two outputs, E has external user
+{
+    migraphx::shape s{migraphx::shape::float_type, {1, 3, 3}};
+    migraphx::program p1;
+    {
+        auto* mm  = p1.get_main_module();
+        auto a    = mm->add_parameter("a", s);
+        auto b    = mm->add_parameter("b", s);
+        auto c    = mm->add_parameter("c", s);
+        auto d    = mm->add_parameter("d", s);
+        auto dot1 = mm->add_instruction(migraphx::make_op("dot"), a, b);
+        auto add  = add_pointwise(p1, "main:pointwise0", {dot1, c}, single_pointwise("add"));
+        auto external_t1  = mm->add_instruction(migraphx::make_op("transpose", {{"permutation", {0, 2, 1}}}), d);
+        auto dot2 = mm->add_instruction(migraphx::make_op("dot"), add, d);
+        auto external_t2 =
+            mm->add_instruction(migraphx::make_op("transpose", {{"permutation", {0, 2, 1}}}), dot2);
+        mm->add_return({add, external_t1, external_t2});
+    }
+    run_pass(p1);
+    migraphx::program p2;
+    {
+        auto* mm   = p2.get_main_module();
+        auto a     = mm->add_parameter("a", s);
+        auto b     = mm->add_parameter("b", s);
+        auto c     = mm->add_parameter("c", s);
+        auto d     = mm->add_parameter("d", s);
+        auto fused = add_mlir(
+            p2, "mlir_main:pointwise0_geg", {a, b, c, d}, [=](auto* pm, const auto& inputs) {
+                auto dot1 = pm->add_instruction(migraphx::make_op("dot"), inputs[0], inputs[1]);
+                auto add  = pm->add_instruction(migraphx::make_op("add"), dot1, inputs[2]);
+                auto dot2 = pm->add_instruction(migraphx::make_op("dot"), add, inputs[3]);
+                return std::make_tuple(dot1->get_operator(),
+                                       std::vector<migraphx::instruction_ref>{dot2, add});
+            });
+        auto get_dot2 =
+            mm->add_instruction(migraphx::make_op("get_tuple_elem", {{"index", 0}}), fused);
+        auto get_add =
+            mm->add_instruction(migraphx::make_op("get_tuple_elem", {{"index", 1}}), fused);
+        auto external_t1 = mm->add_instruction(
+            migraphx::make_op("transpose", {{"permutation", {0, 2, 1}}}), d);
+        auto external_t2 = mm->add_instruction(
+            migraphx::make_op("transpose", {{"permutation", {0, 2, 1}}}), get_dot2);
+        mm->add_return({get_add, external_t1, external_t2});
+    }
+    if(not migraphx::enabled(MIGRAPHX_ENABLE_MLIR_GEG_FUSION{}))
+        return;
+    EXPECT(p1.sort() == p2.sort());
+}
+
+TEST_CASE(dot_add_multi_user_dot_input_used_before)
+// GEG fusion has two outputs, E has external user.
+// Base case for testing inputs being defined within the span
+// of will-be-fused ops
+// This also shows the relu being fused, since it is a unary op
+{
+    migraphx::shape s{migraphx::shape::float_type, {1, 3, 3}};
+    migraphx::program p1;
+    {
+        auto* mm  = p1.get_main_module();
+        auto a    = mm->add_parameter("a", s);
+        auto b    = mm->add_parameter("b", s);
+        auto c    = mm->add_parameter("c", s);
+        auto d    = mm->add_parameter("d", s);
+
+        auto external_relu  = add_pointwise(p1, "main:pointwise1", {d}, single_pointwise("relu"));
+
+        auto dot1 = mm->add_instruction(migraphx::make_op("dot"), a, b);
+        auto add  = add_pointwise(p1, "main:pointwise0", {dot1, c}, single_pointwise("add"));
+        auto dot2 = mm->add_instruction(migraphx::make_op("dot"), add, external_relu);
+        auto transpose =
+            mm->add_instruction(migraphx::make_op("transpose", {{"permutation", {0, 2, 1}}}), dot2);
+        mm->add_return({add, transpose});
+    }
+    run_pass(p1);
+    migraphx::program p2;
+    {
+        auto* mm   = p2.get_main_module();
+        auto a     = mm->add_parameter("a", s);
+        auto b     = mm->add_parameter("b", s);
+        auto c     = mm->add_parameter("c", s);
+        auto d     = mm->add_parameter("d", s);
+        auto fused = add_mlir(
+            p2, "main:pointwise1:mlir_main:pointwise0_geg", {d, a, b, c}, [=](auto* pm, const auto& inputs) {
+                auto external_relu  = pm->add_instruction(migraphx::make_op("relu"), inputs[0]);
+                auto dot1 = pm->add_instruction(migraphx::make_op("dot"), inputs[1], inputs[2]);
+                auto add  = pm->add_instruction(migraphx::make_op("add"), dot1, inputs[3]);
+                auto dot2 = pm->add_instruction(migraphx::make_op("dot"), add, external_relu);
+                return std::make_tuple(dot1->get_operator(),
+                                       std::vector<migraphx::instruction_ref>{dot2, add});
+            });
+        auto get_dot2 =
+            mm->add_instruction(migraphx::make_op("get_tuple_elem", {{"index", 0}}), fused);
+        auto get_add =
+            mm->add_instruction(migraphx::make_op("get_tuple_elem", {{"index", 1}}), fused);
+        auto external_t = mm->add_instruction(
+            migraphx::make_op("transpose", {{"permutation", {0, 2, 1}}}), get_dot2);
+        mm->add_return({get_add, external_t});
+    }
+    if(not migraphx::enabled(MIGRAPHX_ENABLE_MLIR_GEG_FUSION{}))
+        return;
+    EXPECT(p1.sort() == p2.sort());
+}
+
+TEST_CASE(dot_add_multi_user_dot_input_used_after)
+// GEG fusion has two outputs, E has external user
+// Testing inputs being defined within the span of will-be-fused ops
+// This also shows the relu being fused, since it is a unary op.
+// Result should be, and is, equivalent to the previous test
+{
+    migraphx::shape s{migraphx::shape::float_type, {1, 3, 3}};
+    migraphx::program p1;
+    {
+        auto* mm  = p1.get_main_module();
+        auto a    = mm->add_parameter("a", s);
+        auto b    = mm->add_parameter("b", s);
+        auto c    = mm->add_parameter("c", s);
+        auto d    = mm->add_parameter("d", s);
+        auto dot1 = mm->add_instruction(migraphx::make_op("dot"), a, b);
+        auto add  = add_pointwise(p1, "main:pointwise0", {dot1, c}, single_pointwise("add"));
+        auto external_relu  = add_pointwise(p1, "main:pointwise1", {d}, single_pointwise("relu"));
+        auto dot2 = mm->add_instruction(migraphx::make_op("dot"), add, external_relu);
+        auto transpose =
+            mm->add_instruction(migraphx::make_op("transpose", {{"permutation", {0, 2, 1}}}), dot2);
+        mm->add_return({add, transpose});
+    }
+    run_pass(p1);
+    migraphx::program p2;
+    {
+        auto* mm   = p2.get_main_module();
+        auto a     = mm->add_parameter("a", s);
+        auto b     = mm->add_parameter("b", s);
+        auto c     = mm->add_parameter("c", s);
+        auto d     = mm->add_parameter("d", s);
+        auto fused = add_mlir(
+            p2, "main:pointwise1:mlir_main:pointwise0_geg", {d, a, b, c}, [=](auto* pm, const auto& inputs) {
+                auto external_relu  = pm->add_instruction(migraphx::make_op("relu"), inputs[0]);
+                auto dot1 = pm->add_instruction(migraphx::make_op("dot"), inputs[1], inputs[2]);
+                auto add  = pm->add_instruction(migraphx::make_op("add"), dot1, inputs[3]);
+                auto dot2 = pm->add_instruction(migraphx::make_op("dot"), add, external_relu);
+                return std::make_tuple(dot1->get_operator(),
+                                       std::vector<migraphx::instruction_ref>{dot2, add});
+            });
+        auto get_dot2 =
+            mm->add_instruction(migraphx::make_op("get_tuple_elem", {{"index", 0}}), fused);
+        auto get_add =
+            mm->add_instruction(migraphx::make_op("get_tuple_elem", {{"index", 1}}), fused);
+        auto external_t = mm->add_instruction(
+            migraphx::make_op("transpose", {{"permutation", {0, 2, 1}}}), get_dot2);
+        mm->add_return({get_add, external_t});
+    }
+    if(not migraphx::enabled(MIGRAPHX_ENABLE_MLIR_GEG_FUSION{}))
+        return;
+    EXPECT(p1.sort() == p2.sort());
+}
+
+TEST_CASE(dot_add_multi_user_dot_input_used_before_in_chain)
+// GEG fusion has two outputs, E has external user
+// Base case for inputs being defined within the span of will-be-fused ops, including
+// longer chain of logic
+{
+    migraphx::shape s{migraphx::shape::float_type, {1, 3, 3}};
+    migraphx::program p1;
+    {
+        auto* mm  = p1.get_main_module();
+        auto a    = mm->add_parameter("a", s);
+        auto b    = mm->add_parameter("b", s);
+        auto c    = mm->add_parameter("c", s);
+        auto d    = mm->add_parameter("d", s);
+
+        auto external_relu  = add_pointwise(p1, "main:pointwise1", {d}, single_pointwise("relu"));
+        auto external_mul = add_pointwise(p1, "main:pointwise2", {external_relu, d}, single_pointwise("mul"));
+        
+        auto dot1 = mm->add_instruction(migraphx::make_op("dot"), a, b);
+        auto add  = add_pointwise(p1, "main:pointwise0", {dot1, c}, single_pointwise("add"));
+        auto dot2 = mm->add_instruction(migraphx::make_op("dot"), add, external_mul);
+        auto transpose =
+            mm->add_instruction(migraphx::make_op("transpose", {{"permutation", {0, 2, 1}}}), dot2);
+        mm->add_return({add, transpose});
+    }
+    run_pass(p1);
+    migraphx::program p2;
+    {
+        auto* mm   = p2.get_main_module();
+        auto a     = mm->add_parameter("a", s);
+        auto b     = mm->add_parameter("b", s);
+        auto c     = mm->add_parameter("c", s);
+        auto d     = mm->add_parameter("d", s);
+        auto external_relu  = add_pointwise(p2, "main:pointwise1", {d}, single_pointwise("relu"));
+        auto external_mul = add_pointwise(p2, "main:pointwise2", {external_relu, d}, single_pointwise("mul"));
+        auto fused = add_mlir(
+            p2, "mlir_main:pointwise0_geg", {a, b, c, external_mul}, [=](auto* pm, const auto& inputs) {
+                auto dot1 = pm->add_instruction(migraphx::make_op("dot"), inputs[0], inputs[1]);
+                auto add  = pm->add_instruction(migraphx::make_op("add"), dot1, inputs[2]);
+                auto dot2 = pm->add_instruction(migraphx::make_op("dot"), add, inputs[3]);
+                return std::make_tuple(dot1->get_operator(),
+                                       std::vector<migraphx::instruction_ref>{dot2, add});
+            });
+        auto get_dot2 =
+            mm->add_instruction(migraphx::make_op("get_tuple_elem", {{"index", 0}}), fused);
+        auto get_add =
+            mm->add_instruction(migraphx::make_op("get_tuple_elem", {{"index", 1}}), fused);
+        auto external_t = mm->add_instruction(
+            migraphx::make_op("transpose", {{"permutation", {0, 2, 1}}}), get_dot2);
+        mm->add_return({get_add, external_t});
+    }
+    if(not migraphx::enabled(MIGRAPHX_ENABLE_MLIR_GEG_FUSION{}))
+        return;
+    EXPECT(p1.sort() == p2.sort());
+}
+
+TEST_CASE(dot_add_multi_user_dot_input_used_after_in_chain)
+// GEG fusion has two outputs, E has external user
+// Testing inputs being defined within the span of will-be-fused ops, including
+// longer chain of logic
+{
+    migraphx::shape s{migraphx::shape::float_type, {1, 3, 3}};
+    migraphx::program p1;
+    {
+        auto* mm  = p1.get_main_module();
+        auto a    = mm->add_parameter("a", s);
+        auto b    = mm->add_parameter("b", s);
+        auto c    = mm->add_parameter("c", s);
+        auto d    = mm->add_parameter("d", s);
+        
+        auto dot1 = mm->add_instruction(migraphx::make_op("dot"), a, b);
+        auto add  = add_pointwise(p1, "main:pointwise0", {dot1, c}, single_pointwise("add"));
+        auto external_relu  = add_pointwise(p1, "main:pointwise1", {d}, single_pointwise("relu"));
+        auto external_mul = add_pointwise(p1, "main:pointwise2", {external_relu, d}, single_pointwise("mul"));
+        auto dot2 = mm->add_instruction(migraphx::make_op("dot"), add, external_mul);
+        auto transpose =
+            mm->add_instruction(migraphx::make_op("transpose", {{"permutation", {0, 2, 1}}}), dot2);
+        mm->add_return({add, transpose});
+    }
+    run_pass(p1);
+    migraphx::program p2;
+    {
+        auto* mm   = p2.get_main_module();
+        auto a     = mm->add_parameter("a", s);
+        auto b     = mm->add_parameter("b", s);
+        auto c     = mm->add_parameter("c", s);
+        auto d     = mm->add_parameter("d", s);
+        auto external_relu  = add_pointwise(p2, "main:pointwise1", {d}, single_pointwise("relu"));
+        auto external_mul = add_pointwise(p2, "main:pointwise2", {external_relu, d}, single_pointwise("mul"));
+        auto fused = add_mlir(
+            p2, "mlir_main:pointwise0_geg", {a, b, c, external_mul}, [=](auto* pm, const auto& inputs) {
+                auto dot1 = pm->add_instruction(migraphx::make_op("dot"), inputs[0], inputs[1]);
+                auto add  = pm->add_instruction(migraphx::make_op("add"), dot1, inputs[2]);
+                auto dot2 = pm->add_instruction(migraphx::make_op("dot"), add, inputs[3]);
+                return std::make_tuple(dot1->get_operator(),
+                                       std::vector<migraphx::instruction_ref>{dot2, add});
+            });
+        auto get_dot2 =
+            mm->add_instruction(migraphx::make_op("get_tuple_elem", {{"index", 0}}), fused);
+        auto get_add =
+            mm->add_instruction(migraphx::make_op("get_tuple_elem", {{"index", 1}}), fused);
+        auto external_t = mm->add_instruction(
+            migraphx::make_op("transpose", {{"permutation", {0, 2, 1}}}), get_dot2);
+        mm->add_return({get_add, external_t});
+    }
+    if(not migraphx::enabled(MIGRAPHX_ENABLE_MLIR_GEG_FUSION{}))
+        return;
+    EXPECT(p1.sort() == p2.sort());
+}
+
 TEST_CASE(dot_pw_multi_user_dot)
 // GEG fusion has two outputs, E has external user, E is multiple elemwise ops
 {

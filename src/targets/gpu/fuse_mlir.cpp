@@ -849,13 +849,7 @@ struct find_mlir_fused_geg_ops
         map_ins[first_gemm_ins] = first_gemm_in_module;
 
         // fuse external inputs for the elemwise operation
-        std::vector<instruction_ref> elemwise_external_inputs;
-        elemwise_external_inputs.reserve(elemwise_inputs.size());
-        std::copy_if(elemwise_inputs.begin(),
-                     elemwise_inputs.end(),
-                     std::back_inserter(elemwise_external_inputs),
-                     [&](auto input) { return input != first_gemm_ins; });
-        fuse_input_ops(mm, elemwise_external_inputs, &map_ins);
+        fuse_input_ops(mm, elemwise_inputs, &map_ins);
 
         // fuse elemwise submodule
         auto elemwise_rins =
@@ -864,13 +858,7 @@ struct find_mlir_fused_geg_ops
         map_ins[elemwise_ins] = elemwise_rins.front();
 
         // fuse external inputs for the second gemm
-        std::vector<instruction_ref> second_gemm_external_inputs;
-        second_gemm_external_inputs.reserve(second_gemm_inputs.size());
-        std::copy_if(second_gemm_inputs.begin(),
-                     second_gemm_inputs.end(),
-                     std::back_inserter(second_gemm_external_inputs),
-                     [&](auto input) { return input != elemwise_ins; });
-        fuse_input_ops(mm, second_gemm_external_inputs, &map_ins);
+        fuse_input_ops(mm, second_gemm_inputs, &map_ins);
 
         // add the second gemm to the new module
         std::vector<instruction_ref> second_gemm_mapped_inputs;
@@ -881,6 +869,7 @@ struct find_mlir_fused_geg_ops
                        [&](auto input) { return map_ins.at(input); });
         auto second_gemm_in_module =
             mm->add_instruction(second_gemm_ins->get_operator(), second_gemm_mapped_inputs);
+        map_ins[second_gemm_ins] = second_gemm_in_module;
 
         // primary output is the last gemm, which should be the first output
         std::vector<instruction_ref> return_vals;
@@ -897,21 +886,18 @@ struct find_mlir_fused_geg_ops
         mm->add_return(return_vals);
         auto inputs = find_inputs(map_ins, &mpm.get_module(), mm);
 
-        // In the multi-out case, we place the fused mod at the first instruction to avoid any
-        // rogue ops being placed between the g+g ops, even though they aren't used in the
-        // fused mod, because they might rely on one of the intermediates. Otherwise, when
-        // replacing intermediates' usages, we can run into unresolved dependencies.
-        // However, for the single-out case, it is possible for there to be unresolved dependencies
-        // if we place the fused mod at the first instruction, because in some archs, the inputs
-        // of the intermediates may be located in the IR in between the fused ops. As a result, for
-        // the single-out case, we insert the fused op at the last instruction.
-        if(first_gemm_has_multi_outs or elemwise_has_multi_outs)
-        {
-            auto fused_ins =
+        // sort fusion section of module such that any external inputs are moved before the fusion
+        // so that we can safely place the fused mod in the multi-out case at the beginning of the chain
+        mpm.get_module().localized_sort(first_gemm_ins, second_gemm_ins);
+
+        auto fused_ins =
                 mpm.get_module().insert_instruction(first_gemm_ins,
                                                     mlir_op{second_gemm_ins->get_operator()},
                                                     mlir_contiguous(mpm, inputs),
                                                     {mm});
+
+        if(first_gemm_has_multi_outs or elemwise_has_multi_outs)
+        {
             std::size_t output_idx = 0;
             if(elemwise_has_multi_outs)
             {
@@ -934,11 +920,6 @@ struct find_mlir_fused_geg_ops
         else
         {
             // simple single output case
-            auto fused_ins =
-                mpm.get_module().insert_instruction(second_gemm_ins,
-                                                    mlir_op{second_gemm_ins->get_operator()},
-                                                    mlir_contiguous(mpm, inputs),
-                                                    {mm});
             mpm.get_module().replace_instruction(second_gemm_ins, fused_ins);
         }
     }

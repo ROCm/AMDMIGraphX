@@ -508,6 +508,17 @@ struct mlir_program
         {
         }
 
+        void setOperandSegmentSizes(int numSegments, const int32_t* sizes)
+        {
+            MlirAttribute segmentSizesAttr =
+                mlirDenseI32ArrayGet(prog->ctx.get(), numSegments, sizes);
+            MlirNamedAttribute namedAttr = mlirNamedAttributeGet(
+                    mlirIdentifierGet(prog->ctx.get(),
+                        mlirStringRefCreateFromCString("operandSegmentSizes")),
+                    segmentSizesAttr);
+            mlirOperationStateAddAttributes(&op_state, 1, &namedAttr);
+        }
+
         mlir_operation_state& add_attributes(const std::vector<named_attribute_t>& named_attrs)
         {
             auto attributes = prog->name_attributes(named_attrs);
@@ -755,9 +766,20 @@ struct mlir_program
             std::vector<MlirValue> inputs;
             transform(
                 ins->inputs(), std::back_inserter(inputs), [&](auto i) { return ins_map.at(i); });
+
+            if(ins->name() == "quant_dot" &&
+               ins->inputs().front()->get_shape().type() == shape::fp8e4m3fn_type &&
+               ins->inputs().size() == 4)
+            {
+                // Specify operand segment sizes BEFORE creating the operation so MLIR sees it.
+                // Use the canonical MLIR attribute name 'operandSegmentSizes'.
+                int32_t seg_sizes[] = {1, 1, 1, 1};
+                ops.setOperandSegmentSizes(4, seg_sizes);
+            }
             ops.add_operands(inputs);
 
             auto outputs = insert(fbody, std::move(ops));
+
             if(ins->name() != "@return")
             {
                 assert(outputs.size() == 1);
@@ -1208,6 +1230,7 @@ mlir_code_object compile_mlir(const context& migraphx_ctx,
         const std::lock_guard<std::mutex> lock(mutex);
         std::cout << mlir_print(&mlirOperationPrint, mod_op) << std::endl;
     }
+
     auto co = mp.compile(solution);
 
     co.expected_inputs = in_shapes;

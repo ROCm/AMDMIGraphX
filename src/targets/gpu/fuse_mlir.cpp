@@ -30,6 +30,7 @@
 #include <migraphx/env.hpp>
 #include <migraphx/dead_code_elimination.hpp>
 #include <migraphx/eliminate_common_subexpression.hpp>
+#include <migraphx/propagate_constant.hpp>
 #include <migraphx/common.hpp>
 #include <migraphx/algorithm.hpp>
 #include <migraphx/output_iterator.hpp>
@@ -1654,6 +1655,7 @@ void fuse_mlir::apply(module_pass_manager& mpm) const
     match::find_matches(mpm, find_mlir_output_reshape_ops{});
 
     remove_layout(mpm.get_module());
+    mpm.run_pass(propagate_constant{});
 
 #else
     (void)mpm;

@@ -1612,7 +1612,7 @@ void module::localized_sort(instruction_ref start_ins, instruction_ref end_ins)
     // the preexisting topological order of the module
     for(auto it = std::next(start_ins); it != end_ins;)
     {
-        if(!fusion_ins.count(it))
+        if(fusion_ins.count(it) == 0)
         {
             auto next = std::next(it); // move_instruction updates the iterator
             this->move_instruction(it, start_ins);

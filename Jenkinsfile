@@ -72,12 +72,18 @@ def rocmtestnode(Map conf) {
                 checkout scm
             }
 
+            def dockerOpts = "--device=/dev/kfd --device=/dev/dri --cap-add SYS_PTRACE"
+            def video_id = sh(returnStdout: true, script: 'getent group video | cut -d: -f3')
+            def render_id = sh(returnStdout: true, script: 'getent group render | cut -d: -f3')
+            def dockerOpts = "--device=/dev/kfd --device=/dev/dri "
+            echo "Docker flags: ${dockerOpts}"
+
             gitStatusWrapper(credentialsId: "${env.migraphx_ci_creds}", gitHubContext: "Jenkins - ${variant}", account: 'ROCmSoftwarePlatform', repo: 'AMDMIGraphX') {
                 withCredentials([usernamePassword(credentialsId: 'docker_test_cred', passwordVariable: 'DOCKERHUB_PASS', usernameVariable: 'DOCKERHUB_USER')]) {
                     sh "echo $DOCKERHUB_PASS | docker login --username $DOCKERHUB_USER --password-stdin"
                     pre()
                     sh "docker pull ${DOCKER_IMAGE}:${env.IMAGE_TAG}"
-                    withDockerContainer(image: "${DOCKER_IMAGE}:${env.IMAGE_TAG}", args: "--device=/dev/kfd --device=/dev/dri --group-add video --cap-add SYS_PTRACE ${docker_args}") {
+                    withDockerContainer(image: "${DOCKER_IMAGE}:${env.IMAGE_TAG}", args: dockerOpts + ${docker_args}) {
                         timeout(time: 4, unit: 'HOURS') {
                             body(cmake_build)
                         }
@@ -136,7 +142,7 @@ properties([
     ])
 ])
 
-node("(rocmtest || migraphx)") {
+node("christest") {
     Boolean imageExists = false
     withCredentials([usernamePassword(credentialsId: 'docker_test_cred', passwordVariable: 'DOCKERHUB_PASS', usernameVariable: 'DOCKERHUB_USER')]) {
         sh "echo $DOCKERHUB_PASS | docker login --username $DOCKERHUB_USER --password-stdin"
@@ -145,6 +151,7 @@ node("(rocmtest || migraphx)") {
             checkout scm
             def calculateImageTagScript = """
                 shopt -s globstar
+                
                 sha256sum **/Jenkinsfile **/Dockerfile **/*requirements.txt **/install_prereqs.sh **/rbuild.ini **/test/onnx/.onnxrt-commit | sha256sum | cut -d " " -f 1
             """
             env.IMAGE_TAG = sh(script: "bash -c '${calculateImageTagScript}'", returnStdout: true).trim()

@@ -46,6 +46,7 @@ RUN apt-get update && DEBIAN_FRONTEND=noninteractive apt-get install -y --allow-
     libomp-dev \
     rocblas \
     hipfft \
+    hipsolver \
     rocthrust \
     rocrand \
     hipsparse \

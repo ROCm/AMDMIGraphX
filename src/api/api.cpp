@@ -2421,10 +2421,13 @@ extern "C" migraphx_status migraphx_quantize_fp8(migraphx_program_t prog,
     return api_error_result;
 }
 
-extern "C" migraphx_status get_supported_onnx_operators(migraphx_quantize_op_names_t* out)
+extern "C" migraphx_status get_supported_onnx_operators(const char** out)
 {
     auto api_error_result = migraphx::try_([&] {
-        *out = allocate<migraphx_quantize_op_names_t>(migraphx::get_supported_onnx_operators());
+        if(out == nullptr)
+            MIGRAPHX_THROW(migraphx_status_bad_param, "Bad parameter out: Null pointer");
+        auto&& api_result = migraphx::get_supported_onnx_operators();
+        std::copy(api_result.begin(), api_result.end(), out);
     });
     return api_error_result;
 }

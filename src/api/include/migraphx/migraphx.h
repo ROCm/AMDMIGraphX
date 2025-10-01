@@ -659,7 +659,7 @@ MIGRAPHX_C_EXPORT migraphx_status migraphx_quantize_fp8(migraphx_program_t prog,
                                                         migraphx_target_t target,
                                                         migraphx_quantize_fp8_options_t options);
 
-MIGRAPHX_C_EXPORT migraphx_status get_supported_onnx_operators(migraphx_quantize_op_names_t* out);
+MIGRAPHX_C_EXPORT migraphx_status get_supported_onnx_operators(const char** out);
 
 MIGRAPHX_C_EXPORT migraphx_status migraphx_context_finish(const_migraphx_context_t context);
 

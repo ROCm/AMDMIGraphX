@@ -145,10 +145,6 @@ typedef const struct migraphx_quantize_int8_options* const_migraphx_quantize_int
 typedef struct migraphx_quantize_fp8_options* migraphx_quantize_fp8_options_t;
 typedef const struct migraphx_quantize_fp8_options* const_migraphx_quantize_fp8_options_t;
 
-typedef struct migraphx_get_supported_onnx_operators* migraphx_get_supported_onnx_operators_t;
-typedef const struct migraphx_get_supported_onnx_operators*
-    const_migraphx_get_supported_onnx_operators_t;
-
 typedef struct migraphx_context* migraphx_context_t;
 typedef const struct migraphx_context* const_migraphx_context_t;
 
@@ -663,15 +659,7 @@ MIGRAPHX_C_EXPORT migraphx_status migraphx_quantize_fp8(migraphx_program_t prog,
                                                         migraphx_target_t target,
                                                         migraphx_quantize_fp8_options_t options);
 
-MIGRAPHX_C_EXPORT migraphx_status migraphx_get_supported_onnx_operators_destroy(
-    migraphx_get_supported_onnx_operators_t get_supported_onnx_operators);
-
-MIGRAPHX_C_EXPORT migraphx_status migraphx_get_supported_onnx_operators_assign_to(
-    migraphx_get_supported_onnx_operators_t output,
-    const_migraphx_get_supported_onnx_operators_t input);
-
-MIGRAPHX_C_EXPORT migraphx_status migraphx_get_supported_onnx_operators_create(
-    migraphx_get_supported_onnx_operators_t* get_supported_onnx_operators);
+MIGRAPHX_C_EXPORT migraphx_status get_supported_onnx_operators(migraphx_quantize_op_names_t* out);
 
 MIGRAPHX_C_EXPORT migraphx_status migraphx_context_finish(const_migraphx_context_t context);
 

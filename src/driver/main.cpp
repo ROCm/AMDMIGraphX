@@ -603,7 +603,7 @@ struct compiler
     auto params(const program& p)
     {
         return parameters.generate(
-            p, ct.get_target(), co.offload_copy, l.batch, l.parse_param_dims(l.param_dims));
+            p, ct.get_target(), co.offload_copy, l.batch, loader::parse_param_dims(l.param_dims));
     }
 
     auto host_params(const program& p)
@@ -742,7 +742,7 @@ struct verify : command<verify>
         std::cout << p << std::endl;
 
         auto t = c.ct.get_target();
-        auto m = c.parameters.generate(p, t, true, c.l.batch, c.l.parse_param_dims(c.l.param_dims));
+        auto m = c.parameters.generate(p, t, true, c.l.batch, loader::parse_param_dims(c.l.param_dims));
 
         if(c.to_fp16)
         {

@@ -42,17 +42,9 @@ MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_TRACE_PASSES);
 MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_TIME_PASSES);
 MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_DISABLE_PASSES);
 
-namespace {
-#ifdef _WIN32
-#define MIGRAPHX_DISABLE_PASSES_DEFAULT "propagate_constant,simplify_algebra"
-#else
-#define MIGRAPHX_DISABLE_PASSES_DEFAULT ""
-#endif
-}  // namespace
-
 static bool is_pass_disabled(const std::string& name)
 {
-    static const auto passes = split_string(string_value_of(MIGRAPHX_DISABLE_PASSES{}, MIGRAPHX_DISABLE_PASSES_DEFAULT), ',');
+    static const auto passes = split_string(string_value_of(MIGRAPHX_DISABLE_PASSES{}, ""), ',');
     return contains(passes, name);
 }
 

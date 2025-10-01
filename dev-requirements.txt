@@ -21,7 +21,7 @@
 # OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 # THE SOFTWARE.
 #####################################################################################
-ROCmSoftwarePlatform/rocm-recipes
+ROCm/rocm-recipes
 facebook/zstd@v1.5.7 -X subdir -DCMAKE_DIR=build/cmake
 ccache@v4.1 -DENABLE_TESTING=OFF
 pcre,pfultz2/pcre@8.45 -H sha256:d6f7182602a775a7d500a0cedca6449af0400c6493951513046d17615ed0bf11

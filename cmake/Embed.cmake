@@ -105,21 +105,22 @@ function(generate_embed_source EMBED_NAME EMBED_DIR BASE_DIRECTORY)
             string(APPEND RC_FILE_MAPPING "IDR_${SYMBOL} TEXTFILE \"${NATIVE_FILE}\"\n")
             string(APPEND INIT_KERNELS "\n        {\"${BASE_NAME}\", resource::read(IDR_${SYMBOL})},")
             math(EXPR RESOURCE_ID "${RESOURCE_ID} + 1" OUTPUT_FORMAT DECIMAL)
-        else()
+        elseif(EMBED_USE STREQUAL "LD")
+            set(START_SYMBOL "_binary_${SYMBOL}_start")
+            set(END_SYMBOL "_binary_${SYMBOL}_end")
+            string(APPEND EXTERNS "
+extern const char ${START_SYMBOL}[];
+extern const char ${END_SYMBOL}[];
+")
+            string(APPEND INIT_KERNELS "
+        { \"${BASE_NAME}\", { ${START_SYMBOL}, static_cast<size_t>(${END_SYMBOL} - ${START_SYMBOL})} },")
+        else() # CArrays
             set(START_SYMBOL "_binary_${SYMBOL}_start")
             set(LENGTH_SYMBOL "_binary_${SYMBOL}_length")
-            if(EMBED_USE STREQUAL "LD")
-                string(APPEND EXTERNS "
-extern const char ${START_SYMBOL}[];
-extern const size_t _binary_${SYMBOL}_size;
-const auto ${LENGTH_SYMBOL} = reinterpret_cast<size_t>(&_binary_${SYMBOL}_size);
-")
-            else()
-                string(APPEND EXTERNS "
+            string(APPEND EXTERNS "
 extern const char ${START_SYMBOL}[];
 extern const size_t ${LENGTH_SYMBOL};
 ")
-            endif()
             string(APPEND INIT_KERNELS "
         { \"${BASE_NAME}\", { ${START_SYMBOL}, ${LENGTH_SYMBOL}} },")
         endif()

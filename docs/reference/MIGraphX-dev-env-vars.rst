@@ -95,6 +95,8 @@ Model performance tunable variables change the compilation behavior of a model. 
       | ``attention``: Use attention fusion. This is used by default on MI300, but must be specified on other architectures.
 
       | ``convolution``: Use MLIR generated kernels for all convolutions. MIOpen is used by default otherwise.
+
+      | ``convolution_backwards``: Use MLIR generated kernels for backward-convolution. MIOpen is used by default otherwise.
       
       | ``dot``: Use MLIR generated kernels for all GEMMs. hipBLASlt is used otherwise.
       
@@ -591,7 +593,7 @@ Advanced settings
       | Sets the number of threads to use for parallel GPU code compilation. 
       
     - | Takes a positive integer value.
-      | Default: Compilation is not run in parallel.
+      | Default: Number of threads is equal to number of processing units (`nproc`).
 
   * - | ``MIGRAPHX_TRACE_NARY``
       | When set, the nary device functions used during execution are printed out.
@@ -646,3 +648,4 @@ Advanced settings
       | Sets the number of timing runs for each configuration bundle being benchmarked. 
       
     - Takes a positive integer.
+

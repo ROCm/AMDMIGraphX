@@ -221,6 +221,8 @@ std::vector<pass> target::get_passes(migraphx::context& gctx, const compile_opti
         dead_code_elimination{},
         propagate_precision{},
         dead_code_elimination{},
+        simplify_reshapes{.enable_op_shape_transform_op=true},
+        dead_code_elimination{},
         enable_pass(mlir_attention_enabled(&ctx), fuse_attention{}),
         dead_code_elimination{},
         optimize_module{},

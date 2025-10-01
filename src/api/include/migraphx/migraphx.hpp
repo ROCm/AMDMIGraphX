@@ -1612,7 +1612,7 @@ struct supported_onnx_ops_options : MIGRPAHX_HANDLE_BASE(supported_onnx_ops_opti
 
 inline void get_supported_onnx_operators(supported_onnx_ops_options& options)
 {
-    call(&migraphx_get_onnx_operators,
+    call(&migraphx_get_supported_onnx_operators,
          options.get_handle_ptr());
 }
 

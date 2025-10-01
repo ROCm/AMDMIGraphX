@@ -289,6 +289,11 @@ static void quantize_fp8_wrap(program& prog, const target& t, quantize_fp8_optio
     migraphx::quantize_fp8(prog, t, options.calibration);
 }
 
+static std::vector<std::string> get_supported_onnx_operators()
+{
+    return migraphx::get_onnx_operators();
+}
+
 #ifdef __clang__
 #pragma clang diagnostic push
 #pragma clang diagnostic ignored "-Wformat-nonliteral"
@@ -731,6 +736,17 @@ struct migraphx_quantize_fp8_options
     {
     }
     migraphx::quantize_fp8_options object;
+};
+
+extern "C" struct migraphx_get_supported_onnx_operators;
+struct migraphx_get_supported_onnx_operators
+{
+    template <class... Ts>
+    migraphx_get_supported_onnx_operators(Ts&&... xs)
+        : object(std::forward<Ts>(xs)...) // NOLINT(readability-redundant-member-init)
+    {
+    }
+    migraphx::get_supported_onnx_operators object;
 };
 
 extern "C" struct migraphx_context;
@@ -2414,6 +2430,32 @@ extern "C" migraphx_status migraphx_quantize_fp8(migraphx_program_t prog,
         if(options == nullptr)
             MIGRAPHX_THROW(migraphx_status_bad_param, "Bad parameter options: Null pointer");
         migraphx::quantize_fp8_wrap((prog->object), (target->object), (options->object));
+    });
+    return api_error_result;
+}
+
+extern "C" migraphx_status migraphx_get_supported_onnx_operators_destroy(
+    migraphx_get_supported_onnx_operators_t get_supported_onnx_operators)
+{
+    auto api_error_result = migraphx::try_([&] { destroy((get_supported_onnx_operators)); });
+    return api_error_result;
+}
+
+extern "C" migraphx_status
+migraphx_get_supported_onnx_operators_assign_to(migraphx_get_supported_onnx_operators_t output,
+                                                const_migraphx_get_supported_onnx_operators_t input)
+{
+    auto api_error_result = migraphx::try_([&] { *output = *input; });
+    return api_error_result;
+}
+
+extern "C" migraphx_status migraphx_get_supported_onnx_operators_create(
+    migraphx_get_supported_onnx_operators_t* get_supported_onnx_operators)
+{
+    auto api_error_result = migraphx::try_([&] {
+        *get_supported_onnx_operators = object_cast<migraphx_get_supported_onnx_operators_t>(
+            allocate<migraphx::get_supported_onnx_operators>(
+                migraphx::get_supported_onnx_operators()));
     });
     return api_error_result;
 }

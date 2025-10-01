@@ -510,6 +510,11 @@ api.add_function('migraphx_quantize_fp8',
                             options='migraphx::quantize_fp8_options'),
                  fname='migraphx::quantize_fp8_wrap')
 
+@auto_handle()
+def get_supported_onnx_operators(h):
+    h.constructor('create',
+                  fname='migraphx::get_supported_onnx_operators')
+
 
 @auto_handle(ref=True)
 def context(h):

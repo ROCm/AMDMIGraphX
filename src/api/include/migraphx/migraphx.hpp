@@ -1603,6 +1603,19 @@ quantize_fp8(const program& prog, const target& ptarget, const quantize_fp8_opti
          options.get_handle_ptr());
 }
 
+struct supported_onnx_ops_options : MIGRPAHX_HANDLE_BASE(supported_onnx_ops_options)
+{
+    supported_onnx_ops-options() {this->make_handle(&migraphx_supported_onnx_ops_options_create); }
+
+    MIGRAPHX_HANDLE_CONSTRUCTOR(supported_onnx_op_options)
+};
+
+inline void get_supported_onnx_operators(supported_onnx_ops_options& options)
+{
+    call(&migraphx_get_onnx_operators,
+         options.get_handle_ptr());
+}
+
 struct experimental_custom_op_base
 {
     experimental_custom_op_base()                                              = default;
@@ -1617,6 +1630,7 @@ struct experimental_custom_op_base
     // TODO: Return target string instead of bool
     virtual bool runs_on_offload_target() const = 0;
 };
+
 
 struct experimental_custom_op : interface_base<MIGRAPHX_HANDLE_BASE(experimental_custom_op)>
 {

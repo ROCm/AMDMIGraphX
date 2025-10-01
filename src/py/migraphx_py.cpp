@@ -621,6 +621,7 @@ MIGRAPHX_PYBIND11_MODULE(migraphx, m)
         py::arg("map_input_dims") = std::unordered_map<std::string, std::vector<std::size_t>>(),
         py::arg("output_names")   = std::vector<std::string>());
 
+    m.def("get_supported_onnx_operators", []{return migraphx::get_onnx_operators();});
     m.def(
         "parse_onnx",
         [](const std::string& filename,

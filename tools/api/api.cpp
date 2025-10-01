@@ -289,6 +289,11 @@ static void quantize_fp8_wrap(program& prog, const target& t, quantize_fp8_optio
     migraphx::quantize_fp8(prog, t, options.calibration);
 }
 
+static std::vector<std::string> get_supported_onnx_operators()
+{
+    return migraphx::get_onnx_operators();
+}
+
 #ifdef __clang__
 #pragma clang diagnostic push
 #pragma clang diagnostic ignored "-Wformat-nonliteral"

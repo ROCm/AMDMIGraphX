@@ -512,7 +512,7 @@ api.add_function('migraphx_quantize_fp8',
 
 api.add_function('get_supported_onnx_operators',
                  fname='migraphx::get_supported_onnx_operators',
-                 returns='std::vector<std::string>')
+                 returns='std::vector<const char*>')
 
 
 

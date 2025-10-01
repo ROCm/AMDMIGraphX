@@ -1610,10 +1610,13 @@ struct supported_onnx_ops_options : MIGRPAHX_HANDLE_BASE(supported_onnx_ops_opti
     MIGRAPHX_HANDLE_CONSTRUCTOR(supported_onnx_op_options)
 };
 
-inline void get_supported_onnx_operators(supported_onnx_ops_options& options)
+inline std::vector<std::string> get_supported_onnx_operators(supported_onnx_ops_options& options)
 {
+    const char ** output;
     call(&migraphx_get_supported_onnx_operators,
-         options.get_handle_ptr());
+         output);
+    
+    return std::vector<string>(output)
 }
 
 struct experimental_custom_op_base
@@ -1621,7 +1624,7 @@ struct experimental_custom_op_base
     experimental_custom_op_base()                                              = default;
     experimental_custom_op_base(const experimental_custom_op_base&)            = default;
     experimental_custom_op_base& operator=(const experimental_custom_op_base&) = default;
-    virtual ~experimental_custom_op_base()                                     = default;
+    virtual ~experimental_custom_op_tDase()                                     = default;
 
     virtual std::string name() const                                            = 0;
     virtual argument compute(context ctx, shape output, arguments inputs) const = 0;

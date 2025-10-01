@@ -2116,10 +2116,20 @@ struct find_split_transpose
 };
 
 MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_SIMPLIFY_ALGEBRA_PASSES)
+MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_SIMPLIFY_ALGEBRA_MAX_CALLS)
 
 void simplify_algebra::apply(module& m) const
 {
     static const auto num_passes = value_of(MIGRAPHX_SIMPLIFY_ALGEBRA_PASSES{}, simplify_algebra::NUM_PASSES);
+    static const auto max_call = value_of(MIGRAPHX_SIMPLIFY_ALGEBRA_MAX_CALLS{}, );
+    static size_t n_calls = 0;
+
+    if (max_call)
+    {
+        n_calls++;
+        if (n_calls > max_call)
+            return;
+    }
     // Run simplifications multiple times
     m.repeat_while_changes(num_passes, [&] {
         match::find_matches(m,

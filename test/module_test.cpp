@@ -1391,4 +1391,50 @@ TEST_CASE(pathological_dfs_graph_sort)
     EXPECT(is_sorted(m));
 }
 
+TEST_CASE(localized_sort)
+{
+    migraphx::shape s1{migraphx::shape::float_type, {2, 3}};
+    migraphx::shape s2{migraphx::shape::float_type, {3, 4}};
+    migraphx::shape s3{migraphx::shape::float_type, {2, 4}};
+    migraphx::shape s4{migraphx::shape::float_type, {4, 2}};
+    migraphx::program p;
+    auto* mm = p.get_main_module();
+
+    auto a = mm->add_parameter("a", s1);
+    auto b = mm->add_parameter("b", s2);
+    auto c = mm->add_parameter("c", s3);
+    auto d = mm->add_parameter("d", s4);
+
+    auto dot1 = mm->add_instruction(migraphx::make_op("dot"), a, b); // {2, 4}
+    auto external_relu =
+        add_pointwise(p, "main:pointwise1", {d}, single_pointwise("relu")); // {4, 3}
+    auto external_mul =
+        add_pointwise(p, "main:pointwise2", {external_relu, d}, single_pointwise("mul")); // {4, 3}
+    auto add  = add_pointwise(p, "main:pointwise0", {dot1, c}, single_pointwise("add"));  // {2, 4}
+    auto dot2 = mm->add_instruction(migraphx::make_op("dot"), add, external_mul);         // {2, 3}
+    auto transpose =
+        mm->add_instruction(migraphx::make_op("transpose", {{"permutation", {1, 0}}}), dot2);
+    mm->add_return({add, transpose});
+
+    // Perform localized sort between dot1 and dot2
+    mm->localized_sort(dot1, dot2);
+
+    // Verify the module is still topologically sorted overall
+    EXPECT(is_sorted(*mm));
+
+    // Verify external operations moved before the fusion chain
+    EXPECT(std::distance(mm->begin(), external_relu) < std::distance(mm->begin(), dot1));
+    EXPECT(std::distance(mm->begin(), external_mul) < std::distance(mm->begin(), dot1));
+
+    // Verify the fusion chain ordering is preserved: dot1 < add < dot2
+    EXPECT(std::distance(mm->begin(), dot1) < std::distance(mm->begin(), add));
+    EXPECT(std::distance(mm->begin(), add) < std::distance(mm->begin(), dot2));
+
+    // Verify external_mul is before dot1 (since dot2 depends on external_mul)
+    EXPECT(std::distance(mm->begin(), external_mul) < std::distance(mm->begin(), dot1));
+
+    // Verify transpose remains after dot2
+    EXPECT(std::distance(mm->begin(), dot2) < std::distance(mm->begin(), transpose));
+}
+
 int main(int argc, const char* argv[]) { test::run(argc, argv); }

@@ -892,8 +892,8 @@ struct find_gather
 
     void apply(module& m, const match::matcher_result& r) const
     {
-    auto ins          = r.result;
-    auto indices_ins  = r.instructions["indices"];
+        auto ins          = r.result;
+        auto indices_ins  = r.instructions["indices"];
         auto data_ins     = ins->inputs().front();
         auto gather_op    = any_cast<op::gather>(ins->get_operator());
         const auto& dlens = data_ins->get_shape().lens();
@@ -913,10 +913,9 @@ struct find_gather
         std::vector<std::int64_t> indices_values;
         arg_ind.visit([&](auto v) {
             indices_values.resize(v.size());
-            std::transform(v.begin(),
-                           v.end(),
-                           indices_values.begin(),
-                           [](auto x) { return static_cast<std::int64_t>(x); });
+            std::transform(v.begin(), v.end(), indices_values.begin(), [](auto x) {
+                return static_cast<std::int64_t>(x);
+            });
         });
         if(indices_values.empty())
             return;
@@ -1037,9 +1036,9 @@ struct find_gather
         std::vector<std::size_t> rest_lens = pre_lens;
         rest_lens.insert(rest_lens.end(), post_lens.begin(), post_lens.end());
 
-        const bool has_broadcast      = in_dims != vary_dims.size();
+        const bool has_broadcast       = in_dims != vary_dims.size();
         const bool need_second_reshape = has_broadcast or in_dims == 0;
-        const auto& output_lens       = ins->get_shape().lens();
+        const auto& output_lens        = ins->get_shape().lens();
 
         instruction_ref curr = data_ins;
 
@@ -1054,9 +1053,8 @@ struct find_gather
                     continue;
                 perm_axis_front.push_back(static_cast<int64_t>(i));
             }
-            curr = m.insert_instruction(ins,
-                                        make_op("transpose", {{"permutation", perm_axis_front}}),
-                                        curr);
+            curr = m.insert_instruction(
+                ins, make_op("transpose", {{"permutation", perm_axis_front}}), curr);
         }
 
         if(base != 0 or static_cast<std::size_t>(slice_len) != axis_len)
@@ -1065,9 +1063,7 @@ struct find_gather
             std::vector<int64_t> starts{base};
             std::vector<int64_t> ends{base + slice_len};
             curr = m.insert_instruction(
-                ins,
-                make_op("slice", {{"axes", axes}, {"starts", starts}, {"ends", ends}}),
-                curr);
+                ins, make_op("slice", {{"axes", axes}, {"starts", starts}, {"ends", ends}}), curr);
         }
 
         std::vector<int64_t> rest_dims;
@@ -1092,9 +1088,8 @@ struct find_gather
                 std::vector<int64_t> perm(axis_count + rest_dims.size());
                 for(std::size_t i = 0; i < target_vary_order.size(); ++i)
                 {
-                    auto it = std::find(ordered_vary_desc.begin(),
-                                         ordered_vary_desc.end(),
-                                         target_vary_order[i]);
+                    auto it = std::find(
+                        ordered_vary_desc.begin(), ordered_vary_desc.end(), target_vary_order[i]);
                     if(it == ordered_vary_desc.end())
                         return;
                     perm[i] = std::distance(ordered_vary_desc.begin(), it);
@@ -1102,8 +1097,8 @@ struct find_gather
                 for(std::size_t i = 0; i < rest_dims.size(); ++i)
                     perm[target_vary_order.size() + i] = static_cast<int64_t>(axis_count + i);
 
-                curr = m.insert_instruction(
-                    ins, make_op("transpose", {{"permutation", perm}}), curr);
+                curr =
+                    m.insert_instruction(ins, make_op("transpose", {{"permutation", perm}}), curr);
                 ordered_vary_desc = target_vary_order;
             }
         }
@@ -1114,15 +1109,13 @@ struct find_gather
             reshape2_dims.reserve(in_dims + rest_dims.size());
             for(std::size_t dim = 0; dim < in_dims; ++dim)
             {
-                reshape2_dims.push_back((strides[dim] > 0 and idims[dim] > 1)
-                                            ? static_cast<int64_t>(idims[dim])
-                                            : 1);
+                reshape2_dims.push_back(
+                    (strides[dim] > 0 and idims[dim] > 1) ? static_cast<int64_t>(idims[dim]) : 1);
             }
             reshape2_dims.insert(reshape2_dims.end(), rest_dims.begin(), rest_dims.end());
             if(reshape2_dims.empty())
                 reshape2_dims.push_back(1);
-            curr =
-                m.insert_instruction(ins, make_op("reshape", {{"dims", reshape2_dims}}), curr);
+            curr = m.insert_instruction(ins, make_op("reshape", {{"dims", reshape2_dims}}), curr);
         }
 
         const std::size_t axis_block_size = in_dims;

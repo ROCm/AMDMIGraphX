@@ -1817,15 +1817,14 @@ TEST_CASE(gather_1d_nd_indices)
     migraphx::shape si{migraphx::shape::int32_type, {2, 3}};
     std::vector<int> indices = {0, 1, 2, 3, 4, 5};
     auto li                  = m.add_literal(migraphx::literal(si, indices));
-    auto g = m.add_instruction(migraphx::make_op("gather", {{"axis", 0}}), x, li);
+    auto g                   = m.add_instruction(migraphx::make_op("gather", {{"axis", 0}}), x, li);
     m.add_return({g});
 
     run_pass(m);
 
     migraphx::module expected;
-    auto xe = expected.add_parameter("x", {migraphx::shape::float_type, {6}});
-    auto reshaped =
-        expected.add_instruction(migraphx::make_op("reshape", {{"dims", {2, 3}}}), xe);
+    auto xe       = expected.add_parameter("x", {migraphx::shape::float_type, {6}});
+    auto reshaped = expected.add_instruction(migraphx::make_op("reshape", {{"dims", {2, 3}}}), xe);
     expected.add_return({reshaped});
 
     EXPECT(m == expected);
@@ -1838,7 +1837,7 @@ TEST_CASE(gather_axis_slice_broadcast)
     migraphx::shape si{migraphx::shape::int32_type, {2, 3}};
     std::vector<int> indices = {1, 1, 1, 2, 2, 2};
     auto li                  = m.add_literal(migraphx::literal(si, indices));
-    auto g = m.add_instruction(migraphx::make_op("gather", {{"axis", 1}}), x, li);
+    auto g                   = m.add_instruction(migraphx::make_op("gather", {{"axis", 1}}), x, li);
     m.add_return({g});
 
     run_pass(m);
@@ -1849,8 +1848,8 @@ TEST_CASE(gather_axis_slice_broadcast)
         expected.add_instruction(migraphx::make_op("transpose", {{"permutation", {1, 0}}}), xe);
     auto sliced = expected.add_instruction(
         migraphx::make_op("slice", {{"axes", {0}}, {"starts", {1}}, {"ends", {3}}}), t0);
-    auto t1 = expected.add_instruction(
-        migraphx::make_op("transpose", {{"permutation", {1, 0}}}), sliced);
+    auto t1 =
+        expected.add_instruction(migraphx::make_op("transpose", {{"permutation", {1, 0}}}), sliced);
     auto br = expected.add_instruction(
         migraphx::make_op("broadcast", {{"axis", 0}, {"out_lens", {2, 2, 3}}}), t1);
     expected.add_return({br});

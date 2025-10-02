@@ -90,8 +90,9 @@ static void lower_lrn_to_pooling(module& m, instruction_ref ins)
     calculate_padding(0, calculated_pads, channel_dim, 1, 1, size, true);
 
     instruction_ref avg;
-    try {
-        avg = m.insert_instruction(ins,
+
+    try{
+    	avg = m.insert_instruction(ins,
             make_op("pooling", {
                 {"mode", op::pooling_mode::average},
                 {"lengths", std::vector<int64_t>{1, size}},
@@ -108,9 +109,9 @@ static void lower_lrn_to_pooling(module& m, instruction_ref ins)
             return;
         }
 
-    } catch(const std::exception& e) {
-        return;
-    }
+    } catch(const std::exception&) {    
+    	return;    
+    }	
 
     std::vector<int64_t> inv_perm = {0, 3, 1, 2};
     auto transpose2 = m.insert_instruction(ins, make_op("transpose", {{"permutation", inv_perm}}), avg);
@@ -151,7 +152,7 @@ static void lower_lrn_to_pooling(module& m, instruction_ref ins)
 
         m.replace_instruction(ins, y);
 
-    } catch(const std::exception& e) {
+    } catch(const std::exception&) {
         return;
     }
 }

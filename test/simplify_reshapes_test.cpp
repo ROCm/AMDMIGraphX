@@ -3500,4 +3500,222 @@ TEST_CASE(conv_add_layernorm_conv)
     EXPECT(m1.sort() == m2.sort());
 }
 
+TEST_CASE(gather_constant_single_index)
+{
+    migraphx::module m1;
+    {
+        auto s    = migraphx::shape{migraphx::shape::float_type, {3, 4, 5}};
+        auto data = m1.add_parameter("data", s);
+        migraphx::shape si{migraphx::shape::int32_type, {1}};
+        auto indices = m1.add_literal(migraphx::literal{si, {2}});
+        auto gather  = m1.add_instruction(migraphx::make_op("gather", {{"axis", 1}}), data, indices);
+        m1.add_return({gather});
+    }
+    run_pass(m1);
+
+    migraphx::module m2;
+    {
+        auto s     = migraphx::shape{migraphx::shape::float_type, {3, 4, 5}};
+        auto data  = m2.add_parameter("data", s);
+        auto slice = m2.add_instruction(
+            migraphx::make_op("slice", {{"axes", {1}}, {"starts", {2}}, {"ends", {3}}}), data);
+        m2.add_return({slice});
+    }
+
+    EXPECT(m1.sort() == m2.sort());
+}
+
+TEST_CASE(gather_constant_same_indices)
+{
+    migraphx::module m1;
+    {
+        auto s    = migraphx::shape{migraphx::shape::float_type, {3, 4, 5}};
+        auto data = m1.add_parameter("data", s);
+        migraphx::shape si{migraphx::shape::int32_type, {3}};
+        auto indices = m1.add_literal(migraphx::literal{si, {1, 1, 1}});
+        auto gather  = m1.add_instruction(migraphx::make_op("gather", {{"axis", 0}}), data, indices);
+        m1.add_return({gather});
+    }
+    run_pass(m1);
+
+    migraphx::module m2;
+    {
+        auto s     = migraphx::shape{migraphx::shape::float_type, {3, 4, 5}};
+        auto data  = m2.add_parameter("data", s);
+        auto slice = m2.add_instruction(
+            migraphx::make_op("slice", {{"axes", {0}}, {"starts", {1}}, {"ends", {2}}}), data);
+        auto broadcast = m2.add_instruction(
+            migraphx::make_op("multibroadcast", {{"out_lens", {3, 4, 5}}}), slice);
+        m2.add_return({broadcast});
+    }
+
+    EXPECT(m1.sort() == m2.sort());
+}
+
+TEST_CASE(gather_constant_sequential_indices)
+{
+    migraphx::module m1;
+    {
+        auto s    = migraphx::shape{migraphx::shape::float_type, {5, 6}};
+        auto data = m1.add_parameter("data", s);
+        migraphx::shape si{migraphx::shape::int32_type, {3}};
+        auto indices = m1.add_literal(migraphx::literal{si, {1, 2, 3}});
+        auto gather  = m1.add_instruction(migraphx::make_op("gather", {{"axis", 0}}), data, indices);
+        m1.add_return({gather});
+    }
+    run_pass(m1);
+
+    migraphx::module m2;
+    {
+        auto s     = migraphx::shape{migraphx::shape::float_type, {5, 6}};
+        auto data  = m2.add_parameter("data", s);
+        auto slice = m2.add_instruction(
+            migraphx::make_op("slice", {{"axes", {0}}, {"starts", {1}}, {"ends", {4}}}), data);
+        m2.add_return({slice});
+    }
+
+    EXPECT(m1.sort() == m2.sort());
+}
+
+TEST_CASE(gather_constant_scalar_index)
+{
+    migraphx::module m1;
+    {
+        auto s    = migraphx::shape{migraphx::shape::float_type, {3, 4}};
+        auto data = m1.add_parameter("data", s);
+        migraphx::shape si{migraphx::shape::int32_type};
+        auto indices = m1.add_literal(migraphx::literal{si, {2}});
+        auto gather  = m1.add_instruction(migraphx::make_op("gather", {{"axis", 0}}), data, indices);
+        m1.add_return({gather});
+    }
+    run_pass(m1);
+
+    migraphx::module m2;
+    {
+        auto s     = migraphx::shape{migraphx::shape::float_type, {3, 4}};
+        auto data  = m2.add_parameter("data", s);
+        auto slice = m2.add_instruction(
+            migraphx::make_op("slice", {{"axes", {0}}, {"starts", {2}}, {"ends", {3}}}), data);
+        auto squeeze = m2.add_instruction(
+            migraphx::make_op("squeeze", {{"axes", {0}}}), slice);
+        m2.add_return({squeeze});
+    }
+
+    EXPECT(m1.sort() == m2.sort());
+}
+
+TEST_CASE(gather_constant_negative_index)
+{
+    migraphx::module m1;
+    {
+        auto s    = migraphx::shape{migraphx::shape::float_type, {3, 4}};
+        auto data = m1.add_parameter("data", s);
+        migraphx::shape si{migraphx::shape::int32_type, {1}};
+        auto indices = m1.add_literal(migraphx::literal{si, {-1}});
+        auto gather  = m1.add_instruction(migraphx::make_op("gather", {{"axis", 0}}), data, indices);
+        m1.add_return({gather});
+    }
+    run_pass(m1);
+
+    migraphx::module m2;
+    {
+        auto s     = migraphx::shape{migraphx::shape::float_type, {3, 4}};
+        auto data  = m2.add_parameter("data", s);
+        auto slice = m2.add_instruction(
+            migraphx::make_op("slice", {{"axes", {0}}, {"starts", {2}}, {"ends", {3}}}), data);
+        m2.add_return({slice});
+    }
+
+    EXPECT(m1.sort() == m2.sort());
+}
+
+TEST_CASE(gather_non_constant_indices)
+{
+    // Should not be transformed
+    migraphx::module m1;
+    {
+        auto s       = migraphx::shape{migraphx::shape::float_type, {3, 4}};
+        auto si      = migraphx::shape{migraphx::shape::int32_type, {2}};
+        auto data    = m1.add_parameter("data", s);
+        auto indices = m1.add_parameter("indices", si);
+        auto gather  = m1.add_instruction(migraphx::make_op("gather", {{"axis", 0}}), data, indices);
+        m1.add_return({gather});
+    }
+    auto m2 = m1;
+    run_pass(m1);
+    EXPECT(m1 == m2);
+}
+
+TEST_CASE(gather_axis_1)
+{
+    migraphx::module m1;
+    {
+        auto s    = migraphx::shape{migraphx::shape::float_type, {2, 5, 3}};
+        auto data = m1.add_parameter("data", s);
+        migraphx::shape si{migraphx::shape::int32_type, {2}};
+        auto indices = m1.add_literal(migraphx::literal{si, {0, 1}});
+        auto gather  = m1.add_instruction(migraphx::make_op("gather", {{"axis", 1}}), data, indices);
+        m1.add_return({gather});
+    }
+    run_pass(m1);
+
+    migraphx::module m2;
+    {
+        auto s     = migraphx::shape{migraphx::shape::float_type, {2, 5, 3}};
+        auto data  = m2.add_parameter("data", s);
+        auto slice = m2.add_instruction(
+            migraphx::make_op("slice", {{"axes", {1}}, {"starts", {0}}, {"ends", {2}}}), data);
+        m2.add_return({slice});
+    }
+
+    EXPECT(m1.sort() == m2.sort());
+}
+
+TEST_CASE(gather_with_computation)
+{
+    // Test that the transformation produces correct results for sequential indices
+    migraphx::program p1;
+    {
+        auto* mm = p1.get_main_module();
+        auto s    = migraphx::shape{migraphx::shape::float_type, {4, 3}};
+        auto data = mm->add_parameter("data", s);
+        migraphx::shape si{migraphx::shape::int32_type, {2}};
+        auto indices = mm->add_literal(migraphx::literal{si, {1, 2}});
+        auto gather  = mm->add_instruction(migraphx::make_op("gather", {{"axis", 0}}), data, indices);
+        mm->add_return({gather});
+    }
+    
+    migraphx::program p2 = p1;
+    run_pass(*p2.get_main_module());
+    
+    // Create input data
+    std::vector<float> input_data = {
+        1.0f, 2.0f, 3.0f,      // row 0
+        4.0f, 5.0f, 6.0f,      // row 1
+        7.0f, 8.0f, 9.0f,      // row 2
+        10.0f, 11.0f, 12.0f    // row 3
+    };
+    migraphx::shape s{migraphx::shape::float_type, {4, 3}};
+    migraphx::parameter_map params;
+    params["data"] = migraphx::argument(s, input_data.data());
+    
+    auto result1 = p1.eval(params).back();
+    auto result2 = p2.eval(params).back();
+    
+    EXPECT(result1 == result2);
+    
+    // Verify the results are correct (rows 1 and 2)
+    std::vector<float> expected = {
+        4.0f, 5.0f, 6.0f,      // row 1
+        7.0f, 8.0f, 9.0f       // row 2
+    };
+    
+    std::vector<float> result_vec;
+    result1.visit([&](auto output) {
+        result_vec.assign(output.begin(), output.end());
+    });
+    
+    EXPECT(result_vec == expected);
+}
+
 int main(int argc, const char* argv[]) { test::run(argc, argv); }

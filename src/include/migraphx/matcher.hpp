@@ -409,7 +409,8 @@ MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_TIME_MATCHERS)
 
 /// Find matches for an instruction in the module for per section of matchers
 template <class Mod, class... Ms>
-void find_matches_for(source_location location, Mod& mod, instruction_ref ins, Ms&&... ms)
+void find_matches_for(
+    source_location location, Mod& mod, instruction_ref ins, bool allow_dynamic, Ms&&... ms)
 {
     const int trace          = value_of(MIGRAPHX_TRACE_MATCHES{});
     const bool validate      = enabled(MIGRAPHX_VALIDATE_MATCHES{});
@@ -430,7 +431,11 @@ void find_matches_for(source_location location, Mod& mod, instruction_ref ins, M
                 std::cout << "Running matcher: " << matcher_name << std::endl;
 
             matcher_result r;
-            if(time_matchers or trace_for)
+            if(ins->get_shape().dynamic() and not allow_dynamic)
+            {
+                return;
+            }
+            else if(time_matchers or trace_for)
             {
                 timer match_timer{};
                 r = match_instruction(get_module(mod), ins, m.matcher());
@@ -487,7 +492,7 @@ struct find_matches
     {
         for(auto ins : iterator_for(get_module(mod)))
         {
-            find_matches_for(location, mod, ins, ms...);
+            find_matches_for(location, mod, ins, false, ms...);
         }
     }
 };

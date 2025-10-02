@@ -70,13 +70,19 @@ static void lower_lrn_to_pooling(module& m, instruction_ref ins)
     const auto& xshape = x->get_shape();
     auto lens = xshape.lens();
 
-    if(lens.size() < 2) {
+/*    if(lens.size() != 4) {
         return;
     }
     if(size <= 0) {
         return;
     }
-
+    if(size > lens[1]) {
+    	return;
+    }
+*/
+    if(lens.size() != 4 || size <= 0 || size > lens[1]) {
+    	return;
+    }
     auto x2 = m.insert_instruction(ins, make_op("mul"), x, x);
 
     std::vector<int64_t> perm = {0, 2, 3, 1};

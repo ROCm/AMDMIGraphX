@@ -329,7 +329,7 @@ rocm_install_targets(
     ${CMAKE_CURRENT_SOURCE_DIR}/include
     ${CMAKE_CURRENT_SOURCE_DIR}/op/builder/include
 )
-target_link_libraries(migraphx PUBLIC migraphx_version)
+target_link_libraries(migraphx PUBLIC migraphx_version )
 
 if(NOT WIN32)
     check_cxx_linker_flag(-lstdc++fs HAS_LIB_STD_FILESYSTEM)
@@ -357,6 +357,9 @@ endif()
 
 find_package(nlohmann_json 3.8.0 REQUIRED)
 target_link_libraries(migraphx PRIVATE nlohmann_json::nlohmann_json)
+
+find_package(xtr 3 REQUIRED)
+target_link_libraries(migraphx PRIVATE xtr)
 
 find_package(SQLite3 REQUIRED)
 target_link_libraries(migraphx PRIVATE SQLite::SQLite3)

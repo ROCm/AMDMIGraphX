@@ -30,6 +30,7 @@
 #include <migraphx/op/transpose.hpp>
 #include <migraphx/op/concat.hpp>
 #include <migraphx/op/slice.hpp>
+#include <migraphx/op/gather.hpp>
 #include <migraphx/iterator_for.hpp>
 #include <migraphx/ranges.hpp>
 #include <migraphx/matcher.hpp>
@@ -881,6 +882,291 @@ struct find_resize
     }
 };
 
+struct find_gather
+{
+    auto matcher() const
+    {
+        return match::name("gather")(
+            match::args(match::any(), match::is_constant().bind("indices")));
+    }
+
+    void apply(module& m, const match::matcher_result& r) const
+    {
+    auto ins          = r.result;
+    auto indices_ins  = r.instructions["indices"];
+        auto data_ins     = ins->inputs().front();
+        auto gather_op    = any_cast<op::gather>(ins->get_operator());
+        const auto& dlens = data_ins->get_shape().lens();
+        if(dlens.empty())
+            return;
+
+        const auto axis_index = static_cast<std::size_t>(
+            tune_axis(static_cast<int>(dlens.size()), gather_op.axis, gather_op.name()));
+        const auto axis_len = dlens.at(axis_index);
+        if(axis_len == 0)
+            return;
+
+        auto arg_ind = indices_ins->eval();
+        if(arg_ind.empty())
+            return;
+
+        std::vector<std::int64_t> indices_values;
+        arg_ind.visit([&](auto v) {
+            indices_values.resize(v.size());
+            std::transform(v.begin(),
+                           v.end(),
+                           indices_values.begin(),
+                           [](auto x) { return static_cast<std::int64_t>(x); });
+        });
+        if(indices_values.empty())
+            return;
+
+        const auto& indices_shape = indices_ins->get_shape();
+        if(indices_shape.elements() != indices_values.size())
+            return;
+
+        for(auto& idx : indices_values)
+        {
+            if(idx < 0)
+                idx += static_cast<std::int64_t>(axis_len);
+            if(idx < 0 or idx >= static_cast<std::int64_t>(axis_len))
+                return;
+        }
+
+        const auto idims          = indices_shape.lens();
+        const std::size_t in_dims = idims.size();
+        const std::size_t total   = indices_values.size();
+        std::int64_t base         = indices_values.front();
+
+        std::vector<std::int64_t> strides(in_dims, 0);
+        for(std::size_t dim = 0; dim < in_dims; ++dim)
+        {
+            if(idims[dim] <= 1)
+                continue;
+
+            bool stride_set          = false;
+            std::int64_t stride_diff = 0;
+            for(std::size_t index = 0; index < total; ++index)
+            {
+                auto coord = indices_shape.multi(index);
+                if(coord[dim] + 1 >= idims[dim])
+                    continue;
+                auto next_coord = coord;
+                next_coord[dim] += 1;
+                auto next_index = indices_shape.index(next_coord);
+                auto diff       = indices_values[next_index] - indices_values[index];
+                if(not stride_set)
+                {
+                    stride_diff = diff;
+                    stride_set  = true;
+                }
+                else if(stride_diff != diff)
+                {
+                    return;
+                }
+            }
+
+            if(not stride_set or stride_diff < 0)
+                return;
+
+            strides[dim] = stride_diff;
+        }
+
+        for(std::size_t index = 0; index < total; ++index)
+        {
+            auto coord     = indices_shape.multi(index);
+            std::int64_t v = base;
+            for(std::size_t dim = 0; dim < in_dims; ++dim)
+                v += strides[dim] * static_cast<std::int64_t>(coord[dim]);
+            if(v != indices_values[index])
+                return;
+        }
+
+        std::int64_t max_index = base;
+        for(std::size_t dim = 0; dim < in_dims; ++dim)
+        {
+            if(idims[dim] == 0)
+                return;
+            max_index += strides[dim] * static_cast<std::int64_t>(idims[dim] - 1);
+        }
+
+        if(base < 0 or max_index < base)
+            return;
+        if(max_index >= static_cast<std::int64_t>(axis_len))
+            return;
+
+        auto slice_len = max_index - base + 1;
+        if(slice_len <= 0)
+            return;
+
+        std::vector<std::size_t> vary_dims;
+        vary_dims.reserve(in_dims);
+        for(std::size_t dim = 0; dim < in_dims; ++dim)
+        {
+            if(idims[dim] > 1 and strides[dim] > 0)
+                vary_dims.push_back(dim);
+        }
+
+        std::size_t prod_vary = 1;
+        for(auto dim : vary_dims)
+            prod_vary *= idims[dim];
+        if(static_cast<std::size_t>(slice_len) != prod_vary)
+            return;
+
+        std::vector<std::size_t> sorted_vary = vary_dims;
+        std::sort(sorted_vary.begin(), sorted_vary.end(), [&](std::size_t a, std::size_t b) {
+            return strides[a] < strides[b];
+        });
+
+        std::int64_t expected_stride = 1;
+        for(auto dim : sorted_vary)
+        {
+            if(strides[dim] != expected_stride)
+                return;
+            expected_stride *= static_cast<std::int64_t>(idims[dim]);
+        }
+        if(not sorted_vary.empty() and expected_stride != slice_len)
+            return;
+
+        std::vector<std::size_t> ordered_vary_desc = sorted_vary;
+        std::reverse(ordered_vary_desc.begin(), ordered_vary_desc.end());
+        std::vector<std::size_t> target_vary_order = vary_dims;
+
+        const std::vector<std::size_t> pre_lens(dlens.begin(), dlens.begin() + axis_index);
+        const std::vector<std::size_t> post_lens(dlens.begin() + axis_index + 1, dlens.end());
+        std::vector<std::size_t> rest_lens = pre_lens;
+        rest_lens.insert(rest_lens.end(), post_lens.begin(), post_lens.end());
+
+        const bool has_broadcast      = in_dims != vary_dims.size();
+        const bool need_second_reshape = has_broadcast or in_dims == 0;
+        const auto& output_lens       = ins->get_shape().lens();
+
+        instruction_ref curr = data_ins;
+
+        if(axis_index != 0)
+        {
+            std::vector<int64_t> perm_axis_front;
+            perm_axis_front.reserve(dlens.size());
+            perm_axis_front.push_back(static_cast<int64_t>(axis_index));
+            for(std::size_t i = 0; i < dlens.size(); ++i)
+            {
+                if(i == axis_index)
+                    continue;
+                perm_axis_front.push_back(static_cast<int64_t>(i));
+            }
+            curr = m.insert_instruction(ins,
+                                        make_op("transpose", {{"permutation", perm_axis_front}}),
+                                        curr);
+        }
+
+        if(base != 0 or static_cast<std::size_t>(slice_len) != axis_len)
+        {
+            std::vector<int64_t> axes{0};
+            std::vector<int64_t> starts{base};
+            std::vector<int64_t> ends{base + slice_len};
+            curr = m.insert_instruction(
+                ins,
+                make_op("slice", {{"axes", axes}, {"starts", starts}, {"ends", ends}}),
+                curr);
+        }
+
+        std::vector<int64_t> rest_dims;
+        rest_dims.reserve(rest_lens.size());
+        std::transform(rest_lens.begin(),
+                       rest_lens.end(),
+                       std::back_inserter(rest_dims),
+                       [](auto len) { return static_cast<int64_t>(len); });
+
+        if(not ordered_vary_desc.empty())
+        {
+            std::vector<int64_t> reshape1_dims;
+            reshape1_dims.reserve(ordered_vary_desc.size() + rest_dims.size());
+            for(auto dim : ordered_vary_desc)
+                reshape1_dims.push_back(static_cast<int64_t>(idims[dim]));
+            reshape1_dims.insert(reshape1_dims.end(), rest_dims.begin(), rest_dims.end());
+            curr = m.insert_instruction(ins, make_op("reshape", {{"dims", reshape1_dims}}), curr);
+
+            if(ordered_vary_desc != target_vary_order)
+            {
+                const std::size_t axis_count = ordered_vary_desc.size();
+                std::vector<int64_t> perm(axis_count + rest_dims.size());
+                for(std::size_t i = 0; i < target_vary_order.size(); ++i)
+                {
+                    auto it = std::find(ordered_vary_desc.begin(),
+                                         ordered_vary_desc.end(),
+                                         target_vary_order[i]);
+                    if(it == ordered_vary_desc.end())
+                        return;
+                    perm[i] = std::distance(ordered_vary_desc.begin(), it);
+                }
+                for(std::size_t i = 0; i < rest_dims.size(); ++i)
+                    perm[target_vary_order.size() + i] = static_cast<int64_t>(axis_count + i);
+
+                curr = m.insert_instruction(
+                    ins, make_op("transpose", {{"permutation", perm}}), curr);
+                ordered_vary_desc = target_vary_order;
+            }
+        }
+
+        if(need_second_reshape)
+        {
+            std::vector<int64_t> reshape2_dims;
+            reshape2_dims.reserve(in_dims + rest_dims.size());
+            for(std::size_t dim = 0; dim < in_dims; ++dim)
+            {
+                reshape2_dims.push_back((strides[dim] > 0 and idims[dim] > 1)
+                                            ? static_cast<int64_t>(idims[dim])
+                                            : 1);
+            }
+            reshape2_dims.insert(reshape2_dims.end(), rest_dims.begin(), rest_dims.end());
+            if(reshape2_dims.empty())
+                reshape2_dims.push_back(1);
+            curr =
+                m.insert_instruction(ins, make_op("reshape", {{"dims", reshape2_dims}}), curr);
+        }
+
+        const std::size_t axis_block_size = in_dims;
+        const std::size_t pre_count       = pre_lens.size();
+        const std::size_t post_count      = post_lens.size();
+        const std::size_t rest_count      = rest_dims.size();
+
+        if(axis_block_size + rest_count > 0)
+        {
+            std::vector<int64_t> perm_final(axis_block_size + rest_count);
+            std::size_t pos = 0;
+            for(std::size_t i = 0; i < pre_count; ++i)
+                perm_final[pos++] = static_cast<int64_t>(axis_block_size + i);
+            for(std::size_t i = 0; i < axis_block_size; ++i)
+                perm_final[pos++] = static_cast<int64_t>(i);
+            for(std::size_t i = 0; i < post_count; ++i)
+                perm_final[pos++] = static_cast<int64_t>(axis_block_size + pre_count + i);
+
+            bool need_transpose = false;
+            for(std::size_t i = 0; i < perm_final.size(); ++i)
+            {
+                if(perm_final[i] != static_cast<int64_t>(i))
+                {
+                    need_transpose = true;
+                    break;
+                }
+            }
+            if(need_transpose)
+            {
+                curr = m.insert_instruction(
+                    ins, make_op("transpose", {{"permutation", perm_final}}), curr);
+            }
+        }
+
+        if(curr->get_shape().lens() != output_lens)
+        {
+            curr = m.insert_instruction(
+                ins, make_op("multibroadcast", {{"out_lens", output_lens}}), curr);
+        }
+
+        m.replace_instruction(ins, curr);
+    }
+};
+
 struct find_where_op
 {
     auto matcher() const
@@ -1410,6 +1696,7 @@ void simplify_reshapes::apply(module& m) const
         match::find_matches(m,
                             find_where_op{},
                             find_resize{},
+                            find_gather{},
                             find_nop_reshapes{},
                             find_flatten{},
                             find_reshape_cont{},

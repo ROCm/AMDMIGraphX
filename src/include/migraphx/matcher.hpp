@@ -500,6 +500,21 @@ struct find_matches
 template <class Mod, class... Ms>
 find_matches(Mod& mod, Ms&&... ms) -> find_matches<Mod, Ms...>;
 
+template <class Mod, class... Ms>
+struct find_dyn_matches
+{
+    find_dyn_matches(Mod& mod, Ms&&... ms, source_location location = source_location::current())
+    {
+        for(auto ins : iterator_for(get_module(mod)))
+        {
+            find_matches_for(location, mod, ins, true, ms...);
+        }
+    }
+};
+
+template <class Mod, class... Ms>
+find_dyn_matches(Mod& mod, Ms&&... ms) -> find_dyn_matches<Mod, Ms...>;
+
 template <class M, class F>
 struct find_generic_match
 {

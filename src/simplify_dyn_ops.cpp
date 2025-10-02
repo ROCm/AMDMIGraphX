@@ -703,19 +703,19 @@ struct simplify_select_module_output_shape
 
 void simplify_dyn_ops::apply(module& m) const
 {
-    match::find_matches(m,
-                        find_broadcast_with_dims_static{},
-                        find_resize_static{},
-                        find_static_dimensions_of{},
-                        find_const_alloc_reshapes{},
-                        find_static_2in_broadcasts{},
-                        find_const_2in_slice{},
-                        find_const_3in_slice{},
-                        find_const_4in_slice{},
-                        find_const_alloc_fill{},
-                        find_static_broadcast_for_dot{},
-                        find_static_onehot{});
-    match::find_matches(m, simplify_select_module_output_shape{});
+    match::find_dyn_matches(m,
+                            find_broadcast_with_dims_static{},
+                            find_resize_static{},
+                            find_static_dimensions_of{},
+                            find_const_alloc_reshapes{},
+                            find_static_2in_broadcasts{},
+                            find_const_2in_slice{},
+                            find_const_3in_slice{},
+                            find_const_4in_slice{},
+                            find_const_alloc_fill{},
+                            find_static_broadcast_for_dot{},
+                            find_static_onehot{});
+    match::find_dyn_matches(m, simplify_select_module_output_shape{});
 }
 
 } // namespace MIGRAPHX_INLINE_NS

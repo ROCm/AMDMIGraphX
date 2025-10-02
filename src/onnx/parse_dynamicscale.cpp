@@ -21,49 +21,65 @@
  * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
  * THE SOFTWARE.
  */
+
 #include <migraphx/onnx/op_parser.hpp>
 #include <migraphx/ranges.hpp>
 #include <migraphx/instruction.hpp>
 #include <migraphx/make_op.hpp>
 #include <migraphx/tune_axis.hpp>
-#include <algorithm>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
 namespace onnx {
 
-struct parse_mxfixneuron : op_parser<parse_mxfixneuron>
+/**
+ * Operator from Brevitas to calculate dynamic quantization scales.
+ */
+struct parse_dynamicscale : op_parser<parse_dynamicscale>
 {
-    std::vector<op_desc> operators() const { return {{"MXFixNeuron"}}; }
+
+    std::vector<op_desc> operators() const { return {{"DynamicScale"}}; };
 
     instruction_ref parse(const op_desc& /*opd*/,
                           const onnx_parser& /*parser*/,
                           onnx_parser::node_info info,
-                          std::vector<instruction_ref> args) const
+                          const std::vector<instruction_ref>& args) const
     {
         const instruction_ref input = args.front();
         instruction_ref tmp_in      = input;
         const auto input_lens       = input->get_shape().lens();
         if(args.size() != 1)
         {
-            MIGRAPHX_THROW("MXFixNeuron: must have only 1 input");
+            MIGRAPHX_THROW("DynamicScale: must have only 1 input");
         }
-        int block_axis = info.attributes.at("axis").i();
-        block_axis     = tune_axis(input->get_shape().ndim(), block_axis, "MXFixNeuron");
-        int block_size = info.attributes.at("block_size").i();
+        int block_axis = info.attributes.at("group_dim").i();
+        block_axis     = tune_axis(input->get_shape().ndim(), block_axis, "DynamicScale");
+        int block_size = info.attributes.at("group_size").i();
         if(block_size != 32)
         {
-            MIGRAPHX_THROW("MXFixNeuron: only block_size of 32 is supported");
+            MIGRAPHX_THROW("DynamicScale: only group_size of 32 is supported");
         }
-        std::string element_dtype = info.attributes.at("element_dtype").s();
-        if(element_dtype != "fp4_e2m1")
+        migraphx::shape::type_t output_type = get_type(info.attributes.at("output_dtype").i());
+
+        // TODO expand this to handle other MX types
+        if(output_type != migraphx::shape::fp4x2_type)
         {
-            MIGRAPHX_THROW("MXFixNeuron: only support MXFP4 type");
+            MIGRAPHX_THROW("DynamicScale: only support MXFP4 type");
         }
-        int rounding_mode = info.attributes.at("rounding_mode").i();
-        if(rounding_mode != 2)
+
+        std::string scale_selection_method = info.attributes.at("scale_selection_method").s();
+        if(scale_selection_method != "floor")
         {
-            MIGRAPHX_THROW("MXFixNeuron: only round ties to even is supported");
+            MIGRAPHX_THROW("DynamicScale: only support floor scale selection");
+        }
+
+        std::string zero_point_selection_method = "None";
+        if(contains(info.attributes, "zero_point_selection_method"))
+            zero_point_selection_method = info.attributes.at("zero_point_selection_method").s();
+
+        if(zero_point_selection_method != "None")
+        {
+            MIGRAPHX_THROW("DynamicScale: zero_point not supported");
         }
 
         // make reduction axes for calculating block scales
@@ -110,58 +126,11 @@ struct parse_mxfixneuron : op_parser<parse_mxfixneuron>
             lit_4_ins);
         auto block_scales_ins = info.add_instruction(make_op("div"), pow_ins, broadcast_lit_4_ins);
 
-        // broadcast scales for use in quantizelinear
-        block_scales_ins = info.add_instruction(
-            make_op("multibroadcast", {{"out_lens", reduct_dims}}), block_scales_ins);
-        block_scales_ins =
-            info.add_instruction(make_op("reshape", {{"dims", tmp_lens}}), block_scales_ins);
+        // squeeze reduction axis for use in block quantized quantizelinear
+        block_scales_ins = info.add_instruction(make_op("squeeze", {{"axes", {block_axis + 1}}}),
+                                                block_scales_ins);
 
-        // if padded runt block do slicing
-        if(tmp_lens != input_lens)
-        {
-            std::size_t slice_size = input_lens.at(block_axis);
-            block_scales_ins       = info.add_instruction(
-                make_op("slice", {{"axes", {block_axis}}, {"starts", {0}}, {"ends", {slice_size}}}),
-                block_scales_ins);
-        }
-
-        auto q_ins = info.add_instruction(
-            make_op("quantizelinear", {{"out_type", migraphx::shape::float_type}}),
-            input,
-            block_scales_ins); // output is float_type
-
-        // packing axis set to fastest dimension
-        auto quantized_shape     = q_ins->get_shape();
-        const auto& qs_strides   = quantized_shape.strides();
-        if(qs_strides.empty())
-        {
-            MIGRAPHX_THROW("MXFixNeuron: quantized_shape has no strides");
-        }
-        int fast_axis =
-            std::min_element(qs_strides.cbegin(), qs_strides.cend()) - qs_strides.cbegin();
-        bool odd_fast_axis = (quantized_shape.lens().at(fast_axis) % 2 == 1);
-        if(odd_fast_axis)
-        {
-            // pad fastest dimension by 1 if it is odd
-            std::vector<int64_t> padding(2 * quantized_shape.ndim(), 0);
-            padding.at(fast_axis * 2 + 1) = 1;
-            q_ins = info.add_instruction(make_op("pad", {{"pads", padding}}), q_ins);
-        }
-        auto pack_ins   = info.add_instruction(make_op("pack_fp4", {{"axis", fast_axis}}),
-                                             q_ins); // output is fp4x2_type
-        auto unpack_ins = info.add_instruction(make_op("unpack_fp4", {{"axis", fast_axis}}),
-                                               pack_ins); // output is fp8e4m3fn_type
-        if(odd_fast_axis)
-        {
-            // slice off padded values
-            unpack_ins =
-                info.add_instruction(make_op("slice",
-                                             {{"axes", {fast_axis}},
-                                              {"starts", {0}},
-                                              {"ends", {quantized_shape.lens().at(fast_axis)}}}),
-                                     unpack_ins);
-        }
-        return info.add_instruction(make_op("dequantizelinear"), unpack_ins, block_scales_ins);
+        return block_scales_ins;
     }
 };
 

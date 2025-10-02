@@ -601,7 +601,7 @@ Advanced settings
       | Sets the number of threads to use for parallel GPU code compilation. 
       
     - | Takes a positive integer value.
-      | Default: Compilation is not run in parallel.
+      | Default: Number of threads is equal to number of processing units (`nproc`).
 
   * - | ``MIGRAPHX_TRACE_NARY``
       | When set, the nary device functions used during execution are printed out.
@@ -656,3 +656,4 @@ Advanced settings
       | Sets the number of timing runs for each configuration bundle being benchmarked. 
       
     - Takes a positive integer.
+

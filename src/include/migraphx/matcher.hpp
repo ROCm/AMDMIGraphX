@@ -35,6 +35,7 @@
 #include <migraphx/source_location.hpp>
 #include <migraphx/config.hpp>
 #include <migraphx/time.hpp>
+#include <migraphx/stringutils.hpp>
 
 #include <array>
 #include <unordered_map>

@@ -2121,7 +2121,7 @@ MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_SIMPLIFY_ALGEBRA_MAX_CALLS)
 void simplify_algebra::apply(module& m) const
 {
     static const auto num_passes = value_of(MIGRAPHX_SIMPLIFY_ALGEBRA_PASSES{}, simplify_algebra::NUM_PASSES);
-    static const auto max_call = value_of(MIGRAPHX_SIMPLIFY_ALGEBRA_MAX_CALLS{}, );
+    static const auto max_call = value_of(MIGRAPHX_SIMPLIFY_ALGEBRA_MAX_CALLS{});
     static size_t n_calls = 0;
 
     if (max_call)

@@ -1396,32 +1396,31 @@ struct find_gather
 {
     auto matcher() const
     {
-        return match::name("gather")(match::args(match::any().bind("data"),
-                                                 match::is_constant().bind("indices")));
+        return match::name("gather")(
+            match::args(match::any().bind("data"), match::is_constant().bind("indices")));
     }
 
     void apply(module& m, const match::matcher_result& mr) const
     {
-        auto gather_ins = mr.result;
-        auto data_ins   = mr.instructions["data"];
+        auto gather_ins  = mr.result;
+        auto data_ins    = mr.instructions["data"];
         auto indices_ins = mr.instructions["indices"];
-        
+
         auto gather_op = any_cast<op::gather>(gather_ins->get_operator());
         int64_t axis   = gather_op.axis;
-        
+
         auto data_shape    = data_ins->get_shape();
         auto indices_shape = indices_ins->get_shape();
-        
+
         // Only handle constant indices
         if(not indices_ins->can_eval())
             return;
-            
+
         auto indices_arg = indices_ins->eval();
         std::vector<int64_t> indices_vec;
-        indices_arg.visit([&](auto idx_data) {
-            indices_vec.assign(idx_data.begin(), idx_data.end());
-        });
-        
+        indices_arg.visit(
+            [&](auto idx_data) { indices_vec.assign(idx_data.begin(), idx_data.end()); });
+
         // Normalize negative indices
         int64_t axis_size = data_shape.lens()[axis];
         for(auto& idx : indices_vec)
@@ -1429,82 +1428,86 @@ struct find_gather
             if(idx < 0)
                 idx += axis_size;
         }
-        
+
         // Check if indices can be simplified
-        auto result = try_simplify_gather(m, gather_ins, data_ins, indices_vec, axis, data_shape, indices_shape);
+        auto result = try_simplify_gather(
+            m, gather_ins, data_ins, indices_vec, axis, data_shape, indices_shape);
         if(result)
             return;
     }
 
-private:
+    private:
     bool try_simplify_gather(module& m,
-                            instruction_ref gather_ins,
-                            instruction_ref data_ins,
-                            const std::vector<int64_t>& indices,
-                            int64_t axis,
-                            const shape& data_shape,
-                            const shape& indices_shape) const
+                             instruction_ref gather_ins,
+                             instruction_ref data_ins,
+                             const std::vector<int64_t>& indices,
+                             int64_t axis,
+                             const shape& data_shape,
+                             const shape& indices_shape) const
     {
         // Case 1: All indices are the same - can use slice + broadcast
         if(std::all_of(indices.begin(), indices.end(), [&](auto i) { return i == indices[0]; }))
         {
-            return simplify_to_slice_broadcast(m, gather_ins, data_ins, indices[0], axis, data_shape, indices_shape);
+            return simplify_to_slice_broadcast(
+                m, gather_ins, data_ins, indices[0], axis, data_shape, indices_shape);
         }
-        
+
         // Case 2: Sequential indices (e.g., [0,1,2,3]) - can use slice
         if(is_sequential(indices))
         {
             return simplify_to_slice(m, gather_ins, data_ins, indices, axis, data_shape);
         }
-        
+
         // Case 3: Single index with scalar or 1D output - can use slice + reshape
         if(indices.size() == 1)
         {
-            return simplify_to_slice_reshape(m, gather_ins, data_ins, indices[0], axis, data_shape, indices_shape);
+            return simplify_to_slice_reshape(
+                m, gather_ins, data_ins, indices[0], axis, data_shape, indices_shape);
         }
-        
+
         // Case 4: Repeated pattern - can use slice + broadcast
         if(auto pattern_info = detect_repeated_pattern(indices))
         {
-            return simplify_repeated_pattern(m, gather_ins, data_ins, *pattern_info, axis, data_shape, indices_shape);
+            return simplify_repeated_pattern(
+                m, gather_ins, data_ins, *pattern_info, axis, data_shape, indices_shape);
         }
-        
+
         return false;
     }
-    
+
     bool is_sequential(const std::vector<int64_t>& indices) const
     {
         if(indices.empty())
             return false;
         for(size_t i = 1; i < indices.size(); i++)
         {
-            if(indices[i] != indices[i-1] + 1)
+            if(indices[i] != indices[i - 1] + 1)
                 return false;
         }
         return true;
     }
-    
+
     struct pattern_info
     {
         std::vector<int64_t> base_pattern;
         size_t repeat_count;
     };
-    
+
     std::optional<pattern_info> detect_repeated_pattern(const std::vector<int64_t>& indices) const
     {
         if(indices.empty())
             return std::nullopt;
-            
+
         // Try different pattern lengths
         for(size_t pattern_len = 1; pattern_len <= indices.size() / 2; pattern_len++)
         {
             if(indices.size() % pattern_len != 0)
                 continue;
-                
+
             std::vector<int64_t> pattern(indices.begin(), indices.begin() + pattern_len);
-            bool matches = true;
+            bool matches        = true;
             size_t repeat_count = indices.size() / pattern_len;
-            
+
             for(size_t i = 0; i < repeat_count; i++)
             {
                 for(size_t j = 0; j < pattern_len; j++)
@@ -1518,14 +1521,14 @@ private:
                 if(not matches)
                     break;
             }
-            
+
             if(matches)
                 return pattern_info{pattern, repeat_count};
         }
-        
+
         return std::nullopt;
     }
-    
+
     bool simplify_to_slice_broadcast(module& m,
                                      instruction_ref gather_ins,
                                      instruction_ref data_ins,
@@ -1539,7 +1542,7 @@ private:
             gather_ins,
             make_op("slice", {{"axes", {axis}}, {"starts", {index}}, {"ends", {index + 1}}}),
             data_ins);
-        
+
         // If indices is not scalar, broadcast to match
         instruction_ref result = slice_ins;
         if(not indices_shape.scalar())
@@ -1548,60 +1551,54 @@ private:
             out_lens.erase(out_lens.begin() + axis);
             auto ind_lens = indices_shape.lens();
             out_lens.insert(out_lens.begin() + axis, ind_lens.begin(), ind_lens.end());
-            
+
             result = m.insert_instruction(
-                gather_ins,
-                make_op("multibroadcast", {{"out_lens", out_lens}}),
-                slice_ins);
+                gather_ins, make_op("multibroadcast", {{"out_lens", out_lens}}), slice_ins);
         }
         else
         {
             // Squeeze the sliced dimension
-            result = m.insert_instruction(
-                gather_ins,
-                make_op("squeeze", {{"axes", {axis}}}),
-                slice_ins);
+            result =
+                m.insert_instruction(gather_ins, make_op("squeeze", {{"axes", {axis}}}), slice_ins);
         }
-        
+
         m.replace_instruction(gather_ins, result);
         return true;
     }
-    
+
     bool simplify_to_slice(module& m,
-                          instruction_ref gather_ins,
-                          instruction_ref data_ins,
-                          const std::vector<int64_t>& indices,
-                          int64_t axis,
-                          const shape& /*data_shape*/) const
+                           instruction_ref gather_ins,
+                           instruction_ref data_ins,
+                           const std::vector<int64_t>& indices,
+                           int64_t axis,
+                           const shape& /*data_shape*/) const
     {
         int64_t start = indices.front();
         int64_t end   = indices.back() + 1;
-        
+
         auto slice_ins = m.insert_instruction(
             gather_ins,
             make_op("slice", {{"axes", {axis}}, {"starts", {start}}, {"ends", {end}}}),
             data_ins);
-        
+
         // If the output shape needs adjustment, add reshape
-        auto slice_shape = slice_ins->get_shape();
+        auto slice_shape  = slice_ins->get_shape();
         auto gather_shape = gather_ins->get_shape();
-        
+
         if(slice_shape.lens() != gather_shape.lens())
         {
             auto result = m.insert_instruction(
-                gather_ins,
-                make_op("reshape", {{"dims", gather_shape.lens()}}),
-                slice_ins);
+                gather_ins, make_op("reshape", {{"dims", gather_shape.lens()}}), slice_ins);
             m.replace_instruction(gather_ins, result);
         }
         else
         {
             m.replace_instruction(gather_ins, slice_ins);
         }
-        
+
         return true;
     }
-    
+
     bool simplify_to_slice_reshape(module& m,
                                    instruction_ref gather_ins,
                                    instruction_ref data_ins,
@@ -1615,31 +1612,27 @@ private:
             gather_ins,
             make_op("slice", {{"axes", {axis}}, {"starts", {index}}, {"ends", {index + 1}}}),
             data_ins);
-        
+
         // Reshape or squeeze to match output shape
         auto gather_shape = gather_ins->get_shape();
-        
+
         if(gather_shape.scalar())
         {
             // Squeeze all dimensions
-            auto result = m.insert_instruction(
-                gather_ins,
-                make_op("squeeze", {{"axes", {axis}}}),
-                slice_ins);
+            auto result =
+                m.insert_instruction(gather_ins, make_op("squeeze", {{"axes", {axis}}}), slice_ins);
             m.replace_instruction(gather_ins, result);
         }
         else
         {
             auto result = m.insert_instruction(
-                gather_ins,
-                make_op("reshape", {{"dims", gather_shape.lens()}}),
-                slice_ins);
+                gather_ins, make_op("reshape", {{"dims", gather_shape.lens()}}), slice_ins);
             m.replace_instruction(gather_ins, result);
         }
-        
+
         return true;
     }
-    
+
     bool simplify_repeated_pattern(module& m,
                                    instruction_ref gather_ins,
                                    instruction_ref data_ins,
@@ -1652,47 +1645,44 @@ private:
         if(info.base_pattern.size() == 1 and info.repeat_count > 1)
         {
             // Simple case: single index repeated
-            return simplify_to_slice_broadcast(m, gather_ins, data_ins, info.base_pattern[0], axis, data_shape, indices_shape);
+            return simplify_to_slice_broadcast(
+                m, gather_ins, data_ins, info.base_pattern[0], axis, data_shape, indices_shape);
         }
-        
+
         // For more complex patterns, check if it's sequential within the pattern
         if(is_sequential(info.base_pattern))
         {
             // Slice the range and then broadcast
             int64_t start = info.base_pattern.front();
             int64_t end   = info.base_pattern.back() + 1;
-            
+
             auto slice_ins = m.insert_instruction(
                 gather_ins,
                 make_op("slice", {{"axes", {axis}}, {"starts", {start}}, {"ends", {end}}}),
                 data_ins);
-            
+
             // Unsqueeze to add dimension for broadcast
             auto unsqueeze_ins = m.insert_instruction(
-                gather_ins,
-                make_op("unsqueeze", {{"axes", {axis}}}),
-                slice_ins);
-            
+                gather_ins, make_op("unsqueeze", {{"axes", {axis}}}), slice_ins);
+
             // Broadcast along the repeated dimension
-            auto out_lens = data_shape.lens();
+            auto out_lens  = data_shape.lens();
             out_lens[axis] = end - start;
             out_lens.insert(out_lens.begin() + axis, info.repeat_count);
-            
+
             auto broadcast_ins = m.insert_instruction(
-                gather_ins,
-                make_op("multibroadcast", {{"out_lens", out_lens}}),
-                unsqueeze_ins);
-            
+                gather_ins, make_op("multibroadcast", {{"out_lens", out_lens}}), unsqueeze_ins);
+
             // Reshape to final shape
-            auto result = m.insert_instruction(
-                gather_ins,
-                make_op("reshape", {{"dims", gather_ins->get_shape().lens()}}),
-                broadcast_ins);
-            
+            auto result =
+                m.insert_instruction(gather_ins,
+                                     make_op("reshape", {{"dims", gather_ins->get_shape().lens()}}),
+                                     broadcast_ins);
+
             m.replace_instruction(gather_ins, result);
             return true;
         }
-        
+
         return false;
     }
 };

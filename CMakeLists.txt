@@ -73,6 +73,14 @@ endif()
 # By default build shared libraries
 option(BUILD_SHARED_LIBS "Create shared libraries" ON)
 
+option(MIGRAPHX_STRIP_SYMBOLS "Strip symbols in release mode" OFF)
+
+# Strip symbols for release
+if(MIGRAPHX_STRIP_SYMBOLS AND NOT WIN32 AND NOT APPLE)
+    set(CMAKE_C_FLAGS_RELEASE "${CMAKE_C_FLAGS_RELEASE} -s")
+    set(CMAKE_CXX_FLAGS_RELEASE "${CMAKE_CXX_FLAGS_RELEASE} -s")
+endif()
+
 if(WIN32) # CK is not yet ported to Windows
 option(MIGRAPHX_USE_COMPOSABLEKERNEL "Enable MIGraphX to use composable kernel JIT library" OFF)
 else()

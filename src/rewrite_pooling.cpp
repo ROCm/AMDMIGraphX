@@ -128,7 +128,7 @@ static void lower_lrn_to_pooling(module& m, instruction_ref ins)
         }
     }
 
-    if(!shape_matches) {
+    if(not shape_matches) {
         return;
     }
 

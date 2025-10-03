@@ -1815,6 +1815,104 @@ TEST_CASE(fp4x2_quant_dot_even)
     EXPECT(m1 == m2);
 }
 
+TEST_CASE(fp4x2_quant_dot_trans_b)
+{
+    migraphx::shape shape_packed_a{migraphx::shape::fp4x2_type, {1, 3, 6, 12}};
+    migraphx::shape shape_packed_b{migraphx::shape::fp4x2_type, {1, 3, 8, 12}};
+    migraphx::shape shape_scales_a{migraphx::shape::float_type, {1, 3, 6, 24}};
+    migraphx::shape shape_scales_b{migraphx::shape::float_type, {1, 3, 8, 24}};
+
+    migraphx::module m1;
+    {
+        auto packed_a = m1.add_parameter("input", shape_packed_a);
+        auto packed_b = m1.add_parameter("weights", shape_packed_b);
+        auto scale_a  = m1.add_parameter("scale_a", shape_scales_a);
+        auto scale_b  = m1.add_parameter("scale_b", shape_scales_b);
+
+        auto unpack_a =
+            m1.add_instruction(migraphx::make_op("unpack_fp4", {{"axis", 3}}), packed_a);
+        auto unpack_b =
+            m1.add_instruction(migraphx::make_op("unpack_fp4", {{"axis", 3}}), packed_b);
+        auto dq_a    = m1.add_instruction(migraphx::make_op("dequantizelinear"), unpack_a, scale_a);
+        auto dq_b    = m1.add_instruction(migraphx::make_op("dequantizelinear"), unpack_b, scale_b);
+        auto trans_b = m1.add_instruction(
+            migraphx::make_op("transpose", {{"permutation", {0, 1, 3, 2}}}), dq_b);
+        auto dot = m1.add_instruction(migraphx::make_op("dot"), dq_a, trans_b);
+        m1.add_return({dot});
+    }
+
+    migraphx::module m2;
+    {
+        auto packed_a = m2.add_parameter("input", shape_packed_a);
+        auto packed_b = m2.add_parameter("weights", shape_packed_b);
+        auto scale_a  = m2.add_parameter("scale_a", shape_scales_a);
+        auto scale_b  = m2.add_parameter("scale_b", shape_scales_b);
+
+        auto unpack_a =
+            m2.add_instruction(migraphx::make_op("unpack_fp4", {{"axis", 3}}), packed_a);
+        auto unpack_b =
+            m2.add_instruction(migraphx::make_op("unpack_fp4", {{"axis", 3}}), packed_b);
+        auto trans_b = m2.add_instruction(
+            migraphx::make_op("transpose", {{"permutation", {0, 1, 3, 2}}}), unpack_b);
+        auto trans_scale_b = m2.add_instruction(
+            migraphx::make_op("transpose", {{"permutation", {0, 1, 3, 2}}}), scale_b);
+        auto quant_dot = m2.add_instruction(
+            migraphx::make_op("quant_dot"), unpack_a, trans_b, scale_a, trans_scale_b);
+        m2.add_return({quant_dot});
+    }
+
+    run_pass(m1);
+    EXPECT(m1 == m2);
+}
+
+TEST_CASE(fp4x2_quant_dot_const_b)
+{
+    migraphx::shape shape_packed_a{migraphx::shape::fp4x2_type, {1, 3, 6, 12}};
+    migraphx::shape shape_packed_b{migraphx::shape::fp4x2_type, {1, 3, 24, 4}};
+    migraphx::shape shape_packed_b_gen{migraphx::shape::uint8_type, {1, 3, 24, 4}};
+    migraphx::shape shape_scales_a{migraphx::shape::float_type, {1, 3, 6, 24}};
+    migraphx::shape shape_scales_b{migraphx::shape::float_type, {1, 3, 24, 8}};
+    unsigned long seed            = 826;
+    migraphx::literal b_lit       = generate_literal(shape_packed_b_gen, seed);
+    migraphx::literal scale_b_lit = generate_literal(shape_scales_b, seed);
+    migraphx::module m1;
+    {
+        auto packed_a = m1.add_parameter("input", shape_packed_a);
+        // avoiding visit fp4x2_type
+        auto packed_b = m1.add_literal(shape_packed_b, b_lit.data());
+        auto scale_a  = m1.add_parameter("scale_a", shape_scales_a);
+        auto scale_b  = m1.add_literal(scale_b_lit);
+
+        auto unpack_a =
+            m1.add_instruction(migraphx::make_op("unpack_fp4", {{"axis", 3}}), packed_a);
+        auto unpack_b =
+            m1.add_instruction(migraphx::make_op("unpack_fp4", {{"axis", 3}}), packed_b);
+        auto dq_a = m1.add_instruction(migraphx::make_op("dequantizelinear"), unpack_a, scale_a);
+        auto dq_b = m1.add_instruction(migraphx::make_op("dequantizelinear"), unpack_b, scale_b);
+        auto dot  = m1.add_instruction(migraphx::make_op("dot"), dq_a, dq_b);
+        m1.add_return({dot});
+    }
+
+    migraphx::module m2;
+    {
+        auto packed_a = m2.add_parameter("input", shape_packed_a);
+        auto packed_b = m2.add_literal(shape_packed_b, b_lit.data());
+        auto scale_a  = m2.add_parameter("scale_a", shape_scales_a);
+        auto scale_b  = m2.add_literal(scale_b_lit);
+
+        auto unpack_a =
+            m2.add_instruction(migraphx::make_op("unpack_fp4", {{"axis", 3}}), packed_a);
+        auto unpack_b =
+            m2.add_instruction(migraphx::make_op("unpack_fp4", {{"axis", 3}}), packed_b);
+        auto quant_dot = m2.add_instruction(
+            migraphx::make_op("quant_dot"), unpack_a, unpack_b, scale_a, scale_b);
+        m2.add_return({quant_dot});
+    }
+
+    run_pass(m1);
+    EXPECT(m1 == m2);
+}
+
 // Test that unused qdq with pack_fp4, unpack_fp4 are removed
 TEST_CASE(fp4x2_even_remove_qdq)
 {

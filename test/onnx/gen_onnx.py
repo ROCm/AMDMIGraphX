@@ -9736,6 +9736,51 @@ def mxfixneuron_small_test():
 
 
 @onnx_test()
+def dynamicscale_even_test():
+    in_tv = helper.make_tensor_value_info('input', TensorProto.FLOAT, [3, 64, 4, 4])
+    out_tv = helper.make_tensor_value_info('output', TensorProto.FLOAT, [3, 64, 4, 4])
+    node = onnx.helper.make_node('DynamicScale',
+            inputs=['input'],
+            group_dim=1,
+            group_size=32,
+            output_dtype=23,
+            scale_selection_method='floor',
+            zero_point_selection_method='None',
+            outputs=['output'])
+    return ([node], [in_tv], [out_tv])
+
+
+@onnx_test()
+def dynamicscale_odd_test():
+    in_tv = helper.make_tensor_value_info('input', TensorProto.FLOAT, [71, 5, 5])
+    out_tv = helper.make_tensor_value_info('output', TensorProto.FLOAT, [71, 5, 5])
+    node = onnx.helper.make_node('DynamicScale',
+            inputs=['input'],
+            group_dim=0,
+            group_size=32,
+            output_dtype=23,
+            scale_selection_method='floor',
+            zero_point_selection_method='None',
+            outputs=['output'])
+    return ([node], [in_tv], [out_tv])
+
+
+@onnx_test()
+def dynamicscale_small_test():
+    in_tv = helper.make_tensor_value_info('input', TensorProto.FLOAT, [4, 4])
+    out_tv = helper.make_tensor_value_info('output', TensorProto.FLOAT, [4, 4])
+    node = onnx.helper.make_node('DynamicScale',
+            inputs=['input'],
+            group_dim=-1,
+            group_size=32,
+            output_dtype=23,
+            scale_selection_method='floor',
+            zero_point_selection_method='None',
+            outputs=['output'])
+    return ([node], [in_tv], [out_tv])
+
+
+@onnx_test()
 def neg_test():
     x = helper.make_tensor_value_info('0', TensorProto.INT64, [2, 3])
     y = helper.make_tensor_value_info('1', TensorProto.INT64, [2, 3])
@@ -11416,6 +11461,42 @@ def quantizelinear_axis_test():
 @onnx_test()
 def quantizelinear_neg_axis_test():
     return make_quantizelinear_axis_graph(-2)
+
+
+@onnx_test()
+def quantizelinear_mxfp4_even_test():
+    arg0 = helper.make_tensor_value_info('0', TensorProto.FLOAT, [3, 64, 4, 4])
+    arg1 = helper.make_tensor_value_info('1', TensorProto.FLOAT, [3, 2, 4, 4])
+    arg_out = helper.make_tensor_value_info('out', TensorProto.FLOAT4E2M1, [3, 64, 4, 4])
+
+    node = onnx.helper.make_node(
+        'QuantizeLinear',
+        inputs = ['0', '1'],
+        axis = 1,
+        block_size = 32,
+        output_dtype = 23,
+        outputs = ['out'],
+    )
+
+    return ([node], [arg0, arg1], [arg_out])
+
+@onnx_test()
+def quantizelinear_mxfp4_odd_test():
+    arg0 = helper.make_tensor_value_info('0', TensorProto.FLOAT, [3, 64, 4, 7])
+    arg1 = helper.make_tensor_value_info('1', TensorProto.FLOAT, [3, 2, 4, 7])
+    arg_out = helper.make_tensor_value_info('out', TensorProto.FLOAT4E2M1, [3, 64, 4, 7])
+
+    node = onnx.helper.make_node(
+        'QuantizeLinear',
+        inputs = ['0', '1'],
+        axis = 1,
+        block_size = 32,
+        output_dtype = 23,
+        outputs = ['out'],
+    )
+
+    return ([node], [arg0, arg1], [arg_out])
+
 
 
 @onnx_test()

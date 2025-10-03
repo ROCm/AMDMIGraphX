@@ -29,7 +29,7 @@
 #include <sstream>
 #include <iostream>
 #include <span>
-#include <xtr/logger.hpp>
+#include <spdlog/logger.h>
 
 #ifndef _WIN32
 #include <unistd.h>

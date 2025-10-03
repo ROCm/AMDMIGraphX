@@ -947,7 +947,7 @@ struct find_gather
                 return false;
             for(std::size_t idx = 0; idx < total; ++idx)
             {
-                auto coord = indices_shape.multi(idx);
+                auto coord    = indices_shape.multi(idx);
                 auto axis_val = coord[axis];
                 auto group    = axis_val / repeat;
                 coord[axis]   = group * repeat;
@@ -960,7 +960,7 @@ struct find_gather
 
         for(std::size_t dim = 0; dim < in_dims; ++dim)
         {
-            auto axis_len_dim = idims[dim];
+            auto axis_len_dim  = idims[dim];
             std::size_t repeat = 1;
             for(std::size_t candidate = 2; candidate <= axis_len_dim; ++candidate)
             {
@@ -989,10 +989,8 @@ struct find_gather
             }
         }
 
-        const bool broadcast_needed =
-            std::any_of(repeat_sizes.begin(), repeat_sizes.end(), [](std::size_t r) {
-                return r > 1;
-            });
+        const bool broadcast_needed = std::any_of(
+            repeat_sizes.begin(), repeat_sizes.end(), [](std::size_t r) { return r > 1; });
 
         std::vector<std::int64_t> strides(in_dims, 0);
         std::size_t weight = 1;
@@ -1004,7 +1002,7 @@ struct find_gather
 
         for(std::size_t idx = 0; idx < total; ++idx)
         {
-            auto coord = indices_shape.multi(idx);
+            auto coord            = indices_shape.multi(idx);
             std::int64_t expected = 0;
             for(auto axis : tile_axes)
             {
@@ -1172,7 +1170,8 @@ struct find_gather
                 broadcast_dims.reserve(in_dims + rest_dims.size());
                 for(std::size_t dim = 0; dim < in_dims; ++dim)
                 {
-                    auto tile_val = (tile_sizes[dim] > 1) ? static_cast<int64_t>(tile_sizes[dim]) : 1;
+                    auto tile_val =
+                        (tile_sizes[dim] > 1) ? static_cast<int64_t>(tile_sizes[dim]) : 1;
                     broadcast_dims.push_back(tile_val);
                     if(repeat_sizes[dim] > 1)
                         broadcast_dims.push_back(static_cast<int64_t>(repeat_sizes[dim]));
@@ -1193,8 +1192,7 @@ struct find_gather
             combine_dims.insert(combine_dims.end(), rest_dims.begin(), rest_dims.end());
             if(combine_dims.empty())
                 combine_dims.push_back(1);
-            curr =
-                m.insert_instruction(ins, make_op("reshape", {{"dims", combine_dims}}), curr);
+            curr = m.insert_instruction(ins, make_op("reshape", {{"dims", combine_dims}}), curr);
         }
 
         const std::size_t axis_block_size = in_dims;

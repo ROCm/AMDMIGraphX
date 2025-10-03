@@ -79,7 +79,7 @@ static void lower_lrn_to_pooling(module& m, instruction_ref ins)
     auto transpose1 = m.insert_instruction(ins, make_op("transpose", {{"permutation", perm}}), x2);
 
     auto transposed_shape = transpose1->get_shape();
-    auto transposed_lens = transposed_shape.lens();
+    const auto& transposed_lens = transposed_shape.lens();
 
     int64_t channel_dim = lens[1];
     std::vector<int64_t> calculated_pads(2);

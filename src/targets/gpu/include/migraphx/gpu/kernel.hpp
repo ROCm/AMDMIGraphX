@@ -84,7 +84,7 @@ struct MIGRAPHX_GPU_EXPORT kernel
     template <class... Ts, MIGRAPHX_REQUIRES(std::is_convertible<Ts, hipEvent_t>{}...)>
     auto launch(hipStream_t stream, std::size_t global, std::size_t local, Ts... zs) const
     {
-        return [=](auto&&... xs) {
+        return [this, stream, global, local, zs...](auto&&... xs) {
             launch(stream, global, local, std::vector<kernel_argument>{xs...}, zs...);
         };
     }

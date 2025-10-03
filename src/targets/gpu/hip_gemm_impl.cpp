@@ -156,8 +156,8 @@ struct hip_gemm_impl
             }
             else
             {
-                get_alpha = [=] { return &alpha; };
-                get_beta  = [=] { return &beta; };
+                get_alpha = [this] { return &alpha; };
+                get_beta  = [this] { return &beta; };
             }
         });
 

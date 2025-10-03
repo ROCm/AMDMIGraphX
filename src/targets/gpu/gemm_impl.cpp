@@ -199,8 +199,8 @@ struct gemm_impl
             auto beta_r  = as(beta);
             if(compute_fp32)
             {
-                get_alpha = [=] { return &alpha; };
-                get_beta  = [=] { return &beta; };
+                get_alpha = [this] { return &alpha; };
+                get_beta  = [this] { return &beta; };
             }
             else
             {

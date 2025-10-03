@@ -427,7 +427,7 @@ struct argument_parser
 
     auto show_help(const std::string& msg = "")
     {
-        return do_action([=](auto& self) {
+        return do_action([this, msg](auto& self) {
             argument* input_argument =
                 self.find_argument([](const auto& arg) { return arg.flags.empty(); });
             auto required_usages = get_argument_usages(get_required_arguments());

@@ -359,7 +359,7 @@ find_package(nlohmann_json 3.8.0 REQUIRED)
 target_link_libraries(migraphx PRIVATE nlohmann_json::nlohmann_json)
 
 find_package(xtr 3 REQUIRED)
-target_link_libraries(migraphx PRIVATE xtr)
+target_link_libraries(migraphx PRIVATE xtr::xtr)
 
 find_package(SQLite3 REQUIRED)
 target_link_libraries(migraphx PRIVATE SQLite::SQLite3)

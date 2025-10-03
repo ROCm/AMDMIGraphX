@@ -22,7 +22,7 @@
  * THE SOFTWARE.
  */
 
-#include <migraphx/logging.hpp>
+#include <migraphx/logger.hpp>
 #include <migraphx/program.hpp>
 #include <migraphx/module.hpp>
 #include <migraphx/iterator_for.hpp>
@@ -108,7 +108,7 @@ struct compile_plan
     template <class Vector>
     void insert_compiles(Vector& compiles, const value& solution, std::size_t i)
     {
-        compiles.emplace_back([=] {
+        compiles.emplace_back([this, solution, i] {
             try
             {
                 results[i] = compiled_result{compile(*ctx, ins, preop, solution), ins};

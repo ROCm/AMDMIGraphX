@@ -52,6 +52,10 @@ list(APPEND CMAKE_MODULE_PATH ${CMAKE_CURRENT_SOURCE_DIR}/cmake)
 project(migraphx LANGUAGES C CXX)
 include(CTest)
 
+set(CMAKE_CXX_STANDARD 20)
+set(CMAKE_CXX_STANDARD_REQUIRED ON)
+set(CMAKE_CXX_EXTENSIONS OFF)
+
 find_package(ROCmCMakeBuildTools REQUIRED)
 find_package(Threads REQUIRED)
 
@@ -151,13 +155,6 @@ endif()
 
 if(WIN32)
     add_compile_definitions("$<$<COMPILE_LANGUAGE:C,CXX>:_CRT_SECURE_NO_WARNINGS;_USE_MATH_DEFINES>")
-endif()
-
-set(CMAKE_CXX_STANDARD_DEFAULT "")
-if(MSVC)
-    add_compile_options($<$<COMPILE_LANGUAGE:CXX>:/std:c++17>)
-else()
-    add_compile_options($<$<COMPILE_LANGUAGE:CXX>:-std=c++17>)
 endif()
 
 include(EnableCompilerWarnings)

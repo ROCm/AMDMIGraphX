@@ -22,15 +22,16 @@
  * THE SOFTWARE.
  */
 
-#ifndef MIGRAPHX_LOGGING_HPP
-#define MIGRAPHX_LOGGING_HPP
+#ifndef MIGRAPHX_LOGGER_HPP
+#define MIGRAPHX_LOGGER_HPP
+
+#include <span>
+#include <xtr/logger.hpp>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
 
-#include <xtr/logger.hpp>
-
 } // namespace MIGRAPHX_INLINE_NS
 } // namespace migraphx
 
-#endif //MIGRAPHX_LOGGING_HPP
+#endif //MIGRAPHX_LOGGER_HPP

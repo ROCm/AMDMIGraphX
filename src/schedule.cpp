@@ -324,13 +324,12 @@ struct stream_info
     template <class Selector>
     auto get_streams_from(instruction_ref start, Selector select) const
     {
-        return [=](auto f) {
+        return [this, start, select](auto f) {
             return fix<bool>([&](auto self, auto ins) {
                 return all_of(select(ins), [&](auto i) {
                     if(has_stream(i))
                         return f(this->get_stream(i));
-                    else
-                        return self(i);
+                    return self(i);
                 });
             })(start);
         };

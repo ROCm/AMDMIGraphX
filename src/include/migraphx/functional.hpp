@@ -192,7 +192,7 @@ auto pack_join(Ps... ps)
 template <class F, class Proj>
 auto by(F f, Proj proj)
 {
-    return [=](auto&&... xs) { return f(proj(std::forward<decltype(xs)>(xs))...); };
+    return [=]<typename... T0>(T0&&... xs) { return f(proj(std::forward<T0>(xs))...); };
 }
 
 template <class T>

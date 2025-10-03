@@ -152,9 +152,10 @@ struct custom_compare_adl : migraphx::totally_ordered<custom_compare_adl>
         return lhs.x == rhs.x;
     }
 
+    // C++20: error: recursive template instantiation exceeded maximum depth of 1024
     template <class T, MIGRAPHX_REQUIRES(not std::is_same<T, custom_compare_adl>{})>
     friend constexpr auto operator==(const custom_compare_adl& lhs,
-                                     const T& rhs) -> decltype(std::declval<int>() == rhs)
+                                     const T& rhs) // -> decltype(std::declval<int>() == rhs)
     {
         return lhs.x == rhs;
     }

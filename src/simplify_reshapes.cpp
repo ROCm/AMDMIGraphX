@@ -1001,10 +1001,10 @@ struct find_gather
             };
 
             auto product = [](const std::vector<std::size_t>& lens) {
-                return std::accumulate(
-                    lens.begin(), lens.end(), std::size_t{1}, [](auto acc, auto v) {
-                        return acc * v;
-                    });
+                return std::accumulate(lens.begin(),
+                                       lens.end(),
+                                       std::size_t{1},
+                                       [](auto acc, auto v) { return acc * v; });
             };
 
             std::vector<std::vector<std::size_t>> factor_candidates;
@@ -1017,7 +1017,7 @@ struct find_gather
                 instruction_ref curr_data = data_ins;
                 while(curr_data->name() == "reshape" and curr_data->inputs().size() == 1)
                 {
-                    auto input = curr_data->inputs().front();
+                    auto input          = curr_data->inputs().front();
                     const auto& in_lens = input->get_shape().lens();
                     if(product(in_lens) == axis_len)
                     {
@@ -1029,9 +1029,8 @@ struct find_gather
                             auto dim_factors = factorize(len);
                             if(dim_factors.empty())
                                 dim_factors.push_back(len);
-                            shape_factors.insert(shape_factors.end(),
-                                                 dim_factors.begin(),
-                                                 dim_factors.end());
+                            shape_factors.insert(
+                                shape_factors.end(), dim_factors.begin(), dim_factors.end());
                         }
                         if(not shape_factors.empty() and shape_factors.size() <= 8 and
                            product(shape_factors) == axis_len and

@@ -937,56 +937,88 @@ struct find_gather
         const std::size_t total   = indices_values.size();
         std::int64_t base         = indices_values.front();
 
-        std::vector<std::int64_t> strides(in_dims, 0);
+        std::vector<std::size_t> repeat_sizes(in_dims, 1);
+        std::vector<std::size_t> tile_sizes(in_dims, 1);
+        auto is_repeated_axis = [&](std::size_t axis, std::size_t repeat) {
+            if(repeat <= 1)
+                return false;
+            auto axis_len = idims[axis];
+            if(axis_len % repeat != 0)
+                return false;
+            for(std::size_t idx = 0; idx < total; ++idx)
+            {
+                auto coord = indices_shape.multi(idx);
+                auto axis_val = coord[axis];
+                auto group    = axis_val / repeat;
+                coord[axis]   = group * repeat;
+                auto base_idx = indices_shape.index(coord);
+                if(indices_values[idx] != indices_values[base_idx])
+                    return false;
+            }
+            return true;
+        };
+
         for(std::size_t dim = 0; dim < in_dims; ++dim)
         {
-            if(idims[dim] <= 1)
-                continue;
-
-            bool stride_set          = false;
-            std::int64_t stride_diff = 0;
-            for(std::size_t index = 0; index < total; ++index)
+            auto axis_len_dim = idims[dim];
+            std::size_t repeat = 1;
+            for(std::size_t candidate = 2; candidate <= axis_len_dim; ++candidate)
             {
-                auto coord = indices_shape.multi(index);
-                if(coord[dim] + 1 >= idims[dim])
+                if(axis_len_dim % candidate != 0)
                     continue;
-                auto next_coord = coord;
-                next_coord[dim] += 1;
-                auto next_index = indices_shape.index(next_coord);
-                auto diff       = indices_values[next_index] - indices_values[index];
-                if(not stride_set)
+                if(is_repeated_axis(dim, candidate))
                 {
-                    stride_diff = diff;
-                    stride_set  = true;
-                }
-                else if(stride_diff != diff)
-                {
-                    return;
+                    repeat = candidate;
+                    break;
                 }
             }
-
-            if(not stride_set or stride_diff < 0)
+            repeat_sizes[dim] = repeat;
+            tile_sizes[dim]   = (repeat > 0) ? axis_len_dim / repeat : 0;
+            if(tile_sizes[dim] == 0)
                 return;
-
-            strides[dim] = stride_diff;
         }
 
-        for(std::size_t index = 0; index < total; ++index)
+        std::vector<std::size_t> tile_axes;
+        std::size_t tile_product = 1;
+        for(std::size_t dim = 0; dim < in_dims; ++dim)
         {
-            auto coord     = indices_shape.multi(index);
-            std::int64_t v = base;
-            for(std::size_t dim = 0; dim < in_dims; ++dim)
-                v += strides[dim] * static_cast<std::int64_t>(coord[dim]);
-            if(v != indices_values[index])
+            if(tile_sizes[dim] > 1)
+            {
+                tile_axes.push_back(dim);
+                tile_product *= tile_sizes[dim];
+            }
+        }
+
+        const bool broadcast_needed =
+            std::any_of(repeat_sizes.begin(), repeat_sizes.end(), [](std::size_t r) {
+                return r > 1;
+            });
+
+        std::vector<std::int64_t> strides(in_dims, 0);
+        std::size_t weight = 1;
+        for(auto it = tile_axes.rbegin(); it != tile_axes.rend(); ++it)
+        {
+            strides[*it] = static_cast<std::int64_t>(weight);
+            weight *= tile_sizes[*it];
+        }
+
+        for(std::size_t idx = 0; idx < total; ++idx)
+        {
+            auto coord = indices_shape.multi(idx);
+            std::int64_t expected = 0;
+            for(auto axis : tile_axes)
+            {
+                auto tile_index = coord[axis] / repeat_sizes[axis];
+                expected += strides[axis] * static_cast<std::int64_t>(tile_index);
+            }
+            if(indices_values[idx] - base != expected)
                 return;
         }
 
         std::int64_t max_index = base;
-        for(std::size_t dim = 0; dim < in_dims; ++dim)
+        for(auto axis : tile_axes)
         {
-            if(idims[dim] == 0)
-                return;
-            max_index += strides[dim] * static_cast<std::int64_t>(idims[dim] - 1);
+            max_index += strides[axis] * static_cast<std::int64_t>(tile_sizes[axis] - 1);
         }
 
         if(base < 0 or max_index < base)
@@ -998,18 +1030,33 @@ struct find_gather
         if(slice_len <= 0)
             return;
 
-        std::vector<std::size_t> vary_dims;
-        vary_dims.reserve(in_dims);
-        for(std::size_t dim = 0; dim < in_dims; ++dim)
+        const auto slice_len_size = static_cast<std::size_t>(slice_len);
+        if(slice_len_size == 0)
+            return;
+
+        const bool has_tiled_repeat =
+            std::any_of(tile_axes.begin(), tile_axes.end(), [&](std::size_t dim) {
+                return repeat_sizes[dim] > 1;
+            });
+        if(slice_len_size != axis_len && has_tiled_repeat)
+            return;
+
+        if(tile_axes.empty())
         {
-            if(idims[dim] > 1 and strides[dim] > 0)
-                vary_dims.push_back(dim);
+            if(slice_len_size != 1)
+                return;
         }
+        else if(tile_product != slice_len_size)
+        {
+            return;
+        }
+
+        std::vector<std::size_t> vary_dims = tile_axes;
 
         std::size_t prod_vary = 1;
         for(auto dim : vary_dims)
-            prod_vary *= idims[dim];
-        if(static_cast<std::size_t>(slice_len) != prod_vary)
+            prod_vary *= tile_sizes[dim];
+        if(static_cast<std::size_t>(slice_len) != prod_vary and not vary_dims.empty())
             return;
 
         std::vector<std::size_t> sorted_vary = vary_dims;
@@ -1022,7 +1069,7 @@ struct find_gather
         {
             if(strides[dim] != expected_stride)
                 return;
-            expected_stride *= static_cast<std::int64_t>(idims[dim]);
+            expected_stride *= static_cast<std::int64_t>(tile_sizes[dim]);
         }
         if(not sorted_vary.empty() and expected_stride != slice_len)
             return;
@@ -1036,9 +1083,7 @@ struct find_gather
         std::vector<std::size_t> rest_lens = pre_lens;
         rest_lens.insert(rest_lens.end(), post_lens.begin(), post_lens.end());
 
-        const bool has_broadcast       = in_dims != vary_dims.size();
-        const bool need_second_reshape = has_broadcast or in_dims == 0;
-        const auto& output_lens        = ins->get_shape().lens();
+        const auto& output_lens = ins->get_shape().lens();
 
         instruction_ref curr = data_ins;
 
@@ -1078,7 +1123,7 @@ struct find_gather
             std::vector<int64_t> reshape1_dims;
             reshape1_dims.reserve(ordered_vary_desc.size() + rest_dims.size());
             for(auto dim : ordered_vary_desc)
-                reshape1_dims.push_back(static_cast<int64_t>(idims[dim]));
+                reshape1_dims.push_back(static_cast<int64_t>(tile_sizes[dim]));
             reshape1_dims.insert(reshape1_dims.end(), rest_dims.begin(), rest_dims.end());
             curr = m.insert_instruction(ins, make_op("reshape", {{"dims", reshape1_dims}}), curr);
 
@@ -1103,19 +1148,53 @@ struct find_gather
             }
         }
 
-        if(need_second_reshape)
+        if(in_dims > 0)
         {
             std::vector<int64_t> reshape2_dims;
             reshape2_dims.reserve(in_dims + rest_dims.size());
             for(std::size_t dim = 0; dim < in_dims; ++dim)
             {
-                reshape2_dims.push_back(
-                    (strides[dim] > 0 and idims[dim] > 1) ? static_cast<int64_t>(idims[dim]) : 1);
+                if(tile_sizes[dim] > 1)
+                    reshape2_dims.push_back(static_cast<int64_t>(tile_sizes[dim]));
+                else
+                    reshape2_dims.push_back(1);
+
+                if(repeat_sizes[dim] > 1)
+                    reshape2_dims.push_back(1);
             }
             reshape2_dims.insert(reshape2_dims.end(), rest_dims.begin(), rest_dims.end());
             if(reshape2_dims.empty())
                 reshape2_dims.push_back(1);
             curr = m.insert_instruction(ins, make_op("reshape", {{"dims", reshape2_dims}}), curr);
+            if(broadcast_needed)
+            {
+                std::vector<int64_t> broadcast_dims;
+                broadcast_dims.reserve(in_dims + rest_dims.size());
+                for(std::size_t dim = 0; dim < in_dims; ++dim)
+                {
+                    auto tile_val = (tile_sizes[dim] > 1) ? static_cast<int64_t>(tile_sizes[dim]) : 1;
+                    broadcast_dims.push_back(tile_val);
+                    if(repeat_sizes[dim] > 1)
+                        broadcast_dims.push_back(static_cast<int64_t>(repeat_sizes[dim]));
+                }
+                broadcast_dims.insert(broadcast_dims.end(), rest_dims.begin(), rest_dims.end());
+                curr = m.insert_instruction(
+                    ins, make_op("multibroadcast", {{"out_lens", broadcast_dims}}), curr);
+            }
+
+            std::vector<int64_t> combine_dims;
+            combine_dims.reserve(in_dims + rest_dims.size());
+            for(std::size_t dim = 0; dim < in_dims; ++dim)
+            {
+                auto tile_val   = (tile_sizes[dim] > 1) ? tile_sizes[dim] : std::size_t{1};
+                auto repeat_val = repeat_sizes[dim];
+                combine_dims.push_back(static_cast<int64_t>(tile_val * repeat_val));
+            }
+            combine_dims.insert(combine_dims.end(), rest_dims.begin(), rest_dims.end());
+            if(combine_dims.empty())
+                combine_dims.push_back(1);
+            curr =
+                m.insert_instruction(ins, make_op("reshape", {{"dims", combine_dims}}), curr);
         }
 
         const std::size_t axis_block_size = in_dims;
@@ -1688,7 +1767,7 @@ void simplify_reshapes::apply(module& m) const
     m.repeat_while_changes(depth, [&] {
         match::find_matches(m,
                             find_where_op{},
-                            find_resize{},
+                            // find_resize{},
                             find_gather{},
                             find_nop_reshapes{},
                             find_flatten{},

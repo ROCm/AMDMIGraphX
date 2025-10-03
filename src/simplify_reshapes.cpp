@@ -940,7 +940,7 @@ struct find_gather
 
         const std::vector<std::size_t> pre_lens(dlens.begin(), dlens.begin() + axis_index);
         const std::vector<std::size_t> post_lens(dlens.begin() + axis_index + 1, dlens.end());
-        std::vector<std::size_t>       rest_lens = pre_lens;
+        std::vector<std::size_t> rest_lens = pre_lens;
         rest_lens.insert(rest_lens.end(), post_lens.begin(), post_lens.end());
 
         auto to_int64 = [](const std::vector<std::size_t>& lens) {
@@ -1132,8 +1132,7 @@ struct find_gather
                 for(std::size_t i = 0; i < axis_block_size; ++i)
                     perm_final[pos++] = static_cast<int64_t>(i);
                 for(std::size_t i = 0; i < post_lens.size(); ++i)
-                    perm_final[pos++] =
-                        static_cast<int64_t>(axis_block_size + pre_lens.size() + i);
+                    perm_final[pos++] = static_cast<int64_t>(axis_block_size + pre_lens.size() + i);
 
                 bool need_transpose = false;
                 for(std::size_t i = 0; i < perm_final.size(); ++i)

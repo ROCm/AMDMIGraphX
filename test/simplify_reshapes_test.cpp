@@ -1938,6 +1938,34 @@ TEST_CASE(gather_constant_sequential_indices)
     EXPECT(m1.sort() == m2.sort());
 }
 
+TEST_CASE(gather_flatten_permutation)
+{
+    migraphx::module m;
+    auto x = m.add_parameter("X", {migraphx::shape::float_type, {1, 1, 4, 4}});
+    auto reshape_flat =
+        m.add_instruction(migraphx::make_op("reshape", {{"dims", {16}}}), x);
+    migraphx::shape si{migraphx::shape::int32_type, {4, 1, 2, 2}};
+    std::vector<int32_t> indices = {0, 2, 8, 10, 4, 6, 12, 14,
+                                    1, 3, 9, 11, 5, 7, 13, 15};
+    auto li = m.add_literal(migraphx::literal{si, indices});
+    auto g  = m.add_instruction(migraphx::make_op("gather"), reshape_flat, li);
+    m.add_return({g});
+
+    run_pass(m);
+
+    migraphx::module expected;
+    auto xe          = expected.add_parameter("X", {migraphx::shape::float_type, {1, 1, 4, 4}});
+    auto reshape_perm = expected.add_instruction(
+        migraphx::make_op("reshape", {{"dims", {1, 1, 2, 2, 2, 2}}}), xe);
+    auto transpose = expected.add_instruction(
+        migraphx::make_op("transpose", {{"permutation", {5, 3, 0, 1, 2, 4}}}), reshape_perm);
+    auto reshape_out = expected.add_instruction(
+        migraphx::make_op("reshape", {{"dims", {4, 1, 2, 2}}}), transpose);
+    expected.add_return({reshape_out});
+
+    EXPECT(m == expected);
+}
+
 // TEST_CASE(gather_constant_scalar_index)
 // {
 //     migraphx::module m1;

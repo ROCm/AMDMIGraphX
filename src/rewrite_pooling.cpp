@@ -99,7 +99,7 @@ static void lower_lrn_to_pooling(module& m, instruction_ref ins)
             }), transpose1);
 
         auto avg_shape = avg->get_shape();
-        auto avg_lens = avg_shape.lens();
+        const auto& avg_lens = avg_shape.lens();
 
         if(avg_lens[3] != transposed_lens[3]) {
             return;
@@ -113,7 +113,7 @@ static void lower_lrn_to_pooling(module& m, instruction_ref ins)
     auto transpose2 = m.insert_instruction(ins, make_op("transpose", {{"permutation", inv_perm}}), avg);
 
     auto final_shape = transpose2->get_shape();
-    auto final_lens = final_shape.lens();
+    const auto& final_lens = final_shape.lens();
 
 
     bool shape_matches = true;

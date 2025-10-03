@@ -21,6 +21,7 @@
  * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
  * THE SOFTWARE.
  */
+#include <algorithm>
 #include <iterator>
 #include <migraphx/simplify_reshapes.hpp>
 #include <migraphx/program.hpp>
@@ -999,12 +1000,55 @@ struct find_gather
                 return factors;
             };
 
-            auto factors = factorize(axis_len);
-            if(factors.empty() || factors.size() > 8)
-                return false;
+            auto product = [](const std::vector<std::size_t>& lens) {
+                return std::accumulate(
+                    lens.begin(), lens.end(), std::size_t{1}, [](auto acc, auto v) {
+                        return acc * v;
+                    });
+            };
 
-            std::vector<std::size_t> perm(factors.size());
-            std::iota(perm.begin(), perm.end(), 0);
+            std::vector<std::vector<std::size_t>> factor_candidates;
+            auto prime_factors = factorize(axis_len);
+            if(not prime_factors.empty())
+                factor_candidates.push_back(prime_factors);
+
+            if(dlens.size() == 1 and axis_index == 0)
+            {
+                instruction_ref curr_data = data_ins;
+                while(curr_data->name() == "reshape" and curr_data->inputs().size() == 1)
+                {
+                    auto input = curr_data->inputs().front();
+                    const auto& in_lens = input->get_shape().lens();
+                    if(product(in_lens) == axis_len)
+                    {
+                        std::vector<std::size_t> shape_factors;
+                        for(auto len : in_lens)
+                        {
+                            if(len == 1)
+                                continue;
+                            auto dim_factors = factorize(len);
+                            if(dim_factors.empty())
+                                dim_factors.push_back(len);
+                            shape_factors.insert(shape_factors.end(),
+                                                 dim_factors.begin(),
+                                                 dim_factors.end());
+                        }
+                        if(not shape_factors.empty() and shape_factors.size() <= 8 and
+                           product(shape_factors) == axis_len and
+                           std::find(factor_candidates.begin(),
+                                     factor_candidates.end(),
+                                     shape_factors) == factor_candidates.end())
+                        {
+                            factor_candidates.push_back(shape_factors);
+                        }
+                        break;
+                    }
+                    curr_data = input;
+                }
+            }
+
+            std::vector<std::size_t> chosen_factors;
+            std::vector<std::size_t> matched_perm;
 
             auto compute_order = [&](const std::vector<std::size_t>& factor_dims,
                                      const std::vector<std::size_t>& permutation) {
@@ -1041,25 +1085,37 @@ struct find_gather
                 return order;
             };
 
-            std::vector<std::size_t> matched_perm;
-            do
+            for(auto factors : factor_candidates)
             {
-                auto order = compute_order(factors, perm);
-                bool match = true;
-                for(std::size_t i = 0; i < order.size(); ++i)
+                if(factors.empty() or factors.size() > 8)
+                    continue;
+
+                std::vector<std::size_t> perm(factors.size());
+                std::iota(perm.begin(), perm.end(), 0);
+
+                do
                 {
-                    if(order[i] != static_cast<std::size_t>(indices_values[i]))
+                    auto order = compute_order(factors, perm);
+                    bool match = true;
+                    for(std::size_t i = 0; i < order.size(); ++i)
                     {
-                        match = false;
+                        if(order[i] != static_cast<std::size_t>(indices_values[i]))
+                        {
+                            match = false;
+                            break;
+                        }
+                    }
+                    if(match)
+                    {
+                        matched_perm   = perm;
+                        chosen_factors = std::move(factors);
                         break;
                     }
-                }
-                if(match)
-                {
-                    matched_perm = perm;
+                } while(std::next_permutation(perm.begin(), perm.end()) and matched_perm.empty());
+
+                if(not matched_perm.empty())
                     break;
-                }
-            } while(std::next_permutation(perm.begin(), perm.end()));
+            }
 
             if(matched_perm.empty())
                 return false;
@@ -1083,15 +1139,15 @@ struct find_gather
 
             std::vector<int64_t> rest_dims = to_int64(rest_lens);
             std::vector<int64_t> reshape1_dims;
-            reshape1_dims.reserve(factors.size() + rest_dims.size());
-            for(auto f : factors)
+            reshape1_dims.reserve(chosen_factors.size() + rest_dims.size());
+            for(auto f : chosen_factors)
                 reshape1_dims.push_back(static_cast<int64_t>(f));
             reshape1_dims.insert(reshape1_dims.end(), rest_dims.begin(), rest_dims.end());
             curr = m.insert_instruction(ins, make_op("reshape", {{"dims", reshape1_dims}}), curr);
 
-            if(factors.size() > 1)
+            if(chosen_factors.size() > 1)
             {
-                std::vector<int64_t> perm_extended(factors.size() + rest_dims.size());
+                std::vector<int64_t> perm_extended(chosen_factors.size() + rest_dims.size());
                 for(std::size_t i = 0; i < matched_perm.size(); ++i)
                     perm_extended[i] = static_cast<int64_t>(matched_perm[i]);
                 for(std::size_t i = 0; i < rest_dims.size(); ++i)

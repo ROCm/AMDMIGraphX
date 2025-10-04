@@ -1823,7 +1823,8 @@ struct find_gather
                 for(auto dim : ordered_vary_desc)
                     reshape1_dims.push_back(static_cast<int64_t>(tile_sizes[dim]));
                 reshape1_dims.insert(reshape1_dims.end(), rest_dims.begin(), rest_dims.end());
-                curr = m.insert_instruction(ins, make_op("reshape", {{"dims", reshape1_dims}}), curr);
+                curr =
+                    m.insert_instruction(ins, make_op("reshape", {{"dims", reshape1_dims}}), curr);
 
                 if(ordered_vary_desc != target_vary_order)
                 {
@@ -1831,8 +1832,9 @@ struct find_gather
                     std::vector<int64_t> perm(axis_count + rest_dims.size());
                     for(std::size_t i = 0; i < target_vary_order.size(); ++i)
                     {
-                        auto it = std::find(
-                            ordered_vary_desc.begin(), ordered_vary_desc.end(), target_vary_order[i]);
+                        auto it = std::find(ordered_vary_desc.begin(),
+                                            ordered_vary_desc.end(),
+                                            target_vary_order[i]);
                         if(it == ordered_vary_desc.end())
                             return false;
                         perm[i] = std::distance(ordered_vary_desc.begin(), it);
@@ -1863,7 +1865,8 @@ struct find_gather
                 reshape2_dims.insert(reshape2_dims.end(), rest_dims.begin(), rest_dims.end());
                 if(reshape2_dims.empty())
                     reshape2_dims.push_back(1);
-                curr = m.insert_instruction(ins, make_op("reshape", {{"dims", reshape2_dims}}), curr);
+                curr =
+                    m.insert_instruction(ins, make_op("reshape", {{"dims", reshape2_dims}}), curr);
                 if(broadcast_needed)
                 {
                     std::vector<int64_t> broadcast_dims;
@@ -1892,7 +1895,8 @@ struct find_gather
                 combine_dims.insert(combine_dims.end(), rest_dims.begin(), rest_dims.end());
                 if(combine_dims.empty())
                     combine_dims.push_back(1);
-                curr = m.insert_instruction(ins, make_op("reshape", {{"dims", combine_dims}}), curr);
+                curr =
+                    m.insert_instruction(ins, make_op("reshape", {{"dims", combine_dims}}), curr);
             }
 
             const std::size_t axis_block_size = in_dims;
@@ -1982,18 +1986,15 @@ struct find_gather
             const auto half_i64     = static_cast<int64_t>(half);
             const auto axis_len_i64 = static_cast<int64_t>(axis_len);
 
-            auto tail = m.insert_instruction(ins,
-                                             make_op("slice",
-                                                     {{"axes", axes},
-                                                      {"starts", {half_i64}},
-                                                      {"ends", {axis_len_i64}}}),
-                                             data_ins);
-            auto head = m.insert_instruction(ins,
-                                             make_op("slice",
-                                                     {{"axes", axes},
-                                                      {"starts", {0}},
-                                                      {"ends", {half_i64}}}),
-                                             data_ins);
+            auto tail = m.insert_instruction(
+                ins,
+                make_op("slice",
+                        {{"axes", axes}, {"starts", {half_i64}}, {"ends", {axis_len_i64}}}),
+                data_ins);
+            auto head = m.insert_instruction(
+                ins,
+                make_op("slice", {{"axes", axes}, {"starts", {0}}, {"ends", {half_i64}}}),
+                data_ins);
 
             auto concat =
                 m.insert_instruction(ins, make_op("concat", {{"axis", int64_t{0}}}), tail, head);
@@ -2007,7 +2008,8 @@ struct find_gather
             {
                 if(reshape_dims.empty())
                     reshape_dims.push_back(1);
-                curr = m.insert_instruction(ins, make_op("reshape", {{"dims", reshape_dims}}), curr);
+                curr =
+                    m.insert_instruction(ins, make_op("reshape", {{"dims", reshape_dims}}), curr);
             }
 
             m.replace_instruction(ins, curr);

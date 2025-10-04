@@ -1939,29 +1939,29 @@ TEST_CASE(gather_constant_sequential_indices)
     EXPECT(m1.sort() == m2.sort());
 }
 
-    TEST_CASE(gather_axis0_half_split_concat)
-    {
-        migraphx::module m;
-        auto x = m.add_parameter("x", {migraphx::shape::float_type, {4, 3}});
-        migraphx::shape si{migraphx::shape::int32_type, {4}};
-        std::vector<int32_t> indices = {2, 3, 0, 1};
-        auto li                      = m.add_literal(migraphx::literal(si, indices));
-        auto g                       = m.add_instruction(migraphx::make_op("gather", {{"axis", 0}}), x, li);
-        m.add_return({g});
+TEST_CASE(gather_axis0_half_split_concat)
+{
+    migraphx::module m;
+    auto x = m.add_parameter("x", {migraphx::shape::float_type, {4, 3}});
+    migraphx::shape si{migraphx::shape::int32_type, {4}};
+    std::vector<int32_t> indices = {2, 3, 0, 1};
+    auto li                      = m.add_literal(migraphx::literal(si, indices));
+    auto g = m.add_instruction(migraphx::make_op("gather", {{"axis", 0}}), x, li);
+    m.add_return({g});
 
-        run_pass(m);
+    run_pass(m);
 
-        migraphx::module expected;
-        auto xe   = expected.add_parameter("x", {migraphx::shape::float_type, {4, 3}});
-        auto tail = expected.add_instruction(
-            migraphx::make_op("slice", {{"axes", {0}}, {"starts", {2}}, {"ends", {4}}}), xe);
-        auto head = expected.add_instruction(
-            migraphx::make_op("slice", {{"axes", {0}}, {"starts", {0}}, {"ends", {2}}}), xe);
-        auto cat  = expected.add_instruction(migraphx::make_op("concat", {{"axis", 0}}), tail, head);
-        expected.add_return({cat});
+    migraphx::module expected;
+    auto xe   = expected.add_parameter("x", {migraphx::shape::float_type, {4, 3}});
+    auto tail = expected.add_instruction(
+        migraphx::make_op("slice", {{"axes", {0}}, {"starts", {2}}, {"ends", {4}}}), xe);
+    auto head = expected.add_instruction(
+        migraphx::make_op("slice", {{"axes", {0}}, {"starts", {0}}, {"ends", {2}}}), xe);
+    auto cat = expected.add_instruction(migraphx::make_op("concat", {{"axis", 0}}), tail, head);
+    expected.add_return({cat});
 
-        EXPECT(m == expected);
-    }
+    EXPECT(m == expected);
+}
 
 TEST_CASE(gather_flatten_stride_slice)
 {

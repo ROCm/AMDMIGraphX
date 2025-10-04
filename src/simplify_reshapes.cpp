@@ -1101,6 +1101,23 @@ struct find_gather
             if(is_identity)
                 return false;
 
+            if(axis_index == 0 and total == axis_len and axis_len % 2 == 0)
+            {
+                const std::size_t half = axis_len / 2;
+                bool half_shift        = true;
+                for(std::size_t i = 0; i < indices_values.size(); ++i)
+                {
+                    auto expected = (i + half) % axis_len;
+                    if(static_cast<std::size_t>(indices_values[i]) != expected)
+                    {
+                        half_shift = false;
+                        break;
+                    }
+                }
+                if(half_shift)
+                    return false;
+            }
+
             if(factor_candidates.empty())
                 return false;
 
@@ -1292,6 +1309,23 @@ struct find_gather
         auto try_rectangular_rewrite = [&]() -> bool {
             if(factor_candidates.empty())
                 return false;
+
+            if(axis_index == 0 and total == axis_len and axis_len % 2 == 0)
+            {
+                const std::size_t half = axis_len / 2;
+                bool half_shift        = true;
+                for(std::size_t i = 0; i < indices_values.size(); ++i)
+                {
+                    auto expected = (i + half) % axis_len;
+                    if(static_cast<std::size_t>(indices_values[i]) != expected)
+                    {
+                        half_shift = false;
+                        break;
+                    }
+                }
+                if(half_shift)
+                    return false;
+            }
 
             const auto invalid_index_value = std::numeric_limits<std::size_t>::max();
             std::vector<int64_t> rest_dims = to_int64(rest_lens);
@@ -1605,306 +1639,383 @@ struct find_gather
         if(try_rectangular_rewrite())
             return;
 
-        std::vector<std::size_t> repeat_sizes(in_dims, 1);
-        std::vector<std::size_t> tile_sizes(in_dims, 1);
-        auto is_repeated_axis = [&](std::size_t axis, std::size_t repeat) {
-            if(repeat <= 1)
-                return false;
-            auto axis_len = idims[axis];
-            if(axis_len % repeat != 0)
-                return false;
-            for(std::size_t idx = 0; idx < total; ++idx)
+        auto try_tile_rewrite = [&]() -> bool {
+            std::vector<std::size_t> repeat_sizes(in_dims, 1);
+            std::vector<std::size_t> tile_sizes(in_dims, 1);
+            auto is_repeated_axis = [&](std::size_t axis, std::size_t repeat) {
+                if(repeat <= 1)
+                    return false;
+                auto axis_len_dim = idims[axis];
+                if(axis_len_dim % repeat != 0)
+                    return false;
+                for(std::size_t idx = 0; idx < total; ++idx)
+                {
+                    auto coord    = indices_shape.multi(idx);
+                    auto axis_val = coord[axis];
+                    auto group    = axis_val / repeat;
+                    coord[axis]   = group * repeat;
+                    auto base_idx = indices_shape.index(coord);
+                    if(indices_values[idx] != indices_values[base_idx])
+                        return false;
+                }
+                return true;
+            };
+
+            for(std::size_t dim = 0; dim < in_dims; ++dim)
             {
-                auto coord    = indices_shape.multi(idx);
-                auto axis_val = coord[axis];
-                auto group    = axis_val / repeat;
-                coord[axis]   = group * repeat;
-                auto base_idx = indices_shape.index(coord);
-                if(indices_values[idx] != indices_values[base_idx])
+                auto axis_len_dim  = idims[dim];
+                std::size_t repeat = 1;
+                for(std::size_t candidate = 2; candidate <= axis_len_dim; ++candidate)
+                {
+                    if(axis_len_dim % candidate != 0)
+                        continue;
+                    if(is_repeated_axis(dim, candidate))
+                    {
+                        repeat = candidate;
+                        break;
+                    }
+                }
+                repeat_sizes[dim] = repeat;
+                tile_sizes[dim]   = (repeat > 0) ? axis_len_dim / repeat : 0;
+                if(tile_sizes[dim] == 0)
                     return false;
             }
-            return true;
-        };
 
-        for(std::size_t dim = 0; dim < in_dims; ++dim)
-        {
-            auto axis_len_dim  = idims[dim];
-            std::size_t repeat = 1;
-            for(std::size_t candidate = 2; candidate <= axis_len_dim; ++candidate)
-            {
-                if(axis_len_dim % candidate != 0)
-                    continue;
-                if(is_repeated_axis(dim, candidate))
-                {
-                    repeat = candidate;
-                    break;
-                }
-            }
-            repeat_sizes[dim] = repeat;
-            tile_sizes[dim]   = (repeat > 0) ? axis_len_dim / repeat : 0;
-            if(tile_sizes[dim] == 0)
-                return;
-        }
-
-        std::vector<std::size_t> tile_axes;
-        std::size_t tile_product = 1;
-        for(std::size_t dim = 0; dim < in_dims; ++dim)
-        {
-            if(tile_sizes[dim] > 1)
-            {
-                tile_axes.push_back(dim);
-                tile_product *= tile_sizes[dim];
-            }
-        }
-
-        const bool broadcast_needed = std::any_of(
-            repeat_sizes.begin(), repeat_sizes.end(), [](std::size_t r) { return r > 1; });
-
-        std::vector<std::int64_t> strides(in_dims, 0);
-        std::size_t weight = 1;
-        for(auto it = tile_axes.rbegin(); it != tile_axes.rend(); ++it)
-        {
-            strides[*it] = static_cast<std::int64_t>(weight);
-            weight *= tile_sizes[*it];
-        }
-
-        for(std::size_t idx = 0; idx < total; ++idx)
-        {
-            auto coord            = indices_shape.multi(idx);
-            std::int64_t expected = 0;
-            for(auto axis : tile_axes)
-            {
-                auto tile_index = coord[axis] / repeat_sizes[axis];
-                expected += strides[axis] * static_cast<std::int64_t>(tile_index);
-            }
-            if(indices_values[idx] - base != expected)
-                return;
-        }
-
-        std::int64_t max_index = base;
-        for(auto axis : tile_axes)
-        {
-            max_index += strides[axis] * static_cast<std::int64_t>(tile_sizes[axis] - 1);
-        }
-
-        if(base < 0 or max_index < base)
-            return;
-        if(max_index >= static_cast<std::int64_t>(axis_len))
-            return;
-
-        auto slice_len = max_index - base + 1;
-        if(slice_len <= 0)
-            return;
-
-        const auto slice_len_size = static_cast<std::size_t>(slice_len);
-        if(slice_len_size == 0)
-            return;
-
-        const bool has_tiled_repeat =
-            std::any_of(tile_axes.begin(), tile_axes.end(), [&](std::size_t dim) {
-                return repeat_sizes[dim] > 1;
-            });
-        if(slice_len_size != axis_len && has_tiled_repeat)
-            return;
-
-        if(tile_axes.empty())
-        {
-            if(slice_len_size != 1)
-                return;
-        }
-        else if(tile_product != slice_len_size)
-        {
-            return;
-        }
-
-        std::vector<std::size_t> vary_dims = tile_axes;
-
-        std::size_t prod_vary = 1;
-        for(auto dim : vary_dims)
-            prod_vary *= tile_sizes[dim];
-        if(static_cast<std::size_t>(slice_len) != prod_vary and not vary_dims.empty())
-            return;
-
-        std::vector<std::size_t> sorted_vary = vary_dims;
-        std::sort(sorted_vary.begin(), sorted_vary.end(), [&](std::size_t a, std::size_t b) {
-            return strides[a] < strides[b];
-        });
-
-        std::int64_t expected_stride = 1;
-        for(auto dim : sorted_vary)
-        {
-            if(strides[dim] != expected_stride)
-                return;
-            expected_stride *= static_cast<std::int64_t>(tile_sizes[dim]);
-        }
-        if(not sorted_vary.empty() and expected_stride != slice_len)
-            return;
-
-        std::vector<std::size_t> ordered_vary_desc = sorted_vary;
-        std::reverse(ordered_vary_desc.begin(), ordered_vary_desc.end());
-        std::vector<std::size_t> target_vary_order = vary_dims;
-
-        const auto& output_lens = ins->get_shape().lens();
-
-        instruction_ref curr = data_ins;
-
-        if(axis_index != 0)
-        {
-            std::vector<int64_t> perm_axis_front;
-            perm_axis_front.reserve(dlens.size());
-            perm_axis_front.push_back(static_cast<int64_t>(axis_index));
-            for(std::size_t i = 0; i < dlens.size(); ++i)
-            {
-                if(i == axis_index)
-                    continue;
-                perm_axis_front.push_back(static_cast<int64_t>(i));
-            }
-            curr = m.insert_instruction(
-                ins, make_op("transpose", {{"permutation", perm_axis_front}}), curr);
-        }
-
-        if(base != 0 or static_cast<std::size_t>(slice_len) != axis_len)
-        {
-            std::vector<int64_t> axes{0};
-            std::vector<int64_t> starts{base};
-            std::vector<int64_t> ends{base + slice_len};
-            curr = m.insert_instruction(
-                ins, make_op("slice", {{"axes", axes}, {"starts", starts}, {"ends", ends}}), curr);
-        }
-
-        std::vector<int64_t> rest_dims;
-        rest_dims.reserve(rest_lens.size());
-        std::transform(rest_lens.begin(),
-                       rest_lens.end(),
-                       std::back_inserter(rest_dims),
-                       [](auto len) { return static_cast<int64_t>(len); });
-
-        if(not ordered_vary_desc.empty())
-        {
-            std::vector<int64_t> reshape1_dims;
-            reshape1_dims.reserve(ordered_vary_desc.size() + rest_dims.size());
-            for(auto dim : ordered_vary_desc)
-                reshape1_dims.push_back(static_cast<int64_t>(tile_sizes[dim]));
-            reshape1_dims.insert(reshape1_dims.end(), rest_dims.begin(), rest_dims.end());
-            curr = m.insert_instruction(ins, make_op("reshape", {{"dims", reshape1_dims}}), curr);
-
-            if(ordered_vary_desc != target_vary_order)
-            {
-                const std::size_t axis_count = ordered_vary_desc.size();
-                std::vector<int64_t> perm(axis_count + rest_dims.size());
-                for(std::size_t i = 0; i < target_vary_order.size(); ++i)
-                {
-                    auto it = std::find(
-                        ordered_vary_desc.begin(), ordered_vary_desc.end(), target_vary_order[i]);
-                    if(it == ordered_vary_desc.end())
-                        return;
-                    perm[i] = std::distance(ordered_vary_desc.begin(), it);
-                }
-                for(std::size_t i = 0; i < rest_dims.size(); ++i)
-                    perm[target_vary_order.size() + i] = static_cast<int64_t>(axis_count + i);
-
-                curr =
-                    m.insert_instruction(ins, make_op("transpose", {{"permutation", perm}}), curr);
-                ordered_vary_desc = target_vary_order;
-            }
-        }
-
-        if(in_dims > 0)
-        {
-            std::vector<int64_t> reshape2_dims;
-            reshape2_dims.reserve(in_dims + rest_dims.size());
+            std::vector<std::size_t> tile_axes;
+            std::size_t tile_product = 1;
             for(std::size_t dim = 0; dim < in_dims; ++dim)
             {
                 if(tile_sizes[dim] > 1)
-                    reshape2_dims.push_back(static_cast<int64_t>(tile_sizes[dim]));
-                else
-                    reshape2_dims.push_back(1);
-
-                if(repeat_sizes[dim] > 1)
-                    reshape2_dims.push_back(1);
+                {
+                    tile_axes.push_back(dim);
+                    tile_product *= tile_sizes[dim];
+                }
             }
-            reshape2_dims.insert(reshape2_dims.end(), rest_dims.begin(), rest_dims.end());
-            if(reshape2_dims.empty())
-                reshape2_dims.push_back(1);
-            curr = m.insert_instruction(ins, make_op("reshape", {{"dims", reshape2_dims}}), curr);
-            if(broadcast_needed)
+
+            const bool broadcast_needed = std::any_of(
+                repeat_sizes.begin(), repeat_sizes.end(), [](std::size_t r) { return r > 1; });
+
+            std::vector<std::int64_t> strides(in_dims, 0);
+            std::size_t weight = 1;
+            for(auto it = tile_axes.rbegin(); it != tile_axes.rend(); ++it)
             {
-                std::vector<int64_t> broadcast_dims;
-                broadcast_dims.reserve(in_dims + rest_dims.size());
+                strides[*it] = static_cast<std::int64_t>(weight);
+                weight *= tile_sizes[*it];
+            }
+
+            for(std::size_t idx = 0; idx < total; ++idx)
+            {
+                auto coord            = indices_shape.multi(idx);
+                std::int64_t expected = 0;
+                for(auto axis : tile_axes)
+                {
+                    auto tile_index = coord[axis] / repeat_sizes[axis];
+                    expected += strides[axis] * static_cast<std::int64_t>(tile_index);
+                }
+                if(indices_values[idx] - base != expected)
+                    return false;
+            }
+
+            std::int64_t max_index = base;
+            for(auto axis : tile_axes)
+            {
+                max_index += strides[axis] * static_cast<std::int64_t>(tile_sizes[axis] - 1);
+            }
+
+            if(base < 0 or max_index < base)
+                return false;
+            if(max_index >= static_cast<std::int64_t>(axis_len))
+                return false;
+
+            auto slice_len = max_index - base + 1;
+            if(slice_len <= 0)
+                return false;
+
+            const auto slice_len_size = static_cast<std::size_t>(slice_len);
+            if(slice_len_size == 0)
+                return false;
+
+            const bool has_tiled_repeat =
+                std::any_of(tile_axes.begin(), tile_axes.end(), [&](std::size_t dim) {
+                    return repeat_sizes[dim] > 1;
+                });
+            if(slice_len_size != axis_len && has_tiled_repeat)
+                return false;
+
+            if(tile_axes.empty())
+            {
+                if(slice_len_size != 1)
+                    return false;
+            }
+            else if(tile_product != slice_len_size)
+            {
+                return false;
+            }
+
+            std::vector<std::size_t> vary_dims = tile_axes;
+
+            std::size_t prod_vary = 1;
+            for(auto dim : vary_dims)
+                prod_vary *= tile_sizes[dim];
+            if(static_cast<std::size_t>(slice_len) != prod_vary and not vary_dims.empty())
+                return false;
+
+            std::vector<std::size_t> sorted_vary = vary_dims;
+            std::sort(sorted_vary.begin(), sorted_vary.end(), [&](std::size_t a, std::size_t b) {
+                return strides[a] < strides[b];
+            });
+
+            std::int64_t expected_stride = 1;
+            for(auto dim : sorted_vary)
+            {
+                if(strides[dim] != expected_stride)
+                    return false;
+                expected_stride *= static_cast<std::int64_t>(tile_sizes[dim]);
+            }
+            if(not sorted_vary.empty() and expected_stride != slice_len)
+                return false;
+
+            std::vector<std::size_t> ordered_vary_desc = sorted_vary;
+            std::reverse(ordered_vary_desc.begin(), ordered_vary_desc.end());
+            std::vector<std::size_t> target_vary_order = vary_dims;
+
+            const auto& output_lens = ins->get_shape().lens();
+
+            instruction_ref curr = data_ins;
+
+            if(axis_index != 0)
+            {
+                std::vector<int64_t> perm_axis_front;
+                perm_axis_front.reserve(dlens.size());
+                perm_axis_front.push_back(static_cast<int64_t>(axis_index));
+                for(std::size_t i = 0; i < dlens.size(); ++i)
+                {
+                    if(i == axis_index)
+                        continue;
+                    perm_axis_front.push_back(static_cast<int64_t>(i));
+                }
+                curr = m.insert_instruction(
+                    ins, make_op("transpose", {{"permutation", perm_axis_front}}), curr);
+            }
+
+            if(base != 0 or static_cast<std::size_t>(slice_len) != axis_len)
+            {
+                std::vector<int64_t> axes{0};
+                std::vector<int64_t> starts{base};
+                std::vector<int64_t> ends{base + slice_len};
+                curr = m.insert_instruction(
+                    ins,
+                    make_op("slice", {{"axes", axes}, {"starts", starts}, {"ends", ends}}),
+                    curr);
+            }
+
+            std::vector<int64_t> rest_dims;
+            rest_dims.reserve(rest_lens.size());
+            std::transform(rest_lens.begin(),
+                           rest_lens.end(),
+                           std::back_inserter(rest_dims),
+                           [](auto len) { return static_cast<int64_t>(len); });
+
+            if(not ordered_vary_desc.empty())
+            {
+                std::vector<int64_t> reshape1_dims;
+                reshape1_dims.reserve(ordered_vary_desc.size() + rest_dims.size());
+                for(auto dim : ordered_vary_desc)
+                    reshape1_dims.push_back(static_cast<int64_t>(tile_sizes[dim]));
+                reshape1_dims.insert(reshape1_dims.end(), rest_dims.begin(), rest_dims.end());
+                curr = m.insert_instruction(ins, make_op("reshape", {{"dims", reshape1_dims}}), curr);
+
+                if(ordered_vary_desc != target_vary_order)
+                {
+                    const std::size_t axis_count = ordered_vary_desc.size();
+                    std::vector<int64_t> perm(axis_count + rest_dims.size());
+                    for(std::size_t i = 0; i < target_vary_order.size(); ++i)
+                    {
+                        auto it = std::find(
+                            ordered_vary_desc.begin(), ordered_vary_desc.end(), target_vary_order[i]);
+                        if(it == ordered_vary_desc.end())
+                            return false;
+                        perm[i] = std::distance(ordered_vary_desc.begin(), it);
+                    }
+                    for(std::size_t i = 0; i < rest_dims.size(); ++i)
+                        perm[target_vary_order.size() + i] = static_cast<int64_t>(axis_count + i);
+
+                    curr = m.insert_instruction(
+                        ins, make_op("transpose", {{"permutation", perm}}), curr);
+                    ordered_vary_desc = target_vary_order;
+                }
+            }
+
+            if(in_dims > 0)
+            {
+                std::vector<int64_t> reshape2_dims;
+                reshape2_dims.reserve(in_dims + rest_dims.size());
                 for(std::size_t dim = 0; dim < in_dims; ++dim)
                 {
-                    auto tile_val =
-                        (tile_sizes[dim] > 1) ? static_cast<int64_t>(tile_sizes[dim]) : 1;
-                    broadcast_dims.push_back(tile_val);
+                    if(tile_sizes[dim] > 1)
+                        reshape2_dims.push_back(static_cast<int64_t>(tile_sizes[dim]));
+                    else
+                        reshape2_dims.push_back(1);
+
                     if(repeat_sizes[dim] > 1)
-                        broadcast_dims.push_back(static_cast<int64_t>(repeat_sizes[dim]));
+                        reshape2_dims.push_back(1);
                 }
-                broadcast_dims.insert(broadcast_dims.end(), rest_dims.begin(), rest_dims.end());
-                curr = m.insert_instruction(
-                    ins, make_op("multibroadcast", {{"out_lens", broadcast_dims}}), curr);
-            }
-
-            std::vector<int64_t> combine_dims;
-            combine_dims.reserve(in_dims + rest_dims.size());
-            for(std::size_t dim = 0; dim < in_dims; ++dim)
-            {
-                auto tile_val   = (tile_sizes[dim] > 1) ? tile_sizes[dim] : std::size_t{1};
-                auto repeat_val = repeat_sizes[dim];
-                combine_dims.push_back(static_cast<int64_t>(tile_val * repeat_val));
-            }
-            combine_dims.insert(combine_dims.end(), rest_dims.begin(), rest_dims.end());
-            if(combine_dims.empty())
-                combine_dims.push_back(1);
-            curr = m.insert_instruction(ins, make_op("reshape", {{"dims", combine_dims}}), curr);
-        }
-
-        const std::size_t axis_block_size = in_dims;
-        const std::size_t pre_count       = pre_lens.size();
-        const std::size_t post_count      = post_lens.size();
-        const std::size_t rest_count      = rest_dims.size();
-
-        if(axis_block_size + rest_count > 0)
-        {
-            std::vector<int64_t> perm_final(axis_block_size + rest_count);
-            std::size_t pos = 0;
-            for(std::size_t i = 0; i < pre_count; ++i)
-                perm_final[pos++] = static_cast<int64_t>(axis_block_size + i);
-            for(std::size_t i = 0; i < axis_block_size; ++i)
-                perm_final[pos++] = static_cast<int64_t>(i);
-            for(std::size_t i = 0; i < post_count; ++i)
-                perm_final[pos++] = static_cast<int64_t>(axis_block_size + pre_count + i);
-
-            bool need_transpose = false;
-            for(std::size_t i = 0; i < perm_final.size(); ++i)
-            {
-                if(perm_final[i] != static_cast<int64_t>(i))
+                reshape2_dims.insert(reshape2_dims.end(), rest_dims.begin(), rest_dims.end());
+                if(reshape2_dims.empty())
+                    reshape2_dims.push_back(1);
+                curr = m.insert_instruction(ins, make_op("reshape", {{"dims", reshape2_dims}}), curr);
+                if(broadcast_needed)
                 {
-                    need_transpose = true;
-                    break;
+                    std::vector<int64_t> broadcast_dims;
+                    broadcast_dims.reserve(in_dims + rest_dims.size());
+                    for(std::size_t dim = 0; dim < in_dims; ++dim)
+                    {
+                        auto tile_val =
+                            (tile_sizes[dim] > 1) ? static_cast<int64_t>(tile_sizes[dim]) : 1;
+                        broadcast_dims.push_back(tile_val);
+                        if(repeat_sizes[dim] > 1)
+                            broadcast_dims.push_back(static_cast<int64_t>(repeat_sizes[dim]));
+                    }
+                    broadcast_dims.insert(broadcast_dims.end(), rest_dims.begin(), rest_dims.end());
+                    curr = m.insert_instruction(
+                        ins, make_op("multibroadcast", {{"out_lens", broadcast_dims}}), curr);
+                }
+
+                std::vector<int64_t> combine_dims;
+                combine_dims.reserve(in_dims + rest_dims.size());
+                for(std::size_t dim = 0; dim < in_dims; ++dim)
+                {
+                    auto tile_val   = (tile_sizes[dim] > 1) ? tile_sizes[dim] : std::size_t{1};
+                    auto repeat_val = repeat_sizes[dim];
+                    combine_dims.push_back(static_cast<int64_t>(tile_val * repeat_val));
+                }
+                combine_dims.insert(combine_dims.end(), rest_dims.begin(), rest_dims.end());
+                if(combine_dims.empty())
+                    combine_dims.push_back(1);
+                curr = m.insert_instruction(ins, make_op("reshape", {{"dims", combine_dims}}), curr);
+            }
+
+            const std::size_t axis_block_size = in_dims;
+            const std::size_t pre_count       = pre_lens.size();
+            const std::size_t post_count      = post_lens.size();
+            const std::size_t rest_count      = rest_dims.size();
+
+            if(axis_block_size + rest_count > 0)
+            {
+                std::vector<int64_t> perm_final(axis_block_size + rest_count);
+                std::size_t pos = 0;
+                for(std::size_t i = 0; i < pre_count; ++i)
+                    perm_final[pos++] = static_cast<int64_t>(axis_block_size + i);
+                for(std::size_t i = 0; i < axis_block_size; ++i)
+                    perm_final[pos++] = static_cast<int64_t>(i);
+                for(std::size_t i = 0; i < post_count; ++i)
+                    perm_final[pos++] = static_cast<int64_t>(axis_block_size + pre_count + i);
+
+                bool need_transpose = false;
+                for(std::size_t i = 0; i < perm_final.size(); ++i)
+                {
+                    if(perm_final[i] != static_cast<int64_t>(i))
+                    {
+                        need_transpose = true;
+                        break;
+                    }
+                }
+                if(need_transpose)
+                {
+                    curr = m.insert_instruction(
+                        ins, make_op("transpose", {{"permutation", perm_final}}), curr);
                 }
             }
-            if(need_transpose)
-            {
-                curr = m.insert_instruction(
-                    ins, make_op("transpose", {{"permutation", perm_final}}), curr);
-            }
-        }
 
-        if(curr->get_shape().lens() != output_lens)
-        {
-            if(curr->get_shape().elements() == ins->get_shape().elements())
+            if(curr->get_shape().lens() != output_lens)
             {
-                curr = m.insert_instruction(
-                    ins, make_op("reshape", {{"dims", to_int64(output_lens)}}), curr);
+                if(curr->get_shape().elements() == ins->get_shape().elements())
+                {
+                    curr = m.insert_instruction(
+                        ins, make_op("reshape", {{"dims", to_int64(output_lens)}}), curr);
+                }
+                else
+                {
+                    curr = m.insert_instruction(
+                        ins, make_op("multibroadcast", {{"out_lens", output_lens}}), curr);
+                }
             }
-            else
-            {
-                curr = m.insert_instruction(
-                    ins, make_op("multibroadcast", {{"out_lens", output_lens}}), curr);
-            }
-        }
 
-        m.replace_instruction(ins, curr);
+            m.replace_instruction(ins, curr);
+            return true;
+        };
+
+        if(try_tile_rewrite())
+            return;
+
+        auto try_half_split_concat = [&]() -> bool {
+            if(axis_index != 0)
+                return false;
+
+            if(total != axis_len)
+                return false;
+
+            if(axis_len <= 1 or axis_len % 2 != 0)
+                return false;
+
+            std::vector<std::size_t> sorted(indices_values.size());
+            std::transform(indices_values.begin(),
+                           indices_values.end(),
+                           sorted.begin(),
+                           [](auto v) { return static_cast<std::size_t>(v); });
+            std::sort(sorted.begin(), sorted.end());
+            for(std::size_t i = 0; i < sorted.size(); ++i)
+            {
+                if(sorted[i] != i)
+                    return false;
+            }
+
+            const std::size_t half = axis_len / 2;
+            for(std::size_t i = 0; i < indices_values.size(); ++i)
+            {
+                auto expected = (i + half) % axis_len;
+                if(static_cast<std::size_t>(indices_values[i]) != expected)
+                    return false;
+            }
+
+            std::vector<int64_t> axes{0};
+            const auto half_i64     = static_cast<int64_t>(half);
+            const auto axis_len_i64 = static_cast<int64_t>(axis_len);
+
+            auto tail = m.insert_instruction(ins,
+                                             make_op("slice",
+                                                     {{"axes", axes},
+                                                      {"starts", {half_i64}},
+                                                      {"ends", {axis_len_i64}}}),
+                                             data_ins);
+            auto head = m.insert_instruction(ins,
+                                             make_op("slice",
+                                                     {{"axes", axes},
+                                                      {"starts", {0}},
+                                                      {"ends", {half_i64}}}),
+                                             data_ins);
+
+            auto concat =
+                m.insert_instruction(ins, make_op("concat", {{"axis", int64_t{0}}}), tail, head);
+
+            std::vector<int64_t> reshape_dims = to_int64(idims);
+            auto rest_dims                    = to_int64(rest_lens);
+            reshape_dims.insert(reshape_dims.end(), rest_dims.begin(), rest_dims.end());
+
+            instruction_ref curr = concat;
+            if(curr->get_shape().lens() != ins->get_shape().lens())
+            {
+                if(reshape_dims.empty())
+                    reshape_dims.push_back(1);
+                curr = m.insert_instruction(ins, make_op("reshape", {{"dims", reshape_dims}}), curr);
+            }
+
+            m.replace_instruction(ins, curr);
+            return true;
+        };
+
+        if(try_half_split_concat())
+            return;
     }
 };
 

@@ -814,6 +814,10 @@ struct find_mlir_fused_geg_ops
         auto* elemwise_module = elemwise_ins->module_inputs().front();
         auto elemwise_inputs  = elemwise_ins->inputs();
 
+        // skip fp32 for now until mlir supports it better
+        if(second_gemm_ins->get_shape().type() == shape::float_type and first_gemm_ins->get_shape().type() == shape::float_type)
+            return;
+
         // only one input to elemwise should depend on first_gemm
         if(std::any_of(elemwise_inputs.begin(), elemwise_inputs.end(), [&](const auto& i) {
                return i != first_gemm_ins and reaches(first_gemm_ins, i);

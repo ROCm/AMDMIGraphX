@@ -1938,6 +1938,35 @@ TEST_CASE(gather_constant_sequential_indices)
     EXPECT(m1.sort() == m2.sort());
 }
 
+TEST_CASE(gather_flatten_stride_slice)
+{
+    migraphx::module m;
+    auto x            = m.add_parameter("X", {migraphx::shape::float_type, {1, 8}});
+    auto reshape_flat = m.add_instruction(migraphx::make_op("reshape", {{"dims", {8}}}), x);
+    migraphx::shape si{migraphx::shape::int32_type, {2, 2}};
+    std::vector<int32_t> indices = {1, 5, 2, 6};
+    auto li                      = m.add_literal(migraphx::literal{si, indices});
+    auto g                       = m.add_instruction(migraphx::make_op("gather"), reshape_flat, li);
+    m.add_return({g});
+
+    run_pass(m);
+
+    migraphx::module expected;
+    auto xe = expected.add_parameter("X", {migraphx::shape::float_type, {1, 8}});
+    auto reshape_block =
+        expected.add_instruction(migraphx::make_op("reshape", {{"dims", {1, 2, 4}}}), xe);
+    auto squeeze = expected.add_instruction(
+        migraphx::make_op("squeeze", {{"axes", {0}}}), reshape_block);
+    auto slice = expected.add_instruction(
+        migraphx::make_op("slice", {{"axes", {1}}, {"starts", {1}}, {"ends", {3}}}),
+        squeeze);
+    auto transpose = expected.add_instruction(
+        migraphx::make_op("transpose", {{"permutation", {1, 0}}}), slice);
+    expected.add_return({transpose});
+
+    EXPECT(m == expected);
+}
+
 TEST_CASE(gather_flatten_permutation)
 {
     migraphx::module m;

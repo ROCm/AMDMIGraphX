@@ -986,8 +986,8 @@ struct find_gather
             }
 
             std::vector<std::size_t> current;
-            const auto dfs = [&](auto&& self, std::size_t remaining, std::size_t min_factor)
-                -> void {
+            const auto dfs =
+                [&](auto&& self, std::size_t remaining, std::size_t min_factor) -> void {
                 for(std::size_t f = min_factor; f * f <= remaining; ++f)
                 {
                     if(remaining % f != 0)

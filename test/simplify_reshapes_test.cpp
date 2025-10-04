@@ -1955,13 +1955,12 @@ TEST_CASE(gather_flatten_stride_slice)
     auto xe = expected.add_parameter("X", {migraphx::shape::float_type, {1, 8}});
     auto reshape_block =
         expected.add_instruction(migraphx::make_op("reshape", {{"dims", {1, 2, 4}}}), xe);
-    auto squeeze = expected.add_instruction(
-        migraphx::make_op("squeeze", {{"axes", {0}}}), reshape_block);
+    auto squeeze =
+        expected.add_instruction(migraphx::make_op("squeeze", {{"axes", {0}}}), reshape_block);
     auto slice = expected.add_instruction(
-        migraphx::make_op("slice", {{"axes", {1}}, {"starts", {1}}, {"ends", {3}}}),
-        squeeze);
-    auto transpose = expected.add_instruction(
-        migraphx::make_op("transpose", {{"permutation", {1, 0}}}), slice);
+        migraphx::make_op("slice", {{"axes", {1}}, {"starts", {1}}, {"ends", {3}}}), squeeze);
+    auto transpose =
+        expected.add_instruction(migraphx::make_op("transpose", {{"permutation", {1, 0}}}), slice);
     expected.add_return({transpose});
 
     EXPECT(m == expected);

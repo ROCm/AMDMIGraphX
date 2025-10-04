@@ -984,7 +984,8 @@ struct find_gather
             }
 
             std::vector<std::size_t> current;
-            const auto dfs = [&](auto&& self, std::size_t remaining, std::size_t min_factor) -> void {
+            const auto dfs =
+                [&](auto&& self, std::size_t remaining, std::size_t min_factor) -> void {
                 for(std::size_t f = min_factor; f * f <= remaining; ++f)
                 {
                     if(remaining % f != 0)
@@ -1250,13 +1251,16 @@ struct find_gather
                 if(curr->get_shape().elements() == ins->get_shape().elements())
                 {
                     curr = m.insert_instruction(
-                        ins, make_op("reshape", {{"dims", to_int64(ins->get_shape().lens())}}), curr);
+                        ins,
+                        make_op("reshape", {{"dims", to_int64(ins->get_shape().lens())}}),
+                        curr);
                 }
                 else
                 {
                     curr = m.insert_instruction(
                         ins,
-                        make_op("multibroadcast", {{"out_lens", to_int64(ins->get_shape().lens())}}),
+                        make_op("multibroadcast",
+                                {{"out_lens", to_int64(ins->get_shape().lens())}}),
                         curr);
                 }
             }
@@ -1299,8 +1303,8 @@ struct find_gather
                         auto remainder = value;
                         for(std::size_t j = factors.size(); j > 0; --j)
                         {
-                            auto dim_index = j - 1;
-                            auto dim_size  = factors[dim_index];
+                            auto dim_index   = j - 1;
+                            auto dim_size    = factors[dim_index];
                             coord[dim_index] = remainder % dim_size;
                             remainder /= dim_size;
                         }
@@ -1315,8 +1319,8 @@ struct find_gather
                     if(not consistent)
                         continue;
 
-                    std::vector<std::size_t> min_coord(
-                        dims_perm.size(), std::numeric_limits<std::size_t>::max());
+                    std::vector<std::size_t> min_coord(dims_perm.size(),
+                                                       std::numeric_limits<std::size_t>::max());
                     std::vector<std::size_t> max_coord(dims_perm.size(), 0);
                     for(auto& c : coords)
                     {
@@ -1371,8 +1375,7 @@ struct find_gather
 
                     std::vector<int> axis_to_index(len.size(), -1);
                     std::vector<bool> used_index(in_dims, false);
-                    for(std::size_t axis_dim = 0; axis_dim < len.size() and consistent;
-                        ++axis_dim)
+                    for(std::size_t axis_dim = 0; axis_dim < len.size() and consistent; ++axis_dim)
                     {
                         int chosen_index = -1;
                         for(std::size_t index_dim = 0; index_dim < in_dims; ++index_dim)
@@ -1475,10 +1478,9 @@ struct find_gather
                     }
                     if(not slice_desc.empty())
                     {
-                        std::sort(
-                            slice_desc.begin(), slice_desc.end(), [](const auto& a, const auto& b) {
-                                return a.first < b.first;
-                            });
+                        std::sort(slice_desc.begin(),
+                                  slice_desc.end(),
+                                  [](const auto& a, const auto& b) { return a.first < b.first; });
                         std::vector<int64_t> axes;
                         std::vector<int64_t> starts;
                         std::vector<int64_t> ends;
@@ -1514,7 +1516,8 @@ struct find_gather
                         }
                         if(need_reorder)
                         {
-                            std::vector<int64_t> perm_align(axis_to_index.size() + rest_dims.size());
+                            std::vector<int64_t> perm_align(axis_to_index.size() +
+                                                            rest_dims.size());
                             for(std::size_t k = 0; k < dims_for_index.size(); ++k)
                                 perm_align[k] = static_cast<int64_t>(dims_for_index[k]);
                             for(std::size_t i = 0; i < rest_dims.size(); ++i)

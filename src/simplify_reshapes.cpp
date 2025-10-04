@@ -975,7 +975,9 @@ struct find_gather
             return factors;
         };
 
-        auto enumerate_factorizations = [&](std::size_t value) {
+        constexpr std::size_t max_factorizations = 256;
+
+        auto enumerate_factorizations = [&](std::size_t value, std::size_t max_results) {
             std::vector<std::vector<std::size_t>> results;
             if(value <= 1)
             {
@@ -984,17 +986,21 @@ struct find_gather
             }
 
             std::vector<std::size_t> current;
-            const auto dfs =
-                [&](auto&& self, std::size_t remaining, std::size_t min_factor) -> void {
+            const auto dfs = [&](auto&& self, std::size_t remaining, std::size_t min_factor)
+                -> void {
                 for(std::size_t f = min_factor; f * f <= remaining; ++f)
                 {
                     if(remaining % f != 0)
                         continue;
+                    if(results.size() >= max_results)
+                        return;
                     current.push_back(f);
                     self(self, remaining / f, f);
                     current.pop_back();
+                    if(results.size() >= max_results)
+                        return;
                 }
-                if(not current.empty())
+                if(not current.empty() and results.size() < max_results)
                 {
                     current.push_back(remaining);
                     results.push_back(current);
@@ -1003,7 +1009,8 @@ struct find_gather
             };
 
             dfs(dfs, value, 2);
-            results.push_back({value});
+            if(results.size() < max_results)
+                results.push_back({value});
             return results;
         };
 
@@ -1015,6 +1022,8 @@ struct find_gather
                 return;
             if(factors.size() > 8)
                 return;
+            if(factor_candidates.size() >= max_factorizations)
+                return;
             if(std::find(factor_candidates.begin(), factor_candidates.end(), factors) ==
                factor_candidates.end())
             {
@@ -1022,8 +1031,12 @@ struct find_gather
             }
         };
 
-        for(auto factors : enumerate_factorizations(axis_len))
+        for(auto factors : enumerate_factorizations(axis_len, max_factorizations))
+        {
+            if(factor_candidates.size() >= max_factorizations)
+                break;
             add_candidate(std::move(factors));
+        }
 
         if(dlens.size() == 1 and axis_index == 0)
         {
@@ -1046,7 +1059,11 @@ struct find_gather
                             shape_factors.end(), dim_factors.begin(), dim_factors.end());
                     }
                     if(not shape_factors.empty())
+                    {
+                        if(factor_candidates.size() >= max_factorizations)
+                            break;
                         add_candidate(std::move(shape_factors));
+                    }
                     break;
                 }
                 curr_data = input;

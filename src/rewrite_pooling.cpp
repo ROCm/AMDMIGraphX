@@ -70,9 +70,11 @@ static void lower_lrn_to_pooling(module& m, instruction_ref ins)
     const auto& xshape = x->get_shape();
     const auto& lens = xshape.lens();
 
-    if(lens.size() != 4 or size <= 0 or size > lens[1]) {
-    	return;
+    if(lens.size() != 4 or size <= 0 or size > lens[1])
+    {
+        return;
     }
+
     auto x2 = m.insert_instruction(ins, make_op("mul"), x, x);
 
     std::vector<int64_t> perm = {0, 2, 3, 1};
@@ -81,35 +83,38 @@ static void lower_lrn_to_pooling(module& m, instruction_ref ins)
     auto transposed_shape = transpose1->get_shape();
     const auto& transposed_lens = transposed_shape.lens();
 
-    if(transposed_lens.size() != 4) {  
-        return;  
-    } 
+    if(transposed_lens.size() != 4)
+    {
+        return;
+    }
 
     int64_t channel_dim = lens[1];
     std::vector<int64_t> calculated_pads(2);
     calculate_padding(0, calculated_pads, channel_dim, 1, 1, size, true);
- 
-    if(calculated_pads[0] < 0 or calculated_pads[1] < 0) {  
-        return;  
-    }
-    
-    auto avg = m.insert_instruction(ins,
-            make_op("pooling", {
-                {"mode", op::pooling_mode::average},
-                {"lengths", std::vector<int64_t>{1, size}},
-                {"stride", std::vector<int64_t>{1, 1}},
-                {"padding", std::vector<int64_t>{0, calculated_pads[0], 0, calculated_pads[1]}},
-                {"dilations", std::vector<int64_t>{1, 1}},
-                {"count_include_pad", true}
-            }), transpose1);
 
-        auto avg_shape = avg->get_shape();
-        const auto& avg_lens = avg_shape.lens();
-    
-    if(avg_lens.size() != 4 or avg_lens[3] != transposed_lens[3]) {  
-        return;  
-    }  
-	
+    if(calculated_pads[0] < 0 or calculated_pads[1] < 0)
+    {
+        return;
+    }
+
+    auto avg = m.insert_instruction(ins,
+        make_op("pooling", {
+            {"mode", op::pooling_mode::average},
+            {"lengths", std::vector<int64_t>{1, size}},
+            {"stride", std::vector<int64_t>{1, 1}},
+            {"padding", std::vector<int64_t>{0, calculated_pads[0], 0, calculated_pads[1]}},
+            {"dilations", std::vector<int64_t>{1, 1}},
+            {"count_include_pad", true}
+        }), transpose1);
+
+    auto avg_shape = avg->get_shape();
+    const auto& avg_lens = avg_shape.lens();
+
+    if(avg_lens.size() != 4 or avg_lens[3] != transposed_lens[3])
+    {
+        return;
+    }
+
     std::vector<int64_t> inv_perm = {0, 3, 1, 2};
     auto transpose2 = m.insert_instruction(ins, make_op("transpose", {{"permutation", inv_perm}}), avg);
 
@@ -117,18 +122,24 @@ static void lower_lrn_to_pooling(module& m, instruction_ref ins)
     const auto& final_lens = final_shape.lens();
 
     bool shape_matches = true;
-    if(final_lens.size() != lens.size()) {
+    if(final_lens.size() != lens.size())
+    {
         shape_matches = false;
-    } else {
-        for(size_t i = 0; i < lens.size(); ++i) {
-            if(final_lens[i] != lens[i]) {
+    }
+    else
+    {
+        for(size_t i = 0; i < lens.size(); ++i)
+        {
+            if(final_lens[i] != lens[i])
+            {
                 shape_matches = false;
                 break;
             }
         }
     }
 
-    if(not shape_matches) {
+    if(not shape_matches)
+    {
         return;
     }
 
@@ -140,13 +151,12 @@ static void lower_lrn_to_pooling(module& m, instruction_ref ins)
     auto a_mb = m.insert_instruction(ins, make_op("multibroadcast", {{"out_lens", lens}}), a_lit);
     auto b_mb = m.insert_instruction(ins, make_op("multibroadcast", {{"out_lens", lens}}), b_lit);
 
-        auto alpha_avg = m.insert_instruction(ins, make_op("mul"), a_mb, transpose2);
-        auto den = m.insert_instruction(ins, make_op("add"), k_mb, alpha_avg);
-        auto denpow = m.insert_instruction(ins, make_op("pow"), den, b_mb);
-        auto y = m.insert_instruction(ins, make_op("div"), x, denpow);
+    auto alpha_avg = m.insert_instruction(ins, make_op("mul"), a_mb, transpose2);
+    auto den = m.insert_instruction(ins, make_op("add"), k_mb, alpha_avg);
+    auto denpow = m.insert_instruction(ins, make_op("pow"), den, b_mb);
+    auto y = m.insert_instruction(ins, make_op("div"), x, denpow);
 
-        m.replace_instruction(ins, y);
-
+    m.replace_instruction(ins, y);
 }
 
 static void replace_dilations_with_gather_pooling(module& m, instruction_ref ins)

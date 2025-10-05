@@ -2061,8 +2061,8 @@ TEST_CASE(gather_flatten_stride_grid)
                                     209, 213, 217, 221, 273, 277, 281, 285, 337, 341, 345, 349,
                                     401, 405, 409, 413, 465, 469, 473, 477, 529, 533, 537, 541,
                                     593, 597, 601, 605, 657, 661, 665, 669, 721, 725, 729, 733};
-    auto li = m.add_literal(migraphx::literal{si, indices});
-    auto g  = m.add_instruction(migraphx::make_op("gather"), reshape_flat, li);
+    auto li                      = m.add_literal(migraphx::literal{si, indices});
+    auto g                       = m.add_instruction(migraphx::make_op("gather"), reshape_flat, li);
     m.add_return({g});
 
     run_pass(m);
@@ -2078,8 +2078,8 @@ TEST_CASE(gather_flatten_stride_grid)
         squeeze_batch);
     auto unsqueeze_batch =
         expected.add_instruction(migraphx::make_op("unsqueeze", {{"axes", {0}}}), slice_inner);
-    auto squeeze_final = expected.add_instruction(
-        migraphx::make_op("squeeze", {{"axes", {3, 5}}}), unsqueeze_batch);
+    auto squeeze_final =
+        expected.add_instruction(migraphx::make_op("squeeze", {{"axes", {3, 5}}}), unsqueeze_batch);
     expected.add_return({squeeze_final});
 
     EXPECT(m == expected);

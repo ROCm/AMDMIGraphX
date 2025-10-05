@@ -1035,7 +1035,7 @@ struct find_gather
                 return;
 
             factors.erase(std::remove(factors.begin(), factors.end(), std::size_t{1}),
-                           factors.end());
+                          factors.end());
             if(factors.empty())
                 factors.push_back(1);
 
@@ -1455,16 +1455,15 @@ struct find_gather
             if(index_dims.empty())
                 return false;
 
-            auto compute_multi_index = [](std::size_t value,
-                                          const std::vector<std::size_t>& dims) {
+            auto compute_multi_index = [](std::size_t value, const std::vector<std::size_t>& dims) {
                 std::vector<std::size_t> coord(dims.size(), 0);
                 if(dims.empty())
                     return coord;
                 for(std::size_t i = dims.size(); i > 0; --i)
                 {
-                    auto dim       = dims.at(i - 1);
-                    coord[i - 1]   = (dim == 0) ? 0 : value % dim;
-                    value          = (dim == 0) ? 0 : value / dim;
+                    auto dim     = dims.at(i - 1);
+                    coord[i - 1] = (dim == 0) ? 0 : value % dim;
+                    value        = (dim == 0) ? 0 : value / dim;
                 }
                 return coord;
             };
@@ -1509,8 +1508,7 @@ struct find_gather
                         {
                             auto factor_index = assignment[i];
                             auto idx_pos      = index_positions[i];
-                            if(factor_index >= factor_coord.size() or
-                               idx_pos >= idx_coord.size() or
+                            if(factor_index >= factor_coord.size() or idx_pos >= idx_coord.size() or
                                factor_coord[factor_index] != idx_coord[idx_pos])
                                 return false;
                         }
@@ -1545,7 +1543,7 @@ struct find_gather
                             continue;
                         if(factors[f] != dim_value)
                             continue;
-                        used[f]         = 1;
+                        used[f]           = 1;
                         assignment[depth] = f;
                         if(self(self, depth + 1))
                             return true;
@@ -1606,8 +1604,7 @@ struct find_gather
                 reshape_dims.push_back(static_cast<int64_t>(len));
             for(auto len : rest_lens)
                 reshape_dims.push_back(static_cast<int64_t>(len));
-            curr =
-                m.insert_instruction(ins, make_op("reshape", {{"dims", reshape_dims}}), curr);
+            curr = m.insert_instruction(ins, make_op("reshape", {{"dims", reshape_dims}}), curr);
 
             for(const auto& [axis_pos, value] : const_pairs)
             {
@@ -1616,8 +1613,7 @@ struct find_gather
                 std::vector<int64_t> ends{static_cast<int64_t>(value + 1)};
                 curr = m.insert_instruction(
                     ins,
-                    make_op("slice",
-                            {{"axes", axes}, {"starts", starts}, {"ends", ends}}),
+                    make_op("slice", {{"axes", axes}, {"starts", starts}, {"ends", ends}}),
                     curr);
             }
 
@@ -1654,7 +1650,8 @@ struct find_gather
                 perm64.reserve(reorder.size());
                 for(auto v : reorder)
                     perm64.push_back(static_cast<int64_t>(v));
-                curr = m.insert_instruction(ins, make_op("transpose", {{"permutation", perm64}}), curr);
+                curr = m.insert_instruction(
+                    ins, make_op("transpose", {{"permutation", perm64}}), curr);
             }
 
             std::vector<std::size_t> final_lens;
@@ -1663,7 +1660,8 @@ struct find_gather
             final_lens.insert(final_lens.end(), idims.begin(), idims.end());
             final_lens.insert(final_lens.end(), post_lens.begin(), post_lens.end());
 
-            curr = m.insert_instruction(ins, make_op("reshape", {{"dims", to_int64(final_lens)}}), curr);
+            curr = m.insert_instruction(
+                ins, make_op("reshape", {{"dims", to_int64(final_lens)}}), curr);
 
             m.replace_instruction(ins, curr);
             return true;

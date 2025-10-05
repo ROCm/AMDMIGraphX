@@ -313,6 +313,8 @@ TEST_CASE(rewrite_pooling_dialtions_test5)
 
 TEST_CASE(test_lower_lrn_to_pooling)
 {
+    if(not migraphx::enabled(MIGRAPHX_REWRITE_LRN{}))
+        return;
     migraphx::module m1;
     {
         migraphx::shape input_shape{migraphx::shape::float_type, {1, 64, 55, 55}};

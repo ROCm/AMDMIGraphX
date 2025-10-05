@@ -244,15 +244,15 @@ static void replace_dilations_with_gather_pooling(module& m, instruction_ref ins
 }
 
 void rewrite_pooling::apply(module& m) const
-{
+{    
     for(auto ins : iterator_for(m))
     {
         if(ins->inputs().empty())
             continue;  
-        if(ins->name() == "lrn")
-        {
-            lower_lrn_to_pooling(m, ins);
-            continue;
+        if(rewrite_lrn and ins->name() == "lrn")  
+        {  
+            lower_lrn_to_pooling(m, ins);  
+            continue;  
         }
         if(ins->name() != "pooling")
             continue;

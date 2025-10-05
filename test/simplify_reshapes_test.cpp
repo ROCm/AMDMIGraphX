@@ -2051,6 +2051,40 @@ TEST_CASE(gather_flatten_stride_offset)
     EXPECT(m == expected);
 }
 
+TEST_CASE(gather_flatten_stride_grid)
+{
+    migraphx::module m;
+    auto x            = m.add_parameter("X", {migraphx::shape::float_type, {1, 3, 16, 16}});
+    auto reshape_flat = m.add_instruction(migraphx::make_op("reshape", {{"dims", {768}}}), x);
+    migraphx::shape si{migraphx::shape::int32_type, {1, 3, 4, 4}};
+    std::vector<int32_t> indices = {17,  21,  25,  29,  81,  85,  89,  93,  145, 149, 153, 157,
+                                    209, 213, 217, 221, 273, 277, 281, 285, 337, 341, 345, 349,
+                                    401, 405, 409, 413, 465, 469, 473, 477, 529, 533, 537, 541,
+                                    593, 597, 601, 605, 657, 661, 665, 669, 721, 725, 729, 733};
+    auto li = m.add_literal(migraphx::literal{si, indices});
+    auto g  = m.add_instruction(migraphx::make_op("gather"), reshape_flat, li);
+    m.add_return({g});
+
+    run_pass(m);
+
+    migraphx::module expected;
+    auto xe = expected.add_parameter("X", {migraphx::shape::float_type, {1, 3, 16, 16}});
+    auto reshape_grid =
+        expected.add_instruction(migraphx::make_op("reshape", {{"dims", {1, 3, 4, 4, 4, 4}}}), xe);
+    auto squeeze_batch =
+        expected.add_instruction(migraphx::make_op("squeeze", {{"axes", {0}}}), reshape_grid);
+    auto slice_inner = expected.add_instruction(
+        migraphx::make_op("slice", {{"axes", {2, 4}}, {"starts", {1, 1}}, {"ends", {2, 2}}}),
+        squeeze_batch);
+    auto unsqueeze_batch =
+        expected.add_instruction(migraphx::make_op("unsqueeze", {{"axes", {0}}}), slice_inner);
+    auto squeeze_final = expected.add_instruction(
+        migraphx::make_op("squeeze", {{"axes", {3, 5}}}), unsqueeze_batch);
+    expected.add_return({squeeze_final});
+
+    EXPECT(m == expected);
+}
+
 TEST_CASE(gather_flatten_permutation)
 {
     migraphx::module m;

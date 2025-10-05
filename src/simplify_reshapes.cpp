@@ -1306,6 +1306,66 @@ struct find_gather
         if(try_permutation_rewrite())
             return;
 
+        auto try_stride_slice = [&]() -> bool {
+            const std::size_t count = indices_values.size();
+            if(count < 2)
+                return false;
+
+            if(indices_values.front() != 0)
+                return false;
+
+            const std::int64_t stride = indices_values[1] - indices_values[0];
+            if(stride <= 1)
+                return false;
+
+            for(std::size_t i = 1; i < count; ++i)
+            {
+                if(indices_values[i] - indices_values[i - 1] != stride)
+                    return false;
+                if(indices_values[i] != static_cast<std::int64_t>(i) * stride)
+                    return false;
+            }
+
+            if(axis_len % static_cast<std::size_t>(stride) != 0)
+                return false;
+
+            const std::size_t outer = axis_len / static_cast<std::size_t>(stride);
+            if(count != outer)
+                return false;
+
+            std::vector<int64_t> reshape_dims;
+            reshape_dims.reserve(pre_lens.size() + 2 + post_lens.size());
+            for(auto len : pre_lens)
+                reshape_dims.push_back(static_cast<int64_t>(len));
+            reshape_dims.push_back(static_cast<int64_t>(outer));
+            reshape_dims.push_back(stride);
+            for(auto len : post_lens)
+                reshape_dims.push_back(static_cast<int64_t>(len));
+
+            auto reshape =
+                m.insert_instruction(ins, make_op("reshape", {{"dims", reshape_dims}}), data_ins);
+
+            auto slice_axis = static_cast<int64_t>(pre_lens.size() + 1);
+            auto slice      = m.insert_instruction(
+                ins,
+                make_op("slice",
+                        {{"axes", std::vector<int64_t>{slice_axis}},
+                         {"starts", std::vector<int64_t>{0}},
+                         {"ends", std::vector<int64_t>{1}}}),
+                reshape);
+
+            auto result = m.insert_instruction(
+                ins,
+                make_op("reshape", {{"dims", to_int64(ins->get_shape().lens())}}),
+                slice);
+
+            m.replace_instruction(ins, result);
+            return true;
+        };
+
+        if(try_stride_slice())
+            return;
+
         auto try_rectangular_rewrite = [&]() -> bool {
             if(factor_candidates.empty())
                 return false;

@@ -2012,7 +2012,38 @@ TEST_CASE(gather_flatten_stride_first)
         expected.add_instruction(migraphx::make_op("squeeze", {{"axes", {0}}}), reshape_block);
     auto slice = expected.add_instruction(
         migraphx::make_op("slice", {{"axes", {1}}, {"starts", {0}}, {"ends", {1}}}), squeeze);
-    auto result = expected.add_instruction(migraphx::make_op("reshape", {{"dims", {1, 4}}}), slice);
+    auto unsqueeze =
+        expected.add_instruction(migraphx::make_op("unsqueeze", {{"axes", {0}}}), slice);
+    auto result = expected.add_instruction(migraphx::make_op("squeeze", {{"axes", {2}}}), unsqueeze);
+    expected.add_return({result});
+
+    EXPECT(m == expected);
+}
+
+TEST_CASE(gather_flatten_stride_offset)
+{
+    migraphx::module m;
+    auto x            = m.add_parameter("X", {migraphx::shape::float_type, {1, 16}});
+    auto reshape_flat = m.add_instruction(migraphx::make_op("reshape", {{"dims", {16}}}), x);
+    migraphx::shape si{migraphx::shape::int32_type, {1, 4}};
+    std::vector<int32_t> indices = {1, 5, 9, 13};
+    auto li                      = m.add_literal(migraphx::literal{si, indices});
+    auto g                       = m.add_instruction(migraphx::make_op("gather"), reshape_flat, li);
+    m.add_return({g});
+
+    run_pass(m);
+
+    migraphx::module expected;
+    auto xe = expected.add_parameter("X", {migraphx::shape::float_type, {1, 16}});
+    auto reshape_block =
+        expected.add_instruction(migraphx::make_op("reshape", {{"dims", {1, 4, 4}}}), xe);
+    auto squeeze =
+        expected.add_instruction(migraphx::make_op("squeeze", {{"axes", {0}}}), reshape_block);
+    auto slice = expected.add_instruction(
+        migraphx::make_op("slice", {{"axes", {1}}, {"starts", {1}}, {"ends", {2}}}), squeeze);
+    auto unsqueeze =
+        expected.add_instruction(migraphx::make_op("unsqueeze", {{"axes", {0}}}), slice);
+    auto result = expected.add_instruction(migraphx::make_op("squeeze", {{"axes", {2}}}), unsqueeze);
     expected.add_return({result});
 
     EXPECT(m == expected);

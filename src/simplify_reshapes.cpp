@@ -1306,12 +1306,13 @@ struct find_gather
         if(try_permutation_rewrite())
             return;
 
-        auto try_stride_slice = [&]() -> bool {
+        auto try_stride_slice_with_offset = [&]() -> bool {
             const std::size_t count = indices_values.size();
             if(count < 2)
                 return false;
 
-            if(indices_values.front() != 0)
+            const std::int64_t base = indices_values.front();
+            if(base < 0)
                 return false;
 
             const std::int64_t stride = indices_values[1] - indices_values[0];
@@ -1322,45 +1323,114 @@ struct find_gather
             {
                 if(indices_values[i] - indices_values[i - 1] != stride)
                     return false;
-                if(indices_values[i] != static_cast<std::int64_t>(i) * stride)
+                if(indices_values[i] != base + static_cast<std::int64_t>(i) * stride)
                     return false;
             }
 
-            if(axis_len % static_cast<std::size_t>(stride) != 0)
+            if(base >= stride)
                 return false;
 
-            const std::size_t outer = axis_len / static_cast<std::size_t>(stride);
+            const auto stride_size = static_cast<std::size_t>(stride);
+            if(stride_size == 0)
+                return false;
+
+            if(axis_len % stride_size != 0)
+                return false;
+
+            const std::size_t outer = axis_len / stride_size;
             if(count != outer)
                 return false;
 
+            if(base + static_cast<std::int64_t>(count - 1) * stride >=
+               static_cast<std::int64_t>(axis_len))
+                return false;
+
+            instruction_ref curr = data_ins;
+
+            if(axis_index != 0)
+            {
+                std::vector<int64_t> perm_axis_front;
+                perm_axis_front.reserve(dlens.size());
+                perm_axis_front.push_back(static_cast<int64_t>(axis_index));
+                for(std::size_t i = 0; i < dlens.size(); ++i)
+                {
+                    if(i == axis_index)
+                        continue;
+                    perm_axis_front.push_back(static_cast<int64_t>(i));
+                }
+                curr = m.insert_instruction(
+                    ins, make_op("transpose", {{"permutation", perm_axis_front}}), curr);
+            }
+
             std::vector<int64_t> reshape_dims;
-            reshape_dims.reserve(pre_lens.size() + 2 + post_lens.size());
-            for(auto len : pre_lens)
-                reshape_dims.push_back(static_cast<int64_t>(len));
+            reshape_dims.reserve(2 + rest_lens.size());
             reshape_dims.push_back(static_cast<int64_t>(outer));
             reshape_dims.push_back(stride);
-            for(auto len : post_lens)
+            for(auto len : rest_lens)
                 reshape_dims.push_back(static_cast<int64_t>(len));
+            curr = m.insert_instruction(ins, make_op("reshape", {{"dims", reshape_dims}}), curr);
 
-            auto reshape =
-                m.insert_instruction(ins, make_op("reshape", {{"dims", reshape_dims}}), data_ins);
+            curr = m.insert_instruction(ins,
+                                        make_op("slice",
+                                                {{"axes", std::vector<int64_t>{1}},
+                                                 {"starts", std::vector<int64_t>{base}},
+                                                 {"ends", std::vector<int64_t>{base + 1}}}),
+                                        curr);
 
-            auto slice_axis = static_cast<int64_t>(pre_lens.size() + 1);
-            auto slice      = m.insert_instruction(ins,
-                                              make_op("slice",
-                                                           {{"axes", std::vector<int64_t>{slice_axis}},
-                                                            {"starts", std::vector<int64_t>{0}},
-                                                            {"ends", std::vector<int64_t>{1}}}),
-                                              reshape);
+            std::vector<int64_t> reshape2_dims;
+            reshape2_dims.reserve(1 + rest_lens.size());
+            reshape2_dims.push_back(static_cast<int64_t>(outer));
+            for(auto len : rest_lens)
+                reshape2_dims.push_back(static_cast<int64_t>(len));
+            curr =
+                m.insert_instruction(ins, make_op("reshape", {{"dims", reshape2_dims}}), curr);
 
-            auto result = m.insert_instruction(
-                ins, make_op("reshape", {{"dims", to_int64(ins->get_shape().lens())}}), slice);
+            const std::size_t pre_count  = pre_lens.size();
+            const std::size_t post_count = post_lens.size();
 
-            m.replace_instruction(ins, result);
+            if(pre_count + post_count > 0)
+            {
+                std::vector<int64_t> perm;
+                perm.reserve(1 + rest_lens.size());
+                for(std::size_t i = 0; i < pre_count; ++i)
+                    perm.push_back(static_cast<int64_t>(1 + i));
+                perm.push_back(0);
+                for(std::size_t i = 0; i < post_count; ++i)
+                    perm.push_back(static_cast<int64_t>(1 + pre_count + i));
+
+                bool need_transpose = false;
+                for(std::size_t i = 0; i < perm.size(); ++i)
+                {
+                    if(perm[i] != static_cast<int64_t>(i))
+                    {
+                        need_transpose = true;
+                        break;
+                    }
+                }
+
+                if(need_transpose)
+                {
+                    curr = m.insert_instruction(
+                        ins, make_op("transpose", {{"permutation", perm}}), curr);
+                }
+            }
+
+            std::vector<int64_t> final_dims;
+            final_dims.reserve(pre_count + idims.size() + post_count);
+            for(auto len : pre_lens)
+                final_dims.push_back(static_cast<int64_t>(len));
+            for(auto len : idims)
+                final_dims.push_back(static_cast<int64_t>(len));
+            for(auto len : post_lens)
+                final_dims.push_back(static_cast<int64_t>(len));
+
+            curr = m.insert_instruction(ins, make_op("reshape", {{"dims", final_dims}}), curr);
+
+            m.replace_instruction(ins, curr);
             return true;
         };
 
-        if(try_stride_slice())
+        if(try_stride_slice_with_offset())
             return;
 
         auto try_rectangular_rewrite = [&]() -> bool {

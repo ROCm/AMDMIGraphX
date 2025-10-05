@@ -51,7 +51,7 @@ TEST_CASE(rewrite_pooling_test)
         migraphx::module m;
         auto input = m.add_parameter("x", s);
         auto ret   = m.add_instruction(migraphx::make_op("pooling",
-                                                         {{"mode", mode},
+                                                       {{"mode", mode},
                                                           {"padding", {0, 0, 0}},
                                                           {"stride", {1, 1, 1}},
                                                           {"lengths", {3, 4, 5}},
@@ -89,7 +89,7 @@ TEST_CASE(rewrite_pooling_dialtions_test)
         migraphx::module m;
         auto input = m.add_parameter("x", s);
         auto ret   = m.add_instruction(migraphx::make_op("pooling",
-                                                         {{"mode", mode},
+                                                       {{"mode", mode},
                                                           {"padding", {0, 0}},
                                                           {"stride", {1, 1}},
                                                           {"lengths", {2, 2}},
@@ -137,7 +137,7 @@ TEST_CASE(rewrite_pooling_dialtions_test2)
         migraphx::module m;
         auto input = m.add_parameter("x", s);
         auto ret   = m.add_instruction(migraphx::make_op("pooling",
-                                                         {{"mode", mode},
+                                                       {{"mode", mode},
                                                           {"padding", {0, 0, 0}},
                                                           {"stride", {1, 1, 1}},
                                                           {"lengths", {2, 2, 2}},
@@ -213,7 +213,7 @@ TEST_CASE(rewrite_pooling_dialtions_test4)
         migraphx::module m;
         auto input = m.add_parameter("x", s);
         auto ret   = m.add_instruction(migraphx::make_op("pooling",
-                                                         {{"mode", mode},
+                                                       {{"mode", mode},
                                                           {"padding", {1, 0}},
                                                           {"stride", {1, 3}},
                                                           {"lengths", {3, 1}},
@@ -268,7 +268,7 @@ TEST_CASE(rewrite_pooling_dialtions_test5)
         migraphx::module m;
         auto input = m.add_parameter("x", s);
         auto ret   = m.add_instruction(migraphx::make_op("pooling",
-                                                         {{"mode", mode},
+                                                       {{"mode", mode},
                                                           {"padding", {0, 0}},
                                                           {"stride", {2, 3}},
                                                           {"lengths", {2, 1}},
@@ -311,70 +311,72 @@ TEST_CASE(rewrite_pooling_dialtions_test5)
     test_rewrite(migraphx::op::pooling_mode::max);
 }
 
+TEST_CASE(test_lower_lrn_to_pooling)
+{
+    migraphx::module m1;
+    {
+        migraphx::shape input_shape{migraphx::shape::float_type, {1, 64, 55, 55}};
+        auto input1 = m1.add_parameter("x", input_shape);
+        auto lrn1   = m1.add_instruction(
+            migraphx::make_op("lrn",
+                              {{"alpha", 0.0001f}, {"beta", 0.75f}, {"bias", 1.0f}, {"size", 4}}),
+            input1);
+        m1.add_return({lrn1});
+    }
+    opt_pooling(m1);
 
-TEST_CASE(test_lower_lrn_to_pooling)  
-{  
-    migraphx::module m1;  
-    {  
-        migraphx::shape input_shape{migraphx::shape::float_type, {1, 64, 55, 55}};  
-        auto input1 = m1.add_parameter("x", input_shape);  
-        auto lrn1 = m1.add_instruction(  
-            migraphx::make_op("lrn", {{"alpha", 0.0001f}, {"beta", 0.75f}, {"bias", 1.0f}, {"size", 4}}),  
-            input1);  
-        m1.add_return({lrn1});  
-    }  
-    opt_pooling(m1);  
-  
-    migraphx::module m2;  
-    {  
-        migraphx::shape input_shape{migraphx::shape::float_type, {1, 64, 55, 55}};  
-        auto input2 = m2.add_parameter("x", input_shape);  
-          
-        auto x2 = m2.add_instruction(migraphx::make_op("mul"), input2, input2);  
-          
-        auto transpose1 = m2.add_instruction(  
-            migraphx::make_op("transpose", {{"permutation", std::vector<int64_t>{0, 2, 3, 1}}}), x2);  
-          
-        int64_t lrn_size = 4;  
-        int64_t pad_left = (lrn_size - 1) / 2; 
-        int64_t pad_right = lrn_size - 1 - pad_left;
-        std::vector<int64_t> expected_pads = {pad_left, pad_right};  
-          
-        auto avg = m2.add_instruction(  
-            migraphx::make_op("pooling", {  
-                {"mode", migraphx::op::pooling_mode::average},  
-                {"lengths", std::vector<int64_t>{1, lrn_size}},  
-                {"stride", std::vector<int64_t>{1, 1}},  
-                {"padding", std::vector<int64_t>{0, expected_pads[0], 0, expected_pads[1]}},  
-                {"dilations", std::vector<int64_t>{1, 1}},  
-                {"count_include_pad", true}  
-            }), transpose1);  
-          
-        auto transpose2 = m2.add_instruction(  
-            migraphx::make_op("transpose", {{"permutation", std::vector<int64_t>{0, 3, 1, 2}}}), avg);  
-          
-        auto k_lit = m2.add_literal(1.0f);  
-        auto a_lit = m2.add_literal(0.0001f);  
-        auto b_lit = m2.add_literal(0.75f);  
-          
-        auto k_mb = m2.add_instruction(  
-            migraphx::make_op("multibroadcast", {{"out_lens", input_shape.lens()}}), k_lit);  
-        auto a_mb = m2.add_instruction(  
-            migraphx::make_op("multibroadcast", {{"out_lens", input_shape.lens()}}), a_lit);  
-        auto b_mb = m2.add_instruction(  
-            migraphx::make_op("multibroadcast", {{"out_lens", input_shape.lens()}}), b_lit);  
-          
-        auto alpha_avg = m2.add_instruction(migraphx::make_op("mul"), a_mb, transpose2);  
-        auto den = m2.add_instruction(migraphx::make_op("add"), k_mb, alpha_avg);  
-        auto denpow = m2.add_instruction(migraphx::make_op("pow"), den, b_mb);  
-        auto y = m2.add_instruction(migraphx::make_op("div"), input2, denpow);  
-          
-        m2.add_return({y});  
-    }  
-      
-    EXPECT(m1 == m2);  
+    migraphx::module m2;
+    {
+        migraphx::shape input_shape{migraphx::shape::float_type, {1, 64, 55, 55}};
+        auto input2 = m2.add_parameter("x", input_shape);
+
+        auto x2 = m2.add_instruction(migraphx::make_op("mul"), input2, input2);
+
+        auto transpose1 = m2.add_instruction(
+            migraphx::make_op("transpose", {{"permutation", std::vector<int64_t>{0, 2, 3, 1}}}),
+            x2);
+
+        int64_t lrn_size                   = 4;
+        int64_t pad_left                   = (lrn_size - 1) / 2;
+        int64_t pad_right                  = lrn_size - 1 - pad_left;
+        std::vector<int64_t> expected_pads = {pad_left, pad_right};
+
+        auto avg = m2.add_instruction(
+            migraphx::make_op(
+                "pooling",
+                {{"mode", migraphx::op::pooling_mode::average},
+                 {"lengths", std::vector<int64_t>{1, lrn_size}},
+                 {"stride", std::vector<int64_t>{1, 1}},
+                 {"padding", std::vector<int64_t>{0, expected_pads[0], 0, expected_pads[1]}},
+                 {"dilations", std::vector<int64_t>{1, 1}},
+                 {"count_include_pad", true}}),
+            transpose1);
+
+        auto transpose2 = m2.add_instruction(
+            migraphx::make_op("transpose", {{"permutation", std::vector<int64_t>{0, 3, 1, 2}}}),
+            avg);
+
+        auto k_lit = m2.add_literal(1.0f);
+        auto a_lit = m2.add_literal(0.0001f);
+        auto b_lit = m2.add_literal(0.75f);
+
+        auto k_mb = m2.add_instruction(
+            migraphx::make_op("multibroadcast", {{"out_lens", input_shape.lens()}}), k_lit);
+        auto a_mb = m2.add_instruction(
+            migraphx::make_op("multibroadcast", {{"out_lens", input_shape.lens()}}), a_lit);
+        auto b_mb = m2.add_instruction(
+            migraphx::make_op("multibroadcast", {{"out_lens", input_shape.lens()}}), b_lit);
+
+        auto alpha_avg = m2.add_instruction(migraphx::make_op("mul"), a_mb, transpose2);
+        auto den       = m2.add_instruction(migraphx::make_op("add"), k_mb, alpha_avg);
+        auto denpow    = m2.add_instruction(migraphx::make_op("pow"), den, b_mb);
+        auto y         = m2.add_instruction(migraphx::make_op("div"), input2, denpow);
+
+        m2.add_return({y});
+    }
+
+    EXPECT(m1 == m2);
 }
-
 
 TEST_CASE(rewrite_avgpool_rank3_dil_test)
 {
@@ -684,7 +686,7 @@ TEST_CASE(rewrite_avepooling_na3_test)
 
         auto input = m.add_parameter("x", s);
         auto ret   = m.add_instruction(migraphx::make_op("pooling",
-                                                         {{"mode", migraphx::op::pooling_mode::max},
+                                                       {{"mode", migraphx::op::pooling_mode::max},
                                                           {"padding", {0, 0, 0}},
                                                           {"stride", {1, 1, 1}},
                                                           {"lengths", {3, 3, 5}},
@@ -713,7 +715,7 @@ TEST_CASE(literal_rewrite_pooling_test)
         auto* mm   = p.get_main_module();
         auto input = mm->add_literal(migraphx::literal(s, data));
         auto ret   = mm->add_instruction(migraphx::make_op("pooling",
-                                                           {{"mode", mode},
+                                                         {{"mode", mode},
                                                             {"padding", {0, 0, 0}},
                                                             {"stride", {1, 1, 1}},
                                                             {"lengths", {3, 4, 5}},

@@ -34,16 +34,12 @@ struct test_gather_flatten_permutation : verify_program<test_gather_flatten_perm
         migraphx::program p;
         auto* mm = p.get_main_module();
 
-        auto x =
-            mm->add_parameter("X", {migraphx::shape::float_type, {1, 1, 4, 4}});
-        auto reshape_flat =
-            mm->add_instruction(migraphx::make_op("reshape", {{"dims", {16}}}), x);
+        auto x            = mm->add_parameter("X", {migraphx::shape::float_type, {1, 1, 4, 4}});
+        auto reshape_flat = mm->add_instruction(migraphx::make_op("reshape", {{"dims", {16}}}), x);
 
         migraphx::shape indices_shape{migraphx::shape::int32_type, {4, 1, 2, 2}};
-        std::vector<int32_t> indices = {0, 2, 8, 10, 4, 6, 12, 14,
-                                        1, 3, 9, 11, 5, 7, 13, 15};
-        auto indices_literal =
-            mm->add_literal(migraphx::literal{indices_shape, indices});
+        std::vector<int32_t> indices = {0, 2, 8, 10, 4, 6, 12, 14, 1, 3, 9, 11, 5, 7, 13, 15};
+        auto indices_literal         = mm->add_literal(migraphx::literal{indices_shape, indices});
 
         auto gather =
             mm->add_instruction(migraphx::make_op("gather"), reshape_flat, indices_literal);

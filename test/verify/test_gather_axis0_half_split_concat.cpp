@@ -27,8 +27,7 @@
 #include <migraphx/make_op.hpp>
 #include <migraphx/literal.hpp>
 
-struct test_gather_axis0_half_split_concat
-    : verify_program<test_gather_axis0_half_split_concat>
+struct test_gather_axis0_half_split_concat : verify_program<test_gather_axis0_half_split_concat>
 {
     migraphx::program create_program() const
     {
@@ -39,10 +38,10 @@ struct test_gather_axis0_half_split_concat
 
         migraphx::shape indices_shape{migraphx::shape::int32_type, {4}};
         std::vector<int32_t> indices = {2, 3, 0, 1};
-        auto indices_literal = mm->add_literal(migraphx::literal{indices_shape, indices});
+        auto indices_literal         = mm->add_literal(migraphx::literal{indices_shape, indices});
 
-        auto gather =
-            mm->add_instruction(migraphx::make_op("gather", {{"axis", int64_t{0}}}), data, indices_literal);
+        auto gather = mm->add_instruction(
+            migraphx::make_op("gather", {{"axis", int64_t{0}}}), data, indices_literal);
         mm->add_return({gather});
 
         return p;

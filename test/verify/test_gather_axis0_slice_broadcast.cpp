@@ -34,17 +34,14 @@ struct test_gather_axis0_slice_broadcast : verify_program<test_gather_axis0_slic
         migraphx::program p;
         auto* mm = p.get_main_module();
 
-        auto x = mm->add_parameter("X", {migraphx::shape::float_type, {1, 4}});
-        auto reshape =
-            mm->add_instruction(migraphx::make_op("reshape", {{"dims", {4}}}), x);
+        auto x       = mm->add_parameter("X", {migraphx::shape::float_type, {1, 4}});
+        auto reshape = mm->add_instruction(migraphx::make_op("reshape", {{"dims", {4}}}), x);
 
         migraphx::shape indices_shape{migraphx::shape::int32_type, {2, 8}};
         std::vector<int32_t> indices = {0, 0, 0, 1, 1, 2, 2, 3, 0, 1, 1, 2, 2, 3, 3, 3};
-        auto indices_literal =
-            mm->add_literal(migraphx::literal{indices_shape, indices});
+        auto indices_literal         = mm->add_literal(migraphx::literal{indices_shape, indices});
 
-        auto gather =
-            mm->add_instruction(migraphx::make_op("gather"), reshape, indices_literal);
+        auto gather = mm->add_instruction(migraphx::make_op("gather"), reshape, indices_literal);
         mm->add_return({gather});
 
         return p;

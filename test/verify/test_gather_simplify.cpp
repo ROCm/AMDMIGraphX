@@ -29,19 +29,18 @@
 
 struct test_gather_simplify : verify_program<test_gather_simplify>
 {
-	migraphx::program create_program() const
-	{
-		migraphx::program p;
-		auto* mm = p.get_main_module();
-		migraphx::shape data_shape{migraphx::shape::float_type, {2, 4}};
-		migraphx::shape indices_shape{migraphx::shape::int32_type, {2, 3}};
-		std::vector<int> indices = {1, 1, 1, 2, 2, 2};
-		auto data      = mm->add_parameter("data", data_shape);
-		auto idx_lit   = mm->add_literal(migraphx::literal{indices_shape, indices});
-		auto gather    =
-			mm->add_instruction(migraphx::make_op("gather", {{"axis", 1}}), data, idx_lit);
-		mm->add_return({gather});
-		return p;
-	}
+    migraphx::program create_program() const
+    {
+        migraphx::program p;
+        auto* mm = p.get_main_module();
+        migraphx::shape data_shape{migraphx::shape::float_type, {2, 4}};
+        migraphx::shape indices_shape{migraphx::shape::int32_type, {2, 3}};
+        std::vector<int> indices = {1, 1, 1, 2, 2, 2};
+        auto data                = mm->add_parameter("data", data_shape);
+        auto idx_lit             = mm->add_literal(migraphx::literal{indices_shape, indices});
+        auto gather =
+            mm->add_instruction(migraphx::make_op("gather", {{"axis", 1}}), data, idx_lit);
+        mm->add_return({gather});
+        return p;
+    }
 };
-

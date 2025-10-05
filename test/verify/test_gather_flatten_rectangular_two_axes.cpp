@@ -35,16 +35,14 @@ struct test_gather_flatten_rectangular_two_axes
         migraphx::program p;
         auto* mm = p.get_main_module();
 
-        auto data = mm->add_parameter("X", {migraphx::shape::float_type, {1, 12}});
-        auto flatten =
-            mm->add_instruction(migraphx::make_op("reshape", {{"dims", {12}}}), data);
+        auto data    = mm->add_parameter("X", {migraphx::shape::float_type, {1, 12}});
+        auto flatten = mm->add_instruction(migraphx::make_op("reshape", {{"dims", {12}}}), data);
 
         migraphx::shape indices_shape{migraphx::shape::int32_type, {2, 3}};
         std::vector<int32_t> indices = {4, 5, 6, 8, 9, 10};
-        auto indices_literal = mm->add_literal(migraphx::literal{indices_shape, indices});
+        auto indices_literal         = mm->add_literal(migraphx::literal{indices_shape, indices});
 
-        auto gather =
-            mm->add_instruction(migraphx::make_op("gather"), flatten, indices_literal);
+        auto gather = mm->add_instruction(migraphx::make_op("gather"), flatten, indices_literal);
         mm->add_return({gather});
 
         return p;

@@ -27,29 +27,25 @@
 #include <migraphx/make_op.hpp>
 #include <migraphx/literal.hpp>
 
-struct test_gather_flatten_channel_parity
-    : verify_program<test_gather_flatten_channel_parity>
+struct test_gather_flatten_channel_parity : verify_program<test_gather_flatten_channel_parity>
 {
     migraphx::program create_program() const
     {
         migraphx::program p;
         auto* mm = p.get_main_module();
 
-        auto x =
-            mm->add_parameter("X", {migraphx::shape::float_type, {1, 3, 4, 4}});
-        auto reshape_flat =
-            mm->add_instruction(migraphx::make_op("reshape", {{"dims", {48}}}), x);
+        auto x            = mm->add_parameter("X", {migraphx::shape::float_type, {1, 3, 4, 4}});
+        auto reshape_flat = mm->add_instruction(migraphx::make_op("reshape", {{"dims", {48}}}), x);
 
         migraphx::shape indices_shape{migraphx::shape::int32_type, {4, 3, 2, 2}};
-        std::vector<int32_t> indices = {0,  2,  8,  10, 16, 18, 24, 26, 32, 34, 40, 42,
-                                        4,  6,  12, 14, 20, 22, 28, 30, 36, 38, 44, 46,
-                                        1,  3,  9,  11, 17, 19, 25, 27, 33, 35, 41, 43,
-                                        5,  7,  13, 15, 21, 23, 29, 31, 37, 39, 45, 47};
-        auto indices_literal =
-            mm->add_literal(migraphx::literal{indices_shape, indices});
+        std::vector<int32_t> indices = {0, 2, 8,  10, 16, 18, 24, 26, 32, 34, 40, 42,
+                                        4, 6, 12, 14, 20, 22, 28, 30, 36, 38, 44, 46,
+                                        1, 3, 9,  11, 17, 19, 25, 27, 33, 35, 41, 43,
+                                        5, 7, 13, 15, 21, 23, 29, 31, 37, 39, 45, 47};
+        auto indices_literal         = mm->add_literal(migraphx::literal{indices_shape, indices});
 
-        auto gather = mm->add_instruction(
-            migraphx::make_op("gather"), reshape_flat, indices_literal);
+        auto gather =
+            mm->add_instruction(migraphx::make_op("gather"), reshape_flat, indices_literal);
         mm->add_return({gather});
 
         return p;

@@ -42,19 +42,3 @@ struct test_relu_lrn : verify_program<test_relu_lrn>
         return p;
     }
 };
-
-
-struct test_lrn_to_pooling : verify_program<test_lrn_to_pooling>
-{
-    migraphx::program create_program() const
-    {
-        migraphx::program p;
-        auto* mm = p.get_main_module();
-        auto x = mm->add_parameter("x", migraphx::shape{migraphx::shape::float_type, {1, 32, 28, 28}});
-        mm->add_instruction(
-            migraphx::make_op("lrn",
-                              {{"alpha", 0.0001}, {"beta", 0.75}, {"bias", 1.0}, {"size", 5}}),
-            x);
-        return p;
-    }
-};

@@ -66,9 +66,9 @@ static void lower_lrn_to_pooling(module& m, instruction_ref ins)
     float k     = v.at("bias").to<float>();
     int size    = v.at("size").to<int>();
 
-    auto x = ins->inputs().at(0);
+    auto x             = ins->inputs().at(0);
     const auto& xshape = x->get_shape();
-    const auto& lens = xshape.lens();
+    const auto& lens   = xshape.lens();
 
     if(lens.size() != 4 or size <= 0 or size > lens[1])
     {
@@ -80,7 +80,7 @@ static void lower_lrn_to_pooling(module& m, instruction_ref ins)
     std::vector<int64_t> perm = {0, 2, 3, 1};
     auto transpose1 = m.insert_instruction(ins, make_op("transpose", {{"permutation", perm}}), x2);
 
-    auto transposed_shape = transpose1->get_shape();
+    auto transposed_shape       = transpose1->get_shape();
     const auto& transposed_lens = transposed_shape.lens();
 
     if(transposed_lens.size() != 4)
@@ -97,17 +97,18 @@ static void lower_lrn_to_pooling(module& m, instruction_ref ins)
         return;
     }
 
-    auto avg = m.insert_instruction(ins,
-        make_op("pooling", {
-            {"mode", op::pooling_mode::average},
-            {"lengths", std::vector<int64_t>{1, size}},
-            {"stride", std::vector<int64_t>{1, 1}},
-            {"padding", std::vector<int64_t>{0, calculated_pads[0], 0, calculated_pads[1]}},
-            {"dilations", std::vector<int64_t>{1, 1}},
-            {"count_include_pad", true}
-        }), transpose1);
+    auto avg = m.insert_instruction(
+        ins,
+        make_op("pooling",
+                {{"mode", op::pooling_mode::average},
+                 {"lengths", std::vector<int64_t>{1, size}},
+                 {"stride", std::vector<int64_t>{1, 1}},
+                 {"padding", std::vector<int64_t>{0, calculated_pads[0], 0, calculated_pads[1]}},
+                 {"dilations", std::vector<int64_t>{1, 1}},
+                 {"count_include_pad", true}}),
+        transpose1);
 
-    auto avg_shape = avg->get_shape();
+    auto avg_shape       = avg->get_shape();
     const auto& avg_lens = avg_shape.lens();
 
     if(avg_lens.size() != 4 or avg_lens[3] != transposed_lens[3])
@@ -116,9 +117,10 @@ static void lower_lrn_to_pooling(module& m, instruction_ref ins)
     }
 
     std::vector<int64_t> inv_perm = {0, 3, 1, 2};
-    auto transpose2 = m.insert_instruction(ins, make_op("transpose", {{"permutation", inv_perm}}), avg);
+    auto transpose2 =
+        m.insert_instruction(ins, make_op("transpose", {{"permutation", inv_perm}}), avg);
 
-    auto final_shape = transpose2->get_shape();
+    auto final_shape       = transpose2->get_shape();
     const auto& final_lens = final_shape.lens();
 
     bool shape_matches = true;
@@ -152,9 +154,9 @@ static void lower_lrn_to_pooling(module& m, instruction_ref ins)
     auto b_mb = m.insert_instruction(ins, make_op("multibroadcast", {{"out_lens", lens}}), b_lit);
 
     auto alpha_avg = m.insert_instruction(ins, make_op("mul"), a_mb, transpose2);
-    auto den = m.insert_instruction(ins, make_op("add"), k_mb, alpha_avg);
-    auto denpow = m.insert_instruction(ins, make_op("pow"), den, b_mb);
-    auto y = m.insert_instruction(ins, make_op("div"), x, denpow);
+    auto den       = m.insert_instruction(ins, make_op("add"), k_mb, alpha_avg);
+    auto denpow    = m.insert_instruction(ins, make_op("pow"), den, b_mb);
+    auto y         = m.insert_instruction(ins, make_op("div"), x, denpow);
 
     m.replace_instruction(ins, y);
 }
@@ -244,15 +246,15 @@ static void replace_dilations_with_gather_pooling(module& m, instruction_ref ins
 }
 
 void rewrite_pooling::apply(module& m) const
-{    
+{
     for(auto ins : iterator_for(m))
     {
         if(ins->inputs().empty())
-            continue;  
-        if(rewrite_lrn and ins->name() == "lrn")  
-        {  
-            lower_lrn_to_pooling(m, ins);  
-            continue;  
+            continue;
+        if(rewrite_lrn and ins->name() == "lrn")
+        {
+            lower_lrn_to_pooling(m, ins);
+            continue;
         }
         if(ins->name() != "pooling")
             continue;

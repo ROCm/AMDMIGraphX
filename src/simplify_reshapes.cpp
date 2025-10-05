@@ -1382,8 +1382,7 @@ struct find_gather
             reshape2_dims.push_back(static_cast<int64_t>(outer));
             for(auto len : rest_lens)
                 reshape2_dims.push_back(static_cast<int64_t>(len));
-            curr =
-                m.insert_instruction(ins, make_op("reshape", {{"dims", reshape2_dims}}), curr);
+            curr = m.insert_instruction(ins, make_op("reshape", {{"dims", reshape2_dims}}), curr);
 
             const std::size_t pre_count  = pre_lens.size();
             const std::size_t post_count = post_lens.size();

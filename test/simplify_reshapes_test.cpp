@@ -2014,7 +2014,8 @@ TEST_CASE(gather_flatten_stride_first)
         migraphx::make_op("slice", {{"axes", {1}}, {"starts", {0}}, {"ends", {1}}}), squeeze);
     auto unsqueeze =
         expected.add_instruction(migraphx::make_op("unsqueeze", {{"axes", {0}}}), slice);
-    auto result = expected.add_instruction(migraphx::make_op("squeeze", {{"axes", {2}}}), unsqueeze);
+    auto result =
+        expected.add_instruction(migraphx::make_op("squeeze", {{"axes", {2}}}), unsqueeze);
     expected.add_return({result});
 
     EXPECT(m == expected);
@@ -2043,7 +2044,8 @@ TEST_CASE(gather_flatten_stride_offset)
         migraphx::make_op("slice", {{"axes", {1}}, {"starts", {1}}, {"ends", {2}}}), squeeze);
     auto unsqueeze =
         expected.add_instruction(migraphx::make_op("unsqueeze", {{"axes", {0}}}), slice);
-    auto result = expected.add_instruction(migraphx::make_op("squeeze", {{"axes", {2}}}), unsqueeze);
+    auto result =
+        expected.add_instruction(migraphx::make_op("squeeze", {{"axes", {2}}}), unsqueeze);
     expected.add_return({result});
 
     EXPECT(m == expected);

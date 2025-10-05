@@ -1346,18 +1346,15 @@ struct find_gather
                 m.insert_instruction(ins, make_op("reshape", {{"dims", reshape_dims}}), data_ins);
 
             auto slice_axis = static_cast<int64_t>(pre_lens.size() + 1);
-            auto slice      = m.insert_instruction(
-                ins,
-                make_op("slice",
-                        {{"axes", std::vector<int64_t>{slice_axis}},
-                         {"starts", std::vector<int64_t>{0}},
-                         {"ends", std::vector<int64_t>{1}}}),
-                reshape);
+            auto slice      = m.insert_instruction(ins,
+                                              make_op("slice",
+                                                           {{"axes", std::vector<int64_t>{slice_axis}},
+                                                            {"starts", std::vector<int64_t>{0}},
+                                                            {"ends", std::vector<int64_t>{1}}}),
+                                              reshape);
 
             auto result = m.insert_instruction(
-                ins,
-                make_op("reshape", {{"dims", to_int64(ins->get_shape().lens())}}),
-                slice);
+                ins, make_op("reshape", {{"dims", to_int64(ins->get_shape().lens())}}), slice);
 
             m.replace_instruction(ins, result);
             return true;

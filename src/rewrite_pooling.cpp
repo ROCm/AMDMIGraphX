@@ -68,7 +68,7 @@ static void lower_lrn_to_pooling(module& m, instruction_ref ins)
 
     auto x = ins->inputs().at(0);
     const auto& xshape = x->get_shape();
-    auto lens = xshape.lens();
+    const auto& lens = xshape.lens();
 
     if(lens.size() != 4 or size <= 0 or size > lens[1]) {
     	return;
@@ -81,14 +81,19 @@ static void lower_lrn_to_pooling(module& m, instruction_ref ins)
     auto transposed_shape = transpose1->get_shape();
     const auto& transposed_lens = transposed_shape.lens();
 
+    if(transposed_lens.size() != 4) {  
+        return;  
+    } 
+
     int64_t channel_dim = lens[1];
     std::vector<int64_t> calculated_pads(2);
     calculate_padding(0, calculated_pads, channel_dim, 1, 1, size, true);
-
-    instruction_ref avg;
-
-    try{
-    	avg = m.insert_instruction(ins,
+ 
+    if(calculated_pads[0] < 0 or calculated_pads[1] < 0) {  
+        return;  
+    }
+    
+    auto avg = m.insert_instruction(ins,
             make_op("pooling", {
                 {"mode", op::pooling_mode::average},
                 {"lengths", std::vector<int64_t>{1, size}},
@@ -100,21 +105,16 @@ static void lower_lrn_to_pooling(module& m, instruction_ref ins)
 
         auto avg_shape = avg->get_shape();
         const auto& avg_lens = avg_shape.lens();
-
-        if(avg_lens[3] != transposed_lens[3]) {
-            return;
-        }
-
-    } catch(const std::exception&) {    
-    	return;    
-    }	
-
+    
+    if(avg_lens.size() != 4 or avg_lens[3] != transposed_lens[3]) {  
+        return;  
+    }  
+	
     std::vector<int64_t> inv_perm = {0, 3, 1, 2};
     auto transpose2 = m.insert_instruction(ins, make_op("transpose", {{"permutation", inv_perm}}), avg);
 
     auto final_shape = transpose2->get_shape();
     const auto& final_lens = final_shape.lens();
-
 
     bool shape_matches = true;
     if(final_lens.size() != lens.size()) {
@@ -140,7 +140,6 @@ static void lower_lrn_to_pooling(module& m, instruction_ref ins)
     auto a_mb = m.insert_instruction(ins, make_op("multibroadcast", {{"out_lens", lens}}), a_lit);
     auto b_mb = m.insert_instruction(ins, make_op("multibroadcast", {{"out_lens", lens}}), b_lit);
 
-    try {
         auto alpha_avg = m.insert_instruction(ins, make_op("mul"), a_mb, transpose2);
         auto den = m.insert_instruction(ins, make_op("add"), k_mb, alpha_avg);
         auto denpow = m.insert_instruction(ins, make_op("pow"), den, b_mb);
@@ -148,9 +147,6 @@ static void lower_lrn_to_pooling(module& m, instruction_ref ins)
 
         m.replace_instruction(ins, y);
 
-    } catch(const std::exception&) {
-        return;
-    }
 }
 
 static void replace_dilations_with_gather_pooling(module& m, instruction_ref ins)

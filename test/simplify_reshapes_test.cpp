@@ -2139,6 +2139,85 @@ TEST_CASE(gather_flatten_channel_parity_permutation)
     EXPECT(m == expected);
 }
 
+TEST_CASE(gather_axis1_factorized_grid_const)
+{
+    migraphx::module m;
+    auto data = m.add_parameter("data", {migraphx::shape::float_type, {3, 8, 5}});
+    migraphx::shape si{migraphx::shape::int32_type, {2, 2, 1}};
+    std::vector<int32_t> indices = {1, 3, 5, 7};
+    auto li = m.add_literal(migraphx::literal{si, indices});
+    auto g  = m.add_instruction(migraphx::make_op("gather", {{"axis", 1}}), data, li);
+    m.add_return({g});
+
+    run_pass(m);
+
+    migraphx::module expected;
+    auto data_e = expected.add_parameter("data", {migraphx::shape::float_type, {3, 8, 5}});
+    auto reshape_axis = expected.add_instruction(
+        migraphx::make_op("reshape", {{"dims", std::vector<int64_t>{3, 4, 2, 5}}}), data_e);
+    auto transpose_axis = expected.add_instruction(
+        migraphx::make_op("transpose", {{"permutation", std::vector<int64_t>{1, 2, 0, 3}}}),
+        reshape_axis);
+    auto slice_const = expected.add_instruction(
+        migraphx::make_op("slice",
+                          {{"axes", std::vector<int64_t>{1}},
+                           {"starts", std::vector<int64_t>{1}},
+                           {"ends", std::vector<int64_t>{2}}}),
+        transpose_axis);
+    auto reshape_grid = expected.add_instruction(
+        migraphx::make_op("reshape", {{"dims", std::vector<int64_t>{2, 2, 1, 3, 1, 5}}}), slice_const);
+    auto transpose_reorder = expected.add_instruction(
+        migraphx::make_op("transpose",
+                          {{"permutation", std::vector<int64_t>{2, 3, 0, 1, 4, 5}}}),
+        reshape_grid);
+    auto squeeze = expected.add_instruction(
+        migraphx::make_op("squeeze", {{"axes", std::vector<int64_t>{0}}}), transpose_reorder);
+    expected.add_return({squeeze});
+
+    EXPECT(m == expected);
+}
+
+TEST_CASE(gather_axis1_factorized_grid_multi_const)
+{
+    migraphx::module m;
+    auto data = m.add_parameter("data", {migraphx::shape::float_type, {2, 27, 4}});
+    migraphx::shape si{migraphx::shape::int32_type, {3, 1}};
+    std::vector<int32_t> indices = {5, 14, 23};
+    auto li = m.add_literal(migraphx::literal{si, indices});
+    auto g  = m.add_instruction(migraphx::make_op("gather", {{"axis", 1}}), data, li);
+    m.add_return({g});
+
+    run_pass(m);
+
+    migraphx::module expected;
+    auto data_e = expected.add_parameter("data", {migraphx::shape::float_type, {2, 27, 4}});
+    auto reshape_axis = expected.add_instruction(
+        migraphx::make_op("reshape", {{"dims", std::vector<int64_t>{2, 3, 9, 4}}}), data_e);
+    auto transpose_axis = expected.add_instruction(
+        migraphx::make_op("transpose", {{"permutation", std::vector<int64_t>{1, 2, 0, 3}}}),
+        reshape_axis);
+    auto slice_const = expected.add_instruction(
+        migraphx::make_op("slice",
+                          {{"axes", std::vector<int64_t>{1}},
+                           {"starts", std::vector<int64_t>{5}},
+                           {"ends", std::vector<int64_t>{6}}}),
+        transpose_axis);
+    auto unsqueeze_axis = expected.add_instruction(
+        migraphx::make_op("unsqueeze",
+                          {{"axes", std::vector<int64_t>{3}},
+                           {"steps", std::vector<int64_t>{}}}),
+        slice_const);
+    auto transpose_reorder = expected.add_instruction(
+        migraphx::make_op("transpose",
+                          {{"permutation", std::vector<int64_t>{1, 2, 0, 3, 4}}}),
+        unsqueeze_axis);
+    auto squeeze = expected.add_instruction(
+        migraphx::make_op("squeeze", {{"axes", std::vector<int64_t>{0}}}), transpose_reorder);
+    expected.add_return({squeeze});
+
+    EXPECT(m == expected);
+}
+
 // TEST_CASE(gather_constant_scalar_index)
 // {
 //     migraphx::module m1;

@@ -83,19 +83,9 @@ static void lower_lrn_to_pooling(module& m, instruction_ref ins)
     auto transposed_shape       = transpose1->get_shape();
     const auto& transposed_lens = transposed_shape.lens();
 
-    if(transposed_lens.size() != 4)
-    {
-        return;
-    }
-
     int64_t channel_dim = lens[1];
     std::vector<int64_t> calculated_pads(2);
     calculate_padding(0, calculated_pads, channel_dim, 1, 1, size, true);
-
-    if(calculated_pads[0] < 0 or calculated_pads[1] < 0)
-    {
-        return;
-    }
 
     auto avg = m.insert_instruction(
         ins,
@@ -123,28 +113,11 @@ static void lower_lrn_to_pooling(module& m, instruction_ref ins)
     auto final_shape       = transpose2->get_shape();
     const auto& final_lens = final_shape.lens();
 
-    bool shape_matches = true;
-    if(final_lens.size() != lens.size())
-    {
-        shape_matches = false;
-    }
-    else
-    {
-        for(size_t i = 0; i < lens.size(); ++i)
-        {
-            if(final_lens[i] != lens[i])
-            {
-                shape_matches = false;
-                break;
-            }
-        }
-    }
-
-    if(not shape_matches)
+    if(final_lens != lens)
     {
         return;
     }
-
+    
     auto k_lit = m.add_literal(k);
     auto a_lit = m.add_literal(alpha);
     auto b_lit = m.add_literal(beta);

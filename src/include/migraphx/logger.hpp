@@ -46,23 +46,22 @@ void record(severity s, std::string_view msg, source_location loc = source_locat
 
 bool is_enabled(severity s);
 
-template<severity Severity>
+template <severity Severity>
 struct print
 {
-    print(source_location ploc = source_location::current()) : loc(ploc)
-    {
-    }
+    print(source_location ploc = source_location::current()) : loc(ploc) {}
 
     struct stream
     {
-        template<class T>
-        stream(severity ps, T&& x, source_location ploc = source_location::current()) : s(ps), loc(ploc), enabled(is_enabled(s))
+        template <class T>
+        stream(severity ps, T&& x, source_location ploc = source_location::current())
+            : s(ps), loc(ploc), enabled(is_enabled(s))
         {
             if(enabled)
                 ss << x;
         }
 
-        template<class T>
+        template <class T>
         stream& operator<<(T&& x)
         {
             if(enabled)
@@ -76,7 +75,7 @@ struct print
                 record(s, ss.str(), loc);
         }
 
-        stream(const stream&) = delete;
+        stream(const stream&)            = delete;
         stream& operator=(const stream&) = delete;
 
         severity s = severity::NONE;
@@ -85,14 +84,14 @@ struct print
         std::ostringstream ss;
     };
 
-    template<class T>
+    template <class T>
     stream operator<<(T&& x)
     {
         return stream{Severity, x, loc};
     }
 
-    template<class ... Ts>
-    void operator()(Ts&& ... xs) const
+    template <class... Ts>
+    void operator()(Ts&&... xs) const
     {
         if(is_enabled(Severity))
         {
@@ -102,7 +101,7 @@ struct print
         }
     }
 
-    print(const print&) = delete;
+    print(const print&)            = delete;
     print& operator=(const print&) = delete;
 
     source_location loc;

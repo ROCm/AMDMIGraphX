@@ -113,11 +113,8 @@ static void lower_lrn_to_pooling(module& m, instruction_ref ins)
     auto final_shape       = transpose2->get_shape();
     const auto& final_lens = final_shape.lens();
 
-    if(final_lens != lens)
-    {
-        return;
-    }
-    
+    if(final_lens != lens) return;
+
     auto k_lit = m.add_literal(k);
     auto a_lit = m.add_literal(alpha);
     auto b_lit = m.add_literal(beta);

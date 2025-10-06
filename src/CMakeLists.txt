@@ -89,6 +89,7 @@ add_library(migraphx
     layout_convolution.cpp
     lexing.cpp
     load_save.cpp
+    logger.cpp
     make_op.cpp
     memory_coloring.cpp
     module.cpp

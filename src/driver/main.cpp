@@ -45,6 +45,7 @@
 #include <migraphx/json.hpp>
 #include <migraphx/version.h>
 #include <migraphx/env.hpp>
+#include <migraphx/logger.hpp>
 
 #include <migraphx/dead_code_elimination.hpp>
 #include <migraphx/eliminate_identity.hpp>
@@ -1013,6 +1014,18 @@ int main(int argc, const char* argv[], const char* envp[])
 
     if(m.count(cmd) > 0)
     {
+        migraphx::log::error()("Testing error logging");
+        migraphx::log::warn()("Testing warn logging");
+        migraphx::log::info()("Testing info logging");
+        migraphx::log::debug()("Testing debug logging");
+        migraphx::log::trace()("Testing trace logging");
+
+        migraphx::log::error() << "Testing error logging stream";
+        migraphx::log::warn() << "Testing warn logging stream";
+        migraphx::log::info() << "Testing info logging stream";
+        migraphx::log::debug() << "Testing debug logging stream";
+        migraphx::log::trace() << "Testing trace logging stream";
+
         std::string driver_invocation =
             std::string(argv[0]) + " " + migraphx::to_string_range(args, " ");
         std::cout << "Running [ " << get_version() << " ]: " << driver_invocation << std::endl;

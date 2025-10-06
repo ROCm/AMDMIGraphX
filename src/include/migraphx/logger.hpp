@@ -21,133 +21,100 @@
  * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
  * THE SOFTWARE.
  */
-#ifndef MIGRAPHX_LOGGER_HPP
-#define MIGRAPHX_LOGGER_HPP
+#ifndef MIGRAPHX_GUARD_MIGRAPHX_LOGGER_HPP
+#define MIGRAPHX_GUARD_MIGRAPHX_LOGGER_HPP
 
 #include <migraphx/env.hpp>
+#include <migraphx/source_location.hpp>
 #include <sstream>
-#include <iostream>
-#include <iomanip>
-#include <chrono>
-
-#ifndef _WIN32
-#include <unistd.h>
-#endif
 
 namespace migraphx {
+namespace log {
 inline namespace MIGRAPHX_INLINE_NS {
 
-MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_LOG_MIN_LEVEL)
-
-enum class Severity
+enum class severity
 {
-    TRACE,
-    DEBUG,
-    INFO,
-    WARN,
+    NONE,
     ERROR,
-    FATAL
+    WARN,
+    INFO,
+    DEBUG,
+    TRACE
 };
 
-inline size_t get_min_log_level()
-{
-    static auto log_level = value_of(MIGRAPHX_LOG_MIN_LEVEL{}, 2); // Default to INFO level
-    return log_level;
-}
+void record(severity s, std::string_view msg, source_location loc = source_location::current());
 
-class Logger : public std::basic_ostringstream<char>
+bool is_enabled(severity s);
+
+template<severity Severity>
+struct print
 {
-    public:
-    Logger(const char* file, int line, Severity severity)
-        : file_(file), line_(line), severity_(severity)
+    print(source_location ploc = source_location::current()) : loc(ploc)
     {
     }
-    ~Logger() override
+
+    struct stream
     {
-        std::string message = get_formatted_timestamp(std::chrono::system_clock::now()) + " [" +
-                              severity_str[static_cast<size_t>(severity_)] + "] [" + file_ + ":" +
-                              std::to_string(line_) + "] " + this->str();
-#ifndef _WIN32
-        static const bool use_color = isatty(STDERR_FILENO) != 0;
-        if(use_color)
+        template<class T>
+        stream(severity ps, T&& x, source_location ploc = source_location::current()) : s(ps), loc(ploc), enabled(is_enabled(s))
         {
-            switch(severity_)
-            {
-            case Severity::WARN:
-                message = "\033[33m" + message + "\033[0m"; // Yellow
-                break;
-            case Severity::ERROR:
-            case Severity::FATAL:
-                message = "\033[31m" + message + "\033[0m"; // Red
-                break;
-            case Severity::TRACE:
-            case Severity::DEBUG:
-            case Severity::INFO: break; // Prevents -Wswitch-enum warning during compilation
-            }
+            if(enabled)
+                ss << x;
         }
-#endif
-        std::cerr << message << std::endl;
-        if(severity_ == Severity::FATAL)
-            std::abort();
+
+        template<class T>
+        stream& operator<<(T&& x)
+        {
+            if(enabled)
+                ss << x;
+            return *this;
+        }
+
+        ~stream()
+        {
+            if(enabled)
+                record(s, ss.str(), loc);
+        }
+
+        stream(const stream&) = delete;
+        stream& operator=(const stream&) = delete;
+
+        severity s = severity::NONE;
+        source_location loc;
+        bool enabled;
+        std::ostringstream ss;
+    };
+
+    template<class T>
+    stream operator<<(T&& x)
+    {
+        return stream{Severity, x, loc};
     }
 
-    private:
-    std::string get_formatted_timestamp(std::chrono::time_point<std::chrono::system_clock> time)
+    template<class ... Ts>
+    void operator()(Ts&& ... xs) const
     {
-        auto now_in_time_t   = std::chrono::system_clock::to_time_t(time);
-        auto* now_as_tm_date = std::localtime(&now_in_time_t);
-        std::stringstream ss;
-        ss << std::put_time(now_as_tm_date, "%Y-%m-%d %H:%M:%S");
-        return ss.str();
+        if(is_enabled(Severity))
+        {
+            std::ostringstream ss;
+            (ss << ... << xs);
+            record(Severity, ss.str(), loc);
+        }
     }
-    const char* file_;
-    int line_;
-    Severity severity_;
-    const char* severity_str[6] = {"TRACE", "DEBUG", "INFO", "WARN", "ERROR", "FATAL"};
+
+    print(const print&) = delete;
+    print& operator=(const print&) = delete;
+
+    source_location loc;
 };
 
-// NOP stream when log level is disabled
-class NopStream
-{
-    public:
-    template <typename T>
-    NopStream& operator<<(const T&)
-    {
-        return *this;
-    }
-};
-
-#define LOG_TRACE                                                                      \
-    if(static_cast<size_t>(migraphx::Severity::TRACE) < migraphx::get_min_log_level()) \
-        migraphx::NopStream();                                                         \
-    else                                                                               \
-        migraphx::Logger(__FILE__, __LINE__, migraphx::Severity::TRACE)
-#define LOG_DEBUG                                                                      \
-    if(static_cast<size_t>(migraphx::Severity::DEBUG) < migraphx::get_min_log_level()) \
-        migraphx::NopStream();                                                         \
-    else                                                                               \
-        migraphx::Logger(__FILE__, __LINE__, migraphx::Severity::DEBUG)
-#define LOG_INFO                                                                      \
-    if(static_cast<size_t>(migraphx::Severity::INFO) < migraphx::get_min_log_level()) \
-        migraphx::NopStream();                                                        \
-    else                                                                              \
-        migraphx::Logger(__FILE__, __LINE__, migraphx::Severity::INFO)
-#define LOG_WARN                                                                      \
-    if(static_cast<size_t>(migraphx::Severity::WARN) < migraphx::get_min_log_level()) \
-        migraphx::NopStream();                                                        \
-    else                                                                              \
-        migraphx::Logger(__FILE__, __LINE__, migraphx::Severity::WARN)
-#define LOG_ERROR                                                                      \
-    if(static_cast<size_t>(migraphx::Severity::ERROR) < migraphx::get_min_log_level()) \
-        migraphx::NopStream();                                                         \
-    else                                                                               \
-        migraphx::Logger(__FILE__, __LINE__, migraphx::Severity::ERROR)
-#define LOG_FATAL                                                                      \
-    if(static_cast<size_t>(migraphx::Severity::FATAL) < migraphx::get_min_log_level()) \
-        migraphx::NopStream();                                                         \
-    else                                                                               \
-        migraphx::Logger(__FILE__, __LINE__, migraphx::Severity::FATAL)
+using error = print<severity::ERROR>;
+using warn  = print<severity::WARN>;
+using info  = print<severity::INFO>;
+using debug = print<severity::DEBUG>;
+using trace = print<severity::TRACE>;
 
 } // namespace MIGRAPHX_INLINE_NS
+} // namespace log
 } // namespace migraphx
 #endif

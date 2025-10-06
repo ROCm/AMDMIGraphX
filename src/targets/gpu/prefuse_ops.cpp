@@ -53,7 +53,7 @@ struct layernorm_base
     {
         return pack(f(self.epsilon, "epsilon"));
     }
-    shape compute_shape(std::vector<shape> inputs, std::vector<module_ref> mods) const
+    [[nodiscard]] shape compute_shape(std::vector<shape> inputs, std::vector<module_ref> mods) const
     {
         std::size_t nargs = N;
         if(not mods.empty())
@@ -72,7 +72,7 @@ struct layernorm_base
            all_of(inputs, [](const auto& ss) { return ss.scalar(); }))
             return inputs.front();
         auto l_s = shape::from_permutation(
-            t, s.lens(), find_permutation(std::vector<shape>(inputs.begin(), inputs.begin() + N)));
+            t, s.lens(), find_permutation(std::vector(inputs.begin(), inputs.begin() + N)));
         // just prelayernorm or preadd_layernorm
         if(nargs <= N)
             return l_s;
@@ -86,19 +86,19 @@ struct layernorm_base
 struct layernorm : layernorm_base<layernorm, 1>
 {
 
-    std::string name() const { return "gpu::prelayernorm"; }
+    [[nodiscard]] std::string name() const { return "gpu::prelayernorm"; }
 };
 MIGRAPHX_REGISTER_OP(layernorm);
 
 struct add_layernorm : layernorm_base<add_layernorm, 2>
 {
-    std::string name() const { return "gpu::preadd_layernorm"; }
+    [[nodiscard]] std::string name() const { return "gpu::preadd_layernorm"; }
 };
 MIGRAPHX_REGISTER_OP(add_layernorm);
 
 struct find_layernorm
 {
-    auto matcher() const { return match::layernorm(); }
+    [[nodiscard]] auto matcher() const { return match::layernorm(); }
 
     void apply(module& m, const match::matcher_result& r) const
     {
@@ -132,7 +132,7 @@ struct find_add_layernorm
 
 struct pre_gemm_softmax_gemm : gemm_softmax_gemm
 {
-    std::string name() const { return "gpu::pre_gemm_softmax_gemm"; }
+    [[nodiscard]] std::string name() const { return "gpu::pre_gemm_softmax_gemm"; }
 };
 MIGRAPHX_REGISTER_OP(pre_gemm_softmax_gemm);
 
@@ -260,19 +260,19 @@ struct base_group_query_attention
 
 struct gpu_gqa_rotary_embedding : base_group_query_attention
 {
-    std::string name() const { return "gpu::gqa_rotary_embedding"; }
+    [[nodiscard]] std::string name() const { return "gpu::gqa_rotary_embedding"; }
 
-    shape compute_shape(std::vector<shape> inputs) const { return inputs.front(); }
+    [[nodiscard]] shape compute_shape(std::vector<shape> inputs) const { return inputs.front(); }
 };
 MIGRAPHX_REGISTER_OP(gpu_gqa_rotary_embedding);
 
 struct gpu_concat_past_present : base_group_query_attention
 {
-    std::string name() const { return "gpu::concat_past_present"; }
+    [[nodiscard]] std::string name() const { return "gpu::concat_past_present"; }
 
-    shape compute_shape(std::vector<shape> inputs) const { return inputs.back(); }
+    [[nodiscard]] shape compute_shape(std::vector<shape> inputs) const { return inputs.back(); }
 
-    std::ptrdiff_t output_alias(const std::vector<shape>&) const { return 0; }
+    [[nodiscard]] std::ptrdiff_t output_alias(const std::vector<shape>&) const { return 0; }
 };
 MIGRAPHX_REGISTER_OP(gpu_concat_past_present);
 
@@ -280,7 +280,7 @@ struct find_group_query_attention
 {
     std::size_t* counter = nullptr;
 
-    auto matcher() const { return match::name("group_query_attention"); }
+    [[nodiscard]] auto matcher() const { return match::name("group_query_attention"); }
 
     auto finalize_attention_module(module_ref m) const
     {
@@ -288,7 +288,7 @@ struct find_group_query_attention
         dead_code_elimination{}.apply(*m);
     }
 
-    std::string get_count() const
+    [[nodiscard]] std::string get_count() const
     {
         if(counter == nullptr)
             MIGRAPHX_THROW("Invalid counter");

@@ -1460,7 +1460,7 @@ struct tf_options : MIGRAPHX_HANDLE_BASE(tf_options)
 };
 
 /// Parse a tf file into a migraphx program
-inline program parse_tf(const char* filename, const migraphx::tf_options& options)
+inline program parse_tf(const char* filename, const migraphx::tf_options& options->data())
 {
     return program(make<migraphx_program>(&migraphx_parse_tf, filename, options.get_handle_ptr()),
                    own{});
@@ -1603,28 +1603,12 @@ quantize_fp8(const program& prog, const target& ptarget, const quantize_fp8_opti
          options.get_handle_ptr());
 }
 
-struct supported_onnx_ops_options : MIGRPAHX_HANDLE_BASE(supported_onnx_ops_options)
-{
-    supported_onnx_ops-options() {this->make_handle(&migraphx_supported_onnx_ops_options_create); }
-
-    MIGRAPHX_HANDLE_CONSTRUCTOR(supported_onnx_op_options)
-};
-
-inline std::vector<std::string> get_supported_onnx_operators(supported_onnx_ops_options& options)
-{
-    const char ** output;
-    call(&migraphx_get_supported_onnx_operators,
-         output);
-    
-    return std::vector<string>(output)
-}
-
 struct experimental_custom_op_base
 {
     experimental_custom_op_base()                                              = default;
     experimental_custom_op_base(const experimental_custom_op_base&)            = default;
     experimental_custom_op_base& operator=(const experimental_custom_op_base&) = default;
-    virtual ~experimental_custom_op_tDase()                                     = default;
+    virtual ~experimental_custom_op_base()                                     = default;
 
     virtual std::string name() const                                            = 0;
     virtual argument compute(context ctx, shape output, arguments inputs) const = 0;
@@ -1633,7 +1617,6 @@ struct experimental_custom_op_base
     // TODO: Return target string instead of bool
     virtual bool runs_on_offload_target() const = 0;
 };
-
 
 struct experimental_custom_op : interface_base<MIGRAPHX_HANDLE_BASE(experimental_custom_op)>
 {
@@ -1658,6 +1641,20 @@ void register_experimental_custom_op(T& obj)
 {
     experimental_custom_op op{obj};
     op.register_op();
+}
+
+std::vector<const char *> get_onnx_operators()
+{
+    auto size = get_onnx_operators_size();
+    std::vector<const char *> result(size, "");
+
+    size_t index = 0;
+    for(auto &name: result)
+    {
+        name= get_onnx_operator_name_at_index(index);
+        index++;
+    }
+    return result;
 }
 
 #ifndef DOXYGEN

@@ -510,9 +510,14 @@ api.add_function('migraphx_quantize_fp8',
                             options='migraphx::quantize_fp8_options'),
                  fname='migraphx::quantize_fp8_wrap')
 
-api.add_function('get_supported_onnx_operators',
-                 fname='migraphx::get_supported_onnx_operators',
-                 returns='std::vector<const char*>')
+api.add_function('migraphx_get_onnx_operator_name_at_index',
+                 api.params(index='size_t'),
+                 fname='migraphx::get_onnx_operator_name_at_index',
+                 returns='const char *')
+
+api.add_function('migraphx_get_onnx_operators_size',
+                 fname='migraphx::get_onnx_operators_size',
+                 returns='std::size_t')
 
 
 

@@ -289,9 +289,14 @@ static void quantize_fp8_wrap(program& prog, const target& t, quantize_fp8_optio
     migraphx::quantize_fp8(prog, t, options.calibration);
 }
 
-static std::vector<std::string> get_supported_onnx_operators()
+static size_t get_onnx_operators_size()
 {
-    return migraphx::get_onnx_operators();
+    return migraphx::get_onnx_operators().size();
+}
+
+static const char * get_onnx_operator_name_at_index(std::size_t index)
+{
+    return get_onnx_operators().at(index).c_str();   
 }
 
 #ifdef __clang__

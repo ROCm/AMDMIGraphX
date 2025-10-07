@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2023 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2025 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -30,6 +30,8 @@
 #include <migraphx/op/reduce_max.hpp>
 #include <migraphx/make_op.hpp>
 
+#include <migraphx/op/lrn.hpp>
+#include <migraphx/permutation.hpp>
 #include <migraphx/program.hpp>
 
 namespace migraphx {
@@ -53,6 +55,81 @@ static void replace_with_reduce(module& m, instruction_ref ins)
     {
         m.replace_instruction(ins, make_op("reduce_max", {{"axes", axes}}), ins->inputs());
     }
+}
+
+static void lower_lrn_to_pooling(module& m, instruction_ref ins)
+{
+    auto v = ins->get_operator().to_value();
+
+    float alpha = v.at("alpha").to<float>();
+    float beta  = v.at("beta").to<float>();
+    float k     = v.at("bias").to<float>();
+    int size    = v.at("size").to<int>();
+
+    auto x             = ins->inputs().at(0);
+    const auto& xshape = x->get_shape();
+    const auto& lens   = xshape.lens();
+
+    if(lens.size() != 4 or size <= 0 or size > lens[1])
+    {
+        return;
+    }
+
+    auto x2 = m.insert_instruction(ins, make_op("mul"), x, x);
+
+    std::vector<int64_t> perm = {0, 2, 3, 1};
+    auto transpose1 = m.insert_instruction(ins, make_op("transpose", {{"permutation", perm}}), x2);
+
+    auto transposed_shape       = transpose1->get_shape();
+    const auto& transposed_lens = transposed_shape.lens();
+
+    int64_t channel_dim = lens[1];
+    std::vector<int64_t> calculated_pads(2);
+    calculate_padding(0, calculated_pads, channel_dim, 1, 1, size, true);
+
+    auto avg = m.insert_instruction(
+        ins,
+        make_op("pooling",
+                {{"mode", op::pooling_mode::average},
+                 {"lengths", std::vector<int64_t>{1, size}},
+                 {"stride", std::vector<int64_t>{1, 1}},
+                 {"padding", std::vector<int64_t>{0, calculated_pads[0], 0, calculated_pads[1]}},
+                 {"dilations", std::vector<int64_t>{1, 1}},
+                 {"count_include_pad", true}}),
+        transpose1);
+
+    auto avg_shape       = avg->get_shape();
+    const auto& avg_lens = avg_shape.lens();
+
+    if(avg_lens.size() != 4 or avg_lens[3] != transposed_lens[3])
+    {
+        return;
+    }
+
+    std::vector<int64_t> inv_perm = {0, 3, 1, 2};
+    auto transpose2 =
+        m.insert_instruction(ins, make_op("transpose", {{"permutation", inv_perm}}), avg);
+
+    auto final_shape       = transpose2->get_shape();
+    const auto& final_lens = final_shape.lens();
+
+    if(final_lens != lens)
+        return;
+
+    auto k_lit = m.add_literal(k);
+    auto a_lit = m.add_literal(alpha);
+    auto b_lit = m.add_literal(beta);
+
+    auto k_mb = m.insert_instruction(ins, make_op("multibroadcast", {{"out_lens", lens}}), k_lit);
+    auto a_mb = m.insert_instruction(ins, make_op("multibroadcast", {{"out_lens", lens}}), a_lit);
+    auto b_mb = m.insert_instruction(ins, make_op("multibroadcast", {{"out_lens", lens}}), b_lit);
+
+    auto alpha_avg = m.insert_instruction(ins, make_op("mul"), a_mb, transpose2);
+    auto den       = m.insert_instruction(ins, make_op("add"), k_mb, alpha_avg);
+    auto denpow    = m.insert_instruction(ins, make_op("pow"), den, b_mb);
+    auto y         = m.insert_instruction(ins, make_op("div"), x, denpow);
+
+    m.replace_instruction(ins, y);
 }
 
 static void replace_dilations_with_gather_pooling(module& m, instruction_ref ins)
@@ -143,10 +220,16 @@ void rewrite_pooling::apply(module& m) const
 {
     for(auto ins : iterator_for(m))
     {
-        if(ins->name() != "pooling")
-            continue;
         if(ins->inputs().empty())
             continue;
+        if(rewrite_lrn and ins->name() == "lrn")
+        {
+            lower_lrn_to_pooling(m, ins);
+            continue;
+        }
+        if(ins->name() != "pooling")
+            continue;
+
         auto&& s                  = ins->inputs().front()->get_shape();
         auto&& op                 = any_cast<op::pooling>(ins->get_operator());
         bool same_kernel_as_shape = std::equal(

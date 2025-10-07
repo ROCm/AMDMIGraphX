@@ -79,6 +79,14 @@ Model performance tunable variables change the compilation behavior of a model. 
 
       | Default: Softmax optimization is turned off.
 
+  * - | ``MIGRAPHX_DISABLE_FP32_SOFTMAX``
+      | Disables upcasting to fp32 when computing softmax for lower precision graphs.
+      
+    - | ``1``: Disables forcing full precision computation of softmax
+      | ``0``: Returns to default behavior.
+
+      | Default: Upcasting to FP32 is turned on.
+
   * - | ``MIGRAPHX_MLIR_USE_SPECIFIC_OPS``
       | Specifies the MLIR operations to use regardless of GPU architecture.  
       
@@ -87,6 +95,8 @@ Model performance tunable variables change the compilation behavior of a model. 
       | ``attention``: Use attention fusion. This is used by default on MI300, but must be specified on other architectures.
 
       | ``convolution``: Use MLIR generated kernels for all convolutions. MIOpen is used by default otherwise.
+
+      | ``convolution_backwards``: Use MLIR generated kernels for backward-convolution. MIOpen is used by default otherwise.
       
       | ``dot``: Use MLIR generated kernels for all GEMMs. hipBLASlt is used otherwise.
       
@@ -133,6 +143,14 @@ Model performance tunable variables change the compilation behavior of a model. 
       | ``0``: Returns to default behavior.
 
       | Default: Reduction fusions are turned off.
+
+  * - | ``MIGRAPHX_ENABLE_MLIR_GEG_FUSION``
+      | Turns on GEMM+GEMM fusions in MLIR.
+    
+    - | ``1``: Turns on G+G fusions.
+      | ``0``: Returns to default behavior.
+
+      | Default: GEMM+GEMM fusions are turned off.
 
   * - | ``MIGRAPHX_MLIR_ENABLE_SPLITK``
       | Turns on Split-k performance configurations during MLIR tuning.
@@ -203,6 +221,13 @@ Model performance tunable variables change the compilation behavior of a model. 
 
       | Default: No tuning is done for composable kernels.
 
+  * - | ``MIGRAPHX_REWRITE_LRN``
+      | Turns on LRN-to-pooling lowering in the rewrite_pooling pass.
+      
+    - | ``1``: Turns on LRN-to-pooling lowering.
+      | ``0``: Returns to default behavior.
+
+      | Default: LRN-to-pooling lowering is turned off.
                
 Matching
 **********
@@ -566,6 +591,13 @@ Advanced settings
 
       | Default: The hip-clang assembly output isn't written out.
 
+  * - | ``MIGRAPHX_GPU_HIP_FLAGS``
+      | When set, the hip-clang compiler appends these extra flags for compilation.
+
+    - | Takes a valid string, a valid hip compile option, e.g. "-Wno-error".
+
+      | Default: The compiler will not append any extra flags for compilation.
+
   * - | ``MIGRAPHX_GPU_OPTIMIZE``
       | Sets the GPU compiler optimization mode. 
   
@@ -576,7 +608,7 @@ Advanced settings
       | Sets the number of threads to use for parallel GPU code compilation. 
       
     - | Takes a positive integer value.
-      | Default: Compilation is not run in parallel.
+      | Default: Number of threads is equal to number of processing units (`nproc`).
 
   * - | ``MIGRAPHX_TRACE_NARY``
       | When set, the nary device functions used during execution are printed out.
@@ -631,3 +663,4 @@ Advanced settings
       | Sets the number of timing runs for each configuration bundle being benchmarked. 
       
     - Takes a positive integer.
+

@@ -50,6 +50,7 @@ struct multi_head_attention_parameters
     int64_t head_size;
     int64_t head_size_v;
     qkv_fomat_t qkv_fomat;
+    bool qkv_biased;
 };
 
 struct parse_multi_head_attention : op_parser<parse_multi_head_attention>
@@ -197,7 +198,7 @@ struct parse_multi_head_attention : op_parser<parse_multi_head_attention>
         }
     }
 
-    check_bias(const std::vector<instruction_ref>& args,
+    void check_bias(const std::vector<instruction_ref>& args,
                multi_head_attention_parameters& params) const
     {
         if(args.size() > 3)
@@ -210,6 +211,8 @@ struct parse_multi_head_attention : op_parser<parse_multi_head_attention>
 
             if(bias_lens[0] != params.hidden_size_v + (2 *  params.hidden_size))
                 MIGRAPHX_THROW("MultiheadAttention: Bias must be of size hidden_size + hidden_size + v_hidden_size");
+
+            params.qkv_biased = true;
         }
     }
 
@@ -226,6 +229,28 @@ struct parse_multi_head_attention : op_parser<parse_multi_head_attention>
         check_query_dim(args, num_heads, params);
 
         check_bias(args, params);
+    }
+
+    void apply_qkv_bias(const onnx_parser::node_info& info,
+                   const multi_head_attention_parameters& params,
+                    instruction_ref& bias,
+                    instruction_ref& query,
+                    instruction_ref& key,
+                    instruction_ref& value) const
+    {
+        // slice out piece of bias data for each qkv
+        auto q_bias = info.add_instruction(
+            make_op("slice", {{"axes", {0}}, {"starts", {0}}, {"ends", {params.hidden_size}}}), bias);
+
+        auto k_bias = info.add_instruction(
+            make_op("slice", {{"axes", {0}}, {"starts", {params.hidden_size}}, {"ends", {2 * params.hidden_size}}}), bias);
+
+        auto v_bias = info.add_instruction(
+            make_op("slice", {{"axes", {0}}, {"starts", {2*params.hidden_size}}, {"ends", {params.hidden_size_v}}}), bias);
+
+        query = info.add_common_op("add", query, q_bias);
+        key   = info.add_common_op("add", key, k_bias);
+        value = info.add_common_op("add", value, v_bias);
     }
 
     instruction_ref parse(const op_desc& /*opd*/,
@@ -281,6 +306,13 @@ struct parse_multi_head_attention : op_parser<parse_multi_head_attention>
                     value = info.add_instruction(make_op("reshape", {{"dims", v_dims}}), value);
                 }
             }
+        }
+
+        // Apply bias to QKV inputs after unpacking
+        if(params.qkv_biased)
+        {
+            auto bias = args[3];
+            apply_qkv_bias(info, params, bias, query, key, value);
         }
 
         // Target shape: (batch_size, num_heads, sequence_length, head_size)

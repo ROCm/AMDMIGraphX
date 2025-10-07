@@ -363,7 +363,7 @@ target_link_libraries(migraphx PRIVATE SQLite::SQLite3)
 
 # See: https://github.com/msgpack/msgpack-c/wiki/Q%26A#how-to-support-both-msgpack-c-c-version-5x-and-6x-
 # Prefer 6.x (msgpack-cxx)
-find_package(msgpack-cxx QUIET)
+find_package(msgpack-cxx 6 QUIET)
 if(msgpack-cxx_FOUND)
     message(STATUS "Found msgpack-cxx (>=6.x)")
 else()

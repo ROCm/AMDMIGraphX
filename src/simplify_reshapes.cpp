@@ -896,10 +896,9 @@ inline std::vector<int64_t> to_int64_vec(const std::vector<std::size_t>& lens)
 {
     std::vector<int64_t> result;
     result.reserve(lens.size());
-    std::transform(
-        lens.begin(), lens.end(), std::back_inserter(result), [](auto len) {
-            return static_cast<int64_t>(len);
-        });
+    std::transform(lens.begin(), lens.end(), std::back_inserter(result), [](auto len) {
+        return static_cast<int64_t>(len);
+    });
     return result;
 }
 
@@ -956,20 +955,20 @@ restore_axis_position_perm(std::size_t pre_count, std::size_t block_count, std::
 {
     std::vector<int64_t> perm;
     perm.reserve(pre_count + block_count + post_count);
-    
+
     for(std::size_t i = 0; i < pre_count; ++i)
         perm.push_back(static_cast<int64_t>(block_count + i));
     for(std::size_t i = 0; i < block_count; ++i)
         perm.push_back(static_cast<int64_t>(i));
     for(std::size_t i = 0; i < post_count; ++i)
         perm.push_back(static_cast<int64_t>(block_count + pre_count + i));
-    
+
     return perm;
 }
 
 /// Generate all factorizations using DFS
-inline std::vector<std::vector<std::size_t>>
-enumerate_all_factorizations(std::size_t value, std::size_t max_results)
+inline std::vector<std::vector<std::size_t>> enumerate_all_factorizations(std::size_t value,
+                                                                          std::size_t max_results)
 {
     std::vector<std::vector<std::size_t>> results;
     if(value <= 1)
@@ -1006,9 +1005,9 @@ enumerate_all_factorizations(std::size_t value, std::size_t max_results)
 
 /// Build and add unique factorization candidates
 inline void add_unique_factorization(std::vector<std::vector<std::size_t>>& candidates,
-                                    std::vector<std::size_t> factors,
-                                    std::size_t expected_product,
-                                    std::size_t max_size)
+                                     std::vector<std::size_t> factors,
+                                     std::size_t expected_product,
+                                     std::size_t max_size)
 {
     if(factors.empty() or product_of(factors) != expected_product)
         return;
@@ -1019,7 +1018,7 @@ inline void add_unique_factorization(std::vector<std::vector<std::size_t>>& cand
 
     if(factors.size() > 8 or candidates.size() >= max_size)
         return;
-    
+
     if(std::find(candidates.begin(), candidates.end(), factors) == candidates.end())
         candidates.push_back(std::move(factors));
 }
@@ -1034,7 +1033,7 @@ class gather_instruction_builder
     module& m;
     instruction_ref insert_before;
 
-public:
+    public:
     gather_instruction_builder(module& mod, instruction_ref ins) : m(mod), insert_before(ins) {}
 
     instruction_ref transpose(instruction_ref input, const std::vector<int64_t>& perm)
@@ -1051,9 +1050,9 @@ public:
     }
 
     instruction_ref slice(instruction_ref input,
-                         const std::vector<int64_t>& axes,
-                         const std::vector<int64_t>& starts,
-                         const std::vector<int64_t>& ends)
+                          const std::vector<int64_t>& axes,
+                          const std::vector<int64_t>& starts,
+                          const std::vector<int64_t>& ends)
     {
         return m.insert_instruction(
             insert_before,
@@ -1069,8 +1068,7 @@ public:
 
     instruction_ref concat(const std::vector<instruction_ref>& inputs, int64_t axis)
     {
-        return m.insert_instruction(
-            insert_before, make_op("concat", {{"axis", axis}}), inputs);
+        return m.insert_instruction(insert_before, make_op("concat", {{"axis", axis}}), inputs);
     }
 
     instruction_ref move_axis_to_front(instruction_ref input, std::size_t axis)
@@ -1082,9 +1080,9 @@ public:
     }
 
     instruction_ref restore_axis_position(instruction_ref input,
-                                         std::size_t pre_count,
-                                         std::size_t block_count,
-                                         std::size_t post_count)
+                                          std::size_t pre_count,
+                                          std::size_t block_count,
+                                          std::size_t post_count)
     {
         auto perm = restore_axis_position_perm(pre_count, block_count, post_count);
         return transpose(input, perm);
@@ -1095,10 +1093,10 @@ public:
         const auto& curr_lens = input->get_shape().lens();
         if(curr_lens == target_lens)
             return input;
-        
+
         if(input->get_shape().elements() == product_of(target_lens))
             return reshape(input, to_int64_vec(target_lens));
-        
+
         return multibroadcast(input, to_int64_vec(target_lens));
     }
 };
@@ -1108,14 +1106,14 @@ inline bool is_valid_permutation(const std::vector<int64_t>& indices)
 {
     if(indices.empty())
         return false;
-    
+
     std::vector<std::size_t> sorted;
     sorted.reserve(indices.size());
     std::transform(indices.begin(), indices.end(), std::back_inserter(sorted), [](auto v) {
         return v >= 0 ? static_cast<std::size_t>(v) : std::size_t{0};
     });
     std::sort(sorted.begin(), sorted.end());
-    
+
     return std::adjacent_find(sorted.begin(), sorted.end()) == sorted.end() and
            sorted.front() == 0 and sorted.back() == sorted.size() - 1;
 }
@@ -1149,9 +1147,9 @@ struct stride_pattern
     int64_t base;
     int64_t stride;
     std::size_t count;
-    
+
     static std::optional<stride_pattern> detect(const std::vector<int64_t>& indices,
-                                                 std::size_t axis_len)
+                                                std::size_t axis_len)
     {
         if(indices.size() < 2)
             return std::nullopt;
@@ -1165,10 +1163,11 @@ struct stride_pattern
             return std::nullopt;
 
         // Verify arithmetic progression
-        bool is_arithmetic = std::adjacent_find(indices.begin(), indices.end(), [&](auto a, auto b) {
-            return b - a != result.stride;
-        }) == indices.end();
-        
+        bool is_arithmetic =
+            std::adjacent_find(indices.begin(), indices.end(), [&](auto a, auto b) {
+                return b - a != result.stride;
+            }) == indices.end();
+
         if(not is_arithmetic)
             return std::nullopt;
 
@@ -1200,27 +1199,27 @@ struct gather_context
     std::vector<std::size_t> index_dims;
     std::vector<std::size_t> idims;
     std::vector<std::vector<std::size_t>> factor_candidates;
-    
-    gather_context(const match::matcher_result& r, 
+
+    gather_context(const match::matcher_result& r,
                    const std::vector<int64_t>& indices,
                    std::size_t axis_idx,
                    std::size_t axis_length)
-        : ins(r.result)
-        , data_ins(ins->inputs().front())
-        , indices_ins(r.instructions["indices"])
-        , indices_values(indices)
-        , axis_index(axis_idx)
-        , axis_len(axis_length)
+        : ins(r.result),
+          data_ins(ins->inputs().front()),
+          indices_ins(r.instructions["indices"]),
+          indices_values(indices),
+          axis_index(axis_idx),
+          axis_len(axis_length)
     {
         const auto& dlens = data_ins->get_shape().lens();
         pre_lens.assign(dlens.begin(), dlens.begin() + axis_index);
         post_lens.assign(dlens.begin() + axis_index + 1, dlens.end());
         rest_lens = pre_lens;
         rest_lens.insert(rest_lens.end(), post_lens.begin(), post_lens.end());
-        
+
         const auto& indices_shape = indices_ins->get_shape();
-        idims = indices_shape.lens();
-        
+        idims                     = indices_shape.lens();
+
         // Extract non-singleton index dimensions
         for(std::size_t i = 0; i < idims.size(); ++i)
         {
@@ -1238,18 +1237,19 @@ struct grid_pattern
 {
     std::vector<std::size_t> factors;
     std::vector<std::size_t> permutation;
-    
-    static std::optional<grid_pattern> detect(const std::vector<int64_t>& indices,
-                                               const std::vector<std::vector<std::size_t>>& factor_candidates,
-                                               std::size_t axis_len)
+
+    static std::optional<grid_pattern>
+    detect(const std::vector<int64_t>& indices,
+           const std::vector<std::vector<std::size_t>>& factor_candidates,
+           std::size_t axis_len)
     {
         if(factor_candidates.empty())
             return std::nullopt;
-        
+
         grid_pattern result;
-        
+
         auto compute_order = [&](const std::vector<std::size_t>& factor_dims,
-                                const std::vector<std::size_t>& perm) {
+                                 const std::vector<std::size_t>& perm) {
             std::vector<std::size_t> dims_perm;
             dims_perm.reserve(perm.size());
             for(auto axis : perm)
@@ -1294,13 +1294,15 @@ struct grid_pattern
             do
             {
                 auto order = compute_order(factors, perm);
-                bool match = std::equal(order.begin(), order.end(), indices.begin(),
-                    [](auto a, auto b) { return a == static_cast<std::size_t>(b); });
-                
+                bool match =
+                    std::equal(order.begin(), order.end(), indices.begin(), [](auto a, auto b) {
+                        return a == static_cast<std::size_t>(b);
+                    });
+
                 if(match)
                 {
                     result.permutation = perm;
-                    result.factors = factors;
+                    result.factors     = factors;
                     return result;
                 }
             } while(std::next_permutation(perm.begin(), perm.end()));
@@ -1316,22 +1318,22 @@ struct tile_pattern
     std::size_t tile_size;
     std::size_t num_tiles;
     std::size_t stride;
-    
+
     static std::optional<tile_pattern> detect(const std::vector<int64_t>& indices,
                                               std::size_t axis_len)
     {
         if(indices.empty())
             return std::nullopt;
-        
+
         // Try to find repeating tile patterns
         for(std::size_t tile_sz = 1; tile_sz <= indices.size() / 2; ++tile_sz)
         {
             if(indices.size() % tile_sz != 0)
                 continue;
-            
+
             std::size_t num_t = indices.size() / tile_sz;
-            bool valid = true;
-            
+            bool valid        = true;
+
             // Check if pattern repeats with stride
             for(std::size_t t = 1; t < num_t; ++t)
             {
@@ -1347,17 +1349,17 @@ struct tile_pattern
                 if(not valid)
                     break;
             }
-            
+
             if(valid and num_t > 1)
             {
                 tile_pattern result;
                 result.tile_size = tile_sz;
                 result.num_tiles = num_t;
-                result.stride = static_cast<std::size_t>(indices[tile_sz] - indices[0]);
+                result.stride    = static_cast<std::size_t>(indices[tile_sz] - indices[0]);
                 return result;
             }
         }
-        
+
         return std::nullopt;
     }
 };
@@ -1367,7 +1369,8 @@ struct tile_pattern
 // ============================================================================
 
 /// Strategy function type: returns true if optimization was applied
-using gather_strategy = std::function<bool(module&, const gather_context&, gather_instruction_builder&)>;
+using gather_strategy =
+    std::function<bool(module&, const gather_context&, gather_instruction_builder&)>;
 
 /// Strategy for permutation-based rewriting
 struct permutation_strategy
@@ -1376,15 +1379,15 @@ struct permutation_strategy
     {
         const auto& indices = ctx.indices_values;
         const auto axis_len = ctx.axis_len;
-        const auto total = indices.size();
-        
+        const auto total    = indices.size();
+
         if(total != axis_len or axis_len <= 1)
             return false;
 
         // Validate permutation
         if(not is_valid_permutation(indices))
             return false;
-        
+
         // Skip identity
         if(is_identity_indices(indices))
             return false;
@@ -1404,12 +1407,12 @@ struct permutation_strategy
         return apply_grid_permutation(m, ctx, builder, pattern->factors, pattern->permutation);
     }
 
-private:
+    private:
     static bool apply_grid_permutation(module& m,
-                                      const gather_context& ctx,
-                                      gather_instruction_builder& builder,
-                                      const std::vector<std::size_t>& factors,
-                                      const std::vector<std::size_t>& perm)
+                                       const gather_context& ctx,
+                                       gather_instruction_builder& builder,
+                                       const std::vector<std::size_t>& factors,
+                                       const std::vector<std::size_t>& perm)
     {
         instruction_ref curr = ctx.data_ins;
 
@@ -1434,7 +1437,7 @@ private:
                 perm_extended[i] = static_cast<int64_t>(perm[i]);
             for(std::size_t i = 0; i < rest_dims.size(); ++i)
                 perm_extended[perm.size() + i] = static_cast<int64_t>(perm.size() + i);
-            
+
             curr = builder.transpose(curr, perm_extended);
         }
 
@@ -1446,10 +1449,8 @@ private:
         // Restore axis position
         if(ctx.axis_index != 0)
         {
-            curr = builder.restore_axis_position(curr, 
-                                                ctx.pre_lens.size(),
-                                                ctx.idims.size(),
-                                                ctx.post_lens.size());
+            curr = builder.restore_axis_position(
+                curr, ctx.pre_lens.size(), ctx.idims.size(), ctx.post_lens.size());
         }
 
         // Match final shape
@@ -1472,7 +1473,7 @@ struct stride_slice_strategy
         return apply_stride_slice(m, ctx, builder, *pattern);
     }
 
-private:
+    private:
     static bool apply_stride_slice(module& m,
                                    const gather_context& ctx,
                                    gather_instruction_builder& builder,
@@ -1494,9 +1495,9 @@ private:
         curr = builder.reshape(curr, reshape_dims);
 
         // Slice to extract the base offset
-        std::vector<int64_t> slice_axes = {1};
+        std::vector<int64_t> slice_axes   = {1};
         std::vector<int64_t> slice_starts = {pattern.base};
-        std::vector<int64_t> slice_ends = {pattern.base + 1};
+        std::vector<int64_t> slice_ends   = {pattern.base + 1};
         curr = builder.slice(curr, slice_axes, slice_starts, slice_ends);
 
         // Squeeze out the sliced dimension
@@ -1508,10 +1509,8 @@ private:
         // Restore axis position
         if(ctx.axis_index != 0)
         {
-            curr = builder.restore_axis_position(curr,
-                                                ctx.pre_lens.size(),
-                                                1,
-                                                ctx.post_lens.size());
+            curr =
+                builder.restore_axis_position(curr, ctx.pre_lens.size(), 1, ctx.post_lens.size());
         }
 
         // Match final shape
@@ -1533,13 +1532,13 @@ struct half_split_concat_strategy
         return apply_half_split_concat(m, ctx, builder);
     }
 
-private:
+    private:
     static bool apply_half_split_concat(module& m,
                                         const gather_context& ctx,
                                         gather_instruction_builder& builder)
     {
         const std::size_t half = ctx.axis_len / 2;
-        instruction_ref curr = ctx.data_ins;
+        instruction_ref curr   = ctx.data_ins;
 
         // Move axis to front
         if(ctx.axis_index != 0)
@@ -1548,9 +1547,8 @@ private:
         // Slice into two halves
         // Pattern {2,3,0,1} means: tail=[2,3] concat head=[0,1]
         std::vector<int64_t> axis_vec = {0};
-        auto tail = builder.slice(curr, axis_vec, 
-                                 {static_cast<int64_t>(half)}, 
-                                 {static_cast<int64_t>(ctx.axis_len)});
+        auto tail                     = builder.slice(
+            curr, axis_vec, {static_cast<int64_t>(half)}, {static_cast<int64_t>(ctx.axis_len)});
         auto head = builder.slice(curr, axis_vec, {0}, {static_cast<int64_t>(half)});
 
         // Concatenate: tail first, then head
@@ -1559,10 +1557,8 @@ private:
         // Restore axis position
         if(ctx.axis_index != 0)
         {
-            curr = builder.restore_axis_position(curr,
-                                                ctx.pre_lens.size(),
-                                                1,
-                                                ctx.post_lens.size());
+            curr =
+                builder.restore_axis_position(curr, ctx.pre_lens.size(), 1, ctx.post_lens.size());
         }
 
         // Match final shape
@@ -1679,8 +1675,14 @@ struct factorized_grid_slice_strategy
         {
             if(product_of(factors) != ctx.axis_len)
                 continue;
-            if(try_candidate_factorized(factors, total, ctx, index_coords,
-                           chosen_factors, chosen_var_indices, chosen_const_indices, chosen_const_values))
+            if(try_candidate_factorized(factors,
+                                        total,
+                                        ctx,
+                                        index_coords,
+                                        chosen_factors,
+                                        chosen_var_indices,
+                                        chosen_const_indices,
+                                        chosen_const_values))
                 break;
         }
 
@@ -1763,8 +1765,9 @@ struct factorized_grid_slice_strategy
         return true;
     }
 
-private:
-    static std::vector<std::size_t> compute_multi_index(std::size_t value, const std::vector<std::size_t>& dims)
+    private:
+    static std::vector<std::size_t> compute_multi_index(std::size_t value,
+                                                        const std::vector<std::size_t>& dims)
     {
         std::vector<std::size_t> coord(dims.size(), 0);
         if(dims.empty())
@@ -1779,13 +1782,13 @@ private:
     }
 
     static bool try_candidate_factorized(const std::vector<std::size_t>& factors,
-                                    std::size_t total,
-                                    const gather_context& ctx,
-                                    const std::vector<std::vector<std::size_t>>& index_coords,
-                                    std::vector<std::size_t>& chosen_factors,
-                                    std::vector<std::size_t>& chosen_var_indices,
-                                    std::vector<std::size_t>& chosen_const_indices,
-                                    std::vector<std::size_t>& chosen_const_values)
+                                         std::size_t total,
+                                         const gather_context& ctx,
+                                         const std::vector<std::vector<std::size_t>>& index_coords,
+                                         std::vector<std::size_t>& chosen_factors,
+                                         std::vector<std::size_t>& chosen_var_indices,
+                                         std::vector<std::size_t>& chosen_const_indices,
+                                         std::vector<std::size_t>& chosen_const_values)
     {
         if(factors.empty())
             return false;
@@ -1809,8 +1812,8 @@ private:
 
             for(std::size_t pos = 0; pos < total; ++pos)
             {
-                auto factor_coord = compute_multi_index(
-                    static_cast<std::size_t>(ctx.indices_values[pos]), factors);
+                auto factor_coord =
+                    compute_multi_index(static_cast<std::size_t>(ctx.indices_values[pos]), factors);
                 const auto& idx_coord = index_coords[pos];
 
                 for(std::size_t i = 0; i < assignment.size(); ++i)
@@ -1875,24 +1878,26 @@ private:
 /// Strategy for rectangular grid patterns with factorization and permutation
 struct rectangular_grid_strategy
 {
-    bool operator()(module& m, const gather_context& ctx, gather_instruction_builder& /* builder */) const
+    bool operator()(module& m,
+                    const gather_context& ctx,
+                    gather_instruction_builder& /* builder */) const
     {
-        const auto& ins = ctx.ins;
-        const auto& data_ins = ctx.data_ins;
-        const auto& indices_ins = ctx.indices_ins;
-        const auto& indices_values = ctx.indices_values;
-        const auto axis_index = ctx.axis_index;
-        const auto axis_len = ctx.axis_len;
-        const auto& dlens = data_ins->get_shape().lens();
-        const auto& indices_shape = indices_ins->get_shape();
-        const auto& idims = ctx.idims;
-        const auto& rest_lens = ctx.rest_lens;
-        const auto& pre_lens = ctx.pre_lens;
-        const auto& post_lens = ctx.post_lens;
+        const auto& ins               = ctx.ins;
+        const auto& data_ins          = ctx.data_ins;
+        const auto& indices_ins       = ctx.indices_ins;
+        const auto& indices_values    = ctx.indices_values;
+        const auto axis_index         = ctx.axis_index;
+        const auto axis_len           = ctx.axis_len;
+        const auto& dlens             = data_ins->get_shape().lens();
+        const auto& indices_shape     = indices_ins->get_shape();
+        const auto& idims             = ctx.idims;
+        const auto& rest_lens         = ctx.rest_lens;
+        const auto& pre_lens          = ctx.pre_lens;
+        const auto& post_lens         = ctx.post_lens;
         const auto& factor_candidates = ctx.factor_candidates;
-        const std::size_t total = indices_values.size();
-        const std::size_t in_dims = idims.size();
-        
+        const std::size_t total       = indices_values.size();
+        const std::size_t in_dims     = idims.size();
+
         if(factor_candidates.empty())
             return false;
 
@@ -1900,7 +1905,7 @@ struct rectangular_grid_strategy
         if(axis_index == 0 and total == axis_len and axis_len % 2 == 0)
         {
             const std::size_t half = axis_len / 2;
-            bool half_shift = true;
+            bool half_shift        = true;
             for(std::size_t i = 0; i < indices_values.size(); ++i)
             {
                 auto expected = (i + half) % axis_len;
@@ -1931,8 +1936,8 @@ struct rectangular_grid_strategy
                 for(std::size_t i = 0; i < perm.size(); ++i)
                     dims_perm[i] = factors[perm[i]];
 
-                std::vector<std::vector<std::size_t>> coords(
-                    total, std::vector<std::size_t>(perm.size()));
+                std::vector<std::vector<std::size_t>> coords(total,
+                                                             std::vector<std::size_t>(perm.size()));
                 bool consistent = true;
                 for(std::size_t idx = 0; idx < total and consistent; ++idx)
                 {
@@ -1941,8 +1946,8 @@ struct rectangular_grid_strategy
                     auto remainder = value;
                     for(std::size_t j = factors.size(); j > 0; --j)
                     {
-                        auto dim_index = j - 1;
-                        auto dim_size = factors[dim_index];
+                        auto dim_index   = j - 1;
+                        auto dim_size    = factors[dim_index];
                         coord[dim_index] = remainder % dim_size;
                         remainder /= dim_size;
                     }
@@ -2028,9 +2033,9 @@ struct rectangular_grid_strategy
                         for(std::size_t idx = 0; idx < total; ++idx)
                         {
                             auto coord_index = indices_shape.multi(idx);
-                            auto axis_value = coords[idx][axis_dim];
+                            auto axis_value  = coords[idx][axis_dim];
                             auto coord_value = coord_index[index_dim];
-                            auto& slot = value_per_coord[coord_value];
+                            auto& slot       = value_per_coord[coord_value];
                             if(slot == invalid_index_value)
                                 slot = axis_value;
                             else if(slot != axis_value)
@@ -2041,9 +2046,9 @@ struct rectangular_grid_strategy
                         }
                         if(axis_matches)
                         {
-                            chosen_index = static_cast<int>(index_dim);
+                            chosen_index            = static_cast<int>(index_dim);
                             axis_to_index[axis_dim] = chosen_index;
-                            used_index[index_dim] = true;
+                            used_index[index_dim]   = true;
                             break;
                         }
                     }
@@ -2110,7 +2115,7 @@ struct rectangular_grid_strategy
                 for(std::size_t j = 0; j < min_coord.size(); ++j)
                 {
                     auto start = static_cast<int64_t>(min_coord[j]);
-                    auto end = static_cast<int64_t>(min_coord[j] + len[j]);
+                    auto end   = static_cast<int64_t>(min_coord[j] + len[j]);
                     if(start != 0 or end != static_cast<int64_t>(dims_perm[j]))
                         slice_desc.push_back({static_cast<int64_t>(j), {start, end}});
                 }
@@ -2154,8 +2159,7 @@ struct rectangular_grid_strategy
                     }
                     if(need_reorder)
                     {
-                        std::vector<int64_t> perm_align(axis_to_index.size() +
-                                                        rest_dims.size());
+                        std::vector<int64_t> perm_align(axis_to_index.size() + rest_dims.size());
                         for(std::size_t k = 0; k < dims_for_index.size(); ++k)
                             perm_align[k] = static_cast<int64_t>(dims_for_index[k]);
                         for(std::size_t i = 0; i < rest_dims.size(); ++i)
@@ -2167,7 +2171,7 @@ struct rectangular_grid_strategy
                 }
 
                 const std::size_t axis_block_size = in_dims;
-                const std::size_t rest_count = rest_lens.size();
+                const std::size_t rest_count      = rest_lens.size();
                 if(axis_block_size + rest_count > 0)
                 {
                     std::vector<int64_t> perm_final(axis_block_size + rest_count);
@@ -2227,23 +2231,25 @@ struct rectangular_grid_strategy
 /// Strategy for tile-based repetition patterns
 struct tile_repeat_strategy
 {
-    bool operator()(module& m, const gather_context& ctx, gather_instruction_builder& /* builder */) const
+    bool operator()(module& m,
+                    const gather_context& ctx,
+                    gather_instruction_builder& /* builder */) const
     {
-        const auto& ins = ctx.ins;
-        const auto& data_ins = ctx.data_ins;
-        const auto& indices_ins = ctx.indices_ins;
+        const auto& ins            = ctx.ins;
+        const auto& data_ins       = ctx.data_ins;
+        const auto& indices_ins    = ctx.indices_ins;
         const auto& indices_values = ctx.indices_values;
-        const auto axis_index = ctx.axis_index;
-        const auto axis_len = ctx.axis_len;
-        const auto& dlens = data_ins->get_shape().lens();
-        const auto& indices_shape = indices_ins->get_shape();
-        const auto& idims = ctx.idims;
-        const auto& rest_lens = ctx.rest_lens;
-        const auto& pre_lens = ctx.pre_lens;
-        const auto& post_lens = ctx.post_lens;
-        const std::size_t total = indices_values.size();
-        const std::size_t in_dims = idims.size();
-        const std::int64_t base = indices_values.empty() ? 0 : indices_values.front();
+        const auto axis_index      = ctx.axis_index;
+        const auto axis_len        = ctx.axis_len;
+        const auto& dlens          = data_ins->get_shape().lens();
+        const auto& indices_shape  = indices_ins->get_shape();
+        const auto& idims          = ctx.idims;
+        const auto& rest_lens      = ctx.rest_lens;
+        const auto& pre_lens       = ctx.pre_lens;
+        const auto& post_lens      = ctx.post_lens;
+        const std::size_t total    = indices_values.size();
+        const std::size_t in_dims  = idims.size();
+        const std::int64_t base    = indices_values.empty() ? 0 : indices_values.front();
 
         std::vector<std::size_t> repeat_sizes(in_dims, 1);
         std::vector<std::size_t> tile_sizes(in_dims, 1);
@@ -2255,10 +2261,10 @@ struct tile_repeat_strategy
                 return false;
             for(std::size_t idx = 0; idx < total; ++idx)
             {
-                auto coord = indices_shape.multi(idx);
+                auto coord    = indices_shape.multi(idx);
                 auto axis_val = coord[axis];
-                auto group = axis_val / repeat;
-                coord[axis] = group * repeat;
+                auto group    = axis_val / repeat;
+                coord[axis]   = group * repeat;
                 auto base_idx = indices_shape.index(coord);
                 if(indices_values[idx] != indices_values[base_idx])
                     return false;
@@ -2268,7 +2274,7 @@ struct tile_repeat_strategy
 
         for(std::size_t dim = 0; dim < in_dims; ++dim)
         {
-            auto axis_len_dim = idims[dim];
+            auto axis_len_dim  = idims[dim];
             std::size_t repeat = 1;
             for(std::size_t candidate = 2; candidate <= axis_len_dim; ++candidate)
             {
@@ -2281,7 +2287,7 @@ struct tile_repeat_strategy
                 }
             }
             repeat_sizes[dim] = repeat;
-            tile_sizes[dim] = (repeat > 0) ? axis_len_dim / repeat : 0;
+            tile_sizes[dim]   = (repeat > 0) ? axis_len_dim / repeat : 0;
             if(tile_sizes[dim] == 0)
                 return false;
         }
@@ -2310,7 +2316,7 @@ struct tile_repeat_strategy
 
         for(std::size_t idx = 0; idx < total; ++idx)
         {
-            auto coord = indices_shape.multi(idx);
+            auto coord            = indices_shape.multi(idx);
             std::int64_t expected = 0;
             for(auto axis : tile_axes)
             {
@@ -2409,9 +2415,7 @@ struct tile_repeat_strategy
             std::vector<int64_t> starts{base};
             std::vector<int64_t> ends{base + slice_len};
             curr = m.insert_instruction(
-                ins,
-                make_op("slice", {{"axes", axes}, {"starts", starts}, {"ends", ends}}),
-                curr);
+                ins, make_op("slice", {{"axes", axes}, {"starts", starts}, {"ends", ends}}), curr);
         }
 
         std::vector<int64_t> rest_dims;
@@ -2428,8 +2432,7 @@ struct tile_repeat_strategy
             for(auto dim : ordered_vary_desc)
                 reshape1_dims.push_back(static_cast<int64_t>(tile_sizes[dim]));
             reshape1_dims.insert(reshape1_dims.end(), rest_dims.begin(), rest_dims.end());
-            curr =
-                m.insert_instruction(ins, make_op("reshape", {{"dims", reshape1_dims}}), curr);
+            curr = m.insert_instruction(ins, make_op("reshape", {{"dims", reshape1_dims}}), curr);
 
             if(ordered_vary_desc != target_vary_order)
             {
@@ -2437,9 +2440,8 @@ struct tile_repeat_strategy
                 std::vector<int64_t> perm(axis_count + rest_dims.size());
                 for(std::size_t i = 0; i < target_vary_order.size(); ++i)
                 {
-                    auto it = std::find(ordered_vary_desc.begin(),
-                                        ordered_vary_desc.end(),
-                                        target_vary_order[i]);
+                    auto it = std::find(
+                        ordered_vary_desc.begin(), ordered_vary_desc.end(), target_vary_order[i]);
                     if(it == ordered_vary_desc.end())
                         return false;
                     perm[i] = std::distance(ordered_vary_desc.begin(), it);
@@ -2447,8 +2449,8 @@ struct tile_repeat_strategy
                 for(std::size_t i = 0; i < rest_dims.size(); ++i)
                     perm[target_vary_order.size() + i] = static_cast<int64_t>(axis_count + i);
 
-                curr = m.insert_instruction(
-                    ins, make_op("transpose", {{"permutation", perm}}), curr);
+                curr =
+                    m.insert_instruction(ins, make_op("transpose", {{"permutation", perm}}), curr);
                 ordered_vary_desc = target_vary_order;
             }
         }
@@ -2470,8 +2472,7 @@ struct tile_repeat_strategy
             reshape2_dims.insert(reshape2_dims.end(), rest_dims.begin(), rest_dims.end());
             if(reshape2_dims.empty())
                 reshape2_dims.push_back(1);
-            curr =
-                m.insert_instruction(ins, make_op("reshape", {{"dims", reshape2_dims}}), curr);
+            curr = m.insert_instruction(ins, make_op("reshape", {{"dims", reshape2_dims}}), curr);
             if(broadcast_needed)
             {
                 std::vector<int64_t> broadcast_dims;
@@ -2493,21 +2494,20 @@ struct tile_repeat_strategy
             combine_dims.reserve(in_dims + rest_dims.size());
             for(std::size_t dim = 0; dim < in_dims; ++dim)
             {
-                auto tile_val = (tile_sizes[dim] > 1) ? tile_sizes[dim] : std::size_t{1};
+                auto tile_val   = (tile_sizes[dim] > 1) ? tile_sizes[dim] : std::size_t{1};
                 auto repeat_val = repeat_sizes[dim];
                 combine_dims.push_back(static_cast<int64_t>(tile_val * repeat_val));
             }
             combine_dims.insert(combine_dims.end(), rest_dims.begin(), rest_dims.end());
             if(combine_dims.empty())
                 combine_dims.push_back(1);
-            curr =
-                m.insert_instruction(ins, make_op("reshape", {{"dims", combine_dims}}), curr);
+            curr = m.insert_instruction(ins, make_op("reshape", {{"dims", combine_dims}}), curr);
         }
 
         const std::size_t axis_block_size = in_dims;
-        const std::size_t pre_count = pre_lens.size();
-        const std::size_t post_count = post_lens.size();
-        const std::size_t rest_count = rest_dims.size();
+        const std::size_t pre_count       = pre_lens.size();
+        const std::size_t post_count      = post_lens.size();
+        const std::size_t rest_count      = rest_dims.size();
 
         if(axis_block_size + rest_count > 0)
         {
@@ -2600,37 +2600,40 @@ struct find_gather
             return;
 
         // Normalize negative indices using transform
-        std::transform(indices_values.begin(), indices_values.end(), indices_values.begin(),
-                      [axis_len](auto idx) {
-                          if(idx < 0)
-                              idx += static_cast<std::int64_t>(axis_len);
-                          return idx;
-                      });
+        std::transform(indices_values.begin(),
+                       indices_values.end(),
+                       indices_values.begin(),
+                       [axis_len](auto idx) {
+                           if(idx < 0)
+                               idx += static_cast<std::int64_t>(axis_len);
+                           return idx;
+                       });
 
         // Validate all indices are in bounds
-        bool all_valid = std::all_of(indices_values.begin(), indices_values.end(),
-                                    [axis_len](auto idx) {
-                                        return idx >= 0 and idx < static_cast<std::int64_t>(axis_len);
-                                    });
+        bool all_valid =
+            std::all_of(indices_values.begin(), indices_values.end(), [axis_len](auto idx) {
+                return idx >= 0 and idx < static_cast<std::int64_t>(axis_len);
+            });
         if(not all_valid)
             return;
 
         // Create gather context
         gather_context ctx(r, indices_values, axis_index, axis_len);
-        
+
         // Initialize instruction builder
         gather_instruction_builder builder(m, ins);
 
         // Generate factorization candidates
         constexpr std::size_t max_factorizations = 256;
         ctx.factor_candidates = enumerate_all_factorizations(axis_len, max_factorizations);
-        
+
         std::vector<std::vector<std::size_t>> temp_candidates;
         for(auto& factors : ctx.factor_candidates)
         {
             if(temp_candidates.size() >= max_factorizations)
                 break;
-            add_unique_factorization(temp_candidates, std::move(factors), axis_len, max_factorizations);
+            add_unique_factorization(
+                temp_candidates, std::move(factors), axis_len, max_factorizations);
         }
         ctx.factor_candidates = std::move(temp_candidates);
 
@@ -2655,8 +2658,12 @@ struct find_gather
                         shape_factors.insert(
                             shape_factors.end(), dim_factors.begin(), dim_factors.end());
                     }
-                    if(not shape_factors.empty() and ctx.factor_candidates.size() < max_factorizations)
-                        add_unique_factorization(ctx.factor_candidates, std::move(shape_factors), axis_len, max_factorizations);
+                    if(not shape_factors.empty() and
+                       ctx.factor_candidates.size() < max_factorizations)
+                        add_unique_factorization(ctx.factor_candidates,
+                                                 std::move(shape_factors),
+                                                 axis_len,
+                                                 max_factorizations);
                     break;
                 }
                 curr_data = input;
@@ -2664,15 +2671,13 @@ struct find_gather
         }
 
         // Try optimization strategies in order
-        const std::vector<gather_strategy> strategies = {
-            half_split_concat_strategy{},
-            stride_slice_strategy{},
-            stride_slice_with_offset_strategy{},
-            factorized_grid_slice_strategy{},
-            rectangular_grid_strategy{},
-            tile_repeat_strategy{},
-            permutation_strategy{}
-        };
+        const std::vector<gather_strategy> strategies = {half_split_concat_strategy{},
+                                                         stride_slice_strategy{},
+                                                         stride_slice_with_offset_strategy{},
+                                                         factorized_grid_slice_strategy{},
+                                                         rectangular_grid_strategy{},
+                                                         tile_repeat_strategy{},
+                                                         permutation_strategy{}};
 
         for(const auto& strategy : strategies)
         {

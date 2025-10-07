@@ -32,24 +32,32 @@ inline namespace MIGRAPHX_INLINE_NS {
 namespace op {
 namespace builder {
 
-template <class Derived>
-struct binary_base : op_builder<Derived>
+struct binary : op_builder<binary>
 {
     uint64_t broadcasted = 0;
     uint64_t axis = 0;
     bool is_broadcasted = false;
+    std::string op_name = "";
+
+    static std::string name() { return "binary"; }
 
     template <class Self, class F>
     static auto reflect(Self& self, F f)
     {
         return pack(f(self.broadcasted, "broadcasted"),
                     f(self.axis, "axis"),
-                    f(self.is_broadcasted, "is_broadcasted"));
+                    f(self.is_broadcasted, "is_broadcasted"),
+                    f(self.op_name, "op_name"));
     }
 
     std::vector<instruction_ref>
     insert(module& m, instruction_ref ins, const std::vector<instruction_ref>& args) const
     {
+        if (op_name.empty())
+        {
+            MIGRAPHX_THROW("Binary op missing op_name attribute");
+        }
+
         if (is_broadcasted)
         {
             if (broadcasted != 0)
@@ -59,38 +67,16 @@ struct binary_base : op_builder<Derived>
                     MIGRAPHX_THROW("Binary op broadcast attribute not supported for dynamic input shapes");
                 }
                 auto l = m.add_instruction(migraphx::make_op("broadcast",{{"axis", axis}, {"out_lens", args[0]->get_shape().lens()}}),args[1]);
-                return {m.add_instruction(migraphx::make_op(Derived::name()), args[0], l)};
+                return {m.add_instruction(migraphx::make_op(op_name), args[0], l)};
             }
-            return {m.add_instruction(migraphx::make_op(Derived::name()), args)};
+            return {m.add_instruction(migraphx::make_op(op_name), args)};
         }
         else
         {
-            return {insert_common_op(m, ins, migraphx::make_op(Derived::name()), {args[0], args[1]})};
+            return {insert_common_op(m, ins, migraphx::make_op(op_name), {args[0], args[1]})};
         }
     }
 };
-
-#define DECLARE_BINARY_OP_BUILDER(op_name) \
-struct op_name : binary_base<op_name> \
-{ \
-    static std::string name() { return #op_name; } \
-\
-    std::vector<instruction_ref> \
-    insert(module& m, instruction_ref ins, const std::vector<instruction_ref>& args) \
-    { \
-        return binary_base<op_name>::insert(m, ins, args); \
-    } \
-};
-
-DECLARE_BINARY_OP_BUILDER(add)
-DECLARE_BINARY_OP_BUILDER(div)
-DECLARE_BINARY_OP_BUILDER(logical_and)
-DECLARE_BINARY_OP_BUILDER(logical_or)
-DECLARE_BINARY_OP_BUILDER(logical_xor)
-DECLARE_BINARY_OP_BUILDER(bitwise_and)
-DECLARE_BINARY_OP_BUILDER(mul)
-DECLARE_BINARY_OP_BUILDER(prelu)
-DECLARE_BINARY_OP_BUILDER(sub)
 
 } // namespace builder
 } // namespace op

@@ -53,6 +53,8 @@ struct parse_binary_op : op_parser<parse_binary_op>
             MIGRAPHX_THROW("binary operators should have 2 operands");
         
         value options = {};
+        options.insert({"op_name", opd.op_name});
+
         if(contains(info.attributes, "broadcast") and contains(info.attributes, "axis"))
         {
             options.insert({"is_broadcasted", true});
@@ -66,8 +68,8 @@ struct parse_binary_op : op_parser<parse_binary_op>
                 options.insert({"axis", axis});
             }
         }
-        
-        return op::builder::add(opd.op_name, *info.mod, args, options).at(0);
+
+        return op::builder::add("binary", *info.mod, args, options).at(0);
     }
 };
 

@@ -53,8 +53,8 @@ evaluate_module(const migraphx::module& mod,
                 const std::unordered_map<std::string, migraphx::argument>& args)
 {
     migraphx::program p;
-    auto* mm = p.get_main_module();
-    *mm      = mod;
+    auto* mm                                                      = p.get_main_module();
+    *mm                                                           = mod;
     std::unordered_map<std::string, migraphx::argument> full_args = args;
     for(auto&& [name, shape] : mod.get_parameter_shapes())
     {
@@ -86,18 +86,12 @@ evaluate_module(const migraphx::module& mod,
 }
 
 static const std::unordered_set<std::string> gather_allowed_ops = {
-    "slice",
-    "reshape",
-    "transpose",
-    "multibroadcast",
-    "concat",
-    "squeeze"
-};
+    "slice", "reshape", "transpose", "multibroadcast", "concat", "squeeze"};
 
-static void expect_gather_lowered(migraphx::module m,
-                                  const std::unordered_map<std::string, migraphx::argument>& args,
-                                  const std::unordered_set<std::string>& allowed_ops =
-                                      gather_allowed_ops)
+static void
+expect_gather_lowered(migraphx::module m,
+                      const std::unordered_map<std::string, migraphx::argument>& args,
+                      const std::unordered_set<std::string>& allowed_ops = gather_allowed_ops)
 {
     (void)args;
     auto before           = m;
@@ -1596,8 +1590,7 @@ TEST_CASE(optimize_resize)
     EXPECT(after.get_parameter_shapes() == parameter_shapes);
 
     const std::unordered_set<std::string> allowed_ops = {
-        "unsqueeze", "multibroadcast", "reshape", "softmax"
-    };
+        "unsqueeze", "multibroadcast", "reshape", "softmax"};
     for(auto ins : migraphx::iterator_for(after))
     {
         const auto& name = ins->name();
@@ -1692,8 +1685,7 @@ TEST_CASE(optimize_resize_ndims_unequal)
     EXPECT(after.get_parameter_shapes() == parameter_shapes);
 
     const std::unordered_set<std::string> allowed_ops = {
-        "unsqueeze", "reshape", "slice", "concat", "sub"
-    };
+        "unsqueeze", "reshape", "slice", "concat", "sub"};
     for(auto ins : migraphx::iterator_for(after))
     {
         const auto& name = ins->name();

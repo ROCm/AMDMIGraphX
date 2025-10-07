@@ -899,17 +899,16 @@ struct find_gather
             match::args(match::any(), match::is_constant().bind("indices")));
     }
 
-private:
+    private:
     using index_list = std::vector<std::size_t>;
 
     static std::vector<int64_t> to_int64(const std::vector<std::size_t>& values)
     {
         std::vector<int64_t> result;
         result.reserve(values.size());
-        std::transform(values.begin(),
-                       values.end(),
-                       std::back_inserter(result),
-                       [](std::size_t v) { return static_cast<int64_t>(v); });
+        std::transform(values.begin(), values.end(), std::back_inserter(result), [](std::size_t v) {
+            return static_cast<int64_t>(v);
+        });
         return result;
     }
 
@@ -918,10 +917,9 @@ private:
     {
         std::vector<int64_t> result;
         result.reserve(values.size());
-        std::transform(values.begin(),
-                       values.end(),
-                       std::back_inserter(result),
-                       [](auto v) { return static_cast<int64_t>(v); });
+        std::transform(values.begin(), values.end(), std::back_inserter(result), [](auto v) {
+            return static_cast<int64_t>(v);
+        });
         return result;
     }
 
@@ -949,7 +947,7 @@ private:
     {
         if(std::distance(first, last) <= 1)
             return false;
-        const auto start = *first;
+        const auto start     = *first;
         std::size_t expected = 0;
         return std::all_of(first, last, [&](std::size_t value) mutable {
             const auto want = start + expected;
@@ -1043,13 +1041,13 @@ private:
                                                       instruction_ref indices_ins)
     {
         normalized_gather ctx;
-        ctx.pm          = &m;
-        ctx.anchor      = gather_ins;
-        ctx.data_ins    = data_ins;
+        ctx.pm           = &m;
+        ctx.anchor       = gather_ins;
+        ctx.data_ins     = data_ins;
         ctx.indices_lens = indices_ins->get_shape().lens();
         ctx.idims        = ctx.indices_lens;
 
-        auto gather_op = any_cast<op::gather>(gather_ins->get_operator());
+        auto gather_op    = any_cast<op::gather>(gather_ins->get_operator());
         const auto& dlens = data_ins->get_shape().lens();
         if(dlens.empty())
             return std::nullopt;
@@ -1065,10 +1063,9 @@ private:
             return std::nullopt;
         ctx.indices_values.resize(literal.get_shape().elements());
         literal.visit([&](auto values) {
-            std::transform(values.begin(),
-                           values.end(),
-                           ctx.indices_values.begin(),
-                           [](auto v) { return static_cast<std::int64_t>(v); });
+            std::transform(values.begin(), values.end(), ctx.indices_values.begin(), [](auto v) {
+                return static_cast<std::int64_t>(v);
+            });
         });
         if(ctx.indices_values.empty())
             return std::nullopt;
@@ -1089,9 +1086,9 @@ private:
         }
 
         const auto& dl = dlens;
-        ctx.pre_lens  = std::vector<std::size_t>(dl.begin(), dl.begin() + ctx.axis_index);
-        ctx.post_lens = std::vector<std::size_t>(dl.begin() + ctx.axis_index + 1, dl.end());
-        ctx.rest_lens = ctx.pre_lens;
+        ctx.pre_lens   = std::vector<std::size_t>(dl.begin(), dl.begin() + ctx.axis_index);
+        ctx.post_lens  = std::vector<std::size_t>(dl.begin() + ctx.axis_index + 1, dl.end());
+        ctx.rest_lens  = ctx.pre_lens;
         ctx.rest_lens.insert(ctx.rest_lens.end(), ctx.post_lens.begin(), ctx.post_lens.end());
         ctx.rest_product = ctx.rest_lens.empty() ? 1 : product(ctx.rest_lens);
         if(ctx.rest_product == 0)
@@ -1109,28 +1106,26 @@ private:
                     continue;
                 perm.push_back(static_cast<int64_t>(i));
             }
-            aligned = m.insert_instruction(gather_ins,
-                                           make_op("transpose", {{"permutation", perm}}),
-                                           aligned);
+            aligned = m.insert_instruction(
+                gather_ins, make_op("transpose", {{"permutation", perm}}), aligned);
         }
         ctx.data_aligned = aligned;
         const std::vector<int64_t> reshape_axis{static_cast<int64_t>(ctx.axis_len),
                                                 static_cast<int64_t>(ctx.rest_product)};
-        ctx.data_axis_view = m.insert_instruction(
-            gather_ins, make_op("reshape", {{"dims", reshape_axis}}), aligned);
+        ctx.data_axis_view =
+            m.insert_instruction(gather_ins, make_op("reshape", {{"dims", reshape_axis}}), aligned);
 
         return ctx;
     }
 
     struct tile_partition
     {
-        std::size_t tile_size            = 1;
+        std::size_t tile_size = 1;
         std::vector<std::size_t> tile_shape;
         std::vector<std::size_t> outer_shape;
     };
 
-    static std::vector<tile_partition>
-    make_partitions(const std::vector<std::size_t>& indices_lens)
+    static std::vector<tile_partition> make_partitions(const std::vector<std::size_t>& indices_lens)
     {
         if(indices_lens.empty())
             return {};
@@ -1142,9 +1137,11 @@ private:
         {
             const auto start = rank - k;
             tile_partition part;
-            part.tile_shape = std::vector<std::size_t>(indices_lens.begin() + start, indices_lens.end());
-            part.outer_shape = std::vector<std::size_t>(indices_lens.begin(), indices_lens.begin() + start);
-            part.tile_size   = product(part.tile_shape.begin(), part.tile_shape.end());
+            part.tile_shape =
+                std::vector<std::size_t>(indices_lens.begin() + start, indices_lens.end());
+            part.outer_shape =
+                std::vector<std::size_t>(indices_lens.begin(), indices_lens.begin() + start);
+            part.tile_size = product(part.tile_shape.begin(), part.tile_shape.end());
             partitions.push_back(std::move(part));
             if(k == 1)
                 break;
@@ -1200,12 +1197,12 @@ private:
     {
         tile_view view{};
         tile_kind kind = tile_kind::constant;
-        std::variant<constant_pattern, contiguous_pattern, arithmetic_pattern, rtr_pattern> pattern =
-            constant_pattern{};
+        std::variant<constant_pattern, contiguous_pattern, arithmetic_pattern, rtr_pattern>
+            pattern = constant_pattern{};
     };
 
-    static std::optional<std::vector<std::size_t>>
-    factorize(std::size_t value, std::size_t max_factors = 8)
+    static std::optional<std::vector<std::size_t>> factorize(std::size_t value,
+                                                             std::size_t max_factors = 8)
     {
         if(value <= 1)
             return std::nullopt;
@@ -1261,8 +1258,8 @@ private:
         return results;
     }
 
-    static std::vector<std::size_t>
-    combine_factors(const std::vector<std::size_t>& primes, std::size_t max_parts = 6)
+    static std::vector<std::size_t> combine_factors(const std::vector<std::size_t>& primes,
+                                                    std::size_t max_parts = 6)
     {
         if(primes.empty())
             return {};
@@ -1284,8 +1281,9 @@ private:
         return axes;
     }
 
-    static std::vector<std::size_t> compute_permutation_order(const std::vector<std::size_t>& dims,
-                                                              const std::vector<std::size_t>& permutation)
+    static std::vector<std::size_t>
+    compute_permutation_order(const std::vector<std::size_t>& dims,
+                              const std::vector<std::size_t>& permutation)
     {
         std::vector<std::size_t> reordered;
         reordered.reserve(dims.size());
@@ -1337,9 +1335,7 @@ private:
         std::transform(factorizations.begin(),
                        factorizations.end(),
                        std::back_inserter(candidate_dims),
-                       [](const auto& factors) {
-                           return combine_factors(factors);
-                       });
+                       [](const auto& factors) { return combine_factors(factors); });
 
         for(auto& dims : candidate_dims)
         {
@@ -1365,8 +1361,7 @@ private:
         return std::nullopt;
     }
 
-    static std::optional<tile_plan> analyze_tile(const tile_view& view,
-                                                 std::size_t axis_len)
+    static std::optional<tile_plan> analyze_tile(const tile_view& view, std::size_t axis_len)
     {
         if(view.size == 0)
             return std::nullopt;
@@ -1422,8 +1417,8 @@ private:
         return std::nullopt;
     }
 
-    static std::optional<std::vector<tile_plan>>
-    choose_tiles(const normalized_gather& ctx, const tile_partition& partition)
+    static std::optional<std::vector<tile_plan>> choose_tiles(const normalized_gather& ctx,
+                                                              const tile_partition& partition)
     {
         if(partition.tile_size == 0)
             return std::nullopt;
@@ -1492,11 +1487,11 @@ private:
             case tile_kind::constant:
                 return rewrite_constant(std::get<constant_pattern>(plan.pattern), plan.view.size);
             case tile_kind::contiguous:
-                return rewrite_contiguous(std::get<contiguous_pattern>(plan.pattern), plan.view.size);
+                return rewrite_contiguous(std::get<contiguous_pattern>(plan.pattern),
+                                          plan.view.size);
             case tile_kind::arithmetic:
                 return rewrite_arithmetic(std::get<arithmetic_pattern>(plan.pattern), plan.view);
-            case tile_kind::rtr:
-                return rewrite_rtr(std::get<rtr_pattern>(plan.pattern), plan.view);
+            case tile_kind::rtr: return rewrite_rtr(std::get<rtr_pattern>(plan.pattern), plan.view);
             }
             return instruction_ref{};
         }
@@ -1506,7 +1501,7 @@ private:
             const auto axes   = std::vector<int64_t>{0};
             const auto starts = std::vector<int64_t>{static_cast<int64_t>(pattern.value)};
             const auto ends   = std::vector<int64_t>{static_cast<int64_t>(pattern.value + 1)};
-            auto slice = ctx.mod().insert_instruction(
+            auto slice        = ctx.mod().insert_instruction(
                 ctx.anchor,
                 make_op("slice", {{"axes", axes}, {"starts", starts}, {"ends", ends}}),
                 ctx.data_axis_view);
@@ -1566,11 +1561,10 @@ private:
 
         instruction_ref rewrite_arithmetic(const arithmetic_pattern& pattern, const tile_view& view)
         {
-            auto lane_view = ensure_lane_view(pattern.stride, pattern.lane);
+            auto lane_view    = ensure_lane_view(pattern.stride, pattern.lane);
             const auto axes   = std::vector<int64_t>{0};
             const auto starts = std::vector<int64_t>{static_cast<int64_t>(pattern.base)};
-            const auto ends =
-                std::vector<int64_t>{static_cast<int64_t>(pattern.base + view.size)};
+            const auto ends = std::vector<int64_t>{static_cast<int64_t>(pattern.base + view.size)};
             return ctx.mod().insert_instruction(
                 ctx.anchor,
                 make_op("slice", {{"axes", axes}, {"starts", starts}, {"ends", ends}}),
@@ -1601,7 +1595,7 @@ private:
                 transposed);
 
             std::vector<int64_t> reshape_back{static_cast<int64_t>(view.size),
-                                               static_cast<int64_t>(ctx.rest_product)};
+                                              static_cast<int64_t>(ctx.rest_product)};
             return ctx.mod().insert_instruction(
                 ctx.anchor, make_op("reshape", {{"dims", reshape_back}}), sliced);
         }
@@ -1614,8 +1608,10 @@ private:
         if(flat_view == instruction_ref{})
             return instruction_ref{};
         auto reshaped = ctx.mod().insert_instruction(
-            ctx.anchor, make_op("reshape", {{"dims", to_int64_container(reshape_dims)}}), flat_view);
-        auto perm = ctx.final_permutation();
+            ctx.anchor,
+            make_op("reshape", {{"dims", to_int64_container(reshape_dims)}}),
+            flat_view);
+        auto perm                 = ctx.final_permutation();
         instruction_ref final_out = reshaped;
         if(not perm.empty())
         {
@@ -1627,14 +1623,13 @@ private:
         {
             final_out = ctx.mod().insert_instruction(
                 ctx.anchor,
-                make_op("reshape",
-                        {{"dims", to_int64_container(ctx.anchor->get_shape().lens())}}),
+                make_op("reshape", {{"dims", to_int64_container(ctx.anchor->get_shape().lens())}}),
                 final_out);
         }
         return final_out;
     }
 
-public:
+    public:
     void apply(module& m, const match::matcher_result& r) const
     {
         auto ins         = r.result;
@@ -1651,14 +1646,13 @@ public:
             return;
 
         tile_rewriter rewriter{ctx, plan->first};
-        auto flat = rewriter.materialize(plan->second);
+        auto flat   = rewriter.materialize(plan->second);
         auto result = finalize_output(ctx, flat, ctx.reshape_dims());
         if(result == instruction_ref{})
             return;
         ctx.mod().replace_instruction(ins, result);
     }
 };
-
 
 struct find_where_op
 {

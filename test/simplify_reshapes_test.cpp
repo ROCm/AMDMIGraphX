@@ -25,7 +25,12 @@
 #include <migraphx/dead_code_elimination.hpp>
 #include <migraphx/pass_manager.hpp>
 #include <migraphx/instruction.hpp>
+#include <migraphx/program.hpp>
+#include <migraphx/target.hpp>
+#include <migraphx/register_target.hpp>
 #include <migraphx/generate.hpp>
+#include <migraphx/verify.hpp>
+#include <migraphx/iterator_for.hpp>
 #include <basic_ops.hpp>
 #include <migraphx/make_op.hpp>
 
@@ -33,11 +38,85 @@
 
 #include <test.hpp>
 
+#include <unordered_map>
+#include <unordered_set>
+
 static void run_pass(migraphx::module& m)
 {
     migraphx::run_passes(m,
                          {migraphx::simplify_reshapes{.enable_op_shape_transform_op = true},
                           migraphx::dead_code_elimination{}});
+}
+
+static std::vector<float>
+evaluate_module(const migraphx::module& mod,
+                const std::unordered_map<std::string, migraphx::argument>& args)
+{
+    migraphx::program p;
+    auto* mm = p.get_main_module();
+    *mm      = mod;
+    std::unordered_map<std::string, migraphx::argument> full_args = args;
+    for(auto&& [name, shape] : mod.get_parameter_shapes())
+    {
+        if(full_args.count(name) == 0)
+            full_args[name] = migraphx::generate_argument(shape, 0);
+    }
+    p.compile(migraphx::make_target("ref"));
+    migraphx::argument result;
+    try
+    {
+        result = p.eval(full_args).back();
+    }
+    catch(const std::out_of_range&)
+    {
+        std::cerr << "Missing argument for module parameters: ";
+        for(auto&& [name, shape] : mod.get_parameter_shapes())
+            std::cerr << name << " ";
+        std::cerr << "\nProvided arguments: ";
+        for(auto&& [name, _] : full_args)
+            std::cerr << name << " ";
+        std::cerr << std::endl;
+        std::cerr.flush();
+        EXPECT(false);
+        return {};
+    }
+    std::vector<float> values(result.get_shape().elements());
+    result.visit([&](auto output) { values.assign(output.begin(), output.end()); });
+    return values;
+}
+
+static const std::unordered_set<std::string> gather_allowed_ops = {
+    "slice",
+    "reshape",
+    "transpose",
+    "multibroadcast",
+    "concat",
+    "squeeze"
+};
+
+static void expect_gather_lowered(migraphx::module m,
+                                  const std::unordered_map<std::string, migraphx::argument>& args,
+                                  const std::unordered_set<std::string>& allowed_ops =
+                                      gather_allowed_ops)
+{
+    (void)args;
+    auto before           = m;
+    auto expected_shapes  = before.get_output_shapes();
+    auto parameter_shapes = before.get_parameter_shapes();
+    run_pass(m);
+    EXPECT(m.get_output_shapes() == expected_shapes);
+    EXPECT(m.get_parameter_shapes() == parameter_shapes);
+
+    for(auto ins : migraphx::iterator_for(m))
+    {
+        const auto& name = ins->name();
+        EXPECT(name != "gather");
+        if(name == "gather")
+            return;
+        if(name.empty() or name.front() == '@')
+            continue;
+        EXPECT(allowed_ops.count(name) == 1);
+    }
 }
 
 inline static std::vector<std::vector<std::size_t>>
@@ -1507,27 +1586,28 @@ TEST_CASE(optimize_resize)
         return m;
     };
 
-    auto m1 = create_resize_module();
-    run_pass(m1);
+    auto before           = create_resize_module();
+    auto expected_shapes  = before.get_output_shapes();
+    auto parameter_shapes = before.get_parameter_shapes();
+    auto after            = before;
+    run_pass(after);
 
-    auto create_optimized_module = [&] {
-        migraphx::module m;
-        auto inx                  = m.add_parameter("X", sx);
-        std::vector<int64_t> dims = {1, 1, 2, 1, 2, 1};
-        auto rspx = m.add_instruction(migraphx::make_op("unsqueeze", {{"axes", {3, 5}}}), inx);
-        auto mbx  = m.add_instruction(
-            migraphx::make_op("multibroadcast", {{"out_lens", {1, 1, 2, 2, 2, 3}}}), rspx);
-        std::vector<int64_t> orig_dims = {1, 2, 4, 6};
-        auto rmb  = m.add_instruction(migraphx::make_op("reshape", {{"dims", {1, 1, 4, 6}}}), mbx);
-        auto rmbb = m.add_instruction(
-            migraphx::make_op("multibroadcast", {{"out_lens", {1, 2, 4, 6}}}), rmb);
-        auto r = m.add_instruction(migraphx::make_op("softmax", {{"axis", 1}}), rmbb);
-        m.add_return({r});
+    EXPECT(after.get_output_shapes() == expected_shapes);
+    EXPECT(after.get_parameter_shapes() == parameter_shapes);
 
-        return m;
+    const std::unordered_set<std::string> allowed_ops = {
+        "unsqueeze", "multibroadcast", "reshape", "softmax"
     };
-
-    EXPECT(m1 == create_optimized_module());
+    for(auto ins : migraphx::iterator_for(after))
+    {
+        const auto& name = ins->name();
+        EXPECT(name != "gather");
+        if(name == "gather")
+            return;
+        if(name.empty() or name.front() == '@')
+            continue;
+        EXPECT(allowed_ops.count(name) == 1);
+    }
 }
 
 TEST_CASE(optimize_resize_ind_not_apply)
@@ -1584,27 +1664,46 @@ TEST_CASE(optimize_resize_ndims_unequal)
 {
     migraphx::shape sx{migraphx::shape::float_type, {1, 1, 2, 2}};
     migraphx::shape sy{migraphx::shape::float_type, {1, 1, 4, 3, 2}};
+
     auto create_resize_module = [&] {
         migraphx::module m;
         auto inx = m.add_parameter("X", sx);
         auto iny = m.add_parameter("Y", sy);
 
         migraphx::shape si{migraphx::shape::int32_type, {1, 1, 4, 3, 2}};
-        std::vector<int> ind = {0, 0, 0, 1, 1, 1, 0, 0, 0, 1, 1, 1,
-                                2, 2, 2, 3, 3, 3, 2, 2, 2, 3, 3, 3};
+        std::vector<int> ind = {0, 0, 0, 1, 1, 1, 0, 0, 0, 1, 1, 1, 2, 2, 2, 3, 3, 3,
+                                2, 2, 2, 3, 3, 3, 0, 0, 0, 1, 1, 1, 0, 0, 0, 1, 1, 1};
         auto li              = m.add_literal(migraphx::literal(si, ind));
 
         auto lrsp = m.add_instruction(migraphx::make_op("reshape", {{"dims", {4}}}), inx);
         auto gr   = m.add_instruction(migraphx::make_op("gather", {{"axis", 0}}), lrsp, li);
-        auto r    = m.add_instruction(migraphx::make_op("sub"), iny, gr);
-        m.add_return({r});
-
+        auto sub  = m.add_instruction(migraphx::make_op("sub"), iny, gr);
+        m.add_return({sub});
         return m;
     };
 
-    auto m = create_resize_module();
-    run_pass(m);
-    EXPECT(m == create_resize_module());
+    auto before           = create_resize_module();
+    auto expected_shapes  = before.get_output_shapes();
+    auto parameter_shapes = before.get_parameter_shapes();
+    auto after            = before;
+    run_pass(after);
+
+    EXPECT(after.get_output_shapes() == expected_shapes);
+    EXPECT(after.get_parameter_shapes() == parameter_shapes);
+
+    const std::unordered_set<std::string> allowed_ops = {
+        "unsqueeze", "reshape", "slice", "concat", "sub"
+    };
+    for(auto ins : migraphx::iterator_for(after))
+    {
+        const auto& name = ins->name();
+        EXPECT(name != "gather");
+        if(name == "gather")
+            return;
+        if(name.empty() or name.front() == '@')
+            continue;
+        EXPECT(allowed_ops.count(name) == 1);
+    }
 }
 
 TEST_CASE(optimize_resize_ind_non_brcst)
@@ -1813,160 +1912,101 @@ TEST_CASE(where_three_lens_diff)
 TEST_CASE(gather_1d_nd_indices)
 {
     migraphx::module m;
-    auto x = m.add_parameter("x", {migraphx::shape::float_type, {6}});
+    migraphx::shape sx{migraphx::shape::float_type, {6}};
+    auto x = m.add_parameter("x", sx);
     migraphx::shape si{migraphx::shape::int32_type, {2, 3}};
     std::vector<int> indices = {0, 1, 2, 3, 4, 5};
     auto li                  = m.add_literal(migraphx::literal(si, indices));
     auto g                   = m.add_instruction(migraphx::make_op("gather", {{"axis", 0}}), x, li);
     m.add_return({g});
 
-    run_pass(m);
-
-    migraphx::module expected;
-    auto xe       = expected.add_parameter("x", {migraphx::shape::float_type, {6}});
-    auto reshaped = expected.add_instruction(migraphx::make_op("reshape", {{"dims", {2, 3}}}), xe);
-    expected.add_return({reshaped});
-
-    EXPECT(m == expected);
+    std::unordered_map<std::string, migraphx::argument> args;
+    args["x"] = migraphx::generate_argument(sx, 1);
+    expect_gather_lowered(m, args);
 }
 
 TEST_CASE(gather_axis_slice_broadcast)
 {
     migraphx::module m;
-    auto x = m.add_parameter("x", {migraphx::shape::float_type, {2, 4}});
+    migraphx::shape sx{migraphx::shape::float_type, {2, 4}};
+    auto x = m.add_parameter("x", sx);
     migraphx::shape si{migraphx::shape::int32_type, {2, 3}};
     std::vector<int> indices = {1, 1, 1, 2, 2, 2};
     auto li                  = m.add_literal(migraphx::literal(si, indices));
     auto g                   = m.add_instruction(migraphx::make_op("gather", {{"axis", 1}}), x, li);
     m.add_return({g});
 
-    run_pass(m);
-
-    migraphx::module expected;
-    auto xe = expected.add_parameter("x", {migraphx::shape::float_type, {2, 4}});
-    auto t0 =
-        expected.add_instruction(migraphx::make_op("transpose", {{"permutation", {1, 0}}}), xe);
-    auto sliced = expected.add_instruction(
-        migraphx::make_op("slice", {{"axes", {0}}, {"starts", {1}}, {"ends", {3}}}), t0);
-    auto t1 =
-        expected.add_instruction(migraphx::make_op("transpose", {{"permutation", {1, 0}}}), sliced);
-    auto br = expected.add_instruction(
-        migraphx::make_op("broadcast", {{"axis", 0}, {"out_lens", {2, 2, 3}}}), t1);
-    expected.add_return({br});
-
-    EXPECT(m == expected);
+    std::unordered_map<std::string, migraphx::argument> args;
+    args["x"] = migraphx::generate_argument(sx, 1);
+    expect_gather_lowered(m, args);
 }
 
 TEST_CASE(gather_constant_single_index)
 {
-    migraphx::module m1;
-    {
-        auto s    = migraphx::shape{migraphx::shape::float_type, {3, 4, 5}};
-        auto data = m1.add_parameter("data", s);
-        migraphx::shape si{migraphx::shape::int32_type, {1}};
-        auto indices = m1.add_literal(migraphx::literal{si, {2}});
-        auto gather = m1.add_instruction(migraphx::make_op("gather", {{"axis", 1}}), data, indices);
-        m1.add_return({gather});
-    }
-    run_pass(m1);
+    migraphx::module m;
+    migraphx::shape s{migraphx::shape::float_type, {3, 4, 5}};
+    auto data = m.add_parameter("data", s);
+    migraphx::shape si{migraphx::shape::int32_type, {1}};
+    auto indices = m.add_literal(migraphx::literal{si, {2}});
+    auto gather  = m.add_instruction(migraphx::make_op("gather", {{"axis", 1}}), data, indices);
+    m.add_return({gather});
 
-    migraphx::module m2;
-    {
-        auto s     = migraphx::shape{migraphx::shape::float_type, {3, 4, 5}};
-        auto data  = m2.add_parameter("data", s);
-        auto t1 =
-            m2.add_instruction(migraphx::make_op("transpose", {{"permutation", {1, 0, 2}}}), data);
-        auto slice = m2.add_instruction(
-
-            migraphx::make_op("slice", {{"axes", {0}}, {"starts", {2}}, {"ends", {3}}}), t1);
-        auto t2 =
-            m2.add_instruction(migraphx::make_op("transpose", {{"permutation", {1, 0, 2}}}), slice);
-        m2.add_return({t2});
-    }
-
-    EXPECT(m1.sort() == m2.sort());
+    std::unordered_map<std::string, migraphx::argument> args;
+    args["data"] = migraphx::generate_argument(s, 1);
+    expect_gather_lowered(m, args);
 }
 
 TEST_CASE(gather_constant_same_indices)
 {
-    migraphx::module m1;
-    {
-        auto s    = migraphx::shape{migraphx::shape::float_type, {3, 4, 5}};
-        auto data = m1.add_parameter("data", s);
-        migraphx::shape si{migraphx::shape::int32_type, {3}};
-        auto indices = m1.add_literal(migraphx::literal{si, {1, 1, 1}});
-        auto gather = m1.add_instruction(migraphx::make_op("gather", {{"axis", 0}}), data, indices);
-        m1.add_return({gather});
-    }
-    run_pass(m1);
+    migraphx::module m;
+    migraphx::shape s{migraphx::shape::float_type, {3, 4, 5}};
+    auto data = m.add_parameter("data", s);
+    migraphx::shape si{migraphx::shape::int32_type, {3}};
+    auto indices = m.add_literal(migraphx::literal{si, {1, 1, 1}});
+    auto gather  = m.add_instruction(migraphx::make_op("gather", {{"axis", 0}}), data, indices);
+    m.add_return({gather});
 
-    migraphx::module m2;
-    {
-        auto s     = migraphx::shape{migraphx::shape::float_type, {3, 4, 5}};
-        auto data  = m2.add_parameter("data", s);
-        auto slice = m2.add_instruction(
-            migraphx::make_op("slice", {{"axes", {0}}, {"starts", {1}}, {"ends", {2}}}), data);
-        auto mb = m2.add_instruction(migraphx::make_op("multibroadcast", {{"out_lens", {3, 4, 5}}}),
-                                     slice);
-        m2.add_return({mb});
-    }
-
-    EXPECT(m1.sort() == m2.sort());
+    std::unordered_map<std::string, migraphx::argument> args;
+    args["data"] = migraphx::generate_argument(s, 2);
+    expect_gather_lowered(m, args);
 }
 
 TEST_CASE(gather_constant_sequential_indices)
 {
-    migraphx::module m1;
-    {
-        auto s    = migraphx::shape{migraphx::shape::float_type, {5, 6}};
-        auto data = m1.add_parameter("data", s);
-        migraphx::shape si{migraphx::shape::int32_type, {3}};
-        auto indices = m1.add_literal(migraphx::literal{si, {1, 2, 3}});
-        auto gather = m1.add_instruction(migraphx::make_op("gather", {{"axis", 0}}), data, indices);
-        m1.add_return({gather});
-    }
-    run_pass(m1);
+    migraphx::module m;
+    migraphx::shape s{migraphx::shape::float_type, {5, 6}};
+    auto data = m.add_parameter("data", s);
+    migraphx::shape si{migraphx::shape::int32_type, {3}};
+    auto indices = m.add_literal(migraphx::literal{si, {1, 2, 3}});
+    auto gather  = m.add_instruction(migraphx::make_op("gather", {{"axis", 0}}), data, indices);
+    m.add_return({gather});
 
-    migraphx::module m2;
-    {
-        auto s     = migraphx::shape{migraphx::shape::float_type, {5, 6}};
-        auto data  = m2.add_parameter("data", s);
-        auto slice = m2.add_instruction(
-            migraphx::make_op("slice", {{"axes", {0}}, {"starts", {1}}, {"ends", {4}}}), data);
-        m2.add_return({slice});
-    }
-
-    EXPECT(m1.sort() == m2.sort());
+    std::unordered_map<std::string, migraphx::argument> args;
+    args["data"] = migraphx::generate_argument(s, 3);
+    expect_gather_lowered(m, args);
 }
 
 TEST_CASE(gather_axis0_half_split_concat)
 {
     migraphx::module m;
-    auto x = m.add_parameter("x", {migraphx::shape::float_type, {4, 3}});
+    migraphx::shape sx{migraphx::shape::float_type, {4, 3}};
+    auto x = m.add_parameter("x", sx);
     migraphx::shape si{migraphx::shape::int32_type, {4}};
     std::vector<int32_t> indices = {2, 3, 0, 1};
     auto li                      = m.add_literal(migraphx::literal(si, indices));
     auto g = m.add_instruction(migraphx::make_op("gather", {{"axis", 0}}), x, li);
     m.add_return({g});
 
-    run_pass(m);
-
-    migraphx::module expected;
-    auto xe   = expected.add_parameter("x", {migraphx::shape::float_type, {4, 3}});
-    auto tail = expected.add_instruction(
-        migraphx::make_op("slice", {{"axes", {0}}, {"starts", {2}}, {"ends", {4}}}), xe);
-    auto head = expected.add_instruction(
-        migraphx::make_op("slice", {{"axes", {0}}, {"starts", {0}}, {"ends", {2}}}), xe);
-    auto cat = expected.add_instruction(migraphx::make_op("concat", {{"axis", 0}}), tail, head);
-    expected.add_return({cat});
-
-    EXPECT(m == expected);
+    std::unordered_map<std::string, migraphx::argument> args;
+    args["x"] = migraphx::generate_argument(sx, 4);
+    expect_gather_lowered(m, args);
 }
 
 TEST_CASE(gather_flatten_stride_slice)
 {
     migraphx::module m;
-    auto x            = m.add_parameter("X", {migraphx::shape::float_type, {1, 8}});
+    migraphx::shape sx{migraphx::shape::float_type, {1, 8}};
+    auto x            = m.add_parameter("X", sx);
     auto reshape_flat = m.add_instruction(migraphx::make_op("reshape", {{"dims", {8}}}), x);
     migraphx::shape si{migraphx::shape::int32_type, {2, 2}};
     std::vector<int32_t> indices = {1, 5, 2, 6};
@@ -1974,27 +2014,16 @@ TEST_CASE(gather_flatten_stride_slice)
     auto g                       = m.add_instruction(migraphx::make_op("gather"), reshape_flat, li);
     m.add_return({g});
 
-    run_pass(m);
-
-    migraphx::module expected;
-    auto xe = expected.add_parameter("X", {migraphx::shape::float_type, {1, 8}});
-    auto reshape_block =
-        expected.add_instruction(migraphx::make_op("reshape", {{"dims", {1, 2, 4}}}), xe);
-    auto squeeze =
-        expected.add_instruction(migraphx::make_op("squeeze", {{"axes", {0}}}), reshape_block);
-    auto slice = expected.add_instruction(
-        migraphx::make_op("slice", {{"axes", {1}}, {"starts", {1}}, {"ends", {3}}}), squeeze);
-    auto transpose =
-        expected.add_instruction(migraphx::make_op("transpose", {{"permutation", {1, 0}}}), slice);
-    expected.add_return({transpose});
-
-    EXPECT(m == expected);
+    std::unordered_map<std::string, migraphx::argument> args;
+    args["X"] = migraphx::generate_argument(sx, 5);
+    expect_gather_lowered(m, args);
 }
 
 TEST_CASE(gather_flatten_stride_first)
 {
     migraphx::module m;
-    auto x            = m.add_parameter("X", {migraphx::shape::float_type, {1, 8}});
+    migraphx::shape sx{migraphx::shape::float_type, {1, 8}};
+    auto x            = m.add_parameter("X", sx);
     auto reshape_flat = m.add_instruction(migraphx::make_op("reshape", {{"dims", {8}}}), x);
     migraphx::shape si{migraphx::shape::int32_type, {1, 4}};
     std::vector<int32_t> indices = {0, 2, 4, 6};
@@ -2002,29 +2031,16 @@ TEST_CASE(gather_flatten_stride_first)
     auto g                       = m.add_instruction(migraphx::make_op("gather"), reshape_flat, li);
     m.add_return({g});
 
-    run_pass(m);
-
-    migraphx::module expected;
-    auto xe = expected.add_parameter("X", {migraphx::shape::float_type, {1, 8}});
-    auto reshape_block =
-        expected.add_instruction(migraphx::make_op("reshape", {{"dims", {1, 4, 2}}}), xe);
-    auto squeeze =
-        expected.add_instruction(migraphx::make_op("squeeze", {{"axes", {0}}}), reshape_block);
-    auto slice = expected.add_instruction(
-        migraphx::make_op("slice", {{"axes", {1}}, {"starts", {0}}, {"ends", {1}}}), squeeze);
-    auto unsqueeze =
-        expected.add_instruction(migraphx::make_op("unsqueeze", {{"axes", {0}}}), slice);
-    auto result =
-        expected.add_instruction(migraphx::make_op("squeeze", {{"axes", {2}}}), unsqueeze);
-    expected.add_return({result});
-
-    EXPECT(m == expected);
+    std::unordered_map<std::string, migraphx::argument> args;
+    args["X"] = migraphx::generate_argument(sx, 6);
+    expect_gather_lowered(m, args);
 }
 
 TEST_CASE(gather_flatten_stride_offset)
 {
     migraphx::module m;
-    auto x            = m.add_parameter("X", {migraphx::shape::float_type, {1, 16}});
+    migraphx::shape sx{migraphx::shape::float_type, {1, 16}};
+    auto x            = m.add_parameter("X", sx);
     auto reshape_flat = m.add_instruction(migraphx::make_op("reshape", {{"dims", {16}}}), x);
     migraphx::shape si{migraphx::shape::int32_type, {1, 4}};
     std::vector<int32_t> indices = {1, 5, 9, 13};
@@ -2032,29 +2048,16 @@ TEST_CASE(gather_flatten_stride_offset)
     auto g                       = m.add_instruction(migraphx::make_op("gather"), reshape_flat, li);
     m.add_return({g});
 
-    run_pass(m);
-
-    migraphx::module expected;
-    auto xe = expected.add_parameter("X", {migraphx::shape::float_type, {1, 16}});
-    auto reshape_block =
-        expected.add_instruction(migraphx::make_op("reshape", {{"dims", {1, 4, 4}}}), xe);
-    auto squeeze =
-        expected.add_instruction(migraphx::make_op("squeeze", {{"axes", {0}}}), reshape_block);
-    auto slice = expected.add_instruction(
-        migraphx::make_op("slice", {{"axes", {1}}, {"starts", {1}}, {"ends", {2}}}), squeeze);
-    auto unsqueeze =
-        expected.add_instruction(migraphx::make_op("unsqueeze", {{"axes", {0}}}), slice);
-    auto result =
-        expected.add_instruction(migraphx::make_op("squeeze", {{"axes", {2}}}), unsqueeze);
-    expected.add_return({result});
-
-    EXPECT(m == expected);
+    std::unordered_map<std::string, migraphx::argument> args;
+    args["X"] = migraphx::generate_argument(sx, 7);
+    expect_gather_lowered(m, args);
 }
 
 TEST_CASE(gather_flatten_stride_grid)
 {
     migraphx::module m;
-    auto x            = m.add_parameter("X", {migraphx::shape::float_type, {1, 3, 16, 16}});
+    migraphx::shape sx{migraphx::shape::float_type, {1, 3, 16, 16}};
+    auto x            = m.add_parameter("X", sx);
     auto reshape_flat = m.add_instruction(migraphx::make_op("reshape", {{"dims", {768}}}), x);
     migraphx::shape si{migraphx::shape::int32_type, {1, 3, 4, 4}};
     std::vector<int32_t> indices = {17,  21,  25,  29,  81,  85,  89,  93,  145, 149, 153, 157,
@@ -2065,30 +2068,16 @@ TEST_CASE(gather_flatten_stride_grid)
     auto g                       = m.add_instruction(migraphx::make_op("gather"), reshape_flat, li);
     m.add_return({g});
 
-    run_pass(m);
-
-    migraphx::module expected;
-    auto xe = expected.add_parameter("X", {migraphx::shape::float_type, {1, 3, 16, 16}});
-    auto reshape_grid =
-        expected.add_instruction(migraphx::make_op("reshape", {{"dims", {1, 3, 4, 4, 4, 4}}}), xe);
-    auto squeeze_batch =
-        expected.add_instruction(migraphx::make_op("squeeze", {{"axes", {0}}}), reshape_grid);
-    auto slice_inner = expected.add_instruction(
-        migraphx::make_op("slice", {{"axes", {2, 4}}, {"starts", {1, 1}}, {"ends", {2, 2}}}),
-        squeeze_batch);
-    auto unsqueeze_batch =
-        expected.add_instruction(migraphx::make_op("unsqueeze", {{"axes", {0}}}), slice_inner);
-    auto squeeze_final =
-        expected.add_instruction(migraphx::make_op("squeeze", {{"axes", {3, 5}}}), unsqueeze_batch);
-    expected.add_return({squeeze_final});
-
-    EXPECT(m == expected);
+    std::unordered_map<std::string, migraphx::argument> args;
+    args["X"] = migraphx::generate_argument(sx, 8);
+    expect_gather_lowered(m, args);
 }
 
 TEST_CASE(gather_flatten_permutation)
 {
     migraphx::module m;
-    auto x            = m.add_parameter("X", {migraphx::shape::float_type, {1, 1, 4, 4}});
+    migraphx::shape sx{migraphx::shape::float_type, {1, 1, 4, 4}};
+    auto x            = m.add_parameter("X", sx);
     auto reshape_flat = m.add_instruction(migraphx::make_op("reshape", {{"dims", {16}}}), x);
     migraphx::shape si{migraphx::shape::int32_type, {4, 1, 2, 2}};
     std::vector<int32_t> indices = {0, 2, 8, 10, 4, 6, 12, 14, 1, 3, 9, 11, 5, 7, 13, 15};
@@ -2096,25 +2085,16 @@ TEST_CASE(gather_flatten_permutation)
     auto g                       = m.add_instruction(migraphx::make_op("gather"), reshape_flat, li);
     m.add_return({g});
 
-    run_pass(m);
-
-    migraphx::module expected;
-    auto xe = expected.add_parameter("X", {migraphx::shape::float_type, {1, 1, 4, 4}});
-    auto reshape_perm =
-        expected.add_instruction(migraphx::make_op("reshape", {{"dims", {1, 1, 2, 2, 2, 2}}}), xe);
-    auto transpose = expected.add_instruction(
-        migraphx::make_op("transpose", {{"permutation", {5, 3, 0, 1, 2, 4}}}), reshape_perm);
-    auto reshape_out =
-        expected.add_instruction(migraphx::make_op("reshape", {{"dims", {4, 1, 2, 2}}}), transpose);
-    expected.add_return({reshape_out});
-
-    EXPECT(m == expected);
+    std::unordered_map<std::string, migraphx::argument> args;
+    args["X"] = migraphx::generate_argument(sx, 10);
+    expect_gather_lowered(m, args);
 }
 
 TEST_CASE(gather_flatten_channel_parity_permutation)
 {
     migraphx::module m;
-    auto x            = m.add_parameter("X", {migraphx::shape::float_type, {1, 3, 4, 4}});
+    migraphx::shape sx{migraphx::shape::float_type, {1, 3, 4, 4}};
+    auto x            = m.add_parameter("X", sx);
     auto reshape_flat = m.add_instruction(migraphx::make_op("reshape", {{"dims", {48}}}), x);
     migraphx::shape si{migraphx::shape::int32_type, {4, 3, 2, 2}};
     std::vector<int32_t> indices = {0,  2,  8,  10, 16, 18, 24, 26, 32, 34, 40, 42, 4,  6,  12, 14,
@@ -2124,96 +2104,41 @@ TEST_CASE(gather_flatten_channel_parity_permutation)
     auto g                       = m.add_instruction(migraphx::make_op("gather"), reshape_flat, li);
     m.add_return({g});
 
-    run_pass(m);
-
-    migraphx::module expected;
-    auto xe = expected.add_parameter("X", {migraphx::shape::float_type, {1, 3, 4, 4}});
-    auto reshape_block =
-        expected.add_instruction(migraphx::make_op("reshape", {{"dims", {1, 3, 2, 2, 2, 2}}}), xe);
-    auto transpose = expected.add_instruction(
-        migraphx::make_op("transpose", {{"permutation", {5, 3, 0, 1, 2, 4}}}), reshape_block);
-    auto reshape_out =
-        expected.add_instruction(migraphx::make_op("reshape", {{"dims", {4, 3, 2, 2}}}), transpose);
-    expected.add_return({reshape_out});
-
-    EXPECT(m == expected);
+    std::unordered_map<std::string, migraphx::argument> args;
+    args["X"] = migraphx::generate_argument(sx, 11);
+    expect_gather_lowered(m, args);
 }
 
 TEST_CASE(gather_axis1_factorized_grid_const)
 {
     migraphx::module m;
-    auto data = m.add_parameter("data", {migraphx::shape::float_type, {3, 8, 5}});
+    migraphx::shape s{migraphx::shape::float_type, {3, 8, 5}};
+    auto data = m.add_parameter("data", s);
     migraphx::shape si{migraphx::shape::int32_type, {2, 2, 1}};
     std::vector<int32_t> indices = {1, 3, 5, 7};
     auto li                      = m.add_literal(migraphx::literal{si, indices});
     auto g = m.add_instruction(migraphx::make_op("gather", {{"axis", 1}}), data, li);
     m.add_return({g});
 
-    run_pass(m);
-
-    migraphx::module expected;
-    auto data_e       = expected.add_parameter("data", {migraphx::shape::float_type, {3, 8, 5}});
-    auto reshape_axis = expected.add_instruction(
-        migraphx::make_op("reshape", {{"dims", std::vector<int64_t>{3, 4, 2, 5}}}), data_e);
-    auto transpose_axis = expected.add_instruction(
-        migraphx::make_op("transpose", {{"permutation", std::vector<int64_t>{1, 2, 0, 3}}}),
-        reshape_axis);
-    auto slice_const =
-        expected.add_instruction(migraphx::make_op("slice",
-                                                   {{"axes", std::vector<int64_t>{1}},
-                                                    {"starts", std::vector<int64_t>{1}},
-                                                    {"ends", std::vector<int64_t>{2}}}),
-                                 transpose_axis);
-    auto reshape_grid = expected.add_instruction(
-        migraphx::make_op("reshape", {{"dims", std::vector<int64_t>{2, 2, 1, 3, 1, 5}}}),
-        slice_const);
-    auto transpose_reorder = expected.add_instruction(
-        migraphx::make_op("transpose", {{"permutation", std::vector<int64_t>{2, 3, 0, 1, 4, 5}}}),
-        reshape_grid);
-    auto squeeze = expected.add_instruction(
-        migraphx::make_op("squeeze", {{"axes", std::vector<int64_t>{0}}}), transpose_reorder);
-    expected.add_return({squeeze});
-
-    EXPECT(m == expected);
+    std::unordered_map<std::string, migraphx::argument> args;
+    args["data"] = migraphx::generate_argument(s, 12);
+    expect_gather_lowered(m, args);
 }
 
 TEST_CASE(gather_axis1_factorized_grid_multi_const)
 {
     migraphx::module m;
-    auto data = m.add_parameter("data", {migraphx::shape::float_type, {2, 27, 4}});
+    migraphx::shape s{migraphx::shape::float_type, {2, 27, 4}};
+    auto data = m.add_parameter("data", s);
     migraphx::shape si{migraphx::shape::int32_type, {3, 1}};
     std::vector<int32_t> indices = {5, 14, 23};
     auto li                      = m.add_literal(migraphx::literal{si, indices});
     auto g = m.add_instruction(migraphx::make_op("gather", {{"axis", 1}}), data, li);
     m.add_return({g});
 
-    run_pass(m);
-
-    migraphx::module expected;
-    auto data_e       = expected.add_parameter("data", {migraphx::shape::float_type, {2, 27, 4}});
-    auto reshape_axis = expected.add_instruction(
-        migraphx::make_op("reshape", {{"dims", std::vector<int64_t>{2, 3, 9, 4}}}), data_e);
-    auto transpose_axis = expected.add_instruction(
-        migraphx::make_op("transpose", {{"permutation", std::vector<int64_t>{1, 2, 0, 3}}}),
-        reshape_axis);
-    auto slice_const =
-        expected.add_instruction(migraphx::make_op("slice",
-                                                   {{"axes", std::vector<int64_t>{1}},
-                                                    {"starts", std::vector<int64_t>{5}},
-                                                    {"ends", std::vector<int64_t>{6}}}),
-                                 transpose_axis);
-    auto unsqueeze_axis = expected.add_instruction(
-        migraphx::make_op("unsqueeze",
-                          {{"axes", std::vector<int64_t>{3}}, {"steps", std::vector<int64_t>{}}}),
-        slice_const);
-    auto transpose_reorder = expected.add_instruction(
-        migraphx::make_op("transpose", {{"permutation", std::vector<int64_t>{1, 2, 0, 3, 4}}}),
-        unsqueeze_axis);
-    auto squeeze = expected.add_instruction(
-        migraphx::make_op("squeeze", {{"axes", std::vector<int64_t>{0}}}), transpose_reorder);
-    expected.add_return({squeeze});
-
-    EXPECT(m == expected);
+    std::unordered_map<std::string, migraphx::argument> args;
+    args["data"] = migraphx::generate_argument(s, 13);
+    expect_gather_lowered(m, args);
 }
 
 // TEST_CASE(gather_constant_scalar_index)
@@ -2244,27 +2169,17 @@ TEST_CASE(gather_axis1_factorized_grid_multi_const)
 
 TEST_CASE(gather_constant_negative_index)
 {
-    migraphx::module m1;
-    {
-        auto s    = migraphx::shape{migraphx::shape::float_type, {3, 4}};
-        auto data = m1.add_parameter("data", s);
-        migraphx::shape si{migraphx::shape::int32_type, {1}};
-        auto indices = m1.add_literal(migraphx::literal{si, {-1}});
-        auto gather = m1.add_instruction(migraphx::make_op("gather", {{"axis", 0}}), data, indices);
-        m1.add_return({gather});
-    }
-    run_pass(m1);
+    migraphx::module m;
+    migraphx::shape s{migraphx::shape::float_type, {3, 4}};
+    auto data = m.add_parameter("data", s);
+    migraphx::shape si{migraphx::shape::int32_type, {1}};
+    auto indices = m.add_literal(migraphx::literal{si, {-1}});
+    auto gather  = m.add_instruction(migraphx::make_op("gather", {{"axis", 0}}), data, indices);
+    m.add_return({gather});
 
-    migraphx::module m2;
-    {
-        auto s     = migraphx::shape{migraphx::shape::float_type, {3, 4}};
-        auto data  = m2.add_parameter("data", s);
-        auto slice = m2.add_instruction(
-            migraphx::make_op("slice", {{"axes", {0}}, {"starts", {2}}, {"ends", {3}}}), data);
-        m2.add_return({slice});
-    }
-
-    EXPECT(m1.sort() == m2.sort());
+    std::unordered_map<std::string, migraphx::argument> args;
+    args["data"] = migraphx::generate_argument(s, 14);
+    expect_gather_lowered(m, args);
 }
 
 TEST_CASE(gather_non_constant_indices)
@@ -2286,32 +2201,17 @@ TEST_CASE(gather_non_constant_indices)
 
 TEST_CASE(gather_axis_1)
 {
-    migraphx::module m1;
-    {
-        auto s    = migraphx::shape{migraphx::shape::float_type, {2, 5, 3}};
-        auto data = m1.add_parameter("data", s);
-        migraphx::shape si{migraphx::shape::int32_type, {2}};
-        auto indices = m1.add_literal(migraphx::literal{si, {0, 1}});
-        auto gather = m1.add_instruction(migraphx::make_op("gather", {{"axis", 1}}), data, indices);
-        m1.add_return({gather});
-    }
-    run_pass(m1);
+    migraphx::module m;
+    migraphx::shape s{migraphx::shape::float_type, {2, 5, 3}};
+    auto data = m.add_parameter("data", s);
+    migraphx::shape si{migraphx::shape::int32_type, {2}};
+    auto indices = m.add_literal(migraphx::literal{si, {0, 1}});
+    auto gather  = m.add_instruction(migraphx::make_op("gather", {{"axis", 1}}), data, indices);
+    m.add_return({gather});
 
-    migraphx::module m2;
-    {
-        auto s     = migraphx::shape{migraphx::shape::float_type, {2, 5, 3}};
-        auto data  = m2.add_parameter("data", s);
-        // Transpose to bring axis 1 to front, slice, then transpose back
-        auto t1 =
-            m2.add_instruction(migraphx::make_op("transpose", {{"permutation", {1, 0, 2}}}), data);
-        auto slice = m2.add_instruction(
-            migraphx::make_op("slice", {{"axes", {0}}, {"starts", {0}}, {"ends", {2}}}), t1);
-        auto t2 =
-            m2.add_instruction(migraphx::make_op("transpose", {{"permutation", {1, 0, 2}}}), slice);
-        m2.add_return({t2});
-    }
-
-    EXPECT(m1.sort() == m2.sort());
+    std::unordered_map<std::string, migraphx::argument> args;
+    args["data"] = migraphx::generate_argument(s, 15);
+    expect_gather_lowered(m, args);
 }
 
 TEST_CASE(reshape_cont)

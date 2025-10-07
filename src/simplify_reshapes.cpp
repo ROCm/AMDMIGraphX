@@ -31,7 +31,10 @@
 #include <migraphx/op/transpose.hpp>
 #include <migraphx/op/concat.hpp>
 #include <migraphx/op/slice.hpp>
+#include <migraphx/op/squeeze.hpp>
+#include <migraphx/op/multibroadcast.hpp>
 #include <migraphx/op/gather.hpp>
+#include <migraphx/argument.hpp>
 #include <migraphx/iterator_for.hpp>
 #include <migraphx/ranges.hpp>
 #include <migraphx/matcher.hpp>
@@ -46,6 +49,9 @@
 #include <map>
 #include <limits>
 #include <numeric>
+#include <optional>
+#include <variant>
+#include <iostream>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
@@ -893,1497 +899,766 @@ struct find_gather
             match::args(match::any(), match::is_constant().bind("indices")));
     }
 
-    void apply(module& m, const match::matcher_result& r) const
+private:
+    using index_list = std::vector<std::size_t>;
+
+    static std::vector<int64_t> to_int64(const std::vector<std::size_t>& values)
     {
-        auto ins          = r.result;
-        auto indices_ins  = r.instructions["indices"];
-        auto data_ins     = ins->inputs().front();
-        auto gather_op    = any_cast<op::gather>(ins->get_operator());
+        std::vector<int64_t> result;
+        result.reserve(values.size());
+        std::transform(values.begin(),
+                       values.end(),
+                       std::back_inserter(result),
+                       [](std::size_t v) { return static_cast<int64_t>(v); });
+        return result;
+    }
+
+    template <class Container>
+    static std::vector<int64_t> to_int64_container(const Container& values)
+    {
+        std::vector<int64_t> result;
+        result.reserve(values.size());
+        std::transform(values.begin(),
+                       values.end(),
+                       std::back_inserter(result),
+                       [](auto v) { return static_cast<int64_t>(v); });
+        return result;
+    }
+
+    template <class Iter>
+    static std::size_t product(Iter first, Iter last)
+    {
+        return std::accumulate(first, last, std::size_t{1}, std::multiplies<>{});
+    }
+
+    static std::size_t product(const std::vector<std::size_t>& lens)
+    {
+        return product(lens.begin(), lens.end());
+    }
+
+    static bool is_constant_range(std::vector<std::size_t>::const_iterator first,
+                                  std::vector<std::size_t>::const_iterator last)
+    {
+        if(first == last)
+            return false;
+        return std::adjacent_find(first, last, std::not_equal_to<>{}) == last;
+    }
+
+    static bool is_contiguous_range(std::vector<std::size_t>::const_iterator first,
+                                    std::vector<std::size_t>::const_iterator last)
+    {
+        if(std::distance(first, last) <= 1)
+            return false;
+        const auto start = *first;
+        std::size_t expected = 0;
+        return std::all_of(first, last, [&](std::size_t value) mutable {
+            const auto want = start + expected;
+            ++expected;
+            return value == want;
+        });
+    }
+
+    static std::optional<std::size_t>
+    arithmetic_stride(std::vector<std::size_t>::const_iterator first,
+                      std::vector<std::size_t>::const_iterator last)
+    {
+        const auto size = std::distance(first, last);
+        if(size <= 1)
+            return std::nullopt;
+        auto base   = static_cast<std::int64_t>(*first);
+        auto second = static_cast<std::int64_t>(*std::next(first));
+        auto stride = second - base;
+        if(stride <= 1)
+            return std::nullopt;
+        std::int64_t value = second;
+        for(auto it = std::next(first, 2); it != last; ++it)
+        {
+            value += stride;
+            if(static_cast<std::int64_t>(*it) != value)
+                return std::nullopt;
+        }
+        return static_cast<std::size_t>(stride);
+    }
+
+    struct normalized_gather
+    {
+        module* pm                         = nullptr;
+        instruction_ref anchor             = instruction_ref{};
+        instruction_ref data_aligned       = instruction_ref{};
+        instruction_ref data_axis_view     = instruction_ref{};
+        std::vector<std::size_t> pre_lens  = {};
+        std::vector<std::size_t> post_lens = {};
+        std::vector<std::size_t> rest_lens = {};
+        std::vector<std::size_t> indices_lens{};
+        std::vector<std::size_t> indices_flat{};
+        std::vector<std::size_t> idims{};
+        std::vector<std::int64_t> indices_values{};
+        std::size_t axis_len     = 0;
+        std::size_t rest_product = 1;
+        std::size_t axis_index   = 0;
+        instruction_ref data_ins{};
+
+        module& mod() const { return *pm; }
+
+        std::vector<std::size_t> reshape_dims() const
+        {
+            auto dims = indices_lens;
+            dims.insert(dims.end(), rest_lens.begin(), rest_lens.end());
+            return dims;
+        }
+
+        std::vector<int64_t> final_permutation() const
+        {
+            const auto pre  = pre_lens.size();
+            const auto post = post_lens.size();
+            if(pre == 0)
+                return {};
+            const auto indices = indices_lens.size();
+            std::vector<int64_t> perm(indices + pre + post);
+            std::size_t pos = 0;
+            for(std::size_t i = 0; i < pre; ++i)
+                perm[pos++] = static_cast<int64_t>(indices + i);
+            for(std::size_t i = 0; i < indices; ++i)
+                perm[pos++] = static_cast<int64_t>(i);
+            for(std::size_t i = 0; i < post; ++i)
+                perm[pos++] = static_cast<int64_t>(indices + pre + i);
+            bool identity = true;
+            for(std::size_t i = 0; i < perm.size(); ++i)
+            {
+                if(perm[i] != static_cast<int64_t>(i))
+                {
+                    identity = false;
+                    break;
+                }
+            }
+            if(identity)
+                return {};
+            return perm;
+        }
+    };
+
+    static std::optional<normalized_gather> normalize(module& m,
+                                                      instruction_ref gather_ins,
+                                                      instruction_ref data_ins,
+                                                      instruction_ref indices_ins)
+    {
+        normalized_gather ctx;
+        ctx.pm          = &m;
+        ctx.anchor      = gather_ins;
+        ctx.data_ins    = data_ins;
+        ctx.indices_lens = indices_ins->get_shape().lens();
+        ctx.idims        = ctx.indices_lens;
+
+        auto gather_op = any_cast<op::gather>(gather_ins->get_operator());
         const auto& dlens = data_ins->get_shape().lens();
         if(dlens.empty())
-            return;
+            return std::nullopt;
 
-        const auto axis_index = static_cast<std::size_t>(
+        ctx.axis_index = static_cast<std::size_t>(
             tune_axis(static_cast<int>(dlens.size()), gather_op.axis, gather_op.name()));
-        const auto axis_len = dlens.at(axis_index);
-        if(axis_len == 0)
-            return;
+        ctx.axis_len = dlens.at(ctx.axis_index);
+        if(ctx.axis_len == 0)
+            return std::nullopt;
 
-        auto arg_ind = indices_ins->eval();
-        if(arg_ind.empty())
-            return;
-
-        std::vector<std::int64_t> indices_values;
-        arg_ind.visit([&](auto v) {
-            indices_values.resize(v.size());
-            std::transform(v.begin(), v.end(), indices_values.begin(), [](auto x) {
-                return static_cast<std::int64_t>(x);
-            });
+        auto literal = indices_ins->eval();
+        if(literal.empty())
+            return std::nullopt;
+        ctx.indices_values.resize(literal.get_shape().elements());
+        literal.visit([&](auto values) {
+            std::transform(values.begin(),
+                           values.end(),
+                           ctx.indices_values.begin(),
+                           [](auto v) { return static_cast<std::int64_t>(v); });
         });
-        if(indices_values.empty())
-            return;
+        if(ctx.indices_values.empty())
+            return std::nullopt;
 
-        const auto& indices_shape = indices_ins->get_shape();
-        if(indices_shape.elements() != indices_values.size())
-            return;
+        if(indices_ins->get_shape().elements() != ctx.indices_values.size())
+            return std::nullopt;
 
-        for(auto& idx : indices_values)
+        ctx.indices_flat.reserve(ctx.indices_values.size());
+        const auto axis_len_i = static_cast<std::int64_t>(ctx.axis_len);
+        for(auto value : ctx.indices_values)
         {
-            if(idx < 0)
-                idx += static_cast<std::int64_t>(axis_len);
-            if(idx < 0 or idx >= static_cast<std::int64_t>(axis_len))
-                return;
+            auto adjusted = value;
+            if(adjusted < 0)
+                adjusted += axis_len_i;
+            if(adjusted < 0 or adjusted >= axis_len_i)
+                return std::nullopt;
+            ctx.indices_flat.push_back(static_cast<std::size_t>(adjusted));
         }
 
-        const auto idims          = indices_shape.lens();
-        const std::size_t in_dims = idims.size();
-        const std::size_t total   = indices_values.size();
-        std::int64_t base         = indices_values.front();
+        const auto& dl = dlens;
+        ctx.pre_lens  = std::vector<std::size_t>(dl.begin(), dl.begin() + ctx.axis_index);
+        ctx.post_lens = std::vector<std::size_t>(dl.begin() + ctx.axis_index + 1, dl.end());
+        ctx.rest_lens = ctx.pre_lens;
+        ctx.rest_lens.insert(ctx.rest_lens.end(), ctx.post_lens.begin(), ctx.post_lens.end());
+        ctx.rest_product = ctx.rest_lens.empty() ? 1 : product(ctx.rest_lens);
+        if(ctx.rest_product == 0)
+            return std::nullopt;
 
-        const std::vector<std::size_t> pre_lens(dlens.begin(), dlens.begin() + axis_index);
-        const std::vector<std::size_t> post_lens(dlens.begin() + axis_index + 1, dlens.end());
-        std::vector<std::size_t> rest_lens = pre_lens;
-        rest_lens.insert(rest_lens.end(), post_lens.begin(), post_lens.end());
-
-        std::vector<std::size_t> index_positions;
-        std::vector<std::size_t> index_dims;
-        index_positions.reserve(idims.size());
-        index_dims.reserve(idims.size());
-        for(std::size_t i = 0; i < idims.size(); ++i)
+        instruction_ref aligned = data_ins;
+        if(ctx.axis_index != 0)
         {
-            if(idims[i] > 1)
+            std::vector<int64_t> perm;
+            perm.reserve(dlens.size());
+            perm.push_back(static_cast<int64_t>(ctx.axis_index));
+            for(std::size_t i = 0; i < dlens.size(); ++i)
             {
-                index_positions.push_back(i);
-                index_dims.push_back(idims[i]);
+                if(i == ctx.axis_index)
+                    continue;
+                perm.push_back(static_cast<int64_t>(i));
             }
+            aligned = m.insert_instruction(gather_ins,
+                                           make_op("transpose", {{"permutation", perm}}),
+                                           aligned);
         }
+        ctx.data_aligned = aligned;
+        const std::vector<int64_t> reshape_axis{static_cast<int64_t>(ctx.axis_len),
+                                                static_cast<int64_t>(ctx.rest_product)};
+        ctx.data_axis_view = m.insert_instruction(
+            gather_ins, make_op("reshape", {{"dims", reshape_axis}}), aligned);
 
-        auto to_int64 = [](const std::vector<std::size_t>& lens) {
-            std::vector<int64_t> result;
-            result.reserve(lens.size());
-            std::transform(lens.begin(), lens.end(), std::back_inserter(result), [](auto len) {
-                return static_cast<int64_t>(len);
-            });
-            return result;
-        };
+        return ctx;
+    }
 
-        auto product = [](const std::vector<std::size_t>& lens) {
-            return std::accumulate(
-                lens.begin(), lens.end(), std::size_t{1}, [](auto acc, auto v) { return acc * v; });
-        };
+    struct tile_partition
+    {
+        std::size_t tile_size            = 1;
+        std::vector<std::size_t> tile_shape;
+        std::vector<std::size_t> outer_shape;
+    };
 
-        auto factorize = [](std::size_t value) {
-            std::vector<std::size_t> factors;
-            auto n = value;
-            for(std::size_t p = 2; p * p <= n; ++p)
-            {
-                while(n % p == 0)
-                {
-                    factors.push_back(p);
-                    n /= p;
-                }
-            }
-            if(n > 1)
-                factors.push_back(n);
-            return factors;
-        };
-
-        constexpr std::size_t max_factorizations = 256;
-
-        auto enumerate_factorizations = [&](std::size_t value, std::size_t max_results) {
-            std::vector<std::vector<std::size_t>> results;
-            if(value <= 1)
-            {
-                results.push_back({value});
-                return results;
-            }
-
-            std::vector<std::size_t> current;
-            const auto dfs =
-                [&](auto&& self, std::size_t remaining, std::size_t min_factor) -> void {
-                for(std::size_t f = min_factor; f * f <= remaining; ++f)
-                {
-                    if(remaining % f != 0)
-                        continue;
-                    if(results.size() >= max_results)
-                        return;
-                    current.push_back(f);
-                    self(self, remaining / f, f);
-                    current.pop_back();
-                    if(results.size() >= max_results)
-                        return;
-                }
-                if(not current.empty() and results.size() < max_results)
-                {
-                    current.push_back(remaining);
-                    results.push_back(current);
-                    current.pop_back();
-                }
-            };
-
-            dfs(dfs, value, 2);
-            if(results.size() < max_results)
-                results.push_back({value});
-            return results;
-        };
-
-        std::vector<std::vector<std::size_t>> factor_candidates;
-        auto add_candidate = [&](std::vector<std::size_t> factors) {
-            if(factors.empty())
-                return;
-            if(product(factors) != axis_len)
-                return;
-
-            factors.erase(std::remove(factors.begin(), factors.end(), std::size_t{1}),
-                          factors.end());
-            if(factors.empty())
-                factors.push_back(1);
-
-            if(factors.size() > 8)
-                return;
-            if(factor_candidates.size() >= max_factorizations)
-                return;
-            if(std::find(factor_candidates.begin(), factor_candidates.end(), factors) ==
-               factor_candidates.end())
-            {
-                factor_candidates.push_back(std::move(factors));
-            }
-        };
-
-        for(auto factors : enumerate_factorizations(axis_len, max_factorizations))
+    static std::vector<tile_partition>
+    make_partitions(const std::vector<std::size_t>& indices_lens)
+    {
+        if(indices_lens.empty())
+            return {};
+        const auto rank = indices_lens.size();
+        const auto maxk = std::min<std::size_t>(rank, 3);
+        std::vector<tile_partition> partitions;
+        partitions.reserve(maxk);
+        for(std::size_t k = maxk; k >= 1; --k)
         {
-            if(factor_candidates.size() >= max_factorizations)
+            const auto start = rank - k;
+            tile_partition part;
+            part.tile_shape = std::vector<std::size_t>(indices_lens.begin() + start, indices_lens.end());
+            part.outer_shape = std::vector<std::size_t>(indices_lens.begin(), indices_lens.begin() + start);
+            part.tile_size   = product(part.tile_shape.begin(), part.tile_shape.end());
+            partitions.push_back(std::move(part));
+            if(k == 1)
                 break;
-            add_candidate(std::move(factors));
         }
+        return partitions;
+    }
 
-        if(dlens.size() == 1 and axis_index == 0)
+    struct tile_view
+    {
+        const index_list* values = nullptr;
+        std::size_t offset       = 0;
+        std::size_t size         = 0;
+
+        auto begin() const { return values->begin() + static_cast<std::ptrdiff_t>(offset); }
+        auto end() const { return begin() + static_cast<std::ptrdiff_t>(size); }
+        std::size_t front() const { return *(begin()); }
+    };
+
+    struct constant_pattern
+    {
+        std::size_t value = 0;
+    };
+
+    struct contiguous_pattern
+    {
+        std::size_t start = 0;
+    };
+
+    struct arithmetic_pattern
+    {
+        std::size_t start  = 0;
+        std::size_t stride = 0;
+        std::size_t lane   = 0;
+        std::size_t base   = 0;
+    };
+
+    struct rtr_pattern
+    {
+        std::vector<std::size_t> factors;
+        std::vector<std::size_t> permutation;
+        std::size_t window_start = 0;
+    };
+
+    enum class tile_kind
+    {
+        constant,
+        contiguous,
+        arithmetic,
+        rtr
+    };
+
+    struct tile_plan
+    {
+        tile_view view{};
+        tile_kind kind = tile_kind::constant;
+        std::variant<constant_pattern, contiguous_pattern, arithmetic_pattern, rtr_pattern> pattern =
+            constant_pattern{};
+    };
+
+    static std::optional<std::vector<std::size_t>>
+    factorize(std::size_t value, std::size_t max_factors = 8)
+    {
+        if(value <= 1)
+            return std::nullopt;
+        std::vector<std::size_t> factors;
+        std::size_t remaining = value;
+        for(std::size_t p = 2; p * p <= remaining; ++p)
         {
-            instruction_ref curr_data = data_ins;
-            while(curr_data->name() == "reshape" and curr_data->inputs().size() == 1)
+            while(remaining % p == 0)
             {
-                auto input          = curr_data->inputs().front();
-                const auto& in_lens = input->get_shape().lens();
-                if(product(in_lens) == axis_len)
-                {
-                    std::vector<std::size_t> shape_factors;
-                    for(auto len : in_lens)
-                    {
-                        if(len == 1)
-                            continue;
-                        auto dim_factors = factorize(len);
-                        if(dim_factors.empty())
-                            dim_factors.push_back(len);
-                        shape_factors.insert(
-                            shape_factors.end(), dim_factors.begin(), dim_factors.end());
-                    }
-                    if(not shape_factors.empty())
-                    {
-                        if(factor_candidates.size() >= max_factorizations)
-                            break;
-                        add_candidate(std::move(shape_factors));
-                    }
+                factors.push_back(p);
+                remaining /= p;
+                if(factors.size() > max_factors)
+                    return std::nullopt;
+            }
+        }
+        if(remaining > 1)
+            factors.push_back(remaining);
+        if(factors.size() > max_factors)
+            return std::nullopt;
+        return factors;
+    }
+
+    static std::vector<std::vector<std::size_t>>
+    enumerate_factorizations(std::size_t value, std::size_t max_results = 256)
+    {
+        std::vector<std::vector<std::size_t>> results;
+        if(value <= 1)
+        {
+            results.push_back({value});
+            return results;
+        }
+
+        std::vector<std::size_t> current;
+        const auto dfs = [&](auto&& self, std::size_t remaining, std::size_t min_factor) -> void {
+            for(std::size_t f = min_factor; f * f <= remaining; ++f)
+            {
+                if(remaining % f != 0)
+                    continue;
+                current.push_back(f);
+                self(self, remaining / f, f);
+                current.pop_back();
+                if(results.size() >= max_results)
+                    return;
+            }
+            if(results.size() >= max_results)
+                return;
+            current.push_back(remaining);
+            results.push_back(current);
+            current.pop_back();
+        };
+
+        dfs(dfs, value, 2);
+        return results;
+    }
+
+    static std::vector<std::size_t>
+    combine_factors(const std::vector<std::size_t>& primes, std::size_t max_parts = 6)
+    {
+        if(primes.empty())
+            return {};
+        std::vector<std::size_t> parts{primes.front()};
+        for(std::size_t i = 1; i < primes.size(); ++i)
+        {
+            if(parts.size() < max_parts)
+                parts.push_back(primes[i]);
+            else
+                parts.back() *= primes[i];
+        }
+        return parts;
+    }
+
+    static std::vector<std::size_t> make_axes(std::size_t n)
+    {
+        std::vector<std::size_t> axes(n);
+        std::iota(axes.begin(), axes.end(), std::size_t{0});
+        return axes;
+    }
+
+    static std::vector<std::size_t> compute_permutation_order(const std::vector<std::size_t>& dims,
+                                                              const std::vector<std::size_t>& permutation)
+    {
+        std::vector<std::size_t> reordered;
+        reordered.reserve(dims.size());
+        for(auto axis : permutation)
+            reordered.push_back(dims.at(axis));
+
+        std::vector<std::size_t> coord(permutation.size(), 0);
+        const auto total = product(dims);
+        std::vector<std::size_t> order;
+        order.reserve(total);
+        for(std::size_t i = 0; i < total; ++i)
+        {
+            std::vector<std::size_t> orig(permutation.size(), 0);
+            for(std::size_t j = 0; j < permutation.size(); ++j)
+                orig[permutation[j]] = coord[j];
+
+            std::size_t idx = 0;
+            for(std::size_t j = 0; j < dims.size(); ++j)
+                idx = idx * dims[j] + orig[j];
+            order.push_back(idx);
+
+            std::size_t pos = coord.size();
+            while(pos > 0)
+            {
+                --pos;
+                coord[pos]++;
+                if(coord[pos] < reordered[pos])
                     break;
-                }
-                curr_data = input;
+                coord[pos] = 0;
+            }
+        }
+        return order;
+    }
+
+    static std::optional<rtr_pattern> detect_rtr(const tile_view& view, std::size_t axis_len)
+    {
+        if(axis_len <= 1)
+            return std::nullopt;
+        if(view.size == 0)
+            return std::nullopt;
+
+        const auto primes = factorize(axis_len);
+        if(not primes)
+            return std::nullopt;
+
+        std::vector<std::vector<std::size_t>> candidate_dims;
+        const auto factorizations = enumerate_factorizations(axis_len);
+        candidate_dims.reserve(factorizations.size());
+        std::transform(factorizations.begin(),
+                       factorizations.end(),
+                       std::back_inserter(candidate_dims),
+                       [](const auto& factors) {
+                           return combine_factors(factors);
+                       });
+
+        for(auto& dims : candidate_dims)
+        {
+            if(dims.empty() or dims.size() > 6)
+                continue;
+            auto axes = make_axes(dims.size());
+            do
+            {
+                const auto order = compute_permutation_order(dims, axes);
+                if(order.size() < view.size)
+                    continue;
+                auto begin = std::search(order.begin(), order.end(), view.begin(), view.end());
+                if(begin == order.end())
+                    continue;
+                const auto offset = static_cast<std::size_t>(std::distance(order.begin(), begin));
+                rtr_pattern pattern;
+                pattern.factors      = dims;
+                pattern.permutation  = axes;
+                pattern.window_start = offset;
+                return pattern;
+            } while(std::next_permutation(axes.begin(), axes.end()));
+        }
+        return std::nullopt;
+    }
+
+    static std::optional<tile_plan> analyze_tile(const tile_view& view,
+                                                 std::size_t axis_len)
+    {
+        if(view.size == 0)
+            return std::nullopt;
+
+        auto first = view.begin();
+        auto last  = view.end();
+
+        if(is_constant_range(first, last))
+        {
+            tile_plan plan;
+            plan.view    = view;
+            plan.kind    = tile_kind::constant;
+            plan.pattern = constant_pattern{view.front()};
+            return plan;
+        }
+
+        if(is_contiguous_range(first, last))
+        {
+            tile_plan plan;
+            plan.view    = view;
+            plan.kind    = tile_kind::contiguous;
+            plan.pattern = contiguous_pattern{view.front()};
+            return plan;
+        }
+
+        if(auto stride = arithmetic_stride(first, last))
+        {
+            if(axis_len % *stride == 0)
+            {
+                const auto start = view.front();
+                arithmetic_pattern pattern;
+                pattern.start  = start;
+                pattern.stride = *stride;
+                pattern.lane   = start % pattern.stride;
+                pattern.base   = start / pattern.stride;
+                tile_plan plan;
+                plan.view    = view;
+                plan.kind    = tile_kind::arithmetic;
+                plan.pattern = pattern;
+                return plan;
             }
         }
 
-        auto try_permutation_rewrite = [&]() -> bool {
-            if(total != axis_len or axis_len <= 1)
-                return false;
+        if(auto pattern = detect_rtr(view, axis_len))
+        {
+            tile_plan plan;
+            plan.view    = view;
+            plan.kind    = tile_kind::rtr;
+            plan.pattern = *pattern;
+            return plan;
+        }
 
-            std::vector<std::size_t> sorted_indices;
-            sorted_indices.reserve(indices_values.size());
-            for(auto v : indices_values)
+        return std::nullopt;
+    }
+
+    static std::optional<std::vector<tile_plan>>
+    choose_tiles(const normalized_gather& ctx, const tile_partition& partition)
+    {
+        if(partition.tile_size == 0)
+            return std::nullopt;
+        if(ctx.indices_flat.size() % partition.tile_size != 0)
+            return std::nullopt;
+
+        std::vector<tile_plan> plans;
+        plans.reserve(ctx.indices_flat.size() / partition.tile_size);
+        for(std::size_t offset = 0; offset < ctx.indices_flat.size(); offset += partition.tile_size)
+        {
+            tile_view view{&ctx.indices_flat, offset, partition.tile_size};
+            auto plan = analyze_tile(view, ctx.axis_len);
+            if(not plan)
+                return std::nullopt;
+            plans.push_back(*plan);
+        }
+        return plans;
+    }
+
+    static std::optional<std::pair<tile_partition, std::vector<tile_plan>>>
+    build_plan(const normalized_gather& ctx)
+    {
+        const auto partitions = make_partitions(ctx.indices_lens);
+        for(const auto& partition : partitions)
+        {
+            auto plans = choose_tiles(ctx, partition);
+            if(plans)
+                return std::make_pair(partition, *plans);
+        }
+        std::cerr << "gather: no tiling plan for indices lens";
+        for(auto len : ctx.indices_lens)
+            std::cerr << " " << len;
+        std::cerr << "\n";
+        return std::nullopt;
+    }
+
+    struct tile_rewriter
+    {
+        normalized_gather& ctx;
+        tile_partition partition;
+        std::map<std::size_t, instruction_ref> stride_cache{};
+        std::map<std::pair<std::size_t, std::size_t>, instruction_ref> lane_cache{};
+
+        instruction_ref materialize(const std::vector<tile_plan>& plans)
+        {
+            if(plans.empty())
+                return instruction_ref{};
+            std::vector<instruction_ref> parts;
+            parts.reserve(plans.size());
+            std::transform(plans.begin(),
+                           plans.end(),
+                           std::back_inserter(parts),
+                           [&](const tile_plan& plan) { return rewrite_tile(plan); });
+            if(parts.empty())
+                return instruction_ref{};
+            if(parts.size() == 1)
+                return parts.front();
+            return ctx.mod().insert_instruction(
+                ctx.anchor, make_op("concat", {{"axis", int64_t{0}}}), parts);
+        }
+
+        instruction_ref rewrite_tile(const tile_plan& plan)
+        {
+            switch(plan.kind)
             {
-                if(v < 0)
-                    return false;
-                sorted_indices.push_back(static_cast<std::size_t>(v));
+            case tile_kind::constant:
+                return rewrite_constant(std::get<constant_pattern>(plan.pattern), plan.view.size);
+            case tile_kind::contiguous:
+                return rewrite_contiguous(std::get<contiguous_pattern>(plan.pattern), plan.view.size);
+            case tile_kind::arithmetic:
+                return rewrite_arithmetic(std::get<arithmetic_pattern>(plan.pattern), plan.view);
+            case tile_kind::rtr:
+                return rewrite_rtr(std::get<rtr_pattern>(plan.pattern), plan.view);
             }
-            std::sort(sorted_indices.begin(), sorted_indices.end());
-            for(std::size_t i = 0; i < sorted_indices.size(); ++i)
-            {
-                if(sorted_indices[i] != i)
-                    return false;
-            }
+            return instruction_ref{};
+        }
 
-            bool is_identity = true;
-            for(std::size_t i = 0; i < total; ++i)
-            {
-                if(static_cast<std::size_t>(indices_values[i]) != i)
-                {
-                    is_identity = false;
-                    break;
-                }
-            }
-            if(is_identity)
-                return false;
+        instruction_ref rewrite_constant(const constant_pattern& pattern, std::size_t tile_size)
+        {
+            const auto axes   = std::vector<int64_t>{0};
+            const auto starts = std::vector<int64_t>{static_cast<int64_t>(pattern.value)};
+            const auto ends   = std::vector<int64_t>{static_cast<int64_t>(pattern.value + 1)};
+            auto slice = ctx.mod().insert_instruction(
+                ctx.anchor,
+                make_op("slice", {{"axes", axes}, {"starts", starts}, {"ends", ends}}),
+                ctx.data_axis_view);
+            if(tile_size == 1)
+                return slice;
+            const std::vector<int64_t> out_lens{static_cast<int64_t>(tile_size),
+                                                static_cast<int64_t>(ctx.rest_product)};
+            return ctx.mod().insert_instruction(
+                ctx.anchor, make_op("multibroadcast", {{"out_lens", out_lens}}), slice);
+        }
 
-            if(axis_index == 0 and total == axis_len and axis_len % 2 == 0)
-            {
-                const std::size_t half = axis_len / 2;
-                bool half_shift        = true;
-                for(std::size_t i = 0; i < indices_values.size(); ++i)
-                {
-                    auto expected = (i + half) % axis_len;
-                    if(static_cast<std::size_t>(indices_values[i]) != expected)
-                    {
-                        half_shift = false;
-                        break;
-                    }
-                }
-                if(half_shift)
-                    return false;
-            }
+        instruction_ref rewrite_contiguous(const contiguous_pattern& pattern, std::size_t size)
+        {
+            const auto axes   = std::vector<int64_t>{0};
+            const auto starts = std::vector<int64_t>{static_cast<int64_t>(pattern.start)};
+            const auto ends   = std::vector<int64_t>{static_cast<int64_t>(pattern.start + size)};
+            return ctx.mod().insert_instruction(
+                ctx.anchor,
+                make_op("slice", {{"axes", axes}, {"starts", starts}, {"ends", ends}}),
+                ctx.data_axis_view);
+        }
 
-            if(factor_candidates.empty())
-                return false;
+        instruction_ref ensure_stride_view(std::size_t stride)
+        {
+            auto it = stride_cache.find(stride);
+            if(it != stride_cache.end())
+                return it->second;
+            std::vector<int64_t> dims{static_cast<int64_t>(ctx.axis_len / stride),
+                                      static_cast<int64_t>(stride),
+                                      static_cast<int64_t>(ctx.rest_product)};
+            auto view = ctx.mod().insert_instruction(
+                ctx.anchor, make_op("reshape", {{"dims", dims}}), ctx.data_axis_view);
+            stride_cache.emplace(stride, view);
+            return view;
+        }
 
-            std::vector<std::size_t> chosen_factors;
-            std::vector<std::size_t> matched_perm;
+        instruction_ref ensure_lane_view(std::size_t stride, std::size_t lane)
+        {
+            const auto key = std::make_pair(stride, lane);
+            auto it        = lane_cache.find(key);
+            if(it != lane_cache.end())
+                return it->second;
+            auto stride_view = ensure_stride_view(stride);
+            const std::vector<int64_t> axes{1};
+            const std::vector<int64_t> starts{static_cast<int64_t>(lane)};
+            const std::vector<int64_t> ends{static_cast<int64_t>(lane + 1)};
+            auto slice = ctx.mod().insert_instruction(
+                ctx.anchor,
+                make_op("slice", {{"axes", axes}, {"starts", starts}, {"ends", ends}}),
+                stride_view);
+            const std::vector<int64_t> squeeze_axes{1};
+            auto squeezed = ctx.mod().insert_instruction(
+                ctx.anchor, make_op("squeeze", {{"axes", squeeze_axes}}), slice);
+            lane_cache.emplace(key, squeezed);
+            return squeezed;
+        }
 
-            auto compute_order = [&](const std::vector<std::size_t>& factor_dims,
-                                     const std::vector<std::size_t>& permutation) {
-                std::vector<std::size_t> dims_perm;
-                dims_perm.reserve(permutation.size());
-                for(auto axis : permutation)
-                    dims_perm.push_back(factor_dims.at(axis));
+        instruction_ref rewrite_arithmetic(const arithmetic_pattern& pattern, const tile_view& view)
+        {
+            auto lane_view = ensure_lane_view(pattern.stride, pattern.lane);
+            const auto axes   = std::vector<int64_t>{0};
+            const auto starts = std::vector<int64_t>{static_cast<int64_t>(pattern.base)};
+            const auto ends =
+                std::vector<int64_t>{static_cast<int64_t>(pattern.base + view.size)};
+            return ctx.mod().insert_instruction(
+                ctx.anchor,
+                make_op("slice", {{"axes", axes}, {"starts", starts}, {"ends", ends}}),
+                lane_view);
+        }
 
-                std::vector<std::size_t> coord(permutation.size(), 0);
-                std::vector<std::size_t> order;
-                order.reserve(axis_len);
-
-                for(std::size_t count = 0; count < axis_len; ++count)
-                {
-                    std::vector<std::size_t> orig_coord(factor_dims.size(), 0);
-                    for(std::size_t i = 0; i < permutation.size(); ++i)
-                        orig_coord[permutation[i]] = coord[i];
-
-                    std::size_t idx = 0;
-                    for(std::size_t i = 0; i < factor_dims.size(); ++i)
-                        idx = idx * factor_dims[i] + orig_coord[i];
-                    order.push_back(idx);
-
-                    std::size_t pos = coord.size();
-                    while(pos > 0)
-                    {
-                        --pos;
-                        coord[pos]++;
-                        if(coord[pos] < dims_perm[pos])
-                            break;
-                        coord[pos] = 0;
-                    }
-                }
-                return order;
-            };
-
-            for(auto factors : factor_candidates)
-            {
-                if(factors.empty() or factors.size() > 8)
-                    continue;
-
-                std::vector<std::size_t> perm(factors.size());
-                std::iota(perm.begin(), perm.end(), 0);
-
-                do
-                {
-                    auto order = compute_order(factors, perm);
-                    bool match = true;
-                    for(std::size_t i = 0; i < order.size(); ++i)
-                    {
-                        if(order[i] != static_cast<std::size_t>(indices_values[i]))
-                        {
-                            match = false;
-                            break;
-                        }
-                    }
-                    if(match)
-                    {
-                        matched_perm   = perm;
-                        chosen_factors = std::move(factors);
-                        break;
-                    }
-                } while(std::next_permutation(perm.begin(), perm.end()) and matched_perm.empty());
-
-                if(not matched_perm.empty())
-                    break;
-            }
-
-            if(matched_perm.empty())
-                return false;
-
-            instruction_ref curr = data_ins;
-
-            if(axis_index != 0)
-            {
-                std::vector<int64_t> perm_axis_front;
-                perm_axis_front.reserve(dlens.size());
-                perm_axis_front.push_back(static_cast<int64_t>(axis_index));
-                for(std::size_t i = 0; i < dlens.size(); ++i)
-                {
-                    if(i == axis_index)
-                        continue;
-                    perm_axis_front.push_back(static_cast<int64_t>(i));
-                }
-                curr = m.insert_instruction(
-                    ins, make_op("transpose", {{"permutation", perm_axis_front}}), curr);
-            }
-
-            std::vector<int64_t> rest_dims = to_int64(rest_lens);
-            std::vector<int64_t> reshape1_dims;
-            reshape1_dims.reserve(chosen_factors.size() + rest_dims.size());
-            for(auto f : chosen_factors)
-                reshape1_dims.push_back(static_cast<int64_t>(f));
-            reshape1_dims.insert(reshape1_dims.end(), rest_dims.begin(), rest_dims.end());
-            curr = m.insert_instruction(ins, make_op("reshape", {{"dims", reshape1_dims}}), curr);
-
-            if(chosen_factors.size() > 1)
-            {
-                std::vector<int64_t> perm_extended(chosen_factors.size() + rest_dims.size());
-                for(std::size_t i = 0; i < matched_perm.size(); ++i)
-                    perm_extended[i] = static_cast<int64_t>(matched_perm[i]);
-                for(std::size_t i = 0; i < rest_dims.size(); ++i)
-                    perm_extended[matched_perm.size() + i] =
-                        static_cast<int64_t>(matched_perm.size() + i);
-
-                bool need_transpose = false;
-                for(std::size_t i = 0; i < perm_extended.size(); ++i)
-                {
-                    if(perm_extended[i] != static_cast<int64_t>(i))
-                    {
-                        need_transpose = true;
-                        break;
-                    }
-                }
-                if(need_transpose)
-                {
-                    curr = m.insert_instruction(
-                        ins, make_op("transpose", {{"permutation", perm_extended}}), curr);
-                }
-            }
-
-            std::vector<int64_t> reshape2_dims;
-            reshape2_dims.reserve(idims.size() + rest_dims.size());
-            for(auto dim : idims)
-                reshape2_dims.push_back(static_cast<int64_t>(dim));
-            reshape2_dims.insert(reshape2_dims.end(), rest_dims.begin(), rest_dims.end());
-            curr = m.insert_instruction(ins, make_op("reshape", {{"dims", reshape2_dims}}), curr);
-
-            const std::size_t axis_block_size = idims.size();
-            const std::size_t rest_count      = rest_lens.size();
-            if(axis_block_size + rest_count > 0)
-            {
-                std::vector<int64_t> perm_final(axis_block_size + rest_count);
-                std::size_t pos = 0;
-                for(std::size_t i = 0; i < pre_lens.size(); ++i)
-                    perm_final[pos++] = static_cast<int64_t>(axis_block_size + i);
-                for(std::size_t i = 0; i < axis_block_size; ++i)
-                    perm_final[pos++] = static_cast<int64_t>(i);
-                for(std::size_t i = 0; i < post_lens.size(); ++i)
-                    perm_final[pos++] = static_cast<int64_t>(axis_block_size + pre_lens.size() + i);
-
-                bool need_transpose = false;
-                for(std::size_t i = 0; i < perm_final.size(); ++i)
-                {
-                    if(perm_final[i] != static_cast<int64_t>(i))
-                    {
-                        need_transpose = true;
-                        break;
-                    }
-                }
-                if(need_transpose)
-                {
-                    curr = m.insert_instruction(
-                        ins, make_op("transpose", {{"permutation", perm_final}}), curr);
-                }
-            }
-
-            if(curr->get_shape().lens() != ins->get_shape().lens())
-            {
-                if(curr->get_shape().elements() == ins->get_shape().elements())
-                {
-                    curr = m.insert_instruction(
-                        ins,
-                        make_op("reshape", {{"dims", to_int64(ins->get_shape().lens())}}),
-                        curr);
-                }
-                else
-                {
-                    curr = m.insert_instruction(
-                        ins,
-                        make_op("multibroadcast",
-                                {{"out_lens", to_int64(ins->get_shape().lens())}}),
-                        curr);
-                }
-            }
-
-            m.replace_instruction(ins, curr);
-            return true;
-        };
-
-        if(try_permutation_rewrite())
-            return;
-
-        auto try_stride_slice_with_offset = [&]() -> bool {
-            const std::size_t count = indices_values.size();
-            if(count < 2)
-                return false;
-
-            const std::int64_t base = indices_values.front();
-            if(base < 0)
-                return false;
-
-            const std::int64_t stride = indices_values[1] - indices_values[0];
-            if(stride <= 1)
-                return false;
-
-            for(std::size_t i = 1; i < count; ++i)
-            {
-                if(indices_values[i] - indices_values[i - 1] != stride)
-                    return false;
-                if(indices_values[i] != base + static_cast<std::int64_t>(i) * stride)
-                    return false;
-            }
-
-            if(base >= stride)
-                return false;
-
-            const auto stride_size = static_cast<std::size_t>(stride);
-            if(stride_size == 0)
-                return false;
-
-            if(axis_len % stride_size != 0)
-                return false;
-
-            const std::size_t outer = axis_len / stride_size;
-            if(count != outer)
-                return false;
-
-            if(base + static_cast<std::int64_t>(count - 1) * stride >=
-               static_cast<std::int64_t>(axis_len))
-                return false;
-
-            instruction_ref curr = data_ins;
-
-            if(axis_index != 0)
-            {
-                std::vector<int64_t> perm_axis_front;
-                perm_axis_front.reserve(dlens.size());
-                perm_axis_front.push_back(static_cast<int64_t>(axis_index));
-                for(std::size_t i = 0; i < dlens.size(); ++i)
-                {
-                    if(i == axis_index)
-                        continue;
-                    perm_axis_front.push_back(static_cast<int64_t>(i));
-                }
-                curr = m.insert_instruction(
-                    ins, make_op("transpose", {{"permutation", perm_axis_front}}), curr);
-            }
-
+        instruction_ref rewrite_rtr(const rtr_pattern& pattern, const tile_view& view)
+        {
             std::vector<int64_t> reshape_dims;
-            reshape_dims.reserve(2 + rest_lens.size());
-            reshape_dims.push_back(static_cast<int64_t>(outer));
-            reshape_dims.push_back(stride);
-            for(auto len : rest_lens)
-                reshape_dims.push_back(static_cast<int64_t>(len));
-            curr = m.insert_instruction(ins, make_op("reshape", {{"dims", reshape_dims}}), curr);
+            reshape_dims.reserve(pattern.factors.size() + 1);
+            for(auto dim : pattern.factors)
+                reshape_dims.push_back(static_cast<int64_t>(dim));
+            reshape_dims.push_back(static_cast<int64_t>(ctx.rest_product));
+            auto reshaped = ctx.mod().insert_instruction(
+                ctx.anchor, make_op("reshape", {{"dims", reshape_dims}}), ctx.data_axis_view);
 
-            curr = m.insert_instruction(ins,
-                                        make_op("slice",
-                                                {{"axes", std::vector<int64_t>{1}},
-                                                 {"starts", std::vector<int64_t>{base}},
-                                                 {"ends", std::vector<int64_t>{base + 1}}}),
-                                        curr);
+            std::vector<int64_t> perm(pattern.permutation.begin(), pattern.permutation.end());
+            perm.push_back(static_cast<int64_t>(pattern.permutation.size()));
+            auto transposed = ctx.mod().insert_instruction(
+                ctx.anchor, make_op("transpose", {{"permutation", perm}}), reshaped);
 
-            std::vector<int64_t> reshape2_dims;
-            reshape2_dims.reserve(1 + rest_lens.size());
-            reshape2_dims.push_back(static_cast<int64_t>(outer));
-            for(auto len : rest_lens)
-                reshape2_dims.push_back(static_cast<int64_t>(len));
-            curr = m.insert_instruction(ins, make_op("reshape", {{"dims", reshape2_dims}}), curr);
+            const std::vector<int64_t> axes{0};
+            const std::vector<int64_t> starts{static_cast<int64_t>(pattern.window_start)};
+            const std::vector<int64_t> ends{static_cast<int64_t>(pattern.window_start + view.size)};
+            auto sliced = ctx.mod().insert_instruction(
+                ctx.anchor,
+                make_op("slice", {{"axes", axes}, {"starts", starts}, {"ends", ends}}),
+                transposed);
 
-            const std::size_t pre_count  = pre_lens.size();
-            const std::size_t post_count = post_lens.size();
+            std::vector<int64_t> reshape_back{static_cast<int64_t>(view.size),
+                                               static_cast<int64_t>(ctx.rest_product)};
+            return ctx.mod().insert_instruction(
+                ctx.anchor, make_op("reshape", {{"dims", reshape_back}}), sliced);
+        }
+    };
 
-            if(pre_count + post_count > 0)
-            {
-                std::vector<int64_t> perm;
-                perm.reserve(1 + rest_lens.size());
-                for(std::size_t i = 0; i < pre_count; ++i)
-                    perm.push_back(static_cast<int64_t>(1 + i));
-                perm.push_back(0);
-                for(std::size_t i = 0; i < post_count; ++i)
-                    perm.push_back(static_cast<int64_t>(1 + pre_count + i));
+    static instruction_ref finalize_output(normalized_gather& ctx,
+                                           instruction_ref flat_view,
+                                           const std::vector<std::size_t>& reshape_dims)
+    {
+        if(flat_view == instruction_ref{})
+            return instruction_ref{};
+        auto reshaped = ctx.mod().insert_instruction(
+            ctx.anchor, make_op("reshape", {{"dims", to_int64_container(reshape_dims)}}), flat_view);
+        auto perm = ctx.final_permutation();
+        instruction_ref final_out = reshaped;
+        if(not perm.empty())
+        {
+            final_out = ctx.mod().insert_instruction(
+                ctx.anchor, make_op("transpose", {{"permutation", perm}}), reshaped);
+        }
 
-                bool need_transpose = false;
-                for(std::size_t i = 0; i < perm.size(); ++i)
-                {
-                    if(perm[i] != static_cast<int64_t>(i))
-                    {
-                        need_transpose = true;
-                        break;
-                    }
-                }
+        if(final_out->get_shape() != ctx.anchor->get_shape())
+        {
+            final_out = ctx.mod().insert_instruction(
+                ctx.anchor,
+                make_op("reshape",
+                        {{"dims", to_int64_container(ctx.anchor->get_shape().lens())}}),
+                final_out);
+        }
+        return final_out;
+    }
 
-                if(need_transpose)
-                {
-                    curr = m.insert_instruction(
-                        ins, make_op("transpose", {{"permutation", perm}}), curr);
-                }
-            }
+public:
+    void apply(module& m, const match::matcher_result& r) const
+    {
+        auto ins         = r.result;
+        auto data_ins    = ins->inputs().front();
+        auto indices_ins = r.instructions["indices"];
 
-            std::vector<int64_t> final_dims;
-            final_dims.reserve(pre_count + idims.size() + post_count);
-            for(auto len : pre_lens)
-                final_dims.push_back(static_cast<int64_t>(len));
-            for(auto len : idims)
-                final_dims.push_back(static_cast<int64_t>(len));
-            for(auto len : post_lens)
-                final_dims.push_back(static_cast<int64_t>(len));
+        auto ctx_opt = normalize(m, ins, data_ins, indices_ins);
+        if(not ctx_opt)
+            return;
+        auto& ctx = *ctx_opt;
 
-            curr = m.insert_instruction(ins, make_op("reshape", {{"dims", final_dims}}), curr);
-
-            m.replace_instruction(ins, curr);
-            return true;
-        };
-
-        if(try_stride_slice_with_offset())
+        auto plan = build_plan(ctx);
+        if(not plan)
             return;
 
-        auto try_factorized_grid_slice = [&]() -> bool {
-            if(index_dims.empty())
-                return false;
-
-            auto compute_multi_index = [](std::size_t value, const std::vector<std::size_t>& dims) {
-                std::vector<std::size_t> coord(dims.size(), 0);
-                if(dims.empty())
-                    return coord;
-                for(std::size_t i = dims.size(); i > 0; --i)
-                {
-                    auto dim     = dims.at(i - 1);
-                    coord[i - 1] = (dim == 0) ? 0 : value % dim;
-                    value        = (dim == 0) ? 0 : value / dim;
-                }
-                return coord;
-            };
-
-            std::vector<std::vector<std::size_t>> index_coords(total);
-            for(std::size_t i = 0; i < total; ++i)
-                index_coords[i] = compute_multi_index(i, idims);
-
-            std::vector<std::size_t> chosen_factors;
-            std::vector<std::size_t> chosen_var_indices;
-            std::vector<std::size_t> chosen_const_indices;
-            std::vector<std::size_t> chosen_const_values;
-
-            auto try_candidate = [&](const std::vector<std::size_t>& factors) -> bool {
-                if(factors.empty())
-                    return false;
-                if(factors.size() < index_dims.size())
-                    return false;
-
-                std::vector<int> used(factors.size(), 0);
-                std::vector<std::size_t> assignment(index_dims.size(), 0);
-
-                std::vector<std::size_t> const_indices;
-                std::vector<std::size_t> const_values;
-
-                auto validate_assignment = [&]() -> bool {
-                    const_indices.clear();
-                    for(std::size_t f = 0; f < factors.size(); ++f)
-                    {
-                        if(used[f] == 0)
-                            const_indices.push_back(f);
-                    }
-                    std::vector<std::size_t> values(const_indices.size(), 0);
-
-                    for(std::size_t pos = 0; pos < total; ++pos)
-                    {
-                        auto factor_coord = compute_multi_index(
-                            static_cast<std::size_t>(indices_values[pos]), factors);
-                        const auto& idx_coord = index_coords[pos];
-
-                        for(std::size_t i = 0; i < assignment.size(); ++i)
-                        {
-                            auto factor_index = assignment[i];
-                            auto idx_pos      = index_positions[i];
-                            if(factor_index >= factor_coord.size() or idx_pos >= idx_coord.size() or
-                               factor_coord[factor_index] != idx_coord[idx_pos])
-                                return false;
-                        }
-
-                        for(std::size_t k = 0; k < const_indices.size(); ++k)
-                        {
-                            auto factor_index = const_indices[k];
-                            auto value        = factor_coord.at(factor_index);
-                            if(pos == 0)
-                                values[k] = value;
-                            else if(values[k] != value)
-                                return false;
-                        }
-                    }
-
-                    const_values = std::move(values);
-                    return true;
-                };
-
-                auto backtrack = [&](auto&& self, std::size_t depth) -> bool {
-                    if(depth == index_dims.size())
-                    {
-                        if(validate_assignment())
-                            return true;
-                        return false;
-                    }
-
-                    auto dim_value = index_dims[depth];
-                    for(std::size_t f = 0; f < factors.size(); ++f)
-                    {
-                        if(used[f] != 0)
-                            continue;
-                        if(factors[f] != dim_value)
-                            continue;
-                        used[f]           = 1;
-                        assignment[depth] = f;
-                        if(self(self, depth + 1))
-                            return true;
-                        used[f] = 0;
-                    }
-                    return false;
-                };
-
-                if(not backtrack(backtrack, 0))
-                    return false;
-
-                chosen_factors       = factors;
-                chosen_var_indices   = assignment;
-                chosen_const_indices = const_indices;
-                chosen_const_values  = const_values;
-                return true;
-            };
-
-            for(const auto& factors : factor_candidates)
-            {
-                if(product(factors) != axis_len)
-                    continue;
-                if(try_candidate(factors))
-                    break;
-            }
-
-            if(chosen_factors.empty())
-                return false;
-
-            std::vector<std::pair<std::size_t, std::size_t>> const_pairs;
-            const_pairs.reserve(chosen_const_indices.size());
-            for(std::size_t i = 0; i < chosen_const_indices.size(); ++i)
-                const_pairs.emplace_back(chosen_const_indices[i], chosen_const_values[i]);
-            std::sort(const_pairs.begin(), const_pairs.end(), [](auto l, auto r) {
-                return l.first < r.first;
-            });
-
-            instruction_ref curr = data_ins;
-
-            if(axis_index != 0)
-            {
-                std::vector<int64_t> perm_axis_front;
-                perm_axis_front.reserve(dlens.size());
-                perm_axis_front.push_back(static_cast<int64_t>(axis_index));
-                for(std::size_t i = 0; i < dlens.size(); ++i)
-                {
-                    if(i == axis_index)
-                        continue;
-                    perm_axis_front.push_back(static_cast<int64_t>(i));
-                }
-                curr = m.insert_instruction(
-                    ins, make_op("transpose", {{"permutation", perm_axis_front}}), curr);
-            }
-
-            std::vector<int64_t> reshape_dims;
-            reshape_dims.reserve(chosen_factors.size() + rest_lens.size());
-            for(auto len : chosen_factors)
-                reshape_dims.push_back(static_cast<int64_t>(len));
-            for(auto len : rest_lens)
-                reshape_dims.push_back(static_cast<int64_t>(len));
-            curr = m.insert_instruction(ins, make_op("reshape", {{"dims", reshape_dims}}), curr);
-
-            for(const auto& [axis_pos, value] : const_pairs)
-            {
-                std::vector<int64_t> axes{static_cast<int64_t>(axis_pos)};
-                std::vector<int64_t> starts{static_cast<int64_t>(value)};
-                std::vector<int64_t> ends{static_cast<int64_t>(value + 1)};
-                curr = m.insert_instruction(
-                    ins,
-                    make_op("slice", {{"axes", axes}, {"starts", starts}, {"ends", ends}}),
-                    curr);
-            }
-
-            const std::size_t factor_count = chosen_factors.size();
-            const std::size_t rest_count   = rest_lens.size();
-
-            std::vector<std::size_t> reorder;
-            reorder.reserve(factor_count + rest_count);
-            for(std::size_t i = 0; i < pre_lens.size(); ++i)
-                reorder.push_back(factor_count + i);
-            for(auto idx : chosen_var_indices)
-                reorder.push_back(idx);
-            for(std::size_t i = pre_lens.size(); i < rest_lens.size(); ++i)
-                reorder.push_back(factor_count + i);
-            for(const auto& [axis_pos, _] : const_pairs)
-                reorder.push_back(axis_pos);
-
-            if(reorder.size() != factor_count + rest_count)
-                return false;
-
-            bool need_transpose = false;
-            for(std::size_t i = 0; i < reorder.size(); ++i)
-            {
-                if(reorder[i] != i)
-                {
-                    need_transpose = true;
-                    break;
-                }
-            }
-
-            if(need_transpose)
-            {
-                std::vector<int64_t> perm64;
-                perm64.reserve(reorder.size());
-                for(auto v : reorder)
-                    perm64.push_back(static_cast<int64_t>(v));
-                curr = m.insert_instruction(
-                    ins, make_op("transpose", {{"permutation", perm64}}), curr);
-            }
-
-            std::vector<std::size_t> final_lens;
-            final_lens.reserve(pre_lens.size() + idims.size() + post_lens.size());
-            final_lens.insert(final_lens.end(), pre_lens.begin(), pre_lens.end());
-            final_lens.insert(final_lens.end(), idims.begin(), idims.end());
-            final_lens.insert(final_lens.end(), post_lens.begin(), post_lens.end());
-
-            curr = m.insert_instruction(
-                ins, make_op("reshape", {{"dims", to_int64(final_lens)}}), curr);
-
-            m.replace_instruction(ins, curr);
-            return true;
-        };
-
-        if(try_factorized_grid_slice())
+        tile_rewriter rewriter{ctx, plan->first};
+        auto flat = rewriter.materialize(plan->second);
+        auto result = finalize_output(ctx, flat, ctx.reshape_dims());
+        if(result == instruction_ref{})
             return;
-
-        auto try_rectangular_rewrite = [&]() -> bool {
-            if(factor_candidates.empty())
-                return false;
-
-            if(axis_index == 0 and total == axis_len and axis_len % 2 == 0)
-            {
-                const std::size_t half = axis_len / 2;
-                bool half_shift        = true;
-                for(std::size_t i = 0; i < indices_values.size(); ++i)
-                {
-                    auto expected = (i + half) % axis_len;
-                    if(static_cast<std::size_t>(indices_values[i]) != expected)
-                    {
-                        half_shift = false;
-                        break;
-                    }
-                }
-                if(half_shift)
-                    return false;
-            }
-
-            const auto invalid_index_value = std::numeric_limits<std::size_t>::max();
-            std::vector<int64_t> rest_dims = to_int64(rest_lens);
-
-            for(auto factors : factor_candidates)
-            {
-                if(factors.empty() or product(factors) != axis_len)
-                    continue;
-
-                std::vector<std::size_t> perm(factors.size());
-                std::iota(perm.begin(), perm.end(), 0);
-
-                do
-                {
-                    std::vector<std::size_t> dims_perm(perm.size());
-                    for(std::size_t i = 0; i < perm.size(); ++i)
-                        dims_perm[i] = factors[perm[i]];
-
-                    std::vector<std::vector<std::size_t>> coords(
-                        total, std::vector<std::size_t>(perm.size()));
-                    bool consistent = true;
-                    for(std::size_t idx = 0; idx < total and consistent; ++idx)
-                    {
-                        auto value = static_cast<std::size_t>(indices_values[idx]);
-                        std::vector<std::size_t> coord(factors.size());
-                        auto remainder = value;
-                        for(std::size_t j = factors.size(); j > 0; --j)
-                        {
-                            auto dim_index   = j - 1;
-                            auto dim_size    = factors[dim_index];
-                            coord[dim_index] = remainder % dim_size;
-                            remainder /= dim_size;
-                        }
-                        if(remainder != 0)
-                        {
-                            consistent = false;
-                            break;
-                        }
-                        for(std::size_t j = 0; j < perm.size(); ++j)
-                            coords[idx][j] = coord[perm[j]];
-                    }
-                    if(not consistent)
-                        continue;
-
-                    std::vector<std::size_t> min_coord(dims_perm.size(),
-                                                       std::numeric_limits<std::size_t>::max());
-                    std::vector<std::size_t> max_coord(dims_perm.size(), 0);
-                    for(auto& c : coords)
-                    {
-                        for(std::size_t j = 0; j < c.size(); ++j)
-                        {
-                            min_coord[j] = std::min(min_coord[j], c[j]);
-                            max_coord[j] = std::max(max_coord[j], c[j]);
-                        }
-                    }
-
-                    std::vector<std::size_t> len(dims_perm.size(), 0);
-                    std::size_t block_total = 1;
-                    for(std::size_t j = 0; j < len.size(); ++j)
-                    {
-                        if(min_coord[j] > max_coord[j])
-                        {
-                            consistent = false;
-                            break;
-                        }
-                        len[j] = max_coord[j] - min_coord[j] + 1;
-                        if(len[j] > dims_perm[j])
-                        {
-                            consistent = false;
-                            break;
-                        }
-                        block_total *= len[j];
-                    }
-                    if(not consistent or block_total != total)
-                        continue;
-
-                    std::unordered_set<std::size_t> seen;
-                    seen.reserve(total * 2);
-                    for(auto& c : coords)
-                    {
-                        std::size_t block_idx = 0;
-                        for(std::size_t j = 0; j < len.size(); ++j)
-                        {
-                            auto offset = c[j] - min_coord[j];
-                            if(offset >= len[j])
-                            {
-                                consistent = false;
-                                break;
-                            }
-                            block_idx = block_idx * len[j] + offset;
-                        }
-                        if(not consistent)
-                            break;
-                        seen.insert(block_idx);
-                    }
-                    if(not consistent or seen.size() != total)
-                        continue;
-
-                    std::vector<int> axis_to_index(len.size(), -1);
-                    std::vector<bool> used_index(in_dims, false);
-                    for(std::size_t axis_dim = 0; axis_dim < len.size() and consistent; ++axis_dim)
-                    {
-                        int chosen_index = -1;
-                        for(std::size_t index_dim = 0; index_dim < in_dims; ++index_dim)
-                        {
-                            if(used_index[index_dim])
-                                continue;
-                            if(idims[index_dim] != len[axis_dim])
-                                continue;
-                            std::vector<std::size_t> value_per_coord(idims[index_dim],
-                                                                     invalid_index_value);
-                            bool axis_matches = true;
-                            for(std::size_t idx = 0; idx < total; ++idx)
-                            {
-                                auto coord_index = indices_shape.multi(idx);
-                                auto axis_value  = coords[idx][axis_dim];
-                                auto coord_value = coord_index[index_dim];
-                                auto& slot       = value_per_coord[coord_value];
-                                if(slot == invalid_index_value)
-                                    slot = axis_value;
-                                else if(slot != axis_value)
-                                {
-                                    axis_matches = false;
-                                    break;
-                                }
-                            }
-                            if(axis_matches)
-                            {
-                                chosen_index            = static_cast<int>(index_dim);
-                                axis_to_index[axis_dim] = chosen_index;
-                                used_index[index_dim]   = true;
-                                break;
-                            }
-                        }
-                        if(chosen_index == -1)
-                        {
-                            consistent = false;
-                            break;
-                        }
-                    }
-                    if(not consistent)
-                        continue;
-
-                    instruction_ref curr = data_ins;
-
-                    if(axis_index != 0)
-                    {
-                        std::vector<int64_t> perm_axis_front;
-                        perm_axis_front.reserve(dlens.size());
-                        perm_axis_front.push_back(static_cast<int64_t>(axis_index));
-                        for(std::size_t i = 0; i < dlens.size(); ++i)
-                        {
-                            if(i == axis_index)
-                                continue;
-                            perm_axis_front.push_back(static_cast<int64_t>(i));
-                        }
-                        curr = m.insert_instruction(
-                            ins, make_op("transpose", {{"permutation", perm_axis_front}}), curr);
-                    }
-
-                    std::vector<int64_t> reshape_axis_dims;
-                    reshape_axis_dims.reserve(factors.size() + rest_dims.size());
-                    for(auto f : factors)
-                        reshape_axis_dims.push_back(static_cast<int64_t>(f));
-                    reshape_axis_dims.insert(
-                        reshape_axis_dims.end(), rest_dims.begin(), rest_dims.end());
-                    curr = m.insert_instruction(
-                        ins, make_op("reshape", {{"dims", reshape_axis_dims}}), curr);
-
-                    if(factors.size() > 1)
-                    {
-                        std::vector<int64_t> perm_extended(factors.size() + rest_dims.size());
-                        for(std::size_t i = 0; i < perm.size(); ++i)
-                            perm_extended[i] = static_cast<int64_t>(perm[i]);
-                        for(std::size_t i = 0; i < rest_dims.size(); ++i)
-                            perm_extended[perm.size() + i] = static_cast<int64_t>(perm.size() + i);
-
-                        bool need_transpose = false;
-                        for(std::size_t i = 0; i < perm_extended.size(); ++i)
-                        {
-                            if(perm_extended[i] != static_cast<int64_t>(i))
-                            {
-                                need_transpose = true;
-                                break;
-                            }
-                        }
-                        if(need_transpose)
-                        {
-                            curr = m.insert_instruction(
-                                ins, make_op("transpose", {{"permutation", perm_extended}}), curr);
-                        }
-                    }
-
-                    std::vector<std::pair<int64_t, std::pair<int64_t, int64_t>>> slice_desc;
-                    for(std::size_t j = 0; j < min_coord.size(); ++j)
-                    {
-                        auto start = static_cast<int64_t>(min_coord[j]);
-                        auto end   = static_cast<int64_t>(min_coord[j] + len[j]);
-                        if(start != 0 or end != static_cast<int64_t>(dims_perm[j]))
-                            slice_desc.push_back({static_cast<int64_t>(j), {start, end}});
-                    }
-                    if(not slice_desc.empty())
-                    {
-                        std::sort(slice_desc.begin(),
-                                  slice_desc.end(),
-                                  [](const auto& a, const auto& b) { return a.first < b.first; });
-                        std::vector<int64_t> axes;
-                        std::vector<int64_t> starts;
-                        std::vector<int64_t> ends;
-                        axes.reserve(slice_desc.size());
-                        starts.reserve(slice_desc.size());
-                        ends.reserve(slice_desc.size());
-                        for(auto& s : slice_desc)
-                        {
-                            axes.push_back(s.first);
-                            starts.push_back(s.second.first);
-                            ends.push_back(s.second.second);
-                        }
-                        curr = m.insert_instruction(
-                            ins,
-                            make_op("slice", {{"axes", axes}, {"starts", starts}, {"ends", ends}}),
-                            curr);
-                    }
-
-                    if(axis_to_index.size() > 1)
-                    {
-                        std::vector<std::size_t> dims_for_index(axis_to_index.size());
-                        for(std::size_t j = 0; j < axis_to_index.size(); ++j)
-                            dims_for_index[static_cast<std::size_t>(axis_to_index[j])] = j;
-
-                        bool need_reorder = false;
-                        for(std::size_t k = 0; k < dims_for_index.size(); ++k)
-                        {
-                            if(dims_for_index[k] != k)
-                            {
-                                need_reorder = true;
-                                break;
-                            }
-                        }
-                        if(need_reorder)
-                        {
-                            std::vector<int64_t> perm_align(axis_to_index.size() +
-                                                            rest_dims.size());
-                            for(std::size_t k = 0; k < dims_for_index.size(); ++k)
-                                perm_align[k] = static_cast<int64_t>(dims_for_index[k]);
-                            for(std::size_t i = 0; i < rest_dims.size(); ++i)
-                                perm_align[axis_to_index.size() + i] =
-                                    static_cast<int64_t>(axis_to_index.size() + i);
-                            curr = m.insert_instruction(
-                                ins, make_op("transpose", {{"permutation", perm_align}}), curr);
-                        }
-                    }
-
-                    const std::size_t axis_block_size = in_dims;
-                    const std::size_t rest_count      = rest_lens.size();
-                    if(axis_block_size + rest_count > 0)
-                    {
-                        std::vector<int64_t> perm_final(axis_block_size + rest_count);
-                        std::size_t pos = 0;
-                        for(std::size_t i = 0; i < pre_lens.size(); ++i)
-                            perm_final[pos++] = static_cast<int64_t>(axis_block_size + i);
-                        for(std::size_t i = 0; i < axis_block_size; ++i)
-                            perm_final[pos++] = static_cast<int64_t>(i);
-                        for(std::size_t i = 0; i < post_lens.size(); ++i)
-                            perm_final[pos++] =
-                                static_cast<int64_t>(axis_block_size + pre_lens.size() + i);
-
-                        bool need_transpose = false;
-                        for(std::size_t i = 0; i < perm_final.size(); ++i)
-                        {
-                            if(perm_final[i] != static_cast<int64_t>(i))
-                            {
-                                need_transpose = true;
-                                break;
-                            }
-                        }
-                        if(need_transpose)
-                        {
-                            curr = m.insert_instruction(
-                                ins, make_op("transpose", {{"permutation", perm_final}}), curr);
-                        }
-                    }
-
-                    if(curr->get_shape().lens() != ins->get_shape().lens())
-                    {
-                        if(curr->get_shape().elements() == ins->get_shape().elements())
-                        {
-                            curr = m.insert_instruction(
-                                ins,
-                                make_op("reshape", {{"dims", to_int64(ins->get_shape().lens())}}),
-                                curr);
-                        }
-                        else
-                        {
-                            curr = m.insert_instruction(
-                                ins,
-                                make_op("multibroadcast",
-                                        {{"out_lens", to_int64(ins->get_shape().lens())}}),
-                                curr);
-                        }
-                    }
-
-                    m.replace_instruction(ins, curr);
-                    return true;
-                } while(std::next_permutation(perm.begin(), perm.end()));
-            }
-
-            return false;
-        };
-
-        if(try_rectangular_rewrite())
-            return;
-
-        auto try_tile_rewrite = [&]() -> bool {
-            std::vector<std::size_t> repeat_sizes(in_dims, 1);
-            std::vector<std::size_t> tile_sizes(in_dims, 1);
-            auto is_repeated_axis = [&](std::size_t axis, std::size_t repeat) {
-                if(repeat <= 1)
-                    return false;
-                auto axis_len_dim = idims[axis];
-                if(axis_len_dim % repeat != 0)
-                    return false;
-                for(std::size_t idx = 0; idx < total; ++idx)
-                {
-                    auto coord    = indices_shape.multi(idx);
-                    auto axis_val = coord[axis];
-                    auto group    = axis_val / repeat;
-                    coord[axis]   = group * repeat;
-                    auto base_idx = indices_shape.index(coord);
-                    if(indices_values[idx] != indices_values[base_idx])
-                        return false;
-                }
-                return true;
-            };
-
-            for(std::size_t dim = 0; dim < in_dims; ++dim)
-            {
-                auto axis_len_dim  = idims[dim];
-                std::size_t repeat = 1;
-                for(std::size_t candidate = 2; candidate <= axis_len_dim; ++candidate)
-                {
-                    if(axis_len_dim % candidate != 0)
-                        continue;
-                    if(is_repeated_axis(dim, candidate))
-                    {
-                        repeat = candidate;
-                        break;
-                    }
-                }
-                repeat_sizes[dim] = repeat;
-                tile_sizes[dim]   = (repeat > 0) ? axis_len_dim / repeat : 0;
-                if(tile_sizes[dim] == 0)
-                    return false;
-            }
-
-            std::vector<std::size_t> tile_axes;
-            std::size_t tile_product = 1;
-            for(std::size_t dim = 0; dim < in_dims; ++dim)
-            {
-                if(tile_sizes[dim] > 1)
-                {
-                    tile_axes.push_back(dim);
-                    tile_product *= tile_sizes[dim];
-                }
-            }
-
-            const bool broadcast_needed = std::any_of(
-                repeat_sizes.begin(), repeat_sizes.end(), [](std::size_t r) { return r > 1; });
-
-            std::vector<std::int64_t> strides(in_dims, 0);
-            std::size_t weight = 1;
-            for(auto it = tile_axes.rbegin(); it != tile_axes.rend(); ++it)
-            {
-                strides[*it] = static_cast<std::int64_t>(weight);
-                weight *= tile_sizes[*it];
-            }
-
-            for(std::size_t idx = 0; idx < total; ++idx)
-            {
-                auto coord            = indices_shape.multi(idx);
-                std::int64_t expected = 0;
-                for(auto axis : tile_axes)
-                {
-                    auto tile_index = coord[axis] / repeat_sizes[axis];
-                    expected += strides[axis] * static_cast<std::int64_t>(tile_index);
-                }
-                if(indices_values[idx] - base != expected)
-                    return false;
-            }
-
-            std::int64_t max_index = base;
-            for(auto axis : tile_axes)
-            {
-                max_index += strides[axis] * static_cast<std::int64_t>(tile_sizes[axis] - 1);
-            }
-
-            if(base < 0 or max_index < base)
-                return false;
-            if(max_index >= static_cast<std::int64_t>(axis_len))
-                return false;
-
-            auto slice_len = max_index - base + 1;
-            if(slice_len <= 0)
-                return false;
-
-            const auto slice_len_size = static_cast<std::size_t>(slice_len);
-            if(slice_len_size == 0)
-                return false;
-
-            const bool has_tiled_repeat =
-                std::any_of(tile_axes.begin(), tile_axes.end(), [&](std::size_t dim) {
-                    return repeat_sizes[dim] > 1;
-                });
-            if(slice_len_size != axis_len && has_tiled_repeat)
-                return false;
-
-            if(tile_axes.empty())
-            {
-                if(slice_len_size != 1)
-                    return false;
-            }
-            else if(tile_product != slice_len_size)
-            {
-                return false;
-            }
-
-            std::vector<std::size_t> vary_dims = tile_axes;
-
-            std::size_t prod_vary = 1;
-            for(auto dim : vary_dims)
-                prod_vary *= tile_sizes[dim];
-            if(static_cast<std::size_t>(slice_len) != prod_vary and not vary_dims.empty())
-                return false;
-
-            std::vector<std::size_t> sorted_vary = vary_dims;
-            std::sort(sorted_vary.begin(), sorted_vary.end(), [&](std::size_t a, std::size_t b) {
-                return strides[a] < strides[b];
-            });
-
-            std::int64_t expected_stride = 1;
-            for(auto dim : sorted_vary)
-            {
-                if(strides[dim] != expected_stride)
-                    return false;
-                expected_stride *= static_cast<std::int64_t>(tile_sizes[dim]);
-            }
-            if(not sorted_vary.empty() and expected_stride != slice_len)
-                return false;
-
-            std::vector<std::size_t> ordered_vary_desc = sorted_vary;
-            std::reverse(ordered_vary_desc.begin(), ordered_vary_desc.end());
-            std::vector<std::size_t> target_vary_order = vary_dims;
-
-            const auto& output_lens = ins->get_shape().lens();
-
-            instruction_ref curr = data_ins;
-
-            if(axis_index != 0)
-            {
-                std::vector<int64_t> perm_axis_front;
-                perm_axis_front.reserve(dlens.size());
-                perm_axis_front.push_back(static_cast<int64_t>(axis_index));
-                for(std::size_t i = 0; i < dlens.size(); ++i)
-                {
-                    if(i == axis_index)
-                        continue;
-                    perm_axis_front.push_back(static_cast<int64_t>(i));
-                }
-                curr = m.insert_instruction(
-                    ins, make_op("transpose", {{"permutation", perm_axis_front}}), curr);
-            }
-
-            if(base != 0 or static_cast<std::size_t>(slice_len) != axis_len)
-            {
-                std::vector<int64_t> axes{0};
-                std::vector<int64_t> starts{base};
-                std::vector<int64_t> ends{base + slice_len};
-                curr = m.insert_instruction(
-                    ins,
-                    make_op("slice", {{"axes", axes}, {"starts", starts}, {"ends", ends}}),
-                    curr);
-            }
-
-            std::vector<int64_t> rest_dims;
-            rest_dims.reserve(rest_lens.size());
-            std::transform(rest_lens.begin(),
-                           rest_lens.end(),
-                           std::back_inserter(rest_dims),
-                           [](auto len) { return static_cast<int64_t>(len); });
-
-            if(not ordered_vary_desc.empty())
-            {
-                std::vector<int64_t> reshape1_dims;
-                reshape1_dims.reserve(ordered_vary_desc.size() + rest_dims.size());
-                for(auto dim : ordered_vary_desc)
-                    reshape1_dims.push_back(static_cast<int64_t>(tile_sizes[dim]));
-                reshape1_dims.insert(reshape1_dims.end(), rest_dims.begin(), rest_dims.end());
-                curr =
-                    m.insert_instruction(ins, make_op("reshape", {{"dims", reshape1_dims}}), curr);
-
-                if(ordered_vary_desc != target_vary_order)
-                {
-                    const std::size_t axis_count = ordered_vary_desc.size();
-                    std::vector<int64_t> perm(axis_count + rest_dims.size());
-                    for(std::size_t i = 0; i < target_vary_order.size(); ++i)
-                    {
-                        auto it = std::find(ordered_vary_desc.begin(),
-                                            ordered_vary_desc.end(),
-                                            target_vary_order[i]);
-                        if(it == ordered_vary_desc.end())
-                            return false;
-                        perm[i] = std::distance(ordered_vary_desc.begin(), it);
-                    }
-                    for(std::size_t i = 0; i < rest_dims.size(); ++i)
-                        perm[target_vary_order.size() + i] = static_cast<int64_t>(axis_count + i);
-
-                    curr = m.insert_instruction(
-                        ins, make_op("transpose", {{"permutation", perm}}), curr);
-                    ordered_vary_desc = target_vary_order;
-                }
-            }
-
-            if(in_dims > 0)
-            {
-                std::vector<int64_t> reshape2_dims;
-                reshape2_dims.reserve(in_dims + rest_dims.size());
-                for(std::size_t dim = 0; dim < in_dims; ++dim)
-                {
-                    if(tile_sizes[dim] > 1)
-                        reshape2_dims.push_back(static_cast<int64_t>(tile_sizes[dim]));
-                    else
-                        reshape2_dims.push_back(1);
-
-                    if(repeat_sizes[dim] > 1)
-                        reshape2_dims.push_back(1);
-                }
-                reshape2_dims.insert(reshape2_dims.end(), rest_dims.begin(), rest_dims.end());
-                if(reshape2_dims.empty())
-                    reshape2_dims.push_back(1);
-                curr =
-                    m.insert_instruction(ins, make_op("reshape", {{"dims", reshape2_dims}}), curr);
-                if(broadcast_needed)
-                {
-                    std::vector<int64_t> broadcast_dims;
-                    broadcast_dims.reserve(in_dims + rest_dims.size());
-                    for(std::size_t dim = 0; dim < in_dims; ++dim)
-                    {
-                        auto tile_val =
-                            (tile_sizes[dim] > 1) ? static_cast<int64_t>(tile_sizes[dim]) : 1;
-                        broadcast_dims.push_back(tile_val);
-                        if(repeat_sizes[dim] > 1)
-                            broadcast_dims.push_back(static_cast<int64_t>(repeat_sizes[dim]));
-                    }
-                    broadcast_dims.insert(broadcast_dims.end(), rest_dims.begin(), rest_dims.end());
-                    curr = m.insert_instruction(
-                        ins, make_op("multibroadcast", {{"out_lens", broadcast_dims}}), curr);
-                }
-
-                std::vector<int64_t> combine_dims;
-                combine_dims.reserve(in_dims + rest_dims.size());
-                for(std::size_t dim = 0; dim < in_dims; ++dim)
-                {
-                    auto tile_val   = (tile_sizes[dim] > 1) ? tile_sizes[dim] : std::size_t{1};
-                    auto repeat_val = repeat_sizes[dim];
-                    combine_dims.push_back(static_cast<int64_t>(tile_val * repeat_val));
-                }
-                combine_dims.insert(combine_dims.end(), rest_dims.begin(), rest_dims.end());
-                if(combine_dims.empty())
-                    combine_dims.push_back(1);
-                curr =
-                    m.insert_instruction(ins, make_op("reshape", {{"dims", combine_dims}}), curr);
-            }
-
-            const std::size_t axis_block_size = in_dims;
-            const std::size_t pre_count       = pre_lens.size();
-            const std::size_t post_count      = post_lens.size();
-            const std::size_t rest_count      = rest_dims.size();
-
-            if(axis_block_size + rest_count > 0)
-            {
-                std::vector<int64_t> perm_final(axis_block_size + rest_count);
-                std::size_t pos = 0;
-                for(std::size_t i = 0; i < pre_count; ++i)
-                    perm_final[pos++] = static_cast<int64_t>(axis_block_size + i);
-                for(std::size_t i = 0; i < axis_block_size; ++i)
-                    perm_final[pos++] = static_cast<int64_t>(i);
-                for(std::size_t i = 0; i < post_count; ++i)
-                    perm_final[pos++] = static_cast<int64_t>(axis_block_size + pre_count + i);
-
-                bool need_transpose = false;
-                for(std::size_t i = 0; i < perm_final.size(); ++i)
-                {
-                    if(perm_final[i] != static_cast<int64_t>(i))
-                    {
-                        need_transpose = true;
-                        break;
-                    }
-                }
-                if(need_transpose)
-                {
-                    curr = m.insert_instruction(
-                        ins, make_op("transpose", {{"permutation", perm_final}}), curr);
-                }
-            }
-
-            if(curr->get_shape().lens() != output_lens)
-            {
-                if(curr->get_shape().elements() == ins->get_shape().elements())
-                {
-                    curr = m.insert_instruction(
-                        ins, make_op("reshape", {{"dims", to_int64(output_lens)}}), curr);
-                }
-                else
-                {
-                    curr = m.insert_instruction(
-                        ins, make_op("multibroadcast", {{"out_lens", output_lens}}), curr);
-                }
-            }
-
-            m.replace_instruction(ins, curr);
-            return true;
-        };
-
-        if(try_tile_rewrite())
-            return;
-
-        auto try_half_split_concat = [&]() -> bool {
-            if(axis_index != 0)
-                return false;
-
-            if(total != axis_len)
-                return false;
-
-            if(axis_len <= 1 or axis_len % 2 != 0)
-                return false;
-
-            std::vector<std::size_t> sorted(indices_values.size());
-            std::transform(indices_values.begin(),
-                           indices_values.end(),
-                           sorted.begin(),
-                           [](auto v) { return static_cast<std::size_t>(v); });
-            std::sort(sorted.begin(), sorted.end());
-            for(std::size_t i = 0; i < sorted.size(); ++i)
-            {
-                if(sorted[i] != i)
-                    return false;
-            }
-
-            const std::size_t half = axis_len / 2;
-            for(std::size_t i = 0; i < indices_values.size(); ++i)
-            {
-                auto expected = (i + half) % axis_len;
-                if(static_cast<std::size_t>(indices_values[i]) != expected)
-                    return false;
-            }
-
-            std::vector<int64_t> axes{0};
-            const auto half_i64     = static_cast<int64_t>(half);
-            const auto axis_len_i64 = static_cast<int64_t>(axis_len);
-
-            auto tail = m.insert_instruction(
-                ins,
-                make_op("slice",
-                        {{"axes", axes}, {"starts", {half_i64}}, {"ends", {axis_len_i64}}}),
-                data_ins);
-            auto head = m.insert_instruction(
-                ins,
-                make_op("slice", {{"axes", axes}, {"starts", {0}}, {"ends", {half_i64}}}),
-                data_ins);
-
-            auto concat =
-                m.insert_instruction(ins, make_op("concat", {{"axis", int64_t{0}}}), tail, head);
-
-            std::vector<int64_t> reshape_dims = to_int64(idims);
-            auto rest_dims                    = to_int64(rest_lens);
-            reshape_dims.insert(reshape_dims.end(), rest_dims.begin(), rest_dims.end());
-
-            instruction_ref curr = concat;
-            if(curr->get_shape().lens() != ins->get_shape().lens())
-            {
-                if(reshape_dims.empty())
-                    reshape_dims.push_back(1);
-                curr =
-                    m.insert_instruction(ins, make_op("reshape", {{"dims", reshape_dims}}), curr);
-            }
-
-            m.replace_instruction(ins, curr);
-            return true;
-        };
-
-        if(try_half_split_concat())
-            return;
+        ctx.mod().replace_instruction(ins, result);
     }
 };
+
 
 struct find_where_op
 {

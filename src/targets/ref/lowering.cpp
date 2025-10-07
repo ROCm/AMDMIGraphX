@@ -89,7 +89,7 @@ struct ref_lrn
                     for(auto k = start; k < end; ++k)
                     {
                         double x = input(b, k, h, w);
-                        scale += (x*x);
+                        scale += (x * x);
                     }
                     scale *= alphaoverarea;
                     scale += op.bias;

@@ -197,6 +197,22 @@ struct parse_multi_head_attention : op_parser<parse_multi_head_attention>
         }
     }
 
+    check_bias(const std::vector<instruction_ref>& args,
+               multi_head_attention_parameters& params) const
+    {
+        if(args.size() > 3)
+        {
+            auto bias = args.at(3);
+            auto bias_lens = bias->get_shape().lens();
+
+            if(bias_lens.size() != 1)
+                MIGRAPHX_THROW("MultiHeadAttention: Bias must be 1D shape");
+
+            if(bias_lens[0] != params.hidden_size_v + (2 *  params.hidden_size))
+                MIGRAPHX_THROW("MultiheadAttention: Bias must be of size hidden_size + hidden_size + v_hidden_size");
+        }
+    }
+
     void check_inputs(const std::vector<instruction_ref>& args,
                       const int64_t num_heads,
                       multi_head_attention_parameters& params) const
@@ -209,6 +225,7 @@ struct parse_multi_head_attention : op_parser<parse_multi_head_attention>
         // This must be used first to extract hidden size, batch, etc
         check_query_dim(args, num_heads, params);
 
+        check_bias(args, params);
     }
 
     instruction_ref parse(const op_desc& /*opd*/,

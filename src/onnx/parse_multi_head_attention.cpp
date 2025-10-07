@@ -93,14 +93,10 @@ struct parse_multi_head_attention : op_parser<parse_multi_head_attention>
         value = info.add_instruction(make_op("squeeze", {{"axes", {0}}}), value);
     }
 
-    void check_inputs(const std::vector<instruction_ref>& args,
-                      const int64_t num_heads,
-                      multi_head_attention_parameters& params) const
+    void check_query_dim(const std::vector<instruction_ref>& args,
+                         const int64_t num_heads,
+                         multi_head_attention_parameters& params) const
     {
-        if(args.empty() or args.size() > 3)
-            MIGRAPHX_THROW("MultiHeadAttention: Wrong number of inputs. Only 'query', 'key' and "
-                           "'value' inputs are supported.");
-
         auto query_dim  = args[0]->get_shape().ndim();
         auto query_lens = args[0]->get_shape().lens();
 
@@ -199,6 +195,20 @@ struct parse_multi_head_attention : op_parser<parse_multi_head_attention>
                 }
             }
         }
+    }
+
+    void check_inputs(const std::vector<instruction_ref>& args,
+                      const int64_t num_heads,
+                      multi_head_attention_parameters& params) const
+    {
+        if(args.empty() or args.size() > 4)
+            MIGRAPHX_THROW("MultiHeadAttention: Wrong number of inputs. Only 'query', 'key' and "
+                           "'value', bias inputs are supported.");
+
+        // Order matters here. Most parameters defined by input query, key, value parameters
+        // This must be used first to extract hidden size, batch, etc
+        check_query_dim(args, num_heads, params);
+
     }
 
     instruction_ref parse(const op_desc& /*opd*/,

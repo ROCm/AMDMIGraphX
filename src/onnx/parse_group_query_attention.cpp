@@ -154,23 +154,10 @@ struct parse_group_query_attention : op_parser<parse_group_query_attention>
             make_op("multibroadcast", {{"out_lens", inputs.at(5)->get_shape().lens()}}), one_lit);
         auto total_sl = info.add_instruction(make_op("add"), inputs.at(5), one_lit);
 
-        // auto get_tuple_elm_0 = std::next(ins);
-        // auto get_tuple_elm_1 = std::next(get_tuple_elm_0);
-        // auto get_tuple_elm_2 = std::next(get_tuple_elm_1);
-
-        // mpm.get_module().replace_instruction(get_tuple_elm_2, pres_v);
-        // mpm.get_module().replace_instruction(get_tuple_elm_1, pres_k);
-
         auto kv_num_heads_factor = num_heads / kv_num_heads;
         auto max_seq_len         = pres_k->get_shape().lens()[2];
         total_sl                 = info.add_instruction(
             make_op("multibroadcast", {{"out_lens", {batch_size, num_heads}}}), total_sl);
-        // std::vector<instruction_ref> new_inputs{rotary_qkv, pres_k, pres_v, total_sl};
-
-        // module m_attn;
-        // std::vector<instruction_ref> attn_inputs = {rotary_qkv, pres_k, pres_v, total_sl};
-        // std::unordered_map<instruction_ref, instruction_ref> map_main_to_mattn;
-        // m_attn.add_params(attn_inputs, &map_main_to_mattn);
 
         auto q = info.add_instruction(
             make_op("slice", {{"axes", {1}}, {"starts", {0}}, {"ends", {num_heads}}}), rotary_qkv);
@@ -247,23 +234,6 @@ struct parse_group_query_attention : op_parser<parse_group_query_attention>
             out);
 
         return {out, pres_k, pres_v};
-
-        // auto gqa             = info.add_instruction(make_op("group_query_attention",
-        //                                                     {{"do_rotary", do_rotary},
-        //                                                      {"kv_num_heads", kv_num_heads},
-        //                                                      {"local_window_size",
-        //                                                      local_window_size},
-        //                                                      {"num_heads", num_heads},
-        //                                                      {"rotary_interleaved",
-        //                                                      rotary_interleaved},
-        //                                                      {"scale", scale}}),
-        //                                 new_args);
-        // auto gqa_output      = info.add_instruction(make_op("get_tuple_elem", {{"index", 0}}),
-        // gqa); auto gqa_present_key = info.add_instruction(make_op("get_tuple_elem", {{"index",
-        // 1}}), gqa); auto gqa_present_value =
-        //     info.add_instruction(make_op("get_tuple_elem", {{"index", 2}}), gqa);
-
-        // return {gqa_output, gqa_present_key, gqa_present_value};
     }
 };
 

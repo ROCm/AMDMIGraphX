@@ -55,17 +55,6 @@ struct rotary_parameters
 
 struct gqa_rotary_embedding
 {
-    // std::size_t kv_num_heads      = 0;
-    // std::size_t num_heads         = 1;
-    // bool rotary_interleaved       = false;
-
-    // template <class Self, class F>
-    // static auto reflect(Self& self, F f)
-    // {
-    //     return pack(f(self.kv_num_heads, "kv_num_heads"),
-    //                 f(self.num_heads, "num_heads"),
-    //                 f(self.rotary_interleaved, "rotary_interleaved"));
-    // }
     bool do_rotary           = false;
     std::size_t kv_num_heads = 0;
     int local_window_size    = -1;

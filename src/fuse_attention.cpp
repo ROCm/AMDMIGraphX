@@ -192,8 +192,7 @@ struct find_kv_cache_attention
             match::name("dot")(match::arg(0)(match::softmax_input(where)),
                                match::arg(1)(match::name("concat_past_present").bind("pres_v")));
         auto transpose2 = match::name("transpose")(match::arg(0)(gemm2));
-        auto reshape    = match::name("reshape")(match::arg(0)(transpose2));
-        return reshape;
+        return match::name("reshape")(match::arg(0)(transpose2));
     }
 
     std::string get_count() const { return std::to_string((*counter)++); }
@@ -260,7 +259,6 @@ struct find_kv_cache_attention
 
     void apply(module_pass_manager& mpm, const match::matcher_result& r) const
     {
-        std::cout << "matched kvca" << std::endl;
         auto query    = r.instructions["query"];
         auto pres_k   = r.instructions["pres_k"];
         auto pres_v   = r.instructions["pres_v"];
@@ -269,10 +267,6 @@ struct find_kv_cache_attention
 
         // Capture all instructions part of the attention op
         auto attn_inss = get_attn_instructions(mpm.get_module(), total_sl, reshape);
-        for(auto& ins : attn_inss)
-        {
-            ins->debug_print();
-        }
 
         // Add captured instructions to new submodule
         module m_attn;
@@ -290,8 +284,6 @@ struct find_kv_cache_attention
                        strides.begin(), strides.end() - 1, [](auto s) { return s == 0; }) and
                    strides.back() == 1)
                 {
-                    std::cout << "non splat broadcasted: " << std::endl;
-                    ins->debug_print();
                     auto new_lit = m_attn.add_literal(
                         literal{shape{lit_s.type(), {lit_s.lens().back()}}, ins->eval().data()});
                     m_attn.replace_instruction(
@@ -310,20 +302,7 @@ struct find_kv_cache_attention
                 });
             });
 
-        std::cout << "Required outputs" << std::endl;
-        for(auto& ins : required_outputs)
-        {
-            ins->debug_print();
-        }
-
         assert(not required_outputs.empty());
-        // Not supporting multi-out just yet - TODO: remove for lse support
-        // if(required_outputs.size() > 1)
-        // {
-        //     auto req = required_outputs.back();
-        //     required_outputs.pop_back();
-        //     required_outputs.insert(required_outputs.begin(), req);
-        // }
 
         // Find corresponding output instructions in m_attn
         std::vector<instruction_ref> m_attn_outputs;
@@ -332,50 +311,23 @@ struct find_kv_cache_attention
                        std::back_inserter(m_attn_outputs),
                        [&](auto i) { return map_mm_to_mattn.at(i); });
 
-        std::cout << "Attn outputs" << std::endl;
-        for(auto& ins : m_attn_outputs)
-        {
-            ins->debug_print();
-        }
         auto outs = m_attn.add_return({m_attn_outputs.back()});
 
         // Define inputs to m_attn
         auto map_mattn_to_mm = invert_map_ins(map_mm_to_mattn);
         auto new_inputs      = m_attn.get_inputs(map_mattn_to_mm);
 
-        std::cout << "New inputs" << std::endl;
-        for(auto& ins : new_inputs)
-        {
-            ins->debug_print();
-        }
-
         module_ref mpm_attn = mpm.create_module("attn" + get_count(), std::move(m_attn));
         mpm_attn->set_bypass();
 
         // Construct group op with the attention module
-        mpm_attn->debug_print();
         auto group_ins =
             mpm.get_module().insert_instruction(required_outputs.back(),
                                                 make_op("group", {{"tag", "attention"}}),
                                                 new_inputs,
                                                 {mpm_attn});
-        // if(m_attn_outputs.size() == 1)
-        // {
+
         mpm.get_module().replace_instruction(required_outputs.back(), group_ins);
-        // }
-        // else
-        // {
-        //     for(std::size_t i = 0; i < required_outputs.size() - 1; ++i)
-        //     {
-        //         auto id = mpm.get_module().insert_instruction(
-        //             std::next(group_ins), make_op("identity"), required_outputs[i]);
-        //         mpm.get_module().replace_instruction(
-        //             id, make_op("get_tuple_elem", {{"index", i}}), group_ins);
-        //     }
-        // mpm.get_module().replace_instruction(
-        //             required_outputs[2], make_op("get_tuple_elem", {{"index", 2}}), group_ins);
-        mpm.get_module().debug_print();
-        // }
     }
 };
 
@@ -383,8 +335,6 @@ struct find_kv_cache_attention
 
 void fuse_attention::apply(module_pass_manager& mpm) const
 {
-    std::cout << "Module @ fuse_attn" << std::endl;
-    mpm.get_module().debug_print();
     std::size_t counter = 0;
     match::find_matches(mpm, find_kv_cache_attention{.counter = &counter});
     match::find_matches(mpm, find_attention{.counter = &counter});

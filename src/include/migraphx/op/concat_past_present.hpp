@@ -54,15 +54,6 @@ struct cache_parameters
 
 struct concat_past_present
 {
-    // std::size_t kv_num_heads      = 1;
-    // std::size_t num_heads         = 1;
-
-    // template <class Self, class F>
-    // static auto reflect(Self& self, F f)
-    // {
-    //     return pack(f(self.kv_num_heads, "kv_num_heads"),
-    //                 f(self.num_heads, "num_heads"));
-    // }
     bool do_rotary           = false;
     std::size_t kv_num_heads = 0;
     int local_window_size    = -1;
@@ -137,7 +128,6 @@ struct concat_past_present
         const std::size_t packed_batch_stride =
             (num_heads + 2 * kv_num_heads) * sequence_length * head_size;
         const std::size_t kv_num_heads_factor    = num_heads / kv_num_heads;
-        const std::size_t q_input_chunk_length   = sequence_length * head_size;             // S x H
         const std::size_t kv_input_chunk_length  = sequence_length * head_size;             // L x H
         const std::size_t past_buff_chunk_length = past_buffer_sequence_length * head_size; // L x H
         const std::size_t present_buff_chunk_length =

@@ -531,17 +531,6 @@ struct miopen_apply
 
     void add_group_query_attention_op()
     {
-        // apply_map.emplace("gpu::gqa_rotary_embedding", [=](instruction_ref ins) {
-        //     auto s          = ins->get_shape();
-        //     auto output     = insert_allocation(ins, s);
-        //     auto new_inputs = ins->inputs();
-        //     new_inputs.push_back(output);
-        //     return mod->replace_instruction(
-        //         ins,
-        //         make_op("gpu::precompile_op", {{"op", to_value(ins->get_operator())}}),
-        //         new_inputs);
-        // });
-
         apply_map.emplace("concat_past_present", [=](instruction_ref ins) {
             return mod->replace_instruction(ins,
                                             make_op("gpu::precompile_op",

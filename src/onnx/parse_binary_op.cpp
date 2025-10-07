@@ -23,8 +23,7 @@
  */
 #include <migraphx/onnx/op_parser.hpp>
 #include <migraphx/ranges.hpp>
-#include <migraphx/instruction.hpp>
-#include <migraphx/make_op.hpp>
+#include <migraphx/op/builder/insert.hpp>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
@@ -52,31 +51,23 @@ struct parse_binary_op : op_parser<parse_binary_op>
     {
         if(args.size() != 2)
             MIGRAPHX_THROW("binary operators should have 2 operands");
+        
+        value options = {};
         if(contains(info.attributes, "broadcast") and contains(info.attributes, "axis"))
         {
-            uint64_t broadcasted =
-                parser.parse_value(info.attributes.at("broadcast")).at<uint64_t>();
+            options.insert({"is_broadcasted", true});
+
+            const uint64_t broadcasted = parser.parse_value(info.attributes.at("broadcast")).at<uint64_t>();
+            options.insert({"broadcasted", broadcasted});
+
             if(broadcasted != 0)
             {
-                if(std::any_of(
-                       args.cbegin(), args.cend(), [](auto a) { return a->get_shape().dynamic(); }))
-                {
-                    MIGRAPHX_THROW(
-                        "Binary op broadcast attribute not supported for dynamic input shapes");
-                }
-                uint64_t axis = parser.parse_value(info.attributes.at("axis")).at<uint64_t>();
-                auto l        = info.add_instruction(
-                    make_op("broadcast",
-                            {{"axis", axis}, {"out_lens", args[0]->get_shape().lens()}}),
-                    args[1]);
-                return info.add_instruction(make_op(opd.op_name), args[0], l);
+                const uint64_t axis = parser.parse_value(info.attributes.at("axis")).at<uint64_t>();
+                options.insert({"axis", axis});
             }
-            return info.add_instruction(make_op(opd.op_name), args);
         }
-        else
-        {
-            return info.add_broadcastable_binary_op(opd.op_name, args[0], args[1]);
-        }
+        
+        return op::builder::add(opd.op_name, *info.mod, args, options).at(0);
     }
 };
 

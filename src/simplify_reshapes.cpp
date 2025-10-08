@@ -1639,24 +1639,24 @@ struct rectangular_pattern
         // Validate all segment indices
         auto validate_segment_indices = [&](const index_segment& seg, std::size_t offset) {
             const auto& meta = std::get<constant_segment_meta>(seg.metadata);
-            
+
             // Check all indices in this segment
             return std::all_of(
                 range(seg.length).begin(), range(seg.length).end(), [&](std::size_t j) {
                     auto idx = offset + j;
-                    
+
                     // Validate index bounds
                     if(static_cast<std::size_t>(ctx.indices_values[idx]) >= ctx.axis_len)
                         return false;
-                    
+
                     // Validate index matches segment metadata
                     if(ctx.indices_values[idx] != meta.value)
                         return false;
-                    
+
                     // Compute and validate multi-dimensional indexing
                     auto out_idx = output_shape.multi(idx);
                     auto in_idx  = out_idx;
-                    
+
                     // Apply scale transformation to each dimension
                     std::transform(in_idx.begin(),
                                    in_idx.end(),
@@ -1665,7 +1665,7 @@ struct rectangular_pattern
                                    [](auto idx_val, auto scale) {
                                        return scale > 1 ? idx_val - (idx_val % scale) : idx_val;
                                    });
-                    
+
                     auto ref_index = output_shape.index(in_idx);
                     return ctx.indices_values[idx] == ctx.indices_values[ref_index];
                 });
@@ -1673,24 +1673,23 @@ struct rectangular_pattern
 
         // Compute cumulative offsets for each segment
         std::vector<std::size_t> segment_offsets(segments.size());
-        transform_partial_sum(
-            segments.begin(),
-            segments.end(),
-            segment_offsets.begin(),
-            std::plus<>(),
-            [](const auto& seg) { return seg.length; });
-        
+        transform_partial_sum(segments.begin(),
+                              segments.end(),
+                              segment_offsets.begin(),
+                              std::plus<>(),
+                              [](const auto& seg) { return seg.length; });
+
         // Validate all segments
-        bool all_valid = std::equal(
-            segments.begin(),
-            segments.end(),
-            segment_offsets.begin(),
-            [&](const auto& seg, std::size_t cumulative_offset) {
-                // Offset for this segment is cumulative_offset minus current segment length
-                std::size_t offset = cumulative_offset - seg.length;
-                return validate_segment_indices(seg, offset);
-            });
-        
+        bool all_valid = std::equal(segments.begin(),
+                                    segments.end(),
+                                    segment_offsets.begin(),
+                                    [&](const auto& seg, std::size_t cumulative_offset) {
+                                        // Offset for this segment is cumulative_offset minus
+                                        // current segment length
+                                        std::size_t offset = cumulative_offset - seg.length;
+                                        return validate_segment_indices(seg, offset);
+                                    });
+
         if(not all_valid)
             return std::nullopt;
 
@@ -1735,16 +1734,16 @@ struct rectangular_pattern
 
         // Step 3a: Build first_broadcast_lens with proper interleaving using accumulate
         // For each index, add len and conditionally add scale
-        first_broadcast_lens = std::accumulate(
-            range(input_lens.size()).begin(),
-            range(input_lens.size()).end(),
-            std::vector<int64_t>{},
-            [&](std::vector<int64_t> acc, auto i) {
-                acc.push_back(static_cast<int64_t>(input_lens[i]));
-                if(needs_split_flags[i])
-                    acc.push_back(static_cast<int64_t>(scales[i]));
-                return acc;
-            });
+        first_broadcast_lens =
+            std::accumulate(range(input_lens.size()).begin(),
+                            range(input_lens.size()).end(),
+                            std::vector<int64_t>{},
+                            [&](std::vector<int64_t> acc, auto i) {
+                                acc.push_back(static_cast<int64_t>(input_lens[i]));
+                                if(needs_split_flags[i])
+                                    acc.push_back(static_cast<int64_t>(scales[i]));
+                                return acc;
+                            });
 
         // Step 3b: Build unsqueeze_axes using transform_if for positions where needs_split is true
         transform_if(
@@ -1758,9 +1757,8 @@ struct rectangular_pattern
             });
 
         // Step 3c: Update need_unsqueeze flag
-        need_unsqueeze = std::any_of(needs_split_flags.begin(),
-                                     needs_split_flags.end(),
-                                     [](bool flag) { return flag; });
+        need_unsqueeze = std::any_of(
+            needs_split_flags.begin(), needs_split_flags.end(), [](bool flag) { return flag; });
 
         // Step 4: Build reshape_dims by transforming indices
         std::transform(range(input_lens.size()).begin(),

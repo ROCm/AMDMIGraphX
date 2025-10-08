@@ -79,12 +79,12 @@ Builders are intended to be used via two helper functions, with two overloads ea
                                      const value& options);
 
 
- * name - specify the name of the builder that is to be used
- * m - module into which the builder will insert instructions
- * ins - location in module at which the builder will insert instructions
- * args - inputs for the builder operation
- * module_args - submodule inputs for the builder operations
- * options - dictionary of key-value pairs with which the builder attributes will be initialized. The attribute name is the key of the pair. 
+* name - specify the name of the builder that is to be used
+* m - module into which the builder will insert instructions
+* ins - location in module at which the builder will insert instructions
+* args - inputs for the builder operation
+* module_args - submodule inputs for the builder operations
+* options - dictionary of key-value pairs with which the builder attributes will be initialized. The attribute name is the key of the pair. 
 
 Details
 ============

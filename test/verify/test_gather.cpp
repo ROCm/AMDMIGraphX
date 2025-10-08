@@ -47,6 +47,7 @@ struct test_gather : verify_program<test_gather<Axis, DType>>
 
 // Standard gather test
 template struct test_gather<0, migraphx::shape::float_type>;
+template struct test_gather<0, migraphx::shape::int8_type>;
 template struct test_gather<0, migraphx::shape::half_type>;
 template struct test_gather<0, migraphx::shape::bf16_type>;
 template struct test_gather<0, migraphx::shape::fp8e4m3fnuz_type>;
@@ -57,6 +58,7 @@ template struct test_gather<0, migraphx::shape::fp8e5m2_type>;
 template struct test_gather<-2, migraphx::shape::float_type>;
 template struct test_gather<-2, migraphx::shape::half_type>;
 template struct test_gather<-2, migraphx::shape::bf16_type>;
+template struct test_gather<-2, migraphx::shape::int8_type>;
 template struct test_gather<-2, migraphx::shape::fp8e4m3fnuz_type>;
 template struct test_gather<-2, migraphx::shape::fp8e5m2fnuz_type>;
 template struct test_gather<-2, migraphx::shape::fp8e4m3fn_type>;

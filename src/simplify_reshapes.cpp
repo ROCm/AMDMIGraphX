@@ -1254,8 +1254,9 @@ struct rtr_window_segment_meta
     std::vector<std::size_t> permutation;
 
     /// Check if indices form valid permutation
-    static bool
-    is_valid_permutation_seg(const std::vector<int64_t>& indices, std::size_t start, std::size_t length)
+    static bool is_valid_permutation_seg(const std::vector<int64_t>& indices,
+                                         std::size_t start,
+                                         std::size_t length)
     {
         if(length == 0)
             return false;
@@ -1274,10 +1275,10 @@ struct rtr_window_segment_meta
 
     /// Try grid factorization
     static bool try_grid_factorization_seg(const std::vector<int64_t>& indices,
-                                        std::size_t start,
-                                        std::size_t length,
-                                        const std::vector<std::size_t>& factors,
-                                        std::vector<std::size_t>& out_permutation)
+                                           std::size_t start,
+                                           std::size_t length,
+                                           const std::vector<std::size_t>& factors,
+                                           std::vector<std::size_t>& out_permutation)
     {
         if(product_of(factors) != length)
             return false;
@@ -1564,8 +1565,8 @@ struct rectangular_pattern
     std::vector<std::size_t> output_lens;
     std::vector<std::size_t> scales;
 
-    static std::optional<rectangular_pattern>
-    detect(const gather_context& ctx, const std::vector<index_segment>& segments)
+    static std::optional<rectangular_pattern> detect(const gather_context& ctx,
+                                                     const std::vector<index_segment>& segments)
     {
         if(ctx.axis_index != 0)
             return std::nullopt;
@@ -1586,7 +1587,7 @@ struct rectangular_pattern
         if(reshape_lens.size() != 1)
             return std::nullopt;
 
-        auto input_ins          = data_ins->inputs().front();
+        auto input_ins           = data_ins->inputs().front();
         const auto& input_shape  = input_ins->get_shape();
         const auto& output_shape = ctx.ins->get_shape();
 
@@ -1606,9 +1607,10 @@ struct rectangular_pattern
         if(segment_length == 0)
             return std::nullopt;
 
-        if(not std::all_of(segments.begin(), segments.end(), [segment_length](const index_segment& seg) {
-               return seg.length == segment_length;
-           }))
+        if(not std::all_of(
+               segments.begin(), segments.end(), [segment_length](const index_segment& seg) {
+                   return seg.length == segment_length;
+               }))
             return std::nullopt;
 
         std::vector<std::size_t> value_counts(ctx.axis_len, 0);
@@ -1620,9 +1622,8 @@ struct rectangular_pattern
             value_counts[static_cast<std::size_t>(meta.value)] += seg.length;
         }
 
-        if(std::any_of(value_counts.begin(), value_counts.end(), [](auto count) {
-               return count == 0;
-           }))
+        if(std::any_of(
+               value_counts.begin(), value_counts.end(), [](auto count) { return count == 0; }))
             return std::nullopt;
 
         std::vector<std::size_t> scales(in_lens_ref.size());
@@ -1665,14 +1666,15 @@ struct rectangular_pattern
         std::vector<std::size_t> input_lens(in_lens_ref.begin(), in_lens_ref.end());
         std::vector<std::size_t> output_lens(out_lens_ref.begin(), out_lens_ref.end());
 
-        return rectangular_pattern{std::move(input_lens), std::move(output_lens), std::move(scales)};
+        return rectangular_pattern{
+            std::move(input_lens), std::move(output_lens), std::move(scales)};
     }
 
     instruction_ref transform(const gather_context& ctx,
                               gather_instruction_builder& builder,
                               const std::vector<std::size_t>& target_shape) const
     {
-        auto input_ins = ctx.data_ins->inputs().front();
+        auto input_ins           = ctx.data_ins->inputs().front();
         instruction_ref expanded = input_ins;
 
         std::vector<int64_t> unsqueeze_axes;
@@ -1683,7 +1685,7 @@ struct rectangular_pattern
         reshape_dims.reserve(input_lens.size());
 
         std::size_t inserted_axes = 0;
-        bool need_unsqueeze        = false;
+        bool need_unsqueeze       = false;
 
         for(std::size_t i = 0; i < input_lens.size(); ++i)
         {

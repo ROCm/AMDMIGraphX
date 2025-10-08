@@ -1509,10 +1509,31 @@ analyze_index_segments(const std::vector<int64_t>& indices,
         return segments;
 
     std::size_t pos = 0;
+
+    // Find the largest segment length that matches any pattern
+    // We use linear search from largest to smallest because the pattern matching
+    // predicate is not monotonic (e.g., length 16 may match RTR, length 8 may not match,
+    // but length 2 may match arithmetic), so bisection would give incorrect results
+    std::size_t segment_length = 1;
+    for(std::size_t len = indices.size(); len >= 1; --len)
+    {
+        // Try to detect any pattern with this length
+        if(constant_segment_meta::detect(indices, pos, len).has_value() or
+           contiguous_segment_meta::detect(indices, pos, len).has_value() or
+           arithmetic_segment_meta::detect(indices, pos, len).has_value() or
+           rtr_window_segment_meta::detect(indices, pos, len, factor_candidates).has_value())
+        {
+            segment_length = len;
+            break; // Found the largest matching segment
+        }
+    }
+
+    // Now apply this segment length uniformly across all indices
     while(pos < indices.size())
     {
-        std::size_t best_length = 1;
-        segment_type best_type  = segment_type::general;
+        std::size_t len = std::min(segment_length, indices.size() - pos);
+
+        segment_type best_type = segment_type::general;
         std::variant<std::monostate,
                      constant_segment_meta,
                      contiguous_segment_meta,
@@ -1520,40 +1541,30 @@ analyze_index_segments(const std::vector<int64_t>& indices,
                      rtr_window_segment_meta>
             best_metadata;
 
-        for(std::size_t len = indices.size() - pos; len >= 1; --len)
+        // Try each pattern type with the fixed length
+        if(auto meta = constant_segment_meta::detect(indices, pos, len))
         {
-            if(auto meta = constant_segment_meta::detect(indices, pos, len))
-            {
-                best_length   = len;
-                best_type     = segment_type::constant;
-                best_metadata = *meta;
-                break;
-            }
-            if(auto meta = contiguous_segment_meta::detect(indices, pos, len))
-            {
-                best_length   = len;
-                best_type     = segment_type::contiguous;
-                best_metadata = *meta;
-                break;
-            }
-            if(auto meta = arithmetic_segment_meta::detect(indices, pos, len))
-            {
-                best_length   = len;
-                best_type     = segment_type::arithmetic;
-                best_metadata = *meta;
-                break;
-            }
-            if(auto meta = rtr_window_segment_meta::detect(indices, pos, len, factor_candidates))
-            {
-                best_length   = len;
-                best_type     = segment_type::rtr_window;
-                best_metadata = *meta;
-                break;
-            }
+            best_type     = segment_type::constant;
+            best_metadata = *meta;
+        }
+        else if(auto meta_cont = contiguous_segment_meta::detect(indices, pos, len))
+        {
+            best_type     = segment_type::contiguous;
+            best_metadata = *meta_cont;
+        }
+        else if(auto meta_arith = arithmetic_segment_meta::detect(indices, pos, len))
+        {
+            best_type     = segment_type::arithmetic;
+            best_metadata = *meta_arith;
+        }
+        else if(auto meta_rtr = rtr_window_segment_meta::detect(indices, pos, len, factor_candidates))
+        {
+            best_type     = segment_type::rtr_window;
+            best_metadata = *meta_rtr;
         }
 
-        segments.push_back(index_segment{best_type, pos, best_length, std::move(best_metadata)});
-        pos += best_length;
+        segments.push_back(index_segment{best_type, pos, len, std::move(best_metadata)});
+        pos += len;
     }
     return segments;
 }

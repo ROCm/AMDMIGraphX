@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2023 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2025 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -58,7 +58,7 @@ __device__ void gather(Input input, Indices indices, Output output)
 
         if(idx[Axis] < 0 or idx[Axis] >= axis_dim_size)
         {   // Don't gather on this just exit
-            output[i] = 0;
+            output[i] = static_cast<typename Output::type>(0);
             return;
         }
 

@@ -1636,32 +1636,63 @@ struct rectangular_pattern
             scales[i] = out_dim / in_dim;
         }
 
-        for(std::size_t offset = 0, seg_index = 0; seg_index < segments.size(); ++seg_index)
-        {
-            const auto& seg  = segments[seg_index];
+        // Validate all segment indices
+        auto validate_segment_indices = [&](const index_segment& seg, std::size_t offset) {
             const auto& meta = std::get<constant_segment_meta>(seg.metadata);
-            for(std::size_t j = 0; j < seg.length; ++j)
-            {
-                auto idx = offset + j;
-                if(static_cast<std::size_t>(ctx.indices_values[idx]) >= ctx.axis_len)
-                    return std::nullopt;
-                if(ctx.indices_values[idx] != meta.value)
-                    return std::nullopt;
+            
+            // Check all indices in this segment
+            return std::all_of(
+                range(seg.length).begin(), range(seg.length).end(), [&](std::size_t j) {
+                    auto idx = offset + j;
+                    
+                    // Validate index bounds
+                    if(static_cast<std::size_t>(ctx.indices_values[idx]) >= ctx.axis_len)
+                        return false;
+                    
+                    // Validate index matches segment metadata
+                    if(ctx.indices_values[idx] != meta.value)
+                        return false;
+                    
+                    // Compute and validate multi-dimensional indexing
+                    auto out_idx = output_shape.multi(idx);
+                    auto in_idx  = out_idx;
+                    
+                    // Apply scale transformation to each dimension
+                    std::transform(in_idx.begin(),
+                                   in_idx.end(),
+                                   scales.begin(),
+                                   in_idx.begin(),
+                                   [](auto idx_val, auto scale) {
+                                       return scale > 1 ? idx_val - (idx_val % scale) : idx_val;
+                                   });
+                    
+                    auto ref_index = output_shape.index(in_idx);
+                    return ctx.indices_values[idx] == ctx.indices_values[ref_index];
+                });
+        };
 
-                auto out_idx = output_shape.multi(idx);
-                auto in_idx  = out_idx;
-                for(std::size_t dim = 0; dim < in_idx.size(); ++dim)
-                {
-                    auto scale = scales[dim];
-                    if(scale > 1)
-                        in_idx[dim] -= (in_idx[dim] % scale);
-                }
-                auto ref_index = output_shape.index(in_idx);
-                if(ctx.indices_values[idx] != ctx.indices_values[ref_index])
-                    return std::nullopt;
-            }
-            offset += seg.length;
-        }
+        // Compute cumulative offsets for each segment
+        std::vector<std::size_t> segment_offsets(segments.size());
+        transform_partial_sum(
+            segments.begin(),
+            segments.end(),
+            segment_offsets.begin(),
+            std::plus<>(),
+            [](const auto& seg) { return seg.length; });
+        
+        // Validate all segments
+        bool all_valid = std::equal(
+            segments.begin(),
+            segments.end(),
+            segment_offsets.begin(),
+            [&](const auto& seg, std::size_t cumulative_offset) {
+                // Offset for this segment is cumulative_offset minus current segment length
+                std::size_t offset = cumulative_offset - seg.length;
+                return validate_segment_indices(seg, offset);
+            });
+        
+        if(not all_valid)
+            return std::nullopt;
 
         std::vector<std::size_t> input_lens(in_lens_ref.begin(), in_lens_ref.end());
         std::vector<std::size_t> output_lens(out_lens_ref.begin(), out_lens_ref.end());
@@ -1684,29 +1715,64 @@ struct rectangular_pattern
         std::vector<int64_t> reshape_dims;
         reshape_dims.reserve(input_lens.size());
 
-        std::size_t inserted_axes = 0;
-        bool need_unsqueeze       = false;
+        bool need_unsqueeze = false;
 
-        for(std::size_t i = 0; i < input_lens.size(); ++i)
-        {
-            auto len   = input_lens[i];
-            auto scale = scales[i];
+        // Step 1: Determine which positions need splitting
+        std::vector<bool> needs_split_flags(input_lens.size());
+        std::transform(input_lens.begin(),
+                       input_lens.end(),
+                       scales.begin(),
+                       needs_split_flags.begin(),
+                       [](auto len, auto scale) { return len > 1 and scale > 1; });
 
-            first_broadcast_lens.push_back(static_cast<int64_t>(len));
+        // Step 2: Compute prefix count of splits (how many splits occurred before each position)
+        std::vector<std::size_t> prefix_split_count(input_lens.size());
+        transform_partial_sum(needs_split_flags.begin(),
+                              needs_split_flags.end(),
+                              prefix_split_count.begin(),
+                              std::plus<>{},
+                              [](bool flag) { return flag ? std::size_t{1} : std::size_t{0}; });
 
-            bool needs_split = (len > 1 and scale > 1);
-            if(needs_split)
-            {
-                need_unsqueeze = true;
-                auto axis      = static_cast<int64_t>(i + 1 + inserted_axes);
-                unsqueeze_axes.push_back(axis);
-                first_broadcast_lens.push_back(static_cast<int64_t>(scale));
-                inserted_axes++;
-            }
+        // Step 3a: Build first_broadcast_lens with proper interleaving using accumulate
+        // For each index, add len and conditionally add scale
+        first_broadcast_lens = std::accumulate(
+            range(input_lens.size()).begin(),
+            range(input_lens.size()).end(),
+            std::vector<int64_t>{},
+            [&](std::vector<int64_t> acc, auto i) {
+                acc.push_back(static_cast<int64_t>(input_lens[i]));
+                if(needs_split_flags[i])
+                    acc.push_back(static_cast<int64_t>(scales[i]));
+                return acc;
+            });
 
-            auto reshape_factor = needs_split ? scale : std::size_t{1};
-            reshape_dims.push_back(static_cast<int64_t>(len * reshape_factor));
-        }
+        // Step 3b: Build unsqueeze_axes using transform_if for positions where needs_split is true
+        transform_if(
+            range(input_lens.size()).begin(),
+            range(input_lens.size()).end(),
+            std::back_inserter(unsqueeze_axes),
+            [&needs_split_flags](auto i) { return needs_split_flags[i]; },
+            [&prefix_split_count](auto i) {
+                auto inserted = (i > 0) ? prefix_split_count[i - 1] : std::size_t{0};
+                return static_cast<int64_t>(i + 1 + inserted);
+            });
+
+        // Step 3c: Update need_unsqueeze flag
+        need_unsqueeze = std::any_of(needs_split_flags.begin(),
+                                     needs_split_flags.end(),
+                                     [](bool flag) { return flag; });
+
+        // Step 4: Build reshape_dims by transforming indices
+        std::transform(range(input_lens.size()).begin(),
+                       range(input_lens.size()).end(),
+                       std::back_inserter(reshape_dims),
+                       [&](auto i) {
+                           auto len            = input_lens[i];
+                           auto scale          = scales[i];
+                           auto needs_split    = needs_split_flags[i];
+                           auto reshape_factor = needs_split ? scale : std::size_t{1};
+                           return static_cast<int64_t>(len * reshape_factor);
+                       });
 
         if(need_unsqueeze)
             expanded = builder.unsqueeze(expanded, unsqueeze_axes);

@@ -228,8 +228,9 @@ struct find_kv_cache_attention
             match::arg(0)(match::name("greater")(match::arg(1)(match::any().bind("total_sl")))))));
         auto where   = match::name("where")(match::arg(0)(greater),
                                           match::arg(2)(match::any_of(causal_mask, scale)));
+        auto softmax = match::skip(match::name("convert"))(match::softmax_input(match::skip(match::name("convert"))(where)));
         auto gemm2 =
-            match::name("dot")(match::arg(0)(match::softmax_input(where)),
+            match::name("dot")(match::arg(0)(softmax),
                                match::arg(1)(match::name("concat_past_present").bind("pres_v")));
         auto transpose2 = match::name("transpose")(match::arg(0)(gemm2));
         return match::name("reshape")(match::arg(0)(transpose2));
@@ -375,6 +376,7 @@ struct find_kv_cache_attention
 
 void fuse_attention::apply(module_pass_manager& mpm) const
 {
+    mpm.get_module().debug_print();
     std::size_t counter = 0;
     match::find_matches(mpm, find_kv_cache_attention{.counter = &counter});
     match::find_matches(mpm, find_attention{.counter = &counter});

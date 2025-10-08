@@ -168,6 +168,7 @@ rocm_enable_clang_tidy(
         -bugprone-easily-swappable-parameters
         -bugprone-implicit-widening-of-multiplication-result
         -bugprone-macro-parentheses
+        -bugprone-nondeterministic-pointer-iteration-order
         -bugprone-return-const-ref-from-parameter
         -bugprone-signed-char-misuse
         -bugprone-unchecked-optional-access

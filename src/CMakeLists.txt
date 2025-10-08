@@ -31,6 +31,21 @@ include(RegisterOp)
 include(CheckCXXLinkerFlag)
 include(CheckCXXSourceCompiles)
 
+set(CMAKE_REQUIRED_FLAGS "-Werror=deprecated-declarations")
+check_cxx_source_compiles("
+#include <algorithm>
+int main() { std::stable_sort((int *)0, (int*)0); }
+" COMPILER_IGNORES_DEPRECATED_DECL_IN_SYSTEM_HEADERS)
+
+execute_process(COMMAND gcc-11 --print-file-name ""
+		OUTPUT_VARIABLE LIBSTDCXX11_PATH
+		OUTPUT_STRIP_TRAILING_WHITESPACE
+		ERROR_QUIET)
+
+if(CMAKE_CXX_COMPILER_ID MATCHES "Clang" AND NOT COMPILER_IGNORES_DEPRECATED_DECL_IN_SYSTEM_HEADERS AND EXISTS "${LIBSTDCXX11_PATH}")
+	add_compile_options("--gcc-install-dir=${LIBSTDCXX11_PATH}")
+endif()
+
 add_library(migraphx
     adjust_allocation.cpp
     analyze_streams.cpp
@@ -190,6 +205,7 @@ register_migraphx_ops(
     erf
     exp
     fill
+    fixed_pad
     flatten
     floor
     fmod
@@ -230,6 +246,7 @@ register_migraphx_ops(
     nonzero
     onehot
     outline
+    pack_fp4
     pack_int4
     pad
     pointwise
@@ -294,6 +311,7 @@ register_migraphx_ops(
     undefined
     unique
     unknown
+    unpack_fp4
     unpack_int4
     unsqueeze
     where
@@ -341,13 +359,19 @@ target_link_libraries(migraphx PRIVATE nlohmann_json::nlohmann_json)
 find_package(SQLite3 REQUIRED)
 target_link_libraries(migraphx PRIVATE SQLite::SQLite3)
 
-find_package(msgpackc-cxx QUIET)
-if(NOT msgpackc-cxx_FOUND)
-    find_package(msgpack REQUIRED)
+# See: https://github.com/msgpack/msgpack-c/wiki/Q%26A#how-to-support-both-msgpack-c-c-version-5x-and-6x-
+# Prefer 6.x (msgpack-cxx)
+find_package(msgpack-cxx)
+if(msgpack-cxx_FOUND)
+    message(STATUS "Found msgpack-cxx (>=6.x)")
+else()
+    find_package(msgpackc-cxx REQUIRED NAMES msgpackc-cxx msgpack)
+    message(STATUS "Found msgpackc-cxx (<=5.x)")
+    add_library(msgpack-cxx ALIAS msgpackc-cxx)
 endif()
-target_link_libraries(migraphx PRIVATE msgpackc-cxx)
+target_link_libraries(migraphx PRIVATE msgpack-cxx)
 # Make this available to the tests
-target_link_libraries(migraphx INTERFACE $<BUILD_INTERFACE:msgpackc-cxx>)
+target_link_libraries(migraphx INTERFACE $<BUILD_INTERFACE:msgpack-cxx>)
 
 add_library(migraphx_all_targets INTERFACE)
 

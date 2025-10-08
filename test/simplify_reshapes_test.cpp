@@ -1875,22 +1875,21 @@ TEST_CASE(gather_constant_single_index)
     run_pass(m1);
 
     // Verify gather was optimized away
-    EXPECT(std::none_of(m1.begin(), m1.end(), [](const auto& ins) {
-        return ins.name() == "gather";
-    }));
-    
+    EXPECT(
+        std::none_of(m1.begin(), m1.end(), [](const auto& ins) { return ins.name() == "gather"; }));
+
     // Verify output shape is correct: {3, 1, 5}
-    auto result = std::find_if(m1.begin(), m1.end(), [](const auto& ins) {
-        return ins.name() == "@return";
-    });
+    auto result =
+        std::find_if(m1.begin(), m1.end(), [](const auto& ins) { return ins.name() == "@return"; });
     EXPECT(result != m1.end());
     EXPECT(result->inputs().front()->get_shape().lens() == std::vector<std::size_t>{3, 1, 5});
-    
-    // Verify only view operations are used (transpose, slice, reshape, squeeze, unsqueeze, broadcast)
+
+    // Verify only view operations are used (transpose, slice, reshape, squeeze, unsqueeze,
+    // broadcast)
     EXPECT(std::all_of(m1.begin(), m1.end(), [](const auto& ins) {
         return ins.name() == "@param" or ins.name() == "@literal" or ins.name() == "@return" or
                ins.name() == "transpose" or ins.name() == "slice" or ins.name() == "reshape" or
-               ins.name() == "squeeze" or ins.name() == "unsqueeze" or 
+               ins.name() == "squeeze" or ins.name() == "unsqueeze" or
                ins.name() == "multibroadcast" or ins.name() == "broadcast";
     }));
 }
@@ -1960,22 +1959,20 @@ TEST_CASE(gather_axis0_half_split_concat)
     run_pass(m);
 
     // Verify gather was optimized away
-    EXPECT(std::none_of(m.begin(), m.end(), [](const auto& ins) {
-        return ins.name() == "gather";
-    }));
-    
+    EXPECT(
+        std::none_of(m.begin(), m.end(), [](const auto& ins) { return ins.name() == "gather"; }));
+
     // Verify output shape is correct: {4, 3}
-    auto result = std::find_if(m.begin(), m.end(), [](const auto& ins) {
-        return ins.name() == "@return";
-    });
+    auto result =
+        std::find_if(m.begin(), m.end(), [](const auto& ins) { return ins.name() == "@return"; });
     EXPECT(result != m.end());
     EXPECT(result->inputs().front()->get_shape().lens() == std::vector<std::size_t>{4, 3});
-    
+
     // Verify only view operations and concat are used
     EXPECT(std::all_of(m.begin(), m.end(), [](const auto& ins) {
         return ins.name() == "@param" or ins.name() == "@literal" or ins.name() == "@return" or
                ins.name() == "transpose" or ins.name() == "slice" or ins.name() == "reshape" or
-               ins.name() == "concat" or ins.name() == "squeeze" or ins.name() == "unsqueeze" or 
+               ins.name() == "concat" or ins.name() == "squeeze" or ins.name() == "unsqueeze" or
                ins.name() == "multibroadcast" or ins.name() == "broadcast";
     }));
 }

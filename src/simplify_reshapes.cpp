@@ -1557,7 +1557,8 @@ analyze_index_segments(const std::vector<int64_t>& indices,
             best_type     = segment_type::arithmetic;
             best_metadata = *meta_arith;
         }
-        else if(auto meta_rtr = rtr_window_segment_meta::detect(indices, pos, len, factor_candidates))
+        else if(auto meta_rtr =
+                    rtr_window_segment_meta::detect(indices, pos, len, factor_candidates))
         {
             best_type     = segment_type::rtr_window;
             best_metadata = *meta_rtr;

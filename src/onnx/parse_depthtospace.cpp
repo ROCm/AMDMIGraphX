@@ -57,7 +57,7 @@ struct parse_depthtospace : op_parser<parse_depthtospace>
             MIGRAPHX_THROW("DepthToSpace: blocksize is less than 1");
         }
         // In the dynamic case, we need to compute the n, h, and w values at runtime.
-        // However, currently we don't have a way to represent them symbollically.
+        // However, currently we don't have a way to represent them symbolically.
         // Instead, we can use the "dimensions_of" op to represent the actual n,h,w values
         // at runtime and perform the corresponding arithmetic (multiplying or dividing by
         // blocksize).
@@ -70,7 +70,7 @@ struct parse_depthtospace : op_parser<parse_depthtospace>
             auto blocksize_literal      = info.add_literal({blocksize});
 
             auto n = info.add_instruction(make_op("dimensions_of", {{"end", 1}}), args[0]);
-            assert(dyn_dims[1].is_fixed()); // for now, there may not be a use case where channels
+            assert(dyn_dims1[1].is_fixed()); // for now, there may not be a use case where channels
                                             // would also be dynamic
             int64_t c = dyn_dims1[1].max;
             auto dims_of =

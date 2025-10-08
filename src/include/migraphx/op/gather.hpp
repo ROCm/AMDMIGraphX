@@ -132,6 +132,11 @@ struct gather
                         // don't go out of bounds: https://github.com/ROCm/AMDMIGraphX/issues/2838
                         assert(in_index >= 0 and in_index < axis_dim_size);
                         data_idx[axis]  = in_index;
+                        if(data_idx[axis] < 0 || data_idx[axis] >= axis_dim_size)
+                        {
+                            output[out_idx] = 0;
+                            return;
+                        }
                         output[out_idx] = data(data_idx.begin(), data_idx.end());
                     });
                 }

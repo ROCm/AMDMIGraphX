@@ -228,7 +228,8 @@ struct find_kv_cache_attention
             match::arg(0)(match::name("greater")(match::arg(1)(match::any().bind("total_sl")))))));
         auto where   = match::name("where")(match::arg(0)(greater),
                                           match::arg(2)(match::any_of(causal_mask, scale)));
-        auto softmax = match::skip(match::name("convert"))(match::softmax_input(match::skip(match::name("convert"))(where)));
+        auto softmax = match::skip(match::name("convert"))(
+            match::softmax_input(match::skip(match::name("convert"))(where)));
         auto gemm2 =
             match::name("dot")(match::arg(0)(softmax),
                                match::arg(1)(match::name("concat_past_present").bind("pres_v")));

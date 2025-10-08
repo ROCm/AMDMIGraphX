@@ -374,7 +374,6 @@ struct float8
         return *this;
     }
 
-
     __device__ constexpr bool operator<(const float8& rhs) const
     {
         const auto we   = static_cast<float>(*this);

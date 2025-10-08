@@ -222,7 +222,7 @@ Model performance tunable variables change the compilation behavior of a model. 
       | Default: No tuning is done for composable kernels.
 
   * - | ``MIGRAPHX_REWRITE_LRN``
-      | Turns on LRN-to-pooling lowering in the rewrite_pooling pass.
+      | Turns on LRN-to-pooling lowering in the ``rewrite_pooling`` pass.
       
     - | ``1``: Turns on LRN-to-pooling lowering.
       | ``0``: Returns to default behavior.

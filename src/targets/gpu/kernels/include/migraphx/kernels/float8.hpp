@@ -368,12 +368,6 @@ struct float8
     __device__ constexpr float8& operator=(const float8& rhs)     = default;
     __device__ constexpr float8& operator=(float8&& rhs) noexcept = default;
 
-    __device__ constexpr float8& operator=(float rhs)
-    {
-        *this = static_cast<float8>(rhs);
-        return *this;
-    }
-
     __device__ constexpr bool operator<(const float8& rhs) const
     {
         const auto we   = static_cast<float>(*this);

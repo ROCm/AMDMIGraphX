@@ -73,10 +73,11 @@ inline migraphx::program read_onnx(const std::string& name,
     return prog;
 }
 
-inline migraphx::program optimize_onnx(const std::string& name, bool run_passes = false)
+inline migraphx::program optimize_onnx(const std::string& name, bool run_passes = false, std::unordered_map<std::string, std::vector<migraphx::shape::dynamic_dimension>> map_dyn_input_dims = {})
 {
     migraphx::onnx_options options;
     options.skip_unknown_operators = true;
+    options.map_dyn_input_dims = map_dyn_input_dims;
     auto prog                      = read_onnx(name, options);
     auto* mm                       = prog.get_main_module();
     if(run_passes)

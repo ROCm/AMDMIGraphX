@@ -36,7 +36,6 @@
 
 #include <migraphx/iterator.hpp>
 
-MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_REWRITE_LRN);
 static void opt_pooling(migraphx::module& m)
 {
     migraphx::rewrite_pooling rp;
@@ -324,11 +323,8 @@ TEST_CASE(test_lower_lrn_to_pooling)
             input1);
         m1.add_return({lrn1});
     }
-    // Apply the pass directly when the flag enabled
-    migraphx::rewrite_pooling rp{.rewrite_lrn = true};
-    migraphx::dead_code_elimination dce;
-    rp.apply(m1);
-    dce.apply(m1);
+
+    opt_pooling(m1);
 
     migraphx::module m2;
     {

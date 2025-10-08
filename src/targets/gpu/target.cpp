@@ -84,7 +84,6 @@ namespace gpu {
 MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_DISABLE_SCHEDULE_PASS)
 MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_ENABLE_NHWC)
 MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_ENABLE_REWRITE_DOT)
-MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_REWRITE_LRN)
 #ifndef _WIN32
 MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_ENABLE_CK)
 #endif
@@ -204,7 +203,7 @@ std::vector<pass> target::get_passes(migraphx::context& gctx, const compile_opti
         insert_pad{{"convolution"}},
         dead_code_elimination{},
         inline_module{},
-        rewrite_pooling{.rewrite_lrn = enabled(MIGRAPHX_REWRITE_LRN{})},
+        rewrite_pooling{},
         dead_code_elimination{},
         rewrite_gelu{options.fast_math},
         optimize_module{},

@@ -782,111 +782,6 @@ struct find_nested_concat
     }
 };
 
-struct find_resize
-{
-    auto matcher() const
-    {
-        return match::name("gather")(
-            match::args(match::name("reshape").bind("data"), match::is_constant().bind("ind")));
-    }
-
-    void apply(module& m, const match::matcher_result& r) const
-    {
-        auto ins     = r.result;
-        auto ins_rsp = r.instructions["data"];
-        auto ins_ind = r.instructions["ind"];
-
-        // resize input shape
-        if(ins_rsp->get_shape().lens().size() != 1)
-        {
-            return;
-        }
-
-        // resize output shape
-        const auto& in_shape  = ins_rsp->inputs().front()->get_shape();
-        const auto& out_shape = ins->get_shape();
-        // check if output shape is multiple of input shape
-        const auto& in_lens  = in_shape.lens();
-        const auto& out_lens = out_shape.lens();
-        if(in_lens.size() != out_lens.size())
-        {
-            return;
-        }
-
-        // output shape must be multiple of input shape
-        std::vector<bool> is_multi(in_lens.size());
-        std::transform(
-            in_lens.begin(), in_lens.end(), out_lens.begin(), is_multi.begin(), [](auto x, auto y) {
-                return (y % x == 0);
-            });
-        if(not std::all_of(is_multi.begin(), is_multi.end(), [](auto b) { return b; }))
-        {
-            return;
-        }
-
-        // output must be multiple of inputs
-        std::vector<std::size_t> scales(in_lens.size());
-        std::transform(
-            in_lens.begin(), in_lens.end(), out_lens.begin(), scales.begin(), [](auto x, auto y) {
-                return y / x;
-            });
-
-        // if ind is not constant, cannot optimize
-        std::vector<int> vec_ind;
-        auto arg_ind = ins_ind->eval();
-        if(arg_ind.empty())
-        {
-            return;
-        }
-        arg_ind.visit([&](auto v) { vec_ind.assign(v.begin(), v.end()); });
-        if(not all_of(range(out_shape.elements()), [&](auto i) {
-               auto out_idx = out_shape.multi(i);
-               auto in_idx  = out_idx;
-               std::transform(out_idx.begin(),
-                              out_idx.end(),
-                              scales.begin(),
-                              in_idx.begin(),
-                              [&](auto io, auto scale) { return io - (io % scale); });
-               return vec_ind[i] == vec_ind[out_shape.index(in_idx)];
-           }))
-        {
-            return;
-        }
-
-        // wrap up shapes for multibroadcast
-        std::vector<std::pair<std::size_t, std::size_t>> dim_scales;
-        std::transform(in_lens.begin(),
-                       in_lens.end(),
-                       out_lens.begin(),
-                       std::back_inserter(dim_scales),
-                       [](auto x, auto y) { return std::make_pair(x, y / x); });
-
-        std::vector<int64_t> in_dims;
-        std::vector<int64_t> out_dims;
-        for(auto& isp : dim_scales)
-        {
-            in_dims.push_back(isp.first);
-            out_dims.push_back(isp.first * isp.second);
-            if(isp.first == 1 or isp.second == 1)
-            {
-                continue;
-            }
-
-            out_dims.back() = isp.first;
-            in_dims.push_back(1);
-            out_dims.push_back(isp.second);
-        }
-
-        auto in_rsp   = ins_rsp->inputs().front();
-        auto rsp_data = m.insert_instruction(
-            ins_rsp, migraphx::make_op("reshape", {{"dims", in_dims}}), in_rsp);
-        auto mb_rsp = m.insert_instruction(
-            ins_rsp, migraphx::make_op("multibroadcast", {{"out_lens", out_dims}}), rsp_data);
-        std::vector<int64_t> rsp_dims(out_lens.begin(), out_lens.end());
-        m.replace_instruction(ins, migraphx::make_op("reshape", {{"dims", rsp_dims}}), mb_rsp);
-    }
-};
-
 // ============================================================================
 // Gather Optimization - Utility Functions
 // ============================================================================
@@ -1016,7 +911,7 @@ inline void add_unique_factorization(std::vector<std::vector<std::size_t>>& cand
 
     factors.erase(std::remove(factors.begin(), factors.end(), std::size_t{1}), factors.end());
     if(factors.empty())
-        factors.push_back(1);
+        return;
 
     if(factors.size() > 8 or candidates.size() >= max_size)
         return;
@@ -1049,6 +944,14 @@ class gather_instruction_builder
     instruction_ref reshape(instruction_ref input, const std::vector<int64_t>& dims)
     {
         return m.insert_instruction(insert_before, make_op("reshape", {{"dims", dims}}), input);
+    }
+
+    instruction_ref unsqueeze(instruction_ref input,
+                              const std::vector<int64_t>& axes,
+                              const std::vector<int64_t>& steps = {})
+    {
+        return m.insert_instruction(
+            insert_before, make_op("unsqueeze", {{"axes", axes}, {"steps", steps}}), input);
     }
 
     instruction_ref slice(instruction_ref input,
@@ -1217,81 +1120,6 @@ enum class segment_type
 
 namespace {
 
-/// Check if indices form valid permutation
-inline bool
-is_valid_permutation_seg(const std::vector<int64_t>& indices, std::size_t start, std::size_t length)
-{
-    if(length == 0)
-        return false;
-    std::set<int64_t> seen;
-    for(std::size_t i = start; i < start + length; ++i)
-    {
-        auto val = indices[i];
-        if(val < 0 or static_cast<std::size_t>(val) >= length)
-            return false;
-        if(seen.count(val) > 0)
-            return false;
-        seen.insert(val);
-    }
-    return true;
-}
-
-/// Try grid factorization
-inline bool try_grid_factorization_seg(const std::vector<int64_t>& indices,
-                                       std::size_t start,
-                                       std::size_t length,
-                                       const std::vector<std::size_t>& factors,
-                                       std::vector<std::size_t>& out_permutation)
-{
-    if(product_of(factors) != length)
-        return false;
-
-    std::vector<std::vector<std::size_t>> multi_indices(length);
-    for(std::size_t i = 0; i < length; ++i)
-    {
-        auto idx = static_cast<std::size_t>(indices[start + i]);
-        if(idx >= length)
-            return false;
-        auto temp = idx;
-        multi_indices[i].resize(factors.size());
-        for(int j = static_cast<int>(factors.size()) - 1; j >= 0; --j)
-        {
-            multi_indices[i][j] = temp % factors[j];
-            temp /= factors[j];
-        }
-    }
-
-    if(factors.size() > 4)
-        return false;
-
-    std::vector<std::size_t> perm(factors.size());
-    std::iota(perm.begin(), perm.end(), std::size_t{0});
-
-    do
-    {
-        bool valid = true;
-        for(std::size_t i = 0; i < length and valid; ++i)
-        {
-            std::size_t expected = 0;
-            std::size_t stride   = 1;
-            for(int j = static_cast<int>(factors.size()) - 1; j >= 0; --j)
-            {
-                expected += multi_indices[i][perm[j]] * stride;
-                stride *= factors[perm[j]];
-            }
-            if(expected != i)
-                valid = false;
-        }
-        if(valid)
-        {
-            out_permutation = perm;
-            return true;
-        }
-    } while(std::next_permutation(perm.begin(), perm.end()));
-
-    return false;
-}
-
 /// Metadata for constant segment
 struct constant_segment_meta
 {
@@ -1424,6 +1252,81 @@ struct rtr_window_segment_meta
 {
     std::vector<std::size_t> factors;
     std::vector<std::size_t> permutation;
+
+    /// Check if indices form valid permutation
+    static bool
+    is_valid_permutation_seg(const std::vector<int64_t>& indices, std::size_t start, std::size_t length)
+    {
+        if(length == 0)
+            return false;
+        std::set<int64_t> seen;
+        for(std::size_t i = start; i < start + length; ++i)
+        {
+            auto val = indices[i];
+            if(val < 0 or static_cast<std::size_t>(val) >= length)
+                return false;
+            if(seen.count(val) > 0)
+                return false;
+            seen.insert(val);
+        }
+        return true;
+    }
+
+    /// Try grid factorization
+    static bool try_grid_factorization_seg(const std::vector<int64_t>& indices,
+                                        std::size_t start,
+                                        std::size_t length,
+                                        const std::vector<std::size_t>& factors,
+                                        std::vector<std::size_t>& out_permutation)
+    {
+        if(product_of(factors) != length)
+            return false;
+
+        std::vector<std::vector<std::size_t>> multi_indices(length);
+        for(std::size_t i = 0; i < length; ++i)
+        {
+            auto idx = static_cast<std::size_t>(indices[start + i]);
+            if(idx >= length)
+                return false;
+            auto temp = idx;
+            multi_indices[i].resize(factors.size());
+            for(int j = static_cast<int>(factors.size()) - 1; j >= 0; --j)
+            {
+                multi_indices[i][j] = temp % factors[j];
+                temp /= factors[j];
+            }
+        }
+
+        if(factors.size() > 4)
+            return false;
+
+        std::vector<std::size_t> perm(factors.size());
+        std::iota(perm.begin(), perm.end(), std::size_t{0});
+
+        do
+        {
+            bool valid = true;
+            for(std::size_t i = 0; i < length and valid; ++i)
+            {
+                std::size_t expected = 0;
+                std::size_t stride   = 1;
+                for(int j = static_cast<int>(factors.size()) - 1; j >= 0; --j)
+                {
+                    expected += multi_indices[i][perm[j]] * stride;
+                    stride *= factors[perm[j]];
+                }
+                if(expected != i)
+                    valid = false;
+            }
+            if(valid)
+            {
+                out_permutation = perm;
+                return true;
+            }
+        } while(std::next_permutation(perm.begin(), perm.end()));
+
+        return false;
+    }
 
     /// Detect RTR window segment pattern
     static std::optional<rtr_window_segment_meta>
@@ -1654,6 +1557,166 @@ analyze_index_segments(const std::vector<int64_t>& indices,
     return segments;
 }
 
+/// Pattern: rectangular grid of constant segments produced by reshape-based resize
+struct rectangular_pattern
+{
+    std::vector<std::size_t> input_lens;
+    std::vector<std::size_t> output_lens;
+    std::vector<std::size_t> scales;
+
+    static std::optional<rectangular_pattern>
+    detect(const gather_context& ctx, const std::vector<index_segment>& segments)
+    {
+        if(ctx.axis_index != 0)
+            return std::nullopt;
+
+        if(segments.empty())
+            return std::nullopt;
+
+        if(not std::all_of(segments.begin(), segments.end(), [](const index_segment& seg) {
+               return seg.type == segment_type::constant;
+           }))
+            return std::nullopt;
+
+        auto data_ins = ctx.data_ins;
+        if(data_ins->name() != "reshape" or data_ins->inputs().size() != 1)
+            return std::nullopt;
+
+        const auto& reshape_lens = data_ins->get_shape().lens();
+        if(reshape_lens.size() != 1)
+            return std::nullopt;
+
+        auto input_ins          = data_ins->inputs().front();
+        const auto& input_shape  = input_ins->get_shape();
+        const auto& output_shape = ctx.ins->get_shape();
+
+        const auto& in_lens_ref  = input_shape.lens();
+        const auto& out_lens_ref = output_shape.lens();
+
+        if(in_lens_ref.size() != out_lens_ref.size())
+            return std::nullopt;
+
+        if(product_of(in_lens_ref) != ctx.axis_len)
+            return std::nullopt;
+
+        if(ctx.indices_values.size() != output_shape.elements())
+            return std::nullopt;
+
+        auto segment_length = segments.front().length;
+        if(segment_length == 0)
+            return std::nullopt;
+
+        if(not std::all_of(segments.begin(), segments.end(), [segment_length](const index_segment& seg) {
+               return seg.length == segment_length;
+           }))
+            return std::nullopt;
+
+        std::vector<std::size_t> value_counts(ctx.axis_len, 0);
+        for(const auto& seg : segments)
+        {
+            const auto& meta = std::get<constant_segment_meta>(seg.metadata);
+            if(meta.value < 0 or static_cast<std::size_t>(meta.value) >= ctx.axis_len)
+                return std::nullopt;
+            value_counts[static_cast<std::size_t>(meta.value)] += seg.length;
+        }
+
+        if(std::any_of(value_counts.begin(), value_counts.end(), [](auto count) {
+               return count == 0;
+           }))
+            return std::nullopt;
+
+        std::vector<std::size_t> scales(in_lens_ref.size());
+        for(std::size_t i = 0; i < in_lens_ref.size(); ++i)
+        {
+            auto in_dim  = in_lens_ref[i];
+            auto out_dim = out_lens_ref[i];
+            if(in_dim == 0 or (out_dim % in_dim) != 0)
+                return std::nullopt;
+            scales[i] = out_dim / in_dim;
+        }
+
+        for(std::size_t offset = 0, seg_index = 0; seg_index < segments.size(); ++seg_index)
+        {
+            const auto& seg  = segments[seg_index];
+            const auto& meta = std::get<constant_segment_meta>(seg.metadata);
+            for(std::size_t j = 0; j < seg.length; ++j)
+            {
+                auto idx = offset + j;
+                if(static_cast<std::size_t>(ctx.indices_values[idx]) >= ctx.axis_len)
+                    return std::nullopt;
+                if(ctx.indices_values[idx] != meta.value)
+                    return std::nullopt;
+
+                auto out_idx = output_shape.multi(idx);
+                auto in_idx  = out_idx;
+                for(std::size_t dim = 0; dim < in_idx.size(); ++dim)
+                {
+                    auto scale = scales[dim];
+                    if(scale > 1)
+                        in_idx[dim] -= (in_idx[dim] % scale);
+                }
+                auto ref_index = output_shape.index(in_idx);
+                if(ctx.indices_values[idx] != ctx.indices_values[ref_index])
+                    return std::nullopt;
+            }
+            offset += seg.length;
+        }
+
+        std::vector<std::size_t> input_lens(in_lens_ref.begin(), in_lens_ref.end());
+        std::vector<std::size_t> output_lens(out_lens_ref.begin(), out_lens_ref.end());
+
+        return rectangular_pattern{std::move(input_lens), std::move(output_lens), std::move(scales)};
+    }
+
+    instruction_ref transform(const gather_context& ctx,
+                              gather_instruction_builder& builder,
+                              const std::vector<std::size_t>& target_shape) const
+    {
+        auto input_ins = ctx.data_ins->inputs().front();
+        instruction_ref expanded = input_ins;
+
+        std::vector<int64_t> unsqueeze_axes;
+        unsqueeze_axes.reserve(input_lens.size());
+        std::vector<int64_t> first_broadcast_lens;
+        first_broadcast_lens.reserve(input_lens.size() * 2);
+        std::vector<int64_t> reshape_dims;
+        reshape_dims.reserve(input_lens.size());
+
+        std::size_t inserted_axes = 0;
+        bool need_unsqueeze        = false;
+
+        for(std::size_t i = 0; i < input_lens.size(); ++i)
+        {
+            auto len   = input_lens[i];
+            auto scale = scales[i];
+
+            first_broadcast_lens.push_back(static_cast<int64_t>(len));
+
+            bool needs_split = (len > 1 and scale > 1);
+            if(needs_split)
+            {
+                need_unsqueeze = true;
+                auto axis      = static_cast<int64_t>(i + 1 + inserted_axes);
+                unsqueeze_axes.push_back(axis);
+                first_broadcast_lens.push_back(static_cast<int64_t>(scale));
+                inserted_axes++;
+            }
+
+            auto reshape_factor = needs_split ? scale : std::size_t{1};
+            reshape_dims.push_back(static_cast<int64_t>(len * reshape_factor));
+        }
+
+        if(need_unsqueeze)
+            expanded = builder.unsqueeze(expanded, unsqueeze_axes);
+
+        auto first_mb = builder.multibroadcast(expanded, first_broadcast_lens);
+        auto reshaped = builder.reshape(first_mb, reshape_dims);
+        auto final_mb = builder.multibroadcast(reshaped, to_int64_vec(output_lens));
+
+        return builder.match_shape(final_mb, target_shape);
+    }
+};
+
 /// Try segment-based optimization (assumes 1D indices in context)
 /// Returns the optimized instruction if successful, nullopt otherwise
 inline std::optional<instruction_ref>
@@ -1674,6 +1737,11 @@ try_segment_based_optimization_1d(const gather_context& ctx,
     if(auto tiled = tiled_pattern::detect(segments))
     {
         return tiled->transform(ctx, builder, target_shape);
+    }
+
+    if(auto rectangular = rectangular_pattern::detect(ctx, segments))
+    {
+        return rectangular->transform(ctx, builder, target_shape);
     }
 
     // Try single-segment patterns

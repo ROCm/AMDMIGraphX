@@ -46,6 +46,8 @@
 #include <map>
 #include <limits>
 #include <numeric>
+#include <set>
+#include <variant>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
@@ -1060,6 +1062,26 @@ class gather_instruction_builder
             input);
     }
 
+    instruction_ref step(instruction_ref input,
+                         const std::vector<int64_t>& axes,
+                         const std::vector<int64_t>& steps)
+    {
+        return m.insert_instruction(
+            insert_before,
+            make_op("step", {{"axes", axes}, {"steps", steps}}),
+            input);
+    }
+
+    instruction_ref slice_with_step(instruction_ref input,
+                                    const std::vector<int64_t>& axes,
+                                    const std::vector<int64_t>& starts,
+                                    const std::vector<int64_t>& ends,
+                                    const std::vector<int64_t>& steps)
+    {
+        auto sliced = slice(input, axes, starts, ends);
+        return step(sliced, axes, steps);
+    }
+
     instruction_ref multibroadcast(instruction_ref input, const std::vector<int64_t>& out_lens)
     {
         return m.insert_instruction(
@@ -1126,65 +1148,13 @@ inline bool is_identity_indices(const std::vector<int64_t>& indices)
     });
 }
 
-/// Check if indices form a half-split-concat pattern
-inline bool matches_half_split_pattern(const std::vector<int64_t>& indices, std::size_t axis_len)
-{
-    if(indices.size() != axis_len or axis_len <= 1 or axis_len % 2 != 0)
-        return false;
-
-    if(not is_valid_permutation(indices))
-        return false;
-
-    const std::size_t half = axis_len / 2;
-    return std::all_of(indices.begin(), indices.end(), [&, i = std::size_t{0}](auto v) mutable {
-        return static_cast<std::size_t>(v) == (i++ + half) % axis_len;
-    });
-}
-
-/// Check if indices form an arithmetic progression with stride
-struct stride_pattern
-{
-    int64_t base;
-    int64_t stride;
-    std::size_t count;
-
-    static std::optional<stride_pattern> detect(const std::vector<int64_t>& indices,
-                                                std::size_t axis_len)
-    {
-        if(indices.size() < 2)
-            return std::nullopt;
-
-        stride_pattern result;
-        result.base   = indices[0];
-        result.stride = indices[1] - indices[0];
-        result.count  = indices.size();
-
-        if(result.base < 0 or result.stride <= 1 or result.base >= result.stride)
-            return std::nullopt;
-
-        // Verify arithmetic progression
-        bool is_arithmetic =
-            std::adjacent_find(indices.begin(), indices.end(), [&](auto a, auto b) {
-                return b - a != result.stride;
-            }) == indices.end();
-
-        if(not is_arithmetic)
-            return std::nullopt;
-
-        const auto stride_size = static_cast<std::size_t>(result.stride);
-        if(axis_len % stride_size != 0 or result.count != axis_len / stride_size)
-            return std::nullopt;
-
-        return result;
-    }
-};
-
 // ============================================================================
 // Gather Optimization - Context and Pattern Classes
 // ============================================================================
 
 /// Encapsulates all analyzed gather properties
 struct gather_context
+
 {
     instruction_ref ins;
     instruction_ref data_ins;
@@ -1232,1328 +1202,562 @@ struct gather_context
     }
 };
 
-/// Detects grid patterns in indices (regular rectangular sampling)
-struct grid_pattern
+} // namespace
+
+// ============================================================================
+// Segment-Based Gather Optimization
+// ============================================================================
+
+/// Segment type for pattern detection
+enum class segment_type
+{
+    constant,   // All indices same value
+    contiguous, // Sequential run
+    arithmetic, // Arithmetic progression (stride > 1)
+    rtr_window, // Reshape-transpose-reshape window
+    general     // No pattern
+};
+
+namespace {
+
+/// Check if indices form valid permutation
+inline bool is_valid_permutation_seg(const std::vector<int64_t>& indices,
+                                     std::size_t start,
+                                     std::size_t length)
+{
+    if(length == 0)
+        return false;
+    std::set<int64_t> seen;
+    for(std::size_t i = start; i < start + length; ++i)
+    {
+        auto val = indices[i];
+        if(val < 0 or static_cast<std::size_t>(val) >= length)
+            return false;
+        if(seen.count(val) > 0)
+            return false;
+        seen.insert(val);
+    }
+    return true;
+}
+
+/// Try grid factorization
+inline bool try_grid_factorization_seg(const std::vector<int64_t>& indices,
+                                       std::size_t start,
+                                       std::size_t length,
+                                       const std::vector<std::size_t>& factors,
+                                       std::vector<std::size_t>& out_permutation)
+{
+    if(product_of(factors) != length)
+        return false;
+
+    std::vector<std::vector<std::size_t>> multi_indices(length);
+    for(std::size_t i = 0; i < length; ++i)
+    {
+        auto idx = static_cast<std::size_t>(indices[start + i]);
+        if(idx >= length)
+            return false;
+        auto temp = idx;
+        multi_indices[i].resize(factors.size());
+        for(int j = static_cast<int>(factors.size()) - 1; j >= 0; --j)
+        {
+            multi_indices[i][j] = temp % factors[j];
+            temp /= factors[j];
+        }
+    }
+
+    if(factors.size() > 4)
+        return false;
+
+    std::vector<std::size_t> perm(factors.size());
+    std::iota(perm.begin(), perm.end(), std::size_t{0});
+
+    do
+    {
+        bool valid = true;
+        for(std::size_t i = 0; i < length and valid; ++i)
+        {
+            std::size_t expected = 0;
+            std::size_t stride   = 1;
+            for(int j = static_cast<int>(factors.size()) - 1; j >= 0; --j)
+            {
+                expected += multi_indices[i][perm[j]] * stride;
+                stride *= factors[perm[j]];
+            }
+            if(expected != i)
+                valid = false;
+        }
+        if(valid)
+        {
+            out_permutation = perm;
+            return true;
+        }
+    } while(std::next_permutation(perm.begin(), perm.end()));
+
+    return false;
+}
+
+/// Metadata for constant segment
+struct constant_segment_meta
+{
+    int64_t value;
+
+    /// Detect constant segment pattern
+    static std::optional<constant_segment_meta>
+    detect(const std::vector<int64_t>& indices, std::size_t start, std::size_t length)
+    {
+        if(length == 0)
+            return std::nullopt;
+        auto value = indices[start];
+        for(std::size_t i = start + 1; i < start + length; ++i)
+        {
+            if(indices[i] != value)
+                return std::nullopt;
+        }
+        return constant_segment_meta{value};
+    }
+
+    /// Transform constant segment into instructions
+    instruction_ref transform(const gather_context& ctx,
+                             gather_instruction_builder& builder,
+                             const std::vector<std::size_t>& target_shape) const
+    {
+        auto moved  = builder.move_axis_to_front(ctx.data_ins, ctx.axis_index);
+        auto sliced = builder.slice(moved, {0}, {value}, {value + 1});
+        
+        // Reshape to remove the sliced 1-dimension, giving us rest_lens shape
+        std::vector<int64_t> rest_shape(ctx.rest_lens.begin(), ctx.rest_lens.end());
+        auto reshaped = builder.reshape(sliced, rest_shape);
+        
+        // Insert a 1-dimension at the axis position for broadcasting
+        std::vector<int64_t> with_axis_dim = to_int64_vec(ctx.pre_lens);
+        with_axis_dim.push_back(1);
+        with_axis_dim.insert(with_axis_dim.end(), ctx.post_lens.begin(), ctx.post_lens.end());
+        auto with_dim = builder.reshape(reshaped, with_axis_dim);
+        
+        // Now match_shape will broadcast the 1 to the index count
+        return builder.match_shape(with_dim, target_shape);
+    }
+};
+
+/// Metadata for contiguous segment
+struct contiguous_segment_meta
+{
+    int64_t start;
+    int64_t count;
+
+    /// Detect contiguous segment pattern
+    static std::optional<contiguous_segment_meta>
+    detect(const std::vector<int64_t>& indices, std::size_t start, std::size_t length)
+    {
+        if(length == 0)
+            return std::nullopt;
+        auto first = indices[start];
+        for(std::size_t i = 1; i < length; ++i)
+        {
+            if(indices[start + i] != first + static_cast<int64_t>(i))
+                return std::nullopt;
+        }
+        return contiguous_segment_meta{first, static_cast<int64_t>(length)};
+    }
+
+    /// Transform contiguous segment into instructions
+    instruction_ref transform(const gather_context& ctx,
+                             gather_instruction_builder& builder,
+                             const std::vector<std::size_t>& target_shape) const
+    {
+        auto moved   = builder.move_axis_to_front(ctx.data_ins, ctx.axis_index);
+        auto sliced  = builder.slice(moved, {0}, {start}, {start + count});
+        auto restored = builder.restore_axis_position(
+            sliced, ctx.pre_lens.size(), 1, ctx.post_lens.size());
+        return builder.match_shape(restored, target_shape);
+    }
+};
+
+/// Metadata for arithmetic segment
+struct arithmetic_segment_meta
+{
+    int64_t base;
+    int64_t stride;
+    std::size_t count;
+
+    /// Detect arithmetic segment pattern
+    static std::optional<arithmetic_segment_meta>
+    detect(const std::vector<int64_t>& indices, std::size_t start, std::size_t length)
+    {
+        if(length < 2)
+            return std::nullopt;
+        auto base   = indices[start];
+        auto stride = indices[start + 1] - base;
+        if(stride <= 1 or base < 0 or base >= stride)
+            return std::nullopt;
+        for(std::size_t i = 0; i < length; ++i)
+        {
+            if(indices[start + i] != base + static_cast<int64_t>(i) * stride)
+                return std::nullopt;
+        }
+        return arithmetic_segment_meta{base, stride, length};
+    }
+
+    /// Transform arithmetic segment into instructions
+    instruction_ref transform(const gather_context& ctx,
+                             gather_instruction_builder& builder,
+                             const std::vector<std::size_t>& target_shape) const
+    {
+        auto moved = builder.move_axis_to_front(ctx.data_ins, ctx.axis_index);
+        
+        // For arithmetic patterns: indices = base + k*stride for k in [0, count)
+        // We need to extract every stride-th element starting from base
+        // Use slice + step: start=base, end=base+count*stride, step=stride
+        auto max_index = base + static_cast<int64_t>(count) * stride;
+        auto sliced = builder.slice_with_step(moved, {0}, {base}, {max_index}, {stride});
+        
+        // After slice + step with stride, we have exactly `count` elements along axis 0
+        // Reshape to final dimensions
+        std::vector<int64_t> final_dims = {static_cast<int64_t>(count)};
+        final_dims.insert(final_dims.end(), ctx.rest_lens.begin(), ctx.rest_lens.end());
+        auto reshaped = builder.reshape(sliced, final_dims);
+        
+        auto restored =
+            builder.restore_axis_position(reshaped, ctx.pre_lens.size(), 1, ctx.post_lens.size());
+        return builder.match_shape(restored, target_shape);
+    }
+};
+
+/// Metadata for RTR window segment
+struct rtr_window_segment_meta
 {
     std::vector<std::size_t> factors;
     std::vector<std::size_t> permutation;
 
-    static std::optional<grid_pattern>
+    /// Detect RTR window segment pattern
+    static std::optional<rtr_window_segment_meta>
     detect(const std::vector<int64_t>& indices,
-           const std::vector<std::vector<std::size_t>>& factor_candidates,
-           std::size_t axis_len)
+           std::size_t start,
+           std::size_t length,
+           const std::vector<std::vector<std::size_t>>& factor_candidates)
     {
-        if(factor_candidates.empty())
+        if(not is_valid_permutation_seg(indices, start, length))
             return std::nullopt;
-
-        grid_pattern result;
-
-        auto compute_order = [&](const std::vector<std::size_t>& factor_dims,
-                                 const std::vector<std::size_t>& perm) {
-            std::vector<std::size_t> dims_perm;
-            dims_perm.reserve(perm.size());
-            for(auto axis : perm)
-                dims_perm.push_back(factor_dims.at(axis));
-
-            std::vector<std::size_t> coord(perm.size(), 0);
-            std::vector<std::size_t> order;
-            order.reserve(axis_len);
-
-            for(std::size_t count = 0; count < axis_len; ++count)
-            {
-                std::vector<std::size_t> orig_coord(factor_dims.size(), 0);
-                for(std::size_t i = 0; i < perm.size(); ++i)
-                    orig_coord[perm[i]] = coord[i];
-
-                std::size_t idx = 0;
-                for(std::size_t i = 0; i < factor_dims.size(); ++i)
-                    idx = idx * factor_dims[i] + orig_coord[i];
-                order.push_back(idx);
-
-                std::size_t pos = coord.size();
-                while(pos > 0)
-                {
-                    --pos;
-                    coord[pos]++;
-                    if(coord[pos] < dims_perm[pos])
-                        break;
-                    coord[pos] = 0;
-                }
-            }
-            return order;
-        };
-
         for(const auto& factors : factor_candidates)
         {
-            if(factors.empty() or factors.size() > 8)
+            if(product_of(factors) != length)
                 continue;
-
-            std::vector<std::size_t> perm(factors.size());
-            std::iota(perm.begin(), perm.end(), 0);
-
-            do
-            {
-                auto order = compute_order(factors, perm);
-                bool match =
-                    std::equal(order.begin(), order.end(), indices.begin(), [](auto a, auto b) {
-                        return a == static_cast<std::size_t>(b);
-                    });
-
-                if(match)
-                {
-                    result.permutation = perm;
-                    result.factors     = factors;
-                    return result;
-                }
-            } while(std::next_permutation(perm.begin(), perm.end()));
+            std::vector<std::size_t> permutation;
+            if(try_grid_factorization_seg(indices, start, length, factors, permutation))
+                return rtr_window_segment_meta{factors, permutation};
         }
-
+        // Don't return identity RTR - let other patterns match instead
         return std::nullopt;
+    }
+
+    /// Transform RTR window segment into instructions
+    instruction_ref transform(const gather_context& ctx,
+                             gather_instruction_builder& builder,
+                             const std::vector<std::size_t>& target_shape) const
+    {
+        auto moved = builder.move_axis_to_front(ctx.data_ins, ctx.axis_index);
+        std::vector<int64_t> reshape_dims;
+        std::transform(factors.begin(),
+                       factors.end(),
+                       std::back_inserter(reshape_dims),
+                       [](auto f) { return static_cast<int64_t>(f); });
+        reshape_dims.insert(reshape_dims.end(), ctx.rest_lens.begin(), ctx.rest_lens.end());
+        auto reshaped = builder.reshape(moved, reshape_dims);
+
+        std::vector<int64_t> full_perm;
+        std::transform(permutation.begin(),
+                       permutation.end(),
+                       std::back_inserter(full_perm),
+                       [](auto p) { return static_cast<int64_t>(p); });
+        for(std::size_t i = factors.size(); i < reshape_dims.size(); ++i)
+            full_perm.push_back(static_cast<int64_t>(i));
+
+        auto transposed = builder.transpose(reshaped, full_perm);
+        std::vector<int64_t> final_dims = {static_cast<int64_t>(std::accumulate(
+            factors.begin(), factors.end(), std::size_t{1}, std::multiplies<>{}))};
+        final_dims.insert(final_dims.end(), ctx.rest_lens.begin(), ctx.rest_lens.end());
+        auto final_reshape = builder.reshape(transposed, final_dims);
+        auto restored =
+            builder.restore_axis_position(final_reshape, ctx.pre_lens.size(), 1, ctx.post_lens.size());
+        return builder.match_shape(restored, target_shape);
     }
 };
 
-/// Detects tile patterns (block repetition with stride)
-struct tile_pattern
+/// Index segment with pattern metadata
+struct index_segment
+{
+    segment_type type;
+    std::size_t start_pos;
+    std::size_t length;
+    std::variant<std::monostate,
+                 constant_segment_meta,
+                 contiguous_segment_meta,
+                 arithmetic_segment_meta,
+                 rtr_window_segment_meta>
+        metadata;
+};
+
+/// Pattern: 2-way split
+struct split_pattern
+{
+    std::size_t split_point;
+
+    /// Detect split pattern (2-way only)
+    static std::optional<split_pattern>
+    detect(const std::vector<index_segment>& segments, std::size_t axis_len)
+    {
+        if(segments.size() != 2)
+            return std::nullopt;
+        if(segments[0].type != segment_type::contiguous or
+           segments[1].type != segment_type::contiguous)
+            return std::nullopt;
+        auto meta0 = std::get<contiguous_segment_meta>(segments[0].metadata);
+        auto meta1 = std::get<contiguous_segment_meta>(segments[1].metadata);
+        if(meta0.count + meta1.count != static_cast<int64_t>(axis_len))
+            return std::nullopt;
+        // Split pattern: second segment at start, first segment at end
+        // e.g., indices {2,3,0,1} → seg0: [2,3] (start=2, count=2), seg1: [0,1] (start=0, count=2)
+        // Validation: first segment starts where second ends, second starts at 0
+        if(meta0.start != meta1.count or meta1.start != 0)
+            return std::nullopt;
+        return split_pattern{static_cast<std::size_t>(meta1.count)};
+    }
+
+    /// Transform split pattern into instructions
+    instruction_ref transform(const gather_context& ctx,
+                             gather_instruction_builder& builder,
+                             const std::vector<std::size_t>& target_shape) const
+    {
+        auto moved       = builder.move_axis_to_front(ctx.data_ins, ctx.axis_index);
+        auto half        = static_cast<int64_t>(split_point);
+        auto first_half  = builder.slice(moved, {0}, {0}, {half});
+        auto second_half = builder.slice(moved, {0}, {half}, {static_cast<int64_t>(ctx.axis_len)});
+        auto concatenated = builder.concat({second_half, first_half}, 0);
+        auto restored =
+            builder.restore_axis_position(concatenated, ctx.pre_lens.size(), 1, ctx.post_lens.size());
+        return builder.match_shape(restored, target_shape);
+    }
+};
+
+/// Pattern: tiled with arithmetic progression
+struct tiled_pattern
 {
     std::size_t tile_size;
     std::size_t num_tiles;
     std::size_t stride;
 
-    static std::optional<tile_pattern> detect(const std::vector<int64_t>& indices,
-                                              std::size_t axis_len)
+    /// Detect tiled pattern
+    static std::optional<tiled_pattern>
+    detect(const std::vector<index_segment>& segments)
     {
-        if(indices.empty())
+        // Need at least 2 segments for a tile pattern
+        if(segments.size() < 2)
             return std::nullopt;
-
-        // Try to find repeating tile patterns
-        for(std::size_t tile_sz = 1; tile_sz <= indices.size() / 2; ++tile_sz)
+        if(not std::all_of(segments.begin(), segments.end(), [](const auto& seg) {
+            return seg.type == segment_type::arithmetic;
+        }))
+            return std::nullopt;
+        auto first_meta = std::get<arithmetic_segment_meta>(segments[0].metadata);
+        auto stride     = first_meta.stride;
+        for(const auto& seg : segments)
         {
-            if(indices.size() % tile_sz != 0)
-                continue;
+            auto meta = std::get<arithmetic_segment_meta>(seg.metadata);
+            if(meta.stride != stride or meta.count != first_meta.count)
+                return std::nullopt;
+        }
+        for(std::size_t i = 0; i < segments.size(); ++i)
+        {
+            auto meta = std::get<arithmetic_segment_meta>(segments[i].metadata);
+            if(meta.base != static_cast<int64_t>(i))
+                return std::nullopt;
+        }
+        return tiled_pattern{first_meta.count, segments.size(), static_cast<std::size_t>(stride)};
+    }
 
-            std::size_t num_t = indices.size() / tile_sz;
-            bool valid        = true;
+    /// Transform tiled pattern into instructions
+    instruction_ref transform(const gather_context& ctx,
+                             gather_instruction_builder& builder,
+                             const std::vector<std::size_t>& target_shape) const
+    {
+        auto moved = builder.move_axis_to_front(ctx.data_ins, ctx.axis_index);
+        std::vector<int64_t> reshape_dims = {static_cast<int64_t>(stride),
+                                             static_cast<int64_t>(tile_size)};
+        reshape_dims.insert(reshape_dims.end(), ctx.rest_lens.begin(), ctx.rest_lens.end());
+        auto reshaped = builder.reshape(moved, reshape_dims);
 
-            // Check if pattern repeats with stride
-            for(std::size_t t = 1; t < num_t; ++t)
+        std::vector<int64_t> perm = {1, 0};
+        for(std::size_t i = 2; i < reshape_dims.size(); ++i)
+            perm.push_back(static_cast<int64_t>(i));
+        auto transposed = builder.transpose(reshaped, perm);
+
+        std::vector<int64_t> final_dims = {static_cast<int64_t>(tile_size * stride)};
+        final_dims.insert(final_dims.end(), ctx.rest_lens.begin(), ctx.rest_lens.end());
+        auto final_reshape = builder.reshape(transposed, final_dims);
+        auto restored =
+            builder.restore_axis_position(final_reshape, ctx.pre_lens.size(), 1, ctx.post_lens.size());
+        return builder.match_shape(restored, target_shape);
+    }
+};
+
+/// Analyze indices into segments
+inline std::vector<index_segment>
+analyze_index_segments(const std::vector<int64_t>& indices,
+                       std::size_t /* axis_len */,
+                       const std::vector<std::vector<std::size_t>>& factor_candidates)
+{
+    std::vector<index_segment> segments;
+    if(indices.empty())
+        return segments;
+
+    std::size_t pos = 0;
+    while(pos < indices.size())
+    {
+        std::size_t best_length = 1;
+        segment_type best_type  = segment_type::general;
+        std::variant<std::monostate,
+                     constant_segment_meta,
+                     contiguous_segment_meta,
+                     arithmetic_segment_meta,
+                     rtr_window_segment_meta>
+            best_metadata;
+
+        for(std::size_t len = indices.size() - pos; len >= 1; --len)
+        {
+            if(auto meta = constant_segment_meta::detect(indices, pos, len))
             {
-                int64_t expected_offset = indices[t * tile_sz] - indices[0];
-                for(std::size_t i = 0; i < tile_sz; ++i)
-                {
-                    if(indices[t * tile_sz + i] != indices[i] + expected_offset)
-                    {
-                        valid = false;
-                        break;
-                    }
-                }
-                if(not valid)
-                    break;
+                best_length   = len;
+                best_type     = segment_type::constant;
+                best_metadata = *meta;
+                break;
             }
-
-            if(valid and num_t > 1)
+            if(auto meta = contiguous_segment_meta::detect(indices, pos, len))
             {
-                tile_pattern result;
-                result.tile_size = tile_sz;
-                result.num_tiles = num_t;
-                result.stride    = static_cast<std::size_t>(indices[tile_sz] - indices[0]);
-                return result;
+                best_length   = len;
+                best_type     = segment_type::contiguous;
+                best_metadata = *meta;
+                break;
+            }
+            if(auto meta = arithmetic_segment_meta::detect(indices, pos, len))
+            {
+                best_length   = len;
+                best_type     = segment_type::arithmetic;
+                best_metadata = *meta;
+                break;
+            }
+            if(auto meta = rtr_window_segment_meta::detect(indices, pos, len, factor_candidates))
+            {
+                best_length   = len;
+                best_type     = segment_type::rtr_window;
+                best_metadata = *meta;
+                break;
             }
         }
 
+        segments.push_back(index_segment{best_type, pos, best_length, std::move(best_metadata)});
+        pos += best_length;
+    }
+    return segments;
+}
+
+/// Try segment-based optimization (assumes 1D indices in context)
+/// Returns the optimized instruction if successful, nullopt otherwise
+inline std::optional<instruction_ref> try_segment_based_optimization_1d(
+    const gather_context& ctx,
+    gather_instruction_builder& builder,
+    const std::vector<std::size_t>& target_shape)
+{
+    auto segments = analyze_index_segments(ctx.indices_values, ctx.axis_len, ctx.factor_candidates);
+    if(segments.empty())
         return std::nullopt;
+
+    // Try multi-segment patterns
+    if(auto split = split_pattern::detect(segments, ctx.axis_len))
+    {
+        return split->transform(ctx, builder, target_shape);
     }
-};
 
-// ============================================================================
-// Gather Optimization - Strategy Functions
-// ============================================================================
+    if(auto tiled = tiled_pattern::detect(segments))
+    {
+        return tiled->transform(ctx, builder, target_shape);
+    }
 
-/// Strategy function type: returns true if optimization was applied
-using gather_strategy =
-    std::function<bool(module&, const gather_context&, gather_instruction_builder&)>;
+    // Try single-segment patterns
+    if(segments.size() == 1)
+    {
+        const auto& seg = segments[0];
 
-/// Strategy for permutation-based rewriting
-struct permutation_strategy
+        switch(seg.type)
+        {
+        case segment_type::constant:
+            return std::get<constant_segment_meta>(seg.metadata)
+                .transform(ctx, builder, target_shape);
+        case segment_type::contiguous:
+            return std::get<contiguous_segment_meta>(seg.metadata)
+                .transform(ctx, builder, target_shape);
+        case segment_type::arithmetic:
+            return std::get<arithmetic_segment_meta>(seg.metadata)
+                .transform(ctx, builder, target_shape);
+        case segment_type::rtr_window:
+            return std::get<rtr_window_segment_meta>(seg.metadata)
+                .transform(ctx, builder, target_shape);
+        case segment_type::general:
+            return std::nullopt;
+        }
+    }
+
+    return std::nullopt;
+}/// Try segment-based optimization with multi-dimensional normalization
+inline bool try_segment_based_optimization(module& m,
+                                           const gather_context& ctx,
+                                           gather_instruction_builder& builder)
 {
-    bool operator()(module& m, const gather_context& ctx, gather_instruction_builder& builder) const
+    // For 1D or scalar indices, use direct optimization
+    if(ctx.idims.size() <= 1)
     {
-        const auto& indices = ctx.indices_values;
-        const auto axis_len = ctx.axis_len;
-        const auto total    = indices.size();
-
-        if(total != axis_len or axis_len <= 1)
+        auto result = try_segment_based_optimization_1d(ctx, builder, ctx.ins->get_shape().lens());
+        if(not result.has_value())
             return false;
-
-        // Validate permutation
-        if(not is_valid_permutation(indices))
-            return false;
-
-        // Skip identity
-        if(is_identity_indices(indices))
-            return false;
-
-        // Skip half-split pattern (handled by another strategy)
-        if(ctx.axis_index == 0 and total == axis_len and axis_len % 2 == 0)
-        {
-            if(matches_half_split_pattern(indices, axis_len))
-                return false;
-        }
-
-        // Find matching grid pattern
-        auto pattern = grid_pattern::detect(indices, ctx.factor_candidates, axis_len);
-        if(not pattern)
-            return false;
-
-        return apply_grid_permutation(m, ctx, builder, pattern->factors, pattern->permutation);
-    }
-
-    private:
-    static bool apply_grid_permutation(module& m,
-                                       const gather_context& ctx,
-                                       gather_instruction_builder& builder,
-                                       const std::vector<std::size_t>& factors,
-                                       const std::vector<std::size_t>& perm)
-    {
-        instruction_ref curr = ctx.data_ins;
-
-        // Move axis to front if needed
-        if(ctx.axis_index != 0)
-            curr = builder.move_axis_to_front(curr, ctx.axis_index);
-
-        // Reshape to factored dimensions
-        std::vector<int64_t> reshape1_dims;
-        reshape1_dims.reserve(factors.size() + ctx.rest_lens.size());
-        for(auto f : factors)
-            reshape1_dims.push_back(static_cast<int64_t>(f));
-        auto rest_dims = to_int64_vec(ctx.rest_lens);
-        reshape1_dims.insert(reshape1_dims.end(), rest_dims.begin(), rest_dims.end());
-        curr = builder.reshape(curr, reshape1_dims);
-
-        // Apply permutation if non-identity
-        if(factors.size() > 1 and not is_identity_perm(to_int64_vec(perm)))
-        {
-            std::vector<int64_t> perm_extended(factors.size() + rest_dims.size());
-            for(std::size_t i = 0; i < perm.size(); ++i)
-                perm_extended[i] = static_cast<int64_t>(perm[i]);
-            for(std::size_t i = 0; i < rest_dims.size(); ++i)
-                perm_extended[perm.size() + i] = static_cast<int64_t>(perm.size() + i);
-
-            curr = builder.transpose(curr, perm_extended);
-        }
-
-        // Reshape to index dimensions
-        std::vector<int64_t> reshape2_dims = to_int64_vec(ctx.idims);
-        reshape2_dims.insert(reshape2_dims.end(), rest_dims.begin(), rest_dims.end());
-        curr = builder.reshape(curr, reshape2_dims);
-
-        // Restore axis position
-        if(ctx.axis_index != 0)
-        {
-            curr = builder.restore_axis_position(
-                curr, ctx.pre_lens.size(), ctx.idims.size(), ctx.post_lens.size());
-        }
-
-        // Match final shape
-        curr = builder.match_shape(curr, ctx.ins->get_shape().lens());
-
-        m.replace_instruction(ctx.ins, curr);
+        
+        m.replace_instruction(ctx.ins, *result);
         return true;
     }
-};
-
-/// Strategy for stride-based slicing
-struct stride_slice_strategy
-{
-    bool operator()(module& m, const gather_context& ctx, gather_instruction_builder& builder) const
-    {
-        auto pattern = stride_pattern::detect(ctx.indices_values, ctx.axis_len);
-        if(not pattern)
-            return false;
-
-        return apply_stride_slice(m, ctx, builder, *pattern);
-    }
-
-    private:
-    static bool apply_stride_slice(module& m,
-                                   const gather_context& ctx,
-                                   gather_instruction_builder& builder,
-                                   const stride_pattern& pattern)
-    {
-        instruction_ref curr = ctx.data_ins;
-
-        // Move axis to front
-        if(ctx.axis_index != 0)
-            curr = builder.move_axis_to_front(curr, ctx.axis_index);
-
-        // Reshape to expose stride structure: [outer, stride, ...rest]
-        std::vector<int64_t> reshape_dims;
-        reshape_dims.reserve(2 + ctx.rest_lens.size());
-        reshape_dims.push_back(static_cast<int64_t>(pattern.count));
-        reshape_dims.push_back(pattern.stride);
-        auto rest_dims = to_int64_vec(ctx.rest_lens);
-        reshape_dims.insert(reshape_dims.end(), rest_dims.begin(), rest_dims.end());
-        curr = builder.reshape(curr, reshape_dims);
-
-        // Slice to extract the base offset
-        std::vector<int64_t> slice_axes   = {1};
-        std::vector<int64_t> slice_starts = {pattern.base};
-        std::vector<int64_t> slice_ends   = {pattern.base + 1};
-        curr = builder.slice(curr, slice_axes, slice_starts, slice_ends);
-
-        // Squeeze out the sliced dimension
-        std::vector<int64_t> squeeze_dims;
-        squeeze_dims.push_back(static_cast<int64_t>(pattern.count));
-        squeeze_dims.insert(squeeze_dims.end(), rest_dims.begin(), rest_dims.end());
-        curr = builder.reshape(curr, squeeze_dims);
-
-        // Restore axis position
-        if(ctx.axis_index != 0)
-        {
-            curr =
-                builder.restore_axis_position(curr, ctx.pre_lens.size(), 1, ctx.post_lens.size());
-        }
-
-        // Match final shape
-        curr = builder.match_shape(curr, ctx.ins->get_shape().lens());
-
-        m.replace_instruction(ctx.ins, curr);
-        return true;
-    }
-};
-
-/// Strategy for half-split-concat pattern
-struct half_split_concat_strategy
-{
-    bool operator()(module& m, const gather_context& ctx, gather_instruction_builder& builder) const
-    {
-        if(not matches_half_split_pattern(ctx.indices_values, ctx.axis_len))
-            return false;
-
-        return apply_half_split_concat(m, ctx, builder);
-    }
-
-    private:
-    static bool apply_half_split_concat(module& m,
-                                        const gather_context& ctx,
-                                        gather_instruction_builder& builder)
-    {
-        const std::size_t half = ctx.axis_len / 2;
-        instruction_ref curr   = ctx.data_ins;
-
-        // Move axis to front
-        if(ctx.axis_index != 0)
-            curr = builder.move_axis_to_front(curr, ctx.axis_index);
-
-        // Slice into two halves
-        // Pattern {2,3,0,1} means: tail=[2,3] concat head=[0,1]
-        std::vector<int64_t> axis_vec = {0};
-        auto tail                     = builder.slice(
-            curr, axis_vec, {static_cast<int64_t>(half)}, {static_cast<int64_t>(ctx.axis_len)});
-        auto head = builder.slice(curr, axis_vec, {0}, {static_cast<int64_t>(half)});
-
-        // Concatenate: tail first, then head
-        curr = builder.concat({tail, head}, 0);
-
-        // Restore axis position
-        if(ctx.axis_index != 0)
-        {
-            curr =
-                builder.restore_axis_position(curr, ctx.pre_lens.size(), 1, ctx.post_lens.size());
-        }
-
-        // Match final shape
-        curr = builder.match_shape(curr, ctx.ins->get_shape().lens());
-
-        m.replace_instruction(ctx.ins, curr);
-        return true;
-    }
-};
-
-/// Strategy for stride-based slicing with offset
-struct stride_slice_with_offset_strategy
-{
-    bool operator()(module& m, const gather_context& ctx, gather_instruction_builder& builder) const
-    {
-        const std::size_t count = ctx.indices_values.size();
-        if(count < 2)
-            return false;
-
-        const std::int64_t base = ctx.indices_values.front();
-        if(base < 0)
-            return false;
-
-        const std::int64_t stride = ctx.indices_values[1] - ctx.indices_values[0];
-        if(stride <= 1)
-            return false;
-
-        // Validate arithmetic progression
-        for(std::size_t i = 1; i < count; ++i)
-        {
-            if(ctx.indices_values[i] - ctx.indices_values[i - 1] != stride)
-                return false;
-            if(ctx.indices_values[i] != base + static_cast<std::int64_t>(i) * stride)
-                return false;
-        }
-
-        if(base >= stride)
-            return false;
-
-        const auto stride_size = static_cast<std::size_t>(stride);
-        if(stride_size == 0)
-            return false;
-
-        if(ctx.axis_len % stride_size != 0)
-            return false;
-
-        const std::size_t outer = ctx.axis_len / stride_size;
-        if(count != outer)
-            return false;
-
-        if(base + static_cast<std::int64_t>(count - 1) * stride >=
-           static_cast<std::int64_t>(ctx.axis_len))
-            return false;
-
-        // Apply transformation
-        instruction_ref curr = builder.move_axis_to_front(ctx.data_ins, ctx.axis_index);
-
-        std::vector<int64_t> reshape_dims;
-        reshape_dims.reserve(2 + ctx.rest_lens.size());
-        reshape_dims.push_back(static_cast<int64_t>(outer));
-        reshape_dims.push_back(stride);
-        for(auto len : ctx.rest_lens)
-            reshape_dims.push_back(static_cast<int64_t>(len));
-        curr = builder.reshape(curr, reshape_dims);
-
-        curr = builder.slice(curr, {1}, {base}, {base + 1});
-
-        std::vector<int64_t> reshape2_dims;
-        reshape2_dims.reserve(1 + ctx.rest_lens.size());
-        reshape2_dims.push_back(static_cast<int64_t>(outer));
-        for(auto len : ctx.rest_lens)
-            reshape2_dims.push_back(static_cast<int64_t>(len));
-        curr = builder.reshape(curr, reshape2_dims);
-
-        curr = builder.restore_axis_position(curr, ctx.pre_lens.size(), 1, ctx.post_lens.size());
-
-        std::vector<int64_t> final_dims;
-        final_dims.reserve(ctx.pre_lens.size() + ctx.idims.size() + ctx.post_lens.size());
-        for(auto len : ctx.pre_lens)
-            final_dims.push_back(static_cast<int64_t>(len));
-        for(auto len : ctx.idims)
-            final_dims.push_back(static_cast<int64_t>(len));
-        for(auto len : ctx.post_lens)
-            final_dims.push_back(static_cast<int64_t>(len));
-        curr = builder.reshape(curr, final_dims);
-
-        m.replace_instruction(ctx.ins, curr);
-        return true;
-    }
-};
-
-/// Strategy for factorized grid-based slicing
-struct factorized_grid_slice_strategy
-{
-    bool operator()(module& m, const gather_context& ctx, gather_instruction_builder& builder) const
-    {
-        if(ctx.index_dims.empty())
-            return false;
-
-        const std::size_t total = ctx.indices_values.size();
-
-        // Compute multi-indices for all index positions
-        std::vector<std::vector<std::size_t>> index_coords(total);
-        for(std::size_t i = 0; i < total; ++i)
-            index_coords[i] = compute_multi_index(i, ctx.idims);
-
-        // Try each factorization candidate
-        std::vector<std::size_t> chosen_factors;
-        std::vector<std::size_t> chosen_var_indices;
-        std::vector<std::size_t> chosen_const_indices;
-        std::vector<std::size_t> chosen_const_values;
-
-        for(const auto& factors : ctx.factor_candidates)
-        {
-            if(product_of(factors) != ctx.axis_len)
-                continue;
-            if(try_candidate_factorized(factors,
-                                        total,
-                                        ctx,
-                                        index_coords,
-                                        chosen_factors,
-                                        chosen_var_indices,
-                                        chosen_const_indices,
-                                        chosen_const_values))
-                break;
-        }
-
-        if(chosen_factors.empty())
-            return false;
-
-        // Sort const indices by position
-        std::vector<std::pair<std::size_t, std::size_t>> const_pairs;
-        const_pairs.reserve(chosen_const_indices.size());
-        for(std::size_t i = 0; i < chosen_const_indices.size(); ++i)
-            const_pairs.emplace_back(chosen_const_indices[i], chosen_const_values[i]);
-        std::sort(const_pairs.begin(), const_pairs.end(), [](auto l, auto r) {
-            return l.first < r.first;
-        });
-
-        // Apply transformation
-        instruction_ref curr = builder.move_axis_to_front(ctx.data_ins, ctx.axis_index);
-
-        std::vector<int64_t> reshape_dims;
-        reshape_dims.reserve(chosen_factors.size() + ctx.rest_lens.size());
-        for(auto len : chosen_factors)
-            reshape_dims.push_back(static_cast<int64_t>(len));
-        for(auto len : ctx.rest_lens)
-            reshape_dims.push_back(static_cast<int64_t>(len));
-        curr = builder.reshape(curr, reshape_dims);
-
-        for(const auto& [axis_pos, value] : const_pairs)
-        {
-            std::vector<int64_t> axes{static_cast<int64_t>(axis_pos)};
-            std::vector<int64_t> starts{static_cast<int64_t>(value)};
-            std::vector<int64_t> ends{static_cast<int64_t>(value + 1)};
-            curr = builder.slice(curr, axes, starts, ends);
-        }
-
-        const std::size_t factor_count = chosen_factors.size();
-        const std::size_t rest_count   = ctx.rest_lens.size();
-
-        std::vector<std::size_t> reorder;
-        reorder.reserve(factor_count + rest_count);
-        for(std::size_t i = 0; i < ctx.pre_lens.size(); ++i)
-            reorder.push_back(factor_count + i);
-        for(auto idx : chosen_var_indices)
-            reorder.push_back(idx);
-        for(std::size_t i = ctx.pre_lens.size(); i < ctx.rest_lens.size(); ++i)
-            reorder.push_back(factor_count + i);
-        for(const auto& [axis_pos, _] : const_pairs)
-            reorder.push_back(axis_pos);
-
-        if(reorder.size() != factor_count + rest_count)
-            return false;
-
-        bool need_transpose = false;
-        for(std::size_t i = 0; i < reorder.size(); ++i)
-        {
-            if(reorder[i] != i)
-            {
-                need_transpose = true;
-                break;
-            }
-        }
-
-        if(need_transpose)
-        {
-            std::vector<int64_t> perm64;
-            perm64.reserve(reorder.size());
-            for(auto v : reorder)
-                perm64.push_back(static_cast<int64_t>(v));
-            curr = builder.transpose(curr, perm64);
-        }
-
-        std::vector<std::size_t> final_lens;
-        final_lens.reserve(ctx.pre_lens.size() + ctx.idims.size() + ctx.post_lens.size());
-        final_lens.insert(final_lens.end(), ctx.pre_lens.begin(), ctx.pre_lens.end());
-        final_lens.insert(final_lens.end(), ctx.idims.begin(), ctx.idims.end());
-        final_lens.insert(final_lens.end(), ctx.post_lens.begin(), ctx.post_lens.end());
-
-        curr = builder.reshape(curr, to_int64_vec(final_lens));
-
-        m.replace_instruction(ctx.ins, curr);
-        return true;
-    }
-
-    private:
-    static std::vector<std::size_t> compute_multi_index(std::size_t value,
-                                                        const std::vector<std::size_t>& dims)
-    {
-        std::vector<std::size_t> coord(dims.size(), 0);
-        if(dims.empty())
-            return coord;
-        for(std::size_t i = dims.size(); i > 0; --i)
-        {
-            auto dim     = dims.at(i - 1);
-            coord[i - 1] = (dim == 0) ? 0 : value % dim;
-            value        = (dim == 0) ? 0 : value / dim;
-        }
-        return coord;
-    }
-
-    static bool try_candidate_factorized(const std::vector<std::size_t>& factors,
-                                         std::size_t total,
-                                         const gather_context& ctx,
-                                         const std::vector<std::vector<std::size_t>>& index_coords,
-                                         std::vector<std::size_t>& chosen_factors,
-                                         std::vector<std::size_t>& chosen_var_indices,
-                                         std::vector<std::size_t>& chosen_const_indices,
-                                         std::vector<std::size_t>& chosen_const_values)
-    {
-        if(factors.empty())
-            return false;
-        if(factors.size() < ctx.index_dims.size())
-            return false;
-
-        std::vector<int> used(factors.size(), 0);
-        std::vector<std::size_t> assignment(ctx.index_dims.size(), 0);
-
-        std::vector<std::size_t> const_indices;
-        std::vector<std::size_t> const_values;
-
-        auto validate_assignment = [&]() -> bool {
-            const_indices.clear();
-            for(std::size_t f = 0; f < factors.size(); ++f)
-            {
-                if(used[f] == 0)
-                    const_indices.push_back(f);
-            }
-            std::vector<std::size_t> values(const_indices.size(), 0);
-
-            for(std::size_t pos = 0; pos < total; ++pos)
-            {
-                auto factor_coord =
-                    compute_multi_index(static_cast<std::size_t>(ctx.indices_values[pos]), factors);
-                const auto& idx_coord = index_coords[pos];
-
-                for(std::size_t i = 0; i < assignment.size(); ++i)
-                {
-                    auto factor_index = assignment[i];
-                    auto idx_pos      = ctx.index_positions[i];
-                    if(factor_index >= factor_coord.size() or idx_pos >= idx_coord.size() or
-                       factor_coord[factor_index] != idx_coord[idx_pos])
-                        return false;
-                }
-
-                for(std::size_t k = 0; k < const_indices.size(); ++k)
-                {
-                    auto factor_index = const_indices[k];
-                    auto value        = factor_coord.at(factor_index);
-                    if(pos == 0)
-                        values[k] = value;
-                    else if(values[k] != value)
-                        return false;
-                }
-            }
-
-            const_values = std::move(values);
-            return true;
-        };
-
-        auto backtrack = [&](auto&& self, std::size_t depth) -> bool {
-            if(depth == ctx.index_dims.size())
-            {
-                if(validate_assignment())
-                    return true;
-                return false;
-            }
-
-            auto dim_value = ctx.index_dims[depth];
-            for(std::size_t f = 0; f < factors.size(); ++f)
-            {
-                if(used[f] != 0)
-                    continue;
-                if(factors[f] != dim_value)
-                    continue;
-                used[f]           = 1;
-                assignment[depth] = f;
-                if(self(self, depth + 1))
-                    return true;
-                used[f] = 0;
-            }
-            return false;
-        };
-
-        if(not backtrack(backtrack, 0))
-            return false;
-
-        chosen_factors       = factors;
-        chosen_var_indices   = assignment;
-        chosen_const_indices = const_indices;
-        chosen_const_values  = const_values;
-        return true;
-    }
-};
-
-/// Strategy for rectangular grid patterns with factorization and permutation
-struct rectangular_grid_strategy
-{
-    bool operator()(module& m,
-                    const gather_context& ctx,
-                    gather_instruction_builder& /* builder */) const
-    {
-        const auto& ins               = ctx.ins;
-        const auto& data_ins          = ctx.data_ins;
-        const auto& indices_ins       = ctx.indices_ins;
-        const auto& indices_values    = ctx.indices_values;
-        const auto axis_index         = ctx.axis_index;
-        const auto axis_len           = ctx.axis_len;
-        const auto& dlens             = data_ins->get_shape().lens();
-        const auto& indices_shape     = indices_ins->get_shape();
-        const auto& idims             = ctx.idims;
-        const auto& rest_lens         = ctx.rest_lens;
-        const auto& pre_lens          = ctx.pre_lens;
-        const auto& post_lens         = ctx.post_lens;
-        const auto& factor_candidates = ctx.factor_candidates;
-        const std::size_t total       = indices_values.size();
-        const std::size_t in_dims     = idims.size();
-
-        if(factor_candidates.empty())
-            return false;
-
-        // Skip half-split pattern (handled by half_split_concat_strategy)
-        if(axis_index == 0 and total == axis_len and axis_len % 2 == 0)
-        {
-            const std::size_t half = axis_len / 2;
-            bool half_shift        = true;
-            for(std::size_t i = 0; i < indices_values.size(); ++i)
-            {
-                auto expected = (i + half) % axis_len;
-                if(static_cast<std::size_t>(indices_values[i]) != expected)
-                {
-                    half_shift = false;
-                    break;
-                }
-            }
-            if(half_shift)
-                return false;
-        }
-
-        const auto invalid_index_value = std::numeric_limits<std::size_t>::max();
-        std::vector<int64_t> rest_dims = to_int64_vec(rest_lens);
-
-        for(auto factors : factor_candidates)
-        {
-            if(factors.empty() or product_of(factors) != axis_len)
-                continue;
-
-            std::vector<std::size_t> perm(factors.size());
-            std::iota(perm.begin(), perm.end(), 0);
-
-            do
-            {
-                std::vector<std::size_t> dims_perm(perm.size());
-                for(std::size_t i = 0; i < perm.size(); ++i)
-                    dims_perm[i] = factors[perm[i]];
-
-                std::vector<std::vector<std::size_t>> coords(total,
-                                                             std::vector<std::size_t>(perm.size()));
-                bool consistent = true;
-                for(std::size_t idx = 0; idx < total and consistent; ++idx)
-                {
-                    auto value = static_cast<std::size_t>(indices_values[idx]);
-                    std::vector<std::size_t> coord(factors.size());
-                    auto remainder = value;
-                    for(std::size_t j = factors.size(); j > 0; --j)
-                    {
-                        auto dim_index   = j - 1;
-                        auto dim_size    = factors[dim_index];
-                        coord[dim_index] = remainder % dim_size;
-                        remainder /= dim_size;
-                    }
-                    if(remainder != 0)
-                    {
-                        consistent = false;
-                        break;
-                    }
-                    for(std::size_t j = 0; j < perm.size(); ++j)
-                        coords[idx][j] = coord[perm[j]];
-                }
-                if(not consistent)
-                    continue;
-
-                std::vector<std::size_t> min_coord(dims_perm.size(),
-                                                   std::numeric_limits<std::size_t>::max());
-                std::vector<std::size_t> max_coord(dims_perm.size(), 0);
-                for(auto& c : coords)
-                {
-                    for(std::size_t j = 0; j < c.size(); ++j)
-                    {
-                        min_coord[j] = std::min(min_coord[j], c[j]);
-                        max_coord[j] = std::max(max_coord[j], c[j]);
-                    }
-                }
-
-                std::vector<std::size_t> len(dims_perm.size(), 0);
-                std::size_t block_total = 1;
-                for(std::size_t j = 0; j < len.size(); ++j)
-                {
-                    if(min_coord[j] > max_coord[j])
-                    {
-                        consistent = false;
-                        break;
-                    }
-                    len[j] = max_coord[j] - min_coord[j] + 1;
-                    if(len[j] > dims_perm[j])
-                    {
-                        consistent = false;
-                        break;
-                    }
-                    block_total *= len[j];
-                }
-                if(not consistent or block_total != total)
-                    continue;
-
-                std::unordered_set<std::size_t> seen;
-                seen.reserve(total * 2);
-                for(auto& c : coords)
-                {
-                    std::size_t block_idx = 0;
-                    for(std::size_t j = 0; j < len.size(); ++j)
-                    {
-                        auto offset = c[j] - min_coord[j];
-                        if(offset >= len[j])
-                        {
-                            consistent = false;
-                            break;
-                        }
-                        block_idx = block_idx * len[j] + offset;
-                    }
-                    if(not consistent)
-                        break;
-                    seen.insert(block_idx);
-                }
-                if(not consistent or seen.size() != total)
-                    continue;
-
-                std::vector<int> axis_to_index(len.size(), -1);
-                std::vector<bool> used_index(in_dims, false);
-                for(std::size_t axis_dim = 0; axis_dim < len.size() and consistent; ++axis_dim)
-                {
-                    int chosen_index = -1;
-                    for(std::size_t index_dim = 0; index_dim < in_dims; ++index_dim)
-                    {
-                        if(used_index[index_dim])
-                            continue;
-                        if(idims[index_dim] != len[axis_dim])
-                            continue;
-                        std::vector<std::size_t> value_per_coord(idims[index_dim],
-                                                                 invalid_index_value);
-                        bool axis_matches = true;
-                        for(std::size_t idx = 0; idx < total; ++idx)
-                        {
-                            auto coord_index = indices_shape.multi(idx);
-                            auto axis_value  = coords[idx][axis_dim];
-                            auto coord_value = coord_index[index_dim];
-                            auto& slot       = value_per_coord[coord_value];
-                            if(slot == invalid_index_value)
-                                slot = axis_value;
-                            else if(slot != axis_value)
-                            {
-                                axis_matches = false;
-                                break;
-                            }
-                        }
-                        if(axis_matches)
-                        {
-                            chosen_index            = static_cast<int>(index_dim);
-                            axis_to_index[axis_dim] = chosen_index;
-                            used_index[index_dim]   = true;
-                            break;
-                        }
-                    }
-                    if(chosen_index == -1)
-                    {
-                        consistent = false;
-                        break;
-                    }
-                }
-                if(not consistent)
-                    continue;
-
-                instruction_ref curr = data_ins;
-
-                if(axis_index != 0)
-                {
-                    std::vector<int64_t> perm_axis_front;
-                    perm_axis_front.reserve(dlens.size());
-                    perm_axis_front.push_back(static_cast<int64_t>(axis_index));
-                    for(std::size_t i = 0; i < dlens.size(); ++i)
-                    {
-                        if(i == axis_index)
-                            continue;
-                        perm_axis_front.push_back(static_cast<int64_t>(i));
-                    }
-                    curr = m.insert_instruction(
-                        ins, make_op("transpose", {{"permutation", perm_axis_front}}), curr);
-                }
-
-                std::vector<int64_t> reshape_axis_dims;
-                reshape_axis_dims.reserve(factors.size() + rest_dims.size());
-                for(auto f : factors)
-                    reshape_axis_dims.push_back(static_cast<int64_t>(f));
-                reshape_axis_dims.insert(
-                    reshape_axis_dims.end(), rest_dims.begin(), rest_dims.end());
-                curr = m.insert_instruction(
-                    ins, make_op("reshape", {{"dims", reshape_axis_dims}}), curr);
-
-                if(factors.size() > 1)
-                {
-                    std::vector<int64_t> perm_extended(factors.size() + rest_dims.size());
-                    for(std::size_t i = 0; i < perm.size(); ++i)
-                        perm_extended[i] = static_cast<int64_t>(perm[i]);
-                    for(std::size_t i = 0; i < rest_dims.size(); ++i)
-                        perm_extended[perm.size() + i] = static_cast<int64_t>(perm.size() + i);
-
-                    bool need_transpose = false;
-                    for(std::size_t i = 0; i < perm_extended.size(); ++i)
-                    {
-                        if(perm_extended[i] != static_cast<int64_t>(i))
-                        {
-                            need_transpose = true;
-                            break;
-                        }
-                    }
-                    if(need_transpose)
-                    {
-                        curr = m.insert_instruction(
-                            ins, make_op("transpose", {{"permutation", perm_extended}}), curr);
-                    }
-                }
-
-                std::vector<std::pair<int64_t, std::pair<int64_t, int64_t>>> slice_desc;
-                for(std::size_t j = 0; j < min_coord.size(); ++j)
-                {
-                    auto start = static_cast<int64_t>(min_coord[j]);
-                    auto end   = static_cast<int64_t>(min_coord[j] + len[j]);
-                    if(start != 0 or end != static_cast<int64_t>(dims_perm[j]))
-                        slice_desc.push_back({static_cast<int64_t>(j), {start, end}});
-                }
-                if(not slice_desc.empty())
-                {
-                    std::sort(slice_desc.begin(),
-                              slice_desc.end(),
-                              [](const auto& a, const auto& b) { return a.first < b.first; });
-                    std::vector<int64_t> axes;
-                    std::vector<int64_t> starts;
-                    std::vector<int64_t> ends;
-                    axes.reserve(slice_desc.size());
-                    starts.reserve(slice_desc.size());
-                    ends.reserve(slice_desc.size());
-                    for(auto& s : slice_desc)
-                    {
-                        axes.push_back(s.first);
-                        starts.push_back(s.second.first);
-                        ends.push_back(s.second.second);
-                    }
-                    curr = m.insert_instruction(
-                        ins,
-                        make_op("slice", {{"axes", axes}, {"starts", starts}, {"ends", ends}}),
-                        curr);
-                }
-
-                if(axis_to_index.size() > 1)
-                {
-                    std::vector<std::size_t> dims_for_index(axis_to_index.size());
-                    for(std::size_t j = 0; j < axis_to_index.size(); ++j)
-                        dims_for_index[static_cast<std::size_t>(axis_to_index[j])] = j;
-
-                    bool need_reorder = false;
-                    for(std::size_t k = 0; k < dims_for_index.size(); ++k)
-                    {
-                        if(dims_for_index[k] != k)
-                        {
-                            need_reorder = true;
-                            break;
-                        }
-                    }
-                    if(need_reorder)
-                    {
-                        std::vector<int64_t> perm_align(axis_to_index.size() + rest_dims.size());
-                        for(std::size_t k = 0; k < dims_for_index.size(); ++k)
-                            perm_align[k] = static_cast<int64_t>(dims_for_index[k]);
-                        for(std::size_t i = 0; i < rest_dims.size(); ++i)
-                            perm_align[axis_to_index.size() + i] =
-                                static_cast<int64_t>(axis_to_index.size() + i);
-                        curr = m.insert_instruction(
-                            ins, make_op("transpose", {{"permutation", perm_align}}), curr);
-                    }
-                }
-
-                const std::size_t axis_block_size = in_dims;
-                const std::size_t rest_count      = rest_lens.size();
-                if(axis_block_size + rest_count > 0)
-                {
-                    std::vector<int64_t> perm_final(axis_block_size + rest_count);
-                    std::size_t pos = 0;
-                    for(std::size_t i = 0; i < pre_lens.size(); ++i)
-                        perm_final[pos++] = static_cast<int64_t>(axis_block_size + i);
-                    for(std::size_t i = 0; i < axis_block_size; ++i)
-                        perm_final[pos++] = static_cast<int64_t>(i);
-                    for(std::size_t i = 0; i < post_lens.size(); ++i)
-                        perm_final[pos++] =
-                            static_cast<int64_t>(axis_block_size + pre_lens.size() + i);
-
-                    bool need_transpose = false;
-                    for(std::size_t i = 0; i < perm_final.size(); ++i)
-                    {
-                        if(perm_final[i] != static_cast<int64_t>(i))
-                        {
-                            need_transpose = true;
-                            break;
-                        }
-                    }
-                    if(need_transpose)
-                    {
-                        curr = m.insert_instruction(
-                            ins, make_op("transpose", {{"permutation", perm_final}}), curr);
-                    }
-                }
-
-                if(curr->get_shape().lens() != ins->get_shape().lens())
-                {
-                    if(curr->get_shape().elements() == ins->get_shape().elements())
-                    {
-                        curr = m.insert_instruction(
-                            ins,
-                            make_op("reshape", {{"dims", to_int64_vec(ins->get_shape().lens())}}),
-                            curr);
-                    }
-                    else
-                    {
-                        curr = m.insert_instruction(
-                            ins,
-                            make_op("multibroadcast",
-                                    {{"out_lens", to_int64_vec(ins->get_shape().lens())}}),
-                            curr);
-                    }
-                }
-
-                m.replace_instruction(ins, curr);
-                return true;
-            } while(std::next_permutation(perm.begin(), perm.end()));
-        }
-
+    
+    // For multi-dimensional indices, normalize to 1D
+    // Step 1: Flatten indices to 1D
+    std::size_t total_indices = product_of(ctx.idims);
+    
+    // Step 2: Create modified context for 1D optimization
+    // Copy the context and modify for 1D case
+    gather_context ctx_1d = ctx;
+    ctx_1d.idims = {total_indices};
+    
+    // Update index_positions and index_dims for 1D
+    ctx_1d.index_positions.clear();
+    ctx_1d.index_positions.push_back(ctx.pre_lens.size());
+    ctx_1d.index_dims = {total_indices};
+    
+    // Step 3: Compute the target 1D output shape
+    // Output shape is: pre_lens + [total_indices] + post_lens
+    std::vector<std::size_t> target_1d_shape = ctx.pre_lens;
+    target_1d_shape.push_back(total_indices);
+    target_1d_shape.insert(target_1d_shape.end(), ctx.post_lens.begin(), ctx.post_lens.end());
+    
+    // Step 4: Try optimization with 1D context and target shape
+    auto result_1d = try_segment_based_optimization_1d(ctx_1d, builder, target_1d_shape);
+    if(not result_1d.has_value())
         return false;
-    }
-};
+    
+    // Step 5: Reshape back to multi-dimensional output shape
+    // Final output shape is: pre_lens + idims + post_lens
+    std::vector<std::size_t> final_shape = ctx.pre_lens;
+    final_shape.insert(final_shape.end(), ctx.idims.begin(), ctx.idims.end());
+    final_shape.insert(final_shape.end(), ctx.post_lens.begin(), ctx.post_lens.end());
+    
+    auto final_result = builder.reshape(*result_1d, to_int64_vec(final_shape));
+    m.replace_instruction(ctx.ins, final_result);
+    return true;
+}
 
-/// Strategy for tile-based repetition patterns
-struct tile_repeat_strategy
-{
-    bool operator()(module& m,
-                    const gather_context& ctx,
-                    gather_instruction_builder& /* builder */) const
-    {
-        const auto& ins            = ctx.ins;
-        const auto& data_ins       = ctx.data_ins;
-        const auto& indices_ins    = ctx.indices_ins;
-        const auto& indices_values = ctx.indices_values;
-        const auto axis_index      = ctx.axis_index;
-        const auto axis_len        = ctx.axis_len;
-        const auto& dlens          = data_ins->get_shape().lens();
-        const auto& indices_shape  = indices_ins->get_shape();
-        const auto& idims          = ctx.idims;
-        const auto& rest_lens      = ctx.rest_lens;
-        const auto& pre_lens       = ctx.pre_lens;
-        const auto& post_lens      = ctx.post_lens;
-        const std::size_t total    = indices_values.size();
-        const std::size_t in_dims  = idims.size();
-        const std::int64_t base    = indices_values.empty() ? 0 : indices_values.front();
-
-        std::vector<std::size_t> repeat_sizes(in_dims, 1);
-        std::vector<std::size_t> tile_sizes(in_dims, 1);
-        auto is_repeated_axis = [&](std::size_t axis, std::size_t repeat) {
-            if(repeat <= 1)
-                return false;
-            auto axis_len_dim = idims[axis];
-            if(axis_len_dim % repeat != 0)
-                return false;
-            for(std::size_t idx = 0; idx < total; ++idx)
-            {
-                auto coord    = indices_shape.multi(idx);
-                auto axis_val = coord[axis];
-                auto group    = axis_val / repeat;
-                coord[axis]   = group * repeat;
-                auto base_idx = indices_shape.index(coord);
-                if(indices_values[idx] != indices_values[base_idx])
-                    return false;
-            }
-            return true;
-        };
-
-        for(std::size_t dim = 0; dim < in_dims; ++dim)
-        {
-            auto axis_len_dim  = idims[dim];
-            std::size_t repeat = 1;
-            for(std::size_t candidate = 2; candidate <= axis_len_dim; ++candidate)
-            {
-                if(axis_len_dim % candidate != 0)
-                    continue;
-                if(is_repeated_axis(dim, candidate))
-                {
-                    repeat = candidate;
-                    break;
-                }
-            }
-            repeat_sizes[dim] = repeat;
-            tile_sizes[dim]   = (repeat > 0) ? axis_len_dim / repeat : 0;
-            if(tile_sizes[dim] == 0)
-                return false;
-        }
-
-        std::vector<std::size_t> tile_axes;
-        std::size_t tile_product = 1;
-        for(std::size_t dim = 0; dim < in_dims; ++dim)
-        {
-            if(tile_sizes[dim] > 1)
-            {
-                tile_axes.push_back(dim);
-                tile_product *= tile_sizes[dim];
-            }
-        }
-
-        const bool broadcast_needed = std::any_of(
-            repeat_sizes.begin(), repeat_sizes.end(), [](std::size_t r) { return r > 1; });
-
-        std::vector<std::int64_t> strides(in_dims, 0);
-        std::size_t weight = 1;
-        for(auto it = tile_axes.rbegin(); it != tile_axes.rend(); ++it)
-        {
-            strides[*it] = static_cast<std::int64_t>(weight);
-            weight *= tile_sizes[*it];
-        }
-
-        for(std::size_t idx = 0; idx < total; ++idx)
-        {
-            auto coord            = indices_shape.multi(idx);
-            std::int64_t expected = 0;
-            for(auto axis : tile_axes)
-            {
-                auto tile_index = coord[axis] / repeat_sizes[axis];
-                expected += strides[axis] * static_cast<std::int64_t>(tile_index);
-            }
-            if(indices_values[idx] - base != expected)
-                return false;
-        }
-
-        std::int64_t max_index = base;
-        for(auto axis : tile_axes)
-        {
-            max_index += strides[axis] * static_cast<std::int64_t>(tile_sizes[axis] - 1);
-        }
-
-        if(base < 0 or max_index < base)
-            return false;
-        if(max_index >= static_cast<std::int64_t>(axis_len))
-            return false;
-
-        auto slice_len = max_index - base + 1;
-        if(slice_len <= 0)
-            return false;
-
-        const auto slice_len_size = static_cast<std::size_t>(slice_len);
-        if(slice_len_size == 0)
-            return false;
-
-        const bool has_tiled_repeat =
-            std::any_of(tile_axes.begin(), tile_axes.end(), [&](std::size_t dim) {
-                return repeat_sizes[dim] > 1;
-            });
-        if(slice_len_size != axis_len && has_tiled_repeat)
-            return false;
-
-        if(tile_axes.empty())
-        {
-            if(slice_len_size != 1)
-                return false;
-        }
-        else if(tile_product != slice_len_size)
-        {
-            return false;
-        }
-
-        std::vector<std::size_t> vary_dims = tile_axes;
-
-        std::size_t prod_vary = 1;
-        for(auto dim : vary_dims)
-            prod_vary *= tile_sizes[dim];
-        if(static_cast<std::size_t>(slice_len) != prod_vary and not vary_dims.empty())
-            return false;
-
-        std::vector<std::size_t> sorted_vary = vary_dims;
-        std::sort(sorted_vary.begin(), sorted_vary.end(), [&](std::size_t a, std::size_t b) {
-            return strides[a] < strides[b];
-        });
-
-        std::int64_t expected_stride = 1;
-        for(auto dim : sorted_vary)
-        {
-            if(strides[dim] != expected_stride)
-                return false;
-            expected_stride *= static_cast<std::int64_t>(tile_sizes[dim]);
-        }
-        if(not sorted_vary.empty() and expected_stride != slice_len)
-            return false;
-
-        std::vector<std::size_t> ordered_vary_desc = sorted_vary;
-        std::reverse(ordered_vary_desc.begin(), ordered_vary_desc.end());
-        std::vector<std::size_t> target_vary_order = vary_dims;
-
-        const auto& output_lens = ins->get_shape().lens();
-
-        instruction_ref curr = data_ins;
-
-        if(axis_index != 0)
-        {
-            std::vector<int64_t> perm_axis_front;
-            perm_axis_front.reserve(dlens.size());
-            perm_axis_front.push_back(static_cast<int64_t>(axis_index));
-            for(std::size_t i = 0; i < dlens.size(); ++i)
-            {
-                if(i == axis_index)
-                    continue;
-                perm_axis_front.push_back(static_cast<int64_t>(i));
-            }
-            curr = m.insert_instruction(
-                ins, make_op("transpose", {{"permutation", perm_axis_front}}), curr);
-        }
-
-        if(base != 0 or static_cast<std::size_t>(slice_len) != axis_len)
-        {
-            std::vector<int64_t> axes{0};
-            std::vector<int64_t> starts{base};
-            std::vector<int64_t> ends{base + slice_len};
-            curr = m.insert_instruction(
-                ins, make_op("slice", {{"axes", axes}, {"starts", starts}, {"ends", ends}}), curr);
-        }
-
-        std::vector<int64_t> rest_dims;
-        rest_dims.reserve(rest_lens.size());
-        std::transform(rest_lens.begin(),
-                       rest_lens.end(),
-                       std::back_inserter(rest_dims),
-                       [](auto len) { return static_cast<int64_t>(len); });
-
-        if(not ordered_vary_desc.empty())
-        {
-            std::vector<int64_t> reshape1_dims;
-            reshape1_dims.reserve(ordered_vary_desc.size() + rest_dims.size());
-            for(auto dim : ordered_vary_desc)
-                reshape1_dims.push_back(static_cast<int64_t>(tile_sizes[dim]));
-            reshape1_dims.insert(reshape1_dims.end(), rest_dims.begin(), rest_dims.end());
-            curr = m.insert_instruction(ins, make_op("reshape", {{"dims", reshape1_dims}}), curr);
-
-            if(ordered_vary_desc != target_vary_order)
-            {
-                const std::size_t axis_count = ordered_vary_desc.size();
-                std::vector<int64_t> perm(axis_count + rest_dims.size());
-                for(std::size_t i = 0; i < target_vary_order.size(); ++i)
-                {
-                    auto it = std::find(
-                        ordered_vary_desc.begin(), ordered_vary_desc.end(), target_vary_order[i]);
-                    if(it == ordered_vary_desc.end())
-                        return false;
-                    perm[i] = std::distance(ordered_vary_desc.begin(), it);
-                }
-                for(std::size_t i = 0; i < rest_dims.size(); ++i)
-                    perm[target_vary_order.size() + i] = static_cast<int64_t>(axis_count + i);
-
-                curr =
-                    m.insert_instruction(ins, make_op("transpose", {{"permutation", perm}}), curr);
-                ordered_vary_desc = target_vary_order;
-            }
-        }
-
-        if(in_dims > 0)
-        {
-            std::vector<int64_t> reshape2_dims;
-            reshape2_dims.reserve(in_dims + rest_dims.size());
-            for(std::size_t dim = 0; dim < in_dims; ++dim)
-            {
-                if(tile_sizes[dim] > 1)
-                    reshape2_dims.push_back(static_cast<int64_t>(tile_sizes[dim]));
-                else
-                    reshape2_dims.push_back(1);
-
-                if(repeat_sizes[dim] > 1)
-                    reshape2_dims.push_back(1);
-            }
-            reshape2_dims.insert(reshape2_dims.end(), rest_dims.begin(), rest_dims.end());
-            if(reshape2_dims.empty())
-                reshape2_dims.push_back(1);
-            curr = m.insert_instruction(ins, make_op("reshape", {{"dims", reshape2_dims}}), curr);
-            if(broadcast_needed)
-            {
-                std::vector<int64_t> broadcast_dims;
-                broadcast_dims.reserve(in_dims + rest_dims.size());
-                for(std::size_t dim = 0; dim < in_dims; ++dim)
-                {
-                    auto tile_val =
-                        (tile_sizes[dim] > 1) ? static_cast<int64_t>(tile_sizes[dim]) : 1;
-                    broadcast_dims.push_back(tile_val);
-                    if(repeat_sizes[dim] > 1)
-                        broadcast_dims.push_back(static_cast<int64_t>(repeat_sizes[dim]));
-                }
-                broadcast_dims.insert(broadcast_dims.end(), rest_dims.begin(), rest_dims.end());
-                curr = m.insert_instruction(
-                    ins, make_op("multibroadcast", {{"out_lens", broadcast_dims}}), curr);
-            }
-
-            std::vector<int64_t> combine_dims;
-            combine_dims.reserve(in_dims + rest_dims.size());
-            for(std::size_t dim = 0; dim < in_dims; ++dim)
-            {
-                auto tile_val   = (tile_sizes[dim] > 1) ? tile_sizes[dim] : std::size_t{1};
-                auto repeat_val = repeat_sizes[dim];
-                combine_dims.push_back(static_cast<int64_t>(tile_val * repeat_val));
-            }
-            combine_dims.insert(combine_dims.end(), rest_dims.begin(), rest_dims.end());
-            if(combine_dims.empty())
-                combine_dims.push_back(1);
-            curr = m.insert_instruction(ins, make_op("reshape", {{"dims", combine_dims}}), curr);
-        }
-
-        const std::size_t axis_block_size = in_dims;
-        const std::size_t pre_count       = pre_lens.size();
-        const std::size_t post_count      = post_lens.size();
-        const std::size_t rest_count      = rest_dims.size();
-
-        if(axis_block_size + rest_count > 0)
-        {
-            std::vector<int64_t> perm_final(axis_block_size + rest_count);
-            std::size_t pos = 0;
-            for(std::size_t i = 0; i < pre_count; ++i)
-                perm_final[pos++] = static_cast<int64_t>(axis_block_size + i);
-            for(std::size_t i = 0; i < axis_block_size; ++i)
-                perm_final[pos++] = static_cast<int64_t>(i);
-            for(std::size_t i = 0; i < post_count; ++i)
-                perm_final[pos++] = static_cast<int64_t>(axis_block_size + pre_count + i);
-
-            bool need_transpose = false;
-            for(std::size_t i = 0; i < perm_final.size(); ++i)
-            {
-                if(perm_final[i] != static_cast<int64_t>(i))
-                {
-                    need_transpose = true;
-                    break;
-                }
-            }
-            if(need_transpose)
-            {
-                curr = m.insert_instruction(
-                    ins, make_op("transpose", {{"permutation", perm_final}}), curr);
-            }
-        }
-
-        if(curr->get_shape().lens() != output_lens)
-        {
-            if(curr->get_shape().elements() == ins->get_shape().elements())
-            {
-                curr = m.insert_instruction(
-                    ins, make_op("reshape", {{"dims", to_int64_vec(output_lens)}}), curr);
-            }
-            else
-            {
-                curr = m.insert_instruction(
-                    ins, make_op("multibroadcast", {{"out_lens", output_lens}}), curr);
-            }
-        }
-
-        m.replace_instruction(ins, curr);
-        return true;
-    }
-};
 
 } // namespace
 
@@ -2597,6 +1801,10 @@ struct find_gather
 
         const auto& indices_shape = indices_ins->get_shape();
         if(indices_shape.elements() != indices_values.size())
+            return;
+
+        // Skip if indices have broadcast strides (e.g., scalar broadcast)
+        if(indices_shape.broadcasted())
             return;
 
         // Normalize negative indices using transform
@@ -2670,20 +1878,8 @@ struct find_gather
             }
         }
 
-        // Try optimization strategies in order
-        const std::vector<gather_strategy> strategies = {half_split_concat_strategy{},
-                                                         stride_slice_strategy{},
-                                                         stride_slice_with_offset_strategy{},
-                                                         factorized_grid_slice_strategy{},
-                                                         rectangular_grid_strategy{},
-                                                         tile_repeat_strategy{},
-                                                         permutation_strategy{}};
-
-        for(const auto& strategy : strategies)
-        {
-            if(strategy(m, ctx, builder))
-                return;
-        }
+        // Try segment-based optimization
+        try_segment_based_optimization(m, ctx, builder);
     }
 };
 

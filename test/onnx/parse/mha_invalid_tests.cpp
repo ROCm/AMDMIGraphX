@@ -88,3 +88,13 @@ TEST_CASE(multi_head_attention_invalid_cross_value_test)
 {
     EXPECT(test::throws([&] { read_onnx("mha_invalid_cross_value_test.onnx"); }));
 }
+
+TEST_CASE(multi_head_attention_invalid_bias_input_shape)
+{
+    EXPECT(test::throws([&] { read_onnx("mha_invalid_bias_shape_test.onnx"); }));
+}
+
+TEST_CASE(multi_head_attention_invalid_bias_dimensions)
+{
+    EXPECT(test::throws([&] { read_onnx("mha_invalid_bias_dimensions_test.onnx"); }));
+}

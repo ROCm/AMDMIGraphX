@@ -52,10 +52,16 @@ __device__ void gather(Input input, Indices indices, Output output)
         auto idx      = out_comp.multi(i);
         auto in_index = indices[idx[Axis]];
 
+
         auto new_in_index = (in_index < 0) ? in_index + axis_dim_size : in_index;
 
         idx[Axis] = new_in_index;
 
+        if(idx < 0 || idx >= indicies.elements())
+        {
+            output[i] = 0;
+            return;
+        }
         output[i] = input[idx];
     });
 }

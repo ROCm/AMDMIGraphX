@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2023 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2025 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -70,9 +70,9 @@ void quantize_8bits_pass::apply(module& m) const // NOLINT
                 m.add_literal(migraphx::literal{migraphx::shape{precision}, {param.second}});
                 
             float inverted_scale = 1.0f / param.first;
-
-            // Clipping based on data type  
-            float epsilon, max_val;  
+ 
+            float epsilon;
+            float max_val;
             if(s.type() == shape::half_type) {  
                 epsilon = 1e-4f;  
                 max_val = 1e4f;

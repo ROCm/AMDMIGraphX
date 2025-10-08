@@ -71,7 +71,7 @@ struct parse_depthtospace : op_parser<parse_depthtospace>
 
             auto n = info.add_instruction(make_op("dimensions_of", {{"end", 1}}), args[0]);
             assert(dyn_dims1[1].is_fixed()); // for now, there may not be a use case where channels
-                                            // would also be dynamic
+                                             // would also be dynamic
             int64_t c = dyn_dims1[1].max;
             auto dims_of =
                 info.add_instruction(make_op("dimensions_of", {{"start", 2}, {"end", 4}}), args[0]);
